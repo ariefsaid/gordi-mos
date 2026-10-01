@@ -45,8 +45,9 @@ export function DueRunsList({ due, expanded, startingKey, startError, onStart, c
               </div>
               {/* Generic lists name the Process action and describe its Team. Inside a Process
                   record, the Team is the distinct start target and is named in the action itself. */}
+              {/* Inside a Process record the page keeps its one primary elsewhere, so a start is a secondary action. */}
               <Button
-                variant="primary"
+                variant={processRecordContext ? 'outline' : 'primary'}
                 className="due-runs-start-btn"
                 disabled={startingKey === key}
                 aria-describedby={!processRecordContext ? labelsId : undefined}

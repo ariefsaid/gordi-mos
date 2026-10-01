@@ -31,8 +31,8 @@ test.describe('AC-204: Objective roll-up and drill', () => {
   // "Show relations" (the expand-panel trigger + catalog-relations panel) was retired on
   // purpose: the roll-up count and the one real child now render INLINE on the catalog row
   // itself (catalog-list-presentation.tsx), and drilling is the record page's own doing —
-  // work_lines.objective_id renders as a real linked-work door under the Work tab of an
-  // Objective's canonical page (catalog-record-document.tsx / record-viewer.tsx), and the
+  // work_lines.objective_id renders as a real linked-work door in the Projects & Processes
+  // section of an Objective's canonical page (catalog-record-document.tsx / record-viewer.tsx), and the
   // "Objective" detail field on a Project/Process's page links back up the same way. Confirmed
   // live (2026-09-22): a hard load of /work/objectives/:id navigates by REAL <Link> (no
   // in-app-panel host on the standalone page), so `toHaveURL` after a click is a true assertion,
@@ -54,23 +54,20 @@ test.describe('AC-204: Objective roll-up and drill', () => {
     await expect(row).not.toContainText(/Projects & Processes: \d/)
 
     // Level 2 — the Objective's own canonical page lists a real door to the child record under
-    // its Work tab's linked work.
+    // its Projects & Processes section.
     await page.goto(`work/objectives/${AC204.objective.id}`)
     await expect(page.getByRole('heading', { name: AC204.objective.name, exact: true })).toBeVisible()
-    await page.getByRole('tab', { name: 'Work', exact: true }).click()
-    const work = page.getByRole('tabpanel', { name: 'Work', exact: true })
-    await expect(work.getByTestId('catalog-record-progress')).toHaveText(`${done} / ${total} tasks done`)
-    const linkedWork = work.getByTestId('catalog-record-links')
-    const child = linkedWork.getByRole('link', { name: AC204.launch.name, exact: true })
+    const work = page.getByRole('region', { name: 'Projects & Processes', exact: true })
+    await expect(work).toContainText(`${done} of ${total} tasks done`)
+    const child = work.getByRole('link', { name: AC204.launch.name, exact: true })
     await expect(child).toHaveAttribute('href', href(`/work/projects/${AC204.launch.id}`))
     await child.click()
     await expect(page).toHaveURL(new RegExp(`/work/projects/${AC204.launch.id}$`))
     await expect(page.getByRole('heading', { name: AC204.launch.name, exact: true })).toBeVisible()
 
-    // Level 3: the child's own Work tab lists a real Task record door. Follow one — the drill
+    // Level 3: the child's own Tasks section lists a real Task record door. Follow one — the drill
     // has to actually arrive.
-    await page.getByRole('tab', { name: 'Work', exact: true }).click()
-    await page.getByRole('tabpanel', { name: 'Work', exact: true })
+    await page.getByRole('region', { name: 'Tasks', exact: true })
       .getByRole('link', { name: AC204.tasks.launchOpen.title, exact: true }).click()
     await expect(page).toHaveURL(new RegExp(`/work/tasks/${AC204.tasks.launchOpen.id}`))
   })
@@ -79,8 +76,8 @@ test.describe('AC-204: Objective roll-up and drill', () => {
     await page.goto(`work/projects/${AC204.launch.id}`)
     await expect(page.getByRole('heading', { name: AC204.launch.name, exact: true })).toBeVisible()
 
-    // The "Objective" detail field is the up-drill: a real door, back to the same record.
-    const objectiveField = page.getByRole('link', { name: AC204.objective.name, exact: true })
+    // The parent Objective fact in the header is the up-drill: a real door, back to the same record.
+    const objectiveField = page.getByRole('list', { name: 'Key facts' }).getByRole('link', { name: AC204.objective.name, exact: true })
     await expect(objectiveField).toHaveAttribute('href', href(`/work/objectives/${AC204.objective.id}`))
     await objectiveField.click()
     await expect(page).toHaveURL(new RegExp(`/work/objectives/${AC204.objective.id}$`))

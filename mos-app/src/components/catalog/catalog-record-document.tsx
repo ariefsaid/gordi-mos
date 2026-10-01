@@ -1,45 +1,42 @@
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useHref } from 'react-router-dom'
+// An Objective or a Project/Process as one record page (panel and full page). The shared record
+// components (components/record) own the anatomy; this file adapts a catalog record to them:
+// which facts the header carries, what is still missing, who may act, and which sections follow.
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useHref, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { saveErrorMessage } from '@/lib/save-error'
-import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
+import { EmptyState, ErrorState } from '@/components/ui/state-kit'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
-import { ModalShell } from '@/components/ui/modal-shell'
-import { TextInput } from '@/components/ui/text-input'
-import { RecordFieldList, RecordViewer } from '@/components/records/record-viewer'
-import type {
-  RecordAction,
-  RecordFieldSpec,
-  RecordViewerAdapter,
-  RecordViewerTab,
-  RecordValue,
-} from '@/components/records/record-viewer.types'
+import { RecordField } from '@/components/records/record-field'
+import type { RecordFieldSpec, RecordValue } from '@/components/records/record-viewer.types'
+import { RecordPageHeader, type RecordFact } from '@/components/record/record-page-header'
+import { RecordAbout, RecordGetStarted, RecordPageLayout, RecordPageSkeleton, RecordSection, type RecordSetupItem } from '@/components/record/record-page-layout'
+import type { RecordMenuItem } from '@/components/record/record-menu'
+import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
 import type { OverlayLeaveDecision, OverlayLeaveGuard, OverlayLeaveIntent } from '@/shell/overlay-navigation'
 import { RouteLeaveGuard } from '@/shell/route-leave-guard'
-import { updateObjective } from '@/lib/db/objectives'
-import { updateWorkLine } from '@/lib/db/work-lines'
-import type { ProcessRecordData } from '@/lib/db/work-records'
+import { useIsDesktop } from '@/shell/use-is-desktop'
+import { listObjectivesAll, updateObjective } from '@/lib/db/objectives'
+import { listWorkLinesAll, updateWorkLine } from '@/lib/db/work-lines'
+import { wibToday } from '@/lib/db/cafe-opening'
 import { ProcessOccurrenceControls } from '@/components/processes/process-occurrence-controls'
-import {
-  COMPANY_WIDE_OPTION,
-  objectivesCatalogActions,
-  projectsProcessesCatalogActions,
-  type CatalogCollectionContext,
-  type CatalogRelationGroup,
-  type CatalogRow,
-} from './catalog-collection-adapter'
-import { loadCatalogRecordData, loadCatalogRecordEditDirectory, type CatalogRecordEditDirectory } from './catalog-record-loader'
+import { COMPANY_WIDE_OPTION, objectivesCatalogActions, projectsProcessesCatalogActions } from './catalog-collection-adapter'
+import { loadCatalogRecordData, loadCatalogRecordEditDirectory, type CatalogRecordData, type CatalogRecordEditDirectory, type CatalogWorkLineFact } from './catalog-record-loader'
 import './catalog-record-document.css'
 import { ObjectiveKeyResultsSection } from './objective-key-results-section'
 import { RecordHistory } from './record-history'
-import { allowedBusinessUnitIds, canEditObjectiveContentForScope, canManageForScope, useWorkWriteAuthority } from './use-work-write-authority'
-
-const ObjectiveWriteupEditor = lazy(() => import('./objective-writeup-editor').then((m) => ({ default: m.ObjectiveWriteupEditor })))
+import {
+  InlineChooser, LinkedWorkSection, StepsSection, TasksSection, WriteUpSection,
+  type CatalogRelatedKind,
+} from './catalog-record-sections'
+import {
+  canCreateForScope, canEditObjectiveContentForScope, canManageForScope, useWorkWriteAuthority,
+} from './use-work-write-authority'
 
 export type CatalogRecordKind = 'work-line' | 'objective'
-export type CatalogRelatedKind = CatalogRecordKind | 'task'
+export type { CatalogRelatedKind }
 
 export interface CatalogRecordDocumentProps {
   kind: CatalogRecordKind
@@ -47,20 +44,19 @@ export interface CatalogRecordDocumentProps {
   mode: 'panel' | 'page'
   onOpenRelated?: (kind: CatalogRelatedKind, id: string) => void
   onOpenPage?: () => void
-  onCreateTask?: () => void
+  /** Opens task creation for one Project/Process. */
+  onCreateTask?: (workLineId: string) => void
   onTitleResolved?: (title: string) => void
   onChanged?: () => void
   onLeaveGuardChange?: (guard: OverlayLeaveGuard | undefined) => void
 }
 
-type CatalogRecordState = {
-  row: CatalogRow
-  context: CatalogCollectionContext
-  process: ProcessRecordData | null
-  peopleById: ReadonlyMap<string, string>
-  roleNamesById: ReadonlyMap<string, string>
-  owningTeams: ReadonlyMap<string, string | null>
-}
+const STEPS_ADD_CONTROL = '[data-record-section="steps"] .rp-section__action, [data-record-section="steps"] .catalog-step-add'
+
+type Notice = { message: string; undo?: () => Promise<void> }
+type Chooser =
+  | { purpose: 'link'; status: 'loading' | 'error' | 'empty' | 'ready'; options: { value: string; label: string }[]; objectiveOf: Map<string, string | null>; names: Map<string, string> }
+  | { purpose: 'task'; options: { value: string; label: string }[] }
 
 function cadenceLabel(kind: string, t: ReturnType<typeof useT>): string {
   const labels = {
@@ -72,183 +68,12 @@ function cadenceLabel(kind: string, t: ReturnType<typeof useT>): string {
   return kind in labels ? labels[kind as keyof typeof labels] : kind
 }
 
-function statusLabel(status: string, t: ReturnType<typeof useT>): string {
-  const keys: Record<string, 'open' | 'inProgress' | 'blocked' | 'done'> = {
-    Open: 'open',
-    'In Progress': 'inProgress',
-    Blocked: 'blocked',
-    Done: 'done',
-  }
-  const key = keys[status]
-  return key ? t(`tasks.status.${key}`) : status
-}
-
-function relatedPath(kind: CatalogRelatedKind, id: string): string {
-  if (kind === 'task') return `/work/tasks/${id}`
-  if (kind === 'objective') return `/work/objectives/${id}`
-  return `/work/projects/${id}`
-}
-
-function RelatedLink({
-  kind,
-  id,
-  children,
-  onOpenRelated,
-}: {
-  kind: CatalogRelatedKind
-  id: string
-  children: string
-  onOpenRelated?: (kind: CatalogRelatedKind, id: string) => void
-}) {
-  return (
-    <Link
-      className="catalog-record-document__related-link"
-      to={relatedPath(kind, id)}
-      onClick={(event) => {
-        if (!onOpenRelated || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
-        event.preventDefault()
-        onOpenRelated(kind, id)
-      }}
-    >
-      {children}
-    </Link>
-  )
-}
-
-function recordTypeLabel(row: CatalogRow, t: ReturnType<typeof useT>): string {
-  if (!row.type) return t('catalog.record.objective')
-  return t(row.type === 'project' ? 'catalog.tag.project' : 'catalog.tag.process')
-}
-
-function directoryName(
-  id: string | null | undefined,
-  names: ReadonlyMap<string, string> | undefined,
-  t: ReturnType<typeof useT>,
-): string {
-  if (!id) return t('catalog.notSet')
-  return names?.get(id) ?? t('catalog.notAvailable')
-}
-
-function businessUnitLabel(
-  row: Pick<CatalogRow, 'businessUnitId' | 'isCompanyWide'>,
-  names: ReadonlyMap<string, string> | undefined,
-  t: ReturnType<typeof useT>,
-): string {
-  if (row.isCompanyWide) return t('catalog.companyWide')
-  return directoryName(row.businessUnitId, names, t)
-}
-
-function periodQuarterLabel(quarter: number | null | undefined, year: number | null | undefined, t: ReturnType<typeof useT>): string {
-  if (year == null) return t('catalog.notSet')
+function periodQuarterLabel(quarter: number | null | undefined, t: ReturnType<typeof useT>): string {
   if (quarter === 1) return t('catalog.period.q1')
   if (quarter === 2) return t('catalog.period.q2')
   if (quarter === 3) return t('catalog.period.q3')
   if (quarter === 4) return t('catalog.period.q4')
   return t('catalog.period.wholeYear')
-}
-
-function processOwner(
-  personId: string | null,
-  roleId: string | null,
-  people: ReadonlyMap<string, string>,
-  roles: ReadonlyMap<string, string>,
-  t: ReturnType<typeof useT>,
-): string {
-  const person = directoryName(personId, people, t)
-  const role = roleId ? roles.get(roleId) ?? t('catalog.notAvailable') : ''
-  if (person === t('catalog.notSet') && !role) return person
-  if (person === t('catalog.notSet')) return role
-  if (!role || role === t('catalog.notAvailable')) return person
-  return `${person} · ${role}`
-}
-
-async function recordDataFor(
-  kind: CatalogRecordKind,
-  id: string,
-  viewerId: string | null,
-): Promise<CatalogRecordState | null> {
-  return loadCatalogRecordData(kind, id, viewerId)
-}
-
-type CatalogTask = CatalogRecordState['context']['relationsById'] extends ReadonlyMap<string, infer R>
-  ? R extends { tasks: readonly (infer T)[] } ? T : never
-  : never
-
-function taskSlot(
-  tasks: readonly CatalogTask[],
-  kind: CatalogRecordKind,
-  id: string,
-  onOpenRelated: CatalogRecordDocumentProps['onOpenRelated'],
-  onCreateTask: CatalogRecordDocumentProps['onCreateTask'],
-  t: ReturnType<typeof useT>,
-) {
-  return (
-    <div className="catalog-record-document__task-slot">
-      {tasks.length > 0 ? (
-        <ul className="catalog-record-document__task-list">
-          {tasks.map((task) => (
-            <li key={task.id}>
-              <RelatedLink kind="task" id={task.id} onOpenRelated={onOpenRelated}>{task.title}</RelatedLink>
-              {task.status ? <span className="catalog-record-document__task-status">{statusLabel(task.status, t)}</span> : null}
-            </li>
-          ))}
-        </ul>
-      ) : <p className="catalog-record-document__muted">{t('catalog.record.noTasks')}</p>}
-      {kind === 'work-line' ? (
-        onCreateTask ? (
-          <Button type="button" variant="outline" onClick={onCreateTask}>{t('catalog.record.createTask')}</Button>
-        ) : (
-          <Link className="btn btn-outline" to={`/work/tasks?create=1&work_line=${encodeURIComponent(id)}`}>
-            {t('catalog.record.createTask')}
-          </Link>
-        )
-      ) : null}
-    </div>
-  )
-}
-
-function linkedWorkSlot(
-  groups: readonly CatalogRelationGroup[],
-  tasks: readonly CatalogTask[],
-  kind: CatalogRecordKind,
-  id: string,
-  progress: { done: number; total: number },
-  onOpenRelated: CatalogRecordDocumentProps['onOpenRelated'],
-  onCreateTask: CatalogRecordDocumentProps['onCreateTask'],
-  t: ReturnType<typeof useT>,
-) {
-  const linkable = groups.filter((group) => group.entity === 'work-line' || group.entity === 'objective')
-  return (
-    <div className="catalog-record-document__work-slot">
-      <p className="catalog-record-document__progress" data-testid="catalog-record-progress">
-        {t('catalog.record.progress', { done: String(progress.done), total: String(progress.total) })}
-      </p>
-      <h3>{t('catalog.record.linkedWork')}</h3>
-      {linkable.length > 0 ? (
-        <ul className="catalog-record-document__related-list" data-testid="catalog-record-links">
-          {linkable.map((group, index) => {
-            const relationship = group.relationship === 'contribution'
-              ? t(kind === 'work-line' ? 'catalog.relations.contributesTo' : 'catalog.relations.viaTask', { name: group.name })
-              : group.name
-            const targetKind = group.entity === 'objective' ? 'objective' : 'work-line'
-            const label = group.synthetic ? group.name : relationship
-            return (
-              <li key={`${group.relationship ?? 'related'}:${group.id}:${index}`}>
-                {group.synthetic ? <span>{label}</span> : (
-                  <RelatedLink kind={targetKind} id={group.id} onOpenRelated={onOpenRelated}>{label}</RelatedLink>
-                )}
-                <span className="catalog-record-document__task-status">
-                  {t('catalog.relations.progress', { done: String(group.done), total: String(group.total) })}
-                </span>
-              </li>
-            )
-          })}
-        </ul>
-      ) : <p className="catalog-record-document__muted">{t(kind === 'work-line' ? 'catalog.record.noRelatedObjective' : 'catalog.record.noRelatedWork')}</p>}
-      <h3>{t('catalog.record.tasks')}</h3>
-      {taskSlot(tasks, kind, id, onOpenRelated, onCreateTask, t)}
-    </div>
-  )
 }
 
 export function CatalogRecordDocument({
@@ -263,49 +88,53 @@ export function CatalogRecordDocument({
   onLeaveGuardChange,
 }: CatalogRecordDocumentProps) {
   const t = useT()
-  const canonicalHref = useHref(relatedPath(kind, id))
+  const navigate = useNavigate()
+  const canonicalHref = useHref(kind === 'objective' ? `/work/objectives/${id}` : `/work/projects/${id}`)
   const auth = useAuth()
+  const { runtime, openPanel } = useAgentRuntime()
+  const isDesktop = useIsDesktop()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
   const { scopes, loading: scopesLoading, error: scopesError, retry: retryScopes } = useWorkWriteAuthority()
   const canRead = auth.status === 'authenticated'
-  const [state, setState] = useState<CatalogRecordState | null>(null)
+  const [state, setState] = useState<CatalogRecordData | null>(null)
   const [status, setStatus] = useState<'loading' | 'ready' | 'error' | 'not-found'>('loading')
   const [mutationError, setMutationError] = useState('')
   const [busy, setBusy] = useState(false)
-  const [renameOpen, setRenameOpen] = useState(false)
-  const [renameDraft, setRenameDraft] = useState('')
   const [reloadNonce, setReloadNonce] = useState(0)
-  // Bumped after every successful write so the History section re-reads the row the trigger just added.
+  // Bumped after every successful write so History re-reads the row the trigger just added.
   const [historyVersion, setHistoryVersion] = useState(0)
   const [editDirectory, setEditDirectory] = useState<CatalogRecordEditDirectory | null>(null)
   const [editDirectoryError, setEditDirectoryError] = useState(false)
   const [editDirectoryRetry, setEditDirectoryRetry] = useState(0)
   const [fieldDirty, setFieldDirty] = useState(false)
   const [pendingLeave, setPendingLeave] = useState<OverlayLeaveIntent | null>(null)
+  const [krCount, setKrCount] = useState<number | null>(null)
+  const [addKeyResultToken, setAddKeyResultToken] = useState(0)
+  const [addingStep, setAddingStep] = useState(false)
+  const [chooser, setChooser] = useState<Chooser | null>(null)
+  const [moving, setMoving] = useState<{ id: string; name: string; from: string } | null>(null)
+  const [linkError, setLinkError] = useState<(() => Promise<void>) | null>(null)
+  const [notice, setNotice] = useState<Notice | null>(null)
   const resolverRef = useRef<((decision: OverlayLeaveDecision) => void) | null>(null)
-  const canManage = state
-    ? canManageForScope(kind, state.row.businessUnitId, scopes)
-    : false
+  const noticeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  // The control that opened a chooser or form, so withdrawing it puts focus back where the person was.
+  const openerRef = useRef<HTMLElement | null>(null)
+  const canManage = state ? canManageForScope(kind, state.row.businessUnitId, scopes) : false
 
   useEffect(() => {
     let live = true
     setStatus('loading')
     setState(null)
     if (!canRead) return () => { live = false }
-    void recordDataFor(kind, id, viewerId)
+    void loadCatalogRecordData(kind, id, viewerId)
       .then((next) => {
         if (!live) return
-        if (!next) {
-          setStatus('not-found')
-          return
-        }
+        if (!next) { setStatus('not-found'); return }
         setState(next)
         setStatus('ready')
         onTitleResolved?.(next.row.name)
       })
-      .catch(() => {
-        if (live) setStatus('error')
-      })
+      .catch(() => { if (live) setStatus('error') })
     return () => { live = false }
   }, [id, kind, onTitleResolved, viewerId, reloadNonce, canRead])
 
@@ -318,9 +147,7 @@ export function CatalogRecordDocument({
     if (!canRead || !canManage || !hasState) return
     let live = true
     void loadCatalogRecordEditDirectory(kind)
-      .then((directory) => {
-        if (live) setEditDirectory(directory)
-      })
+      .then((directory) => { if (live) setEditDirectory(directory) })
       .catch(() => { if (live) setEditDirectoryError(true) })
     return () => { live = false }
   }, [canManage, canRead, id, kind, hasState, editDirectoryRetry])
@@ -338,6 +165,21 @@ export function CatalogRecordDocument({
     onLeaveGuardChange?.(dirtyRef.current ? leaveGuard : undefined)
     return () => onLeaveGuardChange?.(undefined)
   }, [fieldDirty, leaveGuard, onLeaveGuardChange])
+
+  useEffect(() => () => clearTimeout(noticeTimer.current), [])
+  const announce = useCallback((next: Notice | null) => {
+    clearTimeout(noticeTimer.current)
+    setNotice(next)
+    if (next) noticeTimer.current = setTimeout(() => setNotice(null), 10_000)
+  }, [])
+
+  /** Re-read the record without blanking the page (a link, an unlink, a new step). */
+  const refresh = useCallback(async () => {
+    const next = await loadCatalogRecordData(kind, id, viewerId)
+    if (next) setState(next)
+    setHistoryVersion((v) => v + 1)
+    onChanged?.()
+  }, [id, kind, onChanged, viewerId])
 
   const renameRecord = useCallback(async (value: RecordValue) => {
     const name = String(value ?? '').trim()
@@ -385,7 +227,7 @@ export function CatalogRecordDocument({
       } else if (kind === 'work-line' && key === 'responsible') {
         await updateWorkLine(id, { responsible_person_id: text })
       } else throw new Error(t('catalog.saveFailed'))
-      const refreshed = await recordDataFor(kind, id, viewerId)
+      const refreshed = await loadCatalogRecordData(kind, id, viewerId)
       if (refreshed) setState(refreshed)
       setHistoryVersion((v) => v + 1)
       onChanged?.()
@@ -395,7 +237,7 @@ export function CatalogRecordDocument({
     }
   }, [canManage, id, kind, onChanged, renameRecord, state?.row.archived_at, t, viewerId])
 
-  const setArchived = useCallback(async (archived: boolean) => {
+  const setArchived = useCallback(async (archived: boolean, name: string) => {
     if (!canManage) throw new Error(t('catalog.record.readOnly'))
     setBusy(true)
     setMutationError('')
@@ -408,218 +250,20 @@ export function CatalogRecordDocument({
       } : current)
       setHistoryVersion((v) => v + 1)
       onChanged?.()
+      // Archiving is reversible, so it acts at once and offers the way back.
+      announce(archived ? { message: t('catalog.record.archivedNotice', { name }), undo: () => setArchived(false, name) } : null)
     } catch (error) {
       setMutationError(saveErrorMessage(error, t))
       throw error
     } finally {
       setBusy(false)
     }
-  }, [canManage, id, kind, onChanged, t])
+  }, [announce, canManage, id, kind, onChanged, t])
 
-  const adapter = useMemo<RecordViewerAdapter | null>(() => {
-    if (!state) return null
-    const { row, context, process, peopleById, roleNamesById, owningTeams } = state
-    const businessUnitsById = new Map(context.businessUnitsById ?? [])
-    const allPeopleById = new Map(peopleById)
-    for (const [personId, name] of editDirectory?.peopleById ?? []) allPeopleById.set(personId, name)
-    for (const [businessUnitId, name] of editDirectory?.businessUnitsById ?? []) businessUnitsById.set(businessUnitId, name)
-    const objectiveOptionsById = new Map((context.objectiveOptions ?? []).map((option) => [option.value, option.label] as const))
-    for (const option of editDirectory?.objectiveOptions ?? []) objectiveOptionsById.set(option.value, option.label)
-    const objectiveOptions = [...objectiveOptionsById].map(([value, label]) => ({ value, label }))
-    const allowedBuIds = allowedBusinessUnitIds(kind, scopes)
-    const businessUnitOptions = [...businessUnitsById]
-      .filter(([value]) => allowedBuIds === null || allowedBuIds.includes(value))
-      .map(([value, label]) => ({ value, label }))
-    const emptyOption = { value: '', label: t('catalog.notSet') }
-    const companyWideOption = { value: COMPANY_WIDE_OPTION, label: t('catalog.companyWide') }
-    const businessUnitEditOptions = allowedBuIds === null
-      ? [emptyOption, ...(kind === 'objective' ? [companyWideOption] : []), ...businessUnitOptions]
-      : businessUnitOptions
-    const allRelationGroups = context.relationsById.get(id)?.groups ?? []
-    const relationGroups = allRelationGroups.filter((group) => !group.synthetic)
-    const parentRelation = relationGroups.find((group) => group.relationship === 'direct' && group.entity === 'objective')
-    const relation = kind === 'work-line' ? parentRelation : relationGroups[0]
-    const relationTasks = context.relationsById.get(id)?.tasks ?? []
-    const fields: RecordFieldSpec[] = kind === 'objective'
-      ? [
-          { key: 'businessUnit', label: t('catalog.record.businessUnit'), control: 'relation', value: row.isCompanyWide ? COMPANY_WIDE_OPTION : row.businessUnitId ?? null, displayValue: businessUnitLabel(row, businessUnitsById, t), editable: false },
-          { key: 'accountable', label: t('catalog.record.accountable'), control: 'person', value: row.accountablePersonId ?? null, displayValue: directoryName(row.accountablePersonId, allPeopleById, t), editable: false },
-          { key: 'period', label: t('catalog.record.period'), control: 'text', value: row.periodYear ?? null, placeholder: t('catalog.record.periodPlaceholder'), displayValue: row.periodYear == null ? t('catalog.notSet') : String(row.periodYear), editable: false },
-          { key: 'periodQuarter', label: t('catalog.record.periodQuarter'), control: 'select', value: row.periodQuarter == null ? null : String(row.periodQuarter), displayValue: periodQuarterLabel(row.periodQuarter, row.periodYear, t), editable: false },
-        ]
-      : [
-          {
-            key: 'objective',
-            label: t('catalog.record.objective'),
-            control: 'relation',
-            value: row.objectiveId ?? null,
-            displayValue: relation?.name ?? t('catalog.notSet'),
-            editable: false,
-          },
-          { key: 'businessUnit', label: t('catalog.record.businessUnit'), control: 'relation', value: row.businessUnitId ?? null, displayValue: directoryName(row.businessUnitId, businessUnitsById, t), editable: false },
-          { key: 'accountable', label: t('catalog.record.accountable'), control: 'person', value: row.accountablePersonId ?? null, displayValue: directoryName(row.accountablePersonId, allPeopleById, t), editable: false },
-          { key: 'responsible', label: t('catalog.record.responsible'), control: 'person', value: row.responsiblePersonId ?? null, displayValue: directoryName(row.responsiblePersonId, allPeopleById, t), editable: false },
-          ...(row.type === 'process' ? [{ key: 'owningTeam', label: t('catalog.record.owningTeam'), control: 'text' as const, value: null, displayValue: t('catalog.record.teamPerOccurrence'), editable: false } satisfies RecordFieldSpec, { key: 'cadence', label: t('catalog.record.cadence'), control: 'text' as const, value: process?.cadence?.cadence_kind ?? null, displayValue: process?.cadence ? cadenceLabel(process.cadence.cadence_kind, t) : t('catalog.notSet'), editable: false } satisfies RecordFieldSpec] : []),
-        ]
-
-    for (const field of fields) {
-      if (field.key === 'cadence' || field.key === 'owningTeam') continue
-      const needsDirectory = field.key !== 'period' && field.key !== 'periodQuarter'
-      const quarterNeedsYear = field.key === 'periodQuarter' && row.periodYear == null
-      field.editable = canManage && row.archived_at === null && !quarterNeedsYear && (!needsDirectory || editDirectory !== null)
-      if (canManage && quarterNeedsYear) field.readOnlyReason = t('catalog.record.periodQuarterNeedsYear')
-      if (field.key === 'periodQuarter') field.options = [
-        { value: '', label: t('catalog.period.wholeYear') },
-        { value: '1', label: t('catalog.period.q1') },
-        { value: '2', label: t('catalog.period.q2') },
-        { value: '3', label: t('catalog.period.q3') },
-        { value: '4', label: t('catalog.period.q4') },
-      ]
-      if (canManage && needsDirectory && !editDirectory) field.readOnlyReason = t(editDirectoryError ? 'catalog.record.editChoicesError' : 'catalog.record.editChoicesLoading')
-      if (field.key === 'businessUnit') field.options = businessUnitEditOptions
-      if (field.key === 'accountable' || field.key === 'responsible') field.options = [emptyOption, ...[...allPeopleById].map(([value, label]) => ({ value, label }))]
-      if (field.key === 'objective') field.options = [emptyOption, ...objectiveOptions]
-      }
-
-    const readOnlyNote = t(kind === 'objective' ? 'catalog.record.objectiveReadOnly' : 'catalog.record.readOnly')
-
-    const tabs: RecordViewerTab[] = [
-      { id: 'work', label: t('catalog.record.tabs.work') },
-      { id: 'facts', label: t('catalog.record.tabs.details') },
-      ...(row.type === 'process' ? [{ id: 'steps', label: t('catalog.record.tabs.steps') }] : []),
-      ...(kind === 'objective' ? [{ id: 'writeup', label: t('objective.writeUp.tab') }] : []),
-    ]
-
-    const actions: RecordAction[] = canManage ? [{
-      id: 'rename',
-      label: t('catalog.rename'),
-      intent: 'secondary',
-      disabled: busy || row.archived_at !== null,
-      run: () => { setRenameDraft(row.name); setRenameOpen(true) },
-    }, {
-      id: 'archive',
-      label: row.archived_at ? t('catalog.unarchive') : t('catalog.archive'),
-      intent: row.archived_at ? 'secondary' : 'danger',
-      disabled: busy,
-      run: () => setArchived(!row.archived_at),
-    }] : []
-
-    return {
-      kind,
-      id,
-      title: row.name,
-      typeLabel: recordTypeLabel(row, t),
-      tabs,
-      metadata: [],
-      relations: [],
-      contentSlots: [
-        ...(kind === 'objective' || row.type === 'project' ? [{
-          id: 'work',
-          label: t('catalog.record.tabs.work'),
-          render: () => (
-            <>
-              {linkedWorkSlot(
-                allRelationGroups, relationTasks, kind, id,
-                context.progressById.get(id) ?? { done: 0, total: 0 }, onOpenRelated, onCreateTask, t,
-              )}
-              {kind === 'objective' ? (
-                <ObjectiveKeyResultsSection
-                  objectiveId={id}
-                  businessUnitId={row.businessUnitId}
-                  isCompanyWide={row.isCompanyWide}
-                  archived={row.archived_at !== null}
-                  scopes={scopes}
-                  scopesStatus={scopesError ? 'error' : scopesLoading ? 'loading' : 'ready'}
-                  onRetryScopes={retryScopes}
-                />
-              ) : null}
-            </>
-          ),
-        }] : []),
-        ...(row.type === 'process' ? [{
-          id: 'work',
-          label: t('catalog.record.currentNextAction'),
-          render: () => <ProcessOccurrenceControls workLineId={id} setupIncomplete={!process?.steps.length} canManageSetup={canManage} onChanged={() => { setReloadNonce((nonce) => nonce + 1); onChanged?.() }} />,
-        }, {
-          id: 'steps',
-          label: t('catalog.record.steps'),
-          render: () => (
-            <div className="catalog-record-document__steps-slot">
-              {process?.steps.length ? (
-                <ol className="catalog-record-document__steps">
-                  {process.steps.map((step) => {
-                    const checklistItems = Array.isArray((step as { checklist_items?: unknown }).checklist_items)
-                      ? (step as { checklist_items: unknown[] }).checklist_items.filter((item): item is string => typeof item === 'string')
-                      : []
-                    return (
-                      <li key={step.id}>
-                        <span className="catalog-record-document__step-title">{step.title}</span>
-                        {step.description ? <span className="catalog-record-document__step-copy">{step.description}</span> : null}
-                        <dl className="catalog-record-document__step-meta">
-                          <div><dt>{t('tasks.pic')}</dt><dd>{processOwner(step.pic_person_id, step.pic_role_id, peopleById, roleNamesById, t)}</dd></div>
-                          <div><dt>{t('catalog.record.picTeam')}</dt><dd>{owningTeams.get(`${step.id}:pic`) ?? t('catalog.notSet')}</dd></div>
-                          <div><dt>{t('tasks.supervisor')}</dt><dd>{processOwner(step.supervisor_person_id, step.supervisor_role_id, peopleById, roleNamesById, t)}</dd></div>
-                          <div><dt>{t('catalog.record.supervisorTeam')}</dt><dd>{owningTeams.get(`${step.id}:supervisor`) ?? t('catalog.notSet')}</dd></div>
-                          <div><dt>{t('catalog.record.due')}</dt><dd>{t('catalog.record.dueOffset', { count: String(step.due_offset_days) })}</dd></div>
-                        </dl>
-                        {checklistItems.length > 0 ? <ul className="catalog-record-document__checklist">{checklistItems.map((item) => <li key={item}>{item}</li>)}</ul> : null}
-                      </li>
-                    )
-                  })}
-                </ol>
-              ) : <p className="catalog-record-document__muted">{t('catalog.record.noSteps')}</p>}
-            </div>
-          ),
-        }] : []),
-        ...(kind === 'objective' ? [{
-          id: 'writeup',
-          label: t('objective.writeUp.tab'),
-          render: (slotContext: { onDirtyChange?: (dirty: boolean) => void }) => (
-            <Suspense fallback={<LoadingShell label={t('objective.writeUp.loading')} />}>
-              <ObjectiveWriteupEditor
-                objectiveId={id}
-                canEdit={canEditObjectiveContentForScope(row, scopes)}
-                archived={row.archived_at !== null}
-                onDirtyChange={slotContext.onDirtyChange}
-              />
-            </Suspense>
-          ),
-        }] : []),
-        {
-          id: 'facts',
-          label: t('catalog.record.details'),
-          section: { id: 'facts', label: t('catalog.record.details'), fields },
-          render: (slotContext) => (
-            <>
-              {!canManage ? <p className="record-viewer__permission-note" role="note">{readOnlyNote}</p> : null}
-              <RecordFieldList
-                section={{ id: 'facts', label: t('catalog.record.details'), fields }}
-                onCommitField={slotContext.onCommitField}
-                onDirtyChange={slotContext.onDirtyChange}
-                fieldCommitsFrozen={slotContext.fieldCommitsFrozen}
-                headingLevel={slotContext.headingLevel}
-              />
-              <RecordHistory
-                key={historyVersion}
-                table={kind === 'objective' ? 'objectives' : 'work_lines'}
-                recordId={id}
-                headingLevel={slotContext.headingLevel}
-              />
-            </>
-          ),
-        },
-      ],
-      activity: [],
-      actions,
-      headerOverflowActionIds: canManage ? ['rename', 'archive'] : [],
-      permission: {
-        readOnly: !canManage,
-        reason: canManage ? undefined : readOnlyNote,
-        allowedActionIds: actions.map((action) => action.id),
-      },
-      state: 'ready',
-    } satisfies RecordViewerAdapter
-  }, [busy, canManage, editDirectory, editDirectoryError, historyVersion, id, kind, onChanged, onCreateTask, onOpenRelated, retryScopes, scopes, scopesError, scopesLoading, setArchived, state, t])
+  const createTask = useCallback((workLineId: string) => {
+    if (onCreateTask) onCreateTask(workLineId)
+    else navigate({ pathname: '/work/tasks', search: `?create=1&work_line=${encodeURIComponent(workLineId)}` })
+  }, [navigate, onCreateTask])
 
   const discardAndLeave = useCallback(async () => {
     resolverRef.current?.({ decision: 'allow' })
@@ -633,29 +277,408 @@ export function CatalogRecordDocument({
     setPendingLeave(null)
   }, [])
 
+  // ── Derived record facts ────────────────────────────────────────────────────
+  const derived = useMemo(() => {
+    if (!state) return null
+    const { row, context, process, peopleById, workLinesById } = state
+    const archived = row.archived_at !== null
+    const groups = context.relationsById.get(id)?.groups ?? []
+    const relationTasks = context.relationsById.get(id)?.tasks ?? []
+    const linkedWork = groups.filter((group) => !group.synthetic && group.entity === 'work-line')
+    const parent = groups.find((group) => !group.synthetic && group.relationship === 'direct' && group.entity === 'objective')
+    const allPeople = new Map(peopleById)
+    for (const [personId, name] of editDirectory?.peopleById ?? []) allPeople.set(personId, name)
+    const businessUnits = new Map(context.businessUnitsById ?? [])
+    for (const [unitId, name] of editDirectory?.businessUnitsById ?? []) businessUnits.set(unitId, name)
+    return { row, archived, groups, relationTasks, linkedWork, parent, allPeople, businessUnits, process, workLinesById, context }
+  }, [editDirectory, id, state])
+
   if (!canRead) return <EmptyState variant="blank" title={t('catalog.record.accessDeniedTitle')} copy={t('catalog.record.accessDeniedBody')} headingLevel={2} />
-  if (status === 'loading') return <LoadingShell label={t('catalog.record.loading')} />
+  if (status === 'loading') return <RecordPageSkeleton label={t('catalog.record.loading')} />
   if (status === 'error') return <ErrorState message={t('catalog.record.error')} onRetry={() => setReloadNonce((nonce) => nonce + 1)} />
-  if (status === 'not-found' || !state || !adapter) return <EmptyState variant="blank" title={t('catalog.record.notFound')} />
+  if (status === 'not-found' || !state || !derived) return <EmptyState variant="blank" title={t('catalog.record.notFound')} />
+
+  const { row, archived, linkedWork, parent, allPeople, businessUnits, process, workLinesById, context } = derived
+  const isObjective = kind === 'objective'
+  const isProcess = row.type === 'process'
+  const canContent = isObjective && canEditObjectiveContentForScope(row, scopes)
+  const canLink = isObjective && !archived && canCreateForScope('work-line', scopes)
+  const isWriter = canManage || canContent || canLink
+  const scopesKnown = !scopesLoading && !scopesError
+  const emptyOption = { value: '', label: t('catalog.notSet') }
+  const editable = (needsDirectory: boolean) => canManage && !archived && (!needsDirectory || editDirectory !== null)
+  const readOnlyReason = (needsDirectory: boolean) => (canManage && needsDirectory && !editDirectory
+    ? t(editDirectoryError ? 'catalog.record.editChoicesError' : 'catalog.record.editChoicesLoading')
+    : undefined)
+  const people = [...allPeople].map(([value, label]) => ({ value, label }))
+  const today = wibToday()
+
+  const personField = (key: 'accountable' | 'responsible', label: string, personId: string | null | undefined): RecordFieldSpec => ({
+    key, label, control: 'person', value: personId ?? null,
+    displayValue: personId ? allPeople.get(personId) ?? t('catalog.notAvailable') : t('record.page.setField', { field: label }),
+    editable: editable(true), readOnlyReason: readOnlyReason(true),
+    options: [emptyOption, ...people],
+  })
+  const personFact = (key: 'accountable' | 'responsible', role: 'accountable' | 'responsible', label: string, personId: string | null | undefined): RecordFact | null => {
+    const field = personField(key, label, personId)
+    return !personId && !field.editable ? null : { type: 'person', key, role, field }
+  }
+
+  const businessUnitOptions = (() => {
+    const allowed = isObjective
+      ? (scopes.objective_org ? null : scopes.objective_bu_ids)
+      : (scopes.workline_org ? null : scopes.workline_bu_ids)
+    const units = [...businessUnits].filter(([value]) => allowed === null || allowed.includes(value)).map(([value, label]) => ({ value, label }))
+    return allowed === null ? [emptyOption, ...(isObjective ? [{ value: COMPANY_WIDE_OPTION, label: t('catalog.companyWide') }] : []), ...units] : units
+  })()
+  const businessUnitField: RecordFieldSpec = {
+    key: 'businessUnit', label: t('catalog.record.businessUnit'), control: 'relation',
+    value: row.isCompanyWide ? COMPANY_WIDE_OPTION : row.businessUnitId ?? null,
+    displayValue: row.isCompanyWide ? t('catalog.companyWide') : row.businessUnitId ? businessUnits.get(row.businessUnitId) ?? t('catalog.notAvailable') : t('record.page.setField', { field: t('catalog.record.businessUnit') }),
+    editable: editable(true), readOnlyReason: readOnlyReason(true), options: businessUnitOptions,
+  }
+
+  const titleField: RecordFieldSpec = {
+    key: 'name', label: t('catalog.nameLabel'), control: 'text', value: row.name, displayValue: row.name,
+    editable: canManage && !archived, required: true, maxLength: 200,
+  }
+
+  const facts: RecordFact[] = [
+    ...(isObjective ? [] : [{ type: 'state', key: 'type', label: t(isProcess ? 'catalog.tag.process' : 'catalog.tag.project'), tone: 'neutral', dot: false } satisfies RecordFact]),
+    archived ? { type: 'state', key: 'state', label: t('catalog.record.archived'), tone: 'warning' } : { type: 'state', key: 'state', label: t('catalog.record.active'), tone: 'neutral' },
+  ]
+  if (isObjective) {
+    const owner = personFact('accountable', 'accountable', t('catalog.record.accountable'), row.accountablePersonId)
+    if (owner) facts.push(owner)
+    const yearEditable = editable(false)
+    const yearField: RecordFieldSpec = {
+      key: 'period', label: t('catalog.record.period'), control: 'text', value: row.periodYear ?? null,
+      placeholder: t('catalog.record.periodPlaceholder'),
+      displayValue: row.periodYear == null ? t('record.page.setField', { field: t('catalog.record.period').toLowerCase() }) : String(row.periodYear),
+      editable: yearEditable,
+    }
+    if (row.periodYear != null || yearEditable) {
+      const quarterField: RecordFieldSpec = {
+        key: 'periodQuarter', label: t('catalog.record.periodQuarter'), control: 'select',
+        value: row.periodQuarter == null ? null : String(row.periodQuarter),
+        displayValue: periodQuarterLabel(row.periodQuarter, t), editable: yearEditable && row.periodYear != null,
+        options: [
+          { value: '', label: t('catalog.period.wholeYear') }, { value: '1', label: t('catalog.period.q1') },
+          { value: '2', label: t('catalog.period.q2') }, { value: '3', label: t('catalog.period.q3') }, { value: '4', label: t('catalog.period.q4') },
+        ],
+      }
+      facts.push({ type: 'group', key: 'period', label: t('catalog.record.period'), fields: row.periodYear == null ? [yearField] : [quarterField, yearField] })
+    }
+    if (row.businessUnitId || row.isCompanyWide || businessUnitField.editable) facts.push({ type: 'field', key: 'businessUnit', field: businessUnitField })
+  } else {
+    const responsible = personFact('responsible', 'responsible', t('catalog.record.responsible'), row.responsiblePersonId)
+    const accountable = personFact('accountable', 'accountable', t('catalog.record.accountable'), row.accountablePersonId)
+    if (responsible) facts.push(responsible)
+    if (accountable) facts.push(accountable)
+    if (isProcess && process?.cadence) {
+      facts.push({ type: 'field', key: 'cadence', field: { key: 'cadence', label: t('catalog.record.cadence'), control: 'text', value: process.cadence.cadence_kind, displayValue: cadenceLabel(process.cadence.cadence_kind, t), editable: false } })
+    }
+    const objectiveField: RecordFieldSpec = {
+      key: 'objective', label: t('catalog.record.objective'), control: 'relation', value: row.objectiveId ?? null,
+      displayValue: parent?.name ?? t('record.page.setField', { field: t('catalog.record.objective') }),
+      href: parent ? `/work/objectives/${parent.id}` : undefined,
+      onOpen: parent && onOpenRelated ? () => onOpenRelated('objective', parent.id) : undefined,
+      editable: editable(true), readOnlyReason: readOnlyReason(true),
+      options: [emptyOption, ...(editDirectory?.objectiveOptions ?? context.objectiveOptions ?? [])],
+    }
+    if (parent || objectiveField.editable) facts.push({ type: 'field', key: 'objective', field: objectiveField })
+  }
+
+  // ── What is still missing, for a viewer who can add it ─────────────────────
+  const ownTaskTargets = isObjective ? linkedWork.map((group) => group.id) : [id]
+  const rememberOpener = () => { openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null }
+  // Back to the control that opened it; when that control was replaced meanwhile, to the Steps add control.
+  const restoreOpener = (fallback?: string) => requestAnimationFrame(() => {
+    if (openerRef.current?.isConnected) openerRef.current.focus()
+    else if (fallback) document.querySelector<HTMLElement>(fallback)?.focus()
+  })
+  const closeChooser = () => { setChooser(null); restoreOpener() }
+  const startAddTask = () => {
+    if (isObjective && linkedWork.length > 1) {
+      rememberOpener()
+      setChooser({ purpose: 'task', options: linkedWork.map((group) => ({ value: group.id, label: group.name })) })
+      return
+    }
+    if (ownTaskTargets[0]) createTask(ownTaskTargets[0])
+  }
+  const openStepForm = () => { rememberOpener(); setAddingStep(true) }
+  const cancelStepForm = () => { setAddingStep(false); restoreOpener(STEPS_ADD_CONTROL) }
+  const startLink = async () => {
+    rememberOpener()
+    setLinkError(null)
+    setChooser({ purpose: 'link', status: 'loading', options: [], objectiveOf: new Map(), names: new Map() })
+    try {
+      const [workLines, objectives] = await Promise.all([listWorkLinesAll(), listObjectivesAll()])
+      const objectiveNames = new Map(objectives.map((objective) => [objective.id, objective.name]))
+      const candidates = workLines
+        .filter((workLine) => workLine.archived_at === null && workLine.objective_id !== id && canManageForScope('work-line', workLine.business_unit_id, scopes))
+        .sort((a, b) => Number(a.objective_id !== null && a.objective_id !== undefined) - Number(b.objective_id !== null && b.objective_id !== undefined) || a.name.localeCompare(b.name))
+      setChooser({
+        purpose: 'link',
+        status: candidates.length === 0 ? 'empty' : 'ready',
+        options: candidates.map((workLine) => ({
+          value: workLine.id,
+          label: workLine.objective_id
+            ? t('catalog.link.optionOther', { name: workLine.name, parent: objectiveNames.get(workLine.objective_id) ?? t('catalog.notAvailable') })
+            : workLine.name,
+        })),
+        objectiveOf: new Map(candidates.map((workLine) => [workLine.id, workLine.objective_id ?? null])),
+        names: new Map(candidates.map((workLine) => [workLine.id, workLine.name])),
+      })
+    } catch {
+      setChooser({ purpose: 'link', status: 'error', options: [], objectiveOf: new Map(), names: new Map() })
+    }
+  }
+  /** True once the link is written; a failure keeps its retry and reports nothing as done. */
+  const link = async (workLineId: string, objectiveId: string | null): Promise<boolean> => {
+    const attempt = async () => {
+      await updateWorkLine(workLineId, { objective_id: objectiveId })
+      setLinkError(null)
+      await refresh()
+    }
+    try { await attempt(); return true } catch { setLinkError(() => attempt); return false }
+  }
+  const unlink = async (workLine: CatalogWorkLineFact) => {
+    if (!(await link(workLine.id, null))) return
+    announce({ message: t('catalog.link.unlinkedNotice', { name: workLine.name }), undo: async () => { await link(workLine.id, id) } })
+  }
+
+  // A writer's Get started region waits for the key-result count, so it never shows a half-known list.
+  const settled = !isObjective || !isWriter || krCount !== null
+  const setup: RecordSetupItem[] = []
+  if (!archived && isWriter && settled) {
+    if (isObjective) {
+      if (canManage && krCount === 0) {
+        setup.push({ id: 'targets', label: t('catalog.setup.targets.label'), reason: t('catalog.setup.targets.reason'), action: { label: t('objective.keyResults.add'), onClick: () => { rememberOpener(); setAddKeyResultToken((n) => n + 1) } } })
+      }
+      if (canLink && linkedWork.length === 0) {
+        setup.push({ id: 'link', label: t('catalog.setup.link.label'), reason: t('catalog.setup.link.reason'), action: { label: t('catalog.link.action'), onClick: () => { void startLink() } } })
+      }
+      if (linkedWork.length > 0 && context.relationsById.get(id)?.tasks.length === 0) {
+        setup.push({ id: 'tasks', label: t('catalog.setup.tasks.label'), reason: t('catalog.setup.tasks.reason'), action: { label: t('catalog.record.addTask'), onClick: startAddTask } })
+      }
+    } else if (isProcess) {
+      if (canManage && process && process.steps.length === 0) {
+        setup.push({ id: 'steps', label: t('catalog.setup.steps.label'), reason: t('catalog.setup.steps.reason'), action: { label: t('catalog.steps.addFirst'), onClick: openStepForm } })
+      }
+    } else if (derived.relationTasks.length === 0) {
+      setup.push({ id: 'tasks', label: t('catalog.setup.firstTask.label'), reason: t('catalog.setup.firstTask.reason'), action: { label: t('catalog.setup.firstTask.action'), onClick: startAddTask } })
+    }
+  }
+  const setupTitle = t(isObjective ? 'catalog.setup.title.objective' : isProcess ? 'catalog.setup.title.process' : 'catalog.setup.title.project')
+  const primary = archived || !settled || setup.length > 0 || isProcess ? undefined
+    : (isObjective ? linkedWork.length > 0 : true) ? { label: t('catalog.record.addTask'), onClick: startAddTask } : undefined
+
+  const accountableName = row.accountablePersonId ? allPeople.get(row.accountablePersonId) : undefined
+  // The line says what the viewer can do: "View only" is for a viewer with nothing to add.
+  const canAddTask = !archived && !isProcess && (isObjective ? linkedWork.length > 0 : true)
+  const noteKey = isObjective
+    ? (canContent
+      ? (accountableName ? 'catalog.record.viewOnly.content' : 'catalog.record.viewOnly.contentOnly')
+      : canAddTask
+        ? (accountableName ? 'catalog.record.viewOnly.objectiveAdd' : 'catalog.record.viewOnly.noneAdd')
+        : (accountableName ? 'catalog.record.viewOnly.objective' : 'catalog.record.viewOnly.none'))
+    : canAddTask
+      ? (accountableName ? 'catalog.record.viewOnly.workLineAdd' : 'catalog.record.viewOnly.noneAdd')
+      : (accountableName ? 'catalog.record.viewOnly.workLine' : 'catalog.record.viewOnly.none')
+  const note = !scopesKnown || canManage ? undefined : t(noteKey, { name: accountableName ?? '' })
+
+  const menu: RecordMenuItem[] = [
+    ...(canonicalHref && typeof navigator !== 'undefined' && navigator.clipboard ? [{
+      id: 'copy', label: t('record.copyLink'),
+      onSelect: () => { void navigator.clipboard.writeText(new URL(canonicalHref, window.location.origin).href).catch(() => {}) },
+    }] : []),
+    // Wide panels carry Open full page in their own bar; on a phone the panel is the whole screen and has none.
+    ...(mode === 'panel' && onOpenPage && !isDesktop ? [{ id: 'open-page', label: t('record.openFullPage'), onSelect: onOpenPage }] : []),
+    ...(runtime ? [{
+      id: 'deputy', label: t('assistant.askAboutRecord'),
+      onSelect: () => openPanel(`About ${isObjective ? t('catalog.record.objective') : t(isProcess ? 'catalog.tag.process' : 'catalog.tag.project')}: ${row.name}`),
+    }] : []),
+    ...(canManage ? [{
+      id: 'archive', label: archived ? t('catalog.unarchive') : t('catalog.archive'), separatorBefore: true, disabled: busy,
+      onSelect: () => { void setArchived(!archived, row.name).catch(() => {}) },
+    }] : []),
+  ]
+
+  const writeUpEditable = canContent
+  const about: { title: string; node: ReactNode } | undefined = isObjective ? undefined : {
+    title: t('record.page.about'),
+    node: (
+      <RecordAbout items={[
+        {
+          key: 'businessUnit', label: t('catalog.record.businessUnit'),
+          value: <span className="rp-about__field"><RecordField spec={businessUnitField} onCommit={(value) => commitProperty('businessUnit', value)} onDirtyChange={setFieldDirty} commitsFrozen={pendingLeave !== null} /></span>,
+        },
+        ...(isProcess ? [{ key: 'owningTeam', label: t('catalog.record.owningTeam'), value: t('catalog.record.teamPerOccurrence') }] : []),
+      ]} />
+    ),
+  }
+
+  const chooserNode = chooser ? (
+    chooser.purpose === 'task' ? (
+      <InlineChooser
+        label={t('catalog.chooser.taskFor')}
+        options={chooser.options}
+        onPick={(workLineId) => { setChooser(null); createTask(workLineId) }}
+        onCancel={closeChooser}
+      />
+    ) : (
+      <InlineChooser
+        label={t('catalog.link.action')}
+        options={chooser.options}
+        onPick={(workLineId) => {
+          const other = chooser.objectiveOf.get(workLineId)
+          setChooser(null)
+          if (other) setMoving({ id: workLineId, name: chooser.names.get(workLineId) ?? '', from: chooser.options.find((option) => option.value === workLineId)?.label ?? '' })
+          else void link(workLineId, id)
+        }}
+        onCancel={closeChooser}
+        status={chooser.status === 'ready' ? undefined : (
+          <p className="rp-chooser__status" role={chooser.status === 'error' ? 'alert' : 'status'}>
+            {chooser.status === 'loading' ? t('catalog.link.loading') : chooser.status === 'empty' ? t('catalog.link.empty') : t('catalog.link.error')}
+            {' '}
+            {chooser.status === 'error' ? <Button variant="ghost" onClick={() => { void startLink() }}>{t('record.field.retry')}</Button> : null}
+            <Button variant="ghost" onClick={closeChooser}>{t('common.cancel')}</Button>
+          </p>
+        )}
+      />
+    )
+  ) : null
+
+  const noticeNode = (
+    <>
+      {mutationError ? <p className="catalog-record-document__error" role="alert">{mutationError}</p> : null}
+      {editDirectoryError ? <ErrorState message={t('catalog.record.editChoicesError')} onRetry={() => setEditDirectoryRetry((value) => value + 1)} /> : null}
+      {linkError ? (
+        <p className="catalog-record-document__error" role="alert">
+          {t('catalog.link.failed')}{' · '}
+          <button type="button" className="objective-key-results__retry" onClick={() => { void linkError().catch(() => {}) }}>{t('record.field.retry')}</button>
+        </p>
+      ) : null}
+      {notice ? (
+        <p className="rp-notice" role="status">
+          <span>{notice.message}</span>
+          {notice.undo ? <Button variant="ghost" onClick={() => { const undo = notice.undo; setNotice(null); void undo?.().catch(() => {}) }}>{t('record.undo')}</Button> : null}
+        </p>
+      ) : null}
+    </>
+  )
+
+  const stepsSection = isProcess && process ? (
+    <StepsSection
+      workLineId={id}
+      process={process}
+      people={allPeople}
+      roles={state.roleNamesById}
+      owningTeams={state.owningTeams}
+      canManage={canManage}
+      archived={archived}
+      adding={addingStep}
+      hidden={setup.some((item) => item.id === 'steps')}
+      onAdd={openStepForm}
+      onCancelAdd={cancelStepForm}
+      onAdded={() => {
+        setAddingStep(false)
+        void refresh().then(() => requestAnimationFrame(() => document.querySelector<HTMLElement>(STEPS_ADD_CONTROL)?.focus()))
+      }}
+    />
+  ) : null
+  // A Process with no steps leads with them: the form the Get started row opens sits right under it.
+  const stepsFirst = isProcess && process !== null && process.steps.length === 0
 
   return (
     <>
       {mode === 'page' ? <RouteLeaveGuard when={fieldDirty} message={t('catalog.record.unsaved.copy')} /> : null}
-      {mutationError ? <p className="catalog-record-document__error" role="alert">{mutationError}</p> : null}
-      {editDirectoryError ? <ErrorState message={t('catalog.record.editChoicesError')} onRetry={() => setEditDirectoryRetry((value) => value + 1)} /> : null}
-      {state.row.archived_at ? <p className="catalog-record-document__archived" role="status">{t('catalog.record.archived')}</p> : null}
-      <RecordViewer
-        adapter={adapter}
+      <RecordPageLayout
+        label={row.name}
         mode={mode}
-        canonicalHref={canonicalHref}
         headingLevel={mode === 'page' ? 1 : 2}
-        onOpenPage={onOpenPage}
-        onOpenRelated={onOpenRelated ? (relation) => onOpenRelated(relation.kind as CatalogRelatedKind, relation.id) : undefined}
-        onDirtyChange={setFieldDirty}
-        onCommitField={commitProperty}
-        onRetry={() => setReloadNonce((nonce) => nonce + 1)}
-        fieldCommitsFrozen={pendingLeave !== null}
-      />
+        header={(
+          <RecordPageHeader
+            title={titleField}
+            headingLevel={mode === 'page' ? 1 : 2}
+            facts={facts}
+            primary={primary}
+            menu={menu}
+            menuLabel={t('record.moreActions')}
+            menuMinItems={canManage ? 1 : 2}
+            factsLabel={t('record.page.facts')}
+            note={note}
+            onCommitField={commitProperty}
+            onDirtyChange={setFieldDirty}
+            fieldCommitsFrozen={pendingLeave !== null}
+          />
+        )}
+        notice={noticeNode}
+        setup={(
+          <>
+            {chooserNode}
+            <RecordGetStarted title={setupTitle} why={t(isObjective ? 'catalog.setup.why.objective' : isProcess ? 'catalog.setup.why.process' : 'catalog.setup.why.project')} items={setup} />
+          </>
+        )}
+        about={about}
+        history={{
+          title: t('catalog.history.title'),
+          node: <RecordHistory key={historyVersion} table={isObjective ? 'objectives' : 'work_lines'} recordId={id} headingLevel={mode === 'page' ? 1 : 2} hideHeading />,
+        }}
+      >
+        {isObjective ? (
+          <>
+            <ObjectiveKeyResultsSection
+              objectiveId={id}
+              businessUnitId={row.businessUnitId}
+              isCompanyWide={row.isCompanyWide}
+              archived={archived}
+              scopes={scopes}
+              scopesStatus={scopesError ? 'error' : scopesLoading ? 'loading' : 'ready'}
+              onRetryScopes={retryScopes}
+              hideWhenEmpty={setup.some((item) => item.id === 'targets')}
+              onCount={setKrCount}
+              onAddClosed={() => restoreOpener()}
+              openAddToken={addKeyResultToken}
+            />
+            <LinkedWorkSection
+              objectiveId={id}
+              groups={linkedWork}
+              progress={context.progressById.get(id) ?? { done: 0, total: 0 }}
+              workLines={workLinesById}
+              people={allPeople}
+              scopes={scopes}
+              archived={archived}
+              canLink={canLink}
+              hidden={setup.some((item) => item.id === 'link')}
+              onLink={() => { void startLink() }}
+              onOpenRelated={onOpenRelated}
+              onUnlink={(workLine) => { void unlink(workLine) }}
+            />
+          </>
+        ) : null}
+        {stepsFirst ? stepsSection : null}
+        {isProcess && process ? (
+          <RecordSection id="occurrence" title={t('catalog.record.currentNextAction')}>
+            <div data-setup-pending={setup.some((item) => item.id === 'steps') || undefined}>
+              <ProcessOccurrenceControls workLineId={id} setupIncomplete={process.steps.length === 0} canManageSetup={canManage} onChanged={() => { setReloadNonce((nonce) => nonce + 1); onChanged?.() }} />
+            </div>
+          </RecordSection>
+        ) : null}
+        <TasksSection
+          title={t(isProcess ? 'catalog.record.processTasks' : 'catalog.record.tasks')}
+          tasks={derived.relationTasks}
+          people={allPeople}
+          canAdd={canAddTask}
+          hidden={setup.some((item) => item.id === 'tasks')}
+          onAdd={startAddTask}
+          onOpenRelated={onOpenRelated}
+          today={today}
+        />
+        {stepsFirst ? null : stepsSection}
+        {isObjective ? <WriteUpSection objectiveId={id} canEdit={writeUpEditable} archived={archived} onDirtyChange={setFieldDirty} /> : null}
+      </RecordPageLayout>
       <ConfirmDialog
         open={pendingLeave !== null}
         title={t('catalog.record.unsaved.title')}
@@ -665,22 +688,20 @@ export function CatalogRecordDocument({
         onConfirm={discardAndLeave}
         onCancel={retainDraft}
       />
-      <ModalShell open={renameOpen} onClose={() => setRenameOpen(false)} ariaLabelledBy="catalog-record-rename-title">
-        <form
-          className="catalog-record-document__rename"
-          onSubmit={(event) => {
-            event.preventDefault()
-            void renameRecord(renameDraft).then(() => setRenameOpen(false)).catch(() => {})
-          }}
-        >
-          <h2 id="catalog-record-rename-title">{t('catalog.rename')}</h2>
-          <TextInput label={t('catalog.nameLabel')} value={renameDraft} onChange={(event) => setRenameDraft(event.target.value)} autoFocus fullWidth />
-          <div className="catalog-record-document__rename-actions">
-            <Button type="button" variant="outline" disabled={busy} onClick={() => setRenameOpen(false)}>{t('common.cancel')}</Button>
-            <Button type="submit" variant="primary" disabled={busy || !renameDraft.trim()}>{busy ? t('record.field.saving') : t('catalog.rename')}</Button>
-          </div>
-        </form>
-      </ModalShell>
+      <ConfirmDialog
+        open={moving !== null}
+        title={t('catalog.link.moveTitle', { name: moving?.name ?? '' })}
+        body={t('catalog.link.moveBody', { name: moving?.name ?? '' })}
+        confirmLabel={t('catalog.link.move')}
+        onConfirm={async () => {
+          if (!moving) return
+          const target = moving
+          setMoving(null)
+          await link(target.id, id)
+        }}
+        onCancel={() => setMoving(null)}
+      />
     </>
   )
 }
+
