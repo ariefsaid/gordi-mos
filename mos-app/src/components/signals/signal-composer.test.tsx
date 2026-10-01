@@ -188,8 +188,20 @@ describe('SignalComposer — Shift+Enter send (OD-REDESIGN-91 #10)', () => {
     // together still carries date + time-of-day for the post.
     const occurred = screen.getByLabelText(/occurred/i) as HTMLInputElement
     expect(occurred.value).toMatch(/^\d{1,2} [A-Za-z]{3} \d{4}$/)
-    expect(screen.getByLabelText('Time')).toHaveAttribute('type', 'time')
+    expect(screen.getByLabelText(/time/i)).toHaveAttribute('type', 'time')
     expect(screen.getByText('WIB')).toBeInTheDocument()
+  })
+
+  it('submits the selected day-first date and local time as the exact ISO instant', async () => {
+    renderComposer()
+    await waitFor(() => expect(mockGetPeople).toHaveBeenCalled())
+    await userEvent.type(screen.getByRole('textbox', { name: /what happened/i }), 'Stock arrived')
+    fireEvent.change(screen.getByLabelText(/occurred/i), { target: { value: '05/10/2026' } })
+    fireEvent.change(screen.getByLabelText(/time/i), { target: { value: '14:35' } })
+    await userEvent.click(screen.getByRole('button', { name: /share signal/i }))
+
+    await waitFor(() => expect(mockCreateSignal).toHaveBeenCalledTimes(1))
+    expect(mockCreateSignal.mock.calls[0][0].occurredAt).toBe(new Date(2026, 9, 5, 14, 35).toISOString())
   })
 })
 

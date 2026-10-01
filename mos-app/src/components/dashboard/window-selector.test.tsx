@@ -169,11 +169,18 @@ describe('WindowSelector — custom date range', () => {
     // Both fields show the stored ISO values in the unambiguous day-first display (#1191).
     expect(fromInput.value).toBe('10 Jun 2026')
     expect(toInput.value).toBe('20 Jun 2026')
-    // Bounded to the available snapshot window (AC-014): a date outside it shows the error and
-    // is never emitted — the window cannot silently move.
-    fireEvent.change(fromInput, { target: { value: '01/01/2020' } })
-    expect(onChange).not.toHaveBeenCalled()
-    expect(screen.getByRole('alert')).toHaveTextContent(/outside/i)
+    // Both bounds apply to both controls: an invalid range endpoint is never emitted.
+    for (const [input, date] of [
+      [fromInput, '01/01/2020'],
+      [fromInput, '01/01/2030'],
+      [toInput, '01/01/2020'],
+      [toInput, '01/01/2030'],
+    ] as const) {
+      fireEvent.change(input, { target: { value: date } })
+      expect(onChange).not.toHaveBeenCalled()
+      expect(input).toHaveAttribute('aria-invalid', 'true')
+      expect(document.getElementById(input.getAttribute('aria-describedby') ?? '')).toHaveTextContent(/outside/i)
+    }
   })
 
   it('AC-014: changing the from date emits a custom spec', () => {

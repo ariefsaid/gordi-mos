@@ -15,6 +15,7 @@ const taskSurfaceCss = readFileSync(resolve(process.cwd(), 'src/components/tasks
 const iconButtonCss = readFileSync(resolve(process.cwd(), 'src/components/ui/IconButton.css'), 'utf8')
 const commandMenuCss = readFileSync(resolve(process.cwd(), 'src/components/command/command-menu.css'), 'utf8')
 const signalComposerCss = readFileSync(resolve(process.cwd(), 'src/components/signals/signal-composer.css'), 'utf8')
+const tasksWorkspaceCss = readFileSync(resolve(process.cwd(), 'src/components/tasks/TasksWorkspace.css'), 'utf8')
 const mentionPickerCss = readFileSync(resolve(process.cwd(), 'src/components/signals/signal-mention-picker.css'), 'utf8')
 const helpTipCss = readFileSync(resolve(process.cwd(), 'src/components/ui/help-tip.css'), 'utf8')
 const helpTipTsx = readFileSync(resolve(process.cwd(), 'src/components/ui/help-tip.tsx'), 'utf8')
@@ -129,9 +130,29 @@ describe('B-i: phone tap-target floor is encoded in shared CSS', () => {
     expect(body).toMatch(/\.cm-item[\s\S]*min-height:\s*44px/)
   })
 
-  it('SYS-2: keeps the Occurred datetime input at a 44px floor', () => {
+  it('SYS-2: keeps the Signal occurred date and time controls at the 44px phone floor', () => {
     const body = mediaBody(signalComposerCss, '@media (max-width: 767.98px)')
-    expect(body).toMatch(/\.signal-composer-datetime input[^}]*min-height:\s*44px/)
+    expect(body).toMatch(/\.signal-composer-time[^}]*min-height:\s*44px/)
+    const dateBody = mediaBody(dateFieldCss, '@media (max-width: 767.98px)')
+    expect(dateBody).toMatch(/\.mk-date__box[^}]*min-height:\s*44px/)
+    expect(dateBody).toMatch(/\.mk-date__cal[^}]*min-height:\s*44px/)
+  })
+
+  it('issue 1191: keeps the task-record date echo below, rather than squeezing, the date input', () => {
+    expect(recordViewerCss).toMatch(/\.record-field__date \.mk-date__hint\s*\{[^}]*position:\s*absolute;[^}]*top:\s*100%/)
+    expect(recordViewerCss).toMatch(/\.record-field__date \.mk-date__box\s*\{[^}]*width:\s*100%;[^}]*box-sizing:\s*border-box/)
+  })
+
+  it('issue 1191: constrains the task-row date editor and field to the due cell', () => {
+    expect(tasksWorkspaceCss).toMatch(/\.inline-editor-control--due\s*\{[^}]*width:\s*100%/)
+    expect(tasksWorkspaceCss).toMatch(/\.inline-editor-control--due \.mk-date__box\s*\{[^}]*width:\s*100%;[^}]*min-width:\s*0/)
+  })
+
+  it('issue 1191: keeps the occurred-at date readable and validation below it in the phone pill', () => {
+    const body = mediaBody(signalComposerCss, '@media (max-width: 767.98px)')
+    expect(body).toMatch(/\.signal-composer-occurred-pill\s*\{[^}]*display:\s*grid;[^}]*border-radius:\s*var\(--radius-lg\)/)
+    expect(body).toMatch(/\.signal-composer-occurred-pill \.mk-date__box\s*\{[^}]*width:\s*100%/)
+    expect(signalComposerCss).toMatch(/\.signal-composer-occurred-pill \.mk-date__error\s*\{[^}]*display:\s*block/)
   })
 
   it('SYS-2: raises the Signal mention rows (.mention-row) to 44px on phone', () => {
