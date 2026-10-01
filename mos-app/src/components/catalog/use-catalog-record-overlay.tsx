@@ -121,6 +121,8 @@ const WORK_OWNER: CatalogRecordOverlayOwner = 'work'
 
 export interface CatalogRecordOverlayController {
   splitOpen: boolean
+  /** A record panel is open over the collection (at any width): the page-head primary steps down. */
+  panelOpen: boolean
   recordId: string | null
   onOpenRecord: (record: CatalogRow) => void
   slot: ReactNode
@@ -248,7 +250,8 @@ export function useCatalogRecordOverlay({
     setParams(next, { replace: true })
   }, [params, setParams])
 
-  const splitOpen = Boolean(recordId && sessionActive && isSplit)
+  const panelOpen = Boolean(recordId && sessionActive)
+  const splitOpen = panelOpen && isSplit
   const slot = host ? (
     <OverlayHostSlot
       owner={WORK_OWNER}
@@ -275,5 +278,5 @@ export function useCatalogRecordOverlay({
     />
   ) : null
 
-  return { splitOpen, recordId, onOpenRecord, slot, buildEntry }
+  return { splitOpen, panelOpen, recordId, onOpenRecord, slot, buildEntry }
 }
