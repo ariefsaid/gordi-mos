@@ -57,3 +57,8 @@
 /* History: the event log inside its disclosure or aside block. */
 .activity-log .event-entry { padding: 8px 0; }
 .activity-log .event-label { font-size: var(--font-size-label); }
+
+/* About: read-only values sit on the same line as an editable one beside them on the phone grid. */
+@media (max-width: 767.98px) {
+  .rp .rp-about__field .record-field--readonly .record-field__value { display: flex; align-items: center; min-height: 44px; }
+}
