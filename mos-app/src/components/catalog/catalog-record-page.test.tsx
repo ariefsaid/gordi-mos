@@ -683,12 +683,33 @@ describe('sections read like a document', () => {
     expect(within(tasks).getAllByRole('link')).toHaveLength(7)
   })
 
-  it('unlinks a directly linked Project through its row action', async () => {
+  async function unlinkViaRowMenu(user: ReturnType<typeof userEvent.setup>, work: HTMLElement) {
+    await user.click(within(work).getByRole('button', { name: 'Actions for Menu launch' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Unlink' }))
+  }
+
+  it('keeps Unlink out of the row: the row offers one overflow trigger, and the menu opens from the keyboard', async () => {
     const user = userEvent.setup()
     populated()
     renderRecord()
     const work = await screen.findByRole('region', { name: 'Projects & Processes' })
-    await user.click(within(work).getByRole('button', { name: 'Unlink Menu launch' }))
+    expect(within(work).queryByRole('button', { name: /^Unlink/ })).toBeNull()
+    const trigger = within(work).getByRole('button', { name: 'Actions for Menu launch' })
+    expect(trigger).toHaveAttribute('aria-haspopup', 'menu')
+    trigger.focus()
+    await user.keyboard('{Enter}')
+    const item = await screen.findByRole('menuitem', { name: 'Unlink' })
+    await waitFor(() => expect(item).toHaveFocus())
+    await user.keyboard('{Enter}')
+    await waitFor(() => expect(updateWorkLine).toHaveBeenCalledWith('wl-1', { objective_id: null }))
+  })
+
+  it('unlinks a directly linked Project through its row menu', async () => {
+    const user = userEvent.setup()
+    populated()
+    renderRecord()
+    const work = await screen.findByRole('region', { name: 'Projects & Processes' })
+    await unlinkViaRowMenu(user, work)
     await waitFor(() => expect(updateWorkLine).toHaveBeenCalledWith('wl-1', { objective_id: null }))
   })
 
@@ -698,7 +719,7 @@ describe('sections read like a document', () => {
     vi.mocked(updateWorkLine).mockRejectedValueOnce(new Error('denied'))
     renderRecord()
     const work = await screen.findByRole('region', { name: 'Projects & Processes' })
-    await user.click(within(work).getByRole('button', { name: 'Unlink Menu launch' }))
+    await unlinkViaRowMenu(user, work)
     expect(await screen.findByText("Couldn't link", { exact: false })).toBeInTheDocument()
     expect(screen.queryByText('Unlinked Menu launch.')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull()
@@ -709,7 +730,7 @@ describe('sections read like a document', () => {
     populated()
     renderRecord()
     const work = await screen.findByRole('region', { name: 'Projects & Processes' })
-    await user.click(within(work).getByRole('button', { name: 'Unlink Menu launch' }))
+    await unlinkViaRowMenu(user, work)
     await user.click(await screen.findByRole('button', { name: 'Undo' }))
     await waitFor(() => expect(updateWorkLine).toHaveBeenLastCalledWith('wl-1', { objective_id: 'obj-1' }))
   })
