@@ -62,6 +62,7 @@ import { resolveHomeLayout, type HomeLayout } from '@/lib/home-layout'
 import { HomeCafeDoor } from '@/components/home/home-cafe-door'
 import { SignalFeedSection } from '@/components/signals/signal-feed-section'
 import { HomeObjectivesDoor } from '@/components/home/home-objectives-door'
+import { CAFE_OPENING_ENABLED } from '@/lib/cafe-opening-enabled'
 import { loadHomeCafeDoor, type HomeCafeDoorData } from '@/lib/db/home-cafe'
 import { loadHomeObjectiveProgress, type HomeObjectiveProgress } from '@/lib/db/home-objectives'
 import { isShipGated } from '@/lib/ship-gate'
@@ -291,7 +292,7 @@ export function HomePage() {
   // The door is only a member composition affordance. It reads the viewer's default Café branch,
   // then the branch's canonical opening run; it never starts a process as a side effect of visiting
   // Home.
-  const cafeMember = Boolean(viewer && !holdsCockpitScope && viewer.affiliated.includes('cafe'))
+  const cafeMember = Boolean(CAFE_OPENING_ENABLED && viewer && !holdsCockpitScope && viewer.affiliated.includes('cafe'))
   const [cafeDoor, setCafeDoor] = useState<HomeCafeDoorData | null>(null)
   const [cafeDoorState, setCafeDoorState] = useState<FetchState>('ready')
   const cafeDoorInFlightRef = useRef(false)

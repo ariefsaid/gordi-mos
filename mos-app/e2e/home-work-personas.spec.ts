@@ -183,23 +183,19 @@ for (const persona of personas) {
   })
 }
 
-test('ordinary barista Home offers opening work before the management brief on a phone', async ({ page }, testInfo) => {
+test('ordinary barista Home leads with assigned work before the management brief on a phone', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await loginAs(page, 'bulan.dev@example.test', DEMO_PASSWORD)
   await page.goto('./')
   const main = page.locator('main')
-  const opening = main.getByRole('link', { name: /opening/i }).first()
-  await expect(opening).toBeVisible()
-  const box = await opening.boundingBox()
-  expect(box?.y).toBeLessThan(600)
+  // Café Opening is hidden (CAFE_OPENING_ENABLED): Home carries no Opening door.
+  await expect(main.getByTestId('home-cafe-door')).toHaveCount(0)
   await expect(main.getByText('Failed checks', { exact: true })).toHaveCount(0)
   await expect(main.getByRole('link', { name: /objectives/i })).toHaveCount(0)
   await expect(main.getByText('Check the espresso recipe before service', { exact: true })).toBeVisible()
   await expect(main.getByText('Prepare the bar handover', { exact: true })).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   await page.screenshot({ path: testInfo.outputPath('barista-home.png') })
-  await opening.click()
-  await expect(page).toHaveURL(/\/cafe(?:[/?]|$)/)
 })
 
 test('a barista completes assigned work from Home and the result survives refresh', async ({ page }) => {

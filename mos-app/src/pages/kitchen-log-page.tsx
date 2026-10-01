@@ -53,10 +53,12 @@ import {
   movementKey,
   movementsForStream,
   streamProduces,
+  streamKey,
   streamLabel,
   PRODUCE,
 } from '@/lib/kitchen-action-label'
 import {
+  canPushCafe,
   needsVarianceNote,
   transferExceedsAvailable,
   VARIANCE_NOTE_CUE,
@@ -202,6 +204,10 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
   // the live stream Teams, so the roastery — a branch with no stream — can never appear.
   const cafeStream = useCafeStream()
   const { branches, options: streamOptions, stream: resolvedStream, homeStream, myStreamKeys } = cafeStream
+  // The location is the module root's when it passes one; otherwise the one the stream ladder
+  // derived (session choice, home branch, only branch), so the root Log is location-bound too.
+  const locationId = activeBranchId ?? cafeStream.branchId ?? undefined
+  const locationName = activeBranchName ?? branches.find((branch) => branch.id === locationId)?.name
   // OD-CAFE-1 — production capture is location-bound.
   //
   // The picker offered every stream in the org while the page said which location you were at, so
@@ -212,15 +218,33 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
   // `streamOptions` stays WHOLE for everything else. The transfer movements are derived from it —
   // a transfer's destination is by definition another branch — so filtering the catalog itself
   // would delete the cross-location workflow instead of bounding the production choice.
+  // A person may work at a stream if they hold a Team on it (any, for ops_lead/admin).
+  const elevated = auth.status === 'authenticated' && canPushCafe(auth.viewer.accessRoles)
+  const eligible = useCallback(
+    (option: ProductionStream) => elevated || myStreamKeys.has(streamKey(option.branch.id, option.activity)),
+    [elevated, myStreamKeys],
+  )
+  // With no location resolved (ask), the choice is the person's eligible streams, never the whole
+  // catalog; choosing one claims that location.
   const locationStreams = useMemo(
-    () => (activeBranchId ? streamOptions.filter((option) => option.branch.id === activeBranchId) : streamOptions),
-    [activeBranchId, streamOptions],
+    () => (locationId
+      ? streamOptions.filter((option) => option.branch.id === locationId)
+      : streamOptions.filter(eligible)),
+    [eligible, locationId, streamOptions],
+  )
+  // Change may also reach another location the person can work at. Choosing one is the explicit
+  // location switch: setStream commits it.
+  const otherLocationStreams = useMemo(
+    () => (locationId
+      ? streamOptions.filter((option) => option.branch.id !== locationId && eligible(option))
+      : []),
+    [eligible, locationId, streamOptions],
   )
   // A remembered stream from another location is stale, not a default. Clearing it puts the page
   // in the same "choose a stream" state as a person with no default at all — nothing is captured
   // against a branch the viewer did not pick, and nothing is silently substituted for them.
-  const streamOutsideLocation = Boolean(activeBranchId) && resolvedStream !== null
-    && resolvedStream.branch.id !== activeBranchId
+  const streamOutsideLocation = Boolean(locationId) && resolvedStream !== null
+    && resolvedStream.branch.id !== locationId
   const stream = streamOutsideLocation ? null : resolvedStream
   // #744: the presentation of the RLS write gate — rows stay visible, capture controls close,
   // one line says why. Same selector the policies arm: affiliated, or ops_lead/admin.
@@ -501,7 +525,8 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
   const streamPicker = (
     <>
     <CafeStreamBar
-      options={locationStreams}
+      options={[...locationStreams, ...otherLocationStreams]}
+      locationBranchId={locationId}
       stream={stream}
       homeStream={homeStream}
       myStreamKeys={myStreamKeys}
@@ -1225,7 +1250,7 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
                     // Name the stale stream: once the picker clears, "that stream" points at
                     // nothing on screen.
                     stream: streamLabel(t, resolvedStream),
-                    location: activeBranchName ?? '',
+                    location: locationName ?? '',
                   })
                   : t('kitchen.log.stream.missing')}
               </span>

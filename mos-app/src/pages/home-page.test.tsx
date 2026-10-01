@@ -43,6 +43,12 @@ vi.mock('../hooks/useMyOpenTaskCount', () => ({ useMyOpenTaskCount: () => shared
 import { listTasks } from '@/lib/db/tasks'
 const mockListTasks = vi.mocked(listTasks)
 
+// Café Opening is switched off in production; Home's door tests run with it on unless a test says otherwise.
+const openingSwitch = vi.hoisted(() => ({ on: true }))
+vi.mock('@/lib/cafe-opening-enabled', () => ({
+  get CAFE_OPENING_ENABLED() { return openingSwitch.on },
+}))
+
 vi.mock('../lib/db/home-cafe', () => ({ loadHomeCafeDoor: vi.fn() }))
 import { loadHomeCafeDoor } from '@/lib/db/home-cafe'
 const mockLoadHomeCafeDoor = vi.mocked(loadHomeCafeDoor)
@@ -247,6 +253,7 @@ beforeEach(() => {
   mockLoadFailedChecks.mockResolvedValue([])
   mockListSignals.mockResolvedValue([])
   mockListAllTeams.mockResolvedValue([])
+  openingSwitch.on = true
   mockLoadHomeCafeDoor.mockResolvedValue(null)
   mockLoadHomeObjectiveProgress.mockResolvedValue([])
 })
@@ -391,6 +398,20 @@ describe('AC-H02: a member sees a usable brief and live Signals column', () => {
     expect(within(brief).queryByRole('region', { name: /^Objectives/ })).toBeNull()
     const assigned = within(brief).getByText('Restock oat milk')
     expect(cafe.compareDocumentPosition(assigned) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+})
+
+describe('Café Opening hidden: Home shows no Opening door', () => {
+  it('renders no Opening door and does not read the opening run while the switch is off', async () => {
+    openingSwitch.on = false
+    mockListTasks.mockResolvedValue([overdueTaskRow(baristaViewer.viewer.person.id)])
+    await renderHome(baristaViewer)
+
+    const brief = await screen.findByTestId('home-daily-brief')
+    expect(within(brief).getByText('Restock oat milk')).toBeInTheDocument()
+    expect(screen.queryByTestId('home-cafe-door')).toBeNull()
+    expect(screen.queryByText(/View opening/i)).toBeNull()
+    expect(mockLoadHomeCafeDoor).not.toHaveBeenCalled()
   })
 })
 

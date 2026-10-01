@@ -630,14 +630,13 @@ export const messages = {
     'cafe.opening.viewTasks': 'View opening tasks',
     // #440: the axis the whole Café module turns on, named in every Café page head. One word,
     // because the value beside it ("Rumah Rames · Kitchen") is what carries the meaning.
-    'cafe.stream.label': 'Stream',
     // #781: the quiet action beside the stated stream, and the one-step choice's own heading —
     // both read the same "choose a production stream" job, wherever the choice actually renders.
-    'cafe.stream.switch': 'Switch',
     'cafe.stream.change': 'Change',
     'cafe.stream.changeAria': 'Change stream',
     'cafe.stream.backTo': 'Back to ${stream}',
     'cafe.stream.yourTeam': 'Your Team',
+    'cafe.stream.otherLocation': 'Other location',
     'cafe.stream.noDefaultHint': 'The home Team decides where Café opens — an admin can set it (Admin Settings → the person → Teams).',
     // Shown where a Café surface has no stream to read against — the person has no live primary
     // stream Team, so there is no default (FR-002) and the one-step choice below is the next step.
@@ -2429,12 +2428,11 @@ export const messages = {
     'cafe.opening.start': 'Mulai pembukaan hari ini',
     'cafe.opening.teamCaption': 'Pembukaan · ${team}',
     'cafe.opening.viewTasks': 'Lihat tugas pembukaan',
-    'cafe.stream.label': 'Stream',
-    'cafe.stream.switch': 'Ganti',
     'cafe.stream.change': 'Ganti',
     'cafe.stream.changeAria': 'Ganti stream',
     'cafe.stream.backTo': 'Kembali ke ${stream}',
     'cafe.stream.yourTeam': 'Tim Anda',
+    'cafe.stream.otherLocation': 'Lokasi lain',
     'cafe.stream.noDefaultHint': 'Tim utama menentukan tempat Kafe dibuka — admin dapat mengaturnya (Pengaturan Admin → orang tersebut → Tim).',
     'cafe.stream.none': 'Pilih stream produksi untuk melihat layar ini.',
     // common.loadFailed: same key, same value, already added by the Money/Budget port above

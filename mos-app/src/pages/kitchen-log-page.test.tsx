@@ -126,7 +126,7 @@ function startsWith(label: string) {
 }
 
 async function chooseStream(optionName: string) {
-  const switchButton = screen.queryByRole('button', { name: /^switch$/i })
+  const switchButton = screen.queryByRole('button', { name: /^change stream$/i })
   if (switchButton) {
     fireEvent.click(switchButton)
     fireEvent.click(await screen.findByRole('option', { name: startsWith(optionName) }))
@@ -206,6 +206,12 @@ const STOCK_MAP = {
   w2: { stok: 0, tersedia: 0 },
 }
 
+// An ops lead may switch to any location's stream (explicit, committing that location).
+const OPS_LEAD: AuthState = {
+  ...VIEWER_MEMBER,
+  viewer: { ...(VIEWER_MEMBER as Extract<AuthState, { status: 'authenticated' }>).viewer, accessRoles: ['ops_lead'] },
+} as AuthState
+
 // ── helpers ───────────────────────────────────────────────────────────────────
 async function renderPage(
   auth: AuthState = VIEWER_MEMBER,
@@ -230,7 +236,7 @@ async function renderPage(
 
 import { KitchenLogPage } from './kitchen-log-page'
 import { rememberStream } from '@/lib/cafe-stream'
-import { resetCafeLocations } from '@/lib/cafe-opening-location'
+import { activeCafeLocation, rememberCafeLocation, resetCafeLocations } from '@/lib/cafe-opening-location'
 import { cafeDraftCount } from '@/lib/cafe-capture-draft'
 
 beforeEach(() => {
@@ -243,6 +249,7 @@ beforeEach(() => {
   mockListActiveBranches.mockResolvedValue(BRANCHES)
   mockListStreamPairs.mockResolvedValue(STREAM_PAIRS)
   mockFetchDefaultStream.mockResolvedValue(DEFAULT_STREAM)
+  mockListCafeViewerTeams.mockResolvedValue([])
   mockFetchPlanMap.mockResolvedValue(PLAN_MAP)
   mockFetchStockMap.mockResolvedValue(STOCK_MAP)
   mockFetchActualsMap.mockResolvedValue({})
@@ -1045,7 +1052,7 @@ describe('issue 222: capture offers the stream\'s own item list', () => {
   const NOT_ON_LIST = new Error('insertKitchenLogBatch failed — CAFE_ITEM_NOT_ON_STREAM: the item is not on this stream\'s item list')
 
   it('switching stream re-reads the list for the new stream', async () => {
-    await renderPage()
+    await renderPage(OPS_LEAD)
     await waitFor(() => screen.getByText('Ayam Bakar'))
     mockListCaptureFormItems.mockResolvedValue([WIP_ITEMS[1]])
     await chooseStream('Gordi HQ · Kitchen')
@@ -1117,7 +1124,7 @@ describe('issue 222: capture offers the stream\'s own item list', () => {
   })
 
   it('switching stream with typed quantities asks first; Cancel keeps them, confirming switches', async () => {
-    await renderPage()
+    await renderPage(OPS_LEAD)
     await waitFor(() => screen.getByText('Ayam Bakar'))
     const nasi = screen.getByRole('spinbutton', { name: /quantity produced for nasi goreng/i })
     fireEvent.change(nasi, { target: { value: '12' } })
@@ -1670,7 +1677,7 @@ describe("AC-002 / FR-001: the capture surface opens on the person's own stream 
 
   it('AC-002/AC-012b (frontend half): switching streams re-scopes plan/stock/actuals and the submitted rows carry the SWITCHED pair', async () => {
     mockInsertKitchenLogBatch.mockResolvedValue(['log-001'])
-    await renderPage()
+    await renderPage(OPS_LEAD)
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     // Default is (Rumah Rames, kitchen); the barista helping at GHQ switches (FR-003).
@@ -1707,7 +1714,7 @@ describe("AC-002 / FR-001: the capture surface opens on the person's own stream 
 describe('FR-002: no stream-linked primary Team → an explicit stream choice is required before capture', () => {
   it('renders the "choose stream" guidance placeholder in place of the list, fetches no stream-scoped data, and offers no Submit', async () => {
     mockFetchDefaultStream.mockResolvedValue(null)
-    await renderPage()
+    await renderPage(OPS_LEAD)
     await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
 
     // #781 item 2 / B5: with no default resolved the head states nothing (B12 — an empty
@@ -1738,7 +1745,7 @@ describe('FR-002: no stream-linked primary Team → an explicit stream choice is
   it('choosing a stream from the picker loads it and capture proceeds against the chosen pair', async () => {
     mockFetchDefaultStream.mockResolvedValue(null)
     mockInsertKitchenLogBatch.mockResolvedValue(['log-001'])
-    await renderPage()
+    await renderPage(OPS_LEAD)
     await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
 
     await chooseStream('Radiant · Bar')
@@ -1757,12 +1764,11 @@ describe('FR-002: no stream-linked primary Team → an explicit stream choice is
     )
   })
 
-  // Coordinator follow-up to item 1: marking is not defaulting. A Krishna-like person — home
-  // Team is an office Team (not a stream, so still no default) but a CURRENT member of a stream
-  // Team elsewhere — must see that stream marked "Your Team" and listed first among the choices,
-  // with nothing preselected: the binding rule bars a secondary membership from becoming the
-  // default, not from being findable.
-  it('a current stream membership (not the — missing — home) is marked "Your Team" and listed first, with nothing preselected', async () => {
+  // Coordinator follow-up to item 1: marking is not defaulting. A person whose home Team is an
+  // office Team (not a stream) but who is a CURRENT member of SEVERAL stream Teams has no default
+  // (OD-CAFE-6 rung 4 — only a SOLE stream Team defaults), and must see their streams marked
+  // "Your Team" and listed first among the choices.
+  it('several current stream memberships (no home stream) are marked "Your Team" and listed first, with nothing preselected', async () => {
     mockFetchDefaultStream.mockResolvedValue(null) // the home Team is an office Team — no default
     mockListCafeViewerTeams.mockResolvedValue([
       {
@@ -1772,6 +1778,10 @@ describe('FR-002: no stream-linked primary Team → an explicit stream choice is
       {
         id: 'team-ghq-kitchen', name: 'Gordi HQ Kitchen', business_unit_id: 'bu-1', site_id: null,
         is_primary: false, branch_id: BRANCH_GORDI_HQ.id, activity: 'kitchen', effective_to: null,
+      },
+      {
+        id: 'team-ghq-bar', name: 'Gordi HQ Bar', business_unit_id: 'bu-1', site_id: null,
+        is_primary: false, branch_id: BRANCH_GORDI_HQ.id, activity: 'bar', effective_to: null,
       },
     ])
     await renderPage()
@@ -1785,6 +1795,43 @@ describe('FR-002: no stream-linked primary Team → an explicit stream choice is
     const choices = within(group).getAllByRole('button')
     expect(choices[0]).toHaveTextContent('Gordi HQ · Kitchen')
     expect(choices[0]).toHaveTextContent('Your Team')
+  })
+})
+
+// OD-CAFE-6: Log's default follows the shared ladder, and it LOOKS like Plan — heading + Change.
+describe('OD-CAFE-6: Log opens by the one stream rule, with one look', () => {
+  const sole = {
+    id: 'team-ghq-kitchen', name: 'Gordi HQ Kitchen', business_unit_id: 'bu-1', site_id: null,
+    is_primary: false, branch_id: BRANCH_GORDI_HQ.id, activity: 'kitchen' as const, effective_to: null,
+  }
+
+  it('rung 2: no home stream but ONE stream Team → opens on it, no picker', async () => {
+    mockFetchDefaultStream.mockResolvedValue(null)
+    mockListCafeViewerTeams.mockResolvedValue([sole])
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    expect(within(screen.getByTestId('cafe-stream')).getByText('Gordi HQ · Kitchen')).toBeInTheDocument()
+    expect(screen.queryByText(/choose a production stream to start logging/i)).toBeNull()
+    expect(mockFetchPlanMap.mock.calls[0][1]).toMatchObject({ branch: BRANCH_GORDI_HQ, activity: 'kitchen' })
+  })
+
+  it('rung 1: the home stream outranks a stream chosen elsewhere in Café', async () => {
+    rememberStream({ branch: BRANCH_RUMAH_RAMES, activity: 'bar', produces: true }, '40000000-0000-0000-0000-000000000001', BRANCH_RUMAH_RAMES.id)
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+    expect(within(screen.getByTestId('cafe-stream')).getByText('Rumah Rames · Kitchen')).toBeInTheDocument()
+  })
+
+  it('shows the stream as a heading with a Change link — no "Stream:" label, no "Switch"', async () => {
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    const bar = screen.getByTestId('cafe-stream')
+    expect(within(bar).getByRole('heading', { name: 'Rumah Rames · Kitchen' })).toBeInTheDocument()
+    expect(within(bar).getByRole('button', { name: /^change stream$/i })).toHaveTextContent('Change')
+    expect(within(bar).queryByText(/^stream:?$/i)).toBeNull()
+    expect(screen.queryByRole('button', { name: /^switch/i })).toBeNull()
   })
 })
 
@@ -1813,10 +1860,10 @@ describe('DD-MVP-9: a receiving-only stream remains readable but cannot capture 
 
 describe('FR-005: the picker offers exactly the catalog pairs it is given — the roastery is never a stream', () => {
   it('lists exactly the catalog pairs it is given, and no roastery option', async () => {
-    await renderPage()
+    await renderPage(OPS_LEAD)
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
-    fireEvent.click(screen.getByRole('button', { name: /^switch$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^change stream$/i }))
     const listbox = screen.getByRole('listbox')
     const options = within(listbox).getAllByRole('option')
     // Exactly STREAM_PAIRS minus the stream already in view — no placeholder (a default
@@ -1918,7 +1965,7 @@ describe('AC-006 / FR-014/015: plan-as-placeholder + effective target + already-
     mockFetchActualsMap.mockImplementation(async (_date, stream) =>
       stream.branch.id === BRANCH_GORDI_HQ.id ? { w1: { [PRODUCE_KEY]: 9 } } : AC6_ACTUALS,
     )
-    await renderPage()
+    await renderPage(OPS_LEAD)
     await waitFor(() => screen.getByText('Ayam Bakar'))
     expect(document.querySelector('.kls-meta')?.textContent).toMatch(/(?:logged|sudah)\s*4/)
 
@@ -1931,7 +1978,7 @@ describe('AC-006 / FR-014/015: plan-as-placeholder + effective target + already-
 
 describe('stale-response race: an older stream fetch resolving LAST never lands under a newer stream', () => {
   it('the newer switch owns the form — the stale response is discarded, and the picker stays mounted mid-switch', async () => {
-    await renderPage()
+    await renderPage(OPS_LEAD)
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     // Switch #1 → (Radiant, bar): its plan fetch HANGS — it will resolve last, stale.
@@ -1943,7 +1990,7 @@ describe('stale-response race: an older stream fetch resolving LAST never lands 
 
     // While switch #1 is in flight the Switch action MUST stay mounted (FR-003 — a slow
     // stream is never a dead end; getByRole throws here if the switch unmounts it).
-    const switchDuringLoad = screen.getByRole('button', { name: /^switch$/i })
+    const switchDuringLoad = screen.getByRole('button', { name: /^change stream$/i })
 
     // Switch #2 → (Gordi HQ, kitchen): the LATEST read — resolves immediately (w2 → 33).
     mockFetchPlanMap.mockResolvedValueOnce({ w2: { [PRODUCE_KEY]: 33 } })
@@ -1986,7 +2033,7 @@ describe('stale-response race: an older stream fetch resolving LAST never lands 
 describe('AC-007: destinations cover both movement classes from both activity surfaces (FR-013)', () => {
   it('AC-007: the BAR surface offers another branch AND its own branch qualified as the kitchen', async () => {
     mockFetchDefaultStream.mockResolvedValue({ branch: BRANCH_RUMAH_RAMES, activity: 'bar' })
-    await renderPage()
+    await renderPage(OPS_LEAD)
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     // Intra-branch: destination = own branch, read as "to our kitchen" (bar → own kitchen).
@@ -2394,15 +2441,95 @@ describe('OD-CAFE-1 — the production picker is bounded by the active location'
     // deleted them along with the wrong-books risk.
     expect(screen.getByRole('tab', { name: /transfer to radiant/i })).toBeInTheDocument()
   })
+})
 
-  it('leaves the catalog whole when there is no location context', async () => {
+// OD-CAFE-1 at the Café root with Opening hidden: no `activeBranchId` is passed, so the page
+// derives the location itself — session choice, else the home stream's branch, else the only
+// branch the person has a stream Team at, else ask.
+describe('OD-CAFE-1 — the root Log is location-bound without the Opening wrapper', () => {
+  const PERSON = VIEWER_MEMBER.status === 'authenticated' ? VIEWER_MEMBER.viewer.person.id : ''
+  const labels = (nodes: HTMLElement[]) => nodes.map(o => o.textContent?.trim() ?? '')
+  const team = (branchId: string, activity: 'kitchen' | 'bar') => ({
+    id: `t-${branchId}-${activity}`, name: 't', business_unit_id: 'bu-1', site_id: null,
+    is_primary: false, branch_id: branchId, activity, effective_to: null,
+  })
+
+  it('home stream names the location: Change offers only that location’s other streams', async () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
-    fireEvent.click(screen.getByRole('button', { name: /^switch$/i }))
-    const offered = (await screen.findAllByRole('option')).map(o => o.textContent?.trim() ?? '')
-    expect(offered.some(label => label.includes('Gordi HQ'))).toBe(true)
-    expect(offered.some(label => label.includes('Radiant'))).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: /^change stream$/i }))
+    const offered = labels(await screen.findAllByRole('option'))
+    expect(offered).toEqual(['Rumah Rames · Bar'])
+  })
+
+  it('no home stream but one branch of stream Teams: the choice is that branch’s streams only', async () => {
+    mockFetchDefaultStream.mockResolvedValue(null)
+    mockListCafeViewerTeams.mockResolvedValue([
+      team(BRANCH_RUMAH_RAMES.id, 'kitchen'), team(BRANCH_RUMAH_RAMES.id, 'bar'),
+    ])
+    await renderPage()
+    await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
+
+    const group = screen.getByRole('group', { name: /production stream/i })
+    const offered = labels(within(group).getAllByRole('button'))
+    expect(offered).toHaveLength(2)
+    expect(offered.every(label => label.includes('Rumah Rames'))).toBe(true)
+  })
+
+  it('no location resolves (Teams at several branches, no home): the choice is only their Team streams', async () => {
+    mockFetchDefaultStream.mockResolvedValue(null)
+    mockListCafeViewerTeams.mockResolvedValue([
+      team(BRANCH_RUMAH_RAMES.id, 'kitchen'), team(BRANCH_GORDI_HQ.id, 'bar'),
+    ])
+    await renderPage()
+    await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
+
+    const group = screen.getByRole('group', { name: /production stream/i })
+    const offered = labels(within(group).getAllByRole('button')).map(label => label.replace(/Your Team$/, '').trim())
+    expect(offered.sort()).toEqual(['Gordi HQ · Bar', 'Rumah Rames · Kitchen'])
+  })
+
+  it('a session location outranks the home stream, whose stream is then stale and not captured against', async () => {
+    mockFetchDefaultStream.mockResolvedValue({ branch: BRANCH_RADIANT, activity: 'bar', produces: true })
+    rememberCafeLocation(PERSON, { branchId: BRANCH_RUMAH_RAMES.id, branchName: BRANCH_RUMAH_RAMES.name })
+    await renderPage()
+    await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
+
+    expect(screen.queryByText('Ayam Bakar')).toBeNull()
+    const group = screen.getByRole('group', { name: /production stream/i })
+    const offered = labels(within(group).getAllByRole('button'))
+    expect(offered.length).toBeGreaterThan(0)
+    expect(offered.every(label => label.includes('Rumah Rames'))).toBe(true)
+  })
+
+  it('choosing another branch’s stream commits that location before capture', async () => {
+    await renderPage(OPS_LEAD)
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+    expect(activeCafeLocation(PERSON)?.branchId).not.toBe(BRANCH_RADIANT.id)
+
+    // Another location's stream is marked as such before it is chosen.
+    fireEvent.click(screen.getByRole('button', { name: /^change stream$/i }))
+    expect(labels(await screen.findAllByRole('option'))).toContain('Radiant · Bar — Other location')
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
+
+    await chooseStream('Radiant · Bar')
+    await waitFor(() => expect(mockFetchPlanMap.mock.calls.at(-1)?.[1]).toMatchObject({ branch: BRANCH_RADIANT, activity: 'bar' }))
+
+    expect(activeCafeLocation(PERSON)?.branchId).toBe(BRANCH_RADIANT.id)
+    // The picker is now bounded to the NEW location: Radiant's other stream, plus other locations.
+    fireEvent.click(screen.getByRole('button', { name: /^change stream$/i }))
+    const offered = labels(await screen.findAllByRole('option'))
+    expect(offered).toContain('Radiant · Kitchen — Receiving only')
+    expect(offered).not.toContain('Radiant · Bar')
+  })
+
+  it('a person with no Team at another branch is not offered it (no silent mixing)', async () => {
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+    fireEvent.click(screen.getByRole('button', { name: /^change stream$/i }))
+    const offered = labels(await screen.findAllByRole('option'))
+    expect(offered.some(label => /Radiant|Gordi HQ/.test(label))).toBe(false)
   })
 })
 

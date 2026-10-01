@@ -29,6 +29,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { CafeOpeningPanel } from '@/components/cafe/cafe-opening-panel'
 import { canPushCafe } from '@/lib/kitchen-gates'
 import { formatWeekdayDayMonth } from '@/lib/format/date'
+import { CAFE_OPENING_ENABLED } from '@/lib/cafe-opening-enabled'
 import { KitchenLogPage } from './kitchen-log-page'
 import './cafe-opening-page.css'
 
@@ -98,12 +99,16 @@ function LocationChoices({
  * remains mounted; remounting here prevents one person's branch/panel from appearing for the
  * next person even for the render before the new location read starts.
  */
-export function CafeRootPage() {
+export function CafeOpeningRoot() {
   const auth = useAuth()
   const viewerKey = auth.status === 'authenticated'
     ? `${auth.viewer.person.id}:${auth.viewer.accessRoles.join(',')}`
     : auth.status
   return <CafeRootPageBody key={viewerKey} />
+}
+
+export function CafeRootPage() {
+  return CAFE_OPENING_ENABLED ? <CafeOpeningRoot /> : <KitchenLogPage />
 }
 
 function CafeRootPageBody() {

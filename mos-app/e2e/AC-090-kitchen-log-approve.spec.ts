@@ -198,9 +198,9 @@ test.describe('AC-090: Kitchen log -> review -> approve (cross-stack proof)', ()
     // DD-MVP-17: /cafe/log aliases the Café root — the Today capture surface itself.
     await page.waitForURL(/\/cafe$/, { timeout: 15_000 })
 
-    // VIEWER (Cahya, Cafe Ops Lead) has no single resolvable team — DD-MVP-11 asks her for a
-    // location first (cafe-opening-page.tsx LocationChoices), then FR-001/002's real explicit
-    // stream choice. ensureStream takes both steps, defaulting to Rumah Rames · Kitchen.
+    // VIEWER (Cahya, Cafe Ops Lead) has no home stream and no sole stream team — the OD-CAFE-6
+    // ladder reaches its last rung, FR-001/002's real explicit stream choice. ensureStream takes
+    // it, defaulting to Rumah Rames · Kitchen.
     await ensureStream(page)
     await expect(streamStatement(page)).toContainText(STREAM_LABEL)
 

@@ -160,9 +160,6 @@ test('every Playwright data writer is registered with an owned cleanup contract'
     if (contract === 'captured-budget-id') {
       expect(source, `${file} must declare budget capture`).toContain('@e2e-owned-cleanup: captured-budget-ids')
     }
-    if (contract === 'captured-process-run-id') {
-      expect(source, `${file} must use guarded process-run cleanup`).toContain('processRunCleanupSql')
-    }
   }
 })
 
@@ -241,13 +238,9 @@ test('read-only SQL guard ignores comments and quoted text but rejects procedura
 })
 
 test('process-run journeys never sweep seeded runs by process and team', () => {
-  const ac720 = readFileSync(new URL('../../e2e/AC-720-cafe-today-opening.spec.ts', import.meta.url), 'utf8')
   const geometry = readFileSync(new URL('../../e2e/guards.geometry.spec.ts', import.meta.url), 'utf8')
-  for (const source of [ac720, geometry]) {
-    expect(source).not.toMatch(/delete\s+from\s+mos\.process_runs\s+where\s+work_line_id/i)
-    expect(source).not.toMatch(/delete\s+from\s+mos\.tasks\s+where\s+process_run_id\s+in\s*\(/i)
-  }
-  expect(ac720).toContain('processRunCleanupSql')
+  expect(geometry).not.toMatch(/delete\s+from\s+mos\.process_runs\s+where\s+work_line_id/i)
+  expect(geometry).not.toMatch(/delete\s+from\s+mos\.tasks\s+where\s+process_run_id\s+in\s*\(/i)
 })
 
 test('global setup relinks only the canonical demo organization', () => {
@@ -255,21 +248,4 @@ test('global setup relinks only the canonical demo organization', () => {
   expect(source).toContain("WHERE p.org_id = '${ORG}'")
   expect(source).toContain('u.email = p.email')
   expect(source).toContain('p.email IN')
-})
-
-test('process-spawning café journeys are opt-in before hooks register', () => {
-  const cases = [
-    ['../../e2e/AC-720-cafe-today-opening.spec.ts', 'ALLOW_SHARED_CAFE_OPENING_FIXTURE', 'MOS_E2E_ALLOW_SHARED_CAFE_OPENING_FIXTURE', 'test.afterEach'],
-    ['../../e2e/home-cafe-parity.spec.ts', 'ALLOW_SHARED_HOME_CAFE_FIXTURE', 'MOS_E2E_ALLOW_SHARED_HOME_CAFE_FIXTURE', 'test.beforeAll'],
-  ] as const
-  for (const [file, marker, envName, hook] of cases) {
-    const source = readFileSync(new URL(file, import.meta.url), 'utf8')
-    const gateIndex = source.indexOf(`if (!${marker})`)
-    expect(source).toContain(envName)
-    expect(source).toContain('spawn_process_run')
-    expect(source).toContain('idempotent')
-    expect(source).toContain('createdRunId = spawned.run_id')
-    expect(gateIndex).toBeGreaterThan(-1)
-    expect(source.indexOf(hook)).toBeGreaterThan(gateIndex)
-  }
 })
