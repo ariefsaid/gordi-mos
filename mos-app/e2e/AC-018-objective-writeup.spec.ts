@@ -57,6 +57,10 @@ test.describe('AC-018: Objective write-up editor', () => {
     page.on('request', (request) => {
       if (/vendor-editor|objective-writeup-editor/.test(request.url())) editorRequests.push(request.url())
     })
+    const writeUpSaves: string[] = []
+    page.on('request', (request) => {
+      if (request.method() === 'PATCH' && /objectives/.test(request.url()) && /write_up/.test(request.postData() ?? '')) writeUpSaves.push(request.url())
+    })
     await loginAs(page, ADMIN.email, ADMIN.password)
 
     await page.goto('work/objectives')
@@ -78,6 +82,9 @@ test.describe('AC-018: Objective write-up editor', () => {
     await page.keyboard.type('We open two new sites.')
     await page.getByRole('button', { name: 'Save' }).click()
     await expect(page.getByRole('status').filter({ hasText: 'Saved' })).toBeVisible()
+    // Typing saved nothing on its own: one deliberate Save, one request.
+    await page.waitForTimeout(3500)
+    expect(writeUpSaves).toHaveLength(1)
 
     await page.reload()
     await page.getByRole('tab', { name: 'Write-up' }).click()
