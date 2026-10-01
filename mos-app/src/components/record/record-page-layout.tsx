@@ -30,19 +30,21 @@ import './record-page.css'
 
 const HeadingLevelContext = createContext<1 | 2>(1)
 
-export interface RecordSectionAction {
+export type RecordSectionAction = {
   label: string
   onClick: () => void
   disabled?: boolean
 }
 
-function SectionHeading({ id, children, className }: { id?: string; children: ReactNode; className: string }) {
+type SectionHeadingProps = { id?: string; children: ReactNode; className: string }
+
+function SectionHeading({ id, children, className }: SectionHeadingProps) {
   const level = useContext(HeadingLevelContext)
   const Tag = level === 1 ? 'h2' : 'h3'
   return <Tag id={id} className={className}>{children}</Tag>
 }
 
-export interface RecordSectionProps {
+export type RecordSectionProps = {
   id: string
   title: string
   count?: ReactNode
@@ -68,14 +70,14 @@ export function RecordSection({ id, title, count, action, children }: RecordSect
   )
 }
 
-export interface RecordSetupItem {
+export type RecordSetupItem = {
   id: string
   label: string
   reason: string
   action: RecordSectionAction
 }
 
-export interface RecordGetStartedProps {
+export type RecordGetStartedProps = {
   title: string
   why?: string
   items: readonly RecordSetupItem[]
@@ -108,7 +110,7 @@ export function RecordGetStarted({ title, why, items }: RecordGetStartedProps) {
   )
 }
 
-export interface RecordDisclosureProps {
+export type RecordDisclosureProps = {
   title: string
   count?: ReactNode
   defaultOpen?: boolean
@@ -143,13 +145,15 @@ export function RecordDisclosure({ title, count, defaultOpen = false, open: cont
   )
 }
 
-export interface RecordAboutItem {
+export type RecordAboutItem = {
   key: string
   label: string
   value: ReactNode
 }
 
-export function RecordAbout({ items }: { items: readonly RecordAboutItem[] }) {
+export type RecordAboutProps = { items: readonly RecordAboutItem[] }
+
+export function RecordAbout({ items }: RecordAboutProps) {
   return (
     <dl className="rp-kv">
       {items.map((item) => (
@@ -162,7 +166,7 @@ export function RecordAbout({ items }: { items: readonly RecordAboutItem[] }) {
   )
 }
 
-export interface RecordPageLayoutProps {
+export type RecordPageLayoutProps = {
   label: string
   mode: 'panel' | 'page'
   headingLevel: 1 | 2
@@ -219,8 +223,10 @@ export function RecordPageLayout({ label, mode, headingLevel, header, notice, se
   )
 }
 
+export type RecordPageSkeletonProps = { label: string }
+
 /** Loading state that keeps the page anatomy visible: a title bar, three fact pills, section rows. */
-export function RecordPageSkeleton({ label }: { label: string }) {
+export function RecordPageSkeleton({ label }: RecordPageSkeletonProps) {
   return (
     <div className="rp rp--skeleton" role="status" aria-busy="true" aria-label={label}>
       <div className="skeleton-bar rp-skeleton__title" aria-hidden="true" />

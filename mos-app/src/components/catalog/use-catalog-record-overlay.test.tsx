@@ -40,6 +40,12 @@ describe('useCatalogRecordEntryFactory — panel chrome label', () => {
     expect(entry.label).toBe('Objective')
   })
 
+  it('opens the full page without the collection\'s layout param (a phone list layout is not a page setting)', () => {
+    const { result } = renderHook(() => useCatalogRecordEntryFactory({ owner: 'work' }), { wrapper })
+    expect(result.current.buildEntry('objective', 'o1', '?layout=list&view=all').pageTo).toEqual({ pathname: '/work/objectives/o1', search: '?view=all' })
+    expect(result.current.buildEntry('work-line', 'w1', '?layout=list').pageTo).toEqual({ pathname: '/work/projects/w1', search: '' })
+  })
+
   it('falls back to the generic placeholder only when the type is not yet known (cold deep link)', () => {
     const { result } = renderHook(
       () => useCatalogRecordEntryFactory({ owner: 'work' }),
@@ -52,7 +58,25 @@ describe('useCatalogRecordEntryFactory — panel chrome label', () => {
 
 // ── The URL decides which catalog record is open ────────────────────────────────────────────
 vi.mock('./catalog-record-document', () => ({
-  CatalogRecordDocument: ({ id }: { id: string }) => <p>record body {id}</p>,
+  CatalogRecordDocument: ({ id, onCreateTask, taskAddedRef }: { id: string; onCreateTask?: (workLineId: string) => void; taskAddedRef?: { current: boolean } }) => (
+    <>
+      <p>record body {id}</p>
+      <button type="button" onClick={() => onCreateTask?.('wl-1')}>mock add task</button>
+      <output>{taskAddedRef?.current ? 'task was added' : ''}</output>
+    </>
+  ),
+}))
+vi.mock('./catalog-task-create-session', () => ({
+  createCatalogTaskCreateSession: () => ({ dirty: false, guard: async () => ({ decision: 'allow' }) }),
+}))
+vi.mock('./catalog-task-create-frame', () => ({
+  CatalogTaskCreateFrame: ({ workLineId, onCreated, onLeave }: { workLineId: string; onCreated: (id: string) => void; onLeave: () => void }) => (
+    <div>
+      <p>create frame for {workLineId}</p>
+      <button type="button" onClick={() => onCreated('t-new')}>mock save</button>
+      <button type="button" onClick={onLeave}>mock cancel</button>
+    </div>
+  ),
 }))
 vi.mock('@/components/tasks/task-drawer', () => ({ TaskOverlayContent: () => null }))
 
@@ -98,5 +122,30 @@ describe('useCatalogRecordOverlay — URL-owned record state', () => {
 
     await waitFor(() => expect(screen.getByRole('link', { name: 'Objective one' })).toHaveFocus())
     expect(router.state.location.search).not.toContain('record=')
+  })
+
+  it('Add task opens the create frame on the same panel stack, without leaving the page, and saving pops back to the record', async () => {
+    const router = renderCollection([RECORD_URL], 0)
+    await screen.findByText('record body o1')
+    const before = router.state.location.pathname
+
+    await act(async () => { screen.getByRole('button', { name: 'mock add task' }).click() })
+    await screen.findByText('create frame for wl-1')
+    expect(screen.queryByText('record body o1')).toBeNull()
+    expect(router.state.location.pathname).toBe(before)
+
+    await act(async () => { screen.getByRole('button', { name: 'mock save' }).click() })
+    await screen.findByText('record body o1')
+    expect(screen.getByRole('status')).toHaveTextContent('task was added')
+  })
+
+  it('Cancel on the create frame goes back to the record with nothing added', async () => {
+    renderCollection([RECORD_URL], 0)
+    await screen.findByText('record body o1')
+    await act(async () => { screen.getByRole('button', { name: 'mock add task' }).click() })
+    await screen.findByText('create frame for wl-1')
+    await act(async () => { screen.getByRole('button', { name: 'mock cancel' }).click() })
+    await screen.findByText('record body o1')
+    expect(screen.getByRole('status')).toBeEmptyDOMElement()
   })
 })
