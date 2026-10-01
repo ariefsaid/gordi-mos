@@ -212,7 +212,6 @@ function TaskRecordPage({ taskId, liveQueryRef }: { taskId: string; liveQueryRef
       <RecordPageChrome
         backTo={fromHome ? '/' : { pathname: '/work/tasks', search: location.search }}
         backLabel={fromHome ? t('dest.home') : t('tasks.title')}
-        deputyDraft={title ? t('assistant.askAbout.task', { title }) : null}
         trailing={isSplit ? (
           <button
             type="button"

@@ -6,12 +6,6 @@
   font-size: var(--font-size-label);
 }
 
-.rp-notice {
-  display: flex; align-items: center; gap: 8px; margin: 12px 0 0; padding: 4px 4px 4px 12px;
-  border-radius: var(--radius-sm); background: var(--secondary); font-size: var(--font-size-body);
-}
-.rp-notice > span { flex: 1; min-width: 0; }
-
 .rp-chooser { margin-top: 24px; max-width: 420px; }
 .rp-chooser__status { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 0; font-size: var(--font-size-body); color: var(--muted-foreground); }
 
@@ -42,13 +36,6 @@
 .rp-doc { max-width: 56ch; margin: 0 0 8px; font-size: var(--font-size-body); line-height: 1.55; color: var(--foreground); }
 .rp-doc--excerpt { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
 
-/* About field: the record field sits under the aside's own label */
-.rp-about__field .record-field { display: block; }
-.rp .rp-about__field .record-field__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-.rp .rp-about__field .record-field__edit { min-height: 28px; margin: 0; padding: 2px 6px 2px 0; font-size: var(--font-size-body); }
-.rp .rp-about__field .record-field__value { font-size: var(--font-size-body); padding: 0; min-height: 0; }
-.rp .rp-about__field .record-field__chip { margin: 0; padding: 0; border: 0; background: none; font-size: var(--font-size-body); }
-
 .catalog-step-form { max-width: none; margin-top: 12px; }
 
 .catalog-record-document__steps-slot { container: catalog-steps / inline-size; }
@@ -78,7 +65,6 @@
 @media (max-width: 767.98px) {
   /* The title link is the tap target: it takes 44px, so the row itself needs no extra padding. */
   .rp-wl, .rp-task { padding-block: 0; }
-  .rp .rp-about__field .record-field__edit { min-height: 44px; }
   .rp-wl { grid-template-columns: auto minmax(0, 1fr) 44px; grid-template-areas: "name name menu" "tag count menu"; }
   .rp-wl > :nth-child(1) { grid-area: tag; }
   .rp-wl > :nth-child(2) { grid-area: name; }

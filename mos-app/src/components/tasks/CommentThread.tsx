@@ -42,6 +42,12 @@ export type CommentThreadProps = {
    * is temporarily unmounted while the user moves within the record. */
   draftValue?: string
   onDraftChange?: (draft: string) => void
+  /**
+   * 'card' (default) is the Signal presentation: its own card and heading, a three-line composer.
+   * 'record' is the Task record's Comments section body: the record page owns the section header, so
+   * there is no card or heading, and the composer is one line until it is focused or holds text.
+   */
+  variant?: 'card' | 'record'
 }
 
 function personName(people: PersonOption[], id: string, fallback: string): string {
@@ -54,7 +60,7 @@ function mentionSlug(name: string): string {
 
 export function CommentThread({
   comments, people, canPost, onPost, heading = 'visible', emptyLabel, onDirtyChange,
-  draftValue, onDraftChange,
+  draftValue, onDraftChange, variant = 'card',
 }: CommentThreadProps) {
   const t = useT()
   // undefined → the default "No comments yet."; an explicit string overrides; null suppresses.
@@ -70,6 +76,9 @@ export function CommentThread({
   const [posting, setPosting] = useState(false)
   const [postError, setPostError] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [focused, setFocused] = useState(false)
+  const record = variant === 'record'
+  const expanded = !record || focused || draft.length > 0 || postError
   // Escape dismisses the mention picker without losing the draft; a fresh keystroke re-opens it.
   const [pickerDismissed, setPickerDismissed] = useState(false)
   const showMentionPicker = canPost && !pickerDismissed && /(^|\s)@[a-z0-9_.-]*$/i.test(draft)
@@ -100,9 +109,13 @@ export function CommentThread({
     updateDraft((current) => current.replace(/@([a-z0-9_.-]*)$/i, `@${slug} `))
   }
 
+  const Root = record ? 'div' : 'section'
   return (
-    <section className="card" aria-label={t('tasks.commentsTitle')} role="region">
-      <h2 className={heading === 'srOnly' ? 'sr-only' : 'card-h2'}>{t('tasks.commentsTitle')}</h2>
+    <Root
+      className={record ? 'comment-thread--record' : 'card'}
+      {...(record ? {} : { 'aria-label': t('tasks.commentsTitle'), role: 'region' })}
+    >
+      {record ? null : <h2 className={heading === 'srOnly' ? 'sr-only' : 'card-h2'}>{t('tasks.commentsTitle')}</h2>}
       {comments.length === 0 ? (
         resolvedEmpty !== null && <p className="empty-substate">{resolvedEmpty}</p>
       ) : (
@@ -125,7 +138,7 @@ export function CommentThread({
         // draft is non-empty. No floating grey text-glyph action, and the textarea never overlaps
         // the empty-state line above it.
         <form
-          className="comment-composer"
+          className={`comment-composer${expanded ? '' : ' comment-composer--collapsed'}`}
           onSubmit={(event) => {
             event.preventDefault()
             void submit()
@@ -150,7 +163,9 @@ export function CommentThread({
             }}
             className="comment-composer__input"
             placeholder={t('tasks.comment.placeholder')}
-            rows={3}
+            rows={expanded ? 3 : 1}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
           />
           {showMentionPicker && (
             <PersonPicker
@@ -162,17 +177,19 @@ export function CommentThread({
             />
           )}
           {postError && <p role="alert">{t('tasks.comment.postError')}</p>}
-          <div className="comment-composer__actions">
-            <button
-              type="submit"
-              className="btn btn-outline"
-              disabled={!draft.trim() || posting}
-            >
-              {t('tasks.comment.post')}
-            </button>
-          </div>
+          {expanded ? (
+            <div className="comment-composer__actions">
+              <button
+                type="submit"
+                className="btn btn-outline"
+                disabled={!draft.trim() || posting}
+              >
+                {t('tasks.comment.post')}
+              </button>
+            </div>
+          ) : null}
         </form>
       )}
-    </section>
+    </Root>
   )
 }

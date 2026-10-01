@@ -18,7 +18,8 @@ function eventLabel(ev: TaskEventRow, t: Translate): string {
   }
 }
 
-// ── Activity card ────────────────────────────────────────────────────────────
+// ── Activity log ─────────────────────────────────────────────────────────────
+// The body of the record's History: the record page names it, so it carries no heading of its own.
 export type ActivityCardProps = {
   events: TaskEventRow[]
   people: PersonOption[]
@@ -33,12 +34,7 @@ export function ActivityCard({ events, people, now }: ActivityCardProps) {
   }
 
   return (
-    // Content-first anatomy (OD-REDESIGN-90): the Activity region landmark is now the labeled
-    // content slot that wraps this card (`<section data-content-slot="activity" aria-label>`), so
-    // this card is a plain container — NOT a second nested region (region-in-region) or a card
-    // inside the record document (LAW-7). The heading stays sr-only (the slot already names it).
-    <div className="card">
-      <h2 className="sr-only">{t('tasks.activityTitle')}</h2>
+    <div className="activity-log">
       {events.length === 0 && <p className="empty-substate">{t('tasks.activityEmpty')}</p>}
       <div className="thread">
         {events.map(ev => (
