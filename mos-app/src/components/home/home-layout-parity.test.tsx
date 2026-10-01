@@ -16,6 +16,8 @@ const item = (id: string): StreamItem => ({
   route: `/work/tasks/${id}`,
 })
 
+// DD-COUNT-1 (#1194): a region's heading count is its reported FULL figure (my-work's is the
+// shared open-task count). These fixtures report one so the layouts prove the number shows.
 const regions = buildHomeRegions({
   overdue: [item('overdue')],
   dueToday: [],
@@ -23,6 +25,7 @@ const regions = buildHomeRegions({
   myWork: [item('mine')],
   failedChecks: [item('failed')],
   failedChecksAdmitted: true,
+  myWorkFullCount: 2,
 })
 
 const emptyRegions = buildHomeRegions({
@@ -32,6 +35,7 @@ const emptyRegions = buildHomeRegions({
   myWork: [],
   failedChecks: [],
   failedChecksAdmitted: true,
+  myWorkFullCount: 0,
 })
 
 const switchRegions = buildHomeRegions({
@@ -177,6 +181,8 @@ describe('Home layout parity (NFR-924, FR-927, FR-928)', () => {
     renderLayout(<HomeFocused regions={regions} feed={feed} />)
     const tabs = screen.getAllByRole('tab')
     expect(tabs).toHaveLength(3)
+    // The count fixture reports 2 open tasks; every tab states its figure (no unnumbered tab).
+    expect(screen.getByRole('tab', { name: /my open work/i })).toHaveAccessibleName('My open work 2')
     for (const tab of tabs) expect(tab.textContent).toMatch(/\d/)
   })
 

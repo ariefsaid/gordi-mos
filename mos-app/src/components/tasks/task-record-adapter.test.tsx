@@ -258,14 +258,14 @@ describe('createTaskRecordAdapter', () => {
     }
   })
 
-  it('Task ownership keeps Team distinct from Business Unit, with honest migration state and no RACI grammar', () => {
+  it('Task ownership keeps Team distinct from Business Unit, with an honest unassigned state and no RACI grammar', () => {
     const adapter = createTaskRecordAdapter(makeInput())
     const bu = fieldByKey(adapter, 'businessUnit')
     expect(bu.label).toBe('Business Unit')
     const team = fieldByKey(adapter, 'team')
     expect(team.label).toBe('Team')
-    expect(team.displayValue).toMatch(/not assigned yet/i)
-    expect(team.readOnlyReason).toMatch(/migration/i)
+    expect(team.displayValue).toBe('No team yet')
+    expect(team.readOnlyReason).toBe('No team is assigned to this task yet.')
 
     expect(fieldByKey(adapter, 'pic').label).toBe('Person in charge (PIC)')
     expect(fieldByKey(adapter, 'supervisor').label).toBe('Supervisor')
@@ -502,11 +502,11 @@ describe('createTaskRecordAdapter — context and overdue cue', () => {
 })
 
 describe('teamOwnershipField — honest Team model and viewer-scoped options', () => {
-  it('missing → migration state; real lookup → label', () => {
+  it('missing → plain unassigned state; real lookup → label', () => {
     const missing = teamOwnershipField(null)
     expect(missing.key).toBe('team')
     expect(missing.editable).toBe(false)
-    expect(String(missing.displayValue)).toMatch(/not assigned yet/i)
+    expect(missing.displayValue).toBe('No team yet')
 
     const real = teamOwnershipField({ id: 't-1', label: 'HQ Kitchen' })
     expect(real.value).toBe('t-1')
@@ -526,7 +526,7 @@ describe('teamOwnershipField — edit options (#1033)', () => {
 
   it('lists Teams first and the not-assigned placeholder last, never leading with it', () => {
     const field = teamOwnershipField(HQ, undefined, true, [HQ, OPS])
-    expect(field.options?.map((o) => o.label)).toEqual(['HQ Kitchen', 'Ops', 'Team not assigned yet (data migration)'])
+    expect(field.options?.map((o) => o.label)).toEqual(['HQ Kitchen', 'Ops', 'No team yet'])
     expect(teamOwnershipField(null, undefined, true, [OPS]).options?.[0]).toEqual({ value: 't-2', label: 'Ops' })
   })
 })
