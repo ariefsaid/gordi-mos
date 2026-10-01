@@ -445,6 +445,44 @@ it('without a host callback, Add task goes to task create for that Project in th
   expect(screen.getByTestId('location')).toHaveTextContent('/work/tasks?create=1&work_line=wl-1')
 })
 
+describe('Open full page', () => {
+  const widen = (wide: boolean) => {
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: wide && query.includes('768'), media: query, addEventListener: vi.fn(), removeEventListener: vi.fn(),
+      addListener: vi.fn(), removeListener: vi.fn(), onchange: null, dispatchEvent: vi.fn(),
+    })) as never
+  }
+  const renderPanel = (onOpenPage: () => void) => render(
+    <AuthContext.Provider value={auth()}>
+      <I18nProvider>
+        <MemoryRouter>
+          <CatalogRecordDocument kind="objective" id="obj-1" mode="panel" onOpenPage={onOpenPage} />
+        </MemoryRouter>
+      </I18nProvider>
+    </AuthContext.Provider>,
+  )
+
+  it('a phone panel offers it in the menu, because the panel bar is gone there', async () => {
+    const user = userEvent.setup()
+    const onOpenPage = vi.fn()
+    widen(false)
+    renderPanel(onOpenPage)
+    await screen.findByRole('heading', { level: 2, name: 'Grow revenue' })
+    await user.click(screen.getByRole('button', { name: 'More actions' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Open full page' }))
+    expect(onOpenPage).toHaveBeenCalledTimes(1)
+  })
+
+  it('a wide panel leaves it to its own bar', async () => {
+    const user = userEvent.setup()
+    widen(true)
+    renderPanel(vi.fn())
+    await screen.findByRole('heading', { level: 2, name: 'Grow revenue' })
+    await user.click(screen.getByRole('button', { name: 'More actions' }))
+    expect(screen.queryByRole('menuitem', { name: 'Open full page' })).toBeNull()
+  })
+})
+
 describe('role-correct affordances', () => {
   it('a member sees no setup, no structure edits, no menu and one line naming who sets targets', async () => {
     vi.mocked(getWorkWriteScopes).mockResolvedValue(MEMBER)

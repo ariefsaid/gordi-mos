@@ -17,6 +17,7 @@ import type { RecordMenuItem } from '@/components/record/record-menu'
 import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
 import type { OverlayLeaveDecision, OverlayLeaveGuard, OverlayLeaveIntent } from '@/shell/overlay-navigation'
 import { RouteLeaveGuard } from '@/shell/route-leave-guard'
+import { useIsDesktop } from '@/shell/use-is-desktop'
 import { listObjectivesAll, updateObjective } from '@/lib/db/objectives'
 import { listWorkLinesAll, updateWorkLine } from '@/lib/db/work-lines'
 import { wibToday } from '@/lib/db/cafe-opening'
@@ -78,6 +79,7 @@ export function CatalogRecordDocument({
   id,
   mode,
   onOpenRelated,
+  onOpenPage,
   onCreateTask,
   onTitleResolved,
   onChanged,
@@ -88,6 +90,7 @@ export function CatalogRecordDocument({
   const canonicalHref = useHref(kind === 'objective' ? `/work/objectives/${id}` : `/work/projects/${id}`)
   const auth = useAuth()
   const { runtime, openPanel } = useAgentRuntime()
+  const isDesktop = useIsDesktop()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
   const { scopes, loading: scopesLoading, error: scopesError, retry: retryScopes } = useWorkWriteAuthority()
   const canRead = auth.status === 'authenticated'
@@ -477,6 +480,8 @@ export function CatalogRecordDocument({
       id: 'copy', label: t('record.copyLink'),
       onSelect: () => { void navigator.clipboard.writeText(new URL(canonicalHref, window.location.origin).href).catch(() => {}) },
     }] : []),
+    // Wide panels carry Open full page in their own bar; on a phone the panel is the whole screen and has none.
+    ...(mode === 'panel' && onOpenPage && !isDesktop ? [{ id: 'open-page', label: t('record.openFullPage'), onSelect: onOpenPage }] : []),
     ...(runtime ? [{
       id: 'deputy', label: t('assistant.askAboutRecord'),
       onSelect: () => openPanel(`About ${isObjective ? t('catalog.record.objective') : t(isProcess ? 'catalog.tag.process' : 'catalog.tag.project')}: ${row.name}`),

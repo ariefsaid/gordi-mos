@@ -166,7 +166,13 @@ for (const width of [390,1440]) {
     await expect(panel.getByRole('region',{name:'Current and next action',exact:true})).toBeVisible()
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
     await page.screenshot({animations:'disabled',path:testInfo.outputPath(`process-${width}.png`)})
-    await panel.getByRole('button',{name:'Open full page',exact:true}).click()
+    // A wide panel's own bar carries Open full page; on a phone the panel is the whole screen and the menu does.
+    if (width < 768) {
+      await panel.getByRole('button',{name:'More actions',exact:true}).click()
+      await page.getByRole('menuitem',{name:'Open full page',exact:true}).click()
+    } else {
+      await page.getByRole('button',{name:'Open full page',exact:true}).click()
+    }
     await expect(page).toHaveURL(url => url.pathname.endsWith(`/work/projects/${TRACE_PROCESS}`))
     await page.reload()
     await expect(page.getByRole('heading',{name:'E2E Trace Process',exact:true})).toBeVisible()
