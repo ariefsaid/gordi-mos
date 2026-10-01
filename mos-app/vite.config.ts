@@ -117,7 +117,7 @@ export default defineConfig({
           if (!id.includes('node_modules')) return undefined
           // The write-up editor's stack loads only with the Write-up tab: its own chunk keeps it out of
           // every eager vendor chunk.
-          if (/@blocknote|@tiptap|prosemirror|emoji-mart|linkifyjs|orderedmap|rope-sequence|w3c-keyname|crelt/.test(id)) return 'vendor-editor'
+          if (/@blocknote|@ariakit|@tiptap|prosemirror|emoji-mart|linkifyjs|orderedmap|rope-sequence|w3c-keyname|crelt/.test(id)) return 'vendor-editor'
           // Anchored to the package directory: a substring match also catches @floating-ui/react-dom,
           // whose @floating-ui/dom dependency sits in `vendor`, making vendor and vendor-react import each other.
           if (/node_modules\/(react|react-dom|scheduler)\//.test(id)) return 'vendor-react'

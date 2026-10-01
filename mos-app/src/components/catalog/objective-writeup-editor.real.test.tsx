@@ -29,6 +29,16 @@ vi.mock('@/lib/db/objective-writeup', async (importOriginal) => ({
 import { readWriteUp, saveWriteUp } from '@/lib/db/objective-writeup'
 import { ObjectiveWriteupEditor } from './objective-writeup-editor'
 
+// jsdom has no layout: answer the geometry questions ProseMirror and the floating menus ask.
+function jsdomLayout() {
+  const rect = { x: 0, y: 0, width: 0, height: 0, top: 0, right: 0, bottom: 0, left: 0, toJSON: () => ({}) } as DOMRect
+  Range.prototype.getClientRects = () => [] as unknown as DOMRectList
+  Range.prototype.getBoundingClientRect = () => rect
+  Element.prototype.getBoundingClientRect = () => rect
+  Element.prototype.getClientRects = () => [] as unknown as DOMRectList
+  Document.prototype.elementsFromPoint = () => []
+}
+
 describe('ObjectiveWriteupEditor with the real editor', () => {
   it('renders a hostile stored write-up safely: unknown blocks, bad props, unsafe links and media are dropped', async () => {
     const { container } = render(
@@ -54,9 +64,7 @@ describe('ObjectiveWriteupEditor with the real editor', () => {
   // on the wrapper still sees it, which a mocked editor cannot prove.
   it('Escape in the editor moves focus to Save', async () => {
     // ProseMirror scrolls the caret into view after a focus; jsdom has no layout to answer with.
-    Range.prototype.getClientRects = () => [] as unknown as DOMRectList
-    Range.prototype.getBoundingClientRect = () => new DOMRect()
-    Element.prototype.getClientRects = () => [] as unknown as DOMRectList
+    jsdomLayout()
     render(
       <I18nProvider>
         <ObjectiveWriteupEditor objectiveId="o1" canEdit archived={false} />
@@ -70,9 +78,7 @@ describe('ObjectiveWriteupEditor with the real editor', () => {
   })
 
   it('Escape with unsaved text keeps focus on Save through the save it triggers', async () => {
-    Range.prototype.getClientRects = () => [] as unknown as DOMRectList
-    Range.prototype.getBoundingClientRect = () => new DOMRect()
-    Element.prototype.getClientRects = () => [] as unknown as DOMRectList
+    jsdomLayout()
     let finish: (updatedAt: string) => void = () => {}
     vi.mocked(saveWriteUp).mockReturnValue(new Promise<string>((resolve) => { finish = resolve }))
     render(
@@ -91,6 +97,69 @@ describe('ObjectiveWriteupEditor with the real editor', () => {
     expect(document.activeElement).toBe(save)
     await act(async () => { finish('t2') })
     expect(document.activeElement).toBe(save)
+  })
+
+  it('the slash menu offers the stored text blocks only: no toggle or deep headings, emoji, code, table, media or file item', async () => {
+    jsdomLayout()
+    vi.mocked(readWriteUp).mockResolvedValueOnce({ writeUp: [], updatedAt: 't0' })
+    render(
+      <I18nProvider>
+        <ObjectiveWriteupEditor objectiveId="o1" canEdit archived={false} />
+      </I18nProvider>,
+    )
+    const box = await screen.findByRole('textbox', { name: 'Objective write-up' })
+    act(() => { box.focus() })
+    await userEvent.keyboard('/')
+    const options = await screen.findAllByRole('option')
+    expect(options.map((option) => option.textContent ?? '')).toEqual([
+      expect.stringContaining('Heading 1'),
+      expect.stringContaining('Heading 2'),
+      expect.stringContaining('Heading 3'),
+      expect.stringContaining('Quote'),
+      expect.stringContaining('Numbered List'),
+      expect.stringContaining('Bullet List'),
+      expect.stringContaining('Check List'),
+      expect.stringContaining('Paragraph'),
+    ])
+  })
+
+  it('Escape in an open slash menu only closes the menu: the caret stays in the editor and nothing saves', async () => {
+    jsdomLayout()
+    vi.mocked(readWriteUp).mockResolvedValueOnce({ writeUp: [], updatedAt: 't0' })
+    vi.mocked(saveWriteUp).mockReset()
+    render(
+      <I18nProvider>
+        <ObjectiveWriteupEditor objectiveId="o1" canEdit archived={false} />
+      </I18nProvider>,
+    )
+    const box = await screen.findByRole('textbox', { name: 'Objective write-up' })
+    act(() => { box.focus() })
+    await userEvent.keyboard('/')
+    expect((await screen.findAllByRole('option')).length).toBeGreaterThan(0)
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('option')).toBeNull())
+    expect(document.activeElement).toBe(box)
+    expect(saveWriteUp).not.toHaveBeenCalled()
+    // With no menu open, Escape still leaves for Save.
+    await userEvent.keyboard('{Escape}')
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Save' }))
+  })
+
+  it('a read-only reader gets no menus, handles or toolbar', async () => {
+    jsdomLayout()
+    vi.mocked(readWriteUp).mockResolvedValueOnce({ writeUp: [{ type: 'paragraph', content: [{ type: 'text', text: 'Read me', styles: {} }] }], updatedAt: 't0' })
+    render(
+      <I18nProvider>
+        <ObjectiveWriteupEditor objectiveId="o1" canEdit={false} archived={false} />
+      </I18nProvider>,
+    )
+    const box = await screen.findByRole('textbox', { name: 'Objective write-up' })
+    expect(box).toHaveAttribute('contenteditable', 'false')
+    act(() => { box.focus() })
+    await userEvent.keyboard('/')
+    await userEvent.hover(screen.getByText('Read me'))
+    expect(screen.queryByRole('option')).toBeNull()
+    expect(document.querySelector('.bn-side-menu, .bn-toolbar, .bn-suggestion-menu')).toBeNull()
   })
 
   describe('save cadence under network latency', () => {
@@ -114,7 +183,8 @@ describe('ObjectiveWriteupEditor with the real editor', () => {
         </I18nProvider>,
       )
       const box = await screen.findByRole('textbox', { name: 'Objective write-up' })
-      // Faked only once the editor is on screen: Testing Library's own polling needs the real clock.
+      // Faked only once the editor is on screen and editable: Testing Library's own polling needs the real clock.
+      await waitFor(() => expect(box).toHaveAttribute('contenteditable', 'true'))
       vi.useFakeTimers({ shouldAdvanceTime: true })
       act(() => { box.focus() })
       await user.keyboard('start')
@@ -154,6 +224,7 @@ describe('ObjectiveWriteupEditor with the real editor', () => {
         </I18nProvider>,
       )
       const box = await screen.findByRole('textbox', { name: 'Objective write-up' })
+      await waitFor(() => expect(box).toHaveAttribute('contenteditable', 'true'))
       vi.useFakeTimers({ shouldAdvanceTime: true })
       act(() => { box.focus() })
       await user.keyboard('a')
