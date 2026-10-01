@@ -46,7 +46,7 @@ export const TASK_CELL_INPUTS = [
     // and was never covered — while still being counted as one of the four this pass drove.
     stateContract: {
       setup: [{ action: 'click', selector: 'a.task-card-link' }],
-      assertion: { selector: '.record-viewer[data-record-kind="task"][data-record-mode="page"]' },
+      assertion: { selector: '.rp[data-record-kind="task"][data-record-mode="page"]' },
       // The queue's cards are the surface this one replaces, so their absence is the proof.
       negativeAssertion: { selector: 'article[data-testid="task-card"]' },
     },
@@ -58,7 +58,7 @@ export const TASK_CELL_INPUTS = [
       setup: [{ action: 'click', selector: 'a.task-row-link' }],
       assertion: { selector: '[data-overlay-host="true"][data-overlay-owner="tasks"] .record-field[data-editable="true"] button.record-field__edit' },
       // The permission note is the read-only record face's marker — the face this cell is not.
-      negativeAssertion: { selector: '.record-viewer__permission-note' },
+      negativeAssertion: { selector: '.rp-readonly' },
     },
   }],
   ['tasks-record-desktop-readonly', {
