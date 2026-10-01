@@ -108,15 +108,12 @@ export const E2E_CLEANUP_REGISTRY = {
   'AC-411-catalog-manage-mode.spec.ts': 'fixed-catalog-ids',
   'AC-430-post-a-signal.spec.ts': 'captured-signal-ids',
   'AC-524-follow-up.spec.ts': 'fixed-follow-up-ids',
-  'AC-630-start-occurrence.spec.ts': 'captured-process-run-id',
-  'AC-720-cafe-today-opening.spec.ts': 'captured-process-run-id',
   'AC-744-cafe-write-gate.spec.ts': 'fixed-item-id',
   'AC-PB-012-budget-pricing-preflight.spec.ts': 'captured-budget-id',
   'account-language.spec.ts': 'fixed-person-ids',
   'authority-settings-roundtrip.spec.ts': 'captured-tenant-ids',
   'dev-views.spec.ts': 'captured-user-view-id',
   'guards.geometry.spec.ts': 'captured-task-ids',
-  'home-cafe-parity.spec.ts': 'captured-run-and-pending-ids-plus-fixed-seed-ids',
   'home-tasks-redesign.spec.ts': 'captured-task-ids',
   'home-work-personas.spec.ts': 'captured-task-ids-plus-fixed-seed-ids',
   'shell-count-parity.spec.ts': 'captured-notification-id',
@@ -128,7 +125,6 @@ export const E2E_CLEANUP_REGISTRY = {
   'tasks-deeplink-mobile-keyboard.spec.ts': 'captured-task-ids',
   'tasks-record-close.spec.ts': 'captured-task-ids',
   'tasks-split-view.spec.ts': 'captured-task-ids',
-  'work-persona-closure.spec.ts': 'captured-process-run-id',
 } as const
 
 /** Keep executable SQL tokens while blanking quoted bodies and comments. This lets the safety
