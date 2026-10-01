@@ -90,7 +90,7 @@
   color: var(--text-primary); /* explicit — see ADR-0013 D2 */
 }
 .cm-item:hover { background: var(--surface-tertiary); }
-.cm-item.active { background: var(--surface-tertiary); color: var(--text-primary); }
+.cm-item.active { background: var(--surface-tertiary); color: var(--text-primary); outline: 2px solid var(--ring); outline-offset: -2px; }
 
 .cm-item-glyph {
   color: var(--text-tertiary);
