@@ -417,8 +417,12 @@ describe('CHROME-STRIPE: no side-accent stripe on options, items or rows', () =>
       // Thin pseudo-element bar: 1-4px wide, pinned to one side for the full height, filled.
       if (/::?(?:before|after)/.test(selector)) {
         const thin = /(?:^|;)\s*(?:width|inline-size)\s*:\s*[1-4]px\s*(?:;|$)/.test(body)
-        const fullHeight = /inset-block\s*:\s*0(?:px)?\s*(?:;|$)/.test(body)
-          || (/(?:^|;)\s*top\s*:\s*0(?:px)?\s*(?:;|$)/.test(body) && /(?:^|;)\s*bottom\s*:\s*0(?:px)?\s*(?:;|$)/.test(body))
+        const decl = (names: string, value: string) =>
+          new RegExp(`(?:^|;)\\s*(?:${names})\\s*:\\s*${value}\\s*(?:;|$)`).test(body)
+        const pinnedTop = decl('top|inset-block-start', '0(?:px)?')
+        const fullHeight = decl('inset-block', '0(?:px)?')
+          || (pinnedTop && decl('bottom|inset-block-end', '0(?:px)?'))
+          || (pinnedTop && decl('height|block-size', '100%'))
         const oneSide = /(?:^|;)\s*(?:left|right|inset-inline-start|inset-inline-end)\s*:\s*0(?:px)?\s*(?:;|$)/.test(body)
         const filled = /background(?:-color)?\s*:\s*(?!transparent|none)/.test(body)
         if (thin && fullHeight && oneSide && filled) out.push({ selector, decl: body.trim(), warning: false })
@@ -491,6 +495,19 @@ describe('CHROME-STRIPE: no side-accent stripe on options, items or rows', () =>
       expect(ratio(ring, p3(theme, 'background-primary')), `${theme} ring vs popover`).toBeGreaterThanOrEqual(3)
       expect(ratio(ring, p3(theme, 'background-tertiary')), `${theme} ring vs fill`).toBeGreaterThanOrEqual(3)
     }
+  })
+
+  it.each([
+    ['top + bottom', 'top: 0; bottom: 0; left: 0', true],
+    ['inset-block', 'inset-block: 0; right: 0', true],
+    ['top + height 100%', 'top: 0; height: 100%; left: 0', true],
+    ['inset-block-start + block-size 100%', 'inset-block-start: 0; block-size: 100%; inset-inline-start: 0', true],
+    ['bottom-only bar', 'bottom: 0; left: 0', false],
+    ['height 100% without a top pin', 'height: 100%; left: 0', false],
+    ['full height but not pinned to a side', 'top: 0; bottom: 0', false],
+  ])('CHROME-STRIPE: the pseudo-bar check on %s', (_name, position, flagged) => {
+    const css = `.x::before { content: ""; position: absolute; ${position}; width: 3px; background: var(--primary); }`
+    expect(stripesIn(css).length > 0).toBe(flagged)
   })
 
   it('CHROME-STRIPE: no TSX style or utility class draws a side stripe', () => {
