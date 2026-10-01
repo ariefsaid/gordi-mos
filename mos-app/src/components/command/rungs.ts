@@ -7,8 +7,7 @@ import type { ComponentType } from 'react'
 // A flat, activatable item. `kind` discriminates: 'action' (runs a callback),
 // 'navigate' (goes to `to`), 'record' (a Task row → pushRecent + navigate canonical).
 // `run` extends the existing activate() so universal actions (Ask Deputy / Share
-// Signal) that are not pure navigations can dispatch (D-PLN-7). `gated` hides an
-// item (Money navigate) when the viewer is unauthorized.
+// Signal) that are not pure navigations can dispatch (D-PLN-7).
 export type CommandItem = {
   id: string
   label: string
@@ -18,7 +17,6 @@ export type CommandItem = {
   to?: string
   run?: () => void
   meta?: string
-  gated?: boolean
   record?: { id: string; title: string }
   /**
    * This row is one of Work's DECLARED children — a fact about the registry, true whatever the
@@ -31,6 +29,8 @@ export type CommandItem = {
    * same target as the Tasks child) as a child too and the lists stop being comparable (issue 479).
    */
   child?: boolean
+  /** The row this child hangs under. Defaults to the Work row, the first destination with children. */
+  parentId?: string
   /**
    * The row is INERT: rendered so the result set stays honest, but not activatable and skipped by
    * the roving index — it announces aria-disabled="true" instead of taking a dead press. The one
@@ -40,22 +40,21 @@ export type CommandItem = {
   disabled?: boolean
 }
 
-/** The Work PARENT row — the one row a Work child may hang its rung from. */
+/** The Work PARENT row — the row a child hangs its rung from unless its `parentId` names another. */
 export const WORK_PARENT_ID = 'n-work'
 
 /**
  * The rung states a RELATIONSHIP, so it may only be drawn while both ends are on screen.
  *
- * `child: true` says "the registry declares this row under Work". The rung says something else:
- * "my parent row is rendered above me". Since #738 the palette rests on destination ROOTS, so
- * children render only in the typed view — where `searchableNavigateItems` emits them ADJACENT to
- * the Work row (directly beneath it, before the surviving roots) so the run is unbroken by
- * construction. The rung therefore survives the typed view: DESIGN.md's Rail Type Ladder is
- * "per-level, not per-surface" — a child wears the Child rung wherever it is listed.
+ * `child: true` says "the registry declares this row under a destination". The rung says something
+ * else: "my parent row is rendered above me". The palette emits each destination's children
+ * ADJACENT to it (directly beneath, before the next root), at rest and typed, so the run is
+ * unbroken by construction. DESIGN.md's Rail Type Ladder is "per-level, not per-surface" — a
+ * child wears the Child rung wherever it is listed.
  *
  * So resolve the claim against what actually renders, at the last seam before render (after the
  * query filter AND after the ship gate, either of which can remove the parent): a child keeps its
- * rung only while an unbroken run of children reaches back to the Work parent row above it. The
+ * rung only while an unbroken run of children reaches back to its parent row above it. The
  * run matters as much as the parent — the guide is one continuous line, and a non-child row
  * dropped into the middle of it (the pre-delta typed view parked roots like Inbox or Personal
  * Profile between Work and its children) ends the tree the indent is describing.
@@ -64,16 +63,16 @@ export const WORK_PARENT_ID = 'n-work'
  * and one indent, is the regression issue 479 closed.
  *
  * Exported for the issue-479 unit pin: the separated-parent shape is unrenderable through the
- * palette (children emit adjacent to the Work row), so the contract is tested here directly.
+ * palette (children emit adjacent to their parent row), so the contract is tested here directly.
  */
 export function withResolvedRungs(items: CommandItem[]): CommandItem[] {
-  let underWork = false
+  let lastRoot: string | undefined
   return items.map((item) => {
     if (!item.child) {
-      underWork = item.id === WORK_PARENT_ID
+      lastRoot = item.id
       return item
     }
-    if (underWork) return item
+    if (lastRoot === (item.parentId ?? WORK_PARENT_ID)) return item
     return { ...item, child: false }
   })
 }

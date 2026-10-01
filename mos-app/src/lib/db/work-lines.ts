@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { containsPattern } from './like-pattern'
 
 // Data layer for mos.work_lines (cascade first slice, Task B).
 // Reads mos via supabase.schema('mos') — one auth session, RLS is the authority.
@@ -39,6 +40,24 @@ export async function listWorkLines(): Promise<WorkLineRow[]> {
     .order('name')
   if (error) throw new Error(`listWorkLines failed — ${error.message}`)
   return (data ?? []) as unknown as WorkLineRow[]
+}
+
+/** Search active Projects and Processes by name for the ⌘K palette. RLS (org tenancy) is the read authority; org_id is never sent. */
+export async function searchWorkLinesByName(
+  q: string,
+  limit = 20,
+): Promise<Array<{ id: string; name: string; type: WorkLineRow['type'] }>> {
+  const term = q.trim()
+  if (!term) return []
+  const { data, error } = await mos()
+    .from('work_lines')
+    .select('id,name,type')
+    .ilike('name', containsPattern(term))
+    .is('archived_at', null)
+    .order('name')
+    .limit(limit)
+  if (error) throw new Error(`searchWorkLinesByName failed — ${error.message}`)
+  return (data ?? []) as unknown as Array<{ id: string; name: string; type: WorkLineRow['type'] }>
 }
 
 // ── Management (catalog surface, OD-C-2; ops_lead/admin writes enforced by RLS) ─

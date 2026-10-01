@@ -7,7 +7,7 @@ vi.mock('../supabase', () => {
 
 import {
   listWorkLines, listWorkLinesAll, createWorkLine, renameWorkLine, setWorkLineArchived,
-  readWorkLine, updateWorkLine,
+  readWorkLine, updateWorkLine, searchWorkLinesByName,
 } from './work-lines'
 import { supabase } from '@/lib/supabase'
 
@@ -261,5 +261,50 @@ describe('setWorkLineArchived', () => {
     await setWorkLineArchived('wl-1', false)
 
     expect(rec.updates).toEqual([{ archived_at: null }])
+  })
+})
+
+// The ⌘K palette's Project & Process read path. RLS (org tenancy) is the only read authority —
+// the query carries no org filter of its own — so the contract here is the query's SHAPE.
+describe('searchWorkLinesByName (⌘K palette)', () => {
+  function searchSchema(result: { data: unknown; error: unknown }) {
+    const calls = { tables: [] as string[], selects: [] as string[], ilikes: [] as Array<[string, unknown]>, nulls: [] as Array<[string, unknown]>, limits: [] as number[], eqs: [] as string[] }
+    const builder: Record<string, unknown> = {}
+    builder.select = vi.fn((s: string) => { calls.selects.push(s); return builder })
+    builder.ilike = vi.fn((c: string, v: unknown) => { calls.ilikes.push([c, v]); return builder })
+    builder.is = vi.fn((c: string, v: unknown) => { calls.nulls.push([c, v]); return builder })
+    builder.eq = vi.fn((c: string) => { calls.eqs.push(c); return builder })
+    builder.order = vi.fn(() => builder)
+    builder.limit = vi.fn((n: number) => { calls.limits.push(n); return builder })
+    builder.then = (resolve: (v: unknown) => unknown) => Promise.resolve(result).then(resolve)
+    schemaMock.mockReturnValue({ from: vi.fn((t: string) => { calls.tables.push(t); return builder }) } as never)
+    return calls
+  }
+
+  it('reads active work lines with their type, escapes LIKE wildcards, is bounded and sends no org filter', async () => {
+    const rows = [{ id: 'w-1', name: 'New Menu Design', type: 'project' }]
+    const calls = searchSchema({ data: rows, error: null })
+
+    expect(await searchWorkLinesByName('  menu ')).toEqual(rows)
+    expect(calls.tables).toEqual(['work_lines'])
+    expect(calls.selects).toEqual(['id,name,type'])
+    expect(calls.ilikes).toContainEqual(['name', '%menu%'])
+    expect(calls.nulls).toContainEqual(['archived_at', null])
+    expect(calls.limits).toEqual([20])
+    expect(calls.eqs).not.toContain('org_id')
+
+    await searchWorkLinesByName('50%_*')
+    expect(calls.ilikes).toContainEqual(['name', '%50\\%\\_\\*%'])
+  })
+
+  it('returns nothing for a blank query without touching the database', async () => {
+    schemaMock.mockClear()
+    expect(await searchWorkLinesByName('   ')).toEqual([])
+    expect(schemaMock).not.toHaveBeenCalled()
+  })
+
+  it('throws on a PostgREST error so the palette shows its search-failed row', async () => {
+    searchSchema({ data: null, error: { message: 'search boom' } })
+    await expect(searchWorkLinesByName('x')).rejects.toThrow(/searchWorkLinesByName failed — search boom/)
   })
 })

@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { containsPattern } from './like-pattern'
 
 // Data layer for mos.objectives (cascade first slice, Task B).
 // Reads mos via supabase.schema('mos') — one auth session, RLS is the authority.
@@ -39,6 +40,21 @@ export async function listObjectives(): Promise<ObjectiveRow[]> {
     .order('name')
   if (error) throw new Error(`listObjectives failed — ${error.message}`)
   return (data ?? []) as unknown as ObjectiveRow[]
+}
+
+/** Search active objectives by name for the ⌘K palette. RLS (org tenancy) is the read authority; org_id is never sent. */
+export async function searchObjectivesByName(q: string, limit = 20): Promise<Array<{ id: string; name: string }>> {
+  const term = q.trim()
+  if (!term) return []
+  const { data, error } = await mos()
+    .from('objectives')
+    .select('id,name')
+    .ilike('name', containsPattern(term))
+    .is('archived_at', null)
+    .order('name')
+    .limit(limit)
+  if (error) throw new Error(`searchObjectivesByName failed — ${error.message}`)
+  return (data ?? []) as unknown as Array<{ id: string; name: string }>
 }
 
 // ── Management (catalog surface, OD-C-2; admin-only writes enforced by RLS) ────
