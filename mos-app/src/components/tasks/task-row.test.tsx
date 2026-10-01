@@ -786,6 +786,40 @@ describe('TaskRow — decision cells form one roving-focus grid (#1192)', () => 
     await user.tab({ shift: true })
     expect(document.activeElement).toBe(within(row(1)).getByRole('button', { name: 'Edit task due date' }))
   })
+
+  // #1192 review: the Supervisor stop renders even when no supervisor is assigned — otherwise
+  // unassigned rows drop the column from the roving grid and the columns stop lining up.
+  it('an unassigned Supervisor cell stays a grid stop: horizontal and vertical arrows cross it, named "Supervisor: none"', async () => {
+    const user = userEvent.setup()
+    render(
+      <MemoryRouter>
+        <button type="button">before</button>
+        <table><tbody>
+          <TaskRow {...baseProps({ ...editable, personOptions: people, supervisorName: '' })} />
+          <TaskRow {...baseProps({
+            ...editable,
+            task: makeTask({ id: 'task-8', title: 'Recalibrate grind profile', status: 'Open', due_date: '2026-06-20' }),
+            leafIndex: 1, ownerName: 'Dewi Santoso', supervisorName: '',
+          })} />
+        </tbody></table>
+        <button type="button">after</button>
+      </MemoryRouter>,
+    )
+
+    const emptyStop = supervisorStopIn(row(0))
+    expect(emptyStop).not.toBeNull()
+    expect(emptyStop).toHaveAttribute('aria-label', 'Supervisor: none')
+
+    // Horizontal: → from PIC lands on the EMPTY supervisor stop — never skips to Due.
+    within(row(0)).getByRole('button', { name: /Rina/ }).focus()
+    await user.keyboard('{ArrowRight}')
+    expect(document.activeElement).toBe(emptyStop)
+    // Vertical: ↓ reaches the same empty stop in the next row, and ↑ returns.
+    await user.keyboard('{ArrowDown}')
+    expect(document.activeElement).toBe(supervisorStopIn(row(1)))
+    await user.keyboard('{ArrowUp}')
+    expect(document.activeElement).toBe(emptyStop)
+  })
 })
 
 describe('TaskRow — e7 click-to-edit and cell commit contract', () => {

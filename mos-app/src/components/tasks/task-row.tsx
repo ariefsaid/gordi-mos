@@ -619,17 +619,20 @@ export function TaskRow({
     // A2 person cell: one grammar for both person columns (AC-021) — the avatar + first
     // name, never the full-name text (that lives in the record and in pickers).
     // #1192: the Supervisor cell is a grid stop like the editable cells — reachable and
-    // discoverable by keyboard even though its editor lives on the record surface.
-    supervisor: supervisorName ? (
+    // discoverable by keyboard even though its editor lives on the record surface. An
+    // UNASSIGNED supervisor is a stop too (named "Supervisor: none") so the roving grid's
+    // columns line up on every row.
+    supervisor: (
       <span
         className="supervisor-cell-stop"
         tabIndex={activeCell === 'supervisor' ? 0 : -1}
         onFocus={() => setActiveCell('supervisor')}
         data-row-stop=""
+        aria-label={supervisorName ? undefined : t('tasks.supervisor.none')}
       >
-        <PersonCell fullName={supervisorName} />
+        {supervisorName ? <PersonCell fullName={supervisorName} /> : <span className="td-empty">—</span>}
       </span>
-    ) : <span className="td-empty">—</span>,
+    ),
     businessUnit: businessUnitName || <span className="td-empty">—</span>,
     workline: workLineName || <span className="td-empty">—</span>,
     objective: objectiveName || <span className="td-empty">—</span>,

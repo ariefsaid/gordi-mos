@@ -120,11 +120,14 @@ export function Picker({
 
   const openPicker = useCallback(() => {
     if (disabled || busy || open) return
+    // #1192: opening always starts a fresh phrase — a live closed-trigger prefix must never
+    // leak into the menu session or survive a quick dismiss → retype.
+    typeahead.clear()
     setActive(initialActive())
     setSearch('')
     setOpen(true)
     onOpenChange?.(true, undefined)
-  }, [busy, disabled, initialActive, onOpenChange, open])
+  }, [busy, disabled, initialActive, onOpenChange, open, typeahead])
 
   const togglePicker = useCallback(() => {
     if (disabled || busy) return
@@ -214,10 +217,19 @@ export function Picker({
             onClick={(event) => { event.preventDefault(); togglePicker() }}
             onKeyDown={(event) => {
               if (!open && isTypeaheadKey(event)) {
+                // #1192: a closed trigger owns the printable keys its type-ahead handles —
+                // consume them (preventDefault + stopPropagation) so they never bubble to a
+                // window keyboard layer (Tasks: `n` must not open create, `j`/`k` must not
+                // move the collection cursor).
+                event.preventDefault()
+                event.stopPropagation()
                 const typingAhead = typeahead.peek() !== ''
-                const match = nextTypeaheadMatch(options, value, typeahead.push(event.key))
-                if (match !== undefined) onChange(match)
-                // While a type-ahead is in progress a space extends the phrase, never opens.
+                // A bare Space (no phrase in progress) opens the menu and never enters the
+                // buffer; with a phrase live, Space extends it instead of opening.
+                if (typingAhead || event.key !== ' ') {
+                  const match = nextTypeaheadMatch(options, value, typeahead.push(event.key))
+                  if (match !== undefined) onChange(match)
+                }
                 if (typingAhead && event.key === ' ') return
               }
               if (event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'Enter' || event.key === ' ') {

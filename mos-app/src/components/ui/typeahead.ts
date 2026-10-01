@@ -57,7 +57,7 @@ export function useTypeaheadBuffer() {
     return search
   }, [clear])
   const peek = useCallback(() => searchRef.current, [])
-  return { push, peek }
+  return { push, peek, clear }
 }
 
 /** True when a keydown on a closed trigger should feed the type-ahead (a bare printable key). */
