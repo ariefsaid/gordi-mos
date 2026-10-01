@@ -8,7 +8,7 @@
 // rendered <td> chain against the defs / visible-leaf derivation (spec AC-001/002/003) —
 // the observable behaviour the old show*-prop tests pinned, at the new seam.
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
@@ -63,6 +63,9 @@ function renderRow(props: Partial<TaskRowProps> = {}) {
 }
 
 const picTrigger = () => screen.getByRole('button', { name: /Rina/ })
+
+// #1192: the Supervisor cell is a grid stop — a focusable element with data-row-stop.
+const supervisorStop = () => screen.getByText('Budi').closest('[data-row-stop]') as HTMLElement
 
 function installTaskStyles() {
   const style = document.createElement('style')
@@ -639,6 +642,7 @@ describe('TaskRow — one tab stop per row, cells reached by arrow keys (#1027)'
       <button type="button">before</button>
       <table><tbody><TaskRow {...baseProps({
         onEditTitle: vi.fn(), onEditStatus: vi.fn(), onEditPic: vi.fn(), onEditDue: vi.fn(), personOptions: people,
+        supervisorName: 'Budi Santoso',
       })} /></tbody></table>
       <button type="button">after</button>
     </MemoryRouter>,
@@ -657,7 +661,7 @@ describe('TaskRow — one tab stop per row, cells reached by arrow keys (#1027)'
     expect(stops).toBe(1)
   })
 
-  it('the row stop is the title link; Arrow keys walk Status, PIC and Due and back', async () => {
+  it('the row stop is the title link; Arrow keys walk Status, PIC, Supervisor and Due and back (#1192: Supervisor is a cell, never skipped)', async () => {
     const user = userEvent.setup()
     editableRow()
     screen.getByRole('button', { name: 'before' }).focus()
@@ -668,10 +672,12 @@ describe('TaskRow — one tab stop per row, cells reached by arrow keys (#1027)'
     await user.keyboard('{ArrowRight}')
     expect(document.activeElement).toBe(picTrigger())
     await user.keyboard('{ArrowRight}')
+    expect(document.activeElement).toBe(supervisorStop())
+    await user.keyboard('{ArrowRight}')
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Edit task due date' }))
     await user.keyboard('{ArrowRight}')
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Edit task due date' }))
-    await user.keyboard('{ArrowLeft}{ArrowLeft}{ArrowLeft}')
+    await user.keyboard('{ArrowLeft}{ArrowLeft}{ArrowLeft}{ArrowLeft}')
     expect(document.activeElement).toBe(screen.getByRole('link', { name: /Finalise Q3/ }))
   })
 
@@ -700,6 +706,85 @@ describe('TaskRow — one tab stop per row, cells reached by arrow keys (#1027)'
     screen.getByRole('link', { name: /Finalise Q3/ }).focus()
     await user.keyboard('{ArrowRight}{Enter}')
     expect(await screen.findByRole('option', { name: 'Done' })).toBeInTheDocument()
+  })
+})
+
+// #1192: the decision cells form ONE roving-focus grid — the current one-tab-stop-per-row model
+// extended, not a second keyboard layer. Tab enters at the row's active cell and leaves the grid;
+// ↑/↓ move the same column across leaf rows; Supervisor is never skipped; Enter/F2 open the
+// focused cell's editor; Escape hands focus back to the cell; cells expose aria-colindex.
+describe('TaskRow — decision cells form one roving-focus grid (#1192)', () => {
+  const people = [{ id: 'p-1', full_name: 'Rina Lestari' }, { id: 'p-2', full_name: 'Dewi Santoso' }]
+  const editable = { onEditTitle: vi.fn(), onEditStatus: vi.fn(), onEditPic: vi.fn(), onEditDue: vi.fn() }
+
+  function gridRows() {
+    return render(
+      <MemoryRouter>
+        <button type="button">before</button>
+        <table><tbody>
+          <TaskRow {...baseProps({ ...editable, personOptions: people, supervisorName: 'Budi Santoso' })} />
+          <TaskRow {...baseProps({
+            ...editable,
+            task: makeTask({ id: 'task-8', title: 'Recalibrate grind profile', status: 'Open', due_date: '2026-06-20' }),
+            leafIndex: 1, ownerName: 'Dewi Santoso', supervisorName: 'Budi Santoso',
+          })} />
+        </tbody></table>
+        <button type="button">after</button>
+      </MemoryRouter>,
+    )
+  }
+
+  const row = (index: number) => document.querySelectorAll('tr.task-row')[index] as HTMLElement
+  const supervisorStopIn = (rowEl: HTMLElement) => rowEl.querySelector('.td-supervisor [data-row-stop]') as HTMLElement
+
+  it('arrows cross rows and reach Supervisor; Enter/F2 open the editor; Escape returns; Tab leaves and re-enters at the active cell', async () => {
+    const user = userEvent.setup()
+    gridRows()
+
+    // AT exposure: existing table semantics + a colindex on every rendered cell.
+    const cols = Array.from(row(0).querySelectorAll('td')).map((td) => td.getAttribute('aria-colindex'))
+    expect(cols).toEqual(['1', '2', '3', '4', '5'])
+
+    screen.getByRole('button', { name: 'before' }).focus()
+    await user.tab()
+    expect(document.activeElement).toBe(within(row(0)).getByRole('link', { name: /Finalise Q3/ }))
+
+    // → → → walks into Supervisor (never skipped); ↓ crosses to the same column next row.
+    await user.keyboard('{ArrowRight}{ArrowRight}{ArrowRight}')
+    expect(document.activeElement).toBe(supervisorStopIn(row(0)))
+    await user.keyboard('{ArrowDown}')
+    expect(document.activeElement).toBe(supervisorStopIn(row(1)))
+    await user.keyboard('{ArrowUp}')
+    expect(document.activeElement).toBe(supervisorStopIn(row(0)))
+
+    // F2 opens the focused cell's editor; Escape hands focus back to the cell.
+    await user.keyboard('{ArrowRight}')
+    expect(document.activeElement).toBe(within(row(0)).getByRole('button', { name: 'Edit task due date' }))
+    await user.keyboard('{F2}')
+    expect(await screen.findByLabelText('Due date')).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByLabelText('Due date')).toBeNull()
+    expect(document.activeElement).toBe(within(row(0)).getByRole('button', { name: 'Edit task due date' }))
+
+    // Enter opens the cell editor; Escape returns focus to the cell again.
+    await user.keyboard('{ArrowLeft}{ArrowLeft}{ArrowLeft}')
+    expect(document.activeElement).toBe(within(row(0)).getByRole('button', { name: /Blocked/ }))
+    await user.keyboard('{Enter}')
+    expect(await screen.findByRole('option', { name: 'Done' })).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('combobox', { name: 'Edit task status' })).toBeNull())
+    expect(document.activeElement).toBe(within(row(0)).getByRole('button', { name: /Blocked/ }))
+
+    // ↓ moves to the next row's same column; Tab leaves the grid from there; Shift-Tab
+    // re-enters at the cell that was active when the grid was left.
+    await user.keyboard('{ArrowDown}')
+    expect(document.activeElement).toBe(within(row(1)).getByRole('button', { name: /Open/ }))
+    await user.keyboard('{ArrowRight}{ArrowRight}{ArrowRight}')
+    expect(document.activeElement).toBe(within(row(1)).getByRole('button', { name: 'Edit task due date' }))
+    await user.tab()
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'after' }))
+    await user.tab({ shift: true })
+    expect(document.activeElement).toBe(within(row(1)).getByRole('button', { name: 'Edit task due date' }))
   })
 })
 

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Picker, type PickerOption } from './picker'
 
@@ -232,5 +232,57 @@ describe('Picker', () => {
     const label = screen.getByRole('option', { name: long }).querySelector('.picker__option-label')
     expect(label).toHaveTextContent(long)
     expect(label).toHaveClass('picker__option-label')
+  })
+})
+
+// #1192 / DD-MVP-2: a closed picker answers typed letters exactly as a native select does —
+// the next option starting with the typed text is selected without opening, repeated letters
+// cycle through the matches, and a short buffer carries a multi-letter prefix.
+describe('Picker — closed-trigger type-ahead (#1192)', () => {
+  const people: PickerOption[] = [
+    { value: 'raka', label: 'Raka' },
+    { value: 'rina', label: 'Rina' },
+    { value: 'rusdi', label: 'Rusdi' },
+    { value: 'sol', label: 'Sol' },
+  ]
+
+  function renderStatefulPicker(initial: string) {
+    let current = initial
+    const onChange = vi.fn()
+    const harness = render(
+      <Picker label="PIC" value={current} options={people} onChange={onChange} />,
+    )
+    onChange.mockImplementation((next: string) => {
+      current = next
+      harness.rerender(<Picker label="PIC" value={current} options={people} onChange={onChange} />)
+    })
+    return { onChange }
+  }
+
+  it('typing a letter selects the next matching option without opening; repeated letters cycle; a short buffer carries prefixes', async () => {
+    const user = userEvent.setup()
+    const { onChange } = renderStatefulPicker('raka')
+    const trigger = screen.getByRole('combobox', { name: 'PIC' })
+    trigger.focus()
+
+    // Each press selects the next option after the selection whose label starts with the
+    // typed letter; the popup never opens.
+    await user.keyboard('r')
+    expect(onChange).toHaveBeenNthCalledWith(1, 'rina')
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+    await user.keyboard('r')
+    expect(onChange).toHaveBeenNthCalledWith(2, 'rusdi')
+    await user.keyboard('r')
+    expect(onChange).toHaveBeenNthCalledWith(3, 'raka')
+
+    // After the buffer clears, two quick letters form a prefix: scanning from Raka, "ru"
+    // lands on Rusdi — a match no single letter could produce.
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 1100)) })
+    await user.keyboard('ru')
+    expect(onChange).toHaveBeenNthCalledWith(4, 'rina')
+    expect(onChange).toHaveBeenNthCalledWith(5, 'rusdi')
+    expect(onChange).toHaveBeenCalledTimes(5)
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+    expect(trigger).toHaveFocus()
   })
 })

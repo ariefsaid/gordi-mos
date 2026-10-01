@@ -153,6 +153,10 @@
 }
 
 .inline-cell-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* #1192: the Supervisor cell is a keyboard grid stop like the editable cells — the same
+   dense-cell focus grammar, so focus is discoverable without the legend under the table. */
+.supervisor-cell-stop { display: inline-flex; border-radius: var(--radius-xs); }
+.supervisor-cell-stop:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 /* DD-MVP-4: an overdue due label must show its full value in place. When
    "Overdue · <date>" exceeds the fixed due track, wrap between the state and
    the date instead of clipping mid-value (run 861b0004: 157px in a 152px cell). */

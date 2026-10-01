@@ -452,7 +452,15 @@ function sortTaskRecords(
   const cmp = (a: TaskCollectionRecord, b: TaskCollectionRecord): number => {
     switch (query.sort) {
       case 'task': return a.title.localeCompare(b.title)
-      case 'status': return a.status.localeCompare(b.status)
+      case 'status': {
+        // Workflow order — the shared OFF-TRACK-FIRST STATUS_ORDER — never alphabetical (#1192);
+        // the same order the status GROUPS use, so a sorted table matches its grouped view.
+        const rank = (record: TaskCollectionRecord) => {
+          const at = STATUS_ORDER.indexOf(record.status)
+          return at < 0 ? STATUS_ORDER.length : at
+        }
+        return rank(a) - rank(b)
+      }
       case 'pic': return name(a.picId).localeCompare(name(b.picId))
       case 'supervisor': return name(a.supervisorId).localeCompare(name(b.supervisorId))
       // Activity's natural order is most-recent-first (matches the legacy TanStack sortingFn).

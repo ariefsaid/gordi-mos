@@ -10,6 +10,7 @@ import {
 import { flushSync } from 'react-dom'
 import * as Popover from '@radix-ui/react-popover'
 import { Command } from 'cmdk'
+import { isTypeaheadKey, nextTypeaheadMatch, useTypeaheadBuffer } from './typeahead'
 import { useT } from '@/i18n/use-t'
 import './Picker.css'
 
@@ -103,6 +104,9 @@ export function Picker({
   const [search, setSearch] = useState('')
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+  // Closed-trigger type-ahead (#1192): letters select the next matching option without opening,
+  // exactly as a native select does — the shared grammar lives in ./typeahead.
+  const typeahead = useTypeaheadBuffer()
   const closeReason = useRef<PickerCloseReason>('outside')
   const closedBy = useRef<PickerCloseReason>('outside')
 
@@ -199,6 +203,13 @@ export function Picker({
             onBlur={onBlur}
             onClick={(event) => { event.preventDefault(); togglePicker() }}
             onKeyDown={(event) => {
+              if (!open && isTypeaheadKey(event)) {
+                const typingAhead = typeahead.peek() !== ''
+                const match = nextTypeaheadMatch(options, value, typeahead.push(event.key))
+                if (match !== undefined) onChange(match)
+                // While a type-ahead is in progress a space extends the phrase, never opens.
+                if (typingAhead && event.key === ' ') return
+              }
               if (event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'Enter' || event.key === ' ') {
                 event.preventDefault()
                 event.stopPropagation()

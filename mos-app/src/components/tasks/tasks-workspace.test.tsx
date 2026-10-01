@@ -2385,8 +2385,8 @@ describe('AC-W2C — desktop density: Due in-frame, optional cols in drawer', ()
 // ── Ticket #750 — rows/body judgment wave (AC-019 · AC-022 · AC-024) ─────────
 
 describe('Ticket #750 — AC-019 footer legend states the click grammar', () => {
-  const EN_LEGEND = 'Click a row to open it · ← → move between cells · ✎ or F2 edits the title · Enter saves · Esc discards'
-  const ID_LEGEND = 'Klik baris untuk membukanya · ← → pindah antar sel · ✎ atau F2 menyunting judul · Enter menyimpan · Esc membatalkan'
+  const EN_LEGEND = 'Click a row to open it · ↑↓ ← → move between cells · ✎ or F2 edits the title · Enter saves · Esc discards'
+  const ID_LEGEND = 'Klik baris untuk membukanya · ↑↓ ← → pindah antar sel · ✎ atau F2 menyunting judul · Enter menyimpan · Esc membatalkan'
 
   it('AC-019: the legend under the table reads the new grammar in EN and in ID', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'Legend task' })])

@@ -1103,7 +1103,7 @@ export const messages = {
     'tasks.inlineEdit.aria': "Edit task title",
     'tasks.inlineEdit.activeHint': "Enter saves · Tab moves · Esc discards",
     // AC-019 (#750): the footer legend states the row-activation grammar (A3) verbatim.
-    'tasks.inlineEdit.hint': "Click a row to open it · ← → move between cells · ✎ or F2 edits the title · Enter saves · Esc discards",
+    'tasks.inlineEdit.hint': "Click a row to open it · ↑↓ ← → move between cells · ✎ or F2 edits the title · Enter saves · Esc discards",
     'tasks.inlineEdit.pencil': "Edit title",
     'tasks.inlineEdit.status': "Edit task status",
     'tasks.inlineEdit.pic': "Edit task PIC",
@@ -2920,7 +2920,7 @@ export const messages = {
     'tasks.inlineEdit.aria': "Sunting judul tugas",
     'tasks.inlineEdit.activeHint': "Enter menyimpan · Tab berpindah · Esc membatalkan",
     // AC-019 (#750): the footer legend states the row-activation grammar (A3) verbatim.
-    'tasks.inlineEdit.hint': "Klik baris untuk membukanya · ← → pindah antar sel · ✎ atau F2 menyunting judul · Enter menyimpan · Esc membatalkan",
+    'tasks.inlineEdit.hint': "Klik baris untuk membukanya · ↑↓ ← → pindah antar sel · ✎ atau F2 menyunting judul · Enter menyimpan · Esc membatalkan",
     'tasks.inlineEdit.pencil': "Sunting judul",
     'tasks.inlineEdit.status': "Ubah status tugas",
     'tasks.inlineEdit.pic': "Ubah PIC tugas",
