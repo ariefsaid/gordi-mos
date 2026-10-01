@@ -14,7 +14,7 @@ import { useMenuPopover } from '@/lib/use-menu-popover'
 import { usePopoverReflow } from '@/components/ui/use-popover-reflow'
 import './record-page.css'
 
-export interface RecordMenuItem {
+export type RecordMenuItem = {
   id: string
   label: string
   onSelect: () => void
@@ -23,7 +23,7 @@ export interface RecordMenuItem {
   disabled?: boolean
 }
 
-export interface RecordMenuProps {
+export type RecordMenuProps = {
   items: readonly RecordMenuItem[]
   label: string
   minItems?: number
