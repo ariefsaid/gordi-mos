@@ -59,6 +59,8 @@ __pycache__/
 !.env.sample
 # Catch env files that don't START with ".env" (e.g. foo.resend.env) — the patterns above miss those.
 *.env
+# Local staging-deploy coordinates (item/vault names); the .example beside it is the committed template.
+supabase/op.staging.env
 *.pem
 *.key
 *.p12

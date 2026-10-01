@@ -35,6 +35,24 @@ all. Prefer that boundary to any filename rule.
 - `supabase db reset` — drop, re-apply all migrations, re-run `seed.sql` (the reversibility contract).
 - `supabase test db` — run the pgTAP suite.
 
+## Deploy to staging
+
+```sh
+bash scripts/deploy-staging.sh            # preflight, y/N confirm, push, verify, promotion PR
+bash scripts/deploy-staging.sh --dry-run  # stop after the preflight
+```
+
+Prerequisites: `op-get.sh` signed in on the host, and a local `supabase/op.staging.env` copied from
+`supabase/op.staging.env.example` (gitignored; it names where the connection string is stored). Run it
+from a checkout of the content being deployed.
+
+Order: dry-run list of pending migrations; edge-function changes on `main` vs `staging` are reported
+but never deployed; a rolled-back probe of the privileged steps when a pending migration touches the
+`authenticator` role or storage policies; confirmation (default No; `--yes` skips it); `supabase db
+push`; then verify (newest migration applied, the request gate set when a migration sets it, no trusted
+agent clients). The connection string is never printed. `--no-pr` skips the `main` to `staging`
+promotion PR, which is opened only when local `main` equals `origin/main`.
+
 ## Writing a migration that is conditional on prior state (#393)
 
 `supabase db reset` starts from nothing. So the moment a migration says `drop constraint if
