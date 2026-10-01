@@ -25,7 +25,21 @@ vi.mock('@/lib/db/directory', async (importActual) => ({
   getPeople: vi.fn(async () => [{ id: 'p-dewi', full_name: 'Dewi Director' }, { id: 'p-maya', full_name: 'Maya Marketing' }]),
 }))
 vi.mock('@/lib/db/record-history', async (orig) => ({ ...(await orig<typeof import('@/lib/db/record-history')>()), loadRecordHistory: vi.fn() }))
-vi.mock('@/components/processes/process-occurrence-controls', () => ({ ProcessOccurrenceControls: () => <div data-testid="occurrences" /> }))
+// The occurrence data is lifted into the record (the header carries the Start primary); the body's
+// controls are stubbed to the markup the header's multi-Team jump needs.
+const occurrenceData = vi.hoisted(() => ({
+  current: null as null | import('@/components/processes/use-process-occurrences').ProcessOccurrencesData,
+}))
+vi.mock('@/components/processes/use-process-occurrences', () => ({ useProcessOccurrences: () => occurrenceData.current }))
+vi.mock('@/components/processes/process-occurrence-controls', () => ({
+  ProcessOccurrenceControls: ({ data }: { data?: import('@/components/processes/use-process-occurrences').ProcessOccurrencesData }) => (
+    <div data-testid="occurrences">
+      <section className="process-occurrence-controls__start">
+        {data?.startable.map((run) => <button key={run.owning_team_id} type="button" className="btn btn-outline">Start · {run.team_name}</button>)}
+      </section>
+    </div>
+  ),
+}))
 const editorModule = vi.hoisted(() => ({ loads: 0 }))
 vi.mock('./objective-writeup-editor', () => {
   editorModule.loads += 1
@@ -50,7 +64,7 @@ import { loadRecordHistory } from '@/lib/db/record-history'
 import { readWriteUp } from '@/lib/db/objective-writeup'
 import { getWorkWriteScopes } from '@/lib/db/work-authority'
 import { loadCatalogRecordData, loadCatalogRecordEditDirectory, type CatalogRecordData } from './catalog-record-loader'
-import type { CatalogRelationTask, CatalogRow } from './catalog-collection-adapter'
+import type { CatalogRelationGroup, CatalogRelationTask, CatalogRow } from './catalog-collection-adapter'
 import { CatalogRecordDocument } from './catalog-record-document'
 
 const scopes = (over: Partial<WorkWriteScopes>): WorkWriteScopes => ({
@@ -89,6 +103,7 @@ interface ObjectiveOptions {
   row?: Partial<CatalogRow>
   linked?: { id: string; name: string; type: 'project' | 'process'; bu?: string }[]
   tasks?: CatalogRelationTask[]
+  contributions?: CatalogRelationGroup[]
 }
 
 function objectiveData(opts: ObjectiveOptions = {}): CatalogRecordData {
@@ -98,11 +113,11 @@ function objectiveData(opts: ObjectiveOptions = {}): CatalogRecordData {
   }
   const linked = opts.linked ?? []
   const tasks = opts.tasks ?? []
-  const groups = linked.map((wl) => ({
+  const groups = [...linked.map((wl) => ({
     id: wl.id, name: wl.name, relationship: 'direct' as const, entity: 'work-line' as const,
     objectiveId: 'obj-1', workLineId: wl.id, taskCount: tasks.length, done: tasks.filter((t) => t.status === 'Done').length,
     total: tasks.length, tasks,
-  }))
+  })), ...(opts.contributions ?? [])]
   return {
     row,
     context: {
@@ -162,15 +177,26 @@ function workLineData(type: 'project' | 'process', opts: { tasks?: CatalogRelati
   }
 }
 
+const dueRun = (team: string, teamId: string) => ({
+  work_line_id: 'wl-1', process_name: 'Café opening', owning_team_id: teamId, team_name: team, period_key: '2026-10-01', scheduled_date: '2026-10-01',
+})
+const startRun = vi.fn(async () => {})
+const occurrences = (startable: ReturnType<typeof dueRun>[], over: Partial<NonNullable<typeof occurrenceData.current>> = {}) => {
+  occurrenceData.current = {
+    state: 'ready', occurrences: [], startable, startableTeamIds: new Set(), closableRunIds: new Set(), authorityError: false,
+    actionError: false, setActionError: vi.fn(), startingKey: null, startError: false, load: async () => {}, retry: vi.fn(), start: startRun, ...over,
+  }
+}
+
 let data: CatalogRecordData
 const onCreateTask = vi.fn()
 
-function renderRecord(kind: 'objective' | 'work-line' = 'objective', mode: 'page' | 'panel' = 'page') {
+function renderRecord(kind: 'objective' | 'work-line' = 'objective', mode: 'page' | 'panel' = 'page', taskAddedRef?: { current: boolean }) {
   return render(
     <AuthContext.Provider value={auth()}>
       <I18nProvider>
         <MemoryRouter>
-          <CatalogRecordDocument kind={kind} id={kind === 'objective' ? 'obj-1' : 'wl-1'} mode={mode} onCreateTask={onCreateTask} />
+          <CatalogRecordDocument kind={kind} id={kind === 'objective' ? 'obj-1' : 'wl-1'} mode={mode} onCreateTask={onCreateTask} taskAddedRef={taskAddedRef} />
         </MemoryRouter>
       </I18nProvider>
     </AuthContext.Provider>,
@@ -183,6 +209,7 @@ const setup = () => screen.queryByRole('region', { name: /started$/ })
 beforeEach(() => {
   vi.clearAllMocks()
   editorModule.loads = 0
+  occurrences([])
   data = objectiveData()
   vi.mocked(getWorkWriteScopes).mockResolvedValue(ADMIN)
   vi.mocked(loadCatalogRecordData).mockImplementation(async () => data)
@@ -310,6 +337,92 @@ describe('Get started lists only what is missing, and its buttons work', () => {
     const list = await screen.findByRole('listbox')
     const names = within(list).getAllByRole('option').map((o) => o.textContent)
     expect(names).toEqual(['Weekday promo post', 'Lunch set menu (linked to Improve margin)'])
+  })
+
+  it('groups the picker under Not linked yet and Linked to another Objective headings', async () => {
+    const user = userEvent.setup()
+    vi.mocked(listWorkLinesAll).mockResolvedValue([
+      { id: 'wl-c', name: 'Lunch set menu', type: 'project', objective_id: 'obj-2', archived_at: null, business_unit_id: 'bu-1' },
+      { id: 'wl-a', name: 'Weekday promo post', type: 'process', objective_id: null, archived_at: null, business_unit_id: 'bu-1' },
+    ] as never)
+    renderRecord()
+    const region = await screen.findByRole('region', { name: 'Get this Objective started' })
+    await user.click(within(region).getByRole('button', { name: 'Link Project or Process' }))
+    const free = await screen.findByRole('group', { name: 'Not linked yet' })
+    const other = screen.getByRole('group', { name: 'Linked to another Objective' })
+    expect(within(free).getAllByRole('option').map((o) => o.textContent)).toEqual(['Weekday promo post'])
+    expect(within(other).getAllByRole('option').map((o) => o.textContent)).toEqual(['Lunch set menu (linked to Improve margin)'])
+  })
+
+  describe('an optimistic link', () => {
+    const linkedObjective = (contributions?: CatalogRelationGroup[]) => {
+      vi.mocked(listKeyResults).mockResolvedValue([kr()])
+      data = objectiveData({ linked: [{ id: 'wl-1', name: 'Menu launch', type: 'project' }], tasks: [task('t1', 'Print menus', 'Open')], contributions })
+      vi.mocked(listWorkLinesAll).mockResolvedValue([
+        { id: 'wl-a', name: 'Weekday promo post', type: 'process', objective_id: null, archived_at: null, business_unit_id: 'bu-1', responsible_person_id: 'p-maya' },
+      ] as never)
+    }
+
+    async function pickPromo(user: ReturnType<typeof userEvent.setup>) {
+      const work = await screen.findByRole('region', { name: 'Projects & Processes' })
+      await user.click(within(work).getByRole('button', { name: 'Link Project or Process' }))
+      await user.click(await screen.findByRole('option', { name: 'Weekday promo post' }))
+      return work
+    }
+
+    it('shows the linked row at once, before the write or the re-read has finished', async () => {
+      const user = userEvent.setup()
+      linkedObjective()
+      vi.mocked(updateWorkLine).mockReturnValue(new Promise(() => {}))
+      renderRecord()
+      const work = await pickPromo(user)
+      expect(within(work).getByRole('link', { name: 'Weekday promo post' })).toBeInTheDocument()
+      expect(within(work).getByText('2')).toBeInTheDocument()
+    })
+
+    it('rolls the row back and offers a retry when the write fails', async () => {
+      const user = userEvent.setup()
+      linkedObjective()
+      let deny: (reason: Error) => void = () => {}
+      vi.mocked(updateWorkLine).mockReturnValueOnce(new Promise<void>((_, reject) => { deny = reject }))
+      renderRecord()
+      const work = await pickPromo(user)
+      expect(within(work).getByRole('link', { name: 'Weekday promo post' })).toBeInTheDocument()
+      deny(new Error('denied'))
+      expect(await screen.findByText("Couldn't link", { exact: false })).toBeInTheDocument()
+      expect(within(work).queryByRole('link', { name: 'Weekday promo post' })).toBeNull()
+      expect(within(work).getByRole('link', { name: 'Menu launch' })).toBeInTheDocument()
+    })
+
+    it('a failed link of work already shown through this Objective\'s Tasks puts that row back as it was', async () => {
+      const user = userEvent.setup()
+      linkedObjective([{
+        id: 'wl-a', name: 'Weekday promo post', relationship: 'contribution', entity: 'work-line',
+        objectiveId: 'obj-9', workLineId: 'wl-a', taskCount: 1, done: 0, total: 1,
+        tasks: [task('t9', 'Hand out flyers', 'Open')],
+      }])
+      let deny: (reason: Error) => void = () => {}
+      vi.mocked(updateWorkLine).mockReturnValueOnce(new Promise<void>((_, reject) => { deny = reject }))
+      renderRecord()
+      const work = await pickPromo(user)
+      expect(within(work).queryByText('via tasks')).toBeNull()
+      deny(new Error('denied'))
+      expect(await screen.findByText("Couldn't link", { exact: false })).toBeInTheDocument()
+      expect(within(work).getByRole('link', { name: 'Weekday promo post' })).toBeInTheDocument()
+      expect(within(work).getByText('via tasks')).toBeInTheDocument()
+    })
+
+    it('keeps the row when the write succeeds but the re-read fails (the link is real)', async () => {
+      const user = userEvent.setup()
+      linkedObjective()
+      renderRecord()
+      await screen.findByRole('region', { name: 'Projects & Processes' })
+      vi.mocked(loadCatalogRecordData).mockRejectedValue(new Error('offline'))
+      const work = await pickPromo(user)
+      await waitFor(() => expect(updateWorkLine).toHaveBeenCalledWith('wl-a', { objective_id: 'obj-1' }))
+      expect(within(work).getByRole('link', { name: 'Weekday promo post' })).toBeInTheDocument()
+      expect(screen.queryByText("Couldn't link", { exact: false })).toBeNull()
+    })
   })
 
   it('linking an unlinked Project writes work_lines.objective_id and reloads the record', async () => {
@@ -683,12 +796,33 @@ describe('sections read like a document', () => {
     expect(within(tasks).getAllByRole('link')).toHaveLength(7)
   })
 
-  it('unlinks a directly linked Project through its row action', async () => {
+  async function unlinkViaRowMenu(user: ReturnType<typeof userEvent.setup>, work: HTMLElement) {
+    await user.click(within(work).getByRole('button', { name: 'Actions for Menu launch' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Unlink' }))
+  }
+
+  it('keeps Unlink out of the row: the row offers one overflow trigger, and the menu opens from the keyboard', async () => {
     const user = userEvent.setup()
     populated()
     renderRecord()
     const work = await screen.findByRole('region', { name: 'Projects & Processes' })
-    await user.click(within(work).getByRole('button', { name: 'Unlink Menu launch' }))
+    expect(within(work).queryByRole('button', { name: /^Unlink/ })).toBeNull()
+    const trigger = within(work).getByRole('button', { name: 'Actions for Menu launch' })
+    expect(trigger).toHaveAttribute('aria-haspopup', 'menu')
+    trigger.focus()
+    await user.keyboard('{Enter}')
+    const item = await screen.findByRole('menuitem', { name: 'Unlink' })
+    await waitFor(() => expect(item).toHaveFocus())
+    await user.keyboard('{Enter}')
+    await waitFor(() => expect(updateWorkLine).toHaveBeenCalledWith('wl-1', { objective_id: null }))
+  })
+
+  it('unlinks a directly linked Project through its row menu', async () => {
+    const user = userEvent.setup()
+    populated()
+    renderRecord()
+    const work = await screen.findByRole('region', { name: 'Projects & Processes' })
+    await unlinkViaRowMenu(user, work)
     await waitFor(() => expect(updateWorkLine).toHaveBeenCalledWith('wl-1', { objective_id: null }))
   })
 
@@ -698,10 +832,20 @@ describe('sections read like a document', () => {
     vi.mocked(updateWorkLine).mockRejectedValueOnce(new Error('denied'))
     renderRecord()
     const work = await screen.findByRole('region', { name: 'Projects & Processes' })
-    await user.click(within(work).getByRole('button', { name: 'Unlink Menu launch' }))
+    await unlinkViaRowMenu(user, work)
     expect(await screen.findByText("Couldn't link", { exact: false })).toBeInTheDocument()
     expect(screen.queryByText('Unlinked Menu launch.')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull()
+  })
+
+  it('after Unlink, keyboard focus lands on the notice\'s Undo, not on the page', async () => {
+    const user = userEvent.setup()
+    populated()
+    renderRecord()
+    const work = await screen.findByRole('region', { name: 'Projects & Processes' })
+    await unlinkViaRowMenu(user, work)
+    const undo = await screen.findByRole('button', { name: 'Undo' })
+    await waitFor(() => expect(undo).toHaveFocus())
   })
 
   it('Undo after an unlink links the Project again', async () => {
@@ -709,7 +853,7 @@ describe('sections read like a document', () => {
     populated()
     renderRecord()
     const work = await screen.findByRole('region', { name: 'Projects & Processes' })
-    await user.click(within(work).getByRole('button', { name: 'Unlink Menu launch' }))
+    await unlinkViaRowMenu(user, work)
     await user.click(await screen.findByRole('button', { name: 'Undo' }))
     await waitFor(() => expect(updateWorkLine).toHaveBeenLastCalledWith('wl-1', { objective_id: 'obj-1' }))
   })
@@ -740,5 +884,80 @@ describe('archive is reversible', () => {
     expect(screen.getByRole('button', { name: 'Undo' })).toBeInTheDocument()
     expect(facts()).toHaveTextContent('Archived')
     expect(screen.queryByRole('button', { name: 'Add task' })).toBeNull()
+  })
+})
+
+describe('returning from the task create frame', () => {
+  it('says Task added once, and clears the flag so a later visit does not say it again', async () => {
+    const flag = { current: true }
+    data = workLineData('project', { tasks: [task('t1', 'Print menus', 'Open')] })
+    renderRecord('work-line', 'panel', flag)
+    expect(await screen.findByText('Task added.')).toBeInTheDocument()
+    expect(flag.current).toBe(false)
+  })
+
+  it('says nothing when no task was added', async () => {
+    data = workLineData('project', { tasks: [task('t1', 'Print menus', 'Open')] })
+    renderRecord('work-line', 'panel', { current: false })
+    await screen.findByRole('heading', { level: 2, name: 'Menu launch' })
+    expect(screen.queryByText('Task added.')).toBeNull()
+  })
+})
+
+describe('a Process\'s header primary is Start occurrence', () => {
+  it('shows the one primary and starts the one ready run exactly as the body button does', async () => {
+    const user = userEvent.setup()
+    data = workLineData('process', { steps: 2 })
+    occurrences([dueRun('Café Operations', 'team-1')])
+    renderRecord('work-line')
+    await screen.findByRole('heading', { level: 1, name: 'Café opening' })
+    const primary = await screen.findByRole('button', { name: 'Start occurrence' })
+    // It is the primary variant, and the ONE primary action on the record — demotion or a second
+    // primary would fail here, not just the role/name lookup.
+    expect(primary).toHaveClass('btn-primary')
+    expect(document.querySelectorAll('.btn-primary')).toHaveLength(1)
+    const header = (await screen.findByRole('heading', { level: 1, name: 'Café opening' })).closest('header') as HTMLElement
+    expect(within(header).getByRole('button', { name: 'Start occurrence' })).toBe(primary)
+    await user.click(primary)
+    expect(startRun).toHaveBeenCalledWith(dueRun('Café Operations', 'team-1'))
+  })
+
+  it('with several Teams ready, the primary takes the viewer to the per-Team Start buttons instead of choosing for them', async () => {
+    const user = userEvent.setup()
+    data = workLineData('process', { steps: 2 })
+    occurrences([dueRun('Café Operations', 'team-1'), dueRun('Marketing', 'team-2')])
+    renderRecord('work-line')
+    await user.click(await screen.findByRole('button', { name: 'Start occurrence' }))
+    expect(startRun).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Start · Café Operations' })).toHaveFocus()
+  })
+
+  it('has no primary when nothing is ready to start, when the Process has no steps yet, or when it is archived', async () => {
+    data = workLineData('process', { steps: 2 })
+    occurrences([])
+    const first = renderRecord('work-line')
+    await screen.findByRole('heading', { level: 1, name: 'Café opening' })
+    expect(document.querySelectorAll('.btn-primary')).toHaveLength(0)
+    first.unmount()
+
+    data = workLineData('process', { steps: 2, archived: true })
+    occurrences([dueRun('Café Operations', 'team-1')])
+    const second = renderRecord('work-line')
+    await screen.findByRole('heading', { level: 1, name: 'Café opening' })
+    expect(screen.queryByRole('button', { name: 'Start occurrence' })).toBeNull()
+    second.unmount()
+
+    data = workLineData('process', { steps: 0 })
+    occurrences([dueRun('Café Operations', 'team-1')])
+    renderRecord('work-line')
+    await screen.findByRole('region', { name: 'Get this Process started' })
+    expect(screen.queryByRole('button', { name: 'Start occurrence' })).toBeNull()
+  })
+
+  it('reports a failed start beside the header, once', async () => {
+    data = workLineData('process', { steps: 2 })
+    occurrences([dueRun('Café Operations', 'team-1')], { startError: true })
+    renderRecord('work-line')
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't start")
   })
 })

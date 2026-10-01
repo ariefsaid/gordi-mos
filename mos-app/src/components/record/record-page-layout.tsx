@@ -9,8 +9,9 @@
 //   children     ReactNode          the record's sections (<RecordSection/>), in domain order
 //   about        ReactNode          facts that are not in the header; a 300px aside on a page >=1280,
 //                                   otherwise a block after the sections
-//   history      { title, node }    the folded History: an open aside block on a wide page, otherwise
+//   history      { title, node, count? }   (optional; omit when there is nothing to show) the folded History: an open aside block on a wide page, otherwise
 //                                   a closed disclosure at the end. `node` mounts only when shown.
+//   kind         string             names the record kind on the root (data-record-kind) for kind-scoped styles and checks
 //   headingLevel 1 | 2              the rung of the record title; sections sit one under it
 //
 // RecordSection props      { id, title, count?, action?: { label, onClick, disabled? }, children }
@@ -29,19 +30,21 @@ import './record-page.css'
 
 const HeadingLevelContext = createContext<1 | 2>(1)
 
-export interface RecordSectionAction {
+export type RecordSectionAction = {
   label: string
   onClick: () => void
   disabled?: boolean
 }
 
-function SectionHeading({ id, children, className }: { id?: string; children: ReactNode; className: string }) {
+type SectionHeadingProps = { id?: string; children: ReactNode; className: string }
+
+function SectionHeading({ id, children, className }: SectionHeadingProps) {
   const level = useContext(HeadingLevelContext)
   const Tag = level === 1 ? 'h2' : 'h3'
   return <Tag id={id} className={className}>{children}</Tag>
 }
 
-export interface RecordSectionProps {
+export type RecordSectionProps = {
   id: string
   title: string
   count?: ReactNode
@@ -67,14 +70,14 @@ export function RecordSection({ id, title, count, action, children }: RecordSect
   )
 }
 
-export interface RecordSetupItem {
+export type RecordSetupItem = {
   id: string
   label: string
   reason: string
   action: RecordSectionAction
 }
 
-export interface RecordGetStartedProps {
+export type RecordGetStartedProps = {
   title: string
   why?: string
   items: readonly RecordSetupItem[]
@@ -107,7 +110,7 @@ export function RecordGetStarted({ title, why, items }: RecordGetStartedProps) {
   )
 }
 
-export interface RecordDisclosureProps {
+export type RecordDisclosureProps = {
   title: string
   count?: ReactNode
   defaultOpen?: boolean
@@ -142,13 +145,15 @@ export function RecordDisclosure({ title, count, defaultOpen = false, open: cont
   )
 }
 
-export interface RecordAboutItem {
+export type RecordAboutItem = {
   key: string
   label: string
   value: ReactNode
 }
 
-export function RecordAbout({ items }: { items: readonly RecordAboutItem[] }) {
+export type RecordAboutProps = { items: readonly RecordAboutItem[] }
+
+export function RecordAbout({ items }: RecordAboutProps) {
   return (
     <dl className="rp-kv">
       {items.map((item) => (
@@ -161,7 +166,7 @@ export function RecordAbout({ items }: { items: readonly RecordAboutItem[] }) {
   )
 }
 
-export interface RecordPageLayoutProps {
+export type RecordPageLayoutProps = {
   label: string
   mode: 'panel' | 'page'
   headingLevel: 1 | 2
@@ -170,14 +175,15 @@ export interface RecordPageLayoutProps {
   setup?: ReactNode
   children: ReactNode
   about?: { title: string; node: ReactNode }
-  history: { title: string; node: ReactNode }
+  history?: { title: string; node: ReactNode; count?: ReactNode }
+  kind?: string
 }
 
-export function RecordPageLayout({ label, mode, headingLevel, header, notice, setup, children, about, history }: RecordPageLayoutProps) {
+export function RecordPageLayout({ label, mode, headingLevel, header, notice, setup, children, about, history, kind }: RecordPageLayoutProps) {
   const wide = useIsWideRecordPage() && mode === 'page'
   return (
     <HeadingLevelContext.Provider value={headingLevel}>
-      <section className={`rp rp--${mode}`} data-record-mode={mode} aria-label={label}>
+      <section className={`rp rp--${mode}`} data-record-mode={mode} data-record-kind={kind} aria-label={label}>
         {header}
         {notice}
         <div className="rp-body">
@@ -190,7 +196,7 @@ export function RecordPageLayout({ label, mode, headingLevel, header, notice, se
                 {about.node}
               </section>
             ) : null}
-            {!wide ? <RecordDisclosure title={history.title}>{history.node}</RecordDisclosure> : null}
+            {!wide && history ? <RecordDisclosure title={history.title} count={history.count}>{history.node}</RecordDisclosure> : null}
           </div>
           {wide ? (
             <aside className="rp-aside">
@@ -200,10 +206,15 @@ export function RecordPageLayout({ label, mode, headingLevel, header, notice, se
                   {about.node}
                 </section>
               ) : null}
-              <section className="rp-aside__block" aria-label={history.title}>
-                <SectionHeading className="rp-section__title">{history.title}</SectionHeading>
-                {history.node}
-              </section>
+              {history ? (
+                <section className="rp-aside__block" aria-label={history.title}>
+                  <SectionHeading className="rp-section__title">
+                    {history.title}
+                    {history.count !== undefined && history.count !== null ? <span className="rp-section__count">{history.count}</span> : null}
+                  </SectionHeading>
+                  {history.node}
+                </section>
+              ) : null}
             </aside>
           ) : null}
         </div>
@@ -212,8 +223,10 @@ export function RecordPageLayout({ label, mode, headingLevel, header, notice, se
   )
 }
 
+export type RecordPageSkeletonProps = { label: string }
+
 /** Loading state that keeps the page anatomy visible: a title bar, three fact pills, section rows. */
-export function RecordPageSkeleton({ label }: { label: string }) {
+export function RecordPageSkeleton({ label }: RecordPageSkeletonProps) {
   return (
     <div className="rp rp--skeleton" role="status" aria-busy="true" aria-label={label}>
       <div className="skeleton-bar rp-skeleton__title" aria-hidden="true" />

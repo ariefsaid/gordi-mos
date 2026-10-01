@@ -4,11 +4,22 @@ import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import { messages } from '@/i18n/messages'
+import { DESTINATIONS, isLive, modulesByBU, navUtility, type Destination } from '@/shell/destinations'
+import { visibleSections } from '@/shell/sections'
 
 vi.mock('@/lib/db/tasks', () => ({ searchTasksByTitle: vi.fn() }))
 vi.mock('@/lib/db/signals', () => ({ searchSignalsByBody: vi.fn() }))
 vi.mock('@/lib/db/follow-ups', () => ({ searchFollowUpsByCounterparty: vi.fn() }))
 vi.mock('@/lib/db/directory', () => ({ searchPeopleByName: vi.fn() }))
+vi.mock('@/lib/db/objectives', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/db/objectives')>()),
+  searchObjectivesByName: vi.fn(),
+}))
+vi.mock('@/lib/db/work-lines', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/db/work-lines')>()),
+  searchWorkLinesByName: vi.fn(),
+}))
 // The route-admission seam (OD-WAY-51), REAL by default — the same partial mock the
 // app-shell-cafe-log-launcher tests use. Overridable per test because no persona is refused by
 // /cafe today (the route carries no access-role gate; OD-WAY-51's remedy is to narrow the ROUTE,
@@ -39,6 +50,8 @@ import { searchTasksByTitle, type TaskTitleRef } from '@/lib/db/tasks'
 import { searchSignalsByBody } from '@/lib/db/signals'
 import { searchFollowUpsByCounterparty } from '@/lib/db/follow-ups'
 import { searchPeopleByName } from '@/lib/db/directory'
+import { searchObjectivesByName } from '@/lib/db/objectives'
+import { searchWorkLinesByName } from '@/lib/db/work-lines'
 import { CommandMenu } from './command-menu'
 import { readRecentTasks, pushRecentTask } from './recent-tasks'
 
@@ -46,6 +59,8 @@ const mockSearch = vi.mocked(searchTasksByTitle)
 const mockSearchSignals = vi.mocked(searchSignalsByBody)
 const mockSearchFollowUps = vi.mocked(searchFollowUpsByCounterparty)
 const mockSearchPeople = vi.mocked(searchPeopleByName)
+const mockSearchObjectives = vi.mocked(searchObjectivesByName)
+const mockSearchWorkLines = vi.mocked(searchWorkLinesByName)
 const mockUseAuth = vi.mocked(useAuth)
 
 function setAuth(accessRoles: string[] = ['admin']) {
@@ -57,6 +72,23 @@ function setAuth(accessRoles: string[] = ['admin']) {
     },
     signOut: vi.fn(),
   })
+}
+
+// What the rail shows `accessRoles`, read from the rail's own accessors (the rail and the phone
+// drawer render these same registries) and the English catalog — never from the palette.
+function railLabels(accessRoles: string[]): string[] {
+  const en = messages.en
+  const out: string[] = []
+  const add = (d: Destination) => {
+    out.push(en[d.labelKey])
+    for (const c of visibleSections(d.children ?? [], accessRoles)) out.push(c.labelKey ? en[c.labelKey] : c.label)
+  }
+  DESTINATIONS.filter((d) => isLive(d, accessRoles)).forEach(add)
+  modulesByBU(accessRoles).flatMap((g) => g.items).forEach(add)
+  navUtility(accessRoles).forEach(add)
+  // Personal Profile lives in the user-chip menu, and the palette keeps its door to it.
+  out.push(en['dest.profile'])
+  return out
 }
 
 function LocationProbe() {
@@ -87,6 +119,8 @@ beforeEach(() => {
   mockSearchSignals.mockResolvedValue([])
   mockSearchFollowUps.mockResolvedValue([])
   mockSearchPeople.mockResolvedValue([])
+  mockSearchObjectives.mockResolvedValue([])
+  mockSearchWorkLines.mockResolvedValue([])
   setAuth(['admin'])
 })
 afterEach(() => {
@@ -209,28 +243,47 @@ describe('CommandMenu (AC-K02/AC-K08): combobox + listbox + keyboard', () => {
 
 // ── AC-030..032: e7 palette contents and phone search-only mode ─────────────
 describe('AC-030..032: desktop GO TO roots → ACT; phone search only', () => {
-  it('AC-030: rests on destination roots only, then exactly three universal actions', () => {
+  it('AC-030: rests on every destination the viewer can open (the catalog), then the universal actions', () => {
     renderMenu()
     const groups = screen.getAllByRole('group')
     expect(groups.map((group) => group.getAttribute('aria-label'))).toEqual(['GO TO', 'ACT'])
-    expect(within(groups[0]).getAllByRole('option').map((option) => option.textContent)).toEqual([
-      'Home', 'Work', 'Inbox', 'Café', 'Personal Profile',
-    ])
-    expect(within(groups[0]).queryByText('Signals')).toBeNull()
+    expect(within(groups[0]).getAllByRole('option').map((option) => option.textContent)).toEqual(
+      railLabels(['admin']),
+    )
+    // The destinations #1193 found missing, by name — not only by the catalog derivation above.
+    for (const label of ['Signals', 'Tasks', 'Projects & Processes', 'Objectives', 'Log', 'Plan', 'Stock', 'Review', 'Pushes', 'Admin Settings']) {
+      expect(within(groups[0]).getByRole('option', { name: label })).toBeInTheDocument()
+    }
     expect(within(groups[1]).getAllByRole('option')).toHaveLength(3)
+  })
+
+  it('AC-030: Go to follows what the rail shows this role — Admin Settings and the gated Café screens stay absent for a member', () => {
+    setAuth(['member'])
+    renderMenu()
+    const goTo = within(screen.getByRole('group', { name: 'GO TO' }))
+    expect(goTo.getAllByRole('option').map((option) => option.textContent)).toEqual(railLabels(['member']))
+    expect(goTo.queryByRole('option', { name: 'Admin Settings' })).toBeNull()
+    expect(goTo.queryByRole('option', { name: 'Pushes' })).toBeNull()
+  })
+
+  it('AC-030: Go to labels come from the catalog in Indonesian too', () => {
+    renderMenu(vi.fn(), 'id')
+    const goTo = within(screen.getByRole('group', { name: 'BUKA' }))
+    expect(goTo.getByRole('option', { name: 'Tujuan' })).toBeInTheDocument()
+    expect(goTo.getByRole('option', { name: 'Pengaturan Admin' })).toBeInTheDocument()
   })
 
   it('AC-031: typing obj searches declared children while keeping the shared placeholder', async () => {
     renderMenu()
     const input = screen.getByRole('combobox')
-    expect(input).toHaveAttribute('placeholder', 'Search tasks, signals, people')
+    expect(input).toHaveAttribute('placeholder', 'Search records and people')
     fireEvent.change(input, { target: { value: 'obj' } })
     expect(await screen.findByRole('option', { name: 'Objectives' })).toBeInTheDocument()
   })
 
-  it('AC-031: the placeholder names all three searched corpora in Indonesian too', () => {
+  it('AC-031: the placeholder is translated in Indonesian too', () => {
     renderMenu(vi.fn(), 'id')
-    expect(screen.getByRole('combobox')).toHaveAttribute('placeholder', 'Cari tugas, sinyal, orang')
+    expect(screen.getByRole('combobox')).toHaveAttribute('placeholder', 'Cari rekaman dan orang')
   })
 
   it('AC-031: a person search result appears alongside record search results', async () => {
@@ -318,21 +371,13 @@ describe('AC-030..032: desktop GO TO roots → ACT; phone search only', () => {
     expect(screen.getAllByRole('group').map((g) => g.getAttribute('aria-label'))).toEqual(['GO TO', 'ACT'])
   })
 
-  // #748 delta: the Café root asks the ONE route-admission question (OD-WAY-51), like the
-  // launcher's Café action — a viewer the /cafe ROUTE refuses gets no row, absent rather than
-  // present-and-bouncing. No persona is refused today (the route carries no access-role gate),
-  // so the seam is overridden — which also proves the palette consults the seam itself and not
-  // some private gate.
-  it('AC-031: the Café root follows route admission — a viewer the /cafe route refuses gets no row', () => {
-    const denied = vi.fn(() => false)
-    seam.override = denied
+  // Go to asks the rail's own question (`isLive` + `visibleSections`, derived in
+  // `goToDestinations`), so a destination the rail hides for a role is absent here too.
+  it('AC-031: a destination the rail hides for the role is absent from Go to (Money is gated off for a member)', () => {
+    setAuth(['member'])
     renderMenu()
-    expect(screen.queryByRole('option', { name: /^Café$/i })).toBeNull()
-    // The gate takes only the Café root; the other GO TO roots are untouched.
-    expect(screen.getByRole('option', { name: /^Home$/i })).toBeInTheDocument()
-    expect(screen.getByRole('option', { name: /^Work$/i })).toBeInTheDocument()
-    // …and the absence came from the admission seam, asked about the Café root's own route.
-    expect(denied).toHaveBeenCalledWith('/cafe', ['admin'])
+    expect(screen.queryByRole('option', { name: /^Money$/i })).toBeNull()
+    expect(screen.getByRole('option', { name: /^Café$/i })).toBeInTheDocument()
   })
 
   // #407/#755: the typed ACT filter reads the SAME shared list the phone `+` launcher renders.
@@ -417,7 +462,7 @@ describe('AC-016: Navigate group points to the new canonical routes', () => {
     expect(nav).toBeInTheDocument()
     // Navigate targets (href not exposed on option; assert labels present + activation navigates)
     expect(screen.getByRole('option', { name: /^Work$/i })).toBeInTheDocument()
-    expect(screen.queryByRole('option', { name: /^Signals$/i })).toBeNull()
+    expect(screen.getByRole('option', { name: /^Signals$/i })).toBeInTheDocument()
     expect(screen.queryByRole('option', { name: /^Events$/i })).toBeNull()
     expect(screen.getByRole('option', { name: /^Inbox$/i })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: /^Café$/i })).toBeInTheDocument()
@@ -655,6 +700,73 @@ describe('#4/B2: ⌘K search spans Tasks + Signals + AR Follow-ups', () => {
     await waitFor(() => expect(mockSearch).toHaveBeenCalledWith('acme'))
     await waitFor(() => expect(mockSearchSignals).toHaveBeenCalledWith('acme'))
     expect(mockSearchFollowUps).not.toHaveBeenCalled()
+  })
+})
+
+// ── #1193: the search reaches Objectives and Projects & Processes too ─────────
+// The palette is one more RLS-governed reader: it shows what the two searches return, and both
+// searches read through the viewer's session (see the db-layer and pgTAP contracts), so a record
+// the viewer cannot read never reaches this component.
+describe('issue 1193: ⌘K search finds Objectives and Projects & Processes', () => {
+  it('an Objective hit carries the "Objective" kind and opens its record', async () => {
+    mockSearchObjectives.mockResolvedValue([{ id: 'o1', name: 'Q3 Growth' }])
+    const { onClose } = renderMenu()
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'growth' } })
+    const opt = await screen.findByRole('option', { name: /Q3 Growth/ })
+    expect(opt).toHaveTextContent('Objective')
+    expect(mockSearchObjectives).toHaveBeenCalledWith('growth')
+    expect(screen.getByRole('group', { name: 'Records' })).toContainElement(opt)
+    fireEvent.click(opt)
+    expect(screen.getByTestId('location')).toHaveTextContent('/work/objectives/o1')
+    expect(onClose).toHaveBeenCalled()
+    expect(readRecentTasks()).toHaveLength(0)
+  })
+
+  it('a Project and a Process each carry their own kind and open /work/projects/:id', async () => {
+    mockSearchWorkLines.mockResolvedValue([
+      { id: 'w1', name: 'New Menu Design', type: 'project' },
+      { id: 'w2', name: 'Daily Menu Check', type: 'process' },
+    ])
+    renderMenu()
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'menu' } })
+    const project = await screen.findByRole('option', { name: /New Menu Design/ })
+    const process = await screen.findByRole('option', { name: /Daily Menu Check/ })
+    expect(project).toHaveTextContent('Project')
+    expect(process).toHaveTextContent('Process')
+    expect(mockSearchWorkLines).toHaveBeenCalledWith('menu')
+    fireEvent.click(process)
+    expect(screen.getByTestId('location')).toHaveTextContent('/work/projects/w2')
+  })
+
+  it('shows only what the reads return: a corpus the viewer cannot read adds no rows', async () => {
+    // RLS answers an unreadable record with an empty result, never a placeholder row.
+    mockSearchObjectives.mockResolvedValue([])
+    mockSearchWorkLines.mockResolvedValue([{ id: 'w1', name: 'Barista development', type: 'project' }])
+    renderMenu()
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'dev' } })
+    await screen.findByRole('option', { name: /Barista development/ })
+    const records = within(screen.getByRole('group', { name: 'Records' })).getAllByRole('option')
+    expect(records.map((r) => r.textContent)).toEqual(['Barista developmentProject'])
+  })
+
+  it('kind labels follow the language: Tujuan, Proyek and Proses in Indonesian', async () => {
+    mockSearchObjectives.mockResolvedValue([{ id: 'o1', name: 'Pertumbuhan' }])
+    mockSearchWorkLines.mockResolvedValue([
+      { id: 'w1', name: 'Pertumbuhan menu', type: 'project' },
+      { id: 'w2', name: 'Pertumbuhan harian', type: 'process' },
+    ])
+    renderMenu(vi.fn(), 'id')
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'pertumbuhan' } })
+    expect(await screen.findByRole('option', { name: /^Pertumbuhan Tujuan$/ })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /Pertumbuhan menu Proyek/ })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /Pertumbuhan harian Proses/ })).toBeInTheDocument()
+  })
+
+  it('a failing catalog search fails the group like any other corpus', async () => {
+    mockSearchObjectives.mockRejectedValue(new Error('boom'))
+    renderMenu()
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'growth' } })
+    expect(await screen.findByText("Couldn't search records.")).toBeInTheDocument()
   })
 })
 
@@ -911,15 +1023,14 @@ describe('Issue 479 — the child rung only claims a parent that is on screen', 
     renderMenu()
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'o' } })
     expect(await screen.findByRole('option', { name: /^Work$/i })).toBeTruthy()
-    // "o" keeps Home · Work · Projects & Processes · Objectives · Inbox · Personal Profile. The
-    // children are emitted DIRECTLY beneath the Work row, before the surviving roots — the run of
-    // rows the Child rung describes is unbroken by construction, so the pre-delta shape (an
-    // unrelated root such as Inbox or Personal Profile parked between the parent and its
-    // children) cannot render.
+    // "o" keeps Work, its children Projects & Processes and Objectives, and the other roots whose
+    // names hold an "o". The children are emitted DIRECTLY beneath the Work row — the run of
+    // rows the Child rung describes is unbroken by construction, so an unrelated root parked
+    // between the parent and its children cannot render.
     const navigate = screen.getByRole('group', { name: 'GO TO' })
-    expect(within(navigate).getAllByRole('option').map((option) => option.textContent)).toEqual([
-      'Home', 'Work', 'Projects & Processes', 'Objectives', 'Inbox', 'Personal Profile',
-    ])
+    const labels = within(navigate).getAllByRole('option').map((option) => option.textContent)
+    const work = labels.indexOf('Work')
+    expect(labels.slice(work, work + 3)).toEqual(['Work', 'Projects & Processes', 'Objectives'])
   })
 
   it('a FILTERED result that kept its parent keeps the rung', async () => {

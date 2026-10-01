@@ -151,7 +151,7 @@ test.describe('desktop geometry guards', () => {
       console.log(JSON.stringify({ width, scrollWidths: narrowScrollWidths }))
       expect(narrowScrollWidths.scrollWidth).toBe(narrowScrollWidths.clientWidth)
       await narrowRow.locator('td.td-supervisor').click()
-      await expect(page.locator('.record-doc')).toBeVisible()
+      await expect(page.locator('.rp--page')).toBeVisible()
       await expect(page.getByRole('complementary', { name: /task detail/i })).toHaveCount(0)
       // The role-aware queue view is preserved while the narrow row promotes to the canonical
       // record page, so the page path may carry the active `view` query.

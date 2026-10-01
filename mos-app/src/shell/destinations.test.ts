@@ -8,7 +8,7 @@ import { SHIP_GATED_PATHS } from '@/lib/ship-gate'
 import { describe, it, expect } from 'vitest'
 import {
   DESTINATIONS, MODULES, UTILITY, isLive, destinationForPath, viewerAdmittedToRoute,
-  primaryModuleForViewer,
+  primaryModuleForViewer, goToDestinations,
   type Destination,
 } from './destinations'
 import { CAFE_SECTIONS, visibleSections } from './sections'
@@ -423,5 +423,36 @@ describe('primaryModuleForViewer — the affiliation selector', () => {
     expect(String(primaryModuleForViewer)).not.toMatch(/workMatch/)
     // ...and the declaration itself carries no workMatch field anymore.
     expect(DESTINATIONS.concat(MODULES.flatMap((g) => g.items), UTILITY).some((d) => 'workMatch' in d)).toBe(false)
+  })
+})
+
+// #1193: the ⌘K palette's Go to reads this derivation, so a destination added to any registry
+// reaches it with no second edit — the expectation below enumerates the registries directly.
+describe('goToDestinations — every destination the viewer can open, from the catalog', () => {
+  const ROLE_SETS = [['admin'], ['member'], ['ops_lead'], ['supervisor'], ['finance'], []]
+
+  it.each(ROLE_SETS)('lists every live catalog destination, each with its visible children — roles %j', (...roles) => {
+    const every = [...DESTINATIONS, ...MODULES.flatMap((g) => g.items), ...UTILITY]
+    const expected = every
+      .filter((d) => isLive(d, roles))
+      .map((d) => ({
+        id: d.id,
+        path: d.primaryPath ?? d.links[0].path,
+        children: visibleSections(d.children ?? [], roles).map((c) => c.path),
+      }))
+    expect(
+      goToDestinations(roles).map((e) => ({ id: e.destination.id, path: e.path, children: e.children.map((c) => c.path) })),
+    ).toEqual(expected)
+    // Not vacuous: Home and Personal Profile are open to everyone.
+    expect(expected.map((e) => e.id)).toEqual(expect.arrayContaining(['home', 'profile']))
+  })
+
+  it('names the destinations #1193 found missing: Work’s children and Admin Settings for an admin, not for a member', () => {
+    const admin = goToDestinations(['admin'])
+    expect(admin.find((e) => e.destination.id === 'work')?.children.map((c) => c.path)).toEqual([
+      '/work/signals', '/work/tasks', '/work/projects', '/work/objectives',
+    ])
+    expect(admin.map((e) => e.destination.id)).toContain('admin')
+    expect(goToDestinations(['member']).map((e) => e.destination.id)).not.toContain('admin')
   })
 })

@@ -5,7 +5,7 @@
 //   label   string            accessible name of the trigger and the menu
 //   minItems number = 2       renders nothing below this count (a one-item menu is a button's job)
 //
-// The popover renders in a portal (it escapes the panel's overflow clip), anchors to the trigger,
+// The popover renders in a portal (it escapes the panel's overflow clip), anchors to the trigger (above it when there is no room below),
 // moves with its trigger on scroll and resize, closes on Escape / outside click / Tab and returns focus to the trigger, moves with the
 // arrow keys, Home/End and type-ahead. A destructive item is text in the lost tone, never a fill.
 import { useCallback, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
@@ -14,7 +14,7 @@ import { useMenuPopover } from '@/lib/use-menu-popover'
 import { usePopoverReflow } from '@/components/ui/use-popover-reflow'
 import './record-page.css'
 
-export interface RecordMenuItem {
+export type RecordMenuItem = {
   id: string
   label: string
   onSelect: () => void
@@ -23,7 +23,7 @@ export interface RecordMenuItem {
   disabled?: boolean
 }
 
-export interface RecordMenuProps {
+export type RecordMenuProps = {
   items: readonly RecordMenuItem[]
   label: string
   minItems?: number
@@ -42,11 +42,17 @@ export function RecordMenu({ items, label, minItems = 2 }: RecordMenuProps) {
   const place = useCallback(() => {
     if (!triggerRef.current) return
     const rect = triggerRef.current.getBoundingClientRect()
-    setAnchor({ top: rect.bottom + 4, right: Math.max(8, document.documentElement.clientWidth - rect.right) })
+    // Below the trigger; above it when the menu would run off the bottom and there is room above.
+    const height = menuRef.current?.offsetHeight ?? 0
+    const below = rect.bottom + 4
+    const flip = below + height > window.innerHeight - 8 && rect.top - 4 - height >= 8
+    setAnchor({ top: flip ? rect.top - 4 - height : below, right: Math.max(8, document.documentElement.clientWidth - rect.right) })
   }, [])
   useMenuPopover(open, close, menuRef, triggerRef)
   // Scrolling or resizing moves the menu with its trigger; it never drops focus by closing.
   usePopoverReflow(open, place)
+  // `place()` also runs from the trigger's click, so the menu's first paint already has its anchor and
+  // can take focus; the layout effect re-places it when the anchor moves.
   useLayoutEffect(() => { if (open) place() }, [open, place])
 
   if (items.length < minItems) return null
@@ -72,7 +78,7 @@ export function RecordMenu({ items, label, minItems = 2 }: RecordMenuProps) {
         aria-label={label}
         aria-haspopup="menu"
         aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
+        onClick={() => { place(); setOpen((value) => !value) }}
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
           <circle cx="5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="19" cy="12" r="1.6" />
