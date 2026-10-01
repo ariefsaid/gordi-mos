@@ -41,10 +41,11 @@ export interface HomeRegion {
   id: HomeRegionId
   labelKey: MessageKey
   items: StreamItem[]
-  /** How many items this region holds — `null` whenever the read behind it has NOT succeeded
-   *  (DIV-G5, spec §7 + NFR-924). It used to be `items.length` with no reference to `state`, so a
-   *  failed tasks read rendered `Needs you now 0` on every arrangement while the region itself
-   *  showed the error, and a never-resolving skeleton read `0` too. A count the viewer cannot
+  /** How many items this region holds — `null` whenever the figure behind it has NOT been
+   *  reported (DIV-G5, spec §7 + NFR-924). For needs-you and failed-checks the count is the
+   *  items themselves (no cap). my-work's items are a capped slice, so its count is instead the
+   *  caller-reported FULL open-task figure (DD-COUNT-1, #1194) — the same number the rail badge
+   *  shows — and is `null` while that has not resolved. A count the viewer cannot
    *  trace is worse than no count: the page stated a falsehood with full confidence. Absent, not
    *  zero — the arrangements render it as an em-dash. */
   count: number | null
@@ -76,8 +77,10 @@ export interface HomeRegionInput {
   /** failed-checks reads its own independent DAL. */
   failedChecksState?: StreamBandState
   onRetryFailedChecks?: () => void
-  /** The viewer's FULL open-task count (all owned, non-Done tasks) — feeds my-work's drill link.
-   *  Absent (no link) when the caller has no honest count to report yet. */
+  /** The viewer's FULL open-task count (all owned, non-Done tasks — the SAME number the rail
+   *  badge shows, from the shared store, DD-COUNT-1 #1194). It is my-work's heading count and
+   *  its drill-link figure; the capped list itself is named by "N shown". Absent (no heading
+   *  count, unnumbered link) when the caller has no honest count to report yet. */
   myWorkFullCount?: number
 }
 
@@ -111,7 +114,9 @@ export function buildHomeRegions(input: HomeRegionInput): HomeRegion[] {
     }] : []),
     {
       id: 'my-work', labelKey: 'home.stream.band.myWork', items: input.myWork,
-      count: countOf(input.myWork, taskState), state: taskState, onRetry: input.onRetryTasks,
+      // The heading states the FULL scope (the badge's number), never the capped list length;
+      // `null` while the shared count has not resolved. The list itself says what it shows.
+      count: input.myWorkFullCount ?? null, state: taskState, onRetry: input.onRetryTasks,
       drillTo: drillTo('my-work', input.myWorkFullCount),
     },
   ]
