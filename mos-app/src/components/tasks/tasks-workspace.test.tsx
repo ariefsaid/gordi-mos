@@ -261,7 +261,8 @@ describe('D3e — Tasks create is an inline title row', () => {
     expect(titleInput).not.toBeDisabled()
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.queryByRole('complementary', { name: /create task/i })).toBeNull()
-    expect(screen.getAllByRole('textbox')).toHaveLength(1)
+    expect(screen.getAllByRole('textbox')).toHaveLength(2) // the title + the shared day-first Due field (#1191)
+    expect(screen.getByRole('textbox', { name: 'Due date' })).toHaveValue('')
 
     fireEvent.change(titleInput, { target: { value: 'New inline task' } })
     await chooseDraftSupervisor()
@@ -475,7 +476,7 @@ describe('Create from Signal convergence', () => {
     mockLinkSignalTask.mockRejectedValue(new Error('offline'))
     renderTable({}, authedState, ['/work/tasks?sourceSignal=signal-42'], 'id')
     fireEvent.click(await screen.findByRole('button', { name: /create task|buat tugas/i }))
-    const title = await screen.findByRole('textbox')
+    const title = await screen.findByRole('textbox', { name: /judul/i })
     fireEvent.change(title, { target: { value: 'Original' } })
     await chooseDraftSupervisor('Budi Setiawan')
     fireEvent.keyDown(title, { key: 'Enter' })

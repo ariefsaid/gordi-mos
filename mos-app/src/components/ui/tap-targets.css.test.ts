@@ -80,7 +80,12 @@ describe('B-i: phone tap-target floor is encoded in shared CSS', () => {
     expect(body).toMatch(/\.window-selector-range[\s\S]*min-height:\s*44px/)
     expect(body).toMatch(/\.window-selector-field[\s\S]*min-height:\s*44px/)
     expect(body).toMatch(/\.window-selector-tab[\s\S]*min-height:\s*44px/)
-    expect(body).toMatch(/input\[type='date'\][\s\S]*min-height:\s*44px/)
+    // The custom date pair is two shared DateFields (#1191): their own phone floor lives at the
+    // primitive seam (DateField.css) — text field reaches 44px, the calendar press area is a
+    // 44px square. Asserted here so the chip's hosted controls cannot regress below the floor.
+    const dateFieldBody = mediaBody(dateFieldCss, '@media (max-width: 767.98px)')
+    expect(dateFieldBody).toMatch(/\.mk-date__field[^}]*min-height:\s*44px/)
+    expect(dateFieldBody).toMatch(/\.mk-date__cal[^}]*width:\s*44px/)
   })
 
   it('raises the dashboard cut-toggle track and tabs to 44px on phone', () => {

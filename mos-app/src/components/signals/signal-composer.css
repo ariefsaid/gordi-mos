@@ -36,10 +36,22 @@
   white-space: nowrap;
 }
 .signal-composer-context-pill:hover { background: var(--surface-tertiary); color: var(--foreground); }
-.signal-composer-occurred-pill { cursor: pointer; }
+.signal-composer-occurred-pill { padding-right: 4px; }
+/* The occurrence pill holds two real fields. The pill is the border; they drop their own box
+   until focused (same rule the dashboard range chip uses). */
+.signal-composer-occurred-pill .mk-date__box {
+  min-width: 0; width: 132px; border-color: transparent; background: transparent; padding-left: 4px;
+}
+.signal-composer-occurred-pill .mk-date--error .mk-date__box { border-color: var(--destructive); }
+.signal-composer-occurred-pill .mk-date__field { font-size: var(--font-size-label); }
+.signal-composer-time {
+  height: 24px; padding: 0 4px; border: 1px solid transparent; border-radius: var(--radius-sm);
+  background: transparent; font: inherit; font-size: var(--font-size-label); color: var(--foreground);
+  font-variant-numeric: tabular-nums;
+}
+.signal-composer-time:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
 /* `inset: 0` lands inside the pill's own border, so the input measured 42px against a pill
    that is 44. Pressing the border presses the pill either way; the control now covers it. */
-.signal-composer-occurred-pill input,
 .signal-composer-photo-pill input {
   position: absolute; inset: -1px; width: calc(100% + 2px); height: calc(100% + 2px);
   opacity: 0; cursor: pointer;
@@ -127,6 +139,10 @@
 @media (max-width: 767.98px) {
   .signal-composer-mention-anchor textarea { font-size: var(--font-size-touch-input); }
   .signal-composer-datetime input { min-height: 44px; font-size: var(--font-size-touch-input); }
+  .signal-composer-occurred-pill { flex-wrap: wrap; white-space: normal; }
+  .signal-composer-occurred-pill .mk-date__field,
+  .signal-composer-time { font-size: var(--font-size-touch-input); }
+  .signal-composer-time { min-height: 44px; }
   .signal-composer {
     min-height: 100%; padding: 16px;
     /* The sheet is its own scroll container: short content still lands the footer at the true

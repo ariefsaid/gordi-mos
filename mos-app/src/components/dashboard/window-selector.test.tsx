@@ -153,11 +153,12 @@ describe('WindowSelector — custom date range', () => {
     }
   })
 
-  it('AC-014: when a range is active, two bounded date inputs render', () => {
+  it('AC-014: when a range is active, two bounded day-first date fields render', () => {
+    const onChange = vi.fn()
     render(
       <WindowSelector
         value={{ kind: 'custom', from: '2026-06-10', to: '2026-06-20' }}
-        onChange={vi.fn()}
+        onChange={onChange}
         bounds={BOUNDS}
       />,
     )
@@ -165,11 +166,14 @@ describe('WindowSelector — custom date range', () => {
     const toInput = screen.getByLabelText(/to/i) as HTMLInputElement
     expect(fromInput).toBeInTheDocument()
     expect(toInput).toBeInTheDocument()
-    // Bounded to the available snapshot window (AC-014 — disabled outside).
-    expect(fromInput.min).toBe(BOUNDS.earliest)
-    expect(fromInput.max).toBe(BOUNDS.latest)
-    expect(toInput.min).toBe(BOUNDS.earliest)
-    expect(toInput.max).toBe(BOUNDS.latest)
+    // Both fields show the stored ISO values in the unambiguous day-first display (#1191).
+    expect(fromInput.value).toBe('10 Jun 2026')
+    expect(toInput.value).toBe('20 Jun 2026')
+    // Bounded to the available snapshot window (AC-014): a date outside it shows the error and
+    // is never emitted — the window cannot silently move.
+    fireEvent.change(fromInput, { target: { value: '01/01/2020' } })
+    expect(onChange).not.toHaveBeenCalled()
+    expect(screen.getByRole('alert')).toHaveTextContent(/outside/i)
   })
 
   it('AC-014: changing the from date emits a custom spec', () => {

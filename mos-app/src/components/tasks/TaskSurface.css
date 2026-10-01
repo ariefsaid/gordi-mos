@@ -423,8 +423,8 @@
 .tc-select .mk-select__chevron { right: 10px; }
 .tc-picker { width: 100%; }
 .tc-picker .picker__trigger { min-height: 36px; height: 36px; padding: 7px 12px; font-size: var(--font-size-touch-input); }
-.tc-date .mk-date__box { height: 36px; padding: 0 12px; }
-.tc-date .mk-date__display { font-size: var(--font-size-touch-input); }
+.tc-date .mk-date__box { height: 36px; padding: 0 0 0 12px; }
+.tc-date .mk-date__field { font-size: var(--font-size-touch-input); }
 
 /* I4: error TEXT below a field uses the AA-darkened red (--field-error-text =
    --status-lost-text). The invalid field's border (the ratified components' own
