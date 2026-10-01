@@ -315,7 +315,7 @@ it('does not offer Not set when an own-BU editor must retain the Business Unit',
   expect(screen.getByRole('option', { name: 'Retail Ops' })).toBeInTheDocument()
 })
 
-it('renders definition-level Process Teams and keeps absent bindings explicit', async () => {
+it('renders definition-level Process Teams and leaves unbound ones out', async () => {
   const processData = recordData('work-line', 2026, null)
   processData.row = { ...processData.row, id: 'wl-process', name: 'Café Opening', type: 'process', objectiveId: null }
   processData.context.relationsById = new Map([[processData.row.id, { groups: [], tasks: [] }]])
@@ -343,7 +343,9 @@ it('renders definition-level Process Teams and keeps absent bindings explicit', 
   expect(screen.getByText('Chosen for each occurrence')).toBeInTheDocument()
   const steps = await screen.findByRole('region', { name: 'Steps' })
   expect(within(steps).getByText('Definition Team')).toBeInTheDocument()
-  expect(within(steps).getAllByText('Not set')).toHaveLength(2)
+  // A step prints what it has: no Supervisor or Supervisor Team rows when none is bound.
+  expect(within(steps).queryByText('Not set')).not.toBeInTheDocument()
+  expect(within(steps).queryByText('Supervisor')).not.toBeInTheDocument()
   expect(within(steps).queryByText('occurrence-team')).not.toBeInTheDocument()
 })
 
@@ -361,7 +363,7 @@ it.each(['panel', 'page'] as const)('keeps the org-readable Work record availabl
   </MemoryRouter></I18nProvider></AuthContext.Provider>)
   expect(await screen.findByRole('heading', { name: 'Menu launch' })).toBeInTheDocument()
   expect(loadCatalogRecordData).toHaveBeenCalledWith('work-line', 'wl-1', 'p1')
-  await expectMemberReadOnly('View only · Test Viewer (Accountable) manages this Project or Process.')
+  await expectMemberReadOnly('Test Viewer (Accountable) manages this Project or Process. You can add tasks.')
   // Read-only appears ONCE, as one line under the facts, in either mode.
   expect(screen.getAllByRole('note')).toHaveLength(1)
   expect(document.body.textContent).not.toContain('catalog changes')
@@ -380,7 +382,7 @@ it('keeps Objectives readable by members through the shared record renderer', as
     <CatalogRecordDocument kind="objective" id="obj-1" mode="panel" />
   </MemoryRouter></I18nProvider></AuthContext.Provider>)
   expect(await screen.findByRole('heading', { name: 'Grow revenue' })).toBeInTheDocument()
-  await expectMemberReadOnly('View only.')
+  await expectMemberReadOnly('You can add tasks.')
 })
 
 it('keeps the record readable when edit choices fail and restores editing after Retry', async () => {

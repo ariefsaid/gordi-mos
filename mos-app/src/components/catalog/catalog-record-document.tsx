@@ -475,12 +475,18 @@ export function CatalogRecordDocument({
     : (isObjective ? linkedWork.length > 0 : true) ? { label: t('catalog.record.addTask'), onClick: startAddTask } : undefined
 
   const accountableName = row.accountablePersonId ? allPeople.get(row.accountablePersonId) : undefined
-  const note = !scopesKnown || canManage ? undefined
-    : isObjective
-      ? t(canContent
-        ? (accountableName ? 'catalog.record.viewOnly.content' : 'catalog.record.viewOnly.contentOnly')
-        : (accountableName ? 'catalog.record.viewOnly.objective' : 'catalog.record.viewOnly.none'), { name: accountableName ?? '' })
-      : t(accountableName ? 'catalog.record.viewOnly.workLine' : 'catalog.record.viewOnly.none', { name: accountableName ?? '' })
+  // The line says what the viewer can do: "View only" is for a viewer with nothing to add.
+  const canAddTask = !archived && !isProcess && (isObjective ? linkedWork.length > 0 : true)
+  const noteKey = isObjective
+    ? (canContent
+      ? (accountableName ? 'catalog.record.viewOnly.content' : 'catalog.record.viewOnly.contentOnly')
+      : canAddTask
+        ? (accountableName ? 'catalog.record.viewOnly.objectiveAdd' : 'catalog.record.viewOnly.noneAdd')
+        : (accountableName ? 'catalog.record.viewOnly.objective' : 'catalog.record.viewOnly.none'))
+    : canAddTask
+      ? (accountableName ? 'catalog.record.viewOnly.workLineAdd' : 'catalog.record.viewOnly.noneAdd')
+      : (accountableName ? 'catalog.record.viewOnly.workLine' : 'catalog.record.viewOnly.none')
+  const note = !scopesKnown || canManage ? undefined : t(noteKey, { name: accountableName ?? '' })
 
   const menu: RecordMenuItem[] = [
     ...(canonicalHref && typeof navigator !== 'undefined' && navigator.clipboard ? [{
@@ -639,6 +645,7 @@ export function CatalogRecordDocument({
             <LinkedWorkSection
               objectiveId={id}
               groups={linkedWork}
+              progress={context.progressById.get(id) ?? { done: 0, total: 0 }}
               workLines={workLinesById}
               people={allPeople}
               scopes={scopes}
@@ -663,7 +670,7 @@ export function CatalogRecordDocument({
           title={t(isProcess ? 'catalog.record.processTasks' : 'catalog.record.tasks')}
           tasks={derived.relationTasks}
           people={allPeople}
-          canAdd={!archived && !isProcess && (isObjective ? linkedWork.length > 0 : true)}
+          canAdd={canAddTask}
           hidden={setup.some((item) => item.id === 'tasks')}
           onAdd={startAddTask}
           onOpenRelated={onOpenRelated}

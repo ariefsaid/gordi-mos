@@ -73,6 +73,9 @@
 }
 
 @media (max-width: 767.98px) {
+  /* The title link is the tap target: it takes 44px, so the row itself needs no extra padding. */
+  .rp-wl, .rp-task { padding-block: 0; }
+  .rp .rp-about__field .record-field__edit { min-height: 44px; }
   .rp-wl { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "name name name" "tag count unlink"; }
   .rp-wl > :nth-child(1) { grid-area: tag; }
   .rp-wl > :nth-child(2) { grid-area: name; }

@@ -544,7 +544,8 @@ describe('role-correct affordances', () => {
     await screen.findByRole('heading', { level: 1, name: 'Grow revenue' })
     await screen.findByRole('region', { name: 'Key results' })
     expect(setup()).toBeNull()
-    expect(screen.getByRole('note')).toHaveTextContent('View only · Dewi Director (Accountable) sets targets and links work.')
+    expect(screen.getByRole('note')).toHaveTextContent('Dewi Director (Accountable) sets targets and links work. You can add tasks.')
+    expect(screen.getByRole('note')).not.toHaveTextContent('View only')
     expect(screen.queryAllByRole('button', { name: /^Edit / })).toHaveLength(0)
     expect(screen.queryByRole('button', { name: 'More actions' })).toBeNull()
     expect(screen.queryByRole('button', { name: /Link Project or Process|Add key result/ })).toBeNull()
@@ -627,6 +628,32 @@ describe('sections read like a document', () => {
       ],
     })
   }
+
+  it('the Projects & Processes count uses the Objective\'s own roll-up, the same total the list row shows', async () => {
+    populated()
+    // One task sits on the Objective itself, so the roll-up is 1 of 3 although the linked work carries 2.
+    data.context = { ...data.context, progressById: new Map([['obj-1', { done: 1, total: 3 }]]) }
+    renderRecord()
+    const work = await screen.findByRole('region', { name: 'Projects & Processes' })
+    expect(work).toHaveTextContent('1 · 1 of 3 tasks done')
+  })
+
+  it('a member with nothing to add is told it is view only', async () => {
+    vi.mocked(getWorkWriteScopes).mockResolvedValue(MEMBER)
+    data = objectiveData()
+    renderRecord()
+    await screen.findByRole('heading', { level: 1, name: 'Grow revenue' })
+    expect(await screen.findByRole('note')).toHaveTextContent('View only · Dewi Director (Accountable) sets targets and links work.')
+  })
+
+  it('a Process step prints only what it has: no grid of Not set', async () => {
+    data = workLineData('process', { steps: 2 })
+    renderRecord('work-line')
+    const steps = await screen.findByRole('region', { name: 'Steps' })
+    expect(within(steps).queryByText('Not set')).toBeNull()
+    expect(within(steps).queryByText('Supervisor')).toBeNull()
+    expect(within(steps).getAllByText('PIC')).toHaveLength(2)
+  })
 
   it('lists linked work with its type and progress, and tasks with status, PIC and due', async () => {
     populated()

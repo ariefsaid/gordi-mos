@@ -104,8 +104,10 @@ export function InlineChooser({ label, options, onPick, onCancel, status }: {
 
 // ── Projects & Processes ──────────────────────────────────────────────────────
 
-export function LinkedWorkSection({ objectiveId, groups, workLines, people, scopes, archived, canLink, hidden, onLink, onOpenRelated, onUnlink }: {
+export function LinkedWorkSection({ objectiveId, groups, progress, workLines, people, scopes, archived, canLink, hidden, onLink, onOpenRelated, onUnlink }: {
   objectiveId: string
+  /** The Objective's own task roll-up: the one rule the collection row uses too. */
+  progress: { done: number; total: number }
   groups: readonly CatalogRelationGroup[]
   workLines: ReadonlyMap<string, CatalogWorkLineFact>
   people: ReadonlyMap<string, string>
@@ -121,10 +123,8 @@ export function LinkedWorkSection({ objectiveId, groups, workLines, people, scop
   const t = useT()
   const rows = groups.filter((group) => !group.synthetic && group.entity === 'work-line')
   if (rows.length === 0 && (hidden || !canLink)) return null
-  const done = rows.reduce((sum, group) => sum + group.done, 0)
-  const total = rows.reduce((sum, group) => sum + group.total, 0)
-  const count = rows.length === 0 ? undefined : total > 0
-    ? <>{rows.length}<span className="rp-count-extra"> · {t('catalog.record.rollupTasks', { done: String(done), total: String(total) })}</span></>
+  const count = rows.length === 0 ? undefined : progress.total > 0
+    ? <>{rows.length}<span className="rp-count-extra"> · {t('catalog.record.rollupTasks', { done: String(progress.done), total: String(progress.total) })}</span></>
     : rows.length
   return (
     <RecordSection
@@ -363,10 +363,11 @@ export function StepsSection({ workLineId, process, people, roles, owningTeams, 
             <span className="catalog-record-document__step-title">{step.title}</span>
             {step.description ? <span className="catalog-record-document__step-copy">{step.description}</span> : null}
             <dl className="catalog-record-document__step-meta">
+              {/* A step shows what it has: its PIC and due always, a Team or Supervisor only when one is set. */}
               <div><dt>{t('tasks.pic')}</dt><dd>{processOwner(step.pic_person_id, step.pic_role_id, people, roles, t)}</dd></div>
-              <div><dt>{t('catalog.record.picTeam')}</dt><dd>{owningTeams.get(`${step.id}:pic`) ?? t('catalog.notSet')}</dd></div>
-              <div><dt>{t('tasks.supervisor')}</dt><dd>{processOwner(step.supervisor_person_id, step.supervisor_role_id, people, roles, t)}</dd></div>
-              <div><dt>{t('catalog.record.supervisorTeam')}</dt><dd>{owningTeams.get(`${step.id}:supervisor`) ?? t('catalog.notSet')}</dd></div>
+              {owningTeams.get(`${step.id}:pic`) ? <div><dt>{t('catalog.record.picTeam')}</dt><dd>{owningTeams.get(`${step.id}:pic`)}</dd></div> : null}
+              {step.supervisor_person_id || step.supervisor_role_id ? <div><dt>{t('tasks.supervisor')}</dt><dd>{processOwner(step.supervisor_person_id, step.supervisor_role_id, people, roles, t)}</dd></div> : null}
+              {owningTeams.get(`${step.id}:supervisor`) ? <div><dt>{t('catalog.record.supervisorTeam')}</dt><dd>{owningTeams.get(`${step.id}:supervisor`)}</dd></div> : null}
               <div><dt>{t('catalog.record.due')}</dt><dd>{t('catalog.record.dueOffset', { count: String(step.due_offset_days) })}</dd></div>
             </dl>
             {items.length > 0 ? <ul className="catalog-record-document__checklist">{items.map((item) => <li key={item}>{item}</li>)}</ul> : null}

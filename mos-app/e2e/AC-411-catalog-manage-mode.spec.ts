@@ -121,13 +121,19 @@ test.describe('AC-411: catalog is Work\'s manage-mode', () => {
   })
 })
 
-// One line under the facts says the record is view-only; a member gets no field edits and no menu.
-const READ_ONLY_NOTE = 'View only'
+// One line under the facts says what the viewer can do: view only, or add tasks. A member gets no
+// field edits and no Archive; the ⋯ menu may still offer Copy link.
+const READ_ONLY_NOTE = /View only|You can add tasks/
 
-async function expectMemberReadOnly(page: Page, note: string) {
+async function expectMemberReadOnly(page: Page, note: RegExp) {
   await expect(page.getByRole('note')).toContainText(note)
   await expect(page.getByRole('button', { name: /^Edit / })).toHaveCount(0)
-  await expect(page.getByRole('button', { name: 'More actions', exact: true })).toHaveCount(0)
+  const more = page.getByRole('button', { name: 'More actions', exact: true })
+  if (await more.count()) {
+    await more.click()
+    await expect(page.getByRole('menuitem', { name: /^(Archive|Unarchive)$/ })).toHaveCount(0)
+    await page.keyboard.press('Escape')
+  }
 }
 
 for (const width of [390, 1440]) {
@@ -141,7 +147,7 @@ for (const width of [390, 1440]) {
       [`work/projects/${TRACE_WL}`, 'E2E Trace Work Line', READ_ONLY_NOTE],
       [`work/projects/${TRACE_PROCESS}`, 'E2E Trace Process', READ_ONLY_NOTE],
       [`work/objectives/${TRACE_OBJ}`, 'E2E Trace Objective', READ_ONLY_NOTE],
-    ]) {
+    ] satisfies [string, string, RegExp][]) {
       await page.goto(path)
       await expect(page.getByRole('heading', { name: title, exact: true })).toBeVisible()
       await expectMemberReadOnly(page, note)

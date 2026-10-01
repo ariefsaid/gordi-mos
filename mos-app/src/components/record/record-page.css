@@ -4,8 +4,8 @@
    record-viewer.css; every override here is scoped under `.rp` so it wins without !important. */
 
 .rp { display: flex; flex-direction: column; min-width: 0; padding: 20px; color: var(--foreground); }
-.rp--page { max-width: 1052px; padding: 0 0 48px; }
-.page-frame__content:has(.rp--page) .record-page-chrome { max-width: 1052px; margin-inline: 0; }
+.rp--page { max-width: 1052px; margin-inline: auto; padding: 0 0 48px; }
+.page-frame__content:has(.rp--page) .record-page-chrome { max-width: 1052px; margin-inline: auto; }
 
 /* ── Header ──────────────────────────────────────────────────────────── */
 .rp-head {
@@ -102,7 +102,7 @@
 
 /* ── Menu (portal) ───────────────────────────────────────────────────── */
 .rp-menu {
-  position: fixed; z-index: var(--z-popover); min-width: 188px; padding: 4px;
+  position: fixed; z-index: var(--z-modal); min-width: 188px; padding: 4px;
   border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--popover); box-shadow: var(--shadow-popover);
 }
 .rp-menu__item {
@@ -189,6 +189,7 @@ a.rp-row__name:hover { color: var(--primary); }
   .rp-icon-btn { width: 44px; height: 44px; }
   .rp-facts { gap: 8px 12px; }
   .rp-menu__item { min-height: 44px; }
+  a.rp-row__name { display: inline-flex; align-items: center; min-height: 44px; }
   .rp-section__action { min-height: 44px; border: 1px solid var(--control-border); }
   .rp .rp-facts .record-field__edit { min-height: 44px; margin-block: -8px; }
   .rp .rp-chip .record-field__edit { min-height: 44px; margin-block: -10px; }
