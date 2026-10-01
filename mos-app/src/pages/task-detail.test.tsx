@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
@@ -243,8 +243,9 @@ describe('AC-070 — detail page renders task fields', () => {
     // false-positive on the test's own fixture names "Consulted Person"/"Informed Person").
     expect(screen.queryByText(/RACI|Responsible \(R\)|Accountable \(A\)|Consulted \(C\)|Informed \(I\)/)).toBeNull()
 
-    expect(screen.getByRole('region', { name: /activity/i })).toBeInTheDocument()
-    expect(screen.getByRole('region', { name: /activity/i })).toBeTruthy()
+    // The event log is History, folded until opened.
+    fireEvent.click(screen.getByRole('button', { name: /History/ }))
+    expect(screen.getAllByTestId('event-entry')).toHaveLength(2)
 
     // Description renders once, in the content region prose (the Notes feed tab was a fossil,
     // deleted deliberately — owner-eyes item 11 / commit b031937; journey step updated, goal intact).
@@ -387,9 +388,9 @@ describe('AC-074 — checklist add / toggle', () => {
     renderDetail()
     await waitFor(() => screen.getByText('Step A'))
 
-    // Move "Step A" down (move-down button on the first item)
-    const moveDownBtns = screen.getAllByRole('button', { name: /move down/i })
-    fireEvent.click(moveDownBtns[0])
+    // Move "Step A" down (the row menu of the first item)
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Step A' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Move down' }))
 
     await waitFor(() => {
       // item-0 moves to position 1, item-1 moves to position 0
@@ -407,9 +408,9 @@ describe('AC-074 — checklist add / toggle', () => {
     renderDetail()
     await waitFor(() => screen.getByText('Step B'))
 
-    // Move "Step B" up — use the specific aria-label on its move-up button
-    const moveUpStepB = screen.getByRole('button', { name: /move up step b/i })
-    fireEvent.click(moveUpStepB)
+    // Move "Step B" up through its row menu
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Step B' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Move up' }))
 
     await waitFor(() => {
       expect(mockReorderChecklistItem).toHaveBeenCalledWith('item-1', 0)
@@ -417,7 +418,7 @@ describe('AC-074 — checklist add / toggle', () => {
     })
   })
 
-  it('AC-074 delete — × button calls deleteChecklistItem, item removed optimistically', async () => {
+  it('AC-074 delete — the row menu removes a step: deleteChecklistItem is called, item removed optimistically', async () => {
     const checklist = makeChecklist([
       { id: 'item-0', label: 'Remove me', position: 0 },
     ])
@@ -425,8 +426,8 @@ describe('AC-074 — checklist add / toggle', () => {
     renderDetail()
     await waitFor(() => screen.getByText('Remove me'))
 
-    const deleteBtn = screen.getByRole('button', { name: /delete checklist item remove me/i })
-    fireEvent.click(deleteBtn)
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Remove me' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Remove step' }))
 
     await waitFor(() => {
       expect(mockDeleteChecklistItem).toHaveBeenCalledWith('item-0', 'task-abc', VIEWER_ID)
@@ -447,9 +448,9 @@ describe('AC-075 / AC-P3-CM-004 — activity log + comments', () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events })
     renderDetail()
     await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
-    // Events must appear — newest (status_changed at 10:00) should be first in DOM
-    const log = screen.getByRole('region', { name: /activity/i })
-    const entries = within(log).getAllByTestId('event-entry')
+    // Events live in History; newest (status_changed at 10:00) should be first in DOM
+    fireEvent.click(screen.getByRole('button', { name: /History/ }))
+    const entries = screen.getAllByTestId('event-entry')
     expect(entries[0].textContent).toMatch(/status changed|in progress/i)
     expect(entries[1].textContent).toMatch(/created/i)
 
@@ -528,17 +529,10 @@ describe('RIC-1 — loading state renders styled skeleton', () => {
   it('renders skeleton element with sk class present in loading branch', () => {
     mockGetTask.mockReturnValue(new Promise(() => {})) // never resolves
     renderDetail()
-    // The skeleton must be present with aria-busy
-    const busyEl = screen.getByRole('status')
-    expect(busyEl).toBeTruthy()
-    // aria-busy container must be in the DOM
-    const busyContainer = document.querySelector('[aria-busy="true"]')
-    expect(busyContainer).toBeTruthy()
-    // The .sk blocks must be present — they only have styles when the CSS is hoisted
-    const skBlocks = document.querySelectorAll('.sk')
-    expect(skBlocks.length).toBeGreaterThan(0)
-    // The .sk-block wrapper must be present
-    expect(document.querySelector('.sk-block')).toBeTruthy()
+    // The record skeleton is announced as busy and previews the page anatomy (a title bar, fact pills, rows).
+    const busyEl = screen.getByRole('status', { name: 'Loading task' })
+    expect(busyEl).toHaveAttribute('aria-busy', 'true')
+    expect(busyEl.querySelectorAll('.skeleton-bar').length).toBeGreaterThan(0)
   })
 })
 

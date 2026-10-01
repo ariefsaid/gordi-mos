@@ -52,6 +52,18 @@ it('hints the expected input in an empty text editor through spec.placeholder', 
   expect(screen.getByRole('textbox', { name: 'Period' })).toHaveAttribute('placeholder', 'Year, e.g. 2026')
 })
 
+it('shows the status caret only while the status can be changed', () => {
+  const status = (editable: boolean): RecordFieldSpec => ({
+    key: 'status', label: 'Status', control: 'status', value: 'Blocked', displayValue: 'Blocked', editable,
+    options: [{ value: 'Open', label: 'Open' }, { value: 'Blocked', label: 'Blocked' }],
+  })
+  const { container, rerender } = render(<I18nProvider><RecordField spec={status(false)} onCommit={vi.fn()} /></I18nProvider>)
+  expect(container.querySelector('.record-field__pill')).toHaveTextContent('Blocked')
+  expect(container.querySelector('.record-field__pill-caret')).toBeNull()
+  rerender(<I18nProvider><RecordField spec={status(true)} onCommit={vi.fn()} /></I18nProvider>)
+  expect(container.querySelector('.record-field__pill-caret')).not.toBeNull()
+})
+
 function renderField(spec: RecordFieldSpec, extra: {
   onCommit?: (v: RecordValue) => Promise<void>
   onCancel?: () => void

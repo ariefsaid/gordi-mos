@@ -244,13 +244,15 @@ describe.each(ROLES)('Work children: one declared order, every surface — viewe
     expect(paletteWorkChildTargets(view.container)).toEqual(typedPairs('o'))
   })
 
-  it('at rest the palette lists destination ROOTS only — the Work parent and no children (#748)', () => {
+  it("the ⌘K palette at rest lists the Work parent and the Work children in the owner-ruled order (#1193)", () => {
     const v = palette()
+    // At rest Go to is the whole catalog, so the order guard reads the same run the typed view has.
+    expect(paletteWorkChildTargets(v.container)).toEqual(expectedPairs())
     const rows = Array.from(
       v.container.querySelectorAll<HTMLElement>('[data-to^="/work/"]:not(.action)'),
     ).map((el) => `${el.getAttribute('data-to') ?? ''}=${(el.textContent ?? '').trim()}`)
     const parentPath = DESTINATIONS.find((d) => d.id === 'work')!.primaryPath ?? '/work/tasks'
-    expect(rows).toEqual([`${parentPath}=Work`])
+    expect(rows).toEqual([`${parentPath}=Work`, ...expectedPairs()])
   })
 
   it('no Work target is rendered twice, except the parent sharing its primaryPath', async () => {

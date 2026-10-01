@@ -95,6 +95,32 @@ describe('RecordMenu', () => {
   })
 })
 
+describe('RecordMenu placement', () => {
+  it('opens above its trigger when there is no room below, and below it otherwise', async () => {
+    const user = userEvent.setup()
+    const rect = (top: number, bottom: number) => ({ top, bottom, left: 300, right: 340, width: 40, height: bottom - top, x: 300, y: top, toJSON: () => ({}) })
+    const spy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+    const height = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(120)
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 800 })
+    const items = [{ id: 'a', label: 'One', onSelect: vi.fn() }, { id: 'b', label: 'Two', onSelect: vi.fn() }]
+    try {
+      spy.mockReturnValue(rect(748, 780) as DOMRect)
+      const { unmount } = render(<RecordMenu items={items} label="More actions" />)
+      await user.click(screen.getByRole('button', { name: 'More actions' }))
+      expect(screen.getByRole('menu')).toHaveStyle({ top: '624px' })
+      unmount()
+
+      spy.mockReturnValue(rect(100, 132) as DOMRect)
+      render(<RecordMenu items={items} label="More actions" />)
+      await user.click(screen.getByRole('button', { name: 'More actions' }))
+      expect(screen.getByRole('menu')).toHaveStyle({ top: '136px' })
+    } finally {
+      spy.mockRestore()
+      height.mockRestore()
+    }
+  })
+})
+
 describe('RecordGetStarted', () => {
   it('renders nothing for an empty list and makes only the first row primary', () => {
     const { container, rerender } = wrap(<RecordGetStarted title="Get started" items={[]} />)
@@ -223,5 +249,73 @@ describe('RecordPageHeader', () => {
   it('shows the one read-only line when given', () => {
     wrap(<RecordPageHeader {...base} facts={[]} note="View only · Dewi (Accountable) sets targets." />)
     expect(screen.getByRole('note')).toHaveTextContent('View only')
+  })
+
+  it('draws a destructive state as the lost-tone pill', () => {
+    wrap(<RecordPageHeader {...base} facts={[{ type: 'state', key: 's', label: 'Blocked', tone: 'destructive' }]} />)
+    expect(screen.getByText('Blocked').closest('.pill')).toHaveClass('pill--destructive')
+  })
+
+  it('draws an outline primary quietly, and a primary by default', () => {
+    const { rerender } = wrap(<RecordPageHeader {...base} facts={[]} primary={{ label: 'Mark complete', variant: 'outline', onClick: vi.fn() }} />)
+    expect(screen.getByRole('button', { name: 'Mark complete' })).toHaveClass('btn-outline')
+    expect(document.querySelectorAll('.btn-primary')).toHaveLength(0)
+    rerender(<I18nProvider><RecordPageHeader {...base} facts={[]} primary={{ label: 'Mark complete', onClick: vi.fn() }} /></I18nProvider>)
+    expect(screen.getByRole('button', { name: 'Mark complete' })).toHaveClass('btn-primary')
+  })
+
+  it('carries a person hint as an accessible description, not a visible line', () => {
+    const facts: RecordFact[] = [
+      { type: 'person', key: 's', role: 'neutral', hint: 'inherited from Weekly promo', field: field({ key: 'supervisor', label: 'Supervisor', control: 'person', value: 'p1', displayValue: 'Dewi Director' }) },
+    ]
+    wrap(<RecordPageHeader {...base} facts={facts} />)
+    const chip = screen.getByRole('listitem')
+    expect(chip).toHaveAttribute('title', 'inherited from Weekly promo')
+    expect(within(chip).getByText('inherited from Weekly promo')).toHaveClass('sr-only')
+  })
+
+  it('lets a group go without a visible label', () => {
+    const facts: RecordFact[] = [
+      { type: 'group', key: 'ctx', fields: [field({ key: 'a', label: 'Project/Process', displayValue: 'Weekly promo' }), field({ key: 'b', label: 'Objective', displayValue: 'Q4 growth' })] },
+    ]
+    wrap(<RecordPageHeader {...base} facts={facts} />)
+    expect(document.querySelector('.rp-fact__key')).toBeNull()
+    // Each field keeps its own name for assistive tech; only the shared visible label is gone.
+    expect(screen.getByRole('list', { name: 'Key facts' })).toHaveTextContent(/Project\/Process.*Weekly promo.*Objective.*Q4 growth/)
+  })
+})
+
+describe('RecordPageLayout record kind and history count', () => {
+  it('names the record kind on its root and counts History in the disclosure', () => {
+    wrap(
+      <RecordPageLayout label="Record" kind="task" mode="page" headingLevel={1} header={<h1>Title</h1>} history={{ title: 'History', count: 4, node: <p>entries</p> }}>
+        <RecordSection id="s" title="Section">rows</RecordSection>
+      </RecordPageLayout>,
+    )
+    expect(screen.getByRole('region', { name: 'Record' })).toHaveAttribute('data-record-kind', 'task')
+    expect(screen.getByRole('button', { name: /History/ })).toHaveTextContent('History4')
+  })
+
+  it('counts History in the side column on a wide page', () => {
+    setWide(true)
+    wrap(
+      <RecordPageLayout label="Record" mode="page" headingLevel={1} header={<h1>Title</h1>} history={{ title: 'History', count: 4, node: <p>entries</p> }}>
+        <RecordSection id="s" title="Section">rows</RecordSection>
+      </RecordPageLayout>,
+    )
+    expect(within(screen.getByRole('complementary')).getByRole('heading', { name: /History/ })).toHaveTextContent('History4')
+  })
+
+  it('renders no History when none is given, narrow or wide', () => {
+    wrap(<RecordPageLayout label="Record" mode="page" headingLevel={1} header={<h1>Title</h1>}>x</RecordPageLayout>)
+    expect(screen.queryByRole('button', { name: /History/ })).toBeNull()
+    setWide(true)
+    wrap(<RecordPageLayout label="Other" mode="page" headingLevel={1} header={<h1>Title</h1>}>x</RecordPageLayout>)
+    expect(screen.queryByRole('heading', { name: /History/ })).toBeNull()
+  })
+
+  it('leaves the kind attribute off when none is given', () => {
+    wrap(<RecordPageLayout label="Record" mode="page" headingLevel={1} header={<h1>Title</h1>} history={{ title: 'History', node: null }}>x</RecordPageLayout>)
+    expect(screen.getByRole('region', { name: 'Record' })).not.toHaveAttribute('data-record-kind')
   })
 })
