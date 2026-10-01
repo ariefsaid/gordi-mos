@@ -55,6 +55,24 @@ describe('RecordMenu', () => {
     expect(trigger).toHaveFocus()
   })
 
+  it('moves focus into the menu on the FIRST open, while the menu is already visible (a hidden element cannot take focus)', async () => {
+    const user = userEvent.setup()
+    const focusedWhile: string[] = []
+    const realFocus = HTMLElement.prototype.focus
+    const spy = vi.spyOn(HTMLElement.prototype, 'focus').mockImplementation(function (this: HTMLElement, options?: FocusOptions) {
+      if (this.getAttribute('role') === 'menuitem') focusedWhile.push((this.closest('[role="menu"]') as HTMLElement).style.visibility)
+      realFocus.call(this, options)
+    })
+    try {
+      render(<RecordMenu items={items} label="More actions" />)
+      await user.click(screen.getByRole('button', { name: 'More actions' }))
+      await screen.findByRole('menu')
+      expect(focusedWhile[0]).not.toBe('hidden')
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
   it('Tab closes the menu with focus on the trigger, so the browser\'s next Tab stop is the control after it', async () => {
     const user = userEvent.setup()
     render(<RecordMenu items={items} label="More actions" />)
