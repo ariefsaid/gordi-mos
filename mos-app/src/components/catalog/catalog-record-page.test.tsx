@@ -912,6 +912,10 @@ describe('a Process\'s header primary is Start occurrence', () => {
     renderRecord('work-line')
     await screen.findByRole('heading', { level: 1, name: 'Café opening' })
     const primary = await screen.findByRole('button', { name: 'Start occurrence' })
+    // It is the primary variant, and the ONE primary action on the record — demotion or a second
+    // primary would fail here, not just the role/name lookup.
+    expect(primary).toHaveClass('btn-primary')
+    expect(document.querySelectorAll('.btn-primary')).toHaveLength(1)
     const header = (await screen.findByRole('heading', { level: 1, name: 'Café opening' })).closest('header') as HTMLElement
     expect(within(header).getByRole('button', { name: 'Start occurrence' })).toBe(primary)
     await user.click(primary)
