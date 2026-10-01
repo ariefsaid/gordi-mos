@@ -185,3 +185,5 @@ jobs:
         run: bash scripts/mcp-catalog.test.sh
       - name: statement-timeout check self-test
         run: bash scripts/check-statement-timeout.test.sh
+      - name: staging deploy script self-test
+        run: bash scripts/deploy-staging.test.sh
