@@ -17,12 +17,13 @@ import type { BusinessUnitOption, PersonOption } from '@/lib/db/directory'
 import { listComments, postComment, type CommentRow } from '@/lib/comments/postComment'
 import { listObjectives, readObjective } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
+import { hasOrgWideAuthority } from '@/lib/role-scope'
 import { listTaskDefs } from '@/lib/db/processes'
 import type { ObjectiveRow } from '@/lib/db/objectives'
 import type { WorkLineRow } from '@/lib/db/work-lines'
 import { ConfirmArchive } from './confirm-archive'
 import { loadHomeLeadId } from './default-supervisor'
-import { canEdit } from './task-permissions'
+import { canEdit, picOptions } from './task-permissions'
 import { liveTasksSearch, type LiveTasksQueryRef } from './tasks-navigation'
 import { createTaskRecordAdapter, createTaskFieldCommit, type TaskTeamView, type TaskRelatedRecord, type TaskViewerFieldKey } from './task-record-adapter'
 import { RecordViewer } from '@/components/records/record-viewer'
@@ -158,6 +159,7 @@ function ViewSurface({
   const location = useLocation()
   const auth = useAuth()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : ''
+  const viewerOrgWide = auth.status === 'authenticated' && hasOrgWideAuthority(auth.viewer.accessRoles)
   const t = useT()
   const { locale } = useI18n()
 
@@ -475,6 +477,7 @@ function ViewSurface({
       detail: { ...data, task: localTask, checklist: localChecklist },
       viewerId,
       downlineIds,
+      orgWide: viewerOrgWide,
       people: peopleDirectory,
       businessUnits: busDirectory,
       objectives: objectivesDir,
@@ -600,7 +603,7 @@ function ViewSurface({
   // Handler identities are intentionally excluded; their captured state is represented above.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    onOpenRelated, data, localTask, localChecklist, viewerId, downlineIds, peopleDirectory, busDirectory, commentDraft,
+    onOpenRelated, data, localTask, localChecklist, viewerId, downlineIds, viewerOrgWide, peopleDirectory, busDirectory, commentDraft,
     objectivesDir, linkedObjective, workLinesDir, teamDirectory, taskTeam, generatedFromLabel, comments, now, editable, t, locale,
     checklistError,
   ])
@@ -988,6 +991,8 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
 
   // Directory
   const [peopleDirectory, setPeopleDirectory] = useState<PersonOption[]>([])
+  const [downlineIds, setDownlineIds] = useState<string[]>([])
+  const viewerOrgWide = auth.status === 'authenticated' && hasOrgWideAuthority(auth.viewer.accessRoles)
   const [teamDirectory, setTeamDirectory] = useState<DirectoryTeamOption[]>([])
   const [dirLoading, setDirLoading] = useState(true)
   const [workLinesDir, setWorkLinesDir] = useState<WorkLineRow[]>([])
@@ -996,8 +1001,11 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
   useEffect(() => {
     let live = true
     const teamsPromise = getPersonTeams(viewerId).catch(() => [])
-    Promise.all([getBusinessUnits(), getPeople(), teamsPromise]).then(([, people, teams]) => {
+    // A failed downline read fails closed: the PIC picker offers only the viewer.
+    const downlinePromise = getDownlinePersonIds(viewerId).catch(() => [])
+    Promise.all([getBusinessUnits(), getPeople(), teamsPromise, downlinePromise]).then(([, people, teams, downline]) => {
       setPeopleDirectory(people)
+      setDownlineIds(downline)
       setTeamDirectory(teams)
       setDirLoading(false)
       // Supervisor defaults to the creator's home Team lead; a choice made meanwhile wins.
@@ -1024,6 +1032,14 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
   const [dueDate, setDueDate] = useState('')
   const [description, setDescription] = useState('')
   const [workLineId, setWorkLineId] = useState('')
+
+  // Same option rule as every other create path; a pre-filled PIC outside it stays shown.
+  const picPickerOptions = (() => {
+    const allowed = picOptions(viewerId, peopleDirectory, downlineIds, viewerOrgWide)
+    const prefilled = !allowed.some((p) => p.id === responsiblePersonId)
+      ? peopleDirectory.filter((p) => p.id === responsiblePersonId) : []
+    return [...prefilled, ...allowed].map((p) => ({ value: p.id, label: p.full_name }))
+  })()
 
   const selectedTeam = teamDirectory.find((team) => team.id === teamId)
   const businessUnitId = selectedTeam?.businessUnitId ?? selectedTeam?.business_unit_id ?? ''
@@ -1322,7 +1338,7 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
               fullWidth
               hideLabel
               value={responsiblePersonId}
-              options={peopleDirectory.map(p => ({ value: p.id, label: p.full_name }))}
+              options={picPickerOptions}
               onChange={value => { setResponsiblePersonId(value); markDirty() }}
               disabled={submitting}
               required
