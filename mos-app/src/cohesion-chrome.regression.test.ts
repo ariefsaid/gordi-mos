@@ -447,6 +447,51 @@ describe('CHROME-STRIPE: no side-accent stripe on options, items or rows', () =>
     expect(stale, 'debt paid — lower these WARNING_ROW_RULE counts so the ratchet tightens').toEqual([])
   })
 
+  // WCAG 1.4.11: the active option's cue must not rest on a ~1.1:1 surface fill. Each listbox
+  // cursor is a neutral surface fill PLUS the global focus ring drawn inside the option.
+  const CURSORS: [file: string, selector: string, fill: string][] = [
+    ['components/ui/Picker.css', ".picker__option[data-selected='true']", '--surface-tertiary'],
+    ['components/ui/Select.css', '.mk-select__option[data-highlighted]', '--surface-tertiary'],
+    ['components/tasks/TaskSurface.css', ".person-picker-option[data-selected='true']", '--surface-tertiary'],
+    ['components/kitchen/cafe-stream-bar.css', ".cafe-stream__option[data-active='true']", '--surface-tertiary'],
+    ['components/signals/signal-attention-picker.css', ".signal-attention-picker-option[data-active='true']", '--surface-tertiary'],
+    ['components/command/command-menu.css', '.cm-item.active', '--surface-tertiary'],
+    ['components/records/record-viewer.css', '.record-viewer__overflow-menu button:focus-visible', '--surface-tertiary'],
+    ['components/signals/signal-mention-picker.css', '.mention-row.is-active', '--accent-subtle'],
+  ]
+
+  it.each(CURSORS)('CHROME-STRIPE: %s %s pins its fill token and the inset focus ring', (file, selector, fill) => {
+    const css = stripCss(readSrc(file))
+    const body = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].find((rule) =>
+      rule[1].split(',').some((part) => part.trim() === selector),
+    )?.[2]
+    expect(body, `${selector} rule in ${file}`).toBeTruthy()
+    expect(body).toContain(`background: var(${fill})`)
+    expect(body).toMatch(/outline:\s*2px solid var\(--ring\)/)
+    expect(body).toMatch(/outline-offset:\s*-2px/)
+    expect(body, 'action blue is not a neutral fill (DD-MVP-14)').not.toMatch(/background:\s*var\(--(?:accent|primary)\)/)
+  })
+
+  it('CHROME-STRIPE: the cursor ring clears 3:1 against the popover and its fill in both themes', () => {
+    const p3 = (theme: string, name: string) => {
+      const css = readSrc(`styles/tokens/theme-${theme}.css`)
+      const m = new RegExp(`--ds-${name}:\\s*color\\(display-p3\\s+([\\d.]+)\\s+([\\d.]+)\\s+([\\d.]+)\\)`).exec(css)
+      expect(m, `--ds-${name} in theme-${theme}.css`).toBeTruthy()
+      // Linear display-p3 luminance (same transfer curve as sRGB).
+      const lin = [m![1], m![2], m![3]].map((v) => {
+        const c = Number(v)
+        return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+      })
+      return 0.22897456 * lin[0] + 0.69173852 * lin[1] + 0.07928691 * lin[2]
+    }
+    const ratio = (a: number, b: number) => (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)
+    for (const theme of ['light', 'dark']) {
+      const ring = p3(theme, 'color-blue')
+      expect(ratio(ring, p3(theme, 'background-primary')), `${theme} ring vs popover`).toBeGreaterThanOrEqual(3)
+      expect(ratio(ring, p3(theme, 'background-tertiary')), `${theme} ring vs fill`).toBeGreaterThanOrEqual(3)
+    }
+  })
+
   it('CHROME-STRIPE: no TSX style or utility class draws a side stripe', () => {
     const offenders: string[] = []
     for (const f of listSource(SRC, ['.tsx'])) {
