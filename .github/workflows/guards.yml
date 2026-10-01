@@ -70,6 +70,9 @@ on:
     # - 'justfile'
 jobs:
   guard-self-tests:
+    # A release PR (main → staging) carries a tree that already passed on its way into main. A
+    # skipped required check counts as passed.
+    if: ${{ !(github.event_name == 'pull_request' && github.base_ref == 'staging' && github.head_ref == 'main') }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
