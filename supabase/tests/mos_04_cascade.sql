@@ -29,7 +29,7 @@
 -- negative subject; the member proof covers the derived baseline category separately.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(56);
+select plan(60);
 
 -- ── Fixtures ─────────────────────────────────────────────────────────────────────────────────
 -- Orgs  A ...00ca / B ...00cb · BUs ...ca01 / ...cb01
@@ -129,6 +129,21 @@ select is((select count(*)::int from mos.work_lines), 2,
   'a member reads only the two org-A work_lines');
 select is((select count(*)::int from mos.work_lines where id = '00000000-0000-0000-0001-000000000003'), 0,
   'the org-B work_line is invisible to an org-A member');
+
+-- The ⌘K palette's search predicate (active rows, name ilike) — RLS is its only read authority,
+-- so these pin what a session finds: its own org's active rows, never another org's or an archived one.
+select is((select array_agg(name order by name) from mos.objectives
+            where name ilike '%revenue%' and archived_at is null), array['Grow Revenue A'],
+  'palette Objective search: an org-A member finds the org-A objective and not "Grow Revenue B"');
+select is((select count(*)::int from mos.objectives
+            where name ilike '%retired%' and archived_at is null), 0,
+  'palette Objective search: an archived objective is not offered');
+select is((select array_agg(name order by name) from mos.work_lines
+            where name ilike '%menu%' and archived_at is null), array['New Menu Design'],
+  'palette Project/Process search: an org-A member finds the org-A work line');
+select is((select count(*)::int from mos.work_lines
+            where name ilike '%b work%' and archived_at is null), 0,
+  'palette Project/Process search: the org-B work line "B Work Line" is never found');
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- 3. Write gates — member denied on both catalogs; ops_lead writes Projects & Processes and the
