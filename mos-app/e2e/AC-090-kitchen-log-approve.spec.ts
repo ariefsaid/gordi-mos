@@ -18,7 +18,8 @@ import { fileURLToPath } from 'url'
 import { loginAs } from './helpers/login'
 import { VIEWER, MANAGER } from './fixtures/users'
 import { assertLocalFixtureDatabase } from './fixtures/cleanup'
-import { ensureStream, streamStatement } from './helpers/cafe-stream'
+import { ensureStream, streamStatement, streamSwitch, STREAM_CONTROL_NAME } from './helpers/cafe-stream'
+import type { Page } from '@playwright/test'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dir = dirname(__filename)
@@ -104,6 +105,28 @@ async function execSqlRead<T = Record<string, unknown>>(query: string): Promise<
 
 async function execSql(query: string): Promise<void> {
   await execSqlRead(query)
+}
+
+/**
+ * AC-090-only stream settle. ensureStream answers "a stream is STATED" — but the OD-CAFE-6
+ * ladder can legitimately resolve a default other than this journey's seeded one (e.g. Gordi
+ * HQ Bar), so when the stated stream is not the fixture's, switch through the statement's own
+ * Change menu until Rumah Rames · Kitchen is the stated stream. The h2 — not the whole
+ * statement — is compared, so a "Back to <home>" affordance can never pass for the stated
+ * stream. The no-default direct-choice step stays inside ensureStream, untouched.
+ */
+async function stateOnStream(page: Page, targetLabel: string): Promise<void> {
+  await ensureStream(page)
+  const stated = streamStatement(page).locator('h2')
+  await expect(stated).toBeVisible()
+  if ((await stated.textContent())?.trim() === targetLabel) return
+  await streamSwitch(page).click()
+  const options = page.getByRole('listbox', { name: STREAM_CONTROL_NAME }).getByRole('option')
+  const labels = await options.allTextContents()
+  const idx = labels.findIndex((label) => label.trim().startsWith(targetLabel))
+  if (idx < 0) throw new Error(`[AC-090] Change menu offered no "${targetLabel}": ${JSON.stringify(labels)}`)
+  await options.nth(idx).click()
+  await expect(streamStatement(page)).toContainText(targetLabel)
 }
 
 test.describe('AC-090: Kitchen log -> review -> approve (cross-stack proof)', () => {
@@ -198,11 +221,9 @@ test.describe('AC-090: Kitchen log -> review -> approve (cross-stack proof)', ()
     // DD-MVP-17: /cafe/log aliases the Café root — the Today capture surface itself.
     await page.waitForURL(/\/cafe$/, { timeout: 15_000 })
 
-    // VIEWER (Cahya, Cafe Ops Lead) has no home stream and no sole stream team — the OD-CAFE-6
-    // ladder reaches its last rung, FR-001/002's real explicit stream choice. ensureStream takes
-    // it, defaulting to Rumah Rames · Kitchen.
-    await ensureStream(page)
-    await expect(streamStatement(page)).toContainText(STREAM_LABEL)
+    // This test explicitly selects its seeded stream — the one this journey's plan, log, and
+    // approval fixture live on.
+    await stateOnStream(page, STREAM_LABEL)
 
     await expect(
       page.getByRole('table', { name: /café production log/i }),

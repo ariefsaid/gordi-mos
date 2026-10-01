@@ -13,8 +13,9 @@ import { TASKS } from './fixtures/tasks'
 // selectTaskView is self-managing (#870): it opens the phone "View & filters" door only when the
 // chips are nested inside it, and closes it again — a door left open was seen to intercept the
 // page-level 'n'/'j' keyboard shortcuts this file's AC-109 exercises.
-async function selectAllView(page: Page) {
-  await selectTaskView(page, 'All')
+// OD-TASK-3: VIEWER is not org-wide, so the primary view chip is named "Relevant", not "All".
+async function selectRelevantView(page: Page) {
+  await selectTaskView(page, 'Relevant')
 }
 
 test('AC-102 (J4): deep-link to /work/tasks/:id renders the standalone canonical record page (OD-63)', async ({ page }) => {
@@ -53,7 +54,7 @@ test.describe('mobile', () => {
 
     await page.goto('work/tasks')
     await page.waitForURL(/\/work\/tasks$/)
-    await selectAllView(page)
+    await selectRelevantView(page)
     await createTaskViaUI(page, title)
     const card = page.locator('[data-testid="task-card"]', { hasText: title }).first()
     await expect(card).toBeVisible({ timeout: 10_000 })
@@ -76,12 +77,12 @@ test('AC-109 (J6): keyboard — j j Enter opens the 2nd row; Esc closes; n opens
   await loginAs(page, VIEWER.email, VIEWER.password)
   await page.goto('work/tasks')
   await page.waitForURL(/\/work\/tasks$/)
-  await selectAllView(page)
+  await selectRelevantView(page)
 
   await createTaskViaUI(page, `J6 Second ${Date.now()}`)
   await page.goto('work/tasks')
   await page.waitForURL(/\/work\/tasks$/)
-  await selectAllView(page)
+  await selectRelevantView(page)
 
   await expect(page.locator('tbody tr.task-row').nth(1)).toBeVisible({ timeout: 10_000 })
   const secondTitle = await page.locator('tbody tr.task-row').nth(1).locator('.task-name').first().innerText()
