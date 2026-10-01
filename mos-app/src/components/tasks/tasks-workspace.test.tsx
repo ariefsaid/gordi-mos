@@ -261,7 +261,8 @@ describe('D3e — Tasks create is an inline title row', () => {
     expect(titleInput).not.toBeDisabled()
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.queryByRole('complementary', { name: /create task/i })).toBeNull()
-    expect(screen.getAllByRole('textbox')).toHaveLength(1)
+    expect(screen.getAllByRole('textbox')).toHaveLength(2) // the title + the shared day-first Due field (#1191)
+    expect(screen.getByRole('textbox', { name: 'Due date' })).toHaveValue('')
 
     fireEvent.change(titleInput, { target: { value: 'New inline task' } })
     await chooseDraftSupervisor()
@@ -475,7 +476,7 @@ describe('Create from Signal convergence', () => {
     mockLinkSignalTask.mockRejectedValue(new Error('offline'))
     renderTable({}, authedState, ['/work/tasks?sourceSignal=signal-42'], 'id')
     fireEvent.click(await screen.findByRole('button', { name: /create task|buat tugas/i }))
-    const title = await screen.findByRole('textbox')
+    const title = await screen.findByRole('textbox', { name: /judul/i })
     fireEvent.change(title, { target: { value: 'Original' } })
     await chooseDraftSupervisor('Budi Setiawan')
     fireEvent.keyDown(title, { key: 'Enter' })
@@ -2003,9 +2004,9 @@ describe('C1 — Done tasks excluded from overdue (RI-1 regression guard)', () =
   })
 })
 
-// ── OD-REDESIGN-91 #17: the head meta reads "N open in this view · M incl. done" (counts are OPEN) ──
-describe('#17 — Tasks head meta is "N open in this view · M incl. done" (open excludes Done)', () => {
-  it('#17: a Done task lowers the open count but not the total', async () => {
+// ── OD-REDESIGN-91 #17 + DD-COUNT-1 #1194: the head meta reads "N open in this view · M shown" ──
+describe('#17 — Tasks head meta is "N open in this view · M shown" (open excludes Done)', () => {
+  it('#17: a Done task lowers the open count but not the shown total', async () => {
     mockListTasks.mockResolvedValue([
       makeTask({ id: 't1', title: 'Open one', status: 'Open' }),
       makeTask({ id: 't2', title: 'Open two', status: 'Blocked' }),
@@ -2017,7 +2018,7 @@ describe('#17 — Tasks head meta is "N open in this view · M incl. done" (open
     await waitFor(() => expect(screen.getByText('Resolved')).toBeInTheDocument())
     // Blocked still counts as open (not Done); only the Done task is excluded from open.
     await waitFor(() =>
-      expect(screen.getByTestId('tasks-count-line').textContent?.trim()).toBe('2 open in this view · 3 incl. done'),
+      expect(screen.getByTestId('tasks-count-line').textContent?.trim()).toBe('2 open in this view · 3 shown'),
     )
   })
 })

@@ -790,9 +790,10 @@ describe('Fix M2 — task count suppressed in error state', () => {
     renderPage()
     await waitFor(() => screen.getByText('Default task'))
     // Goal-oracle: the loaded count is visible. OD-REDESIGN-91 #17 makes the head meta
-    // explicitly distinguish open work from what the current view holds: "N open in this view · M incl. done".
+    // explicitly distinguish open work from what the current view holds (DD-COUNT-1 #1194:
+    // the second number says "shown" — Done rows kept 7 days included).
     const countLine = document.querySelector('[data-testid="tasks-count-line"]')
-    expect(countLine?.textContent).toContain('2 open in this view · 2 incl. done')
+    expect(countLine?.textContent).toContain('2 open in this view · 2 shown')
   })
 })
 

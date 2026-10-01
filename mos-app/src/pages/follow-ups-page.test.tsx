@@ -136,7 +136,8 @@ describe('FollowUpsPage', () => {
     await user.click(await screen.findByRole('button', { name: 'Settle' }))
     const submit = screen.getByRole('button', { name: 'Submit' })
     expect(submit).toBeDisabled()
-    await user.type(screen.getByLabelText('Cash-in date'), '2026-07-02')
+    // Day-first entry (#1191): the person types the date the field asks for, dd/mm/yyyy.
+    await user.type(screen.getByLabelText('Cash-in date'), '02/07/2026')
     await user.type(screen.getByLabelText('Evidence'), 'TRF-2')
     expect(submit).toBeEnabled()
   })
