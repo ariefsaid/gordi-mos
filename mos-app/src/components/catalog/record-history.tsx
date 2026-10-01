@@ -126,10 +126,12 @@ export type RecordHistoryProps = {
   table: 'objectives' | 'work_lines'
   recordId: string
   headingLevel?: 1 | 2
+  /** The caller already titles this section (a disclosure or an aside heading); the region keeps its name. */
+  hideHeading?: boolean
   now?: Date
 }
 
-export function RecordHistory({ table, recordId, headingLevel = 2, now }: RecordHistoryProps) {
+export function RecordHistory({ table, recordId, headingLevel = 2, hideHeading = false, now }: RecordHistoryProps) {
   const t = useT()
   const { locale } = useI18n()
   const headingId = useId()
@@ -184,8 +186,8 @@ export function RecordHistory({ table, recordId, headingLevel = 2, now }: Record
 
   const clock = now ?? new Date()
   return (
-    <section ref={sectionRef} className="catalog-record-history" aria-labelledby={headingId}>
-      <Heading id={headingId} className="record-viewer__section-title">{t('catalog.history.title')}</Heading>
+    <section ref={sectionRef} className="catalog-record-history" {...(hideHeading ? { 'aria-label': t('catalog.history.title') } : { 'aria-labelledby': headingId })}>
+      {hideHeading ? null : <Heading id={headingId} className="record-viewer__section-title">{t('catalog.history.title')}</Heading>}
       {failed ? (
         <ErrorState message={t('catalog.history.error')} onRetry={() => setNonce((n) => n + 1)} />
       ) : data === null ? (

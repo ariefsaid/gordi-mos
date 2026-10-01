@@ -100,8 +100,8 @@ export function useCatalogRecordEntryFactory({
         onChanged={onCollectionChanged}
         onLeaveGuardChange={(guard) => { entry.leaveGuard = guard }}
         onOpenPage={() => { if (onOpenPage) onOpenPage(pageTo); else if (host) void host.openPage(pageTo) }}
-        onCreateTask={() => {
-          const to = { pathname: '/work/tasks', search: `?create=1&work_line=${encodeURIComponent(id)}` }
+        onCreateTask={(workLineId) => {
+          const to = { pathname: '/work/tasks', search: `?create=1&work_line=${encodeURIComponent(workLineId)}` }
           if (onOpenPage) onOpenPage(to)
           else if (host) void host.openPage(to)
         }}

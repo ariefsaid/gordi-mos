@@ -484,7 +484,7 @@ function renderValueNode(spec: RecordFieldSpec): ReactNode {
     ), empty)
   }
   if (CHIP_CONTROLS.has(spec.control) && !empty) {
-    return wrapValue(spec, <span className="record-field__chip">{spec.displayValue}</span>, empty)
+    return wrapValue(spec, <span className="record-field__chip">{spec.lead}{spec.displayValue}</span>, empty)
   }
   if (spec.control === 'date' && !empty) {
     return wrapValue(spec, <span className="record-field__inline-pill">{spec.displayValue}</span>, empty)

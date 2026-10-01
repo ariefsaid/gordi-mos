@@ -63,7 +63,7 @@ const workLine = {
 }
 
 const task = (overrides: Record<string, unknown> = {}) => ({
-  id: 'task-1', title: 'Print the menus', status: 'Done', last_activity_at: '2026-08-02T00:00:00Z',
+  id: 'task-1', title: 'Print the menus', status: 'Done', due_date: '2026-10-03', last_activity_at: '2026-08-02T00:00:00Z',
   archived_at: null, objective_id: null, work_line_id: 'wl-1',
   responsible_person_id: 'person-b', accountable_person_id: 'person-a', business_unit_id: 'bu-1',
   ...overrides,
@@ -122,6 +122,33 @@ describe('loadCatalogRecordData query boundaries', () => {
       expect.objectContaining({ id: 'task-direct' }),
       expect.objectContaining({ id: 'task-1' }),
     ]))
+  })
+
+  it('carries each task\'s due date and PIC, the linked work\'s type and Responsible, and looks those people up', async () => {
+    const queries: QueryRecord[] = []
+    schemaMock
+      .mockReturnValueOnce(makeSchema('mos', {
+        'mos.work_lines': { data: [workLine], error: null },
+        'mos.tasks': [{ data: [], error: null }, { data: [task()], error: null }],
+      }, queries))
+      .mockReturnValueOnce(makeSchema('shared', {
+        'shared.business_units': { data: [{ id: 'bu-1', name: 'Retail Ops' }], error: null },
+        'shared.people': { data: [{ id: 'person-a', full_name: 'Accountable A' }, { id: 'person-b', full_name: 'Person B' }], error: null },
+      }, queries))
+
+    const result = await loadCatalogRecordData('objective', 'obj-1')
+
+    expect(result?.context.relationsById.get('obj-1')?.tasks).toEqual([
+      expect.objectContaining({ id: 'task-1', dueDate: '2026-10-03', picPersonId: 'person-b' }),
+    ])
+    expect(result?.workLinesById.get('wl-1')).toEqual({
+      id: 'wl-1', name: 'Menu launch', type: 'project', objectiveId: 'obj-1', businessUnitId: 'bu-1', responsiblePersonId: 'person-b',
+    })
+    expect(queries).toEqual(expect.arrayContaining([
+      expect.objectContaining({ table: 'tasks', select: expect.stringContaining('due_date') }),
+      expect.objectContaining({ table: 'people', filters: expect.arrayContaining([['in', 'id', expect.arrayContaining(['person-a', 'person-b'])]]) }),
+    ]))
+    expect(result?.peopleById.get('person-b')).toBe('Person B')
   })
 
   it('maps the Company-wide flag and quarter from the Objective onto the row', async () => {

@@ -121,17 +121,12 @@ test.describe('AC-411: catalog is Work\'s manage-mode', () => {
   })
 })
 
-const READ_ONLY_NOTE = 'You can view this, but not edit it.'
-// An Objective's structure (name, Business Unit, period, accountable) is set by an admin.
-const OBJECTIVE_READ_ONLY_NOTE = 'You can view this. An admin sets the name, Business Unit, period and accountable person.'
+// One line under the facts says the record is view-only; a member gets no field edits and no menu.
+const READ_ONLY_NOTE = 'View only'
 
-/** What separates a member from a catalog manager on the same record: no record actions, and a
- *  Details tab that says it is read-only and offers no field edits. */
 async function expectMemberReadOnly(page: Page, note: string) {
-  await page.getByRole('tab', { name: 'Details', exact: true }).click()
-  const details = page.getByRole('tabpanel', { name: 'Details', exact: true })
-  await expect(details.getByRole('note')).toHaveText(note)
-  await expect(details.getByRole('button', { name: /^Edit / })).toHaveCount(0)
+  await expect(page.getByRole('note')).toContainText(note)
+  await expect(page.getByRole('button', { name: /^Edit / })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'More actions', exact: true })).toHaveCount(0)
 }
 
@@ -145,7 +140,7 @@ for (const width of [390, 1440]) {
     for (const [path, title, note] of [
       [`work/projects/${TRACE_WL}`, 'E2E Trace Work Line', READ_ONLY_NOTE],
       [`work/projects/${TRACE_PROCESS}`, 'E2E Trace Process', READ_ONLY_NOTE],
-      [`work/objectives/${TRACE_OBJ}`, 'E2E Trace Objective', OBJECTIVE_READ_ONLY_NOTE],
+      [`work/objectives/${TRACE_OBJ}`, 'E2E Trace Objective', READ_ONLY_NOTE],
     ]) {
       await page.goto(path)
       await expect(page.getByRole('heading', { name: title, exact: true })).toBeVisible()
@@ -159,22 +154,19 @@ for (const width of [390, 1440]) {
 }
 
 for (const width of [390,1440]) {
-  test(`Process tabs and panel/page return at ${width}px`,async ({page},testInfo)=>{
+  test(`Process record page and panel/page return at ${width}px`,async ({page},testInfo)=>{
     await page.setViewportSize({width,height:900})
     await loginAs(page,'bulan.dev@example.test',DEMO_PASSWORD)
     await page.goto('work/projects')
     await page.getByRole('link',{name:'E2E Trace Process',exact:true}).click()
     const panel=page.getByRole('region',{name:'E2E Trace Process',exact:true})
     await expect(panel).toBeVisible()
-    // A Process record reads Work (current and next action) · Details · Steps.
-    for(const tab of ['Details','Steps','Work']) {
-      await panel.getByRole('tab',{name:tab,exact:true}).click()
-      await expect(panel.getByRole('tab',{name:tab,exact:true})).toHaveAttribute('aria-selected','true')
-      expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
-      await page.screenshot({animations:'disabled',path:testInfo.outputPath(`process-${width}-${tab}.png`)})
-    }
-    await panel.getByRole('button',{name:'More actions',exact:true}).click()
-    await panel.getByRole('menuitem',{name:'Open full page',exact:true}).click()
+    // A Process record is one scrolling page: occurrences, then its steps, with no tabs.
+    await expect(panel.getByRole('tablist')).toHaveCount(0)
+    await expect(panel.getByRole('region',{name:'Current and next action',exact:true})).toBeVisible()
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
+    await page.screenshot({animations:'disabled',path:testInfo.outputPath(`process-${width}.png`)})
+    await panel.getByRole('button',{name:'Open full page',exact:true}).click()
     await expect(page).toHaveURL(url => url.pathname.endsWith(`/work/projects/${TRACE_PROCESS}`))
     await page.reload()
     await expect(page.getByRole('heading',{name:'E2E Trace Process',exact:true})).toBeVisible()
