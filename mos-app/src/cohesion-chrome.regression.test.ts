@@ -265,6 +265,11 @@ describe('CHROME-FOCUS: focus-visible normalization', () => {
     // Shared Tasks/Signals sort affordance (collection-grammar.css) — same dense header
     // cell as .th-sort-btn; an outward ring clips at the header row edge.
     '.dt-sort-button',
+    // #1179: popover menu options use the shared-picker cursor grammar (fill + inset ring);
+    // a +2 outward ring would cross the popover's 5px padding onto its border. Same dense-row
+    // rationale as the rows above.
+    '.appearance-control-option',
+    '.user-chip-menu-item',
   ])
 
   function focusRules(): { file: string; selector: string; body: string }[] {
@@ -463,6 +468,11 @@ describe('CHROME-STRIPE: no side-accent stripe on options, items or rows', () =>
     ['components/command/command-menu.css', '.cm-item.active', '--surface-tertiary'],
     ['components/records/record-viewer.css', '.record-viewer__overflow-menu button:focus-visible', '--surface-tertiary'],
     ['components/signals/signal-mention-picker.css', '.mention-row.is-active', '--accent-subtle'],
+    // #1179: the three menus outside the shared pickers that showed state by a faint tint
+    // (~1.1:1) alone — same cursor grammar, same pins.
+    ['shell/appearance-control.css', '.appearance-control-option:focus-visible', '--surface-tertiary'],
+    ['shell/user-chip.css', '.user-chip-menu-item:focus-visible', '--surface-tertiary'],
+    ['components/signals/signal-card.css', '.signal-category-option[aria-selected="true"]', '--surface-tertiary'],
   ]
 
   it.each(CURSORS)('CHROME-STRIPE: %s %s pins its fill token and the inset focus ring', (file, selector, fill) => {
@@ -475,6 +485,26 @@ describe('CHROME-STRIPE: no side-accent stripe on options, items or rows', () =>
     expect(body).toMatch(/outline:\s*2px solid var\(--ring\)/)
     expect(body).toMatch(/outline-offset:\s*-2px/)
     expect(body, 'action blue is not a neutral fill (DD-MVP-14)').not.toMatch(/background:\s*var\(--(?:accent|primary)\)/)
+  })
+
+  // The SELECTED option pairs its check mark (rendered by the component) with primary text and
+  // weight — never a faint fill on its own (~1.1:1, #1179). The shared pickers are pinned too:
+  // they are the contract the account menus now match.
+  const CHECKED: [file: string, selector: string][] = [
+    ['components/ui/Picker.css', ".picker__option[data-checked='true']"],
+    ['components/ui/Select.css', ".mk-select__option[data-state='checked']"],
+    ['shell/appearance-control.css', '.appearance-control-option[aria-checked="true"]'],
+  ]
+
+  it.each(CHECKED)('CHROME-STRIPE: %s %s pins checked = primary text + weight, no fill', (file, selector) => {
+    const css = stripCss(readSrc(file))
+    const body = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].find((rule) =>
+      rule[1].split(',').some((part) => part.trim() === selector),
+    )?.[2]
+    expect(body, `${selector} rule in ${file}`).toBeTruthy()
+    expect(body).toContain('color: var(--primary)')
+    expect(body).toMatch(/font-weight:\s*600/)
+    expect(body, 'a tint alone is not a state cue (#1179)').not.toMatch(/background:/)
   })
 
   it('CHROME-STRIPE: the cursor ring clears 3:1 against the popover and its fill in both themes', () => {
