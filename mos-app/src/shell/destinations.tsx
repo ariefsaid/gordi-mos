@@ -336,6 +336,25 @@ const ALL_DESTINATIONS: Destination[] = [
 ]
 
 /**
+ * Every destination a viewer can open, each with the children the rail draws under it — the one
+ * list a navigation surface that is not the rail itself (the ⌘K palette's Go to) reads, so a
+ * destination added to the catalog is reachable there without a second edit.
+ *
+ * The same two questions the rail asks, nothing else: `isLive` for the destination and
+ * `visibleSections` for its children. Order is the registries' own — workspace roots, modules,
+ * then Utility (Admin Settings, Personal Profile) — and `path` is where the rail's row points.
+ */
+export function goToDestinations(
+  accessRoles: string[],
+): { destination: Destination; path: string; children: Section[] }[] {
+  return ALL_DESTINATIONS.filter((d) => isLive(d, accessRoles)).map((destination) => ({
+    destination,
+    path: destination.primaryPath ?? destination.links[0].path,
+    children: visibleSections(destination.children ?? [], accessRoles),
+  }))
+}
+
+/**
  * A destination renders (rail group / bottom tab) iff the ship gate leaves it visible, it has
  * >=1 live link, AND (no anyOf gate, or the viewer holds one of the gated roles).
  *

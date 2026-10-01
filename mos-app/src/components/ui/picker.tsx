@@ -13,15 +13,17 @@ import { Command } from 'cmdk'
 import { useT } from '@/i18n/use-t'
 import './Picker.css'
 
-export interface PickerOption {
+export type PickerOption = {
   value: string
   label: string
   disabled?: boolean
+  // Heading for a run of consecutive options sharing it; options without one stay ungrouped.
+  group?: string
 }
 
 export type PickerCloseReason = 'escape' | 'outside' | 'tab' | 'select' | 'toggle'
 
-export interface PickerProps {
+export type PickerProps = {
   id?: string
   label: string
   value: string
@@ -33,11 +35,11 @@ export interface PickerProps {
   fullWidth?: boolean
   hideLabel?: boolean
   autoFocus?: boolean
-  /** Mount with the menu already open — for editors mounted by the click/key that means "open". */
+  // Mount with the menu already open — for editors mounted by the click/key that means "open".
   defaultOpen?: boolean
   required?: boolean
   placeholder?: string
-  /** Visible prefix for the trigger only; menu option labels stay concise. */
+  // Visible prefix for the trigger only; menu option labels stay concise.
   triggerPrefix?: string
   describedBy?: string
   className?: string
@@ -160,6 +162,14 @@ export function Picker({
     return text.includes(needle) ? 0.5 : 0
   }, [options])
 
+  // Consecutive options sharing a `group` render under one heading; the list order is never changed.
+  const optionRuns = options.reduce<{ group: string | undefined; options: PickerOption[] }[]>((runs, option) => {
+    const last = runs[runs.length - 1]
+    if (last && last.group === option.group) last.options.push(option)
+    else runs.push({ group: option.group, options: [option] })
+    return runs
+  }, [])
+
   const selectedLabel = options.find((option) => option.value === value)?.label
   const selectedValue = selectedLabel ?? placeholder ?? label
   const fullValue = triggerPrefix ? `${triggerPrefix}: ${selectedValue}` : selectedValue
@@ -249,22 +259,27 @@ export function Picker({
               />
               <Command.List className="picker__list" label={label}>
                 <Command.Empty className="picker__empty">{t('ui.picker.noMatches')}</Command.Empty>
-                {options.map((option) => (
-                  <Command.Item
-                    key={keyOf(option.value)}
-                    value={keyOf(option.value)}
-                    disabled={option.disabled}
-                    className={['picker__option', optionClassName].filter(Boolean).join(' ')}
-                    data-checked={option.value === value || undefined}
-                    onSelect={() => {
-                      onChange(option.value)
-                      close('select')
-                    }}
-                  >
-                    <span className="picker__option-label">{option.label}</span>
-                    {option.value === value && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m5 12 4 4L19 6" /></svg>}
-                  </Command.Item>
-                ))}
+                {optionRuns.map((run, runIndex) => {
+                  const items = run.options.map((option) => (
+                    <Command.Item
+                      key={keyOf(option.value)}
+                      value={keyOf(option.value)}
+                      disabled={option.disabled}
+                      className={['picker__option', optionClassName].filter(Boolean).join(' ')}
+                      data-checked={option.value === value || undefined}
+                      onSelect={() => {
+                        onChange(option.value)
+                        close('select')
+                      }}
+                    >
+                      <span className="picker__option-label">{option.label}</span>
+                      {option.value === value && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m5 12 4 4L19 6" /></svg>}
+                    </Command.Item>
+                  ))
+                  return run.group === undefined
+                    ? items
+                    : <Command.Group key={`g${runIndex}:${run.group}`} heading={run.group} className="picker__group">{items}</Command.Group>
+                })}
               </Command.List>
             </Command>
           </Popover.Content>
