@@ -9,6 +9,7 @@ import { Picker, type PickerOption } from '@/components/ui/picker'
 import { TextInput } from '@/components/ui/text-input'
 import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { RecordDisclosure, RecordSection } from '@/components/record/record-page-layout'
+import { RecordMenu } from '@/components/record/record-menu'
 import { formatWeekdayDayMonth } from '@/lib/format/date'
 import { readWriteUp, sanitizeWriteUp } from '@/lib/db/objective-writeup'
 import { createProcessStep } from '@/lib/db/process-steps'
@@ -157,9 +158,13 @@ export function LinkedWorkSection({ objectiveId, groups, progress, workLines, pe
                 : <span />}
               {responsible ? <span className="rp-avatar rp-wl__who" data-initials={initialsOf(responsible)} title={responsible} role="img" aria-label={`${t('catalog.record.responsible')}: ${responsible}`} /> : <span />}
               {canUnlink && workLine ? (
-                <Button variant="ghost" className="rp-wl__unlink" aria-label={t('catalog.link.unlinkA11y', { name: group.name })} onClick={() => onUnlink(workLine)}>
-                  {t('catalog.link.unlink')}
-                </Button>
+                <span className="rp-wl__menu">
+                  <RecordMenu
+                    label={t('catalog.link.rowActions', { name: group.name })}
+                    minItems={1}
+                    items={[{ id: 'unlink', label: t('catalog.link.unlink'), onSelect: () => onUnlink(workLine) }]}
+                  />
+                </span>
               ) : null}
             </li>
           )

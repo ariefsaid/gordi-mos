@@ -47,6 +47,8 @@ export function RecordMenu({ items, label, minItems = 2 }: RecordMenuProps) {
   useMenuPopover(open, close, menuRef, triggerRef)
   // Scrolling or resizing moves the menu with its trigger; it never drops focus by closing.
   usePopoverReflow(open, place)
+  // `place()` also runs from the trigger's click, so the menu's first paint already has its anchor and
+  // can take focus; the layout effect re-places it when the anchor moves.
   useLayoutEffect(() => { if (open) place() }, [open, place])
 
   if (items.length < minItems) return null
@@ -72,7 +74,7 @@ export function RecordMenu({ items, label, minItems = 2 }: RecordMenuProps) {
         aria-label={label}
         aria-haspopup="menu"
         aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
+        onClick={() => { place(); setOpen((value) => !value) }}
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
           <circle cx="5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="19" cy="12" r="1.6" />
