@@ -136,5 +136,42 @@ describe('ObjectiveWriteupEditor with the real editor', () => {
       await tick(5000)
       expect(saveWriteUp).toHaveBeenCalledTimes(2)
     })
+
+    it('an idle pause that elapses mid-save is cancelled by the next edit: that edit waits for its own pause', async () => {
+      Range.prototype.getClientRects = () => [] as unknown as DOMRectList
+      Range.prototype.getBoundingClientRect = () => new DOMRect()
+      Element.prototype.getClientRects = () => [] as unknown as DOMRectList
+      vi.mocked(readWriteUp).mockResolvedValueOnce({ writeUp: [], updatedAt: 't0' })
+      let landed = 0
+      vi.mocked(saveWriteUp).mockReset()
+      vi.mocked(saveWriteUp).mockImplementation(() => new Promise<string>((resolve) => { setTimeout(() => resolve(`t${++landed}`), 4000) }))
+      const user = userEvent.setup({ delay: null, advanceTimers: vi.advanceTimersByTime })
+      const tick = (ms: number) => act(async () => { await vi.advanceTimersByTimeAsync(ms) })
+
+      render(
+        <I18nProvider>
+          <ObjectiveWriteupEditor objectiveId="o1" canEdit archived={false} />
+        </I18nProvider>,
+      )
+      const box = await screen.findByRole('textbox', { name: 'Objective write-up' })
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      act(() => { box.focus() })
+      await user.keyboard('a')
+      await tick(3000)
+      expect(saveWriteUp).toHaveBeenCalledTimes(1)
+      await user.keyboard('b')
+      await tick(3200)
+      expect(saveWriteUp).toHaveBeenCalledTimes(1)
+      // The pause for "b" has elapsed while the first save is still in flight; typing again restarts the wait.
+      await user.keyboard('c')
+      await tick(1000)
+      expect(landed).toBe(1)
+      expect(saveWriteUp).toHaveBeenCalledTimes(1)
+      await tick(1800)
+      expect(saveWriteUp).toHaveBeenCalledTimes(1)
+      await tick(1500)
+      expect(saveWriteUp).toHaveBeenCalledTimes(2)
+      expect(JSON.stringify(vi.mocked(saveWriteUp).mock.calls[1][1])).toContain('abc')
+    })
   })
 })

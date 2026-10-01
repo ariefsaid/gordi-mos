@@ -109,6 +109,7 @@ function WriteUpSurface({
   const dirtyRef = useRef(false)
   const inFlightRef = useRef(false)
   const queuedRef = useRef(false)
+  const idleQueuedRef = useRef(false)
   const conflictRef = useRef(false)
   const timerRef = useRef<number | undefined>(undefined)
   const saveRef = useRef<HTMLButtonElement>(null)
@@ -121,11 +122,16 @@ function WriteUpSurface({
     dirtyCallbackRef.current?.(dirty)
   }, [])
 
-  const flush = useCallback(async () => {
+  const flush = useCallback(async (fromIdle = false) => {
     window.clearTimeout(timerRef.current)
     if (!dirtyRef.current || conflictRef.current) return
-    // A Save, blur or elapsed idle pause that arrives mid-flight runs right after it; plain edits do not.
-    if (inFlightRef.current) { queuedRef.current = true; return }
+    // A Save or blur that arrives mid-flight runs right after it. An idle pause that elapses mid-flight
+    // does too, until the next edit starts a new pause; plain edits never do.
+    if (inFlightRef.current) {
+      if (fromIdle) idleQueuedRef.current = true
+      else queuedRef.current = true
+      return
+    }
     inFlightRef.current = true
     setSaveState('saving')
     const snapshot = editor.document as WriteUpBlocks
@@ -140,8 +146,9 @@ function WriteUpSurface({
       else next = error instanceof WriteUpTooLargeError ? 'tooLarge' : 'failed'
     }
     inFlightRef.current = false
-    const queued = queuedRef.current
+    const queued = queuedRef.current || idleQueuedRef.current
     queuedRef.current = false
+    idleQueuedRef.current = false
     if (next === 'saved' && dirtyRef.current) {
       if (queued) void flush()
       else setSaveState('idle')
@@ -158,8 +165,9 @@ function WriteUpSurface({
     if (!editable || conflictRef.current) return
     setDirty(true)
     if (saveState !== 'saving') setSaveState('idle')
+    idleQueuedRef.current = false
     window.clearTimeout(timerRef.current)
-    timerRef.current = window.setTimeout(() => { void flushRef.current() }, IDLE_SAVE_MS)
+    timerRef.current = window.setTimeout(() => { void flushRef.current(true) }, IDLE_SAVE_MS)
   }, [editable, saveState, setDirty])
 
   // Leaving with unsaved text is decided by the leave guard; Discard must not save it.
