@@ -29,6 +29,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { CafeOpeningPanel } from '@/components/cafe/cafe-opening-panel'
 import { canPushCafe } from '@/lib/kitchen-gates'
 import { formatWeekdayDayMonth } from '@/lib/format/date'
+import { CAFE_OPENING_ENABLED } from '@/lib/cafe-opening-enabled'
 import { KitchenLogPage } from './kitchen-log-page'
 import './cafe-opening-page.css'
 
@@ -48,10 +49,6 @@ interface BranchTeam {
 }
 
 const EMPTY_ACCESS_ROLES: string[] = []
-
-// Café Opening is hidden until it is tied to a real opening Process: while false, the Café root is
-// the plain Log capture surface — no Opening door row and no Opening-process dependency.
-export const CAFE_OPENING_ENABLED = false
 
 function LocationChoices({
   choices,

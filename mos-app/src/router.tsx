@@ -420,7 +420,7 @@ const routeTable: RouteObject[] = [
             element: <RouteRedirect to="/cafe" />,
             handle: redirectHandle('/cafe'),
           },
-          // Opening is hidden (CAFE_OPENING_ENABLED, pages/cafe-opening-page.tsx): its path lands on the root.
+          // Opening is hidden (CAFE_OPENING_ENABLED, lib/cafe-opening-enabled.ts): its path lands on the root.
           { path: 'cafe/opening', element: <RouteRedirect to="/cafe" />, handle: redirectHandle('/cafe') },
           { path: ROUTE_PATHS.cafePlan, element: withSuspense(<KitchenPlanPage />), handle: pageHandle('workspace') },
           { path: ROUTE_PATHS.cafeStock, element: withSuspense(<KitchenStockPage />), handle: pageHandle('workspace') },
