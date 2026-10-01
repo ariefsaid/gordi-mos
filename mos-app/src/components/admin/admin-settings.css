@@ -1,3 +1,8 @@
+.admin-settings-nav-frame {
+  position: relative;
+  min-width: 0;
+}
+
 .admin-settings-nav {
   display: flex;
   flex-wrap: wrap;
@@ -35,6 +40,27 @@
 }
 
 @media (max-width: 767.98px) {
+  .admin-settings-nav-frame--more-right::after,
+  .admin-settings-nav-frame--more-left::before {
+    content: '';
+    position: absolute;
+    z-index: 1;
+    top: 0;
+    bottom: 12px;
+    width: 28px;
+    pointer-events: none;
+  }
+
+  .admin-settings-nav-frame--more-right::after {
+    right: 0;
+    background: linear-gradient(to right, transparent, var(--background));
+  }
+
+  .admin-settings-nav-frame--more-left::before {
+    left: 0;
+    background: linear-gradient(to left, transparent, var(--background));
+  }
+
   /* Three tabs stay one row; a long Indonesian label scrolls the row instead of wrapping it. */
   .admin-settings-nav {
     flex-wrap: nowrap;
@@ -175,6 +201,22 @@
 
 .admin-access-table .picker__trigger {
   width: 100%;
+  min-height: 52px;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 6px;
+  font-size: var(--font-size-micro);
+}
+
+.admin-access-table__value--wrap-no-ellipsis .picker__trigger > svg {
+  display: none;
+}
+
+.admin-access-table__value--wrap-no-ellipsis .picker__trigger > span {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .admin-access-fixed {
@@ -316,8 +358,7 @@
   position: relative;
 }
 
-/* The cue: a line above the table and a fade on the clipped edge, both only while columns are
-   hidden past the right edge. */
+/* The line and edge fades appear only while table columns are outside the visible scroll area. */
 .admin-access-scroll-hint {
   margin: 0;
   padding: 8px 16px 0;
@@ -326,16 +367,27 @@
   text-align: right;
 }
 
-.admin-access-table-frame--more::after {
+.admin-access-table-frame--more::after,
+.admin-access-table-frame--more-left::before {
   content: '';
   position: absolute;
+  z-index: 2;
   top: 0;
-  right: 0;
   bottom: 0;
   width: 40px;
   pointer-events: none;
-  background: linear-gradient(to right, transparent, var(--card));
   border-bottom-right-radius: var(--radius-lg);
+}
+
+.admin-access-table-frame--more::after {
+  right: 0;
+  background: linear-gradient(to right, transparent, var(--card));
+}
+
+.admin-access-table-frame--more-left::before {
+  left: 0;
+  background: linear-gradient(to left, transparent, var(--card));
+  border-radius: 0 0 0 var(--radius-lg);
 }
 
 .admin-access-save {

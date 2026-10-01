@@ -46,11 +46,14 @@ function DerivedSource({ role, t }: { role: AuthorityRole; t: ReturnType<typeof 
 /** True while the wrapped element has columns hidden past its right edge. */
 function useOverflowRight<T extends HTMLElement>() {
   const ref = useRef<T>(null)
-  const [more, setMore] = useState(false)
+  const [overflow, setOverflow] = useState({ left: false, right: false })
   useEffect(() => {
     const el = ref.current
     if (!el) return
-    const measure = () => setMore(el.scrollLeft + el.clientWidth < el.scrollWidth - 1)
+    const measure = () => setOverflow({
+      left: el.scrollLeft > 1,
+      right: el.scrollLeft + el.clientWidth < el.scrollWidth - 1,
+    })
     measure()
     el.addEventListener('scroll', measure, { passive: true })
     window.addEventListener('resize', measure)
@@ -59,7 +62,7 @@ function useOverflowRight<T extends HTMLElement>() {
       window.removeEventListener('resize', measure)
     }
   }, [])
-  return { ref, more }
+  return { ref, overflow }
 }
 
 function authorityKey(action: AuthorityAction, role: AuthorityRole): string {
@@ -98,10 +101,10 @@ function AuthorityTable({
   t: ReturnType<typeof useT>
   disabled: boolean
 }) {
-  const { ref, more } = useOverflowRight<HTMLDivElement>()
+  const { ref, overflow } = useOverflowRight<HTMLDivElement>()
   return (
-    <div className={more ? 'admin-access-table-frame admin-access-table-frame--more' : 'admin-access-table-frame'}>
-      {more && <p className="admin-access-scroll-hint">{t('admin.access.scrollHint')}</p>}
+    <div className={`admin-access-table-frame${overflow.right ? ' admin-access-table-frame--more' : ''}${overflow.left ? ' admin-access-table-frame--more-left' : ''}`}>
+      {overflow.right && <p className="admin-access-scroll-hint">{t('admin.access.scrollHint')}</p>}
       <div ref={ref} className="admin-access-table-wrap">
       <table className="admin-access-table admin-access-table--responsive" aria-label={t('admin.access.tableLabel')}>
         <thead>
@@ -122,7 +125,7 @@ function AuthorityTable({
               {AUTHORITY_ROLES.map((role) => {
                 const label = `${t(ACTION_LABEL_KEYS[action])} — ${authorityRoleLabel(role, t)}`
                 return (
-                  <td key={role}>
+                  <td key={role} className="admin-access-table__value admin-access-table__value--wrap-no-ellipsis">
                     {role === 'admin' ? (
                       <span className="admin-access-fixed" aria-label={`${label} — ${t('admin.access.adminFixed')}`}>
                         {t('admin.access.adminFixed')}
