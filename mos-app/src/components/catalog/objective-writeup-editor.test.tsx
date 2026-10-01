@@ -7,23 +7,29 @@ import { I18nProvider } from '@/i18n/I18nProvider'
 const fake = vi.hoisted(() => ({
   document: [] as unknown[],
   crash: false,
-  focus: vi.fn(),
   domElement: undefined as undefined | HTMLElement,
-  updateBlock: vi.fn(),
-  block: { id: 'b1', type: 'paragraph', props: {} } as { id: string; type: string; props: Record<string, unknown> },
-  getTextCursorPosition() { return { block: fake.block } },
-  selectionListener: undefined as undefined | (() => void),
-  onSelectionChange(listener: () => void) { fake.selectionListener = listener; return () => { fake.selectionListener = undefined } },
 }))
 
 vi.mock('@blocknote/react', () => ({
   useCreateBlockNote: () => fake,
-  BlockNoteViewRaw: ({ onChange, editable }: { onChange?: () => void; editable?: boolean }) => {
+  SuggestionMenuController: () => <div data-testid="slash" />,
+  FormattingToolbarController: () => <div data-testid="toolbar" />,
+  FormattingToolbar: () => null,
+  getFormattingToolbarItems: () => [],
+  getDefaultReactSlashMenuItems: () => [],
+}))
+
+vi.mock('@blocknote/ariakit', () => ({
+  BlockNoteView: ({ onChange, editable, formattingToolbar, sideMenu, linkToolbar, slashMenu, children }: {
+    onChange?: () => void; editable?: boolean; formattingToolbar?: boolean; sideMenu?: boolean; linkToolbar?: boolean; slashMenu?: boolean; children?: React.ReactNode
+  }) => {
     if (fake.crash) throw new Error('malformed document')
     return (
-    <div data-testid="bn" data-editable={String(editable)}>
+    <div data-testid="bn" data-editable={String(editable)} data-menus={String([formattingToolbar, sideMenu, linkToolbar].join())} data-default-slash={String(slashMenu)}>
+      {children}
       <button type="button" onClick={() => { fake.document = [...fake.document, { type: 'paragraph' }]; onChange?.() }}>type</button>
       <div role="textbox" aria-label="pm" tabIndex={0} />
+      <button type="button">toolbar</button>
     </div>
     )
   },
@@ -57,7 +63,6 @@ beforeEach(() => {
   fake.document = []
   fake.crash = false
   fake.domElement = document.createElement('div')
-  fake.block = { id: 'b1', type: 'paragraph', props: {} }
   read.mockResolvedValue({ writeUp: [], updatedAt: 't1' })
   save.mockResolvedValue('t2')
 })
@@ -113,6 +118,16 @@ describe('ObjectiveWriteupEditor', () => {
     await act(async () => { fireEvent.blur(screen.getByText('type')) })
     expect(save).toHaveBeenCalledTimes(2)
     expect(save.mock.calls[1][2]).toBe('t2')
+  })
+
+  it("moving focus into the editor's own menus does not save; leaving the editor does", async () => {
+    await mount()
+    typeOnce()
+    const box = screen.getByRole('textbox', { name: 'pm' })
+    await act(async () => { fireEvent.blur(box, { relatedTarget: screen.getByRole('button', { name: 'toolbar' }) }) })
+    expect(save).not.toHaveBeenCalled()
+    await act(async () => { fireEvent.blur(box, { relatedTarget: screen.getByRole('button', { name: 'Save' }) }) })
+    expect(save).toHaveBeenCalledTimes(1)
   })
 
   it('shows Saving while in flight and queues later edits behind the one save', async () => {
@@ -182,30 +197,6 @@ describe('ObjectiveWriteupEditor', () => {
     expect(screen.getByText(/Esc/).textContent).toMatch(/Tab/)
   })
 
-  it('formats the current block from visible controls, and toggles back to a paragraph', async () => {
-    await mount()
-    fireEvent.click(screen.getByRole('button', { name: 'Heading' }))
-    expect(fake.updateBlock).toHaveBeenLastCalledWith(fake.block, { type: 'heading', props: { level: 2 } })
-    fireEvent.click(screen.getByRole('button', { name: 'Bulleted list' }))
-    expect(fake.updateBlock).toHaveBeenLastCalledWith(fake.block, { type: 'bulletListItem' })
-    fireEvent.click(screen.getByRole('button', { name: 'Numbered list' }))
-    expect(fake.updateBlock).toHaveBeenLastCalledWith(fake.block, { type: 'numberedListItem' })
-    fake.block = { id: 'b1', type: 'bulletListItem', props: {} }
-    fireEvent.click(screen.getByRole('button', { name: 'Bulleted list' }))
-    expect(fake.updateBlock).toHaveBeenLastCalledWith(fake.block, { type: 'paragraph' })
-    expect(fake.focus).toHaveBeenCalled()
-  })
-
-  it('marks the format button of the block under the caret as pressed', async () => {
-    await mount()
-    const bullets = screen.getByRole('button', { name: 'Bulleted list' })
-    expect(bullets).toHaveAttribute('aria-pressed', 'false')
-    fake.block = { id: 'b1', type: 'bulletListItem', props: {} }
-    act(() => { fake.selectionListener?.() })
-    expect(bullets).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByRole('button', { name: 'Heading' })).toHaveAttribute('aria-pressed', 'false')
-  })
-
   it('hides the keyboard hint on touch and phone widths', () => {
     const css = readFileSync(resolve(__dirname, 'objective-writeup-editor.css'), 'utf8')
     expect(css).toMatch(/@media \(hover: none\), \(max-width: 767\.98px\) \{\s*\.objective-writeup__hint \{ display: none; \}/)
@@ -229,10 +220,19 @@ describe('ObjectiveWriteupEditor', () => {
     expect(fake.domElement!.hasAttribute('aria-describedby')).toBe(false)
   })
 
-  it('offers no formatting controls to a read-only reader', async () => {
+  it("offers the library's menus to an editor and none to a read-only reader", async () => {
     read.mockResolvedValue({ writeUp: [{ type: 'paragraph' }], updatedAt: 't1' })
+    const view = await mount({ canEdit: true })
+    expect(screen.getByTestId('bn')).toHaveAttribute('data-menus', 'false,true,true')
+    expect(screen.getByTestId('toolbar')).toBeInTheDocument()
+    // The library's built-in slash menu is off: the controller below it carries the allowed items.
+    expect(screen.getByTestId('bn')).toHaveAttribute('data-default-slash', 'false')
+    expect(screen.getByTestId('slash')).toBeInTheDocument()
+    view.unmount()
     await mount({ canEdit: false })
-    expect(screen.queryByRole('button', { name: 'Heading' })).toBeNull()
+    expect(screen.getByTestId('bn')).toHaveAttribute('data-menus', 'false,false,false')
+    expect(screen.queryByTestId('slash')).toBeNull()
+    expect(screen.queryByTestId('toolbar')).toBeNull()
   })
 
   it('steps Save down from primary once Saved, and back up on the next edit', async () => {
