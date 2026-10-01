@@ -64,7 +64,7 @@ export interface TaskRecordAdapterInput {
    *  canEdit/canArchive derive "viewer is above the PIC" from. The helper owns that derivation;
    *  this adapter never receives a viewer-global isManager. Empty for an unauthenticated viewer. */
   downlineIds: readonly string[]
-  /** The viewer holds org-wide authority (role-scope.hasOrgWideAuthority): the PIC picker offers everyone. */
+  // Org-wide authority (hasOrgWideAuthority): the PIC picker offers everyone.
   orgWide?: boolean
   people: readonly PersonOption[]
   businessUnits: readonly BusinessUnitOption[]

@@ -11,9 +11,8 @@ export function isOwnerDirector(viewerRoles: RoleScopeNode[]): boolean {
   return viewerRoles.some((r) => r.reports_to_role_id === null)
 }
 
-/** Org-wide write authority: the admin access role and nothing else. Mirrors shared.is_org_wide(),
- *  which the database applies to who may be named PIC. Position in the role tree grants none; the
- *  Tasks default view is a read default and is decided separately (task-default-view.ts). */
+// Org-wide write authority: the admin access role only (mirrors shared.is_org_wide()). Role-tree
+// position grants none; the Tasks default view is a separate read default (task-default-view.ts).
 export function hasOrgWideAuthority(accessRoles: readonly string[]): boolean {
   return accessRoles.includes('admin')
 }
