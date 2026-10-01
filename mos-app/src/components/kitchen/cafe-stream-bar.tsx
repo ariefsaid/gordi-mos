@@ -69,7 +69,10 @@ function myRank(
   option: ProductionStream,
   homeStream: ProductionStream | null,
   myStreamKeys: ReadonlySet<string>,
+  locationBranchId?: string,
 ): number {
+  // Another location's streams come after everything at the active location.
+  if (locationBranchId && option.branch.id !== locationBranchId) return 3
   if (sameStream(option, homeStream)) return 0
   if (isMineStream(option, homeStream, myStreamKeys)) return 1
   return 2
@@ -81,8 +84,10 @@ function taggedLabel(
   option: ProductionStream,
   homeStream: ProductionStream | null,
   myStreamKeys: ReadonlySet<string>,
+  locationBranchId?: string,
 ): string {
   const tags = [
+    locationBranchId && option.branch.id !== locationBranchId ? t('cafe.stream.otherLocation') : null,
     isMineStream(option, homeStream, myStreamKeys) ? t('cafe.stream.yourTeam') : null,
     option.produces === false ? t('kitchen.stream.receivingOnly.tag') : null,
   ].filter((tag): tag is string => tag !== null)
@@ -115,6 +120,8 @@ export interface CafeStreamBarProps {
    * these is tagged "Your Team" and ranked first (home first among them) in the Change menu.
    */
   myStreamKeys?: ReadonlySet<string>
+  /** The active location's branch: streams elsewhere are tagged "Other location" and listed last. */
+  locationBranchId?: string
 }
 
 export function CafeStreamBar({
@@ -126,6 +133,7 @@ export function CafeStreamBar({
   disabled = false,
   homeStream = null,
   myStreamKeys = EMPTY_STREAM_KEYS,
+  locationBranchId,
 }: CafeStreamBarProps) {
   const t = useT()
 
@@ -172,6 +180,7 @@ export function CafeStreamBar({
           options={allStreams ? options : alternatives}
           homeStream={homeStream}
           myStreamKeys={myStreamKeys}
+          locationBranchId={locationBranchId}
           onAllStreams={allStreams ? undefined : onAllStreams}
           disabled={disabled}
           onChange={onChange}
@@ -197,6 +206,7 @@ interface StreamSwitchMenuProps {
   options: readonly ProductionStream[]
   homeStream: ProductionStream | null
   myStreamKeys: ReadonlySet<string>
+  locationBranchId?: string
   onAllStreams?: () => void
   disabled: boolean
   onChange: (next: ProductionStream) => void
@@ -204,7 +214,7 @@ interface StreamSwitchMenuProps {
   ariaLabel: string
 }
 
-function StreamSwitchMenu({ id, options, homeStream, myStreamKeys, onAllStreams, disabled, onChange, label, ariaLabel }: StreamSwitchMenuProps) {
+function StreamSwitchMenu({ id, options, homeStream, myStreamKeys, locationBranchId, onAllStreams, disabled, onChange, label, ariaLabel }: StreamSwitchMenuProps) {
   const t = useT()
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -215,17 +225,17 @@ function StreamSwitchMenu({ id, options, homeStream, myStreamKeys, onAllStreams,
     // cross-stream default). The real options rank the person's current streams first, home
     // first among them (coordinator follow-up to item 1).
     const ranked = [...options].sort(
-      (a, b) => myRank(a, homeStream, myStreamKeys) - myRank(b, homeStream, myStreamKeys),
+      (a, b) => myRank(a, homeStream, myStreamKeys, locationBranchId) - myRank(b, homeStream, myStreamKeys, locationBranchId),
     )
     return [
       ...(onAllStreams ? [{ value: ALL_STREAMS, label: t('kitchen.review.allStreams'), isAllStreams: true }] : []),
       ...ranked.map((option) => ({
         value: streamKey(option.branch.id, option.activity),
-        label: taggedLabel(t, option, homeStream, myStreamKeys),
+        label: taggedLabel(t, option, homeStream, myStreamKeys, locationBranchId),
         isAllStreams: false,
       })),
     ]
-  }, [homeStream, myStreamKeys, onAllStreams, options, t])
+  }, [homeStream, locationBranchId, myStreamKeys, onAllStreams, options, t])
 
   const close = useCallback((restoreFocus: boolean) => {
     setOpen(false)

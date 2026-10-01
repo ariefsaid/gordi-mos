@@ -18,7 +18,7 @@ import { listStreamPairs } from '@/lib/db/kitchen-logs'
 import { listCafeViewerTeams } from '@/lib/db/cafe-opening'
 import { useAuth } from '@/auth/use-auth'
 import { rememberStream, rememberedStreamKey } from '@/lib/cafe-stream'
-import { rememberCafeLocation, resetCafeLocations } from '@/lib/cafe-opening-location'
+import { activeCafeLocation, rememberCafeLocation, resetCafeLocations } from '@/lib/cafe-opening-location'
 import { streamKey } from '@/lib/kitchen-action-label'
 import { useCafeStream } from './use-cafe-stream'
 
@@ -188,6 +188,27 @@ describe('useCafeStream — the shared Café bootstrap', () => {
       asPerson([team(BRANCH_RR.id, 'kitchen'), team(BRANCH_RR.id, 'bar')], null)
       rememberStream(RR_BAR, 'p-1', BRANCH_RR.id)
       expect((await resolveFresh()).stream).toEqual(RR_BAR)
+    })
+
+    it('location rung: no home stream, two Teams in ONE branch → the picker is bounded to that branch', async () => {
+      asPerson([team(BRANCH_RR.id, 'kitchen'), team(BRANCH_RR.id, 'bar')], null)
+      rememberCafeLocation('p-1', null)
+      const resolved = await resolveFresh()
+      expect(resolved.branchId).toBe(BRANCH_RR.id)
+      expect(resolved.locationOptions.every(option => option.branch.id === BRANCH_RR.id)).toBe(true)
+    })
+
+    it('a choice in another branch commits that location', async () => {
+      asPerson([team(BRANCH_RR.id, 'kitchen', true)], RR_KITCHEN)
+      const hook = renderHook(() => useCafeStream())
+      const resolved = await act(async () => hook.result.current.resolve())
+      act(() => hook.result.current.adopt(resolved))
+
+      act(() => hook.result.current.setStream(RADIANT_BAR))
+
+      expect(activeCafeLocation('p-1')?.branchId).toBe(BRANCH_RAD.id)
+      expect(hook.result.current.branchId).toBe(BRANCH_RAD.id)
+      expect(hook.result.current.locationOptions.every(option => option.branch.id === BRANCH_RAD.id)).toBe(true)
     })
 
     it('4. several Café Teams, no home stream, nothing used yet: ask', async () => {

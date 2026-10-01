@@ -141,6 +141,16 @@ describe('CafeStreamBar', () => {
   })
 })
 
+describe('CafeStreamBar — streams at another location are marked and listed last (OD-CAFE-1)', () => {
+  it('tags a stream outside the active location "Other location" and ranks it after the location’s own', async () => {
+    const user = userEvent.setup()
+    wrap(<CafeStreamBar options={[RAD_BAR, RR_BAR]} stream={RR_KITCHEN} locationBranchId={RR.id} onChange={() => {}} />)
+    await user.click(screen.getByRole('button', { name: /^change stream$/i }))
+    const options = screen.getAllByRole('option').map(o => o.textContent)
+    expect(options).toEqual(['Rumah Rames · Bar', 'Radiant · Bar — Other location'])
+  })
+})
+
 describe('CafeStreamBar — one look on every Café screen (OD-CAFE-6)', () => {
   it('on every surface: a heading with no "Stream" label, and a "Change" link, never "Switch"', () => {
     wrap(<CafeStreamBar options={CATALOG} stream={RR_KITCHEN} onChange={() => {}} />)

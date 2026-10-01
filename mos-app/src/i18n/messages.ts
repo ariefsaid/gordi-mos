@@ -636,6 +636,7 @@ export const messages = {
     'cafe.stream.changeAria': 'Change stream',
     'cafe.stream.backTo': 'Back to ${stream}',
     'cafe.stream.yourTeam': 'Your Team',
+    'cafe.stream.otherLocation': 'Other location',
     'cafe.stream.noDefaultHint': 'The home Team decides where Café opens — an admin can set it (Admin Settings → the person → Teams).',
     // Shown where a Café surface has no stream to read against — the person has no live primary
     // stream Team, so there is no default (FR-002) and the one-step choice below is the next step.
@@ -2431,6 +2432,7 @@ export const messages = {
     'cafe.stream.changeAria': 'Ganti stream',
     'cafe.stream.backTo': 'Kembali ke ${stream}',
     'cafe.stream.yourTeam': 'Tim Anda',
+    'cafe.stream.otherLocation': 'Lokasi lain',
     'cafe.stream.noDefaultHint': 'Tim utama menentukan tempat Kafe dibuka — admin dapat mengaturnya (Pengaturan Admin → orang tersebut → Tim).',
     'cafe.stream.none': 'Pilih stream produksi untuk melihat layar ini.',
     // common.loadFailed: same key, same value, already added by the Money/Budget port above

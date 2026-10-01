@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { render, screen, cleanup } from '@testing-library/react'
+import { render, screen, cleanup, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { AuthState } from '@/auth/context'
@@ -116,11 +116,12 @@ describe('AC-063/AC-064: Café pages stay Indonesian end to end', () => {
       const { container } = render(<MemoryRouter><I18nProvider initialLocale={locale}><Page /></I18nProvider></MemoryRouter>)
       await screen.findByText(name === 'Pushes' ? 'batch-1' : 'Dish One')
       expect(container.textContent).not.toMatch(denyList)
-      expect(container.querySelector('.cafe-stream h2')).not.toBeNull()
-      expect(container.querySelector('.cafe-stream__label')).toBeNull()
+      const bar = within(screen.getByTestId('cafe-stream'))
+      expect(bar.getByRole('heading', { level: 2 })).toBeInTheDocument()
+      expect(bar.queryByText(/^stream:?$/i)).toBeNull()
       if (name === 'Plan') {
-        expect(container.querySelector('.cafe-stream h2')?.textContent).toContain('Rumah Rames')
-        expect(container.querySelector('.cafe-stream button')?.textContent).toBe(changeWord)
+        expect(bar.getByRole('heading', { level: 2, name: /Rumah Rames/ })).toBeInTheDocument()
+        expect(bar.getByRole('button', { name: /^(change|ganti) stream$/i })).toHaveTextContent(changeWord)
       }
       if (name === 'Plan') expect(container.querySelector('.dt-group-label, .dt-cards-group-label')?.textContent).toContain(categoryLabel)
       if (name === 'Log') expect(container.textContent).toContain(stockLabel)
