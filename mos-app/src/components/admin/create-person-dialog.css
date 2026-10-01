@@ -1,7 +1,6 @@
 .create-person-dialog {
   display: flex;
   flex-direction: column;
-  overflow: hidden;
 }
 
 .create-person-dialog__form {
@@ -14,7 +13,6 @@
 .create-person-dialog__header,
 .create-person-dialog__footer {
   flex: none;
-  background: var(--card);
 }
 
 .create-person-dialog__body {

@@ -129,11 +129,6 @@
   }
 }
 
-@container access-matrix (max-width: 1085px) {
-  .admin-access-table--responsive {
-    table-layout: auto;
-  }
-}
 
 .admin-access-table th,
 .admin-access-table td {

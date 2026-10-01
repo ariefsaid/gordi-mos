@@ -205,6 +205,9 @@ describe('CreatePersonDialog (AC-011)', () => {
 
     // "Done" button is present (no Esc dismiss — intentional)
     expect(screen.getByRole('button', { name: /done/i })).toBeInTheDocument()
+    const dialog = screen.getByRole('alertdialog')
+    expect(dialog).toHaveClass('create-person-dialog')
+    expect(dialog.querySelector('.create-person-dialog__form')).not.toBeInTheDocument()
   })
 
   it('AC-011: password is NOT retained in DOM after Done is clicked', async () => {

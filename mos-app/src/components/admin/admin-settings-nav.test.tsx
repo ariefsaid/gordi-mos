@@ -27,7 +27,7 @@ function renderNav(path = '/admin/access') {
 }
 
 describe('AdminSettingsNav', () => {
-  it('keeps the tabs in a dedicated scroll container and brings the active tab into view', async () => {
+  it('marks the active tab current and brings it into view', async () => {
     renderNav()
 
     const nav = screen.getByRole('navigation', { name: 'Admin settings sections' })
