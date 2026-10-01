@@ -45,11 +45,19 @@ for (const locale of ['en','id']) for (const width of [390,768,1280,1440]) {
       measurements.push({collection,width,locale,rows:dimensions,controls})
       await page.screenshot({animations:'disabled',path:testInfo.outputPath(`${collection}-${locale}-${width}.png`)})
       await rows.first().press('Enter')
-      await expect(page.locator('.record-viewer')).toBeVisible()
+      // The record opens in the shared Work overlay as a NAMED region (section.rp,
+      // data-record-mode="panel", aria-label = record name) headed by the record itself —
+      // not a generic shell/skeleton.
+      const recordName = String(dimensions[0]?.name ?? '').trim()
+      expect(recordName).toBeTruthy()
+      const record = page.getByRole('region', { name: recordName, exact: true })
+      await expect(record).toBeVisible()
+      await expect(record).toHaveAttribute('data-record-mode', 'panel')
+      await expect(page.getByRole('heading', { name: recordName, exact: true })).toBeVisible()
       expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
       await page.screenshot({animations:'disabled',path:testInfo.outputPath(`${collection}-record-${locale}-${width}.png`)})
       await page.keyboard.press('Escape')
-      await expect(page.locator('.record-viewer')).not.toBeVisible()
+      await expect(record).not.toBeVisible()
       await expect(page.locator('[data-overlay-host][data-overlay-owner="work"]')).toHaveCount(0)
       await expect(rows.first()).toBeFocused()
       await page.unroute(`**/rest/v1/${endpoint}*`)
