@@ -1,9 +1,7 @@
-// A Task as one record page (panel and full page). The shared record components (components/record)
-// own the anatomy; this file says which facts the header carries, who may act, and which sections
-// follow. The Task adapter (createTaskRecordAdapter) stays the authority for every field, its
-// options and its edit rights, and for the lifecycle and archive actions; nothing here re-derives
-// who may edit. The surface owns the data and the writes and hands this component both.
+// Compose a Task's shared record anatomy; the adapter owns fields, rights and actions.
 import type { ReactNode } from 'react'
+import { Toast } from '@/components/admin/toast'
+import { useToast } from '@/components/admin/use-toast'
 import { useT } from '@/i18n/use-t'
 import { RecordField } from '@/components/records/record-field'
 import type { RecordFieldSpec, RecordValue, RecordViewerAdapter } from '@/components/records/record-viewer.types'
@@ -19,8 +17,8 @@ import { ChecklistCard } from './checklist-card'
 import { CommentThread, type TaskComment } from './CommentThread'
 import './task-record-document.css'
 
-export interface TaskRecordDocumentProps {
-  /** The Task adapter's output: fields, edit rights and actions. */
+type TaskRecordDocumentProps = {
+  // Adapter output: fields, edit rights and actions.
   adapter: RecordViewerAdapter
   task: TaskListRow
   mode: 'panel' | 'page'
@@ -40,7 +38,7 @@ export interface TaskRecordDocumentProps {
   commentDraft: string
   onCommentDraftChange: (draft: string) => void
   onCommentDirtyChange: (dirty: boolean) => void
-  /** Failure cues (lifecycle, archive) that sit under the header. */
+  // Failure cues (lifecycle, archive) that sit under the header.
   notice?: ReactNode
   onCommitField: (key: string, value: RecordValue) => Promise<void>
   onDirtyChange: (dirty: boolean) => void
@@ -61,6 +59,7 @@ export function TaskRecordDocument({
   notice, onCommitField, onDirtyChange, fieldCommitsFrozen,
 }: TaskRecordDocumentProps) {
   const t = useT()
+  const { toast, showToast, clearToast } = useToast()
   const { runtime, openPanel } = useAgentRuntime()
   const editable = !adapter.permission.readOnly
   const archived = task.archived_at !== null
@@ -117,7 +116,10 @@ export function TaskRecordDocument({
   const menu: RecordMenuItem[] = [
     ...(canonicalHref && typeof navigator !== 'undefined' && navigator.clipboard ? [{
       id: 'copy', label: t('record.copyLink'),
-      onSelect: () => { void navigator.clipboard.writeText(new URL(canonicalHref, window.location.origin).href).catch(() => {}) },
+      onSelect: () => {
+        void navigator.clipboard.writeText(new URL(canonicalHref, window.location.origin).href)
+          .catch(() => showToast(t('record.copyLinkFailed')))
+      },
     }] : []),
     ...(runtime ? [{
       id: 'deputy', label: t('assistant.askAboutRecord'),
@@ -160,6 +162,7 @@ export function TaskRecordDocument({
     }))
 
   return (
+    <>
     <RecordPageLayout
       label={task.title}
       kind="task"
@@ -190,10 +193,11 @@ export function TaskRecordDocument({
       } : undefined}
     >
       {showDescription ? (
-        // The lead prose of the record: it reads as the opening of the document, so it carries no heading.
-        <div className="rp-section task-description" data-record-section="description">
-          {field(hasDescription ? description : { ...description, displayValue: t('tasks.description.add') })}
-        </div>
+        <RecordSection id="description" title={t('tasks.description.title')}>
+          <div className="task-description">
+            {field(hasDescription ? description : { ...description, displayValue: t('tasks.description.add') })}
+          </div>
+        </RecordSection>
       ) : null}
       {showChecklist ? (
         <RecordSection
@@ -228,5 +232,7 @@ export function TaskRecordDocument({
         </RecordSection>
       ) : null}
     </RecordPageLayout>
+    <Toast toast={toast} onDismiss={clearToast} />
+    </>
   )
 }

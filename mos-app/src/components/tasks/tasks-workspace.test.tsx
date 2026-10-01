@@ -1693,7 +1693,7 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
     fireEvent.click(document.querySelector('tr.task-row') as HTMLElement)
 
     fireEvent.click(await screen.findByRole('button', { name: 'Edit Description' }))
-    const description = screen.getByLabelText('Description') as HTMLTextAreaElement
+    const description = screen.getByRole('textbox', { name: 'Description' }) as HTMLTextAreaElement
     // Sanity: RecordField's own autoFocus really landed DOM focus on the field — otherwise
     // ModalShell's later focus-steal wouldn't fire a blur on it at all and this test would
     // prove nothing.
@@ -1718,7 +1718,7 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
     // committed by the stray blur, never rolled back to the saved baseline either.
     fireEvent.click(screen.getByRole('button', { name: /stay on this page/i }))
     expect(screen.queryByRole('dialog')).toBeNull()
-    expect(screen.getByLabelText('Description')).toHaveValue(draftText)
+    expect(screen.getByRole('textbox', { name: 'Description' })).toHaveValue(draftText)
     expect(mockUpdateTaskFields).not.toHaveBeenCalled()
     // The deny resolves the host's in-flight leave request in a microtask (same as
     // AC-V3-008c above) — flush it so the assertion above is the true settled state.

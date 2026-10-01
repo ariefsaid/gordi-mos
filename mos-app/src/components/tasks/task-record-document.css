@@ -41,6 +41,11 @@
   background: transparent; color: var(--destructive); font-size: var(--font-size-label); font-weight: 600; cursor: pointer;
 }
 @media (max-width: 767.98px) {
+  .checklist-label { position: relative; }
+  .checklist-label::before {
+    content: ''; position: absolute; left: -28px; top: 50%; width: 44px; height: 44px;
+    transform: translateY(-50%);
+  }
   .checklist-retry { min-width: 44px; min-height: 44px; }
 }
 

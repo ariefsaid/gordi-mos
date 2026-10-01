@@ -7,7 +7,7 @@
 // accountable_person_id are displayed as Person in charge (PIC) and Supervisor. The
 // viewer NEVER exposes Responsible / Accountable / RACI / Consulted / Informed. Business
 // Unit and Team are DISTINCT fields; a legacy task without team_id remains an honest
-// "Team not assigned yet (data migration)" state — never a BU relabel.
+// "No team yet" state — never a BU relabel.
 //
 // The one place the legacy person-storage mismatch is translated is the TaskSurface DAL
 // switch (deferred host wiring); this adapter is entirely domain-facing.
@@ -110,7 +110,7 @@ export interface TaskRecordAdapterInput {
 }
 
 const TASK_STATUSES: readonly TaskStatus[] = ['Open', 'In Progress', 'Blocked', 'Done']
-const TEAM_UNASSIGNED = 'Team not assigned yet (data migration)'
+const TEAM_UNASSIGNED = 'No team yet'
 
 const EVENT_LABELS: Record<string, string> = {
   created: 'Created',
@@ -248,7 +248,7 @@ const DEFAULT_TASK_FIELD_LABELS: TaskFieldLabels = {
   team: 'Team',
   teamUnassigned: TEAM_UNASSIGNED,
   teamFromRecord: 'Team is set from the task record',
-  teamMigration: 'No team is assigned to this task yet (data migration).',
+  teamMigration: 'No team is assigned to this task yet.',
   dueDate: 'Due date',
   createdBy: 'Created by',
   supervisorInheritedFrom: 'inherited from ${name}',
