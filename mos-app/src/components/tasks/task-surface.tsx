@@ -972,6 +972,9 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
   // ── Submit state ──────────────────────────────────────────────────────────
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
+  // Typed Due text that is not a usable date: Create refuses it rather than saving a blank or old date.
+  const [dueInvalid, setDueInvalid] = useState(false)
+  const [dueRevealed, setDueRevealed] = useState(false)
   const formRef = useFocusRestore<HTMLFormElement>(submitting, !!submitError)
 
   async function handleSubmit(e: React.FormEvent) {
@@ -995,6 +998,11 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
       valid = false
     } else {
       setSupervisorError('')
+    }
+    if (dueInvalid) {
+      setDueRevealed(true)
+      document.getElementById('task-due')?.focus()
+      valid = false
     }
     if (!valid) return
 
@@ -1286,6 +1294,8 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
             fullWidth
             value={dueDate}
             onChange={(v) => { setDueDate(v); markDirty() }}
+            onValidityChange={setDueInvalid}
+            reveal={dueRevealed}
             disabled={submitting}
             aria-label={t('tasks.create.dueDate')}
           />

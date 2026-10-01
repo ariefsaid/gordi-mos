@@ -37,6 +37,14 @@ describe('Task checklist phone target contract', () => {
     expect(mediaBody(recordCss, '@media (max-width: 767.98px)')).toMatch(/\.rp-icon-btn\s*\{[^}]*width:\s*44px[^}]*height:\s*44px/)
     expect(mediaBody(taskCss, '@media (max-width: 767.98px)')).toMatch(/\.checklist-retry\s*\{[^}]*min-width:\s*44px[^}]*min-height:\s*44px/)
   })
+  it('raises the checkbox tap area to the 44px phone floor without resizing the visible checkbox', () => {
+    // The visible checkbox stays 16px (DESIGN.md Checkbox spec).
+    expect(taskCss).toMatch(/\.checklist-checkbox\s*\{[^}]*width:\s*16px[^}]*height:\s*16px/)
+    // The floor rides the label's invisible ::before hit area (the help-tip.css pattern): the label
+    // already toggles the checkbox, so the extension covers the control without new markup.
+    const phone = mediaBody(taskCss, '@media (max-width: 767.98px)')
+    expect(phone).toMatch(/\.checklist-label::before\s*\{[^}]*width:\s*44px[^}]*height:\s*44px/)
+  })
 })
 
 describe('Task-only record rules stay scoped to Task records', () => {

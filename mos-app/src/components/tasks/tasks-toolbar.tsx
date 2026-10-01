@@ -52,6 +52,8 @@ export type TasksToolbarProps = {
   attentionCounts?: { overdue: number; blocked: number; total: number }
   onAttentionOverdue?: () => void
   onAttentionBlocked?: () => void
+  /** OD-TASK-3: org-wide viewers (admin) keep the full "All" list; everyone else's is "Relevant". */
+  viewerOrgWide: boolean
 }
 
 const STATUS_VALUES: { value: TaskStatus | ''; key: 'any' | 'open' | 'inProgress' | 'blocked' | 'done' }[] = [
@@ -108,6 +110,7 @@ export function TasksToolbar({
   attentionCounts,
   onAttentionOverdue,
   onAttentionBlocked,
+  viewerOrgWide,
 }: TasksToolbarProps) {
   const t = useT()
   const isDesktop = useIsDesktop()
@@ -259,8 +262,10 @@ export function TasksToolbar({
         value: query.view,
         options: VIEW_VALUES.map(({ value, key }) => ({
           value,
+          // OD-TASK-3: the All view is named Relevant for non-org-wide viewers; `view=all` URLs
+          // keep working and land on the same scoped list.
           label: key === 'all'
-            ? t('tasks.saved.all')
+            ? (viewerOrgWide ? t('tasks.saved.all') : t('tasks.saved.relevant'))
             : key === 'my-work'
               ? t('tasks.saved.mine')
               : key === 'team-work'

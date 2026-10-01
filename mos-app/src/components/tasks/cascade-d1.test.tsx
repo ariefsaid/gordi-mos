@@ -42,6 +42,7 @@ vi.mock('../../lib/db/directory', () => ({
   getPersonTeams: () => Promise.resolve([]),
   getTeamsByIds: () => Promise.resolve([]),
   getDownlinePersonIds: vi.fn().mockResolvedValue([]),
+  getPersonBusinessUnitIds: vi.fn().mockResolvedValue([]),
 }))
 vi.mock('../../lib/db/objectives', () => ({
   listObjectives: vi.fn(),

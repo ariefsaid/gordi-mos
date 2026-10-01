@@ -7,11 +7,13 @@
 // /money/follow-ups — the Work spelling is deleted, DD-WAY-36) imports this component zero times
 // and carries its own bespoke table and detail aside instead. #428 owns the cutover; the rebuild
 // is deferred (OD-WAY-34).
+import { useState } from 'react'
 import { useT } from '@/i18n/use-t'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
 import { Button } from '@/components/ui/button'
 import { TextInput } from '@/components/ui/text-input'
+import { DateField } from '@/components/ui/date-field'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { StatusPill, type TaskStatus } from '@/components/tasks/status-pill'
 import { isOverdue, type FollowUpRow, type FollowUpState, type FollowUpTransition } from '@/lib/db/follow-ups'
@@ -43,6 +45,8 @@ export function FollowUpQueueTable({
   const t = useT()
   const isDesktop = useIsDesktop()
   const { rows, state, canConfirm, canChase, active, form, detailRow, setForm, load, run, submit } = queue
+  // Typed date text that is not a usable date: Submit stays off rather than sending the old date.
+  const [dateInvalid, setDateInvalid] = useState(false)
 
   function renderTransitionForm(row: FollowUpRow, verb: FollowUpTransition) {
     if (verb === 'chase' || verb === 'confirm') return null
@@ -53,11 +57,11 @@ export function FollowUpQueueTable({
     return (
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
         {verb === 'promise' ? (
-          <TextInput
+          <DateField
             label={t('followUps.promiseDate')}
-            type="date"
             value={form.promise_date}
-            onChange={(e) => setForm({ ...form, promise_date: e.target.value })}
+            onChange={(promise_date) => setForm({ ...form, promise_date })}
+            onValidityChange={setDateInvalid}
           />
         ) : (
           <>
@@ -67,11 +71,11 @@ export function FollowUpQueueTable({
               value={form.amount}
               onChange={(e) => setForm({ ...form, amount: e.target.value })}
             />
-            <TextInput
+            <DateField
               label={t('followUps.cashInDate')}
-              type="date"
               value={form.cash_in_date}
-              onChange={(e) => setForm({ ...form, cash_in_date: e.target.value })}
+              onChange={(cash_in_date) => setForm({ ...form, cash_in_date })}
+              onValidityChange={setDateInvalid}
             />
             <TextInput
               label={t('followUps.evidence')}
@@ -81,7 +85,7 @@ export function FollowUpQueueTable({
             />
           </>
         )}
-        <Button variant="primary" disabled={!formReady} onClick={() => void submit(row, verb)}>
+        <Button variant="primary" disabled={!formReady || dateInvalid} onClick={() => void submit(row, verb)}>
           {t('followUps.submit')}
         </Button>
       </div>

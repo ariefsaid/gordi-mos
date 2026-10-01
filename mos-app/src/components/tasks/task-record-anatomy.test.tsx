@@ -1,8 +1,9 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, within, fireEvent } from '@testing-library/react'
+import { render, within, fireEvent, screen } from '@testing-library/react'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { TaskListRow, ChecklistItemRow, TaskEventRow } from '@/lib/db/tasks.types'
 import type { PersonOption, BusinessUnitOption } from '@/lib/db/directory'
+import type { WorkLineRow } from '@/lib/db/work-lines'
 import { createTaskRecordAdapter, type TaskFieldLabels, type TaskRecordAdapterInput } from './task-record-adapter'
 import { TaskRecordDocument } from './task-record-document'
 import { formatDate } from './task-formatters'
@@ -21,8 +22,8 @@ const people: PersonOption[] = [
 const businessUnits: BusinessUnitOption[] = [{ id: 'bu-retail', name: 'Retail Ops' }]
 const labels: TaskFieldLabels = {
   title: 'Title', businessUnit: 'Business Unit', pic: 'PIC', supervisor: 'Supervisor', team: 'Team',
-  teamUnassigned: 'Team not assigned yet (data migration)', teamFromRecord: 'Team is set from the task record',
-  teamMigration: 'No team is assigned to this task yet (data migration).', dueDate: 'Due', createdBy: 'Created by',
+  teamUnassigned: 'No team yet', teamFromRecord: 'Team is set from the task record',
+  teamMigration: 'No team is assigned to this task yet.', dueDate: 'Due', createdBy: 'Created by',
   supervisorInheritedFrom: 'inherited from ${name}',
 }
 // Wednesday 22 Jul 2026, noon in Jakarta.
@@ -119,9 +120,9 @@ describe('Task record anatomy', () => {
     const { container } = renderRecord({ viewerId: 'stranger' })
     expect(container.querySelectorAll('.rp-readonly')).toHaveLength(1)
     expect(container.querySelector('.rp-readonly')).toHaveTextContent('View only · Wayan Kusuma (Supervisor) or Nico (PIC) can change this task.')
-    // The Team migration state is a real field-specific explanation, not a permission caption.
+    // The Team explanation stays separate from the record-level permission note.
     expect(container.querySelectorAll('.record-field__reason')).toHaveLength(1)
-    expect(container.querySelector('.record-field__reason')).toHaveTextContent(/migration/i)
+    expect(container.querySelector('.record-field__reason')).toHaveTextContent("No team is assigned to this task yet.")
   })
 
   it('a record nobody may edit says so once, with no per-field reasons beyond Team', () => {
@@ -181,6 +182,14 @@ describe('Task record anatomy', () => {
     expect(about.querySelector('[data-field-key="team"]')).toBeTruthy()
     expect(about.querySelector('[data-field-key="businessUnit"]')).toHaveTextContent('Retail Ops')
     expect(about.querySelector('[data-field-key="createdBy"]')).toHaveTextContent('Nico')
+  })
+
+  it('reads an unset Team as plain "No team yet" — never the internal migration wording', () => {
+    const { container } = renderRecord()
+    const about = within(container).getByRole('region', { name: 'About' })
+    const teamValue = about.querySelector('[data-field-key="team"] .record-field__value')
+    expect(teamValue).toHaveTextContent('No team yet')
+    expect(teamValue).not.toHaveTextContent("No team is assigned to this task yet.")
   })
 
   it('shows the parent Project/Process in the facts line and the generating Process in About', () => {
@@ -244,7 +253,7 @@ describe('Task header: due, supervisor and status facts', () => {
   it('carries "inherited from" as a description of the Supervisor, not a visible line', () => {
     const { container } = renderRecord({
       task: makeTask({ work_line_id: 'process-1' }),
-      input: { workLines: [{ id: 'process-1', name: 'Café Opening', type: 'process', accountable_person_id: SUPERVISOR } as never] },
+      input: { workLines: [{ id: 'process-1', name: 'Café Opening', type: 'process', accountable_person_id: SUPERVISOR } satisfies WorkLineRow] },
     })
     const chip = [...container.querySelectorAll('.rp-chip')].find((node) => node.textContent?.includes('Supervisor'))!
     expect(chip).toHaveAttribute('title', 'inherited from Café Opening')
@@ -312,9 +321,32 @@ describe('Task header: the one primary action and the ⋯ menu', () => {
     fireEvent.click(within(container).getByRole('button', { name: 'More actions' }))
     expect(within(document.body).getByRole('menuitem', { name: 'Unarchive' })).toBeInTheDocument()
   })
+
+  it('a Copy link whose clipboard write fails is cued, not silent', async () => {
+    // jsdom ships no clipboard; a rejecting stub stands in for a denied/failed write.
+    const writeText = vi.fn().mockRejectedValue(new Error('write denied'))
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    try {
+      const { container } = renderRecord({ viewerId: 'chain-mgr', downlineIds: [PIC] })
+      fireEvent.click(within(container).getByRole('button', { name: 'More actions' }))
+      fireEvent.click(within(document.body).getByRole('menuitem', { name: 'Copy link' }))
+      // The failure cue is announced (role=status), not swallowed.
+      expect(await screen.findByRole('status')).toHaveTextContent("Couldn't copy the link.")
+    } finally {
+      Reflect.deleteProperty(navigator, 'clipboard')
+    }
+  })
 })
 
 describe('Task sections: what is shown when there is nothing yet', () => {
+  it('the Description section carries the shared section heading', () => {
+    const { container } = renderRecord()
+    const section = within(container).getByRole('region', { name: 'Description' })
+    expect(section).toHaveAttribute('data-record-section', 'description')
+    expect(within(section).getByRole('heading', { name: 'Description' })).toBeInTheDocument()
+    expect(section).toHaveTextContent('Two cartons short since Friday.')
+  })
+
   it('shows an editor the checklist add field with no "No steps yet." line, and a prompt for a missing description', () => {
     const { container } = renderRecord({ checklist: [], task: makeTask({ description: null }) })
     expect(within(container).getByRole('region', { name: 'Checklist' })).toBeInTheDocument()

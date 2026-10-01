@@ -20,6 +20,7 @@ vi.mock('../../lib/db/signals', () => ({ linkSignalTask: vi.fn() }))
 vi.mock('../../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(), getPeople: vi.fn(), getPersonTeams: vi.fn(),
   getTeamsByIds: vi.fn(), getDownlinePersonIds: vi.fn(), getMyTeamLeads: vi.fn(),
+  getPersonBusinessUnitIds: vi.fn(),
 }))
 vi.mock('../../lib/db/objectives', () => ({ listObjectives: vi.fn() }))
 vi.mock('../../lib/db/work-lines', () => ({ listWorkLines: vi.fn() }))
