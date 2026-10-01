@@ -1222,6 +1222,54 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
     expect(screen.queryByText(/match these filters/i)).not.toBeInTheDocument()
   })
 
+  // DD-NAME-1 review: the Mine copy ("No tasks assigned to you") is only true for an empty
+  // saved Mine view with no additional filters. Once an actual task filter is active — a Person
+  // who isn't you, the Overdue view, or a search inside My work — the shared "No tasks match
+  // these filters" pattern with a functioning Clear filters action takes over.
+  it('All + a Person filter for someone else shows the shared filtered wording, not the Mine copy', async () => {
+    mockListTasks.mockResolvedValue([
+      makeTask({ id: 'mine', title: 'My own task' }),
+    ])
+    // Org-wide viewer so the broadest chip is All and a Person filter is a real narrowing.
+    renderTable({}, DEWI)
+    await waitFor(() => screen.getByText('My own task'))
+    ensureFiltersOpen()
+    chooseFilterOption(screen.getByRole('combobox', { name: /person/i }), 'Budi Setiawan')
+    await waitFor(() => expect(screen.getByText(/no tasks match these filters/i)).toBeInTheDocument())
+    expect(screen.queryByText(/no tasks assigned to you/i)).toBeNull()
+    // The Clear filters action functions: clearing returns the row.
+    fireEvent.click(screen.getAllByRole('button', { name: /clear filters/i })[0])
+    await waitFor(() => expect(screen.getByText('My own task')).toBeInTheDocument())
+  })
+
+  it('the Overdue view shows the shared filtered wording, not the Mine copy', async () => {
+    mockListTasks.mockResolvedValue([
+      makeTask({ id: 'ontime', title: 'On time task', due_date: '2030-12-31' }),
+    ])
+    renderTable({}, DEWI)
+    await waitFor(() => screen.getByText('On time task'))
+    ensureFiltersOpen()
+    fireEvent.click(screen.getByRole('button', { name: 'Overdue' }))
+    await waitFor(() => expect(screen.getByText(/no tasks match these filters/i)).toBeInTheDocument())
+    expect(screen.queryByText(/no tasks assigned to you/i)).toBeNull()
+    expect(screen.getAllByRole('button', { name: /clear filters/i }).length).toBeGreaterThan(0)
+  })
+
+  it('My work + a no-match search shows the shared filtered wording, not the Mine copy', async () => {
+    mockListTasks.mockResolvedValue([
+      makeTask({ id: 'mine', title: 'My own task' }),
+    ])
+    renderTable()
+    await waitFor(() => screen.getByText('My own task'))
+    ensureFiltersOpen()
+    fireEvent.click(screen.getByRole('button', { name: 'My work' }))
+    await waitFor(() => expect(screen.getByText('My own task')).toBeInTheDocument())
+    fireEvent.change(screen.getByLabelText('Search tasks'), { target: { value: 'zzz-no-match' } })
+    await waitFor(() => expect(screen.getByText(/no tasks match these filters/i)).toBeInTheDocument())
+    expect(screen.queryByText(/no tasks assigned to you/i)).toBeNull()
+    expect(screen.getAllByRole('button', { name: /clear filters/i }).length).toBeGreaterThan(0)
+  })
+
   // Calibration finding (#749 lane): a viewer with nothing assigned lands on an empty My work.
   // Its own Clear filters button left ?view=my-work standing, so clicking it did nothing — a dead
   // button next to copy that promises "Clear filters to see all tasks."
