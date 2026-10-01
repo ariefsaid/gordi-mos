@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isOwnerDirector, buHeadsForViewer, type RoleScopeNode } from './role-scope'
+import { isOwnerDirector, hasOrgWideAuthority, buHeadsForViewer, type RoleScopeNode } from './role-scope'
 
 const BU_RETAIL = '20000000-0000-0000-0000-000000000014'
 const BU_B2B_SALES = '20000000-0000-0000-0000-000000000016'
@@ -17,6 +17,15 @@ describe('isOwnerDirector', () => {
   it('true when viewer holds the top-of-chain role', () => {
     expect(isOwnerDirector([MD])).toBe(true)
     expect(isOwnerDirector([CAFE_LEAD])).toBe(false)
+  })
+})
+
+describe('hasOrgWideAuthority', () => {
+  it('is the admin access role only: no position in the role tree grants it', () => {
+    expect(hasOrgWideAuthority(['member', 'admin'])).toBe(true)
+    expect(hasOrgWideAuthority(['member'])).toBe(false)
+    expect(hasOrgWideAuthority(['manager', 'ops_lead', 'supervisor'])).toBe(false)
+    expect(hasOrgWideAuthority([])).toBe(false)
   })
 })
 
