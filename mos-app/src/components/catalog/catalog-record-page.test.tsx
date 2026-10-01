@@ -431,6 +431,20 @@ describe('Get started lists only what is missing, and its buttons work', () => {
     await user.click(await screen.findByRole('option', { name: 'Maya Marketing' }))
     await user.click(screen.getByRole('button', { name: 'Save step' }))
     await waitFor(() => expect(createProcessStep).toHaveBeenCalledWith({ workLineId: 'wl-1', title: 'Lock up', picPersonId: 'p-maya', position: 7 }))
+    // The folded list stays open and the Add control is back, with focus on it.
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Add step' })).toHaveFocus())
+  })
+
+  it('cancelling the step form in a long Process puts focus back on the Add control', async () => {
+    const user = userEvent.setup()
+    data = workLineData('process', { steps: 7 })
+    renderRecord('work-line')
+    await user.click(await screen.findByRole('button', { name: /^Steps/ }))
+    await user.click(await screen.findByRole('button', { name: 'Add step' }))
+    await screen.findByRole('textbox', { name: 'Step name' })
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Add step' })).toHaveFocus())
+    expect(screen.queryByRole('textbox', { name: 'Step name' })).toBeNull()
   })
 
   it('the step form says so when the people list fails, and Try again reloads it', async () => {

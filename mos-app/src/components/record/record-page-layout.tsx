@@ -18,8 +18,8 @@
 // RecordGetStarted props   { title, why?, items: { id, label, reason, action: { label, onClick, disabled? } }[] }
 //   One region for everything still missing; the first row's button is the primary. Renders nothing
 //   for an empty list, so finished setup leaves no trace.
-// RecordDisclosure props   { title, count?, defaultOpen?, onToggle?, children }
-//   children render only while open.
+// RecordDisclosure props   { title, count?, defaultOpen?, open?, onToggle?, children }
+//   children render only while open. Pass `open` to control it (the caller then owns the state).
 // RecordAbout props        { items: { key, label, value }[] }
 import { createContext, useContext, useId, useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
@@ -111,12 +111,16 @@ export interface RecordDisclosureProps {
   title: string
   count?: ReactNode
   defaultOpen?: boolean
+  /** Controlled state; leave undefined for an uncontrolled disclosure. */
+  open?: boolean
   onToggle?: (open: boolean) => void
   children: ReactNode
 }
 
-export function RecordDisclosure({ title, count, defaultOpen = false, onToggle, children }: RecordDisclosureProps) {
-  const [open, setOpen] = useState(defaultOpen)
+export function RecordDisclosure({ title, count, defaultOpen = false, open: controlled, onToggle, children }: RecordDisclosureProps) {
+  const [own, setOwn] = useState(defaultOpen)
+  const open = controlled ?? own
+  const setOpen = (next: boolean) => { setOwn(next); onToggle?.(next) }
   const panelId = useId()
   return (
     <div className="rp-disclosure-wrap">
@@ -125,7 +129,7 @@ export function RecordDisclosure({ title, count, defaultOpen = false, onToggle, 
         className="rp-disclosure"
         aria-expanded={open}
         aria-controls={panelId}
-        onClick={() => { setOpen(!open); onToggle?.(!open) }}
+        onClick={() => setOpen(!open)}
       >
         <svg className="rp-disclosure__caret" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path d="m9 6 6 6-6 6" />

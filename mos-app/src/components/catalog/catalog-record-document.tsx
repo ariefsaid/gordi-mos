@@ -51,6 +51,8 @@ export interface CatalogRecordDocumentProps {
   onLeaveGuardChange?: (guard: OverlayLeaveGuard | undefined) => void
 }
 
+const STEPS_ADD_CONTROL = '[data-record-section="steps"] .rp-section__action, [data-record-section="steps"] .catalog-step-add'
+
 type Notice = { message: string; undo?: () => Promise<void> }
 type Chooser =
   | { purpose: 'link'; status: 'loading' | 'error' | 'empty' | 'ready'; options: { value: string; label: string }[]; objectiveOf: Map<string, string | null>; names: Map<string, string> }
@@ -390,7 +392,11 @@ export function CatalogRecordDocument({
   // ── What is still missing, for a viewer who can add it ─────────────────────
   const ownTaskTargets = isObjective ? linkedWork.map((group) => group.id) : [id]
   const rememberOpener = () => { openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null }
-  const restoreOpener = () => requestAnimationFrame(() => { if (openerRef.current?.isConnected) openerRef.current.focus() })
+  // Back to the control that opened it; when that control was replaced meanwhile, to the Steps add control.
+  const restoreOpener = (fallback?: string) => requestAnimationFrame(() => {
+    if (openerRef.current?.isConnected) openerRef.current.focus()
+    else if (fallback) document.querySelector<HTMLElement>(fallback)?.focus()
+  })
   const closeChooser = () => { setChooser(null); restoreOpener() }
   const startAddTask = () => {
     if (isObjective && linkedWork.length > 1) {
@@ -401,7 +407,7 @@ export function CatalogRecordDocument({
     if (ownTaskTargets[0]) createTask(ownTaskTargets[0])
   }
   const openStepForm = () => { rememberOpener(); setAddingStep(true) }
-  const cancelStepForm = () => { setAddingStep(false); restoreOpener() }
+  const cancelStepForm = () => { setAddingStep(false); restoreOpener(STEPS_ADD_CONTROL) }
   const startLink = async () => {
     rememberOpener()
     setLinkError(null)
@@ -572,7 +578,7 @@ export function CatalogRecordDocument({
       onCancelAdd={cancelStepForm}
       onAdded={() => {
         setAddingStep(false)
-        void refresh().then(() => requestAnimationFrame(() => document.querySelector<HTMLElement>('[data-record-section="steps"] .rp-section__action')?.focus()))
+        void refresh().then(() => requestAnimationFrame(() => document.querySelector<HTMLElement>(STEPS_ADD_CONTROL)?.focus()))
       }}
     />
   ) : null
@@ -627,7 +633,7 @@ export function CatalogRecordDocument({
               onRetryScopes={retryScopes}
               hideWhenEmpty={setup.some((item) => item.id === 'targets')}
               onCount={setKrCount}
-              onAddClosed={restoreOpener}
+              onAddClosed={() => restoreOpener()}
               openAddToken={addKeyResultToken}
             />
             <LinkedWorkSection

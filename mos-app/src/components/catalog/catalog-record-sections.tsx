@@ -347,6 +347,9 @@ export function StepsSection({ workLineId, process, people, roles, owningTeams, 
   onAdded: () => void
 }) {
   const t = useT()
+  const [open, setOpen] = useState(false)
+  // Adding a step opens the folded list and leaves it open, so the Add control is there afterwards.
+  useEffect(() => { if (adding) setOpen(true) }, [adding])
   const steps = process.steps
   if (steps.length === 0 && !adding && (hidden || !canManage)) return null
   const list = steps.length > 0 ? (
@@ -377,8 +380,8 @@ export function StepsSection({ workLineId, process, people, roles, owningTeams, 
   if (steps.length > STEP_DISCLOSURE_AFTER) {
     // A long list folds away; adding a step stays one click inside it, and an open form keeps it open.
     return (
-      <RecordDisclosure key={adding ? 'adding' : 'folded'} title={t('catalog.record.steps')} count={steps.length} defaultOpen={adding}>
-        <div className="catalog-record-document__steps-slot">
+      <RecordDisclosure title={t('catalog.record.steps')} count={steps.length} open={open} onToggle={setOpen}>
+        <div className="catalog-record-document__steps-slot" data-record-section="steps">
           {list}
           {form}
           {canAdd && !adding ? <button type="button" className="rp-link-btn catalog-step-add" onClick={onAdd}><span aria-hidden="true">+ </span>{t('catalog.steps.add')}</button> : null}
