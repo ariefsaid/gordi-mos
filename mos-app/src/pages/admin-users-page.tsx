@@ -45,10 +45,15 @@ import {
   createLogin,
 } from '@/lib/db/admin-users'
 import { listRoleAuthority, listTeamLeadAssignments } from '@/lib/db/admin-access'
+import { getBusinessUnits, getRoles } from '@/lib/db/directory'
 import { normalizeAuthorityRows, type RoleAuthorityRow, type TeamLeadAssignment } from '@/lib/db/admin-access.types'
 import type { AdminPersonRow, RoleOption, RevenueScopeOption, TeamOption } from '@/lib/db/admin-users.types'
 
 type LoadState = 'loading' | 'loaded' | 'error'
+
+// Start a load inside a promise, resolving the loader lazily: one that throws before returning (or
+// is missing) must not leave the loads already started with nobody subscribed to their rejection.
+const start = <T,>(load: () => Promise<T>) => Promise.resolve().then(load)
 
 type RevealContext = {
   password: string
@@ -89,6 +94,8 @@ export function AdminUsersPage() {
   const [authorityState, setAuthorityState] = useState<PersonAuthoritySource['state']>('loading')
   const [authorityRows, setAuthorityRows] = useState<RoleAuthorityRow[]>([])
   const [teamLeads, setTeamLeads] = useState<TeamLeadAssignment[]>([])
+  const [roleTree, setRoleTree] = useState<PersonAuthoritySource['roleTree']>([])
+  const [businessUnits, setBusinessUnits] = useState<PersonAuthoritySource['businessUnits']>([])
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null)
   const [actionError, setActionError] = useState('')
 
@@ -137,9 +144,13 @@ export function AdminUsersPage() {
   const loadAuthority = useCallback(async () => {
     setAuthorityState('loading')
     try {
-      const [rows, leads] = await Promise.all([listRoleAuthority(), listTeamLeadAssignments()])
+      const [rows, leads, tree, units] = await Promise.all([
+        start(() => listRoleAuthority()), start(() => listTeamLeadAssignments()), start(() => getRoles()), start(() => getBusinessUnits()),
+      ])
       setAuthorityRows(normalizeAuthorityRows(rows))
       setTeamLeads(leads)
+      setRoleTree(tree)
+      setBusinessUnits(units)
       setAuthorityState('loaded')
     } catch {
       setAuthorityState('error')
@@ -283,8 +294,12 @@ export function AdminUsersPage() {
           coarse pointer) the person cards carry their own card chrome — the outer
           container drops its border/shadow/bg so cards never nest inside a card. The
           container card exists for the table presentation only. */}
-      {/* The split sits around list + panel only while the panel is open beside it. */}
-      <div className={openPerson && isSplit ? 'record-split admin-people-split' : undefined}>
+      {/* #957: `admin-people-collection` is a stable marker (always rendered, panel open or not —
+          same reasoning as the Work collections' `.work-collection`: capping width only while a
+          panel is open is a dead-gutter defect too, just a briefer one) that opts this list+panel
+          surface into DESIGN.md's wide operating measure. `record-split`/`admin-people-split`
+          still only apply while the panel is actually open beside the list. */}
+      <div className={`admin-people-collection${openPerson && isSplit ? ' record-split admin-people-split' : ''}`}>
         <div
           data-testid="people-list-container"
           className="mb-6 rounded-lg overflow-hidden"
@@ -325,7 +340,7 @@ export function AdminUsersPage() {
             roles={roles}
             teams={teams}
             scopeOptions={scopeOptions}
-            authority={{ state: authorityState, rows: authorityRows, leads: teamLeads, retry: () => void loadAuthority() }}
+            authority={{ state: authorityState, rows: authorityRows, leads: teamLeads, roleTree, businessUnits, retry: () => void loadAuthority() }}
             refresh={refresh}
             onClose={() => setOpenPersonId(null)}
           />

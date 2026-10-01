@@ -9,7 +9,8 @@
 //    "Produksi dulu sebelum transfer" — it never silently caps the entered amount).
 // Kept pure + co-located so the AC-020/021/022 unit tests prove the rules, not mocks.
 
-import type { KitchenLogLine, KitchenMovement } from '@/lib/db/kitchen-logs.types'
+import type { KitchenLogLine, KitchenMovement, ProductionActivity } from '@/lib/db/kitchen-logs.types'
+import type { CafeViewerTeam } from '@/lib/db/cafe-opening'
 
 /**
  * Café Review access predicate (JQ-1). Review admits stream supervisors as well as
@@ -20,6 +21,22 @@ import type { KitchenLogLine, KitchenMovement } from '@/lib/db/kitchen-logs.type
  */
 export function canReviewCafe(accessRoles: readonly string[]): boolean {
   return accessRoles.includes('ops_lead') || accessRoles.includes('admin') || accessRoles.includes('supervisor')
+}
+
+// Café Plan editor access (#784 AC-057, DB half #778): same widened set as canReviewCafe —
+// picks the FACE only; RLS remains the per-row/stream write authority.
+export function canEditCafePlan(accessRoles: readonly string[]): boolean {
+  return canReviewCafe(accessRoles)
+}
+
+// Mirrors `ops.is_stream_reviewer` exactly: a stream Team on an OPEN-ENDED membership.
+// `listCafeViewerTeams` also returns a finite-end membership (current for "Your Team"
+// display), which the DB itself refuses for a decide/plan write — filter with this before
+// treating any row from that function as write authority.
+export function isReviewerEligibleTeam(
+  team: CafeViewerTeam,
+): team is CafeViewerTeam & { branch_id: string; activity: ProductionActivity } {
+  return team.branch_id !== null && team.activity !== null && team.effective_to === null
 }
 
 /** The Café Pushes route is intentionally narrower than Review (FR-040 / #236). */

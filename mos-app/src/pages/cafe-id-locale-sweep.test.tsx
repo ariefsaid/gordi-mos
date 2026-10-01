@@ -10,9 +10,11 @@ vi.mock('@/auth/use-auth')
 vi.mock('@/lib/use-cafe-stream', () => {
   const branch = { id: 'branch-1', code: 'rumah_rames', name: 'Rumah Rames' }
   const stream: ProductionStream = { branch, activity: 'kitchen' }
+  // A second stream at the location, so every switchable head offers its change/switch control.
+  const other: ProductionStream = { branch, activity: 'bar' }
   const state = {
-    branches: [branch], options: [stream], locationOptions: [stream], stream,
-    resolve: vi.fn().mockResolvedValue({ branches: [branch], options: [stream], locationOptions: [stream], stream }),
+    branches: [branch], options: [stream, other], locationOptions: [stream, other], stream,
+    resolve: vi.fn().mockResolvedValue({ branches: [branch], options: [stream, other], locationOptions: [stream, other], stream }),
     adopt: vi.fn(), setStream: vi.fn(),
   }
   return { useCafeStream: () => state }
@@ -107,14 +109,21 @@ describe('AC-063/AC-064: Café pages stay Indonesian end to end', () => {
 
   it.each([
     // #781 item 6: "Stream" is the one word for the control in BOTH catalogs now.
-    ['id', ENGLISH_TOKENS, 'Stream', 'Kirim Log', 'Ayam', 'Stok'],
-    ['en', INDONESIAN_TOKENS, 'Stream', 'Pushes', 'Chicken', 'Stock'],
-  ] as const)('renders every stream-resolved page in the %s catalog', async (locale, denyList, streamWord, pushesWord, categoryLabel, stockLabel) => {
+    // Plan is the exception: its head is the stream-name heading plus a Change link, no label.
+    ['id', ENGLISH_TOKENS, 'Stream', 'Ganti', 'Kirim Log', 'Ayam', 'Stok'],
+    ['en', INDONESIAN_TOKENS, 'Stream', 'Change', 'Pushes', 'Chicken', 'Stock'],
+  ] as const)('renders every stream-resolved page in the %s catalog', async (locale, denyList, streamWord, changeWord, pushesWord, categoryLabel, stockLabel) => {
     for (const [name, Page] of pages) {
       const { container } = render(<MemoryRouter><I18nProvider initialLocale={locale}><Page /></I18nProvider></MemoryRouter>)
       await screen.findByText(name === 'Pushes' ? 'batch-1' : 'Dish One')
       expect(container.textContent).not.toMatch(denyList)
-      expect(container.textContent).toContain(streamWord)
+      if (name === 'Plan') {
+        expect(container.querySelector('.cafe-stream h2')?.textContent).toContain('Rumah Rames')
+        expect(container.querySelector('.cafe-stream button')?.textContent).toBe(changeWord)
+        expect(container.querySelector('.cafe-stream__label')).toBeNull()
+      } else {
+        expect(container.textContent).toContain(streamWord)
+      }
       if (name === 'Plan') expect(container.querySelector('.dt-group-label, .dt-cards-group-label')?.textContent).toContain(categoryLabel)
       if (name === 'Log') expect(container.textContent).toContain(stockLabel)
       if (name === 'Pushes') expect(container.textContent).toContain(pushesWord)

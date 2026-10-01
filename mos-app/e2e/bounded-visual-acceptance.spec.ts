@@ -6,6 +6,9 @@ import { stubAccountLocale } from './helpers/account-locale'
 import { TASKS_SPLIT_MIN_WIDTH } from '../src/shell/use-is-split-width'
 
 const LONG_SIGNAL = 'A long Signal leaf title that stays readable without breaking a word across the record header boundary'
+// A Signal heading is its first line cut at 72 characters (SIGNAL_TITLE_MAX); the full text
+// stays in the message body.
+const LONG_TITLE = `${LONG_SIGNAL.slice(0, 72).trimEnd()}…`
 const WIDTHS = [390, 768, 1024, 1280, 1370, 1440] as const
 
 function capture(name: string, page: Page) {
@@ -49,7 +52,8 @@ test.describe('bounded visual and interaction acceptance', () => {
       const panel = page.getByRole(width === 390 ? 'dialog' : 'complementary', { name: 'Signal', exact: true })
       await expect(panel).toBeVisible()
       const title = panel.locator('.record-viewer__title')
-      await expect(title).toContainText(LONG_SIGNAL)
+      await expect(title).toHaveText(LONG_TITLE)
+      await expect(panel.locator('.signal-message-body')).toHaveText(LONG_SIGNAL)
       await expect(title).toHaveCSS('word-break', 'normal')
       const titleBox = await title.boundingBox()
       expect(titleBox?.width).toBeGreaterThan(0)
@@ -57,12 +61,13 @@ test.describe('bounded visual and interaction acceptance', () => {
       await assertNoPageOverflow(page)
       await capture(`home-signal-panel-${width}`, page)
 
-      // signal-record.tsx: "Open full page" rides the "•••" overflow menu now, not a direct button.
+      // signal-record.tsx: "Open full page" rides the overflow menu now, not a direct button.
       await panel.getByRole('button', { name: 'More Signal actions', exact: true }).click()
       await panel.getByRole('menuitem', { name: 'Open full page', exact: true }).click()
       await expect(page).toHaveURL(new RegExp(`/work/signals/${activeSignalId}$`))
       await expect(page.getByRole('link', { name: 'Back to Home', exact: true })).toBeVisible()
-      await expect(page.getByRole('heading', { name: LONG_SIGNAL, exact: true })).toBeVisible()
+      await expect(page.getByRole('heading', { name: LONG_TITLE, exact: true })).toBeVisible()
+      await expect(page.locator('.signal-message-body')).toHaveText(LONG_SIGNAL)
       await capture(`home-signal-page-${width}`, page)
       await page.getByRole('link', { name: 'Back to Home', exact: true }).click()
       await expect(page).toHaveURL(/\/mos\/?$/)
@@ -138,10 +143,10 @@ test.describe('bounded visual and interaction acceptance', () => {
       if (width >= 1024) {
         for (const expected of [
           { id: 'group', value: 'Group: None' },
-          { id: 'business-unit', value: 'All units' },
+          { id: 'business-unit', value: 'Business unit: All units' },
           { id: 'status', value: 'Any status' },
-          { id: 'person', value: 'Anyone' },
-          { id: 'sort', value: 'Due soonest' },
+          { id: 'person', value: 'Person: Anyone' },
+          { id: 'sort', value: 'Sort: Due soonest' },
         ]) {
           const trigger = filters.locator(`[data-filter-id="${expected.id}"] button[data-full-value]`)
           await expect(trigger).toHaveAttribute('data-full-value', expected.value)
@@ -256,10 +261,10 @@ test.describe('bounded visual and interaction acceptance', () => {
       const filters = page.getByRole('group', { name: 'Tampilan & filter', exact: true })
       const expectedValues = [
         { name: 'Kelompok', value: 'Kelompok: Tidak' },
-        { name: 'Unit bisnis', value: 'Semua unit' },
+        { name: 'Unit bisnis', value: 'Unit bisnis: Semua unit' },
         { name: 'Status', value: 'Semua status', role: 'button' as const },
-        { name: 'Orang', value: 'Semua' },
-        { name: 'Urutkan', value: 'Tenggat dekat' },
+        { name: 'Orang', value: 'Orang: Semua' },
+        { name: 'Urutkan', value: 'Urutkan: Tenggat dekat' },
       ]
       for (const expected of expectedValues) {
         const trigger = filters.getByRole(expected.role ?? 'combobox', { name: expected.name, exact: true })

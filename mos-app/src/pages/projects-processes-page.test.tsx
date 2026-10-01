@@ -15,7 +15,7 @@ vi.mock('@/lib/db/objectives', () => ({ listObjectivesAll: vi.fn() }))
 vi.mock('@/lib/db/tasks', () => ({ listTasks: vi.fn() }))
 vi.mock('@/lib/db/work-records', () => ({ listProcessCollectionFacts: vi.fn().mockResolvedValue([]) }))
 vi.mock('@/lib/db/work-authority', () => ({
-  emptyWorkWriteScopes: () => ({ workline_org: false, objective_org: false, workline_bu_ids: [], objective_bu_ids: [] }),
+  emptyWorkWriteScopes: () => ({ workline_org: false, objective_org: false, workline_bu_ids: [], objective_bu_ids: [], objective_content_org: false, objective_content_bu_ids: [] }),
   getWorkWriteScopes: vi.fn(),
 }))
 vi.mock('@/auth/use-auth', () => ({ useAuth: vi.fn() }))
@@ -54,9 +54,9 @@ function task(id: string, objectiveId: string | null, workLineId: string | null,
   }
 }
 
-function renderPage(entry = "/") {
+function renderPage(entry = "/", locale: 'en' | 'id' = 'en') {
   return render(
-    <I18nProvider>
+    <I18nProvider initialLocale={locale}>
       <MemoryRouter initialEntries={[entry]}>
         <ProjectsProcessesPage />
       </MemoryRouter>
@@ -85,6 +85,8 @@ beforeEach(() => {
     objective_org: true,
     workline_bu_ids: [],
     objective_bu_ids: [],
+    objective_content_org: false,
+    objective_content_bu_ids: [],
   })
   vi.mocked(createWorkLine).mockResolvedValue({ id: 'wl-new', name: 'New', type: 'project', archived_at: null })
 })
@@ -99,7 +101,9 @@ describe('Projects & Processes collection-first contract', () => {
     await screen.findByText('Menu launch')
     expect(screen.getByRole('link', { name: 'Menu launch' })).toHaveAttribute('href', '/work/projects/wl-1')
     const menuLaunch = screen.getByRole('link', { name: 'Menu launch' })
-    expect(within(menuLaunch).getByRole('cell', { name: 'Objective: Not set' })).toBeInTheDocument()
+    // No row here has a direct Objective, so that column is left out rather than printing Not set.
+    expect(within(menuLaunch).queryByRole('cell', { name: /^Objective:/ })).toBeNull()
+    expect(screen.queryByRole('columnheader', { name: 'Objective' })).toBeNull()
     expect(within(menuLaunch).getByText('Contributes through Tasks to: Grow revenue')).toBeInTheDocument()
     expect(screen.getByText('1 / 2 done')).toBeInTheDocument()
     expect(screen.getByText('07 Jul 2026, 07:00 WIB')).toBeInTheDocument()
@@ -188,8 +192,9 @@ describe('Projects & Processes collection-first contract', () => {
     fireEvent.click(within(form).getByRole('combobox', { name: 'Type' }))
     fireEvent.click(screen.getByRole('option', { name: 'Process' }))
     fireEvent.submit(form)
-    expect(await screen.findByRole('alert')).toHaveTextContent('Temporary save failure')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Couldn’t save. Try again.')
     expect(name).toHaveValue('Weekly stock opname')
+    await waitFor(() => expect(name).toHaveFocus())
     expect(within(form).getByRole('combobox', { name: 'Type' })).toHaveTextContent('Process')
     fireEvent.submit(form)
     await waitFor(() => expect(createWorkLine).toHaveBeenNthCalledWith(2, 'Weekly stock opname', 'process'))
@@ -284,7 +289,7 @@ describe('R5 denied write authority', () => {
     if (auth.status !== 'authenticated') throw new Error('Expected authenticated fixture')
     auth.viewer.accessRoles = ['member']
     vi.mocked(useAuth).mockReturnValue(auth)
-    vi.mocked(getWorkWriteScopes).mockResolvedValue({ workline_org: false, objective_org: false, workline_bu_ids: [], objective_bu_ids: [] })
+    vi.mocked(getWorkWriteScopes).mockResolvedValue({ workline_org: false, objective_org: false, workline_bu_ids: [], objective_bu_ids: [], objective_content_org: false, objective_content_bu_ids: [] })
     renderPage()
     expect(await screen.findByRole('link', { name: 'Menu launch' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Daily prep' })).toBeInTheDocument()
@@ -327,5 +332,27 @@ describe('one create entry per width', () => {
     // The form's own submit may share the label; no button of that name sits outside the form.
     const outside = screen.queryAllByRole('button', { name: 'Create project or process' }).filter((button) => !form.contains(button))
     expect(outside).toHaveLength(0)
+  })
+})
+
+describe('page help defines the domain terms', () => {
+  it('EN: the head "?" states the purpose sentence and Responsible terms', async () => {
+    renderPage()
+    await screen.findByText('Menu launch')
+    fireEvent.click(screen.getByRole('button', { name: 'Help' }))
+    const panel = screen.getByRole('note')
+    expect(panel).toHaveTextContent('Projects and Processes are the work that drives your Objectives.')
+    expect(panel).toHaveTextContent('Responsible is the one person doing the work')
+    expect(panel).toHaveTextContent('Business Unit is the team it belongs to')
+  })
+
+  it('ID: the localized help states the same terms', async () => {
+    renderPage('/', 'id')
+    await screen.findByText('Menu launch')
+    fireEvent.click(screen.getByRole('button', { name: 'Bantuan' }))
+    const panel = screen.getByRole('note')
+    expect(panel).toHaveTextContent('Proyek dan Proses adalah kerja yang mendorong Tujuan Anda.')
+    expect(panel).toHaveTextContent('Responsible adalah satu orang yang mengerjakan')
+    expect(panel).toHaveTextContent('Business Unit adalah tim tempat pekerjaan ini berada')
   })
 })

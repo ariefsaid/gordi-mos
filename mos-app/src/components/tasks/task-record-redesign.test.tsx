@@ -75,7 +75,7 @@ beforeEach(() => {
   vi.mocked(getBusinessUnits).mockResolvedValue([{ id: 'team-cafe', name: 'Café Operations' }])
   vi.mocked(getPeople).mockResolvedValue([
     { id: VIEWER_ID, full_name: 'Cahya Cafe' },
-    { id: SUPERVISOR_ID, full_name: 'Arief Said' },
+    { id: SUPERVISOR_ID, full_name: 'Arden Sample' },
     { id: 'consulted', full_name: 'Consulted Person' },
     { id: 'informed', full_name: 'Informed Person' },
   ])
@@ -116,7 +116,7 @@ describe('OD-REDESIGN-62 — typed Task record', () => {
     expect(screen.getByRole('region', { name: /checklist/i })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: /activity/i })).toBeInTheDocument()
     expect(screen.getByTestId('record-details').querySelector('.record-field__pill')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Edit title' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Edit Title' })).toBeInTheDocument()
     expect(screen.getByTestId('record-details').querySelector('[data-field-key="source"]')).toBeNull()
     expect(screen.getByTestId('record-details').querySelector('[data-field-key="projectProcess"]')).toHaveTextContent('Today opening')
     expect(within(screen.getByTestId('record-details').querySelector('[data-content-slot="ownership"]') as HTMLElement).getByText('PIC')).toBeInTheDocument()
@@ -128,9 +128,9 @@ describe('OD-REDESIGN-62 — typed Task record', () => {
     fireEvent.click(screen.getByRole('option', { name: 'Cahya Cafe' }))
     expect(within(screen.getByTestId('record-details').querySelector('[data-content-slot="ownership"]') as HTMLElement).getByText('Supervisor')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Edit Supervisor' }))
-    expect(screen.getByRole('combobox', { name: 'Supervisor' })).toHaveTextContent('Arief Said')
+    expect(screen.getByRole('combobox', { name: 'Supervisor' })).toHaveTextContent('Arden Sample')
     fireEvent.click(screen.getByRole('combobox', { name: 'Supervisor' }))
-    fireEvent.click(screen.getByRole('option', { name: 'Arief Said' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Arden Sample' }))
     // Due date renders as a native <input type="date"> once activated (its value is the ISO date
     // in the attribute, not visible text). Assert via the labeled control's value.
     fireEvent.click(screen.getByRole('button', { name: 'Edit Due' }))
@@ -154,7 +154,7 @@ describe('OD-REDESIGN-62 — typed Task record', () => {
     // to its value rendering, so re-activate PIC before reassigning.)
     fireEvent.click(await screen.findByRole('button', { name: 'Edit PIC' }))
     fireEvent.click(screen.getByRole('combobox', { name: 'PIC' }))
-    fireEvent.click(screen.getByRole('option', { name: 'Arief Said' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Arden Sample' }))
     await waitFor(() => expect(updateTaskFields).toHaveBeenCalledWith(
       // 4th arg (#742 AC-059): the previous PIC value, threaded through for the from/to event.
       task.id, { responsible_person_id: SUPERVISOR_ID }, VIEWER_ID, VIEWER_ID,

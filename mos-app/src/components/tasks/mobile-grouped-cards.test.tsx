@@ -47,7 +47,8 @@ const BASE_PROPS: MobileGroupedCardsProps = {
   ],
   now: new Date('2026-06-16'),
   buMap: new Map([['bu-1', 'Kitchen']]),
-  personMap: new Map([['person-1', 'Arief Said']]),
+  teamMap: new Map([['team-1', 'Retail Ops']]),
+  personMap: new Map([['person-1', 'Arden Sample']]),
   isCollapsed: () => false,
   toggleCollapsed: () => {},
   openAddTask: () => {},
@@ -110,7 +111,7 @@ describe('MobileGroupedCards', () => {
           onEditPic={async (_taskId, personId) => setDraft((current) => ({ ...current, responsible_person_id: personId }))}
           onEditTeam={async (_taskId, teamId) => setDraft((current) => ({ ...current, team_id: teamId, business_unit_id: 'bu-1' }))}
           onEditSupervisor={async (_taskId, personId) => setDraft((current) => ({ ...current, accountable_person_id: personId }))}
-          personOptions={[{ id: 'person-1', full_name: 'Arief Said' }]}
+          personOptions={[{ id: 'person-1', full_name: 'Arden Sample' }]}
           supervisorOptions={[{ id: 'person-2', full_name: 'Dewi Santoso' }]}
           teamOptions={[{ id: 'team-1', name: 'Café team', businessUnitId: 'bu-1' }]}
         />
@@ -147,8 +148,8 @@ describe('MobileGroupedCards', () => {
       onEditPic: vi.fn().mockResolvedValue(undefined),
       onEditTeam: vi.fn().mockResolvedValue(undefined),
       onEditSupervisor: vi.fn().mockResolvedValue(undefined),
-      personOptions: [{ id: 'person-1', full_name: 'Arief Said' }],
-      supervisorOptions: [{ id: 'person-1', full_name: 'Arief Said' }],
+      personOptions: [{ id: 'person-1', full_name: 'Arden Sample' }],
+      supervisorOptions: [{ id: 'person-1', full_name: 'Arden Sample' }],
       teamOptions: [{ id: 'team-1', name: 'Café team', businessUnitId: 'bu-1' }],
     })
     const card = screen.getByTestId('task-card')
@@ -260,10 +261,10 @@ describe('MobileGroupedCards', () => {
   it('+ Create task button fires openAddTask with the group prefillParam', () => {
     const openAddTask = vi.fn()
     const groups = [
-      { key: 'p1', label: 'Arief Said', rows: [], overdue: 0, prefillParam: 'r=person-1' },
+      { key: 'p1', label: 'Arden Sample', rows: [], overdue: 0, prefillParam: 'r=person-1' },
     ]
     renderCards({ groups, openAddTask })
-    const addBtn = screen.getByRole('button', { name: /create task in arief said/i })
+    const addBtn = screen.getByRole('button', { name: /create task in arden sample/i })
     fireEvent.click(addBtn)
     expect(openAddTask).toHaveBeenCalledWith('r=person-1')
   })
@@ -278,6 +279,30 @@ describe('MobileGroupedCards', () => {
     renderCards()
     expect(screen.queryByText('Activity')).toBeNull()
     expect(screen.queryByText('Updated')).toBeNull()
+  })
+
+  // #760 AC-048: the phone card is title · status · Team · PIC · Due — Supervisor moves to the
+  // record (one tap away), and the retired BU line is replaced by the canonical owning Team.
+  it('AC-048 (#760): shows the Team, not Supervisor or Business unit', () => {
+    renderCards({
+      groups: [{
+        key: 'Open', label: 'Open', overdue: 0, prefillParam: '',
+        rows: [makeTask({ id: 't1', title: 'Task A', team_id: 'team-1' })],
+      }],
+    })
+    expect(screen.getByText('Retail Ops')).toBeInTheDocument()
+    expect(screen.queryByText('Kitchen')).toBeNull()
+    expect(screen.queryByText('Supervisor')).toBeNull()
+  })
+
+  it('AC-048 (#760): a legacy task with no Team shows an honest placeholder, not a fabricated one', () => {
+    renderCards({
+      groups: [{
+        key: 'Open', label: 'Open', overdue: 0, prefillParam: '',
+        rows: [makeTask({ id: 't1', title: 'Task A', team_id: null })],
+      }],
+    })
+    expect(document.querySelector('.task-team')).toHaveTextContent('—')
   })
 
   it('role="list" on the container and role="listitem" on each card wrapper (a11y)', () => {

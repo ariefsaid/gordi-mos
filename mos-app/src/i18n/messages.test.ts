@@ -80,8 +80,8 @@ describe('i18n messages catalog', () => {
   })
 
   it('interpolate() replaces ${name} placeholders with the provided vars', () => {
-    expect(interpolate('Hello ${name}, you have ${count} tasks', { name: 'Arief', count: 3 })).toBe(
-      'Hello Arief, you have 3 tasks'
+    expect(interpolate('Hello ${name}, you have ${count} tasks', { name: 'Arden', count: 3 })).toBe(
+      'Hello Arden, you have 3 tasks'
     )
   })
 
@@ -193,7 +193,6 @@ describe('cascade i18n is retired with the surface (#179)', () => {
 describe('admin access actions use the nav terms for Work collections', () => {
   it.each([
     ['admin.access.action.workline.manage', 'nav.work.projects'],
-    ['admin.access.action.objective.manage', 'nav.work.objectives'],
     ['admin.access.action.signal.post', 'nav.work.signals'],
     ['admin.access.action.signal.tag', 'nav.work.signals'],
     ['admin.access.action.signal.retract', 'nav.work.signals'],

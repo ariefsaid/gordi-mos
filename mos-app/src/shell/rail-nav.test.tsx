@@ -374,15 +374,17 @@ describe('AC-009: aria-current — Work parent location, child page (at /work/si
     expect(within(nav).getByRole('link', { name: 'Café' })).toHaveAttribute('aria-current', 'location')
   })
 
-  it.each(['/admin/people', '/admin/teams', '/admin/access'])('at %s, Admin Settings link page and active, exactly one page', (path) => {
+  // The Admin tabs (not the rail) carry "page" on these routes; the rail link marks the section.
+  it.each(['/admin/people', '/admin/teams', '/admin/access', '/admin/agents'])('at %s, Admin Settings link is the current section ("location") and active, never "page"', (path) => {
     setAuthAs(['admin'])
     renderRailNav(path)
     const nav = screen.getByRole('navigation', { name: 'Primary' })
     const pageLinks = within(nav).getAllByRole('link').filter((l) => l.getAttribute('aria-current') === 'page')
-    expect(pageLinks).toHaveLength(1)
-    expect(pageLinks[0]).toHaveAccessibleName(/Admin Settings/)
-    expect(pageLinks[0]).toHaveClass('rail-item--active')
-    expect(pageLinks[0]).toHaveAttribute('href', '/admin/people')
+    expect(pageLinks).toHaveLength(0)
+    const admin = within(nav).getByRole('link', { name: /Admin Settings/ })
+    expect(admin).toHaveAttribute('aria-current', 'location')
+    expect(admin).toHaveClass('rail-item--active')
+    expect(admin).toHaveAttribute('href', '/admin/people')
   })
 })
 
@@ -488,17 +490,16 @@ describe('Locale controls (ADR-0021 seam, OD-70 placement)', () => {
   })
 })
 
-// Rail count badges (E7 `.e7-count`) — Tasks (open count) from ONE shell aggregate. Quiet rule:
+// Rail count badges (E7 `.e7-count`) — Tasks (the viewer's own open count). Quiet rule:
 // a count that is zero or unavailable shows NO badge. The badge is
 // aria-hidden (a redundant glance cue), so the link's accessible name is unchanged.
-import type { RailCounts } from '@/lib/db/rail-counts'
-function renderRailNavWithCounts(initialPath: string, counts: RailCounts | null | undefined) {
+function renderRailNavWithCounts(initialPath: string, openTasks: number | null | undefined) {
   return render(
     <ThemeProvider>
       <I18nProvider>
         <MemoryRouter initialEntries={[initialPath]}>
           <Routes>
-            <Route path="*" element={<RailNav counts={counts} />} />
+            <Route path="*" element={<RailNav openTasks={openTasks} />} />
           </Routes>
         </MemoryRouter>
       </I18nProvider>
@@ -509,7 +510,7 @@ function renderRailNavWithCounts(initialPath: string, counts: RailCounts | null 
 describe('Rail count badges (Tasks)', () => {
   it('renders the viewer-owned open-Tasks count and no Signals badge', () => {
     setAuthAs(['admin'], 'Managing Director')
-    renderRailNavWithCounts('/work/tasks', { openTasks: 11 })
+    renderRailNavWithCounts('/work/tasks', 11)
     // DO-18(d): the badge label joins the accname, so match on the leading label.
     const tasks = screen.getByRole('link', { name: /^Tasks/ })
     const signals = screen.getByRole('link', { name: /^Signals/ })
@@ -519,7 +520,7 @@ describe('Rail count badges (Tasks)', () => {
 
   it('shows a badge ONLY on Tasks — never on any other rail item', () => {
     setAuthAs(['admin'], 'Managing Director')
-    renderRailNavWithCounts('/work/tasks', { openTasks: 11 })
+    renderRailNavWithCounts('/work/tasks', 11)
     // Was pinned on Projects & Processes / Objectives, which #444 ship-gates out of the rail.
     // Widened rather than dropped: EVERY rendered link must carry no numeric badge except the two
     // named, so a new item cannot grow one unnoticed and this cannot rot the way naming two
@@ -534,7 +535,7 @@ describe('Rail count badges (Tasks)', () => {
 
   it('omits a badge when its count is zero (E7 quiet rule)', () => {
     setAuthAs(['admin'], 'Managing Director')
-    renderRailNavWithCounts('/work/tasks', { openTasks: 0 })
+    renderRailNavWithCounts('/work/tasks', 0)
     expect(within(screen.getByRole('link', { name: 'Tasks' })).queryByText(/\d/)).toBeNull()
     expect(within(screen.getByRole('link', { name: 'Signals' })).queryByText(/\d/)).toBeNull()
   })
@@ -551,7 +552,7 @@ describe('Rail count badges (Tasks)', () => {
   // name stating what the count counts; the link's accname includes it.
   it('DO-18(d): the badge exposes an accessible name stating what the count counts', () => {
     setAuthAs(['admin'], 'Managing Director')
-    renderRailNavWithCounts('/work/tasks', { openTasks: 7 })
+    renderRailNavWithCounts('/work/tasks', 7)
     const tasks = screen.getByRole('link', { name: /^Tasks/ })
     const badge = within(tasks).getByText('7')
     expect(badge.getAttribute('aria-hidden')).not.toBe('true')
@@ -640,7 +641,7 @@ describe('RailNav compact regime (OD-REDESIGN-84.2 / P1-1)', () => {
         <I18nProvider>
           <MemoryRouter initialEntries={['/work/tasks']}>
             <Routes>
-              <Route path="*" element={<RailNav compact counts={{ openTasks: 4 }} />} />
+              <Route path="*" element={<RailNav compact openTasks={4} />} />
             </Routes>
           </MemoryRouter>
         </I18nProvider>
@@ -650,6 +651,16 @@ describe('RailNav compact regime (OD-REDESIGN-84.2 / P1-1)', () => {
     const badge = within(tasks).getByText('4')
     expect(badge).toHaveAccessibleName('4 open tasks')
     expect(badge.className).toMatch(/rail-count-badge--compact/)
+  })
+
+  it('issue 1047: the Café row keeps its disclosure chevron at full width and drops it in compact, so its icon shares the rail axis', () => {
+    setAuthAs(['admin'], 'Managing Director')
+    const { container, unmount } = renderRailNav('/work/tasks', { compact: false })
+    expect(container.querySelector('.rail-module-chevron')).not.toBeNull()
+    unmount()
+    const compact = renderRailNav('/work/tasks', { compact: true })
+    expect(screen.getByRole('link', { name: /Café/ })).toBeInTheDocument()
+    expect(compact.container.querySelector('.rail-module-chevron')).toBeNull()
   })
 
   it('the account chip collapses to the avatar only (no visible name text)', () => {

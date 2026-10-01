@@ -21,7 +21,9 @@ import { listTaskDefs } from '@/lib/db/processes'
 import type { ObjectiveRow } from '@/lib/db/objectives'
 import type { WorkLineRow } from '@/lib/db/work-lines'
 import { ConfirmArchive } from './confirm-archive'
+import { loadHomeLeadId } from './default-supervisor'
 import { canEdit } from './task-permissions'
+import { liveTasksSearch, type LiveTasksQueryRef } from './tasks-navigation'
 import { createTaskRecordAdapter, createTaskFieldCommit, type TaskTeamView, type TaskRelatedRecord, type TaskViewerFieldKey } from './task-record-adapter'
 import { RecordViewer } from '@/components/records/record-viewer'
 import type { RecordContentSlot, RecordViewerAdapter } from '@/components/records/record-viewer.types'
@@ -30,12 +32,13 @@ import { TaskActivity } from './task-activity'
 import { AskDeputyAction } from '@/components/records/ask-deputy-action'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
-import { formatDate, formatAge } from './task-formatters'
+import { formatDate, formatAge, TASK_TITLE_MAX_LENGTH } from './task-formatters'
 import { CloseIcon, BackIcon } from '@/shell/icons'
 import { Picker } from '@/components/ui/picker'
 import { TextInput } from '@/components/ui/text-input'
 import { DateField } from '@/components/ui/date-field'
 import { Button } from '@/components/ui/button'
+import { useFocusRestore } from '@/components/ui/use-focus-restore'
 import { LoadingShell, EmptyState, ErrorState } from '@/components/ui/state-kit'
 
 type DirectoryTeamOption = {
@@ -114,6 +117,8 @@ export type TaskSurfaceProps = {
   // Heading level for the full-width record identity. Defaults to 1; the V3
   // focused-record page passes 2 because its PageFamilyFrame owns the shell h1.
   identityHeadingLevel?: 1 | 2
+  // The Tasks search box's live text: the surface's own navigations carry it, not the URL's.
+  liveQueryRef?: LiveTasksQueryRef
 }
 
 // ── Skeleton ─────────────────────────────────────────────────────────────────
@@ -146,6 +151,7 @@ function ViewSurface({
   showPanelUtility = true,
   identityHeadingLevel,
   fieldCommitsFrozen,
+  liveQueryRef,
 }: TaskSurfaceProps) {
   const navigate = useNavigate()
   const canonicalHref = useHref(taskId ? `/work/tasks/${taskId}` : '/work/tasks')
@@ -202,7 +208,7 @@ function ViewSurface({
   // OD-REDESIGN-22 (D-C1): the last FAILED checklist write, held so RecordFeed/ChecklistCard can
   // render a VISIBLE error + Retry (the optimistic rollback reverts the row, but a sighted user
   // still needs a clickable way to re-send). The closure re-runs the exact failed operation.
-  const [checklistError, setChecklistError] = useState<(() => void) | null>(null)
+  const [checklistError, setChecklistError] = useState<(() => void | Promise<void>) | null>(null)
 
   const now = useMemo(() => new Date(), [data]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -486,6 +492,7 @@ function ViewSurface({
       formatAge: (iso) => formatAge(iso, now, locale),
       now,
       labels: {
+        title: t('tasks.field.title'),
         businessUnit: t('tasks.field.businessUnit'),
         pic: t('tasks.pic'),
         supervisor: t('tasks.supervisor'),
@@ -495,6 +502,7 @@ function ViewSurface({
         teamMigration: t('tasks.field.teamMigration'),
         dueDate: t('tasks.dueLabel'),
         createdBy: t('tasks.field.createdBy'),
+        supervisorInheritedFrom: t('tasks.field.supervisorInheritedFrom'),
       },
       recordLabels: {
         typeLabel: t('tasks.label.task'),
@@ -617,10 +625,13 @@ function ViewSurface({
       await addChecklistItem(localTask.id, label, position, viewerId)
       await refetchEvents(localTask.id)
       announce(t('tasks.feedback.checklistAdded'))
-    } catch {
+    } catch (error) {
       setLocalChecklist(prev => prev.filter(i => i.id !== newItem.id))
       announce(ROLLBACK_MSG)
-      setChecklistError(() => () => { void handleAddChecklist(label) })
+      // Rethrow so the caller — the add input on first submit, ChecklistCard's Retry button on a
+      // retry — can tell success from failure and only clear its draft once the write lands.
+      setChecklistError(() => () => handleAddChecklist(label))
+      throw error
     }
   }
 
@@ -688,7 +699,7 @@ function ViewSurface({
       await archiveTask(localTask.id, viewerId)
       onTaskArchived?.(localTask.id)  // I3: let the table drop the row + decrement the count
       if (onClose) onClose()
-      else navigate({ pathname: '/work/tasks', search: location.search })
+      else navigate({ pathname: '/work/tasks', search: liveTasksSearch(location.search, liveQueryRef) })
     } catch { setArchiveFailure('archive') }
   }
   async function handleUnarchive() {
@@ -742,7 +753,16 @@ function ViewSurface({
         title={t('tasks.notFound.title')}
         copy={t('tasks.notFound.copy')}
       >
-        <Link to={{ pathname: '/work/tasks', search: location.search }} className="btn btn-outline">{t('tasks.all')}</Link>
+        <Link
+          to={{ pathname: '/work/tasks', search: location.search }}
+          className="btn btn-outline"
+          // A plain click reads the live query at click time; the href stays for new-tab opens.
+          onClick={(event) => {
+            if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+            event.preventDefault()
+            navigate({ pathname: '/work/tasks', search: liveTasksSearch(location.search, liveQueryRef) })
+          }}
+        >{t('tasks.all')}</Link>
       </EmptyState>
     )
   }
@@ -772,9 +792,14 @@ function ViewSurface({
   // OverlayHostSlot) supplies it explicitly. In panel mode without an explicit callback we fall
   // back to the canonical task page route. GAP-2 (OD-91 #7): "Open full page" is the ONE escalation.
   const openPageTarget = presentation === 'panel'
-    ? (onOpenPage ?? (() => navigate({ pathname: `/work/tasks/${task.id}`, search: location.search }, { state: { taskSurface: 'page' } })))
+    ? (onOpenPage ?? (() => navigate(
+      { pathname: `/work/tasks/${task.id}`, search: liveTasksSearch(location.search, liveQueryRef) },
+      { state: { taskSurface: 'page' } },
+    )))
     : undefined
-  const closeTarget = () => (onClose ? onClose() : navigate({ pathname: '/work/tasks', search: location.search }))
+  const closeTarget = () => (onClose
+    ? onClose()
+    : navigate({ pathname: '/work/tasks', search: liveTasksSearch(location.search, liveQueryRef) }))
 
   // ── Drawer width: the shared RecordViewer owns identity, metadata, content and actions ──
   if (width === 'drawer') {
@@ -940,7 +965,7 @@ function ViewSurface({
 }
 
 // ── Create mode ────────────────────────────────────────────────────────────────
-function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, showPanelUtility = true, createInitialValues, createRedirect }: TaskSurfaceProps) {
+function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, showPanelUtility = true, createInitialValues, createRedirect, liveQueryRef }: TaskSurfaceProps) {
   const navigate = useNavigate()
   const auth = useAuth()
   const t = useT()
@@ -955,11 +980,8 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
   const prefillR = createInitialValues?.responsiblePersonId ?? searchParams.get('createPic') ?? searchParams.get('r') ?? ''
   const prefillBu = createInitialValues?.businessUnitId ?? searchParams.get('createBu') ?? searchParams.get('bu') ?? ''
   const prefillTitle = createInitialValues?.title ?? searchParams.get('createTitle') ?? ''
-  const collectionParams = new URLSearchParams(searchParams)
-  collectionParams.delete('r')
-  collectionParams.delete('bu')
-  const collectionSearch = collectionParams.toString()
-  const collectionSearchString = collectionSearch ? `?${collectionSearch}` : ''
+  // The collection's search on leaving: the create pre-fill params dropped, the live query applied.
+  const collectionSearchNow = () => liveTasksSearch(searchParams, liveQueryRef, ['r', 'bu'])
 
   // Viewer details
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : ''
@@ -968,20 +990,24 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
   const [peopleDirectory, setPeopleDirectory] = useState<PersonOption[]>([])
   const [teamDirectory, setTeamDirectory] = useState<DirectoryTeamOption[]>([])
   const [dirLoading, setDirLoading] = useState(true)
-  const [objectivesDir, setObjectivesDir] = useState<ObjectiveRow[]>([])
   const [workLinesDir, setWorkLinesDir] = useState<WorkLineRow[]>([])
   const prefillTeamId = searchParams.get('team') ?? ''
 
   useEffect(() => {
+    let live = true
     const teamsPromise = getPersonTeams(viewerId).catch(() => [])
     Promise.all([getBusinessUnits(), getPeople(), teamsPromise]).then(([, people, teams]) => {
       setPeopleDirectory(people)
       setTeamDirectory(teams)
       setDirLoading(false)
+      // Supervisor defaults to the creator's home Team lead; a choice made meanwhile wins.
+      void loadHomeLeadId(teams, viewerId).then((leadId) => {
+        if (live && leadId) setAccountablePersonId((chosen) => chosen || leadId)
+      })
     }).catch(() => setDirLoading(false))
-    // Non-blocking catalog loads — a slow catalog must never block the form.
-    listObjectives().then(setObjectivesDir).catch(() => {})
+    // Non-blocking catalog load — a slow catalog must never block the form.
     listWorkLines().then(setWorkLinesDir).catch(() => {})
+    return () => { live = false }
   }, [viewerId])
 
   // ── Form state ────────────────────────────────────────────────────────────
@@ -990,23 +1016,14 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
   const [title, setTitle] = useState(prefillTitle)
   const [teamId, setTeamId] = useState(prefillTeamId)
   const [responsiblePersonId, setResponsiblePersonId] = useState(prefillR || viewerId)
-  // Supervisor starts EMPTY, deliberately not defaulted to the creator/PIC (OD-REDESIGN-3/14/41 —
-  // PIC and Supervisor are distinct accountable roles; auto-collapsing them defeats the model).
-  // CONTEXT.md's Supervisor resolution order is explicit selection → generated-Task override →
-  // parent Project/Process A → PIC's direct manager (role matching Task BU) → PIC when no manager
-  // exists — but resolving "PIC's manager" needs a person→role→reports-to lookup this surface has
-  // no directory call for (only the viewer's OWN roles are known here, and the PIC can be reassigned
-  // to anyone). Rather than fabricate a default from data this form doesn't have, Supervisor is a
-  // required, explicit choice — the first, always-correct step of that same resolution order.
+  // Supervisor is never defaulted to the creator/PIC (OD-REDESIGN-3/14/41 — PIC and Supervisor are
+  // distinct accountable roles). It starts empty and is pre-filled with the creator's home Team
+  // lead when that is readable (see the directory-load effect); otherwise it is a required,
+  // explicit choice.
   const [accountablePersonId, setAccountablePersonId] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [description, setDescription] = useState('')
   const [workLineId, setWorkLineId] = useState('')
-  const [objectiveId, setObjectiveId] = useState('')
-  // F17 (OD-REDESIGN-91 #29): the optional Project/Process + Objective context pickers stay hidden
-  // behind ONE "+ Add context" reveal — a task needs a title, PIC, and supervisor; strategy
-  // attribution is deliberate, not a wall of defaulted selects. Once revealed it stays open.
-  const [contextRevealed, setContextRevealed] = useState(false)
 
   const selectedTeam = teamDirectory.find((team) => team.id === teamId)
   const businessUnitId = selectedTeam?.businessUnitId ?? selectedTeam?.business_unit_id ?? ''
@@ -1053,6 +1070,7 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
   // ── Submit state ──────────────────────────────────────────────────────────
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
+  const formRef = useFocusRestore<HTMLFormElement>(submitting, !!submitError)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -1091,7 +1109,7 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
         description: description.trim() || undefined,
         dueDate: dueDate || null,
         workLineId: workLineId || null,
-        objectiveId: objectiveId || null,
+        objectiveId: workLinesDir.find((workLine) => workLine.id === workLineId)?.objective_id ?? null,
       } as CreateTaskInput & { teamId?: string | null }
       const newId = await createTask(input)
       // The create succeeded: this is no longer an unsaved draft, so the destination record must
@@ -1106,7 +1124,7 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
       // new row highlighted (a brief accent that fades) — Tasks changes to match the app-wide rule
       // (it used to open the new record in the drawer). The `?highlight=<id>` param tells the
       // collection which row to flash; it preserves the collection's view query.
-      const highlightParams = new URLSearchParams(collectionSearchString)
+      const highlightParams = new URLSearchParams(collectionSearchNow())
       highlightParams.set('highlight', newId)
       if (createRedirect !== undefined) {
         if (createRedirect !== null) navigate(createRedirect)
@@ -1121,7 +1139,7 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
 
   // GAP-2 (OD-91 #7): expand-in-place is retired — create mode holds a fixed width too, so the
   // chrome bar carries only the title + the one ✕ (no width toggle).
-  const closeToCollection = () => navigate({ pathname: '/work/tasks', search: collectionSearchString })
+  const closeToCollection = () => navigate({ pathname: '/work/tasks', search: collectionSearchNow() })
   // D-B1: the create form's own leave controls (chrome ✕ / Cancel) defer to the host leave-guard
   // when one is present (TaskDrawer), so a typed draft prompts a discard confirm instead of
   // vanishing. Standalone (no host) the leave runs directly, unchanged.
@@ -1198,6 +1216,7 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
   // the primary CTA is always reachable regardless of form length or viewport height.
   const formMarkup = (
       <form
+        ref={formRef}
         onSubmit={handleSubmit}
         noValidate
         aria-label={t('tasks.create.form')}
@@ -1222,6 +1241,7 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
             fullWidth
             error={Boolean(titleError)}
             value={title}
+            maxLength={TASK_TITLE_MAX_LENGTH}
             onChange={e => { setTitle(e.target.value); markDirty(); if (titleError) setTitleError('') }}
             onBlur={validateTitleOnBlur}
             aria-required="true"
@@ -1355,71 +1375,6 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
           )}
         </div>
 
-        {/* F17 (OD-91 #29): the optional Project/Process + Objective pickers live behind ONE
-            "+ Add context" reveal. Collapsed by default (a task needs only title/PIC/supervisor);
-            the reveal is offered only when at least one context lookup has arrived. Once opened it
-            stays open so a chosen attribution never hides itself. */}
-        {(workLinesDir.length > 0 || objectivesDir.length > 0) && !contextRevealed && (
-          <button
-            type="button"
-            className="tc-add-context"
-            onClick={() => setContextRevealed(true)}
-            disabled={submitting}
-          >
-            {t('tasks.create.addContext')}
-          </button>
-        )}
-
-        {contextRevealed && (
-          <>
-            {/* Project/Process (optional) — non-blocking; renders once lookups arrive.
-                UI term is Project/Process (OD-C-2 / ADR-0015); table stays mos.work_lines. */}
-            {workLinesDir.length > 0 && (
-              <div className="tc-field">
-                <label htmlFor="task-workline" className="tc-label">{t('tasks.filter.projectProcess')}</label>
-                <Picker
-                  id="task-workline"
-                  label={t('tasks.filter.projectProcess')}
-                  className="tc-picker"
-                  fullWidth
-                  hideLabel
-                  value={workLineId}
-                  options={[
-                    { value: '', label: t('tasks.create.none') },
-                    ...workLinesDir.map(wl => ({
-                      value: wl.id,
-                      label: `${wl.name} (${wl.type === 'project' ? t('tasks.type.project') : t('tasks.type.daily')})`,
-                    })),
-                  ]}
-                  onChange={value => { setWorkLineId(value); markDirty() }}
-                  disabled={submitting}
-                />
-              </div>
-            )}
-
-            {/* Objective (optional) — non-blocking; renders once lookups arrive */}
-            {objectivesDir.length > 0 && (
-              <div className="tc-field">
-                <label htmlFor="task-objective" className="tc-label">{t('tasks.objective')}</label>
-                <Picker
-                  id="task-objective"
-                  label={t('tasks.objective')}
-                  className="tc-picker"
-                  fullWidth
-                  hideLabel
-                  value={objectiveId}
-                  options={[
-                    { value: '', label: t('tasks.create.none') },
-                    ...objectivesDir.map(obj => ({ value: obj.id, label: obj.name })),
-                  ]}
-                  onChange={value => { setObjectiveId(value); markDirty() }}
-                  disabled={submitting}
-                />
-              </div>
-            )}
-          </>
-        )}
-
         {/* Due date (optional) */}
         <div className="tc-field">
           <label htmlFor="task-due" className="tc-label">{t('tasks.create.dueDate')}</label>
@@ -1433,6 +1388,31 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
             aria-label={t('tasks.create.dueDate')}
           />
         </div>
+
+        {/* Project/Process (optional) — non-blocking; renders once the lookup arrives. The Task's
+            Objective is derived from it at submit, never picked separately. */}
+        {workLinesDir.length > 0 && (
+          <div className="tc-field">
+            <label htmlFor="task-workline" className="tc-label">{t('tasks.filter.projectProcess')}</label>
+            <Picker
+              id="task-workline"
+              label={t('tasks.filter.projectProcess')}
+              className="tc-picker"
+              fullWidth
+              hideLabel
+              value={workLineId}
+              options={[
+                { value: '', label: t('tasks.create.none') },
+                ...workLinesDir.map(workLine => ({
+                  value: workLine.id,
+                  label: `${workLine.name} (${workLine.type === 'project' ? t('tasks.type.project') : t('tasks.type.daily')})`,
+                })),
+              ]}
+              onChange={value => { setWorkLineId(value); markDirty() }}
+              disabled={submitting}
+            />
+          </div>
+        )}
 
         {/* Description (optional) */}
         <div className="tc-field">

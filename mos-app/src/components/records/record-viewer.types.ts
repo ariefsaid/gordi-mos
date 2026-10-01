@@ -50,6 +50,10 @@ export interface RecordFieldSpec {
   /** Why a non-editable field is read-only — surfaced honestly, never hidden. */
   readOnlyReason?: string
   required?: boolean
+  /** Longest text the editor accepts (text and textarea controls). */
+  maxLength?: number
+  /** Hint shown in an empty text or textarea editor. */
+  placeholder?: string
   /** Optional canonical destination for a resolved related value. */
   href?: string
   /** Opens the related record in the originating stack; modified clicks retain href behavior. */

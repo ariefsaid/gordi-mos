@@ -15,6 +15,7 @@
  * looking field that silently cannot be saved is worse than a plain labelled value.
  */
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { useI18n } from '@/i18n/I18nProvider'
 import { useAccountLocale } from '@/i18n/account-locale'
@@ -176,6 +177,17 @@ export function ProfilePage() {
         {viewer && (
           <ProfileCard title={t('profile.homeLayout')} maxWidth={PICKER_MEASURE}>
             <HomeLayoutPicker value={homeLayout} onChange={handleHomeLayoutChange} />
+          </ProfileCard>
+        )}
+
+        {viewer && (
+          <ProfileCard title={t('agentConnections.self.title')}>
+            <p className="text-muted-foreground" style={{ fontSize: 'var(--font-size-body)', lineHeight: 1.5, margin: '0 0 12px' }}>
+              {t('agentConnections.self.profileCopy')}
+            </p>
+            <Link to="/profile/connected-agents" className="btn btn-outline">
+              {t('agentConnections.self.manage')}
+            </Link>
           </ProfileCard>
         )}
 

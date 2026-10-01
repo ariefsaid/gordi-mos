@@ -9,28 +9,24 @@ import { expect, type Page } from '@playwright/test'
  * title focused, committed with Enter, and the route only survives as a redirect to
  * `/work/tasks?create=1` (mos-app/src/router.tsx defines the RouteRedirect; router.test.tsx's Tasks
  * nesting test covers the retired route shape).
- * The create door itself is width-dependent — the page-head button on desktop, the actions
- * FAB on phone, where the head button is deliberately absent (one door per width).
+ * The create door is the page-head button at every width (the phone + launcher yields on Tasks);
+ * an empty collection offers its own link instead.
  */
 export async function createTaskViaUI(
   page: Page,
   title: string,
 ): Promise<string> {
   const headDoor = page.getByRole('button', { name: /create task/i })
-  const fab = page.getByRole('button', { name: /open actions/i })
   const emptyDoor = page.getByRole('link', { name: /\+\s*create task/i })
-  // Both doors mount only once the collection reports ready — wait for whichever this width owns.
+  // The doors mount only once the collection reports ready — wait for whichever applies.
   await expect
-    .poll(async () => (await headDoor.count()) + (await fab.count()) + (await emptyDoor.count()), {
+    .poll(async () => (await headDoor.count()) + (await emptyDoor.count()), {
       message: '[createTaskViaUI] no create door on the Tasks surface',
       timeout: 15_000,
     })
     .toBeGreaterThan(0)
   if (await headDoor.count() > 0) {
     await headDoor.first().click()
-  } else if (await fab.count() > 0) {
-    await fab.click()
-    await page.getByRole('option', { name: 'Create task', exact: true }).click()
   } else {
     await emptyDoor.first().click()
   }

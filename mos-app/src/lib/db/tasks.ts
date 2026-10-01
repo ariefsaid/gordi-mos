@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { announceOpenTaskCountChanged } from '@/lib/open-task-count-store'
 import type {
   TaskStatus, TaskListRow, ChecklistItemRow, TaskEventRow,
 } from './tasks.types'
@@ -140,6 +141,7 @@ export async function createTask(input: CreateTaskInput): Promise<string> {
     ...taskInsert,
   }).select('id').single()
   if (error) throw new Error(`createTask failed — ${error.message}`)
+  announceOpenTaskCountChanged()
   const id = (data as { id: string }).id
   await logEvent(id, input.createdBy, 'created')
   return id
@@ -148,6 +150,7 @@ export async function createTask(input: CreateTaskInput): Promise<string> {
 async function updateTask(id: string, patch: Record<string, unknown>): Promise<void> {
   const { error } = await mos().from('tasks').update(patch).eq('id', id)
   if (error) throw new Error(`updateTask failed — ${error.message}`)
+  announceOpenTaskCountChanged()
 }
 
 /** Change status, then log a `status_changed` event recording from→to (FR-031/055). */

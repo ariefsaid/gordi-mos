@@ -3,11 +3,12 @@ import { useT } from '@/i18n/use-t'
 import type { MessageKey } from '@/i18n/messages'
 import './admin-settings.css'
 
-/** Admin Settings' three tabs, in the order an admin works: who, which Teams, which rules. */
+/** Admin Settings tabs, in the order an admin works: who, which Teams, which rules, which agents. */
 const TABS: { to: string; labelKey: MessageKey }[] = [
   { to: '/admin/people', labelKey: 'admin.settings.nav.people' },
   { to: '/admin/teams', labelKey: 'admin.settings.nav.teams' },
   { to: '/admin/access', labelKey: 'admin.settings.nav.access' },
+  { to: '/admin/agents', labelKey: 'admin.settings.nav.agents' },
 ]
 
 export function AdminSettingsNav() {

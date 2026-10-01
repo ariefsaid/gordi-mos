@@ -2,13 +2,26 @@
 // renders the trailing ⋯ menu (RowMenu). The name cell is a real
 // <a href="/work/tasks/:id"> Chip-link; status is a soft StatusPill that
 // never wraps; body rows consume the shared collection measure.
+//
+// Issue 997: the row's column set is the ONE TanStack column-definition array
+// (task-columns.tsx) shared with the <thead>. The column-model assertions below assert the
+// rendered <td> chain against the defs / visible-leaf derivation (spec AC-001/002/003) —
+// the observable behaviour the old show*-prop tests pinned, at the new seam.
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
+import { I18nProvider } from '@/i18n/I18nProvider'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
 import { TaskRow } from './task-row'
+import { TASK_TITLE_MAX_LENGTH } from './task-formatters'
 import type { TaskRowProps } from './task-row'
+import { visibleTaskColumnDefs, TASK_COLUMN_DEFS, taskColumnVisibilityState } from './task-columns'
+import { TASK_DECISION_FIELDS, taskTableColumnSpan } from './task-collection-query'
+import type { TaskColumnId } from './task-collection-query'
+import type { TaskCollectionVisibleField } from '@/lib/record-collection/collection-view-spec'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 
 const NOW = new Date('2026-06-19T00:00:00Z')
@@ -37,6 +50,7 @@ const baseProps = (overrides: Partial<TaskRowProps> = {}): TaskRowProps => ({
   ownerName: 'Rina Lestari',
   onOpen: () => {},
   recordSearch: '',
+  visibleFields: TASK_DECISION_FIELDS,
   ...overrides,
 })
 
@@ -48,12 +62,111 @@ function renderRow(props: Partial<TaskRowProps> = {}) {
   )
 }
 
+const picTrigger = () => screen.getByRole('button', { name: /Rina/ })
+
 function installTaskStyles() {
   const style = document.createElement('style')
   style.textContent = readFileSync(resolve(process.cwd(), 'src/components/tasks/TasksWorkspace.css'), 'utf8')
   document.head.append(style)
   return () => style.remove()
 }
+
+// ── Issue 997: the ONE column list (spec AC-001/002/003) ─────────────────────────────
+// The rendered <td> chain, the TanStack visible-leaf derivation and taskTableColumnSpan
+// must all agree for EVERY Fields combination — this is the regression guard for the old
+// two-hand-kept-lists drift (the hard-coded colSpan fallback that already disagreed once).
+
+const TD_HOOK: Record<TaskColumnId, string> = {
+  task: 'td-main',
+  status: 'td-status',
+  owner: 'td-owner',
+  supervisor: 'td-supervisor',
+  businessUnit: 'td-business-unit',
+  workline: 'td-workline',
+  objective: 'td-objective',
+  activity: 'td-activity',
+  due: 'td-due',
+}
+
+const OPTIONAL_FIELDS: readonly TaskCollectionVisibleField[] = ['businessUnit', 'workline', 'objective', 'activity']
+
+/** Every combination of the four Fields-chooser-optional fields (16 total). */
+function fieldsCombinations(): TaskCollectionVisibleField[][] {
+  const combos: TaskCollectionVisibleField[][] = []
+  for (let mask = 0; mask < 1 << OPTIONAL_FIELDS.length; mask += 1) {
+    combos.push([
+      ...TASK_DECISION_FIELDS,
+      ...OPTIONAL_FIELDS.filter((_, bit) => (mask & (1 << bit)) !== 0),
+    ])
+  }
+  return combos
+}
+
+/** A stand-in for the presentation's useReactTable call (same defs, same visibility state)
+ * exposing the visible-leaf column ids the thead and pad/group colSpan derive from. */
+function LeafColumnProbe({ visibleFields }: { visibleFields: readonly TaskCollectionVisibleField[] }) {
+  const table = useReactTable({
+    data: [] as TaskListRow[],
+    columns: TASK_COLUMN_DEFS,
+    state: { columnVisibility: taskColumnVisibilityState(visibleFields) },
+    getCoreRowModel: getCoreRowModel(),
+  })
+  return <tr>{table.getVisibleLeafColumns().map((column) => column.id).join(',')}</tr>
+}
+
+function renderProbe(visibleFields: readonly TaskCollectionVisibleField[]) {
+  return render(
+    <table><tbody><LeafColumnProbe visibleFields={visibleFields} /></tbody></table>,
+  )
+}
+
+describe('TaskRow — the column list is the one TanStack column-definition array (issue 997)', () => {
+  const renderedColumnIds = () => {
+    const cells = Array.from(document.querySelectorAll('tr.task-row > td'))
+    return cells.map((cell) => {
+      const entry = Object.entries(TD_HOOK).find(([, hook]) => cell.classList.contains(hook))
+      expect(entry, `a rendered td matches no column hook: className="${cell.className}"`).toBeDefined()
+      return entry![0]
+    })
+  }
+
+  it('AC-001: with no optional Fields checked, exactly the 5 decision columns render in order', () => {
+    renderRow()
+    const cells = document.querySelectorAll('tr.task-row > td')
+    expect(cells).toHaveLength(5)
+    expect(renderedColumnIds()).toEqual(['task', 'status', 'owner', 'supervisor', 'due'])
+  })
+
+  it('AC-002: Business unit + Objective checked render 7 columns — optional ones inserted before Due', () => {
+    renderRow({ visibleFields: [...TASK_DECISION_FIELDS, 'businessUnit', 'objective'] })
+    const cells = document.querySelectorAll('tr.task-row > td')
+    expect(cells).toHaveLength(7)
+    expect(renderedColumnIds()).toEqual(['task', 'status', 'owner', 'supervisor', 'businessUnit', 'objective', 'due'])
+  })
+
+  it('the row renders exactly the defs-derived visible columns for every Fields combination', () => {
+    for (const visibleFields of fieldsCombinations()) {
+      const { unmount } = renderRow({ visibleFields, workLineName: 'Cold Brew line', objectiveName: 'Q3 quality', businessUnitName: 'Café Ops' })
+      const expected = visibleTaskColumnDefs(visibleFields).map((column) => column.id)
+      expect(renderedColumnIds(), `fields=[${visibleFields.join(',')}]`).toEqual(expected)
+      unmount()
+    }
+  })
+
+  it('AC-003: for every combination, the table-visible leaf count matches taskTableColumnSpan and the row chain', () => {
+    expect(TASK_COLUMN_DEFS.map((column) => column.id)).toEqual([
+      'task', 'status', 'owner', 'supervisor', 'businessUnit', 'workline', 'objective', 'activity', 'due',
+    ])
+    for (const visibleFields of fieldsCombinations()) {
+      const expectedIds = visibleTaskColumnDefs(visibleFields).map((column) => column.id)
+      const { unmount } = renderProbe(visibleFields)
+      const probe = screen.getByRole('row')
+      expect(probe.textContent, `fields=[${visibleFields.join(',')}]`).toBe(expectedIds.join(','))
+      expect(expectedIds.length, `fields=[${visibleFields.join(',')}]`).toBe(taskTableColumnSpan(visibleFields))
+      unmount()
+    }
+  })
+})
 
 describe('TaskRow — shared title + metadata cell grammar', () => {
   it('renders the E7 title and typed Business Unit metadata in one identity cell', () => {
@@ -256,6 +369,15 @@ describe('TaskRow — inline title edit (F2 activation, optimistic + rollback)',
     expect(document.querySelector('.task-name')).toHaveTextContent('Renamed forecast')
   })
 
+  it('caps the inline title edit at the shared limit (#1034)', async () => {
+    const user = userEvent.setup()
+    renderRow({ onEditTitle: vi.fn().mockResolvedValue(undefined) })
+    const input = openEditor()
+    await user.clear(input)
+    await user.paste('x'.repeat(TASK_TITLE_MAX_LENGTH + 50))
+    expect(input.value).toHaveLength(TASK_TITLE_MAX_LENGTH)
+  })
+
   it('Escape discards the draft — no commit, saved title restored', () => {
     const onEditTitle = vi.fn().mockResolvedValue(undefined)
     renderRow({ onEditTitle })
@@ -435,18 +557,162 @@ describe('TaskRow — inline title edit (F2 activation, optimistic + rollback)',
   })
 })
 
+describe('TaskRow — inline Status/PIC editors open on the first activation and return focus (#1027, #979)', () => {
+  const people = [{ id: 'p-1', full_name: 'Rina Lestari' }, { id: 'p-2', full_name: 'Dewi Santoso' }]
+  const statusTrigger = () => screen.getByRole('button', { name: /Blocked/ })
+
+  it('a single click on Status opens the options list', async () => {
+    renderRow({ onEditStatus: vi.fn() })
+    await userEvent.click(statusTrigger())
+    expect(await screen.findByRole('option', { name: 'Done' })).toBeInTheDocument()
+  })
+
+  it.each([['Enter', '{Enter}'], ['Space', ' ']])('%s on the Status trigger opens the options list first time', async (_name, key) => {
+    renderRow({ onEditStatus: vi.fn() })
+    statusTrigger().focus()
+    await userEvent.keyboard(key)
+    expect(await screen.findByRole('option', { name: 'Done' })).toBeInTheDocument()
+  })
+
+  it('a single click on PIC opens the options list', async () => {
+    renderRow({ onEditPic: vi.fn(), personOptions: people })
+    await userEvent.click(picTrigger())
+    expect(await screen.findByRole('option', { name: 'Dewi Santoso' })).toBeInTheDocument()
+  })
+
+  it.each([['Enter', '{Enter}'], ['Space', ' ']])('%s on the PIC trigger opens the options list first time', async (_name, key) => {
+    renderRow({ onEditPic: vi.fn(), personOptions: people })
+    picTrigger().focus()
+    await userEvent.keyboard(key)
+    expect(await screen.findByRole('option', { name: 'Dewi Santoso' })).toBeInTheDocument()
+  })
+
+  it('Escape on the Status editor returns focus to the Status trigger', async () => {
+    renderRow({ onEditStatus: vi.fn() })
+    await userEvent.click(statusTrigger())
+    await screen.findByRole('option', { name: 'Done' })
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('combobox', { name: 'Edit task status' })).toBeNull())
+    expect(document.activeElement).toBe(statusTrigger())
+  })
+
+  it('Escape on the PIC editor returns focus to the PIC trigger', async () => {
+    renderRow({ onEditPic: vi.fn(), personOptions: people })
+    await userEvent.click(picTrigger())
+    await screen.findByRole('option', { name: 'Dewi Santoso' })
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('combobox', { name: 'Edit task PIC' })).toBeNull())
+    expect(document.activeElement).toBe(picTrigger())
+  })
+})
+
+// #1033: the inline editors' accessible names are catalog strings, not English literals.
+describe('TaskRow — inline editor names follow the locale', () => {
+  const people = [{ id: 'p-1', full_name: 'Rina Lestari' }]
+
+  it.each([
+    ['en', ['Edit task status', 'Edit task PIC', 'Edit task due date', 'Due date']],
+    ['id', ['Ubah status tugas', 'Ubah PIC tugas', 'Ubah tenggat tugas', 'Tenggat']],
+  ] as const)('%s', async (locale, [status, pic, dueTrigger, dueInput]) => {
+    render(
+      <I18nProvider initialLocale={locale}>
+        <MemoryRouter>
+          <table><tbody><TaskRow {...baseProps({ onEditStatus: vi.fn(), onEditPic: vi.fn(), onEditDue: vi.fn(), personOptions: people })} /></tbody></table>
+        </MemoryRouter>
+      </I18nProvider>,
+    )
+    await userEvent.click(screen.getByRole('button', { name: /Blocked|Terblokir|Diblokir/ }))
+    expect(await screen.findByRole('combobox', { name: status })).toBeInTheDocument()
+    await userEvent.keyboard('{Escape}')
+    await userEvent.click(screen.getByRole('button', { name: /Rina/ }))
+    expect(await screen.findByRole('combobox', { name: pic })).toBeInTheDocument()
+    await userEvent.keyboard('{Escape}')
+    fireEvent.click(screen.getByRole('button', { name: dueTrigger }))
+    expect(screen.getByLabelText(dueInput)).toBeInTheDocument()
+  })
+})
+
+describe('TaskRow — one tab stop per row, cells reached by arrow keys (#1027)', () => {
+  const people = [{ id: 'p-1', full_name: 'Rina Lestari' }, { id: 'p-2', full_name: 'Dewi Santoso' }]
+  const editableRow = () => render(
+    <MemoryRouter>
+      <button type="button">before</button>
+      <table><tbody><TaskRow {...baseProps({
+        onEditTitle: vi.fn(), onEditStatus: vi.fn(), onEditPic: vi.fn(), onEditDue: vi.fn(), personOptions: people,
+      })} /></tbody></table>
+      <button type="button">after</button>
+    </MemoryRouter>,
+  )
+
+  it('Tab crosses an editable row in exactly one stop', async () => {
+    const user = userEvent.setup()
+    editableRow()
+    screen.getByRole('button', { name: 'before' }).focus()
+    let stops = 0
+    for (let step = 0; step < 10; step += 1) {
+      await user.tab()
+      if (document.activeElement === screen.getByRole('button', { name: 'after' })) break
+      stops += 1
+    }
+    expect(stops).toBe(1)
+  })
+
+  it('the row stop is the title link; Arrow keys walk Status, PIC and Due and back', async () => {
+    const user = userEvent.setup()
+    editableRow()
+    screen.getByRole('button', { name: 'before' }).focus()
+    await user.tab()
+    expect(document.activeElement).toBe(screen.getByRole('link', { name: /Finalise Q3/ }))
+    await user.keyboard('{ArrowRight}')
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: /Blocked/ }))
+    await user.keyboard('{ArrowRight}')
+    expect(document.activeElement).toBe(picTrigger())
+    await user.keyboard('{ArrowRight}')
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Edit task due date' }))
+    await user.keyboard('{ArrowRight}')
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Edit task due date' }))
+    await user.keyboard('{ArrowLeft}{ArrowLeft}{ArrowLeft}')
+    expect(document.activeElement).toBe(screen.getByRole('link', { name: /Finalise Q3/ }))
+  })
+
+  it('a cell the narrowed list hides is skipped: Right from the title lands on PIC, never on hidden Status', async () => {
+    // The container rules hide cells by display; jsdom has no container queries, so the
+    // stylesheet states the outcome for a list narrow enough to drop Status.
+    const style = document.createElement('style')
+    style.textContent = '.td-status { display: none; }'
+    document.head.appendChild(style)
+    try {
+      const user = userEvent.setup()
+      editableRow()
+      screen.getByRole('link', { name: /Finalise Q3/ }).focus()
+      await user.keyboard('{ArrowRight}')
+      expect(document.activeElement).toBe(picTrigger())
+      await user.keyboard('{ArrowLeft}')
+      expect(document.activeElement).toBe(screen.getByRole('link', { name: /Finalise Q3/ }))
+    } finally {
+      style.remove()
+    }
+  })
+
+  it('Enter on the arrow-reached Status cell opens its options', async () => {
+    const user = userEvent.setup()
+    editableRow()
+    screen.getByRole('link', { name: /Finalise Q3/ }).focus()
+    await user.keyboard('{ArrowRight}{Enter}')
+    expect(await screen.findByRole('option', { name: 'Done' })).toBeInTheDocument()
+  })
+})
+
 describe('TaskRow — e7 click-to-edit and cell commit contract', () => {
   it('routes status and PIC picks through the shared commit contract', async () => {
     const onEditStatus = vi.fn().mockResolvedValue(undefined)
     const onEditPic = vi.fn().mockResolvedValue(undefined)
     renderRow({ onEditStatus, onEditPic, personOptions: [{ id: 'p-1', full_name: 'Rina Lestari' }, { id: 'p-2', full_name: 'Dewi Santoso' }] })
     fireEvent.click(screen.getByRole('button', { name: /Blocked/ }))
-    fireEvent.click(screen.getByRole('combobox', { name: 'Edit task status' }))
     fireEvent.click(screen.getByRole('option', { name: 'Done' }))
     await waitFor(() => expect(onEditStatus).toHaveBeenCalledWith('task-7', 'Done'))
     await waitFor(() => expect(screen.queryByRole('combobox', { name: 'Edit task status' })).toBeNull())
-    fireEvent.click(document.querySelector('.td-owner .inline-cell-trigger') as HTMLElement)
-    fireEvent.click(screen.getByRole('combobox', { name: 'Edit task PIC' }))
+    fireEvent.click(picTrigger())
     fireEvent.click(screen.getByRole('option', { name: 'Dewi Santoso' }))
     await waitFor(() => expect(onEditPic).toHaveBeenCalledWith('task-7', 'p-2'))
     await waitFor(() => expect(screen.queryByRole('combobox', { name: 'Edit task PIC' })).toBeNull())
@@ -456,7 +722,6 @@ describe('TaskRow — e7 click-to-edit and cell commit contract', () => {
   it('re-picking the current status closes the editor', () => {
     renderRow({ onEditStatus: vi.fn() })
     fireEvent.click(screen.getByRole('button', { name: /Blocked/ }))
-    fireEvent.click(screen.getByRole('combobox', { name: 'Edit task status' }))
     fireEvent.click(screen.getByRole('option', { name: 'Blocked' }))
     expect(screen.queryByRole('combobox', { name: 'Edit task status' })).toBeNull()
   })
@@ -476,8 +741,7 @@ describe('TaskRow — e7 click-to-edit and cell commit contract', () => {
   it('a rejected PIC write rolls back and announces the revert', async () => {
     const onEditPic = vi.fn().mockRejectedValue(new Error('write failed'))
     renderRow({ onEditPic, personOptions: [{ id: 'p-1', full_name: 'Rina Lestari' }, { id: 'p-2', full_name: 'Dewi Santoso' }] })
-    fireEvent.click(document.querySelector('.td-owner .inline-cell-trigger') as HTMLElement)
-    fireEvent.click(screen.getByRole('combobox', { name: 'Edit task PIC' }))
+    fireEvent.click(picTrigger())
     fireEvent.click(screen.getByRole('option', { name: 'Dewi Santoso' }))
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/reverted/i))
     expect(screen.getByRole('alert')).toHaveTextContent(/retry/i)
@@ -639,5 +903,129 @@ describe('TaskRow — owner-eyes item 3: condensed Due never carries the clip-pr
     // no "Overdue ·" prefix in the narrow split track (no mid-word clipping)
     expect(due.textContent).not.toMatch(/Overdue/)
     expect(due.textContent).toMatch(/Fri 12 Jun/)
+  })
+})
+
+describe('TaskRow — inline due date commit, cancel and failure (#982)', () => {
+  const openEditor = () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Edit task due date' }))
+    return screen.getByLabelText('Due date') as HTMLInputElement
+  }
+
+  it('the editor is a visible native date input', () => {
+    renderRow({ onEditDue: vi.fn() })
+    const input = openEditor()
+    expect(input.tagName).toBe('INPUT')
+    expect(input).toHaveAttribute('type', 'date')
+    expect(input).toBeVisible()
+  })
+
+  it('Enter commits the typed date once, does not open the record, and returns focus to the due cell', async () => {
+    const user = userEvent.setup({ delay: null })
+    const onEditDue = vi.fn().mockResolvedValue(undefined)
+    const onOpen = vi.fn()
+    const windowKey = vi.fn()
+    window.addEventListener('keydown', windowKey)
+    renderRow({ onEditDue, onOpen })
+    const input = openEditor()
+    await user.clear(input)
+    await user.type(input, '2026-10-05')
+    windowKey.mockClear()
+    await user.keyboard('{Enter}')
+    window.removeEventListener('keydown', windowKey)
+    expect(onEditDue).toHaveBeenCalledTimes(1)
+    expect(onEditDue).toHaveBeenCalledWith('task-7', '2026-10-05')
+    expect(onOpen).not.toHaveBeenCalled()
+    expect(windowKey).not.toHaveBeenCalled()
+    const trigger = await screen.findByRole('button', { name: 'Edit task due date' })
+    await waitFor(() => expect(trigger).toHaveFocus())
+  })
+
+  it('Escape cancels without saving and returns focus to the due cell', async () => {
+    const onEditDue = vi.fn().mockResolvedValue(undefined)
+    renderRow({ onEditDue })
+    const input = openEditor()
+    fireEvent.change(input, { target: { value: '2026-10-05' } })
+    fireEvent.keyDown(input, { key: 'Escape' })
+    expect(onEditDue).not.toHaveBeenCalled()
+    const trigger = await screen.findByRole('button', { name: 'Edit task due date' })
+    await waitFor(() => expect(trigger).toHaveFocus())
+  })
+
+  it('a failed save keeps the editor open with a readable, unclipped error; Retry re-sends the date and closes on success', async () => {
+    const removeStyles = installTaskStyles()
+    try {
+      const user = userEvent.setup({ delay: null })
+      const onEditDue = vi.fn().mockRejectedValueOnce(new Error('nope')).mockResolvedValue(undefined)
+      renderRow({ onEditDue })
+      const input = openEditor()
+      await user.clear(input)
+      await user.type(input, '2026-10-05{Enter}')
+      const alert = await screen.findByRole('alert')
+      expect(alert).toHaveTextContent(/retry/i)
+      expect(alert).toBeVisible()
+      const editor = alert.parentElement as HTMLElement
+      const editorStyle = getComputedStyle(editor)
+      expect(editorStyle.whiteSpace).toBe('normal')
+      expect(editorStyle.flexWrap).toBe('wrap')
+      expect(editorStyle.height).toBe('auto')
+      expect(editorStyle.overflow).not.toBe('hidden')
+      expect(screen.getByLabelText('Due date')).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: /retry/i }))
+      await waitFor(() => expect(screen.queryByLabelText('Due date')).toBeNull())
+      expect(onEditDue).toHaveBeenCalledTimes(2)
+      expect(onEditDue).toHaveBeenLastCalledWith('task-7', '2026-10-05')
+    } finally {
+      removeStyles()
+    }
+  })
+  it('keeps focus in the editor while the save is pending (readOnly + aria-busy, never disabled)', async () => {
+    let settle!: () => void
+    const onEditDue = vi.fn().mockReturnValue(new Promise<void>((r) => { settle = r }))
+    renderRow({ onEditDue })
+    const input = openEditor()
+    fireEvent.change(input, { target: { value: '2026-10-05' } })
+    input.focus()
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() => expect(input).toHaveAttribute('aria-busy', 'true'))
+    expect(input).not.toBeDisabled()
+    expect(input).toHaveAttribute('readonly')
+    expect(input).toHaveFocus()
+    settle()
+    const trigger = await screen.findByRole('button', { name: 'Edit task due date' })
+    await waitFor(() => expect(trigger).toHaveFocus())
+  })
+
+  it('a failed save links the error to the input and announces that the typed date is kept, not reverted (#1024)', async () => {
+    const user = userEvent.setup({ delay: null })
+    renderRow({ onEditDue: vi.fn().mockRejectedValue(new Error('nope')) })
+    const input = openEditor()
+    expect(input).not.toHaveAttribute('aria-describedby')
+    await user.clear(input)
+    await user.type(input, '2026-10-05{Enter}')
+    const alert = await screen.findByRole('alert')
+    expect(input).toHaveAccessibleDescription(/couldn't save/i)
+    expect(input).toHaveAttribute('aria-describedby', alert.id)
+    const status = await screen.findByRole('status')
+    await waitFor(() => expect(status).toHaveTextContent(/kept/i))
+    expect(status).not.toHaveTextContent(/revert/i)
+    expect(input).toHaveValue('2026-10-05')
+  })
+
+  it('after a failed save the input still shows the typed date with focus in it, and Escape closes the editor', async () => {
+    const user = userEvent.setup({ delay: null })
+    const onEditDue = vi.fn().mockRejectedValue(new Error('nope'))
+    renderRow({ onEditDue })
+    const input = openEditor()
+    await user.clear(input)
+    await user.type(input, '2026-10-05{Enter}')
+    await screen.findByRole('alert')
+    expect(input).toHaveValue('2026-10-05')
+    expect(input).toHaveFocus()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByLabelText('Due date')).toBeNull()
+    const trigger = await screen.findByRole('button', { name: 'Edit task due date' })
+    await waitFor(() => expect(trigger).toHaveFocus())
+    expect(onEditDue).toHaveBeenCalledTimes(1)
   })
 })

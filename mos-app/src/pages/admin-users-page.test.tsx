@@ -42,6 +42,9 @@ vi.mock('@/lib/db/admin-access', () => ({
 import { listRoleAuthority, listTeamLeadAssignments } from '@/lib/db/admin-access'
 import { AUTHORITY_ACTIONS, AUTHORITY_ROLES } from '@/lib/db/admin-access.types'
 
+vi.mock('@/lib/db/directory', () => ({ getRoles: vi.fn(), getBusinessUnits: vi.fn() }))
+import { getBusinessUnits, getRoles } from '@/lib/db/directory'
+
 import type { AdminPersonRow } from '@/lib/db/admin-users.types'
 import { AdminUsersPage } from './admin-users-page'
 
@@ -135,6 +138,8 @@ beforeEach(() => {
     action, role, scope: role === 'admin' ? 'org' as const : 'none' as const,
   }))))
   vi.mocked(listTeamLeadAssignments).mockResolvedValue([])
+  vi.mocked(getRoles).mockResolvedValue([])
+  vi.mocked(getBusinessUnits).mockResolvedValue([])
 })
 
 function renderPage(initialPath = '/admin/people') {
@@ -152,16 +157,28 @@ describe('AdminUsersPage (AC-060)', () => {
     renderPage()
     // Page heading should be present immediately
     expect(screen.getByRole('heading', { name: /People/i })).toBeInTheDocument()
-    // The three Admin Settings tabs render before any data does.
+    // Admin Settings tabs render before any data does.
     const tabs = within(screen.getByRole('navigation', { name: 'Admin settings sections' })).getAllByRole('link')
     expect(tabs.map((tab) => [tab.textContent, tab.getAttribute('href')])).toEqual([
       ['People', '/admin/people'],
       ['Teams', '/admin/teams'],
       ['Roles & permissions', '/admin/access'],
+      ['Connected agents', '/admin/agents'],
     ])
     // Loading state — SkeletonRows uses aria-hidden, so check for the page head
     // and that no person names render yet
     expect(screen.queryByText('Budi Santoso')).not.toBeInTheDocument()
+  })
+
+  // #957: the `.admin-people-collection` marker (shell/page-families.css) is what opts this page
+  // into DESIGN.md's wide operating measure, and it must render unconditionally — same reasoning
+  // as the Work collections' `.work-collection`, capping width only while a panel happens to be
+  // open is a dead-gutter defect too. Asserted before any panel opens, so a regression that makes
+  // the marker conditional on `openPerson` cannot hide behind a test that only checks the split.
+  it('AC-957: always carries the wide-measure marker, panel open or not', () => {
+    mockListAdminPeople.mockReturnValue(new Promise(() => {}))
+    const { container } = renderPage()
+    expect(container.querySelector('.admin-people-collection')).toBeInTheDocument()
   })
 
   // AC-043 (#803): a load is not a reason to blank the controls. The head and the toolbar are
@@ -390,9 +407,9 @@ describe('AdminUsersPage — the person panel reflects fresh data after a Positi
   it('re-renders the open panel against reloaded people (no stale snapshot)', async () => {
     const user = userEvent.setup()
     const base: AdminPersonRow = {
-      id: 'p-riri',
-      full_name: 'Riri',
-      email: 'riri@example.test',
+      id: 'p-nico',
+      full_name: 'Nico',
+      email: 'nico@example.test',
       archived_at: null,
       login: 'active',
       access_roles: [],
@@ -406,9 +423,9 @@ describe('AdminUsersPage — the person panel reflects fresh data after a Positi
       .mockResolvedValue([{ ...base, jabatan: [{ role_id: 'r-kitchen', role_name: 'Kitchen Lead' }] }]) // after assign
 
     renderPage()
-    await screen.findByText('Riri')
+    await screen.findByText('Nico')
 
-    await user.click(screen.getByRole('button', { name: /more actions for riri/i }))
+    await user.click(screen.getByRole('button', { name: /more actions for nico/i }))
     await user.click(screen.getByRole('menuitem', { name: /^manage person$/i }))
 
     const box = screen.getByRole('checkbox', { name: /kitchen lead/i })
@@ -478,5 +495,39 @@ describe('AdminUsersPage — find and open a person', () => {
 
     await user.click(within(panel).getByRole('button', { name: 'Close' }))
     expect(screen.queryByRole('dialog', { name: 'Manage Budi Santoso' })).toBeNull()
+  })
+
+  it('a failed authority load is handled: the panel says so, and every started load is observed', async () => {
+    // A rejection nobody subscribed to is what Node reports as an unhandled rejection; a thenable
+    // records whether anyone subscribed, which a vi.fn promise result (observed by the spy) cannot.
+    const subscribed: string[] = []
+    const failing = (name: string, message: string) => ({
+      then: (_ok: unknown, fail: (reason: Error) => void) => { subscribed.push(name); fail(new Error(message)) },
+    }) as unknown as Promise<never>
+    const user = userEvent.setup()
+    mockListAdminPeople.mockResolvedValue(PEOPLE_ALL_STATES)
+    vi.mocked(listRoleAuthority).mockImplementation(() => failing('rules', "Couldn't load access rules. Try again."))
+    vi.mocked(listTeamLeadAssignments).mockImplementation(() => failing('leads', "Couldn't load Team leads. Try again."))
+    // A loader that throws before it returns a promise must not strand the loads started before it.
+    vi.mocked(getRoles).mockImplementation(() => { throw new Error('not a function') })
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: PEOPLE_ALL_STATES[1].full_name }))
+    const panel = await screen.findByRole('dialog')
+    expect(await within(panel).findByText("Couldn't load what they can do.")).toBeInTheDocument()
+    expect(subscribed.sort()).toEqual(['leads', 'rules'])
+  })
+
+  it('a person who holds the top Position of a Business Unit is shown as its head', async () => {
+    const user = userEvent.setup()
+    mockListAdminPeople.mockResolvedValue([
+      { ...PEOPLE_ALL_STATES[1], jabatan: [{ role_id: 'r-head', role_name: 'Head of Retail' }] },
+      PEOPLE_ALL_STATES[0],
+    ])
+    vi.mocked(getRoles).mockResolvedValue([{ id: 'r-head', business_unit_id: 'bu-retail', reports_to_role_id: null }])
+    vi.mocked(getBusinessUnits).mockResolvedValue([{ id: 'bu-retail', name: 'Retail', code: null }])
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: PEOPLE_ALL_STATES[1].full_name }))
+    const panel = await screen.findByRole('dialog')
+    expect(await within(panel).findByText('Heads Retail')).toBeInTheDocument()
   })
 })

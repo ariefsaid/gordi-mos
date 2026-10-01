@@ -113,6 +113,7 @@ export function SignalComposer({
     : t('signals.composer.shareAll', { name: authorName })
 
   function handleBodyChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    if (posting) return
     const value = e.target.value
     setBody(value)
     onDirtyChange?.(Boolean(value.trim()))
@@ -183,7 +184,8 @@ export function SignalComposer({
       const message = err instanceof Error ? err.message : String(err)
       setError(/permission|not authorized|42501|row-level security/i.test(message)
         ? t('signals.composer.permissionError')
-        : message || t('signals.composer.postError'))
+        : t('signals.composer.postError'))
+      textareaRef.current?.focus()
     } finally {
       setPosting(false)
     }
@@ -229,7 +231,7 @@ export function SignalComposer({
             }
           }}
           rows={3}
-          readOnly={!!sharedId}
+          readOnly={!!sharedId || posting}
         />
         {mentionToken && (
           <SignalMentionPicker

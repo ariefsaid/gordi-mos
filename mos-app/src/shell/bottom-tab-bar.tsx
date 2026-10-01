@@ -1,6 +1,6 @@
 import type React from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { visibleModulesForViewer } from './destinations'
+import { destinationForPath, phoneModuleForViewer } from './destinations'
 import { HomeIcon, WorkIcon, InboxIcon, MoreIcon } from './icons'
 import { useIsNarrow } from './use-is-narrow'
 import { RailCountBadge } from './rail-nav'
@@ -33,6 +33,13 @@ const INBOX: PrimaryTab = { id: 'inbox', labelKey: 'dest.inbox', href: '/inbox',
 // primary action. DD-MVP-17: the module ROOT (/cafe) is now the capture surface itself, so it
 // leads the list and /cafe/log is its redirect alias. Hidden there, and ONLY there.
 const CAPTURE_SURFACE_PATHS = ['/cafe', '/cafe/plan', '/cafe/stock', '/cafe/review']
+
+// The collections whose page head carries its own create button (Tasks, Signals): one create door
+// on phone, so the + launcher yields there. Exact paths only — a record page has no head create.
+const IN_PAGE_CREATE_PATHS = ['/work/tasks', '/work/signals']
+
+// A decision the person must make in one place: no tabs to wander off to, no "+" beside Allow.
+const FOCUSED_DECISION_PATHS = ['/oauth/consent']
 
 function isCaptureSurface(pathname: string): boolean {
   return CAPTURE_SURFACE_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'))
@@ -78,9 +85,7 @@ export function BottomTabBar({ onOpenMore, onOpenActionLauncher, onRegisterMoreF
   // The line here used to say "module routes stay reachable via ⌘K / direct URL". That was false:
   // the palette held seven hardcoded entries, none of them Café. It is deleted rather than
   // replaced — under OD-WAY-51 no justification is needed, because nothing is being hidden.
-  const moduleDest = viewer
-    ? visibleModulesForViewer(viewer.accessRoles).find((m) => viewer.affiliated.includes(m.id)) ?? null
-    : null
+  const moduleDest = viewer ? phoneModuleForViewer(viewer.affiliated, viewer.accessRoles, pathname) : null
   const moduleTab: PrimaryTab | null = moduleDest
     ? {
         id: moduleDest.id,
@@ -93,9 +98,16 @@ export function BottomTabBar({ onOpenMore, onOpenActionLauncher, onRegisterMoreF
 
   const primaryTabs: PrimaryTab[] = moduleTab ? [HOME, WORK, moduleTab, INBOX] : [HOME, WORK, INBOX]
 
-  if (!isNarrow) return null
+  if (!isNarrow || FOCUSED_DECISION_PATHS.includes(pathname)) return null
 
-  const showLauncher = !isCaptureSurface(pathname)
+  const showLauncher = !isCaptureSurface(pathname) && !IN_PAGE_CREATE_PATHS.includes(pathname.replace(/\/+$/, ''))
+  // More is a door, but on a page no tab covers it is also where the viewer stands: mark it (the
+  // breadcrumb leaf still owns aria-current).
+  const onPrimaryTab = primaryTabs.some((tab) => {
+    const section = tab.sectionPrefix ?? tab.href
+    return tab.href === '/' ? pathname === '/' : pathname === section || pathname.startsWith(section + '/')
+  })
+  const moreIsHere = !onPrimaryTab && destinationForPath(pathname) !== null
 
   return (
     // FINDING 1 fix: the nav landmark now holds ONLY navigation (the tab list) — the +
@@ -154,7 +166,7 @@ export function BottomTabBar({ onOpenMore, onOpenActionLauncher, onRegisterMoreF
                 aria-label={t('nav.more')}
                 aria-haspopup="dialog"
                 aria-expanded={moreOpen}
-                className="bottom-tab"
+                className={moreIsHere ? 'bottom-tab bottom-tab--active' : 'bottom-tab'}
                 onClick={onOpenMore}
               >
                 <span className="bottom-tab-icon">

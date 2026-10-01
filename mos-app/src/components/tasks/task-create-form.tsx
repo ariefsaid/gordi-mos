@@ -1,13 +1,17 @@
 // TaskCreateForm — the ONE task-creation form: a real form, read top-to-bottom (Title →
-// Team/PIC/Supervisor → derived Business unit → footer actions), rendered IDENTICALLY by the
+// Team/PIC/Supervisor → Due/Project-Process → derived Business unit → footer actions), rendered IDENTICALLY by the
 // desktop table (inside a full-width colSpan row, task-row.tsx) and the phone card
 // (mobile-grouped-cards.tsx). One component, one validation contract, one a11y contract.
 import { useEffect, useId, useRef, useState } from 'react'
 import { Picker } from '@/components/ui/picker'
-import { picLockMessage } from './task-permissions'
+import { DateField } from '@/components/ui/date-field'
+import { useFocusRestore } from '@/components/ui/use-focus-restore'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
 import type { TaskListRow } from '@/lib/db/tasks.types'
+import { useTaskCreateContext } from './task-create-context'
+import { picLockMessage } from './task-permissions'
+import { TASK_TITLE_MAX_LENGTH } from './task-formatters'
 import type { TaskTeamOption } from './task-row'
 import './task-create-form.css'
 
@@ -31,7 +35,7 @@ export type TaskCreateFormProps = {
    * already exists; only the follow-up step failed. Rendered separately from an ordinary
    * create failure, which this form tracks itself. */
   linkError?: boolean
-  onRetryLink?: () => void
+  onRetryLink?: (title: string) => void
   /** #742 AC-060: the viewer has nobody reporting to them, so PIC is fixed to self. */
   viewerHasNoDownline?: boolean
 }
@@ -51,10 +55,15 @@ export function TaskCreateForm({
   const picFieldId = `${formId}-pic`
   const supervisorFieldId = `${formId}-supervisor`
   const supervisorErrorId = `${formId}-supervisor-error`
+  const dueFieldId = `${formId}-due`
+  const workLineFieldId = `${formId}-workline`
+  const { workLineOptions, onEditDue, onEditWorkLine } = useTaskCreateContext()
 
   const [title, setTitle] = useState(task.title)
   const [attempted, setAttempted] = useState(false)
   const [pending, setPending] = useState(false)
+  // A link retry only links the already-created Task; draft edits, Title included, would never be saved.
+  const fieldsLocked = pending || linkError
   const [saveError, setSaveError] = useState(false)
   const titleRef = useRef<HTMLTextAreaElement | null>(null)
 
@@ -93,6 +102,16 @@ export function TaskCreateForm({
     ...personOptions.map((person) => ({ value: person.id, label: person.full_name })),
   ]
 
+  const workLinePickerOptions = [
+    { value: '', label: t('tasks.create.none') },
+    ...workLineOptions.map((workLine) => ({
+      value: workLine.id,
+      label: `${workLine.name} (${workLine.type === 'project' ? t('tasks.type.project') : t('tasks.type.daily')})`,
+    })),
+  ]
+
+  const formRef = useFocusRestore<HTMLFormElement>(pending, saveError)
+
   const trySubmit = () => {
     setAttempted(true)
     const trimmed = title.trim()
@@ -110,6 +129,7 @@ export function TaskCreateForm({
 
   return (
     <form
+      ref={formRef}
       className="tcf"
       aria-label={t('tasks.create.form')}
       onSubmit={(event) => { event.preventDefault(); trySubmit() }}
@@ -121,9 +141,10 @@ export function TaskCreateForm({
           ref={titleRef}
           className="tcf-title tap-floor"
           rows={1}
+          maxLength={TASK_TITLE_MAX_LENGTH}
           value={title}
           placeholder={t('tasks.create.titlePlaceholder')}
-          disabled={pending}
+          disabled={fieldsLocked}
           aria-invalid={titleError ? true : undefined}
           aria-describedby={titleError ? titleErrorId : undefined}
           onChange={(event) => setTitle(event.target.value)}
@@ -155,7 +176,7 @@ export function TaskCreateForm({
             value={task.team_id ?? ''}
             options={teamPickerOptions}
             placeholder={t('tasks.create.teamPlaceholder')}
-            disabled={pending || teamOptions.length === 0}
+            disabled={fieldsLocked || teamOptions.length === 0}
             required
             error={Boolean(teamError)}
             describedBy={teamError ? teamErrorId : undefined}
@@ -174,7 +195,7 @@ export function TaskCreateForm({
             hideLabel
             value={task.responsible_person_id}
             options={picPickerOptions}
-            disabled={pending}
+            disabled={fieldsLocked}
             onChange={(value) => { void onEditPic(task.id, value) }}
           />
           {lockMessage && <p className="tcf-hint">{lockMessage}</p>}
@@ -190,7 +211,7 @@ export function TaskCreateForm({
             value={task.accountable_person_id}
             options={supervisorPickerOptions}
             placeholder={t('tasks.create.supervisorPlaceholder')}
-            disabled={pending}
+            disabled={fieldsLocked}
             required
             error={Boolean(supervisorError)}
             describedBy={supervisorError ? supervisorErrorId : undefined}
@@ -200,10 +221,37 @@ export function TaskCreateForm({
         </div>
       </div>
 
+      <div className="tcf-row tcf-row--pair">
+        <div className="tcf-field">
+          <label htmlFor={dueFieldId} className="tcf-label">{t('tasks.create.dueDate')}</label>
+          <DateField
+            id={dueFieldId}
+            fullWidth
+            value={task.due_date ?? ''}
+            disabled={fieldsLocked}
+            onChange={(value) => { void onEditDue(task.id, value || null) }}
+          />
+        </div>
+        {workLineOptions.length > 0 && (
+          <div className="tcf-field">
+            <label htmlFor={workLineFieldId} className="tcf-label">{t('tasks.filter.projectProcess')}</label>
+            <Picker
+              id={workLineFieldId}
+              label={t('tasks.filter.projectProcess')}
+              hideLabel
+              value={task.work_line_id ?? ''}
+              options={workLinePickerOptions}
+              disabled={fieldsLocked}
+              onChange={(value) => { void onEditWorkLine(task.id, value || null) }}
+            />
+          </div>
+        )}
+      </div>
+
       {linkError && (
         <p role="alert" className="tcf-error tcf-save-error">
           {t('tasks.create.linkFailed')}
-          <button type="button" className="task-row-retry" onClick={onRetryLink}>{t('record.field.retry')}</button>
+          <button type="button" className="task-row-retry" onClick={() => onRetryLink?.(title.trim())}>{t('record.field.retry')}</button>
         </p>
       )}
       {saveError && (

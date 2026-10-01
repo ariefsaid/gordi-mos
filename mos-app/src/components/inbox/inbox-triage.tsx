@@ -99,13 +99,6 @@ const ENTITY_KEY: Record<Exclude<InboxEntityType, 'unknown'>, 'inbox.target.type
   follow_up: 'inbox.target.type.followUp',
 }
 
-function metadataSource(row: TriageNotificationRow): string | null {
-  const metadata = row.metadata
-  if (!metadata || typeof metadata !== 'object') return null
-  const source = (metadata as Record<string, unknown>).source
-  return typeof source === 'string' ? source : null
-}
-
 export function InboxTriage({
   mode,
   state,
@@ -228,7 +221,7 @@ export function InboxTriage({
                   name: presentation.actorName ?? t('inbox.signalRetraction.someone'),
                 })
                 : presentation.actorName && presentation.entityType !== 'unknown'
-                ? metadataSource(n) === 'mention'
+                ? presentation.source === 'signal_mention'
                   ? t('inbox.actorMentioned', { name: presentation.actorName })
                   : t('inbox.actorActivity', {
                     name: presentation.actorName,

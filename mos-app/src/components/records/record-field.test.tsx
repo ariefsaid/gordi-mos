@@ -1,3 +1,4 @@
+import { installDisabledBlur } from '@/test/browser-focus-fixup'
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -45,6 +46,12 @@ it('opens plain related clicks in the record stack and retains canonical modifie
   expect(onOpen).toHaveBeenCalledTimes(1)
 })
 
+it('hints the expected input in an empty text editor through spec.placeholder', () => {
+  render(<I18nProvider><RecordField spec={{ key: 'period', label: 'Period', control: 'text', value: null, displayValue: 'Not set', placeholder: 'Year, e.g. 2026', editable: true }} onCommit={vi.fn()} /></I18nProvider>)
+  fireEvent.click(screen.getByRole('button', { name: 'Edit Period' }))
+  expect(screen.getByRole('textbox', { name: 'Period' })).toHaveAttribute('placeholder', 'Year, e.g. 2026')
+})
+
 function renderField(spec: RecordFieldSpec, extra: {
   onCommit?: (v: RecordValue) => Promise<void>
   onCancel?: () => void
@@ -82,6 +89,16 @@ const textSpec: RecordFieldSpec = {
   displayValue: 'Restock oat milk',
   editable: true,
 }
+
+it('caps a text field at the spec maxLength (#1034)', async () => {
+  const user = userEvent.setup()
+  renderField({ ...textSpec, maxLength: 5 })
+  activate('Title')
+  const input = screen.getByRole('textbox', { name: 'Title' }) as HTMLInputElement
+  await user.clear(input)
+  await user.paste('abcdefghij')
+  expect(input.value).toBe('abcde')
+})
 
 describe('RecordField', () => {
   // Required-ness is a fact about SUBMITTING a value, not about looking at one — a required
@@ -173,6 +190,22 @@ describe('RecordField', () => {
     // leave-guard listener — the field draft is cancelled first, in isolation.
     expect(hostLeave).not.toHaveBeenCalled()
     expect(onCommit).not.toHaveBeenCalled()
+  })
+
+  it('issue 979: a failed save hands focus back to the field with its draft', async () => {
+    const restore = installDisabledBlur()
+    try {
+      const onCommit = vi.fn<(v: RecordValue) => Promise<void>>().mockRejectedValueOnce(new Error('nope'))
+      renderField(textSpec, { onCommit })
+      activate('Title')
+      const input = screen.getByLabelText('Title') as HTMLInputElement
+      input.focus()
+      fireEvent.change(input, { target: { value: 'kept draft' } })
+      fireEvent.keyDown(input, { key: 'Enter' })
+      expect(await screen.findByRole('alert')).toBeInTheDocument()
+      await waitFor(() => expect(input).toHaveFocus())
+      expect(input.value).toBe('kept draft')
+    } finally { restore() }
   })
 
   it('FieldErrorRetryContract: a rejected save preserves the draft and exposes retry plus an error message', async () => {
@@ -293,6 +326,31 @@ describe('RecordField', () => {
     await user.click(screen.getByRole('option', { name: 'Done' }))
 
     await waitFor(() => expect(onCommit).toHaveBeenCalledWith('done'))
+  })
+
+  // #1028: a long person list (PIC, Supervisor) is searched by typing, not scrolled.
+  it('narrows a person picker as the reader types and commits the typed match on Enter', async () => {
+    const user = userEvent.setup()
+    const onCommit = vi.fn(async () => {})
+    const people = ['Ada Lovelace', 'Alan Turing', 'Grace Hopper', 'Wayan Kusuma']
+    const spec: RecordFieldSpec = {
+      key: 'pic',
+      label: 'PIC',
+      control: 'person',
+      value: 'p-0',
+      displayValue: 'Ada Lovelace',
+      editable: true,
+      options: people.map((name, index) => ({ value: `p-${index}`, label: name })),
+    }
+    renderField(spec, { onCommit })
+
+    activate('PIC')
+    await user.click(screen.getByRole('combobox', { name: 'PIC' }))
+    await user.keyboard('kus')
+
+    expect(screen.getAllByRole('option')).toHaveLength(1)
+    await user.keyboard('{Enter}')
+    await waitFor(() => expect(onCommit).toHaveBeenCalledWith('p-3'))
   })
 
   // F4 fix: an unpopulated relation row (e.g. Task Project/Process or Objective) is exposed as

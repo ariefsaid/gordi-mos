@@ -12,6 +12,7 @@ import { resolve } from 'node:path'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, act, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { installDisabledBlur } from '@/test/browser-focus-fixup'
 import { MemoryRouter, Route, Routes, createMemoryRouter, RouterProvider, Link } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 
@@ -752,6 +753,39 @@ describe('F3b: disabled Submit shows a note-missing pointer when a variance note
       expect(screen.queryByRole('button', { name: /note missing/i })).toBeNull()
     })
   })
+
+  // An empty note is skipped by Tab, so the pointer must stay reachable by keyboard even while a
+  // stock-cap error also blocks Submit.
+  it('a keyboard user can reach the missing note when a stock-cap error is also showing', async () => {
+    mockFetchPlanMap.mockResolvedValue({})
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+    await act(async () => {
+      fireEvent.click(screen.getByRole('tab', { name: /transfer to radiant/i }))
+      await Promise.resolve()
+    })
+    const user = userEvent.setup()
+    const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    await user.click(qtyInput)
+    await user.type(qtyInput, '10') // above the 9 available: a stock-cap error, and off plan
+    await waitFor(() => {
+      expect(screen.getByText(/insufficient stock — produce first/i)).toBeInTheDocument()
+    })
+
+    let pointer: HTMLElement | null = null
+    for (let i = 0; i < 40 && !pointer; i += 1) {
+      await user.tab()
+      const active = document.activeElement
+      if (!(active instanceof HTMLElement)) continue
+      if (active.getAttribute('aria-label')?.match(/^note for ayam bakar$/i)) break
+      if (/note missing/i.test(active.textContent ?? '')) pointer = active
+    }
+    const note = screen.getByRole('textbox', { name: /^note for ayam bakar$/i })
+    if (pointer) {
+      await user.keyboard('{Enter}')
+    }
+    expect(note).toHaveFocus()
+  })
 })
 
 // ── AC-022: transfer over-availability REJECTS the submit (FR-023) ─────────────
@@ -960,8 +994,8 @@ describe('FR-021/022: "change unit" re-binds the row to the chosen item-unit', (
       fireEvent.click(screen.getByRole('button', { name: /change unit for ayam bakar/i }))
       await Promise.resolve()
     })
-    fireEvent.click(screen.getByRole('combobox', { name: /unit for ayam bakar/i }))
-    fireEvent.click(await screen.findByRole('option', { name: 'botol' }))
+    await userEvent.click(screen.getByRole('combobox', { name: /unit for ayam bakar/i }))
+    await userEvent.click(await screen.findByRole('option', { name: 'botol' }))
 
     // w1: plan 20, stok 3 → effective target 17; log 17 (on-target, no note gate).
     const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
@@ -1020,6 +1054,32 @@ describe('issue 222: capture offers the stream\'s own item list', () => {
     expect(mockListCaptureFormItems).toHaveBeenLastCalledWith(
       expect.objectContaining({ branch: BRANCH_GORDI_HQ, activity: 'kitchen' }),
     )
+  })
+
+  it('issue 979: a failed submit gives focus back to the quantity being typed and keeps it; one retry saves once', async () => {
+    const restore = installDisabledBlur()
+    try {
+      mockInsertKitchenLogBatch.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce(['log-1'])
+      await renderPage()
+      await waitFor(() => screen.getByText('Ayam Bakar'))
+      const ayam = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+      ayam.focus()
+      fireEvent.change(ayam, { target: { value: '17' } })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /^submit/i }))
+        await Promise.resolve()
+      })
+      await screen.findByRole('alert')
+      expect(mockInsertKitchenLogBatch).toHaveBeenCalledTimes(1)
+      await waitFor(() => expect(ayam).toHaveFocus())
+      expect(ayam).toHaveValue(17)
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /^submit/i }))
+        await Promise.resolve()
+      })
+      await waitFor(() => expect(mockInsertKitchenLogBatch).toHaveBeenCalledTimes(2))
+    } finally { restore() }
   })
 
   it('a line refused as off-list keeps the draft, is marked, and says what to do; clearing it lets Submit through', async () => {
@@ -1372,6 +1432,15 @@ describe('OD-K-5: search-mini filters', () => {
     expect(screen.queryByText('Ayam Bakar')).toBeNull()
   })
 
+  it('keeps fast typing intact: "nasi goreng" typed with no delay is exactly what the box shows (#981)', async () => {
+    setDesktopMatchMedia(true)
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+    const box = screen.getByRole('searchbox', { name: /find an item/i })
+    await userEvent.setup({ delay: null }).type(box, 'nasi goreng')
+    expect(box).toHaveValue('nasi goreng')
+  })
+
   it('I7 / D-E1: hydrates the search from ?q= on load (a refreshed/shared link reproduces the filtered view)', async () => {
     setDesktopMatchMedia(true)
     await renderPage(VIEWER_MEMBER, '/mos/kitchen/log?q=nasi')
@@ -1698,11 +1767,11 @@ describe('FR-002: no stream-linked primary Team → an explicit stream choice is
     mockListCafeViewerTeams.mockResolvedValue([
       {
         id: 'team-office', name: 'Ops Office', business_unit_id: 'bu-1', site_id: null,
-        is_primary: true, branch_id: null, activity: null,
+        is_primary: true, branch_id: null, activity: null, effective_to: null,
       },
       {
         id: 'team-ghq-kitchen', name: 'Gordi HQ Kitchen', business_unit_id: 'bu-1', site_id: null,
-        is_primary: false, branch_id: BRANCH_GORDI_HQ.id, activity: 'kitchen',
+        is_primary: false, branch_id: BRANCH_GORDI_HQ.id, activity: 'kitchen', effective_to: null,
       },
     ])
     await renderPage()

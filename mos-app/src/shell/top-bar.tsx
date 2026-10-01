@@ -13,6 +13,8 @@ import './top-bar.css'
 type TopBarProps = {
   /** Opens the ⌘K command menu (wired in AppShell). */
   onOpenSearch?: () => void
+  /** Attached to the visible search button so the palette can return focus to it. */
+  searchTriggerRef?: React.Ref<HTMLButtonElement>
   /**
    * @deprecated The header hamburger was removed (v4 shell rebuild) — the phone nav's sole
    * opener is now the bottom-tab-bar's More button. Kept optional so existing call sites/tests
@@ -214,7 +216,7 @@ function NotificationBell() {
 // The header hamburger was removed (v4 shell rebuild, Task 1) — the phone nav's sole opener is
 // the bottom-tab-bar's More button (aria-haspopup="dialog" + aria-expanded there).
 // grid-area: topbar — spans full width (set by AppShell grid; no inline style needed here).
-export function TopBar({ onOpenSearch }: TopBarProps) {
+export function TopBar({ onOpenSearch, searchTriggerRef }: TopBarProps) {
   const t = useT()
   // OD-REDESIGN-84.2 (P1-1): the brand column's width must track the rail's own compact
   // regime (920–1099.98px) so the divider still lands on the rail boundary; the wordmark
@@ -269,6 +271,7 @@ export function TopBar({ onOpenSearch }: TopBarProps) {
         {isNarrow ? (
           <button
             type="button"
+            ref={searchTriggerRef}
             aria-label={t('topBar.search')}
             className="tap-target-phone tap-target-phone--icon flex items-center justify-center rounded-sm border border-input bg-secondary text-muted-foreground hover:border-foreground/70 flex-none"
             style={{ width: 32, height: 32 }}
@@ -279,6 +282,7 @@ export function TopBar({ onOpenSearch }: TopBarProps) {
         ) : (
           <button
             type="button"
+            ref={searchTriggerRef}
             aria-label={t('topBar.search')}
             className="flex items-center gap-2 rounded-sm border border-input bg-secondary px-2 text-muted-foreground hover:border-foreground/70 cursor-text"
             style={{ height: 34, width: 200 }}

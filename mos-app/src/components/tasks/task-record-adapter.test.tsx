@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import type { TaskDetail } from '@/lib/db/tasks'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import type { PersonOption, BusinessUnitOption } from '@/lib/db/directory'
+import { TASK_TITLE_MAX_LENGTH } from './task-formatters'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { RecordViewer } from '@/components/records/record-viewer'
 import {
@@ -18,7 +19,7 @@ const PIC = 'p-pic'
 const SUPERVISOR = 'p-sup'
 
 const people: PersonOption[] = [
-  { id: PIC, full_name: 'Riri' },
+  { id: PIC, full_name: 'Nico' },
   { id: SUPERVISOR, full_name: 'Wayan Kusuma' },
 ]
 const businessUnits: BusinessUnitOption[] = [
@@ -111,7 +112,8 @@ describe('createTaskRecordAdapter', () => {
     expect(adapter.typeLabel).toBe('Task')
 
     expect(fieldByKey(adapter, 'businessUnit').displayValue).toBe('Retail Ops')
-    expect(fieldByKey(adapter, 'pic').displayValue).toBe('Riri')
+    expect(adapter.headerFields?.find((f) => f.key === 'title')?.maxLength).toBe(TASK_TITLE_MAX_LENGTH)
+    expect(fieldByKey(adapter, 'pic').displayValue).toBe('Nico')
     expect(fieldByKey(adapter, 'supervisor').displayValue).toBe('Wayan Kusuma')
     expect(adapter.headerFields?.find((field) => field.key === 'status')?.displayValue).toBe('Open')
     expect(fieldByKey(adapter, 'dueDate').value).toBe('2026-07-25')
@@ -122,9 +124,9 @@ describe('createTaskRecordAdapter', () => {
     render(<>{checklist.render({ mode: 'panel', readOnly: false })}</>, { wrapper })
     expect(screen.getByText('Check fridge stock')).toBeInTheDocument()
 
-    // Ownership and due context follow the checklist before discussion.
+    // Ownership, due context and the parent Project/Process or Objective precede the discussion.
     expect(adapter.activity).toHaveLength(0)
-    expect(adapter.contentSlots.map((slot) => slot.id)).toEqual(['content', 'checklist', 'ownership', 'activity', 'relations'])
+    expect(adapter.contentSlots.map((slot) => slot.id)).toEqual(['content', 'checklist', 'ownership', 'relations', 'activity'])
     const activity = adapter.contentSlots.find((s) => s.id === 'activity')!
     render(<>{activity.render({ mode: 'panel', readOnly: false })}</>, { wrapper })
     expect(screen.getByText('Created')).toBeInTheDocument()
@@ -369,7 +371,7 @@ describe('createTaskRecordAdapter — AC-061 on the record: edit/archive follow 
 
   it('AC-061 delta: the record PIC picker offers self + downline (like the inline picker); Supervisor keeps the full list', () => {
     const everyone: PersonOption[] = [
-      { id: PIC, full_name: 'Riri' },
+      { id: PIC, full_name: 'Nico' },
       { id: SUPERVISOR, full_name: 'Wayan Kusuma' },
       { id: 'mgr', full_name: 'Made Manager' },
       { id: 'p-out', full_name: 'Far Away' },
@@ -386,12 +388,12 @@ describe('createTaskRecordAdapter — AC-061 on the record: edit/archive follow 
     expect(container).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Edit Person in charge (PIC)' }))
     fireEvent.click(screen.getByRole('combobox', { name: 'Person in charge (PIC)' }))
-    expect(screen.getAllByRole('option').map((o) => o.textContent?.trim())).toEqual(['Riri', 'Made Manager'])
+    expect(screen.getAllByRole('option').map((o) => o.textContent?.trim())).toEqual(['Nico', 'Made Manager'])
     fireEvent.keyDown(screen.getByRole('listbox'), { key: 'Escape' })
     fireEvent.click(screen.getByRole('button', { name: 'Edit Supervisor' }))
     fireEvent.click(screen.getByRole('combobox', { name: 'Supervisor' }))
     expect(screen.getAllByRole('option').map((o) => o.textContent?.trim()))
-      .toEqual(['Riri', 'Wayan Kusuma', 'Made Manager', 'Far Away'])
+      .toEqual(['Nico', 'Wayan Kusuma', 'Made Manager', 'Far Away'])
     unmount()
   })
 })
@@ -494,6 +496,51 @@ describe('teamOwnershipField — honest Team model and viewer-scoped options', (
     expect(real.value).toBe('t-1')
     expect(real.displayValue).toBe('HQ Kitchen')
     expect(real.editable).toBe(false)
+  })
+})
+
+describe('teamOwnershipField — edit options (#1033)', () => {
+  const HQ = { id: 't-1', label: 'HQ Kitchen' }
+  const OPS = { id: 't-2', label: 'Ops' }
+
+  it('offers the current team even when the viewer\'s Team list omits it', () => {
+    const field = teamOwnershipField(HQ, undefined, true, [OPS])
+    expect(field.options?.map((o) => o.value)).toContain('t-1')
+  })
+
+  it('lists Teams first and the not-assigned placeholder last, never leading with it', () => {
+    const field = teamOwnershipField(HQ, undefined, true, [HQ, OPS])
+    expect(field.options?.map((o) => o.label)).toEqual(['HQ Kitchen', 'Ops', 'Team not assigned yet (data migration)'])
+    expect(teamOwnershipField(null, undefined, true, [OPS]).options?.[0]).toEqual({ value: 't-2', label: 'Ops' })
+  })
+})
+
+// AC-039/FR-029 (OD-REDESIGN-41): the Supervisor field shows a quiet "inherited from <name>"
+// subline exactly when its value equals the parent Project/Process's Accountable — never a
+// separate control, never a hint when there is no such match.
+describe('createTaskRecordAdapter — AC-039: Supervisor inheritance hint', () => {
+  it('shows "inherited from <Project/Process>" when Supervisor equals the parent Accountable', () => {
+    const task = makeTask({ work_line_id: 'wl-1', accountable_person_id: SUPERVISOR })
+    const adapter = createTaskRecordAdapter(makeInput({
+      detail: makeDetail(task),
+      workLines: [{ id: 'wl-1', name: 'Today opening', type: 'process', accountable_person_id: SUPERVISOR }],
+    }))
+    expect(fieldByKey(adapter, 'supervisor').subline).toBe('inherited from Today opening')
+  })
+
+  it('shows no hint when Supervisor differs from the parent Accountable', () => {
+    const task = makeTask({ work_line_id: 'wl-1', accountable_person_id: SUPERVISOR })
+    const adapter = createTaskRecordAdapter(makeInput({
+      detail: makeDetail(task),
+      workLines: [{ id: 'wl-1', name: 'Today opening', type: 'process', accountable_person_id: PIC }],
+    }))
+    expect(fieldByKey(adapter, 'supervisor').subline).toBeUndefined()
+  })
+
+  it('shows no hint on an Ad hoc task (no Project/Process at all)', () => {
+    const task = makeTask({ work_line_id: null, accountable_person_id: SUPERVISOR })
+    const adapter = createTaskRecordAdapter(makeInput({ detail: makeDetail(task) }))
+    expect(fieldByKey(adapter, 'supervisor').subline).toBeUndefined()
   })
 })
 

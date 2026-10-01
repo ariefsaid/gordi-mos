@@ -29,8 +29,8 @@ values ('00000000-0000-0000-0000-0000000000a1',
 -- Settings APIs are admin-only, but the viewer predicates are available to ordinary members.
 set local role authenticated;
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
-select is((select count(*)::int from shared.list_role_authority()), 56,
-  'the admin matrix lists all seven actions across the eight editable authority categories');
+select is((select count(*)::int from shared.list_role_authority()), 64,
+  'the admin matrix lists all eight actions across the eight editable authority categories');
 select is((select scope from shared.list_role_authority()
             where action = 'workline.manage' and role = 'bu_head'), 'own_bu',
   'BU-head definition authority defaults to own_bu');
@@ -78,11 +78,15 @@ set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1"
 select is(mos.can_manage_definition('00000000-0000-0000-0000-0000000000a2'), false,
   'an Objective-only grant does not authorize Project/Process writes');
 select is(mos.can_manage_objective_definition('00000000-0000-0000-0000-0000000000a2'), true,
-  'the saved member own_bu Objective grant changes the effective Objective predicate');
-select lives_ok($$
+  'the saved member own_bu Objective grant still moves the predicate function — which no longer gates the policy');
+-- REWRITE at the behavior level (#992, OD-OBJ-1): this used to prove the matrix grant OPENS the
+-- Objective INSERT. Objectives no longer consult the matrix at all — the seam is the
+-- migration-owned capability row — so the same grant is refused with 42501.
+select throws_ok($$
   insert into mos.objectives (name, business_unit_id)
   values ('Tenant override objective', '00000000-0000-0000-0000-0000000000a2')
-$$, 'the saved member own_bu Objective grant changes the Objective INSERT policy');
+$$, '42501', null,
+  'the tenant matrix no longer opens Objective writes — #992 moved the seam to the capability row');
 select throws_ok($$
   insert into mos.work_lines (name, type, business_unit_id)
   values ('Project still denied', 'project', '00000000-0000-0000-0000-0000000000a2')

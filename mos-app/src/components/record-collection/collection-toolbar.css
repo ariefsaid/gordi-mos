@@ -143,8 +143,16 @@
    popover trigger's "label value" copy ("Current status Active …" needs more) — a Tasks filter
    that genuinely needs that narrower budget re-asserts its own width via a more specific
    `[data-filter-id=…] .collection-toolbar__select` rule, so exempting the base class here does
-   not reopen that intentional ellipsis-with-title contraction. */
+   not reopen that intentional ellipsis-with-title contraction.
+   #956: a host renders BOTH classes on one element (`className="collection-toolbar__select
+   collection-toolbar__choice"`, above). Two single-class rules of equal specificity are a
+   stylesheet-order trap — `.collection-toolbar__select`'s cap happened to win because it is
+   declared later in this file, silently reopening the 180px budget this comment already says
+   should not apply. The compound selector below outranks it on SPECIFICITY, so the exemption
+   holds regardless of where either rule is declared (owner repro: Projects & Processes → Current
+   status → tick Include archived — "Active + archived" ran past the button under the chevron). */
 .collection-toolbar__choice { position: relative; max-width: none; }
+.collection-toolbar__select.collection-toolbar__choice { max-width: none; }
 .collection-toolbar__choice-trigger {
   display: flex;
   align-items: center;
@@ -178,7 +186,12 @@
   font-size: var(--font-size-label);
   white-space: nowrap;
 }
-/* The value reads whole — the trigger sizes to it (above) instead of clipping it. */
+/* The value reads whole — the trigger sizes to it (above) instead of clipping it. Ratified by
+   collection-toolbar.css.test.ts ("the base choice trigger sizes to its value instead of clipping
+   it"): this element must never carry `overflow: hidden` / `text-overflow: ellipsis` — #956's fix
+   is the specificity correction above (`.collection-toolbar__select.collection-toolbar__choice`),
+   which is what actually let this rule's own `min-width: 0` shrink the box below its content in
+   the first place; ellipsizing the symptom here would fight that ruling, not honour it. */
 .collection-toolbar__choice-value {
   min-width: 0;
   white-space: nowrap;
@@ -404,6 +417,23 @@
   }
   html:lang(id) .tasks-collection-toolbar .collection-toolbar__fields { margin-inline: 3px; }
 }
+/* Inside the View & filters door each control names itself ("Sort: Due soonest"), so it sizes to
+   that text and the panel wraps. The fixed boxes above were budgeted for an exposed one-line band
+   that the door replaced. */
+@media (min-width: 768px) {
+  html .tasks-collection-toolbar .collection-toolbar__desktop-door-panel .collection-toolbar__options {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding-inline: 0;
+  }
+  html .tasks-collection-toolbar .collection-toolbar__desktop-door-panel [data-filter-id],
+  html .tasks-collection-toolbar .collection-toolbar__desktop-door-panel [data-filter-id] .collection-toolbar__select {
+    flex: 0 0 auto;
+    width: auto;
+    max-width: none;
+  }
+  html .tasks-collection-toolbar .collection-toolbar__desktop-door-panel [data-filter-id='status'] .collection-toolbar__choice-label { display: inline; }
+}
 .collection-toolbar__option-field--group .collection-toolbar__picker-trigger {
   background: color-mix(in srgb, var(--brand-navy) 6%, var(--background));
   border-color: var(--brand-navy);
@@ -460,6 +490,10 @@
 }
 
 .collection-toolbar__search input::placeholder { color: var(--muted-foreground); }
+/* Indonesian search labels are longer; the field sizes to its own placeholder instead of clipping it. */
+@media (min-width: 768px) {
+  html:lang(id) .collection-toolbar__search { min-width: 220px; }
+}
 
 .collection-toolbar__toggle {
   display: inline-flex;
@@ -586,6 +620,9 @@
      rather than wrapping or squashing a chip. */
   .collection-toolbar__presentations,
   .collection-toolbar__views { gap: 8px; }
+  /* A phone strip that scrolls hides its last chip ("Overdue" read as "O"), so the saved views
+     wrap onto a second row instead — the same shape the Signals toolbar already takes. */
+  .collection-toolbar__views { flex-wrap: wrap; overflow: visible; }
   .collection-toolbar__primary-spacer { display: none; }
   .collection-toolbar__query { justify-content: flex-start; padding: 8px; }
   .collection-toolbar__filter-group { width: 100%; }
@@ -686,7 +723,12 @@
     border-bottom: 0;
     background: transparent;
   }
-  .record-collection > .collection-mobile-options-panel,
+  /* The panel lives INSIDE the options wrapper, so an open wrapper hands its children to the grid:
+     the trigger keeps its cell beside search and the panel takes the full row below, instead of
+     being squeezed into the trigger's column and spilling over the search field. */
+  .record-collection > .collection-mobile-options:has(> .collection-mobile-options-panel) { display: contents; }
+  .record-collection > .collection-mobile-options > .collection-mobile-options-panel { grid-column: 1 / -1; }
+  .record-collection > .collection-mobile-options > .collection-mobile-options-trigger { grid-column: 2; }
   .record-collection > .record-collection-results { grid-column: 1 / -1; }
   .record-collection > .collection-mobile-options .collection-mobile-options-trigger {
     width: auto;

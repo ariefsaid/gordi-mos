@@ -27,7 +27,7 @@ import { loadJournaledWrites, loadMaxSeq } from './persistence.ts'
 import { ChatCompletionsClient } from '../_shared/chatCompletionsClient.ts'
 import { resolveDefaultModel } from '../_shared/modelResolution.ts'
 import { logStructuredError } from '../_shared/errorLog.ts'
-import { decodeJwtClaims } from '../_shared/jwt.ts'
+import { carriesClientId, decodeJwtClaims } from '../_shared/jwt.ts'
 import { encodeSse } from '../../../mos-app/src/lib/agent/runtime/transport.ts'
 import type { AgentChatRequest } from '../../../mos-app/src/lib/agent/runtime/transport.ts'
 
@@ -51,6 +51,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
     )
   }
   const jwt = authHeader.slice(7)
+
+  if (carriesClientId(jwt)) {
+    return new Response(
+      JSON.stringify({ status: 401, error: 'UNAUTHORIZED', detail: 'agent tokens are not accepted here' }),
+      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
 
   // ── 2. Verify JWT using service-role client (D3) ─────────────────────────────
   // service_role is used ONLY here for auth.getUser(jwt). Never for business data.

@@ -29,7 +29,7 @@ import { composeViewHandler } from './handler.ts'
 import { ChatCompletionsClient } from '../_shared/chatCompletionsClient.ts'
 import { resolveComposeModel } from '../_shared/modelResolution.ts'
 import { logStructuredError } from '../_shared/errorLog.ts'
-import { decodeJwtClaims } from '../_shared/jwt.ts'
+import { carriesClientId, decodeJwtClaims } from '../_shared/jwt.ts'
 import type { ComposeViewRequest } from './types.ts'
 
 Deno.serve(async (req: Request): Promise<Response> => {
@@ -52,6 +52,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
     )
   }
   const jwt = authHeader.slice(7) // strip "Bearer "
+
+  if (carriesClientId(jwt)) {
+    return new Response(
+      JSON.stringify({ status: 401, error: 'UNAUTHORIZED', detail: 'agent tokens are not accepted here' }),
+      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
 
   // ── 2. Verify JWT using service-role client (D3) ───────────────────────────
   // service_role is used ONLY here to call auth.getUser(jwt). NEVER used for business

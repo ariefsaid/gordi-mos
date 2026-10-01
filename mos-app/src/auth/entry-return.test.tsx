@@ -69,6 +69,7 @@ function EntryApp({ start }: { start: string | { pathname: string; state: unknow
         <Route element={<ProtectedRoute />}>
           <Route path="/" element={<div>Home</div>} />
           <Route path="/work/tasks" element={<div>Tasks</div>} />
+          <Route path="/oauth/consent" element={<div>Consent</div>} />
         </Route>
       </Routes>
     </MemoryRouter>
@@ -113,6 +114,17 @@ describe('AC-011: sign-in returns you to the route you asked for', () => {
 
     await waitFor(() => expect(url()).toBe('/work/tasks'))
     expect(screen.getByText('Tasks')).toBeInTheDocument()
+  })
+
+  it('a signed-out agent consent link finishes on the same consent link, request id intact', async () => {
+    render(<EntryApp start="/oauth/consent?authorization_id=req-42" />)
+
+    await waitFor(() => expect(url()).toBe('/login'))
+
+    await signIn()
+
+    await waitFor(() => expect(url()).toBe('/oauth/consent?authorization_id=req-42'))
+    expect(screen.getByText('Consent')).toBeInTheDocument()
   })
 
   it('with no route asked for, sign-in finishes on Home', async () => {

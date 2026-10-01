@@ -11,6 +11,14 @@ import {
 import type { To } from 'react-router-dom'
 import { useSearchParams } from 'react-router-dom'
 import { useVirtualizer } from '@tanstack/react-virtual'
+import {
+  getCoreRowModel,
+  getExpandedRowModel,
+  useReactTable,
+  type ColumnDef,
+  type SortingState,
+  type Updater,
+} from '@tanstack/react-table'
 import { listPendingTasks } from '@/lib/db/processes'
 import type { PendingTaskRow } from '@/lib/db/processes.types'
 import type { TaskStatus, TaskListRow } from '@/lib/db/tasks.types'
@@ -20,18 +28,23 @@ import { useOptionalOverlayHost } from '@/shell/overlay-host'
 import { useCollectionKeyboard } from '@/components/record-collection/use-collection-keyboard'
 import { TasksTableBody } from './tasks-table-body'
 import { canEdit, picOptions } from './task-permissions'
-import type { FlatRow } from './tasks-table-body'
 import type { RenderGroup } from './tasks-grouping'
 import type { WorkloadSummary } from './workload-caption'
 import { TaskRow, type TaskTeamOption } from './task-row'
 import { GroupHeaderRow } from './group-header-row'
+import { buildTaskTree, groupRowId, useTaskCollapsePreference, type TaskTreeNode } from './task-group-tree'
 import { OccurrenceAssignDialog } from './occurrence-assign-dialog'
 import './TaskQueue.css'
 import type {
   CollectionPresentationProps,
   CollectionProjection,
 } from '@/lib/record-collection/types'
-import { taskTableColumnSpan } from './task-collection-query'
+import {
+  TASK_COLUMN_DEFS,
+  taskColumnVisibilityState,
+  taskSortFromSorting,
+  taskSortingState,
+} from './task-columns'
 import { STATUS_ORDER } from './task-formatters'
 import { isOverdue } from '@/lib/due-status'
 import type {
@@ -64,13 +77,14 @@ export interface TaskCollectionRuntime {
   draftTask: TaskListRow | null
   onDiscardNewTask: () => void
   draftLinkError: boolean
-  onRetryDraftLink: () => void
+  onRetryDraftLink: (title: string) => void
   onCloseDrawer: () => void
   onNewTask: (prefillParam?: string) => void
   onAddTask: (prefillParam: string) => void
   onRetry: () => void
   onClearFilters: () => void
-  onSort: (sort: TaskCollectionQuery['sort']) => void
+  /** Header sort change (TanStack sort state → the URL-bound sort + direction). */
+  onSortChange: (sort: TaskCollectionQuery['sort'], direction: TaskCollectionQuery['direction']) => void
   onOverdueFilter: () => void
   onClearOverdue: () => void
   createHref: To
@@ -127,54 +141,11 @@ const DEFAULT_TASK_RUNTIME: TaskCollectionRuntime = {
   onAddTask: () => {},
   onRetry: () => {},
   onClearFilters: () => {},
-  onSort: () => {},
+  onSortChange: () => {},
   onOverdueFilter: () => {},
   onClearOverdue: () => {},
   createHref: '/work/tasks/new',
   canResolvePending: false,
-}
-
-type CollapseState = Partial<Record<TaskCollectionQuery['groupBy'], string[]>>
-const COLLAPSE_KEY = 'mos.tasks.collapsedGroups'
-
-function readCollapseState(): CollapseState {
-  try {
-    const raw = localStorage.getItem(COLLAPSE_KEY)
-    if (!raw) return {}
-    const parsed: unknown = JSON.parse(raw)
-    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return {}
-    const result: CollapseState = {}
-    for (const key of ['none', 'status', 'pic', 'bu', 'workline', 'objective', 'occurrence'] as const) {
-      const values = (parsed as Record<string, unknown>)[key]
-      if (Array.isArray(values)) result[key] = values.filter((value): value is string => typeof value === 'string')
-    }
-    return result
-  } catch {
-    return {}
-  }
-}
-
-function useTaskCollapsePreference(groupBy: TaskCollectionQuery['groupBy']) {
-  const [collapsed, setCollapsed] = useState<CollapseState>(() => readCollapseState())
-
-  const toggleCollapsed = useCallback((groupId: string) => {
-    setCollapsed((previous) => {
-      const current = previous[groupBy] ?? []
-      const nextForGroup = current.includes(groupId)
-        ? current.filter((id) => id !== groupId)
-        : [...current, groupId]
-      const next = { ...previous, [groupBy]: nextForGroup }
-      try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify(next)) } catch { /* storage disabled */ }
-      return next
-    })
-  }, [groupBy])
-
-  const isCollapsed = useCallback(
-    (groupId: string) => (collapsed[groupBy] ?? []).includes(groupId),
-    [collapsed, groupBy],
-  )
-
-  return { isCollapsed, toggleCollapsed }
 }
 
 type TaskPresentationProps = CollectionPresentationProps<
@@ -302,26 +273,6 @@ function buildRenderGroups(
   return query.groupBy === 'status' && statusOverrides.size > 0 ? regroupByLiveStatus(groups, context.now, t) : groups
 }
 
-function buildFlatRows(
-  groups: readonly RenderGroup[],
-  groupBy: TaskCollectionQuery['groupBy'],
-  isCollapsed: (groupId: string) => boolean,
-) {
-  const flatRows: FlatRow[] = []
-  const leafTasks: TaskListRow[] = []
-  for (const group of groups) {
-    if (groupBy !== 'none') {
-      flatRows.push({ kind: 'header', group })
-      if (isCollapsed(group.key)) continue
-    }
-    for (const task of group.rows) {
-      flatRows.push({ kind: 'leaf', task, leafIndex: leafTasks.length })
-      leafTasks.push(task)
-    }
-  }
-  return { flatRows, leafTasks }
-}
-
 function buildWorkloadSummary(
   query: TaskCollectionQuery,
   leafTasks: readonly TaskListRow[],
@@ -391,7 +342,6 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
   // Task selection capability is disabled (OD-REDESIGN-83.2) — ignore selectedIds/onToggleSelected
   void selectedIds
   void onToggleSelected
-  const { isCollapsed: isCollapsedPreference, toggleCollapsed } = useTaskCollapsePreference(query.groupBy)
   const groups = useMemo<RenderGroup[]>(() => {
     const next = buildRenderGroups(projection, context, query, runtime.statusOverrides, t)
     const draft = runtime.draftTask
@@ -403,10 +353,71 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
       ? { ...group, rows: [draft, ...group.rows] }
       : group)
   }, [context, projection, query, runtime.draftTask, runtime.statusOverrides, t])
-  const { flatRows, leafTasks } = useMemo(
-    () => buildFlatRows(groups, query.groupBy, isCollapsedPreference),
-    [groups, isCollapsedPreference, query.groupBy],
+  // Group headers are parent rows of the table's row tree and the persisted collapsed ids drive
+  // its `expanded` state; the visible rows are `table.getRowModel().rows`.
+  const groupKeys = useMemo(() => groups.map((group) => group.key), [groups])
+  const { expanded, isCollapsed: isCollapsedPreference, onExpandedChange } =
+    useTaskCollapsePreference(query.groupBy, groupKeys)
+  const tree = useMemo(() => buildTaskTree(groups, query.groupBy), [groups, query.groupBy])
+  // #997 (spec FR-001/FR-002): the desktop table's column model. The ONE column-definition
+  // array (task-columns.tsx) feeds useReactTable; `columnVisibility` is derived from
+  // `query.visibleFields` through the shared mapping, so `table.getVisibleLeafColumns()` is
+  // exactly the columns the thead and every TaskRow render. Domain filtering/grouping stays
+  // in the projector (FR-008) — the table owns only the column model in this slice.
+  const columnVisibility = useMemo(
+    () => taskColumnVisibilityState(query.visibleFields),
+    [query.visibleFields],
   )
+  // #998: header sorting runs on TanStack's sort state, bound to the URL sort/direction fields.
+  // Ordering itself stays in the projector (`manualSorting`, no sorted row model), which runs
+  // before grouping; the table only carries which column is sorted and how a header toggles it.
+  // Ascending first, never cleared, single column: the header cycle is up, down, up.
+  const sorting = useMemo(
+    () => taskSortingState(query.sort, query.direction),
+    [query.sort, query.direction],
+  )
+  const { onSortChange } = runtime
+  const onSortingChange = useCallback((updater: Updater<SortingState>) => {
+    const next = taskSortFromSorting(typeof updater === 'function' ? updater(sorting) : updater)
+    if (next) onSortChange(next.sort, next.direction)
+  }, [onSortChange, sorting])
+  const table = useReactTable<TaskTreeNode>({
+    data: tree,
+    // TaskColumnDef's data generic is deliberately wider than the tree node (it also accepts a bare task).
+    columns: TASK_COLUMN_DEFS as ColumnDef<TaskTreeNode>[],
+    getRowId: (node) => node.id,
+    getSubRows: (node) => (node.kind === 'group' ? node.subRows : undefined),
+    state: { columnVisibility, sorting, expanded },
+    onSortingChange,
+    onExpandedChange,
+    autoResetExpanded: false,
+    manualSorting: true,
+    enableSortingRemoval: false,
+    enableMultiSort: false,
+    sortDescFirst: false,
+    getCoreRowModel: getCoreRowModel(),
+    getExpandedRowModel: getExpandedRowModel(),
+  })
+  const flatRows = table.getRowModel().rows
+  const { leafTasks, leafIndexByRowId } = useMemo(() => {
+    const tasks: TaskListRow[] = []
+    const indexes = new Map<string, number>()
+    for (const row of flatRows) {
+      if (row.original.kind !== 'leaf') continue
+      indexes.set(row.id, tasks.length)
+      tasks.push(row.original.task)
+    }
+    return { leafTasks: tasks, leafIndexByRowId: indexes }
+  }, [flatRows])
+  const toggleGroup = (groupKey: string) => {
+    const id = groupRowId(groupKey)
+    table.setExpanded((old) => {
+      const open = old === true || old[id] === true
+      return { ...(old === true ? {} : old), [id]: !open }
+    })
+    onToggleGroup(groupKey)
+  }
+  const columnSpan = table.getVisibleLeafColumns().length
   const [cursor, setCursor] = useState(-1)
   const cursorRowRef = useRef<HTMLTableRowElement | null>(null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
@@ -435,7 +446,7 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
     overscan: 8,
     initialRect: { width: 0, height: 600 },
   })
-  const cursorFlatIndex = flatRows.findIndex((row) => row.kind === 'leaf' && row.leafIndex === cursor)
+  const cursorFlatIndex = flatRows.findIndex((row) => leafIndexByRowId.get(row.id) === cursor)
 
   const openTask = useCallback((taskId: string) => {
     if (providedRuntime) {
@@ -484,24 +495,15 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
   const canResolvePendingForRun = runtime.canResolvePendingForRun ?? (() => runtime.canResolvePending)
   const personMap = useMemo(() => new Map(context.personNamesById), [context.personNamesById])
   const buMap = useMemo(() => new Map(context.businessUnitNamesById), [context.businessUnitNamesById])
+  // #760 AC-048: the phone card's Team line — the canonical owning field (OD-WAY-94 (9)), not the
+  // display-only BU. Empty when the loader has none (context.teamNamesById is optional).
+  const teamMap = useMemo(() => new Map(context.teamNamesById ?? []), [context.teamNamesById])
   const workLineMap = useMemo(() => new Map(context.workLinesById), [context.workLinesById])
   const objectiveMap = useMemo(() => new Map(context.objectivesById), [context.objectivesById])
   const workloadSummary = useMemo(
     () => buildWorkloadSummary(query, leafTasks, context),
     [context, leafTasks, query],
   )
-  const sortCol = query.sort === 'pic' ? 'owner' : query.sort === 'supervisor' ? 'task' : query.sort
-  const sortDirection = query.direction
-  const sortIndicator = (column: 'task' | 'status' | 'owner' | 'due' | 'activity'): ReactNode =>
-    sortCol === column ? (
-      <span className="collection-grammar-sort-indicator" aria-hidden="true">
-        {sortDirection === 'ascending' ? '↑' : '↓'}
-      </span>
-    ) : null
-  const onSort = (column: 'task' | 'status' | 'owner' | 'due' | 'activity') => {
-    const nextSort = column === 'owner' ? 'pic' : column
-    runtime.onSort(nextSort)
-  }
   const renderRow = (task: TaskListRow, leafIndex: number) => {
     // FR-031 / AC-022: the in-row title/PIC/Due editors render only where the viewer holds the
     // edit right — the same one gate the record surface uses (task-permissions.canEdit: the PIC,
@@ -537,14 +539,11 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
         teamOptions={isNew ? runtime.teamOptions : []}
         onEditTeam={isNew ? runtime.onEditTeam : undefined}
         onEditSupervisor={isNew ? runtime.onEditSupervisor : undefined}
-        showBusinessUnit={query.visibleFields.includes('businessUnit')}
-        // AC-006 (#743): every field the Fields chooser offers renders a real column when checked.
-        // The names resolve through the same catalogs the group headers use (id → display name).
-        showWorkline={query.visibleFields.includes('workline')}
+        // #997: the row derives its columns from the shared defs against the same
+        // `query.visibleFields` the table instance's columnVisibility state uses.
+        visibleFields={query.visibleFields}
         workLineName={workLineMap.get(task.work_line_id ?? '') ?? ''}
-        showObjective={query.visibleFields.includes('objective')}
         objectiveName={objectiveMap.get(task.objective_id ?? '') ?? ''}
-        showActivity={query.visibleFields.includes('activity')}
         isNew={isNew}
         onDiscardNewTask={runtime.onDiscardNewTask}
         createError={isNew && runtime.draftLinkError}
@@ -554,7 +553,7 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
         provenanceRoleName={task.generated_from_task_def_id
           ? context.provenanceByTaskDefId.get(task.generated_from_task_def_id)
           : undefined}
-        columnSpan={taskTableColumnSpan(query.visibleFields)}
+        columnSpan={columnSpan}
         viewerHasNoDownline={(context.downlinePersonIds?.length ?? 0) === 0}
       />
     )
@@ -566,7 +565,7 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
       count={group.rows.length}
       overdue={group.overdue}
       collapsed={isCollapsedPreference(group.key)}
-      colSpan={taskTableColumnSpan(query.visibleFields)}
+      colSpan={columnSpan}
       prefill={group.prefillParam}
       controlsId={`grp-rows-${group.key}`}
       workLineType={group.workLineType}
@@ -575,7 +574,7 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
       onAssignPending={group.occurrenceRollup && canResolvePendingForRun(group.key)
         ? () => occurrence.open(group.key)
         : undefined}
-      onToggle={() => { toggleCollapsed(group.key); onToggleGroup(group.key) }}
+      onToggle={() => toggleGroup(group.key)}
       onAddTask={() => runtime.onAddTask(group.prefillParam)}
       onOverdueFilter={runtime.onOverdueFilter}
     />
@@ -586,23 +585,15 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
       <TasksTableBody
         loading={false}
         error={null}
-        showBusinessUnit={query.visibleFields.includes('businessUnit')}
-        showWorkline={query.visibleFields.includes('workline')}
-        showObjective={query.visibleFields.includes('objective')}
-        showActivity={query.visibleFields.includes('activity')}
-        columnSpan={taskTableColumnSpan(query.visibleFields)}
-        leafTasks={leafTasks}
+        table={table}
         hasActiveFilter={projection.visibleRecordsAreFiltered}
         isDesktop={desktopLayout}
         onRetry={runtime.onRetry}
         onClearFilters={runtime.onClearFilters}
         emptyTitle={t('tasks.empty.noTasksTitle')}
         emptyCopy={t('tasks.empty.noTasksCopy')}
-        sortCol={sortCol === 'owner' ? 'owner' : sortCol as 'task' | 'status' | 'due' | 'activity'}
-        onSort={onSort}
-        ariaSort={(column) => sortCol === column ? sortDirection : 'none'}
-        sortIndicator={sortIndicator}
         flatRows={flatRows}
+        leafIndexByRowId={leafIndexByRowId}
         virtualize={virtualize}
         scrollRef={scrollRef}
         rowVirtualizer={rowVirtualizer}
@@ -613,9 +604,10 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
         recordSearch={runtime.recordSearch}
         now={context.now}
         buMap={buMap}
+        teamMap={teamMap}
         personMap={personMap}
         isCollapsed={isCollapsedPreference}
-        toggleCollapsed={(groupId) => { toggleCollapsed(groupId); onToggleGroup(groupId) }}
+        toggleCollapsed={toggleGroup}
         openAddTask={runtime.onAddTask}
         setOverdueOnly={(next) => next ? runtime.onOverdueFilter() : runtime.onClearOverdue()}
         workLineMap={workLineMap}

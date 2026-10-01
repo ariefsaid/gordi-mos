@@ -1,8 +1,9 @@
 // CatalogManager tests (OD-C-2 / spec cascade-catalog AC-004..007).
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { CatalogManager, type CatalogItem } from './catalog-manager'
+import { installDisabledBlur } from '@/test/browser-focus-fixup'
 
 function setup(overrides: Partial<Parameters<typeof CatalogManager>[0]> = {}) {
   const load = vi.fn<() => Promise<CatalogItem[]>>().mockResolvedValue([])
@@ -17,7 +18,10 @@ function setup(overrides: Partial<Parameters<typeof CatalogManager>[0]> = {}) {
   return { load, create, rename, setArchived }
 }
 
-beforeEach(() => vi.clearAllMocks())
+// A browser drops focus from a control that becomes disabled; jsdom does not.
+let removeDisabledBlur = () => {}
+beforeEach(() => { vi.clearAllMocks(); removeDisabledBlur = installDisabledBlur() })
+afterEach(() => removeDisabledBlur())
 
 describe('CatalogManager', () => {
   it('shows the empty state when there are no items', async () => {
@@ -63,12 +67,34 @@ describe('CatalogManager', () => {
     expect(load).toHaveBeenCalledTimes(2) // mount + after-create refresh
   })
 
+  it('a failed add keeps the typed name and focus; a retry creates once', async () => {
+    const user = userEvent.setup()
+    const create = vi.fn().mockRejectedValueOnce(new TypeError('Failed to fetch')).mockResolvedValue({})
+    setup({ create })
+    await screen.findByText('No objectives yet')
+    await user.type(screen.getByLabelText('Name'), 'Q4 Push')
+    await user.click(screen.getByRole('button', { name: 'Add' }))
+
+    expect(await screen.findByText(/offline or the server can’t be reached/)).toBeInTheDocument()
+    expect(screen.queryByText(/Failed to fetch/)).toBeNull()
+    const field = screen.getByLabelText('Name')
+    await waitFor(() => expect(field).toHaveFocus())
+    expect(field).toHaveValue('Q4 Push')
+    expect(create).toHaveBeenCalledTimes(1)
+
+    await user.click(screen.getByRole('button', { name: 'Add' }))
+    await waitFor(() => expect(field).toHaveValue(''))
+    expect(create).toHaveBeenCalledTimes(2)
+    expect(create).toHaveBeenNthCalledWith(1, 'Q4 Push', undefined)
+    expect(create).toHaveBeenNthCalledWith(2, 'Q4 Push', undefined)
+  })
+
   it('AC-006: rename success persists; failure surfaces an error and stays editing', async () => {
     const user = userEvent.setup()
     const load = vi.fn<() => Promise<CatalogItem[]>>().mockResolvedValue([
       { id: '1', name: 'Old Name', archived_at: null },
     ])
-    const rename = vi.fn().mockRejectedValueOnce(new Error('denied')).mockResolvedValue(undefined)
+    const rename = vi.fn().mockRejectedValueOnce(Object.assign(new Error('denied'), { code: '42501' })).mockResolvedValue(undefined)
     setup({ load, rename })
     await screen.findByText('Old Name')
     await user.click(screen.getByRole('button', { name: 'Rename Old Name' }))
@@ -77,11 +103,17 @@ describe('CatalogManager', () => {
     await user.type(field, 'New Name')
     await user.click(screen.getByRole('button', { name: 'Save' }))
     // first attempt fails → error shown, still in edit mode
-    expect(await screen.findByText('denied')).toBeInTheDocument()
-    expect(screen.getByLabelText('Rename Old Name')).toBeInTheDocument()
-    // retry succeeds
+    expect(await screen.findByText('You don’t have permission to do this.')).toBeInTheDocument()
+    expect(rename).toHaveBeenCalledTimes(1)
+    expect(rename).toHaveBeenLastCalledWith('1', 'New Name')
+    // the text and the focus survive the failed attempt
+    await waitFor(() => expect(screen.getByLabelText('Rename Old Name')).toHaveFocus())
+    expect(screen.getByLabelText('Rename Old Name')).toHaveValue('New Name')
+    // exactly one retry, and it succeeds
     await user.click(screen.getByRole('button', { name: 'Save' }))
-    await waitFor(() => expect(rename).toHaveBeenCalledWith('1', 'New Name'))
+    await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Rename Old Name' })).toBeNull())
+    expect(rename).toHaveBeenCalledTimes(2)
+    expect(rename).toHaveBeenLastCalledWith('1', 'New Name')
   })
 
   it('archives an active item', async () => {

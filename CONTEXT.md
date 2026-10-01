@@ -181,8 +181,7 @@ levels *contribute* up, they don't copy down.
 **"Cascade" is vocabulary, never a surface.** It names the relation, and it must never appear as a route,
 a rail item, or a UI label — the requirement it stands for is **roll-up and drill-down from any level, on
 the records themselves**: an Objective shows its Projects/Processes, a Project/Process shows its Objective
-and its Tasks. Progress is a **count roll-up** of child status, two hops. There is no measure or target
-field, and no separate measurement layer.
+and its Tasks. Progress is a **count roll-up** of child status, two hops. There is no separate measurement layer.
 
 *Why three and not six.* The founding model had six — Strategy · Objective · Outcome · Program/Process ·
 Output · Task — and ADR-0014 kept the other three as vocabulary-that-folds-in-later. `OD-WAY-32` (owner,
@@ -194,15 +193,14 @@ additive and cheap; the argument that a three-level model loses too much is supe
 **Objective** (the top of the cascade):
 A yearly goal that work rolls up to — the "what we want this year." Carries A/R ownership and a lane; it
 is the grouping a person's work is read against. Its **progress is derived** — a count roll-up of its
-Projects/Processes, which roll up their Tasks — so it carries **no measure, baseline, or target field**
-(`OD-WAY-33`). Nothing sits above it: Strategy is dropped, not deferred.
+Projects/Processes, which roll up their Tasks — so it carries no measure field of its own.
+Optional **key results** (no check-in cadence) reverse `OD-WAY-33` (`OD-OBJ-1`). Indonesian: **Tujuan**
+(`OD-TASK-2`). Nothing sits above it: Strategy is dropped, not deferred.
 _Avoid_: goal, mission, OKR (that's the measurement layers)
 
 **Outcome** — ⚑ **DROPPED, not deferred** (`OD-WAY-32`/`OD-WAY-33`, 2026-08-04):
-Was the KPI/KR target layer between Objective and Project/Process. There is no measurement layer and no
-target field. Progress is a count roll-up. Should a measure ever be wanted it is additive nullable columns
-on the Objective, not a layer — verified: `mos.objectives` is a bare catalog and nothing materialises
-progress.
+Was the KPI/KR target layer between Objective and Project/Process. There is no measurement layer;
+progress is a count roll-up; key results live on the Objective, not in a layer.
 _Avoid_: using "Outcome" as a cascade level at all; it is no longer part of the vocabulary.
 
 **Project / Process** (the middle of the cascade — the work-system that moves a goal):

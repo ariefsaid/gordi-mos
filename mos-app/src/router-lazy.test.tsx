@@ -26,6 +26,8 @@ import { TasksLayout } from './pages/tasks-layout'
 import { TaskDrawer } from './components/tasks/task-drawer'
 import { SignalsArchivePage, SignalRecordPage } from './pages/signals-archive-page'
 import { ProfilePage } from './pages/profile-page'
+import { OAuthConsentPage } from './pages/oauth-consent-page'
+import { ProfileConnectedAgentsPage } from './pages/profile-connected-agents-page'
 import { EventsWorkspacePage } from './pages/events-workspace-page'
 import { FollowUpsPage } from './pages/follow-ups-page'
 import { ObjectivesPage } from './pages/objectives-page'
@@ -43,6 +45,7 @@ import { BudgetPage } from './pages/budget-page'
 import { PricingPage } from './pages/pricing-page'
 import { AdminUsersPage } from './pages/admin-users-page'
 import { AdminAccessPage } from './pages/admin-access-page'
+import { AdminAgentConnectionsPage } from './pages/admin-agent-connections-page'
 import { AdminTeamsPage } from './pages/admin-teams-page'
 import { RecoveryPage } from './pages/recovery-page'
 import { SliceStubPage } from './pages/slice-stub-page'
@@ -165,9 +168,12 @@ const WIRING: ReadonlyArray<readonly [path: string, component: unknown, provenan
   // component throughout — while this row asserted the stub. Routed in #269; it carries the only
   // locale control in the app, so the stub left the Indonesian catalog unreachable.
   ['/profile', ProfilePage, 'v4'],
+  ['/oauth/consent', OAuthConsentPage, 'redesign'],
+  ['/profile/connected-agents', ProfileConnectedAgentsPage, 'review-stamp'],
   ['/admin/people', AdminUsersPage, 'dev'],
   ['/admin/teams', AdminTeamsPage, 'redesign'],
   ['/admin/access', AdminAccessPage, 'redesign'],
+  ['/admin/agents', AdminAgentConnectionsPage, 'review-stamp'],
   ['/recovery', RecoveryPage, 'dev'],
 ]
 

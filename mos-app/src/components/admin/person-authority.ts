@@ -5,6 +5,7 @@
 import type { MessageKey } from '@/i18n/messages'
 import type { Translate } from '@/i18n/use-t'
 import { localizedRoleMeta } from '@/lib/db/admin-users.types'
+import { buHeadsForViewer, type RoleScopeNode } from '@/lib/role-scope'
 import {
   AUTHORITY_ACTIONS,
   type AuthorityAction,
@@ -23,18 +24,30 @@ export interface PersonAuthority {
   sources: AuthorityRole[]
 }
 
-/**
- * Roles this person holds in the authority table's vocabulary: Member always (everyone receives
- * it), their access roles, and Team lead when they lead at least one Team. BU head is left out on
- * purpose — it comes from a Position at the top of a Business Unit, which this screen cannot see.
- */
-export function heldAuthorityRoles(accessRoles: readonly string[], leadsATeam: boolean): AuthorityRole[] {
+// Roles in the authority table's vocabulary: Member always, access roles, Team lead when they lead
+// a Team, BU head when they head a Business Unit.
+export function heldAuthorityRoles(accessRoles: readonly string[], leadsATeam: boolean, headsABusinessUnit: boolean): AuthorityRole[] {
   const held = new Set<AuthorityRole>(['member'])
   for (const role of ['ops_lead', 'admin', 'finance', 'manager', 'supervisor'] as const) {
     if (accessRoles.includes(role)) held.add(role)
   }
   if (leadsATeam) held.add('team_lead')
+  if (headsABusinessUnit) held.add('bu_head')
   return [...held]
+}
+
+// The database's BU-head rule (shared.is_business_unit_head), read from the role tree the Home door
+// uses. An archived person and an archived unit (absent from `units`) have no head.
+export function headedBusinessUnits(
+  person: { archived_at: string | null; jabatan: readonly { role_id: string }[] },
+  roleTree: readonly RoleScopeNode[],
+  units: readonly { id: string; name: string }[],
+): string[] {
+  if (person.archived_at) return []
+  const held = new Set(person.jabatan.map((position) => position.role_id))
+  const names = new Map(units.map((unit) => [unit.id, unit.name]))
+  return buHeadsForViewer(roleTree.filter((role) => held.has(role.id)), [...roleTree])
+    .flatMap((head) => names.get(head.buId) ?? [])
 }
 
 export function personAuthority(rows: readonly RoleAuthorityRow[], held: readonly AuthorityRole[]): PersonAuthority[] {
@@ -51,12 +64,12 @@ export function personAuthority(rows: readonly RoleAuthorityRow[], held: readonl
 
 export const AUTHORITY_ACTION_LABEL_KEYS: Record<AuthorityAction, MessageKey> = {
   'workline.manage': 'admin.access.action.workline.manage',
-  'objective.manage': 'admin.access.action.objective.manage',
   'signal.post': 'admin.access.action.signal.post',
   'signal.tag': 'admin.access.action.signal.tag',
   'signal.retract': 'admin.access.action.signal.retract',
   'process.start': 'admin.access.action.process.start',
   'process.close': 'admin.access.action.process.close',
+  'agent.connect': 'admin.access.action.agent.connect',
 }
 
 export const AUTHORITY_SCOPE_LABEL_KEYS: Record<AuthorityScope, MessageKey> = {

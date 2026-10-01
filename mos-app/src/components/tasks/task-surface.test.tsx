@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { useState } from 'react'
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { TASK_TITLE_MAX_LENGTH } from './task-formatters'
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
@@ -8,6 +10,7 @@ import type { PeopleRow, RolesRow } from '@/lib/database.types'
 import type { TaskListRow, ChecklistItemRow, TaskEventRow } from '@/lib/db/tasks.types'
 import type { BusinessUnitOption, PersonOption } from '@/lib/db/directory'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import { installDisabledBlur } from '@/test/browser-focus-fixup'
 
 // ── Mock the data layer ──────────────────────────────────────────────────────
 vi.mock('../../lib/db/tasks', () => ({
@@ -205,7 +208,7 @@ describe('TaskSurface — view mode', () => {
     vi.mocked(listObjectives).mockResolvedValue([{ id: 'active-objective', name: 'Current Objective' }])
     vi.mocked(readObjective).mockResolvedValue({
       id: 'archived-objective', name: 'Archived Objective', archived_at: '2026-07-01T00:00:00Z',
-      business_unit_id: null, accountable_person_id: null, period_year: null, updated_at: '',
+      business_unit_id: null, is_company_wide: false, accountable_person_id: null, period_year: null, period_quarter: null, updated_at: '',
     })
     renderSurface()
     expect((await screen.findAllByRole('link', { name: 'Archived Objective' }))[0]).toHaveAttribute('href', '/work/objectives/archived-objective')
@@ -233,6 +236,8 @@ describe('TaskSurface — view mode', () => {
       expect(screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' })).toBeInTheDocument()
     })
     // Status/action stay in the compact header; the full work path and context remain in one view.
+    // The title's edit control must carry a localized accessible name, never the raw field key.
+    expect(screen.getByRole('button', { name: 'Edit Title' })).toBeInTheDocument()
     expect(screen.getByText('Open')).toBeInTheDocument()
     expect(screen.getByRole('region', { name: /task ownership/i })).toBeInTheDocument()
     const ownership = document.querySelector('[data-content-slot="ownership"]') as HTMLElement
@@ -271,6 +276,7 @@ describe('TaskSurface — view mode', () => {
     renderIndonesianSurface()
 
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' })).toBeInTheDocument())
+    expect(screen.getByRole('button', { name: 'Ubah Judul' })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Detail tugas' })).toBeInTheDocument()
     expect(screen.getByText('Kepemilikan tugas')).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Checklist' })).toBeInTheDocument()
@@ -296,7 +302,7 @@ describe('TaskSurface — view mode', () => {
     expect(document.querySelector('.record-viewer--page')).toBeTruthy()
     const regions = [...document.querySelectorAll('[data-content-slot]')]
       .map((node) => (node as HTMLElement).dataset.contentSlot)
-    expect(regions).toEqual(['content', 'checklist', 'ownership', 'activity', 'relations'])
+    expect(regions).toEqual(['content', 'checklist', 'ownership', 'relations', 'activity'])
   })
 
   it('AC-P3-CM-004: renders task comments in the live task surface', async () => {
@@ -657,6 +663,25 @@ describe('TaskSurface — live region (AC-111)', () => {
     await waitFor(() => expect(liveRegion()?.textContent).toMatch(/checklist item added/i))
   })
 
+  // Luna review (23dcf7e6, finding 1): the Retry button called the parent's closure directly,
+  // bypassing ChecklistCard's own draft-clearing — a successful retry added the item but left the
+  // typed text in the field, so a further Enter would re-add it as a duplicate.
+  it('Ticket #965: a successful Retry (after a rejected add) clears the draft — no stale duplicate', async () => {
+    mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
+    const { addChecklistItem } = await import('@/lib/db/tasks')
+    vi.mocked(addChecklistItem)
+      .mockRejectedValueOnce(new Error('write failed'))
+      .mockResolvedValueOnce()
+    renderDrawer()
+    const input = await screen.findByLabelText(/add checklist item/i)
+    fireEvent.change(input, { target: { value: 'Buy beans' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    fireEvent.click(await screen.findByRole('button', { name: /retry/i }))
+    await waitFor(() => expect(screen.getAllByText('Buy beans')).toHaveLength(1))
+    expect(input).toHaveValue('')
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
   it('AC-111: a failed checklist toggle reverts AND announces the rollback', async () => {
     const item: ChecklistItemRow = {
       id: 'item-x', org_id: 'org', task_id: 'task-abc', label: 'Wipe counter',
@@ -955,6 +980,30 @@ describe('TaskSurface — create mode', () => {
     expect(alert).not.toHaveTextContent(/something went wrong/i)
   })
 
+  it('issue 979: a failed create keeps the typed title, hands focus back to it, and one retry creates once', async () => {
+    const restore = installDisabledBlur()
+    try {
+      mockCreateTask.mockReset()
+      mockCreateTask.mockRejectedValueOnce(new Error('boom')).mockResolvedValue('new-task-id')
+      renderCreate()
+      const title = await screen.findByLabelText(/title/i)
+      fireEvent.focus(title)
+      fireEvent.change(title, { target: { value: 'Doomed task' } })
+      choosePickerOption('Supervisor', 'Cahya Cafe')
+      // The picker returns focus to its trigger once it closes; let that settle before the user
+      // moves on to the title, or it would steal focus back after the failed create.
+      await waitFor(() => expect(screen.getByRole('combobox', { name: 'Supervisor' })).toHaveFocus())
+      title.focus()
+      fireEvent.click(screen.getByRole('button', { name: /create task/i }))
+      await screen.findByRole('alert')
+      expect(mockCreateTask).toHaveBeenCalledTimes(1)
+      await waitFor(() => expect(title).toHaveFocus())
+      expect(title).toHaveValue('Doomed task')
+      fireEvent.click(screen.getByRole('button', { name: /create task/i }))
+      await waitFor(() => expect(mockCreateTask).toHaveBeenCalledTimes(2))
+    } finally { restore() }
+  })
+
   it('AC-107 (create drawer): at drawer width renders a "Create task" bar with no double card frame', async () => {
     render(
       <AuthContext.Provider value={authedState}>
@@ -1061,6 +1110,15 @@ describe('TaskSurface — create mode', () => {
     // aria-invalid on the input is the accessible oracle.
     expect(title.closest('.mk-textinput')).toHaveClass('mk-textinput--error')
     expect(title).toHaveAttribute('aria-invalid', 'true')
+  })
+
+  it('caps the create-dialog Title at the shared limit (#1034)', async () => {
+    const user = userEvent.setup()
+    renderCreate()
+    const title = await screen.findByLabelText('Title') as HTMLInputElement
+    await user.click(title)
+    await user.paste('x'.repeat(TASK_TITLE_MAX_LENGTH + 50))
+    expect(title.value).toHaveLength(TASK_TITLE_MAX_LENGTH)
   })
 
   it('AC-108: a blur error clears once the field is filled (typing)', async () => {

@@ -16,6 +16,26 @@ function openSelect() {
 }
 
 describe('Select (primitive)', () => {
+  it('writes the exact value of an option that equals a reserved-looking key', async () => {
+    const user = userEvent.setup()
+    let changedValue = ''
+    const onChange = vi.fn((event: React.ChangeEvent<HTMLSelectElement>) => { changedValue = event.target.value })
+    render(
+      <Select label="Pick" value="apple" onChange={onChange}>
+        <option value="apple">Apple</option>
+        <option value="">None</option>
+        <option value="__mk-select-empty__">Sentinel lookalike</option>
+        <option value="none">Literal none</option>
+        <option value="1">Numeric</option>
+      </Select>,
+    )
+    for (const [name, expected] of [['Sentinel lookalike', '__mk-select-empty__'], ['Literal none', 'none'], ['Numeric', '1']]) {
+      await openSelect()
+      await user.click(screen.getByRole('option', { name }))
+      expect(changedValue).toBe(expected)
+    }
+  })
+
   it('renders a designed combobox and exposes its options through an anchored listbox', async () => {
     render(
       <Select value="apple" aria-label="Choose fruit" data-testid="select">
@@ -119,23 +139,14 @@ describe('Select (primitive)', () => {
     )
     const trigger = screen.getByRole('combobox', { name: 'Choose fruit' })
     await user.click(trigger)
-    const listbox = screen.getByRole('listbox', { name: 'Choose fruit' })
+    expect(screen.getByRole('listbox', { name: 'Choose fruit' })).toBeInTheDocument()
 
     await user.keyboard('{ArrowDown}')
-    expect(listbox).toHaveAttribute(
-      'aria-activedescendant',
-      screen.getByRole('option', { name: 'Cherry' }).id,
-    )
+    expect(screen.getByRole('option', { name: 'Cherry' })).toHaveFocus()
     await user.keyboard('{End}')
-    expect(listbox).toHaveAttribute(
-      'aria-activedescendant',
-      screen.getByRole('option', { name: 'Clementine' }).id,
-    )
+    expect(screen.getByRole('option', { name: 'Clementine' })).toHaveFocus()
     await user.keyboard('a')
-    expect(listbox).toHaveAttribute(
-      'aria-activedescendant',
-      screen.getByRole('option', { name: 'Apple' }).id,
-    )
+    expect(screen.getByRole('option', { name: 'Apple' })).toHaveFocus()
     await user.keyboard('{ArrowDown}{Enter}')
     expect(onChange).toHaveBeenCalledTimes(1)
     expect(changedValue).toBe('cherry')
@@ -148,8 +159,19 @@ describe('Select (primitive)', () => {
     expect(trigger).toHaveFocus()
   })
 
-  it('dismisses on outside click without changing the selected value', async () => {
+  it('an unset value still lets ArrowDown then Enter choose from the keyboard', async () => {
     const user = userEvent.setup()
+    const onChange = vi.fn()
+    render(<Select label="Choose fruit" value="" onChange={onChange}>{options}</Select>)
+    screen.getByRole('combobox', { name: 'Choose fruit' }).focus()
+    await user.keyboard('{ArrowDown}')
+    await user.keyboard('{ArrowDown}{Enter}')
+    expect(onChange).toHaveBeenCalledTimes(1)
+  })
+
+  it('dismisses on outside click without changing the selected value', async () => {
+    // Radix blocks pointer events on the page while open; an outside press still dismisses.
+    const user = userEvent.setup({ pointerEventsCheck: 0 })
     const onChange = vi.fn()
     render(
       <>
@@ -161,7 +183,7 @@ describe('Select (primitive)', () => {
     await user.click(trigger)
     expect(screen.getByRole('listbox', { name: 'Choose fruit' })).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Outside' }))
+    await user.click(screen.getByText('Outside'))
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
     expect(onChange).not.toHaveBeenCalled()
     expect(trigger).toHaveTextContent('Choose fruit')

@@ -21,7 +21,6 @@ import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
 import type { PeopleRow, RolesRow } from '@/lib/database.types'
 import type { TaskListRow } from '@/lib/db/tasks.types'
-import { __resetTasksViewPrefForTests } from './use-tasks-view-pref'
 import { TASKS_SPLIT_MIN_WIDTH } from '@/shell/use-is-split-width'
 
 // ── Mock data layer ──────────────────────────────────────────────────────────
@@ -65,8 +64,8 @@ import type { MobileGroupedCardsProps } from './mobile-grouped-cards'
 
 const VIEWER_ID = 'viewer-id'
 const VIEWER_PERSON: PeopleRow = {
-  id: VIEWER_ID, org_id: 'org', user_id: 'uid', full_name: 'Arief Said',
-  email: 'arief@example.test', must_change_password: false, archived_at: null,
+  id: VIEWER_ID, org_id: 'org', user_id: 'uid', full_name: 'Arden Sample',
+  email: 'arden.sample@example.test', must_change_password: false, archived_at: null,
   created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
 }
 const mockRole: RolesRow = {
@@ -94,7 +93,7 @@ function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
 }
 
 const PEOPLE = [
-  { id: VIEWER_ID, full_name: 'Arief Said' },
+  { id: VIEWER_ID, full_name: 'Arden Sample' },
   { id: 'maya-id', full_name: 'Maya Rahmawati' },
 ]
 const BUS = [{ id: 'bu-1', name: 'Kitchen' }]
@@ -163,7 +162,6 @@ function renderWorkspace(props: Partial<React.ComponentProps<typeof TasksWorkspa
 beforeEach(() => {
   vi.resetAllMocks()
   localStorage.clear()
-  __resetTasksViewPrefForTests()
   stubMatchMedia(true, true)
   vi.mocked(getBusinessUnits).mockResolvedValue(BUS)
   vi.mocked(getPeople).mockResolvedValue(PEOPLE)
@@ -306,7 +304,8 @@ describe('RI-1 — Mobile grouped header renders work-line type tag', () => {
           groups={groups}
           now={new Date('2026-06-24')}
           buMap={new Map([['bu-1', 'Kitchen']])}
-          personMap={new Map([[VIEWER_ID, 'Arief Said']])}
+          teamMap={new Map()}
+          personMap={new Map([[VIEWER_ID, 'Arden Sample']])}
           isCollapsed={() => false}
           toggleCollapsed={() => {}}
           openAddTask={() => {}}
@@ -339,7 +338,8 @@ describe('RI-1 — Mobile grouped header renders work-line type tag', () => {
           groups={groups}
           now={new Date('2026-06-24')}
           buMap={new Map([['bu-1', 'Kitchen']])}
-          personMap={new Map([[VIEWER_ID, 'Arief Said']])}
+          teamMap={new Map()}
+          personMap={new Map([[VIEWER_ID, 'Arden Sample']])}
           isCollapsed={() => false}
           toggleCollapsed={() => {}}
           openAddTask={() => {}}
@@ -370,7 +370,8 @@ describe('RI-1 — Mobile grouped header renders work-line type tag', () => {
           groups={groups}
           now={new Date('2026-06-24')}
           buMap={new Map([['bu-1', 'Kitchen']])}
-          personMap={new Map([[VIEWER_ID, 'Arief Said']])}
+          teamMap={new Map()}
+          personMap={new Map([[VIEWER_ID, 'Arden Sample']])}
           isCollapsed={() => false}
           toggleCollapsed={() => {}}
           openAddTask={() => {}}
@@ -501,12 +502,11 @@ describe('RI-4 — Caption reconciles; Done + archived tasks excluded from count
 
 describe('Fix-5 — Mobile card dt labels are visible', () => {
   // Ported for #192: mobile-grouped-cards.tsx's TaskCard dropped Work-line/Objective from the
-  // card body (v4 distill, .claude/skills/impeccable distill.md "remove redundancy" — PIC +
-  // Supervisor + Due are the decision-relevant fields; full metadata is one tap away on the
-  // record). Fix-5's actual claim — every rendered dt label is visible, not sr-only — still
-  // holds; it's re-pinned against the CURRENT field set (PIC/Supervisor/Due) rather than the
-  // pre-distill one (Work-line/Project-Process).
-  it('Fix-5: PIC/Supervisor/Due dt labels are visible (not sr-only) in mobile task card', () => {
+  // card body (v4 distill, .claude/skills/impeccable distill.md "remove redundancy"). Fix-5's
+  // actual claim — every rendered dt label is visible, not sr-only — still holds; it's re-pinned
+  // against the CURRENT field set. #760 AC-048 moved Supervisor off the card onto the record and
+  // put Team in its place (title/status head, then Team, PIC, Due).
+  it('Fix-5: PIC/Due dt labels (and the Team line) are visible (not sr-only) in mobile task card', () => {
     const taskWithWl = makeTask({ id: 't1', work_line_id: 'wl-project' })
     render(
       <MemoryRouter>
@@ -520,7 +520,8 @@ describe('Fix-5 — Mobile card dt labels are visible', () => {
           }]}
           now={new Date('2026-06-24')}
           buMap={new Map([['bu-1', 'Kitchen']])}
-          personMap={new Map([[VIEWER_ID, 'Arief Said']])}
+          teamMap={new Map()}
+          personMap={new Map([[VIEWER_ID, 'Arden Sample']])}
           isCollapsed={() => false}
           toggleCollapsed={() => {}}
           openAddTask={() => {}}
@@ -535,11 +536,13 @@ describe('Fix-5 — Mobile card dt labels are visible', () => {
     const srOnlyDts = dts.filter(dt => dt.classList.contains('sr-only'))
     // After fix: 0 dt elements may be sr-only (all are visible label:value)
     expect(srOnlyDts.length).toBe(0)
-    // The dt text content is readable — the current field set is PIC/Supervisor/Due.
+    // The dt text content is readable — the current field set is PIC/Due (Team has its own
+    // standalone line, not a dt/dd pair; Supervisor moved to the record, #760 AC-048).
     const dtTexts = dts.map(dt => dt.textContent)
     expect(dtTexts.some(t => /^pic$/i.test(t ?? ''))).toBe(true)
-    expect(dtTexts.some(t => /supervisor/i.test(t ?? ''))).toBe(true)
     expect(dtTexts.some(t => /due/i.test(t ?? ''))).toBe(true)
+    expect(dtTexts.some(t => /supervisor/i.test(t ?? ''))).toBe(false)
+    expect(document.querySelector('.task-team')).toBeTruthy()
   })
 
   it('Fix-5: task-card-meta dt elements are not display:none or visually hidden', () => {
@@ -599,8 +602,6 @@ describe('Fix-6 — Work-line picker options include project/daily cue', () => {
       </AuthContext.Provider>,
     )
 
-    // F17 (OD-91 #29): the Project/Process picker lives behind the "+ Add context" reveal now.
-    fireEvent.click(await screen.findByRole('button', { name: /add context/i }))
     // Wait for work-line select to appear
     await screen.findByRole('combobox', { name: /project\/process/i })
     fireEvent.click(screen.getByRole('combobox', { name: /project\/process/i }))
@@ -645,5 +646,56 @@ describe('Fix-7 — useCascadeCatalogs hook', () => {
     await waitFor(() => screen.getByText('Resilient task'))
     // The table renders normally even when catalog loads fail
     expect(screen.getByText('Resilient task')).toBeInTheDocument()
+  })
+})
+
+describe('Issue 1105 — phone group header keeps the title truncated and the action on one line', () => {
+  it('.mgc-label truncates and .mgc-add never wraps', () => {
+    const css = readFileSync(resolve(process.cwd(), 'src/components/tasks/TasksWorkspace.css'), 'utf8')
+    const rule = (sel: string) => css.match(new RegExp(`^${sel.replace('.', '\\.')}\\s*\\{([^}]*)\\}`, 'm'))?.[1] ?? ''
+    expect(rule('.mgc-label')).toMatch(/text-overflow:\s*ellipsis/)
+    expect(rule('.mgc-label')).toMatch(/white-space:\s*nowrap/)
+    expect(rule('.mgc-add')).toMatch(/white-space:\s*nowrap/)
+    expect(rule('.mgc-add')).toMatch(/flex:\s*none/)
+  })
+})
+
+describe('Issue 1105 — phone group header gives the title the full row', () => {
+  const css = readFileSync(resolve(process.cwd(), 'src/components/tasks/TasksWorkspace.css'), 'utf8')
+  const phone = css.slice(css.indexOf('@media (max-width: 767.98px) {\n  .mgc-caret'))
+
+  it('puts tag, count, overdue and add in one meta group, apart from the title', () => {
+    const groups: MobileGroupedCardsProps['groups'] = [{
+      key: 'wl-project', label: 'Beverage Program Launch', rows: [makeTask({ id: 't1', work_line_id: 'wl-project' })],
+      overdue: 1, prefillParam: '', workLineType: 'project',
+    }]
+    render(
+      <MemoryRouter>
+        <MobileGroupedCards
+          groups={groups} now={new Date('2026-06-24')} buMap={new Map([['bu-1', 'Kitchen']])} teamMap={new Map()}
+          personMap={new Map([[VIEWER_ID, 'Test Person']])} isCollapsed={() => false} toggleCollapsed={() => {}}
+          openAddTask={() => {}} setOverdueOnly={() => {}} workLineMap={new Map()} objectiveMap={new Map()}
+        />
+      </MemoryRouter>,
+    )
+    const head = document.querySelector('.mgc-group-head')!
+    const meta = head.querySelector('.mgc-group-meta')!
+    expect(meta.parentElement).toBe(head)
+    expect(meta.querySelector('.mgc-count')).toBeTruthy()
+    expect(meta.querySelector('.mgc-sub')).toBeTruthy()
+    expect(meta.querySelector('.mgc-add')).toBeTruthy()
+    expect(head.querySelector('.mgc-group-headings .mgc-label')).toBeTruthy()
+    expect(meta.contains(head.querySelector('.mgc-label'))).toBe(false)
+  })
+
+  it('phone rules: title wraps to two lines, meta takes its own line, overdue stays whole', () => {
+    expect(phone).toMatch(/\.mgc-group-head\s*\{[^}]*flex-wrap:\s*wrap/)
+    expect(phone).toMatch(/\.mgc-label\s*\{[^}]*-webkit-line-clamp:\s*2[^}]*white-space:\s*normal/)
+    expect(phone).toMatch(/\.mgc-group-meta\s*\{[^}]*flex:\s*1 1 100%/)
+    expect(phone).toMatch(/\.mgc-sub\s*\{\s*white-space:\s*nowrap/)
+  })
+
+  it('the meta group adds no box above the phone breakpoint', () => {
+    expect(css).toMatch(/^\.mgc-group-meta\s*\{\s*display:\s*contents/m)
   })
 })

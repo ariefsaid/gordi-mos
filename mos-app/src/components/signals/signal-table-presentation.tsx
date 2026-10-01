@@ -61,6 +61,8 @@ export function SignalTablePresentation({
     overlayActive,
     onOpen: (index) => { const signal = flatRows[index]; if (signal) onOpenRecord(signal) },
   })
+  // Signals are captured for All Teams, so the Team column is shown only when a visible row has one.
+  const showTeamColumn = flatRows.some((signal) => signal.owning_team_id)
   const cursorId = keyboard.cursor >= 0 ? flatRows[keyboard.cursor]?.id ?? null : null
 
   // AC-027 (#770): the ratified column order is Message (category subline) · Team · Attention ·
@@ -92,11 +94,11 @@ export function SignalTablePresentation({
           </div>
         ),
     },
-    {
+    ...(showTeamColumn ? [{
       key: 'team',
       header: t('signals.table.team'),
-      render: (signal) => signal.owning_team_id ? (context.teamNamesById.get(signal.owning_team_id) ?? '') : '',
-    },
+      render: (signal: SignalRow) => signal.owning_team_id ? (context.teamNamesById.get(signal.owning_team_id) ?? '') : '',
+    }] : []),
     {
       key: 'attention',
       header: t('signals.table.attention'),

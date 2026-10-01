@@ -18,6 +18,8 @@
   align-items: flex-end;
   gap: 8px;
   max-width: 420px;
+  /* Room above the pinned footer once the form is open at the end of the list. */
+  margin-bottom: 12px;
 }
 .kl-missing-form .mk-textinput { flex: 1 1 200px; }
 .kl-missing-send { min-height: 32px; }

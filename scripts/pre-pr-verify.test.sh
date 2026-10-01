@@ -8,11 +8,16 @@ SCRIPT="$(pwd)/scripts/pre-pr-verify.sh"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 pass=0; fail=0
+# Own lock file: the stubbed battery must never queue behind a real suite holding the machine lock.
+export MOS_TEST_LOCK="$tmp/test.lock"
 
 ok()   { pass=$((pass+1)); printf '  ok    %s\n' "$1"; }
 bad()  { fail=$((fail+1)); printf '  FAIL  %s\n' "$1"; }
 
 # Scratch repo shaped like this one: scripts/ + mos-app/, npm stubbed on PATH.
+# Guard self-tests stay off except in the cases that test them: the scratch repo holds every
+# script, so a case that edits one would otherwise run that script's whole suite nested.
+export MOS_GUARD_SELFTESTS_RUNNING=1
 git init -q "$tmp/repo"
 git -C "$tmp/repo" config user.email t@t && git -C "$tmp/repo" config user.name t
 mkdir -p "$tmp/repo/scripts" "$tmp/repo/mos-app/src" "$tmp/bin"
@@ -233,6 +238,67 @@ scope_case "mos-app diff runs the npm lane" "mos-app/vite.config.ts" yes
 scope_case "supabase diff runs the npm lane" "supabase/migrations/x.sql" yes
 scope_case "UNRECOGNIZED path runs the lane (allowlist polarity, rename-out class)" "shared/mod.ts" yes
 
+# ── --dev: the light battery for a PR into dev. Its own base ref (MOS_PR_BASE=lightbase) keeps
+# the origin/dev the later cases read untouched. npm records its argv so what ran is observable.
+light_log="$tmp/npm-light-argv.log"
+printf '#!/bin/sh\nprintf "%%s\\n" "$*" >> "%s"\ncase "$*" in *"run typecheck"*) [ -e "%s/red-typecheck" ] && exit 1;; esac\nexit 0\n' "$light_log" "$tmp" > "$tmp/bin/npm"
+chmod +x "$tmp/bin/npm"
+DEV_STAMP="$tmp/repo/.git/pre-pr-verify-dev-ok"
+run_dev() { (cd "$tmp/repo" && PATH="$tmp/bin:$PATH" MOS_PR_BASE=lightbase bash scripts/pre-pr-verify.sh "$@") >/dev/null 2>&1; }
+run_full_lb() { (cd "$tmp/repo" && PATH="$tmp/bin:$PATH" MOS_PR_BASE=lightbase bash scripts/pre-pr-verify.sh) >/dev/null 2>&1; }
+G update-ref refs/remotes/origin/lightbase "$(G rev-parse HEAD)"
+mkdir -p "$tmp/repo/mos-app/src"
+echo "export const a = 1" > "$tmp/repo/mos-app/src/light-a.ts"
+echo "export {}" > "$tmp/repo/mos-app/src/light-a.test.ts"
+G add mos-app/src/light-a.ts mos-app/src/light-a.test.ts; G commit -qm "light: app source + its test"
+: > "$light_log"; rm -f "$STAMP" "$DEV_STAMP"
+if run_dev --dev; then ok "--dev battery passes"; else bad "--dev battery must pass"; fi
+[ "$(cat "$DEV_STAMP" 2>/dev/null)" = "$(G rev-parse HEAD)" ] && ok "--dev stamps pre-pr-verify-dev-ok with HEAD" || bad "--dev wrote no dev stamp for HEAD"
+[ ! -e "$STAMP" ] && ok "--dev does NOT write the full stamp" || bad "--dev wrote the full stamp — a light run would satisfy a PR into main"
+grep -q '^run typecheck' "$light_log" && grep -q '^run lint' "$light_log" && ok "--dev runs typecheck and lint" || bad "--dev skipped typecheck or lint"
+grep -q 'exec -- vitest related .*src/light-a\.ts' "$light_log" && grep -q 'exec -- vitest related .*src/light-a\.test\.ts' "$light_log" \
+  && ok "--dev runs vitest related on the changed source and test files" || bad "--dev did not run vitest related on the changed files: $(grep vitest "$light_log")"
+! grep -q -e 'test:coverage' -e '^run build' "$light_log" && ok "--dev runs neither the coverage suite nor the build" || bad "--dev ran the full suite or the build"
+[ "$(tail -n 1 "$tmp/repo/.git/verify-ledger.log" | cut -f3)" = light ] && ok "--dev records ledger mode light" || bad "--dev ledger mode is not light"
+
+: > "$light_log"
+if run_full_lb; then ok "full battery still passes after a light run"; else bad "full battery must pass"; fi
+[ "$(cat "$STAMP" 2>/dev/null)" = "$(G rev-parse HEAD)" ] && [ ! -e "$DEV_STAMP" ] && ok "a full run writes the full stamp and clears the light one" || bad "full run left stamps wrong (full=$([ -e "$STAMP" ] && echo yes || echo no) dev=$([ -e "$DEV_STAMP" ] && echo yes || echo no))"
+grep -q '^run test:coverage' "$light_log" && grep -q '^run build' "$light_log" && ok "the default mode still runs coverage and build" || bad "default mode lost coverage/build"
+run_dev --dev
+[ ! -e "$STAMP" ] && [ -e "$DEV_STAMP" ] && ok "a light run clears the full stamp (never both)" || bad "light run left a stale full stamp"
+
+touch "$tmp/red-typecheck"; rm -f "$DEV_STAMP"
+if run_dev --dev; then bad "--dev with a red typecheck must refuse"; else ok "--dev with a red typecheck refuses"; fi
+[ ! -e "$DEV_STAMP" ] && [ ! -e "$STAMP" ] && ok "no stamp after a red --dev battery" || bad "stamp written over a red --dev battery"
+rm -f "$tmp/red-typecheck"
+
+G update-ref refs/remotes/origin/lightbase "$(G rev-parse HEAD)"
+echo "// cfg $RANDOM" >> "$tmp/repo/mos-app/vite.config.ts"; G add mos-app/vite.config.ts; G commit -qm "light: config-only change"
+: > "$light_log"; rm -f "$DEV_STAMP"
+run_dev --dev
+grep -q '^run typecheck' "$light_log" && ! grep -q 'vitest' "$light_log" && [ -e "$DEV_STAMP" ] \
+  && ok "--dev with no related source files runs no tests and still stamps" || bad "--dev config-only case wrong: $(cat "$light_log")"
+
+# A migration-only change must still run the unit tests that read supabase/ from disk.
+echo "const dir = join(root, 'supabase', 'migrations')" > "$tmp/repo/mos-app/src/reads-migrations.test.ts"
+echo "const seed = readFileSync('../supabase/seed.sql', 'utf8')" > "$tmp/repo/mos-app/src/reads-seed.test.ts"
+echo "import { createClient } from '@supabase/supabase-js'" > "$tmp/repo/mos-app/src/imports-client.test.ts"
+G add mos-app/src/reads-migrations.test.ts mos-app/src/reads-seed.test.ts mos-app/src/imports-client.test.ts; G commit -qm "light: a test that reads supabase/"
+G update-ref refs/remotes/origin/lightbase "$(G rev-parse HEAD)"
+mkdir -p "$tmp/repo/supabase/migrations"; echo "-- m" > "$tmp/repo/supabase/migrations/20990101000001_mos_x.sql"
+G add supabase; G commit -qm "light: migration-only change"
+: > "$light_log"; rm -f "$DEV_STAMP"
+run_dev --dev
+grep -q 'exec -- vitest related .*src/reads-migrations\.test\.ts' "$light_log" && grep -q 'exec -- vitest related .*src/reads-seed\.test\.ts' "$light_log" \
+  && ok "--dev with a supabase/ change runs the tests that read supabase/" || bad "--dev migration-only case ran no supabase-reading test: $(grep vitest "$light_log")"
+! grep -q 'imports-client\.test\.ts' "$light_log" \
+  && ok "--dev leaves out a test that only imports the @supabase/ client library" || bad "--dev selected a test that only imports @supabase/supabase-js: $(grep vitest "$light_log")"
+
+if (cd "$tmp/repo" && PATH="$tmp/bin:$PATH" bash scripts/pre-pr-verify.sh --nope) >/dev/null 2>&1; then bad "unknown flag must refuse"; else ok "unknown flag refuses"; fi
+printf '#!/bin/sh\necho called >> "%s/npm-calls"\nexit 0\n' "$tmp" > "$tmp/bin/npm"; chmod +x "$tmp/bin/npm"
+rm -f "$STAMP" "$DEV_STAMP"
+
 # Ordinary production UI changes still run Impeccable and the normal app battery, but do not
 # require the full exact-commit evidence directory. An explicit audit mode is tested separately
 # below so this case cannot pass merely because the validator was never reached.
@@ -409,6 +475,23 @@ chmod +x "$tmp/bin/npm"
 if run; then bad "checkout changed during verification must refuse"
 else ok "checkout changed during verification refuses"; fi
 [ ! -f "$STAMP" ] && ok "no stamp after in-flight checkout change" || bad "stamp written after in-flight checkout change"
+
+# A scripts/ change runs the guard self-tests guards.yml lists in the full battery (red refuses, green
+# stamps); --dev leaves them to CI.
+G reset -q --hard; G clean -fdq; printf '#!/bin/sh\nexit 0\n' > "$tmp/bin/npm"; chmod +x "$tmp/bin/npm"
+mkdir -p "$tmp/repo/.github/workflows"
+printf 'jobs:\n  g:\n    steps:\n      - run: sh scripts/demo-guard.test.sh   # any runner, as CI writes it\n' > "$tmp/repo/.github/workflows/guards.yml"
+G add .github; G commit -qm "guards list for the guard self-test case"
+G update-ref refs/remotes/origin/lightbase "$(G rev-parse HEAD)"
+printf '#!/bin/sh\nexit 0\n' > "$tmp/repo/scripts/demo-guard.sh"
+printf '#!/bin/sh\nexit 1\n' > "$tmp/repo/scripts/demo-guard.test.sh"
+G add scripts/demo-guard.sh scripts/demo-guard.test.sh; G commit -qm "light: a guard and its red self-test"
+rm -f "$tmp/repo/.git/pre-pr-verify-dev-ok" "$tmp/repo/.git/pre-pr-verify-ok"
+if (unset MOS_GUARD_SELFTESTS_RUNNING; run_dev --dev); then ok "--dev leaves guard self-tests to CI"; else bad "--dev ran a guard self-test CI already runs"; fi
+if (unset MOS_GUARD_SELFTESTS_RUNNING; run_full_lb); then bad "full battery with a red guard self-test must refuse"; else ok "full battery runs the listed guard self-tests and refuses on red"; fi
+[ ! -e "$tmp/repo/.git/pre-pr-verify-ok" ] && ok "no full stamp over a red guard self-test" || bad "full stamp written over a red guard self-test"
+printf '#!/bin/sh\nexit 0\n' > "$tmp/repo/scripts/demo-guard.test.sh"; G add scripts/demo-guard.test.sh; G commit -qm "light: guard self-test green"
+if (unset MOS_GUARD_SELFTESTS_RUNNING; run_full_lb); then ok "full battery passes once the guard self-test is green"; else bad "full battery refused a green guard self-test"; fi
 
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

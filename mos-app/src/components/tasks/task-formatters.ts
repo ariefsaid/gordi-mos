@@ -50,3 +50,6 @@ export function formatDate(d: string, locale: Locale = 'en'): string {
 export function taskSourceLabel(workLineName: string, objectiveName: string, adHocLabel: string): string {
   return workLineName || objectiveName || adHocLabel
 }
+
+/** Bounds the UI title fields the API itself caps a title at 300. */
+export const TASK_TITLE_MAX_LENGTH = 200

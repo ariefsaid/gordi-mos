@@ -26,6 +26,7 @@
 import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
 import type { Attention, SignalRow } from '@/lib/db/signals.types'
 import { raciOwner } from '@/lib/raci-member'
+import { isOpenTask } from '@/lib/task-open'
 import { formatDate } from '@/components/tasks/task-formatters'
 import type { Locale } from '@/i18n/messages'
 import type { AttentionDirectory, AttentionItem, AttentionPic } from '@/lib/home-attention'
@@ -96,7 +97,7 @@ function toStreamTaskItem(
   }
 }
 
-const isOwnedOpen = (t: TaskListRow, viewerId: string) => raciOwner(t, viewerId) && t.status !== 'Done'
+const isOwnedOpen = (t: TaskListRow, viewerId: string) => raciOwner(t, viewerId) && isOpenTask(t)
 
 /** Owned, non-Done tasks due strictly before `today` — reason "Overdue · Nd". */
 export function overdueStreamItems(
@@ -200,11 +201,6 @@ export function signalStreamItems(
         reason: { tone: SIGNAL_ATTENTION_TONE[s.attention as Exclude<Attention, 'FYI'>] },
       }
     })
-}
-
-/** Count of the viewer's open (R/A, non-Done) tasks — the "All tasks · N" figure. */
-export function openTaskCount(tasks: TaskListRow[], viewerId: string): number {
-  return tasks.filter(t => isOwnedOpen(t, viewerId)).length
 }
 
 /** Summed item count across bands — the "Needs attention · N" summary source (FR-509 parity). */

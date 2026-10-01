@@ -112,8 +112,15 @@ export default defineConfig({
         // persona on intermittent connectivity — a browser/CDN cache hit on `vendor-*` means
         // only the small app chunk needs to be re-fetched after a deploy, not the whole bundle.
         manualChunks(id) {
+          // Vite's dynamic-import helper must stay in an eager chunk, not follow a lazy one.
+          if (id.includes('vite/preload-helper')) return 'vendor'
           if (!id.includes('node_modules')) return undefined
-          if (/react-dom|\/react\/|scheduler/.test(id)) return 'vendor-react'
+          // The write-up editor's stack loads only with the Write-up tab: its own chunk keeps it out of
+          // every eager vendor chunk.
+          if (/@blocknote|@tiptap|prosemirror|emoji-mart|linkifyjs|orderedmap|rope-sequence|w3c-keyname|crelt/.test(id)) return 'vendor-editor'
+          // Anchored to the package directory: a substring match also catches @floating-ui/react-dom,
+          // whose @floating-ui/dom dependency sits in `vendor`, making vendor and vendor-react import each other.
+          if (/node_modules\/(react|react-dom|scheduler)\//.test(id)) return 'vendor-react'
           if (/react-router/.test(id)) return 'vendor-router'
           if (/@supabase/.test(id)) return 'vendor-supabase'
           if (/@tanstack/.test(id)) return 'vendor-tanstack'
@@ -133,7 +140,11 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
+    // The Edge Function entry points import the package from outside mos-app/; Deno resolves it there.
+    alias: { '@supabase/supabase-js': fileURLToPath(new URL('./node_modules/@supabase/supabase-js', import.meta.url)) },
     globals: true,
+    // Shared dev machine: 2 workers unless VITEST_MAX_THREADS says otherwise; CI keeps Vitest's default.
+    maxWorkers: Number(process.env.VITEST_MAX_THREADS) || (process.env.CI ? undefined : 2),
     setupFiles: './src/test/setup.ts',
     // css:false — Vitest must NOT parse/inject the 51 imported stylesheets into every
     // jsdom environment. That CSS injection is pure overhead here: this suite asserts on

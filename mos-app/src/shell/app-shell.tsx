@@ -12,9 +12,9 @@ import { CommandMenu } from '@/components/command/command-menu'
 import { useCommandMenu } from '@/components/command/use-command-menu'
 import { BreadcrumbTitleProvider } from './breadcrumb-title'
 import { SHOW_ASSISTANT } from '@/config/features'
-import { AgentRuntimeProvider } from '@/lib/agent/runtime/AgentRuntimeContext'
+import { AgentRuntimeProvider, useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { AssistantPanel } from '@/components/assistant/AssistantPanel'
-import { OverlayHostProvider, OverlayHostSlot, type OverlayHistoryDriver } from './overlay-host'
+import { OverlayHostProvider, OverlayHostSlot, useOptionalOverlayHost, type OverlayHistoryDriver } from './overlay-host'
 import { SignalComposerHost, useSignalComposer } from './signal-composer-host'
 import { createRecordDeepLinkResolver, RECORD_KINDS } from './record-deep-link-resolver'
 import { useDeputyOverlayCoexistence } from './deputy-overlay-coexistence'
@@ -136,12 +136,21 @@ function ShellContent() {
   // ⌘K), the Home feed row — dispatches the SAME useSignalComposer().open().
   const { open: openSignalComposer, canPost } = useSignalComposer()
   const focusMoreRef = useRef<(() => void) | undefined>(undefined)
+  const searchTriggerRef = useRef<HTMLButtonElement>(null)
 
   // Lane B2 — reconcile the Deputy companion with any shell-owner overlay. Both consume the shell's
   // right-edge surface track, so at most one may be open. Mounted here because ShellContent sits
   // inside both AgentRuntimeProvider and OverlayHostProvider, so the hook can see both controllers.
   // Collection-owner records live inside the page grid and are untouched by it.
   useDeputyOverlayCoexistence()
+
+  // Which right-edge panel, if any, takes its track out of the main region (drawer.css narrows the
+  // region while this is set, at the widths where the panel is docked rather than modal). A shell
+  // overlay docks; Deputy docks only when no record is open (beside a record it floats in the
+  // record's own frame). Collection-owned records have their own split and never dock here.
+  const overlayTop = useOptionalOverlayHost()?.session?.frames.at(-1)?.entry
+  const deputyOpen = useAgentRuntime().open
+  const dockedPanel = overlayTop?.owner === 'shell' ? 'shell' : deputyOpen && overlayTop?.tenant !== 'record' ? 'deputy' : undefined
 
   return (
     // BreadcrumbTitleProvider wraps the full shell so both TopBar (Breadcrumb reader) and the
@@ -183,7 +192,7 @@ function ShellContent() {
         }}
       >
         {/* TopBar — grid-area: topbar, spans full width across both columns (ADR-0013 D1) */}
-        <TopBar onOpenSearch={() => openWithMode('search')} />
+        <TopBar onOpenSearch={() => openWithMode('search')} searchTriggerRef={searchTriggerRef} />
 
         {/* The offline line — one muted sentence under the header, never a banner with an action:
             there is nothing to press, and it disappears the moment the connection returns. */}
@@ -205,6 +214,8 @@ function ShellContent() {
         {/* Main — grid-area: main, row 2 col 2; owns scroll; each page provides its own <main> */}
         <div
           className="flex min-w-0 flex-col min-h-0"
+          data-shell-main
+          data-panel-docked={dockedPanel}
           style={{ gridArea: 'main', overflow: 'hidden' }}
         >
           {/* Region 2 — context row (scope + route job sentence). Above the content Outlet. */}
@@ -265,6 +276,7 @@ function ShellContent() {
         open={searchOpen}
         mode={searchMode}
         onClose={() => setSearchOpen(false)}
+        returnFocusRef={searchTriggerRef}
         onShareSignal={openSignalComposer}
         canShareSignal={canPost !== false}
       />

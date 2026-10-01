@@ -19,7 +19,6 @@ import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
 import type { PeopleRow, RolesRow } from '@/lib/database.types'
 import type { TaskListRow } from '@/lib/db/tasks.types'
-import { __resetTasksViewPrefForTests } from './use-tasks-view-pref'
 import { TASKS_SPLIT_MIN_WIDTH } from '@/shell/use-is-split-width'
 
 // ── Mock data layer ──────────────────────────────────────────────────────────
@@ -64,8 +63,8 @@ const mockListWorkLines = vi.mocked(listWorkLines)
 
 const VIEWER_ID = 'viewer-id'
 const VIEWER_PERSON: PeopleRow = {
-  id: VIEWER_ID, org_id: 'org', user_id: 'uid', full_name: 'Arief Said',
-  email: 'arief@example.test', must_change_password: false, archived_at: null,
+  id: VIEWER_ID, org_id: 'org', user_id: 'uid', full_name: 'Arden Sample',
+  email: 'arden.sample@example.test', must_change_password: false, archived_at: null,
   created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
 }
 const mockRole: RolesRow = {
@@ -94,7 +93,7 @@ function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
 
 const BUS = [{ id: 'bu-1', name: 'Kitchen' }]
 const PEOPLE = [
-  { id: VIEWER_ID, full_name: 'Arief Said' },
+  { id: VIEWER_ID, full_name: 'Arden Sample' },
   { id: 'other-id', full_name: 'Maya Rahmawati' },
 ]
 const OBJECTIVES = [
@@ -137,7 +136,6 @@ function renderTable(props: Partial<React.ComponentProps<typeof TasksWorkspace>>
 beforeEach(() => {
   vi.resetAllMocks()
   localStorage.clear()
-  __resetTasksViewPrefForTests()
   stubMatchMedia(true, true)
   vi.mocked(getBusinessUnits).mockResolvedValue(BUS)
   vi.mocked(getPeople).mockResolvedValue(PEOPLE)
@@ -385,7 +383,7 @@ describe('FR-236 — summary caption when grouped by Work-line + single person',
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
     chooseFilterOption(groupSelect, 'Project/Process')
     const personSelect = screen.getByRole('combobox', { name: /person/i })
-    chooseFilterOption(personSelect, 'Arief Said')
+    chooseFilterOption(personSelect, 'Arden Sample')
     await waitFor(() => {
       const caption = screen.getByRole('status', { name: /workload summary/i })
       expect(caption.textContent).toMatch(/your work/i)
@@ -432,13 +430,13 @@ describe('FR-236 — summary caption when grouped by Work-line + single person',
 // clothes". PIC + Supervisor + Due are the decision-relevant fields for weekly triage (the same
 // set the desktop row already settled on, Wave 2c OD-REDESIGN-61..64); full typed metadata is one
 // tap away on the record. This describe block used to assert the pre-distill card shape.
-describe('Mobile cards: detail list is PIC/Supervisor/Due (Work-line/Objective dropped as redundant)', () => {
+describe('Mobile cards: detail list is Team/PIC/Due (Work-line/Objective dropped as redundant)', () => {
   beforeEach(() => {
     stubMatchMedia(false, false) // mobile viewport
-    __resetTasksViewPrefForTests()
   })
 
-  it('mobile card shows PIC, Supervisor, and Due — NOT the Work-line/Objective names', async () => {
+  // #760 AC-048 moved Supervisor off the card onto the record and put Team in its place.
+  it('mobile card shows Team, PIC, and Due — NOT Supervisor or the Work-line/Objective names', async () => {
     mockListTasks.mockResolvedValue([
       makeTask({ id: 't1', title: 'Mobile task', work_line_id: 'wl-2', objective_id: 'obj-2' }),
     ])
@@ -446,8 +444,9 @@ describe('Mobile cards: detail list is PIC/Supervisor/Due (Work-line/Objective d
     await waitFor(() => screen.getByText('Mobile task'))
     const card = screen.getByText('Mobile task').closest('article')
     expect(card).toHaveTextContent('PIC')
-    expect(card).toHaveTextContent('Supervisor')
     expect(card).toHaveTextContent('Due')
+    expect(card?.querySelector('.task-team')).toBeTruthy()
+    expect(card).not.toHaveTextContent('Supervisor')
     // The Work-line/Objective NAMES are gone from the card body — they're one tap away on the
     // record, not restated here (distill.md "remove redundancy").
     expect(card).not.toHaveTextContent('New Menu Design')

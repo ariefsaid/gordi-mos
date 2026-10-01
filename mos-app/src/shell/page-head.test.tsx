@@ -40,15 +40,25 @@ describe('PageHead — shared header invariant (RI-IA-1)', () => {
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
     expect(screen.getAllByText('Find and update the tasks your Team owns.')).toHaveLength(1)
   })
+
+  // #958: titleHelp is the always-visible (desktop AND phone) companion to jobSentence, which
+  // `.page-head-job` hides under 768px (below) — a caller that needs its terms reachable at every
+  // width passes titleHelp instead of relying on the sentence alone.
+  it('renders titleHelp immediately beside the title, omitted by default', () => {
+    const { rerender } = render(<PageHead title="Tasks" />)
+    expect(screen.queryByText('PIC / Supervisor, explained')).not.toBeInTheDocument()
+    rerender(<PageHead title="Tasks" titleHelp={<span>PIC / Supervisor, explained</span>} />)
+    expect(screen.getByText('PIC / Supervisor, explained')).toBeInTheDocument()
+  })
 })
 
 describe('PageHead — content-header variant (mockup chrome)', () => {
   it('preserves the E7 orientation subtitle as a full-width secondary line', () => {
     const { container } = render(
-      <PageHead variant="content" title="Good afternoon, Arief" subtitle="Director" />,
+      <PageHead variant="content" title="Good afternoon, Arden" subtitle="Team lead" />,
     )
-    expect(screen.getByText('Director')).toBeInTheDocument()
-    expect(container.querySelector('.ch-subtitle')).toHaveTextContent('Director')
+    expect(screen.getByText('Team lead')).toBeInTheDocument()
+    expect(container.querySelector('.ch-subtitle')).toHaveTextContent('Team lead')
   })
 
   it('renders the page-head testid + an h1 title (RI-IA-1 holds in content variant)', () => {
@@ -76,6 +86,15 @@ describe('PageHead — content-header variant (mockup chrome)', () => {
     const action = container.querySelector('.ch-action')
     expect(action).toBeTruthy()
     expect(screen.getByRole('link', { name: /\+ create task/i })).toBeInTheDocument()
+  })
+
+  // #958: the content variant is what Tasks/Projects & Processes/Objectives actually render —
+  // titleHelp must reach this presentation too, not only the prose default above.
+  it('renders titleHelp beside the title in the content variant', () => {
+    render(
+      <PageHead variant="content" title="Tasks" count={5} titleHelp={<span>PIC / Supervisor, explained</span>} />,
+    )
+    expect(screen.getByText('PIC / Supervisor, explained')).toBeInTheDocument()
   })
 
   it('renders the content-header chrome row (.content-header) with NO surface-title glyph', () => {
@@ -108,7 +127,7 @@ describe('PageHead — content-header variant (mockup chrome)', () => {
 describe('PageHead — content-header status row (the compact day-header composition)', () => {
   it('renders the status row as a full-width row inside the one header block', () => {
     const { container } = render(
-      <PageHead variant="content" title="Good evening, Arief" statusRow={<span>Halfway.</span>} />,
+      <PageHead variant="content" title="Good evening, Arden" statusRow={<span>Halfway.</span>} />,
     )
     const head = container.querySelector('.content-header')!
     const row = head.querySelector('.ch-status-row')
@@ -118,7 +137,7 @@ describe('PageHead — content-header status row (the compact day-header composi
 
   it('a head carrying a status row is compact — one header block, one title, still one h1', () => {
     const { container } = render(
-      <PageHead variant="content" title="Good evening, Arief" statusRow={<span>Halfway.</span>} />,
+      <PageHead variant="content" title="Good evening, Arden" statusRow={<span>Halfway.</span>} />,
     )
     expect(container.querySelector('.content-header')).toHaveClass('content-header--compact')
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
@@ -159,7 +178,7 @@ describe('PageHead — the status row replaces the job sentence, never stacks on
     const { container } = render(
       <PageHead
         variant="content"
-        title="Good evening, Arief"
+        title="Good evening, Arden"
         jobSentence="What needs my attention right now?"
         statusRow={<span>Halfway.</span>}
       />,

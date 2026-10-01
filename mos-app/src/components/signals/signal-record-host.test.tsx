@@ -190,13 +190,16 @@ describe('SignalRecordHost — loading/error states', () => {
     expect(writeText).toHaveBeenCalledWith(new URL('/mos/work/signals/signal-1', window.location.origin).href)
   })
 
-  it('shows an honest outside-access state when the primary read is denied', async () => {
+  // AC-046 (#775): a denied read (42501) shows the shared `blank` archetype with one Back — never
+  // the retriable ErrorState, which would just re-fire the same denied read.
+  it('shows the blank denied archetype — never a retriable error — when the primary read is denied', async () => {
     mockGetSignal.mockRejectedValueOnce(new Error('permission denied (42501)'))
     renderHost()
 
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'Signal outside your access' })).toBeInTheDocument())
-    expect(screen.getByText(/do not have access to this Signal/i)).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Signal is outside your access' })).toBeInTheDocument())
+    expect(screen.getByRole('button', { name: 'Back' })).toBeInTheDocument()
     expect(screen.queryByText(/couldn.t load/i)).toBeNull()
+    expect(screen.queryByRole('button', { name: /retry|try again/i })).toBeNull()
   })
 
   it('shows an error state with retry when getSignal fails', async () => {
@@ -209,10 +212,22 @@ describe('SignalRecordHost — loading/error states', () => {
     await waitFor(() => expect(screen.getByRole('heading', { name: 'The freezer alarm went off' })).toBeInTheDocument())
   })
 
-  it('treats PostgREST no-row responses as missing records', async () => {
+  // AC-046: RLS makes "retracted/deleted" and "you may not read this" indistinguishable at the
+  // wire — a well-formed id resolving to a PostgREST no-row response gets the SAME denied
+  // archetype as an explicit 42501, not the old "That Signal no longer exists" retry state.
+  it('treats a well-formed id with no visible row the same as a denied read (AC-046)', async () => {
     mockGetSignal.mockRejectedValueOnce(new Error('JSON object requested, multiple (or no) rows returned'))
     renderHost()
-    await waitFor(() => expect(screen.getByText('That Signal no longer exists.')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Signal is outside your access' })).toBeInTheDocument())
+    expect(screen.getByRole('button', { name: 'Back' })).toBeInTheDocument()
+  })
+
+  // AC-048: before first paint exactly the Signal itself is awaited — the Task list (for Link
+  // existing Task) is never fetched until that picker opens.
+  it('never calls searchTasksByTitle before Link existing Task opens (AC-048)', async () => {
+    renderHost()
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'The freezer alarm went off' })).toBeInTheDocument())
+    expect(mockSearchTasksByTitle).not.toHaveBeenCalled()
   })
 })
 
@@ -249,6 +264,7 @@ describe('SignalRecordHost — retract and repost (P-22/OD-45, AC-412)', () => {
     // The dialog's accessible name comes from its own heading.
     const dialog = screen.getByRole('dialog', { name: /retract this signal/i })
     expect(within(dialog).getByRole('textbox', { name: /reason/i })).toBeRequired()
+    expect(within(dialog).getByRole('textbox', { name: /reason/i })).toHaveAttribute('maxlength', '500')
     expect(within(dialog).getByRole('button', { name: /retract/i })).toBeDisabled()
     await userEvent.type(within(dialog).getByRole('textbox', { name: /reason/i }), 'Wrong provenance')
     mockGetSignal.mockResolvedValueOnce({
@@ -287,6 +303,28 @@ describe('SignalRecordHost — retract and repost (P-22/OD-45, AC-412)', () => {
     mockGetSignal.mockResolvedValueOnce({ signal: { ...baseSignal, author_id: 'person-dewi', retracted_at: '2026-07-17T02:00:00Z', retract_reason: 'Duplicate' }, mentions: [], acknowledgements: [], tasks: [] })
     await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /retract/i }))
     await waitFor(() => expect(onReload).toHaveBeenCalledTimes(1))
+  })
+
+  it('a failed retract keeps the typed reason; one retry retracts once', async () => {
+    mockUseAuth.mockReturnValue(authedViewer('person-dewi'))
+    mockCanRetractSignal.mockResolvedValue(true)
+    mockGetSignal.mockResolvedValue({ signal: { ...baseSignal, author_id: 'person-dewi' }, mentions: [], acknowledgements: [], tasks: [] })
+    mockRetractSignal.mockRejectedValueOnce(new Error('offline')).mockResolvedValue(undefined)
+    renderHost()
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'The freezer alarm went off' })).toBeInTheDocument())
+    await userEvent.click(screen.getByRole('button', { name: /more signal actions/i }))
+    await userEvent.click(screen.getByRole('menuitem', { name: /^retract$/i }))
+    const dialog = screen.getByRole('dialog', { name: /retract this signal/i })
+    await userEvent.type(within(dialog).getByRole('textbox', { name: /reason/i }), 'Duplicate')
+    await userEvent.click(within(dialog).getByRole('button', { name: /retract/i }))
+    await waitFor(() => expect(mockRetractSignal).toHaveBeenCalledTimes(1))
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    expect(within(dialog).getByRole('textbox', { name: /reason/i })).toHaveValue('Duplicate')
+
+    await userEvent.click(within(dialog).getByRole('button', { name: /retract/i }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: /retract this signal/i })).not.toBeInTheDocument())
+    expect(mockRetractSignal).toHaveBeenCalledTimes(2)
+    expect(mockRetractSignal).toHaveBeenLastCalledWith(SIGNAL_ID, 'Duplicate')
   })
 
   it('hides retract from a plain viewer', async () => {
@@ -564,6 +602,83 @@ describe('SignalRecordHost — Create follow-up Task (canonical Task composer, P
     expect(mockCreateTask).toHaveBeenCalledTimes(1)
     await waitFor(() => expect(screen.queryByRole('button', { name: /retry link/i })).not.toBeInTheDocument())
   })
+
+  // AC-051: the success path, driven through the REAL overlay-host panel stack (not the
+  // no-host local-composer fallback `renderHost()` exercises) — Create pushes onto that stack
+  // and `host.back()` pops it back to the Signal, never navigating to /work/tasks, and the new
+  // Task appears under Linked work with its status.
+  it('AC-051: a successful create pops back to the Signal (via the real overlay-host stack) with the new Task under Linked work', async () => {
+    mockGetPersonTeams.mockResolvedValue([{
+      id: TEAM_ID,
+      name: 'HQ Operations',
+      businessUnitId: BU_ID,
+      siteId: 'site-1',
+      orgId: 'org-1',
+    }])
+    let linked = false
+    mockLinkSignalTask.mockImplementation(async () => { linked = true })
+    // The real overlay-host stack (unlike the no-host local-composer fallback) can re-mount the
+    // Signal frame on pop, issuing more `getSignal` reads than a single push/pop would — key the
+    // fixture off whether the link has actually happened yet, rather than a brittle call count,
+    // so the assertion holds regardless of exactly how many reads the host's own pop triggers.
+    mockGetSignal.mockImplementation(async () => linked
+      ? {
+        signal: baseSignal, mentions: [], acknowledgements: [],
+        tasks: [{ id: 'st-new', signal_id: SIGNAL_ID, task_id: 'task-created', created_by: VIEWER_ID }],
+      }
+      : { signal: baseSignal, mentions: [], acknowledgements: [], tasks: [] })
+    mockGetTaskTitlesByIds.mockImplementation(async (ids: readonly string[]) => ids.includes('task-created')
+      ? [{ id: 'task-created', title: 'The freezer alarm went off', status: 'Open' }]
+      : [])
+
+    let api: OverlayHostApi | null = null
+    function Archive() { api = useOverlayHost(); return <><h1>Signals</h1><OverlayHostSlot owner="signals" floating /></> }
+    render(
+      <I18nProvider>
+        <MemoryRouter initialEntries={['/work/signals']}>
+          <OverlayHostProvider>
+            <Routes><Route path="/work/signals" element={<Archive />} /></Routes>
+            <LocationProbe />
+          </OverlayHostProvider>
+        </MemoryRouter>
+      </I18nProvider>,
+    )
+    await act(async () => {
+      await api!.openRoot({
+        key: 'signal:signal-1', owner: 'signals', tenant: 'record', label: 'Signal', title: 'Signal',
+        pageTo: '/work/signals/signal-1',
+        content: <SignalRecordHost signalId={SIGNAL_ID} mode="panel" />,
+      }, 'route')
+    })
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'The freezer alarm went off' })).toBeInTheDocument())
+
+    const createTrigger = screen.getByRole('button', { name: /create task/i })
+    await userEvent.click(createTrigger)
+    await screen.findByRole('textbox', { name: /^title$/i })
+    await userEvent.click(await screen.findByRole('combobox', { name: /supervisor/i }))
+    await userEvent.click(screen.getByRole('option', { name: 'Author One' }))
+    const taskComposer = document.querySelector('.signal-task-create-frame') as HTMLElement
+    await userEvent.click(within(taskComposer).getByRole('button', { name: /^create task$/i }))
+
+    await waitFor(() => expect(mockLinkSignalTask).toHaveBeenCalledWith(SIGNAL_ID, 'task-created'))
+    // Never navigates to the Tasks collection — the composer just pops off the Signal.
+    expect(screen.getByTestId('location')).not.toHaveTextContent('/work/tasks')
+    // Back on the Signal (popped off the overlay stack, not a local-composer unmount): the
+    // composer is gone, the new Task reads as a Linked-work row.
+    await waitFor(() => expect(screen.queryByRole('textbox', { name: /^title$/i })).not.toBeInTheDocument())
+    expect(screen.getByRole('heading', { name: 'The freezer alarm went off' })).toBeInTheDocument()
+    const reach = document.querySelector('[data-signal-region="reach"]') as HTMLElement
+    const newRow = await within(reach).findByRole('link', { name: /The freezer alarm went off.*Open/i })
+    expect(newRow).toHaveAttribute('href', '/work/tasks/task-created')
+    // Honest current behavior, not the AC's ideal (focus on the new row): popping the real
+    // overlay-host stack back to the top-level Signal frame lands focus on the panel's own
+    // Close control — the shared RecordPanelHost's pop convention, not something this host
+    // chooses. Landing focus on the newly linked row instead would need a row-ref map plus an
+    // effect racing that shared convention — more than a small change, so it stays deferred
+    // rather than silently asserted as done.
+    expect(document.activeElement).not.toBe(document.body)
+    expect(document.activeElement).toHaveAttribute('aria-label', 'Close')
+  })
 })
 
 describe('SignalRecordHost — related Task read failure', () => {
@@ -610,6 +725,28 @@ describe('SignalRecordHost — Link existing Task (linkSignalTask, FR-413)', () 
     expect(mockLinkSignalTask).toHaveBeenCalledWith(SIGNAL_ID, 'task-a')
     expect(mockSearchTasksByTitle).toHaveBeenCalledWith('Repair freezer')
     await waitFor(() => expect(mockGetTaskTitlesByIds).toHaveBeenCalledWith(['task-a'], { includeArchived: false }))
+  })
+
+  it('a failed link keeps the search text and the chosen Task; one retry links once', async () => {
+    mockSearchTasksByTitle.mockResolvedValue([{ id: 'task-a', title: 'Repair freezer', status: 'Open' }])
+    mockLinkSignalTask.mockRejectedValueOnce(new Error('offline')).mockResolvedValue(undefined)
+    renderHost()
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'The freezer alarm went off' })).toBeInTheDocument())
+    await userEvent.click(screen.getByRole('button', { name: /more signal actions/i }))
+    await userEvent.click(screen.getByRole('menuitem', { name: /link existing task/i }))
+    await userEvent.type(screen.getByRole('searchbox', { name: /search tasks/i }), 'Repair freezer')
+    await userEvent.click(await screen.findByRole('combobox', { name: /existing task/i }))
+    await userEvent.click(screen.getByRole('option', { name: 'Repair freezer' }))
+    await userEvent.click(screen.getByRole('button', { name: /^link$/i }))
+    await waitFor(() => expect(mockLinkSignalTask).toHaveBeenCalledTimes(1))
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    expect(screen.getByRole('searchbox', { name: /search tasks/i })).toHaveValue('Repair freezer')
+    expect(screen.getByRole('combobox', { name: /existing task/i })).toHaveTextContent('Repair freezer')
+
+    await userEvent.click(screen.getByRole('button', { name: /^link$/i }))
+    await waitFor(() => expect(screen.queryByRole('searchbox', { name: /search tasks/i })).not.toBeInTheDocument())
+    expect(mockLinkSignalTask).toHaveBeenCalledTimes(2)
+    expect(mockLinkSignalTask).toHaveBeenLastCalledWith(SIGNAL_ID, 'task-a')
   })
 
   it('keeps candidate search retryable when the demand-driven Task search fails', async () => {

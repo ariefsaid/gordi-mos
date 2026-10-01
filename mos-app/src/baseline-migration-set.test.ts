@@ -34,6 +34,8 @@ const BASELINE_FLOOR = '20260805000001'
 
 /** Domain order is the content of the ruling, not an alphabetical accident. */
 const DOMAINS = ['shared', 'mos', 'ops', 'integrations', 'reporting'] as const
+/** Schemas born after the squash: additive migrations only (api_v1: the shared operation layer). */
+const ADDITIVE_DOMAINS = [...DOMAINS, 'api_v1'] as const
 
 const migrations = () =>
   readdirSync(MIGRATIONS)
@@ -71,7 +73,7 @@ describe('AC-015 — one domain-ordered migration set', () => {
   it('additive migrations still name their domain — no unclassifiable file rides in after the baseline', () => {
     const additive = migrations().filter((f) => !BASELINE_PREFIX.test(f))
     for (const f of additive) {
-      const domain = DOMAINS.find((d) => f.replace(VERSIONED, '').startsWith(`${d}_`))
+      const domain = ADDITIVE_DOMAINS.find((d) => f.replace(VERSIONED, '').startsWith(`${d}_`))
       expect(domain, `${f} belongs to no domain`).toBeDefined()
     }
   })

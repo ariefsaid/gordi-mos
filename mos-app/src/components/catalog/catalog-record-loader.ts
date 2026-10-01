@@ -73,8 +73,10 @@ function rowForObjective(row: ObjectiveRecord): CatalogRow {
     name: row.name,
     archived_at: row.archived_at,
     businessUnitId: row.business_unit_id,
+    isCompanyWide: row.is_company_wide === true,
     accountablePersonId: row.accountable_person_id,
     periodYear: row.period_year,
+    periodQuarter: row.period_quarter ?? null,
   }
 }
 
@@ -294,7 +296,7 @@ function groupsForCatalogRecord(
 async function loadObjectiveNames(db: SchemaClient, ids: readonly string[]): Promise<ObjectiveRecord[]> {
   const uniqueIds = unique(ids)
   if (uniqueIds.length === 0) return []
-  const { data, error } = await db.from('objectives').select('id,name,archived_at,business_unit_id,accountable_person_id,period_year').in('id', uniqueIds)
+  const { data, error } = await db.from('objectives').select('id,name,archived_at,business_unit_id,is_company_wide,accountable_person_id,period_year,period_quarter').in('id', uniqueIds)
   if (error) throw new Error(`loadCatalogRecordData linked Objectives failed — ${error.message}`)
   return asRows<ObjectiveRecord>(data)
 }

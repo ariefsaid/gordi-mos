@@ -250,6 +250,9 @@ export function WipItemStepper({
             aria-required={true}
             aria-invalid={notes === ''}
             className="kls-note"
+            // Capture runs qty -> qty down the list: an empty note is reached from the footer
+            // pointer (which focuses it) or a click; once it has text it is a normal tab stop.
+            tabIndex={notes === '' ? -1 : undefined}
             value={notes}
             onChange={e => onNotesChange(e.target.value)}
             disabled={disabled}

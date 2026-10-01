@@ -13,7 +13,7 @@ vi.mock('@/lib/db/objectives', () => ({
 vi.mock('@/lib/db/work-lines', () => ({ listWorkLinesAll: vi.fn() }))
 vi.mock('@/lib/db/tasks', () => ({ listTasks: vi.fn() }))
 vi.mock('@/lib/db/work-authority', () => ({
-  emptyWorkWriteScopes: () => ({ workline_org: false, objective_org: false, workline_bu_ids: [], objective_bu_ids: [] }),
+  emptyWorkWriteScopes: () => ({ workline_org: false, objective_org: false, workline_bu_ids: [], objective_bu_ids: [], objective_content_org: false, objective_content_bu_ids: [] }),
   getWorkWriteScopes: vi.fn(),
 }))
 vi.mock('@/auth/use-auth', () => ({ useAuth: vi.fn() }))
@@ -52,9 +52,9 @@ function task(id: string, objectiveId: string | null, workLineId: string | null,
   }
 }
 
-function renderPage(entry = "/") {
+function renderPage(entry = "/", locale: 'en' | 'id' = 'en') {
   return render(
-    <I18nProvider>
+    <I18nProvider initialLocale={locale}>
       <MemoryRouter initialEntries={[entry]}>
         <ObjectivesPage />
       </MemoryRouter>
@@ -83,6 +83,8 @@ beforeEach(() => {
     objective_org: true,
     workline_bu_ids: [],
     objective_bu_ids: [],
+    objective_content_org: false,
+    objective_content_bu_ids: [],
   })
   vi.mocked(createObjective).mockResolvedValue({ id: 'obj-new', name: 'New', archived_at: null })
 })
@@ -96,7 +98,7 @@ describe('Objectives collection-first contract', () => {
     const { container } = renderPage()
     await screen.findByText('Grow revenue')
     expect(screen.getByRole('link', { name: 'Grow revenue' })).toHaveAttribute('href', '/work/objectives/obj-1')
-    expect(screen.getByText('Direct Projects & Processes: 0 · 2 contributing')).toBeInTheDocument()
+    expect(screen.getByText('Through Tasks: Daily prep, Menu launch')).toBeInTheDocument()
     expect(screen.getByText('1 / 2 done')).toBeInTheDocument()
     expect(screen.getByText('07 Jul 2026, 07:00 WIB')).toBeInTheDocument()
     expect(container.querySelector('.catalog-collection__disclosure')).toBeNull()
@@ -125,8 +127,9 @@ describe('Objectives collection-first contract', () => {
     const name = within(form).getByRole('textbox', { name: 'Name' })
     fireEvent.change(name, { target: { value: 'Delight guests' } })
     fireEvent.submit(form)
-    expect(await screen.findByRole('alert')).toHaveTextContent('Temporary save failure')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Couldn’t save. Try again.')
     expect(name).toHaveValue('Delight guests')
+    await waitFor(() => expect(name).toHaveFocus())
     fireEvent.submit(form)
     await waitFor(() => expect(createObjective).toHaveBeenNthCalledWith(2, 'Delight guests'))
     await waitFor(() => expect(screen.queryByRole('form', { name: 'Create objective' })).toBeNull())
@@ -150,6 +153,8 @@ describe('Objectives collection-first contract', () => {
       objective_org: false,
       workline_bu_ids: [],
       objective_bu_ids: [],
+      objective_content_org: false,
+      objective_content_bu_ids: [],
     })
     renderPage()
     await screen.findByText('Grow revenue')
@@ -237,5 +242,25 @@ describe('one create entry per width', () => {
     // The form's own submit may share the label; no button of that name sits outside the form.
     const outside = screen.queryAllByRole('button', { name: 'Create objective' }).filter((button) => !form.contains(button))
     expect(outside).toHaveLength(0)
+  })
+})
+
+describe('page help defines the domain terms', () => {
+  it('EN: the head "?" states the purpose sentence and Business Unit terms', async () => {
+    renderPage()
+    await screen.findByText('Grow revenue')
+    fireEvent.click(screen.getByRole('button', { name: 'Help' }))
+    const panel = screen.getByRole('note')
+    expect(panel).toHaveTextContent('Objectives are what your team is working toward this period.')
+    expect(panel).toHaveTextContent('Business Unit is the team it belongs to')
+  })
+
+  it('ID: the localized help states the same terms', async () => {
+    renderPage('/', 'id')
+    await screen.findByText('Grow revenue')
+    fireEvent.click(screen.getByRole('button', { name: 'Bantuan' }))
+    const panel = screen.getByRole('note')
+    expect(panel).toHaveTextContent('Tujuan adalah apa yang sedang dituju tim Anda periode ini.')
+    expect(panel).toHaveTextContent('Business Unit adalah tim tempat Tujuan ini berada')
   })
 })

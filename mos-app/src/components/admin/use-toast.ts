@@ -5,7 +5,7 @@
 //
 // Uses a polite aria-live region so AT announces the message without moving focus.
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 
 export interface ToastState {
   message: string
@@ -16,6 +16,11 @@ export function useToast() {
   const [toast, setToast] = useState<ToastState | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const idRef = useRef(0)
+
+  // A pending hide must not fire after the page has gone.
+  useEffect(() => () => {
+    if (timerRef.current) clearTimeout(timerRef.current)
+  }, [])
 
   const showToast = useCallback((message: string, durationMs = 4000) => {
     if (timerRef.current) clearTimeout(timerRef.current)

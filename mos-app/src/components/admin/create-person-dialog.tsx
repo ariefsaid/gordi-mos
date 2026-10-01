@@ -17,6 +17,7 @@ import { TextInput } from '@/components/ui/text-input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Toggle } from '@/components/ui/toggle'
 import { Button } from '@/components/ui/button'
+import { useFocusRestore } from '@/components/ui/use-focus-restore'
 import { ErrorState } from '@/components/ui/state-kit'
 import { ModalShell } from '@/components/ui/modal-shell'
 import { PasswordReveal } from './password-reveal'
@@ -83,6 +84,8 @@ export function CreatePersonDialog({
       setRevealData(null)
     }
   }, [open])
+
+  const formRef = useFocusRestore<HTMLFormElement>(phase === 'submitting', !!submitError)
 
   if (!open) return null
 
@@ -186,7 +189,7 @@ export function CreatePersonDialog({
           />
         </div>
       ) : (
-          <form onSubmit={handleSubmit} noValidate>
+          <form ref={formRef} onSubmit={handleSubmit} noValidate>
             {/* Header — considered title + caption, hairline divider seams it to the body */}
             <div className="px-6 pt-6 pb-4">
               <h2
@@ -204,80 +207,83 @@ export function CreatePersonDialog({
 
             {/* Body — consistent field rhythm */}
             <div className="flex flex-col gap-5 px-6 py-5">
-              {/* Full name */}
-              <div className="flex flex-col gap-1.5">
-                <TextInput
-                  id={nameId}
-                  label={t('admin.create.fullName')}
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  error={!!nameError}
-                  fullWidth
-                  required
-                  disabled={isSubmitting}
-                  aria-describedby={nameError ? `${nameId}-err` : undefined}
-                />
-                {nameError && (
-                  <p
-                    id={`${nameId}-err`}
-                    className="text-xs"
-                    style={{ color: 'var(--field-error-text)' }}
-                    role="alert"
-                  >
-                    {nameError}
-                  </p>
-                )}
-              </div>
-
-              {/* Email + "no email" affordance */}
-              <div className="flex flex-col gap-2">
-                <TextInput
-                  id={emailId}
-                  label={t('admin.create.email')}
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  fullWidth
-                  disabled={noEmail || isSubmitting}
-                  aria-disabled={noEmail || undefined}
-                />
-
-                {/* "No email" toggle row — gets its own breathing room (no longer cramped) */}
-                <label
-                  className={`flex items-center gap-2.5 select-none text-sm ${
-                    isSubmitting ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
-                  }`}
-                  style={{ color: 'var(--foreground)' }}
-                >
-                  <Checkbox
-                    checked={noEmail}
-                    onChange={(v) => setNoEmail(v)}
+              {/* Full name + email (#959: short fields share a row on desktop, stack at ≤600px —
+                  the shared form-grid rule, styles/form-grid.css, rather than a one-off width). */}
+              <div className="form-grid">
+                <div className="form-grid__field flex flex-col gap-1.5">
+                  <TextInput
+                    id={nameId}
+                    label={t('admin.create.fullName')}
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    error={!!nameError}
+                    fullWidth
+                    required
                     disabled={isSubmitting}
-                    aria-label={t('admin.create.noEmailAria')}
+                    aria-describedby={nameError ? `${nameId}-err` : undefined}
                   />
-                  <span>{t('admin.create.noEmail')}</span>
-                </label>
+                  {nameError && (
+                    <p
+                      id={`${nameId}-err`}
+                      className="text-xs"
+                      style={{ color: 'var(--field-error-text)' }}
+                      role="alert"
+                    >
+                      {nameError}
+                    </p>
+                  )}
+                </div>
 
-                {/* Synthetic sign-in name preview — cleanly presented in a quiet fill panel */}
-                {noEmail && syntheticEmail && (
-                  <div
-                    className="rounded-md px-3 py-2"
-                    style={{ background: 'var(--secondary)' }}
+                {/* Email + "no email" affordance */}
+                <div className="form-grid__field flex flex-col gap-2">
+                  <TextInput
+                    id={emailId}
+                    label={t('admin.create.email')}
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    fullWidth
+                    disabled={noEmail || isSubmitting}
+                    aria-disabled={noEmail || undefined}
+                  />
+
+                  {/* "No email" toggle row — gets its own breathing room (no longer cramped) */}
+                  <label
+                    className={`flex items-center gap-2.5 select-none text-sm ${
+                      isSubmitting ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                    }`}
+                    style={{ color: 'var(--foreground)' }}
                   >
+                    <Checkbox
+                      checked={noEmail}
+                      onChange={(v) => setNoEmail(v)}
+                      disabled={isSubmitting}
+                      aria-label={t('admin.create.noEmailAria')}
+                    />
+                    <span>{t('admin.create.noEmail')}</span>
+                  </label>
+
+                  {/* Synthetic sign-in name preview — cleanly presented in a quiet fill panel */}
+                  {noEmail && syntheticEmail && (
                     <div
-                      className="text-xs font-medium"
-                      style={{ color: 'var(--muted-foreground)' }}
+                      className="rounded-md px-3 py-2"
+                      style={{ background: 'var(--secondary)' }}
                     >
-                      {t('admin.create.signInName')}
+                      <div
+                        className="text-xs font-medium"
+                        style={{ color: 'var(--muted-foreground)' }}
+                      >
+                        {t('admin.create.signInName')}
+                      </div>
+                      <code
+                        className="mt-0.5 block text-sm"
+                        style={{ fontFamily: 'var(--font-mono)', color: 'var(--foreground)' }}
+                      >
+                        {syntheticEmail}
+                      </code>
                     </div>
-                    <code
-                      className="mt-0.5 block text-sm"
-                      style={{ fontFamily: 'var(--font-mono)', color: 'var(--foreground)' }}
-                    >
-                      {syntheticEmail}
-                    </code>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
 
               {/* Access roles — neat selectable rows in a grouped, bordered container */}

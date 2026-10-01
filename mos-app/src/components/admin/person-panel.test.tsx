@@ -93,14 +93,14 @@ const SELF: AdminPersonRow = {
 const OTHER_ADMIN: AdminPersonRow = { ...BAYU, id: 'other-admin', full_name: 'Other Admin', access_roles: ['admin'] }
 
 /** A small authority table: Member posts org-wide, Ops lead manages Projects org-wide, Team lead
- *  closes runs for its own Team, BU head manages Objectives in its BU; everything else none. */
+ *  closes runs for its own Team, BU head manages Projects in its BU; everything else none. */
 function authorityRows(): RoleAuthorityRow[] {
   const grant: Record<string, RoleAuthorityRow['scope']> = {
     'signal.post:member': 'org',
     'workline.manage:ops_lead': 'org',
+    'workline.manage:bu_head': 'own_bu',
     'process.close:member': 'own',
     'process.close:team_lead': 'own_team',
-    'objective.manage:bu_head': 'own_bu',
   }
   return AUTHORITY_ACTIONS.flatMap((action) => AUTHORITY_ROLES.map((role) => ({
     action,
@@ -115,6 +115,11 @@ function authority(overrides: Partial<PersonAuthoritySource> = {}): PersonAuthor
     rows: authorityRows(),
     leads: [{ team_id: 't-hq', team_name: 'HQ Operations', business_unit_id: null, lead_person_id: 'bayu-id', lead_name: 'Bayu Barista' }],
     retry: vi.fn(),
+    roleTree: [
+      { id: 'r-head', business_unit_id: 'bu-retail', reports_to_role_id: null },
+      { id: 'r-staff', business_unit_id: 'bu-retail', reports_to_role_id: 'r-head' },
+    ],
+    businessUnits: [{ id: 'bu-retail', name: 'Retail' }],
     ...overrides,
   }
 }
@@ -189,9 +194,50 @@ describe('PersonPanel — read first', () => {
     // Leading HQ Operations lifts Close process runs from Member's own record to the Team.
     expect(rowFor('Close process runs')).toHaveTextContent('Own Team')
     expect(rowFor('Close process runs')).toHaveTextContent('via Team lead')
-    expect(rowFor('Manage Objectives')).toHaveTextContent('Not allowed')
-    // BU head authority comes from a Position this screen cannot see — said, not guessed.
-    expect(screen.getByText(/A Business Unit head can get more from their Position/)).toBeInTheDocument()
+    // Objective structure is not an editable authority any more: the action's row is retired
+    // from "what they can do" along with the control (#992).
+    expect(within(list).queryByText('Manage Objectives')).not.toBeInTheDocument()
+    // No Position given: the old "not shown here" footnote is gone.
+    expect(screen.queryByText(/isn't shown here/)).toBeNull()
+  })
+
+  it('heading a Business Unit through a Position adds what a BU head gets, named as BU head', () => {
+    const head = { ...BAYU, jabatan: [{ role_id: 'r-head', role_name: 'Head of Retail' }] }
+    renderPanel(head)
+    const list = document.querySelector('.admin-person-cando') as HTMLElement
+    const manage = within(list).getByText('Manage Projects & Processes').closest('li') as HTMLElement
+    // Ops Lead already gives the widest scope here; BU head shows once it is the widest source.
+    expect(manage).toHaveTextContent('Organization')
+    const summary = screen.getByRole('region', { name: 'Summary' })
+    expect(within(summary).getByText('Head of Retail')).toBeInTheDocument()
+    expect(within(summary).getByText('Heads Retail')).toBeInTheDocument()
+  })
+
+  it('a BU head with no wider role is granted the BU-scoped authority via BU head', () => {
+    const head = { ...BAYU, access_roles: ['member'], jabatan: [{ role_id: 'r-head', role_name: 'Head of Retail' }] }
+    renderPanel(head, { authority: authority({ leads: [] }) })
+    const list = document.querySelector('.admin-person-cando') as HTMLElement
+    const manage = within(list).getByText('Manage Projects & Processes').closest('li') as HTMLElement
+    expect(manage).toHaveTextContent('Own Business Unit')
+    expect(manage).toHaveTextContent('via BU head')
+  })
+
+  it('an archived person at the top of a Business Unit is not shown as its head', () => {
+    const archived = { ...BAYU, access_roles: ['member'], archived_at: '2026-01-01T00:00:00Z', jabatan: [{ role_id: 'r-head', role_name: 'Head of Retail' }] }
+    renderPanel(archived, { authority: authority({ leads: [] }) })
+    const list = document.querySelector('.admin-person-cando') as HTMLElement
+    const manage = within(list).getByText('Manage Projects & Processes').closest('li') as HTMLElement
+    expect(manage).toHaveTextContent('Not allowed')
+    expect(within(screen.getByRole('region', { name: 'Summary' })).queryByText(/^Heads /)).toBeNull()
+  })
+
+  it('a Position below the top of its Business Unit gives no BU head authority', () => {
+    const staff = { ...BAYU, access_roles: ['member'], jabatan: [{ role_id: 'r-staff', role_name: 'Retail staff' }] }
+    renderPanel(staff, { authority: authority({ leads: [] }) })
+    const list = document.querySelector('.admin-person-cando') as HTMLElement
+    const manage = within(list).getByText('Manage Projects & Processes').closest('li') as HTMLElement
+    expect(manage).toHaveTextContent('Not allowed')
+    expect(within(screen.getByRole('region', { name: 'Summary' })).queryByText(/^Heads /)).toBeNull()
   })
 
   it('a person who leads nothing gets only what their roles give', () => {
@@ -318,6 +364,30 @@ describe('PersonPanel — Access roles', () => {
     await user.click(screen.getByRole('checkbox', { name: 'Admin' }))
     expect(await screen.findByRole('dialog', { name: 'Remove Admin from Other Admin?' })).toBeInTheDocument()
     expect(mockRevokeRole).not.toHaveBeenCalled()
+  })
+
+  it('granting Ops Lead asks first: Cancel writes nothing', async () => {
+    const user = userEvent.setup()
+    renderPanel({ ...BAYU, access_roles: ['member'] })
+    await user.click(screen.getByRole('checkbox', { name: 'Ops Lead' }))
+
+    const dialog = await screen.findByRole('dialog', { name: 'Make Bayu Barista an Ops Lead?' })
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+
+    expect(screen.queryByRole('dialog', { name: 'Make Bayu Barista an Ops Lead?' })).toBeNull()
+    expect(mockGrantRole).not.toHaveBeenCalled()
+    expect(screen.getByRole('checkbox', { name: 'Ops Lead' })).toHaveAttribute('aria-checked', 'false')
+  })
+
+  it('granting Ops Lead asks first: Confirm writes exactly once', async () => {
+    const user = userEvent.setup()
+    renderPanel({ ...BAYU, access_roles: ['member'] })
+    await user.click(screen.getByRole('checkbox', { name: 'Ops Lead' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Make Bayu Barista an Ops Lead?' })
+    await user.click(within(dialog).getByRole('button', { name: 'Make Ops Lead' }))
+
+    await waitFor(() => expect(mockGrantRole).toHaveBeenCalledTimes(1))
+    expect(mockGrantRole).toHaveBeenCalledWith('bayu-id', 'ops_lead')
   })
 
   it('other grants never ask', async () => {

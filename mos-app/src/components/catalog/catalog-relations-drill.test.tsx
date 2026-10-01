@@ -15,6 +15,8 @@ vi.mock('@/components/processes/process-occurrence-controls', () => ({
   ),
 }))
 vi.mock('./catalog-record-loader', () => ({ loadCatalogRecordData: vi.fn(), loadCatalogRecordEditDirectory: vi.fn() }))
+const historyLoad = vi.hoisted(() => vi.fn())
+vi.mock('@/lib/db/record-history', async (orig) => ({ ...(await orig<typeof import('@/lib/db/record-history')>()), loadRecordHistory: historyLoad }))
 const runtimeAuthority = vi.hoisted(() => ({
   scopes: {
     workline_org: true,
@@ -23,7 +25,10 @@ const runtimeAuthority = vi.hoisted(() => ({
     objective_bu_ids: [] as string[],
   },
 }))
-vi.mock('./use-work-write-authority', () => ({
+vi.mock('@/lib/db/objective-key-results', () => ({ listKeyResults: async () => [] }))
+vi.mock('@/lib/db/directory', async (importActual) => ({ ...(await importActual<typeof import('@/lib/db/directory')>()), getPeople: async () => [] }))
+vi.mock('./use-work-write-authority', async (importActual) => ({
+  canEditObjectiveContentForScope: (await importActual<typeof import('./use-work-write-authority')>()).canEditObjectiveContentForScope,
   useWorkWriteAuthority: () => ({ scopes: runtimeAuthority.scopes, loading: false, error: false }),
   allowedBusinessUnitIds: (kind: 'work-line' | 'objective', scopes: typeof runtimeAuthority.scopes) =>
     kind === 'work-line'
@@ -129,16 +134,20 @@ async function openDetailsTab() {
 
 /** What separates a member from a catalog manager on the same record: no record actions, and a
  *  Details tab that says it is read-only and offers no field edits. */
-async function expectMemberReadOnly() {
+async function expectMemberReadOnly(note = 'You can view this, but not edit it.') {
   expect(screen.queryByRole('button', { name: 'More actions' })).toBeNull()
   await openDetailsTab()
   const details = screen.getByRole('tabpanel', { name: 'Details' })
-  expect(within(details).getByRole('note')).toHaveTextContent('You can view this, but not edit it.')
+  expect(within(details).getByRole('note')).toHaveTextContent(note)
   expect(within(details).queryAllByRole('button', { name: /^Edit / })).toHaveLength(0)
 }
 
 beforeEach(() => {
   vi.clearAllMocks()
+  historyLoad.mockResolvedValue({
+    entries: [{ id: 'h1', action: 'update', field: 'name', oldValue: 'Old name', newValue: 'Renamed goal', occurredAt: '2026-09-30T02:00:00Z', channel: 'app', actorName: 'Test Viewer' }],
+    names: new Map(),
+  })
   runtimeAuthority.scopes = {
     workline_org: true,
     objective_org: true,
@@ -185,6 +194,20 @@ describe('record relationship grammar', () => {
     expect(within(details).queryByRole('link', { name: 'Print the menus' })).not.toBeInTheDocument()
     expect(document.body.textContent?.toLowerCase()).not.toContain('cascade')
   })
+
+  it.each([['objective', 'objectives'], ['work-line', 'work_lines']] as const)(
+    'shows the %s change history under Details, read from its own table',
+    async (kind, table) => {
+      renderRecord(kind, kind === 'objective' ? 'obj-1' : 'wl-1')
+      await screen.findByRole('heading', { name: kind === 'objective' ? 'Grow revenue' : 'Menu launch' })
+      await openDetailsTab()
+      const details = screen.getByRole('tabpanel')
+      const history = await within(details).findByRole('region', { name: 'History' })
+      expect(within(history).getByText('Test Viewer')).toBeInTheDocument()
+      expect(history).toHaveTextContent('Old name → Renamed goal')
+      expect(historyLoad).toHaveBeenCalledWith(table, kind === 'objective' ? 'obj-1' : 'wl-1')
+    },
+  )
 
   it('shows the direct parent and Task contribution in Work without a duplicate Details link', async () => {
     renderRecord('work-line', 'wl-1')
@@ -389,7 +412,7 @@ it('keeps Objectives readable by members through the shared record renderer', as
     <CatalogRecordDocument kind="objective" id="obj-1" mode="panel" />
   </MemoryRouter></I18nProvider></AuthContext.Provider>)
   expect(await screen.findByRole('heading', { name: 'Grow revenue' })).toBeInTheDocument()
-  await expectMemberReadOnly()
+  await expectMemberReadOnly('You can view this. An admin sets the name, Business Unit, period and accountable person.')
 })
 
 

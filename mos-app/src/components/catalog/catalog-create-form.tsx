@@ -3,7 +3,7 @@
 // headers. Same component, same anatomy (label above control, error under its control, footer
 // row) on desktop and phone, mirroring TaskCreateForm's grammar so every collection's create
 // flow reads as one system.
-import { useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { Picker } from '@/components/ui/picker'
 import { TextInput } from '@/components/ui/text-input'
 import { Button } from '@/components/ui/button'
@@ -19,6 +19,13 @@ export function CatalogCreateForm({ draft }: { draft: CatalogCreateDraft }) {
   const businessUnitErrorId = `${formId}-bu-error`
   const [attempted, setAttempted] = useState(false)
   const businessUnitFieldId = useRef(`${formId}-bu`).current
+
+  // The name field is disabled while saving, which drops focus; a failed save hands it back.
+  const wasAdding = useRef(false)
+  useEffect(() => {
+    if (wasAdding.current && !draft.adding && draft.error) document.getElementById(nameId)?.focus()
+    wasAdding.current = draft.adding
+  }, [draft.adding, draft.error, nameId])
 
   const label = draft.kind === 'objective' ? t('catalog.objectives.add') : t('catalog.projects.add')
   const nameMissing = attempted && !draft.name.trim()
@@ -46,7 +53,7 @@ export function CatalogCreateForm({ draft }: { draft: CatalogCreateDraft }) {
 
   return (
     <form
-      className="ccf"
+      className="ccf form-grid"
       aria-label={label}
       noValidate
       onKeyDown={(event) => {
@@ -59,7 +66,7 @@ export function CatalogCreateForm({ draft }: { draft: CatalogCreateDraft }) {
         trySubmit()
       }}
     >
-      <div className="ccf-field">
+      <div className="ccf-field form-grid__field form-grid__field--full">
         <label className="ccf-label" htmlFor={nameId}>
           {t('catalog.nameLabel')} <span className="ccf-required" aria-hidden="true">*</span>
         </label>
@@ -78,55 +85,51 @@ export function CatalogCreateForm({ draft }: { draft: CatalogCreateDraft }) {
         {nameError && <p id={nameErrorId} role="alert" className="ccf-error">{nameError}</p>}
       </div>
 
-      {(draft.kind === 'work-line' || draft.businessUnitOptions) && (
-        <div className="ccf-row">
-          {draft.kind === 'work-line' && draft.type && draft.onTypeChange ? (
-            <div className="ccf-field">
-              <Picker
-                label={t('catalog.filter.type')}
-                value={draft.type}
-                options={[
-                  { value: 'project', label: t('catalog.tag.project') },
-                  { value: 'process', label: t('catalog.tag.process') },
-                ]}
-                onChange={(value) => draft.onTypeChange?.(value as 'project' | 'process')}
-                disabled={draft.adding}
-              />
-            </div>
-          ) : null}
-          {draft.kind === 'work-line' && draft.objectiveOptions && draft.onObjectiveChange ? (
-            <div className="ccf-field">
-              <Picker
-                label={t('catalog.record.objective')}
-                value={draft.objectiveId ?? ''}
-                placeholder={t('catalog.notSet')}
-                options={[{ value: '', label: t('catalog.notSet') }, ...draft.objectiveOptions]}
-                onChange={(value) => draft.onObjectiveChange?.(value || null)}
-                disabled={draft.adding}
-              />
-            </div>
-          ) : null}
-          {draft.businessUnitOptions && draft.onBusinessUnitChange ? (
-            <div className="ccf-field">
-              <Picker
-                id={businessUnitFieldId}
-                label={t('catalog.record.businessUnit')}
-                value={draft.businessUnitId ?? ''}
-                placeholder={draft.businessUnitRequired ? undefined : t('catalog.notSet')}
-                options={draft.businessUnitRequired ? draft.businessUnitOptions : [{ value: '', label: t('catalog.notSet') }, ...draft.businessUnitOptions]}
-                onChange={(value) => { draft.onBusinessUnitChange?.(value || null); if (attempted) setAttempted(false) }}
-                required={draft.businessUnitRequired}
-                error={Boolean(businessUnitError)}
-                describedBy={businessUnitError ? businessUnitErrorId : undefined}
-                disabled={draft.adding}
-              />
-              {businessUnitError && <p id={businessUnitErrorId} role="alert" className="ccf-error">{businessUnitError}</p>}
-            </div>
-          ) : null}
+      {draft.kind === 'work-line' && draft.type && draft.onTypeChange ? (
+        <div className="ccf-field form-grid__field">
+          <Picker
+            label={t('catalog.filter.type')}
+            value={draft.type}
+            options={[
+              { value: 'project', label: t('catalog.tag.project') },
+              { value: 'process', label: t('catalog.tag.process') },
+            ]}
+            onChange={(value) => draft.onTypeChange?.(value as 'project' | 'process')}
+            disabled={draft.adding}
+          />
         </div>
-      )}
+      ) : null}
+      {draft.kind === 'work-line' && draft.objectiveOptions && draft.onObjectiveChange ? (
+        <div className="ccf-field form-grid__field">
+          <Picker
+            label={t('catalog.record.objective')}
+            value={draft.objectiveId ?? ''}
+            placeholder={t('catalog.notSet')}
+            options={[{ value: '', label: t('catalog.notSet') }, ...draft.objectiveOptions]}
+            onChange={(value) => draft.onObjectiveChange?.(value || null)}
+            disabled={draft.adding}
+          />
+        </div>
+      ) : null}
+      {draft.businessUnitOptions && draft.onBusinessUnitChange ? (
+        <div className="ccf-field form-grid__field">
+          <Picker
+            id={businessUnitFieldId}
+            label={t('catalog.record.businessUnit')}
+            value={draft.businessUnitId ?? ''}
+            placeholder={draft.businessUnitRequired ? undefined : t('catalog.notSet')}
+            options={draft.businessUnitRequired ? draft.businessUnitOptions : [{ value: '', label: t('catalog.notSet') }, ...draft.businessUnitOptions]}
+            onChange={(value) => { draft.onBusinessUnitChange?.(value || null); if (attempted) setAttempted(false) }}
+            required={draft.businessUnitRequired}
+            error={Boolean(businessUnitError)}
+            describedBy={businessUnitError ? businessUnitErrorId : undefined}
+            disabled={draft.adding}
+          />
+          {businessUnitError && <p id={businessUnitErrorId} role="alert" className="ccf-error">{businessUnitError}</p>}
+        </div>
+      ) : null}
 
-      <div className="ccf-foot">
+      <div className="ccf-foot form-grid__field form-grid__field--full">
         <Button type="submit" variant="primary" disabled={draft.adding} aria-busy={draft.adding}>
           {draft.adding ? submittingLabel : submitLabel}
         </Button>

@@ -5,7 +5,7 @@
  * pill next to a differently-sized "2 blocked" fragment — number soup with no label
  * sentence ("size soup" incident). The fix: ONE muted meta sentence in a single
  * `.ch-meta-line` at one font token. Since OD-REDESIGN-91 #17 the Tasks sentence reads
- * "N open · M in view" (counts are OPEN everywhere; the head agrees with the rail badge).
+ * "N open in this view · M incl. done" (the view's own count; the rail badge is the viewer's own open tasks).
  * Skill rule mechanized: impeccable distill "Every element should justify its existence"
  * (.claude/skills/impeccable/reference/distill.md) — a digit with no attached noun carries
  * no meaning; plus the one-type-scale rule (ui-ux-pro-max ux-guidelines "Font Size Scale —
@@ -68,12 +68,11 @@ import { getBusinessUnits, getPeople, getPersonTeams, getDownlinePersonIds } fro
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
 import { TasksWorkspace } from './tasks-workspace'
-import { __resetTasksViewPrefForTests } from './use-tasks-view-pref'
 
 const VIEWER_ID = 'viewer-id'
 const VIEWER_PERSON: PeopleRow = {
-  id: VIEWER_ID, org_id: 'org', user_id: 'uid', full_name: 'Arief Said',
-  email: 'arief@example.test', must_change_password: false, archived_at: null,
+  id: VIEWER_ID, org_id: 'org', user_id: 'uid', full_name: 'Arden Sample',
+  email: 'arden.sample@example.test', must_change_password: false, archived_at: null,
   created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
 }
 const role: RolesRow = {
@@ -137,10 +136,9 @@ function renderWorkspace() {
 beforeEach(() => {
   vi.resetAllMocks()
   localStorage.clear()
-  __resetTasksViewPrefForTests()
   stubMatchMedia()
   vi.mocked(getBusinessUnits).mockResolvedValue([{ id: 'bu-1', name: 'Kitchen' }])
-  vi.mocked(getPeople).mockResolvedValue([{ id: VIEWER_ID, full_name: 'Arief Said' }])
+  vi.mocked(getPeople).mockResolvedValue([{ id: VIEWER_ID, full_name: 'Arden Sample' }])
   vi.mocked(getPersonTeams).mockResolvedValue([])
   vi.mocked(getDownlinePersonIds).mockResolvedValue([])
   vi.mocked(listObjectives).mockResolvedValue([])
@@ -168,10 +166,10 @@ describe('GUARD-R2: the Tasks page head never shows a number without a label sen
     const head = screen.getByTestId('page-head')
 
     // ONE meta sentence, and it reads as a sentence: every number is followed by its noun.
-    // OD-REDESIGN-91 #17: counts are OPEN — "N open · M in view" (none Done here → open === total).
+    // OD-REDESIGN-91 #17: counts are OPEN — "N open in this view · M incl. done" (none Done here → open === total).
     const metaLines = head.querySelectorAll('.ch-meta-line')
     expect(metaLines).toHaveLength(1)
-    expect(metaLines[0].textContent?.trim()).toBe('3 open · 3 in view')
+    expect(metaLines[0].textContent?.trim()).toBe('3 open in this view · 3 incl. done')
 
     // The size-soup pill is gone from this head — count lives inside the sentence.
     expect(head.querySelectorAll('.ch-count')).toHaveLength(0)

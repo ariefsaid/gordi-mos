@@ -4,10 +4,11 @@
    44px touch floor per tab; viewport-safe (box-sizing, no page overflow).
 
    Unlike the three-literal control it replaces, the option count is derived from
-   the branch catalog and so is not fixed at three. The track therefore SCROLLS
-   horizontally instead of squeezing: a squeezed tab hits the ellipsis before it
-   hits the thumb, and "Transfer to Ra…" is exactly the ambiguity the derived
-   label exists to remove. Scrolling keeps every option full-width and reachable.
+   the branch catalog and so is not fixed at three. The track therefore never
+   squeezes: a squeezed tab hits the ellipsis before it hits the thumb, and
+   "Transfer to Ra…" is exactly the ambiguity the derived label exists to remove.
+   It scrolls horizontally, and wraps on a phone (rule below), so every option
+   stays full-width and reachable.
    ════════════════════════════════════════════════════════════════════════════ */
 
 .kms {
@@ -81,6 +82,14 @@
    the strip still reads as one container rather than loose chips. */
 @media (max-width: 767.98px) {
   .kms { gap: 8px; }
+}
+
+/* Phone: wrap instead of scrolling. A strip cut off at the screen edge with no cue reads as
+   clipped, and the destinations a person needs are the ones off-screen. Tabs share each row's
+   width, so the strip stays a tidy block whatever the catalog length. */
+@media (max-width: 767.98px) {
+  .kms { flex-wrap: wrap; overflow-x: visible; }
+  .kms-tab { flex: 1 1 auto; }
 }
 
 @media (prefers-reduced-motion: reduce) {

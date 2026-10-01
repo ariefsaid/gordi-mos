@@ -9,6 +9,7 @@
 
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { ReactNode } from 'react'
 import { CafeStreamBar, CafeStreamChoices } from './cafe-stream-bar'
@@ -136,6 +137,34 @@ describe('CafeStreamBar', () => {
     fireEvent.click(screen.getByRole('button', { name: /switch/i }))
     fireEvent.click(screen.getByText(/all streams/i))
     expect(onAllStreams).toHaveBeenCalled()
+  })
+})
+
+describe('CafeStreamBar heading variant (Plan opens straight on its stream)', () => {
+  it('states the stream as a heading — no "Stream" label — with a "Change" link, not "Switch"', () => {
+    wrap(<CafeStreamBar heading options={CATALOG} stream={RR_KITCHEN} onChange={() => {}} />)
+    expect(screen.getByRole('heading', { name: 'Rumah Rames · Kitchen' })).toBeInTheDocument()
+    expect(screen.queryByText(/^stream$/i)).toBeNull()
+    expect(screen.getByRole('button', { name: /^change/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /switch/i })).toBeNull()
+  })
+
+  it('Change opens the same picker and works from the keyboard alone', async () => {
+    const onChange = vi.fn()
+    const user = userEvent.setup()
+    wrap(<CafeStreamBar heading options={CATALOG} stream={RR_KITCHEN} homeStream={RR_KITCHEN} onChange={onChange} />)
+    await user.tab()
+    expect(screen.getByRole('button', { name: /^change/i })).toHaveFocus()
+    await user.keyboard('{Enter}')
+    expect(screen.getByRole('option', { name: 'Radiant · Bar' })).toBeInTheDocument()
+    await user.keyboard('{Enter}')
+    expect(onChange).toHaveBeenCalledWith(RAD_BAR)
+  })
+
+  it('with nothing else to change to, it is the heading alone', () => {
+    wrap(<CafeStreamBar heading options={[RR_KITCHEN]} stream={RR_KITCHEN} onChange={() => {}} />)
+    expect(screen.getByRole('heading', { name: 'Rumah Rames · Kitchen' })).toBeInTheDocument()
+    expect(screen.queryByRole('button')).toBeNull()
   })
 })
 

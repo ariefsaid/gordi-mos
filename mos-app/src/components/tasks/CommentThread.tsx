@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { PersonOption } from '@/lib/db/directory'
 import { PersonPicker } from './person-picker'
 import { useT } from '@/i18n/use-t'
@@ -68,6 +68,8 @@ export function CommentThread({
     else setLocalDraft(value)
   }
   const [posting, setPosting] = useState(false)
+  const [postError, setPostError] = useState(false)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   // Escape dismisses the mention picker without losing the draft; a fresh keystroke re-opens it.
   const [pickerDismissed, setPickerDismissed] = useState(false)
   const showMentionPicker = canPost && !pickerDismissed && /(^|\s)@[a-z0-9_.-]*$/i.test(draft)
@@ -79,9 +81,13 @@ export function CommentThread({
     const body = draft.trim()
     if (!body || posting) return
     setPosting(true)
+    setPostError(false)
     try {
       await onPost(body)
       updateDraft('')
+    } catch {
+      setPostError(true)
+      textareaRef.current?.focus()
     } finally {
       setPosting(false)
     }
@@ -126,9 +132,11 @@ export function CommentThread({
           }}
         >
           <textarea
+            ref={textareaRef}
             aria-label={t('tasks.comment.label')}
             value={draft}
-            onChange={(event) => { updateDraft(event.target.value); setPickerDismissed(false) }}
+            readOnly={posting}
+            onChange={(event) => { if (posting) return; updateDraft(event.target.value); setPickerDismissed(false); setPostError(false) }}
             onKeyDown={(event) => {
               // D-B2 isolation: while the mention picker is open, Escape dismisses the PICKER only
               // and is consumed here — it must not bubble to the record panel host and close the
@@ -147,14 +155,17 @@ export function CommentThread({
           {showMentionPicker && (
             <PersonPicker
               people={people}
+              anchorRef={textareaRef}
+              query={/(?:^|\s)@([a-z0-9_.-]*)$/i.exec(draft)?.[1] ?? ''}
               onSelect={insertMention}
               onClose={() => setPickerDismissed(true)}
             />
           )}
+          {postError && <p role="alert">{t('tasks.comment.postError')}</p>}
           <div className="comment-composer__actions">
             <button
               type="submit"
-              className="btn btn-primary"
+              className="btn btn-outline"
               disabled={!draft.trim() || posting}
             >
               {t('tasks.comment.post')}

@@ -36,6 +36,10 @@ import { listSalesMarginDaily } from '@/lib/db/reporting-margin'
 const mockListMargin = vi.mocked(listSalesMarginDaily)
 
 vi.mock('../lib/db/tasks', () => ({ listTasks: vi.fn() }))
+
+// Home's "N open" is the ONE open-task count the rail badge also reads (#1129).
+const sharedCount = vi.hoisted(() => ({ value: null as number | null }))
+vi.mock('../hooks/useMyOpenTaskCount', () => ({ useMyOpenTaskCount: () => sharedCount.value }))
 import { listTasks } from '@/lib/db/tasks'
 const mockListTasks = vi.mocked(listTasks)
 
@@ -233,6 +237,7 @@ function overdueTaskRow(viewerId: string) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  sharedCount.value = null
   window.localStorage.clear()
   mockListTasks.mockResolvedValue([])
   mockGetBUs.mockResolvedValue([])
@@ -487,12 +492,12 @@ describe('Issue 245 / FR-928: Signals stays live, concise and honest', () => {
     mockListAllTeams.mockResolvedValue([
       { id: 'team-1', name: 'Bar Kemang', business_unit_id: 'bu-cafe', site_id: null, is_primary: false },
     ])
-    mockGetPeople.mockResolvedValue([{ id: 'author-1', full_name: 'Riri Barista' }])
+    mockGetPeople.mockResolvedValue([{ id: 'author-1', full_name: 'Nico Barista' }])
 
     await renderHome(memberViewer)
     const feed = await screen.findByRole('region', { name: /^Signals · \d+$/ })
     expect(within(feed).getByText(/grinder is jamming on the second hopper/i)).toBeInTheDocument()
-    await waitFor(() => expect(within(feed).getByText('Riri Barista')).toBeInTheDocument())
+    await waitFor(() => expect(within(feed).getByText('Nico Barista')).toBeInTheDocument())
     expect(within(feed).getByText('Bar Kemang')).toBeInTheDocument()
     expect(within(feed).queryByRole('searchbox')).toBeNull()
     expect(screen.queryByText(/isn.t available/i)).toBeNull()
@@ -569,12 +574,14 @@ describe('Home task regions preserve decision context and collection doors', () 
       status: 'Open' as const,
     }
     mockListTasks.mockResolvedValue([normalTask, secondTask])
+    // Two rows are listed; the open figure is the shared count, not a recount of those rows (#1129).
+    sharedCount.value = 7
     await renderHome(financeViewer)
     await userEvent.setup().click(await screen.findByRole('tab', { name: /^My open work/ }))
     const myWork = await screen.findByRole('tabpanel', { name: /^My open work/ })
     expect(within(myWork).getByText('Prep beans')).toBeInTheDocument()
     expect(within(myWork).getByText('Clean grinder')).toBeInTheDocument()
-    expect(within(myWork).getByRole('link', { name: /2 shown · 2 open/i }))
+    expect(within(myWork).getByRole('link', { name: /2 shown · 7 open/i }))
       .toHaveAttribute('href', '/work/tasks?view=my-work')
   })
 

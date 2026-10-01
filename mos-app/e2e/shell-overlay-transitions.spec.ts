@@ -42,7 +42,9 @@ async function box(locator: Locator) {
 }
 
 /** Deputy is on screen in its intended host: right-anchored fixed panel on desktop, full-screen
- * modal on phone; the header stays visible and the page underneath does not move. */
+ * modal on phone; the header stays visible. Standalone on desktop it docks, so the main region
+ * gives up exactly the panel's width (drawer.css data-panel-docked='deputy'); beside a record it
+ * floats in the record's frame, and on phone it is a modal — the page underneath does not move. */
 async function expectDeputyPlaced(page: Page, viewport: { width: number; height: number }, mainBefore: { x: number; y: number; width: number; height: number }) {
   const panel = deputy(page)
   await expect(panel).toBeVisible()
@@ -52,11 +54,21 @@ async function expectDeputyPlaced(page: Page, viewport: { width: number; height:
   expect(b.x + b.width).toBeLessThanOrEqual(viewport.width + 0.5)
   expect(b.y + b.height).toBeLessThanOrEqual(viewport.height + 0.5)
   const main = await box(page.locator('#main-content'))
-  expect(main).toEqual(mainBefore)
+  const docked = viewport.width >= 920
+    && await panel.evaluate((el) => el.classList.contains('overlay-companion-host--standalone'))
+  if (docked) {
+    expect(main.x).toBe(mainBefore.x)
+    expect(main.y).toBe(mainBefore.y)
+    expect(main.height).toBe(mainBefore.height)
+    expect(Math.abs(main.width - (mainBefore.width - b.width)), 'main gives up exactly the dock width').toBeLessThanOrEqual(1)
+    expect(main.x + main.width).toBeLessThanOrEqual(b.x + 0.5)
+  } else {
+    expect(main).toEqual(mainBefore)
+  }
   if (viewport.width >= 920) {
     expect(await panel.evaluate((el) => getComputedStyle(el).position)).toBe('fixed')
     // Alone it docks to the right edge; beside a record it sits left of the record panel.
-    if (await panel.evaluate((el) => el.classList.contains('overlay-companion-host--standalone'))) {
+    if (docked) {
       expect(Math.abs(b.x + b.width - viewport.width)).toBeLessThanOrEqual(1)
     }
     const header = await box(page.locator('header').first())

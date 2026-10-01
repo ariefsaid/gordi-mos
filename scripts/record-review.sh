@@ -9,8 +9,8 @@
 # Rules:
 #   - reviewer: an agent that did not write the branch — glm / luna (cross-family), opus fallback.
 #   - the artifact is the reviewer's actual output: each lens must cite the full 40-character HEAD,
-#     carry a `Reviewer:` line, and carry a Verdict for THIS lens that is MERGE or
-#     MERGE WITH CHANGES — a DO NOT MERGE cannot be stamped into a passing gate.
+#     carry a `Reviewer:` line, and carry a Verdict for THIS lens. DO NOT MERGE clears only that
+#     lens's passing stamp; it cannot be stamped into a passing gate.
 #
 # Self-test: scripts/record-review.test.sh
 set -uo pipefail
@@ -40,11 +40,6 @@ esac
 
 head="$(git rev-parse HEAD)" || die "not a git repo"
 
-# Any refusal anywhere in the artifact poisons every stamp from it — conservative on purpose.
-if grep -iE '^Verdict:' "$artifact" | grep -q "DO NOT MERGE"; then
-  die "artifact carries a DO NOT MERGE — fix and re-review; a refusal cannot be stamped into a passing gate"
-fi
-
 # SECTION-BOUND validation: the stamp is minted from THIS lens's own record, never from another
 # lens's verdict sharing the file. A section opens at a 'Reviewer:' line or '## ' heading naming
 # the lens, and closes at the next section opener.
@@ -64,8 +59,21 @@ sec_model="$(printf '%s\n' "$section" | grep -i '^Reviewer:' | head -1 \
   | sed -E 's/^[Rr]eviewer:[[:space:]]*//; s/[[:space:]]*\([^)]*\)[[:space:]]*$//')"
 [ "$sec_model" = "$reviewer" ] \
   || die "the '$lens' section's Reviewer is '$sec_model', not '$reviewer' — exact match required (substring spoofs refuse)"
-verdict="$(printf '%s\n' "$section" | grep -iE '^Verdict:' | sed -E 's/^[Vv]erdict:[[:space:]]*//' | head -1)"
-[ -n "$verdict" ] || die "the '$lens' section carries no 'Verdict:' line"
+verdict_lines="$(printf '%s\n' "$section" | grep -iE '^Verdict:' || true)"
+[ -n "$verdict_lines" ] || die "the '$lens' section carries no 'Verdict:' line"
+
+if printf '%s\n' "$verdict_lines" | grep -q 'DO NOT MERGE'; then
+  gitdir="$(git rev-parse --git-dir)" || die "not a git repo"
+  rm -f "$gitdir/independent-review-$lens-ok" \
+    || die "could not clear the '$lens' lens stamp after DO NOT MERGE"
+  die "the '$lens' lens verdict is DO NOT MERGE; its stamp was cleared (other lens stamps are unchanged)"
+fi
+
+verdict_count="$(printf '%s\n' "$verdict_lines" | awk 'END { print NR }')"
+[ "$verdict_count" -eq 1 ] \
+  || die "the '$lens' section must carry exactly one 'Verdict:' line (found $verdict_count)"
+
+verdict="$(printf '%s\n' "$verdict_lines" | sed -E 's/^[Vv]erdict:[[:space:]]*//' | head -1)"
 printf '%s\n' "$verdict" | grep -qE '^MERGE( WITH CHANGES)?$' \
   || die "the '$lens' section's verdict is not machine-readable (MERGE | MERGE WITH CHANGES): '$verdict'"
 

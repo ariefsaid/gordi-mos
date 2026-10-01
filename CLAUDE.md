@@ -41,6 +41,28 @@ Updates + per-Activity ops + reference data + money follow-ups. Ships at
 
 **Usability and speed beat model completeness.**
 
+## Standing principles (owner)
+
+- Route every phase through its skills, reading each SKILL.md and following its flow (owner-typed
+  ones included); unsure which, `ask-matt`:
+  - owner observations: `feedback`, into issues before anything is built;
+  - fog and decisions: `wayfinder`, `grilling`, `domain-modeling`, `research`, `prototype`;
+  - spec and tickets: `to-spec`, `to-tickets`, `triage`; goals and briefs: `writing-agent-goals`;
+  - build: `drive` and the factory for ordinary tickets (Workflow below); `implement` with `tdd` in
+    hands-on lanes; `codebase-design`, `diagnosing-bugs`; ponytail's ladder first (vendor before
+    build) and `ponytail-review` on the diff;
+  - UI: `impeccable` (`operate` first, then its critique, layout, clarify, adapt, harden, audit and
+    polish references), `ui-ux-pro-max` search, `taste`;
+  - review: `code-review`; rendered judgment per the Test pyramid.
+- Every brief names its skills plan: which skill, which phase, what evidence it leaves. Naming a
+  skill is not evidence it ran.
+- Vendor before build: a proven library (MIT, Apache-2.0 or MPL-2.0 only) over a hand-built
+  control, behind a MOS-owned interface.
+- A record is typed fields plus an authored block document (OD-REDESIGN-16).
+- A milestone or final rendered UI review is exhaustive: every route, width and control state, each
+  finding searched for as a class, never a top-N pass. Ordinary tickets still check only their
+  touched and connected surfaces.
+
 ## UI review and improvement tasks
 
 For every UI/UX/IA/IxD iteration, use `docs/takeover/mvp-ui-continuation.md` in the main checkout
@@ -83,6 +105,15 @@ independent review → PR → auto-merge to dev → next. Its machinery binds ou
    posting policy lives in local `docs/`, per the banner above. One carve-out: `gh pr merge`
    stays raw (no prose leaves through a merge).
 
+CI fair use (shared free-tier minutes): a PR into `dev` uses GitHub CI as the full-suite gate — locally
+run only `bash scripts/pre-pr-verify.sh --dev` (typecheck, lint, tests of touched files); a PR into
+`main` keeps the full local gate.
+Locally, pgTAP runs only the test files your change touches (`scripts/with-db-lock.sh bash -c 'supabase migration up && supabase test db <files>'`; the local DB is shared, so no reset just to test); CI runs the full suite. The DB lock wraps database commands only, never pre-pr-verify. A pure rebase (proven by `scripts/carry-stamps.sh`) carries the verify and review stamps to the new HEAD in place of a mechanical-confirmation round.
+Run CI e2e at most once per PR, only for shared-code or milestone
+PRs, via `bash scripts/ci-e2e.sh` (raw dispatch and rerun are hook-denied). A second e2e run on a PR
+(except one `--bugfix-proof` follow-up), a flake re-run, more than 3 dispatches per repo per day, or anything
+scheduled or looping needs the owner's OK. One heavy local job at a time, all sessions and repos.
+
 Escalate **only**: money or a promise · irreversible outside a signed brief · scope-vs-time that
 changes what ships · a fact only the owner holds. Within delegated scope, decide the rest and state
 the reasoning. The owner's explicit current-task direction supersedes a project default for that
@@ -109,7 +140,7 @@ Findings in a separate comment, never the PR body. Records certify the exact HEA
 staleifies every record. Round 1 is a full independent pass; later rounds are delta-only for named
 fixes or genuinely new risk. Formatting/whitespace-only changes, or mechanical artifact refreshes
 with no new authored behavior, do not start a substantive review round; if they move HEAD, the
-independent reviewer must issue an exact-HEAD mechanical confirmation, never edit or reuse a stale
+independent reviewer must issue an exact-HEAD mechanical confirmation (a pure rebase carries stamps instead; see CI fair use), never edit or reuse a stale
 record.
 
 ## Repo layout
@@ -183,8 +214,9 @@ Under OD-REDESIGN-88, understood seams may use test-with against the current beh
 visual placement assertions change when the owner-authorized workflow changes;
 retain red-first for bug fixes, uncertain logic and protected interaction-contract changes.
 Automatic UI guards and changed-surface browser checks run per change. Deep rendered judgment
-covers touched and connected surfaces at a signed milestone boundary, or when the ticket's
-contract explicitly requires it; ordinary tickets do not repeat the whole-product assessment.
+covers every route at a signed milestone boundary (see Standing principles), and touched and
+connected surfaces when the ticket's contract explicitly requires it; ordinary tickets do not
+repeat the whole-product assessment.
 Initial visual critique runs before fixes and is independent of detector findings; final rendered
 confirmation follows fixes. Rendered visual judgment belongs to an independent image-capable reviewer: `fe_reviewer` qualifies only
 after a real image-transport and candidate-binding probe succeeds, otherwise use a separate

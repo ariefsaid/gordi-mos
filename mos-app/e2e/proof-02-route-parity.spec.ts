@@ -10,6 +10,15 @@ const ROUTE_CATALOG = ROUTE_PARITY_CATALOG
 const VISIBLE_ROOT_ROUTES = ROUTE_CATALOG.filter((route) => route.kind === 'visible-root').map((route) => route.path)
 const CANONICAL_ROUTES = ROUTE_CATALOG.map((route) => route.path)
 
+// The active tab each Admin settings route owns. The tab and the rail's Admin link both mark the
+// place, so these routes are checked by their tab instead of the single-aria-current count.
+const ADMIN_SETTINGS_TABS: Record<string, string> = {
+  '/admin/people': 'People',
+  '/admin/teams': 'Teams',
+  '/admin/access': 'Roles & permissions',
+  '/admin/agents': 'Connected agents',
+}
+
 function routePath(id: RouteParityId): string {
   const entry = ROUTE_CATALOG.find((route) => route.id === id)
   if (!entry) throw new Error(`Missing route parity entry: ${id}`)
@@ -60,20 +69,31 @@ async function assertCanonicalSurface(page: Page, route: string) {
     const url = new URL(page.url())
     return url.pathname.replace(/^\/mos/, '') || '/'
   }).toBe(route)
-  await expect(page.getByRole('navigation', { name: 'Primary' })).toBeVisible({ timeout: 15_000 })
   const breadcrumb = page.getByRole('navigation', { name: 'Breadcrumb' })
   const routeEntry = ROUTE_CATALOG.find((entry) => entry.path === route)
-  if (routeEntry?.owner === 'admin-settings') {
+  // The agent-consent page is a focused decision: on a phone it hides the bottom tab bar.
+  const focusedOnPhone = routeEntry?.owner === 'agent-consent' && (page.viewportSize()?.width ?? 1440) < 920
+  if (focusedOnPhone) {
+    await expect(page.getByRole('navigation', { name: 'Primary' })).toHaveCount(0)
+  } else {
+    await expect(page.getByRole('navigation', { name: 'Primary' })).toBeVisible({ timeout: 15_000 })
+  }
+  const settingsTab = ADMIN_SETTINGS_TABS[route]
+  if (routeEntry?.owner === 'admin-settings' && !settingsTab) throw new Error(`No Admin settings tab named for ${route}`)
+  if (settingsTab) {
     const settings = page.getByRole('navigation', { name: 'Admin settings sections' })
     await expect(settings).toBeVisible()
-    const tab = route === '/admin/teams' ? 'Teams' : 'Roles & permissions'
-    await expect(settings.getByRole('link', { name: tab, exact: true })).toHaveAttribute('aria-current', 'page')
+    await expect(settings.getByRole('link', { name: settingsTab, exact: true })).toHaveAttribute('aria-current', 'page')
+  } else if (routeEntry?.owner === 'agent-consent') {
+    // The consent page is a sign-in handoff, not a place in the app: it owns no breadcrumb.
+    await expect(breadcrumb).toBeEmpty()
+    await expect(page.getByRole('heading', { name: 'Connect an agent', level: 1 })).toBeVisible()
   } else {
     await expect(breadcrumb).toBeVisible()
   }
   if (routeEntry?.owner === 'breadcrumb') {
     await expect(breadcrumb).toContainText('Personal Profile')
-  } else if (routeEntry?.owner !== 'admin-settings') {
+  } else if (!settingsTab && routeEntry?.owner !== 'agent-consent') {
     await expect(page.locator('[aria-current="page"]')).toHaveCount(1)
   }
   await expect(page.getByRole('main')).toBeVisible()
