@@ -69,7 +69,7 @@ test.describe('desktop geometry guards', () => {
     // GAP-6 / OD-REDESIGN-91 #11: creation lands on the collection; reopen for drawer geometry.
     await page.goto('work/tasks')
     await page.waitForURL(/\/work\/tasks$/)
-    await page.getByRole('button', { name: 'All', exact: true }).click()
+    await page.getByRole('button', { name: 'Relevant', exact: true }).click()
     await openTaskRecord(page, title)
     await page.waitForURL(/\/work\/tasks\?.*record=[0-9a-f-]{36}$/)
     const drawer = page.getByRole('complementary', { name: /task detail/i })
@@ -162,7 +162,7 @@ test.describe('desktop geometry guards', () => {
   test('GUARD-PRIMARY: the Tasks page shows at most ONE solid-primary button — in every toolbar state', async ({ page }) => {
     const toolbar = page.getByTestId('record-collection-toolbar')
     await expect(toolbar).toBeVisible()
-    await expect(toolbar.getByRole('button', { name: 'All', exact: true })).toBeVisible()
+    await expect(toolbar.getByRole('button', { name: 'Relevant', exact: true })).toBeVisible()
 
     const assertOnePagePrimary = async (state: string) => {
       const labels = await page.locator('.btn-primary:visible').evaluateAll((elements) =>

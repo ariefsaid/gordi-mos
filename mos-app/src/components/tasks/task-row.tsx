@@ -29,6 +29,7 @@ import { useInlineCommit } from '@/components/ui/use-inline-commit'
 import { StatusPill } from './status-pill'
 import { statusTone } from './status-tone'
 import { Picker } from '@/components/ui/picker'
+import { DateField } from '@/components/ui/date-field'
 import { PicCell, PersonCell } from './pic-cell'
 import { formatDate, formatAge, TASK_TITLE_MAX_LENGTH } from './task-formatters'
 import { useT } from '@/i18n/use-t'
@@ -251,7 +252,11 @@ export function TaskRow({
   // The date the person typed. A rejected save rolls the hook's draft back to the saved date, but
   // the editor keeps showing (and Retry keeps sending) what was typed.
   const [dueTyped, setDueTyped] = useState('')
+  // Typed text that is not a usable date is never committed: the editor stays open on the error.
+  const [dueInvalid, setDueInvalid] = useState(false)
+  const [dueRevealed, setDueRevealed] = useState(false)
   const commitDue = () => {
+    if (dueInvalid) { setDueRevealed(true); return }
     if (dueTyped === (task.due_date ?? '')) { dueInline.cancel(); setDueEditing(false); return }
     dueInline.commit(dueTyped)
   }
@@ -642,12 +647,14 @@ export function TaskRow({
     ),
     due: onEditDue ? (dueEditing ? (
       <span className="inline-editor-control inline-editor-control--due" onClick={(event) => event.stopPropagation()}>
-        <input autoFocus type="date" aria-label={t('tasks.inlineEdit.dueInput')} value={dueTyped} readOnly={dueInline.pending} aria-busy={dueInline.pending || undefined}
-          aria-invalid={dueInline.error || undefined} aria-describedby={dueInline.error ? dueErrorId : undefined}
-          onChange={(event) => { setDueTyped(event.target.value); dueInline.setDraft(event.target.value) }} onKeyDown={onDueKeyDown} onBlur={onDueBlur} />
+        <DateField compact autoFocus aria-label={t('tasks.inlineEdit.dueInput')} value={dueTyped} readOnly={dueInline.pending} aria-busy={dueInline.pending || undefined}
+          error={dueInline.error} aria-describedby={dueInline.error ? dueErrorId : undefined} reveal={dueRevealed}
+          onChange={(next) => { setDueTyped(next); dueInline.setDraft(next) }} onValidityChange={setDueInvalid} onKeyDown={onDueKeyDown} onBlur={onDueBlur} />
         <InlineCommitFeedback {...dueInline} errorId={dueErrorId} />
       </span>
-    ) : <button type="button" ref={dueTriggerRef} className={`inline-cell-trigger${taskOverdue && !condensed ? ' inline-cell-trigger--stacked' : ''}`} aria-label={t('tasks.inlineEdit.due')} tabIndex={activeCell === 'due' ? 0 : -1} onFocus={() => setActiveCell('due')} data-row-stop="" onClick={(event) => { event.stopPropagation(); setDueTyped(dueInline.draft); setDueEditing(true) }}>{dueInline.draft ? dueText : '—'}</button>) : dueText,
+    // Merge of origin/dev's DateField flow (#keep the reveal reset on entry) with #1192's
+    // roving grid: the Due trigger stays a roving active-cell stop (tabIndex/onFocus).
+    ) : <button type="button" ref={dueTriggerRef} className={`inline-cell-trigger${taskOverdue && !condensed ? ' inline-cell-trigger--stacked' : ''}`} aria-label={t('tasks.inlineEdit.due')} tabIndex={activeCell === 'due' ? 0 : -1} onFocus={() => setActiveCell('due')} data-row-stop="" onClick={(event) => { event.stopPropagation(); setDueTyped(dueInline.draft); setDueRevealed(false); setDueEditing(true) }}>{dueInline.draft ? dueText : '—'}</button>) : dueText,
   }
 
   return (

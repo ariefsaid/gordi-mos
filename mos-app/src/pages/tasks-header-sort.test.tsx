@@ -23,6 +23,7 @@ vi.mock('../lib/db/directory', () => ({
   getTeamsByIds: vi.fn().mockResolvedValue([]),
   listRoleNames: vi.fn(),
   getDownlinePersonIds: vi.fn().mockResolvedValue([]),
+  getPersonBusinessUnitIds: vi.fn().mockResolvedValue([]),
 }))
 vi.mock('../lib/db/objectives', () => ({ listObjectives: vi.fn() }))
 vi.mock('../lib/db/work-lines', () => ({ listWorkLines: vi.fn() }))

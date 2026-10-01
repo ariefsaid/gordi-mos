@@ -70,8 +70,9 @@ export async function createTaskViaUI(
 }
 
 /**
- * #870 shape (collection-toolbar.tsx commits 3b71da46/e59120eb): the Task view chips (All / My
- * work / Team work / Overdue, plus any saved views) live in a role="group" named "Task views"
+ * #870 shape (collection-toolbar.tsx commits 3b71da46/e59120eb): the Task view chips (the primary
+ * view — "All" for org-wide admin viewers, "Relevant" for everyone else per OD-TASK-3 — plus
+ * My work / Team work / Overdue and any saved views) live in a role="group" named "Task views"
  * (tasks.toolbar.viewNavigation) — `<button aria-pressed>`, never a tablist/tab. One shared truth
  * so a toolbar shape change is fixed in one place instead of in every spec that clicks a view.
  */
@@ -99,8 +100,9 @@ export async function openViewFilters(page: Page) {
 }
 
 /**
- * Click a Task view chip by its visible label ('All', 'My work', 'Team work', 'Overdue', or a
- * saved-view name) and wait for it to report pressed. Self-managing: on phone the chips are
+ * Click a Task view chip by its visible label ('Relevant' for non-org-wide viewers, 'All' for
+ * admin (OD-TASK-3), 'My work', 'Team work', 'Overdue', or a saved-view name) and wait for it to
+ * report pressed. Self-managing: on phone the chips are
  * nested inside the "View & filters" door (#870) and this opens it first; on desktop the chips
  * already ride the exposed view-axis row, so nothing is opened. Either way it leaves the door
  * exactly as it found it — a door left open as a side effect of selecting a view has been seen to

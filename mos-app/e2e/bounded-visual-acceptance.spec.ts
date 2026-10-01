@@ -1,6 +1,6 @@
 import { test, expect, type Page, type Route } from '@playwright/test'
 import { loginAs } from './helpers/login'
-import { MANAGER } from './fixtures/users'
+import { MANAGER, ADMIN } from './fixtures/users'
 import { AC204, TASKS } from './fixtures/tasks'
 import { stubAccountLocale } from './helpers/account-locale'
 import { TASKS_SPLIT_MIN_WIDTH } from '../src/shell/use-is-split-width'
@@ -390,12 +390,25 @@ test.describe('bounded visual and interaction acceptance', () => {
     })
   }
 
-  test('missing relations keep exact No Objective and No tasks yet copy', async ({ page }) => {
+  test('a missing Objective prompts the editor to set it, and the empty list keeps its copy', async ({ page }) => {
     await loginAs(page, MANAGER.email, MANAGER.password)
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto(`work/tasks/${AC204.tasks.orphanLine.id}`)
     await expect(page.getByRole('heading', { name: AC204.tasks.orphanLine.title, exact: true })).toBeVisible()
-    await expect(page.getByText('No Objective', { exact: true })).toBeVisible()
+    // Read-only for this viewer: no Objective fact or edit affordance, and the note names who
+    // can change the task.
+    await expect(page.getByText('+ Set objective', { exact: true })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Edit Objective', exact: true })).toHaveCount(0)
+    await expect(page.getByRole('note')).toContainText(/View only · .+ can change this task/)
+
+    // The task's owner edits: the missing Objective shows its set-action prompt.
+    await page.evaluate(() => localStorage.clear())
+    await loginAs(page, ADMIN.email, ADMIN.password)
+    await page.goto(`work/tasks/${AC204.tasks.orphanLine.id}`)
+    await expect(page.getByRole('heading', { name: AC204.tasks.orphanLine.title, exact: true })).toBeVisible()
+    await expect(page.getByText('+ Set objective', { exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Edit Objective', exact: true })).toBeVisible()
+
     await page.route('**/rest/v1/tasks*', async (route) => {
       if (route.request().method() !== 'GET') return route.continue()
       await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })

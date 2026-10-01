@@ -65,6 +65,8 @@ export function TaskCreateForm({
   // A link retry only links the already-created Task; draft edits, Title included, would never be saved.
   const fieldsLocked = pending || linkError
   const [saveError, setSaveError] = useState(false)
+  // Typed Due text that is not a usable date: Create refuses it rather than saving the old value.
+  const [dueInvalid, setDueInvalid] = useState(false)
   const titleRef = useRef<HTMLTextAreaElement | null>(null)
 
   // Multi-line-safe title (never clips a long EN/ID title): a plain autosizing textarea — no new
@@ -118,6 +120,7 @@ export function TaskCreateForm({
     if (!trimmed) { titleRef.current?.focus(); return }
     if (!task.team_id || !task.business_unit_id) { document.getElementById(teamFieldId)?.focus(); return }
     if (!task.accountable_person_id) { document.getElementById(supervisorFieldId)?.focus(); return }
+    if (dueInvalid) { document.getElementById(dueFieldId)?.focus(); return }
     if (pending) return
     setSaveError(false)
     setPending(true)
@@ -229,7 +232,9 @@ export function TaskCreateForm({
             fullWidth
             value={task.due_date ?? ''}
             disabled={fieldsLocked}
+            reveal={attempted}
             onChange={(value) => { void onEditDue(task.id, value || null) }}
+            onValidityChange={setDueInvalid}
           />
         </div>
         {workLineOptions.length > 0 && (

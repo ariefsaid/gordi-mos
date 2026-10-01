@@ -205,6 +205,7 @@
 }
 /* The due editor carries its save error beside it, so it grows (wraps) instead of clipping it. */
 .inline-editor-control--due {
+  width: 100%;
   height: auto;
   max-height: none;
   min-height: var(--control-height);
@@ -212,6 +213,8 @@
   gap: 4px 8px;
   white-space: normal;
 }
+.inline-editor-control--due .mk-date { width: 100%; min-width: 0; }
+.inline-editor-control--due .mk-date__box { width: 100%; min-width: 0; box-sizing: border-box; }
 
 .tasks-inline-edit-hint {
   margin: 8px 12px 0;
