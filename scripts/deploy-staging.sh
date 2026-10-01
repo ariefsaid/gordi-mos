@@ -10,6 +10,7 @@
 # The connection string is read from the host's secret store at run time and lives only in this
 # process: it is never printed, written or put in the PR. Where it lives (item/vault/field) is read
 # from the gitignored supabase/op.staging.env (template: supabase/op.staging.env.example).
+# Deploys origin/main only (refuses from any other checkout state).
 # Never runs `supabase config push`, never deploys edge functions, never touches trusted agent clients.
 # Self-test: scripts/deploy-staging.test.sh
 { set +x; } 2>/dev/null   # a traced run must not echo the connection string
@@ -83,16 +84,15 @@ sqlq() { local o; if ! o="$(psql "$URL" -X -At -v ON_ERROR_STOP=1 -c "$1" 2>"$er
 
 say "Staging deploy from $(git -C "$ROOT" branch --show-current) @ $(git -C "$ROOT" rev-parse --short HEAD)"
 
-# ── 1. Refs: the promotion PR carries main; refuse early if local main is not origin/main.
+# ── 1. Source: deploy exactly origin/main, the content the promotion PR carries.
 git -C "$ROOT" fetch -q origin main staging || die "git fetch failed"
-if [ "$PR" = 1 ]; then
-  lm="$(git -C "$ROOT" rev-parse --verify -q refs/heads/main)" || die "no local main branch — create it from origin/main or pass --no-pr"
-  om="$(git -C "$ROOT" rev-parse --verify -q refs/remotes/origin/main)" || die "origin/main not found"
-  [ "$lm" = "$om" ] || die "local main is not origin/main — update it first (or pass --no-pr)"
-fi
+[ "$(git -C "$ROOT" branch --show-current)" = main ] || die "run this from a checkout of main"
+om="$(git -C "$ROOT" rev-parse --verify -q refs/remotes/origin/main)" || die "origin/main not found"
+[ "$(git -C "$ROOT" rev-parse HEAD)" = "$om" ] || die "main is not at origin/main — update it first"
+[ -z "$(git -C "$ROOT" status --porcelain -- supabase/migrations)" ] || die "supabase/migrations has uncommitted changes"
 
 # ── 2. Dry run: the pending migration list (file names only).
-set +e; out="$(supabase db push --dry-run --db-url "$URL" 2>&1 </dev/null)"; rc=$?; set -e
+set +e; out="$(supabase --workdir "$ROOT" db push --dry-run --db-url "$URL" 2>&1 </dev/null)"; rc=$?; set -e
 if [ "$rc" -ne 0 ]; then printf '%s\n' "$out" | redact >&2; die "supabase db push --dry-run failed (exit $rc)"; fi
 pending=(); while IFS= read -r f; do [ -n "$f" ] && pending+=("$f"); done < <(printf '%s\n' "$out" | grep -oE '[0-9]{8,}_[A-Za-z0-9_.-]+\.sql' | sort -u || true)
 if [ "${#pending[@]}" -eq 0 ]; then
@@ -148,7 +148,7 @@ if [ "${#pending[@]}" -gt 0 ]; then
     ans=""; read -r ans || true
     case "$ans" in y|Y|yes|YES) ;; *) die "not confirmed — nothing was pushed" ;; esac
   fi
-  set +e; out="$(supabase db push --yes --db-url "$URL" 2>&1 </dev/null)"; rc=$?; set -e
+  set +e; out="$(supabase --workdir "$ROOT" db push --yes --db-url "$URL" 2>&1 </dev/null)"; rc=$?; set -e
   printf '%s\n' "$out" | redact
   [ "$rc" -eq 0 ] || die "supabase db push failed (exit $rc)"
 fi

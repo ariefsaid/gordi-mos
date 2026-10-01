@@ -14,7 +14,7 @@ bad() { fail=$((fail+1)); printf '  FAIL  %s\n' "$1"; }
 SECRET_PW='p4ssw0rdZZ'
 SECRET_HOST='db.fakehost-zz.example.test'
 SECRET_URL="postgresql://deployer:${SECRET_PW}@${SECRET_HOST}:5432/postgres"
-calls="$tmp/calls"; allout="$tmp/allout"; : > "$allout"
+ROOT_REPO="$(pwd -P)"; calls="$tmp/calls"; allout="$tmp/allout"; : > "$allout"
 mkdir -p "$tmp/bin" "$tmp/mig"
 
 cat > "$tmp/bin/op-get.sh" <<'EOF'
@@ -49,23 +49,29 @@ esac
 EOF
 cat > "$tmp/bin/git" <<'EOF'
 #!/usr/bin/env bash
-[ "${1:-}" = -C ] && shift 2
+c=""; [ "${1:-}" = -C ] && { c="$2"; shift 2; }
 printf 'git %s\n' "$*" >> "$CALLS"
 case "$*" in
-  "branch --show-current") echo main ;;
+  "branch --show-current")
+    if [ -z "$c" ] || [ "$c" = "$ROOT_REPO" ]; then echo "${FAKE_BRANCH:-main}"   # the checkout running the script
+    elif [ -f "$c/.on-main" ]; then echo main; fi ;;                             # a temp worktree is on main only after checkout
   "rev-parse --short HEAD") echo abc1234 ;;
-  *refs/heads/main*) echo "${FAKE_MAIN:-aaaa}" ;;
+  "rev-parse HEAD") echo "${FAKE_HEAD:-aaaa}" ;;
   *refs/remotes/origin/main*) echo "${FAKE_ORIGIN_MAIN:-aaaa}" ;;
+  "status --porcelain"*) printf '%s' "${FAKE_DIRTY:-}" ;;
   "rev-list --count"*) echo "${FAKE_AHEAD:-3}" ;;
   "diff --name-only"*) printf '%s' "${FAKE_FN_DIFF:-}" ;;
   "worktree list --porcelain") echo "worktree $tmp_main" ;;
-  "worktree add"*) mkdir -p "${@: -2:1}" ;;
+  "worktree add"*) mkdir -p "${@: -2:1}"; echo "${@: -2:1}" > "$WTFILE" ;;
+  "checkout -q --ignore-other-worktrees main") touch "$c/.on-main" ;;
 esac
 exit 0
 EOF
 cat > "$tmp/gh-post.sh" <<'EOF'
 #!/usr/bin/env bash
-printf 'gh-post %s\n' "$*" >> "$CALLS"
+# Only a call made from the temp worktree, with main checked out there, counts as a promotion.
+if [ "$(pwd -P)" = "$(cd "$(cat "$WTFILE")" && pwd -P)" ] && [ -f .on-main ]; then printf 'gh-post %s\n' "$*" >> "$CALLS"
+else printf 'gh-post-WRONG-CHECKOUT %s\n' "$*" >> "$CALLS"; fi
 EOF
 chmod +x "$tmp"/bin/* "$tmp/gh-post.sh"
 
@@ -78,7 +84,7 @@ run() {
   local name="$1" want="$2" input="$3"; shift 3
   local envs=(); while [ "$#" -gt 0 ] && [ "$1" != -- ]; do envs+=("$1"); shift; done; shift
   : > "$calls"
-  out="$(printf '%s' "$input" | env PATH="$tmp/bin:$PATH" CALLS="$calls" FAKE_URL="$SECRET_URL" FAKE_HOST="$SECRET_HOST" \
+  out="$(printf '%s' "$input" | env PATH="$tmp/bin:$PATH" CALLS="$calls" WTFILE="$tmp/wtfile" ROOT_REPO="$ROOT_REPO" FAKE_URL="$SECRET_URL" FAKE_HOST="$SECRET_HOST" \
     FAKE_DRY_OUT="Would push these migrations:
  • 20260101000001_plain.sql
  • 20260101000002_gate.sql" tmp_main="$tmp" \
@@ -99,7 +105,9 @@ expect "op-get called with the local coordinates" "op-get fake-item fake-vault F
 expect "dry run called" "supabase dry-run"
 expect "probe ran (migration alters authenticator)" "psql probe"
 expect "push called" "supabase push"
-expect "promotion PR opened against staging" "gh-post pr create --base staging"
+expect "promotion PR opened against staging, from a temp worktree on main" "gh-post pr create --base staging"
+expect_not "gh-post never called from another checkout" "gh-post-WRONG-CHECKOUT"
+expect "temp worktree checked out on main" "git checkout -q --ignore-other-worktrees main"
 expect "PR made from a temp worktree" "git worktree add"
 has "pending list printed" "20260101000002_gate.sql"
 has "verify line printed" "verify: max version 20260101000002 (newest local 20260101000002) · db_pre_request set · trusted clients 0"
@@ -126,9 +134,12 @@ run "stops when the probe leaves a policy behind" 1 "" FAKE_LEFT=2 -- --yes
 expect_not "no push when probe not rolled back" "supabase push"
 run "op-get failure stops before anything" 1 "" FAKE_OP_FAIL=1 -- --yes
 expect_not "no dry run when the secret is unavailable" "supabase dry-run"
-run "local main differing from origin/main refused" 1 "" FAKE_MAIN=aaaa FAKE_ORIGIN_MAIN=bbbb -- --yes
+run "feature branch refused" 1 "" FAKE_BRANCH=feat/x -- --yes
+expect_not "no dry run from a feature branch" "supabase dry-run"
+run "HEAD behind origin/main refused" 1 "" FAKE_HEAD=aaaa FAKE_ORIGIN_MAIN=bbbb -- --yes --no-pr
 expect_not "no push when main is stale" "supabase push"
-run "--no-pr tolerates a stale local main" 0 "" FAKE_MAIN=aaaa FAKE_ORIGIN_MAIN=bbbb -- --yes --no-pr
+run "uncommitted migration changes refused" 1 "" FAKE_DIRTY=" M supabase/migrations/x.sql" -- --yes --no-pr
+expect_not "no push with a dirty migrations dir" "supabase push"
 
 echo "probe only when needed"
 mv "$tmp/mig/20260101000002_gate.sql" "$tmp/gate.save"
