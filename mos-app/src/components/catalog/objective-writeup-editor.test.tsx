@@ -16,6 +16,12 @@ vi.mock('@blocknote/react', () => ({
   FormattingToolbarController: () => <div data-testid="toolbar" />,
   FormattingToolbar: () => null,
   getFormattingToolbarItems: () => [],
+  SideMenuController: () => <div data-testid="sidemenu" />,
+  SideMenu: () => null,
+  DragHandleMenu: () => null,
+  RemoveBlockItem: () => null,
+  blockTypeSelectItems: () => [],
+  useDictionary: () => ({ drag_handle: { delete_menuitem: 'Delete' } }),
   getDefaultReactSlashMenuItems: () => [],
 }))
 
@@ -230,8 +236,9 @@ describe('ObjectiveWriteupEditor', () => {
   it("offers the library's menus to an editor and none to a read-only reader", async () => {
     read.mockResolvedValue({ writeUp: [{ type: 'paragraph' }], updatedAt: 't1' })
     const view = await mount({ canEdit: true })
-    expect(screen.getByTestId('bn')).toHaveAttribute('data-menus', 'false,true,true')
+    expect(screen.getByTestId('bn')).toHaveAttribute('data-menus', 'false,false,true')
     expect(screen.getByTestId('toolbar')).toBeInTheDocument()
+    expect(screen.getByTestId('sidemenu')).toBeInTheDocument()
     // The library's built-in slash menu is off: the controller below it carries the allowed items.
     expect(screen.getByTestId('bn')).toHaveAttribute('data-default-slash', 'false')
     expect(screen.getByTestId('slash')).toBeInTheDocument()
@@ -240,6 +247,7 @@ describe('ObjectiveWriteupEditor', () => {
     expect(screen.getByTestId('bn')).toHaveAttribute('data-menus', 'false,false,false')
     expect(screen.queryByTestId('slash')).toBeNull()
     expect(screen.queryByTestId('toolbar')).toBeNull()
+    expect(screen.queryByTestId('sidemenu')).toBeNull()
   })
 
   it('steps Save down from primary once Saved, and back up on the next edit', async () => {

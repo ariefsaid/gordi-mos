@@ -4,12 +4,18 @@ import { BlockNoteSchema, defaultBlockSpecs, filterSuggestionItems } from '@bloc
 import { getDefaultSlashMenuItems } from '@blocknote/core/extensions'
 import { BlockNoteView } from '@blocknote/ariakit'
 import {
+  DragHandleMenu,
   FormattingToolbar,
   FormattingToolbarController,
+  RemoveBlockItem,
+  SideMenu,
+  SideMenuController,
   SuggestionMenuController,
+  blockTypeSelectItems,
   getDefaultReactSlashMenuItems,
   getFormattingToolbarItems,
   useCreateBlockNote,
+  useDictionary,
 } from '@blocknote/react'
 import '@blocknote/core/style.css'
 import '@blocknote/ariakit/style.css'
@@ -48,10 +54,35 @@ function allowedSlashItems(editor: Parameters<typeof getDefaultSlashMenuItems>[0
   return filterSuggestionItems(getDefaultReactSlashMenuItems(editor).filter((_, index) => SLASH_ITEM_KEYS.has(keys[index])), query)
 }
 
-// The library's selection toolbar without text alignment: an ops write-up is left-aligned prose.
+// The stored block types, as the slash menu offers them: paragraph, quote, the three lists, headings 1-3.
+const STORED_BLOCK_TYPES = new Set(['paragraph', 'quote', 'bulletListItem', 'numberedListItem', 'checkListItem'])
+
+// The library's selection toolbar without text alignment (an ops write-up is left-aligned prose) and with
+// the block-type list limited to the stored types, so nothing the sanitizer would change on reload is offered.
 function WriteUpToolbar() {
-  return <FormattingToolbar>{getFormattingToolbarItems().filter((item) => !String(item.key).startsWith('textAlign'))}</FormattingToolbar>
+  const items = blockTypeSelectItems(useDictionary()).filter((item) => {
+    if (item.type !== 'heading') return STORED_BLOCK_TYPES.has(item.type)
+    const props = item.props as { level: number; isToggleable: boolean }
+    return props.level <= 3 && !props.isToggleable
+  })
+  return <FormattingToolbar>{getFormattingToolbarItems(items).filter((item) => !String(item.key).startsWith('textAlign'))}</FormattingToolbar>
 }
+
+// Block menu: delete only. Colour is offered once, in the selection toolbar.
+function WriteUpDragHandleMenu() {
+  const dict = useDictionary()
+  return <DragHandleMenu><RemoveBlockItem>{dict.drag_handle.delete_menuitem}</RemoveBlockItem></DragHandleMenu>
+}
+
+function WriteUpSideMenu() {
+  return <SideMenu dragHandleMenu={WriteUpDragHandleMenu} />
+}
+
+// An editor menu or popover (slash menu, block menu, link form, toolbar list) that Escape should close first.
+// A closed popover stays in the DOM with `hidden`, so only a shown one counts.
+const OPEN_MENU = ['.bn-suggestion-menu', '.bn-menu-dropdown', '.bn-ak-popover', '.bn-ak-menu', '.bn-ak-hovercard', '[aria-expanded="true"]']
+  .map((menu) => `.objective-writeup__editor ${menu}:not([hidden])`)
+  .join(', ')
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'failed' | 'tooLarge' | 'conflict'
 
@@ -212,6 +243,7 @@ function WriteUpSurface({
 
   const leaveEditor = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key !== 'Escape') return
+    if (document.querySelector(OPEN_MENU)) return
     event.stopPropagation()
     saveRef.current?.focus()
   }
@@ -245,7 +277,7 @@ function WriteUpSurface({
           // The library's own menus, only for an editor that can edit. No upload, table or emoji UI exists.
           formattingToolbar={false}
           linkToolbar={editable}
-          sideMenu={editable}
+          sideMenu={false}
           slashMenu={false}
           filePanel={false}
           tableHandles={false}
@@ -254,6 +286,7 @@ function WriteUpSurface({
           className={editable ? 'objective-writeup__editor objective-writeup__editor--menus' : 'objective-writeup__editor'}
         >
           {editable ? <FormattingToolbarController formattingToolbar={WriteUpToolbar} /> : null}
+          {editable ? <SideMenuController sideMenu={WriteUpSideMenu} /> : null}
           {editable ? (
             <SuggestionMenuController
               triggerCharacter="/"

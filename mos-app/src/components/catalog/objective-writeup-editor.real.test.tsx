@@ -123,6 +123,28 @@ describe('ObjectiveWriteupEditor with the real editor', () => {
     ])
   })
 
+  it('Escape in an open slash menu only closes the menu: the caret stays in the editor and nothing saves', async () => {
+    jsdomLayout()
+    vi.mocked(readWriteUp).mockResolvedValueOnce({ writeUp: [], updatedAt: 't0' })
+    vi.mocked(saveWriteUp).mockReset()
+    render(
+      <I18nProvider>
+        <ObjectiveWriteupEditor objectiveId="o1" canEdit archived={false} />
+      </I18nProvider>,
+    )
+    const box = await screen.findByRole('textbox', { name: 'Objective write-up' })
+    act(() => { box.focus() })
+    await userEvent.keyboard('/')
+    expect((await screen.findAllByRole('option')).length).toBeGreaterThan(0)
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('option')).toBeNull())
+    expect(document.activeElement).toBe(box)
+    expect(saveWriteUp).not.toHaveBeenCalled()
+    // With no menu open, Escape still leaves for Save.
+    await userEvent.keyboard('{Escape}')
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Save' }))
+  })
+
   it('a read-only reader gets no menus, handles or toolbar', async () => {
     jsdomLayout()
     vi.mocked(readWriteUp).mockResolvedValueOnce({ writeUp: [{ type: 'paragraph', content: [{ type: 'text', text: 'Read me', styles: {} }] }], updatedAt: 't0' })
@@ -161,7 +183,8 @@ describe('ObjectiveWriteupEditor with the real editor', () => {
         </I18nProvider>,
       )
       const box = await screen.findByRole('textbox', { name: 'Objective write-up' })
-      // Faked only once the editor is on screen: Testing Library's own polling needs the real clock.
+      // Faked only once the editor is on screen and editable: Testing Library's own polling needs the real clock.
+      await waitFor(() => expect(box).toHaveAttribute('contenteditable', 'true'))
       vi.useFakeTimers({ shouldAdvanceTime: true })
       act(() => { box.focus() })
       await user.keyboard('start')
@@ -201,6 +224,7 @@ describe('ObjectiveWriteupEditor with the real editor', () => {
         </I18nProvider>,
       )
       const box = await screen.findByRole('textbox', { name: 'Objective write-up' })
+      await waitFor(() => expect(box).toHaveAttribute('contenteditable', 'true'))
       vi.useFakeTimers({ shouldAdvanceTime: true })
       act(() => { box.focus() })
       await user.keyboard('a')
