@@ -43,6 +43,31 @@ expect flagged "brand-blue 3px inset stripe stays flagged" \
 expect flagged "semantic token with --color- prefix" \
   '.x__card { box-shadow: inset 3px 0 0 var(--color-primary); }'
 
+expect flagged "brand-navy-text inset stripe" \
+  '.x__card { box-shadow: inset 3px 0 0 var(--brand-navy-text); }'
+expect flagged "color-brand-navy-text alias inset stripe" \
+  '.x__card { box-shadow: inset 3px 0 0 var(--color-brand-navy-text); }'
+expect flagged "warning-foreground inset stripe" \
+  '.x__card { box-shadow: inset 3px 0 0 var(--warning-foreground); }'
+expect flagged "color-warning-foreground alias inset stripe" \
+  '.x__card { box-shadow: inset 3px 0 0 var(--color-warning-foreground); }'
+expect flagged "surface-danger inset stripe" \
+  '.x__card { box-shadow: inset 3px 0 0 var(--surface-danger); }'
+expect flagged "menu__item .is-active under a nav ancestor" \
+  '.nav .menu__item.is-active { box-shadow: inset 3px 0 0 var(--primary); }'
+expect flagged "menu-item [data-selected] under a tabs ancestor" \
+  '.tabs .menu-item[data-selected] { box-shadow: inset 3px 0 0 var(--primary); }'
+expect flagged "picker__option under a rail ancestor" \
+  ".rail .picker__option[data-selected='true'] { box-shadow: inset 3px 0 0 var(--primary); }"
+
+expect clean "primary-foreground (white text token) inset stripe" \
+  '.x__card { box-shadow: inset 3px 0 0 var(--primary-foreground); }'
+expect clean "success-foreground (white text token) inset stripe" \
+  '.x__card { box-shadow: inset 3px 0 0 var(--success-foreground); }'
+expect clean "surface-primary (white surface) inset stripe" \
+  '.x__card { box-shadow: inset 3px 0 0 var(--surface-primary); }'
+expect clean "text-primary (neutral text) inset stripe" \
+  '.x__card { box-shadow: inset 3px 0 0 var(--text-primary); }'
 expect clean "neutral 1px side border" \
   '.x__row { border-left: 1px solid var(--border); }'
 expect clean "neutral border token as an inset stripe" \

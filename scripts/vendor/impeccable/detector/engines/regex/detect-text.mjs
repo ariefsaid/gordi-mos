@@ -422,16 +422,24 @@ const CHROMATIC_SHADOW_TOKEN_RE = /(?:^|-)(?:accent|kinpaku|patina|gold|red|oran
 
 // Semantic tokens that resolve to a chromatic colour in this design system's theme (action blue,
 // warning amber, destructive red, success green, status and brand hues). The name carries no colour
-// word, so the word list above cannot see them. Border, input, muted, secondary, surface, background,
-// foreground and text tokens are neutral and stay out. Exact names, with an optional Tailwind
-// `--color-` prefix, so `--primary-foreground` (near white) stays neutral.
-const CHROMATIC_SEMANTIC_TOKEN_RE = /^--(?:color-)?(?:primary|warning|destructive(?:-action)?|danger|success|info|ring|violet|brand-navy|brand-orange|status-(?:open|won|lost|violet)-text|field-error-text|text-accent|text-danger)$/i;
+// word, so the word list above cannot see them. Matched by name family (a hyphen-delimited segment,
+// with or without a Tailwind `--color-` prefix), so a new `--brand-navy-*` or `--status-*` token is
+// covered without editing the list. Border, input, muted, secondary, surface, background, foreground
+// and text tokens are neutral and stay out. A `-foreground` token is the near-white text on its fill
+// and stays neutral, except `--warning-foreground`, the deep amber-brown text.
+// `primary` counts only as the token's own name: `--surface-primary` and `--text-primary` are neutral.
+const CHROMATIC_SEMANTIC_TOKEN_RE = /^--(?:color-)?primary(?:-|$)|(?:^|-)(?:warning|destructive|danger|success|info|ring|violet|navy|orange|status|error)(?:-|$)/i;
+
+function semanticTokenIsChromatic(name) {
+  if (/-foreground$/i.test(name) && !/(?:^|-)warning-foreground$/i.test(name)) return false;
+  return CHROMATIC_SEMANTIC_TOKEN_RE.test(name);
+}
 
 function insetStripeColorIsChromatic(rawColor) {
   const color = String(rawColor || '').trim().replace(/\s*!important\s*$/i, '');
   if (/^(?:currentcolor|transparent|inherit|unset)$/i.test(color)) return false;
   const variable = color.match(/^var\(\s*(--[\w-]+)/i);
-  if (variable) return CHROMATIC_SHADOW_TOKEN_RE.test(variable[1]) || CHROMATIC_SEMANTIC_TOKEN_RE.test(variable[1]);
+  if (variable) return CHROMATIC_SHADOW_TOKEN_RE.test(variable[1]) || semanticTokenIsChromatic(variable[1]);
   if (!/^(?:#|rgba?\(|hsla?\(|hwb\(|oklch\(|oklab\(|lch\(|lab\(|color\(|[a-z]+$)/i.test(color)) return false;
   return !isNeutralAuthoredColor(color);
 }
@@ -445,7 +453,7 @@ function blankCssComments(css) {
 }
 
 const TAB_OR_NAV_SELECTOR_RE = /(?:^|[\s>+~,(._#\['"-])(?:tabs?|tablist|tabbar|nav|navigation|rail|sidebar|breadcrumbs?|crumbs?|segment(?:ed)?|stepper|pager|pagination)(?![a-z])/i;
-const OPTION_SELECTOR_RE = /option|menuitem|listbox|combobox/i;
+const OPTION_SELECTOR_RE = /option|menu[-_]*item|listbox|combobox/i;
 
 function scanInsetStripeCss(rawContent, filePath, lineOffset = 0) {
   const content = blankCssComments(rawContent);
