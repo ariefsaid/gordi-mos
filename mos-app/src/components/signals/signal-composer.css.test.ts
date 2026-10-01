@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 const css = readFileSync(resolve(__dirname, 'signal-composer.css'), 'utf8')
+const dateFieldCss = readFileSync(resolve(__dirname, '../ui/DateField.css'), 'utf8')
 
 describe('SignalComposer visual roles', () => {
   it('uses readable secondary text for the persistent occurrence hint', () => {
@@ -12,13 +13,17 @@ describe('SignalComposer visual roles', () => {
     expect(rule).not.toContain('var(--text-light)')
   })
 
-  // Below 16px, mobile Safari zooms the viewport on focus. The textarea (14px base) and the
-  // datetime-local input (15px base) both step up to the reserved --font-size-touch-input rung
-  // inside the phone media query.
-  it('steps the textarea and datetime input up to --font-size-touch-input on phone', () => {
+  // Below 16px, mobile Safari zooms on focus. The date and time controls keep readable text
+  // and a 44px touch floor on phone.
+  it('gives the occurred date and time controls a 44px floor and touch-input text on phone', () => {
     const phoneBlock = css.match(/@media \(max-width: 767\.98px\) \{([\s\S]*)\}\s*$/)?.[1] ?? ''
     expect(phoneBlock).toMatch(/\.signal-composer-mention-anchor textarea\s*\{[^}]*font-size:\s*var\(--font-size-touch-input\)/)
-    expect(phoneBlock).toMatch(/\.signal-composer-datetime input\s*\{[^}]*font-size:\s*var\(--font-size-touch-input\)/)
+    expect(phoneBlock).toMatch(/\.signal-composer-time\s*\{[^}]*min-height:\s*44px/)
+    expect(phoneBlock).toMatch(/\.signal-composer-time\s*\{[^}]*font-size:\s*var\(--font-size-touch-input\)/)
+    const datePhoneBlock = dateFieldCss.match(/@media \(max-width: 767\.98px\) \{([\s\S]*)\}\s*$/)?.[1] ?? ''
+    expect(datePhoneBlock).toMatch(/\.mk-date__field[^}]*font-size:\s*var\(--font-size-touch-input\)/)
+    expect(datePhoneBlock).toMatch(/\.mk-date__box[^}]*min-height:\s*44px/)
+    expect(datePhoneBlock).toMatch(/\.mk-date__cal[^}]*min-height:\s*44px/)
   })
 
   // "Shift+Enter to send" is a keyboard hint — hide it without a real keyboard, not only under a

@@ -29,6 +29,7 @@ vi.mock('../lib/db/directory', () => ({
   getPersonTeams: vi.fn(),
   getTeamsByIds: vi.fn(),
   getDownlinePersonIds: vi.fn().mockResolvedValue([]),
+  getPersonBusinessUnitIds: vi.fn().mockResolvedValue([]),
 }))
 // Cascade catalogs (Task B) — the workspace loads these non-blocking; mock to empty so the
 // unit test never reaches the real supabase client. (Resolution set in beforeEach — resetAllMocks
@@ -369,7 +370,8 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     renderAt('/work/tasks?view=team')
     await waitFor(() => screen.getByText('Shared task'))
     expect(screen.getByRole('button', { name: 'Team work' })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'false')
+    // OD-TASK-3: the member's broadest-view chip reads Relevant — same `view=all` control.
+    expect(screen.getByRole('button', { name: 'Relevant' })).toHaveAttribute('aria-pressed', 'false')
     expect(document.querySelectorAll('.assembly')).toHaveLength(1)
     expect(document.querySelectorAll('.drawer, [role="dialog"]')).toHaveLength(0)
   })

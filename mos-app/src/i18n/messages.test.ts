@@ -56,6 +56,11 @@ describe('i18n messages catalog', () => {
     )
   })
 
+  it('issue 1199: the unset-Task Team placeholder reads as plain user copy in both locales, not migration wording', () => {
+    expect(messages.en['tasks.field.teamUnassigned']).toBe('No team yet')
+    expect(messages.id['tasks.field.teamUnassigned']).toBe('Belum ada tim')
+  })
+
   it('AC-I02: with the id locale active, t("dest.home") returns "Beranda"', () => {
     const { result } = renderHook(() => useT(), { wrapper: idWrapper })
     expect(result.current('dest.home')).toBe('Beranda')

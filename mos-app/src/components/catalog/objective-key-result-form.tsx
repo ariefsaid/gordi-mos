@@ -26,6 +26,9 @@ export function KeyResultForm({ row, people, onSubmit, onCancel, onRemove }: Key
   const [saving, setSaving] = useState(false)
   const [failed, setFailed] = useState(false)
   const [pickingOwner, setPickingOwner] = useState(false)
+  // Typed Due text that is not a usable date: Save refuses it instead of keeping the old date.
+  const [dueInvalid, setDueInvalid] = useState(false)
+  const [dueTried, setDueTried] = useState(false)
   const set = (patch: Partial<FormValues>) => setValues((current) => ({ ...current, ...patch }))
   const formRef = useRef<HTMLFormElement>(null)
   const whatErrorId = useId()
@@ -37,7 +40,8 @@ export function KeyResultForm({ row, people, onSubmit, onCancel, onRemove }: Key
   const submit = async () => {
     if (saving) return
     setTouched({ what: true, target: true })
-    if (values.what.trim() === '' || !isNumber(values.target)) {
+    setDueTried(true)
+    if (values.what.trim() === '' || !isNumber(values.target) || dueInvalid) {
       // A refused submit takes the person to the first field that needs attention.
       requestAnimationFrame(() => formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus())
       return
@@ -104,7 +108,7 @@ export function KeyResultForm({ row, people, onSubmit, onCancel, onRemove }: Key
         />
       </div>
       <div className="form-grid__field">
-        <DateField label={t('objective.keyResults.due')} value={values.due} fullWidth disabled={saving} onChange={(due) => set({ due })} />
+        <DateField label={t('objective.keyResults.due')} value={values.due} fullWidth disabled={saving} reveal={dueTried} onChange={(due) => set({ due })} onValidityChange={setDueInvalid} />
       </div>
       <div className="form-grid__field">
         <span className="objective-key-results__label">{t('objective.keyResults.responsible')}</span>

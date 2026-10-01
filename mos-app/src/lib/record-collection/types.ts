@@ -166,7 +166,10 @@ export interface RecordCollectionDescriptor<
       TPresentation
     >
   >>
-  load(args: { query: TQuery; viewerId: string | null }): Promise<CollectionData<TRecord, TContext>>
+  // `accessRoles` rides along for loaders whose list scope depends on the viewer's authority
+  // (OD-TASK-3: Tasks' Relevant view). Optional so every existing descriptor stays valid; the
+  // engine always supplies what it got at construction, mirroring getAccess.
+  load(args: { query: TQuery; viewerId: string | null; accessRoles?: readonly string[] }): Promise<CollectionData<TRecord, TContext>>
   /**
    * The query keys whose change requires a fresh `load()`. When omitted, EVERY `setQuery` reloads
    * (the conservative default). A descriptor that filters/sorts/groups purely client-side in

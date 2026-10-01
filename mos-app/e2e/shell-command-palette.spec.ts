@@ -12,7 +12,7 @@ test('AC-017: Ctrl+K opens the centered command palette, focuses the input, Esc 
   await page.keyboard.press('Control+K')
 
   const dialog = page.getByRole('dialog', { name: 'Command menu' })
-  const input = dialog.getByRole('combobox', { name: /search tasks or run a command/i })
+  const input = dialog.getByRole('combobox', { name: /search records or run a command/i })
   await expect(dialog).toBeVisible()
   const box = await dialog.boundingBox()
   expect(box).not.toBeNull()
