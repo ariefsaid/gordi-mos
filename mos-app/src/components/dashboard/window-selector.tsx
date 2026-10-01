@@ -1,6 +1,6 @@
 // WindowSelector — the window control (design-plan §2.6, FR-013/014, AC-013/014).
 // Composes a 3-preset seg [7d/30d/60d] (30d default) + a "Range" button that reveals
-// a pair of bounded native date inputs (from/to) — inline on desktop, or, when the
+// a pair of bounded day-first date fields (from/to) — inline on desktop, or, when the
 // composition passes `onRangeOpen`, deferred to a sheet the composition owns (#804).
 // The range is bounded to the available snapshot window (FR-014 — dates outside [earliest, latest] are disabled).
 // Selecting a preset emits {kind:'preset', days:N}; changing a date emits
@@ -9,6 +9,7 @@ import { useRef, type KeyboardEvent } from 'react'
 import type { WindowSpec } from '@/lib/dashboard'
 import { seedBoundsRange } from '@/lib/trailing-window'
 import { useT } from '@/i18n/use-t'
+import { DateField } from '@/components/ui/date-field'
 import { Chevron } from '@/shell/icons'
 import './window-selector.css'
 
@@ -148,36 +149,32 @@ export function WindowRangeFields({
   const max = bounds?.latest
   return (
     <div className="window-selector-range">
-      <label className="window-selector-field">
-        <span className="window-selector-field-label">{t('money.window.from')}</span>
-        <input
-          type="date"
+      <div className="window-selector-field">
+        <span className="window-selector-field-label" aria-hidden="true">{t('money.window.from')}</span>
+        <DateField
+          compact
           value={value.kind === 'custom' ? value.from : ''}
           min={min}
           max={max}
           aria-label={t('money.window.from')}
-          onChange={e => {
-            if (value.kind === 'custom') {
-              onChange({ kind: 'custom', from: e.target.value, to: value.to })
-            }
+          onChange={(from) => {
+            if (value.kind === 'custom') onChange({ kind: 'custom', from, to: value.to })
           }}
         />
-      </label>
-      <label className="window-selector-field">
-        <span className="window-selector-field-label">{t('money.window.to')}</span>
-        <input
-          type="date"
+      </div>
+      <div className="window-selector-field">
+        <span className="window-selector-field-label" aria-hidden="true">{t('money.window.to')}</span>
+        <DateField
+          compact
           value={value.kind === 'custom' ? value.to : ''}
           min={min}
           max={max}
           aria-label={t('money.window.to')}
-          onChange={e => {
-            if (value.kind === 'custom') {
-              onChange({ kind: 'custom', from: value.from, to: e.target.value })
-            }
+          onChange={(to) => {
+            if (value.kind === 'custom') onChange({ kind: 'custom', from: value.from, to })
           }}
         />
-      </label>
+      </div>
     </div>
   )
 }

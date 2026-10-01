@@ -9,7 +9,12 @@
 /* Description: prose at a reading measure, label spoken. */
 .task-description .record-field { display: block; }
 .rp .task-description .record-field__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-.rp .task-description .record-field__edit { width: 100%; min-height: 0; margin: 0; padding: 4px 0; justify-content: flex-start; text-align: left; }
+.rp .task-description .record-field__edit { width: 100%; margin: 0; padding: 4px 0; justify-content: flex-start; text-align: left; }
+/* min-height:0 is the desktop fine-pointer density (record-viewer.css tiers the same way); the
+   phone resting activation target keeps the record layer's 44px floor (GUARD-TAP #667). */
+@media (pointer: fine) and (min-width: 768px) {
+  .rp .task-description .record-field__edit { min-height: 0; }
+}
 .rp .task-description .record-field__value { max-width: 65ch; padding: 0; min-height: 0; font-size: var(--font-size-body); line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
 .rp .task-description [data-empty='true'] .record-field__value { color: var(--muted-foreground); }
 .rp .task-description .record-field__control--textarea { max-width: 65ch; }
@@ -41,6 +46,11 @@
   background: transparent; color: var(--destructive); font-size: var(--font-size-label); font-weight: 600; cursor: pointer;
 }
 @media (max-width: 767.98px) {
+  .checklist-label { position: relative; }
+  .checklist-label::before {
+    content: ''; position: absolute; left: -28px; top: 50%; width: 44px; height: 44px;
+    transform: translateY(-50%);
+  }
   .checklist-retry { min-width: 44px; min-height: 44px; }
 }
 

@@ -44,6 +44,7 @@ vi.mock('../../lib/db/directory', () => ({
   getPersonTeams: vi.fn(),
   getTeamsByIds: () => Promise.resolve([]),
   getDownlinePersonIds: vi.fn().mockResolvedValue([]),
+  getPersonBusinessUnitIds: vi.fn().mockResolvedValue([]),
 }))
 vi.mock('../../lib/db/objectives', () => ({
   listObjectives: vi.fn(),
@@ -75,6 +76,13 @@ const mockRole: RolesRow = {
 const authedState: AuthState = {
   status: 'authenticated',
   viewer: { person: VIEWER_PERSON, roles: [mockRole], isManager: false, accessRoles: [], affiliated: [] },
+  signOut: async () => {},
+}
+
+// OD-TASK-3 (#1200): the full "All" list is the org-wide (admin) view; a member's All is Relevant.
+const adminState: AuthState = {
+  status: 'authenticated',
+  viewer: { ...authedState.viewer, accessRoles: ['admin'] },
   signOut: async () => {},
 }
 
@@ -129,16 +137,17 @@ function makeSavedView(): React.ComponentProps<typeof TasksWorkspace>['savedView
   return { view: 'all', activeChip: null, segment: 'all', overdueOnly: false, search: '' }
 }
 
-// §Task-11: the Team-work chip was removed; All is the org-visible set.
-async function switchToAll() {
-  const all = screen.getByRole('button', { name: 'All' })
+// §Task-11: the Team-work chip was removed; the broadest scope is the All view. OD-TASK-3: that
+// control reads Relevant for a non-org-wide viewer and All for an admin — pass the viewer's label.
+async function switchToAll(label: 'All' | 'Relevant' = 'Relevant') {
+  const all = screen.getByRole('button', { name: label })
   fireEvent.click(all)
   await waitFor(() => {
     expect(all).toHaveAttribute('aria-pressed', 'true')
   })
 }
 
-function renderWorkspace(props: Partial<React.ComponentProps<typeof TasksWorkspace>> = {}) {
+function renderWorkspace(props: Partial<React.ComponentProps<typeof TasksWorkspace>> = {}, auth: AuthState = authedState) {
   function Harness() {
     const [savedView, setSavedView] = useState(props.savedView ?? makeSavedView())
     return (
@@ -151,7 +160,7 @@ function renderWorkspace(props: Partial<React.ComponentProps<typeof TasksWorkspa
   }
 
   return render(
-    <AuthContext.Provider value={authedState}>
+    <AuthContext.Provider value={auth}>
       <MemoryRouter initialEntries={['/tasks']}>
         <OverlayHostProvider><Harness /></OverlayHostProvider>
       </MemoryRouter>
@@ -239,14 +248,15 @@ describe('RI-3 — Task column width and scroll container', () => {
 
 describe('RI-2 — Person filter + groupBy=workline suppresses empty groups', () => {
   it('RI-2: when person filter is active, zero-count work-line groups are NOT rendered', async () => {
-    // Maya only has tasks on wl-project; wl-process has 0 tasks for Maya.
+    // Maya only has tasks on wl-project; wl-process has 0 tasks for Maya. Admin viewer: the row
+    // is outside a member's Relevant scope, so the full-list All is the org-wide one (OD-TASK-3).
     vi.mocked(listTasks).mockResolvedValue([
       makeTask({ id: 't1', title: 'Menu task', work_line_id: 'wl-project', responsible_person_id: 'maya-id' }),
     ])
-    renderWorkspace()
+    renderWorkspace({}, adminState)
     await waitFor(() => screen.getByText('Menu task'))
 
-    await switchToAll()
+    await switchToAll('All')
 
     ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
@@ -404,10 +414,10 @@ describe('RI-4 — Caption reconciles; Done + archived tasks excluded from count
         responsible_person_id: 'maya-id', status: 'Open',
         archived_at: '2026-06-01T00:00:00Z' }),
     ])
-    renderWorkspace()
+    renderWorkspace({}, adminState) // maya's rows ride in on the org-wide All (OD-TASK-3)
     await waitFor(() => screen.getByText('Open project task'))
 
-    await switchToAll()
+    await switchToAll('All')
 
     ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
@@ -430,10 +440,10 @@ describe('RI-4 — Caption reconciles; Done + archived tasks excluded from count
       makeTask({ id: 't1', title: 'Done only', work_line_id: 'wl-process',
         responsible_person_id: 'maya-id', status: 'Done' }),
     ])
-    renderWorkspace()
+    renderWorkspace({}, adminState) // maya's rows ride in on the org-wide All (OD-TASK-3)
     await waitFor(() => screen.getByText('Done only'))
 
-    await switchToAll()
+    await switchToAll('All')
 
     ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
@@ -457,10 +467,10 @@ describe('RI-4 — Caption reconciles; Done + archived tasks excluded from count
       makeTask({ id: 't2', title: 'Unassigned task', work_line_id: null,
         responsible_person_id: 'maya-id', status: 'Open' }),
     ])
-    renderWorkspace()
+    renderWorkspace({}, adminState) // maya's rows ride in on the org-wide All (OD-TASK-3)
     await waitFor(() => screen.getByText('Project task'))
 
-    await switchToAll()
+    await switchToAll('All')
 
     ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })
@@ -480,10 +490,10 @@ describe('RI-4 — Caption reconciles; Done + archived tasks excluded from count
       makeTask({ id: 't1', title: 'Project task', work_line_id: 'wl-project',
         responsible_person_id: 'maya-id', status: 'Open' }),
     ])
-    renderWorkspace()
+    renderWorkspace({}, adminState) // maya's rows ride in on the org-wide All (OD-TASK-3)
     await waitFor(() => screen.getByText('Project task'))
 
-    await switchToAll()
+    await switchToAll('All')
 
     ensureViewOptionsOpen()
     const groupSelect = screen.getByRole('combobox', { name: /group/i })

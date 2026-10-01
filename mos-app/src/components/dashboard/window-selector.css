@@ -23,8 +23,7 @@
   .window-selector-seg,
   .window-selector-range,
   .window-selector-field,
-  .window-selector-tab,
-  .window-selector-field input[type='date'] {
+  .window-selector-tab {
     min-height: 44px;
   }
 
@@ -33,14 +32,15 @@
   }
 }
 
-/* Custom date-pair — input-bordered chip shell, two keyboard-operable native date
-   inputs. Bounded by min/max set from the snapshot window (AC-014). */
+/* Custom date-pair — input-bordered chip shell holding two day-first DateFields. Bounded by
+   min/max set from the snapshot window (AC-014). The chip grows when a field shows its error. */
 .window-selector-range {
   display: inline-flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
-  height: 32px;
-  padding: 0 8px;
+  min-height: 32px;
+  padding: 0 0 0 8px;
   border: 1px solid var(--input);
   background: var(--background);
   border-radius: var(--radius-sm);
@@ -59,24 +59,16 @@
   color: var(--muted-foreground);
 }
 
-.window-selector-field input[type='date'] {
-  border: none;
+/* The chip is the border; the fields inside it drop their own box until focused. */
+.window-selector-range .mk-date__box {
+  min-width: 0;
+  width: 128px;
+  border-color: transparent;
   background: transparent;
-  font: inherit;
-  font-size: var(--font-size-mono);
-  color: var(--foreground);
-  font-variant-numeric: tabular-nums; /* Tabular-Numbers Rule on dates */
-  padding: 2px 0;
-  cursor: pointer;
+  padding-left: 4px;
 }
-.window-selector-field input[type='date']:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
-}
-.window-selector-field input[type='date']:disabled {
-  background: var(--secondary);
-  cursor: not-allowed;
-}
+.window-selector-range .mk-date--error .mk-date__box { border-color: var(--destructive); }
+.window-selector-range .mk-date__field { font-size: var(--font-size-mono); }
 
 /* The deferred Range tab's disclosure chevron (the ONE shared icon) sits beside its label. */
 .window-selector-caret {

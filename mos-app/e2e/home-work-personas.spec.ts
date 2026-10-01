@@ -166,7 +166,12 @@ test('an Objective opens its related Project and Back restores the source record
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
   const project = page.getByRole('region', { name: 'AC204 Menu launch', exact: true })
   await project.getByRole('button', { name: 'More actions', exact: true }).click()
-  await project.getByRole('menuitem', { name: 'Copy link', exact: true }).click()
+  // The ⋯ popover renders in a portal to document.body (record-menu.tsx) — assert and query the
+  // open menu globally by its own accessible name, never scoped under the record region.
+  const menu = page.getByRole('menu', { name: 'More actions', exact: true })
+  await expect(menu).toBeVisible()
+  await menu.getByRole('menuitem', { name: 'Copy link', exact: true }).click()
+  await expect(menu).not.toBeVisible()
   await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(new URL(projectHref!, page.url()).href)
   await page.getByRole('button', { name: /^back/i }).click()
   await expect(page.getByRole('heading', { name: 'AC204 Grow revenue', exact: true })).toBeVisible()

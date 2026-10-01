@@ -273,7 +273,16 @@
 }
 
 .record-field__date .mk-date__box {
-  min-height: 44px;
+  width: 100%; min-height: 44px; box-sizing: border-box;
+}
+
+.record-field__date .mk-date__hint {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: var(--z-popover);
+  padding: 2px 4px;
+  background: var(--card);
 }
 
 /* Reserve feedback height only once there is feedback to show (saving/saved/error) — an
