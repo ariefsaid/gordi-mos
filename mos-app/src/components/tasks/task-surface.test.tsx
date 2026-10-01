@@ -884,6 +884,34 @@ describe('TaskSurface — create mode', () => {
     expect(aPicker).not.toBeDisabled()
   })
 
+  // The full-page create (also the Signal-originated one) offers the same PIC options as the
+  // inline create: admin → everyone; otherwise self plus downline (OD-WAY-94 (1), OD-ROLE-1).
+  describe('PIC options', () => {
+    const three: PersonOption[] = [...mockPeople, { id: 'unrelated-id', full_name: 'Unrelated Person' }]
+    const withAccess = (accessRoles: string[]): AuthState => ({
+      ...authedState,
+      viewer: { ...authedState.viewer, accessRoles } as typeof authedState.viewer,
+    } as AuthState)
+    async function picOptionNames(auth: AuthState) {
+      mockGetPeople.mockResolvedValue(three)
+      renderCreate(auth)
+      await waitFor(() => expect(screen.getByRole('combobox', { name: 'Team' })).toHaveTextContent('Cafe Team'))
+      fireEvent.click(screen.getByRole('combobox', { name: 'PIC' }))
+      return (await screen.findAllByRole('option')).map((option) => option.textContent)
+    }
+
+    it('a non-admin without a downline is offered only themself', async () => {
+      expect(await picOptionNames(withAccess(['member']))).toEqual(['Cahya Cafe'])
+    })
+    it('a non-admin lead is offered themself and their downline', async () => {
+      vi.mocked(getDownlinePersonIds).mockResolvedValue(['other-id'])
+      expect(await picOptionNames(withAccess(['member']))).toEqual(['Cahya Cafe', 'Other Person'])
+    })
+    it('an admin is offered every person', async () => {
+      expect(await picOptionNames(withAccess(['admin']))).toEqual(['Cahya Cafe', 'Other Person', 'Unrelated Person'])
+    })
+  })
+
   // #300: with focus in a dirty required field, a real browser click on Cancel runs
   // pointerdown → blur → pointerup/click — and the blur-triggered validation inserts an error
   // line ABOVE the inline action row, moving Cancel out from under the pointer, so the click
