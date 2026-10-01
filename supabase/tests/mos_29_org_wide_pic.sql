@@ -10,7 +10,7 @@
 --   Unassigned ...d8 (added here) holds no role      → in nobody's role-tree downline
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(10);
+select plan(14);
 
 select shared._test_seed_directory();
 insert into shared.people (id, org_id, full_name)
@@ -74,6 +74,30 @@ select throws_ok($$
   update mos.tasks set responsible_person_id = '00000000-0000-0000-0000-0000000000d7'
   where id = '00000000-0000-0000-0000-000000007001'
 $$, '42501', null, 'a manager below the top role still cannot re-point the PIC outside their downline');
+
+-- ── the creator's `created` event: org-wide creator may log it even when not a task editor ───────
+-- GrandMgr names a role-less PIC and DirectMgr as Supervisor: GrandMgr is then neither PIC,
+-- Supervisor nor a manager above the PIC, so mos.can_edit_task is false for them.
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member"]}';
+insert into mos.tasks (id, org_id, title, business_unit_id, responsible_person_id, accountable_person_id, created_by)
+values ('00000000-0000-0000-0000-000000007002','00000000-0000-0000-0000-0000000000a1','org-wide created event',
+        '00000000-0000-0000-0000-0000000000a2','00000000-0000-0000-0000-0000000000d8',
+        '00000000-0000-0000-0000-0000000000d2','00000000-0000-0000-0000-0000000000d3');
+select is(mos.can_edit_task('00000000-0000-0000-0000-000000007002'), false,
+  'setup: the org-wide creator is not an editor of a task they assigned outside their chain');
+select lives_ok($$
+  insert into mos.task_events (task_id, actor_person_id, event_type)
+  values ('00000000-0000-0000-0000-000000007002','00000000-0000-0000-0000-0000000000d3','created')
+$$, 'the org-wide creator may log the created event for their own task');
+select throws_ok($$
+  insert into mos.task_events (task_id, actor_person_id, event_type)
+  values ('00000000-0000-0000-0000-000000007002','00000000-0000-0000-0000-0000000000d3','field_edited')
+$$, '42501', null, 'the exemption is the created event only: any other event still needs edit rights');
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select throws_ok($$
+  insert into mos.task_events (task_id, actor_person_id, event_type)
+  values ('00000000-0000-0000-0000-000000007002','00000000-0000-0000-0000-0000000000d4','created')
+$$, '42501', null, 'a non-creator without edit rights cannot log a created event');
 
 -- ── org-wide is still one org ───────────────────────────────────────────────────────────────────
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
