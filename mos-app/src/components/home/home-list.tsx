@@ -15,8 +15,14 @@ export function HomeList({ regions, feed, leading }: HomeLayoutProps) {
           {regions.map((region) => (
             <section key={region.id} className="stream-band" aria-label={t(region.labelKey)}>
               <div className="stream-band-head">
+                {/* DD-COUNT-1 (#1194): the List heading says what THIS list shows — the rendered
+                    rows, which for my-work are a capped slice of the region's full count. While
+                    the read is out there is no shown figure either: the em-dash, not a 0. */}
                 <h2 className="stream-band-label">
-                  {t(region.labelKey)} · <RegionCount region={region} /> {t('home.region.shown')}
+                  {t(region.labelKey)} ·{' '}
+                  {region.state === 'ready'
+                    ? <>{region.items.length} {t('home.region.shown')}</>
+                    : <RegionCount region={region} />}
                 </h2>
               </div>
               <HomeRegionCollection region={region} />

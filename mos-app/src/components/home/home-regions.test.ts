@@ -10,6 +10,7 @@ describe('buildHomeRegions (FR-929, FR-930)', () => {
   it('returns every region even when empty, each with its count', () => {
     const regions = buildHomeRegions({
       overdue: [], dueToday: [], blocked: [], myWork: [], failedChecks: [], failedChecksAdmitted: true,
+      myWorkFullCount: 0,
     })
     expect(regions.map((r) => r.id)).toEqual(['needs-you', 'failed-checks', 'my-work'])
     expect(regions.every((r) => r.count === 0)).toBe(true)
@@ -69,6 +70,14 @@ describe('buildHomeRegions carries per-region async state (DIV-G5) — a failed 
 // skeleton read `0` too. A count the viewer cannot trace is worse than no count — the page states a
 // falsehood with full confidence. A count exists only when the read behind it SUCCEEDED.
 describe('DIV-G5: a region has no count until its read succeeded (never a confident 0)', () => {
+  it('my-work has NO heading count when no full count has been reported — never the capped list length', () => {
+    const regions = buildHomeRegions({
+      overdue: [], dueToday: [], blocked: [],
+      myWork: [item('a'), item('b')], failedChecks: [], failedChecksAdmitted: true,
+    })
+    expect(regions.find((r) => r.id === 'my-work')!.count).toBeNull()
+  })
+
   it('needs-you and my-work have NO count while the shared tasks read is loading', () => {
     const regions = buildHomeRegions({
       overdue: [], dueToday: [], blocked: [], myWork: [], failedChecks: [], failedChecksAdmitted: true,
@@ -95,6 +104,21 @@ describe('DIV-G5: a region has no count until its read succeeded (never a confid
     expect(regions.find((r) => r.id === 'failed-checks')!.count).toBeNull()
     // The region whose read DID succeed still states its number.
     expect(regions.find((r) => r.id === 'needs-you')!.count).toBe(1)
+  })
+})
+
+// DD-COUNT-1 (#1194): a region heading states its FULL scope, never the capped list length —
+// my-work renders at most MY_WORK_CAP rows, so its heading count is the viewer's whole open-task
+// figure the caller reports (the same number the rail badge shows). The capped subset is named
+// by the list itself ("N shown"), never by the heading.
+describe('DD-COUNT-1: my-work states the full open-task count, never the capped list length', () => {
+  it('my-work count is the caller-reported full count, not the rendered rows', () => {
+    const regions = buildHomeRegions({
+      overdue: [], dueToday: [], blocked: [],
+      myWork: [item('a'), item('b')], failedChecks: [], failedChecksAdmitted: true,
+      myWorkFullCount: 9,
+    })
+    expect(regions.find((r) => r.id === 'my-work')!.count).toBe(9)
   })
 })
 
