@@ -11,11 +11,11 @@ export function isOwnerDirector(viewerRoles: RoleScopeNode[]): boolean {
   return viewerRoles.some((r) => r.reports_to_role_id === null)
 }
 
-/** Org-wide roles act across every Team: the top-of-chain role or the admin access role.
- *  Mirrors shared.is_org_wide(). Team-scoped views default to All teams and PIC/Supervisor pickers
- *  offer everyone for these viewers (OD-ROLE-1). */
-export function isOrgWideViewer(viewer: { roles: RoleScopeNode[]; accessRoles: readonly string[] }): boolean {
-  return isOwnerDirector(viewer.roles) || viewer.accessRoles.includes('admin')
+/** Org-wide write authority: the admin access role and nothing else. Mirrors shared.is_org_wide(),
+ *  which the database applies to who may be named PIC. Position in the role tree grants none; the
+ *  Tasks default view is a read default and is decided separately (task-default-view.ts). */
+export function hasOrgWideAuthority(accessRoles: readonly string[]): boolean {
+  return accessRoles.includes('admin')
 }
 
 /** Return each business unit whose apex role the viewer holds. */

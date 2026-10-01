@@ -40,7 +40,7 @@ import { DateField } from '@/components/ui/date-field'
 import { Button } from '@/components/ui/button'
 import { useFocusRestore } from '@/components/ui/use-focus-restore'
 import { LoadingShell, EmptyState, ErrorState } from '@/components/ui/state-kit'
-import { isOrgWideViewer } from '@/lib/role-scope'
+import { hasOrgWideAuthority } from '@/lib/role-scope'
 
 type DirectoryTeamOption = {
   id: string
@@ -159,7 +159,7 @@ function ViewSurface({
   const location = useLocation()
   const auth = useAuth()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : ''
-  const viewerOrgWide = auth.status === 'authenticated' && isOrgWideViewer(auth.viewer)
+  const viewerOrgWide = auth.status === 'authenticated' && hasOrgWideAuthority(auth.viewer.accessRoles)
   const t = useT()
   const { locale } = useI18n()
 

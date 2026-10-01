@@ -74,7 +74,7 @@ export interface TaskCollectionRuntime {
   onEditSupervisor: (taskId: string, personId: string) => Promise<void>
   /** Effective viewer Teams offered by the inline create row. */
   teamOptions: readonly TaskTeamOption[]
-  /** The viewer holds an org-wide role: the PIC picker offers every person (OD-ROLE-1). */
+  /** The viewer holds org-wide authority (admin): the PIC picker offers every person (OD-ROLE-1). */
   viewerOrgWide?: boolean
   draftTask: TaskListRow | null
   onDiscardNewTask: () => void

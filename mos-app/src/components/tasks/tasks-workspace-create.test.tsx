@@ -197,8 +197,8 @@ describe('create draft — Due date and Project/Process reach the write', () => 
   })
 })
 
-// OD-WAY-94 (1) + OD-ROLE-1: a PIC is the creator or their downline, except an org-wide role
-// (top-of-chain position, or the admin access role), which may name anyone.
+// OD-WAY-94 (1) + OD-ROLE-1: a PIC is the creator or their downline, except the admin access role
+// (org-wide authority), which may name anyone. A top-of-chain role grants no such authority.
 describe('create draft — who the PIC picker offers', () => {
   const SUB_ROLE: RolesRow = { ...ROLE, id: 'role-2', reports_to_role_id: ROLE.id }
   const EVERYONE = [
@@ -219,8 +219,17 @@ describe('create draft — who the PIC picker offers', () => {
     return options.map((option) => option.textContent)
   }
 
-  it('a top-role director with no downline is offered every person', async () => {
-    expect(await picOptionNames(authFor([ROLE], ['member']))).toEqual(['Test Viewer', 'Direct Report', 'Unrelated Person'])
+  it('a top-role holder without admin and without a downline is offered only themself', async () => {
+    expect(await picOptionNames(authFor([ROLE], ['member']))).toEqual(['Test Viewer'])
+  })
+
+  it('a top-role holder without admin is offered themself and their downline, not unrelated people', async () => {
+    vi.mocked(getDownlinePersonIds).mockResolvedValue(['report-id'])
+    expect(await picOptionNames(authFor([ROLE], ['member'], true))).toEqual(['Test Viewer', 'Direct Report'])
+  })
+
+  it('an admin with no downline is offered every person', async () => {
+    expect(await picOptionNames(authFor([ROLE], ['admin']))).toEqual(['Test Viewer', 'Direct Report', 'Unrelated Person'])
   })
 
   it('an admin holding a non-top role is offered every person', async () => {

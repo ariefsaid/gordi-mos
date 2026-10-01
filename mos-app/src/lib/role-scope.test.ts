@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isOwnerDirector, isOrgWideViewer, buHeadsForViewer, type RoleScopeNode } from './role-scope'
+import { isOwnerDirector, hasOrgWideAuthority, buHeadsForViewer, type RoleScopeNode } from './role-scope'
 
 const BU_RETAIL = '20000000-0000-0000-0000-000000000014'
 const BU_B2B_SALES = '20000000-0000-0000-0000-000000000016'
@@ -20,12 +20,12 @@ describe('isOwnerDirector', () => {
   })
 })
 
-describe('isOrgWideViewer', () => {
-  it('is true for the top-of-chain role or the admin access role, false for anyone else', () => {
-    expect(isOrgWideViewer({ roles: [MD], accessRoles: ['member'] })).toBe(true)
-    expect(isOrgWideViewer({ roles: [BARISTA], accessRoles: ['admin', 'member'] })).toBe(true)
-    expect(isOrgWideViewer({ roles: [CAFE_LEAD], accessRoles: ['manager', 'ops_lead', 'supervisor'] })).toBe(false)
-    expect(isOrgWideViewer({ roles: [], accessRoles: [] })).toBe(false)
+describe('hasOrgWideAuthority', () => {
+  it('is the admin access role only: no position in the role tree grants it', () => {
+    expect(hasOrgWideAuthority(['member', 'admin'])).toBe(true)
+    expect(hasOrgWideAuthority(['member'])).toBe(false)
+    expect(hasOrgWideAuthority(['manager', 'ops_lead', 'supervisor'])).toBe(false)
+    expect(hasOrgWideAuthority([])).toBe(false)
   })
 })
 

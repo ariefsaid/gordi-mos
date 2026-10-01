@@ -1,7 +1,7 @@
 -- Org-wide roles may name any same-org person as a Task PIC (#1172, OD-ROLE-1).
 --
--- shared.is_org_wide(): the session holds the admin access role or the top-of-chain role (a role
--- that reports to no other role) — the same two facts the app reads as "org-wide".
+-- shared.is_org_wide(): the session holds the admin access role, and nothing else. Hierarchy shape
+-- (a role that reports to no other role) never grants write authority.
 -- mos._guard_tasks clause (E) lets an org-wide writer name any person on insert or PIC change; the
 -- same-org checks above it still bind. Every other writer keeps writer-or-downline. Edit and
 -- archive gates (can_edit_task, clause (A)) are unchanged.
@@ -14,19 +14,10 @@ returns boolean
 language sql
 stable
 set search_path = ''
-as $$
-  select shared.has_access_role('admin')
-    or exists (
-      select 1
-      from shared.person_roles pr
-      join shared.roles r on r.id = pr.role_id
-      where pr.person_id = shared.current_person_id()
-        and r.reports_to_role_id is null
-    )
-$$;
+as $$ select shared.has_access_role('admin') $$;
 comment on function shared.is_org_wide() is
-  'True iff the session holds the admin access role or the top-of-chain role (reports to no role): '
-  'the org-wide roles that act across every Team. SECURITY INVOKER; reads the caller''s own role rows.';
+  'True iff the session holds the admin access role. The only org-wide write authority: the position '
+  'of a role in the reporting tree grants none. SECURITY INVOKER.';
 
 create or replace function mos._guard_tasks()
 returns trigger

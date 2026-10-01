@@ -9,8 +9,9 @@ describe('getTaskDefaultView (OD-WAY-94 default scope)', () => {
     [['manager'], false, false, 'team-work'],
     [['member'], true, false, 'team-work'],
     [['member'], false, true, 'all'],
-    [['manager'], true, true, 'all'],
-  ] as const)('selects %s / hasReport=%s / orgWide=%s as %s', (accessRoles, hasReport, orgWide, expected) => {
-    expect(getTaskDefaultView({ accessRoles, hasReport, orgWide })).toBe(expected)
+    [['admin'], true, false, 'all'],
+    [['admin', 'member'], true, false, 'all'],
+  ] as const)('selects %s / hasReport=%s / isOwnerDirector=%s as %s', (accessRoles, hasReport, isOwnerDirector, expected) => {
+    expect(getTaskDefaultView({ accessRoles, hasReport, isOwnerDirector })).toBe(expected)
   })
 })

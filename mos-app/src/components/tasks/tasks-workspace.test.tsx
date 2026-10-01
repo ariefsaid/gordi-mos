@@ -2545,12 +2545,12 @@ describe('Issue #749 — Tasks opens on your own work (AC-011/AC-013)', () => {
     await landingAssertions(DEWI, 'All', 'Work · Tasks')
   })
 
-  // OD-ROLE-1: either org-wide fact alone opens All, whichever the other one says.
-  it('OD-ROLE-1: a top-role director without the admin role lands on All', async () => {
+  // OD-WAY-94 (3): the All default is a read default; either fact alone opens it.
+  it('OD-WAY-94 (3): a top-role director without the admin role lands on All', async () => {
     await landingAssertions(personaAuth({ roles: [roleRow('Managing Director', null)], isManager: true, accessRoles: ['member'] }), 'All', 'Work · Tasks')
   })
 
-  it('OD-ROLE-1: an admin holding a non-top role lands on All', async () => {
+  it('OD-WAY-94 (3): an admin holding a non-top role lands on All', async () => {
     await landingAssertions(personaAuth({ roles: [roleRow('Bar Supervisor', 'role-cafe-ops-lead')], isManager: true, accessRoles: ['admin'] }), 'All', 'Work · Tasks')
   })
 

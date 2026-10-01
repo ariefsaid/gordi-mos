@@ -24,7 +24,7 @@ export function canArchive(task: TaskListRow, viewerId: string, downlineIds: rea
   )
 }
 
-// OD-WAY-94 (1): a PIC is the viewer or their downline. An org-wide viewer (OD-ROLE-1) may name
+// OD-WAY-94 (1): a PIC is the viewer or their downline. An org-wide viewer (admin, OD-ROLE-1) may name
 // anyone; mos._guard_tasks clause (E) mirrors it with shared.is_org_wide().
 export function picOptions(viewerId: string, people: readonly PersonOption[], downlineIds: readonly string[], orgWide = false): PersonOption[] {
   if (orgWide) return [...people]
