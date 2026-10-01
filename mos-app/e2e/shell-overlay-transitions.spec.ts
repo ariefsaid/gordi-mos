@@ -13,23 +13,27 @@ const deputy = (page: Page) => page.locator('[data-overlay-companion]')
 const deputyButton = (page: Page) => page.getByRole('button', { name: 'Open deputy', exact: true })
 const rail = (page: Page) => page.getByRole('navigation', { name: 'Primary' })
 
-async function openFirstRecord(page: Page, collection: 'objectives' | 'projects'): Promise<string> {
+async function openFirstRecord(page: Page, collection: 'objectives' | 'projects'): Promise<{ id: string; name: string }> {
   await page.goto(`work/${collection}`)
   const row = page.locator('.catalog-collection__row-link').first()
   await expect(row).toBeVisible()
   const href = (await row.getAttribute('href')) ?? ''
   const id = href.split('/').pop() ?? ''
+  const name = (await row.getAttribute('aria-label')) ?? ''
   await row.click()
   await expect(page).toHaveURL(new RegExp(`record=${id}`))
   await expect(recordPanel(page)).toBeVisible()
-  await expect(recordPanel(page).locator('.record-viewer')).toBeVisible()
-  return id
+  // OD-RECORD-1: the panel hosts the record's named region (aria-label = record name),
+  // not the retired .record-viewer shell.
+  await expect(recordPanel(page).getByRole('region', { name, exact: true })).toBeVisible()
+  return { id, name }
 }
 
-async function expectNoStaleRecord(page: Page, heading: string) {
+async function expectNoStaleRecord(page: Page, heading: string, recordName?: string) {
   await expect(page.getByRole('heading', { level: 1, name: heading, exact: true })).toBeVisible()
   await expect(recordPanel(page)).toHaveCount(0)
-  await expect(page.locator('.record-viewer')).toHaveCount(0)
+  // The navigated-away record's named region must be gone with the panel.
+  if (recordName) await expect(page.getByRole('region', { name: recordName, exact: true })).toHaveCount(0)
 }
 
 /** The collection URL with no record in it (view state such as ?layout= may ride along). */
@@ -86,16 +90,16 @@ test.describe('shell overlay transitions', () => {
     await page.setViewportSize(DESKTOP)
     await loginAs(page, DIRECTOR, DEMO_PASSWORD)
 
-    await openFirstRecord(page, 'objectives')
+    const { name: objectiveName } = await openFirstRecord(page, 'objectives')
     await rail(page).getByRole('link', { name: 'Projects & Processes' }).click()
     await expect(page).toHaveURL(collectionUrl('projects'))
-    await expectNoStaleRecord(page, 'Projects & Processes')
+    await expectNoStaleRecord(page, 'Projects & Processes', objectiveName)
     await page.screenshot({ path: info.outputPath('objective-to-projects-1440.png'), animations: 'disabled', fullPage: true })
 
-    await openFirstRecord(page, 'projects')
+    const { name: projectName } = await openFirstRecord(page, 'projects')
     await rail(page).getByRole('link', { name: 'Objectives' }).click()
     await expect(page).toHaveURL(collectionUrl('objectives'))
-    await expectNoStaleRecord(page, 'Objectives')
+    await expectNoStaleRecord(page, 'Objectives', projectName)
     await page.screenshot({ path: info.outputPath('process-to-objectives-1440.png'), animations: 'disabled', fullPage: true })
   })
 
@@ -103,9 +107,9 @@ test.describe('shell overlay transitions', () => {
     await page.setViewportSize(DESKTOP)
     await loginAs(page, DIRECTOR, DEMO_PASSWORD)
 
-    const id = await openFirstRecord(page, 'objectives')
+    const { id, name: objectiveName } = await openFirstRecord(page, 'objectives')
     await rail(page).getByRole('link', { name: 'Projects & Processes' }).click()
-    await expectNoStaleRecord(page, 'Projects & Processes')
+    await expectNoStaleRecord(page, 'Projects & Processes', objectiveName)
 
     await page.goBack()
     await expect(page).toHaveURL(new RegExp(`/work/objectives\\?.*record=${id}`))
@@ -115,7 +119,7 @@ test.describe('shell overlay transitions', () => {
     // One more Back leaves the record: the collection URL without a record shows no panel.
     await page.goBack()
     await expect(page).toHaveURL(collectionUrl('objectives'))
-    await expectNoStaleRecord(page, 'Objectives')
+    await expectNoStaleRecord(page, 'Objectives', objectiveName)
     await page.goForward()
     await expect(recordPanel(page)).toHaveAttribute('data-overlay-entry', `objective:${id}`)
 
@@ -126,29 +130,29 @@ test.describe('shell overlay transitions', () => {
 
     // A second rail trip after the close must not resurrect anything either.
     await rail(page).getByRole('link', { name: 'Projects & Processes' }).click()
-    await expectNoStaleRecord(page, 'Projects & Processes')
+    await expectNoStaleRecord(page, 'Projects & Processes', objectiveName)
   })
 
   test('returning to the first collection through the rail shows no leftover record', async ({ page }) => {
     await page.setViewportSize(DESKTOP)
     await loginAs(page, DIRECTOR, DEMO_PASSWORD)
 
-    await openFirstRecord(page, 'objectives')
+    const { name: objectiveName } = await openFirstRecord(page, 'objectives')
     await rail(page).getByRole('link', { name: 'Projects & Processes' }).click()
-    await expectNoStaleRecord(page, 'Projects & Processes')
+    await expectNoStaleRecord(page, 'Projects & Processes', objectiveName)
     await rail(page).getByRole('link', { name: 'Objectives' }).click()
     await expect(page).toHaveURL(collectionUrl('objectives'))
-    await expectNoStaleRecord(page, 'Objectives')
+    await expectNoStaleRecord(page, 'Objectives', objectiveName)
     await page.goBack()
     await expect(page).toHaveURL(collectionUrl('projects'))
-    await expectNoStaleRecord(page, 'Projects & Processes')
+    await expectNoStaleRecord(page, 'Projects & Processes', objectiveName)
   })
 
   test('a record left behind stays gone through a tour of other destinations', async ({ page }) => {
     await page.setViewportSize(DESKTOP)
     await loginAs(page, DIRECTOR, DEMO_PASSWORD)
 
-    await openFirstRecord(page, 'objectives')
+    const { name: objectiveName } = await openFirstRecord(page, 'objectives')
     for (const name of [/^Signals/, /^Tasks/, /^Home/, /^Inbox/, /^Café/]) {
       await rail(page).getByRole('link', { name }).first().click()
       await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible()
@@ -156,7 +160,7 @@ test.describe('shell overlay transitions', () => {
     }
     await rail(page).getByRole('link', { name: 'Objectives' }).click()
     await expect(page).toHaveURL(collectionUrl('objectives'))
-    await expectNoStaleRecord(page, 'Objectives')
+    await expectNoStaleRecord(page, 'Objectives', objectiveName)
   })
 
   test('a Task panel is not restored on return unless its URL names it', async ({ page }) => {

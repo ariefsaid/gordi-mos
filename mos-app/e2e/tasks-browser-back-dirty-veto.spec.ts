@@ -88,7 +88,9 @@ test('AC-1010: browser Back on a dirty task draft is vetoed, Cancel keeps state,
   // on every keystroke (onChange, record-field.tsx `reportDirty`), before any onBlur commit fires
   // — a browser Back pressed while the field is still focused hits the guard mid-draft, exactly
   // like a real user typing then reaching for Back.
-  const description = drawer.getByLabel('Description')
+  // The field's own section is also named "Description" (role region), so getByLabel alone is
+  // ambiguous — scope to the active description field's textbox.
+  const description = drawer.locator('[data-field-key="description"]').getByRole('textbox', { name: 'Description' })
   const draftText = 'Dirty draft — should be vetoed by browser Back.'
   await description.fill(draftText)
   await expect(description).toHaveValue(draftText)
@@ -152,12 +154,15 @@ test('AC-1010b: Back → dialog → Discard with a REAL commit settlement — no
   })
 
   // A freshly created task has no description — the clean baseline this test proves survives
-  // the whole journey untouched.
+  // the whole journey untouched. OD-RECORD-1's Get-started contract: an empty Description renders
+  // the "+ Add a description" affordance, not an em dash, so emptiness is asserted via the
+  // field's own data-empty flag (record-field.tsx), which reads the SAVED value in view mode.
   const descriptionField = drawer.locator('[data-field-key="description"]')
-  await expect(descriptionField).toContainText('—')
+  await expect(descriptionField).toHaveAttribute('data-empty', 'true')
 
   await drawer.getByRole('button', { name: 'Edit Description' }).click()
-  const description = drawer.getByLabel('Description')
+  // Same disambiguation as AC-1010: the section AND the textarea share the "Description" name.
+  const description = descriptionField.getByRole('textbox', { name: 'Description' })
   const draftText = 'Real-commit draft — Discard must actually discard this.'
   await description.fill(draftText)
   await expect(description).toHaveValue(draftText)
@@ -184,5 +189,5 @@ test('AC-1010b: Back → dialog → Discard with a REAL commit settlement — no
   await page.getByText(title).first().click()
   const reopened = page.getByRole('complementary', { name: /task detail/i })
   await expect(reopened.getByRole('heading', { name: title })).toBeVisible({ timeout: 10_000 })
-  await expect(reopened.locator('[data-field-key="description"]')).toContainText('—')
+  await expect(reopened.locator('[data-field-key="description"]')).toHaveAttribute('data-empty', 'true')
 })
