@@ -5,7 +5,7 @@
 
 .rp { display: flex; flex-direction: column; min-width: 0; padding: 20px; color: var(--foreground); }
 .rp--page { max-width: 1052px; margin-inline: auto; padding: 0 0 48px; }
-.page-frame__content:has(.rp--page) .record-page-chrome { max-width: 1052px; margin-inline: auto; }
+.page-frame__content:has(.rp--page, .rp--skeleton) .record-page-chrome { max-width: 1052px; margin-inline: auto; }
 
 /* ── Header ──────────────────────────────────────────────────────────── */
 .rp-head {
@@ -56,7 +56,7 @@
 .rp-fact--linked .rp-fact__fields { flex-wrap: wrap; align-items: center; gap: 0 8px; }
 .rp-fact--linked .rp-fact__fields > :not(:last-child)::after { content: '·'; margin-inline-start: 4px; color: var(--muted-foreground); }
 /* A link's edit button is a quiet hit area beside it, not a 44px gap in the line (the phone keeps the touch floor). */
-@media (min-width: 768px) { .rp .rp-fact--linked .record-field__edit { min-width: 24px; padding-inline: 2px; } }
+@media (min-width: 768px) { .rp .rp-facts .rp-fact--linked .record-field__edit { width: auto; min-width: 24px; padding-inline: 2px; } }
 
 .rp .rp-facts .record-field { display: inline-flex; align-items: center; gap: 6px; }
 .rp .rp-facts .record-field__label {
@@ -197,6 +197,7 @@ a.rp-row__name:hover { color: var(--primary); }
 .rp-disclosure[aria-expanded='true'] .rp-disclosure__caret { transform: rotate(90deg); }
 
 /* Skeleton */
+.rp--skeleton { max-width: 1052px; margin-inline: auto; }
 .rp-skeleton__title { width: 60%; height: 28px; margin-bottom: 12px; }
 .rp-skeleton__facts { display: flex; gap: 12px; margin-bottom: 24px; }
 .rp-skeleton__facts > span { width: 88px; height: 22px; }
