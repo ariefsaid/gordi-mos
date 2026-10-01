@@ -532,7 +532,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     renderAt('/work/tasks')
     await waitFor(() => expect(document.querySelector('tbody tr.task-row')).toBeTruthy())
     fireEvent.click(document.querySelector('tbody tr.task-row td:nth-child(3)')!)
-    await waitFor(() => expect(document.querySelector('.record-doc')).toBeTruthy())
+    await waitFor(() => expect(document.querySelector('.rp--page')).toBeTruthy())
     expect(document.querySelector('.split')).toBeNull()
     expect(screen.queryByRole('complementary', { name: /task detail/i })).toBeNull()
   })
@@ -551,7 +551,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
 
     act(() => widths.setSplit(false))
 
-    await waitFor(() => expect(document.querySelector('.record-doc')).toBeTruthy())
+    await waitFor(() => expect(document.querySelector('.rp--page')).toBeTruthy())
     expect(screen.queryByRole('complementary', { name: /task detail/i })).toBeNull()
     expect(document.querySelector('.split')).toBeNull()
   })
@@ -817,9 +817,9 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     // The draft row mounts with its editor focused.
     const titleInput = await screen.findByLabelText('Title')
     // Initially the table is empty. The count reads inside the ONE muted meta sentence
-    // ("N open in this view · M incl. done") — the content-header count pill was removed.
+    // ("N open in this view · M shown") — the content-header count pill was removed.
     await waitFor(() => {
-      expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('0 open in this view · 0 incl. done')
+      expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('0 open in this view · 0 shown')
     })
 
     // Type the title and press Enter — the draft commits through the same createTask path.
@@ -846,7 +846,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
       expect(screen.getByText('Freshly created')).toBeInTheDocument()
     })
     await waitFor(() => {
-      expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('1 open in this view · 1 incl. done')
+      expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('1 open in this view · 1 shown')
     })
     // Inline create never navigates — the draft was already on the table — so there is no
     // ?highlight= flash (that belonged to the retired create-form door).
@@ -1004,7 +1004,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     mockArchiveTask.mockResolvedValue()
     renderAt('/work/tasks/task-2')
     await waitFor(() => screen.getByRole('complementary', { name: /task detail/i }))
-    await waitFor(() => expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('2 open in this view · 2 incl. done'))
+    await waitFor(() => expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('2 open in this view · 2 shown'))
 
     // Archive is grouped with the record's other secondary actions.
     fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
@@ -1024,7 +1024,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
       expect(screen.queryByText('Archive me')).toBeNull()
     }, { timeout: 4000 })
     expect(screen.getByText('Keep me')).toBeInTheDocument()
-    expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('1 open in this view · 1 incl. done')
+    expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('1 open in this view · 1 shown')
   }, 10_000)
 })
 
@@ -1069,7 +1069,7 @@ describe('TasksLayout — OD-63 canonical page mode', () => {
 
     await screen.findByRole('heading', { level: 1, name: 'Draft survives promotion' })
     expect(screen.queryByRole('complementary', { name: /task detail/i })).toBeNull()
-    expect(document.querySelector('.record-viewer--page')).toBeTruthy()
+    expect(document.querySelector('.rp--page')).toBeTruthy()
   })
 
   it('guards a standalone Task Objective link and retains its comment draft on Stay', async () => {
@@ -1119,7 +1119,7 @@ describe('TasksLayout — OD-63 canonical page mode', () => {
     const discardGuard = await screen.findByRole('dialog')
     fireEvent.click(within(discardGuard).getByRole('button', { name: /discard changes/i }))
     await screen.findByRole('complementary', { name: /task detail/i })
-    expect(document.querySelector('.record-viewer--panel')).toBeTruthy()
+    expect(document.querySelector('.rp--panel')).toBeTruthy()
   })
 
   it('OD-63: an "Open full page" escalation renders the record as a standalone full page — no table, no drawer', async () => {
@@ -1136,8 +1136,8 @@ describe('TasksLayout — OD-63 canonical page mode', () => {
     expect(screen.queryByRole('region', { name: /tasks/i })).toBeNull()
     expect(document.querySelector('.split')).toBeNull()
     expect(document.querySelector('tbody tr.task-row')).toBeNull()
-    // The full-width shared RecordViewer anatomy mounts.
-    expect(document.querySelector('.record-viewer--page')).toBeTruthy()
+    // The full-width record page anatomy mounts.
+    expect(document.querySelector('.rp--page')).toBeTruthy()
     // presentation="page" → no "Open full page" escalation (already on the page).
     expect(screen.queryByRole('button', { name: /open full page/i })).toBeNull()
   })
@@ -1149,7 +1149,7 @@ describe('TasksLayout — OD-63 canonical page mode', () => {
     // The drawer mounts beside a still-mounted table — the load-bearing split-view win.
     await waitFor(() => screen.getByRole('complementary', { name: /task detail/i }))
     expect(document.querySelector('tbody tr.task-row')).toBeTruthy()
-    expect(document.querySelector('.record-viewer--panel')).toBeTruthy()
+    expect(document.querySelector('.rp--panel')).toBeTruthy()
     // And the panel offers the escalation to the full page.
     expect(screen.getByRole('button', { name: /open full page/i })).toBeInTheDocument()
   })
@@ -1186,7 +1186,7 @@ describe('TasksLayout — OD-63 canonical page mode', () => {
     // Value-first grammar: Team renders as text/chip value, not a permanent select.
     expect(screen.getAllByText('Kitchen').length).toBeGreaterThan(0)
     expect(document.querySelector('tbody tr.task-row')).toBeNull()
-    expect(document.querySelector('.record-viewer--page')).toBeTruthy()
+    expect(document.querySelector('.rp--page')).toBeTruthy()
   })
 
   // P1-2 / H3 (Luna floor): the standalone canonical page's Back lives at the SHARED record-page
@@ -1215,23 +1215,29 @@ describe('TasksLayout — OD-63 canonical page mode', () => {
     expect(screen.queryByRole('button', { name: /back to split view/i })).toBeNull()
   })
 
-  // F3 (E7 floor): the drawer and the expanded@split pseudo-full-page already carry the
-  // record-scoped Ask Deputy affordance via RecordPanelHost's chrome (task-drawer.tsx
-  // hostActions, showPanelUtility=false there). The standalone canonical page (this
-  // direct-open path) has no RecordPanelHost — TaskSurface's own internal chrome row is
-  // the only header the record has, so IT now carries the same affordance, top-right of
-  // that row (mirrors E7's `data-journey="J05"` "Ask @Deputy about this" record-header button).
-  it('F3: the standalone full-page record carries the record-scoped Ask Deputy affordance in its own chrome row', async () => {
+  // Ask Deputy is one record menu item, in the panel and on the page alike. Neither the standalone
+  // page chrome nor the panel bar carries a second Deputy icon.
+  it('F3: Ask Deputy is a ⋯ menu item on the standalone full-page record, not an icon in the page chrome', async () => {
     mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'Open me' }), checklist: [], events: [] })
     renderAtState('/work/tasks/task-1', { taskSurface: 'page' }, makeFakeRuntime())
 
     await screen.findByRole('heading', { level: 1, name: 'Open me' })
 
-    // Lives in the shared record-page chrome (.record-page-chrome), not buried in the body. The
-    // record-scoped Ask Deputy seed resolves from the record title (onTitleResolved), one render
-    // after the h1, so await it rather than assuming it is present the instant the heading is.
-    const askButton = await screen.findByRole('button', { name: 'Ask Deputy' })
-    expect(askButton.closest('.record-page-chrome')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Ask Deputy' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
+    expect(screen.getByRole('menuitem', { name: 'Ask Deputy' })).toBeInTheDocument()
+  })
+
+  it('F3: the split panel offers Ask Deputy in its ⋯ menu only', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Row task' })])
+    mockGetTask.mockResolvedValue({ task: makeTask({ id: 'task-1', title: 'Row task' }), checklist: [], events: [] })
+    renderAtState('/work/tasks/task-1', undefined, makeFakeRuntime())
+    await screen.findByRole('complementary', { name: /task detail/i })
+    await screen.findByRole('heading', { level: 2, name: 'Row task' })
+
+    expect(screen.queryByRole('button', { name: 'Ask Deputy' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
+    expect(screen.getByRole('menuitem', { name: 'Ask Deputy' })).toBeInTheDocument()
   })
 
   it('F3: no Ask Deputy affordance renders while the record is still loading', () => {

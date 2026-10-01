@@ -5,7 +5,8 @@
 //   title            RecordFieldSpec   the title as a field (editable → inline rename, else plain heading)
 //   headingLevel     1 | 2             1 on a record's own page, 2 in a panel
 //   facts            RecordFact[]      the facts line, in order (see RecordFact)
-//   primary          { label, onClick, disabled?, busy? }   the ONE primary action; omit when none applies
+//   primary          { label, onClick, variant?, disabled?, busy? }   the ONE primary action; omit when none applies.
+//                    variant 'outline' draws it quietly (the action exists but is not yet the next thing to do)
 //   menu             RecordMenuItem[]  ⋯ items; the menu renders only with two or more
 //   menuLabel        string            accessible name of the ⋯ trigger
 //   menuMinItems     number = 2        fewest items for which the ⋯ renders (1 when the menu carries a record's only action)
@@ -15,8 +16,9 @@
 //   onDirtyChange / fieldCommitsFrozen   forwarded to every field (host leave-guard contract)
 //
 // RecordFact is a union: { type:'state' } a toned pill · { type:'person' } a role chip that spells the
-// role out ("Accountable · Dewi") · { type:'field' } a label + click-to-edit value · { type:'group' }
-// several fields sharing one visible label (a quarter and a year read as "Period Q4 2026").
+// role out ("Accountable · Dewi"; `hint` is an accessible description, never a visible line) ·
+// { type:'field' } a label + click-to-edit value · { type:'group' } several fields sharing one visible
+// label (a quarter and a year read as "Period Q4 2026"); without a label they read as one linked line.
 import type { ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { RecordField } from '@/components/records/record-field'
@@ -24,23 +26,24 @@ import type { RecordFieldSpec, RecordValue } from '@/components/records/record-v
 import { RecordMenu, type RecordMenuItem } from './record-menu'
 import './record-page.css'
 
-export type RecordFactTone = 'neutral' | 'warning' | 'success' | 'primary'
+export type RecordFactTone = 'neutral' | 'warning' | 'success' | 'primary' | 'destructive'
 export type RecordPersonRole = 'responsible' | 'accountable' | 'neutral'
 
 export type RecordFact =
   | { type: 'state'; key: string; label: string; tone: RecordFactTone; dot?: boolean }
-  | { type: 'person'; key: string; role: RecordPersonRole; field: RecordFieldSpec }
+  | { type: 'person'; key: string; role: RecordPersonRole; field: RecordFieldSpec; hint?: string }
   | { type: 'field'; key: string; field: RecordFieldSpec; tone?: 'overdue' | 'soon' }
-  | { type: 'group'; key: string; label: string; fields: readonly RecordFieldSpec[] }
+  | { type: 'group'; key: string; label?: string; fields: readonly RecordFieldSpec[] }
 
-export interface RecordPrimaryAction {
+export type RecordPrimaryAction = {
   label: string
   onClick: () => void
+  variant?: 'primary' | 'outline'
   disabled?: boolean
   busy?: boolean
 }
 
-export interface RecordPageHeaderProps {
+export type RecordPageHeaderProps = {
   title: RecordFieldSpec
   headingLevel: 1 | 2
   facts: readonly RecordFact[]
@@ -98,7 +101,7 @@ export function RecordPageHeader({
       </div>
       {primary ? (
         <div className="rp-head__primary">
-          <Button variant="primary" disabled={primary.disabled || primary.busy} aria-busy={primary.busy || undefined} onClick={primary.onClick}>
+          <Button variant={primary.variant ?? 'primary'} disabled={primary.disabled || primary.busy} aria-busy={primary.busy || undefined} onClick={primary.onClick}>
             {primary.label}
           </Button>
         </div>
@@ -116,15 +119,16 @@ export function RecordPageHeader({
           if (fact.type === 'person') {
             const named = fact.field.value !== null && fact.field.displayValue !== ''
             return (
-              <li key={fact.key} className={`rp-fact rp-chip rp-chip--${fact.role}${named ? '' : ' rp-chip--ghost'}`}>
+              <li key={fact.key} className={`rp-fact rp-chip rp-chip--${fact.role}${named ? '' : ' rp-chip--ghost'}`} title={fact.hint}>
                 {field(fact.field, named ? { lead: personLead(fact.field.displayValue) } : undefined)}
+                {fact.hint ? <span className="sr-only">{fact.hint}</span> : null}
               </li>
             )
           }
           if (fact.type === 'group') {
             return (
-              <li key={fact.key} className="rp-fact rp-fact--group">
-                <span className="rp-fact__key" aria-hidden="true">{fact.label}</span>
+              <li key={fact.key} className={`rp-fact rp-fact--group${fact.label ? '' : ' rp-fact--linked'}`}>
+                {fact.label ? <span className="rp-fact__key" aria-hidden="true">{fact.label}</span> : null}
                 <span className="rp-fact__fields">{fact.fields.map((spec) => field(spec))}</span>
               </li>
             )

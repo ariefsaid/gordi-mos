@@ -7,7 +7,7 @@ vi.mock('../supabase', () => {
 
 import {
   listObjectives, listObjectivesAll, createObjective, renameObjective, setObjectiveArchived,
-  readObjective, updateObjective,
+  readObjective, updateObjective, searchObjectivesByName,
 } from './objectives'
 import { supabase } from '@/lib/supabase'
 
@@ -247,5 +247,49 @@ describe('setObjectiveArchived', () => {
     await setObjectiveArchived('o-1', false)
 
     expect(rec.updates).toEqual([{ archived_at: null }])
+  })
+})
+
+// The ⌘K palette's Objective read path. RLS (org tenancy) is the only read authority — the query
+// carries no org filter of its own — so the contract here is the query's SHAPE: active rows,
+// name match with wildcards escaped, bounded.
+describe('searchObjectivesByName (⌘K palette)', () => {
+  function searchSchema(result: { data: unknown; error: unknown }) {
+    const calls = { ilikes: [] as Array<[string, unknown]>, nulls: [] as Array<[string, unknown]>, limits: [] as number[], eqs: [] as string[] }
+    const builder: Record<string, unknown> = {}
+    builder.select = vi.fn(() => builder)
+    builder.ilike = vi.fn((c: string, v: unknown) => { calls.ilikes.push([c, v]); return builder })
+    builder.is = vi.fn((c: string, v: unknown) => { calls.nulls.push([c, v]); return builder })
+    builder.eq = vi.fn((c: string) => { calls.eqs.push(c); return builder })
+    builder.order = vi.fn(() => builder)
+    builder.limit = vi.fn((n: number) => { calls.limits.push(n); return builder })
+    builder.then = (resolve: (v: unknown) => unknown) => Promise.resolve(result).then(resolve)
+    schemaMock.mockReturnValue({ from: vi.fn(() => builder) } as never)
+    return calls
+  }
+
+  it('reads active objectives by name, escapes LIKE wildcards, is bounded and sends no org filter', async () => {
+    const rows = [{ id: 'o-1', name: 'Q3 Growth' }]
+    const calls = searchSchema({ data: rows, error: null })
+
+    expect(await searchObjectivesByName('  growth ')).toEqual(rows)
+    expect(calls.ilikes).toContainEqual(['name', '%growth%'])
+    expect(calls.nulls).toContainEqual(['archived_at', null])
+    expect(calls.limits).toEqual([20])
+    expect(calls.eqs).not.toContain('org_id')
+
+    await searchObjectivesByName('50%_*')
+    expect(calls.ilikes).toContainEqual(['name', '%50\\%\\_\\*%'])
+  })
+
+  it('returns nothing for a blank query without touching the database', async () => {
+    schemaMock.mockClear()
+    expect(await searchObjectivesByName('   ')).toEqual([])
+    expect(schemaMock).not.toHaveBeenCalled()
+  })
+
+  it('throws on a PostgREST error so the palette shows its search-failed row', async () => {
+    searchSchema({ data: null, error: { message: 'search boom' } })
+    await expect(searchObjectivesByName('x')).rejects.toThrow(/searchObjectivesByName failed — search boom/)
   })
 })

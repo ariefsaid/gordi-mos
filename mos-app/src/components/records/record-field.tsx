@@ -479,7 +479,7 @@ function renderValueNode(spec: RecordFieldSpec): ReactNode {
       <span className="record-field__pill" data-status={typeof spec.value === 'string' ? spec.value : spec.displayValue}>
         <span className="record-field__pill-dot" aria-hidden="true" />
         {spec.displayValue}
-        <span aria-hidden="true" className="record-field__pill-caret" />
+        {spec.editable ? <span aria-hidden="true" className="record-field__pill-caret" /> : null}
       </span>
     ), empty)
   }

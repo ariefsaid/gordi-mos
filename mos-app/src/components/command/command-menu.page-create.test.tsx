@@ -64,15 +64,24 @@ describe('page create action in the actions list', () => {
     expect(screen.queryByRole('option', { name: 'Create objective' })).toBeNull()
   })
 
-  it('is absent on a record page and on other collections', async () => {
+  it('is absent on a record page; elsewhere the create actions follow the Tasks one, never lead', async () => {
     mockScopes.mockResolvedValue({ ...emptyWorkWriteScopes(), objective_org: true, workline_org: true })
     const first = renderAt('/work/objectives/abc')
-    await waitFor(() => expect(mockScopes).toHaveBeenCalled())
-    expect(screen.queryByRole('option', { name: 'Create objective' })).toBeNull()
+    await screen.findByRole('option', { name: 'Create objective' })
+    expect(screen.getAllByRole('option')[0]).not.toBe(screen.getByRole('option', { name: 'Create objective' }))
     first.unmount()
     renderAt('/work/tasks')
-    await waitFor(() => expect(screen.getByRole('option', { name: 'Create task' })).toBeInTheDocument())
+    await screen.findByRole('option', { name: 'Create objective' })
+    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual([
+      'Ask Deputy: what needs my attention?', 'Share Signal', 'Create task', 'Create objective', 'Create project or process',
+      'Log Café production',
+    ])
+  })
+
+  it('offers each create action only to a viewer holding that create scope', async () => {
+    mockScopes.mockResolvedValue({ ...emptyWorkWriteScopes(), workline_bu_ids: ['bu-1'] })
+    renderAt('/work/tasks')
+    await screen.findByRole('option', { name: 'Create project or process' })
     expect(screen.queryByRole('option', { name: 'Create objective' })).toBeNull()
-    expect(screen.queryByRole('option', { name: 'Create project or process' })).toBeNull()
   })
 })

@@ -11,7 +11,7 @@
  *   FR-246: clearing Work-line select (back to "— None —") calls updateTaskFields with null
  *   FR-247: detail edit — changing Objective calls updateTaskFields with objective_id
  *   FR-248: clearing Objective calls updateTaskFields with null
- *   FR-249: detail shows "—" when work_line_id / objective_id is null (read-only)
+ *   FR-249: absent context is a prompt for an editor, nothing for a reader
  *   FR-250: lookups load non-blocking — form is usable before they resolve
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -350,11 +350,8 @@ describe('FR-247/248 — detail edit: Objective inline select', () => {
   })
 })
 
-describe('FR-249 — detail panel shows an explicit Ad hoc state when context is absent', () => {
-  it('FR-249: read-only viewer sees Ad hoc for null work_line_id and null objective_id', async () => {
-    // A non-editor viewer (task owned by someone else) gets read-only text fields.
-    const task = makeTask({ work_line_id: null, objective_id: null,
-      responsible_person_id: 'other-id', accountable_person_id: 'other-id' })
+describe('FR-249 — absent context is a prompt for an editor and nothing for a reader', () => {
+  function renderTask(task: TaskListRow) {
     mockGetTask.mockResolvedValue({ task, checklist: [], events: [] })
     render(
       <AuthContext.Provider value={authedState}>
@@ -363,10 +360,20 @@ describe('FR-249 — detail panel shows an explicit Ad hoc state when context is
         </MemoryRouter>
       </AuthContext.Provider>,
     )
-    await waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
-    // FR-249: absent Project/Process and Objective context is explicit and meaningful rather
-    // than blank. Due keeps its more informative "No due date" label.
-    expect(screen.getAllByText('Ad hoc')).toHaveLength(1)
-    expect(screen.getByText('No due date')).toBeInTheDocument()
+    return waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
+  }
+
+  it('FR-249: a read-only viewer sees no Project/Process, Objective or Due fact, and no placeholder words', async () => {
+    await renderTask(makeTask({ work_line_id: null, objective_id: null, due_date: null,
+      responsible_person_id: 'other-id', accountable_person_id: 'other-id' }))
+    const facts = screen.getByRole('list', { name: 'Key facts' })
+    expect(facts).not.toHaveTextContent(/Ad hoc|No Objective|No due date|Project\/Process|Objective|Due/)
+  })
+
+  it('FR-249: an editor sees a prompt to set each missing piece of context', async () => {
+    await renderTask(makeTask({ work_line_id: null, objective_id: null, due_date: null }))
+    expect(screen.getByRole('button', { name: 'Edit Project/Process' })).toHaveTextContent('+ Set project or process')
+    expect(screen.getByRole('button', { name: 'Edit Objective' })).toHaveTextContent('+ Set objective')
+    expect(screen.getByRole('button', { name: 'Edit Due' })).toHaveTextContent('+ Set due date')
   })
 })

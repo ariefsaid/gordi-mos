@@ -29,9 +29,9 @@ for (const [name, actor, view] of [
     await expect(link).toHaveAccessibleName(homeOpen ? `Tasks, ${homeOpen} open tasks` : 'Tasks')
     await link.click()
     await expect(taskViewsGroup(page).getByRole('button', { name: view, exact: true })).toHaveAttribute('aria-pressed', 'true')
-    // The head scopes its own nouns to the view ("N open in this view · M incl. done"), so it
-    // cannot be mistaken for the rail badge's own-tasks count.
-    await expect(page.getByText(/^\d+ open in this view · \d+ incl\. done$/)).toBeVisible()
+    // The head scopes its own nouns to the view ("N open in this view · M shown", Done rows
+    // kept 7 days included), so it cannot be mistaken for the rail badge's own-tasks count.
+    await expect(page.getByText(/^\d+ open in this view · \d+ shown$/)).toBeVisible()
     await expect(page.getByRole('status', { name: 'Loading tasks' })).toHaveCount(0)
     // Read the actual rendered default queue, including virtual rows as they enter view.
     const open = new Set<string>()
@@ -55,7 +55,7 @@ for (const [name, actor, view] of [
     await expect.poll(
       () => page.getByTestId('tasks-count-line').textContent(),
       { message: 'count line settles to the traversed open total' },
-    ).toMatch(new RegExp(`^${open.size} open in this view · \\d+ incl\\. done$`))
+    ).toMatch(new RegExp(`^${open.size} open in this view · \\d+ shown$`))
     // The badge is still Home's number after traversing a view that may hold more or fewer.
     await expect(link).toHaveAccessibleName(homeOpen ? `Tasks, ${homeOpen} open tasks` : 'Tasks')
     await expect(page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Signals', exact: true })).not.toHaveAttribute('aria-label')

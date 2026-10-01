@@ -5,7 +5,7 @@
 
 .rp { display: flex; flex-direction: column; min-width: 0; padding: 20px; color: var(--foreground); }
 .rp--page { max-width: 1052px; margin-inline: auto; padding: 0 0 48px; }
-.page-frame__content:has(.rp--page) .record-page-chrome { max-width: 1052px; margin-inline: auto; }
+.page-frame__content:has(.rp--page, .rp--skeleton) .record-page-chrome { max-width: 1052px; margin-inline: auto; }
 
 /* ── Header ──────────────────────────────────────────────────────────── */
 .rp-head {
@@ -52,6 +52,11 @@
 .rp-fact--state { align-items: center; }
 .rp-fact__key { font-size: var(--font-size-label); font-weight: 500; color: var(--muted-foreground); }
 .rp-fact__fields { display: inline-flex; align-items: center; gap: 4px; }
+/* An unlabelled group reads as one linked line: fields split by a muted middle dot. */
+.rp-fact--linked .rp-fact__fields { flex-wrap: wrap; align-items: center; gap: 0 8px; }
+.rp-fact--linked .rp-fact__fields > :not(:last-child)::after { content: '·'; margin-inline-start: 4px; color: var(--muted-foreground); }
+/* A link's edit button is a quiet hit area beside it, not a 44px gap in the line (the phone keeps the touch floor). */
+@media (min-width: 768px) { .rp .rp-facts .rp-fact--linked .record-field__edit { width: auto; min-width: 24px; padding-inline: 2px; } }
 
 .rp .rp-facts .record-field { display: inline-flex; align-items: center; gap: 6px; }
 .rp .rp-facts .record-field__label {
@@ -147,6 +152,7 @@
 .rp--panel .rp-count-extra { display: none; }
 .rp-section__title { margin: 0; font-family: var(--font-display); font-size: var(--font-size-body-lg); font-weight: 600; color: var(--foreground); }
 .rp-section__count { font-size: var(--font-size-body); font-weight: 400; color: var(--muted-foreground); }
+.rp-section__title > .rp-section__count { margin-inline-start: 8px; }
 .rp-section__spacer { flex: 1; min-width: 0; }
 
 .rp-rows { list-style: none; margin: 0; padding: 0; }
@@ -155,6 +161,19 @@
 .rp-row__name { min-width: 0; font-size: var(--font-size-body-lg); font-weight: 500; color: var(--foreground); text-decoration: none; overflow-wrap: anywhere; }
 a.rp-row__name:hover { color: var(--primary); }
 .rp-row__meta { font-size: var(--font-size-label); font-weight: 500; color: var(--muted-foreground); }
+
+.rp-notice {
+  display: flex; align-items: center; gap: 8px; margin: 12px 0 0; padding: 4px 4px 4px 12px;
+  border-radius: var(--radius-sm); background: var(--secondary); font-size: var(--font-size-body);
+}
+.rp-notice > span { flex: 1; min-width: 0; }
+
+/* About field: the record field sits under the aside's own label */
+.rp-about__field .record-field { display: block; }
+.rp .rp-about__field .record-field__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.rp .rp-about__field .record-field__edit { min-height: 28px; margin: 0; padding: 2px 6px 2px 0; font-size: var(--font-size-body); }
+.rp .rp-about__field .record-field__value { font-size: var(--font-size-body); padding: 0; min-height: 0; }
+.rp .rp-about__field .record-field__chip { margin: 0; padding: 0; border: 0; background: none; font-size: var(--font-size-body); }
 
 /* About + disclosure */
 .rp-aside { padding-top: 24px; }
@@ -178,6 +197,7 @@ a.rp-row__name:hover { color: var(--primary); }
 .rp-disclosure[aria-expanded='true'] .rp-disclosure__caret { transform: rotate(90deg); }
 
 /* Skeleton */
+.rp--skeleton { max-width: 1052px; margin-inline: auto; }
 .rp-skeleton__title { width: 60%; height: 28px; margin-bottom: 12px; }
 .rp-skeleton__facts { display: flex; gap: 12px; margin-bottom: 24px; }
 .rp-skeleton__facts > span { width: 88px; height: 22px; }
@@ -188,11 +208,13 @@ a.rp-row__name:hover { color: var(--primary); }
   .rp-head__primary .btn { width: 100%; min-height: 44px; font-size: var(--font-size-body); }
   .rp-icon-btn { width: 44px; height: 44px; }
   .rp-facts { gap: 8px 12px; }
+  .rp-fact--linked .rp-fact__fields > :not(:last-child)::after { content: none; }
   .rp-menu__item { min-height: 44px; }
   a.rp-row__name { display: inline-flex; align-items: center; min-height: 44px; }
   .rp-section__action { min-height: 44px; border: 1px solid var(--control-border); }
   .rp .rp-facts .record-field__edit { min-height: 44px; margin-block: -8px; }
   .rp .rp-chip .record-field__edit { min-height: 44px; margin-block: -10px; }
+  .rp .rp-about__field .record-field__edit { min-height: 44px; }
   .rp-setup__row { grid-template-columns: 20px minmax(0, 1fr); }
   .rp-setup__action { grid-column: 1 / -1; width: 100%; min-height: 44px; }
 }

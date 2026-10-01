@@ -42,9 +42,10 @@ export function HomeDailyBrief({
     ...needsYou,
     labelKey: 'home.stream.band.myWork',
     items: [...needsYou.items, ...myWork.items],
-    count: needsYou.count === null || myWork.count === null
-      ? null
-      : myWork.drillTo?.count ?? needsYou.count + myWork.count,
+    // DD-COUNT-1 (#1194): the union's heading count is the SAME shared open-task figure my-work
+    // carries (needs-you items are a subset of the viewer's open work) — never a sum that caps
+    // or double-counts.
+    count: myWork.count,
     drillTo: myWork.drillTo ?? needsYou.drillTo,
   }
   const layoutRegions = composition === 'member'

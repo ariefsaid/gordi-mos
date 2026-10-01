@@ -10,7 +10,7 @@ import './due-runs.css'
 // rather than the already-visible Process title, identifies its ready run.
 
 export interface DueRunsListProps {
-  due: DueProcessRun[]
+  due: readonly DueProcessRun[]
   expanded: boolean
   startingKey: string | null
   startError: boolean
