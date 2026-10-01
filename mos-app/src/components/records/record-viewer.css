@@ -560,8 +560,8 @@
   text-align: left;
   cursor: pointer;
 }
-.record-viewer__overflow-menu button:hover,
-.record-viewer__overflow-menu button:focus-visible { background: var(--secondary); outline: none; }
+.record-viewer__overflow-menu button:hover { background: var(--surface-tertiary); }
+.record-viewer__overflow-menu button:focus-visible { background: var(--surface-tertiary); outline: 2px solid var(--ring); outline-offset: -2px; }
 .record-viewer__overflow-menu button:disabled { color: var(--muted-foreground); cursor: not-allowed; }
 .record-field__pill-caret { display: inline-block; width: 0; height: 0; margin-inline-start: 4px; border-inline: 4px solid transparent; border-block-start: 5px solid currentColor; }
 .record-viewer__tabs { display: flex; gap: 2px; padding: 0 20px; background: var(--card); border-bottom: 1px solid var(--border); }

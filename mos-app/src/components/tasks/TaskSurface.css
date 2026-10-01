@@ -216,7 +216,7 @@
   display: flex; align-items: center; gap: 8px; padding: 6px 8px;
   border-radius: var(--radius-sm); cursor: pointer; font-size: var(--font-size-body-lg);
 }
-.person-picker-option[data-selected='true'] { background: var(--surface-tertiary); box-shadow: inset 3px 0 0 var(--primary); }
+.person-picker-option[data-selected='true'] { background: var(--surface-tertiary); outline: 2px solid var(--ring); outline-offset: -2px; }
 .person-picker-option:hover:not([data-selected='true']) {
   background: color-mix(in srgb, var(--surface-tertiary) 45%, transparent);
 }
