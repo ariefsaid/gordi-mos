@@ -108,7 +108,7 @@ describe('OD-REDESIGN-62 — typed Task record', () => {
     await waitFor(() => expect(screen.getByRole('heading', { name: task.title })).toBeInTheDocument())
 
     expect(screen.getAllByText('Team').length).toBeGreaterThan(0)
-    expect(screen.getAllByText(/team not assigned yet/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/no team yet/i).length).toBeGreaterThan(0)
     expect(screen.getAllByText('Café Operations').length).toBeGreaterThan(0)
     expect(screen.getByTestId('record-details').querySelector('[data-record-header="true"]')).toBeTruthy()
     expect(screen.queryByRole('tablist')).toBeNull()

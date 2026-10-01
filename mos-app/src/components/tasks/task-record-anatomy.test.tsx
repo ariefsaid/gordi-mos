@@ -23,7 +23,7 @@ const businessUnits: BusinessUnitOption[] = [{ id: 'bu-retail', name: 'Retail Op
 const labels: TaskFieldLabels = {
   title: 'Title', businessUnit: 'Business Unit', pic: 'PIC', supervisor: 'Supervisor', team: 'Team',
   teamUnassigned: 'No team yet', teamFromRecord: 'Team is set from the task record',
-  teamMigration: 'No team is assigned to this task yet (data migration).', dueDate: 'Due', createdBy: 'Created by',
+  teamMigration: 'No team is assigned to this task yet.', dueDate: 'Due', createdBy: 'Created by',
   supervisorInheritedFrom: 'inherited from ${name}',
 }
 // Wednesday 22 Jul 2026, noon in Jakarta.
@@ -120,9 +120,9 @@ describe('Task record anatomy', () => {
     const { container } = renderRecord({ viewerId: 'stranger' })
     expect(container.querySelectorAll('.rp-readonly')).toHaveLength(1)
     expect(container.querySelector('.rp-readonly')).toHaveTextContent('View only · Wayan Kusuma (Supervisor) or Nico (PIC) can change this task.')
-    // The Team migration explanation remains separate from the record-level permission note.
+    // The Team explanation stays separate from the record-level permission note.
     expect(container.querySelectorAll('.record-field__reason')).toHaveLength(1)
-    expect(container.querySelector('.record-field__reason')).toHaveTextContent(/migration/i)
+    expect(container.querySelector('.record-field__reason')).toHaveTextContent("No team is assigned to this task yet.")
   })
 
   it('a record nobody may edit says so once, with no per-field reasons beyond Team', () => {
@@ -189,7 +189,7 @@ describe('Task record anatomy', () => {
     const about = within(container).getByRole('region', { name: 'About' })
     const teamValue = about.querySelector('[data-field-key="team"] .record-field__value')
     expect(teamValue).toHaveTextContent('No team yet')
-    expect(teamValue).not.toHaveTextContent(/migration/i)
+    expect(teamValue).not.toHaveTextContent("No team is assigned to this task yet.")
   })
 
   it('shows the parent Project/Process in the facts line and the generating Process in About', () => {
