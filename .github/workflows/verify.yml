@@ -24,9 +24,9 @@ defaults:
 
 jobs:
   verify:
-    # A release PR (main → staging) carries a tree that already passed on its way into main. A
-    # skipped required check counts as passed.
-    if: ${{ !(github.event_name == 'pull_request' && github.base_ref == 'staging' && github.head_ref == 'main') }}
+    # A release PR (main → staging, head in this repo, never a fork's branch named main) carries a
+    # tree that already passed on its way into main. A skipped required check counts as passed.
+    if: ${{ !(github.event_name == 'pull_request' && github.base_ref == 'staging' && github.head_ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
