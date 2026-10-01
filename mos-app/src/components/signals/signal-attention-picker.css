@@ -59,9 +59,9 @@
   padding: 8px 10px; border: 0; border-radius: var(--radius-sm); background: transparent;
   color: var(--foreground); font: inherit; font-size: var(--font-size-label); text-align: left; cursor: pointer;
 }
-.signal-attention-picker-option:hover,
-.signal-attention-picker-option[aria-selected='true'],
-.signal-attention-picker-option[data-active='true'] { background: var(--secondary); font-weight: 600; }
+.signal-attention-picker-option:hover { background: var(--secondary); }
+.signal-attention-picker-option[aria-selected='true'] { font-weight: 600; }
+.signal-attention-picker-option[data-active='true'] { background: var(--surface-tertiary); outline: 2px solid var(--ring); outline-offset: -2px; }
 .signal-attention-picker-option:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .signal-attention-picker-meaning { flex: 1; color: var(--muted-foreground); font-size: var(--font-size-micro); font-weight: 400; white-space: nowrap; }
 .signal-attention-picker-check { flex: none; color: var(--foreground); }

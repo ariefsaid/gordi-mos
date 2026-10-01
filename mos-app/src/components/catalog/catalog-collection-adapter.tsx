@@ -118,6 +118,9 @@ export interface CatalogRelationTask {
   title: string
   status?: TaskListRow['status']
   lastActivityAt?: string
+  /** Set by the record loader (the collection list does not read them). */
+  dueDate?: string | null
+  picPersonId?: string | null
 }
 
 /**

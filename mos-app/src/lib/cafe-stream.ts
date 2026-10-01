@@ -52,9 +52,8 @@ export function rememberedStreamKey(viewerId?: string | null, branchId?: string 
 }
 
 /**
- * Record the stream every Café surface should open on from now on. Called on every switch
- * AND on the bootstrap that resolves a default, so the first surface a person opens teaches
- * the rest of the module which books they are in.
+ * Record the stream the person CHOSE, for every Café surface to fall back on (the ladder's
+ * "used last" rung). Called on a switch only, never on an inferred default.
  */
 export function rememberStream(stream: ProductionStream | null, viewerId?: string | null, branchId?: string | null): void {
   // Preserve the original no-argument reset contract used by the Café test harness and any
@@ -85,26 +84,26 @@ export function rememberStream(stream: ProductionStream | null, viewerId?: strin
 }
 
 /**
- * The stream a Café surface should open on, resolved against ITS live catalog and recorded
- * for the surfaces the person walks to next.
+ * The stream a Café surface should open on, resolved against ITS live catalog (OD-CAFE-6).
  *
- * Order (FR-001/002 + #440):
- *   1. the stream chosen elsewhere in the module this session, IF it is still in the catalog;
- *   2. otherwise the person's own stream — `shared.default_stream()`, resolved by the caller —
- *      IF it is a catalog stream (a stale pair pointing outside the live catalog resolves to null,
- *      never to a guess);
- *   3. otherwise null: no default, so the surface asks for an explicit choice exactly as the
- *      capture surface does. A wrong default files production against books nobody chose; a
- *      missing one costs one tap.
+ * Order:
+ *   1. the person's own (home) stream — `shared.default_stream()`, resolved by the caller;
+ *   2. otherwise their ONLY Café stream Team, resolved by the caller;
+ *   3. otherwise the stream chosen elsewhere in the module this session (#440);
+ *   4. otherwise null: no default, so the surface asks. A wrong default files production against
+ *      books nobody chose; a missing one costs one tap.
+ * Each candidate must be in the live catalog: a stale pair resolves to the next rung, never to a
+ * guess.
  *
- * Pure apart from the recording, which is the point: two surfaces that resolve independently
- * are exactly how they come to disagree.
+ * Pure. Only an explicit choice (`rememberStream`) writes the shared slot — an inferred default
+ * recorded there would outrank the ladder's own rungs on every later surface.
  */
 export function resolveCafeStream(
   options: readonly ProductionStream[],
   ownDefault: ProductionStream | null,
   viewerId?: string | null,
   branchId?: string | null,
+  soleTeam: ProductionStream | null = null,
 ): ProductionStream | null {
   const inCatalog = (candidate: ProductionStream | null) =>
     candidate
@@ -117,12 +116,5 @@ export function resolveCafeStream(
   const fromSession = key
     ? options.find(s => streamKey(s.branch.id, s.activity) === key) ?? null
     : null
-  const resolved = fromSession ?? inCatalog(ownDefault)
-  // Write back into the SAME slot this resolution was read from. Unscoped, it landed in the
-  // location-agnostic slot every branch reads, which is the collision this scoping exists to end.
-  // A caller with no location passes none and keeps the legacy slot: there is no location for the
-  // value to be wrong about, and inventing one from the resolved stream would strand it in a slot
-  // no later read looks in.
-  rememberStream(resolved, viewerId, branchId)
-  return resolved
+  return inCatalog(ownDefault) ?? inCatalog(soleTeam) ?? fromSession
 }

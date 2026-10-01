@@ -7,6 +7,16 @@ import type { OverlayOwner } from '@/shell/overlay-navigation'
 import { TaskOverlayContent } from '@/components/tasks/task-drawer'
 import type { CatalogRow, CatalogType } from './catalog-collection-adapter'
 import { CatalogRecordDocument, type CatalogRecordKind, type CatalogRelatedKind } from './catalog-record-document'
+import { CatalogTaskCreateFrame } from './catalog-task-create-frame'
+import { createCatalogTaskCreateSession } from './catalog-task-create-session'
+
+/** The collection's query minus `layout`: a record page has no list layout to restore. */
+function withoutLayout(search: string): string {
+  const params = new URLSearchParams(search)
+  params.delete('layout')
+  const rest = params.toString()
+  return rest ? `?${rest}` : ''
+}
 
 export type CatalogRecordOverlayOwner = Extract<OverlayOwner, 'tasks' | 'work' | 'signals'>
 
@@ -50,11 +60,12 @@ export function useCatalogRecordEntryFactory({
     id: string,
     search = '',
   ): OverlayEntry {
+    const pageSearch = withoutLayout(search)
     const pageTo = kind === 'task'
-      ? { pathname: `/work/tasks/${id}`, search }
+      ? { pathname: `/work/tasks/${id}`, search: pageSearch }
       : {
           pathname: kind === 'objective' ? `/work/objectives/${id}` : `/work/projects/${id}`,
-          search,
+          search: pageSearch,
         }
     const workLineType = kind === 'work-line' ? resolveType?.(id) : undefined
     const chromeLabel = kind === 'task'
@@ -92,18 +103,40 @@ export function useCatalogRecordEntryFactory({
       return entry
     }
 
+    // Set by the create frame, read once by the record that reappears when the frame pops.
+    const taskAddedRef = { current: false }
     entry.content = (
       <CatalogRecordDocument
         kind={kind}
         id={id}
         mode="panel"
+        taskAddedRef={taskAddedRef}
         onChanged={onCollectionChanged}
         onLeaveGuardChange={(guard) => { entry.leaveGuard = guard }}
         onOpenPage={() => { if (onOpenPage) onOpenPage(pageTo); else if (host) void host.openPage(pageTo) }}
-        onCreateTask={() => {
-          const to = { pathname: '/work/tasks', search: `?create=1&work_line=${encodeURIComponent(id)}` }
-          if (onOpenPage) onOpenPage(to)
-          else if (host) void host.openPage(to)
+        onCreateTask={(workLineId) => {
+          if (host) {
+            // The create form is one more frame on this stack: Back (or save) returns to the record.
+            const session = createCatalogTaskCreateSession()
+            void host.push({
+              key: `task-create:${workLineId}`,
+              owner,
+              tenant: 'record',
+              label: t('tasks.create.new'),
+              title: t('tasks.create.new'),
+              content: (
+                <CatalogTaskCreateFrame
+                  workLineId={workLineId}
+                  session={session}
+                  onCreated={() => { taskAddedRef.current = true; onCollectionChanged?.(); void host.back() }}
+                  onLeave={() => { void host.back() }}
+                />
+              ),
+              leaveGuard: session.guard,
+            })
+            return
+          }
+          onOpenPage?.({ pathname: '/work/tasks', search: `?create=1&work_line=${encodeURIComponent(workLineId)}` })
         }}
         onOpenRelated={(relatedKind: CatalogRelatedKind, relatedId: string) => {
           if (!host) return
@@ -121,6 +154,8 @@ const WORK_OWNER: CatalogRecordOverlayOwner = 'work'
 
 export interface CatalogRecordOverlayController {
   splitOpen: boolean
+  /** A record panel is open over the collection (at any width): the page-head primary steps down. */
+  panelOpen: boolean
   recordId: string | null
   onOpenRecord: (record: CatalogRow) => void
   slot: ReactNode
@@ -248,7 +283,8 @@ export function useCatalogRecordOverlay({
     setParams(next, { replace: true })
   }, [params, setParams])
 
-  const splitOpen = Boolean(recordId && sessionActive && isSplit)
+  const panelOpen = Boolean(recordId && sessionActive)
+  const splitOpen = panelOpen && isSplit
   const slot = host ? (
     <OverlayHostSlot
       owner={WORK_OWNER}
@@ -275,5 +311,5 @@ export function useCatalogRecordOverlay({
     />
   ) : null
 
-  return { splitOpen, recordId, onOpenRecord, slot, buildEntry }
+  return { splitOpen, panelOpen, recordId, onOpenRecord, slot, buildEntry }
 }

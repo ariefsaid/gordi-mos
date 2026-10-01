@@ -40,10 +40,9 @@ import { TaskOverlayContent } from './task-drawer'
 import { TaskCreateContext, type TaskCreateContextValue } from './task-create-context'
 import { loadHomeLeadId } from './default-supervisor'
 import { useCatalogRecordEntryFactory } from '@/components/catalog/use-catalog-record-overlay'
-import { AskDeputyAction } from '@/components/records/ask-deputy-action'
 import type { OverlayEntry, OverlayHostApi } from '@/shell/overlay-host'
 import { getActiveTaskView } from './task-collection-view'
-import { isOwnerDirector } from '@/lib/role-scope'
+import { isOwnerDirector, hasOrgWideAuthority } from '@/lib/role-scope'
 import { getTaskDefaultView } from '@/lib/task-default-view'
 import { resolveTeamContext } from '@/lib/team-context'
 import { isOverdue } from '@/lib/due-status'
@@ -183,6 +182,7 @@ export function TasksWorkspace({
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
   const viewerOrgId = auth.status === 'authenticated' ? auth.viewer.person.org_id : null
   const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : EMPTY_ACCESS_ROLES
+  const viewerOrgWide = hasOrgWideAuthority(accessRoles)
   const initialQuery = useMemo(() => {
     const legacy = queryFromLegacySavedView(savedView)
     // The savedView prop is a compatibility bridge for URL-less embedders. Any URL state belongs
@@ -326,7 +326,9 @@ export function TasksWorkspace({
   }, [location.pathname, location.search, navigate])
 
   const activeViewLabels = {
-    all: t('tasks.saved.all'),
+    // OD-TASK-3: the All view is named Relevant for non-org-wide viewers (label only — the
+    // URL `view=all` and the role defaults are unchanged).
+    all: viewerOrgWide ? t('tasks.saved.all') : t('tasks.saved.relevant'),
     'my-work': t('tasks.saved.mine'),
     'team-work': t('tasks.saved.team'),
     overdue: t('tasks.saved.overdue'),
@@ -442,20 +444,12 @@ export function TasksWorkspace({
   const taskEntry = useMemo<OverlayEntry | null>(() => {
     if (!recordId) return null
     const pageTo = { pathname: `/work/tasks/${recordId}`, search: pageSearch() }
-    // Record-scoped "Ask Deputy" seed: the loaded row carries the task title, so the composer opens
-    // with "About Task: <title>". Falls back to the generic record noun if the row isn't loaded.
-    const taskTitle = controller.state.data?.records.find((r) => r.id === recordId)?.title?.trim()
     const entry: OverlayEntry = {
       key: `task:${recordId}`,
       owner: 'tasks' as const,
       tenant: 'record' as const,
       label: t('tasks.detail.title'),
       title: t('tasks.detail.title'),
-      actions: (
-        <AskDeputyAction
-          draft={t('assistant.askAbout.task', { title: taskTitle || t('tasks.detail.title') })}
-        />
-      ),
       pageTo,
       pageState: TASK_PAGE_STATE,
       content: null,
@@ -472,7 +466,7 @@ export function TasksWorkspace({
       />
     )
     return entry
-  }, [recordId, pageSearch, controller.state.data, buildRelatedEntry, host, onTaskArchived, onTaskChanged, promoteToPage, t])
+  }, [recordId, pageSearch, buildRelatedEntry, host, onTaskArchived, onTaskChanged, promoteToPage, t])
 
   // Open (or restore, on hard-load/refresh of ?record=) the record through the shared host. Route
   // mode so the marker is a real history step: Browser Back closes the panel, refresh restores it.
@@ -860,6 +854,7 @@ export function TasksWorkspace({
       attentionCounts={{ overdue: stats?.overdue ?? 0, blocked: stats?.blocked ?? 0, total: stats?.attentionTotal ?? 0 }}
       onAttentionOverdue={() => setQuery({ overdueOnly: true, status: null })}
       onAttentionBlocked={() => setQuery({ overdueOnly: false, status: 'Blocked' })}
+      viewerOrgWide={viewerOrgWide}
       onClearFilters={onClearFilters}
       activeQuery={state.status === 'empty' && query.includeArchived
         ? { ...taskDisclosure, hasActiveFilters: false } : taskDisclosure}
@@ -896,6 +891,7 @@ export function TasksWorkspace({
     onEditTeam,
     onEditSupervisor,
     teamOptions: viewerTeams ?? [],
+    viewerOrgWide,
     draftTask,
     onDiscardNewTask,
     draftLinkError,
@@ -922,7 +918,7 @@ export function TasksWorkspace({
     recordOpen, draftTask, host.session, isDesktop, onAddTask,
     liveParams,
     onCloseDrawer, onDiscardNewTask, onEditTitle, onEditStatus, onEditDue, onEditPic, onEditTeam, onEditSupervisor, onNewTask, onOpenTask, onClearFilters, onSortChange,
-    processStartTeamIds, records, retry, runtimeStatusOverrides, selectedId, setQuery, splitLayout, draftLinkError, onRetryDraftLink, viewerTeams,
+    processStartTeamIds, records, retry, runtimeStatusOverrides, selectedId, setQuery, splitLayout, draftLinkError, onRetryDraftLink, viewerTeams, viewerOrgWide,
   ])
   // Projects & Processes the viewer can read (RLS scopes the catalog), for the create form.
   const createContext: TaskCreateContextValue = useMemo(() => ({
@@ -973,9 +969,10 @@ export function TasksWorkspace({
         </button>
       ) : undefined}
       meta={
-        // OD-REDESIGN-91 #17 (F2): counts are OPEN everywhere — the head meta reads
-        // "9 open in this view · 11 incl. done" (the view's own count, labelled as such; the rail
-        // badge is the viewer's own open tasks, #1129). ONE muted meta sentence in the E7 grammar, a single font size (the body
+        // OD-REDESIGN-91 #17 (F2) + DD-COUNT-1 (#1194): counts are OPEN everywhere — the head
+        // meta reads "9 open in this view · 11 shown" (the view's own count, labelled as such;
+        // "shown" includes Done rows kept 7 days; the rail badge is the viewer's own open
+        // tasks, #1129). ONE muted meta sentence in the E7 grammar, a single font size (the body
         // token), every number followed by its noun (the naked-numbers guard). Live counts;
         // "—" while loading or on error. The "?" help tip is retired (#743 AC-009): its
         // sentence lives in the true-empty copy now.

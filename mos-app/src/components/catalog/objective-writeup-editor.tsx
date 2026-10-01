@@ -1,10 +1,26 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
-import type { KeyboardEvent } from 'react'
-import { BlockNoteSchema, defaultBlockSpecs } from '@blocknote/core'
-import { BlockNoteViewRaw, useCreateBlockNote } from '@blocknote/react'
+import type { FocusEvent, KeyboardEvent } from 'react'
+import { BlockNoteSchema, defaultBlockSpecs, filterSuggestionItems } from '@blocknote/core'
+import { getDefaultSlashMenuItems } from '@blocknote/core/extensions'
+import { BlockNoteView } from '@blocknote/ariakit'
+import {
+  DragHandleMenu,
+  FormattingToolbar,
+  FormattingToolbarController,
+  RemoveBlockItem,
+  SideMenu,
+  SideMenuController,
+  SuggestionMenuController,
+  blockTypeSelectItems,
+  getDefaultReactSlashMenuItems,
+  getFormattingToolbarItems,
+  useCreateBlockNote,
+  useDictionary,
+} from '@blocknote/react'
 import '@blocknote/core/style.css'
-import '@blocknote/react/style.css'
+import '@blocknote/ariakit/style.css'
 import { useT } from '@/i18n/use-t'
+import { useI18n } from '@/i18n/I18nProvider'
 import { Button } from '@/components/ui/button'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
@@ -18,6 +34,7 @@ import {
   WRITE_UP_MAX_BYTES,
   type WriteUpBlocks,
 } from '@/lib/db/objective-writeup'
+import { writeUpDictionary } from './objective-writeup-dictionary'
 import './objective-writeup-editor.css'
 
 const IDLE_SAVE_MS = 3000
@@ -27,6 +44,45 @@ const { paragraph, heading, bulletListItem, numberedListItem, checkListItem, quo
 const schema = BlockNoteSchema.create({
   blockSpecs: { paragraph, heading, bulletListItem, numberedListItem, checkListItem, quote },
 })
+
+// The slash menu offers the stored block types only: no toggle headings, headings past level 3 or emoji.
+const SLASH_ITEM_KEYS = new Set(['heading', 'heading_2', 'heading_3', 'quote', 'numbered_list', 'bullet_list', 'check_list', 'paragraph'])
+
+// The React items drop the key the core items carry; both lists come in the same order.
+function allowedSlashItems(editor: Parameters<typeof getDefaultSlashMenuItems>[0], query: string) {
+  const keys = getDefaultSlashMenuItems(editor).map((item) => item.key)
+  return filterSuggestionItems(getDefaultReactSlashMenuItems(editor).filter((_, index) => SLASH_ITEM_KEYS.has(keys[index])), query)
+}
+
+// The stored block types, as the slash menu offers them: paragraph, quote, the three lists, headings 1-3.
+const STORED_BLOCK_TYPES = new Set(['paragraph', 'quote', 'bulletListItem', 'numberedListItem', 'checkListItem'])
+
+// The library's selection toolbar without text alignment (an ops write-up is left-aligned prose) and with
+// the block-type list limited to the stored types, so nothing the sanitizer would change on reload is offered.
+function WriteUpToolbar() {
+  const items = blockTypeSelectItems(useDictionary()).filter((item) => {
+    if (item.type !== 'heading') return STORED_BLOCK_TYPES.has(item.type)
+    const props = item.props as { level: number; isToggleable: boolean }
+    return props.level <= 3 && !props.isToggleable
+  })
+  return <FormattingToolbar>{getFormattingToolbarItems(items).filter((item) => !String(item.key).startsWith('textAlign'))}</FormattingToolbar>
+}
+
+// Block menu: delete only. Colour is offered once, in the selection toolbar.
+function WriteUpDragHandleMenu() {
+  const dict = useDictionary()
+  return <DragHandleMenu><RemoveBlockItem>{dict.drag_handle.delete_menuitem}</RemoveBlockItem></DragHandleMenu>
+}
+
+function WriteUpSideMenu() {
+  return <SideMenu dragHandleMenu={WriteUpDragHandleMenu} />
+}
+
+// An editor menu or popover (slash menu, block menu, link form, toolbar list) that Escape should close first.
+// A closed popover stays in the DOM with `hidden`, so only a shown one counts.
+const OPEN_MENU = ['.bn-suggestion-menu', '.bn-menu-dropdown', '.bn-ak-popover', '.bn-ak-menu', '.bn-ak-hovercard', '[aria-expanded="true"]']
+  .map((menu) => `.objective-writeup__editor ${menu}:not([hidden])`)
+  .join(', ')
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'failed' | 'tooLarge' | 'conflict'
 
@@ -87,17 +143,19 @@ function WriteUpSurface({
   onReload: () => void
 }) {
   const t = useT()
+  const { locale } = useI18n()
   const keysHintId = useId()
   const stored = useMemo(() => sanitizeWriteUp(initial.writeUp), [initial.writeUp])
   const editor = useCreateBlockNote({
     schema,
     initialContent: stored.length > 0 ? (stored as never) : undefined,
     links: { isValidLink: isSafeWriteUpLink },
+    dictionary: writeUpDictionary(locale),
     domAttributes: { editor: { 'aria-label': t('objective.writeUp.label') } },
-    // No slash menu exists here, and a read-only reader never sees an editor hint.
+    // A read-only reader never sees an editor hint.
     placeholders: {
       default: t('objective.writeUp.placeholder'),
-      emptyDocument: t('objective.writeUp.placeholder'),
+      emptyDocument: t('objective.writeUp.placeholderEmpty'),
       heading: '',
       bulletListItem: '',
       numberedListItem: '',
@@ -108,9 +166,12 @@ function WriteUpSurface({
   const updatedAtRef = useRef(initial.updatedAt)
   const dirtyRef = useRef(false)
   const inFlightRef = useRef(false)
+  const queuedRef = useRef(false)
+  const idleQueuedRef = useRef(false)
   const conflictRef = useRef(false)
   const timerRef = useRef<number | undefined>(undefined)
   const saveRef = useRef<HTMLButtonElement>(null)
+  const boxRef = useRef<HTMLDivElement>(null)
   const dirtyCallbackRef = useRef(onDirtyChange)
   dirtyCallbackRef.current = onDirtyChange
 
@@ -120,13 +181,20 @@ function WriteUpSurface({
     dirtyCallbackRef.current?.(dirty)
   }, [])
 
-  const flush = useCallback(async () => {
+  const flush = useCallback(async (fromIdle = false) => {
     window.clearTimeout(timerRef.current)
-    if (!dirtyRef.current || inFlightRef.current || conflictRef.current) return
+    if (!dirtyRef.current || conflictRef.current) return
+    // A Save or blur that arrives mid-flight runs right after it. An idle pause that elapses mid-flight
+    // does too, until the next edit starts a new pause; plain edits never do.
+    if (inFlightRef.current) {
+      if (fromIdle) idleQueuedRef.current = true
+      else queuedRef.current = true
+      return
+    }
     inFlightRef.current = true
     setSaveState('saving')
     const snapshot = editor.document as WriteUpBlocks
-    // Edits typed while the save is in flight re-mark dirty and are picked up by the next flush.
+    // Edits typed while the save is in flight re-mark dirty and wait for their own idle pause.
     dirtyRef.current = false
     let next: SaveState = 'saved'
     try {
@@ -137,11 +205,16 @@ function WriteUpSurface({
       else next = error instanceof WriteUpTooLargeError ? 'tooLarge' : 'failed'
     }
     inFlightRef.current = false
-    setSaveState(next)
-    if (next === 'saved') {
-      if (dirtyRef.current) void flush()
-      else dirtyCallbackRef.current?.(false)
+    const queued = queuedRef.current || idleQueuedRef.current
+    queuedRef.current = false
+    idleQueuedRef.current = false
+    if (next === 'saved' && dirtyRef.current) {
+      if (queued) void flush()
+      else setSaveState('idle')
+      return
     }
+    setSaveState(next)
+    if (next === 'saved') dirtyCallbackRef.current?.(false)
   }, [editor, objectiveId])
 
   const flushRef = useRef(flush)
@@ -151,8 +224,9 @@ function WriteUpSurface({
     if (!editable || conflictRef.current) return
     setDirty(true)
     if (saveState !== 'saving') setSaveState('idle')
+    idleQueuedRef.current = false
     window.clearTimeout(timerRef.current)
-    timerRef.current = window.setTimeout(() => { void flushRef.current() }, IDLE_SAVE_MS)
+    timerRef.current = window.setTimeout(() => { void flushRef.current(true) }, IDLE_SAVE_MS)
   }, [editable, saveState, setDirty])
 
   // Leaving with unsaved text is decided by the leave guard; Discard must not save it.
@@ -160,29 +234,25 @@ function WriteUpSurface({
 
   // Escape hands focus to the bar's primary control. It runs in the capture phase because the editor
   // handles Escape itself (blurs and marks the event handled), so a bubbling handler never sees it.
+  // Focus moving into the editor's own menus (toolbar, block menu, link form) is still editing: only
+  // focus leaving the editor and its menus saves.
+  const leaveForBlur = (event: FocusEvent<HTMLDivElement>) => {
+    if (event.relatedTarget instanceof Node && boxRef.current?.contains(event.relatedTarget)) return
+    void flush()
+  }
+
   const leaveEditor = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key !== 'Escape') return
+    if (document.querySelector(OPEN_MENU)) return
     event.stopPropagation()
     saveRef.current?.focus()
   }
-
-  // The block type under the caret, so the format buttons can show which one is active.
-  const [activeType, setActiveType] = useState<string | null>(null)
-  useEffect(() => editor.onSelectionChange(() => { setActiveType(editor.getTextCursorPosition().block.type) }), [editor])
 
   // The editor points at the key hint only while the hint renders; editability can change without a remount.
   useEffect(() => {
     if (editable) editor.domElement?.setAttribute('aria-describedby', keysHintId)
     else editor.domElement?.removeAttribute('aria-describedby')
   }, [editor, editable, keysHintId])
-
-  const formatBlock = (type: 'heading' | 'bulletListItem' | 'numberedListItem') => {
-    const { block } = editor.getTextCursorPosition()
-    if (block.type === type) editor.updateBlock(block, { type: 'paragraph' })
-    else editor.updateBlock(block, type === 'heading' ? { type, props: { level: 2 } } : { type })
-    setActiveType(editor.getTextCursorPosition().block.type)
-    editor.focus()
-  }
 
   // Save stays focusable while saving (aria-disabled, never `disabled`): a focused control that becomes
   // disabled loses focus, and Escape from the editor both focuses Save and starts the save. flush() ignores repeats.
@@ -196,30 +266,34 @@ function WriteUpSurface({
   const empty = !editable && stored.length === 0
 
   return (
-    <div className="objective-writeup" onBlur={editable ? () => { void flush() } : undefined}>
+    <div className="objective-writeup" onBlur={editable ? leaveForBlur : undefined}>
       {!editable ? <p className="record-viewer__permission-note" role="note">{t('objective.writeUp.readOnly')}</p> : null}
-      {editable ? (
-        <div className="objective-writeup__format" role="toolbar" aria-label={t('objective.writeUp.format')}>
-          <Button variant="ghost" aria-pressed={activeType === 'heading'} onClick={() => formatBlock('heading')}>{t('objective.writeUp.heading')}</Button>
-          <Button variant="ghost" aria-pressed={activeType === 'bulletListItem'} onClick={() => formatBlock('bulletListItem')}>{t('objective.writeUp.bulletList')}</Button>
-          <Button variant="ghost" aria-pressed={activeType === 'numberedListItem'} onClick={() => formatBlock('numberedListItem')}>{t('objective.writeUp.numberedList')}</Button>
-        </div>
-      ) : null}
       {empty ? <p className="objective-writeup__empty">{t('objective.writeUp.empty')}</p> : (
-        <div onKeyDownCapture={editable ? leaveEditor : undefined}>
-        <BlockNoteViewRaw
+        <div ref={boxRef} onKeyDownCapture={editable ? leaveEditor : undefined}>
+        <BlockNoteView
           editor={editor}
           editable={editable}
           onChange={onEdit}
+          // The library's own menus, only for an editor that can edit. No upload, table or emoji UI exists.
           formattingToolbar={false}
-          linkToolbar={false}
-          slashMenu={false}
+          linkToolbar={editable}
           sideMenu={false}
+          slashMenu={false}
           filePanel={false}
           tableHandles={false}
           emojiPicker={false}
-          className="objective-writeup__editor"
-        />
+          comments={false}
+          className={editable ? 'objective-writeup__editor objective-writeup__editor--menus' : 'objective-writeup__editor'}
+        >
+          {editable ? <FormattingToolbarController formattingToolbar={WriteUpToolbar} /> : null}
+          {editable ? <SideMenuController sideMenu={WriteUpSideMenu} /> : null}
+          {editable ? (
+            <SuggestionMenuController
+              triggerCharacter="/"
+              getItems={async (query) => allowedSlashItems(editor as never, query)}
+            />
+          ) : null}
+        </BlockNoteView>
         </div>
       )}
       {editable && !empty ? <p id={keysHintId} className="objective-writeup__hint">{t('objective.writeUp.keysHint')}</p> : null}

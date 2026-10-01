@@ -10,7 +10,7 @@ import './due-runs.css'
 // rather than the already-visible Process title, identifies its ready run.
 
 export interface DueRunsListProps {
-  due: DueProcessRun[]
+  due: readonly DueProcessRun[]
   expanded: boolean
   startingKey: string | null
   startError: boolean
@@ -45,8 +45,9 @@ export function DueRunsList({ due, expanded, startingKey, startError, onStart, c
               </div>
               {/* Generic lists name the Process action and describe its Team. Inside a Process
                   record, the Team is the distinct start target and is named in the action itself. */}
+              {/* Inside a Process record the page keeps its one primary elsewhere, so a start is a secondary action. */}
               <Button
-                variant="primary"
+                variant={processRecordContext ? 'outline' : 'primary'}
                 className="due-runs-start-btn"
                 disabled={startingKey === key}
                 aria-describedby={!processRecordContext ? labelsId : undefined}

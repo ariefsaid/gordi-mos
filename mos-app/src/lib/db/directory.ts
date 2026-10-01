@@ -146,6 +146,22 @@ export async function getDownlinePersonIds(viewerId: string): Promise<string[]> 
   return [...new Set((assignments ?? []).filter((a: { role_id: string }) => downlineRoles.has(a.role_id)).map((a: { person_id: string }) => a.person_id))]
 }
 
+/** Business Units of the roles the person currently holds — the role half of OD-TASK-3's
+ *  Relevant scope (a Team membership carries its own business_unit_id; a held role anchors its
+ *  holder in a BU without one). Mirrors the getDownlinePersonIds reads: person_roles + roles,
+ *  org-readable per OD-P1-3, never an org_id filter. Empty id resolves to [] like getPersonTeams. */
+export async function getPersonBusinessUnitIds(personId: string): Promise<string[]> {
+  if (!personId) return []
+  const [{ data: assignments, error: assignmentError }, { data: roles, error: roleError }] = await Promise.all([
+    shared().from('person_roles').select('person_id,role_id'),
+    shared().from('roles').select('id,business_unit_id'),
+  ])
+  if (assignmentError) throw new Error(`getPersonBusinessUnitIds assignments failed — ${assignmentError.message}`)
+  if (roleError) throw new Error(`getPersonBusinessUnitIds roles failed — ${roleError.message}`)
+  const heldRoleIds = new Set((assignments ?? []).filter((a: { person_id: string }) => a.person_id === personId).map((a: { role_id: string }) => a.role_id))
+  return [...new Set((roles ?? []).filter((r: { id: string; business_unit_id: string | null }) => heldRoleIds.has(r.id) && r.business_unit_id !== null).map((r: { business_unit_id: string | null }) => r.business_unit_id as string))]
+}
+
 /** Load all non-archived business units for the org (ordered by name). */
 export async function getBusinessUnits(): Promise<BusinessUnitOption[]> {
   const { data, error } = await shared()

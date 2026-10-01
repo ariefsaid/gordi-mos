@@ -12,16 +12,17 @@ import { loginAs } from './helpers/login'
 import { createTaskViaUI, selectTaskView } from './helpers/tasks'
 import { VIEWER } from './fixtures/users'
 
-// Choose the broad collection scope independently of the viewer's role default.
-async function selectAllSavedView(page: Page) {
-  await selectTaskView(page, 'All')
+// Choose the broad collection scope independently of the viewer's role default. OD-TASK-3:
+// VIEWER is not org-wide, so the primary view chip is named "Relevant", not "All".
+async function selectRelevantSavedView(page: Page) {
+  await selectTaskView(page, 'Relevant')
 }
 
 test.beforeEach(async ({ page }) => {
   await loginAs(page, VIEWER.email, VIEWER.password)
   await page.goto('work/tasks')
   await page.waitForURL(/\/tasks$/)
-  await selectAllSavedView(page)
+  await selectRelevantSavedView(page)
 })
 
 test('AC-101 (J1): open a task in the drawer → table stays mounted → change status inline → row reflects it', async ({ page }) => {
@@ -31,7 +32,7 @@ test('AC-101 (J1): open a task in the drawer → table stays mounted → change 
   await createTaskViaUI(page, rowText)
   await page.goto('work/tasks')
   await page.waitForURL(/\/tasks$/)
-  await selectAllSavedView(page)
+  await selectRelevantSavedView(page)
 
   await expect(page.getByText(rowText).first()).toBeVisible({ timeout: 10_000 })
   await page.getByText(rowText).first().click()

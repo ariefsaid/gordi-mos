@@ -7,7 +7,6 @@ import type { TaskListRow } from '@/lib/db/tasks.types'
 import { useT } from '@/i18n/use-t'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import type { OverlayLeaveDecision, OverlayLeaveGuard, OverlayLeaveIntent } from '@/shell/overlay-navigation'
-import { AskDeputyAction } from '@/components/records/ask-deputy-action'
 import { liveTasksSearch, type LiveTasksQueryRef } from './tasks-navigation'
 
 export type TaskDrawerOutletContext = {
@@ -203,13 +202,6 @@ export function TaskDrawer({ mode }: TaskDrawerProps) {
     })),
     [guardedClose, navigate, location.search, liveQueryRef],
   )
-  // Record-scoped "Ask Deputy" is the only tenant action in the host's actions slot. Close stays
-  // in the shared host so every TaskDrawer regime has exactly one dismiss control; the task's
-  // localized "Close (Esc)" label is supplied through the host's closeLabel seam below.
-  const hostActions = mode === 'view' && resolvedTitle
-    ? <AskDeputyAction draft={t('assistant.askAbout.task', { title: resolvedTitle })} />
-    : undefined
-
   // GAP-2 (OD-91 #7): expand-in-place is retired, so the drawer is a fixed-width panel — the only
   // escalation is "Open full page". ADR-0013 D1 / OD-P4-9: BreadcrumbTitleSync mounts when the title is resolved and
   // calls useSetBreadcrumbTitle so the shell Breadcrumb shows "Tasks › <task name>".
@@ -247,7 +239,6 @@ export function TaskDrawer({ mode }: TaskDrawerProps) {
         closeLabel={mode === 'view' ? t('tasks.close') : undefined}
         focusKey={`${taskId ?? mode}-${mode}`}
         title={label}
-        actions={hostActions}
         onOpenPage={openPage}
         transitionPending={confirmOpen}
       >

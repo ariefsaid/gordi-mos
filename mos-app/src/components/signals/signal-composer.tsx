@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import { useT } from '@/i18n/use-t'
 import { Button } from '@/components/ui/button'
+import { DateField } from '@/components/ui/date-field'
 import { ErrorState } from '@/components/ui/state-kit'
 import {
   listAllTeams, createSignal, dedupeRecipients, type MemberLookup,
@@ -52,7 +53,13 @@ export function SignalComposer({
   const [people, setPeople] = useState<MentionCandidate[]>([])
   const [businessUnits, setBusinessUnits] = useState<MentionCandidate[]>([])
   const [body, setBody] = useState(prefill?.body ?? '')
-  const [occurredAt, setOccurredAt] = useState(() => prefill ? toDatetimeLocalValue(new Date(prefill.occurredAt)) : toDatetimeLocalValue(new Date()))
+  // The date is a day-first DateField and the time a native time input; together they are the
+  // same "YYYY-MM-DDTHH:mm" local value the post path has always read.
+  const [occurredDate, setOccurredDate] = useState(() => toDatetimeLocalValue(prefill ? new Date(prefill.occurredAt) : new Date()).slice(0, 10))
+  const [occurredTime, setOccurredTime] = useState(() => toDatetimeLocalValue(prefill ? new Date(prefill.occurredAt) : new Date()).slice(11))
+  const [occurredDateInvalid, setOccurredDateInvalid] = useState(false)
+  const occurredAt = `${occurredDate}T${occurredTime}`
+  const occurredReady = occurredDate !== '' && occurredTime !== '' && !occurredDateInvalid
   const [attention, setAttention] = useState<Attention>(prefill?.attention ?? 'FYI')
   const [mentions, setMentions] = useState<StagedMention[]>(prefill?.mentions ?? [])
   const [mentionToken, setMentionToken] = useState<{ query: string; start: number } | null>(null)
@@ -157,7 +164,7 @@ export function SignalComposer({
 
   async function submit() {
     const trimmedBody = body.trim()
-    if ((!trimmedBody && !sharedId) || posting) return
+    if ((!trimmedBody && !sharedId) || posting || !occurredReady) return
     setPosting(true)
     setError(null)
     try {
@@ -267,17 +274,26 @@ export function SignalComposer({
 
       <div className="signal-composer-context" aria-label={t('signals.composer.contextLabel')}>
         <SignalAttentionPicker id="signals-compose-attention" value={attention} onChange={(next) => { setAttention(next); onDirtyChange?.(true) }} />
-        <label className="signal-composer-context-pill signal-composer-occurred-pill">
-          <span aria-hidden="true">◷</span>
-          <span>{t('signals.composer.occurredNow')}</span>
-          <span className="signal-composer-field-hint">{t('signals.composer.occurredHint')}</span>
-          <input
-            type="datetime-local"
+        <div className="signal-composer-context-pill signal-composer-occurred-pill">
+          <span>{t('signals.composer.occurredLabel')}</span>
+          <DateField
+            compact
+            required
             aria-label={t('signals.composer.occurredLabel')}
-            value={occurredAt}
-            onChange={(e) => { setOccurredAt(e.target.value); onDirtyChange?.(true) }}
+            value={occurredDate}
+            onChange={(next) => { setOccurredDate(next); onDirtyChange?.(true) }}
+            onValidityChange={setOccurredDateInvalid}
           />
-        </label>
+          <input
+            type="time"
+            className="signal-composer-time"
+            aria-label={t('signals.composer.occurredTime')}
+            value={occurredTime}
+            required
+            onChange={(e) => { setOccurredTime(e.target.value); onDirtyChange?.(true) }}
+          />
+          <span className="signal-composer-field-hint">{t('signals.composer.occurredHint')}</span>
+        </div>
         {/* A plain file input: on a phone the OS offers Camera or Photo Library itself. */}
         <label className="signal-composer-context-pill signal-composer-photo-pill" data-disabled={photos.length >= MAX_SIGNAL_PHOTOS || !!sharedId || undefined}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -306,7 +322,7 @@ export function SignalComposer({
           {!sharedId && <span className="signal-composer-send-hint">{t('signals.composer.sendHint')}</span>}
           <Button
             variant="primary"
-            disabled={(!body.trim() && !sharedId) || posting}
+            disabled={(!body.trim() && !sharedId) || posting || !occurredReady}
             aria-busy={posting}
             onClick={() => { void submit() }}
           >

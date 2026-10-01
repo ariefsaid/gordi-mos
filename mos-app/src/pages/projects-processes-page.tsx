@@ -289,7 +289,7 @@ export function ProjectsProcessesPage() {
       // #958: repeats the sentence above (desktop-only, page-head.css hides it under 768px)
       // ahead of the glossary, so phone gets purpose + terms from one glyph.
       titleHelp={<HelpTip label={`${t('job.projects')} ${t('job.projectsHelp')}`} />}
-      action={canManage && !isNarrow ? <Button ref={createButtonRef} variant="primary" onClick={openDraft}>{t('catalog.projects.add')}</Button> : undefined}
+      action={canManage && !isNarrow ? <Button ref={createButtonRef} variant={overlay.panelOpen ? 'outline' : 'primary'} onClick={openDraft}>{t('catalog.projects.add')}</Button> : undefined}
     >
       <div className="sr-only" aria-live="polite" role="status">{live}</div>
       <CatalogCollectionActionsProvider actions={actions}>

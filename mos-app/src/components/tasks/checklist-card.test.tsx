@@ -14,7 +14,7 @@ describe('ChecklistCard', () => {
   it('AC-074 (component): typing a label + Enter calls onAdd', async () => {
     const onAdd = vi.fn()
     render(
-      <ChecklistCard items={[]} canEdit taskId="t" viewerId="v"
+      <ChecklistCard items={[]} canEdit
         onAdd={onAdd} onToggle={() => {}} onReorder={() => {}} onDelete={() => {}} />,
     )
     const input = screen.getByLabelText(/add checklist item/i)
@@ -28,7 +28,7 @@ describe('ChecklistCard', () => {
   it('D-C1: renders a visible error + Retry when saveError is set, and Retry calls onRetry', () => {
     const onRetry = vi.fn()
     render(
-      <ChecklistCard items={items(['Buy beans'])} canEdit taskId="t" viewerId="v"
+      <ChecklistCard items={items(['Buy beans'])} canEdit
         onAdd={() => {}} onToggle={() => {}} onReorder={() => {}} onDelete={() => {}}
         saveError={{ message: "Couldn't save — try again.", onRetry }} />,
     )
@@ -40,31 +40,49 @@ describe('ChecklistCard', () => {
 
   it('D-C1: renders NO error banner when saveError is null', () => {
     render(
-      <ChecklistCard items={items(['Buy beans'])} canEdit taskId="t" viewerId="v"
+      <ChecklistCard items={items(['Buy beans'])} canEdit
         onAdd={() => {}} onToggle={() => {}} onReorder={() => {}} onDelete={() => {}}
         saveError={null} />,
     )
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
-  // M7: the empty Checklist tab must show the "No steps yet." copy for EVERYONE
-  // (plan §3.2 / design-plan §168) — previously it only rendered for non-editors,
-  // so an editor with an empty checklist saw a bare add-field with no empty line.
-  it('M7: shows "No steps yet." when empty, for an editor (with the add field too)', () => {
+  // An empty checklist for an editor is just the add field: the section header already names it, so
+  // there is no "No steps yet." line. A viewer who cannot add has no section at all (document test).
+  it('an empty checklist shows an editor only the add field, with no empty line', () => {
     render(
-      <ChecklistCard items={[]} canEdit taskId="t" viewerId="v"
+      <ChecklistCard items={[]} canEdit
         onAdd={() => {}} onToggle={() => {}} onReorder={() => {}} onDelete={() => {}} />,
     )
-    expect(screen.getByText(/no steps yet\./i)).toBeInTheDocument()
+    expect(screen.queryByText(/no steps yet/i)).toBeNull()
     expect(screen.getByLabelText(/add checklist item/i)).toBeInTheDocument()
   })
 
-  it('M7: shows "No steps yet." when empty, for a non-editor', () => {
+  it('a viewer who cannot edit gets no add field and no row menu', () => {
     render(
-      <ChecklistCard items={[]} canEdit={false} taskId="t" viewerId="v"
+      <ChecklistCard items={[{ id: 'a', org_id: 'o', task_id: 't', label: 'Step A', is_done: false, position: 0, created_at: '', updated_at: '' }]} canEdit={false}
         onAdd={() => {}} onToggle={() => {}} onReorder={() => {}} onDelete={() => {}} />,
     )
-    expect(screen.getByText(/no steps yet\./i)).toBeInTheDocument()
+    expect(screen.queryByLabelText(/add checklist item/i)).toBeNull()
+    expect(screen.queryByRole('button', { name: /actions for/i })).toBeNull()
+  })
+
+  // Reordering and removing a step live in one row menu (the ▲ ▼ × buttons are gone).
+  it('a row menu moves a step up or down and removes it; the ends cannot move past the list', async () => {
+    const onReorder = vi.fn()
+    const onDelete = vi.fn()
+    const items = ['a', 'b'].map((id, position) => ({ id, org_id: 'o', task_id: 't', label: `Step ${id.toUpperCase()}`, is_done: false, position, created_at: '', updated_at: '' }))
+    render(<ChecklistCard items={items} canEdit onAdd={() => {}} onToggle={() => {}} onReorder={onReorder} onDelete={onDelete} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Step A' }))
+    expect(screen.getByRole('menuitem', { name: 'Move up' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Move down' }))
+    expect(onReorder).toHaveBeenCalledWith('a', 'down')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Step B' }))
+    expect(screen.getByRole('menuitem', { name: 'Move down' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Remove step' }))
+    expect(onDelete).toHaveBeenCalledWith('b')
   })
 
   // #965: a rejected save must never wipe what the person typed — the field keeps the text and
@@ -72,7 +90,7 @@ describe('ChecklistCard', () => {
   it('Ticket #965: a REJECTED add keeps the typed text and focus in the input (red-first)', async () => {
     const onAdd = vi.fn().mockRejectedValue(new Error('save failed'))
     render(
-      <ChecklistCard items={[]} canEdit taskId="t" viewerId="v"
+      <ChecklistCard items={[]} canEdit
         onAdd={onAdd} onToggle={() => {}} onReorder={() => {}} onDelete={() => {}} />,
     )
     const input = screen.getByLabelText(/add checklist item/i)
@@ -88,7 +106,7 @@ describe('ChecklistCard', () => {
   it('Ticket #965: a SUCCESSFUL add clears the typed text', async () => {
     const onAdd = vi.fn().mockResolvedValue(undefined)
     render(
-      <ChecklistCard items={[]} canEdit taskId="t" viewerId="v"
+      <ChecklistCard items={[]} canEdit
         onAdd={onAdd} onToggle={() => {}} onReorder={() => {}} onDelete={() => {}} />,
     )
     const input = screen.getByLabelText(/add checklist item/i)
@@ -103,7 +121,7 @@ describe('ChecklistCard', () => {
   it('Ticket #965: text typed during a pending Retry survives the retry\'s success', async () => {
     const onRetry = vi.fn().mockResolvedValue(undefined)
     render(
-      <ChecklistCard items={[]} canEdit taskId="t" viewerId="v"
+      <ChecklistCard items={[]} canEdit
         onAdd={() => {}} onToggle={() => {}} onReorder={() => {}} onDelete={() => {}}
         saveError={{ message: "Couldn't save — try again.", onRetry }} />,
     )
@@ -122,7 +140,7 @@ describe('ChecklistCard', () => {
   // #969: Retry re-sends the FAILED label; editing the field before clicking it must not lose the edit.
   async function failAdd(label: string) {
     const onAdd = vi.fn().mockRejectedValue(new Error('save failed'))
-    const props = { items: [], canEdit: true, taskId: 't', viewerId: 'v', onAdd, onToggle: () => {}, onReorder: () => {}, onDelete: () => {} }
+    const props = { items: [], canEdit: true, onAdd, onToggle: () => {}, onReorder: () => {}, onDelete: () => {} }
     const view = render(<ChecklistCard {...props} />)
     const input = screen.getByLabelText(/add checklist item/i)
     fireEvent.change(input, { target: { value: label } })
@@ -165,7 +183,7 @@ describe('ChecklistCard', () => {
 
   it('disables the checkbox when canEdit=false', () => {
     render(
-      <ChecklistCard items={items(['Step A'])} canEdit={false} taskId="t" viewerId="v"
+      <ChecklistCard items={items(['Step A'])} canEdit={false}
         onAdd={() => {}} onToggle={() => {}} onReorder={() => {}} onDelete={() => {}} />,
     )
     expect(screen.getByRole('checkbox', { name: /step a/i })).toBeDisabled()

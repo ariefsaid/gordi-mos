@@ -62,6 +62,7 @@ import { resolveHomeLayout, type HomeLayout } from '@/lib/home-layout'
 import { HomeCafeDoor } from '@/components/home/home-cafe-door'
 import { SignalFeedSection } from '@/components/signals/signal-feed-section'
 import { HomeObjectivesDoor } from '@/components/home/home-objectives-door'
+import { CAFE_OPENING_ENABLED } from '@/lib/cafe-opening-enabled'
 import { loadHomeCafeDoor, type HomeCafeDoorData } from '@/lib/db/home-cafe'
 import { loadHomeObjectiveProgress, type HomeObjectiveProgress } from '@/lib/db/home-objectives'
 import { isShipGated } from '@/lib/ship-gate'
@@ -291,7 +292,7 @@ export function HomePage() {
   // The door is only a member composition affordance. It reads the viewer's default Café branch,
   // then the branch's canonical opening run; it never starts a process as a side effect of visiting
   // Home.
-  const cafeMember = Boolean(viewer && !holdsCockpitScope && viewer.affiliated.includes('cafe'))
+  const cafeMember = Boolean(CAFE_OPENING_ENABLED && viewer && !holdsCockpitScope && viewer.affiliated.includes('cafe'))
   const [cafeDoor, setCafeDoor] = useState<HomeCafeDoorData | null>(null)
   const [cafeDoorState, setCafeDoorState] = useState<FetchState>('ready')
   const cafeDoorInFlightRef = useRef(false)
@@ -428,29 +429,17 @@ export function HomePage() {
     ],
   )
 
-  // ── The day's tally behind the header ──────────────────────────────────────────────────────
-  // `left` only — the sum of the SAME region counts rendered a few pixels below it, so the number
-  // reconciles with what the viewer can see. No new data read, and no `done`: nothing in the app
-  // records WHEN work was handled, so a "handled" figure would be invented (ruling #6 — drop the
-  // tally and its track, keep `N left`). The `done?` input stays a REAL option: a future source
-  // (e.g. a `completed_at`) may supply it, and the tally then reads `N handled · N left`.
-  //
-  // Null — never a partial total — the moment ANY region count is null, i.e. any read behind it
-  // has not succeeded (DIV-G5). A header that adds up the reads that happened to land would state
-  // a figure the viewer cannot trace, which is exactly the defect the region counts were fixed
-  // for: absent, not zero.
-  const tally = useMemo<HomeDayTally | null>(() => {
-    if (!personId) return null
-    let left = 0
-    const visibleRegions = holdsCockpitScope
-      ? regions
-      : regions.filter((region) => region.id !== 'failed-checks')
-    for (const region of visibleRegions) {
-      if (region.count === null) return null
-      left += region.count
-    }
-    return { left }
-  }, [personId, regions, holdsCockpitScope])
+  // ── The day header's figure ─────────────────────────────────────────────────────────────
+  // Home's "N open" is the ONE shared open-task count the rail badge reads (DD-COUNT-1, #1194)
+  // — the viewer's own open tasks as PIC or Supervisor. It is never a sum of the bands below:
+  // a sum would mix failed checks (non-task items) into a task figure and cap at the my-work
+  // slice. Null while the shared count has not resolved — absent, not zero (DIV-G5). The
+  // `done?` input stays a REAL option: a future source (e.g. a `completed_at`) may supply it,
+  // and the figure then reads `N handled · N open`.
+  const tally = useMemo<HomeDayTally | null>(
+    () => (openCount == null ? null : { left: openCount }),
+    [openCount],
+  )
 
   return (
     <PageFamilyFrame

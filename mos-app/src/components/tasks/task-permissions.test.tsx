@@ -43,6 +43,12 @@ describe('task permission oracle (mirrors mos.can_edit_task / the archive clause
     expect(canEdit(t({}), 'x', [])).toBe(false)
     expect(canArchive(t({}), 'x', [])).toBe(false)
   })
+  it('an org-wide viewer is offered every person; without the flag a lead keeps self plus downline', () => {
+    const people = [{ id: 'r', full_name: 'R' }, { id: 'd', full_name: 'Downline' }, { id: 'p', full_name: 'Peer' }]
+    expect(picOptions('r', people, [], true).map(p => p.id)).toEqual(['r', 'd', 'p'])
+    expect(picOptions('r', people, ['d'], false).map(p => p.id)).toEqual(['r', 'd'])
+    expect(picOptions('r', people, []).map(p => p.id)).toEqual(['r'])
+  })
   it('AC-060: draft PIC options are self plus downline and lock copy is localized by caller', () => {
     expect(picOptions('r', [{ id: 'r', full_name: 'R' }, { id: 'd', full_name: 'Downline' }, { id: 'p', full_name: 'Peer' }], ['d']).map(p => p.id)).toEqual(['r', 'd'])
     expect(picLockMessage(true)).toBeNull()

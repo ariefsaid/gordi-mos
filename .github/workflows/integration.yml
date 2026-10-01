@@ -1,44 +1,23 @@
 name: integration
 
 on:
-  push:
-    branches: [main]
   # On-demand full `db` run for any branch, dispatched ONLY through scripts/ci-e2e.sh (it enforces
   # the fair-use rule: one dispatch at a time across repos, a per-day cap, one run per PR).
   # Trade-off: a dispatch runs the BRANCH's code with this job's secrets, so only collaborators
   # with write access can dispatch — the same trust as pushing a branch here.
   workflow_dispatch:
-  # integration is PR→main ONLY (PMO convention: dev/feature PRs run just `verify` + `db-contracts`;
-  # the heavy full-stack gate belongs to the dev→main promotion PR + the post-merge push-to-main
-  # smoke). On main-targeted PRs the job still runs ONLY when something it validates changes — DB/
-  # migrations/RLS, the e2e journeys, or this workflow's deps. Pushes to main always run it
-  # (no paths filter on push), so every merge is fully validated post-merge.
+  # integration is PR→main ONLY and is the release gate. Deliberately NOT path-filtered: a merge
+  # into main triggers no CI, so this run is the only e2e a release gets, whatever it touches.
   pull_request:
-    # The heavy `db` job is PR→main only; it is gated on base_ref, not on this list.
     branches: [main]
-    paths:
-      - 'supabase/**'
-      - 'mos-app/e2e/**'
-      - 'mos-app/playwright.config.*'
-      - 'mos-app/package-lock.json'
-      # The deployed-database harness (#393). `scripts/**` is otherwise absent from this filter,
-      # which is how the first version of this check shipped without ever running: the workflow
-      # simply did not trigger on it.
-      - 'scripts/applied-path-check.sh'
-      - 'scripts/lib/applied-path-fingerprint.sql'
-      # Both lanes run this lint (here + db-contracts.yml #565) — an edit to the lint itself must
-      # re-run the lane that validates it (#645).
-      - 'scripts/lint-security-definer.sh'
-      - 'scripts/lib/sql-blank.sh'
-      # NB: edits to THIS workflow are validated by the always-run push-to-main trigger
-      # (kept out of the PR paths filter so a workflow-only PR doesn't boot the full stack).
 
 # ─── CI TIERING ─────────────────────────────────────────────────────────────────────────────
 # PR → dev    `verify` + `db-contracts` — ONE Supabase boot: pgTAP + applied-path. No browser.
 # PR → main   `verify` + `db`           — Supabase + pgTAP + the whole Playwright suite, the
 #             rendered-geometry guards among it. Authoritative gate, and the only tier that
 #             renders a page.
-# push main   `verify` + `db`       — post-merge smoke.
+# push main   nothing                — a merge re-runs no CI; the PR head it merged was gated.
+# PR staging  `verify` + `guard-self-tests` skip when the head is main (same tree, already gated).
 # dispatch    `db` alone            — on-demand full suite for one branch (scripts/ci-e2e.sh).
 #
 # HISTORY. Until now gordi had no DB test on dev PRs at all: `integration` was PR→main only, so
@@ -49,7 +28,7 @@ on:
 # booted Supabase, npm-ci'd and ran in parallel on the same PR. #565 merged the `pgtap` job into
 # it so a dev PR boots the stack once. The browser then came back out of that lane: a dev PR now
 # installs no Chromium, and the guards ride this job, which already runs every spec. `db` here is
-# untouched: it is the PR→main / push-main lane and was never part of the duplication.
+# untouched: it is the PR→main lane and was never part of the duplication.
 
 # Public repo: fork PRs run this workflow. Nothing here needs to write, so the token gets
 # read-only. Actions are pinned to commit SHAs (tags are mutable — a hijacked v4 would run here).
@@ -58,13 +37,13 @@ permissions:
 
 # Supersede in-flight runs on the same ref — this is the expensive workflow (median ~4 min,
 # dominated by an 84s Supabase boot), so letting an obsolete run finish is the costliest waste
-# here. Never cancel on main: the post-merge run is the record that main is fully validated.
+# here.
 concurrency:
   group: integration-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  cancel-in-progress: true
 
 jobs:
-  # ── AUTHORITATIVE GATE: PR → main, and the post-merge smoke on main. ──────────────────────
+  # ── AUTHORITATIVE GATE: PR → main. ────────────────────────────────────────────────────────
   # The dev-PR fast lane (formerly the `pgtap` job here) now lives in db-contracts.yml (#565),
   # which boots Supabase once and runs no browser. This job is unaffected, and it is where the
   # rendered-geometry guards are gated: `npx playwright test` below runs every spec.
@@ -72,7 +51,7 @@ jobs:
     # Gated on base_ref rather than the trigger's branch list, so this job's condition alone
     # decides whether the expensive browser tier runs — it cannot accidentally start on a
     # PR → dev, whatever branches the trigger above lists. A dispatch is an explicit request.
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.base_ref == 'main'
+    if: github.event_name == 'workflow_dispatch' || github.base_ref == 'main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

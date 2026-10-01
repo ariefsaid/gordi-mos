@@ -24,7 +24,10 @@ export function canArchive(task: TaskListRow, viewerId: string, downlineIds: rea
   )
 }
 
-export function picOptions(viewerId: string, people: readonly PersonOption[], downlineIds: readonly string[]): PersonOption[] {
+// OD-WAY-94 (1): a PIC is the viewer or their downline. An org-wide viewer (admin, OD-ROLE-1) may name
+// anyone; mos._guard_tasks clause (E) mirrors it with shared.is_org_wide().
+export function picOptions(viewerId: string, people: readonly PersonOption[], downlineIds: readonly string[], orgWide = false): PersonOption[] {
+  if (orgWide) return [...people]
   const allowed = new Set([viewerId, ...downlineIds])
   return people.filter((person) => allowed.has(person.id))
 }

@@ -166,7 +166,12 @@ test('an Objective opens its related Project and Back restores the source record
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
   const project = page.getByRole('region', { name: 'AC204 Menu launch', exact: true })
   await project.getByRole('button', { name: 'More actions', exact: true }).click()
-  await project.getByRole('menuitem', { name: 'Copy link', exact: true }).click()
+  // The ⋯ popover renders in a portal to document.body (record-menu.tsx) — assert and query the
+  // open menu globally by its own accessible name, never scoped under the record region.
+  const menu = page.getByRole('menu', { name: 'More actions', exact: true })
+  await expect(menu).toBeVisible()
+  await menu.getByRole('menuitem', { name: 'Copy link', exact: true }).click()
+  await expect(menu).not.toBeVisible()
   await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(new URL(projectHref!, page.url()).href)
   await page.getByRole('button', { name: /^back/i }).click()
   await expect(page.getByRole('heading', { name: 'AC204 Grow revenue', exact: true })).toBeVisible()
@@ -183,23 +188,19 @@ for (const persona of personas) {
   })
 }
 
-test('ordinary barista Home offers opening work before the management brief on a phone', async ({ page }, testInfo) => {
+test('ordinary barista Home leads with assigned work before the management brief on a phone', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await loginAs(page, 'bulan.dev@example.test', DEMO_PASSWORD)
   await page.goto('./')
   const main = page.locator('main')
-  const opening = main.getByRole('link', { name: /opening/i }).first()
-  await expect(opening).toBeVisible()
-  const box = await opening.boundingBox()
-  expect(box?.y).toBeLessThan(600)
+  // Café Opening is hidden (CAFE_OPENING_ENABLED): Home carries no Opening door.
+  await expect(main.getByTestId('home-cafe-door')).toHaveCount(0)
   await expect(main.getByText('Failed checks', { exact: true })).toHaveCount(0)
   await expect(main.getByRole('link', { name: /objectives/i })).toHaveCount(0)
   await expect(main.getByText('Check the espresso recipe before service', { exact: true })).toBeVisible()
   await expect(main.getByText('Prepare the bar handover', { exact: true })).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   await page.screenshot({ path: testInfo.outputPath('barista-home.png') })
-  await opening.click()
-  await expect(page).toHaveURL(/\/cafe(?:[/?]|$)/)
 })
 
 test('a barista completes assigned work from Home and the result survives refresh', async ({ page }) => {

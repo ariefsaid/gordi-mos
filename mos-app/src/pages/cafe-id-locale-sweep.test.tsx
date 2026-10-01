@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { render, screen, cleanup } from '@testing-library/react'
+import { render, screen, cleanup, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { AuthState } from '@/auth/context'
@@ -108,21 +108,20 @@ describe('AC-063/AC-064: Café pages stay Indonesian end to end', () => {
   })
 
   it.each([
-    // #781 item 6: "Stream" is the one word for the control in BOTH catalogs now.
-    // Plan is the exception: its head is the stream-name heading plus a Change link, no label.
-    ['id', ENGLISH_TOKENS, 'Stream', 'Ganti', 'Kirim Log', 'Ayam', 'Stok'],
-    ['en', INDONESIAN_TOKENS, 'Stream', 'Change', 'Pushes', 'Chicken', 'Stock'],
-  ] as const)('renders every stream-resolved page in the %s catalog', async (locale, denyList, streamWord, changeWord, pushesWord, categoryLabel, stockLabel) => {
+    // OD-CAFE-6: every Café head is the stream-name heading plus a Change link, no "Stream" label.
+    ['id', ENGLISH_TOKENS, 'Ganti', 'Kirim Log', 'Ayam', 'Stok'],
+    ['en', INDONESIAN_TOKENS, 'Change', 'Pushes', 'Chicken', 'Stock'],
+  ] as const)('renders every stream-resolved page in the %s catalog', async (locale, denyList, changeWord, pushesWord, categoryLabel, stockLabel) => {
     for (const [name, Page] of pages) {
       const { container } = render(<MemoryRouter><I18nProvider initialLocale={locale}><Page /></I18nProvider></MemoryRouter>)
       await screen.findByText(name === 'Pushes' ? 'batch-1' : 'Dish One')
       expect(container.textContent).not.toMatch(denyList)
+      const bar = within(screen.getByTestId('cafe-stream'))
+      expect(bar.getByRole('heading', { level: 2 })).toBeInTheDocument()
+      expect(bar.queryByText(/^stream:?$/i)).toBeNull()
       if (name === 'Plan') {
-        expect(container.querySelector('.cafe-stream h2')?.textContent).toContain('Rumah Rames')
-        expect(container.querySelector('.cafe-stream button')?.textContent).toBe(changeWord)
-        expect(container.querySelector('.cafe-stream__label')).toBeNull()
-      } else {
-        expect(container.textContent).toContain(streamWord)
+        expect(bar.getByRole('heading', { level: 2, name: /Rumah Rames/ })).toBeInTheDocument()
+        expect(bar.getByRole('button', { name: /^(change|ganti) stream$/i })).toHaveTextContent(changeWord)
       }
       if (name === 'Plan') expect(container.querySelector('.dt-group-label, .dt-cards-group-label')?.textContent).toContain(categoryLabel)
       if (name === 'Log') expect(container.textContent).toContain(stockLabel)

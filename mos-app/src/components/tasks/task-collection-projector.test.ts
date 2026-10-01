@@ -184,6 +184,56 @@ describe('projectTaskCollection — filtering', () => {
     expect(p.visibleRecords).toHaveLength(0)
   })
 
+  // OD-TASK-3 (#1200): for a non-org-wide viewer the All view IS Relevant — tasks where the
+  // viewer is PIC or Supervisor, plus their Teams' tasks, plus their Business Units' tasks;
+  // an unrelated Team/BU's task stays out (the list scope, never the read rule).
+  it('OD-TASK-3: Relevant keeps PIC/Supervisor, own-Team and own-BU tasks and hides an unrelated team\'s work', () => {
+    const rows = [
+      rawTask({ id: 'as-pic', title: 'Viewer is PIC', responsible_person_id: P_RAKA, team_id: TEAM_MARKETING, business_unit_id: BU_MARKETING }),
+      rawTask({ id: 'as-supervisor', title: 'Viewer is Supervisor', accountable_person_id: P_RAKA, team_id: TEAM_MARKETING, business_unit_id: BU_MARKETING }),
+      rawTask({ id: 'own-team', title: 'Own team task', responsible_person_id: P_AYU, accountable_person_id: P_AYU, team_id: TEAM_CAFE }),
+      rawTask({ id: 'own-bu', title: 'Own BU task', responsible_person_id: P_AYU, accountable_person_id: P_AYU, team_id: TEAM_MARKETING, business_unit_id: BU_CAFE }),
+      rawTask({ id: 'unrelated', title: 'Unrelated team task', responsible_person_id: P_AYU, accountable_person_id: P_AYU, team_id: TEAM_MARKETING, business_unit_id: BU_MARKETING }),
+    ]
+    const p = projectTaskCollection(
+      makeData(rows, {
+        viewerTeams: [{ id: TEAM_CAFE, name: 'Café Floor', businessUnitId: BU_CAFE, siteId: null, orgId: 'org-1' }],
+        viewerRoleBuIds: [],
+        viewerOrgWide: false,
+      }),
+      q({ view: 'all' }),
+    )
+    expect(p.visibleRecords.map((r) => r.id)).toEqual(['as-pic', 'as-supervisor', 'own-team', 'own-bu'])
+  })
+
+  it('OD-TASK-3: the viewer\'s roles\' Business Units count as their own, and an org-wide viewer keeps the full All list', () => {
+    const unrelated = rawTask({ id: 'unrelated', title: 'Unrelated team task', responsible_person_id: P_AYU, accountable_person_id: P_AYU, team_id: TEAM_MARKETING, business_unit_id: BU_MARKETING })
+    // Raka holds a role anchored in B2B Sales (no team membership there): its BU rides in.
+    const viaRoleBu = projectTaskCollection(
+      makeData([unrelated], {
+        viewerTeams: [],
+        viewerRoleBuIds: [BU_B2B],
+        viewerOrgWide: false,
+      }),
+      q({ view: 'all' }),
+    )
+    expect(projectTaskCollection(
+      makeData([{ ...unrelated, business_unit_id: BU_B2B }], {
+        viewerTeams: [],
+        viewerRoleBuIds: [BU_B2B],
+        viewerOrgWide: false,
+      }),
+      q({ view: 'all' }),
+    ).visibleRecords.map((r) => r.id)).toEqual(['unrelated'])
+    expect(viaRoleBu.visibleRecords).toHaveLength(0)
+
+    const admin = projectTaskCollection(
+      makeData(RAW, { viewerTeams: [], viewerRoleBuIds: [], viewerOrgWide: true }),
+      q({ view: 'all' }),
+    )
+    expect(admin.visibleRecords).toHaveLength(3)
+  })
+
   it('My work and Team work hide Done older than seven days, while All keeps the explicit archive history', () => {
     const rows = [
       rawTask({ id: 'fresh-done', title: 'Freshly done', status: 'Done', team_id: TEAM_CAFE, completed_at: '2026-07-16T04:00:00Z' }),

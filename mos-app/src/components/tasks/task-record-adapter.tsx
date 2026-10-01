@@ -7,7 +7,7 @@
 // accountable_person_id are displayed as Person in charge (PIC) and Supervisor. The
 // viewer NEVER exposes Responsible / Accountable / RACI / Consulted / Informed. Business
 // Unit and Team are DISTINCT fields; a legacy task without team_id remains an honest
-// "Team not assigned yet (data migration)" state — never a BU relabel.
+// "No team yet" state — never a BU relabel.
 //
 // The one place the legacy person-storage mismatch is translated is the TaskSurface DAL
 // switch (deferred host wiring); this adapter is entirely domain-facing.
@@ -64,6 +64,8 @@ export interface TaskRecordAdapterInput {
    *  canEdit/canArchive derive "viewer is above the PIC" from. The helper owns that derivation;
    *  this adapter never receives a viewer-global isManager. Empty for an unauthenticated viewer. */
   downlineIds: readonly string[]
+  // Org-wide authority (hasOrgWideAuthority): the PIC picker offers everyone.
+  orgWide?: boolean
   people: readonly PersonOption[]
   businessUnits: readonly BusinessUnitOption[]
   objectives?: readonly ObjectiveRow[]
@@ -108,7 +110,7 @@ export interface TaskRecordAdapterInput {
 }
 
 const TASK_STATUSES: readonly TaskStatus[] = ['Open', 'In Progress', 'Blocked', 'Done']
-const TEAM_UNASSIGNED = 'Team not assigned yet (data migration)'
+const TEAM_UNASSIGNED = 'No team yet'
 
 const EVENT_LABELS: Record<string, string> = {
   created: 'Created',
@@ -246,7 +248,7 @@ const DEFAULT_TASK_FIELD_LABELS: TaskFieldLabels = {
   team: 'Team',
   teamUnassigned: TEAM_UNASSIGNED,
   teamFromRecord: 'Team is set from the task record',
-  teamMigration: 'No team is assigned to this task yet (data migration).',
+  teamMigration: 'No team is assigned to this task yet.',
   dueDate: 'Due date',
   createdBy: 'Created by',
   supervisorInheritedFrom: 'inherited from ${name}',
@@ -286,6 +288,7 @@ function ownershipFields(
   editable: boolean,
   viewerId: string,
   downlineIds: readonly string[],
+  orgWide: boolean,
   people: readonly PersonOption[],
   businessUnits: readonly BusinessUnitOption[],
   team: TaskTeamView | null | undefined,
@@ -322,8 +325,9 @@ function ownershipFields(
       value: task.responsible_person_id,
       displayValue: personName(people, task.responsible_person_id),
       // Same contract as the inline picker (#742): the record's PIC picker offers the WRITER's
-      // self + downline — the only values the DB's PIC-value clause accepts from this writer.
-      options: personOptions(picOptions(viewerId, people, downlineIds)),
+      // self + downline (everyone for an org-wide viewer) — the only values the DB's PIC-value
+      // clause accepts from this writer.
+      options: personOptions(picOptions(viewerId, people, downlineIds, orgWide)),
     }),
     editableSpec(editable, {
       key: 'supervisor',
@@ -403,6 +407,7 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
     detail,
     viewerId,
     downlineIds,
+    orgWide = false,
     people,
     businessUnits,
     objectives = [],
@@ -489,6 +494,7 @@ export function createTaskRecordAdapter(input: TaskRecordAdapterInput): RecordVi
       editable,
       viewerId,
       downlineIds,
+      orgWide,
       people,
       businessUnits,
       team,

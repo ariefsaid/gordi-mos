@@ -1,14 +1,6 @@
 import type { ManifestCellInput } from './types.ts'
 
 export const CAFE_CELL_INPUTS = [
-  ['cafe-opening-default-desktop', {
-    area: 'cafe-opening', journey: 'cafe-opening', route: '/mos/cafe', fixture: 'VIEWER',
-    viewport: 'desktop-1440x900', theme: 'light', language: 'en', state: 'default', status: 'covered',
-  }],
-  ['cafe-opening-default-phone', {
-    area: 'cafe-opening', journey: 'cafe-opening', route: '/mos/cafe', fixture: 'VIEWER',
-    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'default', status: 'covered',
-  }],
   ['cafe-plan-default-desktop', {
     area: 'cafe-wip', journey: 'cafe-plan', route: '/mos/cafe/plan', fixture: 'BARISTA',
     viewport: 'desktop-1440x900', theme: 'light', language: 'en', state: 'default', status: 'covered',
@@ -44,29 +36,6 @@ export const CAFE_CELL_INPUTS = [
   ['cafe-pushes-default-phone', {
     area: 'cafe-wip', journey: 'cafe-pushes', route: '/mos/cafe/pushes', fixture: 'ADMIN',
     viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'default', status: 'covered',
-  }],
-  ['cafe-opening-assigned-phone', {
-    area: 'cafe-opening', journey: 'cafe-opening', route: '/mos/cafe', fixture: 'BAR_MEMBER',
-    viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'assigned-location', status: 'covered', primary: true,
-    stateContract: {
-      setup: [],
-      assertion: { selector: '[data-testid="cafe-opening-location"]' },
-      negativeAssertion: { selector: '[data-testid="cafe-location-chooser"]' },
-    },
-  }],
-  ['cafe-opening-switch-desktop', {
-    area: 'cafe-opening', journey: 'cafe-opening', route: '/mos/cafe', fixture: 'VIEWER',
-    viewport: 'desktop-1440x900', theme: 'dark', language: 'id', state: 'multi-location-switch', status: 'untested', primary: true,
-    note: 'No read-only audit fixture currently has two eligible Café locations.',
-  }],
-  ['cafe-opening-missing-compact', {
-    area: 'cafe-opening', journey: 'cafe-opening', route: '/mos/cafe', fixture: 'ORPHAN',
-    viewport: 'compact-1024x768', theme: 'light', language: 'en', state: 'missing-assignment', status: 'untested',
-    note: 'ORPHAN is stopped by the authentication boundary; no linked no-location fixture exists.',
-  }],
-  ['cafe-opening-failed-phone', {
-    area: 'cafe-opening', journey: 'cafe-opening', route: '/mos/cafe', fixture: 'VIEWER',
-    viewport: 'phone-390x844', theme: 'dark', language: 'id', state: 'failed-configuration-load', status: 'covered',
   }],
   // The two faces of a plan are decided by the stream the fixture lands on, so neither needs a
   // setup action: a producing stream gets the quantity cells, a receiving-only one gets the

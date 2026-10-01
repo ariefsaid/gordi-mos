@@ -16,7 +16,7 @@ test('AC-090: create a task → it appears in the list → open detail → chang
   await page.goto('work/tasks')
   await page.waitForURL(/\/tasks$/)
 
-  await selectTaskView(page, 'All')
+  await selectTaskView(page, 'Relevant')
 
   // ── 3. Create a new task ────────────────────────────────────────────────────
   const taskTitle = `AC-090 Task ${Date.now()}`
@@ -29,8 +29,8 @@ test('AC-090: create a task → it appears in the list → open detail → chang
   await page.goto('work/tasks')
   await page.waitForURL(/\/tasks$/)
 
-  // Switch to "All" again to see the newly created task
-  await selectTaskView(page, 'All')
+  // Switch to "Relevant" again to see the newly created task (OD-TASK-3: VIEWER is not org-wide)
+  await selectTaskView(page, 'Relevant')
   await expect(page.getByText(taskTitle)).toBeVisible({ timeout: 10_000 })
 
   // ── 5. Open the task detail (drawer beside the table, ADR-0007) ─────────────
@@ -55,15 +55,18 @@ test('AC-090: create a task → it appears in the list → open detail → chang
   // Still on the same detail URL
   expect(page.url()).toMatch(/\/work\/tasks\?.*record=[0-9a-f-]{36}$/)
 
-  // ── 8. Assert: the Activity section shows the status_changed event ─────────
-  // The work-first Task record shows Activity inline (no tab); the event is persisted evidence.
-  const activityPane = drawer.getByRole('region', { name: 'Activity', exact: true })
-  await expect(activityPane.getByText(/Status changed · Open → In Progress/).first()).toBeVisible({ timeout: 8_000 })
+  // ── 8. Assert: the Activity log shows the status_changed event ─────────────
+  // The Task record exposes persisted Activity through the History disclosure in panel mode (no tab).
+  // In panel mode the record folds History behind a CLOSED RecordDisclosure — record-page-layout.tsx
+  // mounts its content (ActivityCard) only while open, and the card is plain panel content, not a
+  // region named "Activity" — so open the disclosure before asserting the event.
+  await drawer.getByRole('button', { name: /^history( \d+)?$/i }).click()
+  await expect(drawer.getByText(/Status changed · Open → In Progress/).first()).toBeVisible({ timeout: 8_000 })
 
   // ── 9. Assert: returning to the list shows "In Progress" on the row ─────────
   await page.goto('work/tasks')
   await page.waitForURL(/\/tasks$/)
-  await selectTaskView(page, 'All')
+  await selectTaskView(page, 'Relevant')
   const taskRow = page.locator('tr', { hasText: taskTitle }).or(
     page.locator('[data-testid="task-card"]', { hasText: taskTitle }),
   )

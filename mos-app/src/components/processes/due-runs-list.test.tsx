@@ -25,6 +25,17 @@ function renderList(props: Partial<React.ComponentProps<typeof DueRunsList>> = {
   )
 }
 
+describe('DueRunsList start emphasis', () => {
+  it('is a primary in a generic list and a secondary inside a Process record, whose header keeps the primary', () => {
+    const { unmount } = renderList()
+    expect(screen.getByRole('button', { name: /start/i })).toHaveClass('btn-primary')
+    unmount()
+    renderList({ context: 'process-record' })
+    expect(screen.getByRole('button', { name: /start/i })).toHaveClass('btn-outline')
+    expect(screen.getByRole('button', { name: /start/i })).not.toHaveClass('btn-primary')
+  })
+})
+
 describe('DueRunsList (design fix wave item 1)', () => {
   it('renders nothing when not expanded, even with due rows present', () => {
     renderList({ expanded: false })

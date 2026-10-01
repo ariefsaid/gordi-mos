@@ -1,7 +1,6 @@
-/* DateField — wraps a native <input type="date"> with token chrome (F2 fix). Same
-   32px/8px box pattern as Select (Select.css); the real native input is stretched
-   over the box, fully transparent, so it stays clickable/keyboard-editable/native-
-   picker-capable while an unambiguous "22 Jul 2026" display renders in front of it. */
+/* DateField — day-first text entry + a native calendar picker, in token chrome (#1191). Same
+   32px/8px box pattern as Select/TextInput; the text input is the visible, focusable control
+   and the native date input sits invisibly over the calendar glyph only. */
 .mk-date { display: flex; flex-direction: column; gap: 4px; }
 .mk-date__label {
   font-size: var(--font-size-label); color: var(--muted-foreground);
@@ -9,7 +8,7 @@
 }
 .mk-date__box {
   display: inline-flex; align-items: center; gap: 8px;
-  height: 32px; padding: 0 10px;
+  height: 32px; padding: 0 0 0 10px;
   background: var(--background); border: 1px solid var(--input);
   border-radius: var(--radius-sm);
   transition: border-color var(--dur-fast) ease, box-shadow var(--dur-fast) ease;
@@ -24,35 +23,55 @@
   border-color: var(--primary);
   box-shadow: 0 0 0 2px var(--ring);
 }
-.mk-date__display {
-  flex: 1; min-width: 0; font-size: var(--font-size-control); color: var(--foreground);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.mk-date__display[data-empty] { color: var(--muted-foreground); }
-.mk-date__icon { color: var(--muted-foreground); flex-shrink: 0; pointer-events: none; }
-/* The real control: stretched over the whole box, invisible, but still focusable/
-   clickable/keyboard-editable — this is what actually opens the native calendar
-   and holds the value. Its own text/icon are hidden via opacity so only the
-   formatted display + our calendar glyph show. */
 .mk-date__field {
+  flex: 1; min-width: 0; align-self: stretch; padding: 0; border: 0; outline: 0; background: transparent;
+  font: inherit; font-size: var(--font-size-control); color: var(--foreground);
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+}
+.mk-date__field::placeholder { color: var(--muted-foreground); }
+/* What the typed text means: the format while it is unfinished, the parsed date once it is whole. */
+.mk-date__hint {
+  flex-shrink: 0; font-size: var(--font-size-label); color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums; white-space: nowrap; pointer-events: none;
+}
+/* The calendar glyph is the picker's press area; the native date input covers it, invisibly. */
+.mk-date__cal {
+  position: relative; display: inline-flex; align-items: center; justify-content: center;
+  align-self: stretch; width: 32px; flex-shrink: 0; color: var(--muted-foreground);
+}
+.mk-date__icon { pointer-events: none; }
+.mk-date__cal:hover { color: var(--foreground); }
+.mk-date__picker {
   position: absolute; inset: 0; width: 100%; height: 100%;
   margin: 0; padding: 0; border: 0; background: transparent;
   opacity: 0; cursor: pointer;
 }
-.mk-date__field::-webkit-calendar-picker-indicator {
+.mk-date__picker::-webkit-calendar-picker-indicator {
   position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer;
 }
 .mk-date--full { width: 100%; }
 .mk-date--full .mk-date__box { width: 100%; }
-.mk-date--error .mk-date__box { border-color: var(--destructive); }
+.mk-date--error .mk-date__box,
+.mk-date--error .mk-date__box:hover:not(:focus-within) { border-color: var(--destructive); }
 .mk-date--error .mk-date__box:focus-within {
   box-shadow: 0 0 0 2px var(--destructive);
 }
+/* I4: error TEXT uses the AA-darkened red; the box border keeps base --destructive. */
+.mk-date__error { font-size: var(--font-size-label); color: var(--status-lost-text); }
 .mk-date--disabled .mk-date__box { background: var(--secondary); cursor: not-allowed; }
-.mk-date--disabled .mk-date__field { cursor: not-allowed; }
+.mk-date--disabled .mk-date__field,
+.mk-date--disabled .mk-date__picker { cursor: not-allowed; }
+
+/* Compact: table cells and filter bars. The box keeps its width; the message wraps under it. */
+.mk-date--compact .mk-date__box { min-width: 128px; }
+.mk-date--compact .mk-date__error { max-width: 22ch; }
 
 /* Phone tap-target floor (DO-15a, census-sweep R2 task-create F3) — one seam, every consumer.
-   The invisible native input already stretches over the box (inset: 0), so it grows with it. */
+   The text input stretches with the box; the calendar press area grows to a 44px square. The
+   16px input text is the touch-input rung (below it, mobile Safari zooms on focus). */
 @media (max-width: 767.98px) {
   .mk-date__box { min-height: 44px; }
+  .mk-date__field { min-height: 44px; font-size: var(--font-size-touch-input); }
+  .mk-date__cal { width: 44px; min-height: 44px; }
 }

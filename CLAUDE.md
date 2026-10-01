@@ -109,8 +109,9 @@ CI fair use (shared free-tier minutes): a PR into `dev` uses GitHub CI as the fu
 run only `bash scripts/pre-pr-verify.sh --dev` (typecheck, lint, tests of touched files); a PR into
 `main` keeps the full local gate.
 Locally, pgTAP runs only the test files your change touches (`scripts/with-db-lock.sh bash -c 'supabase migration up && supabase test db <files>'`; the local DB is shared, so no reset just to test); CI runs the full suite. The DB lock wraps database commands only, never pre-pr-verify. A pure rebase (proven by `scripts/carry-stamps.sh`) carries the verify and review stamps to the new HEAD in place of a mechanical-confirmation round.
+A PR into `main` runs the e2e itself (never dispatch it there); merges into main and the main→staging promotion re-run no CI.
 Run CI e2e at most once per PR, only for shared-code or milestone
-PRs, via `bash scripts/ci-e2e.sh` (raw dispatch and rerun are hook-denied). A second e2e run on a PR
+PRs into dev, via `bash scripts/ci-e2e.sh` (raw dispatch and rerun are hook-denied). A second e2e run on a PR
 (except one `--bugfix-proof` follow-up), a flake re-run, more than 3 dispatches per repo per day, or anything
 scheduled or looping needs the owner's OK. One heavy local job at a time, all sessions and repos.
 

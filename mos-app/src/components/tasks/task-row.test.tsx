@@ -912,11 +912,14 @@ describe('TaskRow — inline due date commit, cancel and failure (#982)', () => 
     return screen.getByLabelText('Due date') as HTMLInputElement
   }
 
-  it('the editor is a visible native date input', () => {
+  it('the editor is the shared day-first date field', () => {
     renderRow({ onEditDue: vi.fn() })
     const input = openEditor()
     expect(input.tagName).toBe('INPUT')
-    expect(input).toHaveAttribute('type', 'date')
+    // Day-first entry (#1191): a text field showing the format, never the browser's
+    // locale-ordered native date input.
+    expect(input).toHaveAttribute('type', 'text')
+    expect(input).toHaveAttribute('placeholder', 'dd/mm/yyyy')
     expect(input).toBeVisible()
   })
 
@@ -929,7 +932,7 @@ describe('TaskRow — inline due date commit, cancel and failure (#982)', () => 
     renderRow({ onEditDue, onOpen })
     const input = openEditor()
     await user.clear(input)
-    await user.type(input, '2026-10-05')
+    await user.type(input, '05/10/2026')
     windowKey.mockClear()
     await user.keyboard('{Enter}')
     window.removeEventListener('keydown', windowKey)
@@ -960,7 +963,7 @@ describe('TaskRow — inline due date commit, cancel and failure (#982)', () => 
       renderRow({ onEditDue })
       const input = openEditor()
       await user.clear(input)
-      await user.type(input, '2026-10-05{Enter}')
+      await user.type(input, '05/10/2026{Enter}')
       const alert = await screen.findByRole('alert')
       expect(alert).toHaveTextContent(/retry/i)
       expect(alert).toBeVisible()
@@ -1002,14 +1005,14 @@ describe('TaskRow — inline due date commit, cancel and failure (#982)', () => 
     const input = openEditor()
     expect(input).not.toHaveAttribute('aria-describedby')
     await user.clear(input)
-    await user.type(input, '2026-10-05{Enter}')
+    await user.type(input, '05/10/2026{Enter}')
     const alert = await screen.findByRole('alert')
     expect(input).toHaveAccessibleDescription(/couldn't save/i)
     expect(input).toHaveAttribute('aria-describedby', alert.id)
     const status = await screen.findByRole('status')
     await waitFor(() => expect(status).toHaveTextContent(/kept/i))
     expect(status).not.toHaveTextContent(/revert/i)
-    expect(input).toHaveValue('2026-10-05')
+    expect(input).toHaveValue('05/10/2026')
   })
 
   it('after a failed save the input still shows the typed date with focus in it, and Escape closes the editor', async () => {
@@ -1018,9 +1021,9 @@ describe('TaskRow — inline due date commit, cancel and failure (#982)', () => 
     renderRow({ onEditDue })
     const input = openEditor()
     await user.clear(input)
-    await user.type(input, '2026-10-05{Enter}')
+    await user.type(input, '05/10/2026{Enter}')
     await screen.findByRole('alert')
-    expect(input).toHaveValue('2026-10-05')
+    expect(input).toHaveValue('05/10/2026')
     expect(input).toHaveFocus()
     await user.keyboard('{Escape}')
     expect(screen.queryByLabelText('Due date')).toBeNull()

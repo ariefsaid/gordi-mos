@@ -36,7 +36,7 @@
    too makes the active wash win structurally instead of by rule ORDER (a later edit that moved
    `:hover` below this would otherwise silently flip which one painted). */
 .mention-row.is-active,
-.mention-row.is-active:hover { background: var(--accent-subtle); }
+.mention-row.is-active:hover { background: var(--accent-subtle); outline: 2px solid var(--ring); outline-offset: -2px; }
 .mention-row:disabled { opacity: 0.5; cursor: not-allowed; }
 .mention-row .nm { font-weight: 500; color: var(--foreground); }
 

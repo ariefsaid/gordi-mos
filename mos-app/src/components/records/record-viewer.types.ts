@@ -60,6 +60,8 @@ export interface RecordFieldSpec {
   onOpen?: () => void
   /** Quiet provenance line shown beneath the primary value (for example derived BU). */
   subline?: string
+  /** Decoration drawn inside the entity chip before the value (a person's avatar mark). */
+  lead?: ReactNode
 }
 
 export interface RecordMetadataSection {

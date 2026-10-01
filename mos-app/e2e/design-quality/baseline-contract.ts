@@ -4,12 +4,6 @@ export const FROZEN_MVP_CELL_IDS = [
   'cafe-log-loading-phone',
   'cafe-log-producing-compact',
   'cafe-log-success-desktop',
-  'cafe-opening-assigned-phone',
-  'cafe-opening-default-desktop',
-  'cafe-opening-default-phone',
-  'cafe-opening-failed-phone',
-  'cafe-opening-missing-compact',
-  'cafe-opening-switch-desktop',
   'cafe-plan-default-desktop',
   'cafe-plan-default-phone',
   'cafe-plan-producing-phone',
@@ -56,7 +50,7 @@ export const FROZEN_MVP_CELL_IDS = [
   'tasks-record-phone-id-dark',
 ] as const
 
-export const FROZEN_MVP_CELL_IDS_SHA256 = '5770c550451ea9233ef55d132a663960d5bdd8d58290edf00288189fe54526fc'
+export const FROZEN_MVP_CELL_IDS_SHA256 = '99f4fcee74d629fb5d2fd69f93dc86d8377004d2d6fb4cc9b722f1ca8d6329be'
 
 export const APPROVED_MVP_COMPARISONS = [
   {

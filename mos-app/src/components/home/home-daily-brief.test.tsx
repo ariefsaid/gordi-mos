@@ -141,6 +141,16 @@ describe('HomeDailyBrief', () => {
     expect(screen.queryByRole('heading', { name: 'Failed checks' })).toBeNull()
   })
 
+  it('labels the capped My work band with the rows it renders, never the full count (DD-COUNT-1)', async () => {
+    await renderBrief({
+      overdue: [], dueToday: [], blocked: [],
+      myWork: [item('a', 'Wipe the machines'), item('b', 'Restock cups')],
+      failedChecks: [], failedChecksAdmitted: false,
+      myWorkFullCount: 9,
+    })
+    expect(screen.getByRole('heading', { name: 'My open work · 2 shown' })).toBeInTheDocument()
+  })
+
   it('keeps the full My work collection door beside the wide main lane', async () => {
     await renderBrief({ myWork: [item('next', 'Confirm tomorrow\'s prep')], myWorkFullCount: 1 })
     expect(screen.getByRole('link', { name: /1 shown · 1 open/i })).toHaveAttribute(
