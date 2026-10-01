@@ -284,7 +284,7 @@ describe('TaskSurface — view mode', () => {
     expect(screen.getByRole('region', { name: 'Checklist' })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Komentar' })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Tentang' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Riwayat' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Riwayat' })).toBeNull() // no events, no History
     expect(screen.getByRole('button', { name: 'Tandai selesai' })).toBeInTheDocument()
     // The composer is one line until it is used; its action appears with it.
     fireEvent.focus(screen.getByRole('textbox', { name: 'Komentar' }))
@@ -304,7 +304,7 @@ describe('TaskSurface — view mode', () => {
       .map((node) => (node as HTMLElement).dataset.recordSection)
     expect(sections).toEqual(['description', 'checklist', 'comments'])
     expect(screen.getByRole('region', { name: 'About' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /History/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /History/ })).toBeNull() // no events, no History
   })
 
   it('AC-P3-CM-004: renders task comments in the live task surface', async () => {
@@ -733,7 +733,7 @@ describe('TaskSurface — drawer width (Variant B chrome)', () => {
     expect(screen.queryByRole('tablist')).toBeNull()
     expect(screen.getByRole('region', { name: /checklist/i })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'About' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /History/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /History/ })).toBeNull() // no events, no History
     expect(screen.getByText('Inspect coil')).toBeInTheDocument()
     expect(document.querySelector('.rp--panel[data-record-kind="task"]')).toBeTruthy()
   })

@@ -183,11 +183,11 @@ export function TaskRecordDocument({
       )}
       notice={notice}
       about={{ title: t('record.page.about'), node: <RecordAbout items={aboutItems} /> }}
-      history={{
+      history={events.length > 0 ? {
         title: t('tasks.history.title'),
-        count: events.length > 0 ? events.length : undefined,
+        count: events.length,
         node: <ActivityCard events={events} people={people} now={now} />,
-      }}
+      } : undefined}
     >
       {showDescription ? (
         // The lead prose of the record: it reads as the opening of the document, so it carries no heading.

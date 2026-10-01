@@ -60,5 +60,5 @@
 
 /* About: read-only values sit on the same line as an editable one beside them on the phone grid. */
 @media (max-width: 767.98px) {
-  .rp .rp-about__field .record-field--readonly .record-field__value { display: flex; align-items: center; min-height: 44px; }
+  .rp[data-record-kind='task'] .rp-about__field .record-field--readonly .record-field__value { display: flex; align-items: center; min-height: 44px; }
 }

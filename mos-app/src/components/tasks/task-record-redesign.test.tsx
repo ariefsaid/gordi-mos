@@ -114,7 +114,7 @@ describe('OD-REDESIGN-62 — typed Task record', () => {
     expect(screen.queryByRole('tablist')).toBeNull()
     expect(screen.getByTestId('record-details').querySelector('[data-record-section="description"]')).toHaveTextContent('Restore cooling before opening.')
     expect(screen.getByRole('region', { name: 'Checklist' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /History/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /History/ })).toBeNull() // no events, no History
     expect(screen.getByTestId('record-details').querySelector('.record-field__pill')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Edit Title' })).toBeInTheDocument()
     expect(screen.getByTestId('record-details').querySelector('[data-field-key="source"]')).toBeNull()

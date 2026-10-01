@@ -145,6 +145,20 @@ describe('Task record anatomy', () => {
     expect(container.textContent).not.toMatch(/→/)
   })
 
+  it('omits History when there are no events, and counts it when there are', () => {
+    const none = renderRecord({ events: [] }).container
+    expect(within(none).queryByRole('button', { name: /History/ })).toBeNull()
+    expect(none).not.toHaveTextContent(/History|No activity yet/)
+    const some = renderRecord({ events: [EVENT, { ...EVENT, id: 'e2' }] }).container
+    expect(within(some).getByRole('button', { name: /History/ })).toHaveTextContent('History2')
+  })
+
+  it('offers no weekly-update write or acknowledge action (this is a Task, not the upward-review pane)', () => {
+    const { container } = renderRecord()
+    expect(within(container).queryByRole('button', { name: /write update|submit update|acknowledge/i })).toBeNull()
+    expect(within(container).queryByRole('link', { name: /write update|submit update|acknowledge/i })).toBeNull()
+  })
+
   it('has one primary action at most, and it sits in the header', () => {
     const { container } = renderRecord({ checklist: [step('c1', 'Check fridge stock', true)] })
     expect(container.querySelectorAll('.btn-primary')).toHaveLength(1)

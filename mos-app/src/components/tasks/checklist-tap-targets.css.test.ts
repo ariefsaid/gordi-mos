@@ -38,3 +38,12 @@ describe('Task checklist phone target contract', () => {
     expect(mediaBody(taskCss, '@media (max-width: 767.98px)')).toMatch(/\.checklist-retry\s*\{[^}]*min-width:\s*44px[^}]*min-height:\s*44px/)
   })
 })
+
+describe('Task-only record rules stay scoped to Task records', () => {
+  it('scopes the phone About alignment to the Task record kind, so no other record is affected', () => {
+    const phone = mediaBody(taskCss, '@media (max-width: 767.98px)')
+    const selectors = phone.split('{').filter((part) => part.includes('.rp-about__field')).map((part) => (part.trim().split('\n').pop() ?? '').trim())
+    expect(selectors.length).toBeGreaterThan(0)
+    for (const selector of selectors) expect(selector).toMatch(/^\.rp\[data-record-kind='task'\]/)
+  })
+})

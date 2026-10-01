@@ -288,6 +288,14 @@ describe('RecordPageLayout record kind and history count', () => {
     expect(within(screen.getByRole('complementary')).getByRole('heading', { name: /History/ })).toHaveTextContent('History4')
   })
 
+  it('renders no History when none is given, narrow or wide', () => {
+    wrap(<RecordPageLayout label="Record" mode="page" headingLevel={1} header={<h1>Title</h1>}>x</RecordPageLayout>)
+    expect(screen.queryByRole('button', { name: /History/ })).toBeNull()
+    setWide(true)
+    wrap(<RecordPageLayout label="Other" mode="page" headingLevel={1} header={<h1>Title</h1>}>x</RecordPageLayout>)
+    expect(screen.queryByRole('heading', { name: /History/ })).toBeNull()
+  })
+
   it('leaves the kind attribute off when none is given', () => {
     wrap(<RecordPageLayout label="Record" mode="page" headingLevel={1} header={<h1>Title</h1>} history={{ title: 'History', node: null }}>x</RecordPageLayout>)
     expect(screen.getByRole('region', { name: 'Record' })).not.toHaveAttribute('data-record-kind')
