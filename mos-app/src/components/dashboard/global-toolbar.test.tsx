@@ -151,10 +151,10 @@ describe('GlobalToolbar (AC-011)', () => {
     const from = within(sheet).getByLabelText('From')
     const to = within(sheet).getByLabelText('To')
     const apply = within(sheet).getByRole('button', { name: 'Apply' })
-    // Seeded from the snapshot window and bounded to it (AC-014 grammar survives the move).
-    expect(from).toHaveAttribute('min', BOUNDS.earliest)
-    expect(to).toHaveAttribute('max', BOUNDS.latest)
-    expect(to).toHaveValue(BOUNDS.latest)
+    // Seeded from the snapshot window and bounded to it (AC-014 grammar survives the move). The
+    // bounds live INSIDE the day-first DateField now (#1191); the seed shows the unambiguous
+    // day-first display, and window-selector.test.tsx owns the refuse-outside-window behavior.
+    expect(to).toHaveValue('1 Jul 2026')
 
     // Editing is a DRAFT — the page is not re-queried on every keystroke.
     fireEvent.change(from, { target: { value: '2026-06-10' } })
@@ -212,7 +212,9 @@ describe('GlobalToolbar (AC-011)', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Range' }))
     const sheet = screen.getByRole('dialog', { name: /custom range/i })
     const from = within(sheet).getByLabelText('From')
-    expect(from).toHaveValue(shortBounds.earliest)
+    // Day-first display of the clamped seed (#1191) — the sheet focuses the From field, so the
+    // editable dd/mm/yyyy digits show rather than the formatted rest display.
+    expect(from).toHaveValue('26/06/2026')
   })
 
   it('on desktop the range pair stays inline beside the seg — no sheet, no separate row', () => {

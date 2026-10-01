@@ -17,19 +17,18 @@ import type { BusinessUnitOption, PersonOption } from '@/lib/db/directory'
 import { listComments, postComment, type CommentRow } from '@/lib/comments/postComment'
 import { listObjectives, readObjective } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
+import { hasOrgWideAuthority } from '@/lib/role-scope'
 import { listTaskDefs } from '@/lib/db/processes'
 import type { ObjectiveRow } from '@/lib/db/objectives'
 import type { WorkLineRow } from '@/lib/db/work-lines'
 import { ConfirmArchive } from './confirm-archive'
 import { loadHomeLeadId } from './default-supervisor'
-import { canEdit } from './task-permissions'
+import { picOptions } from './task-permissions'
 import { liveTasksSearch, type LiveTasksQueryRef } from './tasks-navigation'
 import { createTaskRecordAdapter, createTaskFieldCommit, type TaskTeamView, type TaskRelatedRecord, type TaskViewerFieldKey } from './task-record-adapter'
-import { RecordViewer } from '@/components/records/record-viewer'
-import type { RecordContentSlot, RecordViewerAdapter } from '@/components/records/record-viewer.types'
-import { ChecklistCard } from './checklist-card'
-import { TaskActivity } from './task-activity'
-import { AskDeputyAction } from '@/components/records/ask-deputy-action'
+import type { RecordViewerAdapter } from '@/components/records/record-viewer.types'
+import { TaskRecordDocument } from './task-record-document'
+import { RecordPageSkeleton } from '@/components/record/record-page-layout'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
 import { formatDate, formatAge, TASK_TITLE_MAX_LENGTH } from './task-formatters'
@@ -99,7 +98,7 @@ export type TaskSurfaceProps = {
   /** Bubbles RecordField draft state to a host-owned leave guard. */
   onDirtyChange?: (dirty: boolean) => void
   /** Defaults supplied by the originating record. */
-  createInitialValues?: { title?: string; businessUnitId?: string; responsiblePersonId?: string }
+  createInitialValues?: { title?: string; businessUnitId?: string; responsiblePersonId?: string; workLineId?: string }
   /** null lets the record host retain its URL and own navigation after creation. */
   createRedirect?: To | null
   /**
@@ -121,24 +120,6 @@ export type TaskSurfaceProps = {
   liveQueryRef?: LiveTasksQueryRef
 }
 
-// ── Skeleton ─────────────────────────────────────────────────────────────────
-function DetailSkeleton() {
-  const t = useT()
-  return (
-    <div aria-busy="true">
-      <span className="sr-only" role="status">{t('tasks.detail.loading')}</span>
-      <div className="card sk-block">
-        <div className="sk" style={{ width: '40%', height: 24, marginBottom: 12 }} />
-        <div className="sk" style={{ width: '60%', height: 14 }} />
-      </div>
-      <div className="card sk-block">
-        <div className="sk" style={{ width: '30%', height: 14, marginBottom: 8 }} />
-        <div className="sk" style={{ width: '80%', height: 14 }} />
-      </div>
-    </div>
-  )
-}
-
 export function TaskSurface(props: TaskSurfaceProps) {
   if (props.mode === 'create') return <CreateSurface {...props} />
   return <ViewSurface {...props} />
@@ -158,6 +139,7 @@ function ViewSurface({
   const location = useLocation()
   const auth = useAuth()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : ''
+  const viewerOrgWide = auth.status === 'authenticated' && hasOrgWideAuthority(auth.viewer.accessRoles)
   const t = useT()
   const { locale } = useI18n()
 
@@ -295,15 +277,6 @@ function ViewSurface({
   useEffect(() => {
     if (localTask && onTitleResolved) onTitleResolved(localTask.title)
   }, [localTask, onTitleResolved])
-
-  // ── Permission ───────────────────────────────────────────────────────────
-  // M2: archived task is read-only except Unarchive — treat as non-editor
-  const isArchived = localTask?.archived_at != null
-
-  const editable = useMemo(() => {
-    if (isArchived) return false // M2: archived suppresses all edit affordances
-    return localTask ? canEdit(localTask, viewerId, downlineIds) : false
-  }, [localTask, viewerId, downlineIds, isArchived])
 
   // ── Status change ────────────────────────────────────────────────────────
   // Optimistic + rollback, and — like handleUpdateField — RE-THROWS on failure so the Status
@@ -462,9 +435,8 @@ function ViewSurface({
     reportDirty()
   }, [taskId, reportDirty])
 
-  // The live Task surface uses the same RecordViewer anatomy in panel and page modes.
-  // Domain-specific work remains a typed content slot (the existing Activity/Checklist/Notes
-  // feed); identity, metadata, lifecycle, and actions are supplied by the real Task adapter.
+  // The live Task surface renders one TaskRecordDocument in panel and page modes. The Task adapter
+  // supplies every field, its edit rights and the lifecycle and archive actions.
   // The handler declarations below are intentionally omitted from this dependency list. Every
   // value captured by those handlers (task, checklist, comments, viewer, locale, and callbacks)
   // is already listed, so the adapter is rebuilt whenever any captured state changes without
@@ -475,6 +447,7 @@ function ViewSurface({
       detail: { ...data, task: localTask, checklist: localChecklist },
       viewerId,
       downlineIds,
+      orgWide: viewerOrgWide,
       people: peopleDirectory,
       businessUnits: busDirectory,
       objectives: objectivesDir,
@@ -506,10 +479,6 @@ function ViewSurface({
       },
       recordLabels: {
         typeLabel: t('tasks.label.task'),
-        ownershipSection: t('tasks.ownership'),
-        statusSection: t('tasks.statusTiming'),
-        detailsSection: t('tasks.detailsTitle'),
-        relatedSection: t('tasks.relatedTitle'),
         statusField: t('tasks.status.label'),
         statusOpen: t('tasks.status.open'),
         statusInProgress: t('tasks.status.inProgress'),
@@ -542,67 +511,12 @@ function ViewSurface({
         ? { ...action, run: () => runLifecycleAction(action.run) }
         : action
     ))
-    // Work-first Task anatomy: description and checklist lead, followed by compact Task context,
-    // discussion, then related records. Replace the adapter checklist/activity renderers with live
-    // versions while preserving that order in both the drawer and full page.
-    const checklistSlot: RecordContentSlot = {
-      id: 'checklist',
-      label: t('tasks.feed.checklist'),
-      render: () => (
-        <ChecklistCard
-          items={localChecklist}
-          canEdit={editable}
-          taskId={localTask.id}
-          viewerId={viewerId}
-          onAdd={handleAddChecklist}
-          onToggle={handleToggle}
-          onReorder={handleReorder}
-          onDelete={handleDeleteChecklist}
-          saveError={checklistError
-            ? { message: t('record.field.saveError'), onRetry: checklistError }
-            : null}
-        />
-      ),
-    }
-    const activitySlot: RecordContentSlot = {
-      id: 'activity',
-      label: t('tasks.feed.activity'),
-      render: () => (
-        <TaskActivity
-          events={data.events}
-          comments={comments}
-          people={peopleDirectory}
-          now={now}
-          editable={editable}
-          onPostComment={handlePostComment}
-          commentDraft={commentDraft}
-          onCommentDraftChange={handleCommentDraftChange}
-          onCommentDirtyChange={handleCommentDirtyChange}
-        />
-      ),
-    }
-    const contentSlots = base.contentSlots.map((slot) =>
-      slot.id === 'checklist' ? checklistSlot : slot.id === 'activity' ? activitySlot : slot,
-    )
-    return {
-      ...base,
-      actions,
-      contentSlots,
-      footerContent: (
-        <AskDeputyAction
-          variant="footer"
-          draft={t('assistant.askAbout.task', { title: localTask.title })}
-          label={t('assistant.askAbout.taskLabel')}
-          helper={t('assistant.askAbout.taskHelper')}
-        />
-      ),
-    }
+    return { ...base, actions }
   // Handler identities are intentionally excluded; their captured state is represented above.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    onOpenRelated, data, localTask, localChecklist, viewerId, downlineIds, peopleDirectory, busDirectory, commentDraft,
-    objectivesDir, linkedObjective, workLinesDir, teamDirectory, taskTeam, generatedFromLabel, comments, now, editable, t, locale,
-    checklistError,
+    onOpenRelated, data, localTask, localChecklist, viewerId, downlineIds, viewerOrgWide, peopleDirectory, busDirectory,
+    objectivesDir, linkedObjective, workLinesDir, teamDirectory, taskTeam, generatedFromLabel, now, t, locale,
   ])
 
   const commitField = createTaskFieldCommit({
@@ -722,14 +636,12 @@ function ViewSurface({
   )
 
   // ── Render ───────────────────────────────────────────────────────────────
-  if (loading) return <DetailSkeleton />
+  if (loading) return <RecordPageSkeleton label={t('tasks.detail.loading')} />
 
   // A retryable read failure must never render as "not found" — `load` re-runs the same fetch.
-  // At full width it sits in the same reading column as the loaded record (`.record-doc`),
-  // not full-bleed across the page.
   if (loadError) {
     const errorState = <ErrorState message={t('tasks.loadError')} onRetry={load} />
-    return width === 'drawer' ? errorState : <div className="record-doc">{errorState}</div>
+    return width === 'drawer' ? errorState : <div className="record-details">{errorState}</div>
   }
 
   if (notFound || !localTask) {
@@ -787,6 +699,34 @@ function ViewSurface({
     </div>
   ) : null
 
+  const recordDocument = (mode: 'panel' | 'page', headingLevel: 1 | 2) => taskViewerAdapter && (
+    <TaskRecordDocument
+      adapter={taskViewerAdapter}
+      task={task}
+      mode={mode}
+      headingLevel={headingLevel}
+      canonicalHref={canonicalHref}
+      now={now}
+      people={peopleDirectory}
+      checklist={localChecklist}
+      checklistError={checklistError}
+      onAddChecklist={handleAddChecklist}
+      onToggleChecklist={handleToggle}
+      onReorderChecklist={handleReorder}
+      onDeleteChecklist={handleDeleteChecklist}
+      events={data?.events ?? []}
+      comments={comments}
+      onPostComment={handlePostComment}
+      commentDraft={commentDraft}
+      onCommentDraftChange={handleCommentDraftChange}
+      onCommentDirtyChange={handleCommentDirtyChange}
+      notice={<>{lifecycleStatusFeedback}{archiveFeedback}</>}
+      onCommitField={commitField}
+      onDirtyChange={handleDirtyChange}
+      fieldCommitsFrozen={fieldCommitsFrozen}
+    />
+  )
+
   // Open-full-page target for the panel (drawer) utility bar. The RecordPanelHost route host may
   // not supply onOpenPage; a tenant opened from another surface (Inbox/Follow-ups via the
   // OverlayHostSlot) supplies it explicitly. In panel mode without an explicit callback we fall
@@ -801,15 +741,13 @@ function ViewSurface({
     ? onClose()
     : navigate({ pathname: '/work/tasks', search: liveTasksSearch(location.search, liveQueryRef) }))
 
-  // ── Drawer width: the shared RecordViewer owns identity, metadata, content and actions ──
+  // ── Drawer width: the record document inside the panel's own scroll region ──
   if (width === 'drawer') {
     return (
       <div className="dw-surface">
         <div className="sr-only" aria-live="polite" role="status">{liveMessage}</div>
-        {/* Utility bar — host-owned chrome around the canonical RecordViewer (NOT the old
-            TaskDrawerHeader composition: identity/status/ownership/actions live in the viewer).
-            GAP-2 (OD-91 #7): expand-in-place is retired — Open full page · Close (no width toggle).
-            Suppressed when the overlay host owns its own chrome (showPanelUtility=false). */}
+        {/* Utility bar: Open full page · Close. Suppressed when the overlay host owns its own chrome
+            (showPanelUtility=false). */}
         {showPanelUtility && (
           <div className="dw-bar">
             <span className="dw-crumb-mini">{t('tasks.label.task')}</span>
@@ -830,25 +768,9 @@ function ViewSurface({
             </button>
           </div>
         )}
-        {isArchived && (
-          <div className="archived-banner" role="status">
-            <span>{t('tasks.archivedBanner')}</span>
-          </div>
-        )}
-        {lifecycleStatusFeedback}
-        {archiveFeedback}
-
         {taskViewerAdapter && (
           <div className="record-details record-details-compact" data-testid="record-details">
-            <RecordViewer
-              adapter={taskViewerAdapter}
-              mode="panel"
-              canonicalHref={canonicalHref}
-              headingLevel={2}
-              onDirtyChange={handleDirtyChange}
-              onCommitField={commitField}
-              fieldCommitsFrozen={fieldCommitsFrozen}
-            />
+            {recordDocument('panel', 2)}
           </div>
         )}
 
@@ -862,26 +784,13 @@ function ViewSurface({
     )
   }
 
-  // ── Full width: the single-column record document (E7 canonical) ───────────
-  // Work-first anatomy: the WHOLE record renders through the ONE shared RecordViewer in a single
-  // column — description → checklist → owner/due context → discussion → related records. Every slot is ordered, so
-  // the earlier two-column split (a details adapter with contentSlots withheld, stacked above the
-  // feed rendered separately in .record-feed-col) is gone: the content now LEADS instead of the
-  // metadata region painting ahead of it. It never reintroduces a bespoke fields panel
-  // (RecordDetailsPanel is deleted and stays deleted).
+  // ── Full width: the same record document on its own page ───────────────────
   return (
     <>
       <div className="sr-only" aria-live="polite" role="status">{liveMessage}</div>
 
-      {/* Record chrome — P1-2 (Luna: record identity behind a generic page head + utility strip
-          at y≈234, vs E7's compact y≈124). ONE compact row: a Back affordance on the leading
-          edge, the record actions (Ask Deputy, collapse-to-split/close) trailing — no separate
-          page head above it (tasks-layout.tsx TaskRecordPage passes hideHead). GAP-2 (OD-91 #7):
-          expand-in-place is retired, so there is no width toggle here; the only reversal offered is
-          collapse-back-to-split (the inverse of "Open full page"). A standalone full-page route host
-          (TaskRecordPage) passes neither onClose nor onCollapseToSplit, so this row is the ONLY
-          header the record has: its leading edge is a real Back-to-collection affordance, and it
-          still carries the record-scoped Ask Deputy affordance (E7 floor F3, J05). */}
+      {/* Standalone chrome: one compact row, Back (or the host's close) with collapse-back-to-split.
+          Ask Deputy is a record menu item, not a chrome icon. */}
       {showPanelUtility && (
         <div className="dw-bar record-chrome">
           {onClose ? (
@@ -897,7 +806,6 @@ function ViewSurface({
             </Link>
           )}
           <span className="dw-bar-spacer" />
-          <AskDeputyAction draft={t('assistant.askAbout.task', { title: task.title })} />
           {/* R6(a): the inverse of "Open full page" — collapse this standalone page back to the
               split drawer over the table (the "resize back to drawer" the owner asked for), so the
               full page is never a dead end whose only exit is back to the bare table. */}
@@ -928,28 +836,9 @@ function ViewSurface({
         </div>
       )}
 
-      {/* AC-R05: archived banner + Unarchive sit above the record document */}
-      {isArchived && (
-        <div className="archived-banner" role="status">
-          <span>{t('tasks.archivedBanner')}</span>
-        </div>
-      )}
-      {lifecycleStatusFeedback}
-        {archiveFeedback}
-
       {taskViewerAdapter && (
-        <div className="record-doc">
-          <div className="record-details" data-testid="record-details">
-            <RecordViewer
-              adapter={taskViewerAdapter}
-              mode="page"
-              canonicalHref={canonicalHref}
-              headingLevel={identityHeadingLevel ?? 1}
-              onDirtyChange={handleDirtyChange}
-              onCommitField={commitField}
-              fieldCommitsFrozen={fieldCommitsFrozen}
-            />
-          </div>
+        <div className="record-details" data-testid="record-details">
+          {recordDocument('page', identityHeadingLevel ?? 1)}
         </div>
       )}
 
@@ -988,6 +877,8 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
 
   // Directory
   const [peopleDirectory, setPeopleDirectory] = useState<PersonOption[]>([])
+  const [downlineIds, setDownlineIds] = useState<string[]>([])
+  const viewerOrgWide = auth.status === 'authenticated' && hasOrgWideAuthority(auth.viewer.accessRoles)
   const [teamDirectory, setTeamDirectory] = useState<DirectoryTeamOption[]>([])
   const [dirLoading, setDirLoading] = useState(true)
   const [workLinesDir, setWorkLinesDir] = useState<WorkLineRow[]>([])
@@ -996,8 +887,11 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
   useEffect(() => {
     let live = true
     const teamsPromise = getPersonTeams(viewerId).catch(() => [])
-    Promise.all([getBusinessUnits(), getPeople(), teamsPromise]).then(([, people, teams]) => {
+    // A failed downline read fails closed: the PIC picker offers only the viewer.
+    const downlinePromise = getDownlinePersonIds(viewerId).catch(() => [])
+    Promise.all([getBusinessUnits(), getPeople(), teamsPromise, downlinePromise]).then(([, people, teams, downline]) => {
       setPeopleDirectory(people)
+      setDownlineIds(downline)
       setTeamDirectory(teams)
       setDirLoading(false)
       // Supervisor defaults to the creator's home Team lead; a choice made meanwhile wins.
@@ -1023,7 +917,15 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
   const [accountablePersonId, setAccountablePersonId] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [description, setDescription] = useState('')
-  const [workLineId, setWorkLineId] = useState('')
+  const [workLineId, setWorkLineId] = useState(createInitialValues?.workLineId ?? '')
+
+  // Same option rule as every other create path; a pre-filled PIC outside it stays shown.
+  const picPickerOptions = (() => {
+    const allowed = picOptions(viewerId, peopleDirectory, downlineIds, viewerOrgWide)
+    const prefilled = !allowed.some((p) => p.id === responsiblePersonId)
+      ? peopleDirectory.filter((p) => p.id === responsiblePersonId) : []
+    return [...prefilled, ...allowed].map((p) => ({ value: p.id, label: p.full_name }))
+  })()
 
   const selectedTeam = teamDirectory.find((team) => team.id === teamId)
   const businessUnitId = selectedTeam?.businessUnitId ?? selectedTeam?.business_unit_id ?? ''
@@ -1070,6 +972,9 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
   // ── Submit state ──────────────────────────────────────────────────────────
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
+  // Typed Due text that is not a usable date: Create refuses it rather than saving a blank or old date.
+  const [dueInvalid, setDueInvalid] = useState(false)
+  const [dueRevealed, setDueRevealed] = useState(false)
   const formRef = useFocusRestore<HTMLFormElement>(submitting, !!submitError)
 
   async function handleSubmit(e: React.FormEvent) {
@@ -1093,6 +998,11 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
       valid = false
     } else {
       setSupervisorError('')
+    }
+    if (dueInvalid) {
+      setDueRevealed(true)
+      document.getElementById('task-due')?.focus()
+      valid = false
     }
     if (!valid) return
 
@@ -1322,7 +1232,7 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
               fullWidth
               hideLabel
               value={responsiblePersonId}
-              options={peopleDirectory.map(p => ({ value: p.id, label: p.full_name }))}
+              options={picPickerOptions}
               onChange={value => { setResponsiblePersonId(value); markDirty() }}
               disabled={submitting}
               required
@@ -1384,6 +1294,8 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
             fullWidth
             value={dueDate}
             onChange={(v) => { setDueDate(v); markDirty() }}
+            onValidityChange={setDueInvalid}
+            reveal={dueRevealed}
             disabled={submitting}
             aria-label={t('tasks.create.dueDate')}
           />

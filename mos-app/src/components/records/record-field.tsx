@@ -94,6 +94,10 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
   const [saved, setSaved] = useState<RecordValue>(spec.value)
   const [draft, setDraft] = useState<string>(toInputValue(spec.value))
   const [status, setStatus] = useState<SaveStatus>('idle')
+  // A date control whose typed text is not a usable date: nothing is committed, the field stays
+  // open on the error, and the host's leave-guard still counts the unsaved text as dirty.
+  const [dateInvalid, setDateInvalid] = useState(false)
+  const [dateRevealed, setDateRevealed] = useState(false)
   // Value-first: a field starts in VALUE mode and swaps to EDIT mode on activation.
   const [editing, setEditing] = useState(false)
   const savedRef = useRef<RecordValue>(spec.value)
@@ -147,6 +151,10 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
   }
 
   async function commit(next: RecordValue, viaKeyboard = false) {
+    if (spec.control === 'date' && dateInvalid) {
+      setDateRevealed(true)
+      return
+    }
     if (next === saved) {
       setStatus('idle')
       returnFocusRef.current = viaKeyboard
@@ -175,6 +183,8 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
   function cancel() {
     setDraft(toInputValue(saved))
     setStatus('idle')
+    setDateInvalid(false)
+    setDateRevealed(false)
     onDirtyChange?.(false)
     // Escape returns to the value rendering; focus goes back to the value control.
     returnFocusRef.current = true
@@ -377,11 +387,8 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
             }}
           />
         ) : spec.control === 'date' ? (
-          // F2 fix: a bare native <input type="date"> shows the browser's own locale text
-          // ("08/07/2026" — ambiguous) and calendar-icon chrome, clashing with every other
-          // token-styled control in the document. DateField keeps the SAME real native date
-          // input underneath (still the picking mechanism the ref/keyboard/blur handlers below
-          // all act on) but shows an unambiguous "22 Jul 2026" display in front of it.
+          // DateField takes typed day-first dates (never the browser's locale order) and only
+          // reports a real date; `dateInvalid` above stops an unfinished value being committed.
           <DateField
             id={controlId}
             ref={attachFieldEscapeIsolation}
@@ -391,9 +398,14 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
             disabled={busy}
             aria-busy={busy || undefined}
             aria-required={spec.required || undefined}
+            reveal={dateRevealed}
             onChange={(next) => {
               setDraft(next)
               reportDirty(next)
+            }}
+            onValidityChange={(invalid) => {
+              setDateInvalid(invalid)
+              if (invalid) onDirtyChange?.(true)
             }}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
@@ -479,12 +491,12 @@ function renderValueNode(spec: RecordFieldSpec): ReactNode {
       <span className="record-field__pill" data-status={typeof spec.value === 'string' ? spec.value : spec.displayValue}>
         <span className="record-field__pill-dot" aria-hidden="true" />
         {spec.displayValue}
-        <span aria-hidden="true" className="record-field__pill-caret" />
+        {spec.editable ? <span aria-hidden="true" className="record-field__pill-caret" /> : null}
       </span>
     ), empty)
   }
   if (CHIP_CONTROLS.has(spec.control) && !empty) {
-    return wrapValue(spec, <span className="record-field__chip">{spec.displayValue}</span>, empty)
+    return wrapValue(spec, <span className="record-field__chip">{spec.lead}{spec.displayValue}</span>, empty)
   }
   if (spec.control === 'date' && !empty) {
     return wrapValue(spec, <span className="record-field__inline-pill">{spec.displayValue}</span>, empty)

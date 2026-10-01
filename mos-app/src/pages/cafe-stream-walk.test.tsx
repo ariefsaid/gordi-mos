@@ -103,15 +103,16 @@ beforeEach(() => {
 })
 
 describe('issue 440: the Café stream survives the walk between surfaces', () => {
-  it('switching on Stock decides which books Plan opens on', async () => {
+  it('OD-CAFE-6 rung 3: with no home stream, a switch on Stock decides which books Plan opens on', async () => {
+    vi.mocked(fetchDefaultStream).mockResolvedValue(null)
     const stock = render(<KitchenStockPage />, { wrapper })
+    await screen.findByRole('button', { name: /rumah rames · kitchen/i })
+    // No default: the one-click choice is offered instead of a heading.
+    fireEvent.click(screen.getByRole('button', { name: /rumah rames · kitchen/i }))
     await waitFor(() => expect(fetchKitchenStock).toHaveBeenCalled())
-    expect(vi.mocked(fetchKitchenStock).mock.calls[0][1]).toEqual(OWN_STREAM)
-
-    // #781: the head STATES the resolved stream and offers a quiet "Switch" beside it.
-    fireEvent.click(screen.getByRole('button', { name: /^switch$/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /^change stream$/i }))
     fireEvent.click(screen.getByRole('option', { name: 'Rumah Rames · Bar' }))
-    await waitFor(() => expect(fetchKitchenStock).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(vi.mocked(fetchKitchenStock).mock.lastCall?.[1]).toEqual(OWN_STREAM_BAR))
     stock.unmount() // …and walks to Plan
 
     render(<KitchenPlanPage />, { wrapper })
@@ -119,6 +120,22 @@ describe('issue 440: the Café stream survives the walk between surfaces', () =>
     expect(vi.mocked(listKitchenPlans).mock.calls[0][1]).toEqual(OWN_STREAM_BAR)
     // …and Plan SAYS so, rather than showing another stream's numbers under no name at all.
     expect(await screen.findByTestId('cafe-stream')).toHaveTextContent('Rumah Rames · Bar')
+  })
+
+  it('OD-CAFE-6 rung 1: with a home stream, a switch on Stock does not move where Plan opens', async () => {
+    const stock = render(<KitchenStockPage />, { wrapper })
+    await waitFor(() => expect(fetchKitchenStock).toHaveBeenCalled())
+    expect(vi.mocked(fetchKitchenStock).mock.calls[0][1]).toEqual(OWN_STREAM)
+
+    fireEvent.click(screen.getByRole('button', { name: /^change stream$/i }))
+    fireEvent.click(screen.getByRole('option', { name: 'Rumah Rames · Bar' }))
+    await waitFor(() => expect(fetchKitchenStock).toHaveBeenCalledTimes(2))
+    stock.unmount()
+
+    render(<KitchenPlanPage />, { wrapper })
+    await waitFor(() => expect(listKitchenPlans).toHaveBeenCalled())
+    expect(vi.mocked(listKitchenPlans).mock.calls[0][1]).toEqual(OWN_STREAM)
+    expect(await screen.findByTestId('cafe-stream')).toHaveTextContent('Rumah Rames · Kitchen')
   })
 
   it('with nothing chosen, every surface opens on the person\'s OWN stream', async () => {
@@ -136,7 +153,9 @@ describe('issue 440: the Café stream survives the walk between surfaces', () =>
     // AC-024's read-only face. It used to resolve `defaultStreamFrom` — the catalog default —
     // so a Radiant barista read Gordi HQ's plan and had nothing on screen to tell them.
     // Remembered AT Radiant — OD-CAFE-1 keys the slot by location, and a member standing at
-    // Radiant is exactly who this read-only face is for.
+    // Radiant is exactly who this read-only face is for. No home stream, so the ladder reaches
+    // the remembered rung (OD-CAFE-6).
+    vi.mocked(fetchDefaultStream).mockResolvedValue(null)
     rememberStream(RADIANT_BAR, 'p-1', BRANCH_RAD.id)
     rememberCafeLocation('p-1', { branchId: BRANCH_RAD.id, branchName: BRANCH_RAD.name })
     vi.mocked(useAuth).mockReturnValue(viewer(['member']))

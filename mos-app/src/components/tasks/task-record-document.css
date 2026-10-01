@@ -1,0 +1,74 @@
+/* Task record page: what is specific to a Task on top of the shared record layer
+   (components/record/record-page.css). Tokens only; layout and rhythm. */
+
+/* Status reads as a pill in the facts line; its field label is spoken, not drawn. */
+.rp .rp-facts [data-field-key='status'] .record-field__label {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);
+}
+
+/* Description: prose at a reading measure, label spoken. */
+.task-description .record-field { display: block; }
+.rp .task-description .record-field__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.rp .task-description .record-field__edit { width: 100%; margin: 0; padding: 4px 0; justify-content: flex-start; text-align: left; }
+/* min-height:0 is the desktop fine-pointer density (record-viewer.css tiers the same way); the
+   phone resting activation target keeps the record layer's 44px floor (GUARD-TAP #667). */
+@media (pointer: fine) and (min-width: 768px) {
+  .rp .task-description .record-field__edit { min-height: 0; }
+}
+.rp .task-description .record-field__value { max-width: 65ch; padding: 0; min-height: 0; font-size: var(--font-size-body); line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+.rp .task-description [data-empty='true'] .record-field__value { color: var(--muted-foreground); }
+.rp .task-description .record-field__control--textarea { max-width: 65ch; }
+
+/* Checklist: a step is a checkbox, its words and one row menu. */
+.checklist-list { list-style: none; padding: 0; margin: 0; }
+.checklist-item {
+  display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 4px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+.checklist-checkbox { width: 16px; height: 16px; flex: none; cursor: pointer; accent-color: var(--primary); }
+.checklist-label { flex: 1; min-width: 0; cursor: pointer; font-size: var(--font-size-body-lg); overflow-wrap: anywhere; }
+.checklist-done { color: var(--muted-foreground); text-decoration: line-through; }
+.checklist-item .rp-icon-btn { flex: none; border-color: transparent; background: transparent; }
+.checklist-item .rp-icon-btn:hover { background: var(--surface-tertiary); }
+.checklist-add-input {
+  width: 100%; padding: 12px 0; border: 0; outline: none; background: transparent;
+  font: inherit; font-size: var(--font-size-body-lg); color: var(--foreground);
+}
+.checklist-list:empty + .checklist-add-input { padding-top: 0; }
+.checklist-add-input::placeholder { color: var(--muted-foreground); }
+.checklist-add-input:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: var(--radius-sm); }
+.checklist-save-error {
+  display: flex; align-items: center; gap: 8px; margin: 8px 0 0;
+  font-size: var(--font-size-label); color: var(--field-error-text);
+}
+.checklist-retry {
+  min-height: 24px; padding: 2px 8px; border: 1px solid var(--destructive); border-radius: var(--radius-sm);
+  background: transparent; color: var(--destructive); font-size: var(--font-size-label); font-weight: 600; cursor: pointer;
+}
+@media (max-width: 767.98px) {
+  .checklist-label { position: relative; }
+  .checklist-label::before {
+    content: ''; position: absolute; left: -28px; top: 50%; width: 44px; height: 44px;
+    transform: translateY(-50%);
+  }
+  .checklist-retry { min-width: 44px; min-height: 44px; }
+}
+
+/* Comments: author over body at reading size; the composer is one line until it is used. */
+.comment-thread--record .thread { margin-bottom: 12px; }
+.comment-thread--record .event-entry { padding: 12px 0; }
+.comment-thread--record .event-body { display: flex; flex-direction: column; gap: 2px; }
+.comment-thread--record .event-who { margin: 0; font-size: var(--font-size-body); }
+.comment-thread--record .event-label { margin: 0; max-width: 65ch; font-size: var(--font-size-body); color: var(--foreground); white-space: pre-wrap; overflow-wrap: anywhere; }
+.comment-thread--record .comment-composer { margin-top: 0; }
+.comment-composer--collapsed .comment-composer__input { min-height: 44px; resize: none; }
+.comment-thread--record .comment-composer__input { min-height: 44px; }
+
+/* History: the event log inside its disclosure or aside block. */
+.activity-log .event-entry { padding: 8px 0; }
+.activity-log .event-label { font-size: var(--font-size-label); }
+
+/* About: read-only values sit on the same line as an editable one beside them on the phone grid. */
+@media (max-width: 767.98px) {
+  .rp[data-record-kind='task'] .rp-about__field .record-field--readonly .record-field__value { display: flex; align-items: center; min-height: 44px; }
+}

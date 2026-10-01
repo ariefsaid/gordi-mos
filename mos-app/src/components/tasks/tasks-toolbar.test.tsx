@@ -31,6 +31,7 @@ function makeProps(overrides: Partial<TasksToolbarProps> = {}): TasksToolbarProp
     onClearOverdue: vi.fn(),
     onClearFilters: vi.fn(),
     activeQuery: { summary: 'All', hasActiveFilters: false },
+    viewerOrgWide: true,
     buOptions: [{ id: 'bu-1', name: 'Café' }],
     personOptions: [{ id: 'person-1', full_name: 'Raka' }],
     savedViews: undefined,
@@ -74,6 +75,16 @@ describe('TasksToolbar — OD-WAY-89 collection grammar', () => {
     renderToolbar(makeProps(), 'id')
     expect(screen.getByRole('button', { name: 'Pekerjaan tim' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Team work' })).toBeNull()
+  })
+
+  // OD-TASK-3 (#1200): the same `view=all` state is NAMED by the viewer's authority — the chip
+  // reads "Relevant" for a non-org-wide viewer and "All" only for an org-wide one (admin).
+  it('OD-TASK-3: the All view chip reads Relevant for a non-org-wide viewer and All for an org-wide one', () => {
+    renderToolbar(makeProps({ viewerOrgWide: false }))
+    expect(screen.getByRole('button', { name: 'Relevant' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'All' })).toBeNull()
+    renderToolbar(makeProps({ viewerOrgWide: true }))
+    expect(screen.getByRole('button', { name: 'All' })).toBeInTheDocument()
   })
 
   // Superseded by owner direction: the exposed two-row desktop prescription was explicitly opened

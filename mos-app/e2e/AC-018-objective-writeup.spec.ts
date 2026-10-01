@@ -52,10 +52,14 @@ test.afterAll(async () => { if (ownsObjective) await execSql(`DELETE FROM mos.ob
 test.describe('AC-018: Objective write-up editor', () => {
   test.skip(isShipGated('/work/objectives'), 'ship-gated surface — no route')
 
-  test('admin writes a heading and a paragraph, saves, reloads, and reads them back; the editor loads only with its tab', async ({ page }) => {
+  test('admin writes a heading and a paragraph, saves, reloads, and reads them back; the editor loads only when the write-up opens', async ({ page }) => {
     const editorRequests: string[] = []
     page.on('request', (request) => {
       if (/vendor-editor|objective-writeup-editor/.test(request.url())) editorRequests.push(request.url())
+    })
+    const writeUpSaves: string[] = []
+    page.on('request', (request) => {
+      if (request.method() === 'PATCH' && /objectives/.test(request.url()) && /write_up/.test(request.postData() ?? '')) writeUpSaves.push(request.url())
     })
     await loginAs(page, ADMIN.email, ADMIN.password)
 
@@ -64,10 +68,11 @@ test.describe('AC-018: Objective write-up editor', () => {
     expect(editorRequests).toEqual([])
 
     await page.goto(`work/objectives/${OBJ}`)
-    await expect(page.getByRole('tab', { name: 'Write-up' })).toBeVisible({ timeout: 10_000 })
+    const openPrompt = page.getByRole('button', { name: 'Write why this Objective matters' })
+    await expect(openPrompt).toBeVisible({ timeout: 10_000 })
     await page.waitForLoadState('networkidle')
     expect(editorRequests).toEqual([])
-    await page.getByRole('tab', { name: 'Write-up' }).click()
+    await openPrompt.click()
     const editor = page.getByRole('textbox', { name: 'Objective write-up' })
     await expect(editor).toBeVisible({ timeout: 15_000 })
     expect(editorRequests.length).toBeGreaterThan(0)
@@ -78,9 +83,13 @@ test.describe('AC-018: Objective write-up editor', () => {
     await page.keyboard.type('We open two new sites.')
     await page.getByRole('button', { name: 'Save' }).click()
     await expect(page.getByRole('status').filter({ hasText: 'Saved' })).toBeVisible()
+    // Typing saved nothing on its own: one deliberate Save, one request.
+    await page.waitForTimeout(3500)
+    expect(writeUpSaves).toHaveLength(1)
 
     await page.reload()
-    await page.getByRole('tab', { name: 'Write-up' }).click()
+    await expect(page.getByText('We open two new sites.')).toBeVisible({ timeout: 15_000 })
+    await page.getByRole('button', { name: 'Edit write-up' }).click()
     await expect(page.getByRole('heading', { name: 'Why this matters' })).toBeVisible({ timeout: 15_000 })
     await expect(page.getByText('We open two new sites.')).toBeVisible()
   })

@@ -18,7 +18,7 @@ import { listStreamPairs } from '@/lib/db/kitchen-logs'
 import { listCafeViewerTeams } from '@/lib/db/cafe-opening'
 import { useAuth } from '@/auth/use-auth'
 import { rememberStream, rememberedStreamKey } from '@/lib/cafe-stream'
-import { rememberCafeLocation, resetCafeLocations } from '@/lib/cafe-opening-location'
+import { activeCafeLocation, rememberCafeLocation, resetCafeLocations } from '@/lib/cafe-opening-location'
 import { streamKey } from '@/lib/kitchen-action-label'
 import { useCafeStream } from './use-cafe-stream'
 
@@ -111,7 +111,7 @@ describe('useCafeStream — the shared Café bootstrap', () => {
   // SECONDARY current membership from becoming the DEFAULT (`homeStream`/`stream`); it says
   // nothing about display, so every stream Team the person currently belongs to — not only the
   // one that resolved to a default — must be findable for the "Your Team" tag.
-  it('myStreamKeys: a Krishna-like person (home = office Team, current member of a stream Team too)', async () => {
+  it('myStreamKeys: a person whose home is an office Team and who is a current member of one stream Team', async () => {
     vi.mocked(useAuth).mockReturnValue({
       status: 'authenticated',
       viewer: { person: { id: 'p-krishna' } },
@@ -133,9 +133,10 @@ describe('useCafeStream — the shared Café bootstrap', () => {
     const resolved = await act(async () => result.current.resolve())
 
     expect(listCafeViewerTeams).toHaveBeenCalledWith('p-krishna')
-    // Nothing preselected — the office Team is not a stream, so there is still no default.
-    expect(resolved.stream).toBeNull()
+    // The office Team is not a stream, so there is no HOME stream — but OD-CAFE-6 makes the only
+    // Café stream Team the default.
     expect(resolved.homeStream).toBeNull()
+    expect(resolved.stream).toEqual({ branch: BRANCH_RR, activity: 'kitchen', produces: true })
     // ...but the CURRENT (secondary) stream membership is findable for "Your Team" tagging,
     // independent of the (missing) default.
     expect(resolved.myStreamKeys.has(streamKey(BRANCH_RR.id, 'kitchen'))).toBe(true)
@@ -143,30 +144,77 @@ describe('useCafeStream — the shared Café bootstrap', () => {
     expect(resolved.myStreamKeys.size).toBe(1)
   })
 
-  // #1142: Plan's sole-team fallback is inferred, not chosen — it must not seed the shared session
-  // slot, or Log and Stock would open on a secondary membership (home-Team-only default).
-  it('issue 1142: Plan opening on the only Café team leaves Log and Stock without a default', async () => {
-    vi.mocked(useAuth).mockReturnValue({
-      status: 'authenticated',
-      viewer: { person: { id: 'p-lead' } },
-    } as ReturnType<typeof useAuth>)
-    vi.mocked(fetchDefaultStream).mockResolvedValue(null)
-    vi.mocked(listCafeViewerTeams).mockResolvedValue([{
-      id: 'team-rr-kitchen', name: 'Rumah Rames Kitchen', business_unit_id: 'bu-1', site_id: null,
-      is_primary: false, branch_id: BRANCH_RR.id, activity: 'kitchen', effective_to: null,
-    }])
+  // OD-CAFE-6: every caller of resolve() gets the same ladder — home Team stream, else the
+  // person's ONLY Café stream Team, else the stream used last, else ask (null).
+  describe('OD-CAFE-6 ladder', () => {
+    const RR_KITCHEN = { branch: BRANCH_RR, activity: 'kitchen' as const, produces: true }
+    const RR_BAR = { branch: BRANCH_RR, activity: 'bar' as const, produces: true }
+    const team = (branchId: string | null, activity: 'kitchen' | 'bar' | null, primary = false) => ({
+      id: `team-${branchId}-${activity}`, name: 'T', business_unit_id: 'bu-1', site_id: null,
+      is_primary: primary, branch_id: branchId, activity, effective_to: null,
+    })
+    const asPerson = (teams: ReturnType<typeof team>[], home: typeof RR_KITCHEN | null) => {
+      vi.mocked(useAuth).mockReturnValue({
+        status: 'authenticated', viewer: { person: { id: 'p-1' } },
+      } as ReturnType<typeof useAuth>)
+      vi.mocked(fetchDefaultStream).mockResolvedValue(home)
+      vi.mocked(listCafeViewerTeams).mockResolvedValue(teams)
+      rememberCafeLocation('p-1', { branchId: BRANCH_RR.id, branchName: BRANCH_RR.name })
+    }
+    const resolveFresh = async () => {
+      const hook = renderHook(() => useCafeStream())
+      return act(async () => hook.result.current.resolve())
+    }
 
-    // The Café root has recorded the working location, so Log and Stock read that location's slot.
-    rememberCafeLocation('p-lead', { branchId: BRANCH_RR.id, branchName: BRANCH_RR.name })
+    it('1. a home Team stream wins over the only team and over a stream used last', async () => {
+      asPerson([team(BRANCH_RR.id, 'kitchen', true)], RR_KITCHEN)
+      rememberStream(RR_BAR, 'p-1', BRANCH_RR.id)
+      expect((await resolveFresh()).stream).toEqual(RR_KITCHEN)
+    })
 
-    const plan = renderHook(() => useCafeStream())
-    const onPlan = await act(async () => plan.result.current.resolve({ soleTeamDefault: true }))
-    expect(onPlan.stream).toEqual({ branch: BRANCH_RR, activity: 'kitchen', produces: true })
+    it('2. no home stream: the only Café stream Team wins over a stream used last', async () => {
+      asPerson([team(null, null, true), team(BRANCH_RR.id, 'kitchen')], null)
+      rememberStream(RR_BAR, 'p-1', BRANCH_RR.id)
+      expect((await resolveFresh()).stream).toEqual(RR_KITCHEN)
+    })
 
-    // Log / Stock resolve without the flag, in a fresh mount, as when the person walks there.
-    const other = renderHook(() => useCafeStream())
-    const onLog = await act(async () => other.result.current.resolve())
-    expect(onLog.stream).toBeNull()
+    it('2b. the inferred only-team default is never recorded: only a choice seeds the slot', async () => {
+      asPerson([team(BRANCH_RR.id, 'kitchen')], null)
+      await resolveFresh()
+      expect(rememberedStreamKey('p-1', BRANCH_RR.id)).toBeNull()
+    })
+
+    it('3. several Café Teams, no home stream: the stream used last', async () => {
+      asPerson([team(BRANCH_RR.id, 'kitchen'), team(BRANCH_RR.id, 'bar')], null)
+      rememberStream(RR_BAR, 'p-1', BRANCH_RR.id)
+      expect((await resolveFresh()).stream).toEqual(RR_BAR)
+    })
+
+    it('location rung: no home stream, two Teams in ONE branch → the picker is bounded to that branch', async () => {
+      asPerson([team(BRANCH_RR.id, 'kitchen'), team(BRANCH_RR.id, 'bar')], null)
+      rememberCafeLocation('p-1', null)
+      const resolved = await resolveFresh()
+      expect(resolved.branchId).toBe(BRANCH_RR.id)
+      expect(resolved.locationOptions.every(option => option.branch.id === BRANCH_RR.id)).toBe(true)
+    })
+
+    it('a choice in another branch commits that location', async () => {
+      asPerson([team(BRANCH_RR.id, 'kitchen', true)], RR_KITCHEN)
+      const hook = renderHook(() => useCafeStream())
+      const resolved = await act(async () => hook.result.current.resolve())
+      act(() => hook.result.current.adopt(resolved))
+
+      act(() => hook.result.current.setStream(RADIANT_BAR))
+
+      expect(activeCafeLocation('p-1')?.branchId).toBe(BRANCH_RAD.id)
+      expect(hook.result.current.branchId).toBe(BRANCH_RAD.id)
+      expect(hook.result.current.locationOptions.every(option => option.branch.id === BRANCH_RAD.id)).toBe(true)
+    })
+
+    it('4. several Café Teams, no home stream, nothing used yet: ask', async () => {
+      asPerson([team(BRANCH_RR.id, 'kitchen'), team(BRANCH_RR.id, 'bar')], null)
+      expect((await resolveFresh()).stream).toBeNull()
+    })
   })
 
   it('a failed Team-membership read drops the "Your Team" tags, never the surface', async () => {

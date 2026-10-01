@@ -1,6 +1,7 @@
 import { afterEach, describe, it, expect, vi, beforeEach } from 'vitest'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, RouterProvider, createMemoryRouter } from 'react-router-dom'
+import { OverlayHostProvider } from '@/shell/overlay-host'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import type { AuthState } from '@/auth/context'
@@ -19,6 +20,10 @@ vi.mock('@/lib/db/work-authority', () => ({
   getWorkWriteScopes: vi.fn(),
 }))
 vi.mock('@/auth/use-auth', () => ({ useAuth: vi.fn() }))
+vi.mock('@/components/catalog/catalog-record-document', () => ({
+  CatalogRecordDocument: ({ id }: { id: string }) => <p>record body {id}</p>,
+}))
+vi.mock('@/components/tasks/task-drawer', () => ({ TaskOverlayContent: () => null }))
 
 import { listWorkLinesAll, createWorkLine } from '@/lib/db/work-lines'
 import { listObjectivesAll } from '@/lib/db/objectives'
@@ -354,5 +359,31 @@ describe('page help defines the domain terms', () => {
     expect(panel).toHaveTextContent('Proyek dan Proses adalah kerja yang mendorong Tujuan Anda.')
     expect(panel).toHaveTextContent('Responsible adalah satu orang yang mengerjakan')
     expect(panel).toHaveTextContent('Business Unit adalah tim tempat pekerjaan ini berada')
+  })
+})
+
+describe('one primary per screen beside an open record panel', () => {
+  function renderWithHost(entry: string) {
+    const router = createMemoryRouter(
+      [{ path: '*', element: <I18nProvider><OverlayHostProvider><ProjectsProcessesPage /></OverlayHostProvider></I18nProvider> }],
+      { initialEntries: [entry] },
+    )
+    return { router, ...render(<RouterProvider router={router} />) }
+  }
+
+  it('keeps the page-head Create button primary with no record open', async () => {
+    renderWithHost('/')
+    expect(await screen.findByRole('button', { name: 'Create project or process' })).toHaveClass('btn-primary')
+  })
+
+  it('steps the page-head Create button down to outline while a record panel is open, and restores it on close', async () => {
+    renderWithHost('/?record=wl-1&recordType=work-line')
+    await screen.findByText('record body wl-1')
+    const create = screen.getByRole('button', { name: 'Create project or process' })
+    expect(create).toHaveClass('btn-outline')
+    expect(create).not.toHaveClass('btn-primary')
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    await waitFor(() => expect(screen.queryByText('record body wl-1')).toBeNull())
+    expect(screen.getByRole('button', { name: 'Create project or process' })).toHaveClass('btn-primary')
   })
 })

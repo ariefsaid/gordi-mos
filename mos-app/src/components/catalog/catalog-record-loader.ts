@@ -21,13 +21,14 @@ type SchemaClient = ReturnType<typeof mos>
 const WORK_LINE_COLUMNS =
   'id,name,type,objective_id,business_unit_id,accountable_person_id,responsible_person_id,archived_at'
 const TASK_COLUMNS =
-  'id,title,status,last_activity_at,archived_at,objective_id,work_line_id,responsible_person_id,accountable_person_id,business_unit_id'
+  'id,title,status,due_date,last_activity_at,archived_at,objective_id,work_line_id,responsible_person_id,accountable_person_id,business_unit_id'
 
 type RelatedWorkLine = Pick<WorkLineAdminRow, 'id' | 'name' | 'type' | 'objective_id' | 'archived_at' | 'business_unit_id' | 'accountable_person_id' | 'responsible_person_id'>
 type RelatedTask = {
   id: string
   title: string
   status: string
+  due_date: string | null
   last_activity_at: string
   archived_at: string | null
   objective_id: string | null
@@ -43,7 +44,17 @@ type DefinitionTeamBinding = {
   supervisor_team_id: string | null
 }
 
-export interface CatalogRecordData {
+/** A Project/Process an Objective record lists: what its row needs beyond the relation group. */
+export type CatalogWorkLineFact = {
+  id: string
+  name: string
+  type: 'project' | 'process'
+  objectiveId: string | null
+  businessUnitId: string | null
+  responsiblePersonId: string | null
+}
+
+export type CatalogRecordData = {
   row: CatalogRow
   context: CatalogCollectionContext
   process: ProcessRecordData | null
@@ -51,9 +62,11 @@ export interface CatalogRecordData {
   roleNamesById: ReadonlyMap<string, string>
   /** `${definitionId}:pic|supervisor` -> authoritative Team name, or null when unbound. */
   owningTeams: ReadonlyMap<string, string | null>
+  /** The Objective's Projects/Processes by id (empty on a Project/Process record). */
+  workLinesById: ReadonlyMap<string, CatalogWorkLineFact>
 }
 
-export interface CatalogRecordEditDirectory {
+export type CatalogRecordEditDirectory = {
   businessUnitsById: ReadonlyMap<string, string>
   peopleById: ReadonlyMap<string, string>
   objectiveOptions: readonly { value: string; label: string }[]
@@ -99,6 +112,8 @@ function relationTask(task: RelatedTask): CatalogRelationTask {
     title: task.title,
     status: task.status as CatalogRelationTask['status'],
     lastActivityAt: task.last_activity_at,
+    dueDate: task.due_date ?? null,
+    picPersonId: task.responsible_person_id ?? null,
   }
 }
 
@@ -341,9 +356,12 @@ export async function loadCatalogRecordData(
   ])
 
   const sourceRow = objectiveSource ? rowForObjective(objectiveSource) : rowForWorkLine(workLineSource!)
-  const personIds = kind === 'objective'
-    ? unique([objectiveSource!.accountable_person_id])
-    : unique([workLineSource!.accountable_person_id, workLineSource!.responsible_person_id])
+  const personIds = unique([
+    ...(kind === 'objective'
+      ? [objectiveSource!.accountable_person_id, ...related.workLines.map((workLine) => workLine.responsible_person_id)]
+      : [workLineSource!.accountable_person_id, workLineSource!.responsible_person_id]),
+    ...related.tasks.map((task) => task.responsible_person_id),
+  ])
   const processPersonIds = process?.steps.flatMap((step) => [step.pic_person_id, step.supervisor_person_id]) ?? []
   const processRoleIds = process?.steps.flatMap((step) => [step.pic_role_id, step.supervisor_role_id]) ?? []
   const definitionTeamIds = unique(definitionTeamBindings.flatMap((binding) => [binding.pic_team_id, binding.supervisor_team_id]))
@@ -411,5 +429,13 @@ export async function loadCatalogRecordData(
     peopleById: directory.peopleById,
     roleNamesById: directory.roleNamesById,
     owningTeams,
+    workLinesById: new Map(related.workLines.map((workLine) => [workLine.id, {
+      id: workLine.id,
+      name: workLine.name,
+      type: workLine.type,
+      objectiveId: workLine.objective_id ?? null,
+      businessUnitId: workLine.business_unit_id ?? null,
+      responsiblePersonId: workLine.responsible_person_id ?? null,
+    }])),
   }
 }

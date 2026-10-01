@@ -23,8 +23,10 @@ test('OD-WAY-94: the PIC may complete but cannot archive, even when also Supervi
   await page.goto(`work/tasks/${TASKS.VIEWER_ACCOUNTABLE.id}`)
   const record = page.getByRole('region', { name: TASKS.VIEWER_ACCOUNTABLE.title, exact: true })
   await expect(record.getByRole('button', { name: 'Mark complete', exact: true })).toBeVisible()
-  await expect(record.getByRole('button', { name: 'More actions', exact: true })).toHaveCount(0)
-  await expect(record.getByRole('menuitem', { name: /archive task/i })).toHaveCount(0)
+  // The ⋯ menu carries Copy link for everyone; Archive is the item only an archiving role is given.
+  await record.getByRole('button', { name: 'More actions', exact: true }).click()
+  await expect(page.getByRole('menuitem', { name: 'Copy link', exact: true })).toBeVisible()
+  await expect(page.getByRole('menuitem', { name: /archive task/i })).toHaveCount(0)
 })
 
 test('AC-091: archive task from detail → leaves default list → reappears under archived filter', async ({ page }) => {
@@ -86,11 +88,14 @@ test('AC-091: archive task from detail → leaves default list → reappears und
   const drawer = page.getByRole('complementary', { name: /task detail/i })
   // Detail shows archived banner
   await expect(drawer.getByText(/this task is archived/i)).toBeVisible()
-  // The same authorized manager can restore the task from overflow.
+  // The same authorized manager can restore the task from overflow. RecordMenu portals the open
+  // menu to document.body (record-menu.tsx), so its menuitems are NOT drawer descendants — query
+  // the page-level menu by its own accessible name.
   await drawer.getByRole('button', { name: 'More actions', exact: true }).click()
-  await expect(drawer.getByRole('menuitem', { name: /unarchive/i })).toBeVisible()
+  const recordMenu = page.getByRole('menu', { name: 'More actions', exact: true })
+  await expect(recordMenu.getByRole('menuitem', { name: /unarchive/i })).toBeVisible()
   // OD-REDESIGN-84 disclosure + archive journey ruling: restore the fixture for later specs.
-  await drawer.getByRole('menuitem', { name: /unarchive/i }).click()
+  await recordMenu.getByRole('menuitem', { name: /unarchive/i }).click()
   await expect(drawer.getByText(/this task is archived/i)).toHaveCount(0)
   await page.goto('work/tasks')
   await selectTaskView(page, 'All')

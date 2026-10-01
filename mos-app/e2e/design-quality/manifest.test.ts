@@ -131,7 +131,7 @@ test('the MVP cell and approved comparison populations are frozen', () => {
   const ids = DESIGN_QUALITY_MANIFEST.cells.map((cell) => cell.id).sort()
   const digest = createHash('sha256').update(`${ids.join('\n')}\n`).digest('hex')
 
-  assert.equal(ids.length, 55)
+  assert.equal(ids.length, 49)
   assert.deepEqual(ids, [...FROZEN_MVP_CELL_IDS])
   assert.equal(digest, FROZEN_MVP_CELL_IDS_SHA256)
   assert.equal(APPROVED_MVP_COMPARISONS.length, 5)

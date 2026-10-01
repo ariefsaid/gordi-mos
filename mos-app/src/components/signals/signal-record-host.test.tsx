@@ -41,9 +41,10 @@ const directoryMocks = vi.hoisted(() => ({
   getPeople: vi.fn(),
   getPersonTeams: vi.fn(),
   getTeamsByIds: vi.fn(),
+  getDownlinePersonIds: vi.fn(),
 }))
 vi.mock('@/lib/db/directory', () => directoryMocks)
-import { getBusinessUnits, getPeople } from '@/lib/db/directory'
+import { getBusinessUnits, getPeople, getDownlinePersonIds } from '@/lib/db/directory'
 
 vi.mock('@/lib/db/tasks', () => ({
   getTaskTitlesByIds: vi.fn(),
@@ -146,6 +147,7 @@ beforeEach(() => {
   mockListAllTeams.mockResolvedValue([{ id: TEAM_ID, name: 'HQ Operations', business_unit_id: BU_ID, site_id: 'site-1', is_primary: false }])
   mockGetTeamSite.mockResolvedValue({ id: 'site-1', name: 'Gordi HQ' })
   mockGetBusinessUnits.mockResolvedValue([{ id: BU_ID, name: 'Retail Ops' }])
+  vi.mocked(getDownlinePersonIds).mockResolvedValue([])
   mockGetPeople.mockResolvedValue([
     { id: 'person-dewi', full_name: 'Dewi Director' },
     { id: 'person-peer', full_name: 'Peer Person' },
@@ -534,6 +536,32 @@ describe('SignalRecordHost — Create follow-up Task (canonical Task composer, P
     expect(title).toHaveValue('The freezer alarm went off')
     expect(screen.getByText(/from signal: the freezer alarm went off/i)).toBeInTheDocument()
     expect(screen.getByTestId('location')).not.toHaveTextContent('/work/tasks')
+  })
+
+  // The Signal-originated create offers the same PIC options as every other create path:
+  // admin → everyone; otherwise the viewer plus their downline.
+  describe('PIC options', () => {
+    async function picOptionNames(accessRoles: string[]) {
+      const viewer = authedViewer()
+      viewer.viewer.accessRoles = accessRoles
+      mockUseAuth.mockReturnValue(viewer)
+      renderHost()
+      await waitFor(() => expect(screen.getByRole('heading', { name: 'The freezer alarm went off' })).toBeInTheDocument())
+      await userEvent.click(screen.getByRole('button', { name: /create task/i }))
+      await userEvent.click(await screen.findByRole('combobox', { name: 'PIC' }))
+      return (await screen.findAllByRole('option')).map((option) => option.textContent)
+    }
+
+    it('a non-admin without a downline is offered only themself', async () => {
+      expect(await picOptionNames([])).toEqual(['Author One'])
+    })
+    it('a non-admin is offered themself and their downline', async () => {
+      vi.mocked(getDownlinePersonIds).mockResolvedValue(['person-peer'])
+      expect(await picOptionNames([])).toEqual(['Peer Person', 'Author One'])
+    })
+    it('an admin is offered every person', async () => {
+      expect(await picOptionNames(['admin'])).toEqual(['Dewi Director', 'Peer Person', 'Author One'])
+    })
   })
 
   it('opens the Task composer from an All Teams Signal, which has no owning Team', async () => {

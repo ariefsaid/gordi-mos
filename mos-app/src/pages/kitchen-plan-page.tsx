@@ -224,7 +224,7 @@ function PlanEditor() {
     try {
       const [itemRows, catalog, myTeams] = await Promise.all([
         listActiveWipItems(),
-        resolveStream({ soleTeamDefault: true }),
+        resolveStream(),
         // Only a supervisor's per-stream write authority depends on this; ops_lead/admin
         // already write everywhere. Display only: a failure drops the extra streams, never
         // the surface (matches useCafeStream's own handling of this read).
@@ -487,7 +487,6 @@ function PlanEditor() {
          other): which books a planned quantity lands in is what the number means. */
       statusRow={
         <CafeStreamBar
-          heading
           options={locationOptions}
           stream={stream}
           homeStream={homeStream}
@@ -730,7 +729,6 @@ function PesananView() {
       title={pageTitle}
       statusRow={
         <CafeStreamBar
-          heading
           options={locationOptions}
           stream={stream}
           homeStream={homeStream}

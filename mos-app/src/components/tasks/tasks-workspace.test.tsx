@@ -45,6 +45,7 @@ vi.mock('../../lib/db/directory', () => ({
   getPersonTeams: vi.fn().mockResolvedValue([]),
   getTeamsByIds: vi.fn().mockResolvedValue([]),
   getDownlinePersonIds: vi.fn().mockResolvedValue([]),
+  getPersonBusinessUnitIds: vi.fn().mockResolvedValue([]),
 }))
 vi.mock('../../lib/db/objectives', () => ({ listObjectives: vi.fn() }))
 vi.mock('../../lib/db/work-lines', () => ({ listWorkLines: vi.fn() }))
@@ -261,7 +262,8 @@ describe('D3e — Tasks create is an inline title row', () => {
     expect(titleInput).not.toBeDisabled()
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.queryByRole('complementary', { name: /create task/i })).toBeNull()
-    expect(screen.getAllByRole('textbox')).toHaveLength(1)
+    expect(screen.getAllByRole('textbox')).toHaveLength(2) // the title + the shared day-first Due field (#1191)
+    expect(screen.getByRole('textbox', { name: 'Due date' })).toHaveValue('')
 
     fireEvent.change(titleInput, { target: { value: 'New inline task' } })
     await chooseDraftSupervisor()
@@ -475,7 +477,7 @@ describe('Create from Signal convergence', () => {
     mockLinkSignalTask.mockRejectedValue(new Error('offline'))
     renderTable({}, authedState, ['/work/tasks?sourceSignal=signal-42'], 'id')
     fireEvent.click(await screen.findByRole('button', { name: /create task|buat tugas/i }))
-    const title = await screen.findByRole('textbox')
+    const title = await screen.findByRole('textbox', { name: /judul/i })
     fireEvent.change(title, { target: { value: 'Original' } })
     await chooseDraftSupervisor('Budi Setiawan')
     fireEvent.keyDown(title, { key: 'Enter' })
@@ -622,7 +624,8 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
     expect(trigger).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByTestId('record-collection-toolbar')).toBeInTheDocument()
     expect(screen.getByRole('searchbox', { name: /search tasks/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'All' })).toBeInTheDocument()
+    // OD-TASK-3: the member's broadest-view chip reads Relevant.
+    expect(screen.getByRole('button', { name: 'Relevant' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^filters$/i })).toBeNull()
   })
 
@@ -801,7 +804,7 @@ describe('V3 collection grammar — live presentation controls', () => {
     renderTable()
     await waitFor(() => screen.getByText('A task'))
     expect(screen.getByRole('group', { name: /task views/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'All' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Relevant' })).toBeInTheDocument()
     expect(screen.queryByRole('tab', { name: /table/i })).not.toBeInTheDocument()
   })
 
@@ -929,11 +932,12 @@ describe('Task 9 — group-by control in toolbar', () => {
 
 describe('Task 10 — saved-view mapping (AC-301/302/303/305/311)', () => {
   // #743 AC-002: the AR Follow-ups chip is gone; the stable scope set also includes Team work.
-  it('§Task-11 + AC-002: renders the four canonical All / My work / Team work / Overdue chips', async () => {
+  it('§Task-11 + AC-002: renders the four canonical Relevant / My work / Team work / Overdue chips', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'A task' })])
     renderTable()
     await waitFor(() => screen.getByText('A task'))
-    expect(screen.getByRole('button', { name: 'All' })).toBeInTheDocument()
+    // OD-TASK-3: the member's broadest view is Relevant; an admin's reads All (toolbar test).
+    expect(screen.getByRole('button', { name: 'Relevant' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'My work' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Overdue' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Team work' })).toBeInTheDocument()
@@ -970,7 +974,9 @@ describe('Task 10 — saved-view mapping (AC-301/302/303/305/311)', () => {
       makeTask({ id: 'mine', title: 'Mine task' }),
       makeTask({ id: 'shared', title: 'Shared task', responsible_person_id: 'other-id', accountable_person_id: 'other-id' }),
     ])
-    renderTable({ savedView: makeSavedView('all') })
+    // OD-TASK-3: the org-visible set is the org-wide (admin) viewer's All; a member's All is
+    // Relevant, and Shared task is outside it.
+    renderTable({ savedView: makeSavedView('all') }, DEWI)
     await waitFor(() => screen.getByText('Mine task'))
     expect(screen.getByText('Shared task')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true')
@@ -979,12 +985,13 @@ describe('Task 10 — saved-view mapping (AC-301/302/303/305/311)', () => {
 
   // AC-002 (#743, W-D step 3): the retired AR view redirects to the All view — the URL loses
   // the stale param, the collection renders tasks, and no AR copy exists anywhere.
-  it('AC-002: /work/tasks?view=followups lands on the All view with no AR copy', async () => {
+  it('AC-002: /work/tasks?view=followups lands on the All view — Relevant for a member — with no AR copy', async () => {
     mockListTasks.mockResolvedValue([makeTask({ id: 'task-1', title: 'Ordinary task' })])
     const { getLocation } = renderAt(['/work/tasks?view=followups'])
     await waitFor(() => screen.getByText('Ordinary task'))
     expect(getLocation()?.search ?? '(no location)').not.toContain('view=followups')
-    expect(screen.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true')
+    // OD-TASK-3: `view=all` keeps its URL; the member's chip for it reads Relevant.
+    expect(screen.getByRole('button', { name: 'Relevant' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.queryByText(/AR Follow-up/i)).toBeNull()
     expect(screen.queryByText(/follow-ups are coming to this workspace/i)).toBeNull()
   })
@@ -1222,7 +1229,9 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
     mockListTasks.mockResolvedValue([
       makeTask({ id: 'other', title: 'Someone else’s task', responsible_person_id: 'other-person', accountable_person_id: 'other-person' }),
     ])
-    renderTable()
+    // The broadened scope must SHOW a row again; the row is outside a member's Relevant scope,
+    // so the broadening viewer is the org-wide one (OD-TASK-3).
+    renderTable({}, DEWI)
     await waitFor(() => screen.getByRole('heading', { name: /tasks/i }))
     ensureFiltersOpen()
     fireEvent.click(screen.getByRole('button', { name: 'My work' }))
@@ -1237,11 +1246,12 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
 
 // ── PR-3 — TanStack refactor + group-by engine + group headers ────────────────
 
-// Helper: switch to the org-visible All saved view so non-viewer tasks are visible.
-// (§Task-11: the Team-work chip was removed; All is the org-visible set.)
-async function switchToAll() {
+// Helper: switch to the viewer's broadest scope saved view. OD-TASK-3: that control reads
+// Relevant for a non-org-wide viewer (the default auth here) and All for an admin — pass the
+// viewer's label. (§Task-11: the Team-work chip was removed.)
+async function switchToAll(label: 'All' | 'Relevant' = 'Relevant') {
   ensureFiltersOpen()
-  const all = screen.getByRole('button', { name: 'All' })
+  const all = screen.getByRole('button', { name: label })
   fireEvent.click(all)
   await waitFor(() => expect(all).toHaveAttribute('aria-pressed', 'true'))
 }
@@ -1692,7 +1702,7 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
     fireEvent.click(document.querySelector('tr.task-row') as HTMLElement)
 
     fireEvent.click(await screen.findByRole('button', { name: 'Edit Description' }))
-    const description = screen.getByLabelText('Description') as HTMLTextAreaElement
+    const description = screen.getByRole('textbox', { name: 'Description' }) as HTMLTextAreaElement
     // Sanity: RecordField's own autoFocus really landed DOM focus on the field — otherwise
     // ModalShell's later focus-steal wouldn't fire a blur on it at all and this test would
     // prove nothing.
@@ -1717,7 +1727,7 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
     // committed by the stray blur, never rolled back to the saved baseline either.
     fireEvent.click(screen.getByRole('button', { name: /stay on this page/i }))
     expect(screen.queryByRole('dialog')).toBeNull()
-    expect(screen.getByLabelText('Description')).toHaveValue(draftText)
+    expect(screen.getByRole('textbox', { name: 'Description' })).toHaveValue(draftText)
     expect(mockUpdateTaskFields).not.toHaveBeenCalled()
     // The deny resolves the host's in-flight leave request in a microtask (same as
     // AC-V3-008c above) — flush it so the assertion above is the true settled state.
@@ -2003,9 +2013,9 @@ describe('C1 — Done tasks excluded from overdue (RI-1 regression guard)', () =
   })
 })
 
-// ── OD-REDESIGN-91 #17: the head meta reads "N open in this view · M incl. done" (counts are OPEN) ──
-describe('#17 — Tasks head meta is "N open in this view · M incl. done" (open excludes Done)', () => {
-  it('#17: a Done task lowers the open count but not the total', async () => {
+// ── OD-REDESIGN-91 #17 + DD-COUNT-1 #1194: the head meta reads "N open in this view · M shown" ──
+describe('#17 — Tasks head meta is "N open in this view · M shown" (open excludes Done)', () => {
+  it('#17: a Done task lowers the open count but not the shown total', async () => {
     mockListTasks.mockResolvedValue([
       makeTask({ id: 't1', title: 'Open one', status: 'Open' }),
       makeTask({ id: 't2', title: 'Open two', status: 'Blocked' }),
@@ -2017,7 +2027,7 @@ describe('#17 — Tasks head meta is "N open in this view · M incl. done" (open
     await waitFor(() => expect(screen.getByText('Resolved')).toBeInTheDocument())
     // Blocked still counts as open (not Done); only the Done task is excluded from open.
     await waitFor(() =>
-      expect(screen.getByTestId('tasks-count-line').textContent?.trim()).toBe('2 open in this view · 3 incl. done'),
+      expect(screen.getByTestId('tasks-count-line').textContent?.trim()).toBe('2 open in this view · 3 shown'),
     )
   })
 })
@@ -2543,6 +2553,17 @@ describe('Issue #749 — Tasks opens on your own work (AC-011/AC-013)', () => {
 
   it('AC-013: Dewi lands on All — the org view, no named leaf', async () => {
     await landingAssertions(DEWI, 'All', 'Work · Tasks')
+  })
+
+  // OD-WAY-94 (3) + OD-TASK-3: the All default is a read default — the director still LANDS on
+  // view=all, named Relevant for a non-admin. It stays the role's DEFAULT view, so the breadcrumb
+  // carries no view leaf (same as the admin's "Work · Tasks").
+  it('OD-WAY-94 (3): a top-role director without the admin role lands on All — named Relevant', async () => {
+    await landingAssertions(personaAuth({ roles: [roleRow('Managing Director', null)], isManager: true, accessRoles: ['member'] }), 'Relevant', 'Work · Tasks')
+  })
+
+  it('OD-WAY-94 (3): an admin holding a non-top role lands on All', async () => {
+    await landingAssertions(personaAuth({ roles: [roleRow('Bar Supervisor', 'role-cafe-ops-lead')], isManager: true, accessRoles: ['admin'] }), 'All', 'Work · Tasks')
   })
 
   it('AC-013: a URL carrying a view wins over the role default', async () => {

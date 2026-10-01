@@ -190,7 +190,7 @@ export function createRecordCollectionController<
       error: null,
     })
     void descriptor
-      .load({ query: state.query, viewerId: initial.viewerId })
+      .load({ query: state.query, viewerId: initial.viewerId, accessRoles: initial.accessRoles })
       .then((data) => {
         if (token !== loadToken) return // stale result — dropped
         const projection = descriptor.project(data, state.query, state.presentation)

@@ -160,6 +160,7 @@ beforeEach(() => {
   mockDefaultStream.mockResolvedValue(OWN_STREAM)
   mockPlans.mockResolvedValue([])
   mockPesanan.mockResolvedValue([])
+  vi.mocked(listCafeViewerTeams).mockResolvedValue([])
   mockUpsert.mockResolvedValue('new-id')
 })
 
@@ -969,6 +970,25 @@ describe('KitchenPlanPage — no primary stream (#1142)', () => {
     expect(screen.getByText(/choose a production stream before submitting/i)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^change/i })).toBeNull()
     expect(mockPlans).not.toHaveBeenCalled()
+  })
+})
+
+// OD-CAFE-6: the member Pesanan face follows the same ladder as the editor.
+describe('KitchenPlanPage — Pesanan default follows the one stream rule (OD-CAFE-6)', () => {
+  beforeEach(() => mockUseAuth.mockReturnValue(viewer(['member'])))
+
+  it('no home stream, ONE Café stream Team: Pesanan opens on it, heading + Change', async () => {
+    mockDefaultStream.mockResolvedValue(null)
+    mockPesanan.mockResolvedValue(PESANAN)
+    vi.mocked(listCafeViewerTeams).mockResolvedValue([{
+      id: 't-rr-kitchen', name: 't-rr-kitchen', business_unit_id: 'bu-1', site_id: null,
+      is_primary: false, branch_id: BRANCHES[0].id, activity: 'kitchen', effective_to: null,
+    }])
+    render(<KitchenPlanPage />, { wrapper })
+    await waitFor(() => expect(mockPesanan).toHaveBeenCalled())
+    expect(mockPesanan.mock.calls[0][2]).toEqual(OWN_STREAM)
+    expect(screen.getByRole('heading', { level: 2, name: 'Rumah Rames · Kitchen' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^change/i })).toBeInTheDocument()
   })
 })
 

@@ -11,6 +11,7 @@ import { canWorkAnyLane } from '@/lib/follow-up-lanes'
 import { listFollowUps, transitionFollowUp, isOverdue, type FollowUpRow, type FollowUpState, type FollowUpTransition } from '@/lib/db/follow-ups'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
 import { Button } from '@/components/ui/button'
+import { DateField } from '@/components/ui/date-field'
 import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
 import { StatusPill, type TaskStatus } from '@/components/tasks/status-pill'
 
@@ -47,6 +48,8 @@ export function FollowUpsPage() {
   const [state, setState] = useState<FetchState>('loading')
   const [active, setActive] = useState<{ id: string; verb: FollowUpTransition } | null>(null)
   const [form, setForm] = useState({ amount: '', cash_in_date: '', evidence: '', promise_date: '', note: '' })
+  // Typed date text that is not a usable date: Submit stays off rather than sending the old date.
+  const [dateInvalid, setDateInvalid] = useState(false)
 
   const load = useCallback(() => {
     let cancelled = false
@@ -100,11 +103,11 @@ export function FollowUpsPage() {
     return (
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
         {verb === 'promise' ? (
-          <input
+          <DateField
             aria-label={t('followUps.promiseDate')}
-            type="date"
             value={form.promise_date}
-            onChange={(e) => setForm({ ...form, promise_date: e.target.value })}
+            onChange={(promise_date) => setForm({ ...form, promise_date })}
+            onValidityChange={setDateInvalid}
           />
         ) : (
           <>
@@ -114,11 +117,11 @@ export function FollowUpsPage() {
               value={form.amount}
               onChange={(e) => setForm({ ...form, amount: e.target.value })}
             />
-            <input
+            <DateField
               aria-label={t('followUps.cashInDate')}
-              type="date"
               value={form.cash_in_date}
-              onChange={(e) => setForm({ ...form, cash_in_date: e.target.value })}
+              onChange={(cash_in_date) => setForm({ ...form, cash_in_date })}
+              onValidityChange={setDateInvalid}
             />
             <input
               aria-label={t('followUps.evidence')}
@@ -128,7 +131,7 @@ export function FollowUpsPage() {
             />
           </>
         )}
-        <Button variant="primary" disabled={!formReady} onClick={() => void submit(row, verb)}>
+        <Button variant="primary" disabled={!formReady || dateInvalid} onClick={() => void submit(row, verb)}>
           {t('followUps.submit')}
         </Button>
       </div>

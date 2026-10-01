@@ -142,7 +142,7 @@ describe('ProcessOccurrenceControls', () => {
     mockListStartable.mockResolvedValue([])
     renderControls(WORK_LINE_ID, true, true)
 
-    expect(await screen.findByRole('note')).toHaveTextContent('Open the Steps tab to add and activate at least one step before starting a run.')
+    expect(await screen.findByRole('note')).toHaveTextContent('Add a step first, then start a run.')
   })
 
   it('shows the owning Team, task/overdue/to-assign counts, View tasks, and member Start', async () => {

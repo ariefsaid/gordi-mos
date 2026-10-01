@@ -1,106 +1,45 @@
-.objective-key-results {
-  display: grid;
-  gap: 12px;
-  margin-top: 16px;
+/* Key results: compact rows (what, current / target, a 4px track, due and owner), edited in place. */
+.objective-key-results__list { margin: 0; }
+.rp-kr {
+  grid-template-columns: minmax(0, 1fr) auto 32px;
+  grid-template-areas: "name fig edit" "track track track" "meta meta meta" "add add add";
+  row-gap: 8px;
 }
-
-.objective-key-results h3 {
-  margin: 4px 0 0;
-  color: var(--muted-foreground);
-  font-size: var(--font-size-overline);
-  font-weight: 650;
-  letter-spacing: .04em;
-  text-transform: uppercase;
+.rp-kr .rp-kr__what {
+  grid-area: name;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden;
 }
+.rp-kr__fig { grid-area: fig; display: inline-flex; align-items: baseline; justify-content: flex-end; gap: 4px; font-size: var(--font-size-body); font-weight: 600; white-space: nowrap; }
+.rp-kr__of { font-weight: 400; color: var(--muted-foreground); }
+.rp-kr__pct { margin-left: 8px; font-weight: 600; color: var(--foreground); }
+.rp-kr__edit { grid-area: edit; }
+.rp-kr__track { grid-area: track; }
+.rp-track { height: 4px; border-radius: var(--radius-pill); background: var(--secondary); overflow: hidden; }
+.rp-track > span { display: block; height: 100%; border-radius: var(--radius-pill); background: var(--success); }
+.rp-kr__meta { grid-area: meta; margin: 0; }
+.rp-kr__add-current { grid-area: add; justify-self: start; }
+.rp-kr__current.rp-link-btn { color: var(--foreground); border-bottom: 1px solid var(--border); }
+.rp-icon-btn--quiet { border-color: transparent; background: transparent; }
 
-/* The shared error row's own inset would push it off the section's left edge. */
-.objective-key-results > .error-state { padding-inline: 0; }
+.objective-key-results__current-edit { display: inline-flex; flex-direction: column; gap: 4px; align-items: flex-end; font-weight: 400; }
+.objective-key-results__current-edit .mk-textinput { width: 140px; }
 
-.objective-key-results__list {
-  display: grid;
-  gap: 12px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.objective-key-results__item {
-  display: grid;
-  gap: 8px;
-  padding: 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  min-width: 0;
-}
-
-.objective-key-results__what {
-  margin: 0;
-  color: var(--foreground);
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
-
-.objective-key-results__facts {
-  margin: 0;
-  color: var(--muted-foreground);
-}
-
-.objective-key-results__grid { max-width: none; }
-
-.objective-key-results__field {
-  display: grid;
-  gap: 4px;
-  align-content: start;
-}
-
-.objective-key-results__label {
-  color: var(--muted-foreground);
-  font-size: var(--font-size-overline);
-}
-
-.objective-key-results__owner {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.objective-key-results__status {
-  min-height: 1em;
-  color: var(--muted-foreground);
-  font-size: var(--font-size-overline);
-}
-
-.objective-key-results__status[data-state='failed'] { color: var(--destructive, var(--foreground)); }
-
+.objective-key-results__editing { display: block; padding: 16px 0; }
+.objective-key-results__form { max-width: none; }
+.objective-key-results__label { display: block; margin-bottom: 4px; color: var(--muted-foreground); font-size: var(--font-size-label); font-weight: 500; }
+.objective-key-results__owner { display: flex; flex-wrap: wrap; gap: 8px; }
+.objective-key-results__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.objective-key-results__error { display: block; margin-top: 4px; color: var(--field-error-text); font-size: var(--font-size-label); }
 .objective-key-results__retry {
-  padding: 0;
-  border: 0;
-  background: none;
-  color: inherit;
-  text-decoration: underline;
-  cursor: pointer;
+  padding: 0; border: 0; background: none; color: inherit; font: inherit; text-decoration: underline; cursor: pointer;
+}
+.objective-key-results__remove {
+  margin-inline-start: auto; padding: 0; border: 0; background: none; color: var(--status-lost-text); font: inherit; font-size: var(--font-size-label); font-weight: 500; text-decoration: underline; cursor: pointer;
 }
 
-.objective-key-results__progress {
-  display: grid;
-  gap: 6px;
-  color: var(--foreground);
-}
-
-.objective-key-results__track {
-  height: 4px;
-  border-radius: var(--radius-sm);
-  background: var(--secondary, var(--border));
-  overflow: hidden;
-}
-
-.objective-key-results__fill {
-  height: 100%;
-  background: var(--primary);
-}
-
-.objective-key-results__add {
-  display: grid;
-  gap: 8px;
-  max-width: 40rem;
+@media (max-width: 767.98px) {
+  .rp-kr { grid-template-columns: minmax(0, 1fr) 44px; grid-template-areas: "name edit" "fig fig" "track track" "meta meta" "add add"; }
+  .rp-kr__fig { justify-content: flex-start; }
+  .objective-key-results__remove,
+  .objective-key-results__retry { min-height: 44px; }
 }

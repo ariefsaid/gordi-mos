@@ -43,6 +43,12 @@ vi.mock('../hooks/useMyOpenTaskCount', () => ({ useMyOpenTaskCount: () => shared
 import { listTasks } from '@/lib/db/tasks'
 const mockListTasks = vi.mocked(listTasks)
 
+// Café Opening is switched off in production; Home's door tests run with it on unless a test says otherwise.
+const openingSwitch = vi.hoisted(() => ({ on: true }))
+vi.mock('@/lib/cafe-opening-enabled', () => ({
+  get CAFE_OPENING_ENABLED() { return openingSwitch.on },
+}))
+
 vi.mock('../lib/db/home-cafe', () => ({ loadHomeCafeDoor: vi.fn() }))
 import { loadHomeCafeDoor } from '@/lib/db/home-cafe'
 const mockLoadHomeCafeDoor = vi.mocked(loadHomeCafeDoor)
@@ -247,6 +253,7 @@ beforeEach(() => {
   mockLoadFailedChecks.mockResolvedValue([])
   mockListSignals.mockResolvedValue([])
   mockListAllTeams.mockResolvedValue([])
+  openingSwitch.on = true
   mockLoadHomeCafeDoor.mockResolvedValue(null)
   mockLoadHomeObjectiveProgress.mockResolvedValue([])
 })
@@ -394,6 +401,20 @@ describe('AC-H02: a member sees a usable brief and live Signals column', () => {
   })
 })
 
+describe('Café Opening hidden: Home shows no Opening door', () => {
+  it('renders no Opening door and does not read the opening run while the switch is off', async () => {
+    openingSwitch.on = false
+    mockListTasks.mockResolvedValue([overdueTaskRow(baristaViewer.viewer.person.id)])
+    await renderHome(baristaViewer)
+
+    const brief = await screen.findByTestId('home-daily-brief')
+    expect(within(brief).getByText('Restock oat milk')).toBeInTheDocument()
+    expect(screen.queryByTestId('home-cafe-door')).toBeNull()
+    expect(screen.queryByText(/View opening/i)).toBeNull()
+    expect(mockLoadHomeCafeDoor).not.toHaveBeenCalled()
+  })
+})
+
 describe('OD-WAY-93: failed checks follow Café affiliation, not generic route admission', () => {
   const failedCheck = {
     id: 'fc1', title: 'Production · 2026-07-20', meta: 'Qty off', route: CAFE_LOG_ROUTE,
@@ -526,6 +547,9 @@ describe('Issue 245 / FR-928: Signals stays live, concise and honest', () => {
     let resolveSignals!: (rows: SignalRow[]) => void
     mockListSignals.mockReturnValue(new Promise((resolve) => { resolveSignals = resolve }))
     mockListTasks.mockResolvedValue([])
+    // DD-COUNT-1: the header figure is the shared open-task count; Signals resolve later and must
+    // never move it.
+    sharedCount.value = 0
     await renderHome(memberViewer)
     expect(await screen.findByText('0 open')).toBeInTheDocument()
     expect(screen.queryByRole('tablist')).toBeInTheDocument()
@@ -644,8 +668,9 @@ describe('DIV-G5: shared task loading/error states never become an empty all-cle
 })
 
 describe('AC-040 / AC-052: Home identity is day-aware and does not add a mentions read', () => {
-  it('renders greeting, day/date identity, role and the traceable left tally without controls', async () => {
+  it('renders greeting, day/date identity, role and the shared open-task figure without controls', async () => {
     mockListTasks.mockResolvedValue([])
+    sharedCount.value = 0
     await renderHome(ownerDirectorViewer)
     const head = screen.getByTestId('page-head')
     expect(within(head).getByRole('heading', { level: 1 }))
@@ -679,13 +704,46 @@ describe('AC-040 / AC-052: Home identity is day-aware and does not add a mention
     }
   })
 
-  it('withholds the header tally while an independent region read fails', async () => {
+  it("the head figure rides the shared count — a failed region read can't withhold or shrink it", async () => {
     mockLoadFailedChecks.mockRejectedValue(new Error('offline'))
     mockListTasks.mockResolvedValue([overdueTaskRow(financeViewer.viewer.person.id)])
-    await renderHome(cafeViewer)
-    const head = screen.getByTestId('page-head')
-    expect(within(head).queryByText(/\d+ left/)).toBeNull()
-    expect(within(head).queryByText(/handled/)).toBeNull()
+    sharedCount.value = 9
+    const utils = await renderHome(cafeViewer)
+    expect(within(screen.getByTestId('page-head')).getByText('9 open')).toBeInTheDocument()
+
+    // While the SHARED count itself has not resolved the figure is ABSENT, not zero (DIV-G5) —
+    // even though the task list below has loaded.
+    sharedCount.value = null
+    await act(async () => { utils.rerender(createElement(HomePage)) })
+    expect(within(screen.getByTestId('page-head')).queryByText(/\d+ open/)).toBeNull()
+    expect(within(screen.getByTestId('page-head')).queryByText(/handled/)).toBeNull()
+  })
+})
+
+describe("DD-COUNT-1: Home's header figure is the ONE shared open-task count (#1194)", () => {
+  it("the head reads the badge's number — never the band sum, the capped my-work slice, or failed checks", async () => {
+    const viewerId = cafeViewer.viewer.person.id
+    const routine = (n: number) => ({
+      ...overdueTaskRow(viewerId),
+      id: `t-plain-${n}`,
+      title: `Routine ${n}`,
+      due_date: '2099-01-01',
+      status: 'Open' as const,
+    })
+    // 9 open tasks of the viewer's own: 1 overdue (Needs you now) + 8 routine, of which the
+    // my-work band renders at most MY_WORK_CAP=7; plus 2 failed checks a cockpit Café viewer
+    // sees as its own band. The old band sum would read 1 + 7 + 2 = 10.
+    mockListTasks.mockResolvedValue([
+      overdueTaskRow(viewerId),
+      ...Array.from({ length: 8 }, (_, i) => routine(i + 1)),
+    ])
+    mockLoadFailedChecks.mockResolvedValue([
+      { id: 'fc-1', title: 'Production log · morning', route: '/cafe/log' },
+      { id: 'fc-2', title: 'Production log · evening', route: '/cafe/log' },
+    ])
+    sharedCount.value = 9
+    await renderHome({ ...cafeViewer, viewer: { ...cafeViewer.viewer, isManager: true } })
+    expect(within(screen.getByTestId('page-head')).getByText('9 open')).toBeInTheDocument()
   })
 })
 

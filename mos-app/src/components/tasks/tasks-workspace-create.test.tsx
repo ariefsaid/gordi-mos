@@ -20,6 +20,7 @@ vi.mock('../../lib/db/signals', () => ({ linkSignalTask: vi.fn() }))
 vi.mock('../../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(), getPeople: vi.fn(), getPersonTeams: vi.fn(),
   getTeamsByIds: vi.fn(), getDownlinePersonIds: vi.fn(), getMyTeamLeads: vi.fn(),
+  getPersonBusinessUnitIds: vi.fn(),
 }))
 vi.mock('../../lib/db/objectives', () => ({ listObjectives: vi.fn() }))
 vi.mock('../../lib/db/work-lines', () => ({ listWorkLines: vi.fn() }))
@@ -106,10 +107,10 @@ beforeEach(() => {
   vi.mocked(createTask).mockResolvedValue('created-task')
 })
 
-async function openDraft() {
+async function openDraft(auth: AuthState = MEMBER) {
   render(
     <I18nProvider initialLocale="en">
-      <AuthContext.Provider value={MEMBER}>
+      <AuthContext.Provider value={auth}>
         <MemoryRouter initialEntries={['/work/tasks?view=all']}>
           <OverlayHostProvider>
             <TasksWorkspace savedView={{ view: 'all', activeChip: null, segment: 'all', overdueOnly: false, search: '' }} onSavedViewChange={() => {}} />
@@ -194,5 +195,54 @@ describe('create draft — Due date and Project/Process reach the write', () => 
     fireEvent.keyDown(within(form).getByRole('textbox', { name: 'Title' }), { key: 'Enter' })
     await waitFor(() => expect(createTask).toHaveBeenCalled())
     expect(vi.mocked(createTask).mock.calls[0][0]).toMatchObject({ workLineId: null, objectiveId: null })
+  })
+})
+
+// OD-WAY-94 (1) + OD-ROLE-1: a PIC is the creator or their downline, except the admin access role
+// (org-wide authority), which may name anyone. A top-of-chain role grants no such authority.
+describe('create draft — who the PIC picker offers', () => {
+  const SUB_ROLE: RolesRow = { ...ROLE, id: 'role-2', reports_to_role_id: ROLE.id }
+  const EVERYONE = [
+    { id: VIEWER_ID, full_name: 'Test Viewer' },
+    { id: 'report-id', full_name: 'Direct Report' },
+    { id: 'unrelated-id', full_name: 'Unrelated Person' },
+  ]
+  const authFor = (roles: RolesRow[], accessRoles: string[], isManager = false): AuthState => ({
+    status: 'authenticated',
+    viewer: { person: PERSON, roles, isManager, accessRoles, affiliated: [] },
+    signOut: async () => {},
+  })
+  async function picOptionNames(auth: AuthState) {
+    vi.mocked(getPeople).mockResolvedValue(EVERYONE)
+    const form = await openDraft(auth)
+    fireEvent.click(within(form).getByRole('combobox', { name: 'PIC' }))
+    const options = await screen.findAllByRole('option')
+    return options.map((option) => option.textContent)
+  }
+
+  it('a top-role holder without admin and without a downline is offered only themself', async () => {
+    expect(await picOptionNames(authFor([ROLE], ['member']))).toEqual(['Test Viewer'])
+  })
+
+  it('a top-role holder without admin is offered themself and their downline, not unrelated people', async () => {
+    vi.mocked(getDownlinePersonIds).mockResolvedValue(['report-id'])
+    expect(await picOptionNames(authFor([ROLE], ['member'], true))).toEqual(['Test Viewer', 'Direct Report'])
+  })
+
+  it('an admin with no downline is offered every person', async () => {
+    expect(await picOptionNames(authFor([ROLE], ['admin']))).toEqual(['Test Viewer', 'Direct Report', 'Unrelated Person'])
+  })
+
+  it('an admin holding a non-top role is offered every person', async () => {
+    expect(await picOptionNames(authFor([SUB_ROLE], ['admin']))).toEqual(['Test Viewer', 'Direct Report', 'Unrelated Person'])
+  })
+
+  it('a member with no downline is offered only themself', async () => {
+    expect(await picOptionNames(authFor([SUB_ROLE], ['member']))).toEqual(['Test Viewer'])
+  })
+
+  it('a lead is offered themself and their downline, not unrelated people', async () => {
+    vi.mocked(getDownlinePersonIds).mockResolvedValue(['report-id'])
+    expect(await picOptionNames(authFor([SUB_ROLE], ['member'], true))).toEqual(['Test Viewer', 'Direct Report'])
   })
 })

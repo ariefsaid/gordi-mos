@@ -11,15 +11,6 @@
 .breadcrumb-sep { margin: 0 6px; }
 .breadcrumb-current { color: var(--foreground); font-weight: 500; }
 
-/* ── Archived banner — inline status strip, stays flat (Soft-Elevation Rule) ── */
-.archived-banner {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 10px 16px; margin-bottom: 12px;
-  background: var(--secondary); border: 1px solid var(--border);
-  border-radius: var(--radius-sm); /* 8px — banner/strip, OD-P3-10 */
-  font-size: var(--font-size-body-lg); color: var(--muted-foreground);
-}
-
 /* ── Head card ── */
 .head-card {
   background: var(--card); border: 1px solid var(--border);
@@ -50,76 +41,14 @@
   .actions-cluster > * { min-height: 44px; }
 }
 
-/* ════════════════════════════════════════════════════════════════════════════
-   Full-width record document (E7 canonical — e7-app.js renderRecordPage).
-   ONE single-column document: the RecordViewer details sections stacked on top,
-   the tabbed Activity feed below as its own section. Supersedes the ADR-0013 D3
-   two-column page (critic-cited: the fixed 332px left column crammed values into
-   ragged multi-line wraps while the right feed panel sat half-empty). E7's record
-   page is one comfortable single column capped for reading measure; we match it.
-   All raw values are DESIGN.md CSS-var tokens.
-   ════════════════════════════════════════════════════════════════════════════ */
-/* Promoted-from-drawer chrome (collapse + close) above the record document. It
-   reuses .dw-bar/.dw-iconbtn; here it is a standalone strip (no bottom rule of
-   its own — the .record-doc card below carries the border). */
+/* ── Record body ──
+   The record page itself (header, sections, aside) is components/record + task-record-document.css.
+   This file keeps the standalone chrome strip and the scroll wrapper the drawer and the page share. */
 .record-chrome {
   border-bottom: 0; padding: 0 0 10px; margin-bottom: 2px;
 }
-.record-doc {
-  display: flex; flex-direction: column;
-  max-width: 820px; /* E7 renderRecordPage e7-page cap — comfortable document measure */
-  background: var(--card); border: 1px solid var(--border);
-  border-radius: var(--radius-lg); /* 12px — card surface, OD-P3-10 */
-  box-shadow: var(--shadow-rest);  /* OD-P3-11 resting lift */
-  overflow: hidden;
-}
-
-/* owner-eyes item 12 — one shared, centered record column. The standalone full-page record composed
-   three mismatched left-pinned widths: a ~1130px chrome row, the 820px document card, and the feed,
-   stranding dead space on the right. Bind the chrome row (and the archived banner) to the SAME 820px
-   E7 measure as .record-doc, and center all of them in the content area. PageFrame caps its content
-   region at 1180px and left-aligns it, so — as in item 7 — lift that cap where the region hosts a
-   full-page record, then let the 820px column center. Unlike the Tasks LIST (item 7, a full-bleed
-   data workspace) a single record is a DOCUMENT, so it centers at its reading measure instead of
-   filling the width — same intent, calm against E7. The chrome row's actions then sit at the
-   column's edges, not the viewport's. Scoped by :has(.record-doc) so only this page is affected. */
-.page-frame__content:has(.record-doc) { max-width: none; }
-.record-doc,
-.record-chrome,
-.archived-banner { margin-inline: auto; }
-.record-chrome,
-.archived-banner { max-width: 820px; width: 100%; }
-
-/* ── Details sections (top) ──
-   A plain wrapper — NOT a bespoke fields panel. It hosts the SAME RecordViewer
-   document (identity/ownership/status-timing/details) used everywhere else, so
-   all spacing/typography comes from record-viewer.css; this rule only owns the
-   divider that separates the details from the feed section stacked below. */
 .record-details {
   min-width: 0;
-}
-.record-doc .record-details {
-  border-bottom: 1px solid var(--border);
-}
-/* Prose value measure (~72ch) + the 820px column cap now live on the SHARED .record-viewer--page
-   seam (record-viewer.css) so the Signal record page inherits the SAME measure — this file keeps
-   only .record-doc's own CARD chrome (border/shadow/radius + the 820px card width above). */
-/* Compact (drawer) variant — the drawer chrome is the frame, so there is no
-   second divider; the drawer header owns identity + status. */
-.record-details-compact {
-  border: 0;
-}
-
-/* ── Checklist + Activity regions (content-first anatomy, OD-REDESIGN-90 §2.2) ──
-   The retired tabbed feed (.rf-*) is gone: Checklist and Activity are now separate ordered
-   content slots stacked below Relations, each rendering its own component (ChecklistCard,
-   ActivityCard, CommentThread) inside a shared `.record-viewer__section` (which owns the
-   region padding + hairline). Neutralize those components' internal `.card` chrome so they
-   read as quiet regions of the ONE record document — never a card-in-card (LAW-7). */
-.record-activity { display: flex; flex-direction: column; min-width: 0; }
-[data-content-slot="activity"] .card,
-[data-content-slot="checklist"] .card {
-  background: transparent; border: 0; border-radius: 0; padding: 0; margin: 0; box-shadow: none;
 }
 
 /* ── Btn styles ── */
@@ -216,7 +145,7 @@
   display: flex; align-items: center; gap: 8px; padding: 6px 8px;
   border-radius: var(--radius-sm); cursor: pointer; font-size: var(--font-size-body-lg);
 }
-.person-picker-option[data-selected='true'] { background: var(--surface-tertiary); box-shadow: inset 3px 0 0 var(--primary); }
+.person-picker-option[data-selected='true'] { background: var(--surface-tertiary); outline: 2px solid var(--ring); outline-offset: -2px; }
 .person-picker-option:hover:not([data-selected='true']) {
   background: color-mix(in srgb, var(--surface-tertiary) 45%, transparent);
 }
@@ -229,48 +158,6 @@
 }
 .person-picker-search:focus-visible { border-color: var(--primary); outline: 2px solid var(--ring); outline-offset: 1px; }
 .person-picker-empty { padding: 6px 8px; color: var(--muted-foreground); font-size: var(--font-size-body-lg); }
-
-/* ── Checklist ── */
-.checklist-count { font-size: var(--font-size-body-lg); font-weight: 400; color: var(--muted-foreground); }
-.checklist-list { list-style: none; padding: 0; margin: 0 0 8px; }
-.checklist-item {
-  display: flex; align-items: center; gap: 10px;
-  min-height: 36px; padding: 4px 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-}
-.checklist-item:last-child { border-bottom: none; }
-.checklist-checkbox { width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary); flex: none; }
-.checklist-label { font-size: var(--font-size-body-lg); flex: 1; cursor: pointer; } /* typeset: was 16px off-ramp; matches sibling .checklist-count/.own-name at body-lg */
-.checklist-done { color: var(--muted-foreground); text-decoration: line-through; }
-/* OD-REDESIGN-22 (D-C1): a failed checklist write shows a visible error + Retry. */
-.checklist-save-error {
-  display: flex; align-items: center; gap: 8px;
-  margin: 8px 0 0; font-size: var(--font-size-label); color: var(--field-error-text);
-}
-.checklist-retry {
-  min-height: 24px; padding: 2px 8px;
-  border: 1px solid var(--destructive); border-radius: var(--radius-sm);
-  background: transparent; color: var(--destructive);
-  font-size: var(--font-size-label); font-weight: 600; cursor: pointer;
-}
-.checklist-add-input {
-  width: 100%; border: 0; outline: none; background: transparent;
-  font: inherit; font-size: var(--font-size-body-lg); color: var(--muted-foreground);
-  padding: 6px 0; border-top: 1px solid var(--border);
-}
-.checklist-add-input::placeholder { color: var(--muted-foreground); }
-.checklist-add-input:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
-.checklist-controls { display: flex; align-items: center; gap: 2px; margin-left: auto; flex-shrink: 0; }
-.checklist-ctrl-btn {
-  width: 24px; height: 24px; border: 0; background: transparent;
-  color: var(--muted-foreground); cursor: pointer; font-size: var(--font-size-label);
-  display: grid; place-items: center; border-radius: var(--radius-xs);
-  line-height: 1;
-}
-.checklist-ctrl-btn:hover:not(:disabled) { background: var(--surface-tertiary); color: var(--foreground); }
-.checklist-ctrl-btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
-.checklist-ctrl-btn:disabled { opacity: 0.3; cursor: not-allowed; }
-.checklist-ctrl-delete:hover:not(:disabled) { color: var(--destructive); background: color-mix(in srgb, var(--destructive) 8%, transparent); }
 
 /* ── Activity thread ── */
 .thread { display: flex; flex-direction: column; }
@@ -314,7 +201,6 @@
    one element have no tie-break: the copy here carried no height while the other carried 12px, so
    which one won depended on which chunk loaded last — and a `.sk` with no inline height that lost
    the coin toss collapsed to 0px, i.e. a loading skeleton that renders nothing. */
-.sk-block { margin-bottom: 16px; }
 
 /* ── Utility ── */
 /* extract (2026-07-28, DD-12): the local `.sr-only` was removed — this file, TasksWorkspace.css,
@@ -423,8 +309,8 @@
 .tc-select .mk-select__chevron { right: 10px; }
 .tc-picker { width: 100%; }
 .tc-picker .picker__trigger { min-height: 36px; height: 36px; padding: 7px 12px; font-size: var(--font-size-touch-input); }
-.tc-date .mk-date__box { height: 36px; padding: 0 12px; }
-.tc-date .mk-date__display { font-size: var(--font-size-touch-input); }
+.tc-date .mk-date__box { height: 36px; padding: 0 0 0 12px; }
+.tc-date .mk-date__field { font-size: var(--font-size-touch-input); }
 
 /* I4: error TEXT below a field uses the AA-darkened red (--field-error-text =
    --status-lost-text). The invalid field's border (the ratified components' own
@@ -447,8 +333,6 @@
 @media (max-width: 767.98px) {
   .tc-textarea { min-height: 44px; }
   .tc-loading-field { min-height: 44px; }
-  .checklist-ctrl-btn { width: 44px; height: 44px; }
-  .checklist-retry { min-width: 44px; min-height: 44px; }
 }
 
 .tc-actions {

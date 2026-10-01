@@ -108,33 +108,35 @@ describe('OD-REDESIGN-62 — typed Task record', () => {
     await waitFor(() => expect(screen.getByRole('heading', { name: task.title })).toBeInTheDocument())
 
     expect(screen.getAllByText('Team').length).toBeGreaterThan(0)
-    expect(screen.getAllByText(/team not assigned yet/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/no team yet/i).length).toBeGreaterThan(0)
     expect(screen.getAllByText('Café Operations').length).toBeGreaterThan(0)
-    expect(screen.getByTestId('record-details').querySelector('[data-record-header="pinned"]')).toBeTruthy()
+    expect(screen.getByTestId('record-details').querySelector('[data-record-header="true"]')).toBeTruthy()
     expect(screen.queryByRole('tablist')).toBeNull()
-    expect(screen.getByRole('region', { name: /task details/i })).toBeInTheDocument()
-    expect(screen.getByRole('region', { name: /checklist/i })).toBeInTheDocument()
-    expect(screen.getByRole('region', { name: /activity/i })).toBeInTheDocument()
+    expect(screen.getByTestId('record-details').querySelector('[data-record-section="description"]')).toHaveTextContent('Restore cooling before opening.')
+    expect(screen.getByRole('region', { name: 'Checklist' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /History/ })).toBeNull() // no events, no History
     expect(screen.getByTestId('record-details').querySelector('.record-field__pill')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Edit Title' })).toBeInTheDocument()
     expect(screen.getByTestId('record-details').querySelector('[data-field-key="source"]')).toBeNull()
     expect(screen.getByTestId('record-details').querySelector('[data-field-key="projectProcess"]')).toHaveTextContent('Today opening')
-    expect(within(screen.getByTestId('record-details').querySelector('[data-content-slot="ownership"]') as HTMLElement).getByText('PIC')).toBeInTheDocument()
+    const facts = screen.getByRole('list', { name: 'Key facts' })
+    expect(within(facts).getByText('PIC')).toBeInTheDocument()
     // Value-first document grammar: ownership fields render their VALUE first, then swap in the
     // edit control on activation (click the row). The shared picker exposes the selected label.
     fireEvent.click(screen.getByRole('button', { name: 'Edit PIC' }))
     expect(screen.getByRole('combobox', { name: 'PIC' })).toHaveTextContent('Cahya Cafe')
     fireEvent.click(screen.getByRole('combobox', { name: 'PIC' }))
     fireEvent.click(screen.getByRole('option', { name: 'Cahya Cafe' }))
-    expect(within(screen.getByTestId('record-details').querySelector('[data-content-slot="ownership"]') as HTMLElement).getByText('Supervisor')).toBeInTheDocument()
+    expect(within(facts).getByText('Supervisor')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Edit Supervisor' }))
     expect(screen.getByRole('combobox', { name: 'Supervisor' })).toHaveTextContent('Arden Sample')
     fireEvent.click(screen.getByRole('combobox', { name: 'Supervisor' }))
     fireEvent.click(screen.getByRole('option', { name: 'Arden Sample' }))
-    // Due date renders as a native <input type="date"> once activated (its value is the ISO date
-    // in the attribute, not visible text). Assert via the labeled control's value.
+    // Due date is the shared day-first DateField (#1191): once activated it shows the day-first
+    // editing text (dd/mm/yyyy), never a locale-ordered native input. Assert via the labeled
+    // control's value.
     fireEvent.click(screen.getByRole('button', { name: 'Edit Due' }))
-    expect(screen.getByLabelText('Due')).toHaveValue('2026-07-20')
+    expect(screen.getByLabelText('Due')).toHaveValue('20/07/2026')
     // No RACI grammar: assert the parenthesized RACI labels (Responsible (R), Accountable (A), etc.)
     // never render. The bare words "Consulted"/"Informed" are intentionally NOT matched here — the
     // test fixtures use full names like "Consulted Person" for the person options, which would false-

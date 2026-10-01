@@ -1,5 +1,6 @@
-// Record relationship coverage for the canonical Objective ⇄ Project/Process documents.
-// Work is the primary overview; Details is a facts-only secondary surface.
+// Record relationship coverage for the canonical Objective ⇄ Project/Process pages: the work an
+// Objective is reached through, a Project's parent and Task contribution, Process definition facts,
+// history from the record's own table, and the read-only member view.
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { fireEvent, render, screen, within, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
@@ -7,8 +8,9 @@ import { I18nProvider } from '@/i18n/I18nProvider'
 import { AuthContext, type AuthState } from '@/auth/context'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 
-vi.mock('@/lib/db/objectives', () => ({ updateObjective: vi.fn() }))
-vi.mock('@/lib/db/work-lines', () => ({ updateWorkLine: vi.fn() }))
+vi.mock('@/lib/db/objectives', () => ({ updateObjective: vi.fn(), listObjectivesAll: vi.fn(), renameObjective: vi.fn(), setObjectiveArchived: vi.fn() }))
+vi.mock('@/lib/db/work-lines', () => ({ updateWorkLine: vi.fn(), listWorkLinesAll: vi.fn(), renameWorkLine: vi.fn(), setWorkLineArchived: vi.fn() }))
+vi.mock('@/lib/db/objective-writeup', async (orig) => ({ ...(await orig<typeof import('@/lib/db/objective-writeup')>()), readWriteUp: async () => null }))
 vi.mock('@/components/processes/process-occurrence-controls', () => ({
   ProcessOccurrenceControls: ({ canManageSetup, setupIncomplete }: { canManageSetup?: boolean; setupIncomplete?: boolean }) => (
     <div data-testid="process-controls">{setupIncomplete ? (canManageSetup ? 'Manager setup recovery' : 'Member setup recovery') : 'Current and next actions'}</div>
@@ -29,6 +31,7 @@ vi.mock('@/lib/db/objective-key-results', () => ({ listKeyResults: async () => [
 vi.mock('@/lib/db/directory', async (importActual) => ({ ...(await importActual<typeof import('@/lib/db/directory')>()), getPeople: async () => [] }))
 vi.mock('./use-work-write-authority', async (importActual) => ({
   canEditObjectiveContentForScope: (await importActual<typeof import('./use-work-write-authority')>()).canEditObjectiveContentForScope,
+  canCreateForScope: (await importActual<typeof import('./use-work-write-authority')>()).canCreateForScope,
   useWorkWriteAuthority: () => ({ scopes: runtimeAuthority.scopes, loading: false, error: false }),
   allowedBusinessUnitIds: (kind: 'work-line' | 'objective', scopes: typeof runtimeAuthority.scopes) =>
     kind === 'work-line'
@@ -111,6 +114,9 @@ function recordData(kind: 'objective' | 'work-line', periodYear: number, objecti
     peopleById: new Map([['p1', 'Test Viewer']]),
     roleNamesById: new Map(),
     owningTeams: new Map(),
+    workLinesById: kind === 'objective'
+      ? new Map([['wl-1', { id: 'wl-1', name: 'Menu launch', type: 'project' as const, objectiveId: 'obj-1', businessUnitId: 'bu-1', responsiblePersonId: 'p1' }]])
+      : new Map(),
   }
 }
 
@@ -126,20 +132,14 @@ function renderRecord(kind: 'objective' | 'work-line', id: string) {
   )
 }
 
-async function openDetailsTab() {
-  await waitFor(() => expect(screen.getByRole('tab', { name: 'Work' })).toHaveAttribute('aria-selected', 'true'))
-  fireEvent.click(screen.getByRole('tab', { name: 'Details' }))
-  await waitFor(() => expect(screen.getByRole('tab', { name: 'Details' })).toHaveAttribute('aria-selected', 'true'))
-}
+const facts = () => screen.getByRole('list', { name: 'Key facts' })
 
-/** What separates a member from a catalog manager on the same record: no record actions, and a
- *  Details tab that says it is read-only and offers no field edits. */
-async function expectMemberReadOnly(note = 'You can view this, but not edit it.') {
+/** What separates a member from a catalog manager on the same record: no record actions and no
+ *  field edits, with one line saying the record is view-only. */
+async function expectMemberReadOnly(note = 'View only') {
+  await waitFor(() => expect(screen.getByRole('note')).toHaveTextContent(note))
   expect(screen.queryByRole('button', { name: 'More actions' })).toBeNull()
-  await openDetailsTab()
-  const details = screen.getByRole('tabpanel', { name: 'Details' })
-  expect(within(details).getByRole('note')).toHaveTextContent(note)
-  expect(within(details).queryAllByRole('button', { name: /^Edit / })).toHaveLength(0)
+  expect(screen.queryAllByRole('button', { name: /^Edit / })).toHaveLength(0)
 }
 
 beforeEach(() => {
@@ -172,74 +172,59 @@ beforeEach(() => {
   vi.mocked(updateWorkLine).mockImplementation(async (_id, patch) => {
     if (patch.objective_id !== undefined) currentObjectiveId = patch.objective_id
   })
+  window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+    matches: false, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn(),
+    addListener: vi.fn(), removeListener: vi.fn(), onchange: null, dispatchEvent: vi.fn(),
+  })) as never
 })
 
 describe('record relationship grammar', () => {
-  it('keeps Objective work in one Work region and Details limited to facts', async () => {
+  it('lists an Objective\'s work and its tasks as rows that open their own records, with the roll-up in the header', async () => {
     renderRecord('objective', 'obj-1')
-    const record = await screen.findByRole('heading', { name: 'Grow revenue' })
-    expect(record).toBeInTheDocument()
-    await waitFor(() => expect(screen.getByRole('tab', { name: 'Work' })).toHaveAttribute('aria-selected', 'true'))
-    const work = screen.getByRole('tabpanel')
-    expect(within(work).getByTestId('catalog-record-progress')).toHaveTextContent('1 / 2 tasks done')
+    await screen.findByRole('heading', { level: 1, name: 'Grow revenue' })
+    const work = await screen.findByRole('region', { name: 'Projects & Processes' })
     expect(within(work).getAllByRole('link', { name: 'Menu launch' })).toHaveLength(1)
-    expect(within(work).getByRole('link', { name: 'Print the menus' })).toHaveAttribute('href', '/work/tasks/task-1')
-    expect(within(work).getByRole('link', { name: 'Brief the floor' })).toHaveAttribute('href', '/work/tasks/task-2')
-    expect(screen.queryByRole('tab', { name: 'Activity' })).not.toBeInTheDocument()
-
-    await openDetailsTab()
-    const details = screen.getByRole('tabpanel')
-    expect(within(details).getByText('2026')).toBeInTheDocument()
-    expect(within(details).queryByRole('link', { name: 'Menu launch' })).not.toBeInTheDocument()
-    expect(within(details).queryByRole('link', { name: 'Print the menus' })).not.toBeInTheDocument()
+    expect(work).toHaveTextContent('1 · 1 of 2 tasks done')
+    const tasks = await screen.findByRole('region', { name: 'Tasks' })
+    expect(within(tasks).getByRole('link', { name: 'Print the menus' })).toHaveAttribute('href', '/work/tasks/task-1')
+    expect(within(tasks).getByRole('link', { name: 'Brief the floor' })).toHaveAttribute('href', '/work/tasks/task-2')
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
     expect(document.body.textContent?.toLowerCase()).not.toContain('cascade')
   })
 
   it.each([['objective', 'objectives'], ['work-line', 'work_lines']] as const)(
-    'shows the %s change history under Details, read from its own table',
+    'shows the %s change history, read from its own table once opened',
     async (kind, table) => {
       renderRecord(kind, kind === 'objective' ? 'obj-1' : 'wl-1')
-      await screen.findByRole('heading', { name: kind === 'objective' ? 'Grow revenue' : 'Menu launch' })
-      await openDetailsTab()
-      const details = screen.getByRole('tabpanel')
-      const history = await within(details).findByRole('region', { name: 'History' })
-      expect(within(history).getByText('Test Viewer')).toBeInTheDocument()
+      await screen.findByRole('heading', { level: 1, name: kind === 'objective' ? 'Grow revenue' : 'Menu launch' })
+      fireEvent.click(await screen.findByRole('button', { name: 'History' }))
+      const history = await screen.findByRole('region', { name: 'History' })
+      expect(await within(history).findByText('Test Viewer')).toBeInTheDocument()
       expect(history).toHaveTextContent('Old name → Renamed goal')
       expect(historyLoad).toHaveBeenCalledWith(table, kind === 'objective' ? 'obj-1' : 'wl-1')
     },
   )
 
-  it('shows the direct parent and Task contribution in Work without a duplicate Details link', async () => {
+  it('shows the parent Objective as a fact and the Task contribution in Work, never as a linked-work row', async () => {
     renderRecord('work-line', 'wl-1')
-    await screen.findByRole('heading', { name: 'Menu launch' })
-    const work = screen.getByRole('tabpanel')
-    expect(within(work).getByRole('link', { name: 'Grow revenue' })).toHaveAttribute('href', '/work/objectives/obj-1')
-    expect(within(work).getByRole('link', { name: 'Contributes to: Improve margin' })).toHaveAttribute('href', '/work/objectives/obj-2')
-    expect(document.querySelector('[data-field-key="name"]')).toBeNull()
-    expect(within(work).getByTestId('catalog-record-progress')).toHaveTextContent('1 / 2 tasks done')
-    expect(within(work).getByRole('link', { name: 'Brief the floor' })).toHaveAttribute('href', '/work/tasks/task-2')
-
-    await openDetailsTab()
-    const details = screen.getByRole('tabpanel')
-    expect(within(details).getByText('Grow revenue')).toBeInTheDocument()
-    expect(within(details).queryByRole('link', { name: 'Grow revenue' })).not.toBeInTheDocument()
-    expect(within(details).queryByTestId('catalog-record-links')).not.toBeInTheDocument()
+    await screen.findByRole('heading', { level: 1, name: 'Menu launch' })
+    expect(within(facts()).getByRole('link', { name: 'Grow revenue' })).toHaveAttribute('href', '/work/objectives/obj-1')
+    const tasks = await screen.findByRole('region', { name: 'Tasks' })
+    expect(tasks).toHaveTextContent('1 of 2 done')
+    expect(within(tasks).getByRole('link', { name: 'Brief the floor' })).toHaveAttribute('href', '/work/tasks/task-2')
+    expect(screen.queryByRole('region', { name: 'Linked work' })).toBeNull()
+    expect(document.querySelector('[data-field-key="name"] .record-field__value')?.textContent).toBe('Menu launch')
   })
 
-  it('keeps a Task-only Objective contribution separate from a missing direct parent', async () => {
+  it('keeps a Task-only Objective contribution separate from a missing parent', async () => {
     currentObjectiveId = null
     renderRecord('work-line', 'wl-1')
-    await screen.findByRole('heading', { name: 'Menu launch' })
-    const work = screen.getByRole('tabpanel')
-    expect(within(work).getByTestId('catalog-record-progress')).toHaveTextContent('1 / 2 tasks done')
-    expect(within(work).getByRole('link', { name: 'Contributes to: Improve margin' })).toHaveAttribute('href', '/work/objectives/obj-2')
-    expect(within(work).queryByRole('link', { name: 'Grow revenue' })).not.toBeInTheDocument()
-    expect(document.querySelector('[data-field-key="name"]')).toBeNull()
-    await openDetailsTab()
-    expect(within(screen.getByRole('tabpanel')).getByText('Not set')).toBeInTheDocument()
+    await screen.findByRole('heading', { level: 1, name: 'Menu launch' })
+    await waitFor(() => expect(within(facts()).getByRole('button', { name: 'Edit Objective' })).toHaveTextContent('+ Set Objective'))
+    expect(within(facts()).queryByRole('link', { name: 'Grow revenue' })).not.toBeInTheDocument()
   })
 
-  it('shows an unlinked Work Line honestly when it has no parent or contribution', async () => {
+  it('shows an unlinked Project honestly: no parent fact for a reader, a Set prompt for a manager', async () => {
     vi.mocked(loadCatalogRecordData).mockImplementation(async (kind, id) => {
       if (kind !== 'work-line' || id !== 'wl-1') return null
       const result = recordData(kind, currentPeriodYear, null)
@@ -248,15 +233,13 @@ describe('record relationship grammar', () => {
       return result
     })
     renderRecord('work-line', 'wl-1')
-    await screen.findByRole('heading', { name: 'Menu launch' })
-    const work = screen.getByRole('tabpanel')
-    expect(within(work).getByText('No linked Objective yet.')).toBeInTheDocument()
-    expect(within(work).queryByRole('link', { name: /Objective/ })).not.toBeInTheDocument()
-    await openDetailsTab()
-    expect(within(screen.getByRole('tabpanel')).getByText('Not set')).toBeInTheDocument()
+    await screen.findByRole('heading', { level: 1, name: 'Menu launch' })
+    await waitFor(() => expect(within(facts()).getByRole('button', { name: 'Edit Objective' })).toHaveTextContent('+ Set Objective'))
+    expect(within(facts()).queryByRole('link')).not.toBeInTheDocument()
+    expect(document.body.textContent).not.toMatch(/No linked/)
   })
 
-  it('puts Process occurrence work first, with definition facts and Steps kept secondary', async () => {
+  it('leads a Process with its occurrences and offers the first step while it has none', async () => {
     const processData = recordData('work-line', 2026, null)
     processData.row = { ...processData.row, id: 'wl-process', name: 'Café Opening', type: 'process', objectiveId: null }
     processData.context.relationsById = new Map([['wl-process', { groups: [], tasks: [] }]])
@@ -264,23 +247,18 @@ describe('record relationship grammar', () => {
     vi.mocked(loadCatalogRecordData).mockResolvedValue(processData)
 
     renderRecord('work-line', 'wl-process')
-    await screen.findByRole('heading', { name: 'Café Opening' })
-    await waitFor(() => expect(screen.getByRole('tab', { name: 'Work' })).toHaveAttribute('aria-selected', 'true'))
-    expect(screen.getByTestId('process-controls')).toHaveTextContent('Manager setup recovery')
-
-    await openDetailsTab()
+    await screen.findByRole('heading', { level: 1, name: 'Café Opening' })
+    expect(await screen.findByTestId('process-controls')).toHaveTextContent('Manager setup recovery')
+    expect(screen.getByRole('button', { name: 'Add first step' })).toBeInTheDocument()
     expect(screen.getByText('Chosen for each occurrence')).toBeInTheDocument()
-    expect(screen.queryByTestId('process-controls')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('tab', { name: 'Steps' }))
-    expect(screen.getByRole('tabpanel')).toHaveTextContent('No active steps defined yet.')
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
   })
 })
 
 it('saves an Objective period through its existing record API and reloads the displayed value', async () => {
   renderRecord('objective', 'obj-1')
-  await screen.findByRole('heading', { name: 'Grow revenue' })
-  await openDetailsTab()
-  fireEvent.click(screen.getByRole('button', { name: 'Edit Period' }))
+  await screen.findByRole('heading', { level: 1, name: 'Grow revenue' })
+  fireEvent.click(await screen.findByRole('button', { name: 'Edit Period' }))
   fireEvent.change(screen.getByRole('textbox', { name: 'Period' }), { target: { value: '2031' } })
   fireEvent.keyDown(screen.getByRole('textbox', { name: 'Period' }), { key: 'Enter' })
   await waitFor(() => expect(updateObjective).toHaveBeenCalledWith('obj-1', { period_year: 2031 }))
@@ -302,7 +280,7 @@ it('copies the canonical WorkLine URL from a nested collection stack', async () 
       </I18nProvider>
     </AuthContext.Provider>,
   )
-  await screen.findByRole('heading', { name: 'Menu launch' })
+  await screen.findByRole('heading', { level: 1, name: 'Menu launch' })
   fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
   fireEvent.click(screen.getByRole('menuitem', { name: 'Copy link' }))
 
@@ -311,13 +289,12 @@ it('copies the canonical WorkLine URL from a nested collection stack', async () 
 
 it('removes a Project Objective relation through its existing record API', async () => {
   renderRecord('work-line', 'wl-1')
-  await screen.findByRole('heading', { name: 'Menu launch' })
-  await openDetailsTab()
+  await screen.findByRole('heading', { level: 1, name: 'Menu launch' })
   fireEvent.click(await screen.findByRole('button', { name: 'Edit Objective' }))
   fireEvent.click(screen.getByRole('combobox', { name: 'Objective' }))
   fireEvent.click(screen.getByRole('option', { name: 'Not set' }))
   await waitFor(() => expect(updateWorkLine).toHaveBeenCalledWith('wl-1', { objective_id: null }))
-  await waitFor(() => expect(screen.queryByRole('link', { name: 'Grow revenue' })).not.toBeInTheDocument())
+  await waitFor(() => expect(within(facts()).queryByRole('link', { name: 'Grow revenue' })).not.toBeInTheDocument())
 })
 
 it('does not offer Not set when an own-BU editor must retain the Business Unit', async () => {
@@ -329,8 +306,7 @@ it('does not offer Not set when an own-BU editor must retain the Business Unit',
   }
 
   renderRecord('work-line', 'wl-1')
-  await screen.findByRole('heading', { name: 'Menu launch' })
-  await openDetailsTab()
+  await screen.findByRole('heading', { level: 1, name: 'Menu launch' })
   fireEvent.click(await screen.findByRole('button', { name: 'Edit Business Unit' }))
 
   const picker = screen.getByRole('combobox', { name: 'Business Unit' })
@@ -339,7 +315,7 @@ it('does not offer Not set when an own-BU editor must retain the Business Unit',
   expect(screen.getByRole('option', { name: 'Retail Ops' })).toBeInTheDocument()
 })
 
-it('renders definition-level Process Teams and keeps absent bindings explicit', async () => {
+it('renders definition-level Process Teams and leaves unbound ones out', async () => {
   const processData = recordData('work-line', 2026, null)
   processData.row = { ...processData.row, id: 'wl-process', name: 'Café Opening', type: 'process', objectiveId: null }
   processData.context.relationsById = new Map([[processData.row.id, { groups: [], tasks: [] }]])
@@ -363,16 +339,15 @@ it('renders definition-level Process Teams and keeps absent bindings explicit', 
   vi.mocked(loadCatalogRecordData).mockResolvedValue(processData)
 
   renderRecord('work-line', 'wl-process')
-  await screen.findByRole('heading', { name: 'Café Opening' })
-  await openDetailsTab()
+  await screen.findByRole('heading', { level: 1, name: 'Café Opening' })
   expect(screen.getByText('Chosen for each occurrence')).toBeInTheDocument()
-  fireEvent.click(screen.getByRole('tab', { name: 'Steps' }))
-  const steps = screen.getByRole('tabpanel')
+  const steps = await screen.findByRole('region', { name: 'Steps' })
   expect(within(steps).getByText('Definition Team')).toBeInTheDocument()
-  expect(within(steps).getAllByText('Not set')).toHaveLength(2)
+  // A step prints what it has: no Supervisor or Supervisor Team rows when none is bound.
+  expect(within(steps).queryByText('Not set')).not.toBeInTheDocument()
+  expect(within(steps).queryByText('Supervisor')).not.toBeInTheDocument()
   expect(within(steps).queryByText('occurrence-team')).not.toBeInTheDocument()
 })
-
 
 it.each(['panel', 'page'] as const)('keeps the org-readable Work record available in %s mode for members', async (mode) => {
   const member = auth()
@@ -388,15 +363,10 @@ it.each(['panel', 'page'] as const)('keeps the org-readable Work record availabl
   </MemoryRouter></I18nProvider></AuthContext.Provider>)
   expect(await screen.findByRole('heading', { name: 'Menu launch' })).toBeInTheDocument()
   expect(loadCatalogRecordData).toHaveBeenCalledWith('work-line', 'wl-1', 'p1')
-  await expectMemberReadOnly()
-  // Read-only appears ONCE, at the top of Details, in plain language — never per field and never
-  // duplicated in the footer, in EITHER mode (panel or full page — read-only never depends on it).
-  const notes = document.querySelectorAll('.record-viewer__permission-note')
-  expect(notes).toHaveLength(1)
-  expect(notes[0]).toHaveTextContent('You can view this, but not edit it.')
+  await expectMemberReadOnly('Test Viewer (Accountable) manages this Project or Process. You can add tasks.')
+  // Read-only appears ONCE, as one line under the facts, in either mode.
+  expect(screen.getAllByRole('note')).toHaveLength(1)
   expect(document.body.textContent).not.toContain('catalog changes')
-  // The keyboard-hint footnote is gone; Enter/Esc still work, they are just not narrated.
-  expect(document.querySelector('.record-viewer__edit-hint')).toBeNull()
 })
 
 it('keeps Objectives readable by members through the shared record renderer', async () => {
@@ -412,16 +382,14 @@ it('keeps Objectives readable by members through the shared record renderer', as
     <CatalogRecordDocument kind="objective" id="obj-1" mode="panel" />
   </MemoryRouter></I18nProvider></AuthContext.Provider>)
   expect(await screen.findByRole('heading', { name: 'Grow revenue' })).toBeInTheDocument()
-  await expectMemberReadOnly('You can view this. An admin sets the name, Business Unit, period and accountable person.')
+  await expectMemberReadOnly('You can add tasks.')
 })
-
 
 it('keeps the record readable when edit choices fail and restores editing after Retry', async () => {
   vi.mocked(loadCatalogRecordEditDirectory).mockRejectedValueOnce(new Error('unavailable'))
   renderRecord('work-line', 'wl-1')
   expect(await screen.findByRole('heading', { name: 'Menu launch' })).toBeInTheDocument()
   expect(await screen.findByRole('alert')).toHaveTextContent('Could not load edit choices')
-  await openDetailsTab()
   expect(screen.queryByRole('button', { name: 'Edit Accountable' })).toBeNull()
   fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
   expect(await screen.findByRole('button', { name: 'Edit Accountable' })).toBeInTheDocument()
