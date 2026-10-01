@@ -41,6 +41,10 @@ vi.mock('../../lib/db/objectives', () => ({
   listObjectives: vi.fn().mockResolvedValue([]),
   readObjective: vi.fn().mockResolvedValue(null),
 }))
+vi.mock('@/lib/db/work-lines', async (importActual) => ({
+  ...(await importActual<typeof import('@/lib/db/work-lines')>()),
+  listWorkLines: vi.fn().mockResolvedValue([]),
+}))
 
 import { getTask, createTask, updateTaskStatus, updateTaskFields, toggleChecklistItem, unarchiveTask, archiveTask } from '@/lib/db/tasks'
 import { getBusinessUnits, getPeople, getDownlinePersonIds } from '@/lib/db/directory'
@@ -48,6 +52,7 @@ import * as directoryApi from '@/lib/db/directory'
 import { listComments, postComment } from '@/lib/comments/postComment'
 import { TaskSurface } from './task-surface'
 import { listObjectives, readObjective } from '@/lib/db/objectives'
+import { listWorkLines } from '@/lib/db/work-lines'
 
 const mockGetTask = vi.mocked(getTask)
 const mockCreateTask = vi.mocked(createTask)
@@ -121,6 +126,7 @@ const mockTeams = [
 beforeEach(() => {
   vi.resetAllMocks()
   vi.mocked(listObjectives).mockResolvedValue([])
+  vi.mocked(listWorkLines).mockResolvedValue([])
   vi.mocked(readObjective).mockResolvedValue(null)
   // Per-task drafts and focus state are isolated so one test cannot leak composer content.
   sessionStorage.clear()
@@ -1106,6 +1112,26 @@ describe('TaskSurface — create mode', () => {
     choosePickerOption('Supervisor', 'Cahya Cafe')
     fireEvent.click(screen.getByRole('button', { name: /create task/i }))
     await waitFor(() => expect(onTaskCreated).toHaveBeenCalledWith('new-task-id'))
+  })
+
+  it('createInitialValues.workLineId pre-selects the Project/Process, and the Objective follows it at submit', async () => {
+    vi.mocked(listWorkLines).mockResolvedValue([
+      { id: 'wl-1', name: 'Menu launch', type: 'project', objective_id: 'obj-1' },
+      { id: 'wl-2', name: 'Other thing', type: 'project', objective_id: null },
+    ] as never)
+    render(
+      <AuthContext.Provider value={authedState}>
+        <MemoryRouter initialEntries={['/work/objectives?record=obj-1']}>
+          <TaskSurface taskId={null} mode="create" width="drawer" createInitialValues={{ workLineId: 'wl-1' }} createRedirect={null} />
+        </MemoryRouter>
+      </AuthContext.Provider>,
+    )
+    const picker = await screen.findByRole('combobox', { name: 'Project/Process' })
+    expect(picker).toHaveTextContent('Menu launch (Project)')
+    fireEvent.change(await screen.findByLabelText(/title/i), { target: { value: 'Print menus' } })
+    choosePickerOption('Supervisor', 'Cahya Cafe')
+    fireEvent.click(screen.getByRole('button', { name: /create task/i }))
+    await waitFor(() => expect(mockCreateTask).toHaveBeenCalledWith(expect.objectContaining({ title: 'Print menus', workLineId: 'wl-1', objectiveId: 'obj-1' })))
   })
 
   it('AC-081 (TaskSurface create): valid submit calls createTask and navigates to the create task', async () => {

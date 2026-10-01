@@ -32,14 +32,16 @@ function relatedPath(kind: CatalogRelatedKind, id: string): string {
   return `/work/projects/${id}`
 }
 
-/** A link that opens in the same panel stack on a plain click and keeps its href for the rest. */
-export function RelatedLink({ kind, id, children, onOpenRelated, className = 'rp-row__name' }: {
+export type RelatedLinkProps = {
   kind: CatalogRelatedKind
   id: string
   children: string
   onOpenRelated?: OpenRelated
   className?: string
-}) {
+}
+
+/** A link that opens in the same panel stack on a plain click and keeps its href for the rest. */
+export function RelatedLink({ kind, id, children, onOpenRelated, className = 'rp-row__name' }: RelatedLinkProps) {
   return (
     <Link
       className={className}
@@ -74,14 +76,16 @@ const initialsOf = (name: string) => {
 
 // ── Inline chooser ────────────────────────────────────────────────────────────
 
-/** A type-to-find picker opened by the action that asked for it; Escape or outside click withdraws it. */
-export function InlineChooser({ label, options, onPick, onCancel, status }: {
+export type InlineChooserProps = {
   label: string
   options: readonly PickerOption[]
   onPick: (value: string) => void
   onCancel: () => void
   status?: ReactNode
-}) {
+}
+
+/** A type-to-find picker opened by the action that asked for it; Escape or outside click withdraws it. */
+export function InlineChooser({ label, options, onPick, onCancel, status }: InlineChooserProps) {
   return (
     <div className="rp-chooser" role="group" aria-label={label}>
       {status ?? (
@@ -104,7 +108,7 @@ export function InlineChooser({ label, options, onPick, onCancel, status }: {
 
 // ── Projects & Processes ──────────────────────────────────────────────────────
 
-export function LinkedWorkSection({ objectiveId, groups, progress, workLines, people, scopes, archived, canLink, hidden, onLink, onOpenRelated, onUnlink }: {
+export type LinkedWorkSectionProps = {
   objectiveId: string
   /** The Objective's own task roll-up: the one rule the collection row uses too. */
   progress: { done: number; total: number }
@@ -119,7 +123,9 @@ export function LinkedWorkSection({ objectiveId, groups, progress, workLines, pe
   onLink: () => void
   onOpenRelated: OpenRelated
   onUnlink: (workLine: CatalogWorkLineFact) => void
-}) {
+}
+
+export function LinkedWorkSection({ objectiveId, groups, progress, workLines, people, scopes, archived, canLink, hidden, onLink, onOpenRelated, onUnlink }: LinkedWorkSectionProps) {
   const t = useT()
   const rows = groups.filter((group) => !group.synthetic && group.entity === 'work-line')
   if (rows.length === 0 && (hidden || !canLink)) return null
@@ -167,7 +173,7 @@ export function LinkedWorkSection({ objectiveId, groups, progress, workLines, pe
 
 const VISIBLE_TASKS = 5
 
-export function TasksSection({ title, tasks, people, canAdd, hidden, onAdd, onOpenRelated, today }: {
+export type TasksSectionProps = {
   title: string
   tasks: readonly CatalogRelationTask[]
   people: ReadonlyMap<string, string>
@@ -177,7 +183,9 @@ export function TasksSection({ title, tasks, people, canAdd, hidden, onAdd, onOp
   onAdd: () => void
   onOpenRelated: OpenRelated
   today: string
-}) {
+}
+
+export function TasksSection({ title, tasks, people, canAdd, hidden, onAdd, onOpenRelated, today }: TasksSectionProps) {
   const t = useT()
   const { locale } = useI18n()
   const [all, setAll] = useState(false)
@@ -234,12 +242,14 @@ function processOwner(personId: string | null, roleId: string | null, people: Re
   return person ?? role ?? t('catalog.notSet')
 }
 
-function StepForm({ workLineId, position, onSaved, onCancel }: {
+type StepFormProps = {
   workLineId: string
   position: number
   onSaved: () => void
   onCancel: () => void
-}) {
+}
+
+function StepForm({ workLineId, position, onSaved, onCancel }: StepFormProps) {
   const t = useT()
   const [title, setTitle] = useState('')
   const [pic, setPic] = useState('')
@@ -331,7 +341,7 @@ function StepForm({ workLineId, position, onSaved, onCancel }: {
   )
 }
 
-export function StepsSection({ workLineId, process, people, roles, owningTeams, canManage, archived, adding, hidden, onAdd, onCancelAdd, onAdded }: {
+export type StepsSectionProps = {
   workLineId: string
   process: ProcessRecordData
   people: ReadonlyMap<string, string>
@@ -345,7 +355,9 @@ export function StepsSection({ workLineId, process, people, roles, owningTeams, 
   onAdd: () => void
   onCancelAdd: () => void
   onAdded: () => void
-}) {
+}
+
+export function StepsSection({ workLineId, process, people, roles, owningTeams, canManage, archived, adding, hidden, onAdd, onCancelAdd, onAdded }: StepsSectionProps) {
   const t = useT()
   const [open, setOpen] = useState(false)
   // Adding a step opens the folded list and leaves it open, so the Add control is there afterwards.
@@ -404,16 +416,18 @@ export function StepsSection({ workLineId, process, people, roles, owningTeams, 
 
 // ── Write-up ──────────────────────────────────────────────────────────────────
 
-/**
- * Collapsed to a short excerpt (or one ghost prompt); opening it loads the editor. The editor
- * module is imported only then, so a record that never opens its write-up never pays for it.
- */
-export function WriteUpSection({ objectiveId, canEdit, archived, onDirtyChange }: {
+export type WriteUpSectionProps = {
   objectiveId: string
   canEdit: boolean
   archived: boolean
   onDirtyChange: (dirty: boolean) => void
-}) {
+}
+
+/**
+ * Collapsed to a short excerpt (or one ghost prompt); opening it loads the editor. The editor
+ * module is imported only then, so a record that never opens its write-up never pays for it.
+ */
+export function WriteUpSection({ objectiveId, canEdit, archived, onDirtyChange }: WriteUpSectionProps) {
   const t = useT()
   const [open, setOpen] = useState(false)
   const [dirty, setDirty] = useState(false)

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Picker, type PickerOption } from './picker'
 
@@ -232,5 +232,42 @@ describe('Picker', () => {
     const label = screen.getByRole('option', { name: long }).querySelector('.picker__option-label')
     expect(label).toHaveTextContent(long)
     expect(label).toHaveClass('picker__option-label')
+  })
+
+  describe('option groups', () => {
+    const grouped: PickerOption[] = [
+      { value: 'a', label: 'Alpha', group: 'Not linked yet' },
+      { value: 'b', label: 'Bravo', group: 'Not linked yet' },
+      { value: 'c', label: 'Charlie (in Other)', group: 'Linked to another Objective' },
+    ]
+
+    it('names each run of grouped options with a heading, and options keep their own names', async () => {
+      const user = userEvent.setup()
+      renderPicker({ options: grouped, value: '' })
+      await user.click(screen.getByRole('combobox', { name: 'Status' }))
+      const first = screen.getByRole('group', { name: 'Not linked yet' })
+      const second = screen.getByRole('group', { name: 'Linked to another Objective' })
+      expect(within(first).getAllByRole('option').map((option) => option.textContent)).toEqual(['Alpha', 'Bravo'])
+      expect(within(second).getAllByRole('option').map((option) => option.textContent)).toEqual(['Charlie (in Other)'])
+    })
+
+    it('hides a heading whose options are all filtered out, and Enter selects within the groups', async () => {
+      const user = userEvent.setup()
+      const onChange = vi.fn()
+      renderPicker({ options: grouped, value: '', onChange })
+      await user.click(screen.getByRole('combobox', { name: 'Status' }))
+      await user.keyboard('char')
+      expect(screen.getByText('Not linked yet')).not.toBeVisible()
+      expect(screen.getByText('Linked to another Objective')).toBeVisible()
+      await user.keyboard('{Enter}')
+      expect(onChange).toHaveBeenCalledWith('c')
+    })
+
+    it('leaves an ungrouped list exactly as it was (no group wrappers)', async () => {
+      const user = userEvent.setup()
+      renderPicker()
+      await user.click(screen.getByRole('combobox', { name: 'Status' }))
+      expect(screen.queryByRole('group')).toBeNull()
+    })
   })
 })

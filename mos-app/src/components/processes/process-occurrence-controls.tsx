@@ -1,14 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useAuth } from '@/auth/use-auth'
 import { useI18n } from '@/i18n/I18nProvider'
-import { listCafeViewerTeams } from '@/lib/db/cafe-opening'
 import { getPeople, type PersonOption } from '@/lib/db/directory'
-import {
-  cancelRun, canCloseProcessRun, canStartProcessForTeam, completeRun, listPendingTasks,
-  listProcessOccurrenceSummaries, listStartableProcessRuns, startRun,
-} from '@/lib/db/processes'
-import type { DueProcessRun, PendingTaskRow, ProcessOccurrenceSummary } from '@/lib/db/processes.types'
+import { cancelRun, completeRun, listPendingTasks } from '@/lib/db/processes'
+import type { PendingTaskRow, ProcessOccurrenceSummary } from '@/lib/db/processes.types'
 import { formatDayMonthYear } from '@/lib/format/date'
 import { useT } from '@/i18n/use-t'
 import { Button } from '@/components/ui/button'
@@ -16,8 +11,8 @@ import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { ModalShell } from '@/components/ui/modal-shell'
 import { TextInput } from '@/components/ui/text-input'
 import { OccurrenceAssignDialog } from '@/components/tasks/occurrence-assign-dialog'
-import { dueKey, narrowToViewerTeams } from './use-due-runs'
 import { DueRunsList } from './due-runs-list'
+import { useProcessOccurrences, type ProcessOccurrencesData } from './use-process-occurrences'
 import './process-occurrence-controls.css'
 
 export interface ProcessOccurrenceControlsProps {
@@ -30,27 +25,20 @@ export interface ProcessOccurrenceControlsProps {
   /** Optional in-app navigation hook; the canonical href remains for refresh/new-tab behavior. */
   onViewTasks?: (runId: string) => void
   onChanged?: () => void
+  /** The occurrence data when the host owns the fetch; without it the controls read their own. */
+  data?: ProcessOccurrencesData
 }
 
-type FetchState = 'loading' | 'ready' | 'error'
 type Confirmation = { kind: 'complete' | 'cancel'; run: ProcessOccurrenceSummary }
 
-export function ProcessOccurrenceControls({ workLineId, setupIncomplete = false, canManageSetup = false, onViewTasks, onChanged }: ProcessOccurrenceControlsProps) {
+export function ProcessOccurrenceControls({ workLineId, setupIncomplete = false, canManageSetup = false, onViewTasks, onChanged, data }: ProcessOccurrenceControlsProps) {
   const t = useT()
   const { locale } = useI18n()
-  const auth = useAuth()
-  const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
+  // A host that lifts the occurrence data (the record header shows the Start primary) passes it in.
+  const own = useProcessOccurrences(data ? null : workLineId, onChanged)
+  const { state, occurrences, startable, startableTeamIds, closableRunIds, authorityError, startingKey, startError, actionError, setActionError, load, retry } = data ?? own
+  const handleStart = (data ?? own).start
 
-  const [state, setState] = useState<FetchState>('loading')
-  const [occurrences, setOccurrences] = useState<ProcessOccurrenceSummary[]>([])
-  const [startable, setStartable] = useState<DueProcessRun[]>([])
-  const [startableTeamIds, setStartableTeamIds] = useState<Set<string>>(new Set())
-  const [closableRunIds, setClosableRunIds] = useState<Set<string>>(new Set())
-  const [authorityError, setAuthorityError] = useState(false)
-  const [retryNonce, setRetryNonce] = useState(0)
-  const [startingKey, setStartingKey] = useState<string | null>(null)
-  const [startError, setStartError] = useState(false)
-  const [actionError, setActionError] = useState(false)
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null)
   const [cancelReason, setCancelReason] = useState('')
   const [confirmationError, setConfirmationError] = useState(false)
@@ -61,79 +49,12 @@ export function ProcessOccurrenceControls({ workLineId, setupIncomplete = false,
   const [pendingLoading, setPendingLoading] = useState(false)
   const [pendingError, setPendingError] = useState(false)
   const mountedRef = useRef(true)
-  const loadGenerationRef = useRef(0)
-  const loadIdentityRef = useRef({ workLineId })
   const assignGenerationRef = useRef(0)
-  loadIdentityRef.current = { workLineId }
 
   useEffect(() => {
     mountedRef.current = true
     return () => { mountedRef.current = false }
   }, [])
-
-  const load = useCallback(async () => {
-    if (!mountedRef.current || loadIdentityRef.current.workLineId !== workLineId) return
-    const generation = ++loadGenerationRef.current
-    const isCurrent = () => mountedRef.current
-      && loadGenerationRef.current === generation
-      && loadIdentityRef.current.workLineId === workLineId
-    setState('loading')
-    setStartError(false)
-    setActionError(false)
-    setAuthorityError(false)
-    setStartableTeamIds(new Set())
-    setClosableRunIds(new Set())
-    try {
-      const [nextOccurrences, nextStartable, viewerTeams] = await Promise.all([
-        listProcessOccurrenceSummaries(workLineId),
-        listStartableProcessRuns(workLineId),
-        viewerId ? listCafeViewerTeams(viewerId).catch(() => []) : Promise.resolve([]),
-      ])
-      if (!isCurrent()) return
-      setOccurrences(nextOccurrences)
-      setStartable(narrowToViewerTeams(nextStartable, viewerTeams.map((team) => team.id)))
-      setState('ready')
-
-      // Authority calls are enrichment: readable occurrences and the server-filtered due list
-      // paint independently, while stale/erroring checks fail closed for their affordances.
-      const teamIds = [...new Set(nextOccurrences.map((summary) => summary.run.owning_team_id))]
-      const [startAnswers, closeAnswers] = await Promise.all([
-        Promise.allSettled(teamIds.map(async (teamId) => [teamId, await canStartProcessForTeam(teamId)] as const)),
-        Promise.allSettled(nextOccurrences.map(async (summary) => [summary.run.id, await canCloseProcessRun(summary.run.id)] as const)),
-      ])
-      if (!isCurrent()) return
-      setStartableTeamIds(new Set(startAnswers
-        .filter((answer): answer is PromiseFulfilledResult<readonly [string, boolean]> => answer.status === 'fulfilled' && answer.value[1])
-        .map((answer) => answer.value[0])))
-      setClosableRunIds(new Set(closeAnswers
-        .filter((answer): answer is PromiseFulfilledResult<readonly [string, boolean]> => answer.status === 'fulfilled' && answer.value[1])
-        .map((answer) => answer.value[0])))
-      setAuthorityError(
-        startAnswers.some((answer) => answer.status === 'rejected')
-        || closeAnswers.some((answer) => answer.status === 'rejected'),
-      )
-    } catch {
-      if (!isCurrent()) return
-      setState('error')
-    }
-  }, [workLineId, viewerId])
-
-  useEffect(() => { void load() }, [load, retryNonce])
-
-  async function handleStart(row: DueProcessRun) {
-    const key = dueKey(row)
-    setStartingKey(key)
-    setStartError(false)
-    try {
-      await startRun(row.work_line_id, row.owning_team_id, row.scheduled_date)
-      await load()
-      if (mountedRef.current) onChanged?.()
-    } catch {
-      if (mountedRef.current) setStartError(true)
-    } finally {
-      if (mountedRef.current) setStartingKey(null)
-    }
-  }
 
   function openAssign(runId: string) {
     const generation = ++assignGenerationRef.current
@@ -199,14 +120,14 @@ export function ProcessOccurrenceControls({ workLineId, setupIncomplete = false,
 
   if (state === 'loading') return <LoadingShell count={2} label={t('processes.occurrence.loading')} />
   if (state === 'error') {
-    return <ErrorState message={t('processes.occurrence.error')} onRetry={() => setRetryNonce((nonce) => nonce + 1)} />
+    return <ErrorState message={t('processes.occurrence.error')} onRetry={retry} />
   }
 
   return (
     <section className="process-occurrence-controls" aria-labelledby="process-occurrence-controls-title">
       <header className="process-occurrence-controls__header">
         <h3 id="process-occurrence-controls-title">{t('processes.occurrence.title')}</h3>
-        {authorityError ? <ErrorState message={t('processes.occurrence.authorityError')} onRetry={() => setRetryNonce((nonce) => nonce + 1)} /> : null}
+        {authorityError ? <ErrorState message={t('processes.occurrence.authorityError')} onRetry={retry} /> : null}
         {actionError ? <ErrorState message={t('processes.occurrence.actionError')} /> : null}
       </header>
 
@@ -229,7 +150,7 @@ export function ProcessOccurrenceControls({ workLineId, setupIncomplete = false,
             due={startable}
             expanded
             startingKey={startingKey}
-            startError={startError}
+            startError={startError && !data}
             context="process-record"
             onStart={handleStart}
           />
