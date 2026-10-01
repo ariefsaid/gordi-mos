@@ -107,6 +107,8 @@ jobs:
         run: bash scripts/mvp-handoff-preflight.test.sh
       - name: Impeccable detector vendor self-test
         run: bash scripts/impeccable-detector.test.sh
+      - name: Impeccable side-stripe rule self-test
+        run: bash scripts/impeccable-side-stripe.test.sh
       - name: UI review skill pin self-test
         run: bash scripts/vendor-skills.test.sh
       - name: UI skill runtime resolver self-test

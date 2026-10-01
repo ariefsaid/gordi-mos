@@ -143,6 +143,8 @@ describe('AC-080 — create form prefills', () => {
   })
 
   it('AC-080 — PIC and Supervisor are changeable; chosen ids reach createTask', async () => {
+    // A PIC other than the viewer must be in the viewer's downline (OD-WAY-94 (1)).
+    vi.mocked(getDownlinePersonIds).mockResolvedValue(['other-id'])
     renderCreate()
 
     // Wait for the real directory-backed Pickers to load.

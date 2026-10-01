@@ -220,3 +220,13 @@ describe('signalCollectionSavedViews — typed Signal saved-view lifecycle (FR-V
     expect(applied.query.groupBy).toBe('category')
   })
 })
+
+// OD-ROLE-1: no role gets a Team-scoped Signals default. A bare landing is All teams for a member
+// and for an org-wide role alike, so there is no per-role Team default to flip.
+describe('Signals open on All teams for every role', () => {
+  it('the neutral query and a bare URL carry no Team scope', () => {
+    expect(SIGNAL_COLLECTION_NEUTRAL_QUERY).toMatchObject({ view: 'all', teamId: null })
+    const parsed = signalCollectionDescriptor.query.parse(new URLSearchParams(), 'feed')
+    expect(parsed.query).toMatchObject({ view: 'all', teamId: null })
+  })
+})
