@@ -8,10 +8,11 @@ import { useT } from '@/i18n/use-t'
 import { saveErrorMessage } from '@/lib/save-error'
 import { EmptyState, ErrorState } from '@/components/ui/state-kit'
 import { Button } from '@/components/ui/button'
+import type { PickerOption } from '@/components/ui/picker'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { RecordField } from '@/components/records/record-field'
 import type { RecordFieldSpec, RecordValue } from '@/components/records/record-viewer.types'
-import { RecordPageHeader, type RecordFact } from '@/components/record/record-page-header'
+import { RecordPageHeader, type RecordFact, type RecordPrimaryAction } from '@/components/record/record-page-header'
 import { RecordAbout, RecordGetStarted, RecordPageLayout, RecordPageSkeleton, RecordSection, type RecordSetupItem } from '@/components/record/record-page-layout'
 import type { RecordMenuItem } from '@/components/record/record-menu'
 import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
@@ -22,11 +23,13 @@ import { listObjectivesAll, updateObjective } from '@/lib/db/objectives'
 import { listWorkLinesAll, updateWorkLine } from '@/lib/db/work-lines'
 import { wibToday } from '@/lib/db/cafe-opening'
 import { ProcessOccurrenceControls } from '@/components/processes/process-occurrence-controls'
+import { useProcessOccurrences } from '@/components/processes/use-process-occurrences'
 import { COMPANY_WIDE_OPTION, objectivesCatalogActions, projectsProcessesCatalogActions } from './catalog-collection-adapter'
 import { loadCatalogRecordData, loadCatalogRecordEditDirectory, type CatalogRecordData, type CatalogRecordEditDirectory, type CatalogWorkLineFact } from './catalog-record-loader'
 import './catalog-record-document.css'
 import { ObjectiveKeyResultsSection } from './objective-key-results-section'
 import { RecordHistory } from './record-history'
+import { priorWorkLine, withLinkedWorkLine, withPriorWorkLine } from './catalog-record-optimistic'
 import {
   InlineChooser, LinkedWorkSection, StepsSection, TasksSection, WriteUpSection,
   type CatalogRelatedKind,
@@ -38,14 +41,16 @@ import {
 export type CatalogRecordKind = 'work-line' | 'objective'
 export type { CatalogRelatedKind }
 
-export interface CatalogRecordDocumentProps {
+export type CatalogRecordDocumentProps = {
   kind: CatalogRecordKind
   id: string
   mode: 'panel' | 'page'
   onOpenRelated?: (kind: CatalogRelatedKind, id: string) => void
   onOpenPage?: () => void
-  /** Opens task creation for one Project/Process. */
+  // Opens task creation for one Project/Process.
   onCreateTask?: (workLineId: string) => void
+  // Raised by the create frame that just popped back to this record; read once for the "Task added" notice.
+  taskAddedRef?: { current: boolean }
   onTitleResolved?: (title: string) => void
   onChanged?: () => void
   onLeaveGuardChange?: (guard: OverlayLeaveGuard | undefined) => void
@@ -55,8 +60,8 @@ const STEPS_ADD_CONTROL = '[data-record-section="steps"] .rp-section__action, [d
 
 type Notice = { message: string; undo?: () => Promise<void> }
 type Chooser =
-  | { purpose: 'link'; status: 'loading' | 'error' | 'empty' | 'ready'; options: { value: string; label: string }[]; objectiveOf: Map<string, string | null>; names: Map<string, string> }
-  | { purpose: 'task'; options: { value: string; label: string }[] }
+  | { purpose: 'link'; status: 'loading' | 'error' | 'empty' | 'ready'; options: PickerOption[]; objectiveOf: Map<string, string | null>; names: Map<string, string>; facts: Map<string, CatalogWorkLineFact> }
+  | { purpose: 'task'; options: PickerOption[] }
 
 function cadenceLabel(kind: string, t: ReturnType<typeof useT>): string {
   const labels = {
@@ -83,6 +88,7 @@ export function CatalogRecordDocument({
   onOpenRelated,
   onOpenPage,
   onCreateTask,
+  taskAddedRef,
   onTitleResolved,
   onChanged,
   onLeaveGuardChange,
@@ -112,7 +118,7 @@ export function CatalogRecordDocument({
   const [addKeyResultToken, setAddKeyResultToken] = useState(0)
   const [addingStep, setAddingStep] = useState(false)
   const [chooser, setChooser] = useState<Chooser | null>(null)
-  const [moving, setMoving] = useState<{ id: string; name: string; from: string } | null>(null)
+  const [moving, setMoving] = useState<{ id: string; name: string; from: string; fact?: CatalogWorkLineFact } | null>(null)
   const [linkError, setLinkError] = useState<(() => Promise<void>) | null>(null)
   const [notice, setNotice] = useState<Notice | null>(null)
   const resolverRef = useRef<((decision: OverlayLeaveDecision) => void) | null>(null)
@@ -172,8 +178,13 @@ export function CatalogRecordDocument({
     setNotice(next)
     if (next) noticeTimer.current = setTimeout(() => setNotice(null), 10_000)
   }, [])
+  useEffect(() => {
+    if (!taskAddedRef?.current) return
+    taskAddedRef.current = false
+    announce({ message: t('catalog.record.taskAdded') })
+  }, [announce, t, taskAddedRef])
 
-  /** Re-read the record without blanking the page (a link, an unlink, a new step). */
+  // Re-read the record without blanking the page (a link, an unlink, a new step).
   const refresh = useCallback(async () => {
     const next = await loadCatalogRecordData(kind, id, viewerId)
     if (next) setState(next)
@@ -264,6 +275,10 @@ export function CatalogRecordDocument({
     if (onCreateTask) onCreateTask(workLineId)
     else navigate({ pathname: '/work/tasks', search: `?create=1&work_line=${encodeURIComponent(workLineId)}` })
   }, [navigate, onCreateTask])
+
+  // The occurrence reads live here, not in the section, so the header can carry the Start primary.
+  const onOccurrencesChanged = useCallback(() => { setReloadNonce((nonce) => nonce + 1); onChanged?.() }, [onChanged])
+  const occurrences = useProcessOccurrences(kind === 'work-line' && state?.row.type === 'process' ? id : null, onOccurrencesChanged)
 
   const discardAndLeave = useCallback(async () => {
     resolverRef.current?.({ decision: 'allow' })
@@ -390,7 +405,9 @@ export function CatalogRecordDocument({
   }
 
   // ── What is still missing, for a viewer who can add it ─────────────────────
-  const ownTaskTargets = isObjective ? linkedWork.map((group) => group.id) : [id]
+  // Tasks of this record sit on the linked Projects/Processes once several are listed; the first
+  // target is the record itself for a work line, or its single linked row for an Objective.
+  const taskTargetIds = isObjective ? linkedWork.map((group) => group.id) : [id]
   const rememberOpener = () => { openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null }
   // Back to the control that opened it; when that control was replaced meanwhile, to the Steps add control.
   const restoreOpener = (fallback?: string) => requestAnimationFrame(() => {
@@ -404,48 +421,68 @@ export function CatalogRecordDocument({
       setChooser({ purpose: 'task', options: linkedWork.map((group) => ({ value: group.id, label: group.name })) })
       return
     }
-    if (ownTaskTargets[0]) createTask(ownTaskTargets[0])
+    if (taskTargetIds[0]) createTask(taskTargetIds[0])
   }
   const openStepForm = () => { rememberOpener(); setAddingStep(true) }
   const cancelStepForm = () => { setAddingStep(false); restoreOpener(STEPS_ADD_CONTROL) }
   const startLink = async () => {
     rememberOpener()
     setLinkError(null)
-    setChooser({ purpose: 'link', status: 'loading', options: [], objectiveOf: new Map(), names: new Map() })
+    setChooser({ purpose: 'link', status: 'loading', options: [], objectiveOf: new Map(), names: new Map(), facts: new Map() })
     try {
       const [workLines, objectives] = await Promise.all([listWorkLinesAll(), listObjectivesAll()])
       const objectiveNames = new Map(objectives.map((objective) => [objective.id, objective.name]))
       const candidates = workLines
         .filter((workLine) => workLine.archived_at === null && workLine.objective_id !== id && canManageForScope('work-line', workLine.business_unit_id, scopes))
-        .sort((a, b) => Number(a.objective_id !== null && a.objective_id !== undefined) - Number(b.objective_id !== null && b.objective_id !== undefined) || a.name.localeCompare(b.name))
+        .sort((left, right) => Number(left.objective_id !== null && left.objective_id !== undefined) - Number(right.objective_id !== null && right.objective_id !== undefined) || left.name.localeCompare(right.name))
       setChooser({
         purpose: 'link',
         status: candidates.length === 0 ? 'empty' : 'ready',
-        options: candidates.map((workLine) => ({
-          value: workLine.id,
-          label: workLine.objective_id
-            ? t('catalog.link.optionOther', { name: workLine.name, parent: objectiveNames.get(workLine.objective_id) ?? t('catalog.notAvailable') })
-            : workLine.name,
-        })),
+        options: candidates.map((workLine) => workLine.objective_id
+          ? {
+              value: workLine.id,
+              label: t('catalog.link.optionOther', { name: workLine.name, parent: objectiveNames.get(workLine.objective_id) ?? t('catalog.notAvailable') }),
+              group: t('catalog.link.groupOther'),
+            }
+          : { value: workLine.id, label: workLine.name, group: t('catalog.link.groupFree') }),
         objectiveOf: new Map(candidates.map((workLine) => [workLine.id, workLine.objective_id ?? null])),
         names: new Map(candidates.map((workLine) => [workLine.id, workLine.name])),
+        facts: new Map(candidates.map((workLine) => [workLine.id, {
+          id: workLine.id, name: workLine.name, type: workLine.type, objectiveId: id,
+          businessUnitId: workLine.business_unit_id ?? null, responsiblePersonId: workLine.responsible_person_id ?? null,
+        }])),
       })
     } catch {
-      setChooser({ purpose: 'link', status: 'error', options: [], objectiveOf: new Map(), names: new Map() })
+      setChooser({ purpose: 'link', status: 'error', options: [], objectiveOf: new Map(), names: new Map(), facts: new Map() })
     }
   }
-  /** True once the link is written; a failure keeps its retry and reports nothing as done. */
-  const link = async (workLineId: string, objectiveId: string | null): Promise<boolean> => {
+  // True once the link is written; a failure keeps its retry and reports nothing as done. With `shown`,
+  // the row is listed before the write and the prior listing (a task-derived contribution included) is
+  // put back if the write fails; a re-read that fails after a good write leaves the (true) row in place.
+  const link = async (workLineId: string, objectiveId: string | null, shown?: CatalogWorkLineFact): Promise<boolean> => {
     const attempt = async () => {
-      await updateWorkLine(workLineId, { objective_id: objectiveId })
+      const before = shown && state ? priorWorkLine(state, id, workLineId) : null
+      if (shown) setState((current) => current ? withLinkedWorkLine(current, id, shown) : current)
+      try {
+        await updateWorkLine(workLineId, { objective_id: objectiveId })
+      } catch (error) {
+        if (before) setState((current) => current ? withPriorWorkLine(current, id, workLineId, before) : current)
+        throw error
+      }
       setLinkError(null)
-      await refresh()
+      if (shown) await refresh().catch(() => {})
+      else await refresh()
     }
     try { await attempt(); return true } catch { setLinkError(() => attempt); return false }
   }
   const unlink = async (workLine: CatalogWorkLineFact) => {
     if (!(await link(workLine.id, null))) return
     announce({ message: t('catalog.link.unlinkedNotice', { name: workLine.name }), undo: async () => { await link(workLine.id, id) } })
+    // The row that held focus is gone: focus moves to the Undo it just earned, else to the section's action.
+    requestAnimationFrame(() => {
+      const next = document.querySelector<HTMLElement>('.rp-notice button') ?? document.querySelector<HTMLElement>('[data-record-section="linked-work"] .rp-section__action')
+      next?.focus()
+    })
   }
 
   // A writer's Get started region waits for the key-result count, so it never shows a half-known list.
@@ -471,8 +508,18 @@ export function CatalogRecordDocument({
     }
   }
   const setupTitle = t(isObjective ? 'catalog.setup.title.objective' : isProcess ? 'catalog.setup.title.process' : 'catalog.setup.title.project')
-  const primary = archived || !settled || setup.length > 0 || isProcess ? undefined
-    : (isObjective ? linkedWork.length > 0 : true) ? { label: t('catalog.record.addTask'), onClick: startAddTask } : undefined
+  // One ready run starts as the body's Start button does; with several Teams ready the person picks
+  // the Team, so the primary takes them to those buttons rather than choosing for them.
+  const startReady = isProcess && process !== null && process.steps.length > 0 && occurrences.state === 'ready' && occurrences.startable.length > 0
+  const startFromHeader = () => {
+    if (occurrences.startable.length === 1) { void occurrences.start(occurrences.startable[0]); return }
+    const first = document.querySelector<HTMLElement>('.process-occurrence-controls__start button')
+    first?.scrollIntoView({ block: 'center' })
+    first?.focus()
+  }
+  const primary: RecordPrimaryAction | undefined = archived || !settled || setup.length > 0 ? undefined
+    : isProcess ? (startReady ? { label: t('catalog.record.startOccurrence'), onClick: startFromHeader, busy: occurrences.startingKey !== null } : undefined)
+      : (isObjective ? linkedWork.length > 0 : true) ? { label: t('catalog.record.addTask'), onClick: startAddTask } : undefined
 
   const accountableName = row.accountablePersonId ? allPeople.get(row.accountablePersonId) : undefined
   // The line says what the viewer can do: "View only" is for a viewer with nothing to add.
@@ -534,8 +581,8 @@ export function CatalogRecordDocument({
         onPick={(workLineId) => {
           const other = chooser.objectiveOf.get(workLineId)
           setChooser(null)
-          if (other) setMoving({ id: workLineId, name: chooser.names.get(workLineId) ?? '', from: chooser.options.find((option) => option.value === workLineId)?.label ?? '' })
-          else void link(workLineId, id)
+          if (other) setMoving({ id: workLineId, name: chooser.names.get(workLineId) ?? '', from: chooser.options.find((option) => option.value === workLineId)?.label ?? '', fact: chooser.facts.get(workLineId) })
+          else void link(workLineId, id, chooser.facts.get(workLineId))
         }}
         onCancel={closeChooser}
         status={chooser.status === 'ready' ? undefined : (
@@ -554,6 +601,7 @@ export function CatalogRecordDocument({
     <>
       {mutationError ? <p className="catalog-record-document__error" role="alert">{mutationError}</p> : null}
       {editDirectoryError ? <ErrorState message={t('catalog.record.editChoicesError')} onRetry={() => setEditDirectoryRetry((value) => value + 1)} /> : null}
+      {isProcess && occurrences.startError ? <p className="catalog-record-document__error" role="alert">{t('processes.due.startError')}</p> : null}
       {linkError ? (
         <p className="catalog-record-document__error" role="alert">
           {t('catalog.link.failed')}{' · '}
@@ -662,7 +710,7 @@ export function CatalogRecordDocument({
         {isProcess && process ? (
           <RecordSection id="occurrence" title={t('catalog.record.currentNextAction')}>
             <div data-setup-pending={setup.some((item) => item.id === 'steps') || undefined}>
-              <ProcessOccurrenceControls workLineId={id} setupIncomplete={process.steps.length === 0} canManageSetup={canManage} onChanged={() => { setReloadNonce((nonce) => nonce + 1); onChanged?.() }} />
+              <ProcessOccurrenceControls workLineId={id} setupIncomplete={process.steps.length === 0} canManageSetup={canManage} onChanged={onOccurrencesChanged} data={occurrences} />
             </div>
           </RecordSection>
         ) : null}
@@ -697,7 +745,7 @@ export function CatalogRecordDocument({
           if (!moving) return
           const target = moving
           setMoving(null)
-          await link(target.id, id)
+          await link(target.id, id, target.fact)
         }}
         onCancel={() => setMoving(null)}
       />
