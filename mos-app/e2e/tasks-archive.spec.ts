@@ -23,8 +23,10 @@ test('OD-WAY-94: the PIC may complete but cannot archive, even when also Supervi
   await page.goto(`work/tasks/${TASKS.VIEWER_ACCOUNTABLE.id}`)
   const record = page.getByRole('region', { name: TASKS.VIEWER_ACCOUNTABLE.title, exact: true })
   await expect(record.getByRole('button', { name: 'Mark complete', exact: true })).toBeVisible()
-  await expect(record.getByRole('button', { name: 'More actions', exact: true })).toHaveCount(0)
-  await expect(record.getByRole('menuitem', { name: /archive task/i })).toHaveCount(0)
+  // The ⋯ menu carries Copy link for everyone; Archive is the item only an archiving role is given.
+  await record.getByRole('button', { name: 'More actions', exact: true }).click()
+  await expect(page.getByRole('menuitem', { name: 'Copy link', exact: true })).toBeVisible()
+  await expect(page.getByRole('menuitem', { name: /archive task/i })).toHaveCount(0)
 })
 
 test('AC-091: archive task from detail → leaves default list → reappears under archived filter', async ({ page }) => {
