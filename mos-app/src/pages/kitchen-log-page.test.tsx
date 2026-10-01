@@ -1714,7 +1714,7 @@ describe("AC-002 / FR-001: the capture surface opens on the person's own stream 
 describe('FR-002: no stream-linked primary Team → an explicit stream choice is required before capture', () => {
   it('renders the "choose stream" guidance placeholder in place of the list, fetches no stream-scoped data, and offers no Submit', async () => {
     mockFetchDefaultStream.mockResolvedValue(null)
-    await renderPage()
+    await renderPage(OPS_LEAD)
     await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
 
     // #781 item 2 / B5: with no default resolved the head states nothing (B12 — an empty
@@ -1745,7 +1745,7 @@ describe('FR-002: no stream-linked primary Team → an explicit stream choice is
   it('choosing a stream from the picker loads it and capture proceeds against the chosen pair', async () => {
     mockFetchDefaultStream.mockResolvedValue(null)
     mockInsertKitchenLogBatch.mockResolvedValue(['log-001'])
-    await renderPage()
+    await renderPage(OPS_LEAD)
     await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
 
     await chooseStream('Radiant · Bar')
@@ -2475,6 +2475,19 @@ describe('OD-CAFE-1 — the root Log is location-bound without the Opening wrapp
     const offered = labels(within(group).getAllByRole('button'))
     expect(offered).toHaveLength(2)
     expect(offered.every(label => label.includes('Rumah Rames'))).toBe(true)
+  })
+
+  it('no location resolves (Teams at several branches, no home): the choice is only their Team streams', async () => {
+    mockFetchDefaultStream.mockResolvedValue(null)
+    mockListCafeViewerTeams.mockResolvedValue([
+      team(BRANCH_RUMAH_RAMES.id, 'kitchen'), team(BRANCH_GORDI_HQ.id, 'bar'),
+    ])
+    await renderPage()
+    await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
+
+    const group = screen.getByRole('group', { name: /production stream/i })
+    const offered = labels(within(group).getAllByRole('button')).map(label => label.replace(/Your Team$/, '').trim())
+    expect(offered.sort()).toEqual(['Gordi HQ · Bar', 'Rumah Rames · Kitchen'])
   })
 
   it('a session location outranks the home stream, whose stream is then stale and not captured against', async () => {

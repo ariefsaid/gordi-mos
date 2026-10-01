@@ -218,19 +218,27 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
   // `streamOptions` stays WHOLE for everything else. The transfer movements are derived from it —
   // a transfer's destination is by definition another branch — so filtering the catalog itself
   // would delete the cross-location workflow instead of bounding the production choice.
-  const locationStreams = useMemo(
-    () => (locationId ? streamOptions.filter((option) => option.branch.id === locationId) : streamOptions),
-    [locationId, streamOptions],
-  )
-  // Change may also reach another location the person can work at — their own stream Teams, or any
-  // for ops_lead/admin. Choosing one is the explicit location switch: setStream commits it.
+  // A person may work at a stream if they hold a Team on it (any, for ops_lead/admin).
   const elevated = auth.status === 'authenticated' && canPushCafe(auth.viewer.accessRoles)
+  const eligible = useCallback(
+    (option: ProductionStream) => elevated || myStreamKeys.has(streamKey(option.branch.id, option.activity)),
+    [elevated, myStreamKeys],
+  )
+  // With no location resolved (ask), the choice is the person's eligible streams, never the whole
+  // catalog; choosing one claims that location.
+  const locationStreams = useMemo(
+    () => (locationId
+      ? streamOptions.filter((option) => option.branch.id === locationId)
+      : streamOptions.filter(eligible)),
+    [eligible, locationId, streamOptions],
+  )
+  // Change may also reach another location the person can work at. Choosing one is the explicit
+  // location switch: setStream commits it.
   const otherLocationStreams = useMemo(
     () => (locationId
-      ? streamOptions.filter((option) => option.branch.id !== locationId
-        && (elevated || myStreamKeys.has(streamKey(option.branch.id, option.activity))))
+      ? streamOptions.filter((option) => option.branch.id !== locationId && eligible(option))
       : []),
-    [elevated, locationId, myStreamKeys, streamOptions],
+    [eligible, locationId, streamOptions],
   )
   // A remembered stream from another location is stale, not a default. Clearing it puts the page
   // in the same "choose a stream" state as a person with no default at all — nothing is captured
