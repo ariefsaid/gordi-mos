@@ -136,7 +136,7 @@ describe('AC-063/AC-064: Café pages stay Indonesian end to end', () => {
         expect(container.textContent).toContain(pushesWord)
         if (locale === 'id') {
           expect(screen.getAllByRole('columnheader').map((header) => header.textContent)).toEqual([
-            'Kelompok', 'Tujuan kirim', 'Dikirim ke', 'Status', 'Percobaan ulang',
+            'Kelompok', 'Alamat kirim', 'Dikirim ke', 'Status', 'Percobaan ulang',
             'Kesalahan', 'Referensi outlet', 'Waktu dibuat', 'Terkirim',
           ])
         }

@@ -2661,7 +2661,7 @@ export const messages = {
     'kitchen.pushes.tally.queued.other': '${count} menunggu',
     'kitchen.pushes.col.batch': 'Kelompok',
     'kitchen.pushes.col.created': 'Waktu dibuat',
-    'kitchen.pushes.col.endpoint': 'Tujuan kirim',
+    'kitchen.pushes.col.endpoint': 'Alamat kirim',
     'kitchen.pushes.col.error': 'Kesalahan',
     'kitchen.pushes.col.esbDoc': 'Referensi outlet',
     'kitchen.pushes.col.posted': 'Terkirim',
