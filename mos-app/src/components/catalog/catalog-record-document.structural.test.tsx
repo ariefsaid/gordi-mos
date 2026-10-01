@@ -1,4 +1,4 @@
-// Objective structural fields (name, Business Unit / Company-wide, period, accountable) follow the
+// Objective structural facts (name, Business Unit / Company-wide, period, accountable) follow the
 // objective-manage authority, which the RPC grants to admin only. The write-up tier
 // (objective_content_*) never opens them. The real authority hook runs over a mocked RPC read, so
 // this pins the whole path from WorkWriteScopes to what the record offers.
@@ -11,14 +11,12 @@ import { AuthContext, type AuthState } from '@/auth/context'
 import type { WorkWriteScopes } from '@/lib/db/work-authority'
 import type { ObjectivePatch } from '@/lib/db/objectives'
 
-vi.mock('@/lib/db/objectives', () => ({ updateObjective: vi.fn() }))
-vi.mock('@/lib/db/work-lines', () => ({ updateWorkLine: vi.fn() }))
+vi.mock('@/lib/db/objectives', () => ({ updateObjective: vi.fn(), listObjectivesAll: vi.fn(), renameObjective: vi.fn(), setObjectiveArchived: vi.fn() }))
+vi.mock('@/lib/db/work-lines', () => ({ updateWorkLine: vi.fn(), listWorkLinesAll: vi.fn(), renameWorkLine: vi.fn(), setWorkLineArchived: vi.fn() }))
+vi.mock('@/lib/db/objective-key-results', () => ({ listKeyResults: async () => [] }))
+vi.mock('@/lib/db/objective-writeup', async (orig) => ({ ...(await orig<typeof import('@/lib/db/objective-writeup')>()), readWriteUp: async () => null }))
+vi.mock('@/lib/db/record-history', async (orig) => ({ ...(await orig<typeof import('@/lib/db/record-history')>()), loadRecordHistory: async () => ({ entries: [], names: new Map() }) }))
 vi.mock('@/components/processes/process-occurrence-controls', () => ({ ProcessOccurrenceControls: () => null }))
-const editorModule = vi.hoisted(() => ({ loads: 0 }))
-vi.mock('./objective-writeup-editor', () => {
-  editorModule.loads += 1
-  return { ObjectiveWriteupEditor: () => <p>write-up editor</p> }
-})
 vi.mock('./catalog-record-loader', () => ({ loadCatalogRecordData: vi.fn(), loadCatalogRecordEditDirectory: vi.fn() }))
 vi.mock('@/lib/db/work-authority', () => ({
   emptyWorkWriteScopes: () => ({
@@ -98,6 +96,7 @@ function recordData(row: CatalogRow): CatalogRecordData {
     peopleById: new Map([['p1', 'Test Viewer']]),
     roleNamesById: new Map(),
     owningTeams: new Map(),
+    workLinesById: new Map(),
   }
 }
 
@@ -122,20 +121,12 @@ function renderObjective() {
   )
 }
 
-async function openDetails() {
-  await screen.findByRole('heading', { name: 'Grow revenue' })
-  await waitFor(() => expect(screen.getByRole('tab', { name: 'Work' })).toHaveAttribute('aria-selected', 'true'))
-  fireEvent.click(screen.getByRole('tab', { name: 'Details' }))
-  await waitFor(() => expect(screen.getByRole('tab', { name: 'Details' })).toHaveAttribute('aria-selected', 'true'))
-  return screen.getByRole('tabpanel', { name: 'Details' })
-}
-
-const fieldValue = (details: HTMLElement, key: string) =>
-  details.querySelector(`[data-field-key="${key}"] .record-field__value`)?.textContent
+const facts = () => screen.getByRole('list', { name: 'Key facts' })
+const factValue = (key: string) =>
+  facts().querySelector(`[data-field-key="${key}"] .record-field__value`)?.textContent
 
 beforeEach(() => {
   vi.clearAllMocks()
-  editorModule.loads = 0
   current = baseRow()
   vi.mocked(getWorkWriteScopes).mockResolvedValue(VIEWERS[0].scopes)
   vi.mocked(loadCatalogRecordData).mockImplementation(async () => recordData(current))
@@ -147,47 +138,30 @@ beforeEach(() => {
   vi.mocked(updateObjective).mockImplementation(async (_id, patch) => { applyPatch(patch) })
 })
 
-// First in the file: the module cache keeps an earlier import, which would hide an eager one.
-describe('Objective write-up editor loading', () => {
-  it('imports the editor module only when the Write-up tab is selected', async () => {
-    renderObjective()
-    await screen.findByRole('heading', { name: 'Grow revenue' })
-    await waitFor(() => expect(screen.getByRole('tab', { name: 'Work' })).toHaveAttribute('aria-selected', 'true'))
-    fireEvent.click(screen.getByRole('tab', { name: 'Details' }))
-    await waitFor(() => expect(screen.getByRole('tab', { name: 'Details' })).toHaveAttribute('aria-selected', 'true'))
-    expect(editorModule.loads).toBe(0)
-    expect(screen.queryByText('write-up editor')).toBeNull()
-
-    fireEvent.click(screen.getByRole('tab', { name: 'Write-up' }))
-    expect(await screen.findByText('write-up editor')).toBeInTheDocument()
-    expect(editorModule.loads).toBe(1)
-  })
-})
-
-describe.each(VIEWERS)('Objective structural fields for $name', ({ scopes, editable }) => {
+describe.each(VIEWERS)('Objective structural facts for $name', ({ scopes, editable }) => {
   beforeEach(() => { vi.mocked(getWorkWriteScopes).mockResolvedValue(scopes) })
 
-  it(editable ? 'offers an edit control on every structural field' : 'shows every structural field as read-only text with the permission note', async () => {
+  it(editable ? 'offers an edit control on every structural fact' : 'shows every structural fact as read-only text with the view-only line', async () => {
     renderObjective()
-    const details = await openDetails()
+    await screen.findByRole('heading', { level: 1, name: 'Grow revenue' })
     if (editable) {
-      await waitFor(() => expect(within(details).getByRole('button', { name: 'Edit Business Unit' })).toBeInTheDocument())
+      await waitFor(() => expect(within(facts()).getByRole('button', { name: 'Edit Business Unit' })).toBeInTheDocument())
       for (const label of ['Edit Business Unit', 'Edit Accountable', 'Edit Period', 'Edit Quarter']) {
-        expect(within(details).getByRole('button', { name: label })).toBeInTheDocument()
+        expect(within(facts()).getByRole('button', { name: label })).toBeInTheDocument()
       }
-      expect(within(details).queryByRole('note')).toBeNull()
+      expect(screen.getByRole('button', { name: 'Edit Name' })).toBeInTheDocument()
+      expect(screen.queryByRole('note')).toBeNull()
       expect(screen.getByRole('button', { name: 'More actions' })).toBeInTheDocument()
       return
     }
-    expect(within(details).getByRole('note'))
-      .toHaveTextContent('You can view this. An admin sets the name, Business Unit, period and accountable person.')
-    expect(within(details).queryAllByRole('button', { name: /^Edit / })).toHaveLength(0)
-    expect(within(details).queryAllByRole('combobox')).toHaveLength(0)
-    expect(fieldValue(details, 'businessUnit')).toBe('Retail Ops')
-    expect(fieldValue(details, 'accountable')).toBe('Test Viewer')
-    expect(fieldValue(details, 'period')).toBe('2026')
-    expect(fieldValue(details, 'periodQuarter')).toBe('Q3')
-    expect(screen.queryByRole('button', { name: 'More actions' })).toBeNull()
+    await waitFor(() => expect(screen.getByRole('note')).toHaveTextContent('Test Viewer (Accountable) sets targets and links work.'))
+    expect(screen.queryAllByRole('button', { name: /^Edit / })).toHaveLength(0)
+    expect(screen.queryAllByRole('combobox')).toHaveLength(0)
+    expect(factValue('businessUnit')).toBe('Retail Ops')
+    expect(factValue('accountable')).toContain('Test Viewer')
+    expect(factValue('period')).toBe('2026')
+    expect(factValue('periodQuarter')).toBe('Q3')
+    expect(screen.queryByRole('button', { name: 'Archive' })).toBeNull()
   })
 })
 
@@ -195,17 +169,25 @@ describe('Objective Business Unit display', () => {
   it('reads Company-wide, never Not set, for a Company-wide Objective', async () => {
     current = baseRow({ businessUnitId: null, isCompanyWide: true })
     renderObjective()
-    const details = await openDetails()
-    expect(fieldValue(details, 'businessUnit')).toBe('Company-wide')
-    expect(within(details).queryByText('Not set')).toBeNull()
+    await screen.findByRole('heading', { level: 1, name: 'Grow revenue' })
+    expect(factValue('businessUnit')).toBe('Company-wide')
+    expect(within(facts()).queryByText('Not set')).toBeNull()
   })
 
-  it('keeps Not set for an Objective with neither a unit nor Company-wide', async () => {
+  it('an Objective with neither a unit nor Company-wide offers an admin a ghost Set prompt, and a reader nothing', async () => {
     current = baseRow({ businessUnitId: null, isCompanyWide: false })
+    const { unmount } = renderObjective()
+    await screen.findByRole('heading', { level: 1, name: 'Grow revenue' })
+    await waitFor(() => expect(within(facts()).getByRole('button', { name: 'Edit Business Unit' })).toBeInTheDocument())
+    expect(facts().querySelector('[data-field-key="businessUnit"]')).toHaveAttribute('data-empty', 'true')
+    expect(factValue('businessUnit')).toBe('+ Set Business Unit')
+    unmount()
+    vi.mocked(getWorkWriteScopes).mockResolvedValue(VIEWERS[3].scopes)
     renderObjective()
-    const details = await openDetails()
-    expect(fieldValue(details, 'businessUnit')).toBe('Not set')
-    expect(details.querySelector('[data-field-key="businessUnit"]')).toHaveAttribute('data-empty', 'true')
+    await screen.findByRole('heading', { level: 1, name: 'Grow revenue' })
+    await waitFor(() => expect(screen.getByRole('note')).toBeInTheDocument())
+    expect(facts().querySelector('[data-field-key="businessUnit"]')).toBeNull()
+    expect(within(facts()).queryByText('Not set')).toBeNull()
   })
 })
 
@@ -213,8 +195,8 @@ describe('Objective structural pickers (admin)', () => {
   beforeEach(() => { vi.mocked(getWorkWriteScopes).mockResolvedValue(VIEWERS[0].scopes) })
 
   async function openPicker(name: string) {
-    const details = await openDetails()
-    fireEvent.click(await within(details).findByRole('button', { name: `Edit ${name}` }))
+    await screen.findByRole('heading', { level: 1, name: 'Grow revenue' })
+    fireEvent.click(await within(facts()).findByRole('button', { name: `Edit ${name}` }))
     fireEvent.click(await screen.findByRole('combobox', { name }))
     return screen.getByRole('listbox')
   }
@@ -270,27 +252,27 @@ describe('Objective structural pickers (admin)', () => {
     await waitFor(() => expect(updateObjective).toHaveBeenLastCalledWith('obj-1', { period_quarter: null }))
   })
 
-  it('disables the quarter with a stated reason while no year is set', async () => {
+  it('offers no quarter while no year is set, only a prompt to set the period', async () => {
     current = baseRow({ periodYear: null, periodQuarter: null })
     renderObjective()
-    const details = await openDetails()
-    await waitFor(() => expect(within(details).getByRole('button', { name: 'Edit Business Unit' })).toBeInTheDocument())
-    expect(within(details).queryByRole('button', { name: 'Edit Quarter' })).toBeNull()
-    expect(details.querySelector('[data-field-key="periodQuarter"]')).toHaveTextContent('Set a year first to choose a quarter.')
+    await screen.findByRole('heading', { level: 1, name: 'Grow revenue' })
+    await waitFor(() => expect(within(facts()).getByRole('button', { name: 'Edit Period' })).toBeInTheDocument())
+    expect(within(facts()).queryByRole('button', { name: 'Edit Quarter' })).toBeNull()
+    expect(within(facts()).getByRole('button', { name: 'Edit Period' })).toHaveTextContent('+ Set period')
   })
 
   it('shows a year hint in the Period input while no year is set', async () => {
     current = baseRow({ periodYear: null, periodQuarter: null })
     renderObjective()
-    const details = await openDetails()
-    fireEvent.click(await within(details).findByRole('button', { name: 'Edit Period' }))
+    await screen.findByRole('heading', { level: 1, name: 'Grow revenue' })
+    fireEvent.click(await within(facts()).findByRole('button', { name: 'Edit Period' }))
     expect(screen.getByRole('textbox', { name: 'Period' })).toHaveAttribute('placeholder', 'Year, e.g. 2026')
   })
 
   it('clears the quarter in the same patch when the year is cleared', async () => {
     renderObjective()
-    const details = await openDetails()
-    fireEvent.click(await within(details).findByRole('button', { name: 'Edit Period' }))
+    await screen.findByRole('heading', { level: 1, name: 'Grow revenue' })
+    fireEvent.click(await within(facts()).findByRole('button', { name: 'Edit Period' }))
     const input = screen.getByRole('textbox', { name: 'Period' })
     fireEvent.change(input, { target: { value: '' } })
     fireEvent.keyDown(input, { key: 'Enter' })
@@ -299,8 +281,8 @@ describe('Objective structural pickers (admin)', () => {
 
   it('keeps the quarter when the year is changed to another year', async () => {
     renderObjective()
-    const details = await openDetails()
-    fireEvent.click(await within(details).findByRole('button', { name: 'Edit Period' }))
+    await screen.findByRole('heading', { level: 1, name: 'Grow revenue' })
+    fireEvent.click(await within(facts()).findByRole('button', { name: 'Edit Period' }))
     const input = screen.getByRole('textbox', { name: 'Period' })
     fireEvent.change(input, { target: { value: '2031' } })
     fireEvent.keyDown(input, { key: 'Enter' })
@@ -310,8 +292,8 @@ describe('Objective structural pickers (admin)', () => {
   it('runs the keyboard journey on the Business Unit picker: open, type, arrows, Enter, Escape, focus return', async () => {
     const user = userEvent.setup()
     renderObjective()
-    const details = await openDetails()
-    const edit = await within(details).findByRole('button', { name: 'Edit Business Unit' })
+    await screen.findByRole('heading', { level: 1, name: 'Grow revenue' })
+    const edit = await within(facts()).findByRole('button', { name: 'Edit Business Unit' })
     await user.click(edit)
     const trigger = await screen.findByRole('combobox', { name: 'Business Unit' })
     expect(trigger).toHaveFocus()
@@ -332,8 +314,8 @@ describe('Objective structural pickers (admin)', () => {
   it.each(['Business Unit', 'Quarter'])('keeps focus on the %s edit control after choosing with Enter', async (name) => {
     const user = userEvent.setup()
     renderObjective()
-    const details = await openDetails()
-    await user.click(await within(details).findByRole('button', { name: `Edit ${name}` }))
+    await screen.findByRole('heading', { level: 1, name: 'Grow revenue' })
+    await user.click(await within(facts()).findByRole('button', { name: `Edit ${name}` }))
     await screen.findByRole('combobox', { name })
     await user.keyboard('{Enter}{ArrowUp}{Enter}')
     await waitFor(() => expect(updateObjective).toHaveBeenCalledTimes(1))

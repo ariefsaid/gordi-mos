@@ -1,0 +1,206 @@
+/* Shared record page layer. Values come only from existing tokens (index.css / tokens/*) and the kit
+   classes it sits beside (.btn, .pill, .skeleton-bar). Layout and rhythm only; no new tokens.
+   Specificity note: the record field primitive ships its own label/value-row rules in
+   record-viewer.css; every override here is scoped under `.rp` so it wins without !important. */
+
+.rp { display: flex; flex-direction: column; min-width: 0; padding: 20px; color: var(--foreground); }
+.rp--page { max-width: 1052px; margin-inline: auto; padding: 0 0 48px; }
+.page-frame__content:has(.rp--page) .record-page-chrome { max-width: 1052px; margin-inline: auto; }
+
+/* ── Header ──────────────────────────────────────────────────────────── */
+.rp-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-areas: "title primary more" "facts facts facts" "note note note";
+  align-items: start; gap: 12px 8px; padding-bottom: 20px; border-bottom: 1px solid var(--border);
+}
+.rp-title { grid-area: title; min-width: 0; }
+.rp-head__primary { grid-area: primary; }
+.rp-head__more { grid-area: more; }
+.rp-head__more:empty { display: none; }
+.rp-facts { grid-area: facts; }
+.rp-readonly { grid-area: note; margin: 0; font-size: var(--font-size-label); font-weight: 500; color: var(--muted-foreground); }
+
+.rp .rp-title .record-field { display: block; }
+.rp .rp-title .record-field__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.rp .rp-title .record-field__heading,
+.rp .rp-title .record-field__heading > .record-field__edit > .record-field__value {
+  margin: 0; font-family: var(--font-display); font-size: var(--font-size-page-title); font-weight: 600;
+  line-height: 1.2; letter-spacing: -0.01em; text-wrap: balance; overflow-wrap: normal; word-break: normal;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden;
+}
+.rp .rp-title .record-field__heading > .record-field__edit > .record-field__value { display: -webkit-box; font: inherit; }
+.rp--panel .rp-title .record-field__heading,
+.rp--panel .rp-title .record-field__heading > .record-field__edit > .record-field__value {
+  font-size: var(--font-size-heading); line-height: 1.25;
+}
+.rp .rp-title .record-field__edit { width: 100%; min-height: 0; margin: 0; padding: 2px 0; white-space: normal; justify-content: flex-start; }
+.rp .rp-title .record-field--readonly .record-field__value { padding: 0; min-height: 0; }
+.rp .rp-title .record-field__feedback { min-height: 0; }
+
+.rp-icon-btn {
+  width: 32px; height: 32px; padding: 0; display: inline-grid; place-items: center;
+  border-radius: var(--radius-sm); border: 1px solid var(--control-border); background: var(--background);
+  color: var(--muted-foreground); cursor: pointer;
+}
+.rp-icon-btn:hover { background: var(--surface-tertiary); color: var(--foreground); }
+.rp-icon-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ── Facts line ──────────────────────────────────────────────────────── */
+.rp-facts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 0; padding: 0; list-style: none; font-size: var(--font-size-body); }
+.rp-fact { display: inline-flex; align-items: center; gap: 6px; min-width: 0; color: var(--foreground); }
+.rp-fact--state { align-items: center; }
+.rp-fact__key { font-size: var(--font-size-label); font-weight: 500; color: var(--muted-foreground); }
+.rp-fact__fields { display: inline-flex; align-items: center; gap: 4px; }
+
+.rp .rp-facts .record-field { display: inline-flex; align-items: center; gap: 6px; }
+.rp .rp-facts .record-field__label {
+  padding: 0; font-size: var(--font-size-label); font-weight: 500; color: var(--muted-foreground); line-height: 1.3;
+}
+.rp .rp-facts .rp-fact--group .record-field__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.rp .rp-facts .record-field__value-cell { flex-direction: row; align-items: center; gap: 6px; }
+.rp .rp-facts .record-field__edit {
+  min-height: 28px; margin: 0; padding: 2px 6px; border-radius: var(--radius-sm); font-size: var(--font-size-body); gap: 4px; align-self: center;
+}
+.rp .rp-facts .record-field__value { font-size: var(--font-size-body); padding: 0; min-height: 0; }
+.rp .rp-facts .record-field--readonly .record-field__value { padding: 0; min-height: 0; }
+.rp .rp-facts .record-field__chip,
+.rp .rp-facts .record-field__inline-pill {
+  margin: 0; padding: 0; border: 0; background: none; min-height: 0; font-size: var(--font-size-body);
+}
+.rp .rp-facts .record-field__feedback { min-height: 0; }
+/* The edit pencil takes no room until it is wanted, so a chip is as wide as its content. */
+.rp .rp-facts .record-field__edit-affordance { width: 0; margin-inline-start: -4px; overflow: hidden; }
+.rp .rp-facts .record-field__edit:hover .record-field__edit-affordance,
+.rp .rp-facts .record-field__edit:focus-visible .record-field__edit-affordance { width: 13px; margin-inline-start: 0; }
+.rp .rp-facts [data-empty='true'] .record-field__value { color: var(--muted-foreground); font-weight: 500; }
+.rp .rp-facts .record-field__link { color: inherit; text-decoration: none; border-bottom: 1px solid var(--border); }
+.rp .rp-facts .record-field__link:hover { border-bottom-color: currentColor; }
+.rp-fact--overdue .record-field__value { color: var(--status-lost-text); font-weight: 600; }
+.rp-fact--soon .record-field__value { color: var(--warning-foreground); font-weight: 600; }
+
+/* Role chip: the role is spelled out ("Accountable · Dewi Director"), never a bare letter. */
+.rp .rp-chip { display: inline-flex; align-items: center; min-height: 28px; padding: 2px 10px; border-radius: var(--radius-pill); font-size: var(--font-size-body); font-weight: 500; }
+.rp .rp-chip .record-field { align-items: center; gap: 4px; }
+.rp .rp-chip .record-field__label { font-weight: 600; color: inherit; }
+.rp .rp-chip .record-field__value-cell { align-items: center; gap: 4px; }
+.rp .rp-chip .record-field__edit { min-height: 24px; padding: 0 4px; }
+.rp .rp-chip .record-field__chip { display: inline-flex; align-items: center; gap: 6px; color: var(--foreground); }
+.rp-chip--accountable { background: color-mix(in srgb, var(--violet) 10%, transparent); color: var(--status-violet-text); }
+.rp-chip--responsible { background: color-mix(in srgb, var(--primary) 10%, transparent); color: var(--status-open-text); }
+.rp-chip--neutral { background: var(--secondary); color: var(--muted-foreground); }
+.rp-chip--ghost { background: none; padding: 0; min-height: 0; color: var(--muted-foreground); }
+/* While its picker is open the chip gives up its pill so the control is not clipped by it. */
+.rp .rp-chip:has(.record-field[data-mode='edit']) { min-height: 0; padding: 0; background: none; }
+.rp-chip__sep { color: inherit; }
+.rp-avatar {
+  display: inline-grid; place-items: center; flex: none; width: 20px; height: 20px; border-radius: var(--radius-pill);
+  background: linear-gradient(135deg, var(--ds-color-blue12), var(--ds-color-blue9));
+  color: var(--ds-font-color-inverted); font-size: var(--font-size-micro); font-weight: 700;
+}
+.rp-avatar::before { content: attr(data-initials); }
+
+/* ── Menu (portal) ───────────────────────────────────────────────────── */
+.rp-menu {
+  position: fixed; z-index: var(--z-modal); min-width: 188px; padding: 4px;
+  border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--popover); box-shadow: var(--shadow-popover);
+}
+.rp-menu__item {
+  display: flex; align-items: center; width: 100%; min-height: 36px; padding: 0 12px; border: 0; border-radius: var(--radius-sm);
+  background: none; color: var(--foreground); font: inherit; font-size: var(--font-size-control); text-align: left; cursor: pointer; white-space: nowrap;
+}
+.rp-menu__item:hover, .rp-menu__item:focus-visible { background: var(--surface-tertiary); outline: none; }
+.rp-menu__item:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
+.rp-menu__item:disabled { color: var(--muted-foreground); cursor: not-allowed; }
+.rp-menu__item--destructive { color: var(--status-lost-text); }
+.rp-menu__separator { height: 1px; margin: 4px 0; background: var(--border); }
+
+/* ── Body: main column + aside (page >= 1280) ────────────────────────── */
+.rp-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 32px; }
+@media (min-width: 1280px) {
+  .rp--page .rp-body { grid-template-columns: minmax(0, 720px) 300px; }
+}
+.rp-main { min-width: 0; }
+
+/* Get started: one tinted region, not a card. */
+.rp-setup { margin-top: 24px; padding: 16px; border-radius: var(--radius-lg); background: var(--secondary); }
+.rp-setup__title { margin: 0; font-family: var(--font-display); font-size: var(--font-size-body-lg); font-weight: 600; }
+.rp-setup__why { margin: 4px 0 0; font-size: var(--font-size-body); color: var(--muted-foreground); }
+.rp-setup__list { display: flex; flex-direction: column; margin: 12px 0 0; padding: 0; list-style: none; }
+.rp-setup__row {
+  display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 12px 0;
+  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+.rp-setup__row:first-child { border-top: 0; padding-top: 4px; }
+.rp-setup__check { color: var(--muted-foreground); }
+.rp-setup__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.rp-setup__label { font-size: var(--font-size-body-lg); font-weight: 500; }
+.rp-setup__reason { font-size: var(--font-size-label); font-weight: 500; color: var(--muted-foreground); }
+
+.rp-section { padding-top: 24px; }
+.rp-main > .rp-section, .rp-main > .rp-setup ~ .rp-section { margin-top: 8px; }
+.rp-section:not(:first-child) { border-top: 1px solid var(--border); }
+.rp-setup + .rp-section { border-top: 0; margin-top: 0; }
+.rp-section__head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-height: 32px; margin-bottom: 8px; }
+.rp-section__head .rp-section__action { margin-inline-start: auto; }
+.rp-section__title { white-space: nowrap; }
+.rp--panel .rp-count-extra { display: none; }
+.rp-section__title { margin: 0; font-family: var(--font-display); font-size: var(--font-size-body-lg); font-weight: 600; color: var(--foreground); }
+.rp-section__count { font-size: var(--font-size-body); font-weight: 400; color: var(--muted-foreground); }
+.rp-section__spacer { flex: 1; min-width: 0; }
+
+.rp-rows { list-style: none; margin: 0; padding: 0; }
+.rp-row { display: grid; align-items: center; gap: 4px 12px; padding: 12px 0; border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent); }
+.rp-row:last-child { border-bottom: 0; }
+.rp-row__name { min-width: 0; font-size: var(--font-size-body-lg); font-weight: 500; color: var(--foreground); text-decoration: none; overflow-wrap: anywhere; }
+a.rp-row__name:hover { color: var(--primary); }
+.rp-row__meta { font-size: var(--font-size-label); font-weight: 500; color: var(--muted-foreground); }
+
+/* About + disclosure */
+.rp-aside { padding-top: 24px; }
+.rp-aside__block + .rp-aside__block { margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--border); }
+.rp-aside__block .rp-section__title { margin-bottom: 12px; }
+.rp-kv { display: grid; gap: 10px; margin: 0; font-size: var(--font-size-body); }
+.rp-kv__item { display: flex; flex-direction: column; gap: 2px; }
+.rp-kv dt { font-size: var(--font-size-label); font-weight: 500; color: var(--muted-foreground); }
+.rp-kv dd { margin: 0; overflow-wrap: anywhere; }
+.rp-about .rp-section__title { margin-bottom: 12px; }
+@media (max-width: 1279.98px) { .rp-about .rp-kv { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+.rp-disclosure-wrap { margin-top: 8px; border-top: 1px solid var(--border); }
+.rp-disclosure {
+  display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 12px 0; border: 0; background: none;
+  font: inherit; font-family: var(--font-display); font-size: var(--font-size-body-lg); font-weight: 600; color: var(--foreground);
+  cursor: pointer; text-align: left;
+}
+.rp-disclosure:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--radius-sm); }
+.rp-disclosure__caret { flex: none; color: var(--muted-foreground); transition: transform var(--dur-fast) ease; }
+.rp-disclosure[aria-expanded='true'] .rp-disclosure__caret { transform: rotate(90deg); }
+
+/* Skeleton */
+.rp-skeleton__title { width: 60%; height: 28px; margin-bottom: 12px; }
+.rp-skeleton__facts { display: flex; gap: 12px; margin-bottom: 24px; }
+.rp-skeleton__facts > span { width: 88px; height: 22px; }
+
+/* ── Phone ───────────────────────────────────────────────────────────── */
+@media (max-width: 767.98px) {
+  .rp-head { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "title more" "facts facts" "primary primary" "note note"; }
+  .rp-head__primary .btn { width: 100%; min-height: 44px; font-size: var(--font-size-body); }
+  .rp-icon-btn { width: 44px; height: 44px; }
+  .rp-facts { gap: 8px 12px; }
+  .rp-menu__item { min-height: 44px; }
+  a.rp-row__name { display: inline-flex; align-items: center; min-height: 44px; }
+  .rp-section__action { min-height: 44px; border: 1px solid var(--control-border); }
+  .rp .rp-facts .record-field__edit { min-height: 44px; margin-block: -8px; }
+  .rp .rp-chip .record-field__edit { min-height: 44px; margin-block: -10px; }
+  .rp-setup__row { grid-template-columns: 20px minmax(0, 1fr); }
+  .rp-setup__action { grid-column: 1 / -1; width: 100%; min-height: 44px; }
+}
+
+/* In-body text action (Edit write-up, Show all, Add current value): quiet, aligned to the section's text edge. */
+.rp-link-btn {
+  padding: 4px 0; border: 0; background: none; color: var(--primary); font: inherit; font-size: var(--font-size-body); font-weight: 600; cursor: pointer;
+}
+.rp-link-btn:hover { text-decoration: underline; }
+.rp-link-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--radius-xs); }
+@media (max-width: 767.98px) { .rp-link-btn { min-height: 44px; } }
