@@ -77,6 +77,32 @@ describe('RecordMenu', () => {
   })
 })
 
+describe('RecordMenu placement', () => {
+  it('opens above its trigger when there is no room below, and below it otherwise', async () => {
+    const user = userEvent.setup()
+    const rect = (top: number, bottom: number) => ({ top, bottom, left: 300, right: 340, width: 40, height: bottom - top, x: 300, y: top, toJSON: () => ({}) })
+    const spy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+    const height = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(120)
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 800 })
+    const items = [{ id: 'a', label: 'One', onSelect: vi.fn() }, { id: 'b', label: 'Two', onSelect: vi.fn() }]
+    try {
+      spy.mockReturnValue(rect(748, 780) as DOMRect)
+      const { unmount } = render(<RecordMenu items={items} label="More actions" />)
+      await user.click(screen.getByRole('button', { name: 'More actions' }))
+      expect(screen.getByRole('menu')).toHaveStyle({ top: '624px' })
+      unmount()
+
+      spy.mockReturnValue(rect(100, 132) as DOMRect)
+      render(<RecordMenu items={items} label="More actions" />)
+      await user.click(screen.getByRole('button', { name: 'More actions' }))
+      expect(screen.getByRole('menu')).toHaveStyle({ top: '136px' })
+    } finally {
+      spy.mockRestore()
+      height.mockRestore()
+    }
+  })
+})
+
 describe('RecordGetStarted', () => {
   it('renders nothing for an empty list and makes only the first row primary', () => {
     const { container, rerender } = wrap(<RecordGetStarted title="Get started" items={[]} />)
