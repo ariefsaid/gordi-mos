@@ -40,7 +40,6 @@ import { TaskOverlayContent } from './task-drawer'
 import { TaskCreateContext, type TaskCreateContextValue } from './task-create-context'
 import { loadHomeLeadId } from './default-supervisor'
 import { useCatalogRecordEntryFactory } from '@/components/catalog/use-catalog-record-overlay'
-import { AskDeputyAction } from '@/components/records/ask-deputy-action'
 import type { OverlayEntry, OverlayHostApi } from '@/shell/overlay-host'
 import { getActiveTaskView } from './task-collection-view'
 import { isOwnerDirector, hasOrgWideAuthority } from '@/lib/role-scope'
@@ -443,20 +442,12 @@ export function TasksWorkspace({
   const taskEntry = useMemo<OverlayEntry | null>(() => {
     if (!recordId) return null
     const pageTo = { pathname: `/work/tasks/${recordId}`, search: pageSearch() }
-    // Record-scoped "Ask Deputy" seed: the loaded row carries the task title, so the composer opens
-    // with "About Task: <title>". Falls back to the generic record noun if the row isn't loaded.
-    const taskTitle = controller.state.data?.records.find((r) => r.id === recordId)?.title?.trim()
     const entry: OverlayEntry = {
       key: `task:${recordId}`,
       owner: 'tasks' as const,
       tenant: 'record' as const,
       label: t('tasks.detail.title'),
       title: t('tasks.detail.title'),
-      actions: (
-        <AskDeputyAction
-          draft={t('assistant.askAbout.task', { title: taskTitle || t('tasks.detail.title') })}
-        />
-      ),
       pageTo,
       pageState: TASK_PAGE_STATE,
       content: null,
@@ -473,7 +464,7 @@ export function TasksWorkspace({
       />
     )
     return entry
-  }, [recordId, pageSearch, controller.state.data, buildRelatedEntry, host, onTaskArchived, onTaskChanged, promoteToPage, t])
+  }, [recordId, pageSearch, buildRelatedEntry, host, onTaskArchived, onTaskChanged, promoteToPage, t])
 
   // Open (or restore, on hard-load/refresh of ?record=) the record through the shared host. Route
   // mode so the marker is a real history step: Browser Back closes the panel, refresh restores it.
