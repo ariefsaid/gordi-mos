@@ -23,6 +23,7 @@ vi.mock('../lib/db/directory', () => ({
   // Design fix wave item 4 — the "via <role name>" provenance line's role-name batch lookup.
   listRoleNames: vi.fn(),
   getDownlinePersonIds: vi.fn().mockResolvedValue([]),
+  getPersonBusinessUnitIds: vi.fn().mockResolvedValue([]),
 }))
 vi.mock('../lib/db/objectives', () => ({ listObjectives: vi.fn() }))
 vi.mock('../lib/db/work-lines', () => ({ listWorkLines: vi.fn() }))
@@ -106,6 +107,13 @@ const authedState: AuthState = {
   signOut: async () => {},
 }
 
+// OD-TASK-3 (#1200): the full "All" list is the org-wide (admin) view; a member's All is Relevant.
+const adminState: AuthState = {
+  status: 'authenticated',
+  viewer: { ...authedState.viewer, accessRoles: ['admin'] },
+  signOut: async () => {},
+}
+
 // ── Task fixtures (raw rows — no embedded objects, Fix C1) ────────────────────
 function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
   return {
@@ -170,11 +178,12 @@ function taskFilterOptions(trigger: HTMLElement) {
   return labels
 }
 
-// §Task-11: the Team-work chip was removed; All is the org-visible set.
-async function switchToAll() {
+// §Task-11: the Team-work chip was removed; the broadest scope is the All view. OD-TASK-3: that
+// control reads Relevant for a non-org-wide viewer and All for an admin — pass the viewer's label.
+async function switchToAll(label: 'All' | 'Relevant' = 'Relevant') {
   const door = screen.queryByRole('button', { name: /^view & filters/i })
   if (door?.getAttribute('aria-expanded') === 'false') fireEvent.click(door)
-  const all = screen.getByRole('button', { name: 'All' })
+  const all = screen.getByRole('button', { name: label })
   fireEvent.click(all)
   await waitFor(() => expect(all).toHaveAttribute('aria-pressed', 'true'))
 }
@@ -459,7 +468,7 @@ describe('AC-063 — filters: Business Unit, Status, Person', () => {
   })
 
   it('AC-063: Person filter — selecting a person shows tasks where they are PIC or Supervisor', async () => {
-    // Use "All" view so all tasks load visibly regardless of typed ownership scope.
+    // Admin viewer: All is the full list, so all tasks load visibly regardless of ownership scope.
     // Tasks: viewer is PIC on first, viewer is Supervisor on second, neither on third.
     // Fix C1: no embedded objects.
     const taskViewerPic = makeTask({
@@ -475,8 +484,8 @@ describe('AC-063 — filters: Business Unit, Status, Person', () => {
       responsible_person_id: OTHER_ID, accountable_person_id: OTHER_ID,
     })
     mockListTasks.mockResolvedValue([taskViewerPic, taskViewerSupervisor, taskUnrelated])
-    renderPage()
-    await switchToAll()
+    renderPage(adminState)
+    await switchToAll('All')
     await waitFor(() => screen.getByText('Not viewer task'))
 
     // Now apply person filter for the viewer
@@ -522,10 +531,11 @@ describe('AC-064 — saved-view chips', () => {
     expect(screen.getByRole('button', { name: 'My work' })).toHaveAttribute('aria-pressed', 'true')
   })
 
-  it('the Task scope tabs expose All, My work, Team work and Overdue', async () => {
+  it('the Task scope tabs expose Relevant, My work, Team work and Overdue for a member', async () => {
     renderPage()
     await waitFor(() => screen.getByText('My task'))
-    expect(screen.getByRole('button', { name: 'All' })).toBeTruthy()
+    // OD-TASK-3: the member's broadest view is Relevant — `view=all` keeps its URL.
+    expect(screen.getByRole('button', { name: 'Relevant' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'My work' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Overdue' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Team work' })).toBeInTheDocument()
@@ -533,10 +543,10 @@ describe('AC-064 — saved-view chips', () => {
   })
 
   it('AC-064 / §Task-11: "All" shows every loaded row regardless of ownership scope', async () => {
-    renderPage()
+    renderPage(adminState) // the full-list All is the org-wide viewer's (OD-TASK-3)
     await waitFor(() => screen.getByText('My task'))
 
-    await switchToAll()
+    await switchToAll('All')
 
     await waitFor(() => {
       expect(screen.getByText('My task')).toBeTruthy()
@@ -654,7 +664,7 @@ describe('a11y — aria roles and labels', () => {
     await waitFor(() => screen.getByRole('button', { name: 'My work' }))
     expect(screen.getByRole('group', { name: /task views/i })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'My work' }).getAttribute('aria-pressed')).toBe('false')
-    expect(screen.getByRole('button', { name: 'All' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByRole('button', { name: 'Relevant' }).getAttribute('aria-pressed')).toBe('true')
   })
 
   it('loading region has aria-busy and a visually-hidden loading message', async () => {
@@ -1034,8 +1044,8 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C1)', () => {
       overdue: 0, pending_unresolved: 1, completion_pct: 0,
     }
     mockListRunRollups.mockResolvedValue([rollup])
-    renderPage()
-    await switchToAll()
+    renderPage(adminState) // generated tasks are role-owned, not the viewer's — full-list All
+    await switchToAll('All')
     await waitFor(() => screen.getByText('Open the café'))
 
     chooseTaskFilter(taskFilter(/^group$/i), 'Occurrence')
@@ -1067,8 +1077,8 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C1)', () => {
     mockListTaskDefs.mockResolvedValue([{ id: 'def-1', title: 'Open the café', pic_role_id: 'role-1' }])
     mockListRoleNames.mockResolvedValue([{ id: 'role-1', name: 'Cafe Ops Lead' }])
 
-    renderPage()
-    await switchToAll()
+    renderPage(adminState) // generated tasks are role-owned, not the viewer's — full-list All
+    await switchToAll('All')
     await waitFor(() => screen.getByText('Open the café'))
     chooseTaskFilter(taskFilter(/^group$/i), 'Occurrence')
 
@@ -1119,8 +1129,8 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C2)', () => {
     mockResolvePendingTask.mockResolvedValue('task-new')
     mockCanStartProcessForTeam.mockResolvedValue(true)
 
-    renderPage(CAPABLE_AUTH)
-    await switchToAll()
+    renderPage(adminState) // generated tasks are role-owned, not the viewer's — full-list All
+    await switchToAll('All')
     await waitFor(() => screen.getByText('Open the café'))
     chooseTaskFilter(taskFilter(/^group$/i), 'Occurrence')
     await waitFor(() => screen.getByText('Café HQ daily opening · 17 Jul 2026'))
@@ -1161,8 +1171,8 @@ describe('Step 6 — Occurrence-as-Tasks wiring (C2)', () => {
     }
     mockListRunRollups.mockResolvedValue([rollup])
 
-    renderPage() // default authedState: accessRoles: []
-    await switchToAll()
+    renderPage(adminState) // generated tasks are role-owned, not the viewer's — full-list All
+    await switchToAll('All')
     await waitFor(() => screen.getByText('Open the café'))
     chooseTaskFilter(taskFilter(/^group$/i), 'Occurrence')
 
@@ -1192,7 +1202,7 @@ describe('Step 7 — the ?occurrence=<runId> query param switches to Occurrence 
       )
     }
     return render(
-      <AuthContext.Provider value={authedState}>
+      <AuthContext.Provider value={adminState}>
         <MemoryRouter initialEntries={[`/work/tasks?occurrence=${runId}`]}>
           <OverlayHostProvider>
             <Harness />
