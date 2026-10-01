@@ -13,17 +13,17 @@ import { Command } from 'cmdk'
 import { useT } from '@/i18n/use-t'
 import './Picker.css'
 
-export interface PickerOption {
+export type PickerOption = {
   value: string
   label: string
   disabled?: boolean
-  /** Heading for a run of consecutive options sharing it; options without one stay ungrouped. */
+  // Heading for a run of consecutive options sharing it; options without one stay ungrouped.
   group?: string
 }
 
 export type PickerCloseReason = 'escape' | 'outside' | 'tab' | 'select' | 'toggle'
 
-export interface PickerProps {
+export type PickerProps = {
   id?: string
   label: string
   value: string
@@ -35,11 +35,11 @@ export interface PickerProps {
   fullWidth?: boolean
   hideLabel?: boolean
   autoFocus?: boolean
-  /** Mount with the menu already open — for editors mounted by the click/key that means "open". */
+  // Mount with the menu already open — for editors mounted by the click/key that means "open".
   defaultOpen?: boolean
   required?: boolean
   placeholder?: string
-  /** Visible prefix for the trigger only; menu option labels stay concise. */
+  // Visible prefix for the trigger only; menu option labels stay concise.
   triggerPrefix?: string
   describedBy?: string
   className?: string

@@ -13,7 +13,7 @@ export type ProcessOccurrencesFetchState = 'loading' | 'ready' | 'error'
 export type ProcessOccurrencesData = {
   state: ProcessOccurrencesFetchState
   occurrences: readonly ProcessOccurrenceSummary[]
-  /** Runs the viewer may start now, narrowed to their own Teams when they hold any. */
+  // Runs the viewer may start now, narrowed to their own Teams when they hold any.
   startable: readonly DueProcessRun[]
   startableTeamIds: ReadonlySet<string>
   closableRunIds: ReadonlySet<string>
@@ -22,13 +22,13 @@ export type ProcessOccurrencesData = {
   setActionError: (failed: boolean) => void
   startingKey: string | null
   startError: boolean
-  /** Re-read everything; resolves once the occurrences and runs have settled. */
+  // Re-read everything; resolves once the occurrences and runs have settled.
   load: () => Promise<void>
   retry: () => void
   start: (row: DueProcessRun) => Promise<void>
 }
 
-/** `workLineId` null keeps the hook inert (no reads), for a host that owns the data elsewhere. */
+// `workLineId` null keeps the hook inert (no reads), for a host that owns the data elsewhere.
 export function useProcessOccurrences(workLineId: string | null, onChanged?: () => void): ProcessOccurrencesData {
   const auth = useAuth()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null

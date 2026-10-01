@@ -29,7 +29,7 @@ import { loadCatalogRecordData, loadCatalogRecordEditDirectory, type CatalogReco
 import './catalog-record-document.css'
 import { ObjectiveKeyResultsSection } from './objective-key-results-section'
 import { RecordHistory } from './record-history'
-import { withLinkedWorkLine, withoutLinkedWorkLine } from './catalog-record-optimistic'
+import { priorWorkLine, withLinkedWorkLine, withPriorWorkLine } from './catalog-record-optimistic'
 import {
   InlineChooser, LinkedWorkSection, StepsSection, TasksSection, WriteUpSection,
   type CatalogRelatedKind,
@@ -47,9 +47,9 @@ export type CatalogRecordDocumentProps = {
   mode: 'panel' | 'page'
   onOpenRelated?: (kind: CatalogRelatedKind, id: string) => void
   onOpenPage?: () => void
-  /** Opens task creation for one Project/Process. */
+  // Opens task creation for one Project/Process.
   onCreateTask?: (workLineId: string) => void
-  /** Raised by the create frame that just popped back to this record; read once for the "Task added" notice. */
+  // Raised by the create frame that just popped back to this record; read once for the "Task added" notice.
   taskAddedRef?: { current: boolean }
   onTitleResolved?: (title: string) => void
   onChanged?: () => void
@@ -184,7 +184,7 @@ export function CatalogRecordDocument({
     announce({ message: t('catalog.record.taskAdded') })
   }, [announce, t, taskAddedRef])
 
-  /** Re-read the record without blanking the page (a link, an unlink, a new step). */
+  // Re-read the record without blanking the page (a link, an unlink, a new step).
   const refresh = useCallback(async () => {
     const next = await loadCatalogRecordData(kind, id, viewerId)
     if (next) setState(next)
@@ -405,7 +405,9 @@ export function CatalogRecordDocument({
   }
 
   // ── What is still missing, for a viewer who can add it ─────────────────────
-  const ownTaskTargets = isObjective ? linkedWork.map((group) => group.id) : [id]
+  // Tasks of this record sit on the linked Projects/Processes once several are listed; the first
+  // target is the record itself for a work line, or its single linked row for an Objective.
+  const taskTargetIds = isObjective ? linkedWork.map((group) => group.id) : [id]
   const rememberOpener = () => { openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null }
   // Back to the control that opened it; when that control was replaced meanwhile, to the Steps add control.
   const restoreOpener = (fallback?: string) => requestAnimationFrame(() => {
@@ -419,7 +421,7 @@ export function CatalogRecordDocument({
       setChooser({ purpose: 'task', options: linkedWork.map((group) => ({ value: group.id, label: group.name })) })
       return
     }
-    if (ownTaskTargets[0]) createTask(ownTaskTargets[0])
+    if (taskTargetIds[0]) createTask(taskTargetIds[0])
   }
   const openStepForm = () => { rememberOpener(); setAddingStep(true) }
   const cancelStepForm = () => { setAddingStep(false); restoreOpener(STEPS_ADD_CONTROL) }
@@ -432,7 +434,7 @@ export function CatalogRecordDocument({
       const objectiveNames = new Map(objectives.map((objective) => [objective.id, objective.name]))
       const candidates = workLines
         .filter((workLine) => workLine.archived_at === null && workLine.objective_id !== id && canManageForScope('work-line', workLine.business_unit_id, scopes))
-        .sort((a, b) => Number(a.objective_id !== null && a.objective_id !== undefined) - Number(b.objective_id !== null && b.objective_id !== undefined) || a.name.localeCompare(b.name))
+        .sort((left, right) => Number(left.objective_id !== null && left.objective_id !== undefined) - Number(right.objective_id !== null && right.objective_id !== undefined) || left.name.localeCompare(right.name))
       setChooser({
         purpose: 'link',
         status: candidates.length === 0 ? 'empty' : 'ready',
@@ -454,18 +456,17 @@ export function CatalogRecordDocument({
       setChooser({ purpose: 'link', status: 'error', options: [], objectiveOf: new Map(), names: new Map(), facts: new Map() })
     }
   }
-  /**
-   * True once the link is written; a failure keeps its retry and reports nothing as done. With
-   * `shown`, the row is listed before the write and taken out again if the write fails; a re-read
-   * that fails after a good write leaves the (true) row in place.
-   */
+  // True once the link is written; a failure keeps its retry and reports nothing as done. With `shown`,
+  // the row is listed before the write and the prior listing (a task-derived contribution included) is
+  // put back if the write fails; a re-read that fails after a good write leaves the (true) row in place.
   const link = async (workLineId: string, objectiveId: string | null, shown?: CatalogWorkLineFact): Promise<boolean> => {
     const attempt = async () => {
+      const before = shown && state ? priorWorkLine(state, id, workLineId) : null
       if (shown) setState((current) => current ? withLinkedWorkLine(current, id, shown) : current)
       try {
         await updateWorkLine(workLineId, { objective_id: objectiveId })
       } catch (error) {
-        if (shown) setState((current) => current ? withoutLinkedWorkLine(current, id, workLineId) : current)
+        if (before) setState((current) => current ? withPriorWorkLine(current, id, workLineId, before) : current)
         throw error
       }
       setLinkError(null)
@@ -477,6 +478,11 @@ export function CatalogRecordDocument({
   const unlink = async (workLine: CatalogWorkLineFact) => {
     if (!(await link(workLine.id, null))) return
     announce({ message: t('catalog.link.unlinkedNotice', { name: workLine.name }), undo: async () => { await link(workLine.id, id) } })
+    // The row that held focus is gone: focus moves to the Undo it just earned, else to the section's action.
+    requestAnimationFrame(() => {
+      const next = document.querySelector<HTMLElement>('.rp-notice button') ?? document.querySelector<HTMLElement>('[data-record-section="linked-work"] .rp-section__action')
+      next?.focus()
+    })
   }
 
   // A writer's Get started region waits for the key-result count, so it never shows a half-known list.

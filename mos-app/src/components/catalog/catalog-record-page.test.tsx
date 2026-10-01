@@ -64,7 +64,7 @@ import { loadRecordHistory } from '@/lib/db/record-history'
 import { readWriteUp } from '@/lib/db/objective-writeup'
 import { getWorkWriteScopes } from '@/lib/db/work-authority'
 import { loadCatalogRecordData, loadCatalogRecordEditDirectory, type CatalogRecordData } from './catalog-record-loader'
-import type { CatalogRelationTask, CatalogRow } from './catalog-collection-adapter'
+import type { CatalogRelationGroup, CatalogRelationTask, CatalogRow } from './catalog-collection-adapter'
 import { CatalogRecordDocument } from './catalog-record-document'
 
 const scopes = (over: Partial<WorkWriteScopes>): WorkWriteScopes => ({
@@ -103,6 +103,7 @@ interface ObjectiveOptions {
   row?: Partial<CatalogRow>
   linked?: { id: string; name: string; type: 'project' | 'process'; bu?: string }[]
   tasks?: CatalogRelationTask[]
+  contributions?: CatalogRelationGroup[]
 }
 
 function objectiveData(opts: ObjectiveOptions = {}): CatalogRecordData {
@@ -112,11 +113,11 @@ function objectiveData(opts: ObjectiveOptions = {}): CatalogRecordData {
   }
   const linked = opts.linked ?? []
   const tasks = opts.tasks ?? []
-  const groups = linked.map((wl) => ({
+  const groups = [...linked.map((wl) => ({
     id: wl.id, name: wl.name, relationship: 'direct' as const, entity: 'work-line' as const,
     objectiveId: 'obj-1', workLineId: wl.id, taskCount: tasks.length, done: tasks.filter((t) => t.status === 'Done').length,
     total: tasks.length, tasks,
-  }))
+  })), ...(opts.contributions ?? [])]
   return {
     row,
     context: {
@@ -354,9 +355,9 @@ describe('Get started lists only what is missing, and its buttons work', () => {
   })
 
   describe('an optimistic link', () => {
-    const linkedObjective = () => {
+    const linkedObjective = (contributions?: CatalogRelationGroup[]) => {
       vi.mocked(listKeyResults).mockResolvedValue([kr()])
-      data = objectiveData({ linked: [{ id: 'wl-1', name: 'Menu launch', type: 'project' }], tasks: [task('t1', 'Print menus', 'Open')] })
+      data = objectiveData({ linked: [{ id: 'wl-1', name: 'Menu launch', type: 'project' }], tasks: [task('t1', 'Print menus', 'Open')], contributions })
       vi.mocked(listWorkLinesAll).mockResolvedValue([
         { id: 'wl-a', name: 'Weekday promo post', type: 'process', objective_id: null, archived_at: null, business_unit_id: 'bu-1', responsible_person_id: 'p-maya' },
       ] as never)
@@ -391,6 +392,24 @@ describe('Get started lists only what is missing, and its buttons work', () => {
       expect(await screen.findByText("Couldn't link", { exact: false })).toBeInTheDocument()
       expect(within(work).queryByRole('link', { name: 'Weekday promo post' })).toBeNull()
       expect(within(work).getByRole('link', { name: 'Menu launch' })).toBeInTheDocument()
+    })
+
+    it('a failed link of work already shown through this Objective\'s Tasks puts that row back as it was', async () => {
+      const user = userEvent.setup()
+      linkedObjective([{
+        id: 'wl-a', name: 'Weekday promo post', relationship: 'contribution', entity: 'work-line',
+        objectiveId: 'obj-9', workLineId: 'wl-a', taskCount: 1, done: 0, total: 1,
+        tasks: [task('t9', 'Hand out flyers', 'Open')],
+      }])
+      let deny: (reason: Error) => void = () => {}
+      vi.mocked(updateWorkLine).mockReturnValueOnce(new Promise<void>((_, reject) => { deny = reject }))
+      renderRecord()
+      const work = await pickPromo(user)
+      expect(within(work).queryByText('via tasks')).toBeNull()
+      deny(new Error('denied'))
+      expect(await screen.findByText("Couldn't link", { exact: false })).toBeInTheDocument()
+      expect(within(work).getByRole('link', { name: 'Weekday promo post' })).toBeInTheDocument()
+      expect(within(work).getByText('via tasks')).toBeInTheDocument()
     })
 
     it('keeps the row when the write succeeds but the re-read fails (the link is real)', async () => {
@@ -819,6 +838,16 @@ describe('sections read like a document', () => {
     expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull()
   })
 
+  it('after Unlink, keyboard focus lands on the notice\'s Undo, not on the page', async () => {
+    const user = userEvent.setup()
+    populated()
+    renderRecord()
+    const work = await screen.findByRole('region', { name: 'Projects & Processes' })
+    await unlinkViaRowMenu(user, work)
+    const undo = await screen.findByRole('button', { name: 'Undo' })
+    await waitFor(() => expect(undo).toHaveFocus())
+  })
+
   it('Undo after an unlink links the Project again', async () => {
     const user = userEvent.setup()
     populated()
@@ -882,10 +911,9 @@ describe('a Process\'s header primary is Start occurrence', () => {
     occurrences([dueRun('Café Operations', 'team-1')])
     renderRecord('work-line')
     await screen.findByRole('heading', { level: 1, name: 'Café opening' })
-    await waitFor(() => expect(document.querySelectorAll('.btn-primary')).toHaveLength(1))
-    const primary = document.querySelector('.btn-primary') as HTMLElement
-    expect(primary).toHaveTextContent('Start occurrence')
-    expect(primary.closest('[data-record-header]')).not.toBeNull()
+    const primary = await screen.findByRole('button', { name: 'Start occurrence' })
+    const header = (await screen.findByRole('heading', { level: 1, name: 'Café opening' })).closest('header') as HTMLElement
+    expect(within(header).getByRole('button', { name: 'Start occurrence' })).toBe(primary)
     await user.click(primary)
     expect(startRun).toHaveBeenCalledWith(dueRun('Café Operations', 'team-1'))
   })

@@ -3,7 +3,7 @@ import type { OverlayLeaveDecision, OverlayLeaveGuard, OverlayLeaveIntent } from
 
 export type CatalogTaskCreateSession = {
   dirty: boolean
-  /** Set by the mounted frame; asks the person whether to discard a typed draft. */
+  // Set by the mounted frame; asks the person whether to discard a typed draft.
   requestConfirmation?: (intent: OverlayLeaveIntent) => Promise<OverlayLeaveDecision>
   guard: OverlayLeaveGuard
 }

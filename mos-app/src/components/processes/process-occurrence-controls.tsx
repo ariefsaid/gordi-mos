@@ -15,17 +15,17 @@ import { DueRunsList } from './due-runs-list'
 import { useProcessOccurrences, type ProcessOccurrencesData } from './use-process-occurrences'
 import './process-occurrence-controls.css'
 
-export interface ProcessOccurrenceControlsProps {
-  /** The Process work-line id. All occurrence reads and starts are scoped from this id. */
+export type ProcessOccurrenceControlsProps = {
+  // The Process work-line id. All occurrence reads and starts are scoped from this id.
   workLineId: string
-  /** The detail knows whether the Process has an active step definition to materialize. */
+  // The detail knows whether the Process has an active step definition to materialize.
   setupIncomplete?: boolean
-  /** Managers can configure the definition; members need to route setup to a manager. */
+  // Managers can configure the definition; members need to route setup to a manager.
   canManageSetup?: boolean
-  /** Optional in-app navigation hook; the canonical href remains for refresh/new-tab behavior. */
+  // Optional in-app navigation hook; the canonical href remains for refresh/new-tab behavior.
   onViewTasks?: (runId: string) => void
   onChanged?: () => void
-  /** The occurrence data when the host owns the fetch; without it the controls read their own. */
+  // The occurrence data when the host owns the fetch; without it the controls read their own.
   data?: ProcessOccurrencesData
 }
 
@@ -35,9 +35,9 @@ export function ProcessOccurrenceControls({ workLineId, setupIncomplete = false,
   const t = useT()
   const { locale } = useI18n()
   // A host that lifts the occurrence data (the record header shows the Start primary) passes it in.
-  const own = useProcessOccurrences(data ? null : workLineId, onChanged)
-  const { state, occurrences, startable, startableTeamIds, closableRunIds, authorityError, startingKey, startError, actionError, setActionError, load, retry } = data ?? own
-  const handleStart = (data ?? own).start
+  const fetched = useProcessOccurrences(data ? null : workLineId, onChanged)
+  const { state, occurrences, startable, startableTeamIds, closableRunIds, authorityError, startingKey, startError, actionError, setActionError, load, retry } = data ?? fetched
+  const handleStart = (data ?? fetched).start
 
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null)
   const [cancelReason, setCancelReason] = useState('')
