@@ -108,6 +108,7 @@ function WriteUpSurface({
   const updatedAtRef = useRef(initial.updatedAt)
   const dirtyRef = useRef(false)
   const inFlightRef = useRef(false)
+  const queuedRef = useRef(false)
   const conflictRef = useRef(false)
   const timerRef = useRef<number | undefined>(undefined)
   const saveRef = useRef<HTMLButtonElement>(null)
@@ -122,11 +123,13 @@ function WriteUpSurface({
 
   const flush = useCallback(async () => {
     window.clearTimeout(timerRef.current)
-    if (!dirtyRef.current || inFlightRef.current || conflictRef.current) return
+    if (!dirtyRef.current || conflictRef.current) return
+    // A Save, blur or elapsed idle pause that arrives mid-flight runs right after it; plain edits do not.
+    if (inFlightRef.current) { queuedRef.current = true; return }
     inFlightRef.current = true
     setSaveState('saving')
     const snapshot = editor.document as WriteUpBlocks
-    // Edits typed while the save is in flight re-mark dirty and are picked up by the next flush.
+    // Edits typed while the save is in flight re-mark dirty and wait for their own idle pause.
     dirtyRef.current = false
     let next: SaveState = 'saved'
     try {
@@ -137,11 +140,15 @@ function WriteUpSurface({
       else next = error instanceof WriteUpTooLargeError ? 'tooLarge' : 'failed'
     }
     inFlightRef.current = false
-    setSaveState(next)
-    if (next === 'saved') {
-      if (dirtyRef.current) void flush()
-      else dirtyCallbackRef.current?.(false)
+    const queued = queuedRef.current
+    queuedRef.current = false
+    if (next === 'saved' && dirtyRef.current) {
+      if (queued) void flush()
+      else setSaveState('idle')
+      return
     }
+    setSaveState(next)
+    if (next === 'saved') dirtyCallbackRef.current?.(false)
   }, [editor, objectiveId])
 
   const flushRef = useRef(flush)

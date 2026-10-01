@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { I18nProvider } from '@/i18n/I18nProvider'
@@ -26,7 +26,7 @@ vi.mock('@/lib/db/objective-writeup', async (importOriginal) => ({
   }),
 }))
 
-import { saveWriteUp } from '@/lib/db/objective-writeup'
+import { readWriteUp, saveWriteUp } from '@/lib/db/objective-writeup'
 import { ObjectiveWriteupEditor } from './objective-writeup-editor'
 
 describe('ObjectiveWriteupEditor with the real editor', () => {
@@ -91,5 +91,50 @@ describe('ObjectiveWriteupEditor with the real editor', () => {
     expect(document.activeElement).toBe(save)
     await act(async () => { finish('t2') })
     expect(document.activeElement).toBe(save)
+  })
+
+  describe('save cadence under network latency', () => {
+    afterEach(() => { vi.useRealTimers() })
+
+    // Fake timers drive both the 3 s idle window and a save that takes 800 ms to land, as on a real network.
+    it('saves once per pause: typing while a save is in flight never chains another save', async () => {
+      Range.prototype.getClientRects = () => [] as unknown as DOMRectList
+      Range.prototype.getBoundingClientRect = () => new DOMRect()
+      Element.prototype.getClientRects = () => [] as unknown as DOMRectList
+      vi.mocked(readWriteUp).mockResolvedValueOnce({ writeUp: [], updatedAt: 't0' })
+      let landed = 0
+      vi.mocked(saveWriteUp).mockReset()
+      vi.mocked(saveWriteUp).mockImplementation(() => new Promise<string>((resolve) => { setTimeout(() => resolve(`t${++landed}`), 800) }))
+      const user = userEvent.setup({ delay: null, advanceTimers: vi.advanceTimersByTime })
+      const tick = (ms: number) => act(async () => { await vi.advanceTimersByTimeAsync(ms) })
+
+      render(
+        <I18nProvider>
+          <ObjectiveWriteupEditor objectiveId="o1" canEdit archived={false} />
+        </I18nProvider>,
+      )
+      const box = await screen.findByRole('textbox', { name: 'Objective write-up' })
+      // Faked only once the editor is on screen: Testing Library's own polling needs the real clock.
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      act(() => { box.focus() })
+      await user.keyboard('start')
+      await tick(3000)
+      expect(saveWriteUp).toHaveBeenCalledTimes(1)
+
+      // Keep typing, 100 ms apart, across the whole 800 ms flight and well after it.
+      for (let i = 0; i < 40; i++) {
+        await user.keyboard('x')
+        await tick(100)
+      }
+      expect(saveWriteUp).toHaveBeenCalledTimes(1)
+
+      // The pause after the burst produces the one save that carries every character.
+      await tick(3000)
+      expect(saveWriteUp).toHaveBeenCalledTimes(2)
+      const saved = JSON.stringify(vi.mocked(saveWriteUp).mock.calls[1][1])
+      expect(saved).toContain(`start${'x'.repeat(40)}`)
+      await tick(5000)
+      expect(saveWriteUp).toHaveBeenCalledTimes(2)
+    })
   })
 })
