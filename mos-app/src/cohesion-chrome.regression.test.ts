@@ -384,7 +384,6 @@ describe('CHROME-STRIPE: no side-accent stripe on options, items or rows', () =>
   }
   const NEUTRAL = /var\(--(?:border|input|row-divider|muted|secondary|surface-[\w-]+)\)|transparent|^(?:0|none|unset|initial|inherit)$/i
   const SIDE_BORDER = /^border-(?:left|right|inline-start|inline-end)(-color)?$/
-  const isOnePxOrLess = (value: string) => /(?:^|\s)(?:0|1px|0?\.\d+px)(?:\s|$)/.test(value)
 
 
   /** x-axis inset layers with no blur or spread, 2–12px wide: a painted left/right edge. */
@@ -411,16 +410,18 @@ describe('CHROME-STRIPE: no side-accent stripe on options, items or rows', () =>
         const prop = decl.slice(0, colon).trim().toLowerCase()
         const value = decl.slice(colon + 1).trim()
         let hit = false
-        if (SIDE_BORDER.test(prop)) hit = !NEUTRAL.test(value) && !isOnePxOrLess(value)
+        if (SIDE_BORDER.test(prop)) hit = !NEUTRAL.test(value)
         else if (prop === 'box-shadow') hit = insetSideLayers(value).some((layer) => !NEUTRAL.test(layer))
         if (hit) out.push({ selector, decl: `${prop}: ${value}`, warning: /var\(--warning\)/.test(value) })
       }
-      // Thin pseudo-element bar: at most 4px wide, full height, filled.
+      // Thin pseudo-element bar: 1-4px wide, pinned to one side for the full height, filled.
       if (/::?(?:before|after)/.test(selector)) {
         const thin = /(?:^|;)\s*(?:width|inline-size)\s*:\s*[1-4]px\s*(?:;|$)/.test(body)
-        const full = /height\s*:\s*100%|bottom\s*:\s*0|inset-block\s*:\s*0/.test(body)
+        const fullHeight = /inset-block\s*:\s*0(?:px)?\s*(?:;|$)/.test(body)
+          || (/(?:^|;)\s*top\s*:\s*0(?:px)?\s*(?:;|$)/.test(body) && /(?:^|;)\s*bottom\s*:\s*0(?:px)?\s*(?:;|$)/.test(body))
+        const oneSide = /(?:^|;)\s*(?:left|right|inset-inline-start|inset-inline-end)\s*:\s*0(?:px)?\s*(?:;|$)/.test(body)
         const filled = /background(?:-color)?\s*:\s*(?!transparent|none)/.test(body)
-        if (thin && full && filled) out.push({ selector, decl: body.trim(), warning: false })
+        if (thin && fullHeight && oneSide && filled) out.push({ selector, decl: body.trim(), warning: false })
       }
     }
     return out
