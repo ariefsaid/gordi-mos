@@ -401,6 +401,21 @@ describe('CreatePersonDialog (AC-011)', () => {
     expect(mockCreateLogin).not.toHaveBeenCalled()
   })
 
+  it('keeps the primary action in a persistent footer after the scrollable form content', () => {
+    const { container } = renderDialog()
+    const dialog = screen.getByRole('dialog')
+    const form = dialog.querySelector('.create-person-dialog__form')
+    const body = form?.querySelector('.create-person-dialog__body')
+    const footer = form?.querySelector('.create-person-dialog__footer')
+
+    expect(dialog).toHaveClass('create-person-dialog')
+    expect(body).toBeInTheDocument()
+    expect(footer).toBeInTheDocument()
+    expect(form?.lastElementChild).toBe(footer)
+    expect(footer).toContainElement(screen.getByRole('button', { name: /create person/i }))
+    expect(container).toContainElement(form as HTMLElement)
+  })
+
   // FIX B1 regression — the canonical shell owns the visible Single-Border Rule.
   it('FIX-B1: dialog card uses the canonical bordered modal surface', () => {
     renderDialog()

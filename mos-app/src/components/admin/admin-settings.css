@@ -40,7 +40,18 @@
     flex-wrap: nowrap;
     overflow-x: auto;
     margin-bottom: 12px;
-    scrollbar-width: none;
+    scrollbar-width: thin;
+    scrollbar-color: var(--muted-foreground) var(--secondary);
+    scroll-behavior: smooth;
+  }
+
+  .admin-settings-nav::-webkit-scrollbar {
+    height: 4px;
+  }
+
+  .admin-settings-nav::-webkit-scrollbar-thumb {
+    border-radius: var(--radius-sm);
+    background: var(--muted-foreground);
   }
 
   .admin-settings-nav__link {
@@ -102,12 +113,26 @@
 
 .admin-access-table-wrap {
   overflow-x: auto;
+  container: access-matrix / inline-size;
 }
 
-.admin-access-table {
+.admin-access-table--responsive {
   width: 100%;
-  min-width: 960px;
+  min-width: 1086px;
   border-collapse: collapse;
+}
+
+@container access-matrix (min-width: 1086px) {
+  .admin-access-table--responsive {
+    min-width: 100%;
+    table-layout: fixed;
+  }
+}
+
+@container access-matrix (max-width: 1085px) {
+  .admin-access-table--responsive {
+    table-layout: auto;
+  }
 }
 
 .admin-access-table th,

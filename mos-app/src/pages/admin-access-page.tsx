@@ -103,7 +103,7 @@ function AuthorityTable({
     <div className={more ? 'admin-access-table-frame admin-access-table-frame--more' : 'admin-access-table-frame'}>
       {more && <p className="admin-access-scroll-hint">{t('admin.access.scrollHint')}</p>}
       <div ref={ref} className="admin-access-table-wrap">
-      <table className="admin-access-table" aria-label={t('admin.access.tableLabel')}>
+      <table className="admin-access-table admin-access-table--responsive" aria-label={t('admin.access.tableLabel')}>
         <thead>
           <tr>
             <th scope="col">{t('admin.access.actionHeader')}</th>

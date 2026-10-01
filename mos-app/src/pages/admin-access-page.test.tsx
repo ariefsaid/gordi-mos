@@ -74,7 +74,9 @@ describe('AdminAccessPage', () => {
     renderPage()
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Roles & permissions' })).toBeInTheDocument()
-    expect(screen.getByRole('table', { name: 'Role access and authority' })).toBeInTheDocument()
+    const table = screen.getByRole('table', { name: 'Role access and authority' })
+    expect(table).toHaveClass('admin-access-table--responsive')
+    expect(table.parentElement).toHaveClass('admin-access-table-wrap')
     expect(screen.queryByRole('heading', { name: 'Team leads' })).toBeNull()
     expect(screen.getByRole('combobox', { name: 'Manage Projects & Processes — Member' })).toHaveTextContent('Own Business Unit')
     expect(screen.getAllByText('Organization-wide — fixed')).toHaveLength(AUTHORITY_ACTIONS.length)
@@ -180,6 +182,7 @@ describe('AdminAccessPage', () => {
     renderPage()
 
     expect(await screen.findByLabelText('Role to edit')).toBeInTheDocument()
+    expect(document.querySelector('.admin-access-mobile')).toBeInTheDocument()
     expect(screen.queryByRole('table', { name: 'Role access and authority' })).toBeNull()
     await selectPicker(user, 'Role to edit', 'Team lead')
     expect(screen.getByRole('combobox', { name: 'Manage Projects & Processes — Team lead' })).toBeInTheDocument()
