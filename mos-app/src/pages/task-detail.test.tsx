@@ -224,9 +224,10 @@ describe('AC-070 — detail page renders task fields', () => {
     // Status pill
     expect(screen.getByText('Open')).toBeTruthy()
 
-    // Due date — value-first: activate the row, then the date control holds the raw ISO value.
+    // Due date — value-first: activate the row, then the day-first DateField (#1191) shows the
+    // dd/mm/yyyy editing text, never a locale-ordered native input.
     activateFieldByKey('dueDate')
-    expect(screen.getByLabelText('Due')).toHaveValue('2026-06-20')
+    expect(screen.getByLabelText('Due')).toHaveValue('20/06/2026')
 
     // Business unit (resolved from directory) — a value-first Ownership field in the record
     // document (the old TaskDetail identity sub-line is gone; the RecordViewer header owns identity).

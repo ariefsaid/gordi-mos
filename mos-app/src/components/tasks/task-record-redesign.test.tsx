@@ -132,10 +132,11 @@ describe('OD-REDESIGN-62 — typed Task record', () => {
     expect(screen.getByRole('combobox', { name: 'Supervisor' })).toHaveTextContent('Arden Sample')
     fireEvent.click(screen.getByRole('combobox', { name: 'Supervisor' }))
     fireEvent.click(screen.getByRole('option', { name: 'Arden Sample' }))
-    // Due date renders as a native <input type="date"> once activated (its value is the ISO date
-    // in the attribute, not visible text). Assert via the labeled control's value.
+    // Due date is the shared day-first DateField (#1191): once activated it shows the day-first
+    // editing text (dd/mm/yyyy), never a locale-ordered native input. Assert via the labeled
+    // control's value.
     fireEvent.click(screen.getByRole('button', { name: 'Edit Due' }))
-    expect(screen.getByLabelText('Due')).toHaveValue('2026-07-20')
+    expect(screen.getByLabelText('Due')).toHaveValue('20/07/2026')
     // No RACI grammar: assert the parenthesized RACI labels (Responsible (R), Accountable (A), etc.)
     // never render. The bare words "Consulted"/"Informed" are intentionally NOT matched here — the
     // test fixtures use full names like "Consulted Person" for the person options, which would false-

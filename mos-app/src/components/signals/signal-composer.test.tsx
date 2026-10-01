@@ -180,11 +180,28 @@ describe('SignalComposer — Shift+Enter send (OD-REDESIGN-91 #10)', () => {
     expect(mockCreateSignal.mock.calls[0][0].body).toBe('The freezer alarm went off')
   })
 
-  it('#20: keeps the native datetime picker and shows a WIB hint beside it', async () => {
+  it('#20: keeps the native time picker beside the day-first date field and shows a WIB hint beside them', async () => {
     renderComposer()
     await waitFor(() => expect(mockGetPeople).toHaveBeenCalled())
-    expect(screen.getByLabelText(/occurred/i)).toHaveAttribute('type', 'datetime-local')
+    // The occurred-at DATE is the shared day-first DateField (#1191) — it shows the unambiguous
+    // "d Mon yyyy" display of the prefilled now; the TIME keeps the native picker, so the pair
+    // together still carries date + time-of-day for the post.
+    const occurred = screen.getByLabelText(/occurred/i) as HTMLInputElement
+    expect(occurred.value).toMatch(/^\d{1,2} [A-Za-z]{3} \d{4}$/)
+    expect(screen.getByLabelText(/time/i)).toHaveAttribute('type', 'time')
     expect(screen.getByText('WIB')).toBeInTheDocument()
+  })
+
+  it('submits the selected day-first date and local time as the exact ISO instant', async () => {
+    renderComposer()
+    await waitFor(() => expect(mockGetPeople).toHaveBeenCalled())
+    await userEvent.type(screen.getByRole('textbox', { name: /what happened/i }), 'Stock arrived')
+    fireEvent.change(screen.getByLabelText(/occurred/i), { target: { value: '05/10/2026' } })
+    fireEvent.change(screen.getByLabelText(/time/i), { target: { value: '14:35' } })
+    await userEvent.click(screen.getByRole('button', { name: /share signal/i }))
+
+    await waitFor(() => expect(mockCreateSignal).toHaveBeenCalledTimes(1))
+    expect(mockCreateSignal.mock.calls[0][0].occurredAt).toBe(new Date(2026, 9, 5, 14, 35).toISOString())
   })
 })
 
