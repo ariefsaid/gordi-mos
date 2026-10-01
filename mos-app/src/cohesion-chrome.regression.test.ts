@@ -368,3 +368,156 @@ describe('CHROME-MODAL: modal consolidation', () => {
     expect(css).not.toMatch(/\.confirm-box\s*\{/)
   })
 })
+
+// ════════════════════════════════════════════════════════════════════════════
+// CHROME-STRIPE: no single-side accent stripe (border-left/right, a one-axis inset shadow, a
+// thin pseudo-element bar) on an option, menu item or row. Selected/active/highlighted states
+// use a --surface-* fill, the checked mark and the focus ring (DESIGN.md, DD-MVP-14). The one
+// owner-approved exception is the 2px `--warning` rule on an Urgent or dead-letter ROW
+// (DESIGN.md §Operations event tokens); it is pinned per file and counts only go down.
+// ════════════════════════════════════════════════════════════════════════════
+describe('CHROME-STRIPE: no side-accent stripe on options, items or rows', () => {
+  const WARNING_ROW_RULE: Record<string, number> = {
+    'components/signals/signal-feed-rows.css': 1,
+    'components/signals/signal-table-presentation.css': 2,
+    'pages/kitchen-pushes-page.css': 2,
+  }
+  const NEUTRAL = /var\(--(?:border|input|row-divider|muted|secondary|surface-[\w-]+)\)|transparent|^(?:0|none|unset|initial|inherit)$/i
+  const SIDE_BORDER = /^border-(?:left|right|inline-start|inline-end)(-color)?$/
+
+
+  /** x-axis inset layers with no blur or spread, 2–12px wide: a painted left/right edge. */
+  function insetSideLayers(value: string): string[] {
+    return value
+      .split(/,(?![^(]*\))/)
+      .map((layer) => layer.trim())
+      .filter((layer) => {
+        if (!/\binset\b/i.test(layer)) return false
+        const bare = layer.replace(/\b(?:rgba?|hsla?|color-mix|var)\([^)]*\)/gi, ' ')
+        const [x = 0, y = 0, blur = 0, spread = 0] = (bare.match(/-?\d*\.?\d+(?:px)?/g) ?? []).map(parseFloat)
+        return y === 0 && blur === 0 && spread === 0 && Math.abs(x) >= 2 && Math.abs(x) <= 12
+      })
+  }
+
+  function stripesIn(css: string): { selector: string; decl: string; warning: boolean }[] {
+    const out: { selector: string; decl: string; warning: boolean }[] = []
+    for (const rule of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      const selector = rule[1].trim().replace(/\s+/g, ' ')
+      const body = rule[2]
+      for (const decl of body.split(';')) {
+        const colon = decl.indexOf(':')
+        if (colon < 0) continue
+        const prop = decl.slice(0, colon).trim().toLowerCase()
+        const value = decl.slice(colon + 1).trim()
+        let hit = false
+        if (SIDE_BORDER.test(prop)) hit = !NEUTRAL.test(value)
+        else if (prop === 'box-shadow') hit = insetSideLayers(value).some((layer) => !NEUTRAL.test(layer))
+        if (hit) out.push({ selector, decl: `${prop}: ${value}`, warning: /var\(--warning\)/.test(value) })
+      }
+      // Thin pseudo-element bar: 1-4px wide, pinned to one side for the full height, filled.
+      if (/::?(?:before|after)/.test(selector)) {
+        const thin = /(?:^|;)\s*(?:width|inline-size)\s*:\s*[1-4]px\s*(?:;|$)/.test(body)
+        const decl = (names: string, value: string) =>
+          new RegExp(`(?:^|;)\\s*(?:${names})\\s*:\\s*${value}\\s*(?:;|$)`).test(body)
+        const pinnedTop = decl('top|inset-block-start', '0(?:px)?')
+        const fullHeight = decl('inset-block', '0(?:px)?')
+          || (pinnedTop && decl('bottom|inset-block-end', '0(?:px)?'))
+          || (pinnedTop && decl('height|block-size', '100%'))
+        const oneSide = /(?:^|;)\s*(?:left|right|inset-inline-start|inset-inline-end)\s*:\s*0(?:px)?\s*(?:;|$)/.test(body)
+        const filled = /background(?:-color)?\s*:\s*(?!transparent|none)/.test(body)
+        if (thin && fullHeight && oneSide && filled) out.push({ selector, decl: body.trim(), warning: false })
+      }
+    }
+    return out
+  }
+
+  it('CHROME-STRIPE: no CSS paints a side stripe beyond the pinned --warning row rule', () => {
+    const offenders: string[] = []
+    const stale: string[] = []
+    for (const f of listSource(SRC, ['.css'])) {
+      const rel = srcRel(f)
+      const hits = stripesIn(stripCss(readFileSync(f, 'utf8')))
+      const allowed = WARNING_ROW_RULE[rel] ?? 0
+      const warning = hits.filter((h) => h.warning)
+      for (const h of hits.filter((h) => !h.warning)) offenders.push(`${rel} ${h.selector} { ${h.decl} }`)
+      if (warning.length > allowed) {
+        for (const h of warning) offenders.push(`${rel} ${h.selector} { ${h.decl} } (ledger allows ${allowed})`)
+      }
+      if (allowed > 0 && warning.length < allowed) stale.push(`${rel} — ${warning.length} of ${allowed}`)
+    }
+    expect(
+      offenders,
+      'selected/active/highlighted use a --surface-* fill + checked mark + focus ring, never a one-colour edge line',
+    ).toEqual([])
+    expect(stale, 'debt paid — lower these WARNING_ROW_RULE counts so the ratchet tightens').toEqual([])
+  })
+
+  // WCAG 1.4.11: the active option's cue must not rest on a ~1.1:1 surface fill. Each listbox
+  // cursor is a neutral surface fill PLUS the global focus ring drawn inside the option.
+  const CURSORS: [file: string, selector: string, fill: string][] = [
+    ['components/ui/Picker.css', ".picker__option[data-selected='true']", '--surface-tertiary'],
+    ['components/ui/Select.css', '.mk-select__option[data-highlighted]', '--surface-tertiary'],
+    ['components/tasks/TaskSurface.css', ".person-picker-option[data-selected='true']", '--surface-tertiary'],
+    ['components/kitchen/cafe-stream-bar.css', ".cafe-stream__option[data-active='true']", '--surface-tertiary'],
+    ['components/signals/signal-attention-picker.css', ".signal-attention-picker-option[data-active='true']", '--surface-tertiary'],
+    ['components/command/command-menu.css', '.cm-item.active', '--surface-tertiary'],
+    ['components/records/record-viewer.css', '.record-viewer__overflow-menu button:focus-visible', '--surface-tertiary'],
+    ['components/signals/signal-mention-picker.css', '.mention-row.is-active', '--accent-subtle'],
+  ]
+
+  it.each(CURSORS)('CHROME-STRIPE: %s %s pins its fill token and the inset focus ring', (file, selector, fill) => {
+    const css = stripCss(readSrc(file))
+    const body = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].find((rule) =>
+      rule[1].split(',').some((part) => part.trim() === selector),
+    )?.[2]
+    expect(body, `${selector} rule in ${file}`).toBeTruthy()
+    expect(body).toContain(`background: var(${fill})`)
+    expect(body).toMatch(/outline:\s*2px solid var\(--ring\)/)
+    expect(body).toMatch(/outline-offset:\s*-2px/)
+    expect(body, 'action blue is not a neutral fill (DD-MVP-14)').not.toMatch(/background:\s*var\(--(?:accent|primary)\)/)
+  })
+
+  it('CHROME-STRIPE: the cursor ring clears 3:1 against the popover and its fill in both themes', () => {
+    const p3 = (theme: string, name: string) => {
+      const css = readSrc(`styles/tokens/theme-${theme}.css`)
+      const m = new RegExp(`--ds-${name}:\\s*color\\(display-p3\\s+([\\d.]+)\\s+([\\d.]+)\\s+([\\d.]+)\\)`).exec(css)
+      expect(m, `--ds-${name} in theme-${theme}.css`).toBeTruthy()
+      // Linear display-p3 luminance (same transfer curve as sRGB).
+      const lin = [m![1], m![2], m![3]].map((v) => {
+        const c = Number(v)
+        return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+      })
+      return 0.22897456 * lin[0] + 0.69173852 * lin[1] + 0.07928691 * lin[2]
+    }
+    const ratio = (a: number, b: number) => (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)
+    for (const theme of ['light', 'dark']) {
+      const ring = p3(theme, 'color-blue')
+      expect(ratio(ring, p3(theme, 'background-primary')), `${theme} ring vs popover`).toBeGreaterThanOrEqual(3)
+      expect(ratio(ring, p3(theme, 'background-tertiary')), `${theme} ring vs fill`).toBeGreaterThanOrEqual(3)
+    }
+  })
+
+  it.each([
+    ['top + bottom', 'top: 0; bottom: 0; left: 0', true],
+    ['inset-block', 'inset-block: 0; right: 0', true],
+    ['top + height 100%', 'top: 0; height: 100%; left: 0', true],
+    ['inset-block-start + block-size 100%', 'inset-block-start: 0; block-size: 100%; inset-inline-start: 0', true],
+    ['bottom-only bar', 'bottom: 0; left: 0', false],
+    ['height 100% without a top pin', 'height: 100%; left: 0', false],
+    ['full height but not pinned to a side', 'top: 0; bottom: 0', false],
+  ])('CHROME-STRIPE: the pseudo-bar check on %s', (_name, position, flagged) => {
+    const css = `.x::before { content: ""; position: absolute; ${position}; width: 3px; background: var(--primary); }`
+    expect(stripesIn(css).length > 0).toBe(flagged)
+  })
+
+  it('CHROME-STRIPE: no TSX style or utility class draws a side stripe', () => {
+    const offenders: string[] = []
+    for (const f of listSource(SRC, ['.tsx'])) {
+      const found = stripTsx(readFileSync(f, 'utf8')).match(
+        /\bborder(?:Left|Right|InlineStart|InlineEnd)\s*:|\bborder-[lrse]-(?:[2-9]|\[)|shadow-\[inset_|boxShadow\s*:\s*['"`]inset\s+-?[2-9]px\s+0(?:px)?\s+0/g,
+      )
+      if (found) offenders.push(`${srcRel(f)} — ${found.join(', ')}`)
+    }
+    expect(offenders).toEqual([])
+  })
+})

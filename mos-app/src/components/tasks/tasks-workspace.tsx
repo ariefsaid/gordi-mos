@@ -43,7 +43,7 @@ import { useCatalogRecordEntryFactory } from '@/components/catalog/use-catalog-r
 import { AskDeputyAction } from '@/components/records/ask-deputy-action'
 import type { OverlayEntry, OverlayHostApi } from '@/shell/overlay-host'
 import { getActiveTaskView } from './task-collection-view'
-import { isOwnerDirector } from '@/lib/role-scope'
+import { isOwnerDirector, hasOrgWideAuthority } from '@/lib/role-scope'
 import { getTaskDefaultView } from '@/lib/task-default-view'
 import { resolveTeamContext } from '@/lib/team-context'
 import { isOverdue } from '@/lib/due-status'
@@ -183,6 +183,7 @@ export function TasksWorkspace({
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
   const viewerOrgId = auth.status === 'authenticated' ? auth.viewer.person.org_id : null
   const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : EMPTY_ACCESS_ROLES
+  const viewerOrgWide = hasOrgWideAuthority(accessRoles)
   const initialQuery = useMemo(() => {
     const legacy = queryFromLegacySavedView(savedView)
     // The savedView prop is a compatibility bridge for URL-less embedders. Any URL state belongs
@@ -896,6 +897,7 @@ export function TasksWorkspace({
     onEditTeam,
     onEditSupervisor,
     teamOptions: viewerTeams ?? [],
+    viewerOrgWide,
     draftTask,
     onDiscardNewTask,
     draftLinkError,
@@ -922,7 +924,7 @@ export function TasksWorkspace({
     recordOpen, draftTask, host.session, isDesktop, onAddTask,
     liveParams,
     onCloseDrawer, onDiscardNewTask, onEditTitle, onEditStatus, onEditDue, onEditPic, onEditTeam, onEditSupervisor, onNewTask, onOpenTask, onClearFilters, onSortChange,
-    processStartTeamIds, records, retry, runtimeStatusOverrides, selectedId, setQuery, splitLayout, draftLinkError, onRetryDraftLink, viewerTeams,
+    processStartTeamIds, records, retry, runtimeStatusOverrides, selectedId, setQuery, splitLayout, draftLinkError, onRetryDraftLink, viewerTeams, viewerOrgWide,
   ])
   // Projects & Processes the viewer can read (RLS scopes the catalog), for the create form.
   const createContext: TaskCreateContextValue = useMemo(() => ({
