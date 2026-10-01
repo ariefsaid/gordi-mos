@@ -35,7 +35,7 @@ export type RecordFact =
   | { type: 'field'; key: string; field: RecordFieldSpec; tone?: 'overdue' | 'soon' }
   | { type: 'group'; key: string; label?: string; fields: readonly RecordFieldSpec[] }
 
-export interface RecordPrimaryAction {
+export type RecordPrimaryAction = {
   label: string
   onClick: () => void
   variant?: 'primary' | 'outline'
@@ -43,7 +43,7 @@ export interface RecordPrimaryAction {
   busy?: boolean
 }
 
-export interface RecordPageHeaderProps {
+export type RecordPageHeaderProps = {
   title: RecordFieldSpec
   headingLevel: 1 | 2
   facts: readonly RecordFact[]

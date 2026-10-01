@@ -45,7 +45,7 @@ type DefinitionTeamBinding = {
 }
 
 /** A Project/Process an Objective record lists: what its row needs beyond the relation group. */
-export interface CatalogWorkLineFact {
+export type CatalogWorkLineFact = {
   id: string
   name: string
   type: 'project' | 'process'
@@ -54,7 +54,7 @@ export interface CatalogWorkLineFact {
   responsiblePersonId: string | null
 }
 
-export interface CatalogRecordData {
+export type CatalogRecordData = {
   row: CatalogRow
   context: CatalogCollectionContext
   process: ProcessRecordData | null
@@ -66,7 +66,7 @@ export interface CatalogRecordData {
   workLinesById: ReadonlyMap<string, CatalogWorkLineFact>
 }
 
-export interface CatalogRecordEditDirectory {
+export type CatalogRecordEditDirectory = {
   businessUnitsById: ReadonlyMap<string, string>
   peopleById: ReadonlyMap<string, string>
   objectiveOptions: readonly { value: string; label: string }[]

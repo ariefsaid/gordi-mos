@@ -19,4 +19,17 @@ describe('withResolvedRungs (issue 479)', () => {
     ])
     expect(resolved[2].child).toBe(false)
   })
+
+  it('a child hangs from the parent it names, not from Work', () => {
+    const resolved = withResolvedRungs([
+      row(WORK_PARENT_ID),
+      row('n-tasks', { child: true }),
+      row('n-cafe'),
+      row('n-child-cafe-plan', { child: true, parentId: 'n-cafe' }),
+      row('n-child-cafe-stock', { child: true, parentId: 'n-cafe' }),
+      // Named for Work but sitting under Café: the run does not reach back to its parent.
+      row('n-stray', { child: true, parentId: WORK_PARENT_ID }),
+    ])
+    expect(resolved.map((r) => r.child)).toEqual([undefined, true, undefined, true, true, false])
+  })
 })

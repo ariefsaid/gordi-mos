@@ -98,7 +98,7 @@ export type TaskSurfaceProps = {
   /** Bubbles RecordField draft state to a host-owned leave guard. */
   onDirtyChange?: (dirty: boolean) => void
   /** Defaults supplied by the originating record. */
-  createInitialValues?: { title?: string; businessUnitId?: string; responsiblePersonId?: string }
+  createInitialValues?: { title?: string; businessUnitId?: string; responsiblePersonId?: string; workLineId?: string }
   /** null lets the record host retain its URL and own navigation after creation. */
   createRedirect?: To | null
   /**
@@ -917,7 +917,7 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
   const [accountablePersonId, setAccountablePersonId] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [description, setDescription] = useState('')
-  const [workLineId, setWorkLineId] = useState('')
+  const [workLineId, setWorkLineId] = useState(createInitialValues?.workLineId ?? '')
 
   // Same option rule as every other create path; a pre-filled PIC outside it stays shown.
   const picPickerOptions = (() => {
