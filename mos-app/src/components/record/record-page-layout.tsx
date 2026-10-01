@@ -9,8 +9,9 @@
 //   children     ReactNode          the record's sections (<RecordSection/>), in domain order
 //   about        ReactNode          facts that are not in the header; a 300px aside on a page >=1280,
 //                                   otherwise a block after the sections
-//   history      { title, node }    the folded History: an open aside block on a wide page, otherwise
+//   history      { title, node, count? }   the folded History: an open aside block on a wide page, otherwise
 //                                   a closed disclosure at the end. `node` mounts only when shown.
+//   kind         string             names the record kind on the root (data-record-kind) for kind-scoped styles and checks
 //   headingLevel 1 | 2              the rung of the record title; sections sit one under it
 //
 // RecordSection props      { id, title, count?, action?: { label, onClick, disabled? }, children }
@@ -170,14 +171,15 @@ export interface RecordPageLayoutProps {
   setup?: ReactNode
   children: ReactNode
   about?: { title: string; node: ReactNode }
-  history: { title: string; node: ReactNode }
+  history: { title: string; node: ReactNode; count?: ReactNode }
+  kind?: string
 }
 
-export function RecordPageLayout({ label, mode, headingLevel, header, notice, setup, children, about, history }: RecordPageLayoutProps) {
+export function RecordPageLayout({ label, mode, headingLevel, header, notice, setup, children, about, history, kind }: RecordPageLayoutProps) {
   const wide = useIsWideRecordPage() && mode === 'page'
   return (
     <HeadingLevelContext.Provider value={headingLevel}>
-      <section className={`rp rp--${mode}`} data-record-mode={mode} aria-label={label}>
+      <section className={`rp rp--${mode}`} data-record-mode={mode} data-record-kind={kind} aria-label={label}>
         {header}
         {notice}
         <div className="rp-body">
@@ -190,7 +192,7 @@ export function RecordPageLayout({ label, mode, headingLevel, header, notice, se
                 {about.node}
               </section>
             ) : null}
-            {!wide ? <RecordDisclosure title={history.title}>{history.node}</RecordDisclosure> : null}
+            {!wide ? <RecordDisclosure title={history.title} count={history.count}>{history.node}</RecordDisclosure> : null}
           </div>
           {wide ? (
             <aside className="rp-aside">
@@ -201,7 +203,10 @@ export function RecordPageLayout({ label, mode, headingLevel, header, notice, se
                 </section>
               ) : null}
               <section className="rp-aside__block" aria-label={history.title}>
-                <SectionHeading className="rp-section__title">{history.title}</SectionHeading>
+                <SectionHeading className="rp-section__title">
+                  {history.title}
+                  {history.count !== undefined && history.count !== null ? <span className="rp-section__count">{history.count}</span> : null}
+                </SectionHeading>
                 {history.node}
               </section>
             </aside>

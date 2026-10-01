@@ -206,4 +206,64 @@ describe('RecordPageHeader', () => {
     wrap(<RecordPageHeader {...base} facts={[]} note="View only · Dewi (Accountable) sets targets." />)
     expect(screen.getByRole('note')).toHaveTextContent('View only')
   })
+
+  it('draws a destructive state as the lost-tone pill', () => {
+    wrap(<RecordPageHeader {...base} facts={[{ type: 'state', key: 's', label: 'Blocked', tone: 'destructive' }]} />)
+    expect(screen.getByText('Blocked').closest('.pill')).toHaveClass('pill--destructive')
+  })
+
+  it('draws an outline primary quietly, and a primary by default', () => {
+    const { rerender } = wrap(<RecordPageHeader {...base} facts={[]} primary={{ label: 'Mark complete', variant: 'outline', onClick: vi.fn() }} />)
+    expect(screen.getByRole('button', { name: 'Mark complete' })).toHaveClass('btn-outline')
+    expect(document.querySelectorAll('.btn-primary')).toHaveLength(0)
+    rerender(<I18nProvider><RecordPageHeader {...base} facts={[]} primary={{ label: 'Mark complete', onClick: vi.fn() }} /></I18nProvider>)
+    expect(screen.getByRole('button', { name: 'Mark complete' })).toHaveClass('btn-primary')
+  })
+
+  it('carries a person hint as an accessible description, not a visible line', () => {
+    const facts: RecordFact[] = [
+      { type: 'person', key: 's', role: 'neutral', hint: 'inherited from Weekly promo', field: field({ key: 'supervisor', label: 'Supervisor', control: 'person', value: 'p1', displayValue: 'Dewi Director' }) },
+    ]
+    wrap(<RecordPageHeader {...base} facts={facts} />)
+    const chip = screen.getByRole('listitem')
+    expect(chip).toHaveAttribute('title', 'inherited from Weekly promo')
+    expect(within(chip).getByText('inherited from Weekly promo')).toHaveClass('sr-only')
+  })
+
+  it('lets a group go without a visible label', () => {
+    const facts: RecordFact[] = [
+      { type: 'group', key: 'ctx', fields: [field({ key: 'a', label: 'Project/Process', displayValue: 'Weekly promo' }), field({ key: 'b', label: 'Objective', displayValue: 'Q4 growth' })] },
+    ]
+    wrap(<RecordPageHeader {...base} facts={facts} />)
+    expect(document.querySelector('.rp-fact__key')).toBeNull()
+    // Each field keeps its own name for assistive tech; only the shared visible label is gone.
+    expect(screen.getByRole('list', { name: 'Key facts' })).toHaveTextContent(/Project\/Process.*Weekly promo.*Objective.*Q4 growth/)
+  })
+})
+
+describe('RecordPageLayout record kind and history count', () => {
+  it('names the record kind on its root and counts History in the disclosure', () => {
+    wrap(
+      <RecordPageLayout label="Record" kind="task" mode="page" headingLevel={1} header={<h1>Title</h1>} history={{ title: 'History', count: 4, node: <p>entries</p> }}>
+        <RecordSection id="s" title="Section">rows</RecordSection>
+      </RecordPageLayout>,
+    )
+    expect(screen.getByRole('region', { name: 'Record' })).toHaveAttribute('data-record-kind', 'task')
+    expect(screen.getByRole('button', { name: /History/ })).toHaveTextContent('History4')
+  })
+
+  it('counts History in the side column on a wide page', () => {
+    setWide(true)
+    wrap(
+      <RecordPageLayout label="Record" mode="page" headingLevel={1} header={<h1>Title</h1>} history={{ title: 'History', count: 4, node: <p>entries</p> }}>
+        <RecordSection id="s" title="Section">rows</RecordSection>
+      </RecordPageLayout>,
+    )
+    expect(within(screen.getByRole('complementary')).getByRole('heading', { name: /History/ })).toHaveTextContent('History4')
+  })
+
+  it('leaves the kind attribute off when none is given', () => {
+    wrap(<RecordPageLayout label="Record" mode="page" headingLevel={1} header={<h1>Title</h1>} history={{ title: 'History', node: null }}>x</RecordPageLayout>)
+    expect(screen.getByRole('region', { name: 'Record' })).not.toHaveAttribute('data-record-kind')
+  })
 })

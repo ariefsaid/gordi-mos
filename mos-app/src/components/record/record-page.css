@@ -52,6 +52,9 @@
 .rp-fact--state { align-items: center; }
 .rp-fact__key { font-size: var(--font-size-label); font-weight: 500; color: var(--muted-foreground); }
 .rp-fact__fields { display: inline-flex; align-items: center; gap: 4px; }
+/* An unlabelled group reads as one linked line: fields split by a muted middle dot. */
+.rp-fact--linked .rp-fact__fields { flex-wrap: wrap; gap: 4px 8px; }
+.rp-fact--linked .rp-fact__fields > * + *::before { content: '·'; margin-inline-end: 8px; color: var(--muted-foreground); }
 
 .rp .rp-facts .record-field { display: inline-flex; align-items: center; gap: 6px; }
 .rp .rp-facts .record-field__label {
@@ -147,6 +150,7 @@
 .rp--panel .rp-count-extra { display: none; }
 .rp-section__title { margin: 0; font-family: var(--font-display); font-size: var(--font-size-body-lg); font-weight: 600; color: var(--foreground); }
 .rp-section__count { font-size: var(--font-size-body); font-weight: 400; color: var(--muted-foreground); }
+.rp-section__title > .rp-section__count { margin-inline-start: 8px; }
 .rp-section__spacer { flex: 1; min-width: 0; }
 
 .rp-rows { list-style: none; margin: 0; padding: 0; }
