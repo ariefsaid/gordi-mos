@@ -263,7 +263,7 @@ function CollectionSpecimen({
             copy: 'Work that reaches this collection will appear here.',
             create: emptyCreate ? <Button variant="primary">New task</Button> : undefined,
           }}
-          filteredEmpty={{ title: 'No tasks match this view', copy: 'Loosen the search or clear the filters.', clear: () => undefined }}
+          filteredEmpty={{ items: 'tasks', clear: () => undefined }}
           error={{ message: 'The task collection could not be loaded.', retry: () => controller.retry() }}
           loadingLabel="Loading tasks"
           resultHeader={{ collectionLabel: 'Tasks', viewLabel, count }}
@@ -346,7 +346,7 @@ export const FilteredEmpty: Story = {
   ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await waitFor(() => expect(canvas.getByText('No tasks match this view')).toBeVisible())
+    await waitFor(() => expect(canvas.getByText('No tasks match these filters')).toBeVisible())
     await expect(canvas.getByRole('button', { name: /clear filters/i })).toBeVisible()
   },
 }

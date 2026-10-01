@@ -40,7 +40,7 @@ export const ROLE_META: Record<string, { label: string; description: string }> =
   admin: { label: 'Admin', description: 'Manages users and settings' },
   finance: { label: 'Finance', description: 'Sees financial reports' },
   manager: { label: 'Manager', description: 'Company-wide revenue & margin' },
-  supervisor: { label: 'Supervisor', description: 'Revenue view for assigned branches' },
+  supervisor: { label: 'Supervisor (access)', description: 'Revenue visibility within a granted channel and branch scope' },
 }
 
 /** Human label for a role slug; falls back to the slug itself for unknown roles. */

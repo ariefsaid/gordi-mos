@@ -827,7 +827,6 @@ export function TasksWorkspace({
   // A saved-view scope (My work etc.) is not a filter: only a set field filter earns the
   // "match these filters" wording.
   const mineScope = query.view === 'my-work' || query.view === 'my-pic' || query.view === 'my-supervisor'
-  const fieldFilterSet = query.q !== '' || query.businessUnitId !== null || query.status !== null
     || query.picId !== null || query.supervisorId !== null || query.personId !== null
     || query.overdueOnly || query.view === 'overdue'
   const emptyTitle = query.includeArchived
@@ -1006,9 +1005,10 @@ export function TasksWorkspace({
                 create: <Link ref={(node) => { createControlRef.current = node }} to={{ pathname: '/work/tasks', search: (() => { const next = new URLSearchParams(liveParams); next.set('create', '1'); return `?${next.toString()}` })() }} onClick={(event) => { event.preventDefault(); onNewTask() }} className="btn btn-primary">{t('tasks.new')}</Link>,
               }}
               filteredEmpty={{
-                title: fieldFilterSet ? t('tasks.empty.filteredTitle') : emptyTitle,
-                copy: fieldFilterSet ? t('tasks.empty.filteredCopy') : emptyCopy,
+                items: t('collection.items.tasks'),
                 clear: onClearFilters,
+                title: mineScope ? emptyTitle : undefined,
+                copy: mineScope ? emptyCopy : undefined,
                 create: <Link ref={(node) => { createControlRef.current = node }} to={{ pathname: '/work/tasks', search: (() => { const next = new URLSearchParams(liveParams); next.set('create', '1'); return `?${next.toString()}` })() }} onClick={(event) => { event.preventDefault(); onNewTask() }} className="btn btn-primary">{t('tasks.new')}</Link>,
               }}
               error={{ message: t('tasks.error.load'), retry }}

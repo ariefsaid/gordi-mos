@@ -113,6 +113,13 @@ describe('AC-063/AC-064: Café pages stay Indonesian end to end', () => {
     ['en', INDONESIAN_TOKENS, 'Change', 'Pushes', 'Chicken', 'Stock'],
   ] as const)('renders every stream-resolved page in the %s catalog', async (locale, denyList, changeWord, pushesWord, categoryLabel, stockLabel) => {
     for (const [name, Page] of pages) {
+      const originalMatchMedia = window.matchMedia
+      if (name === 'Pushes') {
+        window.matchMedia = ((query: string) => ({
+          matches: query.includes('min-width: 768px'), media: query, onchange: null,
+          addEventListener: () => {}, removeEventListener: () => {}, addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false,
+        })) as typeof window.matchMedia
+      }
       const { container } = render(<MemoryRouter><I18nProvider initialLocale={locale}><Page /></I18nProvider></MemoryRouter>)
       await screen.findByText(name === 'Pushes' ? 'batch-1' : 'Dish One')
       expect(container.textContent).not.toMatch(denyList)
@@ -125,8 +132,17 @@ describe('AC-063/AC-064: Café pages stay Indonesian end to end', () => {
       }
       if (name === 'Plan') expect(container.querySelector('.dt-group-label, .dt-cards-group-label')?.textContent).toContain(categoryLabel)
       if (name === 'Log') expect(container.textContent).toContain(stockLabel)
-      if (name === 'Pushes') expect(container.textContent).toContain(pushesWord)
+      if (name === 'Pushes') {
+        expect(container.textContent).toContain(pushesWord)
+        if (locale === 'id') {
+          expect(screen.getAllByRole('columnheader').map((header) => header.textContent)).toEqual([
+            'Kelompok', 'Tujuan kirim', 'Dikirim ke', 'Status', 'Percobaan ulang',
+            'Kesalahan', 'Referensi outlet', 'Waktu dibuat', 'Terkirim',
+          ])
+        }
+      }
       cleanup()
+      window.matchMedia = originalMatchMedia
     }
   })
 })

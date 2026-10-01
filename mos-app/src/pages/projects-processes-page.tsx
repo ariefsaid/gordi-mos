@@ -317,7 +317,7 @@ export function ProjectsProcessesPage() {
               archivedEmpty={query.view === 'archived' && controller.state.data?.records.every((row) => row.archived_at === null)
                 ? { title: t('catalog.archivedEmpty.title') } : undefined}
               filteredEmpty={{
-                title: t('catalog.filteredEmpty.title'),
+                items: t('collection.items.projectsProcesses'),
                 clear: () => setQuery({ view: 'active', q: '', type: 'all' }),
               }}
               error={{ message: t('catalog.projects.error'), retry: () => controller.retry() }}

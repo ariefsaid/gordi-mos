@@ -15,7 +15,7 @@ import { Link } from 'react-router-dom'
 import type { Row, Table } from '@tanstack/react-table'
 import type { Virtualizer } from '@tanstack/react-virtual'
 import type { TaskListRow } from '@/lib/db/tasks.types'
-import { ErrorState, EmptyState } from '@/components/ui/state-kit'
+import { EmptyState, ErrorState, FilteredEmptyState } from '@/components/ui/state-kit'
 import { MobileGroupedCards } from './mobile-grouped-cards'
 import type { TaskTeamOption } from './task-row'
 import type { RenderGroup } from './tasks-grouping'
@@ -157,12 +157,11 @@ export function TasksTableBody(props: TasksTableBodyProps) {
   }
 
   if (flatRows.length === 0 && hasActiveFilter) {
-    // No-results-after-filter: distinct from empty-no-tasks (AC-133 / design-plan §3)
+    // No-results-after-filter is shared with every collection; the true-empty copy stays separate.
     return (
-      <EmptyState title={t('tasks.empty.filteredTitle')} copy={t('tasks.empty.filteredCopy')}>
-        <button type="button" className="btn btn-outline" onClick={onClearFilters}>{t('tasks.empty.clearFilters')}</button>
+      <FilteredEmptyState items={t('collection.items.tasks')} onClear={onClearFilters}>
         <Link to={createHref} className="btn btn-primary">{t('tasks.new')}</Link>
-      </EmptyState>
+      </FilteredEmptyState>
     )
   }
 

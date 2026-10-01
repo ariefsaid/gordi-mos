@@ -197,7 +197,7 @@ describe('KitchenReviewPage — role gate (FR-003/044)', () => {
       </MemoryRouter>,
     )
     // #236 copy: review is open to stream supervisors AND ops leads — a member still gets neither
-    expect(await screen.findByText(/available to stream supervisors and ops leads/i)).toBeInTheDocument()
+    expect(await screen.findByText(/available to stream approvers and ops leads/i)).toBeInTheDocument()
     // the queue read is never even attempted for a member
     expect(mockList).not.toHaveBeenCalled()
     // Back to Log must resolve via the SPA router — not a raw href that causes a full reload
