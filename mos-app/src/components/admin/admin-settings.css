@@ -40,44 +40,10 @@
 }
 
 @media (max-width: 767.98px) {
-  .admin-settings-nav-frame--more-right::after,
-  .admin-settings-nav-frame--more-left::before {
-    content: '';
-    position: absolute;
-    z-index: 1;
-    top: 0;
-    bottom: 12px;
-    width: 28px;
-    pointer-events: none;
-  }
-
-  .admin-settings-nav-frame--more-right::after {
-    right: 0;
-    background: linear-gradient(to right, transparent, var(--background));
-  }
-
-  .admin-settings-nav-frame--more-left::before {
-    left: 0;
-    background: linear-gradient(to left, transparent, var(--background));
-  }
-
-  /* Three tabs stay one row; a long Indonesian label scrolls the row instead of wrapping it. */
+  /* Phone keeps the base wrap so all four tabs render fully visible (#1196) — no hidden
+     horizontal scroll, no edge fade over a clipped tab. */
   .admin-settings-nav {
-    flex-wrap: nowrap;
-    overflow-x: auto;
     margin-bottom: 12px;
-    scrollbar-width: thin;
-    scrollbar-color: var(--muted-foreground) var(--secondary);
-    scroll-behavior: smooth;
-  }
-
-  .admin-settings-nav::-webkit-scrollbar {
-    height: 4px;
-  }
-
-  .admin-settings-nav::-webkit-scrollbar-thumb {
-    border-radius: var(--radius-sm);
-    background: var(--muted-foreground);
   }
 
   .admin-settings-nav__link {
