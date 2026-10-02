@@ -513,8 +513,8 @@ export function CatalogRecordDocument({
     })
   }
   const primary: RecordPrimaryAction | undefined = archived || setup.length > 0 ? undefined
-    : isProcess ? (startReady ? { label: t('catalog.record.startOccurrence'), onClick: startFromHeader, busy: occurrences.startingKey !== null } : undefined)
-      : (isObjective ? linkedWork.length > 0 : true) ? { label: t('catalog.record.addTask'), onClick: startAddTask } : undefined
+    : isProcess ? (startReady ? { id: 'start-occurrence', label: t('catalog.record.startOccurrence'), onClick: startFromHeader, busy: occurrences.startingKey !== null } : undefined)
+      : (isObjective ? linkedWork.length > 0 : true) ? { id: 'add-task', label: t('catalog.record.addTask'), onClick: startAddTask } : undefined
 
   const accountableName = row.accountablePersonId ? allPeople.get(row.accountablePersonId) : undefined
   // The line says what the viewer can do: "View only" is for a viewer with nothing to add.
@@ -716,9 +716,7 @@ export function CatalogRecordDocument({
         {stepsFirst ? stepsSection : null}
         {showOccurrenceSection && process ? (
           <RecordSection id="occurrence" title={t('catalog.record.currentNextAction')}>
-            <div data-setup-pending={setup.some((item) => item.id === 'steps') || undefined}>
-              <ProcessOccurrenceControls workLineId={id} setupIncomplete={process.steps.length === 0} canManageSetup={canManage} recordContext onChanged={onOccurrencesChanged} data={occurrences} />
-            </div>
+            <ProcessOccurrenceControls workLineId={id} setupIncomplete={process.steps.length === 0} canManageSetup={canManage} onChanged={onOccurrencesChanged} data={occurrences} />
           </RecordSection>
         ) : null}
         <TasksSection
@@ -727,7 +725,7 @@ export function CatalogRecordDocument({
           rollup={context.progressById.get(id)}
           people={allPeople}
           canAdd={canAddTask}
-          actionInHeader={primary?.label === t('catalog.record.addTask')}
+          actionInHeader={primary?.id === 'add-task'}
           hidden={setup.some((item) => item.id === 'tasks')}
           onAdd={startAddTask}
           onOpenRelated={onOpenRelated}

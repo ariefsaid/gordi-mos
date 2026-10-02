@@ -25,14 +25,13 @@ function renderList(props: Partial<React.ComponentProps<typeof DueRunsList>> = {
   )
 }
 
-describe('DueRunsList start emphasis', () => {
-  it('is a primary in a generic list and a secondary inside a Process record, whose header keeps the primary', () => {
+describe('DueRunsList start ownership', () => {
+  it('shows Start in a generic list but leaves it to the header inside a Process record', () => {
     const { unmount } = renderList()
     expect(screen.getByRole('button', { name: /start/i })).toHaveClass('btn-primary')
     unmount()
     renderList({ context: 'process-record' })
-    expect(screen.getByRole('button', { name: /start/i })).toHaveClass('btn-outline')
-    expect(screen.getByRole('button', { name: /start/i })).not.toHaveClass('btn-primary')
+    expect(screen.queryByRole('button', { name: /start/i })).toBeNull()
   })
 })
 
@@ -95,7 +94,7 @@ describe('DueRunsList (design fix wave item 1)', () => {
     expect(screen.getByRole('button', { name: 'Start · Café Closing' })).toBeInTheDocument()
   })
 
-  it('names same-Process starts by Team in the Process record and starts the selected Team row', () => {
+  it('keeps same-Process ready rows descriptive while the record header owns Start', () => {
     const due = [
       { ...DUE_ROW, process_name: 'Café HQ daily opening', owning_team_id: 'hq-ops', team_name: 'HQ Operations' },
       { ...DUE_ROW, process_name: 'Café HQ daily opening', owning_team_id: 'hq-bar', team_name: 'Gordi HQ Bar' },
@@ -103,16 +102,11 @@ describe('DueRunsList (design fix wave item 1)', () => {
     const onStart = vi.fn().mockResolvedValue(undefined)
     renderList({ due, context: 'process-record', onStart })
 
-    const operationsStart = screen.getByRole('button', { name: 'Start · HQ Operations' })
-    const barStart = screen.getByRole('button', { name: 'Start · Gordi HQ Bar' })
-    expect(operationsStart).toBeInTheDocument()
-    expect(barStart).toBeInTheDocument()
     expect(screen.getByText('HQ Operations')).toBeInTheDocument()
     expect(screen.getByText('Gordi HQ Bar')).toBeInTheDocument()
     expect(screen.queryByText('Café HQ daily opening')).not.toBeInTheDocument()
-
-    fireEvent.click(barStart)
-    expect(onStart).toHaveBeenCalledWith(due[1])
+    expect(screen.queryByRole('button', { name: /start/i })).toBeNull()
+    expect(onStart).not.toHaveBeenCalled()
   })
 
   it('keeps process-name actions and Team descriptions in generic due-run lists', () => {

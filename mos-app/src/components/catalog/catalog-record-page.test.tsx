@@ -32,15 +32,12 @@ const occurrenceData = vi.hoisted(() => ({
 }))
 vi.mock('@/components/processes/use-process-occurrences', () => ({ useProcessOccurrences: () => occurrenceData.current }))
 vi.mock('@/components/processes/process-occurrence-controls', () => ({
-  ProcessOccurrenceControls: ({ data, recordContext }: {
+  ProcessOccurrenceControls: ({ data }: {
     data?: import('@/components/processes/use-process-occurrences').ProcessOccurrencesData
-    recordContext?: boolean
   }) => (
     <div data-testid="occurrences">
       <section className="process-occurrence-controls__start">
-        {data?.startable.map((run) => recordContext
-          ? <span key={`${run.owning_team_id}:${run.period_key}`}>{run.team_name}</span>
-          : <button key={`${run.owning_team_id}:${run.period_key}`} type="button" className="btn btn-outline">Start · {run.team_name}</button>)}
+        {data?.startable.map((run) => <span key={`${run.owning_team_id}:${run.period_key}`}>{run.team_name}</span>)}
       </section>
     </div>
   ),
