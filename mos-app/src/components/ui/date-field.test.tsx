@@ -218,10 +218,13 @@ describe('DateField (primitive)', () => {
     expect(label).toHaveAttribute('for', input.id)
   })
 
-  it('keeps the calendar button reachable by pointer and out of the tab order', () => {
-    renderField()
+  it('keeps the calendar picker keyboard-reachable after the date text field', async () => {
+    const { input } = renderField()
     const picker = screen.getByLabelText(/open calendar/i)
     expect(picker).toHaveAttribute('type', 'date')
-    expect(picker).toHaveAttribute('tabindex', '-1')
+    expect(picker).toHaveAttribute('tabindex', '0')
+    await userEvent.click(input)
+    await userEvent.tab()
+    expect(picker).toHaveFocus()
   })
 })
