@@ -1,5 +1,7 @@
 import { useId } from 'react'
+import { useI18n } from '@/i18n/I18nProvider'
 import { useT } from '@/i18n/use-t'
+import { formatDayMonthYear } from '@/lib/format/date'
 import { Button } from '@/components/ui/button'
 import { ErrorState } from '@/components/ui/state-kit'
 import { dueKey } from './use-due-runs'
@@ -21,6 +23,7 @@ export interface DueRunsListProps {
 
 export function DueRunsList({ due, expanded, startingKey, startError, onStart, context }: DueRunsListProps) {
   const t = useT()
+  const { locale } = useI18n()
   const idPrefix = useId()
   const processRecordContext = context === 'process-record'
   if (!expanded || due.length === 0) return null
@@ -36,7 +39,12 @@ export function DueRunsList({ due, expanded, startingKey, startError, onStart, c
             <li key={key} className={`due-runs-row${processRecordContext ? ' due-runs-row--process-record' : ''}`}>
               <div className="due-runs-row-labels" id={!processRecordContext ? labelsId : undefined}>
                 {processRecordContext ? (
-                  <span className="due-runs-row-team">{row.team_name}</span>
+                  <>
+                    <span className="due-runs-row-team">{row.team_name}</span>
+                    <time className="due-runs-row-date" dateTime={row.scheduled_date}>
+                      {formatDayMonthYear(row.scheduled_date, locale)}
+                    </time>
+                  </>
                 ) : (
                   <>
                     <span className="due-runs-row-process">{row.process_name}</span>

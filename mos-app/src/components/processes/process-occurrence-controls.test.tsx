@@ -151,6 +151,8 @@ describe('ProcessOccurrenceControls', () => {
     renderControls()
 
     expect(await screen.findByRole('heading', { name: 'Ready to start' })).toBeInTheDocument()
+    const ready = document.querySelector('.process-occurrence-controls__start') as HTMLElement
+    expect(await within(ready).findByText('18 Jul 2026')).toBeInTheDocument()
     expect(screen.getByText('Café Operations')).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 4, name: '17 Jul 2026' })).toBeInTheDocument()
     expect(screen.getByText('Café Operations · Open')).toBeInTheDocument()
@@ -255,11 +257,25 @@ describe('ProcessOccurrenceControls', () => {
     expect(screen.queryByRole('button', { name: '1 to assign' })).not.toBeInTheDocument()
   })
 
-  it('keeps Complete secondary when a run is open and another run is ready', async () => {
+  it('uses singular task wording for a one-task occurrence', async () => {
+    mockListOccurrences.mockResolvedValue([{
+      ...RUN,
+      rollup: { ...RUN.rollup, total: 1, open: 1, done: 0, completion_pct: 0 },
+    }])
+    renderControls()
+
+    expect(await screen.findByText('1 task')).toBeInTheDocument()
+    expect(screen.queryByText('1 tasks')).not.toBeInTheDocument()
+  })
+
+  it('keeps Complete secondary and Cancel quiet when another run is ready', async () => {
     renderControls()
     const complete = await screen.findByRole('button', { name: 'Complete occurrence' })
+    const cancel = screen.getByRole('button', { name: 'Cancel occurrence' })
     expect(complete).toHaveClass('btn-outline')
     expect(complete).not.toHaveClass('btn-primary')
+    expect(cancel).toHaveClass('btn-ghost')
+    expect(cancel).not.toHaveClass('btn-destructive')
   })
 
   it('keeps Complete primary when the open run is the only available action', async () => {
