@@ -260,6 +260,7 @@ describe('D3e — Tasks create is an inline title row', () => {
     const titleInput = await screen.findByRole('textbox', { name: /title/i })
     expect(titleInput).toHaveFocus()
     expect(titleInput).not.toBeDisabled()
+    expect(screen.getAllByRole('button', { name: /Create task/i })).toHaveLength(1)
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.queryByRole('complementary', { name: /create task/i })).toBeNull()
     expect(screen.getAllByRole('textbox')).toHaveLength(2) // the title + the shared day-first Due field (#1191)
@@ -289,7 +290,8 @@ describe('D3e — Tasks create is an inline title row', () => {
     fireEvent.keyDown(titleInput, { key: 'Escape' })
     await waitFor(() => expect(screen.queryByRole('textbox', { name: /title/i })).toBeNull())
     expect(mockCreateTask).not.toHaveBeenCalled()
-    await waitFor(() => expect(opener).toHaveFocus())
+    // The page action unmounts while the draft is open; focus returns to its rendered replacement.
+    await waitFor(() => expect(screen.getByRole('button', { name: '+ Create task' })).toHaveFocus())
   })
 
   it('keeps an ambiguous Team and empty Supervisor honest until the user chooses both', async () => {
@@ -1482,6 +1484,8 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
       fireEvent.change(screen.getByLabelText('Comment'), { target: { value: 'Looks good' } })
       const post = screen.getByRole('button', { name: 'Post comment' })
       expect(post).toBeEnabled()
+      expect(post).toHaveClass('btn-outline')
+      expect(post).not.toHaveClass('btn-primary')
       expect(document.body.querySelectorAll('.btn-primary:not(:disabled)')).toHaveLength(1)
       expect(screen.getByRole('button', { name: 'Mark complete' })).toHaveClass('btn-primary')
     })
