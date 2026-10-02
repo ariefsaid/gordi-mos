@@ -504,7 +504,7 @@ describe('Populated state — WIP items loaded', () => {
     expect(css).toMatch(/\.kl-form \.dt-table,\s*\n\.kl-form \.dt-cards \{/)
     // The shared clearance token follows the footer's tallest rendered state on both the
     // desktop table and the phone-card list, including the phone safe-area inset.
-    expect(css).toMatch(/--kl-footer-clearance:\s*192px/)
+    expect(css).toMatch(/--kl-footer-clearance:\s*113px/)
     expect(css).toMatch(/\.kl-form \.dt-table\s*\{\s*margin-bottom:\s*var\(--kl-footer-clearance\)/)
     expect(css).toMatch(/\.kl-form \.dt-cards\s*\{\s*padding-bottom:\s*calc\(var\(--kl-footer-clearance\) \+ env\(safe-area-inset-bottom/)
   })

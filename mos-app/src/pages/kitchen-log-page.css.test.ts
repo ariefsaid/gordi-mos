@@ -30,7 +30,9 @@ describe('KL-FOOTER-NAV: the phone sticky footer clears the shell bottom-tab bar
     expect(baseFooter).toMatch(/flex-direction:\s*column/)
     expect(baseFooter).toMatch(/align-items:\s*stretch/)
     expect(css).toMatch(/\.kl-submit\s*\{[^}]*width:\s*100%/)
-    expect(css).toMatch(/\.kl-form\s*\{[^}]*--kl-footer-clearance:\s*\d+px/)
+    expect(css).toMatch(/\.kl-form\s*\{[^}]*--kl-footer-clearance:\s*113px/)
+    expect(css).toMatch(/\.kl-form:has\(\.kl-submit-reason\)[^}]*--kl-footer-clearance:\s*176px/)
+    expect(css).toMatch(/\.kl-form:has\(\.kl-submit-reason\):has\(\.kl-submit-outcome\)[^}]*--kl-footer-clearance:\s*208px/)
     expect(css).toMatch(/margin-bottom:\s*var\(--kl-footer-clearance\)/)
   })
 

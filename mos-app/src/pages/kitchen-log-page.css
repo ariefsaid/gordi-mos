@@ -98,11 +98,14 @@
 
 /* ── The capture form ── */
 .kl-form {
-  --kl-footer-clearance: 192px;
+  --kl-footer-clearance: 113px;
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
 }
+.kl-form:has(.kl-submit-reason),
+.kl-form:has(.kl-submit-outcome) { --kl-footer-clearance: 176px; }
+.kl-form:has(.kl-submit-reason):has(.kl-submit-outcome) { --kl-footer-clearance: 208px; }
 
 /* Receiving-only streams stay useful as a read surface, with the next stock action
    visible at the point where production capture would otherwise begin. */
