@@ -177,7 +177,7 @@ function HomeRegionCollectionInstance({ region, items }: Required<HomeRegionColl
       <RecordCollectionSurface
         controller={controller}
         empty={{ title: t(EMPTY_KEY[region.id]) }}
-        filteredEmpty={{ title: t(EMPTY_KEY[region.id]), clear: () => {} }}
+        filteredEmpty={{ items: t(region.labelKey).toLowerCase(), clear: () => {} }}
         error={{ message: t('home.attention.laneError'), retry: region.onRetry ?? (() => {}) }}
         loadingLabel={t(region.labelKey)}
       />

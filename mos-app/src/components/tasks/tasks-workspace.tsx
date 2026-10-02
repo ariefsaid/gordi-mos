@@ -818,19 +818,22 @@ export function TasksWorkspace({
   const showNewTask = state.status === 'ready'
   const frameState: PageFamilyState = state.status === 'ready' ? 'default' : state.status
   // A saved-view scope (My work etc.) is not a filter: only a set field filter earns the
-  // "match these filters" wording.
-  const mineScope = query.view === 'my-work' || query.view === 'my-pic' || query.view === 'my-supervisor'
-  const fieldFilterSet = query.q !== '' || query.businessUnitId !== null || query.status !== null
+  // "match these filters" wording. DD-NAME-1: the Mine copy ("No tasks assigned to you")
+  // belongs to a saved Mine view only — an explicit Person/PIC/Supervisor/Overdue narrowing
+  // (or a search/filter that empties the view) earns the neutral or shared filtered wording.
+  const savedMineView = query.view === 'my-work' || query.view === 'my-pic' || query.view === 'my-supervisor'
+  const mineViewUnfiltered = savedMineView && !(
+    query.q !== '' || query.businessUnitId !== null || query.status !== null
     || query.picId !== null || query.supervisorId !== null || query.personId !== null
-    || query.overdueOnly || query.view === 'overdue'
+    || query.overdueOnly)
   const emptyTitle = query.includeArchived
     ? t('tasks.empty.archivedTitle')
-    : mineScope
+    : mineViewUnfiltered
       ? t('tasks.empty.mineTitle')
       : t('tasks.empty.noTasksTitle')
   const emptyCopy = query.includeArchived
     ? t('tasks.empty.archivedCopy')
-    : mineScope
+    : mineViewUnfiltered
       ? t('tasks.empty.mineCopy')
       : t('tasks.empty.noTasksCopy')
 
@@ -1001,9 +1004,10 @@ export function TasksWorkspace({
                 create: <Link ref={(node) => { createControlRef.current = node }} to={{ pathname: '/work/tasks', search: (() => { const next = new URLSearchParams(liveParams); next.set('create', '1'); return `?${next.toString()}` })() }} onClick={(event) => { event.preventDefault(); onNewTask() }} className="btn btn-primary">{t('tasks.new')}</Link>,
               }}
               filteredEmpty={{
-                title: fieldFilterSet ? t('tasks.empty.filteredTitle') : emptyTitle,
-                copy: fieldFilterSet ? t('tasks.empty.filteredCopy') : emptyCopy,
+                items: t('collection.items.tasks'),
                 clear: onClearFilters,
+                title: mineViewUnfiltered ? emptyTitle : undefined,
+                copy: mineViewUnfiltered ? emptyCopy : undefined,
                 create: <Link ref={(node) => { createControlRef.current = node }} to={{ pathname: '/work/tasks', search: (() => { const next = new URLSearchParams(liveParams); next.set('create', '1'); return `?${next.toString()}` })() }} onClick={(event) => { event.preventDefault(); onNewTask() }} className="btn btn-primary">{t('tasks.new')}</Link>,
               }}
               error={{ message: t('tasks.error.load'), retry }}

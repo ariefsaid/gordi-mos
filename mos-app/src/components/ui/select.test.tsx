@@ -261,3 +261,58 @@ describe('Select (primitive)', () => {
     expect(screen.getByTestId('select').closest('.mk-select')?.querySelector('[data-select-native]')).toBeRequired()
   })
 })
+
+// #1192 / DD-MVP-2: typing on a focused CLOSED trigger selects the next option starting with
+// the typed text — native-select type-ahead — without opening the popup. Repeated letters
+// cycle through the matches; the popup only opens on Enter/Space/arrows.
+describe('Select — closed-trigger type-ahead (#1192)', () => {
+  function renderStatefulSelect() {
+    let current = 'apple'
+    const onChange = vi.fn()
+    const harness = render(
+      <Select label="Fruit" value={current} onChange={onChange} aria-label="Fruit">
+        <option value="apple">Apple</option>
+        <option value="avocado">Avocado</option>
+        <option value="banana">Banana</option>
+        <option value="cherry">Cherry</option>
+      </Select>,
+    )
+    onChange.mockImplementation((event: React.ChangeEvent<HTMLSelectElement>) => {
+      current = event.target.value
+      harness.rerender(
+        <Select label="Fruit" value={current} onChange={onChange} aria-label="Fruit">
+          <option value="apple">Apple</option>
+          <option value="avocado">Avocado</option>
+          <option value="banana">Banana</option>
+          <option value="cherry">Cherry</option>
+        </Select>,
+      )
+    })
+    return { onChange }
+  }
+
+  it('a letter selects the next matching option, repeated letters cycle, and the popup never opens', async () => {
+    const user = userEvent.setup()
+    const { onChange } = renderStatefulSelect()
+    const trigger = screen.getByRole('combobox', { name: 'Fruit' })
+    trigger.focus()
+
+    await user.keyboard('a')
+    expect(onChange).toHaveBeenNthCalledWith(1, expect.objectContaining({ target: expect.objectContaining({ value: 'avocado' }) }))
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+    expect(trigger).toHaveTextContent('Avocado')
+
+    // The next 'a' cycles past Avocado and wraps to Apple.
+    await user.keyboard('a')
+    expect(trigger).toHaveTextContent('Apple')
+
+    // After the buffer clears, 'b' lands on Banana from the new selection; the form bridge
+    // fired change each time.
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 1100)) })
+    await user.keyboard('b')
+    expect(trigger).toHaveTextContent('Banana')
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+    expect(trigger).toHaveFocus()
+    expect(onChange).toHaveBeenCalledTimes(3)
+  })
+})

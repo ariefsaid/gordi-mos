@@ -137,12 +137,7 @@ export function AppearanceControl() {
               role="menuitemradio"
               type="button"
               aria-checked={isActive}
-              className={
-                'appearance-control-option w-full flex items-center gap-2 px-3 rounded-sm cursor-pointer ' +
-                (isActive
-                  ? 'bg-accent'
-                  : 'hover:bg-accent')
-              }
+              className="appearance-control-option w-full flex items-center gap-2 px-3 rounded-sm cursor-pointer"
               style={{ height: 32, fontSize: 'var(--font-size-body-lg)' }}
               onClick={() => setTheme(value)}
             >

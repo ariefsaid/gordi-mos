@@ -205,6 +205,9 @@ describe('CreatePersonDialog (AC-011)', () => {
 
     // "Done" button is present (no Esc dismiss — intentional)
     expect(screen.getByRole('button', { name: /done/i })).toBeInTheDocument()
+    const dialog = screen.getByRole('alertdialog')
+    expect(dialog).toHaveClass('create-person-dialog')
+    expect(dialog.querySelector('.create-person-dialog__form')).not.toBeInTheDocument()
   })
 
   it('AC-011: password is NOT retained in DOM after Done is clicked', async () => {
@@ -399,6 +402,21 @@ describe('CreatePersonDialog (AC-011)', () => {
     expect(onCreated).not.toHaveBeenCalled()
     expect(onShowToast).not.toHaveBeenCalled()
     expect(mockCreateLogin).not.toHaveBeenCalled()
+  })
+
+  it('keeps the primary action in a persistent footer after the scrollable form content', () => {
+    const { container } = renderDialog()
+    const dialog = screen.getByRole('dialog')
+    const form = dialog.querySelector('.create-person-dialog__form')
+    const body = form?.querySelector('.create-person-dialog__body')
+    const footer = form?.querySelector('.create-person-dialog__footer')
+
+    expect(dialog).toHaveClass('create-person-dialog')
+    expect(body).toBeInTheDocument()
+    expect(footer).toBeInTheDocument()
+    expect(form?.lastElementChild).toBe(footer)
+    expect(footer).toContainElement(screen.getByRole('button', { name: /create person/i }))
+    expect(container).toContainElement(form as HTMLElement)
   })
 
   // FIX B1 regression — the canonical shell owns the visible Single-Border Rule.

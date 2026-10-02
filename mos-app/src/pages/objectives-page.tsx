@@ -313,7 +313,7 @@ export function ObjectivesPage() {
               archivedEmpty={query.view === 'archived' && controller.state.data?.records.every((row) => row.archived_at === null)
                 ? { title: t('catalog.archivedEmpty.title') } : undefined}
               filteredEmpty={{
-                title: t('catalog.filteredEmpty.title'),
+                items: t('collection.items.objectives'),
                 clear: () => setQuery({ view: 'active', q: '', coverage: 'all' }),
               }}
               error={{ message: t('catalog.objectives.error'), retry: () => controller.retry() }}

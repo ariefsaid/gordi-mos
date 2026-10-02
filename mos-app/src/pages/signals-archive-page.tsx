@@ -473,7 +473,7 @@ function SignalsArchiveCollection() {
                   ),
                 }),
               }}
-              filteredEmpty={{ title: t('signals.archive.filteredEmpty'), clear: clearFilters }}
+              filteredEmpty={{ items: t('collection.items.signals'), clear: clearFilters }}
               error={{ message: t('signals.archive.error'), retry: () => controller.retry() }}
               loadingLabel={t('signals.archive.loading')}
               onOpenRecord={onOpenRecord}

@@ -97,9 +97,10 @@ describe('Tasks table sort order — every sort, both directions', () => {
     expect(order({ sort: 'task', direction: 'descending' })).toEqual(['g', 'f', 'e', 'd', 'c', 'a', 'b'])
   })
 
-  it('status: status text; ties keep input order in both directions', () => {
-    expect(order({ sort: 'status', direction: 'ascending' })).toEqual(['c', 'd', 'f', 'b', 'a', 'e', 'g'])
-    expect(order({ sort: 'status', direction: 'descending' })).toEqual(['a', 'e', 'g', 'b', 'd', 'f', 'c'])
+  it('status: workflow order (STATUS_ORDER — In Progress, Blocked, Open, Done), ties keep input order (#1192)', () => {
+    expect(order({ sort: 'status', direction: 'ascending' })).toEqual(['b', 'c', 'a', 'e', 'g', 'd', 'f'])
+    // Descending is the same rank read backwards: Done first, then Open, Blocked, In Progress.
+    expect(order({ sort: 'status', direction: 'descending' })).toEqual(['d', 'f', 'a', 'e', 'g', 'c', 'b'])
   })
 
   it('pic: display name, missing name sorts as the empty string', () => {

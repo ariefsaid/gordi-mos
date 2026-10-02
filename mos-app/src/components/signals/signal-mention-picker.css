@@ -29,9 +29,9 @@
 .mention-row:hover { background: var(--secondary); }
 /* GAP-8 (OD-91 #13): the shared listbox cursor — the combobox keeps focus on the textarea, so the
    active option is marked via aria-activedescendant + this highlight (no DOM focus on the row).
-   #578: `--accent-subtle` is the wash token the sibling category picker's own active/selected
-   state already uses (signal-card.css `.signal-category-option[aria-selected="true"]`) — a tint
-   light enough that `--foreground` name text keeps its contrast on top of it. */
+   #578/#1179: `--accent-subtle` is the mention picker's own pinned wash (CHROME-STRIPE); the
+   sibling category picker's cursor now uses the shared --surface-tertiary + ring grammar, so the
+   ring (not the wash) is what carries its 3:1 state cue. */
 /* `:hover` and `.is-active` are equal specificity (one class each); listing `.is-active:hover`
    too makes the active wash win structurally instead of by rule ORDER (a later edit that moved
    `:hover` below this would otherwise silently flip which one painted). */

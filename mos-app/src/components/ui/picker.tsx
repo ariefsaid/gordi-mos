@@ -10,6 +10,7 @@ import {
 import { flushSync } from 'react-dom'
 import * as Popover from '@radix-ui/react-popover'
 import { Command } from 'cmdk'
+import { isTypeaheadKey, nextTypeaheadMatch, useTypeaheadBuffer } from './typeahead'
 import { useT } from '@/i18n/use-t'
 import './Picker.css'
 
@@ -105,6 +106,9 @@ export function Picker({
   const [search, setSearch] = useState('')
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+  // Closed-trigger type-ahead (#1192): letters select the next matching option without opening,
+  // exactly as a native select does — the shared grammar lives in ./typeahead.
+  const typeahead = useTypeaheadBuffer()
   const closeReason = useRef<PickerCloseReason>('outside')
   const closedBy = useRef<PickerCloseReason>('outside')
 
@@ -116,11 +120,14 @@ export function Picker({
 
   const openPicker = useCallback(() => {
     if (disabled || busy || open) return
+    // #1192: opening always starts a fresh phrase — a live closed-trigger prefix must never
+    // leak into the menu session or survive a quick dismiss → retype.
+    typeahead.clear()
     setActive(initialActive())
     setSearch('')
     setOpen(true)
     onOpenChange?.(true, undefined)
-  }, [busy, disabled, initialActive, onOpenChange, open])
+  }, [busy, disabled, initialActive, onOpenChange, open, typeahead])
 
   const togglePicker = useCallback(() => {
     if (disabled || busy) return
@@ -209,6 +216,22 @@ export function Picker({
             onBlur={onBlur}
             onClick={(event) => { event.preventDefault(); togglePicker() }}
             onKeyDown={(event) => {
+              if (!open && isTypeaheadKey(event)) {
+                // #1192: a closed trigger owns the printable keys its type-ahead handles —
+                // consume them (preventDefault + stopPropagation) so they never bubble to a
+                // window keyboard layer (Tasks: `n` must not open create, `j`/`k` must not
+                // move the collection cursor).
+                event.preventDefault()
+                event.stopPropagation()
+                const typingAhead = typeahead.peek() !== ''
+                // A bare Space (no phrase in progress) opens the menu and never enters the
+                // buffer; with a phrase live, Space extends it instead of opening.
+                if (typingAhead || event.key !== ' ') {
+                  const match = nextTypeaheadMatch(options, value, typeahead.push(event.key))
+                  if (match !== undefined) onChange(match)
+                }
+                if (typingAhead && event.key === ' ') return
+              }
               if (event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'Enter' || event.key === ' ') {
                 event.preventDefault()
                 event.stopPropagation()
