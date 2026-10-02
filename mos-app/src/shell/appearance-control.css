@@ -7,20 +7,25 @@
   background: transparent;
 }
 
-.appearance-control-option:hover,
+.appearance-control-option:hover { background: var(--surface-secondary); }
+
+/* Checked (the current theme): the check mark rendered by the component plus primary text and
+   weight — the shared pickers' checked treatment (#1179). The old --surface-secondary tint
+   alone was ~1.1:1 against the popover: not a state cue (WCAG 1.4.11). */
 .appearance-control-option[aria-checked="true"] {
-  color: var(--popover-foreground, var(--foreground));
-  background: var(--surface-secondary);
+  color: var(--primary);
+  font-weight: 600;
 }
 
+/* Keyboard cursor = the shared-picker grammar: surface fill PLUS the ring drawn inside the
+   option (the global outside ring did not mark which option, only that focus was in the menu). */
 .appearance-control-option:focus-visible {
+  background: var(--surface-tertiary);
   outline: 2px solid var(--ring);
-  outline-offset: 2px;
+  outline-offset: -2px;
 }
 
 .appearance-control-option .text-muted-foreground { color: var(--muted-foreground); }
-
-.appearance-control-option .text-primary { color: var(--text-on-accent-tint); }
 
 @media (max-width: 767.98px) {
   .appearance-control-option { min-height: 44px; }

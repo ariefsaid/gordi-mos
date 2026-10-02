@@ -374,21 +374,67 @@ export function TaskRow({
     beginEdit()
   }
 
-  // One tab stop per row (the title link). Arrow keys move along the row's cells (title, Status,
-  // PIC, Due) and Enter/Space on a cell opens its editor; F2 renames from the title.
+  // One tab stop per row — the ACTIVE cell of the roving grid (#1192). Tab enters the row at
+  // the active cell and leaves the grid; the active cell follows focus (arrows, click).
+  const [activeCell, setActiveCell] = useState<TaskColumnId>('task')
+
+  // Arrow keys move along the row's cells (title, Status, PIC, Supervisor, Due), ↑/↓ move the
+  // same column across leaf rows, and Enter/F2 open a cell's editor; F2 renames from the title.
   const onRowKeyDown = (event: React.KeyboardEvent<HTMLTableRowElement>) => {
-    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
     if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
     const from = event.target
     if (!(from instanceof HTMLElement) || !from.hasAttribute('data-row-stop')) return
     // Cells the list's responsive rules hide (display: none) are not stops; the browser's own
     // computed display decides, so no breakpoint is repeated here.
-    const stops = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('[data-row-stop]'))
-      .filter((stop) => getComputedStyle(stop.closest('td') ?? stop).display !== 'none')
-    const to = stops[stops.indexOf(from) + (event.key === 'ArrowRight' ? 1 : -1)]
-    if (!to) return
-    event.preventDefault()
-    to.focus()
+    const visibleStops = (row: HTMLElement) =>
+      Array.from(row.querySelectorAll<HTMLElement>('[data-row-stop]'))
+        .filter((stop) => getComputedStyle(stop.closest('td') ?? stop).display !== 'none')
+    const visibleTds = (row: HTMLElement) =>
+      Array.from(row.children).filter((td) => getComputedStyle(td).display !== 'none')
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+      const stops = visibleStops(event.currentTarget)
+      const to = stops[stops.indexOf(from) + (event.key === 'ArrowRight' ? 1 : -1)]
+      if (!to) return
+      event.preventDefault()
+      to.focus()
+      return
+    }
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      // Roving grid (#1192): the same column in the next/previous leaf row. Columns line up
+      // across rows because one query drives every row's visible <td> chain; a row whose cell
+      // in that column has no stop (read-only cell) simply ends the move.
+      const table = event.currentTarget.closest('table')
+      if (!table) return
+      const rows = Array.from(table.querySelectorAll<HTMLTableRowElement>('tr.task-row:not(.task-row--create)'))
+      const target = rows[rows.indexOf(event.currentTarget) + (event.key === 'ArrowDown' ? 1 : -1)]
+      if (!target) return
+      const fromTd = from.closest('td')
+      if (!fromTd) return
+      const column = visibleTds(event.currentTarget).indexOf(fromTd)
+      const to = column >= 0
+        ? visibleStops(target).find((stop) => stop.closest('td') === visibleTds(target)[column])
+        : undefined
+      if (!to) return
+      event.preventDefault()
+      to.focus()
+      return
+    }
+    if (event.key === 'F2' && from instanceof HTMLButtonElement) {
+      // F2 opens the focused cell's editor — the same grammar as the title's rename. Enter/Space
+      // already activate the button natively; the title keeps owning the row-open keys.
+      event.preventDefault()
+      from.click()
+      return
+    }
+    if (event.key === 'Enter' && !(from instanceof HTMLButtonElement) && !(from instanceof HTMLAnchorElement)) {
+      // Enter on a display-only cell (Supervisor) opens THIS row — the title's own grammar, and
+      // it keeps the shared window layer's virtual-cursor Enter from opening a different row.
+      // The opener link is the row's focus home (I2), so close returns to the invoking row.
+      event.preventDefault()
+      event.stopPropagation()
+      titleLinkRef.current?.focus()
+      onOpen(task.id)
+    }
   }
 
   // The draft is ONE full-width create form, not a bent row. It occupies every column the
@@ -461,7 +507,8 @@ export function TaskRow({
               ref={titleLinkRef}
               className="task-row-link name-chip collection-grammar-title-cell"
               title={task.title}
-              tabIndex={0}
+              tabIndex={activeCell === 'task' ? 0 : -1}
+              onFocus={() => setActiveCell('task')}
               data-row-stop=""
               // Double-click renames, F2 renames from the keyboard (the E7 collection promise).
               // aria-keyshortcuts exposes F2 without hijacking the truncation-hover `title` tooltip;
@@ -546,7 +593,7 @@ export function TaskRow({
         />
         <InlineCommitFeedback {...statusInline} />
       </span>
-    ) : <button type="button" ref={statusTriggerRef} className="inline-cell-trigger" tabIndex={-1} data-row-stop="" onClick={(event) => { event.stopPropagation(); setStatusEditing(true) }}><StatusPill status={statusInline.draft} /></button>) : <StatusPill status={task.status} />,
+    ) : <button type="button" ref={statusTriggerRef} className="inline-cell-trigger" tabIndex={activeCell === 'status' ? 0 : -1} onFocus={() => setActiveCell('status')} data-row-stop="" onClick={(event) => { event.stopPropagation(); setStatusEditing(true) }}><StatusPill status={statusInline.draft} /></button>) : <StatusPill status={task.status} />,
     owner: onEditPic ? (picEditing ? (
       <span className="inline-editor-control" onClick={(event) => event.stopPropagation()}>
         <Picker
@@ -573,10 +620,24 @@ export function TaskRow({
         />
         <InlineCommitFeedback {...picInline} />
       </span>
-    ) : <button type="button" ref={picTriggerRef} className="inline-cell-trigger" tabIndex={-1} data-row-stop="" onClick={(event) => { event.stopPropagation(); setPicEditing(true) }}><PicCell fullName={ownerName} provenance={provenanceRoleName} /></button>) : <PicCell fullName={ownerName} provenance={provenanceRoleName} />,
+    ) : <button type="button" ref={picTriggerRef} className="inline-cell-trigger" tabIndex={activeCell === 'owner' ? 0 : -1} onFocus={() => setActiveCell('owner')} data-row-stop="" onClick={(event) => { event.stopPropagation(); setPicEditing(true) }}><PicCell fullName={ownerName} provenance={provenanceRoleName} /></button>) : <PicCell fullName={ownerName} provenance={provenanceRoleName} />,
     // A2 person cell: one grammar for both person columns (AC-021) — the avatar + first
     // name, never the full-name text (that lives in the record and in pickers).
-    supervisor: supervisorName ? <PersonCell fullName={supervisorName} /> : <span className="td-empty">—</span>,
+    // #1192: the Supervisor cell is a grid stop like the editable cells — reachable and
+    // discoverable by keyboard even though its editor lives on the record surface. An
+    // UNASSIGNED supervisor is a stop too (named "Supervisor: none") so the roving grid's
+    // columns line up on every row.
+    supervisor: (
+      <span
+        className="supervisor-cell-stop"
+        tabIndex={activeCell === 'supervisor' ? 0 : -1}
+        onFocus={() => setActiveCell('supervisor')}
+        data-row-stop=""
+        aria-label={supervisorName ? undefined : t('tasks.supervisor.none')}
+      >
+        {supervisorName ? <PersonCell fullName={supervisorName} /> : <span className="td-empty">—</span>}
+      </span>
+    ),
     businessUnit: businessUnitName || <span className="td-empty">—</span>,
     workline: workLineName || <span className="td-empty">—</span>,
     objective: objectiveName || <span className="td-empty">—</span>,
@@ -591,7 +652,9 @@ export function TaskRow({
           onChange={(next) => { setDueTyped(next); dueInline.setDraft(next) }} onValidityChange={setDueInvalid} onKeyDown={onDueKeyDown} onBlur={onDueBlur} />
         <InlineCommitFeedback {...dueInline} errorId={dueErrorId} />
       </span>
-    ) : <button type="button" ref={dueTriggerRef} className={`inline-cell-trigger${taskOverdue && !condensed ? ' inline-cell-trigger--stacked' : ''}`} aria-label={t('tasks.inlineEdit.due')} tabIndex={-1} data-row-stop="" onClick={(event) => { event.stopPropagation(); setDueTyped(dueInline.draft); setDueRevealed(false); setDueEditing(true) }}>{dueInline.draft ? dueText : '—'}</button>) : dueText,
+    // Merge of origin/dev's DateField flow (#keep the reveal reset on entry) with #1192's
+    // roving grid: the Due trigger stays a roving active-cell stop (tabIndex/onFocus).
+    ) : <button type="button" ref={dueTriggerRef} className={`inline-cell-trigger${taskOverdue && !condensed ? ' inline-cell-trigger--stacked' : ''}`} aria-label={t('tasks.inlineEdit.due')} tabIndex={activeCell === 'due' ? 0 : -1} onFocus={() => setActiveCell('due')} data-row-stop="" onClick={(event) => { event.stopPropagation(); setDueTyped(dueInline.draft); setDueRevealed(false); setDueEditing(true) }}>{dueInline.draft ? dueText : '—'}</button>) : dueText,
   }
 
   return (
@@ -615,9 +678,10 @@ export function TaskRow({
     >
       {/* #997: the <td> chain IS the column list — one source (task-columns.tsx) for both
           this row and the <thead>. Order and hook classes come from the defs; visibility
-          from the one shared mapping over `visibleFields`. */}
-      {visibleTaskColumnDefs(visibleFields).map((column) => (
-        <td key={column.id} className={taskColumnTdClass(column, task, now)}>
+          from the one shared mapping over `visibleFields`. #1192: aria-colindex exposes the
+          roving grid's columns to assistive tech on the existing table semantics. */}
+      {visibleTaskColumnDefs(visibleFields).map((column, columnIndex) => (
+        <td key={column.id} aria-colindex={columnIndex + 1} className={taskColumnTdClass(column, task, now)}>
           {cellBodies[column.id]}
         </td>
       ))}

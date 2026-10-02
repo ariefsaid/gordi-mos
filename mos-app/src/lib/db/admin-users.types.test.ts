@@ -44,7 +44,7 @@ describe('ROLE_META', () => {
 
   it('AC-321: supervisor is an assignable role with a revenue-oriented description', () => {
     expect(ASSIGNABLE_ROLES).toContain('supervisor')
-    expect(ROLE_META.supervisor.label).toBe('Supervisor')
+    expect(ROLE_META.supervisor.label).toBe('Supervisor (access)')
     expect(ROLE_META.supervisor.description.length).toBeGreaterThan(0)
     expect(ROLE_META.supervisor.description.toLowerCase()).toContain('revenue')
   })

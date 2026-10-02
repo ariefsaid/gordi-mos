@@ -23,6 +23,7 @@ import { ModalShell } from '@/components/ui/modal-shell'
 import { PasswordReveal } from './password-reveal'
 import { synthesizeEmail, createPerson, createLogin } from '@/lib/db/admin-users'
 import { ASSIGNABLE_ROLES, localizedRoleMeta } from '@/lib/db/admin-users.types'
+import './create-person-dialog.css'
 
 export interface CreatePersonDialogProps {
   open: boolean
@@ -175,6 +176,7 @@ export function CreatePersonDialog({
       closeOnBackdrop={!isSubmitting && !isReveal}
       closeOnEscape={!isSubmitting && !isReveal}
       phoneMode="centered"
+      className="create-person-dialog"
     >
       {isReveal && revealData ? (
         <div className="p-6">
@@ -189,9 +191,9 @@ export function CreatePersonDialog({
           />
         </div>
       ) : (
-          <form ref={formRef} onSubmit={handleSubmit} noValidate>
+          <form ref={formRef} className="create-person-dialog__form" onSubmit={handleSubmit} noValidate>
             {/* Header — considered title + caption, hairline divider seams it to the body */}
-            <div className="px-6 pt-6 pb-4">
+            <div className="create-person-dialog__header px-6 pt-6 pb-4">
               <h2
                 id={titleId}
                 className="heading text-xl font-semibold"
@@ -206,7 +208,7 @@ export function CreatePersonDialog({
             <div style={{ borderTop: '1px solid var(--border)' }} />
 
             {/* Body — consistent field rhythm */}
-            <div className="flex flex-col gap-5 px-6 py-5">
+            <div className="create-person-dialog__body flex flex-col gap-5 px-6 py-5">
               {/* Full name + email (#959: short fields share a row on desktop, stack at ≤600px —
                   the shared form-grid rule, styles/form-grid.css, rather than a one-off width). */}
               <div className="form-grid">
@@ -380,7 +382,7 @@ export function CreatePersonDialog({
 
             {/* Footer — seamed below a hairline, flat utility surface */}
             <div style={{ borderTop: '1px solid var(--border)' }} />
-            <div className="flex items-center justify-end gap-2 px-6 py-4">
+            <div className="create-person-dialog__footer flex items-center justify-end gap-2 px-6 py-4">
               <Button
                 type="button"
                 variant="ghost"

@@ -128,6 +128,29 @@ describe('id catalog values are Indonesian (#410 inverse of the parity test)', (
   })
 })
 
+// DD-NAME-1: the Café stream approver is "Penyetuju" in Indonesian — the borrowed English
+// "Approver" in id copy is a translation hole, and "Supervisor" stays the Task's accountable
+// person and the access role, never the stream approver.
+describe('DD-NAME-1: the Café stream Approver reads Penyetuju in id', () => {
+  const id = messages.id as Record<string, string>
+  it('the stream-Approver copies name the Penyetuju, never the borrowed English', () => {
+    for (const key of [
+      'kitchen.log.footer.reviewNext',
+      'kitchen.plan.pesanan.readOnlyNote',
+      'kitchen.review.leadsOnly',
+      'kitchen.review.leadsOnlyMsg',
+      'admin.teams.helper',
+    ]) {
+      expect(id[key]).toMatch(/Penyetuju/)
+      expect(id[key]).not.toMatch(/Approver/)
+    }
+  })
+  it('no id value carries the borrowed English Approver', () => {
+    const borrowed = Object.keys(id).filter((key) => /\bApprover\b/i.test(id[key]))
+    expect(borrowed, `borrowed English Approver in id values: ${borrowed.join(', ')}`).toEqual([])
+  })
+})
+
 // The Indonesian word for Objective is "Tujuan" everywhere and "Tujuan" means only Objective:
 // the old word is gone, and no non-Objective key (Café Pushes' destination column) borrows it.
 describe('id catalog: "Tujuan" is the Objective term only', () => {

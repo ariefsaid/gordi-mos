@@ -191,6 +191,16 @@ export function EmptyState({
   )
 }
 
+export function FilteredEmptyState({ items, onClear, title, copy, children }: { items: string; onClear: () => void; title?: string; copy?: string; children?: ReactNode }) {
+  const t = useT()
+  return (
+    <EmptyState variant="blank" title={title ?? t('collection.filteredEmpty.title', { items })} copy={copy}>
+      <Button variant="outline" className="record-collection-clear" onClick={onClear}>{t('common.clearFilters')}</Button>
+      {children}
+    </EmptyState>
+  )
+}
+
 export interface SkeletonRowsProps {
   count?: number
   className?: string

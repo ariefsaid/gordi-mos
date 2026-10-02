@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Picker, type PickerOption } from './picker'
 
@@ -269,5 +269,127 @@ describe('Picker', () => {
       await user.click(screen.getByRole('combobox', { name: 'Status' }))
       expect(screen.queryByRole('group')).toBeNull()
     })
+  })
+})
+
+// #1192 / DD-MVP-2: a closed picker answers typed letters exactly as a native select does —
+// the next option starting with the typed text is selected without opening, repeated letters
+// cycle through the matches, and a short buffer carries a multi-letter prefix.
+describe('Picker — closed-trigger type-ahead (#1192)', () => {
+  const people: PickerOption[] = [
+    { value: 'raka', label: 'Raka' },
+    { value: 'rina', label: 'Rina' },
+    { value: 'rusdi', label: 'Rusdi' },
+    { value: 'sol', label: 'Sol' },
+  ]
+
+  function renderStatefulPicker(initial: string) {
+    let current = initial
+    const onChange = vi.fn()
+    const harness = render(
+      <Picker label="PIC" value={current} options={people} onChange={onChange} />,
+    )
+    onChange.mockImplementation((next: string) => {
+      current = next
+      harness.rerender(<Picker label="PIC" value={current} options={people} onChange={onChange} />)
+    })
+    return { onChange }
+  }
+
+  it('typing a letter selects the next matching option without opening; repeated letters cycle; a short buffer carries prefixes', async () => {
+    const user = userEvent.setup()
+    const { onChange } = renderStatefulPicker('raka')
+    const trigger = screen.getByRole('combobox', { name: 'PIC' })
+    trigger.focus()
+
+    // Each press selects the next option after the selection whose label starts with the
+    // typed letter; the popup never opens.
+    await user.keyboard('r')
+    expect(onChange).toHaveBeenNthCalledWith(1, 'rina')
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+    await user.keyboard('r')
+    expect(onChange).toHaveBeenNthCalledWith(2, 'rusdi')
+    await user.keyboard('r')
+    expect(onChange).toHaveBeenNthCalledWith(3, 'raka')
+
+    // After the buffer clears, two quick letters form a prefix: scanning from Raka, "ru"
+    // lands on Rusdi — a match no single letter could produce.
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 1100)) })
+    await user.keyboard('ru')
+    expect(onChange).toHaveBeenNthCalledWith(4, 'rina')
+    expect(onChange).toHaveBeenNthCalledWith(5, 'rusdi')
+    expect(onChange).toHaveBeenCalledTimes(5)
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+    expect(trigger).toHaveFocus()
+  })
+
+  // #1192 review: the Tasks window keyboard layer listens on `window` — a closed trigger's
+  // type-ahead letters must be consumed there, never bubble (`n` must not open create,
+  // `j`/`k` must not move the collection cursor).
+  it('a closed trigger consumes the type-ahead keys it handles, so they never reach a window layer', async () => {
+    const windowLayer = vi.fn()
+    const onChange = vi.fn()
+    render(
+      <div onKeyDown={windowLayer}>
+        <Picker label="Status" value="open" options={options} onChange={onChange} />
+      </div>,
+    )
+    const trigger = screen.getByRole('combobox', { name: 'Status' })
+    trigger.focus()
+
+    // A matching letter is type-ahead — consumed, never a menu open, never bubbled.
+    expect(fireEvent.keyDown(trigger, { key: 'b' })).toBe(false)
+    expect(onChange).toHaveBeenCalledWith('blocked')
+    expect(windowLayer).not.toHaveBeenCalled()
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+
+    // n/j/k are window-layer hotkeys: each is consumed at the trigger (prevented and not
+    // bubbled) whether or not an option matches.
+    for (const key of ['n', 'j', 'k']) {
+      expect(fireEvent.keyDown(trigger, { key })).toBe(false)
+    }
+    expect(windowLayer).not.toHaveBeenCalled()
+    expect(onChange).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+  })
+
+  // #1192 review: Space that opens the menu must not enter the buffer, and opening must clear
+  // any live prefix — after a quick dismissal the next letter matches on its own.
+  it('Space that opens the menu never enters the buffer; the next letter matches on its own', async () => {
+    const user = userEvent.setup()
+    const { onChange } = renderStatefulPicker('raka')
+    const trigger = screen.getByRole('combobox', { name: 'PIC' })
+    trigger.focus()
+
+    // A prior closed-trigger phrase runs its course…
+    await user.keyboard('r')
+    expect(onChange).toHaveBeenNthCalledWith(1, 'rina')
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 1100)) })
+
+    // …then Space opens. After a quick dismissal, a letter typed within the 1s window must
+    // match on its own — never appended to Space's stale ' ' entry.
+    await user.keyboard(' ')
+    expect(screen.getByRole('listbox', { name: 'PIC' })).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('listbox')).not.toBeInTheDocument())
+    await user.keyboard('s')
+    expect(onChange).toHaveBeenNthCalledWith(2, 'sol')
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+  })
+
+  it('opening with an arrow clears a live closed-trigger prefix; the next letter matches on its own', async () => {
+    const user = userEvent.setup()
+    const { onChange } = renderStatefulPicker('raka')
+    const trigger = screen.getByRole('combobox', { name: 'PIC' })
+    trigger.focus()
+
+    await user.keyboard('r') // live prefix "r" → Rina
+    expect(onChange).toHaveBeenNthCalledWith(1, 'rina')
+    await user.keyboard('{ArrowDown}') // opens while the prefix is still live
+    expect(screen.getByRole('listbox', { name: 'PIC' })).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('listbox')).not.toBeInTheDocument())
+    await user.keyboard('s') // within 1s: must match "s" alone, not "rs"
+    expect(onChange).toHaveBeenNthCalledWith(2, 'sol')
   })
 })

@@ -185,9 +185,9 @@ describe('R5 collection state boundaries', () => {
     expect(screen.queryByRole('button', { name: 'Clear filters' })).toBeNull()
   })
 
-  it('keeps filtered empty clearable', async () => {
+  it('keeps filtered empty clearable with the shared item-specific message', async () => {
     renderPage('/?q=no-such-record')
-    expect(await screen.findByText('Nothing matches your filters')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'No objectives match these filters' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
     expect(await screen.findByRole('link', { name: 'Grow revenue' })).toBeInTheDocument()
   })
@@ -217,7 +217,7 @@ describe('R5 collection state boundaries', () => {
 it('R5: archived records hidden by search remain filtered-empty and clearable', async () => {
   vi.mocked(listObjectivesAll).mockResolvedValue([{ id: 'archived-1', name: 'Archived objective', archived_at: '2026-01-01' }])
   renderPage('/?view=archived&q=no-match')
-  expect(await screen.findByRole('heading', { name: 'Nothing matches your filters' })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: 'No objectives match these filters' })).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Clear filters' })).toBeInTheDocument()
   expect(screen.queryByText('Nothing archived yet')).toBeNull()
 })
@@ -257,7 +257,7 @@ describe('page help defines the domain terms', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Help' }))
     const panel = screen.getByRole('note')
     expect(panel).toHaveTextContent('Objectives are what your team is working toward this period.')
-    expect(panel).toHaveTextContent('Business Unit is the team it belongs to')
+    expect(panel).toHaveTextContent('Business Unit is the business line that owns the work')
   })
 
   it('ID: the localized help states the same terms', async () => {
@@ -266,7 +266,7 @@ describe('page help defines the domain terms', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Bantuan' }))
     const panel = screen.getByRole('note')
     expect(panel).toHaveTextContent('Tujuan adalah apa yang sedang dituju tim Anda periode ini.')
-    expect(panel).toHaveTextContent('Business Unit adalah tim tempat Tujuan ini berada')
+    expect(panel).toHaveTextContent('Business Unit adalah lini usaha yang memiliki pekerjaan')
   })
 })
 

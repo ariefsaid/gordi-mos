@@ -1222,6 +1222,54 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
     expect(screen.queryByText(/match these filters/i)).not.toBeInTheDocument()
   })
 
+  // DD-NAME-1 review: the Mine copy ("No tasks assigned to you") is only true for an empty
+  // saved Mine view with no additional filters. Once an actual task filter is active — a Person
+  // who isn't you, the Overdue view, or a search inside My work — the shared "No tasks match
+  // these filters" pattern with a functioning Clear filters action takes over.
+  it('All + a Person filter for someone else shows the shared filtered wording, not the Mine copy', async () => {
+    mockListTasks.mockResolvedValue([
+      makeTask({ id: 'mine', title: 'My own task' }),
+    ])
+    // Org-wide viewer so the broadest chip is All and a Person filter is a real narrowing.
+    renderTable({}, DEWI)
+    await waitFor(() => screen.getByText('My own task'))
+    ensureFiltersOpen()
+    chooseFilterOption(screen.getByRole('combobox', { name: /person/i }), 'Budi Setiawan')
+    await waitFor(() => expect(screen.getByText(/no tasks match these filters/i)).toBeInTheDocument())
+    expect(screen.queryByText(/no tasks assigned to you/i)).toBeNull()
+    // The Clear filters action functions: clearing returns the row.
+    fireEvent.click(screen.getAllByRole('button', { name: /clear filters/i })[0])
+    await waitFor(() => expect(screen.getByText('My own task')).toBeInTheDocument())
+  })
+
+  it('the Overdue view shows the shared filtered wording, not the Mine copy', async () => {
+    mockListTasks.mockResolvedValue([
+      makeTask({ id: 'ontime', title: 'On time task', due_date: '2030-12-31' }),
+    ])
+    renderTable({}, DEWI)
+    await waitFor(() => screen.getByText('On time task'))
+    ensureFiltersOpen()
+    fireEvent.click(screen.getByRole('button', { name: 'Overdue' }))
+    await waitFor(() => expect(screen.getByText(/no tasks match these filters/i)).toBeInTheDocument())
+    expect(screen.queryByText(/no tasks assigned to you/i)).toBeNull()
+    expect(screen.getAllByRole('button', { name: /clear filters/i }).length).toBeGreaterThan(0)
+  })
+
+  it('My work + a no-match search shows the shared filtered wording, not the Mine copy', async () => {
+    mockListTasks.mockResolvedValue([
+      makeTask({ id: 'mine', title: 'My own task' }),
+    ])
+    renderTable()
+    await waitFor(() => screen.getByText('My own task'))
+    ensureFiltersOpen()
+    fireEvent.click(screen.getByRole('button', { name: 'My work' }))
+    await waitFor(() => expect(screen.getByText('My own task')).toBeInTheDocument())
+    fireEvent.change(screen.getByLabelText('Search tasks'), { target: { value: 'zzz-no-match' } })
+    await waitFor(() => expect(screen.getByText(/no tasks match these filters/i)).toBeInTheDocument())
+    expect(screen.queryByText(/no tasks assigned to you/i)).toBeNull()
+    expect(screen.getAllByRole('button', { name: /clear filters/i }).length).toBeGreaterThan(0)
+  })
+
   // Calibration finding (#749 lane): a viewer with nothing assigned lands on an empty My work.
   // Its own Clear filters button left ?view=my-work standing, so clicking it did nothing — a dead
   // button next to copy that promises "Clear filters to see all tasks."
@@ -1241,6 +1289,68 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
     await waitFor(() => expect(screen.getByText('Someone else’s task')).toBeInTheDocument())
     // Broadened scope means the chip state itself moved off My work, not just the row list.
     expect(screen.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  // DD-NAME-1 repair round: with a truly empty source (no records at all) the collection is in
+  // the true-empty state even while a filter is active — and an explicit Person/PIC/Supervisor/
+  // Overdue narrowing must not claim "No tasks assigned to you". Only a saved Mine view may
+  // carry the Mine copy.
+  it('a Person filter over an empty source says No tasks yet, not No tasks assigned to you', async () => {
+    mockListTasks.mockResolvedValue([])
+    renderTable({}, DEWI)
+    await waitFor(() => screen.getByRole('heading', { name: /tasks/i }))
+    ensureFiltersOpen()
+    chooseFilterOption(screen.getByRole('combobox', { name: /person/i }), 'Budi Setiawan')
+    await waitFor(() => expect(screen.getByText(/no tasks yet/i)).toBeInTheDocument())
+    expect(screen.queryByText(/no tasks assigned to you/i)).toBeNull()
+  })
+
+  it('a PIC filter over an empty source says No tasks yet, not No tasks assigned to you', async () => {
+    mockListTasks.mockResolvedValue([])
+    renderTable({}, DEWI, ['/work/tasks?pic=other-id'])
+    await waitFor(() => expect(screen.getByText(/no tasks yet/i)).toBeInTheDocument())
+    expect(screen.queryByText(/no tasks assigned to you/i)).toBeNull()
+  })
+
+  it('a Supervisor filter over an empty source says No tasks yet, not No tasks assigned to you', async () => {
+    mockListTasks.mockResolvedValue([])
+    renderTable({}, DEWI, ['/work/tasks?supervisor=other-id'])
+    await waitFor(() => expect(screen.getByText(/no tasks yet/i)).toBeInTheDocument())
+    expect(screen.queryByText(/no tasks assigned to you/i)).toBeNull()
+  })
+
+  it('the Overdue view over an empty source says No tasks yet, not No tasks assigned to you', async () => {
+    mockListTasks.mockResolvedValue([])
+    renderTable({}, DEWI)
+    await waitFor(() => screen.getByRole('heading', { name: /tasks/i }))
+    ensureFiltersOpen()
+    fireEvent.click(screen.getByRole('button', { name: 'Overdue' }))
+    await waitFor(() => expect(screen.getByText(/no tasks yet/i)).toBeInTheDocument())
+    expect(screen.queryByText(/no tasks assigned to you/i)).toBeNull()
+  })
+
+  it('an empty source with the My work view keeps the Mine copy (a saved Mine view may claim it)', async () => {
+    mockListTasks.mockResolvedValue([])
+    renderTable()
+    await waitFor(() => screen.getByRole('heading', { name: /tasks/i }))
+    ensureFiltersOpen()
+    fireEvent.click(screen.getByRole('button', { name: 'My work' }))
+    await waitFor(() => expect(screen.getByText(/no tasks assigned to you/i)).toBeInTheDocument())
+  })
+
+  // Luna blocking delta (r-1195): a saved Mine view does not license the Mine copy once an
+  // explicit filter narrows it — truly empty source + My work + a Person filter reads the
+  // neutral no-record copy, never "No tasks assigned to you" inherited from the view alone.
+  it('My work + an explicit Person filter over an empty source says No tasks yet, not No tasks assigned to you', async () => {
+    mockListTasks.mockResolvedValue([])
+    renderTable()
+    await waitFor(() => screen.getByRole('heading', { name: /tasks/i }))
+    ensureFiltersOpen()
+    fireEvent.click(screen.getByRole('button', { name: 'My work' }))
+    await waitFor(() => expect(screen.getByText(/no tasks assigned to you/i)).toBeInTheDocument())
+    chooseFilterOption(screen.getByRole('combobox', { name: /person/i }), 'Budi Setiawan')
+    await waitFor(() => expect(screen.getByText(/no tasks yet/i)).toBeInTheDocument())
+    expect(screen.queryByText(/no tasks assigned to you/i)).toBeNull()
   })
 })
 
@@ -1913,6 +2023,36 @@ describe('Task 18 — j/k skips group-header rows (AC-131, OBS-121)', () => {
   })
 })
 
+// #1192 review: a closed Picker trigger consumes the printable keys its type-ahead handles.
+// The Tasks window keyboard layer (j/k cursor, n = create) must never see a keystroke typed on
+// a focused toolbar picker — the grammar stays native-select, not a second window layer.
+describe('typing on a focused toolbar Picker never reaches the window layer (#1192)', () => {
+  it('n/j/k on the focused toolbar Sort trigger feed the picker: no create row, no cursor move', async () => {
+    mockListTasks.mockResolvedValue([
+      makeTask({ id: 'o1', title: 'Open one', status: 'Open' }),
+      makeTask({ id: 'b1', title: 'Blocked one', status: 'Blocked' }),
+    ])
+    renderTable()
+    await waitFor(() => screen.getByText('Open one'))
+
+    const sortTrigger = within(ensureFiltersOpen()).getByRole('combobox', { name: /^sort$/i })
+    sortTrigger.focus()
+    expect(document.activeElement).toBe(sortTrigger)
+
+    // `n` opens create from the window layer everywhere else — never from a picker trigger.
+    fireEvent.keyDown(sortTrigger, { key: 'n' })
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 50)) })
+    expect(screen.queryByRole('textbox', { name: /title/i })).toBeNull()
+    expect(screen.getByText('Open one')).toBeInTheDocument()
+
+    // j/k move the collection cursor from the window layer — never from a picker trigger.
+    fireEvent.keyDown(sortTrigger, { key: 'j' })
+    fireEvent.keyDown(sortTrigger, { key: 'k' })
+    expect(document.querySelector('tr.task-row.kfocus')).toBeNull()
+    expect(document.querySelector('tr.task-row[aria-selected="true"]')).toBeNull()
+  })
+})
+
 describe('Task 19 — "+ Create task" pre-fill (AC-125)', () => {
   it('AC-125: in an Owner-grouped view, a group "+ Create task" navigates to /tasks/new?r=<personId>', async () => {
     mockListTasks.mockResolvedValue([makeTask({ id: 'a', title: 'Mine task' })])
@@ -2046,10 +2186,11 @@ describe('Ticket #958 — the head "?" opens the purpose sentence + PIC/Supervis
     const panel = screen.getByRole('note')
     expect(panel).toHaveTextContent('Find and update the work in this view.')
     expect(panel).toHaveTextContent('PIC is who performs and finishes the task')
-    expect(panel).toHaveTextContent('Supervisor checks in, unblocks and verifies it')
+    expect(panel).toHaveTextContent('Supervisor owns the outcome')
     expect(panel).not.toHaveTextContent(/Responsible|Accountable/)
     expect(panel).toHaveTextContent('Saved views')
-    expect(panel).toHaveTextContent('Business Unit is the team the task belongs to')
+    expect(panel).toHaveTextContent('Business Unit is the business line that owns the work')
+    expect(panel).toHaveTextContent('a Team is a group of people within one Business Unit')
   })
 
   it('ID: states the localized purpose sentence and glossary', async () => {
@@ -2060,11 +2201,12 @@ describe('Ticket #958 — the head "?" opens the purpose sentence + PIC/Supervis
     fireEvent.click(screen.getByRole('button', { name: 'Bantuan' }))
     const panel = screen.getByRole('note')
     expect(panel).toHaveTextContent('Temukan dan perbarui pekerjaan di tampilan ini.')
-    expect(panel).toHaveTextContent('PIC adalah yang mengerjakan dan menyelesaikan tugas')
-    expect(panel).toHaveTextContent('Supervisor memantau, membuka hambatan, dan memverifikasinya')
+    expect(panel).toHaveTextContent('PIC adalah orang yang mengerjakan dan menyelesaikan tugas')
+    expect(panel).toHaveTextContent('Supervisor memiliki hasilnya')
     expect(panel).not.toHaveTextContent(/Responsible|Accountable/)
     expect(panel).toHaveTextContent('Tampilan tersimpan')
-    expect(panel).toHaveTextContent('Business Unit adalah tim tempat tugas ini berada')
+    expect(panel).toHaveTextContent('Business Unit adalah lini usaha yang memiliki pekerjaan')
+    expect(panel).toHaveTextContent('Team adalah kelompok orang dalam satu Business Unit')
   })
 })
 
@@ -2395,8 +2537,8 @@ describe('AC-W2C — desktop density: Due in-frame, optional cols in drawer', ()
 // ── Ticket #750 — rows/body judgment wave (AC-019 · AC-022 · AC-024) ─────────
 
 describe('Ticket #750 — AC-019 footer legend states the click grammar', () => {
-  const EN_LEGEND = 'Click a row to open it · ← → move between cells · ✎ or F2 edits the title · Enter saves · Esc discards'
-  const ID_LEGEND = 'Klik baris untuk membukanya · ← → pindah antar sel · ✎ atau F2 menyunting judul · Enter menyimpan · Esc membatalkan'
+  const EN_LEGEND = 'Click a row to open it · ↑↓ ← → move between cells · ✎ or F2 edits the title · Enter saves · Esc discards'
+  const ID_LEGEND = 'Klik baris untuk membukanya · ↑↓ ← → pindah antar sel · ✎ atau F2 menyunting judul · Enter menyimpan · Esc membatalkan'
 
   it('AC-019: the legend under the table reads the new grammar in EN and in ID', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'Legend task' })])
