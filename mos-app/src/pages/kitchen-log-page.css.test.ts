@@ -37,6 +37,11 @@ describe('KL-FOOTER-NAV: the phone sticky footer clears the shell bottom-tab bar
   it('keeps the phone search and hides filter selects until the desktop breakpoint', () => {
     expect(css).toMatch(/@media\s*\(max-width:\s*767\.98px\)[\s\S]*?\.kl-form\s+\.ktb-filter-selects\s*\{\s*display:\s*none/)
   })
+
+  it('shares the transfer scope strip with search on phone to stay inside the 300px first-row cap', () => {
+    expect(css).toMatch(/\.kl-form \.ktb:has\(\.kl-scope\) \.ktb-children--band\s*\{\s*flex:\s*1 1 210px/)
+    expect(css).toMatch(/\.kl-form \.ktb:has\(\.kl-scope\) \.ktb-filters\s*\{\s*flex:\s*1 1 120px/)
+  })
 })
 
 describe('AC-046: DESIGN.md carries the #790 A3/A4 amendments verbatim', () => {
