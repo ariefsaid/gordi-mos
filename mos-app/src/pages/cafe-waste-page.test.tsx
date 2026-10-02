@@ -127,7 +127,11 @@ beforeEach(() => {
   let draft = 0
   mockInsertKitchenLog.mockImplementation(async () => `waste-${++draft}`)
   mockSubmitWaste.mockResolvedValue()
-  mockUploadPhoto.mockResolvedValue()
+  mockUploadPhoto.mockImplementation(async logId => ({
+    logId,
+    path: `org/${logId}/photo.jpg`,
+    url: `https://storage.test/${logId}/photo.jpg`,
+  }))
   Object.defineProperty(navigator, 'onLine', { value: true, writable: true, configurable: true })
   class TestURL extends NativeURL {
     static createObjectURL = vi.fn(() => 'blob:cafe-waste-photo')

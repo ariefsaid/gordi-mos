@@ -1,18 +1,22 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import type { KitchenWastePhoto } from '@/lib/db/kitchen-waste-photos'
 import { WastePhotoCapture } from './waste-photo-capture'
 
 const NativeURL = globalThis.URL
-const onUpload = vi.fn<(logId: string, file: File) => Promise<void>>()
+const onUpload = vi.fn<(logId: string, file: File) => Promise<KitchenWastePhoto | void>>()
+const onPhotoUploaded = vi.fn<(photo: KitchenWastePhoto) => void>()
 const onCanSubmitChange = vi.fn<(ready: boolean) => void>()
 
-function renderCapture() {
+function renderCapture(initialPhotos: readonly KitchenWastePhoto[] = []) {
   return render(
     <I18nProvider>
       <WastePhotoCapture
         wasteLogId="waste-1"
+        initialPhotos={initialPhotos}
         onUpload={onUpload}
+        onPhotoUploaded={onPhotoUploaded}
         onCanSubmitChange={onCanSubmitChange}
       />
     </I18nProvider>,
@@ -74,6 +78,23 @@ describe('WastePhotoCapture', () => {
     await waitFor(() => expect(onCanSubmitChange).toHaveBeenLastCalledWith(true))
     expect(screen.getByText(/1 photo uploaded/i)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /remove photo 1/i })).not.toBeInTheDocument()
+  })
+
+  it('reports stored evidence to its owner so a remounted responsive surface keeps the photo and submit gate', async () => {
+    const uploaded: KitchenWastePhoto = {
+      logId: 'waste-1', path: 'org/waste-1/photo.jpg', url: 'https://storage.test/photo.jpg', name: 'waste.jpg',
+    }
+    onUpload.mockResolvedValue(uploaded)
+    const first = renderCapture()
+    fireEvent.change(screen.getByLabelText(/take or choose photos/i), { target: { files: [photo()] } })
+    fireEvent.click(screen.getByRole('button', { name: /upload photos/i }))
+    await waitFor(() => expect(onPhotoUploaded).toHaveBeenCalledWith(uploaded))
+    first.unmount()
+
+    renderCapture([uploaded])
+    expect(screen.getByRole('img', { name: /photo 1 preview/i })).toHaveAttribute('src', uploaded.url)
+    await waitFor(() => expect(onCanSubmitChange).toHaveBeenLastCalledWith(true))
+    expect(screen.getByText(/1 photo uploaded/i)).toBeInTheDocument()
   })
 
   it('keeps a failed file retryable and allows removing it before a successful upload', async () => {

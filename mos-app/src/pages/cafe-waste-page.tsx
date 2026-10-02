@@ -12,6 +12,7 @@ import { listCafeLogItems } from '@/lib/db/cafe-item-settings'
 import type { CafeLogItem } from '@/lib/db/cafe-item-settings'
 import { insertKitchenLog, resolveKitchenBuId } from '@/lib/db/kitchen-logs'
 import { submitKitchenWasteLog } from '@/lib/db/kitchen-waste-photos'
+import type { KitchenWastePhoto } from '@/lib/db/kitchen-waste-photos'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { wibToday } from '@/lib/db/cafe-opening'
 import { formatWeekdayDayMonth } from '@/lib/format/date'
@@ -40,6 +41,7 @@ type WasteEntry = {
   photoReady: boolean
   preparing: boolean
   submitted: boolean
+  photos: KitchenWastePhoto[]
   error?: string
 }
 type WasteRow = KitchenListRow<CafeLogItem>
@@ -66,6 +68,7 @@ function initialEntries(items: readonly CafeLogItem[]): Record<string, WasteEntr
     photoReady: false,
     preparing: false,
     submitted: false,
+    photos: [],
   }]))
 }
 
@@ -239,6 +242,13 @@ export function CafeWastePage() {
       return entry ? { ...current, [item.id]: { ...entry, photoReady: ready } } : current
     })
   }])), [items])
+  const photoUploadedCallbacks = useMemo(() => new Map(items.map(item => [item.id, (photo: KitchenWastePhoto) => {
+    setEntries(current => {
+      const entry = current[item.id]
+      if (!entry || entry.photos.some(existing => existing.path === photo.path)) return current
+      return { ...current, [item.id]: { ...entry, photos: [...entry.photos, photo], photoReady: true } }
+    })
+  }])), [items])
 
   async function prepareEntry(item: CafeLogItem) {
     const entry = entries[item.id]
@@ -328,6 +338,8 @@ export function CafeWastePage() {
             <div className="cwl-evidence">
               <WastePhotoCapture
                 wasteLogId={entries[item.id]!.logId!}
+                initialPhotos={entries[item.id]!.photos}
+                onPhotoUploaded={photoUploadedCallbacks.get(item.id)}
                 onCanSubmitChange={photoReadyCallbacks.get(item.id)}
               />
             </div>
@@ -374,6 +386,8 @@ export function CafeWastePage() {
         <div className="cwl-evidence">
           <WastePhotoCapture
             wasteLogId={entries[item.id]!.logId!}
+            initialPhotos={entries[item.id]!.photos}
+            onPhotoUploaded={photoUploadedCallbacks.get(item.id)}
             onCanSubmitChange={photoReadyCallbacks.get(item.id)}
           />
         </div>
@@ -535,8 +549,8 @@ function WasteItemControls({
   const t = useT()
   const inputId = `cafe-waste-qty-${item.id}`
   const unitId = `cafe-waste-unit-${item.id}`
-  const current = entry ?? {
-    quantity: '', unitId: item.defaultUnit.id, photoReady: false, preparing: false, submitted: false,
+  const current: WasteEntry = entry ?? {
+    quantity: '', unitId: item.defaultUnit.id, photoReady: false, preparing: false, submitted: false, photos: [],
   }
   const selectedUnit = item.units.find(unit => unit.id === current.unitId)
     ?? item.units.find(unit => unit.id === item.defaultUnit.id)

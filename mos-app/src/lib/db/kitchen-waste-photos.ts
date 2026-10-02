@@ -13,12 +13,13 @@ export interface KitchenWastePhoto {
   path: string
   url: string
   createdAt?: string
+  name?: string
 }
 
 /** Store evidence on an existing waste Draft. Signal's downscaler preserves the original photo's
  * orientation and emits one JPEG; the bucket cap applies to those stored bytes, not the phone's
  * uncompressed source. The item's ERP product-detail unit is unrelated and remains unchanged. */
-export async function uploadKitchenWastePhoto(logId: string, file: File): Promise<void> {
+export async function uploadKitchenWastePhoto(logId: string, file: File): Promise<KitchenWastePhoto> {
   if (!WASTE_PHOTO_MIME_TYPES.includes(file.type as (typeof WASTE_PHOTO_MIME_TYPES)[number])) {
     throw new Error('WASTE_PHOTO_INVALID_TYPE')
   }
@@ -43,6 +44,10 @@ export async function uploadKitchenWastePhoto(logId: string, file: File): Promis
     upsert: false,
   })
   if (uploadError) throw new Error(`uploadKitchenWastePhoto failed — ${uploadError.message}`)
+  const stored = await listKitchenWastePhotos([logId])
+  const uploaded = stored.find(photo => photo.path === path)
+  if (!uploaded) throw new Error('uploadKitchenWastePhoto failed — the stored photo was not returned')
+  return { ...uploaded, name: file.name }
 }
 
 /** One org-scoped view read for all waste rows in the review queue, then short-lived private URLs. */
