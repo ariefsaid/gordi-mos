@@ -343,6 +343,8 @@ describe('Get started lists only what is missing, and its buttons work', () => {
     const region = await screen.findByRole('region', { name: 'Get this Objective started' })
     await user.click(within(region).getByRole('button', { name: 'Link Project or Process' }))
     const list = await screen.findByRole('listbox')
+    const search = screen.getByRole('combobox', { name: 'Filter Link Project or Process' })
+    expect(search).toHaveAttribute('placeholder', 'Filter Link Project or Process')
     const names = within(list).getAllByRole('option').map((o) => o.textContent)
     expect(names).toEqual(['Weekday promo post', 'Lunch set menu (linked to Improve margin)'])
   })
@@ -666,6 +668,18 @@ describe('Open full page', () => {
 })
 
 describe('role-correct affordances', () => {
+  it('does not call a member view only when Start occurrence is available', async () => {
+    vi.mocked(getWorkWriteScopes).mockResolvedValue(MEMBER)
+    data = workLineData('process', { steps: 2 })
+    occurrences([dueRun('Café Operations', 'team-1')])
+    renderRecord('work-line')
+
+    const start = await screen.findByRole('button', { name: 'Start occurrence' })
+    expect(start).toHaveClass('btn-primary')
+    expect(screen.getByRole('note')).toHaveTextContent('Dewi Director (Accountable) manages this Process. You can start an occurrence.')
+    expect(screen.getByRole('note')).not.toHaveTextContent('View only')
+  })
+
   it('a member sees no setup, no structure edits, no menu and one line naming who sets targets', async () => {
     vi.mocked(getWorkWriteScopes).mockResolvedValue(MEMBER)
     vi.mocked(listKeyResults).mockResolvedValue([kr()])
