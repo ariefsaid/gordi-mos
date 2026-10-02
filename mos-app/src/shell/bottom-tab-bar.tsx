@@ -1,6 +1,7 @@
 import type React from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { destinationForPath, phoneModuleForViewer } from './destinations'
+import { isShipGated } from '@/lib/ship-gate'
 import { HomeIcon, WorkIcon, InboxIcon, MoreIcon } from './icons'
 import { useIsNarrow } from './use-is-narrow'
 import { RailCountBadge } from './rail-nav'
@@ -19,11 +20,11 @@ type PrimaryTab = {
   Icon: React.FC
 }
 
-// The fixed phone primary tabs. Money is NOT a bottom-nav tab — it lives in the More drawer
-// (gated). Work → /work/tasks; `sectionPrefix` widens the active match to the whole /work
-// section so the tab carries aria-current="page" for EVERY /work/* child, mirroring the
-// desktop rail's `to="/work"` NavLink semantics (Rule 5/9, F-B/OD-64). The 3rd slot is the
-// role-scoped module (OD-REDESIGN-68) — resolved per viewer below.
+// The full profile's fixed phone primary tabs. Money is NOT a bottom-nav tab — it lives in the
+// More drawer (gated). Work → /work/tasks; `sectionPrefix` widens the active match to the whole
+// /work section so the tab carries aria-current="page" for EVERY /work/* child, mirroring the
+// desktop rail's `to="/work"` NavLink semantics (Rule 5/9, F-B/OD-64). Profile-gated roots are
+// filtered before render; the 3rd slot is the role-scoped module resolved per viewer below.
 const HOME: PrimaryTab = { id: 'home', labelKey: 'dest.home', href: '/', Icon: HomeIcon }
 const WORK: PrimaryTab = { id: 'work', labelKey: 'dest.work', href: '/work/tasks', sectionPrefix: '/work', Icon: WorkIcon }
 const INBOX: PrimaryTab = { id: 'inbox', labelKey: 'dest.inbox', href: '/inbox', Icon: InboxIcon }
@@ -96,7 +97,8 @@ export function BottomTabBar({ onOpenMore, onOpenActionLauncher, onRegisterMoreF
       }
     : null
 
-  const primaryTabs: PrimaryTab[] = moduleTab ? [HOME, WORK, moduleTab, INBOX] : [HOME, WORK, INBOX]
+  const primaryTabs: PrimaryTab[] = [HOME, WORK, ...(moduleTab ? [moduleTab] : []), INBOX]
+    .filter((tab) => !isShipGated(tab.href))
 
   if (!isNarrow || FOCUSED_DECISION_PATHS.includes(pathname)) return null
 

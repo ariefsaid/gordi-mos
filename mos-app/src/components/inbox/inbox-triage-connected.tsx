@@ -3,6 +3,7 @@ import { useSearchParamState } from '@/lib/use-search-param-state'
 import { useT } from '@/i18n/use-t'
 import type { MessageKey } from '@/i18n/messages'
 import { useAuth } from '@/auth/use-auth'
+import { APP_RELEASE_PROFILE } from '@/config/app-build-settings'
 import { supabase } from '@/lib/supabase'
 import { useNotifications } from '@/hooks/useNotifications'
 import { useOptionalOverlayHost } from '@/shell/overlay-host'
@@ -10,7 +11,7 @@ import type { OverlayOwner } from '@/shell/overlay-navigation'
 import type { OverlayEntry } from '@/shell/overlay-host'
 import { InboxTriage, type InboxPendingAction, type InboxTriageState } from './inbox-triage'
 import { matchesFilter, isHandled, type InboxFilter, type TriageNotificationRow } from './read-handled-semantics'
-import { resolveNotificationTarget } from './inbox-target'
+import { notificationAvailableInProfile, resolveNotificationTarget } from './inbox-target'
 import { buildInboxTargetDeps } from './inbox-record-door'
 import { isSessionExpiredMessage } from './session-expired'
 
@@ -104,18 +105,18 @@ export function InboxTriageConnected({ mode, owner = mode === 'page' ? 'inbox' :
     }
   }, [isAuthError, authRetried, refresh])
 
-  const rows = notifications.filter((n) => matchesFilter(n, filter))
+  const availableNotifications = notifications.filter((n) => notificationAvailableInProfile(n, APP_RELEASE_PROFILE))
+  const rows = availableNotifications.filter((n) => matchesFilter(n, filter))
   // F13 (OD-91 #26): notifications the active (non-All) filter is hiding — the count behind the
   // filter-aware empty copy. On the All view this is 0 (nothing is hidden by a filter).
-  const hiddenCount = filter === 'all' ? 0 : notifications.length - rows.length
+  const hiddenCount = filter === 'all' ? 0 : availableNotifications.length - rows.length
 
-  // AC-003 (#549): per-tab counts over the whole (loaded) queue, independent of the active filter.
-  // Derived from the loaded rows (same array the hook's unreadCount is computed from) so the tabs
-  // stay self-consistent and never range above what the filter can show.
+  // AC-003 (#549): counts cover the records this build can actually open, independent of the
+  // active filter. Hidden Work notifications are omitted from both the list and its tab counts.
   const counts = {
-    all: notifications.length,
-    unread: notifications.filter((n) => n.read_at == null).length,
-    handled: notifications.filter(isHandled).length,
+    all: availableNotifications.length,
+    unread: availableNotifications.filter((n) => n.read_at == null).length,
+    handled: availableNotifications.filter(isHandled).length,
   }
 
   const state: InboxTriageState = loading || (isAuthError && !authRetried)

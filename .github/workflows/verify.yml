@@ -119,6 +119,20 @@ jobs:
         if: steps.scope.outputs.app == 'true'
         run: npm run test:coverage
 
-      - name: Build
+      - name: Build full profile
         if: steps.scope.outputs.app == 'true'
+        env:
+          VITE_RELEASE_PROFILE: full
+        run: npm run build
+
+      - name: Café profile route and navigation reachability
+        if: steps.scope.outputs.app == 'true'
+        env:
+          VITE_RELEASE_PROFILE: cafe
+        run: npx vitest run src/shell/cafe-profile-reachability.test.tsx
+
+      - name: Build Café profile
+        if: steps.scope.outputs.app == 'true'
+        env:
+          VITE_RELEASE_PROFILE: cafe
         run: npm run build

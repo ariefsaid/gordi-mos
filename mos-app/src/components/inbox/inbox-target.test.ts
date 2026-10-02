@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { NotificationRow } from '@/lib/db/notifications'
 import {
+  notificationAvailableInProfile,
   resolveNotificationTarget,
   ALLOWED_TARGET_TYPES,
   type NotificationTargetRef,
@@ -54,6 +55,17 @@ function deps(overrides?: Partial<ResolveTargetDeps>): ResolveTargetDeps {
     ...overrides,
   }
 }
+
+describe('profile-aware Inbox doors', () => {
+  it('omits Work record notifications but keeps shared/non-Work Inbox rows in the Cafe profile', () => {
+    expect(notificationAvailableInProfile(row({ entity: { type: 'task', id: 't1' } }), 'cafe')).toBe(false)
+    expect(notificationAvailableInProfile(row({ entity: { type: 'signal', id: 's1' } }), 'cafe')).toBe(false)
+    expect(notificationAvailableInProfile(row({ entity: { type: 'follow_up', id: 'f1' } }), 'cafe')).toBe(true)
+    expect(notificationAvailableInProfile(row({ entity: { type: 'legacy', id: 'x', route: '/updates' } }), 'cafe')).toBe(false)
+    expect(notificationAvailableInProfile(row({ entity: { type: 'profile', id: 'p1' } }), 'cafe')).toBe(true)
+    expect(notificationAvailableInProfile(row({ entity: { type: 'task', id: 't1' } }), 'full')).toBe(true)
+  })
+})
 
 describe('resolveNotificationTarget — typed, fail-closed notification doors (FR-V3-008 / J06)', () => {
   it('allow-list is exactly task, signal, follow_up', () => {
