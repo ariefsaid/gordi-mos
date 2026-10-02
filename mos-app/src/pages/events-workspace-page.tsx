@@ -38,7 +38,7 @@ export function EventsWorkspacePage() {
       controls={controls}
       resultHeader={{ collectionLabel: t('events.title'), viewLabel: t('events.calendar'), count }}
       empty={{ title: t('events.empty.title'), copy: t('events.empty.copy') }}
-      filteredEmpty={{ title: t('events.empty.title'), clear: () => controller.setQuery({ ...query } as EventCollectionQuery) }}
+      filteredEmpty={{ items: t('collection.items.events'), clear: () => controller.setQuery({ ...query } as EventCollectionQuery) }}
       error={{ message: t('events.error'), retry: () => controller.retry() }}
       loadingLabel={t('events.loading')}
     />

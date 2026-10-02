@@ -94,7 +94,7 @@ describe('AdminAccessPage', () => {
       'Admin',
       'Finance',
       'Manager',
-      'Supervisor',
+      'Supervisor (access)',
     ])
     expect(within(table).getByRole('link', { name: 'From Team leadership' })).toHaveAttribute('href', '/admin/teams')
     expect(within(table).getByRole('link', { name: 'From Business Unit Position' })).toHaveAttribute('href', '/admin/people')

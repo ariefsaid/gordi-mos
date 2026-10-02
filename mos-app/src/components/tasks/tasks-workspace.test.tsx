@@ -1222,6 +1222,54 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
     expect(screen.queryByText(/match these filters/i)).not.toBeInTheDocument()
   })
 
+  // DD-NAME-1 review: the Mine copy ("No tasks assigned to you") is only true for an empty
+  // saved Mine view with no additional filters. Once an actual task filter is active — a Person
+  // who isn't you, the Overdue view, or a search inside My work — the shared "No tasks match
+  // these filters" pattern with a functioning Clear filters action takes over.
+  it('All + a Person filter for someone else shows the shared filtered wording, not the Mine copy', async () => {
+    mockListTasks.mockResolvedValue([
+      makeTask({ id: 'mine', title: 'My own task' }),
+    ])
+    // Org-wide viewer so the broadest chip is All and a Person filter is a real narrowing.
+    renderTable({}, DEWI)
+    await waitFor(() => screen.getByText('My own task'))
+    ensureFiltersOpen()
+    chooseFilterOption(screen.getByRole('combobox', { name: /person/i }), 'Budi Setiawan')
+    await waitFor(() => expect(screen.getByText(/no tasks match these filters/i)).toBeInTheDocument())
+    expect(screen.queryByText(/no tasks assigned to you/i)).toBeNull()
+    // The Clear filters action functions: clearing returns the row.
+    fireEvent.click(screen.getAllByRole('button', { name: /clear filters/i })[0])
+    await waitFor(() => expect(screen.getByText('My own task')).toBeInTheDocument())
+  })
+
+  it('the Overdue view shows the shared filtered wording, not the Mine copy', async () => {
+    mockListTasks.mockResolvedValue([
+      makeTask({ id: 'ontime', title: 'On time task', due_date: '2030-12-31' }),
+    ])
+    renderTable({}, DEWI)
+    await waitFor(() => screen.getByText('On time task'))
+    ensureFiltersOpen()
+    fireEvent.click(screen.getByRole('button', { name: 'Overdue' }))
+    await waitFor(() => expect(screen.getByText(/no tasks match these filters/i)).toBeInTheDocument())
+    expect(screen.queryByText(/no tasks assigned to you/i)).toBeNull()
+    expect(screen.getAllByRole('button', { name: /clear filters/i }).length).toBeGreaterThan(0)
+  })
+
+  it('My work + a no-match search shows the shared filtered wording, not the Mine copy', async () => {
+    mockListTasks.mockResolvedValue([
+      makeTask({ id: 'mine', title: 'My own task' }),
+    ])
+    renderTable()
+    await waitFor(() => screen.getByText('My own task'))
+    ensureFiltersOpen()
+    fireEvent.click(screen.getByRole('button', { name: 'My work' }))
+    await waitFor(() => expect(screen.getByText('My own task')).toBeInTheDocument())
+    fireEvent.change(screen.getByLabelText('Search tasks'), { target: { value: 'zzz-no-match' } })
+    await waitFor(() => expect(screen.getByText(/no tasks match these filters/i)).toBeInTheDocument())
+    expect(screen.queryByText(/no tasks assigned to you/i)).toBeNull()
+    expect(screen.getAllByRole('button', { name: /clear filters/i }).length).toBeGreaterThan(0)
+  })
+
   // Calibration finding (#749 lane): a viewer with nothing assigned lands on an empty My work.
   // Its own Clear filters button left ?view=my-work standing, so clicking it did nothing — a dead
   // button next to copy that promises "Clear filters to see all tasks."
@@ -1241,6 +1289,53 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
     await waitFor(() => expect(screen.getByText('Someone else’s task')).toBeInTheDocument())
     // Broadened scope means the chip state itself moved off My work, not just the row list.
     expect(screen.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  // DD-NAME-1 repair round: with a truly empty source (no records at all) the collection is in
+  // the true-empty state even while a filter is active — and an explicit Person/PIC/Supervisor/
+  // Overdue narrowing must not claim "No tasks assigned to you". Only a saved Mine view may
+  // carry the Mine copy.
+  it('a Person filter over an empty source says No tasks yet, not No tasks assigned to you', async () => {
+    mockListTasks.mockResolvedValue([])
+    renderTable({}, DEWI)
+    await waitFor(() => screen.getByRole('heading', { name: /tasks/i }))
+    ensureFiltersOpen()
+    chooseFilterOption(screen.getByRole('combobox', { name: /person/i }), 'Budi Setiawan')
+    await waitFor(() => expect(screen.getByText(/no tasks yet/i)).toBeInTheDocument())
+    expect(screen.queryByText(/no tasks assigned to you/i)).toBeNull()
+  })
+
+  it('a PIC filter over an empty source says No tasks yet, not No tasks assigned to you', async () => {
+    mockListTasks.mockResolvedValue([])
+    renderTable({}, DEWI, ['/work/tasks?pic=other-id'])
+    await waitFor(() => expect(screen.getByText(/no tasks yet/i)).toBeInTheDocument())
+    expect(screen.queryByText(/no tasks assigned to you/i)).toBeNull()
+  })
+
+  it('a Supervisor filter over an empty source says No tasks yet, not No tasks assigned to you', async () => {
+    mockListTasks.mockResolvedValue([])
+    renderTable({}, DEWI, ['/work/tasks?supervisor=other-id'])
+    await waitFor(() => expect(screen.getByText(/no tasks yet/i)).toBeInTheDocument())
+    expect(screen.queryByText(/no tasks assigned to you/i)).toBeNull()
+  })
+
+  it('the Overdue view over an empty source says No tasks yet, not No tasks assigned to you', async () => {
+    mockListTasks.mockResolvedValue([])
+    renderTable({}, DEWI)
+    await waitFor(() => screen.getByRole('heading', { name: /tasks/i }))
+    ensureFiltersOpen()
+    fireEvent.click(screen.getByRole('button', { name: 'Overdue' }))
+    await waitFor(() => expect(screen.getByText(/no tasks yet/i)).toBeInTheDocument())
+    expect(screen.queryByText(/no tasks assigned to you/i)).toBeNull()
+  })
+
+  it('an empty source with the My work view keeps the Mine copy (a saved Mine view may claim it)', async () => {
+    mockListTasks.mockResolvedValue([])
+    renderTable()
+    await waitFor(() => screen.getByRole('heading', { name: /tasks/i }))
+    ensureFiltersOpen()
+    fireEvent.click(screen.getByRole('button', { name: 'My work' }))
+    await waitFor(() => expect(screen.getByText(/no tasks assigned to you/i)).toBeInTheDocument())
   })
 })
 
@@ -2076,10 +2171,11 @@ describe('Ticket #958 — the head "?" opens the purpose sentence + PIC/Supervis
     const panel = screen.getByRole('note')
     expect(panel).toHaveTextContent('Find and update the work in this view.')
     expect(panel).toHaveTextContent('PIC is who performs and finishes the task')
-    expect(panel).toHaveTextContent('Supervisor checks in, unblocks and verifies it')
+    expect(panel).toHaveTextContent('Supervisor owns the outcome')
     expect(panel).not.toHaveTextContent(/Responsible|Accountable/)
     expect(panel).toHaveTextContent('Saved views')
-    expect(panel).toHaveTextContent('Business Unit is the team the task belongs to')
+    expect(panel).toHaveTextContent('Business Unit is the business line that owns the work')
+    expect(panel).toHaveTextContent('a Team is a group of people within one Business Unit')
   })
 
   it('ID: states the localized purpose sentence and glossary', async () => {
@@ -2090,11 +2186,12 @@ describe('Ticket #958 — the head "?" opens the purpose sentence + PIC/Supervis
     fireEvent.click(screen.getByRole('button', { name: 'Bantuan' }))
     const panel = screen.getByRole('note')
     expect(panel).toHaveTextContent('Temukan dan perbarui pekerjaan di tampilan ini.')
-    expect(panel).toHaveTextContent('PIC adalah yang mengerjakan dan menyelesaikan tugas')
-    expect(panel).toHaveTextContent('Supervisor memantau, membuka hambatan, dan memverifikasinya')
+    expect(panel).toHaveTextContent('PIC adalah orang yang mengerjakan dan menyelesaikan tugas')
+    expect(panel).toHaveTextContent('Supervisor memiliki hasilnya')
     expect(panel).not.toHaveTextContent(/Responsible|Accountable/)
     expect(panel).toHaveTextContent('Tampilan tersimpan')
-    expect(panel).toHaveTextContent('Business Unit adalah tim tempat tugas ini berada')
+    expect(panel).toHaveTextContent('Business Unit adalah lini usaha yang memiliki pekerjaan')
+    expect(panel).toHaveTextContent('Team adalah kelompok orang dalam satu Business Unit')
   })
 })
 

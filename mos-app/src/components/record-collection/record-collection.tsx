@@ -3,7 +3,7 @@
 // exactly once. It owns state order, the selection bar, and status chrome — never a table/card visual
 // system, and never a disabled "soon" presentation placeholder.
 import type { ReactElement, ReactNode } from 'react'
-import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
+import { EmptyState, ErrorState, FilteredEmptyState, LoadingShell } from '@/components/ui/state-kit'
 import type { RecordCollectionController } from '@/lib/record-collection/engine'
 import type { CollectionPresentationProps } from '@/lib/record-collection/types'
 import { useT } from '@/i18n/use-t'
@@ -25,7 +25,7 @@ export interface RecordCollectionSurfaceProps<
   selectionBar?: ReactNode
   archivedEmpty?: { title: string; copy?: string }
   empty: { title: string; copy?: string; create?: ReactNode }
-  filteredEmpty: { title: string; copy?: string; clear: () => void; create?: ReactNode }
+  filteredEmpty: { items: string; clear: () => void; create?: ReactNode; title?: string; copy?: string }
   error: { message: string; retry: () => void }
   loadingLabel: string
   /** Shared E7 result-header framing: collection eyebrow, the active view label, and the result count. */
@@ -159,12 +159,9 @@ export function RecordCollectionSurface<
         {controls}
         <div className="record-collection-results">
           {header}
-          <EmptyState variant="blank" title={filteredEmpty.title} copy={filteredEmpty.copy}>
-            <button type="button" className="record-collection-clear" onClick={filteredEmpty.clear}>
-              {t('common.clearFilters')}
-            </button>
+          <FilteredEmptyState items={filteredEmpty.items} onClear={filteredEmpty.clear} title={filteredEmpty.title} copy={filteredEmpty.copy}>
             {filteredEmpty.create}
-          </EmptyState>
+          </FilteredEmptyState>
         </div>
       </div>
     )
