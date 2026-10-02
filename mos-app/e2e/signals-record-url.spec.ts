@@ -39,13 +39,19 @@ for (const width of [1440, 390]) {
       await page.screenshot({ path: info.outputPath(`signal-direct-url-${width}.png`), animations: 'disabled' })
     })
 
-    test('Open full page from the panel stays on the full page, and Back returns to the collection', async ({ page }, info) => {
+    test(`opening a Signal stays canonical and Back returns to the collection`, async ({ page }, info) => {
       const id = await firstSignal(page)
       await page.locator(`main [data-signal-id="${id}"][role="button"]`).click()
-      const panel = page.locator('[data-overlay-host][data-overlay-owner="signals"]')
-      await expect(panel).toBeVisible()
-      await panel.getByRole('button', { name: 'More Signal actions', exact: true }).click()
-      await page.getByRole('menuitem', { name: 'Open full page', exact: true }).click()
+
+      if (width === 1440) {
+        const panel = page.locator('[data-overlay-host][data-overlay-owner="signals"]')
+        await expect(panel).toBeVisible()
+        await panel.getByRole('button', { name: 'More Signal actions', exact: true }).click()
+        await page.getByRole('menuitem', { name: 'Open full page', exact: true }).click()
+      }
+
+      // Desktop keeps the Signal panel's explicit promotion affordance; phone opens the same
+      // canonical record page directly instead of inserting a full-screen panel.
       await expectFullPageStays(page, id)
       await page.screenshot({ path: info.outputPath(`signal-open-full-page-${width}.png`), animations: 'disabled' })
 
