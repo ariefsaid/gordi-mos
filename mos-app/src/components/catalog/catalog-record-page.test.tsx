@@ -25,17 +25,22 @@ vi.mock('@/lib/db/directory', async (importActual) => ({
   getPeople: vi.fn(async () => [{ id: 'p-dewi', full_name: 'Dewi Director' }, { id: 'p-maya', full_name: 'Maya Marketing' }]),
 }))
 vi.mock('@/lib/db/record-history', async (orig) => ({ ...(await orig<typeof import('@/lib/db/record-history')>()), loadRecordHistory: vi.fn() }))
-// The occurrence data is lifted into the record (the header carries the Start primary); the body's
-// controls are stubbed to the markup the header's multi-Team jump needs.
+// The occurrence data is lifted into the record (the header carries the Start primary); the body
+// stub exposes ready Teams without duplicating the header's action.
 const occurrenceData = vi.hoisted(() => ({
   current: null as null | import('@/components/processes/use-process-occurrences').ProcessOccurrencesData,
 }))
 vi.mock('@/components/processes/use-process-occurrences', () => ({ useProcessOccurrences: () => occurrenceData.current }))
 vi.mock('@/components/processes/process-occurrence-controls', () => ({
-  ProcessOccurrenceControls: ({ data }: { data?: import('@/components/processes/use-process-occurrences').ProcessOccurrencesData }) => (
+  ProcessOccurrenceControls: ({ data, recordContext }: {
+    data?: import('@/components/processes/use-process-occurrences').ProcessOccurrencesData
+    recordContext?: boolean
+  }) => (
     <div data-testid="occurrences">
       <section className="process-occurrence-controls__start">
-        {data?.startable.map((run) => <button key={run.owning_team_id} type="button" className="btn btn-outline">Start · {run.team_name}</button>)}
+        {data?.startable.map((run) => recordContext
+          ? <span key={`${run.owning_team_id}:${run.period_key}`}>{run.team_name}</span>
+          : <button key={`${run.owning_team_id}:${run.period_key}`} type="button" className="btn btn-outline">Start · {run.team_name}</button>)}
       </section>
     </div>
   ),
@@ -278,15 +283,18 @@ describe('header: the record answers what, state, who, when', () => {
 })
 
 describe('Get started lists only what is missing, and its buttons work', () => {
-  it('an empty Objective shows one setup region with Set targets and Link work, no Add task, no empty-section lines', async () => {
+  it('an empty Objective shows its empty Key results section and one setup region with Set targets and Link work', async () => {
     renderRecord()
     const region = await screen.findByRole('region', { name: 'Get this Objective started' })
+    const keyResults = await screen.findByRole('region', { name: 'Key results' })
+    expect(keyResults).toHaveTextContent('No key results yet.')
+    expect(within(keyResults).queryByRole('button', { name: 'Add key result' })).toBeNull()
     expect(within(region).getByText('Set targets')).toBeInTheDocument()
     expect(within(region).getByText('Link work')).toBeInTheDocument()
     expect(within(region).queryByText('Add tasks')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Add task' })).toBeNull()
-    expect(document.body.textContent).not.toMatch(/0 \/ 0|No key results yet|No linked|No linked tasks/)
-    // One primary on the screen: the first setup row. The header has none.
+    expect(document.body.textContent).not.toMatch(/0 \/ 0|No linked|No linked tasks/)
+    // One primary on the screen: the first setup row. The header and empty section offer none.
     expect(document.querySelectorAll('.btn-primary')).toHaveLength(1)
     expect(within(region).getByRole('button', { name: 'Add key result' })).toHaveClass('btn-primary')
   })
@@ -528,8 +536,8 @@ describe('Get started lists only what is missing, and its buttons work', () => {
     expect(screen.queryByRole('region', { name: /started$/ })).toBeNull()
     expect(document.querySelectorAll('.btn-primary')).toHaveLength(1)
     expect(document.querySelector('.btn-primary')).toHaveTextContent('Add task')
-    // The Tasks section keeps its own quiet action, so guidance that left the page has a home.
-    expect(within(screen.getByRole('region', { name: 'Tasks' })).getByRole('button', { name: 'Add task' })).toHaveClass('btn-ghost')
+    // The header owns this action once Tasks exist; the section does not repeat it.
+    expect(within(screen.getByRole('region', { name: 'Tasks' })).queryByRole('button', { name: 'Add task' })).toBeNull()
   })
 
   it('a Process with many steps keeps adding one click away, inside the folded list', async () => {
@@ -573,11 +581,20 @@ describe('Get started lists only what is missing, and its buttons work', () => {
     await waitFor(() => expect(within(form).queryByText("Couldn't load the people list.")).toBeNull())
   })
 
+  it('does not show an empty occurrence section while an incomplete Process is loading', async () => {
+    data = workLineData('process', { steps: 0 })
+    occurrences([], { state: 'loading' })
+    renderRecord('work-line')
+    await screen.findByRole('region', { name: 'Get this Process started' })
+    expect(screen.queryByRole('region', { name: 'Current and next action' })).toBeNull()
+  })
+
   it('a Process with no steps shows Add first step; saving a step writes it for the chosen person and clears the row', async () => {
     const user = userEvent.setup()
     data = workLineData('process', { steps: 0 })
     renderRecord('work-line')
     const region = await screen.findByRole('region', { name: 'Get this Process started' })
+    expect(screen.queryByRole('region', { name: 'Current and next action' })).toBeNull()
     await user.click(within(region).getByRole('button', { name: 'Add first step' }))
     await user.type(await screen.findByRole('textbox', { name: 'Step name' }), 'Open the till')
     await user.click(screen.getByRole('combobox', { name: 'Who does it' }))
@@ -742,13 +759,15 @@ describe('sections read like a document', () => {
     })
   }
 
-  it('the Projects & Processes count uses the Objective\'s own roll-up, the same total the list row shows', async () => {
+  it('keeps the Objective task total in Tasks, not repeated beside Projects & Processes', async () => {
     populated()
-    // One task sits on the Objective itself, so the roll-up is 1 of 3 although the linked work carries 2.
+    // One task sits on the Objective itself, so the aggregate is 1 of 3 although linked work carries 2.
     data.context = { ...data.context, progressById: new Map([['obj-1', { done: 1, total: 3 }]]) }
     renderRecord()
     const work = await screen.findByRole('region', { name: 'Projects & Processes' })
-    expect(work).toHaveTextContent('1 · 1 of 3 tasks done')
+    expect(work.querySelector('.rp-section__count')).toHaveTextContent('1')
+    expect(work).not.toHaveTextContent('1 of 3 tasks done')
+    expect(await screen.findByRole('region', { name: 'Tasks' })).toHaveTextContent('1 of 3')
   })
 
   it('a member with nothing to add is told it is view only', async () => {
@@ -756,6 +775,7 @@ describe('sections read like a document', () => {
     data = objectiveData()
     renderRecord()
     await screen.findByRole('heading', { level: 1, name: 'Grow revenue' })
+    expect(await screen.findByRole('region', { name: 'Key results' })).toHaveTextContent('No key results yet.')
     expect(await screen.findByRole('note')).toHaveTextContent('View only · Dewi Director (Accountable) sets targets and links work.')
   })
 
@@ -763,6 +783,7 @@ describe('sections read like a document', () => {
     data = workLineData('process', { steps: 2 })
     renderRecord('work-line')
     const steps = await screen.findByRole('region', { name: 'Steps' })
+    expect(screen.getByRole('region', { name: 'Current and next action' })).toBeInTheDocument()
     expect(within(steps).queryByText('Not set')).toBeNull()
     expect(within(steps).queryByText('Supervisor')).toBeNull()
     expect(within(steps).getAllByText('PIC')).toHaveLength(2)
@@ -905,7 +926,7 @@ describe('returning from the task create frame', () => {
 })
 
 describe('a Process\'s header primary is Start occurrence', () => {
-  it('shows the one primary and starts the one ready run exactly as the body button does', async () => {
+  it('shows one primary and starts the one ready run without a duplicate body button', async () => {
     const user = userEvent.setup()
     data = workLineData('process', { steps: 2 })
     occurrences([dueRun('Café Operations', 'team-1')])
@@ -918,18 +939,24 @@ describe('a Process\'s header primary is Start occurrence', () => {
     expect(document.querySelectorAll('.btn-primary')).toHaveLength(1)
     const header = (await screen.findByRole('heading', { level: 1, name: 'Café opening' })).closest('header') as HTMLElement
     expect(within(header).getByRole('button', { name: 'Start occurrence' })).toBe(primary)
+    expect(screen.queryByRole('button', { name: 'Start · Café Operations' })).toBeNull()
     await user.click(primary)
     expect(startRun).toHaveBeenCalledWith(dueRun('Café Operations', 'team-1'))
   })
 
-  it('with several Teams ready, the primary takes the viewer to the per-Team Start buttons instead of choosing for them', async () => {
+  it('with several Teams ready, the primary opens a chooser and starts the selected Team', async () => {
     const user = userEvent.setup()
+    const marketingRun = dueRun('Marketing', 'team-2')
     data = workLineData('process', { steps: 2 })
-    occurrences([dueRun('Café Operations', 'team-1'), dueRun('Marketing', 'team-2')])
+    occurrences([dueRun('Café Operations', 'team-1'), marketingRun])
     renderRecord('work-line')
     await user.click(await screen.findByRole('button', { name: 'Start occurrence' }))
-    expect(startRun).not.toHaveBeenCalled()
-    expect(screen.getByRole('button', { name: 'Start · Café Operations' })).toHaveFocus()
+    const chooser = await screen.findByRole('combobox', { name: 'Choose a Team' })
+    expect(chooser).toHaveAttribute('aria-expanded', 'true')
+    expect(document.activeElement).toHaveClass('picker__search')
+    await user.click(await screen.findByRole('option', { name: 'Marketing' }))
+    expect(startRun).toHaveBeenCalledWith(marketingRun)
+    expect(screen.queryByRole('button', { name: 'Start · Marketing' })).toBeNull()
   })
 
   it('has no primary when nothing is ready to start, when the Process has no steps yet, or when it is archived', async () => {

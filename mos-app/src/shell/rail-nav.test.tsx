@@ -785,13 +785,13 @@ describe('DD-WAY-33 (#439): the rail type ladder', () => {
     expect(within(nav).getByRole('link', { name: /^Signals/ }).className).not.toContain('rail-item--active')
   })
 
-  it('the compact icon rail keeps working: rungs still applied, indent guide dropped', () => {
+  it('the compact icon rail keeps working: child indentation dropped', () => {
     setAuthAs(['admin'], 'Managing Director')
     const { container } = renderRailNav('/work/tasks', { compact: true })
     const nav = screen.getByRole('navigation', { name: 'Primary' })
     expect(within(nav).getByRole('link', { name: 'Work' }).className).toContain('rail-item--dest')
     expect(within(nav).getByRole('link', { name: /^Tasks/ }).className).toContain('rail-item--child')
-    // No hairline indent guide when there is no indent to guide.
+    // Compact icon rail does not mount a child-list wrapper.
     expect(container.querySelectorAll('.rail-item-children')).toHaveLength(0)
   })
 })

@@ -307,7 +307,7 @@ export function RailNav({ onNavigate, openTasks, compact = false }: RailNavProps
                   </Link>
                   {/* Always-expanded children in the ONE declared order (destinations.tsx) and
                       nothing else: DD-WAY-33 (#439) deleted the sub-section eyebrows, so this is
-                      one clean indented list, drawn under the ladder's hairline indent guide. Each
+                      one clean indented list with the ladder's tokenized indent. Each
                       child stays one reachable link; a gated or ship-gated child is already absent
                       from `children` by the time it gets here. */}
                   <div className={compact ? 'flex flex-col gap-[2px] rail-item-list' : 'flex flex-col gap-[2px] rail-item-list rail-item-children'}>
@@ -338,7 +338,7 @@ export function RailNav({ onNavigate, openTasks, compact = false }: RailNavProps
             <div className="flex flex-col gap-[2px] rail-item-list">
               {g.items.map((m) => {
                 // A module with children renders them the same way Work does — an always-expanded
-                // indented list on the ladder's child rung, under the same hairline indent guide.
+                // indented list on the ladder's child rung, with the same tokenized indent.
                 // Café is the module that has them; the rest fall through to a single
                 // link exactly as before. Without this the module's `children` are dead data and
                 // its screens have no nav entry at all.

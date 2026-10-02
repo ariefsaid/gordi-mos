@@ -179,13 +179,15 @@ beforeEach(() => {
 })
 
 describe('record relationship grammar', () => {
-  it('lists an Objective\'s work and its tasks as rows that open their own records, with the roll-up in the header', async () => {
+  it('lists an Objective\'s work and its tasks as rows that open their own records, with one roll-up in Tasks', async () => {
     renderRecord('objective', 'obj-1')
     await screen.findByRole('heading', { level: 1, name: 'Grow revenue' })
     const work = await screen.findByRole('region', { name: 'Projects & Processes' })
     expect(within(work).getAllByRole('link', { name: 'Menu launch' })).toHaveLength(1)
-    expect(work).toHaveTextContent('1 · 1 of 2 tasks done')
+    expect(work).toHaveTextContent('1')
+    expect(work).not.toHaveTextContent('1 of 2 tasks done')
     const tasks = await screen.findByRole('region', { name: 'Tasks' })
+    expect(tasks).toHaveTextContent('1 of 2 done')
     expect(within(tasks).getByRole('link', { name: 'Print the menus' })).toHaveAttribute('href', '/work/tasks/task-1')
     expect(within(tasks).getByRole('link', { name: 'Brief the floor' })).toHaveAttribute('href', '/work/tasks/task-2')
     expect(screen.queryByRole('tablist')).not.toBeInTheDocument()

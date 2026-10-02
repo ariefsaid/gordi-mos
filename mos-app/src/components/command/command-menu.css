@@ -117,16 +117,15 @@
 /* ── Child rung (DESIGN.md § The Rail Type Ladder) ──────────────────────────
    The palette lists Work's PARENT row ("Work" → /work/tasks) and its Tasks CHILD row
    (→ /work/tasks) back to back. The rail and the drawer can carry that pair because the
-   parent is a section header there and the children sit inside a drawn indent guide; the
-   palette is a FLAT list, so without a rung the two rows are indistinguishable — same
+   parent is a section header there and the children sit in an indented list; the palette is
+   a FLAT list, so without a rung the two rows are indistinguishable — same
    target, same weight, no reason for a second one to exist.
 
    DESIGN.md is explicit that "the ladder is per-level, not per-surface": a child wears the
    same rung wherever it is listed. So this is the ladder's Child rung — 13px
    (`--font-size-mono`, the ramp's dense-compact step, not a monospace face) /
-   `muted-foreground`, 15px icon, indented behind the 1px `border` hairline guide — read
-   from the same type ramp and `--rail-*` geometry tokens the rail rules read. No value is
-   minted here.
+   `muted-foreground`, 15px icon and tokenized indent — read from the same type ramp and
+   `--rail-*` geometry tokens as the rail rules. No vertical rule or value is minted here.
 
    `data-child` is the marker (the palette renders divs, so it has no class ladder of its
    own; the same attribute the cross-surface order guard reads).
@@ -139,13 +138,11 @@
    (`command-menu.css.test.ts` holds that). Whether the palette's destination rows should take
    the ladder's 600 is a separate question about the whole surface, not about children.
 
-   The left corners lose their radius so consecutive child rows' hairlines join into one
-   continuous guide instead of a dotted column of rounded stubs. */
+   The indent and type step-down carry the hierarchy without a vertical rule beside every row. */
 .cm-item[data-child='true'] {
   margin-left: var(--rail-child-guide-x);
-  border-left: var(--rail-child-guide) solid var(--border);
-  border-top-left-radius: 0;
-  border-bottom-left-radius: 0;
+  border-left-width: 0;
+  border-left-style: none;
   padding-left: var(--rail-child-pad);
   font-size: var(--font-size-mono);
   color: var(--muted-foreground);
