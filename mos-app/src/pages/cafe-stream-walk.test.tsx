@@ -26,11 +26,12 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
     ...actual,
     fetchKitchenStock: vi.fn(),
     listStreamPairs: vi.fn(),
+    listCafeDestinations: vi.fn(),
     listActiveWipItems: vi.fn(),
     listStreamItemIds: vi.fn(async () => ({ has: () => true })),
   }
 })
-import { fetchKitchenStock, listStreamPairs, listActiveWipItems } from '@/lib/db/kitchen-logs'
+import { fetchKitchenStock, listCafeDestinations, listStreamPairs, listActiveWipItems } from '@/lib/db/kitchen-logs'
 
 vi.mock('@/lib/db/kitchen-plans', () => ({
   listKitchenPlans: vi.fn(),
@@ -95,6 +96,9 @@ beforeEach(() => {
   vi.mocked(useAuth).mockReturnValue(viewer(['ops_lead']))
   vi.mocked(listActiveBranches).mockResolvedValue(BRANCHES)
   vi.mocked(listStreamPairs).mockResolvedValue(STREAM_PAIRS)
+  vi.mocked(listCafeDestinations).mockResolvedValue([
+    { origin_branch_id: BRANCH_RR.id, origin_activity: 'kitchen', destination_branch_id: BRANCH_RAD.id },
+  ])
   vi.mocked(fetchDefaultStream).mockResolvedValue(OWN_STREAM)
   vi.mocked(fetchKitchenStock).mockResolvedValue([])
   vi.mocked(listActiveWipItems).mockResolvedValue([{ id: 'w1', name: 'Ayam Bakar', category: 'Main' }])

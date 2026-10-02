@@ -704,6 +704,20 @@ describe('TaskSurface — live region (AC-111)', () => {
     await waitFor(() => expect(liveRegion()?.textContent).toMatch(/couldn.t save|reverted/i))
   })
 
+  it('shows Saved after a Task description edit commits', async () => {
+    mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
+    renderSurface()
+    await screen.findByRole('heading', { level: 1, name: 'Fix the coffee machine' })
+    activateFieldByKey('description')
+    const description = screen.getByRole('textbox', { name: 'Description' })
+    fireEvent.change(description, { target: { value: 'Replace the broken espresso machine.' } })
+    fireEvent.blur(description)
+    await waitFor(() => expect(updateTaskFields).toHaveBeenCalledWith(
+      'task-abc', { description: 'Replace the broken espresso machine.' }, VIEWER_ID, null,
+    ))
+    expect(await screen.findByText('Saved')).toBeInTheDocument()
+  })
+
   it('AC-111: a failed PIC reassignment reverts AND announces the rollback', async () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
     vi.mocked(updateTaskFields).mockRejectedValue(new Error('write failed'))

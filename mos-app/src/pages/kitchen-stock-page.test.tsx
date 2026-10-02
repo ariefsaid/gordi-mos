@@ -31,9 +31,14 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
   // listStreamPairs is the enumerable stream catalog read (#440): the head's ONE picker offers the
   // enumerated streams, never a branch × activity cross-product that can name a pair which is
   // not a stream. Un-mocked it hits Supabase and every bootstrap lands in the error state.
-  return { ...actual, fetchKitchenStock: vi.fn(), listStreamPairs: vi.fn() }
+  return {
+    ...actual,
+    fetchKitchenStock: vi.fn(),
+    listStreamPairs: vi.fn(),
+    listCafeDestinations: vi.fn(),
+  }
 })
-import { fetchKitchenStock, listStreamPairs } from '@/lib/db/kitchen-logs'
+import { fetchKitchenStock, listCafeDestinations, listStreamPairs } from '@/lib/db/kitchen-logs'
 
 vi.mock('@/lib/db/branches', () => ({ listActiveBranches: vi.fn() }))
 import { listActiveBranches } from '@/lib/db/branches'
@@ -57,6 +62,7 @@ const mockFetchStock = vi.mocked(fetchKitchenStock)
 const mockBranches = vi.mocked(listActiveBranches)
 const mockDefaultStream = vi.mocked(fetchDefaultStream)
 const mockStreamPairs = vi.mocked(listStreamPairs)
+const mockDestinations = vi.mocked(listCafeDestinations)
 
 function wrapper({ children }: { children: ReactNode }) {
   return createElement(MemoryRouter, null, createElement(I18nProvider, null, children))
@@ -136,6 +142,7 @@ beforeEach(() => {
   mockUseAuth.mockReturnValue(viewer(['member']))
   mockBranches.mockResolvedValue([BRANCH_GHQ, BRANCH_RAD, BRANCH_RR])
   mockStreamPairs.mockResolvedValue(STREAM_PAIRS)
+  mockDestinations.mockResolvedValue([])
   mockDefaultStream.mockResolvedValue(CENTRAL_KITCHEN)
   mockFetchStock.mockResolvedValue([])
 })

@@ -7,7 +7,8 @@ import type { DueProcessRun } from '@/lib/db/processes.types'
 import './due-runs.css'
 
 // Renders due-occurrence rows and Start actions. Process records pass their context so each Team,
-// rather than the already-visible Process title, identifies its ready run.
+// rather than the already-visible Process title, identifies its ready run. The record header may
+// own the Start action, leaving these rows as non-interactive context.
 
 export interface DueRunsListProps {
   due: readonly DueProcessRun[]
@@ -16,9 +17,10 @@ export interface DueRunsListProps {
   startError: boolean
   onStart: (row: DueProcessRun) => Promise<void>
   context?: 'process-record'
+  hideStartButton?: boolean
 }
 
-export function DueRunsList({ due, expanded, startingKey, startError, onStart, context }: DueRunsListProps) {
+export function DueRunsList({ due, expanded, startingKey, startError, onStart, context, hideStartButton = false }: DueRunsListProps) {
   const t = useT()
   const idPrefix = useId()
   const processRecordContext = context === 'process-record'
@@ -43,20 +45,19 @@ export function DueRunsList({ due, expanded, startingKey, startError, onStart, c
                   </>
                 )}
               </div>
-              {/* Generic lists name the Process action and describe its Team. Inside a Process
-                  record, the Team is the distinct start target and is named in the action itself. */}
-              {/* Inside a Process record the page keeps its one primary elsewhere, so a start is a secondary action. */}
-              <Button
-                variant={processRecordContext ? 'outline' : 'primary'}
-                className="due-runs-start-btn"
-                disabled={startingKey === key}
-                aria-describedby={!processRecordContext ? labelsId : undefined}
-                onClick={() => { void onStart(row) }}
-              >
-                <span className="due-runs-start-label">
-                  {t('processes.action.startComposed', { name: processRecordContext ? row.team_name : row.process_name })}
-                </span>
-              </Button>
+              {!hideStartButton ? (
+                <Button
+                  variant={processRecordContext ? 'outline' : 'primary'}
+                  className="due-runs-start-btn"
+                  disabled={startingKey === key}
+                  aria-describedby={!processRecordContext ? labelsId : undefined}
+                  onClick={() => { void onStart(row) }}
+                >
+                  <span className="due-runs-start-label">
+                    {t('processes.action.startComposed', { name: processRecordContext ? row.team_name : row.process_name })}
+                  </span>
+                </Button>
+              ) : null}
             </li>
           )
         })}

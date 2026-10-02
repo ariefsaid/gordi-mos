@@ -215,9 +215,9 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
   // asking whether that was meant. The choice is now bounded by the active location, and switching
   // location is the deliberate act that changes it.
   //
-  // `streamOptions` stays WHOLE for everything else. The transfer movements are derived from it —
-  // a transfer's destination is by definition another branch — so filtering the catalog itself
-  // would delete the cross-location workflow instead of bounding the production choice.
+  // `streamOptions` stays WHOLE for everything else. Cross-branch movements intersect its live
+  // streams with the org-scoped route rows — filtering the catalog itself would delete the
+  // cross-location workflow instead of bounding the production choice.
   // A person may work at a stream if they hold a Team on it (any, for ops_lead/admin).
   const elevated = auth.status === 'authenticated' && canPushCafe(auth.viewer.accessRoles)
   const eligible = useCallback(
@@ -259,7 +259,9 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
   const streamCanProduce = streamProduces(stream, streamOptions)
   const streamNonProducing = stream !== null && !streamCanProduce
   const captureClosed = !canCapture || streamMissing || streamNonProducing
-  const movementOptions = stream ? movementsForStream(stream, streamOptions) : []
+  const movementOptions = stream
+    ? movementsForStream(stream, streamOptions, cafeStream.destinations)
+    : []
   const { resolve: resolveStream, adopt: adoptStream, setStream: chooseStream } = cafeStream
   const [movement, setMovement] = useState<KitchenMovement>(PRODUCE)
   const [logDate] = useState(wibToday) // today WIB; owner-decision: allow past dates flagged
