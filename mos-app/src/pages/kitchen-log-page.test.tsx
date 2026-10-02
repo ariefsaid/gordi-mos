@@ -502,12 +502,11 @@ describe('Populated state — WIP items loaded', () => {
   it('B3b: the list container reserves bottom room so the sticky footer cannot permanently cover the final row', async () => {
     const css = readFileSync(resolve(process.cwd(), 'src/pages/kitchen-log-page.css'), 'utf8')
     expect(css).toMatch(/\.kl-form \.dt-table,\s*\n\.kl-form \.dt-cards \{/)
-    // The reserve is sized to the footer's tallest rendered state (the compact row PLUS an
-    // optional blocked-reason line) at EVERY width the bar is sticky, not only on phone, so a
-    // real row (and, at 390, the note field itself) never renders partly behind the bar once a
-    // reason line appears.
-    expect(css).toMatch(/margin-bottom:\s*104px/)
-    expect(css).toMatch(/margin-bottom:\s*calc\(96px \+ env\(safe-area-inset-bottom/)
+    // The shared clearance token follows the footer's tallest rendered state on both the
+    // desktop table and the phone-card list, including the phone safe-area inset.
+    expect(css).toMatch(/--kl-footer-clearance:\s*192px/)
+    expect(css).toMatch(/\.kl-form \.dt-table\s*\{\s*margin-bottom:\s*var\(--kl-footer-clearance\)/)
+    expect(css).toMatch(/\.kl-form \.dt-cards\s*\{\s*padding-bottom:\s*calc\(var\(--kl-footer-clearance\) \+ env\(safe-area-inset-bottom/)
   })
 })
 
