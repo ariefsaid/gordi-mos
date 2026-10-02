@@ -60,6 +60,7 @@ export function TaskCreateForm({
   const { workLineOptions, onEditDue, onEditWorkLine } = useTaskCreateContext()
 
   const [title, setTitle] = useState(task.title)
+  const [titleTouched, setTitleTouched] = useState(false)
   const [attempted, setAttempted] = useState(false)
   const [pending, setPending] = useState(false)
   // A link retry only links the already-created Task; draft edits, Title included, would never be saved.
@@ -79,7 +80,7 @@ export function TaskCreateForm({
   }, [title])
   useEffect(() => { titleRef.current?.focus() }, [])
 
-  const titleError = attempted && !title.trim() ? t('tasks.create.titleRequired') : undefined
+  const titleError = (attempted || titleTouched) && !title.trim() ? t('tasks.create.titleRequired') : undefined
   const teamError = attempted && (!task.team_id || !task.business_unit_id) ? t('tasks.create.teamRequired') : undefined
   const supervisorError = attempted && !task.accountable_person_id ? t('tasks.create.supervisorRequired') : undefined
   const lockMessage = picLockMessage(!viewerHasNoDownline, locale)
@@ -151,6 +152,7 @@ export function TaskCreateForm({
           aria-invalid={titleError ? true : undefined}
           aria-describedby={titleError ? titleErrorId : undefined}
           onChange={(event) => setTitle(event.target.value)}
+          onBlur={() => setTitleTouched(true)}
           onKeyDown={(event) => {
             if (event.key === 'Enter' && !event.shiftKey) {
               event.preventDefault()
