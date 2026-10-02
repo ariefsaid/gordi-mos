@@ -26,10 +26,10 @@ const redirectCases = [
   { oldPath: 'projects-processes', finalPath: /\/work\/projects\?layout=list$/, needsAdmin: true, replacement: '/work/projects' },
   { oldPath: 'work/projects-processes', finalPath: /\/work\/projects\?layout=list$/, needsAdmin: true, replacement: '/work/projects' },
   { oldPath: 'updates', finalPath: /\/work\/signals\?layout=feed$/, needsAdmin: false },
-  // DD-MVP-17: the Café root is the Today capture surface, so the retired kitchen log paths land
-  // there directly. The remaining legacy kitchen screens keep their 1:1 route under /cafe.
-  { oldPath: 'kitchen', finalPath: /\/cafe$/, needsAdmin: false },
-  { oldPath: 'kitchen/log', finalPath: /\/cafe$/, needsAdmin: false },
+  // #1239: the dedicated production route is the canonical capture surface; retired kitchen log
+  // paths land there directly. The remaining legacy kitchen screens keep their 1:1 route under /cafe.
+  { oldPath: 'kitchen', finalPath: /\/cafe\/production$/, needsAdmin: false },
+  { oldPath: 'kitchen/log', finalPath: /\/cafe\/production$/, needsAdmin: false },
   // Café Opening is hidden (CAFE_OPENING_ENABLED): its own path lands on the root.
   { oldPath: 'cafe/opening', finalPath: /\/cafe$/, needsAdmin: false },
   { oldPath: 'kitchen/plan', finalPath: /\/cafe\/plan$/, needsAdmin: false },
@@ -106,10 +106,9 @@ test('AC-004: /tasks/:taskId redirects to /work/tasks/:taskId and renders the ta
 
 test('AC-005: /kitchen/* redirects to /cafe/* and renders the re-homed kitchen surfaces', async ({ page }) => {
   const cases = [
-    // DD-MVP-17: /cafe/log aliases the Café root. This row is for the ONE-HOP landing on a real
-    // rendered Café surface, so it reads the page-head heading every state renders, not a table
-    // that only some states do.
-    { oldPath: 'kitchen/log', finalPath: /\/cafe$/, surface: page.getByTestId('page-head').getByRole('heading', { name: /^café/i }) },
+    // #1239: the retired path lands on the dedicated production capture surface. Read the
+    // page-head heading every state renders, not a table that only some states do.
+    { oldPath: 'kitchen/log', finalPath: /\/cafe\/production$/, surface: page.getByTestId('page-head').getByRole('heading', { name: /^café/i }) },
     { oldPath: 'kitchen/plan', finalPath: /\/cafe\/plan$/, surface: page.getByRole('heading', { name: /café · (plan|pesanan)/i }) },
     { oldPath: 'kitchen/stock', finalPath: /\/cafe\/stock$/, surface: page.getByRole('heading', { name: /café · stock/i }) },
     { oldPath: 'kitchen/review', finalPath: /\/cafe\/review$/, surface: page.getByRole('heading', { name: /café · review/i }) },
@@ -128,7 +127,8 @@ test('legacy /mos and /kitchen addresses redirect to the base-aware Café routes
     { oldPath: '/mos?return=home', path: '/', search: '?return=home' },
     { oldPath: '/mos/work/follow-ups?origin=old-mos', path: '/work/follow-ups', search: '?origin=old-mos' },
     { oldPath: '/mos/kitchen/plan?week=this-week', path: '/cafe/plan', search: '?week=this-week' },
-    { oldPath: '/mos/cafe/log?date=today', path: '/cafe', search: '?date=today' },
+    { oldPath: '/mos/cafe/log?date=today', path: '/cafe/production', search: '?date=today' },
+    { oldPath: 'cafe/log?date=today', path: '/cafe/production', search: '?date=today' },
     { oldPath: '/kitchen/pushes?status=failed', path: '/cafe/pushes', search: '?status=failed' },
   ]
   for (const route of cases) {
@@ -150,7 +150,7 @@ test('AC-025: /work/signals, /cafe, and /work/tasks?view=overdue resolve and are
   await expect(page.getByTestId('page-head').getByRole('heading', { name: 'Signals' })).toBeVisible()
   await expect(page.getByRole('searchbox', { name: /search signals/i })).toBeVisible()
 
-  // /cafe is the Café root (the Log capture surface), not a redirect.
+  // /cafe remains the Café Today entry; production and transfer have dedicated routes.
   await page.goto('cafe')
   await expect(page).toHaveURL(/\/cafe$/)
   await expect(page.getByTestId('page-head').getByRole('heading', { name: /^café/i })).toBeVisible({ timeout: 15_000 })

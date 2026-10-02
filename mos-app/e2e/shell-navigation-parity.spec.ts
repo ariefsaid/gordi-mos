@@ -30,7 +30,7 @@ for (const actor of personas) {
     await expect(page).toHaveURL(/\/cafe$/)
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
     await page.goto('cafe/log')
-    await expect(page).toHaveURL(/\/cafe\/log/)
+    await expect(page).toHaveURL(/\/cafe\/production$/)
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
     await page.goto('')
     await page.getByRole('button', { name: 'Search', exact: true }).click()
