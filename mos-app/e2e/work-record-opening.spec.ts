@@ -1,4 +1,4 @@
-import { test, expect, type Page, type TestInfo } from '@playwright/test'
+import { test, expect, type Locator, type Page, type TestInfo } from '@playwright/test'
 import { loginAs } from './helpers/login'
 import { MANAGER, VIEWER } from './fixtures/users'
 
@@ -75,7 +75,7 @@ async function visitPhoneRecords(page: Page, info: TestInfo, actorName: string) 
     await expect(back).toBeVisible()
     await page.screenshot({ path: info.outputPath(`${actorName}-390-${collection.key}-record.png`), animations: 'disabled' })
     await back.click()
-    await expect(page).toHaveURL((url) => url.pathname.endsWith(`/work/${collection.key === 'projects' ? 'projects' : collection.key}`))
+    await expect(page).toHaveURL((url) => url.pathname.endsWith(`/work/${collection.key}`))
     await expect(switcher.getByRole('link', { name: collection.label, exact: true })).toHaveAttribute('aria-current', 'page')
     await expect(page.locator('[data-overlay-host]')).toHaveCount(0)
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true)
