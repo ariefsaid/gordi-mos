@@ -166,7 +166,7 @@ export function ProcessOccurrenceControls({ workLineId, setupIncomplete = false,
           ) : null}
           {closeAllowed ? (
             <>
-              <Button variant="outline" onClick={() => openConfirmation('complete', summary)}>
+              <Button variant={startable.length === 0 && current.length === 1 ? 'primary' : 'outline'} onClick={() => openConfirmation('complete', summary)}>
                 {t('processes.occurrence.complete')}
               </Button>
               <Button variant="destructive" onClick={() => openConfirmation('cancel', summary)}>

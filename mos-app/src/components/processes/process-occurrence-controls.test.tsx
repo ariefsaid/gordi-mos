@@ -262,6 +262,15 @@ describe('ProcessOccurrenceControls', () => {
     expect(complete).not.toHaveClass('btn-primary')
   })
 
+  it('keeps Complete primary when the open run is the only available action', async () => {
+    mockListStartable.mockResolvedValue([])
+    renderControls()
+
+    const complete = await screen.findByRole('button', { name: 'Complete occurrence' })
+    expect(complete).toHaveClass('btn-primary')
+    expect(complete).not.toHaveClass('btn-outline')
+  })
+
   it('uses the runtime close authority for an open occurrence', async () => {
     const starterView = renderControls()
     expect(await screen.findByRole('button', { name: 'Complete occurrence' })).toBeInTheDocument()
