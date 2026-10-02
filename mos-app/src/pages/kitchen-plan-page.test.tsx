@@ -51,6 +51,12 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
 })
 import { listActiveWipItems, listCafeDestinations, listStreamItemIds, listStreamPairs } from '@/lib/db/kitchen-logs'
 
+vi.mock('@/lib/db/cafe-item-settings', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/db/cafe-item-settings')>('@/lib/db/cafe-item-settings')
+  return { ...actual, listCafeItemSettings: vi.fn() }
+})
+import { listCafeItemSettings } from '@/lib/db/cafe-item-settings'
+
 // shared.default_stream() (FR-001) — the viewer's own stream. #440: the plan surfaces resolve
 // their stream the way the capture surface always did, instead of guessing at the catalog.
 vi.mock('@/lib/db/default-stream', () => ({ fetchDefaultStream: vi.fn() }))
@@ -84,6 +90,7 @@ const mockBranches = vi.mocked(listActiveBranches)
 const mockStreamPairs = vi.mocked(listStreamPairs)
 const mockDestinations = vi.mocked(listCafeDestinations)
 const mockDefaultStream = vi.mocked(fetchDefaultStream)
+const mockCafeItemSettings = vi.mocked(listCafeItemSettings)
 
 const BRANCHES = [
   { id: 'branch-1', code: 'rumah_rames', name: 'Rumah Rames' },
@@ -167,6 +174,7 @@ beforeEach(() => {
   mockStreamPairs.mockResolvedValue(STREAM_PAIRS)
   mockDestinations.mockResolvedValue(DESTINATIONS)
   mockDefaultStream.mockResolvedValue(OWN_STREAM)
+  mockCafeItemSettings.mockResolvedValue([])
   mockPlans.mockResolvedValue([])
   mockPesanan.mockResolvedValue([])
   vi.mocked(listCafeViewerTeams).mockResolvedValue([])
@@ -413,6 +421,30 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
     expect(box).toHaveValue('')
     expect(screen.getByRole('status', { name: 'url' })).toHaveTextContent(/^$/)
     expect(screen.getByText('Ayam Bakar')).toBeInTheDocument()
+  })
+
+  it('uses stream MOS names and shows its default plus other allowed ERP details', async () => {
+    mockCafeItemSettings.mockResolvedValue([{
+      id: 'w1',
+      erpName: 'ERP Ayam Bakar',
+      mosName: 'House Chicken',
+      category: 'Main',
+      kind: 'WIP',
+      defaultUnitId: 'unit-kg',
+      units: [
+        { id: 'unit-kg', name: 'kg', isShown: true, isDefault: true, labelOrdinal: null, labelCount: 1 },
+        { id: 'unit-case', name: 'case', isShown: true, isDefault: false, labelOrdinal: null, labelCount: 1 },
+        { id: 'unit-hidden', name: 'hidden detail', isShown: false, isDefault: false, labelOrdinal: null, labelCount: 1 },
+      ],
+    }])
+    render(<KitchenPlanPage />, { wrapper })
+
+    await screen.findByText('House Chicken')
+    expect(mockCafeItemSettings).toHaveBeenCalledWith(OWN_STREAM)
+    expect(screen.getByText('kg')).toBeInTheDocument()
+    expect(screen.getByText('Also shown for logging: case')).toBeInTheDocument()
+    expect(screen.queryByText(/hidden detail/)).toBeNull()
+    expect(screen.queryByText('ERP Ayam Bakar')).toBeNull()
   })
 
   it('labels Plan rows as WIP and offers only enabled item kinds', async () => {
@@ -793,6 +825,28 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
     // 14-day horizon requested
     const [, days] = mockPesanan.mock.calls[0]
     expect(days).toBe(14)
+  })
+
+  it('member pesanan rows use the stream MOS name and allowed ERP detail labels', async () => {
+    mockPesanan.mockResolvedValue(PESANAN)
+    mockCafeItemSettings.mockResolvedValue([{
+      id: 'w1',
+      erpName: 'ERP Ayam Bakar',
+      mosName: 'House Chicken',
+      category: 'Main',
+      kind: 'WIP',
+      defaultUnitId: 'unit-porsi',
+      units: [
+        { id: 'unit-porsi', name: 'porsi', isShown: true, isDefault: true, labelOrdinal: null, labelCount: 1 },
+        { id: 'unit-case', name: 'case', isShown: true, isDefault: false, labelOrdinal: null, labelCount: 1 },
+      ],
+    }])
+    render(<KitchenPlanPage />, { wrapper })
+
+    await screen.findByText('House Chicken')
+    expect(screen.getByText('porsi')).toBeInTheDocument()
+    expect(screen.getByText('Also shown for logging: case')).toBeInTheDocument()
+    expect(screen.queryByText('ERP Ayam Bakar')).toBeNull()
   })
 
   it('AC-024: member NEVER gets edit/save affordances or calls the editor read/write', async () => {

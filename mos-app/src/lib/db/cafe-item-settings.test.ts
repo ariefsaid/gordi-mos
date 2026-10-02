@@ -5,7 +5,7 @@ import type { ProductionStream } from './kitchen-logs.types'
 import {
   canManageCafeItemSettings,
   listCafeItemSettings,
-  listCafeLogItems,
+  toCafeLogItem,
   saveCafeItemSettings,
 } from './cafe-item-settings'
 
@@ -24,6 +24,21 @@ function makeQuery(response: { data: unknown; error: unknown }) {
   query.order = vi.fn(() => query)
   query.then = (resolve: (value: unknown) => unknown) => Promise.resolve(response).then(resolve)
   return query
+}
+
+function mockSettingsReader(
+  readRows: unknown[],
+  configuredItemIds: string[] = [],
+  references: unknown[] = [],
+) {
+  const responses: Record<string, unknown[]> = {
+    cafe_item_settings_read: readRows,
+    cafe_item_settings: configuredItemIds.map(wip_item_id => ({ wip_item_id })),
+    cafe_item_references: references,
+  }
+  const from = vi.fn((table: string) => makeQuery({ data: responses[table], error: null }))
+  schemaMock.mockReturnValue({ from } as never)
+  return from
 }
 
 function rows() {
@@ -51,9 +66,9 @@ beforeEach(() => vi.clearAllMocks())
 
 describe('café item settings reader', () => {
   it('groups stream rows, keeps zero-detail items and disambiguates repeated ERP unit labels', async () => {
-    const query = makeQuery({ data: rows(), error: null })
-    const from = vi.fn(() => query)
-    schemaMock.mockReturnValue({ from } as never)
+    mockSettingsReader(rows(), ['item-1'], [
+      { item_id: 'item-2', item_unit_id: 'unit-c', is_default: false },
+    ])
 
     await expect(listCafeItemSettings(STREAM)).resolves.toEqual([
       {
@@ -70,31 +85,62 @@ describe('café item settings reader', () => {
       {
         id: 'item-2', erpName: 'ERP Salt', mosName: 'ERP Salt', category: 'Kitchen', kind: 'RAW',
         defaultUnitId: null,
-        units: [{ id: 'unit-c', name: 'bag', isShown: false, isDefault: false, labelOrdinal: null, labelCount: 1 }],
+        units: [{ id: 'unit-c', name: 'bag', isShown: true, isDefault: false, labelOrdinal: null, labelCount: 1 }],
       },
     ])
-    expect(from).toHaveBeenCalledWith('cafe_item_settings_read')
-    expect(query.eq).toHaveBeenNthCalledWith(1, 'branch_id', 'branch-1')
-    expect(query.eq).toHaveBeenNthCalledWith(2, 'activity', 'kitchen')
-    expect(query.select).toHaveBeenCalledWith(expect.not.stringContaining('esb_product'))
+    expect(schemaMock).toHaveBeenCalledWith('ops')
+    expect(schemaMock.mock.results[0].value.from).toHaveBeenCalledWith('cafe_item_settings_read')
+    expect(schemaMock.mock.results[0].value.from).toHaveBeenCalledWith('cafe_item_settings')
+    expect(schemaMock.mock.results[0].value.from).toHaveBeenCalledWith('cafe_item_references')
+    expect(schemaMock.mock.results[0].value.from.mock.results[0].value.eq).toHaveBeenNthCalledWith(1, 'branch_id', 'branch-1')
+    expect(schemaMock.mock.results[0].value.from.mock.results[0].value.eq).toHaveBeenNthCalledWith(2, 'activity', 'kitchen')
+    expect(schemaMock.mock.results[0].value.from.mock.results[0].value.select).toHaveBeenCalledWith(expect.not.stringContaining('esb_product'))
   })
 
-  it('returns configured log items only, and includes only shown ERP details', async () => {
+  it('converts configured settings to a default-first log item and omits items without a default', async () => {
     const loggableRows = rows().filter(row => row.item_id !== 'item-1').concat(rows().filter(row => row.item_id === 'item-1'))
-    const query = makeQuery({ data: loggableRows, error: null })
-    schemaMock.mockReturnValue({ from: vi.fn(() => query) } as never)
+    mockSettingsReader(loggableRows, ['item-1'])
 
-    await expect(listCafeLogItems(STREAM)).resolves.toEqual([{
+    const settings = await listCafeItemSettings(STREAM)
+    const configured = settings.find(item => item.id === 'item-1')
+    expect(configured).toBeDefined()
+    expect(toCafeLogItem(configured!)).toEqual({
       id: 'item-1',
       name: 'MOS Flour',
       category: 'Kitchen',
       kind: 'RAW',
       defaultUnit: { id: 'unit-b', name: 'kg' },
       units: [
-        { id: 'unit-a', name: 'kg', isDefault: false, labelOrdinal: 1, labelCount: 2 },
         { id: 'unit-b', name: 'kg', isDefault: true, labelOrdinal: 2, labelCount: 2 },
+        { id: 'unit-a', name: 'kg', isDefault: false, labelOrdinal: 1, labelCount: 2 },
+      ],
+    })
+    expect(settings.filter(item => item.id !== 'item-1').map(toCafeLogItem)).toEqual([null, null])
+  })
+
+  it('offers every ERP detail and uses the ERP default when the stream item has no settings row', async () => {
+    const readRows = [
+
+        { item_id: 'item-1', erp_name: 'ERP Flour', mos_name: 'ERP Flour', category: 'Kitchen', kind: 'RAW', item_unit_id: 'unit-a', unit_name: 'kg', default_item_unit_id: null, unit_is_default: false, unit_is_shown: false },
+        { item_id: 'item-1', erp_name: 'ERP Flour', mos_name: 'ERP Flour', category: 'Kitchen', kind: 'RAW', item_unit_id: 'unit-b', unit_name: 'bag', default_item_unit_id: null, unit_is_default: false, unit_is_shown: false },
+    ]
+    const references = [
+
+        { item_id: 'item-1', item_unit_id: 'unit-a', is_default: false },
+        { item_id: 'item-1', item_unit_id: 'unit-b', is_default: true },
+    ]
+    const from = mockSettingsReader(readRows, [], references)
+
+    await expect(listCafeItemSettings(STREAM)).resolves.toEqual([{
+      id: 'item-1', erpName: 'ERP Flour', mosName: 'ERP Flour', category: 'Kitchen', kind: 'RAW',
+      defaultUnitId: 'unit-b',
+      units: [
+        { id: 'unit-b', name: 'bag', isShown: true, isDefault: true, labelOrdinal: null, labelCount: 1 },
+        { id: 'unit-a', name: 'kg', isShown: true, isDefault: false, labelOrdinal: null, labelCount: 1 },
       ],
     }])
+    expect(from).toHaveBeenCalledWith('cafe_item_settings')
+    expect(from).toHaveBeenCalledWith('cafe_item_references')
   })
 
   it('fails closed on unknown kinds, inconsistent rows and failed reads', async () => {

@@ -18,6 +18,7 @@ import { OverlayHostProvider, OverlayHostSlot, useOptionalOverlayHost, type Over
 import { SignalComposerHost, useSignalComposer } from './signal-composer-host'
 import { createRecordDeepLinkResolver, RECORD_KINDS } from './record-deep-link-resolver'
 import { useDeputyOverlayCoexistence } from './deputy-overlay-coexistence'
+import { WorkCollectionSwitcher } from './work-collection-switcher'
 import { useT } from '@/i18n/use-t'
 
 // Mounted with the Signals surface, exactly as the deferral note here said it would be (#267).
@@ -233,6 +234,7 @@ function ShellContent() {
             {/* A read that fails because the network did renders its error HERE, inside the frame
                 — the rail, the header and the context row above are untouched. */}
             <ContentErrorBoundary>
+              <WorkCollectionSwitcher />
               <Outlet />
             </ContentErrorBoundary>
           </div>
