@@ -40,7 +40,7 @@
     overflow-wrap: anywhere;
   }
 
-  .work-collection-switcher__link[aria-current='page'] {
+  .work-collection-switcher__link[aria-current='location'] {
     border-bottom-color: var(--primary);
     color: var(--primary);
     font-weight: 600;
