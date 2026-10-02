@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Navigate, useLocation, useParams, useSearchParams } from 'react-router-dom'
+import { Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
 import { useAuth } from '@/auth/use-auth'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
@@ -73,6 +73,7 @@ function SignalsArchiveCollection() {
   const host = useOverlayHost()
   const auth = useAuth()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
+  const navigate = useNavigate()
   const isSplit = useIsWideOverlayWidth()
   const isDesktop = useIsDesktop()
   const [mobileOptionsOpen, setMobileOptionsOpen] = useState(false)
@@ -156,6 +157,16 @@ function SignalsArchiveCollection() {
     // swallowed by the previous session's suppression flag.
     suppressNextOpen.current = false
     hadSignalSession.current = false
+    if (!isDesktop) {
+      const next = new URLSearchParams(params)
+      next.delete('record')
+      const search = next.toString()
+      navigate({
+        pathname: `/work/signals/${record.id}`,
+        search: search ? `?${search}` : '',
+      })
+      return
+    }
     const next = new URLSearchParams(params)
     next.set('record', record.id)
     setParams(next)
@@ -528,7 +539,7 @@ export function SignalRecordPage() {
       hideHead
     >
       <RecordPageChrome
-        backTo={fromHome ? '/' : '/work/signals'}
+        backTo={fromHome ? '/' : { pathname: '/work/signals', search: location.search }}
         backLabel={fromHome ? t('dest.home') : t('nav.signals')}
         // #426 (mirror of TaskRecordPage): null until the record resolves, so no Ask Deputy
         // affordance renders with a bare stub seed.
