@@ -44,10 +44,11 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
     ...actual,
     listActiveWipItems: vi.fn(),
     listStreamPairs: vi.fn(),
+    listCafeDestinations: vi.fn(),
     listStreamItemIds: vi.fn(async () => ({ has: () => true })),
   }
 })
-import { listActiveWipItems, listStreamItemIds, listStreamPairs } from '@/lib/db/kitchen-logs'
+import { listActiveWipItems, listCafeDestinations, listStreamItemIds, listStreamPairs } from '@/lib/db/kitchen-logs'
 
 // shared.default_stream() (FR-001) — the viewer's own stream. #440: the plan surfaces resolve
 // their stream the way the capture surface always did, instead of guessing at the catalog.
@@ -71,7 +72,7 @@ import { listActiveBranches } from '@/lib/db/branches'
 import { KitchenPlanPage } from './kitchen-plan-page'
 import { rememberStream } from '@/lib/cafe-stream'
 import { resetCafeLocations } from '@/lib/cafe-opening-location'
-import type { WipItemOption, PlanCell, PesananRow } from '@/lib/db/kitchen-logs.types'
+import type { CafeDestination, WipItemOption, PlanCell, PesananRow } from '@/lib/db/kitchen-logs.types'
 
 const mockUseAuth = vi.mocked(useAuth)
 const mockItems = vi.mocked(listActiveWipItems)
@@ -80,6 +81,7 @@ const mockPesanan = vi.mocked(listPesanan)
 const mockUpsert = vi.mocked(upsertKitchenPlan)
 const mockBranches = vi.mocked(listActiveBranches)
 const mockStreamPairs = vi.mocked(listStreamPairs)
+const mockDestinations = vi.mocked(listCafeDestinations)
 const mockDefaultStream = vi.mocked(fetchDefaultStream)
 
 const BRANCHES = [
@@ -91,6 +93,11 @@ const STREAM_PAIRS = BRANCHES.flatMap(b => [
   { branch_id: b.id, activity: 'kitchen' as const, produces: b.id !== 'branch-2' },
   { branch_id: b.id, activity: 'bar' as const, produces: true },
 ])
+const DESTINATIONS: CafeDestination[] = [
+  { origin_branch_id: 'branch-1', origin_activity: 'kitchen', destination_branch_id: 'branch-2' },
+  { origin_branch_id: 'branch-1', origin_activity: 'bar', destination_branch_id: 'branch-2' },
+  { origin_branch_id: 'branch-2', origin_activity: 'bar', destination_branch_id: 'branch-1' },
+]
 const OWN_STREAM = { branch: BRANCHES[0], activity: 'kitchen' as const, produces: true }
 const RADIANT_KITCHEN = { branch: BRANCHES[1], activity: 'kitchen' as const, produces: false }
 const OWN_STREAM_BAR = { branch: BRANCHES[0], activity: 'bar' as const, produces: true }
@@ -157,6 +164,7 @@ beforeEach(() => {
   mockItems.mockResolvedValue(ITEMS)
   mockBranches.mockResolvedValue(BRANCHES)
   mockStreamPairs.mockResolvedValue(STREAM_PAIRS)
+  mockDestinations.mockResolvedValue(DESTINATIONS)
   mockDefaultStream.mockResolvedValue(OWN_STREAM)
   mockPlans.mockResolvedValue([])
   mockPesanan.mockResolvedValue([])

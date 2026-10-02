@@ -164,6 +164,8 @@ function WriteUpSurface({
   const updatedAtRef = useRef(initial.updatedAt)
   const dirtyRef = useRef(false)
   const inFlightRef = useRef(false)
+  const inFlightSnapshotRef = useRef<WriteUpBlocks | null>(null)
+  const savedSnapshotRef = useRef<WriteUpBlocks>(sanitizeWriteUp(editor.document))
   const conflictRef = useRef(false)
   const saveRef = useRef<HTMLButtonElement>(null)
   const dirtyCallbackRef = useRef(onDirtyChange)
@@ -177,32 +179,45 @@ function WriteUpSurface({
 
   // One explicit write per Save/Retry click: the latest snapshot as one logical document, one history
   // event. A click that arrives mid-flight is ignored (the bar says busy), never queued; edits typed
-  // mid-flight stay draft and wait for the next explicit Save. A Save with nothing new writes nothing.
+  // mid-flight stay draft and wait for the next explicit Save. Returning to the saved snapshot is clean.
   const flush = useCallback(async () => {
     if (!dirtyRef.current || conflictRef.current || inFlightRef.current) return
     inFlightRef.current = true
     setSaveState('saving')
     const snapshot = editor.document as WriteUpBlocks
+    inFlightSnapshotRef.current = sanitizeWriteUp(snapshot)
     dirtyRef.current = false
     let next: SaveState = 'saved'
     try {
       updatedAtRef.current = await saveWriteUp(objectiveId, snapshot, updatedAtRef.current)
+      savedSnapshotRef.current = sanitizeWriteUp(snapshot)
     } catch (error) {
-      dirtyRef.current = true
       if (error instanceof WriteUpConflictError) { conflictRef.current = true; next = 'conflict' }
       else next = error instanceof WriteUpTooLargeError ? 'tooLarge' : 'failed'
     }
     inFlightRef.current = false
-    if (next === 'saved' && dirtyRef.current) { setSaveState('draft'); return }
-    setSaveState(next)
-    if (next === 'saved') dirtyCallbackRef.current?.(false)
+    inFlightSnapshotRef.current = null
+    const dirty = JSON.stringify(sanitizeWriteUp(editor.document)) !== JSON.stringify(savedSnapshotRef.current)
+    dirtyRef.current = dirty
+    if (next !== 'saved' && !dirty && next !== 'conflict') next = 'saved'
+    setSaveState(dirty && next === 'saved' ? 'draft' : next)
+    dirtyCallbackRef.current?.(dirty)
   }, [editor, objectiveId])
 
   const onEdit = useCallback(() => {
     if (!editable || conflictRef.current) return
-    setDirty(true)
-    if (saveState !== 'saving') setSaveState('draft')
-  }, [editable, saveState, setDirty])
+    const baseline = inFlightSnapshotRef.current ?? savedSnapshotRef.current
+    const dirty = JSON.stringify(sanitizeWriteUp(editor.document)) !== JSON.stringify(baseline)
+    if (inFlightRef.current) {
+      dirtyRef.current = dirty
+      if (dirty) dirtyCallbackRef.current?.(true)
+      return
+    }
+    const wasDirty = dirtyRef.current
+    setDirty(dirty)
+    if (dirty) setSaveState('draft')
+    else if (wasDirty) setSaveState('saved')
+  }, [editable, editor, setDirty])
 
   // Escape hands focus to the bar's Save control; it never persists anything by itself — persistence
   // is the Save click, never a blur. It runs in the capture phase because the editor handles Escape

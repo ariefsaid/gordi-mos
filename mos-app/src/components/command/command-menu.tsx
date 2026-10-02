@@ -508,7 +508,7 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
                            drawer give the same destination, and the parent is supplementary
                            information about the row — which is what `aria-describedby` is for.
                            The idref resolves only while the parent row is rendered, which is the
-                           same condition that draws the indent. */
+                           same condition that marks the child rung. */
                         data-to={item.keepOpen ? undefined : item.to}
                         data-child={item.child ? 'true' : undefined}
                         aria-describedby={item.child ? item.parentId : undefined}

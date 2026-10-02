@@ -77,9 +77,3 @@
   .rp-task > :nth-child(4) { grid-area: due; }
   .rp-task > :nth-child(3) { grid-area: person; justify-self: start; }
 }
-
-/* A Process with no steps yet is told once, by the Get started row; the occurrence list keeps its own heading as the section title. */
-[data-setup-pending] .process-occurrence-controls__next-action { display: none; }
-.rp-section[data-record-section='occurrence'] .process-occurrence-controls__header h3 {
-  position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);
-}

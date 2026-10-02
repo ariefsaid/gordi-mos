@@ -28,6 +28,13 @@ select shared._test_seed_directory();
 select shared._test_seed_access_roles();
 select ops._test_seed_cafe();
 
+-- GHQ bar's configured cross-branch route is Cikal; add that branch so the seed bootstrap
+-- creates its bar stream and the corresponding route row for this fixture.
+insert into shared.branches (id, org_id, code, name) values
+  ('00000000-0000-0000-0000-00000000bf04','00000000-0000-0000-0000-0000000000a1','cikal','Cikal')
+on conflict (id) do nothing;
+select shared.seed_stream_teams();
+
 -- ── Stream memberships (the substrate the reviewer predicate rides — OD-WAY-49) ───────────────
 -- ops._test_seed_cafe() provisions the live catalog, so use its actual Team ids instead of
 -- creating duplicate (branch, activity) coordinates.
@@ -54,14 +61,14 @@ insert into shared.person_access_roles (org_id, person_id, access_role) values
 on conflict do nothing;
 
 -- ── Extra (GHQ, bar) rows: the reviewer's own queue, 2026-06-20 ──────────────────────────────
--- ac12 (produce, seeded) + ac13/ac14 (produce) + ac15 (transfer to Radiant). Same day as the
+-- ac12 (produce, seeded) + ac13/ac14 (produce) + ac15 (transfer to Cikal). Same day as the
 -- seeded (RRS, kitchen) queue on purpose: cross-STREAM isolation must be proven on one day.
 insert into ops.kitchen_logs
   (id, org_id, business_unit_id, log_date, branch_id, activity, action, destination_branch_id,
    wip_item_id, qty_porsi, status, submitted_by) values
   ('00000000-0000-0000-0000-00000000ac13','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','2026-06-20','00000000-0000-0000-0000-00000000bf01','bar','produce',null,'00000000-0000-0000-0000-00000000ab03',3,'Submitted','00000000-0000-0000-0000-0000000000d1'),
   ('00000000-0000-0000-0000-00000000ac14','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','2026-06-20','00000000-0000-0000-0000-00000000bf01','bar','produce',null,'00000000-0000-0000-0000-00000000ab01',5,'Submitted','00000000-0000-0000-0000-0000000000d1'),
-  ('00000000-0000-0000-0000-00000000ac15','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','2026-06-20','00000000-0000-0000-0000-00000000bf01','bar','transfer','00000000-0000-0000-0000-00000000bf03','00000000-0000-0000-0000-00000000ab03',2,'Submitted','00000000-0000-0000-0000-0000000000d1');
+  ('00000000-0000-0000-0000-00000000ac15','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','2026-06-20','00000000-0000-0000-0000-00000000bf01','bar','transfer','00000000-0000-0000-0000-00000000bf04','00000000-0000-0000-0000-00000000ab03',2,'Submitted','00000000-0000-0000-0000-0000000000d1');
 
 set local role authenticated;
 

@@ -1082,10 +1082,10 @@ describe('AC-K09: no-bleed + muted group labels', () => {
 })
 
 // ── #479: the child rung is a RELATIONSHIP, so it is drawn only while both ends are rendered ──
-// The rung (indent + hairline guide + muted step) says "this row hangs under the one above it".
+// The rung (indent + muted step) says "this row hangs under the one above it".
 // `child: true` is a registry fact — "Work declares this" — and survives filtering; the LICENCE to
-// draw the rung does not, because the query and the ship gate can each remove the parent. A guide
-// with nothing above it points at a row that is not there, which is worse than saying nothing.
+// show the rung does not, because the query and the ship gate can each remove the parent. A child
+// cue with nothing above it points at a row that is not there, which is worse than saying nothing.
 describe('Issue 479 — the child rung only claims a parent that is on screen', () => {
   const childRows = () =>
     Array.from(document.querySelectorAll('[role="option"][data-child="true"]'))
@@ -1118,7 +1118,7 @@ describe('Issue 479 — the child rung only claims a parent that is on screen', 
     // The two tests above assert the rung disappears when the parent goes. Nothing asserted it
     // SURVIVES — so "clear every rung whenever the query is non-empty", the fix a developer
     // reaches for after an orphaned-rung report, passed the whole suite while every child lost
-    // its indent, hairline and aria-describedby on the first keystroke.
+    // its indent and aria-describedby on the first keystroke.
     renderMenu()
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'o' } })
     // Precondition: "o" keeps BOTH ends on screen — Work and its children.
@@ -1127,7 +1127,7 @@ describe('Issue 479 — the child rung only claims a parent that is on screen', 
 
     // EVERY surviving child, not just the first: clearing the rung for all children except
     // /work/tasks passed 90/90 while query "o" rendered Work · Projects & Processes · Objectives
-    // with both children stripped of their indent, hairline and aria-describedby.
+    // with both children stripped of their indent and aria-describedby.
     // Selected by TARGET, not by the rung marker: childRows() matches [data-child="true"], so
     // asserting data-child on its results cannot come out red — a cleared rung leaves the
     // selector rather than failing the check. Rows are found by where they point instead.

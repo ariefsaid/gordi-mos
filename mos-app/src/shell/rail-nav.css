@@ -17,8 +17,8 @@
    single-class rules on one element have no tie-break, which is the scar this
    avoids. The ladder therefore holds at every rung, and active still wins.
 
-   Sizes come from the §Typography ramp; the icon dimensions and the indent
-   guide from the rail geometry tokens in index.css. No raw px or literal
+   Sizes come from the §Typography ramp; the icon dimensions and indent
+   geometry come from the rail tokens in index.css. No raw px or literal
    colour in the LADDER rules below (#425, #327); the pre-ladder blocks
    (tooltip, compact badge, coarse-pointer) still carry #425 ledger debt.
    ════════════════════════════════════════════════════════════════════════════ */
@@ -75,13 +75,11 @@
   transform: rotate(-90deg);
 }
 
-/* The child list's hairline indent guide (full-width rail only — the compact icon rail
-   has no indent to guide). Replaces the bare `pl-3`: the indent is now drawn, so a child
-   is visibly subordinate even where the type ladder is subtle. */
+/* Child rows stay subordinate through the existing type ladder and tokenized indent, without
+   another vertical rule running through every sibling. */
 .rail-item-children {
   margin-left: var(--rail-child-guide-x);
   padding-left: var(--rail-child-pad);
-  border-left: var(--rail-child-guide) solid var(--border);
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
