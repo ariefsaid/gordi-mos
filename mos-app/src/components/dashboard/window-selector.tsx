@@ -5,7 +5,7 @@
 // The range is bounded to the available snapshot window (FR-014 — dates outside [earliest, latest] are disabled).
 // Selecting a preset emits {kind:'preset', days:N}; changing a date emits
 // {kind:'custom', from, to}. Reuses the `seg` grammar (CutToggle's tablist shape).
-import { useRef, type KeyboardEvent } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import type { WindowSpec } from '@/lib/dashboard'
 import { seedBoundsRange } from '@/lib/trailing-window'
 import { useT } from '@/i18n/use-t'
@@ -55,6 +55,8 @@ export function WindowSelector({
   const options = ['7d', '30d', '60d', 'Range']
   const activeId = value.kind === 'preset' ? `${value.days}d` : 'Range'
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([])
+  const [rangeDraft, setRangeDraft] = useState<{ from: string; to: string } | null>(null)
+  useEffect(() => setRangeDraft(null), [value])
 
   const handleKeyDown = (e: KeyboardEvent<HTMLButtonElement>, index: number) => {
     let nextIndex: number | null = null
@@ -91,6 +93,9 @@ export function WindowSelector({
   }
 
   const isCustom = value.kind === 'custom'
+  const rangeValue: WindowSpec = isCustom && rangeDraft
+    ? { kind: 'custom', ...rangeDraft }
+    : value
 
   return (
     <div className="window-selector">
@@ -125,9 +130,15 @@ export function WindowSelector({
 
       {isCustom && !hideRange && (
         <WindowRangeFields
-          value={value}
+          value={rangeValue}
           onChange={(next) => {
-            if (next.kind === 'custom' && next.from !== '' && next.to !== '') onChange(next)
+            if (next.kind !== 'custom') return
+            if (next.from === '' || next.to === '') {
+              setRangeDraft({ from: next.from, to: next.to })
+            } else {
+              setRangeDraft(null)
+              onChange(next)
+            }
           }}
           bounds={bounds}
         />

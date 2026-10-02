@@ -1,5 +1,6 @@
 // GlobalToolbar tests — the one toolbar above both tabs (design-plan §2.8, FR-011/AC-011).
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { useState } from 'react'
 import { render, screen, fireEvent, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { readFileSync } from 'node:fs'
@@ -21,6 +22,19 @@ function stubViewport(desktop: boolean) {
       addEventListener: () => {}, removeEventListener: () => {}, dispatchEvent: () => false,
     }),
   })
+}
+
+function ControlledToolbar({ onApplied }: { onApplied: (spec: WindowSpec) => void }) {
+  const [windowSpec, setWindowSpec] = useState<WindowSpec>(CUSTOM)
+  return (
+    <GlobalToolbar
+      cut="Branch"
+      onCutChange={vi.fn()}
+      window={windowSpec}
+      onWindowChange={spec => { onApplied(spec); setWindowSpec(spec) }}
+      bounds={BOUNDS}
+    />
+  )
 }
 
 beforeEach(() => {
@@ -249,6 +263,25 @@ describe('GlobalToolbar (AC-011)', () => {
     // Day-first display of the clamped seed (#1191) — the sheet focuses the From field, so the
     // editable dd/mm/yyyy digits show rather than the formatted rest display.
     expect(from).toHaveValue('26/06/2026')
+  })
+
+  it('AC-050: desktop keeps sibling date edits locally until both range ends are present', () => {
+    stubViewport(true)
+    const onApplied = vi.fn()
+    render(<ControlledToolbar onApplied={onApplied} />)
+    const from = screen.getByLabelText('From')
+    const to = screen.getByLabelText('To')
+
+    fireEvent.change(from, { target: { value: '' } })
+    expect(onApplied).not.toHaveBeenCalled()
+    fireEvent.change(to, { target: { value: '2026-06-25' } })
+    expect(onApplied).not.toHaveBeenCalled()
+    expect(from).toHaveValue('')
+    expect(to).toHaveValue('25 Jun 2026')
+
+    fireEvent.change(from, { target: { value: '2026-06-10' } })
+    expect(onApplied).toHaveBeenCalledTimes(1)
+    expect(onApplied).toHaveBeenCalledWith({ kind: 'custom', from: '2026-06-10', to: '2026-06-25' })
   })
 
   it('on desktop the range pair stays inline beside the seg — no sheet, no separate row', () => {
