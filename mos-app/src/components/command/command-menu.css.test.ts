@@ -308,24 +308,21 @@ describe('AC-D02: command-menu group labels use the muted/tertiary ramp, not the
 /**
  * The palette is a FLAT list, and it lists the Work PARENT row ("Work" → /work/tasks) directly
  * above the Tasks CHILD row (→ /work/tasks). Two adjacent rows, one target: if they render at one
- * weight with one indent, the second row has no visible reason to exist. The rail and the drawer
- * are spared this only because their children sit inside a drawn indent guide.
+ * weight with one indent, the second row has no visible reason to exist. Indent and type step-down
+ * keep the hierarchy legible without adding another vertical hairline to the palette.
  *
- * DESIGN.md § The Rail Type Ladder binds the answer — "the ladder is per-level, not per-surface":
- * a child wears the Child rung wherever it is listed. So `data-child` must actually carry that
- * rung here, expressed in the shared grammar (type ramp + `--rail-*` geometry tokens) rather than
- * in numbers minted for this one stylesheet.
+ * `data-child` carries the Child rung wherever it is listed, expressed in the shared grammar
+ * (type ramp + `--rail-*` geometry tokens) rather than in numbers minted for this stylesheet.
  *
  * Asserted at the CSS SOURCE, like AC-D01/AC-D02 above: jsdom applies no stylesheet, so a
  * rendered-DOM assertion here would pass against an empty rule.
  */
-describe('the ⌘K palette carries the ladder Child rung on data-child rows', () => {
-  it('a child row is indented behind the hairline guide, not merely padded', () => {
+describe('the ⌘K palette carries the ladder Child rung without a hairline', () => {
+  it('a child row keeps its tokenized indent and padding, with no border guide', () => {
     for (const media of MEDIA) {
       expect(value(CHILD.row, 'margin-left', media), at(media)).toBe('var(--rail-child-guide-x)')
-      expect(value(CHILD.row, 'border-left-width', media), at(media)).toBe('var(--rail-child-guide)')
-      expect(value(CHILD.row, 'border-left-style', media), at(media)).toBe('solid')
-      expect(value(CHILD.row, 'border-left-color', media), at(media)).toBe('var(--border)')
+      expect(value(CHILD.row, 'border-left-width', media), at(media)).toBe('0')
+      expect(value(CHILD.row, 'border-left-style', media), at(media)).toBe('none')
       expect(value(CHILD.row, 'padding-left', media), at(media)).toBe('var(--rail-child-pad)')
     }
   })
@@ -375,7 +372,7 @@ describe('the ⌘K palette carries the ladder Child rung on data-child rows', ()
   it('the rung declares nothing beyond the steps the ladder names', () => {
     const allowed = new Set([
       'margin-left', 'padding-left', 'font-size', 'font-weight', 'color',
-      'border-left-width', 'border-left-style', 'border-left-color',
+      'border-left-width', 'border-left-style',
       'border-top-left-radius', 'border-bottom-left-radius',
     ])
     const strays = [...new Set(RUNG.filter((d) => d.part === 'row').map((d) => d.prop))].filter((p) => !allowed.has(p))

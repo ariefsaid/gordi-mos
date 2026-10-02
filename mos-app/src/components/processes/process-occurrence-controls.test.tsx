@@ -88,18 +88,18 @@ function auth(viewerId = VIEWER_ID, accessRoles = ['member']): AuthState {
   }
 }
 
-function controlsTree(workLineId = WORK_LINE_ID, setupIncomplete = false, canManageSetup = false) {
+function controlsTree(workLineId = WORK_LINE_ID, setupIncomplete = false, canManageSetup = false, recordContext = false) {
   return (
     <MemoryRouter>
       <I18nProvider>
-        <ProcessOccurrenceControls workLineId={workLineId} setupIncomplete={setupIncomplete} canManageSetup={canManageSetup} onViewTasks={vi.fn()} />
+        <ProcessOccurrenceControls workLineId={workLineId} setupIncomplete={setupIncomplete} canManageSetup={canManageSetup} recordContext={recordContext} onViewTasks={vi.fn()} />
       </I18nProvider>
     </MemoryRouter>
   )
 }
 
-function renderControls(workLineId = WORK_LINE_ID, setupIncomplete = false, canManageSetup = false) {
-  return render(controlsTree(workLineId, setupIncomplete, canManageSetup))
+function renderControls(workLineId = WORK_LINE_ID, setupIncomplete = false, canManageSetup = false, recordContext = false) {
+  return render(controlsTree(workLineId, setupIncomplete, canManageSetup, recordContext))
 }
 
 function deferred<T>() {
@@ -134,15 +134,17 @@ describe('ProcessOccurrenceControls', () => {
     renderControls(WORK_LINE_ID, true)
 
     expect(await screen.findByRole('note')).toHaveTextContent('Ask a Process manager to add and activate at least one step before starting a run.')
-    expect(screen.getByText('No occurrences have been started yet.')).toBeInTheDocument()
+    expect(screen.queryByText('No occurrences have been started yet.')).toBeNull()
   })
 
-  it('gives a manager a direct recovery path to the Steps tab', async () => {
+  it('leaves setup guidance to the record Get started region for a manager', async () => {
     mockListOccurrences.mockResolvedValue([])
     mockListStartable.mockResolvedValue([])
     renderControls(WORK_LINE_ID, true, true)
 
-    expect(await screen.findByRole('note')).toHaveTextContent('Add a step first, then start a run.')
+    await waitFor(() => expect(screen.queryByRole('status', { name: 'Loading occurrences' })).toBeNull())
+    expect(screen.queryByRole('note')).toBeNull()
+    expect(screen.queryByText('No occurrences have been started yet.')).toBeNull()
   })
 
   it('shows the owning Team, task/overdue/to-assign counts, View tasks, and member Start', async () => {
@@ -158,6 +160,37 @@ describe('ProcessOccurrenceControls', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Start · Café Operations' }))
     expect(mockStartRun).toHaveBeenCalledWith(WORK_LINE_ID, TEAM_ID, '2026-07-18')
+  })
+
+  it('uses the parent record heading once and leaves the one Start action in the header', async () => {
+    mockListOccurrences.mockResolvedValue([RUN])
+    renderControls(WORK_LINE_ID, false, false, true)
+
+    expect(await screen.findByRole('heading', { level: 4, name: '17 Jul 2026' })).toBeInTheDocument()
+    expect(screen.queryByText('Café Opening · 17 Jul 2026')).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Occurrences' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Start · Café Operations' })).toBeNull()
+    expect(screen.getByText('Café Operations · Open')).toBeInTheDocument()
+  })
+
+  it('keeps cancelled runs in a collapsed Past occurrences disclosure, separate from Ready to start', async () => {
+    const cancelled = {
+      ...RUN,
+      run: { ...RUN.run, status: 'cancelled' as const, cancelled_at: '2026-07-17T10:00:00Z', cancelled_by: VIEWER_ID, cancel_reason: 'Merged into the event.' },
+      rollup: { ...RUN.rollup, status: 'cancelled' as const },
+    }
+    mockListOccurrences.mockResolvedValue([cancelled])
+    renderControls(WORK_LINE_ID, false, false, true)
+
+    await screen.findByRole('heading', { name: 'Ready to start' })
+    const ready = document.querySelector('.process-occurrence-controls__start') as HTMLElement
+    expect(await within(ready).findByText('Café Operations')).toBeInTheDocument()
+    expect(within(ready).queryByText('Cancelled')).toBeNull()
+    const history = screen.getByRole('button', { name: /Past occurrences/ })
+    expect(history).toHaveTextContent('1')
+    expect(screen.queryByText('Café Operations · Cancelled')).toBeNull()
+    await userEvent.click(history)
+    expect(await screen.findByText('Café Operations · Cancelled')).toBeInTheDocument()
   })
 
   // #805: no Process-to-Team relation exists, so the start list is narrowed to the viewer's own
@@ -210,6 +243,9 @@ describe('ProcessOccurrenceControls', () => {
     }])
     renderControls()
 
+    const past = await screen.findByRole('button', { name: /Past occurrences/ })
+    expect(past).toHaveAttribute('aria-expanded', 'false')
+    await userEvent.click(past)
     expect(await screen.findByText('Café Opening · 17 Jul 2026')).toBeInTheDocument()
     expect(screen.getByText('1 to assign')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '1 to assign' })).not.toBeInTheDocument()

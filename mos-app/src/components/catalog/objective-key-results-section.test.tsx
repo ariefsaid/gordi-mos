@@ -435,32 +435,35 @@ describe('key result form', () => {
 })
 
 describe('the record drives the section', () => {
-  it('reports its count, and stays out of the way while empty when the setup region owns the action', async () => {
+  it('reports its count and keeps the empty section visible while Get started owns the action', async () => {
     vi.mocked(listKeyResults).mockResolvedValue([])
     const onCount = vi.fn()
-    renderSection(ADMIN, { hideWhenEmpty: true, onCount })
+    renderSection(ADMIN, { addOwnedBySetup: true, onCount })
     await waitFor(() => expect(onCount).toHaveBeenLastCalledWith(0))
-    expect(screen.queryByRole('region', { name: 'Key results' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Add key result' })).toBeNull()
+    const section = screen.getByRole('region', { name: 'Key results' })
+    expect(section).toHaveTextContent('No key results yet.')
+    expect(within(section).queryByRole('button', { name: 'Add key result' })).toBeNull()
   })
 
-  it('opens a blank row each time the record asks, even while hidden', async () => {
+  it('opens a blank row each time the record asks while Get started owns the action', async () => {
     vi.mocked(listKeyResults).mockResolvedValue([])
-    const view = renderSection(ADMIN, { hideWhenEmpty: true, openAddToken: 0 })
+    const view = renderSection(ADMIN, { addOwnedBySetup: true, openAddToken: 0 })
     await waitFor(() => expect(getPeople).toHaveBeenCalled())
     view.rerender(
       <I18nProvider>
-        <ObjectiveKeyResultsSection objectiveId="obj-1" businessUnitId="bu-1" archived={false} scopes={ADMIN} hideWhenEmpty openAddToken={1} />
+        <ObjectiveKeyResultsSection objectiveId="obj-1" businessUnitId="bu-1" archived={false} scopes={ADMIN} addOwnedBySetup openAddToken={1} />
       </I18nProvider>,
     )
     expect(await screen.findByRole('textbox', { name: 'Key result' })).toHaveFocus()
   })
 
-  it('omits an empty section for a viewer who cannot add to it', async () => {
+  it('shows the empty state to a reader without offering a write action', async () => {
     vi.mocked(listKeyResults).mockResolvedValue([])
     const onCount = vi.fn()
     renderSection(MEMBER, { onCount })
     await waitFor(() => expect(onCount).toHaveBeenLastCalledWith(0))
-    expect(screen.queryByRole('region', { name: 'Key results' })).toBeNull()
+    const section = screen.getByRole('region', { name: 'Key results' })
+    expect(section).toHaveTextContent('No key results yet.')
+    expect(within(section).queryByRole('button', { name: 'Add key result' })).toBeNull()
   })
 })

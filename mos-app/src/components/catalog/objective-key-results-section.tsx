@@ -28,8 +28,8 @@ export type ObjectiveKeyResultsSectionProps = {
   /** Where the viewer's write-scope lookup stands; a person who may edit is never shown read-only copy while it is unknown. */
   scopesStatus?: 'loading' | 'ready' | 'error'
   onRetryScopes?: () => void
-  /** The record's Get started region owns an empty section's action; the section stays out of the way. */
-  hideWhenEmpty?: boolean
+  /** The record's Get started region owns Add while there are no key results. */
+  addOwnedBySetup?: boolean
   /** Reports the loaded count (null while loading or failed) so the record can decide what is still missing. */
   onCount?: (count: number | null) => void
   /** Each increase opens a blank key-result row for an admin. */
@@ -45,7 +45,7 @@ export type ObjectiveKeyResultsSectionProps = {
  */
 export function ObjectiveKeyResultsSection({
   objectiveId, businessUnitId, isCompanyWide, archived, scopes, scopesStatus = 'ready', onRetryScopes,
-  hideWhenEmpty = false, onCount, openAddToken = 0, onAddClosed,
+  addOwnedBySetup = false, onCount, openAddToken = 0, onAddClosed,
 }: ObjectiveKeyResultsSectionProps) {
   const t = useT()
   const [rows, setRows] = useState<KeyResultRow[]>([])
@@ -148,23 +148,20 @@ export function ObjectiveKeyResultsSection({
     setAdding(false)
   }
 
-  const visible = !hideWhenEmpty || rows.length > 0 || adding || status !== 'ready'
-  if (!visible) return null
-
-  // A viewer who can neither add nor edit has nothing to add to an empty section: the header says so, once.
-  if (status === 'ready' && rows.length === 0 && !adding && !canManage) return null
-
   return (
     <RecordSection
       id="key-results"
       title={t('objective.keyResults.title')}
       count={status === 'ready' && rows.length > 0 ? rows.length : undefined}
-      action={canManage && status === 'ready' && !adding ? { label: t('objective.keyResults.add'), onClick: () => { setEditingId(null); setAdding(true) } } : undefined}
+      action={canManage && status === 'ready' && !adding && !addOwnedBySetup ? { label: t('objective.keyResults.add'), onClick: () => { setEditingId(null); setAdding(true) } } : undefined}
     >
       {scopesStatus === 'error' ? <ErrorState message={t('objective.keyResults.permissionsError')} onRetry={onRetryScopes} /> : null}
       {status === 'loading' ? <LoadingShell label={t('catalog.record.loading')} count={1} /> : null}
       {status === 'error' ? <ErrorState message={t('objective.keyResults.loadError')} onRetry={() => setReload((n) => n + 1)} /> : null}
       {peopleFailed ? <ErrorState message={t('objective.keyResults.peopleError')} onRetry={() => setPeopleReload((n) => n + 1)} /> : null}
+      {status === 'ready' && rows.length === 0 && !adding ? (
+        <p className="objective-key-results__empty">{t('objective.keyResults.empty')}</p>
+      ) : null}
       {status === 'ready' ? (
         <ul className="rp-rows objective-key-results__list">
           {rows.map((row) => (

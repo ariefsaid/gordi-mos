@@ -149,7 +149,6 @@
 .rp-section__head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-height: 32px; margin-bottom: 8px; }
 .rp-section__head .rp-section__action { margin-inline-start: auto; }
 .rp-section__title { white-space: nowrap; }
-.rp--panel .rp-count-extra { display: none; }
 .rp-section__title { margin: 0; font-family: var(--font-display); font-size: var(--font-size-body-lg); font-weight: 600; color: var(--foreground); }
 .rp-section__count { font-size: var(--font-size-body); font-weight: 400; color: var(--muted-foreground); }
 .rp-section__title > .rp-section__count { margin-inline-start: 8px; }
