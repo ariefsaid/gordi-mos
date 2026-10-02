@@ -464,6 +464,7 @@ as $$
 declare
   v_log ops.kitchen_logs;
   v_wip ops.wip_items;
+  v_item_unit ops.item_units;
   v_prefix text;
   v_next_n integer;
   v_batch_id text;
@@ -541,12 +542,22 @@ begin
   end if;
 
   select * into v_wip from ops.wip_items where id = v_log.wip_item_id;
+  if v_log.item_unit_id is not null then
+    select * into v_item_unit from ops.item_units
+     where id = v_log.item_unit_id
+       and org_id = v_log.org_id
+       and wip_item_id = v_log.wip_item_id;
+  end if;
   select b.code into v_branch_code from shared.branches b where b.id = v_log.branch_id;
   select b.code into v_dest_code from shared.branches b where b.id = v_log.destination_branch_id;
   v_endpoint := ops.esb_endpoint_for(v_log.action, v_log.branch_id, v_log.destination_branch_id);
   v_payload := jsonb_build_object(
     'batch_id', v_batch_id, 'log_date', v_log.log_date, 'wip_item_id', v_log.wip_item_id,
-    'esb_bom_id', v_wip.esb_bom_id, 'esb_product_detail_id_porsi', v_wip.esb_product_detail_id_porsi,
+    'esb_bom_id', v_wip.esb_bom_id,
+    'esb_product_detail_id_porsi', coalesce(
+      v_item_unit.esb_product_detail_id,
+      v_wip.esb_product_detail_id_porsi
+    ),
     'qty_porsi', v_log.qty_porsi, 'action', v_log.action, 'activity', v_log.activity,
     'branch_id', v_log.branch_id, 'branch_code', v_branch_code,
     'destination_branch_id', v_log.destination_branch_id, 'destination_branch_code', v_dest_code);
@@ -560,7 +571,7 @@ begin
 end;
 $$;
 comment on function ops.approve_kitchen_log(uuid, text) is
-  'Atomic review approval. Production/transfers retain the existing batch, stock and outbox behavior. Waste preserves its ERP product-detail unit and recorded quantity, recomputes stock, returns NULL, and exits before any batch mint or integrations.esb_push insert pending verified waste mapping. SECURITY DEFINER.';
+  'Atomic Café approval and outbox enqueue. The captured item_unit_id supplies the ERP product detail in the existing worker payload; logs without a binding keep the legacy item coordinate. The row stream reviewer or ops_lead/admin remains the approval authority. Waste rows require private photo evidence, preserve their recorded ERP unit and quantity, recompute stock, return NULL, and exit before batch mint or integrations.esb_push while waste mapping is unverified. SECURITY DEFINER.';
 revoke execute on function ops.approve_kitchen_log(uuid, text) from public, anon, authenticated;
 grant execute on function ops.approve_kitchen_log(uuid, text) to authenticated;
 
