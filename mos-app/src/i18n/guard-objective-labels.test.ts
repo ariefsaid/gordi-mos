@@ -46,6 +46,10 @@ describe('Objective labels have real Indonesian values', () => {
     expect(objectiveKeys.filter((key) => key.startsWith('objective.keyResults.')).length).toBeGreaterThan(10)
   })
 
+  it('uses the approved Indonesian key-result due label', () => {
+    expect(id['objective.keyResults.due']).toBe('Jatuh tempo')
+  })
+
   it('each id value keeps the placeholders of its English source', () => {
     const drift = objectiveKeys.filter((key) => placeholders(id[key] ?? '').join() !== placeholders(en[key] ?? '').join())
     expect(drift, `placeholder mismatch: ${drift.join(', ')}`).toEqual([])

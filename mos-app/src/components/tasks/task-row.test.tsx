@@ -74,6 +74,9 @@ function installTaskStyles() {
   return () => style.remove()
 }
 
+const supervisorFocusRule = () => readFileSync(resolve(process.cwd(), 'src/components/tasks/TasksWorkspace.css'), 'utf8')
+  .split('.supervisor-cell-stop:focus-visible')[1]?.split('}')[0] ?? ''
+
 // ── Issue 997: the ONE column list (spec AC-001/002/003) ─────────────────────────────
 // The rendered <td> chain, the TanStack visible-leaf derivation and taskTableColumnSpan
 // must all agree for EVERY Fields combination — this is the regression guard for the old
@@ -307,6 +310,10 @@ describe('TaskRow — AC-021 person-cell grammar (PIC + Supervisor)', () => {
     expect(cell.querySelector('.ownav')).toBeNull()
     expect(cell.textContent).toBe('—')
   })
+})
+
+describe('TaskRow — Supervisor cell focus ring', () => {
+  it('uses the shared ring token', () => expect(supervisorFocusRule()).toMatch(/outline:\s*2px solid var\(--ring\)/))
 })
 
 describe('TaskRow — stopPropagation regression (⋯ must NOT fire row onOpen)', () => {
