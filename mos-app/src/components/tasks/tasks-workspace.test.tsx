@@ -1222,6 +1222,41 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
     expect(screen.queryByText(/match these filters/i)).not.toBeInTheDocument()
   })
 
+  it('explains Team work when the viewer has no active Team and omits false filter/create actions', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ id: 'outside', team_id: 'another-team' })])
+    vi.mocked(getPersonTeams).mockResolvedValue([])
+    renderTable({}, teamScopedState, ['/work/tasks?view=team-work'])
+
+    const empty = await screen.findByRole('region', { name: 'No Team work yet' })
+    expect(empty).toHaveTextContent('not currently on an active Team')
+    expect(empty).toHaveTextContent('Ask an admin to add you')
+    expect(within(empty).queryByRole('button', { name: /clear filters/i })).toBeNull()
+    expect(within(empty).queryByRole('link', { name: /create task/i })).toBeNull()
+  })
+
+  it('explains that Team work is empty when the viewer has a Team but no matching tasks', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ id: 'outside', team_id: 'another-team' })])
+    vi.mocked(getPersonTeams).mockResolvedValue(VIEWER_TEAMS)
+    renderTable({}, teamScopedState, ['/work/tasks?view=team-work'])
+
+    const empty = await screen.findByRole('region', { name: 'No Team work yet' })
+    expect(empty).toHaveTextContent('No tasks for your Teams yet')
+    expect(empty).toHaveTextContent('Create one for a current Team, or switch to My work')
+    expect(within(empty).queryByRole('button', { name: /clear filters/i })).toBeNull()
+  })
+
+  it('keeps filtered-empty behavior when a real filter narrows Team work', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ id: 'outside', team_id: 'another-team' })])
+    vi.mocked(getPersonTeams).mockResolvedValue(VIEWER_TEAMS)
+    renderTable({}, teamScopedState, ['/work/tasks?view=team-work'])
+    await screen.findByRole('button', { name: 'Team work' })
+    fireEvent.change(screen.getByLabelText('Search tasks'), { target: { value: 'no-match' } })
+
+    expect(await screen.findByText(/no tasks match these filters/i)).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /clear filters/i }).length).toBeGreaterThan(0)
+    expect(screen.queryByRole('region', { name: 'No Team work yet' })).toBeNull()
+  })
+
   // DD-NAME-1 review: the Mine copy ("No tasks assigned to you") is only true for an empty
   // saved Mine view with no additional filters. Once an actual task filter is active — a Person
   // who isn't you, the Overdue view, or a search inside My work — the shared "No tasks match
