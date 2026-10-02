@@ -1,3 +1,6 @@
+import { APP_RELEASE_PROFILE } from './app-build-settings'
+import { isProfileFeatureAvailable } from './build-settings'
+
 // Feature flags — temporarily hide sections that aren't ready for the first rollout
 // (owner-directed 2026-06-17). Each flag gates EVERYTHING for its section: the rail nav
 // entry, the route (redirects to My Week when off), and any My Week surfaces that reference
@@ -6,10 +9,14 @@
 // route redirects to / when off. Flip true to enable /dev/views for a rollout cohort.
 export const SHOW_USER_VIEWS = true
 
+// The profile switch changes visibility only. Task/Process authorization and the server's access
+// rules are intentionally unchanged; Cafe keeps the capabilities its workflows depend on.
+export const SHOW_WORK_COLLECTIONS = isProfileFeatureAvailable('workCollections', APP_RELEASE_PROFILE)
+
 // ADR-0018 P2 — the deputy assistant panel + runtime (FR-P2-CF-003). Hide-first: the panel, FAB,
 // top-bar button, and AgentRuntimeProvider all short-circuit to null/no-op when this is false.
-// Flip true (local/staging only) to enable the deputy for a rollout cohort.
-export const SHOW_ASSISTANT = true
+// Cafe builds omit Deputy while the full build keeps its existing default.
+export const SHOW_ASSISTANT = isProfileFeatureAvailable('deputy', APP_RELEASE_PROFILE)
 
 // ADR-0019 D9 / ADR-0044 — the Inbox destination (notifications). RETIRED: Inbox is
 // unconditionally live. #188 made the rail entry, the bottom tab and the header bell
