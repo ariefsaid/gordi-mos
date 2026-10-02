@@ -5,6 +5,7 @@ import { act, render, renderHook, screen, waitFor } from '@testing-library/react
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { OverlayHostProvider } from '@/shell/overlay-host'
+import { APP_ROUTER_BASENAME, appUrl } from '@/config/app-build-settings'
 import { useCatalogRecordEntryFactory, useCatalogRecordOverlay } from './use-catalog-record-overlay'
 
 function wrapper({ children }: { children: React.ReactNode }) {
@@ -84,7 +85,7 @@ function Collection() {
   const overlay = useCatalogRecordOverlay({ collectionKind: 'objective', onCollectionChanged: () => {} })
   return (
     <>
-      <a className="catalog-collection__row-link" href="/mos/work/objectives/o1">Objective one</a>
+      <a className="catalog-collection__row-link" href={appUrl('/work/objectives/o1')}>Objective one</a>
       {overlay.slot}
     </>
   )
@@ -93,7 +94,14 @@ function Collection() {
 function renderCollection(initialEntries: string[], initialIndex: number) {
   const router = createMemoryRouter(
     [{ path: '*', element: <I18nProvider><OverlayHostProvider><Collection /></OverlayHostProvider></I18nProvider> }],
-    { initialEntries, initialIndex },
+    {
+      basename: APP_ROUTER_BASENAME,
+      initialEntries: initialEntries.map((entry) => {
+        const url = new URL(entry, 'http://localhost')
+        return `${appUrl(url.pathname)}${url.search}${url.hash}`
+      }),
+      initialIndex,
+    },
   )
   render(<RouterProvider router={router} />)
   return router

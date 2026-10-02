@@ -24,7 +24,7 @@ import {
 } from './runtime'
 
 const context = {
-  route: '/mos/work/tasks',
+  route: '/work/tasks',
   journey: 'tasks-create',
   fixture: 'BAR_MEMBER',
   viewport: 'desktop-1440x900',

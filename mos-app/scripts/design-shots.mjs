@@ -34,9 +34,10 @@
 import { chromium } from '@playwright/test'
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { normalizeBasePath } from '../src/config/build-settings.ts'
 
 // ── Config (env, with the defaults the task calls for) ────────────────────────────────────────────
-const BASE_URL = process.env.BASE_URL || 'http://localhost:4173/mos/'
+const BASE_URL = process.env.BASE_URL || `http://localhost:4173${normalizeBasePath(process.env.VITE_BASE_PATH)}`
 const ROUTES = (process.env.ROUTES ||
   // dev's actual surface set — NOT v4-redesign's. The port added routes v4 never had
   // (Signals is routed; Café has Log/Plan/Stock/Review/Pushes; Ecommerce + Roastery exist
@@ -79,10 +80,8 @@ function fail(msg) {
   console.error(`[design-shots] FAIL: ${msg}`)
 }
 
-/** Join BASE_URL (assumed to already include the app base path, e.g. http://host:port/mos/) with a
- *  route like "/" or "/work/tasks", without letting an absolute-path route drop the base path the
- *  way `new URL('/work/tasks', 'http://host/mos/')` would (URL resolution treats a leading "/" as
- *  root-relative, which would silently strip "/mos"). */
+/** Join BASE_URL (which already includes the configured app base path) with a route such as "/".
+ *  Absolute URL resolution would drop the base path from a leading-slash route. */
 function joinUrl(base, route) {
   const b = base.endsWith('/') ? base.slice(0, -1) : base
   const r = route.startsWith('/') ? route : `/${route}`

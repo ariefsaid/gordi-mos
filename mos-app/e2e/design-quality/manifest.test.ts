@@ -198,7 +198,7 @@ test('the report writer emits stable, candidate-bound JSON and CSV artifacts', a
 
   await writer.writeJson('manifest.json', { cells: [] })
   await writer.writeCsv('geometry.csv', [
-    { route: '/mos/work/tasks', width: '390', overflow: '0' },
+    { route: '/work/tasks', width: '390', overflow: '0' },
   ])
   const validation = await validateArtifactSet(outputDir, {
     candidateSha: 'a'.repeat(40),
@@ -487,8 +487,8 @@ test('CSV evidence accepts product copy containing pending or placeholder', () =
     `# candidate_sha=${'a'.repeat(40)}`,
     '# session_id=a1b2c3d4',
     'route,copy',
-    '/mos/cafe,Pending review on Submit',
-    '/mos/work/tasks,Placeholder shown in training copy',
+    '/cafe,Pending review on Submit',
+    '/work/tasks,Placeholder shown in training copy',
   ].join('\n')
 
   assert.deepEqual(meaningfulCsv('copy-census.csv', csv), { ok: true })

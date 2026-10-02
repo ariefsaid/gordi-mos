@@ -1,5 +1,5 @@
 // KitchenPlanPage tests — TDD, AC-tagged.
-// S2 — /mos/kitchen/plan — the plan EDITOR (ops_lead/admin) + the read-only
+// S2 — /cafe/plan — the plan EDITOR (ops_lead/admin) + the read-only
 // 14-day "pesanan" HORIZON (member). Design authority: design-plan §S2.
 // Proves (unit): AC-024 (member sees the 14-day forward horizon read-only — no
 // logging/approve affordance), FR-030/031 (ops_lead edits a cell → upsert, the
@@ -20,6 +20,7 @@ import { MemoryRouter, useLocation } from 'react-router-dom'
 import { createElement, type ReactNode } from 'react'
 import type { AuthState } from '@/auth/context'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import { APP_ROUTER_BASENAME, appUrl } from '@/config/app-build-settings'
 
 // PageFamilyFrame (the v4 shell chrome this page ports to — #197) calls useLocation()
 // unconditionally, so every render needs Router context, not just the ones that render a
@@ -198,14 +199,14 @@ describe('KitchenPlanPage — auth', () => {
   it('unauthenticated: prompts sign-in, never reads', async () => {
     mockUseAuth.mockReturnValue({ status: 'unauthenticated' } as AuthState)
     render(
-      <MemoryRouter basename="/mos" initialEntries={['/mos/kitchen/plan']}>
+      <MemoryRouter basename={APP_ROUTER_BASENAME} initialEntries={[appUrl('/cafe/plan')]}>
         <KitchenPlanPage />
       </MemoryRouter>,
     )
     const link = await screen.findByRole('link', { name: /sign in/i })
     expect(link).toBeInTheDocument()
-    // Link must resolve via the SPA router (basename applied) — not a raw href that skips /mos
-    expect(link).toHaveAttribute('href', '/mos/login')
+    // Link must resolve via the SPA router with the configured build base path.
+    expect(link).toHaveAttribute('href', appUrl('/login'))
     expect(mockPlans).not.toHaveBeenCalled()
     expect(mockPesanan).not.toHaveBeenCalled()
   })
