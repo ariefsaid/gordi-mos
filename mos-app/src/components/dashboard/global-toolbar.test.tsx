@@ -1,6 +1,7 @@
 // GlobalToolbar tests — the one toolbar above both tabs (design-plan §2.8, FR-011/AC-011).
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { GlobalToolbar } from './global-toolbar'
@@ -132,6 +133,12 @@ describe('GlobalToolbar (AC-011)', () => {
     expect(css).not.toMatch(/flex-wrap:\s*nowrap/)
   })
 
+  it('keeps phone range date text at the 16px touch-input token', () => {
+    const css = readFileSync(resolve(process.cwd(), 'src/components/dashboard/window-selector.css'), 'utf8')
+    const phone = css.slice(css.lastIndexOf('@media (max-width: 767.98px)'))
+    expect(phone).toMatch(/\.window-selector-range \.mk-date__field\s*\{[^}]*font-size:\s*var\(--font-size-touch-input\)/)
+  })
+
   it('AC-050 (#804): on phone, Range opens a From · To · Apply sheet — and Apply is what commits the window', () => {
     const onWindowChange = vi.fn()
     render(
@@ -163,6 +170,33 @@ describe('GlobalToolbar (AC-011)', () => {
     fireEvent.click(apply)
     expect(onWindowChange).toHaveBeenCalledWith({ kind: 'custom', from: '2026-06-10', to: BOUNDS.latest })
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('does not apply a phone range when its From date is emptied', async () => {
+    const onWindowChange = vi.fn()
+    render(
+      <GlobalToolbar
+        cut="Branch"
+        onCutChange={vi.fn()}
+        window={WINDOW}
+        onWindowChange={onWindowChange}
+        bounds={BOUNDS}
+      />,
+    )
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Range' }))
+    const sheet = screen.getByRole('dialog', { name: /custom range/i })
+    const from = within(sheet).getByLabelText('From')
+    const apply = within(sheet).getByRole('button', { name: 'Apply' })
+
+    await user.clear(from)
+    await user.tab()
+
+    expect(within(sheet).getByRole('alert')).toHaveTextContent(/enter a date/i)
+    expect(apply).toBeDisabled()
+    await user.click(apply)
+    expect(onWindowChange).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog', { name: /custom range/i })).toBeInTheDocument()
   })
 
   it('AC-050 (#804): the phone cut axis stays on screen while the Range sheet is open — one pair of date fields, never two', () => {

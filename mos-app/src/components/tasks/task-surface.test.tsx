@@ -51,6 +51,7 @@ import { getBusinessUnits, getPeople, getDownlinePersonIds } from '@/lib/db/dire
 import * as directoryApi from '@/lib/db/directory'
 import { listComments, postComment } from '@/lib/comments/postComment'
 import { TaskSurface } from './task-surface'
+import { APP_ROUTER_BASENAME, appUrl } from '@/config/app-build-settings'
 import { listObjectives, readObjective } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
 
@@ -390,7 +391,7 @@ describe('TaskSurface — view mode', () => {
     mockGetTask.mockResolvedValue({ task: makeTask({ responsible_person_id: 'other-id', accountable_person_id: VIEWER_ID }), checklist: [], events: [] })
     render(
       <AuthContext.Provider value={authedState}>
-        <MemoryRouter basename="/mos" initialEntries={['/mos/work/tasks?record=task-abc']}>
+        <MemoryRouter basename={APP_ROUTER_BASENAME} initialEntries={[`${appUrl('/work/tasks')}?record=task-abc`]}>
           <TaskSurface taskId="task-abc" mode="view" width="full" />
         </MemoryRouter>
       </AuthContext.Provider>,
@@ -400,7 +401,7 @@ describe('TaskSurface — view mode', () => {
     fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
     fireEvent.click(screen.getByRole('menuitem', { name: 'Copy link' }))
 
-    expect(writeText).toHaveBeenCalledWith(new URL('/mos/work/tasks/task-abc', window.location.origin).href)
+    expect(writeText).toHaveBeenCalledWith(new URL(appUrl('/work/tasks/task-abc'), window.location.origin).href)
   })
 
   it('AC-R05: full width keeps the archived banner + Unarchive above the two columns', async () => {

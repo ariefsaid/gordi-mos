@@ -1,4 +1,4 @@
-// PricingPage — /mos/plan/pricing (ADR-0022 D5). The pre-flight margin check: a candidate price × the
+// PricingPage — /plan/pricing (ADR-0022 D5). The pre-flight margin check: a candidate price × the
 // LINKED certified budgeted COGS -> projected gross margin + margin-%. Read-only — MOS NEVER writes a
 // price (the price still lands in ecommerce/POS). Fail-loud freshness/certification warning when the
 // cost basis is stale or uncertified (anchor A7). Warn-only margin floor (D5/OQ-3).

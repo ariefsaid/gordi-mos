@@ -615,7 +615,7 @@ describe('TaskRow — inline editor names follow the locale', () => {
 
   it.each([
     ['en', ['Edit task status', 'Edit task PIC', 'Edit task due date', 'Due date']],
-    ['id', ['Ubah status tugas', 'Ubah PIC tugas', 'Ubah tenggat tugas', 'Tenggat']],
+    ['id', ['Ubah status tugas', 'Ubah PIC tugas', 'Ubah tanggal jatuh tempo tugas', 'Tanggal jatuh tempo']],
   ] as const)('%s', async (locale, [status, pic, dueTrigger, dueInput]) => {
     render(
       <I18nProvider initialLocale={locale}>

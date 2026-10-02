@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { ADMIN } from './fixtures/users'
 import { loginAs } from './helpers/login'
 import { TAP_FLOOR } from './helpers/tap-floor'
+import { stripE2eBasePath } from './helpers/app-path'
 import { ROUTE_PARITY_CATALOG, type RouteParityId } from '../src/shell/route-parity'
 
 // This catalog is the production route manifest's parity policy. The route census compares it
@@ -40,7 +41,7 @@ const LEGACY_REDIRECTS = [
 
 function normalizeHref(href: string): string {
   const url = new URL(href)
-  return `${url.pathname.replace(/^\/mos/, '') || '/'}${url.search}`
+  return `${stripE2eBasePath(url.pathname)}${url.search}`
 }
 
 async function visibleSurfaceHrefs(page: Page): Promise<Set<string>> {
@@ -68,7 +69,7 @@ async function assertCanonicalSurface(page: Page, route: string) {
   await page.goto(route === '/' ? '' : route.slice(1))
   await expect.poll(() => {
     const url = new URL(page.url())
-    return url.pathname.replace(/^\/mos/, '') || '/'
+    return stripE2eBasePath(url.pathname)
   }).toBe(route)
   const breadcrumb = page.getByRole('navigation', { name: 'Breadcrumb' })
   const routeEntry = ROUTE_CATALOG.find((entry) => entry.path === route)
@@ -122,7 +123,7 @@ test.describe('PROOF-02 canonical route and visible-root parity', () => {
           await page.goto('')
           await assertCanonicalSurface(page, journey.route)
           await page.goBack()
-          await expect(page).toHaveURL(/\/mos\/?$/)
+          await expect.poll(() => stripE2eBasePath(new URL(page.url()).pathname)).toBe('/')
           await expect(page.locator('[aria-current="page"]')).toHaveCount(1)
           await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toContainText(/Home/)
         })
@@ -149,7 +150,7 @@ test.describe('PROOF-02 canonical route and visible-root parity', () => {
         await expect(page).toHaveURL(redirect.canonical)
         await expect(page.locator('[aria-current="page"]')).toHaveCount(1)
         await page.goBack()
-        await expect(page).not.toHaveURL(new RegExp(`/mos/${redirect.oldPath.replaceAll('/', '\\/')}$`))
+        await expect.poll(() => stripE2eBasePath(new URL(page.url()).pathname)).not.toBe(`/${redirect.oldPath}`)
       }
     })
   }

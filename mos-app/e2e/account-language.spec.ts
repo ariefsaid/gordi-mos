@@ -8,6 +8,7 @@ import { localSql } from './helpers/local-sql'
 import { localSqlRead } from './helpers/local-sql-read'
 import { personPreferenceCleanupSql } from './fixtures/cleanup'
 import { TASKS } from './fixtures/tasks'
+import { e2eAppPath } from './helpers/app-path'
 
 const A = ADMIN
 const B = BAR_SUPERVISOR
@@ -99,7 +100,7 @@ test('a return route belongs to the session that parked it', async ({ page }) =>
   await expect(page).toHaveURL(new RegExp(TASKS.VIEWER_ACCOUNTABLE.id))
   await signOut(page, A.displayName)
   await signInHere(page, B)
-  await expect(page).toHaveURL(/\/mos\/?$/)
+  await expect(page).toHaveURL(new URL(e2eAppPath('/'), page.url()).href)
 
   // A signed-out visitor who opens a deep link still arrives there after signing in.
   await signOut(page, B.displayName)

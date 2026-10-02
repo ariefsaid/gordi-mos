@@ -30,6 +30,7 @@
   .window-selector-range {
     height: auto;
   }
+
 }
 
 /* Custom date-pair — input-bordered chip shell holding two day-first DateFields. Bounded by
@@ -69,6 +70,11 @@
 }
 .window-selector-range .mk-date--error .mk-date__box { border-color: var(--destructive); }
 .window-selector-range .mk-date__field { font-size: var(--font-size-mono); }
+
+@media (max-width: 767.98px) {
+  .window-selector-range .mk-date__box { width: 160px; }
+  .window-selector-range .mk-date__field { font-size: var(--font-size-touch-input); }
+}
 
 /* The deferred Range tab's disclosure chevron (the ONE shared icon) sits beside its label. */
 .window-selector-caret {

@@ -277,12 +277,14 @@
 }
 
 .record-field__date .mk-date__hint {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  z-index: var(--z-popover);
-  padding: 2px 4px;
-  background: var(--card);
+  position: static;
+  align-self: flex-end;
+  padding: 0;
+  background: transparent;
+}
+
+.record-field__date .mk-date__field {
+  min-width: 10ch;
 }
 
 /* Reserve feedback height only once there is feedback to show (saving/saved/error) — an

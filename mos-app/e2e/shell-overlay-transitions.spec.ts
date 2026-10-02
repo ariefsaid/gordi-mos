@@ -3,6 +3,7 @@
 import { test, expect, type Locator, type Page } from '@playwright/test'
 import { loginAs } from './helpers/login'
 import { DEMO_PASSWORD } from '../src/pages/demo-personas'
+import { stripE2eBasePath } from './helpers/app-path'
 
 const DIRECTOR = 'dewi.dev@example.test'
 const DESKTOP = { width: 1440, height: 900 }
@@ -195,7 +196,7 @@ test.describe('shell overlay transitions', () => {
     await expect(recordPanel(page)).toHaveCount(0)
 
     await page.goBack()
-    await expect(page).toHaveURL(/\/mos\/?$/)
+    await expect.poll(() => stripE2eBasePath(new URL(page.url()).pathname)).toBe('/')
     await expect(panel).toHaveAttribute('data-overlay-entry', `signal:${id}`)
 
     await page.goForward()
@@ -310,7 +311,7 @@ test.describe('shell overlay transitions', () => {
     await expect(recordPanel(page)).toHaveCount(0)
     await expect(row).toBeFocused()
     await rail(page).getByRole('link', { name: 'Home' }).click()
-    await expect(page).toHaveURL(/\/mos\/?$/)
+    await expect.poll(() => stripE2eBasePath(new URL(page.url()).pathname)).toBe('/')
 
     const mainBefore = await box(page.locator('#main-content'))
     await deputyButton(page).click()

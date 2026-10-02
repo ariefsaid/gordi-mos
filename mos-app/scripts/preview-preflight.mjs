@@ -4,6 +4,7 @@ import { execFileSync } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { normalizeBasePath, stripBasePath } from '../src/config/build-settings.ts'
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex')
@@ -19,7 +20,13 @@ export function assertBuildIdentity(identity, sha, entry) {
   if (identity.sha !== sha || identity.clean !== true) {
     throw new Error('build identity is stale or was built from a dirty checkout')
   }
-  if (!identity.assets?.['index.html'] || !identity.assets?.[entry.replace(/^\/mos\//, '')]) {
+  const basePath = normalizeBasePath(identity.basePath)
+  const entryUrl = new URL(entry, 'http://localhost')
+  if (entryUrl.origin !== 'http://localhost' || (basePath !== '/' && !entryUrl.pathname.startsWith(basePath))) {
+    throw new Error('build entry is outside its configured base path')
+  }
+  const entryPath = stripBasePath(entryUrl.pathname, basePath).replace(/^\//, '')
+  if (!identity.assets?.['index.html'] || !identity.assets?.[entryPath]) {
     throw new Error('build identity does not cover the HTML and entry asset')
   }
 }

@@ -38,7 +38,7 @@ test('AC-001: shell cross-section navigation and reload', async ({ page }) => {
   // src/i18n/messages.ts home.greeting.*), so no fixed heading name can match it. The stable
   // anchor is the document title below, set unconditionally by
   // useDocumentTitle(t('common.docTitle')) in src/pages/home-page.tsx.
-  await expect(page).toHaveURL(/\/$|\/mos\/?$/)
+  await expect(page).toHaveURL(/\/$/)
   // toHaveTitle auto-retries — document.title is set by a React effect, not synchronously with the URL.
   await expect(page).toHaveTitle('Home — Gordi MOS')
   await expect(nav.getByRole('link', { name: 'Home' })).toHaveAttribute('aria-current', 'page')

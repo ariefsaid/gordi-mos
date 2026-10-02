@@ -4,6 +4,7 @@ import { MANAGER, ADMIN } from './fixtures/users'
 import { AC204, TASKS } from './fixtures/tasks'
 import { stubAccountLocale } from './helpers/account-locale'
 import { TASKS_SPLIT_MIN_WIDTH } from '../src/shell/use-is-split-width'
+import { stripE2eBasePath } from './helpers/app-path'
 
 const LONG_SIGNAL = 'A long Signal leaf title that stays readable without breaking a word across the record header boundary'
 // A Signal heading is its first line cut at 72 characters (SIGNAL_TITLE_MAX); the full text
@@ -70,7 +71,7 @@ test.describe('bounded visual and interaction acceptance', () => {
       await expect(page.locator('.signal-message-body')).toHaveText(LONG_SIGNAL)
       await capture(`home-signal-page-${width}`, page)
       await page.getByRole('link', { name: 'Back to Home', exact: true }).click()
-      await expect(page).toHaveURL(/\/mos\/?$/)
+      await expect.poll(() => stripE2eBasePath(new URL(page.url()).pathname)).toBe('/')
     }
   })
 
