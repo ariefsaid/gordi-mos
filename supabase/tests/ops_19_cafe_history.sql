@@ -1,5 +1,5 @@
--- ops — batch 2e of the change-history rollout (#990): the seven Café tables (log_entries,
--- kitchen_logs, kitchen_plans, wip_items, item_units, stream_completeness, stream_items) write
+-- ops — Café tables participating in the change-history rollout (#990), now including the
+-- per-stream item settings and selected ERP details, write
 -- shared.record_history through the one generic trigger; the two trigger-owned clocks on
 -- kitchen_logs (reviewed_at, posted_at) leave no trace while the human actions beside them
 -- (the review itself, the ERP dispatch record) stay RECORDED; and the schema's one authenticated
@@ -83,8 +83,9 @@ select set_eq(
       where n2.nspname = 'ops' and p.proname = '_record_history_write'
         and not t.tgisinternal $$,
   $$ values ('log_entries'), ('kitchen_logs'), ('kitchen_plans'), ('wip_items'),
-            ('item_units'), ('stream_completeness'), ('stream_items') $$,
-  'exactly the seven Café tables carry the one history trigger, and no other ops table does');
+            ('item_units'), ('stream_completeness'), ('stream_items'),
+            ('cafe_item_settings'), ('cafe_item_setting_units') $$,
+  'exactly the registered Café tables carry the one history trigger, and no other ops table does');
 
 -- The affiliation gate (20260905000001) requires a current stream-Team membership (or the
 -- ops_lead/admin tier) on the café INSERT arms. Give the submitter persona the membership the

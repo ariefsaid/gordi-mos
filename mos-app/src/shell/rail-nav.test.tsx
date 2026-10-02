@@ -362,6 +362,7 @@ describe('AC-009: aria-current — Work parent location, child page (at /work/si
     ['/cafe', 'Log'],
     ['/cafe/plan', 'Plan'],
     ['/cafe/stock', 'Stock'],
+    ['/cafe/items', 'Items'],
     ['/cafe/review', 'Review'],
     ['/cafe/pushes', 'Pushes'],
   ] as const)('at %s, the active Café sub-tab carries page and the Café parent carries location, exactly one page', (path, label) => {
