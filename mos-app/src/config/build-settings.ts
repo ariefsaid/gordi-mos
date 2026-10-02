@@ -1,5 +1,12 @@
 export const BASE_PATH_ENV = 'VITE_BASE_PATH'
 export const DEFAULT_BASE_PATH = '/'
+export const RELEASE_PROFILE_ENV = 'VITE_RELEASE_PROFILE'
+export const DEFAULT_RELEASE_PROFILE: ReleaseProfile = 'full'
+
+export type ReleaseProfile = 'full' | 'cafe'
+export type ProfileFeature = 'workCollections' | 'deputy'
+
+const CAFE_PROFILE_BLOCKED_PATHS = ['/work', '/tasks', '/updates', '/objectives', '/projects-processes'] as const
 
 const LEGACY_CAFE_DESTINATIONS: Readonly<Record<string, string>> = {
   '/kitchen': '/cafe',
@@ -28,8 +35,32 @@ export function normalizeBasePath(value: string | undefined = DEFAULT_BASE_PATH)
   return `/${segments.join('/')}/`
 }
 
-export function resolveBuildSettings(env: BuildEnvironment): { basePath: string } {
-  return { basePath: normalizeBasePath(env[BASE_PATH_ENV]) }
+export function resolveBuildSettings(env: BuildEnvironment): { basePath: string; profile: ReleaseProfile } {
+  const profile = env[RELEASE_PROFILE_ENV]?.trim() || DEFAULT_RELEASE_PROFILE
+  if (profile !== 'full' && profile !== 'cafe') {
+    throw new Error(`${RELEASE_PROFILE_ENV} must be "full" or "cafe"`)
+  }
+  return { basePath: normalizeBasePath(env[BASE_PATH_ENV]), profile }
+}
+
+/** Work collections are outside the Café payload, while shared support and Café routes remain. */
+export function isProfilePathAvailable(path: string, profile: ReleaseProfile): boolean {
+  const pathname = path.split('#')[0].split('?')[0]
+  return profile === 'full' || (pathname !== '/' && !CAFE_PROFILE_BLOCKED_PATHS.some(
+    (blocked) => pathname === blocked || pathname.startsWith(`${blocked}/`),
+  ))
+}
+
+/**
+ * Work collections and Deputy are UI capabilities, not authorization roles. The Cafe release
+ * omits both while leaving Task/Process services available to the Café workflows that need them.
+ */
+export function isProfileFeatureAvailable(_feature: ProfileFeature, profile: ReleaseProfile): boolean {
+  return profile === 'full'
+}
+
+export function profileLandingPath(profile: ReleaseProfile): string {
+  return profile === 'cafe' ? '/cafe' : '/'
 }
 
 export function routerBasename(basePath: string): string {

@@ -2,22 +2,50 @@ import { describe, expect, it } from 'vitest'
 import {
   BASE_PATH_ENV,
   DEFAULT_BASE_PATH,
+  DEFAULT_RELEASE_PROFILE,
+  RELEASE_PROFILE_ENV,
   appManifest,
   appPath,
   cloudflareRedirects,
   legacyRedirectDestination,
+  isProfileFeatureAvailable,
+  isProfilePathAvailable,
   normalizeBasePath,
+  profileLandingPath,
   resolveBuildSettings,
   routerBasename,
   stripBasePath,
 } from './build-settings'
 
 describe('build path setting', () => {
-  it('defaults to the site root and normalizes a configured path once', () => {
+  it('defaults to the site root and full profile, and normalizes a configured path once', () => {
     expect(DEFAULT_BASE_PATH).toBe('/')
+    expect(DEFAULT_RELEASE_PROFILE).toBe('full')
+    expect(RELEASE_PROFILE_ENV).toBe('VITE_RELEASE_PROFILE')
     expect(resolveBuildSettings({}).basePath).toBe('/')
+    expect(resolveBuildSettings({}).profile).toBe('full')
     expect(resolveBuildSettings({ [BASE_PATH_ENV]: '/preview' }).basePath).toBe('/preview/')
     expect(resolveBuildSettings({ [BASE_PATH_ENV]: '/preview/' }).basePath).toBe('/preview/')
+  })
+
+  it('selects the cafe release profile at build time and rejects unknown profiles', () => {
+    expect(resolveBuildSettings({ VITE_RELEASE_PROFILE: 'cafe' }).profile).toBe('cafe')
+    expect(() => resolveBuildSettings({ VITE_RELEASE_PROFILE: 'preview' })).toThrow(/VITE_RELEASE_PROFILE/)
+  })
+
+  it('keeps only Cafe paths and support capabilities in the cafe release profile', () => {
+    expect(isProfilePathAvailable('/work/tasks/task-1?view=mine', 'cafe')).toBe(false)
+    expect(isProfilePathAvailable('/work/signals', 'cafe')).toBe(false)
+    expect(isProfilePathAvailable('/workshop', 'cafe')).toBe(true)
+    expect(isProfilePathAvailable('/', 'cafe')).toBe(false)
+    expect(isProfilePathAvailable('/cafe/plan', 'cafe')).toBe(true)
+    expect(isProfilePathAvailable('/admin/people', 'cafe')).toBe(true)
+    expect(isProfilePathAvailable('/work/tasks', 'full')).toBe(true)
+    expect(isProfileFeatureAvailable('workCollections', 'cafe')).toBe(false)
+    expect(isProfileFeatureAvailable('deputy', 'cafe')).toBe(false)
+    expect(isProfileFeatureAvailable('workCollections', 'full')).toBe(true)
+    expect(profileLandingPath('cafe')).toBe('/cafe')
+    expect(profileLandingPath('full')).toBe('/')
   })
 
   it.each(['https://example.test/app/', '/app//nested/', '/app?mode=test', '/app/../other']) (
