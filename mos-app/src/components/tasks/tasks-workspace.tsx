@@ -961,7 +961,7 @@ export function TasksWorkspace({
       titleHelp={<HelpTip label={`${t('job.tasks')} ${t('job.tasksHelp')}`} />}
       headClassName="tasks-page-head"
       state={frameState}
-      action={showNewTask ? (
+      action={showNewTask && !draftTask ? (
         <button
           ref={(node) => { createControlRef.current = node }}
           type="button"
