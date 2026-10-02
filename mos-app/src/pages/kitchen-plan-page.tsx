@@ -513,7 +513,7 @@ function PlanEditor() {
       {/* #401 / DD-WAY-40: Plan is an ACT surface — its figures render as the DESIGN.md
           Metric summary rule: one inline line, no card, no width branch, never a tile
           row (OD-WAY-74 #2). No delta: a capture band has no state worth acting on. */}
-      {load.kind === 'ready' && items.length > 0 && (
+      {load.kind === 'ready' && stream !== null && items.length > 0 && (
         <MetricSummaryRule
           ariaLabel={t(summary.ariaLabel)}
           metrics={summary.metrics.map(m => ({ key: m.key, label: t(m.label), value: m.value }))}

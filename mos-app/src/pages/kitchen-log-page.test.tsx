@@ -1534,18 +1534,33 @@ describe('OD-K-5: Discard resets staged entries (confirmed)', () => {
 
 // task 10f — sticky-footer tally reads {stagedCount} dishes · {madeSoFar} units
 describe('OD-K-5: sticky-footer tally', () => {
-  it('tally reads the staged dish count + units made so far', async () => {
+  it('tally reads the staged dish count + units made so far beside a single full-width submit action', async () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
-    // stage Ayam Bakar (plan=20) to 20 → stagedCount=1, madeSoFar=20
     const ayamInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    const nasiInput = screen.getByRole('spinbutton', { name: /quantity produced for nasi goreng/i })
     fireEvent.change(ayamInput, { target: { value: '20' } })
+    fireEvent.change(nasiInput, { target: { value: '12' } })
 
-    expect(screen.getByText(/1 item/i)).toBeInTheDocument()
+    const footer = document.querySelector('.kl-footer') as HTMLElement
+    expect(within(footer).getByText(/2 items/i)).toBeInTheDocument()
     // The footer states the unit in the SAME word the rows themselves use ("porsi") rather
     // than an English translation of it ("portions").
-    expect(screen.getByText(/20 porsi/i)).toBeInTheDocument()
+    expect(within(footer).getByText(/32 porsi/i)).toBeInTheDocument()
+    expect(within(footer).getByRole('button', { name: /^discard$/i })).toHaveClass('kl-discard-link')
+    expect(within(footer).getByRole('button', { name: /submit 2/i })).toHaveClass('kl-submit')
+    expect(footer.querySelector('.kl-footer-actions')).toBeNull()
+  })
+
+  it('shows the zero count, but no Discard link, before anything is staged', async () => {
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    const footer = document.querySelector('.kl-footer') as HTMLElement
+    expect(within(footer).getByText(/0 items/i)).toBeInTheDocument()
+    expect(within(footer).getByRole('button', { name: /^submit$/i })).toBeDisabled()
+    expect(within(footer).queryByRole('button', { name: /^discard$/i })).not.toBeInTheDocument()
   })
 })
 
@@ -2507,6 +2522,7 @@ describe('OD-CAFE-1 — the root Log is location-bound without the Opening wrapp
     ])
     await renderPage()
     await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
+    expect(document.querySelector('.msr')).toBeNull()
 
     const group = screen.getByRole('group', { name: /production stream/i })
     const offered = labels(within(group).getAllByRole('button'))

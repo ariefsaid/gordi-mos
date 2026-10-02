@@ -877,6 +877,9 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   // block is the OWN read-only state, unrelated to the stream choice) and `!streamNonProducing`
   // (that state has its own receiving-only notice).
   const noStreamChosen = canCapture && streamMissing && !streamNonProducing
+  // On the live capture form, explain offline blocking once in the sticky band. States with no
+  // band (no stream, receiving-only, loading/error, or empty catalog) keep the page banner.
+  const showOfflineInFooter = !isOnline && !streamNonProducing && !(noStreamChosen && !streamOutsideLocation)
 
   // Scrolls to and focuses the first blocked item's note field — the footer's pointer names a
   // count and is itself the destination that scrolls to and focuses the first missing note.
@@ -1137,7 +1140,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
         {/* GAP-4/#9: staged-but-unsubmitted quantities must not vanish on navigation — prompt
             stay/discard when leaving the route with unsaved entries. */}
         <RouteLeaveGuard when={stagedCount > 0} message={t('kitchen.log.leave.confirm')} />
-        <OfflineBanner show={!isOnline} />
+        <OfflineBanner show={!isOnline && !showOfflineInFooter} />
         {/* The Location/opening door and the Plan/Made/Off-plan figures dock into one compact
             context header so the summary reads as that header's own figures, never an orphan
             line floating with no container of its own. Falls back to the plain band (unchanged)
@@ -1147,7 +1150,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
           <div className="kl-context">
             {leading}
             {/* R4 / FR-018: derived from submitted actuals only — staged typing never moves it. */}
-            {status.kind === 'ready' && wipItems.length > 0 && transferDestinationChosen && (
+            {status.kind === 'ready' && stream !== null && wipItems.length > 0 && transferDestinationChosen && (
               <div className="kl-context-summary">
                 <MetricSummaryRule
                   ariaLabel={t('kitchen.log.summary.aria')}
@@ -1158,7 +1161,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
             )}
           </div>
         ) : (
-          status.kind === 'ready' && wipItems.length > 0 && transferDestinationChosen && (
+          status.kind === 'ready' && stream !== null && wipItems.length > 0 && transferDestinationChosen && (
             <MetricSummaryRule
               ariaLabel={t('kitchen.log.summary.aria')}
               metrics={summaryMetrics}
@@ -1219,13 +1222,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
           ) : (
             <>
               {logToolbar}
-              {mode === 'transfer' && !transferDestinationChosen ? (
-                <p className="kl-submit-reason" role="status">
-                  {movementOptions.length > 0
-                    ? t('kitchen.transfer.destination.prompt')
-                    : t('kitchen.transfer.destination.none')}
-                </p>
-              ) : logTable}
+              {mode === 'transfer' && !transferDestinationChosen ? null : logTable}
             </>
           )}
 
@@ -1253,6 +1250,11 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
             {submitError && (
               <p role="alert" className="kl-submit-outcome kl-submit-outcome--error">{submitError}</p>
             )}
+            {showOfflineInFooter && (
+              <p role="alert" aria-label={t('kitchen.log.offline.aria')} className="kl-submit-reason">
+                {t('kitchen.log.offline.banner')}
+              </p>
+            )}
             {status.kind === 'success' && (
               <p role="status" aria-live="polite" className="kl-submit-outcome kl-submit-outcome--success">
                 {t(status.count === 1 ? 'kitchen.log.success.one' : 'kitchen.log.success.other', { count: status.count })}
@@ -1261,18 +1263,31 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
             {!canCapture && (
               <p className="kl-submit-reason" role="status">{t('kitchen.log.readOnlyReason')}</p>
             )}
-            {/* The tally is a claim about staged work; with none staged there is nothing to
-                state, so it does not render "0 items · 0 porsi" noise beside a disabled Submit
-                that already says nothing is staged. */}
-            {!captureClosed && stagedCount > 0 && (
-              <div className="kl-tally">
+            <div className="kl-footer-count-row">
+              <div className="kl-tally" aria-live="polite">
                 <span className="kl-tally-num tabular">
                   {t(stagedCount === 1 ? 'kitchen.log.footer.item.one' : 'kitchen.log.footer.item.other', { count: stagedCount })}
                   {' · '}
                   {t(stagedKpis.madeSoFar === 1 ? 'kitchen.log.footer.unit.one' : 'kitchen.log.footer.unit.other', { count: stagedKpis.madeSoFar })}
                 </span>
-                <span className="kl-tally-sub">{t('kitchen.log.footer.reviewNext')}</span>
               </div>
+              {stagedCount > 0 && (
+                <button
+                  type="button"
+                  className="kl-discard-link"
+                  onClick={handleDiscardClick}
+                  disabled={isSubmitting}
+                >
+                  {t('kitchen.log.discard')}
+                </button>
+              )}
+            </div>
+            {mode === 'transfer' && stream !== null && !transferDestinationChosen && (
+              <p className="kl-submit-reason" role="status">
+                {movementOptions.length > 0
+                  ? t('kitchen.transfer.destination.prompt')
+                  : t('kitchen.transfer.destination.none')}
+              </p>
             )}
             {/* The reason Submit is dead is a SENTENCE, and it gets a line of its own. Nested in
                 the action cluster it was a `flex: none` column beside the buttons, so on a phone
@@ -1312,23 +1327,13 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
                 )}
               </button>
             )}
-            <div className="kl-footer-actions">
-              <button
-                type="button"
-                className="btn btn-outline"
-                onClick={handleDiscardClick}
-                disabled={isSubmitting || stagedCount === 0}
-              >
-                {t('kitchen.log.discard')}
-              </button>
-              <SubmitButton
-                stagedCount={stagedCount}
-                isSubmitting={isSubmitting}
-                isOnline={isOnline}
-                blocked={captureClosed || hasBlockingError || noteUnresolved}
-                t={t}
-              />
-            </div>
+            <SubmitButton
+              stagedCount={stagedCount}
+              isSubmitting={isSubmitting}
+              isOnline={isOnline}
+              blocked={captureClosed || hasBlockingError || noteUnresolved}
+              t={t}
+            />
           </div>
           )}
 

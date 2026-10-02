@@ -1023,6 +1023,8 @@ describe('FR-006/AC-006: the stream precondition speaks Log\'s two-state grammar
     expect(screen.queryByRole('alert')).toBeNull()
     // The precondition is named as a muted status hint (Log's .kl-submit-reason role).
     expect(screen.getByText(/choose a production stream before submitting/i)).toBeInTheDocument()
+    // A zero summary would imply the plan is empty before the books are known.
+    expect(document.querySelector('.msr')).toBeNull()
     // The explicit choice is the next step; no plan can be written against a missing stream.
     const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
     expect(input).toBeDisabled()
