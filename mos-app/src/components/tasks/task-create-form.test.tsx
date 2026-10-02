@@ -80,6 +80,17 @@ describe('TaskCreateForm — labels and required markers', () => {
 })
 
 describe('TaskCreateForm — validation', () => {
+  it('marks an empty Title required on blur without surfacing unrelated required errors', () => {
+    renderForm({ task: makeDraft({ title: '' }) })
+    const title = screen.getByRole('textbox', { name: 'Title' })
+    fireEvent.blur(title)
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Title is required')
+    expect(title).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.queryByText('Team is required')).toBeNull()
+    expect(screen.queryByText('Supervisor is required')).toBeNull()
+  })
+
   it('empty title on Save shows the title-required error under the Title field and keeps the draft', () => {
     const { onCreate, onCancel } = renderForm({ task: makeDraft({ title: '' }) })
     fireEvent.click(screen.getByRole('button', { name: 'Create task' }))

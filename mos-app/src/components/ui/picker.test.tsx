@@ -69,7 +69,9 @@ describe('Picker', () => {
     const trigger = screen.getByRole('combobox', { name: 'Status' })
     await user.click(trigger)
     const listbox = screen.getByRole('listbox', { name: 'Status' })
-    expect(screen.getByRole('combobox', { name: 'Filter Status' })).toHaveFocus()
+    const search = screen.getByRole('combobox', { name: 'Filter Status' })
+    expect(search).toHaveFocus()
+    expect(search).toHaveAttribute('placeholder', 'Filter Status')
     expect(listbox).toBeInTheDocument()
     expect(screen.getByRole('option', { name: 'Open' })).toHaveAttribute('aria-selected', 'true')
 
