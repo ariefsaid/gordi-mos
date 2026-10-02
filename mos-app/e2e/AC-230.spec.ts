@@ -1,7 +1,7 @@
 // AC-230 (e2e — cascade read path): a manager reads a teammate's daily-vs-project split.
 // Spec: docs/specs/cascade-foundation.spec.md § AC-230
 //
-// JTBD: the Director (Dewi) sets Group="Work-line" + Person=Cahya in /mos/tasks,
+// JTBD: the Director (Dewi) sets Group="Work-line" + Person=Cahya in /tasks,
 //       and can immediately see where Cahya's effort goes — project vs daily work.
 //       This proves the read path end-to-end: listTasks + listWorkLines (cascade catalog)
 //       + GroupBy=workline + PersonFilter + WorkloadCaption — the integration layer that
@@ -149,7 +149,7 @@ test(
   // ── 1. Login as Director (MANAGER = Dewi Director) ──────────────────────────
   await loginAs(page, MANAGER.email, MANAGER.password)
 
-  // ── 2. Navigate to /mos/tasks ────────────────────────────────────────────────
+  // ── 2. Navigate to /tasks ───────────────────────────────────────────────────
   await page.goto('work/tasks')
   await page.waitForURL(/\/tasks$/)
 

@@ -128,14 +128,14 @@ if parsed.username is not None or parsed.password is not None:
     raise SystemExit(1)
 if parsed.scheme not in {"http", "https"} or host.lower() not in {"localhost", "127.0.0.1", "::1"}:
     raise SystemExit(1)
-if not parsed.path.startswith("/mos/") or parsed.query or parsed.fragment:
+if not parsed.path.startswith("/") or not parsed.path.endswith("/") or parsed.query or parsed.fragment:
     raise SystemExit(1)
 port = parsed.port or (443 if parsed.scheme == "https" else 80)
 host_for_origin = f"[{host}]" if ":" in host else host
 print(f"{host}\t{port}\t{parsed.scheme}://{host_for_origin}:{port}")
 PY
 )" || {
-  echo "design-quality-audit: --base-url must be a bare localhost URL under /mos/ (no credentials, query, or fragment)" >&2
+  echo "design-quality-audit: --base-url must be a bare localhost app URL (no credentials, query, or fragment)" >&2
   exit 2
 }
 base_host="${base_url_info%%$'\t'*}"
@@ -148,15 +148,15 @@ grep -q '^-[[:space:]]' "$scope_file" || {
   exit 2
 }
 required_routes=(
-  "/mos/work/tasks"
-  "/mos/work/signals"
-  "/mos/inbox"
-  "/mos/cafe"
-  "/mos/cafe/plan"
-  "/mos/cafe/log"
-  "/mos/cafe/review"
-  "/mos/cafe/stock"
-  "/mos/cafe/pushes"
+  "/work/tasks"
+  "/work/signals"
+  "/inbox"
+  "/cafe"
+  "/cafe/plan"
+  "/cafe/log"
+  "/cafe/review"
+  "/cafe/stock"
+  "/cafe/pushes"
 )
 for route in "${required_routes[@]}"; do
   grep -Fq -- "$route" "$scope_file" || {

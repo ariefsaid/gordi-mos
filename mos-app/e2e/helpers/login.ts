@@ -43,7 +43,7 @@ export async function loginViaForm(page: Page, email: string, password: string) 
   // call never touches this branch.
   if (/\/login(?:[?#]|$)/.test(page.url())) await page.goto('about:blank')
   // Use relative URL so Playwright resolves against baseURL (worktree-derived port, #419)
-  // page.goto('/login') would go to http://localhost:<port>/login (404); 'login' → /mos/login
+  // page.goto('/login') would leave a configured sub-path; 'login' stays under the app base.
   await page.goto('login')
   await page.getByLabel('Email').fill(email)
   await page.getByLabel('Password').fill(password)

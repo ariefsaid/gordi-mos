@@ -6,6 +6,7 @@ import { SetPasswordForm } from '@/auth/set-password-form'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { passwordRefusal } from '@/auth/password-error'
+import { appUrl } from '@/config/app-build-settings'
 
 /**
  * The dead end of a recovery link, and the way out of it.
@@ -26,7 +27,7 @@ function ExpiredCard() {
     setSending(true)
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/mos/recovery`,
+        redirectTo: new URL(appUrl('/recovery'), window.location.origin).href,
       })
       // The outcome must not vary with `error` — GoTrue answers 200 for an address it has never
       // seen, so a send that FAILS is evidence the address EXISTS. Console only, never the UI.
@@ -63,7 +64,7 @@ function ExpiredCard() {
             </p>
           </div>
           <a
-            href="/mos/login"
+            href={appUrl('/login')}
             className="text-primary font-medium hover:underline"
             style={{ fontSize: 16 }}
           >
@@ -143,7 +144,7 @@ function ExpiredCard() {
         {/* The other way out stays where it was. */}
         <div className="mt-4">
           <a
-            href="/mos/login"
+            href={appUrl('/login')}
             className="text-primary font-medium hover:underline"
             style={{ fontSize: 16 }}
           >

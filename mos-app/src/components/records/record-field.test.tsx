@@ -7,6 +7,7 @@ import { resolve } from 'node:path'
 import type { ReactNode } from 'react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import { APP_ROUTER_BASENAME, appUrl } from '@/config/app-build-settings'
 import { RecordField } from './record-field'
 import type { RecordFieldSpec, RecordValue } from './record-viewer.types'
 
@@ -15,14 +16,14 @@ it('opens a related record within the app basename without activating its edit c
   function Destination() { return <output data-testid="destination">{useLocation().pathname}</output> }
   render(
     <I18nProvider>
-      <MemoryRouter basename="/mos" initialEntries={['/mos/work/tasks/1']}>
+      <MemoryRouter basename={APP_ROUTER_BASENAME} initialEntries={[appUrl('/work/tasks/1')]}>
         <RecordField spec={{ key: 'objective', label: 'Objective', control: 'relation', value: 'o1', displayValue: 'Q3 Growth', href: '/work/objectives/o1', editable: true }} onCommit={onCommit} />
         <Destination />
       </MemoryRouter>
     </I18nProvider>,
   )
   const link = screen.getByRole('link', { name: 'Q3 Growth' })
-  expect(link).toHaveAttribute('href', '/mos/work/objectives/o1')
+  expect(link).toHaveAttribute('href', appUrl('/work/objectives/o1'))
   expect(link.closest('button')).toBeNull()
   fireEvent.click(link)
   expect(screen.getByTestId('destination')).toHaveTextContent('/work/objectives/o1')
@@ -34,11 +35,11 @@ it('opens a related record within the app basename without activating its edit c
 
 it('opens plain related clicks in the record stack and retains canonical modified-click behavior', () => {
   const onOpen = vi.fn()
-  render(<I18nProvider><MemoryRouter basename="/mos" initialEntries={['/mos/work/tasks/1']}>
+  render(<I18nProvider><MemoryRouter basename={APP_ROUTER_BASENAME} initialEntries={[appUrl('/work/tasks/1')]}>
     <RecordField spec={{ key: 'objective', label: 'Objective', control: 'relation', value: 'o1', displayValue: 'Q3 Growth', href: '/work/objectives/o1', onOpen, editable: false }} onCommit={vi.fn()} />
   </MemoryRouter></I18nProvider>)
   const link = screen.getByRole('link', { name: 'Q3 Growth' })
-  expect(link).toHaveAttribute('href', '/mos/work/objectives/o1')
+  expect(link).toHaveAttribute('href', appUrl('/work/objectives/o1'))
   expect(fireEvent.click(link)).toBe(false)
   expect(onOpen).toHaveBeenCalledTimes(1)
   expect(fireEvent.click(link, { metaKey: true })).toBe(true)

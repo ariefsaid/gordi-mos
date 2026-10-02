@@ -592,6 +592,16 @@ select ops.refresh_cafe_item_references(
     {"esb_product_id":"DEV-ERP-P-1240-WIP","esb_product_detail_id":"DEV-ERP-PD-1240-WIP","name":"Synthetic WIP Sample","category":"Bar","unit_name":"DEV-ERP-UNIT","erp_category_type_name":"Inventory","is_stock":false,"has_active_bom_output":true,"is_active":true,"branch_code":"gordi_hq"}
   ]$cafe_seed_1240$::jsonb
 );
+-- The synthetic WIP reference is capture-form eligible in dev; confirming its ERP detail creates no MOS default or conversion.
+update ops.item_units unit
+   set confirmed_at = now()
+  from ops.wip_items item
+ where item.id = unit.wip_item_id
+   and item.org_id = unit.org_id
+   and item.org_id = '10000000-0000-0000-0000-000000000001'
+   and item.esb_product_id = 'DEV-ERP-P-1240-WIP'
+   and unit.esb_product_detail_id = 'DEV-ERP-PD-1240-WIP'
+   and unit.confirmed_at is null;
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- reporting — the Plan-destination COGS read-models (ADR-0022 D2/D6, ADR-0010)

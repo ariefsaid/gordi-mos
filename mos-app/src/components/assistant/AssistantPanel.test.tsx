@@ -328,7 +328,7 @@ describe('AssistantPanel (T27)', () => {
         '| --- | ---: |',
         '| Ops | 2 |',
         '',
-        '[Open MOS](https://ops.gordi.id/mos)',
+        '[Open MOS](https://example.test)',
       ].join('\n'))),
     })
 
@@ -338,7 +338,7 @@ describe('AssistantPanel (T27)', () => {
     expect(await screen.findByText('blocked')).toHaveProperty('tagName', 'STRONG')
     expect(screen.getByRole('list')).toBeInTheDocument()
     expect(screen.getByRole('table')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Open MOS' })).toHaveAttribute('href', 'https://ops.gordi.id/mos')
+    expect(screen.getByRole('link', { name: 'Open MOS' })).toHaveAttribute('href', 'https://example.test')
 
     const userTurn = screen.getByText('**literal user text**')
     expect(userTurn.querySelector('strong')).toBeNull()
@@ -349,7 +349,7 @@ describe('AssistantPanel (T27)', () => {
       narrow: false,
       open: true,
       runtime: makeFakeRuntime(replyScript([
-        '[safe](https://ops.gordi.id/mos)',
+        '[safe](https://example.test)',
         '[bad](javascript:alert(1))',
         '<script>alert(1)</script>',
         '<img src=x onerror=alert(1)>',
@@ -360,7 +360,7 @@ describe('AssistantPanel (T27)', () => {
     fireEvent.change(screen.getByRole('textbox', { name: /ask the deputy/i }), { target: { value: 'hi' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send' }))
 
-    expect(await screen.findByRole('link', { name: 'safe' })).toHaveAttribute('href', 'https://ops.gordi.id/mos')
+    expect(await screen.findByRole('link', { name: 'safe' })).toHaveAttribute('href', 'https://example.test')
     expect(screen.queryByRole('link', { name: 'bad' })).toBeNull()
     expect(document.querySelector('script,img,iframe')).toBeNull()
     expect(document.querySelector('[href^="javascript:"]')).toBeNull()

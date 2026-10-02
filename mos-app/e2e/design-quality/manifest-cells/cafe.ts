@@ -2,39 +2,39 @@ import type { ManifestCellInput } from './types.ts'
 
 export const CAFE_CELL_INPUTS = [
   ['cafe-plan-default-desktop', {
-    area: 'cafe-wip', journey: 'cafe-plan', route: '/mos/cafe/plan', fixture: 'BARISTA',
+    area: 'cafe-wip', journey: 'cafe-plan', route: '/cafe/plan', fixture: 'BARISTA',
     viewport: 'desktop-1440x900', theme: 'light', language: 'en', state: 'default', status: 'covered',
   }],
   ['cafe-plan-default-phone', {
-    area: 'cafe-wip', journey: 'cafe-plan', route: '/mos/cafe/plan', fixture: 'BARISTA',
+    area: 'cafe-wip', journey: 'cafe-plan', route: '/cafe/plan', fixture: 'BARISTA',
     viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'default', status: 'covered',
   }],
   ['cafe-log-default-desktop', {
-    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe', fixture: 'BARISTA',
+    area: 'cafe-wip', journey: 'cafe-log', route: '/cafe', fixture: 'BARISTA',
     viewport: 'desktop-1440x900', theme: 'light', language: 'en', state: 'default', status: 'covered',
   }],
   ['cafe-log-default-phone', {
-    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe', fixture: 'BARISTA',
+    area: 'cafe-wip', journey: 'cafe-log', route: '/cafe', fixture: 'BARISTA',
     viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'default', status: 'covered',
   }],
   ['cafe-review-default-phone', {
-    area: 'cafe-wip', journey: 'cafe-review', route: '/mos/cafe/review', fixture: 'BAR_SUPERVISOR',
+    area: 'cafe-wip', journey: 'cafe-review', route: '/cafe/review', fixture: 'BAR_SUPERVISOR',
     viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'default', status: 'covered',
   }],
   ['cafe-stock-default-desktop', {
-    area: 'cafe-wip', journey: 'cafe-stock', route: '/mos/cafe/stock', fixture: 'VIEWER',
+    area: 'cafe-wip', journey: 'cafe-stock', route: '/cafe/stock', fixture: 'VIEWER',
     viewport: 'desktop-1440x900', theme: 'light', language: 'en', state: 'default', status: 'covered',
   }],
   ['cafe-stock-default-phone', {
-    area: 'cafe-wip', journey: 'cafe-stock', route: '/mos/cafe/stock', fixture: 'VIEWER',
+    area: 'cafe-wip', journey: 'cafe-stock', route: '/cafe/stock', fixture: 'VIEWER',
     viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'default', status: 'covered',
   }],
   ['cafe-pushes-default-desktop', {
-    area: 'cafe-wip', journey: 'cafe-pushes', route: '/mos/cafe/pushes', fixture: 'ADMIN',
+    area: 'cafe-wip', journey: 'cafe-pushes', route: '/cafe/pushes', fixture: 'ADMIN',
     viewport: 'desktop-1440x900', theme: 'light', language: 'en', state: 'default', status: 'covered',
   }],
   ['cafe-pushes-default-phone', {
-    area: 'cafe-wip', journey: 'cafe-pushes', route: '/mos/cafe/pushes', fixture: 'ADMIN',
+    area: 'cafe-wip', journey: 'cafe-pushes', route: '/cafe/pushes', fixture: 'ADMIN',
     viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'default', status: 'covered',
   }],
   // The two faces of a plan are decided by the stream the fixture lands on, so neither needs a
@@ -42,7 +42,7 @@ export const CAFE_CELL_INPUTS = [
   // read view and no capture at all. Each cell's assertion is the other's negative, so landing
   // on the wrong stream reports itself instead of passing as the face it is not.
   ['cafe-plan-producing-phone', {
-    area: 'cafe-wip', journey: 'cafe-plan', route: '/mos/cafe/plan', fixture: 'BAR_MEMBER',
+    area: 'cafe-wip', journey: 'cafe-plan', route: '/cafe/plan', fixture: 'BAR_MEMBER',
     viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'producing', status: 'untested', primary: true,
     note: 'The contract is verified against a producing plan, but not under THIS fixture: BAR_MEMBER reaches no planned-quantity field on this route, while the same member does reach the production capture form on the Café root. Planning looks to be a capability a bar member does not hold, which would make the fixture wrong for the state rather than the selector wrong for the page. Needs a session as this fixture to settle, not another guess.',
     // `.pqf` is the planned-quantity field itself, which the plan renders at every width. The
@@ -56,7 +56,7 @@ export const CAFE_CELL_INPUTS = [
     },
   }],
   ['cafe-plan-receiving-desktop', {
-    area: 'cafe-wip', journey: 'cafe-plan', route: '/mos/cafe/plan', fixture: 'AUDIT_RECEIVING_ONLY',
+    area: 'cafe-wip', journey: 'cafe-plan', route: '/cafe/plan', fixture: 'AUDIT_RECEIVING_ONLY',
     viewport: 'desktop-1440x900', theme: 'dark', language: 'id', state: 'receiving-only', status: 'untested', primary: true,
     note: 'AUDIT_RECEIVING_ONLY is named here but no provisioned identity exists for it, so the cell cannot be signed in as. The contract below is verified against the rendered receiving-only face and becomes runnable the moment that identity is provisioned.',
     stateContract: {
@@ -66,7 +66,7 @@ export const CAFE_CELL_INPUTS = [
     },
   }],
   ['cafe-log-producing-compact', {
-    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe', fixture: 'BARISTA',
+    area: 'cafe-wip', journey: 'cafe-log', route: '/cafe', fixture: 'BARISTA',
     viewport: 'compact-1024x768', theme: 'light', language: 'en', state: 'producing', status: 'covered', primary: true,
     // A producing stream gets the capture form; a receiving-only one gets a read view and no
     // form at all. BARISTA has one assigned location, so the root IS the capture surface
@@ -78,19 +78,19 @@ export const CAFE_CELL_INPUTS = [
     },
   }],
   ['cafe-log-loading-phone', {
-    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe', fixture: 'BARISTA',
+    area: 'cafe-wip', journey: 'cafe-log', route: '/cafe', fixture: 'BARISTA',
     viewport: 'phone-390x844', theme: 'dark', language: 'id', state: 'loading', status: 'covered', primary: true,
   }],
   ['cafe-log-success-desktop', {
-    area: 'cafe-wip', journey: 'cafe-log', route: '/mos/cafe', fixture: 'BARISTA',
+    area: 'cafe-wip', journey: 'cafe-log', route: '/cafe', fixture: 'BARISTA',
     viewport: 'desktop-1440x900', theme: 'light', language: 'en', state: 'success', status: 'covered', primary: true,
   }],
   ['cafe-review-authorized-desktop', {
-    area: 'cafe-wip', journey: 'cafe-review', route: '/mos/cafe/review', fixture: 'BAR_SUPERVISOR',
+    area: 'cafe-wip', journey: 'cafe-review', route: '/cafe/review', fixture: 'BAR_SUPERVISOR',
     viewport: 'desktop-1440x900', theme: 'light', language: 'en', state: 'default', status: 'covered', primary: true,
   }],
   ['cafe-review-denied-phone', {
-    area: 'cafe-wip', journey: 'cafe-review', route: '/mos/cafe/review', fixture: 'BAR_MEMBER',
+    area: 'cafe-wip', journey: 'cafe-review', route: '/cafe/review', fixture: 'BAR_MEMBER',
     viewport: 'phone-390x844', theme: 'dark', language: 'id', state: 'denied', status: 'untested',
     note: 'The denied face renders correctly, but the focus and control drivers require at least one interactive control inside main and a permission face has none.', primary: true,
     // Untested, deliberately: the denied face renders correctly, but the focus and control
@@ -101,7 +101,7 @@ export const CAFE_CELL_INPUTS = [
   // BAR_MEMBER opens on the Rumah Rames bar, whose item list is empty and whose books hold no
   // balance, so its stock list is truthfully empty.
   ['cafe-stock-empty-compact', {
-    area: 'cafe-wip', journey: 'cafe-stock', route: '/mos/cafe/stock', fixture: 'BAR_MEMBER',
+    area: 'cafe-wip', journey: 'cafe-stock', route: '/cafe/stock', fixture: 'BAR_MEMBER',
     viewport: 'compact-1024x768', theme: 'light', language: 'en', state: 'empty', status: 'covered', primary: true,
     stateContract: {
       setup: [],
@@ -110,15 +110,15 @@ export const CAFE_CELL_INPUTS = [
     },
   }],
   ['cafe-stock-validation-phone', {
-    area: 'cafe-wip', journey: 'cafe-stock', route: '/mos/cafe/stock', fixture: 'VIEWER',
+    area: 'cafe-wip', journey: 'cafe-stock', route: '/cafe/stock', fixture: 'VIEWER',
     viewport: 'phone-390x844', theme: 'dark', language: 'id', state: 'validation', status: 'covered', primary: true,
   }],
   ['cafe-pushes-authorized-desktop', {
-    area: 'cafe-wip', journey: 'cafe-pushes', route: '/mos/cafe/pushes', fixture: 'ADMIN',
+    area: 'cafe-wip', journey: 'cafe-pushes', route: '/cafe/pushes', fixture: 'ADMIN',
     viewport: 'desktop-1440x900', theme: 'light', language: 'en', state: 'success', status: 'covered', primary: true,
   }],
   ['cafe-pushes-denied-phone', {
-    area: 'cafe-wip', journey: 'cafe-pushes', route: '/mos/cafe/pushes', fixture: 'BAR_MEMBER',
+    area: 'cafe-wip', journey: 'cafe-pushes', route: '/cafe/pushes', fixture: 'BAR_MEMBER',
     viewport: 'phone-390x844', theme: 'dark', language: 'id', state: 'denied', status: 'untested',
     note: 'The denied face renders correctly, but the focus and control drivers require at least one interactive control inside main and a permission face has none.', primary: true,
     // Untested, deliberately: the denied face renders correctly, but the focus and control
@@ -127,11 +127,11 @@ export const CAFE_CELL_INPUTS = [
     // different contract.
   }],
   ['cafe-pushes-error-compact', {
-    area: 'cafe-wip', journey: 'cafe-pushes', route: '/mos/cafe/pushes', fixture: 'ADMIN',
+    area: 'cafe-wip', journey: 'cafe-pushes', route: '/cafe/pushes', fixture: 'ADMIN',
     viewport: 'compact-1024x768', theme: 'light', language: 'en', state: 'error', status: 'covered',
   }],
   ['cafe-wip-long-content', {
-    area: 'cafe-wip', journey: 'cafe-plan', route: '/mos/cafe/plan', fixture: 'BARISTA',
+    area: 'cafe-wip', journey: 'cafe-plan', route: '/cafe/plan', fixture: 'BARISTA',
     viewport: 'desktop-1440x900', theme: 'dark', language: 'id', state: 'long-content', status: 'covered',
   }],
 ] satisfies readonly ManifestCellInput[]

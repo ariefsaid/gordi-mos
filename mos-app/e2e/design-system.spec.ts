@@ -32,7 +32,7 @@ async function waitForTokens(page: Page) {
 }
 
 test('AC-136: the .dark scope flips --ds-background-primary (white ↔ near-black)', async ({ page }) => {
-  await page.goto('/mos/login');
+  await page.goto('login');
   await waitForTokens(page);
 
   // Light (default): the canvas background token + painted body background.
@@ -62,7 +62,7 @@ test('AC-136: the .dark scope flips --ds-background-primary (white ↔ near-blac
 test('AC-142: dark toggle renders AA-legible body text (no invisible-on-bg)', async ({ page }) => {
   // /login is the always-reachable public surface and carries the same token
   // cascade as the authed app shell.
-  await page.goto('/mos/login');
+  await page.goto('login');
   await waitForTokens(page);
   await page.evaluate(() => document.documentElement.classList.add('dark'));
 

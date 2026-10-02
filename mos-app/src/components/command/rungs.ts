@@ -4,18 +4,19 @@
 
 import type { ComponentType } from 'react'
 
-// A flat, activatable item. `kind` discriminates: 'action' (runs a callback),
-// 'navigate' (goes to `to`), 'record' (a Task row → pushRecent + navigate canonical).
-// `run` extends the existing activate() so universal actions (Ask Deputy / Share
-// Signal) that are not pure navigations can dispatch (D-PLN-7).
+// A flat, activatable item. `kind` discriminates actions, in-place disclosures, navigation,
+// and records (Task rows push Recent before navigating canonical). `run` lets non-navigation
+// actions dispatch through the shared activate() seam (D-PLN-7).
 export type CommandItem = {
   id: string
   label: string
   /** SVG icon from the app icon system (parity A1 — the palette is one monochrome set, never emoji) */
   Icon: ComponentType
-  kind: 'action' | 'navigate' | 'record'
+  kind: 'action' | 'navigate' | 'record' | 'disclosure'
   to?: string
   run?: () => void
+  /** Keep the palette open after this in-place command (e.g. a result-group disclosure). */
+  keepOpen?: boolean
   meta?: string
   record?: { id: string; title: string }
   /**

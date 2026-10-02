@@ -137,19 +137,19 @@ snapshot_parent="$(git rev-parse "$snapshot_intro^")"
 git update-ref "$missing_snapshot_ref" "$snapshot_parent"
 trap 'git update-ref -d "$missing_snapshot_ref"; rm -f "$scope" /tmp/mos-audit-workspace-test.log /tmp/mos-design-quality-manifest-test.log /tmp/mos-design-quality-check.log /tmp/mos-design-quality-mutated.log' EXIT
 cat > "$scope" <<'EOF'
-- Tasks — /mos/work/tasks
-- Signals — /mos/work/signals
-- Inbox — /mos/inbox
-- Café Opening — /mos/cafe
-- Café Plan — /mos/cafe/plan
-- Café Log — /mos/cafe/log
-- Café Review — /mos/cafe/review
-- Café Stock — /mos/cafe/stock
-- Café Pushes — /mos/cafe/pushes
+- Tasks — /work/tasks
+- Signals — /work/signals
+- Inbox — /inbox
+- Café Opening — /cafe
+- Café Plan — /cafe/plan
+- Café Log — /cafe/log
+- Café Review — /cafe/review
+- Café Stock — /cafe/stock
+- Café Pushes — /cafe/pushes
 EOF
 
 if DESIGN_AUDIT_CHECK_ONLY=1 DESIGN_AUDIT_ID=a1b2c3d4 \
-  bash scripts/design-quality-audit.sh "$scope" --base-url http://localhost:5173/mos/ \
+  bash scripts/design-quality-audit.sh "$scope" --base-url http://localhost:5173/ \
   >/tmp/mos-design-quality-check.log 2>&1; then
   ok "valid scope and localhost preflight pass without starting a server"
 else
@@ -157,7 +157,7 @@ else
   sed -n '1,120p' /tmp/mos-design-quality-check.log
 fi
 
-if bash scripts/design-quality-audit.sh "$scope" --base-url http://localhost:5173/mos/ \
+if bash scripts/design-quality-audit.sh "$scope" --base-url http://localhost:5173/ \
   --mode change-gate --baseline /tmp/forged-baseline \
   >/tmp/mos-design-quality-mutated.log 2>&1; then
   bad "filesystem baseline option was accepted"
@@ -166,7 +166,7 @@ else
 fi
 
 if DESIGN_AUDIT_BASELINE_DIR=/tmp/forged-baseline DESIGN_AUDIT_CHECK_ONLY=1 DESIGN_AUDIT_ID=a1b2c3d4 \
-  bash scripts/design-quality-audit.sh "$scope" --base-url http://localhost:5173/mos/ \
+  bash scripts/design-quality-audit.sh "$scope" --base-url http://localhost:5173/ \
   --mode mvp-assessment >/tmp/mos-design-quality-mutated.log 2>&1; then
   bad "baseline environment input was accepted"
 else
@@ -174,7 +174,7 @@ else
 fi
 
 if MOS_PR_BASE="$missing_snapshot_base" DESIGN_AUDIT_CHECK_ONLY=1 DESIGN_AUDIT_ID=a1b2c3d4 \
-  bash scripts/design-quality-audit.sh "$scope" --base-url http://localhost:5173/mos/ \
+  bash scripts/design-quality-audit.sh "$scope" --base-url http://localhost:5173/ \
   --mode change-gate >/tmp/mos-design-quality-mutated.log 2>&1; then
   bad "change-gate without a committed merge-base snapshot was accepted"
 else
@@ -182,7 +182,7 @@ else
 fi
 
 if DESIGN_AUDIT_CHECK_ONLY=1 DESIGN_AUDIT_ID=a1b2c3d4 \
-  bash scripts/design-quality-audit.sh "$scope" --base-url https://staging.example/mos/ \
+  bash scripts/design-quality-audit.sh "$scope" --base-url https://staging.example/ \
   >/tmp/mos-design-quality-mutated.log 2>&1; then
   bad "foreign base URL mutation was accepted"
 else
@@ -192,7 +192,7 @@ fi
 grep -v 'Café Pushes' "$scope" > "$scope.tmp"
 mv "$scope.tmp" "$scope"
 if DESIGN_AUDIT_CHECK_ONLY=1 DESIGN_AUDIT_ID=a1b2c3d4 \
-  bash scripts/design-quality-audit.sh "$scope" --base-url http://localhost:5173/mos/ \
+  bash scripts/design-quality-audit.sh "$scope" --base-url http://localhost:5173/ \
   >/tmp/mos-design-quality-mutated.log 2>&1; then
   bad "missing required surface mutation was accepted"
 else

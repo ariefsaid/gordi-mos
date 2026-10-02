@@ -138,13 +138,13 @@ describe('DevViewsPage — AC-UV-018', () => {
     expect(mockCreateUserView).not.toHaveBeenCalled()
   })
 
-  it('renders each saved view as a router Link in the list when views exist (relative, no hardcoded /mos base)', async () => {
+  it('renders each saved view as a router Link in the list when views exist (relative, no hardcoded base)', async () => {
     mockListUserViews.mockResolvedValue([SAVED_ROW])
     render(<DevViewsPage />, { wrapper })
 
     const link = await screen.findByRole('link', { name: 'My view' })
     // A relative react-router `to` — MemoryRouter (no basename configured) resolves it to the
-    // bare path; the app's real router supplies the /mos basename at runtime (router.tsx), so
+    // bare path; the app's real router supplies the configured basename at runtime (router.tsx), so
     // this component must never hardcode it.
     expect(link).toHaveAttribute('href', '/dev/views/v1')
     expect(screen.queryByText('No saved views yet')).not.toBeInTheDocument()
