@@ -138,11 +138,18 @@ test('joined persona and fixture evidence: graph, current/past occurrence, and d
   await loginAs(page, RECOVERY_VIEWER.email, RECOVERY_VIEWER.password)
   await page.goto(`work/projects/${WORK_LINE_ID}`)
   await expect(page.getByRole('heading', { name: 'Café Opening', exact: true })).toBeVisible()
-  // Occurrences are the Process record's first section; wait for them to load so the absence
-  // below is measured on the rendered list, not on a loading shell.
-  await expect(page.getByRole('region', { name: 'Occurrences', exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: /to assign/i })).toHaveCount(0)
-  browserJourneys.push({ actor: 'Recovery Tester', authority: 'no Team membership; no access-role grant', record: WORK_LINE_ID, action: 'open Process record', outcome: 'record frame visible but no occurrence assignment control' })
+  // The occurrence area now has a current/next-action label, while terminal runs sit in a
+  // collapsed Past occurrences disclosure. Wait for rendered content before checking authority.
+  const occurrenceSection = page.getByRole('region', { name: 'Current and next action', exact: true })
+  await expect(occurrenceSection).toBeVisible()
+  const settledOccurrence = occurrenceSection.getByRole('note')
+    .or(occurrenceSection.getByRole('button', { name: /Past occurrences/ }))
+    .or(occurrenceSection.getByRole('listitem').first())
+  await expect(settledOccurrence.first()).toBeVisible()
+  // Start moved to the header; the Team-less viewer must still get neither start nor assignment.
+  await expect(page.getByRole('button', { name: 'Start occurrence', exact: true })).toHaveCount(0)
+  await expect(occurrenceSection.getByRole('button', { name: /to assign/i })).toHaveCount(0)
+  browserJourneys.push({ actor: 'Recovery Tester', authority: 'no Team membership; no access-role grant', record: WORK_LINE_ID, action: 'open Process record', outcome: 'record frame visible but no occurrence start or assignment control' })
 
   // OD-WAY-102 (docs/decisions.md, owner 2026-09-18): "A Signal's audience is All Teams; a
   // Team audience is a retired historical state." Every new Signal is audience='org',

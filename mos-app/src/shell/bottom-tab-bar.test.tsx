@@ -170,7 +170,7 @@ describe('AC-021/008: aria-current — primary tab page on its route; More page 
     expect(page[0]).toHaveAccessibleName(/Work/)
   })
 
-  it.each(['/cafe', '/cafe/log', '/cafe/plan', '/cafe/stock', '/cafe/review', '/cafe/pushes'])('Café tab page at %s (café viewer)', (path) => {
+  it.each(['/cafe', '/cafe/log', '/cafe/plan', '/cafe/stock', '/cafe/items', '/cafe/review', '/cafe/pushes'])('Café tab page at %s (café viewer)', (path) => {
     setCafeViewer()
     renderTabBar(path)
     const nav = screen.getByRole('navigation', { name: 'Primary' })
@@ -227,7 +227,7 @@ describe('AC-021/008: aria-current — primary tab page on its route; More page 
 
   // A Director works no café line, so Café is not promoted at Home — but on a Café page the bar
   // names the module they are in and marks it current.
-  it.each(['/cafe', '/cafe/review', '/cafe/pushes'])('an unaffiliated admin gets the Café tab, current, at %s', (path) => {
+  it.each(['/cafe', '/cafe/items', '/cafe/review', '/cafe/pushes'])('an unaffiliated admin gets the Café tab, current, at %s', (path) => {
     setAuthAs(['admin', 'manager'])
     renderTabBar(path)
     const nav = screen.getByRole('navigation', { name: 'Primary' })

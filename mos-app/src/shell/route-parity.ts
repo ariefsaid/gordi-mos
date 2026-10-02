@@ -16,6 +16,7 @@ export const ROUTE_PATHS = {
   cafeLog: 'cafe/log',
   cafePlan: 'cafe/plan',
   cafeStock: 'cafe/stock',
+  cafeItems: 'cafe/items',
   cafeReview: 'cafe/review',
   cafePushes: 'cafe/pushes',
   adminPeople: 'admin/people',
@@ -39,6 +40,7 @@ export type RouteParityId =
   | 'cafe'
   | 'cafePlan'
   | 'cafeStock'
+  | 'cafeItems'
   | 'cafeReview'
   | 'cafePushes'
   | 'adminPeople'
@@ -72,6 +74,7 @@ export const ROUTE_PARITY_CATALOG: readonly RouteParityEntry[] = [
   // root at /cafe, which carries the surface itself.
   { id: 'cafePlan', path: absolutePath(ROUTE_PATHS.cafePlan), kind: 'child' },
   { id: 'cafeStock', path: absolutePath(ROUTE_PATHS.cafeStock), kind: 'child' },
+  { id: 'cafeItems', path: absolutePath(ROUTE_PATHS.cafeItems), kind: 'child' },
   { id: 'cafeReview', path: absolutePath(ROUTE_PATHS.cafeReview), kind: 'child' },
   { id: 'cafePushes', path: absolutePath(ROUTE_PATHS.cafePushes), kind: 'child' },
   { id: 'adminPeople', path: absolutePath(ROUTE_PATHS.adminPeople), kind: 'visible-root' },

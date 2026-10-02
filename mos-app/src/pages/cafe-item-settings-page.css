@@ -1,0 +1,324 @@
+.cafe-items__stream-choice {
+  display: grid;
+  gap: 12px;
+  margin-block: 20px 24px;
+}
+
+.cafe-items__stream-choice h2 {
+  margin: 0;
+  color: var(--foreground);
+  font-family: var(--font-display);
+  font-size: var(--font-size-heading);
+  font-weight: 600;
+}
+
+.cafe-items__read-only,
+.cafe-items__permission-error {
+  margin: 0 0 16px;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-body);
+}
+
+.cafe-items__permission-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  color: var(--destructive);
+}
+
+.cafe-items__table-wrap {
+  width: 100%;
+  min-width: 0;
+}
+
+.cafe-items__table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  color: var(--foreground);
+  font-size: var(--font-size-body);
+}
+
+.cafe-items__table th,
+.cafe-items__table td {
+  min-width: 0;
+  padding: 12px 10px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.cafe-items__table thead th {
+  padding-block: 10px;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  font-weight: 600;
+}
+
+.cafe-items__table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+.cafe-items__table thead th:nth-child(1) { width: 22%; }
+.cafe-items__table thead th:nth-child(2) { width: 23%; }
+.cafe-items__table thead th:nth-child(3) { width: 18%; }
+.cafe-items__table thead th:nth-child(4) { width: 29%; }
+.cafe-items__table thead th:nth-child(5) { width: 8%; }
+
+.cafe-items__erp-cell {
+  font-weight: 400;
+}
+
+.cafe-items__item-name,
+.cafe-items__mos-value {
+  display: block;
+  color: var(--foreground);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.cafe-items__item-meta {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  font-weight: 400;
+}
+
+.cafe-items__name-input,
+.cafe-items__table .mk-select {
+  width: 100%;
+}
+
+.cafe-items__name-input .mk-textinput__field {
+  min-width: 0;
+  width: 100%;
+}
+
+.cafe-items__table .mk-textinput__label,
+.cafe-items__table .mk-select__label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.cafe-items__default-value,
+.cafe-items__muted {
+  color: var(--muted-foreground);
+}
+
+.cafe-items__name-error {
+  display: block;
+  color: var(--destructive);
+  font-size: var(--font-size-label);
+}
+
+.cafe-items__setup-note {
+  display: block;
+  margin-top: 6px;
+  color: var(--warning-foreground);
+  font-size: var(--font-size-label);
+}
+
+.cafe-items__unit-fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.cafe-items__unit-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 2px 8px;
+}
+
+.cafe-items__unit-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  color: var(--foreground);
+  cursor: pointer;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.cafe-items__unit-choice:hover {
+  background: var(--surface-tertiary);
+}
+
+.cafe-items__unit-choice .mk-checkbox {
+  flex: 0 0 16px;
+}
+
+.cafe-items__default-tag {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  min-height: 20px;
+  margin-inline-start: 4px;
+  padding: 2px 7px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-subtle);
+  color: var(--text-on-accent-tint);
+  font-size: var(--font-size-label);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.cafe-items__readonly-units {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cafe-items__readonly-units li {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  color: var(--foreground);
+}
+
+.cafe-items__action-cell {
+  padding-inline: 4px !important;
+}
+
+.cafe-items__save-control {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 72px;
+}
+
+.cafe-items__saved {
+  color: var(--status-won-text);
+  font-size: var(--font-size-label);
+}
+
+.cafe-items__save-error {
+  display: grid;
+  gap: 2px;
+  color: var(--destructive);
+  font-size: var(--font-size-label);
+}
+
+.cafe-items__cards {
+  display: none;
+}
+
+.cafe-items__card {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  box-shadow: var(--shadow-rest);
+}
+
+.cafe-items__card-header {
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.cafe-items__card-header h2 {
+  margin: 0;
+  font-size: var(--font-size-heading);
+  font-weight: 600;
+}
+
+.cafe-items__card-header .cafe-items__item-meta {
+  margin-top: 4px;
+}
+
+.cafe-items__card-field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding-block: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.cafe-items__field-label {
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  font-weight: 500;
+}
+
+.cafe-items__card .mk-textinput,
+.cafe-items__card .mk-select {
+  width: 100%;
+}
+
+.cafe-items__card .mk-textinput__field {
+  min-width: 0;
+  width: 100%;
+}
+
+.cafe-items__card .cafe-items__unit-choice {
+  min-height: 44px;
+  padding-inline: 8px;
+}
+
+.cafe-items__card-action {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 12px;
+}
+
+.cafe-items__card-action .cafe-items__save-control {
+  align-items: flex-end;
+}
+
+@media (max-width: 1099.98px) {
+  .cafe-items__table-wrap {
+    display: none;
+  }
+
+  .cafe-items__cards {
+    display: grid;
+    gap: 12px;
+  }
+}
+
+@media (pointer: coarse) {
+  .cafe-items__name-input .mk-textinput__field {
+    font-size: var(--font-size-touch-input);
+  }
+}
+
+@media (max-width: 767.98px) {
+  .cafe-items__stream-choice {
+    margin-block: 16px 20px;
+  }
+
+  .cafe-items__card {
+    padding: 14px;
+  }
+
+  .cafe-items__card-action .btn {
+    min-width: 104px;
+    min-height: 44px;
+  }
+
+  .cafe-items__card-action .cafe-items__save-control {
+    align-items: stretch;
+    width: 100%;
+  }
+}

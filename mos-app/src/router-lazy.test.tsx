@@ -37,6 +37,7 @@ import { ProjectsProcessesPage } from './pages/projects-processes-page'
 import { InboxPage } from './pages/inbox-page'
 import { KitchenPlanPage } from './pages/kitchen-plan-page'
 import { KitchenStockPage } from './pages/kitchen-stock-page'
+import { CafeItemSettingsPage } from './pages/cafe-item-settings-page'
 import { KitchenReviewPage } from './pages/kitchen-review-page'
 import { KitchenPushesPage } from './pages/kitchen-pushes-page'
 import { CafeRootPage } from './pages/cafe-opening-page'
@@ -160,6 +161,7 @@ const WIRING: ReadonlyArray<readonly [path: string, component: unknown, provenan
   // at /cafe (which carries the log surface itself), so it leaves this page ledger.
   ['/cafe/plan', KitchenPlanPage, 'dev'],
   ['/cafe/stock', KitchenStockPage, 'dev'],
+  ['/cafe/items', CafeItemSettingsPage, '1242'],
   ['/cafe/review', KitchenReviewPage, 'dev'],
   ['/cafe/pushes', KitchenPushesPage, 'dev'],
   ['/ecommerce', SliceStubPage, 'stub'],
