@@ -624,13 +624,14 @@ export function applyShipGate(
     const path =
       route.index || route.path === undefined ? parent || '/' : joinRoutePath(parent, route.path)
     const target = redirectTargetOf(route.element)
+    const hasSurfacePath = route.path !== undefined || route.index === true
     const cafeLanding = profile === 'cafe' && route.index === true && path === '/'
     const rootFallback = profile === 'cafe' && target === '/' && path !== '/'
     const taskCollectionPath = `/${ROUTE_PATHS.workTasks.replace(/^\/+/, '')}`
     const cafeTaskContext = profile === 'cafe' && (
       path === taskCollectionPath || path === `${taskCollectionPath}/:taskId`
     )
-    const gated = (isShipGatedInProfile(path, profile) && !cafeTaskContext) ||
+    const gated = (hasSurfacePath && isShipGatedInProfile(path, profile) && !cafeTaskContext) ||
       (target !== undefined && isShipGatedInProfile(target, profile)) || cafeLanding || rootFallback
     // A `redirect` handle declares a target and must keep matching what the element does. A `page`
     // handle declares no target and is left alone — a gated surface is still a page, merely closed

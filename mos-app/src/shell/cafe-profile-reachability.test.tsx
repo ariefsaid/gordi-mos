@@ -121,6 +121,9 @@ describe.runIf(APP_RELEASE_PROFILE === 'cafe')('Cafe profile reachability', () =
 
   it('redirects every general Work route and alias straight to Cafe', () => {
     const routes = flattenRoutes()
+    const rootLayouts = routes.filter(({ path, route }) => path === '/' && route.path === undefined && !route.index)
+    expect(rootLayouts.length, 'auth and shell layouts at / must stay mounted around the Café route').toBeGreaterThan(0)
+    expect(rootLayouts.filter(({ route }) => isRedirect(route.element))).toEqual([])
     const deputyRoutes = routes.filter(({ path }) => /(^|\/)(deputy|assistant)(\/|$)/i.test(path))
     expect(deputyRoutes, 'Deputy routes must not be declared in the Cafe profile').toEqual([])
 
