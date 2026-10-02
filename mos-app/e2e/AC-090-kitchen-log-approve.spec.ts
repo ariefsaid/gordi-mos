@@ -217,9 +217,8 @@ test.describe('AC-090: Kitchen log -> review -> approve (cross-stack proof)', ()
     // ── ACT 1: member (Cahya) logs the dedicated Production item = 50 ───────
     // plan=50 => qty=50 is exactly on-plan => no variance note required (FR-022)
     await loginAs(page, VIEWER.email, VIEWER.password)
-    await page.goto('cafe/log')
-    // DD-MVP-17: /cafe/log aliases the Café root — the Today capture surface itself.
-    await page.waitForURL(/\/cafe$/, { timeout: 15_000 })
+    await page.goto('cafe/production')
+    await page.waitForURL(/\/cafe\/production$/, { timeout: 15_000 })
 
     // This test explicitly selects its seeded stream — the one this journey's plan, log, and
     // approval fixture live on.
