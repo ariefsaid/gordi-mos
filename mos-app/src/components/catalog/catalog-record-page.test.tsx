@@ -343,6 +343,8 @@ describe('Get started lists only what is missing, and its buttons work', () => {
     const region = await screen.findByRole('region', { name: 'Get this Objective started' })
     await user.click(within(region).getByRole('button', { name: 'Link Project or Process' }))
     const list = await screen.findByRole('listbox')
+    const search = screen.getByRole('combobox', { name: 'Filter Link Project or Process' })
+    expect(search).toHaveAttribute('placeholder', 'Filter Link Project or Process')
     const names = within(list).getAllByRole('option').map((o) => o.textContent)
     expect(names).toEqual(['Weekday promo post', 'Lunch set menu (linked to Improve margin)'])
   })
