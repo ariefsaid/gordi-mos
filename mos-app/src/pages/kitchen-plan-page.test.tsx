@@ -693,6 +693,20 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
     expect(screen.queryByRole('table', { name: /café plan/i })).toBeNull()
   })
 
+  it('phone ignores desktop filter query params so they cannot silently hide Plan rows', async () => {
+    mockItems.mockResolvedValue([
+      { ...ITEMS[0], category: 'Main' },
+      { ...ITEMS[1], category: 'Rice' },
+    ])
+    render(
+      <MemoryRouter initialEntries={['/cafe/plan?category=__no_matching_category__&kind=Inventory']}>
+        <I18nProvider><KitchenPlanPage /></I18nProvider>
+      </MemoryRouter>,
+    )
+    expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
+    expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
+  })
+
   it('desktop matchMedia: renders the table branch, NOT the cards', async () => {
     Object.defineProperty(window, 'matchMedia', {
       writable: true,
@@ -881,6 +895,20 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
     chooseCategory('Rice')
     expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
     expect(screen.queryByText('Ayam Bakar')).toBeNull()
+  })
+
+  it('phone shows all Pesanan rows even when a shared desktop URL carries a category filter', async () => {
+    mockPesanan.mockResolvedValue([
+      { ...PESANAN[0], category: 'Main' },
+      { ...PESANAN[1], category: 'Rice' },
+    ])
+    render(
+      <MemoryRouter initialEntries={['/cafe/plan?category=Main']}>
+        <I18nProvider><KitchenPlanPage /></I18nProvider>
+      </MemoryRouter>,
+    )
+    expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
+    expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
   })
 
   it('(#401) a filter that matches nothing shows the shared no-match copy, not a broken table', async () => {

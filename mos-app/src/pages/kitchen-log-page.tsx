@@ -324,6 +324,10 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   const [search, setSearch] = useSearchParamState('q', '')
   const [kindFilter, setKindFilter] = useSearchParamState('kind', 'All')
   const [category, setCategory] = useSearchParamState('category', 'All')
+  // Category/kind selects are desktop-only. A deep link from desktop must not silently
+  // narrow the phone capture list when the filter controls are unavailable to clear it.
+  const effectiveKindFilter: KitchenItemKindFilter = isDesktop ? kindFilter as KitchenItemKindFilter : 'All'
+  const effectiveCategory = isDesktop ? category : 'All'
   const filterRows = useMemo(
     () => toKitchenListRows(wipItems, {
       kind: 'WIP',
@@ -337,8 +341,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   const itemTable = useKitchenItemTable({
     data: filterRows,
     search,
-    kind: kindFilter as KitchenItemKindFilter,
-    category,
+    kind: effectiveKindFilter,
+    category: effectiveCategory,
   })
   const visibleItems = itemTable.getFilteredRowModel().rows.map(row => row.original)
   const plannedLines = visibleItems.filter(item => (lines[item.id]?.plan_qty ?? 0) > 0)

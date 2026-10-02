@@ -208,6 +208,10 @@ function PlanEditor() {
   const [search, setSearch] = useSearchParamState('q', '')
   const [kindFilter, setKindFilter] = useSearchParamState('kind', 'All')
   const [category, setCategory] = useSearchParamState('category', 'All')
+  // Phone omits desktop-only select filters, so a shared desktop URL must not silently
+  // narrow the capture list when those controls are unavailable to clear it.
+  const effectiveKindFilter: KitchenItemKindFilter = isDesktop ? kindFilter as KitchenItemKindFilter : 'All'
+  const effectiveCategory = isDesktop ? category : 'All'
   // #401 / DD-WAY-40: the figures band is the Metric summary rule (two numbers for
   // the current movement) — the retired word-tiles are gone. Pure derivation over
   // `cells`.
@@ -372,8 +376,8 @@ function PlanEditor() {
   const itemTable = useKitchenItemTable({
     data: planListRows,
     search,
-    kind: kindFilter as KitchenItemKindFilter,
-    category,
+    kind: effectiveKindFilter,
+    category: effectiveCategory,
   })
   const visible = itemTable.getFilteredRowModel().rows.map(row => row.original)
   const categories = ['All', ...Array.from(new Set(items.map(item => item.category ?? '').filter(Boolean)))
@@ -650,6 +654,9 @@ function PesananView() {
   const [search, setSearch] = useSearchParamState('q', '')
   const [kindFilter, setKindFilter] = useSearchParamState('kind', 'All')
   const [category, setCategory] = useSearchParamState('category', 'All')
+  // Hidden desktop filters stay inert on phone even when their URL state is shared in.
+  const effectiveKindFilter: KitchenItemKindFilter = isDesktop ? kindFilter as KitchenItemKindFilter : 'All'
+  const effectiveCategory = isDesktop ? category : 'All'
 
   // #440: the horizon a floor member reads is THEIR stream's — it used to be
   // `defaultStreamFrom`, the catalog's first branch, so a Radiant barista read Gordi HQ's
@@ -700,8 +707,8 @@ function PesananView() {
   const pesananTable = useKitchenItemTable({
     data: pesananListRows,
     search,
-    kind: kindFilter as KitchenItemKindFilter,
-    category,
+    kind: effectiveKindFilter,
+    category: effectiveCategory,
   })
   const visible = pesananTable.getFilteredRowModel().rows.map(row => row.original)
   const categories = ['All', ...Array.from(new Set(rows.map(row => row.category ?? '').filter(Boolean)))

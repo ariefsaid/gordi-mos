@@ -1493,6 +1493,16 @@ describe('OD-K-5: category filter narrows rows', () => {
     expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
     expect(screen.queryByText('Ayam Bakar')).toBeNull()
   })
+
+  it('phone ignores a shared desktop category query so capture rows cannot disappear behind a hidden filter', async () => {
+    mockListCaptureFormItems.mockResolvedValue([
+      WIP_ITEMS[0],
+      { ...WIP_ITEMS[1], category: 'Rice' },
+    ])
+    await renderPage(VIEWER_MEMBER, `${appUrl('/cafe')}?category=Main`)
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+    expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
+  })
 })
 
 // task 10e — Discard (confirmed) resets all staged qty_porsi to 0
