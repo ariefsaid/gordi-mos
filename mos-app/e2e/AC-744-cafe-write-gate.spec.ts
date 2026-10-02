@@ -99,7 +99,9 @@ test.describe('AC-744  AC-008: the Café write gate — barista submits, Sales c
       ON CONFLICT (id) DO UPDATE SET flag_active = true;
       INSERT INTO ops.item_units (org_id, wip_item_id, unit_name, esb_product_detail_id, esb_product_id, is_default, is_transferable, confirmed_at)
       VALUES ('${ORG}', '${ITEM_ID}', '${UNIT_NAME}', 'PD-E2E-744', 'P-E2E-744', true, true, now())
-      ON CONFLICT (wip_item_id, unit_name) DO UPDATE SET confirmed_at = now();
+      ON CONFLICT (wip_item_id, esb_product_detail_id)
+        WHERE esb_product_detail_id IS NOT NULL
+      DO UPDATE SET confirmed_at = now();
       INSERT INTO ops.stream_items (org_id, branch_id, activity, wip_item_id, source)
       VALUES ('${ORG}', ${BRANCH_SQL}, '${BAR_STREAM.activity}', '${ITEM_ID}', 'manual')
       ON CONFLICT (org_id, branch_id, activity, wip_item_id) DO NOTHING;
