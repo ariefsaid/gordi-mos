@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Pill } from '@/components/ui/pill'
 
 /**
- * Dev-only primitives gallery (AC-147). Rendered at /mos/dev/ui in DEV only
+ * Dev-only primitives gallery (AC-147). Rendered at /dev/ui in DEV only
  * (router guards this with import.meta.env.DEV). Renders every primitive across
  * variants/sizes/states in both light + dark, for design review.
  *

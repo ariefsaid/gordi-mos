@@ -30,6 +30,7 @@ vi.mock('../auth/use-auth', () => ({
   useAuth: () => mockAuthState,
 }))
 
+import { appUrl } from '@/config/app-build-settings'
 import { RecoveryPage } from './recovery-page'
 import { supabase } from '@/lib/supabase'
 
@@ -257,7 +258,7 @@ describe('RecoveryPage', () => {
 
     await waitFor(() => {
       expect(mockResetPassword).toHaveBeenCalledWith('user@example.test', {
-        redirectTo: `${window.location.origin}/mos/recovery`,
+        redirectTo: new URL(appUrl('/recovery'), window.location.origin).href,
       })
     })
     expect(

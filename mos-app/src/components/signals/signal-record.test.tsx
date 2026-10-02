@@ -5,6 +5,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import { APP_ROUTER_BASENAME, appUrl } from '@/config/app-build-settings'
 import type { TaskComment } from '@/components/tasks/CommentThread'
 import type { PersonOption } from '@/lib/db/directory'
 import {
@@ -157,7 +158,7 @@ describe('SignalReach — the one action register (LAW-3), no Status/PIC/Supervi
   it('keeps the basename-aware task href while opening the existing host stack on a plain click', async () => {
     const onOpen = vi.fn()
     render(
-      <MemoryRouter basename="/mos" initialEntries={['/mos/work/signals']}>
+      <MemoryRouter basename={APP_ROUTER_BASENAME} initialEntries={[appUrl('/work/signals')]}>
         <I18nProvider>
           <SignalReach
             mentions={[]}
@@ -171,7 +172,7 @@ describe('SignalReach — the one action register (LAW-3), no Status/PIC/Supervi
     )
 
     const link = screen.getByRole('link', { name: /Repair freezer.*Open/i })
-    expect(link).toHaveAttribute('href', '/mos/work/tasks/task-1')
+    expect(link).toHaveAttribute('href', appUrl('/work/tasks/task-1'))
     await userEvent.click(link)
     expect(onOpen).toHaveBeenCalledTimes(1)
 

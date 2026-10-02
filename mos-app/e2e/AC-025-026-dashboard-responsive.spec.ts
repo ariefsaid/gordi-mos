@@ -1,5 +1,5 @@
 // AC-025/AC-026 (docs/specs/dashboard.spec.md) — visual/responsive proof that the
-// unit/RTL layer cannot cover: real-browser layout of /mos/dashboard at phone vs
+// unit/RTL layer cannot cover: real-browser layout of /dashboard at phone vs
 // desktop widths.
 //
 // This suite RETARGETS the old AC-010/AC-011 sales-dashboard responsive proof to the

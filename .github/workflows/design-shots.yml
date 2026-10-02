@@ -11,7 +11,7 @@ on:
         # Deliberately EMPTY. A non-empty default here always wins over the script's own list
         # (GitHub fills a required:false input from its default), which silently pinned this to a
         # stale 15-route set while the script advertised 22. One source of truth: design-shots.mjs.
-        description: 'Comma-separated route list to screenshot (each resolved against BASE_URL + /mos/). Default is dev''s actual surface set — including routes v4-redesign never had (Signals, Café sub-tabs, Ecommerce/Roastery stubs) — so a review does not silently skip the newer surfaces.'
+        description: 'Comma-separated app route list to screenshot (each resolved against BASE_URL). Default is dev''s actual surface set — including routes v4-redesign never had (Signals, Café sub-tabs, Ecommerce/Roastery stubs) — so a review does not silently skip the newer surfaces.'
         required: false
         type: string
         default: ''
@@ -73,8 +73,8 @@ jobs:
 
       - name: Start app dev server (background)
         # Same serving mechanism mos-app/playwright.config.ts uses for e2e (webServer.command:
-        # 'npm run dev', baseURL http://localhost:5173/mos/) — NOT a build+preview server, so
-        # design-shots.mjs's BASE_URL below matches e2e exactly, /mos/ base path included.
+        # 'npm run dev', baseURL http://localhost:5173/) — NOT a build+preview server, so
+        # design-shots.mjs's BASE_URL below matches the default root build.
         working-directory: mos-app
         env:
           VITE_SUPABASE_URL: http://127.0.0.1:44321
@@ -84,20 +84,20 @@ jobs:
           npm run dev > /tmp/mos-dev.log 2>&1 &
           echo $! > /tmp/mos-dev.pid
           for i in $(seq 1 60); do
-            curl -sf http://localhost:5173/mos/ >/dev/null 2>&1 && break
+            curl -sf http://localhost:5173/ >/dev/null 2>&1 && break
             if [ "$i" = 60 ]; then
-              echo "dev server never came up at http://localhost:5173/mos/" >&2
+              echo "dev server never came up at http://localhost:5173/" >&2
               cat /tmp/mos-dev.log
               exit 1
             fi
             sleep 1
           done
-          echo "dev server: serving /mos/"
+          echo "dev server: serving the site root"
 
       - name: Capture design screenshots
         working-directory: mos-app
         env:
-          BASE_URL: http://localhost:5173/mos/
+          BASE_URL: http://localhost:5173/
           ROUTES: ${{ inputs.routes }}
           OUT_DIR: shots-out
           VITE_SUPABASE_URL: http://127.0.0.1:44321

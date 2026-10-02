@@ -16,6 +16,7 @@
 import { test, expect } from '@playwright/test'
 import { loginAs } from './helpers/login'
 import { MANAGER } from './fixtures/users'
+import { stripE2eBasePath } from './helpers/app-path'
 
 test('AC-1011: scrolling Home main content leaves the rail bounding top fixed', async ({ page }) => {
   // #276 row L / AC-1011 geometry ruling: 1280px preserves the width-gated rail; the shorter fixture viewport
@@ -23,7 +24,7 @@ test('AC-1011: scrolling Home main content leaves the rail bounding top fixed', 
   await page.setViewportSize({ width: 1280, height: 200 })
   await loginAs(page, MANAGER.email, MANAGER.password)
   await page.goto('')
-  await page.waitForURL(/\/mos\/?$/)
+  await page.waitForURL((url) => stripE2eBasePath(url.pathname) === '/')
 
   const main = page.locator('main')
   const rail = page.locator('aside').first()

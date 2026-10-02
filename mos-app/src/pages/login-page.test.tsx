@@ -28,6 +28,7 @@ vi.mock('react-router-dom', async () => {
   return { ...actual, useNavigate: () => mockNavigate, useLocation: () => mockLocation }
 })
 
+import { appUrl } from '@/config/app-build-settings'
 import { LoginPage } from './login-page'
 import { supabase } from '@/lib/supabase'
 
@@ -200,7 +201,7 @@ describe('LoginPage — credentials form', () => {
       expect(mockSignInWithOtp).toHaveBeenCalledWith(
         expect.objectContaining({
           options: expect.objectContaining({
-            emailRedirectTo: `${window.location.origin}/mos/work/tasks`,
+            emailRedirectTo: new URL(appUrl('/work/tasks'), window.location.origin).href,
           }),
         }),
       )
@@ -224,7 +225,7 @@ describe('LoginPage — credentials form', () => {
       expect(mockSignInWithOtp).toHaveBeenCalledWith(
         expect.objectContaining({
           options: expect.objectContaining({
-            emailRedirectTo: `${window.location.origin}/mos/`,
+            emailRedirectTo: new URL(appUrl('/'), window.location.origin).href,
           }),
         }),
       )

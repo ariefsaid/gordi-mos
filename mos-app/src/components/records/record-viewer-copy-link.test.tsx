@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useHref } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import { APP_ROUTER_BASENAME, appUrl } from '@/config/app-build-settings'
 import { RecordViewer } from './record-viewer'
 import type { RecordKind, RecordViewerAdapter } from './record-viewer.types'
 
@@ -41,9 +42,9 @@ beforeEach(() => {
 
 describe('RecordViewer canonical Copy link', () => {
   it.each([
-    { kind: 'work-line' as const, parent: '/mos/work/projects?record=work-line-1', canonicalPath: '/work/projects/work-line-1' },
-    { kind: 'task' as const, parent: '/mos/work/tasks?record=task-1', canonicalPath: '/work/tasks/task-1' },
-    { kind: 'signal' as const, parent: '/mos/work/signals?record=signal-1', canonicalPath: '/work/signals/signal-1' },
+    { kind: 'work-line' as const, parent: `${appUrl('/work/projects')}?record=work-line-1`, canonicalPath: '/work/projects/work-line-1' },
+    { kind: 'task' as const, parent: `${appUrl('/work/tasks')}?record=task-1`, canonicalPath: '/work/tasks/task-1' },
+    { kind: 'signal' as const, parent: `${appUrl('/work/signals')}?record=signal-1`, canonicalPath: '/work/signals/signal-1' },
   ])('copies the $kind canonical record URL instead of the parent collection URL', async ({ kind, parent, canonicalPath }) => {
     const user = userEvent.setup()
     // userEvent installs its own clipboard stub during setup; replace it with the assertion spy.
@@ -52,7 +53,7 @@ describe('RecordViewer canonical Copy link', () => {
       value: { writeText },
     })
     render(
-      <MemoryRouter basename="/mos" initialEntries={[parent]}>
+      <MemoryRouter basename={APP_ROUTER_BASENAME} initialEntries={[parent]}>
         <I18nProvider>
           <DomainRecord kind={kind} canonicalPath={canonicalPath} />
         </I18nProvider>
@@ -62,6 +63,6 @@ describe('RecordViewer canonical Copy link', () => {
     await user.click(screen.getByRole('button', { name: 'More actions' }))
     await user.click(screen.getByRole('menuitem', { name: 'Copy link' }))
 
-    expect(writeText).toHaveBeenCalledWith(new URL(`/mos${canonicalPath}`, window.location.origin).href)
+    expect(writeText).toHaveBeenCalledWith(new URL(appUrl(canonicalPath), window.location.origin).href)
   })
 })

@@ -1,4 +1,4 @@
-// SalesDashboardPage — /mos/sales, finance/admin only (route-gated in router.tsx via
+// SalesDashboardPage — /sales, finance/admin only (route-gated in router.tsx via
 // RequireAccessRole anyOf={['finance','admin']}, FR-001/AC-001/002). The sales-specific
 // composition wiring the reusable dashboard kit (KPITile/ChartFrame/DataTable/
 // FreshnessLabel/CutToggle) to the sales reporting read model. Reads via the reporting

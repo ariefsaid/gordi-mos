@@ -4,6 +4,7 @@ import { ADMIN } from './fixtures/users'
 import { AC204, TASKS } from './fixtures/tasks'
 import { isShipGated } from './helpers/ship-gate'
 import { taskViewsGroup } from './helpers/tasks'
+import { e2eAppPath } from './helpers/app-path'
 
 // notFound.title (i18n/messages.ts): the not-found page's ONE heading now carries the message
 // itself ("Page not found" retired — see src/pages/not-found-page.tsx's docblock).
@@ -25,12 +26,8 @@ const redirectCases = [
   { oldPath: 'projects-processes', finalPath: /\/work\/projects\?layout=list$/, needsAdmin: true, replacement: '/work/projects' },
   { oldPath: 'work/projects-processes', finalPath: /\/work\/projects\?layout=list$/, needsAdmin: true, replacement: '/work/projects' },
   { oldPath: 'updates', finalPath: /\/work\/signals\?layout=feed$/, needsAdmin: false },
-  // Step 7 (RATIFY-7D): bare /cafe is the Café Operations home (opening panel). Legacy bare
-  // /kitchen, however, maps to /cafe/log by the router's own redirect table (router.tsx
-  // redirectHandle('/cafe/log') — the capture surface, not the home). Deep sub-routes below
-  // keep their exact 1:1 mapping.
-  // DD-MVP-17: the Café root is the Today capture surface now, so the retired kitchen paths land
-  // there directly — /cafe/log itself aliases the root by the same redirect (router.tsx).
+  // DD-MVP-17: the Café root is the Today capture surface, so the retired kitchen log paths land
+  // there directly. The remaining legacy kitchen screens keep their 1:1 route under /cafe.
   { oldPath: 'kitchen', finalPath: /\/cafe$/, needsAdmin: false },
   { oldPath: 'kitchen/log', finalPath: /\/cafe$/, needsAdmin: false },
   // Café Opening is hidden (CAFE_OPENING_ENABLED): its own path lands on the root.
@@ -49,7 +46,7 @@ const redirectCases = [
 async function expectBackDoesNotReenterOld(page: import('@playwright/test').Page, oldPath: string) {
   await page.goBack()
   await page.waitForTimeout(250)
-  expect(page.url()).not.toContain(`/mos/${oldPath}`)
+  expect(new URL(page.url()).pathname).not.toBe(e2eAppPath(`/${oldPath}`))
 }
 
 test.beforeEach(async ({ page }) => {
@@ -71,7 +68,7 @@ test('AC-001: old shell routes redirect to their new canonical URL and Back neve
     if ('replacement' in routeCase && isShipGated(routeCase.replacement)) continue
 
     await page.goto('')
-    await expect(page).toHaveURL(/\/$|\/mos\/?$/)
+    await expect(page).toHaveURL(new URL(e2eAppPath('/'), page.url()).href)
 
     await page.goto(routeCase.oldPath, { waitUntil: 'commit', timeout: 10_000 })
     await page.waitForTimeout(1_000)
@@ -86,7 +83,7 @@ test('AC-001: old shell routes redirect to their new canonical URL and Back neve
 test('AC-003 (DD-WAY-60): retired Daily Log URLs render in-shell not-found without redirect', async ({ page }) => {
   for (const path of ['ops', 'ops/new', 'ops/retired-id/edit']) {
     await page.goto(path)
-    await expect(page).toHaveURL(new RegExp(`/mos/${path.replaceAll('/', '\\/')}$`))
+    await expect(page).toHaveURL(new RegExp(`/${path.replaceAll('/', '\\/')}$`))
     await expect(page.getByRole('heading', { name: NOT_FOUND_HEADING })).toBeVisible()
   }
 })
@@ -123,6 +120,20 @@ test('AC-005: /kitchen/* redirects to /cafe/* and renders the re-homed kitchen s
     await page.goto(routeCase.oldPath)
     await expect(page).toHaveURL(routeCase.finalPath)
     await expect(routeCase.surface).toBeVisible({ timeout: 15_000 })
+  }
+})
+
+test('legacy /mos and /kitchen addresses redirect to the base-aware Café routes and retain queries', async ({ page }) => {
+  const cases = [
+    { oldPath: '/mos?return=home', path: '/', search: '?return=home' },
+    { oldPath: '/mos/work/follow-ups?origin=old-mos', path: '/work/follow-ups', search: '?origin=old-mos' },
+    { oldPath: '/mos/kitchen/plan?week=this-week', path: '/cafe/plan', search: '?week=this-week' },
+    { oldPath: '/mos/cafe/log?date=today', path: '/cafe', search: '?date=today' },
+    { oldPath: '/kitchen/pushes?status=failed', path: '/cafe/pushes', search: '?status=failed' },
+  ]
+  for (const route of cases) {
+    await page.goto(route.oldPath, { waitUntil: 'commit' })
+    await expect(page).toHaveURL(new URL(`${e2eAppPath(route.path)}${route.search}`, page.url()).href)
   }
 })
 

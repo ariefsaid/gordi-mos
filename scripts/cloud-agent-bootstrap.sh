@@ -86,18 +86,18 @@ say "Verifying the app renders"
 trap 'kill "$(cat /tmp/mos-dev.pid 2>/dev/null)" 2>/dev/null || true' EXIT
 
 for i in $(seq 1 60); do
-  curl -sf http://localhost:5173/mos/ >/dev/null 2>&1 && break
-  [ "$i" = 60 ] && { cat /tmp/mos-dev-boot.log; die "dev server never came up at http://localhost:5173/mos/"; }
+  curl -sf http://localhost:5173/ >/dev/null 2>&1 && break
+  [ "$i" = 60 ] && { cat /tmp/mos-dev-boot.log; die "dev server never came up at http://localhost:5173/"; }
   sleep 1
 done
-echo "dev server: serving /mos/"
+echo "dev server: serving the site root"
 
 curl -sf "$API_URL/auth/v1/health" -H "apikey: $ANON_KEY" >/dev/null || die "Supabase auth unreachable at $API_URL — login (and therefore the design review) will not work."
 echo "supabase auth: reachable"
 
 say "READY — both review batteries can run"
 cat <<'EOF'
-  Design review needs the app up:   cd mos-app && npm run dev    → http://localhost:5173/mos/
+  Design review needs the app up:   cd mos-app && npm run dev    → http://localhost:5173/
     demo login: persona buttons, password Passw0rd!dev (committed dev constant,
     supabase/seed.dev-auth.sql — local stack only, never a real credential)
   Gates:  cd mos-app && npm run typecheck && npm test && npx playwright test

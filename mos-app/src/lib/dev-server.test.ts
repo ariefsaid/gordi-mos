@@ -37,7 +37,8 @@ describe('dev-server worktree scoping (#419)', () => {
     const port = devServerPort(TREE_A, undefined)
     expect(MOS_DEV_IDENTITY_PATH).toBe('/_mos_dev_identity')
     expect(worktreeFingerprint(TREE_A)).toMatch(/^mos-dev-[0-9a-f]{8}$/)
-    expect(devServerBaseUrl(TREE_A, undefined)).toBe(`http://localhost:${port}/mos/`)
+    expect(devServerBaseUrl(TREE_A, undefined)).toBe(`http://localhost:${port}/`)
+    expect(devServerBaseUrl(TREE_A, undefined, '/preview')).toBe(`http://localhost:${port}/preview/`)
     expect(devServerIdentityUrl(TREE_A, undefined)).toBe(`http://localhost:${port}${MOS_DEV_IDENTITY_PATH}`)
   })
 
