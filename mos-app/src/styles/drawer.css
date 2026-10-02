@@ -63,9 +63,9 @@
 
 /* ── Shared companion surface (Deputy today; domain-neutral host grammar) ────────────
    A companion is rendered by OverlayCompanionSlot through RecordPanelHost. At shell/desktop
-   widths it is non-modal; beside a record it contracts into the unused canvas rather than
-   covering the record. Below 920px RecordPanelHost selects its ordinary full-screen modal
-   regime, so phone gets the owner's allowed above-record presentation without local chrome. */
+   widths it is non-modal; with a record it anchors inside that column below record identity/actions,
+   keeping the list's decision columns clear. Below 920px RecordPanelHost selects its ordinary
+   full-screen modal regime, so phone gets the owner's allowed above-record presentation. */
 @media (min-width: 920px) {
   /* The standalone companion (no record open) docks like the shell panel: the main region gives up
      its track. Beside a record the companion floats inside the record's own frame and pads nothing. */
@@ -95,33 +95,16 @@
   }
 
   .drawer.overlay-companion-host--with-record {
-    top: auto;
-    bottom: 16px;
-    height: min(520px, calc(100vh - var(--header-h) - 32px));
-    min-height: 320px;
+    /* The measured companion uses the record's column, below both the shared chrome and its
+       identity/actions header. The compact height leaves the record body visible below it. */
+    top: var(--companion-top, calc(var(--header-h) + 12px));
+    right: var(--companion-right, 0px);
+    bottom: auto;
+    width: var(--companion-width, min(var(--assistant-w), 100vw));
+    height: min(35vh, max(0px, calc(100vh - var(--companion-top, var(--header-h)) - 16px)));
+    min-height: 0;
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-strong);
-  }
-}
-
-@media (min-width: 920px) and (max-width: 1099.98px) {
-  .drawer.overlay-companion-host--with-record {
-    /* The record is the .drawer-modal.drawer-sheet in this band. The measured placement (see the
-       ≥1100px rule) is authoritative; this fallback carries the sheet's floor until it lands. */
-    right: var(--companion-right, calc(max(var(--record-panel-w), min(45vw, 520px)) + 12px));
-    width: var(--companion-width, min(var(--assistant-w), calc(55vw - var(--rail-w) - 24px)));
-  }
-}
-
-/* 1100px is the generic shell overlay breakpoint; Tasks uses its named decision-column threshold. */
-@media (min-width: 1100px) {
-  .drawer.overlay-companion-host--with-record {
-    /* The record's real left edge depends on the content cap, frame gutters and rail, not only on
-       --record-panel-w, so OverlayCompanionSlot measures it and sets --companion-right/-width
-       (use-beside-record-placement.ts). The token formula only covers the frame before that
-       measurement lands. */
-    right: var(--companion-right, calc(var(--record-panel-w) + 12px));
-    width: var(--companion-width, min(var(--assistant-w), calc(56vw - var(--rail-w) - 24px)));
   }
 }
 

@@ -53,7 +53,7 @@ interface RatingLabels {
 }
 
 export function AssistantPanel() {
-  const { open, closePanel, pendingDraft, consumePendingDraft } = useAgentRuntime()
+  const { open, focusOnOpen, closePanel, pendingDraft, consumePendingDraft } = useAgentRuntime()
   const panel = useAssistantPanel()
   const t = useT()
   const auth = useAuth()
@@ -113,6 +113,7 @@ export function AssistantPanel() {
   return (
     <OverlayCompanionSlot
       open={open}
+      focusOnOpen={focusOnOpen}
       onClose={() => closePanel()}
       entry={{
         key: 'deputy',
