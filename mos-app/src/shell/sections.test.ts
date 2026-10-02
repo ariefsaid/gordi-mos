@@ -23,13 +23,13 @@ describe('T5: SECTIONS — workspace fallback registry', () => {
 })
 
 describe('T5: CAFE_SECTIONS — Kitchen re-homed under /cafe/*', () => {
-  // Step 7 (cafe-retrofit.spec.md, RATIFY-7D): /cafe now hosts the "Start today's opening" home
-  // (Opening) ahead of the re-homed kitchen screens (Log · Plan · Stock · Review · Pushes).
-  it('exports the capture root + 4 café sections in canonical order (DD-MVP-17: /cafe/log retired)', () => {
+  // DD-MVP-17: /cafe is the capture root, followed by Plan, Stock, Items, Review and Pushes.
+  it('exports the capture root + 5 café screens in canonical order (/cafe/log retired)', () => {
     expect(CAFE_SECTIONS.map((s) => s.path)).toEqual([
       '/cafe',
       '/cafe/plan',
       '/cafe/stock',
+      '/cafe/items',
       '/cafe/review',
       '/cafe/pushes',
     ])
@@ -44,8 +44,9 @@ describe('T5: CAFE_SECTIONS — Kitchen re-homed under /cafe/*', () => {
     })
   })
 
-  it('sectionForPath resolves /cafe/log, /cafe/review, /cafe/pushes', () => {
+  it('sectionForPath resolves /cafe/log, /cafe/items, /cafe/review, /cafe/pushes', () => {
     expect(sectionForPath('/cafe/log')!.label).toBe('Log')
+    expect(sectionForPath('/cafe/items')!.label).toBe('Items')
     expect(sectionForPath('/cafe/review')!.label).toBe('Review')
     expect(sectionForPath('/cafe/pushes')!.label).toBe('Pushes')
   })
@@ -113,10 +114,10 @@ describe('T5: sectionForPath — fallbacks', () => {
 
 describe('the Café children carry marks of their own (#457)', () => {
   // Several rungs, one picture: each Café tab gets its own mark so compact rail and phone drawer entries remain identifiable.
-  it('the five children use five distinct components (DD-MVP-17: Opening merged into the root)', () => {
+  it('the five children and capture root use distinct components (DD-MVP-17)', () => {
     const icons = CAFE_SECTIONS.map((s) => s.Icon)
-    expect(icons).toHaveLength(5)
-    expect(new Set(icons).size).toBe(5)
+    expect(icons).toHaveLength(6)
+    expect(new Set(icons).size).toBe(6)
   })
 
   it('none of them is a mark another destination already draws', () => {

@@ -6,7 +6,7 @@ import {
   HomeIcon, TasksIcon, SignalsIcon, WorkLineIcon, ObjectiveIcon,
   MoneyIcon, InboxIcon, CafeIcon, EcommerceIcon, RoasteryIcon,
   ProfileIcon, PeopleIcon, ShieldIcon,
-  LogIcon, PlanIcon, StockIcon, ReviewIcon, DispatchIcon,
+  LogIcon, PlanIcon, StockIcon, ItemsIcon, ReviewIcon, DispatchIcon,
 } from './icons'
 
 export interface Section {
@@ -53,8 +53,8 @@ export const SECTIONS: Section[] = [
 ]
 
 /**
- * Café Module sections — Opening (Step 7, RATIFY-7D — the "Start today's opening" home at the
- * exact /cafe path) + 5 screens re-homed from /kitchen/* to /cafe/* (OD-15). Role visibility
+ * Café Module sections — the capture root and five working screens (Plan, Stock, Items, Review,
+ * Pushes) re-homed from /kitchen/* to /cafe/* (OD-15). Role visibility
  * (Review: ops_lead/admin/supervisor · Pushes: ops_lead/admin) is enforced in the rail; all 6 are in this list for
  * breadcrumb resolution regardless of role. Every label flows through the i18n catalog (FR-440)
  * via its labelKey. sectionForPath resolves the exact /cafe path to Opening (not the generic
@@ -73,6 +73,7 @@ export const CAFE_SECTIONS: Section[] = [
   { path: '/cafe', label: 'Log', labelKey: 'nav.cafe.log', Icon: LogIcon },
   { path: '/cafe/plan', label: 'Plan', labelKey: 'nav.cafe.plan', Icon: PlanIcon },
   { path: '/cafe/stock', label: 'Stock', labelKey: 'nav.cafe.stock', Icon: StockIcon },
+  { path: '/cafe/items', label: 'Items', labelKey: 'nav.cafe.items', Icon: ItemsIcon },
   // `anyOf` matches each one's OWN route gate exactly (router.tsx: two RequireAccessRole
   // branches). Same list in both places or the rail offers a link that bounces — or, as #236
   // shipped it, withholds a link to a surface the person is entitled to.

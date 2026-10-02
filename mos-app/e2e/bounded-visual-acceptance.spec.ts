@@ -265,7 +265,7 @@ test.describe('bounded visual and interaction acceptance', () => {
         { name: 'Unit bisnis', value: 'Unit bisnis: Semua unit' },
         { name: 'Status', value: 'Semua status', role: 'button' as const },
         { name: 'Orang', value: 'Orang: Semua' },
-        { name: 'Urutkan', value: 'Urutkan: Tenggat dekat' },
+        { name: 'Urutkan', value: 'Urutkan: Jatuh tempo terdekat' },
       ]
       for (const expected of expectedValues) {
         const trigger = filters.getByRole(expected.role ?? 'combobox', { name: expected.name, exact: true })
