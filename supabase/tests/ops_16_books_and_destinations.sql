@@ -50,17 +50,14 @@ select results_eq($$
     '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000bf02', 'kitchen')
   $$, $$ values
     ('00000000-0000-0000-0000-00000000bf04'::uuid),
-    ('00000000-0000-0000-0000-00000000bf01'::uuid),
     ('00000000-0000-0000-0000-00000000bf03'::uuid) $$,
-  'AC-003: RRS kitchen sends to each other stream branch, never itself');
+  'AC-003: RRS kitchen sends to Cikal and Radiant, not GHQ or itself');
 select results_eq($$
   select destination_branch_id from ops.allowed_kitchen_destinations(
     '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000bf01', 'kitchen')
   $$, $$ values
-    ('00000000-0000-0000-0000-00000000bf04'::uuid),
-    ('00000000-0000-0000-0000-00000000bf03'::uuid),
-    ('00000000-0000-0000-0000-00000000bf02'::uuid) $$,
-  'AC-003: GHQ kitchen sends to every other stream branch, never itself or Roastery');
+    ('00000000-0000-0000-0000-00000000bf04'::uuid) $$,
+  'AC-003: GHQ kitchen sends only to Cikal');
 select results_eq($$
   select destination_branch_id from ops.allowed_kitchen_destinations(
     '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000bf03', 'kitchen')
@@ -79,10 +76,8 @@ select results_eq($$
     '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000bf01', 'bar')
   $$, $$ values
     ('00000000-0000-0000-0000-00000000bf04'::uuid),
-    ('00000000-0000-0000-0000-00000000bf01'::uuid),
-    ('00000000-0000-0000-0000-00000000bf03'::uuid),
-    ('00000000-0000-0000-0000-00000000bf02'::uuid) $$,
-  'AC-003: GHQ bar includes its held intra-branch arm and every other bar branch');
+    ('00000000-0000-0000-0000-00000000bf01'::uuid) $$,
+  'AC-003: GHQ bar sends only to Cikal outside its held intra-branch arm');
 select results_eq($$
   select destination_branch_id from ops.allowed_kitchen_destinations(
     '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000bf02', 'bar')
