@@ -124,7 +124,13 @@ export function WindowSelector({
       </div>
 
       {isCustom && !hideRange && (
-        <WindowRangeFields value={value} onChange={onChange} bounds={bounds} />
+        <WindowRangeFields
+          value={value}
+          onChange={(next) => {
+            if (next.kind === 'custom' && next.from !== '' && next.to !== '') onChange(next)
+          }}
+          bounds={bounds}
+        />
       )}
     </div>
   )
@@ -156,6 +162,7 @@ export function WindowRangeFields({
           value={value.kind === 'custom' ? value.from : ''}
           min={min}
           max={max}
+          required
           aria-label={t('money.window.from')}
           onChange={(from) => {
             if (value.kind === 'custom') onChange({ kind: 'custom', from, to: value.to })
@@ -169,6 +176,7 @@ export function WindowRangeFields({
           value={value.kind === 'custom' ? value.to : ''}
           min={min}
           max={max}
+          required
           aria-label={t('money.window.to')}
           onChange={(to) => {
             if (value.kind === 'custom') onChange({ kind: 'custom', from: value.from, to })

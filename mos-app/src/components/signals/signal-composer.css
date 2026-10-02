@@ -37,6 +37,26 @@
 }
 .signal-composer-context-pill:hover { background: var(--surface-tertiary); color: var(--foreground); }
 .signal-composer-occurred-pill { padding-right: 4px; align-items: flex-start; }
+/* Error copy gets its own second grid row on desktop. The date box, label, time, and WIB hint
+   stay aligned in the first row instead of the error making the neighboring controls ride high. */
+@media (min-width: 768px) {
+  .signal-composer-occurred-pill {
+    display: grid;
+    grid-template-columns: max-content max-content max-content max-content;
+    grid-template-rows: auto auto;
+    grid-template-areas:
+      "label date time hint"
+      ". error . .";
+    align-items: center;
+  }
+  .signal-composer-occurred-pill > span:first-child { grid-area: label; }
+  .signal-composer-occurred-pill .mk-date { display: contents; }
+  .signal-composer-occurred-pill .mk-date__box { grid-area: date; }
+  .signal-composer-occurred-pill .mk-date__error { grid-area: error; }
+  .signal-composer-occurred-pill .signal-composer-time { grid-area: time; }
+  .signal-composer-occurred-pill .signal-composer-field-hint { grid-area: hint; margin-left: 0; }
+}
+
 /* The occurrence pill holds two real fields. Keep the date legible, and let validation occupy
    its own line instead of crossing the pill's border. */
 .signal-composer-occurred-pill .mk-date { min-width: 0; }
