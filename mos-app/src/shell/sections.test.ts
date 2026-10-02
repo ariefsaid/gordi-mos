@@ -25,9 +25,11 @@ describe('T5: SECTIONS — workspace fallback registry', () => {
 describe('T5: CAFE_SECTIONS — Kitchen re-homed under /cafe/*', () => {
   // Step 7 (cafe-retrofit.spec.md, RATIFY-7D): /cafe now hosts the "Start today's opening" home
   // (Opening) ahead of the re-homed kitchen screens (Log · Plan · Stock · Review · Pushes).
-  it('exports the capture root + 4 café sections in canonical order (DD-MVP-17: /cafe/log retired)', () => {
+  it('exports the Today root + six Café sections in canonical order', () => {
     expect(CAFE_SECTIONS.map((s) => s.path)).toEqual([
       '/cafe',
+      '/cafe/production',
+      '/cafe/transfer',
       '/cafe/plan',
       '/cafe/stock',
       '/cafe/review',
@@ -44,8 +46,9 @@ describe('T5: CAFE_SECTIONS — Kitchen re-homed under /cafe/*', () => {
     })
   })
 
-  it('sectionForPath resolves /cafe/log, /cafe/review, /cafe/pushes', () => {
-    expect(sectionForPath('/cafe/log')!.label).toBe('Log')
+  it('sectionForPath resolves the production and transfer capture routes plus review and pushes', () => {
+    expect(sectionForPath('/cafe/production')!.label).toBe('Log production')
+    expect(sectionForPath('/cafe/transfer')!.label).toBe('Log transfer')
     expect(sectionForPath('/cafe/review')!.label).toBe('Review')
     expect(sectionForPath('/cafe/pushes')!.label).toBe('Pushes')
   })
@@ -54,8 +57,8 @@ describe('T5: CAFE_SECTIONS — Kitchen re-homed under /cafe/*', () => {
     expect(sectionForPath('/cafe/plan/anything')!.path).toBe('/cafe/plan')
   })
 
-  it('DD-MVP-17: sectionForPath resolves the exact /cafe path to the capture root (Log)', () => {
-    expect(sectionForPath('/cafe')!.label).toBe('Log')
+  it('sectionForPath resolves the exact /cafe path to the Today root', () => {
+    expect(sectionForPath('/cafe')!.label).toBe('Today')
   })
 })
 
@@ -113,10 +116,10 @@ describe('T5: sectionForPath — fallbacks', () => {
 
 describe('the Café children carry marks of their own (#457)', () => {
   // Several rungs, one picture: each Café tab gets its own mark so compact rail and phone drawer entries remain identifiable.
-  it('the five children use five distinct components (DD-MVP-17: Opening merged into the root)', () => {
+  it('the seven children use seven distinct components (Today, production and transfer)', () => {
     const icons = CAFE_SECTIONS.map((s) => s.Icon)
-    expect(icons).toHaveLength(5)
-    expect(new Set(icons).size).toBe(5)
+    expect(icons).toHaveLength(7)
+    expect(new Set(icons).size).toBe(7)
   })
 
   it('none of them is a mark another destination already draws', () => {

@@ -71,7 +71,15 @@ import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { WipItemStepper } from '@/components/kitchen/wip-item-stepper'
 import { MetricSummaryRule } from '@/components/kitchen/metric-summary-rule'
 import { kitchenCategoryLabel } from '@/lib/kitchen-category-label'
-import { DataTable, type DataTableColumn, type DataTableGroup } from '@/components/dashboard/data-table'
+import {
+  KITCHEN_KIND_FILTER_OPTIONS,
+  kitchenDataTableGroups,
+  toKitchenListRows,
+  useKitchenItemTable,
+  type KitchenItemKindFilter,
+  type KitchenListRow,
+} from '@/lib/kitchen-item-list'
+import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
 import { kitchenStatus } from '@/lib/kitchen-status'
 import { formatWeekdayDayMonth } from '@/lib/format/date'
 import { EmptyState, LoadingShell } from '@/components/ui/state-kit'
@@ -160,7 +168,10 @@ type PageStatus =
   | { kind: 'submitting' }
   | { kind: 'success'; count: number }
 
-export function KitchenLogPage({ leading, activeBranchId, activeBranchName }: {
+export type KitchenLogMode = 'production' | 'transfer'
+
+export function KitchenLogPage({ mode = 'production', leading, activeBranchId, activeBranchName }: {
+  mode?: KitchenLogMode
   leading?: ReactNode
   /**
    * OD-CAFE-1: the location this capture belongs to, from the module root's own location
@@ -177,22 +188,23 @@ export function KitchenLogPage({ leading, activeBranchId, activeBranchName }: {
 
   // Catalog, rows, and staged capture lines belong to one person. A route remains mounted
   // through an auth replacement, so a key makes that replacement atomic at render time.
-  return <KitchenLogPageForViewer key={viewerId} leading={leading} activeBranchId={activeBranchId} activeBranchName={activeBranchName} />
+  return <KitchenLogPageForViewer key={`${viewerId}:${mode}`} mode={mode} leading={leading} activeBranchId={activeBranchId} activeBranchName={activeBranchName} />
 }
 
 /** DD-MVP-17: leading slot — content (the Opening door row) the module root renders
  *  above the capture form when this surface IS the Café root. */
-function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: { leading?: ReactNode; activeBranchId?: string; activeBranchName?: string } = {}) {
+function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchName }: { mode: KitchenLogMode; leading?: ReactNode; activeBranchId?: string; activeBranchName?: string }) {
   const auth = useAuth()
   const t = useT()
   // issue 455: the tab names the module the rail and breadcrumb name; leaf-first per
   // the catalog's own docTitle convention (tasks-layout, signals-archive).
-  useDocumentTitle(t('common.docTitle', { page: `${t('nav.cafe.log')} · ${t('nav.cafe')}` }))
+  const pageLabel = t(mode === 'production' ? 'nav.cafe.production' : 'nav.cafe.transfer')
+  useDocumentTitle(t('common.docTitle', { page: `${pageLabel} · ${t('nav.cafe')}` }))
   const isDesktop = useIsDesktop()
   // I18N sweep: the H1 was a literal "Café · Log" — mixed-locale in `id` (breadcrumb
   // correctly translated the module/page, the heading below it did not). Reuses the
   // existing nav.cafe.* family rather than adding a duplicate composed key.
-  const pageTitle = `${t('dest.cafe')} · ${t('nav.cafe.log')}`
+  const pageTitle = `${t('dest.cafe')} · ${pageLabel}`
 
   // The (branch, activity) production stream every captured row belongs to (OD-WAY-28), and
   // the movement within it (DD-WAY-13). The default is the person's OWN stream — their live
@@ -258,12 +270,25 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
   // submit production against them (DD-MVP-9).
   const streamCanProduce = streamProduces(stream, streamOptions)
   const streamNonProducing = stream !== null && !streamCanProduce
-  const captureClosed = !canCapture || streamMissing || streamNonProducing
-  const movementOptions = stream
+  const allMovementOptions = stream
     ? movementsForStream(stream, streamOptions, cafeStream.destinations)
     : []
+  const movementOptions = allMovementOptions.filter(movement =>
+    mode === 'production' ? movement.action === 'produce' : movement.action === 'transfer',
+  )
   const { resolve: resolveStream, adopt: adoptStream, setStream: chooseStream } = cafeStream
   const [movement, setMovement] = useState<KitchenMovement>(PRODUCE)
+  useEffect(() => {
+    if (mode !== 'transfer' || movementOptions.length === 0) return
+    if (!movementOptions.some(option => movementKey(option) === movementKey(movement))) {
+      setMovement(movementOptions[0])
+    }
+  }, [mode, movementOptions, movement])
+  const transferDestinationChosen = mode !== 'transfer' || (
+    movement.action === 'transfer' && movementOptions.some(option => movementKey(option) === movementKey(movement))
+  )
+  const writeClosed = !canCapture || streamMissing || streamNonProducing
+  const captureClosed = writeClosed || !transferDestinationChosen
   const [logDate] = useState(wibToday) // today WIB; owner-decision: allow past dates flagged
   const [wipItems, setWipItems] = useState<CaptureFormItem[]>([])
   const [planMap, setPlanMap] = useState<PlanMap>({})
@@ -297,7 +322,38 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
   // Client-side search + category (P-3), URL-synced so the view survives refresh/share (I7 / D-E1).
   // Group collapse stays INTERNAL to the shared <DataTable> (no page-level collapsedGroups state).
   const [search, setSearch] = useSearchParamState('q', '')
+  const [kindFilter, setKindFilter] = useSearchParamState('kind', 'All')
   const [category, setCategory] = useSearchParamState('category', 'All')
+  const filterRows = useMemo(
+    () => toKitchenListRows(wipItems, {
+      kind: 'WIP',
+      getId: item => item.id,
+      getName: item => item.name,
+      getCategory: item => item.category,
+      getGroupKey: item => (lines[item.id]?.plan_qty ?? 0) > 0 ? 'planned' : 'offplan',
+    }),
+    [lines, wipItems],
+  )
+  const itemTable = useKitchenItemTable({
+    data: filterRows,
+    search,
+    kind: kindFilter as KitchenItemKindFilter,
+    category,
+  })
+  const visibleItems = itemTable.getFilteredRowModel().rows.map(row => row.original)
+  const plannedLines = visibleItems.filter(item => (lines[item.id]?.plan_qty ?? 0) > 0)
+  const categories = [
+    'All',
+    ...Array.from(new Set(wipItems.map(item => item.category ?? '').filter(Boolean)))
+      .sort((a, b) => kitchenCategoryLabel(t, a).localeCompare(kitchenCategoryLabel(t, b))),
+  ]
+  const groups = kitchenDataTableGroups(
+    itemTable,
+    groupKey => groupKey === 'planned' ? t('kitchen.log.group.planned') : t('kitchen.log.group.offplan'),
+    groupKey => groupKey === 'offplan' && mode === 'production'
+      ? { hint: t('kitchen.log.group.offplan.hint') }
+      : undefined,
+  ).sort((a, b) => (a.key === 'planned' ? -1 : b.key === 'planned' ? 1 : 0))
 
   // Staged KPIs drive only the pending-review footer. The head summary must never read this
   // editable capture state: DD-7 requires its figures to come from submitted day entries.
@@ -458,7 +514,7 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
   // dialog below resolves it — MovementSeg is controlled by `movement`, so leaving it
   // unset here is what keeps the tab strip showing the OLD movement while the dialog is open.
   function handleMovementChange(next: KitchenMovement) {
-    if (captureClosed) return
+    if (writeClosed) return
     const staged = Object.values(lines).some(l => l.qty_porsi > 0)
     if (!staged) {
       setMovement(next)
@@ -833,32 +889,15 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
   }
 
   // ── Shared DataTable wiring (P-4: ONE branch in the DOM) ───────────────────
-  // Client-side search + category filter (parity with the prior desktop toolbar),
-  // then the Planned/Off-plan split fed to the DataTable `groups` prop. Group
-  // collapse is INTERNAL to the DataTable (no page-level state). Token-only.
-  const q = search.trim().toLowerCase()
-  const matchSearch = (it: CaptureFormItem) => !q || it.name.toLowerCase().includes(q)
-  // The category control is intentionally desktop-only. A shared/deep-linked category query
-  // must not silently hide rows on phone when its control is unavailable to clear it.
-  const effectiveCategory = isDesktop ? category : 'All'
-  const matchCat = (it: CaptureFormItem) => effectiveCategory === 'All' || (it.category ?? '') === effectiveCategory
-  const visibleItems = wipItems.filter(it => matchSearch(it) && matchCat(it))
-  const plannedLines = visibleItems.filter(it => (lines[it.id]?.plan_qty ?? 0) > 0)
-  const offPlanLines = visibleItems.filter(it => (lines[it.id]?.plan_qty ?? 0) <= 0)
-  const categories = [
-    'All',
-    ...Array.from(new Set(wipItems.map(i => i.category ?? '').filter(Boolean)))
-      .sort((a, b) => kitchenCategoryLabel(t, a).localeCompare(kitchenCategoryLabel(t, b))),
-  ]
-
-  const columns: DataTableColumn<CaptureFormItem>[] = [
+  // TanStack owns item search, kind/category filters, and Planned/Off-plan grouping.
+  const columns: DataTableColumn<KitchenListRow<CaptureFormItem>>[] = [
     {
       key: 'dish',
       header: t('kitchen.log.col.item'),
       cardLabel: '',
       render: item => (
         <span className="kl-dish">
-          <span className="kl-dish-name">{item.name}</span>
+          <span className="kl-dish-name"><span>{item.kind} - </span><span>{item.name}</span></span>
           {invalidItemIds.has(item.id) && <NotOnStreamTag />}
           {item.category && <span className="kl-dish-cat">{kitchenCategoryLabel(t, item.category)}</span>}
         </span>
@@ -928,14 +967,14 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
   // submitted actual instead of mounting the production stepper. A plain DataTable card is
   // intentional here: it keeps every value readable on phone without introducing a disabled
   // capture control that looks like an unfinished write path.
-  const receivingColumns: DataTableColumn<CaptureFormItem>[] = [
+  const receivingColumns: DataTableColumn<KitchenListRow<CaptureFormItem>>[] = [
     {
       key: 'dish',
       header: t('kitchen.log.col.item'),
       cardLabel: '',
       render: item => (
         <span className="kl-dish">
-          <span className="kl-dish-name">{item.name}</span>
+          <span className="kl-dish-name"><span>{item.kind} - </span><span>{item.name}</span></span>
           {item.category && <span className="kl-dish-cat">{kitchenCategoryLabel(t, item.category)}</span>}
         </span>
       ),
@@ -984,7 +1023,7 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
    * status on one muted line beneath. Same data, same controls, ~76px instead of ~200px.
    * Touch targets stay ≥44px (.kls-qty is unchanged).
    */
-  const renderLogCard = (item: CaptureFormItem) => {
+  const renderLogCard = (item: KitchenListRow<CaptureFormItem>) => {
     const line = lines[item.id]
     if (!line) return null
     const status = kitchenStatus({
@@ -996,7 +1035,7 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
       <div className="kl-row">
         <div className="kl-card-head">
           <div className="kl-card-identity">
-            <span className="kl-card-name">{item.name}</span>
+            <span className="kl-card-name"><span>{item.kind} - </span><span>{item.name}</span></span>
             {invalidItemIds.has(item.id) && <NotOnStreamTag />}
           </div>
           <WipItemStepper
@@ -1039,41 +1078,30 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
     )
   }
 
-  const groups: DataTableGroup<CaptureFormItem>[] = [
-    ...(plannedLines.length > 0
-      ? [{ key: 'planned', label: t('kitchen.log.group.planned'), count: plannedLines.length, rows: plannedLines }]
-      : []),
-    ...(offPlanLines.length > 0
-      ? [{
-          key: 'offplan',
-          label: t('kitchen.log.group.offplan'),
-          ...(streamNonProducing ? {} : { hint: t('kitchen.log.group.offplan.hint') }),
-          count: offPlanLines.length,
-          rows: offPlanLines,
-        }]
-      : []),
-  ]
-
   const logToolbar = (
     <KitchenToolbar
       search={search}
       onSearchChange={setSearch}
-      categories={isDesktop ? categories : undefined}
+      kinds={KITCHEN_KIND_FILTER_OPTIONS}
+      kind={kindFilter as KitchenItemKindFilter}
+      kindId="cafe-log-kind"
+      onKindChange={setKindFilter}
+      categories={categories}
       categoryId="cafe-log-category"
       categoryLabel={value => kitchenCategoryLabel(t, value)}
-      category={isDesktop ? category : undefined}
-      onCategoryChange={isDesktop ? setCategory : undefined}
+      category={category}
+      onCategoryChange={setCategory}
       searchPlaceholder={t('kitchen.log.searchPlaceholder')}
       ariaLabel={t('kitchen.log.toolbarAria')}
     >
-      {movementOptions.length > 0 && <div className="kl-scope">
+      {mode === 'transfer' && movementOptions.length > 0 && <div className="kl-scope">
         <MovementSeg
           value={movement}
           options={movementOptions}
           branches={branches}
           origin={stream}
           onChange={handleMovementChange}
-          disabled={isSubmitting || captureClosed}
+          disabled={isSubmitting || writeClosed}
         />
       </div>}
     </KitchenToolbar>
@@ -1119,7 +1147,7 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
           <div className="kl-context">
             {leading}
             {/* R4 / FR-018: derived from submitted actuals only — staged typing never moves it. */}
-            {status.kind === 'ready' && wipItems.length > 0 && (
+            {status.kind === 'ready' && wipItems.length > 0 && transferDestinationChosen && (
               <div className="kl-context-summary">
                 <MetricSummaryRule
                   ariaLabel={t('kitchen.log.summary.aria')}
@@ -1130,7 +1158,7 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
             )}
           </div>
         ) : (
-          status.kind === 'ready' && wipItems.length > 0 && (
+          status.kind === 'ready' && wipItems.length > 0 && transferDestinationChosen && (
             <MetricSummaryRule
               ariaLabel={t('kitchen.log.summary.aria')}
               metrics={summaryMetrics}
@@ -1191,7 +1219,13 @@ function KitchenLogPageForViewer({ leading, activeBranchId, activeBranchName }: 
           ) : (
             <>
               {logToolbar}
-              {logTable}
+              {mode === 'transfer' && !transferDestinationChosen ? (
+                <p className="kl-submit-reason" role="status">
+                  {movementOptions.length > 0
+                    ? t('kitchen.transfer.destination.prompt')
+                    : t('kitchen.transfer.destination.none')}
+                </p>
+              ) : logTable}
             </>
           )}
 

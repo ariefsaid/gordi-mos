@@ -199,15 +199,17 @@ describe('AC-011/013 prep (T4): UTILITY — admin (gated) + profile', () => {
   })
 })
 
-// The Café module carries its Opening tab plus five working screens as `children`, with Review + Pushes gated on
+// The Café module carries its Today root plus six working screens as `children`, with Review + Pushes gated on
 // the SAME access roles their routes enforce. The port shipped this module with one link and left
 // CAFE_SECTIONS — all six paths, correctly labelled — imported by nothing but a breadcrumb lookup.
 describe('Café module — the tab strip is in the nav, gated as its routes are', () => {
   const cafe = MODULES.flatMap((g) => g.items).find((m) => m.id === 'cafe')!
 
-  it('carries the capture root and four working screens as children, derived from CAFE_SECTIONS (DD-MVP-17)', () => {
+  it('carries the Today root and six working screens as children, derived from CAFE_SECTIONS', () => {
     expect(cafe.children?.map((c) => c.path)).toEqual([
       '/cafe',
+      '/cafe/production',
+      '/cafe/transfer',
       '/cafe/plan',
       '/cafe/stock',
       '/cafe/review',
@@ -219,7 +221,7 @@ describe('Café module — the tab strip is in the nav, gated as its routes are'
 
   it('a plain kitchen member sees Log, Plan and Stock — and not Review or Pushes', () => {
     const visible = visibleSections(cafe.children ?? [], ['member']).map((c) => c.path)
-    expect(visible).toEqual(['/cafe', '/cafe/plan', '/cafe/stock'])
+    expect(visible).toEqual(['/cafe', '/cafe/production', '/cafe/transfer', '/cafe/plan', '/cafe/stock'])
   })
 
   it('ops_lead and admin also see Review and Pushes', () => {
@@ -227,6 +229,8 @@ describe('Café module — the tab strip is in the nav, gated as its routes are'
       const visible = visibleSections(cafe.children ?? [], [role]).map((c) => c.path)
       expect(visible, role).toEqual([
         '/cafe',
+        '/cafe/production',
+        '/cafe/transfer',
         '/cafe/plan',
         '/cafe/stock',
         '/cafe/review',
@@ -241,7 +245,7 @@ describe('Café module — the tab strip is in the nav, gated as its routes are'
   // it is the dispatch surface, and opening review per stream opened nothing about posting.
   it('a stream supervisor sees Review — and still not Pushes (#236 FR-040)', () => {
     const visible = visibleSections(cafe.children ?? [], ['supervisor']).map((c) => c.path)
-    expect(visible).toEqual(['/cafe', '/cafe/plan', '/cafe/stock', '/cafe/review'])
+    expect(visible).toEqual(['/cafe', '/cafe/production', '/cafe/transfer', '/cafe/plan', '/cafe/stock', '/cafe/review'])
   })
 
   it("each gated nav entry carries the same role list as the route gate that OWNS it", () => {

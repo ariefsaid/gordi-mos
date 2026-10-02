@@ -14,6 +14,8 @@ export const ROUTE_PATHS = {
   inbox: 'inbox',
   cafe: 'cafe',
   cafeLog: 'cafe/log',
+  cafeProduction: 'cafe/production',
+  cafeTransfer: 'cafe/transfer',
   cafePlan: 'cafe/plan',
   cafeStock: 'cafe/stock',
   cafeReview: 'cafe/review',
@@ -37,6 +39,8 @@ export type RouteParityId =
   | 'workObjectives'
   | 'inbox'
   | 'cafe'
+  | 'cafeProduction'
+  | 'cafeTransfer'
   | 'cafePlan'
   | 'cafeStock'
   | 'cafeReview'
@@ -68,8 +72,9 @@ export const ROUTE_PARITY_CATALOG: readonly RouteParityEntry[] = [
   { id: 'workObjectives', path: absolutePath(ROUTE_PATHS.workObjectives), kind: 'visible-root' },
   { id: 'inbox', path: absolutePath(ROUTE_PATHS.inbox), kind: 'visible-root' },
   { id: 'cafe', path: absolutePath(ROUTE_PATHS.cafe), kind: 'visible-root' },
-  // cafeLog retired from the page catalog (DD-MVP-17): /cafe/log redirects to the capture
-  // root at /cafe, which carries the surface itself.
+  // cafeLog is a legacy redirect; production and transfer are the canonical capture routes.
+  { id: 'cafeProduction', path: absolutePath(ROUTE_PATHS.cafeProduction), kind: 'child' },
+  { id: 'cafeTransfer', path: absolutePath(ROUTE_PATHS.cafeTransfer), kind: 'child' },
   { id: 'cafePlan', path: absolutePath(ROUTE_PATHS.cafePlan), kind: 'child' },
   { id: 'cafeStock', path: absolutePath(ROUTE_PATHS.cafeStock), kind: 'child' },
   { id: 'cafeReview', path: absolutePath(ROUTE_PATHS.cafeReview), kind: 'child' },

@@ -238,7 +238,8 @@ async function renderPage(
     utils = render(
       <MemoryRouter basename={APP_ROUTER_BASENAME} initialEntries={[initialPath]}>
         <Routes>
-          <Route path="/cafe" element={<KitchenLogPage {...location} />} />
+          <Route path="/cafe" element={<KitchenLogPage mode="production" {...location} />} />
+          <Route path="/cafe/transfer" element={<KitchenLogPage mode="transfer" {...location} />} />
           <Route path="/cafe/success" element={<div>Submitted</div>} />
         </Routes>
       </MemoryRouter>,
@@ -246,6 +247,10 @@ async function renderPage(
     await Promise.resolve()
   })
   return utils
+}
+
+async function renderTransferPage(auth: AuthState = VIEWER_MEMBER, location?: { activeBranchId: string; activeBranchName: string }) {
+  return renderPage(auth, appUrl('/cafe/transfer'), location)
 }
 
 import { KitchenLogPage } from './kitchen-log-page'
@@ -426,6 +431,7 @@ describe('Populated state — WIP items loaded', () => {
     await renderPage()
     await waitFor(() => {
       expect(screen.getByText('Ayam Bakar')).toBeInTheDocument()
+      expect(screen.getByText('Ayam Bakar').parentElement).toHaveTextContent('WIP - Ayam Bakar')
       expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
     })
   })
@@ -439,12 +445,11 @@ describe('Populated state — WIP items loaded', () => {
     })
   })
 
-  it('shows the action_type seg control with Production selected by default', async () => {
+  it('production capture is scoped to production and has no movement selector', async () => {
     await renderPage()
-    await waitFor(() => {
-      const prodTab = screen.getByRole('tab', { name: /production/i })
-      expect(prodTab).toHaveAttribute('aria-selected', 'true')
-    })
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /log production/i })).toBeInTheDocument()
   })
 
   it('shows plan qty for each item', async () => {
@@ -642,7 +647,7 @@ describe('AC-744  AC-007: Café capture renders read-only for the unaffiliated',
     const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
     expect(qtyInput).toBeVisible()
     expect(qtyInput).toBeDisabled()
-    expect(screen.getByRole('tab', { name: /production/i })).toBeDisabled()
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument()
 
     // The ONE line stating why capture is closed.
     expect(screen.getByRole('status')).toHaveTextContent(/read café records/i)
@@ -780,7 +785,7 @@ describe('F3b: disabled Submit shows a note-missing pointer when a variance note
   // stock-cap error also blocks Submit.
   it('a keyboard user can reach the missing note when a stock-cap error is also showing', async () => {
     mockFetchPlanMap.mockResolvedValue({})
-    await renderPage()
+    await renderTransferPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
     await act(async () => {
       fireEvent.click(screen.getByRole('tab', { name: /transfer to radiant/i }))
@@ -816,7 +821,7 @@ describe('F3b: disabled Submit shows a note-missing pointer when a variance note
 // kept; Submit is blocked + the offending line shows the produce-first cue.
 describe('AC-022: transfer over-availability rejects submit — "Insufficient stock — produce first" (FR-023)', () => {
   it('AC-022: an over-tersedia Transfer qty is NOT clamped — keeps the typed value + shows the cue', async () => {
-    await renderPage()
+    await renderTransferPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     // Switch to a Transfer action_type (w1 tersedia=9)
@@ -842,7 +847,7 @@ describe('AC-022: transfer over-availability rejects submit — "Insufficient st
   })
 
   it('AC-022: an over-tersedia Transfer line blocks Submit (button disabled)', async () => {
-    await renderPage()
+    await renderTransferPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     await act(async () => {
@@ -864,7 +869,7 @@ describe('AC-022: transfer over-availability rejects submit — "Insufficient st
 
   it('AC-022: an at-tersedia Transfer qty submits fine (no reject)', async () => {
     mockInsertKitchenLogBatch.mockResolvedValue(['log-001'])
-    await renderPage()
+    await renderTransferPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     await act(async () => {
@@ -912,7 +917,7 @@ describe('AC-022: transfer over-availability rejects submit — "Insufficient st
       w1: { stok: 3, tersedia: 12 },
       w2: { stok: 0, tersedia: 0 },
     })
-    await renderPage()
+    await renderTransferPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     await act(async () => {
@@ -1916,14 +1921,12 @@ describe("AC-004 / FR-010: no raw-material input on any stream's form; fixed uni
     expect(screen.queryByRole('spinbutton', { name: /raw|bahan/i })).toBeNull()
     // No note fields at rest (the variance note is gate-revealed, not a standing input).
     expect(screen.queryByRole('textbox')).toBeNull()
-    // Each row shows its fixed unit as TEXT beside the qty (FR-020) — no unit input: the only
-    // combobox the surface can carry is the category filter (#781: the stream statement is text
-    // + a "Switch" button, never a combobox, so there is nothing else here to rule out).
+    // Each row shows its fixed unit as TEXT beside the qty (FR-020) — no unit input. The only
+    // comboboxes are the visible kind and category list filters.
     expect(screen.getAllByText('porsi')).toHaveLength(WIP_ITEMS.length)
-    for (const combobox of screen.queryAllByRole('combobox')) {
-      const name = combobox.getAttribute('aria-label') ?? ''
-      expect(name).toMatch(/category/i)
-    }
+    expect(screen.getAllByRole('combobox')).toHaveLength(2)
+    expect(screen.getByRole('combobox', { name: /category/i })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: /kind/i })).toBeInTheDocument()
   })
 })
 
@@ -2048,7 +2051,7 @@ describe('stale-response race: an older stream fetch resolving LAST never lands 
 describe('AC-007: destinations cover both movement classes from both activity surfaces (FR-013)', () => {
   it('AC-007: the BAR surface offers another branch AND its own branch qualified as the kitchen', async () => {
     mockFetchDefaultStream.mockResolvedValue({ branch: BRANCH_RUMAH_RAMES, activity: 'bar' })
-    await renderPage(OPS_LEAD)
+    await renderTransferPage(OPS_LEAD)
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     // Intra-branch: destination = own branch, read as "to our kitchen" (bar → own kitchen).
@@ -2065,13 +2068,13 @@ describe('AC-007: destinations cover both movement classes from both activity su
   it('AC-007: the KITCHEN surface follows its route rows without a held own-branch option', async () => {
     // The default fixture stream is (Rumah Rames, kitchen). Its route rows allow Radiant, not GHQ;
     // the held intra-branch movement is offered from the bar surface only.
-    await renderPage()
+    await renderTransferPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     expect(screen.queryByRole('tab', { name: /transfer to bungur within branch · bar/i })).toBeNull()
     expect(screen.getByRole('tab', { name: 'Transfer to Radiant' })).toBeInTheDocument()
     expect(screen.queryByRole('tab', { name: 'Transfer to Gordi HQ' })).toBeNull()
-    expect(screen.getByRole('tab', { name: 'Production' })).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'Production' })).not.toBeInTheDocument()
   })
 
   it('AC-007: the qualified option follows the ORIGIN, not a hardcoded branch', async () => {
@@ -2079,7 +2082,7 @@ describe('AC-007: destinations cover both movement classes from both activity su
     // destination — the mirror image of the two tests above. Without this, a qualifier pinned
     // to the incumbent's one branch would pass both of them.
     mockFetchDefaultStream.mockResolvedValue({ branch: BRANCH_RADIANT, activity: 'bar' })
-    await renderPage()
+    await renderTransferPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     expect(
@@ -2090,7 +2093,7 @@ describe('AC-007: destinations cover both movement classes from both activity su
 
   it('AC-007: with no resolved stream (FR-002) nothing is intra-branch yet, so no option is qualified', async () => {
     mockFetchDefaultStream.mockResolvedValue(null)
-    await renderPage()
+    await renderTransferPage()
     await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
 
     expect(screen.queryByRole('tab')).toBeNull()
@@ -2103,7 +2106,7 @@ describe('AC-007: destinations cover both movement classes from both activity su
     // property of the destination: there is no destination-activity field to send (OD-WAY-44).
     mockFetchDefaultStream.mockResolvedValue({ branch: BRANCH_RUMAH_RAMES, activity: 'bar' })
     mockInsertKitchenLogBatch.mockResolvedValue(['log-001'])
-    await renderPage()
+    await renderTransferPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     await act(async () => {
@@ -2159,7 +2162,7 @@ function cafeDocTitle(leaf: keyof typeof messages.en): string {
 describe('issue 455: document title', () => {
   it('titles the tab from the Café nav label, not the retired kitchen one', async () => {
     await renderPage()
-    await waitFor(() => expect(document.title).toBe(cafeDocTitle('nav.cafe.log')))
+    await waitFor(() => expect(document.title).toBe(cafeDocTitle('nav.cafe.production')))
   })
 })
 
@@ -2169,7 +2172,8 @@ describe('issue 455: document title', () => {
 // Submit filing it under whichever segment was active. RED on the pre-fix page: no dialog
 // ever opens (handleMovementChange called setMovement directly), so `findByRole('dialog')`
 // times out, and the switched-to tab keeps showing the stale 15 instead of a blank field.
-describe('issue 586: a movement switch with staged entries goes through the unsaved-entries confirm', () => {
+// The old Produce↔Transfer tab workflow is retired; these assertions target the former single-route UI.
+describe.skip('issue 586 legacy: cross-action movement switching is replaced by separate routes', () => {
   it('switching tabs with a staged qty opens the confirm dialog and keeps the OLD tab selected until it resolves', async () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
@@ -2271,30 +2275,47 @@ describe('issue 586: a movement switch with staged entries goes through the unsa
   })
 })
 
+describe('/cafe/transfer destination selection', () => {
+  it('starts on an eligible transfer destination and confirms before clearing staged work on change', async () => {
+    mockFetchDefaultStream.mockResolvedValue({ branch: BRANCH_RUMAH_RAMES, activity: 'bar' })
+    await renderTransferPage()
+    await waitFor(() => expect(screen.getAllByRole('tab').length).toBeGreaterThan(1))
+
+    const tabs = screen.getAllByRole('tab')
+    const currentTab = tabs.find(tab => tab.getAttribute('aria-selected') === 'true')!
+    const nextTab = tabs.find(tab => tab !== currentTab)!
+    expect(currentTab).toHaveAccessibleName(/transfer to/i)
+
+    const quantity = screen.getByRole('spinbutton', { name: /quantity .* for ayam bakar/i })
+    fireEvent.change(quantity, { target: { value: '15' } })
+    fireEvent.click(nextTab)
+
+    const dialog = await screen.findByRole('dialog')
+    expect(currentTab).toHaveAttribute('aria-selected', 'true')
+    expect(nextTab).toHaveAttribute('aria-selected', 'false')
+    fireEvent.click(within(dialog).getByRole('button', { name: /switch and clear/i }))
+
+    await waitFor(() => expect(nextTab).toHaveAttribute('aria-selected', 'true'))
+    expect((screen.getByRole('spinbutton', { name: /quantity .* for ayam bakar/i }) as HTMLInputElement).value).toBe('')
+  })
+})
+
 // #586 AC (submit): the AC is that a quantity staged under one movement is never included
 // in a submit performed under another — asserted end to end here, not just on the staged
 // `lines` state. Stage Nasi Goreng (w2) under Produce, confirm a switch to Transfer, stage
 // a DIFFERENT item (Ayam Bakar, w1) under Transfer, and submit: the payload must hold ONLY
 // the Transfer line, never the cleared Produce one.
-describe('issue 586 AC: a confirmed switch — the SUBMIT payload never carries the old movement\'s line', () => {
+describe('transfer capture submit contract', () => {
   it('submits only the line staged under the movement active at Submit time', async () => {
     mockInsertKitchenLogBatch.mockResolvedValue(['log-001'])
-    await renderPage()
+    await renderTransferPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
-
-    // Stage Nasi Goreng (w2) on-plan under Produce (12 == plan 12 — no note needed).
-    const nasiInput = screen.getByRole('spinbutton', { name: /quantity produced for nasi goreng/i })
-    fireEvent.change(nasiInput, { target: { value: '12' } })
-
-    fireEvent.click(screen.getByRole('tab', { name: /transfer to radiant/i }))
-    const dialog = await screen.findByRole('dialog')
-    fireEvent.click(within(dialog).getByRole('button', { name: /switch and clear/i }))
     await waitFor(() => {
       expect(screen.getByRole('tab', { name: /transfer to radiant/i })).toHaveAttribute('aria-selected', 'true')
     })
 
-    // Stage Ayam Bakar (w1) under Transfer: at-tersedia (9 <= 9), off the absolute plan
-    // (10) so it needs a note (parity with the existing AC-022 "at-tersedia" case).
+    // Stage Ayam Bakar (w1) under the selected Transfer destination: 9 is within tersedia,
+    // but off the absolute plan (10), so it needs a note.
     const ayamInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
     fireEvent.change(ayamInput, { target: { value: '9' } })
     fireEvent.blur(ayamInput)
@@ -2306,7 +2327,7 @@ describe('issue 586 AC: a confirmed switch — the SUBMIT payload never carries 
     fireEvent.click(submit)
 
     await waitFor(() => expect(mockInsertKitchenLogBatch).toHaveBeenCalledTimes(1))
-    // ONLY the Transfer line — the Produce-staged Nasi Goreng (12) is nowhere in the payload.
+    // The transfer route writes the selected destination and action into the existing payload contract.
     expect(mockInsertKitchenLogBatch.mock.calls[0][0]).toEqual([
       expect.objectContaining({
         wip_item_id: 'w1', qty_porsi: 9,
@@ -2448,7 +2469,7 @@ describe('OD-CAFE-1 — the production picker is bounded by the active location'
   })
 
   it('leaves the transfer workflow crossing branches — the catalog is bounded for the PICKER only', async () => {
-    await renderPage(VIEWER_MEMBER, appUrl('/cafe'), {
+    await renderTransferPage(VIEWER_MEMBER, {
       activeBranchId: BRANCH_RUMAH_RAMES.id, activeBranchName: BRANCH_RUMAH_RAMES.name,
     })
     await waitFor(() => screen.getByText('Ayam Bakar'))

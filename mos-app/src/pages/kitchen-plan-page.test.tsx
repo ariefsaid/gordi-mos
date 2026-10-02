@@ -415,6 +415,17 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
     expect(screen.getByText('Ayam Bakar')).toBeInTheDocument()
   })
 
+  it('labels Plan rows as WIP and offers only enabled item kinds', async () => {
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+
+    expect(screen.getByText('Ayam Bakar').parentElement).toHaveTextContent('WIP - Ayam Bakar')
+    fireEvent.click(screen.getByRole('combobox', { name: /kind/i }))
+    const listbox = screen.getByRole('listbox', { name: /kind/i })
+    expect(within(listbox).getByRole('option', { name: 'WIP' })).toBeInTheDocument()
+    expect(within(listbox).queryByRole('option', { name: 'RAW' })).toBeNull()
+  })
+
   it('empty: ops_lead sees an editable blank grid — unplanned reads BLANK (greyed "0" placeholder), not a hard zero', async () => {
     mockPlans.mockResolvedValue([])
     render(<KitchenPlanPage />, { wrapper })
@@ -660,7 +671,7 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
     await screen.findByText('Ayam Bakar')
     expect(
       screen.getByRole('link', { name: /see these in the café log/i }),
-    ).toHaveAttribute("href", "/cafe")
+    ).toHaveAttribute("href", "/cafe/production")
     expect(screen.queryAllByRole('link', { name: /see .* in the café log/i })).toHaveLength(1)
     expect(screen.getByText('Ayam Bakar').closest('a')).toBeNull()
   })
@@ -670,7 +681,7 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
     await screen.findByText('Ayam Bakar')
     expect(
       screen.getByRole('link', { name: /see .* in the café log/i }),
-    ).toHaveAttribute('href', '/cafe')
+    ).toHaveAttribute('href', '/cafe/production')
     expect(screen.queryAllByRole('link', { name: /see .* in the café log/i })).toHaveLength(1)
     expect(screen.getByText('Ayam Bakar').closest('a')).toBeNull()
   })
@@ -790,6 +801,7 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
     mockPesanan.mockResolvedValue(PESANAN)
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
+    expect(screen.getByText('Ayam Bakar').parentElement).toHaveTextContent('WIP - Ayam Bakar')
     // the planned qty renders (tabular)
     expect(screen.getByText('12')).toBeInTheDocument()
     // a date group header for the two distinct dates (grouped by date)
@@ -886,7 +898,7 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
     mockPesanan.mockResolvedValue(PESANAN)
     render(<KitchenPlanPage />, { wrapper })
     expect(await screen.findByText(/this is the 14-day order horizon/i)).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /open the café log/i })).toHaveAttribute("href", "/cafe")
+    expect(screen.getByRole('link', { name: /open the café log/i })).toHaveAttribute("href", "/cafe/production")
     // AC-024 still held: the explainer adds no capture affordance
     expect(screen.queryByRole('spinbutton')).toBeNull()
   })

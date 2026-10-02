@@ -493,7 +493,29 @@ export function MoreIcon() {
 // by the GEOMETRY each mark draws (`glyph-shape.ts`) rather than by its markup — a mark re-spelled
 // into a `<g>`, a `<rect>` or a different path syntax collides with its twin all the same.
 
-// LogIcon — tally marks, the Café Log capture screen: recording how much was actually made.
+// TodayIcon — calendar clock for the Café's current-day floor overview.
+export function TodayIcon() {
+  return (
+    <svg
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M7 3v3M17 3v3M4 9h16" />
+      <path d="M5 5h14a1 1 0 0 1 1 1v13H4V6a1 1 0 0 1 1-1Z" />
+      <circle cx="12" cy="14" r="3" />
+      <path d="M12 12.5V14l1.1.8" />
+    </svg>
+  )
+}
+
+// LogIcon — tally marks, the Café production log: recording how much was actually made.
 export function LogIcon() {
   return (
     <svg
@@ -510,6 +532,26 @@ export function LogIcon() {
       <path d="M6.5 5v14M13 5v14" />
       <path d="M19.5 5v14" />
       <path d="M4 17 22 7" />
+    </svg>
+  )
+}
+
+// TransferIcon — paired routes carrying goods between Café destinations.
+export function TransferIcon() {
+  return (
+    <svg
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M4 8h15l-3-3M19 8l-3 3" />
+      <path d="M20 16H5l3 3M5 16l3-3" />
     </svg>
   )
 }

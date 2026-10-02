@@ -6,7 +6,7 @@ import {
   HomeIcon, TasksIcon, SignalsIcon, WorkLineIcon, ObjectiveIcon,
   MoneyIcon, InboxIcon, CafeIcon, EcommerceIcon, RoasteryIcon,
   ProfileIcon, PeopleIcon, ShieldIcon,
-  LogIcon, PlanIcon, StockIcon, ReviewIcon, DispatchIcon,
+  TodayIcon, LogIcon, TransferIcon, PlanIcon, StockIcon, ReviewIcon, DispatchIcon,
 } from './icons'
 
 export interface Section {
@@ -53,24 +53,14 @@ export const SECTIONS: Section[] = [
 ]
 
 /**
- * Café Module sections — Opening (Step 7, RATIFY-7D — the "Start today's opening" home at the
- * exact /cafe path) + 5 screens re-homed from /kitchen/* to /cafe/* (OD-15). Role visibility
- * (Review: ops_lead/admin/supervisor · Pushes: ops_lead/admin) is enforced in the rail; all 6 are in this list for
- * breadcrumb resolution regardless of role. Every label flows through the i18n catalog (FR-440)
- * via its labelKey. sectionForPath resolves the exact /cafe path to Opening (not the generic
- * SECTIONS "Café" root entry — CAFE_SECTIONS is scanned first) and picks the most specific
- * (longest) prefix match for any /cafe/* sub-route, so Opening never shadows Log/Plan/etc.
+ * Café Module sections — the Today root plus its production and transfer capture routes, Plan,
+ * Stock, Review and Pushes. Review/Pushes visibility is enforced in the rail; every label flows
+ * through the i18n catalog via its labelKey.
  */
 export const CAFE_SECTIONS: Section[] = [
-  // The module's own cup stays on Opening — that leaf IS the module's front door, and the rail
-  // draws it as the Café parent. The five working screens each carry their OWN minted mark
-  // (icons.tsx, issue 457 part 1): drawing CafeIcon five more times made the icon-only compact
-  // rail a column of identical cups told apart by tooltip alone, and #439 made the icon the sole
-  // rung carrier in that regime. Not borrowed marks — a borrowed one is either a live duplicate
-  // or a duplicate waiting for its twin to leave SHIP_GATED_PATHS.
-  // DD-MVP-17: /cafe IS the Today capture root (the Log surface); the separate Opening
-  // child retired with the /cafe/log route.
-  { path: '/cafe', label: 'Log', labelKey: 'nav.cafe.log', Icon: LogIcon },
+  { path: '/cafe', label: 'Today', labelKey: 'nav.cafe.today', Icon: TodayIcon },
+  { path: '/cafe/production', label: 'Log production', labelKey: 'nav.cafe.production', Icon: LogIcon },
+  { path: '/cafe/transfer', label: 'Log transfer', labelKey: 'nav.cafe.transfer', Icon: TransferIcon },
   { path: '/cafe/plan', label: 'Plan', labelKey: 'nav.cafe.plan', Icon: PlanIcon },
   { path: '/cafe/stock', label: 'Stock', labelKey: 'nav.cafe.stock', Icon: StockIcon },
   // `anyOf` matches each one's OWN route gate exactly (router.tsx: two RequireAccessRole
@@ -119,14 +109,11 @@ export const ADMIN_SECTIONS: Section[] = [
 /**
  * Returns the Section whose path matches the given pathname, or null.
  * Scans the most-specific registries first (CAFE_SECTIONS, ADMIN_SECTIONS) so an
- * exact sub-route like `/cafe/review` wins over the `/cafe` prefix in SECTIONS.
+ * exact sub-route like `/cafe/production` wins over the `/cafe` prefix in SECTIONS.
  * '/' matches exactly; other paths match exactly or by prefix.
  *
- * Order-independent by construction (Step 7, RATIFY-7D): an EXACT match always wins outright
- * (so CAFE_SECTIONS' `/cafe` "Opening" leaf can sit anywhere in its own array without a more
- * specific `/cafe/log`-style entry accidentally losing to it); failing that, the MOST SPECIFIC
- * (longest-path) prefix match wins, so `/cafe` never shadows `/cafe/plan/anything` regardless of
- * array position.
+ * Order-independent by construction: an EXACT match wins outright; failing that, the MOST SPECIFIC
+ * (longest-path) prefix match wins, so the Café root never shadows a capture or plan route.
  */
 export function sectionForPath(pathname: string): Section | null {
   // #444: a ship-gated path resolves to NO section. The router forwards it home, so the breadcrumb
