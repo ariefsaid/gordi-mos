@@ -105,7 +105,7 @@ export function streamCatalogFrom(
 // ── WIP items ────────────────────────────────────────────────────────────────
 
 /**
- * List active WIP items sorted by name — the UNGATED read.
+ * List active WIP items sorted by name — the UNGATED WIP read.
  * Mirrors oracle list_active_wip_items.
  *
  * DELIBERATELY not the capture form's source. The DD-WAY-29 gate scopes absence to the
@@ -119,6 +119,7 @@ export async function listActiveWipItems(): Promise<WipItemOption[]> {
     .from('wip_items')
     .select('id,name,category')
     .eq('flag_active', true)
+    .eq('kind', 'WIP')
     .order('name', { ascending: true })
   if (error) throw new Error(`listActiveWipItems failed — ${error.message}`)
   return (data ?? []) as WipItemOption[]

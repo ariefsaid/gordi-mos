@@ -272,9 +272,11 @@ select is(
   0, 'the bars the ERP records no production for have empty item lists');
 select is(
   (select count(*)::int from ops.stream_items si
+    join ops.wip_items item on item.id = si.wip_item_id and item.org_id = si.org_id
     where si.org_id = '10000000-0000-0000-0000-000000000001'
+      and item.kind = 'WIP'
       and not exists (select 1 from ops.capture_form_items c where c.wip_item_id = si.wip_item_id)),
-  0, 'every listed item has a confirmed unit, so it reaches the capture form');
+  0, 'every listed WIP item has a confirmed unit, so it reaches the capture form; RAW references are excluded');
 
 select * from finish();
 rollback;
