@@ -172,8 +172,9 @@ describe('issue 444 ship gate — the route and the nav close from the same swit
     for (const path of ['/', '/work', '/work/tasks/t1', '/updates', '/tasks/t1', '/projects-processes']) {
       expect(isShipGatedInProfile(path, 'cafe'), `${path} should be hidden in the cafe profile`).toBe(true)
     }
-    for (const path of ['/cafe', '/cafe/plan', '/inbox', '/profile', '/admin/people']) {
+    for (const path of ['/cafe', '/cafe/production', '/cafe/transfer', '/cafe/items', '/cafe/plan', '/inbox', '/profile', '/admin/people']) {
       expect(isShipGatedInProfile(path, 'cafe'), `${path} should remain available in the cafe profile`).toBe(false)
+      expect(isShipGatedInProfile(path, 'full'), `${path} should remain available in the full profile`).toBe(false)
     }
     expect(isShipGatedInProfile('/work/tasks', 'full')).toBe(false)
   })

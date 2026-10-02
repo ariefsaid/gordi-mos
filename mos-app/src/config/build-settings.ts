@@ -10,12 +10,12 @@ const CAFE_PROFILE_BLOCKED_PATHS = ['/work', '/tasks', '/updates', '/objectives'
 
 const LEGACY_CAFE_DESTINATIONS: Readonly<Record<string, string>> = {
   '/kitchen': '/cafe',
-  '/kitchen/log': '/cafe',
+  '/kitchen/log': '/cafe/production',
   '/kitchen/plan': '/cafe/plan',
   '/kitchen/stock': '/cafe/stock',
   '/kitchen/review': '/cafe/review',
   '/kitchen/pushes': '/cafe/pushes',
-  '/cafe/log': '/cafe',
+  '/cafe/log': '/cafe/production',
 }
 
 const CAFE_REDIRECTS = Object.entries(LEGACY_CAFE_DESTINATIONS)
@@ -92,7 +92,8 @@ export function legacyRedirectDestination(pathname: string, search: string, base
   const routePath = hasMosPrefix ? path.slice('/mos'.length) || '/' : path
   const cafeDestination = LEGACY_CAFE_DESTINATIONS[routePath]
   const isKitchenRoute = routePath === '/kitchen' || routePath.startsWith('/kitchen/')
-  if (!hasMosPrefix && !isKitchenRoute) return null
+  const isCafeLogAlias = routePath === '/cafe/log'
+  if (!hasMosPrefix && !isKitchenRoute && !isCafeLogAlias) return null
   if (hasMosPrefix && normalizedBase === '/mos/' && cafeDestination === undefined && !isKitchenRoute) return null
 
   const destinationPath = cafeDestination ?? (isKitchenRoute ? `/cafe${routePath.slice('/kitchen'.length)}` : routePath)

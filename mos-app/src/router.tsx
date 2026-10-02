@@ -447,9 +447,10 @@ const routeTable: RouteObject[] = [
           { path: ROUTE_PATHS.cafeStock, element: withSuspense(<KitchenStockPage />), handle: pageHandle('workspace') },
           { path: ROUTE_PATHS.cafeWaste, element: withSuspense(<CafeWastePage />), handle: pageHandle('workspace') },
           { path: ROUTE_PATHS.cafeItems, element: withSuspense(<CafeItemSettingsPage />), handle: pageHandle('workspace') },
-          // The root is the capture surface now, so retired kitchen paths land on /cafe directly.
+          // The root is today's capture surface; retired landing aliases go there, while the old
+          // log alias goes straight to production so bookmarks open the matching capture flow.
           { path: 'kitchen', element: <RouteRedirect to="/cafe" />, handle: redirectHandle('/cafe') },
-          { path: 'kitchen/log', element: <RouteRedirect to="/cafe" />, handle: redirectHandle('/cafe') },
+          { path: 'kitchen/log', element: <RouteRedirect to="/cafe/production" />, handle: redirectHandle('/cafe/production') },
           { path: 'kitchen/plan', element: <RouteRedirect to="/cafe/plan" />, handle: redirectHandle('/cafe/plan') },
           {
             path: 'kitchen/stock',

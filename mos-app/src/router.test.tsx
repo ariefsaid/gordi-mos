@@ -155,6 +155,10 @@ describe('issue 1239: Café capture split routes', () => {
     const legacyLog = allRedirects().find(route => route.from === '/cafe/log')
     expect(legacyLog).toMatchObject({ to: '/cafe/production', replace: true, kind: 'map' })
     expectOneHop('/cafe/log', '/cafe/production')
+
+    const legacyKitchenLog = allRedirects().find(route => route.from === '/kitchen/log')
+    expect(legacyKitchenLog).toMatchObject({ to: '/cafe/production', replace: true, kind: 'map' })
+    expectOneHop('/kitchen/log', '/cafe/production')
   })
 })
 
