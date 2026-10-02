@@ -11,7 +11,7 @@ import {
   streamKey,
   PRODUCE,
 } from './kitchen-action-label'
-import type { BranchOption, ProductionStream } from './db/kitchen-logs.types'
+import type { BranchOption, CafeDestination, ProductionStream } from './db/kitchen-logs.types'
 
 describe('streamKey', () => {
   it('joins branchId and activity with a separator', () => {
@@ -48,48 +48,58 @@ const STREAMS = [
   { ...RADIANT_BAR, produces: true },
   { ...CIKAL_BAR, produces: true },
 ]
+const DESTINATIONS: CafeDestination[] = [
+  { origin_branch_id: GHQ.id, origin_activity: 'kitchen', destination_branch_id: CIKAL.id },
+  { origin_branch_id: GHQ.id, origin_activity: 'bar', destination_branch_id: CIKAL.id },
+  { origin_branch_id: RRS.id, origin_activity: 'kitchen', destination_branch_id: RADIANT.id },
+  { origin_branch_id: RRS.id, origin_activity: 'kitchen', destination_branch_id: CIKAL.id },
+  { origin_branch_id: RRS.id, origin_activity: 'bar', destination_branch_id: GHQ.id },
+  { origin_branch_id: RRS.id, origin_activity: 'bar', destination_branch_id: RADIANT.id },
+  { origin_branch_id: RRS.id, origin_activity: 'bar', destination_branch_id: CIKAL.id },
+  { origin_branch_id: RADIANT.id, origin_activity: 'bar', destination_branch_id: GHQ.id },
+  { origin_branch_id: RADIANT.id, origin_activity: 'bar', destination_branch_id: RRS.id },
+  { origin_branch_id: RADIANT.id, origin_activity: 'bar', destination_branch_id: CIKAL.id },
+  { origin_branch_id: CIKAL.id, origin_activity: 'bar', destination_branch_id: GHQ.id },
+  { origin_branch_id: CIKAL.id, origin_activity: 'bar', destination_branch_id: RRS.id },
+  { origin_branch_id: CIKAL.id, origin_activity: 'bar', destination_branch_id: RADIANT.id },
+]
 
 describe('movementsForStream', () => {
   it('AC-001/002: the catalog makes Radiant kitchen receive-only', () => {
     expect(streamProduces(RADIANT_KITCHEN, STREAMS)).toBe(false)
-    expect(movementsForStream(RADIANT_KITCHEN, STREAMS)).toEqual([])
+    expect(movementsForStream(RADIANT_KITCHEN, STREAMS, DESTINATIONS)).toEqual([])
   })
 
-  it('AC-006: derives every producing stream\'s matrix from the live stream catalog', () => {
-    expect(movementsForStream(GHQ_KITCHEN, STREAMS)).toEqual([
+  it('AC-006: derives each producing stream\'s matrix from live catalog and route rows', () => {
+    expect(movementsForStream(GHQ_KITCHEN, STREAMS, DESTINATIONS)).toEqual([
       PRODUCE,
-      { action: 'transfer', destinationBranchId: RRS.id },
+      { action: 'transfer', destinationBranchId: CIKAL.id },
+    ])
+    expect(movementsForStream(RRS_KITCHEN, STREAMS, DESTINATIONS)).toEqual([
+      PRODUCE,
       { action: 'transfer', destinationBranchId: RADIANT.id },
       { action: 'transfer', destinationBranchId: CIKAL.id },
     ])
-    expect(movementsForStream(RRS_KITCHEN, STREAMS)).toEqual([
-      PRODUCE,
-      { action: 'transfer', destinationBranchId: GHQ.id },
-      { action: 'transfer', destinationBranchId: RADIANT.id },
-      { action: 'transfer', destinationBranchId: CIKAL.id },
-    ])
-    expect(movementsForStream(GHQ_BAR, STREAMS)).toEqual([
+    expect(movementsForStream(GHQ_BAR, STREAMS, DESTINATIONS)).toEqual([
       PRODUCE,
       { action: 'transfer', destinationBranchId: GHQ.id }, // held intra-branch movement
-      { action: 'transfer', destinationBranchId: RRS.id },
-      { action: 'transfer', destinationBranchId: RADIANT.id },
       { action: 'transfer', destinationBranchId: CIKAL.id },
     ])
-    expect(movementsForStream(RRS_BAR, STREAMS)).toEqual([
+    expect(movementsForStream(RRS_BAR, STREAMS, DESTINATIONS)).toEqual([
       PRODUCE,
       { action: 'transfer', destinationBranchId: GHQ.id },
       { action: 'transfer', destinationBranchId: RRS.id }, // held intra-branch movement
       { action: 'transfer', destinationBranchId: RADIANT.id },
       { action: 'transfer', destinationBranchId: CIKAL.id },
     ])
-    expect(movementsForStream(RADIANT_BAR, STREAMS)).toEqual([
+    expect(movementsForStream(RADIANT_BAR, STREAMS, DESTINATIONS)).toEqual([
       PRODUCE,
       { action: 'transfer', destinationBranchId: GHQ.id },
       { action: 'transfer', destinationBranchId: RRS.id },
       { action: 'transfer', destinationBranchId: RADIANT.id }, // held intra-branch movement
       { action: 'transfer', destinationBranchId: CIKAL.id },
     ])
-    expect(movementsForStream(CIKAL_BAR, STREAMS)).toEqual([
+    expect(movementsForStream(CIKAL_BAR, STREAMS, DESTINATIONS)).toEqual([
       PRODUCE,
       { action: 'transfer', destinationBranchId: GHQ.id },
       { action: 'transfer', destinationBranchId: RRS.id },
@@ -98,9 +108,22 @@ describe('movementsForStream', () => {
   })
 
   it('AC-063: never offers a non-catalog branch as a destination', () => {
-    expect(movementsForStream(GHQ_BAR, STREAMS)).not.toContainEqual({
+    expect(movementsForStream(GHQ_BAR, STREAMS, DESTINATIONS)).not.toContainEqual({
       action: 'transfer', destinationBranchId: 'roastery',
     })
+  })
+
+  it('OD-CAFE-MVP-7: a new HQ destination is enabled by adding a route row, not changing derivation code', () => {
+    const expanded = [
+      ...DESTINATIONS,
+      { origin_branch_id: GHQ.id, origin_activity: 'kitchen' as const, destination_branch_id: RADIANT.id },
+    ]
+
+    expect(movementsForStream(GHQ_KITCHEN, STREAMS, expanded)).toEqual([
+      PRODUCE,
+      { action: 'transfer', destinationBranchId: RADIANT.id },
+      { action: 'transfer', destinationBranchId: CIKAL.id },
+    ])
   })
 })
 
