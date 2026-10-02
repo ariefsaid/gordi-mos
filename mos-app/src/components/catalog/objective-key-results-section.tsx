@@ -28,14 +28,6 @@ export type ObjectiveKeyResultsSectionProps = {
   /** Where the viewer's write-scope lookup stands; a person who may edit is never shown read-only copy while it is unknown. */
   scopesStatus?: 'loading' | 'ready' | 'error'
   onRetryScopes?: () => void
-  /** The record's Get started region owns Add while there are no key results. */
-  addOwnedBySetup?: boolean
-  /** Reports the loaded count (null while loading or failed) so the record can decide what is still missing. */
-  onCount?: (count: number | null) => void
-  /** Each increase opens a blank key-result row for an admin. */
-  openAddToken?: number
-  /** The blank row closed and the section has no Add action to take focus (it was opened from Get started). */
-  onAddClosed?: () => void
 }
 
 /**
@@ -45,7 +37,6 @@ export type ObjectiveKeyResultsSectionProps = {
  */
 export function ObjectiveKeyResultsSection({
   objectiveId, businessUnitId, isCompanyWide, archived, scopes, scopesStatus = 'ready', onRetryScopes,
-  addOwnedBySetup = false, onCount, openAddToken = 0, onAddClosed,
 }: ObjectiveKeyResultsSectionProps) {
   const t = useT()
   const [rows, setRows] = useState<KeyResultRow[]>([])
@@ -64,11 +55,9 @@ export function ObjectiveKeyResultsSection({
   const wasAdding = useRef(false)
   const focusAction = useCallback(() => {
     requestAnimationFrame(() => {
-      const action = document.querySelector<HTMLElement>('[data-record-section="key-results"] .rp-section__action')
-      if (action) action.focus()
-      else onAddClosed?.()
+      document.querySelector<HTMLElement>('[data-record-section="key-results"] .rp-section__action')?.focus()
     })
-  }, [onAddClosed])
+  }, [])
 
   const canManage = !archived && canManageForScope('objective', businessUnitId, scopes)
   const canContent = !archived && canEditObjectiveContentForScope({ businessUnitId, isCompanyWide }, scopes)
@@ -91,18 +80,11 @@ export function ObjectiveKeyResultsSection({
     return () => { live = false }
   }, [peopleReload])
 
-  useEffect(() => { onCount?.(status === 'ready' ? rows.length : null) }, [onCount, rows.length, status])
-
   // Closing the blank row (saved or cancelled) hands focus to the section's Add action.
   useEffect(() => {
     if (wasAdding.current && !adding) focusAction()
     wasAdding.current = adding
   }, [adding, focusAction])
-
-  // A Get started row (or this section's own action) asks for a blank row.
-  useEffect(() => {
-    if (openAddToken > 0 && canManage) { setEditingId(null); setAdding(true) }
-  }, [openAddToken, canManage])
 
   // Closing an editor hands focus back to the Edit button of the row it belonged to.
   useEffect(() => {
@@ -153,7 +135,7 @@ export function ObjectiveKeyResultsSection({
       id="key-results"
       title={t('objective.keyResults.title')}
       count={status === 'ready' && rows.length > 0 ? rows.length : undefined}
-      action={canManage && status === 'ready' && !adding && !addOwnedBySetup ? { label: t('objective.keyResults.add'), onClick: () => { setEditingId(null); setAdding(true) } } : undefined}
+      action={canManage && status === 'ready' && !adding ? { label: t('objective.keyResults.add'), onClick: () => { setEditingId(null); setAdding(true) } } : undefined}
     >
       {scopesStatus === 'error' ? <ErrorState message={t('objective.keyResults.permissionsError')} onRetry={onRetryScopes} /> : null}
       {status === 'loading' ? <LoadingShell label={t('catalog.record.loading')} count={1} /> : null}
