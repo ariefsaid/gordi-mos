@@ -29,7 +29,7 @@ export function cafeUnitDisplayLabel(unit: Pick<CafeItemSettingUnit, 'name' | 'l
 }
 
 /** Ready-to-use item shape for stream-scoped Café log lists. */
-export type CafeLogItem = {
+type CafeLogItem = {
   id: string
   name: string
   category: string | null
@@ -178,24 +178,21 @@ export async function listCafeItemSettings(stream: ProductionStream): Promise<Ca
 }
 
 /** Log readers omit items until a shown default exists; the write trigger enforces this again. */
-export async function listCafeLogItems(stream: ProductionStream): Promise<CafeLogItem[]> {
-  const items = await listCafeItemSettings(stream)
-  return items.flatMap(item => {
-    const units = item.units.filter(unit => unit.isShown)
-    const defaultUnit = units.find(unit => unit.id === item.defaultUnitId && unit.isDefault)
-    if (!defaultUnit) return []
-    units.sort((a, b) => Number(b.isDefault) - Number(a.isDefault))
-    return [{
-      id: item.id,
-      name: item.mosName,
-      category: item.category,
-      kind: item.kind,
-      defaultUnit: { id: defaultUnit.id, name: defaultUnit.name },
-      units: units.map(({ id, name, isDefault, labelOrdinal, labelCount }) => ({
-        id, name, isDefault, labelOrdinal, labelCount,
-      })),
-    }]
-  })
+export function toCafeLogItem(item: CafeItemSetting): CafeLogItem | null {
+  const units = item.units.filter(unit => unit.isShown)
+  const defaultUnit = units.find(unit => unit.id === item.defaultUnitId && unit.isDefault)
+  if (!defaultUnit) return null
+  units.sort((a, b) => Number(b.isDefault) - Number(a.isDefault))
+  return {
+    id: item.id,
+    name: item.mosName,
+    category: item.category,
+    kind: item.kind,
+    defaultUnit: { id: defaultUnit.id, name: defaultUnit.name },
+    units: units.map(({ id, name, isDefault, labelOrdinal, labelCount }) => ({
+      id, name, isDefault, labelOrdinal, labelCount,
+    })),
+  }
 }
 
 export async function canManageCafeItemSettings(): Promise<boolean> {

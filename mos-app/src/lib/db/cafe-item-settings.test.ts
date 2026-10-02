@@ -5,7 +5,7 @@ import type { ProductionStream } from './kitchen-logs.types'
 import {
   canManageCafeItemSettings,
   listCafeItemSettings,
-  listCafeLogItems,
+  toCafeLogItem,
   saveCafeItemSettings,
 } from './cafe-item-settings'
 
@@ -97,11 +97,14 @@ describe('café item settings reader', () => {
     expect(schemaMock.mock.results[0].value.from.mock.results[0].value.select).toHaveBeenCalledWith(expect.not.stringContaining('esb_product'))
   })
 
-  it('returns configured log items only, and includes only shown ERP details', async () => {
+  it('converts configured settings to a default-first log item and omits items without a default', async () => {
     const loggableRows = rows().filter(row => row.item_id !== 'item-1').concat(rows().filter(row => row.item_id === 'item-1'))
     mockSettingsReader(loggableRows, ['item-1'])
 
-    await expect(listCafeLogItems(STREAM)).resolves.toEqual([{
+    const settings = await listCafeItemSettings(STREAM)
+    const configured = settings.find(item => item.id === 'item-1')
+    expect(configured).toBeDefined()
+    expect(toCafeLogItem(configured!)).toEqual({
       id: 'item-1',
       name: 'MOS Flour',
       category: 'Kitchen',
@@ -111,7 +114,8 @@ describe('café item settings reader', () => {
         { id: 'unit-b', name: 'kg', isDefault: true, labelOrdinal: 2, labelCount: 2 },
         { id: 'unit-a', name: 'kg', isDefault: false, labelOrdinal: 1, labelCount: 2 },
       ],
-    }])
+    })
+    expect(settings.filter(item => item.id !== 'item-1').map(toCafeLogItem)).toEqual([null, null])
   })
 
   it('offers every ERP detail and uses the ERP default when the stream item has no settings row', async () => {
@@ -127,15 +131,12 @@ describe('café item settings reader', () => {
     ]
     const from = mockSettingsReader(readRows, [], references)
 
-    await expect(listCafeLogItems(STREAM)).resolves.toEqual([{
-      id: 'item-1',
-      name: 'ERP Flour',
-      category: 'Kitchen',
-      kind: 'RAW',
-      defaultUnit: { id: 'unit-b', name: 'bag' },
+    await expect(listCafeItemSettings(STREAM)).resolves.toEqual([{
+      id: 'item-1', erpName: 'ERP Flour', mosName: 'ERP Flour', category: 'Kitchen', kind: 'RAW',
+      defaultUnitId: 'unit-b',
       units: [
-        { id: 'unit-b', name: 'bag', isDefault: true, labelOrdinal: null, labelCount: 1 },
-        { id: 'unit-a', name: 'kg', isDefault: false, labelOrdinal: null, labelCount: 1 },
+        { id: 'unit-b', name: 'bag', isShown: true, isDefault: true, labelOrdinal: null, labelCount: 1 },
+        { id: 'unit-a', name: 'kg', isShown: true, isDefault: false, labelOrdinal: null, labelCount: 1 },
       ],
     }])
     expect(from).toHaveBeenCalledWith('cafe_item_settings')
