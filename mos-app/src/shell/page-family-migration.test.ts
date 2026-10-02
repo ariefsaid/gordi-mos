@@ -62,12 +62,20 @@ describe('PAGE_FAMILY_FRAME_ROUTES (#191)', () => {
     expect(home?.symbol).toBe('HomePage')
   })
 
-  it.each(['/cafe/production', '/cafe/transfer'])('%s names the shared split-log page frame', (path) => {
+  it.each(['/cafe/production', '/cafe/transfer'])('%s names the shared Café log page frame', (path) => {
     const entry = PAGE_FAMILY_FRAME_ROUTES.find((route) => route.path === path)
     expect(entry).toMatchObject({
       family: 'workspace',
       sourceFile: 'pages/kitchen-log-page.tsx',
       symbol: 'KitchenLogPage',
+    })
+  })
+
+  it('/cafe/waste names its dedicated Café waste page frame', () => {
+    expect(PAGE_FAMILY_FRAME_ROUTES.find(route => route.path === '/cafe/waste')).toMatchObject({
+      family: 'workspace',
+      sourceFile: 'pages/cafe-waste-page.tsx',
+      symbol: 'CafeWastePage',
     })
   })
 })

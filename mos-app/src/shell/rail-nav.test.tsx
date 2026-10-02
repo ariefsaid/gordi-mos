@@ -134,7 +134,7 @@ describe('AC-011: Rail structure — grouped IA spine (F2 fix)', () => {
     setAuthAs(['admin'], 'Managing Director')
     renderRailNav('/cafe')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
-    for (const name of ['Today', 'Log production', 'Log transfer', 'Plan', 'Stock', 'Review', 'Pushes']) {
+    for (const name of ['Today', 'Log production', 'Log transfer', 'Log waste', 'Plan', 'Stock', 'Review', 'Pushes']) {
       expect(within(nav).getByRole('link', { name })).toBeInTheDocument()
     }
     expect(within(nav).queryByRole('link', { name: 'Opening' })).not.toBeInTheDocument()
@@ -364,6 +364,7 @@ describe('AC-009: aria-current — Work parent location, child page (at /work/si
     ['/cafe', 'Today'],
     ['/cafe/production', 'Log production'],
     ['/cafe/transfer', 'Log transfer'],
+    ['/cafe/waste', 'Log waste'],
     ['/cafe/plan', 'Plan'],
     ['/cafe/stock', 'Stock'],
     ['/cafe/items', 'Items'],

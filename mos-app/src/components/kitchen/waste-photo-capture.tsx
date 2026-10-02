@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import { useT } from '@/i18n/use-t'
 import {
@@ -25,7 +25,9 @@ export interface WastePhotoCaptureProps {
   /** Persisted evidence for a resumed Draft. Uploaded evidence is immutable in this phase. */
   initialPhotos?: readonly KitchenWastePhoto[]
   /** Injected for the development harness and tests; production uses the private Storage helper. */
-  onUpload?: (wasteLogId: string, file: File) => Promise<void>
+  onUpload?: (wasteLogId: string, file: File) => Promise<KitchenWastePhoto | void>
+  /** Parent stores accepted evidence so responsive layout changes do not discard capture state. */
+  onPhotoUploaded?: (photo: KitchenWastePhoto) => void
   /** Parent submit controls stay disabled until this item has at least one accepted photo. */
   onCanSubmitChange?: (canSubmit: boolean) => void
 }
@@ -34,12 +36,14 @@ export function WastePhotoCapture({
   wasteLogId,
   initialPhotos = [],
   onUpload = uploadKitchenWastePhoto,
+  onPhotoUploaded,
   onCanSubmitChange,
 }: WastePhotoCaptureProps) {
   const t = useT()
+  const titleId = useId()
   const [photos, setPhotos] = useState<PhotoEntry[]>(() => initialPhotos.map((photo) => ({
     id: photo.path,
-    name: photo.path.split('/').at(-1) ?? t('kitchen.wastePhotos.title'),
+    name: photo.name ?? photo.path.split('/').at(-1) ?? t('kitchen.wastePhotos.title'),
     previewUrl: photo.url,
     path: photo.path,
     status: 'uploaded',
@@ -98,8 +102,15 @@ export function WastePhotoCapture({
     setValidationError('')
     setPhotos(current => current.map(item => item.id === photoId ? { ...item, status: 'uploading' } : item))
     try {
-      await onUpload(wasteLogId, photo.file)
-      setPhotos(current => current.map(item => item.id === photoId ? { ...item, file: undefined, path: item.path, status: 'uploaded' } : item))
+      const uploaded = await onUpload(wasteLogId, photo.file)
+      if (uploaded) onPhotoUploaded?.(uploaded)
+      setPhotos(current => current.map(item => item.id === photoId ? {
+        ...item,
+        file: undefined,
+        path: uploaded?.path ?? item.path,
+        previewUrl: uploaded?.url ?? item.previewUrl,
+        status: 'uploaded',
+      } : item))
     } catch (error) {
       const failure = error instanceof Error ? error.message : ''
       const terminalStatus = failure === 'WASTE_PHOTO_WINDOW_EXPIRED'
@@ -127,9 +138,9 @@ export function WastePhotoCapture({
   }
 
   return (
-    <section className="waste-photo-capture" aria-labelledby="waste-photo-title">
+    <section className="waste-photo-capture" aria-labelledby={titleId}>
       <div className="waste-photo-capture-heading">
-        <h3 id="waste-photo-title">{t('kitchen.wastePhotos.title')}</h3>
+        <h3 id={titleId}>{t('kitchen.wastePhotos.title')}</h3>
         <p>{t('kitchen.wastePhotos.help')}</p>
       </div>
       <label className="waste-photo-capture-add">
