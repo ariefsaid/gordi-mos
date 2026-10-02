@@ -255,6 +255,13 @@ describe('ProcessOccurrenceControls', () => {
     expect(screen.queryByRole('button', { name: '1 to assign' })).not.toBeInTheDocument()
   })
 
+  it('keeps Complete secondary when a run is open and another run is ready', async () => {
+    renderControls()
+    const complete = await screen.findByRole('button', { name: 'Complete occurrence' })
+    expect(complete).toHaveClass('btn-outline')
+    expect(complete).not.toHaveClass('btn-primary')
+  })
+
   it('uses the runtime close authority for an open occurrence', async () => {
     const starterView = renderControls()
     expect(await screen.findByRole('button', { name: 'Complete occurrence' })).toBeInTheDocument()
