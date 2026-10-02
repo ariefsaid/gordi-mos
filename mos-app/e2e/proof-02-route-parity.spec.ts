@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test'
 import { ADMIN } from './fixtures/users'
 import { loginAs } from './helpers/login'
+import { TAP_FLOOR } from './helpers/tap-floor'
 import { ROUTE_PARITY_CATALOG, type RouteParityId } from '../src/shell/route-parity'
 
 // This catalog is the production route manifest's parity policy. The route census compares it
@@ -152,4 +153,47 @@ test.describe('PROOF-02 canonical route and visible-root parity', () => {
       }
     })
   }
+
+  // Issue 1196: the phone strip forced one nowrap row behind overflow-x with edge fades, so at
+  // 390px the last tab was clipped with no scroll cue. Asserted on rendered geometry, not CSS
+  // values: every tab's box must sit fully inside the visible settings-nav viewport, with no
+  // hidden scroll to reach it and no fade painted over it. One visit proves the shared strip;
+  // the width loop above already visits each admin settings route.
+  test('issue 1196: at 390 every Admin settings tab is fully visible — no hidden scroll, no fade, ≥44px', async ({ page }) => {
+    test.setTimeout(60_000)
+    await page.setViewportSize({ width: 390, height: 900 })
+    await loginAs(page, ADMIN.email, ADMIN.password)
+    await page.goto('admin/people')
+
+    const nav = page.getByRole('navigation', { name: 'Admin settings sections' })
+    await expect(nav).toBeVisible()
+
+    const strip = await nav.evaluate((el) => {
+      const visible = el.getBoundingClientRect()
+      return {
+        scrollWidth: el.scrollWidth,
+        clientWidth: el.clientWidth,
+        frameClass: el.parentElement?.className ?? '',
+        left: visible.left,
+        right: visible.right,
+        tabs: Array.from(el.querySelectorAll('a')).map((a) => {
+          const box = a.getBoundingClientRect()
+          return { label: (a.textContent ?? '').trim(), left: box.left, right: box.right, height: box.height }
+        }),
+      }
+    })
+
+    expect(strip.tabs.map((tab) => tab.label), 'the four Admin settings tabs render in nav order').toEqual(
+      Object.values(ADMIN_SETTINGS_TABS),
+    )
+    expect(strip.scrollWidth, 'settings nav keeps no hidden horizontal scroll at 390').toBeLessThanOrEqual(
+      strip.clientWidth + 0.5,
+    )
+    for (const tab of strip.tabs) {
+      expect(tab.left, `"${tab.label}" starts inside the visible nav`).toBeGreaterThanOrEqual(strip.left - 0.5)
+      expect(tab.right, `"${tab.label}" ends inside the visible nav`).toBeLessThanOrEqual(strip.right + 0.5)
+      expect(tab.height, `"${tab.label}" meets the 44px phone tap floor`).toBeGreaterThanOrEqual(TAP_FLOOR)
+    }
+    expect(strip.frameClass, 'no more-content fade renders over the strip').not.toContain('admin-settings-nav-frame--more')
+  })
 })
