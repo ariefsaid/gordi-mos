@@ -99,9 +99,8 @@
      for. Declared here rather than inline so the rail never carries a raw px again (#425). */
   --rail-icon:          17px; /* destination rung — DESIGN.md §Rail, "17px stroke-2 icon" */
   --rail-icon-child:    15px; /* child rung — one step down, so the ladder reads at icon size too */
-  --rail-child-guide-x: 18px; /* the hairline indent guide sits on the destination icon's centre line */
-  --rail-child-pad:     12px; /* child label offset from that hairline */
-  --rail-child-guide:    1px; /* the hairline itself (coloured var(--border)) */
+  --rail-child-guide-x: 18px; /* child indentation aligns with the destination icon's centre line */
+  --rail-child-pad:     12px; /* child label inset from the list edge */
   /* #442 — the user-controlled collapse toggle. Geometry, like the four above, so the rail
      stylesheet stays raw-px-free (#425). 28px square clears the icon-button footprint at a fine
      pointer without out-shouting a 36px nav item; 8px inset keeps the row on the 4/8/12 scale. */

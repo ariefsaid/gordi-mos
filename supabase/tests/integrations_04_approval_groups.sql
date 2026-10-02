@@ -6,7 +6,12 @@ select plan(20);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
+insert into shared.branches (id, org_id, code, name)
+values ('00000000-0000-0000-0000-00000000bf04','00000000-0000-0000-0000-0000000000a1','cikal','Cikal');
 select ops._test_seed_cafe();
+insert into shared.teams (org_id, business_unit_id, name, code, branch_id, activity, produces)
+values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01',
+        'Cikal Bar','cikal_bar','00000000-0000-0000-0000-00000000bf04','bar',true);
 select ok((select relrowsecurity from pg_class where oid='integrations.esb_push_groups'::regclass),
   'approval groups have RLS enabled');
 select ok((select relforcerowsecurity from pg_class where oid='integrations.esb_push_groups'::regclass),
@@ -66,7 +71,7 @@ select throws_ok($$select ops.approve_kitchen_logs(array['00000000-0000-0000-000
 insert into ops.kitchen_logs (id, business_unit_id, log_date, branch_id, activity, action, destination_branch_id, wip_item_id, qty_porsi)
 values
  ('00000000-0000-0000-0000-00000000e708','00000000-0000-0000-0000-00000000bb01','2026-06-24','00000000-0000-0000-0000-00000000bf02','kitchen','transfer','00000000-0000-0000-0000-00000000bf03','00000000-0000-0000-0000-00000000ab01',1),
- ('00000000-0000-0000-0000-00000000e709','00000000-0000-0000-0000-00000000bb01','2026-06-24','00000000-0000-0000-0000-00000000bf02','kitchen','transfer','00000000-0000-0000-0000-00000000bf01','00000000-0000-0000-0000-00000000ab01',1);
+ ('00000000-0000-0000-0000-00000000e709','00000000-0000-0000-0000-00000000bb01','2026-06-24','00000000-0000-0000-0000-00000000bf02','kitchen','transfer','00000000-0000-0000-0000-00000000bf04','00000000-0000-0000-0000-00000000ab01',1);
 select throws_ok($$select ops.approve_kitchen_logs(array['00000000-0000-0000-0000-00000000e708'::uuid,'00000000-0000-0000-0000-00000000e709'::uuid], null)$$, '22023', null,
   'two cross-branch transfers refuse mixed destinations');
 insert into ops.kitchen_logs (id, business_unit_id, log_date, branch_id, activity, action, destination_branch_id, wip_item_id, qty_porsi)

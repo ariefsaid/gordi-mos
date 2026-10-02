@@ -34,6 +34,7 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
     fetchStockMap: vi.fn(),
     fetchActualsMap: vi.fn(),
     listStreamPairs: vi.fn(),
+    listCafeDestinations: vi.fn(),
     resolveKitchenBuId: vi.fn(),
     insertKitchenLogBatch: vi.fn(),
     listStreamItemIds: vi.fn(),
@@ -54,6 +55,7 @@ import {
   fetchActualsMap,
   fetchPlanMap,
   fetchStockMap,
+  listCafeDestinations,
   listStreamPairs,
   resolveKitchenBuId,
   insertKitchenLogBatch,
@@ -65,6 +67,7 @@ import { listActiveBranches } from '@/lib/db/branches'
 import type {
   BranchOption,
   CaptureFormItem,
+  CafeDestination,
   ProductionStream,
   StreamPair,
 } from '@/lib/db/kitchen-logs.types'
@@ -77,6 +80,7 @@ const mockFetchActualsMap = vi.mocked(fetchActualsMap)
 const mockFetchDefaultStream = vi.mocked(fetchDefaultStream)
 const mockListCafeViewerTeams = vi.mocked(listCafeViewerTeams)
 const mockListStreamPairs = vi.mocked(listStreamPairs)
+const mockListCafeDestinations = vi.mocked(listCafeDestinations)
 const mockResolveKitchenBuId = vi.mocked(resolveKitchenBuId)
 const mockInsertKitchenLogBatch = vi.mocked(insertKitchenLogBatch)
 const mockListActiveBranches = vi.mocked(listActiveBranches)
@@ -110,6 +114,15 @@ const STREAM_PAIRS: StreamPair[] = [BRANCH_GORDI_HQ, BRANCH_RADIANT, BRANCH_RUMA
     produces: !(b === BRANCH_RADIANT && activity === 'kitchen'),
   })),
 )
+const CAFE_DESTINATIONS: CafeDestination[] = [
+  { origin_branch_id: BRANCH_GORDI_HQ.id, origin_activity: 'kitchen', destination_branch_id: 'cikal' },
+  { origin_branch_id: BRANCH_GORDI_HQ.id, origin_activity: 'bar', destination_branch_id: 'cikal' },
+  { origin_branch_id: BRANCH_RUMAH_RAMES.id, origin_activity: 'kitchen', destination_branch_id: BRANCH_RADIANT.id },
+  { origin_branch_id: BRANCH_RUMAH_RAMES.id, origin_activity: 'bar', destination_branch_id: BRANCH_GORDI_HQ.id },
+  { origin_branch_id: BRANCH_RUMAH_RAMES.id, origin_activity: 'bar', destination_branch_id: BRANCH_RADIANT.id },
+  { origin_branch_id: BRANCH_RADIANT.id, origin_activity: 'bar', destination_branch_id: BRANCH_GORDI_HQ.id },
+  { origin_branch_id: BRANCH_RADIANT.id, origin_activity: 'bar', destination_branch_id: BRANCH_RUMAH_RAMES.id },
+]
 // The person's own default stream (FR-001) — what the default-stream.ts resolver returns
 // (already resolved against the branch catalog).
 const DEFAULT_STREAM: ProductionStream = { branch: BRANCH_RUMAH_RAMES, activity: 'kitchen', produces: true }
@@ -248,6 +261,7 @@ beforeEach(() => {
   mockListCaptureFormItems.mockResolvedValue(WIP_ITEMS)
   mockListActiveBranches.mockResolvedValue(BRANCHES)
   mockListStreamPairs.mockResolvedValue(STREAM_PAIRS)
+  mockListCafeDestinations.mockResolvedValue(CAFE_DESTINATIONS)
   mockFetchDefaultStream.mockResolvedValue(DEFAULT_STREAM)
   mockListCafeViewerTeams.mockResolvedValue([])
   mockFetchPlanMap.mockResolvedValue(PLAN_MAP)
@@ -2017,7 +2031,7 @@ describe('stale-response race: an older stream fetch resolving LAST never lands 
 
 // ── AC-007 (#235): the destination picker, both movement classes, both surfaces ─
 // FR-013. The movement control IS the destination picker — there is no second surface for
-// movements — and the list it offers is derived from the branch catalog, so both classes
+// movements — and cross-branch offers follow org-scoped route rows, so both classes
 // come out of one derivation:
 //
 //   CROSS-BRANCH        any branch that is not the origin's. "Another branch's bar" and the
@@ -2047,14 +2061,15 @@ describe('AC-007: destinations cover both movement classes from both activity su
     expect(screen.getByRole('tab', { name: 'Transfer to Gordi HQ' })).toBeInTheDocument()
   })
 
-  it('AC-007: the KITCHEN surface preserves its cross-branch transfers without a held own-branch option', async () => {
-    // The default fixture stream is (Rumah Rames, kitchen). Kitchen production sends to other
-    // catalog branches; the held intra-branch movement is offered from the bar surface only.
+  it('AC-007: the KITCHEN surface follows its route rows without a held own-branch option', async () => {
+    // The default fixture stream is (Rumah Rames, kitchen). Its route rows allow Radiant, not GHQ;
+    // the held intra-branch movement is offered from the bar surface only.
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     expect(screen.queryByRole('tab', { name: /transfer to bungur within branch · bar/i })).toBeNull()
     expect(screen.getByRole('tab', { name: 'Transfer to Radiant' })).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'Transfer to Gordi HQ' })).toBeNull()
     expect(screen.getByRole('tab', { name: 'Production' })).toBeInTheDocument()
   })
 

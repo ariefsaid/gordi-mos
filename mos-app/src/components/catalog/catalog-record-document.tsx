@@ -62,6 +62,7 @@ type Notice = { message: string; undo?: () => Promise<void> }
 type Chooser =
   | { purpose: 'link'; status: 'loading' | 'error' | 'empty' | 'ready'; options: PickerOption[]; objectiveOf: Map<string, string | null>; names: Map<string, string>; facts: Map<string, CatalogWorkLineFact> }
   | { purpose: 'task'; options: PickerOption[] }
+  | { purpose: 'start'; options: PickerOption[] }
 
 function cadenceLabel(kind: string, t: ReturnType<typeof useT>): string {
   const labels = {
@@ -508,14 +509,15 @@ export function CatalogRecordDocument({
     }
   }
   const setupTitle = t(isObjective ? 'catalog.setup.title.objective' : isProcess ? 'catalog.setup.title.process' : 'catalog.setup.title.project')
-  // One ready run starts as the body's Start button does; with several Teams ready the person picks
-  // the Team, so the primary takes them to those buttons rather than choosing for them.
+  // The record header owns Start. One ready Team is a single click; several require a type-to-find choice.
   const startReady = isProcess && process !== null && process.steps.length > 0 && occurrences.state === 'ready' && occurrences.startable.length > 0
   const startFromHeader = () => {
     if (occurrences.startable.length === 1) { void occurrences.start(occurrences.startable[0]); return }
-    const first = document.querySelector<HTMLElement>('.process-occurrence-controls__start button')
-    first?.scrollIntoView({ block: 'center' })
-    first?.focus()
+    rememberOpener()
+    setChooser({
+      purpose: 'start',
+      options: occurrences.startable.map((run) => ({ value: `${run.owning_team_id}:${run.period_key}`, label: run.team_name })),
+    })
   }
   const primary: RecordPrimaryAction | undefined = archived || !settled || setup.length > 0 ? undefined
     : isProcess ? (startReady ? { label: t('catalog.record.startOccurrence'), onClick: startFromHeader, busy: occurrences.startingKey !== null } : undefined)
@@ -572,6 +574,19 @@ export function CatalogRecordDocument({
         label={t('catalog.chooser.taskFor')}
         options={chooser.options}
         onPick={(workLineId) => { setChooser(null); createTask(workLineId) }}
+        onCancel={closeChooser}
+      />
+    ) : chooser.purpose === 'start' ? (
+      <InlineChooser
+        label={t('processes.occurrence.chooseTeam')}
+        options={chooser.options}
+        onPick={(key) => {
+          const [teamId, periodKey] = key.split(':')
+          const run = occurrences.startable.find((candidate) => candidate.owning_team_id === teamId && candidate.period_key === periodKey)
+          setChooser(null)
+          restoreOpener()
+          if (run) void occurrences.start(run)
+        }}
         onCancel={closeChooser}
       />
     ) : (
@@ -638,6 +653,10 @@ export function CatalogRecordDocument({
   ) : null
   // A Process with no steps leads with them: the form the Get started row opens sits right under it.
   const stepsFirst = isProcess && process !== null && process.steps.length === 0
+  const showOccurrenceSection = isProcess && process !== null && (
+    process.steps.length > 0 || occurrences.state === 'error'
+    || (occurrences.state === 'ready' && occurrences.occurrences.length > 0)
+  )
 
   return (
     <>
@@ -685,7 +704,7 @@ export function CatalogRecordDocument({
               scopes={scopes}
               scopesStatus={scopesError ? 'error' : scopesLoading ? 'loading' : 'ready'}
               onRetryScopes={retryScopes}
-              hideWhenEmpty={setup.some((item) => item.id === 'targets')}
+              addOwnedBySetup={setup.some((item) => item.id === 'targets')}
               onCount={setKrCount}
               onAddClosed={() => restoreOpener()}
               openAddToken={addKeyResultToken}
@@ -693,7 +712,6 @@ export function CatalogRecordDocument({
             <LinkedWorkSection
               objectiveId={id}
               groups={linkedWork}
-              progress={context.progressById.get(id) ?? { done: 0, total: 0 }}
               workLines={workLinesById}
               people={allPeople}
               scopes={scopes}
@@ -707,18 +725,20 @@ export function CatalogRecordDocument({
           </>
         ) : null}
         {stepsFirst ? stepsSection : null}
-        {isProcess && process ? (
+        {showOccurrenceSection && process ? (
           <RecordSection id="occurrence" title={t('catalog.record.currentNextAction')}>
             <div data-setup-pending={setup.some((item) => item.id === 'steps') || undefined}>
-              <ProcessOccurrenceControls workLineId={id} setupIncomplete={process.steps.length === 0} canManageSetup={canManage} onChanged={onOccurrencesChanged} data={occurrences} />
+              <ProcessOccurrenceControls workLineId={id} setupIncomplete={process.steps.length === 0} canManageSetup={canManage} recordContext onChanged={onOccurrencesChanged} data={occurrences} />
             </div>
           </RecordSection>
         ) : null}
         <TasksSection
           title={t(isProcess ? 'catalog.record.processTasks' : 'catalog.record.tasks')}
           tasks={derived.relationTasks}
+          rollup={context.progressById.get(id)}
           people={allPeople}
           canAdd={canAddTask}
+          actionInHeader={primary?.label === t('catalog.record.addTask')}
           hidden={setup.some((item) => item.id === 'tasks')}
           onAdd={startAddTask}
           onOpenRelated={onOpenRelated}
