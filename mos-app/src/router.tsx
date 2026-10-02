@@ -123,6 +123,9 @@ const KitchenStockPage = lazyPage(() =>
 const CafeItemSettingsPage = lazyPage(() =>
   import('./pages/cafe-item-settings-page').then((m) => ({ default: m.CafeItemSettingsPage })),
 )
+const CafeWastePage = lazyPage(() =>
+  import('./pages/cafe-waste-page').then((m) => ({ default: m.CafeWastePage })),
+)
 const KitchenPushesPage = lazyPage(() =>
   import('./pages/kitchen-pushes-page').then((m) => ({ default: m.KitchenPushesPage })),
 )
@@ -442,6 +445,7 @@ const routeTable: RouteObject[] = [
           { path: 'cafe/opening', element: <RouteRedirect to="/cafe" />, handle: redirectHandle('/cafe') },
           { path: ROUTE_PATHS.cafePlan, element: withSuspense(<KitchenPlanPage />), handle: pageHandle('workspace') },
           { path: ROUTE_PATHS.cafeStock, element: withSuspense(<KitchenStockPage />), handle: pageHandle('workspace') },
+          { path: ROUTE_PATHS.cafeWaste, element: withSuspense(<CafeWastePage />), handle: pageHandle('workspace') },
           { path: ROUTE_PATHS.cafeItems, element: withSuspense(<CafeItemSettingsPage />), handle: pageHandle('workspace') },
           // The root is the capture surface now, so retired kitchen paths land on /cafe directly.
           { path: 'kitchen', element: <RouteRedirect to="/cafe" />, handle: redirectHandle('/cafe') },

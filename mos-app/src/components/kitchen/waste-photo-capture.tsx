@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import { useT } from '@/i18n/use-t'
 import {
@@ -37,6 +37,7 @@ export function WastePhotoCapture({
   onCanSubmitChange,
 }: WastePhotoCaptureProps) {
   const t = useT()
+  const titleId = useId()
   const [photos, setPhotos] = useState<PhotoEntry[]>(() => initialPhotos.map((photo) => ({
     id: photo.path,
     name: photo.path.split('/').at(-1) ?? t('kitchen.wastePhotos.title'),
@@ -127,9 +128,9 @@ export function WastePhotoCapture({
   }
 
   return (
-    <section className="waste-photo-capture" aria-labelledby="waste-photo-title">
+    <section className="waste-photo-capture" aria-labelledby={titleId}>
       <div className="waste-photo-capture-heading">
-        <h3 id="waste-photo-title">{t('kitchen.wastePhotos.title')}</h3>
+        <h3 id={titleId}>{t('kitchen.wastePhotos.title')}</h3>
         <p>{t('kitchen.wastePhotos.help')}</p>
       </div>
       <label className="waste-photo-capture-add">

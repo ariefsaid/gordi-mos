@@ -16,6 +16,7 @@ export const ROUTE_PATHS = {
   cafeLog: 'cafe/log',
   cafeProduction: 'cafe/production',
   cafeTransfer: 'cafe/transfer',
+  cafeWaste: 'cafe/waste',
   cafePlan: 'cafe/plan',
   cafeStock: 'cafe/stock',
   cafeItems: 'cafe/items',
@@ -42,6 +43,7 @@ export type RouteParityId =
   | 'cafe'
   | 'cafeProduction'
   | 'cafeTransfer'
+  | 'cafeWaste'
   | 'cafePlan'
   | 'cafeStock'
   | 'cafeItems'
@@ -77,6 +79,7 @@ export const ROUTE_PARITY_CATALOG: readonly RouteParityEntry[] = [
   // cafeLog is a legacy redirect; production and transfer are the canonical capture routes.
   { id: 'cafeProduction', path: absolutePath(ROUTE_PATHS.cafeProduction), kind: 'child' },
   { id: 'cafeTransfer', path: absolutePath(ROUTE_PATHS.cafeTransfer), kind: 'child' },
+  { id: 'cafeWaste', path: absolutePath(ROUTE_PATHS.cafeWaste), kind: 'child' },
   { id: 'cafePlan', path: absolutePath(ROUTE_PATHS.cafePlan), kind: 'child' },
   { id: 'cafeStock', path: absolutePath(ROUTE_PATHS.cafeStock), kind: 'child' },
   { id: 'cafeItems', path: absolutePath(ROUTE_PATHS.cafeItems), kind: 'child' },
