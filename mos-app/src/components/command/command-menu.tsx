@@ -6,7 +6,7 @@ import { searchFollowUpsByCounterparty } from '@/lib/db/follow-ups'
 import { searchPeopleByName } from '@/lib/db/directory'
 import { searchObjectivesByName } from '@/lib/db/objectives'
 import { searchWorkLinesByName } from '@/lib/db/work-lines'
-import { SHOW_ASSISTANT, SHOW_FOLLOWUPS } from '@/config/features'
+import { SHOW_ASSISTANT, SHOW_FOLLOWUPS, SHOW_WORK_COLLECTIONS } from '@/config/features'
 import { useAuth } from '@/auth/use-auth'
 import { canCaptureCafe } from '@/lib/cafe-affiliation'
 import { canCreateForScope, useWorkWriteAuthority } from '@/components/catalog/use-work-write-authority'
@@ -147,12 +147,14 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
   const actionItems = useMemo<CommandItem[]>(
     () => {
       const items: CommandItem[] = [
-        ...(canShareSignal ? [{ id: 'a-signal', label: t('commandMenu.action.shareSignal'), Icon: SignalsIcon, kind: 'action' as const, run: onShareSignal }] : []),
-        { id: 'a-task', label: t('commandMenu.action.createTask'), Icon: TasksIcon, kind: 'action', to: '/work/tasks?create=1' },
-        ...(canCreateForScope('objective', scopes)
+        ...(SHOW_WORK_COLLECTIONS && canShareSignal ? [{ id: 'a-signal', label: t('commandMenu.action.shareSignal'), Icon: SignalsIcon, kind: 'action' as const, run: onShareSignal }] : []),
+        ...(SHOW_WORK_COLLECTIONS
+          ? [{ id: 'a-task', label: t('commandMenu.action.createTask'), Icon: TasksIcon, kind: 'action' as const, to: '/work/tasks?create=1' }]
+          : []),
+        ...(SHOW_WORK_COLLECTIONS && canCreateForScope('objective', scopes)
           ? [{ id: 'a-objective', label: t('catalog.objectives.add'), Icon: ObjectiveIcon, kind: 'action' as const, to: '/work/objectives?create=1' }]
           : []),
-        ...(canCreateForScope('work-line', scopes)
+        ...(SHOW_WORK_COLLECTIONS && canCreateForScope('work-line', scopes)
           ? [{ id: 'a-work-line', label: t('catalog.projects.add'), Icon: WorkLineIcon, kind: 'action' as const, to: '/work/projects?create=1' }]
           : []),
       ]
@@ -219,9 +221,10 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
   }, [open])
 
   // ── Debounced record search (~150ms) ─────────────────────────────────────────
-  // OD-REDESIGN-91 #4/B2: one debounced fan-out across every readable record kind — Tasks,
-  // Signals, Projects & Processes, Objectives and people always; AR Follow-ups only when
-  // SHOW_FOLLOWUPS is lit (the settlement bridge ships dark). RLS is the read authority for each.
+  // OD-REDESIGN-91 #4/B2: one debounced fan-out across readable record kinds. Work records are
+  // searched only when that collection is in the release profile; people stay shared, and AR
+  // Follow-ups run only when SHOW_FOLLOWUPS is lit (the settlement bridge ships dark). RLS is the
+  // read authority for every enabled search.
   // Any one search failing fails the group (the existing "Couldn't search records" affordance);
   // Navigate/Actions still filter client-side.
   useEffect(() => {
@@ -231,23 +234,31 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
     let cancelled = false
     const timer = setTimeout(() => {
       Promise.all([
-        searchTasksByTitle(trimmed).then((rows) =>
-          rows.map<RecordHit>((r) => ({ id: r.id, title: r.title, kind: 'task' })),
-        ),
-        searchSignalsByBody(trimmed).then((rows) =>
-          rows.map<RecordHit>((r) => ({ id: r.id, title: firstLine(r.body), kind: 'signal' })),
-        ),
+        SHOW_WORK_COLLECTIONS
+          ? searchTasksByTitle(trimmed).then((rows) =>
+              rows.map<RecordHit>((r) => ({ id: r.id, title: r.title, kind: 'task' })),
+            )
+          : Promise.resolve<RecordHit[]>([]),
+        SHOW_WORK_COLLECTIONS
+          ? searchSignalsByBody(trimmed).then((rows) =>
+              rows.map<RecordHit>((r) => ({ id: r.id, title: firstLine(r.body), kind: 'signal' })),
+            )
+          : Promise.resolve<RecordHit[]>([]),
         SHOW_FOLLOWUPS
           ? searchFollowUpsByCounterparty(trimmed).then((rows) =>
               rows.map<RecordHit>((r) => ({ id: r.id, title: r.counterparty, kind: 'follow-up' })),
             )
           : Promise.resolve<RecordHit[]>([]),
-        searchWorkLinesByName(trimmed).then((rows) =>
-          rows.map<RecordHit>((r) => ({ id: r.id, title: r.name, kind: r.type })),
-        ),
-        searchObjectivesByName(trimmed).then((rows) =>
-          rows.map<RecordHit>((r) => ({ id: r.id, title: r.name, kind: 'objective' })),
-        ),
+        SHOW_WORK_COLLECTIONS
+          ? searchWorkLinesByName(trimmed).then((rows) =>
+              rows.map<RecordHit>((r) => ({ id: r.id, title: r.name, kind: r.type })),
+            )
+          : Promise.resolve<RecordHit[]>([]),
+        SHOW_WORK_COLLECTIONS
+          ? searchObjectivesByName(trimmed).then((rows) =>
+              rows.map<RecordHit>((r) => ({ id: r.id, title: r.name, kind: 'objective' })),
+            )
+          : Promise.resolve<RecordHit[]>([]),
         searchPeopleByName(trimmed).then((rows) =>
           rows.map<RecordHit>((r) => ({ id: r.id, title: r.full_name, kind: 'person' })),
         ),

@@ -19,12 +19,14 @@ import { AdminRoute } from './auth/admin-route'
 import { RequireAccessRole } from './auth/require-access-role'
 import { RedirectIfAuthed } from './auth/redirect-if-authed'
 import { REVENUE_VIEW_ROLES } from './lib/capabilities'
-import { isShipGated } from './lib/ship-gate'
+import { isShipGatedInProfile } from './lib/ship-gate'
 import { AppShell } from './shell/app-shell'
+import { CafeOccurrenceTaskRoute, CafeProfileFallbackRoute } from './shell/cafe-profile-route-guards'
 import { RouteRedirect } from './shell/route-redirect'
 import { pageHandle, redirectHandle, infrastructureHandle, type RouteHandle } from './shell/route-classification'
 import { LoadingShell } from './components/ui/state-kit'
-import { APP_ROUTER_BASENAME } from './config/app-build-settings'
+import { APP_RELEASE_PROFILE, APP_ROUTER_BASENAME } from './config/app-build-settings'
+import { profileLandingPath, type ReleaseProfile } from './config/build-settings'
 import { ROUTE_PATHS } from './shell/route-parity'
 // Eager, deliberately: both are above-the-fold first paints. HomePage is the index route (the
 // screen every authenticated session opens on) and LoginPage is what a logged-out visitor lands
@@ -584,9 +586,9 @@ function withShellErrorBoundary(routes: RouteObject[]): RouteObject[] {
 //
 // A gated path does not route. Its entry keeps its place in the table above — same path, same
 // gates, same handle metadata, same lazy import sitting untouched in the bundle graph — but its
-// ELEMENT is swapped for a forward to Home, so the component behind it never mounts. That is the
-// difference between hiding a surface and deleting one, and it is why switch day is a one-line
-// edit to `SHIP_GATED_PATHS` rather than a revert.
+// ELEMENT is swapped for a forward to the selected profile landing, so the component behind it
+// never mounts. The Cafe profile retains only the occurrence-scoped Task route its Café workflow
+// already uses; the guard rejects unscoped collection and record URLs. This is hiding, not deletion.
 //
 // Two kinds of entry are rewritten, and the second is the one that is easy to miss:
 //
@@ -594,7 +596,7 @@ function withShellErrorBoundary(routes: RouteObject[]): RouteObject[] {
 //  2. every RETIRED path whose redirect names a gated surface (`/dashboard` → `/money`,
 //     `/objectives` → `/work/objectives`). Left alone, those forward a viewer onto a path that
 //     forwards them again — the chained redirect the whole table is built to avoid — so they
-//     name Home directly instead, and their `redirect` handle is re-declared to match. A handle
+//     name the profile landing directly instead, and their `redirect` handle is re-declared to match. A handle
 //     that disagrees with its element is a comment that lies (route-classification.test.ts).
 //
 // A gated SURFACE keeps its `page` handle: it is still a page, still registered in the page-family
@@ -613,26 +615,49 @@ function redirectTargetOf(element: ReactNode): string | undefined {
   return typeof to === 'string' ? to : undefined
 }
 
-export function applyShipGate(routes: RouteObject[], parent = ''): RouteObject[] {
+export function applyShipGate(
+  routes: RouteObject[],
+  parent = '',
+  profile: ReleaseProfile = APP_RELEASE_PROFILE,
+): RouteObject[] {
   return routes.map((route): RouteObject => {
     const path =
       route.index || route.path === undefined ? parent || '/' : joinRoutePath(parent, route.path)
     const target = redirectTargetOf(route.element)
-    const gated = isShipGated(path) || (target !== undefined && isShipGated(target))
+    const cafeLanding = profile === 'cafe' && route.index === true && path === '/'
+    const rootFallback = profile === 'cafe' && target === '/' && path !== '/'
+    const taskCollectionPath = `/${ROUTE_PATHS.workTasks.replace(/^\/+/, '')}`
+    const cafeTaskContext = profile === 'cafe' && (
+      path === taskCollectionPath || path === `${taskCollectionPath}/:taskId`
+    )
+    const gated = (isShipGatedInProfile(path, profile) && !cafeTaskContext) ||
+      (target !== undefined && isShipGatedInProfile(target, profile)) || cafeLanding || rootFallback
     // A `redirect` handle declares a target and must keep matching what the element does. A `page`
     // handle declares no target and is left alone — a gated surface is still a page, merely closed
     // (the shape the SHOW_PLAN_BUDGET fallbacks already have), and re-classifying it would drop it
     // out of the page-family registry as though the screen had been deleted.
     const declaresTarget = (route.handle as RouteHandle | undefined)?.kind === 'redirect'
+    const landingPath = profileLandingPath(profile)
     const closed = gated
-      ? { element: <Navigate to="/" replace />, ...(declaresTarget ? { handle: redirectHandle('/') } : {}) }
+      ? {
+          element: <Navigate to={landingPath} replace />,
+          ...(declaresTarget || cafeLanding ? { handle: redirectHandle(landingPath) } : {}),
+        }
+      : {}
+    const contextualTaskRoute = cafeTaskContext
+      ? { element: <CafeOccurrenceTaskRoute>{route.element}</CafeOccurrenceTaskRoute> }
+      : {}
+    const cafeFallbackRoute = profile === 'cafe' && route.path === '*'
+      ? { element: <CafeProfileFallbackRoute>{route.element}</CafeProfileFallbackRoute> }
       : {}
     // Index and non-index routes are a discriminated union (an index route may carry no
     // `children`), so they are rebuilt on separate branches rather than through one spread.
     if (route.index) return { ...route, ...closed }
     return {
       ...route,
-      ...(route.children ? { children: applyShipGate(route.children, path) } : {}),
+      ...(route.children ? { children: applyShipGate(route.children, path, profile) } : {}),
+      ...contextualTaskRoute,
+      ...cafeFallbackRoute,
       ...closed,
     }
   })

@@ -1,4 +1,5 @@
 import type { NotificationRow } from '@/lib/db/notifications'
+import { isProfileFeatureAvailable, isProfilePathAvailable, type ReleaseProfile } from '@/config/build-settings'
 import type { OverlayEntryDraft } from './inbox-host-contracts'
 
 /**
@@ -101,6 +102,16 @@ function readEntity(row: NotificationRow): RawEntity | null {
   const entity = meta?.entity
   if (entity == null || typeof entity !== 'object') return null
   return entity as RawEntity
+}
+
+/** Hide Inbox rows whose record door is outside the selected build profile. */
+export function notificationAvailableInProfile(row: NotificationRow, profile: ReleaseProfile): boolean {
+  const entity = readEntity(row)
+  if (!entity) return true
+  if (typeof entity.route === 'string' && !isProfilePathAvailable(entity.route, profile)) return false
+  if ((entity.type === 'task' || entity.type === 'signal') &&
+    !isProfileFeatureAvailable('workCollections', profile)) return false
+  return true
 }
 
 function unavailable(key: string, reason: UnavailableReason): NotificationTargetResolution {
