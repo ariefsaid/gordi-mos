@@ -8,6 +8,12 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+// Mock the stream-settings boundary separately: listCaptureFormItems delegates to it for a chosen stream.
+vi.mock('./cafe-item-settings', async () => {
+  const actual = await vi.importActual<typeof import('./cafe-item-settings')>('./cafe-item-settings')
+  return { ...actual, listCafeLogItems: vi.fn() }
+})
+
 // Mock supabase at module scope — mirrors ops-log.test.ts pattern
 vi.mock('../supabase', () => {
   const schema = vi.fn()
@@ -15,6 +21,7 @@ vi.mock('../supabase', () => {
 })
 
 import type { ProductionStream } from './kitchen-logs.types'
+import { listCafeLogItems } from './cafe-item-settings'
 import { supabase } from '@/lib/supabase'
 import {
   listActiveWipItems,
@@ -36,6 +43,7 @@ import {
 } from './kitchen-logs'
 
 const schemaMock = vi.mocked(supabase.schema)
+const mockCafeLogItems = vi.mocked(listCafeLogItems)
 
 // The (branch, activity) production stream every read and write is scoped to (OD-WAY-28),
 // and the two destinations the incumbent captures. The branch ids are opaque here — the
@@ -149,12 +157,10 @@ function assertNoServerStamps(inserts: unknown[]) {
 beforeEach(() => vi.clearAllMocks())
 
 // ── listActiveWipItems / listCaptureFormItems — the reader split ─────────────
-// The DD-WAY-29 gate scopes absence to the CAPTURE form only (FR-011):
-//   * listCaptureFormItems reads the gated ops.capture_form_items view — only
-//     confirmed item-units, no flag consulted client-side.
-//   * listActiveWipItems stays the UNGATED active-item read that feeds the
-//     stock/verification plane (FR-060, OD-WAY-45) and the plan surface — an
-//     unconfirmed item still has real balances to verify.
+// The DD-WAY-29 gate scopes absence to the CAPTURE form only (FR-011): with a
+// stream, capture reads the Café settings; before selection it uses the prior gated
+// catalog as a read-only choice surface. listActiveWipItems stays the UNGATED active-item
+// read that feeds the stock/verification plane (FR-060, OD-WAY-45) and Plan.
 describe('listActiveWipItems — the ungated stock/plan read', () => {
   const WIP_ROWS = [
     { id: 'w1', name: 'Ayam Bakar', category: 'Main' },
@@ -196,7 +202,7 @@ describe('listActiveWipItems — the ungated stock/plan read', () => {
   })
 })
 
-describe('listCaptureFormItems — the gated capture-form read (FR-011, DD-WAY-29, FR-032)', () => {
+describe('listCaptureFormItems — stream-aware capture-form read (FR-011, DD-WAY-29, FR-032)', () => {
   // One row per confirmed (item, unit), the view's shape after #234.
   const unitRow = (
     wip_item_id: string,
@@ -213,19 +219,49 @@ describe('listCaptureFormItems — the gated capture-form read (FR-011, DD-WAY-2
     unitRow('w2', 'Nasi Goreng', 'u2', 'porsi', true),
   ]
 
-  it('issue 222: given a stream, offers only the items on that stream\'s list', async () => {
-    const rec = freshRec()
-    schemaMock.mockReturnValue(
-      makeSchema({
-        capture_form_items: [{ data: VIEW_ROWS, error: null }],
-        stream_items: [{ data: [{ wip_item_id: 'w2' }], error: null }],
-      }, rec) as never,
-    )
+  it('uses the selected stream settings and only returns loggable WIP details', async () => {
+    mockCafeLogItems.mockResolvedValue([
+      {
+        id: 'w2', name: 'MOS Nasi Goreng', category: 'Main', kind: 'WIP',
+        defaultUnit: { id: 'u2-each', name: 'each' },
+        units: [
+          { id: 'u2-each', name: 'each', isDefault: true, labelOrdinal: null, labelCount: 1 },
+          { id: 'u2-case', name: 'case', isDefault: false, labelOrdinal: null, labelCount: 1 },
+        ],
+      },
+      {
+        id: 'raw-1', name: 'RAW - Beans', category: 'Main', kind: 'RAW',
+        defaultUnit: { id: 'u-kg', name: 'kg' },
+        units: [{ id: 'u-kg', name: 'kg', isDefault: true, labelOrdinal: null, labelCount: 1 }],
+      },
+    ])
 
     const result = await listCaptureFormItems(STREAM)
-    expect(result.map(item => item.id)).toEqual(['w2'])
-    expect(rec.fromTables).toContain('stream_items')
-    expect(rec.eqs).toEqual(expect.arrayContaining([['branch_id', BRANCH_ID], ['activity', 'kitchen']]))
+    expect(mockCafeLogItems).toHaveBeenCalledWith(STREAM)
+    expect(result).toEqual([{
+      id: 'w2', name: 'MOS Nasi Goreng', category: 'Main', kind: 'WIP',
+      units: [
+        { id: 'u2-each', name: 'each', is_default: true },
+        { id: 'u2-case', name: 'case', is_default: false },
+      ],
+    }])
+  })
+
+  it('distinguishes repeated ERP unit labels without exposing ERP identifiers', async () => {
+    mockCafeLogItems.mockResolvedValue([{
+      id: 'w2', name: 'MOS Nasi Goreng', category: 'Main', kind: 'WIP',
+      defaultUnit: { id: 'detail-a', name: 'each' },
+      units: [
+        { id: 'detail-a', name: 'each', isDefault: true, labelOrdinal: 1, labelCount: 2 },
+        { id: 'detail-b', name: 'each', isDefault: false, labelOrdinal: 2, labelCount: 2 },
+      ],
+    }])
+
+    const result = await listCaptureFormItems(STREAM)
+    expect(result[0].units).toEqual([
+      { id: 'detail-a', name: 'each (1/2)', is_default: true },
+      { id: 'detail-b', name: 'each (2/2)', is_default: false },
+    ])
   })
 
   it('reads the gated capture_form_items view ordered by name — never raw wip_items', async () => {

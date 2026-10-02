@@ -2338,8 +2338,11 @@ describe('transfer capture submit contract', () => {
       expect(screen.getByRole('tab', { name: /transfer to radiant/i })).toHaveAttribute('aria-selected', 'true')
     })
 
-    // Stage Ayam Bakar (w1) under the selected Transfer destination: 9 is within tersedia,
-    // but off the absolute plan (10), so it needs a note.
+    // Select an alternate shown ERP detail and stage Ayam Bakar (w1) under the selected
+    // Transfer destination: 9 is within tersedia, but off the absolute plan (10), so it needs a note.
+    fireEvent.click(screen.getByRole('button', { name: /change unit for ayam bakar/i }))
+    await userEvent.click(screen.getByRole('combobox', { name: /unit for ayam bakar/i }))
+    await userEvent.click(await screen.findByRole('option', { name: 'botol' }))
     const ayamInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
     fireEvent.change(ayamInput, { target: { value: '9' } })
     fireEvent.blur(ayamInput)
@@ -2351,10 +2354,10 @@ describe('transfer capture submit contract', () => {
     fireEvent.click(submit)
 
     await waitFor(() => expect(mockInsertKitchenLogBatch).toHaveBeenCalledTimes(1))
-    // The transfer route writes the selected destination and action into the existing payload contract.
+    // Transfer keeps the selected ERP detail in the same payload as its movement destination.
     expect(mockInsertKitchenLogBatch.mock.calls[0][0]).toEqual([
       expect.objectContaining({
-        wip_item_id: 'w1', qty_porsi: 9,
+        wip_item_id: 'w1', qty_porsi: 9, item_unit_id: 'u1-botol',
         action: 'transfer', destination_branch_id: BRANCH_RADIANT.id,
       }),
     ])

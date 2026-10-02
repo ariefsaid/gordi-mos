@@ -4,16 +4,11 @@
 // metric summary + phone floor-fast cards (<768px), chosen via useIsDesktop()
 // — ONE branch in the DOM (P-4).
 //
-// PARITY (unchanged from the prior screen — presentational redesign + derived KPIs ONLY):
-//  - Data hooks unchanged in shape (listCaptureFormItems / fetchPlanMap / fetchStockMap /
-//    resolveKitchenBuId / insertKitchenLogBatch).
-//  - Gates unchanged (needsVarianceNote / transferExceedsAvailable / effectiveTarget).
-//  - Submit payload byte-identical (NEVER sends status / org_id / submitted_by — NFR-003).
-//  - AC-020/021 (variance-note gate), AC-022 (transfer cap REJECT — keeps typed qty),
-//    AC-030 (submit payload) preserved.
-// NEW (presentational only, P-1/P-3): the submitted metric summary, Planned/Off-plan grouping,
-// client-side search + category filter, group collapse,
-// Discard (confirmed). No new fetch/RPC/table/persistence/ESB.
+// Existing capture gates and payload contract remain: status / org_id / submitted_by are never
+// sent by the client (NFR-003), and AC-020/021 (variance-note gate), AC-022 (transfer cap),
+// AC-030 (submit payload) are unchanged. A selected stream now supplies the MOS name, default
+// ERP detail and allowed shown details through the existing Café settings reader; the selected
+// `item_unit_id` continues through the existing save path.
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
@@ -425,8 +420,6 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     setStatus({ kind: 'loading' })
     try {
       const [catalog, bu] = await Promise.all([
-        // The GATED item source (FR-011, DD-WAY-29): only confirmed item-units reach the
-        // capture form. Stock/plan surfaces keep the ungated listActiveWipItems.
         // The module's stream, resolved the one way every Café surface resolves it
         // (issue 456): the session's own choice (#440) outranks the person's own stream
         // (shared.default_stream(), FR-001), and neither may name a pair outside the live

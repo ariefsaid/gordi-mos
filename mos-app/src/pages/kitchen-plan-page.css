@@ -144,7 +144,9 @@
      name+category label doesn't need reading-prose leading; 1.2 stays legible stacked. */
   line-height: 1.2;
 }
-.kp-cat {
+.kp-cat,
+.kp-unit,
+.kp-unit-options {
   font-size: var(--font-size-overline);
   color: var(--muted-foreground);
   line-height: 1.2;
@@ -256,6 +258,13 @@
   line-height: 1.25;
   min-width: 0;
   overflow-wrap: anywhere;
+}
+.kp-card-unit,
+.kp-card-unit-options {
+  display: block;
+  font-size: var(--font-size-label);
+  font-weight: 400;
+  color: var(--muted-foreground);
 }
 .kp-card-meta {
   display: flex;
