@@ -316,7 +316,7 @@ describe('AC-030..032: desktop GO TO roots → ACT; phone search only', () => {
     const person = await screen.findByRole('option', { name: /Cahya/ })
     expect(person).toHaveAttribute('aria-disabled', 'true')
 
-    // Records order is Tasks → People, so the task sits above the person. The roving index walks
+    // Record-kind order is Tasks → People, so the task sits above the person. The roving index walks
     // ACTIVATABLE rows only: ↓ twice must still rest on the task — resting on (or passing through)
     // the person row would make Enter a dead press on a withheld target.
     fireEvent.keyDown(input, { key: 'ArrowDown' })
@@ -357,9 +357,9 @@ describe('AC-030..032: desktop GO TO roots → ACT; phone search only', () => {
     renderMenu()
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'o' } })
     expect(await screen.findByRole('option', { name: /Restock cups/i })).toBeInTheDocument()
-    // "o" matches roots and children on desktop; narrow, none of them may surface — the one
-    // group the typed view may carry is Records, the results themselves.
-    expect(screen.getAllByRole('group').map((g) => g.getAttribute('aria-label'))).toEqual(['Records'])
+    // "o" matches roots and children on desktop; narrow, none of them may surface — only the
+    // readable Task result group remains.
+    expect(screen.getAllByRole('group').map((g) => g.getAttribute('aria-label'))).toEqual(['Task'])
   })
 
   it('AC-032: at ≥920 even a COARSE pointer gets GO TO / ACT — the branch is the shell width seam, not the pointer', () => {
@@ -623,13 +623,13 @@ describe('#15/GAP-10: launcher mode opens the REDUCED create-set (per OD-46)', (
     renderLauncher()
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'forecast' } })
     expect(await screen.findByRole('option', { name: /Finalise Q3 forecast/i })).toBeInTheDocument()
-    expect(screen.getByText('Records')).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Task' })).toBeInTheDocument()
   })
 })
 
-// ── AC-K04: typing loads the Records group ──────────────────────────────────
-describe('AC-K04: typing loads the Records group', () => {
-  it('AC-K04: typing debounces, shows a skeleton, then renders Records options', async () => {
+// ── AC-K04: typing loads the Task group ─────────────────────────────────────
+describe('AC-K04: typing loads the Task group', () => {
+  it('AC-K04: typing debounces, shows a skeleton, then renders Task options', async () => {
     let resolve!: (rows: { id: string; title: string; status: 'Open' }[]) => void
     mockSearch.mockReturnValue(new Promise((r) => { resolve = r }))
     renderMenu()
@@ -637,24 +637,23 @@ describe('AC-K04: typing loads the Records group', () => {
     await waitFor(() => expect(screen.getByTestId('cm-records-skeleton')).toBeInTheDocument())
     await waitFor(() => expect(mockSearch).toHaveBeenCalledWith('forecast'))
     resolve([{ id: 't1', title: 'Finalise Q3 forecast', status: 'Open' }])
-    await waitFor(() => expect(screen.getByText('Records')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('group', { name: 'Task' })).toBeInTheDocument())
     expect(screen.getByRole('option', { name: /Finalise Q3 forecast/i })).toBeInTheDocument()
   })
 })
 
-// ── OD-REDESIGN-91 #4/B2: the Records group spans ALL kinds ──────────────────
+// ── OD-REDESIGN-91 #4/B2: search spans and groups ALL readable kinds ────────
 describe('#4/B2: ⌘K search spans Tasks + Signals + AR Follow-ups', () => {
   afterEach(() => { features.SHOW_FOLLOWUPS = false })
-  it('#B2: a Signal hit appears under Records, carries the "Signal" kind, and navigates to /work/signals/:id', async () => {
+  it('#B2: a Signal hit appears in its kind group and navigates to /work/signals/:id', async () => {
     mockSearch.mockResolvedValue([])
     mockSearchSignals.mockResolvedValue([{ id: 's1', body: 'Fridge temperature high\nchecked at 8am' }])
     const { onClose } = renderMenu()
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'fridge' } })
     const opt = await screen.findByRole('option', { name: /Fridge temperature high/i })
-    // Rows carry their kind — the muted kind label rides the row (collapsed to the first line).
-    expect(opt).toHaveTextContent('Signal')
+    // The kind heading is localized; the body remains collapsed to the first line.
+    expect(screen.getByRole('group', { name: 'Signal' })).toContainElement(opt)
     expect(opt).not.toHaveTextContent('checked at 8am')
-    expect(screen.getByText('Records')).toBeInTheDocument()
     fireEvent.click(opt)
     expect(screen.getByTestId('location')).toHaveTextContent('/work/signals/s1')
     expect(onClose).toHaveBeenCalled()
@@ -662,20 +661,20 @@ describe('#4/B2: ⌘K search spans Tasks + Signals + AR Follow-ups', () => {
     expect(readRecentTasks()).toHaveLength(0)
   })
 
-  it('#B2: Tasks and Signals coexist in one Records group, each labelled by kind', async () => {
+  it('#B2: Tasks and Signals appear in their own kind groups', async () => {
     mockSearch.mockResolvedValue([{ id: 't1', title: 'Roast beans', status: 'Open' }])
     mockSearchSignals.mockResolvedValue([{ id: 's1', body: 'Grinder jammed' }])
     renderMenu()
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'r' } })
     const task = await screen.findByRole('option', { name: /Roast beans/i })
     const signal = await screen.findByRole('option', { name: /Grinder jammed/i })
-    expect(task).toHaveTextContent('Task')
-    expect(signal).toHaveTextContent('Signal')
+    expect(screen.getByRole('group', { name: 'Task' })).toContainElement(task)
+    expect(screen.getByRole('group', { name: 'Signal' })).toContainElement(signal)
   })
 
   // DD-WAY-36 held that a follow-up hit lands on the Money queue rather than the deleted Work
   // path. #444 ship-gates the whole /money subtree, so the hit has nowhere to land and the
-  // palette must not render it: a Records ROW pointing at a closed route is the same defect as a
+  // palette must not render it: a record row pointing at a closed route is the same defect as a
   // Navigate entry pointing at one, and the gate is applied at the seam every row passes through
   // precisely so a record hit cannot slip past it.
   it('issue 444: a follow-up hit is not offered at all while the Money queue is ship-gated', async () => {
@@ -713,9 +712,8 @@ describe('issue 1193: ⌘K search finds Objectives and Projects & Processes', ()
     const { onClose } = renderMenu()
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'growth' } })
     const opt = await screen.findByRole('option', { name: /Q3 Growth/ })
-    expect(opt).toHaveTextContent('Objective')
     expect(mockSearchObjectives).toHaveBeenCalledWith('growth')
-    expect(screen.getByRole('group', { name: 'Records' })).toContainElement(opt)
+    expect(screen.getByRole('group', { name: 'Objective' })).toContainElement(opt)
     fireEvent.click(opt)
     expect(screen.getByTestId('location')).toHaveTextContent('/work/objectives/o1')
     expect(onClose).toHaveBeenCalled()
@@ -731,8 +729,8 @@ describe('issue 1193: ⌘K search finds Objectives and Projects & Processes', ()
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'menu' } })
     const project = await screen.findByRole('option', { name: /New Menu Design/ })
     const process = await screen.findByRole('option', { name: /Daily Menu Check/ })
-    expect(project).toHaveTextContent('Project')
-    expect(process).toHaveTextContent('Process')
+    expect(screen.getByRole('group', { name: 'Project' })).toContainElement(project)
+    expect(screen.getByRole('group', { name: 'Process' })).toContainElement(process)
     expect(mockSearchWorkLines).toHaveBeenCalledWith('menu')
     fireEvent.click(process)
     expect(screen.getByTestId('location')).toHaveTextContent('/work/projects/w2')
@@ -745,8 +743,8 @@ describe('issue 1193: ⌘K search finds Objectives and Projects & Processes', ()
     renderMenu()
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'dev' } })
     await screen.findByRole('option', { name: /Barista development/ })
-    const records = within(screen.getByRole('group', { name: 'Records' })).getAllByRole('option')
-    expect(records.map((r) => r.textContent)).toEqual(['Barista developmentProject'])
+    const records = within(screen.getByRole('group', { name: 'Project' })).getAllByRole('option')
+    expect(records.map((r) => r.textContent)).toEqual(['Barista development'])
   })
 
   it('kind labels follow the language: Tujuan, Proyek and Proses in Indonesian', async () => {
@@ -757,9 +755,12 @@ describe('issue 1193: ⌘K search finds Objectives and Projects & Processes', ()
     ])
     renderMenu(vi.fn(), 'id')
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'pertumbuhan' } })
-    expect(await screen.findByRole('option', { name: /^Pertumbuhan Tujuan$/ })).toBeInTheDocument()
-    expect(screen.getByRole('option', { name: /Pertumbuhan menu Proyek/ })).toBeInTheDocument()
-    expect(screen.getByRole('option', { name: /Pertumbuhan harian Proses/ })).toBeInTheDocument()
+    const objective = await screen.findByRole('option', { name: 'Pertumbuhan' })
+    const project = screen.getByRole('option', { name: 'Pertumbuhan menu' })
+    const process = screen.getByRole('option', { name: 'Pertumbuhan harian' })
+    expect(screen.getByRole('group', { name: 'Tujuan' })).toContainElement(objective)
+    expect(screen.getByRole('group', { name: 'Proyek' })).toContainElement(project)
+    expect(screen.getByRole('group', { name: 'Proses' })).toContainElement(process)
   })
 
   it('a failing catalog search fails the group like any other corpus', async () => {
@@ -767,6 +768,86 @@ describe('issue 1193: ⌘K search finds Objectives and Projects & Processes', ()
     renderMenu()
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'growth' } })
     expect(await screen.findByText("Couldn't search records.")).toBeInTheDocument()
+  })
+})
+
+describe('issue 1205: kind previews and keyboard-reachable disclosure', () => {
+  it('shows a localized first hit per kind and expands in place with ArrowDown + Enter', async () => {
+    mockSearch.mockResolvedValue([
+      { id: 't1', title: 'Order new beans', status: 'Open' },
+      { id: 't2', title: 'Organize the shelf', status: 'Open' },
+    ])
+    mockSearchSignals.mockResolvedValue([
+      { id: 's1', body: 'Oven fan needs cleaning' },
+      { id: 's2', body: 'Oil delivery is late' },
+    ])
+    mockSearchObjectives.mockResolvedValue([
+      { id: 'o1', name: 'Outcome: safer shifts' },
+      { id: 'o2', name: 'Onboarding checklist' },
+    ])
+    mockSearchWorkLines.mockResolvedValue([
+      { id: 'p1', name: 'Open the new café', type: 'project' },
+      { id: 'p2', name: 'Order seasonal menu', type: 'project' },
+      { id: 'w1', name: 'Opening checklist', type: 'process' },
+      { id: 'w2', name: 'Onboarding routine', type: 'process' },
+    ])
+    mockSearchPeople.mockResolvedValue([
+      { id: 'person1', full_name: 'Olivia' },
+      { id: 'person2', full_name: 'Omar' },
+    ])
+    const { onClose } = renderMenu(vi.fn(), 'id')
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'o' } })
+
+    const input = screen.getByRole('combobox')
+    const previewNames = [
+      'Order new beans',
+      'Outcome: safer shifts',
+      'Open the new café',
+      'Opening checklist',
+      'Oven fan needs cleaning',
+      'Olivia',
+    ]
+    for (const name of previewNames) {
+      expect(await screen.findByRole('option', { name })).toBeInTheDocument()
+    }
+    const kinds = ['Tugas', 'Tujuan', 'Proyek', 'Proses', 'Sinyal', 'Orang']
+    expect(screen.getAllByRole('group').map((group) => group.getAttribute('aria-label')).slice(0, kinds.length)).toEqual(kinds)
+    for (const label of kinds) {
+      expect(screen.getByRole('group', { name: label })).toBeInTheDocument()
+      expect(within(screen.getByRole('group', { name: label })).getByRole('option', { name: 'Tampilkan semua (2)' })).toBeInTheDocument()
+    }
+    expect(screen.queryByRole('option', { name: /Organize the shelf/ })).toBeNull()
+    expect(screen.queryByRole('option', { name: /Oil delivery/ })).toBeNull()
+    expect(screen.queryByRole('option', { name: /Onboarding checklist/ })).toBeNull()
+
+    const showAllTasks = within(screen.getByRole('group', { name: 'Tugas' })).getByRole('option', { name: 'Tampilkan semua (2)' })
+    fireEvent.keyDown(input, { key: 'ArrowDown' })
+    expect(input).toHaveAttribute('aria-activedescendant', showAllTasks.id)
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    expect(await screen.findByRole('option', { name: 'Organize the shelf' })).toBeInTheDocument()
+    const showFewer = screen.getByRole('option', { name: 'Tampilkan lebih sedikit' })
+    expect(input).toHaveAttribute('aria-activedescendant', showFewer.id)
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByTestId('location')).toHaveTextContent('/')
+
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(screen.queryByRole('option', { name: 'Organize the shelf' })).toBeNull()
+    expect(onClose).not.toHaveBeenCalled()
+    fireEvent.keyDown(input, { key: 'ArrowUp' })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(screen.getByTestId('location')).toHaveTextContent('/work/tasks/t1')
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not add a disclosure when a kind has only one match', async () => {
+    mockSearch.mockResolvedValue([{ id: 't1', title: 'One task', status: 'Open' }])
+    renderMenu()
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'one' } })
+
+    const task = await screen.findByRole('group', { name: 'Task' })
+    expect(within(task).getByRole('option', { name: 'One task' })).toBeInTheDocument()
+    expect(within(task).queryByRole('option', { name: /Show all/ })).toBeNull()
   })
 })
 
@@ -925,7 +1006,7 @@ describe('AC-K04: stale response cannot clobber newer query results', () => {
     await waitFor(() => expect(mockSearch).toHaveBeenCalledWith('old'))
     fireEvent.change(input, { target: { value: 'new' } })
     await waitFor(() => expect(mockSearch).toHaveBeenCalledWith('new'))
-    await waitFor(() => expect(screen.getByText('Records')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('group', { name: 'Task' })).toBeInTheDocument())
     expect(screen.getByRole('option', { name: /New task result/i })).toBeInTheDocument()
     resolveOld([{ id: 'old-1', title: 'Old stale result', status: 'Open' }])
     await waitFor(() => expect(screen.getByRole('option', { name: /New task result/i })).toBeInTheDocument())

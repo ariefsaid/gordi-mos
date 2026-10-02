@@ -51,8 +51,13 @@
   padding: 0;
 }
 #cm-list {
-  max-height: 300px;
+  max-height: min(700px, 75dvh);
   overflow: auto;
+}
+
+/* Narrow palettes carry record previews only; give those kind groups enough room to fit. */
+@media (max-width: 919.98px) {
+  #cm-list { max-height: 80dvh; }
 }
 
 /* Group label — muted-foreground clears WCAG-AA in dark while reading as a label. */
@@ -62,7 +67,7 @@
   letter-spacing: 0.06em;
   font-weight: 500;
   color: var(--muted-foreground);
-  padding: 10px 10px 4px;
+  padding: 4px 10px 0;
 }
 
 .cm-empty {
