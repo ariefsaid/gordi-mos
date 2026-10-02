@@ -23,6 +23,7 @@ import {
   fetchPlanMap,
   fetchStockMap,
   fetchKitchenStock,
+  listCafeDestinations,
   listStreamPairs,
   resolveKitchenBuId,
   streamCatalogFrom,
@@ -1136,6 +1137,31 @@ describe('listStreamPairs + streamCatalogFrom — the enumerable stream catalog 
       makeSchema({ teams: [{ data: null, error: { message: 'boom' } }] }, rec) as never,
     )
     await expect(listStreamPairs()).rejects.toThrow('listStreamPairs failed')
+  })
+
+  it('reads org-scoped cross-branch destination rows', async () => {
+    const rec = freshRec()
+    const rows = [{
+      origin_branch_id: BRANCH_ID,
+      origin_activity: 'kitchen',
+      destination_branch_id: RADIANT_ID,
+    }]
+    schemaMock.mockReturnValue(
+      makeSchema({ cafe_destinations: [{ data: rows, error: null }] }, rec) as never,
+    )
+
+    await expect(listCafeDestinations()).resolves.toEqual(rows)
+    expect(rec.fromTables).toContain('cafe_destinations')
+    expect(rec.selects).toContain('origin_branch_id,origin_activity,destination_branch_id')
+  })
+
+  it('throws when the destination catalog cannot be read', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema({ cafe_destinations: [{ data: null, error: { message: 'denied' } }] }, rec) as never,
+    )
+
+    await expect(listCafeDestinations()).rejects.toThrow('listCafeDestinations failed')
   })
 })
 
