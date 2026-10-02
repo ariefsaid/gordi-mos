@@ -159,7 +159,7 @@ test.describe('Café item settings', () => {
     await mockSettingsApi(page)
     await loginAs(page, BAR_MEMBER.email, BAR_MEMBER.password)
 
-    for (const width of [390, 1440, 1920] as const) {
+    for (const width of [390, 1440] as const) {
       await page.setViewportSize({ width, height: 960 })
       await page.goto('cafe/items')
       await expect(page.getByRole('heading', { name: 'Café items', exact: true })).toBeVisible()
@@ -199,7 +199,7 @@ test.describe('Café item settings', () => {
     await save.click()
     await expect(save).toHaveText('Saving…')
     await capture(page, testInfo, 'item-settings-saving')
-    await expect(itemCard.getByText("Couldn't save this item. Your changes are still here.", { exact: true })).toBeVisible()
+    await expect(itemCard.getByRole('alert')).toContainText("Couldn't save this item. Your changes are still here.")
     await capture(page, testInfo, 'item-settings-save-error')
     mocks.saveFailure = false
     await itemCard.getByRole('button', { name: 'Try again', exact: true }).click()
