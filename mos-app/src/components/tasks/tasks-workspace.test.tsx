@@ -1337,6 +1337,21 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'My work' }))
     await waitFor(() => expect(screen.getByText(/no tasks assigned to you/i)).toBeInTheDocument())
   })
+
+  // Luna blocking delta (r-1195): a saved Mine view does not license the Mine copy once an
+  // explicit filter narrows it — truly empty source + My work + a Person filter reads the
+  // neutral no-record copy, never "No tasks assigned to you" inherited from the view alone.
+  it('My work + an explicit Person filter over an empty source says No tasks yet, not No tasks assigned to you', async () => {
+    mockListTasks.mockResolvedValue([])
+    renderTable()
+    await waitFor(() => screen.getByRole('heading', { name: /tasks/i }))
+    ensureFiltersOpen()
+    fireEvent.click(screen.getByRole('button', { name: 'My work' }))
+    await waitFor(() => expect(screen.getByText(/no tasks assigned to you/i)).toBeInTheDocument())
+    chooseFilterOption(screen.getByRole('combobox', { name: /person/i }), 'Budi Setiawan')
+    await waitFor(() => expect(screen.getByText(/no tasks yet/i)).toBeInTheDocument())
+    expect(screen.queryByText(/no tasks assigned to you/i)).toBeNull()
+  })
 })
 
 // ── PR-3 — TanStack refactor + group-by engine + group headers ────────────────

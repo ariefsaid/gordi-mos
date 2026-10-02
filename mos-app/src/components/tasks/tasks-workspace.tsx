@@ -828,12 +828,12 @@ export function TasksWorkspace({
     || query.overdueOnly)
   const emptyTitle = query.includeArchived
     ? t('tasks.empty.archivedTitle')
-    : savedMineView
+    : mineViewUnfiltered
       ? t('tasks.empty.mineTitle')
       : t('tasks.empty.noTasksTitle')
   const emptyCopy = query.includeArchived
     ? t('tasks.empty.archivedCopy')
-    : savedMineView
+    : mineViewUnfiltered
       ? t('tasks.empty.mineCopy')
       : t('tasks.empty.noTasksCopy')
 
