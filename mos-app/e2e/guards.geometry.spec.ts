@@ -327,12 +327,14 @@ test.describe('phone tap-target guards (GUARD-TAP)', () => {
 
     await page.goto('work/signals')
     await expect(page.getByTestId('page-head')).toBeVisible()
-    // The row opener by ROLE + ACCESSIBLE NAME, as GUARD-R1 above: the first `[role="button"]`
-    // in the document is the shell's own Search control, so a class/role sample opens the
-    // command menu instead of a signal and the record panel below is never on screen.
+    await assertTapFloor(page, '.work-collection-switcher__link:visible', 'Work collection switcher #667', { axes: 'both', noOverflow: true })
+    // The row opens the approved canonical phone page; measure its actual Back/action targets,
+    // not panel chrome that is intentionally absent from this journey.
     await page.getByRole('button', { name: /^Open signal:/ }).first().click()
+    await expect(page.locator('[data-record-kind="signal"][data-record-mode="page"]')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Ask Deputy' })).toBeVisible()
-    await assertTapFloor(page, '.record-panel-btn.tap-floor', 'Signals record #667', { axes: 'both' })
+    await expect(page.locator('.record-page-back')).toHaveCount(1)
+    await assertTapFloor(page, '.record-page-chrome a:visible, .record-page-chrome button:visible, .signal-record-control-row button:visible, .signal-reach-actions button:visible', 'Signals record #667', { axes: 'both', noOverflow: true })
 
     await page.route('**/rest/v1/user_views*', async (route) => {
       if (route.request().method() !== 'GET') return route.continue()
