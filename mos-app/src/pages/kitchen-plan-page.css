@@ -15,6 +15,10 @@
   box-sizing: border-box;
 }
 
+@media (max-width: 767.98px) {
+  .kp-block .ktb-filter-selects { display: none; }
+}
+
 /* The plan list is a two-column job (item, planned qty): capped so the quantity sits beside the
    name at any desktop width rather than a screen away from it. */
 .kp-list {

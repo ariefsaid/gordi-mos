@@ -861,6 +861,14 @@ user has entered something to diverge from expectation.
 
 **Scope is a statement, not a control.** The books a capture surface writes into (Café: the production stream) render as text in the page head — `Rumah Rames · Dapur` — derived from the person's primary Team. A switch, where the person is allowed one, is a text link beside the statement that opens a picker of the streams they may read. A receiving-only stream opens a clear Stock state with no production form, and a placeholder such as "Choose stream…" never renders. On the capture Log, no resolved stream shows a `next-step` empty state offering one-click stream choices and no capture form; with no streams to offer it shows plain copy. The Café root's no-process and no-team states stay `blank`.
 
+### Café capture layout — first row and sticky band (#790, AC-046)
+
+> **First row within 300px on phone.** Between the phone header and the first capture row sit at most: the title line, the scope statement, one segmented scope strip, one search field and one group label. Filters beyond search (category) are desktop-only. A group with zero rows renders no header; its count lives in the head's summary line.
+
+> **The capture band.** One sticky band: a count line (`N item · N porsi`) and **one** primary (`Kirim N entri`), full-width at 390. Discard is a text link that renders only while something is staged; a precondition that blocks Submit is stated once, in the band, never as a third column. Content above the band ends with clearance equal to the band's height, so the list's last control is never occluded at max scroll.
+
+These constraints apply identically to `/cafe/production` and `/cafe/transfer`; the transfer destination remains part of the capture scope, not a second action band. At phone width the search remains visible while Category and the other select filters are omitted. The count and made quantity are derived from staged rows, and the list keeps its normal scroll-to-bottom and focus clearance around the sticky band.
+
 ### Row status as text (v4, 2026-07-27)
 In a dense collection where a status applies to **every** row at rest, render it as toned text
 (label size, 500) rather than a filled pill. Same tone semantics as the pill — the fill is what is

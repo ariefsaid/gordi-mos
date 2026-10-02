@@ -470,16 +470,15 @@ test.describe('auth-card tap-target guards (GUARD-TAP, #403)', () => {
 // category AFTER the search — the filters compose with each other, never orphaned below the
 // scope band. The category control is measured via its toolbar slot (`.ktb-category`, which
 // hugs the visible select box): getByRole('combobox') resolves to the native field inset inside
-// that slot. Same-rowness is judged on CENTER LINES, so it stays height-agnostic. Café's current
-// phone IA intentionally omits the category control; the phone guard still owns the search floor
-// and only applies the composition check when a category is rendered.
+// that slot. Same-rowness is judged on CENTER LINES, so it stays height-agnostic. Phone hides
+// desktop-only kind/category filters; guards prove search stays usable and URL state cannot hide rows.
 
 const SEARCH_FLOOR = 159.5 // 160px usable-measure floor, 0.5px sub-pixel tolerance (TAP_FLOOR idiom)
 
 async function assertSearchComposed(page: Page, surface: string, { categoryOptional = false } = {}) {
   const categoryLocator = page.locator('.ktb-category')
-  const hasCategory = !(categoryOptional && await categoryLocator.count() === 0)
-  if (hasCategory) await expect(categoryLocator).toHaveCount(1)
+  const hasCategory = categoryOptional ? await categoryLocator.isVisible() : true
+  if (!categoryOptional) await expect(categoryLocator).toHaveCount(1)
   // Both boxes are read in ONE frame: the band above the toolbar (opening status, banners)
   // settles in after the toolbar mounts, and two sequential reads straddling that shift
   // report a row offset that never existed on screen.
@@ -512,9 +511,10 @@ test.describe('café toolbar desktop geometry guards (GUARD-SEARCH, #378)', () =
   })
 
   test('GUARD-SEARCH: Café · Log at 1440 — usable search composed with the category', async ({ page }) => {
-    await page.goto('cafe/log')
+    await page.goto('cafe/production')
     await ensureStream(page)
     await expect(page.locator('.ktb-search')).toBeVisible()
+    await expect(page.locator('.ktb-kind')).toBeVisible()
     await expect(page.getByRole('combobox', { name: /^category$/i })).toBeVisible()
     await assertSearchComposed(page, 'Café · Log @1440')
   })
@@ -535,10 +535,11 @@ test.describe('café toolbar phone geometry guards (GUARD-SEARCH, #378)', () => 
     await loginAs(page, MANAGER.email, MANAGER.password)
   })
 
-  test('GUARD-SEARCH: Café · Log at 390 — phone composition not regressed by the fix', async ({ page }) => {
-    await page.goto('cafe/log')
+  test('GUARD-SEARCH: Café · Log at 390 — kind/category are hidden, search remains usable', async ({ page }) => {
+    await page.goto('cafe/production')
     await ensureStream(page)
-    await expect(page.locator('.ktb-category'), 'Café · Log @390: Category is desktop-only').toHaveCount(0)
+    await expect(page.locator('.ktb-kind')).toBeHidden()
+    await expect(page.locator('.ktb-category')).toBeHidden()
     const search = await box(page.locator('.ktb-search'))
     await assertSearchComposed(page, 'Café · Log @390', { categoryOptional: true })
     expect(search.height, 'Café · Log @390: phone search keeps the 44px touch floor').toBeGreaterThanOrEqual(TAP_FLOOR)
@@ -547,10 +548,32 @@ test.describe('café toolbar phone geometry guards (GUARD-SEARCH, #378)', () => 
     expect(logOverflow, 'Café · Log @390: the toolbar never pushes the document wider than the viewport').toBe(false)
   })
 
-  test('GUARD-SEARCH: Café · Plan at 390 — phone composition not regressed by the fix', async ({ page }) => {
+  test('GUARD-FILTER-URL: hidden desktop filters cannot silently remove phone capture rows', async ({ page }) => {
+    await page.goto('cafe/production?category=__no_matching_category__&kind=__no_matching_kind__')
+    await ensureStream(page)
+    await expect(page.locator('.ktb-category')).toBeHidden()
+    await expect(page.locator('.ktb-kind')).toBeHidden()
+    await expect(page.locator('.kl-form .kls-qty').first()).toBeVisible()
+  })
+
+  test('GUARD-SEARCH: Café · Transfer at 390 — desktop filters hidden; first row stays within 300px', async ({ page }) => {
+    await page.goto('cafe/transfer')
+    await ensureStream(page)
+    await expect(page.locator('.ktb-kind')).toBeHidden()
+    await expect(page.locator('.ktb-category')).toBeHidden()
+    await expect(page.locator('.kl-scope')).toBeVisible()
+    const main = await box(page.locator('main'))
+    const first = await box(page.locator('.kl-form .kls-qty').first())
+    expect(first.y - main.y, 'Café · Transfer @390: first capture row is within 300px of <main>').toBeLessThanOrEqual(300)
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)
+    expect(overflow, 'Café · Transfer @390: no page-width overflow').toBe(false)
+  })
+
+  test('GUARD-SEARCH: Café · Plan at 390 — kind/category are hidden, search remains usable', async ({ page }) => {
     await page.goto('cafe/plan')
     await ensureStream(page)
-    await expect(page.locator('.ktb-category'), 'Café · Plan @390: Category is desktop-only').toHaveCount(0)
+    await expect(page.locator('.ktb-kind')).toBeHidden()
+    await expect(page.locator('.ktb-category')).toBeHidden()
     const search = await box(page.locator('.ktb-search'))
     await assertSearchComposed(page, 'Café · Plan @390', { categoryOptional: true })
     expect(search.height, 'Café · Plan @390: phone search keeps the 44px touch floor').toBeGreaterThanOrEqual(TAP_FLOOR)
@@ -573,8 +596,8 @@ test.describe('café plan capture-first guards (#401) — editor', () => {
     await loginAs(page, MANAGER.email, MANAGER.password) // editor is ops_lead/admin-gated
   })
 
-  test('GUARD-FOLD: @390 the figures band is the summary rule and the first dish row is inside the fold', async ({ page }) => {
-    await page.goto('cafe/plan')
+  test('GUARD-FOLD: @390 desktop filter URLs do not hide Plan rows; first row stays inside the fold', async ({ page }) => {
+    await page.goto('cafe/plan?category=__no_matching_category__&kind=__no_matching_kind__')
     await ensureStream(page)
     await expect(page.locator('.msr')).toBeVisible()
     expect(await page.locator('.kks').count()).toBe(0) // never the retired tile strip
@@ -590,11 +613,12 @@ test.describe('café plan capture-first guards (#401) — pesanan (member)', () 
     await loginAs(page, VIEWER.email, VIEWER.password) // member → the read-only horizon
   })
 
-  test('GUARD-SEARCH+GUARD-FOLD: @390 the member toolbar composes and the first dish row is inside the fold', async ({ page }) => {
-    await page.goto('cafe/plan')
+  test('GUARD-SEARCH+GUARD-FOLD: @390 member ignores desktop filters; search/first row stay visible', async ({ page }) => {
+    await page.goto('cafe/plan?category=__no_matching_category__&kind=__no_matching_kind__')
     await ensureStream(page)
     await expect(page.locator('.ktb-search')).toBeVisible()
-    await expect(page.locator('.ktb-category'), 'Café · Plan member @390: Category is desktop-only').toHaveCount(0)
+    await expect(page.locator('.ktb-kind')).toBeHidden()
+    await expect(page.locator('.ktb-category')).toBeHidden()
     await assertSearchComposed(page, 'Café · Plan pesanan @390', { categoryOptional: true })
     await expect(page.locator('.dt-card').first()).toBeVisible()
     const firstRow = await box(page.locator('.dt-card').first())

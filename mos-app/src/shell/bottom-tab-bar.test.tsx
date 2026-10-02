@@ -170,13 +170,14 @@ describe('AC-021/008: aria-current — primary tab page on its route; More page 
     expect(page[0]).toHaveAccessibleName(/Work/)
   })
 
-  it.each(['/cafe', '/cafe/log', '/cafe/plan', '/cafe/stock', '/cafe/items', '/cafe/review', '/cafe/pushes'])('Café tab page at %s (café viewer)', (path) => {
+  it.each(['/cafe', '/cafe/production', '/cafe/transfer', '/cafe/plan', '/cafe/stock', '/cafe/items', '/cafe/review', '/cafe/pushes'])('Café tab page at %s (café viewer)', (path) => {
     setCafeViewer()
     renderTabBar(path)
     const nav = screen.getByRole('navigation', { name: 'Primary' })
     const page = within(nav).getAllByRole('link').filter((l) => l.getAttribute('aria-current') === 'page')
     expect(page).toHaveLength(1)
     expect(page[0]).toHaveAccessibleName(/Café/)
+    expect(screen.queryByRole('button', { name: /open actions/i })).not.toBeInTheDocument()
   })
 
   // UPDATED, not relaxed — and it is the SAME Rule-5 contract, read the other way round. These

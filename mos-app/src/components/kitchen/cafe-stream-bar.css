@@ -113,7 +113,11 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+  width: 100%;
+  max-width: 28rem;
+  align-self: center;
 }
+.empty-actions:has(> .cafe-stream-choices) { width: 100%; }
 .cafe-stream-choices__list {
   display: flex;
   flex-direction: column;
