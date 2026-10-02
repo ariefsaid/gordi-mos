@@ -341,6 +341,24 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
   const runtime = providedRuntime ?? DEFAULT_TASK_RUNTIME
   const t = useT()
   const { query, projection, context, selectedIds, onToggleSelected, onToggleGroup, cardLayout = false } = props
+  // Team work is a saved scope, not a user-added filter. Its true-empty copy distinguishes
+  // membership from an empty queue; real filters still use the shared filtered-empty state.
+  const teamWorkUnfiltered = query.view === 'team-work' && !query.includeArchived && !(
+    query.q !== '' || query.businessUnitId !== null || query.status !== null
+    || query.picId !== null || query.supervisorId !== null || query.personId !== null
+    || query.overdueOnly
+  )
+  const teamWorkHasTeams = runtime.teamOptions.length > 0
+  const emptyTitle = query.includeArchived
+    ? t('tasks.empty.archivedTitle')
+    : teamWorkUnfiltered ? t('tasks.empty.teamWorkTitle') : t('tasks.empty.noTasksTitle')
+  const emptyCopy = query.includeArchived
+    ? t('tasks.empty.archivedCopy')
+    : teamWorkUnfiltered
+      ? t(teamWorkHasTeams ? 'tasks.empty.teamWorkCopy' : 'tasks.empty.teamWorkNoTeamsCopy')
+      : t('tasks.empty.noTasksCopy')
+  // The page header already owns the task-create action; avoid a duplicate primary in a true-empty Team work state.
+  const emptyCreate = !query.includeArchived && !teamWorkUnfiltered
   // Task selection capability is disabled (OD-REDESIGN-83.2) — ignore selectedIds/onToggleSelected
   void selectedIds
   void onToggleSelected
@@ -592,8 +610,9 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
         isDesktop={desktopLayout}
         onRetry={runtime.onRetry}
         onClearFilters={runtime.onClearFilters}
-        emptyTitle={t('tasks.empty.noTasksTitle')}
-        emptyCopy={t('tasks.empty.noTasksCopy')}
+        emptyTitle={emptyTitle}
+        emptyCopy={emptyCopy}
+        emptyCreate={emptyCreate}
         flatRows={flatRows}
         leafIndexByRowId={leafIndexByRowId}
         virtualize={virtualize}

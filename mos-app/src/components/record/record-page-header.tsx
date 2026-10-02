@@ -36,6 +36,8 @@ export type RecordFact =
   | { type: 'group'; key: string; label?: string; fields: readonly RecordFieldSpec[] }
 
 export type RecordPrimaryAction = {
+  /** Stable semantic identity; presentation never depends on a translated label. */
+  id?: string
   label: string
   onClick: () => void
   variant?: 'primary' | 'outline'

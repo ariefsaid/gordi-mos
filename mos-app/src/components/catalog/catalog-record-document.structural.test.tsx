@@ -3,6 +3,8 @@
 // (objective_content_*) never opens them. The real authority hook runs over a mocked RPC read, so
 // this pins the whole path from WorkWriteScopes to what the record offers.
 import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
@@ -10,6 +12,9 @@ import { I18nProvider } from '@/i18n/I18nProvider'
 import { AuthContext, type AuthState } from '@/auth/context'
 import type { WorkWriteScopes } from '@/lib/db/work-authority'
 import type { ObjectivePatch } from '@/lib/db/objectives'
+
+const catalogDocumentSource = readFileSync(resolve(process.cwd(), 'src/components/catalog/catalog-record-document.tsx'), 'utf8')
+const processControlsSource = readFileSync(resolve(process.cwd(), 'src/components/processes/process-occurrence-controls.tsx'), 'utf8')
 
 vi.mock('@/lib/db/objectives', () => ({ updateObjective: vi.fn(), listObjectivesAll: vi.fn(), renameObjective: vi.fn(), setObjectiveArchived: vi.fn() }))
 vi.mock('@/lib/db/work-lines', () => ({ updateWorkLine: vi.fn(), listWorkLinesAll: vi.fn(), renameWorkLine: vi.fn(), setWorkLineArchived: vi.fn() }))
@@ -320,5 +325,18 @@ describe('Objective structural pickers (admin)', () => {
     await user.keyboard('{Enter}{ArrowUp}{Enter}')
     await waitFor(() => expect(updateObjective).toHaveBeenCalledTimes(1))
     await waitFor(() => expect(screen.getByRole('button', { name: `Edit ${name}` })).toHaveFocus())
+  })
+})
+
+describe('record action identity and Process presentation contract', () => {
+  it('uses stable action identity instead of comparing translated labels', () => {
+    expect(catalogDocumentSource).toContain("actionInHeader={primary?.id === 'add-task'}")
+    expect(catalogDocumentSource).not.toMatch(/primary\?\.label\s*===\s*t\(/)
+  })
+
+  it('keeps Process occurrences in the record presentation without dead mode flags', () => {
+    expect(catalogDocumentSource).not.toContain('data-setup-pending')
+    expect(catalogDocumentSource).not.toContain('recordContext')
+    expect(processControlsSource).not.toContain('recordContext')
   })
 })
