@@ -357,7 +357,8 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
     : teamWorkUnfiltered
       ? t(teamWorkHasTeams ? 'tasks.empty.teamWorkCopy' : 'tasks.empty.teamWorkNoTeamsCopy')
       : t('tasks.empty.noTasksCopy')
-  const emptyCreate = !query.includeArchived && (!teamWorkUnfiltered || teamWorkHasTeams)
+  // The page header already owns the task-create action; avoid a duplicate primary in a true-empty Team work state.
+  const emptyCreate = !query.includeArchived && !teamWorkUnfiltered
   // Task selection capability is disabled (OD-REDESIGN-83.2) — ignore selectedIds/onToggleSelected
   void selectedIds
   void onToggleSelected

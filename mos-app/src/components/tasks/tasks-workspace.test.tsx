@@ -1243,6 +1243,8 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
     expect(empty).toHaveTextContent('No tasks for your Teams yet')
     expect(empty).toHaveTextContent('Create one for a current Team, or switch to My work')
     expect(within(empty).queryByRole('button', { name: /clear filters/i })).toBeNull()
+    expect(screen.getByRole('button', { name: '+ Create task' })).toBeInTheDocument()
+    expect(within(empty).queryByRole('link', { name: /create task/i })).toBeNull()
   })
 
   it('keeps filtered-empty behavior when a real filter narrows Team work', async () => {
