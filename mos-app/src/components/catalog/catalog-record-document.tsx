@@ -115,8 +115,6 @@ export function CatalogRecordDocument({
   const [editDirectoryRetry, setEditDirectoryRetry] = useState(0)
   const [fieldDirty, setFieldDirty] = useState(false)
   const [pendingLeave, setPendingLeave] = useState<OverlayLeaveIntent | null>(null)
-  const [krCount, setKrCount] = useState<number | null>(null)
-  const [addKeyResultToken, setAddKeyResultToken] = useState(0)
   const [addingStep, setAddingStep] = useState(false)
   const [chooser, setChooser] = useState<Chooser | null>(null)
   const [moving, setMoving] = useState<{ id: string; name: string; from: string; fact?: CatalogWorkLineFact } | null>(null)
@@ -486,14 +484,9 @@ export function CatalogRecordDocument({
     })
   }
 
-  // A writer's Get started region waits for the key-result count, so it never shows a half-known list.
-  const settled = !isObjective || !isWriter || krCount !== null
   const setup: RecordSetupItem[] = []
-  if (!archived && isWriter && settled) {
+  if (!archived && isWriter) {
     if (isObjective) {
-      if (canManage && krCount === 0) {
-        setup.push({ id: 'targets', label: t('catalog.setup.targets.label'), reason: t('catalog.setup.targets.reason'), action: { label: t('objective.keyResults.add'), onClick: () => { rememberOpener(); setAddKeyResultToken((n) => n + 1) } } })
-      }
       if (canLink && linkedWork.length === 0) {
         setup.push({ id: 'link', label: t('catalog.setup.link.label'), reason: t('catalog.setup.link.reason'), action: { label: t('catalog.link.action'), onClick: () => { void startLink() } } })
       }
@@ -519,7 +512,7 @@ export function CatalogRecordDocument({
       options: occurrences.startable.map((run) => ({ value: `${run.owning_team_id}:${run.period_key}`, label: run.team_name })),
     })
   }
-  const primary: RecordPrimaryAction | undefined = archived || !settled || setup.length > 0 ? undefined
+  const primary: RecordPrimaryAction | undefined = archived || setup.length > 0 ? undefined
     : isProcess ? (startReady ? { label: t('catalog.record.startOccurrence'), onClick: startFromHeader, busy: occurrences.startingKey !== null } : undefined)
       : (isObjective ? linkedWork.length > 0 : true) ? { label: t('catalog.record.addTask'), onClick: startAddTask } : undefined
 
@@ -704,10 +697,6 @@ export function CatalogRecordDocument({
               scopes={scopes}
               scopesStatus={scopesError ? 'error' : scopesLoading ? 'loading' : 'ready'}
               onRetryScopes={retryScopes}
-              addOwnedBySetup={setup.some((item) => item.id === 'targets')}
-              onCount={setKrCount}
-              onAddClosed={() => restoreOpener()}
-              openAddToken={addKeyResultToken}
             />
             <LinkedWorkSection
               objectiveId={id}

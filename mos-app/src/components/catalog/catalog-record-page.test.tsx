@@ -283,20 +283,22 @@ describe('header: the record answers what, state, who, when', () => {
 })
 
 describe('Get started lists only what is missing, and its buttons work', () => {
-  it('an empty Objective shows its empty Key results section and one setup region with Set targets and Link work', async () => {
+  it('keeps Key results visible with its own Add action while Get started owns the page primary', async () => {
     renderRecord()
     const region = await screen.findByRole('region', { name: 'Get this Objective started' })
     const keyResults = await screen.findByRole('region', { name: 'Key results' })
     expect(keyResults).toHaveTextContent('No key results yet.')
-    expect(within(keyResults).queryByRole('button', { name: 'Add key result' })).toBeNull()
-    expect(within(region).getByText('Set targets')).toBeInTheDocument()
+    expect(within(keyResults).getByRole('button', { name: 'Add key result' })).toBeInTheDocument()
+    expect(within(region).queryByText('Set targets')).toBeNull()
     expect(within(region).getByText('Link work')).toBeInTheDocument()
+    expect(within(region).queryByRole('button', { name: 'Add key result' })).toBeNull()
     expect(within(region).queryByText('Add tasks')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Add task' })).toBeNull()
     expect(document.body.textContent).not.toMatch(/0 \/ 0|No linked|No linked tasks/)
-    // One primary on the screen: the first setup row. The header and empty section offer none.
+    // One primary on the screen: the remaining setup action. Key results keeps a quiet section action.
     expect(document.querySelectorAll('.btn-primary')).toHaveLength(1)
-    expect(within(region).getByRole('button', { name: 'Add key result' })).toHaveClass('btn-primary')
+    expect(within(region).getByRole('button', { name: 'Link Project or Process' })).toHaveClass('btn-primary')
+    expect(within(keyResults).getByRole('button', { name: 'Add key result' })).not.toHaveClass('btn-primary')
   })
 
   it('withdrawing the Link picker puts focus back on the button that opened it', async () => {
@@ -314,21 +316,21 @@ describe('Get started lists only what is missing, and its buttons work', () => {
     await waitFor(() => expect(within(screen.getByRole('region', { name: 'Get this Objective started' })).getByRole('button', { name: 'Link Project or Process' })).toHaveFocus())
   })
 
-  it('cancelling the blank key-result row from Get started puts focus back on the Get started button', async () => {
+  it('cancelling the blank key-result row returns focus to the section Add action', async () => {
     const user = userEvent.setup()
     renderRecord()
-    const region = await screen.findByRole('region', { name: 'Get this Objective started' })
-    await user.click(within(region).getByRole('button', { name: 'Add key result' }))
+    const keyResults = await screen.findByRole('region', { name: 'Key results' })
+    await user.click(within(keyResults).getByRole('button', { name: 'Add key result' }))
     await screen.findByRole('textbox', { name: 'Key result' })
     await user.keyboard('{Escape}')
-    await waitFor(() => expect(within(screen.getByRole('region', { name: 'Get this Objective started' })).getByRole('button', { name: 'Add key result' })).toHaveFocus())
+    await waitFor(() => expect(within(screen.getByRole('region', { name: 'Key results' })).getByRole('button', { name: 'Add key result' })).toHaveFocus())
   })
 
-  it('Add key result opens a blank key-result row ready for the name', async () => {
+  it('the Key results Add action opens a blank row ready for the name', async () => {
     const user = userEvent.setup()
     renderRecord()
-    const region = await screen.findByRole('region', { name: 'Get this Objective started' })
-    await user.click(within(region).getByRole('button', { name: 'Add key result' }))
+    const keyResults = await screen.findByRole('region', { name: 'Key results' })
+    await user.click(within(keyResults).getByRole('button', { name: 'Add key result' }))
     expect(await screen.findByRole('textbox', { name: 'Key result' })).toHaveFocus()
   })
 
