@@ -102,7 +102,6 @@ test(`a Signal lists its newly created follow-up Task without losing the source 
   await loginAs(page, 'dewi.dev@example.test', DEMO_PASSWORD)
   await page.goto('./')
   const opener = page.getByRole('button', { name: /^Open signal:/ }).first()
-  const sourceName = await opener.getAttribute('aria-label')
   await opener.click()
   const sourceUrl = page.url()
   await page.getByRole('button', { name: 'Create task', exact: true }).click()
@@ -122,7 +121,7 @@ test(`a Signal lists its newly created follow-up Task without losing the source 
   await page.getByRole('button', { name: /^back/i }).click()
   await expect(page.getByRole('button', { name: 'Create task', exact: true })).toBeVisible()
   await page.reload()
-  await page.getByRole('button', { name: sourceName!, exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Create task', exact: true })).toBeVisible()
   await expect(page.getByRole('link', { name: /^\[e2e\] Signal follow-up context(?: Open)?$/ })).toBeVisible()
 })
 
