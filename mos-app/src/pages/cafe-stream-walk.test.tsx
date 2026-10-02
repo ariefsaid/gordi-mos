@@ -44,6 +44,7 @@ vi.mock('@/lib/db/branches', () => ({ listActiveBranches: vi.fn() }))
 import { listActiveBranches } from '@/lib/db/branches'
 
 vi.mock('@/lib/db/default-stream', () => ({ fetchDefaultStream: vi.fn() }))
+vi.mock('@/lib/db/cafe-item-settings', () => ({ listCafeItemSettings: vi.fn().mockResolvedValue([]) }))
 // #781 coordinator follow-up: useCafeStream now also reads current Team memberships for
 // "Your Team" tagging (myStreamKeys) — empty by default here; tests that care override it.
 vi.mock('@/lib/db/cafe-opening', () => ({ listCafeViewerTeams: vi.fn().mockResolvedValue([]) }))
