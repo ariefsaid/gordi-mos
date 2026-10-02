@@ -3,6 +3,7 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { NotFoundPage } from './not-found-page'
+import { APP_ROUTER_BASENAME, appUrl } from '@/config/app-build-settings'
 
 // #400 (v4 port): the 404 is fully localized, names the failed path, and offers BOTH
 // recoveries — go back (one segment is usually all that's wrong) and Home.
@@ -21,7 +22,7 @@ function LocationProbe() {
  */
 function renderPage(locale: 'en' | 'id' = 'en') {
   return render(
-    <MemoryRouter initialEntries={['/mos/work/tasks', '/mos/no/such/path']} initialIndex={1}>
+    <MemoryRouter basename={APP_ROUTER_BASENAME} initialEntries={[appUrl('/work/tasks'), appUrl('/no/such/path')]} initialIndex={1}>
       <I18nProvider initialLocale={locale}>
         <NotFoundPage />
         <LocationProbe />
@@ -37,9 +38,10 @@ describe('NotFoundPage — English (default)', () => {
     renderPage()
     expect(screen.getByText('That page isn’t here')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Go back' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Go to Home' })).toHaveAttribute('href', '/')
+    const homeHref = APP_ROUTER_BASENAME === '/' ? '/' : APP_ROUTER_BASENAME
+    expect(screen.getByRole('link', { name: 'Go to Home' })).toHaveAttribute('href', homeHref)
     // names WHICH path failed, so the user can see which link was wrong
-    expect(screen.getByText('/mos/no/such/path')).toBeInTheDocument()
+    expect(screen.getByText('/no/such/path')).toBeInTheDocument()
   })
 
   it('sets the document title through the catalog', async () => {
@@ -60,9 +62,9 @@ describe('NotFoundPage — locale id (#400)', () => {
 
   it('Go back navigates history backwards', () => {
     renderPage('id')
-    expect(screen.getByTestId('loc')).toHaveTextContent('at /mos/no/such/path')
+    expect(screen.getByTestId('loc')).toHaveTextContent('at /no/such/path')
     fireEvent.click(screen.getByRole('button', { name: 'Kembali' }))
-    expect(screen.getByTestId('loc')).toHaveTextContent('at /mos/work/tasks')
+    expect(screen.getByTestId('loc')).toHaveTextContent('at /work/tasks')
   })
 })
 

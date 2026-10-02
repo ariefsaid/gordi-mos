@@ -9,6 +9,7 @@
 import { test, expect, type Page } from '@playwright/test'
 import { loginAs } from './helpers/login'
 import { VIEWER } from './fixtures/users'
+import { stripE2eBasePath } from './helpers/app-path'
 
 const WIDTHS = [390, 620, 768, 940, 1100, 1280] as const
 const LAYOUTS = ['Focused', 'Overview', 'List'] as const
@@ -78,7 +79,7 @@ async function pickLayout(page: Page, name: string) {
   await page.locator('label').filter({ has: radio }).click()
   await expect(radio).toBeChecked()
   await page.getByRole('link', { name: 'Home', exact: true }).first().click()
-  await page.waitForURL((url) => url.pathname.replace(/\/$/, '').endsWith('/mos'))
+  await page.waitForURL((url) => stripE2eBasePath(url.pathname) === '/')
   await expect(page.locator('.home-frame')).toBeVisible()
   expect(await arrangementOf(page), `picking ${name} must change Home`).toBe(name)
 }

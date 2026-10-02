@@ -11,7 +11,7 @@ import { openViewFilters, viewFiltersDoor } from './helpers/tasks'
 // door and the Status popover with the keyboard, toggle "Open" with Space, then Escape twice (popover, then door).
 test('keyboard filtering keeps the task queue in place and restores focus', async ({ page }) => {
   await loginAs(page, MANAGER.email, MANAGER.password)
-  await page.goto('/mos/work/tasks')
+  await page.goto('work/tasks')
   const table = page.getByRole('table', { name: 'Tasks' })
   await expect(table).toBeVisible()
   // A marker outside React's own render: a remount lands on a FRESH DOM node and loses it, so its

@@ -1,14 +1,14 @@
 // AC-001: Password login journey
 // Given a provisioned Person with a linked auth user and password,
-// When they visit a protected route, are redirected to /mos/login (FR-010), and submit valid credentials,
+// When they visit a protected route, are redirected to /login (FR-010), and submit valid credentials,
 // Then they land on Home showing the page title and their name in the chip (FR-002/013/017).
 
 import { test, expect } from '@playwright/test'
 import { VIEWER } from './fixtures/users'
 
 test('AC-001: password login journey', async ({ page }) => {
-  // Visit a protected route — expect redirect to /login (FR-010)
-  await page.goto('/')
+  // Visit the protected Home route — expect redirect to /login (FR-010)
+  await page.goto('./')
   await expect(page).toHaveURL(/\/login/)
 
   // Fill in VIEWER credentials
@@ -33,7 +33,7 @@ test('AC-001: password login journey', async ({ page }) => {
 test('AC-011: sign-in returns to the route that was asked for, at 390', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
 
-  // The deep link. Relative so Playwright resolves it under the /mos base (#419).
+  // The deep link is relative to Playwright's configured app base (#419).
   await page.goto('work/tasks')
   await expect(page).toHaveURL(/\/login/)
 

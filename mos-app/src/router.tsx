@@ -24,6 +24,7 @@ import { AppShell } from './shell/app-shell'
 import { RouteRedirect } from './shell/route-redirect'
 import { pageHandle, redirectHandle, infrastructureHandle, type RouteHandle } from './shell/route-classification'
 import { LoadingShell } from './components/ui/state-kit'
+import { APP_ROUTER_BASENAME } from './config/app-build-settings'
 import { ROUTE_PATHS } from './shell/route-parity'
 // Eager, deliberately: both are above-the-fold first paints. HomePage is the index route (the
 // screen every authenticated session opens on) and LoginPage is what a logged-out visitor lands
@@ -152,7 +153,7 @@ const DevViewsPage = lazyPage(() => import('./pages/dev-views-page').then((m) =>
 //     /admin/people
 //     *                          not-found, INSIDE the shell (AC-021)
 //
-// basename '/mos' matches the Caddy/Vite base (OD-P0-5).
+// The router basename follows the build's configured base path.
 //
 // **This table lands with `dev`'s page components wired wherever the v4 surface has not arrived**
 // (FR-018/AC-020). That is what makes the port surface-by-surface: the paths, gates, redirects,
@@ -649,4 +650,4 @@ export const ungatedRouteTable: RouteObject[] = routeTable
 
 export const routeConfig: RouteObject[] = applyShipGate(routeTable)
 
-export const router = createBrowserRouter(routeConfig, { basename: '/mos' })
+export const router = createBrowserRouter(routeConfig, { basename: APP_ROUTER_BASENAME })

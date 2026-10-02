@@ -1,4 +1,4 @@
-// DashboardPage — the Money page at /mos/money. /dashboard and /sales are legacy redirect
+// DashboardPage — the Money page at /money. /dashboard and /sales are legacy redirect
 // aliases only (router.tsx). The analytical KPI hub composition (Variant B Tabs) replacing
 // the sales-only dashboard. Reads BOTH reporting.sales_daily_revenue +
 // reporting.sales_margin_daily via the reporting DAL (FR-003/AC-004).

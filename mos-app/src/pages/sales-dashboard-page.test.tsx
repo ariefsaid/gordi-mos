@@ -1,5 +1,5 @@
 // SalesDashboardPage tests — TDD (AC-tagged).
-// Route: /mos/sales, finance/admin only (FR-001/AC-001/002 owned at router level via
+// Route: /sales, finance/admin only (FR-001/AC-001/002 owned at router level via
 // RequireAccessRole — see router.tsx / require-access-role.test.tsx; this suite proves
 // the page's OWN behavior once mounted: DAL schema usage (AC-003 — mocked reporting.ts),
 // freshness (AC-007), empty (AC-008), error+retry (AC-009), and populated render

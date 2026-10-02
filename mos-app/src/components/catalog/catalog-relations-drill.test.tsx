@@ -5,6 +5,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { fireEvent, render, screen, within, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import { APP_ROUTER_BASENAME, appUrl } from '@/config/app-build-settings'
 import { AuthContext, type AuthState } from '@/auth/context'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 
@@ -276,7 +277,7 @@ it('copies the canonical WorkLine URL from a nested collection stack', async () 
   render(
     <AuthContext.Provider value={auth()}>
       <I18nProvider>
-        <MemoryRouter basename="/mos" initialEntries={['/mos/work/projects?record=wl-1']}>
+        <MemoryRouter basename={APP_ROUTER_BASENAME} initialEntries={[`${appUrl('/work/projects')}?record=wl-1`]}>
           <CatalogRecordDocument kind="work-line" id="wl-1" mode="page" />
         </MemoryRouter>
       </I18nProvider>
@@ -286,7 +287,7 @@ it('copies the canonical WorkLine URL from a nested collection stack', async () 
   fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
   fireEvent.click(screen.getByRole('menuitem', { name: 'Copy link' }))
 
-  expect(writeText).toHaveBeenCalledWith(new URL('/mos/work/projects/wl-1', window.location.origin).href)
+  expect(writeText).toHaveBeenCalledWith(new URL(appUrl('/work/projects/wl-1'), window.location.origin).href)
 })
 
 it('removes a Project Objective relation through its existing record API', async () => {
