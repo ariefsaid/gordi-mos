@@ -7,7 +7,7 @@
 // PersonAction union (item 12): compile-time safety — bad strings fail at type-check.
 // Last-admin guard (item 3, FR-041): disable/archive disabled for sole active admin.
 // ⋯ menu keyboard: the shared useMenuPopover contract (I3) — focus-enter, Arrow/Home/End,
-//   Esc, outside-click, focus return. The menu itself is pure presentation of the items.
+//   Escape-layer dismissal, Tab exit, outside-click, and focus return. The menu itself is pure presentation.
 // Mobile action sheet: one 44px ⋯ per card opens the same actions as the desktop ⋯ menu, under a
 //   header carrying the person's email (the card itself no longer spends a line on it).
 // PeopleToolbar (§2.1): search-mini + ViewTabs status filter, both URL-synced (I7 / D-E1).
@@ -148,8 +148,8 @@ function primaryTeamName(person: AdminPersonRow, teams: TeamOption[]): string | 
 
 // ── PersonActionMenu — shared between desktop ⋯ and mobile action sheet ──────
 // Renders a role="menu" list of per-person actions, gated by person state.
-// The dismissal + keyboard contract (focus-enter, Arrow/Home/End, Esc, outside-click)
-// is owned by the shared useMenuPopover hook on the HOST (desktop portal / mobile sheet),
+// The dismissal + keyboard contract (focus-enter, Arrow/Home/End, layered Escape, Tab exit,
+// outside-click) is owned by the shared useMenuPopover hook on the HOST (desktop portal / mobile sheet),
 // per interaction-contract.md I3 — this component is pure presentation of the items.
 
 interface PersonActionMenuProps {

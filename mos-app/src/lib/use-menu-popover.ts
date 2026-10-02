@@ -1,60 +1,85 @@
-/**
- * useMenuPopover — the ONE popover interaction contract (convention audit 2026-07-18,
- * "four overlays, four dismissal contracts" — Nielsen #4). Every menu-style popover gets:
- *   - outside-pointerdown close
- *   - Escape close (with focus returned to the trigger by the caller's `close`)
- *   - WAI-ARIA menu keyboard: focus moves to the first menuitem on open;
- *     ArrowDown/ArrowUp cycle; Home/End jump.
- * CommandMenu keeps its own richer combobox controller. This hook backs
- * role="menu" popovers (UserChip, RowMenu).
- */
 import { useEffect } from 'react'
+import { focusableWithin } from '@/lib/focusable'
+import { isTopEscapeLayer, useEscapeLayer } from './use-escape-layer'
 
+/**
+ * useMenuPopover — the ONE menu interaction contract:
+ *   - outside-pointerdown close
+ *   - top-layer Escape close with focus returned to the trigger
+ *   - focus enters the first menuitem on open; arrows cycle; Home/End jump
+ *   - Tab closes the menu and advances focus beyond its opener
+ * CommandMenu keeps its richer combobox controller. This hook backs role="menu" popovers.
+ */
 export function useMenuPopover(
   open: boolean,
   close: () => void,
   menuRef: React.RefObject<HTMLElement | null>,
   triggerRef: React.RefObject<HTMLElement | null>,
 ) {
+  useEscapeLayer(open, menuRef, close, {
+    onTab: (event) => {
+      const menu = menuRef.current
+      if (!menu) return
+
+      // Menus may be portaled at the end of document.body. Tab still continues from their
+      // opener's place in the focus scope, not from the portal's DOM position. Preserve a
+      // containing modal's trap even though this menu owns the current Tab event.
+      const scope = triggerRef.current?.closest<HTMLElement>('[aria-modal="true"]') ?? document.body
+      const outsideMenu = focusableWithin(scope).filter((node) => !menu.contains(node))
+      const triggerIndex = outsideMenu.indexOf(triggerRef.current as HTMLElement)
+      const targetIndex = event.shiftKey ? triggerIndex - 1 : triggerIndex + 1
+      const target = triggerIndex < 0
+        ? null
+        : outsideMenu[targetIndex]
+          ?? (scope !== document.body ? outsideMenu[event.shiftKey ? outsideMenu.length - 1 : 0] : null)
+
+      event.preventDefault()
+      close()
+      // The close callback may restore focus to the trigger; move onward after React commits
+      // the unmount so a removed menu item cannot strand focus on <body>.
+      queueMicrotask(() => target?.focus())
+    },
+  })
+
   useEffect(() => {
     if (!open) return
 
     const items = (): HTMLElement[] =>
       menuRef.current
-        ? Array.from(menuRef.current.querySelectorAll<HTMLElement>('[role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"]'))
+        ? Array.from(menuRef.current.querySelectorAll<HTMLElement>(
+            '[role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"]',
+          ))
         : []
 
-    // WAI-ARIA menu button pattern: focus enters the menu on open.
     items()[0]?.focus()
 
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        close()
-        return
-      }
+    const onKeyDown = (event: KeyboardEvent) => {
+      const menu = menuRef.current
+      if (!menu || !isTopEscapeLayer(menu) || !menu.contains(document.activeElement)) return
+
       const list = items()
       if (list.length === 0) return
-      const idx = list.indexOf(document.activeElement as HTMLElement)
-      if (e.key === 'ArrowDown') {
-        e.preventDefault()
-        list[(idx + 1 + list.length) % list.length]?.focus()
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault()
-        list[(idx - 1 + list.length) % list.length]?.focus()
-      } else if (e.key === 'Home') {
-        e.preventDefault()
+      const index = list.indexOf(document.activeElement as HTMLElement)
+      if (event.key === 'ArrowDown') {
+        event.preventDefault()
+        list[(index + 1 + list.length) % list.length]?.focus()
+      } else if (event.key === 'ArrowUp') {
+        event.preventDefault()
+        list[(index - 1 + list.length) % list.length]?.focus()
+      } else if (event.key === 'Home') {
+        event.preventDefault()
         list[0]?.focus()
-      } else if (e.key === 'End') {
-        e.preventDefault()
+      } else if (event.key === 'End') {
+        event.preventDefault()
         list[list.length - 1]?.focus()
       }
     }
 
-    const onPointerDown = (e: MouseEvent) => {
-      const t = e.target as Node
-      if (menuRef.current?.contains(t)) return
-      if (triggerRef.current?.contains(t)) return
+    const onPointerDown = (event: MouseEvent) => {
+      if (!isTopEscapeLayer(menuRef.current)) return
+      const target = event.target as Node
+      if (menuRef.current?.contains(target)) return
+      if (triggerRef.current?.contains(target)) return
       close()
     }
 

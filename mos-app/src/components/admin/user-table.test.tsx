@@ -244,6 +244,7 @@ describe('UserTable — desktop ⋯ menu', () => {
 
     await user.keyboard('{Escape}')
     await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument())
+    expect(menuBtn).toHaveFocus()
   })
 
   it('dispatches manage-person when "Manage person" is clicked', async () => {
@@ -318,6 +319,17 @@ describe('UserTable — I3 menu contract (useMenuPopover)', () => {
     expect(screen.getByRole('menuitem', { name: /archive/i })).toHaveFocus()
     await user.keyboard('{Home}')
     expect(screen.getByRole('menuitem', { name: /^manage person$/i })).toHaveFocus()
+  })
+
+  it('Tab closes the menu and continues through the table without focusing another menu item', async () => {
+    const user = userEvent.setup()
+    renderTable([ACTIVE_ADMIN, ACTIVE_MEMBER])
+    const trigger = screen.getByRole('button', { name: /more actions for budi santoso/i })
+    await user.click(trigger)
+    await waitFor(() => expect(screen.getByRole('menuitem', { name: /^manage person$/i })).toHaveFocus())
+    await user.keyboard('{Tab}')
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument())
+    expect(document.activeElement).not.toHaveAttribute('role', 'menuitem')
   })
 
   it('closes on outside pointerdown and returns focus to the trigger', async () => {

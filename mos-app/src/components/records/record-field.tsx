@@ -193,17 +193,11 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
   }
 
   // NATIVE capture-phase Escape isolation (OD-REDESIGN-83.1 / NFR-V3-001).
-  // RecordPanelHost attaches its Escape listener via a NATIVE addEventListener on the panel
-  // (≥1100px split regime) or document (<1100px modal regime). That native listener fires in
-  // the BUBBLE phase BEFORE React's synthetic delegate reaches this field, so a React-level
-  // `onKeyDown` + `e.stopPropagation()` cannot shield it. To isolate the field's edit session
-  // we attach a NATIVE CAPTURE listener to the field's own input while it is in edit mode:
-  // Escape cancels the draft, returns to the value rendering, and `stopImmediatePropagation`
-  // so the host's bubble listener never sees the keystroke (the field consumes the FIRST
-  // Escape). Once the field is back in value mode this listener is gone, so the NEXT Escape
-  // propagates to the host as the panel-close intent. Deputy, when layered above a record on
-  // phone, attaches its own document CAPTURE listener (escapeCapture) that fires even earlier,
-  // so one Escape still closes Deputy first — this change neither swallows nor reorders that.
+  // The shared layer manager runs at document capture and defers when the top record contains
+  // an actively edited field. This input-level native capture then cancels the draft and stops
+  // propagation, so the field consumes its own Escape. Once the field returns to value mode this
+  // listener is gone and the next Escape closes the record. A higher Deputy layer is selected by
+  // the same manager first, so it closes before the record or any editor underneath.
   const cancelRef = useRef(cancel)
   cancelRef.current = cancel
   const escapeCleanupRef = useRef<(() => void) | null>(null)
@@ -413,8 +407,7 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
                 void commit(draft, true)
               }
               // Escape isolation is owned by the native capture listener attached via
-              // `attachFieldEscapeIsolation` above — React's synthetic onKeyDown fires too late
-              // to shield the host's native listener, so Escape is intentionally NOT handled here.
+              // `attachFieldEscapeIsolation` above; React's synthetic handler is not needed.
             }}
             onBlur={() => void commit(draft, false)}
           />
@@ -441,8 +434,7 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
                 void commit(draft, true)
               }
               // Escape isolation is owned by the native capture listener attached via
-              // `attachFieldEscapeIsolation` above — React's synthetic onKeyDown fires too late
-              // to shield the host's native listener, so Escape is intentionally NOT handled here.
+              // `attachFieldEscapeIsolation` above; React's synthetic handler is not needed.
             }}
             onBlur={() => {
               // D1 fix: while the host's leave-guard dialog is open, a blur here is the
