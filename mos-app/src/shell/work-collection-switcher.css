@@ -48,13 +48,13 @@
 
   .work-collection-switcher__link:hover {
     color: var(--foreground);
-    background: color-mix(in srgb, var(--accent) 45%, transparent);
+    background: var(--surface-tertiary);
   }
 
   .work-collection-switcher__link:focus-visible {
     position: relative;
     z-index: 1;
     outline: 2px solid var(--ring);
-    outline-offset: -2px;
+    outline-offset: 2px;
   }
 }
