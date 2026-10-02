@@ -8,8 +8,7 @@ import { useCafeStream } from '@/lib/use-cafe-stream'
 import { canCaptureCafe } from '@/lib/cafe-affiliation'
 import { canPushCafe } from '@/lib/kitchen-gates'
 import { streamKey } from '@/lib/kitchen-action-label'
-import { listCafeLogItems } from '@/lib/db/cafe-item-settings'
-import type { CafeLogItem } from '@/lib/db/cafe-item-settings'
+import { listCafeItemSettings, toCafeLogItem } from '@/lib/db/cafe-item-settings'
 import { insertKitchenLog, resolveKitchenBuId } from '@/lib/db/kitchen-logs'
 import { submitKitchenWasteLog } from '@/lib/db/kitchen-waste-photos'
 import type { KitchenWastePhoto } from '@/lib/db/kitchen-waste-photos'
@@ -33,6 +32,8 @@ import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { RouteLeaveGuard } from '@/shell/route-leave-guard'
 import './kitchen-log-page.css'
 import './cafe-waste-page.css'
+
+type CafeLogItem = NonNullable<ReturnType<typeof toCafeLogItem>>
 
 type WasteEntry = {
   quantity: string
@@ -184,8 +185,12 @@ export function CafeWastePage() {
       setLoadState('ready')
       return () => { active = false }
     }
-    void Promise.all([listCafeLogItems(stream), resolveKitchenBuId()]).then(([nextItems, buId]) => {
+    void Promise.all([listCafeItemSettings(stream), resolveKitchenBuId()]).then(([settings, buId]) => {
       if (!active || generation !== readGeneration.current) return
+      const nextItems = settings.flatMap(setting => {
+        const item = toCafeLogItem(setting)
+        return item ? [item] : []
+      })
       setItems(nextItems)
       setEntries(initialEntries(nextItems))
       setBusinessUnitId(buId)

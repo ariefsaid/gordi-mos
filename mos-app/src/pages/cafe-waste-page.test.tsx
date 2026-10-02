@@ -25,7 +25,10 @@ vi.mock('@/lib/use-cafe-stream', () => {
     useCafeStream: () => ({ ...catalog, resolve, adopt, setStream }),
   }
 })
-vi.mock('@/lib/db/cafe-item-settings', () => ({ listCafeLogItems: vi.fn() }))
+vi.mock('@/lib/db/cafe-item-settings', async importOriginal => {
+  const actual = await importOriginal<typeof import('@/lib/db/cafe-item-settings')>()
+  return { ...actual, listCafeItemSettings: vi.fn() }
+})
 vi.mock('@/lib/db/kitchen-logs', () => ({
   insertKitchenLog: vi.fn(),
   resolveKitchenBuId: vi.fn(),
@@ -41,14 +44,14 @@ vi.mock('@/lib/db/kitchen-waste-photos', async importOriginal => {
 vi.mock('@/lib/db/cafe-opening', () => ({ wibToday: () => '2026-10-02' }))
 
 import { useAuth } from '@/auth/use-auth'
-import { listCafeLogItems } from '@/lib/db/cafe-item-settings'
+import { listCafeItemSettings } from '@/lib/db/cafe-item-settings'
 import { insertKitchenLog, resolveKitchenBuId } from '@/lib/db/kitchen-logs'
 import { submitKitchenWasteLog, uploadKitchenWastePhoto } from '@/lib/db/kitchen-waste-photos'
-import type { CafeLogItem } from '@/lib/db/cafe-item-settings'
+import type { CafeItemSetting } from '@/lib/db/cafe-item-settings'
 import { CafeWastePage } from './cafe-waste-page'
 
 const mockUseAuth = vi.mocked(useAuth)
-const mockListCafeLogItems = vi.mocked(listCafeLogItems)
+const mockListCafeItemSettings = vi.mocked(listCafeItemSettings)
 const mockInsertKitchenLog = vi.mocked(insertKitchenLog)
 const mockResolveKitchenBuId = vi.mocked(resolveKitchenBuId)
 const mockSubmitWaste = vi.mocked(submitKitchenWasteLog)
@@ -71,19 +74,19 @@ const VIEWER: AuthState = {
   signOut: vi.fn(),
 }
 
-const ITEMS: CafeLogItem[] = [
+const ITEM_SETTINGS: CafeItemSetting[] = [
   {
-    id: 'wip-1', name: 'Oat Latte', category: 'Drinks', kind: 'WIP',
-    defaultUnit: { id: 'unit-cup', name: 'cup' },
+    id: 'wip-1', erpName: 'ERP Oat Latte', mosName: 'Oat Latte', category: 'Drinks', kind: 'WIP',
+    defaultUnitId: 'unit-cup',
     units: [
-      { id: 'unit-cup', name: 'cup', isDefault: true, labelOrdinal: null, labelCount: 1 },
-      { id: 'unit-tray', name: 'tray', isDefault: false, labelOrdinal: null, labelCount: 1 },
+      { id: 'unit-cup', name: 'cup', isShown: true, isDefault: true, labelOrdinal: null, labelCount: 1 },
+      { id: 'unit-tray', name: 'tray', isShown: true, isDefault: false, labelOrdinal: null, labelCount: 1 },
     ],
   },
   {
-    id: 'raw-1', name: 'Oat milk', category: 'Dairy', kind: 'RAW',
-    defaultUnit: { id: 'unit-litre', name: 'litre' },
-    units: [{ id: 'unit-litre', name: 'litre', isDefault: true, labelOrdinal: null, labelCount: 1 }],
+    id: 'raw-1', erpName: 'ERP Oat milk', mosName: 'Oat milk', category: 'Dairy', kind: 'RAW',
+    defaultUnitId: 'unit-litre',
+    units: [{ id: 'unit-litre', name: 'litre', isShown: true, isDefault: true, labelOrdinal: null, labelCount: 1 }],
   },
 ]
 
@@ -122,7 +125,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   setPhoneMatchMedia()
   mockUseAuth.mockReturnValue(VIEWER)
-  mockListCafeLogItems.mockResolvedValue(ITEMS)
+  mockListCafeItemSettings.mockResolvedValue(ITEM_SETTINGS)
   mockResolveKitchenBuId.mockResolvedValue('bu-kitchen')
   let draft = 0
   mockInsertKitchenLog.mockImplementation(async () => `waste-${++draft}`)
