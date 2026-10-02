@@ -58,7 +58,7 @@ describe('WorkCollectionSwitcher', () => {
     const nav = screen.getByRole('navigation', { name: 'Work' })
     const links = within(nav).getAllByRole('link')
     expect(links.map((link) => link.getAttribute('href'))).toEqual(COLLECTIONS.map((item) => item.path))
-    expect(within(nav).getByRole('link', { name: label })).toHaveAttribute('aria-current', 'page')
+    expect(within(nav).getByRole('link', { name: label })).toHaveAttribute('aria-current', 'location')
   })
 
   it('does not add collection navigation to a canonical record page', () => {

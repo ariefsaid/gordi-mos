@@ -36,7 +36,7 @@ export function WorkCollectionSwitcher() {
             <li key={collection.path} className="work-collection-switcher__item">
               <Link
                 to={collection.path}
-                aria-current={current ? 'page' : undefined}
+                aria-current={current ? 'location' : undefined}
                 className="work-collection-switcher__link"
               >
                 {collection.labelKey ? t(collection.labelKey) : collection.label}
