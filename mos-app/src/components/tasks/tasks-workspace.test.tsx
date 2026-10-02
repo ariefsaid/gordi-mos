@@ -1484,6 +1484,8 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
       fireEvent.change(screen.getByLabelText('Comment'), { target: { value: 'Looks good' } })
       const post = screen.getByRole('button', { name: 'Post comment' })
       expect(post).toBeEnabled()
+      expect(post).toHaveClass('btn-outline')
+      expect(post).not.toHaveClass('btn-primary')
       expect(document.body.querySelectorAll('.btn-primary:not(:disabled)')).toHaveLength(1)
       expect(screen.getByRole('button', { name: 'Mark complete' })).toHaveClass('btn-primary')
     })
