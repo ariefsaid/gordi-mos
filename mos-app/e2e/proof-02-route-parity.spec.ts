@@ -36,7 +36,7 @@ const CROSS_SECTION_RETURNS = [
 const LEGACY_REDIRECTS = [
   { oldPath: 'tasks', canonical: /\/work\/tasks$/ },
   { oldPath: 'updates', canonical: /\/work\/signals\?layout=feed$/ },
-  { oldPath: 'kitchen', canonical: /\/cafe$/ },
+  { oldPath: 'kitchen', canonical: /\/cafe\/production$/ },
 ] as const
 
 function normalizeHref(href: string): string {

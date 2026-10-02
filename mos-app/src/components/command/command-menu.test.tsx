@@ -251,7 +251,7 @@ describe('AC-030..032: desktop GO TO roots → ACT; phone search only', () => {
       railLabels(['admin']),
     )
     // The destinations #1193 found missing, by name — not only by the catalog derivation above.
-    for (const label of ['Signals', 'Tasks', 'Projects & Processes', 'Objectives', 'Log', 'Plan', 'Stock', 'Review', 'Pushes', 'Admin Settings']) {
+    for (const label of ['Signals', 'Tasks', 'Projects & Processes', 'Objectives', 'Log production', 'Log transfer', 'Plan', 'Stock', 'Review', 'Pushes', 'Admin Settings']) {
       expect(within(groups[0]).getByRole('option', { name: label })).toBeInTheDocument()
     }
     expect(within(groups[1]).getAllByRole('option')).toHaveLength(3)
@@ -382,7 +382,7 @@ describe('AC-030..032: desktop GO TO roots → ACT; phone search only', () => {
 
   // #407/#755: the typed ACT filter reads the SAME shared list the phone `+` launcher renders.
   // Café capture is a WRITE, so a viewer with the write gate gets the entry even when route
-  // admission is denied; OD-WAY-51 admits /cafe/log to READ, not to authorize capture.
+  // admission is denied; route visibility is distinct from the capture write gate.
   it('issue 407: typing Log offers Café capture when the write gate admits, not the route', async () => {
     seam.override = vi.fn(() => false)
     setAuth(['ops_lead'])

@@ -71,7 +71,7 @@ test.describe('AC-022: the shell at 390px', () => {
       { path: 'inbox', label: 'Inbox' },
       { path: 'events', label: 'Events' },
       { path: 'cafe', label: 'Café' },
-      { path: 'cafe/log', label: 'Café log' },
+      { path: 'cafe/production', label: 'Log production' },
       { path: 'money', label: 'Money' },
       { path: 'admin/people', label: 'Admin people' },
     ].filter(({ path }) => !isShipGated(`/${path}`))
@@ -101,11 +101,10 @@ test.describe('AC-022: the shell at 390px', () => {
   test('a retired deep link with ?record= lands on its replacement in one hop, query intact', async ({ page }) => {
     await loginAs(page, ADMIN.email, ADMIN.password)
 
-    // DD-MVP-17 (router.tsx): the Café root, not /cafe/log, is the capture surface now — the
-    // retired kitchen/log path lands ONE hop on /cafe (/cafe/log itself aliases the root by the
-    // same redirect), query string intact.
+    // #1239 (router.tsx): retired kitchen/log and /cafe/log URLs land ONE hop on the dedicated
+    // production capture route, with the query string intact.
     await page.goto('kitchen/log?record=abc&view=today')
-    await expect(page).toHaveURL(/\/cafe\?/, { timeout: 10_000 })
+    await expect(page).toHaveURL(/\/cafe\/production\?/, { timeout: 10_000 })
     expect(new URL(page.url()).search).toBe('?record=abc&view=today')
 
     // Back does not re-enter the retired path: the redirect replaced its history entry, so the

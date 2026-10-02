@@ -121,33 +121,35 @@ describe('AC-011: Rail structure — grouped IA spine (F2 fix)', () => {
     expect(within(nav).getAllByRole('link')).toHaveLength(9)
     expect(within(nav).getByRole('link', { name: 'Café' })).toBeInTheDocument()
     expect(within(nav).queryByRole('link', { name: 'Opening' })).toBeNull()
-    expect(within(nav).queryByRole('link', { name: 'Log' })).toBeNull()
+    expect(within(nav).queryByRole('link', { name: 'Today' })).toBeNull()
+    expect(within(nav).queryByRole('link', { name: 'Log production' })).toBeNull()
+    expect(within(nav).queryByRole('link', { name: 'Log transfer' })).toBeNull()
     expect(within(nav).queryByRole('link', { name: 'Plan' })).toBeNull()
     expect(within(nav).queryByRole('link', { name: 'Stock' })).toBeNull()
     expect(within(nav).queryByRole('link', { name: 'Review' })).toBeNull()
     expect(within(nav).queryByRole('link', { name: 'Pushes' })).toBeNull()
   })
 
-  it('AC-012: an unaffiliated Director at the capture root sees the five Café children', () => {
+  it('AC-012: an unaffiliated Director at the Café root sees Today and the dedicated Log routes', () => {
     setAuthAs(['admin'], 'Managing Director')
     renderRailNav('/cafe')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
-    // DD-MVP-17: the root IS the capture surface, so the children are Log + the working
-    // screens — the separate Opening child retired with /cafe/log.
-    for (const name of ['Log', 'Plan', 'Stock', 'Review', 'Pushes']) {
+    for (const name of ['Today', 'Log production', 'Log transfer', 'Plan', 'Stock', 'Review', 'Pushes']) {
       expect(within(nav).getByRole('link', { name })).toBeInTheDocument()
     }
     expect(within(nav).queryByRole('link', { name: 'Opening' })).not.toBeInTheDocument()
   })
 
-  it('AC-011b: a café-role viewer gets Café under a "Retail Ops" BU overline, plus its five screens', () => {
+  it('AC-011b: a café-role viewer gets Café under a "Retail Ops" BU overline, plus capture and stock routes', () => {
     setAuthAs([], 'Barista')
     renderRailNav('/')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
     expect(within(nav).getByText('Retail Ops')).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: 'Café' })).toBeInTheDocument()
     // The module's own screens, which is what a barista actually opens the rail for.
-    expect(within(nav).getByRole('link', { name: 'Log' })).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: 'Today' })).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: 'Log production' })).toBeInTheDocument()
+    expect(within(nav).getByRole('link', { name: 'Log transfer' })).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: 'Stock' })).toBeInTheDocument()
     // …and NOT the ops_lead/admin ones: OD-WAY-51 widened nav to the route, it did not drop gates.
     expect(within(nav).queryByRole('link', { name: 'Review' })).toBeNull()
@@ -354,12 +356,14 @@ describe('AC-009: aria-current — Work parent location, child page (at /work/si
   // Updated to the STATED contract, not relaxed. Rule 5 is "the parent is a location, the active
   // child is the page" — which is exactly what AC-807/808 assert two cases below for Work. This
   // case previously put "page" on the Café parent because Café had no children to carry it: the
-  // module shipped with one link and its five screens were unreachable from the nav at all. Now
+  // module shipped with one link and its screens were unreachable from the nav at all. Now
   // that they render, Café follows the same rule Work does. Still "exactly one page" — the
   // invariant is unchanged and the case is stronger, because it now pins WHICH element holds it.
   it.each([
-    // DD-MVP-17: /cafe IS the capture root — its child is Log; /cafe/log retired.
-    ['/cafe', 'Log'],
+    // #1239: /cafe is Today; production and transfer have dedicated child routes.
+    ['/cafe', 'Today'],
+    ['/cafe/production', 'Log production'],
+    ['/cafe/transfer', 'Log transfer'],
     ['/cafe/plan', 'Plan'],
     ['/cafe/stock', 'Stock'],
     ['/cafe/items', 'Items'],

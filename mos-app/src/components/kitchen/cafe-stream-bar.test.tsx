@@ -7,6 +7,8 @@
 // says nothing in the head (CafeStreamChoices below owns that state instead), and a read-only
 // surface still SAYS which stream it is showing.
 
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -226,5 +228,15 @@ describe('CafeStreamChoices — the no-default one-step choice (item 2, B5)', ()
 describe('the no-default hint names the menu as each locale shows it', () => {
   it.each(['en', 'id'] as const)('%s: the Admin destination label appears in the path', (locale) => {
     expect(messages[locale]['cafe.stream.noDefaultHint']).toContain(`(${messages[locale]['dest.admin']} →`)
+  })
+})
+
+describe('CafeStreamChoices — one bounded layout wherever it is used (#1235)', () => {
+  const css = readFileSync(resolve(process.cwd(), 'src/components/kitchen/cafe-stream-bar.css'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+
+  it('shares a centered 28rem measure between the Plan/Stock hint and the Log empty state', () => {
+    expect(css).toMatch(/\.cafe-stream-choices\s*\{[^}]*width:\s*100%[^}]*max-width:\s*28rem/)
+    expect(css).toMatch(/\.empty-actions:has\(>\s*\.cafe-stream-choices\)\s*\{[^}]*width:\s*100%/)
   })
 })

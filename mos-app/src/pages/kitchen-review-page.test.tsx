@@ -232,7 +232,9 @@ describe('KitchenReviewPage — states', () => {
     expect(screen.getByRole('status', { name: /loading/i })).toBeInTheDocument()
   })
 
-  it('empty: renders the shared awaiting EmptyState when no Submitted logs', async () => {
+  it('empty: renders the shared awaiting EmptyState without a completion control', async () => {
+    mockUseAuth.mockReturnValue(viewer(['supervisor']))
+    mockDefaultStream.mockResolvedValue({ branch: BRANCHES[0], activity: 'kitchen' })
     mockList.mockResolvedValue([])
     render(<KitchenReviewPage />, { wrapper })
     expect(await screen.findByText(/nothing to review/i)).toBeInTheDocument()
@@ -243,6 +245,8 @@ describe('KitchenReviewPage — states', () => {
     expect(emptyState.querySelector('.empty-title')).not.toBeNull()
     expect(emptyState.querySelector('.empty-copy')).not.toBeNull()
     expect(emptyState.querySelector('.empty-note')).not.toBeNull()
+    expect(screen.queryByRole('group', { name: /item list completeness/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: /confirm the item list is complete/i })).not.toBeInTheDocument()
   })
 
   // #589: scoped to ONE stream while another stream still holds Submitted rows, the empty

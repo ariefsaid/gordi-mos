@@ -996,7 +996,7 @@ function KitchenReviewPageForViewer() {
   }
 
   const submittedCount = visibleLogs.length
-  const completenessRow = load.kind === 'ready' && streamCatalog.length > 0 && selectedStream
+  const completenessRow = load.kind === 'ready' && submittedCount > 0 && streamCatalog.length > 0 && selectedStream
     ? (() => {
         const key = streamKey(selectedStream.branch.id, selectedStream.activity)
         const confirmed = completeness.get(key) ?? null

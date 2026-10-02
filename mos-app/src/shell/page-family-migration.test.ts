@@ -61,6 +61,15 @@ describe('PAGE_FAMILY_FRAME_ROUTES (#191)', () => {
     expect(home?.family).toBe('workspace')
     expect(home?.symbol).toBe('HomePage')
   })
+
+  it.each(['/cafe/production', '/cafe/transfer'])('%s names the shared split-log page frame', (path) => {
+    const entry = PAGE_FAMILY_FRAME_ROUTES.find((route) => route.path === path)
+    expect(entry).toMatchObject({
+      family: 'workspace',
+      sourceFile: 'pages/kitchen-log-page.tsx',
+      symbol: 'KitchenLogPage',
+    })
+  })
 })
 
 /**

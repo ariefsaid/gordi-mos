@@ -36,7 +36,7 @@ import { glyphShape } from './glyph-shape'
  * no media query, no CSS, so it renders `<RailNav compact />` and `<MobileDrawer open />` by
  * passing the props the breakpoints would pass — it does not establish that anyone reached those
  * widths, and it is not the "rendered and looked at" half of #457's done-means. The phone half
- * matters because below 920px the same five Café marks render in the More drawer
+ * matters because below 920px the same six Café marks render in the More drawer
  * (`mobile-drawer.tsx` passes `Icon={c.Icon}` for module children), which for kitchen staff is the
  * only nav they ever see. Guarding the rail alone would have left it with no evidence at all.
  *
@@ -284,10 +284,10 @@ describe('phone drawer glyphs (issue 457 part 1, the More drawer)', () => {
     expect(hrefs).toEqual(expect.arrayContaining(['/', '/work/tasks', '/inbox']))
     expect(hrefs.some((h) => h.startsWith('/admin'))).toBe(true)
     // The maximal drawer: no module is promoted for this viewer, so Café's own row renders here
-    // alongside all five working-screen children. If a promoted module ever crept back into the fixture this
+    // alongside all Café child screens. If a promoted module ever crept back into the fixture this
     // would go red rather than quietly shrinking the sweep.
     expect(hrefs).toEqual(
-      expect.arrayContaining(['/cafe', '/cafe/plan', '/cafe/stock', '/cafe/items', '/cafe/review', '/cafe/pushes']),
+      expect.arrayContaining(['/cafe', '/cafe/production', '/cafe/transfer', '/cafe/plan', '/cafe/stock', '/cafe/items', '/cafe/review', '/cafe/pushes']),
     )
     // Same ship-gate vacuity check the rail carries: without it, "unique" would be a claim about
     // today's visible drawer rather than the one switch day produces.
@@ -308,7 +308,7 @@ describe('phone drawer glyphs (issue 457 part 1, the More drawer)', () => {
     expect(cup, 'the Café module row is missing from the drawer').toBeTruthy()
     const children = links.filter((l) => l.href.startsWith('/cafe/'))
     expect(children.map((c) => c.href).sort()).toEqual(
-      ['/cafe/items', '/cafe/plan', '/cafe/pushes', '/cafe/review', '/cafe/stock'],
+      ['/cafe/items', '/cafe/plan', '/cafe/production', '/cafe/pushes', '/cafe/review', '/cafe/stock', '/cafe/transfer'],
     )
     for (const child of children) {
       expect(child.glyph, `${child.href} draws the Café cup`).not.toBe(cup)

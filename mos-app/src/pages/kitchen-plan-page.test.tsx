@@ -415,6 +415,17 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
     expect(screen.getByText('Ayam Bakar')).toBeInTheDocument()
   })
 
+  it('labels Plan rows as WIP and offers only enabled item kinds', async () => {
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+
+    expect(screen.getByText('Ayam Bakar').parentElement).toHaveTextContent('WIP - Ayam Bakar')
+    fireEvent.click(screen.getByRole('combobox', { name: /kind/i }))
+    const listbox = screen.getByRole('listbox', { name: /kind/i })
+    expect(within(listbox).getByRole('option', { name: 'WIP' })).toBeInTheDocument()
+    expect(within(listbox).queryByRole('option', { name: 'RAW' })).toBeNull()
+  })
+
   it('empty: ops_lead sees an editable blank grid — unplanned reads BLANK (greyed "0" placeholder), not a hard zero', async () => {
     mockPlans.mockResolvedValue([])
     render(<KitchenPlanPage />, { wrapper })
@@ -660,7 +671,7 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
     await screen.findByText('Ayam Bakar')
     expect(
       screen.getByRole('link', { name: /see these in the café log/i }),
-    ).toHaveAttribute("href", "/cafe")
+    ).toHaveAttribute("href", "/cafe/production")
     expect(screen.queryAllByRole('link', { name: /see .* in the café log/i })).toHaveLength(1)
     expect(screen.getByText('Ayam Bakar').closest('a')).toBeNull()
   })
@@ -670,7 +681,7 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
     await screen.findByText('Ayam Bakar')
     expect(
       screen.getByRole('link', { name: /see .* in the café log/i }),
-    ).toHaveAttribute('href', '/cafe')
+    ).toHaveAttribute('href', '/cafe/production')
     expect(screen.queryAllByRole('link', { name: /see .* in the café log/i })).toHaveLength(1)
     expect(screen.getByText('Ayam Bakar').closest('a')).toBeNull()
   })
@@ -680,6 +691,20 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
     await screen.findByText('Ayam Bakar')
     // the desktop table aria-label is absent on phone (one branch in the DOM — P-4)
     expect(screen.queryByRole('table', { name: /café plan/i })).toBeNull()
+  })
+
+  it('phone ignores desktop filter query params so they cannot silently hide Plan rows', async () => {
+    mockItems.mockResolvedValue([
+      { ...ITEMS[0], category: 'Main' },
+      { ...ITEMS[1], category: 'Rice' },
+    ])
+    render(
+      <MemoryRouter initialEntries={['/cafe/plan?category=__no_matching_category__&kind=Inventory']}>
+        <I18nProvider><KitchenPlanPage /></I18nProvider>
+      </MemoryRouter>,
+    )
+    expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
+    expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
   })
 
   it('desktop matchMedia: renders the table branch, NOT the cards', async () => {
@@ -790,6 +815,7 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
     mockPesanan.mockResolvedValue(PESANAN)
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
+    expect(screen.getByText('Ayam Bakar').parentElement).toHaveTextContent('WIP - Ayam Bakar')
     // the planned qty renders (tabular)
     expect(screen.getByText('12')).toBeInTheDocument()
     // a date group header for the two distinct dates (grouped by date)
@@ -871,6 +897,20 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
     expect(screen.queryByText('Ayam Bakar')).toBeNull()
   })
 
+  it('phone shows all Pesanan rows even when a shared desktop URL carries a category filter', async () => {
+    mockPesanan.mockResolvedValue([
+      { ...PESANAN[0], category: 'Main' },
+      { ...PESANAN[1], category: 'Rice' },
+    ])
+    render(
+      <MemoryRouter initialEntries={['/cafe/plan?category=Main']}>
+        <I18nProvider><KitchenPlanPage /></I18nProvider>
+      </MemoryRouter>,
+    )
+    expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
+    expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
+  })
+
   it('(#401) a filter that matches nothing shows the shared no-match copy, not a broken table', async () => {
     mockPesanan.mockResolvedValue(PESANAN)
     render(<KitchenPlanPage />, { wrapper })
@@ -886,7 +926,7 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
     mockPesanan.mockResolvedValue(PESANAN)
     render(<KitchenPlanPage />, { wrapper })
     expect(await screen.findByText(/this is the 14-day order horizon/i)).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /open the café log/i })).toHaveAttribute("href", "/cafe")
+    expect(screen.getByRole('link', { name: /open the café log/i })).toHaveAttribute("href", "/cafe/production")
     // AC-024 still held: the explainer adds no capture affordance
     expect(screen.queryByRole('spinbutton')).toBeNull()
   })
@@ -1011,6 +1051,8 @@ describe('FR-006/AC-006: the stream precondition speaks Log\'s two-state grammar
     expect(screen.queryByRole('alert')).toBeNull()
     // The precondition is named as a muted status hint (Log's .kl-submit-reason role).
     expect(screen.getByText(/choose a production stream before submitting/i)).toBeInTheDocument()
+    // A zero summary would imply the plan is empty before the books are known.
+    expect(document.querySelector('.msr')).toBeNull()
     // The explicit choice is the next step; no plan can be written against a missing stream.
     const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
     expect(input).toBeDisabled()

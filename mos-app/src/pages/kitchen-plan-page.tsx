@@ -46,6 +46,7 @@ import {
   deriveActionLabel,
   movementsEqual,
   movementsForStream,
+  movementKey,
   PRODUCE,
   streamLabel,
   streamProduces,
@@ -57,13 +58,19 @@ import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { MetricSummaryRule } from '@/components/kitchen/metric-summary-rule'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { PlanQtyField } from '@/components/kitchen/plan-qty-field'
-import { groupByCategory } from '@/lib/kitchen-category'
 import { kitchenCategoryLabel } from '@/lib/kitchen-category-label'
 import {
   DataTable,
   type DataTableColumn,
-  type DataTableGroup,
 } from '@/components/dashboard/data-table'
+import {
+  KITCHEN_KIND_FILTER_OPTIONS,
+  kitchenDataTableGroups,
+  toKitchenListRows,
+  useKitchenItemTable,
+  type KitchenItemKindFilter,
+  type KitchenListRow,
+} from '@/lib/kitchen-item-list'
 import { usePlanSummary } from '@/lib/kitchen-plan-kpis'
 import { formatWeekdayDayMonth } from '@/lib/format/date'
 import './kitchen-plan-page.css'
@@ -199,7 +206,12 @@ function PlanEditor() {
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const isDesktop = useIsDesktop()
   const [search, setSearch] = useSearchParamState('q', '')
+  const [kindFilter, setKindFilter] = useSearchParamState('kind', 'All')
   const [category, setCategory] = useSearchParamState('category', 'All')
+  // Phone omits desktop-only select filters, so a shared desktop URL must not silently
+  // narrow the capture list when those controls are unavailable to clear it.
+  const effectiveKindFilter: KitchenItemKindFilter = isDesktop ? kindFilter as KitchenItemKindFilter : 'All'
+  const effectiveCategory = isDesktop ? category : 'All'
   // #401 / DD-WAY-40: the figures band is the Metric summary rule (two numbers for
   // the current movement) — the retired word-tiles are gone. Pure derivation over
   // `cells`.
@@ -351,44 +363,45 @@ function PlanEditor() {
     }
   }
 
-  // Client-side search + category filter + null-safe category grouping.
-  const q = search.trim().toLowerCase()
-  // Category is a desktop-only control; preserve the URL state for a later desktop return,
-  // but never apply an invisible filter while the phone face cannot clear it.
-  const effectiveCategory = isDesktop ? category : 'All'
-  const visible = useMemo(
-    () => items.filter(it =>
-      (!q || it.name.toLowerCase().includes(q)) &&
-      (effectiveCategory === 'All' || (it.category ?? '') === effectiveCategory)),
-    [items, q, effectiveCategory],
+  const planListRows = useMemo(
+    () => toKitchenListRows(items, {
+      kind: 'WIP',
+      getId: item => item.id,
+      getName: item => item.name,
+      getCategory: item => item.category,
+      getGroupKey: item => item.category?.trim() || '__uncategorized__',
+    }),
+    [items],
   )
-  const categories = ['All', ...Array.from(new Set(items.map(i => i.category ?? '').filter(Boolean)))
+  const itemTable = useKitchenItemTable({
+    data: planListRows,
+    search,
+    kind: effectiveKindFilter,
+    category: effectiveCategory,
+  })
+  const visible = itemTable.getFilteredRowModel().rows.map(row => row.original)
+  const categories = ['All', ...Array.from(new Set(items.map(item => item.category ?? '').filter(Boolean)))
     .sort((a, b) => kitchenCategoryLabel(t, a).localeCompare(kitchenCategoryLabel(t, b)))]
-  // One destination for the whole screen, stated once, at every width, rendered beside the
-  // toolbar below.
-  const planGroups: DataTableGroup<WipItemOption>[] = useMemo(
-    () => groupByCategory(visible).map(g => ({
-      key: g.cat ?? '__uncategorised__',
-      label: g.cat ? kitchenCategoryLabel(t, g.cat) : g.cat,
-      rows: g.rows,
-    })),
-    [visible, t],
-  )
+  // TanStack's grouped row model supplies category groups; the shared DataTable owns collapse.
+  const planGroups = kitchenDataTableGroups(
+    itemTable,
+    groupKey => groupKey === '__uncategorized__' ? null : kitchenCategoryLabel(t, groupKey),
+  ).sort((a, b) => a.label === null ? 1 : b.label === null ? -1 : a.label.localeCompare(b.label))
 
-  const planItemColumn: DataTableColumn<WipItemOption> = {
+  const planItemColumn: DataTableColumn<KitchenListRow<WipItemOption>> = {
     key: 'dish',
     header: t('kitchen.plan.col.item'),
     cardLabel: '',
     render: item => (
       <span className="kp-dish">
-        <span className="kp-name">{item.name}</span>
+        <span className="kp-name"><span>{item.kind} - </span><span>{item.name}</span></span>
         {offList(item.id) && <NotOnStreamTag />}
         {item.category && <span className="kp-cat">{kitchenCategoryLabel(t, item.category)}</span>}
       </span>
     ),
   }
 
-  const planColumns: DataTableColumn<WipItemOption>[] = [
+  const planColumns: DataTableColumn<KitchenListRow<WipItemOption>>[] = [
     planItemColumn,
     {
       key: 'plan',
@@ -432,7 +445,7 @@ function PlanEditor() {
     },
   ]
 
-  const receivingPlanColumns: DataTableColumn<WipItemOption>[] = [
+  const receivingPlanColumns: DataTableColumn<KitchenListRow<WipItemOption>>[] = [
     planItemColumn,
     {
       key: 'plan',
@@ -449,14 +462,14 @@ function PlanEditor() {
   // the typed plan field + unit right, no per-card field label. Same seam as Log
   // (renderCard → PhoneCard applies .dt-card--compact); the meta line renders ONLY when it
   // has something to say (commit state). No dense: the phone card keeps the 44px touch floor.
-  const renderPlanCard = (item: WipItemOption) => {
+  const renderPlanCard = (item: KitchenListRow<WipItemOption>) => {
     const saving = savingId === item.id
     const saved = !saving && justSavedId === item.id
     return (
       <div className="kp-card">
         <div className="kp-card-head">
           <span className="kp-card-name">
-            {item.name}
+            <span>{item.kind} - </span><span>{item.name}</span>
             {offList(item.id) && <NotOnStreamTag />}
           </span>
           <PlanQtyField
@@ -504,7 +517,7 @@ function PlanEditor() {
       {/* #401 / DD-WAY-40: Plan is an ACT surface — its figures render as the DESIGN.md
           Metric summary rule: one inline line, no card, no width branch, never a tile
           row (OD-WAY-74 #2). No delta: a capture band has no state worth acting on. */}
-      {load.kind === 'ready' && items.length > 0 && (
+      {load.kind === 'ready' && stream !== null && items.length > 0 && (
         <MetricSummaryRule
           ariaLabel={t(summary.ariaLabel)}
           metrics={summary.metrics.map(m => ({ key: m.key, label: t(m.label), value: m.value }))}
@@ -562,11 +575,15 @@ function PlanEditor() {
           <KitchenToolbar
             search={search}
             onSearchChange={setSearch}
-            categories={isDesktop ? categories : undefined}
+            kinds={KITCHEN_KIND_FILTER_OPTIONS}
+            kind={kindFilter as KitchenItemKindFilter}
+            kindId="cafe-plan-kind"
+            onKindChange={setKindFilter}
+            categories={categories}
             categoryId="cafe-plan-category"
             categoryLabel={value => kitchenCategoryLabel(t, value)}
-            category={isDesktop ? category : undefined}
-            onCategoryChange={isDesktop ? setCategory : undefined}
+            category={category}
+            onCategoryChange={setCategory}
             searchPlaceholder={t('kitchen.plan.searchPlaceholder')}
             ariaLabel={t('kitchen.plan.toolbarAria')}
           >
@@ -590,7 +607,7 @@ function PlanEditor() {
           </KitchenToolbar>
           {/* ONE navigational affordance for the screen, present at every width. */}
           <p className="kp-log-link-row">
-            <Link to="/cafe" className="kp-group-link">
+            <Link to="/cafe/production" className="kp-group-link">
               {t('kitchen.plan.group.log')}
             </Link>
           </p>
@@ -635,7 +652,11 @@ function PesananView() {
   // the faces are role-exclusive, so they never share a URL. Refresh/share keeps the
   // filtered view (I7 / D-E1).
   const [search, setSearch] = useSearchParamState('q', '')
+  const [kindFilter, setKindFilter] = useSearchParamState('kind', 'All')
   const [category, setCategory] = useSearchParamState('category', 'All')
+  // Hidden desktop filters stay inert on phone even when their URL state is shared in.
+  const effectiveKindFilter: KitchenItemKindFilter = isDesktop ? kindFilter as KitchenItemKindFilter : 'All'
+  const effectiveCategory = isDesktop ? category : 'All'
 
   // #440: the horizon a floor member reads is THEIR stream's — it used to be
   // `defaultStreamFrom`, the catalog's first branch, so a Radiant barista read Gordi HQ's
@@ -673,46 +694,38 @@ function PesananView() {
 
   useEffect(() => { fetchHorizon() }, [fetchHorizon, retryKey])
 
-  // #401: client-side search + category over the read horizon (mirrors the editor).
-  const q = search.trim().toLowerCase()
-  // Same desktop-only category affordance as the editor: a deep-linked category must not
-  // become an invisible row filter on the phone face.
-  const effectiveCategory = isDesktop ? category : 'All'
-  const visible = useMemo(
-    () => rows.filter(r =>
-      (!q || r.wip_item_name.toLowerCase().includes(q)) &&
-      (effectiveCategory === 'All' || (r.category ?? '') === effectiveCategory)),
-    [rows, q, effectiveCategory],
+  const pesananListRows = useMemo(
+    () => toKitchenListRows(rows, {
+      kind: 'WIP',
+      getId: row => `${row.log_date}:${row.wip_item_id}:${movementKey(row.movement)}`,
+      getName: row => row.wip_item_name,
+      getCategory: row => row.category,
+      getGroupKey: row => row.log_date,
+    }),
+    [rows],
   )
-  const categories = ['All', ...Array.from(new Set(rows.map(r => r.category ?? '').filter(Boolean)))
+  const pesananTable = useKitchenItemTable({
+    data: pesananListRows,
+    search,
+    kind: effectiveKindFilter,
+    category: effectiveCategory,
+  })
+  const visible = pesananTable.getFilteredRowModel().rows.map(row => row.original)
+  const categories = ['All', ...Array.from(new Set(rows.map(row => row.category ?? '').filter(Boolean)))
     .sort((a, b) => kitchenCategoryLabel(t, a).localeCompare(kitchenCategoryLabel(t, b)))]
-
-  // Group the flat rows by date (already date-sorted by the query) for the read view.
-  const pesananGroups: DataTableGroup<PesananRow>[] = useMemo(() => {
-    const byDate = new Map<string, PesananRow[]>()
-    for (const r of visible) {
-      const list = byDate.get(r.log_date) ?? []
-      list.push(r)
-      byDate.set(r.log_date, list)
-    }
-    return [...byDate.entries()].map(([date, dateRows]) => ({
-      key: date,
-      label: date,
-      count: dateRows.length,
-      rows: dateRows,
-    }))
-  }, [visible])
+  const pesananGroups = kitchenDataTableGroups(pesananTable, date => date)
+    .sort((a, b) => String(a.label).localeCompare(String(b.label)))
 
   // Read-only pesanan columns: Item (name + category sub-label) · Action · Planned.
   // No edit affordance (AC-024) — the qty is a plain tabular number, no stepper.
-  const pesananColumns: DataTableColumn<PesananRow>[] = [
+  const pesananColumns: DataTableColumn<KitchenListRow<PesananRow>>[] = [
     {
       key: 'item',
       header: t('kitchen.plan.pesanan.col.item'),
       cardLabel: '',
       render: r => (
         <span className="kp-dish">
-          <span className="kp-name">{r.wip_item_name}</span>
+          <span className="kp-name"><span>{r.kind} - </span><span>{r.wip_item_name}</span></span>
           {r.category && <span className="kp-cat">{kitchenCategoryLabel(t, r.category)}</span>}
         </span>
       ),
@@ -764,7 +777,7 @@ function PesananView() {
         <p className="kp-readonly-note">
           {t('kitchen.plan.pesanan.readOnlyNote', { days: PESANAN_HORIZON_DAYS })}
         </p>
-        <Link to="/cafe" className="btn btn-outline kp-readonly-cta">
+        <Link to="/cafe/production" className="btn btn-outline kp-readonly-cta">
           {t('kitchen.plan.pesanan.readOnlyCta')}
         </Link>
       </div>
@@ -811,11 +824,15 @@ function PesananView() {
           <KitchenToolbar
             search={search}
             onSearchChange={setSearch}
-            categories={isDesktop ? categories : undefined}
+            kinds={KITCHEN_KIND_FILTER_OPTIONS}
+            kind={kindFilter as KitchenItemKindFilter}
+            kindId="cafe-plan-kind"
+            onKindChange={setKindFilter}
+            categories={categories}
             categoryId="cafe-plan-category"
             categoryLabel={value => kitchenCategoryLabel(t, value)}
-            category={isDesktop ? category : undefined}
-            onCategoryChange={isDesktop ? setCategory : undefined}
+            category={category}
+            onCategoryChange={setCategory}
             searchPlaceholder={t('kitchen.plan.pesanan.searchPlaceholder')}
             ariaLabel={t('kitchen.plan.pesanan.toolbarAria')}
           />

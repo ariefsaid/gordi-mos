@@ -22,11 +22,25 @@
    bracket idiom (basis + max on a flexible track, DESIGN.md §Thin progress track) keeps
    these bracket values, not rendered geometry. It grows into the filters row up to the
    200px cap it has always had. */
+.ktb-filters {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
 .ktb-search-wrap {
   display: flex;
   flex: 1 1 var(--control-measure-search);
   min-width: var(--control-measure-search);
   max-width: 200px;
+}
+.ktb-filter-selects {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
 }
 
 .ktb-search { /* the search input itself */
@@ -48,13 +62,17 @@
   border-color: var(--accent);
 }
 
+.ktb-kind,
 .ktb-category {
   flex: none;
+  min-width: 0;
 }
+.ktb-kind .mk-select__box,
 .ktb-category .mk-select__box {
   background: var(--card);
   border-color: var(--border);
 }
+.ktb-kind .mk-select__field,
 .ktb-category .mk-select__field {
   font-size: var(--font-size-mono);
 }
@@ -117,7 +135,9 @@
   .ktb { gap: 8px; flex-wrap: wrap; padding: 8px 0 14px; }
   .ktb-children { flex: 1 0 100%; }
   .ktb-children > * { width: 100%; }
-  .ktb-search-wrap { max-width: none; }
+  .ktb-filters { flex: 1 1 100%; gap: 8px; }
+  .ktb-search-wrap { flex: 1 1 120px; min-width: 120px; max-width: none; }
   .ktb-search { height: 44px; }
-  .ktb-category { flex: 0 0 auto; }
+  .ktb-filter-selects { flex: 0 1 auto; gap: 6px; }
+  .ktb-kind, .ktb-category { max-width: 132px; }
 }

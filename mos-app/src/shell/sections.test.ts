@@ -23,10 +23,12 @@ describe('T5: SECTIONS — workspace fallback registry', () => {
 })
 
 describe('T5: CAFE_SECTIONS — Kitchen re-homed under /cafe/*', () => {
-  // DD-MVP-17: /cafe is the capture root, followed by Plan, Stock, Items, Review and Pushes.
-  it('exports the capture root + 5 café screens in canonical order (/cafe/log retired)', () => {
+  // /cafe is the Today/capture root followed by production, transfer, Plan, Stock, Items, Review and Pushes.
+  it('exports the Today root and Café routes in canonical order', () => {
     expect(CAFE_SECTIONS.map((s) => s.path)).toEqual([
       '/cafe',
+      '/cafe/production',
+      '/cafe/transfer',
       '/cafe/plan',
       '/cafe/stock',
       '/cafe/items',
@@ -44,8 +46,9 @@ describe('T5: CAFE_SECTIONS — Kitchen re-homed under /cafe/*', () => {
     })
   })
 
-  it('sectionForPath resolves /cafe/log, /cafe/items, /cafe/review, /cafe/pushes', () => {
-    expect(sectionForPath('/cafe/log')!.label).toBe('Log')
+  it('sectionForPath resolves production, transfer, items, review and pushes', () => {
+    expect(sectionForPath('/cafe/production')!.label).toBe('Log production')
+    expect(sectionForPath('/cafe/transfer')!.label).toBe('Log transfer')
     expect(sectionForPath('/cafe/items')!.label).toBe('Items')
     expect(sectionForPath('/cafe/review')!.label).toBe('Review')
     expect(sectionForPath('/cafe/pushes')!.label).toBe('Pushes')
@@ -55,8 +58,8 @@ describe('T5: CAFE_SECTIONS — Kitchen re-homed under /cafe/*', () => {
     expect(sectionForPath('/cafe/plan/anything')!.path).toBe('/cafe/plan')
   })
 
-  it('DD-MVP-17: sectionForPath resolves the exact /cafe path to the capture root (Log)', () => {
-    expect(sectionForPath('/cafe')!.label).toBe('Log')
+  it('sectionForPath resolves the exact /cafe path to the Today root', () => {
+    expect(sectionForPath('/cafe')!.label).toBe('Today')
   })
 })
 
@@ -114,10 +117,10 @@ describe('T5: sectionForPath — fallbacks', () => {
 
 describe('the Café children carry marks of their own (#457)', () => {
   // Several rungs, one picture: each Café tab gets its own mark so compact rail and phone drawer entries remain identifiable.
-  it('the five children and capture root use distinct components (DD-MVP-17)', () => {
+  it('the Café root and routes use distinct components', () => {
     const icons = CAFE_SECTIONS.map((s) => s.Icon)
-    expect(icons).toHaveLength(6)
-    expect(new Set(icons).size).toBe(6)
+    expect(icons).toHaveLength(8)
+    expect(new Set(icons).size).toBe(8)
   })
 
   it('none of them is a mark another destination already draws', () => {
