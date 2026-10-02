@@ -21,7 +21,14 @@ export type CafeItemSetting = {
   units: CafeItemSettingUnit[]
 }
 
-/** Ready-to-use item shape for future production/transfer/waste log lists. */
+/** Keep repeated ERP unit labels distinguishable without exposing product-detail identifiers. */
+export function cafeUnitDisplayLabel(unit: Pick<CafeItemSettingUnit, 'name' | 'labelOrdinal' | 'labelCount'>): string {
+  return unit.labelCount > 1 && unit.labelOrdinal !== null
+    ? `${unit.name} (${unit.labelOrdinal}/${unit.labelCount})`
+    : unit.name
+}
+
+/** Ready-to-use item shape for stream-scoped Café log lists. */
 export type CafeLogItem = {
   id: string
   name: string

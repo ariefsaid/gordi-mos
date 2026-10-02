@@ -9,7 +9,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // Mock the stream-settings boundary separately: listCaptureFormItems delegates to it for a chosen stream.
-vi.mock('./cafe-item-settings', () => ({ listCafeLogItems: vi.fn() }))
+vi.mock('./cafe-item-settings', async () => {
+  const actual = await vi.importActual<typeof import('./cafe-item-settings')>('./cafe-item-settings')
+  return { ...actual, listCafeLogItems: vi.fn() }
+})
 
 // Mock supabase at module scope — mirrors ops-log.test.ts pattern
 vi.mock('../supabase', () => {
@@ -242,6 +245,23 @@ describe('listCaptureFormItems — stream-aware capture-form read (FR-011, DD-WA
         { id: 'u2-case', name: 'case', is_default: false },
       ],
     }])
+  })
+
+  it('distinguishes repeated ERP unit labels without exposing ERP identifiers', async () => {
+    mockCafeLogItems.mockResolvedValue([{
+      id: 'w2', name: 'MOS Nasi Goreng', category: 'Main', kind: 'WIP',
+      defaultUnit: { id: 'detail-a', name: 'each' },
+      units: [
+        { id: 'detail-a', name: 'each', isDefault: true, labelOrdinal: 1, labelCount: 2 },
+        { id: 'detail-b', name: 'each', isDefault: false, labelOrdinal: 2, labelCount: 2 },
+      ],
+    }])
+
+    const result = await listCaptureFormItems(STREAM)
+    expect(result[0].units).toEqual([
+      { id: 'detail-a', name: 'each (1/2)', is_default: true },
+      { id: 'detail-b', name: 'each (2/2)', is_default: false },
+    ])
   })
 
   it('reads the gated capture_form_items view ordered by name — never raw wip_items', async () => {

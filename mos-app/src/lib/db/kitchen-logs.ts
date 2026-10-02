@@ -4,7 +4,7 @@
 // Snake_case column names consumed directly — no camelCase bridge.
 
 import { supabase } from '@/lib/supabase'
-import { listCafeLogItems } from './cafe-item-settings'
+import { cafeUnitDisplayLabel, listCafeLogItems } from './cafe-item-settings'
 import { movementKey } from '@/lib/kitchen-action-label'
 import type {
   ActualsMap,
@@ -183,7 +183,7 @@ export async function listCaptureFormItems(stream?: ProductionStream): Promise<C
       name: item.name,
       category: item.category,
       kind: item.kind,
-      units: item.units.map(unit => ({ id: unit.id, name: unit.name, is_default: unit.isDefault })),
+      units: item.units.map(unit => ({ id: unit.id, name: cafeUnitDisplayLabel(unit), is_default: unit.isDefault })),
     }))
   }
 
