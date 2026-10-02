@@ -1,4 +1,4 @@
-// KitchenLogPage — /mos/kitchen/log — Log capture screen (OD-K-5 redesign).
+// KitchenLogPage — /cafe — Log capture screen (OD-K-5 redesign).
 // Design authority: docs/plans/2026-06-21-kitchen-log-redesign.md.
 // ONE responsive screen built on the shared <DataTable> (desktop dense <table> +
 // metric summary + phone floor-fast cards (<768px), chosen via useIsDesktop()

@@ -13,6 +13,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, act, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { installDisabledBlur } from '@/test/browser-focus-fixup'
+import { APP_ROUTER_BASENAME, appUrl } from '@/config/app-build-settings'
 import { MemoryRouter, Route, Routes, createMemoryRouter, RouterProvider, Link } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 
@@ -215,17 +216,17 @@ const OPS_LEAD: AuthState = {
 // ── helpers ───────────────────────────────────────────────────────────────────
 async function renderPage(
   auth: AuthState = VIEWER_MEMBER,
-  initialPath = '/mos/kitchen/log',
+  initialPath = appUrl('/cafe'),
   location?: { activeBranchId: string; activeBranchName: string },
 ) {
   mockUseAuth.mockReturnValue(auth)
   let utils!: ReturnType<typeof render>
   await act(async () => {
     utils = render(
-      <MemoryRouter initialEntries={[initialPath]}>
+      <MemoryRouter basename={APP_ROUTER_BASENAME} initialEntries={[initialPath]}>
         <Routes>
-          <Route path="/mos/kitchen/log" element={<KitchenLogPage {...location} />} />
-          <Route path="/mos/kitchen/log/success" element={<div>Submitted</div>} />
+          <Route path="/cafe" element={<KitchenLogPage {...location} />} />
+          <Route path="/cafe/success" element={<div>Submitted</div>} />
         </Routes>
       </MemoryRouter>,
     )
@@ -285,9 +286,9 @@ describe('Loading state', () => {
     mockUseAuth.mockReturnValue(VIEWER_MEMBER)
 
     render(
-      <MemoryRouter initialEntries={['/mos/kitchen/log']}>
+      <MemoryRouter basename={APP_ROUTER_BASENAME} initialEntries={[appUrl('/cafe')]}>
         <Routes>
-          <Route path="/mos/kitchen/log" element={<KitchenLogPage />} />
+          <Route path="/cafe" element={<KitchenLogPage />} />
         </Routes>
       </MemoryRouter>,
     )
@@ -301,17 +302,17 @@ describe('Unauthenticated state', () => {
   it('shows sign-in prompt when unauthenticated', async () => {
     mockUseAuth.mockReturnValue({ status: 'unauthenticated' })
     render(
-      <MemoryRouter basename="/mos" initialEntries={['/mos/kitchen/log']}>
+      <MemoryRouter basename={APP_ROUTER_BASENAME} initialEntries={[appUrl('/cafe')]}>
         <Routes>
-          <Route path="/kitchen/log" element={<KitchenLogPage />} />
+          <Route path="/cafe" element={<KitchenLogPage />} />
         </Routes>
       </MemoryRouter>,
     )
     // Check for the sign-in link (the action element)
     const link = await screen.findByRole('link', { name: /sign in/i })
     expect(link).toBeInTheDocument()
-    // Link must resolve via the SPA router (basename applied) — not a raw href that skips /mos
-    expect(link).toHaveAttribute('href', '/mos/login')
+    // Link must resolve via the SPA router with the configured build base path.
+    expect(link).toHaveAttribute('href', appUrl('/login'))
   })
 
   // #410: the prompt + button were hardcoded English while the rest of the page is translated.
@@ -320,9 +321,9 @@ describe('Unauthenticated state', () => {
     const { I18nProvider } = await import('@/i18n/I18nProvider')
     render(
       <I18nProvider initialLocale="id">
-        <MemoryRouter basename="/mos" initialEntries={['/mos/kitchen/log']}>
+        <MemoryRouter basename={APP_ROUTER_BASENAME} initialEntries={[appUrl('/cafe')]}>
           <Routes>
-            <Route path="/kitchen/log" element={<KitchenLogPage />} />
+            <Route path="/cafe" element={<KitchenLogPage />} />
           </Routes>
         </MemoryRouter>
       </I18nProvider>,
@@ -1311,9 +1312,9 @@ describe('RI-3: interactive controls meet the 44px touch floor', () => {
   it('Sign-in carries the .btn-touch floor on the unauthenticated state', async () => {
     mockUseAuth.mockReturnValue({ status: 'unauthenticated' })
     render(
-      <MemoryRouter basename="/mos" initialEntries={['/mos/kitchen/log']}>
+      <MemoryRouter basename={APP_ROUTER_BASENAME} initialEntries={[appUrl('/cafe')]}>
         <Routes>
-          <Route path="/kitchen/log" element={<KitchenLogPage />} />
+          <Route path="/cafe" element={<KitchenLogPage />} />
         </Routes>
       </MemoryRouter>,
     )
@@ -1450,7 +1451,7 @@ describe('OD-K-5: search-mini filters', () => {
 
   it('I7 / D-E1: hydrates the search from ?q= on load (a refreshed/shared link reproduces the filtered view)', async () => {
     setDesktopMatchMedia(true)
-    await renderPage(VIEWER_MEMBER, '/mos/kitchen/log?q=nasi')
+    await renderPage(VIEWER_MEMBER, `${appUrl('/cafe')}?q=nasi`)
     await waitFor(() => screen.getByText('Nasi Goreng'))
 
     // The search box is pre-filled from the URL and the table is already narrowed — no retype.
@@ -1573,17 +1574,17 @@ describe('GAP-4/#9: route-leave dirty guard for staged quantities', () => {
     const router = createMemoryRouter(
       [
         {
-          path: '/mos/kitchen/log',
+          path: '/cafe',
           element: (
             <>
               <KitchenLogPage />
-              <Link to="/mos/elsewhere">Go to dashboard</Link>
+              <Link to="/elsewhere">Go to dashboard</Link>
             </>
           ),
         },
-        { path: '/mos/elsewhere', element: <h1>Elsewhere</h1> },
+        { path: '/elsewhere', element: <h1>Elsewhere</h1> },
       ],
-      { initialEntries: ['/mos/kitchen/log'] },
+      { basename: APP_ROUTER_BASENAME, initialEntries: [appUrl('/cafe')] },
     )
     await act(async () => {
       render(<RouterProvider router={router} />)
@@ -1848,7 +1849,7 @@ describe('DD-MVP-9: a receiving-only stream remains readable but cannot capture 
     expect(within(screen.getByTestId('cafe-stream')).getByText('Radiant · Kitchen')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /receiving-only stream/i })).toBeInTheDocument()
     expect(screen.getByText(/production capture and planning are unavailable/i)).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /view café stock/i })).toHaveAttribute('href', '/cafe/stock')
+    expect(screen.getByRole('link', { name: /view café stock/i })).toHaveAttribute('href', appUrl('/cafe/stock'))
     expect(screen.getByText('Ayam Bakar')).toBeInTheDocument()
     expect(screen.queryByRole('form', { name: /café log capture/i })).toBeNull()
     expect(screen.queryByRole('spinbutton')).toBeNull()
@@ -2390,7 +2391,7 @@ describe('OD-CAFE-1 — the production picker is bounded by the active location'
   const HQ = { activeBranchId: BRANCH_GORDI_HQ.id, activeBranchName: BRANCH_GORDI_HQ.name }
 
   it('offers only the active location’s streams, not every branch’s', async () => {
-    await renderPage(VIEWER_MEMBER, '/mos/kitchen/log', HQ)
+    await renderPage(VIEWER_MEMBER, appUrl('/cafe'), HQ)
     // The remembered default (Rumah Rames) is outside HQ, so this opens on the no-stream
     // guidance state (OD-CAFE-1) — the one-step choice itself is still reachable (#781 item 2).
     await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
@@ -2406,7 +2407,7 @@ describe('OD-CAFE-1 — the production picker is bounded by the active location'
 
   it('treats a remembered stream from another location as stale, and says which location this is', async () => {
     // The person's own default stream is Rumah Rames; they are standing at Gordi HQ.
-    await renderPage(VIEWER_MEMBER, '/mos/kitchen/log', HQ)
+    await renderPage(VIEWER_MEMBER, appUrl('/cafe'), HQ)
     await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
 
     // #781/B12: with nothing resolved the head states NOTHING — not silently re-pointed at an
@@ -2422,7 +2423,7 @@ describe('OD-CAFE-1 — the production picker is bounded by the active location'
   })
 
   it('keeps the person’s own default when they are standing at its location', async () => {
-    await renderPage(VIEWER_MEMBER, '/mos/kitchen/log', {
+    await renderPage(VIEWER_MEMBER, appUrl('/cafe'), {
       activeBranchId: BRANCH_RUMAH_RAMES.id, activeBranchName: BRANCH_RUMAH_RAMES.name,
     })
     await waitFor(() => screen.getByText('Ayam Bakar'))
@@ -2432,7 +2433,7 @@ describe('OD-CAFE-1 — the production picker is bounded by the active location'
   })
 
   it('leaves the transfer workflow crossing branches — the catalog is bounded for the PICKER only', async () => {
-    await renderPage(VIEWER_MEMBER, '/mos/kitchen/log', {
+    await renderPage(VIEWER_MEMBER, appUrl('/cafe'), {
       activeBranchId: BRANCH_RUMAH_RAMES.id, activeBranchName: BRANCH_RUMAH_RAMES.name,
     })
     await waitFor(() => screen.getByText('Ayam Bakar'))

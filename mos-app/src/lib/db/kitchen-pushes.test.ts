@@ -1,5 +1,5 @@
 // kitchen-pushes.ts data module tests — TDD, AC-tagged.
-// S5 Pushes view (/mos/kitchen/pushes) — read-only monitoring surface.
+// S5 Pushes view (/cafe/pushes) — read-only monitoring surface.
 // Design authority: docs/plans/2026-06-20-kitchen-ui-design-plan.md §S5.
 // Proves: listEsbPushes selects the right columns, ranks worst-first in SQL,
 // applies optional status/module filters, and throws a clear error on DB failure.

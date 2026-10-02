@@ -1,4 +1,4 @@
-/* PricingPage — /mos/money/pricing (ADR-0022 D5). Pre-flight margin check, read-only. */
+/* PricingPage — /money/pricing (ADR-0022 D5). Pre-flight margin check, read-only. */
 .pp-section {
   margin-top: 24px;
 }

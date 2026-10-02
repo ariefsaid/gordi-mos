@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { APP_BASE_PATH, appUrl } from './config/app-build-settings'
 import { registerServiceWorker } from './sw-register'
 
 describe('registerServiceWorker (T29)', () => {
@@ -12,6 +13,6 @@ describe('registerServiceWorker (T29)', () => {
     registerServiceWorker()
     window.dispatchEvent(new Event('load'))
 
-    expect(register).toHaveBeenCalledWith('/mos/sw.js')
+    expect(register).toHaveBeenCalledWith(appUrl('/sw.js'), { scope: APP_BASE_PATH })
   })
 })

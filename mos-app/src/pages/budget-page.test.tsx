@@ -1,4 +1,4 @@
-// BudgetPage tests — TDD (AC-tagged). Route /mos/plan/budget (finance/admin-gated at the router; this
+// BudgetPage tests — TDD (AC-tagged). Route /plan/budget (finance/admin-gated at the router; this
 // suite proves the page's OWN behavior once mounted): the linked BOM × cost lines -> budgeted COGS,
 // the drill to the linked cost line (link-never-copy — AC-PB-007), the capture write shape
 // (AC-PB-008), and the fail-loud badge on a stale cost basis.

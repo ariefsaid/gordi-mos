@@ -19,6 +19,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { createElement, type ReactNode } from 'react'
 import type { AuthState } from '@/auth/context'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import { APP_ROUTER_BASENAME, appUrl } from '@/config/app-build-settings'
 
 vi.mock('@/auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
@@ -192,7 +193,7 @@ describe('KitchenReviewPage — role gate (FR-003/044)', () => {
   it('a member sees a forbidden panel — NOT an empty table', async () => {
     mockUseAuth.mockReturnValue(viewer(['member']))
     render(
-      <MemoryRouter basename="/mos" initialEntries={['/mos/kitchen/review']}>
+      <MemoryRouter basename={APP_ROUTER_BASENAME} initialEntries={[appUrl('/cafe/review')]}>
         <I18nProvider><KitchenReviewPage /></I18nProvider>
       </MemoryRouter>,
     )
@@ -202,7 +203,7 @@ describe('KitchenReviewPage — role gate (FR-003/044)', () => {
     expect(mockList).not.toHaveBeenCalled()
     // Back to Log must resolve via the SPA router — not a raw href that causes a full reload
     const backLink = screen.getByRole('link', { name: /back to log/i })
-    expect(backLink).toHaveAttribute('href', '/mos/cafe')
+    expect(backLink).toHaveAttribute('href', appUrl('/cafe'))
   })
 
   it('an admin is allowed (not forbidden)', async () => {

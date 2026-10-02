@@ -21,6 +21,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { createElement, type ReactNode } from 'react'
 import type { AuthState } from '@/auth/context'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import { APP_ROUTER_BASENAME, appUrl } from '@/config/app-build-settings'
 
 vi.mock('@/auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
@@ -179,7 +180,7 @@ describe('KitchenStockPage — auth', () => {
   it('unauthenticated: prompts sign-in, never reads stock', async () => {
     mockUseAuth.mockReturnValue({ status: 'unauthenticated' } as AuthState)
     render(
-      <MemoryRouter basename="/mos" initialEntries={['/mos/kitchen/stock']}>
+      <MemoryRouter basename={APP_ROUTER_BASENAME} initialEntries={[appUrl('/cafe/stock')]}>
         <I18nProvider>
           <KitchenStockPage />
         </I18nProvider>
@@ -187,8 +188,8 @@ describe('KitchenStockPage — auth', () => {
     )
     const link = await screen.findByRole('link', { name: /sign in/i })
     expect(link).toBeInTheDocument()
-    // Link must resolve via the SPA router (basename applied) — not a raw href that skips /mos
-    expect(link).toHaveAttribute('href', '/mos/login')
+    // Link must resolve via the SPA router with the configured build base path.
+    expect(link).toHaveAttribute('href', appUrl('/login'))
     expect(mockFetchStock).not.toHaveBeenCalled()
     expect(mockDefaultStream).not.toHaveBeenCalled()
   })

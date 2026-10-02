@@ -9,6 +9,7 @@
 import { test, expect, type Page } from '@playwright/test'
 import { loginAs } from './helpers/login'
 import { MANAGER } from './fixtures/users'
+import { e2eAppPath } from './helpers/app-path'
 import { TASKS_RECORD_PANEL_FLOOR_PX, TASKS_SPLIT_MIN_WIDTH } from '../src/shell/use-is-split-width'
 
 const RECORD_PANEL_CAP_PX = 640
@@ -411,7 +412,7 @@ test.describe('Work collections share one wide measure and one record-panel widt
     // must keep its own, narrower width rather than inheriting the shared token.
     await page.setViewportSize({ width: 1440, height: 900 })
     await loginAs(page, MANAGER.email, MANAGER.password)
-    await page.goto('/')
+    await page.goto(e2eAppPath('/'))
     const opener = page.getByRole('button', { name: /^Open signal:/ }).first()
     await expect(opener).toBeVisible({ timeout: 15_000 })
     await opener.click()

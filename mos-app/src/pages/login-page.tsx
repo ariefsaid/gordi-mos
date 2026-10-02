@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { AuthShell, AuthCard, Spinner } from '@/auth/auth-shell'
 import { safeReturnTarget } from '@/auth/return-target'
+import { appUrl } from '@/config/app-build-settings'
 import { DemoLogin } from './demo-login'
 import { demoLoginMode, isSampleSession } from './demo-personas'
 
@@ -145,7 +146,7 @@ export function LoginPage() {
         email,
         // The link lands on the route they asked for, so a person who followed a deep link into
         // MOS from their mail finishes where they started rather than on Home.
-        options: { shouldCreateUser: false, emailRedirectTo: `${window.location.origin}/mos${returnTarget}` },
+        options: { shouldCreateUser: false, emailRedirectTo: new URL(appUrl(returnTarget), window.location.origin).href },
       })
       // ⚠ DO NOT branch the user-visible outcome on `sendError` (AC-006, and a review of #137
       // caught exactly that). GoTrue answers 200 for an address it has never seen — it attempts
@@ -172,7 +173,7 @@ export function LoginPage() {
     try {
       // redirectTo ensures the recovery link lands on /recovery so the PASSWORD_RECOVERY
       // event is handled while the router is at the correct path (audit L1 fix).
-      const redirectTo = `${window.location.origin}/mos/recovery`
+      const redirectTo = new URL(appUrl('/recovery'), window.location.origin).href
       const { error: sendError } = await supabase.auth.resetPasswordForEmail(email, { redirectTo })
       // Same reasoning as the magic-link path above: the outcome must not vary with `sendError`,
       // because a failed send implies the address exists. Console only, never the UI.

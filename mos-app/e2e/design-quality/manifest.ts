@@ -156,17 +156,17 @@ const journeys = [
   'cafe-pushes',
 ]
 const routes = [
-  '/mos/work/tasks',
-  '/mos/work/signals',
-  '/mos/inbox',
-  '/mos/cafe',
-  '/mos/cafe/plan',
-  // DD-MVP-17 retired /mos/cafe/log as a page: it redirects to the capture root, so the
-  // cafe-log journey's cells measure /mos/cafe. A retired route cannot carry coverage, and
+  '/work/tasks',
+  '/work/signals',
+  '/inbox',
+  '/cafe',
+  '/cafe/plan',
+  // DD-MVP-17 retired /cafe/log as a page: it redirects to the capture root, so the
+  // cafe-log journey's cells measure /cafe. A retired route cannot carry coverage, and
   // leaving it in this denominator failed the manifest contract outright.
-  '/mos/cafe/review',
-  '/mos/cafe/stock',
-  '/mos/cafe/pushes',
+  '/cafe/review',
+  '/cafe/stock',
+  '/cafe/pushes',
 ]
 const fixtures = ['BAR_MEMBER', 'BARISTA', 'BAR_SUPERVISOR', 'VIEWER', 'MANAGER', 'ADMIN', 'ORPHAN', 'AUDIT_RECEIVING_ONLY']
 const viewports = ['phone-390x844', 'compact-1024x768', 'desktop-1440x900']
@@ -306,7 +306,7 @@ const emptyNamedLists: ManifestLists = {
       // reveal that stops working fails closed.
       selector: "[data-filter-id='status'] .collection-toolbar__choice-value",
       authority: 'DESIGN.md compact toolbar: a contracted value keeps its full string on the trigger and in the choice list it opens',
-      routes: ['/mos/work/tasks'],
+      routes: ['/work/tasks'],
       viewports: ['compact-1024x768'],
       reveal: { action: 'click', selector: "[data-filter-id='status'] .collection-toolbar__fields-menu .collection-toolbar__toggle span" },
     },
@@ -315,7 +315,7 @@ const emptyNamedLists: ManifestLists = {
     {
       selector: '.kl-footer-actions',
       authority: 'DESIGN.md phone target spacing; Café Log exposes adjacent Discard and Submit actions',
-      routes: ['/mos/cafe'],
+      routes: ['/cafe'],
       viewports: ['phone-390x844'],
       // The capture footer rides the capture face. A profile without a single assigned
       // location gets the location overview first (DD-MVP-11), which has no footer to

@@ -1,5 +1,5 @@
 // KitchenPushesPage tests — TDD, AC-tagged.
-// S5 Pushes view (/mos/kitchen/pushes) — read-only ESB push monitoring surface.
+// S5 Pushes view (/cafe/pushes) — read-only ESB push monitoring surface.
 // Design authority: docs/plans/2026-06-20-kitchen-ui-design-plan.md §S5.
 //
 // Proves:
@@ -16,6 +16,7 @@ import { render, screen, waitFor, fireEvent, within } from '@testing-library/rea
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { AuthState } from '@/auth/context'
+import { APP_ROUTER_BASENAME, appUrl } from '@/config/app-build-settings'
 
 vi.mock('@/auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
@@ -167,14 +168,14 @@ describe('KitchenPushesPage — auth', () => {
   it('unauthenticated: prompts sign-in, never reads pushes', async () => {
     mockUseAuth.mockReturnValue({ status: 'unauthenticated' } as AuthState)
     render(
-      <MemoryRouter basename="/mos" initialEntries={['/mos/kitchen/pushes']}>
+      <MemoryRouter basename={APP_ROUTER_BASENAME} initialEntries={[appUrl('/cafe/pushes')]}>
         <KitchenPushesPage />
       </MemoryRouter>,
     )
     const link = await screen.findByRole('link', { name: /sign in/i })
     expect(link).toBeInTheDocument()
-    // Link must resolve via the SPA router (basename applied) — not a raw href that skips /mos
-    expect(link).toHaveAttribute('href', '/mos/login')
+    // Link must resolve via the SPA router under the configured app base path.
+    expect(link).toHaveAttribute('href', appUrl('/login'))
     expect(mockListPushes).not.toHaveBeenCalled()
   })
 })
@@ -185,7 +186,7 @@ describe('KitchenPushesPage — role gate (AC-007)', () => {
   it('member → forbidden panel, no read call', async () => {
     mockUseAuth.mockReturnValue(viewer(['member']))
     render(
-      <MemoryRouter basename="/mos" initialEntries={['/mos/kitchen/pushes']}>
+      <MemoryRouter basename={APP_ROUTER_BASENAME} initialEntries={[appUrl('/cafe/pushes')]}>
         <KitchenPushesPage />
       </MemoryRouter>,
     )
@@ -212,7 +213,7 @@ describe('KitchenPushesPage — role gate (AC-007)', () => {
   it('forbidden panel has a back-to-log link', async () => {
     mockUseAuth.mockReturnValue(viewer(['member']))
     render(
-      <MemoryRouter basename="/mos" initialEntries={['/mos/kitchen/pushes']}>
+      <MemoryRouter basename={APP_ROUTER_BASENAME} initialEntries={[appUrl('/cafe/pushes')]}>
         <KitchenPushesPage />
       </MemoryRouter>,
     )
@@ -220,7 +221,7 @@ describe('KitchenPushesPage — role gate (AC-007)', () => {
     // Link must resolve via the SPA router (basename applied) — not a full-reload raw anchor
     // Café's canonical Log route (#196 rename) — not the retired /kitchen/log, which
     // only still resolves via a redirect hop.
-    expect(backLink).toHaveAttribute('href', '/mos/cafe')
+    expect(backLink).toHaveAttribute('href', appUrl('/cafe'))
   })
 })
 
