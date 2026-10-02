@@ -525,9 +525,11 @@ export function CatalogRecordDocument({
       : canAddTask
         ? (accountableName ? 'catalog.record.viewOnly.objectiveAdd' : 'catalog.record.viewOnly.noneAdd')
         : (accountableName ? 'catalog.record.viewOnly.objective' : 'catalog.record.viewOnly.none'))
-    : canAddTask
-      ? (accountableName ? 'catalog.record.viewOnly.workLineAdd' : 'catalog.record.viewOnly.noneAdd')
-      : (accountableName ? 'catalog.record.viewOnly.workLine' : 'catalog.record.viewOnly.none')
+    : isProcess && startReady
+      ? (accountableName ? 'catalog.record.viewOnly.processStart' : 'catalog.record.viewOnly.processStartNone')
+      : canAddTask
+        ? (accountableName ? 'catalog.record.viewOnly.workLineAdd' : 'catalog.record.viewOnly.noneAdd')
+        : (accountableName ? 'catalog.record.viewOnly.workLine' : 'catalog.record.viewOnly.none')
   const note = !scopesKnown || canManage ? undefined : t(noteKey, { name: accountableName ?? '' })
 
   const menu: RecordMenuItem[] = [

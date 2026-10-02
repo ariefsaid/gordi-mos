@@ -177,6 +177,7 @@ export function Picker({
     return runs
   }, [])
 
+  const filterLabel = t('ui.picker.filter', { label })
   const selectedLabel = options.find((option) => option.value === value)?.label
   const selectedValue = selectedLabel ?? placeholder ?? label
   const fullValue = triggerPrefix ? `${triggerPrefix}: ${selectedValue}` : selectedValue
@@ -268,7 +269,7 @@ export function Picker({
           >
             <Command
               className="picker__command"
-              label={t('ui.picker.filter', { label })}
+              label={filterLabel}
               filter={filter}
               value={active}
               onValueChange={setActive}
@@ -277,6 +278,7 @@ export function Picker({
             >
               <Command.Input
                 className="picker__search"
+                placeholder={filterLabel}
                 value={search}
                 onValueChange={setSearch}
               />
