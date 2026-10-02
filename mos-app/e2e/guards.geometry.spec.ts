@@ -470,8 +470,8 @@ test.describe('auth-card tap-target guards (GUARD-TAP, #403)', () => {
 // category AFTER the search — the filters compose with each other, never orphaned below the
 // scope band. The category control is measured via its toolbar slot (`.ktb-category`, which
 // hugs the visible select box): getByRole('combobox') resolves to the native field inset inside
-// that slot. Same-rowness is judged on CENTER LINES, so it stays height-agnostic. The Log/Plan
-// phone toolbar includes both kind and category filters; the phone guards keep them reachable.
+// that slot. Same-rowness is judged on CENTER LINES, so it stays height-agnostic. Phone hides
+// desktop-only kind/category filters; guards prove search stays usable and URL state cannot hide rows.
 
 const SEARCH_FLOOR = 159.5 // 160px usable-measure floor, 0.5px sub-pixel tolerance (TAP_FLOOR idiom)
 
