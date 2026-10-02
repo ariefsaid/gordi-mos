@@ -54,6 +54,8 @@ export type TasksTableBodyProps = {
   onClearFilters: () => void
   emptyTitle: string
   emptyCopy: string
+  /** Hide the empty-state create door when this scope has no Team the viewer can assign to. */
+  emptyCreate?: boolean
 
   // ── Desktop table: thead sort + select-all ────────────────────────────────
   /** The TanStack table instance (#997): the <thead> renders from its column-definition
@@ -117,7 +119,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
   const t = useT()
   const {
     loading, error, hasActiveFilter, isDesktop,
-    onRetry, onClearFilters, emptyTitle, emptyCopy,
+    onRetry, onClearFilters, emptyTitle, emptyCopy, emptyCreate = true,
     table,
     flatRows, leafIndexByRowId, virtualize, scrollRef, rowVirtualizer, renderRow, renderGroupHeader,
     onOpenTask,
@@ -169,7 +171,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
     // Empty-no-tasks: no filter is active (segment-aware copy)
     return (
       <EmptyState title={emptyTitle} copy={emptyCopy}>
-        <Link to={createHref} className="btn btn-primary">{t('tasks.new')}</Link>
+        {emptyCreate ? <Link to={createHref} className="btn btn-primary">{t('tasks.new')}</Link> : null}
       </EmptyState>
     )
   }

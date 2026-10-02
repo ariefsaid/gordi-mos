@@ -8,9 +8,11 @@ import {
   routerBasename,
 } from './build-settings'
 
+// Vite supplies import.meta.env in browser builds. Node-side E2E route helpers also import this
+// module directly, where the metadata is absent and the build-settings defaults apply.
 const APP_BUILD_SETTINGS = resolveBuildSettings({
-  [BASE_PATH_ENV]: import.meta.env.BASE_URL,
-  [RELEASE_PROFILE_ENV]: import.meta.env.VITE_RELEASE_PROFILE,
+  [BASE_PATH_ENV]: import.meta.env?.BASE_URL,
+  [RELEASE_PROFILE_ENV]: import.meta.env?.VITE_RELEASE_PROFILE,
 })
 
 export const APP_BASE_PATH = APP_BUILD_SETTINGS.basePath

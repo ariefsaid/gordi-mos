@@ -440,7 +440,8 @@ function matchesTaskFilters(
   return true
 }
 
-/** True when any client-side filter is populated (drives empty vs filtered-empty). The Relevant
+/** True when any client-side filter is populated (drives empty vs filtered-empty). A bare
+ *  Team work scope has its own true-empty copy; narrowing fields remain filters. The Relevant
  *  scope counts: a non-org-wide All view that hides every row is filtered-empty, not empty. */
 function taskFiltersAreActive(query: TaskCollectionQuery, viewerOrgWide: boolean | undefined): boolean {
   return (
@@ -452,7 +453,6 @@ function taskFiltersAreActive(query: TaskCollectionQuery, viewerOrgWide: boolean
     query.personId !== null ||
     query.overdueOnly ||
     query.view === 'my-work' ||
-    query.view === 'team-work' ||
     query.view === 'my-pic' ||
     query.view === 'my-supervisor' ||
     query.view === 'overdue' ||

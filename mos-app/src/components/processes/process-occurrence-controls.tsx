@@ -28,13 +28,11 @@ export type ProcessOccurrenceControlsProps = {
   onChanged?: () => void
   // The occurrence data when the host owns the fetch; without it the controls read their own.
   data?: ProcessOccurrencesData
-  // The record header owns Start and names the Process; body rows stay descriptive and concise.
-  recordContext?: boolean
 }
 
 type Confirmation = { kind: 'complete' | 'cancel'; run: ProcessOccurrenceSummary }
 
-export function ProcessOccurrenceControls({ workLineId, setupIncomplete = false, canManageSetup = false, onViewTasks, onChanged, data, recordContext = false }: ProcessOccurrenceControlsProps) {
+export function ProcessOccurrenceControls({ workLineId, setupIncomplete = false, canManageSetup = false, onViewTasks, onChanged, data }: ProcessOccurrenceControlsProps) {
   const t = useT()
   const { locale } = useI18n()
   // A host that lifts the occurrence data (the record header shows the Start primary) passes it in.
@@ -141,11 +139,8 @@ export function ProcessOccurrenceControls({ workLineId, setupIncomplete = false,
     return (
       <li key={run.id} className="process-occurrence-controls__item">
         <div className="process-occurrence-controls__identity">
-          <h4>{recordContext ? formatDayMonthYear(run.scheduled_date, locale) : run.caption}</h4>
-          <p>{recordContext
-            ? <>{summary.team_name} · {statusLabel}</>
-            : <>{summary.team_name} · {formatDayMonthYear(run.scheduled_date, locale)} · {statusLabel}</>}
-          </p>
+          <h4>{formatDayMonthYear(run.scheduled_date, locale)}</h4>
+          <p>{summary.team_name} · {statusLabel}</p>
         </div>
         <div className="process-occurrence-controls__counts tabular-nums" aria-label={t('processes.occurrence.countsLabel')}>
           <span>{t('processes.occurrence.tasks', { count: rollup.total })}</span>
@@ -210,7 +205,6 @@ export function ProcessOccurrenceControls({ workLineId, setupIncomplete = false,
             startingKey={startingKey}
             startError={startError && !data}
             context="process-record"
-            hideStartButton={recordContext}
             onStart={handleStart}
           />
         </section>

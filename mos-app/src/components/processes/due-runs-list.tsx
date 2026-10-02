@@ -17,10 +17,9 @@ export interface DueRunsListProps {
   startError: boolean
   onStart: (row: DueProcessRun) => Promise<void>
   context?: 'process-record'
-  hideStartButton?: boolean
 }
 
-export function DueRunsList({ due, expanded, startingKey, startError, onStart, context, hideStartButton = false }: DueRunsListProps) {
+export function DueRunsList({ due, expanded, startingKey, startError, onStart, context }: DueRunsListProps) {
   const t = useT()
   const idPrefix = useId()
   const processRecordContext = context === 'process-record'
@@ -45,16 +44,16 @@ export function DueRunsList({ due, expanded, startingKey, startError, onStart, c
                   </>
                 )}
               </div>
-              {!hideStartButton ? (
+              {!processRecordContext ? (
                 <Button
-                  variant={processRecordContext ? 'outline' : 'primary'}
+                  variant="primary"
                   className="due-runs-start-btn"
                   disabled={startingKey === key}
-                  aria-describedby={!processRecordContext ? labelsId : undefined}
+                  aria-describedby={labelsId}
                   onClick={() => { void onStart(row) }}
                 >
                   <span className="due-runs-start-label">
-                    {t('processes.action.startComposed', { name: processRecordContext ? row.team_name : row.process_name })}
+                    {t('processes.action.startComposed', { name: row.process_name })}
                   </span>
                 </Button>
               ) : null}
