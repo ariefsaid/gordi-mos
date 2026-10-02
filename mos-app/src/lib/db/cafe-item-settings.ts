@@ -44,7 +44,11 @@ type CafeItemSettingReadRow = {
   unit_is_shown: boolean
 }
 
-function mapCafeItemSettings(rows: CafeItemSettingReadRow[]): CafeItemSetting[] {
+function mapCafeItemSettings(
+  rows: CafeItemSettingReadRow[],
+  configuredItemIds: ReadonlySet<string>,
+  erpDefaultUnitIds: ReadonlyMap<string, string>,
+): CafeItemSetting[] {
   const grouped = new Map<string, CafeItemSetting>()
 
   for (const row of rows) {
@@ -100,6 +104,16 @@ function mapCafeItemSettings(rows: CafeItemSettingReadRow[]): CafeItemSetting[] 
   }
 
   return [...grouped.values()].map(item => {
+    if (!configuredItemIds.has(item.id)) {
+      // Until a manager saves this stream/item row, ERP owns both the full detail list and its
+      // default. Keeping every source detail visible avoids silently narrowing a new stream.
+      item.defaultUnitId = erpDefaultUnitIds.get(item.id) ?? null
+      item.units = item.units.map(unit => ({
+        ...unit,
+        isShown: true,
+        isDefault: unit.id === item.defaultUnitId,
+      }))
+    }
     item.units.sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
     const totals = new Map<string, number>()
     for (const unit of item.units) totals.set(unit.name, (totals.get(unit.name) ?? 0) + 1)
@@ -127,7 +141,33 @@ export async function listCafeItemSettings(stream: ProductionStream): Promise<Ca
     .order('item_unit_id', { ascending: true })
 
   if (error) throw new Error(`listCafeItemSettings failed: ${error.message}`)
-  return mapCafeItemSettings((data ?? []) as CafeItemSettingReadRow[])
+  const rows = (data ?? []) as CafeItemSettingReadRow[]
+  if (rows.length === 0) return []
+
+  const [settingsResult, referencesResult] = await Promise.all([
+    supabase.schema('ops')
+      .from('cafe_item_settings')
+      .select('wip_item_id')
+      .eq('branch_id', stream.branch.id)
+      .eq('activity', stream.activity),
+    supabase.schema('ops')
+      .from('cafe_item_references')
+      .select('item_id,item_unit_id,is_default')
+      .eq('branch_id', stream.branch.id)
+      .eq('activity', stream.activity),
+  ])
+  if (settingsResult.error) throw new Error(`listCafeItemSettings failed: ${settingsResult.error.message}`)
+  if (referencesResult.error) throw new Error(`listCafeItemSettings failed: ${referencesResult.error.message}`)
+
+  const configuredItemIds = new Set(
+    ((settingsResult.data ?? []) as { wip_item_id: string }[]).map(row => row.wip_item_id),
+  )
+  const erpDefaultUnitIds = new Map<string, string>(
+    ((referencesResult.data ?? []) as { item_id: string; item_unit_id: string; is_default: boolean }[])
+      .filter(row => row.is_default)
+      .map(row => [row.item_id, row.item_unit_id]),
+  )
+  return mapCafeItemSettings(rows, configuredItemIds, erpDefaultUnitIds)
 }
 
 /** Log readers omit items until a shown default exists; the write trigger enforces this again. */
@@ -137,6 +177,7 @@ export async function listCafeLogItems(stream: ProductionStream): Promise<CafeLo
     const units = item.units.filter(unit => unit.isShown)
     const defaultUnit = units.find(unit => unit.id === item.defaultUnitId && unit.isDefault)
     if (!defaultUnit) return []
+    units.sort((a, b) => Number(b.isDefault) - Number(a.isDefault))
     return [{
       id: item.id,
       name: item.mosName,
