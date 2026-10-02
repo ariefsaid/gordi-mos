@@ -298,18 +298,25 @@ test.describe('shell overlay transitions', () => {
     await page.screenshot({ path: info.outputPath('deputy-with-record-1440.png'), animations: 'disabled' })
   })
 
-  test('phone: Deputy is a modal that takes focus, closes on Escape and returns focus', async ({ page }, info) => {
+  test('phone: a Work record opens as a full page with one Back; Deputy remains a modal', async ({ page }, info) => {
     await page.setViewportSize(PHONE)
     await loginAs(page, DIRECTOR, DEMO_PASSWORD)
 
-    // A record visited and closed through Back first: the session must not linger into Home.
+    // A phone selection is a canonical page, not a full-screen Record Panel overlay.
     await page.goto('work/objectives')
     const row = page.locator('.catalog-collection__row-link').first()
+    await expect(row).toBeVisible()
+    const recordPath = new URL((await row.getAttribute('href'))!, page.url()).pathname
+    const recordName = (await row.getAttribute('aria-label')) ?? ''
     await row.click()
-    await expect(recordPanel(page)).toBeVisible()
-    await recordPanel(page).getByRole('button', { name: 'Close', exact: true }).click()
+    await expect(page).toHaveURL((url) => url.pathname === recordPath)
+    await expect(page.getByRole('region', { name: recordName, exact: true })).toBeVisible()
     await expect(recordPanel(page)).toHaveCount(0)
-    await expect(row).toBeFocused()
+
+    await page.getByRole('link', { name: 'Back to Objectives', exact: true }).click()
+    await expect.poll(() => stripE2eBasePath(new URL(page.url()).pathname)).toBe('/work/objectives')
+    await expect(page.locator('.catalog-collection__row-link').first()).toBeVisible()
+    await expect(recordPanel(page)).toHaveCount(0)
     await rail(page).getByRole('link', { name: 'Home' }).click()
     await expect.poll(() => stripE2eBasePath(new URL(page.url()).pathname)).toBe('/')
 

@@ -136,6 +136,9 @@ export function ProcessOccurrenceControls({ workLineId, setupIncomplete = false,
       : run.status === 'completed'
         ? t('processes.occurrence.status.completed')
         : t('processes.occurrence.status.cancelled')
+    const taskCountKey = rollup.total === 1
+      ? 'processes.occurrence.tasks.one'
+      : 'processes.occurrence.tasks.other'
     return (
       <li key={run.id} className="process-occurrence-controls__item">
         <div className="process-occurrence-controls__identity">
@@ -143,7 +146,7 @@ export function ProcessOccurrenceControls({ workLineId, setupIncomplete = false,
           <p>{summary.team_name} · {statusLabel}</p>
         </div>
         <div className="process-occurrence-controls__counts tabular-nums" aria-label={t('processes.occurrence.countsLabel')}>
-          <span>{t('processes.occurrence.tasks', { count: rollup.total })}</span>
+          <span>{t(taskCountKey, { count: rollup.total })}</span>
           <span>{t('processes.occurrence.overdue', { count: rollup.overdue })}</span>
           <span>{t('processes.occurrence.toAssign', { count: rollup.pending_unresolved })}</span>
         </div>
@@ -169,7 +172,7 @@ export function ProcessOccurrenceControls({ workLineId, setupIncomplete = false,
               <Button variant={startable.length === 0 && current.length === 1 ? 'primary' : 'outline'} onClick={() => openConfirmation('complete', summary)}>
                 {t('processes.occurrence.complete')}
               </Button>
-              <Button variant="destructive" onClick={() => openConfirmation('cancel', summary)}>
+              <Button variant="ghost" onClick={() => openConfirmation('cancel', summary)}>
                 {t('processes.occurrence.cancel')}
               </Button>
             </>
