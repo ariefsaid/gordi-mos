@@ -4,7 +4,7 @@
 // Snake_case column names consumed directly — no camelCase bridge.
 
 import { supabase } from '@/lib/supabase'
-import { cafeUnitDisplayLabel, listCafeLogItems } from './cafe-item-settings'
+import { cafeUnitDisplayLabel, listCafeItemSettings, toCafeLogItem } from './cafe-item-settings'
 import { movementKey } from '@/lib/kitchen-action-label'
 import type {
   ActualsMap,
@@ -173,20 +173,7 @@ export function isItemNotOnStreamError(err: unknown): boolean {
  * (non-transferable alternates only, no default) is absent — a row that cannot name its unit
  * cannot be captured. Stream-specific log writes are checked again by the database.
  */
-export async function listCaptureFormItems(stream?: ProductionStream): Promise<CaptureFormItem[]> {
-  if (stream) {
-    // The stream settings reader owns MOS names, ERP detail visibility and the default. WIP is
-    // the only kind the current log/plan write contract accepts; RAW references stay read-only.
-    const items = await listCafeLogItems(stream)
-    return items.filter(item => item.kind === 'WIP').map(item => ({
-      id: item.id,
-      name: item.name,
-      category: item.category,
-      kind: item.kind,
-      units: item.units.map(unit => ({ id: unit.id, name: cafeUnitDisplayLabel(unit), is_default: unit.isDefault })),
-    }))
-  }
-
+async function listLegacyCaptureFormItems(): Promise<CaptureFormItem[]> {
   const { data, error } = await ops()
     .from('capture_form_items')
     .select('wip_item_id,name,category,item_unit_id,unit_name,is_default,is_transferable')
@@ -220,6 +207,37 @@ export async function listCaptureFormItems(stream?: ProductionStream): Promise<C
     else item.units.push(unit)
   }
   return [...byItem.values()]
+}
+
+export async function listCaptureFormItems(stream?: ProductionStream): Promise<CaptureFormItem[]> {
+  if (!stream) return listLegacyCaptureFormItems()
+
+  const [settings, legacyItems, offered] = await Promise.all([
+    listCafeItemSettings(stream),
+    listLegacyCaptureFormItems(),
+    listStreamItemIds(stream),
+  ])
+  const erpItemIds = new Set(settings.map(item => item.id))
+  // The settings view is stream-scoped; intersect again so a future view change cannot widen capture.
+  const erpItems = settings
+    .filter(item => item.kind === 'WIP' && offered.has(item.id))
+    .flatMap(item => {
+      const logItem = toCafeLogItem(item)
+      return logItem ? [{
+        id: logItem.id,
+        name: logItem.name,
+        category: logItem.category,
+        kind: logItem.kind,
+        units: logItem.units.map(unit => ({
+          id: unit.id,
+          name: cafeUnitDisplayLabel(unit),
+          is_default: unit.isDefault,
+        })),
+      }] : []
+    })
+  const manualItems = legacyItems.filter(item => !erpItemIds.has(item.id) && offered.has(item.id))
+  // Sort by the name operators see (MOS name for ERP items), then stable ID.
+  return [...erpItems, ...manualItems].sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
 }
 
 // ── Kitchen plans ─────────────────────────────────────────────────────────────

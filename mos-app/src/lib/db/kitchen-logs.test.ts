@@ -11,7 +11,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // Mock the stream-settings boundary separately: listCaptureFormItems delegates to it for a chosen stream.
 vi.mock('./cafe-item-settings', async () => {
   const actual = await vi.importActual<typeof import('./cafe-item-settings')>('./cafe-item-settings')
-  return { ...actual, listCafeLogItems: vi.fn() }
+  return { ...actual, listCafeItemSettings: vi.fn() }
 })
 
 // Mock supabase at module scope — mirrors ops-log.test.ts pattern
@@ -21,7 +21,7 @@ vi.mock('../supabase', () => {
 })
 
 import type { ProductionStream } from './kitchen-logs.types'
-import { listCafeLogItems } from './cafe-item-settings'
+import { listCafeItemSettings } from './cafe-item-settings'
 import { supabase } from '@/lib/supabase'
 import {
   listActiveWipItems,
@@ -43,7 +43,7 @@ import {
 } from './kitchen-logs'
 
 const schemaMock = vi.mocked(supabase.schema)
-const mockCafeLogItems = vi.mocked(listCafeLogItems)
+const mockCafeItemSettings = vi.mocked(listCafeItemSettings)
 
 // The (branch, activity) production stream every read and write is scoped to (OD-WAY-28),
 // and the two destinations the incumbent captures. The branch ids are opaque here — the
@@ -219,46 +219,78 @@ describe('listCaptureFormItems — stream-aware capture-form read (FR-011, DD-WA
     unitRow('w2', 'Nasi Goreng', 'u2', 'porsi', true),
   ]
 
-  it('uses the selected stream settings and only returns loggable WIP details', async () => {
-    mockCafeLogItems.mockResolvedValue([
+  it('uses stream MOS names and shown ERP details while retaining listed manual items', async () => {
+    mockCafeItemSettings.mockResolvedValue([
       {
-        id: 'w2', name: 'MOS Nasi Goreng', category: 'Main', kind: 'WIP',
-        defaultUnit: { id: 'u2-each', name: 'each' },
+        id: 'w2', erpName: 'ERP Nasi Goreng', mosName: 'MOS Nasi Goreng', category: 'Main', kind: 'WIP',
+        defaultUnitId: 'u2-each',
         units: [
-          { id: 'u2-each', name: 'each', isDefault: true, labelOrdinal: null, labelCount: 1 },
-          { id: 'u2-case', name: 'case', isDefault: false, labelOrdinal: null, labelCount: 1 },
+          { id: 'u2-each', name: 'each', isShown: true, isDefault: true, labelOrdinal: null, labelCount: 1 },
+          { id: 'u2-case', name: 'case', isShown: true, isDefault: false, labelOrdinal: null, labelCount: 1 },
         ],
       },
       {
-        id: 'raw-1', name: 'RAW - Beans', category: 'Main', kind: 'RAW',
-        defaultUnit: { id: 'u-kg', name: 'kg' },
-        units: [{ id: 'u-kg', name: 'kg', isDefault: true, labelOrdinal: null, labelCount: 1 }],
+        id: 'raw-1', erpName: 'ERP Beans', mosName: 'ERP Beans', category: 'Main', kind: 'RAW',
+        defaultUnitId: 'u-kg',
+        units: [{ id: 'u-kg', name: 'kg', isShown: true, isDefault: true, labelOrdinal: null, labelCount: 1 }],
+      },
+      {
+        id: 'w4', erpName: 'ERP Unconfigured', mosName: 'ERP Unconfigured', category: 'Main', kind: 'WIP',
+        defaultUnitId: null, units: [],
+      },
+      {
+        id: 'w5', erpName: 'ERP Off-stream', mosName: 'ERP Off-stream', category: 'Main', kind: 'WIP',
+        defaultUnitId: 'u5',
+        units: [{ id: 'u5', name: 'each', isShown: true, isDefault: true, labelOrdinal: null, labelCount: 1 }],
       },
     ])
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({
+      capture_form_items: [{ data: [
+        unitRow('w2', 'Legacy ERP name', 'legacy-u2', 'legacy unit', true),
+        unitRow('w3', 'Manual Stew', 'manual-u3', 'porsi', true),
+        unitRow('w4', 'Legacy unconfigured name', 'legacy-u4', 'porsi', true),
+      ], error: null }],
+      stream_items: [{ data: [
+        { wip_item_id: 'w2' }, { wip_item_id: 'w3' }, { wip_item_id: 'w4' }, { wip_item_id: 'raw-1' },
+      ], error: null }],
+    }, rec) as never)
 
     const result = await listCaptureFormItems(STREAM)
-    expect(mockCafeLogItems).toHaveBeenCalledWith(STREAM)
-    expect(result).toEqual([{
-      id: 'w2', name: 'MOS Nasi Goreng', category: 'Main', kind: 'WIP',
-      units: [
-        { id: 'u2-each', name: 'each', is_default: true },
-        { id: 'u2-case', name: 'case', is_default: false },
-      ],
-    }])
+    expect(mockCafeItemSettings).toHaveBeenCalledWith(STREAM)
+    expect(result).toEqual([
+      {
+        id: 'w3', name: 'Manual Stew', category: 'Main',
+        units: [{ id: 'manual-u3', name: 'porsi', is_default: true }],
+      },
+      {
+        id: 'w2', name: 'MOS Nasi Goreng', category: 'Main', kind: 'WIP',
+        units: [
+          { id: 'u2-each', name: 'each', is_default: true },
+          { id: 'u2-case', name: 'case', is_default: false },
+        ],
+      },
+    ])
+    expect(rec.fromTables).toEqual(expect.arrayContaining(['capture_form_items', 'stream_items']))
   })
 
   it('distinguishes repeated ERP unit labels without exposing ERP identifiers', async () => {
-    mockCafeLogItems.mockResolvedValue([{
-      id: 'w2', name: 'MOS Nasi Goreng', category: 'Main', kind: 'WIP',
-      defaultUnit: { id: 'detail-a', name: 'each' },
+    mockCafeItemSettings.mockResolvedValue([{
+      id: 'w2', erpName: 'ERP Nasi Goreng', mosName: 'MOS Nasi Goreng', category: 'Main', kind: 'WIP',
+      defaultUnitId: 'detail-a',
       units: [
-        { id: 'detail-a', name: 'each', isDefault: true, labelOrdinal: 1, labelCount: 2 },
-        { id: 'detail-b', name: 'each', isDefault: false, labelOrdinal: 2, labelCount: 2 },
+        { id: 'detail-a', name: 'each', isShown: true, isDefault: true, labelOrdinal: 1, labelCount: 2 },
+        { id: 'detail-b', name: 'each', isShown: true, isDefault: false, labelOrdinal: 2, labelCount: 2 },
       ],
     }])
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({
+      capture_form_items: [{ data: [], error: null }],
+      stream_items: [{ data: [{ wip_item_id: 'w2' }], error: null }],
+    }, rec) as never)
 
     const result = await listCaptureFormItems(STREAM)
-    expect(result[0].units).toEqual([
+    expect(result[0]?.units).toEqual([
       { id: 'detail-a', name: 'each (1/2)', is_default: true },
       { id: 'detail-b', name: 'each (2/2)', is_default: false },
     ])
