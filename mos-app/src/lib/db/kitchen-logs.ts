@@ -17,6 +17,7 @@ import type {
   ItemStock,
   CreateKitchenLogInput,
   KitchenAction,
+  KitchenLogAction,
   ProductionActivity,
   ProductionStream,
   ReviewLogRow,
@@ -269,7 +270,7 @@ export async function fetchActualsMap(
   if (error) throw new Error(`fetchActualsMap failed — ${error.message}`)
   type ActualRow = {
     wip_item_id: string
-    action: KitchenAction
+    action: KitchenLogAction
     destination_branch_id: string | null
     qty_porsi: number
   }
@@ -422,6 +423,9 @@ function toKitchenLogRow(input: CreateKitchenLogInput): Record<string, unknown> 
   if (input.action === 'transfer' && !input.destination_branch_id) {
     throw new Error('a transfer must name a destination branch')
   }
+  if (input.action === 'waste' && input.destination_branch_id !== null) {
+    throw new Error('a waste log carries no destination branch')
+  }
   return {
     business_unit_id: input.business_unit_id,
     log_date: input.log_date,
@@ -435,7 +439,8 @@ function toKitchenLogRow(input: CreateKitchenLogInput): Record<string, unknown> 
     item_unit_id: input.item_unit_id ?? null,
     qty_porsi: input.qty_porsi,
     notes: input.notes ?? null,
-    // status NOT sent — DB defaults to 'Submitted'
+    // Waste starts as a Draft so the required photo can attach before submission.
+    ...(input.action === 'waste' ? { status: 'Draft' } : {}),
     // source NOT sent — DB defaults to 'mos'
     // org_id NOT sent — server-stamped by current_org_id()
     // submitted_by NOT sent — server-stamped by current_person_id()
@@ -531,7 +536,7 @@ export async function listSubmittedKitchenLogs(logDate: string): Promise<ReviewL
     id: string
     batch_id: string | null
     log_date: string
-    action: KitchenAction
+    action: KitchenLogAction
     destination_branch_id: string | null
     branch_id: string
     activity: ProductionActivity
@@ -594,7 +599,7 @@ export async function approveKitchenLog(
     const code = (error as { code?: string }).code ?? 'UNKNOWN'
     throw new KitchenRpcError(code, `approveKitchenLog failed — ${error.message}`)
   }
-  return { batch_id: data as string }
+  return { batch_id: data as string | null }
 }
 
 /** Approve one endpoint-homogeneous session as one ERP document. */

@@ -1,0 +1,93 @@
+.waste-harness {
+  box-sizing: border-box;
+  display: grid;
+  gap: 20px;
+  width: min(100%, 1040px);
+  margin: 0 auto;
+  padding: clamp(16px, 3.5vw, 40px);
+  color: var(--foreground);
+}
+
+.waste-harness-header {
+  display: grid;
+  gap: 8px;
+  max-width: 700px;
+}
+
+.waste-harness-eyebrow {
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  font-weight: 650;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+.waste-harness-header h1 {
+  margin: 0;
+  font-size: clamp(1.55rem, 3vw, 2.1rem);
+  line-height: 1.16;
+  letter-spacing: -0.035em;
+}
+
+.waste-harness-header p {
+  max-width: 60ch;
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-body);
+  line-height: 1.55;
+}
+
+.waste-harness-submit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.waste-harness-submit .btn {
+  min-height: 44px;
+}
+
+.waste-harness-submit p {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+}
+
+.waste-review-fixture h2 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0 0 12px;
+  color: var(--foreground);
+  font-size: 1rem;
+  font-weight: 650;
+}
+
+.waste-review-fixture h2 span {
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  font-weight: 450;
+}
+
+.waste-review-held {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 3px 9px;
+  border: 1px solid color-mix(in srgb, var(--warning) 28%, var(--border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--warning) 10%, var(--background));
+  color: var(--foreground);
+  font-size: var(--font-size-label);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+  .waste-harness {
+    gap: 16px;
+    padding: 16px;
+  }
+}
