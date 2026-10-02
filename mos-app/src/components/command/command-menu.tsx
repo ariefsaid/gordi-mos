@@ -291,9 +291,10 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
     }
     const actions = launcherActions.filter((i) => matches(i.label, trimmed))
     const recordRows = records.status === 'ready' ? records.rows : []
-    const recordItems = recordRows.map<CommandItem>((r) => {
+    const itemsByKind = new Map<RecordKind, CommandItem[]>()
+    for (const r of recordRows) {
       const cfg = RECORD_KIND_CONFIG[r.kind]
-      return {
+      const item: CommandItem = {
         // Namespace the id by kind — a Task and a Signal can share a uuid across tables.
         id: `record-${r.kind}-${r.id}`,
         label: r.title,
@@ -307,19 +308,16 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
         // Only Tasks feed the task-scoped Recent ring buffer; Signals/Follow-ups don't pollute it.
         record: r.kind === 'task' ? { id: r.id, title: r.title } : undefined,
       }
-    })
-    if (records.status === 'ready' && recordItems.length) {
-      const itemsByKind = new Map<RecordKind, CommandItem[]>()
-      records.rows.forEach((row, index) => {
-        const kindItems = itemsByKind.get(row.kind) ?? []
-        kindItems.push(recordItems[index])
-        itemsByKind.set(row.kind, kindItems)
-      })
+      const kindItems = itemsByKind.get(r.kind)
+      if (kindItems) kindItems.push(item)
+      else itemsByKind.set(r.kind, [item])
+    }
+    if (itemsByKind.size) {
       for (const kind of RECORD_KIND_ORDER) {
         const items = itemsByKind.get(kind)
         if (!items?.length) continue
         const expanded = expandedKinds.has(kind)
-        const visibleItems = expanded ? [...items] : items.slice(0, 1)
+        const visibleItems = expanded ? items : items.slice(0, 1)
         if (items.length > 1) {
           const disclosureId = `record-toggle-${kind}`
           visibleItems.push({
