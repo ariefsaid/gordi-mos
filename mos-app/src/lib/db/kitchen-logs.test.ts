@@ -173,6 +173,7 @@ describe('listActiveWipItems — the ungated stock/plan read', () => {
     expect(result).toHaveLength(2)
     expect(result[0].name).toBe('Ayam Bakar')
     expect(rec.eqs).toContainEqual(['flag_active', true])
+    expect(rec.eqs).toContainEqual(['kind', 'WIP'])
     expect(rec.orders).toContainEqual(['name', { ascending: true }])
     expect(rec.selects).toContain('id,name,category')
   })
