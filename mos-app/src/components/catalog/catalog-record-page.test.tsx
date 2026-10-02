@@ -317,7 +317,7 @@ describe('Get started lists only what is missing, and its buttons work', () => {
     const user = userEvent.setup()
     renderRecord()
     const keyResults = await screen.findByRole('region', { name: 'Key results' })
-    await user.click(within(keyResults).getByRole('button', { name: 'Add key result' }))
+    await user.click(await within(keyResults).findByRole('button', { name: 'Add key result' }))
     await screen.findByRole('textbox', { name: 'Key result' })
     await user.keyboard('{Escape}')
     await waitFor(() => expect(within(screen.getByRole('region', { name: 'Key results' })).getByRole('button', { name: 'Add key result' })).toHaveFocus())
@@ -327,7 +327,7 @@ describe('Get started lists only what is missing, and its buttons work', () => {
     const user = userEvent.setup()
     renderRecord()
     const keyResults = await screen.findByRole('region', { name: 'Key results' })
-    await user.click(within(keyResults).getByRole('button', { name: 'Add key result' }))
+    await user.click(await within(keyResults).findByRole('button', { name: 'Add key result' }))
     expect(await screen.findByRole('textbox', { name: 'Key result' })).toHaveFocus()
   })
 
