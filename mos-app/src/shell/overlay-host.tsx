@@ -1,5 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import {
+  Fragment,
   createContext,
   useCallback,
   useContext,
@@ -818,7 +819,6 @@ export function OverlayHostSlot({
       {children}
       {active && (
         <RecordPanelHost
-          key={active.entry.key}
           label={active.entry.label}
           title={active.entry.title}
           actions={active.entry.actions}
@@ -839,7 +839,7 @@ export function OverlayHostSlot({
           // the class ships in styles/drawer.css so the first one to arrive finds the track waiting.
           rootClassName={owner === 'shell' || floating ? 'drawer-shell-split' : undefined}
         >
-          {active.entry.content}
+          <Fragment key={active.entry.key}>{active.entry.content}</Fragment>
         </RecordPanelHost>
       )}
     </span>
