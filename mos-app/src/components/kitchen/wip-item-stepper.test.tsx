@@ -107,6 +107,24 @@ describe('WipItemStepper — fixed unit + change-unit affordance (FR-020/021, AC
     ).toBeInTheDocument()
   })
 
+  it('opens from keyboard and restores focus to the unit affordance after selection', async () => {
+    const user = userEvent.setup()
+    const onUnitChange = vi.fn()
+    renderStepper({ unitOptions: [UNIT_PORSI, UNIT_BOTOL], onUnitChange })
+
+    const changeUnit = screen.getByRole('button', { name: /change unit for nasi goreng/i })
+    changeUnit.focus()
+    await user.keyboard('{Enter}')
+
+    const picker = screen.getByRole('combobox', { name: /unit for nasi goreng/i })
+    expect(picker).toHaveFocus()
+    await user.click(picker)
+    await user.click(screen.getByRole('option', { name: 'botol' }))
+
+    expect(onUnitChange).toHaveBeenCalledWith('u-botol')
+    expect(screen.getByRole('button', { name: /change unit for nasi goreng/i })).toHaveFocus()
+  })
+
   it('AC-005: selecting the alternate re-binds the line (onUnitChange gets the item-unit id) and the picker closes', async () => {
     const user = userEvent.setup()
     const onUnitChange = vi.fn()

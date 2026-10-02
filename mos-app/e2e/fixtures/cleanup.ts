@@ -109,6 +109,7 @@ export const E2E_CLEANUP_REGISTRY = {
   'AC-430-post-a-signal.spec.ts': 'captured-signal-ids',
   'AC-524-follow-up.spec.ts': 'fixed-follow-up-ids',
   'AC-744-cafe-write-gate.spec.ts': 'fixed-item-id',
+  'AC-1242-cafe-unit-wiring.spec.ts': 'fixed-item-unit-plan-and-captured-log-batch-ids',
   'AC-PB-012-budget-pricing-preflight.spec.ts': 'captured-budget-id',
   'account-language.spec.ts': 'fixed-person-ids',
   'authority-settings-roundtrip.spec.ts': 'captured-tenant-ids',

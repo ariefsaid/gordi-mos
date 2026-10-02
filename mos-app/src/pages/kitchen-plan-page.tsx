@@ -28,6 +28,8 @@ import { saveErrorMessage } from '@/lib/save-error'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useSearchParamState } from '@/lib/use-search-param-state'
 import { isItemNotOnStreamError, listActiveWipItems, listStreamItemIds } from '@/lib/db/kitchen-logs'
+import { cafeUnitDisplayLabel, listCafeItemSettings } from '@/lib/db/cafe-item-settings'
+import type { CafeItemSetting } from '@/lib/db/cafe-item-settings'
 import { useCafeStream } from '@/lib/use-cafe-stream'
 import { canEditCafePlan, isReviewerEligibleTeam } from '@/lib/kitchen-gates'
 import { listCafeViewerTeams } from '@/lib/db/cafe-opening'
@@ -129,8 +131,51 @@ export function KitchenPlanPage() {
 // ════════════════════════════════════════════════════════════════════════════
 // ops_lead / admin — the plan EDITOR (FR-030/031)
 // ════════════════════════════════════════════════════════════════════════════
+type PlanItem = WipItemOption & {
+  defaultUnitName: string | null
+  otherLogUnitNames: string[]
+}
+
+function withStreamSettings(items: WipItemOption[], settings: CafeItemSetting[]): PlanItem[] {
+  const byId = new Map(settings.filter(item => item.kind === 'WIP').map(item => [item.id, item]))
+  return items.map(item => {
+    const setting = byId.get(item.id)
+    const defaultUnit = setting?.units.find(unit => unit.id === setting.defaultUnitId)
+    return {
+      ...item,
+      name: setting?.mosName ?? item.name,
+      defaultUnitName: defaultUnit ? cafeUnitDisplayLabel(defaultUnit) : null,
+      otherLogUnitNames: setting?.units
+        .filter(unit => unit.isShown && unit.id !== setting.defaultUnitId)
+        .map(cafeUnitDisplayLabel) ?? [],
+    }
+  })
+}
+
+type PesananDisplayRow = PesananRow & {
+  defaultUnitName: string | null
+  otherLogUnitNames: string[]
+}
+
+function withPesananSettings(rows: PesananRow[], settings: CafeItemSetting[]): PesananDisplayRow[] {
+  const byId = new Map(settings.filter(item => item.kind === 'WIP').map(item => [item.id, item]))
+  return rows.map(row => {
+    const setting = byId.get(row.wip_item_id)
+    const defaultUnit = setting?.units.find(unit => unit.id === setting.defaultUnitId)
+    return {
+      ...row,
+      wip_item_name: setting?.mosName ?? row.wip_item_name,
+      category: setting?.category ?? row.category,
+      defaultUnitName: defaultUnit ? cafeUnitDisplayLabel(defaultUnit) : null,
+      otherLogUnitNames: setting?.units
+        .filter(unit => unit.isShown && unit.id !== setting.defaultUnitId)
+        .map(cafeUnitDisplayLabel) ?? [],
+    }
+  })
+}
+
 // The rows a stream's plan shows: its listed items, plus any item already planned there (#222).
-function streamRows(items: WipItemOption[], offered: Set<string>, planCells: PlanCell[]): WipItemOption[] {
+function streamRows(items: PlanItem[], offered: Set<string>, planCells: PlanCell[]): PlanItem[] {
   return items.filter(item => offered.has(item.id) || planCells.some(cell => cell.wip_item_id === item.id))
 }
 
@@ -188,7 +233,7 @@ function PlanEditor() {
     </section>
   )
   const [movement, setMovement] = useState<KitchenMovement>(PRODUCE)
-  const [items, setItems] = useState<WipItemOption[]>([])
+  const [items, setItems] = useState<PlanItem[]>([])
   // The stream's item list (#222). New plan rows are offered only for these; a row already
   // planned for any other item stays on screen, labelled, with its quantity editable.
   const [offeredIds, setOfferedIds] = useState<Set<string>>(new Set())
@@ -246,12 +291,18 @@ function PlanEditor() {
           ? Promise.resolve<CafeViewerTeam[]>([])
           : listCafeViewerTeams(viewerId).catch(() => []),
       ])
-      const [planCells, offered] = catalog.stream
-        ? await Promise.all([listKitchenPlans(logDate, catalog.stream), listStreamItemIds(catalog.stream)])
-        : [[], null]
+      const [planCells, offered, settings] = catalog.stream
+        ? await Promise.all([
+          listKitchenPlans(logDate, catalog.stream),
+          listStreamItemIds(catalog.stream),
+          listCafeItemSettings(catalog.stream),
+        ])
+        : [[], null, []]
       if (gen !== requestGen.current) return
-      // No stream yet: every item, read-only until a stream is chosen (planWriteClosed).
-      setItems(offered ? streamRows(itemRows, offered, planCells) : itemRows)
+      // Existing off-list plans remain readable; stream-listed items use their MOS name and
+      // ERP-selected default detail from the same reader as Log.
+      const displayItems = withStreamSettings(itemRows, settings)
+      setItems(offered ? streamRows(displayItems, offered, planCells) : displayItems)
       setOfferedIds(offered ?? new Set())
       adoptStream(catalog)
       setMovement(PRODUCE)
@@ -275,11 +326,14 @@ function PlanEditor() {
     setMovement(PRODUCE)
     setLoad({ kind: 'loading' })
     try {
-      const [itemRows, planCells, offered] = await Promise.all([
-        listActiveWipItems(), listKitchenPlans(logDate, nextStream), listStreamItemIds(nextStream),
+      const [itemRows, planCells, offered, settings] = await Promise.all([
+        listActiveWipItems(),
+        listKitchenPlans(logDate, nextStream),
+        listStreamItemIds(nextStream),
+        listCafeItemSettings(nextStream),
       ])
       if (gen !== requestGen.current) return
-      setItems(streamRows(itemRows, offered, planCells))
+      setItems(streamRows(withStreamSettings(itemRows, settings), offered, planCells))
       setOfferedIds(offered)
       setCells(planCells)
       setLoad({ kind: 'ready' })
@@ -388,20 +442,26 @@ function PlanEditor() {
     groupKey => groupKey === '__uncategorized__' ? null : kitchenCategoryLabel(t, groupKey),
   ).sort((a, b) => a.label === null ? 1 : b.label === null ? -1 : a.label.localeCompare(b.label))
 
-  const planItemColumn: DataTableColumn<KitchenListRow<WipItemOption>> = {
+  const planItemColumn: DataTableColumn<KitchenListRow<PlanItem>> = {
     key: 'dish',
     header: t('kitchen.plan.col.item'),
     cardLabel: '',
     render: item => (
       <span className="kp-dish">
-        <span className="kp-name"><span>{item.kind} - </span><span>{item.name}</span></span>
+        <span className="kp-name"><span>WIP - </span><span>{item.name}</span></span>
         {offList(item.id) && <NotOnStreamTag />}
         {item.category && <span className="kp-cat">{kitchenCategoryLabel(t, item.category)}</span>}
+        {item.defaultUnitName && <span className="kp-unit">{item.defaultUnitName}</span>}
+        {item.otherLogUnitNames.length > 0 && (
+          <span className="kp-unit-options">
+            {t('kitchen.plan.item.otherLogUnits', { units: item.otherLogUnitNames.join(', ') })}
+          </span>
+        )}
       </span>
     ),
   }
 
-  const planColumns: DataTableColumn<KitchenListRow<WipItemOption>>[] = [
+  const planColumns: DataTableColumn<KitchenListRow<PlanItem>>[] = [
     planItemColumn,
     {
       key: 'plan',
@@ -445,7 +505,7 @@ function PlanEditor() {
     },
   ]
 
-  const receivingPlanColumns: DataTableColumn<KitchenListRow<WipItemOption>>[] = [
+  const receivingPlanColumns: DataTableColumn<KitchenListRow<PlanItem>>[] = [
     planItemColumn,
     {
       key: 'plan',
@@ -462,15 +522,21 @@ function PlanEditor() {
   // the typed plan field + unit right, no per-card field label. Same seam as Log
   // (renderCard → PhoneCard applies .dt-card--compact); the meta line renders ONLY when it
   // has something to say (commit state). No dense: the phone card keeps the 44px touch floor.
-  const renderPlanCard = (item: KitchenListRow<WipItemOption>) => {
+  const renderPlanCard = (item: KitchenListRow<PlanItem>) => {
     const saving = savingId === item.id
     const saved = !saving && justSavedId === item.id
     return (
       <div className="kp-card">
         <div className="kp-card-head">
           <span className="kp-card-name">
-            <span>{item.kind} - </span><span>{item.name}</span>
+            <span>WIP - </span><span>{item.name}</span>
             {offList(item.id) && <NotOnStreamTag />}
+            {item.defaultUnitName && <span className="kp-card-unit">{item.defaultUnitName}</span>}
+            {item.otherLogUnitNames.length > 0 && (
+              <span className="kp-card-unit-options">
+                {t('kitchen.plan.item.otherLogUnits', { units: item.otherLogUnitNames.join(', ') })}
+              </span>
+            )}
           </span>
           <PlanQtyField
             itemName={item.name}
@@ -636,7 +702,7 @@ function PesananView() {
   const t = useT()
   const pageTitle = `${t('dest.cafe')} · ${t('nav.cafe.plan')}`
   const [from] = useState(wibToday) // horizon start = today WIB
-  const [rows, setRows] = useState<PesananRow[]>([])
+  const [rows, setRows] = useState<PesananDisplayRow[]>([])
   const cafeStream = useCafeStream()
   // OD-CAFE-1: plans are keyed on (org, date, item, branch, activity) — a plan row belongs to one
   // branch's books — so the picker offers this location's streams only. `streamOptions` stays whole
@@ -668,10 +734,15 @@ function PesananView() {
     setLoad({ kind: 'loading' })
     try {
       const catalog = await resolveStream()
-      const data = catalog.stream ? await listPesanan(from, PESANAN_HORIZON_DAYS, catalog.stream) : []
+      const [data, settings] = catalog.stream
+        ? await Promise.all([
+          listPesanan(from, PESANAN_HORIZON_DAYS, catalog.stream),
+          listCafeItemSettings(catalog.stream),
+        ])
+        : [[], []]
       if (gen !== requestGen.current) return
       adoptStream(catalog)
-      setRows(data)
+      setRows(withPesananSettings(data, settings))
       setLoad({ kind: 'ready' })
     } catch {
       if (gen === requestGen.current) setLoad({ kind: 'error' })
@@ -683,9 +754,12 @@ function PesananView() {
     chooseStream(next) // the whole Café module follows this choice (#440)
     setLoad({ kind: 'loading' })
     try {
-      const data = await listPesanan(from, PESANAN_HORIZON_DAYS, next)
+      const [data, settings] = await Promise.all([
+        listPesanan(from, PESANAN_HORIZON_DAYS, next),
+        listCafeItemSettings(next),
+      ])
       if (gen !== requestGen.current) return
-      setRows(data)
+      setRows(withPesananSettings(data, settings))
       setLoad({ kind: 'ready' })
     } catch {
       if (gen === requestGen.current) setLoad({ kind: 'error' })
@@ -718,7 +792,7 @@ function PesananView() {
 
   // Read-only pesanan columns: Item (name + category sub-label) · Action · Planned.
   // No edit affordance (AC-024) — the qty is a plain tabular number, no stepper.
-  const pesananColumns: DataTableColumn<KitchenListRow<PesananRow>>[] = [
+  const pesananColumns: DataTableColumn<KitchenListRow<PesananDisplayRow>>[] = [
     {
       key: 'item',
       header: t('kitchen.plan.pesanan.col.item'),
@@ -727,6 +801,12 @@ function PesananView() {
         <span className="kp-dish">
           <span className="kp-name"><span>{r.kind} - </span><span>{r.wip_item_name}</span></span>
           {r.category && <span className="kp-cat">{kitchenCategoryLabel(t, r.category)}</span>}
+          {r.defaultUnitName && <span className="kp-unit">{r.defaultUnitName}</span>}
+          {r.otherLogUnitNames.length > 0 && (
+            <span className="kp-unit-options">
+              {t('kitchen.plan.item.otherLogUnits', { units: r.otherLogUnitNames.join(', ') })}
+            </span>
+          )}
         </span>
       ),
     },

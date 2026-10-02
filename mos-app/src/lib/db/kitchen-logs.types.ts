@@ -132,6 +132,8 @@ export interface ItemUnitOption {
  * AC-005); exactly one means the unit renders as fixed text and nothing else.
  */
 export interface CaptureFormItem extends WipItemOption {
+  /** The ERP product family used to label RAW/WIP rows on Café capture lists. */
+  kind?: 'RAW' | 'WIP'
   units: ItemUnitOption[]
 }
 

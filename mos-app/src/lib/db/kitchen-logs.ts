@@ -4,6 +4,7 @@
 // Snake_case column names consumed directly — no camelCase bridge.
 
 import { supabase } from '@/lib/supabase'
+import { cafeUnitDisplayLabel, listCafeItemSettings, toCafeLogItem } from './cafe-item-settings'
 import { movementKey } from '@/lib/kitchen-action-label'
 import type {
   ActualsMap,
@@ -158,28 +159,26 @@ export function isItemNotOnStreamError(err: unknown): boolean {
 }
 
 /**
- * List the items the CAPTURE FORM may offer, sorted by name — read from
- * ops.capture_form_items, the gated read path (FR-011, DD-WAY-29): only item-units whose
- * ERP coordinates are CONFIRMED come back, so an unconfirmed item is absent — not disabled,
- * not warned. The gate is the query, never a flag consulted at render time (NFR-004).
+ * List the items the CAPTURE FORM may offer, sorted by name. With a chosen stream, the
+ * per-stream Café settings reader supplies the MOS name, default ERP detail and shown details;
+ * only WIP items remain eligible under the existing capture contract. Before a stream is chosen,
+ * the prior gated `capture_form_items` view remains visible as a read-only catalog, so the
+ * explicit stream picker can still be used without allowing an unscoped save.
  *
- * The view returns one row per confirmed (item, unit); rows fold into items carrying their
- * OFFERED units (#234): the default first — the fixed unit beside the qty input (FR-020) —
+ * The no-stream view returns one row per confirmed (item, unit); rows fold into items carrying
+ * their OFFERED units (#234): the default first — the fixed unit beside the qty input (FR-020) —
  * then transferable alternates. A non-transferable ALTERNATE is dropped here (FR-032,
  * AC-015: never offered); the default is kept whatever its flag, because the fixed unit is
  * master data, not an offer. An item whose confirmed rows yield no offerable unit at all
- * (non-transferable alternates only, no default) is absent — a row that cannot name its
- * unit cannot be captured. Given a stream, only the items on that stream's list come back (#222).
+ * (non-transferable alternates only, no default) is absent — a row that cannot name its unit
+ * cannot be captured. Stream-specific log writes are checked again by the database.
  */
-export async function listCaptureFormItems(stream?: ProductionStream): Promise<CaptureFormItem[]> {
-  const [{ data, error }, offered] = await Promise.all([
-    ops()
-      .from('capture_form_items')
-      .select('wip_item_id,name,category,item_unit_id,unit_name,is_default,is_transferable')
-      .order('name', { ascending: true })
-      .order('unit_name', { ascending: true }),
-    stream ? listStreamItemIds(stream) : Promise.resolve(null),
-  ])
+async function listLegacyCaptureFormItems(): Promise<CaptureFormItem[]> {
+  const { data, error } = await ops()
+    .from('capture_form_items')
+    .select('wip_item_id,name,category,item_unit_id,unit_name,is_default,is_transferable')
+    .order('name', { ascending: true })
+    .order('unit_name', { ascending: true })
   if (error) throw new Error(`listCaptureFormItems failed — ${error.message}`)
   type ViewRow = {
     wip_item_id: string
@@ -207,8 +206,38 @@ export async function listCaptureFormItems(stream?: ProductionStream): Promise<C
     if (unit.is_default) item.units.unshift(unit)
     else item.units.push(unit)
   }
-  const items = [...byItem.values()]
-  return offered ? items.filter(item => offered.has(item.id)) : items
+  return [...byItem.values()]
+}
+
+export async function listCaptureFormItems(stream?: ProductionStream): Promise<CaptureFormItem[]> {
+  if (!stream) return listLegacyCaptureFormItems()
+
+  const [settings, legacyItems, offered] = await Promise.all([
+    listCafeItemSettings(stream),
+    listLegacyCaptureFormItems(),
+    listStreamItemIds(stream),
+  ])
+  const erpItemIds = new Set(settings.map(item => item.id))
+  // The settings view is stream-scoped; intersect again so a future view change cannot widen capture.
+  const erpItems = settings
+    .filter(item => item.kind === 'WIP' && offered.has(item.id))
+    .flatMap(item => {
+      const logItem = toCafeLogItem(item)
+      return logItem ? [{
+        id: logItem.id,
+        name: logItem.name,
+        category: logItem.category,
+        kind: logItem.kind,
+        units: logItem.units.map(unit => ({
+          id: unit.id,
+          name: cafeUnitDisplayLabel(unit),
+          is_default: unit.isDefault,
+        })),
+      }] : []
+    })
+  const manualItems = legacyItems.filter(item => !erpItemIds.has(item.id) && offered.has(item.id))
+  // Sort by the name operators see (MOS name for ERP items), then stable ID.
+  return [...erpItems, ...manualItems].sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
 }
 
 // ── Kitchen plans ─────────────────────────────────────────────────────────────
