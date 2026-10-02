@@ -96,6 +96,7 @@ export const PAGE_FAMILY_FRAME_ROUTES: readonly PageFamilyMigrationEntry[] = [
   { path: '/cafe/transfer', family: 'workspace', sourceFile: 'pages/kitchen-log-page.tsx', symbol: 'KitchenLogPage' },
   { path: '/cafe/plan', family: 'workspace', sourceFile: 'pages/kitchen-plan-page.tsx', symbol: 'KitchenPlanPage' },
   { path: '/cafe/stock', family: 'workspace', sourceFile: 'pages/kitchen-stock-page.tsx', symbol: 'KitchenStockPage' },
+  { path: '/cafe/items', family: 'workspace', sourceFile: 'pages/cafe-item-settings-page.tsx', symbol: 'CafeItemSettingsPage' },
   {
     path: '/cafe/review',
     family: 'workspace',

@@ -7,6 +7,9 @@ import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { saveErrorMessage } from '@/lib/save-error'
+import { listKitchenWastePhotos } from '@/lib/db/kitchen-waste-photos'
+import type { KitchenWastePhoto } from '@/lib/db/kitchen-waste-photos'
+import { WastePhotoStrip } from '@/components/kitchen/waste-photo-strip'
 import {
   listSubmittedKitchenLogs,
   fetchPlanMap,
@@ -64,7 +67,7 @@ function wibToday(): string {
 }
 
 function isTransfer(a: string): boolean {
-  return a !== 'Production'
+  return a.startsWith('Transfer to ')
 }
 
 /**
@@ -382,6 +385,7 @@ function KitchenReviewPageForViewer() {
 
   const [logDate] = useState(wibToday)
   const [logs, setLogs] = useState<ReviewLogRow[]>([])
+  const [wastePhotosByLogId, setWastePhotosByLogId] = useState<Record<string, KitchenWastePhoto[]>>({})
   // Every stream's item list (#222): a queued row whose item left its stream's list is labelled.
   const [offeredKeys, setOfferedKeys] = useState<Set<string>>(new Set())
   // Keyed by streamKey(branch_id, activity) — one PlanMap per DISTINCT stream present in
@@ -430,6 +434,7 @@ function KitchenReviewPageForViewer() {
     filterInitialized.current = false
     setStreamFilter(ALL_STREAMS)
     setLogs([])
+    setWastePhotosByLogId({})
     setStreamPlans(new Map())
     setPeopleMap(new Map())
     setBranchCatalog([])
@@ -476,11 +481,12 @@ function KitchenReviewPageForViewer() {
         const branch = branchById.get(row.branch_id)
         if (branch) distinctStreams.set(key, { branch, activity: row.activity })
       }
-      const planEntries = await Promise.all(
-        Array.from(distinctStreams.entries()).map(
+      const [planEntries, wastePhotos] = await Promise.all([
+        Promise.all(Array.from(distinctStreams.entries()).map(
           async ([key, stream]) => [key, await fetchPlanMap(logDate, stream)] as const,
-        ),
-      )
+        )),
+        listKitchenWastePhotos(rows.filter(row => row.action === 'waste').map(row => row.id)),
+      ])
       if (gen !== requestGen.current) return
       const ownKey = ownStream ? streamKey(ownStream.branch.id, ownStream.activity) : null
       const catalog = streamCatalogFrom(pairs, branchRows)
@@ -492,7 +498,10 @@ function KitchenReviewPageForViewer() {
         .map((team) => streamKey(team.branch_id, team.activity))
       const myKeys = new Set(teamKeys)
       if (ownKey) myKeys.add(ownKey)
+      const photosByLogId: Record<string, KitchenWastePhoto[]> = {}
+      for (const photo of wastePhotos) (photosByLogId[photo.logId] ??= []).push(photo)
       setLogs(rows)
+      setWastePhotosByLogId(photosByLogId)
       setOfferedKeys(itemKeys)
       setStreamPlans(new Map(planEntries))
       setPeopleMap(new Map(people.map(p => [p.id, p.full_name])))
@@ -617,8 +626,10 @@ function KitchenReviewPageForViewer() {
     try {
       const { batch_id } = await approveKitchenLog(logId, reviewNote)
       removeRow(logId)
-      setNotice(t('kitchen.review.notice.approved', { batchId: batch_id }))
-      setNoticeCanViewPushes(isLeadOrAdmin)
+      setNotice(batch_id === null
+        ? t('kitchen.review.notice.wasteHeld')
+        : t('kitchen.review.notice.approved', { batchId: batch_id }))
+      setNoticeCanViewPushes(isLeadOrAdmin && batch_id !== null)
     } catch (err) {
       handleDecisionError(err)
     } finally {
@@ -669,6 +680,7 @@ function KitchenReviewPageForViewer() {
       visibleLogs.filter(
         l =>
           l.action_type === action &&
+          l.action !== 'waste' &&
           canDecide(l) &&
           !rowGated(l) &&
           !isOffPlan(l, planQtyFor(streamPlans, l)),
@@ -821,6 +833,7 @@ function KitchenReviewPageForViewer() {
         return (
           <>
             <span className="krow-name">{log.wip_item_name}</span>
+            {log.action === 'waste' && <WastePhotoStrip photos={wastePhotosByLogId[log.id]} />}
             {!offeredKeys.has(streamItemKey(log.branch_id, log.activity, log.wip_item_id)) && <NotOnStreamTag />}
             {/* #587: "All streams" groups rows from every stream under one action_type
                 heading with nothing naming which — this is that name, shown only when
@@ -920,6 +933,7 @@ function KitchenReviewPageForViewer() {
             {offPlan ? t('kitchen.review.tag.offPlan') : t('kitchen.review.tag.onPlan')}
           </Tag>
         </div>
+        {log.action === 'waste' && <WastePhotoStrip photos={wastePhotosByLogId[log.id]} />}
         <div className="krow-card-meta">
           {/* #587: same rule as the desktop column — only shown when the group could hold
               more than one stream's rows. */}

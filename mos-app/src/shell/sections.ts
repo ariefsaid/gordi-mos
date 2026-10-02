@@ -6,7 +6,7 @@ import {
   HomeIcon, TasksIcon, SignalsIcon, WorkLineIcon, ObjectiveIcon,
   MoneyIcon, InboxIcon, CafeIcon, EcommerceIcon, RoasteryIcon,
   ProfileIcon, PeopleIcon, ShieldIcon,
-  TodayIcon, LogIcon, TransferIcon, PlanIcon, StockIcon, ReviewIcon, DispatchIcon,
+  TodayIcon, LogIcon, TransferIcon, PlanIcon, StockIcon, ItemsIcon, ReviewIcon, DispatchIcon,
 } from './icons'
 
 export interface Section {
@@ -53,9 +53,10 @@ export const SECTIONS: Section[] = [
 ]
 
 /**
- * Café Module sections — the Today root plus its production and transfer capture routes, Plan,
- * Stock, Review and Pushes. Review/Pushes visibility is enforced in the rail; every label flows
- * through the i18n catalog via its labelKey.
+ * Café Module sections — the Today/capture root, production and transfer capture routes, Plan,
+ * Stock, Items, Review and Pushes. Review/Pushes visibility is enforced in the rail; every label
+ * flows through the i18n catalog via its labelKey. All entries remain available for breadcrumb
+ * resolution regardless of role. sectionForPath prefers exact and longest-prefix Café matches.
  */
 export const CAFE_SECTIONS: Section[] = [
   { path: '/cafe', label: 'Today', labelKey: 'nav.cafe.today', Icon: TodayIcon },
@@ -63,6 +64,7 @@ export const CAFE_SECTIONS: Section[] = [
   { path: '/cafe/transfer', label: 'Log transfer', labelKey: 'nav.cafe.transfer', Icon: TransferIcon },
   { path: '/cafe/plan', label: 'Plan', labelKey: 'nav.cafe.plan', Icon: PlanIcon },
   { path: '/cafe/stock', label: 'Stock', labelKey: 'nav.cafe.stock', Icon: StockIcon },
+  { path: '/cafe/items', label: 'Items', labelKey: 'nav.cafe.items', Icon: ItemsIcon },
   // `anyOf` matches each one's OWN route gate exactly (router.tsx: two RequireAccessRole
   // branches). Same list in both places or the rail offers a link that bounces — or, as #236
   // shipped it, withholds a link to a surface the person is entitled to.

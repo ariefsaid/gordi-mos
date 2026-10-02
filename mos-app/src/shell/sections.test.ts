@@ -23,15 +23,15 @@ describe('T5: SECTIONS — workspace fallback registry', () => {
 })
 
 describe('T5: CAFE_SECTIONS — Kitchen re-homed under /cafe/*', () => {
-  // Step 7 (cafe-retrofit.spec.md, RATIFY-7D): /cafe now hosts the "Start today's opening" home
-  // (Opening) ahead of the re-homed kitchen screens (Log · Plan · Stock · Review · Pushes).
-  it('exports the Today root + six Café sections in canonical order', () => {
+  // /cafe is the Today/capture root followed by production, transfer, Plan, Stock, Items, Review and Pushes.
+  it('exports the Today root and Café routes in canonical order', () => {
     expect(CAFE_SECTIONS.map((s) => s.path)).toEqual([
       '/cafe',
       '/cafe/production',
       '/cafe/transfer',
       '/cafe/plan',
       '/cafe/stock',
+      '/cafe/items',
       '/cafe/review',
       '/cafe/pushes',
     ])
@@ -46,9 +46,10 @@ describe('T5: CAFE_SECTIONS — Kitchen re-homed under /cafe/*', () => {
     })
   })
 
-  it('sectionForPath resolves the production and transfer capture routes plus review and pushes', () => {
+  it('sectionForPath resolves production, transfer, items, review and pushes', () => {
     expect(sectionForPath('/cafe/production')!.label).toBe('Log production')
     expect(sectionForPath('/cafe/transfer')!.label).toBe('Log transfer')
+    expect(sectionForPath('/cafe/items')!.label).toBe('Items')
     expect(sectionForPath('/cafe/review')!.label).toBe('Review')
     expect(sectionForPath('/cafe/pushes')!.label).toBe('Pushes')
   })
@@ -116,10 +117,10 @@ describe('T5: sectionForPath — fallbacks', () => {
 
 describe('the Café children carry marks of their own (#457)', () => {
   // Several rungs, one picture: each Café tab gets its own mark so compact rail and phone drawer entries remain identifiable.
-  it('the seven children use seven distinct components (Today, production and transfer)', () => {
+  it('the Café root and routes use distinct components', () => {
     const icons = CAFE_SECTIONS.map((s) => s.Icon)
-    expect(icons).toHaveLength(7)
-    expect(new Set(icons).size).toBe(7)
+    expect(icons).toHaveLength(8)
+    expect(new Set(icons).size).toBe(8)
   })
 
   it('none of them is a mark another destination already draws', () => {

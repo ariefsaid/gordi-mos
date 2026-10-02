@@ -576,6 +576,28 @@ export function PlanIcon() {
   )
 }
 
+// ItemsIcon — three distinct catalogue rows, the Café item-settings reference screen.
+export function ItemsIcon() {
+  return (
+    <svg
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="5" cy="6" r="1" />
+      <circle cx="5" cy="12" r="1" />
+      <circle cx="5" cy="18" r="1" />
+      <path d="M10 6h9M10 12h9M10 18h9" />
+    </svg>
+  )
+}
+
 // StockIcon — a carton, the Café Stock screen: the goods actually on hand in the stream.
 export function StockIcon() {
   return (

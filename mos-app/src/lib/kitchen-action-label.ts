@@ -19,6 +19,7 @@ import type {
   BranchOption,
   CafeDestination,
   KitchenMovement,
+  KitchenLogMovement,
   MovementKey,
   ProductionActivity,
   ProductionStream,
@@ -39,7 +40,8 @@ export function branchDisplayName(branch: BranchOption): string {
 }
 
 /** Stable client-side index for a movement (see `MovementKey`). */
-export function movementKey(movement: KitchenMovement): MovementKey {
+export function movementKey(movement: KitchenLogMovement): MovementKey {
+  if (movement.action === 'waste') return 'waste'
   return movement.action === 'produce'
     ? 'produce'
     : `transfer:${movement.destinationBranchId ?? ''}`
@@ -153,9 +155,10 @@ export function counterpartActivity(activity: ProductionActivity): ProductionAct
  */
 export function deriveActionLabel(
   t: Translate,
-  movement: KitchenMovement,
+  movement: KitchenLogMovement,
   branches: readonly BranchOption[],
 ): string {
+  if (movement.action === 'waste') return t('kitchen.actionType.waste')
   if (movement.action === 'produce') return t('kitchen.actionType.production')
   const branch = branches.find((b) => b.id === movement.destinationBranchId)
   return t('kitchen.actionType.transferTo', {
@@ -166,9 +169,10 @@ export function deriveActionLabel(
 /** The same label, abbreviated for the phone-width segmented control. */
 export function deriveActionShortLabel(
   t: Translate,
-  movement: KitchenMovement,
+  movement: KitchenLogMovement,
   branches: readonly BranchOption[],
 ): string {
+  if (movement.action === 'waste') return t('kitchen.actionType.waste')
   if (movement.action === 'produce') return t('kitchen.actionType.production')
   const branch = branches.find((b) => b.id === movement.destinationBranchId)
   return t('kitchen.actionType.transferTo.short', {
