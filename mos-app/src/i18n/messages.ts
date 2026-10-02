@@ -564,7 +564,6 @@ export const messages = {
     'commandMenu.title': 'Command menu',
     'commandMenu.inputLabel': 'Search records or run a command',
     'commandMenu.inputPlaceholder': 'Search records and people',
-    'commandMenu.group.records': 'Records',
     'commandMenu.group.recent': 'Recent',
     'commandMenu.group.actions': 'Actions',
     'commandMenu.group.goTo': 'GO TO',
@@ -578,6 +577,8 @@ export const messages = {
     'commandMenu.kind.process': 'Process',
     'commandMenu.action.askDeputy': 'Ask Deputy: what needs my attention?',
     'commandMenu.action.shareSignal': 'Share Signal',
+    'commandMenu.action.showAll': 'Show all (${count})',
+    'commandMenu.action.showFewer': 'Show fewer',
     'commandMenu.action.createTask': 'Create task',
     // #407 — the floor's one-tap capture path: the launcher's Café log entry, shown to viewers
     // the /cafe/log route admits. Same verb+object shape as the actions above; "Café … log"
@@ -2445,7 +2446,6 @@ export const messages = {
     'commandMenu.title': 'Menu perintah',
     'commandMenu.inputLabel': 'Cari rekaman atau jalankan perintah',
     'commandMenu.inputPlaceholder': 'Cari rekaman dan orang',
-    'commandMenu.group.records': 'Rekaman',
     'commandMenu.group.recent': 'Terbaru',
     'commandMenu.group.actions': 'Aksi',
     'commandMenu.group.goTo': 'BUKA',
@@ -2459,6 +2459,8 @@ export const messages = {
     'commandMenu.kind.process': 'Proses',
     'commandMenu.action.askDeputy': 'Tanya Deputi: apa yang perlu saya perhatikan?',
     'commandMenu.action.shareSignal': 'Bagikan Sinyal',
+    'commandMenu.action.showAll': 'Tampilkan semua (${count})',
+    'commandMenu.action.showFewer': 'Tampilkan lebih sedikit',
     'commandMenu.action.createTask': 'Buat tugas',
     // #407 — jalur pencatatan satu-ketuk untuk staf lantai (lihat catatan di lokal en).
     'commandMenu.action.logCafe': 'Catat produksi Kafe',

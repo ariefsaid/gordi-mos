@@ -80,7 +80,7 @@ function firstLine(body: string): string {
   return line ?? body.trim()
 }
 
-// Per-kind row config for the widened Records group (OD-REDESIGN-91 #4/B2): the icon, the
+// Per-kind record row config (OD-REDESIGN-91 #4/B2): the icon, the
 // navigation target for a hit, and the muted kind label. Tasks, Signals, Objectives and Projects &
 // Processes deep-link to their record pages; an AR Follow-up hit lands on the Money queue, behind
 // its finance gate, because DD-WAY-36 (#369) deleted its record route. A person hit is deliberately
@@ -95,6 +95,9 @@ const RECORD_KIND_CONFIG: Record<RecordKind, { Icon: React.ComponentType; to: ((
   'follow-up': { Icon: MoneyIcon, to: () => '/money/follow-ups', kindLabelKey: 'commandMenu.kind.followUp' },
   person: { Icon: ProfileIcon, to: null, kindLabelKey: 'commandMenu.kind.person' },
 }
+
+// A stable kind order gives work records first dibs without comparing scores across unlike records.
+const RECORD_KIND_ORDER: RecordKind[] = ['task', 'objective', 'project', 'process', 'signal', 'follow-up', 'person']
 
 // ⌘K command palette (ADR-0013 D4 / Redesign Step 2 §8). Centered modal (e7
 // presentation); contents = Recent + GO TO roots + ACT + async record search
@@ -121,8 +124,10 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
   const [records, setRecords] = useState<RecordsState>({ status: 'idle' })
+  const [expandedKinds, setExpandedKinds] = useState<Set<RecordKind>>(() => new Set())
 
   const optionRefs = useRef<Record<string, HTMLDivElement | null>>({})
+  const pendingActiveId = useRef<string | null>(null)
 
   // Memoized so it is referentially stable across renders: `navigateItems` derives Work's child
   // rows from it, and a fresh `[]` on every render would defeat that memo.
@@ -216,6 +221,8 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
     setQuery('')
     setActive(0)
     setRecords({ status: 'idle' })
+    setExpandedKinds(new Set())
+    pendingActiveId.current = null
   }, [open])
 
   // ── Debounced record search (~150ms) ─────────────────────────────────────────
@@ -297,14 +304,49 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
         // index, see CommandItem.disabled) and a press is refused instead of closing the palette.
         to: cfg.to ? cfg.to(r.id) : undefined,
         disabled: cfg.to === null,
-        // Rows carry their kind (OD-REDESIGN-91 #4/B2): a muted kind label rides the row.
-        meta: t(cfg.kindLabelKey),
         // Only Tasks feed the task-scoped Recent ring buffer; Signals/Follow-ups don't pollute it.
         record: r.kind === 'task' ? { id: r.id, title: r.title } : undefined,
       }
     })
     if (records.status === 'ready' && recordItems.length) {
-      out.push({ key: 'records', label: t('commandMenu.group.records'), items: recordItems })
+      const itemsByKind = new Map<RecordKind, CommandItem[]>()
+      records.rows.forEach((row, index) => {
+        const kindItems = itemsByKind.get(row.kind) ?? []
+        kindItems.push(recordItems[index])
+        itemsByKind.set(row.kind, kindItems)
+      })
+      for (const kind of RECORD_KIND_ORDER) {
+        const items = itemsByKind.get(kind)
+        if (!items?.length) continue
+        const expanded = expandedKinds.has(kind)
+        const visibleItems = expanded ? [...items] : items.slice(0, 1)
+        if (items.length > 1) {
+          const disclosureId = `record-toggle-${kind}`
+          visibleItems.push({
+            id: disclosureId,
+            label: t(expanded ? 'commandMenu.action.showFewer' : 'commandMenu.action.showAll', { count: items.length }),
+            Icon: RECORD_KIND_CONFIG[kind].Icon,
+            kind: 'disclosure',
+            // The route is only for the shared ship gate; activation runs the in-place toggle.
+            to: items[0].to,
+            keepOpen: true,
+            run: () => {
+              pendingActiveId.current = disclosureId
+              setExpandedKinds((current) => {
+                const next = new Set(current)
+                if (next.has(kind)) next.delete(kind)
+                else next.add(kind)
+                return next
+              })
+            },
+          })
+        }
+        out.push({
+          key: `records-${kind}`,
+          label: t(RECORD_KIND_CONFIG[kind].kindLabelKey),
+          items: visibleItems,
+        })
+      }
     }
     // AC-032: the narrow/full-width branch, not the pointer — below 920px the palette carries
     // results ONLY (navigation is the tab bar's job, actions the `+` launcher's); at desktop
@@ -314,7 +356,7 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
     if (nav.length) out.push({ key: 'navigate', label: t('commandMenu.group.goTo'), items: nav })
     if (actions.length) out.push({ key: 'actions', label: t('commandMenu.group.act'), items: actions })
     return out
-  }, [isSearching, trimmed, records, actionItems, launcherActions, navigateItems, t, mode, isNarrow])
+  }, [isSearching, trimmed, records, expandedKinds, actionItems, launcherActions, navigateItems, t, mode, isNarrow])
 
   // The ship gate (#444), applied at the ONE seam every palette row passes through, rather than
   // as a flag per entry. The palette is a navigation surface like the rail, and OD-WAY-51
@@ -343,10 +385,21 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
   )
   const activeId = flatItems[active]?.id
 
-  useEffect(() => { setActive(0) }, [trimmed])
+  useEffect(() => {
+    setActive(0)
+    setExpandedKinds(new Set())
+    pendingActiveId.current = null
+  }, [trimmed])
   useEffect(() => {
     if (active > flatItems.length - 1) setActive(flatItems.length ? flatItems.length - 1 : 0)
   }, [flatItems.length, active])
+  useEffect(() => {
+    const id = pendingActiveId.current
+    if (!id) return
+    const index = flatItems.findIndex((item) => item.id === id)
+    if (index >= 0) setActive(index)
+    pendingActiveId.current = null
+  }, [flatItems])
 
   useEffect(() => {
     if (!open || !activeId) return
@@ -360,7 +413,7 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
     if (item.record) pushRecentTask(item.record)
     if (item.run) item.run()
     else if (item.to) navigate(item.to)
-    onClose()
+    if (!item.keepOpen) onClose()
   }
 
   function onInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -458,7 +511,7 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
                            information about the row — which is what `aria-describedby` is for.
                            The idref resolves only while the parent row is rendered, which is the
                            same condition that draws the indent. */
-                        data-to={item.to}
+                        data-to={item.keepOpen ? undefined : item.to}
                         data-child={item.child ? 'true' : undefined}
                         aria-describedby={item.child ? item.parentId : undefined}
                         className={`cm-item${item.kind === 'action' ? ' action' : ''}${isActive ? ' active' : ''}`}
