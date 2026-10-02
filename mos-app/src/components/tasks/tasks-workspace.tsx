@@ -818,25 +818,22 @@ export function TasksWorkspace({
   const showNewTask = state.status === 'ready'
   const frameState: PageFamilyState = state.status === 'ready' ? 'default' : state.status
   // A saved-view scope (My work etc.) is not a filter: only a set field filter earns the
-  // "match these filters" wording. DD-NAME-1: the Mine copy ("No tasks assigned to you") is
-  // only true for an empty saved Mine view with no additional filters — a person/overdue/search
-  // filter that empties the view earns the shared filtered-empty wording instead.
+  // "match these filters" wording. DD-NAME-1: the Mine copy ("No tasks assigned to you")
+  // belongs to a saved Mine view only — an explicit Person/PIC/Supervisor/Overdue narrowing
+  // (or a search/filter that empties the view) earns the neutral or shared filtered wording.
   const savedMineView = query.view === 'my-work' || query.view === 'my-pic' || query.view === 'my-supervisor'
-  const mineScope = savedMineView
-    || query.picId !== null || query.supervisorId !== null || query.personId !== null
-    || query.overdueOnly || query.view === 'overdue'
   const mineViewUnfiltered = savedMineView && !(
     query.q !== '' || query.businessUnitId !== null || query.status !== null
     || query.picId !== null || query.supervisorId !== null || query.personId !== null
     || query.overdueOnly)
   const emptyTitle = query.includeArchived
     ? t('tasks.empty.archivedTitle')
-    : mineScope
+    : savedMineView
       ? t('tasks.empty.mineTitle')
       : t('tasks.empty.noTasksTitle')
   const emptyCopy = query.includeArchived
     ? t('tasks.empty.archivedCopy')
-    : mineScope
+    : savedMineView
       ? t('tasks.empty.mineCopy')
       : t('tasks.empty.noTasksCopy')
 

@@ -1290,6 +1290,53 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
     // Broadened scope means the chip state itself moved off My work, not just the row list.
     expect(screen.getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true')
   })
+
+  // DD-NAME-1 repair round: with a truly empty source (no records at all) the collection is in
+  // the true-empty state even while a filter is active — and an explicit Person/PIC/Supervisor/
+  // Overdue narrowing must not claim "No tasks assigned to you". Only a saved Mine view may
+  // carry the Mine copy.
+  it('a Person filter over an empty source says No tasks yet, not No tasks assigned to you', async () => {
+    mockListTasks.mockResolvedValue([])
+    renderTable({}, DEWI)
+    await waitFor(() => screen.getByRole('heading', { name: /tasks/i }))
+    ensureFiltersOpen()
+    chooseFilterOption(screen.getByRole('combobox', { name: /person/i }), 'Budi Setiawan')
+    await waitFor(() => expect(screen.getByText(/no tasks yet/i)).toBeInTheDocument())
+    expect(screen.queryByText(/no tasks assigned to you/i)).toBeNull()
+  })
+
+  it('a PIC filter over an empty source says No tasks yet, not No tasks assigned to you', async () => {
+    mockListTasks.mockResolvedValue([])
+    renderTable({}, DEWI, ['/work/tasks?pic=other-id'])
+    await waitFor(() => expect(screen.getByText(/no tasks yet/i)).toBeInTheDocument())
+    expect(screen.queryByText(/no tasks assigned to you/i)).toBeNull()
+  })
+
+  it('a Supervisor filter over an empty source says No tasks yet, not No tasks assigned to you', async () => {
+    mockListTasks.mockResolvedValue([])
+    renderTable({}, DEWI, ['/work/tasks?supervisor=other-id'])
+    await waitFor(() => expect(screen.getByText(/no tasks yet/i)).toBeInTheDocument())
+    expect(screen.queryByText(/no tasks assigned to you/i)).toBeNull()
+  })
+
+  it('the Overdue view over an empty source says No tasks yet, not No tasks assigned to you', async () => {
+    mockListTasks.mockResolvedValue([])
+    renderTable({}, DEWI)
+    await waitFor(() => screen.getByRole('heading', { name: /tasks/i }))
+    ensureFiltersOpen()
+    fireEvent.click(screen.getByRole('button', { name: 'Overdue' }))
+    await waitFor(() => expect(screen.getByText(/no tasks yet/i)).toBeInTheDocument())
+    expect(screen.queryByText(/no tasks assigned to you/i)).toBeNull()
+  })
+
+  it('an empty source with the My work view keeps the Mine copy (a saved Mine view may claim it)', async () => {
+    mockListTasks.mockResolvedValue([])
+    renderTable()
+    await waitFor(() => screen.getByRole('heading', { name: /tasks/i }))
+    ensureFiltersOpen()
+    fireEvent.click(screen.getByRole('button', { name: 'My work' }))
+    await waitFor(() => expect(screen.getByText(/no tasks assigned to you/i)).toBeInTheDocument())
+  })
 })
 
 // ── PR-3 — TanStack refactor + group-by engine + group headers ────────────────
