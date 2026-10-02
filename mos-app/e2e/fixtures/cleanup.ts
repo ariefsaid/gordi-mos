@@ -121,6 +121,7 @@ export const E2E_CLEANUP_REGISTRY = {
   'AC-018-objective-writeup.spec.ts': 'fixed-objective-id',
   'AC-020-catalog.spec.ts': 'captured-objective-id-and-fixed-task-id',
   'AC-090-kitchen-log-approve.spec.ts': 'fixed-item-id',
+  'AC-1242-cafe-unit-wiring.spec.ts': 'fixed-item-id-with-validated-batch-outbox-cleanup',
   'cafe-waste-review.spec.ts': 'fixed-waste-item-id-with-storage-api-cleanup',
   'AC-134.spec.ts': 'fixed-task-ids',
   'AC-230.spec.ts': 'fixed-task-and-work-line-ids',
