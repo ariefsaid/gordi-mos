@@ -116,7 +116,7 @@ test.describe('AC-411: catalog is Work\'s manage-mode', () => {
     await loginAs(page, ADMIN.email, ADMIN.password)
 
     await page.goto('objectives')
-    await expect(page).toHaveURL(/\/work\/objectives$/)
+    await expect(page).toHaveURL(url => url.pathname.endsWith('/work/objectives'))
     await expect(page.getByRole('heading', { name: 'Objectives', level: 1 })).toBeVisible()
   })
 })
@@ -167,10 +167,12 @@ for (const width of [390,1440]) {
     await page.getByRole('link',{name:'E2E Trace Process',exact:true}).click()
     const panel=page.getByRole('region',{name:'E2E Trace Process',exact:true})
     await expect(panel).toBeVisible()
-    // A Process record is one scrolling page: occurrences, then its steps, with no tabs.
+    // The Process remains one readable record page without duplicate occurrence headings or tabs.
+    await expect(panel.getByRole('heading', { name: 'E2E Trace Process', exact: true })).toHaveCount(1)
     await expect(panel.getByRole('tablist')).toHaveCount(0)
-    await expect(panel.getByRole('region',{name:'Current and next action',exact:true})).toBeVisible()
-    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
+    await expect(panel.getByRole('region', { name: 'About', exact: true })).toBeVisible()
+    await expect(panel.getByRole('heading', { name: 'Occurrences', exact: true })).toHaveCount(0)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     await page.screenshot({animations:'disabled',path:testInfo.outputPath(`process-${width}.png`)})
     // A wide panel's own bar carries Open full page; on a phone the panel is the whole screen and the menu does.
     if (width < 768) {
