@@ -312,6 +312,13 @@ export function OverlayHostProvider({
     [driver],
   )
 
+  // A cold query-linked panel can be the first app history entry; don't pop that close out of the tab.
+  const goIfHistoryTargetExists = useCallback((delta: number) => {
+    const currentIndex = driver.index()
+    if (currentIndex !== null && currentIndex + delta < 0) return
+    programmaticGo(delta)
+  }, [driver, programmaticGo])
+
   const clearRouteSeam = useCallback(() => {
     restoreCacheRef.current = new Map()
   }, [])
@@ -624,7 +631,7 @@ export function OverlayHostProvider({
       if (cur.frames.length <= 1) {
         clearRouteSeam()
         commitSession(null)
-        if (cur.mode === 'route') programmaticGo(-1) // historyDeltaForClose(0)
+        if (cur.mode === 'route') goIfHistoryTargetExists(-1) // historyDeltaForClose(0)
       } else {
         commitSession({ ...cur, frames: cur.frames.slice(0, -1) })
         if (cur.mode === 'route') programmaticGo(-1)
@@ -634,7 +641,7 @@ export function OverlayHostProvider({
       { kind: 'back', via: 'internal-back', from: summarize(active), depth },
       commit,
     )
-  }, [activeEntry, commitSession, clearRouteSeam, requestLeave, programmaticGo])
+  }, [activeEntry, commitSession, clearRouteSeam, requestLeave, goIfHistoryTargetExists, programmaticGo])
 
   const close = useCallback(
     (via: 'explicit-close' | 'escape' = 'explicit-close'): Promise<OverlayTransitionResult> => {
@@ -646,11 +653,11 @@ export function OverlayHostProvider({
       const commit = () => {
         clearRouteSeam()
         commitSession(null)
-        if (mode === 'route') programmaticGo(historyDeltaForClose(depth))
+        if (mode === 'route') goIfHistoryTargetExists(historyDeltaForClose(depth))
       }
       return requestLeave({ kind: 'close', via, from: summarize(active) }, commit)
     },
-    [activeEntry, commitSession, clearRouteSeam, requestLeave, programmaticGo],
+    [activeEntry, commitSession, clearRouteSeam, requestLeave, goIfHistoryTargetExists],
   )
 
   const openPage = useCallback(
