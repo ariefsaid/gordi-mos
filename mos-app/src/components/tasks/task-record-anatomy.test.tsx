@@ -209,6 +209,18 @@ describe('Task record anatomy', () => {
     expect(facts(container).querySelector('[data-field-key="objective"]')).toBeNull()
   })
 
+  it.each([['editor', PIC], ['read-only viewer', 'stranger']])(
+    'AC-038: names both missing relations for an %s', (_role, viewerId) => {
+      const { container } = renderRecord({ viewerId })
+      const project = facts(container).querySelector('[data-field-key="projectProcess"]')
+      const objective = facts(container).querySelector('[data-field-key="objective"]')
+      expect(project).toHaveTextContent('Ad hoc')
+      expect(objective).toHaveTextContent('No Objective')
+      expect(project).not.toHaveTextContent('—')
+      expect(objective).not.toHaveTextContent('—')
+    },
+  )
+
   it('a record on its own page reads h1 then h2, with no level skipped into its sections', () => {
     const { container } = renderRecord()
     const levels = [...container.querySelectorAll('h1, h2, h3, h4, h5, h6')].map((heading) => Number(heading.tagName.slice(1)))
