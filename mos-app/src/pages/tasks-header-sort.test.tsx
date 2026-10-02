@@ -249,7 +249,9 @@ describe('Tasks header sort — click cycle', () => {
     await waitFor(() => expect(urlParams().get('sort')).toBe('status'))
     expect(urlParams().has('dir')).toBe(false)
     expect(ariaSorts()).toEqual({ task: 'none', status: 'ascending', owner: 'none', due: 'none' })
-    expect(titles()).toEqual(['Alpha', 'Charlie', 'Delta', 'Bravo'])
+    // #1192: Status sorts by the workflow STATUS_ORDER (In Progress → Blocked → Open → Done),
+    // never alphabetically — Delta/Alpha/Bravo/Charlie, not Alpha/Charlie/Delta/Bravo.
+    expect(titles()).toEqual(['Delta', 'Alpha', 'Bravo', 'Charlie'])
 
     clickHeader('th-owner')
     await waitFor(() => expect(urlParams().get('sort')).toBe('pic'))

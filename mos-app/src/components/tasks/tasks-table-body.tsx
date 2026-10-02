@@ -241,6 +241,7 @@ export function TasksTableBody(props: TasksTableBodyProps) {
                   <th
                     key={header.id}
                     scope="col"
+                    aria-colindex={header.index + 1}
                     className={`th-cell ${meta.thClass}${canSort ? ' th-sortable' : ''}${sorted ? ' th-sorted' : ''}`}
                     aria-sort={canSort ? (sorted === 'asc' ? 'ascending' : sorted === 'desc' ? 'descending' : 'none') : undefined}
                   >

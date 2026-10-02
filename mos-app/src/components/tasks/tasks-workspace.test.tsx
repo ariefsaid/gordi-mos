@@ -1913,6 +1913,36 @@ describe('Task 18 — j/k skips group-header rows (AC-131, OBS-121)', () => {
   })
 })
 
+// #1192 review: a closed Picker trigger consumes the printable keys its type-ahead handles.
+// The Tasks window keyboard layer (j/k cursor, n = create) must never see a keystroke typed on
+// a focused toolbar picker — the grammar stays native-select, not a second window layer.
+describe('typing on a focused toolbar Picker never reaches the window layer (#1192)', () => {
+  it('n/j/k on the focused toolbar Sort trigger feed the picker: no create row, no cursor move', async () => {
+    mockListTasks.mockResolvedValue([
+      makeTask({ id: 'o1', title: 'Open one', status: 'Open' }),
+      makeTask({ id: 'b1', title: 'Blocked one', status: 'Blocked' }),
+    ])
+    renderTable()
+    await waitFor(() => screen.getByText('Open one'))
+
+    const sortTrigger = within(ensureFiltersOpen()).getByRole('combobox', { name: /^sort$/i })
+    sortTrigger.focus()
+    expect(document.activeElement).toBe(sortTrigger)
+
+    // `n` opens create from the window layer everywhere else — never from a picker trigger.
+    fireEvent.keyDown(sortTrigger, { key: 'n' })
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 50)) })
+    expect(screen.queryByRole('textbox', { name: /title/i })).toBeNull()
+    expect(screen.getByText('Open one')).toBeInTheDocument()
+
+    // j/k move the collection cursor from the window layer — never from a picker trigger.
+    fireEvent.keyDown(sortTrigger, { key: 'j' })
+    fireEvent.keyDown(sortTrigger, { key: 'k' })
+    expect(document.querySelector('tr.task-row.kfocus')).toBeNull()
+    expect(document.querySelector('tr.task-row[aria-selected="true"]')).toBeNull()
+  })
+})
+
 describe('Task 19 — "+ Create task" pre-fill (AC-125)', () => {
   it('AC-125: in an Owner-grouped view, a group "+ Create task" navigates to /tasks/new?r=<personId>', async () => {
     mockListTasks.mockResolvedValue([makeTask({ id: 'a', title: 'Mine task' })])
@@ -2395,8 +2425,8 @@ describe('AC-W2C — desktop density: Due in-frame, optional cols in drawer', ()
 // ── Ticket #750 — rows/body judgment wave (AC-019 · AC-022 · AC-024) ─────────
 
 describe('Ticket #750 — AC-019 footer legend states the click grammar', () => {
-  const EN_LEGEND = 'Click a row to open it · ← → move between cells · ✎ or F2 edits the title · Enter saves · Esc discards'
-  const ID_LEGEND = 'Klik baris untuk membukanya · ← → pindah antar sel · ✎ atau F2 menyunting judul · Enter menyimpan · Esc membatalkan'
+  const EN_LEGEND = 'Click a row to open it · ↑↓ ← → move between cells · ✎ or F2 edits the title · Enter saves · Esc discards'
+  const ID_LEGEND = 'Klik baris untuk membukanya · ↑↓ ← → pindah antar sel · ✎ atau F2 menyunting judul · Enter menyimpan · Esc membatalkan'
 
   it('AC-019: the legend under the table reads the new grammar in EN and in ID', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'Legend task' })])

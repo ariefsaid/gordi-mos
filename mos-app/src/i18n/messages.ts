@@ -1108,7 +1108,7 @@ export const messages = {
     'tasks.inlineEdit.aria': "Edit task title",
     'tasks.inlineEdit.activeHint': "Enter saves · Tab moves · Esc discards",
     // AC-019 (#750): the footer legend states the row-activation grammar (A3) verbatim.
-    'tasks.inlineEdit.hint': "Click a row to open it · ← → move between cells · ✎ or F2 edits the title · Enter saves · Esc discards",
+    'tasks.inlineEdit.hint': "Click a row to open it · ↑↓ ← → move between cells · ✎ or F2 edits the title · Enter saves · Esc discards",
     'tasks.inlineEdit.pencil': "Edit title",
     'tasks.inlineEdit.status': "Edit task status",
     'tasks.inlineEdit.pic': "Edit task PIC",
@@ -1152,6 +1152,7 @@ export const messages = {
     'tasks.status.open': "Open",
     'tasks.supervisor': "Supervisor",
     'tasks.supervisor.help': "Supervisor — the person who checks in, unblocks, and verifies this task. A separate, deliberate choice — it may be the same person as PIC, but never defaults to them.",
+    'tasks.supervisor.none': "Supervisor: none",
     'tasks.team': "Team",
     'tasks.title': "Tasks",
     'tasks.type.daily': "Daily / ongoing",
@@ -2941,7 +2942,7 @@ export const messages = {
     'tasks.inlineEdit.aria': "Sunting judul tugas",
     'tasks.inlineEdit.activeHint': "Enter menyimpan · Tab berpindah · Esc membatalkan",
     // AC-019 (#750): the footer legend states the row-activation grammar (A3) verbatim.
-    'tasks.inlineEdit.hint': "Klik baris untuk membukanya · ← → pindah antar sel · ✎ atau F2 menyunting judul · Enter menyimpan · Esc membatalkan",
+    'tasks.inlineEdit.hint': "Klik baris untuk membukanya · ↑↓ ← → pindah antar sel · ✎ atau F2 menyunting judul · Enter menyimpan · Esc membatalkan",
     'tasks.inlineEdit.pencil': "Sunting judul",
     'tasks.inlineEdit.status': "Ubah status tugas",
     'tasks.inlineEdit.pic': "Ubah PIC tugas",
@@ -2983,6 +2984,7 @@ export const messages = {
     'tasks.status.open': "Terbuka",
     'tasks.supervisor': "Supervisor",
     'tasks.supervisor.help': "Supervisor — orang yang memantau, membantu mengatasi hambatan, dan memverifikasi tugas ini. Pilihan terpisah yang disengaja — boleh sama dengan PIC, tetapi tidak pernah ditetapkan otomatis ke orang yang sama.",
+    'tasks.supervisor.none': "Supervisor: tidak ada",
     'tasks.team': "Tim",
     'tasks.title': "Tugas",
     'tasks.type.daily': "Harian / berkelanjutan",
