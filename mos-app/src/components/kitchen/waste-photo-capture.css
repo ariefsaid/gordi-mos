@@ -11,7 +11,7 @@
 .waste-photo-capture-heading h3 {
   margin: 0;
   color: var(--foreground);
-  font-size: 0.95rem;
+  font-size: var(--font-size-body-lg);
   font-weight: 650;
 }
 
@@ -19,7 +19,7 @@
 .waste-photo-capture-readiness {
   margin: 4px 0 0;
   color: var(--muted-foreground);
-  font-size: 0.82rem;
+  font-size: var(--font-size-control);
   line-height: 1.45;
 }
 
@@ -36,7 +36,7 @@
   background: var(--surface-tertiary);
   color: var(--foreground);
   cursor: pointer;
-  font-size: 0.875rem;
+  font-size: var(--font-size-body);
   font-weight: 600;
 }
 
@@ -97,13 +97,13 @@
   min-width: 0;
   gap: 4px;
   color: var(--muted-foreground);
-  font-size: 0.75rem;
+  font-size: var(--font-size-label);
 }
 
 .waste-photo-capture-filename {
   overflow: hidden;
   color: var(--foreground);
-  font-size: 0.8125rem;
+  font-size: var(--font-size-mono);
   font-weight: 550;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -122,7 +122,7 @@
 .waste-photo-capture-error {
   margin: 0;
   color: var(--destructive);
-  font-size: 0.78rem;
+  font-size: var(--font-size-label);
   line-height: 1.4;
 }
 
@@ -130,7 +130,7 @@
   min-width: 44px;
   min-height: 44px;
   padding: 8px;
-  font-size: 0.78rem;
+  font-size: var(--font-size-label);
 }
 
 .waste-photo-capture-upload {
