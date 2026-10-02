@@ -3,9 +3,10 @@ import { ADMIN } from './fixtures/users'
 import { AC204 } from './fixtures/tasks'
 import { loginAs } from './helpers/login'
 import { isShipGated } from './helpers/ship-gate'
+import { e2eAppPath } from './helpers/app-path'
 
 /** The app is served under a basename, so every rendered href carries it. */
-const href = (path: string) => `/mos${path}`
+const href = (path: string) => e2eAppPath(path)
 
 /**
  * AC-204 — progress rolls up from an Objective to its Projects/Processes and their Tasks, and the

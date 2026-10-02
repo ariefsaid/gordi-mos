@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { OverlayHostProvider, OverlayHostSlot, useOverlayHost, type OverlayHostApi } from '@/shell/overlay-host'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import { APP_ROUTER_BASENAME, appUrl } from '@/config/app-build-settings'
 import type { AuthState } from '@/auth/context'
 
 // C3 (KNOWN GAP 2): signal-record.tsx (B15) is fully presentational — this host fetches via
@@ -178,7 +179,7 @@ describe('SignalRecordHost — loading/error states', () => {
       value: { writeText },
     })
     render(
-      <MemoryRouter basename="/mos" initialEntries={['/mos/work/signals?record=signal-1']}>
+      <MemoryRouter basename={APP_ROUTER_BASENAME} initialEntries={[`${appUrl('/work/signals')}?record=signal-1`]}>
         <I18nProvider>
           <SignalRecordHost signalId={SIGNAL_ID} />
         </I18nProvider>
@@ -189,7 +190,7 @@ describe('SignalRecordHost — loading/error states', () => {
     await user.click(screen.getByRole('button', { name: /more signal actions/i }))
     await user.click(screen.getByRole('menuitem', { name: /copy link/i }))
 
-    expect(writeText).toHaveBeenCalledWith(new URL('/mos/work/signals/signal-1', window.location.origin).href)
+    expect(writeText).toHaveBeenCalledWith(new URL(appUrl('/work/signals/signal-1'), window.location.origin).href)
   })
 
   // AC-046 (#775): a denied read (42501) shows the shared `blank` archetype with one Back — never

@@ -10,6 +10,7 @@ import { assertAuditRoute } from './audit-route.ts'
 import { loginAs } from '../helpers/login'
 import { stubAccountLocale } from '../helpers/account-locale'
 import { ADMIN, BAR_MEMBER, BAR_SUPERVISOR, BARISTA, MANAGER, ORPHAN, VIEWER } from '../fixtures/users'
+import { appPath, normalizeBasePath } from '../../src/config/build-settings'
 import { assertDevServerOwnership, worktreeFingerprint } from '../../src/lib/dev-server'
 import {
   AUDIT_RECEIVING_ONLY,
@@ -483,8 +484,10 @@ export async function prepareAuditPage(page: Page, run: AuditRun, cell: Manifest
       // authenticated page is still mounted so each matrix cell exercises the real provider path.
       window.localStorage.setItem('mos-theme', theme === 'dark' ? 'dark' : 'light')
     }, { theme: cell.theme })
-    await page.goto(cell.route, { waitUntil: 'domcontentloaded' })
-    assertAuditRoute(page.url(), cell.route)
+    const basePath = normalizeBasePath(new URL(run.baseURL).pathname)
+    const route = appPath(cell.route, basePath)
+    await page.goto(route, { waitUntil: 'domcontentloaded' })
+    assertAuditRoute(page.url(), route)
     await page.locator('main').waitFor({ state: 'visible', timeout: 10_000 })
     await page.locator('main h1').first().waitFor({ state: 'visible', timeout: 10_000 })
     const expectedLanguage = cell.language === 'id' ? 'id' : 'en'
@@ -608,7 +611,7 @@ export async function driveInteractionState(page: Page, state: string): Promise<
 }
 
 export function screenshotName(cell: ManifestCell, lane?: string): string {
-  const slug = cell.route.replace(/^\/mos\//, '').replace(/[^a-z0-9]+/gi, '-')
+  const slug = cell.route.replace(/^\/+/, '').replace(/[^a-z0-9]+/gi, '-')
   const laneSuffix = lane ? `-${lane.replace(/[^a-z0-9]+/gi, '-')}` : ''
   return `${slug}-${cell.fixture}-${cell.viewport}-${cell.theme}-${cell.language}-${cell.state}${laneSuffix}.png`.toLowerCase()
 }

@@ -1,6 +1,6 @@
 // Worktree-scoped dev-server addressing (#419).
 //
-// WHY THIS EXISTS: playwright.config.ts used to pin http://localhost:5173/mos/ with
+// WHY THIS EXISTS: playwright.config.ts used to pin a single localhost port and app base with
 // reuseExistingServer enabled locally. With several git worktrees on one machine (the
 // factory's normal state), a run in worktree B silently adopted worktree A's dev server
 // and measured A's application while reporting the result as B's — no error, no warning
@@ -59,9 +59,10 @@ export function devServerPort(appDir: string, envPort: string | undefined): numb
   return PORT_BAND_BASE + (fnv1a32(resolve(appDir)) % PORT_BAND_SPAN)
 }
 
-/** App base URL the browser suite must measure (vite serves the app under /mos/). */
-export function devServerBaseUrl(appDir: string, envPort: string | undefined): string {
-  return `http://localhost:${devServerPort(appDir, envPort)}/mos/`
+/** App base URL the browser suite must measure for this build. */
+export function devServerBaseUrl(appDir: string, envPort: string | undefined, basePath = '/'): string {
+  const appBase = basePath === '/' ? '/' : `${basePath.replace(/\/+$/, '')}/`
+  return `http://localhost:${devServerPort(appDir, envPort)}${appBase}`
 }
 
 /** URL of the fingerprint endpoint on this worktree's dev server. */

@@ -2,6 +2,8 @@ import { defineConfig, devices } from '@playwright/test'
 import { readFileSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
+import { loadEnv } from 'vite'
+import { BASE_PATH_ENV, resolveBuildSettings } from './src/config/build-settings'
 import { MOS_DEV_PORT_ENV, devServerBaseUrl, devServerPort } from './src/lib/dev-server'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -26,6 +28,8 @@ function loadEnvFile(path: string): Record<string, string> {
 }
 
 const e2eEnv = loadEnvFile(resolve(__dir, '.env.e2e'))
+const { basePath } = resolveBuildSettings({ ...loadEnv('development', __dir, ''), ...process.env, ...e2eEnv })
+process.env[BASE_PATH_ENV] = basePath
 
 // #419 — worktree-scoped dev server. Port and baseURL derive from THIS tree's absolute
 // path, so sibling git worktrees can never contend for one port and a run can never
@@ -34,7 +38,7 @@ const e2eEnv = loadEnvFile(resolve(__dir, '.env.e2e'))
 // worktree. MOS_DEV_PORT is an explicit escape hatch (rare hash collision); ordinary
 // single-worktree use and CI need no environment variable at all.
 const devPort = devServerPort(__dir, process.env[MOS_DEV_PORT_ENV])
-const baseUrl = devServerBaseUrl(__dir, process.env[MOS_DEV_PORT_ENV])
+const baseUrl = devServerBaseUrl(__dir, process.env[MOS_DEV_PORT_ENV], basePath)
 
 export default defineConfig({
   testDir: './e2e',
@@ -69,6 +73,7 @@ export default defineConfig({
       VITE_SUPABASE_URL: e2eEnv.VITE_SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? 'http://127.0.0.1:55321',
       VITE_SUPABASE_ANON_KEY: e2eEnv.VITE_SUPABASE_ANON_KEY ?? process.env.VITE_SUPABASE_ANON_KEY ?? '',
       VITE_SHOW_PLAN_BUDGET: e2eEnv.VITE_SHOW_PLAN_BUDGET ?? process.env.VITE_SHOW_PLAN_BUDGET ?? 'false',
+      [BASE_PATH_ENV]: basePath,
     },
   },
 })

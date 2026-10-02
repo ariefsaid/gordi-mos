@@ -62,7 +62,7 @@ function isTypingTarget(): boolean {
  * desktop width it swallowed Enter for EVERY focused control in the whole app shell — the
  * saved-view chips, the Table/Card toggle, "View & filters", the sortable column headers, the
  * per-row action buttons, and (worst) the sidebar rail links and the header Search button. Verified
- * live on `/mos/work/tasks`: focusing `a[href="/mos/work/objectives"]` and pressing Enter left
+ * live on `/work/tasks`: focusing `a[href="/work/objectives"]` and pressing Enter left
  * `defaultPrevented === true` — which cancels the browser's synthesized click — and pushed
  * `?record=<the j/k cursor row>` instead. A keyboard-only user could move the row cursor but could
  * not activate a single control, nor navigate away via the rail: WCAG 2.1.1 / 2.1.2.
