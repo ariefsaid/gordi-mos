@@ -43,10 +43,16 @@ const redirectCases = [
   { oldPath: 'plan/pricing', finalPath: /\/money\/pricing$/, needsAdmin: true, flag: 'plan-budget', replacement: '/money/pricing' },
 ] as const
 
-async function expectBackDoesNotReenterOld(page: import('@playwright/test').Page, oldPath: string) {
+async function expectBackDoesNotReenterUrl(page: import('@playwright/test').Page, oldUrl: URL) {
   await page.goBack()
-  await page.waitForTimeout(250)
-  expect(new URL(page.url()).pathname).not.toBe(e2eAppPath(`/${oldPath}`))
+  await expect.poll(() => {
+    const current = new URL(page.url())
+    return `${current.pathname}${current.search}`
+  }).not.toBe(`${oldUrl.pathname}${oldUrl.search}`)
+}
+
+async function expectBackDoesNotReenterOld(page: import('@playwright/test').Page, oldPath: string) {
+  await expectBackDoesNotReenterUrl(page, new URL(e2eAppPath(`/${oldPath}`), page.url()))
 }
 
 test.beforeEach(async ({ page }) => {
@@ -132,8 +138,10 @@ test('legacy /mos and /kitchen addresses redirect to the base-aware Café routes
     { oldPath: '/kitchen/pushes?status=failed', path: '/cafe/pushes', search: '?status=failed' },
   ]
   for (const route of cases) {
+    const requestedUrl = new URL(route.oldPath, new URL(e2eAppPath('/'), page.url()))
     await page.goto(route.oldPath, { waitUntil: 'commit' })
     await expect(page).toHaveURL(new URL(`${e2eAppPath(route.path)}${route.search}`, page.url()).href)
+    await expectBackDoesNotReenterUrl(page, requestedUrl)
   }
 })
 

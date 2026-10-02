@@ -9,13 +9,13 @@ export type ProfileFeature = 'workCollections' | 'deputy'
 const CAFE_PROFILE_BLOCKED_PATHS = ['/work', '/tasks', '/updates', '/objectives', '/projects-processes'] as const
 
 const LEGACY_CAFE_DESTINATIONS: Readonly<Record<string, string>> = {
-  '/kitchen': '/cafe',
-  '/kitchen/log': '/cafe',
+  '/kitchen': '/cafe/production',
+  '/kitchen/log': '/cafe/production',
   '/kitchen/plan': '/cafe/plan',
   '/kitchen/stock': '/cafe/stock',
   '/kitchen/review': '/cafe/review',
   '/kitchen/pushes': '/cafe/pushes',
-  '/cafe/log': '/cafe',
+  '/cafe/log': '/cafe/production',
 }
 
 const CAFE_REDIRECTS = Object.entries(LEGACY_CAFE_DESTINATIONS)
