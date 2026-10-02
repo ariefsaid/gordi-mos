@@ -556,6 +556,26 @@ export function TransferIcon() {
   )
 }
 
+// WasteIcon — a held evidence log: the Café waste capture screen never pushes to ERP.
+export function WasteIcon() {
+  return (
+    <svg
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M4 7h16M9 7V4h6v3M7 7l1 14h8l1-14" />
+      <path d="M10 11v6M14 11v6" />
+    </svg>
+  )
+}
+
 // PlanIcon — a planted flag, the Café Plan screen: the quantities intended before the day starts.
 export function PlanIcon() {
   return (
