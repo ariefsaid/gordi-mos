@@ -128,8 +128,12 @@
   border-radius: var(--radius-sm); cursor: pointer; font-size: var(--font-size-mono); min-height: 36px;
 }
 .signal-category-option:hover { background: var(--secondary); }
+/* aria-selected marks the keyboard cursor (GAP-8 contract in signal-category-picker.tsx):
+   shared-picker grammar (#1179) — --surface-tertiary fill plus the ring drawn inside the
+   option. The old --accent-subtle wash + accent text was a ~1.1:1 tint with no non-colour
+   cue, and action blue is not a neutral fill (DD-MVP-14). */
 .signal-category-option[aria-selected="true"] {
-  background: var(--accent-subtle); color: var(--text-accent); font-weight: 600;
+  background: var(--surface-tertiary); outline: 2px solid var(--ring); outline-offset: -2px;
 }
 
 /* Phone floor: the category list keeps its compact type and row rhythm on desktop, while each

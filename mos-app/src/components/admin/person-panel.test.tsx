@@ -292,7 +292,7 @@ describe('PersonPanel — sections', () => {
 describe('PersonPanel — Access roles', () => {
   it('lists every assignable role with its description, never a raw slug, and checks the granted ones', () => {
     renderPanel()
-    for (const name of ['Member', 'Ops Lead', 'Admin', 'Finance', 'Manager', 'Supervisor']) {
+    for (const name of ['Member', 'Ops Lead', 'Admin', 'Finance', 'Manager', 'Supervisor (access)']) {
       expect(screen.getByRole('checkbox', { name })).toBeInTheDocument()
     }
     expect(screen.getByText('Plans and approves')).toBeInTheDocument()
@@ -400,7 +400,7 @@ describe('PersonPanel — Access roles', () => {
 
   it('self-assign guard: admin, finance, manager and supervisor are disabled on your own row', () => {
     renderPanel(SELF, { people: [SELF, OTHER_ADMIN] })
-    for (const name of ['Admin', 'Finance', 'Manager', 'Supervisor']) {
+    for (const name of ['Admin', 'Finance', 'Manager', 'Supervisor (access)']) {
       expect(screen.getByRole('checkbox', { name })).toHaveAttribute('aria-disabled', 'true')
     }
     expect(screen.getByRole('checkbox', { name: 'Member' })).not.toHaveAttribute('aria-disabled', 'true')

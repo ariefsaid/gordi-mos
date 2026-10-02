@@ -1,0 +1,11 @@
+/* User-chip popover items (user-chip.tsx): the shared state grammar (#1179). Hover keeps the
+   popover's quiet fill (shadcn --color-accent aliases --surface-secondary); the keyboard
+   cursor is a --surface-tertiary fill PLUS the focus ring drawn inside the item — a tint
+   alone is ~1.1:1 against the menu, not a state cue (WCAG 1.4.11). */
+.user-chip-menu-item:hover { background: var(--surface-secondary); }
+
+.user-chip-menu-item:focus-visible {
+  background: var(--surface-tertiary);
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}

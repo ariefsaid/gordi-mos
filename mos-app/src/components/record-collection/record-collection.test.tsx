@@ -114,7 +114,7 @@ async function ready<T extends { state: { status: string } }>(c: T) {
 
 const chrome = {
   empty: { title: 'No tasks yet' },
-  filteredEmpty: { title: 'No matching tasks', clear: () => {} },
+  filteredEmpty: { items: 'tasks', clear: () => {} },
   error: { message: 'Could not load tasks', retry: () => {} },
   loadingLabel: 'Loading tasks',
 }
@@ -163,7 +163,7 @@ describe('RecordCollectionSurface', () => {
     })
     await ready(filtered)
     const { unmount } = render(
-      <RecordCollectionSurface controller={filtered} {...chrome} filteredEmpty={{ title: 'No matching tasks', clear }} />,
+      <RecordCollectionSurface controller={filtered} {...chrome} filteredEmpty={{ items: 'tasks', clear }} />,
     )
     const clearBtn = screen.getByRole('button', { name: /clear filters/i })
     clearBtn.focus()

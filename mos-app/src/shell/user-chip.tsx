@@ -5,6 +5,7 @@ import { useT } from '@/i18n/use-t'
 import { useMenuPopover } from '@/lib/use-menu-popover'
 import { AppearanceControl } from './appearance-control'
 import { Chevron } from './icons'
+import './user-chip.css'
 
 interface UserChipProps {
   /**
@@ -158,7 +159,7 @@ export function UserChip({ compact = false, variant = 'header', onNavigate }: Us
             to="/profile"
             // SYS-2: same 32px desktop row as Sign out below, raised to the 44px touch floor on
             // phone (tap-target-phone, Button.css) because the drawer variant is phone-reachable.
-            className="tap-target-phone flex w-full items-center px-3 rounded-sm hover:bg-accent text-foreground no-underline"
+            className="tap-target-phone user-chip-menu-item flex w-full items-center px-3 rounded-sm text-foreground no-underline"
             style={{ height: 32, fontSize: 'var(--font-size-body-lg)' }}
             onClick={() => {
               close()
@@ -183,7 +184,7 @@ export function UserChip({ compact = false, variant = 'header', onNavigate }: Us
             type="button"
             // SYS-2: reachable on phone via the 'drawer' variant menu — raise the 32px row to the
             // 44px touch floor on phone (tap-target-phone, Button.css). Desktop rhythm unchanged.
-            className="tap-target-phone w-full text-left px-3 rounded-sm hover:bg-accent text-foreground"
+            className="tap-target-phone user-chip-menu-item w-full text-left px-3 rounded-sm text-foreground"
             style={{ height: 32, fontSize: 'var(--font-size-body-lg)' }}
             onClick={() => {
               close()

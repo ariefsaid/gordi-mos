@@ -74,7 +74,12 @@ describe('AdminAccessPage', () => {
     renderPage()
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Roles & permissions' })).toBeInTheDocument()
-    expect(screen.getByRole('table', { name: 'Role access and authority' })).toBeInTheDocument()
+    const table = screen.getByRole('table', { name: 'Role access and authority' })
+    expect(table).toHaveClass('admin-access-table--responsive')
+    expect(table.parentElement).toHaveClass('admin-access-table-wrap')
+    const values = table.querySelectorAll('.admin-access-table__value')
+    expect(values).toHaveLength(AUTHORITY_ACTIONS.length * AUTHORITY_ROLES.length)
+    expect(values[0]).toHaveClass('admin-access-table__value--wrap-no-ellipsis')
     expect(screen.queryByRole('heading', { name: 'Team leads' })).toBeNull()
     expect(screen.getByRole('combobox', { name: 'Manage Projects & Processes — Member' })).toHaveTextContent('Own Business Unit')
     expect(screen.getAllByText('Organization-wide — fixed')).toHaveLength(AUTHORITY_ACTIONS.length)
@@ -94,7 +99,7 @@ describe('AdminAccessPage', () => {
       'Admin',
       'Finance',
       'Manager',
-      'Supervisor',
+      'Supervisor (access)',
     ])
     expect(within(table).getByRole('link', { name: 'From Team leadership' })).toHaveAttribute('href', '/admin/teams')
     expect(within(table).getByRole('link', { name: 'From Business Unit Position' })).toHaveAttribute('href', '/admin/people')
@@ -180,6 +185,7 @@ describe('AdminAccessPage', () => {
     renderPage()
 
     expect(await screen.findByLabelText('Role to edit')).toBeInTheDocument()
+    expect(document.querySelector('.admin-access-mobile')).toBeInTheDocument()
     expect(screen.queryByRole('table', { name: 'Role access and authority' })).toBeNull()
     await selectPicker(user, 'Role to edit', 'Team lead')
     expect(screen.getByRole('combobox', { name: 'Manage Projects & Processes — Team lead' })).toBeInTheDocument()

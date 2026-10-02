@@ -259,7 +259,7 @@ describe('B-i: phone tap-target markers are applied at the inline/Tailwind touch
   })
 
   it('the UserChip Sign-out row carries the tap-target-phone marker', () => {
-    expect(userChipTsx).toMatch(/tap-target-phone w-full text-left/)
+    expect(userChipTsx).toMatch(/tap-target-phone user-chip-menu-item w-full text-left/)
   })
 
   // ── #403 (port sweep): the auth cards — no primitives underneath, inline 32px heights ──────

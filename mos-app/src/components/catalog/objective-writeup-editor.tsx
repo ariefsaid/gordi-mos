@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
-import type { FocusEvent, KeyboardEvent } from 'react'
+import type { KeyboardEvent } from 'react'
 import { BlockNoteSchema, defaultBlockSpecs, filterSuggestionItems } from '@blocknote/core'
 import { getDefaultSlashMenuItems } from '@blocknote/core/extensions'
 import { BlockNoteView } from '@blocknote/ariakit'
@@ -36,8 +36,6 @@ import {
 } from '@/lib/db/objective-writeup'
 import { writeUpDictionary } from './objective-writeup-dictionary'
 import './objective-writeup-editor.css'
-
-const IDLE_SAVE_MS = 3000
 
 // Text blocks only: no file, image, table, code or other upload-capable block exists in the schema.
 const { paragraph, heading, bulletListItem, numberedListItem, checkListItem, quote } = defaultBlockSpecs
@@ -84,7 +82,7 @@ const OPEN_MENU = ['.bn-suggestion-menu', '.bn-menu-dropdown', '.bn-ak-popover',
   .map((menu) => `.objective-writeup__editor ${menu}:not([hidden])`)
   .join(', ')
 
-type SaveState = 'idle' | 'saving' | 'saved' | 'failed' | 'tooLarge' | 'conflict'
+type SaveState = 'idle' | 'draft' | 'saving' | 'saved' | 'failed' | 'tooLarge' | 'conflict'
 
 export interface ObjectiveWriteupEditorProps {
   objectiveId: string
@@ -166,12 +164,8 @@ function WriteUpSurface({
   const updatedAtRef = useRef(initial.updatedAt)
   const dirtyRef = useRef(false)
   const inFlightRef = useRef(false)
-  const queuedRef = useRef(false)
-  const idleQueuedRef = useRef(false)
   const conflictRef = useRef(false)
-  const timerRef = useRef<number | undefined>(undefined)
   const saveRef = useRef<HTMLButtonElement>(null)
-  const boxRef = useRef<HTMLDivElement>(null)
   const dirtyCallbackRef = useRef(onDirtyChange)
   dirtyCallbackRef.current = onDirtyChange
 
@@ -181,20 +175,14 @@ function WriteUpSurface({
     dirtyCallbackRef.current?.(dirty)
   }, [])
 
-  const flush = useCallback(async (fromIdle = false) => {
-    window.clearTimeout(timerRef.current)
-    if (!dirtyRef.current || conflictRef.current) return
-    // A Save or blur that arrives mid-flight runs right after it. An idle pause that elapses mid-flight
-    // does too, until the next edit starts a new pause; plain edits never do.
-    if (inFlightRef.current) {
-      if (fromIdle) idleQueuedRef.current = true
-      else queuedRef.current = true
-      return
-    }
+  // One explicit write per Save/Retry click: the latest snapshot as one logical document, one history
+  // event. A click that arrives mid-flight is ignored (the bar says busy), never queued; edits typed
+  // mid-flight stay draft and wait for the next explicit Save. A Save with nothing new writes nothing.
+  const flush = useCallback(async () => {
+    if (!dirtyRef.current || conflictRef.current || inFlightRef.current) return
     inFlightRef.current = true
     setSaveState('saving')
     const snapshot = editor.document as WriteUpBlocks
-    // Edits typed while the save is in flight re-mark dirty and wait for their own idle pause.
     dirtyRef.current = false
     let next: SaveState = 'saved'
     try {
@@ -205,42 +193,20 @@ function WriteUpSurface({
       else next = error instanceof WriteUpTooLargeError ? 'tooLarge' : 'failed'
     }
     inFlightRef.current = false
-    const queued = queuedRef.current || idleQueuedRef.current
-    queuedRef.current = false
-    idleQueuedRef.current = false
-    if (next === 'saved' && dirtyRef.current) {
-      if (queued) void flush()
-      else setSaveState('idle')
-      return
-    }
+    if (next === 'saved' && dirtyRef.current) { setSaveState('draft'); return }
     setSaveState(next)
     if (next === 'saved') dirtyCallbackRef.current?.(false)
   }, [editor, objectiveId])
 
-  const flushRef = useRef(flush)
-  flushRef.current = flush
-
   const onEdit = useCallback(() => {
     if (!editable || conflictRef.current) return
     setDirty(true)
-    if (saveState !== 'saving') setSaveState('idle')
-    idleQueuedRef.current = false
-    window.clearTimeout(timerRef.current)
-    timerRef.current = window.setTimeout(() => { void flushRef.current(true) }, IDLE_SAVE_MS)
+    if (saveState !== 'saving') setSaveState('draft')
   }, [editable, saveState, setDirty])
 
-  // Leaving with unsaved text is decided by the leave guard; Discard must not save it.
-  useEffect(() => () => { window.clearTimeout(timerRef.current) }, [])
-
-  // Escape hands focus to the bar's primary control. It runs in the capture phase because the editor
-  // handles Escape itself (blurs and marks the event handled), so a bubbling handler never sees it.
-  // Focus moving into the editor's own menus (toolbar, block menu, link form) is still editing: only
-  // focus leaving the editor and its menus saves.
-  const leaveForBlur = (event: FocusEvent<HTMLDivElement>) => {
-    if (event.relatedTarget instanceof Node && boxRef.current?.contains(event.relatedTarget)) return
-    void flush()
-  }
-
+  // Escape hands focus to the bar's Save control; it never persists anything by itself — persistence
+  // is the Save click, never a blur. It runs in the capture phase because the editor handles Escape
+  // itself (blurs and marks the event handled), so a bubbling handler never sees it.
   const leaveEditor = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key !== 'Escape') return
     if (document.querySelector(OPEN_MENU)) return
@@ -257,7 +223,8 @@ function WriteUpSurface({
   // Save stays focusable while saving (aria-disabled, never `disabled`): a focused control that becomes
   // disabled loses focus, and Escape from the editor both focuses Save and starts the save. flush() ignores repeats.
   const message =
-    saveState === 'saving' ? t('objective.writeUp.saving')
+    saveState === 'draft' ? t('objective.writeUp.unsaved')
+    : saveState === 'saving' ? t('objective.writeUp.saving')
     : saveState === 'saved' ? t('objective.writeUp.saved')
     : saveState === 'failed' ? t('objective.writeUp.failed')
     : saveState === 'tooLarge' ? t('objective.writeUp.tooLarge', { limit: `${WRITE_UP_MAX_BYTES / 1024} KB` })
@@ -266,10 +233,10 @@ function WriteUpSurface({
   const empty = !editable && stored.length === 0
 
   return (
-    <div className="objective-writeup" onBlur={editable ? leaveForBlur : undefined}>
+    <div className="objective-writeup">
       {!editable ? <p className="record-viewer__permission-note" role="note">{t('objective.writeUp.readOnly')}</p> : null}
       {empty ? <p className="objective-writeup__empty">{t('objective.writeUp.empty')}</p> : (
-        <div ref={boxRef} onKeyDownCapture={editable ? leaveEditor : undefined}>
+        <div onKeyDownCapture={editable ? leaveEditor : undefined}>
         <BlockNoteView
           editor={editor}
           editable={editable}

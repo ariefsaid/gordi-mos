@@ -105,50 +105,68 @@ describe('ObjectiveWriteupEditor', () => {
     expect(screen.getByText('rest of the page')).toBeTruthy()
   })
 
-  it('does not save per keystroke; saves once after the idle debounce', async () => {
-    await mount()
+  it('typing and idle pauses keep the draft local: nothing writes until explicit Save', async () => {
+    const onDirtyChange = vi.fn()
+    await mount({ onDirtyChange })
     typeOnce(); typeOnce(); typeOnce()
-    await act(async () => { vi.advanceTimersByTime(2900) })
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true)
+    await act(async () => { vi.advanceTimersByTime(60000) })
     expect(save).not.toHaveBeenCalled()
-    await act(async () => { vi.advanceTimersByTime(200) })
+    await act(async () => { fireEvent.blur(screen.getByTestId('bn')) })
+    expect(save).not.toHaveBeenCalled()
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save' })) })
     expect(save).toHaveBeenCalledTimes(1)
     expect(save).toHaveBeenCalledWith('o1', fake.document, 't1')
+    expect(onDirtyChange).toHaveBeenLastCalledWith(false)
+    expect(screen.getByRole('status').textContent).toContain('Saved')
   })
 
-  it('saves on explicit Save and on blur, adopts the returned updated_at, and reports Saved', async () => {
+  it('saves only on explicit Save, adopts the returned updated_at, and reports Saved', async () => {
     await mount()
     typeOnce()
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save' })) })
     expect(screen.getByRole('status').textContent).toContain('Saved')
     typeOnce()
     await act(async () => { fireEvent.blur(screen.getByText('type')) })
+    expect(save).toHaveBeenCalledTimes(1)
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save' })) })
     expect(save).toHaveBeenCalledTimes(2)
     expect(save.mock.calls[1][2]).toBe('t2')
   })
 
-  it("moving focus into the editor's own menus does not save; leaving the editor does", async () => {
+  it("moving focus into the editor's own menus, or out of the editor, keeps the draft local", async () => {
     await mount()
     typeOnce()
     const box = screen.getByRole('textbox', { name: 'pm' })
     await act(async () => { fireEvent.blur(box, { relatedTarget: screen.getByRole('button', { name: 'toolbar' }) }) })
     expect(save).not.toHaveBeenCalled()
-    await act(async () => { fireEvent.blur(box, { relatedTarget: screen.getByRole('button', { name: 'Save' }) }) })
-    expect(save).toHaveBeenCalledTimes(1)
+    await act(async () => { fireEvent.blur(box) })
+    expect(save).not.toHaveBeenCalled()
+    expect(screen.getByRole('status').textContent).toContain('Unsaved')
   })
 
-  it('shows Saving while in flight and queues later edits behind the one save', async () => {
+  it('a mid-flight edit stays draft: mid-flight clicks never duplicate, another explicit Save writes it', async () => {
+    const onDirtyChange = vi.fn()
     let finish: (v: string) => void = () => {}
     save.mockImplementationOnce(() => new Promise<string>((r) => { finish = r }))
-    await mount()
+    await mount({ onDirtyChange })
     typeOnce()
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save' })) })
     expect(screen.getByRole('status').textContent).toContain('Saving')
     typeOnce()
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save' })) })
-    expect(save).toHaveBeenCalledTimes(1)
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save' })) })
     await act(async () => { finish('t2') })
+    // One write for one Save: the in-flight snapshot predates the mid-flight edit, later clicks wrote nothing.
+    expect(save).toHaveBeenCalledTimes(1)
+    expect(save.mock.calls[0][1]).toEqual([{ type: 'paragraph' }])
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true)
+    expect(screen.getByRole('status').textContent).toContain('Unsaved')
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save' })) })
     expect(save).toHaveBeenCalledTimes(2)
+    expect(save.mock.calls[1][1]).toEqual(fake.document)
     expect(save.mock.calls[1][2]).toBe('t2')
+    expect(screen.getByRole('status').textContent).toContain('Saved')
   })
 
   it('shows Failed with Retry, keeps the text, and retries', async () => {
@@ -261,21 +279,12 @@ describe('ObjectiveWriteupEditor', () => {
     expect(save_().className).toContain('btn-primary')
   })
 
-  it('does not save on unmount: Discard after a failed save, or with an idle save pending, leaves the text unsaved', async () => {
-    save.mockRejectedValueOnce(new Error('boom'))
-    const failed = await mount()
+  it('does not save on unmount: Discard with unsaved text leaves it unwritten', async () => {
+    const view = await mount()
     typeOnce()
-    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save' })) })
-    expect(save).toHaveBeenCalledTimes(1)
-    failed.unmount()
+    view.unmount()
     await act(async () => { vi.advanceTimersByTime(10000) })
-    expect(save).toHaveBeenCalledTimes(1)
-
-    const pending = await mount()
-    typeOnce()
-    pending.unmount()
-    await act(async () => { vi.advanceTimersByTime(10000) })
-    expect(save).toHaveBeenCalledTimes(1)
+    expect(save).not.toHaveBeenCalled()
   })
 
   it('reports dirtiness for the leave guard until the save lands', async () => {
