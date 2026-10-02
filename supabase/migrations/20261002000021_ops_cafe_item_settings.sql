@@ -9,7 +9,7 @@
 
 -- Managers are relevant to Café through a Retail Ops Business Unit role; ops leads and admins
 -- retain their existing cross-stream authority. A supervisor alone is not an item-master editor.
-create or replace function ops.can_manage_cafe_item_settings(p_branch_id uuid, p_activity text)
+create or replace function ops.can_manage_cafe_item_settings()
 returns boolean
 language sql
 stable
@@ -17,8 +17,6 @@ security invoker
 set search_path = ''
 as $$
   select shared.current_org_id() is not null
-     and p_branch_id is not null
-     and p_activity is not null
      and (
        shared.has_access_role('ops_lead')
        or shared.has_access_role('admin')
@@ -38,10 +36,10 @@ as $$
        )
      )
 $$;
-comment on function ops.can_manage_cafe_item_settings(uuid,text) is
-  'Café item-settings writer: Retail Ops managers, ops leads and admins. The app affordance is not the authority; RLS calls this predicate.';
-revoke execute on function ops.can_manage_cafe_item_settings(uuid,text) from public, anon;
-grant execute on function ops.can_manage_cafe_item_settings(uuid,text) to authenticated;
+comment on function ops.can_manage_cafe_item_settings() is
+  'Café item-settings writer: Retail Ops managers, ops leads and admins, independent of capture stream. The app affordance is not the authority; RLS calls this role predicate.';
+revoke execute on function ops.can_manage_cafe_item_settings() from public, anon;
+grant execute on function ops.can_manage_cafe_item_settings() to authenticated;
 
 create table ops.cafe_item_settings (
   id                     uuid primary key default gen_random_uuid(),
@@ -106,7 +104,7 @@ alter table ops.cafe_item_setting_units enable row level security;
 alter table ops.cafe_item_setting_units force row level security;
 
 grant select, insert, update on ops.cafe_item_settings to authenticated;
-grant select, insert, delete on ops.cafe_item_setting_units to authenticated;
+grant select, insert on ops.cafe_item_setting_units to authenticated;
 grant select on ops.cafe_item_settings, ops.cafe_item_setting_units to service_role;
 
 create policy cafe_item_settings_select_org on ops.cafe_item_settings
@@ -115,39 +113,21 @@ create policy cafe_item_settings_select_org on ops.cafe_item_settings
 create policy cafe_item_settings_insert_manager on ops.cafe_item_settings
   for insert to authenticated
   with check (org_id = shared.current_org_id()
-              and ops.can_manage_cafe_item_settings(branch_id, activity));
+              and ops.can_manage_cafe_item_settings());
 create policy cafe_item_settings_update_manager on ops.cafe_item_settings
   for update to authenticated
   using (org_id = shared.current_org_id()
-         and ops.can_manage_cafe_item_settings(branch_id, activity))
+         and ops.can_manage_cafe_item_settings())
   with check (org_id = shared.current_org_id()
-              and ops.can_manage_cafe_item_settings(branch_id, activity));
+              and ops.can_manage_cafe_item_settings());
 
 create policy cafe_item_setting_units_select_org on ops.cafe_item_setting_units
   for select to authenticated
   using (org_id = shared.current_org_id() and shared.is_org_member());
 create policy cafe_item_setting_units_insert_manager on ops.cafe_item_setting_units
   for insert to authenticated
-  with check (
-    org_id = shared.current_org_id()
-    and exists (
-      select 1 from ops.cafe_item_settings setting
-       where setting.id = ops.cafe_item_setting_units.cafe_item_setting_id
-         and setting.org_id = ops.cafe_item_setting_units.org_id
-         and ops.can_manage_cafe_item_settings(setting.branch_id, setting.activity)
-    )
-  );
-create policy cafe_item_setting_units_delete_manager on ops.cafe_item_setting_units
-  for delete to authenticated
-  using (
-    org_id = shared.current_org_id()
-    and exists (
-      select 1 from ops.cafe_item_settings setting
-       where setting.id = ops.cafe_item_setting_units.cafe_item_setting_id
-         and setting.org_id = ops.cafe_item_setting_units.org_id
-         and ops.can_manage_cafe_item_settings(setting.branch_id, setting.activity)
-    )
-  );
+  with check (org_id = shared.current_org_id()
+              and ops.can_manage_cafe_item_settings());
 
 create or replace function ops._guard_cafe_item_setting()
 returns trigger
@@ -297,7 +277,7 @@ create or replace function ops.save_cafe_item_settings(
 )
 returns void
 language plpgsql
-security invoker
+security definer
 set search_path = ''
 as $$
 declare
@@ -307,7 +287,7 @@ declare
   v_setting_id uuid;
   v_unit_count integer;
 begin
-  if v_org_id is null or not ops.can_manage_cafe_item_settings(p_branch_id, p_activity) then
+  if v_org_id is null or not ops.can_manage_cafe_item_settings() then
     raise exception 'not authorized to edit this Café item stream' using errcode = '42501';
   end if;
   if p_mos_name is null or btrim(p_mos_name) = '' or length(btrim(p_mos_name)) > 160 then
@@ -382,7 +362,7 @@ begin
 end;
 $$;
 comment on function ops.save_cafe_item_settings(uuid,text,uuid,text,uuid,uuid[]) is
-  'Atomically saves a stream item MOS name, its default ERP detail and the shown ERP details. Validates all details against existing active ERP rows; creates no item, unit or conversion.';
+  'SECURITY DEFINER: atomically saves a stream item MOS name, its default ERP detail and the shown ERP details after a same-org role check. Uses its owner privilege for internal shown-detail deletion; authenticated has no DELETE grant. Validates all details against existing active ERP rows; creates no item, unit or conversion.';
 revoke execute on function ops.save_cafe_item_settings(uuid,text,uuid,text,uuid,uuid[])
   from public, anon;
 grant execute on function ops.save_cafe_item_settings(uuid,text,uuid,text,uuid,uuid[])

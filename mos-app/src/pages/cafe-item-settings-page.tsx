@@ -119,7 +119,7 @@ function CafeItemSettingsPageForViewer() {
     try {
       const [nextItems, canEdit] = await Promise.all([
         listCafeItemSettings(stream),
-        canManageCafeItemSettings(stream).then(
+        canManageCafeItemSettings().then(
           value => ({ value, failed: false as const }),
           () => ({ value: false, failed: true as const }),
         ),

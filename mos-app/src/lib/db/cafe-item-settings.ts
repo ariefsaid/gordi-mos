@@ -150,13 +150,10 @@ export async function listCafeLogItems(stream: ProductionStream): Promise<CafeLo
   })
 }
 
-export async function canManageCafeItemSettings(stream: ProductionStream): Promise<boolean> {
+export async function canManageCafeItemSettings(): Promise<boolean> {
   const { data, error } = await supabase
     .schema('ops')
-    .rpc('can_manage_cafe_item_settings', {
-      p_branch_id: stream.branch.id,
-      p_activity: stream.activity,
-    })
+    .rpc('can_manage_cafe_item_settings')
   if (error) throw new Error(`canManageCafeItemSettings failed: ${error.message}`)
   return data === true
 }

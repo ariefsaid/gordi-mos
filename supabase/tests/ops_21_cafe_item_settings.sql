@@ -1,7 +1,7 @@
 -- #1242 — per-stream MOS item names and ERP product-detail choices.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(33);
+select plan(35);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -127,7 +127,7 @@ select ok((select bool_and(unit_is_shown) and bool_or(unit_is_default)
   'both ERP details are shown and exactly one is the stream default');
 
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member"]}';
-select ok(not ops.can_manage_cafe_item_settings('00000000-0000-0000-0000-00000000bf01', 'kitchen'),
+select ok(not ops.can_manage_cafe_item_settings(),
   'an ordinary member cannot edit settings');
 select cmp_ok((select count(*)::int from ops.cafe_item_settings_read
                 where item_id = (select id from ops.wip_items where esb_product_id = 'SYNTH-ERP-P-1242-WIP')),
@@ -142,11 +142,11 @@ select is((select mos_name from ops.cafe_item_settings_read
   'RLS refuses a member edit without revealing a write path');
 
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","supervisor"]}';
-select ok(not ops.can_manage_cafe_item_settings('00000000-0000-0000-0000-00000000bf01', 'kitchen'),
+select ok(not ops.can_manage_cafe_item_settings(),
   'supervisor review access alone does not grant item-settings write access');
 
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","manager"]}';
-select ok(not ops.can_manage_cafe_item_settings('00000000-0000-0000-0000-00000000bf01', 'kitchen'),
+select ok(not ops.can_manage_cafe_item_settings(),
   'a manager assigned outside Retail Ops is not a relevant Café editor');
 select throws_ok($$
   select ops.save_cafe_item_settings(
@@ -188,11 +188,22 @@ select throws_ok($$
   )
 $$, '23514', 'shown details must be active ERP details of this item',
   'a manager cannot select another product''s ERP detail');
-select throws_ok($$
-  delete from ops.cafe_item_setting_units shown
-   where shown.item_unit_id = (select id from ops.item_units where esb_product_detail_id = 'SYNTH-ERP-PD-1242-WIP-A')
-$$, 'P0016', 'CAFE_DEFAULT_UNIT_MUST_BE_SHOWN: choose another default before hiding this detail',
-  'the current default cannot be removed from the shown set');
+select ok(not has_table_privilege('authenticated', 'ops.cafe_item_setting_units', 'DELETE'),
+  'the app tier cannot directly delete shown-unit settings');
+select lives_ok($$
+  select ops.save_cafe_item_settings(
+    '00000000-0000-0000-0000-00000000bf01', 'kitchen',
+    (select id from ops.wip_items where esb_product_id = 'SYNTH-ERP-P-1242-WIP'),
+    'Manager renamed item',
+    (select id from ops.item_units where esb_product_detail_id = 'SYNTH-ERP-PD-1242-WIP-A'),
+    array[(select id from ops.item_units where esb_product_detail_id = 'SYNTH-ERP-PD-1242-WIP-A')]
+  )
+$$, 'the authorized atomic save can hide an unused detail without app-tier DELETE');
+select is((select count(*)::int from ops.cafe_item_settings_read
+            where item_id = (select id from ops.wip_items where esb_product_id = 'SYNTH-ERP-P-1242-WIP')
+              and branch_id = '00000000-0000-0000-0000-00000000bf01'
+              and unit_is_shown), 1,
+  'the hidden detail is removed from the stream choices after the atomic save');
 
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
 select lives_ok($$

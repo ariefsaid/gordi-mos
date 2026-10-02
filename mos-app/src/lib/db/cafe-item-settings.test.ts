@@ -117,7 +117,7 @@ describe('café item settings reader', () => {
       .mockResolvedValueOnce({ data: null, error: null })
     schemaMock.mockReturnValue({ rpc } as never)
 
-    await expect(canManageCafeItemSettings(STREAM)).resolves.toBe(true)
+    await expect(canManageCafeItemSettings()).resolves.toBe(true)
     await saveCafeItemSettings({
       stream: STREAM,
       itemId: 'item-1',
@@ -125,9 +125,7 @@ describe('café item settings reader', () => {
       defaultUnitId: 'unit-b',
       shownUnitIds: ['unit-a', 'unit-b'],
     })
-    expect(rpc).toHaveBeenNthCalledWith(1, 'can_manage_cafe_item_settings', {
-      p_branch_id: 'branch-1', p_activity: 'kitchen',
-    })
+    expect(rpc).toHaveBeenNthCalledWith(1, 'can_manage_cafe_item_settings')
     expect(rpc).toHaveBeenNthCalledWith(2, 'save_cafe_item_settings', {
       p_branch_id: 'branch-1',
       p_activity: 'kitchen',
