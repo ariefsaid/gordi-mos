@@ -107,7 +107,7 @@ function atPhoneWidth<T>(fn: () => T): T {
   }
 }
 
-describe('Cafe profile reachability', () => {
+describe.runIf(APP_RELEASE_PROFILE === 'cafe')('Cafe profile reachability', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     setOmniscientViewer()
