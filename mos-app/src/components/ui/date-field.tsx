@@ -171,7 +171,7 @@ export const DateField = forwardRef<HTMLInputElement, DateFieldProps>(function D
           <input
             type="date"
             className="mk-date__picker"
-            tabIndex={-1}
+            tabIndex={0}
             aria-label={t('dateField.openCalendar')}
             value={entry.kind === 'ok' ? entry.iso : ''}
             min={min}

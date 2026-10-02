@@ -138,8 +138,9 @@ describe('B-i: phone tap-target floor is encoded in shared CSS', () => {
     expect(dateBody).toMatch(/\.mk-date__cal[^}]*min-height:\s*44px/)
   })
 
-  it('issue 1191: keeps the task-record date echo below, rather than squeezing, the date input', () => {
-    expect(recordViewerCss).toMatch(/\.record-field__date \.mk-date__hint\s*\{[^}]*position:\s*absolute;[^}]*top:\s*100%/)
+  it('issue 1203: keeps the task-record date echo in flow and the day-first hint untruncated', () => {
+    expect(recordViewerCss).toMatch(/\.record-field__date \.mk-date__hint\s*\{[^}]*position:\s*static;[^}]*background:\s*transparent/)
+    expect(recordViewerCss).toMatch(/\.record-field__date \.mk-date__field\s*\{[^}]*min-width:\s*10ch/)
     expect(recordViewerCss).toMatch(/\.record-field__date \.mk-date__box\s*\{[^}]*width:\s*100%;[^}]*box-sizing:\s*border-box/)
   })
 

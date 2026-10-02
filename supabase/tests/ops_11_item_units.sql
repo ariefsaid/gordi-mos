@@ -14,7 +14,7 @@
 --                re-confirmed).
 --       The capture/stock reader split — the gate scopes the CAPTURE form only (FR-011); the
 --                stock/verification plane (FR-060, OD-WAY-45) keeps seeing every active item.
---       The migration's own backfill (§4), exercised verbatim against fresh rows.
+--       The migration's backfill payload (§4), replayed with the current ERP-detail conflict key.
 --       Fail-closed proofs for every policy created in 20260807000001_ops_item_units.sql
 --       (ops_03_policy_fail_closed.sql conventions: one negative per policy, each paired with
 --       the positive it is the negative of; zero-row updates read back as owner).
@@ -30,7 +30,7 @@
 -- de09 org B's confirmed row, the cross-tenant negative.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(30);
+select plan(32);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -223,20 +223,29 @@ select throws_ok($$
   $$, '23505', null,
   'item_units_one_default_uidx: a second default unit for the same item is refused');
 
--- One row per (item, unit name).
+-- ERP detail identity, not the display label, owns uniqueness. Different details may share a label.
+select lives_ok($$
+  insert into ops.item_units (wip_item_id, unit_name, esb_product_detail_id, is_default)
+  values ('00000000-0000-0000-0000-00000000ab01','porsi','PD-SAME-LABEL-002', false)
+  $$,
+  'a second ERP product detail with the same unit label remains selectable on the same item');
+select is((select count(*)::int from ops.item_units
+  where id = '00000000-0000-0000-0000-00000000de01' and esb_product_detail_id is not null), 1,
+  'precondition: the seeded confirmed unit has an ERP product-detail identity');
 select throws_ok($$
-  insert into ops.item_units (wip_item_id, unit_name, esb_product_detail_id)
-  values ('00000000-0000-0000-0000-00000000ab01','porsi','PD-DUP')
+  insert into ops.item_units (wip_item_id, unit_name, esb_product_detail_id, is_default)
+  select wip_item_id, 'duplicate label', esb_product_detail_id, false
+  from ops.item_units where id = '00000000-0000-0000-0000-00000000de01'
   $$, '23505', null,
-  'item_units_unit_per_item_uk: a duplicate unit name on the same item is refused');
+  'the same ERP product detail cannot be added twice for one item');
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
--- D. The backfill (migration §4), exercised verbatim
+-- D. The legacy backfill payload under current ERP-detail uniqueness
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
--- The migration ran against an empty database, so its backfill has no output to inspect here.
--- These fresh rows recreate its input and run THE SAME STATEMENT — keep the INSERT below in
--- lockstep with 20260807000001_ops_item_units.sql §4, verbatim. Claims are cleared to mirror
--- the migration context (no session person → confirmed_by NULL, the system-migrated shape).
+-- The migration ran before the later ERP-detail unique index was introduced. These fresh rows
+-- recreate its input and preserve the confirmed default shape, using the current product-detail
+-- conflict target so reapplication remains idempotent. Claims mirror migration context (no session
+-- person → confirmed_by NULL, the system-migrated shape).
 reset role;
 set local request.jwt.claims = '{}';
 
@@ -249,8 +258,10 @@ insert into ops.item_units
   (org_id, wip_item_id, unit_name, esb_product_detail_id, esb_product_id, is_default, confirmed_at)
 select w.org_id, w.id, 'porsi', w.esb_product_detail_id_porsi, w.esb_product_id, true, now()
 from ops.wip_items w
-where w.esb_product_detail_id_porsi is not null
-on conflict (wip_item_id, unit_name) do nothing;
+where w.id = '00000000-0000-0000-0000-00000000dd01'
+  and w.esb_product_detail_id_porsi is not null
+on conflict (wip_item_id, esb_product_detail_id)
+  where esb_product_detail_id is not null do nothing;
 
 select is(
   (select count(*)::int from ops.item_units
@@ -267,13 +278,15 @@ select is(
   0,
   'backfill: an item with NO porsi coordinate gets no row at all — nothing to confirm, nothing to migrate');
 
--- Re-run: the conflict target keeps it idempotent — a second application doubles nothing.
+-- Re-run: the ERP product-detail conflict target keeps the backfill idempotent.
 insert into ops.item_units
   (org_id, wip_item_id, unit_name, esb_product_detail_id, esb_product_id, is_default, confirmed_at)
 select w.org_id, w.id, 'porsi', w.esb_product_detail_id_porsi, w.esb_product_id, true, now()
 from ops.wip_items w
-where w.esb_product_detail_id_porsi is not null
-on conflict (wip_item_id, unit_name) do nothing;
+where w.id = '00000000-0000-0000-0000-00000000dd01'
+  and w.esb_product_detail_id_porsi is not null
+on conflict (wip_item_id, esb_product_detail_id)
+  where esb_product_detail_id is not null do nothing;
 
 select is(
   (select count(*)::int from ops.item_units

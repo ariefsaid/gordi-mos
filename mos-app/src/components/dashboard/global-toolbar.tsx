@@ -94,6 +94,7 @@ export function GlobalToolbar({
               bounds={bounds}
             />
             <Button
+              disabled={draft.from === '' || draft.to === ''}
               onClick={() => {
                 onWindowChange({ kind: 'custom', from: draft.from, to: draft.to })
                 setDraft(null)
