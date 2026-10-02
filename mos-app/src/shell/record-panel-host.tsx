@@ -32,6 +32,8 @@ export type RecordPanelHostProps = {
   children: ReactNode
   /** Re-run the open-focus + trap wiring when this changes (e.g. a fresh record mounts). */
   focusKey?: string
+  /** Skip initial focus for a persisted-open companion restored during page load. */
+  focusOnOpen?: boolean
   /**
    * Where open-focus lands instead of the content's first control — for a read-first panel whose
    * first control is a side link. Point it at the panel heading (with tabIndex={-1}).
@@ -86,7 +88,7 @@ function OpenPageIcon() {
 export function RecordPanelHost({
   label, onClose, closeLabel, children, focusKey, initialFocusRef, title, actions, onOpenPage, rootClassName, style,
   onBack, canGoBack, owner, entryKey, transitionPending, layout = 'standard',
-  escapeCapture = false, escapeOnDocument = false, companion = false,
+  escapeCapture = false, escapeOnDocument = false, companion = false, focusOnOpen = true,
 }: RecordPanelHostProps) {
   const isSplit = useIsWideOverlayWidth()
   const isDesktop = useIsDesktop()
@@ -100,8 +102,8 @@ export function RecordPanelHost({
   const invokerRef = useRef<HTMLElement | null>(null)
 
   // ── Focus management ────────────────────────────────────────────────────────
-  // Move focus into the panel on open (both regimes land keyboard/SR users on the
-  // new content; only the modal regime traps). Return focus to the opener on close.
+  // Move focus into the panel on open unless a persisted-open companion is being restored;
+  // only the modal regime traps. Return focus to a live opener on close.
   useEffect(() => {
     invokerRef.current = (document.activeElement as HTMLElement) ?? null
     const panel = panelRef.current
@@ -114,12 +116,13 @@ export function RecordPanelHost({
     const focusables = focusableWithin(panel)
     const first = initialFocusRef?.current
       ?? focusables.find((el) => !el.closest('.record-panel-chrome')) ?? focusables[0]
-    first?.focus()
+    if (focusOnOpen) first?.focus()
 
     return () => {
-      invokerRef.current?.focus?.()
+      const invoker = invokerRef.current
+      if (invoker?.isConnected && invoker !== document.body) invoker.focus()
     }
-  }, [focusKey, initialFocusRef, isModal])
+  }, [focusKey, initialFocusRef, focusOnOpen])
 
   // Modal-only: focus trap (on the panel). Tab wraps within the sheet because the modal
   // owns the whole screen; the split regime keeps the page live, so no trap there.
@@ -147,6 +150,37 @@ export function RecordPanelHost({
     return () => panel.removeEventListener('keydown', onTrapKeyDown)
   }, [isModal, focusKey])
 
+  // A non-modal companion is outside the document's ordinary tab order after its last control.
+  // Hand the edge back to the live record/page instead of letting focus fall to document.body.
+  useEffect(() => {
+    if (!companion || isModal) return
+    const panel = panelRef.current
+    if (!panel) return
+
+    function onTabEdge(e: KeyboardEvent) {
+      if (e.key !== 'Tab') return
+      const controls = focusableWithin(panel)
+      if (controls.length === 0) return
+      const atEdge = e.shiftKey
+        ? document.activeElement === controls[0]
+        : document.activeElement === controls[controls.length - 1]
+      if (!atEdge) return
+
+      const main = document.getElementById('main-content')
+      const record = document.querySelector<HTMLElement>('[data-overlay-host="true"]')
+      const returnRegion = record ?? main
+      if (!returnRegion) return
+      const pageControls = focusableWithin(returnRegion)
+      const target = e.shiftKey ? pageControls[pageControls.length - 1] : pageControls[0]
+      e.preventDefault()
+      if (target) target.focus()
+      else returnRegion.focus()
+    }
+
+    panel.addEventListener('keydown', onTabEdge)
+    return () => panel.removeEventListener('keydown', onTabEdge)
+  }, [companion, isModal, focusKey])
+
   // Escape closes in BOTH regimes (plan 2026-07-20-v3-overlay-host Task 4 deliberate change):
   // Esc returns one navigation level via onClose('escape'), routed through the host's leaveGuard.
   // Modal listens on the document (it owns the whole screen; focus may rest on body/scrim);
@@ -158,6 +192,9 @@ export function RecordPanelHost({
     const onEsc: EventListener = (e) => {
       if ((e as KeyboardEvent).key === 'Escape') {
         if (e.target instanceof Element && e.target.closest('[data-escape-layer="nested"]')) return
+        // OD-REDESIGN-83: on desktop an actively edited record field consumes its own first
+        // Escape. Phone's top modal remains earlier in the capture order and still closes first.
+        if (escapeCapture && !isModal && e.target instanceof Element && e.target.closest('.record-field[data-mode="edit"]')) return
         e.preventDefault()
         if (escapeCapture) e.stopImmediatePropagation()
         onClose('escape')
