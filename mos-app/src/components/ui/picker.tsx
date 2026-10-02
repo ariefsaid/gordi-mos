@@ -10,8 +10,8 @@ import {
 import { flushSync } from 'react-dom'
 import * as Popover from '@radix-ui/react-popover'
 import { Command } from 'cmdk'
-import { isTypeaheadKey, nextTypeaheadMatch, useTypeaheadBuffer } from './typeahead'
 import { useT } from '@/i18n/use-t'
+import { isTypeaheadKey, nextTypeaheadMatch, useTypeaheadBuffer } from './typeahead'
 import './Picker.css'
 
 export type PickerOption = {
