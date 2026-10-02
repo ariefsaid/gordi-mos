@@ -631,6 +631,6 @@ begin
 end;
 $$;
 comment on function ops.approve_kitchen_logs(uuid[], text) is
-  'Atomic endpoint-homogeneous bulk approval. Waste rows are refused before a group is created; waste approval must use the single-row path, which has no ERP batch or push.';
+  'Atomic bulk approval session: one endpoint-homogeneous group document. Partial failure is whole-document failure; ERP document number is fanned out to all member logs by the worker. Off-plan individual approvals remain ungrouped. Waste rows are refused before a group is created; waste approval must use the single-row path, which has no ERP batch or push.';
 revoke execute on function ops.approve_kitchen_logs(uuid[], text) from public, anon, authenticated;
 grant execute on function ops.approve_kitchen_logs(uuid[], text) to authenticated;
