@@ -22,6 +22,13 @@ export const PRODUCTION_ACTIVITIES = ['kitchen', 'bar'] as const
 /** The activity half of a production stream (`ops.kitchen_logs.activity`). */
 export type ProductionActivity = (typeof PRODUCTION_ACTIVITIES)[number]
 
+/** One data-backed cross-branch movement route (`ops.cafe_destinations`). */
+export type CafeDestination = {
+  origin_branch_id: string
+  origin_activity: ProductionActivity
+  destination_branch_id: string
+}
+
 /** A row of the canonical branch catalog (`shared.branches`, OD-WAY-39). */
 export interface BranchOption {
   id: string

@@ -153,7 +153,9 @@ function PlanEditor() {
   const streamCanProduce = streamProduces(stream, streamOptions)
   const streamNonProducing = stream !== null && !streamCanProduce
   const planWriteClosed = streamMissing || streamNonProducing
-  const movementOptions = stream ? movementsForStream(stream, streamOptions) : []
+  const movementOptions = stream
+    ? movementsForStream(stream, streamOptions, cafeStream.destinations)
+    : []
   // Her own/current default stream is always writable (same trust the Review queue places in
   // it — issue 783); any OTHER stream needs an open-ended membership matching the DB's own
   // ops.is_stream_reviewer check (reviewerStreamKeys, isReviewerEligibleTeam).

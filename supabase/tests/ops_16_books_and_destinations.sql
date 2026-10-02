@@ -1,7 +1,7 @@
 -- Café books and destinations (#777): prove the write boundary, not only the picker mirror.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(26);
+select plan(35);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -17,6 +17,26 @@ insert into shared.branches (id, org_id, code, name) values
 insert into ops.wip_items (id, org_id, name, flag_active) values
   ('00000000-0000-0000-0000-00000000ab01','00000000-0000-0000-0000-0000000000a1','Nasi Goreng',true);
 select shared.seed_stream_teams();
+select results_eq($$
+  select activity from shared.teams
+  where org_id = '00000000-0000-0000-0000-0000000000a1'
+    and branch_id = '00000000-0000-0000-0000-00000000bf01'
+    and archived_at is null
+  order by activity
+  $$, $$ values ('bar'::text), ('kitchen'::text) $$,
+  'Gordi HQ has both bar and kitchen stream Teams');
+select ok((select relrowsecurity and relforcerowsecurity
+           from pg_class where oid = 'ops.cafe_destinations'::regclass),
+  'destination reference rows enable and force RLS');
+select ok(exists (select 1 from pg_policies
+                  where schemaname = 'ops' and tablename = 'cafe_destinations'
+                    and policyname = 'cafe_destinations_select_org'
+                    and qual like '%current_org_id%'),
+  'destination reference reads are scoped to the current org');
+select ok(not has_table_privilege('authenticated', 'ops.cafe_destinations', 'INSERT')
+          and not has_table_privilege('authenticated', 'ops.cafe_destinations', 'UPDATE')
+          and not has_table_privilege('authenticated', 'ops.cafe_destinations', 'DELETE'),
+  'destination reference data has no authenticated write grant');
 -- The item is on every stream's list (#222), so each refusal below is the books guard's own.
 insert into ops.stream_items (org_id,branch_id,activity,wip_item_id,source)
 select '00000000-0000-0000-0000-0000000000a1', t.branch_id, t.activity,
@@ -55,9 +75,25 @@ select results_eq($$
 select results_eq($$
   select destination_branch_id from ops.allowed_kitchen_destinations(
     '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000bf01', 'kitchen')
-  $$, $$ values
-    ('00000000-0000-0000-0000-00000000bf04'::uuid) $$,
-  'AC-003: GHQ kitchen sends only to Cikal');
+  order by destination_branch_id
+  $$, $$ select destination_branch_id from ops.cafe_destinations
+       where org_id = '00000000-0000-0000-0000-0000000000a1'
+         and origin_branch_id = '00000000-0000-0000-0000-00000000bf01'
+         and origin_activity = 'kitchen'
+       order by destination_branch_id $$,
+  'AC-003: GHQ kitchen destination behavior follows its route rows');
+select ok(exists (select 1 from ops.cafe_destinations
+                  where org_id = '00000000-0000-0000-0000-0000000000a1'
+                    and origin_branch_id = '00000000-0000-0000-0000-00000000bf01'
+                    and origin_activity = 'kitchen'
+                    and destination_branch_id = '00000000-0000-0000-0000-00000000bf04')
+          and not exists (select 1 from ops.cafe_destinations
+                          where org_id = '00000000-0000-0000-0000-0000000000a1'
+                            and origin_branch_id = '00000000-0000-0000-0000-00000000bf01'
+                            and origin_activity = 'kitchen'
+                            and destination_branch_id in ('00000000-0000-0000-0000-00000000bf02',
+                                                          '00000000-0000-0000-0000-00000000bf03')),
+  'AC-003: current GHQ kitchen data includes Cikal and excludes RRS/Radiant, without pinning future destinations');
 select results_eq($$
   select destination_branch_id from ops.allowed_kitchen_destinations(
     '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000bf03', 'kitchen')
@@ -74,10 +110,31 @@ select results_eq($$
 select results_eq($$
   select destination_branch_id from ops.allowed_kitchen_destinations(
     '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000bf01', 'bar')
-  $$, $$ values
-    ('00000000-0000-0000-0000-00000000bf04'::uuid),
-    ('00000000-0000-0000-0000-00000000bf01'::uuid) $$,
-  'AC-003: GHQ bar sends only to Cikal outside its held intra-branch arm');
+  order by destination_branch_id
+  $$, $$ select destination_branch_id from ops.cafe_destinations
+       where org_id = '00000000-0000-0000-0000-0000000000a1'
+         and origin_branch_id = '00000000-0000-0000-0000-00000000bf01'
+         and origin_activity = 'bar'
+       union all
+       select '00000000-0000-0000-0000-00000000bf01'::uuid
+       where exists (select 1 from shared.teams
+                     where org_id = '00000000-0000-0000-0000-0000000000a1'
+                       and branch_id = '00000000-0000-0000-0000-00000000bf01'
+                       and activity = 'kitchen' and archived_at is null)
+       order by destination_branch_id $$,
+  'AC-003: GHQ bar destination behavior follows its route rows plus its held intra-branch arm');
+select ok(exists (select 1 from ops.cafe_destinations
+                  where org_id = '00000000-0000-0000-0000-0000000000a1'
+                    and origin_branch_id = '00000000-0000-0000-0000-00000000bf01'
+                    and origin_activity = 'bar'
+                    and destination_branch_id = '00000000-0000-0000-0000-00000000bf04')
+          and not exists (select 1 from ops.cafe_destinations
+                          where org_id = '00000000-0000-0000-0000-0000000000a1'
+                            and origin_branch_id = '00000000-0000-0000-0000-00000000bf01'
+                            and origin_activity = 'bar'
+                            and destination_branch_id in ('00000000-0000-0000-0000-00000000bf02',
+                                                          '00000000-0000-0000-0000-00000000bf03')),
+  'AC-003: current GHQ bar data includes Cikal and excludes RRS/Radiant, apart from its held arm');
 select results_eq($$
   select destination_branch_id from ops.allowed_kitchen_destinations(
     '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000bf02', 'bar')
@@ -97,8 +154,23 @@ select results_eq($$
     ('00000000-0000-0000-0000-00000000bf02'::uuid) $$,
   'AC-003: Radiant bar includes its held intra-branch arm and every other bar branch');
 
+-- A future HQ destination is enabled by inserting route data, without changing derivation code.
+insert into ops.cafe_destinations (org_id, origin_branch_id, origin_activity, destination_branch_id)
+values ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000bf01',
+        'kitchen', '00000000-0000-0000-0000-00000000bf03');
+select ok(exists (select 1 from ops.allowed_kitchen_destinations(
+                    '00000000-0000-0000-0000-0000000000a1',
+                    '00000000-0000-0000-0000-00000000bf01', 'kitchen')
+                  where destination_branch_id = '00000000-0000-0000-0000-00000000bf03'),
+  'OD-CAFE-MVP-7: adding an HQ route row makes the new destination available');
+
 set local role authenticated;
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select ok(exists (select 1 from ops.cafe_destinations
+                  where org_id = '00000000-0000-0000-0000-0000000000a1'
+                    and origin_branch_id = '00000000-0000-0000-0000-00000000bf01'
+                    and origin_activity = 'kitchen'),
+  'authenticated org members can read their destination routes');
 select throws_ok($$
   insert into ops.kitchen_logs (business_unit_id,log_date,branch_id,activity,action,wip_item_id,qty_porsi)
   values ('00000000-0000-0000-0000-00000000bb01','2026-09-14','00000000-0000-0000-0000-00000000bf03','kitchen','produce','00000000-0000-0000-0000-00000000ab01',1)
@@ -161,6 +233,11 @@ insert into shared.business_units (id, org_id, name, code)
 values ('00000000-0000-0000-0000-00000000bb09','00000000-0000-0000-0000-0000000000b1','B Retail Ops','retail_ops');
 insert into shared.branches (id, org_id, code, name)
 values ('00000000-0000-0000-0000-00000000bf09','00000000-0000-0000-0000-0000000000b1','b_branch','B Branch');
+select throws_ok($$ insert into ops.cafe_destinations
+  (org_id, origin_branch_id, origin_activity, destination_branch_id)
+  values ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000bf01',
+          'bar', '00000000-0000-0000-0000-00000000bf09') $$,
+  '23503', null, 'destination route foreign keys enforce the org seam');
 set local role authenticated;
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
 select throws_ok($$

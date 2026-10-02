@@ -1,37 +1,27 @@
--- OD-CAFE-MVP-7: GHQ sends externally only to Cikal; remove the GHQ↔RRS kitchen pair.
--- Reversal: restore ops.allowed_kitchen_destinations from 20260914000002_ops_cafe_books.sql.
+-- OD-CAFE-MVP-7: cross-branch destination permissions are stored as org-scoped route data.
+-- The initial route rows and their derivation are added by 20261002000002; this relation keeps
+-- future destination changes data-only rather than encoding branch codes in the SQL function.
+--
+-- DOWN: after reverting 20261002000002, drop ops.cafe_destinations and its policy.
 
-create or replace function ops.allowed_kitchen_destinations(
-  p_org_id uuid, p_origin_branch_id uuid, p_origin_activity text
-) returns table(destination_branch_id uuid)
-language sql stable security invoker set search_path = '' as $$
-  with origin as (
-    select t.branch_id, t.activity, t.produces, b.code as branch_code
-    from shared.teams t
-    join shared.branches b on b.id = t.branch_id and b.org_id = t.org_id and b.archived_at is null
-    where t.org_id = p_org_id and t.branch_id = p_origin_branch_id
-      and t.activity = p_origin_activity and t.archived_at is null
-  ), stream_branches as (
-    select distinct t.branch_id from shared.teams t join shared.branches b on b.id = t.branch_id and b.org_id = t.org_id
-    where t.org_id = p_org_id and t.branch_id is not null and t.archived_at is null and b.archived_at is null
-  ), bar_branches as (
-    select distinct t.branch_id from shared.teams t join shared.branches b on b.id = t.branch_id and b.org_id = t.org_id
-    where t.org_id = p_org_id and t.activity = 'bar' and t.archived_at is null and b.archived_at is null
-  ), kitchen_branches as (
-    select distinct t.branch_id from shared.teams t join shared.branches b on b.id = t.branch_id and b.org_id = t.org_id
-    where t.org_id = p_org_id and t.activity = 'kitchen' and t.archived_at is null and b.archived_at is null
-  )
-  select b.id from shared.branches b cross join origin o
-  where b.org_id = p_org_id and b.archived_at is null and o.produces
-    and ((o.activity = 'kitchen'
-        and b.id in (select branch_id from stream_branches)
-        and b.id <> o.branch_id
-        and (o.branch_code <> 'gordi_hq' or b.code = 'cikal')
-        and not (o.branch_code = 'rumah_rames' and b.code = 'gordi_hq'))
-      or (o.activity = 'bar' and ((b.id = o.branch_id and b.id in (select branch_id from kitchen_branches))
-        or (b.id <> o.branch_id and b.id in (select branch_id from bar_branches)
-          and (o.branch_code <> 'gordi_hq' or b.code = 'cikal')))))
-  order by b.name;
-$$;
+create table ops.cafe_destinations (
+  org_id uuid not null references shared.orgs(id) on delete cascade,
+  origin_branch_id uuid not null,
+  origin_activity text not null references shared.activities(code),
+  destination_branch_id uuid not null,
+  primary key (org_id, origin_branch_id, origin_activity, destination_branch_id),
+  foreign key (org_id, origin_branch_id) references shared.branches(org_id, id) on delete cascade,
+  foreign key (org_id, destination_branch_id) references shared.branches(org_id, id) on delete cascade,
+  check (origin_branch_id <> destination_branch_id)
+);
+comment on table ops.cafe_destinations is
+  'Org-scoped reference rows authorizing cross-branch Café movements. Add destinations as rows; '
+  'ops.allowed_kitchen_destinations contains no branch-code routing rules.';
 
-grant execute on function ops.allowed_kitchen_destinations(uuid, uuid, text) to authenticated;
+alter table ops.cafe_destinations enable row level security;
+alter table ops.cafe_destinations force row level security;
+grant select on ops.cafe_destinations to authenticated;
+create policy cafe_destinations_select_org on ops.cafe_destinations
+  for select to authenticated using (org_id = shared.current_org_id());
+comment on policy cafe_destinations_select_org on ops.cafe_destinations is
+  'A viewer reads route data only for the org in their current authenticated context.';

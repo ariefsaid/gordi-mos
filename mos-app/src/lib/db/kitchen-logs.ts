@@ -8,6 +8,7 @@ import { movementKey } from '@/lib/kitchen-action-label'
 import type {
   ActualsMap,
   BranchOption,
+  CafeDestination,
   CaptureFormItem,
   ItemUnitOption,
   WipItemOption,
@@ -66,6 +67,15 @@ export async function listStreamPairs(): Promise<StreamPair[]> {
     .is('archived_at', null)
   if (error) throw new Error(`listStreamPairs failed — ${error.message}`)
   return (data ?? []) as StreamPair[]
+}
+
+/** Read the org-scoped cross-branch route rows used by the movement picker. */
+export async function listCafeDestinations(): Promise<CafeDestination[]> {
+  const { data, error } = await ops()
+    .from('cafe_destinations')
+    .select('origin_branch_id,origin_activity,destination_branch_id')
+  if (error) throw new Error(`listCafeDestinations failed — ${error.message}`)
+  return (data ?? []) as CafeDestination[]
 }
 
 /**
