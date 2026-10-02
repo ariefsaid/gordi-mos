@@ -384,7 +384,7 @@ select is((
      and record_key = '00000000-0000-0000-0000-0000000009e2'
      and action = 'update' and field_name = 'write_up'
      and old_value is null and new_value is null),
-  0, 'saving an empty write-up creates no history row');
+  1, 'a write-up save records one summary-only history row — never the content (change-history DA-2)');
 
 -- ═══ Review round 1 — the guard is default-deny, and a removal keeps readable history ════════
 -- The row policy admits any org member, so the guard is what refuses columns no tier owns.
