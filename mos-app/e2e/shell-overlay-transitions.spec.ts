@@ -30,6 +30,17 @@ async function openFirstRecord(page: Page, collection: 'objectives' | 'projects'
   return { id, name }
 }
 
+async function openFirstTaskRecord(page: Page): Promise<Locator> {
+  await page.goto('work/tasks')
+  const taskLink = page.locator('tr.task-row').first().getByRole('link').first()
+  await expect(taskLink).toBeVisible()
+  await taskLink.click()
+  await expect(page).toHaveURL(/record=/)
+  await expect(recordPanel(page)).toBeVisible()
+  await expect(recordPanel(page).getByRole('region').first()).toBeVisible()
+  return taskLink
+}
+
 async function expectNoStaleRecord(page: Page, heading: string, recordName?: string) {
   await expect(page.getByRole('heading', { level: 1, name: heading, exact: true })).toBeVisible()
   await expect(recordPanel(page)).toHaveCount(0)
@@ -48,8 +59,8 @@ async function box(locator: Locator) {
 
 /** Deputy is on screen in its intended host: right-anchored fixed panel on desktop, full-screen
  * modal on phone; the header stays visible. Standalone on desktop it docks, so the main region
- * gives up exactly the panel's width (drawer.css data-panel-docked='deputy'); beside a record it
- * floats in the record's frame, and on phone it is a modal — the page underneath does not move. */
+ * gives up exactly the panel's width (drawer.css data-panel-docked='deputy'); with a record it
+ * anchors below the record identity header, and on phone it is a modal above the mounted record. */
 async function expectDeputyPlaced(page: Page, viewport: { width: number; height: number }, mainBefore: { x: number; y: number; width: number; height: number }) {
   const panel = deputy(page)
   await expect(panel).toBeVisible()
@@ -72,7 +83,7 @@ async function expectDeputyPlaced(page: Page, viewport: { width: number; height:
   }
   if (viewport.width >= 920) {
     expect(await panel.evaluate((el) => getComputedStyle(el).position)).toBe('fixed')
-    // Alone it docks to the right edge; beside a record it sits left of the record panel.
+    // Alone it docks to the right edge; beside a record it occupies the record column.
     if (docked) {
       expect(Math.abs(b.x + b.width - viewport.width)).toBeLessThanOrEqual(1)
     }
@@ -208,9 +219,8 @@ test.describe('shell overlay transitions', () => {
   })
 
   for (const width of [1280, 1440, 1920, 2300]) {
-    test(`Deputy beside a record never overlaps it at ${width}px`, async ({ page }, info) => {
-      const viewport = { width, height: 900 }
-      await page.setViewportSize(viewport)
+    test(`Deputy anchors inside the record column at ${width}px`, async ({ page }, info) => {
+      await page.setViewportSize({ width, height: 900 })
       await loginAs(page, DIRECTOR, DEMO_PASSWORD)
       for (const collection of ['objectives', 'projects'] as const) {
         await openFirstRecord(page, collection)
@@ -218,21 +228,35 @@ test.describe('shell overlay transitions', () => {
         await expect(deputy(page)).toHaveClass(/overlay-companion-host--with-record/)
         const d = await box(deputy(page))
         const r = await box(recordPanel(page))
-        for (const b of [d, r]) {
-          expect(b.x).toBeGreaterThanOrEqual(0)
-          expect(b.x + b.width).toBeLessThanOrEqual(width + 0.5)
-        }
-        expect(d.width).toBeGreaterThanOrEqual(280)
-        expect(d.x + d.width).toBeLessThanOrEqual(r.x)
-        const header = await box(page.locator('header').first())
-        expect(header.y).toBe(0)
-        await expect(deputyButton(page)).toBeVisible()
-        await page.screenshot({ path: info.outputPath(`deputy-beside-${collection}-${width}.png`), animations: 'disabled' })
+        const identityHeader = await box(recordPanel(page).locator('[data-record-header="true"]'))
+        expect(d.x).toBeGreaterThanOrEqual(r.x)
+        expect(d.x + d.width).toBeLessThanOrEqual(r.x + r.width + 0.5)
+        expect(Math.abs(d.x + d.width - (r.x + r.width))).toBeLessThanOrEqual(1)
+        expect(d.y).toBeGreaterThanOrEqual(identityHeader.y + identityHeader.height)
+        await page.screenshot({ path: info.outputPath(`deputy-record-column-${collection}-${width}.png`), animations: 'disabled' })
         await page.keyboard.press('Escape')
         await expect(deputy(page)).toHaveCount(0)
       }
     })
   }
+
+  test('Task Status and Due stay unobscured beside the record and Deputy', async ({ page }, info) => {
+    await page.setViewportSize(DESKTOP)
+    await loginAs(page, DIRECTOR, DEMO_PASSWORD)
+    await openFirstTaskRecord(page)
+    await deputyButton(page).click()
+
+    const d = await box(deputy(page))
+    const row = page.locator('tr.task-row').nth(6)
+    for (const cell of [row.locator('td').nth(1), row.locator('td').nth(4)]) {
+      const c = await box(cell)
+      const overlaps = d.x < c.x + c.width && c.x < d.x + d.width && d.y < c.y + c.height && c.y < d.y + d.height
+      expect(overlaps).toBe(false)
+    }
+    await expect(page.getByRole('columnheader', { name: /status/i })).toBeVisible()
+    await expect(page.getByRole('columnheader', { name: /due/i })).toBeVisible()
+    await page.screenshot({ path: info.outputPath('deputy-task-status-due-1440.png'), animations: 'disabled' })
+  })
 
   for (const width of [1024, 1440, 1920]) {
     test(`Deputy keeps the header in view at ${width}px, with and without a record`, async ({ page }, info) => {
@@ -274,6 +298,11 @@ test.describe('shell overlay transitions', () => {
     await expect(deputy(page)).toBeVisible()
     await expectDeputyPlaced(page, DESKTOP, mainBefore)
     await expect(recordPanel(page)).toHaveCount(0)
+
+    await expect.poll(() => page.evaluate(() => {
+      const panel = document.querySelector('[data-overlay-companion]')
+      return !!panel?.contains(document.activeElement)
+    })).toBe(false)
     await page.screenshot({ path: info.outputPath('deputy-after-reload-1440.png'), animations: 'disabled' })
 
     await deputy(page).focus()
@@ -281,7 +310,7 @@ test.describe('shell overlay transitions', () => {
     await expect(deputy(page)).toHaveCount(0)
   })
 
-  test('Deputy beside an open record stays on screen and clear of the record controls', async ({ page }, info) => {
+  test('Deputy stays below the record identity/actions header', async ({ page }, info) => {
     await page.setViewportSize(DESKTOP)
     await loginAs(page, DIRECTOR, DEMO_PASSWORD)
 
@@ -296,6 +325,81 @@ test.describe('shell overlay transitions', () => {
     expect(overlaps).toBe(false)
     await expect(recordPanel(page)).toBeVisible()
     await page.screenshot({ path: info.outputPath('deputy-with-record-1440.png'), animations: 'disabled' })
+  })
+
+  test('desktop: Tab past Deputy enters the record; Escape closes Deputy before the record', async ({ page }) => {
+    await page.setViewportSize(DESKTOP)
+    await loginAs(page, DIRECTOR, DEMO_PASSWORD)
+    const taskLink = await openFirstTaskRecord(page)
+
+    // Open from the record so close returns focus to the record's own action.
+    await recordPanel(page).getByRole('button', { name: 'More actions', exact: true }).click()
+    await page.getByRole('menuitem', { name: 'Ask Deputy', exact: true }).click()
+    await expect(deputy(page)).toBeVisible()
+    await expect.poll(() => page.evaluate(() => {
+      const panel = document.querySelector('[data-overlay-companion]')
+      return !!panel?.contains(document.activeElement)
+    })).toBe(true)
+
+    const composer = deputy(page).getByRole('textbox', { name: /ask the deputy/i })
+    const send = deputy(page).getByRole('button', { name: 'Send', exact: true })
+    await expect(composer).not.toHaveValue('')
+    await expect(send).toBeEnabled()
+    await composer.focus()
+    await page.keyboard.press('Tab')
+    await expect(send).toBeFocused()
+    await page.keyboard.press('Tab')
+    await expect.poll(() => page.evaluate(() => {
+      const record = document.querySelector('[data-overlay-host="true"]')
+      return !!record?.contains(document.activeElement) && document.activeElement !== document.body
+    })).toBe(true)
+
+    await page.keyboard.press('Escape')
+    await expect(deputy(page)).toHaveCount(0)
+    await expect(recordPanel(page)).toBeVisible()
+    await expect.poll(() => page.evaluate(() => !!document.querySelector('[data-overlay-host]')?.contains(document.activeElement))).toBe(true)
+
+    await page.keyboard.press('Escape')
+    await expect(recordPanel(page)).toHaveCount(0)
+    await expect(taskLink).toBeFocused()
+
+    await deputyButton(page).click()
+    await expect.poll(() => page.evaluate(() => !!document.querySelector('[data-overlay-companion]')?.contains(document.activeElement))).toBe(true)
+    await page.reload()
+    await expect(deputy(page)).toBeVisible()
+    await expect.poll(() => page.evaluate(() => !!document.querySelector('[data-overlay-companion]')?.contains(document.activeElement))).toBe(false)
+  })
+
+  test('phone: Deputy closes while its Task record stays mounted', async ({ page }, info) => {
+    await page.setViewportSize(DESKTOP)
+    await loginAs(page, DIRECTOR, DEMO_PASSWORD)
+    await openFirstTaskRecord(page)
+    await page.setViewportSize(PHONE)
+    const taskRecord = page.getByRole('region', { name: 'Replace grinder burrs (Cafe 2)', exact: true })
+    await expect(taskRecord).toBeVisible()
+
+    await page.getByRole('button', { name: 'More actions', exact: true }).click()
+    await page.getByRole('menuitem', { name: 'Ask Deputy', exact: true }).click()
+    await expect(deputy(page)).toHaveAttribute('aria-modal', 'true')
+    await expect.poll(() => page.evaluate(() => !!document.querySelector('[data-overlay-companion]')?.contains(document.activeElement))).toBe(true)
+    await page.screenshot({ path: info.outputPath('deputy-record-phone-390.png'), animations: 'disabled' })
+
+    const composer = deputy(page).getByRole('textbox', { name: /ask the deputy/i })
+    const send = deputy(page).getByRole('button', { name: 'Send', exact: true })
+    await expect(composer).not.toHaveValue('')
+    await expect(send).toBeEnabled()
+    await composer.focus()
+    await page.keyboard.press('Tab')
+    await expect(send).toBeFocused()
+    await page.keyboard.press('Tab')
+    await expect.poll(() => page.evaluate(() => {
+      const panel = document.querySelector('[data-overlay-companion]')
+      return !!panel?.contains(document.activeElement) && document.activeElement !== document.body
+    })).toBe(true)
+
+    await page.keyboard.press('Escape')
+    await expect(deputy(page)).toHaveCount(0)
+    await expect(taskRecord).toBeVisible()
   })
 
   test('phone: a Work record opens as a full page with one Back; Deputy remains a modal', async ({ page }, info) => {
@@ -334,6 +438,10 @@ test.describe('shell overlay transitions', () => {
     await deputyButton(page).click()
     await page.reload()
     await expectDeputyPlaced(page, PHONE, mainBefore)
+    await expect.poll(() => page.evaluate(() => {
+      const panel = document.querySelector('[data-overlay-companion]')
+      return !!panel?.contains(document.activeElement)
+    })).toBe(false)
     await page.screenshot({ path: info.outputPath('deputy-phone-reload-390.png'), animations: 'disabled' })
   })
 })

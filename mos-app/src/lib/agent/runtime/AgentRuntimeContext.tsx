@@ -29,6 +29,8 @@ const STORAGE_KEY = 'mos.assistant.open'
 interface AgentRuntimeContextValue {
   runtime: AgentRuntime | null
   open: boolean
+  /** True for explicit open intent, false when restoring an open panel after reload. */
+  focusOnOpen: boolean
   /**
    * Opens the Deputy slide-over. An optional `initialDraft` pre-fills the composer (record-scoped
    * "Ask Deputy" — the caller passes a compact record reference like "About Task: <title>"). The
@@ -50,6 +52,7 @@ const noop = () => {}
 const DEFAULT_VALUE: AgentRuntimeContextValue = {
   runtime: null,
   open: false,
+  focusOnOpen: false,
   openPanel: noop,
   closePanel: noop,
   togglePanel: noop,
@@ -94,6 +97,8 @@ export function AgentRuntimeProvider({ children, runtime }: ProviderProps) {
   const resolvedRuntime = runtime === undefined ? realRuntime : runtime
 
   const [open, setOpen] = useState<boolean>(readPersistedOpen)
+  // Reloading a persisted-open panel must not pull keyboard focus out of the page.
+  const [focusOnOpen, setFocusOnOpen] = useState(false)
   // Record-scoped seed: the composer adopts this once on open, then calls consumePendingDraft().
   // Not persisted — a page reload should not resurrect a stale record reference in the composer.
   const [pendingDraft, setPendingDraft] = useState<string | null>(null)
@@ -110,15 +115,22 @@ export function AgentRuntimeProvider({ children, runtime }: ProviderProps) {
     // Guard against non-string args: `onClick={openPanel}` hands us a MouseEvent, which must not
     // become a composer seed. Only an explicit string (the record reference) seeds the draft.
     if (typeof initialDraft === 'string') setPendingDraft(initialDraft)
+    setFocusOnOpen(true)
     setOpen(true)
   }, [])
   const consumePendingDraft = useCallback(() => setPendingDraft(null), [])
-  const closePanel = useCallback(() => setOpen(false), [])
-  const togglePanel = useCallback(() => setOpen((v) => !v), [])
+  const closePanel = useCallback(() => {
+    setFocusOnOpen(false)
+    setOpen(false)
+  }, [])
+  const togglePanel = useCallback(() => {
+    if (open) closePanel()
+    else openPanel()
+  }, [open, closePanel, openPanel])
 
   const value = useMemo<AgentRuntimeContextValue>(
-    () => ({ runtime: resolvedRuntime, open, openPanel, closePanel, togglePanel, pendingDraft, consumePendingDraft }),
-    [resolvedRuntime, open, openPanel, closePanel, togglePanel, pendingDraft, consumePendingDraft],
+    () => ({ runtime: resolvedRuntime, open, focusOnOpen, openPanel, closePanel, togglePanel, pendingDraft, consumePendingDraft }),
+    [resolvedRuntime, open, focusOnOpen, openPanel, closePanel, togglePanel, pendingDraft, consumePendingDraft],
   )
 
   return <AgentRuntimeContext.Provider value={value}>{children}</AgentRuntimeContext.Provider>
