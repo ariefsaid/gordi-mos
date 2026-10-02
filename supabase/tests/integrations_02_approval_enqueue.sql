@@ -31,6 +31,13 @@ select shared._test_seed_directory();
 select shared._test_seed_access_roles();
 select ops._test_seed_cafe();
 
+-- GHQ bar's configured cross-branch route is Cikal; add that branch so the seed bootstrap
+-- creates its bar stream and the corresponding route row for this fixture.
+insert into shared.branches (id, org_id, code, name) values
+  ('00000000-0000-0000-0000-00000000bf04','00000000-0000-0000-0000-0000000000a1','cikal','Cikal')
+on conflict (id) do nothing;
+select shared.seed_stream_teams();
+
 -- The owner's view of the outbox before anything is approved. Read as the owner deliberately: every
 -- "no row was created" assertion below has to be made by somebody who could have seen one.
 create temp table _outbox_before as select count(*)::int as n from integrations.esb_push;
@@ -302,7 +309,7 @@ insert into ops.kitchen_logs
   (id, org_id, business_unit_id, log_date, branch_id, activity, action, destination_branch_id,
    wip_item_id, qty_porsi, status, submitted_by) values
   ('00000000-0000-0000-0000-00000000ac21','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','2026-06-23','00000000-0000-0000-0000-00000000bf01','bar','transfer','00000000-0000-0000-0000-00000000bf01','00000000-0000-0000-0000-00000000ab03',5,'Submitted','00000000-0000-0000-0000-0000000000d1'),
-  ('00000000-0000-0000-0000-00000000ac22','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','2026-06-23','00000000-0000-0000-0000-00000000bf01','bar','transfer','00000000-0000-0000-0000-00000000bf03','00000000-0000-0000-0000-00000000ab03',2,'Submitted','00000000-0000-0000-0000-0000000000d1');
+  ('00000000-0000-0000-0000-00000000ac22','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','2026-06-23','00000000-0000-0000-0000-00000000bf01','bar','transfer','00000000-0000-0000-0000-00000000bf04','00000000-0000-0000-0000-00000000ab03',2,'Submitted','00000000-0000-0000-0000-0000000000d1');
 
 set local role authenticated;
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
@@ -336,7 +343,7 @@ select is(ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ac22','ok'), 
 select row_eq($$
   select endpoint, status, payload->>'destination_branch_code'
     from integrations.esb_push where source_ref = 'TR-20260623-001' $$,
-  row('simple-transfer'::text,'pending'::text,'radiant'::text)::record,
+  row('simple-transfer'::text,'pending'::text,'cikal'::text)::record,
   'AC-008: ...and it enqueues a real transfer through the normal dispatch path — pending, with the destination on the message, exactly as a kitchen cross-branch transfer does');
 
 -- ── The sweep: no held row anywhere has an ERP document ──────────────────────────────────────
