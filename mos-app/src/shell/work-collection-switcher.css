@@ -2,7 +2,7 @@
   display: none;
 }
 
-@media (max-width: 767px) {
+@media (max-width: 919.98px) {
   .work-collection-switcher {
     display: block;
     flex: 0 0 auto;
@@ -40,7 +40,7 @@
     overflow-wrap: anywhere;
   }
 
-  .work-collection-switcher__link[aria-current='page'] {
+  .work-collection-switcher__link[aria-current='location'] {
     border-bottom-color: var(--primary);
     color: var(--primary);
     font-weight: 600;

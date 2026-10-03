@@ -4,8 +4,10 @@ import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { useAuth } from '@/auth/use-auth'
 import { WorkCollectionSwitcher } from './work-collection-switcher'
+import { useIsNarrow } from './use-is-narrow'
 
 vi.mock('@/auth/use-auth', () => ({ useAuth: vi.fn() }))
+vi.mock('./use-is-narrow', () => ({ useIsNarrow: vi.fn() }))
 
 const COLLECTIONS = [
   { path: '/work/signals', label: 'Signals' },
@@ -15,6 +17,7 @@ const COLLECTIONS = [
 ] as const
 
 const mockUseAuth = vi.mocked(useAuth)
+const mockUseIsNarrow = vi.mocked(useIsNarrow)
 
 function authenticatedViewer(accessRoles: string[]) {
   return {
@@ -34,8 +37,9 @@ function authenticatedViewer(accessRoles: string[]) {
   } as unknown as ReturnType<typeof useAuth>
 }
 
-function renderAt(pathname: string, accessRoles: string[] = ['member']) {
+function renderAt(pathname: string, accessRoles: string[] = ['member'], isNarrow = true) {
   mockUseAuth.mockReturnValue(authenticatedViewer(accessRoles))
+  mockUseIsNarrow.mockReturnValue(isNarrow)
   return render(
     <I18nProvider>
       <MemoryRouter initialEntries={[pathname]}>
@@ -54,7 +58,7 @@ describe('WorkCollectionSwitcher', () => {
     const nav = screen.getByRole('navigation', { name: 'Work' })
     const links = within(nav).getAllByRole('link')
     expect(links.map((link) => link.getAttribute('href'))).toEqual(COLLECTIONS.map((item) => item.path))
-    expect(within(nav).getByRole('link', { name: label })).toHaveAttribute('aria-current', 'page')
+    expect(within(nav).getByRole('link', { name: label })).toHaveAttribute('aria-current', 'location')
   })
 
   it('does not add collection navigation to a canonical record page', () => {
@@ -67,5 +71,12 @@ describe('WorkCollectionSwitcher', () => {
     renderAt('/')
 
     expect(screen.queryByRole('navigation', { name: 'Work' })).not.toBeInTheDocument()
+  })
+
+  it('does not render the switcher or its current-page link outside the narrow layout', () => {
+    renderAt('/work/signals', ['member'], false)
+
+    expect(screen.queryByRole('navigation', { name: 'Work' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Signals' })).not.toBeInTheDocument()
   })
 })

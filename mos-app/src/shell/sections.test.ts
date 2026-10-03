@@ -29,6 +29,7 @@ describe('T5: CAFE_SECTIONS — Kitchen re-homed under /cafe/*', () => {
       '/cafe',
       '/cafe/production',
       '/cafe/transfer',
+      '/cafe/waste',
       '/cafe/plan',
       '/cafe/stock',
       '/cafe/items',
@@ -46,9 +47,19 @@ describe('T5: CAFE_SECTIONS — Kitchen re-homed under /cafe/*', () => {
     })
   })
 
+  it('sectionForPath resolves the dedicated waste route as Log waste', () => {
+    expect(CAFE_SECTIONS).toContainEqual(expect.objectContaining({
+      path: '/cafe/waste',
+      label: 'Log waste',
+      labelKey: 'nav.cafe.waste',
+    }))
+    expect(sectionForPath('/cafe/waste')).toMatchObject({ path: '/cafe/waste', label: 'Log waste' })
+  })
+
   it('sectionForPath resolves production, transfer, items, review and pushes', () => {
     expect(sectionForPath('/cafe/production')!.label).toBe('Log production')
     expect(sectionForPath('/cafe/transfer')!.label).toBe('Log transfer')
+    expect(sectionForPath('/cafe/waste')!.label).toBe('Log waste')
     expect(sectionForPath('/cafe/items')!.label).toBe('Items')
     expect(sectionForPath('/cafe/review')!.label).toBe('Review')
     expect(sectionForPath('/cafe/pushes')!.label).toBe('Pushes')
@@ -119,8 +130,8 @@ describe('the Café children carry marks of their own (#457)', () => {
   // Several rungs, one picture: each Café tab gets its own mark so compact rail and phone drawer entries remain identifiable.
   it('the Café root and routes use distinct components', () => {
     const icons = CAFE_SECTIONS.map((s) => s.Icon)
-    expect(icons).toHaveLength(8)
-    expect(new Set(icons).size).toBe(8)
+    expect(icons).toHaveLength(9)
+    expect(new Set(icons).size).toBe(9)
   })
 
   it('none of them is a mark another destination already draws', () => {

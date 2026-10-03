@@ -210,6 +210,7 @@ describe('Café module — the tab strip is in the nav, gated as its routes are'
       '/cafe',
       '/cafe/production',
       '/cafe/transfer',
+      '/cafe/waste',
       '/cafe/plan',
       '/cafe/stock',
       '/cafe/items',
@@ -222,7 +223,7 @@ describe('Café module — the tab strip is in the nav, gated as its routes are'
 
   it('a plain kitchen member sees Log, Plan and Stock — and not Review or Pushes', () => {
     const visible = visibleSections(cafe.children ?? [], ['member']).map((c) => c.path)
-    expect(visible).toEqual(['/cafe', '/cafe/production', '/cafe/transfer', '/cafe/plan', '/cafe/stock', '/cafe/items'])
+    expect(visible).toEqual(['/cafe', '/cafe/production', '/cafe/transfer', '/cafe/waste', '/cafe/plan', '/cafe/stock', '/cafe/items'])
   })
 
   it('ops_lead and admin also see Review and Pushes', () => {
@@ -232,6 +233,7 @@ describe('Café module — the tab strip is in the nav, gated as its routes are'
         '/cafe',
         '/cafe/production',
         '/cafe/transfer',
+        '/cafe/waste',
         '/cafe/plan',
         '/cafe/stock',
         '/cafe/items',
@@ -247,7 +249,7 @@ describe('Café module — the tab strip is in the nav, gated as its routes are'
   // it is the dispatch surface, and opening review per stream opened nothing about posting.
   it('a stream supervisor sees Review — and still not Pushes (#236 FR-040)', () => {
     const visible = visibleSections(cafe.children ?? [], ['supervisor']).map((c) => c.path)
-    expect(visible).toEqual(['/cafe', '/cafe/production', '/cafe/transfer', '/cafe/plan', '/cafe/stock', '/cafe/items', '/cafe/review'])
+    expect(visible).toEqual(['/cafe', '/cafe/production', '/cafe/transfer', '/cafe/waste', '/cafe/plan', '/cafe/stock', '/cafe/items', '/cafe/review'])
   })
 
   it("each gated nav entry carries the same role list as the route gate that OWNS it", () => {
