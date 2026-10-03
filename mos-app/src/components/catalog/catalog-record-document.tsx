@@ -62,6 +62,7 @@ type Notice = { message: string; undo?: () => Promise<void> }
 type Chooser =
   | { purpose: 'link'; status: 'loading' | 'error' | 'empty' | 'ready'; options: PickerOption[]; objectiveOf: Map<string, string | null>; names: Map<string, string>; facts: Map<string, CatalogWorkLineFact> }
   | { purpose: 'task'; options: PickerOption[] }
+  | { purpose: 'start'; options: PickerOption[] }
 
 function cadenceLabel(kind: string, t: ReturnType<typeof useT>): string {
   const labels = {
@@ -114,8 +115,6 @@ export function CatalogRecordDocument({
   const [editDirectoryRetry, setEditDirectoryRetry] = useState(0)
   const [fieldDirty, setFieldDirty] = useState(false)
   const [pendingLeave, setPendingLeave] = useState<OverlayLeaveIntent | null>(null)
-  const [krCount, setKrCount] = useState<number | null>(null)
-  const [addKeyResultToken, setAddKeyResultToken] = useState(0)
   const [addingStep, setAddingStep] = useState(false)
   const [chooser, setChooser] = useState<Chooser | null>(null)
   const [moving, setMoving] = useState<{ id: string; name: string; from: string; fact?: CatalogWorkLineFact } | null>(null)
@@ -485,14 +484,9 @@ export function CatalogRecordDocument({
     })
   }
 
-  // A writer's Get started region waits for the key-result count, so it never shows a half-known list.
-  const settled = !isObjective || !isWriter || krCount !== null
   const setup: RecordSetupItem[] = []
-  if (!archived && isWriter && settled) {
+  if (!archived && isWriter) {
     if (isObjective) {
-      if (canManage && krCount === 0) {
-        setup.push({ id: 'targets', label: t('catalog.setup.targets.label'), reason: t('catalog.setup.targets.reason'), action: { label: t('objective.keyResults.add'), onClick: () => { rememberOpener(); setAddKeyResultToken((n) => n + 1) } } })
-      }
       if (canLink && linkedWork.length === 0) {
         setup.push({ id: 'link', label: t('catalog.setup.link.label'), reason: t('catalog.setup.link.reason'), action: { label: t('catalog.link.action'), onClick: () => { void startLink() } } })
       }
@@ -508,18 +502,19 @@ export function CatalogRecordDocument({
     }
   }
   const setupTitle = t(isObjective ? 'catalog.setup.title.objective' : isProcess ? 'catalog.setup.title.process' : 'catalog.setup.title.project')
-  // One ready run starts as the body's Start button does; with several Teams ready the person picks
-  // the Team, so the primary takes them to those buttons rather than choosing for them.
+  // The record header owns Start. One ready Team is a single click; several require a type-to-find choice.
   const startReady = isProcess && process !== null && process.steps.length > 0 && occurrences.state === 'ready' && occurrences.startable.length > 0
   const startFromHeader = () => {
     if (occurrences.startable.length === 1) { void occurrences.start(occurrences.startable[0]); return }
-    const first = document.querySelector<HTMLElement>('.process-occurrence-controls__start button')
-    first?.scrollIntoView({ block: 'center' })
-    first?.focus()
+    rememberOpener()
+    setChooser({
+      purpose: 'start',
+      options: occurrences.startable.map((run) => ({ value: `${run.owning_team_id}:${run.period_key}`, label: run.team_name })),
+    })
   }
-  const primary: RecordPrimaryAction | undefined = archived || !settled || setup.length > 0 ? undefined
-    : isProcess ? (startReady ? { label: t('catalog.record.startOccurrence'), onClick: startFromHeader, busy: occurrences.startingKey !== null } : undefined)
-      : (isObjective ? linkedWork.length > 0 : true) ? { label: t('catalog.record.addTask'), onClick: startAddTask } : undefined
+  const primary: RecordPrimaryAction | undefined = archived || setup.length > 0 ? undefined
+    : isProcess ? (startReady ? { id: 'start-occurrence', label: t('catalog.record.startOccurrence'), onClick: startFromHeader, busy: occurrences.startingKey !== null } : undefined)
+      : (isObjective ? linkedWork.length > 0 : true) ? { id: 'add-task', label: t('catalog.record.addTask'), onClick: startAddTask } : undefined
 
   const accountableName = row.accountablePersonId ? allPeople.get(row.accountablePersonId) : undefined
   // The line says what the viewer can do: "View only" is for a viewer with nothing to add.
@@ -530,9 +525,11 @@ export function CatalogRecordDocument({
       : canAddTask
         ? (accountableName ? 'catalog.record.viewOnly.objectiveAdd' : 'catalog.record.viewOnly.noneAdd')
         : (accountableName ? 'catalog.record.viewOnly.objective' : 'catalog.record.viewOnly.none'))
-    : canAddTask
-      ? (accountableName ? 'catalog.record.viewOnly.workLineAdd' : 'catalog.record.viewOnly.noneAdd')
-      : (accountableName ? 'catalog.record.viewOnly.workLine' : 'catalog.record.viewOnly.none')
+    : isProcess && startReady
+      ? (accountableName ? 'catalog.record.viewOnly.processStart' : 'catalog.record.viewOnly.processStartNone')
+      : canAddTask
+        ? (accountableName ? 'catalog.record.viewOnly.workLineAdd' : 'catalog.record.viewOnly.noneAdd')
+        : (accountableName ? 'catalog.record.viewOnly.workLine' : 'catalog.record.viewOnly.none')
   const note = !scopesKnown || canManage ? undefined : t(noteKey, { name: accountableName ?? '' })
 
   const menu: RecordMenuItem[] = [
@@ -572,6 +569,19 @@ export function CatalogRecordDocument({
         label={t('catalog.chooser.taskFor')}
         options={chooser.options}
         onPick={(workLineId) => { setChooser(null); createTask(workLineId) }}
+        onCancel={closeChooser}
+      />
+    ) : chooser.purpose === 'start' ? (
+      <InlineChooser
+        label={t('processes.occurrence.chooseTeam')}
+        options={chooser.options}
+        onPick={(key) => {
+          const [teamId, periodKey] = key.split(':')
+          const run = occurrences.startable.find((candidate) => candidate.owning_team_id === teamId && candidate.period_key === periodKey)
+          setChooser(null)
+          restoreOpener()
+          if (run) void occurrences.start(run)
+        }}
         onCancel={closeChooser}
       />
     ) : (
@@ -638,6 +648,10 @@ export function CatalogRecordDocument({
   ) : null
   // A Process with no steps leads with them: the form the Get started row opens sits right under it.
   const stepsFirst = isProcess && process !== null && process.steps.length === 0
+  const showOccurrenceSection = isProcess && process !== null && (
+    process.steps.length > 0 || occurrences.state === 'error'
+    || (occurrences.state === 'ready' && occurrences.occurrences.length > 0)
+  )
 
   return (
     <>
@@ -685,15 +699,10 @@ export function CatalogRecordDocument({
               scopes={scopes}
               scopesStatus={scopesError ? 'error' : scopesLoading ? 'loading' : 'ready'}
               onRetryScopes={retryScopes}
-              hideWhenEmpty={setup.some((item) => item.id === 'targets')}
-              onCount={setKrCount}
-              onAddClosed={() => restoreOpener()}
-              openAddToken={addKeyResultToken}
             />
             <LinkedWorkSection
               objectiveId={id}
               groups={linkedWork}
-              progress={context.progressById.get(id) ?? { done: 0, total: 0 }}
               workLines={workLinesById}
               people={allPeople}
               scopes={scopes}
@@ -707,18 +716,18 @@ export function CatalogRecordDocument({
           </>
         ) : null}
         {stepsFirst ? stepsSection : null}
-        {isProcess && process ? (
+        {showOccurrenceSection && process ? (
           <RecordSection id="occurrence" title={t('catalog.record.currentNextAction')}>
-            <div data-setup-pending={setup.some((item) => item.id === 'steps') || undefined}>
-              <ProcessOccurrenceControls workLineId={id} setupIncomplete={process.steps.length === 0} canManageSetup={canManage} onChanged={onOccurrencesChanged} data={occurrences} />
-            </div>
+            <ProcessOccurrenceControls workLineId={id} setupIncomplete={process.steps.length === 0} canManageSetup={canManage} onChanged={onOccurrencesChanged} data={occurrences} />
           </RecordSection>
         ) : null}
         <TasksSection
           title={t(isProcess ? 'catalog.record.processTasks' : 'catalog.record.tasks')}
           tasks={derived.relationTasks}
+          rollup={context.progressById.get(id)}
           people={allPeople}
           canAdd={canAddTask}
+          actionInHeader={primary?.id === 'add-task'}
           hidden={setup.some((item) => item.id === 'tasks')}
           onAdd={startAddTask}
           onOpenRelated={onOpenRelated}

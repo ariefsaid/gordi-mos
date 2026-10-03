@@ -231,9 +231,11 @@ export const WindowRangeInlineDesktop: Story = {
     // Inline beside the seg — inside the window-selector, no phone range row.
     await expect(from.closest('.window-selector')).not.toBeNull()
     await expect(canvasElement.querySelectorAll('.window-selector-range')).toHaveLength(1)
-    // Bounded to the snapshot window (AC-014 grammar).
-    await expect(from).toHaveAttribute('min', BOUNDS.earliest)
-    await expect(from).toHaveAttribute('max', BOUNDS.latest)
+    // The native date picker carries the actual bound; the typed text field validates it too.
+    const fromPicker = canvasElement.querySelector('.window-selector-range .mk-date__picker')
+    await expect(fromPicker).not.toBeNull()
+    await expect(fromPicker).toHaveAttribute('min', BOUNDS.earliest)
+    await expect(fromPicker).toHaveAttribute('max', BOUNDS.latest)
   },
 }
 
@@ -272,8 +274,12 @@ export const WindowRangeSheetPhone: Story = {
     await expect(canvasElement.querySelector('.window-selector-range')).toBeNull()
     await fireEvent.click(canvas.getByRole('tab', { name: 'Range' }))
     const sheet = canvas.getByRole('dialog', { name: 'Custom range' })
-    await expect(within(sheet).getByLabelText('From')).toBeInTheDocument()
-    await expect(within(sheet).getByLabelText('To')).toBeInTheDocument()
+    const from = within(sheet).getByLabelText('From')
+    const to = within(sheet).getByLabelText('To')
+    await expect(from).toBeInTheDocument()
+    await expect(to).toBeInTheDocument()
+    await expect(to.getBoundingClientRect().width).toBeGreaterThan(90)
+    await expect(getComputedStyle(from).fontSize).toBe('16px')
     await expect(within(sheet).getByRole('button', { name: 'Apply' })).toBeInTheDocument()
 
     // The cut axis is still behind the sheet — the whole point of moving the pair out of the row.

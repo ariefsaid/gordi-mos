@@ -104,19 +104,23 @@ test.describe('AC-411: catalog is Work\'s manage-mode', () => {
     await trace.getByRole('link', { name: 'E2E Trace Objective', exact: true }).click()
     const objective = page.getByRole('region', { name: 'E2E Trace Objective', exact: true })
     await expect(objective).toBeVisible()
-    const sourceUrl = page.url()
+    await expect(objective).toHaveAttribute('data-record-mode', 'page')
     await objective.getByRole('link', { name: 'E2E Trace Work Line', exact: true }).click()
     await expect(page.getByRole('heading', { name: 'E2E Trace Work Line', exact: true })).toBeVisible()
-    await expect(page).toHaveURL(sourceUrl)
-    await page.getByRole('button', { name: /^Back/i }).click()
-    await expect(objective).toBeVisible()
+    await expect(page).toHaveURL(new RegExp(`/work/projects/${TRACE_WL}$`))
+    const backToProjects = page.locator('.record-page-back')
+    await expect(backToProjects).toHaveCount(1)
+    await expect(backToProjects).toHaveAttribute('href', /\/work\/projects$/)
+    await backToProjects.click()
+    await expect(page).toHaveURL(/\/work\/projects$/)
+    await expect(page.getByRole('heading', { name: 'Projects & Processes', exact: true })).toBeVisible()
   })
 
   test('a direct visit to the retired /objectives redirects to the relocated catalog', async ({ page }) => {
     await loginAs(page, ADMIN.email, ADMIN.password)
 
     await page.goto('objectives')
-    await expect(page).toHaveURL(/\/work\/objectives$/)
+    await expect(page).toHaveURL(url => url.pathname.endsWith('/work/objectives'))
     await expect(page.getByRole('heading', { name: 'Objectives', level: 1 })).toBeVisible()
   })
 })
@@ -165,24 +169,30 @@ for (const width of [390,1440]) {
     await loginAs(page,'bulan.dev@example.test',DEMO_PASSWORD)
     await page.goto('work/projects')
     await page.getByRole('link',{name:'E2E Trace Process',exact:true}).click()
-    const panel=page.getByRole('region',{name:'E2E Trace Process',exact:true})
-    await expect(panel).toBeVisible()
-    // A Process record is one scrolling page: occurrences, then its steps, with no tabs.
-    await expect(panel.getByRole('tablist')).toHaveCount(0)
-    await expect(panel.getByRole('region',{name:'Current and next action',exact:true})).toBeVisible()
-    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
+    const record=page.getByRole('region',{name:'E2E Trace Process',exact:true})
+    await expect(record).toBeVisible()
+    const recordMode = width < 768 ? 'page' : 'panel'
+    await expect(record).toHaveAttribute('data-record-mode', recordMode)
+    // The Process remains one readable record page without duplicate occurrence headings or tabs.
+    await expect(record.getByRole('heading', { name: 'E2E Trace Process', exact: true })).toHaveCount(1)
+    await expect(record.getByRole('tablist')).toHaveCount(0)
+    await expect(record.getByRole('region', { name: 'About', exact: true })).toBeVisible()
+    await expect(record.getByRole('heading', { name: 'Occurrences', exact: true })).toHaveCount(0)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     await page.screenshot({animations:'disabled',path:testInfo.outputPath(`process-${width}.png`)})
-    // A wide panel's own bar carries Open full page; on a phone the panel is the whole screen and the menu does.
-    if (width < 768) {
-      await panel.getByRole('button',{name:'More actions',exact:true}).click()
-      await page.getByRole('menuitem',{name:'Open full page',exact:true}).click()
-    } else {
+    if (width >= 768) {
+      // Desktop keeps the in-list panel and its explicit escalation to the canonical page.
       await page.getByRole('button',{name:'Open full page',exact:true}).click()
+      await expect(page).toHaveURL(url => url.pathname.endsWith(`/work/projects/${TRACE_PROCESS}`))
     }
-    await expect(page).toHaveURL(url => url.pathname.endsWith(`/work/projects/${TRACE_PROCESS}`))
+    const backToProjects = page.locator('.record-page-back')
+    await expect(backToProjects).toHaveCount(1)
+    await expect(backToProjects).toHaveAttribute('href', /\/work\/projects$/)
     await page.reload()
     await expect(page.getByRole('heading',{name:'E2E Trace Process',exact:true})).toBeVisible()
-    await page.goBack()
+    await expect(page.getByRole('region', { name: 'E2E Trace Process', exact: true })).toHaveAttribute('data-record-mode', 'page')
+    await page.locator('.record-page-back').click()
+    await expect(page).toHaveURL(/\/work\/projects$/)
     await expect(page.getByRole('heading',{name:'Projects & Processes',exact:true})).toBeVisible()
   })
 }

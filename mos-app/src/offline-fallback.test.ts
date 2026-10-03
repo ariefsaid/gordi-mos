@@ -51,7 +51,7 @@ describe('AC-027 — the offline fallback document', () => {
   })
 
   it('the service worker precaches it and serves it as the navigation fallback', () => {
-    expect(SW).toContain("const OFFLINE_URL = '/mos/offline.html'")
+    expect(SW).toContain("const OFFLINE_URL = new URL('offline.html', self.registration.scope).pathname")
     expect(SW).toMatch(/cache\.add\(new Request\(OFFLINE_URL/)
     expect(SW).toMatch(/event\.request\.mode !== 'navigate'/)
     expect(SW).toMatch(/caches\.match\(OFFLINE_URL,\s*\{\s*cacheName:\s*OFFLINE_CACHE\s*\}\)/)

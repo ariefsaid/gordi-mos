@@ -4,6 +4,7 @@ import { ADMIN } from './fixtures/users'
 import { AC204, TASKS } from './fixtures/tasks'
 import { isShipGated } from './helpers/ship-gate'
 import { taskViewsGroup } from './helpers/tasks'
+import { e2eAppPath } from './helpers/app-path'
 
 // notFound.title (i18n/messages.ts): the not-found page's ONE heading now carries the message
 // itself ("Page not found" retired — see src/pages/not-found-page.tsx's docblock).
@@ -25,14 +26,10 @@ const redirectCases = [
   { oldPath: 'projects-processes', finalPath: /\/work\/projects\?layout=list$/, needsAdmin: true, replacement: '/work/projects' },
   { oldPath: 'work/projects-processes', finalPath: /\/work\/projects\?layout=list$/, needsAdmin: true, replacement: '/work/projects' },
   { oldPath: 'updates', finalPath: /\/work\/signals\?layout=feed$/, needsAdmin: false },
-  // Step 7 (RATIFY-7D): bare /cafe is the Café Operations home (opening panel). Legacy bare
-  // /kitchen, however, maps to /cafe/log by the router's own redirect table (router.tsx
-  // redirectHandle('/cafe/log') — the capture surface, not the home). Deep sub-routes below
-  // keep their exact 1:1 mapping.
-  // DD-MVP-17: the Café root is the Today capture surface now, so the retired kitchen paths land
-  // there directly — /cafe/log itself aliases the root by the same redirect (router.tsx).
-  { oldPath: 'kitchen', finalPath: /\/cafe$/, needsAdmin: false },
-  { oldPath: 'kitchen/log', finalPath: /\/cafe$/, needsAdmin: false },
+  // #1239: the dedicated production route is the canonical capture surface; retired kitchen log
+  // paths land there directly. The remaining legacy kitchen screens keep their 1:1 route under /cafe.
+  { oldPath: 'kitchen', finalPath: /\/cafe\/production$/, needsAdmin: false },
+  { oldPath: 'kitchen/log', finalPath: /\/cafe\/production$/, needsAdmin: false },
   // Café Opening is hidden (CAFE_OPENING_ENABLED): its own path lands on the root.
   { oldPath: 'cafe/opening', finalPath: /\/cafe$/, needsAdmin: false },
   { oldPath: 'kitchen/plan', finalPath: /\/cafe\/plan$/, needsAdmin: false },
@@ -46,10 +43,16 @@ const redirectCases = [
   { oldPath: 'plan/pricing', finalPath: /\/money\/pricing$/, needsAdmin: true, flag: 'plan-budget', replacement: '/money/pricing' },
 ] as const
 
-async function expectBackDoesNotReenterOld(page: import('@playwright/test').Page, oldPath: string) {
+async function expectBackDoesNotReenterUrl(page: import('@playwright/test').Page, oldUrl: URL) {
   await page.goBack()
-  await page.waitForTimeout(250)
-  expect(page.url()).not.toContain(`/mos/${oldPath}`)
+  await expect.poll(() => {
+    const current = new URL(page.url())
+    return `${current.pathname}${current.search}`
+  }).not.toBe(`${oldUrl.pathname}${oldUrl.search}`)
+}
+
+async function expectBackDoesNotReenterOld(page: import('@playwright/test').Page, oldPath: string) {
+  await expectBackDoesNotReenterUrl(page, new URL(e2eAppPath(`/${oldPath}`), page.url()))
 }
 
 test.beforeEach(async ({ page }) => {
@@ -71,7 +74,7 @@ test('AC-001: old shell routes redirect to their new canonical URL and Back neve
     if ('replacement' in routeCase && isShipGated(routeCase.replacement)) continue
 
     await page.goto('')
-    await expect(page).toHaveURL(/\/$|\/mos\/?$/)
+    await expect(page).toHaveURL(new URL(e2eAppPath('/'), page.url()).href)
 
     await page.goto(routeCase.oldPath, { waitUntil: 'commit', timeout: 10_000 })
     await page.waitForTimeout(1_000)
@@ -86,7 +89,7 @@ test('AC-001: old shell routes redirect to their new canonical URL and Back neve
 test('AC-003 (DD-WAY-60): retired Daily Log URLs render in-shell not-found without redirect', async ({ page }) => {
   for (const path of ['ops', 'ops/new', 'ops/retired-id/edit']) {
     await page.goto(path)
-    await expect(page).toHaveURL(new RegExp(`/mos/${path.replaceAll('/', '\\/')}$`))
+    await expect(page).toHaveURL(new RegExp(`/${path.replaceAll('/', '\\/')}$`))
     await expect(page.getByRole('heading', { name: NOT_FOUND_HEADING })).toBeVisible()
   }
 })
@@ -109,10 +112,9 @@ test('AC-004: /tasks/:taskId redirects to /work/tasks/:taskId and renders the ta
 
 test('AC-005: /kitchen/* redirects to /cafe/* and renders the re-homed kitchen surfaces', async ({ page }) => {
   const cases = [
-    // DD-MVP-17: /cafe/log aliases the Café root. This row is for the ONE-HOP landing on a real
-    // rendered Café surface, so it reads the page-head heading every state renders, not a table
-    // that only some states do.
-    { oldPath: 'kitchen/log', finalPath: /\/cafe$/, surface: page.getByTestId('page-head').getByRole('heading', { name: /^café/i }) },
+    // #1239: the retired path lands on the dedicated production capture surface. Read the
+    // page-head heading every state renders, not a table that only some states do.
+    { oldPath: 'kitchen/log', finalPath: /\/cafe\/production$/, surface: page.getByTestId('page-head').getByRole('heading', { name: /^café/i }) },
     { oldPath: 'kitchen/plan', finalPath: /\/cafe\/plan$/, surface: page.getByRole('heading', { name: /café · (plan|pesanan)/i }) },
     { oldPath: 'kitchen/stock', finalPath: /\/cafe\/stock$/, surface: page.getByRole('heading', { name: /café · stock/i }) },
     { oldPath: 'kitchen/review', finalPath: /\/cafe\/review$/, surface: page.getByRole('heading', { name: /café · review/i }) },
@@ -123,6 +125,23 @@ test('AC-005: /kitchen/* redirects to /cafe/* and renders the re-homed kitchen s
     await page.goto(routeCase.oldPath)
     await expect(page).toHaveURL(routeCase.finalPath)
     await expect(routeCase.surface).toBeVisible({ timeout: 15_000 })
+  }
+})
+
+test('legacy /mos and /kitchen addresses redirect to the base-aware Café routes and retain queries', async ({ page }) => {
+  const cases = [
+    { oldPath: '/mos?return=home', path: '/', search: '?return=home' },
+    { oldPath: '/mos/work/follow-ups?origin=old-mos', path: '/work/follow-ups', search: '?origin=old-mos' },
+    { oldPath: '/mos/kitchen/plan?week=this-week', path: '/cafe/plan', search: '?week=this-week' },
+    { oldPath: '/mos/cafe/log?date=today', path: '/cafe/production', search: '?date=today' },
+    { oldPath: 'cafe/log?date=today', path: '/cafe/production', search: '?date=today' },
+    { oldPath: '/kitchen/pushes?status=failed', path: '/cafe/pushes', search: '?status=failed' },
+  ]
+  for (const route of cases) {
+    const requestedUrl = new URL(route.oldPath, new URL(e2eAppPath('/'), page.url()))
+    await page.goto(route.oldPath, { waitUntil: 'commit' })
+    await expect(page).toHaveURL(new URL(`${e2eAppPath(route.path)}${route.search}`, page.url()).href)
+    await expectBackDoesNotReenterUrl(page, requestedUrl)
   }
 })
 
@@ -139,7 +158,7 @@ test('AC-025: /work/signals, /cafe, and /work/tasks?view=overdue resolve and are
   await expect(page.getByTestId('page-head').getByRole('heading', { name: 'Signals' })).toBeVisible()
   await expect(page.getByRole('searchbox', { name: /search signals/i })).toBeVisible()
 
-  // /cafe is the Café root (the Log capture surface), not a redirect.
+  // /cafe remains the Café Today entry; production and transfer have dedicated routes.
   await page.goto('cafe')
   await expect(page).toHaveURL(/\/cafe$/)
   await expect(page.getByTestId('page-head').getByRole('heading', { name: /^café/i })).toBeVisible({ timeout: 15_000 })

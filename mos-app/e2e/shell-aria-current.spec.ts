@@ -16,7 +16,7 @@ const desktopRoutes = ([
   'work/events',
   'money',
   'inbox',
-  'cafe/log',
+  'cafe/production',
   'admin/people',
   'profile',
 ] as const).filter((path) => !isShipGated(`/${path}`))
@@ -82,8 +82,8 @@ test.describe('shell aria-current', () => {
       // destinations.tsx phoneModuleForViewer: a viewer who works no module line still sees the
       // admitted module whose pages they are on as the bar's module tab, so that tab owns
       // aria-current and the breadcrumb leaf does not (breadcrumb.tsx leafCarriesCurrent).
-      if (!isShipGated('/cafe/log')) {
-        await page.goto('cafe/log')
+      if (!isShipGated('/cafe/production')) {
+        await page.goto('cafe/production')
         await expect.poll(() => pageCurrentCount(page)).toBe(1)
         await expect(primaryNav.getByRole('link', { name: 'Café', exact: true })).toHaveAttribute('aria-current', 'page')
         await expect(page.getByRole('button', { name: 'More' })).not.toHaveAttribute('aria-current', 'page')
@@ -103,9 +103,9 @@ test.describe('shell aria-current', () => {
 test.describe('shell aria-current — café viewer (OD-68 promoted module tab)', () => {
   test.use({ viewport: { width: 390, height: 844 } })
 
-  test('AC-008b: a café viewer on cafe/log marks the promoted Café tab', async ({ page }) => {
+  test('AC-008b: a café viewer on Log production marks the promoted Café tab', async ({ page }) => {
     await loginAs(page, VIEWER.email, VIEWER.password) // Cahya — Cafe Ops Lead
-    await page.goto('cafe/log')
+    await page.goto('cafe/production')
     await expect.poll(() => pageCurrentCount(page)).toBe(1)
     await expect(page.getByRole('link', { name: 'Café', exact: true })).toHaveAttribute('aria-current', 'page')
   })

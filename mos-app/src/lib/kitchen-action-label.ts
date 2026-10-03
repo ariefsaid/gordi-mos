@@ -17,7 +17,9 @@ import type { Translate } from '@/i18n/use-t'
 import type { MessageKey } from '@/i18n/messages'
 import type {
   BranchOption,
+  CafeDestination,
   KitchenMovement,
+  KitchenLogMovement,
   MovementKey,
   ProductionActivity,
   ProductionStream,
@@ -38,7 +40,8 @@ export function branchDisplayName(branch: BranchOption): string {
 }
 
 /** Stable client-side index for a movement (see `MovementKey`). */
-export function movementKey(movement: KitchenMovement): MovementKey {
+export function movementKey(movement: KitchenLogMovement): MovementKey {
+  if (movement.action === 'waste') return 'waste'
   return movement.action === 'produce'
     ? 'produce'
     : `transfer:${movement.destinationBranchId ?? ''}`
@@ -79,26 +82,28 @@ export function streamProduces(
 }
 
 /**
- * Destination derivation from the live stream-Team catalog. A producing kitchen reaches every
- * other stream branch; a producing bar reaches other bar branches plus its own branch only when a
- * kitchen stream exists there. This preserves the known held intra-branch arm without inventing a
- * destination for Cikal, which has no kitchen stream. A future Team remains receive-only until its
- * explicit `produces` fact is set — activity alone never grants production.
+ * Destination derivation from the live stream-Team catalog and the org-scoped route rows. A route
+ * row enables a cross-branch destination; bar streams retain the held intra-branch movement only
+ * when a kitchen stream exists there. A future destination is added as data, not a branch-code
+ * condition here.
  */
 export function movementsForStream(
   origin: ProductionStream,
   catalog: readonly ProductionStream[],
+  cafeDestinations: readonly CafeDestination[] = [],
 ): KitchenMovement[] {
   if (!streamProduces(origin, catalog)) return []
 
   const destinations: ProductionStream[] = []
   for (const candidate of catalog) {
     const sameBranch = candidate.branch.id === origin.branch.id
-    const allowed = origin.activity === 'kitchen'
-      ? !sameBranch
-      : (sameBranch
-        ? catalog.some(stream => stream.branch.id === origin.branch.id && stream.activity === 'kitchen')
-        : candidate.activity === 'bar')
+    const allowed = sameBranch
+      ? origin.activity === 'bar'
+        && catalog.some(stream => stream.branch.id === origin.branch.id && stream.activity === 'kitchen')
+      : (origin.activity === 'kitchen' || candidate.activity === 'bar')
+        && cafeDestinations.some(route => route.origin_branch_id === origin.branch.id
+          && route.origin_activity === origin.activity
+          && route.destination_branch_id === candidate.branch.id)
     if (allowed && !destinations.some(destination => destination.branch.id === candidate.branch.id)) {
       destinations.push(candidate)
     }
@@ -150,9 +155,10 @@ export function counterpartActivity(activity: ProductionActivity): ProductionAct
  */
 export function deriveActionLabel(
   t: Translate,
-  movement: KitchenMovement,
+  movement: KitchenLogMovement,
   branches: readonly BranchOption[],
 ): string {
+  if (movement.action === 'waste') return t('kitchen.actionType.waste')
   if (movement.action === 'produce') return t('kitchen.actionType.production')
   const branch = branches.find((b) => b.id === movement.destinationBranchId)
   return t('kitchen.actionType.transferTo', {
@@ -163,9 +169,10 @@ export function deriveActionLabel(
 /** The same label, abbreviated for the phone-width segmented control. */
 export function deriveActionShortLabel(
   t: Translate,
-  movement: KitchenMovement,
+  movement: KitchenLogMovement,
   branches: readonly BranchOption[],
 ): string {
+  if (movement.action === 'waste') return t('kitchen.actionType.waste')
   if (movement.action === 'produce') return t('kitchen.actionType.production')
   const branch = branches.find((b) => b.id === movement.destinationBranchId)
   return t('kitchen.actionType.transferTo.short', {

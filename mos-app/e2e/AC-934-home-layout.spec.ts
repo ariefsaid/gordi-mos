@@ -7,6 +7,7 @@
 import { test, expect, type Page } from '@playwright/test'
 import { loginAs } from './helpers/login'
 import { VIEWER } from './fixtures/users'
+import { stripE2eBasePath } from './helpers/app-path'
 
 async function homeArrangement(page: Page): Promise<'focused' | 'overview' | 'list'> {
   const frame = page.locator('.home-frame')
@@ -53,7 +54,7 @@ test.describe('AC-934: a person changes their Home layout and Home obeys', () =>
     expect(await viewerLayoutInStorage(page)).toBe('list')
 
     await page.getByRole('link', { name: 'Home', exact: true }).first().click()
-    await page.waitForURL((url) => url.pathname.replace(/\/$/, '').endsWith('/mos'))
+    await page.waitForURL((url) => stripE2eBasePath(url.pathname) === '/')
 
     expect(await homeArrangement(page)).toBe('list')
     await expect(page.getByRole('region', { name: 'Needs you now' })).toBeVisible()

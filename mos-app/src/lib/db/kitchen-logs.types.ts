@@ -22,6 +22,13 @@ export const PRODUCTION_ACTIVITIES = ['kitchen', 'bar'] as const
 /** The activity half of a production stream (`ops.kitchen_logs.activity`). */
 export type ProductionActivity = (typeof PRODUCTION_ACTIVITIES)[number]
 
+/** One data-backed cross-branch movement route (`ops.cafe_destinations`). */
+export type CafeDestination = {
+  origin_branch_id: string
+  origin_activity: ProductionActivity
+  destination_branch_id: string
+}
+
 /** A row of the canonical branch catalog (`shared.branches`, OD-WAY-39). */
 export interface BranchOption {
   id: string
@@ -55,8 +62,11 @@ export interface StreamPair {
   produces?: boolean
 }
 
-/** What happened, in the stored vocabulary (`ops.kitchen_logs.action`). */
+/** Actions available to plans and production capture. */
 export type KitchenAction = 'produce' | 'transfer'
+
+/** Stored café-log actions; waste is log-only and is never a planned or ERP-posted movement. */
+export type KitchenLogAction = KitchenAction | 'waste'
 
 /**
  * A movement within a stream. `destinationBranchId` is null for a produce and required for
@@ -70,7 +80,14 @@ export interface KitchenMovement {
   destinationBranchId: string | null
 }
 
+/** Waste keeps the same stream coordinates but has no destination or plan counterpart. */
+export interface KitchenLogMovement {
+  action: KitchenLogAction
+  destinationBranchId: string | null
+}
+
 export type KitchenLogStatus = 'Submitted' | 'Approved' | 'Rejected'
+export type KitchenLogRecordStatus = KitchenLogStatus | 'Draft'
 
 // ── ops.wip_items (active items listed for logging) ──────────────────────────
 export interface WipItemRow {
@@ -115,6 +132,8 @@ export interface ItemUnitOption {
  * AC-005); exactly one means the unit renders as fixed text and nothing else.
  */
 export interface CaptureFormItem extends WipItemOption {
+  /** The ERP product family used to label RAW/WIP rows on Café capture lists. */
+  kind?: 'RAW' | 'WIP'
   units: ItemUnitOption[]
 }
 
@@ -193,9 +212,9 @@ export interface CreateKitchenLogInput {
   /** origin half of the (branch, activity) stream — NOT NULL at the DB (AC-007) */
   branch_id: string
   activity: ProductionActivity
-  /** the movement (DD-WAY-13) — there is no stored action_type */
-  action: KitchenAction
-  /** null for produce, required for transfer (kitchen_logs_destination_matches_action) */
+  /** the stored action — a waste insert is created as a photo-backed Draft */
+  action: KitchenLogAction
+  /** null for produce/waste, required for transfer (kitchen_logs_destination_matches_action) */
   destination_branch_id: string | null
   wip_item_id: string
   /**
@@ -216,12 +235,12 @@ export interface KitchenLogRow {
   log_date: string
   branch_id: string
   activity: ProductionActivity
-  action: KitchenAction
+  action: KitchenLogAction
   destination_branch_id: string | null
   wip_item_id: string
   qty_porsi: number
   notes: string | null
-  status: KitchenLogStatus
+  status: KitchenLogRecordStatus
   submitted_by: string | null
   review_note: string | null
   reviewed_by: string | null
@@ -253,7 +272,7 @@ export interface ReviewLogRow {
   action_type: string
   /** the stored movement (DD-WAY-13) — what the label above is derived FROM. Predicates
    *  ("is this a transfer?") and plan lookups key off these, never off the label. */
-  action: KitchenAction
+  action: KitchenLogAction
   destination_branch_id: string | null
   /**
    * the (branch, activity) production stream this log belongs to (OD-WAY-28, #197). The
@@ -275,9 +294,9 @@ export interface ReviewLogRow {
   created_at: string
 }
 
-/** Result of an approve RPC — the minted batch_id (FR-050). */
+/** A null batch id is the explicit held-ERP result for approved waste. */
 export interface ApproveResult {
-  batch_id: string
+  batch_id: string | null
 }
 
 // ── Daily Plan editor + pesanan horizon (S2 — FR-030/031/035, AC-024) ─────────

@@ -11,6 +11,7 @@ import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { RecordDisclosure, RecordSection } from '@/components/record/record-page-layout'
 import { RecordMenu } from '@/components/record/record-menu'
 import { formatWeekdayDayMonth } from '@/lib/format/date'
+import type { CountRollup } from '@/lib/cascade/count-rollup'
 import { readWriteUp, sanitizeWriteUp } from '@/lib/db/objective-writeup'
 import { createProcessStep } from '@/lib/db/process-steps'
 import { getPeople, type PersonOption } from '@/lib/db/directory'
@@ -111,8 +112,6 @@ export function InlineChooser({ label, options, onPick, onCancel, status }: Inli
 
 export type LinkedWorkSectionProps = {
   objectiveId: string
-  /** The Objective's own task roll-up: the one rule the collection row uses too. */
-  progress: { done: number; total: number }
   groups: readonly CatalogRelationGroup[]
   workLines: ReadonlyMap<string, CatalogWorkLineFact>
   people: ReadonlyMap<string, string>
@@ -126,13 +125,11 @@ export type LinkedWorkSectionProps = {
   onUnlink: (workLine: CatalogWorkLineFact) => void
 }
 
-export function LinkedWorkSection({ objectiveId, groups, progress, workLines, people, scopes, archived, canLink, hidden, onLink, onOpenRelated, onUnlink }: LinkedWorkSectionProps) {
+export function LinkedWorkSection({ objectiveId, groups, workLines, people, scopes, archived, canLink, hidden, onLink, onOpenRelated, onUnlink }: LinkedWorkSectionProps) {
   const t = useT()
   const rows = groups.filter((group) => !group.synthetic && group.entity === 'work-line')
   if (rows.length === 0 && (hidden || !canLink)) return null
-  const count = rows.length === 0 ? undefined : progress.total > 0
-    ? <>{rows.length}<span className="rp-count-extra"> · {t('catalog.record.rollupTasks', { done: String(progress.done), total: String(progress.total) })}</span></>
-    : rows.length
+  const count = rows.length > 0 ? rows.length : undefined
   return (
     <RecordSection
       id="linked-work"
@@ -181,8 +178,12 @@ const VISIBLE_TASKS = 5
 export type TasksSectionProps = {
   title: string
   tasks: readonly CatalogRelationTask[]
+  /** Objective counts include linked work; task rows remain the record's direct task list. */
+  rollup?: CountRollup
   people: ReadonlyMap<string, string>
   canAdd: boolean
+  /** The record header owns Add task when it is the page's primary action. */
+  actionInHeader?: boolean
   /** The Get started region owns the action while there are no tasks. */
   hidden: boolean
   onAdd: () => void
@@ -190,12 +191,13 @@ export type TasksSectionProps = {
   today: string
 }
 
-export function TasksSection({ title, tasks, people, canAdd, hidden, onAdd, onOpenRelated, today }: TasksSectionProps) {
+export function TasksSection({ title, tasks, rollup, people, canAdd, actionInHeader = false, hidden, onAdd, onOpenRelated, today }: TasksSectionProps) {
   const t = useT()
   const { locale } = useI18n()
   const [all, setAll] = useState(false)
   if (tasks.length === 0 && (hidden || !canAdd)) return null
-  const done = tasks.filter((task) => task.status === 'Done').length
+  const done = rollup?.done ?? tasks.filter((task) => task.status === 'Done').length
+  const total = rollup?.total ?? tasks.length
   const ordered = [...tasks].sort((a, b) =>
     (STATUS_ORDER[a.status ?? ''] ?? 2) - (STATUS_ORDER[b.status ?? ''] ?? 2)
     || (a.dueDate ?? '9999').localeCompare(b.dueDate ?? '9999'))
@@ -205,8 +207,8 @@ export function TasksSection({ title, tasks, people, canAdd, hidden, onAdd, onOp
     <RecordSection
       id="tasks"
       title={title}
-      count={tasks.length > 0 ? t('catalog.record.rollup', { done: String(done), total: String(tasks.length) }) : undefined}
-      action={canAdd ? { label: t('catalog.record.addTask'), onClick: onAdd } : undefined}
+      count={total > 0 ? t('catalog.record.rollup', { done: String(done), total: String(total) }) : undefined}
+      action={canAdd && !actionInHeader ? { label: t('catalog.record.addTask'), onClick: onAdd } : undefined}
     >
       <ul className="rp-rows">
         {shown.map((task) => {

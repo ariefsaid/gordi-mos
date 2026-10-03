@@ -22,7 +22,7 @@ import {
 } from 'react-router-dom'
 import { RecordPanelHost } from './record-panel-host'
 import { useIsNarrow } from './use-is-narrow'
-import { useBesideRecordPlacement } from './use-beside-record-placement'
+import { useRecordColumnPlacement } from './use-record-column-placement'
 import {
   historyDeltaForClose,
   readOverlayMarker,
@@ -857,10 +857,12 @@ export function OverlayCompanionSlot({
   open,
   entry,
   onClose,
+  focusOnOpen = true,
 }: {
   open: boolean
   entry: OverlayEntry
   onClose: (via: 'explicit-close' | 'escape') => void
+  focusOnOpen?: boolean
 }): ReactElement {
   const session = useOptionalOverlayHost()?.session ?? null
   const isNarrow = useIsNarrow()
@@ -874,7 +876,7 @@ export function OverlayCompanionSlot({
   // looks identical to one that resolves correctly in every jsdom test. An interpolated class name
   // is invisible to that scan, so the one place a missing rule could hide is written out in full.
   const layoutClass = COMPANION_LAYOUT_CLASS[layout]
-  const besideRecord = useBesideRecordPlacement(open && layout === 'with-record', session?.frames.at(-1)?.entry.key)
+  const recordColumn = useRecordColumnPlacement(open && layout === 'with-record', session?.frames.at(-1)?.entry.key)
 
   // Keep the owning component mounted even while its physical host is closed. Deputy's runtime,
   // transcript, draft, and history state therefore survive close/reopen without leaving a hidden
@@ -899,15 +901,16 @@ export function OverlayCompanionSlot({
       owner={entry.owner}
       entryKey={entry.key}
       focusKey={entry.key}
+      focusOnOpen={focusOnOpen}
       layout="companion"
       companion
-      // On phone the record modal may remain mounted underneath. Capture Escape so only the
-      // top companion closes; the underlying record must not consume the same keystroke. Desktop
-      // listens at document scope without suppressing a higher modal's event contract.
-      escapeCapture={isNarrow && recordOpen}
+      // Deputy is the top layer when a record is open, so one Escape dismisses only Deputy.
+      // Desktop preserves OD-REDESIGN-83's active inline-edit Escape; the phone modal captures
+      // before the record underneath, as it did before.
+      escapeCapture={recordOpen}
       escapeOnDocument
       rootClassName={layoutClass}
-      style={besideRecord}
+      style={recordColumn}
       onClose={(via) => onClose(via ?? 'explicit-close')}
     >
       {entry.content}

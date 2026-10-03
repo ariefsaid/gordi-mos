@@ -5,24 +5,29 @@ import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
-import { defineConfig, type Plugin, type ViteDevServer, type PreviewServer } from 'vite'
+import { defineConfig, loadEnv, type Plugin, type ViteDevServer, type PreviewServer } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { legacyRedirectDestination, normalizeBasePath, resolveBuildSettings } from './src/config/build-settings'
+import { buildSettingsArtifactsPlugin } from './src/config/build-settings-artifacts'
 import { MOS_DEV_IDENTITY_PATH, worktreeFingerprint } from './src/lib/dev-server'
 
 const __dir = dirname(fileURLToPath(import.meta.url))
 
-// Dev/preview ergonomics: visiting bare "/" or "/mos" (no trailing slash) otherwise
-// shows Vite's "did you mean to visit /mos/ instead?" notice. Redirect those to the
-// based path so the server lands straight on the app. Dev/preview only — production
-// (ops.gordi.id/mos) is handled by the reverse proxy.
-function redirectToBase(base = '/mos/'): Plugin {
-  const bare = base.replace(/\/$/, '') // "/mos"
+function redirectToBase(basePath: string): Plugin {
+  const base = normalizeBasePath(basePath)
+  const bareBase = base === '/' ? '/' : base.slice(0, -1)
   const install = (server: ViteDevServer | PreviewServer) => {
     server.middlewares.use((req, res, next) => {
-      const path = (req.url ?? '').split('?')[0]
-      if (path === '/' || path === bare) {
-        res.writeHead(302, { Location: base })
+      const request = new URL(req.url ?? '/', 'http://localhost')
+      if (base !== '/' && (request.pathname === '/' || request.pathname === bareBase)) {
+        res.writeHead(302, { Location: `${base}${request.search}` })
+        res.end()
+        return
+      }
+      const destination = legacyRedirectDestination(request.pathname, request.search, base)
+      if (destination) {
+        res.writeHead(301, { Location: destination })
         res.end()
         return
       }
@@ -70,7 +75,7 @@ function sampleLoginBuildGuard(): Plugin {
   }
 }
 
-function previewBuildIdentity(): Plugin {
+function previewBuildIdentity(basePath: string): Plugin {
   let sha = ''
   let clean = false
   return {
@@ -93,15 +98,26 @@ function previewBuildIdentity(): Plugin {
         }
       }
       walk(dist)
-      writeFileSync(resolve(dist, 'mos-build-identity.json'), JSON.stringify({ sha, clean, assets }))
+      writeFileSync(resolve(dist, 'mos-build-identity.json'), JSON.stringify({ sha, clean, basePath, assets }))
     },
   }
 }
 
 // https://vite.dev/config/
-export default defineConfig({
-  base: '/mos/',
-  plugins: [redirectToBase('/mos/'), mosDevIdentity(), sampleLoginBuildGuard(), previewBuildIdentity(), react(), tailwindcss()],
+export default defineConfig(({ mode }) => {
+  const env = { ...loadEnv(mode, __dir, ''), ...process.env }
+  const { basePath } = resolveBuildSettings(env)
+  return {
+  base: basePath,
+  plugins: [
+    redirectToBase(basePath),
+    mosDevIdentity(),
+    sampleLoginBuildGuard(),
+    buildSettingsArtifactsPlugin(basePath),
+    previewBuildIdentity(basePath),
+    react(),
+    tailwindcss(),
+  ],
   build: {
     rollupOptions: {
       output: {
@@ -162,10 +178,10 @@ export default defineConfig({
       VITE_SUPABASE_URL: 'http://127.0.0.1:44321',
       VITE_SUPABASE_ANON_KEY: 'test-anon-key',
     },
-    // Set jsdom's base URL to /mos/ so createBrowserRouter (basename="/mos") resolves routes.
+    // Match jsdom's origin path to Vite's BASE_URL so browser-path helpers use the same build setting.
     environmentOptions: {
       jsdom: {
-        url: 'http://localhost/mos/',
+        url: new URL(basePath, 'http://localhost').href,
       },
     },
     // Flake fix (2026-07-30). Two distinct defects, both from leaving testTimeout at its 5000ms
@@ -203,4 +219,5 @@ export default defineConfig({
       thresholds: { lines: 80, functions: 80, branches: 70, statements: 80 },
     },
   },
+  }
 })

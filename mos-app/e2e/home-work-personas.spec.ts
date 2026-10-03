@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs'
 import { localSql } from './helpers/local-sql'
 import { taskCleanupSql } from './fixtures/cleanup'
 import { taskViewsGroup } from './helpers/tasks'
+import { e2eAppPath } from './helpers/app-path'
 
 // The two Home tasks are seed.dev-home-work.sql's own rows (a fresh stack already has them); this
 // suite re-inserts them from that file so their due date is today, and removes them afterwards.
@@ -101,7 +102,6 @@ test(`a Signal lists its newly created follow-up Task without losing the source 
   await loginAs(page, 'dewi.dev@example.test', DEMO_PASSWORD)
   await page.goto('./')
   const opener = page.getByRole('button', { name: /^Open signal:/ }).first()
-  const sourceName = await opener.getAttribute('aria-label')
   await opener.click()
   const sourceUrl = page.url()
   await page.getByRole('button', { name: 'Create task', exact: true }).click()
@@ -121,7 +121,7 @@ test(`a Signal lists its newly created follow-up Task without losing the source 
   await page.getByRole('button', { name: /^back/i }).click()
   await expect(page.getByRole('button', { name: 'Create task', exact: true })).toBeVisible()
   await page.reload()
-  await page.getByRole('button', { name: sourceName!, exact: true }).click()
+  await expect(page.getByRole('button', { name: 'Create task', exact: true })).toBeVisible()
   await expect(page.getByRole('link', { name: /^\[e2e\] Signal follow-up context(?: Open)?$/ })).toBeVisible()
 })
 
@@ -151,7 +151,7 @@ test('an Objective opens its related Project and Back restores the source record
   await expect(page.getByRole('heading', { name: 'AC204 Grow revenue', exact: true })).toBeVisible()
   const projectLink = page.getByRole('region', { name: 'AC204 Grow revenue', exact: true }).getByRole('link', { name: 'AC204 Menu launch', exact: true })
   const projectHref = await projectLink.getAttribute('href')
-  expect(projectHref).toMatch(/^\/mos\/work\/projects\//)
+  expect(projectHref?.startsWith(`${e2eAppPath('/work/projects')}/`)).toBe(true)
   // A related record must load even when an unrelated whole-Task-collection read fails.
   await page.route('**/rest/v1/tasks*', async (route) => {
     const request = route.request()

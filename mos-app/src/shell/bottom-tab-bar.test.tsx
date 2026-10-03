@@ -170,13 +170,14 @@ describe('AC-021/008: aria-current — primary tab page on its route; More page 
     expect(page[0]).toHaveAccessibleName(/Work/)
   })
 
-  it.each(['/cafe', '/cafe/log', '/cafe/plan', '/cafe/stock', '/cafe/review', '/cafe/pushes'])('Café tab page at %s (café viewer)', (path) => {
+  it.each(['/cafe', '/cafe/production', '/cafe/transfer', '/cafe/waste', '/cafe/plan', '/cafe/stock', '/cafe/items', '/cafe/review', '/cafe/pushes'])('Café tab page at %s (café viewer)', (path) => {
     setCafeViewer()
     renderTabBar(path)
     const nav = screen.getByRole('navigation', { name: 'Primary' })
     const page = within(nav).getAllByRole('link').filter((l) => l.getAttribute('aria-current') === 'page')
     expect(page).toHaveLength(1)
     expect(page[0]).toHaveAccessibleName(/Café/)
+    expect(screen.queryByRole('button', { name: /open actions/i })).not.toBeInTheDocument()
   })
 
   // UPDATED, not relaxed — and it is the SAME Rule-5 contract, read the other way round. These
@@ -227,7 +228,7 @@ describe('AC-021/008: aria-current — primary tab page on its route; More page 
 
   // A Director works no café line, so Café is not promoted at Home — but on a Café page the bar
   // names the module they are in and marks it current.
-  it.each(['/cafe', '/cafe/review', '/cafe/pushes'])('an unaffiliated admin gets the Café tab, current, at %s', (path) => {
+  it.each(['/cafe', '/cafe/items', '/cafe/review', '/cafe/pushes'])('an unaffiliated admin gets the Café tab, current, at %s', (path) => {
     setAuthAs(['admin', 'manager'])
     renderTabBar(path)
     const nav = screen.getByRole('navigation', { name: 'Primary' })

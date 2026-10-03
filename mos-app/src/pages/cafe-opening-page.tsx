@@ -108,7 +108,7 @@ export function CafeOpeningRoot() {
 }
 
 export function CafeRootPage() {
-  return CAFE_OPENING_ENABLED ? <CafeOpeningRoot /> : <KitchenLogPage />
+  return CAFE_OPENING_ENABLED ? <CafeOpeningRoot /> : <KitchenLogPage mode="production" />
 }
 
 function CafeRootPageBody() {
@@ -454,5 +454,5 @@ function CafeCaptureRoot({
     </section>
   )
   // OD-CAFE-1: the location this root has chosen bounds the capture surface's stream choice.
-  return <KitchenLogPage leading={door} activeBranchId={team.branchId} activeBranchName={team.branchName} />
+  return <KitchenLogPage mode="production" leading={door} activeBranchId={team.branchId} activeBranchName={team.branchName} />
 }

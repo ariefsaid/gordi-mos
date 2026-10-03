@@ -19,6 +19,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { createElement, type ReactNode } from 'react'
 import type { AuthState } from '@/auth/context'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import { APP_ROUTER_BASENAME, appUrl } from '@/config/app-build-settings'
 
 vi.mock('@/auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
@@ -80,6 +81,9 @@ vi.mock('@/lib/db/stream-completeness', () => ({
 }))
 import { listStreamCompleteness, confirmStreamComplete } from '@/lib/db/stream-completeness'
 
+vi.mock('@/lib/db/kitchen-waste-photos', () => ({ listKitchenWastePhotos: vi.fn() }))
+import { listKitchenWastePhotos } from '@/lib/db/kitchen-waste-photos'
+
 import { KitchenReviewPage } from './kitchen-review-page'
 import { rememberStream } from '@/lib/cafe-stream'
 import { rememberCafeLocation } from '@/lib/cafe-opening-location'
@@ -98,6 +102,7 @@ const mockGetPeople = vi.mocked(getPeople)
 const mockBranches = vi.mocked(listActiveBranches)
 const mockCompleteness = vi.mocked(listStreamCompleteness)
 const mockConfirmComplete = vi.mocked(confirmStreamComplete)
+const mockWastePhotos = vi.mocked(listKitchenWastePhotos)
 
 function wrapper({ children }: { children: ReactNode }) {
   return createElement(MemoryRouter, null, createElement(I18nProvider, null, children))
@@ -158,6 +163,12 @@ const XFER_LOG: ReviewLogRow = {
   wip_item_id: 'w2', wip_item_name: 'Cold Brew', qty_porsi: 42, notes: null,
   status: 'Submitted', submitted_by: 'p2', business_unit_id: 'kb', created_at: '2026-06-20T13:02:00Z',
 }
+const WASTE_LOG: ReviewLogRow = {
+  id: 'log-waste', log_date: '2026-06-20', action_type: 'Waste', action: 'waste', destination_branch_id: null,
+  branch_id: BRANCH_ID, activity: 'kitchen',
+  wip_item_id: 'w3', wip_item_name: 'Ayam Bakar', qty_porsi: 2.5, notes: 'Dropped tray',
+  status: 'Submitted', submitted_by: 'p1', business_unit_id: 'kb', created_at: '2026-06-20T09:12:00Z',
+}
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -168,6 +179,7 @@ beforeEach(() => {
   resetCafeLocations()
   mockUseAuth.mockReturnValue(viewer(['ops_lead']))
   mockList.mockResolvedValue([])
+  mockWastePhotos.mockResolvedValue([])
   mockPlan.mockResolvedValue({})
   // #236: the review page resolves the viewer's own stream (filter default, FR-041) and
   // the enumerable stream catalog (the filter's options) on every load.
@@ -192,7 +204,7 @@ describe('KitchenReviewPage — role gate (FR-003/044)', () => {
   it('a member sees a forbidden panel — NOT an empty table', async () => {
     mockUseAuth.mockReturnValue(viewer(['member']))
     render(
-      <MemoryRouter basename="/mos" initialEntries={['/mos/kitchen/review']}>
+      <MemoryRouter basename={APP_ROUTER_BASENAME} initialEntries={[appUrl('/cafe/review')]}>
         <I18nProvider><KitchenReviewPage /></I18nProvider>
       </MemoryRouter>,
     )
@@ -202,7 +214,7 @@ describe('KitchenReviewPage — role gate (FR-003/044)', () => {
     expect(mockList).not.toHaveBeenCalled()
     // Back to Log must resolve via the SPA router — not a raw href that causes a full reload
     const backLink = screen.getByRole('link', { name: /back to log/i })
-    expect(backLink).toHaveAttribute('href', '/mos/cafe')
+    expect(backLink).toHaveAttribute('href', appUrl('/cafe'))
   })
 
   it('an admin is allowed (not forbidden)', async () => {
@@ -220,7 +232,9 @@ describe('KitchenReviewPage — states', () => {
     expect(screen.getByRole('status', { name: /loading/i })).toBeInTheDocument()
   })
 
-  it('empty: renders the shared awaiting EmptyState when no Submitted logs', async () => {
+  it('empty: renders the shared awaiting EmptyState without a completion control', async () => {
+    mockUseAuth.mockReturnValue(viewer(['supervisor']))
+    mockDefaultStream.mockResolvedValue({ branch: BRANCHES[0], activity: 'kitchen' })
     mockList.mockResolvedValue([])
     render(<KitchenReviewPage />, { wrapper })
     expect(await screen.findByText(/nothing to review/i)).toBeInTheDocument()
@@ -231,6 +245,8 @@ describe('KitchenReviewPage — states', () => {
     expect(emptyState.querySelector('.empty-title')).not.toBeNull()
     expect(emptyState.querySelector('.empty-copy')).not.toBeNull()
     expect(emptyState.querySelector('.empty-note')).not.toBeNull()
+    expect(screen.queryByRole('group', { name: /item list completeness/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: /confirm the item list is complete/i })).not.toBeInTheDocument()
   })
 
   // #589: scoped to ONE stream while another stream still holds Submitted rows, the empty
@@ -314,6 +330,26 @@ describe('KitchenReviewPage — queue (FR-040)', () => {
     } finally {
       matchMediaSpy.mockRestore()
     }
+  })
+
+  it('shows per-item photo evidence on a waste row without moving it into transfer gating or bulk ERP approval', async () => {
+    mockList.mockResolvedValue([WASTE_LOG])
+    mockWastePhotos.mockResolvedValue([{
+      logId: WASTE_LOG.id,
+      path: 'org-1/log-waste/photo-1.jpg',
+      url: 'https://storage.example/signed/photo-1.jpg',
+    }])
+    render(<KitchenReviewPage />, { wrapper })
+
+    expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
+    expect(screen.getByRole('list', { name: /waste photos/i })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /open waste photo 1 of 1/i })).toHaveAttribute(
+      'href',
+      'https://storage.example/signed/photo-1.jpg',
+    )
+    expect(screen.getByText('Waste')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /approve all/i })).not.toBeInTheDocument()
+    expect(mockWastePhotos).toHaveBeenCalledWith([WASTE_LOG.id])
   })
 
   it('defect 247/196 regression: a log whose destination is a THIRD branch still gets its own group (not silently dropped)', async () => {

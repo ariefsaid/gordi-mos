@@ -4,6 +4,7 @@ import { MANAGER, ADMIN } from './fixtures/users'
 import { AC204, TASKS } from './fixtures/tasks'
 import { stubAccountLocale } from './helpers/account-locale'
 import { TASKS_SPLIT_MIN_WIDTH } from '../src/shell/use-is-split-width'
+import { stripE2eBasePath } from './helpers/app-path'
 
 const LONG_SIGNAL = 'A long Signal leaf title that stays readable without breaking a word across the record header boundary'
 // A Signal heading is its first line cut at 72 characters (SIGNAL_TITLE_MAX); the full text
@@ -70,7 +71,7 @@ test.describe('bounded visual and interaction acceptance', () => {
       await expect(page.locator('.signal-message-body')).toHaveText(LONG_SIGNAL)
       await capture(`home-signal-page-${width}`, page)
       await page.getByRole('link', { name: 'Back to Home', exact: true }).click()
-      await expect(page).toHaveURL(/\/mos\/?$/)
+      await expect.poll(() => stripE2eBasePath(new URL(page.url()).pathname)).toBe('/')
     }
   })
 
@@ -264,7 +265,7 @@ test.describe('bounded visual and interaction acceptance', () => {
         { name: 'Unit bisnis', value: 'Unit bisnis: Semua unit' },
         { name: 'Status', value: 'Semua status', role: 'button' as const },
         { name: 'Orang', value: 'Orang: Semua' },
-        { name: 'Urutkan', value: 'Urutkan: Tenggat dekat' },
+        { name: 'Urutkan', value: 'Urutkan: Jatuh tempo terdekat' },
       ]
       for (const expected of expectedValues) {
         const trigger = filters.getByRole(expected.role ?? 'combobox', { name: expected.name, exact: true })
@@ -377,16 +378,30 @@ test.describe('bounded visual and interaction acceptance', () => {
       const row = page.getByRole('button', { name: /^Open signal:/ }).first()
       await expect(row).toBeVisible()
       await row.click()
-      const panel = page.getByRole(width >= 1100 ? 'complementary' : 'dialog', { name: 'Signal', exact: true })
-      await expect(panel).toBeVisible()
-      await expect(panel.getByRole('button', { name: 'More Signal actions', exact: true })).toBeVisible()
-      await expect(panel.getByRole('button', { name: 'Seen', exact: true })).toBeVisible()
-      await expect(panel.getByRole('heading', { name: 'Reach & response', exact: true })).toBeVisible()
-      await expect(panel.getByRole('heading', { name: 'Facts', exact: true })).toBeVisible()
+      const phone = width < 768
+      const record = phone
+        ? page.locator('[data-record-kind="signal"][data-record-mode="page"]')
+        : page.getByRole(width >= 1100 ? 'complementary' : 'dialog', { name: 'Signal', exact: true })
+      await expect(record).toBeVisible()
+      await expect(record.getByRole('button', { name: 'More Signal actions', exact: true })).toBeVisible()
+      await expect(record.getByRole('button', { name: 'Seen', exact: true })).toBeVisible()
+      await expect(record.getByRole('heading', { name: 'Reach & response', exact: true })).toBeVisible()
+      await expect(record.getByRole('heading', { name: 'Facts', exact: true })).toBeVisible()
       await assertNoPageOverflow(page)
       await capture(`signals-record-${width}`, page)
-      await page.keyboard.press('Escape')
-      await expect(row).toBeFocused()
+      if (phone) {
+        const back = page.locator('.record-page-back')
+        await expect(back).toHaveCount(1)
+        await expect(back).toHaveAttribute('href', '/work/signals?layout=feed')
+        await back.click()
+        await expect(page).toHaveURL(url => url.pathname === '/work/signals' && url.searchParams.get('layout') === 'feed')
+        await expect(page.getByRole('heading', { name: 'Signals', exact: true })).toBeVisible()
+        await expect(row).toBeVisible()
+      } else {
+        await page.keyboard.press('Escape')
+        await expect(record).not.toBeVisible()
+        await expect(row).toBeFocused()
+      }
     })
   }
 

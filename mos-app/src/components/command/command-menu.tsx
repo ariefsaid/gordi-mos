@@ -6,7 +6,7 @@ import { searchFollowUpsByCounterparty } from '@/lib/db/follow-ups'
 import { searchPeopleByName } from '@/lib/db/directory'
 import { searchObjectivesByName } from '@/lib/db/objectives'
 import { searchWorkLinesByName } from '@/lib/db/work-lines'
-import { SHOW_ASSISTANT, SHOW_FOLLOWUPS } from '@/config/features'
+import { SHOW_ASSISTANT, SHOW_FOLLOWUPS, SHOW_WORK_COLLECTIONS } from '@/config/features'
 import { useAuth } from '@/auth/use-auth'
 import { canCaptureCafe } from '@/lib/cafe-affiliation'
 import { canCreateForScope, useWorkWriteAuthority } from '@/components/catalog/use-work-write-authority'
@@ -80,7 +80,7 @@ function firstLine(body: string): string {
   return line ?? body.trim()
 }
 
-// Per-kind row config for the widened Records group (OD-REDESIGN-91 #4/B2): the icon, the
+// Per-kind record row config (OD-REDESIGN-91 #4/B2): the icon, the
 // navigation target for a hit, and the muted kind label. Tasks, Signals, Objectives and Projects &
 // Processes deep-link to their record pages; an AR Follow-up hit lands on the Money queue, behind
 // its finance gate, because DD-WAY-36 (#369) deleted its record route. A person hit is deliberately
@@ -95,6 +95,9 @@ const RECORD_KIND_CONFIG: Record<RecordKind, { Icon: React.ComponentType; to: ((
   'follow-up': { Icon: MoneyIcon, to: () => '/money/follow-ups', kindLabelKey: 'commandMenu.kind.followUp' },
   person: { Icon: ProfileIcon, to: null, kindLabelKey: 'commandMenu.kind.person' },
 }
+
+// A stable kind order gives work records first dibs without comparing scores across unlike records.
+const RECORD_KIND_ORDER: RecordKind[] = ['task', 'objective', 'project', 'process', 'signal', 'follow-up', 'person']
 
 // ⌘K command palette (ADR-0013 D4 / Redesign Step 2 §8). Centered modal (e7
 // presentation); contents = Recent + GO TO roots + ACT + async record search
@@ -121,8 +124,10 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
   const [records, setRecords] = useState<RecordsState>({ status: 'idle' })
+  const [expandedKinds, setExpandedKinds] = useState<Set<RecordKind>>(() => new Set())
 
   const optionRefs = useRef<Record<string, HTMLDivElement | null>>({})
+  const pendingActiveId = useRef<string | null>(null)
 
   // Memoized so it is referentially stable across renders: `navigateItems` derives Work's child
   // rows from it, and a fresh `[]` on every render would defeat that memo.
@@ -147,12 +152,14 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
   const actionItems = useMemo<CommandItem[]>(
     () => {
       const items: CommandItem[] = [
-        ...(canShareSignal ? [{ id: 'a-signal', label: t('commandMenu.action.shareSignal'), Icon: SignalsIcon, kind: 'action' as const, run: onShareSignal }] : []),
-        { id: 'a-task', label: t('commandMenu.action.createTask'), Icon: TasksIcon, kind: 'action', to: '/work/tasks?create=1' },
-        ...(canCreateForScope('objective', scopes)
+        ...(SHOW_WORK_COLLECTIONS && canShareSignal ? [{ id: 'a-signal', label: t('commandMenu.action.shareSignal'), Icon: SignalsIcon, kind: 'action' as const, run: onShareSignal }] : []),
+        ...(SHOW_WORK_COLLECTIONS
+          ? [{ id: 'a-task', label: t('commandMenu.action.createTask'), Icon: TasksIcon, kind: 'action' as const, to: '/work/tasks?create=1' }]
+          : []),
+        ...(SHOW_WORK_COLLECTIONS && canCreateForScope('objective', scopes)
           ? [{ id: 'a-objective', label: t('catalog.objectives.add'), Icon: ObjectiveIcon, kind: 'action' as const, to: '/work/objectives?create=1' }]
           : []),
-        ...(canCreateForScope('work-line', scopes)
+        ...(SHOW_WORK_COLLECTIONS && canCreateForScope('work-line', scopes)
           ? [{ id: 'a-work-line', label: t('catalog.projects.add'), Icon: WorkLineIcon, kind: 'action' as const, to: '/work/projects?create=1' }]
           : []),
       ]
@@ -216,12 +223,15 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
     setQuery('')
     setActive(0)
     setRecords({ status: 'idle' })
+    setExpandedKinds(new Set())
+    pendingActiveId.current = null
   }, [open])
 
   // ── Debounced record search (~150ms) ─────────────────────────────────────────
-  // OD-REDESIGN-91 #4/B2: one debounced fan-out across every readable record kind — Tasks,
-  // Signals, Projects & Processes, Objectives and people always; AR Follow-ups only when
-  // SHOW_FOLLOWUPS is lit (the settlement bridge ships dark). RLS is the read authority for each.
+  // OD-REDESIGN-91 #4/B2: one debounced fan-out across readable record kinds. Work records are
+  // searched only when that collection is in the release profile; people stay shared, and AR
+  // Follow-ups run only when SHOW_FOLLOWUPS is lit (the settlement bridge ships dark). RLS is the
+  // read authority for every enabled search.
   // Any one search failing fails the group (the existing "Couldn't search records" affordance);
   // Navigate/Actions still filter client-side.
   useEffect(() => {
@@ -231,23 +241,31 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
     let cancelled = false
     const timer = setTimeout(() => {
       Promise.all([
-        searchTasksByTitle(trimmed).then((rows) =>
-          rows.map<RecordHit>((r) => ({ id: r.id, title: r.title, kind: 'task' })),
-        ),
-        searchSignalsByBody(trimmed).then((rows) =>
-          rows.map<RecordHit>((r) => ({ id: r.id, title: firstLine(r.body), kind: 'signal' })),
-        ),
+        SHOW_WORK_COLLECTIONS
+          ? searchTasksByTitle(trimmed).then((rows) =>
+              rows.map<RecordHit>((r) => ({ id: r.id, title: r.title, kind: 'task' })),
+            )
+          : Promise.resolve<RecordHit[]>([]),
+        SHOW_WORK_COLLECTIONS
+          ? searchSignalsByBody(trimmed).then((rows) =>
+              rows.map<RecordHit>((r) => ({ id: r.id, title: firstLine(r.body), kind: 'signal' })),
+            )
+          : Promise.resolve<RecordHit[]>([]),
         SHOW_FOLLOWUPS
           ? searchFollowUpsByCounterparty(trimmed).then((rows) =>
               rows.map<RecordHit>((r) => ({ id: r.id, title: r.counterparty, kind: 'follow-up' })),
             )
           : Promise.resolve<RecordHit[]>([]),
-        searchWorkLinesByName(trimmed).then((rows) =>
-          rows.map<RecordHit>((r) => ({ id: r.id, title: r.name, kind: r.type })),
-        ),
-        searchObjectivesByName(trimmed).then((rows) =>
-          rows.map<RecordHit>((r) => ({ id: r.id, title: r.name, kind: 'objective' })),
-        ),
+        SHOW_WORK_COLLECTIONS
+          ? searchWorkLinesByName(trimmed).then((rows) =>
+              rows.map<RecordHit>((r) => ({ id: r.id, title: r.name, kind: r.type })),
+            )
+          : Promise.resolve<RecordHit[]>([]),
+        SHOW_WORK_COLLECTIONS
+          ? searchObjectivesByName(trimmed).then((rows) =>
+              rows.map<RecordHit>((r) => ({ id: r.id, title: r.name, kind: 'objective' })),
+            )
+          : Promise.resolve<RecordHit[]>([]),
         searchPeopleByName(trimmed).then((rows) =>
           rows.map<RecordHit>((r) => ({ id: r.id, title: r.full_name, kind: 'person' })),
         ),
@@ -284,9 +302,10 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
     }
     const actions = launcherActions.filter((i) => matches(i.label, trimmed))
     const recordRows = records.status === 'ready' ? records.rows : []
-    const recordItems = recordRows.map<CommandItem>((r) => {
+    const itemsByKind = new Map<RecordKind, CommandItem[]>()
+    for (const r of recordRows) {
       const cfg = RECORD_KIND_CONFIG[r.kind]
-      return {
+      const item: CommandItem = {
         // Namespace the id by kind — a Task and a Signal can share a uuid across tables.
         id: `record-${r.kind}-${r.id}`,
         label: r.title,
@@ -297,14 +316,46 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
         // index, see CommandItem.disabled) and a press is refused instead of closing the palette.
         to: cfg.to ? cfg.to(r.id) : undefined,
         disabled: cfg.to === null,
-        // Rows carry their kind (OD-REDESIGN-91 #4/B2): a muted kind label rides the row.
-        meta: t(cfg.kindLabelKey),
         // Only Tasks feed the task-scoped Recent ring buffer; Signals/Follow-ups don't pollute it.
         record: r.kind === 'task' ? { id: r.id, title: r.title } : undefined,
       }
-    })
-    if (records.status === 'ready' && recordItems.length) {
-      out.push({ key: 'records', label: t('commandMenu.group.records'), items: recordItems })
+      const kindItems = itemsByKind.get(r.kind)
+      if (kindItems) kindItems.push(item)
+      else itemsByKind.set(r.kind, [item])
+    }
+    if (itemsByKind.size) {
+      for (const kind of RECORD_KIND_ORDER) {
+        const items = itemsByKind.get(kind)
+        if (!items?.length) continue
+        const expanded = expandedKinds.has(kind)
+        const visibleItems = expanded ? items : items.slice(0, 1)
+        if (items.length > 1) {
+          const disclosureId = `record-toggle-${kind}`
+          visibleItems.push({
+            id: disclosureId,
+            label: t(expanded ? 'commandMenu.action.showFewer' : 'commandMenu.action.showAll', { count: items.length }),
+            Icon: RECORD_KIND_CONFIG[kind].Icon,
+            kind: 'disclosure',
+            // The route is only for the shared ship gate; activation runs the in-place toggle.
+            to: items[0].to,
+            keepOpen: true,
+            run: () => {
+              pendingActiveId.current = disclosureId
+              setExpandedKinds((current) => {
+                const next = new Set(current)
+                if (next.has(kind)) next.delete(kind)
+                else next.add(kind)
+                return next
+              })
+            },
+          })
+        }
+        out.push({
+          key: `records-${kind}`,
+          label: t(RECORD_KIND_CONFIG[kind].kindLabelKey),
+          items: visibleItems,
+        })
+      }
     }
     // AC-032: the narrow/full-width branch, not the pointer — below 920px the palette carries
     // results ONLY (navigation is the tab bar's job, actions the `+` launcher's); at desktop
@@ -314,7 +365,7 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
     if (nav.length) out.push({ key: 'navigate', label: t('commandMenu.group.goTo'), items: nav })
     if (actions.length) out.push({ key: 'actions', label: t('commandMenu.group.act'), items: actions })
     return out
-  }, [isSearching, trimmed, records, actionItems, launcherActions, navigateItems, t, mode, isNarrow])
+  }, [isSearching, trimmed, records, expandedKinds, actionItems, launcherActions, navigateItems, t, mode, isNarrow])
 
   // The ship gate (#444), applied at the ONE seam every palette row passes through, rather than
   // as a flag per entry. The palette is a navigation surface like the rail, and OD-WAY-51
@@ -343,10 +394,21 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
   )
   const activeId = flatItems[active]?.id
 
-  useEffect(() => { setActive(0) }, [trimmed])
+  useEffect(() => {
+    setActive(0)
+    setExpandedKinds(new Set())
+    pendingActiveId.current = null
+  }, [trimmed])
   useEffect(() => {
     if (active > flatItems.length - 1) setActive(flatItems.length ? flatItems.length - 1 : 0)
   }, [flatItems.length, active])
+  useEffect(() => {
+    const id = pendingActiveId.current
+    if (!id) return
+    const index = flatItems.findIndex((item) => item.id === id)
+    if (index >= 0) setActive(index)
+    pendingActiveId.current = null
+  }, [flatItems])
 
   useEffect(() => {
     if (!open || !activeId) return
@@ -360,7 +422,7 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
     if (item.record) pushRecentTask(item.record)
     if (item.run) item.run()
     else if (item.to) navigate(item.to)
-    onClose()
+    if (!item.keepOpen) onClose()
   }
 
   function onInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -457,8 +519,8 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
                            drawer give the same destination, and the parent is supplementary
                            information about the row — which is what `aria-describedby` is for.
                            The idref resolves only while the parent row is rendered, which is the
-                           same condition that draws the indent. */
-                        data-to={item.to}
+                           same condition that marks the child rung. */
+                        data-to={item.keepOpen ? undefined : item.to}
                         data-child={item.child ? 'true' : undefined}
                         aria-describedby={item.child ? item.parentId : undefined}
                         className={`cm-item${item.kind === 'action' ? ' action' : ''}${isActive ? ' active' : ''}`}

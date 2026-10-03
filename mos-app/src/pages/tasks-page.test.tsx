@@ -6,6 +6,7 @@ import { MemoryRouter, useLocation } from 'react-router-dom'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
+import { APP_ROUTER_BASENAME, appUrl } from '@/config/app-build-settings'
 import { OverlayHostProvider } from '@/shell/overlay-host'
 import type { PeopleRow, RolesRow } from '@/lib/database.types'
 import type { DueProcessRun, PendingTaskRow, ProcessRunRollup } from '@/lib/db/processes.types'
@@ -208,7 +209,7 @@ function renderPage(auth: AuthState = authedState, props: Partial<React.Componen
 
   return render(
     <AuthContext.Provider value={auth}>
-      <MemoryRouter initialEntries={['/work/tasks']}>
+      <MemoryRouter basename={APP_ROUTER_BASENAME} initialEntries={[appUrl('/work/tasks')]}>
         <OverlayHostProvider>
           <Harness />
         </OverlayHostProvider>
@@ -693,6 +694,7 @@ describe('V3 RecordViewer — task collection opens one shared host', () => {
     await waitFor(() => screen.getByText('Nav test task'))
 
     // Click the <tr> row (not the inner Link)
+    const initialHref = window.location.href
     const rows = document.querySelectorAll('tbody tr.task-row')
     expect(rows.length).toBeGreaterThan(0)
     fireEvent.click(rows[0])
@@ -700,9 +702,8 @@ describe('V3 RecordViewer — task collection opens one shared host', () => {
     await waitFor(() => expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeTruthy())
     expect(_capturedLocation?.pathname).toBe('/work/tasks')
 
-    // window.location.href must NOT contain the hardcoded /mos/ basename
-    // (in jsdom this stays at initial; we assert it's still the test origin, not '/mos/tasks/...')
-    expect(window.location.href).not.toContain('/mos/tasks/')
+    // SPA navigation keeps the browser document URL untouched.
+    expect(window.location.href).toBe(initialHref)
   })
 
   it('clicking the mobile card opens the same shared host', async () => {
@@ -1203,7 +1204,7 @@ describe('Step 7 — the ?occurrence=<runId> query param switches to Occurrence 
     }
     return render(
       <AuthContext.Provider value={adminState}>
-        <MemoryRouter initialEntries={[`/work/tasks?occurrence=${runId}`]}>
+        <MemoryRouter basename={APP_ROUTER_BASENAME} initialEntries={[`${appUrl('/work/tasks')}?occurrence=${runId}`]}>
           <OverlayHostProvider>
             <Harness />
           </OverlayHostProvider>

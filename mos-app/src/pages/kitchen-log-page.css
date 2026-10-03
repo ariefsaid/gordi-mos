@@ -81,7 +81,7 @@
 .kl-dish { display: inline-flex; flex-direction: column; min-width: 0; }
 .kl-dish-name {
   font-size: var(--font-size-control);
-  font-weight: 500;
+  font-weight: 600;
   color: var(--foreground);
   /* layout pass: the page's 1.45 base line-height stretched this two-line stack to ~36px —
      more than the dense .kls-dense qty control (32px) it sits beside — making Dish the tallest
@@ -90,7 +90,7 @@
   line-height: 1.2;
 }
 .kl-dish-cat {
-  font-size: var(--font-size-overline);
+  font-size: var(--font-size-label);
   font-weight: 400;
   color: var(--muted-foreground);
   line-height: 1.2;
@@ -98,10 +98,14 @@
 
 /* ── The capture form ── */
 .kl-form {
+  --kl-footer-clearance: 113px;
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
 }
+.kl-form:has(.kl-submit-reason),
+.kl-form:has(.kl-submit-outcome) { --kl-footer-clearance: 176px; }
+.kl-form:has(.kl-submit-reason):has(.kl-submit-outcome) { --kl-footer-clearance: 208px; }
 
 /* Receiving-only streams stay useful as a read surface, with the next stock action
    visible at the point where production capture would otherwise begin. */
@@ -157,12 +161,10 @@
    exactly the regression this guards against. */
 .kl-footer {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  row-gap: 8px;
-  gap: 12px;
-  padding: 12px 0;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  padding: 8px 0;
   background: var(--card);
   background-color: var(--card);
   border-top: 1px solid var(--border);
@@ -196,16 +198,16 @@
 .kl-form .dt-table,
 .kl-form .dt-cards {
   margin-bottom: 12px;
-  scroll-margin-bottom: 12px;
+  scroll-margin-bottom: var(--kl-footer-clearance);
 }
 @media (max-width: 767.98px) {
   .kl-form .dt-cards {
-    margin-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(var(--kl-footer-clearance) + env(safe-area-inset-bottom, 0px));
   }
 }
 @media (min-width: 768px) {
   .kl-form .dt-table {
-    margin-bottom: 104px;
+    margin-bottom: var(--kl-footer-clearance);
   }
 }
 
@@ -216,43 +218,58 @@
    fixed regardless of what reveals under it, and keeps every cell starting from the same edge.
    Scoped to this page's own table only. */
 @media (min-width: 768px) {
+  .kl-form .dt-table { table-layout: fixed; }
+  .kl-form .dt-table thead th:nth-child(1),
+  .kl-form .dt-table tbody tr:not(.dt-group-row) > td:nth-child(1) { width: 44%; }
+  .kl-form .dt-table thead th:nth-child(2),
+  .kl-form .dt-table tbody tr:not(.dt-group-row) > td:nth-child(2) { width: 10%; }
+  .kl-form .dt-table thead th:nth-child(3),
+  .kl-form .dt-table tbody tr:not(.dt-group-row) > td:nth-child(3) { width: 10%; }
+  .kl-form .dt-table thead th:nth-child(4),
+  .kl-form .dt-table tbody tr:not(.dt-group-row) > td:nth-child(4) { width: 22%; }
+  .kl-form .dt-table thead th:nth-child(5),
+  .kl-form .dt-table tbody tr:not(.dt-group-row) > td:nth-child(5) { width: 14%; }
   .kl-form .dt-table td { vertical-align: top; }
 }
-.kl-tally {
+.kl-footer-count-row {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 44px;
+}
+.kl-tally {
+  flex: 1 1 auto;
   min-width: 0;
 }
 .kl-tally-num {
+  display: block;
+  color: var(--foreground);
   font-size: var(--font-size-body);
   font-weight: 600;
-  color: var(--foreground);
+  line-height: 1.3;
+  overflow-wrap: anywhere;
 }
-.kl-tally-sub {
-  font-size: var(--font-size-label);
+.kl-discard-link {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
   color: var(--muted-foreground);
-}
-.kl-footer-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: none;
-  /* Holds the trailing edge even when the tally is absent and this is the only thing left on
-     the row — `space-between` alone would walk it back to the left. */
-  margin-left: auto;
+  font: inherit;
+  font-size: var(--font-size-control);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
 }
 
 /* The ONE blue (One-Blue Rule) — Submit + its focus ring only */
-.kl-submit { min-height: 44px; }
+.kl-submit { width: 100%; min-height: 44px; }
 
-/* F3 inline blocker reason — appears to the left of Discard + Submit when a
-   required variance note is still empty.  Uses muted text so it reads as a
-   hint, not an error (the error itself lives on the row's note field). */
+/* A blocking sentence gets one quiet line in the band, never a third action column. */
 .kl-submit-reason {
-  /* Its own full-width line, reading left-to-right like the sentence it is, above the tally
-     and the actions rather than squeezed between them. */
-  flex: 1 0 100%;
-  order: -1;
+  margin: 0;
   font-size: var(--font-size-label);
   color: var(--muted-foreground);
   text-align: left;
@@ -298,20 +315,15 @@
 /* Fix #7: 44px touch floor on every interactive control on the small states. */
 .kl-touch { min-height: 44px; }
 
-/* ── Phone (<768px): ONE compact row — totals left, Discard + Submit right ──
-   Buttons are sized to content (not width:100%), so the resting bar is a single ~52px strip;
-   the reason/note-missing pointer line (`.kl-submit-reason`, `order:-1`) still gets its own
-   line ABOVE this row only when it is actually blocking — the reserve above accounts for that
-   worst case, tall enough to cover the row and the note field it should never touch.
-   `flex-wrap` MUST stay `wrap`: `.kl-submit-reason`'s `flex-basis: 100%` only starts a new
-   line when the container is allowed to wrap — `nowrap` would keep every child on one line, so
-   the 100%-basis reason text would crowd the tally and the Discard/Submit buttons off the
-   visible row instead of pushing them to a line below it. */
+/* ── Phone (<768px): count and conditional Discard above one full-width primary ── */
 @media (max-width: 767.98px) {
+  .kl-form .ktb-filter-selects { display: none; }
+  /* Transfer adds one required segmented destination scope. Keep it beside search on phone
+     instead of stacking a second toolbar row; 44px targets and full scope labels are retained. */
+  .kl-form .ktb:has(.kl-scope) .ktb-children--band { flex: 1 1 210px; min-width: 0; }
+  .kl-form .ktb:has(.kl-scope) .ktb-filters { flex: 1 1 120px; min-width: 120px; }
+  .kl-form .ktb:has(.kl-scope) .ktb-search-wrap { min-width: 120px; }
   .kl-footer {
-    flex-direction: row;
-    align-items: center;
-    flex-wrap: wrap;
     gap: 8px;
     padding: 8px 0 calc(8px + env(safe-area-inset-bottom, 0px));
     /* see the base rule: cancel `.page-frame--v3`'s phone bottom reserve so the bar sits on
@@ -320,16 +332,7 @@
     bottom: calc(-1 * (16px + var(--tabbar-h, 60px)));
     margin-bottom: calc(-1 * (16px + var(--tabbar-h, 60px)));
   }
-  .kl-tally { flex-direction: row; gap: 6px; min-width: 0; overflow: hidden; }
-  .kl-tally-num, .kl-tally-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .kl-footer-actions { justify-content: flex-end; }
-  .kl-submit { width: auto; min-height: 44px; }
-  .kl-submit-reason { flex-basis: 100%; }
-  /* One row on phone: the secondary tally line is dropped, and while a note is missing the
-     pointer takes the tally's place — it is the one thing the user can act on. */
-  .kl-tally-sub { display: none; }
-  .kl-note-pointer { flex-basis: auto; order: 0; min-height: 44px; }
-  .kl-footer:has(.kl-note-pointer) .kl-tally { display: none; }
+  .kl-note-pointer { min-height: 44px; }
 }
 
 /* Focus scrolling keeps the focused field clear of the sticky bar instead of parking it
@@ -493,10 +496,9 @@
     padding-inline: 4px;
   }
   .kl-form .dt-cards .dt-card:last-child { border-bottom: 0; }
-  /* Reserve belongs at the end of the LIST, not after the footer. The footer is the form's
-     last child, so padding on the form lands beyond it and reserves nothing: the final item
-     could never be scrolled out from under the Submit bar. */
-  .kl-form .dt-cards { padding-bottom: 104px; }
+  /* Reserve belongs at the end of the LIST, not after the footer: the final row must scroll
+     fully above the tallest rendered state of the sticky band. */
+  .kl-form .dt-cards { padding-bottom: calc(var(--kl-footer-clearance) + env(safe-area-inset-bottom, 0px)); }
 }
 
 /* The table header pins to the scrollport's real top edge. The scrolling page frame carries top

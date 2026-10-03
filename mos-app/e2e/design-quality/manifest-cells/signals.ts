@@ -2,15 +2,15 @@ import type { ManifestCellInput } from './types.ts'
 
 export const SIGNAL_CELL_INPUTS = [
   ['signals-default-desktop', {
-    area: 'signals', journey: 'signals-feed', route: '/mos/work/signals', fixture: 'VIEWER',
+    area: 'signals', journey: 'signals-feed', route: '/work/signals', fixture: 'VIEWER',
     viewport: 'desktop-1440x900', theme: 'light', language: 'en', state: 'default', status: 'covered',
   }],
   ['signals-default-phone', {
-    area: 'signals', journey: 'signals-feed', route: '/mos/work/signals', fixture: 'VIEWER',
+    area: 'signals', journey: 'signals-feed', route: '/work/signals', fixture: 'VIEWER',
     viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'default', status: 'covered',
   }],
   ['signals-compose-phone-en-light', {
-    area: 'signals', journey: 'signals-compose', route: '/mos/work/signals', fixture: 'BAR_MEMBER',
+    area: 'signals', journey: 'signals-compose', route: '/work/signals', fixture: 'BAR_MEMBER',
     viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'composer', status: 'covered', primary: true,
     // The page head's "Share Signal" is the one create door at every width; the shell's `+`
     // launcher yields on this route.
@@ -24,11 +24,11 @@ export const SIGNAL_CELL_INPUTS = [
     },
   }],
   ['signals-compose-desktop-id-dark', {
-    area: 'signals', journey: 'signals-compose', route: '/mos/work/signals', fixture: 'BAR_MEMBER',
+    area: 'signals', journey: 'signals-compose', route: '/work/signals', fixture: 'BAR_MEMBER',
     viewport: 'desktop-1440x900', theme: 'dark', language: 'id', state: 'delivery-failure-retry', status: 'covered', primary: true,
   }],
   ['signals-feed-compact', {
-    area: 'signals', journey: 'signals-feed', route: '/mos/work/signals', fixture: 'VIEWER',
+    area: 'signals', journey: 'signals-feed', route: '/work/signals', fixture: 'VIEWER',
     viewport: 'compact-1024x768', theme: 'light', language: 'en', state: 'populated-feed', status: 'covered',
     stateContract: {
       setup: [],
@@ -37,7 +37,7 @@ export const SIGNAL_CELL_INPUTS = [
     },
   }],
   ['signals-feed-phone-empty', {
-    area: 'signals', journey: 'signals-feed', route: '/mos/work/signals', fixture: 'VIEWER',
+    area: 'signals', journey: 'signals-feed', route: '/work/signals', fixture: 'VIEWER',
     viewport: 'phone-390x844', theme: 'dark', language: 'id', state: 'empty-filter-result', status: 'covered',
     stateContract: {
       setup: [{ action: 'fill', selector: 'input[aria-label="Cari Sinyal"]', value: '__design_audit_no_signal_match__' }],
@@ -46,7 +46,7 @@ export const SIGNAL_CELL_INPUTS = [
     },
   }],
   ['signals-record-desktop', {
-    area: 'signals', journey: 'signals-record', route: '/mos/work/signals', fixture: 'BAR_SUPERVISOR',
+    area: 'signals', journey: 'signals-record', route: '/work/signals', fixture: 'BAR_SUPERVISOR',
     viewport: 'desktop-1440x900', theme: 'light', language: 'en', state: 'record-panel', status: 'untested',
     note: 'The record opener is a status-modifier class; this fixture is not guaranteed a signal in that status, so the driver waits out the timeout on a row that never renders.',
     // Untested, deliberately: the opener class exists on this route but `--open` is a status
@@ -55,7 +55,7 @@ export const SIGNAL_CELL_INPUTS = [
     // or a fixture that guarantees one open signal.
   }],
   ['signals-retract-phone', {
-    area: 'signals', journey: 'signals-record', route: '/mos/work/signals', fixture: 'BAR_MEMBER',
+    area: 'signals', journey: 'signals-record', route: '/work/signals', fixture: 'BAR_MEMBER',
     viewport: 'phone-390x844', theme: 'light', language: 'en', state: 'retract-menu', status: 'untested',
     note: 'Reachable read-only and verified by hand, but no contract is registered: a setup selector that does not resolve under this cell\'s own fixture blocks fifteen seconds and then throws out of prepareAuditPage, taking the whole lane down before it writes an artifact.',
     // The menu itself is reachable read-only — open a Signal, press its overflow trigger — and

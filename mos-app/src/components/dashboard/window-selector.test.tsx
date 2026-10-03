@@ -1,6 +1,7 @@
 // WindowSelector tests — the window control (design-plan §2.6, FR-013/014, AC-013/014).
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { WindowSelector } from './window-selector'
 import type { WindowSpec } from '@/lib/dashboard'
 
@@ -249,6 +250,26 @@ describe('WindowSelector — custom date range', () => {
     expect(container.textContent).not.toMatch(/[▸▾▴]/)
     // A committed Range (no sheet) keeps the bare seg — the chevron promises a surface.
     expect(screen.getByRole('tab', { name: '30d' }).querySelector('svg')).toBeNull()
+  })
+
+  it('does not apply an emptied endpoint and marks the required From date on blur', async () => {
+    const onChange = vi.fn()
+    render(
+      <WindowSelector
+        value={{ kind: 'custom', from: '2026-06-10', to: '2026-06-20' }}
+        onChange={onChange}
+        bounds={BOUNDS}
+      />,
+    )
+    const from = screen.getByLabelText('From')
+    await userEvent.clear(from)
+
+    expect(from).toHaveValue('')
+    expect(from).toHaveAttribute('aria-required', 'true')
+    expect(onChange).not.toHaveBeenCalled()
+
+    await userEvent.tab()
+    expect(screen.getByRole('alert')).toHaveTextContent(/enter a date/i)
   })
 
   it('AC-014: handles null bounds gracefully (no crash)', () => {

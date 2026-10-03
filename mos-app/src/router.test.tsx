@@ -136,6 +136,28 @@ describe('router — /dev/views is flag-gated (ADR-0018 P1, flag off)', () => {
 // to add a case for it.
 describeRedirectMap('plan/budget + follow-ups flags OFF')
 
+describe('issue 1241: Café waste capture route', () => {
+  it('registers /cafe/waste as a live dedicated route', () => {
+    const waste = leafInThisTable('/cafe/waste')
+    expect(waste, '/cafe/waste must be a declared route').toBeDefined()
+    expect(isRedirect(waste!.route.element)).toBe(false)
+  })
+})
+
+describe('issue 1239: Café capture split routes', () => {
+  it('keeps production and transfer as live pages and redirects the legacy log alias to production', () => {
+    for (const path of ['/cafe/production', '/cafe/transfer', '/cafe/waste']) {
+      const leaf = leafInThisTable(path)
+      expect(leaf, `${path} must be a live Café route`).toBeDefined()
+      expect(leaf!.route.path).not.toBe('*')
+      expect(isRedirect(leaf!.route.element)).toBe(false)
+    }
+    const legacyLog = allRedirects().find(route => route.from === '/cafe/log')
+    expect(legacyLog).toMatchObject({ to: '/cafe/production', replace: true, kind: 'map' })
+    expectOneHop('/cafe/log', '/cafe/production')
+  })
+})
+
 describe('AC-018: a retired route requested with ?view= / ?record= keeps its query', () => {
   function LocationProbe() {
     const loc = useLocation()

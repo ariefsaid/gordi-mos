@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react'
-import { useSearchParams, type To } from 'react-router-dom'
+import { useNavigate, useSearchParams, type To } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
+import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useIsWideOverlayWidth } from '@/shell/use-is-wide-overlay-width'
 import { OverlayHostSlot, useOptionalOverlayHost, type OverlayEntry } from '@/shell/overlay-host'
 import type { OverlayOwner } from '@/shell/overlay-navigation'
@@ -171,6 +172,8 @@ export function useCatalogRecordOverlay({
 }): CatalogRecordOverlayController {
   const host = useOptionalOverlayHost()
   const isSplit = useIsWideOverlayWidth()
+  const isDesktop = useIsDesktop()
+  const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const recordType = params.get('recordType')
   const recordId = recordType === collectionKind || (collectionKind === 'work-line' && recordType === null && params.has('record'))
@@ -210,13 +213,22 @@ export function useCatalogRecordOverlay({
   })
 
   const onOpenRecord = useCallback((record: CatalogRow) => {
+    if (!isDesktop) {
+      navigate({
+        pathname: collectionKind === 'objective'
+          ? `/work/objectives/${record.id}`
+          : `/work/projects/${record.id}`,
+        search: withoutLayout(searchWithoutRecord()),
+      })
+      return
+    }
     if (record.type) typeById.current.set(record.id, record.type)
     recordInvoker.current = record.id
     const next = new URLSearchParams(params)
     next.set('record', record.id)
     next.set('recordType', collectionKind)
     setParams(next)
-  }, [collectionKind, params, setParams])
+  }, [collectionKind, isDesktop, navigate, params, searchWithoutRecord, setParams])
 
   const entry = useMemo(() => {
     if (!recordId || !host) return null

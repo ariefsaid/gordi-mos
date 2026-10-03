@@ -1,4 +1,4 @@
-// PricingPage tests — TDD (AC-tagged). Route /mos/plan/pricing (finance/admin-gated at the router).
+// PricingPage tests — TDD (AC-tagged). Route /plan/pricing (finance/admin-gated at the router).
 // Proves the page's OWN behavior once mounted: the candidate price × the linked certified budgeted
 // COGS -> margin (AC-PB-005, read-only), the fail-loud freshness/certification warning (AC-PB-006),
 // and that the price is never written (MOS is the pre-flight, not the price-setter — ADR-0022 D5).

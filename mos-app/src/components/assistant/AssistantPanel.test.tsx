@@ -88,7 +88,7 @@ function makeFakeRuntime(events: AgentEvent[] = replyScript()): AgentRuntime {
   }
 }
 
-function renderPanel({ narrow, open, runtime = makeFakeRuntime() }: { narrow: boolean; open: boolean; runtime?: AgentRuntime }) {
+function renderPanel({ narrow, open, runtime = makeFakeRuntime(), withMainContent = false }: { narrow: boolean; open: boolean; runtime?: AgentRuntime; withMainContent?: boolean }) {
   // matchMedia stub: narrow=true → phone (dialog); false → desktop (complementary).
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
@@ -107,6 +107,7 @@ function renderPanel({ narrow, open, runtime = makeFakeRuntime() }: { narrow: bo
     <I18nProvider>
       <MemoryRouter>
         <AgentRuntimeProvider runtime={runtime}>
+          {withMainContent ? <div id="main-content"><button type="button">First page action</button></div> : null}
           <AssistantPanel />
           <OpenHarness />
         </AgentRuntimeProvider>
@@ -202,6 +203,51 @@ describe('AssistantPanel (T27)', () => {
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(screen.queryByRole('dialog', { name: 'Deputy' })).toBeNull()
     expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeInTheDocument()
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).not.toBeInTheDocument()
+  })
+
+  it('OD-REDESIGN-83: one desktop Escape closes Deputy first, then the open record', async () => {
+    renderPanelWithRecord({ narrow: false })
+    const recordOpener = screen.getByRole('button', { name: 'open record' })
+    recordOpener.focus()
+    fireEvent.click(recordOpener)
+    await waitFor(() => expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeInTheDocument())
+
+    const recordAction = screen.getByRole('button', { name: 'Record action' })
+    recordAction.focus()
+    fireEvent.keyDown(recordAction, { key: 'Escape' })
+    expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeInTheDocument()
+    expect(screen.queryByRole('complementary', { name: 'Deputy' })).toBeNull()
+    expect(recordAction).toHaveFocus()
+
+    fireEvent.keyDown(recordAction, { key: 'Escape' })
+    await waitFor(() => expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).not.toBeInTheDocument())
+    expect(recordOpener).toHaveFocus()
+  })
+
+  it('does not autofocus a persisted-open Deputy on a cold mount', () => {
+    renderPanel({ narrow: false, open: true })
+    expect(screen.getByRole('complementary', { name: 'Deputy' })).not.toContainElement(document.activeElement as HTMLElement)
+  })
+
+  it('explicitly opening Deputy moves focus into the companion', async () => {
+    renderPanel({ narrow: false, open: false })
+    fireEvent.click(screen.getByRole('button', { name: 'reopen' }))
+    await waitFor(() => expect(screen.getByRole('complementary', { name: 'Deputy' })).toContainElement(document.activeElement as HTMLElement))
+  })
+
+  it('desktop Tab past the composer continues into page content, not body', () => {
+    renderPanel({ narrow: false, open: false, withMainContent: true })
+    fireEvent.click(screen.getByRole('button', { name: 'reopen' }))
+    const panel = screen.getByRole('complementary', { name: 'Deputy' })
+    const composer = screen.getByRole('textbox', { name: /ask the deputy/i })
+    composer.focus()
+    fireEvent.keyDown(composer, { key: 'Tab' })
+    expect(screen.getByRole('button', { name: 'First page action' })).toHaveFocus()
+    expect(panel).not.toContainElement(document.activeElement as HTMLElement)
+    expect(document.activeElement).not.toBe(document.body)
   })
 
   it('AC-AP-003: when closed, the panel is inert + aria-hidden (keep-mounted, hidden from AT)', () => {
@@ -328,7 +374,7 @@ describe('AssistantPanel (T27)', () => {
         '| --- | ---: |',
         '| Ops | 2 |',
         '',
-        '[Open MOS](https://ops.gordi.id/mos)',
+        '[Open MOS](https://example.test)',
       ].join('\n'))),
     })
 
@@ -338,7 +384,7 @@ describe('AssistantPanel (T27)', () => {
     expect(await screen.findByText('blocked')).toHaveProperty('tagName', 'STRONG')
     expect(screen.getByRole('list')).toBeInTheDocument()
     expect(screen.getByRole('table')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Open MOS' })).toHaveAttribute('href', 'https://ops.gordi.id/mos')
+    expect(screen.getByRole('link', { name: 'Open MOS' })).toHaveAttribute('href', 'https://example.test')
 
     const userTurn = screen.getByText('**literal user text**')
     expect(userTurn.querySelector('strong')).toBeNull()
@@ -349,7 +395,7 @@ describe('AssistantPanel (T27)', () => {
       narrow: false,
       open: true,
       runtime: makeFakeRuntime(replyScript([
-        '[safe](https://ops.gordi.id/mos)',
+        '[safe](https://example.test)',
         '[bad](javascript:alert(1))',
         '<script>alert(1)</script>',
         '<img src=x onerror=alert(1)>',
@@ -360,7 +406,7 @@ describe('AssistantPanel (T27)', () => {
     fireEvent.change(screen.getByRole('textbox', { name: /ask the deputy/i }), { target: { value: 'hi' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send' }))
 
-    expect(await screen.findByRole('link', { name: 'safe' })).toHaveAttribute('href', 'https://ops.gordi.id/mos')
+    expect(await screen.findByRole('link', { name: 'safe' })).toHaveAttribute('href', 'https://example.test')
     expect(screen.queryByRole('link', { name: 'bad' })).toBeNull()
     expect(document.querySelector('script,img,iframe')).toBeNull()
     expect(document.querySelector('[href^="javascript:"]')).toBeNull()

@@ -11,6 +11,7 @@ import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { ModalShell } from '@/components/ui/modal-shell'
 import { TextInput } from '@/components/ui/text-input'
 import { OccurrenceAssignDialog } from '@/components/tasks/occurrence-assign-dialog'
+import { RecordDisclosure } from '@/components/record/record-page-layout'
 import { DueRunsList } from './due-runs-list'
 import { useProcessOccurrences, type ProcessOccurrencesData } from './use-process-occurrences'
 import './process-occurrence-controls.css'
@@ -123,27 +124,82 @@ export function ProcessOccurrenceControls({ workLineId, setupIncomplete = false,
     return <ErrorState message={t('processes.occurrence.error')} onRetry={retry} />
   }
 
+  const current = occurrences.filter(({ run }) => run.status === 'open')
+  const past = occurrences.filter(({ run }) => run.status !== 'open')
+  const missingNextRun = !setupIncomplete && startable.length === 0 && current.length === 0
+
+  const renderOccurrence = (summary: ProcessOccurrenceSummary) => {
+    const { run, rollup } = summary
+    const closeAllowed = run.status === 'open' && closableRunIds.has(run.id)
+    const statusLabel = run.status === 'open'
+      ? t('processes.occurrence.status.open')
+      : run.status === 'completed'
+        ? t('processes.occurrence.status.completed')
+        : t('processes.occurrence.status.cancelled')
+    const taskCountKey = rollup.total === 1
+      ? 'processes.occurrence.tasks.one'
+      : 'processes.occurrence.tasks.other'
+    return (
+      <li key={run.id} className="process-occurrence-controls__item">
+        <div className="process-occurrence-controls__identity">
+          <h4>{formatDayMonthYear(run.scheduled_date, locale)}</h4>
+          <p>{summary.team_name} · {statusLabel}</p>
+        </div>
+        <div className="process-occurrence-controls__counts tabular-nums" aria-label={t('processes.occurrence.countsLabel')}>
+          <span>{t(taskCountKey, { count: rollup.total })}</span>
+          <span>{t('processes.occurrence.overdue', { count: rollup.overdue })}</span>
+          <span>{t('processes.occurrence.toAssign', { count: rollup.pending_unresolved })}</span>
+        </div>
+        <div className="process-occurrence-controls__actions">
+          <Link
+            className="btn btn-outline"
+            to={`/work/tasks?occurrence=${encodeURIComponent(run.id)}`}
+            onClick={(event) => {
+              if (!onViewTasks) return
+              event.preventDefault()
+              onViewTasks(run.id)
+            }}
+          >
+            {t('processes.occurrence.viewTasks')}
+          </Link>
+          {run.status === 'open' && startableTeamIds.has(run.owning_team_id) && rollup.pending_unresolved > 0 ? (
+            <Button variant="outline" onClick={() => openAssign(run.id)}>
+              {t('processes.occurrence.toAssign', { count: rollup.pending_unresolved })}
+            </Button>
+          ) : null}
+          {closeAllowed ? (
+            <>
+              <Button variant={startable.length === 0 && current.length === 1 ? 'primary' : 'outline'} onClick={() => openConfirmation('complete', summary)}>
+                {t('processes.occurrence.complete')}
+              </Button>
+              <Button variant="ghost" onClick={() => openConfirmation('cancel', summary)}>
+                {t('processes.occurrence.cancel')}
+              </Button>
+            </>
+          ) : null}
+        </div>
+      </li>
+    )
+  }
+
   return (
-    <section className="process-occurrence-controls" aria-labelledby="process-occurrence-controls-title">
-      <header className="process-occurrence-controls__header">
-        <h3 id="process-occurrence-controls-title">{t('processes.occurrence.title')}</h3>
-        {authorityError ? <ErrorState message={t('processes.occurrence.authorityError')} onRetry={retry} /> : null}
-        {actionError ? <ErrorState message={t('processes.occurrence.actionError')} /> : null}
-      </header>
+    <div className="process-occurrence-controls">
+      {authorityError || actionError ? (
+        <div className="process-occurrence-controls__header">
+          {authorityError ? <ErrorState message={t('processes.occurrence.authorityError')} onRetry={retry} /> : null}
+          {actionError ? <ErrorState message={t('processes.occurrence.actionError')} /> : null}
+        </div>
+      ) : null}
 
-      {setupIncomplete ? (
+      {setupIncomplete && !canManageSetup ? (
         <p className="process-occurrence-controls__next-action" role="note">
-          {t(canManageSetup ? 'processes.occurrence.setupIncomplete.manager' : 'processes.occurrence.setupIncomplete.member')}
+          {t('processes.occurrence.setupIncomplete.member')}
         </p>
-      ) : startable.length > 0 ? (
-        <p className="process-occurrence-controls__next-action" role="note">{t('processes.occurrence.nextActionReady')}</p>
-      ) : occurrences.length === 0 ? (
+      ) : missingNextRun ? (
         <p className="process-occurrence-controls__next-action" role="note">{t('processes.occurrence.nextActionMissing')}</p>
-      ) : (
-        <p className="process-occurrence-controls__next-action" role="note">{t('processes.occurrence.nextActionCurrent')}</p>
-      )}
+      ) : null}
 
-      {startable.length > 0 ? (
+      {!setupIncomplete && startable.length > 0 ? (
         <section className="process-occurrence-controls__start" aria-labelledby="process-occurrence-start-title">
           <h4 id="process-occurrence-start-title">{t('processes.occurrence.ready')}</h4>
           <DueRunsList
@@ -157,64 +213,19 @@ export function ProcessOccurrenceControls({ workLineId, setupIncomplete = false,
         </section>
       ) : null}
 
-      {occurrences.length === 0 ? (
-        <p className="process-occurrence-controls__empty">{t('processes.occurrence.empty')}</p>
-      ) : (
+      {current.length > 0 ? (
         <ul className="process-occurrence-controls__list">
-          {occurrences.map((summary) => {
-            const { run, rollup } = summary
-            const closeAllowed = closableRunIds.has(run.id)
-            const statusLabel = run.status === 'open'
-              ? t('processes.occurrence.status.open')
-              : run.status === 'completed'
-                ? t('processes.occurrence.status.completed')
-                : t('processes.occurrence.status.cancelled')
-            return (
-              <li key={run.id} className="process-occurrence-controls__item">
-                <div className="process-occurrence-controls__identity">
-                  <h4>{run.caption}</h4>
-                  <p>{summary.team_name} · {formatDayMonthYear(run.scheduled_date, locale)} · {statusLabel}</p>
-                </div>
-                <div className="process-occurrence-controls__counts tabular-nums" aria-label={t('processes.occurrence.countsLabel')}>
-                  <span>{t('processes.occurrence.tasks', { count: rollup.total })}</span>
-                  <span>{t('processes.occurrence.overdue', { count: rollup.overdue })}</span>
-                  <span>{t('processes.occurrence.toAssign', { count: rollup.pending_unresolved })}</span>
-                </div>
-                <div className="process-occurrence-controls__actions">
-                  <Link
-                    className="btn btn-outline"
-                    to={`/work/tasks?occurrence=${encodeURIComponent(run.id)}`}
-                    onClick={(event) => {
-                      if (!onViewTasks) return
-                      event.preventDefault()
-                      onViewTasks(run.id)
-                    }}
-                  >
-                    {t('processes.occurrence.viewTasks')}
-                  </Link>
-                  {run.status === 'open'
-                    && startableTeamIds.has(run.owning_team_id)
-                    && rollup.pending_unresolved > 0 ? (
-                    <Button variant="outline" onClick={() => openAssign(run.id)}>
-                      {t('processes.occurrence.toAssign', { count: rollup.pending_unresolved })}
-                    </Button>
-                  ) : null}
-                  {closeAllowed ? (
-                    <>
-                      <Button variant="primary" onClick={() => openConfirmation('complete', summary)}>
-                        {t('processes.occurrence.complete')}
-                      </Button>
-                      <Button variant="destructive" onClick={() => openConfirmation('cancel', summary)}>
-                        {t('processes.occurrence.cancel')}
-                      </Button>
-                    </>
-                  ) : null}
-                </div>
-              </li>
-            )
-          })}
+          {current.map(renderOccurrence)}
         </ul>
-      )}
+      ) : null}
+
+      {past.length > 0 ? (
+        <RecordDisclosure title={t('processes.occurrence.past')} count={past.length}>
+          <ul className="process-occurrence-controls__list">
+            {past.map(renderOccurrence)}
+          </ul>
+        </RecordDisclosure>
+      ) : null}
 
       {assignRunId ? (
         <OccurrenceAssignDialog
@@ -268,6 +279,6 @@ export function ProcessOccurrenceControls({ workLineId, setupIncomplete = false,
           </div>
         ) : null}
       </ModalShell>
-    </section>
+    </div>
   )
 }

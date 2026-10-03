@@ -13,7 +13,7 @@
 // height instead (DESIGN.md control height, Data Table 52px row spec) — dense is a
 // pointer surface, not a touch target.
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ItemUnitOption, KitchenLogLine, KitchenMovement } from '@/lib/db/kitchen-logs.types'
 import { isStockConsuming, VARIANCE_NOTE_CUE, TRANSFER_SHORT_CUE } from '@/lib/kitchen-gates'
 import { useT } from '@/i18n/use-t'
@@ -79,6 +79,14 @@ export function WipItemStepper({
   // again on selection or blur: the resting row always reads as fixed text + one small
   // control, whatever happened before.
   const [unitPickerOpen, setUnitPickerOpen] = useState(false)
+  const unitChangeButtonRef = useRef<HTMLButtonElement>(null)
+  const restoreUnitFocus = useRef(false)
+  useEffect(() => {
+    if (!unitPickerOpen && restoreUnitFocus.current) {
+      restoreUnitFocus.current = false
+      unitChangeButtonRef.current?.focus()
+    }
+  }, [unitPickerOpen])
   // The field remains mounted after the first note character as well as while the gate is
   // unsatisfied. This avoids the old error-only unmount bug while making the remedy reachable
   // before blur.
@@ -156,6 +164,7 @@ export function WipItemStepper({
         {!offersUnitChange && <span className="kls-unit">{unitLabel}</span>}
         {offersUnitChange && !unitPickerOpen && (
           <button
+            ref={unitChangeButtonRef}
             type="button"
             className="kls-unit kls-unit-change"
             aria-label={t('kitchen.log.unit.changeAria', { item: itemName })}
@@ -184,6 +193,7 @@ export function WipItemStepper({
             disabled={disabled}
             autoFocus
             onChange={e => {
+              restoreUnitFocus.current = true
               onUnitChange?.(e.target.value)
               setUnitPickerOpen(false)
             }}
