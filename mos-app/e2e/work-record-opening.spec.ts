@@ -65,7 +65,7 @@ async function visitPhoneRecords(page: Page, info: TestInfo, actorName: string) 
     await page.goto(collection.path)
     const switcher = page.locator('[data-anatomy="work-collection-switcher"]')
     await expect(switcher).toBeVisible()
-    await expect(switcher.getByRole('link', { name: collection.label, exact: true })).toHaveAttribute('aria-current', 'page')
+    await expect(switcher.getByRole('link', { name: collection.label, exact: true })).toHaveAttribute('aria-current', 'location')
 
     const target = await openFirstRecord(page, collection.key, true)
     await expect(page).toHaveURL((url) => url.pathname === target.path)
@@ -76,7 +76,7 @@ async function visitPhoneRecords(page: Page, info: TestInfo, actorName: string) 
     await page.screenshot({ path: info.outputPath(`${actorName}-390-${collection.key}-record.png`), animations: 'disabled' })
     await back.click()
     await expect(page).toHaveURL((url) => url.pathname.endsWith(`/work/${collection.key}`))
-    await expect(switcher.getByRole('link', { name: collection.label, exact: true })).toHaveAttribute('aria-current', 'page')
+    await expect(switcher.getByRole('link', { name: collection.label, exact: true })).toHaveAttribute('aria-current', 'location')
     await expect(page.locator('[data-overlay-host]')).toHaveCount(0)
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true)
   }
@@ -139,3 +139,69 @@ for (const actor of [
     await visitDesktopPanels(page, info, actor.name.toLowerCase())
   })
 }
+
+test('a cold query-linked panel closes to its collection; a cold canonical URL stays a full page', async ({ page, context }) => {
+  await page.setViewportSize(DESKTOP)
+  await loginAs(page, MANAGER.email, MANAGER.password)
+  await page.goto('work/projects')
+  const row = page.locator('.catalog-collection__row-link').first()
+  await expect(row).toBeVisible()
+  const href = (await row.getAttribute('href'))!
+  const name = (await row.getAttribute('aria-label')) ?? ''
+  await row.click()
+  await expect(page).toHaveURL(/record=/)
+
+  const coldPanel = await context.newPage()
+  await coldPanel.setViewportSize(DESKTOP)
+  await coldPanel.goto(page.url())
+  await expect(coldPanel.locator('[data-overlay-host]')).toBeVisible()
+  await coldPanel.locator('[data-overlay-host]').getByRole('button', { name: 'Close', exact: true }).click()
+  await expect(coldPanel).toHaveURL((url) => url.pathname === '/work/projects' && !url.searchParams.has('record'))
+  await expect(coldPanel.getByRole('heading', { name: 'Projects & Processes' })).toBeVisible()
+  await expect(coldPanel.locator('[data-overlay-host]')).toHaveCount(0)
+  await coldPanel.close()
+
+  const canonicalPage = await context.newPage()
+  await canonicalPage.setViewportSize(DESKTOP)
+  await canonicalPage.goto(new URL(href, page.url()).toString())
+  await expect(canonicalPage.locator('[data-overlay-host]')).toHaveCount(0)
+  await expectRecordReady(canonicalPage, { path: href, kind: 'catalog', name })
+  await canonicalPage.close()
+})
+
+test('pushing the task-create frame keeps Title focused without validating the blank form', async ({ page }) => {
+  await page.setViewportSize(DESKTOP)
+  await loginAs(page, MANAGER.email, MANAGER.password)
+  await page.goto('work/projects')
+  const rows = page.locator('.catalog-collection__row-link')
+  await expect(rows.first()).toBeVisible()
+  let projectRow: Locator | null = null
+  for (let index = 0; index < await rows.count(); index += 1) {
+    const candidate = rows.nth(index)
+    if (await candidate.locator('.catalog-collection__identity .mk-tag').innerText() === 'Project') {
+      projectRow = candidate
+      break
+    }
+  }
+  expect(projectRow, 'the seeded Projects collection has a Project record').not.toBeNull()
+  await projectRow!.click()
+  const panel = page.locator('[data-overlay-host]')
+  await expect(panel).toBeVisible()
+  await expectRecordReady(panel, {
+    path: (await projectRow!.getAttribute('href')) ?? '',
+    kind: 'catalog',
+    name: (await projectRow!.getAttribute('aria-label')) ?? '',
+  })
+
+  await panel.getByRole('button', { name: /add task/i }).first().click()
+  const title = page.getByRole('textbox', { name: 'Title', exact: true })
+  await expect(title).toBeFocused()
+  await expect(page.getByRole('alert').filter({ hasText: 'Title is required' })).toHaveCount(0)
+  await panel.getByRole('button', { name: 'Back', exact: true }).click()
+  await expectRecordReady(panel, {
+    path: (await projectRow!.getAttribute('href')) ?? '',
+    kind: 'catalog',
+    name: (await projectRow!.getAttribute('aria-label')) ?? '',
+  })
+})
+

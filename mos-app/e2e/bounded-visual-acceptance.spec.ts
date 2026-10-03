@@ -378,16 +378,30 @@ test.describe('bounded visual and interaction acceptance', () => {
       const row = page.getByRole('button', { name: /^Open signal:/ }).first()
       await expect(row).toBeVisible()
       await row.click()
-      const panel = page.getByRole(width >= 1100 ? 'complementary' : 'dialog', { name: 'Signal', exact: true })
-      await expect(panel).toBeVisible()
-      await expect(panel.getByRole('button', { name: 'More Signal actions', exact: true })).toBeVisible()
-      await expect(panel.getByRole('button', { name: 'Seen', exact: true })).toBeVisible()
-      await expect(panel.getByRole('heading', { name: 'Reach & response', exact: true })).toBeVisible()
-      await expect(panel.getByRole('heading', { name: 'Facts', exact: true })).toBeVisible()
+      const phone = width < 768
+      const record = phone
+        ? page.locator('[data-record-kind="signal"][data-record-mode="page"]')
+        : page.getByRole(width >= 1100 ? 'complementary' : 'dialog', { name: 'Signal', exact: true })
+      await expect(record).toBeVisible()
+      await expect(record.getByRole('button', { name: 'More Signal actions', exact: true })).toBeVisible()
+      await expect(record.getByRole('button', { name: 'Seen', exact: true })).toBeVisible()
+      await expect(record.getByRole('heading', { name: 'Reach & response', exact: true })).toBeVisible()
+      await expect(record.getByRole('heading', { name: 'Facts', exact: true })).toBeVisible()
       await assertNoPageOverflow(page)
       await capture(`signals-record-${width}`, page)
-      await page.keyboard.press('Escape')
-      await expect(row).toBeFocused()
+      if (phone) {
+        const back = page.locator('.record-page-back')
+        await expect(back).toHaveCount(1)
+        await expect(back).toHaveAttribute('href', '/work/signals?layout=feed')
+        await back.click()
+        await expect(page).toHaveURL(url => url.pathname === '/work/signals' && url.searchParams.get('layout') === 'feed')
+        await expect(page.getByRole('heading', { name: 'Signals', exact: true })).toBeVisible()
+        await expect(row).toBeVisible()
+      } else {
+        await page.keyboard.press('Escape')
+        await expect(record).not.toBeVisible()
+        await expect(row).toBeFocused()
+      }
     })
   }
 
