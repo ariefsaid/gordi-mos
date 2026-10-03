@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { announceOpenTaskCountChanged } from '@/lib/open-task-count-store'
 import type { DueProcessRun, PendingTaskRow, ProcessOccurrenceSummary, ProcessRunRollup, ProcessRunRow, SpawnResult, TaskDefLookup } from './processes.types'
 import type { TaskListRow } from './tasks.types'
 
@@ -100,6 +101,7 @@ export async function resolvePendingTask(pendingId: string, picPersonId: string)
     p_pic_person_id: picPersonId,
   })
   if (error) throw new Error(`resolvePendingTask failed — ${error.message}`)
+  announceOpenTaskCountChanged()
   return data as string
 }
 

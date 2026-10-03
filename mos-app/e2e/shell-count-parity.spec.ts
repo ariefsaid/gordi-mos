@@ -56,6 +56,9 @@ for (const [name, actor, view] of [
       () => page.getByTestId('tasks-count-line').textContent(),
       { message: 'count line settles to the traversed open total' },
     ).toMatch(new RegExp(`^${open.size} open in this view · \\d+ shown$`))
+    if (view === 'My work') {
+      expect(homeOpen, 'Home count equals the actual open rows in the default My work view').toBe(open.size)
+    }
     // The badge is still Home's number after traversing a view that may hold more or fewer.
     await expect(link).toHaveAccessibleName(homeOpen ? `Tasks, ${homeOpen} open tasks` : 'Tasks')
     await expect(page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: 'Signals', exact: true })).not.toHaveAttribute('aria-label')
