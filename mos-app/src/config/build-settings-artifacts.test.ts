@@ -25,6 +25,8 @@ it('emits a root manifest and redirects that preserve legacy route queries', asy
 
   const redirects = artifacts.get('_redirects') ?? ''
   expect(redirects).toContain('/kitchen/* /cafe/:splat 301')
+  expect(redirects).toContain('/kitchen/log /cafe/production 301')
+  expect(redirects).toContain('/mos/kitchen/log /cafe/production 301')
   expect(redirects).toContain('/mos/* /:splat 301')
   expect(legacyRedirectDestination('/kitchen/plan', '?week=this-week', '/')).toBe('/cafe/plan?week=this-week')
   expect(legacyRedirectDestination('/mos/work/tasks', '?view=mine', '/')).toBe('/work/tasks?view=mine')

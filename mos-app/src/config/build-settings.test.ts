@@ -81,8 +81,9 @@ describe('legacy address redirects', () => {
       '/preview/cafe/plan?week=2026-10-02',
     )
     expect(legacyRedirectDestination('/kitchen/pushes', '?status=failed', '/')).toBe('/cafe/pushes?status=failed')
-    expect(legacyRedirectDestination('/kitchen/log', '?date=today', '/')).toBe('/cafe?date=today')
-    expect(legacyRedirectDestination('/mos/cafe/log', '?date=today', '/')).toBe('/cafe?date=today')
+    expect(legacyRedirectDestination('/kitchen', '?date=today', '/')).toBe('/cafe/production?date=today')
+    expect(legacyRedirectDestination('/kitchen/log', '?date=today', '/')).toBe('/cafe/production?date=today')
+    expect(legacyRedirectDestination('/mos/cafe/log', '?date=today', '/')).toBe('/cafe/production?date=today')
     expect(legacyRedirectDestination('/mos/kitchen/plan', '?week=this-week', '/mos/')).toBe(
       '/mos/cafe/plan?week=this-week',
     )
@@ -103,7 +104,9 @@ describe('legacy address redirects', () => {
     const subPathRules = cloudflareRedirects('/preview/')
     expect(subPathRules).toContain('/ /preview/ 302')
     expect(subPathRules).toContain('/mos/* /preview/:splat 301')
-    expect(subPathRules).toContain('/mos/cafe/log /preview/cafe 301')
+    expect(rootRules).toContain('/kitchen/log /cafe/production 301')
+    expect(rootRules).toContain('/mos/kitchen/log /cafe/production 301')
+    expect(subPathRules).toContain('/mos/cafe/log /preview/cafe/production 301')
     expect(subPathRules).toContain('/preview/assets/* /assets/:splat 200')
     expect(subPathRules).toContain('/preview/offline.html /offline 200')
   })
