@@ -3,7 +3,7 @@
 // a11y (role/aria/Esc/focus-trap). Phone = modal dialog; desktop = complementary drawer.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
-import { createElement } from 'react'
+import { createElement, type ReactNode } from 'react'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { AgentRuntimeProvider } from '@/lib/agent/runtime/AgentRuntimeContext'
@@ -11,6 +11,8 @@ import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { OverlayHostProvider, OverlayHostSlot, useOverlayHost } from '@/shell/overlay-host'
 import { AuthContext } from '@/auth/context'
 import { AssistantPanel } from './AssistantPanel'
+import { RecordField } from '@/components/records/record-field'
+import type { RecordFieldSpec } from '@/components/records/record-viewer.types'
 import type { AgentRuntime, AgentEvent } from '@/lib/agent/runtime/port'
 
 // A test harness button that calls openPanel() — lets the test reopen the keep-mounted panel.
@@ -19,7 +21,7 @@ function OpenHarness() {
   return createElement('button', { type: 'button', onClick: openPanel }, 'reopen')
 }
 
-function RecordHarness() {
+function RecordHarness({ recordContent = <button type="button">Record action</button> }: { recordContent?: ReactNode }) {
   const overlay = useOverlayHost()
   return (
     <>
@@ -31,7 +33,7 @@ function RecordHarness() {
           tenant: 'record',
           label: 'Task record',
           title: 'Opening checklist',
-          content: <button type="button">Record action</button>,
+          content: recordContent,
         }, 'ephemeral')}
       >
         open record
@@ -41,7 +43,7 @@ function RecordHarness() {
   )
 }
 
-function renderPanelWithRecord({ narrow }: { narrow: boolean }) {
+function renderPanelWithRecord({ narrow, deputyInitiallyOpen = true, recordContent }: { narrow: boolean; deputyInitiallyOpen?: boolean; recordContent?: ReactNode }) {
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
     configurable: true,
@@ -54,14 +56,15 @@ function renderPanelWithRecord({ narrow }: { narrow: boolean }) {
       dispatchEvent: vi.fn(),
     }),
   })
-  localStorage.setItem('mos.assistant.open', 'true')
+  localStorage.setItem('mos.assistant.open', deputyInitiallyOpen ? 'true' : 'false')
   return render(
     <I18nProvider>
       <MemoryRouter>
         <AgentRuntimeProvider runtime={makeFakeRuntime()}>
           <OverlayHostProvider>
-            <RecordHarness />
+            <RecordHarness recordContent={recordContent} />
             <AssistantPanel />
+            <OpenHarness />
           </OverlayHostProvider>
         </AgentRuntimeProvider>
       </MemoryRouter>
@@ -225,6 +228,37 @@ describe('AssistantPanel (T27)', () => {
     fireEvent.keyDown(recordAction, { key: 'Escape' })
     await waitFor(() => expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).not.toBeInTheDocument())
     expect(recordOpener).toHaveFocus()
+  })
+
+  it('OD-REDESIGN-83: Escape cancels an active record field before dismissing Deputy', async () => {
+    const onCommit = vi.fn(async () => {})
+    const titleSpec: RecordFieldSpec = {
+      key: 'title', label: 'Title', control: 'text', value: 'Saved title', displayValue: 'Saved title', editable: true,
+    }
+    renderPanelWithRecord({
+      narrow: false,
+      deputyInitiallyOpen: false,
+      recordContent: <RecordField spec={titleSpec} onCommit={onCommit} />,
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'reopen' }))
+    await waitFor(() => expect(screen.getByRole('complementary', { name: 'Deputy' })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'open record' }))
+    await waitFor(() => expect(document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]')).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Title' }))
+    const input = screen.getByRole('textbox', { name: 'Title' })
+    fireEvent.change(input, { target: { value: 'Unsaved title' } })
+
+    fireEvent.keyDown(input, { key: 'Escape' })
+
+    expect(screen.queryByRole('textbox', { name: 'Title' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Edit Title' })).toHaveTextContent('Saved title')
+    expect(screen.getByRole('complementary', { name: 'Deputy' })).toBeInTheDocument()
+    expect(onCommit).not.toHaveBeenCalled()
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('complementary', { name: 'Deputy' })).toBeNull())
+    expect(onCommit).not.toHaveBeenCalled()
   })
 
   it('does not autofocus a persisted-open Deputy on a cold mount', () => {

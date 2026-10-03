@@ -193,11 +193,10 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
   }
 
   // NATIVE capture-phase Escape isolation (OD-REDESIGN-83.1 / NFR-V3-001).
-  // The shared layer manager runs at document capture and defers when the top record contains
-  // an actively edited field. This input-level native capture then cancels the draft and stops
-  // propagation, so the field consumes its own Escape. Once the field returns to value mode this
-  // listener is gone and the next Escape closes the record. A higher Deputy layer is selected by
-  // the same manager first, so it closes before the record or any editor underneath.
+  // The edit root's nested marker makes the shared document-capture manager yield to this field
+  // before dismissing any higher overlay (including Deputy). This input-level native capture then
+  // cancels the draft and stops propagation. Once the field returns to value mode this listener is
+  // gone, so the next Escape dismisses the still-open top overlay or record.
   const cancelRef = useRef(cancel)
   cancelRef.current = cancel
   const escapeCleanupRef = useRef<(() => void) | null>(null)
@@ -314,7 +313,7 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
 
   // ── Edit mode: the existing control, focused; commit/Escape return to the value view ─────
   return (
-    <div ref={editRootRef} className="record-field" data-field-key={spec.key} data-editable="true" data-mode="edit" data-status={status}>
+    <div ref={editRootRef} className="record-field" data-field-key={spec.key} data-editable="true" data-mode="edit" data-escape-layer="nested" data-status={status}>
       <label className="record-field__label" id={labelId} htmlFor={controlId}>
         {spec.label}
         {spec.required ? <span aria-hidden="true"> *</span> : null}
