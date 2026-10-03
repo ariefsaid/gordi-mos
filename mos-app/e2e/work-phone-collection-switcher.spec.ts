@@ -28,7 +28,7 @@ for (const actor of [
       const current = switcher.getByRole('link', { name: collection.label, exact: true })
       await current.click()
       await expect(page).toHaveURL(new RegExp(`/${collection.path}$`))
-      await expect(current).toHaveAttribute('aria-current', 'page')
+      await expect(current).toHaveAttribute('aria-current', 'location')
       const targetHeights = await switcher.getByRole('link').evaluateAll((links) =>
         links.map((link) => link.getBoundingClientRect().height),
       )
@@ -37,14 +37,14 @@ for (const actor of [
     }
 
     await page.goto('work/tasks')
-    await expect(switcher.getByRole('link', { name: 'Tasks', exact: true })).toHaveAttribute('aria-current', 'page')
+    await expect(switcher.getByRole('link', { name: 'Tasks', exact: true })).toHaveAttribute('aria-current', 'location')
     await expect(page.locator('.task-card-link').first()).toBeVisible()
     await page.mouse.move(PHONE.width + 20, PHONE.height + 20)
     await page.screenshot({ path: info.outputPath(`${actor.name.toLowerCase()}-390-work-tasks.png`), animations: 'disabled' })
 
     await page.setViewportSize(DESKTOP)
     await page.goto('work/tasks')
-    await expect(switcher).toBeHidden()
+    await expect(switcher).toHaveCount(0)
     await expect(page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: /^Signals(,|$)/ })).toBeVisible()
     await expect(page.locator('tr.task-row').first()).toBeVisible()
     await page.mouse.move(DESKTOP.width + 20, DESKTOP.height + 20)

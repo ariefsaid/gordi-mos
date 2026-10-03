@@ -21,6 +21,22 @@ for (const locale of ['en','id']) for (const width of [390,768,1280,1440]) {
         await route.fulfill({response,json:rows})
       })
       await page.goto(`work/${collection}`)
+      const switcher = page.locator('[data-anatomy="work-collection-switcher"]')
+      if (width <= 919) {
+        await expect(switcher).toBeVisible()
+        const targets = await switcher.locator('a').evaluateAll(nodes => nodes.map(el => {
+          const box = el.getBoundingClientRect()
+          return { href: el.getAttribute('href'), width: box.width, height: box.height }
+        }))
+        expect(targets).toHaveLength(4)
+        for (const target of targets) {
+          expect(target.width).toBeGreaterThanOrEqual(44)
+          expect(target.height).toBeGreaterThanOrEqual(44)
+        }
+        await expect(switcher.locator(`[href="/work/${collection}"]`)).toHaveAttribute('aria-current', 'location')
+      } else {
+        await expect(switcher).toHaveCount(0)
+      }
       const rows=page.locator('.catalog-collection__row-link')
       await expect(rows.first()).toBeVisible()
       const dimensions=await rows.evaluateAll(nodes=>nodes.map(el=>({name:el.getAttribute('aria-label')||el.textContent,height:el.getBoundingClientRect().height,width:el.getBoundingClientRect().width})))
@@ -45,21 +61,31 @@ for (const locale of ['en','id']) for (const width of [390,768,1280,1440]) {
       measurements.push({collection,width,locale,rows:dimensions,controls})
       await page.screenshot({animations:'disabled',path:testInfo.outputPath(`${collection}-${locale}-${width}.png`)})
       await rows.first().press('Enter')
-      // The record opens in the shared Work overlay as a NAMED region (section.rp,
-      // data-record-mode="panel", aria-label = record name) headed by the record itself —
-      // not a generic shell/skeleton.
+      // Phone records are canonical full pages with one collection Back; wider layouts keep the
+      // named shared Work panel (section.rp, data-record-mode="panel") headed by the record itself.
       const recordName = String(dimensions[0]?.name ?? '').trim()
       expect(recordName).toBeTruthy()
       const record = page.getByRole('region', { name: recordName, exact: true })
       await expect(record).toBeVisible()
-      await expect(record).toHaveAttribute('data-record-mode', 'panel')
+      await expect(record).toHaveAttribute('data-record-mode', width < 768 ? 'page' : 'panel')
       await expect(page.getByRole('heading', { name: recordName, exact: true })).toBeVisible()
       expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
       await page.screenshot({animations:'disabled',path:testInfo.outputPath(`${collection}-record-${locale}-${width}.png`)})
-      await page.keyboard.press('Escape')
-      await expect(record).not.toBeVisible()
-      await expect(page.locator('[data-overlay-host][data-overlay-owner="work"]')).toHaveCount(0)
-      await expect(rows.first()).toBeFocused()
+      if (width < 768) {
+        await expect(page).toHaveURL(new RegExp(`/work/${collection}/[0-9a-f-]{36}$`))
+        const back = page.locator('.record-page-back')
+        await expect(back).toHaveCount(1)
+        await expect(back).toHaveAttribute('href', new RegExp(`/work/${collection}$`))
+        await back.click()
+        await expect(page).toHaveURL(new RegExp(`/work/${collection}$`))
+        await expect(rows.first()).toBeVisible()
+        await expect(switcher.locator(`[href="/work/${collection}"]`)).toHaveAttribute('aria-current', 'location')
+      } else {
+        await page.keyboard.press('Escape')
+        await expect(record).not.toBeVisible()
+        await expect(page.locator('[data-overlay-host][data-overlay-owner="work"]')).toHaveCount(0)
+        await expect(rows.first()).toBeFocused()
+      }
       await page.unroute(`**/rest/v1/${endpoint}*`)
     }
     writeFileSync(testInfo.outputPath('row-measurements.json'),JSON.stringify(measurements,null,2))
