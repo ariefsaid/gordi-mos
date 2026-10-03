@@ -59,13 +59,11 @@ function onDocumentKeyDown(event: KeyboardEvent) {
 }
 
 function registerEscapeLayer(layer: EscapeLayer): () => void {
-  if (layer.position === 'primary') {
-    // A companion such as Deputy stays above a record even when the record mounts later.
-    const companionIndex = layers.findIndex((entry) => entry.position === 'companion')
-    layers.splice(companionIndex < 0 ? layers.length : companionIndex, 0, layer)
-  } else {
-    layers.push(layer)
-  }
+  // Visual layer priority, not mount order: a late-mounted record stays beneath an open modal.
+  const priority = { primary: 0, companion: 1, normal: 2 } as const
+  const insertAt = layers.findIndex((entry) => priority[entry.position] > priority[layer.position])
+  if (insertAt < 0) layers.push(layer)
+  else layers.splice(insertAt, 0, layer)
   if (!listeningDocument) {
     listeningDocument = document
     listeningDocument.addEventListener('keydown', onDocumentKeyDown, true)
