@@ -104,6 +104,34 @@ describe('ModalShell — one centered interaction contract', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
+  it('consumes Escape when the top modal is non-dismissible', async () => {
+    const user = userEvent.setup()
+    function Fixture() {
+      return (
+        <>
+          <ModalShell open onClose={vi.fn()} ariaLabel="Underlying dialog">
+            <button type="button">Underlying action</button>
+          </ModalShell>
+          <ModalShell open onClose={vi.fn()} ariaLabel="Protected top" closeOnEscape={false}>
+            <button type="button">Protected action</button>
+          </ModalShell>
+        </>
+      )
+    }
+
+    render(<Fixture />)
+    const bubbledEscape = vi.fn()
+    document.addEventListener('keydown', bubbledEscape)
+    try {
+      await user.keyboard('{Escape}')
+      expect(screen.getByRole('dialog', { name: 'Protected top' })).toBeInTheDocument()
+      expect(screen.getByRole('dialog', { name: 'Underlying dialog' })).toBeInTheDocument()
+      expect(bubbledEscape).not.toHaveBeenCalled()
+    } finally {
+      document.removeEventListener('keydown', bubbledEscape)
+    }
+  })
+
   it('focuses an explicit initialFocusRef target instead of the first focusable descendant', async () => {
     function Fixture() {
       const textareaRef = useRef<HTMLTextAreaElement>(null)

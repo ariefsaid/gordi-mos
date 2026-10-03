@@ -144,6 +144,7 @@ export function TaskCreateForm({
           id={titleId}
           ref={titleRef}
           className="tcf-title tap-floor"
+          data-escape-layer="nested"
           rows={1}
           maxLength={TASK_TITLE_MAX_LENGTH}
           value={title}

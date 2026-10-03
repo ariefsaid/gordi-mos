@@ -1599,6 +1599,30 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
       expect(document.activeElement).toBe(row.querySelector('a.task-row-link'))
     })
 
+    it('Escape in a live row title editor discards only that edit while the split record stays open', async () => {
+      const task = makeTask({ id: 'task-live-title', title: 'Live title' })
+      mockListTasks.mockResolvedValue([task])
+      mockGetTask.mockResolvedValue({ task, checklist: [], events: [] })
+      renderAt(['/work/tasks'])
+      await waitFor(() => screen.getByText('Live title'))
+
+      const row = document.querySelector('tr.task-row') as HTMLTableRowElement
+      fireEvent.click(row)
+      const panel = await waitFor(() =>
+        document.querySelector('[data-overlay-host="true"][data-overlay-owner="tasks"]') as HTMLElement,
+      )
+      const titleLink = row.querySelector('a.task-row-link') as HTMLAnchorElement
+      fireEvent.keyDown(titleLink, { key: 'F2' })
+      const titleInput = await screen.findByRole('textbox', { name: 'Edit task title' })
+      fireEvent.change(titleInput, { target: { value: 'Unsaved title draft' } })
+      fireEvent.keyDown(titleInput, { key: 'Escape' })
+
+      expect(panel).toBeInTheDocument()
+      await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Edit task title' })).toBeNull())
+      expect(row.textContent).toContain('Live title')
+      expect(mockUpdateTaskFields).not.toHaveBeenCalled()
+    })
+
     it('Escape after a j/k+Enter open returns focus to the cursor row link', async () => {
       const first = makeTask({ id: 'task-c1', title: 'Cursor one' })
       const second = makeTask({ id: 'task-c2', title: 'Cursor two' })

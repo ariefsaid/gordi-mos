@@ -327,13 +327,42 @@ test.describe('shell overlay transitions', () => {
     await page.screenshot({ path: info.outputPath('deputy-with-record-1440.png'), animations: 'disabled' })
   })
 
-  test('desktop: Tab past Deputy enters the record; Escape closes Deputy before the record', async ({ page }) => {
+  test('desktop: menus, palette, Deputy and record unwind one Escape layer at a time', async ({ page }) => {
     await page.setViewportSize(DESKTOP)
     await loginAs(page, DIRECTOR, DEMO_PASSWORD)
     const taskLink = await openFirstTaskRecord(page)
 
     // Open from the record so close returns focus to the record's own action.
-    await recordPanel(page).getByRole('button', { name: 'More actions', exact: true }).click()
+    const more = recordPanel(page).getByRole('button', { name: 'More actions', exact: true })
+    await more.click()
+    const recordMenu = page.getByRole('menu')
+    const copyLink = recordMenu.getByRole('menuitem', { name: 'Copy link', exact: true })
+    const askDeputy = recordMenu.getByRole('menuitem', { name: 'Ask Deputy', exact: true })
+    const archiveTask = recordMenu.getByRole('menuitem', { name: 'Archive task', exact: true })
+    await expect(copyLink).toBeFocused()
+    await page.keyboard.press('ArrowDown')
+    await expect(askDeputy).toBeFocused()
+    await page.keyboard.press('End')
+    await expect(archiveTask).toBeFocused()
+    await page.keyboard.press('Home')
+    await expect(copyLink).toBeFocused()
+
+    // The menu stays mounted beneath the palette; its document listener must not steal palette arrows.
+    await page.keyboard.press('Meta+k')
+    const palette = page.getByRole('dialog', { name: 'Command menu', exact: true })
+    await expect(palette).toBeVisible()
+    const paletteInput = palette.getByRole('combobox')
+    await expect(paletteInput).toBeFocused()
+    await page.keyboard.press('ArrowDown')
+    await expect(paletteInput).toBeFocused()
+    await page.keyboard.press('Escape')
+    await expect(palette).toHaveCount(0)
+    await expect(recordMenu).toBeVisible()
+    await expect(copyLink).toBeFocused()
+    await page.keyboard.press('Escape')
+    await expect(recordMenu).toHaveCount(0)
+    await expect(more).toBeFocused()
+    await more.click()
     await page.getByRole('menuitem', { name: 'Ask Deputy', exact: true }).click()
     await expect(deputy(page)).toBeVisible()
     await expect.poll(() => page.evaluate(() => {
@@ -359,6 +388,19 @@ test.describe('shell overlay transitions', () => {
     await expect(recordPanel(page)).toBeVisible()
     await expect.poll(() => page.evaluate(() => !!document.querySelector('[data-overlay-host]')?.contains(document.activeElement))).toBe(true)
 
+    await page.keyboard.press('Escape')
+    await expect(recordPanel(page)).toHaveCount(0)
+    await expect(taskLink).toBeFocused()
+
+    // Deputy opened from the shell sits above the record even though its opener is outside it.
+    // After Deputy restores its focus, Escape still reaches the next registered layer: the record.
+    await taskLink.click()
+    await expect(recordPanel(page)).toBeVisible()
+    await deputyButton(page).click()
+    await expect(deputy(page)).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(deputy(page)).toHaveCount(0)
+    await expect(deputyButton(page)).toBeFocused()
     await page.keyboard.press('Escape')
     await expect(recordPanel(page)).toHaveCount(0)
     await expect(taskLink).toBeFocused()

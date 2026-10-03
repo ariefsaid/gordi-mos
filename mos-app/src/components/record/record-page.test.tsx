@@ -1,6 +1,6 @@
 // The shared record page pieces, record-agnostic: they take typed props and know nothing of a kind.
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { RecordFieldSpec } from '@/components/records/record-viewer.types'
@@ -46,6 +46,14 @@ describe('RecordMenu', () => {
     expect(entries[0]).toHaveFocus()
     await user.keyboard('{ArrowDown}')
     expect(entries[1]).toHaveFocus()
+    await user.keyboard('{ArrowUp}')
+    expect(entries[0]).toHaveFocus()
+    await user.keyboard('{ArrowUp}')
+    expect(entries[2]).toHaveFocus()
+    await user.keyboard('{Home}')
+    expect(entries[0]).toHaveFocus()
+    await user.keyboard('{End}')
+    expect(entries[2]).toHaveFocus()
     await user.keyboard('ar')
     expect(entries[2]).toHaveFocus()
     expect(within(menu).getByRole('separator')).toBeInTheDocument()
@@ -73,14 +81,14 @@ describe('RecordMenu', () => {
     }
   })
 
-  it('Tab closes the menu with focus on the trigger, so the browser\'s next Tab stop is the control after it', async () => {
+  it('Tab closes the menu and advances focus to the next control after its trigger', async () => {
     const user = userEvent.setup()
-    render(<RecordMenu items={items} label="More actions" />)
+    render(<><RecordMenu items={items} label="More actions" /><button type="button">Next control</button></>)
     const trigger = screen.getByRole('button', { name: 'More actions' })
     await user.click(trigger)
-    fireEvent.keyDown(screen.getAllByRole('menuitem')[0], { key: 'Tab' })
+    await user.keyboard('{Tab}')
     expect(screen.queryByRole('menu')).toBeNull()
-    expect(trigger).toHaveFocus()
+    expect(screen.getByRole('button', { name: 'Next control' })).toHaveFocus()
   })
 
   it('Escape closes it and gives focus back to the trigger; the destructive item is text, not a fill', async () => {

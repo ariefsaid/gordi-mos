@@ -7,6 +7,7 @@ import { CloseIcon, BackIcon } from './icons'
 import { useT } from '@/i18n/use-t'
 import type { OverlayOwner } from './overlay-navigation'
 import { focusableWithin } from '@/lib/focusable'
+import { useEscapeLayer } from '@/lib/use-escape-layer'
 
 // ONE overlay grammar for records. Every
 // record tenant — Task, Signal, and eventually Inbox/Deputy — mounts its CONTENT through this
@@ -64,10 +65,6 @@ export type RecordPanelHostProps = {
    * already-open record. They become modal only below the 920px shell threshold.
    */
   layout?: 'standard' | 'companion'
-  /** A top companion modal captures Escape before a mounted record underneath can consume it. */
-  escapeCapture?: boolean
-  /** Listen at document scope when a shell companion is the active ambient surface. */
-  escapeOnDocument?: boolean
   /** Marks a shared-host companion without claiming it is the primary overlay session frame. */
   companion?: boolean
 }
@@ -88,7 +85,7 @@ function OpenPageIcon() {
 export function RecordPanelHost({
   label, onClose, closeLabel, children, focusKey, initialFocusRef, title, actions, onOpenPage, rootClassName, style,
   onBack, canGoBack, owner, entryKey, transitionPending, layout = 'standard',
-  escapeCapture = false, escapeOnDocument = false, companion = false, focusOnOpen = true,
+  companion = false, focusOnOpen = true,
 }: RecordPanelHostProps) {
   const isSplit = useIsWideOverlayWidth()
   const isDesktop = useIsDesktop()
@@ -100,6 +97,14 @@ export function RecordPanelHost({
 
   const panelRef = useRef<HTMLElement>(null)
   const invokerRef = useRef<HTMLElement | null>(null)
+  useEscapeLayer(true, panelRef, () => onClose('escape'), {
+    deferEscape: (event) => {
+      const target = event.target
+      return target instanceof Element
+        && !!panelRef.current?.contains(target)
+        && !!target.closest('.record-field[data-mode="edit"]')
+    },
+  }, companion ? 'companion' : 'primary')
 
   // The host outlives stacked-frame swaps; only closing the whole panel returns focus to its opener.
   useEffect(() => {
@@ -178,30 +183,6 @@ export function RecordPanelHost({
     panel.addEventListener('keydown', onTabEdge)
     return () => panel.removeEventListener('keydown', onTabEdge)
   }, [companion, isModal, focusKey])
-
-  // Escape closes in BOTH regimes (plan 2026-07-20-v3-overlay-host Task 4 deliberate change):
-  // Esc returns one navigation level via onClose('escape'), routed through the host's leaveGuard.
-  // Modal listens on the document (it owns the whole screen; focus may rest on body/scrim);
-  // the split regime listens on the panel so only a panel-focused Esc closes and the live page
-  // keeps its own Esc semantics.
-  useEffect(() => {
-    const panel = panelRef.current
-    if (!panel) return
-    const onEsc: EventListener = (e) => {
-      if ((e as KeyboardEvent).key === 'Escape') {
-        if (e.target instanceof Element && e.target.closest('[data-escape-layer="nested"]')) return
-        // OD-REDESIGN-83: on desktop an actively edited record field consumes its own first
-        // Escape. Phone's top modal remains earlier in the capture order and still closes first.
-        if (escapeCapture && !isModal && e.target instanceof Element && e.target.closest('.record-field[data-mode="edit"]')) return
-        e.preventDefault()
-        if (escapeCapture) e.stopImmediatePropagation()
-        onClose('escape')
-      }
-    }
-    const target: Document | HTMLElement = isModal || escapeOnDocument ? document : panel
-    target.addEventListener('keydown', onEsc, escapeCapture)
-    return () => target.removeEventListener('keydown', onEsc, escapeCapture)
-  }, [escapeCapture, escapeOnDocument, isModal, focusKey, onClose])
 
   // Overlay-host oracle: only the OverlayHostSlot sets `owner`, so a bare tenant render
   // (Task/Signal migration compatibility) stays anonymous. `undefined` values are omitted
