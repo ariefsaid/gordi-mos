@@ -7,6 +7,7 @@ vi.mock('../lib/supabase', () => ({
   supabase: {
     auth: {
       signInWithPassword: vi.fn(),
+      signInWithOAuth: vi.fn(),
       signInWithOtp: vi.fn(),
       resetPasswordForEmail: vi.fn(),
       signOut: vi.fn(),
@@ -29,13 +30,83 @@ vi.mock('react-router-dom', async () => {
 })
 
 import { appUrl } from '@/config/app-build-settings'
+import { I18nProvider } from '@/i18n/I18nProvider'
 import { LoginPage } from './login-page'
 import { supabase } from '@/lib/supabase'
 
 const mockSignIn = vi.mocked(supabase.auth.signInWithPassword)
+const mockSignInWithOAuth = vi.mocked(supabase.auth.signInWithOAuth)
 const mockSignInWithOtp = vi.mocked(supabase.auth.signInWithOtp)
 const mockResetPassword = vi.mocked(supabase.auth.resetPasswordForEmail)
 const mockSignOut = vi.mocked(supabase.auth.signOut)
+
+// ── #1276 ── provisioned Google sign-in ────────────────────────────────────
+
+describe('LoginPage — Google sign-in', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    setRememberedRoute(undefined)
+  })
+
+  it('starts Google OAuth with the login callback under the configured app base path', async () => {
+    mockSignInWithOAuth.mockResolvedValue({
+      data: { provider: 'google', url: 'https://auth.example.test' },
+      error: null,
+    })
+
+    const user = userEvent.setup()
+    render(<LoginPage />)
+    await user.click(screen.getByRole('button', { name: 'Continue with Google' }))
+
+    const redirectTo = new URL(appUrl('/login'), window.location.origin)
+    redirectTo.searchParams.set('auth_flow', 'google')
+    expect(mockSignInWithOAuth).toHaveBeenCalledWith({
+      provider: 'google',
+      options: { redirectTo: redirectTo.href },
+    })
+  })
+
+  it('carries the sanitized remembered route through the Google OAuth callback', async () => {
+    setRememberedRoute('/money/detail?w=30d')
+    mockSignInWithOAuth.mockResolvedValue({
+      data: { provider: 'google', url: 'https://auth.example.test' },
+      error: null,
+    })
+
+    const user = userEvent.setup()
+    render(<LoginPage />)
+    await user.click(screen.getByRole('button', { name: 'Continue with Google' }))
+
+    const redirectTo = new URL(appUrl('/login'), window.location.origin)
+    redirectTo.searchParams.set('auth_flow', 'google')
+    redirectTo.searchParams.set('return_to', '/money/detail?w=30d')
+    expect(mockSignInWithOAuth).toHaveBeenCalledWith({
+      provider: 'google',
+      options: { redirectTo: redirectTo.href },
+    })
+  })
+
+  it.each([
+    ['en', 'Google sign-in needs an account your admin has set up with your Google-verified email. Please contact your admin for help.'],
+    ['id', 'Login dengan Google memerlukan akun yang sudah disiapkan admin dengan email Google terverifikasi. Silakan hubungi admin untuk bantuan.'],
+  ] as const)('shows the provisioned-account refusal in %s', async (locale, message) => {
+    const originalLocation = window.location
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { ...originalLocation, search: '?auth_flow=google&error=server_error' },
+    })
+    try {
+      render(
+        <I18nProvider initialLocale={locale}>
+          <LoginPage />
+        </I18nProvider>,
+      )
+      expect(await screen.findByRole('alert')).toHaveTextContent(message)
+    } finally {
+      Object.defineProperty(window, 'location', { configurable: true, value: originalLocation })
+    }
+  })
+})
 
 // ── T-014 ── AC-011 + AC-005 ────────────────────────────────────────────────
 
