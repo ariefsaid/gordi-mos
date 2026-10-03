@@ -21,7 +21,7 @@ import { render, screen, cleanup } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { ThemeProvider } from '@/theme/theme-provider'
-import { SHIP_GATED_PATHS, isShipGated } from '@/lib/ship-gate'
+import { SHIP_GATED_PATHS, isShipGated, isShipGatedInProfile } from '@/lib/ship-gate'
 
 vi.mock('@/auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
@@ -166,6 +166,16 @@ describe('issue 444 ship gate — the route and the nav close from the same swit
     expect(isShipGated('/')).toBe(false)
     // A prefix that is not a path SEGMENT boundary is a different surface, not a child.
     expect(isShipGated('/moneybox')).toBe(false)
+  })
+
+  it('the Cafe profile gates Work paths and aliases but keeps Cafe and shared support routes', () => {
+    for (const path of ['/', '/work', '/work/tasks/t1', '/updates', '/tasks/t1', '/projects-processes']) {
+      expect(isShipGatedInProfile(path, 'cafe'), `${path} should be hidden in the cafe profile`).toBe(true)
+    }
+    for (const path of ['/cafe', '/cafe/plan', '/inbox', '/profile', '/admin/people']) {
+      expect(isShipGatedInProfile(path, 'cafe'), `${path} should remain available in the cafe profile`).toBe(false)
+    }
+    expect(isShipGatedInProfile('/work/tasks', 'full')).toBe(false)
   })
 
   // ── Half one: no gated path routes ───────────────────────────────────────────────────────

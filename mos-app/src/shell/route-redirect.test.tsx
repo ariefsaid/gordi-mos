@@ -37,9 +37,9 @@ describe('RouteRedirect', () => {
     expect(screen.getByTestId('here')).toHaveTextContent('/work/tasks')
   })
 
-  it('FR-016: carries ?view= and ?record= across the hop', () => {
-    renderAt(['/kitchen/log?view=week&record=abc'], '/kitchen/log', '/cafe/log')
-    expect(screen.getByTestId('here')).toHaveTextContent('/cafe/log?view=week&record=abc')
+  it('issue 1239: legacy /cafe/log carries its query to production', () => {
+    renderAt(['/cafe/log?view=week&record=abc'], '/cafe/log', '/cafe/production')
+    expect(screen.getByTestId('here')).toHaveTextContent('/cafe/production?view=week&record=abc')
   })
 
   it('FR-015: substitutes :params, so a record deep link keeps its record', () => {

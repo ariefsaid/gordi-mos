@@ -7,12 +7,30 @@ const ids = (values: readonly string[]) => values.map((id) => `'${id}'`).join(',
 const org = TASKS.VIEWER_ACCOUNTABLE.orgId
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+export const CAFE_WASTE_FIXTURE = {
+  orgId: org,
+  itemId: 'a11e2e00-0000-0000-0000-000000001241',
+  unitId: 'a11e2e00-0000-0000-0000-000000001242',
+  settingId: 'a11e2e00-0000-0000-0000-000000001243',
+  settingUnitId: 'a11e2e00-0000-0000-0000-000000001244',
+  itemName: 'E2E Waste Item',
+} as const
+
 export const fixtureCleanupSql = `
   DELETE FROM mos.task_events WHERE org_id = '${org}' AND task_id IN (${ids(taskIds)});
   DELETE FROM mos.task_checklist_items WHERE org_id = '${org}' AND task_id IN (${ids(taskIds)});
   DELETE FROM mos.tasks WHERE org_id = '${org}' AND id IN (${ids(taskIds)});
   DELETE FROM mos.work_lines WHERE org_id = '${org}' AND id IN (${ids([AC204.launch.id, AC204.loose.id])});
   DELETE FROM mos.objectives WHERE org_id = '${org}' AND id IN (${ids([AC204.objective.id])});
+`
+
+/** Fixed test data cleanup. Private Storage objects are removed through the Storage API first. */
+export const cafeWasteCleanupSql = `
+  DELETE FROM ops.kitchen_logs WHERE org_id = '${CAFE_WASTE_FIXTURE.orgId}' AND wip_item_id = '${CAFE_WASTE_FIXTURE.itemId}';
+  DELETE FROM ops.cafe_item_settings WHERE org_id = '${CAFE_WASTE_FIXTURE.orgId}' AND wip_item_id = '${CAFE_WASTE_FIXTURE.itemId}';
+  DELETE FROM ops.stream_items WHERE org_id = '${CAFE_WASTE_FIXTURE.orgId}' AND wip_item_id = '${CAFE_WASTE_FIXTURE.itemId}';
+  DELETE FROM ops.item_units WHERE org_id = '${CAFE_WASTE_FIXTURE.orgId}' AND wip_item_id = '${CAFE_WASTE_FIXTURE.itemId}';
+  DELETE FROM ops.wip_items WHERE org_id = '${CAFE_WASTE_FIXTURE.orgId}' AND id = '${CAFE_WASTE_FIXTURE.itemId}';
 `
 
 /** Fail closed before transport if a hook adds a delete outside the fixed fixture boundary. */
@@ -103,12 +121,14 @@ export const E2E_CLEANUP_REGISTRY = {
   'AC-018-objective-writeup.spec.ts': 'fixed-objective-id',
   'AC-020-catalog.spec.ts': 'captured-objective-id-and-fixed-task-id',
   'AC-090-kitchen-log-approve.spec.ts': 'fixed-item-id',
+  'cafe-waste-review.spec.ts': 'fixed-waste-item-id-with-storage-api-cleanup',
   'AC-134.spec.ts': 'fixed-task-ids',
   'AC-230.spec.ts': 'fixed-task-and-work-line-ids',
   'AC-411-catalog-manage-mode.spec.ts': 'fixed-catalog-ids',
   'AC-430-post-a-signal.spec.ts': 'captured-signal-ids',
   'AC-524-follow-up.spec.ts': 'fixed-follow-up-ids',
   'AC-744-cafe-write-gate.spec.ts': 'fixed-item-id',
+  'AC-1242-cafe-unit-wiring.spec.ts': 'fixed-item-unit-plan-and-captured-log-batch-ids',
   'AC-PB-012-budget-pricing-preflight.spec.ts': 'captured-budget-id',
   'account-language.spec.ts': 'fixed-person-ids',
   'authority-settings-roundtrip.spec.ts': 'captured-tenant-ids',
@@ -188,7 +208,11 @@ function executableSqlOnly(sql: string): string {
 export function assertFixtureSqlSafe(query: string): void {
   const normalize = (sql: string) => sql.trim().replace(/\s+/g, ' ').toLowerCase()
   const executableSql = executableSqlOnly(query)
-  const allowed = new Set(fixtureCleanupSql.split(';').filter((sql) => sql.trim()).map(normalize))
+  const allowed = new Set(
+    [...fixtureCleanupSql.split(';'), ...cafeWasteCleanupSql.split(';')]
+      .filter((sql) => sql.trim())
+      .map(normalize),
+  )
   const uuid = "'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'"
   const uuidList = `${uuid}(?:, ${uuid})*`
   const capturedRowDeletes = [

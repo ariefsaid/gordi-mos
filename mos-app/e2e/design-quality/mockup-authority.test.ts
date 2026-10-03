@@ -13,7 +13,7 @@ const exactTasksAuthority = {
   path: `${repoRoot}/docs/mockups/tasks-desktop.png`,
   authority: 'owner decision',
   requiredRegions: [],
-  route: '/mos/work/tasks',
+  route: '/work/tasks',
   viewport: '1440x900',
   cellId: 'tasks-default-desktop',
   fixture: 'VIEWER',
@@ -51,7 +51,7 @@ test('rejects malformed requiredRegions instead of silently disabling region che
 
 test('rejects an authority binding when a declared dimension disagrees with its cellId', () => {
   const mismatches = {
-    route: '/mos/inbox',
+    route: '/inbox',
     viewport: '390x844',
     fixture: 'BAR_MEMBER',
     theme: 'dark',

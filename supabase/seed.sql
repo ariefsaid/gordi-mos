@@ -483,66 +483,9 @@ insert into ops.wip_items (id, org_id, name, category) values
   ('a1100000-0000-0000-0000-000000000020', '10000000-0000-0000-0000-000000000001', 'Balado Cumi Asin', 'Seafood')
 on conflict (id) do nothing;
 
--- ── The HQ streams' items, from the ERP's production record ─────────────────────────────────
--- Names are the ERP's own, verbatim; the category is the ERP's KITCHEN/BAR sub-category. The
--- Rumah Rames roster above already covers that branch, so only HQ's items are added here.
-insert into ops.wip_items (id, org_id, name, category) values
-  ('a1200000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'Butterscotch Homemade', 'Bar'),
-  ('a1200000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', 'Can Aren Latte', 'Bar'),
-  ('a1200000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000001', 'Can Black Honey Citrus', 'Bar'),
-  ('a1200000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000001', 'Can Chocolate', 'Bar'),
-  ('a1200000-0000-0000-0000-000000000005', '10000000-0000-0000-0000-000000000001', 'Can Earl Grey', 'Bar'),
-  ('a1200000-0000-0000-0000-000000000006', '10000000-0000-0000-0000-000000000001', 'Can Ice Black', 'Bar'),
-  ('a1200000-0000-0000-0000-000000000007', '10000000-0000-0000-0000-000000000001', 'Can Ice White No Sugar', 'Bar'),
-  ('a1200000-0000-0000-0000-000000000008', '10000000-0000-0000-0000-000000000001', 'Can Ice White Sweet', 'Bar'),
-  ('a1200000-0000-0000-0000-000000000009', '10000000-0000-0000-0000-000000000001', 'Can Lotus Biscoff Ice Latte', 'Bar'),
-  ('a1200000-0000-0000-0000-00000000000a', '10000000-0000-0000-0000-000000000001', 'Can Passion Lemonade', 'Bar'),
-  ('a1200000-0000-0000-0000-00000000000b', '10000000-0000-0000-0000-000000000001', 'Can Raspberry Choco', 'Bar'),
-  ('a1200000-0000-0000-0000-00000000000c', '10000000-0000-0000-0000-000000000001', 'Can White Oatly', 'Bar'),
-  ('a1200000-0000-0000-0000-00000000000d', '10000000-0000-0000-0000-000000000001', 'Earlgrey Based', 'Bar'),
-  ('a1200000-0000-0000-0000-00000000000e', '10000000-0000-0000-0000-000000000001', 'Earlgrey Tea Based', 'Bar'),
-  ('a1200000-0000-0000-0000-00000000000f', '10000000-0000-0000-0000-000000000001', 'Lemon Based', 'Bar'),
-  ('a1200000-0000-0000-0000-000000000010', '10000000-0000-0000-0000-000000000001', 'Acar - Gordi', 'Kitchen'),
-  ('a1200000-0000-0000-0000-000000000011', '10000000-0000-0000-0000-000000000001', 'Adonan French Toast', 'Kitchen'),
-  ('a1200000-0000-0000-0000-000000000012', '10000000-0000-0000-0000-000000000001', 'Aioli Dressing', 'Kitchen'),
-  ('a1200000-0000-0000-0000-000000000013', '10000000-0000-0000-0000-000000000001', 'BOM - Bumbu Sate', 'Kitchen'),
-  ('a1200000-0000-0000-0000-000000000014', '10000000-0000-0000-0000-000000000001', 'Beef Patty', 'Kitchen'),
-  ('a1200000-0000-0000-0000-000000000015', '10000000-0000-0000-0000-000000000001', 'Benedict Style Sauce - NEW', 'Kitchen'),
-  ('a1200000-0000-0000-0000-000000000016', '10000000-0000-0000-0000-000000000001', 'Buldak Sauce', 'Kitchen'),
-  ('a1200000-0000-0000-0000-000000000017', '10000000-0000-0000-0000-000000000001', 'Bumbu Nasi Goreng', 'Kitchen'),
-  ('a1200000-0000-0000-0000-000000000018', '10000000-0000-0000-0000-000000000001', 'Buttermilk Chicken Popcorn', 'Kitchen'),
-  ('a1200000-0000-0000-0000-000000000019', '10000000-0000-0000-0000-000000000001', 'Chicken Karaage Matrix', 'Kitchen'),
-  ('a1200000-0000-0000-0000-00000000001a', '10000000-0000-0000-0000-000000000001', 'Coleslaw - Gordi', 'Kitchen'),
-  ('a1200000-0000-0000-0000-00000000001b', '10000000-0000-0000-0000-000000000001', 'Creamy Cheese Sauce', 'Kitchen'),
-  ('a1200000-0000-0000-0000-00000000001c', '10000000-0000-0000-0000-000000000001', 'Garlic Confit Gordi', 'Kitchen'),
-  ('a1200000-0000-0000-0000-00000000001d', '10000000-0000-0000-0000-000000000001', 'Grain Mustard Cream - NEW', 'Kitchen'),
-  ('a1200000-0000-0000-0000-00000000001e', '10000000-0000-0000-0000-000000000001', 'Gyudon Sauce', 'Kitchen'),
-  ('a1200000-0000-0000-0000-00000000001f', '10000000-0000-0000-0000-000000000001', 'Herb Chicken', 'Kitchen'),
-  ('a1200000-0000-0000-0000-000000000020', '10000000-0000-0000-0000-000000000001', 'Honey Dressing', 'Kitchen'),
-  ('a1200000-0000-0000-0000-000000000021', '10000000-0000-0000-0000-000000000001', 'Honey Mustard', 'Kitchen'),
-  ('a1200000-0000-0000-0000-000000000022', '10000000-0000-0000-0000-000000000001', 'Karaage Sauce', 'Kitchen'),
-  ('a1200000-0000-0000-0000-000000000023', '10000000-0000-0000-0000-000000000001', 'Kecap Nasi Goreng', 'Kitchen'),
-  ('a1200000-0000-0000-0000-000000000024', '10000000-0000-0000-0000-000000000001', 'Lemon Dressing', 'Kitchen'),
-  ('a1200000-0000-0000-0000-000000000025', '10000000-0000-0000-0000-000000000001', 'Marinated Half Chicken', 'Kitchen'),
-  ('a1200000-0000-0000-0000-000000000026', '10000000-0000-0000-0000-000000000001', 'Mashed Avocado - New', 'Kitchen'),
-  ('a1200000-0000-0000-0000-000000000027', '10000000-0000-0000-0000-000000000001', 'Mushroom Sauce', 'Kitchen'),
-  ('a1200000-0000-0000-0000-000000000028', '10000000-0000-0000-0000-000000000001', 'Nanban Sauce', 'Kitchen'),
-  ('a1200000-0000-0000-0000-000000000029', '10000000-0000-0000-0000-000000000001', 'Olesan Big Burger (new)', 'Kitchen'),
-  ('a1200000-0000-0000-0000-00000000002a', '10000000-0000-0000-0000-000000000001', 'Onion Jam', 'Kitchen'),
-  ('a1200000-0000-0000-0000-00000000002b', '10000000-0000-0000-0000-000000000001', 'Pancake Batter', 'Kitchen'),
-  ('a1200000-0000-0000-0000-00000000002c', '10000000-0000-0000-0000-000000000001', 'Pomodoro Sauce', 'Kitchen'),
-  ('a1200000-0000-0000-0000-00000000002d', '10000000-0000-0000-0000-000000000001', 'Salsa Sauce', 'Kitchen'),
-  ('a1200000-0000-0000-0000-00000000002e', '10000000-0000-0000-0000-000000000001', 'Sambal Matah', 'Kitchen'),
-  ('a1200000-0000-0000-0000-00000000002f', '10000000-0000-0000-0000-000000000001', 'Sauce Bolognese', 'Kitchen'),
-  ('a1200000-0000-0000-0000-000000000030', '10000000-0000-0000-0000-000000000001', 'Sauce Iga Bakar', 'Kitchen'),
-  ('a1200000-0000-0000-0000-000000000031', '10000000-0000-0000-0000-000000000001', 'Sop Iga', 'Kitchen'),
-  ('a1200000-0000-0000-0000-000000000032', '10000000-0000-0000-0000-000000000001', 'Spicy Mayo', 'Kitchen'),
-  ('a1200000-0000-0000-0000-000000000033', '10000000-0000-0000-0000-000000000001', 'Steam Rice', 'Kitchen'),
-  ('a1200000-0000-0000-0000-000000000034', '10000000-0000-0000-0000-000000000001', 'Strawberry Jam', 'Kitchen'),
-  ('a1200000-0000-0000-0000-000000000035', '10000000-0000-0000-0000-000000000001', 'Tar-tar Sauce', 'Kitchen'),
-  ('a1200000-0000-0000-0000-000000000036', '10000000-0000-0000-0000-000000000001', 'Teriyaki Sauce', 'Kitchen'),
-  ('a1200000-0000-0000-0000-000000000037', '10000000-0000-0000-0000-000000000001', 'White Cream Sauce', 'Kitchen')
-on conflict (id) do nothing;
+-- Real café catalog rows are loaded from the private data repository. Local seed uses synthetic
+-- references supplied to the same refresh function below.
+
 
 -- ── Their CONFIRMED default unit — what puts them on a capture form (#238) ───────────────────
 -- Since #232 the capture form reads ops.capture_form_items, which returns only item-units whose
@@ -570,18 +513,11 @@ select w.org_id, w.id, 'porsi',
        true, now()
 from ops.wip_items w
 where w.org_id = '10000000-0000-0000-0000-000000000001'
-on conflict (wip_item_id, unit_name) do nothing;
+on conflict (wip_item_id, esb_product_detail_id)
+  where esb_product_detail_id is not null do nothing;
 
--- ── Stream item lists (#222) — which items each stream offers, from the ERP's production record ─
--- Lists come from the ERP side: Rumah Rames kitchen lists the seed dishes on the kitchen app's live
--- roster (ERP-coordinated, posting daily); Radiant kitchen and Gordi HQ list what the ERP's production
--- records name for them (its "WIP - " prefix aside). Nasi Putih is one item on two lists. Streams with
--- neither source — the Rumah Rames, Radiant and Cikal bars — have an empty list and show the empty state.
-insert into ops.stream_items (org_id, branch_id, activity, wip_item_id, source)
-select w.org_id, '25000000-0000-0000-0000-000000000001', lower(w.category), w.id, 'esb'
-from ops.wip_items w
-where w.org_id = '10000000-0000-0000-0000-000000000001' and w.id::text like 'a1200000-%'
-on conflict (org_id, branch_id, activity, wip_item_id) do nothing;
+-- ── Stream item lists (#222) — synthetic dev membership plus source-driven references ─────────
+-- Public dev seed membership uses synthetic rows only; the private snapshot loader runs separately.
 insert into ops.stream_items (org_id, branch_id, activity, wip_item_id, source) values
   ('10000000-0000-0000-0000-000000000001', '25000000-0000-0000-0000-000000000002', 'kitchen', 'a1100000-0000-0000-0000-000000000001', 'esb'),
   ('10000000-0000-0000-0000-000000000001', '25000000-0000-0000-0000-000000000002', 'kitchen', 'a1100000-0000-0000-0000-000000000003', 'esb'),
@@ -647,6 +583,25 @@ on conflict (org_id, log_date, wip_item_id, branch_id, activity, action, destina
 delete from ops.stream_items
 where org_id = '10000000-0000-0000-0000-000000000001' and branch_id = '25000000-0000-0000-0000-000000000002'
   and activity = 'kitchen' and wip_item_id = 'a1100000-0000-0000-0000-000000000002';
+
+-- Synthetic-only source rows exercise the same refresh contract without exposing the private ERP catalog.
+select ops.refresh_cafe_item_references(
+  $cafe_seed_1240$[
+    {"esb_product_id":"DEV-ERP-P-1240-RAW","esb_product_detail_id":"DEV-ERP-PD-1240-RAW-A","name":"Synthetic RAW Sample","category":"Kitchen","unit_name":"DEV-ERP-UNIT","erp_category_type_name":"Inventory","is_stock":true,"has_active_bom_output":false,"is_active":true,"branch_code":null},
+    {"esb_product_id":"DEV-ERP-P-1240-RAW","esb_product_detail_id":"DEV-ERP-PD-1240-RAW-B","name":"Synthetic RAW Sample","category":"Kitchen","unit_name":"DEV-ERP-UNIT","erp_category_type_name":"Inventory","is_stock":true,"has_active_bom_output":false,"is_active":true,"branch_code":null},
+    {"esb_product_id":"DEV-ERP-P-1240-WIP","esb_product_detail_id":"DEV-ERP-PD-1240-WIP","name":"Synthetic WIP Sample","category":"Bar","unit_name":"DEV-ERP-UNIT","erp_category_type_name":"Inventory","is_stock":false,"has_active_bom_output":true,"is_active":true,"branch_code":"gordi_hq"}
+  ]$cafe_seed_1240$::jsonb
+);
+-- The synthetic WIP reference is capture-form eligible in dev; confirming its ERP detail creates no MOS default or conversion.
+update ops.item_units unit
+   set confirmed_at = now()
+  from ops.wip_items item
+ where item.id = unit.wip_item_id
+   and item.org_id = unit.org_id
+   and item.org_id = '10000000-0000-0000-0000-000000000001'
+   and item.esb_product_id = 'DEV-ERP-P-1240-WIP'
+   and unit.esb_product_detail_id = 'DEV-ERP-PD-1240-WIP'
+   and unit.confirmed_at is null;
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- reporting — the Plan-destination COGS read-models (ADR-0022 D2/D6, ADR-0010)

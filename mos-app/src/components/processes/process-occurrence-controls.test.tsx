@@ -134,35 +134,71 @@ describe('ProcessOccurrenceControls', () => {
     renderControls(WORK_LINE_ID, true)
 
     expect(await screen.findByRole('note')).toHaveTextContent('Ask a Process manager to add and activate at least one step before starting a run.')
-    expect(screen.getByText('No occurrences have been started yet.')).toBeInTheDocument()
+    expect(screen.queryByText('No occurrences have been started yet.')).toBeNull()
   })
 
-  it('gives a manager a direct recovery path to the Steps tab', async () => {
+  it('leaves setup guidance to the record Get started region for a manager', async () => {
     mockListOccurrences.mockResolvedValue([])
     mockListStartable.mockResolvedValue([])
     renderControls(WORK_LINE_ID, true, true)
 
-    expect(await screen.findByRole('note')).toHaveTextContent('Add a step first, then start a run.')
+    await waitFor(() => expect(screen.queryByRole('status', { name: 'Loading occurrences' })).toBeNull())
+    expect(screen.queryByRole('note')).toBeNull()
+    expect(screen.queryByText('No occurrences have been started yet.')).toBeNull()
   })
 
-  it('shows the owning Team, task/overdue/to-assign counts, View tasks, and member Start', async () => {
+  it('shows the owning Team, task/overdue/to-assign counts, View tasks, and descriptive ready rows', async () => {
     renderControls()
 
-    expect(await screen.findByText('Café Operations')).toBeInTheDocument()
-    expect(screen.getByText('Café Operations · 17 Jul 2026 · Open')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Ready to start' })).toBeInTheDocument()
+    const ready = document.querySelector('.process-occurrence-controls__start') as HTMLElement
+    expect(await within(ready).findByText('18 Jul 2026')).toBeInTheDocument()
+    expect(screen.getByText('Café Operations')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 4, name: '17 Jul 2026' })).toBeInTheDocument()
+    expect(screen.getByText('Café Operations · Open')).toBeInTheDocument()
     expect(screen.getByText('3 tasks')).toBeInTheDocument()
     expect(screen.getByText('1 overdue')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '1 to assign' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'View tasks' })).toHaveAttribute('href', `/work/tasks?occurrence=${RUN_ID}`)
-    expect(screen.getByRole('button', { name: 'Start · Café Operations' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /start/i })).toBeNull()
+    expect(mockStartRun).not.toHaveBeenCalled()
+  })
 
-    await userEvent.click(screen.getByRole('button', { name: 'Start · Café Operations' }))
-    expect(mockStartRun).toHaveBeenCalledWith(WORK_LINE_ID, TEAM_ID, '2026-07-18')
+  it('keeps the Process title out of occurrence rows and leaves Start to the record header', async () => {
+    mockListOccurrences.mockResolvedValue([RUN])
+    renderControls()
+
+    expect(await screen.findByRole('heading', { level: 4, name: '17 Jul 2026' })).toBeInTheDocument()
+    expect(screen.queryByText('Café Opening · 17 Jul 2026')).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Occurrences' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /start/i })).toBeNull()
+    expect(screen.getByText('Café Operations · Open')).toBeInTheDocument()
+  })
+
+  it('keeps cancelled runs in a collapsed Past occurrences disclosure, separate from Ready to start', async () => {
+    const cancelled = {
+      ...RUN,
+      run: { ...RUN.run, status: 'cancelled' as const, cancelled_at: '2026-07-17T10:00:00Z', cancelled_by: VIEWER_ID, cancel_reason: 'Merged into the event.' },
+      rollup: { ...RUN.rollup, status: 'cancelled' as const },
+    }
+    mockListOccurrences.mockResolvedValue([cancelled])
+    renderControls()
+
+    await screen.findByRole('heading', { name: 'Ready to start' })
+    const ready = document.querySelector('.process-occurrence-controls__start') as HTMLElement
+    expect(await within(ready).findByText('Café Operations')).toBeInTheDocument()
+    expect(within(ready).queryByText('Cancelled')).toBeNull()
+    const history = screen.getByRole('button', { name: /Past occurrences/ })
+    expect(history).toHaveTextContent('1')
+    expect(screen.queryByText('Café Operations · Cancelled')).toBeNull()
+    await userEvent.click(history)
+    expect(await screen.findByRole('heading', { level: 4, name: '17 Jul 2026' })).toBeInTheDocument()
+    expect(screen.getByText('Café Operations · Cancelled')).toBeInTheDocument()
   })
 
   // #805: no Process-to-Team relation exists, so the start list is narrowed to the viewer's own
   // Teams when they have any among the offered ones; otherwise the server-filtered list stands.
-  it('offers Start only for the viewer\'s own Teams, not every Team the server allows', async () => {
+  it('lists only the viewer\'s own Teams as ready contexts, not every Team the server allows', async () => {
     mockListStartable.mockResolvedValue([
       DUE,
       { ...DUE, owning_team_id: 'team-2', team_name: 'Marketing' },
@@ -171,20 +207,23 @@ describe('ProcessOccurrenceControls', () => {
     mockViewerTeams.mockResolvedValue([{ id: TEAM_ID } as Awaited<ReturnType<typeof listCafeViewerTeams>>[number]])
     renderControls()
 
-    expect(await screen.findByRole('button', { name: 'Start · Café Operations' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Start · Marketing' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Start · Finance' })).not.toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Ready to start' })).toBeInTheDocument()
+    expect(screen.getByText('Café Operations')).toBeInTheDocument()
+    expect(screen.queryByText('Marketing')).not.toBeInTheDocument()
+    expect(screen.queryByText('Finance')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /start/i })).toBeNull()
   })
 
-  it('keeps the server list when the viewer holds none of the offered Teams', async () => {
+  it('keeps the server ready-context list when the viewer holds none of the offered Teams', async () => {
     mockListStartable.mockResolvedValue([
       DUE,
       { ...DUE, owning_team_id: 'team-2', team_name: 'Marketing' },
     ])
     renderControls()
 
-    expect(await screen.findByRole('button', { name: 'Start · Café Operations' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Start · Marketing' })).toBeInTheDocument()
+    expect(await screen.findByText('Café Operations')).toBeInTheDocument()
+    expect(screen.getByText('Marketing')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /start/i })).toBeNull()
   })
 
   it('reuses the existing pending-resolution dialog when a capable viewer opens to-assign', async () => {
@@ -210,9 +249,42 @@ describe('ProcessOccurrenceControls', () => {
     }])
     renderControls()
 
-    expect(await screen.findByText('Café Opening · 17 Jul 2026')).toBeInTheDocument()
+    const past = await screen.findByRole('button', { name: /Past occurrences/ })
+    expect(past).toHaveAttribute('aria-expanded', 'false')
+    await userEvent.click(past)
+    expect(await screen.findByRole('heading', { level: 4, name: '17 Jul 2026' })).toBeInTheDocument()
     expect(screen.getByText('1 to assign')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '1 to assign' })).not.toBeInTheDocument()
+  })
+
+  it('uses singular task wording for a one-task occurrence', async () => {
+    mockListOccurrences.mockResolvedValue([{
+      ...RUN,
+      rollup: { ...RUN.rollup, total: 1, open: 1, done: 0, completion_pct: 0 },
+    }])
+    renderControls()
+
+    expect(await screen.findByText('1 task')).toBeInTheDocument()
+    expect(screen.queryByText('1 tasks')).not.toBeInTheDocument()
+  })
+
+  it('keeps Complete secondary and Cancel quiet when another run is ready', async () => {
+    renderControls()
+    const complete = await screen.findByRole('button', { name: 'Complete occurrence' })
+    const cancel = screen.getByRole('button', { name: 'Cancel occurrence' })
+    expect(complete).toHaveClass('btn-outline')
+    expect(complete).not.toHaveClass('btn-primary')
+    expect(cancel).toHaveClass('btn-ghost')
+    expect(cancel).not.toHaveClass('btn-destructive')
+  })
+
+  it('keeps Complete primary when the open run is the only available action', async () => {
+    mockListStartable.mockResolvedValue([])
+    renderControls()
+
+    const complete = await screen.findByRole('button', { name: 'Complete occurrence' })
+    expect(complete).toHaveClass('btn-primary')
+    expect(complete).not.toHaveClass('btn-outline')
   })
 
   it('uses the runtime close authority for an open occurrence', async () => {
@@ -224,7 +296,7 @@ describe('ProcessOccurrenceControls', () => {
     mockCanCloseProcessRun.mockResolvedValue(false)
     mockUseAuth.mockReturnValue(auth('another-person', ['member']))
     const memberView = renderControls()
-    expect(await screen.findByText('Café Opening · 17 Jul 2026')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 4, name: '17 Jul 2026' })).toBeInTheDocument()
     expect(screen.queryAllByRole('button', { name: 'Complete occurrence' })).toHaveLength(0)
     memberView.unmount()
 
@@ -248,7 +320,7 @@ describe('ProcessOccurrenceControls', () => {
     renderControls()
 
     expect(await screen.findByRole('button', { name: 'Complete occurrence' })).toBeInTheDocument()
-    expect(screen.getByText('Café Closing · 18 Jul 2026')).toBeInTheDocument()
+    expect(screen.getByText('Café Closing · Open')).toBeInTheDocument()
     expect(screen.getByRole('alert')).toHaveTextContent("Couldn't check occurrence permissions")
     expect(screen.getAllByRole('button', { name: 'Complete occurrence' })).toHaveLength(1)
 
@@ -265,7 +337,7 @@ describe('ProcessOccurrenceControls', () => {
     mockListOccurrences.mockResolvedValue([{ ...RUN, run: { ...RUN.run, started_by: null } }])
     renderControls()
 
-    expect(await screen.findByText('Café Opening · 17 Jul 2026')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 4, name: '17 Jul 2026' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Complete occurrence' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Cancel occurrence' })).not.toBeInTheDocument()
   })
@@ -273,19 +345,19 @@ describe('ProcessOccurrenceControls', () => {
   it('ignores an older occurrence load after the work line changes', async () => {
     const oldLoad = deferred<ProcessOccurrenceSummary[]>()
     const newLoad = deferred<ProcessOccurrenceSummary[]>()
-    const oldRun = { ...RUN, run: { ...RUN.run, work_line_id: 'work-line-a', caption: 'Line A occurrence' } }
-    const newRun = { ...RUN, run: { ...RUN.run, work_line_id: 'work-line-b', caption: 'Line B occurrence' } }
+    const oldRun = { ...RUN, team_name: 'Line A occurrence', run: { ...RUN.run, work_line_id: 'work-line-a' } }
+    const newRun = { ...RUN, team_name: 'Line B occurrence', run: { ...RUN.run, work_line_id: 'work-line-b' } }
     mockListOccurrences.mockImplementation((workLineId) => workLineId === 'work-line-a' ? oldLoad.promise : newLoad.promise)
     mockListStartable.mockResolvedValue([])
     const view = renderControls('work-line-a')
     view.rerender(controlsTree('work-line-b'))
 
     await act(async () => { newLoad.resolve([newRun]); await newLoad.promise })
-    expect(await screen.findByText('Line B occurrence')).toBeInTheDocument()
+    expect(await screen.findByText('Line B occurrence · Open')).toBeInTheDocument()
 
     await act(async () => { oldLoad.resolve([oldRun]); await oldLoad.promise })
-    await waitFor(() => expect(screen.queryByText('Line A occurrence')).not.toBeInTheDocument())
-    expect(screen.getByText('Line B occurrence')).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByText('Line A occurrence · Open')).not.toBeInTheDocument())
+    expect(screen.getByText('Line B occurrence · Open')).toBeInTheDocument()
   })
 
   it('ignores a late pending-assignment response after switching occurrence dialogs', async () => {

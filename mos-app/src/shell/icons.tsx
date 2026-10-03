@@ -493,7 +493,29 @@ export function MoreIcon() {
 // by the GEOMETRY each mark draws (`glyph-shape.ts`) rather than by its markup — a mark re-spelled
 // into a `<g>`, a `<rect>` or a different path syntax collides with its twin all the same.
 
-// LogIcon — tally marks, the Café Log capture screen: recording how much was actually made.
+// TodayIcon — calendar clock for the Café's current-day floor overview.
+export function TodayIcon() {
+  return (
+    <svg
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M7 3v3M17 3v3M4 9h16" />
+      <path d="M5 5h14a1 1 0 0 1 1 1v13H4V6a1 1 0 0 1 1-1Z" />
+      <circle cx="12" cy="14" r="3" />
+      <path d="M12 12.5V14l1.1.8" />
+    </svg>
+  )
+}
+
+// LogIcon — tally marks, the Café production log: recording how much was actually made.
 export function LogIcon() {
   return (
     <svg
@@ -514,6 +536,46 @@ export function LogIcon() {
   )
 }
 
+// TransferIcon — paired routes carrying goods between Café destinations.
+export function TransferIcon() {
+  return (
+    <svg
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M4 8h15l-3-3M19 8l-3 3" />
+      <path d="M20 16H5l3 3M5 16l3-3" />
+    </svg>
+  )
+}
+
+// WasteIcon — a held evidence log: the Café waste capture screen never pushes to ERP.
+export function WasteIcon() {
+  return (
+    <svg
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M4 7h16M9 7V4h6v3M7 7l1 14h8l1-14" />
+      <path d="M10 11v6M14 11v6" />
+    </svg>
+  )
+}
+
 // PlanIcon — a planted flag, the Café Plan screen: the quantities intended before the day starts.
 export function PlanIcon() {
   return (
@@ -530,6 +592,28 @@ export function PlanIcon() {
     >
       <path d="M6 21V4" />
       <path d="M6 5h12l-2.5 4L18 13H6z" />
+    </svg>
+  )
+}
+
+// ItemsIcon — three distinct catalogue rows, the Café item-settings reference screen.
+export function ItemsIcon() {
+  return (
+    <svg
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="5" cy="6" r="1" />
+      <circle cx="5" cy="12" r="1" />
+      <circle cx="5" cy="18" r="1" />
+      <path d="M10 6h9M10 12h9M10 18h9" />
     </svg>
   )
 }

@@ -24,6 +24,7 @@ vi.mock('@/lib/db/branches', () => {
   return { listActiveBranches: vi.fn().mockResolvedValue([branch]) }
 })
 vi.mock('@/lib/db/default-stream', () => ({ fetchDefaultStream: vi.fn().mockResolvedValue(null) }))
+vi.mock('@/lib/db/cafe-item-settings', () => ({ listCafeItemSettings: vi.fn().mockResolvedValue([]) }))
 vi.mock('@/lib/db/kitchen-logs', async () => {
   const actual = await vi.importActual<typeof import('@/lib/db/kitchen-logs')>('@/lib/db/kitchen-logs')
   return { ...actual,

@@ -6,7 +6,7 @@
 // opens the Log and submits one line. The line lands Submitted with submitted_by pinned to their
 // own person id (the help-out rule intact: they could have logged into ANY stream).
 //
-// ACT 2 — Sales (sari.dev, unaffiliated: her only Team is org-structure) opens /cafe/log: the
+// ACT 2 — Sales (sari.dev, unaffiliated: her only Team is org-structure) opens /cafe/production: the
 // capture form's rows stay visible (read-only, never hidden — OD-WAY-51), no submit control is
 // enabled, and one line states why. The hard refusal behind this screen is owned by the pgTAP
 // suite (ops_09); this journey proves the presentation of the same rule on the real stack.
@@ -99,7 +99,9 @@ test.describe('AC-744  AC-008: the Café write gate — barista submits, Sales c
       ON CONFLICT (id) DO UPDATE SET flag_active = true;
       INSERT INTO ops.item_units (org_id, wip_item_id, unit_name, esb_product_detail_id, esb_product_id, is_default, is_transferable, confirmed_at)
       VALUES ('${ORG}', '${ITEM_ID}', '${UNIT_NAME}', 'PD-E2E-744', 'P-E2E-744', true, true, now())
-      ON CONFLICT (wip_item_id, unit_name) DO UPDATE SET confirmed_at = now();
+      ON CONFLICT (wip_item_id, esb_product_detail_id)
+        WHERE esb_product_detail_id IS NOT NULL
+      DO UPDATE SET confirmed_at = now();
       INSERT INTO ops.stream_items (org_id, branch_id, activity, wip_item_id, source)
       VALUES ('${ORG}', ${BRANCH_SQL}, '${BAR_STREAM.activity}', '${ITEM_ID}', 'manual')
       ON CONFLICT (org_id, branch_id, activity, wip_item_id) DO NOTHING;
@@ -129,9 +131,8 @@ test.describe('AC-744  AC-008: the Café write gate — barista submits, Sales c
       page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: /Café/ }),
     ).toBeVisible({ timeout: 15_000 })
 
-    await page.goto('cafe/log')
-    // DD-MVP-17: /cafe/log aliases the Café root — the Today capture surface itself.
-    await page.waitForURL(/\/cafe$/, { timeout: 15_000 })
+    await page.goto('cafe/production')
+    await page.waitForURL(/\/cafe\/production$/, { timeout: 15_000 })
     // DD-MVP-11: location precedes stream. BAR_MEMBER has exactly one resolvable stream team
     // (Rumah Rames bar), so this resolves without asking — a no-op past that check, kept so the
     // journey still holds if that ever stops being true.
@@ -173,9 +174,8 @@ test.describe('AC-744  AC-008: the Café write gate — barista submits, Sales c
     await page.waitForTimeout(500)
     await loginAs(page, SALES.email, SALES.password)
 
-    await page.goto('cafe/log')
-    // DD-MVP-17: /cafe/log aliases the Café root — the Today capture surface itself.
-    await page.waitForURL(/\/cafe$/, { timeout: 15_000 })
+    await page.goto('cafe/production')
+    await page.waitForURL(/\/cafe\/production$/, { timeout: 15_000 })
 
     // KNOWN BLOCKER (found while fixing this file for #870/DD-MVP-17, not routed around):
     // Sales has NO stream team at all — shared.people/team_memberships give her zero café-

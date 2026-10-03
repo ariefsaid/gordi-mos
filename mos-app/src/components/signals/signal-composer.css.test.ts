@@ -7,7 +7,7 @@ const dateFieldCss = readFileSync(resolve(__dirname, '../ui/DateField.css'), 'ut
 
 describe('SignalComposer visual roles', () => {
   it('uses readable secondary text for the persistent occurrence hint', () => {
-    const rule = css.match(/\.signal-composer-field-hint\s*\{([^}]*)\}/s)?.[1] ?? ''
+    const rule = css.match(/(?:^|\n)\.signal-composer-field-hint\s*\{([^}]*)\}/)?.[1] ?? ''
 
     expect(rule).toContain('color: var(--muted-foreground)')
     expect(rule).not.toContain('var(--text-light)')
@@ -24,6 +24,11 @@ describe('SignalComposer visual roles', () => {
     expect(datePhoneBlock).toMatch(/\.mk-date__field[^}]*font-size:\s*var\(--font-size-touch-input\)/)
     expect(datePhoneBlock).toMatch(/\.mk-date__box[^}]*min-height:\s*44px/)
     expect(datePhoneBlock).toMatch(/\.mk-date__cal[^}]*min-height:\s*44px/)
+  })
+
+  it('keeps desktop Signal date validation on a second row while the controls share one alignment', () => {
+    expect(css).toMatch(/grid-template-areas:\s*"label date time hint"\s*"\. error \. \."/)
+    expect(css).toMatch(/\.signal-composer-occurred-pill \.mk-date\s*\{\s*display:\s*contents;\s*\}/)
   })
 
   // "Shift+Enter to send" is a keyboard hint — hide it without a real keyboard, not only under a

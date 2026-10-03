@@ -1,5 +1,5 @@
 // KitchenPlanPage tests — TDD, AC-tagged.
-// S2 — /mos/kitchen/plan — the plan EDITOR (ops_lead/admin) + the read-only
+// S2 — /cafe/plan — the plan EDITOR (ops_lead/admin) + the read-only
 // 14-day "pesanan" HORIZON (member). Design authority: design-plan §S2.
 // Proves (unit): AC-024 (member sees the 14-day forward horizon read-only — no
 // logging/approve affordance), FR-030/031 (ops_lead edits a cell → upsert, the
@@ -20,6 +20,7 @@ import { MemoryRouter, useLocation } from 'react-router-dom'
 import { createElement, type ReactNode } from 'react'
 import type { AuthState } from '@/auth/context'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import { APP_ROUTER_BASENAME, appUrl } from '@/config/app-build-settings'
 
 // PageFamilyFrame (the v4 shell chrome this page ports to — #197) calls useLocation()
 // unconditionally, so every render needs Router context, not just the ones that render a
@@ -44,10 +45,17 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
     ...actual,
     listActiveWipItems: vi.fn(),
     listStreamPairs: vi.fn(),
+    listCafeDestinations: vi.fn(),
     listStreamItemIds: vi.fn(async () => ({ has: () => true })),
   }
 })
-import { listActiveWipItems, listStreamItemIds, listStreamPairs } from '@/lib/db/kitchen-logs'
+import { listActiveWipItems, listCafeDestinations, listStreamItemIds, listStreamPairs } from '@/lib/db/kitchen-logs'
+
+vi.mock('@/lib/db/cafe-item-settings', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/db/cafe-item-settings')>('@/lib/db/cafe-item-settings')
+  return { ...actual, listCafeItemSettings: vi.fn() }
+})
+import { listCafeItemSettings } from '@/lib/db/cafe-item-settings'
 
 // shared.default_stream() (FR-001) — the viewer's own stream. #440: the plan surfaces resolve
 // their stream the way the capture surface always did, instead of guessing at the catalog.
@@ -71,7 +79,7 @@ import { listActiveBranches } from '@/lib/db/branches'
 import { KitchenPlanPage } from './kitchen-plan-page'
 import { rememberStream } from '@/lib/cafe-stream'
 import { resetCafeLocations } from '@/lib/cafe-opening-location'
-import type { WipItemOption, PlanCell, PesananRow } from '@/lib/db/kitchen-logs.types'
+import type { CafeDestination, WipItemOption, PlanCell, PesananRow } from '@/lib/db/kitchen-logs.types'
 
 const mockUseAuth = vi.mocked(useAuth)
 const mockItems = vi.mocked(listActiveWipItems)
@@ -80,7 +88,9 @@ const mockPesanan = vi.mocked(listPesanan)
 const mockUpsert = vi.mocked(upsertKitchenPlan)
 const mockBranches = vi.mocked(listActiveBranches)
 const mockStreamPairs = vi.mocked(listStreamPairs)
+const mockDestinations = vi.mocked(listCafeDestinations)
 const mockDefaultStream = vi.mocked(fetchDefaultStream)
+const mockCafeItemSettings = vi.mocked(listCafeItemSettings)
 
 const BRANCHES = [
   { id: 'branch-1', code: 'rumah_rames', name: 'Rumah Rames' },
@@ -91,6 +101,11 @@ const STREAM_PAIRS = BRANCHES.flatMap(b => [
   { branch_id: b.id, activity: 'kitchen' as const, produces: b.id !== 'branch-2' },
   { branch_id: b.id, activity: 'bar' as const, produces: true },
 ])
+const DESTINATIONS: CafeDestination[] = [
+  { origin_branch_id: 'branch-1', origin_activity: 'kitchen', destination_branch_id: 'branch-2' },
+  { origin_branch_id: 'branch-1', origin_activity: 'bar', destination_branch_id: 'branch-2' },
+  { origin_branch_id: 'branch-2', origin_activity: 'bar', destination_branch_id: 'branch-1' },
+]
 const OWN_STREAM = { branch: BRANCHES[0], activity: 'kitchen' as const, produces: true }
 const RADIANT_KITCHEN = { branch: BRANCHES[1], activity: 'kitchen' as const, produces: false }
 const OWN_STREAM_BAR = { branch: BRANCHES[0], activity: 'bar' as const, produces: true }
@@ -157,7 +172,9 @@ beforeEach(() => {
   mockItems.mockResolvedValue(ITEMS)
   mockBranches.mockResolvedValue(BRANCHES)
   mockStreamPairs.mockResolvedValue(STREAM_PAIRS)
+  mockDestinations.mockResolvedValue(DESTINATIONS)
   mockDefaultStream.mockResolvedValue(OWN_STREAM)
+  mockCafeItemSettings.mockResolvedValue([])
   mockPlans.mockResolvedValue([])
   mockPesanan.mockResolvedValue([])
   vi.mocked(listCafeViewerTeams).mockResolvedValue([])
@@ -190,14 +207,14 @@ describe('KitchenPlanPage — auth', () => {
   it('unauthenticated: prompts sign-in, never reads', async () => {
     mockUseAuth.mockReturnValue({ status: 'unauthenticated' } as AuthState)
     render(
-      <MemoryRouter basename="/mos" initialEntries={['/mos/kitchen/plan']}>
+      <MemoryRouter basename={APP_ROUTER_BASENAME} initialEntries={[appUrl('/cafe/plan')]}>
         <KitchenPlanPage />
       </MemoryRouter>,
     )
     const link = await screen.findByRole('link', { name: /sign in/i })
     expect(link).toBeInTheDocument()
-    // Link must resolve via the SPA router (basename applied) — not a raw href that skips /mos
-    expect(link).toHaveAttribute('href', '/mos/login')
+    // Link must resolve via the SPA router with the configured build base path.
+    expect(link).toHaveAttribute('href', appUrl('/login'))
     expect(mockPlans).not.toHaveBeenCalled()
     expect(mockPesanan).not.toHaveBeenCalled()
   })
@@ -404,6 +421,41 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
     expect(box).toHaveValue('')
     expect(screen.getByRole('status', { name: 'url' })).toHaveTextContent(/^$/)
     expect(screen.getByText('Ayam Bakar')).toBeInTheDocument()
+  })
+
+  it('uses stream MOS names and shows its default plus other allowed ERP details', async () => {
+    mockCafeItemSettings.mockResolvedValue([{
+      id: 'w1',
+      erpName: 'ERP Ayam Bakar',
+      mosName: 'House Chicken',
+      category: 'Main',
+      kind: 'WIP',
+      defaultUnitId: 'unit-kg',
+      units: [
+        { id: 'unit-kg', name: 'kg', isShown: true, isDefault: true, labelOrdinal: null, labelCount: 1 },
+        { id: 'unit-case', name: 'case', isShown: true, isDefault: false, labelOrdinal: null, labelCount: 1 },
+        { id: 'unit-hidden', name: 'hidden detail', isShown: false, isDefault: false, labelOrdinal: null, labelCount: 1 },
+      ],
+    }])
+    render(<KitchenPlanPage />, { wrapper })
+
+    await screen.findByText('House Chicken')
+    expect(mockCafeItemSettings).toHaveBeenCalledWith(OWN_STREAM)
+    expect(screen.getByText('kg')).toBeInTheDocument()
+    expect(screen.getByText('Also shown for logging: case')).toBeInTheDocument()
+    expect(screen.queryByText(/hidden detail/)).toBeNull()
+    expect(screen.queryByText('ERP Ayam Bakar')).toBeNull()
+  })
+
+  it('labels Plan rows as WIP and offers only enabled item kinds', async () => {
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+
+    expect(screen.getByText('Ayam Bakar').parentElement).toHaveTextContent('WIP - Ayam Bakar')
+    fireEvent.click(screen.getByRole('combobox', { name: /kind/i }))
+    const listbox = screen.getByRole('listbox', { name: /kind/i })
+    expect(within(listbox).getByRole('option', { name: 'WIP' })).toBeInTheDocument()
+    expect(within(listbox).queryByRole('option', { name: 'RAW' })).toBeNull()
   })
 
   it('empty: ops_lead sees an editable blank grid — unplanned reads BLANK (greyed "0" placeholder), not a hard zero', async () => {
@@ -651,7 +703,7 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
     await screen.findByText('Ayam Bakar')
     expect(
       screen.getByRole('link', { name: /see these in the café log/i }),
-    ).toHaveAttribute("href", "/cafe")
+    ).toHaveAttribute("href", "/cafe/production")
     expect(screen.queryAllByRole('link', { name: /see .* in the café log/i })).toHaveLength(1)
     expect(screen.getByText('Ayam Bakar').closest('a')).toBeNull()
   })
@@ -661,7 +713,7 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
     await screen.findByText('Ayam Bakar')
     expect(
       screen.getByRole('link', { name: /see .* in the café log/i }),
-    ).toHaveAttribute('href', '/cafe')
+    ).toHaveAttribute('href', '/cafe/production')
     expect(screen.queryAllByRole('link', { name: /see .* in the café log/i })).toHaveLength(1)
     expect(screen.getByText('Ayam Bakar').closest('a')).toBeNull()
   })
@@ -671,6 +723,20 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
     await screen.findByText('Ayam Bakar')
     // the desktop table aria-label is absent on phone (one branch in the DOM — P-4)
     expect(screen.queryByRole('table', { name: /café plan/i })).toBeNull()
+  })
+
+  it('phone ignores desktop filter query params so they cannot silently hide Plan rows', async () => {
+    mockItems.mockResolvedValue([
+      { ...ITEMS[0], category: 'Main' },
+      { ...ITEMS[1], category: 'Rice' },
+    ])
+    render(
+      <MemoryRouter initialEntries={['/cafe/plan?category=__no_matching_category__&kind=Inventory']}>
+        <I18nProvider><KitchenPlanPage /></I18nProvider>
+      </MemoryRouter>,
+    )
+    expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
+    expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
   })
 
   it('desktop matchMedia: renders the table branch, NOT the cards', async () => {
@@ -761,6 +827,28 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
     expect(days).toBe(14)
   })
 
+  it('member pesanan rows use the stream MOS name and allowed ERP detail labels', async () => {
+    mockPesanan.mockResolvedValue(PESANAN)
+    mockCafeItemSettings.mockResolvedValue([{
+      id: 'w1',
+      erpName: 'ERP Ayam Bakar',
+      mosName: 'House Chicken',
+      category: 'Main',
+      kind: 'WIP',
+      defaultUnitId: 'unit-porsi',
+      units: [
+        { id: 'unit-porsi', name: 'porsi', isShown: true, isDefault: true, labelOrdinal: null, labelCount: 1 },
+        { id: 'unit-case', name: 'case', isShown: true, isDefault: false, labelOrdinal: null, labelCount: 1 },
+      ],
+    }])
+    render(<KitchenPlanPage />, { wrapper })
+
+    await screen.findByText('House Chicken')
+    expect(screen.getByText('porsi')).toBeInTheDocument()
+    expect(screen.getByText('Also shown for logging: case')).toBeInTheDocument()
+    expect(screen.queryByText('ERP Ayam Bakar')).toBeNull()
+  })
+
   it('AC-024: member NEVER gets edit/save affordances or calls the editor read/write', async () => {
     mockPesanan.mockResolvedValue(PESANAN)
     render(<KitchenPlanPage />, { wrapper })
@@ -781,6 +869,7 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
     mockPesanan.mockResolvedValue(PESANAN)
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
+    expect(screen.getByText('Ayam Bakar').parentElement).toHaveTextContent('WIP - Ayam Bakar')
     // the planned qty renders (tabular)
     expect(screen.getByText('12')).toBeInTheDocument()
     // a date group header for the two distinct dates (grouped by date)
@@ -862,6 +951,20 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
     expect(screen.queryByText('Ayam Bakar')).toBeNull()
   })
 
+  it('phone shows all Pesanan rows even when a shared desktop URL carries a category filter', async () => {
+    mockPesanan.mockResolvedValue([
+      { ...PESANAN[0], category: 'Main' },
+      { ...PESANAN[1], category: 'Rice' },
+    ])
+    render(
+      <MemoryRouter initialEntries={['/cafe/plan?category=Main']}>
+        <I18nProvider><KitchenPlanPage /></I18nProvider>
+      </MemoryRouter>,
+    )
+    expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
+    expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
+  })
+
   it('(#401) a filter that matches nothing shows the shared no-match copy, not a broken table', async () => {
     mockPesanan.mockResolvedValue(PESANAN)
     render(<KitchenPlanPage />, { wrapper })
@@ -877,7 +980,7 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
     mockPesanan.mockResolvedValue(PESANAN)
     render(<KitchenPlanPage />, { wrapper })
     expect(await screen.findByText(/this is the 14-day order horizon/i)).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /open the café log/i })).toHaveAttribute("href", "/cafe")
+    expect(screen.getByRole('link', { name: /open the café log/i })).toHaveAttribute("href", "/cafe/production")
     // AC-024 still held: the explainer adds no capture affordance
     expect(screen.queryByRole('spinbutton')).toBeNull()
   })
@@ -1002,6 +1105,8 @@ describe('FR-006/AC-006: the stream precondition speaks Log\'s two-state grammar
     expect(screen.queryByRole('alert')).toBeNull()
     // The precondition is named as a muted status hint (Log's .kl-submit-reason role).
     expect(screen.getByText(/choose a production stream before submitting/i)).toBeInTheDocument()
+    // A zero summary would imply the plan is empty before the books are known.
+    expect(document.querySelector('.msr')).toBeNull()
     // The explicit choice is the next step; no plan can be written against a missing stream.
     const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
     expect(input).toBeDisabled()

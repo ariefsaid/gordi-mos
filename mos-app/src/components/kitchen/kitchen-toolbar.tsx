@@ -15,11 +15,18 @@
 import type { ReactNode } from 'react'
 import { Select } from '@/components/ui/select'
 import { useT } from '@/i18n/use-t'
+import type { KitchenItemKindFilter } from '@/lib/kitchen-item-list'
 import './kitchen-toolbar.css'
 
 interface KitchenToolbarProps {
   search: string
   onSearchChange: (s: string) => void
+  /** Item kinds derived by the caller; omit → no kind select. */
+  kinds?: readonly KitchenItemKindFilter[]
+  kind?: KitchenItemKindFilter
+  onKindChange?: (kind: KitchenItemKindFilter) => void
+  /** Optional stable id for the visible kind trigger when a surface is audited. */
+  kindId?: string
   /** categories derived by the caller (['All', …unique sorted]); omit → no select. The
    *  sentinel value 'All' stays an untranslated internal value (comparisons key off it);
    *  only its DISPLAYED option text is localized, below. */
@@ -41,6 +48,10 @@ interface KitchenToolbarProps {
 export function KitchenToolbar({
   search,
   onSearchChange,
+  kinds,
+  kind,
+  onKindChange,
+  kindId,
   categories,
   category,
   onCategoryChange,
@@ -59,7 +70,7 @@ export function KitchenToolbar({
   // caught squeezing the search to 40.75px. The class carries the decision; the
   // geometry lives in kitchen-toolbar.css. Toolbars WITHOUT the category (Stock)
   // keep the leading-row composition — their scope still fits beside the search.
-  const filtersBand = Boolean(categories && onCategoryChange)
+  const filtersBand = Boolean((categories && onCategoryChange) || (kinds && onKindChange))
   return (
     <div className="ktb" aria-label={ariaLabel}>
       {children && (
@@ -67,29 +78,48 @@ export function KitchenToolbar({
           {children}
         </div>
       )}
-      <div role="search" className="ktb-search-wrap">
-        <input
-          type="search"
-          className="ktb-search"
-          placeholder={placeholder}
-          aria-label={placeholder}
-          value={search}
-          onChange={e => onSearchChange(e.target.value)}
-        />
+      <div className="ktb-filters">
+        <div role="search" className="ktb-search-wrap">
+          <input
+            type="search"
+            className="ktb-search"
+            placeholder={placeholder}
+            aria-label={placeholder}
+            value={search}
+            onChange={e => onSearchChange(e.target.value)}
+          />
+        </div>
+        <div className="ktb-filter-selects">
+          {kinds && onKindChange && (
+            <Select
+              id={kindId}
+              className="ktb-kind"
+              aria-label={t('kitchen.toolbar.kind.ariaLabel')}
+              value={kind}
+              onChange={e => onKindChange(e.target.value as KitchenItemKindFilter)}
+            >
+              {kinds.map(value => (
+                <option key={value} value={value}>
+                  {value === 'All' ? t('kitchen.filter.kind.all') : value}
+                </option>
+              ))}
+            </Select>
+          )}
+          {categories && onCategoryChange && (
+            <Select
+              id={categoryId}
+              className="ktb-category"
+              aria-label={t('kitchen.toolbar.category.ariaLabel')}
+              value={category}
+              onChange={e => onCategoryChange(e.target.value)}
+            >
+              {categories.map(c => (
+                <option key={c} value={c}>{c === 'All' ? t('kitchen.filter.all') : categoryLabel?.(c) ?? c}</option>
+              ))}
+            </Select>
+          )}
+        </div>
       </div>
-      {categories && onCategoryChange && (
-        <Select
-          id={categoryId}
-          className="ktb-category"
-          aria-label={t('kitchen.toolbar.category.ariaLabel')}
-          value={category}
-          onChange={e => onCategoryChange(e.target.value)}
-        >
-          {categories.map(c => (
-            <option key={c} value={c}>{c === 'All' ? t('kitchen.filter.all') : categoryLabel?.(c) ?? c}</option>
-          ))}
-        </Select>
-      )}
     </div>
   )
 }

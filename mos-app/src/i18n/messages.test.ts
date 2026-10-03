@@ -41,6 +41,11 @@ describe('i18n messages catalog', () => {
     expect('tasks.rowOpen' in messages.id).toBe(false)
   })
 
+  it('record leave warning describes unsaved changes without assuming a rename', () => {
+    expect(messages.en['catalog.record.unsaved.copy']).toBe('Your changes are not saved. Discard them and leave this record?')
+    expect(messages.id['catalog.record.unsaved.copy']).toBe('Perubahan Anda belum disimpan. Buang dan tinggalkan catatan ini?')
+  })
+
   it('issue 579: common.resultCount has a singular noun in both locales', () => {
     expect(interpolate(messages.en['common.resultCount.one'], { count: 1 })).toBe(
       '1 item in your scope',

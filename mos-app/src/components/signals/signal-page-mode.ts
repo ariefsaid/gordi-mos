@@ -45,7 +45,7 @@ export function readBootSignalRecordId(
     return null
   }
   // Match the Signals archive route suffix (basename-agnostic — window.location.pathname
-  // carries the /mos prefix; the archive canonical route ends at /work/signals).
+  // carries the configured base-path prefix; the archive canonical route ends at /work/signals).
   if (!pathname || !/\/work\/signals\/?$/.test(pathname)) return null
   const id = new URLSearchParams(search ?? '').get('record')
   return id || null

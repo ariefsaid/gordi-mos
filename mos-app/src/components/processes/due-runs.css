@@ -15,6 +15,7 @@
 .due-runs-row-process { font-size: var(--font-size-body-lg); font-weight: 600; color: var(--foreground); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .due-runs-row-team { font-size: var(--font-size-mono); color: var(--muted-foreground); }
 .due-runs-row--process-record .due-runs-row-team { font-size: var(--font-size-body-lg); font-weight: 600; color: var(--foreground); }
+.due-runs-row-date { font-size: var(--font-size-mono); color: var(--muted-foreground); }
 
 /* Keep the composed Process or Team action label inside the row at narrow widths. */
 .due-runs-start-btn { max-width: 220px; flex: none; }

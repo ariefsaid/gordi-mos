@@ -3,9 +3,10 @@ import { ADMIN } from './fixtures/users'
 import { AC204 } from './fixtures/tasks'
 import { loginAs } from './helpers/login'
 import { isShipGated } from './helpers/ship-gate'
+import { e2eAppPath } from './helpers/app-path'
 
 /** The app is served under a basename, so every rendered href carries it. */
-const href = (path: string) => `/mos${path}`
+const href = (path: string) => e2eAppPath(path)
 
 /**
  * AC-204 — progress rolls up from an Objective to its Projects/Processes and their Tasks, and the
@@ -58,7 +59,9 @@ test.describe('AC-204: Objective roll-up and drill', () => {
     await page.goto(`work/objectives/${AC204.objective.id}`)
     await expect(page.getByRole('heading', { name: AC204.objective.name, exact: true })).toBeVisible()
     const work = page.getByRole('region', { name: 'Projects & Processes', exact: true })
-    await expect(work).toContainText(`${done} of ${total} tasks done`)
+    const tasks = page.getByRole('region', { name: 'Tasks', exact: true })
+    // The Objective total belongs to Tasks; Projects & Processes keeps each child's own progress.
+    await expect(tasks).toContainText(`${done} of ${total} done`)
     const child = work.getByRole('link', { name: AC204.launch.name, exact: true })
     await expect(child).toHaveAttribute('href', href(`/work/projects/${AC204.launch.id}`))
     await child.click()

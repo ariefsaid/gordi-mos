@@ -4,10 +4,12 @@
 // Snake_case column names consumed directly — no camelCase bridge.
 
 import { supabase } from '@/lib/supabase'
+import { cafeUnitDisplayLabel, listCafeItemSettings, toCafeLogItem } from './cafe-item-settings'
 import { movementKey } from '@/lib/kitchen-action-label'
 import type {
   ActualsMap,
   BranchOption,
+  CafeDestination,
   CaptureFormItem,
   ItemUnitOption,
   WipItemOption,
@@ -16,6 +18,7 @@ import type {
   ItemStock,
   CreateKitchenLogInput,
   KitchenAction,
+  KitchenLogAction,
   ProductionActivity,
   ProductionStream,
   ReviewLogRow,
@@ -68,6 +71,15 @@ export async function listStreamPairs(): Promise<StreamPair[]> {
   return (data ?? []) as StreamPair[]
 }
 
+/** Read the org-scoped cross-branch route rows used by the movement picker. */
+export async function listCafeDestinations(): Promise<CafeDestination[]> {
+  const { data, error } = await ops()
+    .from('cafe_destinations')
+    .select('origin_branch_id,origin_activity,destination_branch_id')
+  if (error) throw new Error(`listCafeDestinations failed — ${error.message}`)
+  return (data ?? []) as CafeDestination[]
+}
+
 /**
  * Resolve raw stream pairs against an already-loaded branch catalog into display-ready
  * streams, in a stable order: branch-catalog order (name-sorted by listActiveBranches) ×
@@ -95,7 +107,7 @@ export function streamCatalogFrom(
 // ── WIP items ────────────────────────────────────────────────────────────────
 
 /**
- * List active WIP items sorted by name — the UNGATED read.
+ * List active WIP items sorted by name — the UNGATED WIP read.
  * Mirrors oracle list_active_wip_items.
  *
  * DELIBERATELY not the capture form's source. The DD-WAY-29 gate scopes absence to the
@@ -109,6 +121,7 @@ export async function listActiveWipItems(): Promise<WipItemOption[]> {
     .from('wip_items')
     .select('id,name,category')
     .eq('flag_active', true)
+    .eq('kind', 'WIP')
     .order('name', { ascending: true })
   if (error) throw new Error(`listActiveWipItems failed — ${error.message}`)
   return (data ?? []) as WipItemOption[]
@@ -146,28 +159,26 @@ export function isItemNotOnStreamError(err: unknown): boolean {
 }
 
 /**
- * List the items the CAPTURE FORM may offer, sorted by name — read from
- * ops.capture_form_items, the gated read path (FR-011, DD-WAY-29): only item-units whose
- * ERP coordinates are CONFIRMED come back, so an unconfirmed item is absent — not disabled,
- * not warned. The gate is the query, never a flag consulted at render time (NFR-004).
+ * List the items the CAPTURE FORM may offer, sorted by name. With a chosen stream, the
+ * per-stream Café settings reader supplies the MOS name, default ERP detail and shown details;
+ * only WIP items remain eligible under the existing capture contract. Before a stream is chosen,
+ * the prior gated `capture_form_items` view remains visible as a read-only catalog, so the
+ * explicit stream picker can still be used without allowing an unscoped save.
  *
- * The view returns one row per confirmed (item, unit); rows fold into items carrying their
- * OFFERED units (#234): the default first — the fixed unit beside the qty input (FR-020) —
+ * The no-stream view returns one row per confirmed (item, unit); rows fold into items carrying
+ * their OFFERED units (#234): the default first — the fixed unit beside the qty input (FR-020) —
  * then transferable alternates. A non-transferable ALTERNATE is dropped here (FR-032,
  * AC-015: never offered); the default is kept whatever its flag, because the fixed unit is
  * master data, not an offer. An item whose confirmed rows yield no offerable unit at all
- * (non-transferable alternates only, no default) is absent — a row that cannot name its
- * unit cannot be captured. Given a stream, only the items on that stream's list come back (#222).
+ * (non-transferable alternates only, no default) is absent — a row that cannot name its unit
+ * cannot be captured. Stream-specific log writes are checked again by the database.
  */
-export async function listCaptureFormItems(stream?: ProductionStream): Promise<CaptureFormItem[]> {
-  const [{ data, error }, offered] = await Promise.all([
-    ops()
-      .from('capture_form_items')
-      .select('wip_item_id,name,category,item_unit_id,unit_name,is_default,is_transferable')
-      .order('name', { ascending: true })
-      .order('unit_name', { ascending: true }),
-    stream ? listStreamItemIds(stream) : Promise.resolve(null),
-  ])
+async function listLegacyCaptureFormItems(): Promise<CaptureFormItem[]> {
+  const { data, error } = await ops()
+    .from('capture_form_items')
+    .select('wip_item_id,name,category,item_unit_id,unit_name,is_default,is_transferable')
+    .order('name', { ascending: true })
+    .order('unit_name', { ascending: true })
   if (error) throw new Error(`listCaptureFormItems failed — ${error.message}`)
   type ViewRow = {
     wip_item_id: string
@@ -195,8 +206,38 @@ export async function listCaptureFormItems(stream?: ProductionStream): Promise<C
     if (unit.is_default) item.units.unshift(unit)
     else item.units.push(unit)
   }
-  const items = [...byItem.values()]
-  return offered ? items.filter(item => offered.has(item.id)) : items
+  return [...byItem.values()]
+}
+
+export async function listCaptureFormItems(stream?: ProductionStream): Promise<CaptureFormItem[]> {
+  if (!stream) return listLegacyCaptureFormItems()
+
+  const [settings, legacyItems, offered] = await Promise.all([
+    listCafeItemSettings(stream),
+    listLegacyCaptureFormItems(),
+    listStreamItemIds(stream),
+  ])
+  const erpItemIds = new Set(settings.map(item => item.id))
+  // The settings view is stream-scoped; intersect again so a future view change cannot widen capture.
+  const erpItems = settings
+    .filter(item => item.kind === 'WIP' && offered.has(item.id))
+    .flatMap(item => {
+      const logItem = toCafeLogItem(item)
+      return logItem ? [{
+        id: logItem.id,
+        name: logItem.name,
+        category: logItem.category,
+        kind: logItem.kind,
+        units: logItem.units.map(unit => ({
+          id: unit.id,
+          name: cafeUnitDisplayLabel(unit),
+          is_default: unit.isDefault,
+        })),
+      }] : []
+    })
+  const manualItems = legacyItems.filter(item => !erpItemIds.has(item.id) && offered.has(item.id))
+  // Sort by the name operators see (MOS name for ERP items), then stable ID.
+  return [...erpItems, ...manualItems].sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
 }
 
 // ── Kitchen plans ─────────────────────────────────────────────────────────────
@@ -258,7 +299,7 @@ export async function fetchActualsMap(
   if (error) throw new Error(`fetchActualsMap failed — ${error.message}`)
   type ActualRow = {
     wip_item_id: string
-    action: KitchenAction
+    action: KitchenLogAction
     destination_branch_id: string | null
     qty_porsi: number
   }
@@ -411,6 +452,9 @@ function toKitchenLogRow(input: CreateKitchenLogInput): Record<string, unknown> 
   if (input.action === 'transfer' && !input.destination_branch_id) {
     throw new Error('a transfer must name a destination branch')
   }
+  if (input.action === 'waste' && input.destination_branch_id !== null) {
+    throw new Error('a waste log carries no destination branch')
+  }
   return {
     business_unit_id: input.business_unit_id,
     log_date: input.log_date,
@@ -424,7 +468,8 @@ function toKitchenLogRow(input: CreateKitchenLogInput): Record<string, unknown> 
     item_unit_id: input.item_unit_id ?? null,
     qty_porsi: input.qty_porsi,
     notes: input.notes ?? null,
-    // status NOT sent — DB defaults to 'Submitted'
+    // Waste starts as a Draft so the required photo can attach before submission.
+    ...(input.action === 'waste' ? { status: 'Draft' } : {}),
     // source NOT sent — DB defaults to 'mos'
     // org_id NOT sent — server-stamped by current_org_id()
     // submitted_by NOT sent — server-stamped by current_person_id()
@@ -520,7 +565,7 @@ export async function listSubmittedKitchenLogs(logDate: string): Promise<ReviewL
     id: string
     batch_id: string | null
     log_date: string
-    action: KitchenAction
+    action: KitchenLogAction
     destination_branch_id: string | null
     branch_id: string
     activity: ProductionActivity
@@ -583,7 +628,7 @@ export async function approveKitchenLog(
     const code = (error as { code?: string }).code ?? 'UNKNOWN'
     throw new KitchenRpcError(code, `approveKitchenLog failed — ${error.message}`)
   }
-  return { batch_id: data as string }
+  return { batch_id: data as string | null }
 }
 
 /** Approve one endpoint-homogeneous session as one ERP document. */

@@ -1,0 +1,37 @@
+.waste-photo-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.waste-photo-strip li {
+  width: 60px;
+  height: 60px;
+}
+
+.waste-photo-strip a {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+}
+
+.waste-photo-strip a:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.waste-photo-strip img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 1px solid var(--border);
+  border-radius: inherit;
+  background: var(--surface-tertiary);
+  object-fit: cover;
+}

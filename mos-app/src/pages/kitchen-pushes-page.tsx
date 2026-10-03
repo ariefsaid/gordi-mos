@@ -1,4 +1,4 @@
-// KitchenPushesPage — /mos/kitchen/pushes — S5 outbox / dead-letter monitoring.
+// KitchenPushesPage — /cafe/pushes — S5 outbox / dead-letter monitoring.
 // Design authority: docs/plans/2026-06-20-kitchen-ui-design-plan.md §S5.
 //
 // JTBD: ops_lead — "a push failed; what's stuck, why, and what do I do?"

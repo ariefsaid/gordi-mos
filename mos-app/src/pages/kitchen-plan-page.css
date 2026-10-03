@@ -15,6 +15,10 @@
   box-sizing: border-box;
 }
 
+@media (max-width: 767.98px) {
+  .kp-block .ktb-filter-selects { display: none; }
+}
+
 /* The plan list is a two-column job (item, planned qty): capped so the quantity sits beside the
    name at any desktop width rather than a screen away from it. */
 .kp-list {
@@ -140,7 +144,9 @@
      name+category label doesn't need reading-prose leading; 1.2 stays legible stacked. */
   line-height: 1.2;
 }
-.kp-cat {
+.kp-cat,
+.kp-unit,
+.kp-unit-options {
   font-size: var(--font-size-overline);
   color: var(--muted-foreground);
   line-height: 1.2;
@@ -252,6 +258,13 @@
   line-height: 1.25;
   min-width: 0;
   overflow-wrap: anywhere;
+}
+.kp-card-unit,
+.kp-card-unit-options {
+  display: block;
+  font-size: var(--font-size-label);
+  font-weight: 400;
+  color: var(--muted-foreground);
 }
 .kp-card-meta {
   display: flex;

@@ -8,6 +8,12 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+// Mock the stream-settings boundary separately: listCaptureFormItems delegates to it for a chosen stream.
+vi.mock('./cafe-item-settings', async () => {
+  const actual = await vi.importActual<typeof import('./cafe-item-settings')>('./cafe-item-settings')
+  return { ...actual, listCafeItemSettings: vi.fn() }
+})
+
 // Mock supabase at module scope — mirrors ops-log.test.ts pattern
 vi.mock('../supabase', () => {
   const schema = vi.fn()
@@ -15,6 +21,7 @@ vi.mock('../supabase', () => {
 })
 
 import type { ProductionStream } from './kitchen-logs.types'
+import { listCafeItemSettings } from './cafe-item-settings'
 import { supabase } from '@/lib/supabase'
 import {
   listActiveWipItems,
@@ -23,6 +30,7 @@ import {
   fetchPlanMap,
   fetchStockMap,
   fetchKitchenStock,
+  listCafeDestinations,
   listStreamPairs,
   resolveKitchenBuId,
   streamCatalogFrom,
@@ -35,6 +43,7 @@ import {
 } from './kitchen-logs'
 
 const schemaMock = vi.mocked(supabase.schema)
+const mockCafeItemSettings = vi.mocked(listCafeItemSettings)
 
 // The (branch, activity) production stream every read and write is scoped to (OD-WAY-28),
 // and the two destinations the incumbent captures. The branch ids are opaque here — the
@@ -148,12 +157,10 @@ function assertNoServerStamps(inserts: unknown[]) {
 beforeEach(() => vi.clearAllMocks())
 
 // ── listActiveWipItems / listCaptureFormItems — the reader split ─────────────
-// The DD-WAY-29 gate scopes absence to the CAPTURE form only (FR-011):
-//   * listCaptureFormItems reads the gated ops.capture_form_items view — only
-//     confirmed item-units, no flag consulted client-side.
-//   * listActiveWipItems stays the UNGATED active-item read that feeds the
-//     stock/verification plane (FR-060, OD-WAY-45) and the plan surface — an
-//     unconfirmed item still has real balances to verify.
+// The DD-WAY-29 gate scopes absence to the CAPTURE form only (FR-011): with a
+// stream, capture reads the Café settings; before selection it uses the prior gated
+// catalog as a read-only choice surface. listActiveWipItems stays the UNGATED active-item
+// read that feeds the stock/verification plane (FR-060, OD-WAY-45) and Plan.
 describe('listActiveWipItems — the ungated stock/plan read', () => {
   const WIP_ROWS = [
     { id: 'w1', name: 'Ayam Bakar', category: 'Main' },
@@ -172,6 +179,7 @@ describe('listActiveWipItems — the ungated stock/plan read', () => {
     expect(result).toHaveLength(2)
     expect(result[0].name).toBe('Ayam Bakar')
     expect(rec.eqs).toContainEqual(['flag_active', true])
+    expect(rec.eqs).toContainEqual(['kind', 'WIP'])
     expect(rec.orders).toContainEqual(['name', { ascending: true }])
     expect(rec.selects).toContain('id,name,category')
   })
@@ -194,7 +202,7 @@ describe('listActiveWipItems — the ungated stock/plan read', () => {
   })
 })
 
-describe('listCaptureFormItems — the gated capture-form read (FR-011, DD-WAY-29, FR-032)', () => {
+describe('listCaptureFormItems — stream-aware capture-form read (FR-011, DD-WAY-29, FR-032)', () => {
   // One row per confirmed (item, unit), the view's shape after #234.
   const unitRow = (
     wip_item_id: string,
@@ -211,19 +219,81 @@ describe('listCaptureFormItems — the gated capture-form read (FR-011, DD-WAY-2
     unitRow('w2', 'Nasi Goreng', 'u2', 'porsi', true),
   ]
 
-  it('issue 222: given a stream, offers only the items on that stream\'s list', async () => {
+  it('uses stream MOS names and shown ERP details while retaining listed manual items', async () => {
+    mockCafeItemSettings.mockResolvedValue([
+      {
+        id: 'w2', erpName: 'ERP Nasi Goreng', mosName: 'MOS Nasi Goreng', category: 'Main', kind: 'WIP',
+        defaultUnitId: 'u2-each',
+        units: [
+          { id: 'u2-each', name: 'each', isShown: true, isDefault: true, labelOrdinal: null, labelCount: 1 },
+          { id: 'u2-case', name: 'case', isShown: true, isDefault: false, labelOrdinal: null, labelCount: 1 },
+        ],
+      },
+      {
+        id: 'raw-1', erpName: 'ERP Beans', mosName: 'ERP Beans', category: 'Main', kind: 'RAW',
+        defaultUnitId: 'u-kg',
+        units: [{ id: 'u-kg', name: 'kg', isShown: true, isDefault: true, labelOrdinal: null, labelCount: 1 }],
+      },
+      {
+        id: 'w4', erpName: 'ERP Unconfigured', mosName: 'ERP Unconfigured', category: 'Main', kind: 'WIP',
+        defaultUnitId: null, units: [],
+      },
+      {
+        id: 'w5', erpName: 'ERP Off-stream', mosName: 'ERP Off-stream', category: 'Main', kind: 'WIP',
+        defaultUnitId: 'u5',
+        units: [{ id: 'u5', name: 'each', isShown: true, isDefault: true, labelOrdinal: null, labelCount: 1 }],
+      },
+    ])
     const rec = freshRec()
-    schemaMock.mockReturnValue(
-      makeSchema({
-        capture_form_items: [{ data: VIEW_ROWS, error: null }],
-        stream_items: [{ data: [{ wip_item_id: 'w2' }], error: null }],
-      }, rec) as never,
-    )
+    schemaMock.mockReturnValue(makeSchema({
+      capture_form_items: [{ data: [
+        unitRow('w2', 'Legacy ERP name', 'legacy-u2', 'legacy unit', true),
+        unitRow('w3', 'Manual Stew', 'manual-u3', 'porsi', true),
+        unitRow('w4', 'Legacy unconfigured name', 'legacy-u4', 'porsi', true),
+      ], error: null }],
+      stream_items: [{ data: [
+        { wip_item_id: 'w2' }, { wip_item_id: 'w3' }, { wip_item_id: 'w4' }, { wip_item_id: 'raw-1' },
+      ], error: null }],
+    }, rec) as never)
 
     const result = await listCaptureFormItems(STREAM)
-    expect(result.map(item => item.id)).toEqual(['w2'])
-    expect(rec.fromTables).toContain('stream_items')
-    expect(rec.eqs).toEqual(expect.arrayContaining([['branch_id', BRANCH_ID], ['activity', 'kitchen']]))
+    expect(mockCafeItemSettings).toHaveBeenCalledWith(STREAM)
+    expect(result).toEqual([
+      {
+        id: 'w3', name: 'Manual Stew', category: 'Main',
+        units: [{ id: 'manual-u3', name: 'porsi', is_default: true }],
+      },
+      {
+        id: 'w2', name: 'MOS Nasi Goreng', category: 'Main', kind: 'WIP',
+        units: [
+          { id: 'u2-each', name: 'each', is_default: true },
+          { id: 'u2-case', name: 'case', is_default: false },
+        ],
+      },
+    ])
+    expect(rec.fromTables).toEqual(expect.arrayContaining(['capture_form_items', 'stream_items']))
+  })
+
+  it('distinguishes repeated ERP unit labels without exposing ERP identifiers', async () => {
+    mockCafeItemSettings.mockResolvedValue([{
+      id: 'w2', erpName: 'ERP Nasi Goreng', mosName: 'MOS Nasi Goreng', category: 'Main', kind: 'WIP',
+      defaultUnitId: 'detail-a',
+      units: [
+        { id: 'detail-a', name: 'each', isShown: true, isDefault: true, labelOrdinal: 1, labelCount: 2 },
+        { id: 'detail-b', name: 'each', isShown: true, isDefault: false, labelOrdinal: 2, labelCount: 2 },
+      ],
+    }])
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({
+      capture_form_items: [{ data: [], error: null }],
+      stream_items: [{ data: [{ wip_item_id: 'w2' }], error: null }],
+    }, rec) as never)
+
+    const result = await listCaptureFormItems(STREAM)
+    expect(result[0]?.units).toEqual([
+      { id: 'detail-a', name: 'each (1/2)', is_default: true },
+      { id: 'detail-b', name: 'each (2/2)', is_default: false },
+    ])
   })
 
   it('reads the gated capture_form_items view ordered by name — never raw wip_items', async () => {
@@ -1136,6 +1206,31 @@ describe('listStreamPairs + streamCatalogFrom — the enumerable stream catalog 
       makeSchema({ teams: [{ data: null, error: { message: 'boom' } }] }, rec) as never,
     )
     await expect(listStreamPairs()).rejects.toThrow('listStreamPairs failed')
+  })
+
+  it('reads org-scoped cross-branch destination rows', async () => {
+    const rec = freshRec()
+    const rows = [{
+      origin_branch_id: BRANCH_ID,
+      origin_activity: 'kitchen',
+      destination_branch_id: RADIANT_ID,
+    }]
+    schemaMock.mockReturnValue(
+      makeSchema({ cafe_destinations: [{ data: rows, error: null }] }, rec) as never,
+    )
+
+    await expect(listCafeDestinations()).resolves.toEqual(rows)
+    expect(rec.fromTables).toContain('cafe_destinations')
+    expect(rec.selects).toContain('origin_branch_id,origin_activity,destination_branch_id')
+  })
+
+  it('throws when the destination catalog cannot be read', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema({ cafe_destinations: [{ data: null, error: { message: 'denied' } }] }, rec) as never,
+    )
+
+    await expect(listCafeDestinations()).rejects.toThrow('listCafeDestinations failed')
   })
 })
 

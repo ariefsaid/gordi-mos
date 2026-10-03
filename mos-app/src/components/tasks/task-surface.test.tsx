@@ -51,6 +51,7 @@ import { getBusinessUnits, getPeople, getDownlinePersonIds } from '@/lib/db/dire
 import * as directoryApi from '@/lib/db/directory'
 import { listComments, postComment } from '@/lib/comments/postComment'
 import { TaskSurface } from './task-surface'
+import { APP_ROUTER_BASENAME, appUrl } from '@/config/app-build-settings'
 import { listObjectives, readObjective } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
 
@@ -390,7 +391,7 @@ describe('TaskSurface — view mode', () => {
     mockGetTask.mockResolvedValue({ task: makeTask({ responsible_person_id: 'other-id', accountable_person_id: VIEWER_ID }), checklist: [], events: [] })
     render(
       <AuthContext.Provider value={authedState}>
-        <MemoryRouter basename="/mos" initialEntries={['/mos/work/tasks?record=task-abc']}>
+        <MemoryRouter basename={APP_ROUTER_BASENAME} initialEntries={[`${appUrl('/work/tasks')}?record=task-abc`]}>
           <TaskSurface taskId="task-abc" mode="view" width="full" />
         </MemoryRouter>
       </AuthContext.Provider>,
@@ -400,7 +401,7 @@ describe('TaskSurface — view mode', () => {
     fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
     fireEvent.click(screen.getByRole('menuitem', { name: 'Copy link' }))
 
-    expect(writeText).toHaveBeenCalledWith(new URL('/mos/work/tasks/task-abc', window.location.origin).href)
+    expect(writeText).toHaveBeenCalledWith(new URL(appUrl('/work/tasks/task-abc'), window.location.origin).href)
   })
 
   it('AC-R05: full width keeps the archived banner + Unarchive above the two columns', async () => {
@@ -701,6 +702,20 @@ describe('TaskSurface — live region (AC-111)', () => {
     await waitFor(() => screen.getByText('Wipe counter'))
     fireEvent.click(screen.getByRole('checkbox', { name: 'Wipe counter' }))
     await waitFor(() => expect(liveRegion()?.textContent).toMatch(/couldn.t save|reverted/i))
+  })
+
+  it('shows Saved after a Task description edit commits', async () => {
+    mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
+    renderSurface()
+    await screen.findByRole('heading', { level: 1, name: 'Fix the coffee machine' })
+    activateFieldByKey('description')
+    const description = screen.getByRole('textbox', { name: 'Description' })
+    fireEvent.change(description, { target: { value: 'Replace the broken espresso machine.' } })
+    fireEvent.blur(description)
+    await waitFor(() => expect(updateTaskFields).toHaveBeenCalledWith(
+      'task-abc', { description: 'Replace the broken espresso machine.' }, VIEWER_ID, null,
+    ))
+    expect(await screen.findByText('Saved')).toBeInTheDocument()
   })
 
   it('AC-111: a failed PIC reassignment reverts AND announces the rollback', async () => {

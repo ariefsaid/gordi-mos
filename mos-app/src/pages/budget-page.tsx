@@ -1,4 +1,4 @@
-// BudgetPage — /mos/plan/budget (ADR-0022 D1/D3/D6). Finance captures a budget scenario: the menu
+// BudgetPage — /plan/budget (ADR-0022 D1/D3/D6). Finance captures a budget scenario: the menu
 // item's BOM (read from ESB) costed at the LINKED ingredient cost lines -> the certified budgeted COGS.
 // Read-and-budget only (no recipe edit, no ESB write). Consumers drill to the LINKED cost line, never a
 // copy (anchor A5). Fail-loud badge when the cost basis is stale or uncertified (anchor A7).

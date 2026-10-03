@@ -6,6 +6,7 @@ import { I18nProvider } from '@/i18n/I18nProvider'
 
 const fake = vi.hoisted(() => ({
   document: [] as unknown[],
+  saved: [] as unknown[],
   crash: false,
   domElement: undefined as undefined | HTMLElement,
 }))
@@ -34,6 +35,7 @@ vi.mock('@blocknote/ariakit', () => ({
     <div data-testid="bn" data-editable={String(editable)} data-menus={String([formattingToolbar, sideMenu, linkToolbar].join())} data-default-slash={String(slashMenu)}>
       {children}
       <button type="button" onClick={() => { fake.document = [...fake.document, { type: 'paragraph' }]; onChange?.() }}>type</button>
+      <button type="button" onClick={() => { fake.document = [...fake.saved]; onChange?.() }}>restore saved</button>
       <div role="textbox" aria-label="pm" tabIndex={0} />
       <button type="button">toolbar</button>
     </div>
@@ -67,6 +69,7 @@ const typeOnce = () => fireEvent.click(screen.getByText('type'))
 beforeEach(() => {
   vi.useFakeTimers()
   fake.document = []
+  fake.saved = []
   fake.crash = false
   fake.domElement = document.createElement('div')
   read.mockResolvedValue({ writeUp: [], updatedAt: 't1' })
@@ -119,6 +122,24 @@ describe('ObjectiveWriteupEditor', () => {
     expect(save).toHaveBeenCalledWith('o1', fake.document, 't1')
     expect(onDirtyChange).toHaveBeenLastCalledWith(false)
     expect(screen.getByRole('status').textContent).toContain('Saved')
+  })
+
+  it('does not write when an edited document is restored to its saved snapshot', async () => {
+    const original = [{ type: 'paragraph', content: [{ type: 'text', text: 'Keep this', styles: {} }] }]
+    fake.document = original
+    fake.saved = original
+    read.mockResolvedValue({ writeUp: original, updatedAt: 't1' })
+    const onDirtyChange = vi.fn()
+    await mount({ onDirtyChange })
+
+    typeOnce()
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true)
+    fireEvent.click(screen.getByRole('button', { name: 'restore saved' }))
+    expect(onDirtyChange).toHaveBeenLastCalledWith(false)
+
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save' })) })
+    expect(save).not.toHaveBeenCalled()
+    expect(onDirtyChange).toHaveBeenLastCalledWith(false)
   })
 
   it('saves only on explicit Save, adopts the returned updated_at, and reports Saved', async () => {

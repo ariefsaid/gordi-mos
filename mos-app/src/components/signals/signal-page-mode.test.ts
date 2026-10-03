@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { appUrl } from '@/config/app-build-settings'
 import { readBootSignalRecordId } from './signal-page-mode'
 
 // Mirror of task-page-mode's hard-load detection (OD-63 / Rule 4): a DIRECT hard load onto
@@ -11,11 +12,11 @@ const POP = { type: 'back_forward' } as PerformanceNavigationTiming
 
 describe('readBootSignalRecordId — hard-load escalation for the Signal record', () => {
   it('no boot navigation entry (jsdom / in-app SPA nav) → null (stays in the drawer)', () => {
-    expect(readBootSignalRecordId(undefined, '/mos/work/signals', '?record=sig-1')).toBeNull()
+    expect(readBootSignalRecordId(undefined, appUrl('/work/signals'), '?record=sig-1')).toBeNull()
   })
 
   it('hard navigate onto /work/signals?record=<id> → the id (escalate to canonical page)', () => {
-    expect(readBootSignalRecordId(NAV, '/mos/work/signals', '?record=sig-1')).toBe('sig-1')
+    expect(readBootSignalRecordId(NAV, appUrl('/work/signals'), '?record=sig-1')).toBe('sig-1')
   })
 
   it('refresh (reload) onto ?record=<id> → the id', () => {

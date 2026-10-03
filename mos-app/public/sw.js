@@ -4,12 +4,12 @@
 // refuses; it is the ONLY thing this worker caches, so a stale bundle can never be served in place
 // of a fresh one.
 //
-// Cache Storage is ORIGIN-scoped, and this origin hosts other apps beside `/mos`. Every touch of
-// Cache Storage below is therefore scoped to this app's own prefix (`CACHE_PREFIX`): the activate
+// Cache Storage is ORIGIN-scoped, and this origin may host other apps beside the configured base.
+// Every touch below is scoped to this app's own prefix (`CACHE_PREFIX`): the activate
 // sweep filters keys by prefix before deleting, and the fallback lookup passes `cacheName` so it
 // only reads the cache this worker filled — never a same-named entry a sibling app happens to have.
 const CACHE_PREFIX = 'mos-'
-const OFFLINE_URL = '/mos/offline.html'
+const OFFLINE_URL = new URL('offline.html', self.registration.scope).pathname
 const OFFLINE_CACHE = `${CACHE_PREFIX}offline-v1`
 
 self.addEventListener('install', (event) => {

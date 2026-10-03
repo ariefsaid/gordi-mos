@@ -11,6 +11,7 @@ import {
   assertLocalFixtureDatabase,
   E2E_CLEANUP_REGISTRY,
   budgetCleanupSql,
+  cafeWasteCleanupSql,
   fixtureCleanupSql,
   notificationCleanupSql,
   objectiveCleanupSql,
@@ -35,7 +36,7 @@ vi.mock('@supabase/supabase-js', () => ({ createClient: () => ({ auth: { admin: 
 vi.mock('../lib/dev-server', () => ({
   MOS_DEV_PORT_ENV: 'MOS_DEV_PORT', devServerPort: () => 1,
   worktreeFingerprint: () => 'unit-test', devServerIdentityUrl: () => 'http://localhost:1/identity',
-  devServerBaseUrl: () => 'http://localhost:1/mos/',
+  devServerBaseUrl: () => 'http://localhost:1/',
   assertDevServerOwnership: () => {},
 }))
 // The persona sign-ins drive a real browser; this test owns the SQL, not the sessions.
@@ -165,6 +166,7 @@ test('every Playwright data writer is registered with an owned cleanup contract'
 
 test('SQL guard rejects broad and disguised deletes and allows the owned cleanup', () => {
   expect(() => assertFixtureSqlSafe(fixtureCleanupSql)).not.toThrow()
+  expect(() => assertFixtureSqlSafe(cafeWasteCleanupSql)).not.toThrow()
   const capturedCleanup = taskCleanupSql(['a1000000-0000-0000-0000-000000000001'])
   expect(() => assertFixtureSqlSafe(capturedCleanup)).not.toThrow()
   expect(() => taskCleanupSql(['not-a-uuid'])).toThrow(/UUID-owned/)

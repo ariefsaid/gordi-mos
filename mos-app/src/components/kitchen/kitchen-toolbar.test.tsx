@@ -33,6 +33,30 @@ describe('KitchenToolbar — search-mini', () => {
   })
 })
 
+describe('KitchenToolbar — kind filter', () => {
+  it('renders RAW/WIP filter options and reports the chosen kind', () => {
+    const onKindChange = vi.fn()
+    render(
+      <KitchenToolbar
+        search=""
+        onSearchChange={() => {}}
+        kinds={['All', 'WIP', 'RAW']}
+        kind="All"
+        kindId="cafe-log-kind"
+        onKindChange={onKindChange}
+      />,
+    )
+    const select = screen.getByRole('combobox', { name: /kind/i })
+    expect(select).toHaveAttribute('id', 'cafe-log-kind')
+    fireEvent.click(select)
+    const listbox = screen.getByRole('listbox', { name: /kind/i })
+    expect(listbox).toContainElement(screen.getByRole('option', { name: 'WIP' }))
+    expect(listbox).toContainElement(screen.getByRole('option', { name: 'RAW' }))
+    fireEvent.click(screen.getByRole('option', { name: 'RAW' }))
+    expect(onKindChange).toHaveBeenCalledWith('RAW')
+  })
+})
+
 describe('KitchenToolbar — category filter', () => {
   it('renders a category dropdown when categories are provided', () => {
     render(

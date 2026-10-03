@@ -31,6 +31,12 @@ describe('KP-LINEHEIGHT: the dish stack leads at 1.2 (the 52px desktop row)', ()
   })
 })
 
+describe('KP-FILTERPHONE: desktop-only selects leave the phone search available', () => {
+  it('hides kind and category selects below the phone breakpoint on both Plan faces', () => {
+    expect(css).toMatch(/@media\s*\(max-width:\s*767\.98px\)\s*\{[^}]*\.kp-block\s+\.ktb-filter-selects\s*\{\s*display:\s*none/)
+  })
+})
+
 describe('KP-BANNER: same warning vocabulary as Café · Log (amber offline, red error)', () => {
   it('.kp-banner-offline is amber (--warning), not a grey box', () => {
     const body = ruleBody('.kp-banner-offline')

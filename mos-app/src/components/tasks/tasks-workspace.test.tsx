@@ -260,6 +260,7 @@ describe('D3e — Tasks create is an inline title row', () => {
     const titleInput = await screen.findByRole('textbox', { name: /title/i })
     expect(titleInput).toHaveFocus()
     expect(titleInput).not.toBeDisabled()
+    expect(screen.getAllByRole('button', { name: /Create task/i })).toHaveLength(1)
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.queryByRole('complementary', { name: /create task/i })).toBeNull()
     expect(screen.getAllByRole('textbox')).toHaveLength(2) // the title + the shared day-first Due field (#1191)
@@ -289,7 +290,8 @@ describe('D3e — Tasks create is an inline title row', () => {
     fireEvent.keyDown(titleInput, { key: 'Escape' })
     await waitFor(() => expect(screen.queryByRole('textbox', { name: /title/i })).toBeNull())
     expect(mockCreateTask).not.toHaveBeenCalled()
-    await waitFor(() => expect(opener).toHaveFocus())
+    // The page action unmounts while the draft is open; focus returns to its rendered replacement.
+    await waitFor(() => expect(screen.getByRole('button', { name: '+ Create task' })).toHaveFocus())
   })
 
   it('keeps an ambiguous Team and empty Supervisor honest until the user chooses both', async () => {
@@ -1222,6 +1224,43 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
     expect(screen.queryByText(/match these filters/i)).not.toBeInTheDocument()
   })
 
+  it('explains Team work when the viewer has no active Team and omits false filter/create actions', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ id: 'outside', team_id: 'another-team' })])
+    vi.mocked(getPersonTeams).mockResolvedValue([])
+    renderTable({}, teamScopedState, ['/work/tasks?view=team-work'])
+
+    const empty = await screen.findByRole('region', { name: 'No Team work yet' })
+    expect(empty).toHaveTextContent('not currently on an active Team')
+    expect(empty).toHaveTextContent('Ask an admin to add you')
+    expect(within(empty).queryByRole('button', { name: /clear filters/i })).toBeNull()
+    expect(within(empty).queryByRole('link', { name: /create task/i })).toBeNull()
+  })
+
+  it('explains that Team work is empty when the viewer has a Team but no matching tasks', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ id: 'outside', team_id: 'another-team' })])
+    vi.mocked(getPersonTeams).mockResolvedValue(VIEWER_TEAMS)
+    renderTable({}, teamScopedState, ['/work/tasks?view=team-work'])
+
+    const empty = await screen.findByRole('region', { name: 'No Team work yet' })
+    expect(empty).toHaveTextContent('No tasks for your Teams yet')
+    expect(empty).toHaveTextContent('Create one for a current Team, or switch to My work')
+    expect(within(empty).queryByRole('button', { name: /clear filters/i })).toBeNull()
+    expect(screen.getByRole('button', { name: '+ Create task' })).toBeInTheDocument()
+    expect(within(empty).queryByRole('link', { name: /create task/i })).toBeNull()
+  })
+
+  it('keeps filtered-empty behavior when a real filter narrows Team work', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ id: 'outside', team_id: 'another-team' })])
+    vi.mocked(getPersonTeams).mockResolvedValue(VIEWER_TEAMS)
+    renderTable({}, teamScopedState, ['/work/tasks?view=team-work'])
+    await screen.findByRole('button', { name: 'Team work' })
+    fireEvent.change(screen.getByLabelText('Search tasks'), { target: { value: 'no-match' } })
+
+    expect(await screen.findByText(/no tasks match these filters/i)).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /clear filters/i }).length).toBeGreaterThan(0)
+    expect(screen.queryByRole('region', { name: 'No Team work yet' })).toBeNull()
+  })
+
   // DD-NAME-1 review: the Mine copy ("No tasks assigned to you") is only true for an empty
   // saved Mine view with no additional filters. Once an actual task filter is active — a Person
   // who isn't you, the Overdue view, or a search inside My work — the shared "No tasks match
@@ -1445,6 +1484,8 @@ describe('Task 13 — TasksWorkspace canonical home (AC-116)', () => {
       fireEvent.change(screen.getByLabelText('Comment'), { target: { value: 'Looks good' } })
       const post = screen.getByRole('button', { name: 'Post comment' })
       expect(post).toBeEnabled()
+      expect(post).toHaveClass('btn-outline')
+      expect(post).not.toHaveClass('btn-primary')
       expect(document.body.querySelectorAll('.btn-primary:not(:disabled)')).toHaveLength(1)
       expect(screen.getByRole('button', { name: 'Mark complete' })).toHaveClass('btn-primary')
     })

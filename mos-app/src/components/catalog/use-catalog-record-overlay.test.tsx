@@ -2,9 +2,11 @@
 // placeholder when the real type is already known.
 import { describe, it, expect, vi } from 'vitest'
 import { act, render, renderHook, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { OverlayHostProvider } from '@/shell/overlay-host'
+import { APP_ROUTER_BASENAME, appUrl } from '@/config/app-build-settings'
 import { useCatalogRecordEntryFactory, useCatalogRecordOverlay } from './use-catalog-record-overlay'
 
 function wrapper({ children }: { children: React.ReactNode }) {
@@ -84,7 +86,16 @@ function Collection() {
   const overlay = useCatalogRecordOverlay({ collectionKind: 'objective', onCollectionChanged: () => {} })
   return (
     <>
-      <a className="catalog-collection__row-link" href="/mos/work/objectives/o1">Objective one</a>
+      <a
+        className="catalog-collection__row-link"
+        href={appUrl('/work/objectives/o1')}
+        onClick={(event) => {
+          event.preventDefault()
+          overlay.onOpenRecord({ id: 'o1', name: 'Objective one', archived_at: null })
+        }}
+      >
+        Objective one
+      </a>
       {overlay.slot}
     </>
   )
@@ -93,7 +104,14 @@ function Collection() {
 function renderCollection(initialEntries: string[], initialIndex: number) {
   const router = createMemoryRouter(
     [{ path: '*', element: <I18nProvider><OverlayHostProvider><Collection /></OverlayHostProvider></I18nProvider> }],
-    { initialEntries, initialIndex },
+    {
+      basename: APP_ROUTER_BASENAME,
+      initialEntries: initialEntries.map((entry) => {
+        const url = new URL(entry, 'http://localhost')
+        return `${appUrl(url.pathname)}${url.search}${url.hash}`
+      }),
+      initialIndex,
+    },
   )
   render(<RouterProvider router={router} />)
   return router
@@ -102,6 +120,29 @@ function renderCollection(initialEntries: string[], initialIndex: number) {
 const RECORD_URL = '/work/objectives?record=o1&recordType=objective'
 
 describe('useCatalogRecordOverlay — URL-owned record state', () => {
+  it('a phone selection opens the canonical objective page without a panel query', async () => {
+    const original = window.matchMedia
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      writable: true,
+      value: () => ({
+        matches: false, media: '', onchange: null,
+        addEventListener: () => {}, removeEventListener: () => {}, dispatchEvent: () => false,
+      }),
+    })
+    try {
+      const router = renderCollection(['/work/objectives?layout=list&view=all&q=route'], 0)
+      await userEvent.click(screen.getByRole('link', { name: 'Objective one' }))
+
+      await waitFor(() => expect(router.state.location.pathname.endsWith('/work/objectives/o1')).toBe(true))
+      expect(router.state.location.search).toBe('?view=all&q=route')
+      expect(router.state.location.search).not.toContain('record=')
+      expect(screen.queryByText('record body o1')).toBeNull()
+    } finally {
+      Object.defineProperty(window, 'matchMedia', { configurable: true, writable: true, value: original })
+    }
+  })
+
   it('Forward onto a record entry after Back past it keeps the record in the URL and open', async () => {
     const router = renderCollection(['/work/objectives', RECORD_URL], 1)
     await screen.findByText('record body o1')

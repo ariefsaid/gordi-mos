@@ -435,32 +435,22 @@ describe('key result form', () => {
 })
 
 describe('the record drives the section', () => {
-  it('reports its count, and stays out of the way while empty when the setup region owns the action', async () => {
+  it('keeps the empty section visible with its own Add action and opens the blank row', async () => {
     vi.mocked(listKeyResults).mockResolvedValue([])
-    const onCount = vi.fn()
-    renderSection(ADMIN, { hideWhenEmpty: true, onCount })
-    await waitFor(() => expect(onCount).toHaveBeenLastCalledWith(0))
-    expect(screen.queryByRole('region', { name: 'Key results' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Add key result' })).toBeNull()
+    const user = userEvent.setup()
+    renderSection(ADMIN)
+    const section = await screen.findByRole('region', { name: 'Key results' })
+    expect(section).toHaveTextContent('No key results yet.')
+    const add = within(section).getByRole('button', { name: 'Add key result' })
+    await user.click(add)
+    expect(await within(section).findByRole('textbox', { name: 'Key result' })).toHaveFocus()
   })
 
-  it('opens a blank row each time the record asks, even while hidden', async () => {
+  it('shows the empty state to a reader without offering a write action', async () => {
     vi.mocked(listKeyResults).mockResolvedValue([])
-    const view = renderSection(ADMIN, { hideWhenEmpty: true, openAddToken: 0 })
-    await waitFor(() => expect(getPeople).toHaveBeenCalled())
-    view.rerender(
-      <I18nProvider>
-        <ObjectiveKeyResultsSection objectiveId="obj-1" businessUnitId="bu-1" archived={false} scopes={ADMIN} hideWhenEmpty openAddToken={1} />
-      </I18nProvider>,
-    )
-    expect(await screen.findByRole('textbox', { name: 'Key result' })).toHaveFocus()
-  })
-
-  it('omits an empty section for a viewer who cannot add to it', async () => {
-    vi.mocked(listKeyResults).mockResolvedValue([])
-    const onCount = vi.fn()
-    renderSection(MEMBER, { onCount })
-    await waitFor(() => expect(onCount).toHaveBeenLastCalledWith(0))
-    expect(screen.queryByRole('region', { name: 'Key results' })).toBeNull()
+    renderSection(MEMBER)
+    const section = await screen.findByRole('region', { name: 'Key results' })
+    expect(section).toHaveTextContent('No key results yet.')
+    expect(within(section).queryByRole('button', { name: 'Add key result' })).toBeNull()
   })
 })

@@ -16,6 +16,7 @@ vi.mock('@/config/features', () => ({
   SHOW_USER_VIEWS: false,
   SHOW_FOLLOWUPS: false,
   SHOW_PLAN_BUDGET: false,
+  SHOW_WORK_COLLECTIONS: true,
 }))
 
 vi.mock('@/lib/db/tasks', () => ({ searchTasksByTitle: vi.fn() }))

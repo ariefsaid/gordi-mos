@@ -89,12 +89,15 @@ export const PAGE_FAMILY_FRAME_ROUTES: readonly PageFamilyMigrationEntry[] = [
   { path: '/money/pricing', family: 'workspace', sourceFile: 'pages/pricing-page.tsx', symbol: 'PricingPage' },
 
   // ── Café ──────────────────────────────────────────────────────────────────────────────────
-  // DD-MVP-17: /cafe is the capture root — cafe-opening-page.tsx resolves the Opening
-  // location, then the root composes pages/kitchen-log-page.tsx as its own body.
-  // /cafe/log is retired from the route table: it redirects to /cafe.
+  // /cafe remains the Today root. Dedicated capture routes render KitchenLogPage directly;
+  // the retired /cafe/log path redirects to /cafe/production.
   { path: '/cafe', family: 'workspace', sourceFile: 'pages/cafe-opening-page.tsx', symbol: 'CafeRootPage' },
+  { path: '/cafe/production', family: 'workspace', sourceFile: 'pages/kitchen-log-page.tsx', symbol: 'KitchenLogPage' },
+  { path: '/cafe/transfer', family: 'workspace', sourceFile: 'pages/kitchen-log-page.tsx', symbol: 'KitchenLogPage' },
+  { path: '/cafe/waste', family: 'workspace', sourceFile: 'pages/cafe-waste-page.tsx', symbol: 'CafeWastePage' },
   { path: '/cafe/plan', family: 'workspace', sourceFile: 'pages/kitchen-plan-page.tsx', symbol: 'KitchenPlanPage' },
   { path: '/cafe/stock', family: 'workspace', sourceFile: 'pages/kitchen-stock-page.tsx', symbol: 'KitchenStockPage' },
+  { path: '/cafe/items', family: 'workspace', sourceFile: 'pages/cafe-item-settings-page.tsx', symbol: 'CafeItemSettingsPage' },
   {
     path: '/cafe/review',
     family: 'workspace',

@@ -126,7 +126,9 @@ test.describe('AC-014: bar capture → approve → stock, one journey on the rea
       ON CONFLICT (id) DO UPDATE SET flag_active = true;
       INSERT INTO ops.item_units (org_id, wip_item_id, unit_name, esb_product_detail_id, esb_product_id, is_default, is_transferable, confirmed_at)
       VALUES ('${ORG}', '${ITEM_ID}', '${UNIT_NAME}', 'PD-E2E-014', 'P-E2E-014', true, true, now())
-      ON CONFLICT (wip_item_id, unit_name) DO UPDATE SET confirmed_at = now();
+      ON CONFLICT (wip_item_id, esb_product_detail_id)
+        WHERE esb_product_detail_id IS NOT NULL
+      DO UPDATE SET confirmed_at = now();
       INSERT INTO ops.stream_items (org_id, branch_id, activity, wip_item_id, source)
       VALUES ('${ORG}', ${BRANCH_SQL}, '${BAR_STREAM.activity}', '${ITEM_ID}', 'manual')
       ON CONFLICT (org_id, branch_id, activity, wip_item_id) DO NOTHING;
@@ -183,9 +185,8 @@ test.describe('AC-014: bar capture → approve → stock, one journey on the rea
     // ── ACT 1 — the member, on a phone (NFR-003: capture is phone-first, usable at ≤380px) ────
     await page.setViewportSize({ width: 380, height: 780 })
     await loginAs(page, BAR_MEMBER.email, BAR_MEMBER.password)
-    await page.goto('cafe/log')
-    // DD-MVP-17: /cafe/log aliases the Café root — the Today capture surface itself.
-    await page.waitForURL(/\/cafe$/, { timeout: 15_000 })
+    await page.goto('cafe/production')
+    await page.waitForURL(/\/cafe\/production$/, { timeout: 15_000 })
 
     // BAR_MEMBER has exactly ONE resolvable stream team (Rumah Rames bar), so the OD-CAFE-6 ladder
     // resolves it without asking and this call is a no-op. If BAR_MEMBER ever needed the choice,

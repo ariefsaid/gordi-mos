@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { ADMIN } from './fixtures/users'
 import { loginAs } from './helpers/login'
 import { TAP_FLOOR } from './helpers/tap-floor'
+import { stripE2eBasePath } from './helpers/app-path'
 import { ROUTE_PARITY_CATALOG, type RouteParityId } from '../src/shell/route-parity'
 
 // This catalog is the production route manifest's parity policy. The route census compares it
@@ -35,12 +36,12 @@ const CROSS_SECTION_RETURNS = [
 const LEGACY_REDIRECTS = [
   { oldPath: 'tasks', canonical: /\/work\/tasks$/ },
   { oldPath: 'updates', canonical: /\/work\/signals\?layout=feed$/ },
-  { oldPath: 'kitchen', canonical: /\/cafe$/ },
+  { oldPath: 'kitchen', canonical: /\/cafe\/production$/ },
 ] as const
 
 function normalizeHref(href: string): string {
   const url = new URL(href)
-  return `${url.pathname.replace(/^\/mos/, '') || '/'}${url.search}`
+  return `${stripE2eBasePath(url.pathname)}${url.search}`
 }
 
 async function visibleSurfaceHrefs(page: Page): Promise<Set<string>> {
@@ -68,7 +69,7 @@ async function assertCanonicalSurface(page: Page, route: string) {
   await page.goto(route === '/' ? '' : route.slice(1))
   await expect.poll(() => {
     const url = new URL(page.url())
-    return url.pathname.replace(/^\/mos/, '') || '/'
+    return stripE2eBasePath(url.pathname)
   }).toBe(route)
   const breadcrumb = page.getByRole('navigation', { name: 'Breadcrumb' })
   const routeEntry = ROUTE_CATALOG.find((entry) => entry.path === route)
@@ -86,8 +87,9 @@ async function assertCanonicalSurface(page: Page, route: string) {
     await expect(settings).toBeVisible()
     await expect(settings.getByRole('link', { name: settingsTab, exact: true })).toHaveAttribute('aria-current', 'page')
   } else if (routeEntry?.owner === 'agent-consent') {
-    // The consent page is a sign-in handoff, not a place in the app: it owns no breadcrumb.
-    await expect(breadcrumb).toBeEmpty()
+    // #1069 added consent as a focused handoff without a shell destination. Its breadcrumb may be
+    // omitted entirely at narrow widths; preserve the no-breadcrumb behavior, not an empty <nav>.
+    await expect.poll(async () => (await breadcrumb.allTextContents()).join('').trim()).toBe('')
     await expect(page.getByRole('heading', { name: 'Connect an agent', level: 1 })).toBeVisible()
   } else {
     await expect(breadcrumb).toBeVisible()
@@ -122,7 +124,7 @@ test.describe('PROOF-02 canonical route and visible-root parity', () => {
           await page.goto('')
           await assertCanonicalSurface(page, journey.route)
           await page.goBack()
-          await expect(page).toHaveURL(/\/mos\/?$/)
+          await expect.poll(() => stripE2eBasePath(new URL(page.url()).pathname)).toBe('/')
           await expect(page.locator('[aria-current="page"]')).toHaveCount(1)
           await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toContainText(/Home/)
         })
@@ -149,7 +151,7 @@ test.describe('PROOF-02 canonical route and visible-root parity', () => {
         await expect(page).toHaveURL(redirect.canonical)
         await expect(page.locator('[aria-current="page"]')).toHaveCount(1)
         await page.goBack()
-        await expect(page).not.toHaveURL(new RegExp(`/mos/${redirect.oldPath.replaceAll('/', '\\/')}$`))
+        await expect.poll(() => stripE2eBasePath(new URL(page.url()).pathname)).not.toBe(`/${redirect.oldPath}`)
       }
     })
   }

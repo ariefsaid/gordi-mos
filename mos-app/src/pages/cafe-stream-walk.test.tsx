@@ -26,11 +26,12 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
     ...actual,
     fetchKitchenStock: vi.fn(),
     listStreamPairs: vi.fn(),
+    listCafeDestinations: vi.fn(),
     listActiveWipItems: vi.fn(),
     listStreamItemIds: vi.fn(async () => ({ has: () => true })),
   }
 })
-import { fetchKitchenStock, listStreamPairs, listActiveWipItems } from '@/lib/db/kitchen-logs'
+import { fetchKitchenStock, listCafeDestinations, listStreamPairs, listActiveWipItems } from '@/lib/db/kitchen-logs'
 
 vi.mock('@/lib/db/kitchen-plans', () => ({
   listKitchenPlans: vi.fn(),
@@ -43,6 +44,7 @@ vi.mock('@/lib/db/branches', () => ({ listActiveBranches: vi.fn() }))
 import { listActiveBranches } from '@/lib/db/branches'
 
 vi.mock('@/lib/db/default-stream', () => ({ fetchDefaultStream: vi.fn() }))
+vi.mock('@/lib/db/cafe-item-settings', () => ({ listCafeItemSettings: vi.fn().mockResolvedValue([]) }))
 // #781 coordinator follow-up: useCafeStream now also reads current Team memberships for
 // "Your Team" tagging (myStreamKeys) — empty by default here; tests that care override it.
 vi.mock('@/lib/db/cafe-opening', () => ({ listCafeViewerTeams: vi.fn().mockResolvedValue([]) }))
@@ -95,6 +97,9 @@ beforeEach(() => {
   vi.mocked(useAuth).mockReturnValue(viewer(['ops_lead']))
   vi.mocked(listActiveBranches).mockResolvedValue(BRANCHES)
   vi.mocked(listStreamPairs).mockResolvedValue(STREAM_PAIRS)
+  vi.mocked(listCafeDestinations).mockResolvedValue([
+    { origin_branch_id: BRANCH_RR.id, origin_activity: 'kitchen', destination_branch_id: BRANCH_RAD.id },
+  ])
   vi.mocked(fetchDefaultStream).mockResolvedValue(OWN_STREAM)
   vi.mocked(fetchKitchenStock).mockResolvedValue([])
   vi.mocked(listActiveWipItems).mockResolvedValue([{ id: 'w1', name: 'Ayam Bakar', category: 'Main' }])
