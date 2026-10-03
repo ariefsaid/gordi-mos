@@ -464,7 +464,7 @@ export function LoginPage() {
           type="button"
           disabled={isDisabled}
           aria-busy={loading === 'google'}
-          className="w-full flex items-center justify-center gap-2 bg-background text-foreground border border-input rounded-sm font-medium"
+          className="w-full flex items-center justify-center gap-2 text-primary font-medium hover:underline focus-visible:underline"
           style={{
             height: 32,
             fontSize: 16,
