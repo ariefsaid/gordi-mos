@@ -1,3 +1,6 @@
+import { APP_RELEASE_PROFILE } from '@/config/app-build-settings'
+import type { ReleaseProfile } from '@/config/build-settings'
+
 // Demo-login data, shared by DemoLogin.tsx + LoginPage.tsx.
 // Kept in its own (non-component) module so react-refresh stays happy and the
 // values are importable by tests. See DemoLogin.tsx for the prod-safety gate.
@@ -27,17 +30,28 @@ export const SAMPLE_PERSONAS: ReadonlyArray<{ label: string; email: string }> = 
   ({ label, email }) => ({ label, email: email.replace(/\.dev@example\.test$/, '@sample.gordi.test') }),
 )
 
+const SAMPLE_LOGIN_HOSTS = new Set(['gordi-mos.pages.dev', 'gordi-cafe-ops.pages.dev'])
+const CAFE_PERSONA_LABELS = new Set(['Director', 'Cafe Ops', 'Kitchen', 'Barista', 'Kitchen staff', 'Supervisor'])
+
+function personasForProfile(
+  personas: ReadonlyArray<{ label: string; email: string }>,
+  profile: ReleaseProfile,
+): ReadonlyArray<{ label: string; email: string }> {
+  return profile === 'cafe' ? personas.filter(({ label }) => CAFE_PERSONA_LABELS.has(label)) : personas
+}
+
 export function demoLoginMode(
   env: { DEV?: boolean; PROD?: boolean; VITE_SAMPLE_ONE_CLICK_LOGIN?: string; VITE_SAMPLE_LOGIN_PASSWORD?: string },
   hostname: string,
+  profile: ReleaseProfile = APP_RELEASE_PROFILE,
 ): { kind: 'dev' | 'sample'; password: string; personas: ReadonlyArray<{ label: string; email: string }> } | null {
-  if (env.DEV) return { kind: 'dev', password: DEMO_PASSWORD, personas: DEMO_PERSONAS }
+  if (env.DEV) return { kind: 'dev', password: DEMO_PASSWORD, personas: personasForProfile(DEMO_PERSONAS, profile) }
   if (
-    env.PROD && hostname === 'gordi-mos.pages.dev' &&
+    env.PROD && SAMPLE_LOGIN_HOSTS.has(hostname) &&
     env.VITE_SAMPLE_ONE_CLICK_LOGIN === 'true' &&
     (env.VITE_SAMPLE_LOGIN_PASSWORD?.length ?? 0) >= 12
   ) {
-    return { kind: 'sample', password: env.VITE_SAMPLE_LOGIN_PASSWORD!, personas: SAMPLE_PERSONAS }
+    return { kind: 'sample', password: env.VITE_SAMPLE_LOGIN_PASSWORD!, personas: personasForProfile(SAMPLE_PERSONAS, profile) }
   }
   return null
 }

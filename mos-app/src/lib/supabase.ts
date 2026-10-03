@@ -12,3 +12,19 @@ export const supabase = createClient(url, anonKey, {
   db: { schema: 'shared' },
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
 })
+
+// GoTrue's public settings endpoint reports enabled OAuth providers. Use only the existing
+// project URL and public anon key; never attach the current user's session to this request.
+export async function getGoogleProviderEnabled(): Promise<boolean> {
+  const settingsUrl = `${url.replace(/\/+$/, '')}/auth/v1/settings`
+  const response = await fetch(settingsUrl, {
+    method: 'GET',
+    headers: { apikey: anonKey },
+    credentials: 'omit',
+    cache: 'no-store',
+  })
+  if (!response.ok) return false
+
+  const settings = await response.json() as { external?: { google?: unknown } }
+  return settings.external?.google === true
+}

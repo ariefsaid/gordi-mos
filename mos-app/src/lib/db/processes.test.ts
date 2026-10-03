@@ -6,6 +6,7 @@ vi.mock('../supabase', () => {
   const schema = vi.fn()
   return { supabase: { schema } }
 })
+vi.mock('@/lib/open-task-count-store', () => ({ announceOpenTaskCountChanged: vi.fn() }))
 
 import {
   startRun, listDueRuns, listPendingTasks, resolvePendingTask,
@@ -13,6 +14,7 @@ import {
   listProcessOccurrenceSummaries, listStartableProcessRuns, canStartProcessForTeam, canCloseProcessRun,
 } from './processes'
 import { supabase } from '@/lib/supabase'
+import { announceOpenTaskCountChanged } from '@/lib/open-task-count-store'
 import type { DueProcessRun, ProcessOccurrenceSummary, ProcessRunRollup, ProcessRunRow } from './processes.types'
 import type { TaskListRow } from './tasks.types'
 
@@ -269,6 +271,15 @@ describe('listTaskDefs', () => {
 })
 
 describe('resolvePendingTask', () => {
+  it('refreshes the shared count after a process step is assigned to a person', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'rpc.resolve_pending_task': [{ data: 'task-9', error: null }] }, rec)
+
+    await resolvePendingTask(PENDING_ID, PIC_ID)
+
+    expect(announceOpenTaskCountChanged).toHaveBeenCalledOnce()
+  })
+
   it('AC-621: calls mos.resolve_pending_task with the RPC args and returns the new task id', async () => {
     const rec = freshRec()
     mockSupabase({ 'rpc.resolve_pending_task': [{ data: 'task-9', error: null }] }, rec)

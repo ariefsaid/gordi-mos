@@ -4,7 +4,7 @@ import {
   getOpenTaskCountSnapshot, subscribeOpenTaskCount, watchOpenTaskCount,
 } from '@/lib/open-task-count-store'
 
-// The viewer's open-task count: one shared result for every caller, refreshed after task writes.
+// The viewer's open-task count: one shared result for every caller, refreshed after task writes and on focus.
 // Null until it resolves and on failure.
 export function useMyOpenTaskCount(): number | null {
   const auth = useAuth()

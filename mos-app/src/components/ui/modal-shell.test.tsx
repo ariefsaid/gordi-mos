@@ -104,6 +104,34 @@ describe('ModalShell — one centered interaction contract', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
+  it('consumes Escape when the top modal is non-dismissible', async () => {
+    const user = userEvent.setup()
+    function Fixture() {
+      return (
+        <>
+          <ModalShell open onClose={vi.fn()} ariaLabel="Underlying dialog">
+            <button type="button">Underlying action</button>
+          </ModalShell>
+          <ModalShell open onClose={vi.fn()} ariaLabel="Protected top" closeOnEscape={false}>
+            <button type="button">Protected action</button>
+          </ModalShell>
+        </>
+      )
+    }
+
+    render(<Fixture />)
+    const bubbledEscape = vi.fn()
+    document.addEventListener('keydown', bubbledEscape)
+    try {
+      await user.keyboard('{Escape}')
+      expect(screen.getByRole('dialog', { name: 'Protected top' })).toBeInTheDocument()
+      expect(screen.getByRole('dialog', { name: 'Underlying dialog' })).toBeInTheDocument()
+      expect(bubbledEscape).not.toHaveBeenCalled()
+    } finally {
+      document.removeEventListener('keydown', bubbledEscape)
+    }
+  })
+
   it('focuses an explicit initialFocusRef target instead of the first focusable descendant', async () => {
     function Fixture() {
       const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -175,6 +203,36 @@ describe('ModalShell — one centered interaction contract', () => {
   // instance renders its own fixed, full-viewport `.modal-shell__scrim`; nested here, the
   // confirm's copy mounts strictly after the composer's in document order, so it paints over
   // the composer with no ancestor between them (position: fixed, no transform) to confine it.
+  it('Escape closes only the topmost of two open modal shells', async () => {
+    function Fixture() {
+      const [underlyingOpen, setUnderlyingOpen] = useState(true)
+      const [topOpen, setTopOpen] = useState(true)
+      return (
+        <>
+          <ModalShell open={underlyingOpen} onClose={() => setUnderlyingOpen(false)} ariaLabel="Underlying dialog">
+            <p>Underlying content</p>
+          </ModalShell>
+          <ModalShell open={topOpen} onClose={() => setTopOpen(false)} ariaLabel="Top dialog">
+            <p>Top content</p>
+          </ModalShell>
+        </>
+      )
+    }
+
+    render(<Fixture />)
+    expect(screen.getAllByTestId('modal-shell-scrim')).toHaveLength(2)
+
+    await userEvent.keyboard('{Escape}')
+
+    expect(screen.queryByRole('dialog', { name: 'Top dialog' })).not.toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Underlying dialog' })).toBeInTheDocument()
+    expect(screen.getAllByTestId('modal-shell-scrim')).toHaveLength(1)
+
+    await userEvent.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: 'Underlying dialog' })).not.toBeInTheDocument()
+    expect(screen.queryByTestId('modal-shell-scrim')).not.toBeInTheDocument()
+  })
+
   it('a nested ModalShell (a confirm over another dialog) renders its own scrim above the outer one', () => {
     render(
       <ModalShell open onClose={vi.fn()} ariaLabel="Share Signal">

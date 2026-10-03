@@ -172,6 +172,7 @@ export function useInlineCommit<T>({
       commit()
     } else if (e.key === 'Escape') {
       e.preventDefault()
+      e.stopPropagation()
       cancel()
     }
   }, [commit, cancel])

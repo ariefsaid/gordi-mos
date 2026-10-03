@@ -22,6 +22,27 @@ describe('CatalogRowActions', () => {
     expect(trigger).toHaveFocus()
   })
 
+  it('shares arrow/Home/End navigation and Tab exit with every menu', async () => {
+    const user = userEvent.setup()
+    render(<><CatalogRowActions name="Quarterly plan" archived={false} canManage onRename={() => {}} onArchive={() => {}} onUnarchive={() => {}} /><button type="button">Next control</button></>)
+    const trigger = screen.getByRole('button', { name: 'More actions for Quarterly plan' })
+    await user.click(trigger)
+    const rename = screen.getByRole('menuitem', { name: 'Rename Quarterly plan' })
+    const archive = screen.getByRole('menuitem', { name: 'Archive Quarterly plan' })
+    await waitFor(() => expect(rename).toHaveFocus())
+    await user.keyboard('{ArrowDown}')
+    expect(archive).toHaveFocus()
+    await user.keyboard('{Home}')
+    expect(rename).toHaveFocus()
+    await user.keyboard('{End}')
+    expect(archive).toHaveFocus()
+    await user.keyboard('{ArrowUp}')
+    expect(rename).toHaveFocus()
+    await user.keyboard('{Tab}')
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Next control' })).toHaveFocus())
+  })
+
   it('only offers Unarchive for archived rows and no actions without permission', () => {
     const { rerender } = render(<CatalogRowActions name="Old plan" archived canManage onRename={() => {}} onArchive={() => {}} onUnarchive={() => {}} />)
     expect(screen.getByRole('button', { name: 'Unarchive Old plan' })).toBeInTheDocument()

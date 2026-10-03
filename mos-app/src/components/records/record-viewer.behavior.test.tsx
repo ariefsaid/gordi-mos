@@ -50,11 +50,8 @@ function renderViewer(guard: OverlayLeaveGuard, onDirtyChange = vi.fn(), onCommi
   return { onDirtyChange, onCommitField }
 }
 
-// Force the ≥1100px SPLIT regime so RecordPanelHost attaches its native Escape listener to
-// the panel <aside> — the exact path the live host uses at desktop and the regime where the
-// native-listener race lived (the host's bubble listener on the panel fires BEFORE React's
-// synthetic delegate reaches the field). A host-mounted proof here exercises the real
-// listener ordering a synthetic React wrapper cannot reproduce.
+// Force the ≥1100px SPLIT regime used by the live desktop host. Mounting the real host here
+// proves its shared Escape layer defers to the field's native capture listener before closing.
 function forceSplitWidth() {
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
@@ -111,15 +108,10 @@ describe('RecordViewer interaction boundary', () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
-  // FieldEscapeContract — the owning proof that field-Escape isolation holds through the
-  // LIVE RecordPanelHost native listener (OD-REDESIGN-83.1 / NFR-V3-001). The host attaches
-  // its Escape listener via native addEventListener on the panel, which fires in the bubble
-  // phase before React's synthetic delegate; a synthetic React wrapper (the old shape of this
-  // test) cannot reproduce that ordering. Mounting inside the host exercises the real path:
-  // the FIRST Escape on a focused dirty field cancels only that draft and is shielded from
-  // the host's close listener; a SECOND Escape on the now-clean field reaches the host close
-  // path. (The dirty-record × leave-guard half of this contract is owned end-to-end by
-  // AC-V3-008c in tasks-workspace.test.tsx, which wires the real tenant guard.)
+  // FieldEscapeContract — the owning proof that field-Escape isolation holds through the live
+  // RecordPanelHost layer (OD-REDESIGN-83.1 / NFR-V3-001). The FIRST Escape on a focused dirty
+  // field cancels only that draft; a SECOND Escape on the now-clean field reaches the host
+  // close path. (The dirty-record × leave-guard half is owned by AC-V3-008c in tasks-workspace.)
   it('FieldEscapeContract: through the live host, the first Escape on a focused dirty field cancels only the draft (host does not close); a second Escape on the now-clean field reaches the host close path', () => {
     const onClose = vi.fn()
     const onDirtyChange = vi.fn()
@@ -132,10 +124,8 @@ describe('RecordViewer interaction boundary', () => {
     fireEvent.change(input, { target: { value: 'Restock oat milk cartons' } })
     expect(onDirtyChange).toHaveBeenLastCalledWith(true)
 
-    // FIRST Escape — focused editing field: the field's native CAPTURE listener cancels the
-    // draft, RETURNS to the value rendering, and stopImmediatePropagation shields the host's
-    // native panel listener, so the host's close path is NOT invoked (the field consumes the
-    // first Escape, in isolation, through the real listener ordering).
+    // FIRST Escape — focused editing field: the layer manager defers and the field's native
+    // CAPTURE listener cancels the draft and stops propagation, so the host does not close.
     fireEvent.keyDown(input, { key: 'Escape' })
     // Back in value mode: the edit control (label exactly "Title") is gone and the discarded
     // draft is not shown. (The value activation button's accessible name is "Edit Title".)

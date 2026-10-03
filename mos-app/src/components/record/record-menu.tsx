@@ -6,8 +6,9 @@
 //   minItems number = 2       renders nothing below this count (a one-item menu is a button's job)
 //
 // The popover renders in a portal (it escapes the panel's overflow clip), anchors to the trigger (above it when there is no room below),
-// moves with its trigger on scroll and resize, closes on Escape / outside click / Tab and returns focus to the trigger, moves with the
-// arrow keys, Home/End and type-ahead. A destructive item is text in the lost tone, never a fill.
+// moves with its trigger on scroll and resize, closes on Escape / outside click / Tab, and
+// returns focus to its opener on Escape. Arrows, Home/End and type-ahead navigate items. A
+// destructive item is text in the lost tone, never a fill.
 import { useCallback, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { useMenuPopover } from '@/lib/use-menu-popover'
@@ -58,8 +59,6 @@ export function RecordMenu({ items, label, minItems = 2 }: RecordMenuProps) {
   if (items.length < minItems) return null
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    // Tab leaves the menu: it closes and focus goes back to the trigger, so the next Tab moves on from there.
-    if (event.key === 'Tab') { setOpen(false); triggerRef.current?.focus(); return }
     if (event.key.length !== 1 || event.ctrlKey || event.metaKey || event.altKey) return
     const now = Date.now()
     typed.current = { text: (now - typed.current.at > 600 ? '' : typed.current.text) + event.key.toLowerCase(), at: now }

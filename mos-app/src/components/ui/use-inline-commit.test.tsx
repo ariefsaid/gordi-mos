@@ -113,6 +113,17 @@ describe('useInlineCommit — Escape DISCARDS (OD-REDESIGN-22)', () => {
     fireEvent.blur(input)
     expect(onCommit).not.toHaveBeenCalled()
   })
+
+  it('keeps Escape local to the editor', () => {
+    const hostEscape = vi.fn()
+    render(
+      <div onKeyDown={(event) => { if (event.key === 'Escape') hostEscape() }}>
+        <NumberField value={5} onCommit={vi.fn()} />
+      </div>,
+    )
+    fireEvent.keyDown(screen.getByLabelText('qty'), { key: 'Escape' })
+    expect(hostEscape).not.toHaveBeenCalled()
+  })
 })
 
 describe('useInlineCommit — async pending + rollback (reuses the I6 optimistic idiom)', () => {

@@ -153,6 +153,61 @@ describe('ProtectedRoute', () => {
 })
 
 describe('RedirectIfAuthed', () => {
+  it('AC-012: a Google OAuth return restores its sanitized protected-route destination', () => {
+    mockUseAuth.mockReturnValue({
+      status: 'authenticated',
+      viewer: {
+        person: {
+          id: 'p1', org_id: 'o1', user_id: 'u1', full_name: 'Test User', email: null,
+          must_change_password: false, archived_at: null, created_at: '', updated_at: '',
+        },
+        roles: [], isManager: false, accessRoles: [], affiliated: [],
+      },
+      signOut: vi.fn(),
+    })
+
+    render(
+      <MemoryRouter initialEntries={['/login?auth_flow=google&return_to=%2Fmoney%2Fdetail%3Fw%3D30d']}>
+        <Routes>
+          <Route element={<RedirectIfAuthed />}>
+            <Route path="/login" element={<LoginPage />} />
+          </Route>
+          <Route path="/money/detail" element={<div data-testid="remembered-route" />} />
+          <Route path="/" element={<HomePage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByTestId('remembered-route')).toBeInTheDocument()
+  })
+
+  it('AC-012: unsafe Google return destinations fall back to home', () => {
+    mockUseAuth.mockReturnValue({
+      status: 'authenticated',
+      viewer: {
+        person: {
+          id: 'p1', org_id: 'o1', user_id: 'u1', full_name: 'Test User', email: null,
+          must_change_password: false, archived_at: null, created_at: '', updated_at: '',
+        },
+        roles: [], isManager: false, accessRoles: [], affiliated: [],
+      },
+      signOut: vi.fn(),
+    })
+
+    render(
+      <MemoryRouter initialEntries={['/login?auth_flow=google&return_to=https%3A%2F%2Fexample.test%2Fsteal']}>
+        <Routes>
+          <Route element={<RedirectIfAuthed />}>
+            <Route path="/login" element={<LoginPage />} />
+          </Route>
+          <Route path="/" element={<HomePage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByTestId('home-page')).toBeInTheDocument()
+  })
+
   it('AC-008: RedirectIfAuthed sends an authenticated viewer from /login to home', () => {
     mockUseAuth.mockReturnValue({
       status: 'authenticated',

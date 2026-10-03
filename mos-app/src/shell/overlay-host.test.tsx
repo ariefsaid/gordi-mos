@@ -1,6 +1,7 @@
 import { useEffect, useRef, type ReactElement } from 'react'
 import { act, render, screen, waitFor } from '@testing-library/react'
-import { createMemoryRouter, MemoryRouter, RouterProvider } from 'react-router-dom'
+import userEvent from '@testing-library/user-event'
+import { createMemoryRouter, MemoryRouter, RouterProvider, useSearchParams } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 import {
   OverlayHostProvider,
@@ -50,6 +51,35 @@ function makeEntry(over: Partial<OverlayEntry> & Pick<OverlayEntry, 'key'>): Ove
     content: <button type="button">{over.key} control</button>,
     ...over,
   }
+}
+
+function ColdCollectionRecord() {
+  const host = useOverlayHost()
+  const [params, setParams] = useSearchParams()
+  const recordId = params.get('record')
+  const opened = useRef(false)
+  useEffect(() => {
+    if (!recordId || opened.current) return
+    opened.current = true
+    void host.openRoot(makeEntry({ key: `project:${recordId}`, title: 'Project' }), 'route', true)
+  }, [host, recordId])
+  return (
+    <>
+      <h1>Projects &amp; Processes</h1>
+      <OverlayHostSlot
+        owner="shell"
+        onClose={(via, close) => {
+          void close(via).then((result) => {
+            if (result.status !== 'committed') return
+            const next = new URLSearchParams(params)
+            next.delete('record')
+            next.delete('recordType')
+            setParams(next, { replace: true })
+          })
+        }}
+      />
+    </>
+  )
 }
 
 function renderHost(node: (onReady: (api: OverlayHostApi) => void) => ReactElement) {
@@ -720,6 +750,28 @@ describe('overlay host — browser POP transaction (clean + dirty)', () => {
   // "popped past the root", and closed the record the collection had just opened. Only a COLD
   // arrival is affected, which is why an in-app click never was, and why the v4 suite this file is
   // carried from never saw it — every one of its cases opens through the API after mount.
+  it('a cold record panel closes to its collection without popping out of the app', async () => {
+    const go = vi.fn()
+    const driver: OverlayHistoryDriver = { index: () => 0, go }
+    const router = createMemoryRouter(
+      [{ path: '*', element: (
+        <OverlayHostProvider historyDriver={driver}>
+          <ColdCollectionRecord />
+        </OverlayHostProvider>
+      ) }],
+      { initialEntries: ['/work/projects?record=project-1&recordType=work-line'] },
+    )
+    render(<RouterProvider router={router} />)
+
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Close' }))
+    await waitFor(() => expect(router.state.location.search).toBe(''))
+
+    expect(router.state.location.pathname).toBe('/work/projects')
+    expect(go).not.toHaveBeenCalled()
+    expect(document.querySelector('[data-overlay-host="true"]')).toBeNull()
+    expect(screen.getByRole('heading', { name: 'Projects & Processes' })).toBeInTheDocument()
+  })
+
   it('mount is not a gesture: a session opened by a child effect on a cold arrival survives', async () => {
     const { driver, connect } = wireDriver()
     let api!: OverlayHostApi

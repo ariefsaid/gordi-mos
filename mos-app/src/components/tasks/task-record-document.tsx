@@ -95,13 +95,13 @@ export function TaskRecordDocument({
   }
 
   // A link whose name has not resolved yet (href unset) is held back, never shown as "Ad hoc".
-  const link = (key: 'projectProcess' | 'objective', prompt: string): RecordFieldSpec | null => {
+  const link = (key: 'projectProcess' | 'objective'): RecordFieldSpec | null => {
     const field = spec(key)
     if (!field) return null
-    if (field.value === null) return editable ? { ...field, displayValue: prompt } : null
+    if (field.value === null) return field
     return field.href ? field : null
   }
-  const context = [link('projectProcess', t('tasks.context.setProject')), link('objective', t('tasks.context.setObjective'))]
+  const context = [link('projectProcess'), link('objective')]
     .filter((field): field is RecordFieldSpec => field !== null)
   if (context.length > 0) facts.push({ type: 'group', key: 'context', fields: context })
 
