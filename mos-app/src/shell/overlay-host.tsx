@@ -911,11 +911,8 @@ export function OverlayCompanionSlot({
       focusOnOpen={focusOnOpen}
       layout="companion"
       companion
-      // Deputy is the top layer when a record is open, so one Escape dismisses only Deputy.
-      // Desktop preserves OD-REDESIGN-83's active inline-edit Escape; the phone modal captures
-      // before the record underneath, as it did before.
-      escapeCapture={recordOpen}
-      escapeOnDocument
+      // Deputy registers above an open record, so one Escape dismisses only Deputy. Once it
+      // closes, the same stack exposes the record (or the record-field editor) beneath it.
       rootClassName={layoutClass}
       style={recordColumn}
       onClose={(via) => onClose(via ?? 'explicit-close')}

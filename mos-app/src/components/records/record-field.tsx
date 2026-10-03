@@ -193,17 +193,10 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
   }
 
   // NATIVE capture-phase Escape isolation (OD-REDESIGN-83.1 / NFR-V3-001).
-  // RecordPanelHost attaches its Escape listener via a NATIVE addEventListener on the panel
-  // (≥1100px split regime) or document (<1100px modal regime). That native listener fires in
-  // the BUBBLE phase BEFORE React's synthetic delegate reaches this field, so a React-level
-  // `onKeyDown` + `e.stopPropagation()` cannot shield it. To isolate the field's edit session
-  // we attach a NATIVE CAPTURE listener to the field's own input while it is in edit mode:
-  // Escape cancels the draft, returns to the value rendering, and `stopImmediatePropagation`
-  // so the host's bubble listener never sees the keystroke (the field consumes the FIRST
-  // Escape). Once the field is back in value mode this listener is gone, so the NEXT Escape
-  // propagates to the host as the panel-close intent. Deputy, when layered above a record on
-  // phone, attaches its own document CAPTURE listener (escapeCapture) that fires even earlier,
-  // so one Escape still closes Deputy first — this change neither swallows nor reorders that.
+  // The edit root's nested marker makes the shared document-capture manager yield to this field
+  // before dismissing any higher overlay (including Deputy). This input-level native capture then
+  // cancels the draft and stops propagation. Once the field returns to value mode this listener is
+  // gone, so the next Escape dismisses the still-open top overlay or record.
   const cancelRef = useRef(cancel)
   cancelRef.current = cancel
   const escapeCleanupRef = useRef<(() => void) | null>(null)
@@ -320,7 +313,7 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
 
   // ── Edit mode: the existing control, focused; commit/Escape return to the value view ─────
   return (
-    <div ref={editRootRef} className="record-field" data-field-key={spec.key} data-editable="true" data-mode="edit" data-status={status}>
+    <div ref={editRootRef} className="record-field" data-field-key={spec.key} data-editable="true" data-mode="edit" data-escape-layer="nested" data-status={status}>
       <label className="record-field__label" id={labelId} htmlFor={controlId}>
         {spec.label}
         {spec.required ? <span aria-hidden="true"> *</span> : null}
@@ -413,8 +406,7 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
                 void commit(draft, true)
               }
               // Escape isolation is owned by the native capture listener attached via
-              // `attachFieldEscapeIsolation` above — React's synthetic onKeyDown fires too late
-              // to shield the host's native listener, so Escape is intentionally NOT handled here.
+              // `attachFieldEscapeIsolation` above; React's synthetic handler is not needed.
             }}
             onBlur={() => void commit(draft, false)}
           />
@@ -441,8 +433,7 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
                 void commit(draft, true)
               }
               // Escape isolation is owned by the native capture listener attached via
-              // `attachFieldEscapeIsolation` above — React's synthetic onKeyDown fires too late
-              // to shield the host's native listener, so Escape is intentionally NOT handled here.
+              // `attachFieldEscapeIsolation` above; React's synthetic handler is not needed.
             }}
             onBlur={() => {
               // D1 fix: while the host's leave-guard dialog is open, a blur here is the
