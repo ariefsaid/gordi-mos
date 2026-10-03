@@ -101,27 +101,25 @@ export function RecordPanelHost({
   const panelRef = useRef<HTMLElement>(null)
   const invokerRef = useRef<HTMLElement | null>(null)
 
-  // ── Focus management ────────────────────────────────────────────────────────
-  // Move focus into the panel on open unless a persisted-open companion is being restored;
-  // only the modal regime traps. Return focus to a live opener on close.
+  // The host outlives stacked-frame swaps; only closing the whole panel returns focus to its opener.
   useEffect(() => {
     invokerRef.current = (document.activeElement as HTMLElement) ?? null
-    const panel = panelRef.current
-    if (!panel) return
-
-    // DO-15(e) (census-sweep R2, task-create F8): open-focus lands on the CONTENT's first
-    // focusable (e.g. the create form's Title field, a record's first value control), not the
-    // chrome bar's ✕ — the chrome stays reachable by Tab. Chrome-only panels keep their first
-    // chrome control as the fallback so focus always enters the panel.
-    const focusables = focusableWithin(panel)
-    const first = initialFocusRef?.current
-      ?? focusables.find((el) => !el.closest('.record-panel-chrome')) ?? focusables[0]
-    if (focusOnOpen) first?.focus()
-
     return () => {
       const invoker = invokerRef.current
       if (invoker?.isConnected && invoker !== document.body) invoker.focus()
     }
+  }, [])
+
+  // Move focus into each incoming frame without a cleanup that can steal it back to the opener.
+  // DO-15(e) (census-sweep R2, task-create F8): focus the content before chrome, with chrome-only
+  // panels falling back to their first control so focus always enters the panel.
+  useEffect(() => {
+    const panel = panelRef.current
+    if (!panel) return
+    const focusables = focusableWithin(panel)
+    const first = initialFocusRef?.current
+      ?? focusables.find((el) => !el.closest('.record-panel-chrome')) ?? focusables[0]
+    if (focusOnOpen) first?.focus()
   }, [focusKey, initialFocusRef, focusOnOpen])
 
   // Modal-only: focus trap (on the panel). Tab wraps within the sheet because the modal
