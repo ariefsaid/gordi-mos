@@ -13,6 +13,7 @@ type EscapeLayer = {
   elementRef: RefObject<HTMLElement | null>
   close: () => void
   options: () => EscapeLayerOptions
+  position: 'normal' | 'primary' | 'companion'
 }
 
 const layers: EscapeLayer[] = []
@@ -58,7 +59,13 @@ function onDocumentKeyDown(event: KeyboardEvent) {
 }
 
 function registerEscapeLayer(layer: EscapeLayer): () => void {
-  layers.push(layer)
+  if (layer.position === 'primary') {
+    // A companion such as Deputy stays above a record even when the record mounts later.
+    const companionIndex = layers.findIndex((entry) => entry.position === 'companion')
+    layers.splice(companionIndex < 0 ? layers.length : companionIndex, 0, layer)
+  } else {
+    layers.push(layer)
+  }
   if (!listeningDocument) {
     listeningDocument = document
     listeningDocument.addEventListener('keydown', onDocumentKeyDown, true)
@@ -85,6 +92,7 @@ export function useEscapeLayer(
   elementRef: RefObject<HTMLElement | null>,
   close: () => void,
   options: EscapeLayerOptions = {},
+  position: EscapeLayer['position'] = 'normal',
 ) {
   const closeRef = useRef(close)
   closeRef.current = close
@@ -97,6 +105,7 @@ export function useEscapeLayer(
       elementRef,
       close: () => closeRef.current(),
       options: () => optionsRef.current,
+      position,
     })
-  }, [open, elementRef])
+  }, [open, elementRef, position])
 }

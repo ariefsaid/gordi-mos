@@ -104,7 +104,7 @@ export function RecordPanelHost({
         && !!panelRef.current?.contains(target)
         && !!target.closest('.record-field[data-mode="edit"]')
     },
-  })
+  }, companion ? 'companion' : 'primary')
 
   // ── Focus management ────────────────────────────────────────────────────────
   // Move focus into the panel on open unless a persisted-open companion is being restored;
