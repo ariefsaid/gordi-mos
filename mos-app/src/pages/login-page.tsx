@@ -83,11 +83,12 @@ export function LoginPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const err = params.get('error')
+    const googleError = params.get('error') || params.get('error_code')
     if (
       params.get('auth_flow') === 'google' &&
       (params.has('error') || params.has('error_code') || params.has('error_description'))
     ) {
-      setError(t('auth.google.refused'))
+      setError(googleError === 'access_denied' ? t('auth.google.cancelled') : t('auth.google.refused'))
       return
     }
     if (err === 'access_denied' || err === 'otp_expired') {

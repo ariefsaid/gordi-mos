@@ -149,6 +149,27 @@ describe('LoginPage — Google sign-in', () => {
       Object.defineProperty(window, 'location', { configurable: true, value: originalLocation })
     }
   })
+
+  it.each([
+    ['en', 'Google sign-in was cancelled'],
+    ['id', 'Login dengan Google dibatalkan'],
+  ] as const)('shows a short Google cancellation message in %s', async (locale, message) => {
+    const originalLocation = window.location
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { ...originalLocation, search: '?auth_flow=google&error=access_denied' },
+    })
+    try {
+      render(
+        <I18nProvider initialLocale={locale}>
+          <LoginPage />
+        </I18nProvider>,
+      )
+      expect(await screen.findByRole('alert')).toHaveTextContent(message)
+    } finally {
+      Object.defineProperty(window, 'location', { configurable: true, value: originalLocation })
+    }
+  })
 })
 
 // ── T-014 ── AC-011 + AC-005 ────────────────────────────────────────────────
