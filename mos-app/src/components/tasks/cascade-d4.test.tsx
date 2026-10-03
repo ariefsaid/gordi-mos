@@ -350,7 +350,7 @@ describe('FR-247/248 — detail edit: Objective inline select', () => {
   })
 })
 
-describe('FR-249 — absent context is a prompt for an editor and nothing for a reader', () => {
+describe('AC-038 — missing relations have explicit domain state copy', () => {
   function renderTask(task: TaskListRow) {
     mockGetTask.mockResolvedValue({ task, checklist: [], events: [] })
     render(
@@ -363,17 +363,20 @@ describe('FR-249 — absent context is a prompt for an editor and nothing for a 
     return waitFor(() => screen.getByRole('heading', { level: 1, name: 'Fix the coffee machine' }))
   }
 
-  it('FR-249: a read-only viewer sees no Project/Process, Objective or Due fact, and no placeholder words', async () => {
+  it('AC-038: a read-only viewer sees named relation states, while an unset Due fact stays omitted', async () => {
     await renderTask(makeTask({ work_line_id: null, objective_id: null, due_date: null,
       responsible_person_id: 'other-id', accountable_person_id: 'other-id' }))
     const facts = screen.getByRole('list', { name: 'Key facts' })
-    expect(facts).not.toHaveTextContent(/Ad hoc|No Objective|No due date|Project\/Process|Objective|Due/)
+    expect(facts).toHaveTextContent('Ad hoc')
+    expect(facts).toHaveTextContent('No Objective')
+    expect(facts).not.toHaveTextContent(/No due date|Due/)
+    expect(facts).not.toHaveTextContent('—')
   })
 
-  it('FR-249: an editor sees a prompt to set each missing piece of context', async () => {
+  it('AC-038: an editor sees the named empty states and retains relation edit affordances', async () => {
     await renderTask(makeTask({ work_line_id: null, objective_id: null, due_date: null }))
-    expect(screen.getByRole('button', { name: 'Edit Project/Process' })).toHaveTextContent('+ Set project or process')
-    expect(screen.getByRole('button', { name: 'Edit Objective' })).toHaveTextContent('+ Set objective')
+    expect(screen.getByRole('button', { name: 'Edit Project/Process' })).toHaveTextContent('Ad hoc')
+    expect(screen.getByRole('button', { name: 'Edit Objective' })).toHaveTextContent('No Objective')
     expect(screen.getByRole('button', { name: 'Edit Due' })).toHaveTextContent('+ Set due date')
   })
 })
