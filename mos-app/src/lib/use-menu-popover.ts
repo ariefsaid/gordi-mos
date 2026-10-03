@@ -26,7 +26,8 @@ export function useMenuPopover(
       // containing modal's trap even though this menu owns the current Tab event.
       const scope = triggerRef.current?.closest<HTMLElement>('[aria-modal="true"]') ?? document.body
       const outsideMenu = focusableWithin(scope).filter((node) => !menu.contains(node))
-      const triggerIndex = outsideMenu.indexOf(triggerRef.current as HTMLElement)
+      const trigger = triggerRef.current
+      const triggerIndex = trigger ? outsideMenu.indexOf(trigger) : -1
       const targetIndex = event.shiftKey ? triggerIndex - 1 : triggerIndex + 1
       const target = triggerIndex < 0
         ? null
@@ -35,8 +36,8 @@ export function useMenuPopover(
 
       event.preventDefault()
       close()
-      // The close callback may restore focus to the trigger; move onward after React commits
-      // the unmount so a removed menu item cannot strand focus on <body>.
+      // The close callback may restore focus to the trigger; move onward after it runs so Tab
+      // lands beyond the opener rather than back on the menu's focused item.
       queueMicrotask(() => target?.focus())
     },
   })
@@ -76,6 +77,7 @@ export function useMenuPopover(
     }
 
     const onPointerDown = (event: MouseEvent) => {
+      // A non-top menu stays mounted until its owner is dismissed; never skip the top layer.
       if (!isTopEscapeLayer(menuRef.current)) return
       const target = event.target as Node
       if (menuRef.current?.contains(target)) return

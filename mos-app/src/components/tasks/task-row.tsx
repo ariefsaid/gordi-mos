@@ -490,6 +490,7 @@ export function TaskRow({
               aria-busy={pending || undefined}
               aria-label={t('tasks.inlineEdit.aria')}
               aria-describedby={titleEditKeyhintId}
+              data-escape-layer="nested"
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={onInputKeyDown}
               onBlur={finishEdit}
@@ -646,7 +647,7 @@ export function TaskRow({
       <span className="tabular-nums" title={task.last_activity_at}>{formatAge(task.last_activity_at, now, locale)}</span>
     ),
     due: onEditDue ? (dueEditing ? (
-      <span className="inline-editor-control inline-editor-control--due" onClick={(event) => event.stopPropagation()}>
+      <span className="inline-editor-control inline-editor-control--due" data-escape-layer="nested" onClick={(event) => event.stopPropagation()}>
         <DateField compact autoFocus aria-label={t('tasks.inlineEdit.dueInput')} value={dueTyped} readOnly={dueInline.pending} aria-busy={dueInline.pending || undefined}
           error={dueInline.error} aria-describedby={dueInline.error ? dueErrorId : undefined} reveal={dueRevealed}
           onChange={(next) => { setDueTyped(next); dueInline.setDraft(next) }} onValidityChange={setDueInvalid} onKeyDown={onDueKeyDown} onBlur={onDueBlur} />
