@@ -28,7 +28,10 @@ export function RedirectIfAuthed() {
   }
 
   if (auth.status === 'authenticated' || auth.status === 'orphan') {
-    return <Navigate to={safeReturnTarget((location.state as { from?: unknown } | null)?.from)} replace />
+    const stateTarget = (location.state as { from?: unknown } | null)?.from
+    const params = new URLSearchParams(location.search)
+    const googleTarget = params.get('auth_flow') === 'google' ? params.get('return_to') : undefined
+    return <Navigate to={safeReturnTarget(stateTarget ?? googleTarget)} replace />
   }
 
   return <Outlet />

@@ -162,17 +162,37 @@ describe('AC-005: UserChip and sign-out menu', () => {
     const user = userEvent.setup()
     renderChip(<UserChip />)
     await user.click(screen.getByRole('button', { name: /dina pratiwi/i }))
-    // ALL menu items — Sign out (menuitem) AND Light/Dark/System (menuitemradio). The first
-    // version queried menuitem only and congratulated a one-item loop (second-pass audit F5).
-    const items = [...screen.getAllByRole('menuitem'), ...screen.getAllByRole('menuitemradio')]
+    // Keep the mixed menuitem/menuitemradio controls in their actual DOM order.
+    const items = Array.from(screen.getByRole('menu').querySelectorAll<HTMLElement>(
+      '[role="menuitem"], [role="menuitemradio"]',
+    ))
     expect(items.length).toBeGreaterThanOrEqual(4)
     await waitFor(() => expect(items).toContain(document.activeElement))
     const first = document.activeElement
     fireEvent.keyDown(document, { key: 'ArrowDown' })
     expect(items).toContain(document.activeElement)
     expect(document.activeElement).not.toBe(first)
-    fireEvent.keyDown(document, { key: 'End' })
-    expect(items).toContain(document.activeElement)
+    await user.keyboard('{Home}')
+    expect(items[0]).toHaveFocus()
+    await user.keyboard('{ArrowUp}')
+    expect(items.at(-1)).toHaveFocus()
+    await user.keyboard('{End}')
+    expect(items.at(-1)).toHaveFocus()
+  })
+
+  it('Tab closes the shared menu and moves focus beyond its opener', async () => {
+    mockUseAuth.mockReturnValue({
+      status: 'authenticated',
+      viewer: { ...baseViewer, roles: [makeRole('r1', 'Kitchen Lead')] },
+      signOut,
+    })
+    const user = userEvent.setup()
+    renderChip(<><UserChip /><button type="button">Next control</button></>)
+    await user.click(screen.getByRole('button', { name: /dina pratiwi/i }))
+    await screen.findByRole('menu')
+    await user.keyboard('{Tab}')
+    await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Next control' })).toHaveFocus())
   })
 
   it('clicking Sign out calls signOut once', async () => {

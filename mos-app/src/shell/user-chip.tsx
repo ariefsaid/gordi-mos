@@ -55,8 +55,8 @@ export function UserChip({ compact = false, variant = 'header', onNavigate }: Us
     chipRef.current?.focus()
   }, [])
 
-  // ONE popover contract (convention audit 2026-07-18): outside-click close +
-  // Esc + WAI-ARIA menu keys (focus enters menu, arrows/Home/End cycle).
+  // ONE popover contract: outside-click + top-layer Escape + Tab exit, with focus-enter and
+  // WAI-ARIA arrow/Home/End navigation.
   useMenuPopover(open, close, menuRef, chipRef)
 
   if (!viewer) return null

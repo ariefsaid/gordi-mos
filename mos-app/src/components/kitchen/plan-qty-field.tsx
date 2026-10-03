@@ -83,6 +83,7 @@ export function PlanQtyField({ itemName, qty, disabled, onSave, dense = false }:
         // The hook owns duplicate suppression; these attributes still expose pending state.
         disabled={disabled || pending}
         aria-busy={pending || undefined}
+        data-escape-layer="nested"
         data-touch-target="true"
         onChange={handleInput}
         onKeyDown={onKeyDown}

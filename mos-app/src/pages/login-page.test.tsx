@@ -4,9 +4,11 @@ import userEvent from '@testing-library/user-event'
 
 // Mock supabase before imports that use it
 vi.mock('../lib/supabase', () => ({
+  getGoogleProviderEnabled: vi.fn(),
   supabase: {
     auth: {
       signInWithPassword: vi.fn(),
+      signInWithOAuth: vi.fn(),
       signInWithOtp: vi.fn(),
       resetPasswordForEmail: vi.fn(),
       signOut: vi.fn(),
@@ -29,13 +31,146 @@ vi.mock('react-router-dom', async () => {
 })
 
 import { appUrl } from '@/config/app-build-settings'
+import { I18nProvider } from '@/i18n/I18nProvider'
 import { LoginPage } from './login-page'
-import { supabase } from '@/lib/supabase'
+import { getGoogleProviderEnabled, supabase } from '@/lib/supabase'
 
+const mockGoogleProviderEnabled = vi.mocked(getGoogleProviderEnabled)
 const mockSignIn = vi.mocked(supabase.auth.signInWithPassword)
+const mockSignInWithOAuth = vi.mocked(supabase.auth.signInWithOAuth)
 const mockSignInWithOtp = vi.mocked(supabase.auth.signInWithOtp)
 const mockResetPassword = vi.mocked(supabase.auth.resetPasswordForEmail)
 const mockSignOut = vi.mocked(supabase.auth.signOut)
+
+beforeEach(() => {
+  mockGoogleProviderEnabled.mockReturnValue(new Promise(() => {}))
+})
+
+// ── #1276 ── provisioned Google sign-in ────────────────────────────────────
+
+describe('LoginPage — Google sign-in', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGoogleProviderEnabled.mockResolvedValue(true)
+    setRememberedRoute(undefined)
+  })
+
+  it('hides Google while settings load, then shows it when settings enable the provider without moving the slot', async () => {
+    let resolveSettings!: (enabled: boolean) => void
+    mockGoogleProviderEnabled.mockReturnValue(new Promise((resolve) => { resolveSettings = resolve }))
+
+    render(<LoginPage />)
+
+    expect(screen.queryByRole('button', { name: 'Continue with Google' })).not.toBeInTheDocument()
+    const slot = screen.getByTestId('google-sign-in-slot')
+    expect(slot).toHaveStyle({ height: '96px' })
+
+    resolveSettings(true)
+    expect(await screen.findByRole('button', { name: 'Continue with Google' })).toBeInTheDocument()
+    expect(slot).toHaveStyle({ height: '96px' })
+  })
+
+  it('keeps Google hidden when public auth settings report it disabled', async () => {
+    mockGoogleProviderEnabled.mockResolvedValue(false)
+
+    render(<LoginPage />)
+
+    expect(screen.queryByRole('button', { name: 'Continue with Google' })).not.toBeInTheDocument()
+    await waitFor(() => expect(mockGoogleProviderEnabled).toHaveBeenCalledOnce())
+    expect(screen.queryByRole('button', { name: 'Continue with Google' })).not.toBeInTheDocument()
+  })
+
+  it('keeps email/password sign-in available and Google hidden when settings cannot be fetched', async () => {
+    mockGoogleProviderEnabled.mockRejectedValue(new Error('settings unavailable'))
+
+    render(<LoginPage />)
+
+    expect(screen.queryByRole('button', { name: 'Continue with Google' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Sign in' })).toBeInTheDocument()
+    await waitFor(() => expect(mockGoogleProviderEnabled).toHaveBeenCalledOnce())
+    expect(screen.queryByRole('button', { name: 'Continue with Google' })).not.toBeInTheDocument()
+  })
+
+  it('starts Google OAuth with the login callback under the configured app base path', async () => {
+    mockSignInWithOAuth.mockResolvedValue({
+      data: { provider: 'google', url: 'https://auth.example.test' },
+      error: null,
+    })
+
+    const user = userEvent.setup()
+    render(<LoginPage />)
+    await user.click(await screen.findByRole('button', { name: 'Continue with Google' }))
+
+    const redirectTo = new URL(appUrl('/login'), window.location.origin)
+    redirectTo.searchParams.set('auth_flow', 'google')
+    expect(mockSignInWithOAuth).toHaveBeenCalledWith({
+      provider: 'google',
+      options: { redirectTo: redirectTo.href },
+    })
+  })
+
+  it('carries the sanitized remembered route through the Google OAuth callback', async () => {
+    setRememberedRoute('/money/detail?w=30d')
+    mockSignInWithOAuth.mockResolvedValue({
+      data: { provider: 'google', url: 'https://auth.example.test' },
+      error: null,
+    })
+
+    const user = userEvent.setup()
+    render(<LoginPage />)
+    await user.click(await screen.findByRole('button', { name: 'Continue with Google' }))
+
+    const redirectTo = new URL(appUrl('/login'), window.location.origin)
+    redirectTo.searchParams.set('auth_flow', 'google')
+    redirectTo.searchParams.set('return_to', '/money/detail?w=30d')
+    expect(mockSignInWithOAuth).toHaveBeenCalledWith({
+      provider: 'google',
+      options: { redirectTo: redirectTo.href },
+    })
+  })
+
+  it.each([
+    ['en', 'Google sign-in needs an account your admin has set up with your Google-verified email. Please contact your admin for help.'],
+    ['id', 'Login dengan Google memerlukan akun yang sudah disiapkan admin dengan email Google terverifikasi. Silakan hubungi admin untuk bantuan.'],
+  ] as const)('shows the provisioned-account refusal in %s', async (locale, message) => {
+    const originalLocation = window.location
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { ...originalLocation, search: '?auth_flow=google&error=server_error' },
+    })
+    try {
+      render(
+        <I18nProvider initialLocale={locale}>
+          <LoginPage />
+        </I18nProvider>,
+      )
+      expect(await screen.findByRole('alert')).toHaveTextContent(message)
+    } finally {
+      Object.defineProperty(window, 'location', { configurable: true, value: originalLocation })
+    }
+  })
+
+  it.each([
+    ['en', 'Google sign-in was cancelled'],
+    ['id', 'Login dengan Google dibatalkan'],
+  ] as const)('shows a short Google cancellation message in %s', async (locale, message) => {
+    const originalLocation = window.location
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { ...originalLocation, search: '?auth_flow=google&error=access_denied' },
+    })
+    try {
+      render(
+        <I18nProvider initialLocale={locale}>
+          <LoginPage />
+        </I18nProvider>,
+      )
+      expect(await screen.findByRole('alert')).toHaveTextContent(message)
+    } finally {
+      Object.defineProperty(window, 'location', { configurable: true, value: originalLocation })
+    }
+  })
+})
 
 // ── T-014 ── AC-011 + AC-005 ────────────────────────────────────────────────
 
