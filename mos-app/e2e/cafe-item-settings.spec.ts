@@ -107,6 +107,27 @@ async function mockSettingsApi(page: Page, overrides: Partial<SettingsMocks> = {
       body: JSON.stringify(state.readMode === 'empty' ? [] : rows),
     })
   })
+  // The read model joins ERP details, but listCafeItemSettings also reads these tables to decide
+  // whether the fixture is configured or should inherit ERP defaults. Keep those lookups aligned
+  // with the item-level settings represented by the mocked read rows.
+  await page.route(/\/rest\/v1\/cafe_item_settings\?/, async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([{ wip_item_id: '00000000-0000-0000-0000-00000000a101' }]),
+    })
+  })
+  await page.route(/\/rest\/v1\/cafe_item_references\?/, async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([{
+        item_id: '00000000-0000-0000-0000-00000000a101',
+        item_unit_id: '00000000-0000-0000-0000-00000000a201',
+        is_default: true,
+      }]),
+    })
+  })
   await page.route('**/rest/v1/rpc/can_manage_cafe_item_settings', async route => {
     if (state.permissionError) {
       await route.fulfill({

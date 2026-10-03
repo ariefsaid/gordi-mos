@@ -447,9 +447,10 @@ const routeTable: RouteObject[] = [
           { path: ROUTE_PATHS.cafeStock, element: withSuspense(<KitchenStockPage />), handle: pageHandle('workspace') },
           { path: ROUTE_PATHS.cafeWaste, element: withSuspense(<CafeWastePage />), handle: pageHandle('workspace') },
           { path: ROUTE_PATHS.cafeItems, element: withSuspense(<CafeItemSettingsPage />), handle: pageHandle('workspace') },
-          // The root is the capture surface now, so retired kitchen paths land on /cafe directly.
-          { path: 'kitchen', element: <RouteRedirect to="/cafe" />, handle: redirectHandle('/cafe') },
-          { path: 'kitchen/log', element: <RouteRedirect to="/cafe" />, handle: redirectHandle('/cafe') },
+          // #1239 split the former kitchen log into production and transfer; the retired kitchen
+          // entry and log alias land directly on production rather than stopping at the Today root.
+          { path: 'kitchen', element: <RouteRedirect to="/cafe/production" />, handle: redirectHandle('/cafe/production') },
+          { path: 'kitchen/log', element: <RouteRedirect to="/cafe/production" />, handle: redirectHandle('/cafe/production') },
           { path: 'kitchen/plan', element: <RouteRedirect to="/cafe/plan" />, handle: redirectHandle('/cafe/plan') },
           {
             path: 'kitchen/stock',
