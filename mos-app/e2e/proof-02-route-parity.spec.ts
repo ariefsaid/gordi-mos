@@ -87,8 +87,9 @@ async function assertCanonicalSurface(page: Page, route: string) {
     await expect(settings).toBeVisible()
     await expect(settings.getByRole('link', { name: settingsTab, exact: true })).toHaveAttribute('aria-current', 'page')
   } else if (routeEntry?.owner === 'agent-consent') {
-    // The consent page is a sign-in handoff, not a place in the app: it owns no breadcrumb.
-    await expect(breadcrumb).toBeEmpty()
+    // #1069 added consent as a focused handoff without a shell destination. Its breadcrumb may be
+    // omitted entirely at narrow widths; preserve the no-breadcrumb behavior, not an empty <nav>.
+    await expect.poll(async () => (await breadcrumb.allTextContents()).join('').trim()).toBe('')
     await expect(page.getByRole('heading', { name: 'Connect an agent', level: 1 })).toBeVisible()
   } else {
     await expect(breadcrumb).toBeVisible()
