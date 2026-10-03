@@ -1,6 +1,6 @@
 import { useState, useId, useRef, useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
-import { supabase } from '@/lib/supabase'
+import { getGoogleProviderEnabled, supabase } from '@/lib/supabase'
 import { AuthShell, AuthCard, Spinner } from '@/auth/auth-shell'
 import { safeReturnTarget } from '@/auth/return-target'
 import { appUrl } from '@/config/app-build-settings'
@@ -61,9 +61,22 @@ export function LoginPage() {
   const [error, setError] = useState('')
   const [emailError, setEmailError] = useState('')
   const [loading, setLoading] = useState<'sign-in' | 'magic' | 'reset' | 'google' | null>(null)
+  const [googleEnabled, setGoogleEnabled] = useState(false)
   // Which one-click persona is currently signing in.
   const [demoBusy, setDemoBusy] = useState<string | null>(null)
   const demoMode = demoLoginMode(import.meta.env, window.location.hostname)
+
+  useEffect(() => {
+    let active = true
+    getGoogleProviderEnabled()
+      .then((enabled) => {
+        if (active) setGoogleEnabled(enabled)
+      })
+      .catch(() => {
+        if (active) setGoogleEnabled(false)
+      })
+    return () => { active = false }
+  }, [])
 
   // Check for expired-link URL param on mount (design-plan §3 expired-link notice)
   const [expiredLink, setExpiredLink] = useState(false)
@@ -452,45 +465,51 @@ export function LoginPage() {
           </button>
         </form>
 
-        {/* "or" divider — single 1px border hairline (Single-Border Rule) */}
-        <div className="my-5 flex items-center gap-3">
-          <div className="flex-1 h-px bg-border" aria-hidden="true" />
-          <span className="text-muted-foreground" style={{ fontSize: 'var(--font-size-body-lg)' }}>or</span>
-          <div className="flex-1 h-px bg-border" aria-hidden="true" />
-        </div>
-
-        {/* Google OAuth uses the database-provisioned account; auth-layer guards validate the match. */}
-        <button
-          type="button"
-          disabled={isDisabled}
-          aria-busy={loading === 'google'}
-          className="w-full flex items-center justify-center gap-2 text-primary font-medium hover:underline focus-visible:underline"
-          style={{
-            height: 32,
-            fontSize: 16,
-            opacity: (isDisabled && loading !== 'google') ? 0.5 : 1,
-            cursor: isDisabled ? 'not-allowed' : undefined,
-          }}
-          onClick={handleGoogleSignIn}
+        <div
+          data-testid="google-sign-in-slot"
+          aria-hidden={!googleEnabled}
+          style={{ height: 96, display: 'flow-root', visibility: googleEnabled ? 'visible' : 'hidden' }}
         >
-          {loading === 'google' ? (
-            <>
-              <span role="status" className="sr-only">{t('auth.google.loading')}</span>
-              <Spinner />
-              {t('auth.google.loading')}
-            </>
-          ) : (
-            <>
-              <svg aria-hidden="true" focusable="false" viewBox="0 0 48 48" width="18" height="18" className="text-primary">
-                <path fill="currentColor" d="M43.6 24.5c0-1.4-.1-2.8-.4-4.1H24v7.8h11a9.4 9.4 0 0 1-4.1 6.2v5.1h6.6c3.9-3.6 6.1-8.8 6.1-15Z" />
-                <path fill="currentColor" d="M24 44c5.5 0 10.1-1.8 13.5-4.9l-6.6-5.1c-1.8 1.2-4.1 2-6.9 2-5.3 0-9.8-3.6-11.4-8.4H5.8v5.2A20 20 0 0 0 24 44Z" />
-                <path fill="currentColor" d="M12.6 27.6a12 12 0 0 1 0-7.2v-5.2H5.8a20 20 0 0 0 0 17.6l6.8-5.2Z" />
-                <path fill="currentColor" d="M24 12c3 0 5.7 1 7.8 3.1l5.8-5.8C34.1 6.1 29.5 4 24 4A20 20 0 0 0 5.8 15.2l6.8 5.2C14.2 15.6 18.7 12 24 12Z" />
-              </svg>
-              {t('auth.google.button')}
-            </>
-          )}
-        </button>
+          {/* "or" divider — single 1px border hairline (Single-Border Rule) */}
+          <div className="my-5 flex items-center gap-3">
+            <div className="flex-1 h-px bg-border" aria-hidden="true" />
+            <span className="text-muted-foreground" style={{ fontSize: 'var(--font-size-body-lg)' }}>or</span>
+            <div className="flex-1 h-px bg-border" aria-hidden="true" />
+          </div>
+
+          {/* Google OAuth uses the database-provisioned account; auth-layer guards validate the match. */}
+          <button
+            type="button"
+            disabled={!googleEnabled || isDisabled}
+            aria-busy={loading === 'google'}
+            className="w-full flex items-center justify-center gap-2 text-primary font-medium hover:underline focus-visible:underline"
+            style={{
+              height: 32,
+              fontSize: 16,
+              opacity: (isDisabled && loading !== 'google') ? 0.5 : 1,
+              cursor: isDisabled ? 'not-allowed' : undefined,
+            }}
+            onClick={handleGoogleSignIn}
+          >
+            {loading === 'google' ? (
+              <>
+                <span role="status" className="sr-only">{t('auth.google.loading')}</span>
+                <Spinner />
+                {t('auth.google.loading')}
+              </>
+            ) : (
+              <>
+                <svg aria-hidden="true" focusable="false" viewBox="0 0 48 48" width="18" height="18" className="text-primary">
+                  <path fill="currentColor" d="M43.6 24.5c0-1.4-.1-2.8-.4-4.1H24v7.8h11a9.4 9.4 0 0 1-4.1 6.2v5.1h6.6c3.9-3.6 6.1-8.8 6.1-15Z" />
+                  <path fill="currentColor" d="M24 44c5.5 0 10.1-1.8 13.5-4.9l-6.6-5.1c-1.8 1.2-4.1 2-6.9 2-5.3 0-9.8-3.6-11.4-8.4H5.8v5.2A20 20 0 0 0 24 44Z" />
+                  <path fill="currentColor" d="M12.6 27.6a12 12 0 0 1 0-7.2v-5.2H5.8a20 20 0 0 0 0 17.6l6.8-5.2Z" />
+                  <path fill="currentColor" d="M24 12c3 0 5.7 1 7.8 3.1l5.8-5.8C34.1 6.1 29.5 4 24 4A20 20 0 0 0 5.8 15.2l6.8 5.2C14.2 15.6 18.7 12 24 12Z" />
+                </svg>
+                {t('auth.google.button')}
+              </>
+            )}
+          </button>
+        </div>
 
         {/* Magic-link — secondary path, primary-text link (NOT a filled button) */}
         <button
