@@ -36,6 +36,7 @@ vi.mock('./use-auth', async () => {
 })
 
 vi.mock('@/lib/supabase', () => ({
+  getGoogleProviderEnabled: vi.fn(() => new Promise<boolean>(() => {})),
   supabase: {
     auth: {
       signInWithPassword: vi.fn(),
