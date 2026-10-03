@@ -35,6 +35,22 @@ all. Prefer that boundary to any filename rule.
 - `supabase db reset` — drop, re-apply all migrations, re-run `seed.sql` (the reversibility contract).
 - `supabase test db` — run the pgTAP suite.
 
+## Google sign-in (#1276)
+
+Google sign-in is available to people whose Google-verified email matches exactly one admin-provisioned
+`shared.people` record. The auth database guards link that identity to the existing login, and the
+custom access-token hook validates later Google sign-ins; email/password sign-in remains enabled.
+
+The local provider reads credentials through environment substitution in `config.toml`:
+`SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID` and `SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET`. Supply both to
+the local Supabase process environment; keep their values in environment/secret management, never in
+tracked files.
+
+For each hosted environment, configure Google as an Auth provider, add the standard Supabase Auth
+callback URI to the Google OAuth client, and allow the app's login callback in Auth redirect settings.
+Keep the custom access-token hook pointed at `shared.custom_access_token_hook`; the migration updates
+the function while preserving its existing directory and agent-token behavior.
+
 ## Deploy to staging
 
 ```sh

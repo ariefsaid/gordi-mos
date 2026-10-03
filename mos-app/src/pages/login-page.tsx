@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { AuthShell, AuthCard, Spinner } from '@/auth/auth-shell'
 import { safeReturnTarget } from '@/auth/return-target'
 import { appUrl } from '@/config/app-build-settings'
+import { useT } from '@/i18n/use-t'
 import { DemoLogin } from './demo-login'
 import { demoLoginMode, isSampleSession } from './demo-personas'
 
@@ -44,9 +45,10 @@ function isValidEmail(value: string): boolean {
 
 export function LoginPage() {
   const location = useLocation()
-  // The route ProtectedRoute parked in router state, sanitised (see safeReturnTarget). This page
-  // never navigates on success: RedirectIfAuthed owns the landing the moment the auth status
-  // flips, and reads the same state. What is left here is the magic link's redirect target.
+  const t = useT()
+  // ProtectedRoute parks the requested page in router state (see safeReturnTarget). Password and
+  // magic-link sign-in keep that state in place; Google carries the same safe target through its
+  // full-page OAuth round trip for RedirectIfAuthed to restore after sign-in.
   const returnTarget = safeReturnTarget((location.state as { from?: unknown } | null)?.from)
   const emailId = useId()
   const passwordId = useId()
@@ -58,7 +60,7 @@ export function LoginPage() {
   const [mode, setMode] = useState<Mode>('credentials')
   const [error, setError] = useState('')
   const [emailError, setEmailError] = useState('')
-  const [loading, setLoading] = useState<'sign-in' | 'magic' | 'reset' | null>(null)
+  const [loading, setLoading] = useState<'sign-in' | 'magic' | 'reset' | 'google' | null>(null)
   // Which one-click persona is currently signing in.
   const [demoBusy, setDemoBusy] = useState<string | null>(null)
   const demoMode = demoLoginMode(import.meta.env, window.location.hostname)
@@ -68,10 +70,17 @@ export function LoginPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const err = params.get('error')
+    if (
+      params.get('auth_flow') === 'google' &&
+      (params.has('error') || params.has('error_code') || params.has('error_description'))
+    ) {
+      setError(t('auth.google.refused'))
+      return
+    }
     if (err === 'access_denied' || err === 'otp_expired') {
       setExpiredLink(true)
     }
-  }, [])
+  }, [t])
 
   // Focus the error region when it appears (design-plan §5 WCAG "focus moves to error")
   const errorRef = useRef<HTMLDivElement>(null)
@@ -107,6 +116,26 @@ export function LoginPage() {
       setError(ERR_NETWORK)
     } finally {
       setDemoBusy(null)
+    }
+  }
+
+  async function handleGoogleSignIn() {
+    setError('')
+    setEmailError('')
+    setLoading('google')
+    try {
+      const redirectTo = new URL(appUrl('/login'), window.location.origin)
+      redirectTo.searchParams.set('auth_flow', 'google')
+      if (returnTarget !== '/') redirectTo.searchParams.set('return_to', returnTarget)
+      const { error: authError } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: redirectTo.href },
+      })
+      if (authError) setError(t('auth.google.refused'))
+    } catch {
+      setError(t('auth.google.refused'))
+    } finally {
+      setLoading(null)
     }
   }
 
@@ -430,11 +459,44 @@ export function LoginPage() {
           <div className="flex-1 h-px bg-border" aria-hidden="true" />
         </div>
 
+        {/* Google OAuth uses the database-provisioned account; auth-layer guards validate the match. */}
+        <button
+          type="button"
+          disabled={isDisabled}
+          aria-busy={loading === 'google'}
+          className="w-full flex items-center justify-center gap-2 bg-background text-foreground border border-input rounded-sm font-medium"
+          style={{
+            height: 32,
+            fontSize: 16,
+            opacity: (isDisabled && loading !== 'google') ? 0.5 : 1,
+            cursor: isDisabled ? 'not-allowed' : undefined,
+          }}
+          onClick={handleGoogleSignIn}
+        >
+          {loading === 'google' ? (
+            <>
+              <span role="status" className="sr-only">{t('auth.google.loading')}</span>
+              <Spinner />
+              {t('auth.google.loading')}
+            </>
+          ) : (
+            <>
+              <svg aria-hidden="true" focusable="false" viewBox="0 0 48 48" width="18" height="18" className="text-primary">
+                <path fill="currentColor" d="M43.6 24.5c0-1.4-.1-2.8-.4-4.1H24v7.8h11a9.4 9.4 0 0 1-4.1 6.2v5.1h6.6c3.9-3.6 6.1-8.8 6.1-15Z" />
+                <path fill="currentColor" d="M24 44c5.5 0 10.1-1.8 13.5-4.9l-6.6-5.1c-1.8 1.2-4.1 2-6.9 2-5.3 0-9.8-3.6-11.4-8.4H5.8v5.2A20 20 0 0 0 24 44Z" />
+                <path fill="currentColor" d="M12.6 27.6a12 12 0 0 1 0-7.2v-5.2H5.8a20 20 0 0 0 0 17.6l6.8-5.2Z" />
+                <path fill="currentColor" d="M24 12c3 0 5.7 1 7.8 3.1l5.8-5.8C34.1 6.1 29.5 4 24 4A20 20 0 0 0 5.8 15.2l6.8 5.2C14.2 15.6 18.7 12 24 12Z" />
+              </svg>
+              {t('auth.google.button')}
+            </>
+          )}
+        </button>
+
         {/* Magic-link — secondary path, primary-text link (NOT a filled button) */}
         <button
           type="button"
           disabled={isDisabled}
-          className="w-full flex items-center justify-center gap-2 text-primary font-medium hover:underline focus-visible:underline"
+          className="w-full mt-2 flex items-center justify-center gap-2 text-primary font-medium hover:underline focus-visible:underline"
           style={{
             fontSize: 16,
             // #403: the ≥44px touch floor is the shared auth.css seam's job, phone-only.
