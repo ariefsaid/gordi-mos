@@ -48,6 +48,11 @@
   font-size: var(--font-size-label);
   color: var(--field-error-text);
 }
+.tcf-title-error-slot {
+  min-height: 1.25em;
+  font-size: var(--font-size-label);
+  line-height: 1.25;
+}
 .tcf-save-error {
   display: flex;
   align-items: center;

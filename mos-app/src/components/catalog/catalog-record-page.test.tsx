@@ -2,11 +2,12 @@
 // Seams under test: the page through its public props, with the real authority hook running over a
 // mocked RPC read, so every affordance below follows WorkWriteScopes the way production does.
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { AuthContext, type AuthState } from '@/auth/context'
+import { installDisabledBlur } from '@/test/browser-focus-fixup'
 import type { WorkWriteScopes } from '@/lib/db/work-authority'
 import type { KeyResultRow } from '@/lib/db/objective-key-results'
 
@@ -603,6 +604,47 @@ describe('Get started lists only what is missing, and its buttons work', () => {
     await user.click(await screen.findByRole('option', { name: 'Maya Marketing' }))
     await user.click(screen.getByRole('button', { name: 'Save step' }))
     await waitFor(() => expect(createProcessStep).toHaveBeenCalledWith({ workLineId: 'wl-1', title: 'Open the till', picPersonId: 'p-maya', position: 0 }))
+  })
+
+  it('a rejected Step save restores its enabled action with the chosen draft ready to retry', async () => {
+    const restore = installDisabledBlur()
+    try {
+      const user = userEvent.setup()
+      let rejectStep: (reason: Error) => void = () => {}
+      const failedStep = new Promise<void>((_resolve, reject) => { rejectStep = reject })
+      vi.mocked(createProcessStep)
+        .mockReturnValueOnce(failedStep)
+        .mockResolvedValueOnce(undefined)
+      data = workLineData('process', { steps: 0 })
+      renderRecord('work-line')
+      const setupRegion = await screen.findByRole('region', { name: 'Get this Process started' })
+      await user.click(within(setupRegion).getByRole('button', { name: 'Add first step' }))
+      const form = await screen.findByRole('form', { name: 'Add step' })
+      const title = await within(form).findByRole('textbox', { name: 'Step name' })
+      await user.type(title, 'Open the till')
+      const pic = within(form).getByRole('combobox', { name: 'Who does it' })
+      await user.click(pic)
+      await user.click(await screen.findByRole('option', { name: 'Maya Marketing' }))
+      const save = within(form).getByRole('button', { name: 'Save step' })
+      await user.click(save)
+      expect(await within(form).findByRole('button', { name: /saving/i })).toBeDisabled()
+
+      await act(async () => {
+        rejectStep(new Error('offline'))
+        await failedStep.catch(() => undefined)
+      })
+      expect(await within(form).findByRole('button', { name: 'Retry' })).toBeInTheDocument()
+      await waitFor(() => expect(save).toHaveFocus())
+      expect(title).toHaveValue('Open the till')
+      expect(pic).toHaveTextContent('Maya Marketing')
+
+      await user.click(within(form).getByRole('button', { name: 'Retry' }))
+      await waitFor(() => expect(createProcessStep).toHaveBeenCalledTimes(2))
+      const args = { workLineId: 'wl-1', title: 'Open the till', picPersonId: 'p-maya', position: 0 }
+      expect(createProcessStep).toHaveBeenNthCalledWith(1, args)
+      expect(createProcessStep).toHaveBeenNthCalledWith(2, args)
+      await waitFor(() => expect(screen.queryByRole('form', { name: 'Add step' })).toBeNull())
+    } finally { restore() }
   })
 })
 

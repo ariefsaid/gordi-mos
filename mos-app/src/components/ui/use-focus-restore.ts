@@ -1,49 +1,84 @@
-// useFocusRestore — hands focus back to the text field a person was typing in when a save that
-// disabled the form fails. A browser drops focus from a control the moment it becomes disabled, so
-// after the failure the person lands on <body> with their text still in the field.
-//
-// Attach the returned ref to the form (or dialog body). It remembers the last text-entry element
-// focused inside; when `busy` falls back to false and `failed` is set, that element gets focus again
-// (only if it is inside the container, still mounted, enabled, and focus is not already somewhere useful).
 import { useEffect, useRef, type RefObject } from 'react'
 
 const TEXT_ENTRY = 'input:not([type=checkbox]):not([type=radio]):not([type=button]):not([type=submit]):not([type=file]), textarea, [contenteditable=""], [contenteditable="true"]'
+const FORM_CONTROL = 'input:not([type=hidden]):not([type=file]), button, select, textarea, [role=button], [role=combobox], [role=checkbox], [role=radio], [role=switch], [contenteditable=""], [contenteditable="true"]'
 
-export function useFocusRestore<T extends HTMLElement = HTMLElement>(busy: boolean, failed: boolean): RefObject<T | null> {
+type FocusRestoreOptions = { includeFormControls?: boolean }
+
+function isUsableControl(element: HTMLElement): boolean {
+  if (!element.isConnected || element.tabIndex < 0 || element.matches(':disabled,[aria-disabled="true"],[hidden],[inert]')) return false
+  const style = getComputedStyle(element)
+  return style.display !== 'none' && style.visibility !== 'hidden'
+}
+
+export function useFocusRestore<T extends HTMLElement = HTMLElement>(
+  busy: boolean,
+  failed: boolean,
+  options?: FocusRestoreOptions,
+): RefObject<T | null> {
   const containerRef = useRef<T>(null)
-  const lastTextField = useRef<HTMLElement | null>(null)
+  const lastControl = useRef<HTMLElement | null>(null)
   const wasBusy = useRef(false)
+  const includeFormControls = options?.includeFormControls === true
+  const selector = includeFormControls ? FORM_CONTROL : TEXT_ENTRY
 
-  // Listen on the document: the container may mount after this hook does (a list that loads later),
-  // and an autofocused field can fire focusin before its container's ref is attached. Membership is
-  // checked when focus is restored.
+  // The default retains the established text-entry behavior. Opted-in owners additionally track
+  // only usable controls inside this container, even though the listener is document-wide so it
+  // catches autofocus when a lazily rendered form attaches its ref during the same commit.
   useEffect(() => {
     const remember = (event: FocusEvent) => {
       const target = event.target
-      if (target instanceof HTMLElement && target.matches(TEXT_ENTRY)) {
-        lastTextField.current = target
+      if (
+        target instanceof HTMLElement
+        && target.matches(selector)
+        && (!includeFormControls || (containerRef.current?.contains(target) && isUsableControl(target)))
+      ) {
+        lastControl.current = target
       }
     }
-    // A field focused before this effect ran (autofocus on mount) has already fired its focusin.
+
     const active = document.activeElement
-    if (active instanceof HTMLElement && containerRef.current?.contains(active) && active.matches(TEXT_ENTRY)) {
-      lastTextField.current = active
+    if (
+      active instanceof HTMLElement
+      && containerRef.current?.contains(active)
+      && active.matches(selector)
+      && (!includeFormControls || isUsableControl(active))
+    ) {
+      lastControl.current = active
     }
+
     document.addEventListener('focusin', remember)
     return () => document.removeEventListener('focusin', remember)
-  }, [])
+  }, [includeFormControls, selector])
 
   useEffect(() => {
     const finished = wasBusy.current && !busy
     wasBusy.current = busy
     if (!finished || !failed) return
-    const field = lastTextField.current
-    if (!containerRef.current?.contains(field)) return
-    const lost = !document.activeElement || document.activeElement === document.body
-    if (!lost || !field || !field.isConnected) return
-    if ((field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement) && field.disabled) return
-    field.focus()
-  }, [busy, failed])
+
+    const container = containerRef.current
+    const active = document.activeElement
+    const focusWasLost = !active || active === document.body
+    if (!container || !focusWasLost) return
+
+    const remembered = lastControl.current
+    if (!includeFormControls) {
+      if (!remembered || !container.contains(remembered) || !remembered.isConnected) return
+      if ((remembered instanceof HTMLInputElement || remembered instanceof HTMLTextAreaElement) && remembered.disabled) return
+      remembered.focus()
+      return
+    }
+
+    const preferred = remembered && container.contains(remembered) && isUsableControl(remembered)
+      ? remembered
+      : null
+    // Broader recovery is opt-in so existing text-only owners keep their established fallback
+    // behavior. An opted-in form may choose another enabled local control if its original one
+    // was removed or stayed disabled after the rejection.
+    const fallback = Array.from(container.querySelectorAll<HTMLElement>(selector)).find(isUsableControl) ?? null
+    const target = preferred ?? fallback
+    target?.focus({ preventScroll: true })
+  }, [busy, failed, includeFormControls, selector])
 
   return containerRef
 }

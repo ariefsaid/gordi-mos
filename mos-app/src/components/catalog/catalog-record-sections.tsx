@@ -7,6 +7,7 @@ import { useI18n } from '@/i18n/I18nProvider'
 import { Button } from '@/components/ui/button'
 import { Picker, type PickerOption } from '@/components/ui/picker'
 import { TextInput } from '@/components/ui/text-input'
+import { useFocusRestore } from '@/components/ui/use-focus-restore'
 import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { RecordDisclosure, RecordSection } from '@/components/record/record-page-layout'
 import { RecordMenu } from '@/components/record/record-menu'
@@ -265,6 +266,7 @@ function StepForm({ workLineId, position, onSaved, onCancel }: StepFormProps) {
   const [state, setState] = useState<'idle' | 'saving' | 'failed'>('idle')
   const [peopleFailed, setPeopleFailed] = useState(false)
   const [peopleReload, setPeopleReload] = useState(0)
+  const formRef = useFocusRestore<HTMLFormElement>(state === 'saving', state === 'failed', { includeFormControls: true })
   useEffect(() => {
     let live = true
     setPeopleFailed(false)
@@ -291,6 +293,7 @@ function StepForm({ workLineId, position, onSaved, onCancel }: StepFormProps) {
   }
   return (
     <form
+      ref={formRef}
       noValidate
       className="catalog-step-form form-grid"
       aria-label={t('catalog.steps.add')}
