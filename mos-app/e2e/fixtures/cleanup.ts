@@ -39,8 +39,10 @@ export const CAFE_PLAN_GUARD_FIXTURE = {
   orgId: org,
   itemId: 'a11e2e00-0000-0000-0000-000000013100',
   unitId: 'a11e2e00-0000-0000-0000-000000013101',
-  settingId: 'a11e2e00-0000-0000-0000-000000013102',
-  settingUnitId: 'a11e2e00-0000-0000-0000-000000013103',
+  gordiBarSettingId: 'a11e2e00-0000-0000-0000-000000013102',
+  gordiBarSettingUnitId: 'a11e2e00-0000-0000-0000-000000013103',
+  rumahKitchenSettingId: 'a11e2e00-0000-0000-0000-000000013104',
+  rumahKitchenSettingUnitId: 'a11e2e00-0000-0000-0000-000000013105',
   itemName: 'E2E Plan Guard WIP Item',
 } as const
 
@@ -72,29 +74,25 @@ export const cafePlanGuardSeedSql = `
   );
 
   INSERT INTO ops.stream_items (org_id, branch_id, activity, wip_item_id, source)
-  VALUES (
-    '${CAFE_PLAN_GUARD_FIXTURE.orgId}',
-    (SELECT id FROM shared.branches WHERE org_id = '${CAFE_PLAN_GUARD_FIXTURE.orgId}' AND code = 'gordi_hq'),
-    'bar', '${CAFE_PLAN_GUARD_FIXTURE.itemId}', 'manual'
-  );
+  VALUES
+    ('${CAFE_PLAN_GUARD_FIXTURE.orgId}', '25000000-0000-0000-0000-000000000001', 'bar', '${CAFE_PLAN_GUARD_FIXTURE.itemId}', 'manual'),
+    ('${CAFE_PLAN_GUARD_FIXTURE.orgId}', '25000000-0000-0000-0000-000000000002', 'kitchen', '${CAFE_PLAN_GUARD_FIXTURE.itemId}', 'manual');
 
   INSERT INTO ops.cafe_item_settings (
     id, org_id, branch_id, activity, wip_item_id, mos_name, kind, is_active
-  ) VALUES (
-    '${CAFE_PLAN_GUARD_FIXTURE.settingId}', '${CAFE_PLAN_GUARD_FIXTURE.orgId}',
-    (SELECT id FROM shared.branches WHERE org_id = '${CAFE_PLAN_GUARD_FIXTURE.orgId}' AND code = 'gordi_hq'),
-    'bar', '${CAFE_PLAN_GUARD_FIXTURE.itemId}', '${CAFE_PLAN_GUARD_FIXTURE.itemName}', 'WIP', true
-  );
+  ) VALUES
+    ('${CAFE_PLAN_GUARD_FIXTURE.gordiBarSettingId}', '${CAFE_PLAN_GUARD_FIXTURE.orgId}', '25000000-0000-0000-0000-000000000001', 'bar', '${CAFE_PLAN_GUARD_FIXTURE.itemId}', '${CAFE_PLAN_GUARD_FIXTURE.itemName}', 'WIP', true),
+    ('${CAFE_PLAN_GUARD_FIXTURE.rumahKitchenSettingId}', '${CAFE_PLAN_GUARD_FIXTURE.orgId}', '25000000-0000-0000-0000-000000000002', 'kitchen', '${CAFE_PLAN_GUARD_FIXTURE.itemId}', '${CAFE_PLAN_GUARD_FIXTURE.itemName}', 'WIP', true);
 
   INSERT INTO ops.cafe_item_setting_units (id, org_id, cafe_item_setting_id, item_unit_id)
-  VALUES (
-    '${CAFE_PLAN_GUARD_FIXTURE.settingUnitId}', '${CAFE_PLAN_GUARD_FIXTURE.orgId}',
-    '${CAFE_PLAN_GUARD_FIXTURE.settingId}', '${CAFE_PLAN_GUARD_FIXTURE.unitId}'
-  );
+  VALUES
+    ('${CAFE_PLAN_GUARD_FIXTURE.gordiBarSettingUnitId}', '${CAFE_PLAN_GUARD_FIXTURE.orgId}', '${CAFE_PLAN_GUARD_FIXTURE.gordiBarSettingId}', '${CAFE_PLAN_GUARD_FIXTURE.unitId}'),
+    ('${CAFE_PLAN_GUARD_FIXTURE.rumahKitchenSettingUnitId}', '${CAFE_PLAN_GUARD_FIXTURE.orgId}', '${CAFE_PLAN_GUARD_FIXTURE.rumahKitchenSettingId}', '${CAFE_PLAN_GUARD_FIXTURE.unitId}');
 
+  -- CAFE_DEFAULT_UNIT_MUST_BE_SHOWN: the trigger requires the shown-unit links above first.
   UPDATE ops.cafe_item_settings
      SET default_item_unit_id = '${CAFE_PLAN_GUARD_FIXTURE.unitId}'
-   WHERE id = '${CAFE_PLAN_GUARD_FIXTURE.settingId}';
+   WHERE id IN ('${CAFE_PLAN_GUARD_FIXTURE.gordiBarSettingId}', '${CAFE_PLAN_GUARD_FIXTURE.rumahKitchenSettingId}');
 `
 
 /** Fail closed before transport if a hook adds a delete outside the fixed fixture boundary. */

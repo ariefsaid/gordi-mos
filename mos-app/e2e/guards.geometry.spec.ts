@@ -527,6 +527,10 @@ test.describe('café toolbar desktop geometry guards (GUARD-SEARCH, #378)', () =
 
   test.beforeEach(async ({ page }) => {
     await loginAs(page, MANAGER.email, MANAGER.password) // Plan's editor is ops_lead/admin-gated
+    await seedCafePlanGuardFixture()
+  })
+  test.afterEach(async () => {
+    await cleanupCafePlanGuardFixture()
   })
 
   test('GUARD-SEARCH: Café · Log at 1440 — usable search composed with the category', async ({ page }) => {
@@ -552,6 +556,10 @@ test.describe('café toolbar phone geometry guards (GUARD-SEARCH, #378)', () => 
 
   test.beforeEach(async ({ page }) => {
     await loginAs(page, MANAGER.email, MANAGER.password)
+    await seedCafePlanGuardFixture()
+  })
+  test.afterEach(async () => {
+    await cleanupCafePlanGuardFixture()
   })
 
   test('GUARD-SEARCH: Café · Log at 390 — kind/category are hidden, search remains usable', async ({ page }) => {
@@ -613,6 +621,10 @@ test.describe('café plan capture-first guards (#401) — editor', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true })
   test.beforeEach(async ({ page }) => {
     await loginAs(page, MANAGER.email, MANAGER.password) // editor is ops_lead/admin-gated
+    await seedCafePlanGuardFixture()
+  })
+  test.afterEach(async () => {
+    await cleanupCafePlanGuardFixture()
   })
 
   test('GUARD-FOLD: @390 desktop filter URLs do not hide Plan rows; first row stays inside the fold', async ({ page }) => {
