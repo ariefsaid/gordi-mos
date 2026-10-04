@@ -155,7 +155,7 @@ function pickerOptionLabels(pickerName: RegExp | string) {
   return labels
 }
 
-function renderView(taskOverrides: Partial<TaskListRow> = {}) {
+function renderView(taskOverrides: Partial<TaskRow> = {}) {
   const task = makeTask(taskOverrides)
   mockGetTask.mockResolvedValue({ task, checklist: [], events: [] })
   return render(
@@ -351,7 +351,7 @@ describe('FR-247/248 — detail edit: Objective inline select', () => {
 })
 
 describe('AC-038 — missing relations have explicit domain state copy', () => {
-  function renderTask(task: TaskListRow) {
+  function renderTask(task: TaskRow) {
     mockGetTask.mockResolvedValue({ task, checklist: [], events: [] })
     render(
       <AuthContext.Provider value={authedState}>
