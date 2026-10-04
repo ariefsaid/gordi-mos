@@ -6,7 +6,7 @@ import { render, screen, waitFor, act, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { StrictMode } from 'react'
 import { MemoryRouter } from 'react-router-dom'
-import { createElement, type ReactNode } from 'react'
+import { createElement, useLayoutEffect, type ReactNode } from 'react'
 import type { AuthState } from '@/auth/context'
 import type { RolesRow } from '@/lib/database.types'
 import type { TaskListRow } from '@/lib/db/tasks.types'
@@ -263,6 +263,128 @@ beforeEach(() => {
 })
 
 describe('Home daily operating brief', () => {
+  it('never commits previous-scope Tasks during the first render of a new auth generation', async () => {
+    if (financeViewer.status !== 'authenticated') throw new Error('finance viewer fixture must be authenticated')
+    const viewerId = financeViewer.viewer.person.id
+    const oldOrg = 'org-before-transfer'
+    const newOrg = 'org-after-transfer'
+    const scope = (generation: number, orgId: string): ReadScope => ({
+      generation,
+      authUserId: 'auth-user-001',
+      viewerId,
+      orgId,
+      authorityKey: 'finance',
+    })
+    const authWithScope = (readScope: ReadScope): AuthState => ({
+      ...financeViewer,
+      viewer: {
+        ...financeViewer.viewer,
+        isManager: false,
+        accessRoles: ['member'],
+        roles: [{ ...FINANCE_LEAD_ROLE, org_id: readScope.orgId }],
+        person: { ...financeViewer.viewer.person, org_id: readScope.orgId },
+      },
+      readScope,
+    })
+    const makeTask = (id: string, title: string, orgId: string): TaskListRow => ({
+      id,
+      org_id: orgId,
+      title,
+      business_unit_id: 'bu-finance',
+      status: 'Open',
+      responsible_person_id: viewerId,
+      accountable_person_id: viewerId,
+      consulted_person_ids: [],
+      informed_person_ids: [],
+      due_date: '2020-01-01',
+      objective_id: null,
+      work_line_id: null,
+      last_activity_at: '2026-01-01T00:00:00Z',
+      archived_at: null,
+      created_by: viewerId,
+    })
+    const oldTask = makeTask('old-scope-task', 'Former org task', oldOrg)
+    const freshTask = makeTask('new-scope-task', 'New org task', newOrg)
+    let rawReadCount = 0
+    let resolveFreshRead: ((rows: TaskListRow[]) => void) | undefined
+    let resolveFreshPeople: ((people: Awaited<ReturnType<typeof getPeople>>) => void) | undefined
+    let resolveFreshBusinessUnits: ((units: Awaited<ReturnType<typeof getBusinessUnits>>) => void) | undefined
+    let resolveFreshRoles: ((roles: Awaited<ReturnType<typeof getRoles>>) => void) | undefined
+    mockListTasks.mockImplementation((_filters, readLease) => {
+      if (!readLease) return Promise.reject(new Error('Home must pass its explicit actor lease'))
+      return readLease.read('test:home:scope-transition', () => {
+        rawReadCount += 1
+        if (rawReadCount === 1) return Promise.resolve([oldTask])
+        return new Promise<TaskListRow[]>((resolve) => { resolveFreshRead = resolve })
+      })
+    })
+    mockGetPeople
+      .mockResolvedValueOnce([{ id: viewerId, full_name: 'Former scope PIC' }])
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveFreshPeople = resolve }))
+    mockGetBUs
+      .mockResolvedValueOnce([{ id: 'bu-finance', name: 'Former scope BU' }])
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveFreshBusinessUnits = resolve }))
+    mockGetRoles
+      .mockResolvedValueOnce(ORG_TREE)
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveFreshRoles = resolve }))
+
+    const previousScope = scope(301, oldOrg)
+    const nextScope = scope(302, newOrg)
+    publishReadScope(previousScope)
+    mockUseAuth.mockReturnValue(authWithScope(previousScope))
+    const firstCommitSnapshots: string[] = []
+    function ScopeCommitProbe({ generation }: { generation: number }) {
+      useLayoutEffect(() => {
+        if (generation === nextScope.generation) firstCommitSnapshots.push(document.body.textContent ?? '')
+      })
+      return null
+    }
+    function ScopeWrapper({ children }: { children: ReactNode }) {
+      return <MemoryRouter><I18nProvider initialLocale="en">{children}</I18nProvider></MemoryRouter>
+    }
+    const tree = (generation: number) => (
+      <>
+        <HomePage />
+        <ScopeCommitProbe generation={generation} />
+      </>
+    )
+    const { rerender } = render(tree(previousScope.generation), { wrapper: ScopeWrapper })
+    expect(await screen.findByText('Former org task')).toBeInTheDocument()
+    expect(await screen.findByText('Former scope PIC')).toBeInTheDocument()
+    expect(await screen.findByText('Former scope BU')).toBeInTheDocument()
+    expect(await screen.findByRole('region', { name: 'Objectives' })).toBeInTheDocument()
+    expect(rawReadCount).toBe(1)
+
+    publishReadScope(nextScope)
+    mockUseAuth.mockReturnValue(authWithScope(nextScope))
+    rerender(tree(nextScope.generation))
+
+    expect(resolveFreshRead).toBeDefined()
+    expect(resolveFreshPeople).toBeDefined()
+    expect(resolveFreshBusinessUnits).toBeDefined()
+    expect(resolveFreshRoles).toBeDefined()
+    expect(firstCommitSnapshots.length).toBeGreaterThan(0)
+    const previousScopeFactsPainted = firstCommitSnapshots.flatMap((snapshot) =>
+      ['Former org task', 'Former scope PIC', 'Former scope BU', 'Objectives']
+        .filter((text) => snapshot.includes(text)))
+    await act(async () => {
+      resolveFreshRead?.([freshTask])
+      resolveFreshPeople?.([{ id: viewerId, full_name: 'Current scope PIC' }])
+      resolveFreshBusinessUnits?.([{ id: 'bu-finance', name: 'Current scope BU' }])
+      resolveFreshRoles?.([
+        { id: MD_ROLE.id, business_unit_id: BU_FINANCE, reports_to_role_id: null },
+        { id: FINANCE_LEAD_ROLE.id, business_unit_id: BU_FINANCE, reports_to_role_id: MD_ROLE.id },
+        { id: ANALYST_ROLE.id, business_unit_id: BU_FINANCE, reports_to_role_id: FINANCE_LEAD_ROLE.id },
+      ])
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(await screen.findByText('New org task')).toBeInTheDocument()
+    expect(rawReadCount).toBe(2)
+    expect(previousScopeFactsPainted).toEqual([])
+    expect(screen.queryByRole('region', { name: 'Objectives' })).not.toBeInTheDocument()
+  })
+
   it('reuses the Home Task read through StrictMode replay and refreshes it for a new auth generation', async () => {
     const scope = (generation: number): ReadScope => ({
       generation,

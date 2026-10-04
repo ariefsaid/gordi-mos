@@ -58,6 +58,19 @@ function retiredScopeError(): Error {
   return new Error('Read lease scope is no longer active')
 }
 
+function invalidatedReadError(): Error {
+  return new Error('Read result was superseded before delivery')
+}
+
+function disposedLeaseError(): Error {
+  return new Error('Read lease has been disposed')
+}
+
+function assertCurrentScopedRead(scope: ReadScope, key: ReadKey, revision: number): void {
+  if (!sameScope(currentScope, scope)) throw retiredScopeError()
+  if (revisionFor(key) !== revision) throw invalidatedReadError()
+}
+
 export function publishReadScope(scope: ReadScope | null): void {
   if (sameScope(currentScope, scope)) return
 
@@ -76,10 +89,16 @@ export function sharePending<T>(scope: ReadScope, key: ReadKey, load: () => Prom
   const revision = revisionFor(key)
   const existing = pendingReads.get(key)
   if (existing?.revision === revision) {
-    return existing.promise.then((value) => cloneDto(value as T))
+    return existing.promise.then((value) => {
+      assertCurrentScopedRead(scope, key, revision)
+      return cloneDto(value as T)
+    })
   }
 
-  const promise = startLoad(load).then((value) => cloneDto(value))
+  const promise = startLoad(load).then((value) => {
+    assertCurrentScopedRead(scope, key, revision)
+    return cloneDto(value)
+  })
   const entry: PendingRead = { revision, promise }
   pendingReads.set(key, entry)
   const removeSettled = () => {
@@ -87,7 +106,10 @@ export function sharePending<T>(scope: ReadScope, key: ReadKey, load: () => Prom
   }
   void promise.then(removeSettled, removeSettled)
 
-  return promise.then((value) => cloneDto(value as T))
+  return promise.then((value) => {
+    assertCurrentScopedRead(scope, key, revision)
+    return cloneDto(value as T)
+  })
 }
 
 export function invalidateReads(scope: ReadScope, keys: readonly ReadKey[]): void {
@@ -113,15 +135,29 @@ export function createReadLease(scope: ReadScope | null): ReadLease {
   function readLocal<T>(key: ReadKey, load: () => Promise<T>): Promise<T> {
     const revision = localRevisionFor(key)
     const cached = successes.get(key)
-    if (cached?.revision === revision) return Promise.resolve(cloneDto(cached.value as T))
+    if (cached?.revision === revision) {
+      return Promise.resolve().then(() => {
+        if (disposed) throw disposedLeaseError()
+        if (localRevisionFor(key) !== revision) throw invalidatedReadError()
+        return cloneDto(cached.value as T)
+      })
+    }
     successes.delete(key)
 
     const existing = localPending.get(key)
     if (existing?.revision === revision) {
-      return existing.promise.then((value) => cloneDto(value as T))
+      return existing.promise.then((value) => {
+        if (disposed) throw disposedLeaseError()
+        if (localRevisionFor(key) !== revision) throw invalidatedReadError()
+        return cloneDto(value as T)
+      })
     }
 
-    const promise = startLoad(load).then((value) => cloneDto(value))
+    const promise = startLoad(load).then((value) => {
+      if (disposed) throw disposedLeaseError()
+      if (localRevisionFor(key) !== revision) throw invalidatedReadError()
+      return cloneDto(value)
+    })
     const entry: PendingRead = { revision, promise }
     localPending.set(key, entry)
     const removeSettled = () => {
@@ -130,9 +166,9 @@ export function createReadLease(scope: ReadScope | null): ReadLease {
     void promise.then(removeSettled, removeSettled)
 
     return promise.then((value) => {
-      if (!disposed && localRevisionFor(key) === revision) {
-        successes.set(key, { revision, value: cloneDto(value) })
-      }
+      if (disposed) throw disposedLeaseError()
+      if (localRevisionFor(key) !== revision) throw invalidatedReadError()
+      successes.set(key, { revision, value: cloneDto(value) })
       return cloneDto(value as T)
     })
   }
@@ -147,7 +183,7 @@ export function createReadLease(scope: ReadScope | null): ReadLease {
 
   return {
     read<T>(key: ReadKey, load: () => Promise<T>): Promise<T> {
-      if (disposed) return Promise.reject(new Error('Read lease has been disposed'))
+      if (disposed) return Promise.reject(disposedLeaseError())
       usedKeys.add(key)
 
       if (leaseScope === null) return readLocal(key, load)
@@ -155,13 +191,19 @@ export function createReadLease(scope: ReadScope | null): ReadLease {
 
       const revision = revisionFor(key)
       const cached = successes.get(key)
-      if (cached?.revision === revision) return Promise.resolve(cloneDto(cached.value as T))
+      if (cached?.revision === revision) {
+        return Promise.resolve().then(() => {
+          if (disposed) throw disposedLeaseError()
+          assertCurrentScopedRead(leaseScope, key, revision)
+          return cloneDto(cached.value as T)
+        })
+      }
       successes.delete(key)
 
       return sharePending(leaseScope, key, load).then((value) => {
-        if (!disposed && sameScope(currentScope, leaseScope) && revisionFor(key) === revision) {
-          successes.set(key, { revision, value: cloneDto(value) })
-        }
+        if (disposed) throw disposedLeaseError()
+        assertCurrentScopedRead(leaseScope, key, revision)
+        successes.set(key, { revision, value: cloneDto(value) })
         return value
       })
     },

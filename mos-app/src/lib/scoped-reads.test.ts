@@ -50,11 +50,10 @@ describe('scoped reads contract', () => {
     const newOwner = sharePending(secondScope, key, loadSecond)
     expect(loadSecond).toHaveBeenCalledTimes(1)
 
-    const oldSettled = oldOwner.then(() => undefined, () => undefined)
     firstRead.resolve('first-scope')
     secondRead.resolve('second-scope')
-    await oldSettled
-    await sameScopeJoin.catch(() => undefined)
+    await expect(oldOwner).rejects.toBeInstanceOf(Error)
+    await expect(sameScopeJoin).rejects.toBeInstanceOf(Error)
     await expect(newOwner).resolves.toBe('second-scope')
     expect(loadFirst).toHaveBeenCalledTimes(1)
     expect(loadSecond).toHaveBeenCalledTimes(1)
@@ -73,7 +72,6 @@ describe('scoped reads contract', () => {
       const loadNext = vi.fn(() => nextRead.promise)
       publishReadScope(baseScope)
       const oldOwner = sharePending(baseScope, key, loadOld)
-      const oldSettled = oldOwner.then(() => undefined, () => undefined)
 
       publishReadScope(nextScope)
       const newOwner = sharePending(nextScope, key, loadNext)
@@ -82,7 +80,7 @@ describe('scoped reads contract', () => {
 
       oldRead.resolve('old-scope')
       nextRead.resolve('new-scope')
-      await oldSettled
+      await expect(oldOwner).rejects.toBeInstanceOf(Error)
       await expect(newOwner).resolves.toBe('new-scope')
       publishReadScope(null)
     }
@@ -169,7 +167,7 @@ describe('scoped reads contract', () => {
     newARead.resolve('current-a')
     await expect(currentResult).resolves.toBe('current-a')
     oldARead.resolve('retired-a')
-    await oldResult.catch(() => undefined)
+    await expect(oldResult).rejects.toBeInstanceOf(Error)
 
     await expect(currentALease.read(key, loadNewA)).resolves.toBe('current-a')
     await expect(oldALease.read(key, loadOldA)).rejects.toBeInstanceOf(Error)
@@ -188,7 +186,6 @@ describe('scoped reads contract', () => {
     publishReadScope(activeScope)
 
     const oldResult = lease.read(key, load)
-    const oldSettled = oldResult.then(() => undefined, () => undefined)
     invalidateReads(activeScope, [key])
     const refreshedResult = lease.read(key, load)
     expect(load).toHaveBeenCalledTimes(2)
@@ -196,10 +193,133 @@ describe('scoped reads contract', () => {
     refreshedRead.resolve({ value: 'fresh' })
     await expect(refreshedResult).resolves.toEqual({ value: 'fresh' })
     oldRead.resolve({ value: 'stale' })
-    await oldSettled
+    await expect(oldResult).rejects.toBeInstanceOf(Error)
 
     await expect(lease.read(key, load)).resolves.toEqual({ value: 'fresh' })
     expect(load).toHaveBeenCalledTimes(2)
+  })
+
+  it('rejects stale deliveries to another lease when one lease invalidates a shared pending read', async () => {
+    const activeScope = scope(25, 'auth-a', 'person-a')
+    const oldRead = deferred<string>()
+    const refreshedRead = deferred<string>()
+    let loads = 0
+    const load = vi.fn(() => (loads++ === 0 ? oldRead.promise : refreshedRead.promise))
+    const key = 'signals:collection:select-v1'
+    const leaseA = createReadLease(activeScope)
+    const leaseB = createReadLease(activeScope)
+    publishReadScope(activeScope)
+
+    const oldA = leaseA.read(key, load)
+    const oldB = leaseB.read(key, load)
+    expect(load).toHaveBeenCalledTimes(1)
+
+    leaseA.invalidate([key])
+    const freshA = leaseA.read(key, load)
+    expect(load).toHaveBeenCalledTimes(2)
+
+    oldRead.resolve('stale')
+    await expect(oldB).rejects.toBeInstanceOf(Error)
+    await expect(oldA).rejects.toBeInstanceOf(Error)
+
+    const freshB = leaseB.read(key, load)
+    expect(load).toHaveBeenCalledTimes(2)
+    refreshedRead.resolve('fresh')
+    await expect(freshA).resolves.toBe('fresh')
+    await expect(freshB).resolves.toBe('fresh')
+    expect(load).toHaveBeenCalledTimes(2)
+  })
+
+  it('rejects a pending lease delivery after its auth scope retires', async () => {
+    const oldScope = scope(26, 'auth-a', 'person-a')
+    const nextScope = scope(27, 'auth-b', 'person-b')
+    const pending = deferred<string>()
+    const load = vi.fn(() => pending.promise)
+    const key = 'tasks:list:select-v1'
+    const oldLease = createReadLease(oldScope)
+    publishReadScope(oldScope)
+
+    const oldRead = oldLease.read(key, load)
+    publishReadScope(nextScope)
+    pending.resolve('retired-scope-data')
+
+    await expect(oldRead).rejects.toBeInstanceOf(Error)
+    expect(load).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(['invalidation', 'retirement'] as const)(
+    'rejects a direct shared read when %s occurs just before delivery',
+    async (change) => {
+      const activeScope = scope(29, 'auth-a', 'person-a')
+      const nextScope = scope(30, 'auth-b', 'person-b')
+      const pending = deferred<string>()
+      const load = vi.fn(() => pending.promise)
+      const key = 'signals:direct-read:select-v1'
+      publishReadScope(activeScope)
+
+      const result = sharePending(activeScope, key, load)
+      pending.resolve('stale-direct-result')
+      await Promise.resolve()
+      if (change === 'invalidation') invalidateReads(activeScope, [key])
+      else publishReadScope(nextScope)
+
+      await expect(result).rejects.toBeInstanceOf(Error)
+      expect(load).toHaveBeenCalledTimes(1)
+    },
+  )
+
+  it('rejects a scoped pending delivery after its lease is disposed', async () => {
+    const activeScope = scope(28, 'auth-a', 'person-a')
+    const pending = deferred<string>()
+    const load = vi.fn(() => pending.promise)
+    const key = 'tasks:list:select-v1'
+    const lease = createReadLease(activeScope)
+    publishReadScope(activeScope)
+
+    const result = lease.read(key, load)
+    lease.dispose()
+    pending.resolve('disposed-lease-data')
+
+    await expect(result).rejects.toBeInstanceOf(Error)
+    expect(load).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(['invalidation', 'disposal'] as const)(
+    'rejects a null-scope pending delivery after lease %s',
+    async (retirement) => {
+      const pending = deferred<string>()
+      const load = vi.fn(() => pending.promise)
+      const key = 'task-directory:select-v1'
+      const lease = createReadLease(null)
+
+      const result = lease.read(key, load)
+      if (retirement === 'invalidation') lease.invalidate([key])
+      else lease.dispose()
+      pending.resolve('superseded-local-data')
+
+      await expect(result).rejects.toBeInstanceOf(Error)
+      expect(load).toHaveBeenCalledTimes(1)
+    },
+  )
+
+  it.each([
+    { label: 'scoped invalidation', leaseScope: scope(41, 'auth-a', 'person-a'), retirement: 'invalidation' },
+    { label: 'scoped disposal', leaseScope: scope(42, 'auth-a', 'person-a'), retirement: 'disposal' },
+    { label: 'null-scope invalidation', leaseScope: null, retirement: 'invalidation' },
+    { label: 'null-scope disposal', leaseScope: null, retirement: 'disposal' },
+  ])('rejects a cached delivery after $label', async ({ leaseScope, retirement }) => {
+    const key = 'signals:list:select-v1'
+    const load = vi.fn(async () => ['cached-result'])
+    const lease = createReadLease(leaseScope)
+    if (leaseScope) publishReadScope(leaseScope)
+
+    await expect(lease.read(key, load)).resolves.toEqual(['cached-result'])
+    const cachedResult = lease.read(key, load)
+    if (retirement === 'invalidation') lease.invalidate([key])
+    else lease.dispose()
+
+    await expect(cachedResult).rejects.toBeInstanceOf(Error)
+    expect(load).toHaveBeenCalledTimes(1)
   })
 
   it('evicts a failed read so the same lease can retry it', async () => {

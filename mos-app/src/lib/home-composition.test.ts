@@ -33,4 +33,15 @@ describe('Home composition authority', () => {
     // which is what admits them here; the structural grant is admin's.
     expect(homePersona({ ...member, accessRoles: ['ops_lead'] }, [])).toBe('cockpit')
   })
+
+  it('does not infer a BU apex from a missing role tree but preserves direct authority', () => {
+    const functionOwner = {
+      ...member,
+      roles: [{ id: 'finance-lead', business_unit_id: 'finance', reports_to_role_id: 'md' }],
+    }
+    expect(holdsHomeCockpitScope(functionOwner, null)).toBe(false)
+    expect(holdsHomeCockpitScope(functionOwner, [])).toBe(true)
+    expect(holdsHomeCockpitScope({ ...member, isManager: true }, null)).toBe(true)
+    expect(holdsHomeCockpitScope({ ...member, accessRoles: ['ops_lead'] }, null)).toBe(true)
+  })
 })

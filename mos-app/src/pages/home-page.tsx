@@ -75,6 +75,9 @@ type FetchState = 'loading' | 'ready' | 'error'
 const MY_WORK_CAP = 7
 
 const NO_NAMES: ReadonlyMap<string, string> = new Map()
+const NO_TASKS: TaskListRow[] = []
+const NO_DIRECTORY: AttentionDirectory = {}
+const NO_ORG_ROLES: RoleScopeRow[] = []
 
 export function HomePage() {
   const t = useT()
@@ -143,29 +146,38 @@ export function HomePage() {
   // my-work band. Never two independent fetches for the same data. Retry-safe: `tasksInFlightRef`
   // makes a concurrent call a no-op; `tasksTokenRef` invalidates a stale response if the viewer
   // changes mid-fetch (a fresh load always wins).
-  const [tasks, setTasks] = useState<TaskListRow[]>([])
-  const [taskState, setTaskState] = useState<FetchState>('loading')
+  const [taskSnapshot, setTaskSnapshot] = useState<{
+    owner: ReadLease
+    rows: TaskListRow[]
+    state: FetchState
+  }>(() => ({ owner: readLease, rows: NO_TASKS, state: 'loading' }))
+  const taskSnapshotMatchesOwner = taskSnapshot.owner === readLease
+  // A render for a new authority must not project rows retained by the previous lease while its
+  // passive loader effect is still waiting to run. Stable empty values also keep downstream
+  // callbacks/effects from restarting on every render during that handoff.
+  const tasks = taskSnapshotMatchesOwner ? taskSnapshot.rows : NO_TASKS
+  const taskState = taskSnapshotMatchesOwner ? taskSnapshot.state : 'loading'
   const tasksInFlightRef = useRef(false)
   const tasksTokenRef = useRef(0)
 
   const loadTasks = useCallback((forceRefresh = false) => {
-    if (!personId || tasksInFlightRef.current) return
+    const ownsCurrentRead = () => readOwnerRef.current?.lease === readLease
+    if (!personId || !ownsCurrentRead() || tasksInFlightRef.current) return
     tasksInFlightRef.current = true
     const token = ++tasksTokenRef.current
-    setTaskState('loading')
+    setTaskSnapshot({ owner: readLease, rows: NO_TASKS, state: 'loading' })
     if (forceRefresh) readLease.invalidate()
     listTasks({}, readLease)
       .then(rows => {
-        if (!isMountedRef.current || tasksTokenRef.current !== token) return
-        setTasks(rows)
-        setTaskState('ready')
+        if (!isMountedRef.current || tasksTokenRef.current !== token || !ownsCurrentRead()) return
+        setTaskSnapshot({ owner: readLease, rows, state: 'ready' })
       })
       .catch(() => {
-        if (!isMountedRef.current || tasksTokenRef.current !== token) return
-        setTaskState('error')
+        if (!isMountedRef.current || tasksTokenRef.current !== token || !ownsCurrentRead()) return
+        setTaskSnapshot({ owner: readLease, rows: NO_TASKS, state: 'error' })
       })
       .finally(() => {
-        if (tasksTokenRef.current === token) tasksInFlightRef.current = false
+        if (tasksTokenRef.current === token && ownsCurrentRead()) tasksInFlightRef.current = false
       })
   }, [personId, readLease])
 
@@ -260,24 +272,44 @@ export function HomePage() {
   // The org role tree rides the SAME read: it answers one question Home asks below (does this
   // viewer steer a scope, and so does the Objectives door earn its place). One shared-schema
   // round trip, not a second effect racing this one.
-  const [directory, setDirectory] = useState<AttentionDirectory>({})
-  const [orgRoles, setOrgRoles] = useState<RoleScopeRow[]>([])
+  const [directorySnapshot, setDirectorySnapshot] = useState<{
+    owner: ReadLease
+    directory: AttentionDirectory
+    orgRoles: RoleScopeRow[]
+    state: FetchState
+  }>(() => ({ owner: readLease, directory: NO_DIRECTORY, orgRoles: NO_ORG_ROLES, state: 'loading' }))
+  const directorySnapshotMatchesOwner = directorySnapshot.owner === readLease
+  const directorySnapshotReady = directorySnapshotMatchesOwner && directorySnapshot.state === 'ready'
+  const directory = directorySnapshotMatchesOwner ? directorySnapshot.directory : NO_DIRECTORY
+  const orgRoles = directorySnapshotMatchesOwner ? directorySnapshot.orgRoles : NO_ORG_ROLES
   useEffect(() => {
     if (!personId) return
     let live = true
     Promise.all([getPeople(readLease), getBusinessUnits(readLease), getRoles(readLease)])
       .then(([people, bus, roles]) => {
-        if (!live || !isMountedRef.current) return
-        setDirectory({
-          people: new Map(people.map(p => [p.id, p.full_name])),
-          businessUnits: new Map(bus.map(b => [b.id, b.name])),
+        if (!live || !isMountedRef.current || readOwnerRef.current?.lease !== readLease) return
+        setDirectorySnapshot({
+          owner: readLease,
+          directory: {
+            people: new Map(people.map(p => [p.id, p.full_name])),
+            businessUnits: new Map(bus.map(b => [b.id, b.name])),
+          },
+          orgRoles: roles,
+          state: 'ready',
         })
-        setOrgRoles(roles)
       })
       // Enrichment is optional — a failed directory read leaves rows undecorated. It also leaves
       // `orgRoles` empty, so the Objectives door fails CLOSED for a BU-head: an affordance we
       // cannot justify is not offered, rather than offered on a guess.
-      .catch(() => { /* see above */ })
+      .catch(() => {
+        if (!live || !isMountedRef.current || readOwnerRef.current?.lease !== readLease) return
+        setDirectorySnapshot({
+          owner: readLease,
+          directory: NO_DIRECTORY,
+          orgRoles: NO_ORG_ROLES,
+          state: 'error',
+        })
+      })
     return () => { live = false }
   }, [personId, readLease])
 
@@ -292,6 +324,10 @@ export function HomePage() {
   const holdsCockpitScope = useMemo(
     () => viewer ? holdsHomeCockpitScope(viewer, orgRoles) : false,
     [viewer, orgRoles],
+  )
+  const holdsObjectivesScope = useMemo(
+    () => viewer ? holdsHomeCockpitScope(viewer, directorySnapshotReady ? orgRoles : null) : false,
+    [viewer, orgRoles, directorySnapshotReady],
   )
 
   // ── Ranked stream items (owner redirect) ────────────────────────────────────
@@ -363,7 +399,7 @@ export function HomePage() {
   // Home reuses the task projection already in flight, then reads only the active Objective and
   // Work-line edges needed to resolve each task to its Objective. No percentage or target is
   // invented; an empty catalog and a read failure remain distinct states.
-  const showObjectives = holdsCockpitScope && !isShipGated('/work/objectives')
+  const showObjectives = holdsObjectivesScope && !isShipGated('/work/objectives')
   const [objectiveRows, setObjectiveRows] = useState<HomeObjectiveProgress[]>([])
   const [objectiveReadState, setObjectiveReadState] = useState<FetchState>('ready')
   const objectiveInFlightRef = useRef(false)

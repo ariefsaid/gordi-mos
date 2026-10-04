@@ -568,9 +568,11 @@ describe('AC-065 / AC-008 — archived rows hidden by default; Include archived 
     ])
     renderPage()
     await waitFor(() => screen.getByText('Active task'))
-    // listTasks called with includeArchived falsy
+    // Archived rows stay excluded by the server filter; listTasks also receives the collection's
+    // explicit read lease as its second argument.
     expect(mockListTasks).toHaveBeenCalledWith(
-      expect.not.objectContaining({ includeArchived: true })
+      { includeArchived: false },
+      expect.objectContaining({ read: expect.any(Function) }),
     )
   })
 
@@ -603,7 +605,10 @@ describe('AC-065 / AC-008 — archived rows hidden by default; Include archived 
     expect((screen.getByRole('checkbox', { name: /include archived/i }) as HTMLInputElement).checked).toBe(true)
     // The re-query honors the archived opt-in, and the Status control never became "__archived".
     await waitFor(() => {
-      expect(mockListTasks).toHaveBeenLastCalledWith(expect.objectContaining({ includeArchived: true }))
+      expect(mockListTasks).toHaveBeenLastCalledWith(
+        { includeArchived: true },
+        expect.objectContaining({ read: expect.any(Function) }),
+      )
     })
     await waitFor(() => screen.getByText('Archived task'))
 
