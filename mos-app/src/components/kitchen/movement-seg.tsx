@@ -21,7 +21,7 @@
 // scrolls horizontally rather than wrapping, so a catalog longer than the phone is wide
 // still reaches every option with one thumb. Styling: co-located movement-seg.css.
 
-import { useRef, type KeyboardEvent } from 'react'
+import { useEffect, useRef, type KeyboardEvent } from 'react'
 import type {
   BranchOption,
   KitchenMovement,
@@ -51,7 +51,7 @@ interface MovementSegProps {
    * no resolved stream (FR-002) nothing is intra-branch yet and every option renders plain.
    */
   origin?: ProductionStream | null
-  onChange: (value: KitchenMovement) => void
+  onChange: (value: KitchenMovement) => boolean | void
   disabled?: boolean
 }
 
@@ -65,6 +65,73 @@ export function MovementSeg({
 }: MovementSegProps) {
   const t = useT()
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([])
+  const pendingFocusRef = useRef<{
+    requestedKey: string
+    previousKey: string
+    contextKey: string
+    optionsKey: string
+  } | null>(null)
+  const restoringFocusRef = useRef(false)
+  const optionsRef = useRef(options)
+  optionsRef.current = options
+  const valueRef = useRef(value)
+  valueRef.current = value
+  const disabledRef = useRef(disabled)
+  disabledRef.current = disabled
+
+  const selectedKey = movementKey(value)
+  const selectedIndex = options.findIndex(option => movementsEqual(option, value))
+  const rovingIndex = disabled ? -1 : selectedIndex >= 0 ? selectedIndex : options.length > 0 ? 0 : -1
+  const contextKey = origin ? `${origin.branch.id}|${origin.activity}` : ''
+  const optionsKey = options.map(movementKey).join('\u001f')
+
+  // Defer focus until a guarded controlled change commits. Scope the request to this option
+  // set and production stream so an unrelated context/bootstrap update cannot steal focus.
+  useEffect(() => {
+    const pending = pendingFocusRef.current
+    if (!pending) return
+    if (disabled || pending.contextKey !== contextKey || pending.optionsKey !== optionsKey) {
+      pendingFocusRef.current = null
+      return
+    }
+    if (selectedKey === pending.requestedKey) {
+      const timeout = window.setTimeout(() => {
+        if (pendingFocusRef.current !== pending) return
+        if (movementKey(valueRef.current) !== pending.requestedKey || disabledRef.current) {
+          pendingFocusRef.current = null
+          return
+        }
+        const index = optionsRef.current.findIndex(option => movementKey(option) === pending.requestedKey)
+        if (index >= 0) tabRefs.current[index]?.focus()
+        pendingFocusRef.current = null
+      }, 0)
+      return () => window.clearTimeout(timeout)
+    }
+    if (selectedKey !== pending.previousKey) pendingFocusRef.current = null
+  }, [contextKey, disabled, optionsKey, selectedKey])
+
+  function requestChange(option: KitchenMovement, index: number) {
+    if (disabled) return
+    if (movementsEqual(option, value)) {
+      tabRefs.current[index]?.focus()
+      return
+    }
+
+    const requestedKey = movementKey(option)
+    const previousKey = selectedKey
+    if (onChange(option) !== false) {
+      pendingFocusRef.current = null
+      tabRefs.current[index]?.focus()
+      return
+    }
+
+    pendingFocusRef.current = { requestedKey, previousKey, contextKey, optionsKey }
+    if (rovingIndex >= 0) {
+      restoringFocusRef.current = true
+      tabRefs.current[rovingIndex]?.focus()
+      restoringFocusRef.current = false
+    }
+  }
 
   const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
     if (disabled || options.length < 2) return
@@ -80,8 +147,7 @@ export function MovementSeg({
     }
     if (nextIndex === null) return
     event.preventDefault()
-    onChange(options[nextIndex])
-    tabRefs.current[nextIndex]?.focus()
+    if (nextIndex !== index) requestChange(options[nextIndex], nextIndex)
   }
 
   return (
@@ -114,13 +180,24 @@ export function MovementSeg({
             role="tab"
             aria-label={accessibleName}
             aria-selected={isSelected}
-            tabIndex={isSelected ? 0 : -1}
+            tabIndex={index === rovingIndex ? 0 : -1}
             disabled={disabled}
             className="kms-tab"
             onClick={() => {
-              if (!isSelected) onChange(option)
+              if (!isSelected) requestChange(option, index)
             }}
             onKeyDown={event => handleKeyDown(event, index)}
+            onFocus={() => {
+              if (restoringFocusRef.current) return
+              const pending = pendingFocusRef.current
+              if (!pending) return
+              const focusedKey = movementKey(option)
+              if (selectedKey === pending.previousKey && focusedKey === pending.previousKey) {
+                pendingFocusRef.current = null
+              } else if (selectedKey === pending.requestedKey && focusedKey === pending.requestedKey) {
+                pendingFocusRef.current = null
+              }
+            }}
           >
             <span className="kms-full">{label}</span>
             <span className="kms-short" aria-hidden="true">

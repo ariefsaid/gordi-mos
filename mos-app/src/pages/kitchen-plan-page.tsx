@@ -204,9 +204,8 @@ function PlanEditor() {
   // catalog comes with it: the MOVEMENT control derives its destinations from the producing
   // stream catalog, which is a different question from which stream this plan belongs to.
   const cafeStream = useCafeStream()
-  // OD-CAFE-1: plans are keyed on (org, date, item, branch, activity) — a plan row belongs to one
-  // branch's books — so the picker offers this location's streams only. `streamOptions` stays whole
-  // for the movement/destination derivation below.
+  // Plans are keyed on (org, date, item, branch, activity). Change offers the full readable catalog
+  // for an explicit branch switch; `streamOptions` also drives movement/destination derivation.
   const { branches, options: streamOptions, locationOptions, stream, homeStream, myStreamKeys } = cafeStream
   const { resolve: resolveStream, adopt: adoptStream, setStream: chooseStream } = cafeStream
   const streamMissing = stream === null
@@ -261,10 +260,9 @@ function PlanEditor() {
   const [search, setSearch] = useSearchParamState('q', '')
   const [kindFilter, setKindFilter] = useSearchParamState('kind', 'All')
   const [category, setCategory] = useSearchParamState('category', 'All')
-  // Category/kind selectors remain available on phone; keep their URL-backed filters effective
-  // on receiving-only and editable lists alike.
-  const effectiveKindFilter: KitchenItemKindFilter = kindFilter === 'WIP' ? 'WIP' : 'All'
-  const effectiveCategory = category
+  // Phone hides both select filters, so a copied desktop URL must not silently hide Plan rows.
+  const effectiveKindFilter: KitchenItemKindFilter = isDesktop && kindFilter === 'WIP' ? 'WIP' : 'All'
+  const effectiveCategory = isDesktop ? category : 'All'
   // #401 / DD-WAY-40: the figures band is the Metric summary rule (two numbers for
   // the current movement) — the retired word-tiles are gone. Pure derivation over
   // `cells`.
@@ -714,9 +712,9 @@ function PesananView() {
   const [from] = useState(wibToday) // horizon start = today WIB
   const [rows, setRows] = useState<PesananDisplayRow[]>([])
   const cafeStream = useCafeStream()
-  // OD-CAFE-1: plans are keyed on (org, date, item, branch, activity) — a plan row belongs to one
-  // branch's books — so the picker offers this location's streams only. `streamOptions` stays whole
-  // for the movement/destination derivation below.
+  // Pesanan reads the explicitly selected (branch, activity) horizon. Its Change menu can move to
+  // another readable branch; the active location is shown in the menu so that choice stays clear.
+  // `streamOptions` is the full readable catalog, and is also used for producer-aware labels.
   const { branches, options: streamOptions, locationOptions, stream, homeStream, myStreamKeys } = cafeStream
   const { resolve: resolveStream, adopt: adoptStream, setStream: chooseStream } = cafeStream
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
@@ -834,10 +832,11 @@ function PesananView() {
       title={pageTitle}
       statusRow={
         <CafeStreamBar
-          options={locationOptions}
+          options={streamOptions}
           stream={stream}
           homeStream={homeStream}
           myStreamKeys={myStreamKeys}
+          locationBranchId={cafeStream.branchId ?? undefined}
           onChange={next => { void applyStream(next) }}
         />
       }

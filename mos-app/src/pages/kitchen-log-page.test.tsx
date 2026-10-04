@@ -12,6 +12,7 @@ import { resolve } from 'node:path'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, act, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { ReactNode } from 'react'
 import { installDisabledBlur } from '@/test/browser-focus-fixup'
 import { APP_ROUTER_BASENAME, appUrl } from '@/config/app-build-settings'
 import { MemoryRouter, Route, Routes, createMemoryRouter, RouterProvider, Link } from 'react-router-dom'
@@ -150,8 +151,9 @@ async function chooseStream(optionName: string) {
 }
 
 async function chooseCategory(optionName: string) {
-  fireEvent.click(screen.getByRole('combobox', { name: /category/i }))
-  fireEvent.click(await screen.findByRole('option', { name: optionName }))
+  const user = userEvent.setup()
+  await user.click(screen.getByRole('combobox', { name: /category/i }))
+  await user.click(await screen.findByRole('option', { name: optionName }))
 }
 
 const VIEWER_MEMBER: AuthState = {
@@ -209,6 +211,11 @@ const WIP_ITEMS: CaptureFormItem[] = [
   },
 ]
 
+const RAW_MILK_ITEM: CaptureFormItem = {
+  id: 'w3', name: 'Fresh milk', category: 'Dairy', kind: 'RAW',
+  units: [{ id: 'u3-litre', name: 'litre', is_default: true }],
+}
+
 const PLAN_MAP = {
   w1: { [PRODUCE_KEY]: 20, [TRANSFER_RADIANT_KEY]: 10 },
   w2: { [PRODUCE_KEY]: 12 },
@@ -231,6 +238,7 @@ async function renderPage(
   auth: AuthState = VIEWER_MEMBER,
   initialPath = appUrl('/cafe'),
   location?: { activeBranchId: string; activeBranchName: string },
+  leading?: ReactNode,
 ) {
   mockUseAuth.mockReturnValue(auth)
   let utils!: ReturnType<typeof render>
@@ -238,8 +246,8 @@ async function renderPage(
     utils = render(
       <MemoryRouter basename={APP_ROUTER_BASENAME} initialEntries={[initialPath]}>
         <Routes>
-          <Route path="/cafe" element={<KitchenLogPage mode="production" {...location} />} />
-          <Route path="/cafe/transfer" element={<KitchenLogPage mode="transfer" {...location} />} />
+          <Route path="/cafe" element={<KitchenLogPage mode="production" leading={leading} {...location} />} />
+          <Route path="/cafe/transfer" element={<KitchenLogPage mode="transfer" leading={leading} {...location} />} />
           <Route path="/cafe/success" element={<div>Submitted</div>} />
         </Routes>
       </MemoryRouter>,
@@ -1540,6 +1548,38 @@ describe('OD-K-5: category filter narrows rows', () => {
     expect(screen.queryByText('Ayam Bakar')).toBeNull()
   })
 
+  it.each([
+    {
+      surface: 'Production',
+      path: `${appUrl('/cafe')}?category=Unmatched&kind=RAW`,
+      items: WIP_ITEMS,
+      visibleNames: ['Ayam Bakar', 'Nasi Goreng'],
+    },
+    {
+      surface: 'Transfer',
+      path: `${appUrl('/cafe/transfer')}?category=Dairy&kind=RAW`,
+      items: [...WIP_ITEMS, RAW_MILK_ITEM],
+      visibleNames: ['Ayam Bakar', 'Nasi Goreng', 'Fresh milk'],
+    },
+  ])('phone copied $surface links do not narrow rows with hidden Category and Kind controls', async ({ path, items, visibleNames }) => {
+    mockListCaptureFormItems.mockResolvedValue(items)
+    await renderPage(VIEWER_MEMBER, path)
+    await waitFor(() => expect(screen.getByText(visibleNames[0])).toBeInTheDocument())
+
+    const user = userEvent.setup()
+    for (const collapsedGroup of screen.queryAllByRole('button', { name: /^Expand / })) {
+      await user.click(collapsedGroup)
+    }
+    for (const name of visibleNames) expect(screen.getByText(name)).toBeInTheDocument()
+
+    const search = screen.getByRole('searchbox', { name: /find an item/i })
+    await user.type(search, 'nasi')
+    expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
+    for (const name of visibleNames.filter(name => name !== 'Nasi Goreng')) {
+      expect(screen.queryByText(name)).toBeNull()
+    }
+  })
+
   it('receiving-only phone category filters narrow rows and can be changed', async () => {
     mockFetchDefaultStream.mockResolvedValue({ branch: BRANCH_RADIANT, activity: 'kitchen', produces: false })
     mockListCaptureFormItems.mockResolvedValue([
@@ -1554,6 +1594,40 @@ describe('OD-K-5: category filter narrows rows', () => {
     await chooseCategory('Rice')
     expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
     expect(screen.queryByText('Ayam Bakar')).toBeNull()
+  })
+
+  it('receiving Transfer phone filters keep mixed WIP and RAW rows selectable by kind', async () => {
+    mockFetchDefaultStream.mockResolvedValue({ branch: BRANCH_RADIANT, activity: 'kitchen', produces: false })
+    mockListCaptureFormItems.mockResolvedValue([...WIP_ITEMS, RAW_MILK_ITEM])
+    await renderPage(VIEWER_MEMBER, appUrl('/cafe/transfer'))
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+    const user = userEvent.setup()
+    for (const collapsedGroup of screen.queryAllByRole('button', { name: /^Expand / })) {
+      await user.click(collapsedGroup)
+    }
+    await waitFor(() => screen.getByText('Fresh milk'))
+    expect(screen.getByText('Ayam Bakar')).toBeInTheDocument()
+    expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
+
+    await chooseCategory('Dairy')
+    expect(screen.getByText('Fresh milk')).toBeInTheDocument()
+    expect(screen.queryByText('Ayam Bakar')).toBeNull()
+    expect(screen.queryByText('Nasi Goreng')).toBeNull()
+
+    await user.click(screen.getByRole('combobox', { name: /item kind/i }))
+    await user.click(await screen.findByRole('option', { name: 'WIP' }))
+    expect(screen.getByText('No items match your filter.')).toBeInTheDocument()
+
+    await chooseCategory('All')
+    expect(screen.getByText('Ayam Bakar')).toBeInTheDocument()
+    expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
+    expect(screen.queryByText('Fresh milk')).toBeNull()
+
+    await user.click(screen.getByRole('combobox', { name: /item kind/i }))
+    await user.click(await screen.findByRole('option', { name: 'RAW' }))
+    expect(screen.getByText('Fresh milk')).toBeInTheDocument()
+    expect(screen.queryByText('Ayam Bakar')).toBeNull()
+    expect(screen.queryByText('Nasi Goreng')).toBeNull()
   })
 
   it('ignores a stale RAW filter query on production, where RAW items are unavailable', async () => {
@@ -1963,20 +2037,37 @@ describe('OD-CAFE-6: Log opens by the one stream rule, with one look', () => {
 })
 
 describe('DD-MVP-9: a receiving-only stream remains readable but cannot capture production', () => {
-  it('shows a receiving-only state with a Stock handoff instead of a production form', async () => {
+  it.each([
+    { frame: 'without a leading slot', leading: undefined },
+    { frame: 'with a leading slot', leading: <span>Opening door</span> },
+  ])('keeps the receiving view factual and read-only $frame', async ({ leading }) => {
+    setWideMatchMedia(false)
     mockFetchDefaultStream.mockResolvedValue({
       branch: BRANCH_RADIANT,
       activity: 'kitchen',
       produces: false,
     })
-    await renderPage()
+    mockFetchActualsMap.mockResolvedValue({ w1: { [PRODUCE_KEY]: 4 } })
+    await renderPage(VIEWER_MEMBER, appUrl('/cafe'), undefined, leading)
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     expect(within(screen.getByTestId('cafe-stream')).getByText('Radiant · Kitchen')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /receiving-only stream/i })).toBeInTheDocument()
-    expect(screen.getByText(/this stream receives stock.*review its receipts and stock here/i)).toBeInTheDocument()
+    expect(screen.getByText('This stream receives stock, so production capture and planning are unavailable here.')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /view café stock/i })).toHaveAttribute('href', appUrl('/cafe/stock'))
-    expect(screen.getByText('Ayam Bakar')).toBeInTheDocument()
+    expect(screen.getByLabelText('Café log — receiving-only read view')).toBeInTheDocument()
+
+    const ayamCard = screen.getByText('Ayam Bakar').closest('.dt-card')!
+    expect(within(ayamCard).getByText('Plan')).toBeInTheDocument()
+    expect(within(ayamCard).getByText('20')).toBeInTheDocument()
+    expect(within(ayamCard).getByText('Stock')).toBeInTheDocument()
+    expect(within(ayamCard).getByText('3')).toBeInTheDocument()
+    expect(within(ayamCard).getByText('Made today')).toBeInTheDocument()
+    expect(within(ayamCard).getByText('4')).toBeInTheDocument()
+    expect(screen.queryByText('Made', { exact: true })).toBeNull()
+    expect(screen.queryByText('Off-plan', { exact: true })).toBeNull()
+
+    if (leading) expect(screen.getByText('Opening door')).toBeInTheDocument()
     expect(screen.queryByRole('form', { name: /café log capture/i })).toBeNull()
     expect(screen.queryByRole('spinbutton')).toBeNull()
     expect(screen.queryByRole('tablist')).toBeNull()
@@ -2404,6 +2495,78 @@ describe('/cafe/transfer destination selection', () => {
 
     await waitFor(() => expect(nextTab).toHaveAttribute('aria-selected', 'true'))
     expect((screen.getByRole('spinbutton', { name: /quantity .* for ayam bakar/i }) as HTMLInputElement).value).toBe('')
+  })
+
+  it('reviews a phone Transfer draft by destination and unit without changing submitted totals', async () => {
+    setWideMatchMedia(false)
+    mockFetchDefaultStream.mockResolvedValue({ branch: BRANCH_RUMAH_RAMES, activity: 'bar' })
+    mockFetchActualsMap.mockResolvedValue({ w1: { [TRANSFER_RADIANT_KEY]: 7 } })
+    await renderTransferPage()
+    await waitFor(() => expect(screen.getAllByRole('tab').length).toBeGreaterThan(1))
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: 'Transfer to Radiant' }))
+    const submittedSummary = screen.getByRole('group', { name: 'Plan versus transfers to Radiant' })
+    expect(submittedSummary).toHaveTextContent(/Transferred\s*7/)
+    const submittedSnapshot = submittedSummary.textContent
+
+    for (const collapsedGroup of screen.queryAllByRole('button', { name: /^Expand / })) {
+      await user.click(collapsedGroup)
+    }
+    await user.click(screen.getByRole('button', { name: /change unit for ayam bakar/i }))
+    await user.click(await screen.findByRole('combobox', { name: /unit for ayam bakar/i }))
+    await user.click(await screen.findByRole('option', { name: 'botol' }))
+    await user.type(screen.getByRole('spinbutton', { name: /quantity to transfer to radiant for ayam bakar/i }), '2')
+    await user.type(screen.getByRole('spinbutton', { name: /quantity to transfer to radiant for nasi goreng/i }), '3')
+
+    const draft = screen.getByRole('region', { name: 'Transfer draft' })
+    expect(draft).toHaveTextContent('Destination')
+    expect(draft).toHaveTextContent('Radiant')
+    expect(draft).toHaveTextContent('Ayam Bakar')
+    expect(draft).toHaveTextContent('2 botol')
+    expect(draft).toHaveTextContent('Nasi Goreng')
+    expect(draft).toHaveTextContent('3 porsi')
+    const totals = within(draft).getByRole('heading', { name: 'Totals by unit' }).parentElement!
+    expect(totals).toHaveTextContent('botol2')
+    expect(totals).toHaveTextContent('porsi3')
+    expect(draft).not.toHaveTextContent(/5/)
+    expect(submittedSummary.textContent).toBe(submittedSnapshot)
+    expect(screen.getByRole('button', { name: /submit/i })).toBeInTheDocument()
+    expect(mockInsertKitchenLogBatch).not.toHaveBeenCalled()
+  })
+
+  it('keeps the committed destination and draft on Cancel, then focuses the confirmed destination', async () => {
+    mockFetchDefaultStream.mockResolvedValue({ branch: BRANCH_RUMAH_RAMES, activity: 'bar' })
+    await renderTransferPage()
+    await waitFor(() => expect(screen.getAllByRole('tab').length).toBeGreaterThan(1))
+
+    const user = userEvent.setup()
+    const tabs = screen.getAllByRole('tab')
+    const currentTab = tabs.find(tab => tab.getAttribute('aria-selected') === 'true')!
+    const nextTab = tabs.find(tab => tab !== currentTab)!
+    const quantity = screen.getByRole('spinbutton', { name: /quantity .* for ayam bakar/i })
+    await user.type(quantity, '15')
+    await waitFor(() => expect(quantity).toHaveValue(15))
+
+    await user.click(currentTab)
+    await user.keyboard('{ArrowRight}')
+    let dialog = await screen.findByRole('dialog')
+    expect(currentTab).toHaveAttribute('aria-selected', 'true')
+    expect(nextTab).toHaveAttribute('aria-selected', 'false')
+    await user.click(within(dialog).getByRole('button', { name: /cancel/i }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(currentTab).toHaveFocus()
+    expect((quantity as HTMLInputElement).value).toBe('15')
+
+    await user.keyboard('{ArrowRight}')
+    dialog = await screen.findByRole('dialog')
+    await user.click(within(dialog).getByRole('button', { name: /switch and clear/i }))
+    await waitFor(() => {
+      expect(nextTab).toHaveAttribute('aria-selected', 'true')
+      expect(nextTab).toHaveFocus()
+    })
+    expect((screen.getByRole('spinbutton', { name: /quantity .* for ayam bakar/i }) as HTMLInputElement).value).toBe('')
+    expect(mockInsertKitchenLogBatch).not.toHaveBeenCalled()
   })
 })
 

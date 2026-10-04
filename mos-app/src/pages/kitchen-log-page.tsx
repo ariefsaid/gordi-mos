@@ -322,15 +322,18 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   const [search, setSearch] = useSearchParamState('q', '')
   const [kindFilter, setKindFilter] = useSearchParamState('kind', 'All')
   const [category, setCategory] = useSearchParamState('category', 'All')
-  // The category/kind selectors remain available on phone, so their URL-backed values must
-  // filter the same receiving and capture rows at every width. RAW is only valid for Transfer.
+  // Category and kind selectors are hidden inside the capture form on phones, so copied
+  // production/transfer links must not hide rows behind controls the reader cannot use. The
+  // receiving toolbar is outside that form and stays filterable at phone widths. RAW is only
+  // valid for Transfer.
+  const canUseCategoryAndKindFilters = isDesktop || streamNonProducing
   const requestedKindFilter = kindFilter as KitchenItemKindFilter
   const supportedKindFilter = requestedKindFilter === 'All' || requestedKindFilter === 'WIP'
     || (mode === 'transfer' && requestedKindFilter === 'RAW')
     ? requestedKindFilter
     : 'All'
-  const effectiveKindFilter: KitchenItemKindFilter = supportedKindFilter
-  const effectiveCategory = category
+  const effectiveKindFilter: KitchenItemKindFilter = canUseCategoryAndKindFilters ? supportedKindFilter : 'All'
+  const effectiveCategory = canUseCategoryAndKindFilters ? category : 'All'
   const filterRows = useMemo(
     () => toKitchenListRows(wipItems, {
       kind: 'WIP',
@@ -531,14 +534,15 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   // staged quantities, the switch is held behind `pendingMovement` until the confirm
   // dialog below resolves it — MovementSeg is controlled by `movement`, so leaving it
   // unset here is what keeps the tab strip showing the OLD movement while the dialog is open.
-  function handleMovementChange(next: KitchenMovement) {
-    if (writeClosed) return
+  function handleMovementChange(next: KitchenMovement): boolean {
+    if (writeClosed) return false
     const staged = Object.values(lines).some(l => l.qty_porsi > 0)
     if (!staged) {
       setMovement(next)
-      return
+      return true
     }
     setPendingMovement(next)
+    return false
   }
 
   function confirmMovementSwitch() {
@@ -890,6 +894,39 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   const formatCaptureQty = (quantity: number) => new Intl.NumberFormat(
     document.documentElement.lang || 'en', { maximumFractionDigits: 3 },
   ).format(quantity)
+  const transferDraftContent = (
+    <>
+      {mode === 'transfer' && (
+        <div className="kl-capture-summary__destination">
+          <span>{t('kitchen.transfer.draft.destination')}</span>
+          <strong>{transferDestinationName ?? t('kitchen.actionType.transferTo.fallback')}</strong>
+        </div>
+      )}
+      <h3>{t(mode === 'transfer' ? 'kitchen.transfer.draft.items' : 'kitchen.log.summary.entered')}</h3>
+      {stagedSummary.length === 0 ? (
+        <p className="kl-capture-summary__empty">{t('kitchen.log.summary.draftEmpty')}</p>
+      ) : (
+        <ul className="kl-capture-summary__lines" aria-live="polite">
+          {stagedSummary.map(line => (
+            <li key={line.id}>
+              <span>{line.name}</span>
+              <strong className="tabular">{formatCaptureQty(line.quantity)} {line.unit}</strong>
+            </li>
+          ))}
+        </ul>
+      )}
+      {totalsByUnit.length > 0 && (
+        <div className="kl-capture-summary__totals">
+          <h3>{t('kitchen.log.summary.unitTotals')}</h3>
+          <ul>
+            {totalsByUnit.map(([unit, quantity]) => (
+              <li key={unit}><span>{unit}</span><strong className="tabular">{formatCaptureQty(quantity)}</strong></li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </>
+  )
   // FR-023 / AC-022: an over-`tersedia` transfer line is a hard stop — Submit stays
   // disabled while any staged line exceeds availability (the line shows the cue).
   const hasBlockingError = stagedLines.some(
@@ -1196,10 +1233,9 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
           <div className="kl-context">
             {leading}
             {/* R4 / FR-018: derived from submitted actuals only — staged typing never moves it. */}
-            {status.kind === 'ready' && stream !== null && wipItems.length > 0 && transferDestinationChosen && (
-              <div className="kl-context-summary kl-inline-summary">
+            {status.kind === 'ready' && stream !== null && !streamNonProducing && wipItems.length > 0 && transferDestinationChosen && (
+              <div className="kl-context-summary kl-inline-summary" role="group" aria-label={summaryAriaLabel}>
                 <MetricSummaryRule
-                  ariaLabel={summaryAriaLabel}
                   metrics={summaryMetrics}
                   variant="inline"
                 />
@@ -1207,10 +1243,9 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
             )}
           </div>
         ) : (
-          status.kind === 'ready' && stream !== null && wipItems.length > 0 && transferDestinationChosen && (
-            <div className="kl-inline-summary">
+          status.kind === 'ready' && stream !== null && !streamNonProducing && wipItems.length > 0 && transferDestinationChosen && (
+            <div className="kl-inline-summary" role="group" aria-label={summaryAriaLabel}>
               <MetricSummaryRule
-                ariaLabel={summaryAriaLabel}
                 metrics={summaryMetrics}
               />
             </div>
@@ -1276,6 +1311,16 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
                 <ReportMissingItem stream={stream} streamLabel={streamLabel(t, stream)} />
               )}
               {mode === 'transfer' && !transferDestinationChosen ? null : logTable}
+              {!isWide && mode === 'transfer' && stream !== null && !streamNonProducing && transferDestinationChosen && stagedCount > 0 && (
+                <section
+                  className="kl-capture-summary"
+                  aria-labelledby="kl-transfer-draft-title"
+                  role="region"
+                >
+                  <h2 id="kl-transfer-draft-title">{t('kitchen.transfer.draft.title')}</h2>
+                  {transferDraftContent}
+                </section>
+              )}
             </>
           )}
 
@@ -1424,38 +1469,17 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
         )}
         </div>
         {isWide && stream && !streamNonProducing && wipItems.length > 0 && (
-          <aside className="kl-capture-summary" aria-label={t('kitchen.log.summary.captureAria')}>
-            <h2>{t('kitchen.log.summary.captureTitle')}</h2>
+          <aside
+            className="kl-capture-summary"
+            aria-label={t(mode === 'transfer' ? 'kitchen.transfer.draft.title' : 'kitchen.log.summary.captureAria')}
+          >
+            <h2>{t(mode === 'transfer' ? 'kitchen.transfer.draft.title' : 'kitchen.log.summary.captureTitle')}</h2>
             {status.kind === 'ready' && transferDestinationChosen && (
-              <MetricSummaryRule
-                ariaLabel={summaryAriaLabel}
-                metrics={summaryMetrics}
-                variant="inline"
-              />
-            )}
-            <h3>{t('kitchen.log.summary.entered')}</h3>
-            {stagedSummary.length === 0 ? (
-              <p className="kl-capture-summary__empty">{t('kitchen.log.summary.draftEmpty')}</p>
-            ) : (
-              <ul className="kl-capture-summary__lines" aria-live="polite">
-                {stagedSummary.map(line => (
-                  <li key={line.id}>
-                    <span>{line.name}</span>
-                    <strong className="tabular">{formatCaptureQty(line.quantity)} {line.unit}</strong>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {totalsByUnit.length > 0 && (
-              <div className="kl-capture-summary__totals">
-                <h3>{t('kitchen.log.summary.unitTotals')}</h3>
-                <ul>
-                  {totalsByUnit.map(([unit, quantity]) => (
-                    <li key={unit}><span>{unit}</span><strong className="tabular">{formatCaptureQty(quantity)}</strong></li>
-                  ))}
-                </ul>
+              <div role="group" aria-label={summaryAriaLabel}>
+                <MetricSummaryRule metrics={summaryMetrics} variant="inline" />
               </div>
             )}
+            {transferDraftContent}
             {submitError && <p role="alert" className="kl-submit-outcome kl-submit-outcome--error">{submitError}</p>}
             {showOfflineInFooter && <p className="kl-submit-reason">{t('kitchen.log.offline.banner')}</p>}
             {status.kind === 'success' && (
