@@ -404,6 +404,22 @@
 
 /* ── Phone (<768px): count and conditional Discard above one full-width primary ── */
 @media (max-width: 767.98px) {
+  /* #378 capture-first budget: keep Transfer's required destination/search controls and missing-
+     item route while bringing its first quantity inside the 300px owner geometry contract.
+     Compress only surrounding rhythm; touch targets stay at their 44px floor. */
+  .page-frame--v3:has(.kl-form .kl-scope) .page-head--v3.content-header {
+    margin-bottom: 4px;
+    padding-bottom: 0;
+  }
+  .kl-capture-main:has(.kl-form .kl-scope) > .kl-inline-summary > .msr {
+    padding-bottom: 0;
+    margin-bottom: 0;
+    border-bottom: 0;
+  }
+  .kl-form .ktb:has(.kl-scope) { padding: 4px 0; }
+  .kl-form:has(.kl-scope) .kl-missing { padding: 4px 0 0; }
+  .kl-form:has(.kl-scope) .dt-cards-group { padding-top: 8px; }
+
   /* iOS Safari zooms focused text/number fields below 16px. Keep page zoom accessible; size the
      actual Café controls instead, including search, variance notes and waste quantities. */
   .kl-page input:not([type='checkbox']):not([type='radio']),
