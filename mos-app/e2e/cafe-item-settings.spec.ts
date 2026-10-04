@@ -342,7 +342,8 @@ test.describe('Café item settings', () => {
 
     mocks.readMode = 'empty'
     await page.goto('cafe/items')
-    await expect(page.getByRole('heading', { name: 'No ERP items on this stream', exact: true })).toBeVisible()
+    // OD-TERM-ESB: the empty state uses the approved ESB name, never ERP.
+    await expect(page.getByRole('heading', { name: 'No ESB items on this stream', exact: true })).toBeVisible()
     await capture(page, testInfo, 'item-settings-empty')
 
     mocks.readMode = 'error'
