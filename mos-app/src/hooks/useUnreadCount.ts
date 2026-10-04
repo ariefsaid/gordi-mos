@@ -1,6 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useAuth } from '@/auth/use-auth'
 import { countUnread } from '@/lib/db/notifications'
 import { onUnreadCountChanged } from './unread-count-bus'
+import {
+  getUnreadCountSnapshot,
+  refreshUnreadCount,
+  subscribeUnreadCount,
+  watchUnreadCount,
+} from './unread-count-store'
 
 export interface UseUnreadCount {
   unreadCount: number
@@ -15,6 +22,8 @@ export interface UseUnreadCount {
  * uses useNotifications for the row list; this hook is the cheap path for the always-rendered bell.
  */
 export function useUnreadCount(): UseUnreadCount {
+  const auth = useAuth()
+  const readScope = auth.status === 'authenticated' ? auth.readScope ?? null : null
   const [unreadCount, setUnreadCount] = useState(0)
   const [loading, setLoading] = useState(true)
 
@@ -35,7 +44,7 @@ export function useUnreadCount(): UseUnreadCount {
     }
   }, [])
 
-  const refresh = useCallback(async () => {
+  const refreshLocal = useCallback(async () => {
     if (!mounted.current) return
     setLoading(true)
     try {
@@ -48,13 +57,37 @@ export function useUnreadCount(): UseUnreadCount {
     }
   }, [])
 
+  const subscribe = useCallback(
+    (listener: () => void) => subscribeUnreadCount(readScope, listener),
+    [readScope],
+  )
+  const getSnapshot = useCallback(() => getUnreadCountSnapshot(readScope), [readScope])
+  const scopedSnapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+
+  const refresh = useCallback(async () => {
+    if (readScope !== null) {
+      await refreshUnreadCount(readScope)
+      return
+    }
+    await refreshLocal()
+  }, [readScope, refreshLocal])
+
   useEffect(() => {
-    void refresh()
-  }, [refresh])
+    if (readScope !== null) {
+      void watchUnreadCount(readScope)
+      return
+    }
+    void refreshLocal()
+  }, [readScope, refreshLocal])
 
   // #582: react to a mark-read/mark-handled done by ANY mounted useNotifications() elsewhere in
   // the shell (Inbox page, quick-triage panel) — not just a refetch this hook triggered itself.
-  useEffect(() => onUnreadCountChanged(() => void refresh()), [refresh])
+  useEffect(() => {
+    if (readScope !== null) return
+    return onUnreadCountChanged(() => void refreshLocal())
+  }, [readScope, refreshLocal])
 
-  return { unreadCount, loading, refresh }
+  return readScope !== null
+    ? { ...scopedSnapshot, refresh }
+    : { unreadCount, loading, refresh }
 }

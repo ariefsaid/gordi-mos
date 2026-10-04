@@ -1,5 +1,6 @@
 import { createContext } from 'react'
 import type { PeopleRow, RolesRow } from '@/lib/database.types'
+import type { ReadScope } from '@/lib/scoped-reads'
 
 export type AuthState =
   | { status: 'loading' }
@@ -11,6 +12,8 @@ export type AuthState =
       status: 'authenticated'
       viewer: { person: PeopleRow; roles: RolesRow[]; isManager: boolean; accessRoles: string[]; affiliated: string[] }
       signOut: () => Promise<void>
+      // Optional for provider-less typed fixtures; production AuthProvider always supplies a scope.
+      readScope?: ReadScope
     }
   // PASSWORD_RECOVERY flow: session exists, user must set a new password before accessing the app.
   // clearRecovering is called by RecoveryPage on successful password update to proceed to home.

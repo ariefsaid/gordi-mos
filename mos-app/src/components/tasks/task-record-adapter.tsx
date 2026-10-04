@@ -13,7 +13,7 @@
 // switch (deferred host wiring); this adapter is entirely domain-facing.
 import type { ReactNode } from 'react'
 import type { TaskDetail } from '@/lib/db/tasks'
-import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
+import type { TaskRow, TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
 import type { PersonOption, BusinessUnitOption } from '@/lib/db/directory'
 import type { ObjectiveRow } from '@/lib/db/objectives'
 import type { WorkLineRow } from '@/lib/db/work-lines'
@@ -44,10 +44,7 @@ export type TaskViewerFieldKey =
   | 'projectProcess'
   | 'objective'
 
-type TaskClosureFields = TaskListRow & {
-  team_id?: string | null
-  completed_at?: string | null
-}
+type TaskClosureFields = TaskRow
 
 export interface TaskTeamView {
   id: string

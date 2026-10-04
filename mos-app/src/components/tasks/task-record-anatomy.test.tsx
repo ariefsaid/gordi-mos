@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, within, fireEvent, screen } from '@testing-library/react'
 import { I18nProvider } from '@/i18n/I18nProvider'
-import type { TaskListRow, ChecklistItemRow, TaskEventRow } from '@/lib/db/tasks.types'
+import type { TaskRow, ChecklistItemRow, TaskEventRow } from '@/lib/db/tasks.types'
 import type { PersonOption, BusinessUnitOption } from '@/lib/db/directory'
 import type { WorkLineRow } from '@/lib/db/work-lines'
 import { createTaskRecordAdapter, type TaskFieldLabels, type TaskRecordAdapterInput } from './task-record-adapter'
@@ -32,7 +32,7 @@ const NOW = new Date('2026-07-22T05:00:00Z')
 const LONG_TITLE =
   'Restock the oat milk before the Monday morning rush and reconcile the fridge count against the delivery note'
 
-function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
+function makeTask(overrides: Partial<TaskRow> = {}): TaskRow {
   return {
     id: 'task-1', org_id: 'org', title: LONG_TITLE, business_unit_id: 'bu-retail', status: 'Open',
     responsible_person_id: PIC, accountable_person_id: SUPERVISOR,
@@ -53,7 +53,7 @@ const EVENT: TaskEventRow = {
 }
 
 type Options = {
-  task?: TaskListRow
+  task?: TaskRow
   viewerId?: string
   downlineIds?: string[]
   checklist?: ChecklistItemRow[]

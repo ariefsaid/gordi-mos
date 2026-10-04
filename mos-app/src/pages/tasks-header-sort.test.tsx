@@ -6,7 +6,7 @@ import { useState } from 'react'
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation } from 'react-router-dom'
-import type { TaskListRow } from '@/lib/db/tasks.types'
+import type { TaskListRow, TaskRow } from '@/lib/db/tasks.types'
 import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
 import { OverlayHostProvider } from '@/shell/overlay-host'
@@ -86,11 +86,18 @@ function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
     responsible_person_id: VIEWER_ID,
     accountable_person_id: VIEWER_ID,
     consulted_person_ids: [],
-    informed_person_ids: [],
-    description: null, due_date: null,
+    informed_person_ids: [], due_date: null,
     objective_id: null, work_line_id: null,
     last_activity_at: '2026-06-11T10:00:00Z',
     archived_at: null, created_by: VIEWER_ID,
+    ...overrides,
+  }
+}
+
+function makeTaskDetail(overrides: Partial<TaskRow> = {}): TaskRow {
+  return {
+    ...makeTask(),
+    description: null,
     created_at: '2026-06-11T00:00:00Z',
     updated_at: '2026-06-11T00:00:00Z',
     ...overrides,
@@ -175,7 +182,7 @@ beforeEach(() => {
   vi.mocked(getPeople).mockResolvedValue(PEOPLE as never)
   vi.mocked(listObjectives).mockResolvedValue([])
   vi.mocked(listWorkLines).mockResolvedValue([])
-  mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
+  mockGetTask.mockResolvedValue({ task: makeTaskDetail(), checklist: [], events: [] })
   vi.mocked(listDueRuns).mockResolvedValue([])
   vi.mocked(canStartProcessForTeam).mockResolvedValue(false)
   vi.mocked(listRunRollups).mockResolvedValue([])

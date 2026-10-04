@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
-import type { TaskListRow } from '@/lib/db/tasks.types'
+import type { TaskRow } from '@/lib/db/tasks.types'
 import type { CollectionData } from '@/lib/record-collection/types'
 
 vi.mock('@/lib/db/tasks', () => ({ listTasks: vi.fn() }))
@@ -29,10 +29,20 @@ vi.mock('@/lib/db/user-views-collection', () => ({
 }))
 
 import { listTasks } from '@/lib/db/tasks'
-import { getBusinessUnits, getPeople, getPersonTeams, getTeamsByIds, listRoleNames } from '@/lib/db/directory'
+import {
+  getBusinessUnits,
+  getDownlinePersonIds,
+  getPeople,
+  getPersonBusinessUnitIds,
+  getPersonTeams,
+  getTeamsByIds,
+  listRoleNames,
+} from '@/lib/db/directory'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
 import { listRunRollups, listTaskDefs } from '@/lib/db/processes'
+import { createRecordCollectionController } from '@/lib/record-collection/engine'
+import { createReadLease } from '@/lib/scoped-reads'
 import {
   TASK_COLLECTION_NEUTRAL_QUERY,
   taskCollectionDescriptor,
@@ -45,7 +55,7 @@ import {
 
 const mock = <T,>(fn: unknown) => fn as unknown as ReturnType<typeof vi.fn> & T
 
-function rawTask(over: Partial<TaskListRow> & Pick<TaskListRow, 'id' | 'title'>): TaskListRow {
+function rawTask(over: Partial<TaskRow> & Pick<TaskRow, 'id' | 'title'>): TaskRow {
   return {
     id: over.id, org_id: 'org-1', title: over.title,
     business_unit_id: over.business_unit_id ?? 'bu-cafe',
@@ -76,6 +86,10 @@ function seedDirectory() {
 
 function q(over: Partial<TaskCollectionQuery> = {}): TaskCollectionQuery {
   return { ...TASK_COLLECTION_NEUTRAL_QUERY, ...over }
+}
+
+async function flushCollectionLoad() {
+  await new Promise<void>((resolve) => setTimeout(resolve, 0))
 }
 
 beforeEach(() => {
@@ -119,6 +133,88 @@ describe('load — DAL wiring and context', () => {
     await taskCollectionDescriptor.load({ query: q({ groupBy: 'status' }), viewerId: 'p-raka' })
     expect(mock(listRunRollups)).not.toHaveBeenCalled()
     expect(mock(listTaskDefs)).not.toHaveBeenCalled()
+  })
+
+  it('AC-002: ordinary Task groups, filters, and sort reproject without repeating reads', async () => {
+    seedDirectory()
+    mock(listTasks).mockResolvedValue([rawTask({ id: 't-1', title: 'Fix the coffee machine', team_id: 'team-1' })])
+    const controller = createRecordCollectionController(taskCollectionDescriptor, {
+      query: q(),
+      presentation: 'table',
+      viewerId: 'p-raka',
+      accessRoles: [],
+    })
+    await flushCollectionLoad()
+
+    const localChanges: Partial<TaskCollectionQuery>[] = [
+      { groupBy: 'status' },
+      { groupBy: 'pic' },
+      { status: 'Blocked' },
+      { picId: 'p-sari' },
+      { sort: 'task', direction: 'descending' },
+    ]
+    for (const change of localChanges) {
+      controller.setQuery({ ...controller.state.query, ...change })
+      await flushCollectionLoad()
+    }
+
+    expect(mock(listTasks)).toHaveBeenCalledTimes(1)
+    expect(mock(getBusinessUnits)).toHaveBeenCalledTimes(1)
+    expect(mock(getPeople)).toHaveBeenCalledTimes(1)
+    expect(mock(getDownlinePersonIds)).toHaveBeenCalledTimes(1)
+    expect(mock(getPersonTeams)).toHaveBeenCalledTimes(1)
+    expect(mock(getPersonBusinessUnitIds)).toHaveBeenCalledTimes(1)
+    expect(mock(getTeamsByIds)).toHaveBeenCalledTimes(1)
+    expect(mock(listObjectives)).toHaveBeenCalledTimes(1)
+    expect(mock(listWorkLines)).toHaveBeenCalledTimes(1)
+    expect(mock(listRunRollups)).not.toHaveBeenCalled()
+    expect(mock(listTaskDefs)).not.toHaveBeenCalled()
+    expect(mock(listRoleNames)).not.toHaveBeenCalled()
+  })
+
+  it('reuses base fragments while occurrence-only reads change, and refresh invalidates used fragments', async () => {
+    seedDirectory()
+    const rows = [rawTask({ id: 't-run', title: 'Run task', team_id: 'team-1', process_run_id: 'run-1' })]
+    const rawTaskRead = vi.fn(async () => rows)
+    mock(listTasks).mockImplementation((filters, readLease) => {
+      const load = () => rawTaskRead()
+      return readLease
+        ? readLease.read(`test-task-list:${JSON.stringify(filters)}`, load)
+        : load()
+    })
+    mock(listRunRollups).mockResolvedValue([
+      { process_run_id: 'run-1', caption: 'Café Opening · 17 Jul 2026', scheduled_date: '2026-07-17', status: 'active', total: 1, open: 1, in_progress: 0, blocked: 0, done: 0, overdue: 0, pending_unresolved: 1, completion_pct: 0 },
+    ])
+    const lease = createReadLease(null)
+    const controller = createRecordCollectionController(taskCollectionDescriptor, {
+      query: q(),
+      presentation: 'table',
+      viewerId: 'p-raka',
+      accessRoles: [],
+      readLease: lease,
+    })
+    await flushCollectionLoad()
+
+    controller.setQuery({ ...controller.state.query, groupBy: 'occurrence' })
+    await flushCollectionLoad()
+    expect(controller.state.data?.context.runRollupsByRunId.get('run-1')?.caption).toBe('Café Opening · 17 Jul 2026')
+    controller.setQuery({ ...controller.state.query, groupBy: 'status' })
+    await flushCollectionLoad()
+    controller.setQuery({ ...controller.state.query, groupBy: 'occurrence' })
+    await flushCollectionLoad()
+
+    expect(rawTaskRead).toHaveBeenCalledTimes(1)
+    expect(mock(listRunRollups)).toHaveBeenCalledTimes(1)
+    expect(mock(listObjectives)).toHaveBeenCalledTimes(1)
+    expect(mock(listWorkLines)).toHaveBeenCalledTimes(1)
+
+    controller.retry()
+    await flushCollectionLoad()
+    expect(rawTaskRead).toHaveBeenCalledTimes(2)
+    expect(mock(listRunRollups)).toHaveBeenCalledTimes(2)
+    expect(mock(listObjectives)).toHaveBeenCalledTimes(2)
+    expect(mock(listWorkLines)).toHaveBeenCalledTimes(2)
+    lease.dispose()
   })
 
   it('FR-V3-013: context.rowsById bridges each projected id back to its raw TaskListRow (single-loader render seam)', async () => {

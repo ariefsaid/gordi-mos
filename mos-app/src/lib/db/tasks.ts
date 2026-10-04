@@ -1,7 +1,9 @@
 import { supabase } from '@/lib/supabase'
 import { announceOpenTaskCountChanged } from '@/lib/open-task-count-store'
+import { getReadScope, sharePending } from '@/lib/scoped-reads'
+import type { ReadLease } from '@/lib/scoped-reads'
 import type {
-  TaskStatus, TaskListRow, ChecklistItemRow, TaskEventRow,
+  TaskStatus, TaskRow, TaskListRow, ChecklistItemRow, TaskEventRow,
 } from './tasks.types'
 
 // Data layer for mos.tasks (P2-1). Reads/writes mos via supabase.schema('mos') on the existing
@@ -20,7 +22,14 @@ const mos = () => supabase.schema('mos')
 // Raw mos.tasks columns only — no cross-schema FK embeds.
 // PostgREST CANNOT FK-embed across schemas (mos→shared) under the mos profile (PGRST200).
 // Display-name resolution is client-side via directory.ts (Fix C1).
-const LIST_SELECT = '*'
+const LIST_SELECT = [
+  'id', 'org_id', 'title', 'business_unit_id', 'team_id', 'status',
+  'responsible_person_id', 'accountable_person_id', 'consulted_person_ids',
+  'informed_person_ids', 'due_date', 'objective_id', 'work_line_id',
+  'last_activity_at', 'archived_at', 'created_by', 'completed_at',
+  'process_run_id', 'generated_from_task_def_id',
+].join(',')
+const DETAIL_SELECT = '*'
 
 export interface TaskListFilters {
   businessUnitId?: string
@@ -33,22 +42,41 @@ export interface TaskListFilters {
   includeArchived?: boolean
 }
 
+function taskListReadKey(filters: TaskListFilters): string {
+  return `mos.tasks:list:${JSON.stringify({
+    select: LIST_SELECT,
+    businessUnitId: filters.businessUnitId || null,
+    status: filters.status ?? null,
+    includeArchived: Boolean(filters.includeArchived),
+    order: ['due_date', 'asc', 'nulls_last'],
+  })}`
+}
+
 /** List tasks with BU/status/archived filters (FR-024/025/026). Person-membership is
  * client-side via raciMember() — the full org set is loaded (org-readable; ~15 people / dozens
  * of tasks at Gordi scale). BU + status + archived are server-side for server-side sorting. */
-export async function listTasks(f: TaskListFilters = {}): Promise<TaskListRow[]> {
-  let q = mos().from('tasks').select(LIST_SELECT)
-  if (!f.includeArchived) q = q.is('archived_at', null)
-  if (f.businessUnitId) q = q.eq('business_unit_id', f.businessUnitId)
-  if (f.status) q = q.eq('status', f.status)
-  q = q.order('due_date', { ascending: true, nullsFirst: false })
-  const { data, error } = await q
-  if (error) throw new Error(`listTasks failed — ${error.message}`)
-  return (data ?? []) as unknown as TaskListRow[]
+export async function listTasks(
+  f: TaskListFilters = {}, readLease?: ReadLease,
+): Promise<TaskListRow[]> {
+  const load = async (): Promise<TaskListRow[]> => {
+    let q = mos().from('tasks').select(LIST_SELECT)
+    if (!f.includeArchived) q = q.is('archived_at', null)
+    if (f.businessUnitId) q = q.eq('business_unit_id', f.businessUnitId)
+    if (f.status) q = q.eq('status', f.status)
+    q = q.order('due_date', { ascending: true, nullsFirst: false })
+    const { data, error } = await q
+    if (error) throw new Error(`listTasks failed — ${error.message}`)
+    return (data ?? []) as unknown as TaskListRow[]
+  }
+
+  const key = taskListReadKey(f)
+  if (readLease) return readLease.read(key, load)
+  const scope = getReadScope()
+  return scope ? sharePending(scope, key, load) : load()
 }
 
 export interface TaskDetail {
-  task: TaskListRow
+  task: TaskRow
   checklist: ChecklistItemRow[]
   events: TaskEventRow[]
 }
@@ -69,7 +97,7 @@ function dbError(message: string, code?: string): DbError {
 /** Read one task plus its checklist (position asc) and events (created_at desc, FR-034). */
 export async function getTask(id: string): Promise<TaskDetail> {
   const { data: task, error: taskErr } = await mos()
-    .from('tasks').select(LIST_SELECT).eq('id', id).single()
+    .from('tasks').select(DETAIL_SELECT).eq('id', id).single()
   if (taskErr) throw dbError(`getTask failed — ${taskErr.message}`, taskErr.code)
 
   const { data: checklist, error: clErr } = await mos()
@@ -83,7 +111,7 @@ export async function getTask(id: string): Promise<TaskDetail> {
   if (evErr) throw new Error(`getTask events failed — ${evErr.message}`)
 
   return {
-    task: task as unknown as TaskListRow,
+    task: task as unknown as TaskRow,
     checklist: (checklist ?? []) as unknown as ChecklistItemRow[],
     events: (events ?? []) as unknown as TaskEventRow[],
   }
@@ -162,7 +190,7 @@ export async function updateTaskStatus(
 }
 
 export type TaskFieldsPatch = Partial<Pick<
-  TaskListRow, 'title' | 'description' | 'due_date' | 'business_unit_id'
+  TaskRow, 'title' | 'description' | 'due_date' | 'business_unit_id'
   | 'team_id'
   | 'responsible_person_id' | 'accountable_person_id'
   | 'objective_id' | 'work_line_id'
@@ -179,7 +207,7 @@ export async function updateTaskFields(
 }
 
 export type TaskRaciPatch = Partial<Pick<
-  TaskListRow, 'consulted_person_ids' | 'informed_person_ids'
+  TaskRow, 'consulted_person_ids' | 'informed_person_ids'
 >>
 
 /** Edit Consulted/Informed arrays, then log a `raci_edited` event (FR-033/055). */
