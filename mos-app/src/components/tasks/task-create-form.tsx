@@ -57,15 +57,21 @@ export function TaskCreateForm({
   const supervisorErrorId = `${formId}-supervisor-error`
   const dueFieldId = `${formId}-due`
   const workLineFieldId = `${formId}-workline`
-  const { workLineOptions, onEditDue, onEditWorkLine } = useTaskCreateContext()
+  const { workLineOptions, onEditDue, onEditWorkLine, onTitleChange, formState, onFormStateChange } = useTaskCreateContext()
 
-  const [title, setTitle] = useState(task.title)
+  const [localTitle, setLocalTitle] = useState(task.title)
+  const title = onTitleChange ? task.title : localTitle
+  const setTitle = (next: string) => { setLocalTitle(next); onTitleChange?.(next) }
   const [titleTouched, setTitleTouched] = useState(false)
   const [attempted, setAttempted] = useState(false)
-  const [pending, setPending] = useState(false)
+  const [localPending, setLocalPending] = useState(false)
+  const pending = formState?.pending ?? localPending
+  const setPending = (next: boolean) => { setLocalPending(next); onFormStateChange?.({ pending: next }) }
   // A link retry only links the already-created Task; draft edits, Title included, would never be saved.
   const fieldsLocked = pending || linkError
-  const [saveError, setSaveError] = useState(false)
+  const [localSaveError, setLocalSaveError] = useState(false)
+  const saveError = formState?.saveError ?? localSaveError
+  const setSaveError = (next: boolean) => { setLocalSaveError(next); onFormStateChange?.({ saveError: next }) }
   // Typed Due text that is not a usable date: Create refuses it rather than saving the old value.
   const [dueInvalid, setDueInvalid] = useState(false)
   const titleRef = useRef<HTMLTextAreaElement | null>(null)
@@ -162,7 +168,7 @@ export function TaskCreateForm({
             } else if (event.key === 'Escape') {
               event.preventDefault()
               event.stopPropagation()
-              onCancel()
+              if (!pending) onCancel()
             }
             // Tab is left to native focus movement.
           }}
@@ -231,6 +237,8 @@ export function TaskCreateForm({
         <div className="tcf-field">
           <label htmlFor={dueFieldId} className="tcf-label">{t('tasks.create.dueDate')}</label>
           <DateField
+            draftText={formState?.dueText}
+            onDraftTextChange={(dueText) => onFormStateChange?.({ dueText })}
             id={dueFieldId}
             fullWidth
             value={task.due_date ?? ''}

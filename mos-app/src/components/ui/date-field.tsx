@@ -22,6 +22,9 @@ export interface DateFieldProps extends Omit<InputHTMLAttributes<HTMLInputElemen
   label?: string
   /** ISO yyyy-mm-dd, or '' for no value. */
   value: string
+  // A resumable composer must also retain unfinished typed dates.
+  draftText?: string
+  onDraftTextChange?: (text: string) => void
   /** Fires with a complete real ISO date, or '' when the field is emptied. Never with a guess. */
   onChange: (value: string) => void
   /** True while the typed text is not a usable date (partial, impossible, out of range, or empty
@@ -51,7 +54,7 @@ function CalendarGlyph() {
 
 export const DateField = forwardRef<HTMLInputElement, DateFieldProps>(function DateField(
   {
-    label, value, onChange, onValidityChange, min, max, error = false, fullWidth = false, compact = false, reveal = false,
+    label, value, draftText, onDraftTextChange, onChange, onValidityChange, min, max, error = false, fullWidth = false, compact = false, reveal = false,
     id, className, disabled, placeholder, required, onFocus, onBlur, 'aria-describedby': describedBy, ...rest
   },
   ref,
@@ -63,7 +66,9 @@ export const DateField = forwardRef<HTMLInputElement, DateFieldProps>(function D
   const inputRef = useRef<HTMLInputElement>(null)
   useImperativeHandle(ref, () => inputRef.current as HTMLInputElement)
 
-  const [text, setText] = useState(() => toDayFirst(value))
+  const [localText, setLocalText] = useState(() => toDayFirst(value))
+  const text = draftText ?? localText
+  const setText = (next: string) => { setLocalText(next); onDraftTextChange?.(next) }
   const [focused, setFocused] = useState(Boolean(rest.autoFocus))
   // Set on blur, cleared by the next edit: an unfinished value is flagged when you leave it,
   // not while you are still typing it.
@@ -78,7 +83,7 @@ export const DateField = forwardRef<HTMLInputElement, DateFieldProps>(function D
   const [seenValue, setSeenValue] = useState(value)
   if (value !== seenValue) {
     setSeenValue(value)
-    if (typedIso !== value) setText(toDayFirst(value))
+    if (typedIso !== value) setLocalText(toDayFirst(value))
   }
 
   const problem: 'format' | 'impossible' | 'range' | 'required' | null =
