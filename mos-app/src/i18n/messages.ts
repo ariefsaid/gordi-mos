@@ -2813,7 +2813,7 @@ export const messages = {
     'kitchen.log.summary.draftEmpty': 'Belum ada jumlah yang dicatat.',
     'kitchen.log.summary.unitTotals': 'Total per satuan',
     'kitchen.transfer.draft.title': 'Draf transfer',
-    'kitchen.transfer.draft.destination': 'Tujuan',
+    'kitchen.transfer.draft.destination': 'Dikirim ke',
     'kitchen.transfer.draft.items': 'Item',
     'kitchen.log.summary.plan': 'Rencana',
     'kitchen.log.stream.otherLocation': '${stream} milik lokasi lain. Pilih stream ${location} untuk mencatat di sini.',

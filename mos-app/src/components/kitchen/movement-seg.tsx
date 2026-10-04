@@ -187,14 +187,20 @@ export function MovementSeg({
               if (!isSelected) requestChange(option, index)
             }}
             onKeyDown={event => handleKeyDown(event, index)}
-            onFocus={() => {
+            onFocus={event => {
               if (restoringFocusRef.current) return
               const pending = pendingFocusRef.current
               if (!pending) return
               const focusedKey = movementKey(option)
               const committedKey = movementKey(valueRef.current)
               if (committedKey === pending.previousKey && focusedKey === pending.previousKey) {
-                pendingFocusRef.current = null
+                const focusedTab = event.currentTarget
+                window.setTimeout(() => {
+                  if (pendingFocusRef.current !== pending) return
+                  if (movementKey(valueRef.current) !== pending.previousKey) return
+                  if (document.activeElement !== focusedTab) return
+                  pendingFocusRef.current = null
+                }, 0)
               } else if (committedKey === pending.requestedKey && focusedKey === pending.requestedKey) {
                 pendingFocusRef.current = null
               }

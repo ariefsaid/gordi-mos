@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { StrictMode, useState } from 'react'
 import { describe, expect, it } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -164,6 +164,30 @@ describe('MovementSeg keyboard contract', () => {
   it('focuses the committed tab after a guarded ConfirmDialog returns focus on confirm', async () => {
     const user = userEvent.setup()
     render(<I18nProvider><ModalConfirmHarness /></I18nProvider>)
+    const production = screen.getByRole('tab', { name: 'Production' })
+    const cikal = screen.getByRole('tab', { name: 'Transfer to Radiant' })
+    production.focus()
+
+    await user.keyboard('{ArrowRight}')
+    const dialog = await screen.findByRole('dialog', { name: 'Switch movement?' })
+    expect(production).toHaveAttribute('aria-selected', 'true')
+    expect(cikal).toHaveAttribute('aria-selected', 'false')
+    await user.click(screen.getByRole('button', { name: 'Switch and clear' }))
+
+    await waitFor(() => {
+      expect(cikal).toHaveAttribute('aria-selected', 'true')
+      expect(cikal).toHaveFocus()
+    })
+    expect(dialog).not.toBeInTheDocument()
+  })
+
+  it('keeps deferred focus through the StrictMode ModalShell effect replay', async () => {
+    const user = userEvent.setup()
+    render(
+      <StrictMode>
+        <I18nProvider><ModalConfirmHarness /></I18nProvider>
+      </StrictMode>,
+    )
     const production = screen.getByRole('tab', { name: 'Production' })
     const cikal = screen.getByRole('tab', { name: 'Transfer to Radiant' })
     production.focus()
