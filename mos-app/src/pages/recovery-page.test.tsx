@@ -31,6 +31,7 @@ vi.mock('../auth/use-auth', () => ({
 }))
 
 import { appUrl } from '@/config/app-build-settings'
+import { I18nProvider } from '@/i18n/I18nProvider'
 import { RecoveryPage } from './recovery-page'
 import { supabase } from '@/lib/supabase'
 
@@ -253,7 +254,7 @@ describe('RecoveryPage', () => {
     const user = userEvent.setup()
     render(<RecoveryPage />)
 
-    await user.type(screen.getByLabelText('Email'), 'user@example.test')
+    await user.type(screen.getByLabelText('Email'), ' user@example.test ')
     await user.click(screen.getByRole('button', { name: 'Request a new link' }))
 
     await waitFor(() => {
@@ -267,6 +268,68 @@ describe('RecoveryPage', () => {
     // The result state replaces the card body — the form is gone, the other way out stays.
     expect(screen.queryByRole('button', { name: 'Request a new link' })).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Back to sign in' })).toBeInTheDocument()
+  })
+
+  it.each([
+    ['malformed email on click', 'not-an-email', 'not-an-email', 'click'],
+    ['malformed email on Enter', 'not-an-email', 'not-an-email', 'enter'],
+    ['blank email on click', '', '', 'click'],
+    ['whitespace email on Enter', '   ', '', 'enter'],
+  ] as const)('%s stays editable and explains the field without requesting recovery', async (_case, value, displayedValue, submitBy) => {
+    mockAuthState = { status: 'unauthenticated' }
+    const user = userEvent.setup()
+    render(<RecoveryPage />)
+
+    const email = screen.getByLabelText('Email')
+    if (value) await user.type(email, value)
+    if (submitBy === 'click') {
+      await user.click(screen.getByRole('button', { name: 'Request a new link' }))
+    } else {
+      await user.click(email)
+      await user.keyboard('{Enter}')
+    }
+
+    expect(email).toHaveValue(displayedValue)
+    expect(email).toHaveAttribute('aria-invalid', 'true')
+    const errorId = email.getAttribute('aria-describedby')
+    expect(errorId).toBeTruthy()
+    expect(document.getElementById(errorId!)).toHaveTextContent('Enter a valid email address.')
+    expect(screen.getByRole('button', { name: 'Request a new link' })).toBeInTheDocument()
+    expect(mockResetPassword).not.toHaveBeenCalled()
+  })
+
+  it('clears stale recovery guidance when the address is corrected', async () => {
+    mockAuthState = { status: 'unauthenticated' }
+    const user = userEvent.setup()
+    render(<RecoveryPage />)
+
+    const email = screen.getByLabelText('Email')
+    await user.type(email, 'not-an-email')
+    await user.click(screen.getByRole('button', { name: 'Request a new link' }))
+    expect(email).toHaveAttribute('aria-invalid', 'true')
+
+    await user.clear(email)
+    await user.type(email, 'person@example.test')
+
+    expect(email).not.toHaveAttribute('aria-invalid', 'true')
+    expect(screen.queryByText('Enter a valid email address.')).not.toBeInTheDocument()
+    expect(mockResetPassword).not.toHaveBeenCalled()
+  })
+
+  it('shows recovery validation guidance in the active locale', async () => {
+    mockAuthState = { status: 'unauthenticated' }
+    const user = userEvent.setup()
+    render(
+      <I18nProvider initialLocale="id">
+        <RecoveryPage />
+      </I18nProvider>,
+    )
+
+    await user.type(screen.getByLabelText('Email'), 'not-an-email')
+    await user.click(screen.getByRole('button', { name: 'Minta tautan baru' }))
+
+    expect(screen.getByText('Masukkan alamat email yang valid.')).toBeInTheDocument()
+    expect(mockResetPassword).not.toHaveBeenCalled()
   })
 
   it('AC-016: a refused re-send is indistinguishable from a successful one', async () => {
@@ -285,5 +348,22 @@ describe('RecoveryPage', () => {
     expect(
       await screen.findByText('If an account exists for that address, a reset link is on its way.'),
     ).toBeInTheDocument()
+  })
+
+  it('a rejected re-send shows the same generic confirmation without server detail', async () => {
+    mockAuthState = { status: 'unauthenticated' }
+    mockResetPassword.mockRejectedValue(new Error('network detail must stay private'))
+
+    const user = userEvent.setup()
+    render(<RecoveryPage />)
+
+    await user.type(screen.getByLabelText('Email'), 'user@example.test')
+    await user.click(screen.getByRole('button', { name: 'Request a new link' }))
+
+    expect(
+      await screen.findByText('If an account exists for that address, a reset link is on its way.'),
+    ).toBeInTheDocument()
+    expect(document.body.textContent).not.toContain('network detail must stay private')
+    expect(screen.getByRole('link', { name: 'Back to sign in' })).toBeInTheDocument()
   })
 })

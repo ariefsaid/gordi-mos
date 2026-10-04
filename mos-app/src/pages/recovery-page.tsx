@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { AuthShell, AuthCard, Spinner } from '@/auth/auth-shell'
@@ -6,6 +6,7 @@ import { SetPasswordForm } from '@/auth/set-password-form'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { passwordRefusal } from '@/auth/password-error'
+import { isValidEmail } from '@/auth/is-valid-email'
 import { appUrl } from '@/config/app-build-settings'
 
 /**
@@ -19,14 +20,25 @@ import { appUrl } from '@/config/app-build-settings'
 function ExpiredCard() {
   const t = useT()
   const emailId = useId()
+  const emailErrorId = useId()
   const [email, setEmail] = useState('')
+  const [emailError, setEmailError] = useState('')
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
+  const sendingRef = useRef(false)
 
-  async function requestNewLink() {
+  async function requestNewLink(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!isValidEmail(email)) {
+      setEmailError(t('auth.recovery.emailInvalid'))
+      return
+    }
+    if (sendingRef.current) return
+
+    sendingRef.current = true
     setSending(true)
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
         redirectTo: new URL(appUrl('/recovery'), window.location.origin).href,
       })
       // The outcome must not vary with `error` — GoTrue answers 200 for an address it has never
@@ -35,6 +47,7 @@ function ExpiredCard() {
     } catch (err) {
       console.warn('[auth] recovery re-send did not go through', err)
     } finally {
+      sendingRef.current = false
       setSending(false)
       setSent(true)
     }
@@ -92,54 +105,71 @@ function ExpiredCard() {
           <span>{t('auth.recovery.expired')}</span>
         </div>
 
-        <label
-          htmlFor={emailId}
-          className="block text-foreground font-semibold mb-1"
-          style={{ fontSize: 'var(--font-size-label)' }}
-        >
-          {t('auth.recovery.emailLabel')}
-        </label>
-        <input
-          id={emailId}
-          type="email"
-          autoComplete="email"
-          placeholder={t('auth.recovery.emailPlaceholder')}
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          disabled={sending}
-          aria-required="true"
-          className="w-full bg-background text-foreground border border-input rounded-sm px-2.5 mb-4"
-          style={{
-            height: 32,
-            fontSize: 'var(--font-size-touch-input)',
-            opacity: sending ? 0.5 : 1,
-          }}
-        />
-
-        {/* The ONE filled primary on this card */}
-        <button
-          type="button"
-          disabled={sending || !email.trim()}
-          aria-busy={sending}
-          onClick={requestNewLink}
-          className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-sm font-medium"
-          style={{
-            height: 32,
-            fontSize: 16,
-            opacity: sending || !email.trim() ? 0.5 : 1,
-            cursor: sending || !email.trim() ? 'not-allowed' : undefined,
-          }}
-        >
-          {sending ? (
-            <>
-              <span role="status" className="sr-only">Loading…</span>
-              <Spinner className="text-primary-foreground" />
-              {t('auth.recovery.sending')}
-            </>
-          ) : (
-            t('auth.recovery.requestNewLink')
+        <form noValidate onSubmit={requestNewLink}>
+          <label
+            htmlFor={emailId}
+            className="block text-foreground font-semibold mb-1"
+            style={{ fontSize: 'var(--font-size-label)' }}
+          >
+            {t('auth.recovery.emailLabel')}
+          </label>
+          <input
+            id={emailId}
+            type="email"
+            autoComplete="email"
+            placeholder={t('auth.recovery.emailPlaceholder')}
+            value={email}
+            onChange={(event) => {
+              setEmail(event.target.value)
+              if (emailError) setEmailError('')
+            }}
+            disabled={sending}
+            aria-required="true"
+            aria-invalid={emailError ? 'true' : undefined}
+            aria-describedby={emailError ? emailErrorId : undefined}
+            className="w-full bg-background text-foreground border border-input rounded-sm px-2.5"
+            style={{
+              height: 32,
+              fontSize: 'var(--font-size-touch-input)',
+              opacity: sending ? 0.5 : 1,
+            }}
+          />
+          {emailError && (
+            <p
+              id={emailErrorId}
+              role="alert"
+              className="mt-1 mb-4"
+              style={{ fontSize: 'var(--font-size-label)', color: 'var(--status-lost-text)' }}
+            >
+              {emailError}
+            </p>
           )}
-        </button>
+          {!emailError && <div className="mb-4" />}
+
+          {/* The ONE filled primary on this card */}
+          <button
+            type="submit"
+            disabled={sending}
+            aria-busy={sending}
+            className="w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-sm font-medium"
+            style={{
+              height: 32,
+              fontSize: 16,
+              opacity: sending ? 0.5 : 1,
+              cursor: sending ? 'not-allowed' : undefined,
+            }}
+          >
+            {sending ? (
+              <>
+                <span role="status" className="sr-only">Loading…</span>
+                <Spinner className="text-primary-foreground" />
+                {t('auth.recovery.sending')}
+              </>
+            ) : (
+              t('auth.recovery.requestNewLink')
+            )}
+          </button>
+        </form>
 
         {/* The other way out stays where it was. */}
         <div className="mt-4">
