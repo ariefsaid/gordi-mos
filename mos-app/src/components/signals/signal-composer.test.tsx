@@ -142,6 +142,72 @@ describe('SignalComposer — independent notification targets (DD-MVP-27)', () =
       mentions: [{ kind: 'person', targetId: 'person-one', label: 'Twin label' }],
     })
   })
+
+  it('keeps the pending post target visible and immutable while Share is in flight', async () => {
+    let resolvePost!: (id: string) => void
+    mockCreateSignal.mockImplementationOnce(() => new Promise((resolve) => { resolvePost = resolve }))
+    const onShared = vi.fn()
+    const mention = { kind: 'person' as const, targetId: 'person-peer', label: 'Peer Person' }
+    renderComposer({
+      onShared,
+      prefill: {
+        body: 'The door seal is loose.',
+        occurredAt: '2026-10-05T03:15:00.000Z',
+        attention: 'FYI',
+        mentions: [mention],
+      },
+    })
+    const targets = screen.getByRole('group', { name: /notification targets/i })
+    const remove = within(targets).getByRole('button', { name: 'Remove Person Peer Person from notification targets' })
+
+    await userEvent.click(screen.getByRole('button', { name: /^share signal$/i }))
+    await waitFor(() => expect(mockCreateSignal).toHaveBeenCalledTimes(1))
+    await userEvent.click(remove)
+
+    expect(screen.getByRole('group', { name: /notification targets/i })).toHaveTextContent('Person · Peer Person')
+    expect(screen.getByText('All teams · notifies 1 person · Author One')).toBeInTheDocument()
+    expect(remove).toBeDisabled()
+    expect(mockCreateSignal.mock.calls[0][0].mentions).toEqual([mention])
+
+    await act(async () => { resolvePost('signal-new') })
+    await waitFor(() => expect(onShared).toHaveBeenCalledWith('signal-new'))
+  })
+
+  it('keeps committed notification targets immutable during a failed-photo retry', async () => {
+    URL.createObjectURL = vi.fn(() => 'blob:committed-retry')
+    URL.revokeObjectURL = vi.fn()
+    const onShared = vi.fn()
+    const failed = new File(['x'], 'staged.jpg', { type: 'image/jpeg' })
+    mockUploadSignalPhotos.mockResolvedValueOnce([failed]).mockResolvedValueOnce([])
+    const mention = { kind: 'person' as const, targetId: 'person-peer', label: 'Peer Person' }
+    renderComposer({
+      onShared,
+      prefill: {
+        body: 'The door seal is loose.',
+        occurredAt: '2026-10-05T03:15:00.000Z',
+        attention: 'FYI',
+        mentions: [mention],
+      },
+    })
+    await userEvent.upload(screen.getByLabelText(/add photo/i), [failed])
+    await userEvent.click(screen.getByRole('button', { name: /^share signal$/i }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(/signal was shared, but 1 photo did not upload/i)
+
+    const targets = screen.getByRole('group', { name: /notification targets/i })
+    const remove = within(targets).getByRole('button', { name: 'Remove Person Peer Person from notification targets' })
+    await userEvent.click(remove)
+
+    expect(screen.getByRole('group', { name: /notification targets/i })).toHaveTextContent('Person · Peer Person')
+    expect(screen.getByText('All teams · notifies 1 person · Author One')).toBeInTheDocument()
+    expect(remove).toBeDisabled()
+    expect(mockCreateSignal).toHaveBeenCalledTimes(1)
+    expect(mockCreateSignal.mock.calls[0][0].mentions).toEqual([mention])
+
+    await userEvent.click(screen.getByRole('button', { name: /retry photo/i }))
+    await waitFor(() => expect(onShared).toHaveBeenCalledWith('signal-new'))
+    expect(mockCreateSignal).toHaveBeenCalledTimes(1)
+    expect(mockUploadSignalPhotos).toHaveBeenLastCalledWith('signal-new', [failed])
+  })
 })
 
 describe('SignalComposer — capture-minimal fields (AC-420)', () => {

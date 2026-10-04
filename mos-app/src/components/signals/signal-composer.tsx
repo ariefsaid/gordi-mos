@@ -155,6 +155,7 @@ export function SignalComposer({
   }
 
   function removeMention(target: StagedMention) {
+    if (posting || sharedId) return
     const next = mentions.filter((mention) =>
       mention.kind !== target.kind || mention.targetId !== target.targetId,
     )
@@ -300,6 +301,7 @@ export function SignalComposer({
                     type="button"
                     className="signal-composer-target-remove"
                     aria-label={t('signals.composer.removeTarget', { kind, name: mention.label })}
+                    disabled={posting || !!sharedId}
                     onClick={() => removeMention(mention)}
                   >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">

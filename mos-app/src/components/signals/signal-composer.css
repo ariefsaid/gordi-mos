@@ -5,9 +5,8 @@
   display: flex; flex-direction: column; gap: 12px; padding: 16px;
 }
 
-/* The composer's mention popover anchors to the textarea, so the wrapper is the positioning
-   context for the absolutely-positioned SignalMentionPicker (replaces an inline style — house
-   pattern is a class in a co-located stylesheet). */
+/* Radix renders the mention picker in a portal anchored to the textarea; this wrapper keeps the
+   textarea's local layout and focus styles together. */
 .signal-composer-mention-anchor {
   position: relative;
 }

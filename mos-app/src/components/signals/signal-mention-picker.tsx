@@ -11,11 +11,11 @@ import './signal-mention-picker.css'
 // matching. `@BU` options render disabled (not hidden — Rule 8's "never blocks capture" spirit: the
 // author can still see the option exists) when the viewer lacks signal.mention_bu (FR-407).
 //
-// GAP-8 (OD-91 #13) — combobox idiom: the driving textarea KEEPS focus, so this picker cannot own
-// focus. It routes the visible options (flattened across the three groups) through the shared
+// GAP-8 (OD-91 #13): focus stays in the native textarea, which retains its textbox semantics. This
+// picker routes the visible options (flattened across the three groups) through the shared
 // useListboxPopover contract in `manageFocus:false` mode and exposes an imperative `handleKeyDown`
-// the composer forwards from the textarea — so ArrowUp/Down/Home/End move the active option, Enter
-// selects it, and Escape dismisses, identically to every other listbox in the app.
+// the composer forwards from the textarea. The caller wires the listbox relationship; keyboard
+// navigation moves the active option, Enter selects it, and Escape dismisses the picker.
 
 export interface SignalMentionPickerProps {
   people: MentionCandidate[]
