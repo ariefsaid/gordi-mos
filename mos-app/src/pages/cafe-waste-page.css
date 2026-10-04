@@ -73,6 +73,12 @@
   overflow-wrap: anywhere;
 }
 .cwl-add-photo { min-height: 40px; }
+.cwl-photo-hint {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  line-height: 1.35;
+}
 .cwl-field-error {
   color: var(--status-lost-text);
   font-size: var(--font-size-label);
@@ -99,6 +105,7 @@
   .cwl-quantity-input { width: 7rem; }
   .cwl-unit-select { flex: 1 1 9rem; width: auto; }
   .cwl-evidence { max-width: none; }
+  .cwl-add-photo { min-height: 44px; }
   .cwl-footer .kl-footer-count-row { align-items: stretch; }
   .cwl-footer .kl-footer-count-row > .btn { flex: 0 0 auto; }
 }

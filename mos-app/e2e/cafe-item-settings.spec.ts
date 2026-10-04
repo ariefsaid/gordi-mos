@@ -6,6 +6,16 @@ import { loginAs } from './helpers/login'
 
 type ReadMode = 'rows' | 'empty' | 'error'
 
+type MissingReportRow = {
+  id: string
+  branch_id: string
+  activity: string
+  item_name: string
+  reported_at: string
+  needs_attention: boolean
+  resolved_at: string | null
+}
+
 type SettingsMocks = {
   canManage: boolean
   permissionError: boolean
@@ -14,6 +24,7 @@ type SettingsMocks = {
   saveDelayMs: number
   saveFailure: boolean
   lastSave: Record<string, unknown> | null
+  reports: MissingReportRow[]
 }
 
 const rows = [
@@ -88,6 +99,7 @@ async function mockSettingsApi(page: Page, overrides: Partial<SettingsMocks> = {
     saveDelayMs: 0,
     saveFailure: false,
     lastSave: null,
+    reports: [],
     ...overrides,
   }
 
@@ -126,6 +138,13 @@ async function mockSettingsApi(page: Page, overrides: Partial<SettingsMocks> = {
         item_unit_id: '00000000-0000-0000-0000-00000000a201',
         is_default: true,
       }]),
+    })
+  })
+  await page.route('**/rest/v1/cafe_missing_item_reports*', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(state.reports.filter(report => report.needs_attention)),
     })
   })
   await page.route('**/rest/v1/rpc/can_manage_cafe_item_settings', async route => {
@@ -197,6 +216,34 @@ test.describe('Café item settings', () => {
       }
       await assertNoOverflow(page, width)
       await capture(page, testInfo, `item-settings-${width}`)
+    }
+  })
+
+  test('shows stream-scoped missing-item reports at phone and desktop widths', async ({ page }, testInfo) => {
+    await mockSettingsApi(page, {
+      reports: [{
+        id: '00000000-0000-0000-0000-00000000a301',
+        branch_id: '00000000-0000-0000-0000-00000000a302',
+        activity: 'bar',
+        item_name: 'Oat milk',
+        reported_at: '2026-10-04T09:00:00Z',
+        needs_attention: true,
+        resolved_at: null,
+      }],
+    })
+    await loginAs(page, BAR_MEMBER.email, BAR_MEMBER.password)
+
+    for (const width of [390, 1440, 1920] as const) {
+      await page.setViewportSize({ width, height: 960 })
+      await page.goto('cafe/items')
+      const reportQueue = page.getByRole('region', { name: 'Missing-item reports for this stream' })
+      await expect(reportQueue).toBeVisible()
+      await expect(reportQueue.getByText('Oat milk', { exact: true })).toBeVisible()
+      await expect(reportQueue.getByText('Needs attention', { exact: true })).toBeVisible()
+      const resolve = reportQueue.getByRole('button', { name: 'Resolve', exact: true })
+      if (width === 390) await expect(resolve).toHaveCSS('min-height', '44px')
+      await assertNoOverflow(page, width)
+      await capture(page, testInfo, `missing-item-queue-${width}`)
     }
   })
 

@@ -16,6 +16,7 @@ import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { canCaptureCafe } from '@/lib/cafe-affiliation'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsDesktop } from '@/shell/use-is-desktop'
+import { useIsWide } from '@/shell/use-is-wide'
 import { useAuth } from '@/auth/use-auth'
 import { useT, type Translate } from '@/i18n/use-t'
 import {
@@ -196,6 +197,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   const pageLabel = t(mode === 'production' ? 'nav.cafe.production' : 'nav.cafe.transfer')
   useDocumentTitle(t('common.docTitle', { page: `${pageLabel} · ${t('nav.cafe')}` }))
   const isDesktop = useIsDesktop()
+  const isWide = useIsWide()
   // I18N sweep: the H1 was a literal "Café · Log" — mixed-locale in `id` (breadcrumb
   // correctly translated the module/page, the heading below it did not). Reuses the
   // existing nav.cafe.* family rather than adding a duplicate composed key.
@@ -356,7 +358,6 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
 
   // Staged KPIs drive only the pending-review footer. The head summary must never read this
   // editable capture state: DD-7 requires its figures to come from submitted day entries.
-  const stagedKpis = useKitchenKpis(lines)
   const submittedKpiLines = useMemo(() => {
     const base = buildLines(wipItems, planMap, stockMap, movement)
     const key = movementKey(movement)
@@ -845,7 +846,9 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
               the report route must be reachable from here too, not only under a full list.
               #744 review: the report files a WRITE (ops.log_entries), so it closes with the
               same capture gate as Submit — an unaffiliated reader sees no report control. */}
-          {buId && !captureClosed && <ReportMissingItem businessUnitId={buId} />}
+          {buId && stream && !captureClosed && (
+            <ReportMissingItem stream={stream} streamLabel={streamLabel(t, stream)} />
+          )}
         </div>
       </PageFamilyFrame>
     )
@@ -854,6 +857,19 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   const isSubmitting = status.kind === 'submitting'
   const stagedLines = Object.values(lines).filter(l => l.qty_porsi > 0)
   const stagedCount = stagedLines.length
+  const stagedSummary = stagedLines.flatMap(line => {
+    const item = wipItems.find(candidate => candidate.id === line.wip_item_id)
+    if (!item) return []
+    const unit = item.units.find(candidate => candidate.id === line.item_unit_id) ?? item.units[0]
+    return [{ id: item.id, name: item.name, quantity: line.qty_porsi, unit: unit?.name ?? t('kitchen.unit.porsi') }]
+  })
+  const totalsByUnit = [...stagedSummary.reduce((totals, line) => {
+    totals.set(line.unit, (totals.get(line.unit) ?? 0) + line.quantity)
+    return totals
+  }, new Map<string, number>()).entries()]
+  const formatCaptureQty = (quantity: number) => new Intl.NumberFormat(
+    document.documentElement.lang || 'en', { maximumFractionDigits: 3 },
+  ).format(quantity)
   // FR-023 / AC-022: an over-`tersedia` transfer line is a hard stop — Submit stays
   // disabled while any staged line exceeds availability (the line shows the cue).
   const hasBlockingError = stagedLines.some(
@@ -1133,7 +1149,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       meta={<span className="kl-date tabular">{formatWeekdayDayMonth(logDate)}</span>}
       state={status.kind === 'submitting' ? 'saving' : status.kind === 'success' ? 'saved' : streamNonProducing ? 'read-only' : submitError ? 'validation' : 'default'}
     >
-      <div ref={captureRef} className="kl-page">
+      <div ref={captureRef} className="kl-page kl-capture-wide">
+        <div className="kl-capture-main">
         {/* GAP-4/#9: staged-but-unsubmitted quantities must not vanish on navigation — prompt
             stay/discard when leaving the route with unsaved entries. */}
         <RouteLeaveGuard when={stagedCount > 0} message={t('kitchen.log.leave.confirm')} />
@@ -1148,7 +1165,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
             {leading}
             {/* R4 / FR-018: derived from submitted actuals only — staged typing never moves it. */}
             {status.kind === 'ready' && stream !== null && wipItems.length > 0 && transferDestinationChosen && (
-              <div className="kl-context-summary">
+              <div className="kl-context-summary kl-inline-summary">
                 <MetricSummaryRule
                   ariaLabel={t('kitchen.log.summary.aria')}
                   metrics={summaryMetrics}
@@ -1159,10 +1176,12 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
           </div>
         ) : (
           status.kind === 'ready' && stream !== null && wipItems.length > 0 && transferDestinationChosen && (
-            <MetricSummaryRule
-              ariaLabel={t('kitchen.log.summary.aria')}
-              metrics={summaryMetrics}
-            />
+            <div className="kl-inline-summary">
+              <MetricSummaryRule
+                ariaLabel={t('kitchen.log.summary.aria')}
+                metrics={summaryMetrics}
+              />
+            </div>
           )
         )}
 
@@ -1219,19 +1238,13 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
           ) : (
             <>
               {logToolbar}
+              {/* Keep the missing-item exit beside search/filters, where a floor worker notices
+                  the absence, rather than after the full item list. */}
+              {buId && stream && !captureClosed && (
+                <ReportMissingItem stream={stream} streamLabel={streamLabel(t, stream)} />
+              )}
               {mode === 'transfer' && !transferDestinationChosen ? null : logTable}
             </>
-          )}
-
-          {/* AC-013 / FR-012: the DD-WAY-29 gate removes unconfirmed items silently, so the
-              surface carries a visible route to report one missing — absence must never read
-              as a bug with no exit. Own type="button" controls only; never submits this form.
-              #744 review: same capture gate as Submit — a report is a write (AC-003 arm). */}
-          {buId && !captureClosed && (
-            <ReportMissingItem
-              businessUnitId={buId}
-              streamLabel={stream ? streamLabel(t, stream) : undefined}
-            />
           )}
 
           {/* Sticky action footer — ONE branch; tally + Discard + Submit. #744 review: when
@@ -1240,7 +1253,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
           {/* With no stream chosen the placeholder above is the whole message and nothing can be
               staged, so there is no bar to show. A stale stream from another location keeps the
               bar: its reason line names that stream, which the placeholder does not. */}
-          {!(noStreamChosen && !streamOutsideLocation) && (
+          {!isWide && !(noStreamChosen && !streamOutsideLocation) && (
           <div className="kl-footer">
             {/* The result of Submit appears in the pinned bar, next to the button that caused it:
                 the list is long, and a message at the top of the page is off screen on a phone. */}
@@ -1264,8 +1277,6 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
               <div className="kl-tally" aria-live="polite">
                 <span className="kl-tally-num tabular">
                   {t(stagedCount === 1 ? 'kitchen.log.footer.item.one' : 'kitchen.log.footer.item.other', { count: stagedCount })}
-                  {' · '}
-                  {t(stagedKpis.madeSoFar === 1 ? 'kitchen.log.footer.unit.one' : 'kitchen.log.footer.unit.other', { count: stagedKpis.madeSoFar })}
                 </span>
               </div>
               {stagedCount > 0 && (
@@ -1379,6 +1390,73 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
           )}
           </form>
         )}
+        </div>
+        {isWide && stream && !streamNonProducing && wipItems.length > 0 && (
+          <aside className="kl-capture-summary" aria-label={t('kitchen.log.summary.captureAria')}>
+            <h2>{t('kitchen.log.summary.captureTitle')}</h2>
+            {status.kind === 'ready' && transferDestinationChosen && (
+              <MetricSummaryRule
+                ariaLabel={t('kitchen.log.summary.aria')}
+                metrics={summaryMetrics}
+                variant="inline"
+              />
+            )}
+            <h3>{t('kitchen.log.summary.entered')}</h3>
+            {stagedSummary.length === 0 ? (
+              <p className="kl-capture-summary__empty">{t('kitchen.log.summary.draftEmpty')}</p>
+            ) : (
+              <ul className="kl-capture-summary__lines" aria-live="polite">
+                {stagedSummary.map(line => (
+                  <li key={line.id}>
+                    <span>{line.name}</span>
+                    <strong className="tabular">{formatCaptureQty(line.quantity)} {line.unit}</strong>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {totalsByUnit.length > 0 && (
+              <div className="kl-capture-summary__totals">
+                <h3>{t('kitchen.log.summary.unitTotals')}</h3>
+                <ul>
+                  {totalsByUnit.map(([unit, quantity]) => (
+                    <li key={unit}><span>{unit}</span><strong className="tabular">{formatCaptureQty(quantity)}</strong></li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {submitError && <p role="alert" className="kl-submit-outcome kl-submit-outcome--error">{submitError}</p>}
+            {showOfflineInFooter && <p className="kl-submit-reason">{t('kitchen.log.offline.banner')}</p>}
+            {status.kind === 'success' && (
+              <p role="status" aria-live="polite" className="kl-submit-outcome kl-submit-outcome--success">
+                {t(status.count === 1 ? 'kitchen.log.success.one' : 'kitchen.log.success.other', { count: status.count })}
+              </p>
+            )}
+            {!canCapture && <p className="kl-submit-reason">{t('kitchen.log.readOnlyReason')}</p>}
+            {mode === 'transfer' && !transferDestinationChosen && (
+              <p className="kl-submit-reason">{t(movementOptions.length > 0 ? 'kitchen.transfer.destination.prompt' : 'kitchen.transfer.destination.none')}</p>
+            )}
+            {noteUnresolved && (
+              <button type="button" className="kl-submit-reason kl-note-pointer" onClick={focusFirstMissingNote}>
+                {t(missingNoteLines.length === 1 ? 'kitchen.log.footer.noteMissing.one' : 'kitchen.log.footer.noteMissing.other', { count: missingNoteLines.length })}
+              </button>
+            )}
+            <div className="kl-capture-summary__actions">
+              {stagedCount > 0 && (
+                <button type="button" className="kl-discard-link" onClick={handleDiscardClick} disabled={isSubmitting}>
+                  {t('kitchen.log.discard')}
+                </button>
+              )}
+              <SubmitButton
+                form="kitchen-log-form"
+                stagedCount={stagedCount}
+                isSubmitting={isSubmitting}
+                isOnline={isOnline}
+                blocked={captureClosed || hasBlockingError || noteUnresolved}
+                t={t}
+              />
+            </div>
+          </aside>
+        )}
       </div>
     </PageFamilyFrame>
   )
@@ -1401,6 +1479,7 @@ function SubmitButton({
   isSubmitting,
   isOnline,
   blocked = false,
+  form,
   t,
 }: {
   stagedCount: number
@@ -1408,12 +1487,14 @@ function SubmitButton({
   isOnline: boolean
   /** true when a staged line exceeds transfer availability (FR-023 hard stop) */
   blocked?: boolean
+  form?: string
   t: Translate
 }) {
   const disabled = isSubmitting || !isOnline || stagedCount === 0 || blocked
   return (
     <button
       type="submit"
+      form={form}
       className="btn btn-primary btn-touch kl-submit"
       disabled={disabled}
       aria-busy={isSubmitting}

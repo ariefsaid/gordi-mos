@@ -1,55 +1,51 @@
-// ReportMissingItem — the DD-WAY-29 exit route (FR-012, AC-013).
-//
-// The capture form's item list is gated: an item-unit with unconfirmed ERP coordinates is
-// ABSENT, not disabled or warned. That gate has a human cost — a member who genuinely makes
-// the item sees nothing and must never read the absence as a bug with no exit — so the
-// capture surface carries a visible route to report it.
-//
-// Smallest honest implementation: the report is a Daily Log entry (ops.log_entries) flagged
-// needs_attention, filed under the same Café BU as the capture itself — the cheapest existing
-// in-app mechanism that already reaches the reviewer surfaces (no new table, no new channel).
+// ReportMissingItem — a stream-scoped needs-attention item for Café item-settings managers (#1286).
+// The reporter gets a direct route to the item-settings queue; nothing is filed in the Daily Log.
 
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
-import { addLogEntry } from '@/lib/db/ops-log'
+import { reportMissingCafeItem } from '@/lib/db/cafe-missing-item-reports'
+import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { TextInput } from '@/components/ui/text-input'
 import './report-missing-item.css'
 
 interface ReportMissingItemProps {
-  /** The Café BU the capture surface itself files under (already resolved by the page). */
-  businessUnitId: string
-  /** Optional stream context ("Rumah Rames / kitchen") carried into the report detail. */
+  stream: ProductionStream
   streamLabel?: string
 }
 
 type ReportState = 'idle' | 'open' | 'sending' | 'sent' | 'error'
 
-export function ReportMissingItem({ businessUnitId, streamLabel }: ReportMissingItemProps) {
+export function ReportMissingItem({ stream, streamLabel }: ReportMissingItemProps) {
   const t = useT()
   const [state, setState] = useState<ReportState>('idle')
   const [itemName, setItemName] = useState('')
-
   const inputId = useId()
-  // Opening puts the field in focus, so the page scrolls it clear of the pinned footer (the form
-  // opens at the end of the list, under it). The field is disabled while sending, which drops
-  // focus; a failed send hands it back.
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const focusTriggerAfterCancel = useRef(false)
+
+  // Move focus into the field on open/retry and back to the launcher after Cancel.
   useEffect(() => {
     if (state === 'open' || state === 'error') document.getElementById(inputId)?.focus()
+    if (state === 'idle' && focusTriggerAfterCancel.current) {
+      focusTriggerAfterCancel.current = false
+      triggerRef.current?.focus()
+    }
   }, [state, inputId])
+
+  function cancel() {
+    if (state === 'sending') return
+    focusTriggerAfterCancel.current = true
+    setItemName('')
+    setState('idle')
+  }
 
   async function send() {
     const name = itemName.trim()
     if (!name || state === 'sending') return
     setState('sending')
     try {
-      await addLogEntry({
-        businessUnitId,
-        eventType: 'follow_up',
-        // Stored data, not UI copy — deliberately not localised, like every other stored title.
-        title: `Missing item on the capture form: ${name}`,
-        detail: `Reported from the capture form${streamLabel ? ` (${streamLabel})` : ''}. The item is not offerable until its ERP coordinates are confirmed.`,
-        needsAttention: true,
-      })
+      await reportMissingCafeItem(stream, name)
       setState('sent')
       setItemName('')
     } catch {
@@ -59,9 +55,11 @@ export function ReportMissingItem({ businessUnitId, streamLabel }: ReportMissing
 
   if (state === 'sent') {
     return (
-      <p className="kl-missing kl-missing-done" role="status">
-        {t('kitchen.log.missing.success')}
-      </p>
+      <div className="kl-missing kl-missing-done" role="status">
+        <span>{t('kitchen.log.missing.success', { stream: streamLabel ?? t('nav.cafe') })}</span>
+        {' '}
+        <Link to="/cafe/items">{t('kitchen.log.missing.destination')}</Link>
+      </div>
     )
   }
 
@@ -69,6 +67,7 @@ export function ReportMissingItem({ businessUnitId, streamLabel }: ReportMissing
     return (
       <p className="kl-missing">
         <button
+          ref={triggerRef}
           type="button"
           className="btn btn-ghost kl-missing-cta"
           onClick={() => setState('open')}
@@ -89,8 +88,6 @@ export function ReportMissingItem({ businessUnitId, streamLabel }: ReportMissing
         label={t('kitchen.log.missing.label')}
         value={itemName}
         onChange={e => setItemName(e.target.value)}
-        // The component may render INSIDE the capture <form>; Enter must send the report,
-        // never submit (or be swallowed by) the surrounding capture form.
         onKeyDown={e => {
           if (e.key === 'Enter') {
             e.preventDefault()
@@ -100,6 +97,14 @@ export function ReportMissingItem({ businessUnitId, streamLabel }: ReportMissing
         disabled={state === 'sending'}
         fullWidth
       />
+      <button
+        type="button"
+        className="btn btn-outline kl-missing-cancel"
+        onClick={cancel}
+        disabled={state === 'sending'}
+      >
+        {t('common.cancel')}
+      </button>
       <button
         type="button"
         className="btn btn-outline kl-missing-send"
