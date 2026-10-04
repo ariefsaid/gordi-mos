@@ -247,6 +247,31 @@ test.describe('Café item settings', () => {
     }
   })
 
+  test('keeps the missing-item report beside waste controls at phone and wide widths', async ({ page }, testInfo) => {
+    await mockSettingsApi(page)
+    await loginAs(page, BAR_MEMBER.email, BAR_MEMBER.password)
+
+    for (const width of [390, 1440, 1920] as const) {
+      await page.setViewportSize({ width, height: 960 })
+      await page.goto('cafe/waste')
+      await expect(page.getByRole('heading', { name: 'Café · Log waste', exact: true })).toBeVisible()
+      const report = page.locator('.kl-missing')
+      const reportButton = report.getByRole('button', { name: 'Missing an item? Report it', exact: true })
+      const toolbar = page.locator('.ktb')
+      await expect(reportButton).toBeVisible()
+      await expect(page.getByRole('spinbutton', { name: 'Waste quantity for Herbal tea' })).toHaveCSS(
+        'font-size', width === 390 ? '16px' : '14px',
+      )
+      const [reportBox, toolbarBox] = await Promise.all([report.boundingBox(), toolbar.boundingBox()])
+      expect(reportBox).not.toBeNull()
+      expect(toolbarBox).not.toBeNull()
+      expect(reportBox!.y).toBeLessThan(toolbarBox!.y)
+      if (width === 390) await expect(reportButton).toHaveCSS('min-height', '44px')
+      await assertNoOverflow(page, width)
+      await capture(page, testInfo, `waste-report-${width}`)
+    }
+  })
+
   test('preserves item-level dirty, saving, retry and saved feedback', async ({ page }, testInfo) => {
     const mocks = await mockSettingsApi(page, { saveDelayMs: 800 })
     await page.setViewportSize({ width: 390, height: 960 })
