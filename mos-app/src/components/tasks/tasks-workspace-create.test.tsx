@@ -366,3 +366,35 @@ it('resumes Signal-link recovery after navigation without creating a second save
   expect(createTask).toHaveBeenCalledTimes(1)
   expect(linkSignalTask).toHaveBeenNthCalledWith(2, 'signal-42', 'created-task')
 })
+
+// AC-003
+it('confirms the saved Task in the current collection when pending success arrives after route return', async () => {
+  let confirm!: () => void
+  vi.mocked(listTasks).mockResolvedValue([])
+  vi.mocked(createTask).mockReturnValueOnce(new Promise((resolve) => {
+    confirm = () => {
+      vi.mocked(listTasks).mockResolvedValue([{
+        id: 'saved-return', org_id: 'org', title: 'Saved Task after returning', business_unit_id: 'bu-1', status: 'Open',
+        responsible_person_id: VIEWER_ID, accountable_person_id: LEAD_ID, consulted_person_ids: [], informed_person_ids: [],
+        description: null, due_date: null, objective_id: null, work_line_id: null, last_activity_at: '2026-06-11T10:00:00Z',
+        archived_at: null, created_by: VIEWER_ID, created_at: '2026-06-11T00:00:00Z', updated_at: '2026-06-11T00:00:00Z',
+      }])
+      resolve('saved-return')
+    }
+  }))
+  await act(async () => { render(retainedWorkspaceRouter()) })
+  const form = await screen.findByRole('form', { name: 'Create task form' })
+  await act(async () => { fireEvent.change(within(form).getByRole('textbox', { name: 'Title' }), { target: { value: 'Saved Task after returning' } }) })
+  await act(async () => { fireEvent.submit(form) })
+  const readsBeforeReturn = vi.mocked(listTasks).mock.calls.length
+  await act(async () => { fireEvent.click(screen.getByRole('link', { name: 'Signals destination' })) })
+  await screen.findByText('Signals destination body')
+  await act(async () => { fireEvent.click(screen.getByRole('link', { name: 'Task collection' })) })
+  await waitFor(() => expect(vi.mocked(listTasks).mock.calls.length).toBeGreaterThan(readsBeforeReturn))
+  expect(await screen.findByRole('textbox', { name: 'Title' })).toBeDisabled()
+  expect(screen.queryByRole('link', { name: /^Saved Task after returning(?:\s|$)/ })).toBeNull()
+  await act(async () => confirm())
+  expect(await screen.findByRole('link', { name: /^Saved Task after returning(?:\s|$)/ })).toHaveAttribute('href', '/work/tasks/saved-return')
+  expect(screen.queryByRole('form', { name: 'Create task form' })).toBeNull()
+  expect(createTask).toHaveBeenCalledTimes(1)
+})

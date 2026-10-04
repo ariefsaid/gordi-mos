@@ -1,5 +1,5 @@
 import { afterEach, describe, it, expect, vi, beforeEach } from 'vitest'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { Link, Outlet, MemoryRouter, RouterProvider, createMemoryRouter } from 'react-router-dom'
 import { OverlayHostProvider } from '@/shell/overlay-host'
 import { CreateDraftProvider } from '@/shell/create-drafts'
@@ -407,7 +407,7 @@ describe('unfinished collection draft retention', () => {
     fireEvent.click(await screen.findByRole('option', { name: 'Process' }))
     fireEvent.click(within(form).getByRole('combobox', { name: 'Objective' }))
     fireEvent.click(await screen.findByRole('option', { name: 'Brand love' }))
-    const opener = within(screen.getByTestId('page-head')).getByRole('button', { name: 'Create project or process' })
+    const opener = screen.getByRole('button', { name: 'Create project or process' })
     fireEvent.click(opener)
     expect(opener).not.toHaveClass('btn-primary')
     expect(within(form).getByRole('textbox', { name: 'Name' })).toHaveValue('Keep this full draft')
@@ -440,4 +440,40 @@ it('keeps a retained projects buffer hidden when current write authority is deni
   expect(screen.queryByRole('form', { name: 'Create project or process' })).toBeNull()
   expect(screen.queryByRole('button', { name: 'Create project or process' })).toBeNull()
   expect(createWorkLine).not.toHaveBeenCalled()
+})
+
+// AC-003
+it('confirms the saved projects record in the current collection when pending success arrives after route return', async () => {
+  let confirm!: () => void
+  vi.mocked(listWorkLinesAll).mockResolvedValue([])
+  vi.mocked(createWorkLine).mockReturnValueOnce(new Promise((resolve) => {
+    confirm = () => {
+      const saved = { id: 'saved-return', name: 'Saved after returning', archived_at: null, type: 'process' as const }
+      vi.mocked(listWorkLinesAll).mockResolvedValue([saved])
+      resolve(saved)
+    }
+  }))
+  const router = createMemoryRouter([{
+    element: <CreateDraftProvider><Link to="/work/signals">Signals destination</Link><Link to="/work/projects">Return to collection</Link><Outlet /></CreateDraftProvider>,
+    children: [{ path: '/work/projects', element: <ProjectsProcessesPage /> }, { path: '/work/signals', element: <p>Signals destination body</p> }],
+  }], { initialEntries: ['/work/projects?create=1'] })
+  render(<I18nProvider><RouterProvider router={router} /></I18nProvider>)
+  const form = await screen.findByRole('form', { name: 'Create project or process' })
+  fireEvent.change(within(form).getByRole('textbox', { name: 'Name' }), { target: { value: 'Saved after returning' } })
+  fireEvent.click(within(form).getByRole('combobox', { name: 'Type' }))
+  fireEvent.click(await screen.findByRole('option', { name: 'Process' }))
+  fireEvent.submit(form)
+  await waitFor(() => expect(within(form).getByRole('textbox', { name: 'Name' })).toBeDisabled())
+  const readsBeforeReturn = vi.mocked(listWorkLinesAll).mock.calls.length
+  fireEvent.click(screen.getByRole('link', { name: 'Signals destination' }))
+  await screen.findByText('Signals destination body')
+  fireEvent.click(screen.getByRole('link', { name: 'Return to collection' }))
+  await waitFor(() => expect(vi.mocked(listWorkLinesAll).mock.calls.length).toBeGreaterThan(readsBeforeReturn))
+  expect(await screen.findByRole('textbox', { name: 'Name' })).toBeDisabled()
+  expect(screen.queryByRole('link', { name: 'Saved after returning' })).toBeNull()
+  await act(async () => confirm())
+  expect(await screen.findByRole('link', { name: 'Saved after returning' })).toBeInTheDocument()
+  expect(screen.getAllByRole('status').some((status) => status.textContent === 'Added Saved after returning')).toBe(true)
+  expect(screen.queryByRole('form', { name: 'Create project or process' })).toBeNull()
+  expect(createWorkLine).toHaveBeenCalledTimes(1)
 })

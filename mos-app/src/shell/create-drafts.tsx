@@ -13,8 +13,7 @@ function DraftOwner({ children }: { children: ReactNode }) {
   return <DraftContext.Provider value={store}>{children}</DraftContext.Provider>
 }
 
-/** Composer buffers survive route changes, but belong only to this authenticated session.
- * Rekeying retires the entire store, including callbacks from unfinished saves. */
+// Rekeying retires the store, so unfinished saves cannot affect the next authenticated owner.
 export function CreateDraftProvider({ children }: { children: ReactNode }) {
   const auth = useAuth()
   const owner = auth.status === 'authenticated'
@@ -23,7 +22,7 @@ export function CreateDraftProvider({ children }: { children: ReactNode }) {
   return <DraftOwner key={owner}>{children}</DraftOwner>
 }
 
-/** Ordinary local state when used outside the shell; the shell retains the same interface. */
+// Isolated consumers can use ordinary local state without a shell owner.
 export function useCreateDraftState<T>(key: string, initial: T | (() => T)): [T, Dispatch<SetStateAction<T>>] {
   const store = useContext(DraftContext)
   const [local, setLocal] = useState(initial)
@@ -52,7 +51,7 @@ export function useCreateDraftState<T>(key: string, initial: T | (() => T)): [T,
   return [value, setValue]
 }
 
-/** Async create/link callbacks already use refs; retain their identity with the composer. */
+// Retain async create/link identity alongside the composer instead of the mounted route.
 export function useCreateDraftRef<T>(key: string, initial: T) {
   const [ref] = useCreateDraftState(key, () => ({ current: initial }))
   return ref

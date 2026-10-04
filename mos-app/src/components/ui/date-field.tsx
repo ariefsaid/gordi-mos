@@ -22,7 +22,7 @@ export interface DateFieldProps extends Omit<InputHTMLAttributes<HTMLInputElemen
   label?: string
   /** ISO yyyy-mm-dd, or '' for no value. */
   value: string
-  /** Optional form-owned typed text, including unfinished dates, for resumable composers. */
+  // A resumable composer must also retain unfinished typed dates.
   draftText?: string
   onDraftTextChange?: (text: string) => void
   /** Fires with a complete real ISO date, or '' when the field is emptied. Never with a guess. */

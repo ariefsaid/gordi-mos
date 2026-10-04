@@ -202,6 +202,7 @@ export function TasksWorkspace({
   }, [accessRoles, auth, location.search, savedView])
   const [draftTask, setDraftTask] = useCreateDraftState<TaskListRow | null>('task.draft', null)
   const [draftLinkError, setDraftLinkError] = useCreateDraftState('task.linkError', false)
+  const [completedTaskId, setCompletedTaskId] = useCreateDraftState<string | null>('task.completedId', null)
   const [draftFormState, setDraftFormState] = useCreateDraftState<TaskCreateFormState>('task.form', { pending: false, saveError: false })
   // `null` means the viewer Team directory is still loading; [] is an honest no-eligible-Team
   // result and must never be replaced with a BU/first-row guess.
@@ -261,6 +262,12 @@ export function TasksWorkspace({
     viewerId,
     accessRoles,
   })
+  // Complete against the current collection, even when the save began on a retired route.
+  useEffect(() => {
+    if (completedTaskId === null) return
+    setCompletedTaskId(null)
+    controller.retry()
+  }, [completedTaskId, controller, setCompletedTaskId])
   const { state } = controller
   // The engine keeps presentation separate from query for compatibility checks; expose the
   // canonical layout in the domain query consumed by the toolbar/runtime without writing a second
@@ -615,12 +622,12 @@ export function TasksWorkspace({
       }
       createdDraftTaskRef.current = null
       setDraftTask(null)
-      controller.retry()
+      setCompletedTaskId(createdTaskId)
       return
     }
     if (!viewerId) throw new Error('inline title edit requires an authenticated viewer')
     await updateTaskFields(taskId, { title }, viewerId)
-  }, [controller, createdDraftTaskRef, draftSourceSignalRef, draftTask, draftTitleRef, setDraftLinkError, setDraftTask, t, viewerId])
+  }, [createdDraftTaskRef, draftSourceSignalRef, draftTask, draftTitleRef, setCompletedTaskId, setDraftLinkError, setDraftTask, t, viewerId])
   const onRetryDraftLink = useCallback((title: string) => {
     if (!draftTask) return
     void onEditTitle(draftTask.id, title || draftTitleRef.current || draftTask.title)

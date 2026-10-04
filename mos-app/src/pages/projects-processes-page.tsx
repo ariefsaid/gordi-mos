@@ -70,6 +70,7 @@ export function ProjectsProcessesPage() {
   const [businessUnitOptions, setBusinessUnitOptions] = useState<BusinessUnitOption[]>([])
   const [adding, setAdding] = useCreateDraftState('work-line.adding', false)
   const [addError, setAddError] = useCreateDraftState('work-line.addError', '')
+  const [completedName, setCompletedName] = useCreateDraftState<string | null>('work-line.completedName', null)
 
   const setQuery = (patch: Partial<CatalogCollectionQuery>) => {
     controller.setQuery({ ...query, ...patch })
@@ -128,17 +129,24 @@ export function ProjectsProcessesPage() {
       if (metadata.objectiveId || metadata.businessUnitId) await projectsProcessesCatalogActions.create(name, newType, metadata)
       else await projectsProcessesCatalogActions.create(name, newType)
       setDraftOpen(false)
-      createButtonRef.current?.focus()
       setNewName('')
-      announce(t('catalog.announce.added', { name }))
-      controller.setQuery({ ...query, view: 'active', q: '', type: 'all' })
-      controller.retry()
+      setCompletedName(name)
     } catch (error) {
       setAddError(saveErrorMessage(error, t))
     } finally {
       setAdding(false)
     }
   }
+
+  // A save may finish after route return; the mounted collection owns its refresh and feedback.
+  useEffect(() => {
+    if (completedName === null) return
+    setCompletedName(null)
+    createButtonRef.current?.focus()
+    announce(t('catalog.announce.added', { name: completedName }))
+    controller.setQuery({ ...query, view: 'active', q: '', type: 'all' })
+    controller.retry()
+  }, [announce, completedName, controller, query, setCompletedName, t])
 
   useEffect(() => {
     if (!draftOpen || businessUnitOptions.length > 0) return

@@ -1,5 +1,5 @@
 import { afterEach, describe, it, expect, vi, beforeEach } from 'vitest'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { Link, Outlet, MemoryRouter, RouterProvider, createMemoryRouter } from 'react-router-dom'
 import { OverlayHostProvider } from '@/shell/overlay-host'
 import { CreateDraftProvider } from '@/shell/create-drafts'
@@ -131,7 +131,7 @@ describe('Objectives collection-first contract', () => {
   it('reentering Create returns focus to the unfinished Objective without changing its name', async () => {
     renderPage()
     await screen.findByText('Grow revenue')
-    const opener = within(screen.getByTestId('page-head')).getByRole('button', { name: 'Create objective' })
+    const opener = screen.getByRole('button', { name: 'Create objective' })
     fireEvent.click(opener)
     const name = await screen.findByRole('textbox', { name: 'Name' })
     fireEvent.change(name, { target: { value: 'Keep the guest experience draft' } })
@@ -361,4 +361,38 @@ it('keeps a retained objectives buffer hidden when current write authority is de
   expect(screen.queryByRole('form', { name: 'Create objective' })).toBeNull()
   expect(screen.queryByRole('button', { name: 'Create objective' })).toBeNull()
   expect(createObjective).not.toHaveBeenCalled()
+})
+
+// AC-003
+it('confirms the saved objectives record in the current collection when pending success arrives after route return', async () => {
+  let confirm!: () => void
+  vi.mocked(listObjectivesAll).mockResolvedValue([])
+  vi.mocked(createObjective).mockReturnValueOnce(new Promise((resolve) => {
+    confirm = () => {
+      const saved = { id: 'saved-return', name: 'Saved after returning', archived_at: null }
+      vi.mocked(listObjectivesAll).mockResolvedValue([saved])
+      resolve(saved)
+    }
+  }))
+  const router = createMemoryRouter([{
+    element: <CreateDraftProvider><Link to="/work/signals">Signals destination</Link><Link to="/work/objectives">Return to collection</Link><Outlet /></CreateDraftProvider>,
+    children: [{ path: '/work/objectives', element: <ObjectivesPage /> }, { path: '/work/signals', element: <p>Signals destination body</p> }],
+  }], { initialEntries: ['/work/objectives?create=1'] })
+  render(<I18nProvider><RouterProvider router={router} /></I18nProvider>)
+  const form = await screen.findByRole('form', { name: 'Create objective' })
+  fireEvent.change(within(form).getByRole('textbox', { name: 'Name' }), { target: { value: 'Saved after returning' } })
+  fireEvent.submit(form)
+  await waitFor(() => expect(within(form).getByRole('textbox', { name: 'Name' })).toBeDisabled())
+  const readsBeforeReturn = vi.mocked(listObjectivesAll).mock.calls.length
+  fireEvent.click(screen.getByRole('link', { name: 'Signals destination' }))
+  await screen.findByText('Signals destination body')
+  fireEvent.click(screen.getByRole('link', { name: 'Return to collection' }))
+  await waitFor(() => expect(vi.mocked(listObjectivesAll).mock.calls.length).toBeGreaterThan(readsBeforeReturn))
+  expect(await screen.findByRole('textbox', { name: 'Name' })).toBeDisabled()
+  expect(screen.queryByRole('link', { name: 'Saved after returning' })).toBeNull()
+  await act(async () => confirm())
+  expect(await screen.findByRole('link', { name: 'Saved after returning' })).toBeInTheDocument()
+  expect(screen.getAllByRole('status').some((status) => status.textContent === 'Added Saved after returning')).toBe(true)
+  expect(screen.queryByRole('form', { name: 'Create objective' })).toBeNull()
+  expect(createObjective).toHaveBeenCalledTimes(1)
 })
