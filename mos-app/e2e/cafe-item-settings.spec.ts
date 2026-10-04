@@ -22,7 +22,8 @@ const rows = [
     erp_name: 'Herbal tea · ERP reference',
     mos_name: 'Herbal tea',
     category: 'BAR',
-    kind: 'RAW',
+    kind: null,
+    is_active: false,
     item_unit_id: '00000000-0000-0000-0000-00000000a201',
     unit_name: 'bag',
     default_item_unit_id: '00000000-0000-0000-0000-00000000a201',
@@ -34,7 +35,8 @@ const rows = [
     erp_name: 'Herbal tea · ERP reference',
     mos_name: 'Herbal tea',
     category: 'BAR',
-    kind: 'RAW',
+    kind: null,
+    is_active: false,
     item_unit_id: '00000000-0000-0000-0000-00000000a202',
     unit_name: 'kg',
     default_item_unit_id: '00000000-0000-0000-0000-00000000a201',
@@ -46,7 +48,8 @@ const rows = [
     erp_name: 'Herbal tea · ERP reference',
     mos_name: 'Herbal tea',
     category: 'BAR',
-    kind: 'RAW',
+    kind: null,
+    is_active: false,
     item_unit_id: '00000000-0000-0000-0000-00000000a203',
     unit_name: 'kg',
     default_item_unit_id: '00000000-0000-0000-0000-00000000a201',
@@ -58,7 +61,8 @@ const rows = [
     erp_name: 'Curry base · ERP reference',
     mos_name: 'Curry base · ERP reference',
     category: 'KITCHEN',
-    kind: 'WIP',
+    kind: null,
+    is_active: false,
     item_unit_id: '00000000-0000-0000-0000-00000000a204',
     unit_name: 'tray',
     default_item_unit_id: null,
@@ -70,7 +74,8 @@ const rows = [
     erp_name: 'Seasonal item · ERP reference',
     mos_name: 'Seasonal item · ERP reference',
     category: null,
-    kind: 'WIP',
+    kind: null,
+    is_active: false,
     item_unit_id: null,
     unit_name: null,
     default_item_unit_id: null,
@@ -180,7 +185,7 @@ test.describe('Café item settings', () => {
     await mockSettingsApi(page)
     await loginAs(page, BAR_MEMBER.email, BAR_MEMBER.password)
 
-    for (const width of [390, 1440] as const) {
+    for (const width of [390, 1440, 1920] as const) {
       await page.setViewportSize({ width, height: 960 })
       await page.goto('cafe/items')
       await expect(page.getByRole('heading', { name: 'Café items', exact: true })).toBeVisible()
@@ -208,11 +213,16 @@ test.describe('Café item settings', () => {
     const itemCard = page.getByRole('article', { name: 'Herbal tea · ERP reference' })
     const nameInput = itemCard.getByRole('textbox', { name: 'MOS name', exact: true })
     const save = itemCard.getByRole('button', { name: 'Save settings for Herbal tea', exact: true })
+    await expect(itemCard.getByRole('combobox', { name: 'Kind for Herbal tea' })).toHaveText('Unclassified')
+    await expect(itemCard.getByRole('checkbox', { name: 'Active for Herbal tea' })).toHaveAttribute('aria-checked', 'false')
     await nameInput.fill('   ')
     await expect(nameInput).toHaveAttribute('aria-invalid', 'true')
     await expect(itemCard.getByRole('alert')).toHaveText('Enter a MOS name.')
     await expect(save).toBeDisabled()
     await nameInput.fill('Herbal tea for the bar')
+    await itemCard.getByRole('combobox', { name: 'Kind for Herbal tea' }).click()
+    await page.getByRole('option', { name: 'Raw material', exact: true }).click()
+    await itemCard.getByRole('checkbox', { name: 'Active for Herbal tea' }).click()
     await expect(save).toBeEnabled()
     await capture(page, testInfo, 'item-settings-dirty')
 
@@ -227,6 +237,8 @@ test.describe('Café item settings', () => {
     await expect(itemCard.getByText('Saved', { exact: true })).toBeVisible()
     await expect.poll(() => mocks.lastSave).toMatchObject({
       p_mos_name: 'Herbal tea for the bar',
+      p_kind: 'RAW',
+      p_is_active: true,
       p_default_item_unit_id: '00000000-0000-0000-0000-00000000a201',
       p_shown_item_unit_ids: [
         '00000000-0000-0000-0000-00000000a201',

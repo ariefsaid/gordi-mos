@@ -2,7 +2,7 @@
 -- This test exercises storage.objects RLS directly; it never deletes a storage object with SQL.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(35);
+select plan(36);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -16,7 +16,7 @@ insert into ops.wip_items
   (id, org_id, name, category, flag_active, kind, reference_source, erp_category_type_name, has_active_bom_output, esb_product_id)
 values
   ('00000000-0000-0000-0000-00000000c920','00000000-0000-0000-0000-0000000000a1',
-   'Synthetic waste RAW','Kitchen',true,'RAW','erp_catalog','Inventory',false,'SYNTH-WASTE-PRODUCT');
+   'Synthetic waste RAW','Kitchen',true,null,'erp_catalog','Inventory',false,'SYNTH-WASTE-PRODUCT');
 insert into ops.item_units
   (id, org_id, wip_item_id, unit_name, esb_product_id, esb_product_detail_id, is_default, source_active, erp_is_stock, confirmed_at)
 values
@@ -45,6 +45,11 @@ select is(ops.kitchen_action_label('waste',null),'Waste','the existing action de
 
 set local role authenticated;
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select lives_ok($$select ops.save_cafe_item_settings(
+  '00000000-0000-0000-0000-00000000bf02','kitchen','00000000-0000-0000-0000-00000000c920',
+  'Synthetic waste RAW','00000000-0000-0000-0000-00000000c921',
+  array['00000000-0000-0000-0000-00000000c921'::uuid],'RAW',true
+)$$, 'the stream team classifies and activates the ERP RAW waste item');
 
 select lives_ok($$
   insert into ops.kitchen_logs (id,business_unit_id,log_date,branch_id,activity,action,destination_branch_id,
@@ -68,14 +73,14 @@ values ('00000000-0000-0000-0000-00000000ac24','00000000-0000-0000-0000-00000000
 select is((select row(item_unit_id,qty_porsi)::text from ops.kitchen_logs where id='00000000-0000-0000-0000-00000000ac21'),
   row('00000000-0000-0000-0000-00000000c921'::uuid,2.50::numeric(12,2))::text,
   'the RAW record retains its exact ERP detail unit and quantity without conversion');
-select throws_ok($$
-  insert into ops.kitchen_logs (id,business_unit_id,log_date,branch_id,activity,action,destination_branch_id,
-    wip_item_id,qty_porsi,status)
-  values ('00000000-0000-0000-0000-00000000ac23','00000000-0000-0000-0000-00000000bb01','2026-10-02',
-    '00000000-0000-0000-0000-00000000bf02','kitchen','waste',null,
-    '00000000-0000-0000-0000-00000000c920',1,'Draft')
-  $$,'P0015','CAFE_ERP_ITEM_UNIT_REQUIRED: waste quantity must retain an active, confirmed ERP product-detail unit',
-  'a waste row cannot silently fall back to a MOS/manual unit or conversion');
+insert into ops.kitchen_logs (id,business_unit_id,log_date,branch_id,activity,action,destination_branch_id,
+  wip_item_id,qty_porsi,status)
+values ('00000000-0000-0000-0000-00000000ac23','00000000-0000-0000-0000-00000000bb01','2026-10-02',
+  '00000000-0000-0000-0000-00000000bf02','kitchen','waste',null,
+  '00000000-0000-0000-0000-00000000c920',1,'Draft');
+select is((select item_unit_id from ops.kitchen_logs where id='00000000-0000-0000-0000-00000000ac23'),
+  '00000000-0000-0000-0000-00000000c921'::uuid,
+  'a waste row without an explicit unit binds to the team-set shown default ERP detail');
 select throws_ok($$
   insert into ops.kitchen_logs (business_unit_id,log_date,branch_id,activity,action,destination_branch_id,
     wip_item_id,item_unit_id,qty_porsi,status)

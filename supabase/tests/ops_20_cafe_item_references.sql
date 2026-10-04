@@ -21,10 +21,10 @@ select set_config('app.cafe_reference_test_org_id', '00000000-0000-0000-0000-000
 
 select is((select count(*)::int from ops.cafe_item_reference_source((select source_rows from cafe_reference_test_source))), 4,
   'source parser accepts one synthetic row per ERP product detail, including excluded non-stock rows');
-select is((select count(*)::int from ops.cafe_item_reference_source((select source_rows from cafe_reference_test_source)) where kind = 'RAW'), 2,
-  'source parser applies the RAW classification to active stock details without an active BOM output');
-select is((select count(*)::int from ops.cafe_item_reference_source((select source_rows from cafe_reference_test_source)) where kind = 'WIP'), 1,
-  'source parser classifies an active BOM output as WIP even when the detail is not stock');
+select is((select count(*)::int from ops.cafe_item_reference_source((select source_rows from cafe_reference_test_source)) where kind is null), 4,
+  'source parser leaves every ERP row unclassified for team-owned settings');
+select is((select count(*)::int from ops.cafe_item_reference_source((select source_rows from cafe_reference_test_source)) where kind is not null), 0,
+  'ERP classification evidence is not applied by the item source parser');
 
 select is(ops.classify_cafe_item_kind('BAR', 'Inventory', true, false, true), 'WIP',
   'classification: an active BOM output is WIP');
@@ -41,10 +41,10 @@ select lives_ok($$select ops.refresh_cafe_item_references((select source_rows fr
   'refresh: synthetic source rows populate the shared item/detail/stream catalog');
 select lives_ok($$select ops.refresh_cafe_item_references((select source_rows from cafe_reference_test_source))$$,
   'refresh: replaying the same source snapshot is idempotent');
-select is((select count(*)::int from ops.wip_items where esb_product_id = 'SYNTH-ERP-P-1240-RAW' and kind = 'RAW' and flag_active), 1,
-  'refresh: one RAW product creates one active shared item');
-select is((select count(*)::int from ops.wip_items where esb_product_id = 'SYNTH-ERP-P-1240-WIP' and kind = 'WIP' and flag_active), 1,
-  'refresh: one active BOM output creates one active WIP item');
+select is((select count(*)::int from ops.wip_items where esb_product_id = 'SYNTH-ERP-P-1240-RAW' and kind is null and flag_active), 1,
+  'refresh: one ERP product creates one active but unclassified shared item');
+select is((select count(*)::int from ops.wip_items where esb_product_id = 'SYNTH-ERP-P-1240-WIP' and kind is null and flag_active), 1,
+  'refresh: a BOM output also remains team-unclassified');
 select is((select count(*)::int from ops.item_units unit join ops.wip_items item on item.id = unit.wip_item_id
   where item.esb_product_id = 'SYNTH-ERP-P-1240-RAW' and unit.source_active), 2,
   'refresh: the RAW item has exactly its two source product details as units');
@@ -77,16 +77,16 @@ select is((select count(*)::int from ops.stream_items stream_item join ops.wip_i
   where item.esb_product_id = 'SYNTH-ERP-P-1240-WIP' and stream_item.branch_id <> '00000000-0000-0000-0000-00000000bf01'), 0,
   'refresh: branch-scoped WIP is not added to other branches');
 select is((select count(*)::int from ops.cafe_item_references reference
-  where reference.esb_product_id = 'SYNTH-ERP-P-1240-RAW' and reference.kind = 'RAW'),
+  where reference.esb_product_id = 'SYNTH-ERP-P-1240-RAW' and reference.kind is null),
   2 * (select count(DISTINCT team.branch_id)::int from shared.teams team join shared.orgs org on org.id = team.org_id
     where org.id = '00000000-0000-0000-0000-0000000000a1' and team.activity = 'kitchen' and team.branch_id is not null and team.archived_at is null),
-  'reference view: every RAW product detail appears on each mapped kitchen stream');
+  'reference view: every unclassified product detail appears on each mapped kitchen stream');
 select is((select count(DISTINCT reference.item_unit_id)::int from ops.cafe_item_references reference
   where reference.esb_product_id = 'SYNTH-ERP-P-1240-RAW'), 2,
   'reference view: product-detail identity remains distinct across streams');
 select is((select count(*)::int from ops.cafe_item_references reference
-  where reference.esb_product_id = 'SYNTH-ERP-P-1240-WIP' and reference.kind = 'WIP'), 1,
-  'reference view: the imported WIP detail is readable through the shared catalog');
+  where reference.esb_product_id = 'SYNTH-ERP-P-1240-WIP' and reference.kind is null), 1,
+  'reference view: the imported unclassified detail is readable through the shared catalog');
 
 insert into ops.wip_items (
   id, org_id, name, category, flag_active, esb_product_id, kind, reference_source,
@@ -142,13 +142,13 @@ select throws_ok($$insert into ops.cafe_item_references (item_id) values ('00000
 select throws_ok($$insert into ops.kitchen_logs (business_unit_id, log_date, branch_id, activity, action, wip_item_id, qty_porsi)
   values ('00000000-0000-0000-0000-00000000bb01','2026-10-02','00000000-0000-0000-0000-00000000bf01','kitchen','produce',
     (select id from ops.wip_items where esb_product_id = 'SYNTH-ERP-P-1240-RAW'),1)$$,
-  'P0013', 'CAFE_WIP_ITEM_REQUIRED: production logs and plans require a WIP item',
-  'production logs reject RAW items');
+  'P0014', 'CAFE_ITEM_NOT_ACTIVE: classify and activate this item for the stream before capture',
+  'production logs reject ERP items until the team classifies and activates them');
 select throws_ok($$insert into ops.kitchen_plans (log_date, branch_id, activity, action, wip_item_id, qty_porsi)
   values ('2026-10-02','00000000-0000-0000-0000-00000000bf01','kitchen','produce',
     (select id from ops.wip_items where esb_product_id = 'SYNTH-ERP-P-1240-RAW'),1)$$,
-  'P0013', 'CAFE_WIP_ITEM_REQUIRED: production logs and plans require a WIP item',
-  'production plans reject RAW items');
+  'P0014', 'CAFE_ITEM_NOT_ACTIVE: classify and activate this item for the stream before capture',
+  'production plans reject ERP items until the team classifies and activates them');
 select is((select count(*)::int from ops.kitchen_stock_for_date(
   '2026-10-02','00000000-0000-0000-0000-00000000bf01','kitchen') stock
   where stock.wip_item_id = (select id from ops.wip_items where esb_product_id = 'SYNTH-ERP-P-1240-RAW')), 0,
