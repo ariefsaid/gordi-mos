@@ -74,6 +74,7 @@ export async function listCafeItemReferences(
     .eq('branch_id', stream.branch.id)
     .eq('activity', stream.activity)
     .eq('kind', kind)
+    .eq('is_active', true)
     .order('name', { ascending: true })
     .order('unit_name', { ascending: true })
 

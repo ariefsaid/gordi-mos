@@ -167,10 +167,20 @@ export type MovementKey = string
 // Partial so partial test fixtures type-check (most items won't have every movement).
 export type PlanMap = Record<string, Partial<Record<MovementKey, number>>>
 
-// Today's already-logged actuals (Σ qty_porsi of the stream/date's non-Rejected logs),
-// keyed like PlanMap — the "already logged N" idiom (FR-014, AC-006). Stream-scoped:
-// the same dish has different actuals in another stream's books.
-export type ActualsMap = Record<string, Partial<Record<MovementKey, number>>>
+/** One displayed actual-unit total for a single item and movement. */
+export interface ActualUnitTotal {
+  /** Stable display key: exact unit identity, or the source log ID for unresolved history. */
+  key: string
+  /** Recorded unit identity. Null is an unknown historical unit, never today's default. */
+  item_unit_id: string | null
+  /** Resolved from ops.item_units by the recorded ID; null means the label is unknown. */
+  unit_name: string | null
+  qty_porsi: number
+}
+
+// Today's already-logged actuals, keyed by item and movement. Known units can be summed only
+// when their exact non-null item_unit_id matches; unknown historical rows remain separate.
+export type ActualsMap = Record<string, Partial<Record<MovementKey, ActualUnitTotal[]>>>
 
 // ── ops.kitchen_stock availability (FR-022/023) ──────────────────────────────
 // Per WIP item: `stok` = on-hand usable stock (the start-of-day net of approved

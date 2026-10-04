@@ -99,14 +99,14 @@ const columns: DataTableColumn<WasteRow>[] = [
   {
     key: 'quantity',
     header: 'Recorded quantity',
-    render: (log) => <span className="krow-qty"><strong>{log.quantity}</strong><span className="krow-meta">· ERP unit</span></span>,
+    render: (log) => <span className="krow-qty"><strong>{log.quantity}</strong><span className="krow-meta">· ESB unit</span></span>,
   },
   { key: 'submittedBy', header: 'Submitted by', render: log => <span className="krow-byname">{log.submittedBy}</span> },
   { key: 'submittedAt', header: 'Time', render: log => <span className="krow-time">{log.submittedAt}</span> },
   {
     key: 'decision',
     header: 'Review',
-    render: () => <span className="waste-review-held">ERP posting held</span>,
+    render: () => <span className="waste-review-held">ESB posting held</span>,
   },
 ]
 
@@ -119,7 +119,7 @@ function ReviewRowHarness() {
       <header className="waste-harness-header waste-harness-header--review">
         <span className="waste-harness-eyebrow">Development fixture · no database data</span>
         <h1>Kitchen review</h1>
-        <p>Waste evidence stays beside its item. ERP posting remains held while mapping is verified.</p>
+        <p>Waste evidence stays beside its item. ESB posting remains held while mapping is verified.</p>
       </header>
       <section className="kr-block waste-review-fixture" aria-labelledby="waste-review-group">
         <h2 id="waste-review-group">Waste <span>1 item · 3 photos</span></h2>
@@ -130,9 +130,9 @@ function ReviewRowHarness() {
           caption="Waste review with private photo evidence"
           renderCard={(log) => (
             <div className="krow-card">
-              <div className="krow-card-head"><span className="krow-name">{log.item}</span><span className="waste-review-held">ERP held</span></div>
+              <div className="krow-card-head"><span className="krow-name">{log.item}</span><span className="waste-review-held">ESB held</span></div>
               <WastePhotoStrip photos={log.evidence} />
-              <div className="krow-card-meta"><strong>{log.quantity}</strong><span className="krow-meta">ERP unit · {log.submittedBy} · {log.submittedAt}</span></div>
+              <div className="krow-card-meta"><strong>{log.quantity}</strong><span className="krow-meta">ESB unit · {log.submittedBy} · {log.submittedAt}</span></div>
             </div>
           )}
         />

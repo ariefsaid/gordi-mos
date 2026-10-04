@@ -30,10 +30,14 @@ const WORK: PrimaryTab = { id: 'work', labelKey: 'dest.work', href: '/work/tasks
 const INBOX: PrimaryTab = { id: 'inbox', labelKey: 'dest.inbox', href: '/inbox', Icon: InboxIcon }
 
 // v4 shell rebuild (Task 6): the + Action Launcher yields the thumb zone on capture surfaces —
-// Café's phone-optimized log/plan/stock/review screens — where the surface's own control is the
-// primary action. DD-MVP-17: the module ROOT (/cafe) is now the capture surface itself, so it
-// leads the list and /cafe/log is its redirect alias. Hidden there, and ONLY there.
-const CAPTURE_SURFACE_PATHS = ['/cafe', '/cafe/plan', '/cafe/stock', '/cafe/review']
+// the Café root and its dedicated production/transfer/waste/plan/stock/review screens — where
+// the surface's own control is the primary action. Match route roots exactly: a `/cafe` prefix
+// also swallowed item settings and push history, which are support surfaces where quick capture
+// should remain available (and remain after the launcher closes).
+const CAPTURE_SURFACE_PATHS = [
+  '/cafe', '/cafe/production', '/cafe/transfer', '/cafe/waste',
+  '/cafe/plan', '/cafe/stock', '/cafe/review',
+]
 
 // The collections whose page head carries its own create button (Tasks, Signals): one create door
 // on phone, so the + launcher yields there. Exact paths only — a record page has no head create.
@@ -43,7 +47,7 @@ const IN_PAGE_CREATE_PATHS = ['/work/tasks', '/work/signals']
 const FOCUSED_DECISION_PATHS = ['/oauth/consent']
 
 function isCaptureSurface(pathname: string): boolean {
-  return CAPTURE_SURFACE_PATHS.some((p) => pathname === p || pathname.startsWith(p + '/'))
+  return CAPTURE_SURFACE_PATHS.includes(pathname.replace(/\/+$/, '') || '/')
 }
 
 type BottomTabBarProps = {

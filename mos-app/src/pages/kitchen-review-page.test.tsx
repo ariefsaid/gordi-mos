@@ -276,6 +276,8 @@ describe('KitchenReviewPage — states', () => {
     expect(emptyActions).not.toBeNull()
     expect(emptyActions!.querySelectorAll('button, a')).toHaveLength(1)
     expect(screen.getByRole('button', { name: /refresh/i })).toBeInTheDocument()
+    expect(within(emptyState).getByText(/refresh to check for newly submitted logs/i)).toBeInTheDocument()
+    expect(within(emptyState).queryByText(/pull again/i)).toBeNull()
   })
 
   it('error + retry: surfaces a retry that re-fetches', async () => {

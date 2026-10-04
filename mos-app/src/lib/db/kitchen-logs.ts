@@ -107,8 +107,8 @@ export function streamCatalogFrom(
 // ── WIP items ────────────────────────────────────────────────────────────────
 
 /**
- * List active WIP items sorted by name — the UNGATED WIP read.
- * Mirrors oracle list_active_wip_items.
+ * List active manually maintained WIP items sorted by name — the legacy plan/stock catalog.
+ * ERP items are added from per-stream team settings and their item-level kind is never read.
  *
  * DELIBERATELY not the capture form's source. The DD-WAY-29 gate scopes absence to the
  * CAPTURE form only (FR-011) — this read feeds the stock/verification plane (FR-060,
@@ -121,6 +121,7 @@ export async function listActiveWipItems(): Promise<WipItemOption[]> {
     .from('wip_items')
     .select('id,name,category')
     .eq('flag_active', true)
+    .eq('reference_source', 'manual')
     .eq('kind', 'WIP')
     .order('name', { ascending: true })
   if (error) throw new Error(`listActiveWipItems failed — ${error.message}`)
@@ -209,7 +210,10 @@ async function listLegacyCaptureFormItems(): Promise<CaptureFormItem[]> {
   return [...byItem.values()]
 }
 
-export async function listCaptureFormItems(stream?: ProductionStream): Promise<CaptureFormItem[]> {
+export async function listCaptureFormItems(
+  stream?: ProductionStream,
+  action: 'produce' | 'transfer' = 'produce',
+): Promise<CaptureFormItem[]> {
   if (!stream) return listLegacyCaptureFormItems()
 
   const [settings, legacyItems, offered] = await Promise.all([
@@ -220,7 +224,9 @@ export async function listCaptureFormItems(stream?: ProductionStream): Promise<C
   const erpItemIds = new Set(settings.map(item => item.id))
   // The settings view is stream-scoped; intersect again so a future view change cannot widen capture.
   const erpItems = settings
-    .filter(item => item.kind === 'WIP' && offered.has(item.id))
+    .filter(item => item.isActive
+      && (action === 'produce' ? item.kind === 'WIP' : item.kind === 'RAW' || item.kind === 'WIP')
+      && offered.has(item.id))
     .flatMap(item => {
       const logItem = toCafeLogItem(item)
       return logItem ? [{
@@ -236,7 +242,8 @@ export async function listCaptureFormItems(stream?: ProductionStream): Promise<C
       }] : []
     })
   const manualItems = legacyItems.filter(item => !erpItemIds.has(item.id) && offered.has(item.id))
-  // Sort by the name operators see (MOS name for ERP items), then stable ID.
+  // Production exposes team-active WIP items; transfer exposes team-active RAW and WIP items.
+  // Manual legacy items remain WIP. Sort by the name operators see, then stable ID.
   return [...erpItems, ...manualItems].sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
 }
 
@@ -279,11 +286,11 @@ export async function fetchPlanMap(
 }
 
 /**
- * Today's already-logged actuals for ONE stream (FR-014, AC-006): Σ qty_porsi of the
- * date's non-Rejected logs, keyed like PlanMap — the running "already logged N" the
- * incumbent shows beside each row. Stream-scoped for the same reason the plan and stock
- * reads are (OD-WAY-28): the same dish has different actuals in another branch's books.
- * Submitted rows count (they are logged, pending review); Rejected rows do not.
+ * Today's already-logged actuals for ONE stream (FR-014, AC-006), grouped only by the
+ * exact recorded non-null item_unit_id. Historical rows without a unit stay separate by log
+ * ID; they are not evidence that two quantities share a basis. Unit labels are resolved by
+ * recorded IDs across the full org catalog, not from today's offered/default units. Stream-
+ * scoped like the plan and stock reads (OD-WAY-28). Submitted rows count; Rejected rows do not.
  */
 export async function fetchActualsMap(
   logDate: string,
@@ -291,23 +298,59 @@ export async function fetchActualsMap(
 ): Promise<ActualsMap> {
   const { data, error } = await ops()
     .from('kitchen_logs')
-    .select('wip_item_id,action,destination_branch_id,qty_porsi')
+    .select('id,wip_item_id,action,destination_branch_id,item_unit_id,qty_porsi')
     .eq('log_date', logDate)
     .eq('branch_id', stream.branch.id)
     .eq('activity', stream.activity)
     .neq('status', 'Rejected')
   if (error) throw new Error(`fetchActualsMap failed — ${error.message}`)
   type ActualRow = {
+    id: string
     wip_item_id: string
     action: KitchenLogAction
     destination_branch_id: string | null
+    item_unit_id: string | null
     qty_porsi: number
   }
+  const rows = (data ?? []) as ActualRow[]
+  const unitIds = [...new Set(rows.flatMap(row => row.item_unit_id ? [row.item_unit_id] : []))]
+  const unitNames = new Map<string, string>()
+  if (unitIds.length > 0) {
+    // Historical actuals can refer to units no longer offered on this stream. Read the
+    // authoritative row by its stored identity, with no active/shown/default filter. If
+    // metadata has been removed or is unreadable, the ID and quantity still survive below.
+    const { data: units, error: unitError } = await ops()
+      .from('item_units')
+      .select('id,unit_name')
+      .in('id', unitIds)
+    if (!unitError) {
+      for (const unit of (units ?? []) as { id: string; unit_name: string | null }[]) {
+        if (unit.unit_name?.trim()) unitNames.set(unit.id, unit.unit_name)
+      }
+    }
+  }
   const map: ActualsMap = {}
-  for (const row of (data ?? []) as ActualRow[]) {
+  for (const row of rows) {
     const key = movementKey({ action: row.action, destinationBranchId: row.destination_branch_id })
     if (!map[row.wip_item_id]) map[row.wip_item_id] = {}
-    map[row.wip_item_id][key] = (map[row.wip_item_id][key] ?? 0) + row.qty_porsi
+    const entries = map[row.wip_item_id][key] ?? (map[row.wip_item_id][key] = [])
+    if (row.item_unit_id) {
+      const exactUnit = entries.find(entry => entry.item_unit_id === row.item_unit_id)
+      if (exactUnit) exactUnit.qty_porsi += row.qty_porsi
+      else entries.push({
+        key: `unit:${row.item_unit_id}`,
+        item_unit_id: row.item_unit_id,
+        unit_name: unitNames.get(row.item_unit_id) ?? null,
+        qty_porsi: row.qty_porsi,
+      })
+    } else {
+      entries.push({
+        key: `unknown:${row.id}`,
+        item_unit_id: null,
+        unit_name: null,
+        qty_porsi: row.qty_porsi,
+      })
+    }
   }
   return map
 }
@@ -404,8 +447,9 @@ export async function fetchKitchenStock(
   asOf: string,
   stream: ProductionStream,
 ): Promise<KitchenStockRow[]> {
-  const [items, stockRows, offered] = await Promise.all([
+  const [manualItems, settings, stockRows, offered] = await Promise.all([
     listActiveWipItems(),
+    listCafeItemSettings(stream),
     fetchStockForDate(asOf, stream),
     listStreamItemIds(stream),
   ])
@@ -416,6 +460,14 @@ export async function fetchKitchenStock(
     const s = byItem.get(id)
     return !!s && (Number(s.usable_qty) !== 0 || Number(s.available_qty) !== 0)
   }
+  const manualIds = new Set(manualItems.map(item => item.id))
+  const items: WipItemOption[] = [
+    ...manualItems,
+    ...settings
+      .filter(item => (item.kind === 'WIP' && item.isActive) || holdsBalance(item.id))
+      .filter(item => !manualIds.has(item.id))
+      .map(item => ({ id: item.id, name: item.mosName, category: item.category })),
+  ]
   return items.filter(item => offered.has(item.id) || holdsBalance(item.id)).map(item => {
     const s = byItem.get(item.id)
     return {

@@ -44,19 +44,19 @@ function mockSettingsReader(
 function rows() {
   return [
     {
-      item_id: 'item-1', erp_name: 'ERP Flour', mos_name: 'MOS Flour', category: 'Kitchen', kind: 'RAW',
+      item_id: 'item-1', erp_name: 'ERP Flour', mos_name: 'MOS Flour', category: 'Kitchen', kind: 'RAW', is_active: true,
       item_unit_id: 'unit-a', unit_name: 'kg', default_item_unit_id: 'unit-b', unit_is_default: false, unit_is_shown: true,
     },
     {
-      item_id: 'item-1', erp_name: 'ERP Flour', mos_name: 'MOS Flour', category: 'Kitchen', kind: 'RAW',
+      item_id: 'item-1', erp_name: 'ERP Flour', mos_name: 'MOS Flour', category: 'Kitchen', kind: 'RAW', is_active: true,
       item_unit_id: 'unit-b', unit_name: 'kg', default_item_unit_id: 'unit-b', unit_is_default: true, unit_is_shown: true,
     },
     {
-      item_id: 'item-2', erp_name: 'ERP Salt', mos_name: 'ERP Salt', category: 'Kitchen', kind: 'RAW',
+      item_id: 'item-2', erp_name: 'ERP Salt', mos_name: 'ERP Salt', category: 'Kitchen', kind: null, is_active: false,
       item_unit_id: 'unit-c', unit_name: 'bag', default_item_unit_id: null, unit_is_default: false, unit_is_shown: false,
     },
     {
-      item_id: 'item-3', erp_name: 'ERP Item Without Details', mos_name: 'ERP Item Without Details', category: null, kind: 'WIP',
+      item_id: 'item-3', erp_name: 'ERP Item Without Details', mos_name: 'ERP Item Without Details', category: null, kind: null, is_active: false,
       item_unit_id: null, unit_name: null, default_item_unit_id: null, unit_is_default: false, unit_is_shown: false,
     },
   ]
@@ -72,18 +72,18 @@ describe('café item settings reader', () => {
 
     await expect(listCafeItemSettings(STREAM)).resolves.toEqual([
       {
-        id: 'item-1', erpName: 'ERP Flour', mosName: 'MOS Flour', category: 'Kitchen', kind: 'RAW', defaultUnitId: 'unit-b',
+        id: 'item-1', erpName: 'ERP Flour', mosName: 'MOS Flour', category: 'Kitchen', kind: 'RAW', isActive: true, defaultUnitId: 'unit-b',
         units: [
           { id: 'unit-a', name: 'kg', isShown: true, isDefault: false, labelOrdinal: 1, labelCount: 2 },
           { id: 'unit-b', name: 'kg', isShown: true, isDefault: true, labelOrdinal: 2, labelCount: 2 },
         ],
       },
       {
-        id: 'item-3', erpName: 'ERP Item Without Details', mosName: 'ERP Item Without Details', category: null, kind: 'WIP',
+        id: 'item-3', erpName: 'ERP Item Without Details', mosName: 'ERP Item Without Details', category: null, kind: null, isActive: false,
         defaultUnitId: null, units: [],
       },
       {
-        id: 'item-2', erpName: 'ERP Salt', mosName: 'ERP Salt', category: 'Kitchen', kind: 'RAW',
+        id: 'item-2', erpName: 'ERP Salt', mosName: 'ERP Salt', category: 'Kitchen', kind: null, isActive: false,
         defaultUnitId: null,
         units: [{ id: 'unit-c', name: 'bag', isShown: true, isDefault: false, labelOrdinal: null, labelCount: 1 }],
       },
@@ -121,8 +121,8 @@ describe('café item settings reader', () => {
   it('offers every ERP detail and uses the ERP default when the stream item has no settings row', async () => {
     const readRows = [
 
-        { item_id: 'item-1', erp_name: 'ERP Flour', mos_name: 'ERP Flour', category: 'Kitchen', kind: 'RAW', item_unit_id: 'unit-a', unit_name: 'kg', default_item_unit_id: null, unit_is_default: false, unit_is_shown: false },
-        { item_id: 'item-1', erp_name: 'ERP Flour', mos_name: 'ERP Flour', category: 'Kitchen', kind: 'RAW', item_unit_id: 'unit-b', unit_name: 'bag', default_item_unit_id: null, unit_is_default: false, unit_is_shown: false },
+        { item_id: 'item-1', erp_name: 'ERP Flour', mos_name: 'ERP Flour', category: 'Kitchen', kind: null, is_active: false, item_unit_id: 'unit-a', unit_name: 'kg', default_item_unit_id: null, unit_is_default: false, unit_is_shown: false },
+        { item_id: 'item-1', erp_name: 'ERP Flour', mos_name: 'ERP Flour', category: 'Kitchen', kind: null, is_active: false, item_unit_id: 'unit-b', unit_name: 'bag', default_item_unit_id: null, unit_is_default: false, unit_is_shown: false },
     ]
     const references = [
 
@@ -132,7 +132,7 @@ describe('café item settings reader', () => {
     const from = mockSettingsReader(readRows, [], references)
 
     await expect(listCafeItemSettings(STREAM)).resolves.toEqual([{
-      id: 'item-1', erpName: 'ERP Flour', mosName: 'ERP Flour', category: 'Kitchen', kind: 'RAW',
+      id: 'item-1', erpName: 'ERP Flour', mosName: 'ERP Flour', category: 'Kitchen', kind: null, isActive: false,
       defaultUnitId: 'unit-b',
       units: [
         { id: 'unit-b', name: 'bag', isShown: true, isDefault: true, labelOrdinal: null, labelCount: 1 },
@@ -170,6 +170,8 @@ describe('café item settings reader', () => {
       mosName: 'MOS Flour',
       defaultUnitId: 'unit-b',
       shownUnitIds: ['unit-a', 'unit-b'],
+      kind: 'RAW',
+      isActive: true,
     })
     expect(rpc).toHaveBeenNthCalledWith(1, 'can_manage_cafe_item_settings')
     expect(rpc).toHaveBeenNthCalledWith(2, 'save_cafe_item_settings', {
@@ -179,6 +181,8 @@ describe('café item settings reader', () => {
       p_mos_name: 'MOS Flour',
       p_default_item_unit_id: 'unit-b',
       p_shown_item_unit_ids: ['unit-a', 'unit-b'],
+      p_kind: 'RAW',
+      p_is_active: true,
     })
   })
 })

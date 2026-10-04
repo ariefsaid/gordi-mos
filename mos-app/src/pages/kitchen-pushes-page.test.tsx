@@ -274,6 +274,8 @@ describe('KitchenPushesPage — states', () => {
     expect(emptyActions).not.toBeNull()
     expect(emptyActions!.querySelectorAll('button, a')).toHaveLength(1)
     expect(screen.getByRole('button', { name: /refresh/i })).toBeInTheDocument()
+    expect(within(emptyState).getByText(/refresh to check for new push activity/i)).toBeInTheDocument()
+    expect(within(emptyState).queryByText(/pull again/i)).toBeNull()
   })
 
   it('error: shows error message + retry button', async () => {
@@ -524,7 +526,7 @@ describe('KitchenPushesPage — held vs posted (FR-052)', () => {
     // And the document column says which of the two HAS a document: the posted row's number,
     // and for the held row a statement rather than an em dash, which reads as "not yet".
     expect(screen.getByText('SMA-2026-0001')).toBeInTheDocument()
-    expect(screen.getByText(/no erp document/i)).toBeInTheDocument()
+    expect(screen.getByText(/no esb document/i)).toBeInTheDocument()
   })
 
   it('FR-052: a no-op row that genuinely FAILED still reads as failed', async () => {

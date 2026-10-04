@@ -36,7 +36,7 @@ insert into ops.wip_items (
 ) values (
   '00000000-0000-0000-0000-00000000c425', '00000000-0000-0000-0000-0000000000a1',
   'Synthetic WIP without details', 'Kitchen', true, 'SYNTH-ERP-P-1242-NO-DETAILS',
-  'WIP', 'erp_catalog', 'Inventory', true
+  null, 'erp_catalog', 'Inventory', true
 );
 insert into ops.stream_items (org_id, branch_id, activity, wip_item_id, source)
 values ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000bf01',
@@ -68,9 +68,10 @@ select lives_ok($$
     array[
       (select id from ops.item_units where esb_product_detail_id = 'SYNTH-ERP-PD-1242-WIP-A'),
       (select id from ops.item_units where esb_product_detail_id = 'SYNTH-ERP-PD-1242-WIP-B')
-    ]
+    ],
+    'WIP', true
   )
-$$, 'a Retail Ops manager can atomically choose a MOS name, default and shown ERP details for one stream');
+$$, 'a Retail Ops manager can atomically choose a MOS name, kind, active status, default and shown ERP details for one stream');
 select is((select mos_name from ops.cafe_item_settings_read
             where item_id = (select id from ops.wip_items where esb_product_id = 'SYNTH-ERP-P-1242-WIP')
             limit 1), 'Manager item name',

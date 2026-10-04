@@ -1,13 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { AuthState } from '@/auth/context'
 
 vi.mock('@/auth/use-auth')
+const cafeStreamMock = vi.hoisted(() => ({ produces: true }))
 vi.mock('@/lib/use-cafe-stream', () => {
   const branch = { id: 'branch-1', code: 'rumah_rames', name: 'Rumah Rames' }
-  const stream = { branch, activity: 'bar', produces: true }
+  const stream = { branch, activity: 'bar', get produces() { return cafeStreamMock.produces } }
   const catalog = {
     branches: [branch],
     options: [stream],
@@ -76,7 +77,7 @@ const VIEWER: AuthState = {
 
 const ITEM_SETTINGS: CafeItemSetting[] = [
   {
-    id: 'wip-1', erpName: 'ERP Oat Latte', mosName: 'Oat Latte', category: 'Drinks', kind: 'WIP',
+    id: 'wip-1', erpName: 'ERP Oat Latte', mosName: 'Oat Latte', category: 'Drinks', kind: 'WIP', isActive: true,
     defaultUnitId: 'unit-cup',
     units: [
       { id: 'unit-cup', name: 'cup', isShown: true, isDefault: true, labelOrdinal: null, labelCount: 1 },
@@ -84,7 +85,7 @@ const ITEM_SETTINGS: CafeItemSetting[] = [
     ],
   },
   {
-    id: 'raw-1', erpName: 'ERP Oat milk', mosName: 'Oat milk', category: 'Dairy', kind: 'RAW',
+    id: 'raw-1', erpName: 'ERP Oat milk', mosName: 'Oat milk', category: 'Dairy', kind: 'RAW', isActive: true,
     defaultUnitId: 'unit-litre',
     units: [{ id: 'unit-litre', name: 'litre', isShown: true, isDefault: true, labelOrdinal: null, labelCount: 1 }],
   },
@@ -123,6 +124,7 @@ function image(name: string) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  cafeStreamMock.produces = true
   setPhoneMatchMedia()
   mockUseAuth.mockReturnValue(VIEWER)
   mockListCafeItemSettings.mockResolvedValue(ITEM_SETTINGS)
@@ -148,10 +150,71 @@ afterEach(() => {
 })
 
 describe('CafeWastePage', () => {
+  it('shows each waste item quantity and unit without a grouped numeric total', async () => {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: (query: string) => ({
+        matches: query === '(min-width: 768px)' || query === '(min-width: 1280px)',
+        media: query,
+        onchange: null,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      }),
+    })
+    renderPage()
+
+    fireEvent.change(await screen.findByRole('spinbutton', { name: 'Waste quantity for Oat Latte' }), { target: { value: '2' } })
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Waste quantity for Oat milk' }), { target: { value: '1.5' } })
+
+    const aside = screen.getByRole('complementary', { name: 'Capture summary' })
+    expect(aside).toHaveTextContent('2 cup')
+    expect(aside).toHaveTextContent('1.5 litre')
+    expect(aside.querySelector('.kl-capture-summary__totals')).toBeNull()
+    expect(aside).not.toHaveTextContent('3.5')
+    expect(within(aside).getByRole('button', { name: 'Submit waste' })).toBeDisabled()
+  })
+
+  it('receiving-only phone category and kind filters narrow the waste list', async () => {
+    cafeStreamMock.produces = false
+    renderPage()
+    expect(await screen.findByText('Oat Latte')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('combobox', { name: /category/i }))
+    fireEvent.click(await screen.findByRole('option', { name: 'Dairy' }))
+    expect(screen.getByText('Oat milk')).toBeInTheDocument()
+    expect(screen.queryByText('Oat Latte')).toBeNull()
+
+    fireEvent.click(screen.getByRole('combobox', { name: /category/i }))
+    fireEvent.click(await screen.findByRole('option', { name: 'All' }))
+    fireEvent.click(screen.getByRole('combobox', { name: /kind/i }))
+    fireEvent.click(await screen.findByRole('option', { name: 'RAW' }))
+    expect(screen.getByText('Oat milk')).toBeInTheDocument()
+    expect(screen.queryByText('Oat Latte')).toBeNull()
+  })
+
+  it('names the item/unit resolver and links to Café item settings when no item is loggable', async () => {
+    mockListCafeItemSettings.mockResolvedValue([])
+    renderPage()
+    const empty = await screen.findByTestId('empty-state')
+
+    expect(within(empty).getByText(/ops lead, admin, or your stream manager/i)).toBeInTheDocument()
+    expect(within(empty).getByRole('link', { name: /open café item settings/i })).toHaveAttribute('href', '/cafe/items')
+  })
+
+  it('loading uses the page title once, not again inside the loading state', async () => {
+    mockListCafeItemSettings.mockReturnValue(new Promise(() => {}))
+    renderPage()
+    await screen.findByRole('heading', { name: 'Café · Log waste' })
+    expect(screen.getAllByRole('heading', { name: 'Café · Log waste' })).toHaveLength(1)
+  })
+
   it('lists RAW and WIP MOS names with their configured default and shown units', async () => {
     renderPage()
 
-    expect(await screen.findByRole('heading', { name: 'Café · Log waste' })).toBeInTheDocument()
+    expect(await screen.findByText('Oat Latte')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Café · Log waste' })).toBeInTheDocument()
     expect(screen.getByText('WIP', { exact: true })).toBeInTheDocument()
     expect(screen.getByText('Oat Latte')).toBeInTheDocument()
     expect(screen.getByText('RAW', { exact: true })).toBeInTheDocument()
@@ -160,6 +223,24 @@ describe('CafeWastePage', () => {
     expect(screen.getByRole('spinbutton', { name: 'Waste quantity for Oat milk' })).toBeInTheDocument()
     expect(screen.getByText('litre')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Rumah Rames · Bar' })).toBeInTheDocument()
+  })
+
+  it('keeps the missing-item route beside the item controls on a long capture list', async () => {
+    renderPage()
+    const report = await screen.findByRole('button', { name: /missing an item\? report it/i })
+    const firstQuantity = screen.getByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })
+    expect(report.compareDocumentPosition(firstQuantity) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('explains that a quantity unlocks Add photo and removes the hint once entered', async () => {
+    renderPage()
+    const addPhoto = (await screen.findAllByRole('button', { name: 'Add photo' }))[0]!
+    expect(addPhoto).toBeDisabled()
+    expect(screen.getAllByText('Enter a quantity before adding a photo.')).toHaveLength(2)
+
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Waste quantity for Oat Latte' }), { target: { value: '2' } })
+    await waitFor(() => expect(addPhoto).toBeEnabled())
+    expect(screen.getAllByText('Enter a quantity before adding a photo.')).toHaveLength(1)
   })
 
   it('requires an uploaded photo for each staged item, then submits every Draft through the waste RPC', async () => {

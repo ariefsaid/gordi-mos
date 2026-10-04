@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsDesktop } from '@/shell/use-is-desktop'
+import { useIsWide } from '@/shell/use-is-wide'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { useCafeStream } from '@/lib/use-cafe-stream'
 import { canCaptureCafe } from '@/lib/cafe-affiliation'
 import { canPushCafe } from '@/lib/kitchen-gates'
-import { streamKey } from '@/lib/kitchen-action-label'
+import { streamKey, streamLabel } from '@/lib/kitchen-action-label'
 import { listCafeItemSettings, toCafeLogItem } from '@/lib/db/cafe-item-settings'
 import { insertKitchenLog, resolveKitchenBuId } from '@/lib/db/kitchen-logs'
 import { submitKitchenWasteLog } from '@/lib/db/kitchen-waste-photos'
@@ -24,6 +26,7 @@ import {
 } from '@/lib/kitchen-item-list'
 import { kitchenCategoryLabel } from '@/lib/kitchen-category-label'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
+import { ReportMissingItem } from '@/components/kitchen/report-missing-item'
 import { CafeStreamBar, CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
 import { WastePhotoCapture } from '@/components/kitchen/waste-photo-capture'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
@@ -83,6 +86,7 @@ export function CafeWastePage() {
   const t = useT()
   const auth = useAuth()
   const isDesktop = useIsDesktop()
+  const isWide = useIsWide()
   const logDate = useMemo(() => wibToday(), [])
   const pageLabel = t('nav.cafe.waste')
   useDocumentTitle(t('common.docTitle', { page: `${pageLabel} · ${t('nav.cafe')}` }))
@@ -136,10 +140,10 @@ export function CafeWastePage() {
   const [search, setSearch] = useSearchParamState('q', '')
   const [kindFilter, setKindFilter] = useSearchParamState('kind', 'All')
   const [category, setCategory] = useSearchParamState('category', 'All')
-  // Match the shared capture list: desktop kind/category filters are not silently applied to the
-  // compact phone list, even when a viewer arrives through a copied desktop URL.
-  const effectiveKind = isDesktop ? kindFilter as KitchenItemKindFilter : 'All'
-  const effectiveCategory = isDesktop ? category : 'All'
+  // Kind/category controls remain visible on phone, including for receiving-only streams, so
+  // their URL-backed values must filter the compact list just as they do on desktop.
+  const effectiveKind: KitchenItemKindFilter = kindFilter === 'WIP' || kindFilter === 'RAW' ? kindFilter : 'All'
+  const effectiveCategory = category
 
   useEffect(() => {
     const onOnline = () => setIsOnline(true)
@@ -228,6 +232,20 @@ export function CafeWastePage() {
     const quantity = quantityValue(entry?.quantity ?? '')
     return entry && quantity !== null ? [{ item, entry, quantity }] : []
   })
+  const stagedSummary = staged.map(line => {
+    const unit = line.item.units.find(candidate => candidate.id === line.entry.unitId)
+      ?? line.item.units.find(candidate => candidate.id === line.item.defaultUnit.id)
+    return {
+      id: line.item.id,
+      name: line.item.name,
+      quantity: line.quantity,
+      unit: unit ? displayUnit(unit, t) : line.item.defaultUnit.name,
+      submitted: line.entry.submitted,
+    }
+  })
+  const formatWasteQty = (quantity: number) => new Intl.NumberFormat(
+    document.documentElement.lang || 'en', { maximumFractionDigits: 3 },
+  ).format(quantity)
   const remaining = staged.filter(line => !line.entry.submitted)
   const allPhotosReady = remaining.length > 0 && remaining.every(line => line.entry.logId && line.entry.photoReady)
   const allSubmitted = staged.length > 0 && remaining.length === 0
@@ -412,11 +430,12 @@ export function CafeWastePage() {
       meta={<span className="kl-date tabular">{formatWeekdayDayMonth(logDate)}</span>}
       state={state}
     >
-      <div className="kl-page cwl-page">
+      <div className="kl-page cwl-page kl-capture-wide">
+        <div className="kl-capture-main">
         <RouteLeaveGuard when={remaining.length > 0} message={t('kitchen.log.leave.confirm')} />
         {!isOnline && <div role="alert" className="kl-banner kl-banner-offline">{t('kitchen.log.offline.banner')}</div>}
 
-        {loadState === 'loading' && <LoadingShell title={pageTitle} />}
+        {loadState === 'loading' && <LoadingShell />}
         {loadState === 'error' && (
           <ErrorState
             message={t('common.loadFailed', { what: t('common.what.items') })}
@@ -448,9 +467,16 @@ export function CafeWastePage() {
             </div>
             <p className="cwl-help">{t('kitchen.waste.help')}</p>
             {!canCapture && <p className="kl-banner cwl-read-only" role="status">{t('kitchen.waste.readOnly')}</p>}
+            {businessUnitId && canCapture && (
+              <ReportMissingItem stream={stream} streamLabel={streamLabel(t, stream)} />
+            )}
 
             {items.length === 0 ? (
-              <EmptyState variant="blank" title={t('kitchen.waste.empty.title')} copy={t('kitchen.waste.empty.copy')} />
+              <EmptyState variant="blank" title={t('kitchen.waste.empty.title')} copy={t('kitchen.waste.empty.copy')}>
+                <Link to="/cafe/items" className="btn btn-outline btn-touch">
+                  {t('kitchen.log.missing.destination')}
+                </Link>
+              </EmptyState>
             ) : (
               <>
                 <KitchenToolbar
@@ -483,7 +509,7 @@ export function CafeWastePage() {
               </>
             )}
 
-            {items.length > 0 && (
+            {items.length > 0 && !isWide && (
               <div className="kl-footer cwl-footer">
                 {submitError && (
                   <p role="alert" className="kl-submit-outcome kl-submit-outcome--error">{t('kitchen.waste.submitFailed')}</p>
@@ -527,6 +553,51 @@ export function CafeWastePage() {
             )}
           </>
         )}
+        </div>
+        {isWide && loadState === 'ready' && stream && items.length > 0 && (
+          <aside className="kl-capture-summary cwl-summary" aria-label={t('kitchen.log.summary.captureAria')}>
+            <h2>{t('kitchen.log.summary.captureTitle')}</h2>
+            <h3>{t('kitchen.log.summary.entered')}</h3>
+            {stagedSummary.length === 0 ? (
+              <p className="kl-capture-summary__empty">{t('kitchen.log.summary.draftEmpty')}</p>
+            ) : (
+              <ul className="kl-capture-summary__lines" aria-live="polite">
+                {stagedSummary.map(line => (
+                  <li key={line.id}>
+                    <span>{line.name}</span>
+                    <strong className="tabular">{formatWasteQty(line.quantity)} {line.unit}</strong>
+                    {line.submitted && <em>{t('kitchen.waste.itemSubmitted')}</em>}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {submitError && <p role="alert" className="kl-submit-outcome kl-submit-outcome--error">{t('kitchen.waste.submitFailed')}</p>}
+            {submittedCount > 0 && !allSubmitted && (
+              <p role="status" className="kl-submit-outcome">{t('kitchen.waste.partial', { submitted: submittedCount, total: staged.length })}</p>
+            )}
+            {allSubmitted && (
+              <p role="status" aria-live="polite" className="kl-submit-outcome kl-submit-outcome--success">
+                {t(staged.length === 1 ? 'kitchen.waste.success.one' : 'kitchen.waste.success.other', { count: staged.length })}
+              </p>
+            )}
+            {!allPhotosReady && !allSubmitted && staged.length > 0 && <p className="kl-submit-reason">{t('kitchen.waste.photoRequired')}</p>}
+            {!allSubmitted && staged.length === 0 && <p className="kl-submit-reason">{t('kitchen.waste.noItems')}</p>}
+            <div className="kl-capture-summary__actions">
+              {allSubmitted ? (
+                <button type="button" className="btn btn-outline" onClick={startAnotherLog}>{t('kitchen.waste.newLog')}</button>
+              ) : (
+                <button
+                  type="button"
+                  className="btn btn-primary kl-submit"
+                  disabled={!canCapture || !isOnline || submitting || !allPhotosReady}
+                  onClick={() => void handleSubmit()}
+                >
+                  {submitting ? t('common.working') : t('kitchen.waste.submit')}
+                </button>
+              )}
+            </div>
+          </aside>
+        )}
       </div>
     </PageFamilyFrame>
   )
@@ -564,6 +635,8 @@ function WasteItemControls({
   const invalid = isInvalidQuantity(current.quantity)
   const quantity = quantityValue(current.quantity)
   const editable = canCapture && isOnline && !disabled && !locked
+  const needsQuantity = editable && quantity === null
+  const photoHintId = `cafe-waste-photo-hint-${item.id}`
 
   return (
     <div className="cwl-controls">
@@ -614,11 +687,15 @@ function WasteItemControls({
         <button
           type="button"
           className="btn btn-outline cwl-add-photo"
+          aria-describedby={needsQuantity ? photoHintId : undefined}
           disabled={!canCapture || !isOnline || disabled || current.preparing || Boolean(current.logId) || quantity === null}
           onClick={onPrepare}
         >
           {current.preparing ? t('common.working') : t('kitchen.waste.addPhoto')}
         </button>
+      )}
+      {needsQuantity && (
+        <p id={photoHintId} className="cwl-photo-hint">{t('kitchen.waste.quantityBeforePhoto')}</p>
       )}
     </div>
   )

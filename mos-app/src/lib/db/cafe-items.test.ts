@@ -57,6 +57,7 @@ describe('listCafeItemReferences', () => {
     name: 'Flour',
     category: 'Kitchen',
     kind: 'RAW',
+    is_active: true,
     erp_category_type_name: 'Inventory',
     has_active_bom_output: false,
     erp_is_stock: true,
@@ -94,6 +95,7 @@ describe('listCafeItemReferences', () => {
       ['branch_id', 'branch-1'],
       ['activity', 'kitchen'],
       ['kind', 'RAW'],
+      ['is_active', true],
     ])
     expect(recorder.orders).toEqual([
       ['name', { ascending: true }],
