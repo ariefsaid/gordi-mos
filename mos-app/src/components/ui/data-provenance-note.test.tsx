@@ -39,7 +39,7 @@ describe('GUARD #277: formatted values in the provenance note never split across
 
   it('the live note is caller prose, so it carries no value span', () => {
     const { container } = render(
-      <DataProvenanceNote kind="live" show note="ERP inventory not connected yet" />,
+      <DataProvenanceNote kind="live" show note="ESB inventory not connected yet" />,
     )
     expect(container.querySelector('.freshness-label')).not.toBeNull()
     expect(
