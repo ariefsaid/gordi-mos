@@ -261,10 +261,10 @@ function PlanEditor() {
   const [search, setSearch] = useSearchParamState('q', '')
   const [kindFilter, setKindFilter] = useSearchParamState('kind', 'All')
   const [category, setCategory] = useSearchParamState('category', 'All')
-  // Phone omits desktop-only select filters, so a shared desktop URL must not silently
-  // narrow the capture list when those controls are unavailable to clear it.
-  const effectiveKindFilter: KitchenItemKindFilter = isDesktop ? kindFilter as KitchenItemKindFilter : 'All'
-  const effectiveCategory = isDesktop ? category : 'All'
+  // Category/kind selectors remain available on phone; keep their URL-backed filters effective
+  // on receiving-only and editable lists alike.
+  const effectiveKindFilter: KitchenItemKindFilter = kindFilter === 'WIP' ? 'WIP' : 'All'
+  const effectiveCategory = category
   // #401 / DD-WAY-40: the figures band is the Metric summary rule (two numbers for
   // the current movement) — the retired word-tiles are gone. Pure derivation over
   // `cells`.
@@ -309,7 +309,9 @@ function PlanEditor() {
       if (gen !== requestGen.current) return
       // Existing off-list plans remain readable; stream-listed items use their MOS name and
       // ERP-selected default detail from the same reader as Log.
-      const displayItems = withStreamSettings(itemRows, settings)
+      // Without a resolved stream there is no working catalog to plan against. Do not present
+      // the org-wide reference list beside a disabled quantity editor.
+      const displayItems = catalog.stream ? withStreamSettings(itemRows, settings) : []
       setItems(offered ? streamRows(displayItems, offered, planCells) : displayItems)
       setOfferedIds(offered ?? new Set())
       adoptStream(catalog)
@@ -570,23 +572,23 @@ function PlanEditor() {
     <PageFamilyFrame
       family="workspace"
       title={pageTitle}
-      /* #440: the stream this plan is being written INTO, stated in the head and switched
-         there — the same statement-and-switch every other Café surface carries, in the same
-         place. It replaces the shared head's static job sentence (PageHead renders one or the
-         other): which books a planned quantity lands in is what the number means. */
+      /* #440: the stream this plan is being written INTO, stated in the head. Plan's existing
+         Change menu also allows a deliberate working-branch switch; applyStream commits the new
+         branch before re-reading its plan. Capture remains bounded to its active location. */
       statusRow={
         <CafeStreamBar
-          options={locationOptions}
+          options={streamOptions}
           stream={stream}
           homeStream={homeStream}
           myStreamKeys={myStreamKeys}
+          locationBranchId={cafeStream.branchId ?? undefined}
           onChange={next => { void applyStream(next) }}
         />
       }
       meta={
         <span className="kp-date tabular">{formatWeekdayDayMonth(logDate)}</span>
       }
-      state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : streamNonProducing ? 'read-only' : items.length === 0 ? 'empty' : saveError ? 'validation' : savingId ? 'saving' : 'default'}
+      state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : streamMissing ? 'default' : streamNonProducing ? 'read-only' : items.length === 0 ? 'empty' : saveError ? 'validation' : savingId ? 'saving' : 'default'}
     >
       {/* #401 / DD-WAY-40: Plan is an ACT surface — its figures render as the DESIGN.md
           Metric summary rule: one inline line, no card, no width branch, never a tile
@@ -614,7 +616,7 @@ function PlanEditor() {
           caller bypasses the disabled field. */}
       {streamMissing && load.kind === 'ready' && (
         <div className="kp-stream-hint" role="status" aria-live="polite">
-          <p>{t('kitchen.log.stream.missing')}</p>
+          <p>{t('kitchen.plan.stream.missing')}</p>
           <CafeStreamChoices
             options={locationOptions}
             homeStream={homeStream}
@@ -636,7 +638,7 @@ function PlanEditor() {
         />
       )}
 
-      {load.kind === 'ready' && items.length === 0 && (
+      {load.kind === 'ready' && !streamMissing && items.length === 0 && (
         <EmptyState
           variant="blank"
           title={stream ? t('kitchen.streamItems.empty.title', { stream: streamLabel(t, stream) }) : t('kitchen.empty.noActiveItems.title')}
@@ -644,7 +646,7 @@ function PlanEditor() {
         />
       )}
 
-      {load.kind === 'ready' && items.length > 0 && (
+      {load.kind === 'ready' && !streamMissing && items.length > 0 && (
         <div className="kp-block">
           <KitchenToolbar
             search={search}

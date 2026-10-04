@@ -5,9 +5,10 @@ import { I18nProvider } from '@/i18n/I18nProvider'
 import type { AuthState } from '@/auth/context'
 
 vi.mock('@/auth/use-auth')
+const cafeStreamMock = vi.hoisted(() => ({ produces: true }))
 vi.mock('@/lib/use-cafe-stream', () => {
   const branch = { id: 'branch-1', code: 'rumah_rames', name: 'Rumah Rames' }
-  const stream = { branch, activity: 'bar', produces: true }
+  const stream = { branch, activity: 'bar', get produces() { return cafeStreamMock.produces } }
   const catalog = {
     branches: [branch],
     options: [stream],
@@ -123,6 +124,7 @@ function image(name: string) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  cafeStreamMock.produces = true
   setPhoneMatchMedia()
   mockUseAuth.mockReturnValue(VIEWER)
   mockListCafeItemSettings.mockResolvedValue(ITEM_SETTINGS)
@@ -176,10 +178,45 @@ describe('CafeWastePage', () => {
     expect(within(aside).getByRole('button', { name: 'Submit waste' })).toBeDisabled()
   })
 
+  it('receiving-only phone category and kind filters narrow the waste list', async () => {
+    cafeStreamMock.produces = false
+    renderPage()
+    expect(await screen.findByText('Oat Latte')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('combobox', { name: /category/i }))
+    fireEvent.click(await screen.findByRole('option', { name: 'Dairy' }))
+    expect(screen.getByText('Oat milk')).toBeInTheDocument()
+    expect(screen.queryByText('Oat Latte')).toBeNull()
+
+    fireEvent.click(screen.getByRole('combobox', { name: /category/i }))
+    fireEvent.click(await screen.findByRole('option', { name: 'All' }))
+    fireEvent.click(screen.getByRole('combobox', { name: /kind/i }))
+    fireEvent.click(await screen.findByRole('option', { name: 'RAW' }))
+    expect(screen.getByText('Oat milk')).toBeInTheDocument()
+    expect(screen.queryByText('Oat Latte')).toBeNull()
+  })
+
+  it('names the item/unit resolver and links to Café item settings when no item is loggable', async () => {
+    mockListCafeItemSettings.mockResolvedValue([])
+    renderPage()
+    const empty = await screen.findByTestId('empty-state')
+
+    expect(within(empty).getByText(/ops lead, admin, or your stream manager/i)).toBeInTheDocument()
+    expect(within(empty).getByRole('link', { name: /open café item settings/i })).toHaveAttribute('href', '/cafe/items')
+  })
+
+  it('loading uses the page title once, not again inside the loading state', async () => {
+    mockListCafeItemSettings.mockReturnValue(new Promise(() => {}))
+    renderPage()
+    await screen.findByRole('heading', { name: 'Café · Log waste' })
+    expect(screen.getAllByRole('heading', { name: 'Café · Log waste' })).toHaveLength(1)
+  })
+
   it('lists RAW and WIP MOS names with their configured default and shown units', async () => {
     renderPage()
 
-    expect(await screen.findByRole('heading', { name: 'Café · Log waste' })).toBeInTheDocument()
+    expect(await screen.findByText('Oat Latte')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Café · Log waste' })).toBeInTheDocument()
     expect(screen.getByText('WIP', { exact: true })).toBeInTheDocument()
     expect(screen.getByText('Oat Latte')).toBeInTheDocument()
     expect(screen.getByText('RAW', { exact: true })).toBeInTheDocument()

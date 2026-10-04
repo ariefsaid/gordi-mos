@@ -21,6 +21,7 @@
 // scrolls horizontally rather than wrapping, so a catalog longer than the phone is wide
 // still reaches every option with one thumb. Styling: co-located movement-seg.css.
 
+import { useRef, type KeyboardEvent } from 'react'
 import type {
   BranchOption,
   KitchenMovement,
@@ -63,9 +64,29 @@ export function MovementSeg({
   disabled = false,
 }: MovementSegProps) {
   const t = useT()
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([])
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    if (disabled || options.length < 2) return
+    let nextIndex: number | null = null
+    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+      nextIndex = (index + 1) % options.length
+    } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+      nextIndex = (index - 1 + options.length) % options.length
+    } else if (event.key === 'Home') {
+      nextIndex = 0
+    } else if (event.key === 'End') {
+      nextIndex = options.length - 1
+    }
+    if (nextIndex === null) return
+    event.preventDefault()
+    onChange(options[nextIndex])
+    tabRefs.current[nextIndex]?.focus()
+  }
+
   return (
     <div role="tablist" aria-label={t('kitchen.actionType.aria')} className="kms">
-      {options.map((option) => {
+      {options.map((option, index) => {
         const isSelected = movementsEqual(option, value)
         // FR-013: the destination is a branch and only a branch (OD-WAY-44), so from the bar
         // surface and the kitchen surface alike the intra-branch option IS the same catalog
@@ -87,16 +108,19 @@ export function MovementSeg({
         const accessibleName = intra ? `${label} ${qualifier}` : label
         return (
           <button
+            ref={element => { tabRefs.current[index] = element }}
             key={movementKey(option)}
             type="button"
             role="tab"
             aria-label={accessibleName}
             aria-selected={isSelected}
+            tabIndex={isSelected ? 0 : -1}
             disabled={disabled}
             className="kms-tab"
             onClick={() => {
               if (!isSelected) onChange(option)
             }}
+            onKeyDown={event => handleKeyDown(event, index)}
           >
             <span className="kms-full">{label}</span>
             <span className="kms-short" aria-hidden="true">

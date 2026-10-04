@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsDesktop } from '@/shell/use-is-desktop'
@@ -139,10 +140,10 @@ export function CafeWastePage() {
   const [search, setSearch] = useSearchParamState('q', '')
   const [kindFilter, setKindFilter] = useSearchParamState('kind', 'All')
   const [category, setCategory] = useSearchParamState('category', 'All')
-  // Match the shared capture list: desktop kind/category filters are not silently applied to the
-  // compact phone list, even when a viewer arrives through a copied desktop URL.
-  const effectiveKind = isDesktop ? kindFilter as KitchenItemKindFilter : 'All'
-  const effectiveCategory = isDesktop ? category : 'All'
+  // Kind/category controls remain visible on phone, including for receiving-only streams, so
+  // their URL-backed values must filter the compact list just as they do on desktop.
+  const effectiveKind: KitchenItemKindFilter = kindFilter === 'WIP' || kindFilter === 'RAW' ? kindFilter : 'All'
+  const effectiveCategory = category
 
   useEffect(() => {
     const onOnline = () => setIsOnline(true)
@@ -438,7 +439,7 @@ export function CafeWastePage() {
         <RouteLeaveGuard when={remaining.length > 0} message={t('kitchen.log.leave.confirm')} />
         {!isOnline && <div role="alert" className="kl-banner kl-banner-offline">{t('kitchen.log.offline.banner')}</div>}
 
-        {loadState === 'loading' && <LoadingShell title={pageTitle} />}
+        {loadState === 'loading' && <LoadingShell />}
         {loadState === 'error' && (
           <ErrorState
             message={t('common.loadFailed', { what: t('common.what.items') })}
@@ -475,7 +476,11 @@ export function CafeWastePage() {
             )}
 
             {items.length === 0 ? (
-              <EmptyState variant="blank" title={t('kitchen.waste.empty.title')} copy={t('kitchen.waste.empty.copy')} />
+              <EmptyState variant="blank" title={t('kitchen.waste.empty.title')} copy={t('kitchen.waste.empty.copy')}>
+                <Link to="/cafe/items" className="btn btn-outline btn-touch">
+                  {t('kitchen.log.missing.destination')}
+                </Link>
+              </EmptyState>
             ) : (
               <>
                 <KitchenToolbar
