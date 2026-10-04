@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
+import { ModalShell } from '@/components/ui/modal-shell'
 import type { MentionCandidate } from '@/lib/comments/mentions'
 import { SignalMentionPicker, type SignalMentionPickerHandle, type SignalMentionPickerProps } from './signal-mention-picker'
 
@@ -260,6 +261,47 @@ describe('SignalMentionPicker popup relationships', () => {
 
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
     expect(onDismiss).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(onRelationshipChange).toHaveBeenLastCalledWith(null))
+  })
+
+  it('dismisses suggestions when another real control in ModalShell is clicked', async () => {
+    const user = userEvent.setup()
+    const onDismiss = vi.fn()
+    const onClose = vi.fn()
+    const onRelationshipChange = vi.fn()
+    function Harness() {
+      const [open, setOpen] = useState(true)
+      const anchorRef = useRef<HTMLTextAreaElement>(null)
+      const pickerRef = useRef<SignalMentionPickerHandle>(null)
+      return (
+        <ModalShell open onClose={onClose} ariaLabel="Share Signal" initialFocusRef={anchorRef}>
+          <textarea ref={anchorRef} aria-label="Write a Signal" onKeyDown={(event) => pickerRef.current?.handleKeyDown(event)} />
+          {open && <SignalMentionPicker
+            ref={pickerRef}
+            people={people}
+            teams={[]}
+            businessUnits={[]}
+            query=""
+            canMentionBu={false}
+            anchorRef={anchorRef}
+            onRelationshipChange={onRelationshipChange}
+            onSelect={vi.fn()}
+            onDismiss={() => { onDismiss(); setOpen(false) }}
+          />}
+          <input type="time" aria-label="Occurred at" />
+        </ModalShell>
+      )
+    }
+    render(<Harness />)
+    const time = screen.getByLabelText('Occurred at')
+
+    await user.click(time)
+
+    expect(screen.getByRole('dialog', { name: 'Share Signal' })).toBeInTheDocument()
+    expect(time).toHaveFocus()
+    expect(onClose).not.toHaveBeenCalled()
+    expect(onDismiss).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
     await waitFor(() => expect(onRelationshipChange).toHaveBeenLastCalledWith(null))
   })
 

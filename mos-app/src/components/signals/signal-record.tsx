@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
 import { Button } from '@/components/ui/button'
@@ -128,6 +128,7 @@ export function SignalOverflowMenu({
   const rootRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const triggerPointerDownRef = useRef(false)
+  const pendingEntryFocusRef = useRef<'first' | 'last' | null>(null)
 
   useEffect(() => {
     if (!open) return
@@ -164,8 +165,30 @@ export function SignalOverflowMenu({
 
   const menuItems = () => Array.from(rootRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? [])
 
+  useLayoutEffect(() => {
+    if (!open || !pendingEntryFocusRef.current) return
+    const edge = pendingEntryFocusRef.current
+    pendingEntryFocusRef.current = null
+    const items = Array.from(rootRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? [])
+    items[edge === 'last' ? items.length - 1 : 0]?.focus()
+  }, [open])
+
   const onTriggerKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
-    if (!open) return
+    if (!open) {
+      if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
+        pendingEntryFocusRef.current = 'first'
+        if (event.key === 'Enter' || event.key === ' ') return
+        event.preventDefault()
+        setOpen(true)
+        return
+      }
+      if (event.key === 'ArrowUp') {
+        event.preventDefault()
+        pendingEntryFocusRef.current = 'last'
+        setOpen(true)
+      }
+      return
+    }
     if (!['ArrowDown', 'ArrowUp'].includes(event.key)) return
     event.preventDefault()
     const items = menuItems()

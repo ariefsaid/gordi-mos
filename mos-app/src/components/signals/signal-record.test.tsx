@@ -82,7 +82,7 @@ describe('SignalOverflowMenu — nested Escape stays inside the menu', () => {
 })
 
 describe('SignalOverflowMenu — keyboard focus enters available actions', () => {
-  it('moves from a keyboard-activated trigger to the first available action with ArrowDown', async () => {
+  it('opens a closed trigger with ArrowDown and focuses the first available action', async () => {
     wrap(
       <SignalOverflowMenu
         onLinkExistingTask={vi.fn()}
@@ -93,25 +93,43 @@ describe('SignalOverflowMenu — keyboard focus enters available actions', () =>
 
     const trigger = screen.getByRole('button', { name: /more signal actions/i })
     trigger.focus()
-    await userEvent.keyboard('{Enter}')
-
-    expect(screen.getByRole('menu')).toBeInTheDocument()
-    expect(trigger).toHaveFocus()
     await userEvent.keyboard('{ArrowDown}')
 
+    expect(screen.getByRole('menu')).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: /link existing task/i })).toHaveFocus()
   })
 
-  it('moves from the keyboard trigger to the last available action with ArrowUp when Retract is absent', async () => {
+  it('opens a closed trigger with Enter and focuses the first available action', async () => {
     wrap(<SignalOverflowMenu onLinkExistingTask={vi.fn()} onCopyLink={vi.fn()} />)
 
     const trigger = screen.getByRole('button', { name: /more signal actions/i })
     trigger.focus()
     await userEvent.keyboard('{Enter}')
-    expect(screen.queryByRole('menuitem', { name: /retract/i })).not.toBeInTheDocument()
 
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: /link existing task/i })).toHaveFocus()
+  })
+
+  it('opens a closed trigger with Space and focuses the first available action', async () => {
+    wrap(<SignalOverflowMenu onLinkExistingTask={vi.fn()} onCopyLink={vi.fn()} />)
+
+    const trigger = screen.getByRole('button', { name: /more signal actions/i })
+    trigger.focus()
+    await userEvent.keyboard(' ')
+
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: /link existing task/i })).toHaveFocus()
+  })
+
+  it('opens a closed trigger with ArrowUp and focuses the last available action when Retract is absent', async () => {
+    wrap(<SignalOverflowMenu onLinkExistingTask={vi.fn()} onCopyLink={vi.fn()} />)
+
+    const trigger = screen.getByRole('button', { name: /more signal actions/i })
+    trigger.focus()
     await userEvent.keyboard('{ArrowUp}')
 
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: /retract/i })).not.toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: /copy link/i })).toHaveFocus()
   })
 
@@ -148,7 +166,6 @@ describe('SignalOverflowMenu — keyboard focus enters available actions', () =>
     const trigger = screen.getByRole('button', { name: /more signal actions/i })
     trigger.focus()
     await userEvent.keyboard('{Enter}')
-    await userEvent.keyboard('{ArrowDown}')
     expect(screen.getByRole('menuitem', { name: /link existing task/i })).toHaveFocus()
 
     await userEvent.click(trigger)
@@ -157,7 +174,7 @@ describe('SignalOverflowMenu — keyboard focus enters available actions', () =>
     expect(trigger).toHaveFocus()
   })
 
-  it('closes when Tab leaves the still-focused trigger and keeps sequential focus', async () => {
+  it('closes when Tab leaves the still-focused trigger after pointer activation', async () => {
     wrap(
       <>
         <SignalOverflowMenu onLinkExistingTask={vi.fn()} />
@@ -166,8 +183,7 @@ describe('SignalOverflowMenu — keyboard focus enters available actions', () =>
     )
 
     const trigger = screen.getByRole('button', { name: /more signal actions/i })
-    trigger.focus()
-    await userEvent.keyboard('{Enter}')
+    await userEvent.click(trigger)
     expect(screen.getByRole('menu')).toBeInTheDocument()
 
     await userEvent.tab()

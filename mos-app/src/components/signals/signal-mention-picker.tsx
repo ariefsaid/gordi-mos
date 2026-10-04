@@ -59,10 +59,13 @@ export const SignalMentionPicker = forwardRef<SignalMentionPickerHandle, SignalM
     const t = useT()
     const baseId = useId()
     const listboxId = `${baseId}-listbox`
+    const contentRef = useRef<HTMLDivElement | null>(null)
     const listboxRef = useRef<HTMLDivElement | null>(null)
     const optionNodes = useRef(new Map<string, HTMLButtonElement>())
     const relationshipCallback = useRef(onRelationshipChange)
+    const dismissCallback = useRef(onDismiss)
     relationshipCallback.current = onRelationshipChange
+    dismissCallback.current = onDismiss
     const peopleHits = filterMentionCandidates(query, people, GROUP_LIMIT.person)
     const teamHits = filterMentionCandidates(query, teams, GROUP_LIMIT.team)
     const buHits = filterMentionCandidates(query, businessUnits, GROUP_LIMIT.bu)
@@ -99,8 +102,19 @@ export const SignalMentionPicker = forwardRef<SignalMentionPickerHandle, SignalM
           event.stopPropagation()
         }
       }
+      // Radix defers outside pointer dismissal until document click bubble. A containing
+      // ModalShell stops that click, so close here while still letting the click reach its control.
+      const dismissOutsidePointer = (event: globalThis.PointerEvent) => {
+        const target = event.target
+        if (!(target instanceof Node) || target === anchor || contentRef.current?.contains(target)) return
+        dismissCallback.current?.()
+      }
       ownerWindow.addEventListener('keydown', preserveComposingEscape, true)
-      return () => ownerWindow.removeEventListener('keydown', preserveComposingEscape, true)
+      ownerWindow.addEventListener('pointerdown', dismissOutsidePointer, true)
+      return () => {
+        ownerWindow.removeEventListener('keydown', preserveComposingEscape, true)
+        ownerWindow.removeEventListener('pointerdown', dismissOutsidePointer, true)
+      }
     }, [anchorRef])
 
     useEffect(() => () => relationshipCallback.current(null), [])
@@ -167,6 +181,7 @@ export const SignalMentionPicker = forwardRef<SignalMentionPickerHandle, SignalM
         <Popover.Anchor virtualRef={anchorRef} />
         <Popover.Portal>
           <Popover.Content
+            ref={contentRef}
             aria-label={t('signals.mention.pickerLabel')}
             side="bottom"
             align="start"
