@@ -47,11 +47,7 @@ export async function captureStorageState(
   const context = await browser.newContext({ baseURL })
   try {
     const page = await context.newPage()
-    page.on('console', message => { if (message.type() === 'error') console.log(`[auth-console] ${message.text()}`) })
-    page.on('pageerror', error => console.log(`[auth-pageerror] ${error.message}`))
-    page.on('requestfailed', request => console.log(`[auth-request-failed] ${request.url()} ${request.failure()?.errorText}`))
     await page.goto('login')
-    console.log(`[auth-debug] ${page.url()} title=${await page.title()} body=${(await page.locator('body').innerText()).slice(0, 500)}`)
     await page.getByLabel('Email').fill(email)
     await page.getByLabel('Password').fill(password)
     await page.getByRole('button', { name: /sign in/i }).click()
