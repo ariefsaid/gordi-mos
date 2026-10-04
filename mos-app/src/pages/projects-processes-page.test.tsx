@@ -53,10 +53,9 @@ function task(id: string, objectiveId: string | null, workLineId: string | null,
   return {
     id, org_id: 'org-1', title: id, business_unit_id: 'bu-1', status,
     responsible_person_id: 'p1', accountable_person_id: 'p1', consulted_person_ids: [],
-    informed_person_ids: [], description: null, due_date: null,
+    informed_person_ids: [], due_date: null,
     objective_id: objectiveId, work_line_id: workLineId,
     last_activity_at: '2026-07-07T00:00:00Z', archived_at: null, created_by: 'p1',
-    created_at: '2026-07-07T00:00:00Z', updated_at: '2026-07-07T00:00:00Z',
   }
 }
 

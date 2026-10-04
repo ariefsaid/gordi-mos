@@ -178,8 +178,7 @@ describe('useRecordCollection (synced)', () => {
   })
 
   it('replaces its lease when the authenticated read-scope generation changes and preserves the current query', async () => {
-    const descriptor = makeSignalDescriptor()
-    descriptor.loadKeys = []
+    const descriptor = { ...makeSignalDescriptor(), loadKeys: [] }
     const rawRead = vi.fn(async () => ROWS)
     const load = vi.fn(async ({ viewerId, readLease }: Parameters<typeof descriptor.load>[0]) => {
       const records = await readLease!.read('test:signals:scope-generation', rawRead)

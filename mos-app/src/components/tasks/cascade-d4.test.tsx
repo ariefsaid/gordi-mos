@@ -20,7 +20,7 @@ import { MemoryRouter } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
 import type { PeopleRow, RolesRow } from '@/lib/database.types'
-import type { TaskListRow } from '@/lib/db/tasks.types'
+import type { TaskRow } from '@/lib/db/tasks.types'
 import type { BusinessUnitOption, PersonOption } from '@/lib/db/directory'
 import { TaskSurface } from './task-surface'
 
@@ -101,7 +101,7 @@ const WORK_LINES = [
   { id: 'wl-2', name: 'New Menu Design', type: 'project' as const, objective_id: 'obj-2' },
 ]
 
-function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
+function makeTask(overrides: Partial<TaskRow> = {}): TaskRow {
   return {
     id: 'task-abc', org_id: 'org', title: 'Fix the coffee machine',
     business_unit_id: 'bu-1', status: 'Open',

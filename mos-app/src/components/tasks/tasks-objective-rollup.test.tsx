@@ -53,10 +53,8 @@ function makeTask(over: Partial<TaskListRow> & Pick<TaskListRow, 'id' | 'title'>
   return {
     org_id: 'org', business_unit_id: 'bu-1', status: 'Open',
     responsible_person_id: MINE, accountable_person_id: MINE,
-    consulted_person_ids: [], informed_person_ids: [],
-    description: null, due_date: null, objective_id: null, work_line_id: null,
+    consulted_person_ids: [], informed_person_ids: [], due_date: null, objective_id: null, work_line_id: null,
     last_activity_at: '2026-08-01T10:00:00Z', archived_at: null, created_by: MINE,
-    created_at: '2026-08-01T00:00:00Z', updated_at: '2026-08-01T00:00:00Z',
     ...over,
   }
 }
