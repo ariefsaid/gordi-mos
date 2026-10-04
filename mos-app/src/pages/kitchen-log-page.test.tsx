@@ -791,7 +791,7 @@ describe('F3b: disabled Submit shows a note-missing pointer when a variance note
       await Promise.resolve()
     })
     const user = userEvent.setup()
-    const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    const qtyInput = screen.getByRole('spinbutton', { name: /quantity to transfer to radiant for ayam bakar/i })
     await user.click(qtyInput)
     await user.type(qtyInput, '10') // above the 9 available: a stock-cap error, and off plan
     await waitFor(() => {
@@ -829,8 +829,8 @@ describe('AC-022: transfer over-availability rejects submit — "Insufficient st
       await Promise.resolve()
     })
 
-    // The qty input for Ayam Bakar (w1)
-    const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    // The transfer qty input for Ayam Bakar (w1)
+    const qtyInput = screen.getByRole('spinbutton', { name: /quantity to transfer to radiant for ayam bakar/i })
 
     // Type 10 (exceeds tersedia 9) — the value is KEPT (not clamped) and the cue shows
     await act(async () => {
@@ -854,7 +854,7 @@ describe('AC-022: transfer over-availability rejects submit — "Insufficient st
       await Promise.resolve()
     })
 
-    const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    const qtyInput = screen.getByRole('spinbutton', { name: /quantity to transfer to radiant for ayam bakar/i })
     await act(async () => {
       fireEvent.change(qtyInput, { target: { value: '10' } }) // > tersedia 9
       await Promise.resolve()
@@ -879,7 +879,7 @@ describe('AC-022: transfer over-availability rejects submit — "Insufficient st
     // w1: transfer plan 10 (absolute — FR-014 scopes stock subtraction to production);
     // tersedia 9. Log 9 with a note (off-plan 9 != 10 needs a note, but 9 <= tersedia
     // so it's NOT rejected for availability).
-    const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    const qtyInput = screen.getByRole('spinbutton', { name: /quantity to transfer to radiant for ayam bakar/i })
     await act(async () => {
       fireEvent.change(qtyInput, { target: { value: '9' } })
       fireEvent.blur(qtyInput)
@@ -924,7 +924,7 @@ describe('AC-022: transfer over-availability rejects submit — "Insufficient st
       await Promise.resolve()
     })
 
-    const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    const qtyInput = screen.getByRole('spinbutton', { name: /quantity to transfer to radiant for ayam bakar/i })
     // log exactly the plan (10) — on-target, no note, and 10 <= tersedia 12 → no cap
     await act(async () => {
       fireEvent.change(qtyInput, { target: { value: '10' } })
@@ -1412,6 +1412,24 @@ describe('R4 / FR-018: Log summary line', () => {
     expect(screen.queryByRole('button', { name: /^help$/i })).toBeNull()
   })
 
+  it('transfer labels and submitted summary name the destination instead of production', async () => {
+    setDesktopMatchMedia(true)
+    mockFetchActualsMap.mockResolvedValue({ w1: { [TRANSFER_RADIANT_KEY]: 19 } })
+    await renderTransferPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    const tab = screen.getByRole('tab', { name: /transfer to radiant/i })
+    fireEvent.click(tab)
+    const quantity = screen.getByRole('spinbutton', { name: /quantity to transfer to radiant for ayam bakar/i })
+    expect(quantity).toBeInTheDocument()
+
+    const summary = document.querySelector('.msr') as HTMLElement
+    expect(summary.textContent).toMatch(/Transferred\s*19/)
+    expect(summary.textContent).not.toMatch(/Made|Produced/i)
+    expect(screen.getByRole('table', { name: /café transfer/i })).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: /transferred to radiant/i })).toBeInTheDocument()
+  })
+
   it('keeps the summary truthful while a quantity is only staged', async () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
@@ -1435,6 +1453,17 @@ describe('R4 / FR-018: Log summary line', () => {
 
 // task 10b — Planned/Off-plan group split
 describe('OD-K-5: Planned/Off-plan group split (desktop)', () => {
+  it('a receiving-only phone list has no production-capture hint', async () => {
+    mockFetchDefaultStream.mockResolvedValue({ branch: BRANCH_RADIANT, activity: 'kitchen', produces: false })
+    mockListCaptureFormItems.mockResolvedValue(WIP_ITEMS_WITH_OFFPLAN)
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    expect(screen.getByRole('heading', { name: /receiving-only stream/i })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /view café stock/i })).toBeInTheDocument()
+    expect(screen.queryByText(/log as produced/i)).toBeNull()
+  })
+
   it('a planned item lands in Planned; an unplanned one lands in Off-plan', async () => {
     setDesktopMatchMedia(true)
     mockListCaptureFormItems.mockResolvedValue(WIP_ITEMS_WITH_OFFPLAN)
@@ -1511,14 +1540,20 @@ describe('OD-K-5: category filter narrows rows', () => {
     expect(screen.queryByText('Ayam Bakar')).toBeNull()
   })
 
-  it('phone ignores a shared desktop category query so capture rows cannot disappear behind a hidden filter', async () => {
+  it('receiving-only phone category filters narrow rows and can be changed', async () => {
+    mockFetchDefaultStream.mockResolvedValue({ branch: BRANCH_RADIANT, activity: 'kitchen', produces: false })
     mockListCaptureFormItems.mockResolvedValue([
       WIP_ITEMS[0],
       { ...WIP_ITEMS[1], category: 'Rice' },
     ])
     await renderPage(VIEWER_MEMBER, `${appUrl('/cafe')}?category=Main`)
     await waitFor(() => screen.getByText('Ayam Bakar'))
+    expect(screen.getByRole('heading', { name: /receiving-only stream/i })).toBeInTheDocument()
+    expect(screen.queryByText('Nasi Goreng')).toBeNull()
+
+    await chooseCategory('Rice')
     expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
+    expect(screen.queryByText('Ayam Bakar')).toBeNull()
   })
 
   it('ignores a stale RAW filter query on production, where RAW items are unavailable', async () => {
@@ -1939,7 +1974,7 @@ describe('DD-MVP-9: a receiving-only stream remains readable but cannot capture 
 
     expect(within(screen.getByTestId('cafe-stream')).getByText('Radiant · Kitchen')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /receiving-only stream/i })).toBeInTheDocument()
-    expect(screen.getByText(/production capture and planning are unavailable/i)).toBeInTheDocument()
+    expect(screen.getByText(/this stream receives stock.*review its receipts and stock here/i)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /view café stock/i })).toHaveAttribute('href', appUrl('/cafe/stock'))
     expect(screen.getByText('Ayam Bakar')).toBeInTheDocument()
     expect(screen.queryByRole('form', { name: /café log capture/i })).toBeNull()
@@ -2189,7 +2224,7 @@ describe('AC-007: destinations cover both movement classes from both activity su
     // w1: tersedia 9, no plan for this movement → 2 is under the cap and off-plan, so the
     // variance note is required (unchanged gate — an intra-branch movement is a transfer like
     // any other on the way in; what differs is only what dispatch does with it).
-    const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    const qtyInput = screen.getByRole('spinbutton', { name: /quantity to transfer to bungur for ayam bakar/i })
     await act(async () => {
       fireEvent.change(qtyInput, { target: { value: '2' } })
       fireEvent.blur(qtyInput)
@@ -2334,7 +2369,7 @@ describe.skip('issue 586 legacy: cross-action movement switching is replaced by 
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
 
     // Stage again under Transfer, then switch back to Production — the SECOND confirm.
-    const transferInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    const transferInput = screen.getByRole('spinbutton', { name: /quantity to transfer to radiant for ayam bakar/i })
     fireEvent.change(transferInput, { target: { value: '9' } })
     fireEvent.click(screen.getByRole('tab', { name: /^production$/i }))
     dialog = await screen.findByRole('dialog')
@@ -2391,7 +2426,7 @@ describe('transfer capture submit contract', () => {
     fireEvent.click(screen.getByRole('button', { name: /change unit for ayam bakar/i }))
     await userEvent.click(screen.getByRole('combobox', { name: /unit for ayam bakar/i }))
     await userEvent.click(await screen.findByRole('option', { name: 'botol' }))
-    const ayamInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    const ayamInput = screen.getByRole('spinbutton', { name: /quantity to transfer to radiant for ayam bakar/i })
     fireEvent.change(ayamInput, { target: { value: '9' } })
     fireEvent.blur(ayamInput)
     const note = screen.getByRole('textbox', { name: /^note for ayam bakar$/i })

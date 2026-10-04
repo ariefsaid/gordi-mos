@@ -59,18 +59,18 @@ Activities — kitchen and bar** (OD-WAY-26); today it ships only the kitchen ha
 _Avoid_: business unit (that's the owning team), app, module (that's the code)
 
 **Branch**:
-An **inventory-and-accounting context in the ERP** — *not* a physical place, and this distinction is
+An **inventory-and-accounting context in ESB** — *not* a physical place, and this distinction is
 load-bearing. Gordi has **one physical kitchen**; it produces for several branches, and which branch a
-production run belongs to decides whose raw materials are consumed and whose WIP is credited. The ERP
+production run belongs to decides whose raw materials are consumed and whose WIP is credited. ESB
 models each branch as self-contained, **including branches whose kitchen work physically happens
-elsewhere** — so a WIP movement into such a branch has *no ERP counterpart*, because in its books
+elsewhere** — so a WIP movement into such a branch has *no ESB counterpart*, because in its books
 nothing moved.
 
 Branch gets **one canonical catalog** in `shared` in the schema rebuild (OD-WAY-39), and every
-branch-bearing surface links to it. `reporting` rows keep the ERP's `branch_code` text **exactly as
-sent** and carry a *separate, nullable* link beside it — so a branch the ERP adds ingests fine, unlinked,
+branch-bearing surface links to it. `reporting` rows keep ESB's `branch_code` text **exactly as
+sent** and carry a *separate, nullable* link beside it — so a branch ESB adds ingests fine, unlinked,
 and is mapped afterwards. Never constrain the reporting fact rows with a hard reference: that turns a new
-ERP branch into a failed nightly job.
+ESB branch into a failed nightly job.
 _Avoid_: location, outlet, store (all imply place — the place is a constant here); "the kitchen" as a
 branch synonym. **Site is a different term, not a forbidden synonym — see Site.**
 
@@ -85,7 +85,7 @@ _Avoid_: using Site to scope a production record — that axis is the **Producti
 The **(Branch, Activity) pair a production record belongs to** — e.g. `GHQ · kitchen`, `GHQ · bar`,
 `RRS · kitchen`. Three full Branches × two Activities, plus Cikal which takes bar only = **seven streams** (OD-WAY-79), of which two are captured today
 (OD-WAY-42). This is the axis the Café Module is scoped on (OD-WAY-26): it selects the item list,
-the ERP coordinates, and the default a capture surface opens on. **A Team _is_ a stream** — `GHQ ·
+ESB coordinates, and the default a capture surface opens on. **A Team _is_ a stream** — `GHQ ·
 kitchen` and `GHQ · bar` are different teams with different leads — so a person's primary team supplies
 the default (OD-WAY-49). It is a default, **not an access boundary**: they can switch to help another
 branch (OD-WAY-31). Review queues follow the same line, one per stream, with an ops-lead fallback so
@@ -107,22 +107,22 @@ menu-costing/COGS contexts)
 
 **Unit** (of a WIP item):
 **Master data, not an input.** An item is made in one unit, shown fixed beside the quantity box;
-changing it costs a deliberate extra click (OD-WAY-46). The unit is not a MOS label — the ERP
+changing it costs a deliberate extra click (OD-WAY-46). The unit is not a MOS label — ESB
 identifies a *product detail*, meaning **product ＋ unit**, and holds the conversions between an item's
-units. So an item's allowed units are **enumerable from the ERP, never invented in MOS**, and each one
-is a distinct ERP coordinate with its own recipe. This is the answer to *"what stops a wrong unit being
+units. So an item's allowed units are **enumerable from ESB, never invented in MOS**, and each one
+is a distinct ESB coordinate with its own recipe. This is the answer to *"what stops a wrong unit being
 entered"*: in the common case nothing is entered at all.
 _Avoid_: a free unit dropdown on the default path; treating unit as a display label
 
 > **Three traps in this area, all of which have already misled a session:**
-> 1. **A WIP → finished-goods step is not a MOS event.** The ERP's BOM consumes WIP at point of sale.
+> 1. **A WIP → finished-goods step is not a MOS event.** ESB's BOM consumes WIP at point of sale.
 >    Do not model it.
-> 2. **Raw material is never captured either** — it is derived from the ERP recipe (OD-WAY-45). A
+> 2. **Raw material is never captured either** — it is derived from ESB recipe (OD-WAY-45). A
 >    capture surface has **no raw-material input at all**. The check on real usage is inventory
 >    movement plus stocktake, which is why the **stock comparison screen is load-bearing**, not
 >    decoration: it is the only place a real-versus-recipe divergence can surface.
 > 3. **The incumbent kitchen app's stock tab reads "Stok HQ", where "HQ" means *the central
->    kitchen*** — which books to a different branch than the one whose ERP code is `GHQ`. Porting that
+>    kitchen*** — which books to a different branch than the one whose ESB code is `GHQ`. Porting that
 >    label as-is creates a permanent collision.
 
 **Revenue stream**:
@@ -134,7 +134,7 @@ _Avoid_: activity / BU (when grouping revenue), channel (reserve for the POS/B2B
 A **finance/accounting** record, **not** a work item and **not** part of Work (owner, 2026-08-04: *"this
 is not a work/task/process activity from a task management perspective, this is a finance accounting
 activity"*). Scope is the **retail Pending bill stream only** — the B2B AR stream is *not* a problem,
-because the ERP is used exactly as intended there. The job is **reconciliation, not chasing**: knowing
+because ESB is used exactly as intended there. The job is **reconciliation, not chasing**: knowing
 which bills are open and which are closed, which today lives only in a hand-kept finance spreadsheet.
 Deferred until directly after the MVP; the shipped table stays dark and out of #155's rebuild
 (`DD-WAY-16`). The name itself is wrong — "Follow-up" names chasing — and should be replaced with a
@@ -162,7 +162,7 @@ _Avoid_: reminder, chase (as nouns), collection (accounting jargon)
 A **retail** POS sale left unpaid at transaction time — mainly owners and regulars running a tab.
 Distinct from B2B AR (formal invoices). ESB records issuance and aggregate journal reductions only;
 invoice/tab-grain settlement truth is owned by MOS (today: sheets — **porting deferred to directly after
-the MVP**, `OD-WAY-34`). ⚑ **This is the only AR stream MOS addresses.** The ERP is not malfunctioning: a
+the MVP**, `OD-WAY-34`). ⚑ **This is the only AR stream MOS addresses.** ESB is not malfunctioning: a
 sales invoice *is* created and correctly carried as owed, and the deferred-payment method is a deliberate
 local extension for owners and regulars. Only the **closure event at invoice grain** is missing, because
 settlement happens as a ledger entry.
@@ -414,7 +414,7 @@ emitting Module. Distinct from a **Feature** (finer capability *within* a Module
 pre-produce), so both are served by the **Café Module's** pattern — plan → log → stock → review.
 ~~The eventual per-Activity scoping is deliberately deferred.~~ **Superseded 2026-08-03 by OD-WAY-26 /
 OD-WAY-25:** per-**Production stream** scoping is now **in MVP scope**, because the bar streams are
-where the business is actually losing money — they reach the ERP by hand today, and the retyping step
+where the business is actually losing money — they reach ESB by hand today, and the retyping step
 is the failure. The deferral's *reason* still binds, though, and is now the constraint on how it lands:
 **you do not disrupt an incumbent team's established UX for model-purity.** The two streams the
 incumbent app already serves keep their exact behaviour (OD-K-1 parity is behavioural), while the model

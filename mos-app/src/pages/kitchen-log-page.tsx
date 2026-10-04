@@ -45,6 +45,7 @@ import type {
   StockMap,
 } from '@/lib/db/kitchen-logs.types'
 import {
+  branchDisplayName,
   deriveActionLabel,
   movementKey,
   movementsForStream,
@@ -321,16 +322,15 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   const [search, setSearch] = useSearchParamState('q', '')
   const [kindFilter, setKindFilter] = useSearchParamState('kind', 'All')
   const [category, setCategory] = useSearchParamState('category', 'All')
-  // Category/kind selects are desktop-only. A deep link from desktop must not silently
-  // narrow the phone capture list when the filter controls are unavailable to clear it.
-  // RAW is only a valid filter for Transfer; ignore stale/deep-linked RAW filters on production.
+  // The category/kind selectors remain available on phone, so their URL-backed values must
+  // filter the same receiving and capture rows at every width. RAW is only valid for Transfer.
   const requestedKindFilter = kindFilter as KitchenItemKindFilter
   const supportedKindFilter = requestedKindFilter === 'All' || requestedKindFilter === 'WIP'
     || (mode === 'transfer' && requestedKindFilter === 'RAW')
     ? requestedKindFilter
     : 'All'
-  const effectiveKindFilter: KitchenItemKindFilter = isDesktop ? supportedKindFilter : 'All'
-  const effectiveCategory = isDesktop ? category : 'All'
+  const effectiveKindFilter: KitchenItemKindFilter = supportedKindFilter
+  const effectiveCategory = category
   const filterRows = useMemo(
     () => toKitchenListRows(wipItems, {
       kind: 'WIP',
@@ -358,7 +358,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   const groups = kitchenDataTableGroups(
     itemTable,
     groupKey => groupKey === 'planned' ? t('kitchen.log.group.planned') : t('kitchen.log.group.offplan'),
-    groupKey => groupKey === 'offplan' && mode === 'production'
+    groupKey => groupKey === 'offplan' && mode === 'production' && !streamNonProducing
       ? { hint: t('kitchen.log.group.offplan.hint') }
       : undefined,
   ).sort((a, b) => (a.key === 'planned' ? -1 : b.key === 'planned' ? 1 : 0))
@@ -379,9 +379,22 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   const hasSubmittedActuals = Object.values(actualsMap).some(
     itemActuals => (itemActuals[movementKey(movement)] ?? 0) > 0,
   )
+  const transferDestination = movement.action === 'transfer'
+    ? branches.find(branch => branch.id === movement.destinationBranchId)
+    : undefined
+  const transferDestinationName = transferDestination
+    ? branchDisplayName(transferDestination)
+    : movement.action === 'transfer' ? t('kitchen.actionType.transferTo.fallback') : null
+  const summaryAriaLabel = mode === 'transfer'
+    ? t('kitchen.transfer.summary.aria', { branch: transferDestinationName ?? t('kitchen.actionType.transferTo.fallback') })
+    : t('kitchen.log.summary.aria')
   const summaryMetrics = [
     { key: 'plan', label: t('kitchen.log.summary.plan'), value: String(kpis.plannedTotal) },
-    { key: 'made', label: t('kitchen.log.summary.made'), value: String(kpis.madeSoFar) },
+    {
+      key: 'made',
+      label: mode === 'transfer' ? t('kitchen.transfer.summary.quantity') : t('kitchen.log.summary.made'),
+      value: String(kpis.madeSoFar),
+    },
     {
       key: 'off-plan',
       label: t('kitchen.log.summary.offPlan'),
@@ -943,7 +956,9 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     },
     {
       key: 'made',
-      header: t('kitchen.log.col.made'),
+      header: mode === 'transfer'
+        ? t('kitchen.transfer.col.quantity', { branch: transferDestinationName ?? t('kitchen.actionType.transferTo.fallback') })
+        : t('kitchen.log.col.made'),
       // The reused WipItemStepper (SAME props/handlers as the prior phone card):
       // name + stepper + plan/stok/tersedia meta + cap cue + variance-note gate.
       // cafe-3: dense on the desktop table row (drops the bordered/full-width card
@@ -954,6 +969,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
           itemName={item.name}
           line={lines[item.id]}
           movement={movement}
+          destinationName={transferDestinationName ?? undefined}
           alreadyLogged={actualsMap[item.id]?.[movementKey(movement)] ?? 0}
           onQtyChange={qty => handleQtyChange(item.id, qty)}
           onNotesChange={note => handleNotesChange(item.id, note)}
@@ -1019,7 +1035,9 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     },
     {
       key: 'made',
-      header: t('kitchen.log.col.made'),
+      header: mode === 'transfer'
+        ? t('kitchen.transfer.col.quantity', { branch: transferDestinationName ?? t('kitchen.actionType.transferTo.fallback') })
+        : t('kitchen.log.col.made'),
       numeric: true,
       render: item => actualsMap[item.id]?.[movementKey(movement)] ?? 0,
     },
@@ -1065,6 +1083,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
             itemName={item.name}
             line={line}
             movement={movement}
+            destinationName={transferDestinationName ?? undefined}
             alreadyLogged={actualsMap[item.id]?.[movementKey(movement)] ?? 0}
             onQtyChange={qty => handleQtyChange(item.id, qty)}
             onNotesChange={note => handleNotesChange(item.id, note)}
@@ -1143,7 +1162,11 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       isDesktop={isDesktop}
       state={visibleItems.length > 0 ? 'ready' : 'empty'}
       emptyLabel={t('kitchen.filter.noMatch')}
-      caption={streamNonProducing ? t('kitchen.stream.receivingOnly.logCaption') : t('kitchen.log.caption')}
+      caption={streamNonProducing
+        ? mode === 'transfer' ? t('kitchen.transfer.receivingCaption') : t('kitchen.stream.receivingOnly.logCaption')
+        : mode === 'transfer'
+          ? t('kitchen.transfer.caption', { branch: transferDestinationName ?? t('kitchen.actionType.transferTo.fallback') })
+          : t('kitchen.log.caption')}
     />
   )
 
@@ -1176,7 +1199,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
             {status.kind === 'ready' && stream !== null && wipItems.length > 0 && transferDestinationChosen && (
               <div className="kl-context-summary kl-inline-summary">
                 <MetricSummaryRule
-                  ariaLabel={t('kitchen.log.summary.aria')}
+                  ariaLabel={summaryAriaLabel}
                   metrics={summaryMetrics}
                   variant="inline"
                 />
@@ -1187,7 +1210,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
           status.kind === 'ready' && stream !== null && wipItems.length > 0 && transferDestinationChosen && (
             <div className="kl-inline-summary">
               <MetricSummaryRule
-                ariaLabel={t('kitchen.log.summary.aria')}
+                ariaLabel={summaryAriaLabel}
                 metrics={summaryMetrics}
               />
             </div>
@@ -1405,7 +1428,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
             <h2>{t('kitchen.log.summary.captureTitle')}</h2>
             {status.kind === 'ready' && transferDestinationChosen && (
               <MetricSummaryRule
-                ariaLabel={t('kitchen.log.summary.aria')}
+                ariaLabel={summaryAriaLabel}
                 metrics={summaryMetrics}
                 variant="inline"
               />

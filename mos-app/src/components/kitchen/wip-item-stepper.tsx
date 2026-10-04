@@ -25,6 +25,8 @@ interface WipItemStepperProps {
   line: KitchenLogLine
   /** current movement — drives whether the tersedia meta is shown (transfers only) */
   movement: KitchenMovement
+  /** destination branch name for a transfer quantity's accessible label */
+  destinationName?: string
   onQtyChange: (qty: number) => void
   onNotesChange: (note: string) => void
   disabled?: boolean
@@ -55,6 +57,7 @@ export function WipItemStepper({
   itemName,
   line,
   movement,
+  destinationName,
   onQtyChange,
   onNotesChange,
   disabled = false,
@@ -144,7 +147,12 @@ export function WipItemStepper({
         <input
           type="number"
           inputMode="decimal"
-          aria-label={t('kitchen.qty.producedAria', { item: itemName })}
+          aria-label={transfer
+            ? t('kitchen.qty.transferAria', {
+              branch: destinationName ?? t('kitchen.actionType.transferTo.fallback'),
+              item: itemName,
+            })
+            : t('kitchen.qty.producedAria', { item: itemName })}
           className="kls-qty"
           value={qty_porsi > 0 ? qty_porsi : ''}
           placeholder={alreadyLogged > 0 ? '' : planQty > 0 ? String(planQty) : '0'}
