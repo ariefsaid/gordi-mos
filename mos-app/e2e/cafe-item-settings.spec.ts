@@ -147,7 +147,7 @@ async function mockSettingsApi(page: Page, overrides: Partial<SettingsMocks> = {
       body: JSON.stringify(state.reports.filter(report => report.needs_attention)),
     })
   })
-  await page.route('**/rest/v1/rpc/can_manage_cafe_item_settings', async route => {
+  await page.route('**/rest/v1/rpc/can_manage_cafe_item_settings*', async route => {
     if (state.permissionError) {
       await route.fulfill({
         status: 500,
