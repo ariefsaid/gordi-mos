@@ -3,8 +3,10 @@
 // locale (wib-time, plan-budget shortDate) while task-formatters was locale-aware
 // — one date grammar, three implementations. This locks the canonical output and
 // the locale seam (a param, falling back to the non-React readPersistedLocale()).
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { formatWeekdayDayMonth, formatDayMonthYear, formatWibDateTime, dateLocaleTag } from './date'
+
+afterEach(() => vi.unstubAllEnvs())
 
 describe('formatWeekdayDayMonth — "Wed 12 Jun" from a YYYY-MM-DD date', () => {
   it('formats en (en-GB grammar) by default', () => {
@@ -20,13 +22,27 @@ describe('formatWeekdayDayMonth — "Wed 12 Jun" from a YYYY-MM-DD date', () => 
 
 describe('formatDayMonthYear — "12 Jun 2026" from an ISO timestamp', () => {
   it('formats en by default', () => {
+    vi.stubEnv('TZ', 'UTC')
     expect(formatDayMonthYear('2026-06-12T03:00:00Z')).toBe('12 Jun 2026')
   })
   it('is locale-aware via the param (id)', () => {
+    vi.stubEnv('TZ', 'UTC')
     expect(formatDayMonthYear('2026-06-12T03:00:00Z', 'id')).toBe('12 Jun 2026')
   })
   it('returns the raw input for an unparseable date', () => {
     expect(formatDayMonthYear('nope')).toBe('nope')
+  })
+
+  it('keeps a date-only ISO value on its calendar day in a western device zone', () => {
+    vi.stubEnv('TZ', 'America/Los_Angeles')
+    expect(formatDayMonthYear('2026-10-05', 'en')).toBe('5 Oct 2026')
+    expect(formatDayMonthYear('2026-10-05', 'id')).toBe('5 Okt 2026')
+  })
+
+  it('keeps timestamp formatting in the device zone', () => {
+    vi.stubEnv('TZ', 'America/Los_Angeles')
+    expect(formatDayMonthYear('2026-10-05T01:30:00Z', 'en')).toBe('4 Oct 2026')
+    expect(formatDayMonthYear('2026-10-05T01:30:00Z', 'id')).toBe('4 Okt 2026')
   })
 })
 

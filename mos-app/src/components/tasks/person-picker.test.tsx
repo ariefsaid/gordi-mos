@@ -1,5 +1,6 @@
+import { createRef } from 'react'
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { PersonPicker } from './person-picker'
 import type { PersonOption } from '@/lib/db/directory'
@@ -15,6 +16,7 @@ describe('PersonPicker', () => {
     render(<div data-testid="host"><PersonPicker people={people} onSelect={vi.fn()} onClose={vi.fn()} /></div>)
     const content = screen.getByRole('listbox').closest('.person-picker')
     expect(content).not.toBeNull()
+    expect(screen.getByRole('dialog', { name: 'Select person' })).toBeInTheDocument()
     expect(screen.getByTestId('host')).not.toContainElement(content as HTMLElement)
     expect(content?.closest('[data-radix-popper-content-wrapper]')).not.toBeNull()
   })
@@ -140,15 +142,15 @@ describe('PersonPicker mention use', () => {
     expect(alan).toHaveAttribute('aria-selected', 'true')
     expect(box).toHaveFocus()
     // Focus stays in the textarea, so it carries the listbox relationship for assistive tech.
-    expect(box).toHaveAttribute('role', 'combobox')
+    expect(box.tagName).toBe('TEXTAREA')
+    expect(box).not.toHaveAttribute('role', 'combobox')
     expect(box).toHaveAttribute('aria-autocomplete', 'list')
-    expect(box).toHaveAttribute('aria-expanded', 'true')
     expect(box).toHaveAttribute('aria-controls', screen.getByRole('listbox').id)
     expect(box).toHaveAttribute('aria-activedescendant', alan.id)
     // The record panel host ignores an Escape whose target sits in a nested layer.
     expect(box.closest('[data-escape-layer="nested"]')).toBe(box)
     await user.keyboard('{Enter}')
-    for (const name of ['role', 'aria-autocomplete', 'aria-expanded', 'aria-controls', 'aria-activedescendant', 'data-escape-layer']) {
+    for (const name of ['aria-autocomplete', 'aria-controls', 'aria-activedescendant', 'data-escape-layer']) {
       expect(box).not.toHaveAttribute(name)
     }
     expect(box).toHaveFocus()
@@ -167,5 +169,140 @@ describe('PersonPicker mention use', () => {
     expect(screen.queryByRole('listbox')).toBeNull()
     expect(box).toHaveValue('Hey @al')
     expect(box).toHaveFocus()
+  })
+
+  it('reveals the active comment mention inside its list viewport', async () => {
+    const { CommentThread } = await import('./CommentThread')
+    const user = userEvent.setup()
+    render(<CommentThread comments={[]} people={people} canPost onPost={vi.fn()} />)
+    const box = screen.getByRole('textbox', { name: /comment/i })
+    await user.click(box)
+    await user.keyboard('@')
+
+    const list = document.querySelector<HTMLElement>('.person-picker-list')!
+    const [ada, alan] = screen.getAllByRole('option')
+    const rect = (top: number, bottom: number) => ({ top, bottom, left: 0, right: 240, width: 240, height: bottom - top, x: 0, y: top, toJSON: () => ({}) })
+    vi.spyOn(list, 'getBoundingClientRect').mockReturnValue(rect(100, 180) as DOMRect)
+    vi.spyOn(ada, 'getBoundingClientRect').mockReturnValue(rect(110, 140) as DOMRect)
+    vi.spyOn(alan, 'getBoundingClientRect').mockReturnValue(rect(170, 200) as DOMRect)
+
+    await user.keyboard('{ArrowDown}')
+
+    expect(alan).toHaveAttribute('aria-selected', 'true')
+    await waitFor(() => expect(list.scrollTop).toBe(20))
+    expect(box).toHaveFocus()
+  })
+
+  it('keeps attached mention suggestions open when the driver is clicked again', async () => {
+    const { CommentThread } = await import('./CommentThread')
+    const user = userEvent.setup()
+    render(<CommentThread comments={[]} people={people} canPost onPost={vi.fn()} />)
+    const box = screen.getByRole('textbox', { name: /comment/i })
+    await user.click(box)
+    await user.keyboard('@')
+
+    await user.click(box)
+
+    expect(screen.getByRole('listbox')).toBeInTheDocument()
+    expect(box).toHaveFocus()
+  })
+
+  it('leaves navigation and Enter to the active IME composition', async () => {
+    const { CommentThread } = await import('./CommentThread')
+    const user = userEvent.setup()
+    render(<CommentThread comments={[]} people={people} canPost onPost={vi.fn()} />)
+    const box = screen.getByRole('textbox', { name: /comment/i })
+    await user.click(box)
+    await user.keyboard('@')
+    const ada = screen.getByRole('option', { name: /ada lovelace/i })
+
+    fireEvent.keyDown(box, { key: 'ArrowDown', isComposing: true })
+    fireEvent.keyDown(box, { key: 'Enter', isComposing: true })
+
+    expect(ada).toHaveAttribute('aria-selected', 'true')
+    expect(box).toHaveValue('@')
+    expect(box).toHaveFocus()
+    expect(screen.getByRole('listbox')).toBeInTheDocument()
+  })
+
+  it('does not consume an IME Escape while the attached picker is open', async () => {
+    const { CommentThread } = await import('./CommentThread')
+    const user = userEvent.setup()
+    render(<CommentThread comments={[]} people={people} canPost onPost={vi.fn()} />)
+    const box = screen.getByRole('textbox', { name: /comment/i })
+    await user.click(box)
+    await user.keyboard('@')
+
+    fireEvent.keyDown(box, { key: 'Escape', isComposing: true })
+
+    expect(screen.getByRole('listbox')).toBeInTheDocument()
+    expect(box).toHaveValue('@')
+    expect(box).toHaveFocus()
+  })
+
+  it('preserves the native default for a composing Escape in the attached picker', async () => {
+    const { CommentThread } = await import('./CommentThread')
+    const user = userEvent.setup()
+    const hostEscape = vi.fn()
+    render(
+      <div onKeyDown={(event) => { if (event.key === 'Escape') hostEscape() }}>
+        <CommentThread comments={[]} people={people} canPost onPost={vi.fn()} />
+      </div>,
+    )
+    const box = screen.getByRole('textbox', { name: /comment/i })
+    await user.click(box)
+    await user.keyboard('@')
+
+    const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true, isComposing: true })
+    box.dispatchEvent(event)
+
+    expect(screen.getByRole('listbox')).toBeInTheDocument()
+    expect(hostEscape).not.toHaveBeenCalled()
+    expect(box).toHaveFocus()
+    expect(event.defaultPrevented).toBe(false)
+  })
+
+  it('treats the legacy 229 key code as an active composition in attached mode', async () => {
+    const { CommentThread } = await import('./CommentThread')
+    const user = userEvent.setup()
+    render(<CommentThread comments={[]} people={people} canPost onPost={vi.fn()} />)
+    const box = screen.getByRole('textbox', { name: /comment/i })
+    await user.click(box)
+    await user.keyboard('@')
+
+    fireEvent.keyDown(box, { key: 'Enter', keyCode: 229 })
+
+    expect(screen.getByRole('listbox')).toBeInTheDocument()
+    expect(box).toHaveValue('@')
+    expect(box).toHaveFocus()
+  })
+
+  it('restores existing textbox relationships and leaves its native role alone when the attached picker closes', async () => {
+    const anchorRef = createRef<HTMLTextAreaElement>()
+    const initial = {
+      'aria-autocomplete': 'inline',
+      'aria-controls': 'existing-list',
+      'aria-activedescendant': 'existing-option',
+      'data-escape-layer': 'outer',
+    } as const
+    const { rerender } = render(
+      <>
+        <textarea ref={anchorRef} aria-label="Comment" {...initial} />
+        <PersonPicker people={people} anchorRef={anchorRef} query="" onSelect={vi.fn()} onClose={vi.fn()} />
+      </>,
+    )
+    const box = screen.getByRole('textbox', { name: 'Comment' })
+    await waitFor(() => expect(box).toHaveAttribute('aria-controls', screen.getByRole('listbox').id))
+    expect(box).not.toHaveAttribute('role', 'combobox')
+    expect(box).toHaveAttribute('aria-autocomplete', 'list')
+    expect(box).toHaveAttribute('data-escape-layer', 'nested')
+
+    rerender(<textarea ref={anchorRef} aria-label="Comment" {...initial} />)
+
+    expect(box).not.toHaveAttribute('role', 'combobox')
+    expect(box).toHaveAttribute('aria-autocomplete', 'inline')
+    expect(box).toHaveAttribute('aria-controls', 'existing-list')
+    expect(box).toHaveAttribute('aria-activedescendant', 'existing-option')
+    expect(box).toHaveAttribute('data-escape-layer', 'outer')
   })
 })

@@ -7,6 +7,7 @@ const windowSelectorCss = readFileSync(resolve(process.cwd(), 'src/components/da
 const cutToggleCss = readFileSync(resolve(process.cwd(), 'src/components/dashboard/cut-toggle.css'), 'utf8')
 const textInputCss = readFileSync(resolve(process.cwd(), 'src/components/ui/TextInput.css'), 'utf8')
 const selectCss = readFileSync(resolve(process.cwd(), 'src/components/ui/Select.css'), 'utf8')
+const pickerCss = readFileSync(resolve(process.cwd(), 'src/components/ui/Picker.css'), 'utf8')
 const dateFieldCss = readFileSync(resolve(process.cwd(), 'src/components/ui/DateField.css'), 'utf8')
 const taskSurfaceCss = readFileSync(resolve(process.cwd(), 'src/components/tasks/TaskSurface.css'), 'utf8')
 // SYS-2 (census DO-3): the phone-floor guard was a hard-coded selector list, so every SYS-2
@@ -116,6 +117,22 @@ describe('B-i: phone tap-target floor is encoded in shared CSS', () => {
     const body = mediaBody(taskSurfaceCss, '@media (max-width: 767.98px)')
     expect(body).toMatch(/\.tc-textarea[\s\S]*min-height:\s*44px/)
     expect(body).toMatch(/\.tc-loading-field[\s\S]*min-height:\s*44px/)
+  })
+
+  it('Issue 1290: keeps the companion Create Task picker trigger at 44px on phone over the shared Picker rule', () => {
+    const desktopRule = taskSurfaceCss.match(/(\.tc-picker\s+\.picker__trigger)\s*\{([^}]+)\}/)
+    const phone = mediaBody(taskSurfaceCss, '@media (max-width: 767.98px)')
+    const phoneRule = phone.match(/(^|\n)\s*(\.tc-picker\s+\.picker__trigger)\s*\{([^}]+)\}/)
+    const sharedRule = pickerCss.match(/(\.picker__trigger)\s*\{([^}]+)\}/)
+
+    expect(desktopRule).not.toBeNull()
+    expect(phoneRule).not.toBeNull()
+    expect(sharedRule).not.toBeNull()
+    expect(desktopRule?.[2]).toMatch(/height:\s*36px/)
+    expect(phoneRule![3]).toMatch(/min-height:\s*44px/)
+    expect(phoneRule![3]).toMatch(/height:\s*44px/)
+    expect(phoneRule![2].match(/\.[\w-]+/g)).toHaveLength(2)
+    expect(sharedRule![1].match(/\.[\w-]+/g)).toHaveLength(1)
   })
 
   // ── SYS-2 (census DO-3): the surfaces the hard-coded list never scanned ──────────────────────

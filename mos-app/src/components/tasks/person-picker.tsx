@@ -18,6 +18,15 @@ export type PersonPickerProps = {
   query?: string
 }
 
+const ATTACHED_RELATIONSHIP_ATTRIBUTES = ['aria-autocomplete', 'aria-controls', 'aria-activedescendant', 'data-escape-layer'] as const
+
+function revealWithinList(list: HTMLElement, option: HTMLElement) {
+  const listBounds = list.getBoundingClientRect()
+  const optionBounds = option.getBoundingClientRect()
+  if (optionBounds.top < listBounds.top) list.scrollTop -= listBounds.top - optionBounds.top
+  else if (optionBounds.bottom > listBounds.bottom) list.scrollTop += optionBounds.bottom - listBounds.bottom
+}
+
 export function PersonPicker({ people, onSelect, onClose, exclude = [], anchorRef, query }: PersonPickerProps) {
   const t = useT()
   const available = people.filter(person => !exclude.includes(person.id))
@@ -53,7 +62,14 @@ export function PersonPicker({ people, onSelect, onClose, exclude = [], anchorRe
   useEffect(() => {
     const anchor = attached ? anchorRef?.current : null
     if (!anchor) return
+    const ownerWindow = anchor.ownerDocument.defaultView
+    const preserveComposingEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.target === anchor && event.key === 'Escape' && (event.isComposing || event.keyCode === 229)) {
+        event.stopPropagation()
+      }
+    }
     const onKey = (event: KeyboardEvent) => {
+      if (event.isComposing || event.keyCode === 229) return
       const { visible: list, activeId: current } = keyState.current
       if (list.length === 0) return
       const index = list.findIndex(person => person.id === current)
@@ -70,8 +86,12 @@ export function PersonPicker({ people, onSelect, onClose, exclude = [], anchorRe
       event.preventDefault()
       setActive(list[next].id)
     }
+    ownerWindow?.addEventListener('keydown', preserveComposingEscape, true)
     anchor.addEventListener('keydown', onKey)
-    return () => anchor.removeEventListener('keydown', onKey)
+    return () => {
+      ownerWindow?.removeEventListener('keydown', preserveComposingEscape, true)
+      anchor.removeEventListener('keydown', onKey)
+    }
   }, [attached, anchorRef])
 
   // Attached mode keeps focus in the anchor, so the anchor carries the combobox relationship
@@ -81,32 +101,36 @@ export function PersonPicker({ people, onSelect, onClose, exclude = [], anchorRe
   useEffect(() => {
     const anchor = attached ? anchorRef?.current : null
     if (!anchor || !content) return
+    const previousAttributes = new Map(ATTACHED_RELATIONSHIP_ATTRIBUTES.map(name => [name, anchor.getAttribute(name)]))
     const sync = () => {
       const list = content.querySelector('[cmdk-list]')
       const option = content.querySelector('[cmdk-item][aria-selected="true"]')
-      if (list) anchor.setAttribute('aria-controls', list.id)
-      if (option) anchor.setAttribute('aria-activedescendant', option.id)
+      if (list?.id) anchor.setAttribute('aria-controls', list.id)
+      else anchor.removeAttribute('aria-controls')
+      if (option?.id) anchor.setAttribute('aria-activedescendant', option.id)
       else anchor.removeAttribute('aria-activedescendant')
+      if (list instanceof HTMLElement && option instanceof HTMLElement) revealWithinList(list, option)
     }
-    // While open, the anchor is the combobox and a nested Escape layer: focus never leaves it, so an
-    // overlay host that checks the Escape target must see the layer on the anchor, not the popup.
-    const previousRole = anchor.getAttribute('role')
-    anchor.setAttribute('role', 'combobox')
+    // Keep the native textarea textbox semantics; only add the list relationship and nested Escape layer.
     anchor.setAttribute('aria-autocomplete', 'list')
-    anchor.setAttribute('aria-expanded', 'true')
     anchor.setAttribute('data-escape-layer', 'nested')
     sync()
     const observer = new MutationObserver(sync)
     observer.observe(content, { subtree: true, childList: true, attributes: true, attributeFilter: ['aria-selected'] })
     return () => {
       observer.disconnect()
-      if (previousRole === null) anchor.removeAttribute('role')
-      else anchor.setAttribute('role', previousRole)
-      for (const name of ['aria-autocomplete', 'aria-expanded', 'aria-activedescendant', 'aria-controls', 'data-escape-layer']) {
-        anchor.removeAttribute(name)
+      for (const [name, value] of previousAttributes) {
+        if (value === null) anchor.removeAttribute(name)
+        else anchor.setAttribute(name, value)
       }
     }
   }, [attached, anchorRef, content])
+
+  useEffect(() => {
+    const list = content?.querySelector<HTMLElement>('[cmdk-list]')
+    const option = content?.querySelector<HTMLElement>('[cmdk-item][aria-selected="true"]')
+    if (list && option && list.contains(option)) revealWithinList(list, option)
+  }, [activeId, content, visible])
 
   return (
     <Popover.Root open onOpenChange={(next) => { if (!next) onClose() }}>
@@ -120,8 +144,11 @@ export function PersonPicker({ people, onSelect, onClose, exclude = [], anchorRe
           collisionPadding={12}
           data-escape-layer="nested"
           className="person-picker"
+          aria-label={t('tasks.people.select')}
           onOpenAutoFocus={(event) => event.preventDefault()}
           onCloseAutoFocus={(event) => event.preventDefault()}
+          onPointerDownOutside={(event) => { if (attached && event.target === anchorRef?.current) event.preventDefault() }}
+          onFocusOutside={(event) => { if (attached && event.target === anchorRef?.current) event.preventDefault() }}
           onEscapeKeyDown={(event) => event.preventDefault()}
         >
           <Command
