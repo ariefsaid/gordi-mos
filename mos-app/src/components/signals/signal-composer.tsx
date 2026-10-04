@@ -7,6 +7,7 @@ import {
   listAllTeams, createSignal, dedupeRecipients, type MemberLookup,
 } from '@/lib/db/signals'
 import type { TeamOption, StagedMention, MentionKind, Attention } from '@/lib/db/signals.types'
+import { CloseIcon } from '@/shell/icons'
 import type { SignalComposerPrefill } from '@/shell/signal-composer-host'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 import { MAX_SIGNAL_PHOTOS, uploadSignalPhotos } from '@/lib/db/signal-photos'
@@ -304,9 +305,7 @@ export function SignalComposer({
                     disabled={posting || !!sharedId}
                     onClick={() => removeMention(mention)}
                   >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-                      <path d="M18 6 6 18M6 6l12 12" />
-                    </svg>
+                    <CloseIcon size={14} />
                   </button>
                 </li>
               )
