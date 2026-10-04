@@ -271,6 +271,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   const [planMap, setPlanMap] = useState<PlanMap>({})
   const [stockMap, setStockMap] = useState<StockMap>({})
   const [actualsMap, setActualsMap] = useState<ActualsMap>({})
+  const [summaryCountsAvailable, setSummaryCountsAvailable] = useState(false)
   const [buId, setBuId] = useState('')
   const [lines, setLines] = useState<Record<string, KitchenLogLine>>({})
   const [status, setStatus] = useState<PageStatus>({ kind: 'loading' })
@@ -370,6 +371,17 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       value: String(kpis.offPlanItemCount),
     },
   ]
+  const displayedSummaryMetrics = summaryCountsAvailable
+    ? summaryMetrics
+    : summaryMetrics.map(metric => ({ ...metric, value: '—' }))
+  const renderSummarySupport = () => (
+    <>
+      <p className="kl-summary-scope">{t('kitchen.log.summary.scopeHint')}</p>
+      {!summaryCountsAvailable && (
+        <p role="status" className="kl-summary-unavailable">{t('kitchen.log.summary.unavailable')}</p>
+      )}
+    </>
+  )
 
   // Stale-response guard: every read bumps the generation, and only the LATEST
   // generation's result may land. Without this, two rapid stream switches can resolve
@@ -405,6 +417,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   const loadData = useCallback(async () => {
     const gen = ++requestGen.current
     setStatus({ kind: 'loading' })
+    setSummaryCountsAvailable(false)
     try {
       const [catalog, bu] = await Promise.all([
         // The module's stream, resolved the one way every Café surface resolves it
@@ -419,16 +432,33 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       // is writable until a stream is chosen, and the choose-stream state replaces the list.
       const items = await listCaptureFormItems(resolvedStream ?? undefined, mode === 'transfer' ? 'transfer' : 'produce')
       const resolvedMovement = PRODUCE
-      // An empty successful item read is a complete empty state. Do not make follow-up
-      // plan/stock/actual reads turn that honest absence into a false load error.
+      // An empty offered roster still has submitted plan/actual membership for a producing
+      // stream. Keep those counts independent of the item list; stock is only needed to build
+      // editable lines, so do not fetch it when there are none.
       if (items.length === 0) {
+        let plan: PlanMap = {}
+        let actuals: ActualsMap = {}
+        let countsAvailable = false
+        if (resolvedStream && streamProduces(resolvedStream, catalog.options)) {
+          try {
+            ;[plan, actuals] = await Promise.all([
+              fetchPlanMap(logDate, resolvedStream),
+              fetchActualsMap(logDate, resolvedStream),
+            ])
+            countsAvailable = true
+          } catch (error) {
+            reportError(error, { source: 'kitchen-log.summary' })
+          }
+        }
         if (gen !== requestGen.current) return
         setWipItems(items)
+        setInvalidItemIds(new Set())
         adoptStream(catalog)
         setMovement(resolvedMovement)
-        setPlanMap({})
+        setPlanMap(plan)
         setStockMap({})
-        setActualsMap({})
+        setActualsMap(actuals)
+        setSummaryCountsAvailable(countsAvailable)
         setBuId(bu)
         setLines({})
         setStatus({ kind: 'ready' })
@@ -449,6 +479,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       setPlanMap(plan)
       setStockMap(stock)
       setActualsMap(actuals)
+      setSummaryCountsAvailable(streamProduces(resolvedStream, catalog.options))
       setBuId(bu)
       setLines(buildLines(items, plan, stock, resolvedMovement))
       setStatus({ kind: 'ready' })
@@ -547,9 +578,37 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     chooseStream(nextStream) // the whole Café module follows this choice (#440)
     setMovement(PRODUCE)
     setStatus({ kind: 'loading' })
+    setSummaryCountsAvailable(false)
     try {
-      const [items, plan, stock, actuals] = await Promise.all([
-        listCaptureFormItems(nextStream, mode === 'transfer' ? 'transfer' : 'produce'),
+      const items = await listCaptureFormItems(nextStream, mode === 'transfer' ? 'transfer' : 'produce')
+      if (gen !== requestGen.current) return
+      if (items.length === 0) {
+        let plan: PlanMap = {}
+        let actuals: ActualsMap = {}
+        let countsAvailable = false
+        if (streamProduces(nextStream, streamOptions)) {
+          try {
+            ;[plan, actuals] = await Promise.all([
+              fetchPlanMap(logDate, nextStream),
+              fetchActualsMap(logDate, nextStream),
+            ])
+            countsAvailable = true
+          } catch (error) {
+            reportError(error, { source: 'kitchen-log.summary' })
+          }
+        }
+        if (gen !== requestGen.current) return
+        setPlanMap(plan)
+        setWipItems(items)
+        setInvalidItemIds(new Set())
+        setStockMap({})
+        setActualsMap(actuals)
+        setSummaryCountsAvailable(countsAvailable)
+        setLines({})
+        setStatus({ kind: 'ready' })
+        return
+      }
+      const [plan, stock, actuals] = await Promise.all([
         fetchPlanMap(logDate, nextStream),
         fetchStockMap(logDate, nextStream),
         fetchActualsMap(logDate, nextStream),
@@ -560,13 +619,14 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       setInvalidItemIds(new Set())
       setStockMap(stock)
       setActualsMap(actuals)
+      setSummaryCountsAvailable(streamProduces(nextStream, streamOptions))
       setLines(buildLines(items, plan, stock, PRODUCE))
       setStatus({ kind: 'ready' })
     } catch {
       if (gen !== requestGen.current) return
       setStatus({ kind: 'error', message: t('common.loadFailed', { what: t('common.what.items') }) })
     }
-  }, [chooseStream, logDate, mode, t])
+  }, [chooseStream, logDate, mode, streamOptions, t])
 
   // Staged quantities belong to the stream they were typed against: ask before a switch
   // discards them, and switch straight through when nothing is staged. Shared by the head's
@@ -858,13 +918,31 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     )
   }
 
-  // ── Empty state (no WIP items) — no KPI strip (nothing to derive, plan §7) ────
+  // ── Empty offered roster — submitted membership counts remain independent of capture rows. ──
   if (wipItems.length === 0) {
     return (
       <PageFamilyFrame family="workspace" title={pageTitle} statusRow={streamPicker} state={streamNonProducing ? 'read-only' : 'empty'} meta={<span className="kl-date tabular">{formatWeekdayDayMonth(logDate)}</span>}>
         <div className="kl-page">
           <OfflineBanner show={!isOnline} />
           {streamNonProducing && receivingOnlyNotice}
+          {mode === 'transfer' && movementOptions.length > 0 && (
+            <div className="kl-scope">
+              <MovementSeg
+                value={movement}
+                options={movementOptions}
+                branches={branches}
+                origin={stream}
+                onChange={handleMovementChange}
+                disabled={writeClosed || status.kind !== 'ready'}
+              />
+            </div>
+          )}
+          {status.kind === 'ready' && stream !== null && !streamNonProducing && transferDestinationChosen && (
+            <div className="kl-empty-summary" role="group" aria-label={summaryAriaLabel}>
+              <MetricSummaryRule metrics={displayedSummaryMetrics} variant="inline" />
+              {renderSummarySupport()}
+            </div>
+          )}
           {/* 'blank' — no WIP items are configured yet (an ops-lead task), not a source that
               fills on its own; never 'quiet' ✓, which would misread as "nothing to log,
               all done" instead of "nothing CAN be logged until items exist". */}
@@ -897,10 +975,16 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   const formatCaptureQty = (quantity: number) => new Intl.NumberFormat(
     document.documentElement.lang || 'en', { maximumFractionDigits: 3 },
   ).format(quantity)
+  const renderUnitlessValue = (value: ReactNode) => (
+    <span className="kl-unitless-value">
+      <strong className="tabular">{value}</strong>
+      <small>{t('kitchen.log.unit.unrecorded')}</small>
+    </span>
+  )
   const renderPlanValue = (quantity: number) => (
-    <span className="kl-plan-value">
+    <span className="kl-unitless-value">
       <strong className="tabular">{quantity > 0 ? formatCaptureQty(quantity) : '—'}</strong>
-      {quantity > 0 && <small>{t('kitchen.log.plan.unitUnknown')}</small>}
+      {quantity > 0 && <small>{t('kitchen.log.unit.unrecorded')}</small>}
     </span>
   )
   const displayActualUnitsForItem = (entries: ActualUnitTotal[], item: CaptureFormItem) => entries.map(entry => {
@@ -1008,7 +1092,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       key: 'stock',
       header: t('kitchen.log.col.stock'),
       numeric: true,
-      render: item => lines[item.id]?.stok ?? 0,
+      render: item => renderUnitlessValue(lines[item.id]?.stok ?? 0),
     },
     {
       key: 'made',
@@ -1076,7 +1160,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       key: 'stock',
       header: t('kitchen.log.col.stock'),
       numeric: true,
-      render: item => lines[item.id]?.stok ?? 0,
+      render: item => renderUnitlessValue(lines[item.id]?.stok ?? 0),
     },
     {
       key: 'made',
@@ -1149,7 +1233,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
             {renderPlanValue(line.plan_qty)}
           </span>
           <span className="kl-card-stock">
-            <span>{t('kitchen.log.col.stock')}</span> <strong className="tabular">{line.stok}</strong>
+            <span>{t('kitchen.log.col.stock')}</span>
+            {renderUnitlessValue(line.stok)}
           </span>
           {rowStatus && (
             <span className="kl-status kl-status--neutral">{rowStatus}</span>
@@ -1238,9 +1323,10 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
             {status.kind === 'ready' && stream !== null && !streamNonProducing && wipItems.length > 0 && transferDestinationChosen && (
               <div className="kl-context-summary kl-inline-summary" role="group" aria-label={summaryAriaLabel}>
                 <MetricSummaryRule
-                  metrics={summaryMetrics}
+                  metrics={displayedSummaryMetrics}
                   variant="inline"
                 />
+                {renderSummarySupport()}
               </div>
             )}
           </div>
@@ -1248,8 +1334,9 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
           status.kind === 'ready' && stream !== null && !streamNonProducing && wipItems.length > 0 && transferDestinationChosen && (
             <div className="kl-inline-summary" role="group" aria-label={summaryAriaLabel}>
               <MetricSummaryRule
-                metrics={summaryMetrics}
+                metrics={displayedSummaryMetrics}
               />
+              {renderSummarySupport()}
             </div>
           )
         )}
@@ -1478,7 +1565,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
             <h2>{t(mode === 'transfer' ? 'kitchen.transfer.draft.title' : 'kitchen.log.summary.captureTitle')}</h2>
             {status.kind === 'ready' && transferDestinationChosen && (
               <div role="group" aria-label={summaryAriaLabel}>
-                <MetricSummaryRule metrics={summaryMetrics} variant="inline" />
+                <MetricSummaryRule metrics={displayedSummaryMetrics} variant="inline" />
+                {renderSummarySupport()}
               </div>
             )}
             {captureDraftContent}

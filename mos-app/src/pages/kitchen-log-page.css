@@ -111,6 +111,18 @@
   border-radius: 0 0 var(--radius-sm) var(--radius-sm);
   background: var(--secondary);
 }
+.kl-empty-summary { margin-bottom: 16px; }
+.kl-inline-summary .msr,
+.kl-context-summary .msr,
+.kl-empty-summary .msr { margin-bottom: 4px; }
+.kl-summary-scope,
+.kl-summary-unavailable {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  line-height: 1.25;
+}
+.kl-summary-unavailable { margin-top: 4px; }
 
 /* ── log date chip in the PageHead meta slot ── */
 .kl-date {
@@ -481,17 +493,19 @@
   font-size: var(--font-size-label);
   color: var(--muted-foreground);
 }
-.kl-card-plan { display: inline-flex; align-items: baseline; gap: 4px; }
-.kl-plan-value {
+.kl-card-plan,
+.kl-card-stock { display: inline-flex; align-items: baseline; gap: 4px; }
+.kl-unitless-value {
   display: inline-flex;
   flex-direction: column;
   align-items: flex-end;
   gap: 2px;
   min-width: 0;
 }
-.kl-plan-value strong { color: var(--foreground); font-weight: 600; }
-.kl-plan-value small { color: var(--muted-foreground); font-size: var(--font-size-label); line-height: 1.2; }
-.kl-card-plan .kl-plan-value { align-items: flex-start; }
+.kl-unitless-value strong { color: var(--foreground); font-weight: 600; }
+.kl-unitless-value small { color: var(--muted-foreground); font-size: var(--font-size-label); line-height: 1.2; }
+.kl-card-plan .kl-unitless-value,
+.kl-card-stock .kl-unitless-value { align-items: flex-start; }
 /* The compact card owns its own padding rhythm; the stepper must not re-box itself.
    layout/distill pass: the box-stripping used to also be redeclared here via a
    `.dt-card--compact .kls-card` descendant selector reaching into WipItemStepper's own

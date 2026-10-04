@@ -377,17 +377,96 @@ describe('Unauthenticated state', () => {
 describe('Empty state — no WIP items (FR-011)', () => {
   it('issue 222: a stream with an empty item list names the stream and who can fill it — no form, no error', async () => {
     mockListCaptureFormItems.mockResolvedValue([])
-    // An empty item roster must not turn an unnecessary plan read into a false item-read error.
-    mockFetchPlanMap.mockRejectedValue(new Error('no plan read should be needed'))
+    mockFetchPlanMap.mockResolvedValue({
+      'removed-item-a': { [PRODUCE_KEY]: 4 },
+      'removed-item-b': { [PRODUCE_KEY]: 9 },
+    })
+    mockFetchActualsMap.mockRejectedValue(new Error('optional history read failed'))
     await renderPage()
     await waitFor(() => {
       expect(screen.getByText('No items for Rumah Rames · Kitchen')).toBeInTheDocument()
     })
     expect(screen.getByText(/an ops lead or admin can add them/i)).toBeInTheDocument()
     expect(mockListCaptureFormItems).toHaveBeenCalledWith(DEFAULT_STREAM, 'produce')
+    expect(mockFetchPlanMap).toHaveBeenCalled()
+    expect(mockFetchActualsMap).toHaveBeenCalled()
+    expect(mockFetchStockMap).not.toHaveBeenCalled()
+    expect(screen.getByRole('status')).toHaveTextContent(/counts unavailable/i)
+    expect(screen.queryByText(/Planned items\s*0/)).not.toBeInTheDocument()
     expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^submit/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /report it/i })).toBeInTheDocument()
+  })
+
+  it.each([
+    { viewport: 'phone', wide: false },
+    { viewport: 'desktop', wide: true },
+  ])('$viewport keeps submitted membership counts when the offered roster is empty', async ({ wide }) => {
+    setWideMatchMedia(wide)
+    mockListCaptureFormItems.mockResolvedValue([])
+    mockFetchPlanMap.mockResolvedValue({
+      'removed-item-a': { [PRODUCE_KEY]: 4 },
+      'removed-item-b': { [PRODUCE_KEY]: 9 },
+    })
+    mockFetchActualsMap.mockResolvedValue({
+      'removed-item-a': { [PRODUCE_KEY]: [loggedUnit('archived-unit', 3, 'box')] },
+      'removed-item-c': { [PRODUCE_KEY]: [loggedUnit(null, 8, null, 'legacy-row')] },
+    })
+
+    await renderPage()
+    await waitFor(() => expect(screen.getByRole('group', {
+      name: 'Planned, made, and off-plan item counts',
+    })).toBeInTheDocument())
+
+    const summary = screen.getByRole('group', { name: 'Planned, made, and off-plan item counts' })
+    expect(summary).toHaveTextContent(/Planned items\s*2/)
+    expect(summary).toHaveTextContent(/Made items\s*2/)
+    expect(summary).toHaveTextContent(/Off-plan items\s*1/)
+    expect(summary).toHaveTextContent('Counts include items outside this list.')
+    expect(mockFetchStockMap).not.toHaveBeenCalled()
+    expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^submit/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /report it/i })).toBeInTheDocument()
+  })
+
+  it('empty transfer roster keeps counts scoped to the selected destination', async () => {
+    mockFetchDefaultStream.mockResolvedValue({ branch: BRANCH_RUMAH_RAMES, activity: 'bar' })
+    mockListCaptureFormItems.mockResolvedValue([])
+    mockFetchPlanMap.mockResolvedValue({
+      'radiant-planned': { [TRANSFER_RADIANT_KEY]: 4 },
+      'hq-planned-a': { [`transfer:${BRANCH_GORDI_HQ.id}`]: 2 },
+      'hq-planned-b': { [`transfer:${BRANCH_GORDI_HQ.id}`]: 6 },
+    })
+    mockFetchActualsMap.mockResolvedValue({
+      'radiant-planned': { [TRANSFER_RADIANT_KEY]: [loggedUnit('u-r', 5, 'batch')] },
+      'radiant-off-plan': { [TRANSFER_RADIANT_KEY]: [loggedUnit('u-ro', 2, 'batch')] },
+      'hq-planned-a': { [`transfer:${BRANCH_GORDI_HQ.id}`]: [loggedUnit('u-h', 3, 'batch')] },
+    })
+
+    await renderTransferPage()
+    const radiantTab = await screen.findByRole('tab', { name: /transfer to radiant/i })
+    const hqTab = screen.getByRole('tab', { name: /transfer to gordi hq/i })
+    await userEvent.click(radiantTab)
+    let summary = screen.getByRole('group', {
+      name: 'Planned, transferred, and off-plan item counts for Radiant',
+    })
+    expect(summary).toHaveTextContent(/Planned items\s*1/)
+    expect(summary).toHaveTextContent(/Transferred items\s*2/)
+    expect(summary).toHaveTextContent(/Off-plan items\s*1/)
+    expect(summary).not.toHaveTextContent(/Made items|Produced items/i)
+
+    await userEvent.click(hqTab)
+    summary = screen.getByRole('group', {
+      name: 'Planned, transferred, and off-plan item counts for Gordi HQ',
+    })
+    expect(summary).toHaveTextContent(/Planned items\s*2/)
+    expect(summary).toHaveTextContent(/Transferred items\s*1/)
+    expect(summary).toHaveTextContent(/Off-plan items\s*0/)
+    expect(summary).toHaveTextContent('Counts include items outside this list.')
+    expect(mockFetchStockMap).not.toHaveBeenCalled()
+    expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^submit/i })).not.toBeInTheDocument()
   })
 
   // Half B convergence: missing WIP-item configuration is never the 'quiet' ✓ earned-all-clear
@@ -1470,6 +1549,27 @@ describe('R4 / FR-018: Log summary line', () => {
     expect(document.querySelector('.msr')?.textContent).toMatch(/Planned items\s*0/)
     expect(screen.queryByText(/planned total/i)).toBeNull()
   })
+
+  it('labels Stock and transfer availability with their unrecorded unit basis', async () => {
+    await renderTransferPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    const card = screen.getByText('Ayam Bakar').closest('.kl-row')!
+    expect(card.querySelector('.kl-card-stock')).toHaveTextContent(/Stock\s*3\s*Unit not recorded/i)
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('tab', { name: /transfer to radiant/i }))
+    const meta = card.querySelector('.kls-meta')!
+    expect(meta).toHaveTextContent(/avail\s*9\s*Unit not recorded/i)
+  })
+
+  it('labels the production Stock fact with its unrecorded unit basis', async () => {
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    const card = screen.getByText('Ayam Bakar').closest('.kl-row')!
+    expect(card.querySelector('.kl-card-stock')).toHaveTextContent(/Stock\s*3\s*Unit not recorded/i)
+  })
 })
 
 // task 10b — Planned/Off-plan group split
@@ -2120,8 +2220,8 @@ describe('DD-MVP-9: a receiving-only stream remains readable but cannot capture 
     const ayamCard = screen.getByText('Ayam Bakar').closest<HTMLElement>('.dt-card')!
     expect(within(ayamCard).getByText('Plan')).toBeInTheDocument()
     expect(within(ayamCard).getByText('20')).toBeInTheDocument()
-    expect(within(ayamCard).getByText('Stock')).toBeInTheDocument()
-    expect(within(ayamCard).getByText('3')).toBeInTheDocument()
+    const stockFact = within(ayamCard).getByText('Stock').parentElement!
+    expect(stockFact).toHaveTextContent(/Stock\s*3\s*Unit not recorded/i)
     expect(within(ayamCard).getByText('Made today')).toBeInTheDocument()
     expect(within(ayamCard).getByText('4 porsi')).toBeInTheDocument()
     expect(screen.queryByText('Made', { exact: true })).toBeNull()

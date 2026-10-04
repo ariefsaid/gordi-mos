@@ -242,7 +242,11 @@ export function WipItemStepper({
             </span>
           )}
           {transfer && (
-            <span>{t('kitchen.log.stepper.avail')} <strong>{tersedia}</strong></span>
+            <span className="kls-availability-fact">
+              <span>{t('kitchen.log.stepper.avail')}</span>
+              <strong>{tersedia}</strong>
+              <small>{t('kitchen.log.unit.unrecorded')}</small>
+            </span>
           )}
         </div>
       )}
