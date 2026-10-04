@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { useState } from 'react'
-import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
+import { act, render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { TASK_TITLE_MAX_LENGTH } from './task-formatters'
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
@@ -569,7 +569,7 @@ describe('TaskSurface — mutation handlers', () => {
     await waitFor(() => expect(cb().checked).toBe(false))
   })
 
-  it('PIC reassignment (rollback): restores the previous PIC when the write rejects', async () => {
+  it('PIC reassignment (failed attempt): Escape discards the retained option and restores the saved PIC', async () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
     vi.mocked(updateTaskFields).mockRejectedValue(new Error('write failed'))
     // #742's PIC-value rule accepts a new PIC only from the writer's self + downline, so the
@@ -584,8 +584,15 @@ describe('TaskSurface — mutation handlers', () => {
       // 4th arg (#742 AC-059): the previous PIC value, threaded through for the from/to event.
       'task-abc', { responsible_person_id: 'other-id' }, VIEWER_ID, VIEWER_ID,
     ))
-    // Optimistic reassignment rolled back to the previous PIC after the write rejects.
-    await waitFor(() => expect(screen.getByRole('combobox', { name: 'PIC' })).toHaveTextContent('Cahya Cafe'))
+    // The tenant has rolled its value back, while RecordField keeps the attempted option local so
+    // it can be retried or discarded. Escape discards that field-local attempt without another write.
+    const picker = screen.getByRole('combobox', { name: 'PIC' })
+    await waitFor(() => expect(picker).toHaveTextContent('Other Person'))
+    fireEvent.keyDown(picker, { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('combobox', { name: 'PIC' })).toBeNull())
+    const picField = document.querySelector('[data-field-key="pic"]') as HTMLElement
+    expect(picField).toHaveTextContent('Cahya Cafe')
+    expect(vi.mocked(updateTaskFields)).toHaveBeenCalledTimes(1)
   })
 
   // I3: archiving reports the id back to the host (so the table drops the row).
@@ -1052,6 +1059,54 @@ describe('TaskSurface — create mode', () => {
       fireEvent.click(screen.getByRole('button', { name: /create task/i }))
       await waitFor(() => expect(mockCreateTask).toHaveBeenCalledTimes(2))
     } finally { restore() }
+  })
+
+  it('issue 1293: a failed create keeps form focus after a portal search and supports keyboard retry', async () => {
+    const restore = installDisabledBlur()
+    const user = userEvent.setup()
+    let rejectFirstAttempt!: (reason?: unknown) => void
+    const firstAttempt = new Promise<string>((_resolve, reject) => { rejectFirstAttempt = reject })
+    try {
+      mockCreateTask.mockReset()
+      mockCreateTask.mockReturnValueOnce(firstAttempt).mockResolvedValueOnce('new-task-id')
+      renderCreate()
+      const form = await screen.findByRole('form', { name: /create task/i })
+      const title = within(form).getByLabelText(/title/i)
+      await user.type(title, 'Portal recovery task')
+
+      // The real Picker puts its searchable input in a portal outside this form. Its search must
+      // not replace the useful local draft field as the recovery target after a rejected create.
+      const supervisor = within(form).getByRole('combobox', { name: 'Supervisor' })
+      await user.click(supervisor)
+      const search = await screen.findByRole('combobox', { name: 'Filter Supervisor' })
+      await user.type(search, 'Cahya')
+      await user.click(await screen.findByRole('option', { name: 'Cahya Cafe' }))
+      await waitFor(() => expect(supervisor).toHaveFocus())
+
+      const create = within(form).getByRole('button', { name: /create task/i })
+      await user.click(create)
+      await waitFor(() => expect(mockCreateTask).toHaveBeenCalledTimes(1))
+      await act(async () => {
+        rejectFirstAttempt(new Error('network unavailable'))
+        await firstAttempt.catch(() => undefined)
+      })
+
+      await screen.findByRole('alert')
+      const restoredFocus = document.activeElement
+      expect(form).toContainElement(restoredFocus as HTMLElement)
+      expect(restoredFocus).toBeEnabled()
+      expect(title).toHaveValue('Portal recovery task')
+
+      // Continue with the keyboard from whichever useful local control was restored.
+      for (let tabCount = 0; tabCount < 20 && document.activeElement !== create; tabCount += 1) {
+        await user.tab()
+      }
+      expect(create).toHaveFocus()
+      await user.keyboard('{Enter}')
+      await waitFor(() => expect(mockCreateTask).toHaveBeenCalledTimes(2))
+    } finally {
+      restore()
+    }
   })
 
   it('AC-107 (create drawer): at drawer width renders a "Create task" bar with no double card frame', async () => {

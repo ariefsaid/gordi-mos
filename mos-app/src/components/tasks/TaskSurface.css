@@ -317,6 +317,11 @@
    .mk-*--error rule) and the required asterisk (.tc-required) keep base --destructive
    — those are non-text. */
 .tc-field-error { font-size: var(--font-size-label); color: var(--status-lost-text); }
+.tc-title-error-slot {
+  min-height: 1.25em;
+  font-size: var(--font-size-label);
+  line-height: 1.25;
+}
 
 /* DO-15(c): hosts the shared LoadingShell (role=status + skeleton row) at the field's box
    height, so a resolving directory swaps skeleton→control with no reflow pop. */

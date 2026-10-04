@@ -64,6 +64,9 @@
 }
 .rp .rp-facts .rp-fact--group .record-field__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .rp .rp-facts .record-field__value-cell { flex-direction: row; align-items: center; gap: 6px; }
+.rp .rp-facts .record-field[data-mode='edit'] .record-field__value-cell {
+  flex-direction: column; align-items: stretch; min-width: 0;
+}
 .rp .rp-facts .record-field__edit {
   min-height: 28px; margin: 0; padding: 2px 6px; border-radius: var(--radius-sm); font-size: var(--font-size-body); gap: 4px; align-self: center;
 }
@@ -74,6 +77,7 @@
   margin: 0; padding: 0; border: 0; background: none; min-height: 0; font-size: var(--font-size-body);
 }
 .rp .rp-facts .record-field__feedback { min-height: 0; }
+.rp .rp-facts .record-field[data-mode='edit'] .record-field__feedback { width: 100%; }
 /* The edit pencil takes no room until it is wanted, so a chip is as wide as its content. */
 .rp .rp-facts .record-field__edit-affordance { width: 0; margin-inline-start: -4px; overflow: hidden; }
 .rp .rp-facts .record-field__edit:hover .record-field__edit-affordance,

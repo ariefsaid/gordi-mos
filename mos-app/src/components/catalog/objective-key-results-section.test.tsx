@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import { installDisabledBlur } from '@/test/browser-focus-fixup'
 import type { WorkWriteScopes } from '@/lib/db/work-authority'
 import type { KeyResultRow } from '@/lib/db/objective-key-results'
 
@@ -352,6 +353,48 @@ describe('key result form', () => {
     await user.click(screen.getByRole('button', { name: 'Retry' }))
     await waitFor(() => expect(updateKeyResultTargets).toHaveBeenLastCalledWith('kr-1', { what: 'Ship more orders', target_value: 70 }))
     expect(await screen.findByText('Ship more orders')).toBeInTheDocument()
+  })
+
+  it('a rejected click-save restores the enabled Save action so the Objective edit can be retried', async () => {
+    const restore = installDisabledBlur()
+    try {
+      const user = userEvent.setup()
+      let rejectTargets: (reason: Error) => void = () => {}
+      let resolveRetry: (row: KeyResultRow) => void = () => {}
+      const failedWrite = new Promise<KeyResultRow>((_resolve, reject) => { rejectTargets = reject })
+      const retryWrite = new Promise<KeyResultRow>((resolve) => { resolveRetry = resolve })
+      vi.mocked(updateKeyResultTargets)
+        .mockReturnValueOnce(failedWrite)
+        .mockReturnValueOnce(retryWrite)
+      renderSection(ADMIN)
+      await screen.findByText('Ship orders')
+      await user.click(screen.getByRole('button', { name: 'Edit key result: Ship orders' }))
+      const target = screen.getByRole('textbox', { name: 'Target' })
+      await user.clear(target)
+      await user.type(target, '70')
+      const save = screen.getByRole('button', { name: 'Save' })
+      save.focus()
+      fireEvent.click(save)
+      expect(await screen.findByRole('button', { name: /saving/i })).toBeDisabled()
+
+      await act(async () => {
+        rejectTargets(new Error('offline'))
+        await failedWrite.catch(() => undefined)
+      })
+      expect(await screen.findByRole('button', { name: 'Retry' })).toBeInTheDocument()
+      await waitFor(() => expect(save).toHaveFocus())
+      expect(target).toHaveValue('70')
+      expect(screen.getByRole('form', { name: 'Edit key result: Ship orders' })).toBeInTheDocument()
+
+      await user.click(save)
+      await waitFor(() => expect(updateKeyResultTargets).toHaveBeenCalledTimes(2))
+      expect(updateKeyResultTargets).toHaveBeenLastCalledWith('kr-1', { target_value: 70 })
+      await act(async () => {
+        resolveRetry(kr({ target_value: 70 }))
+        await retryWrite
+      })
+      await waitFor(() => expect(screen.queryByRole('form', { name: 'Edit key result: Ship orders' })).toBeNull())
+    } finally { restore() }
   })
 
   it('a refused submit names the field, ties the message to it, and focuses it', async () => {

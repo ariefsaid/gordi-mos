@@ -975,7 +975,7 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
   // Typed Due text that is not a usable date: Create refuses it rather than saving a blank or old date.
   const [dueInvalid, setDueInvalid] = useState(false)
   const [dueRevealed, setDueRevealed] = useState(false)
-  const formRef = useFocusRestore<HTMLFormElement>(submitting, !!submitError)
+  const formRef = useFocusRestore<HTMLFormElement>(submitting, !!submitError, { includeFormControls: true })
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -1160,9 +1160,11 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
             disabled={submitting}
             aria-label={t('tasks.create.title')}
           />
-          {titleError && (
-            <span id="title-err" role="alert" className="tc-field-error">{titleError}</span>
-          )}
+          <div className="tc-title-error-slot">
+            {titleError && (
+              <span id="title-err" role="alert" className="tc-field-error">{titleError}</span>
+            )}
+          </div>
         </div>
 
         {/* Team */}

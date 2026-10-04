@@ -6,7 +6,7 @@
 // side of the delegation.
 import type { ComponentProps, ReactElement } from 'react'
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { TASK_TITLE_MAX_LENGTH } from './task-formatters'
 import { installDisabledBlur } from '@/test/browser-focus-fixup'
@@ -185,6 +185,105 @@ describe('TaskCreateForm — discard, busy and retry', () => {
       fireEvent.click(screen.getByRole('button', { name: /retry/i }))
       await screen.findByRole('button', { name: 'Create task' })
       expect(onCreate).toHaveBeenCalledTimes(2)
+    } finally { restore() }
+  })
+
+  it('a rejected save after searching a Picker restores useful form focus and keyboard retry', async () => {
+    const restore = installDisabledBlur()
+    try {
+      const user = userEvent.setup()
+      let rejectCreate: (reason: Error) => void = () => {}
+      const failedCreate = new Promise<void>((_resolve, reject) => { rejectCreate = reject })
+      const onCreate = vi.fn()
+        .mockReturnValueOnce(failedCreate)
+        .mockResolvedValueOnce(undefined)
+      const onEditTeam = vi.fn().mockResolvedValue(undefined)
+      renderForm({
+        task: makeDraft({ title: 'Ship the launch' }),
+        teamOptions: [
+          { id: 'team-1', name: 'HQ Operations', businessUnitId: 'bu-1' },
+          { id: 'team-2', name: 'Field Operations', businessUnitId: 'bu-2' },
+        ],
+        onEditTeam,
+        onCreate,
+      })
+      const team = screen.getByRole('combobox', { name: 'Team' })
+      await user.click(team)
+      const search = await screen.findByRole('combobox', { name: 'Filter Team' })
+      expect(search).toHaveFocus()
+      await user.type(search, 'Field')
+      await user.click(await screen.findByRole('option', { name: 'Field Operations' }))
+      await waitFor(() => expect(team).toHaveFocus())
+      expect(onEditTeam).toHaveBeenCalledWith('new-task-1', 'team-2')
+
+      await user.click(screen.getByRole('button', { name: 'Create task' }))
+      expect(await screen.findByRole('button', { name: 'Creating…' })).toBeDisabled()
+
+      await act(async () => {
+        rejectCreate(new Error('offline'))
+        await failedCreate.catch(() => undefined)
+      })
+      const retry = await screen.findByRole('button', { name: 'Retry' })
+      const form = screen.getByRole('form')
+      await waitFor(() => {
+        const active = document.activeElement
+        expect(active).toBeInstanceOf(HTMLElement)
+        expect(form).toContainElement(active as HTMLElement)
+        expect(active).not.toHaveAttribute('disabled')
+      })
+      expect(screen.getByRole('textbox', { name: 'Title' })).toHaveValue('Ship the launch')
+
+      retry.focus()
+      await user.keyboard('{Enter}')
+      await waitFor(() => expect(onCreate).toHaveBeenCalledTimes(2))
+      expect(onCreate).toHaveBeenNthCalledWith(1, 'Ship the launch')
+      expect(onCreate).toHaveBeenNthCalledWith(2, 'Ship the launch')
+    } finally { restore() }
+  })
+
+  it('issue 1293: a second rejected save restores focus to Create after Retry is replaced', async () => {
+    const restore = installDisabledBlur()
+    try {
+      const user = userEvent.setup()
+      let rejectFirst!: (reason: Error) => void
+      let rejectSecond!: (reason: Error) => void
+      const firstWrite = new Promise<void>((_resolve, reject) => { rejectFirst = reject })
+      const secondWrite = new Promise<void>((_resolve, reject) => { rejectSecond = reject })
+      const onCreate = vi.fn().mockReturnValueOnce(firstWrite).mockReturnValueOnce(secondWrite)
+      renderForm({ task: makeDraft({ title: 'Ship the launch' }), onCreate })
+
+      const form = screen.getByRole('form')
+      const title = screen.getByRole('textbox', { name: 'Title' })
+      const create = screen.getByRole('button', { name: 'Create task' })
+      await user.click(create)
+      expect(await screen.findByRole('button', { name: 'Creating…' })).toBeDisabled()
+      await act(async () => {
+        rejectFirst(new Error('offline'))
+        await firstWrite.catch(() => undefined)
+      })
+      const firstRetry = await screen.findByRole('button', { name: 'Retry' })
+      await waitFor(() => {
+        expect(form).toContainElement(document.activeElement as HTMLElement)
+        expect(document.activeElement).not.toHaveAttribute('disabled')
+      })
+      expect(title).toHaveValue('Ship the launch')
+
+      await user.click(firstRetry)
+      expect(await screen.findByRole('button', { name: 'Creating…' })).toBeDisabled()
+      await act(async () => {
+        rejectSecond(new Error('offline again'))
+        await secondWrite.catch(() => undefined)
+      })
+
+      const secondRetry = await screen.findByRole('button', { name: 'Retry' })
+      expect(screen.getByRole('alert')).toHaveTextContent(/couldn't save/i)
+      expect(title).toHaveValue('Ship the launch')
+      expect(secondRetry).toBeEnabled()
+      expect(create).toBeEnabled()
+      expect(onCreate).toHaveBeenCalledTimes(2)
+      expect(onCreate).toHaveBeenNthCalledWith(1, 'Ship the launch')
+      expect(onCreate).toHaveBeenNthCalledWith(2, 'Ship the launch')
+      await waitFor(() => expect(create).toHaveFocus())
     } finally { restore() }
   })
 })

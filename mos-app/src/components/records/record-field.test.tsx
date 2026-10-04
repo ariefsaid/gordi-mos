@@ -245,6 +245,87 @@ describe('RecordField', () => {
     expect(await screen.findByText('Saved')).toBeInTheDocument()
   })
 
+  it('1293: a rejected picker save keeps the attempted option, restores its control, and retries that value', async () => {
+    const restore = installDisabledBlur()
+    try {
+      const user = userEvent.setup()
+      const onCommit = vi.fn<(v: RecordValue) => Promise<void>>()
+        .mockRejectedValueOnce(new Error('offline'))
+        .mockResolvedValueOnce(undefined)
+      const spec: RecordFieldSpec = {
+        key: 'status',
+        label: 'Status',
+        control: 'status',
+        value: 'open',
+        displayValue: 'Open',
+        editable: true,
+        options: [{ value: 'open', label: 'Open' }, { value: 'done', label: 'Done' }],
+      }
+      const { onDirtyChange } = renderField(spec, { onCommit })
+
+      activate('Status')
+      const picker = screen.getByRole('combobox', { name: 'Status' })
+      await user.click(picker)
+      await user.click(screen.getByRole('option', { name: 'Done' }))
+
+      expect(await screen.findByRole('alert')).toBeInTheDocument()
+      expect(picker).toHaveTextContent('Done')
+      expect(onDirtyChange).toHaveBeenLastCalledWith(true)
+      await waitFor(() => expect(picker).toHaveFocus())
+
+      await user.click(screen.getByRole('button', { name: 'Retry' }))
+      await waitFor(() => expect(onCommit).toHaveBeenCalledTimes(2))
+      expect(onCommit).toHaveBeenNthCalledWith(1, 'done')
+      expect(onCommit).toHaveBeenNthCalledWith(2, 'done')
+      expect(await screen.findByText('Saved')).toBeInTheDocument()
+      expect(onDirtyChange).toHaveBeenLastCalledWith(false)
+      expect(screen.queryByRole('combobox', { name: 'Status' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Edit Status' })).toBeInTheDocument()
+    } finally {
+      restore()
+    }
+  })
+
+  it('1293: the first Escape after a rejected picker save cancels the field before the host', async () => {
+    const hostEscape = vi.fn()
+    const onCancel = vi.fn()
+    const onDirtyChange = vi.fn()
+    const onCommit = vi.fn<(v: RecordValue) => Promise<void>>().mockRejectedValueOnce(new Error('offline'))
+    const spec: RecordFieldSpec = {
+      key: 'status',
+      label: 'Status',
+      control: 'status',
+      value: 'open',
+      displayValue: 'Open',
+      editable: true,
+      options: [{ value: 'open', label: 'Open' }, { value: 'done', label: 'Done' }],
+    }
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <I18nProvider><div onKeyDown={(event) => { if (event.key === 'Escape') hostEscape() }}>{children}</div></I18nProvider>
+    )
+    const user = userEvent.setup()
+    render(<RecordField spec={spec} onCommit={onCommit} onCancel={onCancel} onDirtyChange={onDirtyChange} />, { wrapper })
+
+    activate('Status')
+    const picker = screen.getByRole('combobox', { name: 'Status' })
+    await user.click(picker)
+    await user.click(screen.getByRole('option', { name: 'Done' }))
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true)
+
+    fireEvent.keyDown(picker, { key: 'Escape' })
+
+    await waitFor(() => expect(screen.queryByRole('combobox', { name: 'Status' })).not.toBeInTheDocument())
+    expect(screen.getByRole('button', { name: 'Edit Status' })).toHaveTextContent('Open')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(onCancel).toHaveBeenCalledTimes(1)
+    expect(onDirtyChange).toHaveBeenLastCalledWith(false)
+    expect(onCommit).toHaveBeenCalledTimes(1)
+    expect(hostEscape).not.toHaveBeenCalled()
+  })
+
   // D2 (dead-defect verification): the redesign's record-grammar merge hardened the
   // upstream-sync effect (`useEffect([spec.value])` above) to check `editingRef.current` in
   // ADDITION to save status — it now skips adopting a new spec.value whenever the field is
