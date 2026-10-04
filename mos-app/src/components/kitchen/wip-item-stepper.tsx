@@ -5,7 +5,7 @@
 // ("mostly 10-20+"), not incremented. The component name is kept for now so the rename is a
 // separate, mechanical commit rather than noise inside a design change.
 //
-// Typed qty field (plan echoed as a greyed placeholder anchor) + `tersedia` context on transfers
+// Typed qty field + recorded-unit history + `tersedia` context on transfers
 // + inline variance-note field (FR-022, revealed when the gate exists) + transfer cap cue (FR-023).
 // Styling: co-located wip-item-stepper.css (DESIGN.md tokens; no inline style).
 // Touch target ≥44px on the phone card (.kls-qty is 44px tall; 16px font so mobile
@@ -14,7 +14,7 @@
 // pointer surface, not a touch target.
 
 import { useEffect, useRef, useState } from 'react'
-import type { ItemUnitOption, KitchenLogLine, KitchenMovement } from '@/lib/db/kitchen-logs.types'
+import type { ActualUnitTotal, ItemUnitOption, KitchenLogLine, KitchenMovement } from '@/lib/db/kitchen-logs.types'
 import { isStockConsuming, VARIANCE_NOTE_CUE, TRANSFER_SHORT_CUE } from '@/lib/kitchen-gates'
 import { useT } from '@/i18n/use-t'
 import { Select } from '@/components/ui/select'
@@ -38,9 +38,8 @@ interface WipItemStepperProps {
    *  is a boxing flag ONLY: it must never carry "this is a pointer surface" behaviour
    *  (control height / type size), which is viewport-scoped in wip-item-stepper.css. */
   dense?: boolean
-  /** today's already-logged qty for this (item, movement) on the SELECTED stream — the
-   *  running "already logged N" idiom (FR-014, AC-006). 0/omitted → nothing renders. */
-  alreadyLogged?: number
+  /** Today's submitted actuals for this item/movement/stream, kept separate by recorded unit. */
+  alreadyLogged?: readonly ActualUnitTotal[]
   /**
    * The item's OFFERED units (#234, FR-020/021): the confirmed default first, then
    * confirmed transferable alternates — already filtered by the reader (FR-032/AC-015),
@@ -63,15 +62,15 @@ export function WipItemStepper({
   disabled = false,
   hideName = false,
   dense = false,
-  alreadyLogged = 0,
+  alreadyLogged = [],
   unitOptions,
   onUnitChange,
 }: WipItemStepperProps) {
   const t = useT()
   // v4: `stok` is no longer read here — both layouts already render Stock as a column/field.
-  // `plan_qty` IS read again, but only as the greyed placeholder anchor inside the empty qty
-  // field (the live kitchen app's pattern) — never as a duplicated caption beneath it.
-  const { qty_porsi, notes, plan_qty: planQty, tersedia, error, capError, dirty } = line
+  // Plan rows have no recorded unit identity, so their quantity is not reused as the input
+  // placeholder after the capturer selects a unit. The note/cap gate still reads the same line.
+  const { qty_porsi, notes, tersedia, error, capError, dirty } = line
   // The invalid border remains blur-gated so typing a multi-digit quantity is not visually
   // interrupted mid-entry. The note control itself must appear with the live gate, however:
   // Submit is disabled as soon as an off-plan quantity is staged, so waiting for blur would leave
@@ -103,10 +102,15 @@ export function WipItemStepper({
   // `error` empties the moment a character is typed (the gate is satisfied), but the cue
   // still has to explain why the field is on screen — so the empty case resolves to the
   // same canonical copy rather than printing a blank line above the textarea.
-  const noteCueText = error === '' || error === VARIANCE_NOTE_CUE
+  const noteCueText = error === VARIANCE_NOTE_CUE
     ? t('kitchen.log.stepper.noteCue')
-    : error
+    : error === ''
+      ? notes.trim() ? t('kitchen.log.stepper.noteReady') : t('kitchen.log.stepper.noteCue')
+      : error
   const capCueText = capError === TRANSFER_SHORT_CUE ? t('kitchen.log.stepper.capCue') : capError
+  const formatActualQty = (quantity: number) => new Intl.NumberFormat(
+    document.documentElement.lang || 'en', { maximumFractionDigits: 3 },
+  ).format(quantity)
 
   // ── The fixed unit + the deliberate "change unit" affordance (#234) ─────────
   // FR-020: the unit beside the qty is MASTER DATA — the line's bound unit (the item's
@@ -138,8 +142,8 @@ export function WipItemStepper({
           incrementally — the team types the amount they produced, "mostly 10-20+", so a stepper
           meant ~20 taps per dish across ~21 dishes. This is a fast capture field for record
           keeping, so it mirrors the pattern the live kitchen app already uses on this exact job:
-          a right-aligned numeric field with `inputmode=decimal`, blank at rest with the plan
-          echoed as a greyed placeholder anchor, a unit label, and `enterkeyhint=next` so a
+          a right-aligned numeric field with `inputmode=decimal`, a neutral zero placeholder,
+          a unit label, and `enterkeyhint=next` so a
           phone keyboard walks the list. */}
       <div className="kls-row">
         {!hideName && <span className="kls-name">{itemName}</span>}
@@ -155,7 +159,7 @@ export function WipItemStepper({
             : t('kitchen.qty.producedAria', { item: itemName })}
           className="kls-qty"
           value={qty_porsi > 0 ? qty_porsi : ''}
-          placeholder={alreadyLogged > 0 ? '' : planQty > 0 ? String(planQty) : '0'}
+          placeholder="0"
           min={0}
           step={1}
           enterKeyHint="next"
@@ -216,20 +220,26 @@ export function WipItemStepper({
         )}
       </div>
 
-      {/* plan · stok · tersedia context (FR-022/023 basis).
-          v4: in `dense` (desktop table) the host already renders Plan and Stock as their own
-          columns, so repeating them under the stepper was pure duplication — and it was what
-          forced every row to ~90px, pushing the dish list off the first viewport. Dense keeps
-          only `tersedia`, which has no column of its own. The phone card floor is unchanged:
-          it has no columns, so it still needs the full basis line. */}
-      {(transfer || alreadyLogged > 0) && (
+      {/* Submitted actual history and transfer availability. The host renders Plan as a
+          separate read fact because its unit is unrecorded, and Stock as a separate value.
+          Dense desktop already has a Stock column; this meta stays for actual history and
+          `tersedia`, which has no column of its own. */}
+      {(transfer || alreadyLogged.length > 0) && (
         <div className="kls-meta">
           {/* the running "already logged N" (FR-014, AC-006): today's recorded actuals for
               this item + movement on the SELECTED stream — real submitted rows, never the
               typed-but-unsaved quantity (DD-7's line is the form state; this comes from
               the database). Renders only once something HAS been logged. */}
-          {alreadyLogged > 0 && (
-            <span>{t('kitchen.log.stepper.already')} <strong>{alreadyLogged}</strong></span>
+          {alreadyLogged.length > 0 && (
+            <span>
+              {t('kitchen.log.stepper.already')} <strong className="kls-logged-units">
+                {alreadyLogged.map(entry => (
+                  <span className="kls-logged-unit" key={entry.key}>
+                    {formatActualQty(entry.qty_porsi)} {entry.unit_name?.trim() || t('kitchen.log.unit.unknownHistory')}
+                  </span>
+                ))}
+              </strong>
+            </span>
           )}
           {transfer && (
             <span>{t('kitchen.log.stepper.avail')} <strong>{tersedia}</strong></span>

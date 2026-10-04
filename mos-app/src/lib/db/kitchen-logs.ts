@@ -286,11 +286,11 @@ export async function fetchPlanMap(
 }
 
 /**
- * Today's already-logged actuals for ONE stream (FR-014, AC-006): Σ qty_porsi of the
- * date's non-Rejected logs, keyed like PlanMap — the running "already logged N" the
- * incumbent shows beside each row. Stream-scoped for the same reason the plan and stock
- * reads are (OD-WAY-28): the same dish has different actuals in another branch's books.
- * Submitted rows count (they are logged, pending review); Rejected rows do not.
+ * Today's already-logged actuals for ONE stream (FR-014, AC-006), grouped only by the
+ * exact recorded non-null item_unit_id. Historical rows without a unit stay separate by log
+ * ID; they are not evidence that two quantities share a basis. Unit labels are resolved by
+ * recorded IDs across the full org catalog, not from today's offered/default units. Stream-
+ * scoped like the plan and stock reads (OD-WAY-28). Submitted rows count; Rejected rows do not.
  */
 export async function fetchActualsMap(
   logDate: string,
@@ -298,23 +298,59 @@ export async function fetchActualsMap(
 ): Promise<ActualsMap> {
   const { data, error } = await ops()
     .from('kitchen_logs')
-    .select('wip_item_id,action,destination_branch_id,qty_porsi')
+    .select('id,wip_item_id,action,destination_branch_id,item_unit_id,qty_porsi')
     .eq('log_date', logDate)
     .eq('branch_id', stream.branch.id)
     .eq('activity', stream.activity)
     .neq('status', 'Rejected')
   if (error) throw new Error(`fetchActualsMap failed — ${error.message}`)
   type ActualRow = {
+    id: string
     wip_item_id: string
     action: KitchenLogAction
     destination_branch_id: string | null
+    item_unit_id: string | null
     qty_porsi: number
   }
+  const rows = (data ?? []) as ActualRow[]
+  const unitIds = [...new Set(rows.flatMap(row => row.item_unit_id ? [row.item_unit_id] : []))]
+  const unitNames = new Map<string, string>()
+  if (unitIds.length > 0) {
+    // Historical actuals can refer to units no longer offered on this stream. Read the
+    // authoritative row by its stored identity, with no active/shown/default filter. If
+    // metadata has been removed or is unreadable, the ID and quantity still survive below.
+    const { data: units, error: unitError } = await ops()
+      .from('item_units')
+      .select('id,unit_name')
+      .in('id', unitIds)
+    if (!unitError) {
+      for (const unit of (units ?? []) as { id: string; unit_name: string | null }[]) {
+        if (unit.unit_name?.trim()) unitNames.set(unit.id, unit.unit_name)
+      }
+    }
+  }
   const map: ActualsMap = {}
-  for (const row of (data ?? []) as ActualRow[]) {
+  for (const row of rows) {
     const key = movementKey({ action: row.action, destinationBranchId: row.destination_branch_id })
     if (!map[row.wip_item_id]) map[row.wip_item_id] = {}
-    map[row.wip_item_id][key] = (map[row.wip_item_id][key] ?? 0) + row.qty_porsi
+    const entries = map[row.wip_item_id][key] ?? (map[row.wip_item_id][key] = [])
+    if (row.item_unit_id) {
+      const exactUnit = entries.find(entry => entry.item_unit_id === row.item_unit_id)
+      if (exactUnit) exactUnit.qty_porsi += row.qty_porsi
+      else entries.push({
+        key: `unit:${row.item_unit_id}`,
+        item_unit_id: row.item_unit_id,
+        unit_name: unitNames.get(row.item_unit_id) ?? null,
+        qty_porsi: row.qty_porsi,
+      })
+    } else {
+      entries.push({
+        key: `unknown:${row.id}`,
+        item_unit_id: null,
+        unit_name: null,
+        qty_porsi: row.qty_porsi,
+      })
+    }
   }
   return map
 }

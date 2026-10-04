@@ -10,7 +10,7 @@
 // ERP detail and allowed shown details through the existing Café settings reader; the selected
 // `item_unit_id` continues through the existing save path.
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { canCaptureCafe } from '@/lib/cafe-affiliation'
@@ -37,6 +37,7 @@ import { CafeStreamBar, CafeStreamChoices } from '@/components/kitchen/cafe-stre
 import type { ReactNode } from 'react'
 import type {
   ActualsMap,
+  ActualUnitTotal,
   CaptureFormItem,
   KitchenLogLine,
   KitchenMovement,
@@ -77,7 +78,6 @@ import {
   type KitchenListRow,
 } from '@/lib/kitchen-item-list'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
-import { kitchenStatus } from '@/lib/kitchen-status'
 import { formatWeekdayDayMonth } from '@/lib/format/date'
 import { EmptyState, LoadingShell } from '@/components/ui/state-kit'
 import { useFocusRestore } from '@/components/ui/use-focus-restore'
@@ -135,27 +135,6 @@ function gateLine(line: KitchenLogLine, movement: KitchenMovement): KitchenLogLi
   const error = needsVarianceNote(line, movement) && !line.notes.trim() ? VARIANCE_NOTE_CUE : ''
   const capError = transferExceedsAvailable(line, movement) ? TRANSFER_SHORT_CUE : ''
   return { ...line, error, capError }
-}
-
-// Nielsen sweep (Café·Log 24/40): kitchenStatus (src/lib/kitchen-status.ts, outside this
-// slice's touch list) returns a hardcoded-English label alongside its `tone`. The tone
-// mapping stays authoritative (untouched); this mirrors ONLY the label branching so the
-// row status pill — the exact microcopy a floor worker reads at the moment they save —
-// reads in the active locale. Duplicated (not imported) because the source file is out of
-// scope here; the branching is a straight copy of kitchenStatus's own.
-// `submitted` distinguishes a persisted actual (the receiving-only reader, and Review) from a
-// typed-but-unsaved staged line: both can be "off-plan and > 0", but only the former has been
-// written — a staged, unsubmitted quantity must never read as "Logged".
-function statusLabel(t: Translate, made: number, plan: number, submitted: boolean): string {
-  if (plan <= 0) {
-    if (made <= 0) return t('kitchen.status.notLogged')
-    return submitted ? t('kitchen.status.logged') : t('kitchen.status.staged')
-  }
-  if (made >= plan) {
-    if (made === plan) return t('kitchen.status.onPlan')
-    return t('kitchen.status.over', { count: made - plan })
-  }
-  return t('kitchen.status.under', { count: plan - made })
 }
 
 type PageStatus =
@@ -366,22 +345,9 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       : undefined,
   ).sort((a, b) => (a.key === 'planned' ? -1 : b.key === 'planned' ? 1 : 0))
 
-  // Staged KPIs drive only the pending-review footer. The head summary must never read this
-  // editable capture state: DD-7 requires its figures to come from submitted day entries.
-  const submittedKpiLines = useMemo(() => {
-    const base = buildLines(wipItems, planMap, stockMap, movement)
-    const key = movementKey(movement)
-    return Object.fromEntries(
-      Object.entries(base).map(([itemId, line]) => [itemId, {
-        ...line,
-        qty_porsi: actualsMap[itemId]?.[key] ?? 0,
-      }]),
-    )
-  }, [actualsMap, movement, planMap, stockMap, wipItems])
-  const kpis = useKitchenKpis(submittedKpiLines)
-  const hasSubmittedActuals = Object.values(actualsMap).some(
-    itemActuals => (itemActuals[movementKey(movement)] ?? 0) > 0,
-  )
+  // The day summary uses only submitted map membership, independent of draft lines and the
+  // currently offered list. Plan and actual quantities have no proven shared unit basis.
+  const kpis = useKitchenKpis(planMap, actualsMap, movementKey(movement))
   const transferDestination = movement.action === 'transfer'
     ? branches.find(branch => branch.id === movement.destinationBranchId)
     : undefined
@@ -392,19 +358,16 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     ? t('kitchen.transfer.summary.aria', { branch: transferDestinationName ?? t('kitchen.actionType.transferTo.fallback') })
     : t('kitchen.log.summary.aria')
   const summaryMetrics = [
-    { key: 'plan', label: t('kitchen.log.summary.plan'), value: String(kpis.plannedTotal) },
+    { key: 'plan', label: t('kitchen.log.summary.plan'), value: String(kpis.plannedItemCount) },
     {
       key: 'made',
       label: mode === 'transfer' ? t('kitchen.transfer.summary.quantity') : t('kitchen.log.summary.made'),
-      value: String(kpis.madeSoFar),
+      value: String(kpis.loggedItemCount),
     },
     {
       key: 'off-plan',
       label: t('kitchen.log.summary.offPlan'),
-      value: String(Math.max(kpis.madeOffPlan, 0)),
-      ...(hasSubmittedActuals && kpis.madeOffPlan === 0
-        ? { delta: { text: t('kitchen.log.summary.onPlan'), tone: 'success' as const } }
-        : {}),
+      value: String(kpis.offPlanItemCount),
     },
   ]
 
@@ -510,6 +473,24 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     setCafeDraftCount(draftCount)
     return () => { clearCafeDraftCount() }
   }, [draftCount])
+
+  // A required-note field can make a lower row and the sticky footer taller while the person
+  // keeps typing in its quantity input. Recheck only that focused capture input after React has
+  // laid out the new row; scroll the existing PageFrame ancestor only when the field overlaps
+  // the footer. This preserves focus and draft state and leaves deliberate navigation alone.
+  useLayoutEffect(() => {
+    const container = captureRef.current
+    const active = document.activeElement
+    if (!container || !(active instanceof HTMLInputElement)
+      || !active.matches('.kls-qty') || !container.contains(active)) return
+    const footer = container.querySelector<HTMLElement>('.kl-footer')
+    if (!footer) return
+    const inputRect = active.getBoundingClientRect()
+    const footerRect = footer.getBoundingClientRect()
+    if (footer.getClientRects().length === 0 || footerRect.height <= 0) return
+    if (inputRect.bottom <= footerRect.top) return
+    active.scrollIntoView?.({ block: 'nearest' })
+  }, [captureRef, lines])
 
   // Rebuild plan_qty / stock / gate state per line when the movement or the loaded
   // stream-scoped plan/stock change.
@@ -743,7 +724,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     setStatus({ kind: 'submitting' })
     setSubmitError('')
     try {
-      await insertKitchenLogBatch(
+      const insertedLogIds = await insertKitchenLogBatch(
         staged.map(line => ({
           business_unit_id: buId,
           log_date: logDate,
@@ -765,12 +746,38 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       const key = movementKey(movement)
       setActualsMap(prev => {
         const next = { ...prev }
-        for (const line of staged) {
+        staged.forEach((line, index) => {
+          const item = wipItems.find(candidate => candidate.id === line.wip_item_id)
+          const selectedUnit = item?.units.find(unit => unit.id === line.item_unit_id)
+          const entry = line.item_unit_id
+            ? {
+                key: `unit:${line.item_unit_id}`,
+                item_unit_id: line.item_unit_id,
+                unit_name: selectedUnit?.name ?? null,
+                qty_porsi: line.qty_porsi,
+              }
+            : {
+                key: `unknown:${insertedLogIds[index] ?? `pending-${Date.now()}-${index}`}`,
+                item_unit_id: null,
+                unit_name: null,
+                qty_porsi: line.qty_porsi,
+              }
+          const entries = [...(next[line.wip_item_id]?.[key] ?? [])]
+          if (entry.item_unit_id) {
+            const existingIndex = entries.findIndex(actual => actual.item_unit_id === entry.item_unit_id)
+            if (existingIndex >= 0) {
+              entries[existingIndex] = {
+                ...entries[existingIndex],
+                qty_porsi: entries[existingIndex].qty_porsi + entry.qty_porsi,
+              }
+            }
+            else entries.push(entry)
+          } else entries.push(entry)
           next[line.wip_item_id] = {
             ...next[line.wip_item_id],
-            [key]: (next[line.wip_item_id]?.[key] ?? 0) + line.qty_porsi,
+            [key]: entries,
           }
-        }
+        })
         return next
       })
       setStatus({ kind: 'success', count: staged.length })
@@ -887,13 +894,38 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     const unit = item.units.find(candidate => candidate.id === line.item_unit_id) ?? item.units[0]
     return [{ id: item.id, name: item.name, quantity: line.qty_porsi, unit: unit?.name ?? t('kitchen.unit.porsi') }]
   })
-  const totalsByUnit = [...stagedSummary.reduce((totals, line) => {
-    totals.set(line.unit, (totals.get(line.unit) ?? 0) + line.quantity)
-    return totals
-  }, new Map<string, number>()).entries()]
   const formatCaptureQty = (quantity: number) => new Intl.NumberFormat(
     document.documentElement.lang || 'en', { maximumFractionDigits: 3 },
   ).format(quantity)
+  const renderPlanValue = (quantity: number) => (
+    <span className="kl-plan-value">
+      <strong className="tabular">{quantity > 0 ? formatCaptureQty(quantity) : '—'}</strong>
+      {quantity > 0 && <small>{t('kitchen.log.plan.unitUnknown')}</small>}
+    </span>
+  )
+  const displayActualUnitsForItem = (entries: ActualUnitTotal[], item: CaptureFormItem) => entries.map(entry => {
+    // Current offer labels already distinguish repeated ERP names (for example, batch (1/2)).
+    // Apply one only to the exact recorded identity. Archived or otherwise unoffered history
+    // keeps its own recorded label, and unresolved/null identities stay explicitly unknown.
+    const offeredLabel = entry.item_unit_id === null
+      ? undefined
+      : item.units.find(unit => unit.id === entry.item_unit_id)?.name
+    return offeredLabel ? { ...entry, unit_name: offeredLabel } : entry
+  })
+  const renderActualUnits = (entries: ActualUnitTotal[], item: CaptureFormItem) => {
+    const displayedEntries = displayActualUnitsForItem(entries, item)
+    return displayedEntries.length > 0
+      ? (
+        <span className="kl-actual-units">
+          {displayedEntries.map(entry => (
+            <span key={entry.key}>
+              {formatCaptureQty(entry.qty_porsi)} {entry.unit_name?.trim() || t('kitchen.log.unit.unknownHistory')}
+            </span>
+          ))}
+        </span>
+      )
+      : '—'
+  }
   const captureDraftContent = (
     <>
       {mode === 'transfer' && (
@@ -914,16 +946,6 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
             </li>
           ))}
         </ul>
-      )}
-      {totalsByUnit.length > 0 && (
-        <div className="kl-capture-summary__totals">
-          <h3>{t('kitchen.log.summary.unitTotals')}</h3>
-          <ul>
-            {totalsByUnit.map(([unit, quantity]) => (
-              <li key={unit}><span>{unit}</span><strong className="tabular">{formatCaptureQty(quantity)}</strong></li>
-            ))}
-          </ul>
-        </div>
       )}
     </>
   )
@@ -980,10 +1002,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       key: 'plan',
       header: t('kitchen.log.col.plan'),
       numeric: true,
-      render: item => {
-        const plan = lines[item.id]?.plan_qty ?? 0
-        return plan > 0 ? plan : '—'
-      },
+      render: item => renderPlanValue(lines[item.id]?.plan_qty ?? 0),
     },
     {
       key: 'stock',
@@ -1007,7 +1026,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
           line={lines[item.id]}
           movement={movement}
           destinationName={transferDestinationName ?? undefined}
-          alreadyLogged={actualsMap[item.id]?.[movementKey(movement)] ?? 0}
+          alreadyLogged={displayActualUnitsForItem(actualsMap[item.id]?.[movementKey(movement)] ?? [], item)}
           onQtyChange={qty => handleQtyChange(item.id, qty)}
           onNotesChange={note => handleNotesChange(item.id, note)}
           unitOptions={item.units}
@@ -1023,18 +1042,10 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       header: t('kitchen.log.col.status'),
       render: item => {
         const line = lines[item.id]
-        const status = kitchenStatus({
-          made: line.qty_porsi,
-          plan: line.plan_qty,
-          isOffPlan: line.plan_qty <= 0,
-        })
-        // v4: was a filled <Pill> on EVERY row, which rendered the column as a wall of red at
-        // shift start. Two changes: the fill is dropped (toned text, same tone semantics —
-        // kitchenStatus is untouched), and the status only renders once a quantity has been
-        // TYPED. The owner's requirement is immediate per-menu feedback when production diverges
-        // from plan; at rest nothing has diverged yet, so an empty cell is the honest state.
-        if (line.qty_porsi <= 0) return null
-        return <span className={`kl-status kl-status--${status.tone}`}>{statusLabel(t, line.qty_porsi, line.plan_qty, false)}</span>
+        const isLogged = (actualsMap[item.id]?.[movementKey(movement)] ?? []).some(entry => entry.qty_porsi > 0)
+        if (line.qty_porsi > 0) return <span className="kl-status kl-status--neutral">{t('kitchen.status.staged')}</span>
+        if (isLogged) return <span className="kl-status kl-status--neutral">{t('kitchen.status.logged')}</span>
+        return null
       },
     },
   ]
@@ -1059,10 +1070,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       key: 'plan',
       header: t('kitchen.log.col.plan'),
       numeric: true,
-      render: item => {
-        const plan = lines[item.id]?.plan_qty ?? 0
-        return plan > 0 ? plan : '—'
-      },
+      render: item => renderPlanValue(lines[item.id]?.plan_qty ?? 0),
     },
     {
       key: 'stock',
@@ -1076,18 +1084,15 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
         ? t('kitchen.transfer.col.quantity', { branch: transferDestinationName ?? t('kitchen.actionType.transferTo.fallback') })
         : t('kitchen.log.col.made'),
       numeric: true,
-      render: item => actualsMap[item.id]?.[movementKey(movement)] ?? 0,
+      render: item => renderActualUnits(actualsMap[item.id]?.[movementKey(movement)] ?? [], item),
     },
     {
       key: 'status',
       header: t('kitchen.log.col.status'),
       render: item => {
-        const made = actualsMap[item.id]?.[movementKey(movement)] ?? 0
-        const plan = lines[item.id]?.plan_qty ?? 0
-        if (made <= 0) return null
-        const rowStatus = kitchenStatus({ made, plan, isOffPlan: plan <= 0 })
-        // actualsMap rows are submitted production (DB actuals), never staged form state.
-        return <span className={`kl-status kl-status--${rowStatus.tone}`}>{statusLabel(t, made, plan, true)}</span>
+        const actuals = actualsMap[item.id]?.[movementKey(movement)] ?? []
+        if (!actuals.some(entry => entry.qty_porsi > 0)) return null
+        return <span className="kl-status kl-status--neutral">{t('kitchen.status.logged')}</span>
       },
     },
   ]
@@ -1104,11 +1109,10 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   const renderLogCard = (item: KitchenListRow<CaptureFormItem>) => {
     const line = lines[item.id]
     if (!line) return null
-    const status = kitchenStatus({
-      made: line.qty_porsi,
-      plan: line.plan_qty,
-      isOffPlan: line.plan_qty <= 0,
-    })
+    const actuals = actualsMap[item.id]?.[movementKey(movement)] ?? []
+    const rowStatus = line.qty_porsi > 0
+      ? t('kitchen.status.staged')
+      : actuals.some(entry => entry.qty_porsi > 0) ? t('kitchen.status.logged') : null
     return (
       <div className="kl-row">
         <div className="kl-card-head">
@@ -1121,7 +1125,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
             line={line}
             movement={movement}
             destinationName={transferDestinationName ?? undefined}
-            alreadyLogged={actualsMap[item.id]?.[movementKey(movement)] ?? 0}
+            alreadyLogged={displayActualUnitsForItem(actuals, item)}
             onQtyChange={qty => handleQtyChange(item.id, qty)}
             onNotesChange={note => handleNotesChange(item.id, note)}
             unitOptions={item.units}
@@ -1131,26 +1135,24 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
             dense
           />
         </div>
-        {/* v4 (owner-corrected): the meta line no longer restates Plan — the greyed placeholder
-            inside the qty field IS the plan anchor, so printing it again broke the same
-            No-Restated-Value rule this pass exists to enforce. And status renders ONLY once a
-            quantity has been typed: the owner's requirement is immediate feedback *when
-            production diverges from plan*, per menu. At rest nothing has diverged, so a red
-            "Under −25" on all 21 rows was noise wearing feedback's clothes. */}
+        {/* Plan is a separate read fact because the input's unit is selectable while the plan
+            unit is unrecorded. Row state describes Draft/Logged only; it does not compare these
+            unitless plan and selected-unit quantities. */}
         {/* v4 (owner-directed): category is gone — the toolbar already filters by category and
-            the list is grouped, so repeating it on every row was noise. The meta line now renders
-            ONLY when it has something to say, so a normal row is a single line. */}
-        {/* layout/distill pass: the "no plan" caption used to render on EVERY row of the
-            Off-plan group — the group header + its "log as produced" hint already say that
-            once for the whole group (DataTable groups.hint), so repeating it per row was the
-            exact "true of every row → not information" pattern that dropped the status-pill
-            fill (kl-status below). Off-plan rows are now silent at rest, same as planned rows. */}
+            the list is grouped, so repeating it on every row was noise. The compact meta line
+            keeps Plan, Stock, and the neutral Draft/Logged state as separate facts. */}
+        {/* The group header and hint already explain why an item is off plan; no per-row "no
+            plan" caption is needed. Its Plan fact stays visible here, with its unit basis stated. */}
         <div className="kl-card-meta">
+          <span className="kl-card-plan">
+            <span>{t('kitchen.log.col.plan')}</span>
+            {renderPlanValue(line.plan_qty)}
+          </span>
           <span className="kl-card-stock">
             <span>{t('kitchen.log.col.stock')}</span> <strong className="tabular">{line.stok}</strong>
           </span>
-          {line.qty_porsi > 0 && (
-            <span className={`kl-status kl-status--${status.tone}`}>{statusLabel(t, line.qty_porsi, line.plan_qty, false)}</span>
+          {rowStatus && (
+            <span className="kl-status kl-status--neutral">{rowStatus}</span>
           )}
         </div>
       </div>

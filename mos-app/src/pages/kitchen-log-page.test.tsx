@@ -67,6 +67,7 @@ import { fetchDefaultStream } from '@/lib/db/default-stream'
 import { listCafeViewerTeams } from '@/lib/db/cafe-opening'
 import { listActiveBranches } from '@/lib/db/branches'
 import type {
+  ActualUnitTotal,
   BranchOption,
   CaptureFormItem,
   CafeDestination,
@@ -130,6 +131,17 @@ const CAFE_DESTINATIONS: CafeDestination[] = [
 const DEFAULT_STREAM: ProductionStream = { branch: BRANCH_RUMAH_RAMES, activity: 'kitchen', produces: true }
 const PRODUCE_KEY = 'produce'
 const TRANSFER_RADIANT_KEY = `transfer:${BRANCH_RADIANT.id}`
+const loggedUnit = (
+  itemUnitId: string | null,
+  quantity: number,
+  unitName: string | null,
+  logId = 'log-history',
+): ActualUnitTotal => ({
+  key: itemUnitId ? `unit:${itemUnitId}` : `unknown:${logId}`,
+  item_unit_id: itemUnitId,
+  unit_name: unitName,
+  qty_porsi: quantity,
+})
 
 // #781: CafeStreamBar states a resolved stream as text with a quiet "Switch" beside it (opens a
 // portaled listbox, same as Select's) — or, with no default resolved at all, offers the
@@ -460,16 +472,11 @@ describe('Populated state — WIP items loaded', () => {
     expect(screen.getByRole('heading', { name: /log production/i })).toBeInTheDocument()
   })
 
-  it('shows plan qty for each item', async () => {
+  it('does not put the unitless plan quantity into the selected-unit input', async () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
-    // The plan belongs to ITS OWN row: a bare /20/ over the whole document passed for months
-    // on the head's `2026-09-17`, and would have passed with no plan column at all.
-    // The plan reaches the person as the quantity field's placeholder — type over it and you
-    // have logged the plan. A bare /20/ over the whole document passed for months on the head's
-    // `2026-09-17` and would have passed with the plan missing entirely.
     expect(screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i }))
-      .toHaveAttribute('placeholder', '20')
+      .toHaveAttribute('placeholder', '0')
   })
 
   it('shows pinned Submit button', async () => {
@@ -537,7 +544,7 @@ describe('AC-020/021: variance-note gate (note required when qty differs from ef
     // locale (cafe-1 fix — the i18n seam; default test locale is English, VARIANCE_NOTE_CUE's
     // 'en' catalog rendering, not the raw ID gate-logic constant).
     await waitFor(() => {
-      expect(screen.getByText(/note required — off plan/i)).toBeInTheDocument()
+      expect(screen.getByText(/note required before submit/i)).toBeInTheDocument()
     })
     // insertKitchenLogBatch should NOT have been called
     expect(mockInsertKitchenLogBatch).not.toHaveBeenCalled()
@@ -562,7 +569,7 @@ describe('AC-020/021: variance-note gate (note required when qty differs from ef
     await waitFor(() => {
       expect(screen.getByRole('textbox', { name: /^note for nasi goreng$/i })).toBeInTheDocument()
       // Row-level note cue, localized (cafe-1 fix — default test locale is English)
-      expect(screen.getByText(/note required — off plan/i)).toBeInTheDocument()
+      expect(screen.getByText(/note required before submit/i)).toBeInTheDocument()
     })
     // No submit attempt occurred
     expect(mockInsertKitchenLogBatch).not.toHaveBeenCalled()
@@ -584,7 +591,7 @@ describe('AC-020/021: variance-note gate (note required when qty differs from ef
 
     await waitFor(() => {
       // Row-level note cue, localized (cafe-1 fix — default test locale is English)
-      expect(screen.getByText(/note required — off plan/i)).toBeInTheDocument()
+      expect(screen.getByText(/note required before submit/i)).toBeInTheDocument()
     })
     expect(mockInsertKitchenLogBatch).not.toHaveBeenCalled()
   })
@@ -740,7 +747,7 @@ describe('AC-744  AC-007: Café capture renders read-only for the unaffiliated',
 })
 
 // ── F3b: disabled Submit shows an inline reason message ──────────────
-// The footer does not restate the field's own "Note required — off plan" cue verbatim — it
+// The footer does not restate the field's own note cue verbatim — it
 // names a COUNT and is itself a control that jumps to and focuses the first unresolved note.
 describe('F3b: disabled Submit shows a note-missing pointer when a variance note is missing', () => {
   it('shows "1 note missing" as a button near Submit, which focuses the note field', async () => {
@@ -1009,6 +1016,7 @@ describe('AC-030: successful submit (increment semantics)', () => {
     await waitFor(() => {
       expect(screen.getByRole('status')).toBeInTheDocument()
     })
+    expect(document.querySelector('.kls-meta')?.textContent).toContain('12 porsi')
   })
 })
 
@@ -1048,6 +1056,7 @@ describe('FR-021/022: "change unit" re-binds the row to the chosen item-unit', (
     expect(mockInsertKitchenLogBatch.mock.calls[0][0]).toEqual([
       expect.objectContaining({ wip_item_id: 'w1', qty_porsi: 17, item_unit_id: 'u1-botol' }),
     ])
+    expect(document.querySelector('.kls-meta')?.textContent).toContain('17 botol')
   })
 })
 
@@ -1404,17 +1413,20 @@ describe('R4 / FR-018: Log summary line', () => {
   it('shows plan, submitted made and off-plan totals in the head without KPI tiles or help', async () => {
     mockListCaptureFormItems.mockResolvedValue(WIP_ITEMS_WITH_OFFPLAN)
     mockFetchActualsMap.mockResolvedValue({
-      w1: { [PRODUCE_KEY]: 12 },
-      w3: { [PRODUCE_KEY]: 7 },
+      w1: { [PRODUCE_KEY]: [
+        loggedUnit('u1-porsi', 12, 'porsi'),
+        loggedUnit('u1-botol', 500, 'botol'),
+      ] },
+      w3: { [PRODUCE_KEY]: [loggedUnit(null, 7, null, 'log-off-plan')] },
     })
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     const summary = document.querySelector('.msr') as HTMLElement
     expect(summary).not.toBeNull()
-    expect(summary.textContent).toMatch(/Plan\s*32/)
-    expect(summary.textContent).toMatch(/Made\s*19/)
-    expect(summary.textContent).toMatch(/Off-plan\s*7/)
+    expect(summary.textContent).toMatch(/Planned items\s*2/)
+    expect(summary.textContent).toMatch(/Made items\s*2/)
+    expect(summary.textContent).toMatch(/Off-plan items\s*1/)
     expect(summary.textContent).not.toMatch(/on plan/i)
     expect(document.querySelector('.kks')).toBeNull()
     expect(screen.queryByRole('button', { name: /^help$/i })).toBeNull()
@@ -1422,7 +1434,7 @@ describe('R4 / FR-018: Log summary line', () => {
 
   it('transfer labels and submitted summary name the destination instead of production', async () => {
     setDesktopMatchMedia(true)
-    mockFetchActualsMap.mockResolvedValue({ w1: { [TRANSFER_RADIANT_KEY]: 19 } })
+    mockFetchActualsMap.mockResolvedValue({ w1: { [TRANSFER_RADIANT_KEY]: [loggedUnit('u1-porsi', 19, 'porsi')] } })
     await renderTransferPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
@@ -1432,7 +1444,8 @@ describe('R4 / FR-018: Log summary line', () => {
     expect(quantity).toBeInTheDocument()
 
     const summary = document.querySelector('.msr') as HTMLElement
-    expect(summary.textContent).toMatch(/Transferred\s*19/)
+    expect(summary.textContent).toMatch(/Transferred items\s*1/)
+    expect(summary.textContent).not.toMatch(/19/)
     expect(summary.textContent).not.toMatch(/Made|Produced/i)
     expect(screen.getByRole('table', { name: /café transfer/i })).toBeInTheDocument()
     expect(screen.getByRole('columnheader', { name: /transferred to radiant/i })).toBeInTheDocument()
@@ -1447,14 +1460,14 @@ describe('R4 / FR-018: Log summary line', () => {
     const qty = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
     fireEvent.change(qty, { target: { value: '5' } })
     expect(summary.textContent).toBe(atRest)
-    expect(summary.textContent).toMatch(/Made\s*0/)
+    expect(summary.textContent).toMatch(/Made items\s*0/)
   })
 
   it('renders a zero-plan summary rather than a second empty-state sentence', async () => {
     mockFetchPlanMap.mockResolvedValue({})
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
-    expect(document.querySelector('.msr')?.textContent).toMatch(/Plan\s*0/)
+    expect(document.querySelector('.msr')?.textContent).toMatch(/Planned items\s*0/)
     expect(screen.queryByText(/planned total/i)).toBeNull()
   })
 })
@@ -1694,7 +1707,7 @@ describe('OD-K-5: sticky-footer tally', () => {
     expect(footer.querySelector('.kl-footer-actions')).toBeNull()
   })
 
-  it('wide-screen summary keeps quantities separate by selected unit and submits from the aside', async () => {
+  it('wide-screen summary keeps per-item quantities and units separate and submits from the aside', async () => {
     setWideMatchMedia(true)
     mockInsertKitchenLogBatch.mockResolvedValue(['log-001', 'log-002'])
     await renderPage()
@@ -1709,9 +1722,7 @@ describe('OD-K-5: sticky-footer tally', () => {
     const aside = screen.getByRole('complementary', { name: 'Capture summary' })
     expect(aside).toHaveTextContent('17 botol')
     expect(aside).toHaveTextContent('12 porsi')
-    const totals = aside.querySelector('.kl-capture-summary__totals')!
-    expect(totals).toHaveTextContent('botol17')
-    expect(totals).toHaveTextContent('porsi12')
+    expect(aside.querySelector('.kl-capture-summary__totals')).toBeNull()
     expect(aside).not.toHaveTextContent('29')
     const submit = within(aside).getByRole('button', { name: /submit 2/i })
     expect(submit).toHaveAttribute('form', 'kitchen-log-form')
@@ -1747,7 +1758,9 @@ describe('OD-K-5: reflow = one branch in the DOM (P-4)', () => {
     setDesktopMatchMedia(true)
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
-    expect(screen.getByRole('table', { name: /café production log/i })).toBeInTheDocument()
+    const table = screen.getByRole('table', { name: /café production log/i })
+    expect(table).toBeInTheDocument()
+    expect(within(table).getAllByText('Unit not recorded').length).toBeGreaterThan(0)
     expect(document.querySelector('.dt-cards')).toBeNull()
   })
 
@@ -1760,6 +1773,25 @@ describe('OD-K-5: reflow = one branch in the DOM (P-4)', () => {
     expect(within(card as HTMLElement).queryByText('Main')).toBeNull()
     expect(within(card as HTMLElement).getByText('3')).toBeInTheDocument()
     expect(within(card as HTMLElement).getByText(/stock/i)).toBeInTheDocument()
+  })
+
+  it('phone card shows the per-item plan and states that its unit is unrecorded', async () => {
+    setWideMatchMedia(false)
+    mockFetchPlanMap.mockResolvedValue({
+      w1: { [PRODUCE_KEY]: 10 },
+      w2: { [PRODUCE_KEY]: 12 },
+    })
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    const card = screen.getByText('Ayam Bakar').closest('.kl-row') as HTMLElement
+    const plan = card.querySelector('.kl-card-plan')
+    expect(plan).not.toBeNull()
+    expect(plan?.textContent).toContain('Plan')
+    expect(plan?.textContent).toContain('10')
+    expect(plan?.textContent).toContain('Unit not recorded')
+    expect(within(card).getByRole('spinbutton', { name: /quantity produced for ayam bakar/i }))
+      .toHaveAttribute('placeholder', '0')
   })
 })
 
@@ -1840,7 +1872,7 @@ describe('GAP-4/#9: route-leave dirty guard for staged quantities', () => {
 // #233 — capture surface with stream context, all streams (bar-capture spec).
 // AC-002 (default pre-selected + switchable), FR-002 (no default → explicit choice),
 // FR-005 (the catalog's streams, roastery never one), AC-004 (no raw-material input),
-// AC-006 (plan-as-placeholder + effective target + already-logged + live note gate,
+// AC-006 (separate unitless plan fact + effective target + already-logged + live note gate,
 // stream-scoped), AC-012b frontend half (the submitted rows carry the SELECTED pair).
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -2036,6 +2068,34 @@ describe('OD-CAFE-6: Log opens by the one stream rule, with one look', () => {
   })
 })
 
+describe('recorded ERP unit labels', () => {
+  it('uses the exact offered unit label when current ERP units share a name', async () => {
+    setWideMatchMedia(false)
+    mockListCaptureFormItems.mockResolvedValue([
+      {
+        ...WIP_ITEMS[0],
+        units: [
+          { id: 'u1-batch-a', name: 'batch (1/2)', is_default: true },
+          { id: 'u1-batch-b', name: 'batch (2/2)', is_default: false },
+        ],
+      },
+      WIP_ITEMS[1],
+    ])
+    mockFetchActualsMap.mockResolvedValue({
+      w1: { [PRODUCE_KEY]: [
+        loggedUnit('u1-batch-a', 2, 'batch'),
+        loggedUnit('u1-batch-b', 500, 'batch'),
+      ] },
+    })
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    const meta = document.querySelector('.kls-meta')
+    expect(meta?.textContent).toContain('2 batch (1/2)')
+    expect(meta?.textContent).toContain('500 batch (2/2)')
+  })
+})
+
 describe('DD-MVP-9: a receiving-only stream remains readable but cannot capture production', () => {
   it.each([
     { frame: 'without a leading slot', leading: undefined },
@@ -2047,7 +2107,7 @@ describe('DD-MVP-9: a receiving-only stream remains readable but cannot capture 
       activity: 'kitchen',
       produces: false,
     })
-    mockFetchActualsMap.mockResolvedValue({ w1: { [PRODUCE_KEY]: 4 } })
+    mockFetchActualsMap.mockResolvedValue({ w1: { [PRODUCE_KEY]: [loggedUnit('u1-porsi', 4, 'porsi')] } })
     await renderPage(VIEWER_MEMBER, appUrl('/cafe'), undefined, leading)
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
@@ -2063,7 +2123,7 @@ describe('DD-MVP-9: a receiving-only stream remains readable but cannot capture 
     expect(within(ayamCard).getByText('Stock')).toBeInTheDocument()
     expect(within(ayamCard).getByText('3')).toBeInTheDocument()
     expect(within(ayamCard).getByText('Made today')).toBeInTheDocument()
-    expect(within(ayamCard).getByText('4')).toBeInTheDocument()
+    expect(within(ayamCard).getByText('4 porsi')).toBeInTheDocument()
     expect(screen.queryByText('Made', { exact: true })).toBeNull()
     expect(screen.queryByText('Off-plan', { exact: true })).toBeNull()
 
@@ -2128,11 +2188,12 @@ describe("AC-004 / FR-010: no raw-material input on any stream's form; fixed uni
   })
 })
 
-describe('AC-006 / FR-014/015: plan-as-placeholder + effective target + already-logged + live note gate, stream-scoped', () => {
-  // The spec's own numbers: plan 10, already logged 4, 2 in stock → effective target 8.
+describe('AC-006 / FR-014/015: unitless plan fact + effective target + already-logged + live note gate, stream-scoped', () => {
+  // Legacy AC-006 values exercise the unchanged note gate; this display does not establish
+  // equivalence between the plan and stock units.
   const AC6_PLAN = { w1: { [PRODUCE_KEY]: 10 } }
   const AC6_STOCK = { w1: { stok: 2, tersedia: 2 }, w2: { stok: 0, tersedia: 0 } }
-  const AC6_ACTUALS = { w1: { [PRODUCE_KEY]: 4 } }
+  const AC6_ACTUALS = { w1: { [PRODUCE_KEY]: [loggedUnit('u1-porsi', 4, 'porsi')] } }
 
   beforeEach(() => {
     mockFetchPlanMap.mockResolvedValue(AC6_PLAN)
@@ -2140,25 +2201,26 @@ describe('AC-006 / FR-014/015: plan-as-placeholder + effective target + already-
     mockFetchActualsMap.mockResolvedValue(AC6_ACTUALS)
   })
 
-  it('AC-006: a logged row blanks the plan placeholder, shows the running actual, and keeps the gate', async () => {
+  it('AC-006: a logged row keeps plan outside the unit-bound placeholder, shows actual history, and keeps the gate', async () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     const qty = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
-    // Once a row has a submitted actual, the greyed plan anchor is removed (FR-020).
-    expect(qty).toHaveAttribute('placeholder', '')
+    // Plan quantities have no recorded unit identity, so they are not echoed in this input.
+    expect(qty).toHaveAttribute('placeholder', '0')
     // The running "already logged N" actuals (FR-014) — from the DB, not the form. The
     // English catalog says "logged" and the Indonesian catalog says "sudah".
     const meta = document.querySelector('.kls-meta')
     expect(meta?.textContent).toMatch(/(?:logged|sudah)\s*4/)
 
-    // Effective target = plan − stock = 8 (FR-014): logging exactly 8 is on-target.
+    // Legacy fixture value 8 satisfies the unchanged note gate; this display does not assert
+    // that plan and stock units are equivalent.
     await act(async () => {
       fireEvent.change(qty, { target: { value: '8' } })
       fireEvent.blur(qty)
       await Promise.resolve()
     })
-    expect(screen.queryByText(/note required — off plan/i)).toBeNull()
+    expect(screen.queryByText(/note required before submit/i)).toBeNull()
   })
 
   it('AC-006: a variant qty reveals the required-note gate while still focused', async () => {
@@ -2166,20 +2228,23 @@ describe('AC-006 / FR-014/015: plan-as-placeholder + effective target + already-
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     const qty = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
-    // 10 is the RAW plan — off the effective target (8), so the gate must be reachable immediately.
+    // This legacy fixture value exercises the existing required-note path; it does not assert
+    // unit equivalence between plan, stock, and the selected input.
     await act(async () => {
       fireEvent.change(qty, { target: { value: '10' } })
       await Promise.resolve()
     })
     await waitFor(() => {
-      expect(screen.getByText(/note required — off plan/i)).toBeInTheDocument()
+      expect(screen.getByText(/note required before submit/i)).toBeInTheDocument()
       expect(screen.getByRole('textbox', { name: /^note for ayam bakar$/i })).toBeInTheDocument()
     })
   })
 
   it("AC-006 stream-scoped: switching streams shows the CHOSEN stream's already-logged, not the old one's", async () => {
     mockFetchActualsMap.mockImplementation(async (_date, stream) =>
-      stream.branch.id === BRANCH_GORDI_HQ.id ? { w1: { [PRODUCE_KEY]: 9 } } : AC6_ACTUALS,
+      stream.branch.id === BRANCH_GORDI_HQ.id
+        ? { w1: { [PRODUCE_KEY]: [loggedUnit('u1-porsi', 9, 'porsi')] } }
+        : AC6_ACTUALS,
     )
     await renderPage(OPS_LEAD)
     await waitFor(() => screen.getByText('Ayam Bakar'))
@@ -2189,6 +2254,71 @@ describe('AC-006 / FR-014/015: plan-as-placeholder + effective target + already-
     await waitFor(() => {
       expect(document.querySelector('.kls-meta')?.textContent).toMatch(/logged\s*9/)
     })
+  })
+})
+
+describe('phone focused-quantity visibility after reactive footer layout', () => {
+  function setBounds(element: HTMLElement, rect: DOMRect) {
+    vi.spyOn(element, 'getBoundingClientRect').mockReturnValue(rect)
+  }
+
+  function setFooterRendered(footer: HTMLElement, rendered: boolean) {
+    vi.spyOn(footer, 'getClientRects').mockReturnValue(
+      (rendered ? [footer.getBoundingClientRect()] : []) as unknown as DOMRectList,
+    )
+  }
+
+  async function prepareGeometry(inputBounds: [number, number], footerBounds: [number, number], rendered = true) {
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+    const qty = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i }) as HTMLInputElement
+    const footer = document.querySelector('.kl-footer') as HTMLElement
+    const scroll = vi.fn()
+    qty.scrollIntoView = scroll
+    setBounds(qty, new DOMRect(0, inputBounds[0], 100, inputBounds[1] - inputBounds[0]))
+    setBounds(footer, new DOMRect(0, footerBounds[0], 390, footerBounds[1] - footerBounds[0]))
+    setFooterRendered(footer, rendered)
+    qty.focus()
+    return { qty, scroll }
+  }
+
+  it.each([
+    { kind: 'partly overlapping', input: [590, 626] as [number, number], footer: [619, 780] as [number, number] },
+    { kind: 'fully below', input: [803, 847] as [number, number], footer: [619, 784] as [number, number] },
+  ])('scrolls only the focused quantity when it is $kind and keeps its focus and draft', async ({ input, footer }) => {
+    const { qty, scroll } = await prepareGeometry(input, footer)
+    fireEvent.change(qty, { target: { value: '1' } })
+
+    expect(scroll).toHaveBeenCalledWith({ block: 'nearest' })
+    expect(qty).toHaveFocus()
+    expect(qty).toHaveValue(1)
+  })
+
+  it('does not scroll a quantity that is already above the footer', async () => {
+    const { qty, scroll } = await prepareGeometry([560, 600], [619, 780])
+    fireEvent.change(qty, { target: { value: '1' } })
+    expect(scroll).not.toHaveBeenCalled()
+    expect(qty).toHaveFocus()
+    expect(qty).toHaveValue(1)
+  })
+
+  it('does not move a focused note field when another quantity updates', async () => {
+    const { qty, scroll } = await prepareGeometry([803, 847], [619, 784])
+    fireEvent.change(qty, { target: { value: '1' } })
+    const note = await screen.findByRole('textbox', { name: /^note for ayam bakar$/i })
+    scroll.mockClear()
+    note.focus()
+    fireEvent.change(qty, { target: { value: '2' } })
+    expect(scroll).not.toHaveBeenCalled()
+    expect(note).toHaveFocus()
+  })
+
+  it('does not scroll when the footer has no rendered box', async () => {
+    const { qty, scroll } = await prepareGeometry([803, 847], [0, 0], false)
+    fireEvent.change(qty, { target: { value: '1' } })
+    expect(scroll).not.toHaveBeenCalled()
+    expect(qty).toHaveFocus()
+    expect(qty).toHaveValue(1)
   })
 })
 
@@ -2215,7 +2345,7 @@ describe('stale-response race: an older stream fetch resolving LAST never lands 
     await waitFor(() => screen.getByText('Nasi Goreng'))
     expect(
       screen.getByRole('spinbutton', { name: /quantity produced for nasi goreng/i }),
-    ).toHaveAttribute('placeholder', '33')
+    ).toHaveAttribute('placeholder', '0')
 
     // NOW the stale switch-#1 response arrives (w2 → 77). It must be discarded: without
     // the request-generation guard it would re-seed the lines with Radiant-bar's plan
@@ -2227,7 +2357,7 @@ describe('stale-response race: an older stream fetch resolving LAST never lands 
     expect(within(screen.getByTestId('cafe-stream')).getByText('Gordi HQ · Kitchen')).toBeInTheDocument()
     expect(
       screen.getByRole('spinbutton', { name: /quantity produced for nasi goreng/i }),
-    ).toHaveAttribute('placeholder', '33')
+    ).toHaveAttribute('placeholder', '0')
   })
 })
 
@@ -2500,14 +2630,14 @@ describe('/cafe/transfer destination selection', () => {
   it('reviews a phone Transfer draft by destination and unit without changing submitted totals', async () => {
     setWideMatchMedia(false)
     mockFetchDefaultStream.mockResolvedValue({ branch: BRANCH_RUMAH_RAMES, activity: 'bar' })
-    mockFetchActualsMap.mockResolvedValue({ w1: { [TRANSFER_RADIANT_KEY]: 7 } })
+    mockFetchActualsMap.mockResolvedValue({ w1: { [TRANSFER_RADIANT_KEY]: [loggedUnit('u1-porsi', 7, 'porsi')] } })
     await renderTransferPage()
     await waitFor(() => expect(screen.getAllByRole('tab').length).toBeGreaterThan(1))
 
     const user = userEvent.setup()
     await user.click(screen.getByRole('tab', { name: 'Transfer to Radiant' }))
-    const submittedSummary = screen.getByRole('group', { name: 'Plan versus transfers to Radiant' })
-    expect(submittedSummary).toHaveTextContent(/Transferred\s*7/)
+    const submittedSummary = screen.getByRole('group', { name: 'Planned, transferred, and off-plan item counts for Radiant' })
+    expect(submittedSummary).toHaveTextContent(/Transferred items\s*1/)
     const submittedSnapshot = submittedSummary.textContent
 
     for (const collapsedGroup of screen.queryAllByRole('button', { name: /^Expand / })) {
@@ -2526,9 +2656,7 @@ describe('/cafe/transfer destination selection', () => {
     expect(draft).toHaveTextContent('2 botol')
     expect(draft).toHaveTextContent('Nasi Goreng')
     expect(draft).toHaveTextContent('3 porsi')
-    const totals = within(draft).getByRole('heading', { name: 'Totals by unit' }).parentElement!
-    expect(totals).toHaveTextContent('botol2')
-    expect(totals).toHaveTextContent('porsi3')
+    expect(draft.querySelector('.kl-capture-summary__totals')).toBeNull()
     expect(draft).not.toHaveTextContent(/5/)
     expect(submittedSummary.textContent).toBe(submittedSnapshot)
     expect(screen.getByRole('button', { name: /submit/i })).toBeInTheDocument()

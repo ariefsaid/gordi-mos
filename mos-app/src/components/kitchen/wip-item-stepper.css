@@ -138,6 +138,8 @@
   gap: 10px;
 }
 .kls-meta strong { color: var(--foreground); font-weight: 600; }
+.kls-logged-units { display: inline-flex; flex-wrap: wrap; gap: 0 6px; }
+.kls-logged-unit { white-space: nowrap; }
 
 /* ── transfer-availability cap cue (FR-023 / AC-022) ── */
 .kls-cap {
