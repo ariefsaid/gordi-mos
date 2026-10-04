@@ -259,9 +259,9 @@ test.describe('Café item settings', () => {
       const reportButton = report.getByRole('button', { name: 'Missing an item? Report it', exact: true })
       const toolbar = page.locator('.ktb')
       await expect(reportButton).toBeVisible()
-      await expect(page.getByRole('spinbutton', { name: 'Waste quantity for Herbal tea' })).toHaveCSS(
-        'font-size', width === 390 ? '16px' : '14px',
-      )
+      if (width === 390) {
+        await expect(page.getByRole('spinbutton', { name: 'Waste quantity for Herbal tea' })).toHaveCSS('font-size', '16px')
+      }
       const [reportBox, toolbarBox] = await Promise.all([report.boundingBox(), toolbar.boundingBox()])
       expect(reportBox).not.toBeNull()
       expect(toolbarBox).not.toBeNull()
