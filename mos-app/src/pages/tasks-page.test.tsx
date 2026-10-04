@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation } from 'react-router-dom'
-import type { TaskListRow } from '@/lib/db/tasks.types'
+import type { TaskRow } from '@/lib/db/tasks.types'
 import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
 import { APP_ROUTER_BASENAME, appUrl } from '@/config/app-build-settings'
@@ -116,7 +116,7 @@ const adminState: AuthState = {
 }
 
 // ── Task fixtures (raw rows — no embedded objects, Fix C1) ────────────────────
-function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
+function makeTask(overrides: Partial<TaskRow> = {}): TaskRow {
   return {
     id: 'task-1', org_id: 'org', title: 'Default task',
     business_unit_id: 'bu-1', status: 'Open',

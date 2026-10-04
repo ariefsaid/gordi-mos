@@ -3,6 +3,7 @@
 // The React hook subscribes via `subscribe` and owns URL sync; this module owns no React or Supabase.
 import { checkPresentationCompatibility } from './query-state'
 import type { CollectionViewSpec, PersistedCollectionView } from './collection-view-spec'
+import type { ReadLease } from '@/lib/scoped-reads'
 import type {
   CollectionAccess,
   CollectionOpenSource,
@@ -88,9 +89,9 @@ export interface RecordCollectionController<
 }
 
 /**
- * Whether a `setQuery` must trigger a fresh load. Absent an explicit `loadKeys` allow-list the
- * engine reloads on any change (conservative default); otherwise it reloads only when one of the
- * declared server-dependency keys actually changed value.
+ * Whether a `setQuery` must trigger a fresh load. A semantic dependency key handles combinations
+ * of query values and viewer authority; otherwise the legacy `loadKeys` allow-list applies. With
+ * neither declaration the engine reloads on any query change (conservative default).
  */
 function loadKeysChanged<TQuery extends object>(
   loadKeys: readonly Extract<keyof TQuery, string>[] | undefined,
@@ -132,6 +133,8 @@ export function createRecordCollectionController<
     presentation: TPresentation
     viewerId: string | null
     accessRoles: readonly string[]
+    /** Hook-owned raw-read cache; direct React-free callers may omit it. */
+    readLease?: ReadLease
     /** Defaults to true (desktop) — matches every existing caller that never narrows. */
     isDesktop?: boolean
   },
@@ -189,8 +192,14 @@ export function createRecordCollectionController<
         : 'loading',
       error: null,
     })
+    const loadArgs = {
+      query: state.query,
+      viewerId: initial.viewerId,
+      accessRoles: initial.accessRoles,
+      ...(initial.readLease ? { readLease: initial.readLease } : {}),
+    }
     void descriptor
-      .load({ query: state.query, viewerId: initial.viewerId, accessRoles: initial.accessRoles })
+      .load(loadArgs)
       .then((data) => {
         if (token !== loadToken) return // stale result — dropped
         const projection = descriptor.project(data, state.query, state.presentation)
@@ -247,11 +256,13 @@ export function createRecordCollectionController<
       const normalized = descriptor.query.normalize(next)
       set({ query: normalized, queryIssues: [] })
       reproject()
-      // Only re-fetch when a genuine server dependency changed. A descriptor that does its
-      // filtering/sorting/grouping client-side in `project()` (declaring its real `loadKeys`) can
-      // reproject the existing snapshot on a filter/sort/view change without refetching the dataset
-      // and its lookup tables. Absent `loadKeys`, every change reloads (conservative default).
-      if (loadKeysChanged(descriptor.loadKeys, previous, normalized)) runLoad(true)
+      // Only re-fetch when a genuine server dependency changed. A semantic key captures conditional
+      // dependencies; simple descriptors can keep using loadKeys. Absent both, every change reloads.
+      const dependencyChanged = descriptor.loadDependencyKey
+        ? descriptor.loadDependencyKey(previous, initial.accessRoles) !==
+          descriptor.loadDependencyKey(normalized, initial.accessRoles)
+        : loadKeysChanged(descriptor.loadKeys, previous, normalized)
+      if (dependencyChanged) runLoad(true)
     },
     switchPresentation(next) {
       const result = checkPresentationCompatibility<TQuery, TPresentation>({
@@ -326,9 +337,11 @@ export function createRecordCollectionController<
       if (!descriptor.runBulkAction || initial.viewerId === null) return
       const ids = [...state.selectedIds]
       await descriptor.runBulkAction({ action, ids, viewerId: initial.viewerId })
+      initial.readLease?.invalidate()
       runLoad()
     },
     retry() {
+      initial.readLease?.invalidate()
       runLoad()
     },
     async loadSavedViews() {

@@ -14,7 +14,7 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { AuthContext, type AuthState } from '@/auth/context'
 import type { PeopleRow } from '@/lib/database.types'
-import type { TaskListRow } from '@/lib/db/tasks.types'
+import type { TaskRow } from '@/lib/db/tasks.types'
 import type { NotificationRow } from '@/lib/db/notifications'
 
 vi.mock('../../lib/db/tasks', () => ({
@@ -58,7 +58,7 @@ const authedState: AuthState = {
   signOut: async () => {},
 }
 
-function makeTask(): TaskListRow {
+function makeTask(): TaskRow {
   return {
     id: 'task-abc', org_id: 'org', title: 'Fix the coffee machine',
     business_unit_id: 'bu-1', status: 'Open',

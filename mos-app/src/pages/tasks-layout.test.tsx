@@ -6,7 +6,7 @@ import { RouteRedirect } from '@/shell/route-redirect'
 import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
 import type { PeopleRow, RolesRow } from '@/lib/database.types'
-import type { TaskListRow } from '@/lib/db/tasks.types'
+import type { TaskRow } from '@/lib/db/tasks.types'
 
 // ── Mock the data layer (table + drawer both pull from it) ────────────────────
 vi.mock('../lib/db/tasks', () => ({
@@ -153,9 +153,9 @@ const authedState: AuthState = {
   signOut: async () => {},
 }
 
-type TaskFixture = TaskListRow & { team_id?: string | null }
+type TaskFixture = TaskRow & { team_id?: string | null }
 
-function makeTask(overrides: Partial<TaskListRow> & { team_id?: string | null } = {}): TaskFixture {
+function makeTask(overrides: Partial<TaskRow> & { team_id?: string | null } = {}): TaskFixture {
   return {
     id: 'task-1', org_id: 'org', title: 'Default task',
     business_unit_id: 'bu-1', status: 'Open',

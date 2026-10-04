@@ -1,9 +1,7 @@
 /**
- * unread-count-bus — the seam #582 was missing. Three independent `useUnreadCount()` mounts (bell,
- * rail, phone tab) each fetch once on mount; none of them knew when `useNotifications` mutated a
- * row's read/handled stamp, so a mark-read only updated the row list until a full reload re-mounted
- * every badge. A tiny module-level pub/sub — no store, no context, no new dependency — lets the
- * mutating side announce "the unread count may have changed" and every mounted badge re-fetch.
+ * unread-count-bus — the seam #582 was missing. Notification mutations announce that the unread
+ * total may have changed. Scoped badge consumers route that announcement through one unread-count
+ * store refresh, which then publishes the result to every mounted badge.
  */
 const listeners = new Set<() => void>()
 

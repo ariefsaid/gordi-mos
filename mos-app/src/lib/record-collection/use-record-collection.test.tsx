@@ -1,7 +1,11 @@
-import { describe, expect, it, vi } from 'vitest'
-import { act, render } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { StrictMode } from 'react'
+import { act, render, screen } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { OverlayHostProvider, useOverlayHost } from '@/shell/overlay-host'
+import { AuthContext, type AuthState } from '@/auth/context'
+import type { PeopleRow } from '@/lib/database.types'
+import { publishReadScope, type ReadScope } from '@/lib/scoped-reads'
 import { useRecordCollection } from './use-record-collection'
 import type {
   CollectionData,
@@ -141,6 +145,123 @@ async function flush() {
 }
 
 describe('useRecordCollection (synced)', () => {
+  afterEach(() => {
+    publishReadScope(null)
+  })
+
+  it('does not start a second cold collection read when StrictMode replays the hook', async () => {
+    const descriptor = makeSignalDescriptor()
+    const load = vi.fn(descriptor.load)
+    descriptor.load = load
+
+    function ColdHarness() {
+      const controller = useRecordCollection({
+        descriptor,
+        urlMode: 'synced',
+        viewerId: 'p-me',
+        accessRoles: [],
+      })
+      return <div data-testid="cold-status" data-status={controller.state.status} />
+    }
+
+    render(
+      <StrictMode>
+        <MemoryRouter initialEntries={['/signals?layout=feed']}>
+          <ColdHarness />
+        </MemoryRouter>
+      </StrictMode>,
+    )
+    await flush()
+
+    expect(load).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId('cold-status')).toHaveAttribute('data-status', 'ready')
+  })
+
+  it('replaces its lease when the authenticated read-scope generation changes and preserves the current query', async () => {
+    const descriptor = makeSignalDescriptor()
+    descriptor.loadKeys = []
+    const rawRead = vi.fn(async () => ROWS)
+    const load = vi.fn(async ({ viewerId, readLease }: Parameters<typeof descriptor.load>[0]) => {
+      const records = await readLease!.read('test:signals:scope-generation', rawRead)
+      return { records, context: { viewerId } } as CollectionData<FakeSignal, { viewerId: string | null }>
+    })
+    descriptor.load = load
+
+    const person: PeopleRow = {
+      id: 'p-me', org_id: 'org-a', user_id: 'auth-user-a', full_name: 'Test Person', email: null,
+      must_change_password: false, archived_at: null, created_at: '', updated_at: '',
+    }
+    const scope = (generation: number): ReadScope => ({
+      generation,
+      authUserId: 'auth-user-a',
+      viewerId: 'p-me',
+      orgId: 'org-a',
+      authorityKey: 'member',
+    })
+    const authState = (readScope: ReadScope): AuthState => ({
+      status: 'authenticated',
+      viewer: { person, roles: [], isManager: false, accessRoles: ['member'], affiliated: [] },
+      readScope,
+      signOut: async () => {},
+    })
+
+    function ScopedHarness({ accessRoles = ['member'] }: { accessRoles?: string[] }) {
+      const controller = useRecordCollection({
+        descriptor, urlMode: 'synced', viewerId: 'p-me', accessRoles,
+      })
+      controllerRef = controller
+      return <div data-testid="scoped-query">{controller.state.query.q}</div>
+    }
+
+    const firstScope = scope(101)
+    publishReadScope(firstScope)
+    const { rerender } = render(
+      <AuthContext.Provider value={authState(firstScope)}>
+        <MemoryRouter initialEntries={['/signals?layout=feed']}><ScopedHarness /></MemoryRouter>
+      </AuthContext.Provider>,
+    )
+    await flush()
+    expect(load).toHaveBeenCalledTimes(1)
+    expect(rawRead).toHaveBeenCalledTimes(1)
+
+    act(() => {
+      controllerRef?.setQuery({ ...controllerRef.state.query, q: 'freezer' })
+    })
+    await flush()
+    expect(screen.getByTestId('scoped-query')).toHaveTextContent('freezer')
+
+    const previousController = controllerRef
+    const previousLease = load.mock.calls[0]?.[0].readLease
+    expect(previousLease).toBeDefined()
+    rerender(
+      <AuthContext.Provider value={authState(firstScope)}>
+        <MemoryRouter initialEntries={['/signals?layout=feed']}>
+          <ScopedHarness accessRoles={['member', 'member']} />
+        </MemoryRouter>
+      </AuthContext.Provider>,
+    )
+    await flush()
+    expect(controllerRef).toBe(previousController)
+    expect(load).toHaveBeenCalledTimes(1)
+
+    const nextScope = scope(102)
+    publishReadScope(nextScope)
+    rerender(
+      <AuthContext.Provider value={authState(nextScope)}>
+        <MemoryRouter initialEntries={['/signals?layout=feed']}><ScopedHarness /></MemoryRouter>
+      </AuthContext.Provider>,
+    )
+    await flush()
+
+    expect(controllerRef).not.toBe(previousController)
+    expect(controllerRef?.state.query.q).toBe('freezer')
+    expect(load).toHaveBeenCalledTimes(2)
+    expect(load.mock.calls[1]?.[0].query.q).toBe('freezer')
+    expect(load.mock.calls[1]?.[0].readLease).not.toBe(previousLease)
+    expect(rawRead).toHaveBeenCalledTimes(2)
+    await expect(previousLease!.read('test:signals:scope-generation', rawRead)).rejects.toThrow('disposed')
+  })
+
   it('AC-V3-005: Signal Feed saved view changes to Table and refresh preserve supported state and URL identity', async () => {
     render(
       <MemoryRouter initialEntries={['/signals?layout=feed&view=needs-attention&attention=Urgent&panel=keep']}>

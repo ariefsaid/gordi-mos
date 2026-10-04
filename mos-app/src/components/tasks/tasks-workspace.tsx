@@ -31,7 +31,7 @@ import {
   TaskCollectionRuntimeProvider,
   type TaskCollectionRuntime,
 } from './task-collection-presentation'
-import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
+import type { TaskRow, TaskStatus } from '@/lib/db/tasks.types'
 import { useCreateDraftRef, useCreateDraftState } from '@/shell/create-drafts'
 import { createTask, updateTaskFields, updateTaskStatus } from '@/lib/db/tasks'
 import { getPersonTeams, type TeamOption } from '@/lib/db/directory'
@@ -183,6 +183,8 @@ export function TasksWorkspace({
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
   const viewerOrgId = auth.status === 'authenticated' ? auth.viewer.person.org_id : null
   const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : EMPTY_ACCESS_ROLES
+  const readScope = auth.status === 'authenticated' ? auth.readScope ?? null : null
+  const processAuthorityKey = JSON.stringify([...new Set(accessRoles)].sort())
   const viewerOrgWide = hasOrgWideAuthority(accessRoles)
   const initialQuery = useMemo(() => {
     const legacy = queryFromLegacySavedView(savedView)
@@ -200,7 +202,7 @@ export function TasksWorkspace({
       view: defaultTaskView(auth, accessRoles),
     }
   }, [accessRoles, auth, location.search, savedView])
-  const [draftTask, setDraftTask] = useCreateDraftState<TaskListRow | null>('task.draft', null)
+  const [draftTask, setDraftTask] = useCreateDraftState<TaskRow | null>('task.draft', null)
   const [draftLinkError, setDraftLinkError] = useCreateDraftState('task.linkError', false)
   const [completedTaskId, setCompletedTaskId] = useCreateDraftState<string | null>('task.completedId', null)
   const [draftFormState, setDraftFormState] = useCreateDraftState<TaskCreateFormState>('task.form', { pending: false, saveError: false })
@@ -277,12 +279,13 @@ export function TasksWorkspace({
   const projection = state.projection
   const records = projection?.visibleRecords ?? EMPTY_RECORDS
   const runtimeStatusOverrides = statusOverrides ?? EMPTY_STATUS_OVERRIDES
+  const processStartTeamIdsKey = [...new Set(records
+    .filter((record) => record.processRunId !== null && record.teamId !== null)
+    .map((record) => record.teamId as string))].sort().join('\u0000')
 
   useEffect(() => {
     let live = true
-    const teamIds = [...new Set(records
-      .filter((record) => record.processRunId !== null && record.teamId !== null)
-      .map((record) => record.teamId as string))]
+    const teamIds = processStartTeamIdsKey === '' ? [] : processStartTeamIdsKey.split('\u0000')
     setProcessStartTeamIds(new Set())
     if (teamIds.length === 0 || !viewerId) return () => { live = false }
     void Promise.all(teamIds.map(async (teamId) => [teamId, await canStartProcessForTeam(teamId)] as const))
@@ -291,18 +294,15 @@ export function TasksWorkspace({
       })
       .catch(() => { if (live) setProcessStartTeamIds(new Set()) })
     return () => { live = false }
-  }, [records, viewerId, viewerOrgId])
+  }, [processStartTeamIdsKey, state.data, viewerId, viewerOrgId, readScope, processAuthorityKey])
 
-  const refreshStarted = useRef(false)
+  const previousRefreshKey = useRef(refreshKey)
   useEffect(() => {
-    if (!refreshStarted.current) {
-      refreshStarted.current = true
-      return
-    }
+    if (previousRefreshKey.current === refreshKey) return
+    previousRefreshKey.current = refreshKey
     controller.retry()
     // refreshKey is the explicit host-owned create/archive channel.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshKey])
+  }, [controller, refreshKey])
 
   const setQuery = useCallback((patch: Partial<TaskCollectionQuery>) => {
     if (patch.view !== undefined) viewChosenRef.current = true

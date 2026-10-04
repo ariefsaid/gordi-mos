@@ -9,7 +9,7 @@ import {
   archiveTask, unarchiveTask,
 } from '@/lib/db/tasks'
 import type { TaskDetail as TaskDetailData, CreateTaskInput, TaskFieldsPatch } from '@/lib/db/tasks'
-import type { TaskListRow, TaskStatus, ChecklistItemRow } from '@/lib/db/tasks.types'
+import type { TaskRow, TaskListRow, TaskStatus, ChecklistItemRow } from '@/lib/db/tasks.types'
 import {
   getBusinessUnits, getPeople, getDownlinePersonIds, getPersonTeams, getTeamsByIds,
 } from '@/lib/db/directory'
@@ -170,7 +170,7 @@ function ViewSurface({
   const [generatedFromLabel, setGeneratedFromLabel] = useState<string | null>(null)
 
   // Optimistic local state
-  const [localTask, setLocalTask] = useState<TaskListRow | null>(null)
+  const [localTask, setLocalTask] = useState<TaskRow | null>(null)
   const [localChecklist, setLocalChecklist] = useState<ChecklistItemRow[]>([])
   const loadSeq = useRef(0)
 
@@ -217,7 +217,7 @@ function ViewSurface({
       setPeopleDirectory(people)
       setDownlineIds(downline)
       setTeamDirectory(viewerTeams)
-      const taskTeamId = (taskData.task as TaskListRow & { team_id?: string | null }).team_id
+      const taskTeamId = taskData.task.team_id
       setTaskTeam(null)
       if (taskTeamId) {
         getTeamsByIds([taskTeamId]).then((teams) => {
@@ -347,7 +347,7 @@ function ViewSurface({
     const prevTaskTeam = taskTeam
     const v = value === '' ? null : value
     const patch: TaskFieldsPatch & { team_id?: string | null } = {}
-    const optimistic: Partial<TaskListRow> & { team_id?: string | null } = {}
+    const optimistic: Partial<TaskRow> = {}
     switch (field) {
       case 'team': {
         patch.team_id = v
@@ -383,9 +383,8 @@ function ViewSurface({
         setData(refreshed)
         setLocalTask(refreshed.task)
         setLocalChecklist(refreshed.checklist)
-        await getTeamsByIds([
-          (refreshed.task as TaskListRow & { team_id?: string | null }).team_id ?? '',
-        ]).then((teams) => setTaskTeam(toTaskTeamView(teams[0], busDirectory))).catch(() => {})
+        await getTeamsByIds([refreshed.task.team_id ?? ''])
+          .then((teams) => setTaskTeam(toTaskTeamView(teams[0], busDirectory))).catch(() => {})
         onTaskChanged?.(refreshed.task)
       } else {
         await refetchEvents(localTask.id)

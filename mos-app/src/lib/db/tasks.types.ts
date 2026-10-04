@@ -31,8 +31,8 @@ export interface TaskRow {
   // Step 6 (ADR-0051 D10, occurrence-as-tasks): occurrence provenance. Optional/nullable —
   // ALL pre-Step-6 tasks and every hand-created task carry neither column (ad-hoc Tasks stay
   // ad-hoc, FR-611). Populated only on a Task materialized by mos.spawn_process_run /
-  // mos.resolve_pending_task. Kept optional (not just nullable) so this row shape stays
-  // structurally satisfiable by any pre-existing TaskListRow literal without a cast.
+  // mos.resolve_pending_task. Kept optional (not just nullable) so ad-hoc Task rows and the lean
+  // list projection do not need fabricated provenance values.
   process_run_id?: string | null
   generated_from_task_def_id?: string | null
 }
@@ -59,4 +59,4 @@ export interface TaskEventRow {
 // Raw mos.tasks row — no cross-schema embeds (PostgREST PGRST200 across schema boundary).
 // R/A/BU display names are resolved client-side from the shared directory (directory.ts).
 // Fix C1: dropped business_unit / responsible / accountable embedded objects.
-export type TaskListRow = TaskRow
+export type TaskListRow = Omit<TaskRow, 'description' | 'created_at' | 'updated_at'>

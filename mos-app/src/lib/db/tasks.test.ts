@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import type { TaskListRow, ChecklistItemRow, TaskEventRow } from './tasks.types'
+import type { TaskRow, TaskListRow, ChecklistItemRow, TaskEventRow } from './tasks.types'
+import { createReadLease, publishReadScope } from '@/lib/scoped-reads'
 
 // Mock the supabase module: the tasks data layer reaches mos via supabase.schema('mos').from(...).
 vi.mock('../supabase', () => {
@@ -76,15 +77,31 @@ function freshRec(): Recorder {
 
 const TASK_ID = '00000000-0000-0000-0000-00000000a000'
 const ACTOR = '40000000-0000-0000-0000-000000000001'
+const TASK_LIST_SELECT = [
+  'id', 'org_id', 'title', 'business_unit_id', 'team_id', 'status',
+  'responsible_person_id', 'accountable_person_id', 'consulted_person_ids',
+  'informed_person_ids', 'due_date', 'objective_id', 'work_line_id',
+  'last_activity_at', 'archived_at', 'created_by', 'completed_at',
+  'process_run_id', 'generated_from_task_def_id',
+].join(',')
 
-// Fix C1: TaskListRow is now TaskRow (raw columns only — no cross-schema embeds).
-const sampleTask: TaskListRow = {
+const sampleTask: TaskRow = {
   id: TASK_ID, org_id: 'org', title: 'T', business_unit_id: 'bu', status: 'Open',
   responsible_person_id: ACTOR, accountable_person_id: ACTOR,
-  consulted_person_ids: [], informed_person_ids: [], description: null, due_date: null,
+  consulted_person_ids: [], informed_person_ids: [],
+  description: 'Replace the grinder motor after checking the power isolation and documenting the part number. Record the pressure test and confirm the spare assembly has the correct fittings before the kitchen opens.',
+  due_date: null,
   objective_id: null, work_line_id: null,
   last_activity_at: '2026-06-10T00:00:00Z', archived_at: null, created_by: ACTOR,
   created_at: '2026-06-10T00:00:00Z', updated_at: '2026-06-10T00:00:00Z',
+}
+const sampleListTask: TaskListRow = {
+  id: TASK_ID, org_id: 'org', title: 'T', business_unit_id: 'bu', team_id: 'team-1', status: 'Open',
+  responsible_person_id: ACTOR, accountable_person_id: ACTOR,
+  consulted_person_ids: ['consultant-1'], informed_person_ids: ['informed-1'], due_date: null,
+  objective_id: null, work_line_id: null,
+  last_activity_at: '2026-06-10T00:00:00Z', archived_at: null, created_by: ACTOR,
+  completed_at: null, process_run_id: 'run-1', generated_from_task_def_id: 'definition-1',
 }
 
 beforeEach(() => vi.clearAllMocks())
@@ -100,14 +117,24 @@ function noOrgId(rec: Recorder) {
 
 // ── listTasks ───────────────────────────────────────────────────────────────
 describe('listTasks', () => {
-  it('AC-C1: returns raw task rows (no cross-schema embeds), active-only + due asc, never sends org_id', async () => {
-    // Fix C1: LIST_SELECT is now '*' only — no BU/R/A embedded selects (PGRST200 across schemas).
-    // Display-name resolution is client-side via directory.ts.
+  it('selects every list-required Task field without description or list clocks and stays unbounded', async () => {
     const rec = freshRec()
-    schemaMock.mockReturnValue(makeSchema({ tasks: [{ data: [sampleTask], error: null }] }, rec) as never)
+    schemaMock.mockReturnValue(makeSchema({ tasks: [{ data: [], error: null }] }, rec) as never)
+
+    await listTasks()
+
+    expect(rec.fromTables).toEqual(['tasks'])
+    expect(rec.selects).toEqual([TASK_LIST_SELECT])
+    expect(rec.limits).toEqual([])
+  })
+
+  it('AC-C1: returns raw task rows (no cross-schema embeds), active-only + due asc, never sends org_id', async () => {
+    // Raw list rows omit authored content; display-name resolution is client-side via directory.ts.
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ tasks: [{ data: [sampleListTask], error: null }] }, rec) as never)
 
     const rows = await listTasks()
-    expect(rows).toEqual([sampleTask])
+    expect(rows).toEqual([sampleListTask])
     expect(rec.fromTables).toContain('tasks')
     // Raw select — must NOT contain cross-schema embed syntax
     const sel = rec.selects.join(' ')
@@ -140,14 +167,53 @@ describe('listTasks', () => {
     schemaMock.mockReturnValue(makeSchema({ tasks: [{ data: null, error: { message: 'boom' } }] }, rec) as never)
     await expect(listTasks()).rejects.toThrow(/boom/)
   })
+
+  it('shares in-flight reads across a lease and direct callers, while retaining success only in the lease', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ tasks: [{ data: [], error: null }] }, rec) as never)
+    const scope = {
+      generation: 1,
+      authUserId: 'auth-user-1',
+      viewerId: ACTOR,
+      orgId: 'org',
+      authorityKey: 'task-reader',
+    }
+    publishReadScope(scope)
+    const lease = createReadLease(scope)
+
+    try {
+      const [leased, directA, directB] = await Promise.all([
+        listTasks({}, lease), listTasks(), listTasks(),
+      ])
+      expect(leased).toEqual([])
+      expect(directA).toEqual([])
+      expect(directB).toEqual([])
+      expect(rec.fromTables).toEqual(['tasks'])
+      expect(rec.selects).toEqual([TASK_LIST_SELECT])
+
+      await listTasks()
+      expect(rec.fromTables).toEqual(['tasks', 'tasks'])
+      await listTasks({}, lease)
+      expect(rec.fromTables).toEqual(['tasks', 'tasks'])
+    } finally {
+      lease.dispose()
+      publishReadScope(null)
+    }
+  })
 })
 
 // ── getTask ───────────────────────────────────────────────────────────────────
 describe('getTask', () => {
   it('returns task + checklist (position asc) + events (created_at desc), never sends org_id', async () => {
     const rec = freshRec()
-    const checklist: ChecklistItemRow[] = []
-    const events: TaskEventRow[] = []
+    const checklist: ChecklistItemRow[] = [{
+      id: 'check-1', org_id: 'org', task_id: TASK_ID, label: 'Verify replacement fittings',
+      is_done: false, position: 0, created_at: '2026-06-10T00:00:00Z', updated_at: '2026-06-10T00:00:00Z',
+    }]
+    const events: TaskEventRow[] = [{
+      id: 'event-1', org_id: 'org', task_id: TASK_ID, actor_person_id: ACTOR,
+      event_type: 'created', from_value: null, to_value: null, created_at: '2026-06-10T00:00:00Z',
+    }]
     schemaMock.mockReturnValue(makeSchema({
       tasks: [{ data: sampleTask, error: null }],
       task_checklist_items: [{ data: checklist, error: null }],
@@ -156,6 +222,10 @@ describe('getTask', () => {
 
     const out = await getTask(TASK_ID)
     expect(out.task).toEqual(sampleTask)
+    expect(rec.selects[0]).toBe('*')
+    expect(out.task.description).toBe(sampleTask.description)
+    expect(out.task.created_at).toBe(sampleTask.created_at)
+    expect(out.task.updated_at).toBe(sampleTask.updated_at)
     expect(out.checklist).toEqual(checklist)
     expect(out.events).toEqual(events)
     expect(rec.orders).toContainEqual(['position', { ascending: true }])

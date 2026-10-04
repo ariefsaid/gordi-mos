@@ -4,10 +4,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, act, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { StrictMode } from 'react'
 import { MemoryRouter } from 'react-router-dom'
 import { createElement, type ReactNode } from 'react'
 import type { AuthState } from '@/auth/context'
 import type { RolesRow } from '@/lib/database.types'
+import type { TaskListRow } from '@/lib/db/tasks.types'
+import { publishReadScope, type ReadScope } from '@/lib/scoped-reads'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { HomePage } from './home-page'
 import { ProfilePage } from './profile-page'
@@ -243,6 +246,7 @@ function overdueTaskRow(viewerId: string) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  publishReadScope(null)
   sharedCount.value = null
   window.localStorage.clear()
   mockListTasks.mockResolvedValue([])
@@ -259,6 +263,46 @@ beforeEach(() => {
 })
 
 describe('Home daily operating brief', () => {
+  it('reuses the Home Task read through StrictMode replay and refreshes it for a new auth generation', async () => {
+    const scope = (generation: number): ReadScope => ({
+      generation,
+      authUserId: 'auth-user-001',
+      viewerId: financeViewer.status === 'authenticated' ? financeViewer.viewer.person.id : '',
+      orgId: ORG_ID,
+      authorityKey: 'finance',
+    })
+    const authWithScope = (readScope: ReadScope): AuthState => {
+      if (financeViewer.status !== 'authenticated') throw new Error('finance viewer fixture must be authenticated')
+      return { ...financeViewer, readScope }
+    }
+    const rawTasks = vi.fn(async (): Promise<TaskListRow[]> => [])
+    mockListTasks.mockImplementation((_filters, readLease) => readLease
+      ? readLease.read('test:home:tasks', rawTasks)
+      : Promise.resolve([]))
+
+    let currentScope = scope(201)
+    publishReadScope(currentScope)
+    mockUseAuth.mockReturnValue(authWithScope(currentScope))
+    const tree = () => (
+      <StrictMode>
+        <MemoryRouter>
+          <I18nProvider initialLocale="en"><HomePage /></I18nProvider>
+        </MemoryRouter>
+      </StrictMode>
+    )
+    const utils = render(tree())
+    await waitFor(() => expect(rawTasks).toHaveBeenCalledTimes(1))
+    // StrictMode replays the effect, but both loader invocations join one raw Task read.
+    expect(mockListTasks).toHaveBeenCalledTimes(2)
+
+    currentScope = scope(202)
+    publishReadScope(currentScope)
+    mockUseAuth.mockReturnValue(authWithScope(currentScope))
+    utils.rerender(tree())
+    await waitFor(() => expect(rawTasks).toHaveBeenCalledTimes(2))
+    expect(mockListTasks).toHaveBeenCalledTimes(3)
+  })
+
   it('AC-920: renders the default Focused arrangement with the attention regions and a right-hand feed slot', async () => {
     mockListTasks.mockResolvedValue([overdueTaskRow(financeViewer.viewer.person.id)])
     const { container } = await renderHome(financeViewer)

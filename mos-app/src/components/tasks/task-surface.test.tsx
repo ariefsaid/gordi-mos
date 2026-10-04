@@ -7,7 +7,7 @@ import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
 import type { PeopleRow, RolesRow } from '@/lib/database.types'
-import type { TaskListRow, ChecklistItemRow, TaskEventRow } from '@/lib/db/tasks.types'
+import type { TaskRow, ChecklistItemRow, TaskEventRow } from '@/lib/db/tasks.types'
 import type { BusinessUnitOption, PersonOption } from '@/lib/db/directory'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { installDisabledBlur } from '@/test/browser-focus-fixup'
@@ -96,7 +96,7 @@ function missingTaskError(): Error & { code: string } {
   )
 }
 
-function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
+function makeTask(overrides: Partial<TaskRow> = {}): TaskRow {
   return {
     id: 'task-abc', org_id: 'org', title: 'Fix the coffee machine',
     business_unit_id: 'bu-1', status: 'Open',

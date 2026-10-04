@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
 import type { PeopleRow, RolesRow } from '@/lib/database.types'
-import type { TaskListRow, ChecklistItemRow, TaskEventRow } from '@/lib/db/tasks.types'
+import type { TaskRow, ChecklistItemRow, TaskEventRow } from '@/lib/db/tasks.types'
 import type { BusinessUnitOption, PersonOption } from '@/lib/db/directory'
 
 // ── Mock the data layer ──────────────────────────────────────────────────────
@@ -91,7 +91,7 @@ const managerState: AuthState = {
 }
 
 
-function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
+function makeTask(overrides: Partial<TaskRow> = {}): TaskRow {
   return {
     id: 'task-abc',
     org_id: 'org',

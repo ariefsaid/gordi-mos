@@ -35,6 +35,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useAuth } from '@/auth/use-auth'
 import { useMyOpenTaskCount } from '@/hooks/useMyOpenTaskCount'
+import { createReadLease, type ReadLease, type ReadScope } from '@/lib/scoped-reads'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
@@ -90,6 +91,32 @@ export function HomePage() {
     return h < 11 ? 'home.greeting.morning' as const : h < afternoonCutoff ? 'home.greeting.afternoon' as const : 'home.greeting.evening' as const
   }
   const personId = viewer?.person?.id ?? null
+  const readScope = auth.status === 'authenticated' && auth.viewer.person.id === personId
+    ? auth.readScope ?? null
+    : null
+  // Home's loaders belong to the current actor and authority. A changed auth generation replaces
+  // the lease, so rows from the previous viewer cannot be reused after a session transition.
+  const readOwnerRef = useRef<{
+    readScope: ReadScope | null
+    personId: string | null
+    accessRoles: readonly string[]
+    lease: ReadLease
+  } | null>(null)
+  const previousReadOwner = readOwnerRef.current
+  if (!previousReadOwner
+    || previousReadOwner.personId !== personId
+    || !sameReadScope(previousReadOwner.readScope, readScope)
+    || !sameRoleSet(previousReadOwner.accessRoles, viewer?.accessRoles ?? [])) {
+    const lease = createReadLease(readScope)
+    previousReadOwner?.lease.dispose()
+    readOwnerRef.current = {
+      readScope,
+      personId,
+      accessRoles: [...(viewer?.accessRoles ?? [])],
+      lease,
+    }
+  }
+  const readLease = (readOwnerRef.current as NonNullable<typeof readOwnerRef.current>).lease
   // Home arrangement is a Personal Profile preference. Resolve by person, not auth user, so a
   // dual-role account keeps one deliberate Home shape and a change of viewer cannot leak state.
   // Resolve during render so a viewer switch cannot paint the previous person's arrangement for
@@ -121,12 +148,13 @@ export function HomePage() {
   const tasksInFlightRef = useRef(false)
   const tasksTokenRef = useRef(0)
 
-  const loadTasks = useCallback(() => {
+  const loadTasks = useCallback((forceRefresh = false) => {
     if (!personId || tasksInFlightRef.current) return
     tasksInFlightRef.current = true
     const token = ++tasksTokenRef.current
     setTaskState('loading')
-    listTasks({})
+    if (forceRefresh) readLease.invalidate()
+    listTasks({}, readLease)
       .then(rows => {
         if (!isMountedRef.current || tasksTokenRef.current !== token) return
         setTasks(rows)
@@ -139,13 +167,15 @@ export function HomePage() {
       .finally(() => {
         if (tasksTokenRef.current === token) tasksInFlightRef.current = false
       })
-  }, [personId])
+  }, [personId, readLease])
+
+  const retryTasks = useCallback(() => loadTasks(true), [loadTasks])
 
   useEffect(() => {
     tasksTokenRef.current += 1 // a personId change (or mount) always supersedes any prior fetch
     tasksInFlightRef.current = false
     loadTasks()
-  }, [loadTasks])
+  }, [personId, readLease, loadTasks])
 
   // ── Failed checks (café rejected logs, RATIFY-3) ──────────────────────────────
   const [failedChecks, setFailedChecks] = useState<AttentionItem[]>([])
@@ -235,7 +265,7 @@ export function HomePage() {
   useEffect(() => {
     if (!personId) return
     let live = true
-    Promise.all([getPeople(), getBusinessUnits(), getRoles()])
+    Promise.all([getPeople(readLease), getBusinessUnits(readLease), getRoles(readLease)])
       .then(([people, bus, roles]) => {
         if (!live || !isMountedRef.current) return
         setDirectory({
@@ -249,7 +279,7 @@ export function HomePage() {
       // cannot justify is not offered, rather than offered on a guess.
       .catch(() => { /* see above */ })
     return () => { live = false }
-  }, [personId])
+  }, [personId, readLease])
 
   // ── Who the Objectives roll-up door is for (AC-204 (4)) ─────────────────────
   // The people who come to Home to STEER a scope: the owner-director (whole company) and a
@@ -379,7 +409,7 @@ export function HomePage() {
       : taskState === 'loading'
         ? 'loading'
         : objectiveReadState
-  const retryObjectives = taskState === 'error' ? loadTasks : loadObjectives
+  const retryObjectives = taskState === 'error' ? retryTasks : loadObjectives
 
   // Failed-checks keeps its OWN independent fetch state (separate DAL).
   const failedChecksBand: StreamBand = useMemo(() => ({
@@ -418,13 +448,13 @@ export function HomePage() {
       overdue, dueToday, blocked, myWork,
       failedChecks: failedChecksBand.items,
       failedChecksAdmitted: seesCafe,
-      taskState, onRetryTasks: loadTasks,
+      taskState, onRetryTasks: retryTasks,
       failedChecksState: failedChecksBand.state, onRetryFailedChecks: loadFailedChecks,
       myWorkFullCount: openCount ?? undefined,
     }),
     [
       overdue, dueToday, blocked, myWork, failedChecksBand,
-      taskState, loadTasks, loadFailedChecks, openCount,
+      taskState, retryTasks, loadFailedChecks, openCount,
       seesCafe,
     ],
   )
@@ -504,4 +534,21 @@ export function HomePage() {
       })()}</div>
     </PageFamilyFrame>
   )
+}
+
+function sameReadScope(left: ReadScope | null, right: ReadScope | null): boolean {
+  if (left === right) return true
+  return left !== null && right !== null
+    && left.generation === right.generation
+    && left.authUserId === right.authUserId
+    && left.viewerId === right.viewerId
+    && left.orgId === right.orgId
+    && left.authorityKey === right.authorityKey
+}
+
+function sameRoleSet(left: readonly string[], right: readonly string[]): boolean {
+  const leftSorted = [...new Set(left)].sort()
+  const rightSorted = [...new Set(right)].sort()
+  return leftSorted.length === rightSorted.length
+    && leftSorted.every((role, index) => role === rightSorted[index])
 }

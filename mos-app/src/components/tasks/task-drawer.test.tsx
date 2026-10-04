@@ -4,7 +4,7 @@ import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
 import type { PeopleRow, RolesRow } from '@/lib/database.types'
-import type { TaskListRow } from '@/lib/db/tasks.types'
+import type { TaskRow } from '@/lib/db/tasks.types'
 
 vi.mock('../../lib/db/tasks', () => ({
   getTask: vi.fn(),
@@ -73,7 +73,7 @@ const authedState: AuthState = {
   signOut: async () => {},
 }
 
-function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
+function makeTask(overrides: Partial<TaskRow> = {}): TaskRow {
   return {
     id: 'task-abc', org_id: 'org', title: 'Fix the coffee machine',
     business_unit_id: 'bu-1', status: 'Open',

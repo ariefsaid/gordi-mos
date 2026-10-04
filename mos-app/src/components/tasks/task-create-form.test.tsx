@@ -12,9 +12,9 @@ import { TASK_TITLE_MAX_LENGTH } from './task-formatters'
 import { installDisabledBlur } from '@/test/browser-focus-fixup'
 import { TaskCreateForm } from './task-create-form'
 import { TaskCreateContext } from './task-create-context'
-import type { TaskListRow } from '@/lib/db/tasks.types'
+import type { TaskRow } from '@/lib/db/tasks.types'
 
-function makeDraft(overrides: Partial<TaskListRow> = {}): TaskListRow {
+function makeDraft(overrides: Partial<TaskRow> = {}): TaskRow {
   return {
     id: 'new-task-1', org_id: '', title: '',
     business_unit_id: 'bu-1', status: 'Open',
