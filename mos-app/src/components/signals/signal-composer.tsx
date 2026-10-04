@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type RefObject } from 'react'
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import { useT } from '@/i18n/use-t'
 import { Button } from '@/components/ui/button'
 import { DateField } from '@/components/ui/date-field'
@@ -11,6 +11,7 @@ import type { SignalComposerPrefill } from '@/shell/signal-composer-host'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 import { MAX_SIGNAL_PHOTOS, uploadSignalPhotos } from '@/lib/db/signal-photos'
 import { currentMentionToken, type MentionCandidate } from '@/lib/comments/mentions'
+import { signalOccurredAtIsoFromWib, wibPartsFromInstant } from '@/lib/signal-occurred-at'
 import { SignalMentionPicker, type SignalMentionPickerHandle } from './signal-mention-picker'
 import { SignalAttentionPicker } from './signal-attention-picker'
 import './signal-composer.css'
@@ -36,10 +37,7 @@ export interface SignalComposerProps {
   prefill?: SignalComposerPrefill
 }
 
-function toDatetimeLocalValue(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
-}
+type MentionRelationship = { listboxId: string; activeOptionId: string | null }
 
 export function SignalComposer({
   authorId, authorName, canTag, canMentionBu = false,
@@ -53,16 +51,20 @@ export function SignalComposer({
   const [people, setPeople] = useState<MentionCandidate[]>([])
   const [businessUnits, setBusinessUnits] = useState<MentionCandidate[]>([])
   const [body, setBody] = useState(prefill?.body ?? '')
-  // The date is a day-first DateField and the time a native time input; together they are the
-  // same "YYYY-MM-DDTHH:mm" local value the post path has always read.
-  const [occurredDate, setOccurredDate] = useState(() => toDatetimeLocalValue(prefill ? new Date(prefill.occurredAt) : new Date()).slice(0, 10))
-  const [occurredTime, setOccurredTime] = useState(() => toDatetimeLocalValue(prefill ? new Date(prefill.occurredAt) : new Date()).slice(11))
+  // DateField keeps the shared day-first entry grammar; these stored parts are WIB wall time,
+  // regardless of the device's local timezone.
+  const [occurredFields, setOccurredFields] = useState(() =>
+    wibPartsFromInstant(prefill?.occurredAt ?? new Date()) ?? { date: '', time: '' },
+  )
+  const occurredDate = occurredFields.date
+  const occurredTime = occurredFields.time
   const [occurredDateInvalid, setOccurredDateInvalid] = useState(false)
-  const occurredAt = `${occurredDate}T${occurredTime}`
-  const occurredReady = occurredDate !== '' && occurredTime !== '' && !occurredDateInvalid
+  const occurredAt = signalOccurredAtIsoFromWib(occurredDate, occurredTime)
+  const occurredReady = occurredAt !== null && !occurredDateInvalid
   const [attention, setAttention] = useState<Attention>(prefill?.attention ?? 'FYI')
   const [mentions, setMentions] = useState<StagedMention[]>(prefill?.mentions ?? [])
   const [mentionToken, setMentionToken] = useState<{ query: string; start: number } | null>(null)
+  const [mentionRelationship, setMentionRelationship] = useState<MentionRelationship | null>(null)
   const [posting, setPosting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   // Each staged photo owns its preview URL: minted when chosen, revoked when dropped or on unmount.
@@ -75,12 +77,19 @@ export function SignalComposer({
   const [sharedId, setSharedId] = useState<string | null>(null)
   const internalTextareaRef = useRef<HTMLTextAreaElement>(null)
   const textareaRef = externalTextareaRef ?? internalTextareaRef
-  // GAP-8 (OD-91 #13): the mention popover is a combobox — the textarea keeps focus and forwards its
-  // navigation keydowns to the picker's shared listbox contract.
+  // The native textarea stays the editing driver while suggestion navigation is forwarded.
   const mentionPickerRef = useRef<SignalMentionPickerHandle>(null)
+  const isComposingRef = useRef(false)
+  const handleMentionRelationshipChange = useCallback((state: MentionRelationship | null) => {
+    setMentionRelationship(state)
+  }, [])
+  const dismissMentionPicker = useCallback(() => {
+    setMentionToken(null)
+    setMentionRelationship(null)
+  }, [])
 
   useEffect(() => {
-    onDirtyChange?.(Boolean(prefill?.body.trim()))
+    onDirtyChange?.(Boolean(prefill?.body.trim() || prefill?.mentions.length))
   }, [onDirtyChange, prefill])
 
   useEffect(() => {
@@ -123,11 +132,12 @@ export function SignalComposer({
     if (posting) return
     const value = e.target.value
     setBody(value)
-    onDirtyChange?.(Boolean(value.trim()))
+    onDirtyChange?.(Boolean(value.trim() || mentions.length > 0 || photos.length > 0))
     const token = ((canTag ?? false) || canMentionBu)
       ? currentMentionToken(value, e.target.selectionStart ?? value.length)
       : null
     setMentionToken(token)
+    if (!token) setMentionRelationship(null)
   }
 
   function insertMention(kind: MentionKind, option: MentionCandidate) {
@@ -140,8 +150,16 @@ export function SignalComposer({
       { kind, targetId: option.id, label: option.label },
     ])
     onDirtyChange?.(true)
-    setMentionToken(null)
+    dismissMentionPicker()
     textareaRef.current?.focus()
+  }
+
+  function removeMention(target: StagedMention) {
+    const next = mentions.filter((mention) =>
+      mention.kind !== target.kind || mention.targetId !== target.targetId,
+    )
+    setMentions(next)
+    onDirtyChange?.(Boolean(body.trim() || next.length > 0 || photos.length > 0))
   }
 
   function keepPhotos(keep: (photo: { file: File; url: string }) => boolean) {
@@ -164,12 +182,12 @@ export function SignalComposer({
 
   async function submit() {
     const trimmedBody = body.trim()
-    if ((!trimmedBody && !sharedId) || posting || !occurredReady) return
+    if ((!trimmedBody && !sharedId) || posting || !occurredReady || !occurredAt) return
     setPosting(true)
     setError(null)
     try {
       const id = sharedId ?? await createSignal({
-        body: trimmedBody, occurredAt: new Date(occurredAt).toISOString(), attention, mentions,
+        body: trimmedBody, occurredAt, attention, mentions,
       })
       const files = photos.map((p) => p.file)
       const failed = await uploadSignalPhotos(id, files).catch(() => files)
@@ -183,7 +201,7 @@ export function SignalComposer({
       }
       setBody('')
       setMentions([])
-      setMentionToken(null)
+      dismissMentionPicker()
       setSharedId(null)
       onDirtyChange?.(false)
       onShared?.(id)
@@ -208,26 +226,35 @@ export function SignalComposer({
           placeholder={t('signals.composer.placeholder')}
           value={body}
           onChange={handleBodyChange}
-          // Combobox aria: while the mention popover is open the textarea is the combobox that
-          // controls the listbox and reflects the active option (aria-activedescendant is on the
-          // listbox; role=combobox marks the input as the driver).
-          role={mentionToken ? 'combobox' : undefined}
-          aria-expanded={mentionToken ? true : undefined}
-          // While the popover is open Escape belongs to it, not to whatever modal hosts the
-          // composer. A modal owns Escape from the capture phase, so it decides before this
-          // handler runs; the marker is what tells it to stand down. It is keyed to the open
-          // token because the marker must NOT outlive the popover — with no suggestion list on
-          // screen, Escape is the host's again.
+          aria-controls={mentionToken ? mentionRelationship?.listboxId : undefined}
+          aria-activedescendant={mentionToken ? mentionRelationship?.activeOptionId ?? undefined : undefined}
+          // Mark the focused driver as nested so shared host layers leave Escape to this picker.
+          // The marker exists only while suggestions are open; after dismissal, Escape belongs
+          // to the host again.
           data-escape-layer={mentionToken ? 'nested' : undefined}
+          onCompositionStart={() => { isComposingRef.current = true }}
+          onCompositionEnd={() => { isComposingRef.current = false }}
           onKeyDown={(e) => {
-            // GAP-8 combobox idiom: while the popover is open, forward ArrowUp/Down/Home/End/Enter/
+            if (isComposingRef.current || e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return
+            if (mentionToken && e.key === 'Enter' && e.shiftKey) {
+              e.preventDefault()
+              e.stopPropagation()
+              return
+            }
+            // While the popover is open, forward ArrowUp/Down/Home/End/Enter/
             // Escape to the shared listbox contract. Escape is consumed here regardless (D-B2
             // isolation: it must not bubble to the composer's ModalShell host and lose the draft).
-            if (mentionToken && mentionPickerRef.current?.handleKeyDown(e)) return
+            if (mentionToken && mentionPickerRef.current?.handleKeyDown(e)) {
+              if (e.key === 'Escape') {
+                e.preventDefault()
+                e.stopPropagation()
+              }
+              return
+            }
             if (e.key === 'Escape' && mentionToken) {
               e.preventDefault()
               e.stopPropagation()
-              setMentionToken(null)
+              dismissMentionPicker()
               return
             }
             // OD-REDESIGN-91 #10: Shift+Enter SENDS; plain Enter stays a newline. Held back while
@@ -248,11 +275,43 @@ export function SignalComposer({
             businessUnits={businessUnits}
             query={mentionToken.query}
             canMentionBu={canMentionBu}
+            anchorRef={textareaRef}
+            onRelationshipChange={handleMentionRelationshipChange}
             onSelect={insertMention}
-            onDismiss={() => setMentionToken(null)}
+            onDismiss={dismissMentionPicker}
           />
         )}
       </div>
+
+      {mentions.length > 0 && (
+        <div className="signal-composer-targets" role="group" aria-label={t('signals.composer.targetsLabel')}>
+          <span className="signal-composer-targets-label">{t('signals.composer.targetsLabel')}</span>
+          <ul className="signal-composer-targets-list">
+            {mentions.map((mention) => {
+              const kind = mention.kind === 'person'
+                ? t('signals.mention.group.person')
+                : mention.kind === 'team'
+                  ? t('signals.mention.group.team')
+                  : t('signals.mention.group.bu')
+              return (
+                <li className="signal-composer-target" key={`${mention.kind}:${mention.targetId}`}>
+                  <span className="signal-composer-target-name">{kind} · {mention.label}</span>
+                  <button
+                    type="button"
+                    className="signal-composer-target-remove"
+                    aria-label={t('signals.composer.removeTarget', { kind, name: mention.label })}
+                    onClick={() => removeMention(mention)}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                      <path d="M18 6 6 18M6 6l12 12" />
+                    </svg>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      )}
 
       {photos.length > 0 && (
         <ul className="signal-composer-photos" aria-label={t('signals.composer.photosLabel')}>
@@ -281,7 +340,7 @@ export function SignalComposer({
             required
             aria-label={t('signals.composer.occurredLabel')}
             value={occurredDate}
-            onChange={(next) => { setOccurredDate(next); onDirtyChange?.(true) }}
+            onChange={(next) => { setOccurredFields((current) => ({ ...current, date: next })); onDirtyChange?.(true) }}
             onValidityChange={setOccurredDateInvalid}
           />
           <input
@@ -290,7 +349,7 @@ export function SignalComposer({
             aria-label={t('signals.composer.occurredTime')}
             value={occurredTime}
             required
-            onChange={(e) => { setOccurredTime(e.target.value); onDirtyChange?.(true) }}
+            onChange={(e) => { setOccurredFields((current) => ({ ...current, time: e.target.value })); onDirtyChange?.(true) }}
           />
           <span className="signal-composer-field-hint">{t('signals.composer.occurredHint')}</span>
         </div>

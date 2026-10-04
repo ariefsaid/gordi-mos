@@ -46,3 +46,24 @@ describe('mention-row.is-active — legible badge + name (WCAG-AA)', () => {
     expect(css).not.toMatch(/\.type-badge/)
   })
 })
+
+describe('mention popup stays inside its collision-bounded viewport', () => {
+  const css = readFileSync(resolve(process.cwd(), 'src/components/signals/signal-mention-picker.css'), 'utf8')
+
+  it('leaves popup positioning to the adopted overlay and clamps its width to available space', () => {
+    const popup = ruleBody(css, '.mention-pop')
+    expect(popup).not.toMatch(/position:\s*absolute/)
+    expect(popup).toMatch(/max-width:\s*min\(320px,\s*calc\(100vw - 24px\),\s*var\(--radix-popover-content-available-width/)
+  })
+
+  it('bounds list scrolling to the available popup height', () => {
+    const list = ruleBody(css, '.mention-pop__list')
+    expect(list).toMatch(/max-height:\s*min\(280px,\s*var\(--radix-popover-content-available-height/)
+    expect(list).toMatch(/overflow-y:\s*auto/)
+    expect(list).toMatch(/overscroll-behavior:\s*contain/)
+  })
+
+  it('allows long unbroken display names to wrap inside an option', () => {
+    expect(ruleBody(css, '.mention-row .nm')).toMatch(/overflow-wrap:\s*anywhere/)
+  })
+})

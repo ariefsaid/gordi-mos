@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { afterEach, describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, within, fireEvent, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { I18nProvider } from '@/i18n/I18nProvider'
@@ -66,6 +66,8 @@ beforeEach(() => {
   mockUploadSignalPhotos.mockResolvedValue([])
 })
 
+afterEach(() => vi.unstubAllEnvs())
+
 describe('SignalComposer — repost prefill', () => {
   it('submits staged mention rows carried by a reposted draft', async () => {
     renderComposer({
@@ -80,6 +82,65 @@ describe('SignalComposer — repost prefill', () => {
     await waitFor(() => expect(mockCreateSignal).toHaveBeenCalledWith(expect.objectContaining({
       mentions: [{ kind: 'person', targetId: 'person-peer', label: 'Peer Person' }],
     })))
+  })
+})
+
+describe('SignalComposer — independent notification targets (DD-MVP-27)', () => {
+  it('shows same-label typed targets separately and removes only the selected target', async () => {
+    renderComposer({
+      prefill: {
+        body: 'Two routes need this update.',
+        occurredAt: '2026-10-05T03:15:00.000Z',
+        attention: 'FYI',
+        mentions: [
+          { kind: 'person', targetId: 'person-one', label: 'Twin label' },
+          { kind: 'team', targetId: 'team-one', label: 'Twin label' },
+        ],
+      },
+    })
+
+    const body = screen.getByRole('textbox', { name: /what happened/i })
+    const targets = screen.getByRole('group', { name: /notification targets/i })
+    expect(body).toHaveValue('Two routes need this update.')
+    expect(within(targets).getByText('Person · Twin label')).toBeInTheDocument()
+    expect(within(targets).getByText('Team · Twin label')).toBeInTheDocument()
+
+    await userEvent.click(within(targets).getByRole('button', {
+      name: 'Remove Person Twin label from notification targets',
+    }))
+
+    expect(body).toHaveValue('Two routes need this update.')
+    expect(within(targets).queryByText('Person · Twin label')).not.toBeInTheDocument()
+    expect(within(targets).getByText('Team · Twin label')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /share signal/i }))
+    await waitFor(() => expect(mockCreateSignal).toHaveBeenCalledTimes(1))
+    expect(mockCreateSignal.mock.calls[0][0].mentions).toEqual([
+      { kind: 'team', targetId: 'team-one', label: 'Twin label' },
+    ])
+  })
+
+  it('keeps a selected notification target when its matching prose is edited', async () => {
+    renderComposer({
+      prefill: {
+        body: 'Please ask @Twin label to check the shelf.',
+        occurredAt: '2026-10-05T03:15:00.000Z',
+        attention: 'FYI',
+        mentions: [{ kind: 'person', targetId: 'person-one', label: 'Twin label' }],
+      },
+    })
+    const body = screen.getByRole('textbox', { name: /what happened/i })
+
+    fireEvent.change(body, { target: { value: 'Please check the shelf.' } })
+
+    expect(screen.getByRole('group', { name: /notification targets/i })).toHaveTextContent('Person · Twin label')
+    await userEvent.click(screen.getByRole('button', { name: /share signal/i }))
+    await waitFor(() => expect(mockCreateSignal).toHaveBeenCalledTimes(1))
+    expect(mockCreateSignal.mock.calls[0][0]).toMatchObject({
+      body: 'Please check the shelf.',
+      occurredAt: '2026-10-05T03:15:00.000Z',
+      mentions: [{ kind: 'person', targetId: 'person-one', label: 'Twin label' }],
+    })
   })
 })
 
@@ -192,7 +253,7 @@ describe('SignalComposer — Shift+Enter send (OD-REDESIGN-91 #10)', () => {
     expect(screen.getByText('WIB')).toBeInTheDocument()
   })
 
-  it('submits the selected day-first date and local time as the exact ISO instant', async () => {
+  it('submits the selected day-first date and WIB time as the exact ISO instant', async () => {
     renderComposer()
     await waitFor(() => expect(mockGetPeople).toHaveBeenCalled())
     await userEvent.type(screen.getByRole('textbox', { name: /what happened/i }), 'Stock arrived')
@@ -201,7 +262,53 @@ describe('SignalComposer — Shift+Enter send (OD-REDESIGN-91 #10)', () => {
     await userEvent.click(screen.getByRole('button', { name: /share signal/i }))
 
     await waitFor(() => expect(mockCreateSignal).toHaveBeenCalledTimes(1))
-    expect(mockCreateSignal.mock.calls[0][0].occurredAt).toBe(new Date(2026, 9, 5, 14, 35).toISOString())
+    expect(mockCreateSignal.mock.calls[0][0].occurredAt).toBe('2026-10-05T07:35:00.000Z')
+  })
+
+  it('prefills an instant as its WIB date and time regardless of the device zone', async () => {
+    vi.stubEnv('TZ', 'America/Los_Angeles')
+    renderComposer({
+      prefill: {
+        body: 'The check is complete.',
+        occurredAt: '2026-10-05T03:15:00.000Z',
+        attention: 'FYI',
+        mentions: [],
+      },
+    })
+    await waitFor(() => expect(mockGetPeople).toHaveBeenCalled())
+
+    expect(screen.getByLabelText(/occurred/i)).toHaveValue('5 Oct 2026')
+    expect(screen.getByLabelText(/^time$/i)).toHaveValue('10:15')
+  })
+
+  it('submits 10:15 WIB as the literal 03:15 UTC instant from another device zone', async () => {
+    vi.stubEnv('TZ', 'America/Los_Angeles')
+    renderComposer({
+      prefill: {
+        body: 'The check is complete.',
+        occurredAt: '2026-10-05T03:15:00.000Z',
+        attention: 'FYI',
+        mentions: [],
+      },
+    })
+    fireEvent.change(screen.getByLabelText(/occurred/i), { target: { value: '05/10/2026' } })
+    fireEvent.change(screen.getByLabelText(/^time$/i), { target: { value: '10:15' } })
+
+    await userEvent.click(screen.getByRole('button', { name: /share signal/i }))
+
+    await waitFor(() => expect(mockCreateSignal).toHaveBeenCalledTimes(1))
+    expect(mockCreateSignal.mock.calls[0][0].occurredAt).toBe('2026-10-05T03:15:00.000Z')
+  })
+
+  it('keeps an invalid prefilled timestamp blank and refuses to share until corrected', async () => {
+    renderComposer({
+      prefill: { body: 'The check is complete.', occurredAt: 'not a timestamp', attention: 'FYI', mentions: [] },
+    })
+    await waitFor(() => expect(mockGetPeople).toHaveBeenCalled())
+
+    expect(screen.getByLabelText(/occurred/i)).toHaveValue('')
+    expect(screen.getByLabelText(/^time$/i)).toHaveValue('')
+    expect(screen.getByRole('button', { name: /share signal/i })).toBeDisabled()
   })
 })
 
@@ -289,7 +396,7 @@ describe('SignalComposer — grouped @ mention picker (AC-421)', () => {
     await userEvent.type(body, 'Heads up @Pe')
     expect(await screen.findByRole('listbox', { name: /mention/i })).toBeInTheDocument()
 
-    await userEvent.type(body, '{Escape}')
+    await userEvent.keyboard('{Escape}')
 
     await waitFor(() => expect(screen.queryByRole('listbox', { name: /mention/i })).toBeNull())
     expect(body).toHaveValue('Heads up @Pe')
@@ -310,7 +417,7 @@ describe('SignalComposer — grouped @ mention picker (AC-421)', () => {
     await userEvent.type(body, 'Heads up @Pe')
     expect(await screen.findByRole('listbox', { name: /mention/i })).toBeInTheDocument()
 
-    await userEvent.type(body, '{Escape}')
+    await userEvent.keyboard('{Escape}')
 
     await waitFor(() => expect(screen.queryByRole('listbox', { name: /mention/i })).toBeNull())
     expect(body).toHaveValue('Heads up @Pe')
@@ -453,6 +560,83 @@ describe('SignalComposer — grouped @ mention picker (AC-421)', () => {
       { kind: 'person', targetId: 'person-peer', label: 'Peer Person' },
     ])
   })
+
+  it('keeps the native multiline textbox related to mounted suggestions and clears the relation on Escape', async () => {
+    renderComposer()
+    const body = screen.getByRole('textbox', { name: /what happened/i })
+    await userEvent.type(body, 'Heads up @Pe')
+    const listbox = await screen.findByRole('listbox', { name: /mention/i })
+
+    expect(body.tagName).toBe('TEXTAREA')
+    expect(body).not.toHaveAttribute('role', 'combobox')
+    await waitFor(() => expect(body).toHaveAttribute('aria-controls', listbox.id))
+    const activeOption = await within(listbox).findByRole('option', { selected: true })
+    expect(body).toHaveAttribute('aria-activedescendant', activeOption.id)
+
+    await userEvent.keyboard('{Escape}')
+
+    await waitFor(() => expect(screen.queryByRole('listbox', { name: /mention/i })).not.toBeInTheDocument())
+    expect(body).toHaveFocus()
+    expect(body).toHaveValue('Heads up @Pe')
+    expect(body).not.toHaveAttribute('aria-controls')
+    expect(body).not.toHaveAttribute('aria-activedescendant')
+  })
+
+  it('does not select or send while IME composition owns Enter', async () => {
+    renderComposer()
+    const body = screen.getByRole('textbox', { name: /what happened/i })
+    await userEvent.type(body, 'Heads up @Pe')
+    expect(await screen.findByRole('listbox', { name: /mention/i })).toBeInTheDocument()
+
+    fireEvent.keyDown(body, { key: 'Enter', shiftKey: true, isComposing: true })
+
+    expect(body).toHaveValue('Heads up @Pe')
+    expect(screen.getByRole('listbox', { name: /mention/i })).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: /notification targets/i })).not.toBeInTheDocument()
+    expect(mockCreateSignal).not.toHaveBeenCalled()
+  })
+
+  it('dismisses suggestions on an outside pointer without selecting a target or losing prose', async () => {
+    renderComposer()
+    const body = screen.getByRole('textbox', { name: /what happened/i })
+    await userEvent.type(body, 'Heads up @Pe')
+    expect(await screen.findByRole('listbox', { name: /mention/i })).toBeInTheDocument()
+
+    await userEvent.click(screen.getByLabelText(/^time$/i))
+
+    expect(screen.queryByRole('listbox', { name: /mention/i })).not.toBeInTheDocument()
+    expect(body).toHaveValue('Heads up @Pe')
+    expect(screen.queryByRole('group', { name: /notification targets/i })).not.toBeInTheDocument()
+    expect(mockCreateSignal).not.toHaveBeenCalled()
+  })
+
+  it('keeps suggestions open when the focused textarea anchor is clicked', async () => {
+    renderComposer()
+    const body = screen.getByRole('textbox', { name: /what happened/i })
+    await userEvent.type(body, 'Heads up @Pe')
+    expect(await screen.findByRole('listbox', { name: /mention/i })).toBeInTheDocument()
+
+    await userEvent.click(body)
+
+    expect(screen.getByRole('listbox', { name: /mention/i })).toBeInTheDocument()
+    expect(body).toHaveFocus()
+    expect(body).toHaveValue('Heads up @Pe')
+  })
+
+  it('restores Shift+Enter sending after Escape dismisses the suggestions', async () => {
+    renderComposer()
+    const body = screen.getByRole('textbox', { name: /what happened/i })
+    await userEvent.type(body, 'Heads up @Pe')
+    expect(await screen.findByRole('listbox', { name: /mention/i })).toBeInTheDocument()
+
+    await userEvent.keyboard('{Escape}')
+    expect(body).toHaveValue('Heads up @Pe')
+    fireEvent.keyDown(body, { key: 'Enter', shiftKey: true })
+
+    await waitFor(() => expect(mockCreateSignal).toHaveBeenCalledTimes(1))
+    expect(mockCreateSignal.mock.calls[0][0].body).toBe('Heads up @Pe')
+    expect(mockCreateSignal.mock.calls[0][0].mentions).toEqual([])
+  })
 })
 
 describe('SignalComposer — All Teams visibility + dedup fan-out preview (AC-422)', () => {
@@ -557,4 +741,3 @@ describe('SignalComposer — photos (ticket 680)', () => {
     expect(mockCreateSignal).toHaveBeenCalledTimes(1)
   })
 })
-
