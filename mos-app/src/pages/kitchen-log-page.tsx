@@ -323,12 +323,19 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   const [category, setCategory] = useSearchParamState('category', 'All')
   // Category/kind selects are desktop-only. A deep link from desktop must not silently
   // narrow the phone capture list when the filter controls are unavailable to clear it.
-  const effectiveKindFilter: KitchenItemKindFilter = isDesktop ? kindFilter as KitchenItemKindFilter : 'All'
+  // RAW is only a valid filter for Transfer; ignore stale/deep-linked RAW filters on production.
+  const requestedKindFilter = kindFilter as KitchenItemKindFilter
+  const supportedKindFilter = requestedKindFilter === 'All' || requestedKindFilter === 'WIP'
+    || (mode === 'transfer' && requestedKindFilter === 'RAW')
+    ? requestedKindFilter
+    : 'All'
+  const effectiveKindFilter: KitchenItemKindFilter = isDesktop ? supportedKindFilter : 'All'
   const effectiveCategory = isDesktop ? category : 'All'
   const filterRows = useMemo(
     () => toKitchenListRows(wipItems, {
       kind: 'WIP',
       getId: item => item.id,
+      getKind: item => item.kind ?? 'WIP',
       getName: item => item.name,
       getCategory: item => item.category,
       getGroupKey: item => (lines[item.id]?.plan_qty ?? 0) > 0 ? 'planned' : 'offplan',
@@ -431,7 +438,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       const resolvedStream = catalog.stream
       // The stream's own list (#222). No stream yet: the whole gated catalog, as before — nothing
       // is writable until a stream is chosen, and the choose-stream state replaces the list.
-      const items = await listCaptureFormItems(resolvedStream ?? undefined)
+      const items = await listCaptureFormItems(resolvedStream ?? undefined, mode === 'transfer' ? 'transfer' : 'produce')
       const resolvedMovement = PRODUCE
       // An empty successful item read is a complete empty state. Do not make follow-up
       // plan/stock/actual reads turn that honest absence into a false load error.
@@ -472,7 +479,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       // wrong BU or capturing against a guessed stream.
       setStatus({ kind: 'error', message: t('common.loadFailed', { what: t('common.what.items') }) })
     }
-  }, [adoptStream, logDate, resolveStream, t])
+  }, [adoptStream, logDate, mode, resolveStream, t])
 
   useEffect(() => {
     if (auth.status !== 'authenticated') return
@@ -544,7 +551,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     setStatus({ kind: 'loading' })
     try {
       const [items, plan, stock, actuals] = await Promise.all([
-        listCaptureFormItems(nextStream),
+        listCaptureFormItems(nextStream, mode === 'transfer' ? 'transfer' : 'produce'),
         fetchPlanMap(logDate, nextStream),
         fetchStockMap(logDate, nextStream),
         fetchActualsMap(logDate, nextStream),
@@ -561,7 +568,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       if (gen !== requestGen.current) return
       setStatus({ kind: 'error', message: t('common.loadFailed', { what: t('common.what.items') }) })
     }
-  }, [chooseStream, logDate, t])
+  }, [chooseStream, logDate, mode, t])
 
   // Staged quantities belong to the stream they were typed against: ask before a switch
   // discards them, and switch straight through when nothing is staged. Shared by the head's
@@ -1098,8 +1105,10 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     <KitchenToolbar
       search={search}
       onSearchChange={setSearch}
-      kinds={KITCHEN_KIND_FILTER_OPTIONS}
-      kind={kindFilter as KitchenItemKindFilter}
+      kinds={mode === 'transfer'
+        ? KITCHEN_KIND_FILTER_OPTIONS
+        : KITCHEN_KIND_FILTER_OPTIONS.filter(kind => kind !== 'RAW')}
+      kind={effectiveKindFilter}
       kindId="cafe-log-kind"
       onKindChange={setKindFilter}
       categories={categories}

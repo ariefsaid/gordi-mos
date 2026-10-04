@@ -33,6 +33,7 @@ import {
   type CatalogCollectionActions,
   type CatalogCreateDraft,
 } from '@/components/catalog/catalog-collection-actions'
+import { useCreateDraftState } from '@/shell/create-drafts'
 import { CatalogCreateForm } from '@/components/catalog/catalog-create-form'
 import { useCatalogRecordOverlay } from '@/components/catalog/use-catalog-record-overlay'
 import { allowedBusinessUnitIds, canCreateForScope, useWorkWriteAuthority } from '@/components/catalog/use-work-write-authority'
@@ -61,12 +62,13 @@ export function ObjectivesPage() {
   const [live, setLive] = useState('')
   const announce = useCallback((message: string) => setLive(message), [])
   const createButtonRef = useRef<HTMLButtonElement>(null)
-  const [draftOpen, setDraftOpen] = useState(false)
-  const [newName, setNewName] = useState('')
-  const [newBusinessUnitId, setNewBusinessUnitId] = useState<string | null>(null)
+  const [draftOpen, setDraftOpen] = useCreateDraftState('objective.draftOpen', false)
+  const [newName, setNewName] = useCreateDraftState('objective.newName', '')
+  const [newBusinessUnitId, setNewBusinessUnitId] = useCreateDraftState<string | null>('objective.newBusinessUnitId', null)
   const [businessUnitOptions, setBusinessUnitOptions] = useState<BusinessUnitOption[]>([])
-  const [adding, setAdding] = useState(false)
-  const [addError, setAddError] = useState('')
+  const [adding, setAdding] = useCreateDraftState('objective.adding', false)
+  const [addError, setAddError] = useCreateDraftState('objective.addError', '')
+  const [completedName, setCompletedName] = useCreateDraftState<string | null>('objective.completedName', null)
 
   const setQuery = (patch: Partial<CatalogCollectionQuery>) => {
     controller.setQuery({ ...query, ...patch })
@@ -76,6 +78,10 @@ export function ObjectivesPage() {
 
   const openDraft = () => {
     if (!canManage) return
+    if (draftOpen) {
+      document.querySelector<HTMLInputElement>('.catalog-create-panel input')?.focus()
+      return
+    }
     setNewName('')
     setNewBusinessUnitId(objectiveBuIds?.length === 1 ? objectiveBuIds[0] : null)
     setAddError('')
@@ -102,7 +108,7 @@ export function ObjectivesPage() {
     setAddError('')
   }
   const handleDraftSubmit = async () => {
-    if (!canManage) return
+    if (!canManage || adding) return
     const name = newName.trim()
     if (!name) {
       setAddError(t('catalog.nameRequired'))
@@ -119,17 +125,24 @@ export function ObjectivesPage() {
       else if (newBusinessUnitId) await objectivesCatalogActions.create(name, newBusinessUnitId)
       else await objectivesCatalogActions.create(name)
       setDraftOpen(false)
-      createButtonRef.current?.focus()
       setNewName('')
-      announce(t('catalog.announce.added', { name }))
-      controller.setQuery({ ...query, view: 'active', q: '', coverage: 'all' })
-      controller.retry()
+      setCompletedName(name)
     } catch (error) {
       setAddError(saveErrorMessage(error, t))
     } finally {
       setAdding(false)
     }
   }
+
+  // A save may finish after route return; the mounted collection owns its refresh and feedback.
+  useEffect(() => {
+    if (completedName === null) return
+    setCompletedName(null)
+    createButtonRef.current?.focus()
+    announce(t('catalog.announce.added', { name: completedName }))
+    controller.setQuery({ ...query, view: 'active', q: '', coverage: 'all' })
+    controller.retry()
+  }, [announce, completedName, controller, query, setCompletedName, t])
 
   useEffect(() => {
     if (!draftOpen || businessUnitOptions.length > 0) return
@@ -145,7 +158,7 @@ export function ObjectivesPage() {
       })
       .catch(() => { /* The create field remains optional; the record read still stays truthful. */ })
     return () => { live = false }
-  }, [businessUnitOptions.length, draftOpen, objectiveBuIds])
+  }, [businessUnitOptions.length, draftOpen, objectiveBuIds, setNewBusinessUnitId])
 
   const draft: CatalogCreateDraft = {
     kind: 'objective',
@@ -285,11 +298,11 @@ export function ObjectivesPage() {
       // #958: repeats the sentence above (desktop-only, page-head.css hides it under 768px)
       // ahead of the glossary, so phone gets purpose + terms from one glyph.
       titleHelp={<HelpTip label={`${t('job.objectives')} ${t('job.objectivesHelp')}`} />}
-      action={canManage && !isNarrow ? <Button ref={createButtonRef} variant={overlay.panelOpen ? 'outline' : 'primary'} onClick={openDraft}>{t('catalog.objectives.add')}</Button> : undefined}
+      action={canManage && !isNarrow ? <Button ref={createButtonRef} variant={overlay.panelOpen || draftOpen ? 'outline' : 'primary'} onClick={openDraft}>{t('catalog.objectives.add')}</Button> : undefined}
     >
       <div className="sr-only" aria-live="polite" role="status">{live}</div>
       <CatalogCollectionActionsProvider actions={actions}>
-        {draftOpen && (
+        {canManage && draftOpen && (
           <div className="record-collection-view catalog-create-panel">
             <CatalogCreateForm draft={draft} />
           </div>

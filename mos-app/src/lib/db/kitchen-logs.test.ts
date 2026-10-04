@@ -179,6 +179,7 @@ describe('listActiveWipItems — the ungated stock/plan read', () => {
     expect(result).toHaveLength(2)
     expect(result[0].name).toBe('Ayam Bakar')
     expect(rec.eqs).toContainEqual(['flag_active', true])
+    expect(rec.eqs).toContainEqual(['reference_source', 'manual'])
     expect(rec.eqs).toContainEqual(['kind', 'WIP'])
     expect(rec.orders).toContainEqual(['name', { ascending: true }])
     expect(rec.selects).toContain('id,name,category')
@@ -222,7 +223,7 @@ describe('listCaptureFormItems — stream-aware capture-form read (FR-011, DD-WA
   it('uses stream MOS names and shown ERP details while retaining listed manual items', async () => {
     mockCafeItemSettings.mockResolvedValue([
       {
-        id: 'w2', erpName: 'ERP Nasi Goreng', mosName: 'MOS Nasi Goreng', category: 'Main', kind: 'WIP',
+        id: 'w2', erpName: 'ERP Nasi Goreng', mosName: 'MOS Nasi Goreng', category: 'Main', kind: 'WIP', isActive: true,
         defaultUnitId: 'u2-each',
         units: [
           { id: 'u2-each', name: 'each', isShown: true, isDefault: true, labelOrdinal: null, labelCount: 1 },
@@ -230,16 +231,16 @@ describe('listCaptureFormItems — stream-aware capture-form read (FR-011, DD-WA
         ],
       },
       {
-        id: 'raw-1', erpName: 'ERP Beans', mosName: 'ERP Beans', category: 'Main', kind: 'RAW',
+        id: 'raw-1', erpName: 'ERP Beans', mosName: 'ERP Beans', category: 'Main', kind: 'RAW', isActive: true,
         defaultUnitId: 'u-kg',
         units: [{ id: 'u-kg', name: 'kg', isShown: true, isDefault: true, labelOrdinal: null, labelCount: 1 }],
       },
       {
-        id: 'w4', erpName: 'ERP Unconfigured', mosName: 'ERP Unconfigured', category: 'Main', kind: 'WIP',
+        id: 'w4', erpName: 'ERP Unconfigured', mosName: 'ERP Unconfigured', category: 'Main', kind: 'WIP', isActive: true,
         defaultUnitId: null, units: [],
       },
       {
-        id: 'w5', erpName: 'ERP Off-stream', mosName: 'ERP Off-stream', category: 'Main', kind: 'WIP',
+        id: 'w5', erpName: 'ERP Off-stream', mosName: 'ERP Off-stream', category: 'Main', kind: 'WIP', isActive: true,
         defaultUnitId: 'u5',
         units: [{ id: 'u5', name: 'each', isShown: true, isDefault: true, labelOrdinal: null, labelCount: 1 }],
       },
@@ -274,9 +275,42 @@ describe('listCaptureFormItems — stream-aware capture-form read (FR-011, DD-WA
     expect(rec.fromTables).toEqual(expect.arrayContaining(['capture_form_items', 'stream_items']))
   })
 
+  it('offers active team-classified RAW and WIP items for transfer, but not inactive or unclassified rows', async () => {
+    mockCafeItemSettings.mockResolvedValue([
+      {
+        id: 'raw-1', erpName: 'ERP Beans', mosName: 'Beans', category: 'Main', kind: 'RAW', isActive: true,
+        defaultUnitId: 'raw-unit',
+        units: [{ id: 'raw-unit', name: 'kg', isShown: true, isDefault: true, labelOrdinal: null, labelCount: 1 }],
+      },
+      {
+        id: 'wip-1', erpName: 'ERP Stew', mosName: 'Stew', category: 'Main', kind: 'WIP', isActive: true,
+        defaultUnitId: 'wip-unit',
+        units: [{ id: 'wip-unit', name: 'tray', isShown: true, isDefault: true, labelOrdinal: null, labelCount: 1 }],
+      },
+      {
+        id: 'inactive', erpName: 'ERP Disabled', mosName: 'Disabled', category: 'Main', kind: 'RAW', isActive: false,
+        defaultUnitId: 'disabled-unit',
+        units: [{ id: 'disabled-unit', name: 'kg', isShown: true, isDefault: true, labelOrdinal: null, labelCount: 1 }],
+      },
+      {
+        id: 'unset', erpName: 'ERP Unclassified', mosName: 'Unclassified', category: 'Main', kind: null, isActive: true,
+        defaultUnitId: 'unset-unit',
+        units: [{ id: 'unset-unit', name: 'kg', isShown: true, isDefault: true, labelOrdinal: null, labelCount: 1 }],
+      },
+    ])
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({
+      capture_form_items: [{ data: [], error: null }],
+      stream_items: [{ data: ['raw-1', 'wip-1', 'inactive', 'unset'].map(wip_item_id => ({ wip_item_id })), error: null }],
+    }, rec) as never)
+
+    const result = await listCaptureFormItems(STREAM, 'transfer')
+    expect(result.map(item => [item.id, item.kind])).toEqual([['raw-1', 'RAW'], ['wip-1', 'WIP']])
+  })
+
   it('distinguishes repeated ERP unit labels without exposing ERP identifiers', async () => {
     mockCafeItemSettings.mockResolvedValue([{
-      id: 'w2', erpName: 'ERP Nasi Goreng', mosName: 'MOS Nasi Goreng', category: 'Main', kind: 'WIP',
+      id: 'w2', erpName: 'ERP Nasi Goreng', mosName: 'MOS Nasi Goreng', category: 'Main', kind: 'WIP', isActive: true,
       defaultUnitId: 'detail-a',
       units: [
         { id: 'detail-a', name: 'each', isShown: true, isDefault: true, labelOrdinal: 1, labelCount: 2 },
@@ -804,6 +838,8 @@ describe('fetchStockMap — stok/tersedia per WIP item via kitchen_stock_for_dat
 
 // ── fetchKitchenStock — the read-only Stock view's list shape (S4, FR-060/061) ─
 describe('fetchKitchenStock — per-item stock rows for the Stock view (FR-060/061)', () => {
+  beforeEach(() => mockCafeItemSettings.mockResolvedValue([]))
+
   it('joins active WIP item names with kitchen_stock_for_date rows (stok/tersedia)', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(

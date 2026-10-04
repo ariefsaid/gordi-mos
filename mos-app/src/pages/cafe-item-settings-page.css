@@ -111,11 +111,13 @@
   border-bottom: 0;
 }
 
-.cafe-items__table thead th:nth-child(1) { width: 22%; }
-.cafe-items__table thead th:nth-child(2) { width: 23%; }
-.cafe-items__table thead th:nth-child(3) { width: 18%; }
-.cafe-items__table thead th:nth-child(4) { width: 29%; }
-.cafe-items__table thead th:nth-child(5) { width: 8%; }
+.cafe-items__table thead th:nth-child(1) { width: 17%; }
+.cafe-items__table thead th:nth-child(2) { width: 18%; }
+.cafe-items__table thead th:nth-child(3) { width: 14%; }
+.cafe-items__table thead th:nth-child(4) { width: 10%; }
+.cafe-items__table thead th:nth-child(5) { width: 16%; }
+.cafe-items__table thead th:nth-child(6) { width: 19%; }
+.cafe-items__table thead th:nth-child(7) { width: 6%; }
 
 .cafe-items__erp-cell {
   font-weight: 400;
@@ -159,6 +161,17 @@
   clip: rect(0 0 0 0);
   clip-path: inset(50%);
   white-space: nowrap;
+}
+
+.cafe-items__active-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+}
+
+.cafe-items__active-control .mk-checkbox {
+  flex: 0 0 16px;
 }
 
 .cafe-items__default-value,

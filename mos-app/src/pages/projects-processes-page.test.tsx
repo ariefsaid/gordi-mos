@@ -1,7 +1,8 @@
 import { afterEach, describe, it, expect, vi, beforeEach } from 'vitest'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { MemoryRouter, RouterProvider, createMemoryRouter } from 'react-router-dom'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { Link, Outlet, MemoryRouter, RouterProvider, createMemoryRouter } from 'react-router-dom'
 import { OverlayHostProvider } from '@/shell/overlay-host'
+import { CreateDraftProvider } from '@/shell/create-drafts'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import type { AuthState } from '@/auth/context'
@@ -186,6 +187,7 @@ describe('Projects & Processes collection-first contract', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Create project or process' })).toHaveFocus())
   })
 
+  // AC-003
   it('preserves a failed Process draft and its type for retry', async () => {
     vi.mocked(createWorkLine).mockRejectedValueOnce(new Error('Temporary save failure'))
     renderPage()
@@ -196,13 +198,16 @@ describe('Projects & Processes collection-first contract', () => {
     fireEvent.change(name, { target: { value: 'Weekly stock opname' } })
     fireEvent.click(within(form).getByRole('combobox', { name: 'Type' }))
     fireEvent.click(screen.getByRole('option', { name: 'Process' }))
+    fireEvent.click(within(form).getByRole('combobox', { name: 'Objective' }))
+    fireEvent.click(await screen.findByRole('option', { name: 'Brand love' }))
     fireEvent.submit(form)
     expect(await screen.findByRole('alert')).toHaveTextContent('Couldn’t save. Try again.')
     expect(name).toHaveValue('Weekly stock opname')
+    expect(within(form).getByRole('combobox', { name: 'Objective' })).toHaveTextContent('Brand love')
     await waitFor(() => expect(name).toHaveFocus())
     expect(within(form).getByRole('combobox', { name: 'Type' })).toHaveTextContent('Process')
     fireEvent.submit(form)
-    await waitFor(() => expect(createWorkLine).toHaveBeenNthCalledWith(2, 'Weekly stock opname', 'process'))
+    await waitFor(() => expect(createWorkLine).toHaveBeenNthCalledWith(2, 'Weekly stock opname', 'process', expect.objectContaining({ objective_id: 'obj-2' })))
     await waitFor(() => expect(screen.queryByRole('form', { name: 'Create project or process' })).toBeNull())
     expect(screen.getByRole('button', { name: 'Create project or process' })).toHaveFocus()
   })
@@ -386,4 +391,89 @@ describe('one primary per screen beside an open record panel', () => {
     await waitFor(() => expect(screen.queryByText('record body wl-1')).toBeNull())
     expect(screen.getByRole('button', { name: 'Create project or process' })).toHaveClass('btn-primary')
   })
+})
+
+// AC-001, AC-002
+describe('unfinished collection draft retention', () => {
+  it('resumes all entered values after following another route and returning through Create', async () => {
+    const router = createMemoryRouter([{
+      element: <CreateDraftProvider><Link to="/work/signals">Signals destination</Link><Link to="/work/projects?create=1">Return through Create</Link><Outlet /></CreateDraftProvider>,
+      children: [{ path: '/work/projects', element: <ProjectsProcessesPage /> }, { path: '/work/signals', element: <p>Signals destination body</p> }],
+    }], { initialEntries: ['/work/projects?create=1'] })
+    render(<I18nProvider><RouterProvider router={router} /></I18nProvider>)
+    let form = await screen.findByRole('form', { name: 'Create project or process' })
+    fireEvent.change(within(form).getByRole('textbox', { name: 'Name' }), { target: { value: 'Keep this full draft' } })
+    fireEvent.click(within(form).getByRole('combobox', { name: 'Type' }))
+    fireEvent.click(await screen.findByRole('option', { name: 'Process' }))
+    fireEvent.click(within(form).getByRole('combobox', { name: 'Objective' }))
+    fireEvent.click(await screen.findByRole('option', { name: 'Brand love' }))
+    const opener = screen.getByRole('button', { name: 'Create project or process' })
+    fireEvent.click(opener)
+    expect(opener).not.toHaveClass('btn-primary')
+    expect(within(form).getByRole('textbox', { name: 'Name' })).toHaveValue('Keep this full draft')
+    expect(within(form).getByRole('combobox', { name: 'Type' })).toHaveTextContent('Process')
+    expect(within(form).getByRole('combobox', { name: 'Objective' })).toHaveTextContent('Brand love')
+    fireEvent.click(screen.getByRole('link', { name: 'Signals destination' }))
+    await screen.findByText('Signals destination body')
+    fireEvent.click(screen.getByRole('link', { name: 'Return through Create' }))
+    form = await screen.findByRole('form', { name: 'Create project or process' })
+    expect(within(form).getByRole('textbox', { name: 'Name' })).toHaveValue('Keep this full draft')
+    expect(within(form).getByRole('combobox', { name: 'Type' })).toHaveTextContent('Process')
+    expect(within(form).getByRole('combobox', { name: 'Objective' })).toHaveTextContent('Brand love')
+    expect(within(form).getByRole('textbox', { name: 'Name' })).toHaveFocus()
+  })
+})
+
+// AC-004
+it('keeps a retained projects buffer hidden when current write authority is denied on return', async () => {
+  const router = createMemoryRouter([{
+    element: <CreateDraftProvider><Link to="/work/signals">Signals destination</Link><Link to="/work/projects">Return to collection</Link><Outlet /></CreateDraftProvider>,
+    children: [{ path: '/work/projects', element: <ProjectsProcessesPage /> }, { path: '/work/signals', element: <p>Signals destination body</p> }],
+  }], { initialEntries: ['/work/projects?create=1'] })
+  render(<I18nProvider><RouterProvider router={router} /></I18nProvider>)
+  fireEvent.change(await screen.findByRole('textbox', { name: 'Name' }), { target: { value: 'Keep this authorized draft' } })
+  fireEvent.click(screen.getByRole('link', { name: 'Signals destination' }))
+  await screen.findByText('Signals destination body')
+  vi.mocked(getWorkWriteScopes).mockResolvedValue({ workline_org: false, objective_org: false, workline_bu_ids: [], objective_bu_ids: [], objective_content_org: false, objective_content_bu_ids: [] })
+  fireEvent.click(screen.getByRole('link', { name: 'Return to collection' }))
+  await screen.findByText('Menu launch')
+  expect(screen.queryByRole('form', { name: 'Create project or process' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Create project or process' })).toBeNull()
+  expect(createWorkLine).not.toHaveBeenCalled()
+})
+
+// AC-003
+it('confirms the saved projects record in the current collection when pending success arrives after route return', async () => {
+  let confirm!: () => void
+  vi.mocked(listWorkLinesAll).mockResolvedValue([])
+  vi.mocked(createWorkLine).mockReturnValueOnce(new Promise((resolve) => {
+    confirm = () => {
+      const saved = { id: 'saved-return', name: 'Saved after returning', archived_at: null, type: 'process' as const }
+      vi.mocked(listWorkLinesAll).mockResolvedValue([saved])
+      resolve(saved)
+    }
+  }))
+  const router = createMemoryRouter([{
+    element: <CreateDraftProvider><Link to="/work/signals">Signals destination</Link><Link to="/work/projects">Return to collection</Link><Outlet /></CreateDraftProvider>,
+    children: [{ path: '/work/projects', element: <ProjectsProcessesPage /> }, { path: '/work/signals', element: <p>Signals destination body</p> }],
+  }], { initialEntries: ['/work/projects?create=1'] })
+  render(<I18nProvider><RouterProvider router={router} /></I18nProvider>)
+  const form = await screen.findByRole('form', { name: 'Create project or process' })
+  fireEvent.change(within(form).getByRole('textbox', { name: 'Name' }), { target: { value: 'Saved after returning' } })
+  fireEvent.click(within(form).getByRole('combobox', { name: 'Type' }))
+  fireEvent.click(await screen.findByRole('option', { name: 'Process' }))
+  fireEvent.submit(form)
+  await waitFor(() => expect(within(form).getByRole('textbox', { name: 'Name' })).toBeDisabled())
+  const readsBeforeReturn = vi.mocked(listWorkLinesAll).mock.calls.length
+  fireEvent.click(screen.getByRole('link', { name: 'Signals destination' }))
+  await screen.findByText('Signals destination body')
+  fireEvent.click(screen.getByRole('link', { name: 'Return to collection' }))
+  await waitFor(() => expect(vi.mocked(listWorkLinesAll).mock.calls.length).toBeGreaterThan(readsBeforeReturn))
+  expect(await screen.findByRole('textbox', { name: 'Name' })).toBeDisabled()
+  expect(screen.queryByRole('link', { name: 'Saved after returning' })).toBeNull()
+  await act(async () => confirm())
+  expect(await screen.findByRole('link', { name: 'Saved after returning' })).toBeInTheDocument()
+  expect(screen.getAllByRole('status').some((status) => status.textContent === 'Added Saved after returning')).toBe(true)
+  expect(screen.queryByRole('form', { name: 'Create project or process' })).toBeNull()
+  expect(createWorkLine).toHaveBeenCalledTimes(1)
 })

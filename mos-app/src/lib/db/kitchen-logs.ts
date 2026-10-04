@@ -107,8 +107,8 @@ export function streamCatalogFrom(
 // ── WIP items ────────────────────────────────────────────────────────────────
 
 /**
- * List active WIP items sorted by name — the UNGATED WIP read.
- * Mirrors oracle list_active_wip_items.
+ * List active manually maintained WIP items sorted by name — the legacy plan/stock catalog.
+ * ERP items are added from per-stream team settings and their item-level kind is never read.
  *
  * DELIBERATELY not the capture form's source. The DD-WAY-29 gate scopes absence to the
  * CAPTURE form only (FR-011) — this read feeds the stock/verification plane (FR-060,
@@ -121,6 +121,7 @@ export async function listActiveWipItems(): Promise<WipItemOption[]> {
     .from('wip_items')
     .select('id,name,category')
     .eq('flag_active', true)
+    .eq('reference_source', 'manual')
     .eq('kind', 'WIP')
     .order('name', { ascending: true })
   if (error) throw new Error(`listActiveWipItems failed — ${error.message}`)
@@ -209,7 +210,10 @@ async function listLegacyCaptureFormItems(): Promise<CaptureFormItem[]> {
   return [...byItem.values()]
 }
 
-export async function listCaptureFormItems(stream?: ProductionStream): Promise<CaptureFormItem[]> {
+export async function listCaptureFormItems(
+  stream?: ProductionStream,
+  action: 'produce' | 'transfer' = 'produce',
+): Promise<CaptureFormItem[]> {
   if (!stream) return listLegacyCaptureFormItems()
 
   const [settings, legacyItems, offered] = await Promise.all([
@@ -220,7 +224,9 @@ export async function listCaptureFormItems(stream?: ProductionStream): Promise<C
   const erpItemIds = new Set(settings.map(item => item.id))
   // The settings view is stream-scoped; intersect again so a future view change cannot widen capture.
   const erpItems = settings
-    .filter(item => item.kind === 'WIP' && offered.has(item.id))
+    .filter(item => item.isActive
+      && (action === 'produce' ? item.kind === 'WIP' : item.kind === 'RAW' || item.kind === 'WIP')
+      && offered.has(item.id))
     .flatMap(item => {
       const logItem = toCafeLogItem(item)
       return logItem ? [{
@@ -236,7 +242,8 @@ export async function listCaptureFormItems(stream?: ProductionStream): Promise<C
       }] : []
     })
   const manualItems = legacyItems.filter(item => !erpItemIds.has(item.id) && offered.has(item.id))
-  // Sort by the name operators see (MOS name for ERP items), then stable ID.
+  // Production exposes team-active WIP items; transfer exposes team-active RAW and WIP items.
+  // Manual legacy items remain WIP. Sort by the name operators see, then stable ID.
   return [...erpItems, ...manualItems].sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
 }
 
@@ -404,8 +411,9 @@ export async function fetchKitchenStock(
   asOf: string,
   stream: ProductionStream,
 ): Promise<KitchenStockRow[]> {
-  const [items, stockRows, offered] = await Promise.all([
+  const [manualItems, settings, stockRows, offered] = await Promise.all([
     listActiveWipItems(),
+    listCafeItemSettings(stream),
     fetchStockForDate(asOf, stream),
     listStreamItemIds(stream),
   ])
@@ -416,6 +424,14 @@ export async function fetchKitchenStock(
     const s = byItem.get(id)
     return !!s && (Number(s.usable_qty) !== 0 || Number(s.available_qty) !== 0)
   }
+  const manualIds = new Set(manualItems.map(item => item.id))
+  const items: WipItemOption[] = [
+    ...manualItems,
+    ...settings
+      .filter(item => (item.kind === 'WIP' && item.isActive) || holdsBalance(item.id))
+      .filter(item => !manualIds.has(item.id))
+      .map(item => ({ id: item.id, name: item.mosName, category: item.category })),
+  ]
   return items.filter(item => offered.has(item.id) || holdsBalance(item.id)).map(item => {
     const s = byItem.get(item.id)
     return {

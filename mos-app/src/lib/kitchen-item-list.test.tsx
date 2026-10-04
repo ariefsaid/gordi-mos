@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import {
   KITCHEN_KIND_FILTER_OPTIONS,
+  WIP_KIND_FILTER_OPTIONS,
   kitchenDataTableGroups,
   kitchenItemLabel,
   toKitchenListRows,
@@ -53,8 +54,9 @@ describe('Café kind-aware list model', () => {
     expect(kitchenItemLabel('WIP', 'Salted egg')).toBe('WIP - Salted egg')
   })
 
-  it('keeps RAW unavailable until the single #1240 switch is enabled', () => {
-    expect(KITCHEN_KIND_FILTER_OPTIONS).toEqual(['All', 'WIP'])
+  it('enables RAW for team-classified transfers while keeping planning WIP-only', () => {
+    expect(KITCHEN_KIND_FILTER_OPTIONS).toEqual(['All', 'WIP', 'RAW'])
+    expect(WIP_KIND_FILTER_OPTIONS).toEqual(['All', 'WIP'])
   })
 
   it('uses TanStack filtering and grouping together without changing source rows', () => {

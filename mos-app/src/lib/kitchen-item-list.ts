@@ -15,11 +15,12 @@ import type { DataTableGroup } from '@/components/dashboard/data-table'
 export type KitchenItemKind = 'RAW' | 'WIP'
 export type KitchenItemKindFilter = 'All' | KitchenItemKind
 
-// Enable only after #1240 supplies the RAW item source and capture shape.
-export const RAW_ITEMS_ENABLED = false
+// #1287 adds the team-classified RAW stream items used by transfer capture.
+export const RAW_ITEMS_ENABLED = true
 export const KITCHEN_KIND_FILTER_OPTIONS: readonly KitchenItemKindFilter[] = RAW_ITEMS_ENABLED
   ? ['All', 'WIP', 'RAW']
   : ['All', 'WIP']
+export const WIP_KIND_FILTER_OPTIONS: readonly KitchenItemKindFilter[] = ['All', 'WIP']
 
 export interface KitchenListMetadata {
   rowId: string
@@ -40,6 +41,7 @@ export function toKitchenListRows<Row>(
   metadata: {
     kind: KitchenItemKind
     getId: (row: Row, index: number) => string
+    getKind?: (row: Row, index: number) => KitchenItemKind
     getName: (row: Row) => string
     getCategory: (row: Row) => string | null | undefined
     getGroupKey: (row: Row) => string
@@ -48,7 +50,7 @@ export function toKitchenListRows<Row>(
   return rows.map((row, index) => ({
     ...row,
     rowId: metadata.getId(row, index),
-    kind: metadata.kind,
+    kind: metadata.getKind?.(row, index) ?? metadata.kind,
     itemName: metadata.getName(row),
     category: metadata.getCategory(row) ?? null,
     groupKey: metadata.getGroupKey(row),
