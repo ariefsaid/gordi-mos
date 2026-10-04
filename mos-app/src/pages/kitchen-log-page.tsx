@@ -894,7 +894,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   const formatCaptureQty = (quantity: number) => new Intl.NumberFormat(
     document.documentElement.lang || 'en', { maximumFractionDigits: 3 },
   ).format(quantity)
-  const transferDraftContent = (
+  const captureDraftContent = (
     <>
       {mode === 'transfer' && (
         <div className="kl-capture-summary__destination">
@@ -1318,7 +1318,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
                   role="region"
                 >
                   <h2 id="kl-transfer-draft-title">{t('kitchen.transfer.draft.title')}</h2>
-                  {transferDraftContent}
+                  {captureDraftContent}
                 </section>
               )}
             </>
@@ -1479,7 +1479,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
                 <MetricSummaryRule metrics={summaryMetrics} variant="inline" />
               </div>
             )}
-            {transferDraftContent}
+            {captureDraftContent}
             {submitError && <p role="alert" className="kl-submit-outcome kl-submit-outcome--error">{submitError}</p>}
             {showOfflineInFooter && <p className="kl-submit-reason">{t('kitchen.log.offline.banner')}</p>}
             {status.kind === 'success' && (

@@ -2057,7 +2057,7 @@ describe('DD-MVP-9: a receiving-only stream remains readable but cannot capture 
     expect(screen.getByRole('link', { name: /view café stock/i })).toHaveAttribute('href', appUrl('/cafe/stock'))
     expect(screen.getByLabelText('Café log — receiving-only read view')).toBeInTheDocument()
 
-    const ayamCard = screen.getByText('Ayam Bakar').closest('.dt-card')!
+    const ayamCard = screen.getByText('Ayam Bakar').closest<HTMLElement>('.dt-card')!
     expect(within(ayamCard).getByText('Plan')).toBeInTheDocument()
     expect(within(ayamCard).getByText('20')).toBeInTheDocument()
     expect(within(ayamCard).getByText('Stock')).toBeInTheDocument()

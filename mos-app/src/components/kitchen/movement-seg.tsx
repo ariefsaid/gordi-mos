@@ -192,9 +192,10 @@ export function MovementSeg({
               const pending = pendingFocusRef.current
               if (!pending) return
               const focusedKey = movementKey(option)
-              if (selectedKey === pending.previousKey && focusedKey === pending.previousKey) {
+              const committedKey = movementKey(valueRef.current)
+              if (committedKey === pending.previousKey && focusedKey === pending.previousKey) {
                 pendingFocusRef.current = null
-              } else if (selectedKey === pending.requestedKey && focusedKey === pending.requestedKey) {
+              } else if (committedKey === pending.requestedKey && focusedKey === pending.requestedKey) {
                 pendingFocusRef.current = null
               }
             }}

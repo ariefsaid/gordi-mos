@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import type { BranchOption, KitchenMovement } from '@/lib/db/kitchen-logs.types'
 import { MovementSeg } from './movement-seg'
 
@@ -54,6 +55,35 @@ function DeferredHarness() {
       <button type="button" onClick={() => setValue(options[1])}>
         Change context
       </button>
+    </>
+  )
+}
+
+function ModalConfirmHarness() {
+  const [value, setValue] = useState(options[0])
+  const [pending, setPending] = useState<KitchenMovement | null>(null)
+  return (
+    <>
+      <MovementSeg
+        value={value}
+        options={options}
+        branches={branches}
+        onChange={next => { setPending(next); return false }}
+      />
+      {pending && (
+        <ConfirmDialog
+          open
+          title="Switch movement?"
+          body="Switching clears the staged entries."
+          confirmLabel="Switch and clear"
+          cancelLabel="Cancel"
+          onConfirm={async () => {
+            setValue(pending)
+            setPending(null)
+          }}
+          onCancel={() => setPending(null)}
+        />
+      )}
     </>
   )
 }
@@ -129,6 +159,26 @@ describe('MovementSeg keyboard contract', () => {
       expect(cikal).toHaveAttribute('aria-selected', 'true')
       expect(cikal).toHaveFocus()
     })
+  })
+
+  it('focuses the committed tab after a guarded ConfirmDialog returns focus on confirm', async () => {
+    const user = userEvent.setup()
+    render(<I18nProvider><ModalConfirmHarness /></I18nProvider>)
+    const production = screen.getByRole('tab', { name: 'Production' })
+    const cikal = screen.getByRole('tab', { name: 'Transfer to Radiant' })
+    production.focus()
+
+    await user.keyboard('{ArrowRight}')
+    const dialog = await screen.findByRole('dialog', { name: 'Switch movement?' })
+    expect(production).toHaveAttribute('aria-selected', 'true')
+    expect(cikal).toHaveAttribute('aria-selected', 'false')
+    await user.click(screen.getByRole('button', { name: 'Switch and clear' }))
+
+    await waitFor(() => {
+      expect(cikal).toHaveAttribute('aria-selected', 'true')
+      expect(cikal).toHaveFocus()
+    })
+    expect(dialog).not.toBeInTheDocument()
   })
 
   it('restores committed focus for the same deferred request from pointer activation', async () => {
