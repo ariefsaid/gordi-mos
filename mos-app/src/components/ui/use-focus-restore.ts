@@ -73,10 +73,21 @@ export function useFocusRestore<T extends HTMLElement = HTMLElement>(
       ? remembered
       : null
     // Broader recovery is opt-in so existing text-only owners keep their established fallback
-    // behavior. An opted-in form may choose another enabled local control if its original one
-    // was removed or stayed disabled after the rejection.
-    const fallback = Array.from(container.querySelectorAll<HTMLElement>(selector)).find(isUsableControl) ?? null
-    const target = preferred ?? fallback
+    // behavior. If an opted-in form's original control was removed or stayed disabled, prefer
+    // its usable native submit action before falling back to the first usable local control.
+    const submitFallback = container instanceof HTMLFormElement
+      ? Array.from(container.elements).find((element): element is HTMLElement => (
+          element instanceof HTMLElement
+          && container.contains(element)
+          && (
+            (element instanceof HTMLButtonElement && element.type === 'submit')
+            || (element instanceof HTMLInputElement && (element.type === 'submit' || element.type === 'image'))
+          )
+          && isUsableControl(element)
+        )) ?? null
+      : null
+    const localFallback = Array.from(container.querySelectorAll<HTMLElement>(selector)).find(isUsableControl) ?? null
+    const target = preferred ?? submitFallback ?? localFallback
     target?.focus({ preventScroll: true })
   }, [busy, failed, includeFormControls, selector])
 

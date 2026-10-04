@@ -1160,9 +1160,11 @@ function CreateSurface({ width, onTaskCreated, onDirtyChange, onRequestLeave, sh
             disabled={submitting}
             aria-label={t('tasks.create.title')}
           />
-          {titleError && (
-            <span id="title-err" role="alert" className="tc-field-error">{titleError}</span>
-          )}
+          <div className="tc-title-error-slot">
+            {titleError && (
+              <span id="title-err" role="alert" className="tc-field-error">{titleError}</span>
+            )}
+          </div>
         </div>
 
         {/* Team */}

@@ -240,6 +240,52 @@ describe('TaskCreateForm — discard, busy and retry', () => {
       expect(onCreate).toHaveBeenNthCalledWith(2, 'Ship the launch')
     } finally { restore() }
   })
+
+  it('issue 1293: a second rejected save restores focus to Create after Retry is replaced', async () => {
+    const restore = installDisabledBlur()
+    try {
+      const user = userEvent.setup()
+      let rejectFirst!: (reason: Error) => void
+      let rejectSecond!: (reason: Error) => void
+      const firstWrite = new Promise<void>((_resolve, reject) => { rejectFirst = reject })
+      const secondWrite = new Promise<void>((_resolve, reject) => { rejectSecond = reject })
+      const onCreate = vi.fn().mockReturnValueOnce(firstWrite).mockReturnValueOnce(secondWrite)
+      renderForm({ task: makeDraft({ title: 'Ship the launch' }), onCreate })
+
+      const form = screen.getByRole('form')
+      const title = screen.getByRole('textbox', { name: 'Title' })
+      const create = screen.getByRole('button', { name: 'Create task' })
+      await user.click(create)
+      expect(await screen.findByRole('button', { name: 'Creating…' })).toBeDisabled()
+      await act(async () => {
+        rejectFirst(new Error('offline'))
+        await firstWrite.catch(() => undefined)
+      })
+      const firstRetry = await screen.findByRole('button', { name: 'Retry' })
+      await waitFor(() => {
+        expect(form).toContainElement(document.activeElement as HTMLElement)
+        expect(document.activeElement).not.toHaveAttribute('disabled')
+      })
+      expect(title).toHaveValue('Ship the launch')
+
+      await user.click(firstRetry)
+      expect(await screen.findByRole('button', { name: 'Creating…' })).toBeDisabled()
+      await act(async () => {
+        rejectSecond(new Error('offline again'))
+        await secondWrite.catch(() => undefined)
+      })
+
+      const secondRetry = await screen.findByRole('button', { name: 'Retry' })
+      expect(screen.getByRole('alert')).toHaveTextContent(/couldn't save/i)
+      expect(title).toHaveValue('Ship the launch')
+      expect(secondRetry).toBeEnabled()
+      expect(create).toBeEnabled()
+      expect(onCreate).toHaveBeenCalledTimes(2)
+      expect(onCreate).toHaveBeenNthCalledWith(1, 'Ship the launch')
+      expect(onCreate).toHaveBeenNthCalledWith(2, 'Ship the launch')
+      await waitFor(() => expect(create).toHaveFocus())
+    } finally { restore() }
+  })
 })
 
 describe('TaskCreateForm — title length (#1034)', () => {

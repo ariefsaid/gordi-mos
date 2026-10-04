@@ -88,4 +88,5 @@
   .tcf-title { min-height: 44px; font-size: var(--font-size-touch-input); }
   .tcf .picker__trigger { min-height: 44px; font-size: var(--font-size-touch-input); }
   .tcf-foot .btn { min-height: 44px; }
+  .tcf-save-error .task-row-retry { min-width: 44px; min-height: 44px; }
 }
