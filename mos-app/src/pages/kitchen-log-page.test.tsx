@@ -49,8 +49,8 @@ vi.mock('@/lib/db/default-stream', () => ({ fetchDefaultStream: vi.fn() }))
 // "Your Team" tagging (myStreamKeys) — empty by default here; tests that care override it.
 vi.mock('@/lib/db/cafe-opening', () => ({ listCafeViewerTeams: vi.fn().mockResolvedValue([]) }))
 vi.mock('@/lib/db/branches', () => ({ listActiveBranches: vi.fn() }))
-// The missing-item report (AC-013) files through the Daily Log data layer — mocked like the rest.
-vi.mock('@/lib/db/ops-log', () => ({ addLogEntry: vi.fn() }))
+// Missing-item reports now use their stream-scoped Café settings queue data layer.
+vi.mock('@/lib/db/cafe-missing-item-reports', () => ({ reportMissingCafeItem: vi.fn() }))
 import {
   listCaptureFormItems,
   fetchActualsMap,
@@ -1349,6 +1349,22 @@ describe('RI-3: interactive controls meet the 44px touch floor', () => {
 // behavior. Default render = phone (jsdom matchMedia → false).
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Force the responsive capture hooks to read the requested viewport before render.
+function setWideMatchMedia(wide: boolean) {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    configurable: true,
+    value: (query: string) => ({
+      matches: wide && (query === '(min-width: 768px)' || query === '(min-width: 1280px)'),
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }),
+  })
+}
+
 // Force the useIsDesktop() hook to read "desktop" by overriding matchMedia before
 // render. The hook reads matchMedia synchronously in its useState initializer.
 function setDesktopMatchMedia(desktop: boolean) {
@@ -1550,9 +1566,9 @@ describe('OD-K-5: Discard resets staged entries (confirmed)', () => {
   })
 })
 
-// task 10f — sticky-footer tally reads {stagedCount} dishes · {madeSoFar} units
+// task 10f — phone footer counts staged items only; unlike units across items are never summed.
 describe('OD-K-5: sticky-footer tally', () => {
-  it('tally reads the staged dish count + units made so far beside a single full-width submit action', async () => {
+  it('tally reads the staged item count beside a single full-width submit action', async () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
@@ -1563,12 +1579,35 @@ describe('OD-K-5: sticky-footer tally', () => {
 
     const footer = document.querySelector('.kl-footer') as HTMLElement
     expect(within(footer).getByText(/2 items/i)).toBeInTheDocument()
-    // The footer states the unit in the SAME word the rows themselves use ("porsi") rather
-    // than an English translation of it ("portions").
-    expect(within(footer).getByText(/32 porsi/i)).toBeInTheDocument()
+    expect(within(footer).queryByText(/32 porsi/i)).toBeNull()
     expect(within(footer).getByRole('button', { name: /^discard$/i })).toHaveClass('kl-discard-link')
     expect(within(footer).getByRole('button', { name: /submit 2/i })).toHaveClass('kl-submit')
     expect(footer.querySelector('.kl-footer-actions')).toBeNull()
+  })
+
+  it('wide-screen summary keeps quantities separate by selected unit and submits from the aside', async () => {
+    setWideMatchMedia(true)
+    mockInsertKitchenLogBatch.mockResolvedValue(['log-001', 'log-002'])
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    fireEvent.click(screen.getByRole('button', { name: /change unit for ayam bakar/i }))
+    await userEvent.click(screen.getByRole('combobox', { name: /unit for ayam bakar/i }))
+    await userEvent.click(await screen.findByRole('option', { name: 'botol' }))
+    fireEvent.change(screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i }), { target: { value: '17' } })
+    fireEvent.change(screen.getByRole('spinbutton', { name: /quantity produced for nasi goreng/i }), { target: { value: '12' } })
+
+    const aside = screen.getByRole('complementary', { name: 'Capture summary' })
+    expect(aside).toHaveTextContent('17 botol')
+    expect(aside).toHaveTextContent('12 porsi')
+    const totals = aside.querySelector('.kl-capture-summary__totals')!
+    expect(totals).toHaveTextContent('botol17')
+    expect(totals).toHaveTextContent('porsi12')
+    expect(aside).not.toHaveTextContent('29')
+    const submit = within(aside).getByRole('button', { name: /submit 2/i })
+    expect(submit).toHaveAttribute('form', 'kitchen-log-form')
+    fireEvent.click(submit)
+    await waitFor(() => expect(mockInsertKitchenLogBatch).toHaveBeenCalledOnce())
   })
 
   it('shows the zero count, but no Discard link, before anything is staged', async () => {
@@ -2398,17 +2437,13 @@ const LOGGED_PRODUCTION_CLAIMS = [
 ]
 
 describe('DD-7: the summary band never reports typed-but-unsaved quantities as logged production', () => {
-  // "The band" = everything the screen states ABOVE the capture form: the page head, plus any
-  // summary rendered between it and the form. Read structurally (not by class name) so the guard
-  // survives the band being restyled or moved — it is the CLAIM that is protected, not a selector.
+  // Protect the day-level summary, not the capture panel: the latter intentionally reflects
+  // staged quantities. The summary rule may sit in the page head or its responsive inline/aside
+  // placement, so collect the head plus every rendered metric rule without including entry rows.
   function bandText(): string {
     const head = screen.getByTestId('page-head').textContent ?? ''
-    const page = document.querySelector('.kl-page')
-    const form = document.getElementById('kitchen-log-form')
-    const aboveForm = page
-      ? Array.from(page.childNodes).filter(n => n !== form).map(n => n.textContent ?? '').join('')
-      : ''
-    return head + aboveForm
+    const metrics = Array.from(document.querySelectorAll('.msr')).map(node => node.textContent ?? '').join('')
+    return head + metrics
   }
 
   // Asserted at BOTH widths: the band that carried the defect was width-branched (desktop metric

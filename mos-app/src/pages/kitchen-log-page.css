@@ -12,6 +12,78 @@
   max-width: 100%;
   box-sizing: border-box;
 }
+.kl-capture-main { min-width: 0; }
+
+/* Desktop's standing summary lives beside the capture list on the same wide operating measure. */
+@media (min-width: 1280px) {
+  .kl-capture-wide {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+    align-items: start;
+    gap: 24px;
+  }
+  .kl-inline-summary { display: none; }
+}
+
+.kl-capture-summary {
+  position: sticky;
+  top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--card);
+}
+.kl-capture-summary h2,
+.kl-capture-summary h3 { margin: 0; color: var(--foreground); }
+.kl-capture-summary h2 { font-size: var(--font-size-subheading); font-weight: 600; }
+.kl-capture-summary h3 { font-size: var(--font-size-label); font-weight: 600; }
+.kl-capture-summary .msr { margin: 0; }
+.kl-capture-summary__empty {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+}
+.kl-capture-summary__lines,
+.kl-capture-summary__totals ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.kl-capture-summary__lines li,
+.kl-capture-summary__totals li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  font-size: var(--font-size-control);
+}
+.kl-capture-summary__lines li > span { min-width: 0; overflow-wrap: anywhere; }
+.kl-capture-summary__lines strong,
+.kl-capture-summary__totals strong { flex: 0 0 auto; text-align: right; }
+.kl-capture-summary__totals { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--border); }
+.kl-capture-summary__totals li { color: var(--muted-foreground); }
+.kl-capture-summary__totals strong { color: var(--foreground); }
+.kl-capture-summary__actions {
+  position: sticky;
+  bottom: -16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: auto -16px -16px;
+  padding: 12px 16px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--card);
+}
+.kl-capture-summary__actions .kl-submit { width: 100%; }
+
 .kl-block {
   width: 100%;
   max-width: 100%;
@@ -317,6 +389,10 @@
 
 /* ── Phone (<768px): count and conditional Discard above one full-width primary ── */
 @media (max-width: 767.98px) {
+  /* iOS Safari zooms focused text/number fields below 16px. Keep page zoom accessible; size the
+     actual Café controls instead, including search, variance notes and waste quantities. */
+  .kl-page input:not([type='checkbox']):not([type='radio']),
+  .kl-page textarea { font-size: var(--font-size-touch-input); }
   .kl-form .ktb-filter-selects { display: none; }
   /* Transfer adds one required segmented destination scope. Keep it beside search on phone
      instead of stacking a second toolbar row; 44px targets and full scope labels are retained. */

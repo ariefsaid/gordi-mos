@@ -137,6 +137,7 @@ test.describe('AC-1241: Café waste capture and MOS review', () => {
     await expect(page.getByText('Waste stays in MOS review. Posting to the ERP is held.', { exact: true })).toBeVisible()
     const quantity = page.getByRole('spinbutton', { name: `Waste quantity for ${ITEM_NAME}` })
     await expect(quantity).toBeVisible()
+    await expect(quantity).toHaveCSS('font-size', '16px')
     await assertNoOverflow(page, 390)
     await capture(page, testInfo, 'cafe-waste-capture-390')
 

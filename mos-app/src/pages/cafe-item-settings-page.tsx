@@ -8,11 +8,17 @@ import { Select } from '@/components/ui/select'
 import { TextInput } from '@/components/ui/text-input'
 import { useT } from '@/i18n/use-t'
 import type { CafeItemSetting, CafeItemSettingUnit } from '@/lib/db/cafe-item-settings'
+import { streamLabel } from '@/lib/kitchen-action-label'
 import {
   canManageCafeItemSettings,
   listCafeItemSettings,
   saveCafeItemSettings,
 } from '@/lib/db/cafe-item-settings'
+import {
+  listCafeMissingItemReports,
+  resolveCafeMissingItemReport,
+  type CafeMissingItemReport,
+} from '@/lib/db/cafe-missing-item-reports'
 import { useCafeStream } from '@/lib/use-cafe-stream'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
@@ -86,6 +92,9 @@ function CafeItemSettingsPageForViewer() {
   const [permissionError, setPermissionError] = useState(false)
   const [saveStates, setSaveStates] = useState<Record<string, SaveState>>({})
   const [savingIds, setSavingIds] = useState<Set<string>>(() => new Set())
+  const [reports, setReports] = useState<CafeMissingItemReport[]>([])
+  const [reportsError, setReportsError] = useState(false)
+  const [resolvingReportIds, setResolvingReportIds] = useState<Set<string>>(() => new Set())
   const [retryKey, setRetryKey] = useState(0)
   const requestGeneration = useRef(0)
 
@@ -111,6 +120,8 @@ function CafeItemSettingsPageForViewer() {
     if (!stream) {
       setItems([])
       setDrafts({})
+      setReports([])
+      setReportsError(false)
       setReadState('ready')
       setPermission('read-only')
       setPermissionError(false)
@@ -128,9 +139,20 @@ function CafeItemSettingsPageForViewer() {
           () => ({ value: false, failed: true as const }),
         ),
       ])
+      let nextReports: CafeMissingItemReport[] = []
+      let nextReportsError = false
+      if (canEdit.value && !canEdit.failed) {
+        try {
+          nextReports = await listCafeMissingItemReports(stream)
+        } catch {
+          nextReportsError = true
+        }
+      }
       if (generation !== requestGeneration.current) return
       setItems(nextItems)
       setDrafts(Object.fromEntries(nextItems.map(item => [item.id, initialDraft(item)])))
+      setReports(nextReports)
+      setReportsError(nextReportsError)
       setPermission(canEdit.failed ? 'error' : canEdit.value ? 'allowed' : 'read-only')
       setPermissionError(canEdit.failed)
       setSaveStates({})
@@ -234,6 +256,42 @@ function CafeItemSettingsPageForViewer() {
     }
   }, [canEdit, changed, drafts, stream, t])
 
+  const resolveReport = useCallback(async (report: CafeMissingItemReport) => {
+    if (!stream || !canEdit || resolvingReportIds.has(report.id)) return
+    const generation = requestGeneration.current
+    setResolvingReportIds(current => new Set(current).add(report.id))
+    try {
+      await resolveCafeMissingItemReport(report.id)
+      const nextReports = await listCafeMissingItemReports(stream)
+      if (generation === requestGeneration.current) {
+        setReports(nextReports)
+        setReportsError(false)
+      }
+    } catch {
+      if (generation === requestGeneration.current) setReportsError(true)
+    } finally {
+      setResolvingReportIds(current => {
+        const next = new Set(current)
+        next.delete(report.id)
+        return next
+      })
+    }
+  }, [canEdit, resolvingReportIds, stream])
+
+  const retryReports = useCallback(async () => {
+    if (!stream || !canEdit) return
+    const generation = requestGeneration.current
+    try {
+      const nextReports = await listCafeMissingItemReports(stream)
+      if (generation === requestGeneration.current) {
+        setReports(nextReports)
+        setReportsError(false)
+      }
+    } catch {
+      if (generation === requestGeneration.current) setReportsError(true)
+    }
+  }, [canEdit, stream])
+
   const pageMeta = readState === 'ready' && stream
     ? items.length === 1 ? t('cafe.items.countOne') : t('cafe.items.count', { count: items.length })
     : undefined
@@ -273,6 +331,43 @@ function CafeItemSettingsPageForViewer() {
       )}
       {readState === 'ready' && stream && permission === 'read-only' && (
         <p className="cafe-items__read-only" role="note">{t('cafe.items.readOnly')}</p>
+      )}
+      {readState === 'ready' && stream && permission === 'allowed' && (
+        <section className="cafe-item-reports" aria-label={t('cafe.items.reports.aria')}>
+          <div className="cafe-item-reports__heading">
+            <div>
+              <h2>{t('cafe.items.reports.title')}</h2>
+              <p>{t('cafe.items.reports.scope', { stream: streamLabel(t, stream) })}</p>
+            </div>
+            {reportsError && (
+              <button type="button" className="btn btn-ghost" onClick={() => void retryReports()}>
+                {t('common.retry')}
+              </button>
+            )}
+          </div>
+          {reportsError ? (
+            <p role="alert">{t('cafe.items.reports.error')}</p>
+          ) : reports.length === 0 ? (
+            <p className="cafe-item-reports__empty">{t('cafe.items.reports.empty')}</p>
+          ) : (
+            <ul className="cafe-item-reports__list">
+              {reports.map(report => (
+                <li key={report.id}>
+                  <strong>{report.itemName}</strong>
+                  <span>{t('cafe.items.reports.needsAttention')}</span>
+                  <button
+                    type="button"
+                    className="btn btn-outline"
+                    disabled={resolvingReportIds.has(report.id)}
+                    onClick={() => void resolveReport(report)}
+                  >
+                    {resolvingReportIds.has(report.id) ? t('common.working') : t('cafe.items.reports.resolve')}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       )}
       {readState === 'ready' && stream && items.length > 0 && (
         <p className="cafe-items__read-only">{t('cafe.items.inheritedName')}</p>

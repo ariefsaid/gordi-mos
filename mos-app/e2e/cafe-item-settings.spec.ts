@@ -6,6 +6,16 @@ import { loginAs } from './helpers/login'
 
 type ReadMode = 'rows' | 'empty' | 'error'
 
+type MissingReportRow = {
+  id: string
+  branch_id: string
+  activity: string
+  item_name: string
+  reported_at: string
+  needs_attention: boolean
+  resolved_at: string | null
+}
+
 type SettingsMocks = {
   canManage: boolean
   permissionError: boolean
@@ -14,6 +24,9 @@ type SettingsMocks = {
   saveDelayMs: number
   saveFailure: boolean
   lastSave: Record<string, unknown> | null
+  reports: MissingReportRow[]
+  captureKind?: 'RAW' | 'WIP'
+  captureActive?: boolean
 }
 
 const rows = [
@@ -93,6 +106,7 @@ async function mockSettingsApi(page: Page, overrides: Partial<SettingsMocks> = {
     saveDelayMs: 0,
     saveFailure: false,
     lastSave: null,
+    reports: [],
     ...overrides,
   }
 
@@ -106,10 +120,13 @@ async function mockSettingsApi(page: Page, overrides: Partial<SettingsMocks> = {
       })
       return
     }
+    const responseRows = state.readMode === 'empty' ? [] : rows.map(row => row.item_id === '00000000-0000-0000-0000-00000000a101'
+      ? { ...row, kind: state.captureKind ?? row.kind, is_active: state.captureActive ?? row.is_active }
+      : row)
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(state.readMode === 'empty' ? [] : rows),
+      body: JSON.stringify(responseRows),
     })
   })
   // The read model joins ERP details, but listCafeItemSettings also reads these tables to decide
@@ -133,7 +150,14 @@ async function mockSettingsApi(page: Page, overrides: Partial<SettingsMocks> = {
       }]),
     })
   })
-  await page.route('**/rest/v1/rpc/can_manage_cafe_item_settings', async route => {
+  await page.route('**/rest/v1/cafe_missing_item_reports*', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(state.reports.filter(report => report.needs_attention)),
+    })
+  })
+  await page.route('**/rest/v1/rpc/can_manage_cafe_item_settings*', async route => {
     if (state.permissionError) {
       await route.fulfill({
         status: 500,
@@ -202,6 +226,59 @@ test.describe('Café item settings', () => {
       }
       await assertNoOverflow(page, width)
       await capture(page, testInfo, `item-settings-${width}`)
+    }
+  })
+
+  test('shows stream-scoped missing-item reports at phone and desktop widths', async ({ page }, testInfo) => {
+    await mockSettingsApi(page, {
+      reports: [{
+        id: '00000000-0000-0000-0000-00000000a301',
+        branch_id: '00000000-0000-0000-0000-00000000a302',
+        activity: 'bar',
+        item_name: 'Oat milk',
+        reported_at: '2026-10-04T09:00:00Z',
+        needs_attention: true,
+        resolved_at: null,
+      }],
+    })
+    await loginAs(page, BAR_MEMBER.email, BAR_MEMBER.password)
+
+    for (const width of [390, 1440, 1920] as const) {
+      await page.setViewportSize({ width, height: 960 })
+      await page.goto('cafe/items')
+      const reportQueue = page.getByRole('region', { name: 'Missing-item reports for this stream' })
+      await expect(reportQueue).toBeVisible()
+      await expect(reportQueue.getByText('Oat milk', { exact: true })).toBeVisible()
+      await expect(reportQueue.getByText('Needs attention', { exact: true })).toBeVisible()
+      const resolve = reportQueue.getByRole('button', { name: 'Resolve', exact: true })
+      if (width === 390) await expect(resolve).toHaveCSS('min-height', '44px')
+      await assertNoOverflow(page, width)
+      await capture(page, testInfo, `missing-item-queue-${width}`)
+    }
+  })
+
+  test('keeps the missing-item report beside waste controls at phone and wide widths', async ({ page }, testInfo) => {
+    await mockSettingsApi(page, { captureKind: 'RAW', captureActive: true })
+    await loginAs(page, BAR_MEMBER.email, BAR_MEMBER.password)
+
+    for (const width of [390, 1440, 1920] as const) {
+      await page.setViewportSize({ width, height: 960 })
+      await page.goto('cafe/waste')
+      await expect(page.getByRole('heading', { name: 'Café · Log waste', exact: true })).toBeVisible()
+      const report = page.locator('.kl-missing')
+      const reportButton = report.getByRole('button', { name: 'Missing an item? Report it', exact: true })
+      const toolbar = page.locator('.ktb')
+      await expect(reportButton).toBeVisible()
+      if (width === 390) {
+        await expect(page.getByRole('spinbutton', { name: 'Waste quantity for Herbal tea' })).toHaveCSS('font-size', '16px')
+      }
+      const [reportBox, toolbarBox] = await Promise.all([report.boundingBox(), toolbar.boundingBox()])
+      expect(reportBox).not.toBeNull()
+      expect(toolbarBox).not.toBeNull()
+      expect(reportBox!.y).toBeLessThan(toolbarBox!.y)
+      if (width === 390) await expect(reportButton).toHaveCSS('min-height', '44px')
+      await assertNoOverflow(page, width)
+      await capture(page, testInfo, `waste-report-${width}`)
     }
   })
 

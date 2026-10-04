@@ -177,7 +177,18 @@ describe('AC-021/008: aria-current — primary tab page on its route; More page 
     const page = within(nav).getAllByRole('link').filter((l) => l.getAttribute('aria-current') === 'page')
     expect(page).toHaveLength(1)
     expect(page[0]).toHaveAccessibleName(/Café/)
+  })
+
+  it.each(['/cafe', '/cafe/production', '/cafe/transfer', '/cafe/waste', '/cafe/plan', '/cafe/stock', '/cafe/review'])('capture surface %s yields the + launcher to its own action', (path) => {
+    setCafeViewer()
+    renderTabBar(path)
     expect(screen.queryByRole('button', { name: /open actions/i })).not.toBeInTheDocument()
+  })
+
+  it.each(['/cafe/items', '/cafe/pushes', '/cafe/items/'])('support route %s keeps the quick-capture launcher', (path) => {
+    setCafeViewer()
+    renderTabBar(path)
+    expect(screen.getByRole('button', { name: /open actions/i })).toBeInTheDocument()
   })
 
   // UPDATED, not relaxed — and it is the SAME Rule-5 contract, read the other way round. These

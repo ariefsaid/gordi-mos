@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { AuthState } from '@/auth/context'
@@ -148,6 +148,34 @@ afterEach(() => {
 })
 
 describe('CafeWastePage', () => {
+  it('shows a desktop summary with per-unit quantities and a persistent Submit action', async () => {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: (query: string) => ({
+        matches: query === '(min-width: 768px)' || query === '(min-width: 1280px)',
+        media: query,
+        onchange: null,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      }),
+    })
+    renderPage()
+
+    fireEvent.change(await screen.findByRole('spinbutton', { name: 'Waste quantity for Oat Latte' }), { target: { value: '2' } })
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Waste quantity for Oat milk' }), { target: { value: '1.5' } })
+
+    const aside = screen.getByRole('complementary', { name: 'Capture summary' })
+    expect(aside).toHaveTextContent('2 cup')
+    expect(aside).toHaveTextContent('1.5 litre')
+    const totals = aside.querySelector('.kl-capture-summary__totals')!
+    expect(totals).toHaveTextContent('cup2')
+    expect(totals).toHaveTextContent('litre1.5')
+    expect(aside).not.toHaveTextContent('3.5')
+    expect(within(aside).getByRole('button', { name: 'Submit waste' })).toBeDisabled()
+  })
+
   it('lists RAW and WIP MOS names with their configured default and shown units', async () => {
     renderPage()
 
@@ -160,6 +188,24 @@ describe('CafeWastePage', () => {
     expect(screen.getByRole('spinbutton', { name: 'Waste quantity for Oat milk' })).toBeInTheDocument()
     expect(screen.getByText('litre')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Rumah Rames · Bar' })).toBeInTheDocument()
+  })
+
+  it('keeps the missing-item route beside the item controls on a long capture list', async () => {
+    renderPage()
+    const report = await screen.findByRole('button', { name: /missing an item\? report it/i })
+    const firstQuantity = screen.getByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })
+    expect(report.compareDocumentPosition(firstQuantity) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('explains that a quantity unlocks Add photo and removes the hint once entered', async () => {
+    renderPage()
+    const addPhoto = (await screen.findAllByRole('button', { name: 'Add photo' }))[0]!
+    expect(addPhoto).toBeDisabled()
+    expect(screen.getAllByText('Enter a quantity before adding a photo.')).toHaveLength(2)
+
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Waste quantity for Oat Latte' }), { target: { value: '2' } })
+    await waitFor(() => expect(addPhoto).toBeEnabled())
+    expect(screen.getAllByText('Enter a quantity before adding a photo.')).toHaveLength(1)
   })
 
   it('requires an uploaded photo for each staged item, then submits every Draft through the waste RPC', async () => {

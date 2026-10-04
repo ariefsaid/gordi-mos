@@ -1,5 +1,5 @@
 /* ReportMissingItem — the DD-WAY-29 exit route (FR-012, AC-013). Quiet by design:
-   a ghost-button line under the item list, expanding to one field + one action. */
+   a ghost-button line beside the item filters, expanding to one field + explicit actions. */
 .kl-missing {
   /* The dead space above this line is mostly the sticky footer's own clearance reserve on the
      list above (kitchen-log-page.css) — this report line sits in that reserve, so it hugs the
@@ -22,7 +22,15 @@
   margin-bottom: 12px;
 }
 .kl-missing-form .mk-textinput { flex: 1 1 200px; }
-.kl-missing-send { min-height: 32px; }
+@media (max-width: 767.98px) {
+  /* TextInput sets the shared desktop control size; the actual focused field must reach 16px
+     on iPhone Safari to prevent auto-zoom while preserving user-controlled page zoom. */
+  .kl-missing-form .mk-textinput__field { font-size: var(--font-size-touch-input); }
+  .kl-missing-cta,
+  .kl-missing-form .btn { min-height: 44px; }
+}
+.kl-missing-send,
+.kl-missing-cancel { min-height: 32px; }
 .kl-missing-done {
   color: var(--muted-foreground);
   font-size: var(--font-size-control);
