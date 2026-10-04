@@ -33,6 +33,70 @@ export const cafeWasteCleanupSql = `
   DELETE FROM ops.wip_items WHERE org_id = '${CAFE_WASTE_FIXTURE.orgId}' AND id = '${CAFE_WASTE_FIXTURE.itemId}';
 `
 
+// OD-CAFE-MVP-12: Café capture fixtures must explicitly configure team-owned kind + active
+// state. Unclassified/inactive ERP seed items intentionally do not appear in capture anymore.
+export const CAFE_PLAN_GUARD_FIXTURE = {
+  orgId: org,
+  itemId: 'a11e2e00-0000-0000-0000-000000013100',
+  unitId: 'a11e2e00-0000-0000-0000-000000013101',
+  settingId: 'a11e2e00-0000-0000-0000-000000013102',
+  settingUnitId: 'a11e2e00-0000-0000-0000-000000013103',
+  itemName: 'E2E Plan Guard WIP Item',
+} as const
+
+export const cafePlanGuardCleanupSql = `
+  DELETE FROM ops.cafe_item_settings WHERE org_id = '${CAFE_PLAN_GUARD_FIXTURE.orgId}' AND wip_item_id = '${CAFE_PLAN_GUARD_FIXTURE.itemId}';
+  DELETE FROM ops.stream_items WHERE org_id = '${CAFE_PLAN_GUARD_FIXTURE.orgId}' AND wip_item_id = '${CAFE_PLAN_GUARD_FIXTURE.itemId}';
+  DELETE FROM ops.item_units WHERE org_id = '${CAFE_PLAN_GUARD_FIXTURE.orgId}' AND wip_item_id = '${CAFE_PLAN_GUARD_FIXTURE.itemId}';
+  DELETE FROM ops.wip_items WHERE org_id = '${CAFE_PLAN_GUARD_FIXTURE.orgId}' AND id = '${CAFE_PLAN_GUARD_FIXTURE.itemId}';
+`
+
+export const cafePlanGuardSeedSql = `
+  INSERT INTO ops.wip_items (
+    id, org_id, name, category, flag_active, esb_bom_id,
+    esb_product_detail_id_porsi, esb_product_id, kind, reference_source,
+    erp_category_type_name, has_active_bom_output
+  ) VALUES (
+    '${CAFE_PLAN_GUARD_FIXTURE.itemId}', '${CAFE_PLAN_GUARD_FIXTURE.orgId}',
+    '${CAFE_PLAN_GUARD_FIXTURE.itemName}', 'Bar', true, 'BOM-E2E-PLAN-GUARD',
+    'PD-E2E-PLAN-GUARD-PORSI', 'P-E2E-PLAN-GUARD', NULL, 'erp_catalog', 'Inventory', true
+  );
+
+  INSERT INTO ops.item_units (
+    id, org_id, wip_item_id, unit_name, esb_product_detail_id, esb_product_id,
+    is_default, is_transferable, source_active, erp_is_stock, confirmed_at
+  ) VALUES (
+    '${CAFE_PLAN_GUARD_FIXTURE.unitId}', '${CAFE_PLAN_GUARD_FIXTURE.orgId}',
+    '${CAFE_PLAN_GUARD_FIXTURE.itemId}', 'portion', 'PD-E2E-PLAN-GUARD-UNIT',
+    'P-E2E-PLAN-GUARD', false, true, true, false, now()
+  );
+
+  INSERT INTO ops.stream_items (org_id, branch_id, activity, wip_item_id, source)
+  VALUES (
+    '${CAFE_PLAN_GUARD_FIXTURE.orgId}',
+    (SELECT id FROM shared.branches WHERE org_id = '${CAFE_PLAN_GUARD_FIXTURE.orgId}' AND code = 'gordi_hq'),
+    'bar', '${CAFE_PLAN_GUARD_FIXTURE.itemId}', 'manual'
+  );
+
+  INSERT INTO ops.cafe_item_settings (
+    id, org_id, branch_id, activity, wip_item_id, mos_name, kind, is_active
+  ) VALUES (
+    '${CAFE_PLAN_GUARD_FIXTURE.settingId}', '${CAFE_PLAN_GUARD_FIXTURE.orgId}',
+    (SELECT id FROM shared.branches WHERE org_id = '${CAFE_PLAN_GUARD_FIXTURE.orgId}' AND code = 'gordi_hq'),
+    'bar', '${CAFE_PLAN_GUARD_FIXTURE.itemId}', '${CAFE_PLAN_GUARD_FIXTURE.itemName}', 'WIP', true
+  );
+
+  INSERT INTO ops.cafe_item_setting_units (id, org_id, cafe_item_setting_id, item_unit_id)
+  VALUES (
+    '${CAFE_PLAN_GUARD_FIXTURE.settingUnitId}', '${CAFE_PLAN_GUARD_FIXTURE.orgId}',
+    '${CAFE_PLAN_GUARD_FIXTURE.settingId}', '${CAFE_PLAN_GUARD_FIXTURE.unitId}'
+  );
+
+  UPDATE ops.cafe_item_settings
+     SET default_item_unit_id = '${CAFE_PLAN_GUARD_FIXTURE.unitId}'
+   WHERE id = '${CAFE_PLAN_GUARD_FIXTURE.settingId}';
+`
+
 /** Fail closed before transport if a hook adds a delete outside the fixed fixture boundary. */
 export function taskCleanupSql(taskIdsToDelete: readonly string[], taskOrg = org): string {
   if (!UUID.test(taskOrg) || taskIdsToDelete.some((id) => !UUID.test(id))) {
@@ -209,7 +273,7 @@ export function assertFixtureSqlSafe(query: string): void {
   const normalize = (sql: string) => sql.trim().replace(/\s+/g, ' ').toLowerCase()
   const executableSql = executableSqlOnly(query)
   const allowed = new Set(
-    [...fixtureCleanupSql.split(';'), ...cafeWasteCleanupSql.split(';')]
+    [...fixtureCleanupSql.split(';'), ...cafeWasteCleanupSql.split(';'), ...cafePlanGuardCleanupSql.split(';')]
       .filter((sql) => sql.trim())
       .map(normalize),
   )

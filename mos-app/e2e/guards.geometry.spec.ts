@@ -29,7 +29,9 @@ import { loginAs } from './helpers/login'
 import { createTaskViaUI } from './helpers/tasks'
 import { assertTapFloor, AUTH_CONTROLS, TAP_FLOOR, TAP_GAP } from './helpers/tap-floor'
 import { MANAGER, ORPHAN, VIEWER } from './fixtures/users'
+import { cafePlanGuardCleanupSql, cafePlanGuardSeedSql } from './fixtures/cleanup'
 import { ensureStream } from './helpers/cafe-stream'
+import { localSql } from './helpers/local-sql'
 import { TASKS_SPLIT_MIN_WIDTH } from '../src/shell/use-is-split-width'
 
 // The e7 collection grammar owns mouse activation on a task title: a CLICK renames in place
@@ -45,6 +47,16 @@ async function box(locator: Locator) {
   const b = await locator.boundingBox()
   expect(b, `expected a rendered box for ${String(locator)}`).not.toBeNull()
   return b!
+}
+
+async function seedCafePlanGuardFixture() {
+  // Fixed IDs make reruns safe after an interrupted browser process.
+  await localSql(cafePlanGuardCleanupSql)
+  await localSql(cafePlanGuardSeedSql)
+}
+
+async function cleanupCafePlanGuardFixture() {
+  await localSql(cafePlanGuardCleanupSql)
 }
 
 // ── Desktop regime (default Desktop Chrome viewport, 1440×900 ≥ the derived
@@ -413,11 +425,16 @@ test.describe('phone tap-target guards (GUARD-TAP)', () => {
 
     // The group toggle is measured on Plan: Review lists only logs submitted TODAY, so on a fresh
     // stack it renders its empty state and the toggle this guard exists to measure is never on it.
-    await page.goto('cafe/plan')
-    await ensureStream(page)
-    await expect(page.getByTestId('page-head')).toBeVisible()
-    await expect(page.locator('.dt-card').first()).toBeVisible() // rows settled — the toggles ride the groups
-    await assertTapFloor(page, '.dt-cards-group-toggle.tap-floor, .dt-group-toggle.tap-floor', 'Café Plan #667', { axes: 'both', noOverflow: true })
+    await seedCafePlanGuardFixture()
+    try {
+      await page.goto('cafe/plan')
+      await ensureStream(page)
+      await expect(page.getByTestId('page-head')).toBeVisible()
+      await expect(page.locator('.dt-card').first()).toBeVisible() // rows settled — the toggles ride the groups
+      await assertTapFloor(page, '.dt-cards-group-toggle.tap-floor, .dt-group-toggle.tap-floor', 'Café Plan #667', { axes: 'both', noOverflow: true })
+    } finally {
+      await cleanupCafePlanGuardFixture()
+    }
   })
 })
 
@@ -613,6 +630,10 @@ test.describe('café plan capture-first guards (#401) — pesanan (member)', () 
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true })
   test.beforeEach(async ({ page }) => {
     await loginAs(page, VIEWER.email, VIEWER.password) // member → the read-only horizon
+    await seedCafePlanGuardFixture()
+  })
+  test.afterEach(async () => {
+    await cleanupCafePlanGuardFixture()
   })
 
   test('GUARD-SEARCH+GUARD-FOLD: @390 member ignores desktop filters; search/first row stay visible', async ({ page }) => {
