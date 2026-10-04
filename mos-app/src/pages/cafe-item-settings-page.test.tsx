@@ -66,7 +66,7 @@ beforeEach(() => {
   mockUseAuth.mockReturnValue(VIEWER)
   mockCanManage.mockResolvedValue(true)
   mockListItems.mockResolvedValue([{
-    id: 'item-1', erpName: 'ERP Oat milk', mosName: 'Oat milk', category: 'Dairy', kind: 'RAW',
+    id: 'item-1', erpName: 'ERP Oat milk', mosName: 'Oat milk', category: 'Dairy', kind: 'RAW', isActive: true,
     defaultUnitId: null, units: [],
   }])
   mockListReports.mockResolvedValue([REPORT])
