@@ -2,10 +2,12 @@
 // Project/Process choices reaching the create write, with the Objective derived from the
 // Project/Process (mos.work_lines.objective_id) rather than picked.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { act, render, screen, waitFor, fireEvent, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { Link, Outlet, MemoryRouter, RouterProvider, createMemoryRouter } from 'react-router-dom'
 import { AuthContext, type AuthState } from '@/auth/context'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import { CreateDraftProvider } from '@/shell/create-drafts'
 import { OverlayHostProvider } from '@/shell/overlay-host'
 import { type PeopleRow, type RolesRow } from '@/lib/database.types'
 import { TASKS_SPLIT_MIN_WIDTH } from '@/shell/use-is-split-width'
@@ -30,6 +32,7 @@ vi.mock('@/lib/db/user-views-collection', () => ({
   renameCollectionView: vi.fn(), archiveCollectionView: vi.fn(),
 }))
 
+import { linkSignalTask } from '@/lib/db/signals'
 import { listTasks, createTask } from '@/lib/db/tasks'
 import { getBusinessUnits, getPeople, getDownlinePersonIds, getPersonTeams, getTeamsByIds, getMyTeamLeads } from '@/lib/db/directory'
 import { listObjectives } from '@/lib/db/objectives'
@@ -69,13 +72,18 @@ const WORK_LINES = [
   { id: 'wl-2', name: 'Daily Open', type: 'process', objective_id: null },
 ]
 
+let setDesktopWidth: (wide: boolean) => void
 function stubMatchMedia() {
+  let wide = true
+  const listeners = new Map<(event: { matches: boolean }) => void, string>()
+  setDesktopWidth = (next) => { wide = next; listeners.forEach((query, listener) => listener({ matches: wide && (query.includes(`${TASKS_SPLIT_MIN_WIDTH}`) || query.includes('1100') || query.includes('768')) })) }
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
     value: (query: string) => ({
-      matches: query.includes(`${TASKS_SPLIT_MIN_WIDTH}`) || query.includes('1100') || query.includes('768'),
+      get matches() { return wide && (query.includes(`${TASKS_SPLIT_MIN_WIDTH}`) || query.includes('1100') || query.includes('768')) },
       media: query, onchange: null,
-      addEventListener: () => {}, removeEventListener: () => {}, dispatchEvent: () => false,
+      addEventListener: (_type: string, listener: (event: { matches: boolean }) => void) => listeners.set(listener, query),
+      removeEventListener: (_type: string, listener: (event: { matches: boolean }) => void) => listeners.delete(listener), dispatchEvent: () => false,
     }),
   })
 }
@@ -108,7 +116,7 @@ beforeEach(() => {
 })
 
 async function openDraft(auth: AuthState = MEMBER) {
-  render(
+  await act(async () => { render(
     <I18nProvider initialLocale="en">
       <AuthContext.Provider value={auth}>
         <MemoryRouter initialEntries={['/work/tasks?view=all']}>
@@ -119,15 +127,19 @@ async function openDraft(auth: AuthState = MEMBER) {
       </AuthContext.Provider>
     </I18nProvider>,
   )
-  fireEvent.click(await screen.findByRole('button', { name: '+ Create task' }))
+  })
+  const opener = await screen.findByRole('button', { name: '+ Create task' })
+  await act(async () => { fireEvent.click(opener) })
   const form = await screen.findByRole('form', { name: 'Create task form' })
-  fireEvent.change(within(form).getByRole('textbox', { name: 'Title' }), { target: { value: 'New task' } })
+  await act(async () => { fireEvent.change(within(form).getByRole('textbox', { name: 'Title' }), { target: { value: 'New task' } }) })
   return form
 }
 
 async function pick(form: HTMLElement, combobox: string, option: RegExp) {
-  fireEvent.click(within(form).getByRole('combobox', { name: combobox }))
-  fireEvent.click(await screen.findByRole('option', { name: option }))
+  const activeForm = form.isConnected ? form : screen.getByRole('form', { name: 'Create task form' })
+  await userEvent.click(within(activeForm).getByRole('combobox', { name: combobox }))
+  const chosen = await screen.findByRole('option', { name: option })
+  await userEvent.click(chosen)
 }
 
 describe('create draft — Supervisor defaults to the home Team lead', () => {
@@ -245,4 +257,112 @@ describe('create draft — who the PIC picker offers', () => {
     vi.mocked(getDownlinePersonIds).mockResolvedValue(['report-id'])
     expect(await picOptionNames(authFor([SUB_ROLE], ['member'], true))).toEqual(['Test Viewer', 'Direct Report'])
   })
+})
+
+// AC-001
+describe('unfinished Task draft retention', () => {
+  it('keeps every entered field while switching desktop and phone creation hosts', async () => {
+    let form = await openDraft()
+    await act(async () => { fireEvent.change(within(form).getByLabelText('Due date'), { target: { value: '05/1' } }) })
+    await pick(form, 'Project/Process', /Q4 Launch/)
+    await act(async () => setDesktopWidth(false))
+    form = await screen.findByRole('form', { name: 'Create task form' })
+    expect(within(form).getByRole('textbox', { name: 'Title' })).toHaveValue('New task')
+    expect(within(form).getByLabelText('Due date')).toHaveValue('05/1')
+    expect(within(form).getByRole('combobox', { name: 'Project/Process' })).toHaveTextContent('Q4 Launch')
+    await act(async () => { fireEvent.submit(form) })
+    expect(createTask).not.toHaveBeenCalled()
+    await act(async () => setDesktopWidth(true))
+    form = await screen.findByRole('form', { name: 'Create task form' })
+    expect(within(form).getByRole('textbox', { name: 'Title' })).toHaveValue('New task')
+    expect(within(form).getByLabelText('Due date')).toHaveValue('05/1')
+    await act(async () => { fireEvent.change(within(form).getByLabelText('Due date'), { target: { value: '05/11/2026' } }) })
+    await act(async () => { fireEvent.submit(form) })
+    await waitFor(() => expect(createTask).toHaveBeenCalledWith(expect.objectContaining({ title: 'New task', dueDate: '2026-11-05', workLineId: 'wl-1' })))
+  })
+})
+
+// AC-001
+it('resumes the complete Task draft after following links away and returning to the collection', async () => {
+  vi.mocked(getPersonTeams).mockResolvedValue(TEAMS)
+  const router = createMemoryRouter([{
+    element: <CreateDraftProvider><OverlayHostProvider><Link to="/work/signals">Signals destination</Link><Link to="/work/tasks?view=all">Task collection</Link><Outlet /></OverlayHostProvider></CreateDraftProvider>,
+    children: [{ path: '/work/tasks', element: <TasksWorkspace /> }, { path: '/work/signals', element: <p>Signals destination body</p> }],
+  }], { initialEntries: ['/work/tasks?view=all&create=1'] })
+  await act(async () => { render(<I18nProvider><AuthContext.Provider value={{ ...MEMBER, viewer: { ...MEMBER.viewer, accessRoles: ['admin'] } }}><RouterProvider router={router} /></AuthContext.Provider></I18nProvider>) })
+  let form = await screen.findByRole('form', { name: 'Create task form' })
+  await act(async () => { fireEvent.change(within(form).getByRole('textbox', { name: 'Title' }), { target: { value: 'Keep all chosen task fields' } }) })
+  await pick(form, 'Team', /Retail team/)
+  await pick(form, 'PIC', /Test Lead/)
+  await pick(form, 'Supervisor', /Test Viewer/)
+  await pick(form, 'Project/Process', /Q4 Launch/)
+  form = screen.getByRole('form', { name: 'Create task form' })
+  await act(async () => { fireEvent.change(within(form).getByLabelText('Due date'), { target: { value: '05/1' } }) })
+  await act(async () => { fireEvent.click(screen.getByRole('link', { name: 'Signals destination' })) })
+  await screen.findByText('Signals destination body')
+  await act(async () => { fireEvent.click(screen.getByRole('link', { name: 'Task collection' })) })
+  form = await screen.findByRole('form', { name: 'Create task form' })
+  expect(within(form).getByRole('textbox', { name: 'Title' })).toHaveValue('Keep all chosen task fields')
+  expect(within(form).getByRole('combobox', { name: 'Team' })).toHaveTextContent('Retail team')
+  expect(within(form).getByRole('combobox', { name: 'PIC' })).toHaveTextContent('Test Lead')
+  expect(within(form).getByRole('combobox', { name: 'Supervisor' })).toHaveTextContent('Test Viewer')
+  expect(within(form).getByRole('combobox', { name: 'Project/Process' })).toHaveTextContent('Q4 Launch')
+  expect(within(form).getByLabelText('Due date')).toHaveValue('05/1')
+  await act(async () => { fireEvent.submit(form) })
+  expect(createTask).not.toHaveBeenCalled()
+  await act(async () => { fireEvent.change(within(form).getByLabelText('Due date'), { target: { value: '05/11/2026' } }) })
+  await act(async () => { fireEvent.submit(form) })
+  await waitFor(() => expect(createTask).toHaveBeenCalledWith(expect.objectContaining({ title: 'Keep all chosen task fields', teamId: 'team-2', responsiblePersonId: LEAD_ID, accountablePersonId: VIEWER_ID, dueDate: '2026-11-05', workLineId: 'wl-1', objectiveId: 'obj-1' })))
+})
+
+function retainedWorkspaceRouter(entry = '/work/tasks?view=all&create=1') {
+  const router = createMemoryRouter([{
+    element: <CreateDraftProvider><OverlayHostProvider><Link to="/work/signals">Signals destination</Link><Link to="/work/tasks?view=all">Task collection</Link><Outlet /></OverlayHostProvider></CreateDraftProvider>,
+    children: [{ path: '/work/tasks', element: <TasksWorkspace /> }, { path: '/work/signals', element: <p>Signals destination body</p> }],
+  }], { initialEntries: [entry] })
+  return <I18nProvider><AuthContext.Provider value={MEMBER}><RouterProvider router={router} /></AuthContext.Provider></I18nProvider>
+}
+
+// AC-003
+it('keeps an in-flight Task locked across resize/navigation and restores rejected values for retry', async () => {
+  let reject!: (error: Error) => void
+  vi.mocked(createTask).mockReturnValueOnce(new Promise((_resolve, fail) => { reject = fail }))
+  await act(async () => { render(retainedWorkspaceRouter()) })
+  let form = await screen.findByRole('form', { name: 'Create task form' })
+  await act(async () => { fireEvent.change(within(form).getByRole('textbox', { name: 'Title' }), { target: { value: 'Await confirmation before clearing' } }) })
+  await act(async () => { fireEvent.submit(form) })
+  await act(async () => setDesktopWidth(false))
+  form = await screen.findByRole('form', { name: 'Create task form' })
+  expect(within(form).getByRole('textbox', { name: 'Title' })).toBeDisabled()
+  fireEvent.keyDown(within(form).getByRole('textbox', { name: 'Title' }), { key: 'Escape' })
+  expect(screen.getByRole('form', { name: 'Create task form' })).toBeInTheDocument()
+  expect(createTask).toHaveBeenCalledTimes(1)
+  await act(async () => { fireEvent.click(screen.getByRole('link', { name: 'Signals destination' })) })
+  await act(async () => reject(new Error('Save rejected')))
+  await act(async () => { fireEvent.click(screen.getByRole('link', { name: 'Task collection' })) })
+  form = await screen.findByRole('form', { name: 'Create task form' })
+  expect(within(form).getByRole('textbox', { name: 'Title' })).toHaveValue('Await confirmation before clearing')
+  expect(within(form).getByRole('textbox', { name: 'Title' })).not.toBeDisabled()
+  expect(within(form).getByRole('alert')).toHaveTextContent("Couldn't save")
+  await act(async () => { fireEvent.click(within(form).getByRole('button', { name: 'Retry' })) })
+  expect(createTask).toHaveBeenCalledTimes(2)
+  expect(screen.queryByRole('form', { name: 'Create task form' })).toBeNull()
+})
+
+// AC-005
+it('resumes Signal-link recovery after navigation without creating a second saved Task', async () => {
+  vi.mocked(linkSignalTask).mockRejectedValueOnce(new Error('Link rejected')).mockResolvedValueOnce(undefined)
+  await act(async () => { render(retainedWorkspaceRouter('/work/tasks?view=all&create=1&sourceSignal=signal-42')) })
+  let form = await screen.findByRole('form', { name: 'Create task form' })
+  await act(async () => { fireEvent.change(within(form).getByRole('textbox', { name: 'Title' }), { target: { value: 'Keep the created Task identity' } }) })
+  await act(async () => { fireEvent.submit(form) })
+  expect(within(form).getByRole('button', { name: 'Retry' })).toBeInTheDocument()
+  await act(async () => { fireEvent.click(screen.getByRole('link', { name: 'Signals destination' })) })
+  await act(async () => { fireEvent.click(screen.getByRole('link', { name: 'Task collection' })) })
+  form = await screen.findByRole('form', { name: 'Create task form' })
+  expect(within(form).getByRole('textbox', { name: 'Title' })).toHaveValue('Keep the created Task identity')
+  await act(async () => { fireEvent.click(within(form).getByRole('button', { name: 'Retry' })) })
+  await waitFor(() => expect(screen.queryByRole('form', { name: 'Create task form' })).toBeNull())
+  expect(createTask).toHaveBeenCalledTimes(1)
+  expect(linkSignalTask).toHaveBeenNthCalledWith(2, 'signal-42', 'created-task')
 })

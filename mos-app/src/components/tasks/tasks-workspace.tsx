@@ -32,12 +32,13 @@ import {
   type TaskCollectionRuntime,
 } from './task-collection-presentation'
 import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
+import { useCreateDraftRef, useCreateDraftState } from '@/shell/create-drafts'
 import { createTask, updateTaskFields, updateTaskStatus } from '@/lib/db/tasks'
 import { getPersonTeams, type TeamOption } from '@/lib/db/directory'
 import { canStartProcessForTeam } from '@/lib/db/processes'
 import { linkSignalTask } from '@/lib/db/signals'
 import { TaskOverlayContent } from './task-drawer'
-import { TaskCreateContext, type TaskCreateContextValue } from './task-create-context'
+import { TaskCreateContext, type TaskCreateContextValue, type TaskCreateFormState } from './task-create-context'
 import { loadHomeLeadId } from './default-supervisor'
 import { useCatalogRecordEntryFactory } from '@/components/catalog/use-catalog-record-overlay'
 import type { OverlayEntry, OverlayHostApi } from '@/shell/overlay-host'
@@ -199,8 +200,9 @@ export function TasksWorkspace({
       view: defaultTaskView(auth, accessRoles),
     }
   }, [accessRoles, auth, location.search, savedView])
-  const [draftTask, setDraftTask] = useState<TaskListRow | null>(null)
-  const [draftLinkError, setDraftLinkError] = useState(false)
+  const [draftTask, setDraftTask] = useCreateDraftState<TaskListRow | null>('task.draft', null)
+  const [draftLinkError, setDraftLinkError] = useCreateDraftState('task.linkError', false)
+  const [draftFormState, setDraftFormState] = useCreateDraftState<TaskCreateFormState>('task.form', { pending: false, saveError: false })
   // `null` means the viewer Team directory is still loading; [] is an honest no-eligible-Team
   // result and must never be replaced with a BU/first-row guess.
   const [viewerTeams, setViewerTeams] = useState<readonly TeamOption[] | null>(null)
@@ -210,9 +212,9 @@ export function TasksWorkspace({
   const [processStartTeamIds, setProcessStartTeamIds] = useState<Set<string>>(new Set())
   const [announcement, setAnnouncement] = useState('')
   const [mobileOptionsOpen, setMobileOptionsOpen] = useState(false)
-  const draftSourceSignalRef = useRef<string | null>(new URLSearchParams(location.search).get('sourceSignal'))
-  const createdDraftTaskRef = useRef<string | null>(null)
-  const draftTitleRef = useRef('')
+  const draftSourceSignalRef = useCreateDraftRef<string | null>('task.sourceSignal', new URLSearchParams(location.search).get('sourceSignal'))
+  const createdDraftTaskRef = useCreateDraftRef<string | null>('task.createdId', null)
+  const draftTitleRef = useCreateDraftRef('task.submittedTitle', '')
   const createControlRef = useRef<HTMLElement | null>(null)
   const returnFocusAfterDiscard = useRef(false)
   const pendingCreatePrefillRef = useRef('')
@@ -534,7 +536,7 @@ export function TasksWorkspace({
     const previous = records.find((record) => record.id === taskId)?.dueDate ?? null
     await updateTaskFields(taskId, { due_date: dueDate }, viewerId, previous)
     controller.retry()
-  }, [controller, draftTask?.id, records, viewerId])
+  }, [controller, draftTask?.id, records, setDraftTask, viewerId])
   const workLineObjectiveById = dataContext?.workLineObjectiveById
   // The draft's Objective is never picked: it is the chosen Project/Process's own Objective.
   const onEditWorkLine = useCallback(async (taskId: string, workLineId: string | null) => {
@@ -542,7 +544,7 @@ export function TasksWorkspace({
     setDraftTask((current) => current?.id === taskId
       ? { ...current, work_line_id: workLineId, objective_id: workLineId ? workLineObjectiveById?.get(workLineId) ?? null : null }
       : current)
-  }, [draftTask?.id, workLineObjectiveById])
+  }, [draftTask?.id, setDraftTask, workLineObjectiveById])
   const onEditPic = useCallback(async (taskId: string, personId: string) => {
     if (draftTask?.id === taskId) {
       setDraftTask((current) => current?.id === taskId
@@ -554,7 +556,7 @@ export function TasksWorkspace({
     const previous = records.find((record) => record.id === taskId)?.picId ?? null
     await updateTaskFields(taskId, { responsible_person_id: personId }, viewerId, previous)
     controller.retry()
-  }, [controller, draftTask?.id, records, viewerId])
+  }, [controller, draftTask?.id, records, setDraftTask, viewerId])
   const onEditTeam = useCallback(async (taskId: string, teamId: string) => {
     if (draftTask?.id !== taskId) return
     const selected = viewerTeams?.find((team) => team.id === teamId)
@@ -567,13 +569,13 @@ export function TasksWorkspace({
           business_unit_id: selected?.businessUnitId ?? '',
         }
       : current)
-  }, [draftTask?.id, viewerTeams])
+  }, [draftTask?.id, setDraftTask, viewerTeams])
   const onEditSupervisor = useCallback(async (taskId: string, personId: string) => {
     if (draftTask?.id !== taskId) return
     setDraftTask((current) => current?.id === taskId
       ? { ...current, accountable_person_id: personId }
       : current)
-  }, [draftTask?.id])
+  }, [draftTask?.id, setDraftTask])
   const onEditTitle = useCallback(async (taskId: string, title: string) => {
     if (draftTask?.id === taskId) {
       if (!viewerId) throw new Error('inline task creation requires an authenticated viewer')
@@ -618,12 +620,13 @@ export function TasksWorkspace({
     }
     if (!viewerId) throw new Error('inline title edit requires an authenticated viewer')
     await updateTaskFields(taskId, { title }, viewerId)
-  }, [controller, draftTask, t, viewerId])
+  }, [controller, createdDraftTaskRef, draftSourceSignalRef, draftTask, draftTitleRef, setDraftLinkError, setDraftTask, t, viewerId])
   const onRetryDraftLink = useCallback((title: string) => {
     if (!draftTask) return
     void onEditTitle(draftTask.id, title || draftTitleRef.current || draftTask.title)
-  }, [draftTask, onEditTitle])
+  }, [draftTask, draftTitleRef, onEditTitle])
   const onDiscardNewTask = useCallback(() => {
+    if (draftFormState.pending) return
     returnFocusAfterDiscard.current = true
     if (createdDraftTaskRef.current && draftSourceSignalRef.current) {
       setAnnouncement(t('tasks.create.linkFailedDiscard'))
@@ -633,7 +636,8 @@ export function TasksWorkspace({
     draftTitleRef.current = ''
     setDraftLinkError(false)
     setDraftTask(null)
-  }, [t])
+    setDraftFormState({ pending: false, saveError: false })
+  }, [createdDraftTaskRef, draftSourceSignalRef, draftTitleRef, draftFormState.pending, setDraftTask, setDraftLinkError, setDraftFormState, t])
   useEffect(() => {
     if (draftTask || !returnFocusAfterDiscard.current) return
     returnFocusAfterDiscard.current = false
@@ -649,7 +653,11 @@ export function TasksWorkspace({
   // Opens the draft. It never looks at the record panel: callers decide whether one has to close
   // first, so a continuation after a close cannot find a stale "panel still open" and ask again.
   const beginNewTask = useCallback((prefillParam = '') => {
-    if (!dataContext || draftTask) return
+    if (draftTask) {
+      document.querySelector<HTMLTextAreaElement>('.tcf-title')?.focus()
+      return
+    }
+    if (!dataContext) return
     if (params.get('record')) {
       const next = new URLSearchParams(params)
       next.delete('record')
@@ -663,6 +671,7 @@ export function TasksWorkspace({
       return
     }
     setDraftLinkError(false)
+    setDraftFormState({ pending: false, saveError: false })
     setAnnouncement('')
     createdDraftTaskRef.current = null
     draftTitleRef.current = ''
@@ -719,7 +728,7 @@ export function TasksWorkspace({
       created_at: now, updated_at: now, process_run_id: null, generated_from_task_def_id: null,
     })
     draftSourceSignalRef.current = sourceSignal ?? draftSourceSignalRef.current
-  }, [dataContext, draftTask, homeLeadId, params, query.businessUnitId, query.picId, query.status, query.supervisorId, setParams, viewerId, viewerTeams])
+  }, [createdDraftTaskRef, dataContext, draftSourceSignalRef, draftTask, draftTitleRef, homeLeadId, params, setDraftFormState, setDraftLinkError, setDraftTask, query.businessUnitId, query.picId, query.status, query.supervisorId, setParams, viewerId, viewerTeams])
   // Every create entry — page button, global actions menu, command menu, keyboard shortcut, group
   // "Add" — comes through here, so a draft and an open record are never on screen together. A
   // dirty record may refuse to close; the draft opens only on a committed close, and only once
@@ -746,6 +755,7 @@ export function TasksWorkspace({
       onNewTask(pendingCreatePrefillRef.current)
       return
     }
+    document.querySelector<HTMLTextAreaElement>('.tcf-title')?.focus()
     createIntentRef.current = false
     pendingCreatePrefillRef.current = ''
     createParamSnapshotRef.current = null
@@ -930,7 +940,10 @@ export function TasksWorkspace({
     })),
     onEditDue,
     onEditWorkLine,
-  }), [dataContext, onEditDue, onEditWorkLine])
+    onTitleChange: (title) => setDraftTask((current) => current ? { ...current, title } : current),
+    formState: draftFormState,
+    onFormStateChange: (patch) => setDraftFormState((current) => ({ ...current, ...patch })),
+  }), [dataContext, draftFormState, onEditDue, onEditWorkLine, setDraftTask, setDraftFormState])
 
   const controls = !isDesktop ? (
     <ViewOptionsDisclosure

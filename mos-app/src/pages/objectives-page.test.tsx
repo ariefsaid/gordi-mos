@@ -1,7 +1,8 @@
 import { afterEach, describe, it, expect, vi, beforeEach } from 'vitest'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { MemoryRouter, RouterProvider, createMemoryRouter } from 'react-router-dom'
+import { Link, Outlet, MemoryRouter, RouterProvider, createMemoryRouter } from 'react-router-dom'
 import { OverlayHostProvider } from '@/shell/overlay-host'
+import { CreateDraftProvider } from '@/shell/create-drafts'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 
@@ -13,6 +14,7 @@ vi.mock('@/lib/db/objectives', () => ({
 }))
 vi.mock('@/lib/db/work-lines', () => ({ listWorkLinesAll: vi.fn() }))
 vi.mock('@/lib/db/tasks', () => ({ listTasks: vi.fn() }))
+vi.mock('@/lib/db/directory', () => ({ getBusinessUnits: vi.fn() }))
 vi.mock('@/lib/db/work-authority', () => ({
   emptyWorkWriteScopes: () => ({ workline_org: false, objective_org: false, workline_bu_ids: [], objective_bu_ids: [], objective_content_org: false, objective_content_bu_ids: [] }),
   getWorkWriteScopes: vi.fn(),
@@ -25,6 +27,7 @@ vi.mock('@/components/tasks/task-drawer', () => ({ TaskOverlayContent: () => nul
 
 import { listObjectivesAll, createObjective } from '@/lib/db/objectives'
 import { listWorkLinesAll } from '@/lib/db/work-lines'
+import { getBusinessUnits } from '@/lib/db/directory'
 import { listTasks } from '@/lib/db/tasks'
 import { getWorkWriteScopes } from '@/lib/db/work-authority'
 import { useAuth } from '@/auth/use-auth'
@@ -83,6 +86,7 @@ beforeEach(() => {
     { id: 'wl-2', name: 'Daily prep', type: 'process', archived_at: null },
   ])
   vi.mocked(listTasks).mockResolvedValue([])
+  vi.mocked(getBusinessUnits).mockResolvedValue([{ id: 'bu-1', name: 'Retail Ops' }])
   vi.mocked(getWorkWriteScopes).mockResolvedValue({
     workline_org: true,
     objective_org: true,
@@ -123,6 +127,22 @@ describe('Objectives collection-first contract', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Create objective' })).toHaveFocus())
   })
 
+  // AC-001, AC-002
+  it('reentering Create returns focus to the unfinished Objective without changing its name', async () => {
+    renderPage()
+    await screen.findByText('Grow revenue')
+    const opener = within(screen.getByTestId('page-head')).getByRole('button', { name: 'Create objective' })
+    fireEvent.click(opener)
+    const name = await screen.findByRole('textbox', { name: 'Name' })
+    fireEvent.change(name, { target: { value: 'Keep the guest experience draft' } })
+    fireEvent.click(opener)
+    expect(name).toHaveValue('Keep the guest experience draft')
+    expect(name).toHaveFocus()
+    expect(opener).not.toHaveClass('btn-primary')
+    expect(createObjective).not.toHaveBeenCalled()
+  })
+
+  // AC-003
   it('keeps a failed Objective draft available for retry and restores create focus', async () => {
     vi.mocked(createObjective).mockRejectedValueOnce(new Error('Temporary save failure'))
     renderPage()
@@ -131,12 +151,15 @@ describe('Objectives collection-first contract', () => {
     const form = await screen.findByRole('form', { name: 'Create objective' })
     const name = within(form).getByRole('textbox', { name: 'Name' })
     fireEvent.change(name, { target: { value: 'Delight guests' } })
+    fireEvent.click(within(form).getByRole('combobox', { name: 'Business Unit' }))
+    fireEvent.click(await screen.findByRole('option', { name: 'Retail Ops' }))
     fireEvent.submit(form)
     expect(await screen.findByRole('alert')).toHaveTextContent('Couldn’t save. Try again.')
     expect(name).toHaveValue('Delight guests')
+    expect(within(form).getByRole('combobox', { name: 'Business Unit' })).toHaveTextContent('Retail Ops')
     await waitFor(() => expect(name).toHaveFocus())
     fireEvent.submit(form)
-    await waitFor(() => expect(createObjective).toHaveBeenNthCalledWith(2, 'Delight guests'))
+    await waitFor(() => expect(createObjective).toHaveBeenNthCalledWith(2, 'Delight guests', { business_unit_id: 'bu-1' }))
     await waitFor(() => expect(screen.queryByRole('form', { name: 'Create objective' })).toBeNull())
     expect(screen.getByRole('button', { name: 'Create objective' })).toHaveFocus()
   })
@@ -294,4 +317,48 @@ describe('one primary per screen beside an open record panel', () => {
     await waitFor(() => expect(screen.queryByText('record body obj-1')).toBeNull())
     expect(screen.getByRole('button', { name: 'Create objective' })).toHaveClass('btn-primary')
   })
+})
+
+// AC-001, AC-002
+describe('unfinished collection draft retention', () => {
+  it('resumes all entered values after following another route and returning through Create', async () => {
+    const router = createMemoryRouter([{
+      element: <CreateDraftProvider><Link to="/work/signals">Signals destination</Link><Link to="/work/objectives?create=1">Return through Create</Link><Outlet /></CreateDraftProvider>,
+      children: [{ path: '/work/objectives', element: <ObjectivesPage /> }, { path: '/work/signals', element: <p>Signals destination body</p> }],
+    }], { initialEntries: ['/work/objectives?create=1'] })
+    render(<I18nProvider><RouterProvider router={router} /></I18nProvider>)
+    let form = await screen.findByRole('form', { name: 'Create objective' })
+    fireEvent.change(within(form).getByRole('textbox', { name: 'Name' }), { target: { value: 'Keep this full draft' } })
+    fireEvent.click(within(form).getByRole('combobox', { name: 'Business Unit' }))
+    fireEvent.click(await screen.findByRole('option', { name: 'Company-wide' }))
+    fireEvent.click(screen.getByRole('link', { name: 'Signals destination' }))
+    await screen.findByText('Signals destination body')
+    fireEvent.click(screen.getByRole('link', { name: 'Return through Create' }))
+    form = await screen.findByRole('form', { name: 'Create objective' })
+    expect(within(form).getByRole('textbox', { name: 'Name' })).toHaveValue('Keep this full draft')
+    expect(within(form).getByRole('textbox', { name: 'Name' })).toHaveFocus()
+    expect(within(form).getByRole('combobox', { name: 'Business Unit' })).toHaveTextContent('Company-wide')
+    fireEvent.click(within(form).getByRole('button', { name: 'Cancel' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create objective' }))
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue('')
+    expect(screen.getByRole('combobox', { name: 'Business Unit' })).toHaveTextContent('Not set')
+  })
+})
+
+// AC-004
+it('keeps a retained objectives buffer hidden when current write authority is denied on return', async () => {
+  const router = createMemoryRouter([{
+    element: <CreateDraftProvider><Link to="/work/signals">Signals destination</Link><Link to="/work/objectives">Return to collection</Link><Outlet /></CreateDraftProvider>,
+    children: [{ path: '/work/objectives', element: <ObjectivesPage /> }, { path: '/work/signals', element: <p>Signals destination body</p> }],
+  }], { initialEntries: ['/work/objectives?create=1'] })
+  render(<I18nProvider><RouterProvider router={router} /></I18nProvider>)
+  fireEvent.change(await screen.findByRole('textbox', { name: 'Name' }), { target: { value: 'Keep this authorized draft' } })
+  fireEvent.click(screen.getByRole('link', { name: 'Signals destination' }))
+  await screen.findByText('Signals destination body')
+  vi.mocked(getWorkWriteScopes).mockResolvedValue({ workline_org: false, objective_org: false, workline_bu_ids: [], objective_bu_ids: [], objective_content_org: false, objective_content_bu_ids: [] })
+  fireEvent.click(screen.getByRole('link', { name: 'Return to collection' }))
+  await screen.findByText('Grow revenue')
+  expect(screen.queryByRole('form', { name: 'Create objective' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Create objective' })).toBeNull()
+  expect(createObjective).not.toHaveBeenCalled()
 })
