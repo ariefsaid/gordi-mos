@@ -16,7 +16,8 @@ export type CafeItemSetting = {
   erpName: string
   mosName: string
   category: string | null
-  kind: 'RAW' | 'WIP'
+  kind: 'RAW' | 'WIP' | null
+  isActive: boolean
   defaultUnitId: string | null
   units: CafeItemSettingUnit[]
 }
@@ -43,7 +44,8 @@ type CafeItemSettingReadRow = {
   erp_name: string
   mos_name: string
   category: string | null
-  kind: string
+  kind: string | null
+  is_active: boolean
   item_unit_id: string | null
   unit_name: string | null
   default_item_unit_id: string | null
@@ -59,8 +61,11 @@ function mapCafeItemSettings(
   const grouped = new Map<string, CafeItemSetting>()
 
   for (const row of rows) {
-    if (row.kind !== 'RAW' && row.kind !== 'WIP') {
+    if (row.kind !== null && row.kind !== 'RAW' && row.kind !== 'WIP') {
       throw new Error('listCafeItemSettings failed: unknown item kind')
+    }
+    if (typeof row.is_active !== 'boolean') {
+      throw new Error('listCafeItemSettings failed: item active status is missing')
     }
     if (!row.item_id || !row.erp_name?.trim() || !row.mos_name?.trim()) {
       throw new Error('listCafeItemSettings failed: item names are missing')
@@ -74,6 +79,7 @@ function mapCafeItemSettings(
         mosName: row.mos_name,
         category: row.category,
         kind: row.kind,
+        isActive: row.is_active,
         defaultUnitId: row.default_item_unit_id,
         units: [],
       }
@@ -82,6 +88,7 @@ function mapCafeItemSettings(
       item.erpName !== row.erp_name
       || item.mosName !== row.mos_name
       || item.kind !== row.kind
+      || item.isActive !== row.is_active
       || item.category !== row.category
       || item.defaultUnitId !== row.default_item_unit_id
     ) {
@@ -140,7 +147,7 @@ export async function listCafeItemSettings(stream: ProductionStream): Promise<Ca
   const { data, error } = await supabase
     .schema('ops')
     .from('cafe_item_settings_read')
-    .select('item_id, erp_name, mos_name, category, kind, item_unit_id, unit_name, default_item_unit_id, unit_is_default, unit_is_shown')
+    .select('item_id, erp_name, mos_name, category, kind, is_active, item_unit_id, unit_name, default_item_unit_id, unit_is_default, unit_is_shown')
     .eq('branch_id', stream.branch.id)
     .eq('activity', stream.activity)
     .order('erp_name', { ascending: true })
@@ -181,7 +188,7 @@ export async function listCafeItemSettings(stream: ProductionStream): Promise<Ca
 export function toCafeLogItem(item: CafeItemSetting): CafeLogItem | null {
   const units = item.units.filter(unit => unit.isShown)
   const defaultUnit = units.find(unit => unit.id === item.defaultUnitId && unit.isDefault)
-  if (!defaultUnit) return null
+  if (!item.isActive || (item.kind !== 'RAW' && item.kind !== 'WIP') || !defaultUnit) return null
   units.sort((a, b) => Number(b.isDefault) - Number(a.isDefault))
   return {
     id: item.id,
@@ -209,6 +216,8 @@ export async function saveCafeItemSettings(input: {
   mosName: string
   defaultUnitId: string | null
   shownUnitIds: string[]
+  kind: 'RAW' | 'WIP' | null
+  isActive: boolean
 }): Promise<void> {
   const { error } = await supabase
     .schema('ops')
@@ -219,6 +228,8 @@ export async function saveCafeItemSettings(input: {
       p_mos_name: input.mosName,
       p_default_item_unit_id: input.defaultUnitId,
       p_shown_item_unit_ids: input.shownUnitIds,
+      p_kind: input.kind,
+      p_is_active: input.isActive,
     })
   if (error) throw new Error(`saveCafeItemSettings failed: ${error.message}`)
 }

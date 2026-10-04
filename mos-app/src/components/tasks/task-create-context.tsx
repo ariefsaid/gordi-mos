@@ -4,7 +4,12 @@ import { createContext, useContext } from 'react'
 
 export type TaskWorkLineOption = { id: string; name: string; type: 'project' | 'process' }
 
+export type TaskCreateFormState = { dueText?: string; pending: boolean; saveError: boolean }
+
 export type TaskCreateContextValue = {
+  onTitleChange?: (title: string) => void
+  formState?: TaskCreateFormState
+  onFormStateChange?: (patch: Partial<TaskCreateFormState>) => void
   workLineOptions: readonly TaskWorkLineOption[]
   onEditDue: (taskId: string, dueDate: string | null) => Promise<void>
   // Sets the draft's Project/Process; the workspace derives the Objective from it.

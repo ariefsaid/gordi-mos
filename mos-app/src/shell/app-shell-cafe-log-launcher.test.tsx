@@ -85,21 +85,24 @@ function setAuth(opts: { accessRoles: string[]; affiliated: string[] }) {
   })
 }
 
-function renderShellAtHome() {
+function renderShellAt(path = '/') {
   return render(
     <I18nProvider>
-      <MemoryRouter initialEntries={['/']}>
+      <MemoryRouter initialEntries={[path]}>
         <LocationProbe />
         <Routes>
           <Route element={<AppShell />}>
             <Route index element={<div role="main">home page</div>} />
             <Route path="cafe/log" element={<div role="main">cafe log page</div>} />
+            <Route path="cafe/items" element={<div role="main">cafe item settings</div>} />
           </Route>
         </Routes>
       </MemoryRouter>
     </I18nProvider>,
   )
 }
+
+const renderShellAtHome = () => renderShellAt('/')
 
 async function openLauncher() {
   fireEvent.click(screen.getByRole('button', { name: 'Open actions' }))
@@ -146,6 +149,21 @@ describe('AC-022 (#755): the `+` launcher offers the Café capture only to viewe
 
     await openLauncher()
     expect(screen.getByRole('option', { name: /Log Café production/i })).toBeInTheDocument()
+  })
+})
+
+describe('AC-1286: the phone quick-capture launcher survives menu cancellation on Café settings', () => {
+  it('remains available after cancelling search without leaving the item-settings route', async () => {
+    setAuth({ accessRoles: [], affiliated: ['cafe'] })
+    renderShellAt('/cafe/items')
+
+    const launcher = screen.getByRole('button', { name: 'Open actions' })
+    await openLauncher()
+    fireEvent.keyDown(document, { key: 'Escape' })
+
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Command menu' })).toBeNull())
+    expect(screen.getByTestId('location')).toHaveTextContent('/cafe/items')
+    expect(screen.getByRole('button', { name: 'Open actions' })).toBe(launcher)
   })
 })
 

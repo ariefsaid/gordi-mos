@@ -20,6 +20,7 @@ import { createRecordDeepLinkResolver, RECORD_KINDS } from './record-deep-link-r
 import { useDeputyOverlayCoexistence } from './deputy-overlay-coexistence'
 import { WorkCollectionSwitcher } from './work-collection-switcher'
 import { useT } from '@/i18n/use-t'
+import { CreateDraftProvider } from './create-drafts'
 
 // Mounted with the Signals surface, exactly as the deferral note here said it would be (#267).
 // `SignalComposerHost` mounts `SignalComposer` and reads the mention rosters; `SignalsArchivePage`
@@ -302,11 +303,13 @@ export function AppShell() {
   // v4's nesting: the composer is a shell-level modal that must survive route changes, and route
   // content beneath it calls `useSignalComposer()`.
   const shellWithOverlay = (
-    <SignalComposerHost>
-      <OverlayHostRoot>
-        <ShellContent />
-      </OverlayHostRoot>
-    </SignalComposerHost>
+    <CreateDraftProvider>
+      <SignalComposerHost>
+        <OverlayHostRoot>
+          <ShellContent />
+        </OverlayHostRoot>
+      </SignalComposerHost>
+    </CreateDraftProvider>
   )
   if (!SHOW_ASSISTANT) return shellWithOverlay
   return <AgentRuntimeProvider>{shellWithOverlay}</AgentRuntimeProvider>

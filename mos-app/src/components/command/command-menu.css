@@ -58,6 +58,9 @@
 /* Narrow palettes carry record previews only; give those kind groups enough room to fit. */
 @media (max-width: 919.98px) {
   #cm-list { max-height: 80dvh; }
+  /* Mobile Safari zooms focused controls below 16px. Keep page zoom enabled and size the
+     actual launcher/search input to the touch-input floor. */
+  .cm-input input { font-size: var(--font-size-touch-input); }
 }
 
 /* Group label — muted-foreground clears WCAG-AA in dark while reading as a label. */

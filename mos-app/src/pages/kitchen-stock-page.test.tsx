@@ -462,7 +462,7 @@ describe('KitchenStockPage — populated (FR-060/061, AC-011)', () => {
     expect(container.querySelector('.msr')).not.toBeNull()
     expect(container.querySelector('.kks')).toBeNull()
     expect(screen.queryByText('No entries logged yet today')).toBeNull()
-    expect(screen.getByText(/erp inventory not connected yet/i)).toBeInTheDocument()
+    expect(screen.getByText(/esb inventory not connected yet/i)).toBeInTheDocument()
   })
 
   it('uses one ERP provenance footnote for the comparison column', async () => {
@@ -475,7 +475,7 @@ describe('KitchenStockPage — populated (FR-060/061, AC-011)', () => {
 
     await screen.findByText('Ayam Bakar')
     expect(screen.queryByText('No entries logged yet today')).toBeNull()
-    expect(screen.getAllByText(/erp inventory not connected yet/i)).toHaveLength(1)
+    expect(screen.getAllByText(/esb inventory not connected yet/i)).toHaveLength(1)
   })
 
   it('AC-011 (render): the system-quantity column sits DIRECTLY BESIDE the ERP inventory column — the net itself is owned by pgTAP ops_09/ops_10', async () => {
@@ -499,7 +499,7 @@ describe('KitchenStockPage — populated (FR-060/061, AC-011)', () => {
     expect(within(ayamRow).getByText('8')).toBeInTheDocument()
     // ERP comparison cell is a visible placeholder until the ERP read is wired.
     expect(within(ayamRow).getByText('—')).toBeInTheDocument()
-    expect(screen.getByText(/erp inventory not connected yet/i)).toBeInTheDocument()
+    expect(screen.getByText(/esb inventory not connected yet/i)).toBeInTheDocument()
   })
 
   it('renders a semantic table with the two cuts (stok + tersedia) per item', async () => {
@@ -604,7 +604,7 @@ describe('KitchenStockPage — locale seam (#400)', () => {
     render(<KitchenStockPage />, { wrapper: idWrapper })
     await screen.findByText('Ayam Bakar')
     expect(document.querySelector('.msr')).not.toBeNull()
-    expect(screen.getAllByText(/erp inventory not connected|inventori ERP belum terhubung/i)).toHaveLength(1)
+    expect(screen.getAllByText(/esb inventory not connected|inventori ESB belum terhubung/i)).toHaveLength(1)
   })
 })
 

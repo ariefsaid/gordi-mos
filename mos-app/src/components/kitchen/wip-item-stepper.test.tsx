@@ -12,7 +12,7 @@ import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { WipItemStepper } from './wip-item-stepper'
 import { needsVarianceNote, VARIANCE_NOTE_CUE } from '@/lib/kitchen-gates'
-import type { ItemUnitOption, KitchenLogLine, KitchenMovement } from '@/lib/db/kitchen-logs.types'
+import type { ActualUnitTotal, ItemUnitOption, KitchenLogLine, KitchenMovement } from '@/lib/db/kitchen-logs.types'
 
 // v4 drove this component with the three label literals. They are derived, not stored
 // (DD-WAY-13), so the component takes the MOVEMENT instead — the thing that actually
@@ -49,7 +49,7 @@ function renderStepper(
     onNotesChange?: () => void
     itemName?: string
     dense?: boolean
-    alreadyLogged?: number
+    alreadyLogged?: ActualUnitTotal[]
     unitOptions?: ItemUnitOption[]
     onUnitChange?: (id: string) => void
   } = {},
@@ -172,21 +172,36 @@ describe('WipItemStepper — fixed unit + change-unit affordance (FR-020/021, AC
 })
 
 describe('WipItemStepper — already-logged actuals (FR-014, AC-006)', () => {
-  it('renders "logged N" when something has been logged today', () => {
-    renderStepper({ alreadyLogged: 4 })
+  it('renders each recorded unit and keeps same-label IDs and unknown history separate', () => {
+    renderStepper({ alreadyLogged: [
+      { key: 'unit:batch-a', item_unit_id: 'batch-a', unit_name: 'batch', qty_porsi: 2 },
+      { key: 'unit:batch-b', item_unit_id: 'batch-b', unit_name: 'batch', qty_porsi: 500 },
+      { key: 'unknown:log-a', item_unit_id: null, unit_name: null, qty_porsi: 7 },
+      { key: 'unknown:log-b', item_unit_id: null, unit_name: null, qty_porsi: 9 },
+    ] })
     const meta = document.querySelector('.kls-meta')
-    expect(meta?.textContent).toMatch(/logged\s*4/)
+    expect(meta?.textContent).toContain('logged')
+    expect(meta?.textContent).toContain('2 batch')
+    expect(meta?.textContent).toContain('500 batch')
+    expect(meta?.textContent).toContain('7 Unknown unit')
+    expect(meta?.textContent).toContain('9 Unknown unit')
+    expect(meta?.querySelectorAll('.kls-logged-unit')).toHaveLength(4)
   })
 
-  it('renders nothing at 0 — a quiet row stays quiet', () => {
-    renderStepper({ alreadyLogged: 0 })
+  it('renders no actual-history line for an empty list', () => {
+    renderStepper({ alreadyLogged: [] })
     expect(document.querySelector('.kls-meta')).toBeNull()
   })
 
   it('a transfer row shows both the already-logged count and the tersedia context', () => {
-    renderStepper({ movement: TRANSFER_RADIANT, alreadyLogged: 3, line: { tersedia: 7 } })
+    renderStepper({
+      movement: TRANSFER_RADIANT,
+      alreadyLogged: [{ key: 'unit:porsi', item_unit_id: 'u-porsi', unit_name: 'porsi', qty_porsi: 3 }],
+      line: { tersedia: 7 },
+    })
     const meta = document.querySelector('.kls-meta')
-    expect(meta?.textContent).toMatch(/logged\s*3/)
+    expect(meta?.textContent).toContain('logged')
+    expect(meta?.textContent).toContain('3 porsi')
     expect(meta?.textContent).toMatch(/avail\s*7/)
   })
 })
@@ -197,13 +212,12 @@ describe('WipItemStepper — AC-020/021/022', () => {
     expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
   })
 
-  // v4: plan is no longer a separate caption — it is the qty field's greyed placeholder anchor.
-  it('shows the plan qty as the field placeholder (the greyed anchor), not as restated text', () => {
+  it('does not imply an unrecorded plan unit in the quantity placeholder', () => {
     renderStepper({ line: { plan_qty: 12 } })
-    expect(screen.getByRole('spinbutton', { name: /quantity/i })).toHaveAttribute('placeholder', '12')
+    expect(screen.getByRole('spinbutton', { name: /quantity/i })).toHaveAttribute('placeholder', '0')
   })
 
-  it('falls back to a "0" placeholder when there is no plan for this action_type', () => {
+  it('uses the neutral zero placeholder when there is no plan for this action_type', () => {
     renderStepper({ line: { plan_qty: 0 } })
     expect(screen.getByRole('spinbutton', { name: /quantity/i })).toHaveAttribute('placeholder', '0')
   })
@@ -267,7 +281,7 @@ describe('WipItemStepper — AC-020/021/022', () => {
   it('AC-020/021: keeps the note cue localized and the field reachable after BLUR', () => {
     renderStepper({ line: { qty_porsi: 7, error: 'Catatan wajib — di luar rencana', dirty: true } })
     fireEvent.blur(screen.getByRole('spinbutton', { name: /quantity/i }))
-    expect(screen.getByText(/note required — off plan/i)).toBeInTheDocument()
+    expect(screen.getByText(/note required before submit/i)).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: /note/i })).toBeInTheDocument()
   })
 

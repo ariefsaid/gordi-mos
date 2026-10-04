@@ -66,7 +66,7 @@ import {
   type DataTableColumn,
 } from '@/components/dashboard/data-table'
 import {
-  KITCHEN_KIND_FILTER_OPTIONS,
+  WIP_KIND_FILTER_OPTIONS,
   kitchenDataTableGroups,
   toKitchenListRows,
   useKitchenItemTable,
@@ -137,8 +137,16 @@ type PlanItem = WipItemOption & {
 }
 
 function withStreamSettings(items: WipItemOption[], settings: CafeItemSetting[]): PlanItem[] {
-  const byId = new Map(settings.filter(item => item.kind === 'WIP').map(item => [item.id, item]))
-  return items.map(item => {
+  const eligibleSettings = settings.filter(item => item.kind === 'WIP' && item.isActive)
+  const byId = new Map(eligibleSettings.map(item => [item.id, item]))
+  const manualIds = new Set(items.map(item => item.id))
+  const streamWipItems = [
+    ...items,
+    ...eligibleSettings.filter(item => !manualIds.has(item.id)).map(item => ({
+      id: item.id, name: item.mosName, category: item.category,
+    })),
+  ]
+  return streamWipItems.map(item => {
     const setting = byId.get(item.id)
     const defaultUnit = setting?.units.find(unit => unit.id === setting.defaultUnitId)
     return {
@@ -196,9 +204,8 @@ function PlanEditor() {
   // catalog comes with it: the MOVEMENT control derives its destinations from the producing
   // stream catalog, which is a different question from which stream this plan belongs to.
   const cafeStream = useCafeStream()
-  // OD-CAFE-1: plans are keyed on (org, date, item, branch, activity) — a plan row belongs to one
-  // branch's books — so the picker offers this location's streams only. `streamOptions` stays whole
-  // for the movement/destination derivation below.
+  // Plans are keyed on (org, date, item, branch, activity). Change offers the full readable catalog
+  // for an explicit branch switch; `streamOptions` also drives movement/destination derivation.
   const { branches, options: streamOptions, locationOptions, stream, homeStream, myStreamKeys } = cafeStream
   const { resolve: resolveStream, adopt: adoptStream, setStream: chooseStream } = cafeStream
   const streamMissing = stream === null
@@ -253,9 +260,8 @@ function PlanEditor() {
   const [search, setSearch] = useSearchParamState('q', '')
   const [kindFilter, setKindFilter] = useSearchParamState('kind', 'All')
   const [category, setCategory] = useSearchParamState('category', 'All')
-  // Phone omits desktop-only select filters, so a shared desktop URL must not silently
-  // narrow the capture list when those controls are unavailable to clear it.
-  const effectiveKindFilter: KitchenItemKindFilter = isDesktop ? kindFilter as KitchenItemKindFilter : 'All'
+  // Phone hides both select filters, so a copied desktop URL must not silently hide Plan rows.
+  const effectiveKindFilter: KitchenItemKindFilter = isDesktop && kindFilter === 'WIP' ? 'WIP' : 'All'
   const effectiveCategory = isDesktop ? category : 'All'
   // #401 / DD-WAY-40: the figures band is the Metric summary rule (two numbers for
   // the current movement) — the retired word-tiles are gone. Pure derivation over
@@ -301,7 +307,9 @@ function PlanEditor() {
       if (gen !== requestGen.current) return
       // Existing off-list plans remain readable; stream-listed items use their MOS name and
       // ERP-selected default detail from the same reader as Log.
-      const displayItems = withStreamSettings(itemRows, settings)
+      // Without a resolved stream there is no working catalog to plan against. Do not present
+      // the org-wide reference list beside a disabled quantity editor.
+      const displayItems = catalog.stream ? withStreamSettings(itemRows, settings) : []
       setItems(offered ? streamRows(displayItems, offered, planCells) : displayItems)
       setOfferedIds(offered ?? new Set())
       adoptStream(catalog)
@@ -562,23 +570,23 @@ function PlanEditor() {
     <PageFamilyFrame
       family="workspace"
       title={pageTitle}
-      /* #440: the stream this plan is being written INTO, stated in the head and switched
-         there — the same statement-and-switch every other Café surface carries, in the same
-         place. It replaces the shared head's static job sentence (PageHead renders one or the
-         other): which books a planned quantity lands in is what the number means. */
+      /* #440: the stream this plan is being written INTO, stated in the head. Plan's existing
+         Change menu also allows a deliberate working-branch switch; applyStream commits the new
+         branch before re-reading its plan. Capture remains bounded to its active location. */
       statusRow={
         <CafeStreamBar
-          options={locationOptions}
+          options={streamOptions}
           stream={stream}
           homeStream={homeStream}
           myStreamKeys={myStreamKeys}
+          locationBranchId={cafeStream.branchId ?? undefined}
           onChange={next => { void applyStream(next) }}
         />
       }
       meta={
         <span className="kp-date tabular">{formatWeekdayDayMonth(logDate)}</span>
       }
-      state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : streamNonProducing ? 'read-only' : items.length === 0 ? 'empty' : saveError ? 'validation' : savingId ? 'saving' : 'default'}
+      state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : streamMissing ? 'default' : streamNonProducing ? 'read-only' : items.length === 0 ? 'empty' : saveError ? 'validation' : savingId ? 'saving' : 'default'}
     >
       {/* #401 / DD-WAY-40: Plan is an ACT surface — its figures render as the DESIGN.md
           Metric summary rule: one inline line, no card, no width branch, never a tile
@@ -606,7 +614,7 @@ function PlanEditor() {
           caller bypasses the disabled field. */}
       {streamMissing && load.kind === 'ready' && (
         <div className="kp-stream-hint" role="status" aria-live="polite">
-          <p>{t('kitchen.log.stream.missing')}</p>
+          <p>{t('kitchen.plan.stream.missing')}</p>
           <CafeStreamChoices
             options={locationOptions}
             homeStream={homeStream}
@@ -628,7 +636,7 @@ function PlanEditor() {
         />
       )}
 
-      {load.kind === 'ready' && items.length === 0 && (
+      {load.kind === 'ready' && !streamMissing && items.length === 0 && (
         <EmptyState
           variant="blank"
           title={stream ? t('kitchen.streamItems.empty.title', { stream: streamLabel(t, stream) }) : t('kitchen.empty.noActiveItems.title')}
@@ -636,12 +644,12 @@ function PlanEditor() {
         />
       )}
 
-      {load.kind === 'ready' && items.length > 0 && (
+      {load.kind === 'ready' && !streamMissing && items.length > 0 && (
         <div className="kp-block">
           <KitchenToolbar
             search={search}
             onSearchChange={setSearch}
-            kinds={KITCHEN_KIND_FILTER_OPTIONS}
+            kinds={WIP_KIND_FILTER_OPTIONS}
             kind={kindFilter as KitchenItemKindFilter}
             kindId="cafe-plan-kind"
             onKindChange={setKindFilter}
@@ -704,9 +712,9 @@ function PesananView() {
   const [from] = useState(wibToday) // horizon start = today WIB
   const [rows, setRows] = useState<PesananDisplayRow[]>([])
   const cafeStream = useCafeStream()
-  // OD-CAFE-1: plans are keyed on (org, date, item, branch, activity) — a plan row belongs to one
-  // branch's books — so the picker offers this location's streams only. `streamOptions` stays whole
-  // for the movement/destination derivation below.
+  // Pesanan reads the explicitly selected (branch, activity) horizon. Its Change menu can move to
+  // another readable branch; the active location is shown in the menu so that choice stays clear.
+  // `streamOptions` is the full readable catalog, and is also used for producer-aware labels.
   const { branches, options: streamOptions, locationOptions, stream, homeStream, myStreamKeys } = cafeStream
   const { resolve: resolveStream, adopt: adoptStream, setStream: chooseStream } = cafeStream
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
@@ -824,10 +832,11 @@ function PesananView() {
       title={pageTitle}
       statusRow={
         <CafeStreamBar
-          options={locationOptions}
+          options={streamOptions}
           stream={stream}
           homeStream={homeStream}
           myStreamKeys={myStreamKeys}
+          locationBranchId={cafeStream.branchId ?? undefined}
           onChange={next => { void applyStream(next) }}
         />
       }
@@ -904,7 +913,7 @@ function PesananView() {
           <KitchenToolbar
             search={search}
             onSearchChange={setSearch}
-            kinds={KITCHEN_KIND_FILTER_OPTIONS}
+            kinds={WIP_KIND_FILTER_OPTIONS}
             kind={kindFilter as KitchenItemKindFilter}
             kindId="cafe-plan-kind"
             onKindChange={setKindFilter}
