@@ -11,6 +11,7 @@ import {
   assertLocalFixtureDatabase,
   E2E_CLEANUP_REGISTRY,
   budgetCleanupSql,
+  cafePlanGuardCleanupSql,
   cafeWasteCleanupSql,
   fixtureCleanupSql,
   notificationCleanupSql,
@@ -167,6 +168,7 @@ test('every Playwright data writer is registered with an owned cleanup contract'
 test('SQL guard rejects broad and disguised deletes and allows the owned cleanup', () => {
   expect(() => assertFixtureSqlSafe(fixtureCleanupSql)).not.toThrow()
   expect(() => assertFixtureSqlSafe(cafeWasteCleanupSql)).not.toThrow()
+  expect(() => assertFixtureSqlSafe(cafePlanGuardCleanupSql)).not.toThrow()
   const capturedCleanup = taskCleanupSql(['a1000000-0000-0000-0000-000000000001'])
   expect(() => assertFixtureSqlSafe(capturedCleanup)).not.toThrow()
   expect(() => taskCleanupSql(['not-a-uuid'])).toThrow(/UUID-owned/)

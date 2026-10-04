@@ -134,7 +134,8 @@ test.describe('AC-1241: Café waste capture and MOS review', () => {
 
     await expect(page.getByTestId('page-head').getByRole('heading', { name: 'Café · Log waste', exact: true })).toBeVisible()
     await expect(page.getByRole('heading', { name: /Rumah Rames · Bar/i })).toBeVisible()
-    await expect(page.getByText('Waste stays in MOS review. Posting to the ERP is held.', { exact: true })).toBeVisible()
+    // OD-TERM-ESB: review copy uses the approved ESB name, never ERP.
+    await expect(page.getByText('Waste stays in MOS review. Posting to ESB is held.', { exact: true })).toBeVisible()
     const quantity = page.getByRole('spinbutton', { name: `Waste quantity for ${ITEM_NAME}` })
     await expect(quantity).toBeVisible()
     await expect(quantity).toHaveCSS('font-size', '16px')
