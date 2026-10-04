@@ -468,6 +468,7 @@ export const messages = {
     'network.retry': 'Retry',
     // The header's one offline line — muted, present only while the browser reports offline.
     'shell.offline': 'You’re offline',
+    'shell.skipLink': 'Skip to main content',
     'common.what.budgets': 'budgets',
     'common.what.costLines': 'the BOM and ingredient cost lines',
     // The record overlay/page chrome (#190) — the ONE set of control labels every record kind
@@ -2494,6 +2495,7 @@ export const messages = {
     'network.error.copy': 'Periksa koneksi Anda lalu coba lagi.',
     'network.retry': 'Coba lagi',
     'shell.offline': 'Anda sedang offline',
+    'shell.skipLink': 'Lewati ke konten utama',
     'common.what.budgets': 'anggaran',
     'common.what.costLines': 'baris BOM dan biaya bahan',
     'record.openFullPage': 'Buka halaman penuh',

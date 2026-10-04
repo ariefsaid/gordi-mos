@@ -2,6 +2,7 @@ import { matchPath, useLocation } from 'react-router-dom'
 import { jobKeyForPath } from './job-sentences'
 import { PAGE_FAMILY_FRAME_ROUTES } from './page-family-migration'
 import { primaryModuleForViewer } from './destinations'
+import { useBoundaryLabel } from './breadcrumb-title'
 import { useAuth } from '@/auth/use-auth'
 import { useT, type Translate } from '@/i18n/use-t'
 
@@ -41,12 +42,13 @@ function resolveViewerScope(roleNames: string[], accessRoles: string[], affiliat
  * `page-head.tsx` is a per-page H1 inside region 3 — not a counterpart, so this is
  * genuinely new. Minimal on stubs. Mounted once in app-shell.tsx (no new provider).
  */
-export function ContextRow() {
+export function ContextRow({ routeIsNotFound = false }: { routeIsNotFound?: boolean } = {}) {
   const { pathname } = useLocation()
   const auth = useAuth()
   const t = useT()
+  const boundaryLabel = useBoundaryLabel()
 
-  const jobKey = jobKeyForPath(pathname)
+  const jobKey = routeIsNotFound ? 'job.notFound' : jobKeyForPath(pathname)
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
   const roleNames = viewer?.roles.map((r) => r.name) ?? []
   const scope = resolveViewerScope(roleNames, viewer?.accessRoles ?? [], viewer?.affiliated ?? [], t)
@@ -59,7 +61,7 @@ export function ContextRow() {
   // collapses to zero height (the anatomy landmark stays present for the shell contract, but adds
   // no visual gap). Unmigrated routes keep the scope + sentence — there the ContextRow is the sole
   // context signal.
-  const headOwnsContext = pageOwnsJobSentence(pathname)
+  const headOwnsContext = pageOwnsJobSentence(pathname) || boundaryLabel !== null
 
   // A path that does not exist has no scope. On the 404 the crumb had nothing to resolve against,
   // so it fell through to the viewer's role name and rendered as a chip labelling the reader

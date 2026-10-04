@@ -6,7 +6,7 @@ import { TasksWorkspace } from '@/components/tasks/tasks-workspace'
 import { liveTasksSearch, searchString, tasksSearchWithLiveQuery, type LiveTasksQueryRef } from '@/components/tasks/tasks-navigation'
 import { useIsSplitWidth } from '@/shell/use-is-split-width'
 import { isTaskPageMode } from '@/components/tasks/task-page-mode'
-import { TaskSurface } from '@/components/tasks/task-surface'
+import { TaskSurface, type TaskLoadOutcome } from '@/components/tasks/task-surface'
 import { useSetBreadcrumbTitle } from '@/shell/breadcrumb-title'
 import { RecordPageChrome } from '@/shell/record-page-chrome'
 import { RouteLeaveGuard } from '@/shell/route-leave-guard'
@@ -105,7 +105,7 @@ export function TasksLayout() {
   // the e2e proves the real-browser direct-open branch). All hooks run above so this
   // branch is a plain conditional return, not a conditional hook.
   if (pageMode && taskId) {
-    return <TaskRecordPage taskId={taskId} liveQueryRef={liveQueryRef} />
+    return <TaskRecordPage key={taskId} taskId={taskId} liveQueryRef={liveQueryRef} />
   }
 
   const drawerOpen = Boolean(taskId) || Boolean(isNew)
@@ -144,6 +144,7 @@ function TaskRecordPage({ taskId, liveQueryRef }: { taskId: string; liveQueryRef
   // never visited (audit F-9).
   const fromHome = (location.state as { from?: string } | null)?.from === 'home'
   const [title, setTitle] = useState<string | null>(null)
+  const [loadOutcome, setLoadOutcome] = useState<TaskLoadOutcome>('loading')
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const dirtyRef = useRef(false)
   const [confirmCollapseOpen, setConfirmCollapseOpen] = useState(false)
@@ -191,7 +192,7 @@ function TaskRecordPage({ taskId, liveQueryRef }: { taskId: string; liveQueryRef
       family="focused-record"
       title={t('tasks.label.task')}
       jobSentence="Review and update this task."
-      state={title ? 'default' : 'loading'}
+      state={pageStateForTaskOutcome(loadOutcome)}
       hideHead
     >
       <RouteLeaveGuard when={hasUnsavedChanges} message={t('tasks.unsaved.copy')} />
@@ -233,6 +234,7 @@ function TaskRecordPage({ taskId, liveQueryRef }: { taskId: string; liveQueryRef
         presentation="page"
         showPanelUtility={false}
         onTitleResolved={setTitle}
+        onLoadOutcome={setLoadOutcome}
         onDirtyChange={handleDirtyChange}
         onCollapseToSplit={collapseToSplit}
         identityHeadingLevel={1}
@@ -240,4 +242,11 @@ function TaskRecordPage({ taskId, liveQueryRef }: { taskId: string; liveQueryRef
       />
     </PageFamilyFrame>
   )
+}
+
+function pageStateForTaskOutcome(outcome: TaskLoadOutcome) {
+  if (outcome === 'ready') return 'default'
+  if (outcome === 'missing') return 'empty'
+  if (outcome === 'error') return 'error'
+  return 'loading'
 }

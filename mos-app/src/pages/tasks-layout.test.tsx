@@ -312,11 +312,12 @@ function renderDataRouterAtState(path: string, state: unknown) {
   ], {
     initialEntries: [{ pathname, search: query ? `?${query}` : '', state }],
   })
-  return render(
+  const view = render(
     <AuthContext.Provider value={authedState}>
       <RouterProvider router={router} />
     </AuthContext.Provider>,
   )
+  return { ...view, router }
 }
 
 describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
@@ -1248,13 +1249,106 @@ describe('TasksLayout — OD-63 canonical page mode', () => {
     expect(screen.queryByRole('button', { name: 'Ask Deputy' })).toBeNull()
   })
 
-  it('Focused record family: the shell shows the loading state before the title resolves', () => {
+  it('Focused record family: main stays busy while the Task read is pending', () => {
     mockGetTask.mockReturnValue(new Promise(() => {}))
     renderAtState('/work/tasks/task-1', { taskSurface: 'page' })
     const main = document.querySelector('main')
     expect(main?.getAttribute('data-page-family')).toBe('focused-record')
     expect(main?.getAttribute('data-page-state')).toBe('loading')
     expect(main?.getAttribute('aria-busy')).toBe('true')
+  })
+
+  it('AC-001 (#1299): a settled missing Task clears main busy and settles the page', async () => {
+    mockGetTask.mockRejectedValue(
+      Object.assign(new Error('getTask failed — JSON object requested, multiple (or no) rows returned'), { code: 'PGRST116' }),
+    )
+    renderAtState('/work/tasks/task-1', { taskSurface: 'page' })
+
+    await screen.findByRole('heading', { level: 1, name: /task not found/i })
+
+    const main = screen.getByRole('main')
+    expect(main).toHaveAttribute('data-page-family', 'focused-record')
+    expect(main).toHaveAttribute('data-page-state', 'empty')
+    expect(main).not.toHaveAttribute('aria-busy')
+  })
+
+  it('AC-001 (#1299): retryable failure settles main, then Retry returns through loading to the record', async () => {
+    let resolveRetry!: (value: Awaited<ReturnType<typeof getTask>>) => void
+    const retryRead = new Promise<Awaited<ReturnType<typeof getTask>>>((resolve) => {
+      resolveRetry = resolve
+    })
+    mockGetTask.mockRejectedValueOnce(new Error('Failed to fetch'))
+    renderAtState('/work/tasks/task-1', { taskSurface: 'page' })
+
+    await screen.findByRole('alert')
+    const main = screen.getByRole('main')
+    expect(main).toHaveAttribute('data-page-state', 'error')
+    expect(main).not.toHaveAttribute('aria-busy')
+
+    mockGetTask.mockReturnValueOnce(retryRead)
+    fireEvent.click(screen.getByRole('button', { name: /try again/i }))
+    expect(main).toHaveAttribute('data-page-state', 'loading')
+    expect(main).toHaveAttribute('aria-busy', 'true')
+
+    await act(async () => {
+      resolveRetry({ task: makeTask({ id: 'task-1', title: 'Recovered task' }), checklist: [], events: [] })
+    })
+    await screen.findByRole('heading', { level: 1, name: 'Recovered task' })
+    expect(main).toHaveAttribute('data-page-state', 'default')
+    expect(main).not.toHaveAttribute('aria-busy')
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+  })
+
+  it('AC-001 (#1299): a replacement Task settles with its own missing outcome and identity', async () => {
+    mockGetTask
+      .mockResolvedValueOnce({ task: makeTask({ id: 'task-1', title: 'Previous task' }), checklist: [], events: [] })
+      .mockRejectedValueOnce(
+        Object.assign(new Error('getTask failed — JSON object requested, multiple (or no) rows returned'), { code: 'PGRST116' }),
+      )
+    const { router } = renderDataRouterAtState('/work/tasks/task-1?view=overdue', { taskSurface: 'page' })
+
+    await screen.findByRole('heading', { level: 1, name: 'Previous task' })
+    await act(async () => {
+      await router.navigate('/work/tasks/task-2?view=overdue', { state: { taskSurface: 'page' } })
+    })
+    await screen.findByRole('heading', { level: 1, name: /task not found/i })
+
+    const main = screen.getByRole('main')
+    expect(main).toHaveAttribute('data-page-state', 'empty')
+    expect(main).not.toHaveAttribute('aria-busy')
+    expect(screen.queryByRole('heading', { level: 1, name: 'Previous task' })).not.toBeInTheDocument()
+    expect(document.title).toBe('Task — Gordi MOS')
+    expect(screen.getByRole('link', { name: /all tasks/i })).toHaveAttribute('href', '/work/tasks?view=overdue')
+  })
+
+  it('AC-001 (#1299): a late read from a replaced Task cannot replace the current record', async () => {
+    let resolvePreviousRead!: (value: Awaited<ReturnType<typeof getTask>>) => void
+    const previousRead = new Promise<Awaited<ReturnType<typeof getTask>>>((resolve) => {
+      resolvePreviousRead = resolve
+    })
+    mockGetTask
+      .mockReturnValueOnce(previousRead)
+      .mockResolvedValueOnce({ task: makeTask({ id: 'task-2', title: 'Current task' }), checklist: [], events: [] })
+    const { router } = renderDataRouterAtState('/work/tasks/task-1', { taskSurface: 'page' })
+
+    await waitFor(() => expect(mockGetTask).toHaveBeenCalledWith('task-1'))
+    await act(async () => {
+      await router.navigate('/work/tasks/task-2', { state: { taskSurface: 'page' } })
+    })
+    await screen.findByRole('heading', { level: 1, name: 'Current task' })
+    await waitFor(() => expect(mockGetTask).toHaveBeenCalledTimes(2))
+
+    await act(async () => {
+      resolvePreviousRead({ task: makeTask({ id: 'task-1', title: 'Late previous task' }), checklist: [], events: [] })
+      await previousRead
+    })
+
+    const main = screen.getByRole('main')
+    expect(main).toHaveAttribute('data-page-state', 'default')
+    expect(main).not.toHaveAttribute('aria-busy')
+    expect(screen.getByRole('heading', { level: 1, name: 'Current task' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { level: 1, name: 'Late previous task' })).not.toBeInTheDocument()
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
   })
 
   it('OD-63: ?view= is preserved on the standalone page (Rule 4)', async () => {
