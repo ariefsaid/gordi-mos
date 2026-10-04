@@ -25,6 +25,8 @@ type SettingsMocks = {
   saveFailure: boolean
   lastSave: Record<string, unknown> | null
   reports: MissingReportRow[]
+  captureKind?: 'RAW' | 'WIP'
+  captureActive?: boolean
 }
 
 const rows = [
@@ -118,10 +120,13 @@ async function mockSettingsApi(page: Page, overrides: Partial<SettingsMocks> = {
       })
       return
     }
+    const responseRows = state.readMode === 'empty' ? [] : rows.map(row => row.item_id === '00000000-0000-0000-0000-00000000a101'
+      ? { ...row, kind: state.captureKind ?? row.kind, is_active: state.captureActive ?? row.is_active }
+      : row)
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(state.readMode === 'empty' ? [] : rows),
+      body: JSON.stringify(responseRows),
     })
   })
   // The read model joins ERP details, but listCafeItemSettings also reads these tables to decide
@@ -253,7 +258,7 @@ test.describe('Café item settings', () => {
   })
 
   test('keeps the missing-item report beside waste controls at phone and wide widths', async ({ page }, testInfo) => {
-    await mockSettingsApi(page)
+    await mockSettingsApi(page, { captureKind: 'RAW', captureActive: true })
     await loginAs(page, BAR_MEMBER.email, BAR_MEMBER.password)
 
     for (const width of [390, 1440, 1920] as const) {
