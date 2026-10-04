@@ -20,6 +20,8 @@ import './cafe-item-settings-page.css'
 
 type ItemDraft = {
   mosName: string
+  kind: '' | 'RAW' | 'WIP'
+  isActive: boolean
   defaultUnitId: string
   shownUnitIds: string[]
 }
@@ -32,6 +34,8 @@ type SaveState = { kind: 'saved' } | { kind: 'error'; message: string } | null
 function initialDraft(item: CafeItemSetting): ItemDraft {
   return {
     mosName: item.mosName,
+    kind: item.kind ?? '',
+    isActive: item.isActive,
     defaultUnitId: item.defaultUnitId ?? '',
     shownUnitIds: item.units.filter(unit => unit.isShown).map(unit => unit.id),
   }
@@ -164,6 +168,8 @@ function CafeItemSettingsPageForViewer() {
       const shown = item.units.filter(unit => unit.isShown).map(unit => unit.id)
       if (
         draft.mosName.trim() !== item.mosName
+        || draft.kind !== (item.kind ?? '')
+        || draft.isActive !== item.isActive
         || draft.defaultUnitId !== (item.defaultUnitId ?? '')
         || !sameIds(draft.shownUnitIds, shown)
       ) result.add(item.id)
@@ -195,12 +201,16 @@ function CafeItemSettingsPageForViewer() {
         stream,
         itemId: item.id,
         mosName,
+        kind: draft.kind || null,
+        isActive: draft.isActive,
         defaultUnitId,
         shownUnitIds,
       })
       setItems(current => current.map(candidate => candidate.id !== item.id ? candidate : {
         ...candidate,
         mosName: mosName === candidate.erpName ? candidate.erpName : mosName,
+        kind: draft.kind || null,
+        isActive: draft.isActive,
         defaultUnitId,
         units: candidate.units.map(unit => ({
           ...unit,
@@ -210,7 +220,7 @@ function CafeItemSettingsPageForViewer() {
       }))
       setDrafts(current => ({
         ...current,
-        [item.id]: { mosName, defaultUnitId: defaultUnitId ?? '', shownUnitIds },
+        [item.id]: { mosName, kind: draft.kind, isActive: draft.isActive, defaultUnitId: defaultUnitId ?? '', shownUnitIds },
       }))
       setSaveStates(current => ({ ...current, [item.id]: { kind: 'saved' } }))
     } catch {
@@ -283,6 +293,8 @@ function CafeItemSettingsPageForViewer() {
                 <tr>
                   <th scope="col">{t('cafe.items.erpName')}</th>
                   <th scope="col">{t('cafe.items.mosName')}</th>
+                  <th scope="col">{t('cafe.items.kind')}</th>
+                  <th scope="col">{t('cafe.items.activeQuestion')}</th>
                   <th scope="col">{t('cafe.items.defaultUnit')}</th>
                   <th scope="col">{t('cafe.items.shownUnits')}</th>
                   {canEdit && <th scope="col"><span className="sr-only">{t('cafe.items.actions')}</span></th>}
@@ -332,6 +344,12 @@ function unitLabel(unit: CafeItemSettingUnit, t: ReturnType<typeof useT>): strin
     : t('cafe.items.unitDisambiguated', { name: unit.name, number: unit.labelOrdinal })
 }
 
+function itemKindLabel(kind: CafeItemSetting['kind'], t: ReturnType<typeof useT>): string {
+  if (kind === 'RAW') return t('cafe.items.kindRaw')
+  if (kind === 'WIP') return t('cafe.items.kindWip')
+  return t('cafe.items.unclassified')
+}
+
 function defaultUnitLabel(item: CafeItemSetting, t: ReturnType<typeof useT>): string {
   const unit = item.units.find(candidate => candidate.id === item.defaultUnitId)
   return unit ? unitLabel(unit, t) : t('cafe.items.noDefault')
@@ -364,9 +382,7 @@ function ItemRow({
     <tr>
       <th scope="row" className="cafe-items__erp-cell">
         <span className="cafe-items__item-name">{item.erpName}</span>
-        <span className="cafe-items__item-meta">
-          {item.category ? `${item.category} · ` : ''}{t(item.kind === 'RAW' ? 'cafe.items.kindRaw' : 'cafe.items.kindWip')}
-        </span>
+        {item.category && <span className="cafe-items__item-meta">{item.category}</span>}
       </th>
       <td data-label={t('cafe.items.mosName')}>
         {canEdit ? (
@@ -386,6 +402,34 @@ function ItemRow({
             {invalidName && <span id={`${nameInputId}-error`} className="cafe-items__name-error" role="alert">{t('cafe.items.nameRequired')}</span>}
           </>
         ) : <span className="cafe-items__mos-value">{item.mosName}</span>}
+      </td>
+      <td data-label={t('cafe.items.kind')}>
+        {canEdit ? (
+          <Select
+            label={t('cafe.items.kind')}
+            aria-label={t('cafe.items.kindFor', { item: item.mosName })}
+            value={draft.kind}
+            disabled={saving}
+            onChange={event => onDraftChange(current => ({ ...current, kind: event.target.value as ItemDraft['kind'] }))}
+          >
+            <option value="">{t('cafe.items.unclassified')}</option>
+            <option value="RAW">{t('cafe.items.kindRaw')}</option>
+            <option value="WIP">{t('cafe.items.kindWip')}</option>
+          </Select>
+        ) : <span className="cafe-items__muted">{itemKindLabel(item.kind, t)}</span>}
+      </td>
+      <td data-label={t('cafe.items.activeQuestion')}>
+        <div className="cafe-items__active-control">
+          {canEdit ? (
+            <Checkbox
+              checked={draft.isActive}
+              disabled={saving}
+              aria-label={t('cafe.items.activeFor', { item: item.mosName })}
+              onChange={isActive => onDraftChange(current => ({ ...current, isActive }))}
+            />
+          ) : null}
+          <span>{t((canEdit ? draft.isActive : item.isActive) ? 'cafe.items.active' : 'cafe.items.inactive')}</span>
+        </div>
       </td>
       <td data-label={t('cafe.items.defaultUnit')}>
         {canEdit ? (
@@ -470,9 +514,7 @@ function ItemCard({
       <header className="cafe-items__card-header">
         <span className="cafe-items__field-label">{t('cafe.items.erpName')}</span>
         <h2 id={`cafe-item-${item.id}`} className="cafe-items__item-name">{item.erpName}</h2>
-        <p className="cafe-items__item-meta">
-          {item.category ? `${item.category} · ` : ''}{t(item.kind === 'RAW' ? 'cafe.items.kindRaw' : 'cafe.items.kindWip')}
-        </p>
+        {item.category && <p className="cafe-items__item-meta">{item.category}</p>}
       </header>
       <div className="cafe-items__card-field">
         {canEdit ? (
@@ -497,6 +539,40 @@ function ItemCard({
             <span className="cafe-items__mos-value">{item.mosName}</span>
           </>
         )}
+      </div>
+      <div className="cafe-items__card-field">
+        {canEdit ? (
+          <Select
+            label={t('cafe.items.kind')}
+            aria-label={t('cafe.items.kindFor', { item: item.mosName })}
+            value={draft.kind}
+            disabled={saving}
+            onChange={event => onDraftChange(current => ({ ...current, kind: event.target.value as ItemDraft['kind'] }))}
+          >
+            <option value="">{t('cafe.items.unclassified')}</option>
+            <option value="RAW">{t('cafe.items.kindRaw')}</option>
+            <option value="WIP">{t('cafe.items.kindWip')}</option>
+          </Select>
+        ) : (
+          <>
+            <span className="cafe-items__field-label">{t('cafe.items.kind')}</span>
+            <span className="cafe-items__muted">{itemKindLabel(item.kind, t)}</span>
+          </>
+        )}
+      </div>
+      <div className="cafe-items__card-field">
+        <span className="cafe-items__field-label">{t('cafe.items.activeQuestion')}</span>
+        <div className="cafe-items__active-control">
+          {canEdit ? (
+            <Checkbox
+              checked={draft.isActive}
+              disabled={saving}
+              aria-label={t('cafe.items.activeFor', { item: item.mosName })}
+              onChange={isActive => onDraftChange(current => ({ ...current, isActive }))}
+            />
+          ) : null}
+          <span>{t((canEdit ? draft.isActive : item.isActive) ? 'cafe.items.active' : 'cafe.items.inactive')}</span>
+        </div>
       </div>
       <div className="cafe-items__card-field">
         {canEdit && item.units.length > 0 ? (

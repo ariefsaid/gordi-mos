@@ -1,8 +1,10 @@
 // #1242 — Log uses a stream's shown ERP details through approval and into the outbox.
 // Local fixture only: synthetic ERP product/detail identities, seeded personas, and self-cleaning rows.
 
+import { readFileSync } from 'node:fs'
 import { mkdir } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { expect, test, type Page, type TestInfo } from '@playwright/test'
 import { VIEWER, MANAGER } from './fixtures/users'
 import { assertLocalFixtureDatabase } from './fixtures/cleanup'
@@ -48,8 +50,21 @@ function batchLiteral(value: string): string {
   return `'${value}'`
 }
 
-const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? 'http://127.0.0.1:55321'
-const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
+function readEnvFile(): Record<string, string> {
+  try {
+    return Object.fromEntries(readFileSync(fileURLToPath(new URL('../.env.e2e', import.meta.url)), 'utf8')
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line && !line.startsWith('#') && line.includes('='))
+      .map(line => [line.slice(0, line.indexOf('=')).trim(), line.slice(line.indexOf('=') + 1).trim()]))
+  } catch {
+    return {}
+  }
+}
+
+const e2eEnv = readEnvFile()
+const SUPABASE_URL = e2eEnv.VITE_SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? 'http://127.0.0.1:44321'
+const SERVICE_KEY = e2eEnv.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
 
 async function execSqlRead<T = Record<string, unknown>>(query: string): Promise<T[]> {
   if (!SERVICE_KEY) throw new Error('[#1242] local fixture service key is not set')
@@ -134,7 +149,7 @@ test.describe('Cafe unit wiring: shown ERP detail survives Café log approval', 
          esb_product_id, kind, reference_source, erp_category_type_name, has_active_bom_output)
       VALUES (${uuidLiteral(ITEM_ID)}, ${uuidLiteral(ORG)}, ${sqlText(ERP_NAME)}, 'Kitchen', true,
               'BOM-E2E-1242', ${sqlText(DEFAULT_DETAIL_ID)}, ${sqlText(PRODUCT_ID)},
-              'WIP', 'erp_catalog', 'Inventory', true);
+              NULL, 'erp_catalog', 'Inventory', true);
       INSERT INTO ops.item_units
         (id, org_id, wip_item_id, unit_name, esb_product_detail_id, esb_product_id,
          is_default, is_transferable, confirmed_at, source_active, erp_is_stock)
@@ -147,10 +162,6 @@ test.describe('Cafe unit wiring: shown ERP detail survives Café log approval', 
          false, true, now(), true, false);
       INSERT INTO ops.stream_items (org_id, branch_id, activity, wip_item_id, source)
       VALUES (${uuidLiteral(ORG)}, ${uuidLiteral(STREAM_BRANCH_ID)}, '${STREAM_ACTIVITY}', ${uuidLiteral(ITEM_ID)}, 'esb');
-      INSERT INTO ops.kitchen_plans
-        (id, org_id, log_date, wip_item_id, branch_id, activity, action, destination_branch_id, qty_porsi, plan_by)
-      VALUES (${uuidLiteral(PLAN_ID)}, ${uuidLiteral(ORG)}, '${today}', ${uuidLiteral(ITEM_ID)},
-              ${uuidLiteral(STREAM_BRANCH_ID)}, '${STREAM_ACTIVITY}', 'produce', NULL, ${PLAN_QTY}, ${uuidLiteral(MANAGER.personId)});
     `)
     await execSql(`
       BEGIN;
@@ -158,9 +169,16 @@ test.describe('Cafe unit wiring: shown ERP detail survives Café log approval', 
       SET LOCAL request.jwt.claims = '{"org_id":"${ORG}","person_id":"${MANAGER.personId}","access_roles":["admin"]}';
       SELECT ops.save_cafe_item_settings(
         ${uuidLiteral(STREAM_BRANCH_ID)}, '${STREAM_ACTIVITY}', ${uuidLiteral(ITEM_ID)}, ${sqlText(MOS_NAME)},
-        ${uuidLiteral(DEFAULT_UNIT_ID)}, ARRAY[${uuidLiteral(DEFAULT_UNIT_ID)}, ${uuidLiteral(ALT_UNIT_ID)}]::uuid[]
+        ${uuidLiteral(DEFAULT_UNIT_ID)}, ARRAY[${uuidLiteral(DEFAULT_UNIT_ID)}, ${uuidLiteral(ALT_UNIT_ID)}]::uuid[],
+        'WIP', true
       );
       COMMIT;
+    `)
+    await execSql(`
+      INSERT INTO ops.kitchen_plans
+        (id, org_id, log_date, wip_item_id, branch_id, activity, action, destination_branch_id, qty_porsi, plan_by)
+      VALUES (${uuidLiteral(PLAN_ID)}, ${uuidLiteral(ORG)}, '${today}', ${uuidLiteral(ITEM_ID)},
+              ${uuidLiteral(STREAM_BRANCH_ID)}, '${STREAM_ACTIVITY}', 'produce', NULL, ${PLAN_QTY}, ${uuidLiteral(MANAGER.personId)});
     `)
   })
 
@@ -248,5 +266,27 @@ test.describe('Cafe unit wiring: shown ERP detail survives Café log approval', 
     await page.setViewportSize({ width: 1440, height: 960 })
     await expect(page.getByText(MOS_NAME, { exact: true })).toBeVisible()
     await capture(page, testInfo, 'plan', 1440)
+
+    await execSql(`
+      BEGIN;
+      SET LOCAL ROLE authenticated;
+      SET LOCAL request.jwt.claims = '{"org_id":"${ORG}","person_id":"${MANAGER.personId}","access_roles":["admin"]}';
+      SELECT ops.save_cafe_item_settings(
+        ${uuidLiteral(STREAM_BRANCH_ID)}, '${STREAM_ACTIVITY}', ${uuidLiteral(ITEM_ID)}, ${sqlText(MOS_NAME)},
+        ${uuidLiteral(DEFAULT_UNIT_ID)}, ARRAY[${uuidLiteral(DEFAULT_UNIT_ID)}, ${uuidLiteral(ALT_UNIT_ID)}]::uuid[],
+        'RAW', true
+      );
+      COMMIT;
+    `)
+    await page.goto('cafe/transfer')
+    await page.waitForURL(/\/cafe\/transfer$/)
+    await stateOnFixtureStream(page)
+    for (const width of [390, 1440, 1920] as const) {
+      await page.setViewportSize({ width, height: 960 })
+      await page.getByPlaceholder('Find an item').fill('E2E MOS')
+      const rawItem = page.getByText(`RAW - ${MOS_NAME}`, { exact: true })
+      await expect(rawItem).toBeInViewport()
+      await capture(page, testInfo, 'transfer', width)
+    }
   })
 })

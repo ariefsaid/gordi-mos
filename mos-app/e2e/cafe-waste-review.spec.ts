@@ -74,7 +74,7 @@ async function seedFixture() {
     ) VALUES (
       '${ITEM_ID}', '${ORG}', '${ITEM_NAME}', 'Drinks', true,
       'BOM-E2E-WASTE-1241', 'PD-E2E-WASTE-1241', 'P-E2E-WASTE-1241',
-      'WIP', 'erp_catalog', 'Inventory', true
+      NULL, 'erp_catalog', 'Inventory', true
     );
 
     INSERT INTO ops.item_units (
@@ -89,9 +89,9 @@ async function seedFixture() {
     VALUES ('${ORG}', ${BRANCH_SQL}, '${BAR_STREAM.activity}', '${ITEM_ID}', 'manual');
 
     INSERT INTO ops.cafe_item_settings (
-      id, org_id, branch_id, activity, wip_item_id, mos_name
+      id, org_id, branch_id, activity, wip_item_id, mos_name, kind, is_active
     ) VALUES (
-      '${SETTING_ID}', '${ORG}', ${BRANCH_SQL}, '${BAR_STREAM.activity}', '${ITEM_ID}', '${ITEM_NAME}'
+      '${SETTING_ID}', '${ORG}', ${BRANCH_SQL}, '${BAR_STREAM.activity}', '${ITEM_ID}', '${ITEM_NAME}', 'WIP', true
     );
 
     INSERT INTO ops.cafe_item_setting_units (id, org_id, cafe_item_setting_id, item_unit_id)

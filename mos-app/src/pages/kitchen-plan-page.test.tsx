@@ -430,6 +430,7 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
       mosName: 'House Chicken',
       category: 'Main',
       kind: 'WIP',
+      isActive: true,
       defaultUnitId: 'unit-kg',
       units: [
         { id: 'unit-kg', name: 'kg', isShown: true, isDefault: true, labelOrdinal: null, labelCount: 1 },
@@ -835,6 +836,7 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
       mosName: 'House Chicken',
       category: 'Main',
       kind: 'WIP',
+      isActive: true,
       defaultUnitId: 'unit-porsi',
       units: [
         { id: 'unit-porsi', name: 'porsi', isShown: true, isDefault: true, labelOrdinal: null, labelCount: 1 },

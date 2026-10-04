@@ -76,7 +76,7 @@ const VIEWER: AuthState = {
 
 const ITEM_SETTINGS: CafeItemSetting[] = [
   {
-    id: 'wip-1', erpName: 'ERP Oat Latte', mosName: 'Oat Latte', category: 'Drinks', kind: 'WIP',
+    id: 'wip-1', erpName: 'ERP Oat Latte', mosName: 'Oat Latte', category: 'Drinks', kind: 'WIP', isActive: true,
     defaultUnitId: 'unit-cup',
     units: [
       { id: 'unit-cup', name: 'cup', isShown: true, isDefault: true, labelOrdinal: null, labelCount: 1 },
@@ -84,7 +84,7 @@ const ITEM_SETTINGS: CafeItemSetting[] = [
     ],
   },
   {
-    id: 'raw-1', erpName: 'ERP Oat milk', mosName: 'Oat milk', category: 'Dairy', kind: 'RAW',
+    id: 'raw-1', erpName: 'ERP Oat milk', mosName: 'Oat milk', category: 'Dairy', kind: 'RAW', isActive: true,
     defaultUnitId: 'unit-litre',
     units: [{ id: 'unit-litre', name: 'litre', isShown: true, isDefault: true, labelOrdinal: null, labelCount: 1 }],
   },

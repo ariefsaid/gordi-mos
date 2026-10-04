@@ -364,7 +364,7 @@ describe('Empty state — no WIP items (FR-011)', () => {
       expect(screen.getByText('No items for Rumah Rames · Kitchen')).toBeInTheDocument()
     })
     expect(screen.getByText(/an ops lead or admin can add them/i)).toBeInTheDocument()
-    expect(mockListCaptureFormItems).toHaveBeenCalledWith(DEFAULT_STREAM)
+    expect(mockListCaptureFormItems).toHaveBeenCalledWith(DEFAULT_STREAM, 'produce')
     expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^submit/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
@@ -1079,6 +1079,7 @@ describe('issue 222: capture offers the stream\'s own item list', () => {
     expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
     expect(mockListCaptureFormItems).toHaveBeenLastCalledWith(
       expect.objectContaining({ branch: BRANCH_GORDI_HQ, activity: 'kitchen' }),
+      'produce',
     )
   })
 
@@ -1502,6 +1503,14 @@ describe('OD-K-5: category filter narrows rows', () => {
     await renderPage(VIEWER_MEMBER, `${appUrl('/cafe')}?category=Main`)
     await waitFor(() => screen.getByText('Ayam Bakar'))
     expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
+  })
+
+  it('ignores a stale RAW filter query on production, where RAW items are unavailable', async () => {
+    setDesktopMatchMedia(true)
+    await renderPage(VIEWER_MEMBER, `${appUrl('/cafe')}?kind=RAW`)
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+    expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: /kind/i })).toHaveTextContent('All')
   })
 })
 

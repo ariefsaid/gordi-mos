@@ -66,7 +66,7 @@ import {
   type DataTableColumn,
 } from '@/components/dashboard/data-table'
 import {
-  KITCHEN_KIND_FILTER_OPTIONS,
+  WIP_KIND_FILTER_OPTIONS,
   kitchenDataTableGroups,
   toKitchenListRows,
   useKitchenItemTable,
@@ -137,8 +137,16 @@ type PlanItem = WipItemOption & {
 }
 
 function withStreamSettings(items: WipItemOption[], settings: CafeItemSetting[]): PlanItem[] {
-  const byId = new Map(settings.filter(item => item.kind === 'WIP').map(item => [item.id, item]))
-  return items.map(item => {
+  const eligibleSettings = settings.filter(item => item.kind === 'WIP' && item.isActive)
+  const byId = new Map(eligibleSettings.map(item => [item.id, item]))
+  const manualIds = new Set(items.map(item => item.id))
+  const streamWipItems = [
+    ...items,
+    ...eligibleSettings.filter(item => !manualIds.has(item.id)).map(item => ({
+      id: item.id, name: item.mosName, category: item.category,
+    })),
+  ]
+  return streamWipItems.map(item => {
     const setting = byId.get(item.id)
     const defaultUnit = setting?.units.find(unit => unit.id === setting.defaultUnitId)
     return {
@@ -641,7 +649,7 @@ function PlanEditor() {
           <KitchenToolbar
             search={search}
             onSearchChange={setSearch}
-            kinds={KITCHEN_KIND_FILTER_OPTIONS}
+            kinds={WIP_KIND_FILTER_OPTIONS}
             kind={kindFilter as KitchenItemKindFilter}
             kindId="cafe-plan-kind"
             onKindChange={setKindFilter}
@@ -904,7 +912,7 @@ function PesananView() {
           <KitchenToolbar
             search={search}
             onSearchChange={setSearch}
-            kinds={KITCHEN_KIND_FILTER_OPTIONS}
+            kinds={WIP_KIND_FILTER_OPTIONS}
             kind={kindFilter as KitchenItemKindFilter}
             kindId="cafe-plan-kind"
             onKindChange={setKindFilter}
