@@ -488,6 +488,26 @@ describe('LoginPage — credentials form', () => {
         screen.getByText('If an account exists for that address, a reset link is on its way.'),
       ).toBeInTheDocument()
     })
+    expect(mockResetPassword).toHaveBeenCalledWith('user@example.test', {
+      redirectTo: new URL(appUrl('/recovery'), window.location.origin).href,
+    })
+  })
+
+  it('a rejected reset request shows the same neutral confirmation and keeps Back behavior', async () => {
+    mockResetPassword.mockRejectedValue(new Error('network detail must stay private'))
+
+    const user = userEvent.setup()
+    render(<LoginPage />)
+
+    await user.type(screen.getByLabelText('Email'), 'user@example.test')
+    await user.click(screen.getByRole('button', { name: /forgot password/i }))
+
+    expect(
+      await screen.findByText('If an account exists for that address, a reset link is on its way.'),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(document.body.textContent).not.toContain('network detail must stay private')
+    expect(screen.getByRole('button', { name: /back to sign in/i })).toBeInTheDocument()
   })
 
   // #137, as corrected by the PR's adversarial security review. The first attempt at this fix
@@ -782,6 +802,28 @@ describe('LoginPage — email client-validation (fix-2)', () => {
       expect(screen.getByText('Enter a valid email address.')).toBeInTheDocument()
     })
     expect(vi.mocked((await import('@/lib/supabase')).supabase.auth.resetPasswordForEmail)).not.toHaveBeenCalled()
+  })
+
+  it('malformed forgot-password email keeps its draft and shows localized correction guidance', async () => {
+    const user = userEvent.setup()
+    render(
+      <I18nProvider initialLocale="id">
+        <LoginPage />
+      </I18nProvider>,
+    )
+
+    const email = screen.getByLabelText('Email')
+    await user.type(email, 'not-an-email')
+    await user.click(screen.getByRole('button', { name: /forgot password/i }))
+
+    expect(email).toHaveValue('not-an-email')
+    expect(email).toHaveAttribute('aria-invalid', 'true')
+    const errorId = email.getAttribute('aria-describedby')
+    expect(errorId).toBeTruthy()
+    expect(document.getElementById(errorId!)).toHaveTextContent('Masukkan alamat email yang valid.')
+    expect(mockResetPassword).not.toHaveBeenCalled()
+    expect(mockSignIn).not.toHaveBeenCalled()
+    expect(mockSignInWithOtp).not.toHaveBeenCalled()
   })
 
   it('invalid email field has aria-describedby pointing to the error message', async () => {

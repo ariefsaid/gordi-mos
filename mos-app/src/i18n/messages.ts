@@ -2033,6 +2033,7 @@ export const messages = {
     // Recovery expired-link card (#799) — all new user-facing strings flow through the catalog.
     'auth.recovery.expired': 'That link has expired — request a new one.',
     'auth.recovery.emailLabel': 'Email',
+    'auth.recovery.emailInvalid': 'Enter a valid email address.',
     'auth.recovery.emailPlaceholder': 'you@example.test',
     'auth.recovery.requestNewLink': 'Request a new link',
     'auth.recovery.sending': 'Sending…',
@@ -3958,6 +3959,7 @@ export const messages = {
     // Kartu kedaluwarsa recovery (#799)
     'auth.recovery.expired': 'Tautan sudah kedaluwarsa — minta yang baru.',
     'auth.recovery.emailLabel': 'Email',
+    'auth.recovery.emailInvalid': 'Masukkan alamat email yang valid.',
     'auth.recovery.emailPlaceholder': 'kamu@example.test',
     'auth.recovery.requestNewLink': 'Minta tautan baru',
     'auth.recovery.sending': 'Mengirim…',
