@@ -58,16 +58,14 @@
   color: var(--muted-foreground);
   font-size: var(--font-size-label);
 }
-.kl-capture-summary__lines,
-.kl-capture-summary__totals ul {
+.kl-capture-summary__lines {
   display: grid;
   gap: 8px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
-.kl-capture-summary__lines li,
-.kl-capture-summary__totals li {
+.kl-capture-summary__lines li {
   display: flex;
   justify-content: space-between;
   gap: 12px;
@@ -75,11 +73,7 @@
   font-size: var(--font-size-control);
 }
 .kl-capture-summary__lines li > span { min-width: 0; overflow-wrap: anywhere; }
-.kl-capture-summary__lines strong,
-.kl-capture-summary__totals strong { flex: 0 0 auto; text-align: right; }
-.kl-capture-summary__totals { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--border); }
-.kl-capture-summary__totals li { color: var(--muted-foreground); }
-.kl-capture-summary__totals strong { color: var(--foreground); }
+.kl-capture-summary__lines strong { flex: 0 0 auto; text-align: right; }
 .kl-capture-summary__actions {
   position: sticky;
   bottom: -16px;
@@ -117,6 +111,18 @@
   border-radius: 0 0 var(--radius-sm) var(--radius-sm);
   background: var(--secondary);
 }
+.kl-empty-summary { margin-bottom: 16px; }
+.kl-inline-summary .msr,
+.kl-context-summary .msr,
+.kl-empty-summary .msr { margin-bottom: 4px; }
+.kl-summary-scope,
+.kl-summary-unavailable {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  line-height: 1.25;
+}
+.kl-summary-unavailable { margin-top: 4px; }
 
 /* ── log date chip in the PageHead meta slot ── */
 .kl-date {
@@ -427,10 +433,9 @@
   .page-frame--v3:has(.kl-form) { scroll-padding-bottom: calc(140px + var(--tabbar-h, 60px)); }
 }
 
-/* ── Row status (v4) ───────────────────────────────────────────────────────────
-   Was a filled Pill on every row; at shift start that painted the whole column
-   solid red. Same tone semantics (kitchenStatus is unchanged), rendered as text
-   so the steppers stay the loudest thing in the row. Token colours only. */
+/* ── Neutral row states ───────────────────────────────────────────────────────
+   Draft and Logged describe whether a quantity is staged or persisted; they carry
+   no quantity-compliance meaning. Token colors only. */
 .kl-status {
   font-size: var(--font-size-label);
   font-weight: 500;
@@ -440,6 +445,7 @@
 .kl-status--warning     { color: var(--warning-foreground, var(--foreground)); }
 .kl-status--success     { color: var(--status-won-text); }
 .kl-status--neutral     { color: var(--muted-foreground); }
+.kl-actual-units { display: inline-flex; flex-direction: column; gap: 2px; }
 
 /* ── Phone capture row (v4) ────────────────────────────────────────────────────
    Replaces the generic five-field DataTable card on the log surface. Identity
@@ -487,6 +493,19 @@
   font-size: var(--font-size-label);
   color: var(--muted-foreground);
 }
+.kl-card-plan,
+.kl-card-stock { display: inline-flex; align-items: baseline; gap: 4px; }
+.kl-unitless-value {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  min-width: 0;
+}
+.kl-unitless-value strong { color: var(--foreground); font-weight: 600; }
+.kl-unitless-value small { color: var(--muted-foreground); font-size: var(--font-size-label); line-height: 1.2; }
+.kl-card-plan .kl-unitless-value,
+.kl-card-stock .kl-unitless-value { align-items: flex-start; }
 /* The compact card owns its own padding rhythm; the stepper must not re-box itself.
    layout/distill pass: the box-stripping used to also be redeclared here via a
    `.dt-card--compact .kls-card` descendant selector reaching into WipItemStepper's own

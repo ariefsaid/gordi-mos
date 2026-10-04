@@ -1,133 +1,74 @@
-// computeKitchenKpis — pure derived-KPI selector (plan §5, parity-critical P-1).
-// No React, no DB. Reads only line.plan_qty + line.qty_porsi for the current action_type.
-// Worked example = mock C's numbers (plan §5.1): 180 / 140 / 175 / 35 / 78% / 4 / 46 / 6.
+// Submitted capture summary: count distinct planned/logged items because recorded plan and
+// actual unit identities do not establish comparable quantities. No React or DB.
 
 import { describe, it, expect } from 'vitest'
 import { computeKitchenKpis } from './kitchen-kpis'
-import type { KitchenLogLine } from '@/lib/db/kitchen-logs.types'
+import type { ActualsMap, PlanMap } from '@/lib/db/kitchen-logs.types'
 
-function line(
-  wip_item_id: string,
-  qty_porsi: number,
-  plan_qty: number,
-): KitchenLogLine {
-  return {
-    wip_item_id,
-    item_unit_id: 'u-porsi',
-    qty_porsi,
-    notes: '',
-    plan_qty,
-    stok: 0,
-    tersedia: 0,
-    dirty: qty_porsi > 0,
-    error: '',
-    capError: '',
-  }
-}
-
-// The mock-C/A fixture for Production (plan §5.1):
-// 6 planned: Nasi 48/50, Risoles 36/30, Ayam Gulai 25/25, Pisang 22/40, Sayur 9/15,
-// Ayam Goreng Lengkuas 0/20; 3 off-plan logged: Ayam Suwir 12, Bakwan 15, Sambal 8.
-const MOCK_C_LINES: Record<string, KitchenLogLine> = {
-  nasi: line('nasi', 48, 50),
-  risoles: line('risoles', 36, 30),
-  gulai: line('gulai', 25, 25),
-  pisang: line('pisang', 22, 40),
-  sayur: line('sayur', 9, 15),
-  goreng: line('goreng', 0, 20),
-  suwir: line('suwir', 12, 0),
-  bakwan: line('bakwan', 15, 0),
-  sambal: line('sambal', 8, 0),
-}
-
-describe('computeKitchenKpis — mock-C fixture (plan §5.1)', () => {
-  const kpis = computeKitchenKpis(MOCK_C_LINES)
-
-  it('plannedTotal = Σ plan_qty over planned items = 180', () => {
-    expect(kpis.plannedTotal).toBe(180)
-  })
-
-  it('madeOfPlan = Σ qty_porsi over planned items (uncapped) = 140', () => {
-    expect(kpis.madeOfPlan).toBe(140)
-  })
-
-  it('madeSoFar = Σ qty_porsi over ALL staged (qty>0) = 175', () => {
-    expect(kpis.madeSoFar).toBe(175)
-  })
-
-  it('madeOffPlan = madeSoFar − madeOfPlan = 35', () => {
-    expect(kpis.madeOffPlan).toBe(35)
-  })
-
-  it('pctComplete = round(madeOfPlan/plannedTotal*100) = 78', () => {
-    expect(kpis.pctComplete).toBe(78)
-  })
-
-  it('itemsRemaining = count of planned items where qty < plan = 4', () => {
-    expect(kpis.itemsRemaining).toBe(4)
-  })
-
-  it('unitsShort = Σ max(plan−qty, 0) over planned = 46', () => {
-    expect(kpis.unitsShort).toBe(46)
-  })
-
-  it('plannedDishCount = count of planned items = 6', () => {
-    expect(kpis.plannedDishCount).toBe(6)
-  })
+const portion = (qty_porsi: number) => ({
+  key: 'unit:portion-id', item_unit_id: 'portion-id', unit_name: 'portion', qty_porsi,
+})
+const unknown = (key: string, qty_porsi: number) => ({
+  key, item_unit_id: null, unit_name: null, qty_porsi,
 })
 
-describe('computeKitchenKpis — edge cases', () => {
-  it('no plan for this action_type (plannedTotal===0): pctComplete=0, madeSoFar counts off-plan', () => {
-    const onlyOffPlan: Record<string, KitchenLogLine> = {
-      a: line('a', 5, 0),
-      b: line('b', 0, 0),
+describe('computeKitchenKpis — distinct item membership, not quantity arithmetic', () => {
+  it('counts positive plans and positive actuals once per item, independent of offered items or unit labels', () => {
+    const plans: PlanMap = {
+      w1: { produce: 10, 'transfer:other-destination': 10 },
+      w2: { produce: 0 },
+      w3: { produce: 2 },
+      w4: { produce: -1 },
     }
-    const k = computeKitchenKpis(onlyOffPlan)
-    expect(k.plannedTotal).toBe(0)
-    expect(k.madeOfPlan).toBe(0)
-    expect(k.madeSoFar).toBe(5)
-    expect(k.madeOffPlan).toBe(5)
-    expect(k.pctComplete).toBe(0) // never divides by zero
-    expect(k.itemsRemaining).toBe(0)
-    expect(k.unitsShort).toBe(0)
-    expect(k.plannedDishCount).toBe(0)
+    const actuals: ActualsMap = {
+      // Repeated submitted rows, including two unresolved historic rows, still mean one item.
+      w2: { produce: [portion(1), portion(2)] },
+      w4: { produce: [unknown('unknown:log-a', 1), unknown('unknown:log-b', 4)] },
+      // This item is no longer offered by the current form list, but its submitted record counts.
+      removed: { produce: [portion(8)] },
+      // Other destinations and movements are outside the selected summary.
+      w1: {
+        produce: [portion(3), { ...portion(300), key: 'unit:litre-id', item_unit_id: 'litre-id', unit_name: 'litre' }],
+        'transfer:other-destination': [portion(7)],
+      },
+    }
+
+    expect(computeKitchenKpis(plans, actuals, 'produce')).toEqual({
+      plannedItemCount: 2,
+      loggedItemCount: 4,
+      offPlanItemCount: 3,
+    })
   })
 
-  it('zero entered (all qty 0): madeSoFar=0, itemsRemaining=count of planned, pctComplete=0', () => {
-    const zero: Record<string, KitchenLogLine> = {
-      a: line('a', 0, 10),
-      b: line('b', 0, 5),
+  it('scopes transfer counts to the exact destination and treats repeated/no-plan actuals as item membership', () => {
+    const plans: PlanMap = {
+      plannedHere: { 'transfer:dest-a': 12 },
+      plannedElsewhere: { 'transfer:dest-b': 4 },
     }
-    const k = computeKitchenKpis(zero)
-    expect(k.madeSoFar).toBe(0)
-    expect(k.madeOfPlan).toBe(0)
-    expect(k.plannedTotal).toBe(15)
-    expect(k.itemsRemaining).toBe(2)
-    expect(k.unitsShort).toBe(15)
-    expect(k.pctComplete).toBe(0)
+    const actuals: ActualsMap = {
+      plannedHere: { 'transfer:dest-a': [portion(1), portion(2)] },
+      plannedElsewhere: { 'transfer:dest-b': [portion(5)] },
+      offPlanHere: { 'transfer:dest-a': [unknown('unknown:one', 1), unknown('unknown:two', 9)] },
+      productionOnly: { produce: [portion(3)] },
+    }
+
+    expect(computeKitchenKpis(plans, actuals, 'transfer:dest-a')).toEqual({
+      plannedItemCount: 1,
+      loggedItemCount: 2,
+      offPlanItemCount: 1,
+    })
   })
 
-  it('over-plan: pctComplete can exceed 100, itemsRemaining=0', () => {
-    const over: Record<string, KitchenLogLine> = {
-      a: line('a', 12, 10),
-    }
-    const k = computeKitchenKpis(over)
-    expect(k.pctComplete).toBe(120)
-    expect(k.itemsRemaining).toBe(0)
-    expect(k.unitsShort).toBe(0)
-  })
-
-  it('empty lines map → all zeros', () => {
-    const k = computeKitchenKpis({})
-    expect(k).toEqual({
-      plannedTotal: 0,
-      madeOfPlan: 0,
-      madeSoFar: 0,
-      madeOffPlan: 0,
-      pctComplete: 0,
-      itemsRemaining: 0,
-      unitsShort: 0,
-      plannedDishCount: 0,
+  it('zero-only actuals do not count as logged and an empty scope returns zeros', () => {
+    expect(computeKitchenKpis(
+      { plan: { produce: 1 } },
+      { plan: { produce: [portion(0)] } },
+      'produce',
+    )).toEqual({ plannedItemCount: 1, loggedItemCount: 0, offPlanItemCount: 0 })
+    expect(computeKitchenKpis({}, {}, 'produce')).toEqual({
+      plannedItemCount: 0,
+      loggedItemCount: 0,
+      offPlanItemCount: 0,
     })
   })
 })

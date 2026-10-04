@@ -64,6 +64,7 @@ interface Recorder {
   neqs: Array<[string, unknown]>
   iss: Array<[string, unknown]>
   nots: Array<[string, string, unknown]>
+  ins: Array<[string, unknown[]]>
   inserts: unknown[]
   updates: unknown[]
   orders: Array<[string, unknown]>
@@ -112,6 +113,10 @@ function makeSchema(
       rec.nots.push([c, op, v])
       return builder
     })
+    builder.in = vi.fn((c: string, values: unknown[]) => {
+      rec.ins.push([c, values])
+      return builder
+    })
     builder.order = vi.fn((c: string, o: unknown) => {
       rec.orders.push([c, o])
       return builder
@@ -138,7 +143,7 @@ function makeSchema(
 function freshRec(): Recorder {
   return {
     fromTables: [], selects: [], eqs: [], neqs: [], iss: [], nots: [],
-    inserts: [], updates: [], orders: [], rpcCalls: [],
+    inserts: [], updates: [], orders: [], rpcCalls: [], ins: [],
   }
 }
 
@@ -1271,7 +1276,7 @@ describe('listStreamPairs + streamCatalogFrom — the enumerable stream catalog 
 })
 
 describe('fetchActualsMap — the already-logged actuals, stream-scoped (FR-014, AC-006)', () => {
-  it('sums the date/stream’s non-Rejected logs per (item, movement)', async () => {
+  it('preserves recorded unit identities, aggregating only the same known unit and keeping each unknown row separate', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(
       makeSchema(
@@ -1279,20 +1284,41 @@ describe('fetchActualsMap — the already-logged actuals, stream-scoped (FR-014,
           kitchen_logs: [
             {
               data: [
-                { wip_item_id: 'w1', action: 'produce', destination_branch_id: null, qty_porsi: 3 },
-                { wip_item_id: 'w1', action: 'produce', destination_branch_id: null, qty_porsi: 1 },
-                { wip_item_id: 'w1', action: 'transfer', destination_branch_id: RADIANT_ID, qty_porsi: 2 },
+                { id: 'log-1', wip_item_id: 'w1', action: 'produce', destination_branch_id: null, item_unit_id: 'u-batch-1', qty_porsi: 2 },
+                { id: 'log-2', wip_item_id: 'w1', action: 'produce', destination_branch_id: null, item_unit_id: 'u-batch-1', qty_porsi: 1 },
+                { id: 'log-3', wip_item_id: 'w1', action: 'produce', destination_branch_id: null, item_unit_id: 'u-batch-2', qty_porsi: 500 },
+                { id: 'log-4', wip_item_id: 'w1', action: 'produce', destination_branch_id: null, item_unit_id: null, qty_porsi: 7 },
+                { id: 'log-5', wip_item_id: 'w1', action: 'produce', destination_branch_id: null, item_unit_id: null, qty_porsi: 9 },
+                { id: 'log-6', wip_item_id: 'w1', action: 'transfer', destination_branch_id: RADIANT_ID, item_unit_id: 'u-batch-1', qty_porsi: 4 },
               ],
               error: null,
             },
           ],
+          item_units: [{
+            data: [
+              { id: 'u-batch-1', unit_name: 'batch' },
+              { id: 'u-batch-2', unit_name: 'batch' },
+            ],
+            error: null,
+          }],
         },
         rec,
       ) as never,
     )
     const map = await fetchActualsMap('2026-08-08', STREAM)
-    expect(map['w1']['produce']).toBe(4) // 3 + 1 — a running sum, not the last row
-    expect(map['w1'][`transfer:${RADIANT_ID}`]).toBe(2)
+    expect(map['w1']['produce']).toEqual([
+      { key: 'unit:u-batch-1', item_unit_id: 'u-batch-1', unit_name: 'batch', qty_porsi: 3 },
+      { key: 'unit:u-batch-2', item_unit_id: 'u-batch-2', unit_name: 'batch', qty_porsi: 500 },
+      { key: 'unknown:log-4', item_unit_id: null, unit_name: null, qty_porsi: 7 },
+      { key: 'unknown:log-5', item_unit_id: null, unit_name: null, qty_porsi: 9 },
+    ])
+    expect(map['w1'][`transfer:${RADIANT_ID}`]).toEqual([
+      { key: 'unit:u-batch-1', item_unit_id: 'u-batch-1', unit_name: 'batch', qty_porsi: 4 },
+    ])
+    expect(rec.selects).toContain('id,wip_item_id,action,destination_branch_id,item_unit_id,qty_porsi')
+    expect(rec.selects).toContain('id,unit_name')
+    expect(rec.ins).toContainEqual(['id', ['u-batch-1', 'u-batch-2']])
+    expect(rec.fromTables).toContain('item_units')
     // Scoped to the SELECTED stream and date; Rejected rows excluded.
     expect(rec.eqs).toContainEqual(['log_date', '2026-08-08'])
     expect(rec.eqs).toContainEqual(['branch_id', STREAM.branch.id])
@@ -1317,5 +1343,24 @@ describe('fetchActualsMap — the already-logged actuals, stream-scoped (FR-014,
       ) as never,
     )
     await expect(fetchActualsMap('2026-08-08', STREAM)).rejects.toThrow('fetchActualsMap failed')
+  })
+
+  it('keeps a known unit ID distinct when its archived or inactive display metadata cannot be resolved', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema({
+        kitchen_logs: [{
+          data: [{ id: 'log-unknown-unit', wip_item_id: 'w2', action: 'produce', destination_branch_id: null, item_unit_id: 'u-archived', qty_porsi: 3 }],
+          error: null,
+        }],
+        item_units: [{ data: [], error: null }],
+      }, rec) as never,
+    )
+
+    await expect(fetchActualsMap('2026-08-08', STREAM)).resolves.toEqual({
+      w2: {
+        produce: [{ key: 'unit:u-archived', item_unit_id: 'u-archived', unit_name: null, qty_porsi: 3 }],
+      },
+    })
   })
 })

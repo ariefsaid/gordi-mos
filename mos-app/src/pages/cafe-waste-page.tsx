@@ -243,10 +243,6 @@ export function CafeWastePage() {
       submitted: line.entry.submitted,
     }
   })
-  const totalsByUnit = [...stagedSummary.reduce((totals, line) => {
-    totals.set(line.unit, (totals.get(line.unit) ?? 0) + line.quantity)
-    return totals
-  }, new Map<string, number>()).entries()]
   const formatWasteQty = (quantity: number) => new Intl.NumberFormat(
     document.documentElement.lang || 'en', { maximumFractionDigits: 3 },
   ).format(quantity)
@@ -574,16 +570,6 @@ export function CafeWastePage() {
                   </li>
                 ))}
               </ul>
-            )}
-            {totalsByUnit.length > 0 && (
-              <div className="kl-capture-summary__totals">
-                <h3>{t('kitchen.log.summary.unitTotals')}</h3>
-                <ul>
-                  {totalsByUnit.map(([unit, quantity]) => (
-                    <li key={unit}><span>{unit}</span><strong className="tabular">{formatWasteQty(quantity)}</strong></li>
-                  ))}
-                </ul>
-              </div>
             )}
             {submitError && <p role="alert" className="kl-submit-outcome kl-submit-outcome--error">{t('kitchen.waste.submitFailed')}</p>}
             {submittedCount > 0 && !allSubmitted && (

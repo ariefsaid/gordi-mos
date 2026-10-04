@@ -150,7 +150,7 @@ afterEach(() => {
 })
 
 describe('CafeWastePage', () => {
-  it('shows a desktop summary with per-unit quantities and a persistent Submit action', async () => {
+  it('shows each waste item quantity and unit without a grouped numeric total', async () => {
     Object.defineProperty(window, 'matchMedia', {
       writable: true,
       configurable: true,
@@ -171,9 +171,7 @@ describe('CafeWastePage', () => {
     const aside = screen.getByRole('complementary', { name: 'Capture summary' })
     expect(aside).toHaveTextContent('2 cup')
     expect(aside).toHaveTextContent('1.5 litre')
-    const totals = aside.querySelector('.kl-capture-summary__totals')!
-    expect(totals).toHaveTextContent('cup2')
-    expect(totals).toHaveTextContent('litre1.5')
+    expect(aside.querySelector('.kl-capture-summary__totals')).toBeNull()
     expect(aside).not.toHaveTextContent('3.5')
     expect(within(aside).getByRole('button', { name: 'Submit waste' })).toBeDisabled()
   })

@@ -3,7 +3,7 @@ import { render, screen, cleanup, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { AuthState } from '@/auth/context'
-import type { CaptureFormItem, KitchenStockRow, ProductionStream, ReviewLogRow, WipItemOption, PlanCell } from '@/lib/db/kitchen-logs.types'
+import type { ActualUnitTotal, CaptureFormItem, KitchenStockRow, ProductionStream, ReviewLogRow, WipItemOption, PlanCell } from '@/lib/db/kitchen-logs.types'
 import type { EsbPushRow } from '@/lib/db/kitchen-pushes'
 
 vi.mock('@/auth/use-auth')
@@ -69,6 +69,9 @@ const ITEMS: WipItemOption[] = [
 const CAPTURE_ITEMS: CaptureFormItem[] = ITEMS.map(item => ({
   ...item, units: [{ id: `${item.id}-unit`, name: 'porsi', is_default: true }],
 }))
+const ACTUAL: ActualUnitTotal = {
+  key: 'unit:wip-chicken-unit', item_unit_id: 'wip-chicken-unit', unit_name: 'porsi', qty_porsi: 1,
+}
 const PLAN_CELLS: PlanCell[] = [{ id: 'plan-1', wip_item_id: 'wip-chicken', movement: { action: 'produce', destinationBranchId: null }, qty_porsi: 4 }]
 const STOCK_ROW: KitchenStockRow = { wip_item_id: 'wip-chicken', wip_item_name: 'Dish One', category: 'Chicken', stok: 2, tersedia: 1 }
 const REVIEW_ROW: ReviewLogRow = {
@@ -98,7 +101,7 @@ describe('AC-063/AC-064: Café pages stay Indonesian end to end', () => {
     vi.mocked(listCaptureFormItems).mockResolvedValue(CAPTURE_ITEMS)
     vi.mocked(fetchPlanMap).mockResolvedValue({ 'wip-chicken': { produce: 4 } })
     vi.mocked(fetchStockMap).mockResolvedValue({ 'wip-chicken': { stok: 2, tersedia: 1 } })
-    vi.mocked(fetchActualsMap).mockResolvedValue({ 'wip-chicken': { produce: 1 } })
+    vi.mocked(fetchActualsMap).mockResolvedValue({ 'wip-chicken': { produce: [ACTUAL] } })
     vi.mocked(listStreamPairs).mockResolvedValue([{ branch_id: 'branch-1', activity: 'kitchen' }])
     vi.mocked(resolveKitchenBuId).mockResolvedValue('bu')
     vi.mocked(listSubmittedKitchenLogs).mockResolvedValue([REVIEW_ROW])
