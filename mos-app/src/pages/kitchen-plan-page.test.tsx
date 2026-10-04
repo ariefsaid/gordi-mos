@@ -246,9 +246,8 @@ describe('KitchenPlanPage — the stream reads in the page head (#440)', () => {
   it('switching the stream in the head re-reads THAT stream\'s plan', async () => {
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
-    // Within the location: OD-CAFE-1 bounds the picker to the branch the viewer is working at, so
-    // the switch that exercises "re-read THAT stream" is the other ACTIVITY at the same branch.
-    // A cross-branch switch is no longer offered here at all — that is the bounded-picker test.
+    // This case switches activity inside the selected branch; the next cases also cover the
+    // deliberate cross-branch choice now offered by Change.
     chooseStream('Rumah Rames · Bar')
     await waitFor(() => expect(mockPlans).toHaveBeenCalledTimes(2))
     expect(mockPlans.mock.calls[1][1]).toEqual(OWN_STREAM_BAR)
@@ -735,8 +734,40 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
     expect(screen.queryByRole('table', { name: /café plan/i })).toBeNull()
   })
 
-  it('receiving-only phone category filter narrows the Plan list and can be changed', async () => {
-    mockDefaultStream.mockResolvedValue(RADIANT_KITCHEN)
+  it.each([
+    ['producing', OWN_STREAM],
+    ['receiving-only', RADIANT_KITCHEN],
+  ] as const)('phone ignores desktop category query for the %s Plan list', async (_state, stream) => {
+    mockDefaultStream.mockResolvedValue(stream)
+    mockItems.mockResolvedValue([
+      { ...ITEMS[0], category: 'Main' },
+      { ...ITEMS[1], category: 'Rice' },
+    ])
+    render(
+      <MemoryRouter initialEntries={['/cafe/plan?category=__no_matching_category__']}>
+        <I18nProvider><KitchenPlanPage /></I18nProvider>
+      </MemoryRouter>,
+    )
+    expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
+    expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
+    if (stream.produces === false) {
+      expect(screen.getByRole('heading', { name: /receiving-only stream/i })).toBeInTheDocument()
+    }
+  })
+
+  it('desktop applies the selected category query to the Plan list', async () => {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: (query: string) => ({
+        matches: query === '(min-width: 768px)',
+        media: query,
+        onchange: null,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      }),
+    })
     mockItems.mockResolvedValue([
       { ...ITEMS[0], category: 'Main' },
       { ...ITEMS[1], category: 'Rice' },
@@ -747,12 +778,7 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
       </MemoryRouter>,
     )
     expect(await screen.findByText('Nasi Goreng')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: /receiving-only stream/i })).toBeInTheDocument()
     expect(screen.queryByText('Ayam Bakar')).toBeNull()
-
-    chooseCategory('Main')
-    expect(screen.getByText('Ayam Bakar')).toBeInTheDocument()
-    expect(screen.queryByText('Nasi Goreng')).toBeNull()
   })
 
   it('desktop matchMedia: renders the table branch, NOT the cards', async () => {
@@ -941,6 +967,31 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
     await screen.findByText('Nasi Goreng')
     expect(screen.getByRole('searchbox', { name: /find an item in the plan/i })).toHaveValue('nasi')
     expect(screen.queryByText('Ayam Bakar')).toBeNull()
+  })
+
+  it('Pesanan Change reaches another readable branch when the active branch has one stream', async () => {
+    mockUseAuth.mockReturnValue(viewer(['member']))
+    mockDefaultStream.mockResolvedValue(RADIANT_KITCHEN)
+    mockStreamPairs.mockResolvedValue([STREAM_PAIRS[2], STREAM_PAIRS[0]])
+    mockPesanan.mockImplementation(async (_from, _days, selected) => (
+      selected.branch.id === BRANCHES[1].id
+        ? [{ ...PESANAN[1], log_date: '2026-06-21' }]
+        : [PESANAN[0]]
+    ))
+
+    render(<KitchenPlanPage />, { wrapper })
+    expect(await screen.findByText('Nasi Goreng')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /^change/i }))
+    const otherLocation = screen.getByRole('option', {
+      name: /Rumah Rames · Kitchen.*Other location/i,
+    })
+    fireEvent.click(otherLocation)
+
+    expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
+    expect(screen.queryByText('Nasi Goreng')).toBeNull()
+    expect(screen.getByRole('heading', { level: 2, name: 'Rumah Rames · Kitchen' })).toBeInTheDocument()
+    expect(mockPesanan.mock.calls.at(-1)?.[2]).toEqual(OWN_STREAM)
+    expect(mockUpsert).not.toHaveBeenCalled()
   })
 
   it('(#401) the category filter narrows the horizon too', async () => {
@@ -1158,7 +1209,9 @@ describe('DD-MVP-9: the Plan editor treats a receiving-only stream as readable, 
 
     expect(screen.getByTestId('cafe-stream')).toHaveTextContent('Radiant · Kitchen')
     expect(screen.getByRole('heading', { name: /receiving-only stream/i })).toBeInTheDocument()
-    expect(screen.getByText(/this stream receives stock.*review its receipts and stock here/i)).toBeInTheDocument()
+    expect(screen.getByText(
+      'This stream receives stock, so production capture and planning are unavailable here.',
+    )).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /view café stock/i })).toHaveAttribute('href', '/cafe/stock')
     const planCard = screen.getByText('Ayam Bakar').closest('.dt-card')
     expect(planCard).not.toBeNull()
