@@ -11,6 +11,7 @@ import tailwindcss from '@tailwindcss/vite'
 import { legacyRedirectDestination, normalizeBasePath, resolveBuildSettings } from './src/config/build-settings'
 import { buildSettingsArtifactsPlugin } from './src/config/build-settings-artifacts'
 import { MOS_DEV_IDENTITY_PATH, worktreeFingerprint } from './src/lib/dev-server'
+import { stampServiceWorker } from './src/config/sw-build-id'
 import { validateSampleLoginBuild } from './src/config/sample-login-build-guard'
 
 const __dir = dirname(fileURLToPath(import.meta.url))
@@ -84,6 +85,19 @@ function sampleLoginBuildGuard(): Plugin {
   }
 }
 
+// Writes the release SHA into the emitted sw.js; registered before previewBuildIdentity so the
+// identity manifest hashes the stamped file.
+function serviceWorkerBuildId(): Plugin {
+  return {
+    name: 'service-worker-build-id',
+    apply: 'build',
+    closeBundle() {
+      const file = resolve(__dir, 'dist/sw.js')
+      writeFileSync(file, stampServiceWorker(readFileSync(file, 'utf8'), resolveReleaseSha()))
+    },
+  }
+}
+
 function previewBuildIdentity(basePath: string): Plugin {
   let sha = ''
   let clean = false
@@ -125,6 +139,7 @@ export default defineConfig(({ mode }) => {
     mosDevIdentity(),
     sampleLoginBuildGuard(),
     buildSettingsArtifactsPlugin(basePath),
+    serviceWorkerBuildId(),
     previewBuildIdentity(basePath),
     react(),
     tailwindcss(),

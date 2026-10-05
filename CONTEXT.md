@@ -105,6 +105,31 @@ Indonesian share the word.
 _Avoid_: dish, hidangan; "menu" as the surface noun on Café screens ("menu item" survives only in
 menu-costing/COGS contexts)
 
+**RAW** (Café inventory):
+Raw ingredients held for use in Café production. Distinct from prepared or partly processed **WIP**.
+_Avoid_: stock (without naming the inventory class)
+
+**WIP** (Café inventory):
+Prepared or partly processed items held for later Café preparation or sale. Distinct from **RAW**.
+_Avoid_: finished goods (WIP may still be consumed in further preparation)
+
+**Count**:
+A physical observation of one **RAW** or **WIP** item in one unit for a branch and count date. MOS's calculated “Stock” balance is a different thing: a derived WIP balance, not a physical count.
+_Avoid_: Stock
+
+**Expected balance**:
+The **ESB**'s end-of-day balance for the count date in the counted item's unit; the worker stores it with its as-of time, and only reviewers see it.
+
+**Variance**:
+The final counted quantity minus the expected balance in the same unit; positive is surplus, negative is shortage, with no tolerance.
+
+**Recount**:
+A second physical quantity asked only when the first count differs from the expected balance; the first count stays unchanged.
+
+**Correction**:
+A new linked **Count** that supersedes a confirmed count while leaving the original unchanged; confirmed counts are never edited.
+_Avoid_: adjustment
+
 **Unit** (of a WIP item):
 **Master data, not an input.** An item is made in one unit, shown fixed beside the quantity box;
 changing it costs a deliberate extra click (OD-WAY-46). The unit is not a MOS label — ESB
