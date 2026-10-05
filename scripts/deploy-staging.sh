@@ -20,6 +20,8 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 MIG_DIR="${MIGRATIONS_DIR:-$ROOT/supabase/migrations}"
 GH_POST="${GH_POST:-$ROOT/scripts/gh-post.sh}"
 PATH="$PATH:$HOME/.local/bin:/opt/homebrew/opt/libpq/bin"
+# shellcheck source=lib/ops-common.sh
+. "$ROOT/scripts/lib/ops-common.sh"
 
 DRY=0 YES=0 PR=1
 for a in "$@"; do
@@ -35,15 +37,7 @@ done
 die() { printf '✗ deploy-staging: %s\n' "$1" >&2; exit 1; }
 say() { printf '%s\n' "$*"; }
 
-URL="" ; SECRETS=()
-# Replace every secret-bearing fragment of the connection string in the text read from stdin.
-redact() {
-  local line s
-  while IFS= read -r line || [ -n "$line" ]; do
-    for s in "${SECRETS[@]}"; do line="${line//"$s"/<redacted>}"; done
-    printf '%s\n' "$line"
-  done
-}
+URL=""
 
 errf="$(mktemp)"; wt=""
 cleanup() {
@@ -74,13 +68,10 @@ done < "$envfile"
 
 URL="$(op-get.sh "$OP_ITEM" "$OP_VAULT" "$OP_FIELD" 2>/dev/null </dev/null)" || die "op-get.sh could not read the staging connection (is 1Password signed in?)"
 [ -n "$URL" ] || die "the staging connection string is empty"
-rest="${URL#*://}"; hostpart="${rest#*@}"; host="${hostpart%%[:/?]*}"
-userinfo=""; case "$rest" in *@*) userinfo="${rest%%@*}" ;; esac
-user="${userinfo%%:*}"; pass=""; case "$userinfo" in *:*) pass="${userinfo#*:}" ;; esac
-for s in "$URL" "$userinfo" "$pass" "$user" "$host"; do [ "${#s}" -ge 3 ] && SECRETS+=("$s"); done
+ops_conn_from_url "$URL"
 
 # psql helpers: stdout is the answer, stderr is shown (redacted) only on failure.
-sqlq() { local o; if ! o="$(psql "$URL" -X -At -v ON_ERROR_STOP=1 -c "$1" 2>"$errf" </dev/null)"; then redact < "$errf" >&2; return 1; fi; printf '%s' "$o"; }
+sqlq() { local o; if ! o="$(psql "$CONN" -X -At -v ON_ERROR_STOP=1 -c "$1" 2>"$errf" </dev/null)"; then ops_redact < "$errf" >&2; return 1; fi; printf '%s' "$o"; }
 
 say "Staging deploy from $(git -C "$ROOT" branch --show-current) @ $(git -C "$ROOT" rev-parse --short HEAD)"
 
@@ -92,8 +83,8 @@ om="$(git -C "$ROOT" rev-parse --verify -q refs/remotes/origin/main)" || die "or
 [ -z "$(git -C "$ROOT" status --porcelain -- supabase/migrations)" ] || die "supabase/migrations has uncommitted changes"
 
 # ── 2. Dry run: the pending migration list (file names only).
-set +e; out="$(supabase --workdir "$ROOT" db push --dry-run --db-url "$URL" 2>&1 </dev/null)"; rc=$?; set -e
-if [ "$rc" -ne 0 ]; then printf '%s\n' "$out" | redact >&2; die "supabase db push --dry-run failed (exit $rc)"; fi
+set +e; out="$(supabase --workdir "$ROOT" db push --dry-run --db-url "$CONN" 2>&1 </dev/null)"; rc=$?; set -e
+if [ "$rc" -ne 0 ]; then printf '%s\n' "$out" | ops_redact >&2; die "supabase db push --dry-run failed (exit $rc)"; fi
 pending=(); while IFS= read -r f; do [ -n "$f" ] && pending+=("$f"); done < <(printf '%s\n' "$out" | grep -oE '[0-9]{8,}_[A-Za-z0-9_.-]+\.sql' | sort -u || true)
 if [ "${#pending[@]}" -eq 0 ]; then
   printf '%s\n' "$out" | grep -qi 'up to date' || die "could not read the pending migration list from the dry run"
@@ -123,7 +114,7 @@ for f in "${pending[@]+"${pending[@]}"}"; do
 done
 if [ "$probe" = 1 ]; then
   say "Probing privileged steps (rolled back)..."
-  if ! psql "$URL" -X -q -v ON_ERROR_STOP=1 >"$errf.o" 2>"$errf" <<'SQL'
+  if ! psql "$CONN" -X -q -v ON_ERROR_STOP=1 >"$errf.o" 2>"$errf" <<'SQL'
 begin;
 alter role authenticator set pgrst.db_pre_request = 'api_private.check_request';
 create policy zz_preflight_probe on storage.buckets as restrictive for all to authenticated using (true);
@@ -131,7 +122,7 @@ create policy zz_preflight_probe on storage.objects as restrictive for all to au
 rollback;
 SQL
   then
-    { cat "$errf.o" "$errf" | redact; } >&2; rm -f "$errf.o"; die "privileged-step probe failed — the deploy role cannot run these steps; nothing was pushed"
+    { cat "$errf.o" "$errf" | ops_redact; } >&2; rm -f "$errf.o"; die "privileged-step probe failed — the deploy role cannot run these steps; nothing was pushed"
   fi
   rm -f "$errf.o"
   left="$(sqlq "select count(*) from pg_policies where policyname='zz_preflight_probe'")" || die "could not confirm the probe rolled back"
@@ -148,8 +139,8 @@ if [ "${#pending[@]}" -gt 0 ]; then
     ans=""; read -r ans || true
     case "$ans" in y|Y|yes|YES) ;; *) die "not confirmed — nothing was pushed" ;; esac
   fi
-  set +e; out="$(supabase --workdir "$ROOT" db push --yes --db-url "$URL" 2>&1 </dev/null)"; rc=$?; set -e
-  printf '%s\n' "$out" | redact
+  set +e; out="$(supabase --workdir "$ROOT" db push --yes --db-url "$CONN" 2>&1 </dev/null)"; rc=$?; set -e
+  printf '%s\n' "$out" | ops_redact
   [ "$rc" -eq 0 ] || die "supabase db push failed (exit $rc)"
 fi
 
