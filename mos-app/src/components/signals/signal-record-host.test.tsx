@@ -795,6 +795,30 @@ describe('SignalRecordHost — Link existing Task (linkSignalTask, FR-413)', () 
     expect(await screen.findByRole('combobox', { name: /existing task/i })).toBeInTheDocument()
     expect(mockSearchTasksByTitle).toHaveBeenCalledWith('repair')
   })
+
+  it('uses a filtered-empty message for a Task search with no hits and keeps search editable', async () => {
+    mockSearchTasksByTitle.mockResolvedValueOnce([]).mockResolvedValueOnce([
+      { id: 'task-a', title: 'Repair freezer', status: 'Open' },
+    ])
+    renderHost()
+    await screen.findByRole('heading', { name: 'The freezer alarm went off' })
+    await userEvent.click(screen.getByRole('button', { name: /more signal actions/i }))
+    await userEvent.click(screen.getByRole('menuitem', { name: /link existing task/i }))
+
+    const search = screen.getByRole('searchbox', { name: /search tasks/i })
+    await userEvent.type(search, 'future maintenance')
+    const empty = await screen.findByTestId('empty-state')
+    expect(empty).toHaveAttribute('data-empty-variant', 'blank')
+    expect(within(empty).getByRole('heading', { name: 'No Tasks match this search' })).toBeInTheDocument()
+    expect(empty.querySelector('.empty-copy')).toHaveTextContent('Search: “future maintenance”.')
+    expect(empty.querySelector('.empty-state-icon svg')).not.toBeNull()
+    expect(search).toHaveValue('future maintenance')
+
+    await userEvent.clear(search)
+    await userEvent.type(search, 'repair')
+    expect(await screen.findByRole('combobox', { name: /existing task/i })).toBeInTheDocument()
+    expect(search).toHaveValue('repair')
+  })
 })
 
 describe('SignalRecordHost — Linked-work rows (FR-413)', () => {

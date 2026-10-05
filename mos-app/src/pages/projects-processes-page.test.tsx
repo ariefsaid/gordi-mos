@@ -106,10 +106,13 @@ describe('Projects & Processes collection-first contract', () => {
     await screen.findByText('Menu launch')
     expect(screen.getByRole('link', { name: 'Menu launch' })).toHaveAttribute('href', '/work/projects/wl-1')
     const menuLaunch = screen.getByRole('link', { name: 'Menu launch' })
-    // No row here has a direct Objective, so that column is left out rather than printing Not set.
-    expect(within(menuLaunch).queryByRole('cell', { name: /^Objective:/ })).toBeNull()
-    expect(screen.queryByRole('columnheader', { name: 'Objective' })).toBeNull()
-    expect(within(menuLaunch).getByText('Contributes through Tasks to: Grow revenue')).toBeInTheDocument()
+    const menuLaunchRow = menuLaunch.closest('[role="row"]') as HTMLElement
+    // Task-derived Objective context belongs in the Objective cell even without a direct parent.
+    expect(
+      within(menuLaunchRow).getByRole('cell', { name: 'Objective: Not set. Contributes through Tasks to: Grow revenue' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: 'Objective' })).toBeInTheDocument()
+    expect(within(menuLaunchRow).getByText('Contributes through Tasks to: Grow revenue')).toBeInTheDocument()
     expect(screen.getByText('1 / 2 done')).toBeInTheDocument()
     expect(screen.getByText('07 Jul 2026, 07:00 WIB')).toBeInTheDocument()
     expect(container.querySelector('.catalog-collection__disclosure')).toBeNull()
@@ -155,17 +158,21 @@ describe('Projects & Processes collection-first contract', () => {
     renderPage()
 
     const daily = await screen.findByRole('link', { name: 'Daily prep' })
-    expect(within(daily).getByTestId('catalog-progress')).toHaveTextContent('1 / 2 done')
-    expect(within(daily).queryByText('0 / 3 done')).toBeNull()
+    const dailyRow = daily.closest('[role="row"]') as HTMLElement
+    expect(within(dailyRow).getByTestId('catalog-progress')).toHaveTextContent('1 / 2 done')
+    expect(within(dailyRow).queryByText('0 / 3 done')).toBeNull()
 
     const unscheduled = screen.getByRole('link', { name: 'Unscheduled process' })
-    expect(within(unscheduled).getByTestId('catalog-progress')).toHaveTextContent('No schedule')
+    const unscheduledRow = unscheduled.closest('[role="row"]') as HTMLElement
+    expect(within(unscheduledRow).getByTestId('catalog-progress')).toHaveTextContent('No schedule')
 
     const manual = screen.getByRole('link', { name: 'Ad hoc process' })
-    expect(within(manual).getByTestId('catalog-progress')).toHaveTextContent('On demand')
+    const manualRow = manual.closest('[role="row"]') as HTMLElement
+    expect(within(manualRow).getByTestId('catalog-progress')).toHaveTextContent('On demand')
 
     const pending = screen.getByRole('link', { name: 'Started with pending work' })
-    expect(within(pending).getByTestId('catalog-progress')).toHaveTextContent('1 awaiting assignment')
+    const pendingRow = pending.closest('[role="row"]') as HTMLElement
+    expect(within(pendingRow).getByTestId('catalog-progress')).toHaveTextContent('1 awaiting assignment')
   })
 
   it('uses the head Create door and renders a form ABOVE the table, never inside it', async () => {

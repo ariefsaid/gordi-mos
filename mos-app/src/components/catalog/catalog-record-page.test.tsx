@@ -718,8 +718,31 @@ describe('role-correct affordances', () => {
 
     const start = await screen.findByRole('button', { name: 'Start occurrence' })
     expect(start).toHaveClass('btn-primary')
-    expect(screen.getByRole('note')).toHaveTextContent('Dewi Director (Accountable) manages this Process. You can start an occurrence.')
+    expect(screen.getByRole('note')).toHaveTextContent('Dewi Director is Accountable for this Process. Ask a work manager or admin to edit it. You can start an occurrence.')
     expect(screen.getByRole('note')).not.toHaveTextContent('View only')
+  })
+
+  it('shows an unset Business Unit as a fact to a viewer who cannot edit it', async () => {
+    vi.mocked(getWorkWriteScopes).mockResolvedValue(MEMBER)
+    data = workLineData('project')
+    data.row = { ...data.row, businessUnitId: null }
+    renderRecord('work-line')
+
+    await screen.findByRole('heading', { level: 1, name: 'Menu launch' })
+    const field = document.querySelector('[data-field-key="businessUnit"]')!
+    expect(field).toHaveAttribute('data-editable', 'false')
+    expect(field).toHaveTextContent('Not set')
+    expect(field).not.toHaveTextContent('Set Business Unit')
+  })
+
+  it('keeps the Set Business Unit prompt for an authorized editor', async () => {
+    data = workLineData('project')
+    data.row = { ...data.row, businessUnitId: null }
+    renderRecord('work-line')
+
+    await screen.findByRole('heading', { level: 1, name: 'Menu launch' })
+    const editor = await screen.findByRole('button', { name: 'Edit Business Unit' })
+    expect(editor).toHaveTextContent('Set Business Unit')
   })
 
   it('a member sees no setup, no structure edits, no menu and one line naming who sets targets', async () => {

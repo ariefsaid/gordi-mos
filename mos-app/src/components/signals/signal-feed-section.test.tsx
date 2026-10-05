@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
@@ -154,8 +154,12 @@ describe('SignalFeedSection — Home ambient (FYI) feed (AC-426/FR-414)', () => 
   it('a search with no matches names the query and offers a way back', async () => {
     renderSection({ signals: [row({ body: 'The freezer alarm went off' })] })
     await userEvent.type(screen.getByRole('searchbox', { name: /search signals/i }), 'zzzz')
-    expect(screen.queryByText(/No Signals yet/i)).not.toBeInTheDocument()
-    expect(screen.getByText(/zzzz/)).toBeInTheDocument()
+    const empty = await screen.findByTestId('empty-state')
+    expect(empty).toHaveAttribute('data-empty-variant', 'blank')
+    expect(within(empty).getByRole('heading', { name: 'No Signals match this search' })).toBeInTheDocument()
+    expect(empty.querySelector('.empty-copy')).toHaveTextContent('Search: “zzzz”.')
+    expect(empty.querySelector('.empty-state-icon svg')).not.toBeNull()
+    expect(empty.querySelector('.empty-state-glyph')).not.toHaveTextContent('✓')
     await userEvent.click(screen.getByRole('button', { name: /clear search/i }))
     expect(screen.getByText(/freezer alarm/i)).toBeInTheDocument()
   })
