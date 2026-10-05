@@ -159,7 +159,7 @@ describe('CafeItemSettingsPage filters', () => {
 
     const choose = async (label: string, option: string) => {
       await user.click(screen.getByRole('combobox', { name: label }))
-      await user.click(await screen.findByRole('option', { name: option, exact: true }))
+      await user.click(await screen.findByRole('option', { name: option }))
     }
 
     await choose('Active status', 'Inactive')
