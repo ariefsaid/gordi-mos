@@ -60,7 +60,7 @@ function makeSb() {
 }
 
 describe('postComment (T27, AC-P3-CM-003/005)', () => {
-  it('inserts a comment, resolves mentions, and fans out one notification per mentionee', async () => {
+  it('persists a comment and notifies each explicitly mentioned person', async () => {
     const { sb, rec } = makeSb()
 
     const id = await postComment({
@@ -68,8 +68,6 @@ describe('postComment (T27, AC-P3-CM-003/005)', () => {
       entityType: 'task',
       entityId: 'task-1',
       body: 'Please review @nico and @unknown',
-      actorId: 'person-arden',
-      actorName: 'Ayu',
       locale: 'en',
     })
 
@@ -80,25 +78,16 @@ describe('postComment (T27, AC-P3-CM-003/005)', () => {
     expect(rec.schemas).toContain('shared')
     expect(rec.tables).toContain('people')
     expect(rec.filters).toContainEqual(['archived_at', null])
-    // #584: the title names the actor and the entity kind — never the bare "@mention in task"
-    // stacked mentions couldn't tell apart. #584 review: metadata.actor is pinned too, or the
-    // row is permanently un-recomposable at render time once written.
     expect(rec.rpcs).toEqual([
-      ['create_notification', {
+      ['create_comment_mention_notification', {
         p_owner: 'person-nico',
-        p_severity: 'info',
-        p_title: 'Ayu mentioned you in a task',
-        p_body: 'Please review @nico and @unknown',
-        p_metadata: {
-          source: 'mention',
-          entity: { type: 'task', id: 'task-1' },
-          actor: { id: 'person-arden', name: 'Ayu' },
-        },
+        p_comment_id: 'comment-1',
+        p_locale: 'en',
       }],
     ])
   })
 
-  it('issue 584: composes the title in the Indonesian locale when the actor is on id', async () => {
+  it('composes mention notification titles in the commenting person’s locale', async () => {
     const { sb, rec } = makeSb()
 
     await postComment({
@@ -106,27 +95,19 @@ describe('postComment (T27, AC-P3-CM-003/005)', () => {
       entityType: 'signal',
       entityId: 'signal-1',
       body: 'Tolong cek @nico',
-      actorId: 'person-arden',
-      actorName: 'Ayu',
       locale: 'id',
     })
 
     expect(rec.rpcs).toEqual([
-      ['create_notification', {
+      ['create_comment_mention_notification', {
         p_owner: 'person-nico',
-        p_severity: 'info',
-        p_title: 'Ayu menyebut Anda dalam sebuah sinyal',
-        p_body: 'Tolong cek @nico',
-        p_metadata: {
-          source: 'mention',
-          entity: { type: 'signal', id: 'signal-1' },
-          actor: { id: 'person-arden', name: 'Ayu' },
-        },
+        p_comment_id: 'comment-1',
+        p_locale: 'id',
       }],
     ])
   })
 
-  it('issue 584 review: a blank actorName (viewer not yet resolved) falls back to a real word, never a blank-named sentence', async () => {
+  it('passes the chosen locale for server-composed notification titles', async () => {
     const { sb, rec } = makeSb()
 
     await postComment({
@@ -134,38 +115,28 @@ describe('postComment (T27, AC-P3-CM-003/005)', () => {
       entityType: 'task',
       entityId: 'task-1',
       body: 'Please review @nico',
-      actorId: '',
-      actorName: '',
       locale: 'en',
     })
 
     expect(rec.rpcs).toEqual([
-      ['create_notification', {
+      ['create_comment_mention_notification', {
         p_owner: 'person-nico',
-        p_severity: 'info',
-        p_title: 'Someone mentioned you in a task',
-        p_body: 'Please review @nico',
-        p_metadata: {
-          source: 'mention',
-          entity: { type: 'task', id: 'task-1' },
-          actor: { id: '', name: 'Someone' },
-        },
+        p_comment_id: 'comment-1',
+        p_locale: 'en',
       }],
     ])
   })
 
-  it('does not call the definer helper when no mention resolves', async () => {
+  it('does not create notifications when no mention resolves', async () => {
     const { sb, rec } = makeSb()
 
-    await postComment({ sb: sb as unknown as CommentSupabase, entityType: 'task', entityId: 'task-1', body: 'No mention @unknown', actorId: 'person-arden', actorName: 'Ayu', locale: 'en' })
+    await postComment({ sb: sb as unknown as CommentSupabase, entityType: 'task', entityId: 'task-1', body: 'No mention @unknown', locale: 'en' })
 
     expect(rec.rpcs).toEqual([])
   })
 
-  it('CQ#1: a transient mention-notify failure does not invalidate the committed comment row', async () => {
-    // The comment INSERT succeeds (row is durable); the create_notification RPC rejects.
-    // postComment must return the comment id and swallow the per-mention error, so a retry
-    // does not duplicate the comment. Regression for the all-or-nothing fan-out bug.
+  it('a notification RPC failure does not invalidate the saved comment', async () => {
+    // The persisted comment id is returned even when its best-effort notification fails.
     const rec = {
       schemas: [] as string[],
       tables: [] as string[],
@@ -204,8 +175,6 @@ describe('postComment (T27, AC-P3-CM-003/005)', () => {
       entityType: 'task',
       entityId: 'task-1',
       body: 'Hey @nico',
-      actorId: 'person-arden',
-      actorName: 'Ayu',
       locale: 'en',
     })
 

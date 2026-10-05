@@ -302,6 +302,7 @@ export interface ReviewLogRow {
   submitted_by: string | null
   business_unit_id: string
   created_at: string
+  updated_at: string
 }
 
 /** A null batch id is the explicit held-ERP result for approved waste. */

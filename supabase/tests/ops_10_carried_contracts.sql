@@ -37,6 +37,12 @@ begin;
 create extension if not exists pgtap with schema extensions;
 select plan(36);
 
+create function pg_temp.approve_kitchen_log(p_log_id uuid, p_review_note text)
+returns text language sql as $$
+  select ops.approve_kitchen_log(p_log_id, p_review_note,
+    (select l.updated_at from ops.kitchen_logs l where l.id = p_log_id))
+$$;
+
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
@@ -422,9 +428,10 @@ select is(
 -- asserting it, so a regression here would surface as a confusing stock failure two files away.
 set local role authenticated;
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
-select lives_ok($$
+select throws_ok($$
   update ops.kitchen_logs set status = 'Approved' where id = '00000000-0000-0000-0000-00000000ac11'
-  $$, 'FR-044 (positive): ops_lead may also move a log to Approved directly, so the guard admits both reviewer outcomes and not only rejection');
+  $$, '42501', 'approval goes through the review step',
+  'an ops lead approves only through the review RPC');
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- J. Approval writes NO Daily Log mirror row (46)
@@ -434,10 +441,10 @@ select lives_ok($$
 -- unique index on the batch id is still there — so re-adding the mirror is a small change, and
 -- nothing would have gone red. An absence is only evidence if something is watching it.
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
-select throws_ok($$select ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ac12', null)$$,
+select throws_ok($$select pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000ac12', null)$$,
   '42501', 'an off-plan approval requires a reviewer note',
   'AC-012: off-plan approval with a plan row and no submitter or reviewer note is refused');
-select ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ac12', 'reviewed');
+select pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000ac12', 'reviewed');
 reset role;
 select is(
   (select count(*)::int from ops.log_entries

@@ -26,6 +26,12 @@ begin;
 create extension if not exists pgtap with schema extensions;
 select plan(45);
 
+create function pg_temp.approve_kitchen_log(p_log_id uuid, p_review_note text)
+returns text language sql as $$
+  select ops.approve_kitchen_log(p_log_id, p_review_note,
+    (select l.updated_at from ops.kitchen_logs l where l.id = p_log_id))
+$$;
+
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
@@ -49,7 +55,7 @@ set local role authenticated;
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
 
 select throws_ok($$
-  select ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ac01','looks fine')
+  select pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000ac01','looks fine')
   $$, '42501', 'only the stream''s supervisor or ops_lead/admin may approve',
   'a member of the org without review authority over the stream cannot approve a production log');
 
@@ -70,7 +76,7 @@ set local role authenticated;
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
 
 select throws_ok($$
-  select ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ac09','not mine')
+  select pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000ac09','not mine')
   $$, '42501', 'cannot approve a log outside your org',
   'an ops_lead cannot approve another tenant''s log, however strong their role in their own org');
 
@@ -90,7 +96,7 @@ set local role authenticated;
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
 
 select throws_ok($$
-  select ops.approve_kitchen_log('00000000-0000-0000-0000-00000000aa02','again')
+  select pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000aa02','again')
   $$, 'P0003', 'log is not Submitted (current: Approved)',
   'AC-013: an already-Approved log cannot be approved again — the shape an imported row arrives in');
 
@@ -109,7 +115,7 @@ select lives_ok($$
   $$, 'setup: an ops_lead rejects a log through the plain guarded UPDATE path');
 
 select throws_ok($$
-  select ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ac06','changed my mind')
+  select pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000ac06','changed my mind')
   $$, 'P0003', 'log is not Submitted (current: Rejected)',
   'AC-013: a Rejected log cannot be approved either — the guard admits one status, not "anything but Approved"');
 
@@ -128,7 +134,7 @@ select is((select count(*)::int from integrations.esb_push), (select n from _out
 set local role authenticated;
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
 
-select is(ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ac01','ok'), 'PR-20260620-001',
+select is(pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000ac01','ok'), 'PR-20260620-001',
   'the first successful approval mints -001 — so none of the four refusals consumed a sequence number');
 
 select is((select status from ops.kitchen_logs where id = '00000000-0000-0000-0000-00000000ac01'),
@@ -169,7 +175,7 @@ select row_eq($$
 -- can reach production GKID (OD-K-2, FR-080..082).
 set local app.esb_target_env = 'goo';
 
-select is(ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ac02','ok'), 'PR-20260620-002',
+select is(pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000ac02','ok'), 'PR-20260620-002',
   'the second approval of the day mints -002');
 
 select row_eq($$
@@ -183,7 +189,7 @@ select row_eq($$
 -- the first approval after a restart happened to see.
 set local app.esb_target_env = '';
 
-select is(ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ac03','ok'), 'PR-20260620-003',
+select is(pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000ac03','ok'), 'PR-20260620-003',
   'the third approval of the day mints -003');
 
 select is((select target_env from integrations.esb_push where source_ref = 'PR-20260620-003'),
@@ -193,7 +199,7 @@ select is((select target_env from integrations.esb_push where source_ref = 'PR-2
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- F. The endpoint is derived from branches, not from a label (OD-WAY-26)
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
-select is(ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ac04','ok'), 'TR-20260620-001',
+select is(pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000ac04','ok'), 'TR-20260620-001',
   'a transfer to a DIFFERENT branch mints a TR batch');
 select row_eq($$
   select endpoint, payload->>'destination_branch_code'
@@ -201,7 +207,7 @@ select row_eq($$
   row('simple-transfer'::text,'radiant'::text)::record,
   'FR-071: it enqueues a simple transfer, and the destination travels on the message');
 
-select is(ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ac05','ok'), 'TB-20260620-001',
+select is(pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000ac05','ok'), 'TB-20260620-001',
   'a transfer whose destination branch IS its origin branch mints a TB batch');
 select is((select endpoint from integrations.esb_push where source_ref = 'TB-20260620-001'), 'noop',
   'OD-WAY-26: it enqueues a NO-OP — the ERP already books that branch as holding the WIP, so there is nothing to record. Not "it stayed in the same place".');
@@ -223,7 +229,7 @@ select is((select usable_qty from ops.kitchen_stock
 
 -- The same item, the same date, a DIFFERENT branch's books. On the prior chains the recompute summed
 -- by (org, item, date) alone, which would have written 20 into both rows.
-select is(ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ac11','ok'), 'PR-20260620-004',
+select is(pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000ac11','ok'), 'PR-20260620-004',
   'the batch counter is per (org, prefix, date) and NOT per stream — a second stream''s produce that day mints -004');
 
 select is((select usable_qty from ops.kitchen_stock
@@ -315,7 +321,7 @@ set local role authenticated;
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
 
 -- ── The intra-branch movement: approved, and HELD ────────────────────────────────────────────
-select is(ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ac21','ok'), 'TB-20260623-001',
+select is(pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000ac21','ok'), 'TB-20260623-001',
   'AC-008: a bar stream''s movement to its OWN branch approves and mints a TB batch — the same-branch arm, on a stream the incumbent never reached');
 
 select is((select endpoint from integrations.esb_push where source_ref = 'TB-20260623-001'), 'noop',
@@ -337,7 +343,7 @@ select is((select count(*)::int from integrations.esb_push where source_ref = 'T
 -- ── The cross-branch movement from the same stream, same day, same item ──────────────────────
 -- Everything about these two rows is equal except the destination branch. Whatever separates them
 -- downstream is therefore that comparison and nothing else.
-select is(ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ac22','ok'), 'TR-20260623-001',
+select is(pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000ac22','ok'), 'TR-20260623-001',
   'AC-008: the same bar stream''s movement to ANOTHER branch mints a TR batch');
 
 select row_eq($$

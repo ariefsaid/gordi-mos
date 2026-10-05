@@ -7,6 +7,12 @@ begin;
 create extension if not exists pgtap with schema extensions;
 select plan(18);
 
+create function pg_temp.approve_kitchen_log(p_log_id uuid, p_review_note text)
+returns text language sql as $$
+  select ops.approve_kitchen_log(p_log_id, p_review_note,
+    (select l.updated_at from ops.kitchen_logs l where l.id = p_log_id))
+$$;
+
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
@@ -25,7 +31,7 @@ values ('00000000-0000-0000-0000-00000000af09', '00000000-0000-0000-0000-0000000
         '00000000-0000-0000-0000-0000000000d1');
 set local role authenticated;
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
-select throws_ok($$select ops.approve_kitchen_log('00000000-0000-0000-0000-00000000af09', null)$$,
+select throws_ok($$select pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000af09', null)$$,
   '42501', 'an off-plan approval requires a reviewer note',
   'AC-012: off-plan approval with a plan row and no note is refused');
 reset role;
@@ -125,7 +131,7 @@ set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1"
 update ops.kitchen_logs set status = 'Rejected', review_note = 'cleared for the transfer-sign assertions'
  where id in ('00000000-0000-0000-0000-00000000ac01','00000000-0000-0000-0000-00000000ac02',
               '00000000-0000-0000-0000-00000000ac03','00000000-0000-0000-0000-00000000ac06');
-update ops.kitchen_logs set status = 'Approved', review_note = 'stock arithmetic' where id = '00000000-0000-0000-0000-00000000ac04';
+select pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000ac04', 'stock arithmetic');
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
 select is(
   ops.stock_available_for_date('00000000-0000-0000-0000-00000000ab01','2026-06-25',
@@ -134,7 +140,7 @@ select is(
   'a cross-branch transfer SUBTRACTS from the origin stream''s on-hand');
 
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
-update ops.kitchen_logs set status = 'Approved' where id = '00000000-0000-0000-0000-00000000ac05';
+select pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000ac05', 'stock arithmetic');
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
 select is(
   ops.stock_available_for_date('00000000-0000-0000-0000-00000000ab01','2026-06-25',
@@ -154,7 +160,7 @@ select is(
 -- Negative balances are preserved rather than clamped (FR-061): a negative is a real signal that
 -- more was moved than was made, and hiding it hides the discrepancy the review step exists to catch.
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
-update ops.kitchen_logs set status = 'Approved' where id = '00000000-0000-0000-0000-00000000ad05';
+select pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000ad05', 'stock arithmetic');
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
 select is(
   ops.stock_available_for_date('00000000-0000-0000-0000-00000000ab03','2026-06-25',

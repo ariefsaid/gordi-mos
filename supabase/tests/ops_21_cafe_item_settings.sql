@@ -3,6 +3,12 @@ begin;
 create extension if not exists pgtap with schema extensions;
 select plan(37);
 
+create function pg_temp.approve_kitchen_log(p_log_id uuid, p_review_note text)
+returns text language sql as $$
+  select ops.approve_kitchen_log(p_log_id, p_review_note,
+    (select l.updated_at from ops.kitchen_logs l where l.id = p_log_id))
+$$;
+
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
@@ -247,7 +253,7 @@ select throws_ok($$
      '2099-12-31', '00000000-0000-0000-0000-00000000bf01', 'kitchen', 'produce',
      (select id from ops.wip_items where esb_product_id = 'SYNTH-ERP-P-1242-WIP'),
      (select id from ops.item_units where esb_product_detail_id = 'SYNTH-ERP-PD-1242-WIP-B'), 2)
-$$, 'P0015', 'CAFE_ITEM_UNIT_NOT_SHOWN: the selected ERP detail is not shown for this stream item',
+$$, 'P0015', 'CAFE_ITEM_UNIT_NOT_SHOWN: Café capture must use the default ERP detail; select a configured multiple for another quantity',
   'a log cannot bind an ERP detail hidden from this stream');
 
 reset role;
@@ -286,8 +292,7 @@ insert into ops.kitchen_logs
 values
   ('00000000-0000-0000-0000-00000000c423', '00000000-0000-0000-0000-00000000bb01',
    '2099-12-31', '00000000-0000-0000-0000-00000000bf01', 'kitchen', 'produce',
-   (select id from ops.wip_items where esb_product_id = 'SYNTH-ERP-P-1242-WIP'),
-   (select id from ops.item_units where esb_product_detail_id = 'SYNTH-ERP-PD-1242-WIP-B'), 3),
+   (select id from ops.wip_items where esb_product_id = 'SYNTH-ERP-P-1242-WIP'), null, 3),
   ('00000000-0000-0000-0000-00000000c424', '00000000-0000-0000-0000-00000000bb01',
    '2099-12-31', '00000000-0000-0000-0000-00000000bf01', 'kitchen', 'produce',
    (select id from ops.wip_items where esb_product_id = 'SYNTH-ERP-P-1242-WIP'), null, 4);
@@ -295,14 +300,14 @@ select is((select item_unit_id from ops.kitchen_logs where id = '00000000-0000-0
           (select id from ops.item_units where esb_product_detail_id = 'SYNTH-ERP-PD-1242-WIP-A'),
   'a log without an explicit choice binds the per-stream default ERP detail');
 select is((select item_unit_id from ops.kitchen_logs where id = '00000000-0000-0000-0000-00000000c423'),
-          (select id from ops.item_units where esb_product_detail_id = 'SYNTH-ERP-PD-1242-WIP-B'),
-  'an explicitly selected shown ERP detail is bound to the log');
-select is(ops.approve_kitchen_log('00000000-0000-0000-0000-00000000c423', 'checked'),
+          (select id from ops.item_units where esb_product_detail_id = 'SYNTH-ERP-PD-1242-WIP-A'),
+  'a Café capture stays bound to the per-stream default ERP detail');
+select is(pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000c423', 'checked'),
           'PR-20991231-001', 'approval retains the normal log and dispatch journey');
 select is((select push.payload ->> 'esb_product_detail_id_porsi'
              from integrations.esb_push push
-            where push.source_ref = 'PR-20991231-001'), 'SYNTH-ERP-PD-1242-WIP-B',
-  'the outbox payload uses the selected log product detail rather than the item-level legacy default');
+            where push.source_ref = 'PR-20991231-001'), 'SYNTH-ERP-PD-1242-WIP-A',
+  'the outbox payload uses the stream default ERP detail');
 
 select * from finish();
 rollback;
