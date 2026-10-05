@@ -397,7 +397,7 @@
     margin-bottom: 0;
     border-bottom: 0;
   }
-  .kl-form .ktb:has(.kl-scope) { padding: 4px 0; }
+  .kl-form .ktb:has(.kl-scope) { padding-block: 0; }
   .kl-form:has(.kl-scope) .kl-missing { padding: 4px 0 0; }
   .kl-form:has(.kl-scope) .dt-cards-group { padding-top: 8px; }
 
