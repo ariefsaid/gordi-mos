@@ -194,10 +194,10 @@ const occurrences = (startable: ReturnType<typeof dueRun>[], over: Partial<NonNu
 let data: CatalogRecordData
 const onCreateTask = vi.fn()
 
-function renderRecord(kind: 'objective' | 'work-line' = 'objective', mode: 'page' | 'panel' = 'page', taskAddedRef?: { current: boolean }) {
+function renderRecord(kind: 'objective' | 'work-line' = 'objective', mode: 'page' | 'panel' = 'page', taskAddedRef?: { current: boolean }, locale: 'en' | 'id' = 'en') {
   return render(
     <AuthContext.Provider value={auth()}>
-      <I18nProvider>
+      <I18nProvider initialLocale={locale}>
         <MemoryRouter>
           <CatalogRecordDocument kind={kind} id={kind === 'objective' ? 'obj-1' : 'wl-1'} mode={mode} onCreateTask={onCreateTask} taskAddedRef={taskAddedRef} />
         </MemoryRouter>
@@ -890,8 +890,35 @@ describe('sections read like a document', () => {
     renderRecord()
     const work = await screen.findByRole('region', { name: 'Projects & Processes' })
     expect(work.querySelector('.rp-section__count')).toHaveTextContent('1')
-    expect(work).not.toHaveTextContent('1 of 3 tasks done')
+    expect(work).not.toHaveTextContent('1 / 3 Tasks done')
     expect(await screen.findByRole('region', { name: 'Tasks' })).toHaveTextContent('1 / 3 Tasks done')
+  })
+
+  it.each([
+    ['en', 'page'], ['en', 'panel'], ['id', 'page'], ['id', 'panel'],
+  ] as const)('names Tasks in direct and contributed work progress in %s on the %s host', async (locale, mode) => {
+    populated()
+    const contribution = {
+      id: 'wl-2', name: 'Promotion routine', relationship: 'contribution' as const, entity: 'work-line' as const,
+      workLineId: 'wl-2', taskCount: 1, done: 0, total: 1, tasks: [task('t3', 'Share promotion', 'Open')],
+    }
+    const relations = data.context.relationsById.get('obj-1')!
+    data.context = {
+      ...data.context,
+      relationsById: new Map([['obj-1', { ...relations, groups: [...relations.groups, contribution] }]]),
+      progressById: new Map([['obj-1', { done: 1, total: 3 }]]),
+    }
+    renderRecord('objective', mode, undefined, locale)
+    const work = await screen.findByRole('region', { name: locale === 'id' ? 'Proyek & Proses' : 'Projects & Processes' })
+    const unit = locale === 'id' ? 'Tugas selesai' : 'Tasks done'
+    // The header counts linked records; each row counts that work's Tasks; the Task section owns the aggregate.
+    expect(work.querySelector('.rp-section__count')).toHaveTextContent(/^2$/)
+    const direct = within(work).getByRole('link', { name: 'Menu launch' }).closest('li')!
+    const contributed = within(work).getByRole('link', { name: 'Promotion routine' }).closest('li')!
+    expect(direct).toHaveTextContent(`1 / 2 ${unit}`)
+    expect(contributed).toHaveTextContent(`0 / 1 ${unit}`)
+    expect(work).not.toHaveTextContent(`1 / 3 ${unit}`)
+    expect(await screen.findByRole('region', { name: locale === 'id' ? 'Tugas' : 'Tasks' })).toHaveTextContent(`1 / 3 ${unit}`)
   })
 
   it('a member with nothing to add is told it is view only', async () => {

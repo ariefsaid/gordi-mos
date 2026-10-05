@@ -152,7 +152,7 @@ export function LinkedWorkSection({ objectiveId, groups, workLines, people, scop
                 {group.relationship === 'contribution' ? <span className="rp-row__meta">{t('catalog.record.viaTasks')}</span> : null}
               </span>
               {group.total > 0
-                ? <span className="rp-row__meta rp-wl__count tabular-nums">{t('catalog.record.rollup', { done: String(group.done), total: String(group.total) })}</span>
+                ? <span className="rp-row__meta rp-wl__count tabular-nums">{t('catalog.objectives.taskProgress', { done: String(group.done), total: String(group.total) })}</span>
                 : <span />}
               {responsible ? <span className="rp-avatar rp-wl__who" data-initials={initialsOf(responsible)} title={responsible} role="img" aria-label={`${t('catalog.record.responsible')}: ${responsible}`} /> : <span />}
               {canUnlink && workLine ? (
