@@ -217,6 +217,7 @@ export function CatalogListPresentation({ query, projection, context, onOpenReco
           const cadenceDue = dueValue(row, t)
           const cadenceDueLabel = cadenceDue.label
           const objectiveRelationName = [relationLabel, objectiveContributionNote].filter(Boolean).join('. ')
+          const relationValueMissing = !relation && objectiveContributionNote === null
           const typeTag = row.type ? (
             <Tag color={row.type === 'project' ? 'blue' : 'sand'}>
               {t(row.type === 'project' ? 'catalog.tag.project' : 'catalog.tag.process')}
@@ -232,7 +233,7 @@ export function CatalogListPresentation({ query, projection, context, onOpenReco
               >
                 <span className="catalog-collection__cell-label">{context.relationsKind === 'objective' ? t('catalog.column.businessUnit') : t('catalog.column.objective')}</span>
                 <span className={context.relationsKind === 'objective' ? (businessUnitMissing ? 'catalog-collection__cell-value catalog-collection__cell-value--muted' : 'catalog-collection__cell-value') : (relation ? 'catalog-collection__cell-value' : 'catalog-collection__cell-value catalog-collection__cell-value--muted')}>
-                  {visualCellValue(context.relationsKind === 'objective' ? businessUnitLabel : relationLabel, context.relationsKind === 'objective' ? businessUnitMissing : !relation)}
+                  {visualCellValue(context.relationsKind === 'objective' ? businessUnitLabel : relationLabel, context.relationsKind === 'objective' ? businessUnitMissing : relationValueMissing)}
                 </span>
                 {context.relationsKind === 'objective' && periodNote ? (
                   <span className="catalog-collection__cell-note">{periodNote}</span>
