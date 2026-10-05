@@ -39,7 +39,7 @@ import { canStartProcessForTeam } from '@/lib/db/processes'
 import { linkSignalTask } from '@/lib/db/signals'
 import { TaskOverlayContent } from './task-drawer'
 import { TaskCreateContext, type TaskCreateContextValue, type TaskCreateFormState } from './task-create-context'
-import { loadHomeLeadId } from './default-supervisor'
+import { loadHomeLeadId, startHomeLeadReads } from './default-supervisor'
 import { useCatalogRecordEntryFactory } from '@/components/catalog/use-catalog-record-overlay'
 import type { OverlayEntry, OverlayHostApi } from '@/shell/overlay-host'
 import { getActiveTaskView } from './task-collection-view'
@@ -243,8 +243,11 @@ export function TasksWorkspace({
       return () => { active = false }
     }
     setViewerTeams(null)
+    // Lead/People reads never consume the Teams result — start them now so the draft's
+    // Supervisor default lands with the Teams read, not after it (#1359).
+    const leadReads = startHomeLeadReads()
     getPersonTeams(viewerId).then(async (teams) => {
-      const leadId = await loadHomeLeadId(teams, viewerId)
+      const leadId = await loadHomeLeadId(teams, viewerId, leadReads)
       if (!active) return
       setHomeLeadId(leadId)
       setViewerTeams(teams)

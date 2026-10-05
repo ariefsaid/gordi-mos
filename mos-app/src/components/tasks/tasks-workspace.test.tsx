@@ -41,6 +41,7 @@ vi.mock('../../lib/db/signals', () => ({
 }))
 vi.mock('../../lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
+  getMyTeamLeads: vi.fn(),
   getPeople: vi.fn(),
   getPersonTeams: vi.fn().mockResolvedValue([]),
   getTeamsByIds: vi.fn().mockResolvedValue([]),
@@ -60,7 +61,7 @@ vi.mock('@/lib/db/user-views-collection', () => ({
 
 import { listTasks, getTask, createTask, updateTaskFields } from '@/lib/db/tasks'
 import { linkSignalTask } from '@/lib/db/signals'
-import { getBusinessUnits, getPeople, getDownlinePersonIds, getPersonTeams, getTeamsByIds } from '@/lib/db/directory'
+import { getBusinessUnits, getMyTeamLeads, getPeople, getDownlinePersonIds, getPersonTeams, getTeamsByIds } from '@/lib/db/directory'
 import { listObjectives } from '@/lib/db/objectives'
 import { listWorkLines } from '@/lib/db/work-lines'
 import { canStartProcessForTeam } from '@/lib/db/processes'
@@ -230,6 +231,7 @@ beforeEach(() => {
   localStorage.clear()
   stubMatchMedia(true, true)
   vi.mocked(getBusinessUnits).mockResolvedValue(BUS)
+  vi.mocked(getMyTeamLeads).mockResolvedValue([])
   vi.mocked(getPeople).mockResolvedValue(PEOPLE)
   vi.mocked(getDownlinePersonIds).mockResolvedValue([])
   vi.mocked(listObjectives).mockResolvedValue([])
@@ -3013,5 +3015,23 @@ describe('Tasks search follows outside URL changes (#1024)', () => {
     expect(box()).toHaveValue('Alpha')
     await waitFor(() => expect(router.state.location.search).toContain('q=Alpha'))
     expect(screen.queryByText('Beta task')).toBeNull()
+  })
+})
+
+describe('TasksWorkspace — lead-authority reads race the Teams read (#1359)', () => {
+  it('starts the lead/People reads while the Teams read is still in flight', async () => {
+    let resolveTeams: (v: never) => void = () => {}
+    vi.mocked(getPersonTeams).mockImplementation(
+      () => new Promise((resolve) => { resolveTeams = resolve as never }),
+    )
+    vi.mocked(getMyTeamLeads).mockResolvedValue([
+      { team_id: VIEWER_TEAMS[0].id, lead_person_id: 'person-lead' },
+    ] as never)
+    vi.mocked(getPeople).mockResolvedValue(PEOPLE as never)
+    renderTable()
+    // Both authority reads are issued while the Teams read is still pending.
+    expect(vi.mocked(getMyTeamLeads)).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(getPeople)).toHaveBeenCalled()
+    resolveTeams(VIEWER_TEAMS as never)
   })
 })

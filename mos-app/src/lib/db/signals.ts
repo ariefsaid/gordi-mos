@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { containsPattern } from './like-pattern'
 import { filterEffectiveMemberships } from '@/lib/team-context/eligible-teams'
 import type {
   Attention, SignalRow, MentionKind, CreateSignalInput, TeamOption, SiteOption, StagedMention,
@@ -44,7 +45,7 @@ export async function searchSignalsByBody(q: string, limit = 20): Promise<Signal
   const { data, error } = await mos()
     .from('signals')
     .select('id,body')
-    .ilike('body', `%${term}%`)
+    .ilike('body', containsPattern(term))
     .is('retracted_at', null)
     .order('created_at', { ascending: false })
     .limit(limit)

@@ -52,20 +52,22 @@ export async function listNotifications(): Promise<NotificationRow[]> {
 /**
  * The viewer's unread count for the Inbox badge. A dedicated read (rather than counting client-side
  * over listNotifications) so the badge cost is O(unread) backed by mos_notifications_owner_unread_idx,
- * not O(all-time inbox size) — and so it stays correct when the Inbox page caps/truncates. Cafe
- * reads metadata to match the Inbox's profile visibility rule; full keeps the id-only projection.
+ * not O(all-time inbox size) — and so it stays correct when the Inbox page caps/truncates.
  */
 export async function countUnread(): Promise<number> {
   const notifications = mos().from('notifications')
   if (APP_RELEASE_PROFILE === 'cafe') {
+    // Cafe visibility (route/feature allowlists) is a client-side predicate over metadata with no
+    // server-side equivalent, so this profile keeps the bounded row read.
     const { data, error } = await notifications.select('id, metadata').is('read_at', null)
     if (error) throw new Error(`countUnread failed: ${error.message}`)
     return (data ?? []).filter((row) => notificationAvailableInProfile(row, 'cafe')).length
   }
-
-  const { data, error } = await notifications.select('id').is('read_at', null)
+  // Full profile: the badge is a HEAD exact count — no rows over the wire (#1359), backed by
+  // mos_notifications_owner_unread_idx, mirroring getMyOpenTaskCount.
+  const { count, error } = await notifications.select('id', { count: 'exact', head: true }).is('read_at', null)
   if (error) throw new Error(`countUnread failed: ${error.message}`)
-  return (data ?? []).length
+  return count ?? 0
 }
 
 /** Mark one notification read. Only `read_at` may change (server trigger enforces it). */

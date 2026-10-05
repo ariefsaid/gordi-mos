@@ -5,6 +5,8 @@
 // Throws on any PostgREST error so callers can surface failures.
 
 import { supabase } from '@/lib/supabase'
+import { containsPattern } from './like-pattern'
+import { withReferenceCache } from './reference-cache'
 import { filterEffectiveMemberships } from '@/lib/team-context/eligible-teams'
 import type { EligibleTeam } from '@/lib/team-context/types'
 import { getReadScope, sharePending } from '@/lib/scoped-reads'
@@ -198,28 +200,35 @@ export async function getPersonBusinessUnitIds(personId: string, readLease?: Rea
 
 /** Load all non-archived business units for the org (ordered by name). */
 export async function getBusinessUnits(readLease?: ReadLease): Promise<BusinessUnitOption[]> {
-  return readDirectory(readLease, 'shared.business_units:select(id,name,code):archived_at=null:order=name.asc', async () => {
-    const { data, error } = await shared()
-      .from('business_units')
-      .select('id,name,code')
-      .is('archived_at', null)
-      .order('name', { ascending: true })
-    if (error) throw new Error(`getBusinessUnits failed — ${error.message}`)
-    return (data ?? []) as BusinessUnitOption[]
-  })
+  return readDirectory(readLease, 'shared.business_units:select(id,name,code):archived_at=null:order=name.asc', () =>
+    // SWR-cached across mounts — reference data changes a few times a day (#1359). The lease/scope
+    // checks stay outermost; this cache adds cross-mount persistence only.
+    withReferenceCache('shared.business_units.active', async () => {
+      const { data, error } = await shared()
+        .from('business_units')
+        .select('id,name,code')
+        .is('archived_at', null)
+        .order('name', { ascending: true })
+      if (error) throw new Error(`getBusinessUnits failed — ${error.message}`)
+      return (data ?? []) as BusinessUnitOption[]
+    }),
+  )
 }
 
 /** Load all active (non-archived) people for the org (ordered by full_name). */
 export async function getPeople(readLease?: ReadLease): Promise<PersonOption[]> {
-  return readDirectory(readLease, 'shared.people:select(id,full_name):archived_at=null:order=full_name.asc', async () => {
-    const { data, error } = await shared()
-      .from('people')
-      .select('id,full_name')
-      .is('archived_at', null)
-      .order('full_name', { ascending: true })
-    if (error) throw new Error(`getPeople failed — ${error.message}`)
-    return (data ?? []) as PersonOption[]
-  })
+  return readDirectory(readLease, 'shared.people:select(id,full_name):archived_at=null:order=full_name.asc', () =>
+    // SWR-cached across mounts — the picker re-reads people on every mount (#1359).
+    withReferenceCache('shared.people.active', async () => {
+      const { data, error } = await shared()
+        .from('people')
+        .select('id,full_name')
+        .is('archived_at', null)
+        .order('full_name', { ascending: true })
+      if (error) throw new Error(`getPeople failed — ${error.message}`)
+      return (data ?? []) as PersonOption[]
+    }),
+  )
 }
 
 /** Search active people by name for the ⌘K palette (org-scoped like getPeople; the LIKE wildcards % _ * are escaped). */
@@ -228,9 +237,7 @@ export async function searchPeopleByName(query: string): Promise<PersonOption[]>
     .from('people')
     .select('id,full_name')
     .is('archived_at', null)
-    // Escape % _ * so a query of "50%", "a_b" or "a*b" matches literally, never as a LIKE
-    // pattern — PostgREST treats all three as wildcards (`*` is its ilike alias for %).
-    .ilike('full_name', `%${query.replace(/[%_*]/g, '\\$&')}%`)
+    .ilike('full_name', containsPattern(query))
     .order('full_name', { ascending: true })
     .limit(10)
   if (error) throw new Error(`searchPeopleByName failed — ${error.message}`)

@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { containsPattern } from './like-pattern'
+import { withReferenceCache, invalidateReferenceCache } from './reference-cache'
 
 // Data layer for mos.objectives (cascade first slice, Task B).
 // Reads mos via supabase.schema('mos') — one auth session, RLS is the authority.
@@ -31,15 +32,18 @@ export interface ObjectiveOwnership {
 const ACTIVE_COLUMNS = 'id,name,business_unit_id,accountable_person_id,period_year'
 const ADMIN_COLUMNS = 'id,name,archived_at,business_unit_id,is_company_wide,accountable_person_id,period_year,period_quarter'
 
-/** List active (non-archived) objectives ordered by name (org-readable via RLS). */
+/** List active (non-archived) objectives ordered by name (org-readable via RLS). SWR-cached —
+ * the picker/palette re-read these on mount, a few times a day of change (#1359). */
 export async function listObjectives(): Promise<ObjectiveRow[]> {
-  const { data, error } = await mos()
-    .from('objectives')
-    .select(ACTIVE_COLUMNS)
-    .is('archived_at', null)
-    .order('name')
-  if (error) throw new Error(`listObjectives failed — ${error.message}`)
-  return (data ?? []) as unknown as ObjectiveRow[]
+  return withReferenceCache('mos.objectives.active', async () => {
+    const { data, error } = await mos()
+      .from('objectives')
+      .select(ACTIVE_COLUMNS)
+      .is('archived_at', null)
+      .order('name')
+    if (error) throw new Error(`listObjectives failed — ${error.message}`)
+    return (data ?? []) as unknown as ObjectiveRow[]
+  })
 }
 
 /** Search active objectives by name for the ⌘K palette. RLS (org tenancy) is the read authority; org_id is never sent. */
@@ -92,6 +96,7 @@ export async function createObjective(
     .select(ADMIN_COLUMNS)
     .single()
   if (error) throw new Error(`createObjective failed — ${error.message}`)
+  invalidateReferenceCache('mos.objectives')
   return data as unknown as ObjectiveAdminRow
 }
 
@@ -99,6 +104,7 @@ export async function createObjective(
 export async function renameObjective(id: string, name: string): Promise<void> {
   const { error } = await mos().from('objectives').update({ name }).eq('id', id)
   if (error) throw new Error(`renameObjective failed — ${error.message}`)
+  invalidateReferenceCache('mos.objectives')
 }
 
 /** Archive / unarchive an objective (soft — toggles archived_at). */
@@ -108,6 +114,7 @@ export async function setObjectiveArchived(id: string, archived: boolean): Promi
     .update({ archived_at: archived ? new Date().toISOString() : null })
     .eq('id', id)
   if (error) throw new Error(`setObjectiveArchived failed — ${error.message}`)
+  invalidateReferenceCache('mos.objectives')
 }
 
 // ── Record surface ────────────────────────────────────────────────────────────
@@ -152,4 +159,5 @@ export interface ObjectivePatch {
 export async function updateObjective(id: string, patch: ObjectivePatch): Promise<void> {
   const { error } = await mos().from('objectives').update(patch).eq('id', id)
   if (error) throw new Error(`updateObjective failed — ${error.message}`)
+  invalidateReferenceCache('mos.objectives')
 }

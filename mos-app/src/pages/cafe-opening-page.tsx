@@ -18,9 +18,10 @@ import {
   getTodayOpeningForTeam,
   listCafeViewerTeams,
   listStartableCafeTeams,
-  resolveCafeOpeningTeamForBranch,
-  resolveCafeOpeningTeamForTeam,
+  resolveCafeOpeningTeamsForBranches,
+  resolveCafeOpeningTeamsForTeamIds,
   wibToday,
+  type CafeOpeningTeam,
 } from '@/lib/db/cafe-opening'
 import { listActiveBranches } from '@/lib/db/branches'
 import { rememberCafeLocation, rememberCafeOpeningTeam, rememberedCafeOpeningTeamId } from '@/lib/cafe-opening-location'
@@ -219,23 +220,20 @@ function CafeRootPageBody() {
         ]
         // Ops leads/admins can be authorized for a branch without holding a profile membership.
         // Their started branches never appear in due_process_runs(), so include every active
-        // branch's canonical Opening Team under the existing elevated Café gate as well.
-        if (canPushCafe(accessRoles)) {
-          const elevated = await Promise.all(
-            branches.map(async (branch) => ({
-              branch,
-              team: await resolveCafeOpeningTeamForBranch(branch.id),
-            })),
-          )
-          sources.push(
-            ...elevated
-              .filter(result => result.team !== null)
-              .map(result => ({ sourceTeamId: result.team!.id, isPrimary: false, due: false })),
-          )
-        }
-        const resolvedSources = await Promise.all(
-          sources.map(async (source) => ({ source, team: await resolveCafeOpeningTeamForTeam(source.sourceTeamId) })),
-        )
+        // branch's canonical Opening Team under the existing elevated Café gate as well. Resolve
+        // independent branches and source Teams in parallel, then fetch team labels in batches.
+        const elevatedPromise = canPushCafe(accessRoles)
+          ? resolveCafeOpeningTeamsForBranches(branches.map((branch) => branch.id))
+          : Promise.resolve(new Map<string, CafeOpeningTeam>())
+        const sourceTeamsPromise = resolveCafeOpeningTeamsForTeamIds(sources.map((source) => source.sourceTeamId))
+        const [elevated, openingTeamsBySource] = await Promise.all([elevatedPromise, sourceTeamsPromise])
+        const resolvedSources = [
+          ...sources.map((source) => ({ source, team: openingTeamsBySource.get(source.sourceTeamId) ?? null })),
+          ...[...elevated.values()].map((team) => ({
+            source: { sourceTeamId: team.id, isPrimary: false, due: false },
+            team,
+          })),
+        ]
         if (generation !== loadGeneration.current) return
 
         const candidates = new Map<string, BranchTeam>()
