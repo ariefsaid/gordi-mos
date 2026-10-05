@@ -243,17 +243,32 @@ describe('CafeItemSettingsPage unit multiples', () => {
 })
 
 describe('CafeItemSettingsPage default-unit setup note', () => {
-  it('says once how many items need a default unit and tags each row briefly', async () => {
+  it.each([
+    { locale: 'en' as const, count: 1, summary: '1 item needs a default unit before it can be logged.' },
+    { locale: 'en' as const, count: 2, summary: '2 items need a default unit before they can be logged.' },
+    { locale: 'id' as const, count: 1, summary: '1 item perlu satuan default sebelum dapat dicatat.' },
+    { locale: 'id' as const, count: 2, summary: '2 item perlu satuan default sebelum dapat dicatat.' },
+  ])('localizes the $locale setup summary for $count item(s) and tags each row', async ({ locale, count, summary }) => {
     const unit = (id: string) => ({ id, name: 'GR', isShown: true, isDefault: false, labelOrdinal: null, labelCount: 1 })
-    mockListItems.mockResolvedValue([
-      { id: 'item-1', erpName: 'ERP Oat milk', mosName: 'Oat milk', category: 'Dairy', kind: 'RAW', isActive: true,
-        defaultUnitId: null, units: [unit('u-1')] },
-      { id: 'item-2', erpName: 'ERP Sugar', mosName: 'Sugar', category: 'Dry', kind: 'RAW', isActive: true,
-        defaultUnitId: null, units: [unit('u-2')] },
-    ])
-    renderPage()
-    expect(await screen.findAllByText('2 items need a default unit before they can be logged.')).toHaveLength(1)
+    mockListItems.mockResolvedValue(Array.from({ length: count }, (_, index) => ({
+      id: `item-${index + 1}`,
+      erpName: `ERP item ${index + 1}`,
+      mosName: `Item ${index + 1}`,
+      category: 'Dry',
+      kind: 'RAW' as const,
+      isActive: true,
+      defaultUnitId: null,
+      units: [unit(`u-${index + 1}`)],
+    })))
+    const { container } = renderPage(locale)
+
+    const summaryNote = await screen.findByText(summary, { exact: true })
+    expect(summaryNote).toHaveAttribute('role', 'status')
+    const statusTags = Array.from(container.querySelectorAll('.cafe-items__needs-unit-status'))
+    expect(statusTags).toHaveLength(count)
+    expect(statusTags.map(tag => tag.textContent)).toEqual(
+      Array.from({ length: count }, () => locale === 'en' ? 'Needs unit' : 'Perlu satuan'),
+    )
     expect(screen.queryByText('Choose a shown default to enable logging.')).not.toBeInTheDocument()
-    expect(screen.getAllByText('Needs unit').length).toBeGreaterThanOrEqual(2)
   })
 })

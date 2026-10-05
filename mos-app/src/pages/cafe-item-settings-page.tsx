@@ -501,7 +501,10 @@ function CafeItemSettingsPageForViewer() {
       )}
       {readState === 'ready' && stream && needsUnitCount > 0 && (
         <p className="cafe-items__needs-unit-summary" role="status">
-          {t('cafe.items.needsSetupCount', { count: String(needsUnitCount) })}
+          {t(
+            needsUnitCount === 1 ? 'cafe.items.needsSetupCount.one' : 'cafe.items.needsSetupCount.other',
+            { count: needsUnitCount },
+          )}
         </p>
       )}
       {readState === 'ready' && stream && items.length === 0 && (
