@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase'
 import { announceOpenTaskCountChanged } from '@/lib/open-task-count-store'
 import type { DueProcessRun, PendingTaskRow, ProcessOccurrenceSummary, ProcessRunRollup, ProcessRunRow, SpawnResult, TaskDefLookup } from './processes.types'
 import type { TaskListRow } from './tasks.types'
+import { LIST_SELECT as TASK_LIST_SELECT } from './tasks'
 
 // Data layer for mos.process_runs + friends (Step 6 / ADR-0051). Reads/writes mos via
 // supabase.schema('mos') on the existing client — same client, RLS is the authority (mirrors
@@ -11,6 +12,9 @@ import type { TaskListRow } from './tasks.types'
 
 const mos = () => supabase.schema('mos')
 const shared = () => supabase.schema('shared')
+
+const PENDING_TASK_COLUMNS = 'id,process_run_id,task_def_id,candidate_person_ids,reason,resolved_at'
+const ROLLUP_COLUMNS = 'process_run_id,caption,scheduled_date,status,total,open,in_progress,blocked,done,overdue,pending_unresolved,completion_pct'
 
 // ── startRun / listDueRuns (B2, AC-620 backing) ──────────────────────────────
 
@@ -79,7 +83,7 @@ export async function listTaskDefs(defIds: string[]): Promise<TaskDefLookup[]> {
 export async function listPendingTasks(runId: string): Promise<PendingTaskRow[]> {
   const { data, error } = await mos()
     .from('process_run_pending_tasks')
-    .select('*')
+    .select(PENDING_TASK_COLUMNS)
     .eq('process_run_id', runId)
     .is('resolved_at', null)
   if (error) throw new Error(`listPendingTasks failed — ${error.message}`)
@@ -111,7 +115,7 @@ export async function resolvePendingTask(pendingId: string, picPersonId: string)
 export async function getRunRollup(runId: string): Promise<ProcessRunRollup> {
   const { data, error } = await mos()
     .from('process_run_rollup')
-    .select('*')
+    .select(ROLLUP_COLUMNS)
     .eq('process_run_id', runId)
     .single()
   if (error) throw new Error(`getRunRollup failed — ${error.message}`)
@@ -123,7 +127,7 @@ export async function getRunRollup(runId: string): Promise<ProcessRunRollup> {
 export async function listRunTasks(runId: string): Promise<TaskListRow[]> {
   const { data, error } = await mos()
     .from('tasks')
-    .select('*')
+    .select(TASK_LIST_SELECT)
     .eq('process_run_id', runId)
   if (error) throw new Error(`listRunTasks failed — ${error.message}`)
   return (data ?? []) as unknown as TaskListRow[]
@@ -136,7 +140,7 @@ export async function listRunRollups(runIds: string[]): Promise<ProcessRunRollup
   if (runIds.length === 0) return []
   const { data, error } = await mos()
     .from('process_run_rollup')
-    .select('*')
+    .select(ROLLUP_COLUMNS)
     .in('process_run_id', runIds)
   if (error) throw new Error(`listRunRollups failed — ${error.message}`)
   return (data ?? []) as unknown as ProcessRunRollup[]
@@ -159,7 +163,7 @@ export async function listProcessOccurrenceSummaries(workLineId: string): Promis
   const runIds = runs.map((run) => run.id)
   const teamIds = Array.from(new Set(runs.map((run) => run.owning_team_id)))
   const [{ data: rollupData, error: rollupError }, { data: teamData, error: teamError }] = await Promise.all([
-    mos().from('process_run_rollup').select('*').in('process_run_id', runIds),
+    mos().from('process_run_rollup').select(ROLLUP_COLUMNS).in('process_run_id', runIds),
     shared().from('teams').select('id,name').in('id', teamIds),
   ])
   if (rollupError) throw new Error(`listProcessOccurrenceSummaries rollups failed — ${rollupError.message}`)
