@@ -24,7 +24,7 @@ vi.mock('@/lib/db/cafe-missing-item-reports', () => ({
 }))
 
 import { useAuth } from '@/auth/use-auth'
-import { canManageCafeItemSettings, listCafeItemSettings } from '@/lib/db/cafe-item-settings'
+import { canManageCafeItemSettings, listCafeItemSettings, saveCafeItemSettings } from '@/lib/db/cafe-item-settings'
 import { listCafeMissingItemReports, resolveCafeMissingItemReport } from '@/lib/db/cafe-missing-item-reports'
 import { CafeItemSettingsPage } from './cafe-item-settings-page'
 import { isCafeItemDraftKind } from './cafe-item-settings-kind'
@@ -32,6 +32,7 @@ import { isCafeItemDraftKind } from './cafe-item-settings-kind'
 const mockUseAuth = vi.mocked(useAuth)
 const mockCanManage = vi.mocked(canManageCafeItemSettings)
 const mockListItems = vi.mocked(listCafeItemSettings)
+const mockSaveItem = vi.mocked(saveCafeItemSettings)
 const mockListReports = vi.mocked(listCafeMissingItemReports)
 const mockResolveReport = vi.mocked(resolveCafeMissingItemReport)
 
@@ -73,6 +74,7 @@ beforeEach(() => {
   }])
   mockListReports.mockResolvedValue([REPORT])
   mockResolveReport.mockResolvedValue()
+  mockSaveItem.mockResolvedValue()
 })
 
 it('accepts only the three Café item kind select values', () => {
@@ -185,6 +187,46 @@ describe('CafeItemSettingsPage filters', () => {
       expect(screen.getByText('ERP Oat flour')).toBeInTheDocument()
       expect(screen.queryByText('ERP Oat syrup')).not.toBeInTheDocument()
     })
+  })
+})
+
+describe('CafeItemSettingsPage unit multiples', () => {
+  it('offers all active ERP units as defaults, defines factors in one multi-select, and saves only the default detail', async () => {
+    mockListItems.mockResolvedValue([{
+      id: 'item-1', erpName: 'ERP Oat milk', mosName: 'Oat milk', category: 'Dairy', kind: 'RAW', isActive: true,
+      defaultUnitId: 'unit-each',
+      units: [
+        { id: 'unit-each', name: 'each', isShown: true, isDefault: true, labelOrdinal: null, labelCount: 1 },
+        { id: 'unit-case', name: 'case', isShown: false, isDefault: false, labelOrdinal: null, labelCount: 1 },
+      ],
+      unitMultiples: [0.5],
+    }])
+    const user = userEvent.setup()
+    renderPage()
+
+    const defaultUnit = await screen.findByRole('combobox', { name: 'Default unit' })
+    await user.click(defaultUnit)
+    await user.click(await screen.findByRole('option', { name: 'case' }))
+
+    const multiples = screen.getByRole('button', { name: 'Extra units for Oat milk' })
+    await user.click(multiples)
+    expect(screen.queryByRole('option', { name: '0.5 case' })).not.toBeInTheDocument()
+    await user.keyboard('{Escape}')
+
+    await user.click(multiples)
+    const factor = screen.getByRole('spinbutton', { name: 'Multiple of case' })
+    await user.type(factor, '2')
+    await user.click(screen.getByRole('button', { name: 'Add a multiple for Oat milk' }))
+    expect(screen.getByRole('button', { name: 'Extra units for Oat milk' })).toHaveTextContent('2 case')
+
+    await user.click(screen.getByRole('button', { name: 'Save settings for Oat milk' }))
+    await waitFor(() => expect(mockSaveItem).toHaveBeenCalledWith(expect.objectContaining({
+      itemId: 'item-1',
+      defaultUnitId: 'unit-case',
+      shownUnitIds: ['unit-case'],
+      unitMultiples: [2],
+    })))
+    expect(await screen.findByText('Saved')).toBeInTheDocument()
   })
 })
 

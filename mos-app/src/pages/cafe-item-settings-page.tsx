@@ -8,9 +8,11 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { Select } from '@/components/ui/select'
+import { MultiPicker } from '@/components/ui/picker'
 import { TextInput } from '@/components/ui/text-input'
 import { useT } from '@/i18n/use-t'
 import type { CafeItemSetting, CafeItemSettingUnit } from '@/lib/db/cafe-item-settings'
+import { formatUnitMultiple } from '@/lib/cafe-unit-multiples'
 import {
   KITCHEN_ACTIVE_FILTER_OPTIONS,
   KITCHEN_KIND_FILTER_OPTIONS,
@@ -47,7 +49,7 @@ type ItemDraft = {
   kind: CafeItemDraftKind
   isActive: boolean
   defaultUnitId: string
-  shownUnitIds: string[]
+  unitMultiples: number[]
 }
 
 type ReadState = 'loading' | 'ready' | 'error'
@@ -73,20 +75,20 @@ function initialDraft(item: CafeItemSetting): ItemDraft {
     kind: item.kind ?? '',
     isActive: item.isActive,
     defaultUnitId: item.defaultUnitId ?? '',
-    shownUnitIds: item.units.filter(unit => unit.isShown).map(unit => unit.id),
+    unitMultiples: [...(item.unitMultiples ?? [])],
   }
 }
 
-function sameIds(a: readonly string[], b: readonly string[]): boolean {
+function sameFactors(a: readonly number[], b: readonly number[]): boolean {
   if (a.length !== b.length) return false
-  const sortedA = [...a].sort()
-  const sortedB = [...b].sort()
-  return sortedA.every((id, index) => id === sortedB[index])
+  const sortedA = [...a].sort((left, right) => left - right)
+  const sortedB = [...b].sort((left, right) => left - right)
+  return sortedA.every((factor, index) => factor === sortedB[index])
 }
 
 function hasDefault(item: CafeItemSetting): boolean {
   return item.defaultUnitId !== null && item.units.some(unit =>
-    unit.id === item.defaultUnitId && unit.isDefault && unit.isShown,
+    unit.id === item.defaultUnitId && unit.isDefault,
   )
 }
 
@@ -228,13 +230,13 @@ function CafeItemSettingsPageForViewer() {
     for (const item of items) {
       const draft = drafts[item.id]
       if (!draft) continue
-      const shown = item.units.filter(unit => unit.isShown).map(unit => unit.id)
+      const multiples = item.unitMultiples ?? []
       if (
         draft.mosName.trim() !== item.mosName
         || draft.kind !== (item.kind ?? '')
         || draft.isActive !== item.isActive
         || draft.defaultUnitId !== (item.defaultUnitId ?? '')
-        || !sameIds(draft.shownUnitIds, shown)
+        || !sameFactors(draft.unitMultiples, multiples)
       ) result.add(item.id)
     }
     return result
@@ -256,10 +258,10 @@ function CafeItemSettingsPageForViewer() {
     setSaveStates(current => ({ ...current, [item.id]: null }))
     try {
       const mosName = draft.mosName.trim()
-      const shownUnitIds = item.units.filter(unit => draft.shownUnitIds.includes(unit.id)).map(unit => unit.id)
-      const defaultUnitId = draft.defaultUnitId && shownUnitIds.includes(draft.defaultUnitId)
+      const defaultUnitId = item.units.some(unit => unit.id === draft.defaultUnitId)
         ? draft.defaultUnitId
         : null
+      const shownUnitIds = defaultUnitId ? [defaultUnitId] : []
       await saveCafeItemSettings({
         stream,
         itemId: item.id,
@@ -268,6 +270,7 @@ function CafeItemSettingsPageForViewer() {
         isActive: draft.isActive,
         defaultUnitId,
         shownUnitIds,
+        unitMultiples: draft.unitMultiples,
       })
       setItems(current => current.map(candidate => candidate.id !== item.id ? candidate : {
         ...candidate,
@@ -275,15 +278,16 @@ function CafeItemSettingsPageForViewer() {
         kind: draft.kind || null,
         isActive: draft.isActive,
         defaultUnitId,
+        unitMultiples: [...draft.unitMultiples],
         units: candidate.units.map(unit => ({
           ...unit,
-          isShown: shownUnitIds.includes(unit.id),
+          isShown: unit.id === defaultUnitId,
           isDefault: unit.id === defaultUnitId,
         })),
       }))
       setDrafts(current => ({
         ...current,
-        [item.id]: { mosName, kind: draft.kind, isActive: draft.isActive, defaultUnitId: defaultUnitId ?? '', shownUnitIds },
+        [item.id]: { mosName, kind: draft.kind, isActive: draft.isActive, defaultUnitId: defaultUnitId ?? '', unitMultiples: [...draft.unitMultiples] },
       }))
       setSaveStates(current => ({ ...current, [item.id]: { kind: 'saved' } }))
     } catch {
@@ -396,9 +400,9 @@ function CafeItemSettingsPageForViewer() {
       render: item => <ItemDefaultUnitEditor {...editorFor(item)} />,
     },
     {
-      key: 'shownUnits',
-      header: t('cafe.items.shownUnits'),
-      render: item => <ItemUnitsEditor {...editorFor(item)} />,
+      key: 'unitMultiples',
+      header: t('cafe.items.unitMultiples'),
+      render: item => <ItemMultiplesEditor {...editorFor(item)} />,
     },
     ...(canEdit ? [{
       key: 'actions',
@@ -650,27 +654,50 @@ function ItemDefaultUnitEditor({ item, draft, canEdit, saving, onDraftChange }: 
   if (!canEdit || item.units.length === 0) {
     return <span className="cafe-items__default-value">{defaultUnitLabel(item, t)}</span>
   }
-  const shownUnits = item.units.filter(unit => draft.shownUnitIds.includes(unit.id))
-  const selectedUnitId = shownUnits.some(unit => unit.id === draft.defaultUnitId) ? draft.defaultUnitId : ''
+  const selectedUnitId = item.units.some(unit => unit.id === draft.defaultUnitId) ? draft.defaultUnitId : ''
   return (
     <Select
       label={t('cafe.items.defaultUnit')}
       value={selectedUnitId}
-      disabled={saving || shownUnits.length === 0}
-      onChange={event => onDraftChange(current => ({ ...current, defaultUnitId: event.target.value }))}
+      disabled={saving || item.units.length === 0}
+      onChange={event => onDraftChange(current => ({
+        ...current,
+        defaultUnitId: event.target.value,
+        unitMultiples: event.target.value === current.defaultUnitId ? current.unitMultiples : [],
+      }))}
     >
       <option value="">{t('cafe.items.noDefault')}</option>
-      {shownUnits.map(unit => <option key={unit.id} value={unit.id}>{unitLabel(unit, t)}</option>)}
+      {item.units.map(unit => <option key={unit.id} value={unit.id}>{unitLabel(unit, t)}</option>)}
     </Select>
   )
 }
 
-function ItemUnitsEditor({ item, draft, canEdit, saving, onDraftChange }: ItemFieldProps) {
+function ItemMultiplesEditor({ item, draft, canEdit, saving, onDraftChange }: ItemFieldProps) {
   const t = useT()
-  if (item.units.length === 0) return <span className="cafe-items__muted">{t('cafe.items.noErpUnits')}</span>
-  return canEdit
-    ? <ShownUnits item={item} draft={draft} disabled={saving} onDraftChange={onDraftChange} />
-    : <ReadOnlyUnits item={item} />
+  const defaultUnit = item.units.find(unit => unit.id === draft.defaultUnitId)
+    ?? item.units.find(unit => unit.id === item.defaultUnitId)
+  const unitName = defaultUnit ? unitLabel(defaultUnit, t) : ''
+  const savedFactors = draft.defaultUnitId === item.defaultUnitId ? item.unitMultiples ?? [] : []
+  const options = [...new Set([...savedFactors, ...draft.unitMultiples])]
+    .map(factor => ({ value: String(factor), label: formatUnitMultiple(factor, unitName, document.documentElement.lang || undefined) }))
+  if (!canEdit) {
+    return draft.unitMultiples.length > 0
+      ? <ul className="cafe-items__readonly-multiples">{draft.unitMultiples.map(factor => (
+          <li key={factor}>{formatUnitMultiple(factor, unitName, document.documentElement.lang || undefined)}</li>
+        ))}</ul>
+      : <span className="cafe-items__muted">{t('cafe.items.noMultiples')}</span>
+  }
+  return (
+    <MultiplesPickerEditor
+      itemName={draft.mosName}
+      unitName={unitName}
+      factors={draft.unitMultiples}
+      options={options}
+      disabled={saving || !defaultUnit}
+      maxedOut={draft.unitMultiples.length >= 12}
+      onFactorsChange={factors => onDraftChange(current => ({ ...current, unitMultiples: factors }))}
+    />
+  )
 }
 
 function ItemCard({ item, draft, canEdit, saving, changed, saveState, onDraftChange, onSave }: ItemEditorProps) {
@@ -704,8 +731,8 @@ function ItemCard({ item, draft, canEdit, saving, changed, saveState, onDraftCha
         <ItemDefaultUnitEditor item={item} draft={draft} canEdit={canEdit} saving={saving} onDraftChange={onDraftChange} />
       </div>
       <div className="cafe-items__card-field">
-        <span className="cafe-items__field-label">{t('cafe.items.shownUnits')}</span>
-        <ItemUnitsEditor item={item} draft={draft} canEdit={canEdit} saving={saving} onDraftChange={onDraftChange} />
+        <span className="cafe-items__field-label">{t('cafe.items.unitMultiples')}</span>
+        <ItemMultiplesEditor item={item} draft={draft} canEdit={canEdit} saving={saving} onDraftChange={onDraftChange} />
       </div>
       {canEdit && (
         <div className="cafe-items__card-action">
@@ -716,63 +743,83 @@ function ItemCard({ item, draft, canEdit, saving, changed, saveState, onDraftCha
   )
 }
 
-function ShownUnits({
-  item,
-  draft,
+function MultiplesPickerEditor({
+  itemName,
+  unitName,
+  factors,
+  options,
   disabled,
-  onDraftChange,
+  maxedOut,
+  onFactorsChange,
 }: {
-  item: CafeItemSetting
-  draft: ItemDraft
+  itemName: string
+  unitName: string
+  factors: number[]
+  options: { value: string; label: string }[]
   disabled: boolean
-  onDraftChange: (update: (draft: ItemDraft) => ItemDraft) => void
+  maxedOut: boolean
+  onFactorsChange: (factors: number[]) => void
 }) {
   const t = useT()
-  return (
-    <fieldset className="cafe-items__unit-fieldset" disabled={disabled}>
-      <legend className="sr-only">{t('cafe.items.shownUnitsFor', { item: item.mosName })}</legend>
-      <div className="cafe-items__unit-list">
-        {item.units.map(unit => {
-          const label = unitLabel(unit, t)
-          const checked = draft.shownUnitIds.includes(unit.id)
-          return (
-            <label key={unit.id} className="cafe-items__unit-choice">
-              <Checkbox
-                checked={checked}
-                disabled={disabled}
-                aria-label={t('cafe.items.showUnitAction', { unit: label })}
-                onChange={next => onDraftChange(current => ({
-                  ...current,
-                  shownUnitIds: next
-                    ? [...current.shownUnitIds, unit.id]
-                    : current.shownUnitIds.filter(id => id !== unit.id),
-                  defaultUnitId: next || current.defaultUnitId !== unit.id ? current.defaultUnitId : '',
-                }))}
-              />
-              <span>{label}</span>
-              {unit.id === draft.defaultUnitId && <span className="cafe-items__default-tag">{t('cafe.items.defaultTag')}</span>}
-            </label>
-          )
-        })}
-      </div>
-    </fieldset>
-  )
-}
+  const [factorInput, setFactorInput] = useState('')
+  const factor = Number(factorInput)
+  const fraction = factorInput.trim().split(/[eE]/)[0]?.split('.')[1] ?? ''
+  const alreadySelected = factors.includes(factor)
+  const validFactor = Number.isFinite(factor)
+    && factor > 0
+    && factor <= 10000
+    && factor !== 1
+    && fraction.length <= 6
+    && !/[eE]/.test(factorInput)
+  const alreadyDefined = options.some(option => option.value === String(factor))
+  const addDisabled = disabled || !validFactor || alreadySelected || (maxedOut && !alreadyDefined)
+  const label = t('cafe.items.unitMultiplesFor', { item: itemName })
 
-function ReadOnlyUnits({ item }: { item: CafeItemSetting }) {
-  const t = useT()
-  if (!item.units.some(unit => unit.isShown)) {
-    return <span className="cafe-items__muted">{t('cafe.items.noneShown')}</span>
+  function addMultiple() {
+    if (addDisabled) return
+    onFactorsChange([...factors, factor])
+    setFactorInput('')
   }
+
   return (
-    <ul className="cafe-items__readonly-units">
-      {item.units.filter(unit => unit.isShown).map(unit => (
-        <li key={unit.id}>
-          {unitLabel(unit, t)}
-          {unit.isDefault && <span className="cafe-items__default-tag">{t('cafe.items.defaultTag')}</span>}
-        </li>
-      ))}
-    </ul>
+    <div className="cafe-items__multiples-editor">
+      <MultiPicker
+        label={label}
+        values={factors.map(String)}
+        options={options}
+        onChange={values => onFactorsChange(values.map(Number).filter(Number.isFinite))}
+        disabled={disabled}
+        fullWidth
+        hideLabel
+        placeholder={t('cafe.items.multipleSelectPlaceholder')}
+        footer={(
+          <div className="cafe-items__multiple-add">
+            <TextInput
+              label={t('cafe.items.multipleFactorFor', { unit: unitName })}
+              type="number"
+              min={0.000001}
+              max={10000}
+              step="any"
+              value={factorInput}
+              placeholder={t('cafe.items.multiplePlaceholder')}
+              disabled={disabled || (maxedOut && !alreadyDefined)}
+              onChange={event => setFactorInput(event.target.value)}
+              onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); addMultiple() } }}
+            />
+            <Button
+              variant="outline"
+              className="cafe-items__multiple-add-button"
+              disabled={addDisabled}
+              aria-label={t('cafe.items.addMultipleAction', { item: itemName })}
+              onClick={addMultiple}
+            >
+              {t('cafe.items.addMultiple')}
+            </Button>
+            <p className="cafe-items__multiple-help">{t('cafe.items.multipleHelp')}</p>
+          </div>
+        )}
+      />
+    </div>
   )
 }
 

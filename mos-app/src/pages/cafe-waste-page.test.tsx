@@ -88,8 +88,8 @@ const ITEM_SETTINGS: CafeItemSetting[] = [
     defaultUnitId: 'unit-cup',
     units: [
       { id: 'unit-cup', name: 'cup', isShown: true, isDefault: true, labelOrdinal: null, labelCount: 1 },
-      { id: 'unit-tray', name: 'tray', isShown: true, isDefault: false, labelOrdinal: null, labelCount: 1 },
     ],
+    unitMultiples: [0.5, 2],
   },
   {
     id: 'raw-1', erpName: 'ERP Oat milk', mosName: 'Oat milk', category: 'Dairy', kind: 'RAW', isActive: true,
@@ -328,11 +328,13 @@ describe('CafeWastePage', () => {
   })
 
   it('requires an explicit replacement for an expired photo-less draft and preserves its captured values and other rows', async () => {
-    mockListWasteDrafts.mockResolvedValue([wasteDraft()])
+    mockListWasteDrafts.mockResolvedValue([wasteDraft({
+      itemUnitId: 'unit-cup', unitName: 'cup', quantity: 2.5, entryUnitFactor: 1,
+    })])
     renderPage()
 
     fireEvent.change(await screen.findByRole('spinbutton', { name: 'Waste quantity for Oat milk' }), { target: { value: '4' } })
-    fireEvent.click(await screen.findByRole('button', { name: /resume oat latte · 2.5 tray/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /resume oat latte · 2.5 cup/i }))
 
     expect(await screen.findByText(/draft has no photo.*cannot be submitted/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Start new waste entry' })).toBeInTheDocument()
@@ -342,7 +344,8 @@ describe('CafeWastePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Start new waste entry' }))
     await waitFor(() => expect(mockInsertKitchenLog).toHaveBeenCalledTimes(1))
     expect(mockInsertKitchenLog).toHaveBeenCalledWith(expect.objectContaining({
-      action: 'waste', wip_item_id: 'wip-1', item_unit_id: 'unit-tray', qty_porsi: 2.5,
+      action: 'waste', wip_item_id: 'wip-1', item_unit_id: 'unit-cup', qty_porsi: 2.5,
+      entry_quantity: 2.5, entry_unit_factor: 1,
     }))
     expect(screen.getByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })).toBeDisabled()
     expect(screen.getByRole('spinbutton', { name: 'Waste quantity for Oat milk' })).toHaveValue(4)
@@ -382,7 +385,6 @@ describe('CafeWastePage', () => {
       defaultUnitId: 'unit-long',
       units: [
         { id: 'unit-long', name: longUnitLabel, isShown: true, isDefault: true, labelOrdinal: null, labelCount: 2 },
-        { id: 'unit-alt', name: 'batch', isShown: true, isDefault: false, labelOrdinal: null, labelCount: 2 },
       ],
     }])
 
@@ -416,6 +418,26 @@ describe('CafeWastePage', () => {
     fireEvent.change(screen.getByRole('spinbutton', { name: 'Waste quantity for Oat Latte' }), { target: { value: '2' } })
     await waitFor(() => expect(addPhoto).toBeEnabled())
     expect(screen.getAllByText('Enter a quantity before adding a photo.')).toHaveLength(1)
+  })
+
+  it('converts a selected multiple to the default ERP unit and stores its entry snapshot', async () => {
+    setWideMatchMedia()
+    renderPage()
+
+    fireEvent.click(await screen.findByRole('combobox', { name: 'Waste unit for Oat Latte' }))
+    fireEvent.click(await screen.findByRole('option', { name: '0.5 cup' }))
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Waste quantity for Oat Latte' }), { target: { value: '4' } })
+    fireEvent.click(screen.getAllByRole('button', { name: 'Add photo' })[0]!)
+
+    await waitFor(() => expect(mockInsertKitchenLog).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'waste',
+      wip_item_id: 'wip-1',
+      item_unit_id: 'unit-cup',
+      qty_porsi: 2,
+      entry_quantity: 4,
+      entry_unit_factor: 0.5,
+    })))
+    expect(screen.getByRole('complementary', { name: 'Capture summary' })).toHaveTextContent('4 0.5 cup')
   })
 
   it('requires an uploaded photo for each staged item, then submits every Draft through the waste RPC', async () => {

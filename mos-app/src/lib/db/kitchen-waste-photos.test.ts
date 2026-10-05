@@ -55,7 +55,8 @@ describe('listCurrentPersonKitchenWasteDrafts', () => {
     const responses: Record<string, { data: unknown; error: unknown }> = {
       kitchen_logs: {
         data: [{
-          id: 'draft-1', wip_item_id: 'item-1', item_unit_id: 'unit-1', qty_porsi: 2.5,
+          id: 'draft-1', wip_item_id: 'item-1', item_unit_id: 'unit-1', qty_porsi: 1.5,
+          entry_quantity: 3, entry_unit_factor: 0.5, entry_unit_name: 'ERP pack',
           created_at: '2026-10-01T00:00:00.000Z', log_date: '2026-10-01',
         }],
         error: null,
@@ -90,8 +91,10 @@ describe('listCurrentPersonKitchenWasteDrafts', () => {
       logId: 'draft-1',
       itemId: 'item-1',
       itemUnitId: 'unit-1',
-      unitName: 'tray',
-      quantity: 2.5,
+      unitName: 'ERP pack',
+      quantity: 3,
+      entryUnitFactor: 0.5,
+      entryUnitName: 'ERP pack',
       createdAt: '2026-10-01T00:00:00.000Z',
       logDate: '2026-10-01',
       photos: [{
