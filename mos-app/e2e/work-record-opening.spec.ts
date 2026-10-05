@@ -173,24 +173,24 @@ test('pushing the task-create frame keeps Title focused without validating the b
   await page.setViewportSize(DESKTOP)
   await loginAs(page, MANAGER.email, MANAGER.password)
   await page.goto('work/projects')
-  const rows = page.locator('.catalog-collection__row-link')
+  const rows = page.locator('.catalog-collection__row')
   await expect(rows.first()).toBeVisible()
-  let projectRow: Locator | null = null
+  let projectLink: Locator | null = null
   for (let index = 0; index < await rows.count(); index += 1) {
     const candidate = rows.nth(index)
     if (await candidate.locator('.catalog-collection__identity .mk-tag').innerText() === 'Project') {
-      projectRow = candidate
+      projectLink = candidate.locator('.catalog-collection__row-link')
       break
     }
   }
-  expect(projectRow, 'the seeded Projects collection has a Project record').not.toBeNull()
-  await projectRow!.click()
+  expect(projectLink, 'the seeded Projects collection has a Project record').not.toBeNull()
+  await projectLink!.click()
   const panel = page.locator('[data-overlay-host]')
   await expect(panel).toBeVisible()
   await expectRecordReady(panel, {
-    path: (await projectRow!.getAttribute('href')) ?? '',
+    path: (await projectLink!.getAttribute('href')) ?? '',
     kind: 'catalog',
-    name: (await projectRow!.getAttribute('aria-label')) ?? '',
+    name: (await projectLink!.getAttribute('aria-label')) ?? '',
   })
 
   await panel.getByRole('button', { name: /add task/i }).first().click()
@@ -199,9 +199,9 @@ test('pushing the task-create frame keeps Title focused without validating the b
   await expect(page.getByRole('alert').filter({ hasText: 'Title is required' })).toHaveCount(0)
   await panel.getByRole('button', { name: 'Back', exact: true }).click()
   await expectRecordReady(panel, {
-    path: (await projectRow!.getAttribute('href')) ?? '',
+    path: (await projectLink!.getAttribute('href')) ?? '',
     kind: 'catalog',
-    name: (await projectRow!.getAttribute('aria-label')) ?? '',
+    name: (await projectLink!.getAttribute('aria-label')) ?? '',
   })
 })
 
