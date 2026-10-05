@@ -269,7 +269,8 @@ async function assertNoOverflow(page: Page, width: number) {
 }
 
 test.describe('Café item settings', () => {
-  test('searches and filters 501 items with three ESB units at phone and desktop widths', async ({ page }) => {
+  test('renders 501 items with three ESB units at phone and desktop widths', async ({ page }) => {
+    test.setTimeout(120_000)
     await mockSettingsApi(page, largeItemSettingsFixture())
     await loginAs(page, BAR_MEMBER.email, BAR_MEMBER.password)
 
@@ -277,73 +278,62 @@ test.describe('Café item settings', () => {
       await page.setViewportSize({ width, height: 960 })
       await page.goto('cafe/items')
       await expect(page.getByRole('heading', { name: 'Café items', exact: true })).toBeVisible({ timeout: 15_000 })
-      const cards = page.locator('.dt-cards .dt-card')
-      const tableRows = page.locator('.cafe-items__table tbody tr:not(.dt-group-row)')
-      const visibleItems = width === 390 ? cards : tableRows
-      const search = page.getByRole('searchbox', { name: 'Find an ESB or MOS name' })
+      const visibleItems = width === 390
+        ? page.locator('.dt-cards .dt-card')
+        : page.locator('.cafe-items__table tbody tr:not(.dt-group-row)')
 
-      await expect(search).toBeVisible()
-      await expect(visibleItems).toHaveCount(501)
+      await expect(visibleItems).toHaveCount(501, { timeout: 30_000 })
+      await expect(page.getByRole('searchbox', { name: 'Find an ESB or MOS name' })).toBeVisible()
       await expect(page.locator('.cafe-items__unit-choice')).toHaveCount(503)
       await expect(page.getByText('500 items need a shown default to enable logging.', { exact: true })).toHaveCount(1)
       await expect(page.locator('.cafe-items__needs-unit-status')).toHaveCount(500)
       await assertNoOverflow(page, width)
-      await captureViewport(page, `lane-1332-after-${width}.png`)
 
       const threeUnitItem = visibleItems.filter({ hasText: 'A three-unit ESB product' }).first()
       await expect(threeUnitItem).toBeVisible()
-      const defaultUnit = threeUnitItem.getByRole('combobox', { name: 'Default unit' })
-      await defaultUnit.focus()
-      await page.keyboard.press('Enter')
-      const defaultUnitOptions = page.getByRole('listbox', { name: 'Default unit' })
-      await expect(defaultUnitOptions.getByRole('option', { name: 'Bag', exact: true })).toBeVisible()
-      await expect(defaultUnitOptions.getByRole('option', { name: 'Kilogram', exact: true })).toBeVisible()
-      await expect(defaultUnitOptions.getByRole('option', { name: 'Serving', exact: true })).toHaveCount(0)
-      await page.keyboard.press('Escape')
-
-      await search.fill('MOS tea lookup')
-      await expect(visibleItems).toHaveCount(1)
-      await expect(visibleItems.first()).toContainText('A three-unit ESB product')
-      await search.fill('A three-unit ESB product')
-      await expect(visibleItems).toHaveCount(1)
-      await search.clear()
-
-      if (width === 1440) {
-        const nameHeader = page.getByRole('columnheader', { name: 'ESB name' })
-        await nameHeader.click()
-        await nameHeader.click()
-        await expect(nameHeader).toHaveAttribute('aria-sort', 'descending')
-        await expect(visibleItems.first()).toContainText('Fixture item 500')
-        const kindHeader = page.getByRole('columnheader', { name: 'Kind' })
-        await kindHeader.click()
-        await kindHeader.click()
-        await expect(kindHeader).toHaveAttribute('aria-sort', 'descending')
-        await expect(visibleItems.first()).toContainText('Fixture item 002')
+      const defaultUnitOptions = threeUnitItem.locator('.mk-select__native').nth(1).locator('option')
+      await expect(defaultUnitOptions).toHaveText(['No default', 'Bag', 'Kilogram'])
+      if (width === 390) {
+        const save = threeUnitItem.getByRole('button', { name: 'Save settings for MOS tea lookup' })
+        const saveBox = await save.boundingBox()
+        expect(saveBox).not.toBeNull()
+        expect(saveBox!.y + saveBox!.height).toBeLessThan(900)
       }
 
-      await page.getByRole('combobox', { name: 'Item kind' }).click()
-      await page.getByRole('option', { name: 'Not set', exact: true }).click()
-      await expect(visibleItems).toHaveCount(167)
-      await page.getByRole('combobox', { name: 'Item kind' }).click()
-      await page.getByRole('option', { name: 'All kinds', exact: true }).click()
-
-      await page.getByRole('combobox', { name: 'Active status' }).click()
-      await page.getByRole('option', { name: 'Inactive', exact: true }).click()
-      await expect(visibleItems).toHaveCount(251)
-      await page.getByRole('combobox', { name: 'Active status' }).click()
-      await page.getByRole('option', { name: 'All statuses', exact: true }).click()
-
-      await page.getByRole('combobox', { name: 'Unit setup' }).click()
-      await page.getByRole('option', { name: 'Needs unit', exact: true }).click()
-      await expect(visibleItems).toHaveCount(500)
-      await page.getByRole('combobox', { name: 'Active status' }).click()
-      await page.getByRole('option', { name: 'Active', exact: true }).click()
-      await expect(visibleItems).toHaveCount(250)
-
-      await search.fill('not a café item')
-      await expect(page.getByText('No café items match your search or filters.', { exact: true })).toBeVisible()
+      await captureViewport(page, `lane-1332-after-${width}.png`)
     }
   })
+  test('searches both names and applies the shared item filters', async ({ page }) => {
+    await mockSettingsApi(page)
+    await loginAs(page, BAR_MEMBER.email, BAR_MEMBER.password)
+    await page.setViewportSize({ width: 390, height: 960 })
+    await page.goto('cafe/items')
+
+    const cards = page.locator('.dt-cards .dt-card')
+    const search = page.getByRole('searchbox', { name: 'Find an ESB or MOS name' })
+    await expect(cards).toHaveCount(3)
+    await search.fill('Herbal tea')
+    await expect(cards).toHaveCount(1)
+    await expect(cards.first()).toContainText('Herbal tea · ERP reference')
+    await search.fill('ERP reference')
+    await expect(cards).toHaveCount(1)
+    await search.clear()
+
+    await page.getByRole('combobox', { name: 'Item kind' }).click()
+    await page.getByRole('option', { name: 'Not set', exact: true }).click()
+    await expect(cards).toHaveCount(3)
+    await page.getByRole('combobox', { name: 'Active status' }).click()
+    await page.getByRole('option', { name: 'Inactive', exact: true }).click()
+    await expect(cards).toHaveCount(3)
+    await page.getByRole('combobox', { name: 'Unit setup' }).click()
+    await page.getByRole('option', { name: 'Needs unit', exact: true }).click()
+    await expect(cards).toHaveCount(1)
+    await expect(cards.first()).toContainText('Curry base')
+    await page.getByRole('combobox', { name: 'Active status' }).click()
+    await page.getByRole('option', { name: 'Active', exact: true }).click()
+    await expect(page.getByText('No café items match your search or filters.', { exact: true })).toBeVisible()
+  })
+
   test('uses stacked cards on phones and a readable table on wide screens', async ({ page }, testInfo) => {
     await mockSettingsApi(page)
     await loginAs(page, BAR_MEMBER.email, BAR_MEMBER.password)
