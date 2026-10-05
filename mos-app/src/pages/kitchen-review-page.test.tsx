@@ -232,6 +232,19 @@ describe('KitchenReviewPage — states', () => {
     expect(screen.getByRole('status', { name: /loading/i })).toBeInTheDocument()
   })
 
+  it('shows the captured multiple and canonical default-unit amount in review history', async () => {
+    mockList.mockResolvedValue([{
+      ...PROD_LOG,
+      qty_porsi: 1.5,
+      entry_quantity: 3,
+      entry_unit_factor: 0.5,
+      entry_unit_name: 'pack',
+    }])
+    mockPlan.mockResolvedValue({ w1: { produce: 1.5 } })
+    render(<KitchenReviewPage />, { wrapper })
+    expect(await screen.findByText('3 × 0.5 pack (1.5 pack)')).toBeInTheDocument()
+  })
+
   it('empty: renders the shared awaiting EmptyState without a completion control', async () => {
     mockUseAuth.mockReturnValue(viewer(['supervisor']))
     mockDefaultStream.mockResolvedValue({ branch: BRANCHES[0], activity: 'kitchen' })

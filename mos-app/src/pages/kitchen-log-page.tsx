@@ -6,9 +6,9 @@
 //
 // Existing capture gates and payload contract remain: status / org_id / submitted_by are never
 // sent by the client (NFR-003), and AC-020/021 (variance-note gate), AC-022 (transfer cap),
-// AC-030 (submit payload) are unchanged. A selected stream now supplies the MOS name, default
-// ERP detail and allowed shown details through the existing Café settings reader; the selected
-// `item_unit_id` continues through the existing save path.
+// AC-030 (submit payload) are unchanged. A selected stream supplies its MOS name, default ERP
+// detail and manager-defined factors through the existing Café settings reader. The captured amount
+// is converted to the default-unit basis; `item_unit_id` stays that ERP coordinate on the save path.
 
 import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
@@ -32,6 +32,7 @@ import {
 // #440: the stream is the MODULE's selection, not this page's — useCafeStream records it so
 // Plan/Stock/Review open on the same books, and every switch carries across (issue 456).
 import { useCafeStream } from '@/lib/use-cafe-stream'
+import { fromDefaultUnitQuantity, formatUnitMultiple, toDefaultUnitQuantity } from '@/lib/cafe-unit-multiples'
 import { clearCafeDraftCount, setCafeDraftCount } from '@/lib/cafe-capture-draft'
 import { CafeStreamBar, CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
 import type { ReactNode } from 'react'
@@ -97,11 +98,9 @@ function wibToday(): string {
 }
 
 // Build fresh per-item line state from loaded items + plan + stock for one movement.
-// Every line opens bound to its item's DEFAULT unit (units[0] — the reader puts the
-// default first): the common path enters no unit, yet every staged line knows which
-// item-unit its quantity means (FR-020/022). A rebuild (movement/stream switch, discard,
-// submit) deliberately resets any "change unit" re-binding along with the quantities —
-// a bound alternate belongs to the entry it was chosen for.
+// Every line opens on its item's default ERP unit (units[0]); configured multiples are
+// opt-in. Canonical qty_porsi always stays in the default-unit basis for plans, stock,
+// validation and posting, while entry_quantity/factor retain what staff selected.
 function buildLines(
   items: CaptureFormItem[],
   planMap: PlanMap,
@@ -114,6 +113,9 @@ function buildLines(
     lines[item.id] = {
       wip_item_id: item.id,
       item_unit_id: item.units[0]?.id ?? null,
+      entry_quantity: 0,
+      entry_unit_factor: 1,
+      entry_unit_name: item.units[0]?.name ?? null,
       qty_porsi: 0,
       notes: '',
       plan_qty: planMap[item.id]?.[movementKey(movement)] ?? 0,
@@ -695,8 +697,14 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       // FR-023 / AC-022: do NOT clamp — keep the entered qty. An over-`tersedia` transfer
       // sets capError (TRANSFER_SHORT_CUE) which blocks Submit (parity with the OLD app's
       // hard stop "Produksi dulu sebelum transfer"); the user types the real number.
+      const factor = cur.entry_unit_factor ?? 1
       const staged = qty > 0
-      const gated = gateLine({ ...cur, qty_porsi: qty, dirty: staged }, movement)
+      const gated = gateLine({
+        ...cur,
+        entry_quantity: qty,
+        qty_porsi: toDefaultUnitQuantity(qty, factor),
+        dirty: staged,
+      }, movement)
       return { ...prev, [itemId]: gated }
     })
   }
@@ -709,16 +717,37 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     })
   }
 
-  // The "change unit" path (#234, FR-021/022): re-bind the line to the chosen item-unit.
-  // The id comes from the item's OFFERED units only (the stepper renders nothing else),
-  // and the binding rides the line into the submit payload — the ERP coordinate is the
-  // unit, so this is the whole selection, no qty conversion, no second field.
-  function handleUnitChange(itemId: string, itemUnitId: string) {
+  // Selecting a multiple changes only the entry basis. The stored ERP coordinate remains
+  // the default item-unit; preserve the canonical amount if staff switch units mid-entry.
+  function handleUnitChange(itemId: string, unitChoice: string) {
     if (captureClosed) return
-    setLines(prev => ({
-      ...prev,
-      [itemId]: { ...prev[itemId], item_unit_id: itemUnitId },
-    }))
+    const item = wipItems.find(candidate => candidate.id === itemId)
+    setLines(prev => {
+      const current = prev[itemId]
+      if (unitChoice.startsWith('multiple:')) {
+        const factor = Number(unitChoice.slice('multiple:'.length))
+        const defaultUnit = item?.units.find(unit => unit.is_default) ?? item?.units[0]
+        if (!Number.isFinite(factor) || !item?.unit_multiples?.includes(factor) || !defaultUnit) return prev
+        const next: KitchenLogLine = {
+          ...current,
+          item_unit_id: defaultUnit.id,
+          entry_quantity: fromDefaultUnitQuantity(current.qty_porsi, factor),
+          entry_unit_factor: factor,
+          entry_unit_name: defaultUnit.name,
+        }
+        return { ...prev, [itemId]: gateLine(next, movement) }
+      }
+      const selectedUnit = item?.units.find(unit => unit.id === unitChoice)
+      if (!selectedUnit) return prev
+      const next: KitchenLogLine = {
+        ...current,
+        item_unit_id: selectedUnit.id,
+        entry_quantity: current.qty_porsi,
+        entry_unit_factor: 1,
+        entry_unit_name: selectedUnit.name,
+      }
+      return { ...prev, [itemId]: gateLine(next, movement) }
+    })
   }
 
   // Discard all staged entries (consequential — confirmed). Opens the shared centered
@@ -795,10 +824,12 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
           action: movement.action,
           destination_branch_id: movement.destinationBranchId,
           wip_item_id: line.wip_item_id,
-          // the line's bound item-unit (#234, FR-022) — the default unless "change unit"
-          // re-bound it; the DB re-binds a null to the default server-side (FR-020).
+          // ERP logs always bind the default item-unit; the entry metadata says which
+          // manager-defined multiple was used and the trigger recomputes canonical qty_porsi.
           item_unit_id: line.item_unit_id,
           qty_porsi: line.qty_porsi,
+          entry_quantity: line.entry_quantity ?? line.qty_porsi,
+          entry_unit_factor: line.entry_unit_factor ?? 1,
           notes: line.notes.trim() || null,
           // status / source / org_id / submitted_by NOT sent — server-stamped (NFR-003)
         })),
@@ -809,30 +840,16 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
         staged.forEach((line, index) => {
           const item = wipItems.find(candidate => candidate.id === line.wip_item_id)
           const selectedUnit = item?.units.find(unit => unit.id === line.item_unit_id)
-          const entry = line.item_unit_id
-            ? {
-                key: `unit:${line.item_unit_id}`,
-                item_unit_id: line.item_unit_id,
-                unit_name: selectedUnit?.name ?? null,
-                qty_porsi: line.qty_porsi,
-              }
-            : {
-                key: `unknown:${insertedLogIds[index] ?? `pending-${Date.now()}-${index}`}`,
-                item_unit_id: null,
-                unit_name: null,
-                qty_porsi: line.qty_porsi,
-              }
-          const entries = [...(next[line.wip_item_id]?.[key] ?? [])]
-          if (entry.item_unit_id) {
-            const existingIndex = entries.findIndex(actual => actual.item_unit_id === entry.item_unit_id)
-            if (existingIndex >= 0) {
-              entries[existingIndex] = {
-                ...entries[existingIndex],
-                qty_porsi: entries[existingIndex].qty_porsi + entry.qty_porsi,
-              }
-            }
-            else entries.push(entry)
-          } else entries.push(entry)
+          const entry: ActualUnitTotal = {
+            key: `log:${insertedLogIds[index] ?? `pending-${Date.now()}-${index}`}`,
+            item_unit_id: line.item_unit_id,
+            unit_name: selectedUnit?.name ?? null,
+            qty_porsi: line.qty_porsi,
+            entry_quantity: line.entry_quantity ?? line.qty_porsi,
+            entry_unit_factor: line.entry_unit_factor ?? 1,
+            entry_unit_name: line.entry_unit_name ?? selectedUnit?.name ?? null,
+          }
+          const entries = [...(next[line.wip_item_id]?.[key] ?? []), entry]
           next[line.wip_item_id] = {
             ...next[line.wip_item_id],
             [key]: entries,
@@ -980,8 +997,14 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   const stagedSummary = stagedLines.flatMap(line => {
     const item = wipItems.find(candidate => candidate.id === line.wip_item_id)
     if (!item) return []
-    const unit = item.units.find(candidate => candidate.id === line.item_unit_id) ?? item.units[0]
-    return [{ id: item.id, name: item.name, quantity: line.qty_porsi, unit: unit?.name ?? t('kitchen.unit.porsi') }]
+    const unit = line.entry_unit_name ?? item.units.find(candidate => candidate.id === line.item_unit_id)?.name ?? item.units[0]?.name ?? t('kitchen.unit.porsi')
+    return [{
+      id: item.id,
+      name: item.name,
+      quantity: line.entry_quantity ?? line.qty_porsi,
+      factor: line.entry_unit_factor ?? 1,
+      unit,
+    }]
   })
   const formatCaptureQty = (quantity: number) => new Intl.NumberFormat(
     document.documentElement.lang || 'en', { maximumFractionDigits: 3 },
@@ -1012,11 +1035,17 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     return displayedEntries.length > 0
       ? (
         <span className="kl-actual-units">
-          {displayedEntries.map(entry => (
-            <span key={entry.key}>
-              {formatCaptureQty(entry.qty_porsi)} {entry.unit_name?.trim() || t('kitchen.log.unit.unknownHistory')}
-            </span>
-          ))}
+          {displayedEntries.map(entry => {
+            const quantity = entry.entry_quantity ?? entry.qty_porsi
+            const factor = entry.entry_unit_factor ?? 1
+            const unitName = entry.entry_unit_name ?? entry.unit_name?.trim() ?? t('kitchen.log.unit.unknownHistory')
+            return (
+              <span key={entry.key}>
+                {formatCaptureQty(quantity)}{factor === 1 ? ' ' : ' × '}
+                {factor === 1 ? unitName : formatUnitMultiple(factor, unitName, document.documentElement.lang || 'en')}
+              </span>
+            )
+          })}
         </span>
       )
       : '—'
@@ -1037,7 +1066,10 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
           {stagedSummary.map(line => (
             <li key={line.id}>
               <span>{line.name}</span>
-              <strong className="tabular">{formatCaptureQty(line.quantity)} {line.unit}</strong>
+              <strong className="tabular">
+                {formatCaptureQty(line.quantity)}{line.factor === 1 ? ' ' : ' × '}
+                {line.factor === 1 ? line.unit : formatUnitMultiple(line.factor, line.unit, document.documentElement.lang || 'en')}
+              </strong>
             </li>
           ))}
         </ul>
@@ -1128,7 +1160,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       onQtyChange={qty => handleQtyChange(item.id, qty)}
       onNotesChange={note => handleNotesChange(item.id, note)}
       unitOptions={item.units}
-      onUnitChange={unitId => handleUnitChange(item.id, unitId)}
+      unitMultiples={item.unit_multiples}
+      onUnitChange={unitChoice => handleUnitChange(item.id, unitChoice)}
       disabled={isSubmitting || captureClosed}
       hideName
       dense={dense}
