@@ -5,7 +5,7 @@
 // ("mostly 10-20+"), not incremented. The component name is kept for now so the rename is a
 // separate, mechanical commit rather than noise inside a design change.
 //
-// Typed qty field + recorded-unit history + `tersedia` context on transfers
+// Typed qty field + recorded-unit history; the host groups stock and availability.
 // + inline variance-note field (FR-022, revealed when the gate exists) + transfer cap cue (FR-023).
 // Styling: co-located wip-item-stepper.css (DESIGN.md tokens; no inline style).
 // Touch target ≥44px on the phone card (.kls-qty is 44px tall; 16px font so mobile
@@ -70,7 +70,7 @@ export function WipItemStepper({
   // Plan and stock are shown as unitless facts beside the item name. The plan is also a
   // convenient placeholder in the typed field; it never binds the input to a unit, and the
   // selected unit remains the item's explicit item_unit_id.
-  const { qty_porsi, notes, tersedia, error, capError, dirty } = line
+  const { qty_porsi, notes, error, capError, dirty } = line
   // The invalid border remains blur-gated so typing a multi-digit quantity is not visually
   // interrupted mid-entry. The note control itself must appear with the live gate, however:
   // Submit is disabled as soon as an off-plan quantity is staged, so waiting for blur would leave
@@ -222,11 +222,9 @@ export function WipItemStepper({
         </div>
       </div>
 
-      {/* Submitted actual history and transfer availability. The host renders Plan as a
-          separate read fact because its unit is unrecorded, and Stock as a separate value.
-          Dense desktop already has a Stock column; this meta stays for actual history and
-          `tersedia`, which has no column of its own. */}
-      {(transfer || alreadyLogged.length > 0) && (
+      {/* The host keeps Plan, Stock and distinct availability together. Recorded actual
+          history remains separate by its original unit identity. */}
+      {alreadyLogged.length > 0 && (
         <div className="kls-meta">
           {/* the running "already logged N" (FR-014, AC-006): today's recorded actuals for
               this item + movement on the SELECTED stream — real submitted rows, never the
@@ -243,12 +241,7 @@ export function WipItemStepper({
               </strong>
             </span>
           )}
-          {transfer && (
-            <span className="kls-availability-fact">
-              <span>{t('kitchen.log.stepper.avail')}</span>
-              <strong>{tersedia}</strong>
-            </span>
-          )}
+
         </div>
       )}
 

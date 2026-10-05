@@ -788,7 +788,7 @@ export const messages = {
     'kitchen.transfer.receivingCaption': 'Café log — receiving-only read view',
     'kitchen.transfer.col.quantity': 'Transferred to ${branch}',
     'kitchen.transfer.summary.aria': 'Planned, transferred, and off-plan item counts for ${branch}',
-    'kitchen.transfer.summary.quantity': 'Transferred items',
+    'kitchen.transfer.summary.quantity': 'Transferred',
     'kitchen.log.readOnlyReason': 'You can read Café records, but only Café-affiliated people or Café Ops leads can submit production.',
     'kitchen.log.captureAria': 'Café log capture',
     'kitchen.log.col.item': 'Item',
@@ -862,7 +862,6 @@ export const messages = {
     'kitchen.transfer.destination.none': 'No transfer destinations are available for this stream.',
     'kitchen.log.signInMsg': 'You need to sign in to use the Café Log.',
     'kitchen.log.stepper.already': 'logged',
-    'kitchen.log.stepper.avail': 'avail',
     'kitchen.log.stepper.capCue': 'Insufficient stock — produce first',
     // B13: the field's own visible label — the cue text stays, as helper/error text under the
     // field, but a required control needs a label of its own rather than relying on the cue to
@@ -2787,7 +2786,7 @@ export const messages = {
     'kitchen.transfer.receivingCaption': 'Log Kafe — tampilan baca untuk stream penerima',
     'kitchen.transfer.col.quantity': 'Dikirim ke ${branch}',
     'kitchen.transfer.summary.aria': 'Jumlah item yang direncanakan, ditransfer, dan di luar rencana ke ${branch}',
-    'kitchen.transfer.summary.quantity': 'Item ditransfer',
+    'kitchen.transfer.summary.quantity': 'Ditransfer',
     'kitchen.log.readOnlyReason': 'Anda dapat membaca catatan Kafe, tetapi hanya orang yang berafiliasi dengan Kafe atau pemimpin Operasional Kafe yang dapat mengirim produksi.',
     'kitchen.log.captureAria': 'Pencatatan log Kafe',
     'kitchen.log.col.item': 'Item',
@@ -2852,7 +2851,6 @@ export const messages = {
     'kitchen.transfer.destination.none': 'Tidak ada tujuan transfer untuk alur ini.',
     'kitchen.log.signInMsg': 'Anda perlu masuk untuk menggunakan Log Kafe.',
     'kitchen.log.stepper.already': 'sudah',
-    'kitchen.log.stepper.avail': 'tersedia',
     'kitchen.log.stepper.capCue': 'Stok kurang — produksi dulu',
     'kitchen.log.stepper.noteLabel': 'Catatan',
     'kitchen.log.stepper.noteAria': 'Catatan untuk ${item}',

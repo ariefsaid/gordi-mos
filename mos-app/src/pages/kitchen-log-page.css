@@ -418,11 +418,10 @@
   .kl-page input:not([type='checkbox']):not([type='radio']),
   .kl-page textarea { font-size: var(--font-size-touch-input); }
   .kl-form .ktb-filter-selects { display: none; }
-  /* Transfer adds one required segmented destination scope. Keep it beside search on phone
-     instead of stacking a second toolbar row; 44px targets and full scope labels are retained. */
-  .kl-form .ktb:has(.kl-scope) .ktb-children--band { flex: 1 1 210px; min-width: 0; }
-  .kl-form .ktb:has(.kl-scope) .ktb-filters { flex: 1 1 120px; min-width: 120px; }
-  .kl-form .ktb:has(.kl-scope) .ktb-search-wrap { min-width: 120px; }
+  /* Reuse KitchenToolbar's full-row destination band and put full-width search below it. */
+  .kl-form .ktb:has(.kl-scope) .ktb-search-wrap { max-width: none; }
+  .kl-capture-main:has(.kl-scope) .msr { column-gap: 8px; flex-wrap: nowrap; }
+  .kl-capture-main:has(.kl-scope) .msr-item { gap: 4px; }
   .kl-footer {
     gap: 8px;
     padding: 8px 0 calc(8px + env(safe-area-inset-bottom, 0px));

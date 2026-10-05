@@ -193,7 +193,7 @@ describe('WipItemStepper — already-logged actuals (FR-014, AC-006)', () => {
     expect(document.querySelector('.kls-meta')).toBeNull()
   })
 
-  it('a transfer row shows both the already-logged count and the tersedia context', () => {
+  it('a transfer row preserves recorded history without repeating the host availability', () => {
     renderStepper({
       movement: TRANSFER_RADIANT,
       alreadyLogged: [{ key: 'unit:porsi', item_unit_id: 'u-porsi', unit_name: 'porsi', qty_porsi: 3 }],
@@ -202,7 +202,7 @@ describe('WipItemStepper — already-logged actuals (FR-014, AC-006)', () => {
     const meta = document.querySelector('.kls-meta')
     expect(meta?.textContent).toContain('logged')
     expect(meta?.textContent).toContain('3 porsi')
-    expect(meta?.textContent).toMatch(/avail\s*7/)
+    expect(meta?.textContent).not.toMatch(/avail/i)
   })
 })
 
@@ -234,12 +234,11 @@ describe('WipItemStepper — AC-020/021/022', () => {
     expect(screen.getByRole('spinbutton', { name: /quantity/i })).toHaveAttribute('placeholder', '0')
   })
 
-  // v4: `stok` is dropped from the stepper (both layouts already render Stock as their own
-  // column/field) — only `tersedia` (availability) remains, and only for stock-consuming actions.
-  it('shows avail (tersedia) context only for transfer actions (cafe-1: English session → English labels)', () => {
+  // The host groups stock and distinct availability beside the item name.
+  it('leaves transfer availability to the host item metadata', () => {
     renderStepper({ line: { stok: 3, tersedia: 9 }, movement: TRANSFER_RADIANT })
-    expect(screen.getByText(/avail/i)).toBeInTheDocument()
-    expect(screen.getByText('9')).toBeInTheDocument()
+    expect(screen.queryByText(/avail/i)).not.toBeInTheDocument()
+    expect(screen.queryByText('9')).not.toBeInTheDocument()
   })
 
   it('hides avail context for Production', () => {

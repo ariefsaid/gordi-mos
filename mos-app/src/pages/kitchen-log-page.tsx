@@ -353,7 +353,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     ? t('kitchen.transfer.summary.aria', { branch: transferDestinationName ?? t('kitchen.actionType.transferTo.fallback') })
     : t('kitchen.log.summary.aria')
   const summaryMetrics = [
-    { key: 'plan', label: t('kitchen.log.summary.plan'), value: String(kpis.plannedItemCount) },
+    { key: 'plan', label: t(mode === 'transfer' ? 'kitchen.plan.pesanan.col.planned' : 'kitchen.log.summary.plan'), value: String(kpis.plannedItemCount) },
     {
       key: 'made',
       label: mode === 'transfer' ? t('kitchen.transfer.summary.quantity') : t('kitchen.log.summary.made'),
@@ -361,7 +361,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     },
     {
       key: 'off-plan',
-      label: t('kitchen.log.summary.offPlan'),
+      label: t(mode === 'transfer' ? 'kitchen.review.summary.offPlan' : 'kitchen.log.summary.offPlan'),
       value: String(kpis.offPlanItemCount),
     },
   ]
@@ -1092,6 +1092,13 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
         <span>{t('kitchen.log.col.stock')}</span>
         <strong className="tabular">{formatCaptureQty(line.stok)}</strong>
       </span>
+      {mode === 'transfer' && line.tersedia !== line.stok && <>
+        <span className="kl-card-meta-separator" aria-hidden="true">·</span>
+        <span className="kl-card-stock">
+          <span>{t('kitchen.stock.col.tersedia')}</span>
+          <strong className="tabular">{formatCaptureQty(line.tersedia)}</strong>
+        </span>
+      </>}
       {!line.item_unit_id && <small>{t('kitchen.log.unit.missingCapture')}</small>}
       {rowStatus && <span className="kl-status kl-status--neutral">{rowStatus}</span>}
     </div>

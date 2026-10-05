@@ -453,18 +453,18 @@ describe('Empty state — no WIP items (FR-011)', () => {
     let summary = screen.getByRole('group', {
       name: 'Planned, transferred, and off-plan item counts for Radiant',
     })
-    expect(summary).toHaveTextContent(/Planned items\s*1/)
-    expect(summary).toHaveTextContent(/Transferred items\s*2/)
-    expect(summary).toHaveTextContent(/Off-plan items\s*1/)
+    expect(summary).toHaveTextContent(/Planned\s*1/)
+    expect(summary).toHaveTextContent(/Transferred\s*2/)
+    expect(summary).toHaveTextContent(/Off-plan\s*1/)
     expect(summary).not.toHaveTextContent(/Made items|Produced items/i)
 
     await userEvent.click(hqTab)
     summary = screen.getByRole('group', {
       name: 'Planned, transferred, and off-plan item counts for Gordi HQ',
     })
-    expect(summary).toHaveTextContent(/Planned items\s*2/)
-    expect(summary).toHaveTextContent(/Transferred items\s*1/)
-    expect(summary).toHaveTextContent(/Off-plan items\s*0/)
+    expect(summary).toHaveTextContent(/Planned\s*2/)
+    expect(summary).toHaveTextContent(/Transferred\s*1/)
+    expect(summary).toHaveTextContent(/Off-plan\s*0/)
     expect(summary).not.toHaveTextContent('Counts include items outside this list.')
     expect(mockFetchStockMap).not.toHaveBeenCalled()
     expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument()
@@ -1531,7 +1531,7 @@ describe('R4 / FR-018: Log summary line', () => {
     expect(quantity).toBeInTheDocument()
 
     const summary = document.querySelector('.msr') as HTMLElement
-    expect(summary.textContent).toMatch(/Transferred items\s*1/)
+    expect(summary.textContent).toMatch(/Transferred\s*1/)
     expect(summary.textContent).not.toMatch(/19/)
     expect(summary.textContent).not.toMatch(/Made|Produced/i)
     expect(screen.getByRole('table', { name: /café transfer/i })).toBeInTheDocument()
@@ -1568,9 +1568,19 @@ describe('R4 / FR-018: Log summary line', () => {
 
     const user = userEvent.setup()
     await user.click(screen.getByRole('tab', { name: /transfer to radiant/i }))
-    const meta = card.querySelector('.kls-meta')!
-    expect(meta).toHaveTextContent(/avail\s*9/i)
+    const meta = card.querySelector('.kl-card-meta')!
+    expect(meta).toHaveTextContent(/Available\s*9/i)
     expect(meta).not.toHaveTextContent('Unit not recorded')
+    expect(card.querySelector('.kls-availability-fact')).not.toBeInTheDocument()
+  })
+
+  it('shows stock once when transfer availability equals stock', async () => {
+    mockFetchStockMap.mockResolvedValue({ w1: { stok: 3, tersedia: 3 }, w2: { stok: 0, tersedia: 0 } })
+    await renderTransferPage()
+    const card = (await screen.findByText('Ayam Bakar')).closest('.kl-row')!
+    expect(card.querySelector('.kl-card-meta')).toHaveTextContent(/Stock\s*3/)
+    expect(card.querySelector('.kl-card-meta')).not.toHaveTextContent('Available')
+    expect(card.querySelector('.kls-availability-fact')).not.toBeInTheDocument()
   })
 
   it('directs a row without a capture unit to Café item settings', async () => {
@@ -2759,7 +2769,7 @@ describe('/cafe/transfer destination selection', () => {
     const user = userEvent.setup()
     await user.click(screen.getByRole('tab', { name: 'Transfer to Radiant' }))
     const submittedSummary = screen.getByRole('group', { name: 'Planned, transferred, and off-plan item counts for Radiant' })
-    expect(submittedSummary).toHaveTextContent(/Transferred items\s*1/)
+    expect(submittedSummary).toHaveTextContent(/Transferred\s*1/)
     const submittedSnapshot = submittedSummary.textContent
 
     for (const collapsedGroup of screen.queryAllByRole('button', { name: /^Expand / })) {

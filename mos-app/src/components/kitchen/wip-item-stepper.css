@@ -145,8 +145,6 @@
   text-align: right;
 }
 .kls-meta strong { color: var(--foreground); font-weight: 600; }
-.kls-availability-fact { display: inline-flex; align-items: baseline; flex-wrap: wrap; gap: 0 4px; }
-.kls-availability-fact small { color: var(--muted-foreground); font-size: var(--font-size-label); line-height: 1.2; }
 .kls-logged-units { display: inline-flex; flex-wrap: wrap; gap: 0 6px; }
 .kls-logged-unit { overflow-wrap: anywhere; }
 
