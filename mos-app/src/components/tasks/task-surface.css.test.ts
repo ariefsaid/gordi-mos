@@ -37,3 +37,23 @@ describe('TaskSurface.css — field-error text uses the AA token (I4)', () => {
     expect(body).not.toMatch(/color:\s*var\(--destructive\)\s*;/)
   })
 })
+
+describe('TaskSurface.css — the create form owns its body scroll and pinned footer', () => {
+  it('lets the drawer form fill a bounded panel without forcing the footer into the scroll body', () => {
+    const drawer = ruleBody('.tc-create-drawer')
+    expect(drawer).toMatch(/display:\s*flex/)
+    expect(drawer).toMatch(/flex-direction:\s*column/)
+    expect(drawer).toMatch(/min-height:\s*0/)
+
+    const form = ruleBody('.tc-create-form')
+    expect(form).toMatch(/display:\s*flex/)
+    expect(form).toMatch(/min-height:\s*0/)
+
+    const body = ruleBody('.tc-create-body {')
+    expect(body).toMatch(/overflow:\s*auto/)
+    expect(body).toMatch(/min-height:\s*0/)
+
+    const foot = ruleBody('.dw-foot')
+    expect(foot).toMatch(/flex:\s*none/)
+  })
+})

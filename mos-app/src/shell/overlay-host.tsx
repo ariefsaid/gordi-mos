@@ -837,7 +837,12 @@ export function OverlayHostSlot({
           // width). Collection slots do not need it — their pages are expected to wrap the slot in
           // `.record-split`. NOTE (#190): no collection page does that yet, because none has ported;
           // the class ships in styles/drawer.css so the first one to arrive finds the track waiting.
-          rootClassName={owner === 'shell' || floating ? 'drawer-shell-split' : undefined}
+          rootClassName={[
+            owner === 'shell' || floating ? 'drawer-shell-split' : null,
+            active.entry.key.startsWith('task-create:') || active.entry.key.startsWith('signal-task-create:')
+              ? 'task-create-panel'
+              : null,
+          ].filter(Boolean).join(' ') || undefined}
         >
           <Fragment key={active.entry.key}>{active.entry.content}</Fragment>
         </RecordPanelHost>
