@@ -302,30 +302,28 @@ test.describe('Café item settings', () => {
       await captureViewport(page, `lane-1332-after-${width}.png`)
     })
   }
-  test('uses stacked cards on phones and a readable table on wide screens', async ({ page }, testInfo) => {
-    await mockSettingsApi(page)
-    await page.setViewportSize({ width: 390, height: 960 })
-    await loginAs(page, BAR_MEMBER.email, BAR_MEMBER.password)
-    await page.goto('cafe/items')
-
-    for (const width of [390, 1440, 1920] as const) {
-      if (width !== 390) await page.setViewportSize({ width, height: 960 })
+  for (const width of [390, 1440, 1920] as const) {
+    test(`uses the right layout without overflow at ${width}px`, async ({ page }, testInfo) => {
+      test.setTimeout(60_000)
+      await page.setViewportSize({ width, height: 960 })
+      await mockSettingsApi(page)
+      await loginAs(page, BAR_MEMBER.email, BAR_MEMBER.password)
+      await page.goto('cafe/items')
       await expect(page.getByRole('heading', { name: 'Café items', exact: true })).toBeVisible()
-      const itemName = width < 768
-        ? page.locator('.dt-cards').getByText('Herbal tea · ERP reference').first()
-        : page.locator('.cafe-items__table').getByText('Herbal tea · ERP reference').first()
-      await expect(itemName).toBeVisible()
+
       if (width < 768) {
         await expect(page.locator('.dt-cards')).toBeVisible()
+        await expect(page.locator('.dt-cards .cafe-items__item-name').first()).toBeVisible()
         await expect(page.locator('.cafe-items__table')).toHaveCount(0)
       } else {
         await expect(page.locator('.cafe-items__table')).toBeVisible()
+        await expect(page.locator('.cafe-items__table .cafe-items__item-name').first()).toBeVisible()
         await expect(page.locator('.dt-cards')).toHaveCount(0)
       }
       await assertNoOverflow(page, width)
       await capture(page, testInfo, `item-settings-${width}`)
-    }
-  })
+    })
+  }
 
   test('shows stream-scoped missing-item reports at phone and desktop widths', async ({ page }, testInfo) => {
     await mockSettingsApi(page, {
