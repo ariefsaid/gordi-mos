@@ -1148,6 +1148,47 @@ describe('FR-021/022: "change unit" re-binds the row to the chosen item-unit', (
   })
 })
 
+describe('issue 1345: manager-defined multiples keep the ERP default coordinate', () => {
+  it('starts on the default and submits converted quantity plus the typed amount and factor', async () => {
+    mockListCaptureFormItems.mockResolvedValue([{
+      id: 'w1', name: 'Ayam Bakar', category: 'Main',
+      units: [{ id: 'u1-default', name: 'porsi', is_default: true }],
+      unit_multiples: [0.5, 2],
+    }])
+    mockInsertKitchenLogBatch.mockResolvedValue(['multiple-log-1'])
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    expect(qtyInput).toHaveValue(null)
+    expect(screen.getByRole('button', { name: /change unit for ayam bakar/i })).toHaveTextContent('porsi')
+
+    await userEvent.click(screen.getByRole('button', { name: /change unit for ayam bakar/i }))
+    await userEvent.click(screen.getByRole('combobox', { name: /unit for ayam bakar/i }))
+    await userEvent.click(await screen.findByRole('option', { name: '0.5 porsi' }))
+    await act(async () => {
+      fireEvent.change(qtyInput, { target: { value: '34' } })
+      await Promise.resolve()
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /submit/i }))
+      await Promise.resolve()
+    })
+
+    await waitFor(() => expect(mockInsertKitchenLogBatch).toHaveBeenCalledTimes(1))
+    expect(mockInsertKitchenLogBatch.mock.calls[0][0]).toEqual([
+      expect.objectContaining({
+        wip_item_id: 'w1',
+        item_unit_id: 'u1-default',
+        qty_porsi: 17,
+        entry_quantity: 34,
+        entry_unit_factor: 0.5,
+      }),
+    ])
+    expect(document.querySelector('.kls-meta')?.textContent).toContain('34 × 0.5 porsi')
+  })
+})
+
 // ── submitting state ──────────────────────────────────────────────────────────
 describe('Submitting state', () => {
   it('shows spinner and disables Submit button while submitting', async () => {

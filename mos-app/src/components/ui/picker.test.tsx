@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { Picker, type PickerOption } from './picker'
+import { MultiPicker, Picker, type PickerOption } from './picker'
 
 const options: PickerOption[] = [
   { value: 'open', label: 'Open' },
@@ -235,6 +235,55 @@ describe('Picker', () => {
     const label = screen.getByRole('option', { name: long }).querySelector('.picker__option-label')
     expect(label).toHaveTextContent(long)
     expect(label).toHaveClass('picker__option-label')
+  })
+
+  describe('multi-select', () => {
+    const factors: PickerOption[] = [
+      { value: '0.5', label: '0.5 tray' },
+      { value: '2', label: '2 tray' },
+      { value: '4', label: '4 tray' },
+    ]
+
+    it('toggles options without closing, exposes checked state, and returns focus on Escape', async () => {
+      const user = userEvent.setup()
+      const onChange = vi.fn()
+      const { rerender } = render(
+        <MultiPicker label="Extra units" values={[]} options={factors} onChange={onChange} />,
+      )
+      const trigger = screen.getByRole('button', { name: 'Extra units' })
+      await user.click(trigger)
+      expect(screen.getByRole('listbox', { name: 'Extra units' })).toHaveAttribute('aria-multiselectable', 'true')
+
+      const half = screen.getByRole('option', { name: '0.5 tray' })
+      expect(half).toHaveAttribute('aria-checked', 'false')
+      await user.click(half)
+      expect(onChange).toHaveBeenLastCalledWith(['0.5'])
+      expect(screen.getByRole('listbox', { name: 'Extra units' })).toBeVisible()
+
+      rerender(<MultiPicker label="Extra units" values={['0.5']} options={factors} onChange={onChange} />)
+      expect(screen.getByRole('option', { name: '0.5 tray' })).toHaveAttribute('aria-checked', 'true')
+      await user.keyboard('{Escape}')
+      expect(trigger).toHaveFocus()
+    })
+
+    it('toggles the active option with Enter and keeps custom editor controls inside the menu', async () => {
+      const user = userEvent.setup()
+      const onChange = vi.fn()
+      render(
+        <MultiPicker
+          label="Extra units"
+          values={[]}
+          options={factors}
+          onChange={onChange}
+          footer={<button type="button">Add a multiple</button>}
+        />,
+      )
+      await user.click(screen.getByRole('button', { name: 'Extra units' }))
+      await user.keyboard('{Enter}')
+      expect(onChange).toHaveBeenCalledWith(['0.5'])
+      expect(screen.getByRole('button', { name: 'Add a multiple' })).toBeVisible()
+      expect(screen.getByRole('listbox', { name: 'Extra units' })).toBeVisible()
+    })
   })
 
   describe('option groups', () => {

@@ -15,4 +15,16 @@ describe('public/_headers', () => {
     expect(rules).toContain("  Content-Security-Policy: frame-ancestors 'none'")
     expect(rules).toContain('  X-Frame-Options: DENY')
   })
+
+  it('sets the required content, referrer, and camera-only permission policies', () => {
+    expect(rules).toContain('  X-Content-Type-Options: nosniff')
+    expect(rules).toContain('  Referrer-Policy: strict-origin-when-cross-origin')
+    expect(rules).toContain('  Permissions-Policy: accelerometer=(), autoplay=(), bluetooth=(), camera=(self), display-capture=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()')
+  })
+
+  it('caches hashed assets long-term and revalidates the app shell and service worker', () => {
+    expect(headers).toContain('/assets/*\n  Cache-Control: public, max-age=31536000, immutable')
+    expect(headers).toContain('/index.html\n  Cache-Control: no-cache')
+    expect(headers).toContain('/sw.js\n  Cache-Control: no-cache')
+  })
 })

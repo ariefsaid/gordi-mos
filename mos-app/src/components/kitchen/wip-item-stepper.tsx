@@ -15,6 +15,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { ActualUnitTotal, ItemUnitOption, KitchenLogLine, KitchenMovement } from '@/lib/db/kitchen-logs.types'
+import { formatUnitMultiple, fromDefaultUnitQuantity } from '@/lib/cafe-unit-multiples'
 import { isStockConsuming, VARIANCE_NOTE_CUE, TRANSFER_SHORT_CUE } from '@/lib/kitchen-gates'
 import { useT } from '@/i18n/use-t'
 import { Select } from '@/components/ui/select'
@@ -48,8 +49,27 @@ interface WipItemStepperProps {
    * (AC-005); more than one → the quiet "change unit" affordance appears.
    */
   unitOptions?: readonly ItemUnitOption[]
-  /** re-bind the line to another offered item-unit (the "change unit" path, FR-021/022). */
-  onUnitChange?: (itemUnitId: string) => void
+  /** Manager-defined factors relative to the ERP default unit, never ERP unit rows. */
+  unitMultiples?: readonly number[]
+  /** Change the selected ERP unit or manager-defined multiple. */
+  onUnitChange?: (unitChoice: string) => void
+}
+
+function formatLoggedEntry(
+  entry: ActualUnitTotal,
+  formatQuantity: (quantity: number) => string,
+  unknownUnit: string,
+): string {
+  if (entry.entry_quantity == null || entry.entry_unit_name == null) {
+    return `${formatQuantity(entry.qty_porsi)} ${entry.unit_name?.trim() || unknownUnit}`
+  }
+  const factor = entry.entry_unit_factor ?? 1
+  const unit = factor === 1
+    ? entry.entry_unit_name
+    : formatUnitMultiple(factor, entry.entry_unit_name, document.documentElement.lang || 'en')
+  return factor === 1
+    ? `${formatQuantity(entry.entry_quantity)} ${unit}`
+    : `${formatQuantity(entry.entry_quantity)} × ${unit}`
 }
 
 export function WipItemStepper({
@@ -64,6 +84,7 @@ export function WipItemStepper({
   dense = false,
   alreadyLogged = [],
   unitOptions,
+  unitMultiples = [],
   onUnitChange,
 }: WipItemStepperProps) {
   const t = useT()
@@ -123,15 +144,27 @@ export function WipItemStepper({
   // never straight to the translated 'porsi' — that string is master data only for hosts
   // that pass no units at all (pre-unit wiring), not a guess for items that have some.
   const fallbackUnit = unitOptions?.find(u => u.is_default) ?? unitOptions?.[0]
-  const unitLabel = boundUnit?.name ?? fallbackUnit?.name ?? (unitOptions === undefined ? t('kitchen.unit.porsi') : '')
-  const offersUnitChange = (unitOptions?.length ?? 0) > 1 && onUnitChange !== undefined
+  const locale = document.documentElement.lang || 'en'
+  const selectedFactor = line.entry_unit_factor ?? 1
+  const selectedMultipleLabel = selectedFactor !== 1 && unitMultiples.includes(selectedFactor)
+    ? formatUnitMultiple(selectedFactor, fallbackUnit?.name ?? '', locale)
+    : null
+  const unitLabel = selectedMultipleLabel ?? boundUnit?.name ?? fallbackUnit?.name ?? (unitOptions === undefined ? t('kitchen.unit.porsi') : '')
+  const selectedUnitValue = selectedMultipleLabel
+    ? `multiple:${String(selectedFactor)}`
+    : line.item_unit_id ?? ''
+  const offersUnitChange = ((unitOptions?.length ?? 0) > 1 || unitMultiples.length > 0) && onUnitChange !== undefined
+  const entryQuantity = line.entry_quantity ?? qty_porsi
+  const placeholderQuantity = selectedFactor === 1
+    ? line.plan_qty
+    : fromDefaultUnitQuantity(line.plan_qty, selectedFactor)
 
   function handleQtyInput(e: React.ChangeEvent<HTMLInputElement>) {
     const raw = e.target.value
     // Empty clears the entry rather than coercing to 0 — a blank field means "nothing entered
     // yet" and must stay distinguishable from a deliberate zero while typing.
     if (raw === '') { onQtyChange(0); return }
-    const val = parseInt(raw, 10)
+    const val = Number.parseFloat(raw)
     if (!Number.isNaN(val) && val >= 0) onQtyChange(val)
   }
 
@@ -159,10 +192,10 @@ export function WipItemStepper({
             })
             : t('kitchen.qty.producedAria', { item: itemName })}
           className="kls-qty"
-          value={qty_porsi > 0 ? qty_porsi : ''}
-          placeholder={line.plan_qty > 0 ? formatActualQty(line.plan_qty) : '0'}
+          value={entryQuantity > 0 ? entryQuantity : ''}
+          placeholder={placeholderQuantity > 0 ? formatActualQty(placeholderQuantity) : '0'}
           min={0}
-          step={1}
+          step="any"
           enterKeyHint="next"
           disabled={disabled}
           data-touch-target="true"
@@ -202,7 +235,7 @@ export function WipItemStepper({
             <Select
               className="kls-unit-select"
               aria-label={t('kitchen.log.unit.selectAria', { item: itemName })}
-              value={line.item_unit_id ?? ''}
+              value={selectedUnitValue}
               disabled={disabled}
               autoFocus
               onChange={e => {
@@ -215,6 +248,11 @@ export function WipItemStepper({
               {unitOptions?.map(u => (
                 <option key={u.id} value={u.id}>
                   {u.name}
+                </option>
+              ))}
+              {unitMultiples.map(factor => (
+                <option key={`multiple:${factor}`} value={`multiple:${String(factor)}`}>
+                  {formatUnitMultiple(factor, fallbackUnit?.name ?? '', locale)}
                 </option>
               ))}
             </Select>
@@ -234,7 +272,7 @@ export function WipItemStepper({
             {t('kitchen.log.stepper.already')} <strong className="kls-logged-units">
               {alreadyLogged.map(entry => (
                 <span className="kls-logged-unit" key={entry.key}>
-                  {formatActualQty(entry.qty_porsi)} {entry.unit_name?.trim() || t('kitchen.log.unit.unknownHistory')}
+                  {formatLoggedEntry(entry, formatActualQty, t('kitchen.log.unit.unknownHistory'))}
                 </span>
               ))}
             </strong>
