@@ -54,7 +54,7 @@
   flex: none;
   font-size: var(--font-size-mono);
   font-weight: 600;
-  color: var(--primary);
+  color: var(--text-on-accent-tint);
   text-decoration: none;
   white-space: nowrap;
 }

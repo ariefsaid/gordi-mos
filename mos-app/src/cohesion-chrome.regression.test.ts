@@ -502,7 +502,9 @@ describe('CHROME-STRIPE: no side-accent stripe on options, items or rows', () =>
       rule[1].split(',').some((part) => part.trim() === selector),
     )?.[2]
     expect(body, `${selector} rule in ${file}`).toBeTruthy()
-    expect(body).toContain('color: var(--primary)')
+    expect(body).toContain(file === 'shell/appearance-control.css'
+      ? 'color: var(--popover-foreground, var(--foreground))'
+      : 'color: var(--text-on-accent-tint)')
     expect(body).toMatch(/font-weight:\s*600/)
     expect(body, 'a tint alone is not a state cue (#1179)').not.toMatch(/background:/)
   })

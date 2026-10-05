@@ -57,12 +57,8 @@
      (its own tag-text-green/amber already measure 7.9:1 / 10.2:1, no fix needed there). */
   --ds-tag-text-green: var(--status-won-text);
   --ds-tag-text-amber: var(--warning-foreground);
-  /* SYS-4 (backfill census, MEDIUM) / DO-11: the theme-aware "blue text on a blue tint" pair —
-     the active rail pill (The One Blue on --ds-color-blue3) and the @mention person badge (on
-     --accent-subtle). In LIGHT this is the mid-blue --ds-color-blue verbatim (both surfaces are
-     pale → AA already; light unchanged). Dark overrides it below: mid-blue's luminance (~0.15) can
-     NEVER reach 4.5:1 on a dark tint no matter how dark the tint, so the TEXT must lighten. */
-  --text-on-accent-tint: var(--ds-color-blue);
+  /* Blue functional text keeps its hue while clearing AA on surfaces and blue tints. */
+  --text-on-accent-tint: var(--status-open-text);
 }
 
 .dark {
