@@ -1,7 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { containsPattern } from './like-pattern'
 import { filterEffectiveMemberships } from '@/lib/team-context/eligible-teams'
-import { containsPattern } from './like-pattern'
 import type {
   Attention, SignalRow, MentionKind, CreateSignalInput, TeamOption, SiteOption, StagedMention,
 } from './signals.types'
