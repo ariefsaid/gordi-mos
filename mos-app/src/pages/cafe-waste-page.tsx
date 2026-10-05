@@ -12,11 +12,15 @@ import { canPushCafe } from '@/lib/kitchen-gates'
 import { streamKey, streamLabel } from '@/lib/kitchen-action-label'
 import { listCafeItemSettings, toCafeLogItem } from '@/lib/db/cafe-item-settings'
 import { insertKitchenLog, resolveKitchenBuId } from '@/lib/db/kitchen-logs'
-import { submitKitchenWasteLog } from '@/lib/db/kitchen-waste-photos'
-import type { KitchenWastePhoto } from '@/lib/db/kitchen-waste-photos'
+import {
+  listCurrentPersonKitchenWasteDrafts,
+  submitKitchenWasteLog,
+  WASTE_PHOTO_UPLOAD_WINDOW_MS,
+} from '@/lib/db/kitchen-waste-photos'
+import type { KitchenWasteDraft, KitchenWastePhoto } from '@/lib/db/kitchen-waste-photos'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { wibToday } from '@/lib/db/cafe-opening'
-import { formatWeekdayDayMonth } from '@/lib/format/date'
+import { formatDayMonthYear, formatWeekdayDayMonth } from '@/lib/format/date'
 import { useSearchParamState } from '@/lib/use-search-param-state'
 import {
   useKitchenItemTable,
@@ -42,7 +46,10 @@ type WasteEntry = {
   quantity: string
   unitId: string
   logId?: string
+  capturedUnitName?: string
+  capturedLogDate?: string
   photoReady: boolean
+  photoWindowExpired: boolean
   preparing: boolean
   submitted: boolean
   photos: KitchenWastePhoto[]
@@ -70,6 +77,7 @@ function initialEntries(items: readonly CafeLogItem[]): Record<string, WasteEntr
     quantity: '',
     unitId: item.defaultUnit.id,
     photoReady: false,
+    photoWindowExpired: false,
     preparing: false,
     submitted: false,
     photos: [],
@@ -80,6 +88,10 @@ function displayUnit(unit: CafeLogItem['units'][number], t: ReturnType<typeof us
   return unit.labelOrdinal === null
     ? unit.name
     : t('cafe.items.unitDisambiguated', { name: unit.name, number: unit.labelOrdinal })
+}
+
+function photoWindowExpired(createdAt: string): boolean {
+  return Date.now() >= Date.parse(createdAt) + WASTE_PHOTO_UPLOAD_WINDOW_MS
 }
 
 export function CafeWastePage() {
@@ -123,6 +135,8 @@ export function CafeWastePage() {
     affiliated: auth.viewer.affiliated,
     accessRoles: auth.viewer.accessRoles,
   })
+  const personId = auth.status === 'authenticated' ? auth.viewer.person.id : ''
+  const orgId = auth.status === 'authenticated' ? auth.viewer.person.org_id : ''
   const { resolve, adopt, setStream } = cafeStream
 
   const [loadState, setLoadState] = useState<PageLoadState>('loading')
@@ -131,6 +145,7 @@ export function CafeWastePage() {
   const [items, setItems] = useState<CafeLogItem[]>([])
   const [businessUnitId, setBusinessUnitId] = useState('')
   const [entries, setEntries] = useState<Record<string, WasteEntry>>({})
+  const [resumableDrafts, setResumableDrafts] = useState<KitchenWasteDraft[]>([])
   const [submitError, setSubmitError] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [isOnline, setIsOnline] = useState(navigator.onLine)
@@ -185,11 +200,20 @@ export function CafeWastePage() {
     setItems([])
     setEntries({})
     setBusinessUnitId('')
+    setResumableDrafts([])
     if (!stream) {
       setLoadState('ready')
       return () => { active = false }
     }
-    void Promise.all([listCafeItemSettings(stream), resolveKitchenBuId()]).then(([settings, buId]) => {
+    const draftRead = canCapture && personId && orgId
+      ? listCurrentPersonKitchenWasteDrafts({
+        orgId,
+        personId,
+        branchId: stream.branch.id,
+        activity: stream.activity,
+      })
+      : Promise.resolve([] as KitchenWasteDraft[])
+    void Promise.all([listCafeItemSettings(stream), resolveKitchenBuId(), draftRead]).then(([settings, buId, drafts]) => {
       if (!active || generation !== readGeneration.current) return
       const nextItems = settings.flatMap(setting => {
         const item = toCafeLogItem(setting)
@@ -197,6 +221,8 @@ export function CafeWastePage() {
       })
       setItems(nextItems)
       setEntries(initialEntries(nextItems))
+      const offeredItemIds = new Set(nextItems.map(item => item.id))
+      setResumableDrafts(drafts.filter(draft => offeredItemIds.has(draft.itemId)))
       setBusinessUnitId(buId)
       setLoadState('ready')
     }).catch(() => {
@@ -204,7 +230,7 @@ export function CafeWastePage() {
       setLoadState('error')
     })
     return () => { active = false }
-  }, [catalogReady, loadRetry, stream, stream?.activity, stream?.branch.id])
+  }, [canCapture, catalogReady, loadRetry, orgId, personId, stream, stream?.activity, stream?.branch.id])
 
   const filterRows = useMemo<WasteRow[]>(() => items.map(item => ({
     ...item,
@@ -239,7 +265,10 @@ export function CafeWastePage() {
       id: line.item.id,
       name: line.item.name,
       quantity: line.quantity,
-      unit: unit ? displayUnit(unit, t) : line.item.defaultUnit.name,
+      unit: line.item.units.some(candidate => candidate.id === line.entry.unitId)
+        ? (unit ? displayUnit(unit, t) : line.item.defaultUnit.name)
+        : line.entry.capturedUnitName ?? (unit ? displayUnit(unit, t) : line.item.defaultUnit.name),
+      logDate: line.entry.capturedLogDate,
       submitted: line.entry.submitted,
     }
   })
@@ -263,6 +292,13 @@ export function CafeWastePage() {
     setEntries(current => {
       const entry = current[item.id]
       return entry ? { ...current, [item.id]: { ...entry, photoReady: ready } } : current
+    })
+  }])), [items])
+  // Stable callback identities keep readiness effects from firing again on every parent entry update.
+  const photoExpiredCallbacks = useMemo(() => new Map(items.map(item => [item.id, () => {
+    setEntries(current => {
+      const entry = current[item.id]
+      return entry ? { ...current, [item.id]: { ...entry, photoWindowExpired: true } } : current
     })
   }])), [items])
   const photoUploadedCallbacks = useMemo(() => new Map(items.map(item => [item.id, (photo: KitchenWastePhoto) => {
@@ -292,7 +328,7 @@ export function CafeWastePage() {
         item_unit_id: entry.unitId,
         qty_porsi: quantity,
       })
-      patchEntry(item.id, { logId, preparing: false })
+      patchEntry(item.id, { logId, capturedLogDate: logDate, preparing: false })
     } catch {
       patchEntry(item.id, {
         preparing: false,
@@ -301,6 +337,101 @@ export function CafeWastePage() {
     } finally {
       draftRequests.current.delete(item.id)
     }
+  }
+
+  async function restartExpiredEntry(item: CafeLogItem) {
+    const entry = entries[item.id]
+    const quantity = quantityValue(entry?.quantity ?? '')
+    if (!entry?.logId || !entry.photoWindowExpired || entry.photos.length > 0 || quantity === null
+      || !stream || !businessUnitId || !canCapture || !isOnline || submitting || entry.preparing
+      || draftRequests.current.has(item.id)) return
+    draftRequests.current.add(item.id)
+    patchEntry(item.id, { preparing: true, error: undefined })
+    try {
+      const logId = await insertKitchenLog({
+        business_unit_id: businessUnitId,
+        log_date: logDate,
+        branch_id: stream.branch.id,
+        activity: stream.activity,
+        action: 'waste',
+        destination_branch_id: null,
+        wip_item_id: item.id,
+        item_unit_id: entry.unitId,
+        qty_porsi: quantity,
+      })
+      patchEntry(item.id, {
+        logId,
+        capturedUnitName: entry.capturedUnitName,
+        capturedLogDate: logDate,
+        preparing: false,
+        photoReady: false,
+        photoWindowExpired: false,
+        photos: [],
+      })
+    } catch {
+      patchEntry(item.id, { preparing: false, error: t('kitchen.waste.prepareFailed') })
+    } finally {
+      draftRequests.current.delete(item.id)
+    }
+  }
+
+  function resumeWasteDraft(draft: KitchenWasteDraft) {
+    if (!canCapture || !items.some(item => item.id === draft.itemId)) return
+    const entry = entries[draft.itemId]
+    if (entry?.logId || entry?.preparing || entry?.quantity.trim()) return
+    setEntries(current => {
+      const currentEntry = current[draft.itemId]
+      if (currentEntry?.logId || currentEntry?.preparing || currentEntry?.quantity.trim()) return current
+      return {
+        ...current,
+        [draft.itemId]: {
+          ...(currentEntry ?? initialEntries(items)[draft.itemId]!),
+          quantity: String(draft.quantity),
+          unitId: draft.itemUnitId,
+          capturedUnitName: draft.unitName,
+          capturedLogDate: draft.logDate,
+          logId: draft.logId,
+          photoReady: draft.photos.length > 0,
+          photoWindowExpired: draft.photos.length === 0 && photoWindowExpired(draft.createdAt),
+          preparing: false,
+          submitted: false,
+          photos: draft.photos,
+          error: undefined,
+        },
+      }
+    })
+    setResumableDrafts(current => current.filter(candidate => candidate.logId !== draft.logId))
+    setSubmitError(false)
+  }
+
+  function renderEvidence(item: CafeLogItem) {
+    const entry = entries[item.id]
+    if (!entry?.logId || entry.submitted) return null
+    if (entry.photoWindowExpired && entry.photos.length === 0) {
+      return (
+        <div className="cwl-evidence cwl-expired" role="status">
+          <p>{t('kitchen.waste.expiredDraft')}</p>
+          <button
+            type="button"
+            className="btn btn-outline"
+            disabled={!canCapture || !isOnline || submitting || entry.preparing}
+            onClick={() => void restartExpiredEntry(item)}
+          >
+            {entry.preparing ? t('common.working') : t('kitchen.waste.startReplacement')}
+          </button>
+          {entry.error && <span className="cwl-field-error" role="alert">{entry.error}</span>}
+        </div>
+      )
+    }
+    return (
+      <WastePhotoCapture
+        wasteLogId={entry.logId}
+        initialPhotos={entry.photos}
+        onPhotoUploaded={photoUploadedCallbacks.get(item.id)}
+        onCanSubmitChange={photoReadyCallbacks.get(item.id)}
+        onPhotoWindowExpired={photoExpiredCallbacks.get(item.id)}
+      />
+    )
   }
 
   async function handleSubmit() {
@@ -357,16 +488,7 @@ export function CafeWastePage() {
             <span className="kl-dish-name"><span>{item.kind} - </span><span>{item.name}</span></span>
             {item.category && <span className="kl-dish-cat">{kitchenCategoryLabel(t, item.category)}</span>}
           </div>
-          {entries[item.id]?.logId && !entries[item.id]?.submitted && (
-            <div className="cwl-evidence">
-              <WastePhotoCapture
-                wasteLogId={entries[item.id]!.logId!}
-                initialPhotos={entries[item.id]!.photos}
-                onPhotoUploaded={photoUploadedCallbacks.get(item.id)}
-                onCanSubmitChange={photoReadyCallbacks.get(item.id)}
-              />
-            </div>
-          )}
+          {renderEvidence(item)}
         </div>
       ),
     },
@@ -405,16 +527,7 @@ export function CafeWastePage() {
         onUnitChange={unitId => patchEntry(item.id, { unitId, error: undefined })}
         onPrepare={() => void prepareEntry(item)}
       />
-      {entries[item.id]?.logId && !entries[item.id]?.submitted && (
-        <div className="cwl-evidence">
-          <WastePhotoCapture
-            wasteLogId={entries[item.id]!.logId!}
-            initialPhotos={entries[item.id]!.photos}
-            onPhotoUploaded={photoUploadedCallbacks.get(item.id)}
-            onCanSubmitChange={photoReadyCallbacks.get(item.id)}
-          />
-        </div>
-      )}
+      {renderEvidence(item)}
     </div>
   )
 
@@ -467,6 +580,43 @@ export function CafeWastePage() {
             </div>
             <p className="cwl-help">{t('kitchen.waste.help')}</p>
             {!canCapture && <p className="kl-banner cwl-read-only" role="status">{t('kitchen.waste.readOnly')}</p>}
+            {canCapture && resumableDrafts.length > 0 && (
+              <section className="cwl-resume" aria-labelledby="cwl-resume-title">
+                <h2 id="cwl-resume-title">{t('kitchen.waste.resumableDrafts')}</h2>
+                <ul>
+                  {resumableDrafts.map(draft => {
+                    const item = items.find(candidate => candidate.id === draft.itemId)
+                    if (!item) return null
+                    const current = entries[draft.itemId]
+                    const alreadyEditing = Boolean(current?.logId || current?.preparing || current?.quantity.trim())
+                    const timestamp = new Intl.DateTimeFormat(document.documentElement.lang || 'en', {
+                      dateStyle: 'medium', timeStyle: 'medium',
+                    }).format(new Date(draft.createdAt))
+                    return (
+                      <li key={draft.logId}>
+                        <button
+                          type="button"
+                          className="btn btn-outline"
+                          disabled={alreadyEditing || submitting}
+                          onClick={() => resumeWasteDraft(draft)}
+                        >
+                          {t('kitchen.waste.resumeDraft', {
+                            item: item.name,
+                            quantity: formatWasteQty(draft.quantity),
+                            unit: draft.unitName,
+                            date: formatDayMonthYear(draft.logDate),
+                            createdAt: timestamp,
+                          })}
+                        </button>
+                        {draft.photos.length === 0 && photoWindowExpired(draft.createdAt) && (
+                          <span className="cwl-lock-note">{t('kitchen.waste.expiredDraft')}</span>
+                        )}
+                      </li>
+                    )
+                  })}
+                </ul>
+              </section>
+            )}
             {businessUnitId && canCapture && (
               <ReportMissingItem stream={stream} streamLabel={streamLabel(t, stream)} />
             )}
@@ -566,6 +716,7 @@ export function CafeWastePage() {
                   <li key={line.id}>
                     <span>{line.name}</span>
                     <strong className="tabular">{formatWasteQty(line.quantity)} {line.unit}</strong>
+                    {line.logDate && <small>{t('kitchen.waste.capturedOn', { date: formatDayMonthYear(line.logDate) })}</small>}
                     {line.submitted && <em>{t('kitchen.waste.itemSubmitted')}</em>}
                   </li>
                 ))}
@@ -626,11 +777,15 @@ function WasteItemControls({
   const inputId = `cafe-waste-qty-${item.id}`
   const unitId = `cafe-waste-unit-${item.id}`
   const current: WasteEntry = entry ?? {
-    quantity: '', unitId: item.defaultUnit.id, photoReady: false, preparing: false, submitted: false, photos: [],
+    quantity: '', unitId: item.defaultUnit.id, photoReady: false, photoWindowExpired: false,
+    preparing: false, submitted: false, photos: [],
   }
   const selectedUnit = item.units.find(unit => unit.id === current.unitId)
     ?? item.units.find(unit => unit.id === item.defaultUnit.id)
     ?? { ...item.defaultUnit, isDefault: true, labelOrdinal: null, labelCount: 1 }
+  const selectedUnitLabel = item.units.some(unit => unit.id === current.unitId)
+    ? displayUnit(selectedUnit, t)
+    : entry?.capturedUnitName ?? displayUnit(selectedUnit, t)
   const locked = Boolean(current.logId || current.preparing || current.submitted)
   const invalid = isInvalidQuantity(current.quantity)
   const quantity = quantityValue(current.quantity)
@@ -666,6 +821,9 @@ function WasteItemControls({
             disabled={!editable}
             onChange={event => onUnitChange(event.target.value)}
           >
+            {entry?.capturedUnitName && !item.units.some(unit => unit.id === current.unitId) && (
+              <option value={current.unitId}>{entry.capturedUnitName}</option>
+            )}
             {item.units.map(unit => (
               <option key={unit.id} value={unit.id}>
                 {displayUnit(unit, t)}{unit.isDefault ? ` · ${t('cafe.items.defaultTag')}` : ''}
@@ -674,13 +832,19 @@ function WasteItemControls({
           </Select>
         ) : (
           <span className="cwl-unit-label" aria-label={t('kitchen.waste.unitFor', { item: item.name })}>
-            {displayUnit(selectedUnit, t)}
+            {selectedUnitLabel}
           </span>
         )}
       </div>
       {invalid && <span className="cwl-field-error" role="alert">{t('kitchen.waste.quantityInvalid')}</span>}
       {current.error && <span className="cwl-field-error" role="alert">{current.error}</span>}
-      {current.logId && !current.submitted && <p className="cwl-lock-note">{t('kitchen.waste.entryLocked')}</p>}
+      {current.logId && !current.submitted && (
+        <p className="cwl-lock-note">
+          {current.capturedLogDate
+            ? t('kitchen.waste.capturedOn', { date: formatDayMonthYear(current.capturedLogDate) })
+            : t('kitchen.waste.entryLocked')}
+        </p>
+      )}
       {current.submitted ? (
         <p className="cwl-submitted" role="status">{t('kitchen.waste.itemSubmitted')}</p>
       ) : (

@@ -30,6 +30,8 @@ export interface WastePhotoCaptureProps {
   onPhotoUploaded?: (photo: KitchenWastePhoto) => void
   /** Parent submit controls stay disabled until this item has at least one accepted photo. */
   onCanSubmitChange?: (canSubmit: boolean) => void
+  /** Parent offers a new Draft when the server says this Draft's photo window has ended. */
+  onPhotoWindowExpired?: () => void
 }
 
 export function WastePhotoCapture({
@@ -38,6 +40,7 @@ export function WastePhotoCapture({
   onUpload = uploadKitchenWastePhoto,
   onPhotoUploaded,
   onCanSubmitChange,
+  onPhotoWindowExpired,
 }: WastePhotoCaptureProps) {
   const t = useT()
   const titleId = useId()
@@ -121,7 +124,10 @@ export function WastePhotoCapture({
       setPhotos(current => current.map(item => item.id === photoId
         ? { ...item, status: terminalStatus ?? 'error' }
         : item))
-      if (terminalStatus === 'expired') setValidationError(t('kitchen.wastePhotos.windowExpired'))
+      if (terminalStatus === 'expired') {
+        setValidationError(t('kitchen.wastePhotos.windowExpired'))
+        onPhotoWindowExpired?.()
+      }
       if (terminalStatus === 'tooLarge') setValidationError(t('kitchen.wastePhotos.tooLarge'))
     }
   }
