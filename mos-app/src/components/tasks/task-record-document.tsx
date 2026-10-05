@@ -2,6 +2,7 @@
 import type { ReactNode } from 'react'
 import { Toast } from '@/components/admin/toast'
 import { useToast } from '@/components/admin/use-toast'
+import { copyCanonicalLink } from '@/lib/copy-canonical-link'
 import { useT } from '@/i18n/use-t'
 import { RecordField } from '@/components/records/record-field'
 import type { RecordFieldSpec, RecordValue, RecordViewerAdapter } from '@/components/records/record-viewer.types'
@@ -117,8 +118,10 @@ export function TaskRecordDocument({
     ...(canonicalHref && typeof navigator !== 'undefined' && navigator.clipboard ? [{
       id: 'copy', label: t('record.copyLink'),
       onSelect: () => {
-        void navigator.clipboard.writeText(new URL(canonicalHref, window.location.origin).href)
-          .catch(() => showToast(t('record.copyLinkFailed')))
+        void copyCanonicalLink(canonicalHref).then(
+          () => showToast(t('record.copyLinkSucceeded')),
+          () => showToast(t('record.copyLinkFailed')),
+        )
       },
     }] : []),
     ...(runtime ? [{

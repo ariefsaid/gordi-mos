@@ -4,9 +4,14 @@ import { shrinkPhoto } from '@/lib/db/signal-photos'
 export const WASTE_PHOTO_BUCKET = 'waste-photos'
 export const MAX_WASTE_PHOTOS = 4
 export const MAX_WASTE_PHOTO_BYTES = 5 * 1024 * 1024
-export const WASTE_PHOTO_UPLOAD_WINDOW_MS = 15 * 60 * 1000
+export const WASTE_PHOTO_UPLOAD_WINDOW_MINUTES = 15
+export const WASTE_PHOTO_UPLOAD_WINDOW_MS = WASTE_PHOTO_UPLOAD_WINDOW_MINUTES * 60 * 1000
 export const WASTE_PHOTO_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const
 const SIGNED_URL_SECONDS = 60 * 60
+
+export function isWastePhotoWindowExpired(createdAt: string, now = Date.now()): boolean {
+  return now >= Date.parse(createdAt) + WASTE_PHOTO_UPLOAD_WINDOW_MS
+}
 
 export interface KitchenWastePhoto {
   logId: string
@@ -19,8 +24,8 @@ export interface KitchenWastePhoto {
 export interface KitchenWasteDraft {
   logId: string
   itemId: string
-  itemUnitId: string
-  unitName: string
+  itemUnitId: string | null
+  unitName: string | null
   quantity: number
   logDate: string
   createdAt: string
@@ -47,6 +52,7 @@ export async function listCurrentPersonKitchenWasteDrafts(
     .eq('activity', scope.activity)
     .eq('action', 'waste')
     .eq('status', 'Draft')
+    .is('superseded_by', null)
     .order('created_at', { ascending: true })
   if (error) throw new Error(`listCurrentPersonKitchenWasteDrafts failed — ${error.message}`)
 
@@ -67,9 +73,7 @@ export async function listCurrentPersonKitchenWasteDrafts(
       .in('id', unitIds),
     listKitchenWastePhotos(rows.map(row => row.id)),
   ])
-  if (unitError) throw new Error(`listCurrentPersonKitchenWasteDrafts failed — ${unitError.message}`)
-
-  const unitNames = new Map(((unitRows ?? []) as Array<{ id: string; unit_name: string }>)
+  const unitNames = new Map(((unitError ? [] : unitRows ?? []) as Array<{ id: string; unit_name: string }>)
     .map(unit => [unit.id, unit.unit_name]))
   const photosByLog = new Map<string, KitchenWastePhoto[]>()
   for (const photo of photos) {
@@ -77,20 +81,18 @@ export async function listCurrentPersonKitchenWasteDrafts(
     photosByLog.set(photo.logId, [...current, photo])
   }
 
-  return rows.flatMap(row => {
-    if (!row.item_unit_id) return []
-    const unitName = unitNames.get(row.item_unit_id)
-    if (!unitName) throw new Error('listCurrentPersonKitchenWasteDrafts failed — a captured unit was not returned')
-    return [{
+  return rows.map(row => {
+    const unitName = row.item_unit_id ? unitNames.get(row.item_unit_id) : undefined
+    return {
       logId: row.id,
       itemId: row.wip_item_id,
       itemUnitId: row.item_unit_id,
-      unitName,
+      unitName: unitName || null,
       quantity: row.qty_porsi,
       logDate: row.log_date,
       createdAt: row.created_at,
       photos: photosByLog.get(row.id) ?? [],
-    }]
+    }
   })
 }
 
@@ -110,7 +112,7 @@ export async function uploadKitchenWastePhoto(logId: string, file: File): Promis
   if (data.action !== 'waste' || data.status !== 'Draft') {
     throw new Error('WASTE_PHOTO_DRAFT_REQUIRED')
   }
-  if (Date.now() >= Date.parse(data.created_at) + WASTE_PHOTO_UPLOAD_WINDOW_MS) {
+  if (isWastePhotoWindowExpired(data.created_at)) {
     throw new Error('WASTE_PHOTO_WINDOW_EXPIRED')
   }
 
@@ -154,4 +156,16 @@ export async function listKitchenWastePhotos(logIds: readonly string[]): Promise
 export async function submitKitchenWasteLog(logId: string): Promise<void> {
   const { error } = await supabase.schema('ops').rpc('submit_cafe_waste_log', { p_log_id: logId })
   if (error) throw new Error(`submitKitchenWasteLog failed — ${error.message}`)
+}
+
+/** Replace and retire the original in one transaction; retries reuse the same replacement. */
+export async function restartKitchenWasteDraft(logId: string, logDate: string): Promise<{ logId: string; logDate: string }> {
+  const { data, error } = await supabase.schema('ops').rpc('restart_cafe_waste_draft', {
+    p_log_id: logId,
+    p_log_date: logDate,
+  })
+  if (error) throw new Error(`restartKitchenWasteDraft failed — ${error.message}`)
+  const replacement = (data as Array<{ id: string; log_date: string }> | null)?.[0]
+  if (!replacement) throw new Error('restartKitchenWasteDraft failed — replacement was not returned')
+  return { logId: replacement.id, logDate: replacement.log_date }
 }

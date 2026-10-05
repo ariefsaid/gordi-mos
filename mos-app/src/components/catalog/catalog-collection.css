@@ -211,7 +211,7 @@
     white-space: nowrap;
     grid-column: 3;
     grid-row: 1;
-    color: var(--primary);
+    color: var(--text-on-accent-tint);
     font-size: var(--font-size-label);
     font-weight: 600;
   }

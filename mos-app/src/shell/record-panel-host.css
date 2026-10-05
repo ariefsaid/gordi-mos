@@ -51,6 +51,26 @@
  * out-ranked, because the two rules tie on specificity and bundle order would pick the winner. */
 .drawer-split:not(.drawer-shell-split):not(.overlay-companion-host) { position: relative; isolation: isolate; }
 
+/* Create Task is a stacked panel frame with its own pinned action row. Bound only this frame to
+   the space below its page position so TaskSurface's form body, rather than the whole panel,
+   becomes the scroll region. Other record frames keep their existing page/record scrolling. */
+@media (min-width: 1100px) {
+  .drawer-split.task-create-panel:not(.drawer-shell-split):not(.overlay-companion-host) {
+    position: sticky;
+    top: 0;
+    display: flex;
+    flex-direction: column;
+    height: var(--task-create-panel-height, calc(100vh - var(--header-h)));
+    max-height: var(--task-create-panel-height, calc(100vh - var(--header-h)));
+    min-height: 0;
+  }
+  .drawer-split.task-create-panel > .tc-create-drawer,
+  .drawer-split.task-create-panel > .signal-task-create-frame {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+}
+
 /* #708: this query carried no width guard, so ANY environment reporting a fine pointer — a
  * resized desktop window, a non-touch mobile emulation — fired it at phone width too, tightening
  * Close/Ask Deputy to 32×32 under the 44px floor. `and (min-width: 768px)` confines the tighten-

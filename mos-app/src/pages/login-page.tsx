@@ -253,9 +253,9 @@ export function LoginPage() {
               ✓
             </div>
             <div>
-              <p className="text-foreground font-semibold" style={{ fontSize: 16 }}>
+              <h1 className="text-foreground font-semibold" style={{ fontSize: 16 }}>
                 {confirmText}
-              </p>
+              </h1>
               {email && (
                 /* Echoes the address the person typed so they can spot a typo — it must NOT say
                    "Sent to", which asserts a delivery that may not have happened and would put

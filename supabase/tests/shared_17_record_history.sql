@@ -4,7 +4,7 @@
 -- mos_24_objective_worklines_history's file.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(56);
+select plan(57);
 
 select shared._test_seed_directory();
 
@@ -26,8 +26,17 @@ select is((select c.relforcerowsecurity from pg_class c
            join pg_namespace n on n.oid = c.relnamespace
           where n.nspname = 'shared' and c.relname = 'record_history'),
   true, 'RLS is forced on the history table — even the owner answers the one SELECT policy');
-select has_index('shared', 'record_history', 'record_history_record_idx',
-  'the per-record read path is indexed');
+select has_index('shared', 'record_history', 'record_history_record_keyset_idx',
+  'the per-record keyset read path is indexed');
+select is((select count(*)::int from pg_index i
+            where i.indrelid = 'shared.record_history'::regclass
+              and i.indpred is null
+              and (select array_agg(a.attname::text order by k.ordinality)
+                     from unnest(i.indkey) with ordinality k(attnum, ordinality)
+                     join pg_attribute a on a.attrelid = i.indrelid and a.attnum = k.attnum
+                    where k.ordinality <= 5)
+                  = array['org_id', 'schema_name', 'table_name', 'record_key', 'occurred_at']),
+  1, 'the per-record read path maintains one index per history write');
 
 -- ── AC-001: an INSERT appends exactly one summary row ────────────────────────────────────────
 insert into mos.objectives (id, org_id, name)

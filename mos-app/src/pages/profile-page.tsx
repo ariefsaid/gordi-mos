@@ -1,7 +1,7 @@
 /**
  * ProfilePage — Personal Profile.
  *
- * Stacked cards: Identity (read-only Person/Role, "managed by Admin") then the settings the
+ * Stacked cards: Identity (read-only Person/Position, "managed by Admin") then the settings the
  * viewer actually owns.
  *
  * **The locale control lives HERE, and that is load-bearing rather than cosmetic.** It used to
@@ -11,7 +11,7 @@
  * it. (`LocaleToggle` is deleted in the same change; leaving an unmounted duplicate control in
  * the shell is how a second, divergent language switch gets re-mounted later by mistake.)
  *
- * Identity is read-only by design: person and role records are Admin-owned, and an editable-
+ * Identity is read-only by design: person and Position records are Admin-owned, and an editable-
  * looking field that silently cannot be saved is worse than a plain labelled value.
  */
 import { useEffect, useState } from 'react'
@@ -137,9 +137,9 @@ export function ProfilePage() {
               <dl className="flex flex-col" style={{ gap: 12, margin: 0 }}>
                 <ReadonlyRow term={t('profile.person')} value={viewer.person.full_name} />
                 <ReadonlyRow
-                  // The domain permits several roles and real viewers are dual-hatted, so the
-                  // term agrees with the value: "Roles" when there is more than one.
-                  term={viewer.roles.length > 1 ? t('profile.roles') : t('profile.role')}
+                  // `viewer.roles` carries org Positions; accessRoles are separate. Keep the field
+                  // name singular even when this value lists more than one Position.
+                  term={t('profile.position')}
                   value={viewer.roles.map((r) => r.name).join(' · ') || '—'}
                 />
               </dl>

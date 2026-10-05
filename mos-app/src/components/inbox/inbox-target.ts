@@ -1,7 +1,6 @@
 import type { NotificationRow } from '@/lib/db/notifications'
 import type { OverlayEntryDraft } from './inbox-host-contracts'
-
-export { notificationAvailableInProfile } from '@/config/notification-profile'
+import { readNotificationEntity } from '@/lib/notifications/metadata'
 
 /**
  * inbox-target — the pure, fail-closed resolver that turns a private Inbox notification into a
@@ -91,20 +90,6 @@ export type NotificationTargetResolution =
       messageKey: string
     }
 
-/** The raw metadata envelope shape we defensively read (both current and route-free producers). */
-type RawEntity = {
-  type?: unknown
-  id?: unknown
-  route?: unknown
-}
-
-function readEntity(row: NotificationRow): RawEntity | null {
-  const meta = row.metadata as { entity?: unknown } | null | undefined
-  const entity = meta?.entity
-  if (entity == null || typeof entity !== 'object') return null
-  return entity as RawEntity
-}
-
 function unavailable(key: string, reason: UnavailableReason): NotificationTargetResolution {
   return { status: 'unavailable', key, reason, messageKey: REASON_MESSAGE_KEY[reason] }
 }
@@ -120,7 +105,7 @@ export function resolveNotificationTarget(
   deps: ResolveTargetDeps,
 ): NotificationTargetResolution {
   const key = row.id
-  const entity = readEntity(row)
+  const entity = readNotificationEntity(row)
 
   // No entity object at all → malformed.
   if (entity == null) return unavailable(key, 'malformed-target')

@@ -6,7 +6,7 @@ import './Avatar.css'
  *
  * Seeded-pastel: when no avatarUrl is given, the placeholder string is hashed
  * deterministically to pick a color family from a 24-color pastel palette, then
- * rendered as `{fam}3` background + `{fam}11` text (both theme-aware via the
+ * rendered as `{fam}3` background + `{fam}12` text (both theme-aware via the
  * ported --ds-* tokens). Same input always yields the same color.
  *
  * Explicit `color`/`backgroundColor` (CSS colors) override the seed.
@@ -71,7 +71,7 @@ export function Avatar({
   const px = SIZE_PX[size]
   const fam = seedFamily(placeholder ?? '')
   const seedBg = `var(--ds-color-${fam}3)`
-  const seedText = `var(--ds-color-${fam}11)`
+  const seedText = `var(--ds-color-${fam}12)`
   const showImg = Boolean(avatarUrl) && failedUrl !== avatarUrl
   const inline: CSSProperties = {
     width: px,

@@ -28,6 +28,7 @@
 }
 .mk-textinput__field::placeholder { color: var(--muted-foreground); }
 .mk-textinput--full { width: 100%; }
+.mk-textinput--full > .mk-textinput__box { width: 100%; box-sizing: border-box; }
 .mk-textinput--error .mk-textinput__box { border-color: var(--destructive); }
 .mk-textinput--error .mk-textinput__box:focus-within {
   box-shadow: 0 0 0 2px var(--destructive);

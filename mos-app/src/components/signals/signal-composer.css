@@ -126,9 +126,9 @@
 }
 .signal-composer-identity > span:first-child { color: var(--foreground); font-weight: 600; }
 
-/* OD-REDESIGN-91 #20: the WIB timezone hint sits beside the "Occurred at" label — quiet, micro. */
+/* OD-REDESIGN-91 #20: the WIB timezone hint sits beside the "Occurred at" label — quiet, caption. */
 .signal-composer-field-hint {
-  margin-left: 6px; font-size: var(--font-size-micro); font-weight: 600;
+  margin-left: 6px; font-size: var(--font-size-overline); font-weight: 600;
   letter-spacing: 0.04em; color: var(--muted-foreground);
 }
 .signal-composer-pill {
@@ -155,7 +155,7 @@
    fine/stylus pointer too), never just "pointer: coarse" alone. */
 .signal-composer-send { display: flex; align-items: center; gap: 8px; }
 .signal-composer-send-hint {
-  font-size: var(--font-size-micro); color: var(--muted-foreground); white-space: nowrap;
+  font-size: var(--font-size-overline); color: var(--muted-foreground); white-space: nowrap;
 }
 @media (hover: none), (pointer: coarse) {
   .signal-composer-send-hint { display: none; }

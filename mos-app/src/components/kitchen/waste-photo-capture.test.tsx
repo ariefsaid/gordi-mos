@@ -5,14 +5,20 @@ import type { KitchenWastePhoto } from '@/lib/db/kitchen-waste-photos'
 import { WastePhotoCapture } from './waste-photo-capture'
 
 const NativeURL = globalThis.URL
+const photoWindow = vi.hoisted(() => ({ minutes: 15 }))
+vi.mock('@/lib/db/kitchen-waste-photos', async importOriginal => {
+  const actual = await importOriginal<typeof import('@/lib/db/kitchen-waste-photos')>()
+  return { ...actual, get WASTE_PHOTO_UPLOAD_WINDOW_MINUTES() { return photoWindow.minutes } }
+})
+
 const onUpload = vi.fn<(logId: string, file: File) => Promise<KitchenWastePhoto | void>>()
 const onPhotoUploaded = vi.fn<(photo: KitchenWastePhoto) => void>()
 const onCanSubmitChange = vi.fn<(ready: boolean) => void>()
 const onPhotoWindowExpired = vi.fn<() => void>()
 
-function renderCapture(initialPhotos: readonly KitchenWastePhoto[] = []) {
+function renderCapture(initialPhotos: readonly KitchenWastePhoto[] = [], locale: 'en' | 'id' = 'en') {
   return render(
-    <I18nProvider>
+    <I18nProvider initialLocale={locale}>
       <WastePhotoCapture
         wasteLogId="waste-1"
         initialPhotos={initialPhotos}
@@ -31,6 +37,7 @@ function photo(name = 'waste.jpg', type = 'image/jpeg') {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  photoWindow.minutes = 15
   onUpload.mockResolvedValue()
   class TestURL extends NativeURL {
     static createObjectURL = vi.fn(() => 'blob:waste-preview')
@@ -110,6 +117,18 @@ describe('WastePhotoCapture', () => {
     fireEvent.click(screen.getByRole('button', { name: /retry photo 1/i }))
     await waitFor(() => expect(onCanSubmitChange).toHaveBeenLastCalledWith(true))
     expect(onUpload).toHaveBeenCalledTimes(2)
+  })
+
+  it.each(['en', 'id'] as const)('uses the shared upload duration in %s expiry explanations', async locale => {
+    photoWindow.minutes = 27
+    onUpload.mockRejectedValue(new Error('WASTE_PHOTO_WINDOW_EXPIRED'))
+    renderCapture([], locale)
+    const input = document.querySelector('input[type="file"]')!
+    fireEvent.change(input, { target: { files: [photo()] } })
+    fireEvent.click(screen.getByRole('button', { name: /upload photos|unggah foto/i }))
+    expect(await screen.findAllByText(locale === 'id' ? /27 menit.*berakhir/i : /27-minute photo window has ended/i)).toHaveLength(2)
+    expect(onPhotoWindowExpired).toHaveBeenCalledOnce()
+    expect(onCanSubmitChange).toHaveBeenLastCalledWith(false)
   })
 
   it('does not offer retry after the database-enforced 15-minute upload window expires', async () => {

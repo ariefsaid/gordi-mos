@@ -1,5 +1,5 @@
 import './record-panel-host.css'
-import { useEffect, useRef, type CSSProperties, type ReactNode, type RefObject } from 'react'
+import { useEffect, useLayoutEffect, useRef, type CSSProperties, type ReactNode, type RefObject } from 'react'
 import { useIsWideOverlayWidth } from './use-is-wide-overlay-width'
 import { useIsDesktop } from './use-is-desktop'
 import { useIsNarrow } from './use-is-narrow'
@@ -12,7 +12,7 @@ import { useEscapeLayer } from '@/lib/use-escape-layer'
 // ONE overlay grammar for records. Every
 // record tenant — Task, Signal, and eventually Inbox/Deputy — mounts its CONTENT through this
 // host so they all open the same way: ≥1100px a non-modal inline <aside> split (the page stays
-// live for triage); below that a role=dialog + aria-modal sheet with a scrim, focus trap, Esc,
+// live for triage); below that a dialog-capable wrapper with role=dialog + aria-modal, scrim, focus trap, Esc,
 // and return-focus. The host owns the modal regime, the .drawer shell (width/border/shadow),
 // the focus contract, and an optional chrome header (title zone · "Open full page" · ✕ Close).
 // Extracted verbatim from the audit-"exemplary" Task drawer (Rule 11 — reuse, no re-invention).
@@ -80,7 +80,7 @@ function OpenPageIcon() {
 /**
  * The shared record overlay host. Two focus regimes, one component (mirrors the Task drawer's
  * AC-110 contract): ≥1100px non-modal <aside> (Tab flows page↔panel, opening moves focus in,
- * closing returns it); <1100px modal dialog (scrim + focus-trap + Esc + return-focus).
+ * closing returns it); <1100px modal <div role="dialog"> (scrim + focus-trap + Esc + return-focus).
  */
 export function RecordPanelHost({
   label, onClose, closeLabel, children, focusKey, initialFocusRef, title, actions, onOpenPage, rootClassName, style,
@@ -126,6 +126,27 @@ export function RecordPanelHost({
       ?? focusables.find((el) => !el.closest('.record-panel-chrome')) ?? focusables[0]
     if (focusOnOpen) first?.focus()
   }, [focusKey, initialFocusRef, focusOnOpen])
+
+  // A stacked Create Task form is the one record frame whose footer stays pinned while its
+  // fields scroll. Collection panels are in-flow grid items, so give this frame the viewport
+  // height remaining below its current top; the shared form can then own the only scroll region.
+  useLayoutEffect(() => {
+    const panel = panelRef.current
+    if (isModal || !panel?.classList.contains('task-create-panel')) return
+    const pageFrame = panel.closest('.page-frame--v3')
+    const updateAvailableHeight = () => {
+      const available = Math.max(0, window.innerHeight - Math.max(0, panel.getBoundingClientRect().top))
+      panel.style.setProperty('--task-create-panel-height', `${available}px`)
+    }
+    updateAvailableHeight()
+    pageFrame?.addEventListener('scroll', updateAvailableHeight, { passive: true })
+    window.addEventListener('resize', updateAvailableHeight)
+    return () => {
+      pageFrame?.removeEventListener('scroll', updateAvailableHeight)
+      window.removeEventListener('resize', updateAvailableHeight)
+      panel.style.removeProperty('--task-create-panel-height')
+    }
+  }, [isModal, focusKey])
 
   // Modal-only: focus trap (on the panel). Tab wraps within the sheet because the modal
   // owns the whole screen; the split regime keeps the page live, so no trap there.
@@ -271,20 +292,20 @@ export function RecordPanelHost({
     )
   }
 
-  // ── Modal (<1100px): dialog + scrim + trap ──────────────────────────────────
+  // ── Modal (<1100px): dialog wrapper + scrim + trap ──────────────────────────
   const rootClass = ['drawer-modal-root', rootClassName ?? ''].filter(Boolean).join(' ')
   const sheetClass = [
     'drawer', 'drawer-modal',
     isFullScreen ? 'drawer-fullscreen' : 'drawer-sheet',
   ].filter(Boolean).join(' ')
 
-  // The oracle attrs ride the sheet <aside> (the panel itself), matching the split regime,
+  // The oracle attrs ride the dialog wrapper (the panel itself), matching the split regime,
   // so a Playwright geometry check measures the sheet — not the full-viewport modal root.
   return (
     <div className={rootClass}>
       <div className="drawer-scrim" onClick={() => onClose('explicit-close')} aria-hidden="true" />
-      <aside
-        ref={panelRef}
+      <div
+        ref={(element: HTMLDivElement | null) => { panelRef.current = element }}
         className={sheetClass}
         role="dialog"
         aria-modal="true"
@@ -292,7 +313,7 @@ export function RecordPanelHost({
         {...overlayAttrs}
       >
         {body}
-      </aside>
+      </div>
     </div>
   )
 }
