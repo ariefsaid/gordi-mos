@@ -23,7 +23,7 @@ import './wip-item-stepper.css'
 interface WipItemStepperProps {
   itemName: string
   line: KitchenLogLine
-  /** current movement — drives whether the tersedia meta is shown (transfers only) */
+  /** Current movement — identifies transfer quantity labels and stock-consuming cap context. */
   movement: KitchenMovement
   /** destination branch name for a transfer quantity's accessible label */
   destinationName?: string
@@ -230,18 +230,15 @@ export function WipItemStepper({
               this item + movement on the SELECTED stream — real submitted rows, never the
               typed-but-unsaved quantity (DD-7's line is the form state; this comes from
               the database). Renders only once something HAS been logged. */}
-          {alreadyLogged.length > 0 && (
-            <span>
-              {t('kitchen.log.stepper.already')} <strong className="kls-logged-units">
-                {alreadyLogged.map(entry => (
-                  <span className="kls-logged-unit" key={entry.key}>
-                    {formatActualQty(entry.qty_porsi)} {entry.unit_name?.trim() || t('kitchen.log.unit.unknownHistory')}
-                  </span>
-                ))}
-              </strong>
-            </span>
-          )}
-
+          <span>
+            {t('kitchen.log.stepper.already')} <strong className="kls-logged-units">
+              {alreadyLogged.map(entry => (
+                <span className="kls-logged-unit" key={entry.key}>
+                  {formatActualQty(entry.qty_porsi)} {entry.unit_name?.trim() || t('kitchen.log.unit.unknownHistory')}
+                </span>
+              ))}
+            </strong>
+          </span>
         </div>
       )}
 

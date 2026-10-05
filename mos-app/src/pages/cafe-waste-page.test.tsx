@@ -210,7 +210,7 @@ describe('CafeWastePage', () => {
 
     await screen.findByTestId('empty-state')
 
-    const footer = document.querySelector('.cwl-footer')
+    const footer = document.querySelector<HTMLElement>('.cwl-footer')
     expect(footer).toBeInTheDocument()
     expect(within(footer!).getByText('0 waste items')).toBeInTheDocument()
     expect(within(footer!).getByRole('button', { name: 'Submit waste' })).toBeDisabled()

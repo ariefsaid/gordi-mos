@@ -74,18 +74,6 @@
 }
 .kl-capture-summary__lines li > span { flex: 1 1 0; min-width: 0; overflow-wrap: anywhere; }
 .kl-capture-summary__lines strong { flex: 0 1 50%; min-width: 0; text-align: right; overflow-wrap: anywhere; }
-.kl-capture-summary__actions {
-  position: sticky;
-  bottom: -16px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: auto -16px -16px;
-  padding: 12px 16px 16px;
-  border-top: 1px solid var(--border);
-  background: var(--card);
-}
-.kl-capture-summary__actions .kl-submit { width: 100%; }
 
 .kl-block {
   width: 100%;

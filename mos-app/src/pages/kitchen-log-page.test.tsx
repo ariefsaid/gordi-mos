@@ -738,7 +738,8 @@ describe('AC-744  AC-007: Café capture renders read-only for the unaffiliated',
     viewer: { ...VIEWER_MEMBER.viewer, affiliated: [] },
   }
 
-  it('an unaffiliated viewer sees the rows, a one-line reason, and no enabled submit', async () => {
+  it.each([false, true])('states the read-only reason once (wide=%s)', async (wide) => {
+    setWideMatchMedia(wide)
     await renderPage(UNAFFILIATED)
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
@@ -750,6 +751,7 @@ describe('AC-744  AC-007: Café capture renders read-only for the unaffiliated',
 
     // The ONE line stating why capture is closed.
     expect(screen.getByRole('status')).toHaveTextContent(/read café records/i)
+    expect(screen.getAllByText(/you can read café records/i)).toHaveLength(1)
 
     // No enabled submit control, even with a staged line.
     fireEvent.change(qtyInput, { target: { value: '20' } })
@@ -835,7 +837,8 @@ describe('AC-744  AC-007: Café capture renders read-only for the unaffiliated',
 // The footer does not restate the field's own note cue verbatim — it
 // names a COUNT and is itself a control that jumps to and focuses the first unresolved note.
 describe('F3b: disabled Submit shows a note-missing pointer when a variance note is missing', () => {
-  it('shows "1 note missing" as a button near Submit, which focuses the note field', async () => {
+  it.each([false, true])('shows one note-missing pointer near Submit (wide=%s)', async (wide) => {
+    setWideMatchMedia(wide)
     // No plans → every staged item is off-target (needs a variance note)
     mockFetchPlanMap.mockResolvedValue({})
     await renderPage()
@@ -1278,7 +1281,8 @@ describe('issue 222: capture offers the stream\'s own item list', () => {
 
 // ── submit error ──────────────────────────────────────────────────────────────
 describe('Submit error state', () => {
-  it('shows error message when submit fails', async () => {
+  it.each([false, true])('reports a submit failure once (wide=%s)', async (wide) => {
+    setWideMatchMedia(wide)
     mockInsertKitchenLogBatch.mockRejectedValue(new Error('Server error'))
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
@@ -1305,7 +1309,8 @@ describe('Submit error state', () => {
     expect(screen.getByRole('button', { name: /^submit/i })).toBeEnabled()
   })
 
-  it('confirms a successful submit in the pinned action bar', async () => {
+  it.each([false, true])('announces a successful submit once in the pinned action bar (wide=%s)', async (wide) => {
+    setWideMatchMedia(wide)
     mockInsertKitchenLogBatch.mockResolvedValue(['log-ok'])
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
@@ -1321,11 +1326,13 @@ describe('Submit error state', () => {
 
 // ── offline write-blocked state (NFR-008) ─────────────────────────────────────
 describe('Offline / write-blocked state (NFR-008)', () => {
-  it('shows offline banner when navigator.onLine is false', async () => {
+  it.each([false, true])('shows the offline message once (wide=%s)', async (wide) => {
+    setWideMatchMedia(wide)
     Object.defineProperty(navigator, 'onLine', { value: false, writable: true, configurable: true })
     await renderPage()
     await waitFor(() => {
       expect(screen.getByRole('alert', { name: /offline/i })).toBeInTheDocument()
+      expect(screen.getAllByText(/you’re offline — logging needs a connection/i)).toHaveLength(1)
     })
   })
 

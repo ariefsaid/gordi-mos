@@ -1213,7 +1213,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     const actuals = actualsMap[item.id]?.[movementKey(movement)] ?? []
     const rowStatus = line.qty_porsi > 0
       ? t('kitchen.status.staged')
-      : actuals.some(entry => entry.qty_porsi > 0) ? t('kitchen.status.logged') : null
+      : actuals.some(entry => entry.qty_porsi > 0) ? t('kitchen.status.logged') : undefined
     return (
       <div className="kl-row">
         <div className="kl-card-head">
@@ -1542,22 +1542,6 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
           >
             <h2>{t(mode === 'transfer' ? 'kitchen.transfer.draft.title' : 'kitchen.log.summary.captureTitle')}</h2>
             {captureDraftContent}
-            {submitError && <p role="alert" className="kl-submit-outcome kl-submit-outcome--error">{submitError}</p>}
-            {showOfflineInFooter && <p className="kl-submit-reason">{t('kitchen.log.offline.banner')}</p>}
-            {status.kind === 'success' && (
-              <p role="status" aria-live="polite" className="kl-submit-outcome kl-submit-outcome--success">
-                {t(status.count === 1 ? 'kitchen.log.success.one' : 'kitchen.log.success.other', { count: status.count })}
-              </p>
-            )}
-            {!canCapture && <p className="kl-submit-reason">{t('kitchen.log.readOnlyReason')}</p>}
-            {mode === 'transfer' && !transferDestinationChosen && (
-              <p className="kl-submit-reason">{t(movementOptions.length > 0 ? 'kitchen.transfer.destination.prompt' : 'kitchen.transfer.destination.none')}</p>
-            )}
-            {noteUnresolved && (
-              <button type="button" className="kl-submit-reason kl-note-pointer" onClick={focusFirstMissingNote}>
-                {t(missingNoteLines.length === 1 ? 'kitchen.log.footer.noteMissing.one' : 'kitchen.log.footer.noteMissing.other', { count: missingNoteLines.length })}
-              </button>
-            )}
           </aside>
         )}
       </div>

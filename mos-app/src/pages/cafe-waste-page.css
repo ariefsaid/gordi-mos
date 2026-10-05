@@ -50,11 +50,11 @@
 .cwl-list .dt-table thead th:first-child,
 .cwl-list .dt-table tbody tr:not(.dt-group-row) > td:first-child { width: auto; vertical-align: top; }
 .cwl-list .dt-table thead th:last-child,
-.cwl-list .dt-table tbody tr:not(.dt-group-row) > td:last-child { width: 12rem; vertical-align: top; }
+.cwl-list .dt-table tbody tr:not(.dt-group-row) > td:last-child { width: 10rem; vertical-align: top; }
 .cwl-item-cell { min-width: 0; }
 .cwl-capture-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 8rem;
+  grid-template-columns: minmax(0, 1fr) 7.5rem;
   grid-template-areas: 'item controls' 'evidence evidence';
   align-items: start;
   gap: 12px;
@@ -142,7 +142,7 @@
 .cwl-footer .btn { min-height: 44px; }
 
 @media (min-width: 768px) {
-  .cwl-capture-row { grid-template-columns: minmax(0, 1fr) 12rem; }
+  .cwl-capture-row { grid-template-columns: minmax(0, 1fr) 10rem; }
 }
 
 @media (max-width: 767.98px) {
