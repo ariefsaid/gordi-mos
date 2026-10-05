@@ -239,7 +239,7 @@
   min-height: 22px;
   padding: 0 8px;
   border-radius: var(--radius-pill);
-  font-size: var(--font-size-micro);
+  font-size: var(--font-size-overline);
   font-weight: 600;
   line-height: 1;
   white-space: nowrap;

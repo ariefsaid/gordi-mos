@@ -91,6 +91,22 @@ describe('RecordPanelHost — dual modal regime (FR-1)', () => {
     renderHost({ label: 'Signal', rootClassName: 'signal-record-drawer-root' })
     expect(document.querySelector('.drawer.signal-record-drawer-root')).toBeTruthy()
   })
+
+  it('sizes the desktop Task create frame to the viewport space below the panel top', () => {
+    const originalHeight = Object.getOwnPropertyDescriptor(window, 'innerHeight')
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 800 })
+    try {
+      const { container } = renderHost({ label: 'Create task', rootClassName: 'task-create-panel' })
+      const panel = container.querySelector<HTMLElement>('.drawer-split.task-create-panel')
+      expect(panel).not.toBeNull()
+      vi.spyOn(panel!, 'getBoundingClientRect').mockImplementation(() => ({ top: 170 } as DOMRect))
+      fireEvent(window, new Event('resize'))
+      expect(panel!.style.getPropertyValue('--task-create-panel-height')).toBe('630px')
+    } finally {
+      if (originalHeight) Object.defineProperty(window, 'innerHeight', originalHeight)
+      else Reflect.deleteProperty(window, 'innerHeight')
+    }
+  })
 })
 
 describe('RecordPanelHost — close/Esc/scrim (FR-1 / I2)', () => {
@@ -208,14 +224,14 @@ describe('RecordPanelHost — shell parity across tenants (AC-RPH-2)', () => {
 })
 
 describe('RecordPanelHost — overlay-host oracle + stack chrome (V3 Issue 4)', () => {
-  // The oracle attrs ride the SHEET aside in BOTH regimes so a Playwright geometry check
+  // The oracle attrs ride the sheet in BOTH regimes so a Playwright geometry check
   // measures the panel itself, never the full-viewport modal root (review Minor fix).
-  it('modal regime: the oracle attrs ride the sheet <aside>, not the modal root', () => {
+  it('modal regime: the oracle attrs ride the dialog wrapper, not the modal root', () => {
     stubWidths({ split: false, band: true, desktop: true })
     renderHost({ label: 'Signal', owner: 'signals', entryKey: 'signal:42' })
     const host = document.querySelector<HTMLElement>('[data-overlay-host="true"]')
     expect(host).toBeTruthy()
-    expect(host!.tagName).toBe('ASIDE')
+    expect(host!.tagName).toBe('DIV')
     expect(host!.getAttribute('role')).toBe('dialog')
     expect(host!.getAttribute('data-overlay-owner')).toBe('signals')
     expect(host!.getAttribute('data-overlay-entry')).toBe('signal:42')

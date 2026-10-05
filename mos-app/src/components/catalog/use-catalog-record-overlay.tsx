@@ -21,7 +21,7 @@ function withoutLayout(search: string): string {
 
 export type CatalogRecordOverlayOwner = Extract<OverlayOwner, 'tasks' | 'work' | 'signals'>
 
-export interface CatalogRecordEntryFactory {
+export type CatalogRecordEntryFactory = {
   /** Build a record frame that can be pushed into the caller's existing overlay stack. */
   buildEntry: (
     kind: CatalogRecordKind | 'task',
@@ -153,7 +153,7 @@ export function useCatalogRecordEntryFactory({
 
 const WORK_OWNER: CatalogRecordOverlayOwner = 'work'
 
-export interface CatalogRecordOverlayController {
+export type CatalogRecordOverlayController = {
   splitOpen: boolean
   /** A record panel is open over the collection (at any width): the page-head primary steps down. */
   panelOpen: boolean

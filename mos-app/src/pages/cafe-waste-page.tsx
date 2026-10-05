@@ -15,7 +15,9 @@ import { insertKitchenLog, resolveKitchenBuId } from '@/lib/db/kitchen-logs'
 import {
   listCurrentPersonKitchenWasteDrafts,
   submitKitchenWasteLog,
-  WASTE_PHOTO_UPLOAD_WINDOW_MS,
+  restartKitchenWasteDraft,
+  isWastePhotoWindowExpired,
+  WASTE_PHOTO_UPLOAD_WINDOW_MINUTES,
 } from '@/lib/db/kitchen-waste-photos'
 import type { KitchenWasteDraft, KitchenWastePhoto } from '@/lib/db/kitchen-waste-photos'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
@@ -88,10 +90,6 @@ function displayUnit(unit: CafeLogItem['units'][number], t: ReturnType<typeof us
   return unit.labelOrdinal === null
     ? unit.name
     : t('cafe.items.unitDisambiguated', { name: unit.name, number: unit.labelOrdinal })
-}
-
-function photoWindowExpired(createdAt: string): boolean {
-  return Date.now() >= Date.parse(createdAt) + WASTE_PHOTO_UPLOAD_WINDOW_MS
 }
 
 export function CafeWastePage() {
@@ -288,13 +286,13 @@ export function CafeWastePage() {
     })
   }, [])
 
+  // Stable callback identities keep readiness effects from firing again on every parent entry update.
   const photoReadyCallbacks = useMemo(() => new Map(items.map(item => [item.id, (ready: boolean) => {
     setEntries(current => {
       const entry = current[item.id]
       return entry ? { ...current, [item.id]: { ...entry, photoReady: ready } } : current
     })
   }])), [items])
-  // Stable callback identities keep readiness effects from firing again on every parent entry update.
   const photoExpiredCallbacks = useMemo(() => new Map(items.map(item => [item.id, () => {
     setEntries(current => {
       const entry = current[item.id]
@@ -348,21 +346,11 @@ export function CafeWastePage() {
     draftRequests.current.add(item.id)
     patchEntry(item.id, { preparing: true, error: undefined })
     try {
-      const logId = await insertKitchenLog({
-        business_unit_id: businessUnitId,
-        log_date: logDate,
-        branch_id: stream.branch.id,
-        activity: stream.activity,
-        action: 'waste',
-        destination_branch_id: null,
-        wip_item_id: item.id,
-        item_unit_id: entry.unitId,
-        qty_porsi: quantity,
-      })
+      const replacement = await restartKitchenWasteDraft(entry.logId, logDate)
       patchEntry(item.id, {
-        logId,
+        logId: replacement.logId,
         capturedUnitName: entry.capturedUnitName,
-        capturedLogDate: logDate,
+        capturedLogDate: replacement.logDate,
         preparing: false,
         photoReady: false,
         photoWindowExpired: false,
@@ -376,7 +364,8 @@ export function CafeWastePage() {
   }
 
   function resumeWasteDraft(draft: KitchenWasteDraft) {
-    if (!canCapture || !items.some(item => item.id === draft.itemId)) return
+    if (!canCapture || !draft.itemUnitId || !draft.unitName || !items.some(item => item.id === draft.itemId)) return
+    const { itemUnitId, unitName } = draft
     const entry = entries[draft.itemId]
     if (entry?.logId || entry?.preparing || entry?.quantity.trim()) return
     setEntries(current => {
@@ -387,12 +376,12 @@ export function CafeWastePage() {
         [draft.itemId]: {
           ...(currentEntry ?? initialEntries(items)[draft.itemId]!),
           quantity: String(draft.quantity),
-          unitId: draft.itemUnitId,
-          capturedUnitName: draft.unitName,
+          unitId: itemUnitId,
+          capturedUnitName: unitName,
           capturedLogDate: draft.logDate,
           logId: draft.logId,
           photoReady: draft.photos.length > 0,
-          photoWindowExpired: draft.photos.length === 0 && photoWindowExpired(draft.createdAt),
+          photoWindowExpired: draft.photos.length === 0 && isWastePhotoWindowExpired(draft.createdAt),
           preparing: false,
           submitted: false,
           photos: draft.photos,
@@ -410,7 +399,7 @@ export function CafeWastePage() {
     if (entry.photoWindowExpired && entry.photos.length === 0) {
       return (
         <div className="cwl-evidence cwl-expired" role="status">
-          <p>{t('kitchen.waste.expiredDraft')}</p>
+          <p>{t('kitchen.waste.expiredDraft', { minutes: WASTE_PHOTO_UPLOAD_WINDOW_MINUTES })}</p>
           <button
             type="button"
             className="btn btn-outline"
@@ -474,6 +463,10 @@ export function CafeWastePage() {
       myStreamKeys={myStreamKeys}
       onChange={selectStream}
       disabled={submitting || hasPendingCapture}
+      context={<>
+        <span aria-hidden="true">·</span>
+        <span className="kl-date tabular">{formatWeekdayDayMonth(logDate)}</span>
+      </>}
     />
   )
 
@@ -512,38 +505,48 @@ export function CafeWastePage() {
   ]
 
   const renderCard = (item: WasteRow) => (
-    <div className="cwl-card">
-      <div className="kl-dish">
-        <span className="kl-dish-name"><span>{item.kind} - </span><span>{item.name}</span></span>
-        {item.category && <span className="kl-dish-cat">{kitchenCategoryLabel(t, item.category)}</span>}
+    <div className="cwl-capture-row" role="group" aria-labelledby={`cafe-waste-item-${item.id}`}>
+      <div className="cwl-capture-row__item">
+        <div className="kl-dish">
+          <span id={`cafe-waste-item-${item.id}`} className="kl-dish-name"><span>{item.kind} - </span><span>{item.name}</span></span>
+          {item.category && <span className="kl-dish-cat">{kitchenCategoryLabel(t, item.category)}</span>}
+        </div>
       </div>
-      <WasteItemControls
-        item={item}
-        entry={entries[item.id]}
-        canCapture={canCapture}
-        isOnline={isOnline}
-        disabled={submitting || loadState !== 'ready'}
-        onQuantityChange={value => patchEntry(item.id, { quantity: value, error: undefined })}
-        onUnitChange={unitId => patchEntry(item.id, { unitId, error: undefined })}
-        onPrepare={() => void prepareEntry(item)}
-      />
-      {renderEvidence(item)}
+      <div className="cwl-capture-row__controls">
+        <WasteItemControls
+          item={item}
+          entry={entries[item.id]}
+          canCapture={canCapture}
+          isOnline={isOnline}
+          disabled={submitting || loadState !== 'ready'}
+          onQuantityChange={value => patchEntry(item.id, { quantity: value, error: undefined })}
+          onUnitChange={unitId => patchEntry(item.id, { unitId, error: undefined })}
+          onPrepare={() => void prepareEntry(item)}
+        />
+      </div>
+      <div className="cwl-capture-row__evidence">{renderEvidence(item)}</div>
     </div>
   )
 
-  const pageTitle = `${t('dest.cafe')} · ${pageLabel}`
   const state = loadState === 'loading' ? 'loading' : loadState === 'error' ? 'error'
     : submitting ? 'saving' : allSubmitted ? 'saved' : !canCapture ? 'read-only' : 'default'
+
+  const captureContext = (
+    <div className="cafe-capture-context">
+      {streamPicker}
+      {stream === null && <span className="kl-date tabular">{formatWeekdayDayMonth(logDate)}</span>}
+    </div>
+  )
 
   return (
     <PageFamilyFrame
       family="workspace"
-      title={pageTitle}
-      statusRow={streamPicker}
-      meta={<span className="kl-date tabular">{formatWeekdayDayMonth(logDate)}</span>}
+      title={pageLabel}
+      headClassName="cafe-capture-head"
+      statusRow={captureContext}
       state={state}
     >
-      <div className="kl-page cwl-page kl-capture-wide">
+      <div className="kl-page cwl-page kl-capture-wide cafe-capture-content">
         <div className="kl-capture-main">
         <RouteLeaveGuard when={remaining.length > 0} message={t('kitchen.log.leave.confirm')} />
         {!isOnline && <div role="alert" className="kl-banner kl-banner-offline">{t('kitchen.log.offline.banner')}</div>}
@@ -597,19 +600,22 @@ export function CafeWastePage() {
                         <button
                           type="button"
                           className="btn btn-outline"
-                          disabled={alreadyEditing || submitting}
+                          disabled={alreadyEditing || submitting || !draft.itemUnitId || !draft.unitName}
                           onClick={() => resumeWasteDraft(draft)}
                         >
                           {t('kitchen.waste.resumeDraft', {
                             item: item.name,
                             quantity: formatWasteQty(draft.quantity),
-                            unit: draft.unitName,
+                            unit: draft.unitName ?? t('kitchen.waste.unitUnavailable'),
                             date: formatDayMonthYear(draft.logDate),
                             createdAt: timestamp,
                           })}
                         </button>
-                        {draft.photos.length === 0 && photoWindowExpired(draft.createdAt) && (
-                          <span className="cwl-lock-note">{t('kitchen.waste.expiredDraft')}</span>
+                        {(!draft.itemUnitId || !draft.unitName) && (
+                          <span className="cwl-lock-note">{t('kitchen.waste.unitUnavailableHelp')}</span>
+                        )}
+                        {draft.photos.length === 0 && isWastePhotoWindowExpired(draft.createdAt) && (
+                          <span className="cwl-lock-note">{t('kitchen.waste.expiredDraft', { minutes: WASTE_PHOTO_UPLOAD_WINDOW_MINUTES })}</span>
                         )}
                       </li>
                     )
@@ -659,48 +665,46 @@ export function CafeWastePage() {
               </>
             )}
 
-            {items.length > 0 && !isWide && (
-              <div className="kl-footer cwl-footer">
-                {submitError && (
-                  <p role="alert" className="kl-submit-outcome kl-submit-outcome--error">{t('kitchen.waste.submitFailed')}</p>
-                )}
-                {submittedCount > 0 && !allSubmitted && (
-                  <p role="status" className="kl-submit-outcome">{t('kitchen.waste.partial', { submitted: submittedCount, total: staged.length })}</p>
-                )}
-                {allSubmitted && (
-                  <p role="status" aria-live="polite" className="kl-submit-outcome kl-submit-outcome--success">
-                    {t(staged.length === 1 ? 'kitchen.waste.success.one' : 'kitchen.waste.success.other', { count: staged.length })}
-                  </p>
-                )}
-                {!allPhotosReady && !allSubmitted && staged.length > 0 && (
-                  <p className="kl-submit-reason">{t('kitchen.waste.photoRequired')}</p>
-                )}
-                {!allSubmitted && staged.length === 0 && (
-                  <p className="kl-submit-reason">{t('kitchen.waste.noItems')}</p>
-                )}
-                <div className="kl-footer-count-row">
-                  <div className="kl-tally" aria-live="polite">
-                    <span className="kl-tally-num tabular">
-                      {t(staged.length === 1 ? 'kitchen.waste.footer.count.one' : 'kitchen.waste.footer.count.other', { count: staged.length })}
-                    </span>
-                  </div>
-                  {allSubmitted ? (
-                    <button type="button" className="btn btn-outline" onClick={startAnotherLog}>
-                      {t('kitchen.waste.newLog')}
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      className="btn btn-primary"
-                      disabled={!canCapture || !isOnline || submitting || !allPhotosReady}
-                      onClick={() => void handleSubmit()}
-                    >
-                      {submitting ? t('common.working') : t('kitchen.waste.submit')}
-                    </button>
-                  )}
+            <div className="kl-footer cwl-footer cafe-capture-footer">
+              {submitError && (
+                <p role="alert" className="kl-submit-outcome kl-submit-outcome--error">{t('kitchen.waste.submitFailed')}</p>
+              )}
+              {submittedCount > 0 && !allSubmitted && (
+                <p role="status" className="kl-submit-outcome">{t('kitchen.waste.partial', { submitted: submittedCount, total: staged.length })}</p>
+              )}
+              {allSubmitted && (
+                <p role="status" aria-live="polite" className="kl-submit-outcome kl-submit-outcome--success">
+                  {t(staged.length === 1 ? 'kitchen.waste.success.one' : 'kitchen.waste.success.other', { count: staged.length })}
+                </p>
+              )}
+              {!allPhotosReady && !allSubmitted && staged.length > 0 && (
+                <p className="kl-submit-reason">{t('kitchen.waste.photoRequired')}</p>
+              )}
+              {!allSubmitted && staged.length === 0 && (
+                <p className="kl-submit-reason">{t('kitchen.waste.noItems')}</p>
+              )}
+              <div className="kl-footer-count-row">
+                <div className="kl-tally" aria-live="polite">
+                  <span className="kl-tally-num tabular">
+                    {t(staged.length === 1 ? 'kitchen.waste.footer.count.one' : 'kitchen.waste.footer.count.other', { count: staged.length })}
+                  </span>
                 </div>
               </div>
-            )}
+              {allSubmitted ? (
+                <button type="button" className="btn btn-outline" onClick={startAnotherLog}>
+                  {t('kitchen.waste.newLog')}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="btn btn-primary kl-submit"
+                  disabled={!canCapture || !isOnline || submitting || !allPhotosReady}
+                  onClick={() => void handleSubmit()}
+                >
+                  {submitting ? t('common.working') : t('kitchen.waste.submit')}
+                </button>
+              )}
+            </div>
           </>
         )}
         </div>
@@ -722,31 +726,6 @@ export function CafeWastePage() {
                 ))}
               </ul>
             )}
-            {submitError && <p role="alert" className="kl-submit-outcome kl-submit-outcome--error">{t('kitchen.waste.submitFailed')}</p>}
-            {submittedCount > 0 && !allSubmitted && (
-              <p role="status" className="kl-submit-outcome">{t('kitchen.waste.partial', { submitted: submittedCount, total: staged.length })}</p>
-            )}
-            {allSubmitted && (
-              <p role="status" aria-live="polite" className="kl-submit-outcome kl-submit-outcome--success">
-                {t(staged.length === 1 ? 'kitchen.waste.success.one' : 'kitchen.waste.success.other', { count: staged.length })}
-              </p>
-            )}
-            {!allPhotosReady && !allSubmitted && staged.length > 0 && <p className="kl-submit-reason">{t('kitchen.waste.photoRequired')}</p>}
-            {!allSubmitted && staged.length === 0 && <p className="kl-submit-reason">{t('kitchen.waste.noItems')}</p>}
-            <div className="kl-capture-summary__actions">
-              {allSubmitted ? (
-                <button type="button" className="btn btn-outline" onClick={startAnotherLog}>{t('kitchen.waste.newLog')}</button>
-              ) : (
-                <button
-                  type="button"
-                  className="btn btn-primary kl-submit"
-                  disabled={!canCapture || !isOnline || submitting || !allPhotosReady}
-                  onClick={() => void handleSubmit()}
-                >
-                  {submitting ? t('common.working') : t('kitchen.waste.submit')}
-                </button>
-              )}
-            </div>
           </aside>
         )}
       </div>
@@ -795,7 +774,7 @@ function WasteItemControls({
 
   return (
     <div className="cwl-controls">
-      <label className="cwl-field-label" htmlFor={inputId}>
+      <label className="sr-only" htmlFor={inputId}>
         {t('kitchen.waste.quantityFor', { item: item.name })}
       </label>
       <div className="cwl-quantity-row">
@@ -808,7 +787,6 @@ function WasteItemControls({
           step="any"
           value={current.quantity}
           aria-invalid={invalid || undefined}
-          aria-label={t('kitchen.waste.quantityFor', { item: item.name })}
           disabled={!editable}
           onChange={event => onQuantityChange(event.target.value)}
         />

@@ -10,6 +10,8 @@ import { EmptyState, ErrorState } from '@/components/ui/state-kit'
 import { Button } from '@/components/ui/button'
 import type { PickerOption } from '@/components/ui/picker'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { Toast } from '@/components/admin/toast'
+import { useToast } from '@/components/admin/use-toast'
 import { RecordField } from '@/components/records/record-field'
 import type { RecordFieldSpec, RecordValue } from '@/components/records/record-viewer.types'
 import { RecordPageHeader, type RecordFact, type RecordPrimaryAction } from '@/components/record/record-page-header'
@@ -19,6 +21,7 @@ import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
 import type { OverlayLeaveDecision, OverlayLeaveGuard, OverlayLeaveIntent } from '@/shell/overlay-navigation'
 import { RouteLeaveGuard } from '@/shell/route-leave-guard'
 import { useIsDesktop } from '@/shell/use-is-desktop'
+import { useIsWideRecordPage } from '@/components/record/use-is-wide-record-page'
 import { listObjectivesAll, updateObjective } from '@/lib/db/objectives'
 import { listWorkLinesAll, updateWorkLine } from '@/lib/db/work-lines'
 import { wibToday } from '@/lib/db/cafe-opening'
@@ -29,6 +32,8 @@ import { loadCatalogRecordData, loadCatalogRecordEditDirectory, type CatalogReco
 import './catalog-record-document.css'
 import { ObjectiveKeyResultsSection, type ObjectiveKeyResultsActionState } from './objective-key-results-section'
 import { RecordHistory } from './record-history'
+import { countRecordHistory } from '@/lib/db/record-history'
+import { copyCanonicalLink } from '@/lib/copy-canonical-link'
 import { priorWorkLine, withLinkedWorkLine, withPriorWorkLine } from './catalog-record-optimistic'
 import {
   InlineChooser, LinkedWorkSection, StepsSection, TasksSection, WriteUpSection,
@@ -59,6 +64,7 @@ export type CatalogRecordDocumentProps = {
 const STEPS_ADD_CONTROL = '[data-record-section="steps"] .rp-section__action, [data-record-section="steps"] .catalog-step-add'
 
 type Notice = { message: string; undo?: () => Promise<void> }
+type LinkFailure = { operation: 'link' | 'unlink'; retry: () => Promise<void> }
 type Chooser =
   | { purpose: 'link'; status: 'loading' | 'error' | 'empty' | 'ready'; options: PickerOption[]; objectiveOf: Map<string, string | null>; names: Map<string, string>; facts: Map<string, CatalogWorkLineFact> }
   | { purpose: 'task'; options: PickerOption[] }
@@ -97,9 +103,11 @@ export function CatalogRecordDocument({
   const t = useT()
   const navigate = useNavigate()
   const canonicalHref = useHref(kind === 'objective' ? `/work/objectives/${id}` : `/work/projects/${id}`)
+  const { toast, showToast, clearToast } = useToast()
   const auth = useAuth()
   const { runtime, openPanel } = useAgentRuntime()
   const isDesktop = useIsDesktop()
+  const wideRecordPage = useIsWideRecordPage()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
   const { scopes, loading: scopesLoading, error: scopesError, retry: retryScopes } = useWorkWriteAuthority()
   const canRead = auth.status === 'authenticated'
@@ -110,6 +118,7 @@ export function CatalogRecordDocument({
   const [reloadNonce, setReloadNonce] = useState(0)
   // Bumped after every successful write so History re-reads the row the trigger just added.
   const [historyVersion, setHistoryVersion] = useState(0)
+  const [historyCount, setHistoryCount] = useState<{ key: string; count: number } | null>(null)
   const [editDirectory, setEditDirectory] = useState<CatalogRecordEditDirectory | null>(null)
   const [editDirectoryError, setEditDirectoryError] = useState(false)
   const [editDirectoryRetry, setEditDirectoryRetry] = useState(0)
@@ -118,7 +127,7 @@ export function CatalogRecordDocument({
   const [addingStep, setAddingStep] = useState(false)
   const [chooser, setChooser] = useState<Chooser | null>(null)
   const [moving, setMoving] = useState<{ id: string; name: string; from: string; fact?: CatalogWorkLineFact } | null>(null)
-  const [linkError, setLinkError] = useState<(() => Promise<void>) | null>(null)
+  const [linkError, setLinkError] = useState<LinkFailure | null>(null)
   const [notice, setNotice] = useState<Notice | null>(null)
   const [keyResultsAction, setKeyResultsAction] = useState<({ objectiveId: string } & ObjectiveKeyResultsActionState) | null>(null)
   const reportKeyResultsAction = useCallback((objectiveId: string, next: ObjectiveKeyResultsActionState) => {
@@ -132,6 +141,21 @@ export function CatalogRecordDocument({
   // The control that opened a chooser or form, so withdrawing it puts focus back where the person was.
   const openerRef = useRef<HTMLElement | null>(null)
   const canManage = state ? canManageForScope(kind, state.row.businessUnitId, scopes) : false
+
+  useEffect(() => {
+    if (!canRead || status !== 'ready' || mode !== 'page' || !wideRecordPage) {
+      setHistoryCount(null)
+      return
+    }
+    let live = true
+    const key = `${kind}:${id}`
+    setHistoryCount(null)
+    void countRecordHistory(kind === 'objective' ? 'objectives' : 'work_lines', id).then(
+      (count) => { if (live) setHistoryCount({ key, count }) },
+      () => { if (live) setHistoryCount(null) },
+    )
+    return () => { live = false }
+  }, [canRead, historyVersion, id, kind, mode, status, wideRecordPage])
 
   useEffect(() => {
     let live = true
@@ -321,6 +345,8 @@ export function CatalogRecordDocument({
 
   const { row, archived, linkedWork, parent, allPeople, businessUnits, process, workLinesById, context } = derived
   const isObjective = kind === 'objective'
+  const currentHistoryCount = historyCount?.key === `${kind}:${id}` ? historyCount.count : null
+  const hideEmptyWideHistory = mode === 'page' && wideRecordPage && currentHistoryCount === 0
   const isProcess = row.type === 'process'
   const canContent = isObjective && canEditObjectiveContentForScope(row, scopes)
   const canLink = isObjective && !archived && canCreateForScope('work-line', scopes)
@@ -494,7 +520,14 @@ export function CatalogRecordDocument({
       if (shown) await refresh().catch(() => {})
       else await refresh()
     }
-    try { await attempt(); return true } catch { setLinkError(() => attempt); return false }
+    try {
+      await attempt()
+      setHistoryVersion((v) => v + 1)
+      return true
+    } catch {
+      setLinkError({ operation: objectiveId === null ? 'unlink' : 'link', retry: attempt })
+      return false
+    }
   }
   const unlink = async (workLine: CatalogWorkLineFact) => {
     if (!(await link(workLine.id, null))) return
@@ -563,7 +596,12 @@ export function CatalogRecordDocument({
   const menu: RecordMenuItem[] = [
     ...(canonicalHref && typeof navigator !== 'undefined' && navigator.clipboard ? [{
       id: 'copy', label: t('record.copyLink'),
-      onSelect: () => { void navigator.clipboard.writeText(new URL(canonicalHref, window.location.origin).href).catch(() => {}) },
+      onSelect: () => {
+        void copyCanonicalLink(canonicalHref).then(
+          () => showToast(t('record.copyLinkSucceeded')),
+          () => showToast(t('record.copyLinkFailed')),
+        )
+      },
     }] : []),
     // Wide panels carry Open full page in their own bar; on a phone the panel is the whole screen and has none.
     ...(mode === 'panel' && onOpenPage && !isDesktop ? [{ id: 'open-page', label: t('record.openFullPage'), onSelect: onOpenPage }] : []),
@@ -642,8 +680,8 @@ export function CatalogRecordDocument({
       {isProcess && occurrences.startError ? <p className="catalog-record-document__error" role="alert">{t('processes.due.startError')}</p> : null}
       {linkError ? (
         <p className="catalog-record-document__error" role="alert">
-          {t('catalog.link.failed')}{' · '}
-          <button type="button" className="objective-key-results__retry" onClick={() => { void linkError().catch(() => {}) }}>{t('record.field.retry')}</button>
+          {t(linkError.operation === 'unlink' ? 'catalog.link.unlinkFailed' : 'catalog.link.failed')}{' · '}
+          <button type="button" className="objective-key-results__retry" onClick={() => { void linkError.retry().catch(() => {}) }}>{t('record.field.retry')}</button>
         </p>
       ) : null}
       {notice ? (
@@ -712,8 +750,9 @@ export function CatalogRecordDocument({
           </>
         )}
         about={about}
-        history={{
+        history={hideEmptyWideHistory ? undefined : {
           title: t('catalog.history.title'),
+          ...(mode === 'page' && wideRecordPage && currentHistoryCount !== null ? { count: currentHistoryCount } : {}),
           node: <RecordHistory key={historyVersion} table={isObjective ? 'objectives' : 'work_lines'} recordId={id} headingLevel={mode === 'page' ? 1 : 2} hideHeading />,
         }}
       >
@@ -764,7 +803,7 @@ export function CatalogRecordDocument({
           today={today}
         />
         {stepsFirst ? null : stepsSection}
-        {isObjective ? <WriteUpSection objectiveId={id} canEdit={writeUpEditable} archived={archived} onDirtyChange={setFieldDirty} /> : null}
+        {isObjective ? <WriteUpSection objectiveId={id} canEdit={writeUpEditable} archived={archived} onDirtyChange={setFieldDirty} onSaved={() => setHistoryVersion((v) => v + 1)} /> : null}
       </RecordPageLayout>
       <ConfirmDialog
         open={pendingLeave !== null}
@@ -788,6 +827,7 @@ export function CatalogRecordDocument({
         }}
         onCancel={() => setMoving(null)}
       />
+      <Toast toast={toast} onDismiss={clearToast} />
     </>
   )
 }

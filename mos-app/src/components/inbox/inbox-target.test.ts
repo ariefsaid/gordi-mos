@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import type { NotificationRow } from '@/lib/db/notifications'
 import {
-  notificationAvailableInProfile,
   resolveNotificationTarget,
   ALLOWED_TARGET_TYPES,
   type NotificationTargetRef,
   type ResolveTargetDeps,
 } from './inbox-target'
+import { notificationAvailableInProfile } from '@/config/notification-profile'
 import type { OverlayEntryDraft } from './inbox-host-contracts'
 
 // Fixture NotificationRow with a chosen metadata envelope.

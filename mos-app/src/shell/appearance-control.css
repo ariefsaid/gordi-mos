@@ -13,7 +13,7 @@
    weight — the shared pickers' checked treatment (#1179). The old --surface-secondary tint
    alone was ~1.1:1 against the popover: not a state cue (WCAG 1.4.11). */
 .appearance-control-option[aria-checked="true"] {
-  color: var(--primary);
+  color: var(--popover-foreground, var(--foreground));
   font-weight: 600;
 }
 

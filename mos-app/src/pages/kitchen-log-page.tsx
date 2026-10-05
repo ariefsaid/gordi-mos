@@ -178,10 +178,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   useDocumentTitle(t('common.docTitle', { page: `${pageLabel} · ${t('nav.cafe')}` }))
   const isDesktop = useIsDesktop()
   const isWide = useIsWide()
-  // I18N sweep: the H1 was a literal "Café · Log" — mixed-locale in `id` (breadcrumb
-  // correctly translated the module/page, the heading below it did not). Reuses the
-  // existing nav.cafe.* family rather than adding a duplicate composed key.
-  const pageTitle = `${t('dest.cafe')} · ${pageLabel}`
+  const pageTitle = pageLabel
 
   // The (branch, activity) production stream every captured row belongs to (OD-WAY-28), and
   // the movement within it (DD-WAY-13). The default is the person's OWN stream — their live
@@ -341,9 +338,6 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   const groups = kitchenDataTableGroups(
     itemTable,
     groupKey => groupKey === 'planned' ? t('kitchen.log.group.planned') : t('kitchen.log.group.offplan'),
-    groupKey => groupKey === 'offplan' && mode === 'production' && !streamNonProducing
-      ? { hint: t('kitchen.log.group.offplan.hint') }
-      : undefined,
   ).sort((a, b) => (a.key === 'planned' ? -1 : b.key === 'planned' ? 1 : 0))
 
   // The day summary uses only submitted map membership, independent of draft lines and the
@@ -359,7 +353,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     ? t('kitchen.transfer.summary.aria', { branch: transferDestinationName ?? t('kitchen.actionType.transferTo.fallback') })
     : t('kitchen.log.summary.aria')
   const summaryMetrics = [
-    { key: 'plan', label: t('kitchen.log.summary.plan'), value: String(kpis.plannedItemCount) },
+    { key: 'plan', label: t(mode === 'transfer' ? 'kitchen.plan.pesanan.col.planned' : 'kitchen.log.summary.plan'), value: String(kpis.plannedItemCount) },
     {
       key: 'made',
       label: mode === 'transfer' ? t('kitchen.transfer.summary.quantity') : t('kitchen.log.summary.made'),
@@ -367,20 +361,15 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     },
     {
       key: 'off-plan',
-      label: t('kitchen.log.summary.offPlan'),
+      label: t(mode === 'transfer' ? 'kitchen.review.summary.offPlan' : 'kitchen.log.summary.offPlan'),
       value: String(kpis.offPlanItemCount),
     },
   ]
   const displayedSummaryMetrics = summaryCountsAvailable
     ? summaryMetrics
     : summaryMetrics.map(metric => ({ ...metric, value: '—' }))
-  const renderSummarySupport = () => (
-    <>
-      <p className="kl-summary-scope">{t('kitchen.log.summary.scopeHint')}</p>
-      {!summaryCountsAvailable && (
-        <p role="status" className="kl-summary-unavailable">{t('kitchen.log.summary.unavailable')}</p>
-      )}
-    </>
+  const renderSummarySupport = () => !summaryCountsAvailable && (
+    <p role="status" className="kl-summary-unavailable">{t('kitchen.log.summary.unavailable')}</p>
   )
 
   // Stale-response guard: every read bumps the generation, and only the LATEST
@@ -653,6 +642,10 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       myStreamKeys={myStreamKeys}
       onChange={selectStream}
       disabled={status.kind === 'submitting'}
+      context={<>
+        <span aria-hidden="true">·</span>
+        <span className="kl-date tabular">{formatWeekdayDayMonth(logDate)}</span>
+      </>}
     />
     {pendingStream && <ConfirmDialog
       open
@@ -670,6 +663,13 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       onCancel={() => setPendingStream(null)}
     />}
     </>
+  )
+
+  const captureContext = (
+    <div className="cafe-capture-context">
+      {streamPicker}
+      {stream === null && <span className="kl-date tabular">{formatWeekdayDayMonth(logDate)}</span>}
+    </div>
   )
 
   const receivingOnlyNotice = (
@@ -861,7 +861,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   // ── Auth guard ─────────────────────────────────────────────────────────────
   if (auth.status === 'loading') {
     return (
-      <PageFamilyFrame family="workspace" title={pageTitle} jobSentence={t('job.cafe')} state="loading">
+      <PageFamilyFrame family="workspace" title={pageTitle} headClassName="cafe-capture-head" statusRow={captureContext} jobSentence={t('job.cafe')} state="loading">
         <div className="kl-page">
           <OfflineBanner show={!isOnline} />
           <LoadingShell count={3} />
@@ -872,7 +872,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
 
   if (auth.status === 'unauthenticated' || auth.status === 'orphan') {
     return (
-      <PageFamilyFrame family="workspace" title={pageTitle} jobSentence={t('job.cafe')} state="permission">
+      <PageFamilyFrame family="workspace" title={pageTitle} headClassName="cafe-capture-head" statusRow={captureContext} jobSentence={t('job.cafe')} state="permission">
         <div className="kl-page kl-unauth kl-block">
           <p className="kl-unauth-msg">{t('kitchen.log.signInMsg')}</p>
           <Link to="/login" className="btn btn-primary btn-touch kl-touch">{t('common.signIn')}</Link>
@@ -887,7 +887,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   // and a head that goes silent about its stream is the #440 defect itself.
   if (status.kind === 'loading') {
     return (
-      <PageFamilyFrame family="workspace" title={pageTitle} statusRow={streamPicker} state="loading" meta={<span className="kl-date tabular">{formatWeekdayDayMonth(logDate)}</span>}>
+      <PageFamilyFrame family="workspace" title={pageTitle} headClassName="cafe-capture-head" statusRow={captureContext} state="loading">
         <div className="kl-page">
           <OfflineBanner show={!isOnline} />
           <LoadingShell count={3} />
@@ -899,7 +899,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   // ── Error state — never a bare Retry loop when offline (#2, RI-2) ────────────
   if (status.kind === 'error') {
     return (
-      <PageFamilyFrame family="workspace" title={pageTitle} statusRow={streamPicker} state="error" meta={<span className="kl-date tabular">{formatWeekdayDayMonth(logDate)}</span>}>
+      <PageFamilyFrame family="workspace" title={pageTitle} headClassName="cafe-capture-head" statusRow={captureContext} state="error">
         <div className="kl-page kl-error kl-block">
           <OfflineBanner show={!isOnline} />
           <p className="kl-error-msg" role="alert">
@@ -921,8 +921,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   // ── Empty offered roster — submitted membership counts remain independent of capture rows. ──
   if (wipItems.length === 0) {
     return (
-      <PageFamilyFrame family="workspace" title={pageTitle} statusRow={streamPicker} state={streamNonProducing ? 'read-only' : 'empty'} meta={<span className="kl-date tabular">{formatWeekdayDayMonth(logDate)}</span>}>
-        <div className="kl-page">
+      <PageFamilyFrame family="workspace" title={pageTitle} headClassName="cafe-capture-head" statusRow={captureContext} state={streamNonProducing ? 'read-only' : 'empty'}>
+        <div className={`kl-page cafe-capture-content${isWide ? ' kl-capture-wide' : ''}`}>
           <OfflineBanner show={!isOnline} />
           {streamNonProducing && receivingOnlyNotice}
           {mode === 'transfer' && movementOptions.length > 0 && (
@@ -957,6 +957,17 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
               same capture gate as Submit — an unaffiliated reader sees no report control. */}
           {buId && stream && !captureClosed && (
             <ReportMissingItem stream={stream} streamLabel={streamLabel(t, stream)} />
+          )}
+          {stream !== null && !streamNonProducing && (
+            <div className="kl-footer cafe-capture-footer">
+              {!canCapture && <p className="kl-submit-reason" role="status">{t('kitchen.log.readOnlyReason')}</p>}
+              <div className="kl-footer-count-row">
+                <div className="kl-tally" aria-live="polite">
+                  <span className="kl-tally-num tabular">{t('kitchen.log.footer.item.other', { count: 0 })}</span>
+                </div>
+              </div>
+              <SubmitButton stagedCount={0} isSubmitting={false} isOnline={isOnline} blocked t={t} />
+            </div>
           )}
         </div>
       </PageFamilyFrame>
@@ -1068,69 +1079,75 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   }
 
   // ── Shared DataTable wiring (P-4: ONE branch in the DOM) ───────────────────
-  // TanStack owns item search, kind/category filters, and Planned/Off-plan grouping.
+  // Each capture row keeps its item facts together on the left and the bound-unit input on the
+  // right. Plan and stock stay explicitly unitless; the field's placeholder is only a typing aid.
+  const renderCaptureMeta = (line: KitchenLogLine, rowStatus?: string) => (
+    <div className="kl-card-meta">
+      <span className="kl-card-plan">
+        <span>{t('kitchen.log.col.plan')}</span>
+        <strong className="tabular">{line.plan_qty > 0 ? formatCaptureQty(line.plan_qty) : '—'}</strong>
+      </span>
+      <span className="kl-card-meta-separator" aria-hidden="true">·</span>
+      <span className="kl-card-stock">
+        <span>{t('kitchen.log.col.stock')}</span>
+        <strong className="tabular">{formatCaptureQty(line.stok)}</strong>
+      </span>
+      {mode === 'transfer' && line.tersedia !== line.stok && <>
+        <span className="kl-card-meta-separator" aria-hidden="true">·</span>
+        <span className="kl-card-stock">
+          <span>{t('kitchen.stock.col.tersedia')}</span>
+          <strong className="tabular">{formatCaptureQty(line.tersedia)}</strong>
+        </span>
+      </>}
+      {!line.item_unit_id && <small>{t('kitchen.log.unit.missingCapture')}</small>}
+      {rowStatus && <span className="kl-status kl-status--neutral">{rowStatus}</span>}
+    </div>
+  )
+  const renderCaptureIdentity = (
+    item: KitchenListRow<CaptureFormItem>,
+    line: KitchenLogLine,
+    rowStatus?: string,
+  ) => (
+    <div className="kl-card-identity">
+      <span className="kl-card-name"><span>{item.kind} - </span><span>{item.name}</span></span>
+      {invalidItemIds.has(item.id) && <NotOnStreamTag />}
+      {renderCaptureMeta(line, rowStatus)}
+    </div>
+  )
+  const renderCaptureStepper = (
+    item: KitchenListRow<CaptureFormItem>,
+    line: KitchenLogLine,
+    dense: boolean,
+  ) => (
+    <WipItemStepper
+      itemName={item.name}
+      line={line}
+      movement={movement}
+      destinationName={transferDestinationName ?? undefined}
+      alreadyLogged={displayActualUnitsForItem(actualsMap[item.id]?.[movementKey(movement)] ?? [], item)}
+      onQtyChange={qty => handleQtyChange(item.id, qty)}
+      onNotesChange={note => handleNotesChange(item.id, note)}
+      unitOptions={item.units}
+      onUnitChange={unitId => handleUnitChange(item.id, unitId)}
+      disabled={isSubmitting || captureClosed}
+      hideName
+      dense={dense}
+    />
+  )
+
   const columns: DataTableColumn<KitchenListRow<CaptureFormItem>>[] = [
     {
       key: 'dish',
       header: t('kitchen.log.col.item'),
       cardLabel: '',
-      render: item => (
-        <span className="kl-dish">
-          <span className="kl-dish-name"><span>{item.kind} - </span><span>{item.name}</span></span>
-          {invalidItemIds.has(item.id) && <NotOnStreamTag />}
-          {item.category && <span className="kl-dish-cat">{kitchenCategoryLabel(t, item.category)}</span>}
-        </span>
-      ),
-    },
-    {
-      key: 'plan',
-      header: t('kitchen.log.col.plan'),
-      numeric: true,
-      render: item => renderPlanValue(lines[item.id]?.plan_qty ?? 0),
-    },
-    {
-      key: 'stock',
-      header: t('kitchen.log.col.stock'),
-      numeric: true,
-      render: item => renderUnitlessValue(lines[item.id]?.stok ?? 0),
+      render: item => renderCaptureIdentity(item, lines[item.id]),
     },
     {
       key: 'made',
       header: mode === 'transfer'
         ? t('kitchen.transfer.col.quantity', { branch: transferDestinationName ?? t('kitchen.actionType.transferTo.fallback') })
         : t('kitchen.log.col.made'),
-      // The reused WipItemStepper (SAME props/handlers as the prior phone card):
-      // name + stepper + plan/stok/tersedia meta + cap cue + variance-note gate.
-      // cafe-3: dense on the desktop table row (drops the bordered/full-width card
-      // box that otherwise creates card-soup + a dead void in the column); the phone
-      // card floor keeps the full card look (dense omitted there via isDesktop).
-      render: item => (
-        <WipItemStepper
-          itemName={item.name}
-          line={lines[item.id]}
-          movement={movement}
-          destinationName={transferDestinationName ?? undefined}
-          alreadyLogged={displayActualUnitsForItem(actualsMap[item.id]?.[movementKey(movement)] ?? [], item)}
-          onQtyChange={qty => handleQtyChange(item.id, qty)}
-          onNotesChange={note => handleNotesChange(item.id, note)}
-          unitOptions={item.units}
-          onUnitChange={unitId => handleUnitChange(item.id, unitId)}
-          disabled={isSubmitting || captureClosed}
-          hideName
-          dense={isDesktop}
-        />
-      ),
-    },
-    {
-      key: 'status',
-      header: t('kitchen.log.col.status'),
-      render: item => {
-        const line = lines[item.id]
-        const isLogged = (actualsMap[item.id]?.[movementKey(movement)] ?? []).some(entry => entry.qty_porsi > 0)
-        if (line.qty_porsi > 0) return <span className="kl-status kl-status--neutral">{t('kitchen.status.staged')}</span>
-        if (isLogged) return <span className="kl-status kl-status--neutral">{t('kitchen.status.logged')}</span>
-        return null
-      },
+      render: item => renderCaptureStepper(item, lines[item.id], isDesktop),
     },
   ]
 
@@ -1196,49 +1213,12 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     const actuals = actualsMap[item.id]?.[movementKey(movement)] ?? []
     const rowStatus = line.qty_porsi > 0
       ? t('kitchen.status.staged')
-      : actuals.some(entry => entry.qty_porsi > 0) ? t('kitchen.status.logged') : null
+      : actuals.some(entry => entry.qty_porsi > 0) ? t('kitchen.status.logged') : undefined
     return (
       <div className="kl-row">
         <div className="kl-card-head">
-          <div className="kl-card-identity">
-            <span className="kl-card-name"><span>{item.kind} - </span><span>{item.name}</span></span>
-            {invalidItemIds.has(item.id) && <NotOnStreamTag />}
-          </div>
-          <WipItemStepper
-            itemName={item.name}
-            line={line}
-            movement={movement}
-            destinationName={transferDestinationName ?? undefined}
-            alreadyLogged={displayActualUnitsForItem(actuals, item)}
-            onQtyChange={qty => handleQtyChange(item.id, qty)}
-            onNotesChange={note => handleNotesChange(item.id, note)}
-            unitOptions={item.units}
-            onUnitChange={unitId => handleUnitChange(item.id, unitId)}
-            disabled={isSubmitting || captureClosed}
-            hideName
-            dense
-          />
-        </div>
-        {/* Plan is a separate read fact because the input's unit is selectable while the plan
-            unit is unrecorded. Row state describes Draft/Logged only; it does not compare these
-            unitless plan and selected-unit quantities. */}
-        {/* v4 (owner-directed): category is gone — the toolbar already filters by category and
-            the list is grouped, so repeating it on every row was noise. The compact meta line
-            keeps Plan, Stock, and the neutral Draft/Logged state as separate facts. */}
-        {/* The group header and hint already explain why an item is off plan; no per-row "no
-            plan" caption is needed. Its Plan fact stays visible here, with its unit basis stated. */}
-        <div className="kl-card-meta">
-          <span className="kl-card-plan">
-            <span>{t('kitchen.log.col.plan')}</span>
-            {renderPlanValue(line.plan_qty)}
-          </span>
-          <span className="kl-card-stock">
-            <span>{t('kitchen.log.col.stock')}</span>
-            {renderUnitlessValue(line.stok)}
-          </span>
-          {rowStatus && (
-            <span className="kl-status kl-status--neutral">{rowStatus}</span>
-          )}
+          {renderCaptureIdentity(item, line, rowStatus)}
+          {renderCaptureStepper(item, line, true)}
         </div>
       </div>
     )
@@ -1248,9 +1228,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     <KitchenToolbar
       search={search}
       onSearchChange={setSearch}
-      kinds={mode === 'transfer'
-        ? KITCHEN_KIND_FILTER_OPTIONS
-        : KITCHEN_KIND_FILTER_OPTIONS.filter(kind => kind !== 'RAW')}
+      kinds={mode === 'transfer' ? KITCHEN_KIND_FILTER_OPTIONS : undefined}
       kind={effectiveKindFilter}
       kindId="cafe-log-kind"
       onKindChange={setKindFilter}
@@ -1298,14 +1276,14 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     <PageFamilyFrame
       family="workspace"
       title={pageTitle}
+      headClassName="cafe-capture-head"
       /* #440: the head's orientation signal is the stream this capture files into — which books
          a row lands in decides what the row MEANS, so it outranks the static job sentence the
          shared head would otherwise carry (PageHead renders one or the other). */
-      statusRow={streamPicker}
-      meta={<span className="kl-date tabular">{formatWeekdayDayMonth(logDate)}</span>}
+      statusRow={captureContext}
       state={status.kind === 'submitting' ? 'saving' : status.kind === 'success' ? 'saved' : streamNonProducing ? 'read-only' : submitError ? 'validation' : 'default'}
     >
-      <div ref={captureRef} className="kl-page kl-capture-wide">
+      <div ref={captureRef} className={`kl-page cafe-capture-content${isWide ? ' kl-capture-wide' : ''}`}>
         <div className="kl-capture-main">
         {/* GAP-4/#9: staged-but-unsubmitted quantities must not vanish on navigation — prompt
             stay/discard when leaving the route with unsaved entries. */}
@@ -1419,8 +1397,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
           {/* With no stream chosen the placeholder above is the whole message and nothing can be
               staged, so there is no bar to show. A stale stream from another location keeps the
               bar: its reason line names that stream, which the placeholder does not. */}
-          {!isWide && !(noStreamChosen && !streamOutsideLocation) && (
-          <div className="kl-footer">
+          {!(noStreamChosen && !streamOutsideLocation) && (
+          <div className="kl-footer cafe-capture-footer">
             {/* The result of Submit appears in the pinned bar, next to the button that caused it:
                 the list is long, and a message at the top of the page is off screen on a phone. */}
             {submitError && (
@@ -1563,44 +1541,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
             aria-label={t(mode === 'transfer' ? 'kitchen.transfer.draft.title' : 'kitchen.log.summary.captureAria')}
           >
             <h2>{t(mode === 'transfer' ? 'kitchen.transfer.draft.title' : 'kitchen.log.summary.captureTitle')}</h2>
-            {status.kind === 'ready' && transferDestinationChosen && (
-              <div role="group" aria-label={summaryAriaLabel}>
-                <MetricSummaryRule metrics={displayedSummaryMetrics} variant="inline" />
-                {renderSummarySupport()}
-              </div>
-            )}
             {captureDraftContent}
-            {submitError && <p role="alert" className="kl-submit-outcome kl-submit-outcome--error">{submitError}</p>}
-            {showOfflineInFooter && <p className="kl-submit-reason">{t('kitchen.log.offline.banner')}</p>}
-            {status.kind === 'success' && (
-              <p role="status" aria-live="polite" className="kl-submit-outcome kl-submit-outcome--success">
-                {t(status.count === 1 ? 'kitchen.log.success.one' : 'kitchen.log.success.other', { count: status.count })}
-              </p>
-            )}
-            {!canCapture && <p className="kl-submit-reason">{t('kitchen.log.readOnlyReason')}</p>}
-            {mode === 'transfer' && !transferDestinationChosen && (
-              <p className="kl-submit-reason">{t(movementOptions.length > 0 ? 'kitchen.transfer.destination.prompt' : 'kitchen.transfer.destination.none')}</p>
-            )}
-            {noteUnresolved && (
-              <button type="button" className="kl-submit-reason kl-note-pointer" onClick={focusFirstMissingNote}>
-                {t(missingNoteLines.length === 1 ? 'kitchen.log.footer.noteMissing.one' : 'kitchen.log.footer.noteMissing.other', { count: missingNoteLines.length })}
-              </button>
-            )}
-            <div className="kl-capture-summary__actions">
-              {stagedCount > 0 && (
-                <button type="button" className="kl-discard-link" onClick={handleDiscardClick} disabled={isSubmitting}>
-                  {t('kitchen.log.discard')}
-                </button>
-              )}
-              <SubmitButton
-                form="kitchen-log-form"
-                stagedCount={stagedCount}
-                isSubmitting={isSubmitting}
-                isOnline={isOnline}
-                blocked={captureClosed || hasBlockingError || noteUnresolved}
-                t={t}
-              />
-            </div>
           </aside>
         )}
       </div>

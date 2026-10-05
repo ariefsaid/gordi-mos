@@ -72,9 +72,9 @@ function ExpiredCard() {
             >
               ✓
             </div>
-            <p className="text-foreground font-semibold" style={{ fontSize: 16 }}>
+            <h1 className="text-foreground font-semibold" style={{ fontSize: 16 }}>
               {t('auth.recovery.sent')}
-            </p>
+            </h1>
           </div>
           <a
             href={appUrl('/login')}
@@ -91,6 +91,7 @@ function ExpiredCard() {
   return (
     <AuthShell>
       <AuthCard>
+        <h1 className="sr-only">{t('auth.recovery.title')}</h1>
         {/* Warning notice — warning/18% tint + warning-foreground */}
         <div
           className="mb-4 rounded-md px-3 py-2 flex items-start gap-2"
@@ -239,6 +240,7 @@ export function RecoveryPage() {
     return (
       <AuthShell>
         <AuthCard>
+          <h1 className="sr-only">{t('auth.recovery.title')}</h1>
           <div role="status" aria-label="Verifying recovery link" className="flex items-center gap-2">
             <Spinner />
             <span>Verifying recovery link…</span>

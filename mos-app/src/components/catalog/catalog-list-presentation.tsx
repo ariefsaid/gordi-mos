@@ -108,10 +108,6 @@ function ownerCellValue(
   )
 }
 
-function visualCellValue(value: string, missing: boolean): string {
-  return missing ? '–' : value
-}
-
 function dueValue(row: CatalogRow, t: ReturnType<typeof useT>): { label: string; missing: boolean } {
   if (row.type !== 'process') return { label: t('catalog.notSet'), missing: true }
   const cadenceLabels = {
@@ -232,7 +228,7 @@ export function CatalogListPresentation({ query, projection, context, onOpenReco
               >
                 <span className="catalog-collection__cell-label">{context.relationsKind === 'objective' ? t('catalog.column.businessUnit') : t('catalog.column.objective')}</span>
                 <span className={context.relationsKind === 'objective' ? (businessUnitMissing ? 'catalog-collection__cell-value catalog-collection__cell-value--muted' : 'catalog-collection__cell-value') : (relation ? 'catalog-collection__cell-value' : 'catalog-collection__cell-value catalog-collection__cell-value--muted')}>
-                  {visualCellValue(context.relationsKind === 'objective' ? businessUnitLabel : relationLabel, context.relationsKind === 'objective' ? businessUnitMissing : !relation)}
+                  {context.relationsKind === 'objective' ? businessUnitLabel : relationLabel}
                 </span>
                 {context.relationsKind === 'objective' && periodNote ? (
                   <span className="catalog-collection__cell-note">{periodNote}</span>
@@ -261,7 +257,7 @@ export function CatalogListPresentation({ query, projection, context, onOpenReco
               >
                 <span className="catalog-collection__cell-label">{context.relationsKind === 'objective' ? t('catalog.column.work') : t('catalog.column.cadenceDue')}</span>
                 <span className={(context.relationsKind === 'objective' ? directWork.length === 0 : cadenceDue.missing) ? 'catalog-collection__cell-value catalog-collection__cell-value--muted' : 'catalog-collection__cell-value'}>
-                  {visualCellValue(context.relationsKind === 'objective' ? workLabel : cadenceDueLabel, context.relationsKind === 'objective' ? directWork.length === 0 : cadenceDue.missing)}
+                  {context.relationsKind === 'objective' ? workLabel : cadenceDueLabel}
                 </span>
                 {context.relationsKind === 'objective' && workViaTasksNote ? (
                   <span className="catalog-collection__cell-note">{workViaTasksNote}</span>

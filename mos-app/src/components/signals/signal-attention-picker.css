@@ -63,7 +63,7 @@
 .signal-attention-picker-option[aria-selected='true'] { font-weight: 600; }
 .signal-attention-picker-option[data-active='true'] { background: var(--surface-tertiary); outline: 2px solid var(--ring); outline-offset: -2px; }
 .signal-attention-picker-option:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
-.signal-attention-picker-meaning { flex: 1; color: var(--muted-foreground); font-size: var(--font-size-micro); font-weight: 400; white-space: nowrap; }
+.signal-attention-picker-meaning { flex: 1; color: var(--muted-foreground); font-size: var(--font-size-overline); font-weight: 400; white-space: nowrap; }
 .signal-attention-picker-check { flex: none; color: var(--foreground); }
 
 /* #708: the pill's height already met the 44px phone floor; its content-driven width (43.2px /

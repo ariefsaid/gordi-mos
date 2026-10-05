@@ -31,6 +31,7 @@ something real. The identifiers below are fabricated — this repo is public.
 
 from __future__ import annotations
 
+import contextlib
 import importlib.util
 import io
 import json
@@ -617,6 +618,36 @@ n, out = tick(cfg_for("goo", ESB_PUSH_ENABLED="1"), [grouped_a, grouped_b], f,
               wip_names={WIP: WIP_NAME})
 check("claim-race releases the partial claim and skips ERP dispatch", n == 2
       and not f.to("assembly-actual"), repr(f.calls) + out)
+
+# ══════════════════════════════════════════════════════════════════════════════════════
+print("H. the drain tick leaves a heartbeat for scripts/ops-check.sh")
+# ══════════════════════════════════════════════════════════════════════════════════════
+def _empty_outbox(fake, method, url, body):
+    return []
+
+def _main_with(argv, **over):
+    saved, W._request = W._request, Fake(esb_push=_empty_outbox)
+    saved_env = dict(os.environ)
+    os.environ.update(env("goo", ESB_PUSH_ENABLED="1", **over))
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            return W.main(argv)
+    finally:
+        W._request = saved
+        os.environ.clear(); os.environ.update(saved_env)
+
+hb = os.path.join(TMP, "heartbeat")
+check("a drain tick writes the heartbeat",
+      _main_with([], ESB_WORKER_HEARTBEAT_FILE=hb) == 0 and os.path.exists(hb))
+os.utime(hb, (1, 1))
+_main_with([], ESB_WORKER_HEARTBEAT_FILE=hb)
+check("a later tick refreshes it", os.path.getmtime(hb) > 1000)
+os.remove(hb)
+_main_with(["--plan"], ESB_WORKER_HEARTBEAT_FILE=hb)
+check("--plan does not touch it", not os.path.exists(hb))
+check("an unwritable heartbeat path does not stop the drain",
+      _main_with([], ESB_WORKER_HEARTBEAT_FILE=os.path.join(TMP, "no-dir", "hb")) == 0)
+check("no path configured, no file", _main_with([]) == 0)
 
 print(f"{_pass} passed, {_fail} failed")
 sys.exit(1 if _fail else 0)

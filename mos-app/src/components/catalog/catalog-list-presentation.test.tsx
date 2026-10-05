@@ -198,15 +198,31 @@ describe('CatalogListPresentation owner-cell grammar', () => {
     expect(objective).toHaveTextContent('Also contributes to: Improve margin')
   })
 
-  it('shows Task-only contribution beside the missing direct Objective fact', () => {
+  it.each([
+    {
+      locale: 'en' as const,
+      missingValue: 'Not set',
+      contribution: 'Contributes through Tasks to: Improve margin',
+      cellName: 'Objective: Not set. Contributes through Tasks to: Improve margin',
+    },
+    {
+      locale: 'id' as const,
+      missingValue: 'Belum diatur',
+      contribution: 'Berkontribusi melalui Tugas pada: Improve margin',
+      cellName: 'Tujuan: Belum diatur. Berkontribusi melalui Tugas pada: Improve margin',
+    },
+  ])('shows the localized missing value beside Task-only Objective context ($locale)', ({ locale, missingValue, contribution, cellName }) => {
     const record = { id: 'work-5', name: 'Shared through tasks', archived_at: null, type: 'project' as const }
     renderRows([record, filled], relationsWithFilled([record, filled], [[record.id, {
       groups: [{ id: 'objective-2', name: 'Improve margin', relationship: 'contribution', entity: 'objective', taskCount: 1, done: 0, total: 1 }],
       tasks: [],
-    }]]))
+    }]]), locale)
 
     const row = rowFor('Shared through tasks')
-    expect(within(row).getByRole('cell', { name: 'Objective: Not set. Contributes through Tasks to: Improve margin' })).toBeInTheDocument()
+    const objective = within(row).getByRole('cell', { name: cellName })
+    expect(within(objective).getByText(missingValue, { exact: true })).toBeInTheDocument()
+    expect(objective).toHaveTextContent(contribution)
+    expect(objective).toHaveAccessibleName(cellName)
   })
 
   it('keeps direct and Task-derived Objective names together in the Objective cell', () => {
@@ -345,11 +361,13 @@ describe('CatalogListPresentation Objective Business Unit cell', () => {
     expect(cell('Alone')).toHaveAccessibleName('Business Unit: Company-wide')
   })
 
-  it('keeps an unset Objective at muted Not set', () => {
+  it.each([['en', 'Business Unit', 'Not set'], ['id', 'Unit Bisnis', 'Belum diatur']] as const)('shows and announces the same unset Business Unit in %s', (locale, column, missing) => {
     // a sibling with a unit keeps the column on screen (dev hides a column that is empty on every row)
-    renderRows([{ id: 'o3', name: 'Unset', archived_at: null, businessUnitId: null, isCompanyWide: false }, { id: 'o4', name: 'Named', archived_at: null, businessUnitId: 'bu-1' }], objectiveContext)
-    expect(cell('Unset')).toHaveAccessibleName('Business Unit: Not set')
-    expect(cell('Unset').querySelector('.catalog-collection__cell-value--muted')).not.toBeNull()
+    renderRows([{ id: 'o3', name: 'Unset', archived_at: null, businessUnitId: null, isCompanyWide: false }, { id: 'o4', name: 'Named', archived_at: null, businessUnitId: 'bu-1' }], objectiveContext, locale)
+    const unset = within(rowFor('Unset')).getByRole('cell', { name: `${column}: ${missing}` })
+    expect(within(unset).getByText(missing)).toBeVisible()
+    expect(unset).not.toHaveTextContent('–')
+    expect(unset.querySelector('.catalog-collection__cell-value--muted')).not.toBeNull()
   })
 })
 
@@ -370,12 +388,14 @@ describe('CatalogListPresentation Objective Work cell', () => {
     expect(workCell('Grow revenue')).not.toHaveTextContent(/Direct Projects|contributing/)
   })
 
-  it('names work reached only through Tasks without the Linked-through-a-Task phrasing', () => {
+  it.each([['en', 'Projects & Processes', 'Not set', 'Through Tasks'], ['id', 'Proyek & Proses', 'Belum diatur', 'Melalui Tugas']] as const)('shows the missing direct Work and Task contribution in %s', (locale, column, missing, throughTasks) => {
     const rows = [objective('o1', 'Grow revenue')]
-    renderRows(rows, withGroups(rows, { o1: [group('w1', 'Menu launch', 'contribution')] }))
-    expect(workCell('Grow revenue')).toHaveAccessibleName('Projects & Processes: Not set. Through Tasks: Menu launch')
-    expect(workCell('Grow revenue')).toHaveTextContent('Through Tasks: Menu launch')
-    expect(workCell('Grow revenue')).not.toHaveTextContent('Linked through')
+    renderRows(rows, withGroups(rows, { o1: [group('w1', 'Menu launch', 'contribution')] }), locale)
+    const work = within(rowFor('Grow revenue')).getByRole('cell', { name: `${column}: ${missing}. ${throughTasks}: Menu launch` })
+    expect(within(work).getByText(missing)).toBeVisible()
+    expect(work).toHaveTextContent(`${throughTasks}: Menu launch`)
+    expect(work).not.toHaveTextContent('–')
+    expect(work).not.toHaveTextContent('Linked through')
   })
 
   it('lists direct work and, beside it, the work reached through Tasks', () => {
@@ -385,11 +405,13 @@ describe('CatalogListPresentation Objective Work cell', () => {
     expect(workCell('Grow revenue')).toHaveTextContent('Also through Tasks: Daily prep')
   })
 
-  it('reads Not set with no note for an Objective with no work', () => {
+  it.each([['en', 'Projects & Processes', 'Not set'], ['id', 'Proyek & Proses', 'Belum diatur']] as const)('shows and announces the same missing Work in %s', (locale, column, missing) => {
     const rows = [objective('o1', 'Grow revenue'), objective('o2', 'Empty')]
-    renderRows(rows, withGroups(rows, { o1: [group('w1', 'Menu launch', 'direct')] }))
-    expect(workCell('Empty')).toHaveAccessibleName('Projects & Processes: Not set')
-    expect(workCell('Empty')).not.toHaveTextContent(/\d/)
+    renderRows(rows, withGroups(rows, { o1: [group('w1', 'Menu launch', 'direct')] }), locale)
+    const work = within(rowFor('Empty')).getByRole('cell', { name: `${column}: ${missing}` })
+    expect(within(work).getByText(missing)).toBeVisible()
+    expect(work).not.toHaveTextContent('–')
+    expect(work).not.toHaveTextContent(/\d/)
   })
 })
 

@@ -32,6 +32,29 @@ function wrap(node: ReactNode) {
 }
 
 describe('CafeStreamBar', () => {
+  it('keeps stream context before Back and Change while switching still works', () => {
+    const onChange = vi.fn()
+    wrap(<CafeStreamBar options={CATALOG} stream={RAD_BAR} homeStream={RR_KITCHEN}
+      onChange={onChange} context={<time dateTime="2026-10-05">Mon 5 Oct</time>} />)
+    const heading = screen.getByRole('heading', { name: 'Radiant · Bar' })
+    const context = screen.getByText('Mon 5 Oct')
+    const back = screen.getByRole('button', { name: /back to rumah rames · kitchen/i })
+    const change = screen.getByRole('button', { name: /^change/i })
+    expect(heading.nextElementSibling).toBe(context)
+    expect(context.nextElementSibling).toBe(back)
+    expect(back.nextElementSibling).toBe(change)
+    fireEvent.click(back)
+    expect(onChange).toHaveBeenCalledWith(RR_KITCHEN)
+  })
+
+  it('keeps context next to the stream on a read-only surface', () => {
+    wrap(<CafeStreamBar options={CATALOG} stream={RAD_BAR}
+      context={<time dateTime="2026-10-05">Mon 5 Oct</time>} />)
+    expect(screen.getByRole('heading', { name: 'Radiant · Bar' }).nextElementSibling)
+      .toBe(screen.getByText('Mon 5 Oct'))
+    expect(screen.queryByRole('button')).toBeNull()
+  })
+
   it('states the stream in view as a branch · activity heading — no control', () => {
     wrap(<CafeStreamBar options={[RR_KITCHEN]} stream={RR_KITCHEN} onChange={() => {}} />)
     expect(screen.getByRole('heading', { name: 'Rumah Rames · Kitchen' })).toBeInTheDocument()

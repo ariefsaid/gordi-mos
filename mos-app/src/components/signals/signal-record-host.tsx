@@ -6,6 +6,9 @@ import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { Toast } from '@/components/admin/toast'
+import { useToast } from '@/components/admin/use-toast'
+import { copyCanonicalLink } from '@/lib/copy-canonical-link'
 import { Picker } from '@/components/ui/picker'
 import { TextInput } from '@/components/ui/text-input'
 import { EmptyState, ErrorState, FilteredEmptyIcon, SkeletonRows } from '@/components/ui/state-kit'
@@ -210,6 +213,7 @@ function SignalTaskCreateFrame({
 
 export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, onReload, onPromote }: SignalRecordHostProps) {
   const t = useT()
+  const { toast, showToast, clearToast } = useToast()
   const navigate = useNavigate()
   // The full page offers Back to Home only when the panel was reached from Home (AC-021 #755).
   const location = useLocation()
@@ -646,6 +650,12 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
     created_at: rev.created_at, actorName: personName(people, rev.actor_id, t('signals.card.unknownAuthor')),
   }))
   const hasAcknowledged = !!viewerId && acknowledgements.some((ack) => ack.person_id === viewerId)
+  const copySignalLink = () => {
+    void copyCanonicalLink(canonicalHref).then(
+      () => showToast(t('record.copyLinkSucceeded')),
+      () => showToast(t('record.copyLinkFailed')),
+    )
+  }
 
   const recordActionControls = !retracted ? (
     <div className="signal-record-action-controls" data-signal-actions="true">
@@ -659,9 +669,7 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
       <SignalOverflowMenu
         onLinkExistingTask={toggleLinkPicker}
         onRetract={canRetract ? () => setRetractOpen(true) : undefined}
-        onCopyLink={() => {
-          if (typeof navigator !== 'undefined' && navigator.clipboard) void navigator.clipboard.writeText(new URL(canonicalHref, window.location.origin).href)
-        }}
+        onCopyLink={copySignalLink}
         onOpenFullPage={mode === 'panel' ? () => {
           // Inside the overlay host the entry carries where the panel came from (Home sets
           // pageState {from:'home'}); a route-mounted panel carries it on the location instead.
@@ -839,6 +847,7 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
         onConfirm={handleRetract}
         onCancel={() => { setRetractOpen(false); setRetractReason('') }}
       />
+      <Toast toast={toast} onDismiss={clearToast} />
     </div>
   )
 }

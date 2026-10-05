@@ -27,7 +27,11 @@ import { readAccountLocale, saveAccountLocale } from '@/lib/db/account-locale'
 const mockRead = vi.mocked(readAccountLocale)
 const mockSave = vi.mocked(saveAccountLocale)
 
-function setViewer() {
+function setViewer(positionCount = 2) {
+  const positions = [
+    { id: 'r1', org_id: 'o1', business_unit_id: 'bu1', name: 'Cafe Ops Lead', reports_to_role_id: null, created_at: '', updated_at: '' },
+    { id: 'r2', org_id: 'o1', business_unit_id: 'bu2', name: 'Sales Lead', reports_to_role_id: null, created_at: '', updated_at: '' },
+  ]
   mockUseAuth.mockReturnValue({
     status: 'authenticated',
     viewer: {
@@ -36,10 +40,7 @@ function setViewer() {
         email: 'cahya@example.test', must_change_password: false, archived_at: null,
         created_at: '', updated_at: '',
       },
-      roles: [
-        { id: 'r1', org_id: 'o1', business_unit_id: 'bu1', name: 'Cafe Ops Lead', reports_to_role_id: null, created_at: '', updated_at: '' },
-        { id: 'r2', org_id: 'o1', business_unit_id: 'bu2', name: 'Sales Lead', reports_to_role_id: null, created_at: '', updated_at: '' },
-      ],
+      roles: positions.slice(0, positionCount),
       isManager: true,
       accessRoles: ['ops_lead'],
       affiliated: [],
@@ -142,19 +143,27 @@ describe('PORT-024: ProfilePage', () => {
     }
   })
 
-  it('renders read-only Identity — Person and Roles as plain text rows (not input-look), managed by Admin', async () => {
+  it('renders read-only Identity — Person and Position as plain text rows (not input-look), managed by Admin', async () => {
     await renderPage()
-    // Read-only identity reads as plain labelled text, NOT an editable/input-styled field: the
-    // Person and Roles values are static terms in a definition list.
+    // Organization Positions are distinct from the viewer's access roles. Read-only identity is
+    // plain labelled text, not an editable/input-styled field.
     const personTerm = screen.getByText('Person')
     expect(personTerm.tagName).toBe('DT')
     expect(screen.getByText('Cahya Cafe').tagName).toBe('DD')
-    // ALL roles — the domain permits several and the fixture is dual-hatted.
-    expect(screen.getByText('Roles').tagName).toBe('DT')
+    expect(screen.getByText('Position').tagName).toBe('DT')
     expect(screen.getByText('Cafe Ops Lead · Sales Lead').tagName).toBe('DD')
+    expect(screen.queryByText('Roles')).toBeNull()
     // No input-look: identity is never rendered as a form control.
     expect(screen.queryByRole('textbox')).toBeNull()
-    expect(screen.getByText(/Managed by Admin/)).toBeInTheDocument()
+    expect(screen.getByText(/Managed by Admin.*position/)).toBeInTheDocument()
+  })
+
+  it('uses the Position label for one organization position', async () => {
+    setViewer(1)
+    await renderPage()
+
+    expect(screen.getByText('Position').tagName).toBe('DT')
+    expect(screen.queryByText('Role')).toBeNull()
   })
 
   it('shows the Language field label exactly once (card heading only; the select label is sr-only)', async () => {
@@ -188,6 +197,9 @@ describe('PORT-024: ProfilePage', () => {
       expect(screen.queryByRole('heading', { name: english })).toBeNull()
     }
     expect(screen.getByText('Orang').tagName).toBe('DT')
+    expect(screen.getByText('Jabatan').tagName).toBe('DT')
+    expect(screen.queryByText('Peran')).toBeNull()
+    expect(screen.getByText(/Dikelola Admin.*jabatan/)).toBeInTheDocument()
     // Saved to the signed-in account (#927) — and honored on a fresh mount, not just in memory.
     expect(mockSave).toHaveBeenCalledWith('p1', 'id')
     expect(localStorage.getItem('mos.locale')).toBeNull()

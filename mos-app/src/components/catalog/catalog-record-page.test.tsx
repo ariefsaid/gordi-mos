@@ -25,7 +25,7 @@ vi.mock('@/lib/db/directory', async (importActual) => ({
   ...(await importActual<typeof import('@/lib/db/directory')>()),
   getPeople: vi.fn(async () => [{ id: 'p-dewi', full_name: 'Dewi Director' }, { id: 'p-maya', full_name: 'Maya Marketing' }]),
 }))
-vi.mock('@/lib/db/record-history', async (orig) => ({ ...(await orig<typeof import('@/lib/db/record-history')>()), loadRecordHistory: vi.fn() }))
+vi.mock('@/lib/db/record-history', async (orig) => ({ ...(await orig<typeof import('@/lib/db/record-history')>()), countRecordHistory: vi.fn(), loadRecordHistory: vi.fn() }))
 // The occurrence data is lifted into the record (the header carries the Start primary); the body
 // stub exposes ready Teams without duplicating the header's action.
 const occurrenceData = vi.hoisted(() => ({
@@ -63,7 +63,7 @@ import { updateWorkLine, listWorkLinesAll } from '@/lib/db/work-lines'
 import { createProcessStep } from '@/lib/db/process-steps'
 import { listKeyResults } from '@/lib/db/objective-key-results'
 import { getPeople } from '@/lib/db/directory'
-import { loadRecordHistory } from '@/lib/db/record-history'
+import { countRecordHistory, loadRecordHistory } from '@/lib/db/record-history'
 import { readWriteUp } from '@/lib/db/objective-writeup'
 import { getWorkWriteScopes } from '@/lib/db/work-authority'
 import { loadCatalogRecordData, loadCatalogRecordEditDirectory, type CatalogRecordData } from './catalog-record-loader'
@@ -102,7 +102,7 @@ const task = (id: string, title: string, status: CatalogRelationTask['status'], 
   id, title, status, lastActivityAt: '2026-09-30T00:00:00Z', dueDate: null, picPersonId: 'p-maya', ...over,
 })
 
-interface ObjectiveOptions {
+type ObjectiveOptions = {
   row?: Partial<CatalogRow>
   linked?: { id: string; name: string; type: 'project' | 'process'; bu?: string }[]
   tasks?: CatalogRelationTask[]
@@ -194,10 +194,10 @@ const occurrences = (startable: ReturnType<typeof dueRun>[], over: Partial<NonNu
 let data: CatalogRecordData
 const onCreateTask = vi.fn()
 
-function renderRecord(kind: 'objective' | 'work-line' = 'objective', mode: 'page' | 'panel' = 'page', taskAddedRef?: { current: boolean }) {
+function renderRecord(kind: 'objective' | 'work-line' = 'objective', mode: 'page' | 'panel' = 'page', taskAddedRef?: { current: boolean }, locale: 'en' | 'id' = 'en') {
   return render(
     <AuthContext.Provider value={auth()}>
-      <I18nProvider>
+      <I18nProvider initialLocale={locale}>
         <MemoryRouter>
           <CatalogRecordDocument kind={kind} id={kind === 'objective' ? 'obj-1' : 'wl-1'} mode={mode} onCreateTask={onCreateTask} taskAddedRef={taskAddedRef} />
         </MemoryRouter>
@@ -208,6 +208,14 @@ function renderRecord(kind: 'objective' | 'work-line' = 'objective', mode: 'page
 
 const facts = () => screen.getByRole('list', { name: 'Key facts' })
 const setup = () => screen.queryByRole('region', { name: /started$/ })
+
+function setWideRecordPage() {
+  window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+    matches: query === '(min-width: 1280px)' || query === '(min-width: 768px)', media: query,
+    addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(),
+    onchange: null, dispatchEvent: vi.fn(),
+  })) as never
+}
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -223,6 +231,7 @@ beforeEach(() => {
   })
   vi.mocked(listKeyResults).mockResolvedValue([])
   vi.mocked(readWriteUp).mockResolvedValue({ writeUp: null, updatedAt: '2026-09-30T00:00:00Z' })
+  vi.mocked(countRecordHistory).mockResolvedValue(0)
   vi.mocked(loadRecordHistory).mockResolvedValue({ entries: [], names: new Map() })
   vi.mocked(listObjectivesAll).mockResolvedValue([{ id: 'obj-2', name: 'Improve margin' }] as never)
   vi.mocked(listWorkLinesAll).mockResolvedValue([])
@@ -881,8 +890,35 @@ describe('sections read like a document', () => {
     renderRecord()
     const work = await screen.findByRole('region', { name: 'Projects & Processes' })
     expect(work.querySelector('.rp-section__count')).toHaveTextContent('1')
-    expect(work).not.toHaveTextContent('1 of 3 tasks done')
+    expect(work).not.toHaveTextContent('1 / 3 Tasks done')
     expect(await screen.findByRole('region', { name: 'Tasks' })).toHaveTextContent('1 / 3 Tasks done')
+  })
+
+  it.each([
+    ['en', 'page'], ['en', 'panel'], ['id', 'page'], ['id', 'panel'],
+  ] as const)('names Tasks in direct and contributed work progress in %s on the %s host', async (locale, mode) => {
+    populated()
+    const contribution = {
+      id: 'wl-2', name: 'Promotion routine', relationship: 'contribution' as const, entity: 'work-line' as const,
+      workLineId: 'wl-2', taskCount: 1, done: 0, total: 1, tasks: [task('t3', 'Share promotion', 'Open')],
+    }
+    const relations = data.context.relationsById.get('obj-1')!
+    data.context = {
+      ...data.context,
+      relationsById: new Map([['obj-1', { ...relations, groups: [...relations.groups, contribution] }]]),
+      progressById: new Map([['obj-1', { done: 1, total: 3 }]]),
+    }
+    renderRecord('objective', mode, undefined, locale)
+    const work = await screen.findByRole('region', { name: locale === 'id' ? 'Proyek & Proses' : 'Projects & Processes' })
+    const unit = locale === 'id' ? 'Tugas selesai' : 'Tasks done'
+    // The header counts linked records; each row counts that work's Tasks; the Task section owns the aggregate.
+    expect(work.querySelector('.rp-section__count')).toHaveTextContent(/^2$/)
+    const direct = within(work).getByRole('link', { name: 'Menu launch' }).closest('li')!
+    const contributed = within(work).getByRole('link', { name: 'Promotion routine' }).closest('li')!
+    expect(direct).toHaveTextContent(`1 / 2 ${unit}`)
+    expect(contributed).toHaveTextContent(`0 / 1 ${unit}`)
+    expect(work).not.toHaveTextContent(`1 / 3 ${unit}`)
+    expect(await screen.findByRole('region', { name: locale === 'id' ? 'Tugas' : 'Tasks' })).toHaveTextContent(`1 / 3 ${unit}`)
   })
 
   it('a member with nothing to add is told it is view only', async () => {
@@ -971,7 +1007,7 @@ describe('sections read like a document', () => {
     renderRecord()
     const work = await screen.findByRole('region', { name: 'Projects & Processes' })
     await unlinkViaRowMenu(user, work)
-    expect(await screen.findByText("Couldn't link", { exact: false })).toBeInTheDocument()
+    expect(await screen.findByText("Couldn't unlink", { exact: false })).toBeInTheDocument()
     expect(screen.queryByText('Unlinked Menu launch.')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull()
   })
@@ -994,6 +1030,17 @@ describe('sections read like a document', () => {
     await unlinkViaRowMenu(user, work)
     await user.click(await screen.findByRole('button', { name: 'Undo' }))
     await waitFor(() => expect(updateWorkLine).toHaveBeenLastCalledWith('wl-1', { objective_id: 'obj-1' }))
+  })
+
+  it('fetches and renders the History count on a wide page', async () => {
+    setWideRecordPage()
+    vi.mocked(countRecordHistory).mockResolvedValue(7)
+    renderRecord()
+
+    const toggle = await screen.findByRole('button', { name: /History/ })
+    await waitFor(() => expect(countRecordHistory).toHaveBeenCalledWith('objectives', 'obj-1'))
+    await waitFor(() => expect(toggle).toHaveTextContent('History7'))
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
   })
 
   it('folds History closed and reads it only when opened', async () => {

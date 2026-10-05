@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { AuthState } from '@/auth/context'
@@ -26,6 +27,7 @@ import { useAuth } from '@/auth/use-auth'
 import { canManageCafeItemSettings, listCafeItemSettings } from '@/lib/db/cafe-item-settings'
 import { listCafeMissingItemReports, resolveCafeMissingItemReport } from '@/lib/db/cafe-missing-item-reports'
 import { CafeItemSettingsPage } from './cafe-item-settings-page'
+import { useCafeItemSettingsSorting } from './cafe-item-settings-sorting'
 import { isCafeItemDraftKind } from './cafe-item-settings-kind'
 
 const mockUseAuth = vi.mocked(useAuth)
@@ -74,6 +76,17 @@ beforeEach(() => {
   mockResolveReport.mockResolvedValue()
 })
 
+describe('Cafe item table sorting', () => {
+  it('keeps an empty sorting state stable across rerenders', () => {
+    const { result, rerender } = renderHook(() => useCafeItemSettingsSorting(undefined))
+    const initialSorting = result.current
+
+    rerender()
+
+    expect(result.current).toBe(initialSorting)
+  })
+})
+
 it('accepts only the three Café item kind select values', () => {
   expect(['', 'RAW', 'WIP'].every(isCafeItemDraftKind)).toBe(true)
   expect(['OTHER', 'raw', 'null'].some(isCafeItemDraftKind)).toBe(false)
@@ -90,7 +103,14 @@ describe('CafeItemSettingsPage missing-item queue', () => {
     mockListReports.mockResolvedValueOnce([])
     fireEvent.click(within(queue).getByRole('button', { name: 'Resolve' }))
     await waitFor(() => expect(mockResolveReport).toHaveBeenCalledWith('report-1'))
-    await waitFor(() => expect(queue).toHaveTextContent('No missing-item reports need attention for this stream.'))
+    await waitFor(() => expect(screen.queryByRole('region', { name: 'Missing-item reports for this stream' })).not.toBeInTheDocument())
+  })
+
+  it('does not show an empty report queue ahead of item settings', async () => {
+    mockListReports.mockResolvedValue([])
+    renderPage()
+    await waitFor(() => expect(mockListReports).toHaveBeenCalled())
+    expect(screen.queryByRole('region', { name: 'Missing-item reports for this stream' })).not.toBeInTheDocument()
   })
 
   it('localizes the report queue stream label', async () => {
@@ -105,6 +125,78 @@ describe('CafeItemSettingsPage missing-item queue', () => {
     expect(await screen.findByText('Reference settings are read-only. Retail Ops managers, Ops Leads and admins can edit them.')).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'Missing-item reports for this stream' })).not.toBeInTheDocument()
     expect(mockListReports).not.toHaveBeenCalled()
+  })
+})
+
+describe('CafeItemSettingsPage filters', () => {
+  it('searches item names and filters visible rows by active state, kind, and unit setup', async () => {
+    const unit = (id: string, isDefault: boolean) => ({
+      id, name: 'KG', isShown: true, isDefault, labelOrdinal: null, labelCount: 1,
+    })
+    const item = (
+      id: string,
+      name: string,
+      kind: 'RAW' | 'WIP' | null,
+      isActive: boolean,
+      needsSetup: boolean,
+    ) => {
+      const unitId = `${id}-unit`
+      return {
+        id,
+        erpName: `ERP ${name}`,
+        mosName: name,
+        category: 'Dairy',
+        kind,
+        isActive,
+        defaultUnitId: needsSetup ? null : unitId,
+        units: [unit(unitId, !needsSetup)],
+      }
+    }
+    mockListItems.mockResolvedValue([
+      item('oat-milk', 'Oat milk', 'RAW', true, true),
+      item('oat-powder', 'Oat powder', 'RAW', false, true),
+      item('oat-syrup', 'Oat syrup', 'WIP', true, false),
+      item('oat-flour', 'Oat flour', null, true, true),
+      item('tea-leaves', 'Tea leaves', 'WIP', true, false),
+    ])
+
+    const user = userEvent.setup()
+    renderPage()
+    const search = await screen.findByRole('searchbox', { name: 'Find an ESB or MOS name' })
+    await user.type(search, 'oat')
+    await waitFor(() => {
+      expect(screen.getByText('ERP Oat milk')).toBeInTheDocument()
+      expect(screen.queryByText('ERP Tea leaves')).not.toBeInTheDocument()
+    })
+
+    const choose = async (label: string, option: string) => {
+      await user.click(screen.getByRole('combobox', { name: label }))
+      await user.click(await screen.findByRole('option', { name: option }))
+    }
+
+    await choose('Active status', 'Inactive')
+    await waitFor(() => {
+      expect(screen.getByText('ERP Oat powder')).toBeInTheDocument()
+      expect(screen.queryByText('ERP Oat milk')).not.toBeInTheDocument()
+      expect(screen.queryByText('ERP Oat syrup')).not.toBeInTheDocument()
+    })
+
+    await choose('Active status', 'All statuses')
+    await choose('Item kind', 'Not set')
+    await waitFor(() => {
+      expect(screen.getByText('ERP Oat flour')).toBeInTheDocument()
+      expect(screen.queryByText('ERP Oat milk')).not.toBeInTheDocument()
+      expect(screen.queryByText('ERP Oat powder')).not.toBeInTheDocument()
+    })
+
+    await choose('Item kind', 'All kinds')
+    await choose('Unit setup', 'Needs unit')
+    await waitFor(() => {
+      expect(screen.getByText('ERP Oat milk')).toBeInTheDocument()
+      expect(screen.getByText('ERP Oat powder')).toBeInTheDocument()
+      expect(screen.getByText('ERP Oat flour')).toBeInTheDocument()
+      expect(screen.queryByText('ERP Oat syrup')).not.toBeInTheDocument()
+    })
   })
 })
 
