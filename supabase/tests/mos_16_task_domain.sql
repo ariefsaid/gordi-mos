@@ -8,7 +8,7 @@ select plan(28);
 select set_config('app.allow_test_seeds', 'on', true);
 select mos._test_seed_process_tree();
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 
 select has_column('mos', 'tasks', 'team_id',
   'Task ownership uses the canonical nullable team_id column from the squashed baseline');
@@ -103,7 +103,7 @@ select ok(exists (select 1 from mos.task_team_rehome_ledger
 
 alter table mos.tasks enable trigger tasks_process_run_team_guard;
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 
 select lives_ok($$
   insert into mos.tasks (id, title, business_unit_id, responsible_person_id, accountable_person_id, created_by)

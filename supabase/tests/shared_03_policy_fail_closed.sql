@@ -43,7 +43,7 @@ set local role authenticated;
 -- READ POLICIES — an org-B session must read NOTHING of org A, and a claimless session nothing at all
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- Org B is a real tenant with real rows, so each zero below is isolation rather than emptiness.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["admin"]}');
 
 select is((select count(*)::int from shared.orgs where id = '00000000-0000-0000-0000-0000000000a1'), 0,
   'orgs_select_own: an org-B session reads zero org-A org rows');
@@ -97,7 +97,7 @@ select cmp_ok((select count(*) from shared.activities), '>', 0::bigint,
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- Peer (...0d04) is an ordinary org-A member holding no access role at all. Every attempt below is
 -- inside their own org, so what is being proven is the access-role gate, not the org gate.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 
 select throws_ok($$
   insert into shared.people (full_name) values ('Smuggled Person')
@@ -152,7 +152,7 @@ select ok(not has_table_privilege('authenticated','shared.role_capabilities','UP
 -- ── The admin gate is org-scoped as well as role-scoped ──────────────────────────────────────
 -- An admin is not a global admin. Org B's admin, acting with a real admin claim, still cannot reach
 -- into org A — which is what stops "admin" from becoming a cross-tenant capability.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["admin"]}');
 
 select throws_ok($$
   insert into shared.people (org_id, full_name)

@@ -54,7 +54,7 @@ insert into reporting.supervisor_revenue_scope (org_id, person_id, channel, bran
 set local role authenticated;
 
 -- ── Org B's finance user, holding the widest role there is, reads none of org A ──────────────
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["finance","admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["finance","admin"]}');
 select is((select count(*)::int from reporting.sales_daily_revenue
             where org_id = '00000000-0000-0000-0000-0000000000a1'), 0,
   'a foreign finance+admin session reads zero of org A''s revenue rows');
@@ -83,7 +83,7 @@ select is((select count(*)::int from reporting.sales_daily_revenue), 1,
 -- Org B's supervisor is granted POS/RRS, and org A has a POS row whose branch_code is also 'RRS'.
 -- The ERP's branch codes are not org-unique, so the scope match alone would admit the foreign row;
 -- the org predicate is what refuses it.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["supervisor"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["supervisor"]}');
 select is((select count(*)::int from reporting.sales_daily_revenue
             where org_id = '00000000-0000-0000-0000-0000000000a1'), 0,
   'a foreign supervisor whose grant names the SAME branch_code still reads zero org-A rows — ERP codes are not org-unique, so the org predicate is what holds');

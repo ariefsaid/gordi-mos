@@ -24,7 +24,7 @@ insert into shared.teams (id, org_id, business_unit_id, name, code) values
 -- The admin may write — in their own org, and nowhere else
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 
 select lives_ok($$
   insert into shared.team_memberships (person_id, team_id, is_primary)
@@ -100,7 +100,7 @@ $$, '42501', null,
 -- Author (...0d01) holds member + finance. A team lead who could add themselves to a team could
 -- read that team's Signals, with the read gate working exactly as designed while the boundary
 -- moved underneath it — which is why no role but admin appears in the policy.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}');
 
 select throws_ok($$
   insert into shared.team_memberships (person_id, team_id)
@@ -138,20 +138,20 @@ select cmp_ok(
 -- actually move a boundary — a team lead who could add themselves to a team could then read that
 -- team's Signals. `member` is the role LEAST likely to ever be admitted, so testing only member
 -- tested the easy case. Each of the three, refused explicitly.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["ops_lead"]}');
 select throws_ok($$
   insert into shared.team_memberships (person_id, team_id)
   values ('00000000-0000-0000-0000-0000000000d1','00000000-0000-0000-0000-0000000000e2')
 $$, '42501', null,
   'an ops_lead cannot write a membership — adding themselves to a team would widen what Signals they read');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["manager"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["manager"]}');
 select throws_ok($$
   insert into shared.team_memberships (person_id, team_id)
   values ('00000000-0000-0000-0000-0000000000d1','00000000-0000-0000-0000-0000000000e2')
 $$, '42501', null, 'nor a manager');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["supervisor"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["supervisor"]}');
 select throws_ok($$
   insert into shared.team_memberships (person_id, team_id)
   values ('00000000-0000-0000-0000-0000000000d1','00000000-0000-0000-0000-0000000000e2')

@@ -43,7 +43,7 @@ select is(
 
 -- ── the app path: a direct table write by a signed-in person ─────────────────────────────────
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 
 update mos.objectives set name = 'App edit' where id = '00000000-0000-0000-0000-000000009a01';
 select is(
@@ -59,7 +59,7 @@ select throws_ok(
 
 -- A history row inserted by the table owner still gets the derived channel, whatever it supplies.
 reset role;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 insert into shared.record_history (id, org_id, schema_name, table_name, record_key, action, channel, agent_client_id)
 values ('00000000-0000-0000-0000-000000009f01', '00000000-0000-0000-0000-0000000000a1', 'mos', 'objectives',
         '00000000-0000-0000-0000-000000009a01', 'insert', 'agent', 'agent-forged');
@@ -74,7 +74,7 @@ select throws_ok(
 
 -- ── the api path: a write inside an api_v1 function ─────────────────────────────────────────
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 
 select api_v1.edit_project_process(
   id => '00000000-0000-0000-0000-000000009b01', changes => '{"name":"Via API"}');
@@ -90,7 +90,7 @@ select is(
   '00000000-0000-0000-0000-0000000000d3', 'the api row still names the acting person');
 
 -- ── the agent path: the token carries client_id ─────────────────────────────────────────────
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"],"client_id":"agent-x"}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"],"client_id":"agent-x"}');
 select api_v1.edit_project_process(
   id => '00000000-0000-0000-0000-000000009b01', changes => '{"name":"Via agent"}');
 select is(
@@ -104,7 +104,7 @@ select is(
     where record_key = '00000000-0000-0000-0000-000000009a01' and field_name = 'name' and new_value = 'Agent direct'),
   'agent|agent-x', 'a client_id claim wins over the marker: a direct write with an agent token is still agent');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"],"client_id":""}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"],"client_id":""}');
 update mos.objectives set name = 'Blank client' where id = '00000000-0000-0000-0000-000000009a01';
 select is(
   (select channel || '|' || coalesce(agent_client_id, '-') from shared.record_history
@@ -112,7 +112,7 @@ select is(
   'api|-', 'a blank client_id claim is no client: the row reads by the marker alone');
 
 -- ── channel is never an input to an operation ───────────────────────────────────────────────
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select throws_ok(
   $$ select api_v1.edit_project_process(id => '00000000-0000-0000-0000-000000009b01', changes => '{"channel":"app"}') $$,
   'PT400', null, 'an edit carrying channel is invalid_input');
@@ -180,7 +180,7 @@ select throws_ok(
   'PT400', null, 'a limit below 1 is invalid_input');
 
 -- ── readers see the channel only on rows they can already read ──────────────────────────────
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}');
 select is(
   api_v1.get_record_history(record_type => 'project_process', id => '00000000-0000-0000-0000-000000009b01'),
   '{"items": [], "next_cursor": null}'::jsonb, 'a person in another org reads no history rows, so sees no channel');
@@ -188,7 +188,7 @@ select is(
   (select count(*)::int from shared.record_history where org_id = '00000000-0000-0000-0000-0000000000a1'),
   0, 'and the table itself shows them nothing of the other org''s records (their own org''s wired history, if any, is theirs to read)');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is(
   (select count(*)::int from shared.record_history
     where record_key = '00000000-0000-0000-0000-000000009b01' and channel in ('api', 'agent')),

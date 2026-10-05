@@ -25,7 +25,7 @@ insert into mos.events (id, org_id, title, venue, is_outbound, starts_at, ends_a
   ('00000000-0000-0000-0000-00000000e0b1','00000000-0000-0000-0000-0000000000b1','Org B seam event','Office',false,now(),now() + interval '1 hour','00000000-0000-0000-0000-0000000000b4');
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["admin","finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["admin","finance"]}');
 
 -- ── Not one org-B row is reachable, from any table ───────────────────────────────────────────
 select is((select count(*)::int from mos.objectives                where org_id = '00000000-0000-0000-0000-0000000000b1'), 0,

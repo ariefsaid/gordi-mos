@@ -58,7 +58,7 @@ select is(ops.cafe_waste_photo_log_id(
 select is(ops.kitchen_action_label('waste',null),'Waste','the existing action derivation labels the new waste movement');
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select lives_ok($$select ops.save_cafe_item_settings(
   '00000000-0000-0000-0000-00000000bf02','kitchen','00000000-0000-0000-0000-00000000c920',
   'Synthetic waste RAW','00000000-0000-0000-0000-00000000c921',
@@ -136,20 +136,20 @@ select is((select count(*)::int from ops.kitchen_log_waste_photos where log_id='
 select throws_ok($$update ops.kitchen_logs set status='Submitted' where id='00000000-0000-0000-0000-00000000ac21'$$,
   '42501',null,'even a lead cannot bypass the dedicated waste-submit RPC');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select is((select count(*)::int from ops.kitchen_log_waste_photos where log_id='00000000-0000-0000-0000-00000000ac21'),0,
   'another same-org person cannot read evidence while its parent is still Draft');
 select throws_ok($$insert into storage.objects (bucket_id,name) values
   ('waste-photos','00000000-0000-0000-0000-0000000000a1/00000000-0000-0000-0000-00000000ac22/00000000-0000-0000-0000-00000000f201.jpg')$$,
   '42501',null,'a peer cannot add evidence to another submitter''s Draft');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}');
 select is((select count(*)::int from storage.objects where bucket_id='waste-photos'),0,
   'another organization reads no waste evidence');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select lives_ok($$select ops.submit_cafe_waste_log('00000000-0000-0000-0000-00000000ac21')$$,
   'the uploader submits the Draft only after the evidence exists');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","admin"]}');
 select is((select count(*)::int from ops.kitchen_log_waste_photos where log_id='00000000-0000-0000-0000-00000000ac21'),4,
   'an authorized same-org reviewer can read the submitted waste evidence');
 select throws_ok($$insert into storage.objects (bucket_id,name) values
@@ -163,7 +163,7 @@ create temporary table waste_groups_before as
   select count(*)::int as count from integrations.esb_push_groups where org_id='00000000-0000-0000-0000-0000000000a1';
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","admin"]}');
 select throws_ok($$select * from pg_temp.approve_kitchen_logs(array['00000000-0000-0000-0000-00000000ac21'::uuid], 'reviewed')$$,
   '22023','waste logs must be approved individually; ERP posting is held',
   'bulk approval refuses waste before creating a grouped ERP document');
@@ -174,7 +174,7 @@ select is((select count(*)::int from integrations.esb_push where org_id='0000000
   (select count from waste_outbox_before),'refused bulk waste approval creates no ERP push');
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","admin"]}');
 select is(pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000ac21','waste verified by reviewer'),
   null::text,'single-row approval reviews waste and explicitly returns no ERP batch id');
 reset role;

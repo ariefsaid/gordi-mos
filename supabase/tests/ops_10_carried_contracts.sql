@@ -65,7 +65,7 @@ where t.org_id = '00000000-0000-0000-0000-0000000000a1' and t.code = 'gordi_hq_b
 -- The new suite used these columns constantly and asserted none of them. A CHECK nobody tests is a
 -- CHECK a later widening removes without anything going red.
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 
 select throws_ok($$
   insert into ops.log_entries (business_unit_id, title)
@@ -162,7 +162,7 @@ insert into mos.tasks (id, org_id, title, business_unit_id, responsible_person_i
    '00000000-0000-0000-0000-0000000000b4','00000000-0000-0000-0000-0000000000b4');
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 
 select lives_ok($$
   insert into ops.log_entries (id, business_unit_id, title, linked_task_id)
@@ -206,7 +206,7 @@ select lives_ok($$
   $$, '(positive): a same-org author still writes on that same path');
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 
 -- ON DELETE SET NULL, from the privileged side: the app tier cannot hard-delete a task, so this is
 -- the admin/cascade path. The entry must SURVIVE — a cascade here would delete floor history because
@@ -227,7 +227,7 @@ select is(
 update ops.log_entries set archived_at = now() where id = '00000000-0000-0000-0000-00000000ea02';
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is(
   (select count(*)::int from ops.log_entries where id = '00000000-0000-0000-0000-00000000ea02'),
   1,
@@ -242,7 +242,7 @@ select isnt(
   'carried/25: a non-editor cannot UNarchive either — the same gate covers archive in both directions, and it fails as zero rows rather than an error');
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 update ops.log_entries set archived_at = null where id = '00000000-0000-0000-0000-00000000ea02';
 reset role;
 select is(
@@ -262,7 +262,7 @@ values ('00000000-0000-0000-0000-00000000ec04','00000000-0000-0000-0000-00000000
         '00000000-0000-0000-0000-00000000bb01','dual-hat entry','00000000-0000-0000-0000-0000000000d6');
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 update ops.log_entries set title = 'edited by first lead' where id = '00000000-0000-0000-0000-00000000ec04';
 reset role;
 select is(
@@ -271,7 +271,7 @@ select is(
   'carried/25: the lead of the dual-hat author''s FIRST held role can edit their entry');
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d7","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d7","access_roles":["member"]}');
 update ops.log_entries set title = 'edited by second lead' where id = '00000000-0000-0000-0000-00000000ec04';
 reset role;
 select is(
@@ -288,7 +288,7 @@ select is(
 -- does the work — destination_branch_id is null on a produce, and under the default NULLS DISTINCT
 -- two produce plans for the same item, day and stream would not collide at all.
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 
 select throws_ok($$
   insert into ops.kitchen_plans (log_date, wip_item_id, branch_id, activity, action, destination_branch_id, qty_porsi, plan_by)
@@ -319,7 +319,7 @@ select results_eq($$
 -- available_qty had zero occurrences in the new 38 files. The reader's whole reason to exist is
 -- returning BOTH balances per item in one call, and only the stored half was ever asserted.
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 
 -- ab01 holds a stored row for this stream on 2026-06-19 (10); ab02 and ab03 hold none.
 select is(
@@ -346,7 +346,7 @@ select is(
 
 -- RLS is the ONLY thing scoping this function: unlike the scalar it carries no org_id predicate of
 -- its own, so the isolation claim in its comment rests entirely on the policies underneath it.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["admin"]}');
 select is(
   (select count(*)::int from ops.kitchen_stock_for_date('2026-06-19','00000000-0000-0000-0000-00000000bf02','kitchen')
     where wip_item_id = '00000000-0000-0000-0000-00000000ab01'),
@@ -359,7 +359,7 @@ select is(
 reset role;
 update ops.wip_items set flag_active = false where id = '00000000-0000-0000-0000-00000000ab03';
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is(
   (select count(*)::int from ops.kitchen_stock_for_date('2026-06-19','00000000-0000-0000-0000-00000000bf02','kitchen')
     where wip_item_id = '00000000-0000-0000-0000-00000000ab03'),
@@ -375,7 +375,7 @@ update ops.wip_items set flag_active = true where id = '00000000-0000-0000-0000-
 -- reverse list. Master data is where a one-directional read would be least obvious, because the
 -- catalog is the thing every other surface joins to.
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["admin"]}');
 select is(
   (select count(*)::int from ops.wip_items where org_id = '00000000-0000-0000-0000-0000000000a1'),
   0,
@@ -401,7 +401,7 @@ select is(
   '...and it is ENABLED — a disabled trigger still passes has_trigger while enforcing nothing, and the approve/reject role gate lives nowhere else');
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 insert into ops.kitchen_logs (id, business_unit_id, log_date, branch_id, activity, action, wip_item_id, qty_porsi)
 values ('00000000-0000-0000-0000-00000000ee01','00000000-0000-0000-0000-00000000bb01','2026-06-23',
         '00000000-0000-0000-0000-00000000bf02','kitchen','produce','00000000-0000-0000-0000-00000000ab01',5);
@@ -415,7 +415,7 @@ select is(
 -- in ops_08; the note the reviewer actually typed is the one field the guard must leave alone, and
 -- a change there would leave a rejected log with attribution and no reason.
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 update ops.kitchen_logs set status = 'Rejected', review_note = 'portion mismatch'
  where id = '00000000-0000-0000-0000-00000000ee01';
 reset role;
@@ -427,7 +427,7 @@ select is(
 -- ops_08 names only the reject positive. ops_09 leans on this path for its stock arithmetic without
 -- asserting it, so a regression here would surface as a confusing stock failure two files away.
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select throws_ok($$
   update ops.kitchen_logs set status = 'Approved' where id = '00000000-0000-0000-0000-00000000ac11'
   $$, '42501', 'approval goes through the review step',
@@ -440,7 +440,7 @@ select throws_ok($$
 -- mirror was removed. The surface it used survives — origin still admits 'kitchen' and the partial
 -- unique index on the batch id is still there — so re-adding the mirror is a small change, and
 -- nothing would have gone red. An absence is only evidence if something is watching it.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select throws_ok($$select pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000ac12', null)$$,
   '42501', 'an off-plan approval requires a reviewer note',
   'AC-012: off-plan approval with a plan row and no submitter or reviewer note is refused');

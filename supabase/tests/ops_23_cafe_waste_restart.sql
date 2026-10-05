@@ -29,7 +29,7 @@ on conflict (org_id, branch_id, activity, wip_item_id) do nothing;
 select ok(not has_function_privilege('anon', 'ops.restart_cafe_waste_draft(uuid,date)', 'EXECUTE'),
   'anonymous sessions cannot restart a waste draft');
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select lives_ok($$select ops.save_cafe_item_settings(
   '00000000-0000-0000-0000-00000000bf02','kitchen','00000000-0000-0000-0000-00000000c920',
   'Synthetic waste RAW','00000000-0000-0000-0000-00000000c921',
@@ -54,13 +54,13 @@ update ops.item_units set unit_name='crate' where id='00000000-0000-0000-0000-00
 insert into storage.objects (bucket_id,name) values ('waste-photos',
   '00000000-0000-0000-0000-0000000000a1/00000000-0000-0000-0000-00000000ac34/00000000-0000-0000-0000-00000000f101.jpg');
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select throws_ok($$select * from ops.restart_cafe_waste_draft('00000000-0000-0000-0000-00000000ac31','2026-10-02')$$,
   '42501',null,'a peer cannot replace another submitter''s draft');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member","admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member","admin"]}');
 select throws_ok($$select * from ops.restart_cafe_waste_draft('00000000-0000-0000-0000-00000000ac31','2026-10-02')$$,
   '42501',null,'another organization cannot replace the draft');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select throws_ok($$select * from ops.restart_cafe_waste_draft('00000000-0000-0000-0000-00000000ac33','2026-10-02')$$,
   '23514',null,'a draft with an open photo window cannot be restarted');
 select throws_ok($$select * from ops.restart_cafe_waste_draft('00000000-0000-0000-0000-00000000ac34','2026-10-02')$$,

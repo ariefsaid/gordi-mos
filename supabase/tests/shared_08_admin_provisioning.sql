@@ -32,7 +32,7 @@ set local role authenticated;
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- Fail closed for a non-admin — the check runs BEFORE any auth.users write
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000ea","person_id":"00000000-0000-0000-0000-00000000ea01","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000ea","person_id":"00000000-0000-0000-0000-00000000ea02","access_roles":["member"]}');
 
 select throws_ok($$ select shared.admin_create_login('00000000-0000-0000-0000-00000000ea01') $$,
   '42501', 'admin access role required', 'admin_create_login refuses a non-admin caller');
@@ -43,10 +43,10 @@ select throws_ok($$ select shared.admin_set_login_enabled('00000000-0000-0000-00
 select throws_ok($$ select * from shared.admin_list_login_status() $$,
   '42501', 'admin access role required', 'admin_list_login_status refuses a non-admin caller');
 -- manager is the money-read tier (#797); provisioning stays admin's.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000ea","person_id":"00000000-0000-0000-0000-00000000ea01","access_roles":["manager"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000ea","person_id":"00000000-0000-0000-0000-00000000ea02","access_roles":["manager"]}');
 select throws_ok($$ select shared.admin_create_login('00000000-0000-0000-0000-00000000ea01') $$,
   '42501', 'admin access role required', 'admin_create_login refuses a manager — the money tier is not the settings seat');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000ea","person_id":"00000000-0000-0000-0000-00000000ea01","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000ea","person_id":"00000000-0000-0000-0000-00000000ea02","access_roles":["member"]}');
 
 select is(
   (select user_id from shared.people where id = '00000000-0000-0000-0000-00000000ea01'),
@@ -54,7 +54,7 @@ select is(
 
 -- Even an ADMIN app session cannot set people.user_id by a direct write: the auth link is an
 -- RPC-only seam, which is what keeps the provisioning path auditable.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000ea","person_id":"00000000-0000-0000-0000-00000000ea0d","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000ea","person_id":"00000000-0000-0000-0000-00000000ea0d","access_roles":["admin"]}');
 select throws_ok($$
   update shared.people set user_id = '00000000-0000-0000-0000-00000000fb0d'
    where id = '00000000-0000-0000-0000-00000000ea01'
@@ -97,7 +97,7 @@ select throws_ok($$ select shared.admin_create_login('00000000-0000-0000-0000-00
 -- auth.users.email is globally unique, so provisioning the SAME email from another org collides.
 -- The raw 23505 DETAIL names the conflicting row and would confirm that the address exists in
 -- another tenant. It must surface as a clean, org-agnostic error instead.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000eb","person_id":"00000000-0000-0000-0000-00000000eb0d","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000eb","person_id":"00000000-0000-0000-0000-00000000eb0d","access_roles":["admin"]}');
 select throws_ok($$ select shared.admin_create_login('00000000-0000-0000-0000-00000000eb01') $$,
   '22023', 'email already in use',
   'a cross-org email collision raises a clean 22023, never the raw 23505 whose DETAIL is a cross-tenant oracle');

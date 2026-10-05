@@ -36,47 +36,47 @@ insert into mos.weekly_update_items (id, org_id, weekly_update_id, label, positi
 set local role authenticated;
 
 -- ── Upward-only read ─────────────────────────────────────────────────────────────────────────
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is((select count(*)::int from mos.weekly_updates where id = '00000000-0000-0000-0000-000000006001'), 1,
   'upward-only: the author reads her own update');
 select is((select count(*)::int from mos.weekly_update_items), 1,
   'upward-only: ...and its lines');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member"]}');
 select is((select count(*)::int from mos.weekly_updates where id = '00000000-0000-0000-0000-000000006001'), 1,
   'upward-only: the DIRECT manager reads it');
 select is((select count(*)::int from mos.weekly_update_items), 1,
   'upward-only: the direct manager reads its lines — the child inherits the parent gate rather than restating it');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member"]}');
 select is((select count(*)::int from mos.weekly_updates where id = '00000000-0000-0000-0000-000000006001'), 1,
   'upward-only: a GRAND manager reads it — the chain is walked recursively, not one hop');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select is((select count(*)::int from mos.weekly_updates where id = '00000000-0000-0000-0000-000000006001'), 0,
   'upward-only: a PEER on the same role reads zero — sideways is not upward');
 select is((select count(*)::int from mos.weekly_update_items), 0,
   'upward-only: ...and zero lines, so the child does not leak what the parent hides');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member"]}');
 select is((select count(*)::int from mos.weekly_updates where id = '00000000-0000-0000-0000-000000006001'), 0,
   'upward-only: a REPORT reads zero — the direction is up, and only up');
 
 -- Dual-hat: a person holding two roles is reachable from BOTH of their leads. This is why
 -- is_manager_of unions over every role the target holds rather than taking a primary one.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d7","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d7","access_roles":["member"]}');
 select is((select count(*)::int from mos.weekly_updates where id = '00000000-0000-0000-0000-000000006002'), 1,
   'upward-only: a dual-hat person''s SECOND lead reads their update too');
 select is((select count(*)::int from mos.weekly_updates where id = '00000000-0000-0000-0000-000000006001'), 0,
   'upward-only: ...and that second lead reads nothing of an unrelated person''s update');
 
 -- An admin of another org, with a real admin claim, still reads nothing here.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["admin"]}');
 select is((select count(*)::int from mos.weekly_updates), 0,
   'upward-only: another org''s ADMIN reads zero — org first, then the chain');
 
 -- ── Author-only write ────────────────────────────────────────────────────────────────────────
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member"]}');
 update mos.weekly_updates set summary = 'Manager edit' where id = '00000000-0000-0000-0000-000000006001';
 select is((select summary from mos.weekly_updates where id = '00000000-0000-0000-0000-000000006001'),
   'Author week',
@@ -87,7 +87,7 @@ select throws_ok($$
 $$, '42501', null, 'author-only write: nor may a manager add a line to their report''s update');
 
 -- ── Lifecycle: the server owns submitted_at ──────────────────────────────────────────────────
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is((select submitted_at from mos.weekly_updates where id = '00000000-0000-0000-0000-000000006001'),
   null, 'lifecycle: a draft carries no submitted_at');
 update mos.weekly_updates set status = 'submitted' where id = '00000000-0000-0000-0000-000000006001';

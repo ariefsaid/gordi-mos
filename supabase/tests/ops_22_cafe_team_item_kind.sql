@@ -63,7 +63,7 @@ select is((select count(*)::int from ops.wip_items
 select set_config('app.allow_test_seeds', 'off', true);
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select ok(ops.can_manage_cafe_item_settings('kitchen'), 'an Ops Lead can edit per-stream item classification');
 select lives_ok($$
   select ops.save_cafe_item_settings(
@@ -127,7 +127,7 @@ select lives_ok($$select ops.refresh_cafe_item_references($source$[
   'ERP refresh keeps unchanged stream membership rows in place');
 select set_config('app.allow_test_seeds', 'off', true);
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select is((select kind || ':' || is_active::text from ops.cafe_item_settings_read
             where item_id = (select id from ops.wip_items where esb_product_id = 'SYNTH-ERP-P-1287-RAW')
               and branch_id = '00000000-0000-0000-0000-00000000bf01'
@@ -142,7 +142,7 @@ select throws_ok($$
      (select id from ops.wip_items where esb_product_id = 'SYNTH-ERP-P-1287-RAW'), 1)
 $$, 'P0013', 'CAFE_WIP_ITEM_REQUIRED: production logs and plans require a WIP item',
   'team-classified RAW items cannot be used for production');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select throws_ok($$
   select ops.save_cafe_item_settings(
     '00000000-0000-0000-0000-00000000bf01', 'kitchen',
@@ -164,7 +164,7 @@ select set_config('app.test_org_b_item_id',
   (select id::text from ops.wip_items where org_id = '00000000-0000-0000-0000-0000000000b1'
     and esb_product_id = 'SYNTH-ERP-P-1287-RAW'), true);
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member","ops_lead"]}');
 select lives_ok($$
   select ops.save_cafe_item_settings(
     '00000000-0000-0000-0000-00000000bf09', 'kitchen',
@@ -175,11 +175,11 @@ select lives_ok($$
     'RAW', true
   )
 $$, 'the foreign-organization control can configure its own item');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is((select count(*)::int from ops.cafe_item_settings_read
             where item_id = current_setting('app.test_org_b_item_id')::uuid),
           0, 'an Org A member cannot read Org B team settings');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select throws_ok($$
   select ops.save_cafe_item_settings(
     '00000000-0000-0000-0000-00000000bf09', 'kitchen',

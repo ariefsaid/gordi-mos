@@ -43,7 +43,7 @@ update shared.orgs set name = 'Org B renamed' where id = '00000000-0000-0000-000
 
 -- ── read gate: whoever can read the org row ──────────────────────────────────────────────────
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select is((select count(*)::int from shared.record_history
            where table_name = 'orgs' and record_key = '00000000-0000-0000-0000-0000000000a1'
              and new_value = 'Org A renamed'),
@@ -55,7 +55,7 @@ select is((select shared._history_reader_shared_orgs('00000000-0000-0000-0000-00
   false, 'the org reader answers false for a delete row (an org delete records none)');
 select is((select shared._history_reader_shared_orgs('not-a-uuid', 'update', null)),
   false, 'a malformed key reads as false, not an error');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["admin"]}');
 select is((select count(*)::int from shared.record_history
            where table_name = 'orgs' and record_key = '00000000-0000-0000-0000-0000000000a1'),
   0, 'another org''s admin reads none of org A''s org-row history');
@@ -85,7 +85,7 @@ insert into shared.record_history (org_id, schema_name, table_name, record_key, 
   ('00000000-0000-0000-0000-0000000000b1', 'shared', 'stub_org_filter', 'theirs', 'insert');
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select lives_ok($$ select count(*) from shared.record_history where table_name = 'stub_org_filter' $$,
   'an unfiltered history read never dispatches to a reader for another org''s row');
 select is((select count(*)::int from shared.record_history where table_name = 'stub_org_filter'),

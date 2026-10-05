@@ -19,12 +19,12 @@ values ('00000000-0000-0000-0000-000000009906', '00000000-0000-0000-0000-0000000
 
 -- An authenticated edit, so the work line has one insert row AND one update row.
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 update mos.work_lines set name = 'History Project v2'
 where id = '00000000-0000-0000-0000-000000009906';
 
 -- ── AC-007: a reader of the record reads its history ─────────────────────────────────────────
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is((select count(*)::int from shared.record_history
            where schema_name = 'mos' and table_name = 'objectives'
              and record_key = '00000000-0000-0000-0000-000000009905'),
@@ -42,7 +42,7 @@ select is((select actor_person_id::text from shared.record_history
 -- ── AC-007: a person who cannot read the record reads none of its history ────────────────────
 -- Scoped to org A: since batch 2d (#989) wires the shared directory, an org-B member legitimately
 -- reads their OWN org's directory history — the wall this AC asserts is around org A's records.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}');
 select is((select count(*)::int from shared.record_history
            where org_id = '00000000-0000-0000-0000-0000000000a1'),
   0, 'AC-007: another org''s member reads no org-A history at all');
@@ -55,10 +55,10 @@ values ('00000000-0000-0000-0000-0000000000a1', 'mos', 'weekly_updates',
         '00000000-0000-0000-0000-0000000000e1', 'update', 'summary', 'before', 'after');
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is((select count(*)::int from shared.record_history where table_name = 'weekly_updates'),
   0, 'AC-008: an unregistered table''s history row is unreadable (fail closed, member)');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select is((select count(*)::int from shared.record_history where table_name = 'weekly_updates'),
   0, 'AC-008: an unregistered table''s history row is unreadable (fail closed, admin)');
 
@@ -69,7 +69,7 @@ update mos.objectives set archived_at = now()
 where id = '00000000-0000-0000-0000-000000009905';
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is((select count(*)::int from shared.record_history
            where record_key = '00000000-0000-0000-0000-000000009905'),
   2, 'an org member reads an archived Objective''s insert and archive rows');
@@ -82,7 +82,7 @@ values ('00000000-0000-0000-0000-000000009907', '00000000-0000-0000-0000-0000000
 delete from mos.objectives where id = '00000000-0000-0000-0000-000000009907';
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select is((select count(*)::int from shared.record_history
            where record_key = '00000000-0000-0000-0000-000000009907'),
   0, 'NFR-007: with no registered delete arm, nothing of a hard-deleted row — delete row included — is readable');

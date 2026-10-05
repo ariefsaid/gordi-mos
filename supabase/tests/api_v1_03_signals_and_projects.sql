@@ -87,9 +87,14 @@ begin
   end;
 end $f$;
 
-create function pg_temp.claims(p_org text, p_person text, p_roles text) returns text language sql as $f$
-  select format('{"org_id":"00000000-0000-0000-0000-0000000000%s","person_id":"00000000-0000-0000-0000-0000000000%s","access_roles":[%s]}',
-                p_org, p_person, p_roles)
+create function pg_temp.claims(p_org text, p_person text, p_roles text) returns text language plpgsql as $f$
+declare v_claims jsonb;
+begin
+  v_claims := format('{"org_id":"00000000-0000-0000-0000-0000000000%s","person_id":"00000000-0000-0000-0000-0000000000%s","access_roles":[%s]}',
+                     p_org, p_person, p_roles)::jsonb;
+  perform shared._test_set_access_roles(v_claims::text);
+  return v_claims::text;
+end
 $f$;
 
 create function pg_temp.personas() returns table (label text, org text, person text, roles text) language sql as $f$
@@ -115,7 +120,7 @@ set local role authenticated;
 -- ═════════════════════════════════════════════════════════════════════════════════════════════
 -- Signal reads
 -- ═════════════════════════════════════════════════════════════════════════════════════════════
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is((select array_agg(e ->> 'body' order by ord) from jsonb_array_elements(api_v1.list_signals() -> 'items') with ordinality x(e, ord)),
   array['Fixture signal about coffee','Older signal'], 'list_signals returns the readable live Signals, newest occurred_at first');
 select is(jsonb_array_length(api_v1.list_signals(include_retracted => true) -> 'items'), 3, 'list_signals include_retracted returns the retracted Signal too');
@@ -141,11 +146,11 @@ select is(pg_temp.err($q$ select api_v1.list_signals(attention => array_fill('FY
   'PT400|invalid_input|attention|attention holds at most 50 entries.', 'an attention list over 50 entries is invalid_input');
 select is(jsonb_array_length(api_v1.list_signals(attention => array_fill('Needs attention'::text, array[50])) -> 'items'), 1, 'an attention list of exactly 50 entries is accepted');
 select alike(pg_temp.err($q$ select api_v1.list_signals(cursor => 'not-a-cursor') $q$), 'PT400|invalid_input|cursor|%', 'a malformed Signal cursor is invalid_input');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member"]}');
 select is(jsonb_array_length(api_v1.list_signals() -> 'items'), 3, 'an author also reads their own Team-audience Signal');
 
 -- get_signal: one shape; the same answer for a missing id and an unreadable one (AC-008)
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select is(api_v1.get_signal('00000000-0000-0000-0000-0000000005a1') -> 'item' ->> 'body', 'Fixture signal about coffee', 'get_signal returns the Signal');
 select is(api_v1.get_signal('00000000-0000-0000-0000-0000000005a1') -> 'item' -> 'mentions',
   '[{"kind":"person","id":"00000000-0000-0000-0000-0000000000d4"}]'::jsonb, 'get_signal lists the active mentions only');
@@ -159,14 +164,14 @@ select is(pg_temp.err($q$ select api_v1.get_signal('00000000-0000-0000-0000-0000
   'AC-008: an unreadable Signal answers exactly like a missing one');
 select is(pg_temp.err($q$ select api_v1.get_signal('00000000-0000-0000-0000-00000000dead') $q$),
   'PT404|not_found||Signal not found.', 'get_signal on a missing id is not_found');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}');
 select is(pg_temp.err($q$ select api_v1.get_signal('00000000-0000-0000-0000-0000000005a1') $q$),
   'PT404|not_found||Signal not found.', 'NFR-003: another org''s Signal answers exactly like a missing one');
 
 -- ═════════════════════════════════════════════════════════════════════════════════════════════
 -- Project/Process reads
 -- ═════════════════════════════════════════════════════════════════════════════════════════════
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is((select array_agg(e ->> 'name' order by ord) from jsonb_array_elements(api_v1.list_projects_processes() -> 'items') with ordinality x(e, ord)),
   array['Alpha project','Gamma process'], 'list_projects_processes returns the live ones by name');
 select is(jsonb_array_length(api_v1.list_projects_processes(include_archived => true) -> 'items'), 3, 'include_archived returns the archived one too');
@@ -299,7 +304,7 @@ select is(pg_temp.matrix(
 -- Hand-away: an editor reassigns a Task and stops being an editor. The layer and the direct path
 -- (events first) agree; a later edit is refused on both paths.
 -- ═════════════════════════════════════════════════════════════════════════════════════════════
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select lives_ok($q$ select api_v1.edit_task(id => '00000000-0000-0000-0000-0000000000f3', changes => '{"accountable_person_id":"00000000-0000-0000-0000-0000000000d5"}') $q$,
   'hand-away: the layer lets the Accountable hand the Task to someone else');
 select lives_ok($q$ do $d$ begin
@@ -329,7 +334,7 @@ select is(
 -- ═════════════════════════════════════════════════════════════════════════════════════════════
 -- create_signal
 -- ═════════════════════════════════════════════════════════════════════════════════════════════
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member"]}');
 insert into ctx values ('s1', api_v1.create_signal(
   body => '  Made by the layer  ', attention => 'Urgent',
   mentions => '[{"kind":"person","id":"00000000-0000-0000-0000-0000000000d4"}]',
@@ -370,7 +375,7 @@ select is((api_v1.create_signal(body => 'Made by the layer', idempotency_key => 
   (select v::jsonb -> 'item' ->> 'id' from ctx where k = 's1'), 'AC-011: the same person and key return the same Signal id');
 select is((api_v1.create_signal(body => 'Made by the layer', idempotency_key => 'sk-1') ->> 'replayed'), 'true', 'AC-011: the repeat is flagged replayed');
 select is((select count(*)::int from mos.signals where author_id = '00000000-0000-0000-0000-0000000000d3' and body = 'Made by the layer'), 1, 'AC-011: one Signal exists');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is((api_v1.create_signal(body => 'Made by the layer', idempotency_key => 'sk-1') ->> 'replayed'), 'false', 'AC-011: another person using the same key gets their own Signal');
 select alike(pg_temp.err($q$ select api_v1.create_signal(body => 'b', idempotency_key => '') $q$), 'PT400|invalid_input|idempotency_key|%', 'an empty idempotency key is invalid_input');
 
@@ -427,7 +432,7 @@ select is(
   'd2=PT403|forbidden||signal content is author-only; signal.retract may only retract;d5=PT403|forbidden||signal content is author-only; signal.retract may only retract',
   'AC-015: a non-author, with or without retract authority, gets the guard''s own message');
 select is((select count(*)::int from mos.signal_revisions where signal_id = '00000000-0000-0000-0000-0000000005a1'), 3, 'AC-015: no revision row was written');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member"]}');
 select is(pg_temp.err($q$ select api_v1.edit_signal(id => '00000000-0000-0000-0000-0000000005a3', changes => '{"body":"x"}') $q$),
   'PT404|not_found||Signal not found.', 'an unreadable Signal is not_found on edit');
 select is(pg_temp.err($q$ select api_v1.edit_signal(id => '00000000-0000-0000-0000-00000000dead', changes => '{"body":"x"}') $q$),
@@ -436,7 +441,7 @@ select is(pg_temp.err($q$ select api_v1.edit_signal(id => '00000000-0000-0000-00
 -- ═════════════════════════════════════════════════════════════════════════════════════════════
 -- link_signal_task
 -- ═════════════════════════════════════════════════════════════════════════════════════════════
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select is(api_v1.link_signal_task(signal_id => '00000000-0000-0000-0000-0000000005a1', task_id => '00000000-0000-0000-0000-0000000000f1') -> 'item' -> 'task_ids',
   '["00000000-0000-0000-0000-0000000000f1"]'::jsonb, 'link_signal_task returns the Signal with the link');
 select is(api_v1.link_signal_task(signal_id => '00000000-0000-0000-0000-0000000005a1', task_id => '00000000-0000-0000-0000-0000000000f1') -> 'item' -> 'task_ids',
@@ -454,7 +459,7 @@ select is(pg_temp.err($q$ select api_v1.link_signal_task(signal_id => null, task
 -- ═════════════════════════════════════════════════════════════════════════════════════════════
 -- create_project_process
 -- ═════════════════════════════════════════════════════════════════════════════════════════════
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member"]}');
 insert into ctx values ('w1', api_v1.create_project_process(
   name => '  Layer project  ', type => 'project', business_unit_id => '00000000-0000-0000-0000-0000000000a2',
   accountable_person_id => '00000000-0000-0000-0000-0000000000d2', idempotency_key => 'wk-1')::text);
@@ -473,14 +478,14 @@ select alike(pg_temp.err($q$ select api_v1.create_project_process(name => 'n', t
 select is((api_v1.create_project_process(name => 'Layer project', type => 'project', idempotency_key => 'wk-1') -> 'item' ->> 'id'),
   (select v::jsonb -> 'item' ->> 'id' from ctx where k = 'w1'), 'AC-011: the same person and key return the same Project/Process');
 select is((select count(*)::int from mos.work_lines where name = 'Layer project'), 1, 'AC-011: one Project/Process exists');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is(pg_temp.err($q$ select api_v1.create_project_process(name => 'n', type => 'project', business_unit_id => '00000000-0000-0000-0000-0000000000a2') $q$),
   'PT403|forbidden||You don''t have permission to do this in MOS.', 'a person without the definition authority is forbidden');
 
 -- ═════════════════════════════════════════════════════════════════════════════════════════════
 -- edit_project_process — AC-003, 006, 010, 018
 -- ═════════════════════════════════════════════════════════════════════════════════════════════
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member"]}');
 select is(
   (select string_agg(k || '=' || split_part(pg_temp.err(format($q$ select api_v1.edit_project_process(id => '00000000-0000-0000-0000-0000000006a1', changes => jsonb_build_object(%L, 'process')) $q$, k)), '|', 1 + 1) || '/' || split_part(pg_temp.err(format($q$ select api_v1.edit_project_process(id => '00000000-0000-0000-0000-0000000006a1', changes => jsonb_build_object(%L, 'process')) $q$, k)), '|', 3), ';' order by k)
      from unnest(array['type','code','definition_version','org_id','foo']) k),
@@ -503,12 +508,12 @@ select is((select v::jsonb -> 'item' ->> 'name' || '|' || (v::jsonb -> 'item' ->
   'Alpha renamed|00000000-0000-0000-0000-0000000000a2|-', 'the edit returns the record as get_project_process reads it');
 select is(pg_temp.err($q$ select api_v1.edit_project_process(id => '00000000-0000-0000-0000-0000000006a1', changes => '{"name":"z"}', expected_updated_at => (select updated_at from mos.work_lines where id = '00000000-0000-0000-0000-0000000006a1')) $q$),
   'no error', 'a matching expected_updated_at lets the edit through');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is(pg_temp.err($q$ select api_v1.edit_project_process(id => '00000000-0000-0000-0000-0000000006a3', changes => '{"name":"nope"}') $q$),
   'PT403|forbidden||You don''t have permission to do this in MOS.', 'AC-009: readable but not editable is forbidden');
 select is(pg_temp.err($q$ select api_v1.edit_project_process(id => '00000000-0000-0000-0000-00000000dead', changes => '{"name":"nope"}') $q$),
   'PT404|not_found||Project or Process not found.', 'a missing Project/Process is not_found on edit');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}');
 select is(pg_temp.err($q$ select api_v1.edit_project_process(id => '00000000-0000-0000-0000-0000000006a3', changes => '{"name":"nope"}') $q$),
   'PT404|not_found||Project or Process not found.', 'another org''s Project/Process is not_found on edit');
 
