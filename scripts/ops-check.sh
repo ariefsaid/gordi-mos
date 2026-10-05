@@ -5,7 +5,7 @@
 #   */5 * * * * /path/to/scripts/ops-check.sh >> ~/ops-check.log 2>&1
 #
 # Checks: database reachable; ERP outbox dead letters; oldest pending/failed outbox row age;
-# ERP worker heartbeat age; newest nightly dump (when OPS_BACKUP_DIR is set); app URL and auth health endpoint; client-error rows in the last
+# ERP worker heartbeat age (when OPS_ESB_HEARTBEAT_FILE is set); newest nightly dump (when OPS_BACKUP_DIR is set); app URL and auth health endpoint; client-error rows in the last
 # 15 minutes (skipped while the log table does not exist). Every coordinate comes from the
 # untracked env file (scripts/ops.env.example, OPS_ENV_FILE); a missing value refuses the run.
 # Self-test: scripts/ops-check.test.sh
@@ -17,7 +17,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 
 ops_load_env ops-check || exit 2
 ops_require ops-check TELEGRAM_BOT_TOKEN TELEGRAM_CHAT_ID OPS_DB_HOST OPS_DB_PORT OPS_DB_USER \
-  OPS_DB_NAME PGPASSFILE OPS_STATE_DIR OPS_APP_URL OPS_AUTH_HEALTH_URL OPS_ESB_HEARTBEAT_FILE || exit 2
+  OPS_DB_NAME PGPASSFILE OPS_STATE_DIR OPS_APP_URL OPS_AUTH_HEALTH_URL || exit 2
 
 PENDING_MAX_MIN="${OPS_PENDING_MAX_AGE_MIN:-30}"
 HEARTBEAT_MAX_MIN="${OPS_ESB_HEARTBEAT_MAX_AGE_MIN:-15}"
@@ -96,14 +96,16 @@ else
   report database fail "production database unreachable"
 fi
 
-# ---- ERP worker heartbeat ----
-hb="$(mtime "$OPS_ESB_HEARTBEAT_FILE")"
-if [[ "$hb" =~ ^[0-9]+$ ]]; then
-  hb_age=$(( ( $(date +%s) - hb ) / 60 ))
-  if [ "$hb_age" -gt "$HEARTBEAT_MAX_MIN" ]; then report worker_heartbeat fail "ERP worker last ran ${hb_age} min ago (limit ${HEARTBEAT_MAX_MIN})"
-  else report worker_heartbeat ok "ERP worker ran ${hb_age} min ago"; fi
-else
-  report worker_heartbeat fail "ERP worker heartbeat file missing"
+# ---- ERP worker heartbeat (unset OPS_ESB_HEARTBEAT_FILE = worker not deployed: skipped) ----
+if [ -n "${OPS_ESB_HEARTBEAT_FILE:-}" ]; then
+  hb="$(mtime "$OPS_ESB_HEARTBEAT_FILE")"
+  if [[ "$hb" =~ ^[0-9]+$ ]]; then
+    hb_age=$(( ( $(date +%s) - hb ) / 60 ))
+    if [ "$hb_age" -gt "$HEARTBEAT_MAX_MIN" ]; then report worker_heartbeat fail "ERP worker last ran ${hb_age} min ago (limit ${HEARTBEAT_MAX_MIN})"
+    else report worker_heartbeat ok "ERP worker ran ${hb_age} min ago"; fi
+  else
+    report worker_heartbeat fail "ERP worker heartbeat file missing"
+  fi
 fi
 
 # ---- nightly backup present (cron that dies silently is the failure db-backup.sh cannot report) ----

@@ -85,7 +85,7 @@ lifecycle() { # name needle bad-env... -- good-env...
 echo "fail closed"
 mkenv "$tmp/ops.env"; rm -f "$tmp/ops.env"; run
 [ "$rc" = 2 ] && [ "$(nmsg)" = 0 ] && ok "missing env file refuses" || bad "missing env file rc=$rc" "$out"
-for v in TELEGRAM_BOT_TOKEN TELEGRAM_CHAT_ID OPS_DB_HOST OPS_DB_USER OPS_DB_NAME PGPASSFILE OPS_STATE_DIR OPS_APP_URL OPS_AUTH_HEALTH_URL OPS_ESB_HEARTBEAT_FILE; do
+for v in TELEGRAM_BOT_TOKEN TELEGRAM_CHAT_ID OPS_DB_HOST OPS_DB_USER OPS_DB_NAME PGPASSFILE OPS_STATE_DIR OPS_APP_URL OPS_AUTH_HEALTH_URL; do
   mkenv "$tmp/ops.env" "$v"; run
   if [ "$rc" = 2 ] && printf '%s' "$out" | grep -q "missing.*$v" && [ ! -s "$tmp/psql.log" ]; then ok "missing $v refuses and names it"; else bad "missing $v: rc=$rc" "$out"; fi
 done
@@ -126,6 +126,9 @@ fresh_heartbeat; run
 has_msg "recovered" && ok "fresh heartbeat recovers" || bad "heartbeat recovery" "$(msgs)"
 reset; rm -f "$tmp/heartbeat"; run
 has_msg "heartbeat file missing" && ok "missing heartbeat file alerts" || bad "missing heartbeat" "$(msgs)"
+mkenv "$tmp/ops.env" OPS_ESB_HEARTBEAT_FILE; reset; rm -f "$tmp/heartbeat"; run
+[ "$rc" = 0 ] && [ "$(nmsg)" = 0 ] && ok "unset heartbeat file (worker not deployed): skipped, no alert" || bad "unset heartbeat" "rc=$rc $(msgs)"
+mkenv "$tmp/ops.env"
 fresh_heartbeat
 
 echo "backup freshness"
