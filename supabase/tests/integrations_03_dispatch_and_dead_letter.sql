@@ -92,7 +92,7 @@ select is((select count(*)::int from integrations.esb_push
 -- a stalled push is exactly as visible as a healthy one. If it were filtered out, the batch would be
 -- un-posted and nobody would be looking at it.
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 
 select is((select count(*)::int from integrations.esb_push
             where id = '00000000-0000-0000-0000-00000000ba01'),

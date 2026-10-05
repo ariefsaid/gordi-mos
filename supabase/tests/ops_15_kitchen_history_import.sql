@@ -114,7 +114,7 @@ select is((select count(*)::int from integrations.esb_push),
 
 -- ══ §D the only enqueuer refuses imported rows before touching anything ══════════════════════
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select throws_ok($$
   select pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000a9b1','again')
   $$, 'P0003', 'log is not Submitted (current: Approved)',
@@ -131,7 +131,7 @@ select is((select batch_id from ops.kitchen_logs where id='00000000-0000-0000-00
 
 -- ══ §E imported rows read like any other record ══════════════════════════════════════════════
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is((select count(*)::int from ops.kitchen_logs
      where id='00000000-0000-0000-0000-00000000a9b1'), 1,
   'OD-WAY-57: a plain member reads the imported row through the same policy — no source seam');

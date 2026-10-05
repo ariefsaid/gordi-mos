@@ -37,7 +37,7 @@ select cmp_ok((select count(*)::int from ops.stream_items where org_id = '000000
 
 -- ═══ A. A member reads, captures on the listed stream only, and cannot change a list ══════════
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 
 select is((select count(*)::int from ops.stream_items where wip_item_id = '00000000-0000-0000-0000-00000000c801'), 1,
   'RLS: a member reads their org''s stream item list');
@@ -62,19 +62,19 @@ select throws_ok($$insert into ops.kitchen_logs (business_unit_id, log_date, bra
   'capture: an item on no list is refused');
 
 -- ═══ B. Supervisor and finance cannot change a list either ═════════════════════════════════════
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","supervisor"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","supervisor"]}');
 select throws_ok($$insert into ops.stream_items (branch_id, activity, wip_item_id, source) values
   ('00000000-0000-0000-0000-00000000bf01','kitchen','00000000-0000-0000-0000-00000000c801','manual')$$,
   '42501', null, 'RLS: a supervisor cannot add an item to a stream');
 select is(pg_temp.deleted('delete from ops.stream_items where wip_item_id = ''00000000-0000-0000-0000-00000000c801'''), 0,
   'RLS: a supervisor''s delete of a stream item removes nothing');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}');
 select throws_ok($$insert into ops.stream_items (branch_id, activity, wip_item_id, source) values
   ('00000000-0000-0000-0000-00000000bf01','kitchen','00000000-0000-0000-0000-00000000c801','manual')$$,
   '42501', null, 'RLS: finance cannot add an item to a stream');
 
 -- ═══ C. An ops lead maps one item into a second stream: one identity, two streams ═════════════
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select lives_ok($$insert into ops.stream_items (branch_id, activity, wip_item_id, source, created_by) values
   ('00000000-0000-0000-0000-00000000bf01','kitchen','00000000-0000-0000-0000-00000000c801','manual','00000000-0000-0000-0000-0000000000d1')$$,
   'an ops lead adds the HQ Bar item to HQ Kitchen''s list too');
@@ -92,7 +92,7 @@ select is(pg_temp.deleted('delete from ops.stream_items where org_id = ''0000000
   'cross-org: an ops lead''s delete reaches no other org''s row');
 
 reset role;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 set local role authenticated;
 select lives_ok($$insert into ops.kitchen_logs (id, business_unit_id, log_date, branch_id, activity, action, wip_item_id, qty_porsi)
   values ('00000000-0000-0000-0000-00000000c812','00000000-0000-0000-0000-00000000bb01','2026-09-24','00000000-0000-0000-0000-00000000bf01','kitchen','produce','00000000-0000-0000-0000-00000000c801',2)$$,
@@ -103,7 +103,7 @@ select is((select count(*)::int from ops.wip_items where name = 'Stream Item'), 
   'shared item: both streams reference the ONE item row');
 
 -- ═══ D. Plans follow the same list ═══════════════════════════════════════════════════════════
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select lives_ok($$insert into ops.kitchen_plans (id, log_date, branch_id, activity, action, wip_item_id, qty_porsi)
   values ('00000000-0000-0000-0000-00000000c821','2026-09-24','00000000-0000-0000-0000-00000000bf01','kitchen','produce','00000000-0000-0000-0000-00000000c801',3)$$,
   'plan: a listed item can be planned');
@@ -133,7 +133,7 @@ select lives_ok($$update ops.kitchen_logs set status = 'Rejected', review_note =
 select is((select status from ops.kitchen_logs where id = '00000000-0000-0000-0000-00000000c812'), 'Rejected',
   'history: the review landed');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select is((select count(*)::int from ops.kitchen_logs where id = '00000000-0000-0000-0000-00000000c812'), 1,
   'history: a member still reads the log');
 
@@ -158,7 +158,7 @@ select throws_ok($$insert into ops.stream_items (org_id, branch_id, activity, wi
 
 -- ═══ G. An admin may change a list ═══════════════════════════════════════════════════════════
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","admin"]}');
 select lives_ok($$insert into ops.stream_items (branch_id, activity, wip_item_id, source) values
   ('00000000-0000-0000-0000-00000000bf02','kitchen','00000000-0000-0000-0000-00000000c802','manual')$$,
   'an admin adds an item to a stream');

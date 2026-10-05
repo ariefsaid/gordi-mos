@@ -22,7 +22,7 @@ values ('00000000-0000-0000-0000-0000000000a1',
         '00000000-0000-0000-0000-0000000000d4');
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is((select lead_person_id from shared.team_lead_assignments
             where team_id = '00000000-0000-0000-0000-000000005b01'),
   '00000000-0000-0000-0000-0000000000d2'::uuid,
@@ -48,7 +48,7 @@ set local role authenticated;
 select is((select count(*)::int from shared.team_lead_assignments), 0,
   'an ended membership no longer reads the Team lead');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select is((select count(*)::int from shared.list_team_lead_assignments() where lead_person_id is not null), 2,
   'an admin still lists every Team lead through the settings RPC');
 select is((select count(*)::int from shared.team_lead_assignments), 0,

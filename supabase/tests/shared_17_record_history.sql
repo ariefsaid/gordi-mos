@@ -110,7 +110,7 @@ select is((select old_row_snapshot ->> 'name' from shared.record_history
 
 -- ── AC-004: the actor is the session claim, unspoofable by field values ──────────────────────
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 update mos.objectives set name = '00000000-0000-0000-0000-0000000000d1'
 where id = '00000000-0000-0000-0000-000000009901';
 
@@ -173,56 +173,56 @@ select is((select cmd from pg_policies
   'SELECT', 'the one policy is a SELECT policy');
 
 -- ── AC-006: every access role is refused UPDATE and DELETE on history, admin included ────────
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select throws_ok($$ update shared.record_history set old_value = 'forged'
                     where record_key = '00000000-0000-0000-0000-000000009901' $$,
   '42501', null, 'member cannot update history');
 select throws_ok($$ delete from shared.record_history
                    where record_key = '00000000-0000-0000-0000-000000009901' $$,
   '42501', null, 'member cannot delete history');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["team_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["team_lead"]}');
 select throws_ok($$ update shared.record_history set old_value = 'forged'
                     where record_key = '00000000-0000-0000-0000-000000009901' $$,
   '42501', null, 'team_lead cannot update history');
 select throws_ok($$ delete from shared.record_history
                    where record_key = '00000000-0000-0000-0000-000000009901' $$,
   '42501', null, 'team_lead cannot delete history');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["bu_head"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["bu_head"]}');
 select throws_ok($$ update shared.record_history set old_value = 'forged'
                     where record_key = '00000000-0000-0000-0000-000000009901' $$,
   '42501', null, 'bu_head cannot update history');
 select throws_ok($$ delete from shared.record_history
                    where record_key = '00000000-0000-0000-0000-000000009901' $$,
   '42501', null, 'bu_head cannot delete history');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["ops_lead"]}');
 select throws_ok($$ update shared.record_history set old_value = 'forged'
                     where record_key = '00000000-0000-0000-0000-000000009901' $$,
   '42501', null, 'ops_lead cannot update history');
 select throws_ok($$ delete from shared.record_history
                    where record_key = '00000000-0000-0000-0000-000000009901' $$,
   '42501', null, 'ops_lead cannot delete history');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select throws_ok($$ update shared.record_history set old_value = 'forged'
                     where record_key = '00000000-0000-0000-0000-000000009901' $$,
   '42501', null, 'admin cannot update history — history is evidence against its own admins');
 select throws_ok($$ delete from shared.record_history
                    where record_key = '00000000-0000-0000-0000-000000009901' $$,
   '42501', null, 'admin cannot delete history');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance"]}');
 select throws_ok($$ update shared.record_history set old_value = 'forged'
                     where record_key = '00000000-0000-0000-0000-000000009901' $$,
   '42501', null, 'finance cannot update history');
 select throws_ok($$ delete from shared.record_history
                    where record_key = '00000000-0000-0000-0000-000000009901' $$,
   '42501', null, 'finance cannot delete history');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["manager"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["manager"]}');
 select throws_ok($$ update shared.record_history set old_value = 'forged'
                     where record_key = '00000000-0000-0000-0000-000000009901' $$,
   '42501', null, 'manager cannot update history');
 select throws_ok($$ delete from shared.record_history
                    where record_key = '00000000-0000-0000-0000-000000009901' $$,
   '42501', null, 'manager cannot delete history');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["supervisor"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["supervisor"]}');
 select throws_ok($$ update shared.record_history set old_value = 'forged'
                     where record_key = '00000000-0000-0000-0000-000000009901' $$,
   '42501', null, 'supervisor cannot update history');

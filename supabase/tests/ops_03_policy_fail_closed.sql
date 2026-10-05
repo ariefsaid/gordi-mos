@@ -54,7 +54,7 @@ set local request.jwt.claims = '{}';
 select is((select count(*)::int from ops.log_entries), 0,
   'log_entries_select_org: a claimless session reads zero Daily Log entries');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}');
 select isnt((select count(*)::int from ops.log_entries), 0,
   'log_entries_select_org (positive): a member of the org does read the org''s entries');
 
@@ -62,7 +62,7 @@ select isnt((select count(*)::int from ops.log_entries), 0,
 -- stays pinned to the session person. The forged-name negative runs as an AFFILIATED member, so a
 -- refusal here is the PIN and not the affiliation arm firing; the unaffiliated refusal and the
 -- affiliated positive follow.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select throws_ok($$
   insert into ops.log_entries (business_unit_id, event_type, title, created_by)
   values ('00000000-0000-0000-0000-00000000bb01','other','forged',
@@ -70,14 +70,14 @@ select throws_ok($$
   $$, '42501', 'new row violates row-level security policy for table "log_entries"',
   'log_entries_insert_member: a member cannot file a Daily Log entry attributed to somebody else');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}');
 select throws_ok($$
   insert into ops.log_entries (business_unit_id, event_type, title)
   values ('00000000-0000-0000-0000-00000000bb01','other','mine')
   $$, '42501', 'new row violates row-level security policy for table "log_entries"',
   'log_entries_insert_member: an UNAFFILIATED member cannot file a floor record at all — the #744 gate fails closed');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select lives_ok($$
   insert into ops.log_entries (business_unit_id, event_type, title)
   values ('00000000-0000-0000-0000-00000000bb01','other','mine')
@@ -85,7 +85,7 @@ select lives_ok($$
 
 -- log_entries_update_editor — the gate is author-or-manager, so a peer is excluded by USING and the
 -- UPDATE reports success while affecting nothing. Read the row back to prove it did not move.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 update ops.log_entries set title = 'peer edited' where id = '00000000-0000-0000-0000-00000000ea01';
 reset role;
 select is((select title from ops.log_entries where id = '00000000-0000-0000-0000-00000000ea01'),
@@ -93,7 +93,7 @@ select is((select title from ops.log_entries where id = '00000000-0000-0000-0000
   'log_entries_update_editor: a peer''s edit of another member''s entry affects zero rows — the title is unchanged');
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 update ops.log_entries set title = 'manager edited' where id = '00000000-0000-0000-0000-00000000ea01';
 reset role;
 select is((select title from ops.log_entries where id = '00000000-0000-0000-0000-00000000ea01'),
@@ -108,7 +108,7 @@ set local request.jwt.claims = '{}';
 select is((select count(*)::int from ops.wip_items), 0,
   'wip_items_select_org: a claimless session reads zero WIP items');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}');
 select isnt((select count(*)::int from ops.wip_items), 0,
   'wip_items_select_org (positive): a member reads the item list they log against');
 
@@ -124,7 +124,7 @@ select is((select name from ops.wip_items where id = '00000000-0000-0000-0000-00
   'wip_items_update_ops_lead_or_admin: a member''s rename affects zero rows — the name is unchanged');
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select lives_ok($$ insert into ops.wip_items (name) values ('ops_lead added') $$,
   'wip_items_insert_ops_lead_or_admin (positive): ops_lead CAN add master data');
 update ops.wip_items set name = 'ops renamed' where id = '00000000-0000-0000-0000-00000000ab01';
@@ -141,7 +141,7 @@ set local request.jwt.claims = '{}';
 select is((select count(*)::int from ops.kitchen_plans), 0,
   'kitchen_plans_select_org: a claimless session reads zero plans');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}');
 select isnt((select count(*)::int from ops.kitchen_plans), 0,
   'kitchen_plans_select_org (positive): a member reads the plan they are working to');
 
@@ -159,7 +159,7 @@ select is((select qty_porsi from ops.kitchen_plans where id = '00000000-0000-000
   'kitchen_plans_update_ops_lead_or_admin: a member''s plan edit affects zero rows — the variance baseline is unchanged');
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select lives_ok($$
   insert into ops.kitchen_plans (log_date, wip_item_id, branch_id, activity, action, qty_porsi)
   values ('2026-06-28','00000000-0000-0000-0000-00000000ab01',
@@ -188,7 +188,7 @@ set local request.jwt.claims = '{}';
 select is((select count(*)::int from ops.kitchen_logs), 0,
   'kitchen_logs_select_org: a claimless session reads zero production logs');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}');
 select isnt((select count(*)::int from ops.kitchen_logs), 0,
   'kitchen_logs_select_org (positive): a member reads the org''s logs — the review queue is deliberately org-readable');
 
@@ -197,7 +197,7 @@ select isnt((select count(*)::int from ops.kitchen_logs), 0,
 -- clauses deleted. The three pin negatives run as the AFFILIATED member (Peer ...0d4), so a
 -- refusal is that pin and not the affiliation arm firing; the affiliation refusal and the role
 -- arm get their own assertions below.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select throws_ok($$
   insert into ops.kitchen_logs (business_unit_id, log_date, branch_id, activity, action,
                                 wip_item_id, qty_porsi, submitted_by)
@@ -210,7 +210,7 @@ select throws_ok($$
 -- The #744 arm itself, fail-closed: Author ...0d1 holds ONLY an org-structure team membership, so
 -- the affiliation predicate is false and every pin above is irrelevant — the insert is refused
 -- before any pin is consulted. This is the negative that replaces the section''s old positive.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}');
 select throws_ok($$
   insert into ops.kitchen_logs (business_unit_id, log_date, branch_id, activity, action,
                                 wip_item_id, qty_porsi)
@@ -219,7 +219,7 @@ select throws_ok($$
   $$, '42501', 'new row violates row-level security policy for table "kitchen_logs"',
   'kitchen_logs_insert_member: an UNAFFILIATED member cannot log production at all — the #744 gate fails closed');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select lives_ok($$
   insert into ops.kitchen_logs (business_unit_id, log_date, branch_id, activity, action,
                                 wip_item_id, qty_porsi)
@@ -251,7 +251,7 @@ select lives_ok($$
   $$, 'kitchen_logs_insert_member (positive): an AFFILIATED member CAN log their own line, server-attributed and Submitted — and into ANY stream, the help-out rule (OD-WAY-49) intact');
 
 -- kitchen_logs_update_own_or_reviewer — the control that scopes pre-approval edits to the submitter.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 update ops.kitchen_logs set qty_porsi = 999 where id = '00000000-0000-0000-0000-00000000ac01';
 reset role;
 select is((select qty_porsi from ops.kitchen_logs where id = '00000000-0000-0000-0000-00000000ac01'),
@@ -259,7 +259,7 @@ select is((select qty_porsi from ops.kitchen_logs where id = '00000000-0000-0000
   'kitchen_logs_update_own_or_reviewer: a peer''s edit of another member''s pending line affects zero rows — the quantity is unchanged');
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}');
 update ops.kitchen_logs set qty_porsi = 13 where id = '00000000-0000-0000-0000-00000000ac01';
 reset role;
 select is((select qty_porsi from ops.kitchen_logs where id = '00000000-0000-0000-0000-00000000ac01'),
@@ -267,7 +267,7 @@ select is((select qty_porsi from ops.kitchen_logs where id = '00000000-0000-0000
   'kitchen_logs_update_own_or_reviewer (positive): the SUBMITTER can still correct their own pending line');
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 update ops.kitchen_logs set review_note = 'reviewed' where id = '00000000-0000-0000-0000-00000000ac01';
 reset role;
 select is((select review_note from ops.kitchen_logs where id = '00000000-0000-0000-0000-00000000ac01'),
@@ -276,7 +276,7 @@ select is((select review_note from ops.kitchen_logs where id = '00000000-0000-00
 
 -- An imported row has a NULL submitted_by, so it matches no member and only a reviewer can touch it.
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}');
 update ops.kitchen_logs set notes = 'member touched history' where id = '00000000-0000-0000-0000-00000000aa01';
 reset role;
 select is((select notes from ops.kitchen_logs where id = '00000000-0000-0000-0000-00000000aa01'),
@@ -291,7 +291,7 @@ set local request.jwt.claims = '{}';
 select is((select count(*)::int from ops.kitchen_stock), 0,
   'kitchen_stock_select_org: a claimless session reads zero stock rows');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}');
 select isnt((select count(*)::int from ops.kitchen_stock), 0,
   'kitchen_stock_select_org (positive): a member reads their org''s stock');
 
@@ -320,7 +320,7 @@ select throws_ok($$ select count(*) from ops.kitchen_batch_seq $$, '42501',
 select is((select count(*)::int from integrations.esb_push), 0,
   'esb_push_select_ops_lead_or_admin: a member without ops_lead or admin reads zero outbox rows, in their OWN org');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select isnt((select count(*)::int from integrations.esb_push), 0,
   'esb_push_select_ops_lead_or_admin (positive): ops_lead does read them, so the zero above is the role gate and not an empty table');
 

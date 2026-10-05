@@ -19,13 +19,12 @@ for (const [name, actor, view] of [
     await loginAs(page, actor.email, actor.password)
     expect((await countRead).ok()).toBe(true)
     const link = page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: /^Tasks(,|$)/ })
-    // Home's open figure: the "N shown · M open" door (behind the My open work tab when tabbed).
-    const personalTab = page.getByRole('tab', { name: /^My open work/ })
-    if (await personalTab.count()) await personalTab.click()
-    const homeDoor = page.getByRole('link', { name: /\d+ shown · \d+ open/ }).first()
-    await expect(homeDoor).toBeVisible()
-    const homeOpen = Number(/(\d+) open/.exec((await homeDoor.textContent()) ?? '')?.[1])
-    expect(Number.isInteger(homeOpen), 'Home states its open count').toBe(true)
+    // #1194 / #1207: Home's day header is the current shared open-task count surface; the
+    // capped region/drill copy describes its own list and is not the parity oracle.
+    const homeCount = page.locator('.home-head-counts')
+    await expect(homeCount).toHaveText(/^\d+ open$/)
+    const homeOpen = Number(/^(\d+) open$/.exec((await homeCount.textContent()) ?? '')?.[1])
+    expect(Number.isInteger(homeOpen), 'Home states its shared open-task count').toBe(true)
     await expect(link).toHaveAccessibleName(homeOpen ? `Tasks, ${homeOpen} open tasks` : 'Tasks')
     await link.click()
     await expect(taskViewsGroup(page).getByRole('button', { name: view, exact: true })).toHaveAttribute('aria-pressed', 'true')
@@ -96,20 +95,24 @@ test('R1 same notification: desktop bell, phone Inbox, unread and handled parity
   const org = TASKS.VIEWER_ACCOUNTABLE.orgId
   await localSql(`INSERT INTO mos.notifications (id, org_id, owner_id, title, metadata) VALUES ('${id}', '${org}', '${BAR_MEMBER.personId}', 'R1 owned mention', '{"entity":{"type":"task","id":"${TASKS.VIEWER_ACCOUNTABLE.id}","route":"/work/tasks/${TASKS.VIEWER_ACCOUNTABLE.id}"}}');`)
   try {
-    let unreadIds: string[] | undefined
-    page.on('response', async response => {
-      if (response.ok() && /\/rest\/v1\/notifications\?/.test(response.url()) && new URL(response.url()).searchParams.get('select') === 'id') {
-        unreadIds = (await response.json() as { id: string }[]).map(row => row.id)
-      }
-    })
     await loginAs(page, BAR_MEMBER.email, BAR_MEMBER.password)
-    await expect.poll(() => unreadIds?.includes(id)).toBe(true)
-    const initial = unreadIds!.length
-    const bell = page.getByRole('banner').getByRole('button', { name: `Inbox, ${initial} unread`, exact: true })
+    const bell = page.getByRole('banner').getByRole('button', { name: /^Inbox, \d+ unread$/ })
     await expect(bell).toBeVisible()
-    await expect(page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: `Inbox, ${initial} unread`, exact: true })).toBeVisible()
+    const notificationList = page.waitForResponse(response => {
+      const url = new URL(response.url())
+      return response.ok()
+        && response.request().method() === 'GET'
+        && url.pathname.endsWith('/rest/v1/notifications')
+        && url.searchParams.get('select') === 'id,severity,title,body,metadata,read_at,handled_at,created_at'
+    })
     const homeUrl = page.url()
     await bell.click()
+    const notifications = await (await notificationList).json() as { id: string; read_at: string | null }[]
+    const unreadIds = notifications.filter(notification => notification.read_at === null).map(notification => notification.id)
+    expect(unreadIds).toContain(id)
+    const initial = unreadIds.length
+    await expect(bell).toHaveAccessibleName(`Inbox, ${initial} unread`)
+    await expect(page.getByRole('navigation', { name: 'Primary' }).getByRole('link', { name: `Inbox, ${initial} unread`, exact: true })).toBeVisible()
     const row = page.locator(`[data-notification-id="${id}"]`)
     await expect(row).toBeVisible()
     await expect(row).toHaveClass(/inbox-row--unread/)

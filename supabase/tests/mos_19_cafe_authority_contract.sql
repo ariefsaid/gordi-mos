@@ -26,13 +26,13 @@ insert into shared.team_memberships (org_id, person_id, team_id, is_primary, eff
  on conflict do nothing;
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select is((select count(*)::int from mos.cafe_opening_branches()), 0,
   'the branch affordance hides a canonical Café Opening from a member of only the sibling Team');
 select is((select count(*)::int from mos.due_process_runs() where process_name = 'Café Opening'), 0,
   'the due surface does not advertise a canonical Café Opening the caller cannot start');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d6","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d6","access_roles":["member"]}');
 select is(shared.cafe_opening_team('00000000-0000-0000-0000-00000000bf02'::uuid),
           '00000000-0000-0000-0000-00000000cc02'::uuid,
   'Café Opening resolves the kitchen Team as the canonical owner for a branch');
@@ -54,7 +54,7 @@ select is((mos.spawn_process_run(
              (now() at time zone 'Asia/Jakarta')::date)->>'idempotent')::boolean, true,
   'a different same-branch request returns the existing canonical occurrence idempotently when the caller is authorized for that owner');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select throws_ok($$
   select mos.spawn_process_run(
     '00000000-0000-0000-0000-00000000c001'::uuid,
@@ -80,14 +80,14 @@ select is((select count(*)::int from mos.process_runs
               and period_key = to_char((now() at time zone 'Asia/Jakarta')::date + 1, 'YYYY-MM-DD')), 0,
   'the denied sibling request creates no occurrence');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select ok((mos.spawn_process_run(
              '00000000-0000-0000-0000-00000000c001'::uuid,
              '00000000-0000-0000-0000-00000000cc03'::uuid,
              (now() at time zone 'Asia/Jakarta')::date + 2)->>'run_id') is not null,
   'the default ops_lead grant starts the branch through the canonical Team');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select ok((mos.spawn_process_run(
              '00000000-0000-0000-0000-00000000c001'::uuid,
              '00000000-0000-0000-0000-00000000cc01'::uuid,
@@ -95,7 +95,7 @@ select ok((mos.spawn_process_run(
   'the default admin grant starts another branch through its canonical kitchen Team');
 
 select shared.save_role_authority('[{"action":"process.start","role":"member","scope":"org"}]'::jsonb);
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select ok((mos.spawn_process_run(
              '00000000-0000-0000-0000-00000000c001'::uuid,
              '00000000-0000-0000-0000-00000000cc03'::uuid,
@@ -111,7 +111,7 @@ select is((select count(*)::int from mos.cafe_opening_branches()), 3,
 select is((select count(*)::int from mos.due_process_runs() where process_name = 'Café Opening'), 2,
   'the due surface follows the saved matrix and exposes both still-unstarted canonical branches');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select shared.save_role_authority('[{"action":"process.start","role":"member","scope":"own_team"}]'::jsonb);
 
 select * from finish();

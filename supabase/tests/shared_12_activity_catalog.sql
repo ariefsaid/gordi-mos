@@ -55,7 +55,7 @@ select is((select produces from shared.teams
 insert into ops.stream_items (org_id, branch_id, activity, wip_item_id, source) values
   ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bf03','prep',
    '00000000-0000-0000-0000-00000000ab01','manual');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["ops_lead"]}');
 select lives_ok($$ insert into ops.stream_completeness
   (org_id, branch_id, activity, confirmed_by)
   values ('00000000-0000-0000-0000-0000000000a1',

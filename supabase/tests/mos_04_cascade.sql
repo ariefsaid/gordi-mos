@@ -74,7 +74,7 @@ insert into mos.work_lines (id, org_id, name, type) values
 -- the catalog write policies are exercised against role_authority below.
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000ca","person_id":"00000000-0000-0000-0000-00000000ca12","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000ca","person_id":"00000000-0000-0000-0000-00000000ca12","access_roles":["admin"]}');
 select is(shared.can('objective.manage'), true,  'admin can(objective.manage) = true');
 select is(shared.can('workline.manage'),  true,  'admin can(workline.manage) = true');
 
@@ -82,18 +82,18 @@ select is(shared.can('workline.manage'),  true,  'admin can(workline.manage) = t
 -- OD-V4-1 flipped it to TRUE, and OD-OBJ-1 narrows it back: ops_lead loses objective.manage and
 -- gains the narrower objective.edit_content. The grant rows are migration-owned, so each flip is
 -- one row either way — the assertion follows the ruling.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000ca","person_id":"00000000-0000-0000-0000-00000000ca11","access_roles":["ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000ca","person_id":"00000000-0000-0000-0000-00000000ca11","access_roles":["ops_lead"]}');
 select is(shared.can('objective.manage'), false,
   'ops_lead can(objective.manage) = FALSE — OD-OBJ-1 narrows the OD-V4-1 grant (#992)');
 select is(shared.can('objective.edit_content'), true,
   'ops_lead can(objective.edit_content) = TRUE — the narrowed content grant (#992)');
 select is(shared.can('workline.manage'),  true,  'ops_lead can(workline.manage) = true');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000ca","person_id":"00000000-0000-0000-0000-00000000ca10","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000ca","person_id":"00000000-0000-0000-0000-00000000ca10","access_roles":["member"]}');
 select is(shared.can('objective.manage'), false, 'member can(objective.manage) = false');
 select is(shared.can('workline.manage'),  false, 'member can(workline.manage) = false');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000ca","person_id":"00000000-0000-0000-0000-00000000ca13","access_roles":["finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000ca","person_id":"00000000-0000-0000-0000-00000000ca13","access_roles":["finance"]}');
 select is(shared.can('objective.manage'), false, 'finance can(objective.manage) = false');
 select is(shared.can('workline.manage'),  false, 'finance can(workline.manage) = false');
 
@@ -117,7 +117,7 @@ $$, '23514', null,
   'work_lines.type rejects ''sprint'' — only project|process');
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000ca","person_id":"00000000-0000-0000-0000-00000000ca10","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000ca","person_id":"00000000-0000-0000-0000-00000000ca10","access_roles":["member"]}');
 
 select is((select count(*)::int from mos.objectives), 2,
   'a member reads BOTH org-A objectives, active and archived — the management surface lists archived rows');
@@ -174,7 +174,7 @@ $$, '42501', null, 'a client-supplied foreign org_id is rejected on work_lines')
 -- create and rename an Objective ("OD-V4-1 moved the write to lead level"). Structural authority
 -- — create, rename, archive, re-home — is admin-only now, so the same actors are refused with
 -- 42501; the write-up tier is what ops leads keep, and the lives_ok below pins that retained half.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000ca","person_id":"00000000-0000-0000-0000-00000000ca11","access_roles":["ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000ca","person_id":"00000000-0000-0000-0000-00000000ca11","access_roles":["ops_lead"]}');
 select throws_ok($$
   insert into mos.objectives (name) values ('Ops Lead Objective')
 $$,
@@ -198,7 +198,7 @@ select lives_ok($$
   update mos.work_lines set archived_at = now() where id = '00000000-0000-0000-0001-000000000002'
 $$, 'ops_lead can archive a Project/Process — archive is an UPDATE, not a delete');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000ca","person_id":"00000000-0000-0000-0000-00000000ca12","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000ca","person_id":"00000000-0000-0000-0000-00000000ca12","access_roles":["admin"]}');
 select lives_ok($$
   insert into mos.objectives (name) values ('Admin Objective')
 $$, 'admin can create an Objective');
@@ -390,9 +390,9 @@ select is(
 -- grant OPENS NOTHING on this catalog. The work_lines case below keeps the original property for
 -- Projects & Processes, which the ruling left untouched.
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000ca","person_id":"00000000-0000-0000-0000-00000000ca12","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000ca","person_id":"00000000-0000-0000-0000-00000000ca12","access_roles":["admin"]}');
 select shared.save_role_authority('[{"action":"objective.manage","role":"finance","scope":"org"}]'::jsonb);
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000ca","person_id":"00000000-0000-0000-0000-00000000ca13","access_roles":["finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000ca","person_id":"00000000-0000-0000-0000-00000000ca13","access_roles":["finance"]}');
 select throws_ok($$
   insert into mos.objectives (name) values ('Finance Now Can')
 $$, '42501', null,
@@ -400,9 +400,9 @@ $$, '42501', null,
 
 -- REWRITE (was 73 test 23). The member category is live-org membership, and the admin RPC can grant
 -- it a tenant-local workline scope without changing the unrelated global capability vocabulary.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000ca","person_id":"00000000-0000-0000-0000-00000000ca12","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000ca","person_id":"00000000-0000-0000-0000-00000000ca12","access_roles":["admin"]}');
 select shared.save_role_authority('[{"action":"workline.manage","role":"member","scope":"org"}]'::jsonb);
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000ca","person_id":"00000000-0000-0000-0000-00000000ca10","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000ca","person_id":"00000000-0000-0000-0000-00000000ca10","access_roles":["member"]}');
 select lives_ok($$
   insert into mos.work_lines (name, type) values ('Member Now Can','process')
 $$,

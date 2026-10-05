@@ -52,7 +52,7 @@ select ok((select d.description like '%versions supplied by the reviewer%'
 
 -- Behavioural seam: this one call must execute the RPC, not merely inspect its catalog shape.
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 insert into ops.kitchen_logs (id, business_unit_id, log_date, branch_id, activity, action, destination_branch_id, wip_item_id, qty_porsi)
 values
  ('00000000-0000-0000-0000-00000000e701','00000000-0000-0000-0000-00000000bb01','2026-06-24','00000000-0000-0000-0000-00000000bf02','kitchen','produce',null,'00000000-0000-0000-0000-00000000ab01',2),
@@ -86,7 +86,7 @@ insert into ops.kitchen_logs (id, business_unit_id, log_date, branch_id, activit
 values ('00000000-0000-0000-0000-00000000e705','00000000-0000-0000-0000-00000000bb01','2026-06-24','00000000-0000-0000-0000-00000000bf02','bar','transfer','00000000-0000-0000-0000-00000000bf02','00000000-0000-0000-0000-00000000ab01',1);
 select throws_ok($$select pg_temp.approve_kitchen_logs(array['00000000-0000-0000-0000-00000000e705'::uuid], null)$$, '22023', null,
   'noop-only approval does not leave a pending group');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select throws_ok($$select pg_temp.approve_kitchen_logs(array['00000000-0000-0000-0000-00000000e703'::uuid], null)$$, '42501', null,
   'bulk approval refuses a viewer without the approval role');
 reset role;

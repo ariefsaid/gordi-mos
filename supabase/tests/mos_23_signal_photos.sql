@@ -35,7 +35,7 @@ select is((select count(*)::int from pg_proc p join pg_roles r on r.oid = p.proo
 
 -- ── the author ────────────────────────────────────────────────────────────────────────────────
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 
 select lives_ok(format($$insert into storage.objects (bucket_id, name) values ('signal-photos', %L)$$,
   :'live' || '/00000000-0000-0000-0000-0000000000f1.jpg'), 'the author adds a photo to their own live Signal');
@@ -72,7 +72,7 @@ select is((select count(*)::int from storage.objects where bucket_id = 'signal-p
   'the author can neither rename nor delete a photo');
 
 -- ── another member ────────────────────────────────────────────────────────────────────────────
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select is((select count(*)::int from mos.signal_photos where signal_id = '00000000-0000-0000-0000-000000006801'), 4,
   'any same-org member reads an All Teams Signal''s photos');
 select is((select count(*)::int from mos.signal_photos where signal_id = '00000000-0000-0000-0000-000000006804'), 0,
@@ -81,12 +81,12 @@ select throws_ok(format($$insert into storage.objects (bucket_id, name) values (
   :'team' || '/00000000-0000-0000-0000-0000000000f6.jpg'), '42501', null, 'a non-author cannot add a photo');
 
 -- ── another org ───────────────────────────────────────────────────────────────────────────────
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b9","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b9","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select is((select count(*)::int from storage.objects where bucket_id = 'signal-photos'), 0,
   'another org reads no photo');
 
 -- ── retracted ─────────────────────────────────────────────────────────────────────────────────
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 update mos.signals set retracted_at = now(), retract_reason = 'Wrong photo'
  where id = '00000000-0000-0000-0000-000000006801';
 select is((select count(*)::int from mos.signal_photos where signal_id = '00000000-0000-0000-0000-000000006801'), 0,

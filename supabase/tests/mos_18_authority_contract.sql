@@ -31,7 +31,7 @@ values ('00000000-0000-0000-0000-0000000000a1',
 
 -- Designate d2 as the lead of OwnTeam ...5b01, so the historical team-retraction chain is provable.
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select shared.save_team_lead_assignment('00000000-0000-0000-0000-000000005b01','00000000-0000-0000-0000-0000000000d2');
 set local request.jwt.claims = '{}';
 reset role;
@@ -49,7 +49,7 @@ insert into authority_ids default values;
 grant select, update on authority_ids to authenticated;
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance"]}');
 select is((select can_post from mos.get_signal_post_authority()), true,
   'an ordinary org member can post Signals without a signal-specific access role');
 select is((select can_tag from mos.get_signal_post_authority()), true,
@@ -67,7 +67,7 @@ select is((select objective_bu_ids from mos.get_work_write_scopes()), '{}'::uuid
 -- objective_org moved onto the authority the policies enforce (the objective.manage capability,
 -- admin after OD-OBJ-1) and objective_bu_ids is structurally empty — no per-BU structural tier
 -- remains. The content fields mirror the shape for write-up/current-value authority.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["ops_lead"]}');
 select is((select objective_org from mos.get_work_write_scopes()), false,
   'an ops lead holds NO org-wide Objective structural scope — OD-OBJ-1 narrows OD-V4-1');
 select is((select objective_content_org from mos.get_work_write_scopes()), true,
@@ -75,7 +75,7 @@ select is((select objective_content_org from mos.get_work_write_scopes()), true,
 select is((select objective_content_bu_ids from mos.get_work_write_scopes()), '{}'::uuid[],
   'org-wide content scope enumerates no BUs');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d7","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d7","access_roles":["member"]}');
 select is((select objective_org from mos.get_work_write_scopes()), false,
   'a BU head holds no org-wide Objective structural scope');
 select is((select objective_bu_ids from mos.get_work_write_scopes()), '{}'::uuid[],
@@ -86,7 +86,7 @@ select is((select objective_content_bu_ids from mos.get_work_write_scopes()),
   array['00000000-0000-0000-0000-0000000000a3']::uuid[],
   'the Unit-2 head''s content scope enumerates exactly their own unit');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select is((select objective_org from mos.get_work_write_scopes()), true,
   'admin holds the org-wide Objective structural scope');
 select is((select objective_content_org from mos.get_work_write_scopes()), true,
@@ -95,7 +95,7 @@ select is((select objective_content_org from mos.get_work_write_scopes()), true,
 -- The scope reads above end on the admin persona; the Signal fixture below calls its poster "the
 -- author" and asserts retraction authority against that identity, so restore the member persona
 -- the original fixture was written under before posting.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 
 -- The author posts an All Teams Signal tagging an unrelated active person + Team + BU — the
 -- explicit any-person/any-Team/any-BU control under the org-wide signal.tag grant.
@@ -118,7 +118,7 @@ select is((select audience from mos.signals
 
 -- sg file editable matrix is the sole tag authority, including BU mentions: an admin deny removes
 -- runtime tag authority and a BU mention is refused.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select shared.save_role_authority('[
   {"action":"signal.tag","role":"member","scope":"none"},
   {"action":"signal.tag","role":"team_lead","scope":"none"},
@@ -128,7 +128,7 @@ select shared.save_role_authority('[
   {"action":"signal.tag","role":"manager","scope":"none"},
   {"action":"signal.tag","role":"supervisor","scope":"none"}
 ]'::jsonb);
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is((select can_tag from mos.get_signal_post_authority()), false,
   'an admin deny removes runtime Signal tag authority from a member who still may post');
 select throws_ok($$
@@ -137,7 +137,7 @@ select throws_ok($$
     now(),
     jsonb_build_array(jsonb_build_object('kind','bu','targetId','00000000-0000-0000-0000-0000000000a2')))
 $$, '42501', null, 'a denied signal.tag cannot create a BU mention');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select shared.save_role_authority('[
   {"action":"signal.tag","role":"member","scope":"org"},
   {"action":"signal.tag","role":"ops_lead","scope":"org"},
@@ -151,7 +151,7 @@ values ('00000000-0000-0000-0000-000000005b03',
         '00000000-0000-0000-0000-0000000000a3',
         'Cross-BU Team', 'cross_bu_team');
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 update authority_ids set signal_two = mos.create_signal_with_mentions(
   'Peer org signal', now(), '[]'::jsonb);
 select ok((select signal_two is not null from authority_ids),
@@ -161,27 +161,27 @@ select is((select count(*)::int from mos.signals
   'a Peer can read back the org Signal they posted and every other org Signal');
 
 -- ── Retraction matrix on All Teams (org) rows: author-or-org-scoped only ──────────────────────
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance"]}');
 select ok(mos.can_retract_signal((select signal_org from authority_ids)),
   'the author retains retraction authority over their own org Signal without a special access role');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select ok(not mos.can_retract_signal((select signal_org from authority_ids)),
   'a peer member cannot retract another author''s org Signal (own scope only)');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["finance"]}');
 select ok(not mos.can_retract_signal((select signal_org from authority_ids)),
   'a designated Team lead cannot retract another author''s ORG Signal — the Team chain acts on team rows only');
 select ok(not mos.can_retract_signal((select signal_org from authority_ids)),
   'the owning BU head cannot retract another author''s ORG Signal — org rows are author-or-org-scoped');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["ops_lead"]}');
 select ok(mos.can_retract_signal((select signal_org from authority_ids)),
   'an ops lead can retract another author''s org Signal via the org scope');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select ok(mos.can_retract_signal((select signal_org from authority_ids)),
   'an admin can retract another author''s org Signal via the org scope');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["finance"]}');
 select ok(not mos.can_retract_signal((select signal_org from authority_ids)),
   'a reporting-line manager is not an org-scoped Signal retraction authority');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d7","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d7","access_roles":["member"]}');
 select ok(not mos.can_retract_signal((select signal_org from authority_ids)),
   'a Member with no Team/BU/rank has no retraction reach on another author''s org Signal');
 
@@ -194,30 +194,30 @@ values ('00000000-0000-0000-0000-000000009001','00000000-0000-0000-0000-00000000
         '00000000-0000-0000-0000-0000000000d1','team','00000000-0000-0000-0000-000000005b01',
         now(), 'Historical team signal');
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance"]}');
 select ok(mos.can_retract_signal((select signal_historical from authority_ids)),
   'the author retains retraction authority over their own historical team row');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["finance"]}');
 select ok(mos.can_retract_signal((select signal_historical from authority_ids)),
   'the designated owning-Team lead can retract a historical team row');
 select ok(mos.can_retract_signal((select signal_historical from authority_ids)),
   'the owning BU head can retract a historical team row in that BU');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["ops_lead"]}');
 select ok(mos.can_retract_signal((select signal_historical from authority_ids)),
   'an ops lead can retract a historical team row');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select ok(not mos.can_retract_signal((select signal_historical from authority_ids)),
   'a sibling member with no rule cannot retract a historical team row');
 
 -- ── Process start/close authority (unchanged surface) ────────────────────────────────────────
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance"]}');
 update authority_ids
    set run_one = (mos.spawn_process_run(
   '00000000-0000-0000-0000-00000000c001',
   '00000000-0000-0000-0000-000000005b01', date '2026-03-20')->>'run_id')::uuid;
 select ok((select run_one is not null from authority_ids),
   'the member start RPC works without a process.start access-role claim');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["finance"]}');
 select is(mos.can_close_process_run_id((select run_one from authority_ids)), true,
   'the designated owning-Team lead can close a run started by another member');
 select is((select status from mos.complete_process_run((select run_one from authority_ids))), 'completed',
@@ -225,7 +225,7 @@ select is((select status from mos.complete_process_run((select run_one from auth
 select is(mos.can_close_process_run_id((select run_one from authority_ids)), false,
   'a terminal run has no close affordance');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance"]}');
 update authority_ids
    set run_two = (mos.spawn_process_run(
   '00000000-0000-0000-0000-00000000c001',
@@ -235,19 +235,19 @@ update shared.teams
    set archived_at = now()
  where id = '00000000-0000-0000-0000-000000005b01';
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance"]}');
 select is(mos.can_close_process_run_id((select run_two from authority_ids)), true,
   'the starter can still close an open run after its owning Team is archived');
 
 -- ── Definition writes: precise BU head, org scope still agrees with the matrix ───────────────
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select shared.save_role_authority('[{"action":"workline.manage","role":"bu_head","scope":"org"}]'::jsonb);
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["finance"]}');
 select is(mos.can_manage_definition('00000000-0000-0000-0000-0000000000a3'), true,
   'an admin-saved BU-head org scope changes cross-BU definition authority');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select shared.save_role_authority('[{"action":"workline.manage","role":"bu_head","scope":"own_bu"}]'::jsonb);
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["finance"]}');
 -- REWRITE at the behavior level (#992, OD-OBJ-1): this used to prove a precise BU head could
 -- create an Objective in the headed BU. Objective creation is structural authority now —
 -- admin alone — so the same actor is refused with 42501. The Projects & Processes half above
@@ -266,7 +266,7 @@ $$, 'the precise BU head can create a Project in the headed BU');
 reset role;
 update shared.teams set archived_at = null where id = '00000000-0000-0000-0000-000000005b01';
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["finance"]}');
 select ok(mos.can_retract_signal((select signal_historical from authority_ids)),
   'the historical chain remains after Team re-activation');
 select lives_ok($$
@@ -287,7 +287,7 @@ select is((select count(*)::int from mos.signal_mentions
 -- The tombstone-immutability checks below must run as the AUTHOR (d1): after the first retraction
 -- can_retract_signal returns false (it requires an active row), so any other actor's UPDATE matches
 -- zero rows and would report a false green instead of proving the guard.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance"]}');
 select throws_ok($$
   update mos.signals
      set body = 'Rewritten withdrawn statement'
@@ -325,7 +325,7 @@ values ('00000000-0000-0000-0000-00000000e019',
         '00000000-0000-0000-0000-000000005b01',
         now(), 'Legacy unknown tombstone', '2000-01-01 00:00:00+00', 'Legacy history');
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance"]}');
 select is((select retracted_by from mos.signals
             where id = '00000000-0000-0000-0000-00000000e019'), null::uuid,
   'historical tombstones retain NULL actor provenance rather than inventing an actor');
@@ -335,7 +335,7 @@ select is((select retracted_by_name from mos.signals
 reset role;
 update shared.people set archived_at = now() where id = '00000000-0000-0000-0000-0000000000d2';
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance"]}');
 select is((select retracted_by_name from mos.signals
             where id = (select signal_historical from authority_ids)), 'DirectMgr',
   'the actor-name snapshot remains truthful after the retractor is archived');
@@ -347,7 +347,7 @@ set local role authenticated;
 reset role;
 update shared.people set archived_at = now() where id = '00000000-0000-0000-0000-0000000000d1';
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance"]}');
 select is((select can_post from mos.get_signal_post_authority()), false,
   'an archived actor receives no Signal authority even when the JWT still names them');
 reset role;

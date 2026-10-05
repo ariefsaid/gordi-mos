@@ -32,7 +32,7 @@ select ok(not has_function_privilege('authenticated', 'shared.role_authority_sco
   'the role-scope helper is not an authenticated RPC');
 select ok(not has_function_privilege('authenticated', 'shared.is_designated_team_lead(uuid,uuid)', 'EXECUTE'),
   'the team-lead helper is not an authenticated RPC');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select is((select count(*)::int from shared.list_role_authority()), 64,
   'the admin matrix lists all eight actions across the eight editable authority categories');
 select is((select scope from shared.list_role_authority()
@@ -47,7 +47,7 @@ select is((select scope from shared.list_role_authority()
 select is((select scope from shared.list_role_authority()
             where action = 'process.close' and role = 'bu_head'), 'none',
   'BU-head status does not silently become Process close authority');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select throws_ok($$
   select * from shared.list_role_authority()
 $$, '42501', null,
@@ -58,13 +58,13 @@ select throws_ok($$
 $$, '42501', null,
   'a non-admin cannot change tenant-local authority');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select shared.save_role_authority('[{"action":"workline.manage","role":"member","scope":"own_bu"}]'::jsonb);
 reset role;
 select is(shared.role_authority_scope('workline.manage', 'member'), 'own_bu',
   'an admin save changes only the current org override');
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is(mos.can_manage_definition('00000000-0000-0000-0000-0000000000a2'), true,
   'the saved member own_bu Workline grant changes the effective Project/Process predicate');
 select is(mos.can_manage_objective_definition('00000000-0000-0000-0000-0000000000a2'), false,
@@ -78,9 +78,9 @@ select throws_ok($$
   values ('Objective still denied', '00000000-0000-0000-0000-0000000000a2')
 $$, '42501', null,
   'a Workline-only grant cannot create an Objective in the same BU');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select shared.save_role_authority('[{"action":"workline.manage","role":"member","scope":"none"},{"action":"objective.manage","role":"member","scope":"own_bu"}]'::jsonb);
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is(mos.can_manage_definition('00000000-0000-0000-0000-0000000000a2'), false,
   'an Objective-only grant does not authorize Project/Process writes');
 select is(mos.can_manage_objective_definition('00000000-0000-0000-0000-0000000000a2'), true,
@@ -98,35 +98,35 @@ select throws_ok($$
   values ('Project still denied', 'project', '00000000-0000-0000-0000-0000000000a2')
 $$, '42501', null,
   'an Objective-only grant cannot create a Project in the same BU');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select shared.save_role_authority('[{"action":"workline.manage","role":"member","scope":"own_bu"},{"action":"objective.manage","role":"member","scope":"none"}]'::jsonb);
 select lives_ok($$
   insert into mos.work_lines (id, name, type, business_unit_id)
   values ('00000000-0000-0000-0000-00000000a801', 'Source-scope project', 'project',
           '00000000-0000-0000-0000-0000000000a3')
 $$, 'an admin can seed a Project in the source BU for the old-row scope control');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select throws_ok($$
   update mos.work_lines
      set business_unit_id = '00000000-0000-0000-0000-0000000000a2'
    where id = '00000000-0000-0000-0000-00000000a801'
 $$, '42501', null,
   'a destination BU grant cannot move a Project out of an unmanaged source BU');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select shared.save_role_authority('[{"action":"workline.manage","role":"member","scope":"none"},{"action":"objective.manage","role":"member","scope":"own_bu"}]'::jsonb);
 select lives_ok($$
   insert into mos.objectives (id, name, business_unit_id)
   values ('00000000-0000-0000-0000-00000000a802', 'Source-scope objective',
           '00000000-0000-0000-0000-0000000000a3')
 $$, 'an admin can seed an Objective in the source BU for the old-row scope control');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select throws_ok($$
   update mos.objectives
      set business_unit_id = '00000000-0000-0000-0000-0000000000a2'
    where id = '00000000-0000-0000-0000-00000000a802'
 $$, '42501', null,
   'a destination BU grant cannot move an Objective out of an unmanaged source BU');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select throws_ok($$
   select shared.save_role_authority('[{"action":"signal.post","role":"member","scope":"org"},{"action":"signal.post","role":"member","scope":"none"}]'::jsonb)
 $$, '22023', null,
@@ -180,7 +180,7 @@ select ok(not shared.is_designated_team_lead(
   '00000000-0000-0000-0000-0000000000d2'),
   'an ended Team membership removes effective lead authority');
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select throws_ok($$
   select shared.save_team_lead_assignment(
     '00000000-0000-0000-0000-000000005b01',

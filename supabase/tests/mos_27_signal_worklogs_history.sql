@@ -158,7 +158,7 @@ select is((select count(*)::int from shared.record_history
 -- (mos._guard_signals), weekly-update rows are their own author's (can_write_own_update), an Event
 -- is editable by its creator, a mention is revocable by its Signal's author.
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 
 update mos.signals set body = 'Edited body', attention = 'Urgent'
  where id = '00000000-0000-0000-0000-000000009940';
@@ -239,29 +239,29 @@ select is((select old_row_snapshot ->> 'weekly_update_id' from shared.record_his
            where record_key = '00000000-0000-0000-0000-000000009947'),
   '00000000-0000-0000-0000-000000009945', 'the delete row''s snapshot carries the parent weekly_update_id');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member"]}');
 select is((select count(*)::int from shared.record_history
            where record_key = '00000000-0000-0000-0000-000000009947'),
   1, 'the author''s manager — who could read the item through the upward gate — still reads its delete row');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select is((select count(*)::int from shared.record_history
            where record_key = '00000000-0000-0000-0000-000000009947'),
   0, 'a same-org member the upward gate does not reach reads no delete row');
 
 -- The org-B control deletes its own line: its author reads the delete row, org A reads none of it.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}');
 delete from mos.weekly_update_items
  where id = '00000000-0000-0000-0000-000000009949';
 select is((select count(*)::int from shared.record_history
            where record_key = '00000000-0000-0000-0000-000000009949'),
   1, 'the org-B author reads exactly their own line''s delete row');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is((select count(*)::int from shared.record_history
            where record_key = '00000000-0000-0000-0000-000000009949'),
   0, 'an org-A member reads none of the org-B line''s history');
 
 -- ── the submit, after the line deletes: status carries the change, the clock stays silent ─────
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 update mos.weekly_updates set summary = 'Week 39 done', status = 'submitted'
  where id = '00000000-0000-0000-0000-000000009945';
 select is((select count(*)::int from shared.record_history
@@ -275,7 +275,7 @@ select is((select actor_person_id::text from shared.record_history
   '00000000-0000-0000-0000-0000000000d1', 'the submit stamps its own author''s person claim as actor');
 
 -- ── AC-007: history is readable exactly by those who could read the record ────────────────────
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is((select count(*)::int from shared.record_history
            where schema_name = 'mos' and table_name = 'signals'
              and record_key = '00000000-0000-0000-0000-000000009940'),
@@ -307,7 +307,7 @@ select is((select count(*)::int from shared.record_history
 
 -- Peer ...0d4: same org, but no Signal read rule reaches her and she is not the update author's
 -- manager — the record walls are the history walls.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select is((select count(*)::int from shared.record_history
            where record_key = '00000000-0000-0000-0000-000000009940'),
   0, 'a same-org member who cannot read the team Signal reads none of its history');
@@ -328,7 +328,7 @@ select is((select count(*)::int from shared.record_history
   0, 'the upward wall extends to the line''s history');
 
 -- DirectMgr ...0d2: the author's manager reads the update pair through the upward gate.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member"]}');
 select is((select count(*)::int from shared.record_history
            where record_key = '00000000-0000-0000-0000-000000009945'),
   3, 'the author''s manager reads the weekly update''s history through the upward gate');
@@ -338,17 +338,17 @@ select is((select count(*)::int from shared.record_history
 
 -- follow_ups: org AND lane scoped — the retail chaser reads the retail follow-up's history, the
 -- b2b chaser (same org, other lane) reads none of it.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-000000000d11","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-000000000d11","access_roles":["member"]}');
 select is((select count(*)::int from shared.record_history
            where record_key = '00000000-0000-0000-0000-000000009951'),
   4, 'the retail-lane chaser reads the retail follow-up''s history');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-000000000d10","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-000000000d10","access_roles":["member"]}');
 select is((select count(*)::int from shared.record_history
            where record_key = '00000000-0000-0000-0000-000000009951'),
   0, 'the b2b-lane chaser — same org, other lane — reads none of the retail follow-up''s history');
 
 -- Org B reads its own weekly update's history and none of org A's Signal history.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}');
 select is((select count(*)::int from shared.record_history
            where record_key = '00000000-0000-0000-0000-000000009948'),
   1, 'org B''s member reads their own weekly update''s insert row');
@@ -365,7 +365,7 @@ set local request.jwt.claims = '';
 delete from mos.follow_ups where id = '00000000-0000-0000-0000-000000009951';
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select is((select count(*)::int from shared.record_history
            where record_key = '00000000-0000-0000-0000-000000009951'),
   0, 'a hard-deleted follow-up''s rows — delete row included — are unreadable while no delete arm is registered');

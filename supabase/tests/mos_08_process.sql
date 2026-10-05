@@ -24,7 +24,7 @@ select set_config('app.allow_test_seeds', 'on', true);
 select mos._test_seed_process_tree();
 set local role authenticated;
 -- Author ...0d1 is an active OwnTeam member and holds `member`, which carries process.start.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 
 -- ── The existence oracle is closed ───────────────────────────────────────────────────────────
 -- A nonexistent process and a process in ANOTHER org must be indistinguishable from outside.
@@ -35,7 +35,7 @@ insert into shared.orgs (id, name, slug) values ('00000000-0000-0000-0000-000000
 insert into mos.work_lines (id, org_id, name, type)
 values ('00000000-0000-0000-0000-000000009001','00000000-0000-0000-0000-0000000000c9','Foreign Process','process');
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 
 select throws_ok($$
   select mos.spawn_process_run('00000000-0000-0000-0000-000000009999',
@@ -129,7 +129,7 @@ select is(
 -- ── The gates ────────────────────────────────────────────────────────────────────────────────
 -- Peer is a member of SiblingTeam, so she holds process.start and fails the Team half. That is the
 -- pair working as designed: the capability is broad on purpose, the Team check is what narrows it.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select throws_ok($$
   select mos.spawn_process_run('00000000-0000-0000-0000-00000000c001',
                                '00000000-0000-0000-0000-000000005b01', date '2026-03-04')
@@ -141,7 +141,7 @@ select throws_ok($$
 $$, '42501', null, '...and the refusal is the same on a retry, so nothing is created on the way to failing');
 
 -- ── Resolving a pending item ─────────────────────────────────────────────────────────────────
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select throws_ok($$
   select mos.resolve_pending_task(
     (select p.id from mos.process_run_pending_tasks p

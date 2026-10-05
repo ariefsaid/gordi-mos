@@ -34,19 +34,19 @@ insert into mos.signals (id, org_id, author_id, audience, owning_team_id, occurr
 set local role authenticated;
 
 -- ── All Teams read wall: every active same-org member reads every org Signal ─────────────────
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is((select count(*)::int from mos.signals where id = '00000000-0000-0000-0000-000000007001'), 1,
   'org wall: the author reads the org Signal');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select is((select count(*)::int from mos.signals where id = '00000000-0000-0000-0000-000000007001'), 1,
   'org wall: a sibling member with NO Team/BU/mention rule reads the org Signal — All Teams is org-readable');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member"]}');
 select is((select count(*)::int from mos.signals where id = '00000000-0000-0000-0000-000000007001'), 1,
   'org wall: a same-org member in a different role also reads the org Signal');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}');
 select is((select count(*)::int from mos.signals where id = '00000000-0000-0000-0000-000000007001'), 0,
   'org wall: a cross-org identity is DENIED — org reads stop at the tenant seam');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d7","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d7","access_roles":["member"]}');
 select is((select count(*)::int from mos.signals where id = '00000000-0000-0000-0000-000000007001'), 1,
   'org wall: any active member reads, regardless of Team or rank — no rule needed for org rows');
 set local request.jwt.claims = '{}';
@@ -54,11 +54,11 @@ select is((select count(*)::int from mos.signals), 0,
   'org wall: a claimless session reads nothing — the org wall still needs a live same-org identity');
 
 -- An INACTIVE member must not read an org Signal: Archive the author mid-test, deny, restore.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 reset role;
 update shared.people set archived_at = now() where id = '00000000-0000-0000-0000-0000000000d1';
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is((select count(*)::int from mos.signals where id = '00000000-0000-0000-0000-000000007001'), 0,
   'org wall: an INACTIVE (archived) member is DENIED even though the JWT still names them');
 reset role;
@@ -66,16 +66,16 @@ update shared.people set archived_at = null where id = '00000000-0000-0000-0000-
 set local role authenticated;
 
 -- ── Retired team-audience read grants keep holding on historical rows ────────────────────────
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is((select count(*)::int from mos.signals where id = '00000000-0000-0000-0000-000000007005'), 1,
   'team R1: an active member of the owning Team still reads the historical team row');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member"]}');
 select is((select count(*)::int from mos.signals where id = '00000000-0000-0000-0000-000000007005'), 1,
   'team R2: a holder of a role scoped to the owning BU still reads the historical team row');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d7","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d7","access_roles":["member"]}');
 select is((select count(*)::int from mos.signals where id = '00000000-0000-0000-0000-000000007005'), 1,
   'team R3: a role in a strictly higher-rank BU still reads the historical team row');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select is((select count(*)::int from mos.signals where id = '00000000-0000-0000-0000-000000007005'), 0,
   'team DEFAULT DENY: a sibling-Team member with no rule reads ZERO historical team rows');
 -- R4 stays additive on the retired surface: an explicit, unrevoked mention opens it, revocation
@@ -85,18 +85,18 @@ insert into mos.signal_mentions (id, org_id, signal_id, mention_kind, target_per
 values ('00000000-0000-0000-0000-000000007002','00000000-0000-0000-0000-0000000000a1',
         '00000000-0000-0000-0000-000000007005','person','00000000-0000-0000-0000-0000000000d4');
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select is((select count(*)::int from mos.signals where id = '00000000-0000-0000-0000-000000007005'), 1,
   'team R4: an explicit @Person mention still grants the historical row read');
 reset role;
 update mos.signal_mentions set revoked_at = now() where id = '00000000-0000-0000-0000-000000007002';
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select is((select count(*)::int from mos.signals where id = '00000000-0000-0000-0000-000000007005'), 0,
   'team R4: a REVOKED mention closes the historical row read again');
 
 -- ── Posting: All Teams only ──────────────────────────────────────────────────────────────────
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select isnt(
   mos.create_signal_with_mentions('Posted atomically', now(),
     '[{"kind":"person","targetId":"00000000-0000-0000-0000-0000000000d4"}]'::jsonb),
@@ -137,7 +137,7 @@ $$, '42501', null,
   'source must be ''human'' on an app-written Signal — the other two values exist for producers that do not exist yet');
 
 -- ── Edit history writes itself, cannot be written by hand, and owning_team/author are immutable ──
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 update mos.signals set body = 'The grinder is jammed, third time this week'
  where id = '00000000-0000-0000-0000-000000007001';
 select is(

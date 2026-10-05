@@ -52,7 +52,7 @@ create temp table _outbox_before as select count(*)::int as n from integrations.
 -- A. Refused: the caller does not hold the role
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}');
 
 select throws_ok($$
   select pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000ac01','looks fine')
@@ -73,7 +73,7 @@ select is((select count(*)::int from integrations.esb_push), (select n from _out
 -- ops_lead satisfies the role gate. The org check is what stands between those two facts, and it
 -- runs first so that neither the row's existence nor the caller's role is an oracle.
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 
 select throws_ok($$
   select pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000ac09','not mine')
@@ -93,7 +93,7 @@ select is((select count(*)::int from integrations.esb_push), (select n from _out
 -- is why DD-WAY-20 counts this guard as one of the two structural re-POST protections: history
 -- carried in at the flip cannot be approved a second time, so it never reaches the outbox.
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 
 select throws_ok($$
   select pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000aa02','again')
@@ -107,7 +107,7 @@ select is((select count(*)::int from integrations.esb_push where source_ref = 'P
 -- The other non-Submitted status. Rejecting is a plain guarded UPDATE, so this also proves the guard
 -- reads the status it finds rather than the one the reviewer last set through the RPC.
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 
 select lives_ok($$
   update ops.kitchen_logs set status = 'Rejected', review_note = 'wrong unit'
@@ -132,7 +132,7 @@ select is((select count(*)::int from integrations.esb_push), (select n from _out
 -- -001, not -004. The batch counter is the one piece of state a half-run approval would have moved,
 -- so this single value is what turns the four refusals above from "raised" into "wrote nothing".
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 
 select is(pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000ac01','ok'), 'PR-20260620-001',
   'the first successful approval mints -001 — so none of the four refusals consumed a sequence number');
@@ -318,7 +318,7 @@ insert into ops.kitchen_logs
   ('00000000-0000-0000-0000-00000000ac22','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','2026-06-23','00000000-0000-0000-0000-00000000bf01','bar','transfer','00000000-0000-0000-0000-00000000bf04','00000000-0000-0000-0000-00000000ab03',2,'Submitted','00000000-0000-0000-0000-0000000000d1');
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 
 -- ── The intra-branch movement: approved, and HELD ────────────────────────────────────────────
 select is(pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000ac21','ok'), 'TB-20260623-001',
