@@ -39,6 +39,8 @@ describe('build path setting', () => {
     expect(isProfilePathAvailable('/workshop', 'cafe')).toBe(true)
     expect(isProfilePathAvailable('/', 'cafe')).toBe(false)
     expect(isProfilePathAvailable('/cafe/plan', 'cafe')).toBe(true)
+    expect(isProfilePathAvailable('/cafe/production', 'cafe')).toBe(true)
+    expect(isProfilePathAvailable('/cafe/transfer', 'cafe')).toBe(true)
     expect(isProfilePathAvailable('/admin/people', 'cafe')).toBe(true)
     expect(isProfilePathAvailable('/work/tasks', 'full')).toBe(true)
     expect(isProfileFeatureAvailable('workCollections', 'cafe')).toBe(false)
