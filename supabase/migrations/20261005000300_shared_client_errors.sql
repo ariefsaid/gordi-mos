@@ -20,6 +20,7 @@ create index client_errors_person_created_at_idx
   on shared.client_errors (org_id, person_id, created_at desc);
 
 alter table shared.client_errors enable row level security;
+alter table shared.client_errors force row level security;
 
 create policy client_errors_select_admin on shared.client_errors
   for select to authenticated
