@@ -24,7 +24,7 @@ values ('00000000-0000-0000-0000-00000000af09', '00000000-0000-0000-0000-0000000
         '00000000-0000-0000-0000-00000000ab03', 2, 'Submitted',
         '00000000-0000-0000-0000-0000000000d1');
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select throws_ok($$select ops.approve_kitchen_log('00000000-0000-0000-0000-00000000af09', null)$$,
   '42501', 'an off-plan approval requires a reviewer note',
   'AC-012: off-plan approval with a plan row and no note is refused');
@@ -38,7 +38,7 @@ reset role;
 -- NEW value. An author therefore passes the gate and could then re-attribute the entry to anyone,
 -- including a foreign-org person. WITH CHECK cannot compare OLD to NEW, so this is a trigger.
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}');
 
 select throws_ok($$
   update ops.log_entries set created_by = '00000000-0000-0000-0000-0000000000d4'
@@ -84,7 +84,7 @@ select hasnt_column('ops','log_entries','branch_id',
 -- transfer within one branch's books still subtracts — no ERP document is produced, but the WIP has
 -- left the kitchen's hands, and that is the number the floor is asking for.
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}');
 
 -- Only Approved rows count (FR-023). The fixture's Approved rows in this stream are the two imported
 -- and MOS-authored produces of 11 and 6.
@@ -112,11 +112,9 @@ select is(
 -- Approve one of the seeded transfers and the balance moves DOWN by its quantity: the transfer's
 -- sign is asserted through the function rather than assumed from the CASE expression.
 --
--- The approval is performed as a REVIEWER, not by resetting to the owner. ops._guard_kitchen_log
--- reads shared.has_access_role, which consults the JWT claim rather than the database role, so
--- dropping back to the table owner does not get past the status gate — and should not. Every state
--- change below therefore arrives the way a real one would.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+-- The approval is performed as a reviewer, not by resetting to the owner. The guard checks the
+-- caller's current org-scoped assignment, so every state change below uses the same authority path.
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 -- #236 (FR-043): the per-stream ordering gate refuses a transfer approval while the same
 -- stream/day still has Submitted production. This file is about stock arithmetic, not the gate
 -- (ops_12 owns that), so the four Submitted produce rows of (Rumah Rames, kitchen) 2026-06-20 are
@@ -126,16 +124,16 @@ update ops.kitchen_logs set status = 'Rejected', review_note = 'cleared for the 
  where id in ('00000000-0000-0000-0000-00000000ac01','00000000-0000-0000-0000-00000000ac02',
               '00000000-0000-0000-0000-00000000ac03','00000000-0000-0000-0000-00000000ac06');
 update ops.kitchen_logs set status = 'Approved', review_note = 'stock arithmetic' where id = '00000000-0000-0000-0000-00000000ac04';
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}');
 select is(
   ops.stock_available_for_date('00000000-0000-0000-0000-00000000ab01','2026-06-25',
                                '00000000-0000-0000-0000-00000000bf02','kitchen'),
   13::numeric(12,2),
   'a cross-branch transfer SUBTRACTS from the origin stream''s on-hand');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 update ops.kitchen_logs set status = 'Approved' where id = '00000000-0000-0000-0000-00000000ac05';
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}');
 select is(
   ops.stock_available_for_date('00000000-0000-0000-0000-00000000ab01','2026-06-25',
                                '00000000-0000-0000-0000-00000000bf02','bar'),
@@ -144,7 +142,7 @@ select is(
 
 -- The read is explicitly org-scoped rather than relying on the caller's RLS context, so a definer
 -- path and a member session get the same answer instead of silently different ones.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["admin"]}');
 select is(
   ops.stock_available_for_date('00000000-0000-0000-0000-00000000ab01','2026-06-25',
                                '00000000-0000-0000-0000-00000000bf02','kitchen'),
@@ -153,9 +151,9 @@ select is(
 
 -- Negative balances are preserved rather than clamped (FR-061): a negative is a real signal that
 -- more was moved than was made, and hiding it hides the discrepancy the review step exists to catch.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 update ops.kitchen_logs set status = 'Approved' where id = '00000000-0000-0000-0000-00000000ad05';
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}');
 select is(
   ops.stock_available_for_date('00000000-0000-0000-0000-00000000ab03','2026-06-25',
                                '00000000-0000-0000-0000-00000000bf02','kitchen'),
@@ -181,7 +179,7 @@ select is(
 -- report the total as either. Asserted by reading the SAME item and date in two streams and
 -- getting two different numbers.
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}');
 select is(
   (select usable_qty from ops.kitchen_stock_for_date('2026-06-19','00000000-0000-0000-0000-00000000bf02','kitchen')
     where wip_item_id = '00000000-0000-0000-0000-00000000ab01'),

@@ -24,7 +24,7 @@ values ('00000000-0000-0000-0000-000000008002','00000000-0000-0000-0000-00000000
         '00000000-0000-0000-0000-0000000000b4','00000000-0000-0000-0000-0000000000b4');
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 
 -- ── Cross-owner delivery goes through the RPC, and the RPC walls the org ─────────────────────
 select throws_ok($$
@@ -43,7 +43,7 @@ $$, '42501', null,
 reset role;
 update shared.people set archived_at = now() where id = '00000000-0000-0000-0000-0000000000d5';
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select throws_ok($$
   select mos.create_notification('00000000-0000-0000-0000-0000000000d5','info','To a leaver')
 $$, '42501', null, 'the RPC refuses an ARCHIVED person — a leaver''s inbox stops receiving');
@@ -54,7 +54,7 @@ insert into mos.notifications (id, org_id, owner_id, title, body)
 values ('00000000-0000-0000-0000-000000008003','00000000-0000-0000-0000-0000000000a1',
         '00000000-0000-0000-0000-0000000000d1','Original title','Original body');
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 
 select lives_ok($$
   update mos.notifications set read_at = now() where id = '00000000-0000-0000-0000-000000008003'
@@ -79,16 +79,16 @@ $$, 'the owner can also CLEAR their handled stamp — set and clear are the same
 
 -- A peer in the SAME org: the row is invisible under their RLS, so the UPDATE matches nothing
 -- (the mos_03 no-op pattern). Read back as the owner to prove nothing moved.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member"]}');
 update mos.notifications set handled_at = now() where id = '00000000-0000-0000-0000-000000008003';
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is((select count(*) from mos.notifications where id = '00000000-0000-0000-0000-000000008003' and handled_at is not null), 0::bigint,
   'a peer in the SAME org cannot handled-stamp someone else''s row — RLS hides it, the write matches nothing');
 
 -- A person in ANOTHER org: same no-op shape — cross-org stays invisible.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}');
 update mos.notifications set handled_at = now() where id = '00000000-0000-0000-0000-000000008003';
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is((select count(*) from mos.notifications where id = '00000000-0000-0000-0000-000000008003' and handled_at is not null), 0::bigint,
   'a person in ANOTHER org cannot handled-stamp the row either — cross-org writes match nothing');
 
@@ -120,7 +120,7 @@ insert into mos.user_views (id, org_id, owner_id, name, scope) values
   ('00000000-0000-0000-0000-000000008005','00000000-0000-0000-0000-0000000000a1',
    '00000000-0000-0000-0000-0000000000d2','Manager shared view','shared_team');
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 
 select is((select count(*)::int from mos.user_views where id = '00000000-0000-0000-0000-000000008005'), 1,
   'a report sees the view their MANAGER shared — sharing runs down the reporting line');
@@ -130,13 +130,13 @@ select is((select count(*)::int from mos.user_views where id = '00000000-0000-00
 -- Lead2Holder sits on a different branch of the role tree, so the manager is not above her. Peer
 -- would NOT prove this: she holds the same role as the report and therefore IS managed by the same
 -- lead, so she legitimately sees the shared view.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d7","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d7","access_roles":["admin"]}');
 select is((select count(*)::int from mos.user_views), 0,
   'a same-org ADMIN outside that reporting line sees NEITHER view — admin is not a share, and shared_team means shared with YOUR reports');
 
 -- The classifier columns are all-or-nothing and immutable once set, so a persisted collection view
 -- cannot drift into a composition row while keeping the other one''s spec.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select throws_ok($$
   insert into mos.user_views (name, kind) values ('Half-classified','collection')
 $$, '23514', null,
@@ -175,7 +175,7 @@ insert into mos.agent_events (id, org_id, run_id, owner_id, seq, type, text) val
   ('00000000-0000-0000-0000-00000000800a','00000000-0000-0000-0000-0000000000a1',
    '00000000-0000-0000-0000-000000008008','00000000-0000-0000-0000-0000000000d1',2,'tool','A tool call');
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 
 select lives_ok($$
   update mos.agent_events set rating = 'down', downvote_reason = 'Wrong number'
@@ -224,7 +224,7 @@ $$, '42501', 'run_id belongs to a different org',
   '...and an event cannot hang off a FOREIGN org''s run — the second link of the same chain');
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 
 -- The positive that keeps the two above about the crossing rather than about the chain: a run and an
 -- event on the caller's OWN thread still write, through the ordinary app-tier path.

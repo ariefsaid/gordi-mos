@@ -73,7 +73,7 @@ select is((select actor_person_id::text from shared.record_history
 -- team_memberships_insert_admin): the org-A admin is the real write path, so the admin persona
 -- is the one whose claim must land in the actor column.
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 
 insert into shared.people (id, org_id, full_name)
 values ('00000000-0000-0000-0000-000000009975', '00000000-0000-0000-0000-0000000000a1',
@@ -235,7 +235,7 @@ select is((select new_value from shared.record_history
 -- half is dead, and the self half is the only thing that can admit the read — proven through the
 -- table's own RLS as the authenticated person, not by calling the predicate as the test owner.
 set local role authenticated;
-set local request.jwt.claims = '{"person_id":"00000000-0000-0000-0000-000000009975","access_roles":["member"]}';
+select shared._test_set_access_roles('{"person_id":"00000000-0000-0000-0000-000000009975","access_roles":["member"]}');
 select ok((select count(*)::int from shared.record_history
            where schema_name = 'shared' and table_name = 'people'
              and record_key = '00000000-0000-0000-0000-000000009975') >= 1,
@@ -249,7 +249,7 @@ select is((select count(*)::int from shared.record_history
 -- The settings RPCs these tables expose are admin-only SECURITY DEFINER reads; their history
 -- reads through exactly that authority. The org wall rides the record_key's own first component.
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select is((select count(*)::int from shared.record_history
            where schema_name = 'shared' and table_name = 'role_authority'
              and record_key = '00000000-0000-0000-0000-0000000000a1:signal.tag:member'),
@@ -259,7 +259,7 @@ select is((select count(*)::int from shared.record_history
              and record_key = '00000000-0000-0000-0000-0000000000a1:00000000-0000-0000-0000-000000009971'),
   2, 'DA-1: the org-A admin reads the team_lead_assignments history through its composite-key arm');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select is((select count(*)::int from shared.record_history
            where schema_name = 'shared' and table_name = 'role_authority'),
   0, 'a same-org plain member — below the settings RPCs'' admin tier — reads none of the authority matrix''s history');
@@ -267,7 +267,7 @@ select is((select count(*)::int from shared.record_history
            where schema_name = 'shared' and table_name = 'team_lead_assignments'),
   0, 'the same admin wall holds for the team-lead designation''s history');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["admin"]}');
 select is((select count(*)::int from shared.record_history
            where schema_name = 'shared' and table_name = 'role_authority'),
   0, 'DA-1: org B''s admin reads none of org A''s authority-matrix history');
@@ -278,7 +278,7 @@ select is((select count(*)::int from shared.record_history
 -- ── the real write path stamps the claim: the admin settings RPC ──────────────────────────────
 -- save_role_authority is how the matrix is actually edited. The definer RPC preserves the
 -- caller's claim, so its insert row carries the administering admin as actor.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select shared.save_role_authority('[{"action":"signal.post","role":"member","scope":"none"}]'::jsonb);
 
 select is((select count(*)::int from shared.record_history
@@ -327,22 +327,22 @@ select is((select new_value from shared.record_history
            where record_key = '00000000-0000-0000-0000-000000009978'),
   null, 'the delete row carries no new value');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select is((select count(*)::int from shared.record_history
            where record_key = '00000000-0000-0000-0000-000000009978'),
   1, 'a same-org plain member still reads the removed assignment''s delete row (org-wide snapshot arm)');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["admin"]}');
 select is((select count(*)::int from shared.record_history
            where record_key = '00000000-0000-0000-0000-000000009978'),
   0, 'org B''s admin reads none of the removed assignment''s history');
 
 -- ── the org wall on the plain-org directory reads ─────────────────────────────────────────────
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select is((select count(*)::int from shared.record_history
            where schema_name = 'shared' and table_name = 'people'
              and record_key = '00000000-0000-0000-0000-0000000000d4'),
   1, 'the org-A admin reads a seeded org-A person''s history');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["admin"]}');
 select is((select count(*)::int from shared.record_history
            where schema_name = 'shared' and table_name = 'people'
              and record_key = '00000000-0000-0000-0000-0000000000d4'),
@@ -355,7 +355,7 @@ select is((select count(*)::int from shared.record_history
 -- The team-lead DESIGNATION goes through its admin RPC, not a bare table write: clearing it
 -- hard-deletes the row, and the RPC caller's claim is the delete actor.
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select shared.save_team_lead_assignment('00000000-0000-0000-0000-000000009971',
                                         '00000000-0000-0000-0000-0000000000d4');
 select ok((select count(*)::int from shared.record_history
@@ -380,13 +380,13 @@ select is((select count(*)::int from shared.record_history
   1, 'the admin still reads the cleared designation''s delete row through the snapshot arm');
 
 -- The delete arm keeps the admin tier: the row is gone, so this is the only wall left on it.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select is((select count(*)::int from shared.record_history
            where schema_name = 'shared' and table_name = 'team_lead_assignments'
              and record_key = '00000000-0000-0000-0000-0000000000a1:00000000-0000-0000-0000-000000009971'
              and action = 'delete'),
   0, 'a same-org plain member reads none of the cleared designation''s delete row (admin tier on the delete arm)');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["admin"]}');
 select is((select count(*)::int from shared.record_history
            where schema_name = 'shared' and table_name = 'team_lead_assignments'
              and record_key = '00000000-0000-0000-0000-0000000000a1:00000000-0000-0000-0000-000000009971'

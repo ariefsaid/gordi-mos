@@ -43,7 +43,7 @@ select ok(has_column_privilege('authenticated', 'ops.cafe_missing_item_reports',
   'the app can request a one-way resolution');
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select lives_ok($$
   insert into ops.cafe_missing_item_reports (branch_id, activity, item_name)
   values ('00000000-0000-0000-0000-00000000bf01', 'kitchen', 'Oat milk')
@@ -61,7 +61,7 @@ select throws_ok($$
 $$, '23514', null,
   'an empty missing-item name is rejected');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","manager"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","manager"]}');
 select is(ops.can_manage_cafe_item_settings('kitchen'), true, 'the existing item-settings manager authority governs the queue');
 select is((select reported_by::text from ops.cafe_missing_item_reports limit 1),
           '00000000-0000-0000-0000-0000000000d4',
@@ -86,7 +86,7 @@ $$, 'a resolved report cannot be reopened');
 select is((select needs_attention from ops.cafe_missing_item_reports where item_name = 'Oat milk'), false,
   'the RLS update predicate leaves a resolved report closed');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member","manager"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member","manager"]}');
 select is(ops.can_manage_cafe_item_settings('kitchen'), false, 'a manager outside Retail Ops is not a Café item-settings manager');
 select is((select count(*)::int from ops.cafe_missing_item_reports), 0,
   'a manager outside Café cannot read another stream''s queue');

@@ -61,7 +61,7 @@ insert into reporting.ingredient_cost_lines (org_id, ingredient_esb_code, name, 
   ('00000000-0000-0000-0000-0000000000a1','ING-ESP', 'Espresso',  320000.0000,'kg',now());
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance"]}');
 
 -- The capture runs in its own statement, deliberately. Calling the RPC inside the SELECT that reads
 -- the row back returns NULL every time: the outer statement's snapshot is taken before the function
@@ -95,7 +95,7 @@ insert into reporting.sales_daily_revenue
   ('00000000-0000-0000-0000-0000000000b1','2026-07-01','POS','GKI','RRS','B''s own RRS',99,9900000.00,'2026-07-01 04:00:00+07');
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["manager"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["manager"]}');
 select set_eq($$ select branch_code from reporting.list_revenue_branches() $$,
   array['RRS','GRI'],
   'the picker lists each branch ONCE however many days it has billed, and only the caller''s org — two days of Rumah Rames is one option');
@@ -103,7 +103,7 @@ select set_eq($$ select branch_code from reporting.list_revenue_branches() $$,
 -- SECURITY INVOKER is the whole design of this function: it holds no privilege of its own, so the
 -- caller's RLS on the fact table decides what is enumerable. A member sees an empty picker rather
 -- than the org's branch list.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select is((select count(*)::int from reporting.list_revenue_branches()), 0,
   'a member calling the picker gets nothing — the function runs as its caller, so it cannot be used as a side door around the read policy');
 

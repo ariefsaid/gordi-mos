@@ -23,7 +23,7 @@ set local role authenticated;
 -- ── The status gate (FR-044) ─────────────────────────────────────────────────────────────────
 -- A member may submit and may correct their own pending line; they may not decide it is approved.
 -- That is the GIGO gate the whole review step exists for.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}');
 select throws_ok($$
   update ops.kitchen_logs set status = 'Approved' where id = '00000000-0000-0000-0000-00000000ac01'
   $$, '42501', 'only the stream''s supervisor or ops_lead/admin may approve or reject a kitchen log',
@@ -33,7 +33,7 @@ select throws_ok($$
   $$, '42501', 'only the stream''s supervisor or ops_lead/admin may approve or reject a kitchen log',
   'FR-044: nor reject one — leaving Submitted in either direction is a reviewer action');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select lives_ok($$
   update ops.kitchen_logs set status = 'Rejected', review_note = 'wrong unit'
    where id = '00000000-0000-0000-0000-00000000ac06'
@@ -54,7 +54,7 @@ select ok(
 
 -- ── Immutability: a fact row cannot be re-attributed or re-homed ─────────────────────────────
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}');
 select throws_ok($$
   update ops.kitchen_logs set submitted_by = '00000000-0000-0000-0000-0000000000d4'
    where id = '00000000-0000-0000-0000-00000000ac01'
@@ -173,7 +173,7 @@ select throws_ok($$
   'a plan cannot be attributed to a FOREIGN org''s person');
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 
 -- ── The edit window closes at review ─────────────────────────────────────────────────────────
 -- Three controls in three different layers, asserted separately because each can be removed on its
@@ -183,7 +183,7 @@ set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1"
 --    path (definer) and the worker (service_role). The app tier holds no column grant on them, which
 --    also keeps the enqueue refusal's predicate honest — it reads the posted marker, so that marker
 --    must not be writable by the tier the refusal constrains.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 
 select throws_ok($$
   update ops.kitchen_logs set posted_to_esb = false where id = '00000000-0000-0000-0000-00000000aa01'
@@ -218,7 +218,7 @@ select throws_ok($$
 -- 3. THE POLICY. A submitter's arm is scoped to their own row AND to the period before review, so
 --    the reach ends where the reviewer's begins. RLS filters rather than raises, so this is a
 --    zero-row no-op and the value is read back to prove it.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 update ops.kitchen_logs set qty_porsi = 999 where id = '00000000-0000-0000-0000-00000000aa02';
 reset role;
 select is(
@@ -229,7 +229,7 @@ select is(
 -- The same submitter on a row still awaiting review, so the zero above is the status term and not a
 -- broken persona.
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 update ops.kitchen_logs set qty_porsi = 14 where id = '00000000-0000-0000-0000-00000000ac03';
 reset role;
 select is(

@@ -26,7 +26,7 @@ insert into shared.team_memberships (org_id, person_id, team_id, is_primary) val
 -- Two Submitted logs and one plan, all on RRS kitchen (a producing stream) — this is the state a
 -- legacy row is left in once the stream later stops producing.
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member"]}');
 insert into ops.kitchen_logs (id, business_unit_id, log_date, branch_id, activity, action, wip_item_id, qty_porsi)
   values ('00000000-0000-0000-0000-00000000c101','00000000-0000-0000-0000-00000000bb01','2026-06-25','00000000-0000-0000-0000-00000000bf02','kitchen','produce','00000000-0000-0000-0000-00000000ab01',1);
 insert into ops.kitchen_logs (id, business_unit_id, log_date, branch_id, activity, action, wip_item_id, qty_porsi)
@@ -34,7 +34,7 @@ insert into ops.kitchen_logs (id, business_unit_id, log_date, branch_id, activit
 reset role;
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["ops_lead"]}');
 insert into ops.kitchen_plans (id, log_date, branch_id, activity, action, wip_item_id, qty_porsi)
   values ('00000000-0000-0000-0000-00000000c103','2026-06-25','00000000-0000-0000-0000-00000000bf02','kitchen','produce','00000000-0000-0000-0000-00000000ab01',3);
 -- A second plan on GHQ kitchen, a stream that stays producing for the rest of this test — isolates
@@ -50,7 +50,7 @@ select is((select produces from shared.teams where org_id = '00000000-0000-0000-
   '#832 setup: RRS kitchen no longer produces');
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["ops_lead"]}');
 
 -- Deciding a row already on the (now non-producing) stream never re-checks the stream: approve
 -- and reject both proceed exactly as they would have before the catalog changed.

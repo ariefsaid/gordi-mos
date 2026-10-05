@@ -102,7 +102,7 @@ select '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000
 
 -- ── the submitter's own write: authenticated CREATE + a two-column UPDATE with old and new ─────
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 
 insert into ops.kitchen_logs (id, org_id, business_unit_id, log_date, branch_id, activity, action,
                               wip_item_id, qty_porsi)
@@ -156,7 +156,7 @@ select is((select count(*)::int from shared.record_history
 -- DirectMgr ...0d2 rejects ...9904. The guard stamps reviewed_by/reviewed_at server-side; history
 -- records status, review_note and reviewed_by — the review itself — and the reviewed_at clock
 -- (the '-reviewed_at' exclude) writes no row beside them.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 
 update ops.kitchen_logs set status = 'Rejected', review_note = 'miscounted'
  where id = '00000000-0000-0000-0000-000000009904';
@@ -273,7 +273,7 @@ select is((select old_row_snapshot ->> 'source' from shared.record_history
 
 -- The read gate on a removed row is the org-wide SELECT predicate, not the ops_lead DELETE tier:
 -- every same-org member still reads it.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is((select count(*)::int from shared.record_history
            where record_key = '00000000-0000-0000-0000-000000009909'),
   1, 'a same-org plain member still reads the removed list entry''s delete row');
@@ -282,7 +282,7 @@ select is((select count(*)::int from shared.record_history
   1, 'a same-org plain member reads the plan edit''s history row');
 
 -- ── the org wall: the tier does not cross it, in either direction ──────────────────────────────
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member","ops_lead"]}');
 select is((select count(*)::int from shared.record_history
            where record_key = '00000000-0000-0000-0000-000000009909'),
   0, 'org B''s ops_lead reads none of org A''s removed list entry — the tier does not cross the wall');
@@ -295,11 +295,11 @@ select is((select count(*)::int from shared.record_history
 select is((select count(*)::int from shared.record_history
            where record_key = '00000000-0000-0000-0000-000000009903'),
   0, 'org B''s ops_lead reads none of org A''s plan history');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is((select count(*)::int from shared.record_history
            where record_key = '00000000-0000-0000-0000-00000000ac09'),
   0, 'an org-A member reads none of org B''s kitchen-log history');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select is((select count(*)::int from shared.record_history
            where record_key = '00000000-0000-0000-0000-00000000ac09'),
   0, 'org A''s ops_lead reads none of org B''s kitchen-log history — same wall, other direction');
@@ -318,7 +318,7 @@ values ('00000000-0000-0000-0000-000000009921', '00000000-0000-0000-0000-0000000
         '00000000-0000-0000-0000-00000000ab01', 3,
         '00000000-0000-0000-0000-0000000000d1');
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select isnt((select ops.approve_kitchen_log('00000000-0000-0000-0000-000000009921', 'History approve')),
   null, 'the approval RPC mints a batch id for the stream''s ops_lead');
 select is((select old_value from shared.record_history

@@ -11,7 +11,7 @@ insert into mention_ids default values;
 grant select, update on mention_ids to authenticated;
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 update mention_ids
    set signal_id = mos.create_signal_with_mentions(
      'Member BU mention',
@@ -56,9 +56,9 @@ select is((select metadata->'actor'->>'name' from mos.notifications
   'a mention notification''s metadata carries the Signal author''s name as actor.name (#774)');
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select shared.save_role_authority('[{"action":"signal.tag","role":"member","scope":"none"}]'::jsonb);
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select throws_ok($$
   select mos.create_signal_with_mentions(
     'Denied BU mention',

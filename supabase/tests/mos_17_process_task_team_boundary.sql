@@ -9,7 +9,7 @@ select set_config('app.allow_test_seeds', 'on', true);
 select mos._test_seed_process_tree();
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 
 select is(
   (mos.spawn_process_run(

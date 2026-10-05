@@ -55,10 +55,10 @@ insert into auth.refresh_tokens (session_id, token, user_id, revoked) values
 -- What the data API fence answers for d1 on a given agent session: 'passes', or the error code.
 create function public._t_fence(p_session text, p_client text) returns text language plpgsql as $$
 begin
-  perform set_config('request.jwt.claims', jsonb_build_object(
+  perform shared._test_set_access_roles(jsonb_build_object(
     'role', 'authenticated', 'sub', '00000000-0000-0000-0000-00000000aa01', 'session_id', p_session,
     'client_id', p_client, 'org_id', '00000000-0000-0000-0000-0000000000a1',
-    'person_id', '00000000-0000-0000-0000-0000000000d1', 'access_roles', '["admin"]'::jsonb)::text, true);
+    'person_id', '00000000-0000-0000-0000-0000000000d1', 'access_roles', '["admin"]'::jsonb)::text);
   perform set_config('search_path', '"api_v1", "public", "extensions"', true);
   perform api_private.check_request();
   return 'passes';
@@ -214,8 +214,8 @@ select is((select count(*)::int from auth.sessions
   'disabling the login deletes their agent sessions');
 select is((select count(*)::int from auth.refresh_tokens where token = 'lifecycle-rt-7'), 0,
   'disabling the login deletes their agent refresh tokens');
-select is((select count(*)::int from auth.sessions where id = '5a020000-0000-4000-8000-000000000004'), 1,
-  'the person''s app session is left to Auth''s own ban handling');
+select is((select count(*)::int from auth.sessions where id = '5a020000-0000-4000-8000-000000000004'), 0,
+  'disabling the login deletes the person''s app session too');
 set local role authenticated;
 select set_config('request.jwt.claims',
   '{"role":"authenticated","sub":"00000000-0000-0000-0000-00000000aa03","org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}', true);

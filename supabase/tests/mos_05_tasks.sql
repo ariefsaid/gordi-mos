@@ -41,7 +41,7 @@ values ('00000000-0000-0000-0000-000000005003','00000000-0000-0000-0000-00000000
 set local role authenticated;
 
 -- ── Read: org-wide, on purpose ───────────────────────────────────────────────────────────────
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member"]}');
 select is((select count(*)::int from mos.tasks), 2,
   'tasks are ORG-readable: a member who is on neither task reads both — cross-unit visibility is the product, not a leak');
 
@@ -85,7 +85,7 @@ select throws_ok($$
 $$, '23514', null, 'a blank title is refused — btrim(title) <> '''' rejects whitespace, not merely the empty string');
 
 -- ── Edit gate ────────────────────────────────────────────────────────────────────────────────
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 update mos.tasks set title = 'Peer Rewrite' where id = '00000000-0000-0000-0000-000000005001';
 select is((select title from mos.tasks where id = '00000000-0000-0000-0000-000000005001'),
   'Author Task', 'edit gate: a PEER holding the same role as R/A changes nothing — sideways is not a manager');
@@ -95,7 +95,7 @@ select throws_ok($$
 $$, '42501', null,
   'edit gate: the same peer cannot add a checklist item either — the child tables reuse can_edit_task rather than restating it');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select lives_ok($$
   update mos.tasks set status = 'In Progress' where id = '00000000-0000-0000-0000-000000005001'
 $$, 'edit gate: the Responsible can move their own task''s status');
@@ -103,7 +103,7 @@ select lives_ok($$
   update mos.task_checklist_items set is_done = true where id = '00000000-0000-0000-0000-000000005003'
 $$, 'edit gate: ...and can tick its checklist items');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member"]}');
 select lives_ok($$
   update mos.tasks set status = 'Blocked' where id = '00000000-0000-0000-0000-000000005001'
 $$, 'edit gate: an up-chain manager of R/A can edit the task');
@@ -112,7 +112,7 @@ $$, 'edit gate: an up-chain manager of R/A can edit the task');
 -- Task ...5002 has R = Peer and A = Author. Peer may EDIT it and must not archive it. That gap is
 -- the whole point of a separate gate, and it is the one an "if you can edit you can archive"
 -- simplification silently closes.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select lives_ok($$
   update mos.tasks set status = 'In Progress' where id = '00000000-0000-0000-0000-000000005002'
 $$, 'archive gate precondition: the Responsible CAN edit this task');
@@ -121,7 +121,7 @@ select throws_ok($$
 $$, '42501', null,
   'archive gate: a Responsible who is NOT the Accountable cannot archive — archiving is how "decided not to do" is expressed, so it is the A''s call');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select lives_ok($$
   update mos.tasks set archived_at = now() where id = '00000000-0000-0000-0000-000000005002'
 $$, 'archive gate: the Accountable can archive');
@@ -205,7 +205,7 @@ insert into shared.teams (id, org_id, business_unit_id, site_id, name, code) val
   ('00000000-0000-0000-0000-000000005b10','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000a2','00000000-0000-0000-0000-000000005a10','Unit-1 Team','u1_team'),
   ('00000000-0000-0000-0000-000000005b11','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-0000000000a3',null,'Unit-2 Team','u2_team');
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 
 select lives_ok($$
   update mos.tasks set team_id = '00000000-0000-0000-0000-000000005b10'
@@ -228,7 +228,7 @@ $$, '42501', null,
   'guard: a direct authenticated write cannot stamp process_run_id — otherwise any member could forge "this Task came from a recurring process occurrence"');
 
 -- ── #752 AC-015: the merged guard owns the completion clock ───────────────────────────────
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 update mos.tasks set status = 'Open' where id = '00000000-0000-0000-0000-000000005001';
 select is((select completed_at from mos.tasks where id = '00000000-0000-0000-0000-000000005001'),
   null,

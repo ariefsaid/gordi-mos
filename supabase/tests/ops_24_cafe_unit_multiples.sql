@@ -30,7 +30,7 @@ select ok(not ops.cafe_unit_multiples_valid(array[1, 0.5]::numeric[])
   'one, duplicates, non-positive values and factors beyond six decimal places are rejected');
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","admin"]}');
 select lives_ok($$
   select ops.save_cafe_item_settings(
     '00000000-0000-0000-0000-00000000bf01', 'kitchen',
@@ -92,7 +92,7 @@ select throws_ok($$
 $$, 'P0015', 'CAFE_ITEM_UNIT_NOT_SHOWN: Café capture must use the default ERP detail; select a configured multiple for another quantity',
   'a shown non-default ERP detail cannot replace the default coordinate');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select lives_ok($$ select ops.approve_kitchen_log('00000000-0000-0000-0000-00000000c431', 'multiple capture approved') $$,
   'approval uses the normal review and ERP dispatch path');
 select is((select qty_porsi from ops.kitchen_logs where id = '00000000-0000-0000-0000-00000000c431'),
@@ -103,7 +103,7 @@ select is((select push.payload ->> 'esb_product_detail_id_porsi'
             where log.id = '00000000-0000-0000-0000-00000000c431'),
           'SYNTH-ERP-PD-1345-WIP-A', 'the ERP outbox posts against the same default detail');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","admin"]}');
 select lives_ok($$
   select ops.save_cafe_item_settings(
     '00000000-0000-0000-0000-00000000bf01', 'kitchen',
@@ -123,7 +123,7 @@ select is((select cardinality(setting.unit_multiples) from ops.cafe_item_setting
 select is((select entry_unit_factor from ops.kitchen_logs where id = '00000000-0000-0000-0000-00000000c431'),
           0.5::numeric, 'changing settings never rewrites the captured historical factor');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member"]}');
 select cmp_ok((select count(*)::int from ops.cafe_item_settings_read
                 where item_id = (select id from ops.wip_items where esb_product_id = 'SYNTH-ERP-P-1345-WIP')
                   and branch_id = '00000000-0000-0000-0000-00000000bf01'), '>', 0,

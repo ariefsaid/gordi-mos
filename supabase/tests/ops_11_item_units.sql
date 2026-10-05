@@ -50,7 +50,7 @@ set local role authenticated;
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- A. AC-003 — the gate is a query predicate (NFR-004): absence, then presence on confirmation
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}');
 
 select is(
   (select count(*)::int from ops.capture_form_items
@@ -82,7 +82,7 @@ select is(
 
 -- The confirmation event (FR-030), with FORGED provenance: the client claims Peer confirmed it
 -- back in 2020. The stamp trigger must discard both and record the SESSION person, now.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select lives_ok($$
   update ops.item_units
      set confirmed_at = '2020-01-01T00:00:00Z',
@@ -101,7 +101,7 @@ select is(
   now(),
   'FR-030 provenance: confirmed_at is stamped now() — the client-supplied back-date is overridden');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}');
 select is(
   (select count(*)::int from ops.capture_form_items
     where wip_item_id = '00000000-0000-0000-0000-00000000ab03'),
@@ -111,7 +111,7 @@ select is(
 -- Re-pointing a CONFIRMED row voids its confirmation (DD-WAY-29): new coordinates are an
 -- unconfirmed claim, whoever writes them — the row must leave the form until re-confirmed,
 -- even when the same statement pretends to re-confirm it.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 update ops.item_units
    set esb_product_detail_id = 'PD-PORSI-001-MOVED',
        confirmed_at = now(), confirmed_by = '00000000-0000-0000-0000-0000000000d2'
@@ -139,7 +139,7 @@ select is((select count(*)::int from ops.item_units), 0,
 select is((select count(*)::int from ops.capture_form_items), 0,
   'capture_form_items: a claimless session reads an empty form — security_invoker, the base-table RLS is the scope');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}');
 select isnt((select count(*)::int from ops.item_units), 0,
   'item_units_select_org (positive): a member reads the org''s item units');
 
@@ -173,7 +173,7 @@ select is(
   'item_units_update_ops_lead_or_admin: a member''s edit affects zero rows — the unit name is unchanged');
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select lives_ok($$
   insert into ops.item_units (wip_item_id, unit_name, esb_product_detail_id)
   values ('00000000-0000-0000-0000-00000000ab01','botol','PD-BOTOL-001')
@@ -295,7 +295,7 @@ select is(
   'backfill: re-applying the statement is a no-op — still exactly one row');
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}');
 
 select is(
   (select count(*)::int from ops.capture_form_items

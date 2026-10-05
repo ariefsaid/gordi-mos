@@ -83,7 +83,7 @@ select is((select count(*)::int from information_schema.role_table_grants
              and grantee in ('anon', 'authenticated', 'public') and privilege_type in ('INSERT', 'UPDATE', 'DELETE', 'TRUNCATE')),
   0, 'no application role holds a write privilege on history');
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-00000000c1b1","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-00000000c1b1","access_roles":["admin"]}');
 select throws_ok($$ delete from shared.record_history $$, '42501', null, 'an admin cannot delete history');
 set local role anon;
 select throws_ok($$ delete from shared.record_history $$, '42501', null, 'anon cannot delete history');

@@ -64,7 +64,7 @@ select is((select count(*)::int from ops.cafe_item_settings_read
   'the settings reader retains an ERP item that currently has no active product details');
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","manager"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","manager"]}');
 select lives_ok($$
   select ops.save_cafe_item_settings(
     '00000000-0000-0000-0000-00000000bf01', 'kitchen',
@@ -133,7 +133,7 @@ select ok((select bool_and(unit_is_shown) and bool_or(unit_is_default)
               and branch_id = '00000000-0000-0000-0000-00000000bf01'),
   'both ERP details are shown and exactly one is the stream default');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member"]}');
 select ok(not ops.can_manage_cafe_item_settings('kitchen'),
   'an ordinary member cannot edit settings');
 select cmp_ok((select count(*)::int from ops.cafe_item_settings_read
@@ -148,11 +148,11 @@ select is((select mos_name from ops.cafe_item_settings_read
             limit 1), 'Manager renamed item',
   'RLS refuses a member edit without revealing a write path');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","supervisor"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","supervisor"]}');
 select ok(not ops.can_manage_cafe_item_settings('kitchen'),
   'supervisor review access alone does not grant item-settings write access');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","manager"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","manager"]}');
 select ok(not ops.can_manage_cafe_item_settings('kitchen'),
   'a manager assigned outside Retail Ops is not a relevant Café editor');
 select throws_ok($$
@@ -172,7 +172,7 @@ select throws_ok($$
           'MOS-created unit', 'SYNTH-ERP-PD-MOS-CREATED')
 $$, '42501', null, 'a manager cannot create a unit or an ERP conversion in MOS');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","manager"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","manager"]}');
 select throws_ok($$
   select ops.save_cafe_item_settings(
     '00000000-0000-0000-0000-00000000bf01', 'kitchen',
@@ -215,7 +215,7 @@ select is((select count(*)::int from ops.cafe_item_settings_read
               and unit_is_shown), 1,
   'the hidden detail is removed from the stream choices after the atomic save');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select lives_ok($$
   select ops.save_cafe_item_settings(
     '00000000-0000-0000-0000-00000000bf01', 'kitchen',
@@ -228,7 +228,7 @@ select lives_ok($$
     ], 'WIP', true
   )
 $$, 'ops leads retain cross-stream item-settings authority');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","admin"]}');
 select lives_ok($$
   select ops.save_cafe_item_settings(
     '00000000-0000-0000-0000-00000000bf01', 'kitchen',
@@ -258,7 +258,7 @@ update ops.cafe_item_settings
    and activity = 'kitchen'
    and wip_item_id = (select id from ops.wip_items where esb_product_id = 'SYNTH-ERP-P-1242-WIP');
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select throws_ok($$
   insert into ops.kitchen_logs
     (id, business_unit_id, log_date, branch_id, activity, action, wip_item_id, item_unit_id, qty_porsi)

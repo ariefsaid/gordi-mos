@@ -34,7 +34,7 @@ values ('00000000-0000-0000-0000-0000000000a1',
         '00000000-0000-0000-0000-0000000000d2',
         '00000000-0000-0000-0000-000000005b01', false);
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select shared.save_team_lead_assignment('00000000-0000-0000-0000-000000005b01','00000000-0000-0000-0000-0000000000d2');
 set local request.jwt.claims = '{}';
 reset role;
@@ -63,7 +63,7 @@ values ('00000000-0000-0000-0000-0000000000a1',
         '00000000-0000-0000-0000-0000000000d7',
         '00000000-0000-0000-0000-000000005b05', false);
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select shared.save_team_lead_assignment('00000000-0000-0000-0000-000000005b05','00000000-0000-0000-0000-0000000000d7');
 set local request.jwt.claims = '{}';
 reset role;
@@ -94,7 +94,7 @@ grant select, update on t1010 to authenticated;
 
 -- ── All Teams (org) rows: configured scopes + the admin-override integration ───────────────────────
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 update t1010 set target_signal = mos.create_signal_with_mentions(
   'Authority target', now(), '[]'::jsonb);
 update t1010 set self_signal = mos.create_signal_with_mentions(
@@ -126,7 +126,7 @@ update t1010 set inner_signal = mos.create_signal_with_mentions(
 
 -- A same-org member with no special access role cannot retract another author's Signal: RLS admits
 -- zero rows, so the UPDATE lives but changes nothing.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 update mos.signals set retracted_at = now(), retract_reason = 'Peer attempt'
  where id = (select target_signal from t1010);
 select is((select retracted_at from mos.signals where id = (select target_signal from t1010)),
@@ -136,7 +136,7 @@ select is((select retracted_at from mos.signals where id = (select target_signal
 -- finance is configured 'none' in shared.role_authority (role_capabilities separately still grants
 -- it, but the UPDATE policy's USING clause already gates on mos.can_retract_signal, so that table
 -- never even gets consulted for this attempt).
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["finance"]}');
 update mos.signals set retracted_at = now(), retract_reason = 'Finance attempt'
  where id = (select target_signal from t1010);
 select is((select retracted_at from mos.signals where id = (select target_signal from t1010)),
@@ -144,7 +144,7 @@ select is((select retracted_at from mos.signals where id = (select target_signal
   'finance cannot retract another author''s Signal under the default configuration');
 
 -- manager is also configured 'none' by default.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d6","access_roles":["manager"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d6","access_roles":["manager"]}');
 update mos.signals set retracted_at = now(), retract_reason = 'Manager attempt'
  where id = (select target_signal from t1010);
 select is((select retracted_at from mos.signals where id = (select target_signal from t1010)),
@@ -152,9 +152,9 @@ select is((select retracted_at from mos.signals where id = (select target_signal
   'manager cannot retract another author''s Signal under the default configuration');
 
 -- An admin override changes the outcome: the tenant grants manager an org-wide retraction scope.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select shared.save_role_authority('[{"action":"signal.retract","role":"manager","scope":"org"}]'::jsonb);
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d6","access_roles":["manager"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d6","access_roles":["manager"]}');
 select lives_ok($$
   update mos.signals set retracted_at = now(), retract_reason = '  Duplicate report, superseded  '
    where id = (select target_signal from t1010)
@@ -178,11 +178,11 @@ select is((select metadata->'actor'->>'id' from mos.notifications
   '00000000-0000-0000-0000-0000000000d6',
   'the notification names the actual retracting actor');
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select shared.save_role_authority('[{"action":"signal.retract","role":"manager","scope":"none"}]'::jsonb);
 
 -- ops_lead and admin retain their configured org scope through the actual UPDATE path.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["ops_lead"]}');
 select lives_ok($$
   update mos.signals set retracted_at = now(), retract_reason = 'Ops lead retraction'
    where id = (select ops_lead_signal from t1010)
@@ -190,7 +190,7 @@ $$, 'an ops lead can retract another author''s org Signal through the actual UPD
 select is((select retracted_at is not null from mos.signals
             where id = (select ops_lead_signal from t1010)), true,
   'the ops lead retraction actually tombstoned the row, not a zero-row RLS pass-through');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select lives_ok($$
   update mos.signals set retracted_at = now(), retract_reason = 'Admin retraction'
    where id = (select admin_signal from t1010)
@@ -200,7 +200,7 @@ select is((select retracted_at is not null from mos.signals
   'the admin retraction actually tombstoned the row, not a zero-row RLS pass-through');
 
 -- Self-retraction: author-own succeeds and draws no notification (the actor already knows).
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select lives_ok($$
   update mos.signals set retracted_at = now(), retract_reason = 'Withdrawn by author'
    where id = (select self_signal from t1010)
@@ -217,7 +217,7 @@ select is((select count(*)::int from mos.notifications
 set local role authenticated;
 
 -- Reason required, and required after trimming (whitespace-only is empty).
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select throws_ok($$
   update mos.signals set retracted_at = now(), retract_reason = null
    where id = (select live_signal from t1010)
@@ -293,9 +293,9 @@ select is((select retract_reason from mos.signals where id = (select inner_signa
 -- The retraction authority is decided by the configured scope: once an admin sets the member
 -- scope to none, even the author can no longer retract their own Signal (RLS still admits the
 -- author's row; only the trigger's authority check refuses).
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select shared.save_role_authority('[{"action":"signal.retract","role":"member","scope":"none"}]'::jsonb);
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select throws_ok($$
   update mos.signals set retracted_at = now(), retract_reason = 'Author after scope revoked'
    where id = (select revoked_self_signal from t1010)
@@ -303,9 +303,9 @@ $$, '42501', null, 'an author whose retraction scope is configured to none canno
 select is((select retracted_at from mos.signals where id = (select revoked_self_signal from t1010)),
   null::timestamptz,
   'the author''s Signal stays live when their retraction scope is none');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select shared.save_role_authority('[{"action":"signal.retract","role":"member","scope":"own"}]'::jsonb);
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select lives_ok($$
   update mos.signals set retracted_at = now(), retract_reason = 'Author after scope restored'
    where id = (select revoked_self_signal from t1010)
@@ -321,14 +321,14 @@ select throws_ok($$
 $$, '42501', null, 'an author cannot pre-set a retraction reason on a live Signal');
 select is((select retract_reason from mos.signals where id = (select preset_author_signal from t1010)),
   null::text, 'the refused author pre-set left the reason empty');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["ops_lead"]}');
 select throws_ok($$
   update mos.signals set retract_reason = 'Pre-set by an ops lead'
    where id = (select preset_ops_signal from t1010)
 $$, '42501', null, 'an ops lead cannot pre-set a retraction reason on another author''s live Signal');
 select is((select retract_reason from mos.signals where id = (select preset_ops_signal from t1010)),
   null::text, 'the refused ops lead pre-set left the reason empty');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select throws_ok($$
   update mos.signals set retracted_at = now()
    where id = (select preset_author_signal from t1010)
@@ -394,7 +394,7 @@ values ('00000000-0000-0000-0000-000000009106','00000000-0000-0000-0000-00000000
         now(), 'SiblingTeam historical signal (second row, for the team-lead-only denial)');
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["finance"]}');
 select lives_ok($$
   update mos.signals set retracted_at = now(), retract_reason = 'Team lead retraction'
    where id = (select team_own from t1010)
@@ -417,7 +417,7 @@ select is((select retracted_at from mos.signals where id = (select team_other_bu
 
 -- d7 is team lead of LedOnly ONLY — not a BU head anywhere in Unit-1 — so these two isolate the
 -- own_team branch on its own, unlike the d2 case above where own_team and own_bu both hold.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d7","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d7","access_roles":["member"]}');
 select lives_ok($$
   update mos.signals set retracted_at = now(), retract_reason = 'Team-lead-only retraction'
    where id = (select team_led_only_own from t1010)
@@ -432,7 +432,7 @@ select is((select retracted_at from mos.signals where id = (select team_led_only
   'the same team lead, with no BU-head grant, cannot retract a historical row owned by a different Team in the same BU');
 
 -- ── mos.work_lines.code: stable, server-assigned state (#1010) ───────────────────────────────────
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select is((select code from mos.work_lines
             where id = '00000000-0000-0000-0000-00000000c001'), 'standard',
   'the seeded Café Opening process definition-work row created without a code defaults to standard');
@@ -450,7 +450,7 @@ select throws_ok($$
   update mos.work_lines set code = 'cafe_opening'
    where id = '00000000-0000-0000-0000-00000000c001'
 $$, '42501', null, 'an admin cannot change code on an existing Project/Process definition-work row');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["ops_lead"]}');
 select throws_ok($$
   update mos.work_lines set code = 'cafe_opening'
    where id = '00000000-0000-0000-0000-00000000c001'
@@ -465,7 +465,7 @@ $$, 'the server path (postgres) can assign code on an existing row');
 select is((select code from mos.work_lines where id = '00000000-0000-0000-0000-00000000c001'),
   'cafe_opening', 'the server-path code assignment is stored');
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select throws_ok($$
   update mos.work_lines set code = 'standard'
    where id = '00000000-0000-0000-0000-00000000c001'
