@@ -1110,19 +1110,21 @@ describe('listSubmittedKitchenLogs — the ops_lead review queue (FR-040)', () =
 
     // Flattened display shape
     expect(rows).toHaveLength(2)
-    expect(rows[0]).toMatchObject({
-      id: 'log-1',
-      wip_item_name: 'Nasi Goreng',
-      log_date: '2026-06-20',
-      action_type: 'Production',
-      action: 'produce',
-      destination_branch_id: null,
-      branch_id: BRANCH_ID,
-      activity: 'kitchen',
-      qty_porsi: 8,
-      submitted_by: 'p1',
-    })
-    expect(rows[1].wip_item_name).toBe('Cold Brew')
+    expect(rows).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'log-1',
+        wip_item_name: 'Nasi Goreng',
+        log_date: '2026-06-20',
+        action_type: 'Production',
+        action: 'produce',
+        destination_branch_id: null,
+        branch_id: BRANCH_ID,
+        activity: 'kitchen',
+        qty_porsi: 8,
+        submitted_by: 'p1',
+      }),
+      expect.objectContaining({ id: 'log-2', wip_item_name: 'Cold Brew' }),
+    ]))
   })
 
   it('keeps the review queue oldest-first with an ascending keyset window', async () => {
