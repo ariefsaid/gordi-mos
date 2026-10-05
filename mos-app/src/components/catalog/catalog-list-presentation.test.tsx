@@ -314,3 +314,14 @@ describe('CatalogListPresentation Objective Work cell', () => {
     expect(workCell('Empty')).not.toHaveTextContent(/\d/)
   })
 })
+
+describe('CatalogListPresentation Objective Task progress', () => {
+  it('labels the Objective progress roll-up as completed Tasks', () => {
+    const row: CatalogRow = { id: 'o-progress', name: 'Grow revenue', archived_at: null }
+    renderRows([row], {
+      relationsKind: 'objective',
+      progressById: new Map([[row.id, { done: 1, total: 2 }]]),
+    })
+    expect(screen.getByTestId('catalog-progress')).toHaveTextContent('1 / 2 Tasks done')
+  })
+})

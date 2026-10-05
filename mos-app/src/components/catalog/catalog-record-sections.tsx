@@ -187,12 +187,14 @@ export type TasksSectionProps = {
   actionInHeader?: boolean
   /** The Get started region owns the action while there are no tasks. */
   hidden: boolean
+  /** Objective progress includes Tasks under linked Projects and Processes. */
+  objectiveRollup?: boolean
   onAdd: () => void
   onOpenRelated: OpenRelated
   today: string
 }
 
-export function TasksSection({ title, tasks, rollup, people, canAdd, actionInHeader = false, hidden, onAdd, onOpenRelated, today }: TasksSectionProps) {
+export function TasksSection({ title, tasks, rollup, people, canAdd, actionInHeader = false, hidden, objectiveRollup = false, onAdd, onOpenRelated, today }: TasksSectionProps) {
   const t = useT()
   const { locale } = useI18n()
   const [all, setAll] = useState(false)
@@ -208,7 +210,7 @@ export function TasksSection({ title, tasks, rollup, people, canAdd, actionInHea
     <RecordSection
       id="tasks"
       title={title}
-      count={total > 0 ? t('catalog.record.rollup', { done: String(done), total: String(total) }) : undefined}
+      count={total > 0 ? t(objectiveRollup ? 'catalog.objectives.taskProgress' : 'catalog.record.rollup', { done: String(done), total: String(total) }) : undefined}
       action={canAdd && !actionInHeader ? { label: t('catalog.record.addTask'), onClick: onAdd } : undefined}
     >
       <ul className="rp-rows">

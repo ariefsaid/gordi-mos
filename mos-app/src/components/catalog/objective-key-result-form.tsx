@@ -124,7 +124,7 @@ export function KeyResultForm({ row, people, onSubmit, onCancel, onRemove }: Key
         ) : null}
       </div>
       <div className="form-grid__field form-grid__field--full objective-key-results__actions">
-        <Button type="submit" variant="outline" disabled={saving} aria-busy={saving || undefined}>
+        <Button type="submit" variant="primary" disabled={saving} aria-busy={saving || undefined}>
           {saving ? t('record.field.saving') : t('objective.keyResults.save')}
         </Button>
         <Button type="button" variant="ghost" disabled={saving} onClick={onCancel}>{t('common.cancel')}</Button>

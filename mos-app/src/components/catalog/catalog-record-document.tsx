@@ -27,7 +27,7 @@ import { useProcessOccurrences } from '@/components/processes/use-process-occurr
 import { COMPANY_WIDE_OPTION, objectivesCatalogActions, projectsProcessesCatalogActions } from './catalog-collection-adapter'
 import { loadCatalogRecordData, loadCatalogRecordEditDirectory, type CatalogRecordData, type CatalogRecordEditDirectory, type CatalogWorkLineFact } from './catalog-record-loader'
 import './catalog-record-document.css'
-import { ObjectiveKeyResultsSection } from './objective-key-results-section'
+import { ObjectiveKeyResultsSection, type ObjectiveKeyResultsActionState } from './objective-key-results-section'
 import { RecordHistory } from './record-history'
 import { priorWorkLine, withLinkedWorkLine, withPriorWorkLine } from './catalog-record-optimistic'
 import {
@@ -120,6 +120,13 @@ export function CatalogRecordDocument({
   const [moving, setMoving] = useState<{ id: string; name: string; from: string; fact?: CatalogWorkLineFact } | null>(null)
   const [linkError, setLinkError] = useState<(() => Promise<void>) | null>(null)
   const [notice, setNotice] = useState<Notice | null>(null)
+  const [keyResultsAction, setKeyResultsAction] = useState<({ objectiveId: string } & ObjectiveKeyResultsActionState) | null>(null)
+  const reportKeyResultsAction = useCallback((objectiveId: string, next: ObjectiveKeyResultsActionState) => {
+    setKeyResultsAction((current) => current?.objectiveId === objectiveId
+      && current.status === next.status && current.count === next.count && current.editorOpen === next.editorOpen
+      ? current
+      : { objectiveId, ...next })
+  }, [])
   const resolverRef = useRef<((decision: OverlayLeaveDecision) => void) | null>(null)
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   // The control that opened a chooser or form, so withdrawing it puts focus back where the person was.
@@ -319,6 +326,11 @@ export function CatalogRecordDocument({
   const canLink = isObjective && !archived && canCreateForScope('work-line', scopes)
   const isWriter = canManage || canContent || canLink
   const scopesKnown = !scopesLoading && !scopesError
+  const keyResultsState: ObjectiveKeyResultsActionState = keyResultsAction?.objectiveId === id
+    ? keyResultsAction
+    : { status: 'loading', count: 0, editorOpen: false }
+  const needsKeyResult = isObjective && canManage && scopesKnown && !archived
+    && keyResultsState.status === 'ready' && keyResultsState.count === 0
   const emptyOption = { value: '', label: t('catalog.notSet') }
   const editable = (needsDirectory: boolean) => canManage && !archived && (!needsDirectory || editDirectory !== null)
   const readOnlyReason = (needsDirectory: boolean) => (canManage && needsDirectory && !editDirectory
@@ -365,11 +377,15 @@ export function CatalogRecordDocument({
     const owner = personFact('accountable', 'accountable', t('catalog.record.accountable'), row.accountablePersonId)
     if (owner) facts.push(owner)
     const yearEditable = editable(false)
+    const currentYear = Number(today.slice(0, 4))
+    const yearChoices = Array.from({ length: 11 }, (_, index) => currentYear + index - 5)
+    if (row.periodYear != null && !yearChoices.includes(row.periodYear)) yearChoices.push(row.periodYear)
+    yearChoices.sort((a, b) => a - b)
     const yearField: RecordFieldSpec = {
-      key: 'period', label: t('catalog.record.period'), control: 'text', value: row.periodYear ?? null,
-      placeholder: t('catalog.record.periodPlaceholder'),
+      key: 'period', label: t('catalog.record.period'), control: 'select', value: row.periodYear == null ? null : String(row.periodYear),
       displayValue: row.periodYear == null ? t('record.page.setField', { field: t('catalog.record.period').toLowerCase() }) : String(row.periodYear),
       editable: yearEditable,
+      options: [emptyOption, ...yearChoices.map((year) => ({ value: String(year), label: String(year) }))],
     }
     if (row.periodYear != null || yearEditable) {
       const quarterField: RecordFieldSpec = {
@@ -502,6 +518,9 @@ export function CatalogRecordDocument({
     }
   }
   const setupTitle = t(isObjective ? 'catalog.setup.title.objective' : isProcess ? 'catalog.setup.title.process' : 'catalog.setup.title.project')
+  const setupActions: RecordSetupItem[] = isObjective && (needsKeyResult || keyResultsState.editorOpen)
+    ? setup.map((item) => ({ ...item, action: { ...item.action, variant: 'outline' } }))
+    : setup
   // The record header owns Start. One ready Team is a single click; several require a type-to-find choice.
   const startReady = isProcess && process !== null && process.steps.length > 0 && occurrences.state === 'ready' && occurrences.startable.length > 0
   const startFromHeader = () => {
@@ -512,9 +531,12 @@ export function CatalogRecordDocument({
       options: occurrences.startable.map((run) => ({ value: `${run.owning_team_id}:${run.period_key}`, label: run.team_name })),
     })
   }
-  const primary: RecordPrimaryAction | undefined = archived || setup.length > 0 ? undefined
+  const primary: RecordPrimaryAction | undefined = archived || setup.length > 0 || (isObjective && keyResultsState.editorOpen) ? undefined
     : isProcess ? (startReady ? { id: 'start-occurrence', label: t('catalog.record.startOccurrence'), onClick: startFromHeader, busy: occurrences.startingKey !== null } : undefined)
-      : (isObjective ? linkedWork.length > 0 : true) ? { id: 'add-task', label: t('catalog.record.addTask'), onClick: startAddTask } : undefined
+      : (isObjective ? linkedWork.length > 0 : true) ? {
+        id: 'add-task', label: t('catalog.record.addTask'), onClick: startAddTask,
+        ...(isObjective && needsKeyResult ? { variant: 'outline' as const } : {}),
+      } : undefined
 
   const accountableName = row.accountablePersonId ? allPeople.get(row.accountablePersonId) : undefined
   // The line says what the viewer can do: "View only" is for a viewer with nothing to add.
@@ -680,7 +702,7 @@ export function CatalogRecordDocument({
         setup={(
           <>
             {chooserNode}
-            <RecordGetStarted title={setupTitle} why={t(isObjective ? 'catalog.setup.why.objective' : isProcess ? 'catalog.setup.why.process' : 'catalog.setup.why.project')} items={setup} />
+            <RecordGetStarted title={setupTitle} why={t(isObjective ? 'catalog.setup.why.objective' : isProcess ? 'catalog.setup.why.process' : 'catalog.setup.why.project')} items={setupActions} />
           </>
         )}
         about={about}
@@ -699,6 +721,7 @@ export function CatalogRecordDocument({
               scopes={scopes}
               scopesStatus={scopesError ? 'error' : scopesLoading ? 'loading' : 'ready'}
               onRetryScopes={retryScopes}
+              onActionStateChange={reportKeyResultsAction}
             />
             <LinkedWorkSection
               objectiveId={id}
@@ -729,6 +752,7 @@ export function CatalogRecordDocument({
           canAdd={canAddTask}
           actionInHeader={primary?.id === 'add-task'}
           hidden={setup.some((item) => item.id === 'tasks')}
+          objectiveRollup={isObjective}
           onAdd={startAddTask}
           onOpenRelated={onOpenRelated}
           today={today}
@@ -761,4 +785,3 @@ export function CatalogRecordDocument({
     </>
   )
 }
-
