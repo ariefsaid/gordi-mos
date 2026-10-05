@@ -64,5 +64,6 @@ $$;
 comment on function shared.consume_agent_pending_action(uuid) is
   'Atomically consumes one unexpired approval owned by the caller and returns its stored action.';
 
+revoke execute on function shared.consume_agent_pending_action(uuid) from public, anon, authenticated;
 revoke all on function shared.consume_agent_pending_action(uuid) from public, anon, service_role;
 grant execute on function shared.consume_agent_pending_action(uuid) to authenticated;
