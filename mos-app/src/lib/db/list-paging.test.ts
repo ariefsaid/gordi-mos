@@ -26,12 +26,13 @@ vi.mock('@/lib/supabase', async () => {
         }
         return 0
       })
-      const keyset = url.searchParams.getAll('or').find(value => value.includes('id.lt.'))
+      const keyset = url.searchParams.getAll('or').find(value => /id\.(lt|gt)\./.test(value))
       if (keyset) {
-        const match = keyset.match(/\((\w+)\.lt\.([^,]+),and\(\w+\.eq\.[^,]+,id\.lt\.([^)]+)\)\)/)
+        const match = keyset.match(/\((\w+)\.(lt|gt)\.([^,]+),and\(\w+\.eq\.[^,]+,id\.(?:lt|gt)\.([^)]+)\)\)/)
         if (!match) throw new Error(`Unexpected cursor: ${keyset}`)
-        const [, field, timestamp, id] = match
-        rows = rows.filter(row => String(row[field]) < timestamp || (row[field] === timestamp && String(row.id) < id))
+        const [, field, op, timestamp, id] = match
+        const after = (a: string, b: string) => (op === 'gt' ? a > b : a < b)
+        rows = rows.filter(row => after(String(row[field]), timestamp) || (row[field] === timestamp && after(String(row.id), id)))
       }
       // Model the API's default cap as well as explicit per-request limits.
       rows = rows.slice(0, Number(url.searchParams.get('limit') ?? 1000))
@@ -75,9 +76,9 @@ describe('server list paging boundaries', () => {
     expect(harness.requests.every(url => url.searchParams.get('limit') === '50')).toBe(true)
   })
 
-  it('Café: date and stream windows page newest first through first, next and last pages without equal-time gaps or duplicates', async () => {
+  it('Café: date and stream windows page oldest first (the review queue order) through first, next and last pages without equal-time gaps or duplicates', async () => {
     harness.rows.push({ ...fixture(2000), log_date: '2026-10-04' }, { ...fixture(2001), activity: 'bar' }, { ...fixture(2002), status: 'Approved' })
-    const expected = harness.rows.slice(0, 1103).map(row => row.id).reverse()
+    const expected = harness.rows.slice(0, 1103).map(row => row.id)
     const ids: string[] = []
     let before: { created_at: string; id: string } | undefined
     const sizes: number[] = []
