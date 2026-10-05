@@ -81,6 +81,18 @@ it('accepts only the three Café item kind select values', () => {
 })
 
 describe('CafeItemSettingsPage missing-item queue', () => {
+  it('keeps item editors available while the supplemental reports read is pending', async () => {
+    let resolveReports!: (reports: Awaited<ReturnType<typeof listCafeMissingItemReports>>) => void
+    mockListReports.mockReturnValue(new Promise(resolve => { resolveReports = resolve }))
+    renderPage()
+
+    expect(await screen.findByRole('textbox', { name: 'MOS name' })).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Missing-item reports for this stream' })).not.toBeInTheDocument()
+
+    resolveReports([REPORT])
+    expect(await screen.findByRole('region', { name: 'Missing-item reports for this stream' })).toHaveTextContent('Oat milk')
+  })
+
   it('shows only the selected stream reports to settings managers and resolves them', async () => {
     renderPage()
     const queue = await screen.findByRole('region', { name: 'Missing-item reports for this stream' })

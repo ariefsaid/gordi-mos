@@ -180,24 +180,30 @@ function CafeItemSettingsPageForViewer() {
           () => ({ value: false, failed: true as const }),
         ),
       ])
-      let nextReports: CafeMissingItemReport[] = []
-      let nextReportsError = false
-      if (canEdit.value && !canEdit.failed) {
-        try {
-          nextReports = await listCafeMissingItemReports(stream)
-        } catch {
-          nextReportsError = true
-        }
-      }
       if (generation !== requestGeneration.current) return
       setItems(nextItems)
       setDrafts(Object.fromEntries(nextItems.map(item => [item.id, initialDraft(item)])))
-      setReports(nextReports)
-      setReportsError(nextReportsError)
+      setReports([])
+      setReportsError(false)
       setPermission(canEdit.failed ? 'error' : canEdit.value ? 'allowed' : 'read-only')
       setPermissionError(canEdit.failed)
       setSaveStates({})
       setReadState('ready')
+
+      // The reports queue is supplemental to the item settings. Never hold the main table in
+      // its loading state on this second read: a slow or offline reports endpoint must not make
+      // name/kind/unit editors unavailable. The generation guard also prevents a late response
+      // for an old stream or retry from replacing the current queue.
+      if (canEdit.value && !canEdit.failed) {
+        void listCafeMissingItemReports(stream).then(nextReports => {
+          if (generation !== requestGeneration.current) return
+          setReports(nextReports)
+          setReportsError(false)
+        }).catch(() => {
+          if (generation !== requestGeneration.current) return
+          setReportsError(true)
+        })
+      }
     } catch {
       if (generation !== requestGeneration.current) return
       setReadState('error')
