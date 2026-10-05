@@ -154,3 +154,11 @@
   .cwl-evidence { max-width: none; }
   .cwl-add-photo { min-height: 44px; }
 }
+
+.cwl-list .dt-card {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  border-bottom: 1px solid var(--border);
+}

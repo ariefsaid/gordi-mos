@@ -752,6 +752,6 @@
 }
 
 @media (min-width: 1280px) {
-  .cafe-capture-content.kl-capture-wide { display: grid; }
+  .cafe-capture-content.kl-capture-wide:has(> .kl-capture-summary) { display: grid; }
   .cafe-capture-content .kl-capture-main { align-self: stretch; }
 }
