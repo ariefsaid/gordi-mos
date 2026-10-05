@@ -1,7 +1,7 @@
 -- #1345 — manager-defined multiples of the per-stream default ERP unit.
 -- Café settings keep the same per-stream scope, writer predicate and RLS. ERP still owns every
 -- unit coordinate; MOS stores only positive quantity factors. A capture starts on the default.
--- DOWN (manual): supabase/rollback/20261005000002_ops_cafe_unit_multiples.sql. It refuses to run
+-- DOWN (manual): supabase/rollback/20261005000006_ops_cafe_unit_multiples.sql. It refuses to run
 -- while manager factors or entry snapshots exist, so configured settings/history are never lost.
 begin;
 
@@ -332,7 +332,16 @@ declare
   v_default_unit_name text;
   v_factor numeric;
   v_bound_at_write boolean;
+  v_restart_copy boolean;
 begin
+  v_restart_copy := new.action = 'waste'
+    and new.source = 'mos'
+    and current_user = (
+      select pg_catalog.pg_get_userbyid(proc.proowner)
+        from pg_catalog.pg_proc proc
+       where proc.oid = pg_catalog.to_regprocedure('ops.restart_cafe_waste_draft(uuid,date)')
+    );
+
   if tg_op = 'UPDATE' and old.item_unit_id is not null
      and new.item_unit_id is distinct from old.item_unit_id then
     raise exception 'item_unit_id is immutable on a kitchen log' using errcode = '42501';
@@ -432,11 +441,14 @@ begin
       end if;
       if v_factor = 1 then
         new.entry_unit_factor := 1;
-      elsif not (v_factor = any(coalesce(v_unit_multiples, array[]::numeric[]))) then
+      elsif not v_restart_copy
+         and not (v_factor = any(coalesce(v_unit_multiples, array[]::numeric[]))) then
         raise exception 'CAFE_UNIT_MULTIPLE_NOT_CONFIGURED: choose a multiple configured for this stream item'
           using errcode = 'P0017';
       end if;
-      new.entry_unit_name := v_default_unit_name;
+      if not v_restart_copy or new.entry_unit_name is null then
+        new.entry_unit_name := v_default_unit_name;
+      end if;
       new.qty_porsi := round(new.entry_quantity * new.entry_unit_factor, 2)::numeric(12,2);
     end if;
   elsif new.source = 'mos' and v_source = 'manual' then
@@ -495,5 +507,57 @@ $$;
 comment on function ops._bind_kitchen_log_item_unit() is
   'Binds Café ERP logs to the stream default only; validates the selected manager-defined factor and snapshots typed quantity/factor/unit name. qty_porsi stays in the ERP default unit. Manual legacy items retain their explicit item-unit choice. SECURITY INVOKER.';
 revoke execute on function ops._bind_kitchen_log_item_unit() from public, anon, authenticated;
+
+-- Restart through the atomic RPC, carrying the immutable entry snapshot as well as canonical qty.
+create or replace function ops.restart_cafe_waste_draft(p_log_id uuid, p_log_date date)
+returns table (id uuid, log_date date)
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_log ops.kitchen_logs;
+  v_replacement uuid;
+begin
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('cafe-waste-photo:' || p_log_id::text, 0));
+  select * into v_log from ops.kitchen_logs log where log.id = p_log_id for update;
+  if v_log.id is null then
+    raise exception 'kitchen log not found' using errcode = 'P0002';
+  end if;
+  if v_log.org_id is distinct from shared.current_org_id()
+     or v_log.submitted_by is distinct from shared.current_person_id()
+     or not (shared.is_cafe_affiliated() or shared.has_access_role('ops_lead') or shared.has_access_role('admin')) then
+    raise exception 'only the waste-log submitter may restart their own draft' using errcode = '42501';
+  end if;
+  if v_log.action <> 'waste' or v_log.source <> 'mos' or v_log.status <> 'Draft' then
+    raise exception 'waste log is not an eligible Draft' using errcode = 'P0003';
+  end if;
+  if v_log.superseded_by is not null then
+    return query select log.id, log.log_date from ops.kitchen_logs log where log.id = v_log.superseded_by;
+    return;
+  end if;
+  if v_log.created_at > now() - interval '15 minutes' or exists (
+    select 1 from storage.objects photo where photo.bucket_id = 'waste-photos'
+      and ops.cafe_waste_photo_log_id(photo.name) = v_log.id
+  ) then
+    raise exception 'restart requires an expired waste draft without photos' using errcode = '23514';
+  end if;
+  if p_log_date is null then
+    raise exception 'replacement log date is required' using errcode = '22023';
+  end if;
+  insert into ops.kitchen_logs
+    (org_id, submitted_by, business_unit_id, log_date, branch_id, activity, action,
+     destination_branch_id, wip_item_id, item_unit_id, qty_porsi, notes, status, source,
+     entry_quantity, entry_unit_factor, entry_unit_name)
+  values
+    (v_log.org_id, v_log.submitted_by, v_log.business_unit_id, p_log_date, v_log.branch_id,
+     v_log.activity, 'waste', null, v_log.wip_item_id, v_log.item_unit_id, v_log.qty_porsi,
+     v_log.notes, 'Draft', 'mos', v_log.entry_quantity, v_log.entry_unit_factor, v_log.entry_unit_name)
+  returning kitchen_logs.id into v_replacement;
+  update ops.kitchen_logs set superseded_by = v_replacement where kitchen_logs.id = v_log.id;
+  return query select log.id, log.log_date from ops.kitchen_logs log where log.id = v_replacement;
+end;
+$$;
+comment on function ops.restart_cafe_waste_draft(uuid,date) is
+  'Atomically replaces the current submitter''s expired photo-less waste draft, copying its exact captured entry snapshot and canonical quantity. Original facts remain; retries return the same replacement. SECURITY DEFINER.';
+revoke execute on function ops.restart_cafe_waste_draft(uuid,date) from public, anon, authenticated;
+grant execute on function ops.restart_cafe_waste_draft(uuid,date) to authenticated;
 
 commit;

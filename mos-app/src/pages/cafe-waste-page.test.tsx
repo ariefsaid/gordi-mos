@@ -397,10 +397,12 @@ describe('CafeWastePage', () => {
   })
 
   it('keeps the original expired draft available when replacement fails and retries the same draft', async () => {
-    mockListWasteDrafts.mockResolvedValue([wasteDraft()])
+    mockListWasteDrafts.mockResolvedValue([wasteDraft({
+      itemUnitId: 'unit-cup', unitName: 'cup', entryUnitFactor: 1, entryUnitName: 'cup',
+    })])
     mockRestartWaste.mockRejectedValueOnce(new Error('Temporary restart failure'))
     renderPage()
-    fireEvent.click(await screen.findByRole('button', { name: /resume oat latte · 2.5 tray/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /resume oat latte · 2.5 cup/i }))
     fireEvent.click(screen.getByRole('button', { name: 'Start new waste entry' }))
     await waitFor(() => expect(mockRestartWaste).toHaveBeenCalledTimes(1))
     expect(await screen.findByRole('button', { name: 'Start new waste entry' })).toBeEnabled()

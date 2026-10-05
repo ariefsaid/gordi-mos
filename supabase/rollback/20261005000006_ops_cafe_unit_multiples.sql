@@ -1,4 +1,4 @@
--- DOWN for 20261005000002_ops_cafe_unit_multiples.sql.
+-- DOWN for 20261005000006_ops_cafe_unit_multiples.sql.
 -- Safe only before the new settings or capture snapshots are in use. Export/clear those values
 -- first; this guard prevents rolling back and silently discarding manager settings or entry history.
 begin;
@@ -21,6 +21,57 @@ begin
   end if;
 end;
 $$;
+
+-- Restore the restart RPC from 20261005000005 before removing the snapshot columns.
+create or replace function ops.restart_cafe_waste_draft(p_log_id uuid, p_log_date date)
+returns table (id uuid, log_date date)
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_log ops.kitchen_logs;
+  v_replacement uuid;
+begin
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('cafe-waste-photo:' || p_log_id::text, 0));
+  select * into v_log from ops.kitchen_logs log where log.id = p_log_id for update;
+  if v_log.id is null then
+    raise exception 'kitchen log not found' using errcode = 'P0002';
+  end if;
+  if v_log.org_id is distinct from shared.current_org_id()
+     or v_log.submitted_by is distinct from shared.current_person_id()
+     or not (shared.is_cafe_affiliated() or shared.has_access_role('ops_lead') or shared.has_access_role('admin')) then
+    raise exception 'only the waste-log submitter may restart their own draft' using errcode = '42501';
+  end if;
+  if v_log.action <> 'waste' or v_log.source <> 'mos' or v_log.status <> 'Draft' then
+    raise exception 'waste log is not an eligible Draft' using errcode = 'P0003';
+  end if;
+  if v_log.superseded_by is not null then
+    return query select log.id, log.log_date from ops.kitchen_logs log where log.id = v_log.superseded_by;
+    return;
+  end if;
+  if v_log.created_at > now() - interval '15 minutes' or exists (
+    select 1 from storage.objects photo where photo.bucket_id = 'waste-photos'
+      and ops.cafe_waste_photo_log_id(photo.name) = v_log.id
+  ) then
+    raise exception 'restart requires an expired waste draft without photos' using errcode = '23514';
+  end if;
+  if p_log_date is null then
+    raise exception 'replacement log date is required' using errcode = '22023';
+  end if;
+  insert into ops.kitchen_logs
+    (org_id, submitted_by, business_unit_id, log_date, branch_id, activity, action,
+     destination_branch_id, wip_item_id, item_unit_id, qty_porsi, notes, status, source)
+  values
+    (v_log.org_id, v_log.submitted_by, v_log.business_unit_id, p_log_date, v_log.branch_id,
+     v_log.activity, 'waste', null, v_log.wip_item_id, v_log.item_unit_id, v_log.qty_porsi,
+     v_log.notes, 'Draft', 'mos')
+  returning kitchen_logs.id into v_replacement;
+  update ops.kitchen_logs set superseded_by = v_replacement where kitchen_logs.id = v_log.id;
+  return query select log.id, log.log_date from ops.kitchen_logs log where log.id = v_replacement;
+end;
+$$;
+comment on function ops.restart_cafe_waste_draft(uuid,date) is
+  'Atomically replaces the current submitter''s expired photo-less waste draft, copying its exact captured unit and quantity. Original facts remain; retries return the same replacement. SECURITY DEFINER.';
+revoke execute on function ops.restart_cafe_waste_draft(uuid,date) from public, anon, authenticated;
+grant execute on function ops.restart_cafe_waste_draft(uuid,date) to authenticated;
 
 -- Restore the exact pre-#1345 settings reader shape.
 create or replace view ops.cafe_item_settings_read with (security_invoker = true) as
