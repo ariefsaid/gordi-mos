@@ -401,6 +401,40 @@ describe('InboxTriageConnected — the live triage wiring (AC-V3-006 / FR-V3-008
     expect(search).toBe('')
   })
 
+  it.each([
+    {
+      locale: 'en' as const,
+      mentionTrigger: 'mentions you in a Signal',
+      retractionTrigger: 'retracts a Signal you wrote',
+    },
+    {
+      locale: 'id' as const,
+      mentionTrigger: 'menyebut Anda di Sinyal',
+      retractionTrigger: 'menarik kembali Sinyal yang Anda tulis',
+    },
+  ])('bell quick-triage empty copy names Signal triggers without promising urgent delivery ($locale)', ({
+    locale,
+    mentionTrigger,
+    retractionTrigger,
+  }) => {
+    mockUse.mockReturnValue(hook())
+    render(
+      <I18nProvider initialLocale={locale}>
+        <MemoryRouter initialEntries={['/money']}>
+          <OverlayHostProvider>
+            <InboxTriageConnected mode="quick" />
+          </OverlayHostProvider>
+        </MemoryRouter>
+      </I18nProvider>,
+    )
+
+    const empty = screen.getByTestId('empty-state')
+    const copy = within(empty).getByText((_, element) => element?.classList.contains('empty-copy') ?? false)
+    expect(copy).toHaveTextContent(mentionTrigger)
+    expect(copy).toHaveTextContent(retractionTrigger)
+    expect(copy).not.toHaveTextContent(/urgent|automatically|mendesak|otomatis/i)
+  })
+
   it('renders the shared loading skeleton (never a bare/empty surface) while data is in flight', () => {
     mockUse.mockReturnValue(hook({ loading: true }))
     const { container } = renderConnected()
