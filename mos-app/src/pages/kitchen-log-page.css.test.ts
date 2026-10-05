@@ -69,3 +69,12 @@ describe('AC-046: DESIGN.md carries the #790 A3/A4 amendments verbatim', () => {
     expect(design).toContain('> **The capture band.** One sticky band: a count line (`N item · N porsi`) and **one** primary (`Kirim N entri`), full-width at 390. Discard is a text link that renders only while something is staged; a precondition that blocks Submit is stated once, in the band, never as a third column. Content above the band ends with clearance equal to the band\'s height, so the list\'s last control is never occluded at max scroll.')
   })
 })
+
+describe('capture summary line keeps the item name readable', () => {
+  it('wraps the date and status labels onto their own row instead of squeezing the name', () => {
+    const line = ruleBodyAt(css.indexOf('.kl-capture-summary__lines li {'))
+    const labels = ruleBodyAt(css.indexOf('.kl-capture-summary__lines li > small,'))
+    expect(line).toMatch(/flex-wrap:\s*wrap/)
+    expect(labels).toMatch(/flex:\s*0 0 100%/)
+  })
+})
