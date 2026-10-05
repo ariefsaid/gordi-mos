@@ -1,20 +1,27 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { StrictMode } from 'react'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import type { AuthState } from '@/auth/context'
 
 vi.mock('@/auth/use-auth')
-vi.mock('@/lib/use-cafe-stream', () => {
+const selectedActivity = vi.hoisted(() => ({ initial: 'kitchen' as 'kitchen' | 'bar' | null }))
+vi.mock('@/lib/use-cafe-stream', async () => {
+  const { useState } = await import('react')
   const branch = { id: 'branch-1', code: 'gordi_hq', name: 'Gordi HQ' }
-  const stream = { branch, activity: 'kitchen', produces: true }
-  const catalog = { branches: [branch], options: [stream], locationOptions: [stream], stream, homeStream: stream,
+  const stream: ProductionStream = { branch, activity: 'kitchen', produces: true }
+  const bar: ProductionStream = { branch, activity: 'bar', produces: true }
+  const catalog = { branches: [branch], options: [stream, bar], locationOptions: [stream, bar], stream, homeStream: stream,
     myStreamKeys: new Set(['branch-1|kitchen']), branchId: branch.id }
   const resolve = vi.fn().mockResolvedValue(catalog)
   const adopt = vi.fn()
-  const setStream = vi.fn()
-  return { useCafeStream: () => ({ ...catalog, resolve, adopt, setStream }) }
+  return { useCafeStream: () => {
+    const [chosen, setStream] = useState<ProductionStream | null>(selectedActivity.initial === null ? null : selectedActivity.initial === 'bar' ? bar : stream)
+    return { ...catalog, stream: chosen, resolve, adopt, setStream }
+  } }
 })
 vi.mock('@/lib/db/cafe-item-settings', () => ({
   canManageCafeItemSettings: vi.fn(), listCafeItemSettings: vi.fn(), saveCafeItemSettings: vi.fn(),
@@ -63,8 +70,12 @@ function renderPage(initialLocale: 'en' | 'id' = 'en') {
   )
 }
 
+let restoreMedia: (() => void) | null = null
+afterEach(() => { restoreMedia?.(); restoreMedia = null })
+
 beforeEach(() => {
   vi.clearAllMocks()
+  selectedActivity.initial = 'kitchen'
   mockUseAuth.mockReturnValue(VIEWER)
   mockCanManage.mockResolvedValue(true)
   mockListItems.mockResolvedValue([{
@@ -110,7 +121,7 @@ describe('CafeItemSettingsPage missing-item queue', () => {
   it('does not expose the reports queue to a read-only viewer', async () => {
     mockCanManage.mockResolvedValue(false)
     renderPage()
-    expect(await screen.findByText('Reference settings are read-only. Retail Ops managers, Ops Leads and admins can edit them.')).toBeInTheDocument()
+    expect(await screen.findByText('These item settings are read-only for you. Kitchen and Bar managers edit their own activity; Ops Leads, Ops Managers and admins edit all streams.')).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'Missing-item reports for this stream' })).not.toBeInTheDocument()
     expect(mockListReports).not.toHaveBeenCalled()
   })
@@ -201,5 +212,66 @@ describe('CafeItemSettingsPage default-unit setup note', () => {
     expect(await screen.findAllByText('2 items need a default unit before they can be logged.')).toHaveLength(1)
     expect(screen.queryByText('Choose a shown default to enable logging.')).not.toBeInTheDocument()
     expect(screen.getAllByText('Needs unit').length).toBeGreaterThanOrEqual(2)
+  })
+})
+
+describe('Cafe item permissions per activity', () => {
+  it('keeps the item list operable across a stream switch in Strict Mode', async () => {
+    selectedActivity.initial = null
+    const user = userEvent.setup()
+    render(<StrictMode><MemoryRouter><I18nProvider initialLocale="en"><CafeItemSettingsPage /></I18nProvider></MemoryRouter></StrictMode>)
+    await user.click(await screen.findByRole('button', { name: /Gordi HQ · Kitchen/ }))
+    expect(await screen.findByRole('textbox', { name: 'MOS name' })).toBeEnabled()
+    await user.click(screen.getByRole('button', { name: /change stream/i }))
+    await user.click(screen.getByRole('option', { name: /Gordi HQ · Bar/ }))
+    await waitFor(() => expect(mockCanManage).toHaveBeenCalledWith('bar'))
+    const search = screen.getByRole('searchbox', { name: 'Find an ESB or MOS name' })
+    await user.type(search, 'missing')
+    await waitFor(() => expect(screen.queryByRole('article', { name: 'ERP Oat milk' })).not.toBeInTheDocument())
+    await user.clear(search)
+    expect(await screen.findByRole('article', { name: 'ERP Oat milk' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'MOS name' })).toBeEnabled()
+  })
+
+  it.each([
+    { activity: 'kitchen', desktop: false }, { activity: 'bar', desktop: false },
+    { activity: 'kitchen', desktop: true }, { activity: 'bar', desktop: true },
+  ] as const)('reads $activity settings without write controls (desktop=$desktop)', async ({ activity, desktop }) => {
+    const mediaSpy = vi.spyOn(window, 'matchMedia').mockImplementation(query => ({
+      matches: desktop && query === '(min-width: 768px)', media: query, onchange: null,
+      addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(() => true),
+    }))
+    restoreMedia = () => mediaSpy.mockRestore()
+    selectedActivity.initial = activity
+    mockCanManage.mockResolvedValue(false)
+    renderPage()
+    const item = await screen.findByRole(desktop ? 'row' : 'article', { name: /ERP Oat milk/ })
+    expect(mockCanManage).toHaveBeenCalledWith(activity)
+    expect(item).toHaveTextContent('Oat milk')
+    expect(within(item).queryByRole('textbox')).not.toBeInTheDocument()
+    expect(within(item).queryByRole('combobox')).not.toBeInTheDocument()
+    expect(within(item).queryByRole('checkbox')).not.toBeInTheDocument()
+    expect(within(item).queryByRole('button')).not.toBeInTheDocument()
+    expect(mockListReports).not.toHaveBeenCalled()
+  })
+
+  it.each(['kitchen', 'bar'] as const)('offers existing item editors for an allowed %s activity', async activity => {
+    selectedActivity.initial = activity
+    renderPage()
+    expect(await screen.findByRole('textbox', { name: 'MOS name' })).toBeEnabled()
+    expect(mockCanManage).toHaveBeenCalledWith(activity)
+  })
+
+  it('checks Bar after switching from an allowed Kitchen stream and removes write controls', async () => {
+    mockCanManage.mockImplementation(async activity => activity === 'kitchen')
+    renderPage()
+    expect(await screen.findByRole('textbox', { name: 'MOS name' })).toBeEnabled()
+    fireEvent.click(screen.getByRole('button', { name: /change stream/i }))
+    fireEvent.click(screen.getByRole('option', { name: /Gordi HQ · Bar/ }))
+    const item = await screen.findByRole('article', { name: 'ERP Oat milk' })
+    await waitFor(() => expect(mockCanManage).toHaveBeenCalledWith('bar'))
+    expect(within(item).queryByRole('textbox')).not.toBeInTheDocument()
+    expect(within(item).queryByRole('button')).not.toBeInTheDocument()
   })
 })

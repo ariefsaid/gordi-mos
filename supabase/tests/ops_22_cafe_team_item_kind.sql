@@ -64,7 +64,7 @@ select set_config('app.allow_test_seeds', 'off', true);
 
 set local role authenticated;
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
-select ok(ops.can_manage_cafe_item_settings(), 'an Ops Lead can edit per-stream item classification');
+select ok(ops.can_manage_cafe_item_settings('kitchen'), 'an Ops Lead can edit per-stream item classification');
 select lives_ok($$
   select ops.save_cafe_item_settings(
     '00000000-0000-0000-0000-00000000bf01', 'kitchen',
