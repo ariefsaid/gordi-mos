@@ -38,9 +38,9 @@ function hookState(overrides: Partial<UseNotifications> = {}): UseNotifications 
   }
 }
 
-function renderPage() {
+function renderPage(locale: 'en' | 'id' = 'en') {
   return render(
-    <I18nProvider>
+    <I18nProvider initialLocale={locale}>
       <MemoryRouter>
         <InboxPage />
       </MemoryRouter>
@@ -99,17 +99,25 @@ describe('InboxPage — shared state kit', () => {
     expect(emptyState.querySelector('.empty-copy')).not.toBeNull()
   })
 
-  it('W4-3: empty state names the notification source and keeps the quiet archetype actionless', () => {
-    renderPage()
+  it('W4-3: empty copy names supported Signal notifications in both locales and stays actionless', () => {
+    const english = renderPage('en')
 
     const emptyState = screen.getByTestId('empty-state')
     expect(emptyState).toHaveAttribute('data-empty-variant', 'quiet')
-    expect(screen.getByText(/attention/i)).toBeInTheDocument()
+    expect(within(emptyState).getByText(
+      'You\'ll see a notification here when someone mentions you in a Signal or retracts a Signal you wrote.',
+    )).toBeInTheDocument()
     // The quiet empty state itself carries no call-to-action (no push-to-act when caught up); the
     // only controls on the surface are the persistent filter chips, never an empty-state CTA/link.
     expect(emptyState.querySelector('.empty-actions')).toBeNull()
     expect(within(emptyState).queryByRole('button')).toBeNull()
     expect(screen.queryByRole('link')).not.toBeInTheDocument()
+
+    english.unmount()
+    renderPage('id')
+    expect(within(screen.getByTestId('empty-state')).getByText(
+      'Notifikasi muncul di sini saat seseorang menyebut Anda di Sinyal atau menarik kembali Sinyal yang Anda tulis.',
+    )).toBeInTheDocument()
   })
 
   it('populated: renders the notification list without the home surface wash', () => {
