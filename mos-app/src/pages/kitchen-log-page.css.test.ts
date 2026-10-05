@@ -6,30 +6,40 @@ import { resolve } from 'node:path'
 
 const css = readFileSync(resolve(process.cwd(), 'src/pages/kitchen-log-page.css'), 'utf8')
   .replace(/\/\*[\s\S]*?\*\//g, '')
+const toolbarCss = readFileSync(resolve(process.cwd(), 'src/components/kitchen/kitchen-toolbar.css'), 'utf8')
+  .replace(/\/\*[\s\S]*?\*\//g, '')
 
 function ruleBodyAt(idx: number): string {
-  expect(idx, 'expected kitchen-log-page.css to style the phone .kl-footer override').toBeGreaterThanOrEqual(0)
+  expect(idx, 'expected kitchen-log-page.css to contain the capture layout rule').toBeGreaterThanOrEqual(0)
   const open = css.indexOf('{', idx)
   const close = css.indexOf('}', open)
   return css.slice(open + 1, close)
 }
 
-describe('KL-FOOTER-NAV: the phone sticky footer clears the shell bottom-tab bar', () => {
-  // `.kl-footer {` is declared twice: the base rule, then its phone (max-width: 767.98px)
-  // override further down the file — the LAST occurrence is that phone override.
-  const phoneFooterIdx = css.lastIndexOf('.kl-footer {')
+describe('KL-FOOTER-NAV: the capture footer stays reachable above the shell bottom-tab bar', () => {
+  it('keeps the footer at the scrollport edge without a tab-bar-sized gap', () => {
+    const captureFrame = ruleBodyAt(css.indexOf('.page-frame--v3:has(.cafe-capture-head) {'))
+    const captureContent = ruleBodyAt(css.indexOf('.cafe-capture-content,\n.cafe-capture-content .kl-capture-main,'))
+    const captureFooter = ruleBodyAt(css.indexOf('.cafe-capture-footer.kl-footer {'))
 
-  it('the phone .kl-footer offsets by the shell bottom-nav token (--tabbar-h), not a magic number', () => {
-    const body = ruleBodyAt(phoneFooterIdx)
-    expect(body).toMatch(/bottom:\s*calc\(-1 \* \(16px \+ var\(--tabbar-h,\s*60px\)\)\)/)
-    expect(body).toMatch(/margin-bottom:\s*calc\(-1 \* \(16px \+ var\(--tabbar-h,\s*60px\)\)\)/)
+    expect(captureFrame).toMatch(/padding-bottom:\s*0/)
+    expect(captureContent).toMatch(/flex:\s*1 0 auto/)
+    expect(captureContent).toMatch(/flex-direction:\s*column/)
+    expect(captureFooter).toMatch(/bottom:\s*0/)
+    expect(captureFooter).toMatch(/margin-bottom:\s*0/)
+    expect(captureFooter).toMatch(/margin-top:\s*auto/)
+    expect(css).toMatch(/@media\s*\(max-width:\s*767\.98px\)\s*\{\s*\.cafe-capture-footer\.kl-footer\s*\{[^}]*padding-bottom:\s*calc\(8px \+ env\(safe-area-inset-bottom,\s*0px\)\)/)
   })
 
-  it('uses one vertical action stack and reserves enough list clearance for the phone band', () => {
-    const baseFooter = ruleBodyAt(css.indexOf('.kl-footer {'))
-    expect(baseFooter).toMatch(/flex-direction:\s*column/)
-    expect(baseFooter).toMatch(/align-items:\s*stretch/)
-    expect(css).toMatch(/\.kl-submit\s*\{[^}]*width:\s*100%/)
+  it('keeps the tally and primary action together and reserves list clearance for the phone band', () => {
+    const captureFooter = ruleBodyAt(css.indexOf('.cafe-capture-footer.kl-footer {'))
+    const countRow = ruleBodyAt(css.indexOf('.cafe-capture-footer > .kl-footer-count-row {'))
+    const primaryAction = ruleBodyAt(css.indexOf('.cafe-capture-footer > .kl-submit,\n.cafe-capture-footer > .btn {'))
+
+    expect(captureFooter).toMatch(/flex-direction:\s*row/)
+    expect(captureFooter).toMatch(/flex-wrap:\s*wrap/)
+    expect(countRow).toMatch(/flex:\s*1 1 0/)
+    expect(primaryAction).toMatch(/min-height:\s*44px/)
     expect(css).toMatch(/\.kl-form\s*\{[^}]*--kl-footer-clearance:\s*113px/)
     expect(css).toMatch(/\.kl-form:has\(\.kl-submit-reason\)[^}]*--kl-footer-clearance:\s*176px/)
     expect(css).toMatch(/\.kl-form:has\(\.kl-submit-reason\):has\(\.kl-submit-outcome\)[^}]*--kl-footer-clearance:\s*208px/)
@@ -40,9 +50,11 @@ describe('KL-FOOTER-NAV: the phone sticky footer clears the shell bottom-tab bar
     expect(css).toMatch(/@media\s*\(max-width:\s*767\.98px\)[\s\S]*?\.kl-form\s+\.ktb-filter-selects\s*\{\s*display:\s*none/)
   })
 
-  it('shares the transfer scope strip with search on phone to stay inside the 300px first-row cap', () => {
-    expect(css).toMatch(/\.kl-form \.ktb:has\(\.kl-scope\) \.ktb-children--band\s*\{\s*flex:\s*1 1 210px/)
-    expect(css).toMatch(/\.kl-form \.ktb:has\(\.kl-scope\) \.ktb-filters\s*\{\s*flex:\s*1 1 120px/)
+  it('puts transfer destination and search on separate full-width phone rows', () => {
+    expect(toolbarCss).toMatch(/\.ktb-children--band\s*\{[^}]*flex:\s*1 0 100%/)
+    expect(toolbarCss).toMatch(/\.ktb-children--band > \*\s*\{\s*width:\s*100%/)
+    expect(css).toMatch(/\.kl-form \.ktb:has\(\.kl-scope\) \.ktb-search-wrap\s*\{\s*max-width:\s*none/)
+    expect(css).toMatch(/@media\s*\(max-width:\s*767\.98px\)[\s\S]*?\.kl-form \.ktb-filter-selects\s*\{\s*display:\s*none/)
   })
 })
 
