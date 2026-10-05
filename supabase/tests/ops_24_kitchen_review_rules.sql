@@ -104,8 +104,6 @@ select throws_ok($$update ops.kitchen_logs set wip_item_id='00000000-0000-0000-0
 select throws_ok($$update ops.kitchen_logs set qty_porsi=99 where id='00000000-0000-0000-0000-00000000ac43'$$, '42501', 'reviewed kitchen log facts are immutable', 'an approved quantity stays fixed');
 reset role;
 select throws_ok($$update ops.kitchen_logs set item_unit_id=null where id='00000000-0000-0000-0000-00000000ac43'$$, '42501', null, 'an approved unit snapshot stays fixed');
-set local role authenticated;
-reset role;
 select throws_ok($$update ops.kitchen_logs set entry_quantity=9 where id='00000000-0000-0000-0000-00000000ac43'$$, '42501', null, 'an approved entered quantity stays fixed');
 select throws_ok($$update ops.kitchen_logs set entry_unit_factor=2 where id='00000000-0000-0000-0000-00000000ac43'$$, '42501', null, 'an approved unit factor stays fixed');
 select throws_ok($$update ops.kitchen_logs set entry_unit_name='crate' where id='00000000-0000-0000-0000-00000000ac43'$$, '42501', null, 'an approved unit label stays fixed');
@@ -120,8 +118,6 @@ select throws_ok($$update ops.kitchen_logs set wip_item_id='00000000-0000-0000-0
 select throws_ok($$update ops.kitchen_logs set qty_porsi=99 where id='00000000-0000-0000-0000-00000000ac44'$$, '42501', 'reviewed kitchen log facts are immutable', 'a rejected quantity stays fixed');
 reset role;
 select throws_ok($$update ops.kitchen_logs set item_unit_id=null where id='00000000-0000-0000-0000-00000000ac44'$$, '42501', null, 'a rejected unit snapshot stays fixed');
-set local role authenticated;
-reset role;
 select throws_ok($$update ops.kitchen_logs set entry_quantity=9 where id='00000000-0000-0000-0000-00000000ac44'$$, '42501', null, 'a rejected entered quantity stays fixed');
 select throws_ok($$update ops.kitchen_logs set entry_unit_factor=2 where id='00000000-0000-0000-0000-00000000ac44'$$, '42501', null, 'a rejected unit factor stays fixed');
 select throws_ok($$update ops.kitchen_logs set entry_unit_name='crate' where id='00000000-0000-0000-0000-00000000ac44'$$, '42501', null, 'a rejected unit label stays fixed');
