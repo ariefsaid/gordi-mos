@@ -6,6 +6,7 @@ import {
   useState,
   type FocusEventHandler,
   type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
 } from 'react'
 import { flushSync } from 'react-dom'
 import * as Popover from '@radix-ui/react-popover'
@@ -308,6 +309,172 @@ export function Picker({
                 })}
               </Command.List>
             </Command>
+          </Popover.Content>
+        </Popover.Portal>
+      </Popover.Root>
+    </div>
+  )
+}
+
+export type MultiPickerProps = {
+  id?: string
+  label: string
+  values: readonly string[]
+  options: readonly PickerOption[]
+  onChange: (values: string[]) => void
+  disabled?: boolean
+  fullWidth?: boolean
+  hideLabel?: boolean
+  placeholder?: string
+  footer?: ReactNode
+  className?: string
+  triggerClassName?: string
+  menuClassName?: string
+  optionClassName?: string
+}
+
+/** Searchable MOS multi-select for small, user-managed sets such as Café unit multiples. */
+export function MultiPicker({
+  id,
+  label,
+  values,
+  options,
+  onChange,
+  disabled = false,
+  fullWidth = false,
+  hideLabel = false,
+  placeholder,
+  footer,
+  className,
+  triggerClassName,
+  menuClassName,
+  optionClassName,
+}: MultiPickerProps) {
+  const t = useT()
+  const autoId = useId()
+  const triggerId = id ?? autoId
+  const selectedOptions = options.filter(option => values.includes(option.value))
+  const selectedLabel = selectedOptions.map(option => option.label).join(', ')
+  const triggerText = selectedLabel || placeholder || label
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const initialActive = useCallback(() => {
+    const option = options.find(candidate => values.includes(candidate.value) && !candidate.disabled)
+      ?? options.find(candidate => !candidate.disabled)
+    return option ? keyOf(option.value) : ''
+  }, [options, values])
+  const [active, setActive] = useState(initialActive)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const closeReason = useRef<PickerCloseReason>('outside')
+
+  const filter = useCallback((optionKey: string, query: string) => {
+    const text = options.find(option => keyOf(option.value) === optionKey)?.label.toLocaleLowerCase() ?? ''
+    const needle = query.trim().toLocaleLowerCase()
+    if (!needle) return 1
+    if (text.startsWith(needle)) return 1
+    return text.includes(needle) ? 0.5 : 0
+  }, [options])
+  const filterLabel = t('ui.picker.filter', { label })
+  const rootClassName = ['picker', fullWidth ? 'picker--full' : null, disabled ? 'picker--disabled' : null, className]
+    .filter(Boolean).join(' ')
+
+  function closePicker(reason: PickerCloseReason) {
+    closeReason.current = reason
+    setOpen(false)
+  }
+
+  return (
+    <div className={rootClassName}>
+      {!hideLabel && <label className="picker__label" htmlFor={triggerId}>{label}</label>}
+      <Popover.Root open={open} onOpenChange={next => {
+        setOpen(next)
+        if (!next && closeReason.current !== 'tab' && closeReason.current !== 'outside') triggerRef.current?.focus()
+        closeReason.current = 'outside'
+      }}>
+        <Popover.Trigger asChild>
+          <button
+            id={triggerId}
+            ref={triggerRef}
+            type="button"
+            aria-label={label}
+            aria-haspopup="listbox"
+            aria-expanded={open}
+            className={['picker__trigger', triggerClassName].filter(Boolean).join(' ')}
+            title={triggerText}
+            data-full-value={triggerText}
+            disabled={disabled}
+            onClick={event => {
+              event.preventDefault()
+              if (disabled) return
+              if (open) closePicker('toggle')
+              else {
+                setActive(initialActive())
+                setSearch('')
+                setOpen(true)
+              }
+            }}
+          >
+            <span className={selectedLabel ? undefined : 'picker__placeholder'}>{triggerText}</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+          </button>
+        </Popover.Trigger>
+        <Popover.Portal>
+          <Popover.Content
+            aria-label={label}
+            side="bottom"
+            align="start"
+            sideOffset={6}
+            collisionPadding={12}
+            data-escape-layer="nested"
+            className={['picker__menu', menuClassName].filter(Boolean).join(' ')}
+            onEscapeKeyDown={event => { closeReason.current = 'escape'; event.stopPropagation() }}
+            onCloseAutoFocus={event => {
+              event.preventDefault()
+              if (closeReason.current !== 'tab' && closeReason.current !== 'outside') triggerRef.current?.focus()
+            }}
+          >
+            <Command
+              className="picker__command"
+              label={filterLabel}
+              filter={filter}
+              value={active}
+              onValueChange={setActive}
+              disablePointerSelection
+              loop
+            >
+              <Command.Input
+                className="picker__search"
+                placeholder={filterLabel}
+                value={search}
+                onValueChange={setSearch}
+                autoFocus
+              />
+              <Command.List className="picker__list" label={label} aria-multiselectable="true">
+                <Command.Empty className="picker__empty">{t('ui.picker.noMatches')}</Command.Empty>
+                {options.map(option => {
+                  const checked = values.includes(option.value)
+                  return (
+                    <Command.Item
+                      key={keyOf(option.value)}
+                      value={keyOf(option.value)}
+                      disabled={option.disabled}
+                      aria-checked={checked}
+                      className={['picker__option', optionClassName].filter(Boolean).join(' ')}
+                      data-checked={checked || undefined}
+                      onSelect={() => onChange(
+                        checked ? values.filter(value => value !== option.value) : [...values, option.value],
+                      )}
+                    >
+                      <span className="picker__option-label">{option.label}</span>
+                      <span className="picker__multi-check" aria-hidden="true">
+                        {checked && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="m5 12 4 4L19 6" /></svg>}
+                      </span>
+                    </Command.Item>
+                  )
+                })}
+              </Command.List>
+            </Command>
+            {footer && <div className="picker__multi-footer">{footer}</div>}
           </Popover.Content>
         </Popover.Portal>
       </Popover.Root>

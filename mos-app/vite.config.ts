@@ -11,8 +11,15 @@ import tailwindcss from '@tailwindcss/vite'
 import { legacyRedirectDestination, normalizeBasePath, resolveBuildSettings } from './src/config/build-settings'
 import { buildSettingsArtifactsPlugin } from './src/config/build-settings-artifacts'
 import { MOS_DEV_IDENTITY_PATH, worktreeFingerprint } from './src/lib/dev-server'
+import { validateSampleLoginBuild } from './src/config/sample-login-build-guard'
 
 const __dir = dirname(fileURLToPath(import.meta.url))
+
+// The build's release SHA: Cloudflare Pages provides it; otherwise git; never fails a build.
+function resolveReleaseSha(): string {
+  if (process.env.CF_PAGES_COMMIT_SHA) return process.env.CF_PAGES_COMMIT_SHA
+  try { return execFileSync('git', ['rev-parse', 'HEAD'], { cwd: __dir, encoding: 'utf8' }).trim() } catch { return 'unknown' }
+}
 
 function redirectToBase(basePath: string): Plugin {
   const base = normalizeBasePath(basePath)
@@ -66,11 +73,13 @@ function sampleLoginBuildGuard(): Plugin {
   return {
     name: 'sample-login-build-guard',
     configResolved(config) {
-      if (config.command !== 'build' || config.env.VITE_SAMPLE_ONE_CLICK_LOGIN !== 'true') return
-      const password = config.env.VITE_SAMPLE_LOGIN_PASSWORD ?? ''
-      if (password.length < 12 || !/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/[0-9]/.test(password)) {
-        throw new Error('VITE_SAMPLE_ONE_CLICK_LOGIN needs a staging sample password that meets the auth policy')
-      }
+      validateSampleLoginBuild({
+        command: config.command,
+        sampleLoginEnabled: config.env.VITE_SAMPLE_ONE_CLICK_LOGIN,
+        deploymentEnvironment: config.env.VITE_DEPLOYMENT_ENV,
+        pagesBranch: process.env.CF_PAGES_BRANCH,
+        samplePassword: config.env.VITE_SAMPLE_LOGIN_PASSWORD,
+      })
     },
   }
 }
@@ -82,7 +91,7 @@ function previewBuildIdentity(basePath: string): Plugin {
     name: 'preview-build-identity',
     apply: 'build',
     buildStart() {
-      sha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: __dir, encoding: 'utf8' }).trim()
+      sha = resolveReleaseSha()
       clean = execFileSync('git', ['status', '--porcelain'], { cwd: __dir, encoding: 'utf8' }).trim() === ''
     },
     closeBundle() {
@@ -107,7 +116,9 @@ function previewBuildIdentity(basePath: string): Plugin {
 export default defineConfig(({ mode }) => {
   const env = { ...loadEnv(mode, __dir, ''), ...process.env }
   const { basePath } = resolveBuildSettings(env)
+  const releaseSha = resolveReleaseSha()
   return {
+  define: { 'import.meta.env.VITE_RELEASE_SHA': JSON.stringify(releaseSha) },
   base: basePath,
   plugins: [
     redirectToBase(basePath),

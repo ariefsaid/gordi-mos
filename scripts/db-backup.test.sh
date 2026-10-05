@@ -80,9 +80,10 @@ ls "$BK" | grep -q partial && bad "a .partial file is left behind" || ok "no .pa
 [ "$(msgs)" = 0 ] && ok "success is silent" || bad "success alerted"
 grep -q -- '--no-password' "$tmp/dump.log" && grep -q "passfile=$tmp/pgpass" "$tmp/dump.log" && ok "pg_dump reads the password file and is told never to prompt" || bad "pg_dump args" "$(cat "$tmp/dump.log")"
 grep -qiE 'password|postgresql://' <(grep '^argv' "$tmp/dump.log" | sed 's/--no-password//') && bad "credential-looking text in pg_dump argv" || ok "no credential in pg_dump argv"
-age "$BK/$new" 3
+# The 5-day-old dump survived the 14-day keep; a 2-day keep must prune it. (Not the fresh dump: a second
+# run in the same second writes the same file name and resets its age.)
 EXTRA_ENV="OPS_BACKUP_KEEP_DAYS=2" mkenv "$tmp/ops.env"; run
-[ ! -e "$BK/$new" ] && ok "OPS_BACKUP_KEEP_DAYS is honoured" || bad "keep days ignored"
+[ ! -e "$BK/mos-20200301T000000Z.dump" ] && ok "OPS_BACKUP_KEEP_DAYS is honoured" || bad "keep days ignored"
 
 echo "failures"
 mkenv "$tmp/ops.env"; rm -f "$BK"/*; : > "$BK/mos-20200101T000000Z.dump"; age "$BK/mos-20200101T000000Z.dump" 30

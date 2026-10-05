@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path'
 import { expect, test, type Page, type TestInfo } from '@playwright/test'
 import { BAR_MEMBER } from './fixtures/users'
 import { loginAs } from './helpers/login'
+import { STREAM_CONTROL_NAME } from './helpers/cafe-stream'
 
 type ReadMode = 'rows' | 'empty' | 'error'
 
@@ -269,6 +270,26 @@ async function assertNoOverflow(page: Page, width: number) {
 }
 
 test.describe('Café item settings', () => {
+  for (const width of [390, 1280] as const) {
+    test(`keeps settings operable after choosing the first stream at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 })
+      await mockSettingsApi(page)
+      await page.route('**/rest/v1/rpc/default_stream', route => route.fulfill({ json: null }))
+      await page.route('**/rest/v1/team_memberships*', route => route.fulfill({ json: [] }))
+      await openItems(page)
+      await page.getByRole('group', { name: STREAM_CONTROL_NAME }).getByRole('button').first().click()
+      const settings = page.getByRole('region', { name: 'Café item settings', exact: true })
+      const item = settings.getByText('Herbal tea · ERP reference', { exact: true })
+      await expect(item).toBeVisible()
+      const search = settings.getByRole('searchbox', { name: 'Find an ESB or MOS name' })
+      await search.fill('no-matching-item')
+      await expect(item).toHaveCount(0)
+      await search.clear()
+      await expect(item).toBeVisible()
+      await expect(settings.getByRole('textbox', { name: 'MOS name' }).first()).toBeEnabled()
+    })
+  }
+
   for (const width of [390, 1440] as const) {
     test(`renders 501 items with three ESB units at ${width}px`, async ({ page }) => {
       test.setTimeout(60_000)
@@ -360,7 +381,7 @@ test.describe('Café item settings', () => {
     for (const width of [390, 1440, 1920] as const) {
       await page.setViewportSize({ width, height: 960 })
       await page.goto('cafe/waste')
-      await expect(page.getByRole('heading', { name: 'Café · Log waste', exact: true })).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'Log waste', exact: true })).toBeVisible()
       const report = page.locator('.kl-missing')
       const reportButton = report.getByRole('button', { name: 'Missing an item? Report it', exact: true })
       const toolbar = page.locator('.ktb')

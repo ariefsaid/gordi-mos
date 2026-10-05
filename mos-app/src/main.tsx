@@ -24,8 +24,32 @@ import './styles/drawer.css'
 import './styles/form-grid.css'
 import { App } from './app.tsx'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { createClientErrorSink } from './lib/client-error-sink'
+import { installGlobalErrorListeners } from './lib/global-error-listeners'
+import { supabase } from './lib/supabase'
+import { registerErrorSink } from './lib/telemetry'
 import { registerServiceWorker } from './sw-register'
 
+registerErrorSink(createClientErrorSink({
+  isSignedIn: async () => {
+    const { data, error } = await supabase.auth.getSession()
+    return !error && data.session !== null
+  },
+  report: async ({ message, stack, route, releaseSha, userAgent }) => {
+    const { error } = await supabase.rpc('report_client_error', {
+      p_message: message,
+      p_stack: stack,
+      p_route: route,
+      p_release_sha: releaseSha,
+      p_user_agent: userAgent,
+    })
+    if (error) throw error
+  },
+  releaseSha: import.meta.env.VITE_RELEASE_SHA,
+  getRoute: () => window.location.pathname,
+  getUserAgent: () => navigator.userAgent,
+}))
+installGlobalErrorListeners()
 registerServiceWorker()
 
 createRoot(document.getElementById('root')!).render(
