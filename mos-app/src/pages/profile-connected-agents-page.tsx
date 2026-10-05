@@ -70,6 +70,7 @@ export function ProfileConnectedAgentsPage() {
         {failed && <ErrorState message={t('agentConnections.self.loadError')} onRetry={() => void load()} />}
         {!loading && !failed && !oauthAvailable && (
           <EmptyState
+            variant="blank"
             title={t('agentConnections.self.unavailableTitle')}
             copy={t('agentConnections.self.unavailableCopy')}
           />
