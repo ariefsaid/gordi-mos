@@ -57,7 +57,15 @@
 
 @media (max-width: 767.98px) {
   .hlp-opts { grid-template-columns: minmax(0, 1fr); }
-  .hlp-card { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 4px 12px; align-content: center; }
+  .hlp-card {
+    display: grid;
+    grid-template-columns: 88px minmax(0, 1fr);
+    gap: 4px 12px;
+    align-content: center;
+    /* Scroll the full choice clear of the shell chrome; its radio input has no visible box. */
+    scroll-margin-block-start: calc(var(--header-h) + 12px);
+    scroll-margin-block-end: calc(var(--tabbar-h) + 12px);
+  }
   .hlp-thumb { grid-row: span 2; align-self: center; aspect-ratio: 4 / 3; padding: 5px; }
   .hlp-name { margin-top: 0; flex-wrap: wrap; gap: 4px 8px; }
   .hlp-desc { margin-top: 0; }
