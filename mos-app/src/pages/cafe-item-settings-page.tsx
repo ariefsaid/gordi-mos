@@ -360,7 +360,7 @@ function CafeItemSettingsPageForViewer() {
     needsUnit: needsUnitFilter,
     sorting: listSorting,
   })
-  const listGroups = kitchenDataTableGroups(itemTable, () => null)
+  const listGroups = readState === 'loading' ? [] : kitchenDataTableGroups(itemTable, () => null)
   const visibleItems = listGroups.flatMap(group => group.rows)
   const editorFor = (item: CafeItemListRow): ItemEditorProps => ({
     item,

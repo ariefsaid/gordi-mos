@@ -93,6 +93,9 @@ export async function runQueryEntity(
   if (inp.filter && !entry.allowedColumns.has(inp.filter.column)) {
     return { error: `unknown filter column: ${inp.filter.column} on entity ${entityKey}` }
   }
+  if (entry.requiredFilter && (inp.filter?.column !== entry.requiredFilter || !['eq', 'in'].includes(inp.filter.op))) {
+    return { error: `required filter missing: ${entry.requiredFilter}` }
+  }
 
   // ── Step 4: build the schema-scoped query (D2 MOS delta) ──────────────────
   const effLimit = Math.min(inp.limit ?? AGENT_READ_ROW_CAP, AGENT_READ_ROW_CAP)
@@ -123,10 +126,16 @@ export async function runQueryEntity(
       timeoutPromise<{ data: unknown[] | null; error: unknown }>(READ_TIMEOUT_MS),
     ])
   } catch (err) {
-    return { error: err instanceof Error ? err.message : 'query_entity read failed' }
+    console.error('[agent-chat] query_entity read failed', {
+      errorCode: err instanceof Error ? err.name : 'unknown',
+    })
+    return { error: 'query_entity read failed' }
   }
 
   if (result.error) {
+    console.error('[agent-chat] query_entity db error', {
+      errorCode: (result.error as { code?: string } | null)?.code ?? 'unknown',
+    })
     return { error: 'query_entity db error' }
   }
 
@@ -172,6 +181,12 @@ function validateCreateTask(
   if (typeof i?.accountablePersonId !== 'string' || !i.accountablePersonId) {
     return { ok: false, error: 'accountablePersonId is required' }
   }
+  if (i.dueDate !== undefined && (typeof i.dueDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(i.dueDate))) {
+    return { ok: false, error: 'dueDate must be an ISO date' }
+  }
+  for (const [field, value] of [['objectiveId', i.objectiveId], ['workLineId', i.workLineId]] as const) {
+    if (value !== undefined && typeof value !== 'string') return { ok: false, error: `${field} must be a string` }
+  }
   if (i.description !== undefined && (typeof i.description !== 'string' || i.description.length > 2000)) {
     return { ok: false, error: 'description must be a string (max 2000 chars)' }
   }
@@ -200,7 +215,7 @@ export const createTaskAction: AgentAction & {
   surfaces: ['agent'],
   confirm: true,
   validate: validateCreateTask,
-  summarize: (i) => `Create task "${i.title}" (R: ${i.responsiblePersonId}, A: ${i.accountablePersonId}, BU: ${i.businessUnitId})`,
+  summarize: (i) => `Create task: title=${JSON.stringify(i.title)}; business unit=${JSON.stringify(i.businessUnitId)}; responsible=${JSON.stringify(i.responsiblePersonId)}; accountable=${JSON.stringify(i.accountablePersonId)}; due date=${JSON.stringify(i.dueDate ?? null)}; objective=${JSON.stringify(i.objectiveId ?? null)}; work line=${JSON.stringify(i.workLineId ?? null)}; description=${JSON.stringify(i.description ?? null)}`,
   run: async (input: unknown, ctx: DeputyContext) => {
     const v = validateCreateTask(input)
     if (v.ok === false) return { error: v.error }
@@ -259,7 +274,10 @@ function validatePostUpdate(
   if (typeof i?.progress !== 'string' || !['done', 'in_progress', 'blocked'].includes(i.progress)) {
     return { ok: false, error: 'progress must be done|in_progress|blocked' }
   }
-  return { ok: true, value: { label: i.label, progress: i.progress, weekStart: i.weekStart } }
+  if (i.weekStart !== undefined && (typeof i.weekStart !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(i.weekStart))) {
+    return { ok: false, error: 'weekStart must be an ISO date' }
+  }
+  return { ok: true, value: { label: i.label, progress: i.progress, weekStart: i.weekStart ?? currentMondayJakarta() } }
 }
 
 /** ISO Monday date for "now" in Asia/Jakarta (UTC+7, no DST) — matches the SPA's week convention. */
@@ -283,7 +301,7 @@ export const postUpdateAction: AgentAction & {
   surfaces: ['agent'],
   confirm: true,
   validate: validatePostUpdate,
-  summarize: (i) => `Add update line "${i.label}" (${i.progress}) to your week of ${i.weekStart ?? currentMondayJakarta()}`,
+  summarize: (i) => `Add update line: label=${JSON.stringify(i.label)}; progress=${JSON.stringify(i.progress)}; week start=${JSON.stringify(i.weekStart ?? currentMondayJakarta())}`,
   run: async (input: unknown, ctx: DeputyContext) => {
     const v = validatePostUpdate(input)
     if (v.ok === false) return { error: v.error }

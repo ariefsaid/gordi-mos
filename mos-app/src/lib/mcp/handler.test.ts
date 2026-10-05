@@ -299,35 +299,39 @@ describe('tools/call', () => {
     expect(kit.dataCalls()).toHaveLength(1)
   })
 
-  it('maps a function error to isError with {code: details, message, field: hint}', async () => {
-    const { rpc } = await setup(() => Response.json(
-      { code: 'PT404', message: 'Task not found.', details: 'not_found', hint: 'id' }, { status: 404 }))
+  it('returns a generic message for a data-API error and logs only safe context', async () => {
+    const { rpc, logs } = await setup(() => Response.json(
+      { code: 'PT404', message: 'private database detail', details: 'private detail', hint: 'id' }, { status: 404 }))
     const body = await (await rpc('tools/call', call('get_task', { id: 'x' }))).json()
     expect(body.result).toEqual({
       isError: true,
-      content: [{ type: 'text', text: 'Task not found.' }],
-      structuredContent: { code: 'not_found', message: 'Task not found.', field: 'id' },
+      content: [{ type: 'text', text: 'The request could not be completed.' }],
+      structuredContent: { code: 'request_failed', message: 'The request could not be completed.', field: null },
     })
+    expect(JSON.stringify(body)).not.toContain('private database detail')
+    expect(JSON.stringify(logs)).not.toContain('private database detail')
+    expect(logs).toContainEqual({ event: 'data_api_error', tool: 'get_task', status: 404 })
   })
 
-  it('maps a fence refusal (forbidden) to a tool error', async () => {
+  it('returns a generic tool error for a fence refusal', async () => {
     const { rpc } = await setup(() => Response.json({ code: 'PT403', message: 'Agent access is not available.', details: 'forbidden', hint: null }, { status: 403 }))
     const body = await (await rpc('tools/call', call('whoami', {}))).json()
     expect(body.result.isError).toBe(true)
-    expect(body.result.structuredContent).toEqual({ code: 'forbidden', message: 'Agent access is not available.', field: null })
+    expect(body.result.structuredContent).toEqual({ code: 'request_failed', message: 'The request could not be completed.', field: null })
   })
 
-  it('maps a data-API error without the function shape by its own code and status', async () => {
-    const { rpc } = await setup(() => Response.json({ code: 'PGRST202', message: 'no function' }, { status: 404 }))
+  it('returns a generic error for data-API details', async () => {
+    const { rpc } = await setup(() => Response.json({ code: 'PGRST202', message: 'private detail' }, { status: 404 }))
     const body = await (await rpc('tools/call', call('whoami', {}))).json()
-    expect(body.result.structuredContent).toEqual({ code: 'PGRST202', message: 'no function', field: null })
+    expect(body.result.structuredContent).toEqual({ code: 'request_failed', message: 'The request could not be completed.', field: null })
+    expect(JSON.stringify(body)).not.toContain('private detail')
   })
 
   it('maps a non-JSON error body to a generic tool error', async () => {
     const { rpc } = await setup(() => new Response('<html>bad gateway</html>', { status: 502 }))
     const body = await (await rpc('tools/call', call('whoami', {}))).json()
     expect(body.result.isError).toBe(true)
-    expect(body.result.structuredContent.code).toBe('http_502')
+    expect(body.result.structuredContent).toEqual({ code: 'request_failed', message: 'The request could not be completed.', field: null })
     expect(JSON.stringify(body)).not.toContain('<html>')
   })
 
