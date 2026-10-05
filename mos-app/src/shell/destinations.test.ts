@@ -8,7 +8,7 @@ import { SHIP_GATED_PATHS } from '@/lib/ship-gate'
 import { describe, it, expect } from 'vitest'
 import {
   DESTINATIONS, MODULES, UTILITY, isLive, destinationForPath, viewerAdmittedToRoute,
-  primaryModuleForViewer, goToDestinations,
+  primaryModuleForViewer, goToDestinations, areaTitleKeyForPath,
   type Destination,
 } from './destinations'
 import { CAFE_SECTIONS, visibleSections } from './sections'
@@ -388,6 +388,22 @@ describe('destinationForPath — resolution across all three zones', () => {
   it('returns null for a truly unknown path', () => {
     expect(destinationForPath('/unknown-xyz')).toBeNull()
   })
+})
+
+describe('AC-004/005 (#1299): area labels for declared legacy Money aliases', () => {
+  it.each(['/sales', '/dashboard', '/dashboard/', '/dashboard/detail', '/plan/budget', '/plan/pricing'])(
+    'names the declared alias %s for the existing Money area',
+    (path) => {
+      expect(areaTitleKeyForPath(path)).toBe('dest.money')
+    },
+  )
+
+  it.each(['/sales/extra', '/dashboard/extra', '/dashboard/detail/extra', '/plan/budget/extra', '/plan/pricing/extra'])(
+    'does not name unknown descendant %s for Money',
+    (path) => {
+      expect(areaTitleKeyForPath(path)).toBeNull()
+    },
+  )
 })
 
 // isLive gates on anyOf when present — independent of the real destinations.
