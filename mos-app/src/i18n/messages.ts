@@ -825,8 +825,8 @@ export const messages = {
     // NOT the summary's "Off-plan", which counts portions made against no plan. This groups
     // ITEMS that today's plan does not mention. Two meanings 145px apart on one screen, both
     // spelled the same, is a number nobody can reconcile.
-    'kitchen.log.group.offplan': 'Not on today\u2019s plan',
-    'kitchen.log.group.offplan.hint': 'log as produced',
+    'kitchen.log.group.offplan': 'Not planned today',
+    'kitchen.log.group.offplan.hint': 'Enter the amount produced',
     'kitchen.log.missing.cta': 'Missing an item? Report it',
     'kitchen.log.missing.label': 'Item name',
     'kitchen.log.missing.submit': 'Send report',
@@ -2818,8 +2818,8 @@ export const messages = {
     'kitchen.log.footer.reviewNext': 'Diteruskan ke Penyetuju Anda untuk ditinjau',
     'kitchen.log.footer.unit.one': '${count} porsi',
     'kitchen.log.footer.unit.other': '${count} porsi',
-    'kitchen.log.group.offplan': 'Tidak ada di rencana hari ini',
-    'kitchen.log.group.offplan.hint': 'catat sebagai diproduksi',
+    'kitchen.log.group.offplan': 'Tidak direncanakan hari ini',
+    'kitchen.log.group.offplan.hint': 'Masukkan jumlah yang diproduksi',
     'kitchen.log.missing.cta': 'Item tidak muncul? Laporkan',
     'kitchen.log.missing.label': 'Nama item',
     'kitchen.log.missing.submit': 'Kirim laporan',

@@ -212,9 +212,21 @@ describe('WipItemStepper — AC-020/021/022', () => {
     expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
   })
 
-  it('does not imply an unrecorded plan unit in the quantity placeholder', () => {
+  it('uses the plan as a unitless quantity placeholder while preserving its unit basis in metadata', () => {
     renderStepper({ line: { plan_qty: 12 } })
-    expect(screen.getByRole('spinbutton', { name: /quantity/i })).toHaveAttribute('placeholder', '0')
+    expect(screen.getByRole('spinbutton', { name: /quantity/i })).toHaveAttribute('placeholder', '12')
+  })
+
+  it('keeps the fixed-width quantity and selected unit together, with the unit below the input', () => {
+    renderStepper({ unitOptions: [UNIT_PORSI] })
+    const input = screen.getByRole('spinbutton', { name: /quantity/i })
+    const unit = screen.getByText('porsi')
+    const quantity = document.querySelector('.kls-quantity')
+    expect(quantity).not.toBeNull()
+    expect(input.closest('.kls-quantity')).toBe(quantity)
+    expect(unit.closest('.kls-quantity')).toBe(quantity)
+    expect(quantity?.firstElementChild).toBe(input)
+    expect(quantity?.lastElementChild).toBe(unit)
   })
 
   it('uses the neutral zero placeholder when there is no plan for this action_type', () => {
