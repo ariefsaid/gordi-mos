@@ -138,8 +138,8 @@ export function CafeCountReviewQueue({
                   <div className="cafe-count-review__name">{line.item_name}</div>
                   <div className="cafe-count-review__meta">
                     <span>{line.item_kind}</span>
-                    {line.item_category && <span>{line.item_category}</span>}
-                    {stream && <span>{streamLabel(t, stream)}</span>}
+                    {line.item_category && <span>{t('cafe.count.review.categoryTag', { category: line.item_category })}</span>}
+                    {stream && <span>{t('cafe.count.review.streamTag', { stream: streamLabel(t, stream) })}</span>}
                     <span>{t('cafe.count.review.submittedAt', { time: submittedAt })}</span>
                   </div>
                 </div>
