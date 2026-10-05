@@ -971,7 +971,7 @@ describe('sections read like a document', () => {
     renderRecord()
     const work = await screen.findByRole('region', { name: 'Projects & Processes' })
     await unlinkViaRowMenu(user, work)
-    expect(await screen.findByText("Couldn't link", { exact: false })).toBeInTheDocument()
+    expect(await screen.findByText("Couldn't unlink", { exact: false })).toBeInTheDocument()
     expect(screen.queryByText('Unlinked Menu launch.')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull()
   })

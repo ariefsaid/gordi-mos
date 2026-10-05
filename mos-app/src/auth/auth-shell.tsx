@@ -68,7 +68,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
         </div>
       </div>
 
-      {children}
+      <main className="w-full max-w-[360px]">{children}</main>
 
       {/* Foot line: body 13px, muted-foreground */}
       <p
