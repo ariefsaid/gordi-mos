@@ -104,7 +104,7 @@ reset role;
 update ops.item_units set source_active=false where id='00000000-0000-0000-0000-00000000c921';
 set local role authenticated;
 select throws_ok($$select * from ops.restart_cafe_waste_draft('00000000-0000-0000-0000-00000000ac32','2026-10-02')$$,
-  'P0015',null,'a replacement still passes the current unit eligibility guard');
+  'P0014',null,'a replacement still passes the current unit eligibility guard (an inactive default unit is not available)');
 select is((select superseded_by from ops.kitchen_logs where id='00000000-0000-0000-0000-00000000ac32'),null::uuid,
   'failed replacement leaves the original resumable');
 select is((select count(*)::int from ops.kitchen_logs where action='waste' and status='Draft'),5,
