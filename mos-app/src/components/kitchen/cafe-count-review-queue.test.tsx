@@ -50,6 +50,7 @@ beforeEach(() => {
   mockList.mockResolvedValue([
     line({ id: 'zero', item_name: 'Raw flour' }),
     line({ id: 'variance', item_name: 'Dried beans', counted_quantity: '5.0000', expected_balance: '4.0000', variance: '1.0000' }),
+    line({ id: 'negative-variance', item_name: 'Dried tomatoes', counted_quantity: '1.2500', expected_balance: '1.5000', variance: '-0.2500' }),
     line({ id: 'waiting', item_name: 'Chickpeas', expected_status: 'waiting', expected_balance: null, expected_recorded_at: null, variance: null }),
   ])
 })
@@ -66,7 +67,9 @@ describe('CafeCountReviewQueue', () => {
     const rawRow = screen.getByText('Raw flour').closest('.cafe-count-review__row')! as HTMLElement
     expect(within(rawRow).getByText('Category: Pantry')).toBeInTheDocument()
     expect(within(rawRow).getByText('Stream: Cafe Branch · Kitchen')).toBeInTheDocument()
-    expect(screen.getByText('Non-zero Variance · remains Submitted')).toBeInTheDocument()
+    expect(screen.getAllByText('Non-zero Variance · remains Submitted')).toHaveLength(2)
+    const negativeRow = screen.getByText('Dried tomatoes').closest('.cafe-count-review__row') as HTMLElement
+    expect(negativeRow.querySelectorAll('.cafe-count-review__facts dd')[2]).toHaveTextContent('-0.25 kg')
     expect(screen.getAllByText('Expected balance is not ready yet.').length).toBeGreaterThan(0)
     expect(screen.queryByText(/Stock/)).not.toBeInTheDocument()
   })

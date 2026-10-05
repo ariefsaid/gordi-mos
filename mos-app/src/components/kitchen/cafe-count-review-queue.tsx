@@ -198,7 +198,12 @@ function formatCafeCountDecimal(value: string, locale: string): string {
   const [, sign, whole, rawFraction = ''] = match
   const fraction = rawFraction.replace(/0+$/, '')
   const wholeValue = BigInt(`${sign}${whole}`)
-  const formattedWhole = new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(wholeValue)
+  const integerFormatter = new Intl.NumberFormat(locale, { maximumFractionDigits: 0 })
+  const formattedWhole = integerFormatter.format(wholeValue)
+  const negativeZeroSign = sign === '-' && wholeValue === 0n
+    ? integerFormatter.formatToParts(-1n).find(part => part.type === 'minusSign')?.value ?? '-'
+    : ''
+  const formattedInteger = `${negativeZeroSign}${formattedWhole}`
   const decimalSeparator = new Intl.NumberFormat(locale).formatToParts(1.1).find(part => part.type === 'decimal')?.value ?? '.'
-  return fraction ? `${formattedWhole}${decimalSeparator}${fraction}` : formattedWhole
+  return fraction ? `${formattedInteger}${decimalSeparator}${fraction}` : formattedInteger
 }
