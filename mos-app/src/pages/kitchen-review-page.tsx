@@ -57,6 +57,7 @@ import { rememberStream, rememberedStreamKey } from '@/lib/cafe-stream'
 import { activeCafeLocation } from '@/lib/cafe-opening-location'
 import { useReviewSummary } from '@/lib/kitchen-review-kpis'
 import { formatWeekdayDayMonth } from '@/lib/format/date'
+import { formatUnitMultiple } from '@/lib/cafe-unit-multiples'
 import './kitchen-review-page.css'
 
 function wibToday(): string {
@@ -94,6 +95,18 @@ function planQtyFor(streamPlans: Map<string, PlanMap>, log: ReviewLogRow): numbe
  */
 function isOffPlan(log: ReviewLogRow, planQty: number): boolean {
   return log.qty_porsi !== planQty
+}
+
+function formatLogEntryQuantity(log: ReviewLogRow): string {
+  if (log.entry_quantity == null || log.entry_unit_name == null) return String(log.qty_porsi)
+  const locale = document.documentElement.lang || 'en'
+  const format = (quantity: number) => new Intl.NumberFormat(locale, { maximumFractionDigits: 3 }).format(quantity)
+  const factor = log.entry_unit_factor ?? 1
+  const enteredUnit = factor === 1 ? log.entry_unit_name : formatUnitMultiple(factor, log.entry_unit_name, locale)
+  const entered = factor === 1
+    ? `${format(log.entry_quantity)} ${enteredUnit}`
+    : `${format(log.entry_quantity)} × ${enteredUnit}`
+  return factor === 1 ? entered : `${entered} (${format(log.qty_porsi)} ${log.entry_unit_name})`
 }
 
 /**
@@ -859,7 +872,7 @@ function KitchenReviewPageForViewer() {
           <span className="krow-meta">{t('kitchen.review.qty.plan')}</span>
           <strong>{planQtyFor(streamPlans, log)}</strong>
           <span className="krow-meta">· {t('kitchen.review.qty.logged')}</span>
-          <strong>{log.qty_porsi}</strong>
+          <strong>{formatLogEntryQuantity(log)}</strong>
         </span>
       ),
     },
@@ -942,7 +955,7 @@ function KitchenReviewPageForViewer() {
           )}
           <span className="krow-qty">
             <span className="krow-meta">{t('kitchen.review.qty.plan')}</span> <strong>{planQty}</strong>
-            <span className="krow-meta"> · {t('kitchen.review.qty.logged')}</span> <strong>{log.qty_porsi}</strong>
+            <span className="krow-meta"> · {t('kitchen.review.qty.logged')}</span> <strong>{formatLogEntryQuantity(log)}</strong>
           </span>
           <span className="krow-byname">{name}</span>
           <span className="krow-time">{formatTime(log.created_at)}</span>

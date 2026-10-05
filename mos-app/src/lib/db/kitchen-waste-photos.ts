@@ -27,6 +27,8 @@ export interface KitchenWasteDraft {
   itemUnitId: string | null
   unitName: string | null
   quantity: number
+  entryUnitFactor?: number | null
+  entryUnitName?: string | null
   logDate: string
   createdAt: string
   photos: KitchenWastePhoto[]
@@ -45,7 +47,7 @@ export async function listCurrentPersonKitchenWasteDrafts(
   scope: KitchenWasteDraftScope,
 ): Promise<KitchenWasteDraft[]> {
   const { data, error } = await supabase.schema('ops').from('kitchen_logs')
-    .select('id,wip_item_id,item_unit_id,qty_porsi,log_date,created_at')
+    .select('id,wip_item_id,item_unit_id,qty_porsi,entry_quantity,entry_unit_factor,entry_unit_name,log_date,created_at')
     .eq('org_id', scope.orgId)
     .eq('submitted_by', scope.personId)
     .eq('branch_id', scope.branchId)
@@ -61,6 +63,9 @@ export async function listCurrentPersonKitchenWasteDrafts(
     wip_item_id: string
     item_unit_id: string | null
     qty_porsi: number
+    entry_quantity: number | null
+    entry_unit_factor: number | null
+    entry_unit_name: string | null
     log_date: string
     created_at: string
   }>
@@ -87,8 +92,10 @@ export async function listCurrentPersonKitchenWasteDrafts(
       logId: row.id,
       itemId: row.wip_item_id,
       itemUnitId: row.item_unit_id,
-      unitName: unitName || null,
-      quantity: row.qty_porsi,
+      unitName: row.entry_unit_name || unitName || null,
+      quantity: row.entry_quantity ?? row.qty_porsi,
+      entryUnitFactor: row.entry_unit_factor ?? null,
+      entryUnitName: row.entry_unit_name ?? null,
       logDate: row.log_date,
       createdAt: row.created_at,
       photos: photosByLog.get(row.id) ?? [],
