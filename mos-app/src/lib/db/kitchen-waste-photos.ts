@@ -16,6 +16,84 @@ export interface KitchenWastePhoto {
   name?: string
 }
 
+export interface KitchenWasteDraft {
+  logId: string
+  itemId: string
+  itemUnitId: string
+  unitName: string
+  quantity: number
+  logDate: string
+  createdAt: string
+  photos: KitchenWastePhoto[]
+}
+
+export interface KitchenWasteDraftScope {
+  orgId: string
+  personId: string
+  branchId: string
+  activity: string
+}
+
+/** Read resumable waste facts only for the signed-in person's current stream, across dates.
+ * Existing RLS still determines which same-org rows and photo objects the session can read. */
+export async function listCurrentPersonKitchenWasteDrafts(
+  scope: KitchenWasteDraftScope,
+): Promise<KitchenWasteDraft[]> {
+  const { data, error } = await supabase.schema('ops').from('kitchen_logs')
+    .select('id,wip_item_id,item_unit_id,qty_porsi,log_date,created_at')
+    .eq('org_id', scope.orgId)
+    .eq('submitted_by', scope.personId)
+    .eq('branch_id', scope.branchId)
+    .eq('activity', scope.activity)
+    .eq('action', 'waste')
+    .eq('status', 'Draft')
+    .order('created_at', { ascending: true })
+  if (error) throw new Error(`listCurrentPersonKitchenWasteDrafts failed — ${error.message}`)
+
+  const rows = (data ?? []) as Array<{
+    id: string
+    wip_item_id: string
+    item_unit_id: string | null
+    qty_porsi: number
+    log_date: string
+    created_at: string
+  }>
+  if (rows.length === 0) return []
+  const unitIds = [...new Set(rows.flatMap(row => row.item_unit_id ? [row.item_unit_id] : []))]
+  const [{ data: unitRows, error: unitError }, photos] = await Promise.all([
+    supabase.schema('ops').from('item_units')
+      .select('id,unit_name')
+      .eq('org_id', scope.orgId)
+      .in('id', unitIds),
+    listKitchenWastePhotos(rows.map(row => row.id)),
+  ])
+  if (unitError) throw new Error(`listCurrentPersonKitchenWasteDrafts failed — ${unitError.message}`)
+
+  const unitNames = new Map(((unitRows ?? []) as Array<{ id: string; unit_name: string }>)
+    .map(unit => [unit.id, unit.unit_name]))
+  const photosByLog = new Map<string, KitchenWastePhoto[]>()
+  for (const photo of photos) {
+    const current = photosByLog.get(photo.logId) ?? []
+    photosByLog.set(photo.logId, [...current, photo])
+  }
+
+  return rows.flatMap(row => {
+    if (!row.item_unit_id) return []
+    const unitName = unitNames.get(row.item_unit_id)
+    if (!unitName) throw new Error('listCurrentPersonKitchenWasteDrafts failed — a captured unit was not returned')
+    return [{
+      logId: row.id,
+      itemId: row.wip_item_id,
+      itemUnitId: row.item_unit_id,
+      unitName,
+      quantity: row.qty_porsi,
+      logDate: row.log_date,
+      createdAt: row.created_at,
+      photos: photosByLog.get(row.id) ?? [],
+    }]
+  })
+}
+
 /** Store evidence on an existing waste Draft. Signal's downscaler preserves the original photo's
  * orientation and emits one JPEG; the bucket cap applies to those stored bytes, not the phone's
  * uncompressed source. The item's ERP product-detail unit is unrelated and remains unchanged. */

@@ -133,10 +133,12 @@ describe('catalog list column structure — Projects & Processes', () => {
     const link = screen.getByRole('link', { name: 'Has owner' })
     expect(link).toHaveAttribute('href', '/work/projects/o')
     expect(link.className).toBe('catalog-collection__row-link')
-    expect(Array.from(link.children).map((c) => c.className)).toEqual([
+    const row = link.closest('[role="row"]') as HTMLElement
+    expect(Array.from(row.children).map((c) => c.className)).toEqual([
       'catalog-collection__identity', 'catalog-collection__primary-action', 'catalog-collection__metadata',
     ])
-    expect(link.closest('li')).toHaveAttribute('data-catalog-row-id', 'o')
+    expect(row).toHaveAttribute('data-catalog-row-id', 'o')
+    expect(link.parentElement).toHaveAttribute('role', 'cell')
   })
 })
 

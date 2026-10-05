@@ -53,10 +53,9 @@ function task(id: string, objectiveId: string | null, workLineId: string | null,
   return {
     id, org_id: 'org-1', title: id, business_unit_id: 'bu-1', status,
     responsible_person_id: 'p1', accountable_person_id: 'p1', consulted_person_ids: [],
-    informed_person_ids: [], description: null, due_date: null,
+    informed_person_ids: [], due_date: null,
     objective_id: objectiveId, work_line_id: workLineId,
     last_activity_at: '2026-07-07T00:00:00Z', archived_at: null, created_by: 'p1',
-    created_at: '2026-07-07T00:00:00Z', updated_at: '2026-07-07T00:00:00Z',
   }
 }
 
@@ -108,7 +107,7 @@ describe('Objectives collection-first contract', () => {
     await screen.findByText('Grow revenue')
     expect(screen.getByRole('link', { name: 'Grow revenue' })).toHaveAttribute('href', '/work/objectives/obj-1')
     expect(screen.getByText('Through Tasks: Daily prep, Menu launch')).toBeInTheDocument()
-    expect(screen.getByText('1 / 2 done')).toBeInTheDocument()
+    expect(screen.getByText('1 / 2 Tasks done')).toBeInTheDocument()
     expect(screen.getByText('07 Jul 2026, 07:00 WIB')).toBeInTheDocument()
     expect(container.querySelector('.catalog-collection__disclosure')).toBeNull()
   })
@@ -281,6 +280,7 @@ describe('page help defines the domain terms', () => {
     const panel = screen.getByRole('note')
     expect(panel).toHaveTextContent('Objectives are what your team is working toward this period.')
     expect(panel).toHaveTextContent('Business Unit is the business line that owns the work')
+    expect(panel).toHaveTextContent('completed Tasks out of total Tasks')
   })
 
   it('ID: the localized help states the same terms', async () => {
@@ -290,6 +290,7 @@ describe('page help defines the domain terms', () => {
     const panel = screen.getByRole('note')
     expect(panel).toHaveTextContent('Tujuan adalah apa yang sedang dituju tim Anda periode ini.')
     expect(panel).toHaveTextContent('Business Unit adalah lini usaha yang memiliki pekerjaan')
+    expect(panel).toHaveTextContent('jumlah Tugas selesai dari total Tugas')
   })
 })
 

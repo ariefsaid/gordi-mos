@@ -9,6 +9,7 @@ import type {
   CollectionViewValidationResult,
   PersistedCollectionView,
 } from './collection-view-spec'
+import type { ReadLease } from '@/lib/scoped-reads'
 
 export type { CollectionOverlayHost, RecordViewerOpenSource, RecordViewerOpeningContract }
 
@@ -169,12 +170,21 @@ export interface RecordCollectionDescriptor<
   // `accessRoles` rides along for loaders whose list scope depends on the viewer's authority
   // (OD-TASK-3: Tasks' Relevant view). Optional so every existing descriptor stays valid; the
   // engine always supplies what it got at construction, mirroring getAccess.
-  load(args: { query: TQuery; viewerId: string | null; accessRoles?: readonly string[] }): Promise<CollectionData<TRecord, TContext>>
+  load(args: {
+    query: TQuery
+    viewerId: string | null
+    accessRoles?: readonly string[]
+    readLease?: ReadLease
+  }): Promise<CollectionData<TRecord, TContext>>
   /**
-   * The query keys whose change requires a fresh `load()`. When omitted, EVERY `setQuery` reloads
-   * (the conservative default). A descriptor that filters/sorts/groups purely client-side in
-   * `project()` declares only its genuine server dependencies here, so a filter/sort/view change
-   * reprojects the existing snapshot instead of refetching the whole dataset (and its lookup tables).
+   * A stable semantic key for the server reads required by this query and authority. When present,
+   * the engine reloads only when this key changes; it takes precedence over `loadKeys`. Use it when
+   * server requirements depend on combinations of query values or viewer authority.
+   */
+  readonly loadDependencyKey?: (query: TQuery, accessRoles: readonly string[]) => string
+  /**
+   * The query keys whose change requires a fresh `load()`. Used when there is no semantic
+   * `loadDependencyKey`. When both are omitted, EVERY `setQuery` reloads (the conservative default).
    */
   readonly loadKeys?: readonly QueryKey<TQuery>[]
   project(

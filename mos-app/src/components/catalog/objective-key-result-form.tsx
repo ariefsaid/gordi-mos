@@ -1,8 +1,9 @@
-import { useId, useRef, useState } from 'react'
+import { useId, useState } from 'react'
 import { useT } from '@/i18n/use-t'
 import { Button } from '@/components/ui/button'
 import { DateField } from '@/components/ui/date-field'
 import { TextInput } from '@/components/ui/text-input'
+import { useFocusRestore } from '@/components/ui/use-focus-restore'
 import { PersonPicker } from '@/components/tasks/person-picker'
 import type { PersonOption } from '@/lib/db/directory'
 import type { KeyResultRow } from '@/lib/db/objective-key-results'
@@ -30,7 +31,7 @@ export function KeyResultForm({ row, people, onSubmit, onCancel, onRemove }: Key
   const [dueInvalid, setDueInvalid] = useState(false)
   const [dueTried, setDueTried] = useState(false)
   const set = (patch: Partial<FormValues>) => setValues((current) => ({ ...current, ...patch }))
-  const formRef = useRef<HTMLFormElement>(null)
+  const formRef = useFocusRestore<HTMLFormElement>(saving, failed, { includeFormControls: true })
   const whatErrorId = useId()
   const targetErrorId = useId()
   const whatError = touched.what && values.what.trim() === ''
@@ -123,7 +124,7 @@ export function KeyResultForm({ row, people, onSubmit, onCancel, onRemove }: Key
         ) : null}
       </div>
       <div className="form-grid__field form-grid__field--full objective-key-results__actions">
-        <Button type="submit" variant="outline" disabled={saving} aria-busy={saving || undefined}>
+        <Button type="submit" variant="primary" disabled={saving} aria-busy={saving || undefined}>
           {saving ? t('record.field.saving') : t('objective.keyResults.save')}
         </Button>
         <Button type="button" variant="ghost" disabled={saving} onClick={onCancel}>{t('common.cancel')}</Button>

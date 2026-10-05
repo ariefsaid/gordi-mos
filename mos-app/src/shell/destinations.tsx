@@ -407,6 +407,10 @@ function destinationOwning(pathname: string): Destination | null {
   return ownerOf(pathname)?.destination ?? null
 }
 
+const LEGACY_MONEY_AREA_ALIASES = new Set([
+  '/sales', '/dashboard', '/dashboard/detail', '/plan/budget', '/plan/pricing',
+])
+
 /**
  * The AREA a path belongs to, named for a viewer standing outside it (`access-boundary.tsx`).
  *
@@ -419,6 +423,10 @@ function destinationOwning(pathname: string): Destination | null {
  * area's label is already in the catalog every viewer downloads.
  */
 export function areaTitleKeyForPath(pathname: string): MessageKey | null {
+  const normalizedPath = pathname.endsWith('/') && pathname !== '/' ? pathname.slice(0, -1) : pathname
+  if (LEGACY_MONEY_AREA_ALIASES.has(normalizedPath)) {
+    return destinationOwning('/money')?.labelKey ?? null
+  }
   return destinationOwning(pathname)?.labelKey ?? null
 }
 

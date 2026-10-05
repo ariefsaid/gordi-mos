@@ -34,6 +34,8 @@ export type RecordSectionAction = {
   label: string
   onClick: () => void
   disabled?: boolean
+  /** Override the quiet section action or Get started's first-action emphasis when coordinated with a sibling action. */
+  variant?: 'primary' | 'outline' | 'ghost'
 }
 
 type SectionHeadingProps = { id?: string; children: ReactNode; className: string }
@@ -60,7 +62,7 @@ export function RecordSection({ id, title, count, action, children }: RecordSect
         <SectionHeading id={headingId} className="rp-section__title">{title}</SectionHeading>
         {count !== undefined && count !== null ? <span className="rp-section__count">{count}</span> : null}
         {action ? (
-          <Button variant="ghost" className="rp-section__action" disabled={action.disabled} onClick={action.onClick}>
+          <Button variant={action.variant ?? 'ghost'} className="rp-section__action" disabled={action.disabled} onClick={action.onClick}>
             <span aria-hidden="true">+</span> {action.label}
           </Button>
         ) : null}
@@ -100,7 +102,7 @@ export function RecordGetStarted({ title, why, items }: RecordGetStartedProps) {
               <span className="rp-setup__label">{item.label}</span>
               <span className="rp-setup__reason">{item.reason}</span>
             </span>
-            <Button variant={index === 0 ? 'primary' : 'outline'} className="rp-setup__action" disabled={item.action.disabled} onClick={item.action.onClick}>
+            <Button variant={item.action.variant ?? (index === 0 ? 'primary' : 'outline')} className="rp-setup__action" disabled={item.action.disabled} onClick={item.action.onClick}>
               {item.action.label}
             </Button>
           </li>

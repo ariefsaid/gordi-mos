@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Link as RouterLink } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
 import { Button } from '@/components/ui/button'
@@ -127,6 +127,8 @@ export function SignalOverflowMenu({
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
+  const triggerPointerDownRef = useRef(false)
+  const pendingEntryFocusRef = useRef<'first' | 'last' | null>(null)
 
   useEffect(() => {
     if (!open) return
@@ -161,17 +163,45 @@ export function SignalOverflowMenu({
     action?.()
   }
 
+  const menuItems = () => Array.from(rootRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? [])
+
+  useLayoutEffect(() => {
+    if (!open || !pendingEntryFocusRef.current) return
+    const edge = pendingEntryFocusRef.current
+    pendingEntryFocusRef.current = null
+    const items = Array.from(rootRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? [])
+    items[edge === 'last' ? items.length - 1 : 0]?.focus()
+  }, [open])
+
+  const onTriggerKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (!open) {
+      if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
+        pendingEntryFocusRef.current = 'first'
+        if (event.key === 'Enter' || event.key === ' ') return
+        event.preventDefault()
+        setOpen(true)
+        return
+      }
+      if (event.key === 'ArrowUp') {
+        event.preventDefault()
+        pendingEntryFocusRef.current = 'last'
+        setOpen(true)
+      }
+      return
+    }
+    if (!['ArrowDown', 'ArrowUp'].includes(event.key)) return
+    event.preventDefault()
+    const items = menuItems()
+    items[event.key === 'ArrowUp' ? items.length - 1 : 0]?.focus()
+  }
+
   const onMenuKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    const items = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'))
+    const items = menuItems()
     if (event.key === 'Escape') {
       event.preventDefault()
       event.stopPropagation()
       setOpen(false)
       triggerRef.current?.focus()
-      return
-    }
-    if (event.key === 'Tab') {
-      setOpen(false)
       return
     }
     if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key) || items.length === 0) return
@@ -181,12 +211,24 @@ export function SignalOverflowMenu({
       ? 0
       : event.key === 'End'
         ? items.length - 1
-        : (currentIndex + (event.key === 'ArrowUp' ? -1 : 1) + items.length) % items.length
+        : currentIndex < 0
+          ? event.key === 'ArrowUp' ? items.length - 1 : 0
+          : (currentIndex + (event.key === 'ArrowUp' ? -1 : 1) + items.length) % items.length
     items[nextIndex]?.focus()
   }
 
   return (
-    <div className="signal-overflow" ref={rootRef}>
+    <div
+      className="signal-overflow"
+      ref={rootRef}
+      onBlurCapture={(event) => {
+        if (!open) return
+        const next = event.relatedTarget
+        if (next === triggerRef.current && triggerPointerDownRef.current) return
+        if (next instanceof Element && event.currentTarget.contains(next) && next.matches('[role="menuitem"]')) return
+        setOpen(false)
+      }}
+    >
       <button
         type="button"
         className="signal-overflow-trigger"
@@ -194,7 +236,14 @@ export function SignalOverflowMenu({
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={t('signals.record.moreActions')}
-        onClick={() => setOpen((wasOpen) => !wasOpen)}
+        onClick={() => {
+          triggerPointerDownRef.current = false
+          setOpen((wasOpen) => !wasOpen)
+        }}
+        onPointerDown={() => { triggerPointerDownRef.current = true }}
+        onPointerUp={() => { triggerPointerDownRef.current = false }}
+        onPointerCancel={() => { triggerPointerDownRef.current = false }}
+        onKeyDown={onTriggerKeyDown}
       >
         <span aria-hidden="true">⋯</span>
       </button>

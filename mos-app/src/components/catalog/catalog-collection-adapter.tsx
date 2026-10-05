@@ -32,6 +32,7 @@ import type { ObjectiveAdminRow, ObjectiveOwnership } from '@/lib/db/objectives'
 import type { WorkLineAdminRow } from '@/lib/db/work-lines'
 import { getBusinessUnits, getPeople, type BusinessUnitOption, type PersonOption } from '@/lib/db/directory'
 import { listProcessCollectionFacts, type ProcessCollectionFact } from '@/lib/db/work-records'
+import { wibToday } from '@/lib/db/cafe-opening'
 import type {
   CollectionData,
   CollectionProjection,
@@ -41,6 +42,7 @@ import type {
   QueryKey,
   RecordCollectionDescriptor,
 } from '@/lib/record-collection/types'
+import type { ReadLease } from '@/lib/scoped-reads'
 import { CatalogListPresentation } from './catalog-list-presentation'
 
 // ── Shared types ─────────────────────────────────────────────────────────────────────────────────
@@ -356,7 +358,7 @@ type WorkLineCatalogSource = WorkLineAdminRow & {
   responsible_person_id?: string | null
 }
 
-async function loadDirectoryForRows(rows: readonly CatalogRow[]): Promise<{
+async function loadDirectoryForRows(rows: readonly CatalogRow[], readLease?: ReadLease): Promise<{
   businessUnitsById: Map<string, string>
   peopleById: Map<string, string>
   businessUnits: BusinessUnitOption[]
@@ -364,8 +366,8 @@ async function loadDirectoryForRows(rows: readonly CatalogRow[]): Promise<{
   const businessUnitIds = new Set(rows.map((row) => row.businessUnitId).filter((id): id is string => Boolean(id)))
   const personIds = new Set(rows.flatMap((row) => [row.accountablePersonId, row.responsiblePersonId]).filter((id): id is string => Boolean(id)))
   const [businessUnits, people] = await Promise.all([
-    businessUnitIds.size > 0 ? getBusinessUnits() : Promise.resolve([] as BusinessUnitOption[]),
-    personIds.size > 0 ? getPeople() : Promise.resolve([] as PersonOption[]),
+    businessUnitIds.size > 0 ? readLease ? getBusinessUnits(readLease) : getBusinessUnits() : Promise.resolve([] as BusinessUnitOption[]),
+    personIds.size > 0 ? readLease ? getPeople(readLease) : getPeople() : Promise.resolve([] as PersonOption[]),
   ])
   return {
     businessUnitsById: new Map(businessUnits.map((unit) => [unit.id, unit.name])),
@@ -431,7 +433,7 @@ const inertSavedViews: CollectionSavedViewDescriptor<CatalogCollectionQuery, Cat
 function makeCatalogDescriptor(config: {
   id: string
   filterKeys: readonly QueryKey<CatalogCollectionQuery>[]
-  load: () => Promise<CollectionData<CatalogRow, CatalogCollectionContext>>
+  load: (readLease?: ReadLease) => Promise<CollectionData<CatalogRow, CatalogCollectionContext>>
 }): RecordCollectionDescriptor<
   CatalogRow,
   string,
@@ -467,13 +469,17 @@ function makeCatalogDescriptor(config: {
         render: (props) => <CatalogListPresentation {...props} />,
       },
     },
-    load: config.load,
+    load: ({ readLease }) => config.load(readLease),
     project: (data, query) => projectCatalog(data, query),
     getId: (row) => row.id,
     // Catalog reads are org-wide; mutation affordances are resolved by the page/record runtime
     // authority seam and the database remains the final write boundary.
     getAccess: () => ({ mode: 'full', visibleActions: [] }),
   }
+}
+
+function readCatalogFragment<T>(readLease: ReadLease | undefined, key: string, load: () => Promise<T>): Promise<T> {
+  return readLease ? readLease.read(key, load) : load()
 }
 
 // ── Objectives (down-trace; no type filter) ────────────────────────────────────────────────────────
@@ -484,9 +490,11 @@ export const objectivesCollectionDescriptor = makeCatalogDescriptor({
   // data for — mirrors Projects/Processes' existing 'type' filter (same CollectionToolbar
   // `filters` mechanism, no second filter grammar).
     filterKeys: ['view', 'coverage'],
-  load: async () => {
+  load: async (readLease) => {
     const [objectives, tasks, workLines] = await Promise.all([
-      listObjectivesAll(), listTasks({}), listWorkLinesAll(),
+      readCatalogFragment(readLease, 'mos.objectives:select(id,name,archived_at,business_unit_id,is_company_wide,accountable_person_id,period_year,period_quarter):order=archived_at.asc.nulls_first,name.asc', () => listObjectivesAll()),
+      readLease ? listTasks({}, readLease) : listTasks({}),
+      readCatalogFragment(readLease, 'mos.work_lines:select(id,name,type,objective_id,business_unit_id,accountable_person_id,responsible_person_id,archived_at):order=archived_at.asc.nulls_first,name.asc', () => listWorkLinesAll()),
     ])
     const t = translateFor(readPersistedLocale())
     const labels = cascadeLabels(t)
@@ -508,7 +516,7 @@ export const objectivesCollectionDescriptor = makeCatalogDescriptor({
         periodQuarter: source.period_quarter ?? null,
       }
     })
-    const directory = await loadDirectoryForRows(records)
+    const directory = await loadDirectoryForRows(records, readLease)
     return {
       records,
       context: {
@@ -542,9 +550,11 @@ export const objectivesCatalogActions = {
 export const projectsProcessesCollectionDescriptor = makeCatalogDescriptor({
   id: 'work_lines',
   filterKeys: ['view', 'type'],
-  load: async () => {
+  load: async (readLease) => {
     const [workLines, tasks, objectives] = await Promise.all([
-      listWorkLinesAll(), listTasks({}), listObjectivesAll(),
+      readCatalogFragment(readLease, 'mos.work_lines:select(id,name,type,objective_id,business_unit_id,accountable_person_id,responsible_person_id,archived_at):order=archived_at.asc.nulls_first,name.asc', () => listWorkLinesAll()),
+      readLease ? listTasks({}, readLease) : listTasks({}),
+      readCatalogFragment(readLease, 'mos.objectives:select(id,name,archived_at,business_unit_id,is_company_wide,accountable_person_id,period_year,period_quarter):order=archived_at.asc.nulls_first,name.asc', () => listObjectivesAll()),
     ])
     const t = translateFor(readPersistedLocale())
     const labels = cascadeLabels(t)
@@ -565,10 +575,22 @@ export const projectsProcessesCollectionDescriptor = makeCatalogDescriptor({
         responsiblePersonId: source.responsible_person_id ?? null,
       }
     })
-    const processIds = records.filter((record) => record.type === 'process').map((record) => record.id)
+    const processIds = records.filter((record) => record.type === 'process').map((record) => record.id).sort()
     const [directory, processFacts] = await Promise.all([
-      loadDirectoryForRows(records),
-      listProcessCollectionFacts(processIds),
+      loadDirectoryForRows(records, readLease),
+      processIds.length > 0
+        ? readCatalogFragment(
+          readLease,
+          `mos.process_collection_facts:${JSON.stringify({
+            workLineIds: processIds,
+            today: wibToday(),
+            cadence: 'process_cadences:select(work_line_id,cadence_kind,active,anchor_date):work_line_id.in',
+            runs: 'process_runs:select(id,work_line_id,period_key,scheduled_date,status):work_line_id.in:order=scheduled_date.asc',
+            rollups: 'process_run_rollup:select(process_run_id,scheduled_date,status,done,total,pending_unresolved):process_run_id.in=current-runs',
+          })}`,
+          () => listProcessCollectionFacts(processIds),
+        )
+        : Promise.resolve([] as ProcessCollectionFact[]),
     ])
     const factsById = new Map(processFacts.map((fact) => [fact.work_line_id, fact]))
     return {

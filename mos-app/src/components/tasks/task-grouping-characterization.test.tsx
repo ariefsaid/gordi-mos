@@ -32,10 +32,9 @@ function task(over: Partial<TaskListRow> & Pick<TaskListRow, 'id' | 'title'>): T
   return {
     org_id: 'org-1', business_unit_id: 'bu-cafe', status: 'Open',
     responsible_person_id: 'p-a', accountable_person_id: 'p-b',
-    consulted_person_ids: [], informed_person_ids: [], description: null, due_date: null,
+    consulted_person_ids: [], informed_person_ids: [], due_date: null,
     objective_id: null, work_line_id: null, last_activity_at: '2026-07-20T00:00:00Z',
-    archived_at: null, created_by: 'p-b', created_at: '2026-07-01T00:00:00Z',
-    updated_at: '2026-07-01T00:00:00Z', team_id: null, completed_at: null,
+    archived_at: null, created_by: 'p-b', team_id: null, completed_at: null,
     process_run_id: null, generated_from_task_def_id: null, ...over,
   }
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { CollectionProjection } from '@/lib/record-collection/types'
@@ -26,7 +26,12 @@ const actions: CatalogCollectionActions = {
   unarchive: vi.fn(),
 }
 
-function renderRows(rows: CatalogRow[], contextOverrides: Partial<CatalogCollectionContext> = {}) {
+function renderRows(
+  rows: CatalogRow[],
+  contextOverrides: Partial<CatalogCollectionContext> = {},
+  locale: 'en' | 'id' = 'en',
+  onOpenRecord: (row: CatalogRow) => void = () => {},
+) {
   const context: CatalogCollectionContext = {
     traceById: new Map(),
     relationsById: new Map(rows.map((row) => [row.id, { groups: [], tasks: [] }])),
@@ -43,7 +48,7 @@ function renderRows(rows: CatalogRow[], contextOverrides: Partial<CatalogCollect
   }
 
   return render(
-    <I18nProvider>
+    <I18nProvider initialLocale={locale}>
       <MemoryRouter>
         <CatalogCollectionActionsProvider actions={actions}>
           <CatalogListPresentation
@@ -52,7 +57,7 @@ function renderRows(rows: CatalogRow[], contextOverrides: Partial<CatalogCollect
             context={context}
             selectedIds={new Set()}
             onToggleSelected={() => {}}
-            onOpenRecord={() => {}}
+            onOpenRecord={onOpenRecord}
             onToggleGroup={() => {}}
             isGroupCollapsed={() => false}
           />
@@ -60,6 +65,10 @@ function renderRows(rows: CatalogRow[], contextOverrides: Partial<CatalogCollect
       </MemoryRouter>
     </I18nProvider>,
   )
+}
+
+function rowFor(name: string): HTMLElement {
+  return screen.getByRole('link', { name }).closest('[role="row"]') as HTMLElement
 }
 
 // A row with an owner and an Objective. Rendered beside a row under test, it keeps those columns
@@ -83,6 +92,29 @@ function relationsWithFilled(rows: CatalogRow[], own: Array<[string, Relation]> 
 }
 
 describe('CatalogListPresentation owner-cell grammar', () => {
+  it('owns rows and cells through a valid table rowgroup', () => {
+    const record: CatalogRow = { id: 'work-tree', name: 'Catalog tree', archived_at: null, type: 'project', accountablePersonId: 'person-1' }
+    renderRows([record])
+
+    const table = screen.getByRole('table', { name: 'Active' })
+    const rowgroup = within(table).getByRole('rowgroup')
+    const row = within(rowgroup).getByRole('row')
+    expect(rowgroup.tagName).toBe('UL')
+    expect(within(row).getAllByRole('cell').length).toBeGreaterThan(1)
+    expect(within(row).getByRole('link', { name: 'Catalog tree' })).toHaveAttribute('href', '/work/projects/work-tree')
+  })
+
+  it('opens a record from another cell while keeping the name as a real link', () => {
+    const record: CatalogRow = { id: 'work-click', name: 'Clickable project', archived_at: null, type: 'project', accountablePersonId: 'person-1' }
+    const onOpenRecord = vi.fn()
+    renderRows([record], {}, 'en', onOpenRecord)
+
+    const row = rowFor('Clickable project')
+    fireEvent.click(within(row).getByRole('cell', { name: /^Accountable:/ }))
+    expect(onOpenRecord).toHaveBeenCalledWith(record)
+    expect(within(row).getByRole('link', { name: 'Clickable project' })).toHaveAttribute('href', '/work/projects/work-click')
+  })
+
   it('keeps lifecycle and the row action beside identity, with all lower-priority facts grouped', () => {
     const record: CatalogRow = { id: 'work-0', name: 'Quarterly launch', archived_at: null, type: 'project', accountablePersonId: 'person-1' }
     renderRows([record], {
@@ -95,12 +127,13 @@ describe('CatalogListPresentation owner-cell grammar', () => {
       }]]),
     })
 
-    const row = screen.getByRole('link', { name: 'Quarterly launch' })
+    const row = rowFor('Quarterly launch')
     expect(row.querySelector('.catalog-collection__identity')).toHaveTextContent('Quarterly launch')
     expect(row.querySelector('.catalog-collection__row-state')).toHaveTextContent('Active')
     expect(row.querySelector('.catalog-collection__primary-action')).toHaveTextContent('View')
     expect(row.querySelector('.catalog-collection__metadata')).not.toBeNull()
-    expect(row.querySelector('.catalog-collection__metadata')?.children).toHaveLength(5)
+    expect(row.querySelector('.catalog-collection__metadata')?.children).toHaveLength(4)
+    expect(row.querySelector('.catalog-collection__cell--cadence')).toBeNull()
   })
 
   it('uses shared initials + first name while retaining full owner identity for assistive tech and title', () => {
@@ -108,7 +141,7 @@ describe('CatalogListPresentation owner-cell grammar', () => {
       { id: 'work-1', name: 'Assigned project', archived_at: null, type: 'project', accountablePersonId: 'person-1' },
     ])
 
-    const row = screen.getByRole('link', { name: 'Assigned project' })
+    const row = rowFor('Assigned project')
     const owner = within(row).getByRole('cell', { name: 'Accountable: Raka Utama' })
     expect(owner).toHaveAttribute('title', 'Raka Utama')
     expect(owner.querySelector('.ownav')).toHaveTextContent('RU')
@@ -123,7 +156,7 @@ describe('CatalogListPresentation owner-cell grammar', () => {
     ]
     renderRows(rows)
 
-    const row = screen.getByRole('link', { name: 'Unassigned project' })
+    const row = rowFor('Unassigned project')
     const owner = within(row).getByRole('cell', { name: 'Accountable: Not set' })
     // One word for one fact: the eye and the screen reader get the SAME word, and it names the
     // gap rather than dashing it — the same word the record's own Accountable field uses for the
@@ -144,7 +177,7 @@ describe('CatalogListPresentation owner-cell grammar', () => {
       }]]),
     })
 
-    const row = screen.getByRole('link', { name: 'Literal-name project' })
+    const row = rowFor('Literal-name project')
     expect(within(row).getByRole('cell', { name: 'Objective: Not set' })).toHaveTextContent('Not set')
   })
 
@@ -160,28 +193,73 @@ describe('CatalogListPresentation owner-cell grammar', () => {
       }]]),
     })
 
-    const row = screen.getByRole('link', { name: 'Shared project' })
-    expect(within(row).getByRole('cell', { name: 'Objective: Grow revenue' })).toBeInTheDocument()
-    expect(row).toHaveTextContent('Also contributes to: Improve margin')
+    const row = rowFor('Shared project')
+    const objective = within(row).getByRole('cell', { name: 'Objective: Grow revenue. Also contributes to: Improve margin' })
+    expect(objective).toHaveTextContent('Also contributes to: Improve margin')
   })
 
-  it('keeps a Task-only relationship out of the direct Objective cell', () => {
+  it('shows Task-only contribution beside the missing direct Objective fact', () => {
     const record = { id: 'work-5', name: 'Shared through tasks', archived_at: null, type: 'project' as const }
     renderRows([record, filled], relationsWithFilled([record, filled], [[record.id, {
       groups: [{ id: 'objective-2', name: 'Improve margin', relationship: 'contribution', entity: 'objective', taskCount: 1, done: 0, total: 1 }],
       tasks: [],
     }]]))
 
-    const row = screen.getByRole('link', { name: 'Shared through tasks' })
-    expect(within(row).getByRole('cell', { name: 'Objective: Not set' })).toBeInTheDocument()
-    expect(row).toHaveTextContent('Contributes through Tasks to: Improve margin')
+    const row = rowFor('Shared through tasks')
+    expect(within(row).getByRole('cell', { name: 'Objective: Not set. Contributes through Tasks to: Improve margin' })).toBeInTheDocument()
+  })
+
+  it('keeps direct and Task-derived Objective names together in the Objective cell', () => {
+    const record = { id: 'work-7', name: 'Shared work', archived_at: null, type: 'project' as const }
+    renderRows([record], {
+      relationsById: new Map([[record.id, {
+        groups: [
+          { id: 'objective-1', name: 'Grow weekday revenue', relationship: 'direct', entity: 'objective', taskCount: 1, done: 0, total: 1 },
+          { id: 'objective-2', name: 'Improve monthly average transaction value', relationship: 'contribution', entity: 'objective', taskCount: 1, done: 1, total: 1 },
+        ],
+        tasks: [],
+      }]]),
+    })
+
+    const row = rowFor('Shared work')
+    const objective = within(row).getByRole('cell', { name: /^Objective:/ })
+    expect(objective).toHaveTextContent('Grow weekday revenue')
+    expect(objective).toHaveTextContent('Also contributes to: Improve monthly average transaction value')
+    expect(objective).toHaveAccessibleName('Objective: Grow weekday revenue. Also contributes to: Improve monthly average transaction value')
+  })
+
+  it('keeps the Objective column when a Work line has only Task-derived context', () => {
+    const record = { id: 'work-indirect', name: 'Task-linked work', archived_at: null, type: 'project' as const }
+    renderRows([record], {
+      relationsById: new Map([[record.id, {
+        groups: [{ id: 'objective-3', name: 'Reduce waste', relationship: 'contribution', entity: 'objective', taskCount: 1, done: 0, total: 1 }],
+        tasks: [],
+      }]]),
+    })
+
+    const row = rowFor('Task-linked work')
+    const objective = within(row).getByRole('cell', { name: /^Objective:/ })
+    expect(objective).toHaveTextContent('Contributes through Tasks to: Reduce waste')
+  })
+
+  it('retains the full Indonesian current-occurrence status on a narrow progress cell', () => {
+    const record: CatalogRow = {
+      id: 'process-long', name: 'Monthly close', type: 'process', archived_at: null,
+      cadenceKind: 'monthly', cadenceActive: true,
+      currentOccurrence: { run_ids: [], scheduled_date: '2026-10-01', status: 'mixed', done: 4, total: 9, pending_unresolved: 2 },
+    }
+    renderRows([record], {}, 'id')
+
+    const progress = screen.getByTestId('catalog-progress')
+    expect(progress).toHaveTextContent('4 / 9 selesai · 2 perlu ditetapkan')
+    expect(progress).toHaveAttribute('title', '4 / 9 selesai · 2 perlu ditetapkan')
   })
 
   it('keeps an unlinked row at Not set without inventing a contribution', () => {
     const record = { id: 'work-6', name: 'Unlinked work', archived_at: null, type: 'project' as const }
     renderRows([record, filled], relationsWithFilled([record, filled]))
 
-    const row = screen.getByRole('link', { name: 'Unlinked work' })
+    const row = rowFor('Unlinked work')
     expect(within(row).getByRole('cell', { name: 'Objective: Not set' })).toBeInTheDocument()
     expect(row).not.toHaveTextContent('Contributes to:')
   })
@@ -246,7 +324,7 @@ describe('CatalogListPresentation owner-cell grammar', () => {
 
 describe('CatalogListPresentation Objective Business Unit cell', () => {
   const objectiveContext = { relationsKind: 'objective' as const, businessUnitsById: new Map([['bu-1', 'Retail Ops']]) }
-  const cell = (name: string) => within(screen.getByRole('link', { name })).getByRole('cell', { name: /^Business Unit:/ })
+  const cell = (name: string) => within(rowFor(name)).getByRole('cell', { name: /^Business Unit:/ })
 
   it('names a unit, and shows the year and quarter beside it', () => {
     renderRows([{ id: 'o1', name: 'Named', archived_at: null, businessUnitId: 'bu-1', periodYear: 2026, periodQuarter: 3 }], objectiveContext)
@@ -278,7 +356,7 @@ describe('CatalogListPresentation Objective Business Unit cell', () => {
 describe('CatalogListPresentation Objective Work cell', () => {
   const group = (id: string, name: string, relationship: 'direct' | 'contribution') =>
     ({ id, name, relationship, entity: 'work-line' as const, taskCount: 1, done: 0, total: 1 })
-  const workCell = (name: string) => within(screen.getByRole('link', { name })).getByRole('cell', { name: /^Projects & Processes:/ })
+  const workCell = (name: string) => within(rowFor(name)).getByRole('cell', { name: /^Projects & Processes:/ })
   const objective = (id: string, name: string): CatalogRow => ({ id, name, archived_at: null })
   const withGroups = (rows: CatalogRow[], own: Record<string, ReturnType<typeof group>[]>) => ({
     relationsKind: 'objective' as const,
@@ -312,5 +390,16 @@ describe('CatalogListPresentation Objective Work cell', () => {
     renderRows(rows, withGroups(rows, { o1: [group('w1', 'Menu launch', 'direct')] }))
     expect(workCell('Empty')).toHaveAccessibleName('Projects & Processes: Not set')
     expect(workCell('Empty')).not.toHaveTextContent(/\d/)
+  })
+})
+
+describe('CatalogListPresentation Objective Task progress', () => {
+  it('labels the Objective progress roll-up as completed Tasks', () => {
+    const row: CatalogRow = { id: 'o-progress', name: 'Grow revenue', archived_at: null }
+    renderRows([row], {
+      relationsKind: 'objective',
+      progressById: new Map([[row.id, { done: 1, total: 2 }]]),
+    })
+    expect(screen.getByTestId('catalog-progress')).toHaveTextContent('1 / 2 Tasks done')
   })
 })

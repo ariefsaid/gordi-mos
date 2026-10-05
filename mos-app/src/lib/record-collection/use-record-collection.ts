@@ -2,8 +2,10 @@
 // synced: reads/writes the canonical collection query; search/filter changes replace the history
 // entry, while presentation and saved-view changes create a shareable entry.
 // fixed: the Home embedded Signal Feed — a fixed query that never steals the Home route's URL.
-import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
+import { useContext, useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 import { useLocation, useSearchParams } from 'react-router-dom'
+import { AuthContext } from '@/auth/context'
+import { createReadLease, sameScope, type ReadScope } from '@/lib/scoped-reads'
 import { useOptionalOverlayHost } from '@/shell/overlay-host'
 import { createRecordCollectionController, type RecordCollectionController } from './engine'
 import { writeCollectionQuery } from './query-state'
@@ -52,33 +54,58 @@ export function useRecordCollection<
   const { descriptor, urlMode, fixedQuery, initialQuery, viewerId, accessRoles, isDesktop = true } = options
   const [searchParams, setSearchParams] = useSearchParams()
   const location = useLocation()
+  const auth = useContext(AuthContext)
+  // A fixture or non-AuthProvider host may omit `readScope`; never infer a shared scope from the
+  // viewer id or the module's currently published scope. Null creates a strictly local lease.
+  const readScope = auth.status === 'authenticated'
+    && viewerId !== null
+    && auth.viewer.person.id === viewerId
+    ? auth.readScope ?? null
+    : null
   // Prefer an explicit host override; otherwise bind the ambient Issue 4 overlay controller when a
   // provider is present. Absent both (e.g. an embedded collection with no record-opening), the
   // engine's host stays undefined and openRecord is a no-op — exactly as before this wiring.
   const ambientHost = useOptionalOverlayHost()
   const host = options.host ?? ambientHost ?? undefined
 
-  // Build the controller exactly once. Initial query/presentation come from the URL (synced) or the
-  // caller's fixed query (fixed). Malformed URL values fall back to the neutral query, not a crash.
-  const controllerRef = useRef<RecordCollectionController<
-    TRecord,
-    TId,
-    TQuery,
-    TContext,
-    TGroup,
-    TAction,
-    TPresentation
-  > | null>(null)
+  // Keep one controller for this actor/read-scope/authority owner. When that owner changes, replace
+  // the controller and lease while carrying forward the current canonical query. Initial
+  // query/presentation come from the URL (synced) or caller's fixed query (fixed).
+  const controllerRef = useRef<{
+    readScope: ReadScope | null
+    viewerId: string | null
+    accessRoles: readonly string[]
+    readLease: ReturnType<typeof createReadLease>
+    controller: RecordCollectionController<
+      TRecord,
+      TId,
+      TQuery,
+      TContext,
+      TGroup,
+      TAction,
+      TPresentation
+    >
+  } | null>(null)
 
   // What the URL/saved view asked for, independent of the phone constraint — restored verbatim if
   // isDesktop flips back true while it's still a compatible presentation for the live query.
   const desiredPresentationRef = useRef<TPresentation>(descriptor.defaultPresentation)
   const wasDesktopRef = useRef(isDesktop)
 
-  if (controllerRef.current === null) {
+  const previousOwner = controllerRef.current
+  const ownerChanged = previousOwner === null
+    || !sameScope(previousOwner.readScope, readScope)
+    || previousOwner.viewerId !== viewerId
+    || !sameRoleSet(previousOwner.accessRoles, accessRoles)
+  if (ownerChanged) {
     let query: TQuery
     let desired: TPresentation
-    if (urlMode === 'fixed' && fixedQuery) {
+    if (previousOwner) {
+      // A scope/viewer/authority transition preserves the current canonical query while replacing
+      // the controller and its data owner. No data from the retired lease crosses the transition.
+      query = previousOwner.controller.state.query
+      desired = previousOwner.controller.state.presentation
+    } else if (urlMode === 'fixed' && fixedQuery) {
       query = fixedQuery
       desired = presentationOf(fixedQuery, descriptor.defaultPresentation)
     } else if (initialQuery) {
@@ -89,15 +116,26 @@ export function useRecordCollection<
       query = parsed.ok ? parsed.query : parsed.query ?? descriptor.query.neutral
       desired = presentationOf(query, descriptor.defaultPresentation)
     }
-    desiredPresentationRef.current = desired
-    const presentation = isDesktop ? desired : descriptor.defaultPresentation
-    controllerRef.current = createRecordCollectionController(
+    if (!previousOwner) desiredPresentationRef.current = desired
+    const presentation = !isDesktop
+      ? descriptor.defaultPresentation
+      : !previousOwner || wasDesktopRef.current
+        ? (previousOwner ? previousOwner.controller.state.presentation : desired)
+        : previousOwner.controller.canSwitchPresentation(desiredPresentationRef.current)
+          ? desiredPresentationRef.current
+          : descriptor.defaultPresentation
+    const readLease = createReadLease(readScope)
+    const controller = createRecordCollectionController(
       { ...descriptor, host },
-      { query, presentation, viewerId, accessRoles, isDesktop },
+      { query, presentation, viewerId, accessRoles, isDesktop, readLease },
     )
+    previousOwner?.readLease.dispose()
+    controllerRef.current = { readScope, viewerId, accessRoles: [...accessRoles], readLease, controller }
   }
 
-  const controller = controllerRef.current
+  const currentOwner = controllerRef.current
+  if (currentOwner === null) throw new Error('Record collection owner was not initialized')
+  const controller = currentOwner.controller
 
   // React to isDesktop FLIPPING (not merely being false) — a mount that starts on phone is already
   // handled above by the constructor branch. Narrowing pins the presentation to the collection
@@ -121,9 +159,9 @@ export function useRecordCollection<
   }, [isDesktop, controller, descriptor])
   const state = useSyncExternalStore(controller.subscribe, () => controller.state, () => controller.state)
 
-  // Re-bind the live overlay host every render. The controller is built once, but the ambient host
-  // object is recreated whenever its session changes; without this the engine would read a stale
-  // (forever-empty) session and could never tell an open panel from a closed one.
+  // Re-bind the live overlay host every render. The ambient host object is recreated whenever its
+  // session changes; without this the engine would read a stale (forever-empty) session and could
+  // never tell an open panel from a closed one.
   controller.bindOverlayHost(host)
 
   // Bind the live location so a presentation can open a record without threading router props.
@@ -188,4 +226,11 @@ function presentationOf<TQuery extends object, TPresentation extends string>(
 ): TPresentation {
   const layout = (query as { layout?: unknown }).layout
   return typeof layout === 'string' ? (layout as TPresentation) : fallback
+}
+
+function sameRoleSet(left: readonly string[], right: readonly string[]): boolean {
+  const leftSorted = [...new Set(left)].sort()
+  const rightSorted = [...new Set(right)].sort()
+  return leftSorted.length === rightSorted.length
+    && leftSorted.every((role, index) => role === rightSorted[index])
 }

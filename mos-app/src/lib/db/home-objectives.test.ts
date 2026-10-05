@@ -5,9 +5,9 @@ import type { TaskListRow } from './tasks.types'
 const task = (overrides: Partial<TaskListRow>): TaskListRow => ({
   id: 'task', org_id: 'org', title: 'Task', business_unit_id: 'bu',
   status: 'Open', responsible_person_id: 'person', accountable_person_id: 'person',
-  consulted_person_ids: [], informed_person_ids: [], description: null, due_date: null,
+  consulted_person_ids: [], informed_person_ids: [], due_date: null,
   objective_id: null, work_line_id: null, last_activity_at: '2026-01-01T00:00:00Z', archived_at: null,
-  created_by: 'person', created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
+  created_by: 'person',
   ...overrides,
 })
 

@@ -40,6 +40,7 @@ import { CreateDraftProvider } from './create-drafts'
 // so the link stayed clipped to 1×1px even while focused. Toggling the visible/hidden styles via
 // React state sidesteps that CSS ordering hazard entirely.
 function SkipLink() {
+  const t = useT()
   const [focused, setFocused] = useState(false)
   return (
     <a
@@ -74,7 +75,7 @@ function SkipLink() {
             }
       }
     >
-      Skip to main content
+      {t('shell.skipLink')}
     </a>
   )
 }
@@ -114,7 +115,7 @@ function OverlayHostRoot({ children }: { children: ReactNode }) {
   )
 }
 
-function ShellContent() {
+function ShellContent({ contextRow }: { contextRow?: ReactNode }) {
   // OD-REDESIGN-84.2 (P1-1): the intermediate 920–1099.98px regime — desktop rail still
   // mounted (isNarrow is false) but too tight for the full 232px labelled rail — collapses
   // to the ~72px icon-only rail. Reuses the existing split-width breakpoint family (the same
@@ -221,7 +222,7 @@ function ShellContent() {
           style={{ gridArea: 'main', overflow: 'hidden' }}
         >
           {/* Region 2 — context row (scope + route job sentence). Above the content Outlet. */}
-          <ContextRow />
+          {contextRow ?? <ContextRow />}
           {/* Region 3 — content (the page <Outlet>; the page's own PageHead H1 lives here).
               id="main-content" is the skip link's jump target (Task 7 a11y) — this wrapper exists
               on every route regardless of what the page itself renders inside; tabIndex={-1} lets
@@ -293,7 +294,7 @@ function ShellContent() {
   )
 }
 
-export function AppShell() {
+export function AppShell({ contextRow }: { contextRow?: ReactNode }) {
   // Wrap the shell in the runtime provider ONLY when the deputy capability is on (FR-P2-CF-003).
   // Flag-off skips the provider entirely so no assistant context/state mounts.
   //
@@ -306,7 +307,7 @@ export function AppShell() {
     <CreateDraftProvider>
       <SignalComposerHost>
         <OverlayHostRoot>
-          <ShellContent />
+          <ShellContent contextRow={contextRow} />
         </OverlayHostRoot>
       </SignalComposerHost>
     </CreateDraftProvider>

@@ -48,6 +48,7 @@ import type {
   RecordCollectionDescriptor,
   RecordViewerOpeningContract,
 } from '@/lib/record-collection/types'
+import type { ReadLease } from '@/lib/scoped-reads'
 
 export type TaskCollectionPresentation = 'table' | 'card'
 export type TaskCollectionGroup = 'none' | 'status' | 'pic' | 'bu' | 'workline' | 'objective' | 'occurrence'
@@ -825,6 +826,7 @@ async function loadTaskCollection(args: {
   query: TaskCollectionQuery
   viewerId: string | null
   accessRoles?: readonly string[]
+  readLease?: ReadLease
 }): Promise<CollectionData<TaskCollectionRecord, TaskCollectionContext>> {
   // BU/Status filtering is client-side in the projector (honest empty-vs-filtered-empty); only
   // `includeArchived` is a server concern (archived rows are excluded by default).
@@ -834,24 +836,31 @@ async function loadTaskCollection(args: {
   const viewerOrgWide = hasOrgWideAuthority(args.accessRoles ?? [])
   const needsViewerTeams = args.query.view === 'team-work'
     || (args.query.view === 'all' && !viewerOrgWide)
+  const lease = args.readLease
   const [rows, businessUnits, people, downlinePersonIds, objectives, workLines, viewerTeams, viewerRoleBuIds] = await Promise.all([
-    listTasks(filters),
-    getBusinessUnits(),
-    getPeople(),
+    lease ? listTasks(filters, lease) : listTasks(filters),
+    lease ? getBusinessUnits(lease) : getBusinessUnits(),
+    lease ? getPeople(lease) : getPeople(),
     // Throws with its siblings — a downline failure must surface, not silently read-only
     // every row's edit affordances. An unauthenticated viewer (null id) runs the SAME read
     // and resolves [] naturally, like every other directory read.
-    getDownlinePersonIds(args.viewerId ?? ''),
-    listObjectives().catch(() => []),
-    listWorkLines().catch(() => []),
-    needsViewerTeams ? getPersonTeams(args.viewerId ?? '') : Promise.resolve([]),
+    lease ? getDownlinePersonIds(args.viewerId ?? '', lease) : getDownlinePersonIds(args.viewerId ?? ''),
+    readTaskFragment(lease, 'mos.objectives:select(id,name,business_unit_id,accountable_person_id,period_year):archived_at=null:order=name.asc', () => listObjectives()).catch(() => []),
+    readTaskFragment(lease, 'mos.work_lines:select(id,name,type,objective_id,business_unit_id,accountable_person_id,responsible_person_id):archived_at=null:order=name.asc', () => listWorkLines()).catch(() => []),
+    needsViewerTeams
+      ? lease ? getPersonTeams(args.viewerId ?? '', undefined, lease) : getPersonTeams(args.viewerId ?? '')
+      : Promise.resolve([]),
     (args.query.view === 'all' && !viewerOrgWide)
-      ? getPersonBusinessUnitIds(args.viewerId ?? '')
+      ? lease
+        ? getPersonBusinessUnitIds(args.viewerId ?? '', lease)
+        : getPersonBusinessUnitIds(args.viewerId ?? '')
       : Promise.resolve([] as string[]),
   ])
   const records = rows.map(toTaskCollectionRecord)
   const taskTeamIds = [...new Set(records.map((record) => record.teamId).filter((id): id is string => id !== null))]
-  const taskTeams = taskTeamIds.length > 0 ? await getTeamsByIds(taskTeamIds) : []
+  const taskTeams = taskTeamIds.length === 0
+    ? []
+    : lease ? await getTeamsByIds(taskTeamIds, lease) : await getTeamsByIds(taskTeamIds)
   const teamsById = new Map(taskTeams.map((team) => [team.id, team]))
   const taskTeamViewsById = new Map<string, TaskTeamView>()
   for (const row of rows) {
@@ -868,15 +877,17 @@ async function loadTaskCollection(args: {
   if (args.query.groupBy === 'occurrence') {
     const runIds = [...new Set(records.map((r) => r.processRunId).filter((id): id is string => Boolean(id)))].sort()
     if (runIds.length > 0) {
-      const rollups = await listRunRollups(runIds).catch(() => [])
+      const rollupKey = `mos.process_run_rollup:select(*):process_run_id.in=${JSON.stringify(runIds)}`
+      const rollups = await readTaskFragment(lease, rollupKey, () => listRunRollups(runIds)).catch(() => [])
       runRollupsByRunId = new Map(rollups.map((r) => [r.process_run_id, r]))
     }
     const defIds = [...new Set(records.map((r) => r.generatedFromTaskDefinitionId).filter((id): id is string => Boolean(id)))].sort()
     if (defIds.length > 0) {
-      const defs = await listTaskDefs(defIds).catch(() => [])
+      const defsKey = `mos.process_task_defs:select(id,title,pic_role_id):id.in=${JSON.stringify(defIds)}`
+      const defs = await readTaskFragment(lease, defsKey, () => listTaskDefs(defIds)).catch(() => [])
       const roleIds = [...new Set(defs.map((d) => d.pic_role_id).filter((id): id is string => Boolean(id)))]
       if (roleIds.length > 0) {
-        const roles = await listRoleNames(roleIds).catch(() => [])
+        const roles = await (lease ? listRoleNames(roleIds, lease) : listRoleNames(roleIds)).catch(() => [])
         const nameByRoleId = new Map(roles.map((role) => [role.id, role.name]))
         const provenance = new Map<string, string>()
         for (const def of defs) {
@@ -914,6 +925,10 @@ async function loadTaskCollection(args: {
     refresh: () => {},
   }
   return { records, context }
+}
+
+function readTaskFragment<T>(readLease: ReadLease | undefined, key: string, load: () => Promise<T>): Promise<T> {
+  return readLease ? readLease.read(key, load) : load()
 }
 
 // ── Access + viewer opening seam ──────────────────────────────────────────────────────────────────
@@ -957,11 +972,20 @@ export const taskCollectionDescriptor: RecordCollectionDescriptor<
   query: taskCollectionQuery,
   savedViews: taskCollectionSavedViews,
   presentations: { table: taskTablePresentation, card: taskCardPresentation },
-  // Only `includeArchived` (server-side row scope) and `groupBy` (occurrence roll-up/provenance
-  // fetch) change what `load()` returns; every other filter/sort/view is applied client-side in the
-  // projector, so those changes reproject the snapshot without refetching tasks and the lookup
-  // tables (business units, people, objectives, work-lines).
-  loadKeys: ['includeArchived', 'groupBy', 'view'],
+  // Only actual server-read requirements invalidate the loaded data. Ordinary filters, sorts, and
+  // groups are projected locally; member All and Team-work need viewer Teams, member All also needs
+  // role BUs, and occurrence grouping alone needs its roll-up/provenance reads.
+  loadDependencyKey: (query, accessRoles) => {
+    const viewerOrgWide = hasOrgWideAuthority(accessRoles)
+    const needsViewerTeams = query.view === 'team-work' || (query.view === 'all' && !viewerOrgWide)
+    const needsViewerRoleBUs = query.view === 'all' && !viewerOrgWide
+    return JSON.stringify([
+      query.includeArchived,
+      needsViewerTeams,
+      needsViewerRoleBUs,
+      query.groupBy === 'occurrence',
+    ])
+  },
   load: loadTaskCollection,
   project: (data, query) => projectTaskCollection(data, query),
   getId: (record) => record.id,

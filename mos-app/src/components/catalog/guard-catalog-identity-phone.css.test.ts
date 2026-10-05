@@ -10,12 +10,12 @@ const css = readFileSync(resolve(process.cwd(), 'src/components/catalog/catalog-
 describe('catalog row layout stays readable at phone width', () => {
   it('uses a grid desktop row with a 52px floor', () => {
     expect(css).toMatch(/\.catalog-collection__row\s*\{[\s\S]*?min-height:\s*52px/)
-    expect(css).toMatch(/\.catalog-collection__header,[\s\S]*?\.catalog-collection__row-link\s*\{[\s\S]*?grid-template-columns:/)
+    expect(css).toMatch(/\.catalog-collection__header,[\s\S]*?\.catalog-collection__row\s*\{[\s\S]*?grid-template-columns:/)
   })
 
   it('reflows to a compact two-column 96px phone card', () => {
     const phone = css.slice(css.indexOf('@media (max-width: 767.98px)'))
-    expect(phone).toContain('.catalog-collection__row-link')
+    expect(phone).toContain('.catalog-collection__row')
     expect(phone).toMatch(/min-height:\s*96px/)
     expect(phone).toMatch(/grid-template-columns:\s*minmax\(0, 1fr\)\s+minmax\(100px, auto\)/)
     expect(phone).toMatch(/\.catalog-collection__cell-label\s*\{[\s\S]*?display:\s*none/)
@@ -43,7 +43,7 @@ describe('catalog row layout stays readable at phone width', () => {
     const tablet = css.slice(tabletStart, css.indexOf('@media (max-width: 767.98px)', tabletStart))
 
     expect(tablet).toMatch(/\.catalog-collection__header\s*\{[\s\S]*?display:\s*none/)
-    expect(tablet).toMatch(/\.catalog-collection__row-link\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\)\s+auto\s+auto/)
+    expect(tablet).toMatch(/\.catalog-collection__row\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\)\s+auto\s+auto/)
     expect(tablet).toMatch(/\.catalog-collection__metadata\s*\{[\s\S]*?grid-column:\s*1\s*\/\s*-1[\s\S]*?display:\s*grid/)
     expect(tablet).toMatch(/\.catalog-collection__cell-label\s*\{[\s\S]*?display:\s*block/)
     expect(tablet).not.toMatch(/\.catalog-collection__cell--(?:relation|owner|cadence|progress|activity)[^{]*\{[^}]*display:\s*none/)

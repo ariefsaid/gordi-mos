@@ -1,4 +1,6 @@
 import { supabase } from '@/lib/supabase'
+import { APP_RELEASE_PROFILE } from '@/config/app-build-settings'
+import { notificationAvailableInProfile } from '@/config/notification-profile'
 
 // Data layer for mos.notifications (Inbox destination — ADR-0044 §5 / ADR-0019 D9). Reads/writes via
 // supabase.schema('mos') on the existing caller-JWT client; RLS is the authority (owner-private,
@@ -50,15 +52,18 @@ export async function listNotifications(): Promise<NotificationRow[]> {
 /**
  * The viewer's unread count for the Inbox badge. A dedicated read (rather than counting client-side
  * over listNotifications) so the badge cost is O(unread) backed by mos_notifications_owner_unread_idx,
- * not O(all-time inbox size) — and so it stays correct when the Inbox page caps/truncates. Returns
- * the unread id rows (small) and counts them; avoids the head/count response shape that isn't used
- * anywhere else in the codebase.
+ * not O(all-time inbox size) — and so it stays correct when the Inbox page caps/truncates. Cafe
+ * reads metadata to match the Inbox's profile visibility rule; full keeps the id-only projection.
  */
 export async function countUnread(): Promise<number> {
-  const { data, error } = await mos()
-    .from('notifications')
-    .select('id')
-    .is('read_at', null)
+  const notifications = mos().from('notifications')
+  if (APP_RELEASE_PROFILE === 'cafe') {
+    const { data, error } = await notifications.select('id, metadata').is('read_at', null)
+    if (error) throw new Error(`countUnread failed: ${error.message}`)
+    return (data ?? []).filter((row) => notificationAvailableInProfile(row, 'cafe')).length
+  }
+
+  const { data, error } = await notifications.select('id').is('read_at', null)
   if (error) throw new Error(`countUnread failed: ${error.message}`)
   return (data ?? []).length
 }

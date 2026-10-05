@@ -21,6 +21,7 @@ import { RedirectIfAuthed } from './auth/redirect-if-authed'
 import { REVENUE_VIEW_ROLES } from './lib/capabilities'
 import { isShipGatedInProfile } from './lib/ship-gate'
 import { AppShell } from './shell/app-shell'
+import { MatchedRouteContextRow } from './shell/matched-route-context-row'
 import { CafeOccurrenceTaskRoute, CafeProfileFallbackRoute } from './shell/cafe-profile-route-guards'
 import { RouteRedirect } from './shell/route-redirect'
 import { pageHandle, redirectHandle, infrastructureHandle, type RouteHandle } from './shell/route-classification'
@@ -211,7 +212,7 @@ const routeTable: RouteObject[] = [
     handle: infrastructureHandle('auth'),
     children: [
       {
-        element: <AppShell />,
+        element: <AppShell contextRow={<MatchedRouteContextRow />} />,
         handle: infrastructureHandle('layout'),
         // Each direct child of AppShell carries `errorElement: <RouteErrorBoundary />` so a loader
         // rejection (a `fetch` that failed on the network, or any other loader throw) is caught

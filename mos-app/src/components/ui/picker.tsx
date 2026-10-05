@@ -254,6 +254,7 @@ export function Picker({
         <Popover.Portal>
           <Popover.Content
             ref={menuRef}
+            aria-label={label}
             side="bottom"
             align="start"
             sideOffset={6}

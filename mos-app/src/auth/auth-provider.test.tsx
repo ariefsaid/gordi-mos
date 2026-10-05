@@ -19,6 +19,7 @@ vi.mock('../lib/db/viewer', () => ({
 
 import { AuthProvider } from './auth-provider'
 import { useAuth } from './use-auth'
+import { getReadScope } from '@/lib/scoped-reads'
 import { supabase } from '@/lib/supabase'
 import { resolveViewer } from '@/lib/db/viewer'
 import type { PeopleRow, RolesRow } from '@/lib/database.types'
@@ -64,6 +65,29 @@ function AuthConsumer() {
       )}
     </div>
   )
+}
+
+function AuthScopeConsumer() {
+  const auth = useAuth()
+  const value = auth.status === 'authenticated' ? auth.readScope?.generation ?? 'missing' : auth.status
+  return <span data-testid="auth-scope-generation">{value}</span>
+}
+
+function sessionFor(userId: string): Session {
+  return { user: { id: userId } } as Partial<Session> as Session
+}
+
+function viewerFor(userId: string) {
+  const person = userId === 'auth-user-b'
+    ? { ...personRow, id: '40000000-0000-0000-0000-000000000002', user_id: userId, full_name: 'Other Fixture' }
+    : { ...personRow, user_id: userId }
+  return { person, roles, isManager: false, accessRoles: ['member'], affiliated: [] }
+}
+
+async function flushAuth() {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  })
 }
 
 describe('AuthProvider', () => {
@@ -229,5 +253,161 @@ describe('AuthProvider', () => {
     expect(screen.getByTestId('status').textContent).toBe('unauthenticated')
     // Marks the session as ended, so ProtectedRoute keeps no return route for the next person.
     expect(screen.getByTestId('signed-out')).toBeInTheDocument()
+  })
+
+  it('does not revive A across A → B → A or an AuthProvider remount, and ignores a late B resolution', async () => {
+    mockGetSession.mockResolvedValue({
+      data: { session: null },
+      error: null,
+    } as Awaited<ReturnType<typeof supabase.auth.getSession>>)
+
+    let capturedCallback: Parameters<typeof supabase.auth.onAuthStateChange>[0] | null = null
+    mockOnAuthStateChange.mockImplementation((cb) => {
+      capturedCallback = cb
+      return {
+        data: { subscription: { unsubscribe: vi.fn(), id: 'sub', callback: vi.fn() } },
+      } as ReturnType<typeof supabase.auth.onAuthStateChange>
+    })
+
+    let resolveB!: (value: ReturnType<typeof viewerFor>) => void
+    mockResolveViewer.mockImplementation((userId) => {
+      if (userId === 'auth-user-b') {
+        return new Promise((resolve) => { resolveB = resolve })
+      }
+      return Promise.resolve(viewerFor(userId))
+    })
+
+    let view = render(
+      <AuthProvider>
+        <><AuthConsumer /><AuthScopeConsumer /></>
+      </AuthProvider>,
+    )
+    await flushAuth()
+
+    act(() => capturedCallback!('SIGNED_IN', sessionFor('auth-user-a')))
+    await flushAuth()
+    const firstA = getReadScope()
+    expect(firstA).toMatchObject({
+      authUserId: 'auth-user-a',
+      viewerId: personRow.id,
+      orgId: personRow.org_id,
+    })
+    expect(screen.getByTestId('auth-scope-generation').textContent).toBe(String(firstA?.generation))
+
+    act(() => capturedCallback!('SIGNED_IN', sessionFor('auth-user-b')))
+    expect(getReadScope()).toBeNull()
+    expect(screen.getByTestId('status').textContent).toBe('loading')
+
+    act(() => capturedCallback!('SIGNED_IN', sessionFor('auth-user-a')))
+    await flushAuth()
+    const returnedA = getReadScope()
+    expect(returnedA?.authUserId).toBe('auth-user-a')
+    expect(returnedA?.viewerId).toBe(firstA?.viewerId)
+    expect(returnedA?.orgId).toBe(firstA?.orgId)
+    expect(returnedA?.authorityKey).toBe(firstA?.authorityKey)
+    expect(returnedA?.generation).toBeGreaterThan(firstA?.generation ?? 0)
+
+    resolveB(viewerFor('auth-user-b'))
+    await flushAuth()
+    expect(getReadScope()?.authUserId).toBe('auth-user-a')
+    expect(screen.getByTestId('name').textContent).toBe('Cahya Cafe')
+
+    const beforeUnmount = getReadScope()
+    view.unmount()
+    expect(getReadScope()).toBeNull()
+
+    mockGetSession.mockResolvedValue({
+      data: { session: { user: { id: 'auth-user-a' } } },
+      error: null,
+    } as Awaited<ReturnType<typeof supabase.auth.getSession>>)
+    view = render(
+      <AuthProvider>
+        <AuthScopeConsumer />
+      </AuthProvider>,
+    )
+    await flushAuth()
+    expect(getReadScope()?.authUserId).toBe('auth-user-a')
+    expect(getReadScope()?.generation).toBeGreaterThan(beforeUnmount?.generation ?? 0)
+    view.unmount()
+  })
+
+  it('retires scope during PASSWORD_RECOVERY and sign-out, then activates a fresh scope after recovery', async () => {
+    mockGetSession.mockResolvedValue({
+      data: { session: { user: { id: 'auth-user-a' } } },
+      error: null,
+    } as Awaited<ReturnType<typeof supabase.auth.getSession>>)
+    mockResolveViewer.mockImplementation(async (userId) => viewerFor(userId))
+
+    let capturedCallback: Parameters<typeof supabase.auth.onAuthStateChange>[0] | null = null
+    mockOnAuthStateChange.mockImplementation((cb) => {
+      capturedCallback = cb
+      return {
+        data: { subscription: { unsubscribe: vi.fn(), id: 'sub', callback: vi.fn() } },
+      } as ReturnType<typeof supabase.auth.onAuthStateChange>
+    })
+
+    render(
+      <AuthProvider>
+        <><AuthConsumer /><AuthScopeConsumer /></>
+      </AuthProvider>,
+    )
+    await flushAuth()
+    const beforeRecovery = getReadScope()
+    expect(beforeRecovery?.authUserId).toBe('auth-user-a')
+
+    act(() => capturedCallback!('PASSWORD_RECOVERY', sessionFor('auth-user-a')))
+    expect(getReadScope()).toBeNull()
+    expect(screen.getByTestId('status').textContent).toBe('recovering')
+
+    await act(async () => {
+      await userEvent.setup().click(screen.getByRole('button', { name: 'Clear recovering' }))
+    })
+    await flushAuth()
+    const afterRecovery = getReadScope()
+    expect(afterRecovery?.authUserId).toBe('auth-user-a')
+    expect(afterRecovery?.generation).toBeGreaterThan(beforeRecovery?.generation ?? 0)
+
+    act(() => capturedCallback!('SIGNED_OUT', null))
+    expect(getReadScope()).toBeNull()
+    expect(screen.getByTestId('status').textContent).toBe('unauthenticated')
+  })
+
+  it('does not let a late initial session bootstrap republish scope after sign-out', async () => {
+    let resolveBootstrap!: (value: Awaited<ReturnType<typeof supabase.auth.getSession>>) => void
+    mockGetSession.mockReturnValue(new Promise((resolve) => {
+      resolveBootstrap = resolve
+    }) as ReturnType<typeof supabase.auth.getSession>)
+    mockResolveViewer.mockImplementation(async (userId) => viewerFor(userId))
+
+    let capturedCallback: Parameters<typeof supabase.auth.onAuthStateChange>[0] | null = null
+    mockOnAuthStateChange.mockImplementation((cb) => {
+      capturedCallback = cb
+      return {
+        data: { subscription: { unsubscribe: vi.fn(), id: 'sub', callback: vi.fn() } },
+      } as ReturnType<typeof supabase.auth.onAuthStateChange>
+    })
+
+    render(
+      <AuthProvider>
+        <><AuthConsumer /><AuthScopeConsumer /></>
+      </AuthProvider>,
+    )
+    await flushAuth()
+
+    act(() => capturedCallback!('SIGNED_OUT', null))
+    expect(getReadScope()).toBeNull()
+    expect(screen.getByTestId('status').textContent).toBe('unauthenticated')
+
+    await act(async () => {
+      resolveBootstrap({
+        data: { session: { user: { id: 'auth-user-a' } } },
+        error: null,
+      } as Awaited<ReturnType<typeof supabase.auth.getSession>>)
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(getReadScope()).toBeNull()
+    expect(screen.getByTestId('status').textContent).toBe('unauthenticated')
+    expect(mockResolveViewer).not.toHaveBeenCalled()
   })
 })

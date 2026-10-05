@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useT } from '@/i18n/use-t'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
@@ -28,6 +28,13 @@ export type ObjectiveKeyResultsSectionProps = {
   /** Where the viewer's write-scope lookup stands; a person who may edit is never shown read-only copy while it is unknown. */
   scopesStatus?: 'loading' | 'ready' | 'error'
   onRetryScopes?: () => void
+  onActionStateChange?: (objectiveId: string, state: ObjectiveKeyResultsActionState) => void
+}
+
+export type ObjectiveKeyResultsActionState = {
+  status: 'loading' | 'ready' | 'error'
+  count: number
+  editorOpen: boolean
 }
 
 /**
@@ -36,11 +43,12 @@ export type ObjectiveKeyResultsSectionProps = {
  * own figures — nothing is summed across rows.
  */
 export function ObjectiveKeyResultsSection({
-  objectiveId, businessUnitId, isCompanyWide, archived, scopes, scopesStatus = 'ready', onRetryScopes,
+  objectiveId, businessUnitId, isCompanyWide, archived, scopes, scopesStatus = 'ready', onRetryScopes, onActionStateChange,
 }: ObjectiveKeyResultsSectionProps) {
   const t = useT()
   const [rows, setRows] = useState<KeyResultRow[]>([])
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [loadedRequestKey, setLoadedRequestKey] = useState<string | null>(null)
   const [people, setPeople] = useState<PersonOption[]>([])
   const [peopleFailed, setPeopleFailed] = useState(false)
   const [reload, setReload] = useState(0)
@@ -59,17 +67,23 @@ export function ObjectiveKeyResultsSection({
     })
   }, [])
 
-  const canManage = !archived && canManageForScope('objective', businessUnitId, scopes)
-  const canContent = !archived && canEditObjectiveContentForScope({ businessUnitId, isCompanyWide }, scopes)
+  const canManage = scopesStatus === 'ready' && !archived && canManageForScope('objective', businessUnitId, scopes)
+  const canContent = scopesStatus === 'ready' && !archived && canEditObjectiveContentForScope({ businessUnitId, isCompanyWide }, scopes)
+  const requestKey = `${objectiveId}:${reload}`
+  const actionStatus = loadedRequestKey === requestKey ? status : 'loading'
 
   useEffect(() => {
     let live = true
     setStatus('loading')
     listKeyResults(objectiveId)
-      .then((next) => { if (live) { setRows(next); setStatus('ready') } })
-      .catch(() => { if (live) setStatus('error') })
+      .then((next) => { if (live) { setRows(next); setStatus('ready'); setLoadedRequestKey(requestKey) } })
+      .catch(() => { if (live) { setStatus('error'); setLoadedRequestKey(requestKey) } })
     return () => { live = false }
-  }, [objectiveId, reload])
+  }, [objectiveId, reload, requestKey])
+
+  useLayoutEffect(() => {
+    onActionStateChange?.(objectiveId, { status: actionStatus, count: actionStatus === 'ready' ? rows.length : 0, editorOpen: adding || editingId !== null })
+  }, [actionStatus, adding, editingId, objectiveId, onActionStateChange, rows.length])
 
   useEffect(() => {
     let live = true
@@ -134,17 +148,21 @@ export function ObjectiveKeyResultsSection({
     <RecordSection
       id="key-results"
       title={t('objective.keyResults.title')}
-      count={status === 'ready' && rows.length > 0 ? rows.length : undefined}
-      action={canManage && status === 'ready' && !adding ? { label: t('objective.keyResults.add'), onClick: () => { setEditingId(null); setAdding(true) } } : undefined}
+      count={actionStatus === 'ready' && rows.length > 0 ? rows.length : undefined}
+      action={canManage && actionStatus === 'ready' && !adding && editingId === null ? {
+        label: t('objective.keyResults.add'),
+        variant: rows.length === 0 ? 'primary' : 'ghost',
+        onClick: () => { setEditingId(null); setAdding(true) },
+      } : undefined}
     >
       {scopesStatus === 'error' ? <ErrorState message={t('objective.keyResults.permissionsError')} onRetry={onRetryScopes} /> : null}
-      {status === 'loading' ? <LoadingShell label={t('catalog.record.loading')} count={1} /> : null}
-      {status === 'error' ? <ErrorState message={t('objective.keyResults.loadError')} onRetry={() => setReload((n) => n + 1)} /> : null}
+      {actionStatus === 'loading' ? <LoadingShell label={t('catalog.record.loading')} count={1} /> : null}
+      {actionStatus === 'error' ? <ErrorState message={t('objective.keyResults.loadError')} onRetry={() => setReload((n) => n + 1)} /> : null}
       {peopleFailed ? <ErrorState message={t('objective.keyResults.peopleError')} onRetry={() => setPeopleReload((n) => n + 1)} /> : null}
-      {status === 'ready' && rows.length === 0 && !adding ? (
+      {actionStatus === 'ready' && rows.length === 0 && !adding ? (
         <p className="objective-key-results__empty">{t('objective.keyResults.empty')}</p>
       ) : null}
-      {status === 'ready' ? (
+      {actionStatus === 'ready' ? (
         <ul className="rp-rows objective-key-results__list">
           {rows.map((row) => (
             row.id === editingId ? (

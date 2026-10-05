@@ -48,6 +48,11 @@
   font-size: var(--font-size-label);
   color: var(--field-error-text);
 }
+.tcf-title-error-slot {
+  min-height: 1.25em;
+  font-size: var(--font-size-label);
+  line-height: 1.25;
+}
 .tcf-save-error {
   display: flex;
   align-items: center;
@@ -83,4 +88,5 @@
   .tcf-title { min-height: 44px; font-size: var(--font-size-touch-input); }
   .tcf .picker__trigger { min-height: 44px; font-size: var(--font-size-touch-input); }
   .tcf-foot .btn { min-height: 44px; }
+  .tcf-save-error .task-row-retry { min-width: 44px; min-height: 44px; }
 }

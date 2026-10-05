@@ -43,4 +43,5 @@
   .rp-kr__fig { justify-content: flex-start; }
   .objective-key-results__remove,
   .objective-key-results__retry { min-height: 44px; }
+  .objective-key-results__retry { min-width: 44px; }
 }

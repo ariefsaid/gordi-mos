@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Picker } from '@/components/ui/picker'
 import { TextInput } from '@/components/ui/text-input'
-import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
+import { EmptyState, ErrorState, FilteredEmptyIcon, SkeletonRows } from '@/components/ui/state-kit'
 import { TaskSurface } from '@/components/tasks/task-surface'
 import { TaskOverlayContent } from '@/components/tasks/task-drawer'
 import { RecordPanelHost } from '@/shell/record-panel-host'
@@ -699,7 +699,13 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
           ) : !linkSearch.trim() ? null : linkSearchLoading ? (
             <SkeletonRows count={1} />
           ) : linkableTasks.length === 0 ? (
-            <EmptyState title={t('signals.record.noLinkableTasks')} nested />
+            <EmptyState
+              variant="blank"
+              icon={<FilteredEmptyIcon />}
+              title={t('signals.record.noMatchingTasksTitle')}
+              copy={t('signals.record.noMatchingTasksCopy', { query: linkSearch.trim() })}
+              nested
+            />
           ) : (
             <>
               <Picker

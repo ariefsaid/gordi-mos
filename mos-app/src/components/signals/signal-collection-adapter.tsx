@@ -32,6 +32,7 @@ import type {
   RecordViewerOpenSource,
   RecordViewerOpeningContract,
 } from '@/lib/record-collection/types'
+import type { ReadLease } from '@/lib/scoped-reads'
 import { SignalRecordHost } from './signal-record-host'
 import { SignalTablePresentation } from './signal-table-presentation'
 import { SignalFeedPresentation } from './signal-feed-presentation'
@@ -468,12 +469,21 @@ export const signalCollectionDescriptor: RecordCollectionDescriptor<
       render: (props) => <SignalTablePresentation {...props} />,
     },
   },
-  async load({ query, viewerId }): Promise<CollectionData<SignalRow, SignalCollectionContext>> {
+  loadKeys: [],
+  async load({ query, viewerId, readLease }): Promise<CollectionData<SignalRow, SignalCollectionContext>> {
     void query // load fetches every readable Signal; the typed query is applied in `project`.
     const [signals, people, teams] = await Promise.all([
-      listReadableSignals({ includeRetracted: true }),
-      getPeople(),
-      listAllTeams(),
+      readSignalFragment(
+        readLease,
+        'mos.signals:select(*):retracted_at=any:order=occurred_at.desc',
+        () => listReadableSignals({ includeRetracted: true }),
+      ),
+      readLease ? getPeople(readLease) : getPeople(),
+      readSignalFragment(
+        readLease,
+        'shared.teams:select(id,name,business_unit_id,site_id):archived_at=null:order=name.asc',
+        () => listAllTeams(),
+      ),
     ])
     // Every Signal is All Teams (no owning Team at capture) — a Team can only appear on a
     // historical team-audience row. Scope the map to Teams that actually own a loaded Signal, so
@@ -494,4 +504,8 @@ export const signalCollectionDescriptor: RecordCollectionDescriptor<
   getId: (signal) => signal.id,
   getAccess: (): CollectionAccess<SignalCollectionAction> => ({ mode: 'full', visibleActions: [] }),
   viewer: signalViewer,
+}
+
+function readSignalFragment<T>(readLease: ReadLease | undefined, key: string, load: () => Promise<T>): Promise<T> {
+  return readLease ? readLease.read(key, load) : load()
 }
