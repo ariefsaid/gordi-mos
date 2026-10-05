@@ -63,7 +63,7 @@ describe('CafeCountReviewQueue', () => {
     expect(labels).toContain('Expected balance')
     expect(labels).toContain('Variance')
     expect(screen.getAllByRole('button', { name: 'Confirm' })).toHaveLength(1)
-    const rawRow = screen.getByText('Raw flour').closest('.cafe-count-review__row')!
+    const rawRow = screen.getByText('Raw flour').closest('.cafe-count-review__row')! as HTMLElement
     expect(within(rawRow).getByText('Category: Pantry')).toBeInTheDocument()
     expect(within(rawRow).getByText('Stream: Cafe Branch · Kitchen')).toBeInTheDocument()
     expect(screen.getByText('Non-zero Variance · remains Submitted')).toBeInTheDocument()
