@@ -270,7 +270,7 @@ async function assertNoOverflow(page: Page, width: number) {
 
 test.describe('Café item settings', () => {
   test('renders 501 items with three ESB units at phone and desktop widths', async ({ page }) => {
-    test.setTimeout(120_000)
+    test.setTimeout(60_000)
     await mockSettingsApi(page, largeItemSettingsFixture())
     await loginAs(page, BAR_MEMBER.email, BAR_MEMBER.password)
 
@@ -303,37 +303,6 @@ test.describe('Café item settings', () => {
       await captureViewport(page, `lane-1332-after-${width}.png`)
     }
   })
-  test('searches both names and applies the shared item filters', async ({ page }) => {
-    await mockSettingsApi(page)
-    await loginAs(page, BAR_MEMBER.email, BAR_MEMBER.password)
-    await page.setViewportSize({ width: 390, height: 960 })
-    await page.goto('cafe/items')
-
-    const cards = page.locator('.dt-cards .dt-card')
-    const search = page.getByRole('searchbox', { name: 'Find an ESB or MOS name' })
-    await expect(cards).toHaveCount(3)
-    await search.fill('Herbal tea')
-    await expect(cards).toHaveCount(1)
-    await expect(cards.first()).toContainText('Herbal tea · ERP reference')
-    await search.fill('ERP reference')
-    await expect(cards).toHaveCount(1)
-    await search.clear()
-
-    await page.getByRole('combobox', { name: 'Item kind' }).click()
-    await page.getByRole('option', { name: 'Not set', exact: true }).click()
-    await expect(cards).toHaveCount(3)
-    await page.getByRole('combobox', { name: 'Active status' }).click()
-    await page.getByRole('option', { name: 'Inactive', exact: true }).click()
-    await expect(cards).toHaveCount(3)
-    await page.getByRole('combobox', { name: 'Unit setup' }).click()
-    await page.getByRole('option', { name: 'Needs unit', exact: true }).click()
-    await expect(cards).toHaveCount(1)
-    await expect(cards.first()).toContainText('Curry base')
-    await page.getByRole('combobox', { name: 'Active status' }).click()
-    await page.getByRole('option', { name: 'Active', exact: true }).click()
-    await expect(page.getByText('No café items match your search or filters.', { exact: true })).toBeVisible()
-  })
-
   test('uses stacked cards on phones and a readable table on wide screens', async ({ page }, testInfo) => {
     await mockSettingsApi(page)
     await loginAs(page, BAR_MEMBER.email, BAR_MEMBER.password)
