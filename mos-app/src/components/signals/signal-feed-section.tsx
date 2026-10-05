@@ -1,4 +1,3 @@
-import { ListPaging } from '@/components/ui/list-paging'
 import { useEffect, useId, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
@@ -35,11 +34,6 @@ export interface SignalFeedSectionProps {
   /** Members keep Home's ambient feed to the Share door; cockpit Home may restore search, and the
    * archive keeps its own collection search. */
   showSearch?: boolean
-  visibleLimit?: number
-  hasMore?: boolean
-  loadingMore?: boolean
-  moreError?: boolean
-  onLoadMore?: () => void
 }
 
 function namesToRecord(map: ReadonlyMap<string, string>): Record<string, string> {
@@ -48,7 +42,7 @@ function namesToRecord(map: ReadonlyMap<string, string>): Record<string, string>
 
 export function SignalFeedSection({
   signals, authorNamesById, teamNamesById, loading = false, error = false, onReload,
-  showSearch = true, visibleLimit = AMBIENT_CAP, hasMore = false, loadingMore = false, moreError = false, onLoadMore,
+  showSearch = true,
 }: SignalFeedSectionProps) {
   const navigate = useNavigate()
   const host = useOptionalOverlayHost()
@@ -105,7 +99,7 @@ export function SignalFeedSection({
             the sole h1 and there is no intermediate level — an h3 skipped one (detector:
             skipped-heading). Visual weight is unchanged; `.signal-feed-label` still sets it. */}
         <h2 id={titleId} className="signal-feed-label">
-          {t('signals.feed.title')}{loading || error ? '' : ` · ${Math.min(signals.length, visibleLimit)}`}
+          {t('signals.feed.title')}{loading || error ? '' : ` · ${Math.min(signals.length, AMBIENT_CAP)}`}
         </h2>
       </div>
       {loading ? <LoadingShell count={3} /> : error ? (
@@ -115,7 +109,6 @@ export function SignalFeedSection({
       ) : (
         <SignalFeedRows
           signals={signals}
-          ambientLimit={visibleLimit}
           authorNamesById={namesToRecord(authorNamesById)}
           teamNamesById={namesToRecord(teamNamesById)}
           onShareClick={canPost === false ? undefined : () => openSignalComposer()}
@@ -123,11 +116,6 @@ export function SignalFeedSection({
           onOpen={(signal) => openRecord(signal.id)}
         />
       )}
-      {!loading && !error && onLoadMore ? (
-        <ListPaging count={Math.min(signals.length, visibleLimit)}
-          hasMore={hasMore || signals.length > visibleLimit} loading={loadingMore} error={moreError}
-          onLoadMore={onLoadMore} />
-      ) : null}
       {host ? createPortal(<OverlayHostSlot owner="signals" floating />, document.body) : null}
     </section>
   )

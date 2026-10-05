@@ -637,7 +637,7 @@ export type KitchenLogsWindow = {
 }
 
 /**
- * Page Submitted kitchen logs newest first within a date — the ops_lead review queue (FR-040).
+ * Page Submitted kitchen logs oldest first within a date — the ops_lead review queue (FR-040).
  * Only `status = 'Submitted'` rows (the GIGO queue, FR-024/040); RLS scopes to the
  * caller's org. Returns a flat display shape (WIP name embedded; plan-vs-logged is
  * merged at the page from fetchPlanMap; submitter name from the directory).
@@ -650,9 +650,9 @@ export async function listSubmittedKitchenLogs(logDate: string, window: KitchenL
     .eq('log_date', logDate)
   if (window.stream) query = query.eq('branch_id', window.stream.branchId).eq('activity', window.stream.activity)
   if (window.before) {
-    query = query.or(`created_at.lt.${window.before.created_at},and(created_at.eq.${window.before.created_at},id.lt.${window.before.id})`)
+    query = query.or(`created_at.gt.${window.before.created_at},and(created_at.eq.${window.before.created_at},id.gt.${window.before.id})`)
   }
-  const { data, error } = await query.order('created_at', { ascending: false }).order('id', { ascending: false }).limit(KITCHEN_LOGS_PAGE_SIZE)
+  const { data, error } = await query.order('created_at', { ascending: true }).order('id', { ascending: true }).limit(KITCHEN_LOGS_PAGE_SIZE)
   if (error) throw new Error(`listSubmittedKitchenLogs failed — ${error.message}`)
 
   type RawRow = {

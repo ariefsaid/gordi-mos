@@ -70,6 +70,7 @@ interface Recorder {
   updates: unknown[]
   limits: number[]
   orders: Array<[string, unknown]>
+  orFilters: string[]
   rpcCalls: Array<[string, unknown]>
 }
 
@@ -123,7 +124,7 @@ function makeSchema(
       rec.orders.push([c, o])
       return builder
     })
-    builder.or = vi.fn(() => builder)
+    builder.or = vi.fn((filter: string) => { rec.orFilters.push(filter); return builder })
     builder.limit = vi.fn((limit: number) => { rec.limits.push(limit); return builder })
     builder.single = vi.fn(() => Promise.resolve(result()))
     builder.maybeSingle = vi.fn(() => Promise.resolve(result()))
@@ -146,7 +147,7 @@ function makeSchema(
 function freshRec(): Recorder {
   return {
     fromTables: [], selects: [], eqs: [], neqs: [], iss: [], nots: [],
-    inserts: [], updates: [], limits: [], orders: [], rpcCalls: [], ins: [],
+    inserts: [], updates: [], limits: [], orders: [], orFilters: [], rpcCalls: [], ins: [],
   }
 }
 
@@ -1122,6 +1123,24 @@ describe('listSubmittedKitchenLogs — the ops_lead review queue (FR-040)', () =
       submitted_by: 'p1',
     })
     expect(rows[1].wip_item_name).toBe('Cold Brew')
+  })
+
+  it('keeps the review queue oldest-first with an ascending keyset window', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema({ kitchen_logs: [{ data: [], error: null }] }, rec) as never,
+    )
+    const cursor = { created_at: '2026-06-20T09:12:00Z', id: 'log-1' }
+
+    await listSubmittedKitchenLogs('2026-06-20', { before: cursor })
+
+    expect(rec.orders).toEqual([
+      ['created_at', { ascending: true }],
+      ['id', { ascending: true }],
+    ])
+    expect(rec.orFilters).toEqual([
+      `created_at.gt.${cursor.created_at},and(created_at.eq.${cursor.created_at},id.gt.${cursor.id})`,
+    ])
   })
 
   it('returns [] when nothing is Submitted (the good-empty queue)', async () => {

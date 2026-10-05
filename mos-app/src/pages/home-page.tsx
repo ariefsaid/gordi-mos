@@ -43,7 +43,7 @@ import { useDocumentTitle } from '@/shell/use-document-title'
 import { listTasks } from '@/lib/db/tasks'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import { loadFailedChecksForViewer } from '@/lib/db/home-attention-data'
-import { listReadableSignals, SIGNALS_PAGE_SIZE, listAllTeams } from '@/lib/db/signals'
+import { listReadableSignals, listAllTeams } from '@/lib/db/signals'
 import type { SignalRow } from '@/lib/db/signals.types'
 import { getBusinessUnits, getPeople, getRoles } from '@/lib/db/directory'
 import type { RoleScopeRow } from '@/lib/db/directory'
@@ -61,7 +61,6 @@ import { HomeHeadCounts, type HomeDayTally } from '@/components/home/home-day-he
 import { HomeDailyBrief } from '@/components/home/home-daily-brief'
 import { resolveHomeLayout, type HomeLayout } from '@/lib/home-layout'
 import { HomeCafeDoor } from '@/components/home/home-cafe-door'
-import { AMBIENT_CAP } from '@/components/signals/signal-feed-rows'
 import { SignalFeedSection } from '@/components/signals/signal-feed-section'
 import { HomeObjectivesDoor } from '@/components/home/home-objectives-door'
 import { CAFE_OPENING_ENABLED } from '@/lib/cafe-opening-enabled'
@@ -243,53 +242,27 @@ export function HomePage() {
   const signals = signalSnapshot.owner === readLease ? signalSnapshot.rows : NO_SIGNALS
   const signalsState = signalSnapshot.owner === readLease ? signalSnapshot.state : 'loading'
   const [teamNames, setTeamNames] = useState<ReadonlyMap<string, string>>(NO_NAMES)
-  const [signalsVisibleLimit, setSignalsVisibleLimit] = useState(AMBIENT_CAP)
-  const [signalsHasMore, setSignalsHasMore] = useState(false)
-  const [signalsLoadingMore, setSignalsLoadingMore] = useState(false)
-  const [signalsMoreError, setSignalsMoreError] = useState(false)
-  const signalsCursorRef = useRef<Pick<SignalRow, 'occurred_at' | 'id'> | null>(null)
-  const signalsInFlightRef = useRef(false)
   const signalsTokenRef = useRef(0)
 
-  const fetchSignals = useCallback((more = false) => {
+  const loadSignals = useCallback(() => {
     const ownsCurrentRead = () => readOwnerRef.current?.lease === readLease
-    if (!personId || !ownsCurrentRead() || (more && (signalsInFlightRef.current || !signalsCursorRef.current))) return
-    signalsInFlightRef.current = true
+    if (!personId || !ownsCurrentRead()) return
     const token = ++signalsTokenRef.current
-    setSignalsMoreError(false)
-    setSignalsLoadingMore(more)
-    if (!more) {
-      setSignalSnapshot({ owner: readLease, rows: NO_SIGNALS, state: 'loading' })
-      setSignalsVisibleLimit(AMBIENT_CAP); setSignalsHasMore(false)
-    }
-    Promise.all([listReadableSignals(more ? { before: signalsCursorRef.current! } : {}), listAllTeams()])
+    setSignalSnapshot({ owner: readLease, rows: NO_SIGNALS, state: 'loading' })
+    Promise.all([listReadableSignals(), listAllTeams()])
       .then(([rows, teams]) => {
         if (!isMountedRef.current || signalsTokenRef.current !== token || !ownsCurrentRead()) return
-        setSignalSnapshot(previous => ({ owner: readLease, state: 'ready',
-          rows: more && previous.owner === readLease ? [...new Map([...previous.rows, ...rows].map(row => [row.id, row])).values()] : rows }))
-        signalsCursorRef.current = rows.length === SIGNALS_PAGE_SIZE ? rows.at(-1)! : null
-        setSignalsHasMore(Boolean(signalsCursorRef.current))
-        if (more) setSignalsVisibleLimit(previous => previous + SIGNALS_PAGE_SIZE)
+        setSignalSnapshot({ owner: readLease, state: 'ready', rows })
         setTeamNames(new Map(teams.map(team => [team.id, team.name])))
       })
       .catch(() => {
         if (!isMountedRef.current || signalsTokenRef.current !== token || !ownsCurrentRead()) return
-        if (more) setSignalsMoreError(true)
-        else setSignalSnapshot({ owner: readLease, rows: NO_SIGNALS, state: 'error' })
-      })
-      .finally(() => {
-        if (signalsTokenRef.current === token && ownsCurrentRead()) { signalsInFlightRef.current = false; setSignalsLoadingMore(false) }
+        setSignalSnapshot({ owner: readLease, rows: NO_SIGNALS, state: 'error' })
       })
   }, [personId, readLease])
-  const loadSignals = useCallback(() => fetchSignals(), [fetchSignals])
-  const loadMoreSignals = () => {
-    if (signalsVisibleLimit < signals.length) setSignalsVisibleLimit(signals.length)
-    else fetchSignals(true)
-  }
 
   useEffect(() => {
     signalsTokenRef.current += 1
-    signalsInFlightRef.current = false
     loadSignals()
   }, [loadSignals])
 
@@ -570,8 +543,6 @@ export function HomePage() {
               loading={signalsState === 'loading'}
               error={signalsState === 'error'}
               onReload={loadSignals}
-              visibleLimit={signalsVisibleLimit} hasMore={signalsHasMore}
-              loadingMore={signalsLoadingMore} moreError={signalsMoreError} onLoadMore={loadMoreSignals}
             />
           </div>
         )

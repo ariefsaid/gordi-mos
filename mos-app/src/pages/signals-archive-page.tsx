@@ -471,7 +471,7 @@ function SignalsArchiveCollection() {
               }}
               controls={signalControls}
               empty={{
-                title: context?.nextCursor ? t('common.paging.emptyLoaded') : query.q.trim()
+                title: query.q.trim()
                   ? t('signals.archive.empty', { query: query.q })
                   : t('signals.archive.emptyUnfiltered'),
                 // AC-030 (#770): the true-empty door exists only for a viewer who can post. It is a
@@ -485,8 +485,7 @@ function SignalsArchiveCollection() {
                   ),
                 }),
               }}
-              filteredEmpty={{ items: t('collection.items.signals'), clear: clearFilters,
-                ...(context?.nextCursor ? { title: t('common.paging.emptyLoaded'), copy: t('common.paging.continue') } : {}) }}
+              filteredEmpty={{ items: t('collection.items.signals'), clear: clearFilters }}
               error={{ message: t('signals.archive.error'), retry: () => controller.retry() }}
               loadingLabel={t('signals.archive.loading')}
               onOpenRecord={onOpenRecord}
