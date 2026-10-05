@@ -1,3 +1,4 @@
+import { ListPaging } from '@/components/ui/list-paging'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
@@ -489,6 +490,12 @@ function SignalsArchiveCollection() {
               loadingLabel={t('signals.archive.loading')}
               onOpenRecord={onOpenRecord}
             />
+            {context && controller.state.status !== 'loading' && controller.state.status !== 'error' ? (
+              <ListPaging count={controller.state.data?.records.length ?? 0}
+                hasMore={Boolean(context.nextCursor)} loading={controller.state.loadingMore}
+                error={Boolean(controller.state.moreError)} onLoadMore={() => { void controller.loadMore() }} />
+            ) : null}
+
           </div>
 
           {/* One physical host grammar for Signal records. The collection owns query state;

@@ -84,6 +84,9 @@ const TASK_LIST_SELECT = [
   'last_activity_at', 'archived_at', 'created_by', 'completed_at',
   'process_run_id', 'generated_from_task_def_id',
 ].join(',')
+const DETAIL_SELECT = `${TASK_LIST_SELECT},description,created_at,updated_at`
+const CHECKLIST_COLUMNS = 'id,org_id,task_id,label,is_done,position,created_at,updated_at'
+const EVENT_COLUMNS = 'id,org_id,task_id,actor_person_id,event_type,from_value,to_value,created_at'
 
 const sampleTask: TaskRow = {
   id: TASK_ID, org_id: 'org', title: 'T', business_unit_id: 'bu', status: 'Open',
@@ -222,7 +225,9 @@ describe('getTask', () => {
 
     const out = await getTask(TASK_ID)
     expect(out.task).toEqual(sampleTask)
-    expect(rec.selects[0]).toBe('*')
+    expect(rec.selects[0]).toBe(DETAIL_SELECT)
+    expect(rec.selects).toContain(CHECKLIST_COLUMNS)
+    expect(rec.selects).toContain(EVENT_COLUMNS)
     expect(out.task.description).toBe(sampleTask.description)
     expect(out.task.created_at).toBe(sampleTask.created_at)
     expect(out.task.updated_at).toBe(sampleTask.updated_at)
@@ -231,6 +236,20 @@ describe('getTask', () => {
     expect(rec.orders).toContainEqual(['position', { ascending: true }])
     expect(rec.orders).toContainEqual(['created_at', { ascending: false }])
     noOrgId(rec)
+  })
+
+  it('issues the task, checklist and events reads together, not as a waterfall (#1359)', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({
+      tasks: [{ data: sampleTask, error: null }],
+      task_checklist_items: [{ data: [], error: null }],
+      task_events: [{ data: [], error: null }],
+    }, rec) as never)
+    const pending = getTask(TASK_ID) // not awaited
+    // All three reads are issued synchronously — concurrently, sharing only the id.
+    expect(rec.fromTables).toEqual(['tasks', 'task_checklist_items', 'task_events'])
+    const detail = await pending
+    expect(detail.task.id).toBe(sampleTask.id)
   })
 
   it('throws when the task read errors', async () => {

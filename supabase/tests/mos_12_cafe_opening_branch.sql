@@ -1,6 +1,12 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 select plan(18);
+
+create function pg_temp.approve_kitchen_log(p_log_id uuid, p_review_note text)
+returns text language sql as $$
+  select ops.approve_kitchen_log(p_log_id, p_review_note,
+    (select l.updated_at from ops.kitchen_logs l where l.id = p_log_id))
+$$;
 select set_config('app.allow_test_seeds', 'on', true);
 select mos._test_seed_process_tree(); select shared._test_seed_access_roles(); select ops._test_seed_cafe();
 update mos.work_lines set code = 'cafe_opening' where id = '00000000-0000-0000-0000-00000000c001';
@@ -57,8 +63,8 @@ select ok(ops.is_stream_reviewer('00000000-0000-0000-0000-00000000bf02','bar'),'
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","supervisor"]}');
 insert into ops.kitchen_plans (org_id,log_date,wip_item_id,branch_id,activity,action,qty_porsi) values
  ('00000000-0000-0000-0000-0000000000a1',current_date,'00000000-0000-0000-0000-00000000ab03','00000000-0000-0000-0000-00000000bf02','bar','produce',7);
-select lives_ok($$select ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ac20',null)$$,'AC-012: planned quantity deviation with submitter note is approved without a reviewer note');
-select lives_ok($$select ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ac21',null)$$,'AC-012: unplanned log needs no reviewer note');
+select lives_ok($$select pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000ac20',null)$$,'AC-012: planned quantity deviation with submitter note is approved without a reviewer note');
+select lives_ok($$select pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000ac21',null)$$,'AC-012: unplanned log needs no reviewer note');
 select throws_ok($$update ops.kitchen_logs set status='Rejected' where id='00000000-0000-0000-0000-00000000ac22'$$,'42501',null,'AC-012: rejection without reason is refused');
 select lives_ok($$insert into ops.kitchen_plans(log_date,wip_item_id,branch_id,activity,action,qty_porsi) values(current_date,'00000000-0000-0000-0000-00000000ab03','00000000-0000-0000-0000-00000000bf02','bar','produce',4) on conflict do nothing$$,'AC-010: two-stream supervisor writes secondary plan');
 select throws_ok($$insert into ops.kitchen_plans(log_date,wip_item_id,branch_id,activity,action,qty_porsi) values(current_date,'00000000-0000-0000-0000-00000000ab03','00000000-0000-0000-0000-00000000bf02','kitchen','produce',4)$$,'42501',null,'AC-010: supervisor cannot write kitchen plan');

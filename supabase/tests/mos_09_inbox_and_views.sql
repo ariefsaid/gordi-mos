@@ -22,6 +22,11 @@ insert into mos.tasks (id, org_id, title, business_unit_id, responsible_person_i
 values ('00000000-0000-0000-0000-000000008002','00000000-0000-0000-0000-0000000000b1','Foreign Task',
         '00000000-0000-0000-0000-0000000000b2','00000000-0000-0000-0000-0000000000b4',
         '00000000-0000-0000-0000-0000000000b4','00000000-0000-0000-0000-0000000000b4');
+insert into mos.comments (id, org_id, author_id, entity_type, entity_id, body)
+select '00000000-0000-0000-0000-000000008004','00000000-0000-0000-0000-0000000000a1',
+       '00000000-0000-0000-0000-0000000000d1','task','00000000-0000-0000-0000-000000008001',
+       'Please review @' || lower(split_part(p.full_name, ' ', 1))
+from shared.people p where p.id = '00000000-0000-0000-0000-0000000000d2';
 
 set local role authenticated;
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
@@ -33,20 +38,24 @@ select throws_ok($$
 $$, '42501', null,
   'a direct INSERT addressed to another owner is refused — otherwise anyone could plant a row in anyone''s inbox');
 select isnt(
-  mos.create_notification('00000000-0000-0000-0000-0000000000d2','info','You were mentioned'),
-  null, 'mos.create_notification IS the sanctioned cross-owner path, and it succeeds within the org');
+  mos.create_comment_mention_notification(
+    '00000000-0000-0000-0000-0000000000d2','00000000-0000-0000-0000-000000008004','en'),
+  null, 'a persisted comment can notify its same-org mention recipient');
 select throws_ok($$
-  select mos.create_notification('00000000-0000-0000-0000-0000000000b4','info','Cross-org delivery')
-$$, '42501', null,
-  'the RPC refuses a target in ANOTHER org — a cross-org @mention is impossible, not merely unauthorised');
+  select mos.create_comment_mention_notification(
+    '00000000-0000-0000-0000-0000000000b4','00000000-0000-0000-0000-000000008004','en')
+$$, '42501', 'comment recipient must be active in the current org',
+  'comment notifications stay within the current organization');
 
 reset role;
 update shared.people set archived_at = now() where id = '00000000-0000-0000-0000-0000000000d5';
 set local role authenticated;
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select throws_ok($$
-  select mos.create_notification('00000000-0000-0000-0000-0000000000d5','info','To a leaver')
-$$, '42501', null, 'the RPC refuses an ARCHIVED person — a leaver''s inbox stops receiving');
+  select mos.create_comment_mention_notification(
+    '00000000-0000-0000-0000-0000000000d5','00000000-0000-0000-0000-000000008004','en')
+$$, '42501', 'comment recipient must be active in the current org',
+  'comment notifications require an active recipient');
 
 -- ── Delivered content is immutable; only the read state moves ────────────────────────────────
 reset role;

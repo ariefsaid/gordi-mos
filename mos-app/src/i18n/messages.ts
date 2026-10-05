@@ -304,15 +304,6 @@ export const messages = {
     'inbox.target.type.task': 'Task',
     'inbox.target.type.signal': 'Signal',
     'inbox.target.type.followUp': 'AR Follow-up',
-    // Issue #584 — the mention notification title, composed client-side at postComment (the row
-    // carries no actor beyond metadata.entity, so this is where the actor + entity kind meet).
-    'notifications.mention.title': '${name} mentioned you in a ${entity}',
-    'notifications.mention.someone': 'Someone',
-    'notifications.mention.entity.task': 'task',
-    'notifications.mention.entity.weekly_update': 'weekly update',
-    'notifications.mention.entity.daily_log': 'daily log',
-    'notifications.mention.entity.follow_up': 'follow-up',
-    'notifications.mention.entity.signal': 'signal',
     // NFR-300/FR-321 — phone card grammar + overdue prefix + catalog-resilience fallbacks.
     // Ported for #192 (Tasks): renamed by v4 to "AR". Both the Money page and the Task follow-ups
     // view (FollowUpQueueEmbed) read this ONE key, so the KEY is genuinely shared. Their TABLES are
@@ -443,6 +434,12 @@ export const messages = {
     'breadcrumb.detail': 'Detail',
     // The one loading announcement — LoadingShell's default label, and therefore what every
     // code-split route says while its chunk is in flight (router.tsx).
+    'common.paging.emptyLoaded': 'No rows in the loaded page',
+    'common.paging.continue': 'Load more to continue through the list.',
+    'common.paging.more': 'Load more',
+    'common.paging.loaded': '${count} loaded',
+    'common.paging.complete': '${count} loaded · end of list',
+    'common.paging.error': 'Couldn’t load more. Your loaded rows are still here.',
     'common.loading': 'Loading…',
     'common.cancel': 'Cancel',
     'common.working': 'Working…',
@@ -941,6 +938,7 @@ export const messages = {
     'kitchen.review.backToLog': 'Back to Log',
     // #398 (owner ruling): bulk approve clears ON-PLAN rows only — off-plan rows keep the
     // per-row required note (AC-040) — and the label states the scope it actually covers.
+    'kitchen.review.bulkApproveLoaded': 'Approve loaded on-plan (${count})',
     'kitchen.review.bulkApprove': 'Approve all on-plan (${count})',
     'kitchen.review.bulkApproving': 'Approving…',
     'kitchen.review.caption': 'Submitted logs awaiting review',
@@ -1576,8 +1574,8 @@ export const messages = {
     'signals.archive.searchPlaceholder': 'Search Signals by text, author, team…',
     'signals.archive.sortLabel': 'Sort',
     'signals.archive.sortNewest': 'Newest first',
-    'signals.archive.sortOldest': 'Oldest first',
-    'signals.archive.sortUrgent': 'Most urgent first',
+    'signals.archive.sortOldest': 'Oldest loaded first',
+    'signals.archive.sortUrgent': 'Most urgent loaded first',
     'signals.archive.table': 'Table',
     'signals.archive.viewAll': 'All',
     'signals.archive.viewAndFilters': 'View & filters',
@@ -2386,13 +2384,6 @@ export const messages = {
     'inbox.target.type.task': 'Tugas',
     'inbox.target.type.signal': 'Sinyal',
     'inbox.target.type.followUp': 'AR Follow-up',
-    'notifications.mention.title': '${name} menyebut Anda dalam sebuah ${entity}',
-    'notifications.mention.someone': 'Seseorang',
-    'notifications.mention.entity.task': 'tugas',
-    'notifications.mention.entity.weekly_update': 'pembaruan mingguan',
-    'notifications.mention.entity.daily_log': 'log harian',
-    'notifications.mention.entity.follow_up': 'tindak lanjut',
-    'notifications.mention.entity.signal': 'sinyal',
     // NFR-300/FR-321 — tata bahasa kartu ponsel + prefiks terlambat + fallback ketahanan katalog.
     'followUps.title': 'Antrean AR Follow-up',
     'followUps.overdue': 'Terlambat',
@@ -2508,6 +2499,12 @@ export const messages = {
     'account.signOut': 'Keluar',
     'actionLauncher.open': 'Buka aksi',
     'breadcrumb.detail': 'Detail',
+    'common.paging.emptyLoaded': 'Tidak ada baris pada halaman yang dimuat',
+    'common.paging.continue': 'Muat lebih banyak untuk melanjutkan daftar.',
+    'common.paging.more': 'Muat lebih banyak',
+    'common.paging.loaded': '${count} dimuat',
+    'common.paging.complete': '${count} dimuat · akhir daftar',
+    'common.paging.error': 'Tidak dapat memuat lagi. Baris yang sudah dimuat tetap tersedia.',
     'common.loading': 'Memuat…',
     'common.cancel': 'Batal',
     'common.working': 'Memproses…',
@@ -2944,6 +2941,7 @@ export const messages = {
     'kitchen.stream.receivingOnly.planCaption': 'Rencana Kafe — tampilan baca untuk stream penerima',
     'kitchen.review.allStreams': 'Semua Tim',
     'kitchen.review.backToLog': 'Kembali ke Log',
+    'kitchen.review.bulkApproveLoaded': 'Setujui yang dimuat sesuai rencana (${count})',
     'kitchen.review.bulkApprove': 'Setujui semua sesuai rencana (${count})',
     'kitchen.review.bulkApproving': 'Menyetujui…',
     'kitchen.review.caption': 'Log yang diajukan menunggu tinjauan',
@@ -3559,8 +3557,8 @@ export const messages = {
     'signals.archive.searchPlaceholder': 'Cari Sinyal berdasarkan teks, penulis, tim…',
     'signals.archive.sortLabel': 'Urutkan',
     'signals.archive.sortNewest': 'Terbaru dahulu',
-    'signals.archive.sortOldest': 'Terlama dahulu',
-    'signals.archive.sortUrgent': 'Paling mendesak dahulu',
+    'signals.archive.sortOldest': 'Yang dimuat terlama dulu',
+    'signals.archive.sortUrgent': 'Yang dimuat paling mendesak dulu',
     'signals.archive.table': 'Tabel',
     'signals.archive.viewAll': 'Semua',
     'signals.archive.viewAndFilters': 'Tampilan & filter',

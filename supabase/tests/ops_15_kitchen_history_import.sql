@@ -17,6 +17,12 @@ begin;
 create extension if not exists pgtap with schema extensions;
 select plan(20);
 
+create function pg_temp.approve_kitchen_log(p_log_id uuid, p_review_note text)
+returns text language sql as $$
+  select ops.approve_kitchen_log(p_log_id, p_review_note,
+    (select l.updated_at from ops.kitchen_logs l where l.id = p_log_id))
+$$;
+
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
@@ -110,7 +116,7 @@ select is((select count(*)::int from integrations.esb_push),
 set local role authenticated;
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select throws_ok($$
-  select ops.approve_kitchen_log('00000000-0000-0000-0000-00000000a9b1','again')
+  select pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000a9b1','again')
   $$, 'P0003', 'log is not Submitted (current: Approved)',
   'the sole creator of outbox rows refuses an imported row — history can never be re-enqueued');
 reset role;

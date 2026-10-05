@@ -11,7 +11,7 @@
 -- success to the caller and produces a row nobody asked for.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(25);
+select plan(26);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -143,14 +143,23 @@ select throws_ok($$
           '00000000-0000-0000-0000-00000000bf02','kitchen','produce',
           '00000000-0000-0000-0000-00000000ab01',1,'00000000-0000-0000-0000-0000000000d1',
           '00000000-0000-0000-0000-0000000000b4', now(), 'Approved')
-  $$, '23514', 'reviewed_by must belong to the same org as the kitchen log',
-  'nor reviewed by one — reviewed_by is inside the app tier''s column grant, so it needs the same check as the rest');
+  $$, '42501', null,
+  'the app tier cannot write reviewed_by at all; review provenance comes only from the review step');
 
 -- An imported row legitimately has NO submitter, so the null-guard is load-bearing rather than
 -- defensive: without it this write would be diagnosed as a cross-org reference. Run with the role
 -- RESET, because that IS the import path — `source = 'import'` is refused to the app tier by policy,
 -- and the whole point of the guard is that it still applies to the writer the policy does not.
 reset role;
+select throws_ok($$
+  insert into ops.kitchen_logs (org_id, business_unit_id, log_date, branch_id, activity, action,
+                                wip_item_id, qty_porsi, source, submitted_by, reviewed_by, reviewed_at, status)
+  values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','2026-06-25',
+          '00000000-0000-0000-0000-00000000bf02','kitchen','produce',
+          '00000000-0000-0000-0000-00000000ab01',1,'teable_import','00000000-0000-0000-0000-0000000000d1',
+          '00000000-0000-0000-0000-0000000000b4', now(), 'Approved')
+  $$, '23514', 'reviewed_by must belong to the same org as the kitchen log',
+  'trusted server writers that may set review provenance still cannot name a foreign org''s person');
 select lives_ok($$
   insert into ops.kitchen_logs (org_id, business_unit_id, log_date, branch_id, activity, action,
                                 wip_item_id, qty_porsi, source, status, submitted_by)

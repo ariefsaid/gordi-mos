@@ -5,6 +5,7 @@
 
 import { supabase } from '@/lib/supabase'
 import { UserFacingError } from '@/lib/save-error'
+import { invalidateReferenceCache } from './reference-cache'
 import type { AdminPersonRow, CreatePersonInput, LoginStatus, RoleOption, RevenueScopeOption, TeamOption, TeamMembership } from './admin-users.types'
 
 const shared = () => supabase.schema('shared')
@@ -221,6 +222,7 @@ export async function createPerson(input: CreatePersonInput): Promise<string> {
   if (error) throw surface('create person', error)
 
   const personId = (data as { id: string }).id
+  invalidateReferenceCache('shared.people')
 
   // Grant initial roles (if any)
   for (const role of input.access_roles) {
@@ -299,6 +301,7 @@ export async function archivePerson(personId: string): Promise<void> {
     .update({ archived_at: new Date().toISOString() })
     .eq('id', personId)
   if (error) throw surface('archive person', error)
+  invalidateReferenceCache('shared.people')
 }
 
 /**
@@ -310,6 +313,7 @@ export async function restorePerson(personId: string): Promise<void> {
     .update({ archived_at: null })
     .eq('id', personId)
   if (error) throw surface('restore person', error)
+  invalidateReferenceCache('shared.people')
 }
 
 // ── Jabatan (Position) — shared.person_roles admin writes (FR-201/202) ──────────

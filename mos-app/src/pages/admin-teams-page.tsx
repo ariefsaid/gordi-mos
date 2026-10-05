@@ -48,15 +48,15 @@ export function AdminTeamsPage() {
   const load = useCallback(async () => {
     setLoadState('loading')
     try {
-      const [rows, options] = await Promise.all([
-        listTeamLeadAssignments(),
-        // Stream labels only; a failure here must not cost the admin the leads themselves.
-        listTeams().catch(() => [] as TeamOption[]),
-      ])
+      const assignmentsPromise = listTeamLeadAssignments()
+      // Stream labels only; a failure here must not cost the admin the leads themselves.
+      const optionsPromise = listTeams().catch(() => [] as TeamOption[])
+      const rows = await assignmentsPromise
       setAssignments(rows)
-      setTeamOptions(options)
-      setLoadState('loaded')
+      // Candidates depend on the assignments alone — fan out before the labels settle (#1359).
       void Promise.all(rows.map((row) => loadCandidates(row.team_id)))
+      setTeamOptions(await optionsPromise)
+      setLoadState('loaded')
     } catch {
       setLoadState('error')
     }

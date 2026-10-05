@@ -89,6 +89,8 @@ export interface CollectionProjection<TRecord, TGroup> {
   groups: readonly TGroup[]
   totalRecords: number
   visibleRecordsAreFiltered: boolean
+  /** An empty server-filtered window does not establish that the whole source is empty. */
+  emptyIsFiltered?: boolean
 }
 
 export interface CollectionPresentationProps<
@@ -176,6 +178,13 @@ export interface RecordCollectionDescriptor<
     accessRoles?: readonly string[]
     readLease?: ReadLease
   }): Promise<CollectionData<TRecord, TContext>>
+  /** Optional continuation of this collection's current server window. */
+  loadMore?(args: {
+    query: TQuery
+    viewerId: string | null
+    readLease?: ReadLease
+    data: CollectionData<TRecord, TContext>
+  }): Promise<CollectionData<TRecord, TContext>>
   /**
    * A stable semantic key for the server reads required by this query and authority. When present,
    * the engine reloads only when this key changes; it takes precedence over `loadKeys`. Use it when
@@ -230,6 +239,8 @@ export interface RecordCollectionState<
   collapsedGroupIds: ReadonlySet<string>
   queryIssues: readonly CollectionQueryIssue[]
   error: string | null
+  loadingMore: boolean
+  moreError: string | null
   access: CollectionAccess<TAction>
   savedViews: CollectionViewState
 }

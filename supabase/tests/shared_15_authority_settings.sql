@@ -4,7 +4,7 @@
 -- `shared`, and their contract must stay narrow even while they feed MOS authorization.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(33);
+select plan(35);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select mos._test_seed_signal_tree();
@@ -28,6 +28,10 @@ values ('00000000-0000-0000-0000-0000000000a1',
 
 -- Settings APIs are admin-only, but the viewer predicates are available to ordinary members.
 set local role authenticated;
+select ok(not has_function_privilege('authenticated', 'shared.role_authority_scope(text,text)', 'EXECUTE'),
+  'the role-scope helper is not an authenticated RPC');
+select ok(not has_function_privilege('authenticated', 'shared.is_designated_team_lead(uuid,uuid)', 'EXECUTE'),
+  'the team-lead helper is not an authenticated RPC');
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select is((select count(*)::int from shared.list_role_authority()), 64,
   'the admin matrix lists all eight actions across the eight editable authority categories');
@@ -56,8 +60,10 @@ $$, '42501', null,
 
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select shared.save_role_authority('[{"action":"workline.manage","role":"member","scope":"own_bu"}]'::jsonb);
+reset role;
 select is(shared.role_authority_scope('workline.manage', 'member'), 'own_bu',
   'an admin save changes only the current org override');
+set local role authenticated;
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is(mos.can_manage_definition('00000000-0000-0000-0000-0000000000a2'), true,
   'the saved member own_bu Workline grant changes the effective Project/Process predicate');
@@ -148,10 +154,12 @@ select set_eq($$ select person_id from shared.list_team_lead_candidates('0000000
 select shared.save_team_lead_assignment(
   '00000000-0000-0000-0000-000000005b01',
   '00000000-0000-0000-0000-0000000000d2');
+reset role;
 select ok(shared.is_designated_team_lead(
   '00000000-0000-0000-0000-000000005b01',
   '00000000-0000-0000-0000-0000000000d2'),
   'the saved lead is designated only while the assignment is active');
+set local role authenticated;
 select is((select lead_person_id from shared.list_team_lead_assignments()
             where team_id = '00000000-0000-0000-0000-000000005b01'),
   '00000000-0000-0000-0000-0000000000d2'::uuid,
@@ -166,10 +174,12 @@ update shared.team_memberships
  where person_id = '00000000-0000-0000-0000-0000000000d2'
    and team_id = '00000000-0000-0000-0000-000000005b01';
 set local role authenticated;
+reset role;
 select ok(not shared.is_designated_team_lead(
   '00000000-0000-0000-0000-000000005b01',
   '00000000-0000-0000-0000-0000000000d2'),
   'an ended Team membership removes effective lead authority');
+set local role authenticated;
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select throws_ok($$
   select shared.save_team_lead_assignment(
