@@ -269,13 +269,12 @@ async function assertNoOverflow(page: Page, width: number) {
 }
 
 test.describe('Café item settings', () => {
-  test('renders 501 items with three ESB units at phone and desktop widths', async ({ page }) => {
-    test.setTimeout(60_000)
-    await mockSettingsApi(page, largeItemSettingsFixture())
-    await loginAs(page, BAR_MEMBER.email, BAR_MEMBER.password)
-
-    for (const width of [390, 1440] as const) {
+  for (const width of [390, 1440] as const) {
+    test(`renders 501 items with three ESB units at ${width}px`, async ({ page }) => {
+      test.setTimeout(60_000)
       await page.setViewportSize({ width, height: 960 })
+      await mockSettingsApi(page, largeItemSettingsFixture())
+      await loginAs(page, BAR_MEMBER.email, BAR_MEMBER.password)
       await page.goto('cafe/items')
       await expect(page.getByRole('heading', { name: 'Café items', exact: true })).toBeVisible({ timeout: 15_000 })
       const visibleItems = width === 390
@@ -301,15 +300,16 @@ test.describe('Café item settings', () => {
       }
 
       await captureViewport(page, `lane-1332-after-${width}.png`)
-    }
-  })
+    })
+  }
   test('uses stacked cards on phones and a readable table on wide screens', async ({ page }, testInfo) => {
     await mockSettingsApi(page)
+    await page.setViewportSize({ width: 390, height: 960 })
     await loginAs(page, BAR_MEMBER.email, BAR_MEMBER.password)
+    await page.goto('cafe/items')
 
     for (const width of [390, 1440, 1920] as const) {
-      await page.setViewportSize({ width, height: 960 })
-      await page.goto('cafe/items')
+      if (width !== 390) await page.setViewportSize({ width, height: 960 })
       await expect(page.getByRole('heading', { name: 'Café items', exact: true })).toBeVisible()
       const itemName = width < 768
         ? page.locator('.dt-cards').getByText('Herbal tea · ERP reference').first()
