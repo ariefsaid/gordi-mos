@@ -371,13 +371,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   const displayedSummaryMetrics = summaryCountsAvailable
     ? summaryMetrics
     : summaryMetrics.map(metric => ({ ...metric, value: '—' }))
-  const renderSummarySupport = () => (
-    <>
-      <p className="kl-summary-scope">{t('kitchen.log.summary.scopeHint')}</p>
-      {!summaryCountsAvailable && (
-        <p role="status" className="kl-summary-unavailable">{t('kitchen.log.summary.unavailable')}</p>
-      )}
-    </>
+  const renderSummarySupport = () => !summaryCountsAvailable && (
+    <p role="status" className="kl-summary-unavailable">{t('kitchen.log.summary.unavailable')}</p>
   )
 
   // Stale-response guard: every read bumps the generation, and only the LATEST
@@ -650,6 +645,10 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       myStreamKeys={myStreamKeys}
       onChange={selectStream}
       disabled={status.kind === 'submitting'}
+      context={<>
+        <span aria-hidden="true">·</span>
+        <span className="kl-date tabular">{formatWeekdayDayMonth(logDate)}</span>
+      </>}
     />
     {pendingStream && <ConfirmDialog
       open
@@ -672,8 +671,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   const captureContext = (
     <div className="cafe-capture-context">
       {streamPicker}
-      {stream !== null && <span aria-hidden="true">·</span>}
-      <span className="kl-date tabular">{formatWeekdayDayMonth(logDate)}</span>
+      {stream === null && <span className="kl-date tabular">{formatWeekdayDayMonth(logDate)}</span>}
     </div>
   )
 
@@ -927,7 +925,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   if (wipItems.length === 0) {
     return (
       <PageFamilyFrame family="workspace" title={pageTitle} headClassName="cafe-capture-head" statusRow={captureContext} state={streamNonProducing ? 'read-only' : 'empty'}>
-        <div className="kl-page cafe-capture-content">
+        <div className={`kl-page cafe-capture-content${isWide ? ' kl-capture-wide' : ''}`}>
           <OfflineBanner show={!isOnline} />
           {streamNonProducing && receivingOnlyNotice}
           {mode === 'transfer' && movementOptions.length > 0 && (
@@ -1283,7 +1281,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       statusRow={captureContext}
       state={status.kind === 'submitting' ? 'saving' : status.kind === 'success' ? 'saved' : streamNonProducing ? 'read-only' : submitError ? 'validation' : 'default'}
     >
-      <div ref={captureRef} className="kl-page cafe-capture-content">
+      <div ref={captureRef} className={`kl-page cafe-capture-content${isWide ? ' kl-capture-wide' : ''}`}>
         <div className="kl-capture-main">
         {/* GAP-4/#9: staged-but-unsubmitted quantities must not vanish on navigation — prompt
             stay/discard when leaving the route with unsaved entries. */}

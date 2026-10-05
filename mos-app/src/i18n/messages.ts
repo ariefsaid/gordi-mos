@@ -843,7 +843,6 @@ export const messages = {
     'kitchen.transfer.draft.destination': 'Destination',
     'kitchen.transfer.draft.items': 'Items',
     'kitchen.log.summary.plan': 'Planned items',
-    'kitchen.log.summary.scopeHint': 'Counts include items outside this list.',
     'kitchen.log.summary.unavailable': 'Counts unavailable',
     // A remembered stream that belongs to a different branch: say which branch you are at, so
     // the empty picker reads as a boundary rather than a lost setting.
@@ -2836,7 +2835,6 @@ export const messages = {
     'kitchen.transfer.draft.destination': 'Dikirim ke',
     'kitchen.transfer.draft.items': 'Item',
     'kitchen.log.summary.plan': 'Item yang direncanakan',
-    'kitchen.log.summary.scopeHint': 'Jumlah mencakup item di luar daftar ini.',
     'kitchen.log.summary.unavailable': 'Jumlah tidak tersedia',
     'kitchen.log.stream.otherLocation': '${stream} milik lokasi lain. Pilih stream ${location} untuk mencatat di sini.',
     'kitchen.log.summary.made': 'Item yang dibuat',
