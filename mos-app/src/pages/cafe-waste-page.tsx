@@ -512,38 +512,48 @@ export function CafeWastePage() {
   ]
 
   const renderCard = (item: WasteRow) => (
-    <div className="cwl-card">
-      <div className="kl-dish">
-        <span className="kl-dish-name"><span>{item.kind} - </span><span>{item.name}</span></span>
-        {item.category && <span className="kl-dish-cat">{kitchenCategoryLabel(t, item.category)}</span>}
+    <div className="cwl-capture-row" role="group" aria-labelledby={`cafe-waste-item-${item.id}`}>
+      <div className="cwl-capture-row__item">
+        <div className="kl-dish">
+          <span id={`cafe-waste-item-${item.id}`} className="kl-dish-name"><span>{item.kind} - </span><span>{item.name}</span></span>
+          {item.category && <span className="kl-dish-cat">{kitchenCategoryLabel(t, item.category)}</span>}
+        </div>
       </div>
-      <WasteItemControls
-        item={item}
-        entry={entries[item.id]}
-        canCapture={canCapture}
-        isOnline={isOnline}
-        disabled={submitting || loadState !== 'ready'}
-        onQuantityChange={value => patchEntry(item.id, { quantity: value, error: undefined })}
-        onUnitChange={unitId => patchEntry(item.id, { unitId, error: undefined })}
-        onPrepare={() => void prepareEntry(item)}
-      />
-      {renderEvidence(item)}
+      <div className="cwl-capture-row__controls">
+        <WasteItemControls
+          item={item}
+          entry={entries[item.id]}
+          canCapture={canCapture}
+          isOnline={isOnline}
+          disabled={submitting || loadState !== 'ready'}
+          onQuantityChange={value => patchEntry(item.id, { quantity: value, error: undefined })}
+          onUnitChange={unitId => patchEntry(item.id, { unitId, error: undefined })}
+          onPrepare={() => void prepareEntry(item)}
+        />
+      </div>
+      <div className="cwl-capture-row__evidence">{renderEvidence(item)}</div>
     </div>
   )
 
-  const pageTitle = `${t('dest.cafe')} · ${pageLabel}`
   const state = loadState === 'loading' ? 'loading' : loadState === 'error' ? 'error'
     : submitting ? 'saving' : allSubmitted ? 'saved' : !canCapture ? 'read-only' : 'default'
+
+  const captureContext = (
+    <div className="cafe-capture-context">
+      {streamPicker}
+      <span className="kl-date tabular">{formatWeekdayDayMonth(logDate)}</span>
+    </div>
+  )
 
   return (
     <PageFamilyFrame
       family="workspace"
-      title={pageTitle}
-      statusRow={streamPicker}
-      meta={<span className="kl-date tabular">{formatWeekdayDayMonth(logDate)}</span>}
+      title={pageLabel}
+      headClassName="cafe-capture-head"
+      statusRow={captureContext}
       state={state}
     >
-      <div className="kl-page cwl-page kl-capture-wide">
+      <div className="kl-page cwl-page kl-capture-wide cafe-capture-content">
         <div className="kl-capture-main">
         <RouteLeaveGuard when={remaining.length > 0} message={t('kitchen.log.leave.confirm')} />
         {!isOnline && <div role="alert" className="kl-banner kl-banner-offline">{t('kitchen.log.offline.banner')}</div>}
@@ -659,48 +669,46 @@ export function CafeWastePage() {
               </>
             )}
 
-            {items.length > 0 && !isWide && (
-              <div className="kl-footer cwl-footer">
-                {submitError && (
-                  <p role="alert" className="kl-submit-outcome kl-submit-outcome--error">{t('kitchen.waste.submitFailed')}</p>
-                )}
-                {submittedCount > 0 && !allSubmitted && (
-                  <p role="status" className="kl-submit-outcome">{t('kitchen.waste.partial', { submitted: submittedCount, total: staged.length })}</p>
-                )}
-                {allSubmitted && (
-                  <p role="status" aria-live="polite" className="kl-submit-outcome kl-submit-outcome--success">
-                    {t(staged.length === 1 ? 'kitchen.waste.success.one' : 'kitchen.waste.success.other', { count: staged.length })}
-                  </p>
-                )}
-                {!allPhotosReady && !allSubmitted && staged.length > 0 && (
-                  <p className="kl-submit-reason">{t('kitchen.waste.photoRequired')}</p>
-                )}
-                {!allSubmitted && staged.length === 0 && (
-                  <p className="kl-submit-reason">{t('kitchen.waste.noItems')}</p>
-                )}
-                <div className="kl-footer-count-row">
-                  <div className="kl-tally" aria-live="polite">
-                    <span className="kl-tally-num tabular">
-                      {t(staged.length === 1 ? 'kitchen.waste.footer.count.one' : 'kitchen.waste.footer.count.other', { count: staged.length })}
-                    </span>
-                  </div>
-                  {allSubmitted ? (
-                    <button type="button" className="btn btn-outline" onClick={startAnotherLog}>
-                      {t('kitchen.waste.newLog')}
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      className="btn btn-primary"
-                      disabled={!canCapture || !isOnline || submitting || !allPhotosReady}
-                      onClick={() => void handleSubmit()}
-                    >
-                      {submitting ? t('common.working') : t('kitchen.waste.submit')}
-                    </button>
-                  )}
+            <div className="kl-footer cwl-footer cafe-capture-footer">
+              {submitError && (
+                <p role="alert" className="kl-submit-outcome kl-submit-outcome--error">{t('kitchen.waste.submitFailed')}</p>
+              )}
+              {submittedCount > 0 && !allSubmitted && (
+                <p role="status" className="kl-submit-outcome">{t('kitchen.waste.partial', { submitted: submittedCount, total: staged.length })}</p>
+              )}
+              {allSubmitted && (
+                <p role="status" aria-live="polite" className="kl-submit-outcome kl-submit-outcome--success">
+                  {t(staged.length === 1 ? 'kitchen.waste.success.one' : 'kitchen.waste.success.other', { count: staged.length })}
+                </p>
+              )}
+              {!allPhotosReady && !allSubmitted && staged.length > 0 && (
+                <p className="kl-submit-reason">{t('kitchen.waste.photoRequired')}</p>
+              )}
+              {!allSubmitted && staged.length === 0 && (
+                <p className="kl-submit-reason">{t('kitchen.waste.noItems')}</p>
+              )}
+              <div className="kl-footer-count-row">
+                <div className="kl-tally" aria-live="polite">
+                  <span className="kl-tally-num tabular">
+                    {t(staged.length === 1 ? 'kitchen.waste.footer.count.one' : 'kitchen.waste.footer.count.other', { count: staged.length })}
+                  </span>
                 </div>
               </div>
-            )}
+              {allSubmitted ? (
+                <button type="button" className="btn btn-outline" onClick={startAnotherLog}>
+                  {t('kitchen.waste.newLog')}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="btn btn-primary kl-submit"
+                  disabled={!canCapture || !isOnline || submitting || !allPhotosReady}
+                  onClick={() => void handleSubmit()}
+                >
+                  {submitting ? t('common.working') : t('kitchen.waste.submit')}
+                </button>
+              )}
+            </div>
           </>
         )}
         </div>
@@ -722,31 +730,6 @@ export function CafeWastePage() {
                 ))}
               </ul>
             )}
-            {submitError && <p role="alert" className="kl-submit-outcome kl-submit-outcome--error">{t('kitchen.waste.submitFailed')}</p>}
-            {submittedCount > 0 && !allSubmitted && (
-              <p role="status" className="kl-submit-outcome">{t('kitchen.waste.partial', { submitted: submittedCount, total: staged.length })}</p>
-            )}
-            {allSubmitted && (
-              <p role="status" aria-live="polite" className="kl-submit-outcome kl-submit-outcome--success">
-                {t(staged.length === 1 ? 'kitchen.waste.success.one' : 'kitchen.waste.success.other', { count: staged.length })}
-              </p>
-            )}
-            {!allPhotosReady && !allSubmitted && staged.length > 0 && <p className="kl-submit-reason">{t('kitchen.waste.photoRequired')}</p>}
-            {!allSubmitted && staged.length === 0 && <p className="kl-submit-reason">{t('kitchen.waste.noItems')}</p>}
-            <div className="kl-capture-summary__actions">
-              {allSubmitted ? (
-                <button type="button" className="btn btn-outline" onClick={startAnotherLog}>{t('kitchen.waste.newLog')}</button>
-              ) : (
-                <button
-                  type="button"
-                  className="btn btn-primary kl-submit"
-                  disabled={!canCapture || !isOnline || submitting || !allPhotosReady}
-                  onClick={() => void handleSubmit()}
-                >
-                  {submitting ? t('common.working') : t('kitchen.waste.submit')}
-                </button>
-              )}
-            </div>
           </aside>
         )}
       </div>
@@ -795,7 +778,7 @@ function WasteItemControls({
 
   return (
     <div className="cwl-controls">
-      <label className="cwl-field-label" htmlFor={inputId}>
+      <label className="sr-only" htmlFor={inputId}>
         {t('kitchen.waste.quantityFor', { item: item.name })}
       </label>
       <div className="cwl-quantity-row">
@@ -808,7 +791,6 @@ function WasteItemControls({
           step="any"
           value={current.quantity}
           aria-invalid={invalid || undefined}
-          aria-label={t('kitchen.waste.quantityFor', { item: item.name })}
           disabled={!editable}
           onChange={event => onQuantityChange(event.target.value)}
         />
