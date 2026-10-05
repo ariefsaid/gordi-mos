@@ -930,7 +930,7 @@ describe('AC-204 (4): the shipped Home carries the gated Objectives door', () =>
     expect(objectivesDoor()).toContainElement(link)
     expect(objectivesDoor()).not.toHaveTextContent(/Progress rolls up from each Objective/i)
     expect(objectivesDoor()).not.toHaveTextContent(/coming/i)
-    expect(await within(objectivesDoor()).findByRole('link', { name: /Q3 Growth.*2\/3 done/i }))
+    expect(await within(objectivesDoor()).findByRole('link', { name: /Q3 Growth.*2\/3 Tasks done/i }))
       .toHaveAttribute('href', '/work/objectives/obj-1')
   })
 

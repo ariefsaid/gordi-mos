@@ -52,7 +52,10 @@ function rowProgressText(
   t: ReturnType<typeof useT>,
 ): string {
   if (row.type !== 'process') {
-    return progress ? progressText(progress.done, progress.total, t) : t('catalog.noTasks')
+    if (!progress) return t('catalog.noTasks')
+    return row.type === undefined
+      ? t('catalog.objectives.taskProgress', { done: String(progress.done), total: String(progress.total) })
+      : progressText(progress.done, progress.total, t)
   }
 
   // A Process is a repeatable definition, so its catalog progress is about today's/current

@@ -281,23 +281,59 @@ describe('header: the record answers what, state, who, when', () => {
 })
 
 describe('Get started lists only what is missing, and its buttons work', () => {
-  it('keeps Key results visible with its own Add action while Get started owns the page primary', async () => {
+  it('keeps the setup action primary until the key-result list has actually loaded', async () => {
+    let resolveRows!: (rows: KeyResultRow[]) => void
+    vi.mocked(listKeyResults).mockReturnValue(new Promise((resolve) => { resolveRows = resolve }))
+    renderRecord()
+    await screen.findByRole('heading', { level: 1, name: 'Grow revenue' })
+    await waitFor(() => expect(listKeyResults).toHaveBeenCalledWith('obj-1'))
+    const keyResults = screen.getByRole('region', { name: 'Key results' })
+    const started = screen.getByRole('region', { name: 'Get this Objective started' })
+    expect(within(keyResults).queryByRole('button', { name: 'Add key result' })).toBeNull()
+    expect(within(started).getByRole('button', { name: 'Link Project or Process' })).toHaveClass('btn-primary')
+
+    resolveRows([])
+    expect(await within(keyResults).findByRole('button', { name: 'Add key result' })).toHaveClass('btn-primary')
+  })
+
+  it('gives the loaded empty Key results section the Objective’s next-action emphasis', async () => {
+    renderRecord()
+    const keyResults = await screen.findByRole('region', { name: 'Key results' })
+    const addKeyResult = await within(keyResults).findByRole('button', { name: 'Add key result' })
+    expect(addKeyResult).toHaveClass('btn-primary')
+    const started = await screen.findByRole('region', { name: 'Get this Objective started' })
+    expect(within(started).getByRole('button', { name: 'Link Project or Process' })).not.toHaveClass('btn-primary')
+    expect(document.querySelectorAll('.btn-primary')).toHaveLength(1)
+  })
+
+  it('makes Save the only primary action while a key-result editor is open', async () => {
+    const user = userEvent.setup()
+    renderRecord()
+    const keyResults = await screen.findByRole('region', { name: 'Key results' })
+    await user.click(await within(keyResults).findByRole('button', { name: 'Add key result' }))
+    const save = await screen.findByRole('button', { name: 'Save' })
+    expect(save).toHaveClass('btn-primary')
+    expect(within(await screen.findByRole('region', { name: 'Get this Objective started' }))
+      .getByRole('button', { name: 'Link Project or Process' })).not.toHaveClass('btn-primary')
+    expect(document.querySelectorAll('.btn-primary')).toHaveLength(1)
+  })
+
+  it('keeps Key results visible and gives its Add action priority while the success measure is missing', async () => {
     renderRecord()
     const region = await screen.findByRole('region', { name: 'Get this Objective started' })
     const keyResults = await screen.findByRole('region', { name: 'Key results' })
     await within(keyResults).findByText('No key results yet.')
     expect(keyResults).toHaveTextContent('No key results yet.')
-    expect(await within(keyResults).findByRole('button', { name: 'Add key result' })).toBeInTheDocument()
+    expect(await within(keyResults).findByRole('button', { name: 'Add key result' })).toHaveClass('btn-primary')
     expect(within(region).queryByText('Set targets')).toBeNull()
     expect(within(region).getByText('Link work')).toBeInTheDocument()
     expect(within(region).queryByRole('button', { name: 'Add key result' })).toBeNull()
     expect(within(region).queryByText('Add tasks')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Add task' })).toBeNull()
     expect(document.body.textContent).not.toMatch(/0 \/ 0|No linked|No linked tasks/)
-    // One primary on the screen: the remaining setup action. Key results keeps a quiet section action.
+    // One primary on the screen: Add key result. Setup remains available as a secondary action.
     expect(document.querySelectorAll('.btn-primary')).toHaveLength(1)
-    expect(within(region).getByRole('button', { name: 'Link Project or Process' })).toHaveClass('btn-primary')
-    expect(within(keyResults).getByRole('button', { name: 'Add key result' })).not.toHaveClass('btn-primary')
+    expect(within(region).getByRole('button', { name: 'Link Project or Process' })).toHaveClass('btn-outline')
   })
 
   it('withdrawing the Link picker puts focus back on the button that opened it', async () => {
@@ -846,7 +882,7 @@ describe('sections read like a document', () => {
     const work = await screen.findByRole('region', { name: 'Projects & Processes' })
     expect(work.querySelector('.rp-section__count')).toHaveTextContent('1')
     expect(work).not.toHaveTextContent('1 of 3 tasks done')
-    expect(await screen.findByRole('region', { name: 'Tasks' })).toHaveTextContent('1 of 3')
+    expect(await screen.findByRole('region', { name: 'Tasks' })).toHaveTextContent('1 / 3 Tasks done')
   })
 
   it('a member with nothing to add is told it is view only', async () => {

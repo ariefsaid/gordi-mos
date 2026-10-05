@@ -91,7 +91,7 @@ function relationTask(row: TaskListRow) {
 
 function recordData(kind: 'objective' | 'work-line', periodYear: number, objectiveId: string | null): CatalogRecordData {
   const row = kind === 'objective'
-    ? { ...objectiveRow, periodYear }
+    ? { ...objectiveRow, periodYear, periodQuarter: 3 }
     : { ...workLineRow, objectiveId, businessUnitId: 'bu-1', accountablePersonId: 'p1', responsiblePersonId: 'p1' }
   const groups = kind === 'objective'
     ? [{ id: 'wl-1', name: 'Menu launch', relationship: 'direct' as const, entity: 'work-line' as const, objectiveId: 'obj-1', workLineId: 'wl-1', taskCount: relationTasks.length, done: 1, total: relationTasks.length, tasks: relationTasks.map(relationTask) }]
@@ -185,9 +185,9 @@ describe('record relationship grammar', () => {
     const work = await screen.findByRole('region', { name: 'Projects & Processes' })
     expect(within(work).getAllByRole('link', { name: 'Menu launch' })).toHaveLength(1)
     expect(work).toHaveTextContent('1')
-    expect(work).not.toHaveTextContent('1 of 2 tasks done')
+    expect(work).not.toHaveTextContent('1 / 2 Tasks done')
     const tasks = await screen.findByRole('region', { name: 'Tasks' })
-    expect(tasks).toHaveTextContent('1 of 2 done')
+    expect(tasks).toHaveTextContent('1 / 2 Tasks done')
     expect(within(tasks).getByRole('link', { name: 'Print the menus' })).toHaveAttribute('href', '/work/tasks/task-1')
     expect(within(tasks).getByRole('link', { name: 'Brief the floor' })).toHaveAttribute('href', '/work/tasks/task-2')
     expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
@@ -257,14 +257,16 @@ describe('record relationship grammar', () => {
   })
 })
 
-it('saves an Objective period through its existing record API and reloads the displayed value', async () => {
+it('saves a new Objective year through its existing API, keeps the quarter, and reloads the value', async () => {
   renderRecord('objective', 'obj-1')
   await screen.findByRole('heading', { level: 1, name: 'Grow revenue' })
   fireEvent.click(await screen.findByRole('button', { name: 'Edit Period' }))
-  fireEvent.change(screen.getByRole('textbox', { name: 'Period' }), { target: { value: '2031' } })
-  fireEvent.keyDown(screen.getByRole('textbox', { name: 'Period' }), { key: 'Enter' })
-  await waitFor(() => expect(updateObjective).toHaveBeenCalledWith('obj-1', { period_year: 2031 }))
-  await waitFor(() => expect(screen.getByRole('button', { name: 'Edit Period' })).toHaveTextContent('2031'))
+  const nextYear = new Date().getFullYear() + 1
+  fireEvent.click(await screen.findByRole('combobox', { name: 'Period' }))
+  fireEvent.click(within(screen.getByRole('listbox')).getByRole('option', { name: String(nextYear) }))
+  await waitFor(() => expect(updateObjective).toHaveBeenCalledWith('obj-1', { period_year: nextYear }))
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Edit Period' })).toHaveTextContent(String(nextYear)))
+  expect(screen.getByRole('button', { name: 'Edit Quarter' })).toHaveTextContent('Q3')
 })
 
 it('copies the canonical WorkLine URL from a nested collection stack', async () => {
