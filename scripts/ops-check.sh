@@ -5,7 +5,7 @@
 #   */5 * * * * /path/to/scripts/ops-check.sh >> ~/ops-check.log 2>&1
 #
 # Checks: database reachable; ERP outbox dead letters; oldest pending/failed outbox row age;
-# ERP worker heartbeat age; newest nightly dump (when OPS_BACKUP_DIR is set); app URL and auth health endpoint; client-error rows in the last
+# ERP worker heartbeat age (when OPS_ESB_HEARTBEAT_FILE is set); newest nightly dump (when OPS_BACKUP_DIR is set); app URL and auth health endpoint; client-error rows in the last
 # 15 minutes (skipped while the log table does not exist). Every coordinate comes from the
 # untracked env file (scripts/ops.env.example, OPS_ENV_FILE); a missing value refuses the run.
 # Self-test: scripts/ops-check.test.sh
