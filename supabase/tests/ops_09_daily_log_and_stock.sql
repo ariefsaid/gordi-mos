@@ -118,10 +118,8 @@ select is(
 -- Approve one of the seeded transfers and the balance moves DOWN by its quantity: the transfer's
 -- sign is asserted through the function rather than assumed from the CASE expression.
 --
--- The approval is performed as a REVIEWER, not by resetting to the owner. ops._guard_kitchen_log
--- reads shared.has_access_role, which consults the JWT claim rather than the database role, so
--- dropping back to the table owner does not get past the status gate — and should not. Every state
--- change below therefore arrives the way a real one would.
+-- The approval is performed as a reviewer, not by resetting to the owner. The guard checks the
+-- caller's current org-scoped assignment, so every state change below uses the same authority path.
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 -- #236 (FR-043): the per-stream ordering gate refuses a transfer approval while the same
 -- stream/day still has Submitted production. This file is about stock arithmetic, not the gate
