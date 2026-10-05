@@ -64,3 +64,14 @@ describe('a filter that repeats the view it belongs to', () => {
     expect(result.summary).toBe('Overdue · Blocked')
   })
 })
+
+
+it('names every applied constraint and deduplicates repeated labels beside the base', () => {
+  const result = collectionDisclosureSummary({
+    query: { businessUnitId: 'bu-1', personId: 'person-1', q: 'stock' },
+    neutralQuery: { businessUnitId: null, personId: null, q: '' },
+    excludedKeys: [], base: 'All', hasNonDefaultView: false,
+    filterLabel: () => ['Business Unit', 'Person', 'Search', 'Person', 'All'],
+  })
+  expect(result).toEqual({ summary: 'All · Business Unit · Person · Search', hasActiveFilters: true })
+})

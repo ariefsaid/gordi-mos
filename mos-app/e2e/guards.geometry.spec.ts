@@ -201,36 +201,37 @@ test.describe('desktop geometry guards', () => {
     await expect(door).toHaveAttribute('aria-expanded', 'false')
     await door.click()
     await expect(door).toHaveAttribute('aria-expanded', 'true')
-    await expect(toolbar.getByRole('group', { name: /^view & filters$/i })).toBeVisible()
+    const options = page.getByRole('group', { name: /^view & filters$/i })
+    await expect(options).toBeVisible()
     await assertOnePagePrimary('View & filters door open')
     // The opened door carries the whole option set: four view chips, the search plus five
     // selects, and the two ghost actions (Fields, Save view). A filter dropped from the desktop
     // panel reddens here, as it does on the phone panel in GUARD-TAP #667.
-    const census = await toolbar.evaluate((element) => ({
-      chips: element.querySelectorAll('.collection-toolbar__view').length,
-      dropdowns: element.querySelectorAll('.collection-toolbar__search, .collection-toolbar__select').length,
-      ghosts: element.querySelectorAll('.collection-toolbar__options .btn').length,
-    }))
+    const census = {
+      chips: await toolbar.locator('.collection-toolbar__view').count(),
+      dropdowns: await toolbar.locator('.collection-toolbar__search').count() + await options.locator('.collection-toolbar__select').count(),
+      ghosts: await options.locator('.btn').count(),
+    }
     expect(census, 'View & filters door open: option census').toEqual({ chips: 4, dropdowns: 6, ghosts: 2 })
-    // Layout-independent: every control sits inside the toolbar and contains its own text.
-    // (The retired two-row shape also pinned one shared centre line per row; the door panel wraps.)
-    const fit = await toolbar.evaluate((element) => {
-      const box = element.getBoundingClientRect()
-      return Array.from(element.querySelectorAll(
-        '.collection-toolbar__view, .collection-toolbar__search, .collection-toolbar__select, .collection-toolbar__options .btn',
-      )).map((control) => {
-        const rect = control.getBoundingClientRect()
-        return {
-          name: control.getAttribute('aria-label') ?? control.textContent?.trim().replace(/\s+/g, ' ') ?? '',
-          inside: rect.x >= box.x - 0.5 && rect.right <= box.right + 0.5,
-          overflows: control.scrollHeight > control.clientHeight + 1 || control.scrollWidth > control.clientWidth + 1,
-        }
-      })
+    // The view row and portaled options stay inside the usable collection and show their text.
+    const frame = await toolbar.evaluate((element) => {
+      const box = (element.closest('.record-collection, main') ?? element).getBoundingClientRect()
+      return { left: box.left, right: box.right }
     })
-    expect(fit.filter((c) => !c.inside), 'door open: controls stay inside the toolbar').toEqual([])
+    const controls = toolbar.locator('.collection-toolbar__view, .collection-toolbar__search')
+      .or(options.locator('.collection-toolbar__select, .btn'))
+    const fit = await controls.evaluateAll((elements, bounds) => elements.map((control) => {
+      const rect = control.getBoundingClientRect()
+      return {
+        name: control.getAttribute('aria-label') ?? control.textContent?.trim().replace(/\s+/g, ' ') ?? '',
+        inside: rect.x >= bounds.left - 0.5 && rect.right <= bounds.right + 0.5,
+        overflows: control.scrollHeight > control.clientHeight + 1 || control.scrollWidth > control.clientWidth + 1,
+      }
+    }), frame)
+    expect(fit.filter((c) => !c.inside), 'door open: controls stay inside the usable collection').toEqual([])
     expect(fit.filter((c) => c.overflows), 'door open: controls contain their text').toEqual([])
 
-    const saveTrigger = toolbar.getByRole('button', { name: /^save view$/i })
+    const saveTrigger = options.getByRole('button', { name: /^save view$/i })
     await expect(saveTrigger).toBeVisible()
     await expect(saveTrigger).not.toHaveClass(/btn-primary/)
     await saveTrigger.click()
@@ -244,9 +245,9 @@ test.describe('desktop geometry guards', () => {
     // The Fields chooser is the last toolbar state, and the one that widens the table: with every
     // optional column on, the Task column keeps its 160px floor and the page never scrolls sideways.
     await expect(page.locator('tr.task-row').first()).toBeVisible()
-    await toolbar.getByRole('button', { name: /^fields$/i }).click()
+    await options.getByRole('button', { name: /^fields$/i }).click()
     for (const field of ['Business unit', 'Project/Process', 'Objective', 'Last activity']) {
-      await toolbar.getByRole('checkbox', { name: field, exact: true }).check()
+      await page.getByRole('group', { name: 'Fields', exact: true }).getByRole('checkbox', { name: field, exact: true }).check()
     }
     await assertOnePagePrimary('Fields chooser open')
     const taskWidth = await page.locator('tr.task-row td.td-main').first().evaluate((cell) => cell.getBoundingClientRect().width)

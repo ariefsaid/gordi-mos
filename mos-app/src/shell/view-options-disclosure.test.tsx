@@ -105,6 +105,29 @@ describe('ViewOptionsDisclosure', () => {
     expect(last).toHaveFocus()
   })
 
+  it('portals desktop options, preserves focus on open, and closes back to its trigger', async () => {
+    function Harness() {
+      const [open, setOpen] = useState(false)
+      return <ViewOptionsDisclosure portaled open={open} onToggle={() => setOpen(value => !value)}
+        label="View options" panelId="desktop-options" className="desktop-host">
+        <button type="button">Filter</button>
+      </ViewOptionsDisclosure>
+    }
+    const user = userEvent.setup()
+    const { container } = render(<Harness />)
+    const trigger = screen.getByRole('button', { name: 'View options' })
+    await user.click(trigger)
+    const filter = screen.getByRole('button', { name: 'Filter' })
+    expect(container).not.toContainElement(filter)
+    expect(document.body).toContainElement(filter)
+    expect(trigger).toHaveFocus()
+    await user.click(filter)
+    expect(trigger).toHaveAttribute('aria-expanded', 'true')
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('button', { name: 'Filter' })).toBeNull()
+    expect(trigger).toHaveFocus()
+  })
+
   it('renders the summary as a decorative (aria-hidden) hint, not part of the accessible name', () => {
     renderDisclosure({ open: false, summary: 'Attention first', summaryClassName: 'sum', hasActiveFilters: true })
     const summary = screen.getByText('Attention first')

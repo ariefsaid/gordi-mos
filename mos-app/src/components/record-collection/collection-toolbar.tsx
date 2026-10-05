@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import * as Popover from '@radix-ui/react-popover'
 import { Button } from '@/components/ui/button'
 import { Picker } from '@/components/ui/picker'
 import { ViewTabs } from '@/components/ui/view-tabs'
@@ -206,6 +207,8 @@ export function CollectionToolbar<
   optionsSummary,
 }: CollectionToolbarProps<TPresentation, TView>) {
   const t = useT()
+  const [popupBoundary, setPopupBoundary] = useState<Element | null>(null)
+  const bindBoundary = useCallback((node: HTMLDivElement | null) => setPopupBoundary(node?.closest('.record-collection, main') ?? null), [])
   const isDesktop = useIsDesktop()
   const [saveOpen, setSaveOpen] = useState(false)
   const [viewName, setViewName] = useState('')
@@ -222,31 +225,6 @@ export function CollectionToolbar<
     // callback would create duplicate requests, so mount is the deliberate lifecycle.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-
-  // An anchored panel that only closes from its own trigger is a panel that stays open while the
-  // reader works around it: it overlays the table's own column controls, and a click that lands on
-  // one is swallowed by the panel instead. Any pointer landing outside closes it, which is what a
-  // reader means by clicking away. A picker's listbox is portaled to <body>, so a pointer on one
-  // of its options is inside the door in every sense but the DOM's.
-  useEffect(() => {
-    if (!desktopOptionsOpen) return
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target as Element | null
-      if (!target?.closest?.('.collection-toolbar__desktop-door, .picker__menu')) setDesktopOptionsOpen(false)
-    }
-    document.addEventListener('pointerdown', onPointerDown, true)
-    return () => document.removeEventListener('pointerdown', onPointerDown, true)
-  }, [desktopOptionsOpen])
-
-  // The popover filter closes on a pointer outside its own field, like the desktop door above.
-  useEffect(() => {
-    if (!openPopoverId) return
-    const onPointerDown = (event: PointerEvent) => {
-      if (!(event.target instanceof Element) || !event.target.closest(`[data-filter-id="${openPopoverId}"]`)) setOpenPopoverId(null)
-    }
-    document.addEventListener('pointerdown', onPointerDown, true)
-    return () => document.removeEventListener('pointerdown', onPointerDown, true)
-  }, [openPopoverId])
 
   const saving = savedViews?.operation === 'saving'
   const canSave = Boolean(viewName.trim()) && !saving
@@ -313,6 +291,8 @@ export function CollectionToolbar<
                   event.currentTarget.querySelector<HTMLElement>('.collection-toolbar__choice-trigger')?.focus()
                 }}
               >
+                <Popover.Root open={openPopoverId === filter.id} onOpenChange={(open) => setOpenPopoverId(open ? filter.id : null)}>
+                <Popover.Trigger asChild>
                 <button
                   type="button"
                   className="collection-toolbar__choice-trigger"
@@ -321,7 +301,6 @@ export function CollectionToolbar<
                   aria-expanded={openPopoverId === filter.id}
                   title={filter.display}
                   data-full-value={filter.display}
-                  onClick={() => setOpenPopoverId(openPopoverId === filter.id ? null : filter.id)}
                 >
                   <span className="collection-toolbar__choice-copy">
                     {isDesktop ? <span className="collection-toolbar__choice-label" aria-hidden="true">{filter.label}</span> : null}
@@ -339,8 +318,9 @@ export function CollectionToolbar<
                     </svg>
                   </span>
                 </button>
-                {openPopoverId === filter.id ? (
-                  <div role="group" aria-label={filter.label} className="collection-toolbar__fields-menu">
+                </Popover.Trigger>
+                <Popover.Portal>
+                  <Popover.Content role="group" aria-label={filter.label} className="collection-toolbar__fields-menu" sideOffset={4} align="start" collisionPadding={12} collisionBoundary={popupBoundary} data-escape-layer="nested" onEscapeKeyDown={(event) => event.stopPropagation()}>
                     {filter.popover.choices.map((choice) => (
                       <label key={choice.key} className="collection-toolbar__toggle">
                         <input
@@ -351,8 +331,9 @@ export function CollectionToolbar<
                         <span>{choice.label}</span>
                       </label>
                     ))}
-                  </div>
-                ) : null}
+                  </Popover.Content>
+                </Popover.Portal>
+                </Popover.Root>
               </div>
             </div>
           ) : (
@@ -379,14 +360,17 @@ export function CollectionToolbar<
         ))}
         {fields ? (
           <div className="collection-toolbar__fields">
-            <Button variant="ghost" aria-label={fields.label} title={fields.label} aria-expanded={fieldsOpen} onClick={() => setFieldsOpen((open) => !open)}>
+            <Popover.Root open={fieldsOpen} onOpenChange={setFieldsOpen}>
+            <Popover.Trigger asChild>
+            <Button variant="ghost" aria-label={fields.label} title={fields.label} aria-expanded={fieldsOpen}>
               <svg className="collection-toolbar__action-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                 <path d="M4 6h16M7 12h10M10 18h4" />
               </svg>
               <span className="collection-toolbar__action-label">{fields.label}</span>
             </Button>
-            {fieldsOpen ? (
-              <div role="group" aria-label={fields.label} className="collection-toolbar__fields-menu">
+            </Popover.Trigger>
+            <Popover.Portal>
+              <Popover.Content role="group" aria-label={fields.label} className="collection-toolbar__fields-menu" sideOffset={4} align="end" collisionPadding={12} collisionBoundary={popupBoundary} data-escape-layer="nested" onEscapeKeyDown={(event) => event.stopPropagation()}>
                 {fields.options.map((field) => (
                   <label key={field.value} className="collection-toolbar__toggle">
                     <input
@@ -398,25 +382,23 @@ export function CollectionToolbar<
                     <span>{field.label}</span>
                   </label>
                 ))}
-              </div>
-            ) : null}
+              </Popover.Content>
+            </Popover.Portal>
+            </Popover.Root>
           </div>
         ) : null}
         {savedViews ? (
-          // AC-007 (#743): the Save view door is an ANCHORED POPOVER (audit C20/I3) — it must
-          // never grow the toolbar a row, so the trigger and the popover share one relative
-          // zone and the popover lays out over the row below it.
+          // The shared Radix layer anchors the form while keeping it above the collection
+          // and inside the available viewport when another panel narrows the page.
           <div className="collection-toolbar__save-zone">
+            <Popover.Root open={saveOpen} onOpenChange={(open) => open ? setSaveOpen(true) : closeSaveView()}>
+            <Popover.Trigger asChild>
             <Button
               variant="ghost"
               ref={saveTriggerRef}
               aria-label={t('common.saveView')}
               title={t('common.saveView')}
               aria-expanded={saveOpen}
-              onClick={() => {
-                if (saveOpen) closeSaveView()
-                else setSaveOpen(true)
-              }}
               onKeyDown={(event) => {
                 // The save popover owns Escape: it closes and refocuses its trigger without
                 // bubbling into the options row's own keyboard handling.
@@ -432,8 +414,9 @@ export function CollectionToolbar<
               <span className="collection-toolbar__action-label collection-toolbar__save-view-label">{t('common.saveView')}</span>
               <span className="collection-toolbar__action-label collection-toolbar__save-compact-label">{t('common.save')}</span>
             </Button>
-            {saveOpen ? (
-              <div className="collection-toolbar__save" role="group" aria-label={t('common.saveCurrentView')}>
+            </Popover.Trigger>
+            <Popover.Portal>
+              <Popover.Content className="collection-toolbar__save" role="group" aria-label={t('common.saveCurrentView')} sideOffset={4} align="end" collisionPadding={12} collisionBoundary={popupBoundary} data-escape-layer="nested" onEscapeKeyDown={(event) => event.stopPropagation()}>
                 <label className="collection-toolbar__save-field">
                   <span>{t('common.viewName')}</span>
                   <input
@@ -456,8 +439,9 @@ export function CollectionToolbar<
                   </Button>
                   <Button variant="ghost" onClick={closeSaveView}>{t('common.cancel')}</Button>
                 </div>
-              </div>
-            ) : null}
+              </Popover.Content>
+            </Popover.Portal>
+            </Popover.Root>
           </div>
         ) : null}
         {toggles}
@@ -467,6 +451,7 @@ export function CollectionToolbar<
 
   return (
     <div
+      ref={bindBoundary}
       className={`collection-toolbar${className ? ` ${className}` : ''}`}
       data-testid="record-collection-toolbar"
     >
@@ -563,6 +548,8 @@ export function CollectionToolbar<
               summaryClassName="collection-toolbar__desktop-door-summary"
               chevronClassName="collection-toolbar__desktop-door-chevron"
               panelClassName="collection-toolbar__desktop-door-panel"
+              portaled
+              collisionBoundary={popupBoundary}
             >
               {renderViewOptions()}
             </ViewOptionsDisclosure>

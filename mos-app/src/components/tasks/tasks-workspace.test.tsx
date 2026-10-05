@@ -741,6 +741,15 @@ describe('F-A / OD-REDESIGN-61 — member phone capture-first disclosure', () =>
     await waitFor(() => expect(trigger).toHaveAccessibleName(/status/i))
   })
 
+  it('names both Business Unit and Person constraints while the options are collapsed', async () => {
+    stubMatchMedia(false, false)
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Constrained task' })])
+    renderTable({}, authedState, ['/work/tasks?bu=bu-1&person=' + VIEWER_ID])
+    const trigger = await screen.findByRole('button', { name: /^view & filters/i })
+    await waitFor(() => expect(trigger).toHaveAccessibleName(/business unit.*person/i))
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+  })
+
   it('Rule 8/11: the whole filter stack collapses behind the single shared "View options" disclosure, and reveals on expand', async () => {
     // The member phone filter stack (Group · Business unit · Status · Person + search)
     // folds behind ONE affordance — the SAME ViewOptionsDisclosure primitive Home uses

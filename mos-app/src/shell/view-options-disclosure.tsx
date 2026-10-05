@@ -1,10 +1,11 @@
 import { useRef, type KeyboardEvent, type ReactNode } from 'react'
+import * as Popover from '@radix-ui/react-popover'
 import { Chevron } from './icons'
 import './view-options-disclosure.css'
 import { viewOptionsTraversal } from './view-options-keyboard'
 
 /**
- * ViewOptionsDisclosure — the ONE capture-first phone-only "View options" disclosure primitive
+ * ViewOptionsDisclosure — the shared "View options" disclosure primitive
  * (Rule 8 capture-first · Rule 11 component reuse). A compact trigger (label + optional
  * decorative summary + a chevron) that toggles a collapsible panel of secondary controls on phone hosts.
  *
@@ -14,8 +15,8 @@ import { viewOptionsTraversal } from './view-options-keyboard'
  * skinned per context.
  *
  * Live callers (#379): the Tasks workspace phone wrapper and the Signals archive phone wrapper —
- * both host a CollectionToolbar inside this phone-only door. Desktop hosts expose the secondary
- * controls inline and have no disclosure trigger.
+ * both host a CollectionToolbar inside the phone door. Desktop collection hosts can use the
+ * same control with a portaled panel to stay above content and inside the usable frame.
  *
  * The panel also carries the shared Arrow/Home/End traversal between its controls (#382), so phone
  * hosts inherit it. Opening does NOT move focus into the panel: a disclosure is not an overlay, and
@@ -47,6 +48,9 @@ export interface ViewOptionsDisclosureProps {
   chevronClassName?: string
   panelClassName?: string
   children: ReactNode
+  /** Desktop overlay mode uses the existing Radix layer; phone disclosures stay in flow. */
+  portaled?: boolean
+  collisionBoundary?: Element | null
 }
 
 export function ViewOptionsDisclosure({
@@ -63,6 +67,8 @@ export function ViewOptionsDisclosure({
   chevronClassName,
   panelClassName,
   children,
+  portaled = false,
+  collisionBoundary,
 }: ViewOptionsDisclosureProps) {
   const triggerRef = useRef<HTMLButtonElement | null>(null)
   // I3 (issue #379): Escape closes the disclosure and leaves focus on the trigger — the
@@ -79,36 +85,45 @@ export function ViewOptionsDisclosure({
   const chevronCls = chevronClassName
     ? `${chevronClassName}${open ? ` ${chevronClassName}--open` : ''}`
     : undefined
-  return (
-    <div className={className}>
-      <button
-        type="button"
-        ref={triggerRef}
-        className={triggerClassName}
-        aria-expanded={open}
-        aria-controls={panelId}
-        aria-label={hasActiveFilters && summary ? `${label}, ${summary}` : label}
-        onClick={onToggle}
-        onKeyDown={onKeyDown}
-      >
-        <span>{label}</span>
-        {summary != null && (
-          <span className={summaryClassName} aria-hidden="true">{summary}</span>
-        )}
-        {hasActiveFilters && <span className="view-options-disclosure__active-dot" aria-hidden="true" />}
-        <Chevron className={chevronCls} />
-      </button>
-      {open && (
-        <div
-          id={panelId}
-          className={panelClassName}
-          // Traversal first, then the Escape contract: they own disjoint keys, and the traversal
-          // reads its control set from this panel element (event.currentTarget).
-          onKeyDown={(event) => { viewOptionsTraversal(event); onKeyDown(event) }}
-        >
-          {children}
-        </div>
+  const trigger = (
+    <button
+      type="button"
+      ref={triggerRef}
+      className={triggerClassName}
+      aria-expanded={open}
+      aria-controls={panelId}
+      aria-label={hasActiveFilters && summary ? `${label}, ${summary}` : label}
+      onClick={portaled ? undefined : onToggle}
+      onKeyDown={onKeyDown}
+    >
+      <span>{label}</span>
+      {summary != null && (
+        <span className={summaryClassName} aria-hidden="true">{summary}</span>
       )}
-    </div>
+      {hasActiveFilters && <span className="view-options-disclosure__active-dot" aria-hidden="true" />}
+      <Chevron className={chevronCls} />
+    </button>
   )
+  const panelProps = {
+    id: panelId,
+    className: panelClassName,
+    onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => { viewOptionsTraversal(event); onKeyDown(event) },
+  }
+  if (portaled) return (
+    <Popover.Root open={open} onOpenChange={(next) => {
+      if (next !== open) (next ? onToggle : onClose ?? onToggle)()
+    }}>
+      <div className={className}><Popover.Trigger asChild>{trigger}</Popover.Trigger></div>
+      <Popover.Portal>
+        <Popover.Content {...panelProps} align="end" sideOffset={6} collisionPadding={12} collisionBoundary={collisionBoundary}
+          onOpenAutoFocus={(event) => event.preventDefault()} onEscapeKeyDown={(event) => event.stopPropagation()}>
+          {children}
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
+  )
+  return <div className={className}>
+    {trigger}
+    {open && <div {...panelProps}>{children}</div>}
+  </div>
 }

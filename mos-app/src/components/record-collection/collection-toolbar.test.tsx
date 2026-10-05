@@ -495,10 +495,11 @@ describe('Ticket #743 toolbar acceptance', () => {
 
     const trigger = screen.getByRole('button', { name: /save view/i })
     await userEvent.click(trigger)
-    // Anchored: the popover shares the trigger's relative save-zone, so it cannot grow a row.
+    // Portaled: the form stays out of the collection's clipping and stacking contexts.
     const popover = screen.getByRole('group', { name: /save current view/i })
     expect(popover).toHaveClass('collection-toolbar__save')
-    expect(popover.parentElement).toHaveClass('collection-toolbar__save-zone')
+    expect(popover.closest('.collection-toolbar')).toBeNull()
+    expect(document.body).toContainElement(popover)
     expect(screen.getByRole('textbox', { name: /view name/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
     expect(screen.getAllByTestId('collection-toolbar-row')).toHaveLength(2)

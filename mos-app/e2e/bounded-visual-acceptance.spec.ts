@@ -130,12 +130,12 @@ test.describe('bounded visual and interaction acceptance', () => {
       await expect(door).toHaveAttribute('aria-expanded', 'true')
       const toolbar = page.getByTestId('record-collection-toolbar')
       await expect(toolbar).toBeVisible()
-      await expect(toolbar.getByRole('group', { name: 'View & filters', exact: true })).toBeVisible()
+      await expect(page.getByRole('group', { name: 'View & filters', exact: true })).toBeVisible()
       await expect(toolbar.getByRole('button', { name: 'All', exact: true })).toHaveAttribute('aria-pressed', 'true')
       await assertNoPageOverflow(page)
       await capture(`tasks-toolbar-${width}`, page)
 
-      const filters = toolbar.getByRole('group', { name: 'View & filters', exact: true })
+      const filters = page.getByRole('group', { name: 'View & filters', exact: true })
       await expect(filters.getByRole('combobox', { name: 'Group', exact: true })).toBeVisible()
       await expect(filters.getByRole('combobox', { name: 'Business unit', exact: true })).toBeVisible()
       await expect(filters.getByRole('button', { name: 'Status', exact: true })).toBeVisible()
@@ -284,16 +284,15 @@ test.describe('bounded visual and interaction acceptance', () => {
       // The search field rides the view-axis row beside the door on desktop (searchInViewRow,
       // collection-toolbar.tsx), not inside the options group, so this census is scoped to the
       // whole toolbar rather than to `filters`.
-      const controlHeights = await toolbar.locator([
-        '.collection-toolbar__search',
+      const controlHeights = await toolbar.locator('.collection-toolbar__search').or(filters.locator([
         '.picker__trigger',
         '.collection-toolbar__choice-trigger',
         '.collection-toolbar__fields > .btn',
         '.collection-toolbar__save-zone > .btn',
-      ].join(', ')).evaluateAll((elements) => elements.map((element) => element.getBoundingClientRect().height))
-      expect(controlHeights.length).toBeGreaterThan(0)
+      ].join(', '))).evaluateAll((elements) => elements.map((element) => element.getBoundingClientRect().height))
+      expect(controlHeights.length).toBe(9)
       for (const height of controlHeights) {
-        expect(height, 'desktop toolbar controls must share the 32px height token').toBeCloseTo(32, 1)
+        expect(height, 'desktop toolbar controls retain the 32px minimum while labels wrap').toBeGreaterThanOrEqual(32)
       }
       const searchFit = await toolbar.getByRole('searchbox', { name: 'Cari tugas', exact: true }).evaluate((element) => {
         const input = element as HTMLInputElement

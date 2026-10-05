@@ -146,15 +146,18 @@ function taskDisclosureSummary(
     // remain an active constraint, while a clear on a legacy person scope can leave that tab selected
     // without keeping the active-query affordance lit.
     hasNonDefaultView: !['all', 'my-work', 'team-work', 'overdue'].includes(query.view),
-    filterLabel: (currentQuery) => currentQuery.overdueOnly ? t('tasks.saved.overdue')
-      : currentQuery.status ? t('tasks.filter.status')
-        : currentQuery.businessUnitId ? t('tasks.filter.businessUnit')
-          : currentQuery.picId || currentQuery.supervisorId || currentQuery.personId ? t('tasks.filter.person')
-            : currentQuery.occurrenceId ? t('tasks.filter.occurrence')
-              : currentQuery.q.trim() ? t('tasks.filter.search')
-                : currentQuery.includeArchived ? t('tasks.filter.includeArchived')
-                  : currentQuery.savedViewId ? t('common.savedView')
-                    : undefined,
+    filterLabel: (currentQuery) => [
+      currentQuery.overdueOnly ? t('tasks.saved.overdue') : null,
+      currentQuery.status ? t('tasks.filter.status') : null,
+      currentQuery.businessUnitId ? t('tasks.filter.businessUnit') : null,
+      currentQuery.picId ? t('tasks.pic') : null,
+      currentQuery.supervisorId ? t('tasks.supervisor') : null,
+      currentQuery.personId ? t('tasks.filter.person') : null,
+      currentQuery.occurrenceId ? t('tasks.filter.occurrence') : null,
+      currentQuery.q.trim() ? t('tasks.filter.search') : null,
+      currentQuery.includeArchived ? t('tasks.filter.includeArchived') : null,
+      currentQuery.savedViewId ? t('common.savedView') : null,
+    ].filter((label): label is string => label !== null),
   })
 }
 

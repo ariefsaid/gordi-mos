@@ -4,7 +4,7 @@ export interface CollectionDisclosureSummaryOptions<TQuery extends object> {
   excludedKeys: readonly (keyof TQuery)[]
   base: string
   hasNonDefaultView: boolean
-  filterLabel: (query: TQuery) => string | undefined
+  filterLabel: (query: TQuery) => string | readonly string[] | undefined
 }
 
 export function collectionDisclosureSummary<TQuery extends object>({
@@ -25,11 +25,8 @@ export function collectionDisclosureSummary<TQuery extends object>({
   const hasActiveFilters = hasNonDefaultView || hasIndependentFilter
   if (!hasIndependentFilter) return { summary: base, hasActiveFilters }
 
-  const label = filterLabel(query)
-  // A saved view that sets its own filter names it twice: the Overdue view's base label is
-  // "Overdue" and its filter label is "Overdue", so the door read "Overdue · Overdue". A word
-  // repeated against itself carries no second fact, and it widened the trigger enough to squeeze
-  // the controls beside it.
-  const redundant = label != null && label.toLowerCase() === base.toLowerCase()
-  return { summary: label && !redundant ? `${base} · ${label}` : base, hasActiveFilters }
+  const value = filterLabel(query)
+  const labels = typeof value === 'string' ? [value] : value ?? []
+  const unique = [...new Set(labels)].filter((label) => label.toLowerCase() !== base.toLowerCase())
+  return { summary: [base, ...unique].join(' · '), hasActiveFilters }
 }
