@@ -43,6 +43,11 @@ function TwoSlotProbe({ onReady }: { onReady: (api: OverlayHostApi) => void }) {
   )
 }
 
+function OwnerSlotProbe({ owner, onReady }: { owner: OverlayEntry['owner']; onReady: (api: OverlayHostApi) => void }) {
+  onReady(useOverlayHost())
+  return <OverlayHostSlot owner={owner} />
+}
+
 function makeEntry(over: Partial<OverlayEntry> & Pick<OverlayEntry, 'key'>): OverlayEntry {
   return {
     owner: 'shell',
@@ -93,6 +98,12 @@ function renderHost(node: (onReady: (api: OverlayHostApi) => void) => ReactEleme
 }
 
 describe('overlay host — one active tenant', () => {
+  it('marks stacked Create Task routes for the bounded desktop panel layout', async () => {
+    const { getApi } = renderHost((onReady) => <OwnerSlotProbe owner="work" onReady={onReady} />)
+    await act(() => getApi().openRoot(makeEntry({ key: 'task-create:work-line-1', owner: 'work' }), 'route'))
+    expect(document.querySelector('.task-create-panel')).toBeInTheDocument()
+  })
+
   it('AC-RPH-5 / host replacement: opening a Deputy root while a record root is open leaves one host and one frame', async () => {
     const { getApi } = renderHost((onReady) => <ApiProbe onReady={onReady} />)
     await act(() => getApi().openRoot(makeEntry({ key: 'record:1' }), 'route'))

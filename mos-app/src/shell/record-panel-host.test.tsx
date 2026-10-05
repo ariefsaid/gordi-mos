@@ -91,6 +91,22 @@ describe('RecordPanelHost — dual modal regime (FR-1)', () => {
     renderHost({ label: 'Signal', rootClassName: 'signal-record-drawer-root' })
     expect(document.querySelector('.drawer.signal-record-drawer-root')).toBeTruthy()
   })
+
+  it('sizes the desktop Task create frame to the viewport space below the panel top', () => {
+    const originalHeight = Object.getOwnPropertyDescriptor(window, 'innerHeight')
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 800 })
+    try {
+      const { container } = renderHost({ label: 'Create task', rootClassName: 'task-create-panel' })
+      const panel = container.querySelector<HTMLElement>('.drawer-split.task-create-panel')
+      expect(panel).not.toBeNull()
+      vi.spyOn(panel!, 'getBoundingClientRect').mockImplementation(() => ({ top: 170 } as DOMRect))
+      fireEvent(window, new Event('resize'))
+      expect(panel!.style.getPropertyValue('--task-create-panel-height')).toBe('630px')
+    } finally {
+      if (originalHeight) Object.defineProperty(window, 'innerHeight', originalHeight)
+      else Reflect.deleteProperty(window, 'innerHeight')
+    }
+  })
 })
 
 describe('RecordPanelHost — close/Esc/scrim (FR-1 / I2)', () => {

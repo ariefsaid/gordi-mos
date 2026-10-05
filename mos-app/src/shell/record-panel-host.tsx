@@ -1,5 +1,5 @@
 import './record-panel-host.css'
-import { useEffect, useRef, type CSSProperties, type ReactNode, type RefObject } from 'react'
+import { useEffect, useLayoutEffect, useRef, type CSSProperties, type ReactNode, type RefObject } from 'react'
 import { useIsWideOverlayWidth } from './use-is-wide-overlay-width'
 import { useIsDesktop } from './use-is-desktop'
 import { useIsNarrow } from './use-is-narrow'
@@ -126,6 +126,27 @@ export function RecordPanelHost({
       ?? focusables.find((el) => !el.closest('.record-panel-chrome')) ?? focusables[0]
     if (focusOnOpen) first?.focus()
   }, [focusKey, initialFocusRef, focusOnOpen])
+
+  // A stacked Create Task form is the one record frame whose footer stays pinned while its
+  // fields scroll. Collection panels are in-flow grid items, so give this frame the viewport
+  // height remaining below its current top; the shared form can then own the only scroll region.
+  useLayoutEffect(() => {
+    const panel = panelRef.current
+    if (isModal || !panel?.classList.contains('task-create-panel')) return
+    const pageFrame = panel.closest('.page-frame--v3')
+    const updateAvailableHeight = () => {
+      const available = Math.max(0, window.innerHeight - Math.max(0, panel.getBoundingClientRect().top))
+      panel.style.setProperty('--task-create-panel-height', `${available}px`)
+    }
+    updateAvailableHeight()
+    pageFrame?.addEventListener('scroll', updateAvailableHeight, { passive: true })
+    window.addEventListener('resize', updateAvailableHeight)
+    return () => {
+      pageFrame?.removeEventListener('scroll', updateAvailableHeight)
+      window.removeEventListener('resize', updateAvailableHeight)
+      panel.style.removeProperty('--task-create-panel-height')
+    }
+  }, [isModal, focusKey])
 
   // Modal-only: focus trap (on the panel). Tab wraps within the sheet because the modal
   // owns the whole screen; the split regime keeps the page live, so no trap there.
