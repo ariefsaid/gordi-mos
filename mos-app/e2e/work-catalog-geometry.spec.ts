@@ -37,14 +37,18 @@ for (const locale of ['en','id']) for (const width of [390,768,1280,1440]) {
       } else {
         await expect(switcher).toHaveCount(0)
       }
-      const rows=page.locator('.catalog-collection__row-link')
+      const rows=page.locator('.catalog-collection__row')
+      const rowLinks=page.locator('.catalog-collection__row-link')
       await expect(rows.first()).toBeVisible()
-      const dimensions=await rows.evaluateAll(nodes=>nodes.map(el=>({name:el.getAttribute('aria-label')||el.textContent,height:el.getBoundingClientRect().height,width:el.getBoundingClientRect().width})))
+      const dimensions=await rows.evaluateAll(nodes=>nodes.map(el=>{
+        const link=el.querySelector('.catalog-collection__row-link')
+        return {name:link?.getAttribute('aria-label')||link?.textContent,height:el.getBoundingClientRect().height,width:el.getBoundingClientRect().width}
+      }))
       for(const row of dimensions){expect(row.height).toBeGreaterThanOrEqual(width>=1280?52:44);expect(row.name?.trim()).toBeTruthy()}
       expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
-      await rows.first().focus()
-      await expect(rows.first()).toBeFocused()
-      expect(await rows.first().evaluate(el=>getComputedStyle(el).outlineStyle)).not.toBe('none')
+      await rowLinks.first().focus()
+      await expect(rowLinks.first()).toBeFocused()
+      expect(await rowLinks.first().evaluate(el=>getComputedStyle(el).outlineStyle)).not.toBe('none')
       const controls = await page.locator('main button, main [role="combobox"]').evaluateAll(nodes => nodes.map(el => {
         // Tap floor is measured on the hit area: the help glyph's 44x44 area is its ::before (same rule as helpers/tap-floor.ts).
         const box=el.getBoundingClientRect()
@@ -60,7 +64,7 @@ for (const locale of ['en','id']) for (const width of [390,768,1280,1440]) {
       expect(controls[0].y+controls[0].height).toBeLessThanOrEqual(900)
       measurements.push({collection,width,locale,rows:dimensions,controls})
       await page.screenshot({animations:'disabled',path:testInfo.outputPath(`${collection}-${locale}-${width}.png`)})
-      await rows.first().press('Enter')
+      await rowLinks.first().press('Enter')
       // Phone records are canonical full pages with one collection Back; wider layouts keep the
       // named shared Work panel (section.rp, data-record-mode="panel") headed by the record itself.
       const recordName = String(dimensions[0]?.name ?? '').trim()
@@ -78,13 +82,13 @@ for (const locale of ['en','id']) for (const width of [390,768,1280,1440]) {
         await expect(back).toHaveAttribute('href', new RegExp(`/work/${collection}$`))
         await back.click()
         await expect(page).toHaveURL(new RegExp(`/work/${collection}$`))
-        await expect(rows.first()).toBeVisible()
+        await expect(rowLinks.first()).toBeVisible()
         await expect(switcher.locator(`[href="/work/${collection}"]`)).toHaveAttribute('aria-current', 'location')
       } else {
         await page.keyboard.press('Escape')
         await expect(record).not.toBeVisible()
         await expect(page.locator('[data-overlay-host][data-overlay-owner="work"]')).toHaveCount(0)
-        await expect(rows.first()).toBeFocused()
+        await expect(rowLinks.first()).toBeFocused()
       }
       await page.unroute(`**/rest/v1/${endpoint}*`)
     }

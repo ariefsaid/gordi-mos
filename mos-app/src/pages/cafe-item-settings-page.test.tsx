@@ -107,3 +107,19 @@ describe('CafeItemSettingsPage missing-item queue', () => {
     expect(mockListReports).not.toHaveBeenCalled()
   })
 })
+
+describe('CafeItemSettingsPage default-unit setup note', () => {
+  it('says once how many items need a default unit and tags each row briefly', async () => {
+    const unit = (id: string) => ({ id, name: 'GR', isShown: true, isDefault: false, labelOrdinal: null, labelCount: 1 })
+    mockListItems.mockResolvedValue([
+      { id: 'item-1', erpName: 'ERP Oat milk', mosName: 'Oat milk', category: 'Dairy', kind: 'RAW', isActive: true,
+        defaultUnitId: null, units: [unit('u-1')] },
+      { id: 'item-2', erpName: 'ERP Sugar', mosName: 'Sugar', category: 'Dry', kind: 'RAW', isActive: true,
+        defaultUnitId: null, units: [unit('u-2')] },
+    ])
+    renderPage()
+    expect(await screen.findAllByText('2 items need a default unit before they can be logged.')).toHaveLength(1)
+    expect(screen.queryByText('Choose a shown default to enable logging.')).not.toBeInTheDocument()
+    expect(screen.getAllByText('Needs unit').length).toBeGreaterThanOrEqual(2)
+  })
+})

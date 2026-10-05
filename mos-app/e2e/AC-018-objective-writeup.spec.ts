@@ -64,7 +64,11 @@ test.describe('AC-018: Objective write-up editor', () => {
     await loginAs(page, ADMIN.email, ADMIN.password)
 
     await page.goto('work/objectives')
-    await expect(page.getByRole('row', { name: OBJ_NAME, exact: true })).toBeVisible({ timeout: 10_000 })
+    // #1292 gives catalog rows and cells their own accessible owners, so identify the row by its record link.
+    const objectiveRow = page.getByRole('row').filter({
+      has: page.getByRole('link', { name: OBJ_NAME, exact: true }),
+    })
+    await expect(objectiveRow).toBeVisible({ timeout: 10_000 })
     expect(editorRequests).toEqual([])
 
     await page.goto(`work/objectives/${OBJ}`)

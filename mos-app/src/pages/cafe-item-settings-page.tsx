@@ -86,6 +86,7 @@ function CafeItemSettingsPageForViewer() {
   } = cafeStream
 
   const [items, setItems] = useState<CafeItemSetting[]>([])
+  const needsUnitCount = items.filter(item => item.units.length > 0 && !hasDefault(item)).length
   const [drafts, setDrafts] = useState<Record<string, ItemDraft>>({})
   const [readState, setReadState] = useState<ReadState>('loading')
   const [catalogReady, setCatalogReady] = useState(false)
@@ -373,6 +374,11 @@ function CafeItemSettingsPageForViewer() {
       {readState === 'ready' && stream && items.length > 0 && (
         <p className="cafe-items__read-only">{t('cafe.items.inheritedName')}</p>
       )}
+      {readState === 'ready' && needsUnitCount > 0 && (
+        <p className="cafe-items__setup-note" role="note">
+          {t('cafe.items.needsSetupCount', { count: String(needsUnitCount) })}
+        </p>
+      )}
       {readState === 'ready' && stream && items.length === 0 && (
         <EmptyState
           variant="awaiting"
@@ -553,7 +559,7 @@ function ItemRow({
         ) : (
           <span className="cafe-items__default-value">{defaultUnitLabel(item, t)}</span>
         )}
-        {unsetDefault && <span className="cafe-items__setup-note">{t('cafe.items.needsSetup')}</span>}
+        {unsetDefault && <span className="cafe-items__setup-note">{t('cafe.items.needsUnit')}</span>}
       </td>
       <td data-label={t('cafe.items.shownUnits')}>
         {item.units.length === 0 ? (
@@ -702,7 +708,7 @@ function ItemCard({
             <span className="cafe-items__default-value">{defaultUnitLabel(item, t)}</span>
           </>
         )}
-        {unsetDefault && <span className="cafe-items__setup-note">{t('cafe.items.needsSetup')}</span>}
+        {unsetDefault && <span className="cafe-items__setup-note">{t('cafe.items.needsUnit')}</span>}
       </div>
       <div className="cafe-items__card-field">
         <span className="cafe-items__field-label">{t('cafe.items.shownUnits')}</span>
