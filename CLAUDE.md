@@ -49,13 +49,15 @@ Updates + per-Activity ops + reference data + money follow-ups. Ships at
   - fog and decisions: `wayfinder`, `grilling`, `domain-modeling`, `research`, `prototype`;
   - spec and tickets: `to-spec`, `to-tickets`, `triage`; goals and briefs: `writing-agent-goals`;
   - build: `drive` and the factory for ordinary tickets (Workflow below); `implement` with `tdd` in
-    hands-on lanes; `codebase-design`, `diagnosing-bugs`; ponytail's ladder first (vendor before
-    build) and `ponytail-review` on the diff;
+    hands-on lanes; `codebase-design`, `diagnosing-bugs`; `ponytail-review` on the diff;
   - UI: `impeccable` (`operate` first, then its critique, layout, clarify, adapt, harden, audit and
     polish references), `ui-ux-pro-max` search, `taste`;
   - review: `code-review`; rendered judgment per the Test pyramid.
 - Every brief names its skills plan: which skill, which phase, what evidence it leaves. Naming a
   skill is not evidence it ran.
+- Reuse before build (ponytail): search the repo first and use the existing component, hook, table, filter or
+  helper; a PR lists what it reused and justifies anything new in one line. Duplicating existing code is a
+  blocking review finding. Prefer diffs that delete more than they add.
 - Vendor before build: a proven library (MIT, Apache-2.0 or MPL-2.0 only) over a hand-built
   control, behind a MOS-owned interface.
 - A record is typed fields plus an authored block document (OD-REDESIGN-16).
