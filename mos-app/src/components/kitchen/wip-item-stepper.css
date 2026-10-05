@@ -101,16 +101,12 @@
    measured at 13.5px at 375x812, under the 16px floor that stops mobile Safari zooming
    the viewport on focus. The rule is desktop's, so it now says so. */
 @media (min-width: 768px) {
-  .kls-card.kls-dense { width: max-content; }
+  .kls-card.kls-dense { width: 100%; }
   .kls-dense .kls-qty {
     height: 32px;
     font-size: var(--font-size-control);
   }
-  /* `width: max-content` keeps the RESTING row compact (no wider than qty+unit), but a
-     max-content box also caps how wide its full-width children (`.kls-note`) can grow — it
-     measures against the row's own tight content width, not the cell's. Once the note is
-     showing, the card needs the cell's actual width so the note can span it. */
-  .kls-card.kls-dense.kls-has-note { width: 100%; }
+
 }
 
 /* ── Phone capture card (<768px) ──────────────────────────────────────────────
