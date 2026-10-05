@@ -12,6 +12,7 @@ const ALLOWED_PROTOCOLS = new Set(['http:', 'https:', 'mailto:'])
 function transformUrl(url: string): string {
   const trimmed = url.trim()
   if (!trimmed) return ''
+  if (trimmed.startsWith('//')) return ''
   if (trimmed.startsWith('/') || trimmed.startsWith('#') || trimmed.startsWith('./') || trimmed.startsWith('../')) {
     return trimmed
   }
