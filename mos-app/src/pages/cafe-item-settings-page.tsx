@@ -349,9 +349,9 @@ function CafeItemSettingsPageForViewer() {
     getActive: item => item.isActive,
     getNeedsUnit: needsUnit,
   }), [drafts, items])
-  const listSorting: SortingState = listSort
+  const listSorting = useMemo<SortingState>(() => listSort
     ? [{ id: listSort.key, desc: listSort.dir === 'desc' }]
-    : []
+    : [], [listSort])
   const itemTable = useKitchenItemTable({
     data: listRows,
     search,
