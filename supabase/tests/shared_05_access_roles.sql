@@ -58,32 +58,37 @@ select throws_ok($$
 $$, '23514', null, 'a value outside the vocabulary is rejected on the capability table too — by the one shared domain, 23514 like the grant table');
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
--- Read helpers — claim-sourced and fail-closed
+-- Read helpers — current assignments and fail-closed identity
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 set local role authenticated;
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","access_roles":["ops_lead","member"]}';
-select set_eq($$ select unnest(shared.current_access_roles()) $$, array['ops_lead','member'],
-  'current_access_roles returns the claim set');
-select ok(shared.has_access_role('ops_lead'), 'has_access_role reads the claim');
-select ok(not shared.has_access_role('admin'), 'has_access_role is false for a role not held');
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["ops_lead"]}';
+select set_eq($$ select unnest(shared.current_access_roles()) $$, array['finance','member'],
+  'current_access_roles returns the live assignments rather than the role claim');
+select ok(shared.has_access_role('finance'), 'has_access_role recognizes a current assignment');
+select ok(not shared.has_access_role('ops_lead'), 'has_access_role rejects a revoked assignment despite its claim');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1"}';
-select is(array_length(shared.current_access_roles(), 1), null,
-  'an ABSENT access_roles claim yields the empty array, not NULL and not an error');
-select ok(not shared.has_access_role('member'),
-  'absent claim -> every has_access_role is false (fail closed)');
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1"}';
+select is(array_length(shared.current_access_roles(), 1), 2,
+  'current assignments are resolved even when the access_roles claim is absent');
+select ok(shared.has_access_role('member'),
+  'a current assignment remains available without a role claim');
 
 set local request.jwt.claims = 'not json at all';
 select ok(not shared.has_access_role('admin'),
-  'malformed claims -> false rather than a raise (fail closed)');
+  'malformed identity claims fail closed rather than raising');
+set local request.jwt.claims = '{}';
 
 -- ── Capabilities ─────────────────────────────────────────────────────────────────────────────
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","access_roles":["admin"]}';
+reset role;
+update shared.person_access_roles set revoked_at = null
+ where person_id = '00000000-0000-0000-0000-0000000000d1' and access_role = 'ops_lead';
+set local role authenticated;
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":[]}';
 select ok(shared.can('objective.manage'), 'can(objective.manage) is true for admin');
 select ok(shared.can('workline.manage'),  'can(workline.manage) is true for admin');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","access_roles":["ops_lead"]}';
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["admin"]}';
 -- The current contract: ops_lead holds the write-up/current-value tier only — the structural
 -- objective.manage grant is admin's. The grant rows are migration-owned; the assertion follows
 -- the ruling in force.
@@ -93,14 +98,18 @@ select ok(shared.can('objective.edit_content'),
   'can(objective.edit_content) is TRUE for ops_lead — the narrowed content grant (#992)');
 select ok(shared.can('workline.manage'),      'can(workline.manage) is true for ops_lead');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","access_roles":["member"]}';
+reset role;
+update shared.person_access_roles set revoked_at = now()
+ where person_id = '00000000-0000-0000-0000-0000000000d1' and access_role = 'ops_lead';
+set local role authenticated;
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
 select ok(not shared.can('workline.manage'),   'can(workline.manage) is false for member');
 select ok(not shared.can('objective.manage'),  'can(objective.manage) is false for member — the write is admin-level again, not for everyone');
 select ok(not shared.can('objective.edit_content'), 'can(objective.edit_content) is false for member — content authority starts at ops_lead');
 
-set local request.jwt.claims = '{}';
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","access_roles":["admin"]}';
 select ok(not shared.can('objective.manage'),
-  'no access_roles claim -> can() is false for everything (fail closed)');
+  'a missing person claim grants no capability');
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- The auth hook — the single claim-injection point
@@ -314,10 +323,11 @@ select throws_ok($$
   on conflict (person_id, access_role) do update
     set person_id = excluded.person_id, access_role = excluded.access_role, revoked_at = excluded.revoked_at
 $$, '42501', null, 'an admin cannot re-grant themselves admin through the grant statement');
-select throws_ok($$
-  update shared.person_access_roles set revoked_at = null
-   where person_id = '00000000-0000-0000-0000-0000000000d5' and access_role = 'admin'
-$$, '42501', null, '...nor by clearing revoked_at directly');
+update shared.person_access_roles set revoked_at = null
+ where person_id = '00000000-0000-0000-0000-0000000000d5' and access_role = 'admin';
+select is((select count(*)::int from shared.person_access_roles
+            where person_id = '00000000-0000-0000-0000-0000000000d5' and access_role = 'admin'
+              and revoked_at is null), 0, 'a stale admin claim cannot clear its revoked assignment');
 
 -- A non-admin cannot re-grant: the Author's ops_lead grant is revoked in the seed.
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["ops_lead"]}';

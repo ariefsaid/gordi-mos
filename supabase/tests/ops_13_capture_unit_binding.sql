@@ -52,7 +52,7 @@ insert into ops.item_units
   ('00000000-0000-0000-0000-00000000de06','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000ab02','gelas','PD-GELAS-002',true);
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}');
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- A. The view: is_transferable exposed, the confirmed gate unchanged (FR-032 substrate)

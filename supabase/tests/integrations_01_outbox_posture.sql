@@ -18,10 +18,9 @@
 --                     a zero that proves the claim was unresolvable, not that the policy refused.
 --                     A REAL org B person makes the cross-tenant zero mean what it says.
 --
--- The D/E sweeps hold one subject fixed and vary the claimed role SET and the claim SHAPE.
--- Sound because has_access_role() reads the JWT and makes no directory lookup, so holding the
--- subject fixed costs nothing on the role axis. Varying nothing else is also the limit of what
--- the sweeps can see, and D9 states the shape of that limit, with the enumeration kept in local docs.
+-- The D/E sweeps hold one subject fixed and vary role fixtures and identity-claim shape. The test
+-- helper keeps each role claim aligned with the live assignment table; the org and person claims
+-- still determine whether that assignment applies to the request.
 begin;
 create extension if not exists pgtap with schema extensions;
 select plan(55);
@@ -190,9 +189,13 @@ declare
   n       int;
   v_prior text := current_setting('request.jwt.claims', true);
 begin
-  perform set_config('request.jwt.claims', p_claim, true);
+  perform shared._test_set_access_roles(p_claim);
   execute format('select count(*)::int from %s', p_rel) into n;
-  perform set_config('request.jwt.claims', v_prior, true);
+  if v_prior is null then
+    perform set_config('request.jwt.claims', null, true);
+  else
+    perform shared._test_set_access_roles(v_prior);
+  end if;
   return n;
 end $$;
 
@@ -202,11 +205,15 @@ declare
   n       int;
   v_prior text := current_setting('request.jwt.claims', true);
 begin
-  perform set_config('request.jwt.claims',
+  perform shared._test_set_access_roles(
     json_build_object('org_id', p_org, 'person_id', p_person,
-                      'access_roles', array_to_json(p_roles))::text, true);
+                      'access_roles', array_to_json(p_roles))::text);
   execute format('select count(*)::int from %s', p_rel) into n;
-  perform set_config('request.jwt.claims', v_prior, true);
+  if v_prior is null then
+    perform set_config('request.jwt.claims', null, true);
+  else
+    perform shared._test_set_access_roles(v_prior);
+  end if;
   return n;
 end $$;
 
@@ -423,15 +430,15 @@ select is(
 
 set local role authenticated;
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}');
 select is((select count(*)::int from integrations.esb_push), 0,
   'esb_push_select_ops_lead_or_admin fails closed: a member of the org without ops_lead or admin reads zero outbox rows');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select is((select count(*)::int from integrations.esb_push), 5,
   'esb_push_select_ops_lead_or_admin (positive, ops_lead): reads their own org''s outbox rows in ALL five posting states — so the zero above is the role gate, not an empty table');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","admin"]}');
 select is((select count(*)::int from integrations.esb_push), 5,
   'esb_push_select_ops_lead_or_admin (positive, admin): the policy names two roles and both are proven, not one and an assumption');
 
@@ -442,7 +449,7 @@ select is((select count(*)::int from integrations.esb_push
 
 -- The other-org cells, read by ForeignMgr (...0b4) — see the persona table at the head of the file
 -- for why the other tenant's subject has to be a real directory row.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member","ops_lead"]}');
 select is((select count(*)::int from integrations.esb_push
             where org_id = '00000000-0000-0000-0000-0000000000a1'), 0,
   'esb_push_select_ops_lead_or_admin (other org, admitted role): an ops_lead of the OTHER tenant reads none of org A''s outbox rows — holding the role is not enough');
@@ -450,7 +457,7 @@ select is((select count(*)::int from integrations.esb_push
 select is((select count(*)::int from integrations.esb_push), 5,
   'esb_push_select_ops_lead_or_admin: ...and that same other-tenant session reads its OWN org''s five rows, so the zero above is the org half of the predicate and not a blind session');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}');
 select is((select count(*)::int from integrations.esb_push), 0,
   'esb_push_select_ops_lead_or_admin (other org, unadmitted role): the fourth cell reads zero — neither half of the conjunction is satisfied');
 
@@ -531,11 +538,8 @@ set local request.jwt.claims to '';
 select is((select count(*)::int from integrations.esb_push), 0,
   'a claimless session reads no outbox row: a null-org service exemption is not a way in');
 
--- A NULL org is reachable two ways, and the cell above only covers one of them. A claim carrying
--- ROLES but no org_id leaves current_org_id() null while has_access_role() answers true, so an
--- exemption written `_claim_uuid('org_id') is null and has_access_role('ops_lead')` reads both
--- tenants with the cell above still green — measured at 48/48 before this line existed.
-set local request.jwt.claims = '{"person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+-- A live role without an org claim still cannot cross the org-scoped policy boundary.
+select shared._test_set_access_roles('{"person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select is((select count(*)::int from integrations.esb_push), 0,
   'a session claiming ops_lead but NO org reads no outbox row: the org half of the conjunction is not optional');
 reset role;
@@ -579,11 +583,11 @@ select is(
 
 set local role authenticated;
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select is((select count(*)::int from integrations.esb_push_groups), 5,
   'esb_push_groups_select_ops_lead_or_admin (own org, ops_lead): reads their own org''s approval groups in ALL five states — the positive cell the negatives below are the negatives OF');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","admin"]}');
 select is((select count(*)::int from integrations.esb_push_groups), 5,
   'esb_push_groups_select_ops_lead_or_admin (own org, admin): the policy names two roles and both are proven on the group table too');
 
@@ -591,7 +595,7 @@ select is((select count(*)::int from integrations.esb_push_groups
             where org_id = '00000000-0000-0000-0000-0000000000b1'), 0,
   'esb_push_groups_select_ops_lead_or_admin: an admin sees NONE of the other tenant''s approval groups — the org half, under the strongest same-org persona');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}');
 select is((select count(*)::int from integrations.esb_push_groups), 0,
   'esb_push_groups_select_ops_lead_or_admin fails closed (own org, unadmitted role): a member of the org without ops_lead or admin reads zero approval groups');
 
@@ -603,7 +607,7 @@ select is((select count(*)::int from integrations.esb_push_groups), 0,
 select is((select count(*)::int from shared.orgs), 1,
   'esb_push_groups_select_ops_lead_or_admin: ...and that same unadmitted session still resolves to its own org and reads its org row, so the zero above is the role gate and not a dead session');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member","ops_lead"]}');
 select is((select count(*)::int from integrations.esb_push_groups
             where org_id = '00000000-0000-0000-0000-0000000000a1'), 0,
   'esb_push_groups_select_ops_lead_or_admin (other org, admitted role): an ops_lead of the OTHER tenant reads none of org A''s approval groups');
@@ -611,7 +615,7 @@ select is((select count(*)::int from integrations.esb_push_groups
 select is((select count(*)::int from integrations.esb_push_groups), 5,
   'esb_push_groups_select_ops_lead_or_admin: ...and that same other-tenant session reads its OWN org''s five groups — the zero above is the org half, not a blind session');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}');
 select is((select count(*)::int from integrations.esb_push_groups), 0,
   'esb_push_groups_select_ops_lead_or_admin (other org, unadmitted role): the fourth cell reads zero on the group table as well');
 
@@ -663,7 +667,7 @@ set local request.jwt.claims to '';
 select is((select count(*)::int from integrations.esb_push_groups), 0,
   'a claimless session reads no approval group either: the group predicate carries its own null-org exemption or it does not');
 
-set local request.jwt.claims = '{"person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select is((select count(*)::int from integrations.esb_push_groups), 0,
   'a session claiming ops_lead but NO org reads no approval group: the group predicate carries the same two-way null org, and a proof of the outbox''s says nothing about it');
 
@@ -694,10 +698,10 @@ select is(
                 (select array_agg(x) from pg_temp.access_role_vocabulary() as t2(x))) as rc(roles)) r,
      lateral (select pg_temp.reads_claim(
                 v.prefix || '"access_roles":' || array_to_json(r.roles)::text || '}', t.rel) as n) c
-    where c.n <> case when v.shape in ('org+person','org')
+    where c.n <> case when v.shape = 'org+person'
                        and (r.roles && array['ops_lead','admin']) then 5 else 0 end),
   '{}'::text[],
-  'both outbox tables x every claim SHAPE x every role SUBSET: each opens on org + an admitted role and nothing else. Each axis was added because fixing the previous one left a corner: D9 swept subsets with a person only, then shapes were swept with single roles only, then the whole crossed sweep covered esb_push while esb_push_groups kept its person-bearing sweep — a personless manager+finance read the group rows with the suite green');
+  'both outbox tables x every identity shape x every live-role subset: access requires matching org and person claims plus an admitted live assignment');
 
 reset role;
 

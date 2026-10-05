@@ -18,17 +18,17 @@ values ('00000000-0000-0000-0000-00000000ba11','10000000-0000-0000-0000-00000000
         'PR-OUTBOX-READERS-001','assembly-actual','dry_run','kitchen|PR-OUTBOX-READERS-001|dry_run','pending');
 set local role authenticated;
 
-set local request.jwt.claims = '{"org_id":"10000000-0000-0000-0000-000000000001","person_id":"40000000-0000-0000-0000-000000000001","access_roles":["member","manager"]}';
+select shared._test_set_access_roles('{"org_id":"10000000-0000-0000-0000-000000000001","person_id":"40000000-0000-0000-0000-000000000001","access_roles":["member","manager"]}');
 select cmp_ok((select count(*)::int from integrations.esb_push), '>', 0,
   'AC-013: Retail Ops manager reads the org outbox');
 select throws_ok($$insert into integrations.esb_push (org_id, source_module, source_ref, endpoint, payload, target_env, dedup_key)
   values ('10000000-0000-0000-0000-000000000001','test','reader-denied','noop','{}','dry_run','reader-denied')$$,
   '42501', null, 'AC-013: manager cannot retry by inserting an outbox row');
 
-set local request.jwt.claims = '{"org_id":"10000000-0000-0000-0000-000000000001","person_id":"40000000-0000-0000-0000-000000000003","access_roles":["member","manager"]}';
+select shared._test_set_access_roles('{"org_id":"10000000-0000-0000-0000-000000000001","person_id":"40000000-0000-0000-0000-000000000003","access_roles":["member","manager"]}');
 select is((select count(*)::int from integrations.esb_push), 0,
   'AC-013: a manager whose only unit role sits outside Retail Ops reads no outbox rows');
-set local request.jwt.claims = '{"org_id":"10000000-0000-0000-0000-000000000001","person_id":"40000000-0000-0000-0000-000000000005","access_roles":["member","manager","finance"]}';
+select shared._test_set_access_roles('{"org_id":"10000000-0000-0000-0000-000000000001","person_id":"40000000-0000-0000-0000-000000000005","access_roles":["member","manager","finance"]}');
 select is((select count(*)::int from integrations.esb_push), 0,
   'AC-013: finance is refused the outbox');
 do $$

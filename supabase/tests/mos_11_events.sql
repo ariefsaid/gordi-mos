@@ -11,7 +11,7 @@ insert into mos.events (id, org_id, title, venue, is_outbound, starts_at, ends_a
   ('00000000-0000-0000-0000-00000000e002','00000000-0000-0000-0000-0000000000b1','Org B event','Foreign office',false,'2026-08-01 01:00+00','2026-08-01 02:00+00','00000000-0000-0000-0000-0000000000b4');
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is((select count(*)::int from mos.events), 1, 'org A member reads its own event');
 select is((select count(*)::int from mos.events where org_id = '00000000-0000-0000-0000-0000000000b1'), 0, 'org seam: org A reads zero org-B events');
 select lives_ok($$ insert into mos.events (title, venue, is_outbound, starts_at, ends_at) values ('Stamped','Office',false,'2026-08-02 01:00+00','2026-08-02 02:00+00') $$, 'member inserts an event in their org');
@@ -27,16 +27,16 @@ update mos.events set archived_at = now() where id = '00000000-0000-0000-0000-00
 select is((select count(*)::int from mos.events where archived_at is null and id = '00000000-0000-0000-0000-00000000e001'), 0, 'default active list excludes archived event');
 
 -- Direct manager succeeds; peer does not. Both are real org-A people from the directory fixture.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["manager"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["manager"]}');
 select lives_ok($$ update mos.events set archived_at = null where id = '00000000-0000-0000-0000-00000000e001' $$, 'author manager can unarchive');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 update mos.events set title = 'Peer edit' where id = '00000000-0000-0000-0000-00000000e001';
 select is((select title from mos.events where id = '00000000-0000-0000-0000-00000000e001'), 'Author updated', 'peer cannot update another author event');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}');
 select is((select count(*)::int from mos.events where id = '00000000-0000-0000-0000-00000000e001'), 0, 'org B cannot read org A event');
 update mos.events set title = 'Foreign edit' where id = '00000000-0000-0000-0000-00000000e001';
 select is((select count(*)::int from mos.events where id = '00000000-0000-0000-0000-00000000e001' and title = 'Foreign edit'), 0, 'org B cannot update org A event');
-set local request.jwt.claims = '{"person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is((select count(*)::int from mos.events), 0, 'claimless authenticated session reads zero events');
 select throws_ok($$ insert into mos.events (title, venue, is_outbound, starts_at, ends_at) values ('Claimless','Office',false,'2026-08-02 01:00+00','2026-08-02 02:00+00') $$, '42501', null, 'claimless authenticated session cannot write');
 select is((select has_table_privilege('authenticated', 'mos.events', 'DELETE')), false, 'authenticated cannot delete Events');

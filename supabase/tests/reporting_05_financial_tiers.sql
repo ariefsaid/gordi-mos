@@ -49,7 +49,7 @@ insert into reporting.supervisor_revenue_scope (org_id, person_id, channel, bran
 set local role authenticated;
 
 -- ══ The manager tier: company-wide, both money tables, read-only ════════════════════════════
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["manager"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["manager"]}');
 select is((select count(*)::int from reporting.sales_daily_revenue), 4,
   'a manager reads every revenue row in their org — the tier is company-wide, not scoped');
 select is((select count(*)::int from reporting.sales_margin_daily), 1,
@@ -58,13 +58,13 @@ select is((select count(*)::int from reporting.sales_margin_daily), 1,
 -- Coexistence. Access roles are a union, and the two axes are independent: holding an operational
 -- role must not subtract from a financial one, which is the failure an "effective role" that picked
 -- one winner would produce.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["ops_lead","manager"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["ops_lead","manager"]}');
 select is((select count(*)::int from reporting.sales_daily_revenue), 4,
   'ops_lead + manager still reads revenue — effective access is the union of the roles held');
 select is((select count(*)::int from reporting.sales_margin_daily), 1,
   '...and margin');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["manager"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["manager"]}');
 select is((select count(*)::int from reporting.sales_daily_revenue
             where org_id = '00000000-0000-0000-0000-0000000000a1'), 0,
   'company-wide means company-wide within ONE company: a manager in another org reads zero of org A''s revenue');
@@ -72,7 +72,7 @@ select is((select count(*)::int from reporting.sales_margin_daily
             where org_id = '00000000-0000-0000-0000-0000000000a1'), 0,
   '...and zero of its margin — the seam is asked on both money tables, because a manager reaches both');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["manager"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["manager"]}');
 select throws_ok($$
   insert into reporting.sales_daily_revenue (org_id, revenue_date, channel, esb_code, branch_code, transactions, clean_revenue, snapshot_as_of)
   values ('00000000-0000-0000-0000-0000000000a1','2026-07-09','POS','GKI','RRS',1,1.00,now())
@@ -83,7 +83,7 @@ select throws_ok($$
 $$, '42501', null, '...nor a margin figure');
 
 -- ══ Maintaining scope: admin only, own org, real person ═════════════════════════════════════
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select lives_ok($$
   insert into reporting.supervisor_revenue_scope (person_id, channel, branch_code)
   values ('00000000-0000-0000-0000-0000000000d4','POS','GHQ')
@@ -120,7 +120,7 @@ select lives_ok($$
 $$, 'an admin revokes a grant by deleting it');
 
 -- ══ A supervisor sees their own grant and nobody else's ═════════════════════════════════════
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["supervisor"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["supervisor"]}');
 select is((select count(*)::int from reporting.supervisor_revenue_scope), 1,
   'a supervisor reads exactly one scope row — their own — out of the five now in the org');
 select is((select branch_code from reporting.supervisor_revenue_scope), 'RRS',
@@ -134,19 +134,19 @@ select is((select branch_code from reporting.sales_daily_revenue), 'RRS',
 select is((select count(*)::int from reporting.sales_margin_daily), 0,
   'a supervisor reads ZERO margin rows: the tier is revenue-only, and margin carries COGS');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d6","access_roles":["supervisor"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d6","access_roles":["supervisor"]}');
 select is((select count(*)::int from reporting.sales_daily_revenue where channel = 'B2B'), 2,
   'a whole-channel grant reads every branch in that channel, including branches added after the grant');
 select is((select count(*)::int from reporting.sales_daily_revenue where channel = 'POS'), 0,
   '...and nothing in the other channel');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d7","access_roles":["supervisor"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d7","access_roles":["supervisor"]}');
 select is((select count(*)::int from reporting.sales_daily_revenue), 3,
   'two grants union rather than override — one POS branch plus the whole B2B channel is three rows');
 select is((select count(*)::int from reporting.sales_daily_revenue where branch_code = 'GHQ'), 0,
   '...and the union still stops at its edges: the ungranted POS branch stays invisible');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["supervisor"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["supervisor"]}');
 select is((select count(*)::int from reporting.sales_daily_revenue), 0,
   'a supervisor with NO grant reads nothing — the tier fails closed by construction: an empty scope makes the EXISTS false, so there is no default to get wrong');
 
@@ -154,7 +154,7 @@ select is((select count(*)::int from reporting.sales_daily_revenue), 0,
 -- The originals reached this shape through ALTER POLICY, which replaces the WHOLE using-expression;
 -- a re-author is the same hazard by a different route. Re-checked after the narrow arm has been
 -- exercised.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance"]}');
 select is((select count(*)::int from reporting.sales_daily_revenue), 4,
   'finance still reads every revenue row — the arm survived the supervisor clause landing beside it');
 
@@ -162,18 +162,18 @@ select is((select count(*)::int from reporting.sales_daily_revenue), 4,
 -- admin is the users-and-settings role. It administers who holds the money tiers (the scope grants
 -- above) and reads none of the money itself; the Director reads Money by holding manager BESIDE
 -- admin, which the dev seed does (shared_10_dev_seed.sql).
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select is((select count(*)::int from reporting.sales_daily_revenue), 0,
   'admin alone reads ZERO revenue rows — administering logins is not a money tier');
 select is((select count(*)::int from reporting.sales_margin_daily), 0,
   '...and zero margin rows');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin","manager"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin","manager"]}');
 select is((select count(*)::int from reporting.sales_daily_revenue), 4,
   'admin + manager reads every revenue row — the Director''s shape, and it is the manager grant doing the reading');
 select is((select count(*)::int from reporting.sales_margin_daily), 1,
   '...and the margin row');
 -- The inverse: holding the money tier does not buy the settings seat.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["manager"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["manager"]}');
 select throws_ok($$
   insert into reporting.supervisor_revenue_scope (person_id, channel, branch_code)
   values ('00000000-0000-0000-0000-0000000000d4','POS','GHQ')

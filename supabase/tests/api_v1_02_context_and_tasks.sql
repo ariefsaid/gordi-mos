@@ -64,9 +64,14 @@ begin
   end;
 end $f$;
 
-create function pg_temp.claims(p_org text, p_person text, p_roles text) returns text language sql as $f$
-  select format('{"org_id":"00000000-0000-0000-0000-0000000000%s","person_id":"00000000-0000-0000-0000-0000000000%s","access_roles":[%s]}',
-                p_org, p_person, p_roles)
+create function pg_temp.claims(p_org text, p_person text, p_roles text) returns text language plpgsql as $f$
+declare v_claims jsonb;
+begin
+  v_claims := format('{"org_id":"00000000-0000-0000-0000-0000000000%s","person_id":"00000000-0000-0000-0000-0000000000%s","access_roles":[%s]}',
+                     p_org, p_person, p_roles)::jsonb;
+  perform shared._test_set_access_roles(v_claims::text);
+  return v_claims::text;
+end
 $f$;
 
 create function pg_temp.personas() returns table (label text, org text, person text, roles text) language sql as $f$
@@ -106,15 +111,15 @@ set local role authenticated;
 -- ═════════════════════════════════════════════════════════════════════════════════════════════
 -- Channel marker: app until an API write, agent when the claims carry a client id
 -- ═════════════════════════════════════════════════════════════════════════════════════════════
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is(api_private.channel(), 'app', 'channel is app before any API write');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"],"client_id":"agent-x"}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"],"client_id":"agent-x"}');
 select is(api_private.channel(), 'agent', 'channel is agent when the claims carry a client id');
 
 -- ═════════════════════════════════════════════════════════════════════════════════════════════
 -- Context reads
 -- ═════════════════════════════════════════════════════════════════════════════════════════════
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is(api_v1.whoami() -> 'person' ->> 'id', '00000000-0000-0000-0000-0000000000d1', 'whoami names the caller');
 select is(api_v1.whoami() ->> 'org_id', '00000000-0000-0000-0000-0000000000a1', 'whoami names the org');
 select is(api_v1.whoami() -> 'access_roles', '["member"]'::jsonb, 'whoami returns the access roles');
@@ -123,7 +128,7 @@ select is(api_v1.whoami() -> 'teams',
   'whoami lists the caller''s live teams');
 select is(pg_temp.authority_mismatches(), '', 'AC-019: whoami authority equals the Signal-post and Work write-scope RPCs under every role fixture');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is(jsonb_array_length(api_v1.list_people() -> 'items'), 7, 'list_people returns the org''s people and no other org''s');
 select is(jsonb_array_length(api_v1.list_people(q => 'report') -> 'items'), 1, 'list_people q matches the name, case-insensitively');
 select is((api_v1.list_people(team_id => '00000000-0000-0000-0000-0000000000c1') -> 'items' -> 0) ->> 'full_name', 'Author', 'list_people filters by team');
@@ -168,7 +173,7 @@ select is(jsonb_array_length(api_v1.list_tasks(team_id => '00000000-0000-0000-00
 select is(jsonb_array_length(api_v1.list_tasks(team_id => '00000000-0000-0000-0000-0000000000c3', include_archived => true) -> 'items'), 1, 'list_tasks include_archived returns them');
 
 -- get_task: one shape, and the same answer for a missing id and an unreadable one
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select is((api_v1.get_task('00000000-0000-0000-0000-0000000000f1') -> 'item' ->> 'title'), 'Fixture task', 'get_task returns the Task');
 select is(jsonb_array_length(api_v1.get_task('00000000-0000-0000-0000-0000000000f1') -> 'item' -> 'checklist'), 1, 'get_task carries the checklist');
 select is(
@@ -177,7 +182,7 @@ select is(
   array['checklist','comments','events','signal_ids'], 'get_task carries events, comments and linked Signal ids');
 select is(pg_temp.err($q$ select api_v1.get_task('00000000-0000-0000-0000-00000000dead') $q$),
   'PT404|not_found||Task not found.', 'get_task on a missing id is not_found');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}');
 select is(pg_temp.err($q$ select api_v1.get_task('00000000-0000-0000-0000-0000000000f1') $q$),
   'PT404|not_found||Task not found.', 'NFR-003: another org''s Task answers exactly like a missing one');
 
@@ -256,7 +261,7 @@ select is(pg_temp.matrix(
 -- ═════════════════════════════════════════════════════════════════════════════════════════════
 -- create_task (AC-004), limits, idempotency
 -- ═════════════════════════════════════════════════════════════════════════════════════════════
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 insert into ctx values ('c1', api_v1.create_task(
   title => 'Created by the layer', team_id => '00000000-0000-0000-0000-0000000000c3',
   responsible_person_id => '00000000-0000-0000-0000-0000000000d1', accountable_person_id => '00000000-0000-0000-0000-0000000000d2',
@@ -286,7 +291,7 @@ select alike(pg_temp.err($q$ select api_v1.create_task(title => 't', team_id => 
 select alike(pg_temp.err($q$ select api_v1.create_task(title => 't', team_id => '00000000-0000-0000-0000-00000000dead',
   responsible_person_id => shared.current_person_id(), accountable_person_id => shared.current_person_id()) $q$),
   'PT404|not_found|team_id|%', 'an unknown Team is not_found naming the field');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member"]}');
 select is(pg_temp.err($q$ select api_v1.create_task(title => 't', team_id => '00000000-0000-0000-0000-0000000000c1',
   responsible_person_id => '00000000-0000-0000-0000-0000000000d4', accountable_person_id => shared.current_person_id()) $q$) ~ '^PT403\|forbidden\|\|',
   true, 'a PIC outside the caller''s downline is forbidden');
@@ -295,7 +300,7 @@ select isnt(pg_temp.err($q$ select api_v1.create_task(title => 't', team_id => '
   'PT403|forbidden||You don''t have permission to do this in MOS.', 'the guard''s own rule text is passed through, not replaced');
 
 -- idempotency (AC-011''s rule, through create_task)
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is((api_v1.create_task(title => 'Created by the layer', team_id => '00000000-0000-0000-0000-0000000000c3',
     responsible_person_id => '00000000-0000-0000-0000-0000000000d1', accountable_person_id => '00000000-0000-0000-0000-0000000000d2',
     idempotency_key => 'k-1') -> 'item' ->> 'id'),
@@ -304,7 +309,7 @@ select is((select count(*)::int from mos.tasks where title = 'Created by the lay
 select is((api_v1.create_task(title => 'Created by the layer', team_id => '00000000-0000-0000-0000-0000000000c3',
     responsible_person_id => '00000000-0000-0000-0000-0000000000d1', accountable_person_id => '00000000-0000-0000-0000-0000000000d2',
     idempotency_key => 'k-1') ->> 'replayed'), 'true', 'the repeat is flagged replayed');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select is((api_v1.create_task(title => 'Created by the layer', team_id => '00000000-0000-0000-0000-0000000000c3',
     responsible_person_id => '00000000-0000-0000-0000-0000000000d4', accountable_person_id => '00000000-0000-0000-0000-0000000000d2',
     idempotency_key => 'k-1') ->> 'replayed'), 'false', 'another person using the same key gets their own Task');
@@ -315,7 +320,7 @@ reset role;
 update shared.api_write_log set created_at = created_at - interval '25 hours'
  where idempotency_key = 'k-1' and person_id = '00000000-0000-0000-0000-0000000000d1';
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is((api_v1.create_task(title => 'Created by the layer', team_id => '00000000-0000-0000-0000-0000000000c3',
     responsible_person_id => '00000000-0000-0000-0000-0000000000d1', accountable_person_id => '00000000-0000-0000-0000-0000000000d2',
     idempotency_key => 'k-1') ->> 'replayed'), 'false', 'a key older than 24 hours has expired');
@@ -327,27 +332,27 @@ select is((select concat_ws('|', operation, record_type, channel, idempotency_ke
              from shared.api_write_log where record_id = (select (v::jsonb -> 'item' ->> 'id')::uuid from ctx where k = 'c1')),
   'create_task|task|api|k-1|00000000-0000-0000-0000-0000000000a1',
   'AC-014: one row names the operation, record, api channel, key and org');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"],"client_id":"agent-x"}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"],"client_id":"agent-x"}');
 insert into ctx values ('agent', api_v1.create_task(title => 'By an agent', team_id => '00000000-0000-0000-0000-0000000000c1',
   responsible_person_id => '00000000-0000-0000-0000-0000000000d1', accountable_person_id => '00000000-0000-0000-0000-0000000000d2')::text);
 select is((select channel || '|' || client_id from shared.api_write_log where record_id = (select (v::jsonb -> 'item' ->> 'id')::uuid from ctx where k = 'agent')),
   'agent|agent-x', 'AC-014: a client id claim logs the agent channel and the client');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select throws_ok($q$ insert into shared.api_write_log (person_id, org_id, operation, channel) values (shared.current_person_id(), shared.current_org_id(), 'x', 'api') $q$,
   '42501', null, 'AC-014: a person cannot insert a write-log row');
 select throws_ok($q$ update shared.api_write_log set operation = 'x' $q$, '42501', null, 'AC-014: a person cannot update a write-log row');
 select throws_ok($q$ delete from shared.api_write_log $q$, '42501', null, 'AC-014: a person cannot delete a write-log row');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select is((select count(*)::int from shared.api_write_log where person_id = '00000000-0000-0000-0000-0000000000d1'), 0, 'a person reads only their own write-log rows');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select cmp_ok((select count(*)::int from shared.api_write_log where person_id = '00000000-0000-0000-0000-0000000000d1'), '>', 0, 'an admin reads the org''s write-log rows');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["admin"]}');
 select is((select count(*)::int from shared.api_write_log), 0, 'an admin of another org reads none of them');
 
 -- ═════════════════════════════════════════════════════════════════════════════════════════════
 -- edit_task — AC-003, 005, 006, 009, 010
 -- ═════════════════════════════════════════════════════════════════════════════════════════════
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is(
   (select string_agg(k || '=' || split_part(pg_temp.err(format($q$ select api_v1.edit_task(id => '00000000-0000-0000-0000-0000000000f1', changes => jsonb_build_object(%L, 'x')) $q$, k)), '|', 3), ';' order by k)
      from unnest(array['created_by','author_id','org_id','channel','foo']) k),
@@ -373,14 +378,14 @@ select lives_ok($q$ select api_v1.edit_task(id => '00000000-0000-0000-0000-00000
   expected_updated_at => (select updated_at from mos.tasks where id = '00000000-0000-0000-0000-0000000000f1')) $q$,
   'a matching expected_updated_at lets the edit through');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select is(pg_temp.err($q$ select api_v1.edit_task(id => '00000000-0000-0000-0000-0000000000f1', changes => '{"title":"nope"}') $q$),
   'PT403|forbidden||You don''t have permission to do this in MOS.', 'AC-009: readable but not editable is forbidden');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}');
 select is(pg_temp.err($q$ select api_v1.edit_task(id => '00000000-0000-0000-0000-0000000000f1', changes => '{"title":"nope"}') $q$),
   'PT404|not_found||Task not found.', 'AC-009: unreadable is not_found');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 insert into ctx values ('e1', api_v1.edit_task(id => '00000000-0000-0000-0000-0000000000f1', changes => '{"status":"Done"}')::text);
 select is((select v::jsonb -> 'item' ->> 'status' from ctx where k = 'e1'), 'Done', 'AC-005: the edit returns the Task as get_task reads it');
 select isnt((select v::jsonb -> 'item' ->> 'completed_at' from ctx where k = 'e1'), null, 'AC-005: completed_at is set by the existing guard');
@@ -408,7 +413,7 @@ select is((select label || '|' || position from mos.task_checklist_items where t
 select is(pg_temp.err($q$ select api_v1.add_checklist_item(task_id => '00000000-0000-0000-0000-0000000000f1', label => ' ') $q$) ~ '^PT400\|invalid_input\|label\|', true, 'a blank label is invalid_input');
 select is((api_v1.set_checklist_item(item_id => '00000000-0000-0000-0000-0000000000e1', is_done => true, label => 'First!') -> 'item' -> 'checklist' -> 0) ->> 'is_done', 'true', 'set_checklist_item updates the item');
 select is(pg_temp.err($q$ select api_v1.set_checklist_item(item_id => '00000000-0000-0000-0000-0000000000e1') $q$) ~ '^PT400\|invalid_input\|', true, 'set_checklist_item with nothing to change is invalid_input');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select is(pg_temp.err($q$ select api_v1.add_checklist_item(task_id => '00000000-0000-0000-0000-0000000000f1', label => 'x') $q$),
   'PT403|forbidden||You don''t have permission to do this in MOS.', 'a non-editor adding an item is forbidden');
 select is(pg_temp.err($q$ select api_v1.set_checklist_item(item_id => '00000000-0000-0000-0000-00000000dead', is_done => true) $q$) ~ '^PT404\|not_found\|item_id\|', true, 'an unknown checklist item is not_found');
@@ -436,7 +441,7 @@ select is(pg_temp.err($q$ select api_v1.refused_action('frobnicate') $q$) ~ '^PT
 -- ═════════════════════════════════════════════════════════════════════════════════════════════
 -- AC-012 — the write budget
 -- ═════════════════════════════════════════════════════════════════════════════════════════════
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member"]}');
 select lives_ok($q$ do $d$ begin
   for i in 1..60 loop
     perform api_v1.create_task(title => 'budget ' || i, team_id => '00000000-0000-0000-0000-0000000000c1',
@@ -445,7 +450,7 @@ select lives_ok($q$ do $d$ begin
 select is(pg_temp.err($q$ select api_v1.create_task(title => 'one too many', team_id => '00000000-0000-0000-0000-0000000000c1',
   responsible_person_id => shared.current_person_id(), accountable_person_id => shared.current_person_id()) $q$) ~ '^PT429\|rate_limited\|\|', true, 'AC-012: the 61st write is rate_limited (429)');
 select is((select count(*)::int from mos.tasks where title = 'one too many'), 0, 'AC-012: the refused write changed nothing');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select lives_ok($q$ select api_v1.create_task(title => 'other person', team_id => '00000000-0000-0000-0000-0000000000c1',
   responsible_person_id => shared.current_person_id(), accountable_person_id => shared.current_person_id()) $q$,
   'AC-012: another person''s write still succeeds');
@@ -456,7 +461,7 @@ insert into mos.task_checklist_items (task_id, label, position)
   select '00000000-0000-0000-0000-0000000000f1', 'fill ' || n, n + 10
     from generate_series(1, 99 - (select count(*)::int from mos.task_checklist_items where task_id = '00000000-0000-0000-0000-0000000000f1')) n;
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member"]}');
 select is(jsonb_array_length(api_v1.add_checklist_item(task_id => '00000000-0000-0000-0000-0000000000f1', label => 'the hundredth') -> 'item' -> 'checklist'), 100, 'the 100th checklist item is accepted');
 select is(pg_temp.err($q$ select api_v1.add_checklist_item(task_id => '00000000-0000-0000-0000-0000000000f1', label => 'one too many') $q$) ~ '^PT400\|invalid_input\|task_id\|', true, 'the 101st checklist item is refused');
 
@@ -470,7 +475,7 @@ insert into mos.signal_tasks (signal_id, task_id, created_by)
   select ('00000000-0000-0000-0000-00000009' || lpad(n::text, 4, '0'))::uuid, '00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-0000000000d1'
     from generate_series(1, 105) n;
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member"]}');
 select is(jsonb_array_length(api_v1.get_task('00000000-0000-0000-0000-0000000000f1') -> 'item' -> 'signal_ids'), 105, 'get_task returns all linked Signal ids');
 
 select * from finish();

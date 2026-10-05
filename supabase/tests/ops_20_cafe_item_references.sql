@@ -186,7 +186,7 @@ select throws_ok($$select ops.refresh_cafe_item_references('[{"esb_product_id":"
 
 select set_config('app.allow_test_seeds', 'off', true);
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select cmp_ok((select count(*)::int from ops.cafe_item_references reference
   where reference.esb_product_id = 'SYNTH-ERP-P-1240-RAW'), '>', 0,
   'RLS: an org member can read their synthetic RAW references');

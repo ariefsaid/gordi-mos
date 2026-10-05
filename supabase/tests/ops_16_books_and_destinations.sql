@@ -165,7 +165,7 @@ select ok(exists (select 1 from ops.allowed_kitchen_destinations(
   'OD-CAFE-MVP-7: adding an HQ route row makes the new destination available');
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select ok(exists (select 1 from ops.cafe_destinations
                   where org_id = '00000000-0000-0000-0000-0000000000a1'
                     and origin_branch_id = '00000000-0000-0000-0000-00000000bf01'
@@ -203,7 +203,7 @@ select lives_ok($$
   values ('00000000-0000-0000-0000-00000000bb01','2026-09-14','00000000-0000-0000-0000-00000000bf01','bar','transfer','00000000-0000-0000-0000-00000000bf01','00000000-0000-0000-0000-00000000ab01',1)
   $$, 'AC-004: GHQ bar preserves the held intra-branch movement');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select throws_ok($$
   insert into ops.kitchen_plans (log_date,branch_id,activity,action,wip_item_id,qty_porsi)
   values ('2026-09-14','00000000-0000-0000-0000-00000000bf03','kitchen','produce','00000000-0000-0000-0000-00000000ab01',1)
@@ -239,7 +239,7 @@ select throws_ok($$ insert into ops.cafe_destinations
           'bar', '00000000-0000-0000-0000-00000000bf09') $$,
   '23503', null, 'destination route foreign keys enforce the org seam');
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select throws_ok($$
   insert into ops.kitchen_logs (business_unit_id,log_date,branch_id,activity,action,wip_item_id,qty_porsi)
   values ('00000000-0000-0000-0000-00000000bb01','2026-09-14','00000000-0000-0000-0000-00000000bf09','kitchen','produce','00000000-0000-0000-0000-00000000ab01',1)
@@ -261,13 +261,13 @@ select results_eq($$
   $$, $$ select null::uuid where false $$,
   'AC-003: an archived origin branch has no destination catalog');
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select throws_ok($$
   insert into ops.kitchen_logs (business_unit_id,log_date,branch_id,activity,action,wip_item_id,qty_porsi)
   values ('00000000-0000-0000-0000-00000000bb01','2026-09-14','00000000-0000-0000-0000-00000000bf02','kitchen','produce','00000000-0000-0000-0000-00000000ab01',1)
   $$, '42501', 'the production stream does not produce',
   'AC-002: an archived origin branch cannot write even when its stream Team remains live');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select throws_ok($$
   insert into ops.kitchen_plans (log_date,branch_id,activity,action,wip_item_id,qty_porsi)
   values ('2026-09-14','00000000-0000-0000-0000-00000000bf02','kitchen','produce','00000000-0000-0000-0000-00000000ab01',1)

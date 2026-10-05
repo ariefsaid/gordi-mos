@@ -48,7 +48,7 @@ cross join ops.wip_items item where item.esb_product_id='SYNTH-RIGHTS-P' and ite
 on conflict (org_id,branch_id,activity,wip_item_id) do nothing;
 select set_config('app.allow_test_seeds','off',true);
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select ops.save_cafe_item_settings(branch,activity,item.id,'Synthetic rights item',unit.id,array[unit.id],'RAW',true)
 from unnest(array['00000000-0000-0000-0000-00000000bf01'::uuid,'00000000-0000-0000-0000-00000000bf02'::uuid]) branch
 cross join unnest(array['kitchen','bar']) activity
@@ -57,12 +57,13 @@ where item.esb_product_id='SYNTH-RIGHTS-P' and unit.esb_product_detail_id='SYNTH
 reset role;
 
 create function pg_temp.check_activity_rights() returns setof text language plpgsql as $$
-declare c record; a text; b uuid; allowed boolean; changed integer; v_item uuid; v_unit uuid; v_setting uuid; q text; caption text;
+declare c record; a text; b uuid; allowed boolean; changed integer; v_item uuid; v_unit uuid; v_setting uuid; q text; caption text; v_claims jsonb;
 begin
   select id into v_item from ops.wip_items where esb_product_id='SYNTH-RIGHTS-P';
   select id into v_unit from ops.item_units where esb_product_detail_id='SYNTH-RIGHTS-D';
   for c in select * from pg_temp.rights_cases loop
-    perform set_config('request.jwt.claims',jsonb_build_object('org_id','00000000-0000-0000-0000-0000000000a1','person_id',c.person_id,'access_roles',c.access_roles)::text,true);
+    v_claims := jsonb_build_object('org_id','00000000-0000-0000-0000-0000000000a1','person_id',c.person_id,'access_roles',c.access_roles);
+    perform shared._test_set_access_roles(v_claims::text);
     foreach a in array array['kitchen','bar'] loop
       allowed := case a when 'kitchen' then c.kitchen else c.bar end;
       caption := c.label || ' / ' || a;
@@ -94,10 +95,10 @@ select has_function('ops','can_manage_cafe_item_settings',array['text'],'permiss
 select ok(to_regprocedure('ops.can_manage_cafe_item_settings()') is null,'the broad predicate is retired');
 select ok(not has_column_privilege('authenticated','shared.roles','cafe_item_settings_scope','UPDATE'),'a caller cannot grant their own position a scope');
 select ok(not has_function_privilege('anon','ops.can_manage_cafe_item_settings(text)','EXECUTE'),'anonymous callers cannot read manager authority');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select is(ops.can_manage_cafe_item_settings('roastery'),false,'even broad editors cannot authorize an unknown activity');
 select is(ops.can_manage_cafe_item_settings(null),false,'missing activity fails closed');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-000000000001","access_roles":["member","manager"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-000000000001","access_roles":["member","manager"]}');
 select is(ops.can_manage_cafe_item_settings('kitchen'),false,'position scopes do not cross organizations');
 select * from finish();
 rollback;
