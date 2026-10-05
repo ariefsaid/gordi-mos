@@ -305,7 +305,7 @@ export function RecordPanelHost({
     <div className={rootClass}>
       <div className="drawer-scrim" onClick={() => onClose('explicit-close')} aria-hidden="true" />
       <div
-        ref={panelRef}
+        ref={(element: HTMLDivElement | null) => { panelRef.current = element }}
         className={sheetClass}
         role="dialog"
         aria-modal="true"

@@ -169,17 +169,25 @@ describe('RecordPageLayout', () => {
     expect(screen.getByText('entries')).toBeInTheDocument()
   })
 
-  it('moves About and History into a side column on a wide page, History open', () => {
+  it('moves About and folded History into a side column on a wide page', async () => {
+    const user = userEvent.setup()
+    const load = vi.fn(() => <p>entries</p>)
     setWide(true)
     wrap(
-      <RecordPageLayout label="Record" mode="page" headingLevel={1} header={<h1>Title</h1>} about={{ title: 'About', node: <RecordAbout items={[{ key: 'k', label: 'Business Unit', value: 'Retail Ops' }]} /> }} history={{ title: 'History', node: <p>entries</p> }}>
+      <RecordPageLayout label="Record" mode="page" headingLevel={1} header={<h1>Title</h1>} about={{ title: 'About', node: <RecordAbout items={[{ key: 'k', label: 'Business Unit', value: 'Retail Ops' }]} /> }} history={{ title: 'History', node: <Probe load={load} /> }}>
         <RecordSection id="s" title="Section">rows</RecordSection>
       </RecordPageLayout>,
     )
     const aside = screen.getByRole('complementary')
     expect(within(aside).getByText('Retail Ops')).toBeInTheDocument()
+    const toggle = within(aside).getByRole('button', { name: 'History' })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(within(aside).queryByText('entries')).toBeNull()
+    expect(load).not.toHaveBeenCalled()
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
     expect(within(aside).getByText('entries')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'History' })).toBeNull()
+    expect(load).toHaveBeenCalledOnce()
   })
 
   it('keeps the side column off a panel, whatever the viewport', () => {
@@ -304,14 +312,22 @@ describe('RecordPageLayout record kind and history count', () => {
     expect(screen.getByRole('button', { name: /History/ })).toHaveTextContent('History4')
   })
 
-  it('counts History in the side column on a wide page', () => {
+  it('counts History in the folded side-column disclosure on a wide page', async () => {
+    const user = userEvent.setup()
     setWide(true)
     wrap(
       <RecordPageLayout label="Record" mode="page" headingLevel={1} header={<h1>Title</h1>} history={{ title: 'History', count: 4, node: <p>entries</p> }}>
         <RecordSection id="s" title="Section">rows</RecordSection>
       </RecordPageLayout>,
     )
-    expect(within(screen.getByRole('complementary')).getByRole('heading', { name: /History/ })).toHaveTextContent('History4')
+    const aside = screen.getByRole('complementary')
+    const toggle = within(aside).getByRole('button', { name: /History/ })
+    expect(toggle).toHaveTextContent('History4')
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(within(aside).queryByText('entries')).toBeNull()
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(within(aside).getByText('entries')).toBeInTheDocument()
   })
 
   it('renders no History when none is given, narrow or wide', () => {

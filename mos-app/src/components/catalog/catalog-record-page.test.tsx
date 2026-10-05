@@ -25,7 +25,7 @@ vi.mock('@/lib/db/directory', async (importActual) => ({
   ...(await importActual<typeof import('@/lib/db/directory')>()),
   getPeople: vi.fn(async () => [{ id: 'p-dewi', full_name: 'Dewi Director' }, { id: 'p-maya', full_name: 'Maya Marketing' }]),
 }))
-vi.mock('@/lib/db/record-history', async (orig) => ({ ...(await orig<typeof import('@/lib/db/record-history')>()), loadRecordHistory: vi.fn() }))
+vi.mock('@/lib/db/record-history', async (orig) => ({ ...(await orig<typeof import('@/lib/db/record-history')>()), countRecordHistory: vi.fn(), loadRecordHistory: vi.fn() }))
 // The occurrence data is lifted into the record (the header carries the Start primary); the body
 // stub exposes ready Teams without duplicating the header's action.
 const occurrenceData = vi.hoisted(() => ({
@@ -63,7 +63,7 @@ import { updateWorkLine, listWorkLinesAll } from '@/lib/db/work-lines'
 import { createProcessStep } from '@/lib/db/process-steps'
 import { listKeyResults } from '@/lib/db/objective-key-results'
 import { getPeople } from '@/lib/db/directory'
-import { loadRecordHistory } from '@/lib/db/record-history'
+import { countRecordHistory, loadRecordHistory } from '@/lib/db/record-history'
 import { readWriteUp } from '@/lib/db/objective-writeup'
 import { getWorkWriteScopes } from '@/lib/db/work-authority'
 import { loadCatalogRecordData, loadCatalogRecordEditDirectory, type CatalogRecordData } from './catalog-record-loader'
@@ -209,6 +209,14 @@ function renderRecord(kind: 'objective' | 'work-line' = 'objective', mode: 'page
 const facts = () => screen.getByRole('list', { name: 'Key facts' })
 const setup = () => screen.queryByRole('region', { name: /started$/ })
 
+function setWideRecordPage() {
+  window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+    matches: query === '(min-width: 1280px)' || query === '(min-width: 768px)', media: query,
+    addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(),
+    onchange: null, dispatchEvent: vi.fn(),
+  })) as never
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   editorModule.loads = 0
@@ -223,6 +231,7 @@ beforeEach(() => {
   })
   vi.mocked(listKeyResults).mockResolvedValue([])
   vi.mocked(readWriteUp).mockResolvedValue({ writeUp: null, updatedAt: '2026-09-30T00:00:00Z' })
+  vi.mocked(countRecordHistory).mockResolvedValue(0)
   vi.mocked(loadRecordHistory).mockResolvedValue({ entries: [], names: new Map() })
   vi.mocked(listObjectivesAll).mockResolvedValue([{ id: 'obj-2', name: 'Improve margin' }] as never)
   vi.mocked(listWorkLinesAll).mockResolvedValue([])
@@ -994,6 +1003,17 @@ describe('sections read like a document', () => {
     await unlinkViaRowMenu(user, work)
     await user.click(await screen.findByRole('button', { name: 'Undo' }))
     await waitFor(() => expect(updateWorkLine).toHaveBeenLastCalledWith('wl-1', { objective_id: 'obj-1' }))
+  })
+
+  it('fetches and renders the History count on a wide page', async () => {
+    setWideRecordPage()
+    vi.mocked(countRecordHistory).mockResolvedValue(7)
+    renderRecord()
+
+    const toggle = await screen.findByRole('button', { name: /History/ })
+    await waitFor(() => expect(countRecordHistory).toHaveBeenCalledWith('objectives', 'obj-1'))
+    await waitFor(() => expect(toggle).toHaveTextContent('History7'))
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
   })
 
   it('folds History closed and reads it only when opened', async () => {
