@@ -4,6 +4,7 @@ import { useT } from '@/i18n/use-t'
 import {
   MAX_WASTE_PHOTOS,
   WASTE_PHOTO_MIME_TYPES,
+  WASTE_PHOTO_UPLOAD_WINDOW_MINUTES,
   uploadKitchenWastePhoto,
 } from '@/lib/db/kitchen-waste-photos'
 import type { KitchenWastePhoto } from '@/lib/db/kitchen-waste-photos'
@@ -125,7 +126,7 @@ export function WastePhotoCapture({
         ? { ...item, status: terminalStatus ?? 'error' }
         : item))
       if (terminalStatus === 'expired') {
-        setValidationError(t('kitchen.wastePhotos.windowExpired'))
+        setValidationError(t('kitchen.wastePhotos.windowExpired', { minutes: WASTE_PHOTO_UPLOAD_WINDOW_MINUTES }))
         onPhotoWindowExpired?.()
       }
       if (terminalStatus === 'tooLarge') setValidationError(t('kitchen.wastePhotos.tooLarge'))
@@ -177,7 +178,7 @@ export function WastePhotoCapture({
                 {(photo.status === 'error' || photo.status === 'expired' || photo.status === 'tooLarge') && (
                   <span role="alert" className="waste-photo-capture-error">
                     {photo.status === 'expired'
-                      ? t('kitchen.wastePhotos.windowExpired')
+                      ? t('kitchen.wastePhotos.windowExpired', { minutes: WASTE_PHOTO_UPLOAD_WINDOW_MINUTES })
                       : photo.status === 'tooLarge'
                         ? t('kitchen.wastePhotos.tooLarge')
                         : t('kitchen.wastePhotos.failed')}

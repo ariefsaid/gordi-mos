@@ -4,9 +4,14 @@ import { shrinkPhoto } from '@/lib/db/signal-photos'
 export const WASTE_PHOTO_BUCKET = 'waste-photos'
 export const MAX_WASTE_PHOTOS = 4
 export const MAX_WASTE_PHOTO_BYTES = 5 * 1024 * 1024
-export const WASTE_PHOTO_UPLOAD_WINDOW_MS = 15 * 60 * 1000
+export const WASTE_PHOTO_UPLOAD_WINDOW_MINUTES = 15
+export const WASTE_PHOTO_UPLOAD_WINDOW_MS = WASTE_PHOTO_UPLOAD_WINDOW_MINUTES * 60 * 1000
 export const WASTE_PHOTO_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const
 const SIGNED_URL_SECONDS = 60 * 60
+
+export function isWastePhotoWindowExpired(createdAt: string, now = Date.now()): boolean {
+  return now >= Date.parse(createdAt) + WASTE_PHOTO_UPLOAD_WINDOW_MS
+}
 
 export interface KitchenWastePhoto {
   logId: string
@@ -19,8 +24,8 @@ export interface KitchenWastePhoto {
 export interface KitchenWasteDraft {
   logId: string
   itemId: string
-  itemUnitId: string
-  unitName: string
+  itemUnitId: string | null
+  unitName: string | null
   quantity: number
   entryUnitFactor?: number | null
   entryUnitName?: string | null
@@ -72,9 +77,7 @@ export async function listCurrentPersonKitchenWasteDrafts(
       .in('id', unitIds),
     listKitchenWastePhotos(rows.map(row => row.id)),
   ])
-  if (unitError) throw new Error(`listCurrentPersonKitchenWasteDrafts failed — ${unitError.message}`)
-
-  const unitNames = new Map(((unitRows ?? []) as Array<{ id: string; unit_name: string }>)
+  const unitNames = new Map(((unitError ? [] : unitRows ?? []) as Array<{ id: string; unit_name: string }>)
     .map(unit => [unit.id, unit.unit_name]))
   const photosByLog = new Map<string, KitchenWastePhoto[]>()
   for (const photo of photos) {
@@ -82,22 +85,20 @@ export async function listCurrentPersonKitchenWasteDrafts(
     photosByLog.set(photo.logId, [...current, photo])
   }
 
-  return rows.flatMap(row => {
-    if (!row.item_unit_id) return []
-    const unitName = unitNames.get(row.item_unit_id)
-    if (!unitName) throw new Error('listCurrentPersonKitchenWasteDrafts failed — a captured unit was not returned')
-    return [{
+  return rows.map(row => {
+    const unitName = row.item_unit_id ? unitNames.get(row.item_unit_id) : undefined
+    return {
       logId: row.id,
       itemId: row.wip_item_id,
       itemUnitId: row.item_unit_id,
-      unitName: row.entry_unit_name ?? unitName,
+      unitName: row.entry_unit_name || unitName || null,
       quantity: row.entry_quantity ?? row.qty_porsi,
       entryUnitFactor: row.entry_unit_factor ?? null,
       entryUnitName: row.entry_unit_name ?? null,
       logDate: row.log_date,
       createdAt: row.created_at,
       photos: photosByLog.get(row.id) ?? [],
-    }]
+    }
   })
 }
 
@@ -117,7 +118,7 @@ export async function uploadKitchenWastePhoto(logId: string, file: File): Promis
   if (data.action !== 'waste' || data.status !== 'Draft') {
     throw new Error('WASTE_PHOTO_DRAFT_REQUIRED')
   }
-  if (Date.now() >= Date.parse(data.created_at) + WASTE_PHOTO_UPLOAD_WINDOW_MS) {
+  if (isWastePhotoWindowExpired(data.created_at)) {
     throw new Error('WASTE_PHOTO_WINDOW_EXPIRED')
   }
 

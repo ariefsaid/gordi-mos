@@ -404,15 +404,15 @@ describe('InboxTriageConnected — the live triage wiring (AC-V3-006 / FR-V3-008
   it.each([
     {
       locale: 'en' as const,
-      mentionTrigger: 'mentions you in a Signal',
+      mentionTrigger: 'mentions you in a Signal or a comment',
       retractionTrigger: 'retracts a Signal you wrote',
     },
     {
       locale: 'id' as const,
-      mentionTrigger: 'menyebut Anda di Sinyal',
+      mentionTrigger: 'menyebut Anda di Sinyal atau komentar',
       retractionTrigger: 'menarik kembali Sinyal yang Anda tulis',
     },
-  ])('bell quick-triage empty copy names Signal triggers without promising urgent delivery ($locale)', ({
+  ])('bell quick-triage empty copy names Signal and comment triggers without promising urgent delivery ($locale)', ({
     locale,
     mentionTrigger,
     retractionTrigger,

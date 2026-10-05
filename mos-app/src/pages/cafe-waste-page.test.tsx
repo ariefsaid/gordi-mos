@@ -327,6 +327,25 @@ describe('CafeWastePage', () => {
     expect(mockInsertKitchenLog).not.toHaveBeenCalled()
   })
 
+  it('shows unavailable captured-unit metadata without blocking another draft or new capture', async () => {
+    mockListWasteDrafts.mockResolvedValue([
+      wasteDraft({ unitName: null }),
+      wasteDraft({ logId: 'valid-draft', itemId: 'raw-1', unitName: 'litre', itemUnitId: 'unit-litre', photos: [{ logId: 'valid-draft', path: 'photo.jpg', url: 'https://storage.test/photo.jpg' }] }),
+    ])
+    renderPage()
+    expect(await screen.findByRole('button', { name: /resume oat latte.*captured unit unavailable/i })).toBeDisabled()
+    expect(screen.getByText('The captured unit cannot be read. Reload the page to try again.')).toBeInTheDocument()
+    const valid = screen.getByRole('button', { name: /resume oat milk.*litre/i })
+    expect(valid).toBeEnabled()
+    fireEvent.click(valid)
+    expect(screen.getByRole('spinbutton', { name: 'Waste quantity for Oat milk' })).toHaveValue(2.5)
+    expect(screen.getByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })).toBeEnabled()
+    expect(mockInsertKitchenLog).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Submit waste' }))
+    await waitFor(() => expect(mockSubmitWaste).toHaveBeenCalledWith('valid-draft'))
+    expect(mockSubmitWaste).not.toHaveBeenCalledWith('old-waste-draft')
+  })
+
   it('requires an explicit replacement for an expired photo-less draft and preserves its captured values and other rows', async () => {
     mockListWasteDrafts.mockResolvedValue([wasteDraft({
       itemUnitId: 'unit-cup', unitName: 'cup', quantity: 2.5, entryUnitFactor: 1,

@@ -16,7 +16,8 @@ import { insertKitchenLog, resolveKitchenBuId } from '@/lib/db/kitchen-logs'
 import {
   listCurrentPersonKitchenWasteDrafts,
   submitKitchenWasteLog,
-  WASTE_PHOTO_UPLOAD_WINDOW_MS,
+  isWastePhotoWindowExpired,
+  WASTE_PHOTO_UPLOAD_WINDOW_MINUTES,
 } from '@/lib/db/kitchen-waste-photos'
 import type { KitchenWasteDraft, KitchenWastePhoto } from '@/lib/db/kitchen-waste-photos'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
@@ -106,10 +107,6 @@ function wasteEntryUnitLabel(item: CafeLogItem, entry: WasteEntry, t: ReturnType
   const defaultUnit = item.units.find(candidate => candidate.isDefault)
     ?? { ...item.defaultUnit, isDefault: true, labelOrdinal: null, labelCount: 1 }
   return displayUnit(defaultUnit, t)
-}
-
-function photoWindowExpired(createdAt: string): boolean {
-  return Date.now() >= Date.parse(createdAt) + WASTE_PHOTO_UPLOAD_WINDOW_MS
 }
 
 export function CafeWastePage() {
@@ -300,13 +297,13 @@ export function CafeWastePage() {
     })
   }, [])
 
+  // Stable callback identities keep readiness effects from firing again on every parent entry update.
   const photoReadyCallbacks = useMemo(() => new Map(items.map(item => [item.id, (ready: boolean) => {
     setEntries(current => {
       const entry = current[item.id]
       return entry ? { ...current, [item.id]: { ...entry, photoReady: ready } } : current
     })
   }])), [items])
-  // Stable callback identities keep readiness effects from firing again on every parent entry update.
   const photoExpiredCallbacks = useMemo(() => new Map(items.map(item => [item.id, () => {
     setEntries(current => {
       const entry = current[item.id]
@@ -420,7 +417,8 @@ export function CafeWastePage() {
   }
 
   function resumeWasteDraft(draft: KitchenWasteDraft) {
-    if (!canCapture || !items.some(item => item.id === draft.itemId)) return
+    if (!canCapture || !draft.itemUnitId || !draft.unitName || !items.some(item => item.id === draft.itemId)) return
+    const { itemUnitId, unitName } = draft
     const entry = entries[draft.itemId]
     if (entry?.logId || entry?.preparing || entry?.quantity.trim()) return
     setEntries(current => {
@@ -431,15 +429,15 @@ export function CafeWastePage() {
         [draft.itemId]: {
           ...(currentEntry ?? initialEntries(items)[draft.itemId]!),
           quantity: String(draft.quantity),
-          unitId: draft.itemUnitId,
+          unitId: itemUnitId,
           unitFactor: draft.entryUnitFactor ?? 1,
           unitBasisKnown: draft.entryUnitFactor != null
-            || items.find(item => item.id === draft.itemId)?.defaultUnit.id === draft.itemUnitId,
-          capturedUnitName: draft.entryUnitName ?? draft.unitName,
+            || items.find(item => item.id === draft.itemId)?.defaultUnit.id === itemUnitId,
+          capturedUnitName: draft.entryUnitName ?? unitName,
           capturedLogDate: draft.logDate,
           logId: draft.logId,
           photoReady: draft.photos.length > 0,
-          photoWindowExpired: draft.photos.length === 0 && photoWindowExpired(draft.createdAt),
+          photoWindowExpired: draft.photos.length === 0 && isWastePhotoWindowExpired(draft.createdAt),
           preparing: false,
           submitted: false,
           photos: draft.photos,
@@ -457,7 +455,7 @@ export function CafeWastePage() {
     if (entry.photoWindowExpired && entry.photos.length === 0) {
       return (
         <div className="cwl-evidence cwl-expired" role="status">
-          <p>{t('kitchen.waste.expiredDraft')}</p>
+          <p>{t('kitchen.waste.expiredDraft', { minutes: WASTE_PHOTO_UPLOAD_WINDOW_MINUTES })}</p>
           {!entry.unitBasisKnown && <p className="cwl-lock-note">{t('kitchen.waste.restartUnknownUnit')}</p>}
           <button
             type="button"
@@ -659,19 +657,22 @@ export function CafeWastePage() {
                         <button
                           type="button"
                           className="btn btn-outline"
-                          disabled={alreadyEditing || submitting}
+                          disabled={alreadyEditing || submitting || !draft.itemUnitId || !draft.unitName}
                           onClick={() => resumeWasteDraft(draft)}
                         >
                           {t('kitchen.waste.resumeDraft', {
                             item: item.name,
                             quantity: formatWasteQty(draft.quantity),
-                            unit: draft.unitName,
+                            unit: draft.unitName ?? t('kitchen.waste.unitUnavailable'),
                             date: formatDayMonthYear(draft.logDate),
                             createdAt: timestamp,
                           })}
                         </button>
-                        {draft.photos.length === 0 && photoWindowExpired(draft.createdAt) && (
-                          <span className="cwl-lock-note">{t('kitchen.waste.expiredDraft')}</span>
+                        {(!draft.itemUnitId || !draft.unitName) && (
+                          <span className="cwl-lock-note">{t('kitchen.waste.unitUnavailableHelp')}</span>
+                        )}
+                        {draft.photos.length === 0 && isWastePhotoWindowExpired(draft.createdAt) && (
+                          <span className="cwl-lock-note">{t('kitchen.waste.expiredDraft', { minutes: WASTE_PHOTO_UPLOAD_WINDOW_MINUTES })}</span>
                         )}
                       </li>
                     )
