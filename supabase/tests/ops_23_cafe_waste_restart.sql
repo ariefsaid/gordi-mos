@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(19);
+select plan(21);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -100,5 +100,18 @@ select is((select superseded_by from ops.kitchen_logs where id='00000000-0000-00
   'failed replacement leaves the original resumable');
 select is((select count(*)::int from ops.kitchen_logs where action='waste' and status='Draft'),5,
   'failed replacement leaves no extra draft');
+reset role;
+-- Simulate the timestamp snapshot of an upload transaction that began before expiry.
+update ops.kitchen_logs set created_at=now() where id='00000000-0000-0000-0000-00000000ac31';
+set local role authenticated;
+select ok(not ops.can_add_cafe_waste_photo(
+  '00000000-0000-0000-0000-0000000000a1/00000000-0000-0000-0000-00000000ac31/00000000-0000-0000-0000-00000000f103.jpg'),
+  'retirement closes photo capture even with a pre-expiry timestamp snapshot');
+reset role;
+insert into storage.objects (bucket_id,name) values ('waste-photos',
+  '00000000-0000-0000-0000-0000000000a1/00000000-0000-0000-0000-00000000ac31/00000000-0000-0000-0000-00000000f104.jpg');
+set local role authenticated;
+select throws_ok($$select ops.submit_cafe_waste_log('00000000-0000-0000-0000-00000000ac31')$$,
+  '42501',null,'a retired draft never enters review even if evidence arrives later');
 select * from finish();
 rollback;
