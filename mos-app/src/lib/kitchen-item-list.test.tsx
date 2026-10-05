@@ -57,8 +57,8 @@ describe('Café kind-aware list model', () => {
     expect(kitchenItemLabel('WIP', 'Salted egg')).toBe('WIP - Salted egg')
   })
 
-  it('enables RAW for transfers, Not set for incomplete classifications and keeps planning WIP-only', () => {
-    expect(KITCHEN_KIND_FILTER_OPTIONS).toEqual(['All', 'WIP', 'RAW', 'Unclassified'])
+  it('enables RAW for transfers and keeps planning WIP-only', () => {
+    expect(KITCHEN_KIND_FILTER_OPTIONS).toEqual(['All', 'WIP', 'RAW'])
     expect(WIP_KIND_FILTER_OPTIONS).toEqual(['All', 'WIP'])
   })
 

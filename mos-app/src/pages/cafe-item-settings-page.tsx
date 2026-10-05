@@ -516,7 +516,7 @@ function CafeItemSettingsPageForViewer() {
             onSearchChange={setSearch}
             searchPlaceholder={t('cafe.items.searchPlaceholder')}
             ariaLabel={t('cafe.items.filtersAria')}
-            kinds={KITCHEN_KIND_FILTER_OPTIONS}
+            kinds={[...KITCHEN_KIND_FILTER_OPTIONS, 'Unclassified']}
             kind={kindFilter}
             onKindChange={setKindFilter}
             kindId="cafe-items-kind-filter"
