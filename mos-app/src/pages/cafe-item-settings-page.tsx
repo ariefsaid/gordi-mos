@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { SortingState } from '@tanstack/react-table'
 import { useAuth } from '@/auth/use-auth'
 import { CafeStreamBar, CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
@@ -24,6 +23,7 @@ import {
   type KitchenListRow,
 } from '@/lib/kitchen-item-list'
 import { isCafeItemDraftKind, type CafeItemDraftKind } from './cafe-item-settings-kind'
+import { useCafeItemSettingsSorting } from './cafe-item-settings-sorting'
 import { streamLabel } from '@/lib/kitchen-action-label'
 import {
   canManageCafeItemSettings,
@@ -343,9 +343,7 @@ function CafeItemSettingsPageForViewer() {
     getActive: item => item.isActive,
     getNeedsUnit: needsUnit,
   }), [drafts, items])
-  const listSorting: SortingState = listSort
-    ? [{ id: listSort.key, desc: listSort.dir === 'desc' }]
-    : []
+  const listSorting = useCafeItemSettingsSorting(listSort)
   const itemTable = useKitchenItemTable({
     data: listRows,
     search,
