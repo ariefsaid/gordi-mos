@@ -189,3 +189,9 @@ jobs:
         run: bash scripts/check-statement-timeout.test.sh
       - name: staging deploy script self-test
         run: bash scripts/deploy-staging.test.sh
+      - name: operations scripts self-tests (snapshot cron, ops check, backup, production deploy)
+        run: |
+          bash scripts/reporting-snapshot-cron.test.sh
+          bash scripts/ops-check.test.sh
+          bash scripts/db-backup.test.sh
+          bash scripts/deploy-production.test.sh

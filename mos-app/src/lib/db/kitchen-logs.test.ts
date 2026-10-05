@@ -1373,6 +1373,8 @@ describe('fetchActualsMap — the already-logged actuals, stream-scoped (FR-014,
     expect(rec.eqs).toContainEqual(['branch_id', STREAM.branch.id])
     expect(rec.eqs).toContainEqual(['activity', STREAM.activity])
     expect(rec.neqs).toContainEqual(['status', 'Rejected'])
+    // A restarted waste draft is replaced, not added: only the live row counts.
+    expect(rec.iss).toContainEqual(['superseded_by', null])
   })
 
   it('returns an empty map when nothing is logged yet', async () => {

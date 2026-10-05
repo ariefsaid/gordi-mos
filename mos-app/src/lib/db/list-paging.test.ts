@@ -9,7 +9,7 @@ vi.mock('@/lib/supabase', async () => {
       const url = new URL(String(input))
       harness.requests.push(url)
       let rows = [...harness.rows]
-      for (const field of ['status', 'log_date', 'branch_id', 'activity', 'retracted_at']) {
+      for (const field of ['status', 'log_date', 'branch_id', 'activity', 'retracted_at', 'superseded_by']) {
         const filter = url.searchParams.get(field)
         if (filter?.startsWith('neq.')) rows = rows.filter(row => row[field] !== filter.slice(4))
         if (filter?.startsWith('eq.')) rows = rows.filter(row => row[field] === filter.slice(3))
@@ -96,7 +96,9 @@ describe('server list paging boundaries', () => {
   })
 
   it('Café history totals include every recorded fact beyond the API cap, using bounded stream/date reads', async () => {
+    harness.rows.push({ ...fixture(2000), action: 'waste', status: 'Draft', superseded_by: 'replacement', qty_porsi: 99 })
     const actuals = await fetchActualsMap('2026-10-05', { branch: { id: 'branch-1', code: 'demo', name: 'Demo' }, activity: 'kitchen' })
+    expect(Object.keys(actuals['item-1'])).toEqual(['produce'])
     const history = actuals['item-1'].produce ?? []
     expect(history).toHaveLength(1103)
     expect(history.reduce((sum, row) => sum + row.qty_porsi, 0)).toBe(1103)

@@ -290,7 +290,8 @@ export async function fetchPlanMap(
  * exact recorded non-null item_unit_id. Historical rows without a unit stay separate by log
  * ID; they are not evidence that two quantities share a basis. Unit labels are resolved by
  * recorded IDs across the full org catalog, not from today's offered/default units. Stream-
- * scoped like the plan and stock reads (OD-WAY-28). Submitted rows count; Rejected rows do not.
+ * scoped like the plan and stock reads (OD-WAY-28). Submitted rows count; Rejected rows and
+ * restarted (superseded) waste drafts do not.
  */
 export async function fetchActualsMap(
   logDate: string,
@@ -310,7 +311,7 @@ export async function fetchActualsMap(
     let query = ops().from('kitchen_logs')
       .select('id,wip_item_id,action,destination_branch_id,item_unit_id,qty_porsi')
       .eq('log_date', logDate).eq('branch_id', stream.branch.id).eq('activity', stream.activity)
-      .neq('status', 'Rejected')
+      .neq('status', 'Rejected').is('superseded_by', null)
     if (before) query = query.lt('id', before)
     const { data, error } = await query.order('id', { ascending: false }).limit(KITCHEN_LOGS_PAGE_SIZE)
     if (error) throw new Error(`fetchActualsMap failed — ${error.message}`)
