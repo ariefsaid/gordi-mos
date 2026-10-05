@@ -55,7 +55,7 @@
    the space below its page position so TaskSurface's form body, rather than the whole panel,
    becomes the scroll region. Other record frames keep their existing page/record scrolling. */
 @media (min-width: 1100px) {
-  .drawer-split.task-create-panel {
+  .drawer-split.task-create-panel:not(.drawer-shell-split):not(.overlay-companion-host) {
     position: sticky;
     top: 0;
     display: flex;

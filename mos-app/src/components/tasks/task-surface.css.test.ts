@@ -49,7 +49,7 @@ describe('TaskSurface.css — the create form owns its body scroll and pinned fo
     expect(form).toMatch(/display:\s*flex/)
     expect(form).toMatch(/min-height:\s*0/)
 
-    const body = ruleBody('.tc-create-body')
+    const body = ruleBody('.tc-create-body {')
     expect(body).toMatch(/overflow:\s*auto/)
     expect(body).toMatch(/min-height:\s*0/)
 
