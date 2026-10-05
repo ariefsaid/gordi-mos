@@ -64,8 +64,17 @@ import { getPeople } from '@/lib/db/directory'
 // #783 AC-051: canDecide/canConfirmSelected now read a supervisor's FULL current stream-Team
 // membership (not only her primary) — same read useCafeStream already runs for "Your Team".
 // Empty by default; tests proving multi-stream decide rights override it.
-vi.mock('@/lib/db/cafe-opening', () => ({ listCafeViewerTeams: vi.fn() }))
+vi.mock('@/lib/db/cafe-opening', () => ({
+  listCafeViewerTeams: vi.fn(),
+  wibToday: vi.fn(() => '2026-09-28'),
+}))
 import { listCafeViewerTeams } from '@/lib/db/cafe-opening'
+
+vi.mock('@/lib/db/cafe-count', () => ({
+  listCafeCountLines: vi.fn().mockResolvedValue([]),
+  confirmCafeCountLine: vi.fn(),
+}))
+import { listCafeCountLines } from '@/lib/db/cafe-count'
 
 // resolveDefaultCaptureStream (OD-WAY-28) reads the live branch catalog to resolve the
 // stream the plan read is scoped to (kitchen-review-page.tsx fetchQueue) — un-mocked, it
@@ -108,6 +117,13 @@ const mockWastePhotos = vi.mocked(listKitchenWastePhotos)
 
 function wrapper({ children }: { children: ReactNode }) {
   return createElement(MemoryRouter, null, createElement(I18nProvider, null, children))
+}
+
+function kitchenReviewEmptyState() {
+  const title = screen.getByRole('heading', { name: /nothing to review/i })
+  const emptyState = title.closest('[data-testid="empty-state"]')
+  expect(emptyState).not.toBeNull()
+  return emptyState as HTMLElement
 }
 
 // #781: CafeStreamBar states the resolved view as text with a quiet "Switch" beside it (opens a
@@ -204,6 +220,7 @@ beforeEach(() => {
   // #783 AC-051: no extra current-membership streams unless a test says so — her primary
   // (mockDefaultStream) alone still decides for her, matching every existing supervisor test.
   vi.mocked(listCafeViewerTeams).mockResolvedValue([])
+  vi.mocked(listCafeCountLines).mockResolvedValue([])
 })
 
 describe('KitchenReviewPage — role gate (FR-003/044)', () => {
@@ -234,8 +251,11 @@ describe('KitchenReviewPage — role gate (FR-003/044)', () => {
 describe('KitchenReviewPage — states', () => {
   it('loading: shows a busy skeleton while the queue loads', () => {
     mockList.mockReturnValue(new Promise(() => {})) // never resolves
+    vi.mocked(listCafeCountLines).mockReturnValue(new Promise(() => {})) // this queue is independent
     render(<KitchenReviewPage />, { wrapper })
-    expect(screen.getByRole('status', { name: /loading/i })).toBeInTheDocument()
+    const pageLoading = screen.getAllByRole('status', { name: /loading/i })
+      .find(status => !status.closest('.cafe-count-review'))
+    expect(pageLoading).toBeInTheDocument()
   })
 
   it('shows the captured multiple and canonical default-unit amount in review history', async () => {
@@ -258,7 +278,7 @@ describe('KitchenReviewPage — states', () => {
     render(<KitchenReviewPage />, { wrapper })
     expect(await screen.findByText(/nothing to review/i)).toBeInTheDocument()
 
-    const emptyState = screen.getByTestId('empty-state')
+    const emptyState = kitchenReviewEmptyState()
     expect(emptyState).toHaveAttribute('data-empty-variant', 'awaiting')
     expect(emptyState.querySelector('.empty-state-icon')).not.toBeNull()
     expect(emptyState.querySelector('.empty-title')).not.toBeNull()
@@ -281,7 +301,7 @@ describe('KitchenReviewPage — states', () => {
     chooseStream('Radiant · Bar')
 
     expect(await screen.findByText(/nothing to review/i)).toBeInTheDocument()
-    const emptyState = screen.getByTestId('empty-state')
+    const emptyState = kitchenReviewEmptyState()
     expect(within(emptyState).getByText(/Radiant · Bar/)).toBeInTheDocument()
   })
 
@@ -290,11 +310,11 @@ describe('KitchenReviewPage — states', () => {
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText(/nothing to review/i)
 
-    const emptyState = screen.getByTestId('empty-state')
+    const emptyState = kitchenReviewEmptyState()
     const emptyActions = emptyState.querySelector('.empty-actions')
     expect(emptyActions).not.toBeNull()
     expect(emptyActions!.querySelectorAll('button, a')).toHaveLength(1)
-    expect(screen.getByRole('button', { name: /refresh/i })).toBeInTheDocument()
+    expect(within(emptyState).getByRole('button', { name: /refresh/i })).toBeInTheDocument()
     expect(within(emptyState).getByText(/refresh to check for newly submitted logs/i)).toBeInTheDocument()
     expect(within(emptyState).queryByText(/pull again/i)).toBeNull()
   })
