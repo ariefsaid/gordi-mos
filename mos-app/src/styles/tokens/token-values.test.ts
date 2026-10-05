@@ -615,12 +615,10 @@ describe('AC-001: Token SOURCE values match E7 warm palette (light + dark)', () 
       expect(normalizeColor(darkVal)).toBe(normalizeColor(lightVal)) // theme-invariant, like its surface
     })
 
-    // ── SYS-4 (backfill census, MEDIUM): the theme-aware blue-on-blue-tint text token. Light = the
-    // mid-blue (unchanged); dark = a lighter blue that clears AA on the dark tint. ──
-    it('--text-on-accent-tint: light = --ds-color-blue (unchanged), dark = a lighter blue', () => {
+    it('--text-on-accent-tint uses the accessible blue text role in light and a lighter blue in dark', () => {
       const lightBlock = indexCss.match(/:root,\s*\.light\s*{([\s\S]*?)}/)?.[1] || ''
       const darkBlock = indexCss.match(/\.dark\s*{([\s\S]*?)}/)?.[1] || ''
-      expect(extractToken(lightBlock, '--text-on-accent-tint')).toContain('var(--ds-color-blue)')
+      expect(extractToken(lightBlock, '--text-on-accent-tint')).toContain('var(--status-open-text)')
       const darkChans = p3chans(extractToken(darkBlock, '--text-on-accent-tint')!)
       // lighter than mid-blue (0.276/0.384/0.837): red & green channels lifted well above the mid-blue
       expect(darkChans[0]).toBeGreaterThan(0.5)

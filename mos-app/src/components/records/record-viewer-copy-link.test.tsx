@@ -64,5 +64,7 @@ describe('RecordViewer canonical Copy link', () => {
     await user.click(screen.getByRole('menuitem', { name: 'Copy link' }))
 
     expect(writeText).toHaveBeenCalledWith(new URL(appUrl(canonicalPath), window.location.origin).href)
+    expect(await screen.findByText('Link copied.')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('Link copied.')
   })
 })

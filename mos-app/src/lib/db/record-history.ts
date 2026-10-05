@@ -107,3 +107,18 @@ export async function loadRecordHistory(
     names: new Map(resolved.flat()),
   }
 }
+
+/** Counts a record's complete history without loading an entry page. */
+export async function countRecordHistory(
+  table: 'objectives' | 'work_lines',
+  recordId: string,
+): Promise<number> {
+  const { count, error } = await shared()
+    .from('record_history')
+    .select('id', { count: 'exact', head: true })
+    .eq('schema_name', 'mos')
+    .eq('table_name', table)
+    .eq('record_key', recordId)
+  if (error) throw new Error(`record history count failed — ${error.message}`)
+  return count ?? 0
+}

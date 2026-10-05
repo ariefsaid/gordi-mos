@@ -9,8 +9,9 @@
 //   children     ReactNode          the record's sections (<RecordSection/>), in domain order
 //   about        ReactNode          facts that are not in the header; a 300px aside on a page >=1280,
 //                                   otherwise a block after the sections
-//   history      { title, node, count? }   (optional; omit when there is nothing to show) the folded History: an open aside block on a wide page, otherwise
-//                                   a closed disclosure at the end. `node` mounts only when shown.
+//   history      { title, node, count? }   (optional; omit when there is nothing to show) folded
+//                                   in the wide About aside and at the end on narrower layouts.
+//                                   `node` mounts only when shown.
 //   kind         string             names the record kind on the root (data-record-kind) for kind-scoped styles and checks
 //   headingLevel 1 | 2              the rung of the record title; sections sit one under it
 //
@@ -208,15 +209,7 @@ export function RecordPageLayout({ label, mode, headingLevel, header, notice, se
                   {about.node}
                 </section>
               ) : null}
-              {history ? (
-                <section className="rp-aside__block" aria-label={history.title}>
-                  <SectionHeading className="rp-section__title">
-                    {history.title}
-                    {history.count !== undefined && history.count !== null ? <span className="rp-section__count">{history.count}</span> : null}
-                  </SectionHeading>
-                  {history.node}
-                </section>
-              ) : null}
+              {history ? <RecordDisclosure title={history.title} count={history.count}>{history.node}</RecordDisclosure> : null}
             </aside>
           ) : null}
         </div>

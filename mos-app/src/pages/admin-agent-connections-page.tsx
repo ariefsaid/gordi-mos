@@ -204,7 +204,7 @@ export function AdminAgentConnectionsPage() {
           <ErrorState message={t('agentConnections.admin.loadError')} onRetry={() => void load()} />
         )}
         {loadState === 'loaded' && apps.length === 0 && (
-          <EmptyState title={t('agentConnections.admin.emptyTitle')} copy={t('agentConnections.admin.emptyCopy')} />
+          <EmptyState variant="next-step" title={t('agentConnections.admin.emptyTitle')} copy={t('agentConnections.admin.emptyCopy')} />
         )}
         {loadState === 'loaded' && apps.length > 0 && (
           <div className="agent-connections-admin__apps" aria-label={t('agentConnections.admin.listLabel')}>

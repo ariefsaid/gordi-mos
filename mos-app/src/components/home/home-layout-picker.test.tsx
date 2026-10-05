@@ -31,19 +31,36 @@ describe('HomeLayoutPicker (OD-V4-9, FR-920)', () => {
     expect(screen.getByRole('radio', { name: /list/i })).not.toBeChecked()
   })
 
-  it('AC-930: every option is reachable and selectable by keyboard', async () => {
+  it('AC-930 / #1302: keyboard focus follows each layout choice and scrolls its visible card into view', async () => {
     const user = userEvent.setup()
     const onChange = renderPicker()
     const options = screen.getAllByRole('radio')
-    await user.tab()
-    expect(options[0]).toHaveFocus()
-    expect(options[0]).toBeChecked()
-    await user.keyboard('{ArrowRight}')
-    expect(options[1]).toHaveFocus()
-    expect(onChange).toHaveBeenCalledWith('overview')
-    await user.keyboard('{ArrowRight}')
-    expect(options[2]).toHaveFocus()
-    expect(onChange).toHaveBeenCalledWith('list')
+    const original = HTMLElement.prototype.scrollIntoView
+    const scrollIntoView = vi.fn()
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      writable: true,
+      value: scrollIntoView,
+    })
+    try {
+      await user.tab()
+      expect(options[0]).toHaveFocus()
+      expect(options[0]).toBeChecked()
+      await user.keyboard('{ArrowRight}')
+      expect(options[1]).toHaveFocus()
+      expect(onChange).toHaveBeenCalledWith('overview')
+      await user.keyboard('{ArrowRight}')
+      expect(options[2]).toHaveFocus()
+      expect(onChange).toHaveBeenCalledWith('list')
+      expect(scrollIntoView).toHaveBeenLastCalledWith({ block: 'nearest', inline: 'nearest' })
+      expect(scrollIntoView.mock.contexts.at(-1)).toBe(options[2].nextElementSibling)
+    } finally {
+      Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+        configurable: true,
+        writable: true,
+        value: original,
+      })
+    }
   })
 
   it.each(['en', 'id'] as const)('FR-920: every option says who it suits, not just its shape (%s)', (locale) => {

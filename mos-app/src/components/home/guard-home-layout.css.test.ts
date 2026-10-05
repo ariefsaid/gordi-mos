@@ -69,4 +69,14 @@ describe('AC-932: Home layout primitives are defined once', () => {
     expect(tabs).toMatch(/overflow-x:\s*auto/)
     expect(tab).toMatch(/min-height:\s*44px/)
   })
+
+  it('phone Profile layout cards keep focused choices clear of the fixed header and tab bar', () => {
+    const css = readFileSync(join(__dirname, 'home-layout-picker.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
+    const phoneStart = css.search(/@media\s*\(max-width:\s*767\.98px\)/)
+    expect(phoneStart).toBeGreaterThanOrEqual(0)
+    const phoneCard = css.slice(phoneStart).match(/\.hlp-card\s*\{([^}]*)\}/s)?.[1] ?? ''
+
+    expect(phoneCard).toMatch(/scroll-margin-block-start:\s*calc\(var\(--header-h\)\s*\+\s*12px\)/)
+    expect(phoneCard).toMatch(/scroll-margin-block-end:\s*calc\(var\(--tabbar-h\)\s*\+\s*12px\)/)
+  })
 })

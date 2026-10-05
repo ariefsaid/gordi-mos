@@ -198,15 +198,31 @@ describe('CatalogListPresentation owner-cell grammar', () => {
     expect(objective).toHaveTextContent('Also contributes to: Improve margin')
   })
 
-  it('shows Task-only contribution beside the missing direct Objective fact', () => {
+  it.each([
+    {
+      locale: 'en' as const,
+      missingValue: 'Not set',
+      contribution: 'Contributes through Tasks to: Improve margin',
+      cellName: 'Objective: Not set. Contributes through Tasks to: Improve margin',
+    },
+    {
+      locale: 'id' as const,
+      missingValue: 'Belum diatur',
+      contribution: 'Berkontribusi melalui Tugas pada: Improve margin',
+      cellName: 'Tujuan: Belum diatur. Berkontribusi melalui Tugas pada: Improve margin',
+    },
+  ])('shows the localized missing value beside Task-only Objective context ($locale)', ({ locale, missingValue, contribution, cellName }) => {
     const record = { id: 'work-5', name: 'Shared through tasks', archived_at: null, type: 'project' as const }
     renderRows([record, filled], relationsWithFilled([record, filled], [[record.id, {
       groups: [{ id: 'objective-2', name: 'Improve margin', relationship: 'contribution', entity: 'objective', taskCount: 1, done: 0, total: 1 }],
       tasks: [],
-    }]]))
+    }]]), locale)
 
     const row = rowFor('Shared through tasks')
-    expect(within(row).getByRole('cell', { name: 'Objective: Not set. Contributes through Tasks to: Improve margin' })).toBeInTheDocument()
+    const objective = within(row).getByRole('cell', { name: cellName })
+    expect(within(objective).getByText(missingValue, { exact: true })).toBeInTheDocument()
+    expect(objective).toHaveTextContent(contribution)
+    expect(objective).toHaveAccessibleName(cellName)
   })
 
   it('keeps direct and Task-derived Objective names together in the Objective cell', () => {

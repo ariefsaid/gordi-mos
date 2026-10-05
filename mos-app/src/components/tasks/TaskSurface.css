@@ -268,7 +268,7 @@
   width: 14px; height: 14px; padding: 0; background: transparent;
   font-family: inherit; border-radius: var(--radius-pill);
   border: 1px solid var(--border); color: var(--muted-foreground);
-  font-size: var(--font-size-micro); cursor: help; flex: none;
+  font-size: var(--font-size-overline); cursor: help; flex: none;
 }
 .tc-help:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .tc-help-bubble {

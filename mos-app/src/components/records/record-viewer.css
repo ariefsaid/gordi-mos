@@ -308,7 +308,7 @@
 }
 
 .record-field__status--ok {
-  color: var(--primary);
+  color: var(--text-on-accent-tint);
 }
 
 .record-field__error {

@@ -68,6 +68,10 @@ export function HomeLayoutPicker({ value, onChange }: HomeLayoutPickerProps) {
               value={id}
               checked={value === id}
               onChange={() => onChange(id)}
+              onFocus={(event) => {
+                // The radio is visually hidden; scroll its visible card rather than its zero-size box.
+                event.currentTarget.nextElementSibling?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
+              }}
               aria-label={`${t(LAYOUT_NAME[id])} — ${t(LAYOUT_DESC[id])}`}
             />
             <span className="hlp-card">

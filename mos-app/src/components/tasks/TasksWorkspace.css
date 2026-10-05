@@ -376,7 +376,7 @@
 /* Sort affordance MUST be inline-block: Tailwind preflight sets `svg { display:block }`,
    and a block-level SVG ignores the cell's text-align and drops to its own line at the left
    (detaching the arrow from its column label). inline-block + middle keeps it beside the label. */
-.sort-aff { display: inline-block; vertical-align: middle; width: 10px; height: 10px; margin-left: 5px; color: var(--primary); }
+.sort-aff { display: inline-block; vertical-align: middle; width: 10px; height: 10px; margin-left: 5px; color: var(--text-on-accent-tint); }
 .td-main, .td-cell {
   height: var(--row-min-h); line-height: 1.4; padding: 0 12px; border-bottom: 1px solid var(--row-divider); vertical-align: middle; /* RecordCollection scopes the E7 table row to 52px; line-height pins the box so a short single-line cell cannot collapse the shared measure. */
 }
@@ -670,7 +670,7 @@ tr.grp td { padding: 0; }
 /* The Objective a group's Project/Process rolls up to. Quiet and small beside the bold title:
    it is context for the title, not a second title. */
 .gbar .gobjective { font-size: var(--font-size-label); font-weight: 500; color: var(--muted-foreground); }
-.gbar .gobjective a { color: var(--primary); }
+.gbar .gobjective a { color: var(--text-on-accent-tint); }
 .gbar .glabel { font-size: var(--font-size-body-lg); font-weight: 700; color: var(--brand-navy-text); }
 .gbar .gcount { font-size: var(--font-size-label); font-weight: 500; color: var(--muted-foreground); }
 .gbar .gsub {
@@ -709,7 +709,7 @@ tr.grp td { padding: 0; }
    keep their width and neither line has to break a word to fit a 390px phone. */
 .mgc-group-headings { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto; }
 .mgc-objective-hint { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted-foreground); font-size: var(--font-size-label); }
-.mgc-objective-hint a { color: var(--primary); }
+.mgc-objective-hint a { color: var(--text-on-accent-tint); }
 .mgc-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--font-size-body-lg); font-weight: 700; color: var(--brand-navy-text); }
 .mgc-count { font-size: var(--font-size-label); font-weight: 500; color: var(--muted-foreground); }
 .mgc-sub {
