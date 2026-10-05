@@ -16,6 +16,18 @@ describe('sample login build guard', () => {
     })).toThrow(/staging/i)
   })
 
+  it('accepts the Cloudflare Pages staging branch as the staging marker', () => {
+    expect(() => validateSampleLoginBuild({
+      command: 'build', sampleLoginEnabled: 'true', deploymentEnvironment: undefined, pagesBranch: 'staging', samplePassword: strongPassword,
+    })).not.toThrow()
+  })
+
+  it.each(['main', 'dev', 'fix/some-pr'])('rejects the sample login on the %s Pages branch', pagesBranch => {
+    expect(() => validateSampleLoginBuild({
+      command: 'build', sampleLoginEnabled: 'true', deploymentEnvironment: undefined, pagesBranch, samplePassword: strongPassword,
+    })).toThrow(/staging/i)
+  })
+
   it('keeps normal builds and Vite dev mode unchanged', () => {
     expect(() => validateSampleLoginBuild({
       command: 'build', sampleLoginEnabled: 'false', deploymentEnvironment: undefined, samplePassword: undefined,

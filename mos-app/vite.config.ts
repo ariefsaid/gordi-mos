@@ -71,6 +71,7 @@ function sampleLoginBuildGuard(): Plugin {
         command: config.command,
         sampleLoginEnabled: config.env.VITE_SAMPLE_ONE_CLICK_LOGIN,
         deploymentEnvironment: config.env.VITE_DEPLOYMENT_ENV,
+        pagesBranch: process.env.CF_PAGES_BRANCH,
         samplePassword: config.env.VITE_SAMPLE_LOGIN_PASSWORD,
       })
     },
@@ -109,7 +110,10 @@ function previewBuildIdentity(basePath: string): Plugin {
 export default defineConfig(({ mode }) => {
   const env = { ...loadEnv(mode, __dir, ''), ...process.env }
   const { basePath } = resolveBuildSettings(env)
-  const releaseSha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: __dir, encoding: 'utf8' }).trim()
+  let releaseSha = process.env.CF_PAGES_COMMIT_SHA ?? ''
+  if (!releaseSha) {
+    try { releaseSha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: __dir, encoding: 'utf8' }).trim() } catch { releaseSha = 'unknown' }
+  }
   return {
   define: { 'import.meta.env.VITE_RELEASE_SHA': JSON.stringify(releaseSha) },
   base: basePath,
