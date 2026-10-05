@@ -136,7 +136,7 @@ select throws_ok($$
   )
 $$, '42501', 'not authorized to edit this Café item stream',
   'ordinary members cannot use the extended settings save');
-select ok(not ops.can_manage_cafe_item_settings(),
+select ok(not ops.can_manage_cafe_item_settings('kitchen'),
   'adding factors did not widen the existing manager authority');
 
 select * from finish();
