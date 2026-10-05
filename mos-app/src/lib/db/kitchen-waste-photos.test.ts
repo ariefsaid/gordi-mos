@@ -5,7 +5,7 @@ vi.mock('@/lib/supabase', () => ({
 }))
 
 import { supabase } from '@/lib/supabase'
-import { isWastePhotoWindowExpired, WASTE_PHOTO_UPLOAD_WINDOW_MS, listCurrentPersonKitchenWasteDrafts } from './kitchen-waste-photos'
+import { isWastePhotoWindowExpired, WASTE_PHOTO_UPLOAD_WINDOW_MS, listCurrentPersonKitchenWasteDrafts, restartKitchenWasteDraft } from './kitchen-waste-photos'
 
 const schemaMock = vi.mocked(supabase.schema)
 const storageFromMock = vi.mocked(supabase.storage.from)
@@ -14,7 +14,7 @@ function stubTables(responses: Record<string, { data: unknown; error: unknown }>
   schemaMock.mockReturnValue({ from: vi.fn((table: string) => {
     const response = responses[table]!
     const builder: Record<string, unknown> = {}
-    for (const method of ['select', 'eq', 'in', 'order']) builder[method] = vi.fn(() => builder)
+    for (const method of ['select', 'eq', 'is', 'in', 'order']) builder[method] = vi.fn(() => builder)
     builder.then = (resolve: (value: typeof response) => unknown) => Promise.resolve(response).then(resolve)
     return builder
   }) } as never)
@@ -45,6 +45,10 @@ describe('listCurrentPersonKitchenWasteDrafts', () => {
       filters.push([column, value])
       return builder
     })
+    builder.is = vi.fn((column: string, value: unknown) => {
+      filters.push([column, value])
+      return builder
+    })
     builder.order = vi.fn(() => builder)
     builder.then = (resolve: (value: typeof response) => unknown) => Promise.resolve(response).then(resolve)
     const from = vi.fn((table: string) => {
@@ -68,6 +72,7 @@ describe('listCurrentPersonKitchenWasteDrafts', () => {
       ['activity', 'bar'],
       ['action', 'waste'],
       ['status', 'Draft'],
+      ['superseded_by', null],
     ])
   })
 
@@ -94,6 +99,7 @@ describe('listCurrentPersonKitchenWasteDrafts', () => {
       const builder: Record<string, unknown> = {}
       builder.select = vi.fn(() => builder)
       builder.eq = vi.fn(() => builder)
+      builder.is = vi.fn(() => builder)
       builder.in = vi.fn(() => builder)
       builder.order = vi.fn(() => builder)
       builder.then = (resolve: (value: typeof response) => unknown) => Promise.resolve(response).then(resolve)
@@ -163,4 +169,26 @@ describe('listCurrentPersonKitchenWasteDrafts', () => {
     })).resolves.toEqual([expect.objectContaining({ logId: 'draft-1', itemUnitId: 'unit-1', unitName: null, quantity: 2.5 })])
   })
 
+})
+
+describe('restartKitchenWasteDraft', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('uses the atomic restart RPC with only the original id and replacement date', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: [{ id: 'replacement', log_date: '2026-10-02' }], error: null })
+    schemaMock.mockReturnValue({ rpc } as never)
+    await expect(restartKitchenWasteDraft('original', '2026-10-03')).resolves.toEqual({ logId: 'replacement', logDate: '2026-10-02' })
+    expect(schemaMock).toHaveBeenCalledWith('ops')
+    expect(rpc).toHaveBeenCalledWith('restart_cafe_waste_draft', { p_log_id: 'original', p_log_date: '2026-10-03' })
+  })
+
+  it('propagates a restart failure without reporting a replacement', async () => {
+    schemaMock.mockReturnValue({ rpc: vi.fn().mockResolvedValue({ data: null, error: { message: 'Draft is ineligible' } }) } as never)
+    await expect(restartKitchenWasteDraft('original', '2026-10-02')).rejects.toThrow('Draft is ineligible')
+  })
+
+  it('rejects a response without a replacement', async () => {
+    schemaMock.mockReturnValue({ rpc: vi.fn().mockResolvedValue({ data: [], error: null }) } as never)
+    await expect(restartKitchenWasteDraft('original', '2026-10-02')).rejects.toThrow('replacement was not returned')
+  })
 })

@@ -16,6 +16,7 @@ import { insertKitchenLog, resolveKitchenBuId } from '@/lib/db/kitchen-logs'
 import {
   listCurrentPersonKitchenWasteDrafts,
   submitKitchenWasteLog,
+  restartKitchenWasteDraft,
   isWastePhotoWindowExpired,
   WASTE_PHOTO_UPLOAD_WINDOW_MINUTES,
 } from '@/lib/db/kitchen-waste-photos'
@@ -387,23 +388,11 @@ export function CafeWastePage() {
     draftRequests.current.add(item.id)
     patchEntry(item.id, { preparing: true, error: undefined })
     try {
-      const logId = await insertKitchenLog({
-        business_unit_id: businessUnitId,
-        log_date: logDate,
-        branch_id: stream.branch.id,
-        activity: stream.activity,
-        action: 'waste',
-        destination_branch_id: null,
-        wip_item_id: item.id,
-        item_unit_id: item.defaultUnit.id,
-        qty_porsi: toDefaultUnitQuantity(quantity, entry.unitFactor ?? 1),
-        entry_quantity: quantity,
-        entry_unit_factor: entry.unitFactor ?? 1,
-      })
+      const replacement = await restartKitchenWasteDraft(entry.logId, logDate)
       patchEntry(item.id, {
-        logId,
+        logId: replacement.logId,
         capturedUnitName: entry.capturedUnitName,
-        capturedLogDate: logDate,
+        capturedLogDate: replacement.logDate,
         preparing: false,
         photoReady: false,
         photoWindowExpired: false,
