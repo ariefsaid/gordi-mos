@@ -63,7 +63,7 @@
 .empty-suggestion:hover { border-color: var(--muted-foreground); }
 .empty-state--next-step .empty-state-icon {
   background: color-mix(in srgb, var(--primary) 12%, var(--secondary));
-  color: var(--primary);
+  color: var(--text-on-accent-tint);
 }
 .empty-state--awaiting .empty-state-icon {
   background: color-mix(in srgb, var(--warning) 10%, var(--secondary));

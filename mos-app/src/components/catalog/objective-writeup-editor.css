@@ -203,7 +203,7 @@
 }
 
 .objective-writeup__editor :is(.bn-ak-link, .bn-ak-anchor) {
-  color: var(--primary);
+  color: var(--text-on-accent-tint);
 }
 
 /* Slash menu rows and the block menu share the app's Select option sizing; the active row is a tint. */

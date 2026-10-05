@@ -32,7 +32,7 @@
 }
 
 .assistant-speaker {
-  font-size: var(--font-size-micro);
+  font-size: var(--font-size-overline);
   letter-spacing: 0.07em;
   font-weight: 700;
   text-transform: uppercase;
@@ -51,7 +51,7 @@
 .assistant-composer-hint {
   margin-top: 4px;
   text-align: right;
-  font-size: var(--font-size-micro);
+  font-size: var(--font-size-overline);
   color: var(--muted-foreground);
 }
 @media (pointer: coarse) {
