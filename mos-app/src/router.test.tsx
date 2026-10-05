@@ -144,9 +144,17 @@ describe('issue 1241: Café waste capture route', () => {
   })
 })
 
+describe('issue 1366: Café Count route', () => {
+  it('registers /cafe/count as a live dedicated route', () => {
+    const count = leafInThisTable('/cafe/count')
+    expect(count, '/cafe/count must be a declared route').toBeDefined()
+    expect(isRedirect(count!.route.element)).toBe(false)
+  })
+})
+
 describe('issue 1239: Café capture split routes', () => {
   it('keeps production and transfer as live pages and redirects the legacy log alias to production', () => {
-    for (const path of ['/cafe/production', '/cafe/transfer', '/cafe/waste']) {
+    for (const path of ['/cafe/production', '/cafe/transfer', '/cafe/waste', '/cafe/count']) {
       const leaf = leafInThisTable(path)
       expect(leaf, `${path} must be a live Café route`).toBeDefined()
       expect(leaf!.route.path).not.toBe('*')

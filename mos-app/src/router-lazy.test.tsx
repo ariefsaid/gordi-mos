@@ -40,6 +40,7 @@ import { KitchenPlanPage } from './pages/kitchen-plan-page'
 import { KitchenStockPage } from './pages/kitchen-stock-page'
 import { CafeItemSettingsPage } from './pages/cafe-item-settings-page'
 import { CafeWastePage } from './pages/cafe-waste-page'
+import { CafeCountPage } from './pages/cafe-count-page'
 import { KitchenReviewPage } from './pages/kitchen-review-page'
 import { KitchenPushesPage } from './pages/kitchen-pushes-page'
 import { CafeRootPage } from './pages/cafe-opening-page'
@@ -161,6 +162,7 @@ const WIRING: ReadonlyArray<readonly [path: string, component: unknown, provenan
   ['/cafe/production', KitchenLogPage, 'dev'],
   ['/cafe/transfer', KitchenLogPage, 'dev'],
   ['/cafe/waste', CafeWastePage, '1241'],
+  ['/cafe/count', CafeCountPage, '1366'],
   ['/cafe/plan', KitchenPlanPage, 'dev'],
   ['/cafe/stock', KitchenStockPage, 'dev'],
   ['/cafe/items', CafeItemSettingsPage, '1242'],

@@ -682,3 +682,23 @@ export function DispatchIcon() {
     </svg>
   )
 }
+
+// CountIcon — a clipboard and check, for the physical Count entry surface (distinct from Stock).
+export function CountIcon() {
+  return (
+    <svg
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="5" y="4" width="14" height="17" rx="2" />
+      <path d="M9 4.5h6M8 10h3M8 14h3m2-1 1.5 1.5L18 11" />
+    </svg>
+  )
+}

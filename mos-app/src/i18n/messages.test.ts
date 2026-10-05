@@ -113,6 +113,7 @@ describe('nav i18n (AC-409, FR-440) — every nav label through the catalog', ()
     // issue 455: the Café module's children — `nav.kitchen.*` retired with the wrong name.
     'nav.cafe',
     'nav.cafe.log',
+    'nav.cafe.count',
     'nav.cafe.plan',
     'nav.cafe.stock',
     'nav.cafe.review',
