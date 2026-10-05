@@ -20,7 +20,7 @@
 // rows. HomePage owns the ONE Signals read, as it owns every other read on this page — the
 // section is presentational (FR-V3-013: no second Signal loader).
 //
-// Home passes EVERY readable Signal, not only the FYI tail v4 passed. v4 split them because its
+// Home pages readable Signals at every attention tier, including the FYI tail v4 passed. v4 split them because its
 // attention-worthy Signals led the ranked stream as their own band; this line's region model has
 // three regions and none of them is Signals, so filtering to FYI here would drop Urgent and
 // Needs-attention Signals off Home altogether. `orderSignalsForFeed` (inside the rows) already
@@ -43,7 +43,7 @@ import { useDocumentTitle } from '@/shell/use-document-title'
 import { listTasks } from '@/lib/db/tasks'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import { loadFailedChecksForViewer } from '@/lib/db/home-attention-data'
-import { listReadableSignals, listAllTeams } from '@/lib/db/signals'
+import { listReadableSignals, SIGNALS_PAGE_SIZE, listAllTeams } from '@/lib/db/signals'
 import type { SignalRow } from '@/lib/db/signals.types'
 import { getBusinessUnits, getPeople, getRoles } from '@/lib/db/directory'
 import type { RoleScopeRow } from '@/lib/db/directory'
@@ -61,6 +61,7 @@ import { HomeHeadCounts, type HomeDayTally } from '@/components/home/home-day-he
 import { HomeDailyBrief } from '@/components/home/home-daily-brief'
 import { resolveHomeLayout, type HomeLayout } from '@/lib/home-layout'
 import { HomeCafeDoor } from '@/components/home/home-cafe-door'
+import { AMBIENT_CAP } from '@/components/signals/signal-feed-rows'
 import { SignalFeedSection } from '@/components/signals/signal-feed-section'
 import { HomeObjectivesDoor } from '@/components/home/home-objectives-door'
 import { CAFE_OPENING_ENABLED } from '@/lib/cafe-opening-enabled'
@@ -76,6 +77,7 @@ const MY_WORK_CAP = 7
 
 const NO_NAMES: ReadonlyMap<string, string> = new Map()
 const NO_TASKS: TaskListRow[] = []
+const NO_SIGNALS: SignalRow[] = []
 const NO_DIRECTORY: AttentionDirectory = {}
 const NO_ORG_ROLES: RoleScopeRow[] = []
 
@@ -235,32 +237,55 @@ export function HomePage() {
   // so a stale response from a superseded viewer can never win. Team names ride along in the SAME
   // load: they decorate the rows the load returns, so splitting them into a second effect would let
   // rows paint with a name the page could still fail to fetch.
-  const [signals, setSignals] = useState<SignalRow[]>([])
+  const [signalSnapshot, setSignalSnapshot] = useState<{
+    owner: ReadLease; rows: SignalRow[]; state: FetchState
+  }>(() => ({ owner: readLease, rows: NO_SIGNALS, state: 'loading' }))
+  const signals = signalSnapshot.owner === readLease ? signalSnapshot.rows : NO_SIGNALS
+  const signalsState = signalSnapshot.owner === readLease ? signalSnapshot.state : 'loading'
   const [teamNames, setTeamNames] = useState<ReadonlyMap<string, string>>(NO_NAMES)
-  const [signalsState, setSignalsState] = useState<FetchState>('loading')
+  const [signalsVisibleLimit, setSignalsVisibleLimit] = useState(AMBIENT_CAP)
+  const [signalsHasMore, setSignalsHasMore] = useState(false)
+  const [signalsLoadingMore, setSignalsLoadingMore] = useState(false)
+  const [signalsMoreError, setSignalsMoreError] = useState(false)
+  const signalsCursorRef = useRef<Pick<SignalRow, 'occurred_at' | 'id'> | null>(null)
   const signalsInFlightRef = useRef(false)
   const signalsTokenRef = useRef(0)
 
-  const loadSignals = useCallback(() => {
-    if (!personId || signalsInFlightRef.current) return
+  const fetchSignals = useCallback((more = false) => {
+    const ownsCurrentRead = () => readOwnerRef.current?.lease === readLease
+    if (!personId || !ownsCurrentRead() || (more && (signalsInFlightRef.current || !signalsCursorRef.current))) return
     signalsInFlightRef.current = true
     const token = ++signalsTokenRef.current
-    setSignalsState('loading')
-    Promise.all([listReadableSignals(), listAllTeams()])
+    setSignalsMoreError(false)
+    setSignalsLoadingMore(more)
+    if (!more) {
+      setSignalSnapshot({ owner: readLease, rows: NO_SIGNALS, state: 'loading' })
+      setSignalsVisibleLimit(AMBIENT_CAP); setSignalsHasMore(false)
+    }
+    Promise.all([listReadableSignals(more ? { before: signalsCursorRef.current! } : {}), listAllTeams()])
       .then(([rows, teams]) => {
-        if (!isMountedRef.current || signalsTokenRef.current !== token) return
-        setSignals(rows)
+        if (!isMountedRef.current || signalsTokenRef.current !== token || !ownsCurrentRead()) return
+        setSignalSnapshot(previous => ({ owner: readLease, state: 'ready',
+          rows: more && previous.owner === readLease ? [...new Map([...previous.rows, ...rows].map(row => [row.id, row])).values()] : rows }))
+        signalsCursorRef.current = rows.length === SIGNALS_PAGE_SIZE ? rows.at(-1)! : null
+        setSignalsHasMore(Boolean(signalsCursorRef.current))
+        if (more) setSignalsVisibleLimit(previous => previous + SIGNALS_PAGE_SIZE)
         setTeamNames(new Map(teams.map(team => [team.id, team.name])))
-        setSignalsState('ready')
       })
       .catch(() => {
-        if (!isMountedRef.current || signalsTokenRef.current !== token) return
-        setSignalsState('error')
+        if (!isMountedRef.current || signalsTokenRef.current !== token || !ownsCurrentRead()) return
+        if (more) setSignalsMoreError(true)
+        else setSignalSnapshot({ owner: readLease, rows: NO_SIGNALS, state: 'error' })
       })
       .finally(() => {
-        if (signalsTokenRef.current === token) signalsInFlightRef.current = false
+        if (signalsTokenRef.current === token && ownsCurrentRead()) { signalsInFlightRef.current = false; setSignalsLoadingMore(false) }
       })
-  }, [personId])
+  }, [personId, readLease])
+  const loadSignals = useCallback(() => fetchSignals(), [fetchSignals])
+  const loadMoreSignals = () => {
+    if (signalsVisibleLimit < signals.length) setSignalsVisibleLimit(signals.length)
+    else fetchSignals(true)
+  }
 
   useEffect(() => {
     signalsTokenRef.current += 1
@@ -545,6 +570,8 @@ export function HomePage() {
               loading={signalsState === 'loading'}
               error={signalsState === 'error'}
               onReload={loadSignals}
+              visibleLimit={signalsVisibleLimit} hasMore={signalsHasMore}
+              loadingMore={signalsLoadingMore} moreError={signalsMoreError} onLoadMore={loadMoreSignals}
             />
           </div>
         )

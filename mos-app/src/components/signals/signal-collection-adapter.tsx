@@ -4,7 +4,7 @@
 // descriptor (load / project / feed+table presentations / typed saved views / record-opening seam).
 import type { Attention, SignalCategory, SignalRow } from '@/lib/db/signals.types'
 import { SIGNAL_CATEGORIES } from '@/lib/db/signals.types'
-import { listReadableSignals, listAllTeams, orderSignalsForFeed } from '@/lib/db/signals'
+import { listReadableSignals, listAllTeams, orderSignalsForFeed, SIGNALS_PAGE_SIZE } from '@/lib/db/signals'
 import { getPeople } from '@/lib/db/directory'
 import type { OverlayEntry } from '@/shell/overlay-host'
 import {
@@ -190,6 +190,8 @@ export interface SignalCollectionContext {
   businessUnitIdsByTeamId?: ReadonlyMap<string, string>
   siteNamesByTeamId: ReadonlyMap<string, string>
   viewerId: string | null
+  searchTeamNamesById?: ReadonlyMap<string, string>
+  nextCursor?: Pick<SignalRow, 'occurred_at' | 'id'> | null
 }
 
 /** A typed projection group — never the old raw-row group shape. Null label = flat/uncategorised. */
@@ -322,6 +324,26 @@ function projectSignals(
     groups,
     totalRecords: data.records.length,
     visibleRecordsAreFiltered: isFiltered(query),
+  }
+}
+
+function signalServerFilters(query: SignalCollectionQuery, context: SignalCollectionContext) {
+  // The first word is a server prefilter. The shared matcher still owns full phrases,
+  // including phrases that cross the body/author/Team boundary.
+  const term = query.q.trim().toLowerCase().split(/\s+/)[0]
+  return {
+    includeRetracted: query.showRetracted || query.view === 'i-posted' || query.view === 'retracted',
+    retractedOnly: query.view === 'retracted',
+    ...(query.view === 'i-posted' ? { authorId: context.viewerId ?? '00000000-0000-0000-0000-000000000000' } : {}),
+    ...(query.view === 'needs-attention' ? { needsAttention: true } : {}),
+    ...(query.attention ? { attention: query.attention } : {}),
+    ...(query.category ? { category: query.category } : {}),
+    ...(query.teamId ? { teamId: query.teamId } : {}),
+    ...(term ? { search: {
+      term,
+      authorIds: [...context.authorNamesById].filter(([, name]) => name.toLowerCase().includes(term)).map(([id]) => id),
+      teamIds: [...(context.searchTeamNamesById ?? context.teamNamesById)].filter(([, name]) => name.toLowerCase().includes(term)).map(([id]) => id),
+    } } : {}),
   }
 }
 
@@ -469,35 +491,33 @@ export const signalCollectionDescriptor: RecordCollectionDescriptor<
       render: (props) => <SignalTablePresentation {...props} />,
     },
   },
-  loadKeys: [],
+  loadKeys: ['view', 'q', 'attention', 'category', 'teamId', 'showRetracted'],
   async load({ query, viewerId, readLease }): Promise<CollectionData<SignalRow, SignalCollectionContext>> {
-    void query // load fetches every readable Signal; the typed query is applied in `project`.
-    const [signals, people, teams] = await Promise.all([
-      readSignalFragment(
-        readLease,
-        'mos.signals:select(*):retracted_at=any:order=occurred_at.desc',
-        () => listReadableSignals({ includeRetracted: true }),
-      ),
+    const [people, teams] = await Promise.all([
       readLease ? getPeople(readLease) : getPeople(),
-      readSignalFragment(
-        readLease,
+      readSignalFragment(readLease,
         'shared.teams:select(id,name,business_unit_id,site_id):archived_at=null:order=name.asc',
-        () => listAllTeams(),
-      ),
+        () => listAllTeams()),
     ])
-    // Every Signal is All Teams (no owning Team at capture) — a Team can only appear on a
-    // historical team-audience row. Scope the map to Teams that actually own a loaded Signal, so
-    // the filter UI (signals-archive-page.tsx) can render it only when something can match it.
-    const teamIdsInUse = new Set(signals.map((s) => s.owning_team_id).filter((id): id is string => Boolean(id)))
+    const context: SignalCollectionContext = {
+      authorNamesById: new Map(people.map(p => [p.id, p.full_name])),
+      teamNamesById: new Map(teams.map(team => [team.id, team.name])),
+      searchTeamNamesById: new Map(teams.map(team => [team.id, team.name])),
+      businessUnitIdsByTeamId: new Map(teams.map(team => [team.id, team.business_unit_id])),
+      siteNamesByTeamId: new Map(), viewerId,
+    }
+    const signals = await readSignalFragment(readLease,
+      `mos.signals:page:${JSON.stringify(signalServerFilters(query, context))}`,
+      () => listReadableSignals(signalServerFilters(query, context)))
+    const teamIds = new Set(signals.map(signal => signal.owning_team_id))
+    return { records: signals, context: { ...context, teamNamesById: new Map([...context.teamNamesById].filter(([id]) => teamIds.has(id))), nextCursor: signals.length === SIGNALS_PAGE_SIZE ? signals.at(-1)! : null } }
+  },
+  async loadMore({ query, data }) {
+    if (!data.context.nextCursor) return data
+    const rows = await listReadableSignals({ ...signalServerFilters(query, data.context), before: data.context.nextCursor })
     return {
-      records: signals,
-      context: {
-        authorNamesById: new Map(people.map((person) => [person.id, person.full_name])),
-        teamNamesById: new Map(teams.filter((team) => teamIdsInUse.has(team.id)).map((team) => [team.id, team.name])),
-        businessUnitIdsByTeamId: new Map(teams.map((team) => [team.id, team.business_unit_id])),
-        siteNamesByTeamId: new Map(),
-        viewerId,
-      },
+      records: [...new Map([...data.records, ...rows].map(row => [row.id, row])).values()],
+      context: { ...data.context, teamNamesById: new Map([...(data.context.searchTeamNamesById ?? data.context.teamNamesById)].filter(([id]) => [...data.records, ...rows].some(row => row.owning_team_id === id))), nextCursor: rows.length === SIGNALS_PAGE_SIZE ? rows.at(-1)! : null },
     }
   },
   project: (data, query, presentation) => projectSignals(data, query, presentation),

@@ -14,7 +14,7 @@
 // never by the derived label string).
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
+import { act, render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { createElement, type ReactNode } from 'react'
 import type { AuthState } from '@/auth/context'
@@ -29,6 +29,7 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
   return {
     ...actual,
     listSubmittedKitchenLogs: vi.fn(),
+    hasSubmittedKitchenProduction: vi.fn().mockResolvedValue(false),
     fetchPlanMap: vi.fn(),
     listStreamPairs: vi.fn(),
     approveKitchenLog: vi.fn(),
@@ -40,6 +41,7 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
 })
 import {
   listSubmittedKitchenLogs,
+  hasSubmittedKitchenProduction,
   fetchPlanMap,
   listStreamPairs,
   approveKitchenLog,
@@ -179,6 +181,7 @@ beforeEach(() => {
   resetCafeLocations()
   mockUseAuth.mockReturnValue(viewer(['ops_lead']))
   mockList.mockResolvedValue([])
+  vi.mocked(hasSubmittedKitchenProduction).mockResolvedValue(false)
   mockWastePhotos.mockResolvedValue([])
   mockPlan.mockResolvedValue({})
   // #236: the review page resolves the viewer's own stream (filter default, FR-041) and
@@ -1338,4 +1341,80 @@ describe('issue 222: a queued row whose item left its stream\'s list stays revie
     expect(card).toHaveTextContent('Nasi Goreng')
     expect(within(card).getByRole('button', { name: /approve/i })).toBeEnabled()
   })
+})
+
+
+describe('KitchenReviewPage — server paging', () => {
+  const page = (start: number, length: number) => Array.from({ length }, (_, offset) => ({
+    ...PROD_LOG, id: `paged-log-${start + offset}`, wip_item_name: `Paged item ${start + offset}`,
+  }))
+
+  it('appends first, next and last pages from the fetched boundaries', async () => {
+    const first = page(1, 50)
+    mockList.mockResolvedValueOnce(first).mockResolvedValueOnce(page(51, 50)).mockResolvedValueOnce(page(101, 1))
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Paged item 1')
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    await screen.findByText('Paged item 100')
+    expect(mockList).toHaveBeenLastCalledWith(expect.any(String), { before: expect.objectContaining({ id: 'paged-log-50' }) })
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    await screen.findByText('Paged item 101')
+    expect(screen.getByText('101 loaded · end of list')).toBeInTheDocument()
+    expect(screen.getAllByText('Paged item 1')).toHaveLength(1)
+    expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument()
+  })
+
+  it('keeps loaded rows on a next-page failure and retries the same cursor', async () => {
+    const first = page(1, 50)
+    mockList.mockResolvedValueOnce(first).mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce(page(51, 1))
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Paged item 1')
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    await screen.findByText(/couldn’t load more/i)
+    expect(screen.getByText('Paged item 1')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    await screen.findByText('Paged item 51')
+    expect(mockList.mock.calls[1]).toEqual(mockList.mock.calls[2])
+  })
+
+  it('keeps transfers gated when the pending production is outside the loaded window', async () => {
+    mockList.mockResolvedValue([XFER_LOG])
+    vi.mocked(hasSubmittedKitchenProduction).mockResolvedValue(true)
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Cold Brew')
+    expect(screen.getByText(/finish production approvals first/i)).toBeInTheDocument()
+    expect(vi.mocked(hasSubmittedKitchenProduction)).toHaveBeenCalledWith(expect.any(String), BRANCH_ID, 'kitchen')
+  })
+})
+
+
+it('Review paging keeps the fetched cursor after approving the boundary row', async () => {
+  const first = Array.from({ length: 50 }, (_, index) => ({ ...PROD_LOG, id: `boundary-${index}`, wip_item_name: `Boundary item ${index}`, qty_porsi: 8 }))
+  mockList.mockResolvedValueOnce(first).mockResolvedValueOnce([{ ...PROD_LOG, id: 'older-row', wip_item_name: 'Older item' }])
+  mockPlan.mockResolvedValue({ w1: { produce: 8 } })
+  mockApprove.mockResolvedValue({ batch_id: 'PR-example' })
+  render(<KitchenReviewPage />, { wrapper })
+  await screen.findByText('Boundary item 49')
+  expect(screen.getByRole('button', { name: /approve loaded on-plan/i })).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: /approve boundary item 49/i }))
+  await waitFor(() => expect(screen.queryByText('Boundary item 49')).not.toBeInTheDocument())
+  fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+  await screen.findByText('Older item')
+  expect(mockList).toHaveBeenLastCalledWith(expect.any(String), { before: expect.objectContaining({ id: 'boundary-49' }) })
+})
+
+it('Review stream changes discard a slow continuation and start the selected server window', async () => {
+  const first = Array.from({ length: 50 }, (_, index) => ({ ...PROD_LOG, id: `old-${index}`, wip_item_name: `Old item ${index}` }))
+  let resolveOlder!: (rows: ReviewLogRow[]) => void
+  mockList.mockResolvedValueOnce(first).mockImplementationOnce(() => new Promise(resolve => { resolveOlder = resolve })).mockResolvedValue([])
+  render(<KitchenReviewPage />, { wrapper })
+  await screen.findByText('Old item 1')
+  fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+  await waitFor(() => expect(mockList).toHaveBeenCalledTimes(2))
+  chooseStream('Radiant · Bar')
+  await screen.findByText(/nothing to review/i)
+  expect(mockList).toHaveBeenLastCalledWith(expect.any(String), { stream: { branchId: RADIANT_ID, activity: 'bar' } })
+  await act(async () => { resolveOlder([{ ...PROD_LOG, id: 'stale', wip_item_name: 'Stale continuation' }]) })
+  expect(screen.queryByText('Stale continuation')).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument()
 })

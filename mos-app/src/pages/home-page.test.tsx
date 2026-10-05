@@ -829,7 +829,7 @@ describe('DIV-G5: shared task loading/error states never become an empty all-cle
       await Promise.resolve()
       await Promise.resolve()
     })
-    await waitFor(() => expect(screen.queryAllByRole('status')).toHaveLength(0))
+    await waitFor(() => expect(screen.queryAllByRole('status').filter(node => !node.closest('.list-paging'))).toHaveLength(0))
   })
 })
 
@@ -990,4 +990,49 @@ describe('R5 independent Home regions', () => {
     expect(mockLoadHomeCafeDoor).toHaveBeenCalledTimes(2)
     expect(mockListTasks).toHaveBeenCalledTimes(taskReads)
   })
+})
+
+
+describe('Home Signals — server paging', () => {
+  it('reveals the loaded window, then loads older Signals without losing the first rows', async () => {
+    const first = Array.from({ length: 50 }, (_, index) => signalRow({ id: `paged-${index}`, body: `Home signal ${index}` }))
+    mockListSignals.mockResolvedValueOnce(first).mockResolvedValueOnce([signalRow({ id: 'older', body: 'Older Home signal' })])
+    await renderHome()
+    await screen.findByText('Home signal 0')
+    expect(screen.queryByText('Home signal 49')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    await screen.findByText('Home signal 49')
+    expect(mockListSignals).toHaveBeenCalledTimes(1)
+    await userEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    await screen.findByText('Older Home signal')
+    expect(mockListSignals).toHaveBeenLastCalledWith({ before: expect.objectContaining({ id: 'paged-49' }) })
+    expect(screen.getByText('Home signal 0')).toBeInTheDocument()
+    expect(screen.getByText('51 loaded · end of list')).toBeInTheDocument()
+  })
+})
+
+
+it('Home paging discards a slow continuation when the same person changes read scope', async () => {
+  if (financeViewer.status !== 'authenticated') throw new Error('authenticated fixture required')
+  const scope = (generation: number): ReadScope => ({ generation, authUserId: 'test-auth', viewerId: financeViewer.viewer.person.id, orgId: `scope-${generation}`, authorityKey: 'member' })
+  const firstScope = scope(901)
+  const nextScope = scope(902)
+  const authForScope = (readScope: ReadScope): AuthState => ({ ...financeViewer, readScope })
+  const first = Array.from({ length: 50 }, (_, index) => signalRow({ id: `old-signal-${index}`, body: `Old scope signal ${index}` }))
+  let resolveMore!: (rows: SignalRow[]) => void
+  mockListSignals.mockResolvedValueOnce(first).mockImplementationOnce(() => new Promise(resolve => { resolveMore = resolve }))
+    .mockResolvedValueOnce([signalRow({ id: 'new-scope-signal', body: 'New scope signal' })])
+  publishReadScope(firstScope)
+  const mounted = await renderHome(authForScope(firstScope))
+  await screen.findByText('Old scope signal 0')
+  await userEvent.click(screen.getByRole('button', { name: 'Load more' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Load more' }))
+  publishReadScope(nextScope)
+  mockUseAuth.mockReturnValue(authForScope(nextScope))
+  mounted.rerender(createElement(HomePage))
+  await screen.findByText('New scope signal')
+  await act(async () => { resolveMore([signalRow({ id: 'stale', body: 'Stale Home continuation' })]) })
+  expect(screen.queryByText('Stale Home continuation')).not.toBeInTheDocument()
+  expect(screen.queryByText('Old scope signal 0')).not.toBeInTheDocument()
+  expect(screen.getByText('1 loaded · end of list')).toBeInTheDocument()
 })

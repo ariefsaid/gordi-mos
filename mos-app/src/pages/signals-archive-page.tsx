@@ -1,3 +1,4 @@
+import { ListPaging } from '@/components/ui/list-paging'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
@@ -470,7 +471,7 @@ function SignalsArchiveCollection() {
               }}
               controls={signalControls}
               empty={{
-                title: query.q.trim()
+                title: context?.nextCursor ? t('common.paging.emptyLoaded') : query.q.trim()
                   ? t('signals.archive.empty', { query: query.q })
                   : t('signals.archive.emptyUnfiltered'),
                 // AC-030 (#770): the true-empty door exists only for a viewer who can post. It is a
@@ -484,11 +485,18 @@ function SignalsArchiveCollection() {
                   ),
                 }),
               }}
-              filteredEmpty={{ items: t('collection.items.signals'), clear: clearFilters }}
+              filteredEmpty={{ items: t('collection.items.signals'), clear: clearFilters,
+                ...(context?.nextCursor ? { title: t('common.paging.emptyLoaded'), copy: t('common.paging.continue') } : {}) }}
               error={{ message: t('signals.archive.error'), retry: () => controller.retry() }}
               loadingLabel={t('signals.archive.loading')}
               onOpenRecord={onOpenRecord}
             />
+            {context && controller.state.status !== 'loading' && controller.state.status !== 'error' ? (
+              <ListPaging count={controller.state.data?.records.length ?? 0}
+                hasMore={Boolean(context.nextCursor)} loading={controller.state.loadingMore}
+                error={Boolean(controller.state.moreError)} onLoadMore={() => { void controller.loadMore() }} />
+            ) : null}
+
           </div>
 
           {/* One physical host grammar for Signal records. The collection owns query state;
