@@ -5,6 +5,7 @@ import { areCafeCountDecimalsEqual, calculateCafeCountVariance } from '@/lib/caf
 import { confirmCafeCountLine, listCafeCountLines, type CafeCountLine } from '@/lib/db/cafe-count'
 import { wibToday } from '@/lib/db/cafe-opening'
 import { streamKey, streamLabel } from '@/lib/kitchen-action-label'
+import { useIsOffline } from '@/shell/use-is-offline'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { ALL_STREAMS } from './cafe-stream-bar'
 import './cafe-count-review-queue.css'
@@ -27,19 +28,8 @@ export function CafeCountReviewQueue({
   const [loadError, setLoadError] = useState(false)
   const [actionError, setActionError] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
-  const [online, setOnline] = useState(navigator.onLine)
+  const online = !useIsOffline()
   const [retry, setRetry] = useState(0)
-
-  useEffect(() => {
-    const onOnline = () => setOnline(true)
-    const onOffline = () => setOnline(false)
-    window.addEventListener('online', onOnline)
-    window.addEventListener('offline', onOffline)
-    return () => {
-      window.removeEventListener('online', onOnline)
-      window.removeEventListener('offline', onOffline)
-    }
-  }, [])
 
   useEffect(() => {
     let active = true

@@ -17,6 +17,7 @@ import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { useCafeStream } from '@/lib/use-cafe-stream'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
+import { useIsOffline } from '@/shell/use-is-offline'
 import { formatWeekdayDayMonth } from '@/lib/format/date'
 import './cafe-count-page.css'
 
@@ -66,19 +67,8 @@ export function CafeCountPage() {
   const [entries, setEntries] = useState<Record<string, CountEntry>>({})
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState(false)
-  const [isOnline, setIsOnline] = useState(navigator.onLine)
+  const isOnline = !useIsOffline()
   const requestGeneration = useRef(0)
-
-  useEffect(() => {
-    const onOnline = () => setIsOnline(true)
-    const onOffline = () => setIsOnline(false)
-    window.addEventListener('online', onOnline)
-    window.addEventListener('offline', onOffline)
-    return () => {
-      window.removeEventListener('online', onOnline)
-      window.removeEventListener('offline', onOffline)
-    }
-  }, [])
 
   useEffect(() => {
     let active = true
