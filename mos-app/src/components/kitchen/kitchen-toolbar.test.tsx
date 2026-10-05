@@ -40,7 +40,7 @@ describe('KitchenToolbar — kind filter', () => {
       <KitchenToolbar
         search=""
         onSearchChange={() => {}}
-        kinds={['All', 'WIP', 'RAW']}
+        kinds={['All', 'WIP', 'RAW', 'Unclassified']}
         kind="All"
         kindId="cafe-log-kind"
         onKindChange={onKindChange}
@@ -52,8 +52,36 @@ describe('KitchenToolbar — kind filter', () => {
     const listbox = screen.getByRole('listbox', { name: /kind/i })
     expect(listbox).toContainElement(screen.getByRole('option', { name: 'WIP' }))
     expect(listbox).toContainElement(screen.getByRole('option', { name: 'RAW' }))
+    expect(listbox).toContainElement(screen.getByRole('option', { name: 'Not set' }))
     fireEvent.click(screen.getByRole('option', { name: 'RAW' }))
     expect(onKindChange).toHaveBeenCalledWith('RAW')
+  })
+})
+
+describe('KitchenToolbar — status and unit filters', () => {
+  it('renders shared Active and Needs unit filters with their selected values', () => {
+    const onActiveChange = vi.fn()
+    const onNeedsUnitChange = vi.fn()
+    render(
+      <KitchenToolbar
+        search=""
+        onSearchChange={() => {}}
+        activeStates={['All', 'Active', 'Inactive']}
+        active="All"
+        onActiveChange={onActiveChange}
+        needsUnitStates={['All', 'Needs unit']}
+        needsUnit="All"
+        onNeedsUnitChange={onNeedsUnitChange}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('combobox', { name: 'Active status' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Inactive' }))
+    expect(onActiveChange).toHaveBeenCalledWith('Inactive')
+
+    fireEvent.click(screen.getByRole('combobox', { name: 'Unit setup' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Needs unit' }))
+    expect(onNeedsUnitChange).toHaveBeenCalledWith('Needs unit')
   })
 })
 
