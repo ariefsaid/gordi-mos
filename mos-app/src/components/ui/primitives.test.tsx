@@ -101,6 +101,16 @@ describe('TextInput (AC-145)', () => {
     expect(container.querySelector('.mk-textinput')!.classList.contains('mk-textinput--error')).toBe(true)
     expect(screen.getByLabelText('X')).toHaveAttribute('aria-invalid', 'true')
   })
+
+  it('fullWidth gives the control box the full available width', () => {
+    const { container } = render(<TextInput label="Title" fullWidth />)
+    const root = container.querySelector('.mk-textinput--full')!
+    expect(root.querySelector('.mk-textinput__box')).toBeInTheDocument()
+
+    const textInputCss = readFileSync(resolve(process.cwd(), 'src/components/ui/TextInput.css'), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+    expect(textInputCss).toMatch(/\.mk-textinput--full\s*>\s*\.mk-textinput__box\s*\{[^}]*width:\s*100%/)
+  })
 })
 
 describe('Checkbox (AC-145)', () => {
