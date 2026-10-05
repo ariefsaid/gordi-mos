@@ -550,7 +550,7 @@ function DesktopTable({
           </th>
           {/* No dedicated Status column: archived rows are signalled inline on the name
               (line-through + 0.6 opacity). */}
-          <th scope="col" className="w-10" />
+          <th scope="col" className="w-10"><span className="sr-only">{t('admin.people.col.actions')}</span></th>
         </tr>
       </thead>
       <tbody>

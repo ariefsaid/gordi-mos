@@ -17,6 +17,9 @@ import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
 import { formatWibDateTime } from '@/lib/wib-time'
 import { reportError } from '@/lib/telemetry'
+import { copyCanonicalLink } from '@/lib/copy-canonical-link'
+import { Toast } from '@/components/admin/toast'
+import { useToast } from '@/components/admin/use-toast'
 import { Button, type ButtonVariant } from '@/components/ui/button'
 import { LoadingShell, EmptyState, ErrorState } from '@/components/ui/state-kit'
 import { RecordField } from './record-field'
@@ -107,10 +110,12 @@ function RecordOverflowMenu({
   actions,
   onOpenPage,
   canonicalHref,
+  showToast,
 }: {
   actions: readonly RecordAction[]
   onOpenPage?: () => void
   canonicalHref?: string
+  showToast: (message: string) => void
 }): ReactNode {
   const t = useT()
   const [open, setOpen] = useState(false)
@@ -146,10 +151,14 @@ function RecordOverflowMenu({
   }
 
   const copyLink = () => {
-    if (!canonicalHref || typeof navigator === 'undefined' || !navigator.clipboard) return
-    void navigator.clipboard.writeText(new URL(canonicalHref, window.location.origin).href).catch((error) => {
-      reportError(error, { source: 'record-viewer.copy-link' })
-    })
+    if (!canonicalHref) return
+    void copyCanonicalLink(canonicalHref).then(
+      () => showToast(t('record.copyLinkSucceeded')),
+      (error) => {
+        reportError(error, { source: 'record-viewer.copy-link' })
+        showToast(t('record.copyLinkFailed'))
+      },
+    )
     setOpen(false)
   }
 
@@ -266,6 +275,7 @@ export function RecordViewer({
   fieldCommitsFrozen = false,
 }: RecordViewerProps) {
   const t = useT()
+  const { toast, showToast, clearToast } = useToast()
   const titleId = useId()
   const Heading = headingLevel === 1 ? 'h1' : 'h2'
   const taskAnatomy = adapter.kind === 'task' && adapter.headerFields != null
@@ -327,6 +337,7 @@ export function RecordViewer({
   })()
 
   return (
+    <>
     <section
       className={`record-viewer record-viewer--${mode}`}
       data-record-kind={adapter.kind}
@@ -390,6 +401,7 @@ export function RecordViewer({
                   actions={adapter.actions.filter((action) => allowedActionIds.has(action.id) && headerOverflowActionIds.has(action.id))}
                   onOpenPage={onOpenPage}
                   canonicalHref={canonicalHref}
+                  showToast={showToast}
                 />
               )}
             </div>
@@ -410,6 +422,7 @@ export function RecordViewer({
               actions={adapter.actions.filter((action) => allowedActionIds.has(action.id) && headerOverflowActionIds.has(action.id))}
               onOpenPage={onOpenPage}
               canonicalHref={canonicalHref}
+              showToast={showToast}
             />
           )}
         </header>
@@ -441,6 +454,8 @@ export function RecordViewer({
         </div>
       ) : body}
     </section>
+    {(headerOverflowActionIds.size > 0 || onOpenPage) && canonicalHref ? <Toast toast={toast} onDismiss={clearToast} /> : null}
+    </>
   )
 }
 

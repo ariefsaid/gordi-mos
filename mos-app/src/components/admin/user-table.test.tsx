@@ -635,9 +635,9 @@ describe('AC-040: the desktop roster carries Team', () => {
     renderTable([ACTIVE_ADMIN, TEAMED_MEMBER], { teams: [BAR_TEAM, OTHER_TEAM] })
     const headers = screen.getAllByRole('columnheader')
     expect(headers.map((th) => th.textContent?.trim()).filter(Boolean)).toEqual([
-      'Person', 'Team', 'Login', 'Access', 'Position',
+      'Person', 'Team', 'Login', 'Access', 'Position', 'Actions',
     ])
-    // The last header is the unlabelled ⋯ column, and every row carries that door.
+    // The last header names the ⋯ column for screen readers, and every row carries that door.
     expect(headers).toHaveLength(6)
     expect(screen.getAllByRole('button', { name: /more actions for/i })).toHaveLength(2)
   })

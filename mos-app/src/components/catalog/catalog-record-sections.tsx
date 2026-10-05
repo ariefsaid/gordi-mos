@@ -433,13 +433,14 @@ export type WriteUpSectionProps = {
   canEdit: boolean
   archived: boolean
   onDirtyChange: (dirty: boolean) => void
+  onSaved?: () => void
 }
 
 /**
  * Collapsed to a short excerpt (or one ghost prompt); opening it loads the editor. The editor
  * module is imported only then, so a record that never opens its write-up never pays for it.
  */
-export function WriteUpSection({ objectiveId, canEdit, archived, onDirtyChange }: WriteUpSectionProps) {
+export function WriteUpSection({ objectiveId, canEdit, archived, onDirtyChange, onSaved }: WriteUpSectionProps) {
   const t = useT()
   const [open, setOpen] = useState(false)
   const [dirty, setDirty] = useState(false)
@@ -465,6 +466,7 @@ export function WriteUpSection({ objectiveId, canEdit, archived, onDirtyChange }
               canEdit={canEdit}
               archived={archived}
               onDirtyChange={(next) => { setDirty(next); onDirtyChange(next) }}
+              onSaved={onSaved}
             />
           </Suspense>
           <div className="rp-more">

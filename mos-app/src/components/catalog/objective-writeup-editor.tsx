@@ -89,9 +89,10 @@ export interface ObjectiveWriteupEditorProps {
   canEdit: boolean
   archived: boolean
   onDirtyChange?: (dirty: boolean) => void
+  onSaved?: () => void
 }
 
-export function ObjectiveWriteupEditor({ objectiveId, canEdit, archived, onDirtyChange }: ObjectiveWriteupEditorProps) {
+export function ObjectiveWriteupEditor({ objectiveId, canEdit, archived, onDirtyChange, onSaved }: ObjectiveWriteupEditorProps) {
   const t = useT()
   const [loaded, setLoaded] = useState<{ writeUp: WriteUpBlocks | null; updatedAt: string } | null>(null)
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
@@ -121,6 +122,7 @@ export function ObjectiveWriteupEditor({ objectiveId, canEdit, archived, onDirty
         initial={loaded}
         editable={canEdit && !archived}
         onDirtyChange={onDirtyChange}
+        onSaved={onSaved}
         onReload={() => setReloadNonce((n) => n + 1)}
       />
     </ErrorBoundary>
@@ -132,12 +134,14 @@ function WriteUpSurface({
   initial,
   editable,
   onDirtyChange,
+  onSaved,
   onReload,
 }: {
   objectiveId: string
   initial: { writeUp: WriteUpBlocks | null; updatedAt: string }
   editable: boolean
   onDirtyChange?: (dirty: boolean) => void
+  onSaved?: () => void
   onReload: () => void
 }) {
   const t = useT()
@@ -170,6 +174,8 @@ function WriteUpSurface({
   const saveRef = useRef<HTMLButtonElement>(null)
   const dirtyCallbackRef = useRef(onDirtyChange)
   dirtyCallbackRef.current = onDirtyChange
+  const savedCallbackRef = useRef(onSaved)
+  savedCallbackRef.current = onSaved
 
   const setDirty = useCallback((dirty: boolean) => {
     if (dirtyRef.current === dirty) return
@@ -188,15 +194,18 @@ function WriteUpSurface({
     inFlightSnapshotRef.current = sanitizeWriteUp(snapshot)
     dirtyRef.current = false
     let next: SaveState = 'saved'
+    let saved = false
     try {
       updatedAtRef.current = await saveWriteUp(objectiveId, snapshot, updatedAtRef.current)
       savedSnapshotRef.current = sanitizeWriteUp(snapshot)
+      saved = true
     } catch (error) {
       if (error instanceof WriteUpConflictError) { conflictRef.current = true; next = 'conflict' }
       else next = error instanceof WriteUpTooLargeError ? 'tooLarge' : 'failed'
     }
     inFlightRef.current = false
     inFlightSnapshotRef.current = null
+    if (saved) savedCallbackRef.current?.()
     const dirty = JSON.stringify(sanitizeWriteUp(editor.document)) !== JSON.stringify(savedSnapshotRef.current)
     dirtyRef.current = dirty
     if (next !== 'saved' && !dirty && next !== 'conflict') next = 'saved'
@@ -267,7 +276,14 @@ function WriteUpSurface({
           comments={false}
           className={editable ? 'objective-writeup__editor objective-writeup__editor--menus' : 'objective-writeup__editor'}
         >
-          {editable ? <FormattingToolbarController formattingToolbar={WriteUpToolbar} /> : null}
+          {editable ? (
+            <FormattingToolbarController
+              formattingToolbar={WriteUpToolbar}
+              // A bottom placement keeps the active first line clear instead of floating the
+              // toolbar over it. Floating UI flips it back above when the lower viewport edge is tight.
+              floatingUIOptions={{ useFloatingOptions: { placement: 'bottom-start' } }}
+            />
+          ) : null}
           {editable ? <SideMenuController sideMenu={WriteUpSideMenu} /> : null}
           {editable ? (
             <SuggestionMenuController
