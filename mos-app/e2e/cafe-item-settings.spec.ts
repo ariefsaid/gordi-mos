@@ -284,45 +284,51 @@ test.describe('Café item settings', () => {
 
   test('preserves item-level dirty, saving, retry and saved feedback', async ({ page }, testInfo) => {
     const mocks = await mockSettingsApi(page, { saveDelayMs: 800 })
-    await page.setViewportSize({ width: 390, height: 960 })
-    await openItems(page)
+    await loginAs(page, BAR_MEMBER.email, BAR_MEMBER.password)
 
-    const itemCard = page.getByRole('article', { name: 'Herbal tea · ERP reference' })
-    const nameInput = itemCard.getByRole('textbox', { name: 'MOS name', exact: true })
-    const save = itemCard.getByRole('button', { name: 'Save settings for Herbal tea', exact: true })
-    await expect(itemCard.getByRole('combobox', { name: 'Kind for Herbal tea' })).toHaveText('Unclassified')
-    await expect(itemCard.getByRole('checkbox', { name: 'Active for Herbal tea' })).toHaveAttribute('aria-checked', 'false')
-    await nameInput.fill('   ')
-    await expect(nameInput).toHaveAttribute('aria-invalid', 'true')
-    await expect(itemCard.getByRole('alert')).toHaveText('Enter a MOS name.')
-    await expect(save).toBeDisabled()
-    await nameInput.fill('Herbal tea for the bar')
-    await itemCard.getByRole('combobox', { name: 'Kind for Herbal tea' }).click()
-    await page.getByRole('option', { name: 'Raw material', exact: true }).click()
-    await itemCard.getByRole('checkbox', { name: 'Active for Herbal tea' }).click()
-    await expect(save).toBeEnabled()
-    await capture(page, testInfo, 'item-settings-dirty')
+    for (const width of [390, 1440] as const) {
+      await page.setViewportSize({ width, height: 960 })
+      await page.goto('cafe/items')
+      await expect(page.getByRole('heading', { name: 'Café items', exact: true })).toBeVisible()
+      const itemCard = width === 390
+        ? page.getByRole('article', { name: 'Herbal tea · ERP reference' })
+        : page.getByRole('row').filter({ hasText: 'Herbal tea · ERP reference' })
+      const nameInput = itemCard.getByRole('textbox', { name: 'MOS name', exact: true })
+      const save = itemCard.getByRole('button', { name: 'Save settings for Herbal tea', exact: true })
+      await expect(itemCard.getByRole('combobox', { name: 'Kind for Herbal tea' })).toHaveText('Unclassified')
+      await expect(itemCard.getByRole('checkbox', { name: 'Active for Herbal tea' })).toHaveAttribute('aria-checked', 'false')
+      await nameInput.fill('   ')
+      await expect(nameInput).toHaveAttribute('aria-invalid', 'true')
+      await expect(itemCard.getByRole('alert')).toHaveText('Enter a MOS name.')
+      await expect(save).toBeDisabled()
+      await nameInput.fill('Herbal tea for the bar')
+      await itemCard.getByRole('combobox', { name: 'Kind for Herbal tea' }).click()
+      await page.getByRole('option', { name: 'Raw material', exact: true }).click()
+      await itemCard.getByRole('checkbox', { name: 'Active for Herbal tea' }).click()
+      await expect(save).toBeEnabled()
+      await capture(page, testInfo, `item-settings-dirty-${width}`)
 
-    mocks.saveFailure = true
-    await save.click()
-    await expect(save).toHaveText('Saving…')
-    await capture(page, testInfo, 'item-settings-saving')
-    await expect(itemCard.getByRole('alert')).toContainText("Couldn't save this item. Your changes are still here.")
-    await capture(page, testInfo, 'item-settings-save-error')
-    mocks.saveFailure = false
-    await itemCard.getByRole('button', { name: 'Try again', exact: true }).click()
-    await expect(itemCard.getByText('Saved', { exact: true })).toBeVisible()
-    await expect.poll(() => mocks.lastSave).toMatchObject({
-      p_mos_name: 'Herbal tea for the bar',
-      p_kind: 'RAW',
-      p_is_active: true,
-      p_default_item_unit_id: '00000000-0000-0000-0000-00000000a201',
-      p_shown_item_unit_ids: [
-        '00000000-0000-0000-0000-00000000a201',
-        '00000000-0000-0000-0000-00000000a202',
-      ],
-    })
-    await capture(page, testInfo, 'item-settings-saved')
+      mocks.saveFailure = true
+      await save.click()
+      await expect(save).toHaveText('Saving…')
+      await capture(page, testInfo, `item-settings-saving-${width}`)
+      await expect(itemCard.getByRole('alert')).toContainText("Couldn't save this item. Your changes are still here.")
+      await capture(page, testInfo, `item-settings-save-error-${width}`)
+      mocks.saveFailure = false
+      await itemCard.getByRole('button', { name: 'Try again', exact: true }).click()
+      await expect(itemCard.getByText('Saved', { exact: true })).toBeVisible()
+      await expect.poll(() => mocks.lastSave).toMatchObject({
+        p_mos_name: 'Herbal tea for the bar',
+        p_kind: 'RAW',
+        p_is_active: true,
+        p_default_item_unit_id: '00000000-0000-0000-0000-00000000a201',
+        p_shown_item_unit_ids: [
+          '00000000-0000-0000-0000-00000000a201',
+          '00000000-0000-0000-0000-00000000a202',
+        ],
+      })
+      await capture(page, testInfo, `item-settings-saved-${width}`)
+    }
   })
 
   test('shows read-only, empty, loading and recoverable error states', async ({ page }, testInfo) => {

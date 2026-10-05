@@ -885,6 +885,8 @@ export const messages = {
     // the review/approve queue) ──────────────────────────────────────────────────────
     'kitchen.plan.caption': 'Café plan — set planned quantity per item',
     'kitchen.plan.col.item': 'Item',
+    'kitchen.plan.item.inactive': 'Inactive — existing plan only',
+    'kitchen.plan.item.notWip': 'Not WIP — existing plan only',
     'kitchen.plan.item.otherLogUnits': 'Also shown for logging: ${units}',
     'kitchen.plan.col.plan': 'Plan',
     'kitchen.plan.empty.copy': 'Ask an ops lead to add items.',
@@ -2861,6 +2863,8 @@ export const messages = {
     'kitchen.log.toolbarAria': 'Cakupan dan filter log Kafe',
     'kitchen.plan.caption': 'Rencana Kafe — atur jumlah rencana per item',
     'kitchen.plan.col.item': 'Item',
+    'kitchen.plan.item.inactive': 'Tidak aktif — hanya rencana yang sudah ada',
+    'kitchen.plan.item.notWip': 'Bukan WIP — hanya rencana yang sudah ada',
     'kitchen.plan.item.otherLogUnits': 'Pilihan satuan log lainnya: ${units}',
     'kitchen.plan.col.plan': 'Rencana',
     'kitchen.plan.empty.copy': 'Minta ops lead menambahkan item.',

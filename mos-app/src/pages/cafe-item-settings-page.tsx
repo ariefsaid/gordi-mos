@@ -8,6 +8,7 @@ import { Select } from '@/components/ui/select'
 import { TextInput } from '@/components/ui/text-input'
 import { useT } from '@/i18n/use-t'
 import type { CafeItemSetting, CafeItemSettingUnit } from '@/lib/db/cafe-item-settings'
+import { isCafeItemDraftKind, type CafeItemDraftKind } from './cafe-item-settings-kind'
 import { streamLabel } from '@/lib/kitchen-action-label'
 import {
   canManageCafeItemSettings,
@@ -26,7 +27,7 @@ import './cafe-item-settings-page.css'
 
 type ItemDraft = {
   mosName: string
-  kind: '' | 'RAW' | 'WIP'
+  kind: CafeItemDraftKind
   isActive: boolean
   defaultUnitId: string
   shownUnitIds: string[]
@@ -505,7 +506,10 @@ function ItemRow({
             aria-label={t('cafe.items.kindFor', { item: item.mosName })}
             value={draft.kind}
             disabled={saving}
-            onChange={event => onDraftChange(current => ({ ...current, kind: event.target.value as ItemDraft['kind'] }))}
+            onChange={event => {
+              const value = event.target.value
+              if (isCafeItemDraftKind(value)) onDraftChange(current => ({ ...current, kind: value }))
+            }}
           >
             <option value="">{t('cafe.items.unclassified')}</option>
             <option value="RAW">{t('cafe.items.kindRaw')}</option>
@@ -642,7 +646,10 @@ function ItemCard({
             aria-label={t('cafe.items.kindFor', { item: item.mosName })}
             value={draft.kind}
             disabled={saving}
-            onChange={event => onDraftChange(current => ({ ...current, kind: event.target.value as ItemDraft['kind'] }))}
+            onChange={event => {
+              const value = event.target.value
+              if (isCafeItemDraftKind(value)) onDraftChange(current => ({ ...current, kind: value }))
+            }}
           >
             <option value="">{t('cafe.items.unclassified')}</option>
             <option value="RAW">{t('cafe.items.kindRaw')}</option>
