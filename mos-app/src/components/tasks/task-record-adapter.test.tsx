@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import type { TaskDetail } from '@/lib/db/tasks'
-import type { TaskListRow } from '@/lib/db/tasks.types'
+import type { TaskRow } from '@/lib/db/tasks.types'
 import type { PersonOption, BusinessUnitOption } from '@/lib/db/directory'
 import { TASK_TITLE_MAX_LENGTH } from './task-formatters'
 import { I18nProvider } from '@/i18n/I18nProvider'
@@ -27,7 +27,7 @@ const businessUnits: BusinessUnitOption[] = [
   { id: 'bu-hq', name: 'HQ Ops' },
 ]
 
-function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
+function makeTask(overrides: Partial<TaskRow> = {}): TaskRow {
   return {
     id: 'task-1', org_id: 'org', title: 'Restock oat milk', business_unit_id: 'bu-retail', status: 'Open',
     responsible_person_id: PIC, accountable_person_id: SUPERVISOR,
@@ -40,7 +40,7 @@ function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
 }
 
 function makeChecklist(
-  task: TaskListRow,
+  task: TaskRow,
   completed: readonly boolean[],
   labels = completed.map((_, index) => `Checklist item ${index + 1}`),
 ): TaskDetail['checklist'] {
@@ -56,7 +56,7 @@ function makeChecklist(
   }))
 }
 
-function makeDetail(task: TaskListRow, checklist = makeChecklist(task, [false], ['Check fridge stock'])): TaskDetail {
+function makeDetail(task: TaskRow, checklist = makeChecklist(task, [false], ['Check fridge stock'])): TaskDetail {
   return {
     task,
     checklist,

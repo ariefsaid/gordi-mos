@@ -7,6 +7,7 @@ import { useI18n } from '@/i18n/I18nProvider'
 import { Button } from '@/components/ui/button'
 import { Picker, type PickerOption } from '@/components/ui/picker'
 import { TextInput } from '@/components/ui/text-input'
+import { useFocusRestore } from '@/components/ui/use-focus-restore'
 import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { RecordDisclosure, RecordSection } from '@/components/record/record-page-layout'
 import { RecordMenu } from '@/components/record/record-menu'
@@ -186,12 +187,14 @@ export type TasksSectionProps = {
   actionInHeader?: boolean
   /** The Get started region owns the action while there are no tasks. */
   hidden: boolean
+  /** Objective progress includes Tasks under linked Projects and Processes. */
+  objectiveRollup?: boolean
   onAdd: () => void
   onOpenRelated: OpenRelated
   today: string
 }
 
-export function TasksSection({ title, tasks, rollup, people, canAdd, actionInHeader = false, hidden, onAdd, onOpenRelated, today }: TasksSectionProps) {
+export function TasksSection({ title, tasks, rollup, people, canAdd, actionInHeader = false, hidden, objectiveRollup = false, onAdd, onOpenRelated, today }: TasksSectionProps) {
   const t = useT()
   const { locale } = useI18n()
   const [all, setAll] = useState(false)
@@ -207,7 +210,7 @@ export function TasksSection({ title, tasks, rollup, people, canAdd, actionInHea
     <RecordSection
       id="tasks"
       title={title}
-      count={total > 0 ? t('catalog.record.rollup', { done: String(done), total: String(total) }) : undefined}
+      count={total > 0 ? t(objectiveRollup ? 'catalog.objectives.taskProgress' : 'catalog.record.rollup', { done: String(done), total: String(total) }) : undefined}
       action={canAdd && !actionInHeader ? { label: t('catalog.record.addTask'), onClick: onAdd } : undefined}
     >
       <ul className="rp-rows">
@@ -265,6 +268,7 @@ function StepForm({ workLineId, position, onSaved, onCancel }: StepFormProps) {
   const [state, setState] = useState<'idle' | 'saving' | 'failed'>('idle')
   const [peopleFailed, setPeopleFailed] = useState(false)
   const [peopleReload, setPeopleReload] = useState(0)
+  const formRef = useFocusRestore<HTMLFormElement>(state === 'saving', state === 'failed', { includeFormControls: true })
   useEffect(() => {
     let live = true
     setPeopleFailed(false)
@@ -291,6 +295,7 @@ function StepForm({ workLineId, position, onSaved, onCancel }: StepFormProps) {
   }
   return (
     <form
+      ref={formRef}
       noValidate
       className="catalog-step-form form-grid"
       aria-label={t('catalog.steps.add')}

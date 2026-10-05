@@ -5,9 +5,8 @@
   display: flex; flex-direction: column; gap: 12px; padding: 16px;
 }
 
-/* The composer's mention popover anchors to the textarea, so the wrapper is the positioning
-   context for the absolutely-positioned SignalMentionPicker (replaces an inline style — house
-   pattern is a class in a co-located stylesheet). */
+/* Radix renders the mention picker in a portal anchored to the textarea; this wrapper keeps the
+   textarea's local layout and focus styles together. */
 .signal-composer-mention-anchor {
   position: relative;
 }
@@ -21,6 +20,29 @@
 .signal-composer-mention-anchor textarea:focus-visible {
   outline: 2px solid var(--ring); outline-offset: 1px; border-radius: var(--radius-lg);
 }
+.signal-composer-targets {
+  display: flex; align-items: flex-start; gap: 8px; flex-wrap: wrap; min-width: 0;
+}
+.signal-composer-targets-label {
+  flex: 0 0 auto; padding-top: 8px; color: var(--muted-foreground);
+  font-size: var(--font-size-label); font-weight: 600; line-height: 1.4;
+}
+.signal-composer-targets-list {
+  display: flex; flex: 1 1 auto; flex-wrap: wrap; gap: 6px; min-width: 0;
+  margin: 0; padding: 0; list-style: none;
+}
+.signal-composer-target {
+  display: inline-flex; align-items: center; gap: 4px; max-width: 100%; min-width: 0;
+  padding: 0 4px 0 9px; border: 1px solid var(--border); border-radius: var(--radius-pill);
+  background: var(--secondary); color: var(--foreground); font-size: var(--font-size-label);
+}
+.signal-composer-target-name { min-width: 0; overflow-wrap: anywhere; }
+.signal-composer-target-remove {
+  display: grid; flex: 0 0 auto; place-items: center; width: 32px; height: 32px; padding: 0;
+  border: 0; border-radius: 50%; background: transparent; color: var(--muted-foreground); cursor: pointer;
+}
+.signal-composer-target-remove:hover { background: var(--surface-tertiary); color: var(--foreground); }
+.signal-composer-target-remove:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
 
 .signal-composer-row { display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
 .signal-composer-row > * { flex: 1; min-width: 180px; }
@@ -164,6 +186,9 @@
   }
   .signal-composer-context { align-items: stretch; }
   .signal-composer-context > * { min-height: 44px; }
+  .signal-composer-targets-label { padding-top: 12px; }
+  .signal-composer-target { min-height: 44px; }
+  .signal-composer-target-remove { width: 44px; height: 44px; }
   .signal-composer-foot {
     position: sticky; bottom: 0; z-index: 2;
     /* margin-top: auto claims all leftover flex space so the footer sits at the true bottom

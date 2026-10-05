@@ -16,6 +16,7 @@ vi.mock('@/lib/db/directory', () => ({ getPeople: vi.fn(), getBusinessUnits: vi.
 import { listReadableSignals, listAllTeams } from '@/lib/db/signals'
 import { getPeople } from '@/lib/db/directory'
 import type { SignalRow } from '@/lib/db/signals.types'
+import { createRecordCollectionController } from '@/lib/record-collection/engine'
 import type { CollectionData } from '@/lib/record-collection/types'
 import {
   signalCollectionDescriptor,
@@ -55,6 +56,10 @@ function data(records: readonly SignalRow[]): CollectionData<SignalRow, SignalCo
   return { records, context: CTX }
 }
 
+async function flushCollectionLoad() {
+  await new Promise<void>((resolve) => setTimeout(resolve, 0))
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   mockListReadableSignals.mockResolvedValue([row()])
@@ -74,6 +79,25 @@ describe('signalCollectionDescriptor — the one Signal loader/projector (FR-V3-
     expect(loaded.context.authorNamesById.get('p-author-a')).toBe('Author One')
     expect(loaded.context.teamNamesById.get('team-hq')).toBe('HQ Operations')
     expect(loaded.context.viewerId).toBe('p-me')
+  })
+
+  it('AC-002: local Signal search changes reuse the loaded collection data', async () => {
+    const controller = createRecordCollectionController(signalCollectionDescriptor, {
+      query: query(),
+      presentation: 'table',
+      viewerId: 'p-me',
+      accessRoles: [],
+    })
+    await flushCollectionLoad()
+
+    controller.setQuery(query({ q: 'freezer' }))
+    controller.setQuery(query({ q: 'alarm' }))
+    await flushCollectionLoad()
+
+    expect(controller.state.projection?.visibleRecords.map((signal) => signal.id)).toEqual(['signal-1'])
+    expect(mockListReadableSignals).toHaveBeenCalledTimes(1)
+    expect(mockGetPeople).toHaveBeenCalledTimes(1)
+    expect(mockListAllTeams).toHaveBeenCalledTimes(1)
   })
 
   it('getId returns the Signal id; getAccess is full read (no bulk actions)', () => {

@@ -8,6 +8,7 @@ import { Select } from '@/components/ui/select'
 import { TextInput } from '@/components/ui/text-input'
 import { useT } from '@/i18n/use-t'
 import type { CafeItemSetting, CafeItemSettingUnit } from '@/lib/db/cafe-item-settings'
+import { isCafeItemDraftKind, type CafeItemDraftKind } from './cafe-item-settings-kind'
 import { streamLabel } from '@/lib/kitchen-action-label'
 import {
   canManageCafeItemSettings,
@@ -26,7 +27,7 @@ import './cafe-item-settings-page.css'
 
 type ItemDraft = {
   mosName: string
-  kind: '' | 'RAW' | 'WIP'
+  kind: CafeItemDraftKind
   isActive: boolean
   defaultUnitId: string
   shownUnitIds: string[]
@@ -85,6 +86,7 @@ function CafeItemSettingsPageForViewer() {
   } = cafeStream
 
   const [items, setItems] = useState<CafeItemSetting[]>([])
+  const needsUnitCount = items.filter(item => item.units.length > 0 && !hasDefault(item)).length
   const [drafts, setDrafts] = useState<Record<string, ItemDraft>>({})
   const [readState, setReadState] = useState<ReadState>('loading')
   const [catalogReady, setCatalogReady] = useState(false)
@@ -372,6 +374,11 @@ function CafeItemSettingsPageForViewer() {
       {readState === 'ready' && stream && items.length > 0 && (
         <p className="cafe-items__read-only">{t('cafe.items.inheritedName')}</p>
       )}
+      {readState === 'ready' && needsUnitCount > 0 && (
+        <p className="cafe-items__setup-note" role="note">
+          {t('cafe.items.needsSetupCount', { count: String(needsUnitCount) })}
+        </p>
+      )}
       {readState === 'ready' && stream && items.length === 0 && (
         <EmptyState
           variant="awaiting"
@@ -505,7 +512,10 @@ function ItemRow({
             aria-label={t('cafe.items.kindFor', { item: item.mosName })}
             value={draft.kind}
             disabled={saving}
-            onChange={event => onDraftChange(current => ({ ...current, kind: event.target.value as ItemDraft['kind'] }))}
+            onChange={event => {
+              const value = event.target.value
+              if (isCafeItemDraftKind(value)) onDraftChange(current => ({ ...current, kind: value }))
+            }}
           >
             <option value="">{t('cafe.items.unclassified')}</option>
             <option value="RAW">{t('cafe.items.kindRaw')}</option>
@@ -549,7 +559,7 @@ function ItemRow({
         ) : (
           <span className="cafe-items__default-value">{defaultUnitLabel(item, t)}</span>
         )}
-        {unsetDefault && <span className="cafe-items__setup-note">{t('cafe.items.needsSetup')}</span>}
+        {unsetDefault && <span className="cafe-items__setup-note">{t('cafe.items.needsUnit')}</span>}
       </td>
       <td data-label={t('cafe.items.shownUnits')}>
         {item.units.length === 0 ? (
@@ -642,7 +652,10 @@ function ItemCard({
             aria-label={t('cafe.items.kindFor', { item: item.mosName })}
             value={draft.kind}
             disabled={saving}
-            onChange={event => onDraftChange(current => ({ ...current, kind: event.target.value as ItemDraft['kind'] }))}
+            onChange={event => {
+              const value = event.target.value
+              if (isCafeItemDraftKind(value)) onDraftChange(current => ({ ...current, kind: value }))
+            }}
           >
             <option value="">{t('cafe.items.unclassified')}</option>
             <option value="RAW">{t('cafe.items.kindRaw')}</option>
@@ -695,7 +708,7 @@ function ItemCard({
             <span className="cafe-items__default-value">{defaultUnitLabel(item, t)}</span>
           </>
         )}
-        {unsetDefault && <span className="cafe-items__setup-note">{t('cafe.items.needsSetup')}</span>}
+        {unsetDefault && <span className="cafe-items__setup-note">{t('cafe.items.needsUnit')}</span>}
       </div>
       <div className="cafe-items__card-field">
         <span className="cafe-items__field-label">{t('cafe.items.shownUnits')}</span>

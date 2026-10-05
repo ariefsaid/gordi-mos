@@ -107,7 +107,7 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
   draftRef.current = draft
 
   // The control disables while saving; a failed save hands focus back to it with the draft.
-  const editRootRef = useFocusRestore<HTMLDivElement>(status === 'saving', status === 'error')
+  const editRootRef = useFocusRestore<HTMLDivElement>(status === 'saving', status === 'error', { includeFormControls: true })
 
   const editButtonRef = useRef<HTMLButtonElement | null>(null)
   // When an edit session ends via the keyboard (Enter/Escape), focus returns to the value
@@ -172,10 +172,8 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
       setEditing(false)
     } catch {
       // STAY in edit mode and surface the error. For a text-like control the draft is PRESERVED
-      // so the user retries the same edit (FieldErrorRetryContract). For an option control
-      // re-picking IS the retry, so revert the visible selection to the saved baseline (matching
-      // the tenant's optimistic rollback) rather than leaving the failed choice selected.
-      if (OPTION_CONTROLS.has(spec.control)) setDraft(toInputValue(saved))
+      // so the user retries the same edit (FieldErrorRetryContract). The attempted option also
+      // stays visible and field-local while the tenant has rolled its displayed value back.
       setStatus('error')
     }
   }
@@ -344,6 +342,7 @@ export function RecordField({ spec, onCommit, onCancel, onDirtyChange, commitsFr
               required={spec.required}
               onChange={(next) => {
                 setDraft(next)
+                reportDirty(next)
                 void commit(next, pickedByEnterRef.current)
               }}
               onOpenChange={(open, reason) => {

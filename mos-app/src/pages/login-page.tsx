@@ -4,6 +4,7 @@ import { getGoogleProviderEnabled, supabase } from '@/lib/supabase'
 import { AuthShell, AuthCard, Spinner } from '@/auth/auth-shell'
 import { safeReturnTarget } from '@/auth/return-target'
 import { appUrl } from '@/config/app-build-settings'
+import { isValidEmail } from '@/auth/is-valid-email'
 import { useT } from '@/i18n/use-t'
 import { DemoLogin } from './demo-login'
 import { demoLoginMode, isSampleSession } from './demo-personas'
@@ -36,11 +37,6 @@ function mapAuthError(error: unknown): string {
     return ERR_CREDENTIAL
   }
   return ERR_CREDENTIAL
-}
-
-// Simple RFC-5322-inspired email check (same pattern used by most browsers)
-function isValidEmail(value: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
 }
 
 export function LoginPage() {
@@ -154,9 +150,9 @@ export function LoginPage() {
   }
 
   // fix-2: validate email client-side before any auth call
-  function validateEmail(): boolean {
+  function validateEmail(message = ERR_EMAIL_INVALID): boolean {
     if (!email.trim() || !isValidEmail(email)) {
-      setEmailError(ERR_EMAIL_INVALID)
+      setEmailError(message)
       return false
     }
     setEmailError('')
@@ -211,19 +207,19 @@ export function LoginPage() {
 
   async function handleForgotPassword() {
     setError('')
-    if (!validateEmail()) return
+    if (!validateEmail(t('auth.recovery.emailInvalid'))) return
     setLoading('reset')
     try {
       // redirectTo ensures the recovery link lands on /recovery so the PASSWORD_RECOVERY
       // event is handled while the router is at the correct path (audit L1 fix).
       const redirectTo = new URL(appUrl('/recovery'), window.location.origin).href
-      const { error: sendError } = await supabase.auth.resetPasswordForEmail(email, { redirectTo })
+      const { error: sendError } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo })
       // Same reasoning as the magic-link path above: the outcome must not vary with `sendError`,
       // because a failed send implies the address exists. Console only, never the UI.
       if (sendError) console.warn('[auth] password-reset send did not go through', sendError)
       setMode('reset-confirm')
     } catch {
-      setError(ERR_NETWORK)
+      setMode('reset-confirm')
     } finally {
       setLoading(null)
     }

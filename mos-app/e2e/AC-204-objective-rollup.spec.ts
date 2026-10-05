@@ -48,7 +48,8 @@ test.describe('AC-204: Objective roll-up and drill', () => {
     // Count roll-up only — no target, no percentage, no measure (OD-WAY-32) — and the one real
     // child's name, inline in the row's Work cell (named, not counted).
     const { done, total } = AC204.counts.all
-    await expect(row.getByTestId('catalog-progress')).toHaveText(`${done} / ${total} done`)
+    // #1294 requires Objective roll-ups to name Tasks as the completion unit without changing the count.
+    await expect(row.getByTestId('catalog-progress')).toHaveText(`${done} / ${total} Tasks done`)
     await expect(row).not.toContainText('%')
     await expect(row.getByRole('cell', { name: `Projects & Processes: ${AC204.launch.name}`, exact: true })).toBeVisible()
     await expect(row).toContainText(AC204.launch.name)
@@ -61,7 +62,7 @@ test.describe('AC-204: Objective roll-up and drill', () => {
     const work = page.getByRole('region', { name: 'Projects & Processes', exact: true })
     const tasks = page.getByRole('region', { name: 'Tasks', exact: true })
     // The Objective total belongs to Tasks; Projects & Processes keeps each child's own progress.
-    await expect(tasks).toContainText(`${done} of ${total} done`)
+    await expect(tasks).toContainText(`${done} / ${total} Tasks done`)
     const child = work.getByRole('link', { name: AC204.launch.name, exact: true })
     await expect(child).toHaveAttribute('href', href(`/work/projects/${AC204.launch.id}`))
     await child.click()

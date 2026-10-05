@@ -262,12 +262,20 @@ describe('access boundary', () => {
       it.each([
         ['a Sales member', ['member']],
         ['a finance viewer', ['finance']],
+        ['a manager', ['manager']],
         ['an admin', ['admin']],
       ])('%s lands on / with no panel', (_who, roles) => {
         setViewer(roles)
         renderRealChain('/money')
         expect(screen.getByTestId('landing')).toHaveTextContent('/')
         expect(screen.queryByTestId('empty-state'), 'a gated area named itself').not.toBeInTheDocument()
+      })
+
+      it('AC-004/005: an admitted manager at the declared /dashboard alias follows its current gated landing', () => {
+        setViewer(['manager'])
+        renderRealChain('/dashboard')
+        expect(screen.getByTestId('landing')).toHaveTextContent('/')
+        expect(screen.queryByTestId('empty-state'), 'the alias became a permission denial').not.toBeInTheDocument()
       })
 
       it('/money/detail forwards too — the gate covers the subtree', () => {

@@ -38,6 +38,7 @@ vi.mock('@/lib/db/kitchen-waste-photos', async importOriginal => {
   const actual = await importOriginal<typeof import('@/lib/db/kitchen-waste-photos')>()
   return {
     ...actual,
+    listCurrentPersonKitchenWasteDrafts: vi.fn(),
     submitKitchenWasteLog: vi.fn(),
     uploadKitchenWastePhoto: vi.fn(),
   }
@@ -47,7 +48,12 @@ vi.mock('@/lib/db/cafe-opening', () => ({ wibToday: () => '2026-10-02' }))
 import { useAuth } from '@/auth/use-auth'
 import { listCafeItemSettings } from '@/lib/db/cafe-item-settings'
 import { insertKitchenLog, resolveKitchenBuId } from '@/lib/db/kitchen-logs'
-import { submitKitchenWasteLog, uploadKitchenWastePhoto } from '@/lib/db/kitchen-waste-photos'
+import {
+  listCurrentPersonKitchenWasteDrafts,
+  submitKitchenWasteLog,
+  uploadKitchenWastePhoto,
+} from '@/lib/db/kitchen-waste-photos'
+import type { KitchenWasteDraft } from '@/lib/db/kitchen-waste-photos'
 import type { CafeItemSetting } from '@/lib/db/cafe-item-settings'
 import { CafeWastePage } from './cafe-waste-page'
 
@@ -57,6 +63,7 @@ const mockInsertKitchenLog = vi.mocked(insertKitchenLog)
 const mockResolveKitchenBuId = vi.mocked(resolveKitchenBuId)
 const mockSubmitWaste = vi.mocked(submitKitchenWasteLog)
 const mockUploadPhoto = vi.mocked(uploadKitchenWastePhoto)
+const mockListWasteDrafts = vi.mocked(listCurrentPersonKitchenWasteDrafts)
 const NativeURL = globalThis.URL
 
 const VIEWER: AuthState = {
@@ -122,6 +129,20 @@ function image(name: string) {
   return new File(['realistic-image-bytes'], name, { type: 'image/jpeg' })
 }
 
+function wasteDraft(overrides: Partial<KitchenWasteDraft> = {}): KitchenWasteDraft {
+  return {
+    logId: 'old-waste-draft',
+    itemId: 'wip-1',
+    itemUnitId: 'unit-tray',
+    unitName: 'tray',
+    quantity: 2.5,
+    logDate: '2026-10-01',
+    createdAt: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+    photos: [],
+    ...overrides,
+  }
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   cafeStreamMock.produces = true
@@ -131,6 +152,7 @@ beforeEach(() => {
   mockResolveKitchenBuId.mockResolvedValue('bu-kitchen')
   let draft = 0
   mockInsertKitchenLog.mockImplementation(async () => `waste-${++draft}`)
+  mockListWasteDrafts.mockResolvedValue([])
   mockSubmitWaste.mockResolvedValue()
   mockUploadPhoto.mockImplementation(async logId => ({
     logId,
@@ -223,6 +245,112 @@ describe('CafeWastePage', () => {
     expect(screen.getByRole('spinbutton', { name: 'Waste quantity for Oat milk' })).toBeInTheDocument()
     expect(screen.getByText('litre')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Rumah Rames · Bar' })).toBeInTheDocument()
+  })
+
+  it('resumes a photo-backed draft explicitly with its captured facts and can submit it after the photo window', async () => {
+    const photo = {
+      logId: 'old-waste-draft',
+      path: 'org-1/old-waste-draft/photo.jpg',
+      url: 'https://storage.test/old-waste-draft/photo.jpg',
+      name: 'waste.jpg',
+    }
+    mockListWasteDrafts.mockResolvedValue([
+      wasteDraft({ photos: [photo] }),
+      wasteDraft({ logId: 'another-waste-draft', quantity: 8.75, unitName: 'cup', itemUnitId: 'unit-cup' }),
+    ])
+    renderPage()
+
+    const resumeButton = await screen.findByRole('button', { name: /resume oat latte · 2.5 tray/i })
+    expect(mockListWasteDrafts).toHaveBeenCalledWith({
+      orgId: 'org-1', personId: 'person-1', branchId: 'branch-1', activity: 'bar',
+    })
+    expect(screen.getAllByRole('button', { name: /resume oat latte/i })).toHaveLength(2)
+    expect((screen.getByRole('spinbutton', { name: 'Waste quantity for Oat Latte' }) as HTMLInputElement).value).toBe('')
+    expect(screen.queryByRole('img', { name: /photo 1 preview/i })).not.toBeInTheDocument()
+    fireEvent.click(resumeButton)
+
+    const quantity = screen.getByRole('spinbutton', { name: 'Waste quantity for Oat Latte' }) as HTMLInputElement
+    const unit = screen.getByRole('combobox', { name: 'Waste unit for Oat Latte' })
+    expect(quantity).toHaveValue(2.5)
+    expect(quantity).toBeDisabled()
+    expect(unit).toHaveTextContent('tray')
+    expect(unit).toBeDisabled()
+    expect(screen.getByRole('img', { name: /photo 1 preview/i })).toHaveAttribute('src', photo.url)
+    expect(screen.getByRole('button', { name: /resume oat latte · 8.75 cup/i })).toBeDisabled()
+
+    const submit = screen.getByRole('button', { name: 'Submit waste' })
+    expect(submit).toBeEnabled()
+    fireEvent.click(submit)
+    await waitFor(() => expect(mockSubmitWaste).toHaveBeenCalledWith('old-waste-draft'))
+  })
+
+  it('keeps a prior-day draft resumable with its original date and submits its existing row', async () => {
+    const photo = {
+      logId: 'prior-day-waste-draft',
+      path: 'org-1/prior-day-waste-draft/photo.jpg',
+      url: 'https://storage.test/prior-day-waste-draft/photo.jpg',
+      name: 'waste.jpg',
+    }
+    const draft = Object.assign(wasteDraft({ logId: 'prior-day-waste-draft', photos: [photo] }), {
+      logDate: '2026-10-01',
+    })
+    mockListWasteDrafts.mockResolvedValue([draft])
+    renderPage()
+
+    const resumeButton = await screen.findByRole('button', { name: /resume oat latte · 2.5 tray · 1 oct 2026/i })
+    expect(mockListWasteDrafts).toHaveBeenCalledWith({
+      orgId: 'org-1', personId: 'person-1', branchId: 'branch-1', activity: 'bar',
+    })
+    fireEvent.click(resumeButton)
+    expect(screen.getByText(/captured on 1 oct 2026/i)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Submit waste' }))
+    await waitFor(() => expect(mockSubmitWaste).toHaveBeenCalledWith('prior-day-waste-draft'))
+    expect(mockInsertKitchenLog).not.toHaveBeenCalled()
+  })
+
+  it('requires an explicit replacement for an expired photo-less draft and preserves its captured values and other rows', async () => {
+    mockListWasteDrafts.mockResolvedValue([wasteDraft()])
+    renderPage()
+
+    fireEvent.change(await screen.findByRole('spinbutton', { name: 'Waste quantity for Oat milk' }), { target: { value: '4' } })
+    fireEvent.click(await screen.findByRole('button', { name: /resume oat latte · 2.5 tray/i }))
+
+    expect(await screen.findByText(/draft has no photo.*cannot be submitted/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Start new waste entry' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Submit waste' })).toBeDisabled()
+    expect(mockInsertKitchenLog).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start new waste entry' }))
+    await waitFor(() => expect(mockInsertKitchenLog).toHaveBeenCalledTimes(1))
+    expect(mockInsertKitchenLog).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'waste', wip_item_id: 'wip-1', item_unit_id: 'unit-tray', qty_porsi: 2.5,
+    }))
+    expect(screen.getByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })).toBeDisabled()
+    expect(screen.getByRole('spinbutton', { name: 'Waste quantity for Oat milk' })).toHaveValue(4)
+    expect(await screen.findByLabelText(/take or choose photos/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Submit waste' })).toBeDisabled()
+  })
+
+  it('offers the explicit restart when an upload reports that the existing draft window expired', async () => {
+    mockUploadPhoto.mockRejectedValueOnce(new Error('WASTE_PHOTO_WINDOW_EXPIRED'))
+    renderPage()
+
+    fireEvent.change(await screen.findByRole('spinbutton', { name: 'Waste quantity for Oat Latte' }), { target: { value: '3' } })
+    fireEvent.click(screen.getAllByRole('button', { name: 'Add photo' })[0]!)
+    await waitFor(() => expect(mockInsertKitchenLog).toHaveBeenCalledTimes(1))
+    fireEvent.change(await screen.findByLabelText(/take or choose photos/i), { target: { files: [image('late.jpg')] } })
+    fireEvent.click(screen.getByRole('button', { name: 'Upload photos' }))
+
+    expect(await screen.findByRole('button', { name: 'Start new waste entry' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Submit waste' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Start new waste entry' }))
+    await waitFor(() => expect(mockInsertKitchenLog).toHaveBeenCalledTimes(2))
+    expect(mockInsertKitchenLog).toHaveBeenLastCalledWith(expect.objectContaining({
+      action: 'waste', wip_item_id: 'wip-1', item_unit_id: 'unit-cup', qty_porsi: 3,
+    }))
+    expect(mockUploadPhoto).toHaveBeenCalledWith('waste-1', expect.any(File))
+    expect(mockSubmitWaste).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Submit waste' })).toBeDisabled()
   })
 
   it('keeps the missing-item route beside the item controls on a long capture list', async () => {

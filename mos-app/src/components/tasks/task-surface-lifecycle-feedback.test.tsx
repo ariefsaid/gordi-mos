@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { AuthContext } from '@/auth/context'
 import type { AuthState } from '@/auth/context'
 import type { PeopleRow, RolesRow } from '@/lib/database.types'
-import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
+import type { TaskRow, TaskStatus } from '@/lib/db/tasks.types'
 
 vi.mock('../../lib/db/tasks', () => ({
   getTask: vi.fn(),
@@ -77,7 +77,7 @@ const auth: AuthState = {
   signOut: async () => {},
 }
 
-function makeTask(status: TaskStatus = 'Open'): TaskListRow {
+function makeTask(status: TaskStatus = 'Open'): TaskRow {
   return {
     id: 'task-lifecycle-feedback',
     org_id: 'org',
@@ -100,7 +100,7 @@ function makeTask(status: TaskStatus = 'Open'): TaskListRow {
   }
 }
 
-function renderTask(task: TaskListRow) {
+function renderTask(task: TaskRow) {
   return render(
     <AuthContext.Provider value={auth}>
       <MemoryRouter initialEntries={[`/work/tasks/${task.id}`]}>

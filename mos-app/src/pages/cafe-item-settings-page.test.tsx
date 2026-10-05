@@ -26,6 +26,7 @@ import { useAuth } from '@/auth/use-auth'
 import { canManageCafeItemSettings, listCafeItemSettings } from '@/lib/db/cafe-item-settings'
 import { listCafeMissingItemReports, resolveCafeMissingItemReport } from '@/lib/db/cafe-missing-item-reports'
 import { CafeItemSettingsPage } from './cafe-item-settings-page'
+import { isCafeItemDraftKind } from './cafe-item-settings-kind'
 
 const mockUseAuth = vi.mocked(useAuth)
 const mockCanManage = vi.mocked(canManageCafeItemSettings)
@@ -73,6 +74,11 @@ beforeEach(() => {
   mockResolveReport.mockResolvedValue()
 })
 
+it('accepts only the three Café item kind select values', () => {
+  expect(['', 'RAW', 'WIP'].every(isCafeItemDraftKind)).toBe(true)
+  expect(['OTHER', 'raw', 'null'].some(isCafeItemDraftKind)).toBe(false)
+})
+
 describe('CafeItemSettingsPage missing-item queue', () => {
   it('shows only the selected stream reports to settings managers and resolves them', async () => {
     renderPage()
@@ -99,5 +105,21 @@ describe('CafeItemSettingsPage missing-item queue', () => {
     expect(await screen.findByText('Reference settings are read-only. Retail Ops managers, Ops Leads and admins can edit them.')).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'Missing-item reports for this stream' })).not.toBeInTheDocument()
     expect(mockListReports).not.toHaveBeenCalled()
+  })
+})
+
+describe('CafeItemSettingsPage default-unit setup note', () => {
+  it('says once how many items need a default unit and tags each row briefly', async () => {
+    const unit = (id: string) => ({ id, name: 'GR', isShown: true, isDefault: false, labelOrdinal: null, labelCount: 1 })
+    mockListItems.mockResolvedValue([
+      { id: 'item-1', erpName: 'ERP Oat milk', mosName: 'Oat milk', category: 'Dairy', kind: 'RAW', isActive: true,
+        defaultUnitId: null, units: [unit('u-1')] },
+      { id: 'item-2', erpName: 'ERP Sugar', mosName: 'Sugar', category: 'Dry', kind: 'RAW', isActive: true,
+        defaultUnitId: null, units: [unit('u-2')] },
+    ])
+    renderPage()
+    expect(await screen.findAllByText('2 items need a default unit before they can be logged.')).toHaveLength(1)
+    expect(screen.queryByText('Choose a shown default to enable logging.')).not.toBeInTheDocument()
+    expect(screen.getAllByText('Needs unit').length).toBeGreaterThanOrEqual(2)
   })
 })

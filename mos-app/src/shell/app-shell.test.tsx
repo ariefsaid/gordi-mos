@@ -3,6 +3,7 @@ import { render, screen, fireEvent, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, Link, useLocation } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import type { Locale } from '@/i18n/messages'
 
 vi.mock('@/lib/db/tasks', () => ({ searchTasksByTitle: vi.fn() }))
 
@@ -51,7 +52,7 @@ function setNarrow(matches: boolean) {
 afterEach(() => {
   setNarrow(false)
 })
-function renderShell(path = '/') {
+function renderShell(path = '/', locale: Locale = 'en') {
   mockUseAuth.mockReturnValue({
     status: 'authenticated',
     viewer: {
@@ -75,7 +76,7 @@ function renderShell(path = '/') {
   })
 
   return render(
-    <I18nProvider>
+    <I18nProvider initialLocale={locale}>
       <MemoryRouter initialEntries={[path]}>
         <Routes>
           <Route element={<AppShell />}>
@@ -363,15 +364,43 @@ describe('WCAG 2.1 AA: every interactive control in the chrome is named and keyb
     }
   })
 
-  it('the skip link is the first focusable element, so the chrome can be bypassed', () => {
+  // AC-003 (#1299): localized, keyboard-reachable bypass in the real shell.
+  it.each([
+    ['en', 'Skip to main content'],
+    ['id', 'Lewati ke konten utama'],
+  ] as const)('uses the %s skip-link label in the real shell', (locale, label) => {
     setNarrow(false)
-    const { container } = renderShell()
-    const first = container.querySelector<HTMLElement>(FOCUSABLE)
-    expect(first).toHaveAccessibleName('Skip to main content')
-    expect(first).toHaveAttribute('href', '#main-content')
-    // And its target exists, or the bypass goes nowhere.
-    expect(container.querySelector('#main-content')).not.toBeNull()
+    const { container } = renderShell('/', locale)
+    const skip = container.querySelector<HTMLAnchorElement>('a[href="#main-content"]')
+    expect(skip).not.toBeNull()
+    expect(skip).toHaveAccessibleName(label)
   })
+
+  it.each([
+    ['desktop', false],
+    ['phone', true],
+  ] as const)(
+    '%s: first Tab reaches the visible skip link and Enter activates its content target',
+    async (_viewport, narrow) => {
+      setNarrow(narrow)
+      window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`)
+      const user = userEvent.setup()
+      const { container } = renderShell()
+      const skip = container.querySelector<HTMLAnchorElement>('a[href="#main-content"]')
+      const target = container.querySelector<HTMLElement>('#main-content')
+
+      expect(skip).not.toBeNull()
+      expect(target).not.toBeNull()
+      await user.tab()
+      expect(skip).toHaveFocus()
+      expect(skip).toHaveStyle({ position: 'fixed' })
+
+      await user.keyboard('{Enter}')
+      expect(window.location.hash).toBe('#main-content')
+      expect(target).toHaveAttribute('tabindex', '-1')
+      window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`)
+    },
+  )
 })
 
 // AC-016 (FR-014, User Story 6): the shell survives navigation. Moving between destinations must
@@ -458,4 +487,3 @@ describe('AC-016: the shell is not remounted when the viewer changes destination
     expect(container.querySelector('header')).toBe(headerBefore)
   })
 })
-

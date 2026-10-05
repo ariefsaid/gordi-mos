@@ -7,7 +7,7 @@
 }
 
 .catalog-collection__header,
-.catalog-collection__row-link {
+.catalog-collection__row {
   display: grid;
   align-items: center;
   column-gap: 16px;
@@ -36,11 +36,18 @@
 .catalog-collection__row {
   min-width: 0;
   min-height: 52px;
+  padding: 7px 14px;
   border-bottom: 1px solid var(--row-divider);
+  cursor: pointer;
+  transition: background-color .12s ease-out;
 }
 
 .catalog-collection__row:last-child {
   border-bottom: none;
+}
+
+.catalog-collection__row:hover {
+  background: color-mix(in srgb, var(--surface-secondary) 72%, transparent);
 }
 
 .catalog-collection__row--archived {
@@ -48,16 +55,10 @@
 }
 
 .catalog-collection__row-link {
-  min-height: 52px;
-  box-sizing: border-box;
-  padding: 7px 14px;
+  min-width: 0;
+  max-width: 100%;
   color: inherit;
   text-decoration: none;
-  transition: background-color .12s ease-out;
-}
-
-.catalog-collection__row-link:hover {
-  background: color-mix(in srgb, var(--surface-secondary) 72%, transparent);
 }
 
 .catalog-collection__row-link:focus-visible {
@@ -144,11 +145,18 @@
   white-space: nowrap;
 }
 
-/* An Objective's relation sentence has no length bound, so it wraps here instead of clipping
-   mid-word. Scoped to the objective table only — Projects & Processes' shorter value in the
-   same slot keeps a one-line ellipsis. */
+/* Objective relationships and Work Line's objective/progress context have no length bound,
+   so they wrap here instead of clipping mid-word. */
 .catalog-collection__table--objective .catalog-collection__cell--relation .catalog-collection__cell-value,
 .catalog-collection__table--objective .catalog-collection__cell--cadence .catalog-collection__cell-value {
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.catalog-collection__table--work_line .catalog-collection__cell--relation .catalog-collection__cell-value,
+.catalog-collection__table--work_line .catalog-collection__cell--progress .catalog-collection__cell-value {
   overflow: visible;
   overflow-wrap: anywhere;
   text-overflow: clip;
@@ -162,6 +170,8 @@
 }
 
 .catalog-collection__cell-note {
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-size: var(--font-size-label);
 }
 
@@ -180,7 +190,8 @@
     display: none;
   }
 
-  .catalog-collection__row-link {
+  .catalog-collection__row {
+    display: grid;
     grid-template-columns: minmax(0, 1fr) auto auto;
     grid-template-rows: auto auto;
     align-items: center;
@@ -238,9 +249,10 @@
     display: none;
   }
 
-  .catalog-collection__row-link {
+  .catalog-collection__row {
+    display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(100px, auto);
-    grid-template-rows: auto auto;
+    grid-template-rows: auto auto auto;
     align-items: start;
     min-height: 96px;
     padding: 12px 14px;
@@ -295,6 +307,7 @@
   .catalog-collection__cell-value {
     white-space: nowrap;
   }
+
 }
 
 /* Wide rows (>=1100px). One grid owns the columns; the header and every row join it through
@@ -318,8 +331,7 @@
 
   .catalog-collection__header,
   .catalog-collection__list,
-  .catalog-collection__row,
-  .catalog-collection__row-link {
+  .catalog-collection__row {
     display: grid;
     grid-column: 1 / -1;
     grid-template-columns: subgrid;

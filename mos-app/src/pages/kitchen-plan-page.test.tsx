@@ -1277,6 +1277,50 @@ describe('issue 222: the plan offers the stream\'s own item list', () => {
     expect(mockOffered).toHaveBeenCalledWith(OWN_STREAM)
   })
 
+  it('keeps only persisted inactive or reclassified rows for amendment, not new planning', async () => {
+    mockOffered.mockResolvedValue(new Set(['w2', 'w3', 'w4', 'w5']))
+    mockCafeItemSettings.mockResolvedValue([{
+      id: 'w3', erpName: 'Curry · ERP reference', mosName: 'Archived curry', category: 'Prep',
+      kind: 'WIP', isActive: false, defaultUnitId: null, units: [],
+    }, {
+      id: 'w4', erpName: 'Rice · ERP reference', mosName: 'Reclassified rice', category: 'Prep',
+      kind: 'RAW', isActive: true, defaultUnitId: null, units: [],
+    }, {
+      id: 'w5', erpName: 'Retired · ERP reference', mosName: 'Unplanned inactive item', category: 'Prep',
+      kind: 'WIP', isActive: false, defaultUnitId: null, units: [],
+    }])
+    mockPlans.mockResolvedValue([
+      { id: 'legacy-plan', wip_item_id: 'w3', movement: PRODUCE, qty_porsi: 8 },
+      { id: 'reclassified-plan', wip_item_id: 'w4', movement: PRODUCE, qty_porsi: 5 },
+    ])
+    render(<KitchenPlanPage />, { wrapper })
+
+    expect(await screen.findByText('Archived curry')).toBeInTheDocument()
+    expect(screen.getByText('Inactive — existing plan only')).toBeInTheDocument()
+    expect(screen.queryByText('Unplanned inactive item')).not.toBeInTheDocument()
+    expect(screen.getByText('Reclassified rice')).toBeInTheDocument()
+    expect(screen.getByText('Not WIP — existing plan only')).toBeInTheDocument()
+    expect(screen.getByRole('spinbutton', { name: /planned quantity for reclassified rice/i })).toHaveValue(5)
+    const input = screen.getByRole('spinbutton', { name: /planned quantity for archived curry/i })
+    expect(input).toHaveValue(8)
+    expect(input).toBeEnabled()
+    fireEvent.change(input, { target: { value: '10' } })
+    fireEvent.blur(input)
+    await waitFor(() => expect(mockUpsert).toHaveBeenCalledWith(expect.objectContaining({
+      wip_item_id: 'w3', action: 'produce', qty_porsi: 10,
+    })))
+    expect(mockUpsert.mock.calls[0][0].log_date).toBe(mockPlans.mock.calls[0][0])
+
+    const transferTab = screen.getAllByRole('tab').find(tab => /transfer/i.test(tab.getAttribute('aria-label') ?? ''))
+    expect(transferTab).toBeDefined()
+    fireEvent.click(transferTab!)
+    const transferInput = screen.getByRole('spinbutton', { name: /planned quantity for archived curry/i })
+    expect(transferInput).toHaveValue(null)
+    expect(transferInput).toBeDisabled()
+    expect(screen.getByRole('spinbutton', { name: /planned quantity for reclassified rice/i })).toBeDisabled()
+    expect(mockUpsert).toHaveBeenCalledOnce()
+  })
+
   it('an empty list names the stream and who can fill it', async () => {
     mockOffered.mockResolvedValue(new Set())
     render(<KitchenPlanPage />, { wrapper })

@@ -35,7 +35,8 @@ export function formatWeekdayDayMonth(isoDate: string, locale?: Locale): string 
   })
 }
 
-/** "12 Jun 2026" from an ISO timestamp/date. Returns the raw input if unparseable. */
+/** "12 Jun 2026" from a date-only ISO day or timestamp. Date-only days stay in UTC; timestamps
+ * keep their device-local date. Returns the raw input if unparseable. */
 export function formatDayMonthYear(iso: string, locale?: Locale): string {
   const dt = new Date(iso)
   if (Number.isNaN(dt.getTime())) return iso
@@ -43,6 +44,7 @@ export function formatDayMonthYear(iso: string, locale?: Locale): string {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
+    ...(/^\d{4}-\d{2}-\d{2}$/.test(iso) ? { timeZone: 'UTC' } : {}),
   })
 }
 

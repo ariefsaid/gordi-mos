@@ -134,15 +134,24 @@ export function KitchenPlanPage() {
 type PlanItem = WipItemOption & {
   defaultUnitName: string | null
   otherLogUnitNames: string[]
+  currentKind: CafeItemSetting['kind']
+  unavailableReason: 'inactive' | 'not-wip' | null
 }
 
-function withStreamSettings(items: WipItemOption[], settings: CafeItemSetting[]): PlanItem[] {
-  const eligibleSettings = settings.filter(item => item.kind === 'WIP' && item.isActive)
-  const byId = new Map(eligibleSettings.map(item => [item.id, item]))
+function withStreamSettings(
+  items: WipItemOption[],
+  settings: CafeItemSetting[],
+  planCells: PlanCell[] = [],
+): PlanItem[] {
+  const plannedIds = new Set(planCells.map(cell => cell.wip_item_id))
+  const visibleSettings = settings.filter(item =>
+    (item.kind === 'WIP' && item.isActive) || plannedIds.has(item.id),
+  )
+  const byId = new Map(visibleSettings.map(item => [item.id, item]))
   const manualIds = new Set(items.map(item => item.id))
   const streamWipItems = [
     ...items,
-    ...eligibleSettings.filter(item => !manualIds.has(item.id)).map(item => ({
+    ...visibleSettings.filter(item => !manualIds.has(item.id)).map(item => ({
       id: item.id, name: item.mosName, category: item.category,
     })),
   ]
@@ -156,8 +165,20 @@ function withStreamSettings(items: WipItemOption[], settings: CafeItemSetting[])
       otherLogUnitNames: setting?.units
         .filter(unit => unit.isShown && unit.id !== setting.defaultUnitId)
         .map(cafeUnitDisplayLabel) ?? [],
+      currentKind: setting ? setting.kind : manualIds.has(item.id) ? 'WIP' : null,
+      unavailableReason: setting && !setting.isActive
+        ? 'inactive'
+        : setting && setting.kind !== 'WIP'
+          ? 'not-wip'
+          : null,
     }
   })
+}
+
+function planableItemIds(items: PlanItem[], streamItemIds: ReadonlySet<string>): Set<string> {
+  return new Set(items
+    .filter(item => item.unavailableReason === null && streamItemIds.has(item.id))
+    .map(item => item.id))
 }
 
 type PesananDisplayRow = PesananRow & {
@@ -183,8 +204,8 @@ function withPesananSettings(rows: PesananRow[], settings: CafeItemSetting[]): P
 }
 
 // The rows a stream's plan shows: its listed items, plus any item already planned there (#222).
-function streamRows(items: PlanItem[], offered: Set<string>, planCells: PlanCell[]): PlanItem[] {
-  return items.filter(item => offered.has(item.id) || planCells.some(cell => cell.wip_item_id === item.id))
+function streamRows(items: PlanItem[], planableIds: Set<string>, planCells: PlanCell[]): PlanItem[] {
+  return items.filter(item => planableIds.has(item.id) || planCells.some(cell => cell.wip_item_id === item.id))
 }
 
 function PlanEditor() {
@@ -244,6 +265,7 @@ function PlanEditor() {
   // The stream's item list (#222). New plan rows are offered only for these; a row already
   // planned for any other item stays on screen, labelled, with its quantity editable.
   const [offeredIds, setOfferedIds] = useState<Set<string>>(new Set())
+  const [planableIds, setPlanableIds] = useState<Set<string>>(new Set())
   const [cells, setCells] = useState<PlanCell[]>([])
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
   const [retryKey, setRetryKey] = useState(0)
@@ -309,9 +331,11 @@ function PlanEditor() {
       // ERP-selected default detail from the same reader as Log.
       // Without a resolved stream there is no working catalog to plan against. Do not present
       // the org-wide reference list beside a disabled quantity editor.
-      const displayItems = catalog.stream ? withStreamSettings(itemRows, settings) : []
-      setItems(offered ? streamRows(displayItems, offered, planCells) : displayItems)
+      const displayItems = catalog.stream ? withStreamSettings(itemRows, settings, planCells) : []
+      const nextPlanableIds = planableItemIds(displayItems, offered ?? new Set())
+      setItems(offered ? streamRows(displayItems, nextPlanableIds, planCells) : displayItems)
       setOfferedIds(offered ?? new Set())
+      setPlanableIds(nextPlanableIds)
       adoptStream(catalog)
       setMovement(PRODUCE)
       setCells(planCells)
@@ -341,8 +365,10 @@ function PlanEditor() {
         listCafeItemSettings(nextStream),
       ])
       if (gen !== requestGen.current) return
-      setItems(streamRows(withStreamSettings(itemRows, settings), offered, planCells))
+      const displayItems = withStreamSettings(itemRows, settings, planCells)
+      setItems(streamRows(displayItems, planableItemIds(displayItems, offered), planCells))
       setOfferedIds(offered)
+      setPlanableIds(planableItemIds(displayItems, offered))
       setCells(planCells)
       setLoad({ kind: 'ready' })
     } catch {
@@ -353,9 +379,9 @@ function PlanEditor() {
   // A new plan row needs the item on the stream's list; an existing row keeps its quantity editable.
   const canPlan = useCallback(
     (wipItemId: string): boolean =>
-      offeredIds.has(wipItemId)
+      planableIds.has(wipItemId)
       || cells.some(c => c.wip_item_id === wipItemId && movementsEqual(c.movement, movement)),
-    [cells, movement, offeredIds],
+    [cells, movement, planableIds],
   )
   const offList = (wipItemId: string) => stream !== null && !offeredIds.has(wipItemId)
 
@@ -415,7 +441,10 @@ function PlanEditor() {
         // The list changed while the editor was open (#222): re-read it so the row reads as off-list.
         setSaveError(t('kitchen.plan.error.itemNotOnStream'))
         listStreamItemIds(stream).then((offered) => {
-          if (gen === requestGen.current) setOfferedIds(offered)
+          if (gen === requestGen.current) {
+            setOfferedIds(offered)
+            setPlanableIds(planableItemIds(items, offered))
+          }
         }, () => {})
       } else {
         setSaveError(saveErrorMessage(err, t))
@@ -456,8 +485,10 @@ function PlanEditor() {
     cardLabel: '',
     render: item => (
       <span className="kp-dish">
-        <span className="kp-name"><span>WIP - </span><span>{item.name}</span></span>
+        <span className="kp-name">{item.currentKind && <span>{item.currentKind} - </span>}<span>{item.name}</span></span>
         {offList(item.id) && <NotOnStreamTag />}
+        {item.unavailableReason === 'inactive' && <span className="kp-cat">{t('kitchen.plan.item.inactive')}</span>}
+        {item.unavailableReason === 'not-wip' && <span className="kp-cat">{t('kitchen.plan.item.notWip')}</span>}
         {item.category && <span className="kp-cat">{kitchenCategoryLabel(t, item.category)}</span>}
         {item.defaultUnitName && <span className="kp-unit">{item.defaultUnitName}</span>}
         {item.otherLogUnitNames.length > 0 && (
@@ -537,8 +568,10 @@ function PlanEditor() {
       <div className="kp-card">
         <div className="kp-card-head">
           <span className="kp-card-name">
-            <span>WIP - </span><span>{item.name}</span>
+            {item.currentKind && <span>{item.currentKind} - </span>}<span>{item.name}</span>
             {offList(item.id) && <NotOnStreamTag />}
+            {item.unavailableReason === 'inactive' && <span className="kp-cat">{t('kitchen.plan.item.inactive')}</span>}
+            {item.unavailableReason === 'not-wip' && <span className="kp-cat">{t('kitchen.plan.item.notWip')}</span>}
             {item.defaultUnitName && <span className="kp-card-unit">{item.defaultUnitName}</span>}
             {item.otherLogUnitNames.length > 0 && (
               <span className="kp-card-unit-options">

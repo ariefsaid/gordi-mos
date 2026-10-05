@@ -8,6 +8,7 @@ const NativeURL = globalThis.URL
 const onUpload = vi.fn<(logId: string, file: File) => Promise<KitchenWastePhoto | void>>()
 const onPhotoUploaded = vi.fn<(photo: KitchenWastePhoto) => void>()
 const onCanSubmitChange = vi.fn<(ready: boolean) => void>()
+const onPhotoWindowExpired = vi.fn<() => void>()
 
 function renderCapture(initialPhotos: readonly KitchenWastePhoto[] = []) {
   return render(
@@ -18,6 +19,7 @@ function renderCapture(initialPhotos: readonly KitchenWastePhoto[] = []) {
         onUpload={onUpload}
         onPhotoUploaded={onPhotoUploaded}
         onCanSubmitChange={onCanSubmitChange}
+        onPhotoWindowExpired={onPhotoWindowExpired}
       />
     </I18nProvider>,
   )
@@ -117,6 +119,7 @@ describe('WastePhotoCapture', () => {
     fireEvent.click(screen.getByRole('button', { name: /upload photos/i }))
 
     expect(await screen.findAllByText(/15-minute photo window has ended/i)).toHaveLength(2)
+    expect(onPhotoWindowExpired).toHaveBeenCalledTimes(1)
     expect(screen.queryByRole('button', { name: /retry photo 1/i })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /remove photo 1/i })).toBeInTheDocument()
   })

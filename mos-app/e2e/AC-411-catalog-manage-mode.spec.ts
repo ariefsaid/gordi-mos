@@ -93,14 +93,17 @@ test.describe('AC-411: catalog is Work\'s manage-mode', () => {
     await expect(page.getByRole('heading', { name: 'Objectives', level: 1 })).toBeVisible()
 
     // WORK-13: the collection shows real linked work and task progress, not a placeholder.
-    const trace = page.getByRole('row', { name: 'E2E Trace Objective', exact: true })
+    // #1292 gives catalog rows and cells their own accessible owners, so identify the row by its record link.
+    const trace = page.getByRole('row').filter({
+      has: page.getByRole('link', { name: 'E2E Trace Objective', exact: true }),
+    })
     await expect(trace).toBeVisible({ timeout: 10_000 })
     await expect(trace).toContainText('E2E Trace Work Line')
     // The Work cell names its direct Projects & Processes (catalog-list-presentation.tsx); the
     // count string is retired, so the cell's whole accessible name is the label and the child's name.
     await expect(trace.getByRole('cell', { name: 'Projects & Processes: E2E Trace Work Line', exact: true })).toBeVisible()
     await expect(trace).not.toContainText(/Projects & Processes: \d/)
-    await expect(trace).toContainText('0 / 2 done')
+    await expect(trace).toContainText('0 / 2 Tasks done')
     await trace.getByRole('link', { name: 'E2E Trace Objective', exact: true }).click()
     const objective = page.getByRole('region', { name: 'E2E Trace Objective', exact: true })
     await expect(objective).toBeVisible()

@@ -103,10 +103,9 @@ beforeEach(() => {
   vi.mocked(listTasks).mockResolvedValue([{
     id: 'task-1', org_id: 'org', title: 'Existing task', business_unit_id: 'bu-1', status: 'Open',
     responsible_person_id: VIEWER_ID, accountable_person_id: VIEWER_ID,
-    consulted_person_ids: [], informed_person_ids: [], description: null, due_date: null,
+    consulted_person_ids: [], informed_person_ids: [], due_date: null,
     objective_id: null, work_line_id: null, last_activity_at: '2026-06-11T10:00:00Z',
     archived_at: null, created_by: VIEWER_ID,
-    created_at: '2026-06-11T00:00:00Z', updated_at: '2026-06-11T00:00:00Z',
   }])
   vi.mocked(getMyTeamLeads).mockResolvedValue([
     { team_id: 'team-1', lead_person_id: LEAD_ID },
@@ -376,8 +375,8 @@ it('confirms the saved Task in the current collection when pending success arriv
       vi.mocked(listTasks).mockResolvedValue([{
         id: 'saved-return', org_id: 'org', title: 'Saved Task after returning', business_unit_id: 'bu-1', status: 'Open',
         responsible_person_id: VIEWER_ID, accountable_person_id: LEAD_ID, consulted_person_ids: [], informed_person_ids: [],
-        description: null, due_date: null, objective_id: null, work_line_id: null, last_activity_at: '2026-06-11T10:00:00Z',
-        archived_at: null, created_by: VIEWER_ID, created_at: '2026-06-11T00:00:00Z', updated_at: '2026-06-11T00:00:00Z',
+        due_date: null, objective_id: null, work_line_id: null, last_activity_at: '2026-06-11T10:00:00Z',
+        archived_at: null, created_by: VIEWER_ID,
       }])
       resolve('saved-return')
     }

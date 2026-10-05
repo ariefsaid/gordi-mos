@@ -5,7 +5,7 @@
  * These tests mount TasksTable directly to assert PR-2-specific additions.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { useState } from 'react'
+import { StrictMode, useState } from 'react'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { render, screen, waitFor, fireEvent, act, within, cleanup } from '@testing-library/react'
@@ -18,7 +18,7 @@ import { Breadcrumb } from '@/shell/breadcrumb'
 import { OverlayHostProvider } from '@/shell/overlay-host'
 import { BreadcrumbTitleProvider } from '@/shell/breadcrumb-title'
 import type { PeopleRow, RolesRow } from '@/lib/database.types'
-import type { TaskListRow } from '@/lib/db/tasks.types'
+import type { TaskRow } from '@/lib/db/tasks.types'
 import { TASKS_SPLIT_MIN_WIDTH } from '@/shell/use-is-split-width'
 
 // ── Mock data layer ──────────────────────────────────────────────────────────
@@ -109,7 +109,7 @@ const teamScopedState: AuthState = {
   signOut: async () => {},
 }
 
-function makeTask(overrides: Partial<TaskListRow> = {}): TaskListRow {
+function makeTask(overrides: Partial<TaskRow> = {}): TaskRow {
   return {
     id: 'task-1', org_id: 'org', title: 'Default task',
     business_unit_id: 'bu-1', status: 'Open',
@@ -497,6 +497,89 @@ describe('FR-V3-013 — live Tasks collection wiring', () => {
     await waitFor(() => expect(screen.getByText('One loader task')).toBeInTheDocument())
     expect(load).toHaveBeenCalledTimes(1)
     expect(document.querySelector('[data-collection-status="ready"]')).toBeTruthy()
+  })
+
+  it('does not repeat the unchanged Tasks read on StrictMode refresh effect replay', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ title: 'StrictMode task' })])
+
+    function RefreshKeyHarness() {
+      const [refreshKey, setRefreshKey] = useState(0)
+      return (
+        <>
+          <button type="button" onClick={() => setRefreshKey((current) => current + 1)}>Refresh Tasks</button>
+          <TasksWorkspace
+            refreshKey={refreshKey}
+            savedView={makeSavedView('all')}
+            onSavedViewChange={() => {}}
+          />
+        </>
+      )
+    }
+
+    render(
+      <StrictMode>
+        <I18nProvider>
+          <AuthContext.Provider value={authedState}>
+            <MemoryRouter initialEntries={['/work/tasks']}>
+              <OverlayHostProvider>
+                <RefreshKeyHarness />
+              </OverlayHostProvider>
+            </MemoryRouter>
+          </AuthContext.Provider>
+        </I18nProvider>
+      </StrictMode>,
+    )
+
+    await screen.findByText('StrictMode task')
+    expect(mockListTasks).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh Tasks' }))
+    await waitFor(() => expect(mockListTasks).toHaveBeenCalledTimes(2))
+  })
+
+  it('reuses process.start authority for local grouping and sorting, then refreshes it with the list', async () => {
+    mockListTasks.mockResolvedValue([
+      makeTask({ title: 'Occurrence task', team_id: 'team-process', process_run_id: 'run-1' }),
+    ])
+
+    function RefreshKeyHarness() {
+      const [refreshKey, setRefreshKey] = useState(0)
+      return (
+        <>
+          <button type="button" onClick={() => setRefreshKey((current) => current + 1)}>Refresh Tasks</button>
+          <TasksWorkspace
+            refreshKey={refreshKey}
+            savedView={makeSavedView('all')}
+            onSavedViewChange={() => {}}
+          />
+        </>
+      )
+    }
+
+    render(
+      <I18nProvider>
+        <AuthContext.Provider value={authedState}>
+          <MemoryRouter initialEntries={['/work/tasks']}>
+            <OverlayHostProvider><RefreshKeyHarness /></OverlayHostProvider>
+          </MemoryRouter>
+        </AuthContext.Provider>
+      </I18nProvider>,
+    )
+
+    await screen.findByText('Occurrence task')
+    await waitFor(() => expect(mockCanStartProcessForTeam).toHaveBeenCalledTimes(1))
+
+    selectGroupBy('status')
+    await act(async () => {})
+    expect(mockCanStartProcessForTeam).toHaveBeenCalledTimes(1)
+    fireEvent.click(screen.getByRole('columnheader', { name: /task/i }))
+    await act(async () => {})
+    expect(mockCanStartProcessForTeam).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh Tasks' }))
+    await waitFor(() => expect(mockListTasks).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(mockCanStartProcessForTeam).toHaveBeenCalledTimes(2))
+    expect(mockCanStartProcessForTeam).toHaveBeenLastCalledWith('team-process')
   })
 
   it('refreshes process.start authority when the mounted viewer changes', async () => {

@@ -244,6 +244,25 @@ describe('Objective structural pickers (admin)', () => {
       .toEqual(['Whole year', 'Q1', 'Q2', 'Q3', 'Q4'])
   })
 
+  it('offers a listed year and keeps the chosen quarter when the year changes', async () => {
+    renderObjective()
+    const list = await openPicker('Period')
+    const nextYear = String(new Date().getFullYear() + 1)
+    expect(within(list).getByRole('option', { name: nextYear })).toBeInTheDocument()
+    fireEvent.click(within(list).getByRole('option', { name: nextYear }))
+    await waitFor(() => expect(updateObjective).toHaveBeenCalledWith('obj-1', { period_year: Number(nextYear) }))
+    expect(vi.mocked(updateObjective).mock.calls[0][1]).not.toEqual(expect.objectContaining({ period_quarter: null }))
+  })
+
+  it('keeps an already-saved year available outside the compact year window', async () => {
+    current = baseRow({ periodYear: 1999, periodQuarter: 2 })
+    renderObjective()
+    await screen.findByRole('heading', { level: 1, name: 'Grow revenue' })
+    expect(factValue('period')).toBe('1999')
+    const list = await openPicker('Period')
+    expect(within(list).getByRole('option', { name: '1999' })).toBeInTheDocument()
+  })
+
   it('saves a quarter, and Whole year saves none', async () => {
     renderObjective()
     let list = await openPicker('Quarter')
@@ -266,32 +285,29 @@ describe('Objective structural pickers (admin)', () => {
     expect(within(facts()).getByRole('button', { name: 'Edit Period' })).toHaveTextContent('+ Set period')
   })
 
-  it('shows a year hint in the Period input while no year is set', async () => {
+  it('offers a compact list of year choices with a clear option while no year is set', async () => {
     current = baseRow({ periodYear: null, periodQuarter: null })
     renderObjective()
-    await screen.findByRole('heading', { level: 1, name: 'Grow revenue' })
-    fireEvent.click(await within(facts()).findByRole('button', { name: 'Edit Period' }))
-    expect(screen.getByRole('textbox', { name: 'Period' })).toHaveAttribute('placeholder', 'Year, e.g. 2026')
+    const list = await openPicker('Period')
+    const options = within(list).getAllByRole('option').map((option) => option.textContent)
+    expect(options[0]).toBe('Not set')
+    expect(options).toContain(String(new Date().getFullYear()))
+    expect(options).toContain(String(new Date().getFullYear() + 1))
   })
 
   it('clears the quarter in the same patch when the year is cleared', async () => {
     renderObjective()
-    await screen.findByRole('heading', { level: 1, name: 'Grow revenue' })
-    fireEvent.click(await within(facts()).findByRole('button', { name: 'Edit Period' }))
-    const input = screen.getByRole('textbox', { name: 'Period' })
-    fireEvent.change(input, { target: { value: '' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
+    const list = await openPicker('Period')
+    fireEvent.click(within(list).getByRole('option', { name: 'Not set' }))
     await waitFor(() => expect(updateObjective).toHaveBeenCalledWith('obj-1', { period_year: null, period_quarter: null }))
   })
 
   it('keeps the quarter when the year is changed to another year', async () => {
     renderObjective()
-    await screen.findByRole('heading', { level: 1, name: 'Grow revenue' })
-    fireEvent.click(await within(facts()).findByRole('button', { name: 'Edit Period' }))
-    const input = screen.getByRole('textbox', { name: 'Period' })
-    fireEvent.change(input, { target: { value: '2031' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
-    await waitFor(() => expect(updateObjective).toHaveBeenCalledWith('obj-1', { period_year: 2031 }))
+    const list = await openPicker('Period')
+    const nextYear = String(new Date().getFullYear() + 1)
+    fireEvent.click(within(list).getByRole('option', { name: nextYear }))
+    await waitFor(() => expect(updateObjective).toHaveBeenCalledWith('obj-1', { period_year: Number(nextYear) }))
   })
 
   it('runs the keyboard journey on the Business Unit picker: open, type, arrows, Enter, Escape, focus return', async () => {
@@ -316,7 +332,7 @@ describe('Objective structural pickers (admin)', () => {
     expect(updateObjective).toHaveBeenCalledWith('obj-1', { is_company_wide: true, business_unit_id: null })
   })
 
-  it.each(['Business Unit', 'Quarter'])('keeps focus on the %s edit control after choosing with Enter', async (name) => {
+  it.each(['Business Unit', 'Quarter', 'Period'])('keeps focus on the %s edit control after choosing with Enter', async (name) => {
     const user = userEvent.setup()
     renderObjective()
     await screen.findByRole('heading', { level: 1, name: 'Grow revenue' })

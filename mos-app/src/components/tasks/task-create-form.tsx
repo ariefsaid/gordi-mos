@@ -119,7 +119,7 @@ export function TaskCreateForm({
     })),
   ]
 
-  const formRef = useFocusRestore<HTMLFormElement>(pending, saveError)
+  const formRef = useFocusRestore<HTMLFormElement>(pending, saveError, { includeFormControls: true })
 
   const trySubmit = () => {
     setAttempted(true)
@@ -173,7 +173,9 @@ export function TaskCreateForm({
             // Tab is left to native focus movement.
           }}
         />
-        {titleError && <p id={titleErrorId} role="alert" className="tcf-error">{titleError}</p>}
+        <div className="tcf-title-error-slot">
+          {titleError && <p id={titleErrorId} role="alert" className="tcf-error">{titleError}</p>}
+        </div>
       </div>
 
       <div className="tcf-row">

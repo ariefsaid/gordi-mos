@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
-import { EmptyState } from '@/components/ui/state-kit'
+import { EmptyState, FilteredEmptyIcon } from '@/components/ui/state-kit'
 import { formatWibShortDateTime } from '@/lib/wib-time'
 import { orderSignalsForFeed } from '@/lib/db/signals'
 import { attentionSlug, type SignalRow } from '@/lib/db/signals.types'
@@ -115,7 +115,13 @@ export function SignalFeedRows({
         // A filtered-empty is a different state from "no Signals yet": it names the active query and
         // offers a way out, rather than implying the feed is empty (state-kit / clarify.md).
         filteredEmpty ? (
-          <EmptyState title={t('signals.feed.noMatches', { query: query.trim() })} nested>
+          <EmptyState
+            variant="blank"
+            icon={<FilteredEmptyIcon />}
+            title={t('signals.feed.noMatchesTitle')}
+            copy={t('signals.feed.noMatches', { query: query.trim() })}
+            nested
+          >
             <button type="button" className="btn btn-ghost" onClick={() => setQuery('')}>
               {t('signals.feed.clearSearch')}
             </button>

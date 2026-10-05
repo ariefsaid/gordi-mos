@@ -2,11 +2,12 @@
 // Seams under test: the page through its public props, with the real authority hook running over a
 // mocked RPC read, so every affordance below follows WorkWriteScopes the way production does.
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { AuthContext, type AuthState } from '@/auth/context'
+import { installDisabledBlur } from '@/test/browser-focus-fixup'
 import type { WorkWriteScopes } from '@/lib/db/work-authority'
 import type { KeyResultRow } from '@/lib/db/objective-key-results'
 
@@ -280,23 +281,59 @@ describe('header: the record answers what, state, who, when', () => {
 })
 
 describe('Get started lists only what is missing, and its buttons work', () => {
-  it('keeps Key results visible with its own Add action while Get started owns the page primary', async () => {
+  it('keeps the setup action primary until the key-result list has actually loaded', async () => {
+    let resolveRows!: (rows: KeyResultRow[]) => void
+    vi.mocked(listKeyResults).mockReturnValue(new Promise((resolve) => { resolveRows = resolve }))
+    renderRecord()
+    await screen.findByRole('heading', { level: 1, name: 'Grow revenue' })
+    await waitFor(() => expect(listKeyResults).toHaveBeenCalledWith('obj-1'))
+    const keyResults = screen.getByRole('region', { name: 'Key results' })
+    const started = screen.getByRole('region', { name: 'Get this Objective started' })
+    expect(within(keyResults).queryByRole('button', { name: 'Add key result' })).toBeNull()
+    expect(within(started).getByRole('button', { name: 'Link Project or Process' })).toHaveClass('btn-primary')
+
+    resolveRows([])
+    expect(await within(keyResults).findByRole('button', { name: 'Add key result' })).toHaveClass('btn-primary')
+  })
+
+  it('gives the loaded empty Key results section the Objective’s next-action emphasis', async () => {
+    renderRecord()
+    const keyResults = await screen.findByRole('region', { name: 'Key results' })
+    const addKeyResult = await within(keyResults).findByRole('button', { name: 'Add key result' })
+    expect(addKeyResult).toHaveClass('btn-primary')
+    const started = await screen.findByRole('region', { name: 'Get this Objective started' })
+    expect(within(started).getByRole('button', { name: 'Link Project or Process' })).not.toHaveClass('btn-primary')
+    expect(document.querySelectorAll('.btn-primary')).toHaveLength(1)
+  })
+
+  it('makes Save the only primary action while a key-result editor is open', async () => {
+    const user = userEvent.setup()
+    renderRecord()
+    const keyResults = await screen.findByRole('region', { name: 'Key results' })
+    await user.click(await within(keyResults).findByRole('button', { name: 'Add key result' }))
+    const save = await screen.findByRole('button', { name: 'Save' })
+    expect(save).toHaveClass('btn-primary')
+    expect(within(await screen.findByRole('region', { name: 'Get this Objective started' }))
+      .getByRole('button', { name: 'Link Project or Process' })).not.toHaveClass('btn-primary')
+    expect(document.querySelectorAll('.btn-primary')).toHaveLength(1)
+  })
+
+  it('keeps Key results visible and gives its Add action priority while the success measure is missing', async () => {
     renderRecord()
     const region = await screen.findByRole('region', { name: 'Get this Objective started' })
     const keyResults = await screen.findByRole('region', { name: 'Key results' })
     await within(keyResults).findByText('No key results yet.')
     expect(keyResults).toHaveTextContent('No key results yet.')
-    expect(await within(keyResults).findByRole('button', { name: 'Add key result' })).toBeInTheDocument()
+    expect(await within(keyResults).findByRole('button', { name: 'Add key result' })).toHaveClass('btn-primary')
     expect(within(region).queryByText('Set targets')).toBeNull()
     expect(within(region).getByText('Link work')).toBeInTheDocument()
     expect(within(region).queryByRole('button', { name: 'Add key result' })).toBeNull()
     expect(within(region).queryByText('Add tasks')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Add task' })).toBeNull()
     expect(document.body.textContent).not.toMatch(/0 \/ 0|No linked|No linked tasks/)
-    // One primary on the screen: the remaining setup action. Key results keeps a quiet section action.
+    // One primary on the screen: Add key result. Setup remains available as a secondary action.
     expect(document.querySelectorAll('.btn-primary')).toHaveLength(1)
-    expect(within(region).getByRole('button', { name: 'Link Project or Process' })).toHaveClass('btn-primary')
-    expect(within(keyResults).getByRole('button', { name: 'Add key result' })).not.toHaveClass('btn-primary')
+    expect(within(region).getByRole('button', { name: 'Link Project or Process' })).toHaveClass('btn-outline')
   })
 
   it('withdrawing the Link picker puts focus back on the button that opened it', async () => {
@@ -604,6 +641,47 @@ describe('Get started lists only what is missing, and its buttons work', () => {
     await user.click(screen.getByRole('button', { name: 'Save step' }))
     await waitFor(() => expect(createProcessStep).toHaveBeenCalledWith({ workLineId: 'wl-1', title: 'Open the till', picPersonId: 'p-maya', position: 0 }))
   })
+
+  it('a rejected Step save restores its enabled action with the chosen draft ready to retry', async () => {
+    const restore = installDisabledBlur()
+    try {
+      const user = userEvent.setup()
+      let rejectStep: (reason: Error) => void = () => {}
+      const failedStep = new Promise<void>((_resolve, reject) => { rejectStep = reject })
+      vi.mocked(createProcessStep)
+        .mockReturnValueOnce(failedStep)
+        .mockResolvedValueOnce(undefined)
+      data = workLineData('process', { steps: 0 })
+      renderRecord('work-line')
+      const setupRegion = await screen.findByRole('region', { name: 'Get this Process started' })
+      await user.click(within(setupRegion).getByRole('button', { name: 'Add first step' }))
+      const form = await screen.findByRole('form', { name: 'Add step' })
+      const title = await within(form).findByRole('textbox', { name: 'Step name' })
+      await user.type(title, 'Open the till')
+      const pic = within(form).getByRole('combobox', { name: 'Who does it' })
+      await user.click(pic)
+      await user.click(await screen.findByRole('option', { name: 'Maya Marketing' }))
+      const save = within(form).getByRole('button', { name: 'Save step' })
+      await user.click(save)
+      expect(await within(form).findByRole('button', { name: /saving/i })).toBeDisabled()
+
+      await act(async () => {
+        rejectStep(new Error('offline'))
+        await failedStep.catch(() => undefined)
+      })
+      expect(await within(form).findByRole('button', { name: 'Retry' })).toBeInTheDocument()
+      await waitFor(() => expect(save).toHaveFocus())
+      expect(title).toHaveValue('Open the till')
+      expect(pic).toHaveTextContent('Maya Marketing')
+
+      await user.click(within(form).getByRole('button', { name: 'Retry' }))
+      await waitFor(() => expect(createProcessStep).toHaveBeenCalledTimes(2))
+      const args = { workLineId: 'wl-1', title: 'Open the till', picPersonId: 'p-maya', position: 0 }
+      expect(createProcessStep).toHaveBeenNthCalledWith(1, args)
+      expect(createProcessStep).toHaveBeenNthCalledWith(2, args)
+      await waitFor(() => expect(screen.queryByRole('form', { name: 'Add step' })).toBeNull())
+    } finally { restore() }
+  })
 })
 
 function LocationProbe() {
@@ -676,8 +754,31 @@ describe('role-correct affordances', () => {
 
     const start = await screen.findByRole('button', { name: 'Start occurrence' })
     expect(start).toHaveClass('btn-primary')
-    expect(screen.getByRole('note')).toHaveTextContent('Dewi Director (Accountable) manages this Process. You can start an occurrence.')
+    expect(screen.getByRole('note')).toHaveTextContent('Dewi Director is Accountable for this Process. Ask a work manager or admin to edit it. You can start an occurrence.')
     expect(screen.getByRole('note')).not.toHaveTextContent('View only')
+  })
+
+  it('shows an unset Business Unit as a fact to a viewer who cannot edit it', async () => {
+    vi.mocked(getWorkWriteScopes).mockResolvedValue(MEMBER)
+    data = workLineData('project')
+    data.row = { ...data.row, businessUnitId: null }
+    renderRecord('work-line')
+
+    await screen.findByRole('heading', { level: 1, name: 'Menu launch' })
+    const field = document.querySelector('[data-field-key="businessUnit"]')!
+    expect(field).toHaveAttribute('data-editable', 'false')
+    expect(field).toHaveTextContent('Not set')
+    expect(field).not.toHaveTextContent('Set Business Unit')
+  })
+
+  it('keeps the Set Business Unit prompt for an authorized editor', async () => {
+    data = workLineData('project')
+    data.row = { ...data.row, businessUnitId: null }
+    renderRecord('work-line')
+
+    await screen.findByRole('heading', { level: 1, name: 'Menu launch' })
+    const editor = await screen.findByRole('button', { name: 'Edit Business Unit' })
+    expect(editor).toHaveTextContent('Set Business Unit')
   })
 
   it('a member sees no setup, no structure edits, no menu and one line naming who sets targets', async () => {
@@ -781,7 +882,7 @@ describe('sections read like a document', () => {
     const work = await screen.findByRole('region', { name: 'Projects & Processes' })
     expect(work.querySelector('.rp-section__count')).toHaveTextContent('1')
     expect(work).not.toHaveTextContent('1 of 3 tasks done')
-    expect(await screen.findByRole('region', { name: 'Tasks' })).toHaveTextContent('1 of 3')
+    expect(await screen.findByRole('region', { name: 'Tasks' })).toHaveTextContent('1 / 3 Tasks done')
   })
 
   it('a member with nothing to add is told it is view only', async () => {

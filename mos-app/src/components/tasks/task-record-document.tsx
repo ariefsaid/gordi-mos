@@ -11,7 +11,7 @@ import type { RecordMenuItem } from '@/components/record/record-menu'
 import { useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
 import { dueStatus } from '@/lib/due-status'
 import type { PersonOption } from '@/lib/db/directory'
-import type { ChecklistItemRow, TaskEventRow, TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
+import type { ChecklistItemRow, TaskEventRow, TaskRow, TaskStatus } from '@/lib/db/tasks.types'
 import { ActivityCard } from './activity-card'
 import { ChecklistCard } from './checklist-card'
 import { CommentThread, type TaskComment } from './CommentThread'
@@ -20,7 +20,7 @@ import './task-record-document.css'
 type TaskRecordDocumentProps = {
   // Adapter output: fields, edit rights and actions.
   adapter: RecordViewerAdapter
-  task: TaskListRow
+  task: TaskRow
   mode: 'panel' | 'page'
   headingLevel: 1 | 2
   canonicalHref: string

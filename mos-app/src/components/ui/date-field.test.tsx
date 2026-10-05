@@ -1,10 +1,12 @@
 import { createRef, useState } from 'react'
-import { describe, it, expect, vi } from 'vitest'
+import { afterEach, describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { Locale } from '@/i18n/messages'
 import { DateField, type DateFieldProps } from './date-field'
+
+afterEach(() => vi.unstubAllEnvs())
 
 function renderField(props: Partial<DateFieldProps> = {}, locale: Locale = 'en') {
   const onChange = vi.fn()
@@ -169,6 +171,38 @@ describe('DateField (primitive)', () => {
   it('shows the placeholder (em dash by default) when value is empty and unfocused', () => {
     const { input } = renderField()
     expect(input).toHaveAttribute('placeholder', '—')
+  })
+
+  it('keeps an ISO calendar day visible at rest, while editing, and after blur in a western zone', async () => {
+    vi.stubEnv('TZ', 'America/Los_Angeles')
+    const Harness = () => {
+      const [value, setValue] = useState('2026-10-05')
+      return <DateField value={value} onChange={setValue} aria-label="Due date" />
+    }
+    render(<I18nProvider><Harness /></I18nProvider>)
+    const input = screen.getByRole('textbox', { name: 'Due date' })
+
+    expect(input).toHaveValue('5 Oct 2026')
+    await userEvent.click(input)
+    expect(input).toHaveValue('05/10/2026')
+    fireEvent.change(input, { target: { value: '05/11/2026' } })
+    expect(input).toHaveValue('05/11/2026')
+    await userEvent.tab()
+
+    expect(input).toHaveValue('5 Nov 2026')
+  })
+
+  it('keeps a calendar-picked ISO day visible after blur in a western zone', () => {
+    vi.stubEnv('TZ', 'America/Los_Angeles')
+    const Harness = () => {
+      const [value, setValue] = useState('')
+      return <DateField value={value} onChange={setValue} aria-label="Due date" />
+    }
+    render(<I18nProvider><Harness /></I18nProvider>)
+    fireEvent.change(screen.getByLabelText(/open calendar/i), { target: { value: '2026-10-05' } })
+    expect(screen.getByRole('textbox', { name: 'Due date' })).toHaveValue('05/10/2026')
+    fireEvent.blur(screen.getByRole('textbox', { name: 'Due date' }))
+    expect(screen.getByRole('textbox', { name: 'Due date' })).toHaveValue('5 Oct 2026')
   })
 
   it('forwards a ref to the text input (Escape-isolation contract)', () => {

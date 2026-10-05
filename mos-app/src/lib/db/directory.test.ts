@@ -9,11 +9,13 @@ vi.mock('../supabase', () => {
 import {
   getBusinessUnits,
   getDownlinePersonIds,
+  getPersonBusinessUnitIds,
   getPeople,
   getPersonTeams,
   getTeamsByIds,
   searchPeopleByName,
 } from './directory'
+import { createReadLease } from '@/lib/scoped-reads'
 import { supabase } from '@/lib/supabase'
 
 const schemaMock = vi.mocked(supabase.schema)
@@ -199,6 +201,35 @@ describe('getDownlinePersonIds', () => {
       roles: { data: roles, error: null },
     }) as never)
     await expect(getDownlinePersonIds('viewer')).rejects.toThrow(/rls denied/)
+  })
+})
+
+describe('collection directory read fragments', () => {
+  it('shares the exact person-role assignment DTO while keeping different role projections separate', async () => {
+    const sharedSchema = makeSharedSchema({
+      person_roles: { data: [{ person_id: 'viewer', role_id: 'lead' }, { person_id: 'member', role_id: 'staff' }], error: null },
+      roles: { data: [
+        { id: 'lead', reports_to_role_id: null, business_unit_id: 'bu-1' },
+        { id: 'staff', reports_to_role_id: 'lead', business_unit_id: 'bu-2' },
+      ], error: null },
+    })
+    schemaMock.mockReturnValue(sharedSchema as never)
+    const lease = createReadLease(null)
+
+    const [downline, businessUnits] = await Promise.all([
+      getDownlinePersonIds('viewer', lease),
+      getPersonBusinessUnitIds('viewer', lease),
+    ])
+
+    expect(downline).toEqual(['member'])
+    expect(businessUnits).toEqual(['bu-1'])
+    expect(sharedSchema.from.mock.calls.filter(([table]) => table === 'person_roles')).toHaveLength(1)
+    expect(sharedSchema.from.mock.calls.filter(([table]) => table === 'roles')).toHaveLength(2)
+
+    await Promise.all([getDownlinePersonIds('viewer', lease), getPersonBusinessUnitIds('viewer', lease)])
+    expect(sharedSchema.from.mock.calls.filter(([table]) => table === 'person_roles')).toHaveLength(1)
+    expect(sharedSchema.from.mock.calls.filter(([table]) => table === 'roles')).toHaveLength(2)
+    lease.dispose()
   })
 })
 

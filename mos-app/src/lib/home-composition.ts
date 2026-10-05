@@ -21,14 +21,14 @@ export function canReviewCafeFailedChecks(viewer: Pick<HomeViewerScope, 'affilia
 // The route's read visibility is broader; this is only the Home composition decision.
 export function holdsHomeCockpitScope(
   viewer: HomeViewerScope,
-  orgRoles: readonly RoleScopeNode[],
+  orgRoles: readonly RoleScopeNode[] | null,
 ): boolean {
   const heldRoles = [...viewer.roles]
   return viewer.isManager
     || isOwnerDirector(heldRoles)
     || can(viewer.accessRoles, 'objective.manage')
     || can(viewer.accessRoles, 'workline.manage')
-    || buHeadsForViewer(heldRoles, [...orgRoles]).length > 0
+    || (orgRoles !== null && buHeadsForViewer(heldRoles, [...orgRoles]).length > 0)
 }
 
 export function homePersona(viewer: HomeViewerScope, orgRoles: readonly RolesRow[]): HomePersona {
