@@ -765,6 +765,11 @@ export const messages = {
     'kitchen.waste.itemSubmitted': 'Submitted for review · Posting held.',
     'kitchen.waste.partial': '${submitted} of ${total} waste items submitted. Retry the remaining items.',
     'kitchen.waste.newLog': 'Log more waste',
+    'kitchen.waste.resumableDrafts': 'Unsubmitted waste entries',
+    'kitchen.waste.resumeDraft': 'Resume ${item} · ${quantity} ${unit} · ${date} · ${createdAt}',
+    'kitchen.waste.capturedOn': 'Captured on ${date}',
+    'kitchen.waste.expiredDraft': 'This draft has no photo and its 15-minute upload window ended. It cannot be submitted.',
+    'kitchen.waste.startReplacement': 'Start new waste entry',
     // The DERIVED movement labels (DD-WAY-13). ${branch} is the destination branch's display
     // name, resolved through the same single alias the SQL derivation carries.
     'kitchen.actionType.transferTo': 'Transfer to ${branch}',
@@ -2753,6 +2758,11 @@ export const messages = {
     'kitchen.waste.itemSubmitted': 'Dikirim untuk ditinjau · Pengiriman ditahan.',
     'kitchen.waste.partial': '${submitted} dari ${total} barang limbah telah dikirim. Coba lagi untuk sisanya.',
     'kitchen.waste.newLog': 'Catat limbah lainnya',
+    'kitchen.waste.resumableDrafts': 'Catatan limbah yang belum dikirim',
+    'kitchen.waste.resumeDraft': 'Lanjutkan ${item} · ${quantity} ${unit} · ${date} · ${createdAt}',
+    'kitchen.waste.capturedOn': 'Dicatat pada ${date}',
+    'kitchen.waste.expiredDraft': 'Catatan ini belum memiliki foto dan batas unggah 15 menitnya telah berakhir. Catatan ini tidak dapat dikirim.',
+    'kitchen.waste.startReplacement': 'Mulai catatan limbah baru',
     'kitchen.category.chicken': 'Ayam',
     'kitchen.category.snackSweet': 'Camilan/Manis',
     'kitchen.category.riceStaple': 'Nasi/Makanan Pokok',

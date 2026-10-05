@@ -16,6 +16,31 @@
   background: color-mix(in srgb, var(--warning) 10%, transparent);
   border: 1px solid color-mix(in srgb, var(--warning) 25%, transparent);
 }
+.cwl-resume {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--card);
+}
+.cwl-resume h2 {
+  margin: 0;
+  font-size: var(--font-size-subheading);
+}
+.cwl-resume ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cwl-resume li { display: grid; gap: 4px; min-width: 0; }
+.cwl-resume .btn { min-height: 44px; justify-content: flex-start; text-align: left; white-space: normal; }
+.cwl-expired { display: grid; gap: 8px; }
+.cwl-expired p { margin: 0; }
+.cwl-expired .btn { justify-self: start; min-height: 44px; }
 .cwl-list { width: 100%; min-width: 0; }
 .cwl-list .dt-table {
   table-layout: fixed;
