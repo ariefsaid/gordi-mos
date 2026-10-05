@@ -2,6 +2,10 @@ import { useLayoutEffect, useState, type CSSProperties } from 'react'
 
 const GAP = 12
 
+export function findRecordIdentityHeader(record: ParentNode): HTMLElement | null {
+  return record.querySelector<HTMLElement>('[data-record-header]')
+}
+
 export function recordColumnPlacement(
   record: Pick<DOMRect, 'left' | 'right' | 'top' | 'width'>,
   identityHeaderBottom: number,
@@ -31,7 +35,7 @@ export function useRecordColumnPlacement(active: boolean, recordKey: string | un
     }
     const measure = () => {
       const bounds = record.getBoundingClientRect()
-      const identityHeader = record.querySelector<HTMLElement>('[data-record-header="true"]')
+      const identityHeader = findRecordIdentityHeader(record)
       const sharedChrome = record.querySelector<HTMLElement>('.record-panel-chrome')
       const headerBottom = identityHeader?.getBoundingClientRect().bottom
         ?? sharedChrome?.getBoundingClientRect().bottom
@@ -47,7 +51,7 @@ export function useRecordColumnPlacement(active: boolean, recordKey: string | un
     measure()
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)
     observer?.observe(record)
-    const identityHeader = record.querySelector<HTMLElement>('[data-record-header="true"]')
+    const identityHeader = findRecordIdentityHeader(record)
     if (identityHeader) observer?.observe(identityHeader)
     window.addEventListener('resize', measure)
     return () => {
