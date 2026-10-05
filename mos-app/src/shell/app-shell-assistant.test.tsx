@@ -4,7 +4,7 @@
 // floating orange FAB). AC-AP-001/005, AC-CF-003. Isolated so the SHOW_ASSISTANT mock leaves the
 // existing app-shell tests (flag-off default) untouched.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 
@@ -101,9 +101,10 @@ describe('AppShell assistant wiring (T29)', () => {
     // The launcher gates on SHOW_ASSISTANT before viewport, so it is absent regardless of width.
   })
 
-  it('AC-AP-001: flag-on desktop mounts the top-bar button + the keep-mounted (hidden) panel', () => {
+  it('AC-AP-001: flag-on desktop mounts the top-bar button + the keep-mounted (hidden) panel', async () => {
     setNarrow(false)
     renderShell()
+    await waitFor(() => expect(panelSection()).not.toBeNull())
     // Top-bar assistant button present.
     expect(screen.getByRole('button', { name: 'Open deputy' })).toBeInTheDocument()
     // Panel is keep-mounted in the DOM (closed → inert + aria-hidden, not exposed via role).
@@ -114,9 +115,10 @@ describe('AppShell assistant wiring (T29)', () => {
     expect(screen.getByRole('complementary', { name: 'Deputy' })).toBeInTheDocument()
   })
 
-  it('AC-AP-001: flag-on narrow mounts the header launcher (no FAB); clicking opens the phone sheet', () => {
+  it('AC-AP-001: flag-on narrow mounts the header launcher (no FAB); clicking opens the phone sheet', async () => {
     setNarrow(true)
     renderShell()
+    await waitFor(() => expect(panelSection()).not.toBeNull())
     const launcher = screen.getByRole('button', { name: 'Open deputy' })
     expect(launcher).toBeInTheDocument()
     // It is the neutral header icon, not a floating FAB — no fixed bottom offset.

@@ -19,6 +19,11 @@ vi.mock('@/lib/db/tasks', () => ({ searchTasksByTitle: vi.fn() }))
 vi.mock('@/lib/db/directory', () => ({ getBusinessUnits: vi.fn(), getPeople: vi.fn() }))
 vi.mock('@/lib/db/notifications', () => ({ countUnread: vi.fn(), listNotifications: vi.fn() }))
 vi.mock('../auth/use-auth')
+// The assistant is not under test here; its lazy import would resolve outside act().
+vi.mock('@/config/features', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/config/features')>()),
+  SHOW_ASSISTANT: false,
+}))
 import { useAuth } from '@/auth/use-auth'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 import { countUnread, listNotifications } from '@/lib/db/notifications'

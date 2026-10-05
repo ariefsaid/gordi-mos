@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, type ReactNode } from 'react'
+import { Suspense, useState, useRef, useMemo, type ReactNode } from 'react'
 import { Outlet, useNavigate } from 'react-router-dom'
 import { Rail } from './rail'
 import { TopBar } from './top-bar'
@@ -13,7 +13,7 @@ import { useCommandMenu } from '@/components/command/use-command-menu'
 import { BreadcrumbTitleProvider } from './breadcrumb-title'
 import { SHOW_ASSISTANT } from '@/config/features'
 import { AgentRuntimeProvider, useAgentRuntime } from '@/lib/agent/runtime/AgentRuntimeContext'
-import { AssistantPanel } from '@/components/assistant/AssistantPanel'
+import { lazyPage } from '@/lib/lazy-page'
 import { OverlayHostProvider, OverlayHostSlot, useOptionalOverlayHost, type OverlayHistoryDriver } from './overlay-host'
 import { SignalComposerHost, useSignalComposer } from './signal-composer-host'
 import { createRecordDeepLinkResolver, RECORD_KINDS } from './record-deep-link-resolver'
@@ -114,6 +114,11 @@ function OverlayHostRoot({ children }: { children: ReactNode }) {
     </OverlayHostProvider>
   )
 }
+
+// Split out of the entry chunk (it pulls the markdown renderer); mounts once the shell is up.
+const AssistantPanel = lazyPage(() =>
+  import('@/components/assistant/AssistantPanel').then((m) => ({ default: m.AssistantPanel })),
+)
 
 function ShellContent({ contextRow }: { contextRow?: ReactNode }) {
   // OD-REDESIGN-84.2 (P1-1): the intermediate 920–1099.98px regime — desktop rail still
@@ -289,7 +294,11 @@ function ShellContent({ contextRow }: { contextRow?: ReactNode }) {
           behind SHOW_ASSISTANT; OverlayCompanionSlot/RecordPanelHost own its physical chrome. The launcher is a neutral
           header icon in the top-bar on every viewport (DESIGN.md No-FAB Rule — no floating FAB).
           Absent entirely when the flag is off (FR-P2-CF-003). */}
-      {SHOW_ASSISTANT && <AssistantPanel />}
+      {SHOW_ASSISTANT && (
+        <Suspense fallback={null}>
+          <AssistantPanel />
+        </Suspense>
+      )}
     </BreadcrumbTitleProvider>
   )
 }
