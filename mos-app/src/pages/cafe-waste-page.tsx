@@ -16,6 +16,7 @@ import {
   listCurrentPersonKitchenWasteDrafts,
   submitKitchenWasteLog,
   isWastePhotoWindowExpired,
+  WASTE_PHOTO_UPLOAD_WINDOW_MINUTES,
 } from '@/lib/db/kitchen-waste-photos'
 import type { KitchenWasteDraft, KitchenWastePhoto } from '@/lib/db/kitchen-waste-photos'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
@@ -284,13 +285,13 @@ export function CafeWastePage() {
     })
   }, [])
 
+  // Stable callback identities keep readiness effects from firing again on every parent entry update.
   const photoReadyCallbacks = useMemo(() => new Map(items.map(item => [item.id, (ready: boolean) => {
     setEntries(current => {
       const entry = current[item.id]
       return entry ? { ...current, [item.id]: { ...entry, photoReady: ready } } : current
     })
   }])), [items])
-  // Stable callback identities keep readiness effects from firing again on every parent entry update.
   const photoExpiredCallbacks = useMemo(() => new Map(items.map(item => [item.id, () => {
     setEntries(current => {
       const entry = current[item.id]
@@ -407,7 +408,7 @@ export function CafeWastePage() {
     if (entry.photoWindowExpired && entry.photos.length === 0) {
       return (
         <div className="cwl-evidence cwl-expired" role="status">
-          <p>{t('kitchen.waste.expiredDraft')}</p>
+          <p>{t('kitchen.waste.expiredDraft', { minutes: WASTE_PHOTO_UPLOAD_WINDOW_MINUTES })}</p>
           <button
             type="button"
             className="btn btn-outline"
@@ -623,7 +624,7 @@ export function CafeWastePage() {
                           <span className="cwl-lock-note">{t('kitchen.waste.unitUnavailableHelp')}</span>
                         )}
                         {draft.photos.length === 0 && isWastePhotoWindowExpired(draft.createdAt) && (
-                          <span className="cwl-lock-note">{t('kitchen.waste.expiredDraft')}</span>
+                          <span className="cwl-lock-note">{t('kitchen.waste.expiredDraft', { minutes: WASTE_PHOTO_UPLOAD_WINDOW_MINUTES })}</span>
                         )}
                       </li>
                     )
