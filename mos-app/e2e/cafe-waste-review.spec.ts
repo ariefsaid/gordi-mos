@@ -132,7 +132,7 @@ test.describe('AC-1241: Café waste capture and MOS review', () => {
     await page.goto('cafe/waste')
     await page.waitForURL(/\/cafe\/waste$/, { timeout: 15_000 })
 
-    await expect(page.getByTestId('page-head').getByRole('heading', { name: 'Café · Log waste', exact: true })).toBeVisible()
+    await expect(page.getByTestId('page-head').getByRole('heading', { name: 'Log waste', exact: true })).toBeVisible()
     await expect(page.getByRole('heading', { name: /Rumah Rames · Bar/i })).toBeVisible()
     // OD-TERM-ESB: review copy uses the approved ESB name, never ERP.
     await expect(page.getByText('Waste stays in MOS review. Posting to ESB is held.', { exact: true })).toBeVisible()
