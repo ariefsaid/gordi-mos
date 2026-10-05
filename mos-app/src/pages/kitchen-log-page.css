@@ -758,3 +758,15 @@
 
 .cafe-capture-content .kl-inline-summary { display: block; }
 .cafe-capture-content .dt-table .kls-row { justify-content: flex-end; }
+
+/* Reuse the shared group label/count; keep the capture heading on one baseline. */
+.cafe-capture-content .dt-cards-group,
+.cafe-capture-content .dt-group-bar { gap: 4px; flex-wrap: nowrap; }
+.cafe-capture-content .dt-cards-group-label,
+.cafe-capture-content .dt-group-label,
+.cafe-capture-content .dt-cards-group-count,
+.cafe-capture-content .dt-group-count { white-space: nowrap; }
+.cafe-capture-content .dt-cards-group-count::before,
+.cafe-capture-content .dt-group-count::before { content: '('; }
+.cafe-capture-content .dt-cards-group-count::after,
+.cafe-capture-content .dt-group-count::after { content: ')'; }

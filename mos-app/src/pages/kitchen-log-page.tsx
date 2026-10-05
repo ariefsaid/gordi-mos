@@ -338,9 +338,6 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   const groups = kitchenDataTableGroups(
     itemTable,
     groupKey => groupKey === 'planned' ? t('kitchen.log.group.planned') : t('kitchen.log.group.offplan'),
-    groupKey => groupKey === 'offplan' && mode === 'production' && !streamNonProducing
-      ? { hint: t('kitchen.log.group.offplan.hint') }
-      : undefined,
   ).sort((a, b) => (a.key === 'planned' ? -1 : b.key === 'planned' ? 1 : 0))
 
   // The day summary uses only submitted map membership, independent of draft lines and the
@@ -1095,7 +1092,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
         <span>{t('kitchen.log.col.stock')}</span>
         <strong className="tabular">{formatCaptureQty(line.stok)}</strong>
       </span>
-      <small>{t('kitchen.log.unit.unrecorded')}</small>
+      {!line.item_unit_id && <small>{t('kitchen.log.unit.missingCapture')}</small>}
       {rowStatus && <span className="kl-status kl-status--neutral">{rowStatus}</span>}
     </div>
   )
@@ -1224,9 +1221,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     <KitchenToolbar
       search={search}
       onSearchChange={setSearch}
-      kinds={mode === 'transfer'
-        ? KITCHEN_KIND_FILTER_OPTIONS
-        : KITCHEN_KIND_FILTER_OPTIONS.filter(kind => kind !== 'RAW')}
+      kinds={mode === 'transfer' ? KITCHEN_KIND_FILTER_OPTIONS : undefined}
       kind={effectiveKindFilter}
       kindId="cafe-log-kind"
       onKindChange={setKindFilter}

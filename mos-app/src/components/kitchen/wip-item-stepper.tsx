@@ -123,7 +123,7 @@ export function WipItemStepper({
   // never straight to the translated 'porsi' — that string is master data only for hosts
   // that pass no units at all (pre-unit wiring), not a guess for items that have some.
   const fallbackUnit = unitOptions?.find(u => u.is_default) ?? unitOptions?.[0]
-  const unitLabel = boundUnit?.name ?? fallbackUnit?.name ?? t('kitchen.unit.porsi')
+  const unitLabel = boundUnit?.name ?? fallbackUnit?.name ?? (unitOptions === undefined ? t('kitchen.unit.porsi') : '')
   const offersUnitChange = (unitOptions?.length ?? 0) > 1 && onUnitChange !== undefined
 
   function handleQtyInput(e: React.ChangeEvent<HTMLInputElement>) {
@@ -174,7 +174,7 @@ export function WipItemStepper({
             glyph — one deliberate click opens the picker, selection closes it. An item
             with one unit renders the bare text and NO button (AC-005): nothing to
             change, nothing to mis-tap. */}
-          {!offersUnitChange && <span className="kls-unit">{unitLabel}</span>}
+          {!offersUnitChange && unitLabel && <span className="kls-unit">{unitLabel}</span>}
           {offersUnitChange && !unitPickerOpen && (
             <button
               ref={unitChangeButtonRef}
@@ -247,7 +247,6 @@ export function WipItemStepper({
             <span className="kls-availability-fact">
               <span>{t('kitchen.log.stepper.avail')}</span>
               <strong>{tersedia}</strong>
-              <small>{t('kitchen.log.unit.unrecorded')}</small>
             </span>
           )}
         </div>

@@ -1558,25 +1558,36 @@ describe('R4 / FR-018: Log summary line', () => {
     expect(screen.queryByText(/planned total/i)).toBeNull()
   })
 
-  it('labels Stock and transfer availability with their unrecorded unit basis', async () => {
+  it('does not label bound transfer capture units as unrecorded', async () => {
     await renderTransferPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     const card = screen.getByText('Ayam Bakar').closest('.kl-row')!
-    expect(card.querySelector('.kl-card-meta')).toHaveTextContent(/Stock\s*3.*Unit not recorded/i)
+    expect(card.querySelector('.kl-card-meta')).toHaveTextContent(/Stock\s*3/i)
+    expect(card).not.toHaveTextContent('Unit not recorded')
 
     const user = userEvent.setup()
     await user.click(screen.getByRole('tab', { name: /transfer to radiant/i }))
     const meta = card.querySelector('.kls-meta')!
-    expect(meta).toHaveTextContent(/avail\s*9\s*Unit not recorded/i)
+    expect(meta).toHaveTextContent(/avail\s*9/i)
+    expect(meta).not.toHaveTextContent('Unit not recorded')
   })
 
-  it('labels the production Stock fact with its unrecorded unit basis', async () => {
+  it('directs a row without a capture unit to Café item settings', async () => {
+    mockListCaptureFormItems.mockResolvedValue([{ ...WIP_ITEMS[0], units: [] }])
+    await renderPage()
+    const card = (await screen.findByText('Ayam Bakar')).closest('.kl-row')!
+    expect(card).toHaveTextContent('Choose a capture unit in Café item settings.')
+    expect(within(card as HTMLElement).queryByText('porsi')).not.toBeInTheDocument()
+  })
+
+  it('does not label a bound production capture unit as unrecorded', async () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     const card = screen.getByText('Ayam Bakar').closest('.kl-row')!
-    expect(card.querySelector('.kl-card-meta')).toHaveTextContent(/Stock\s*3.*Unit not recorded/i)
+    expect(card.querySelector('.kl-card-meta')).toHaveTextContent(/Stock\s*3/i)
+    expect(card).not.toHaveTextContent('Unit not recorded')
   })
 })
 
@@ -1604,6 +1615,7 @@ describe('OD-K-5: Planned/Off-plan group split (desktop)', () => {
     expect(within(plannedHead).getByText('2')).toBeInTheDocument()
     const offplanHead = screen.getByRole('button', { name: /expand not planned today/i }).closest('tr')!
     expect(within(offplanHead).getByText('1')).toBeInTheDocument()
+    expect(screen.queryByText('Enter the amount produced')).not.toBeInTheDocument()
     expect(screen.queryByText('Sambal Matah')).toBeNull()
   })
 
@@ -1739,7 +1751,7 @@ describe('OD-K-5: category filter narrows rows', () => {
     await user.click(await screen.findByRole('option', { name: 'WIP' }))
     expect(screen.getByText('No items match your filter.')).toBeInTheDocument()
 
-    await chooseCategory('All')
+    await chooseCategory('All categories')
     expect(screen.getByText('Ayam Bakar')).toBeInTheDocument()
     expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
     expect(screen.queryByText('Fresh milk')).toBeNull()
@@ -1756,7 +1768,7 @@ describe('OD-K-5: category filter narrows rows', () => {
     await renderPage(VIEWER_MEMBER, `${appUrl('/cafe')}?kind=RAW`)
     await waitFor(() => screen.getByText('Ayam Bakar'))
     expect(screen.getByText('Nasi Goreng')).toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: /kind/i })).toHaveTextContent('All')
+    expect(screen.queryByRole('combobox', { name: /kind/i })).not.toBeInTheDocument()
   })
 })
 
@@ -1869,7 +1881,7 @@ describe('OD-K-5: reflow = one branch in the DOM (P-4)', () => {
     await waitFor(() => screen.getByText('Ayam Bakar'))
     const table = screen.getByRole('table', { name: /café production log/i })
     expect(table).toBeInTheDocument()
-    expect(within(table).getAllByText('Unit not recorded').length).toBeGreaterThan(0)
+    expect(within(table).queryByText('Unit not recorded')).not.toBeInTheDocument()
     expect(document.querySelector('.dt-cards')).toBeNull()
   })
 
@@ -1899,7 +1911,7 @@ describe('OD-K-5: reflow = one branch in the DOM (P-4)', () => {
     expect(plan?.textContent).toContain('Plan')
     expect(plan?.textContent).toContain('10')
     expect(plan?.closest('.kl-card-meta')).toHaveTextContent('Stock')
-    expect(plan?.closest('.kl-card-meta')).toHaveTextContent('Unit not recorded')
+    expect(plan?.closest('.kl-card-meta')).not.toHaveTextContent('Unit not recorded')
     expect(within(card).getByRole('spinbutton', { name: /quantity produced for ayam bakar/i }))
       .toHaveAttribute('placeholder', '10')
   })
@@ -2292,9 +2304,9 @@ describe("AC-004 / FR-010: no raw-material input on any stream's form; fixed uni
     // Each row shows its fixed unit as TEXT beside the qty (FR-020) — no unit input. The only
     // comboboxes are the visible kind and category list filters.
     expect(screen.getAllByText('porsi')).toHaveLength(WIP_ITEMS.length)
-    expect(screen.getAllByRole('combobox')).toHaveLength(2)
+    expect(screen.getAllByRole('combobox')).toHaveLength(1)
     expect(screen.getByRole('combobox', { name: /category/i })).toBeInTheDocument()
-    expect(screen.getByRole('combobox', { name: /kind/i })).toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: /kind/i })).not.toBeInTheDocument()
   })
 })
 

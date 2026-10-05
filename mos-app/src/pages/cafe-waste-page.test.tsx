@@ -227,7 +227,7 @@ describe('CafeWastePage', () => {
     expect(screen.queryByText('Oat Latte')).toBeNull()
 
     fireEvent.click(screen.getByRole('combobox', { name: /category/i }))
-    fireEvent.click(await screen.findByRole('option', { name: 'All' }))
+    fireEvent.click(await screen.findByRole('option', { name: 'All categories' }))
     fireEvent.click(screen.getByRole('combobox', { name: /kind/i }))
     fireEvent.click(await screen.findByRole('option', { name: 'RAW' }))
     expect(screen.getByText('Oat milk')).toBeInTheDocument()

@@ -72,6 +72,7 @@ describe('KitchenToolbar — category filter', () => {
     const select = screen.getByRole('combobox', { name: /category/i })
     expect(select).toBeInTheDocument()
     expect(select).toHaveAttribute('id', 'cafe-log-category')
+    expect(select).toHaveTextContent('All categories')
     fireEvent.click(select)
     // options reflect the provided list while the designed popup is open
     const listbox = screen.getByRole('listbox', { name: /category/i })
