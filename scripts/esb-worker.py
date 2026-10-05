@@ -111,6 +111,9 @@ Environment
   ESB_MAX_RETRY             retry budget before dead_letter (default 5)
   ESB_MAX_ROWS              rows drained per tick (default 50)
   ESB_HTTP_TIMEOUT          seconds (default 30)
+  ESB_WORKER_HEARTBEAT_FILE optional path touched each time a drain tick reached the outbox
+                            (scripts/ops-check.sh alerts when it goes stale). Not touched by
+                            --plan, --rows-from or --requeue.
 
 Map file:
   {"target_env": "goo",
@@ -1083,6 +1086,19 @@ def load_rows(path: str) -> list[dict[str, Any]]:
     return raw
 
 
+def touch_heartbeat(environ: dict[str, str]) -> None:
+    """Record that a drain tick reached the outbox. Best effort: a heartbeat that cannot be
+    written must never stop the drain."""
+    path = environ.get("ESB_WORKER_HEARTBEAT_FILE", "").strip()
+    if not path:
+        return
+    try:
+        with open(path, "a", encoding="utf-8"):
+            os.utime(path, None)
+    except OSError as exc:
+        print(f"heartbeat not written: {exc}", file=sys.stderr)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Drain integrations.esb_push once.")
     parser.add_argument("--plan", action="store_true",
@@ -1126,6 +1142,8 @@ def main(argv: list[str] | None = None) -> int:
 
         outbox = None if offline else Outbox(cfg)
         rows = load_rows(args.rows_from) if args.rows_from else outbox.pending()  # type: ignore[union-attr]
+        if drains and not offline:
+            touch_heartbeat(os.environ)
         wip_names = {} if offline else resolve_wip_names(cfg, rows)
     except ConfigError as exc:
         print(f"config: {exc}", file=sys.stderr)
