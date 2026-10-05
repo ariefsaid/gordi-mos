@@ -116,6 +116,17 @@ reset; rm -f "$tmp/heartbeat"; run
 has_msg "heartbeat file missing" && ok "missing heartbeat file alerts" || bad "missing heartbeat" "$(msgs)"
 fresh_heartbeat
 
+echo "backup freshness"
+mkdir -p "$tmp/bk"; EXTRA_ENV="OPS_BACKUP_DIR=$tmp/bk" mkenv "$tmp/ops.env"
+reset; run
+[ "$(nmsg)" = 1 ] && has_msg "no database dump" && ok "no dump in the backup dir alerts" || bad "no dump" "$(msgs)"
+touch "$tmp/bk/mos-20260101T000000Z.dump"; run
+has_msg "recovered" && ok "a fresh dump recovers" || bad "backup recovery" "$(msgs)"
+age_file() { python3 -c "import os,time,sys; t=time.time()-int(sys.argv[2])*3600; os.utime(sys.argv[1],(t,t))" "$1" "$2"; }
+age_file "$tmp/bk/mos-20260101T000000Z.dump" 30; run
+[ "$(nmsg)" = 1 ] && has_msg "no database dump" && ok "a 30 h old dump alerts" || bad "stale dump" "$(msgs)"
+mkenv "$tmp/ops.env"
+
 echo "reachability"
 reset; lifecycle "app" "app URL" FAKE_FAIL_URL=app.fake.invalid -- FAKE_FAIL_URL=
 reset; lifecycle "auth" "auth health" FAKE_FAIL_URL=auth.fake.invalid -- FAKE_FAIL_URL=

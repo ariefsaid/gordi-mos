@@ -5,7 +5,7 @@
 #   */5 * * * * /path/to/scripts/ops-check.sh >> ~/ops-check.log 2>&1
 #
 # Checks: database reachable; ERP outbox dead letters; oldest pending/failed outbox row age;
-# ERP worker heartbeat age; app URL and auth health endpoint; client-error rows in the last
+# ERP worker heartbeat age; newest nightly dump (when OPS_BACKUP_DIR is set); app URL and auth health endpoint; client-error rows in the last
 # 15 minutes (skipped while the log table does not exist). Every coordinate comes from the
 # untracked env file (scripts/ops.env.example, OPS_ENV_FILE); a missing value refuses the run.
 # Self-test: scripts/ops-check.test.sh
@@ -104,6 +104,14 @@ if [[ "$hb" =~ ^[0-9]+$ ]]; then
   else report worker_heartbeat ok "ERP worker ran ${hb_age} min ago"; fi
 else
   report worker_heartbeat fail "ERP worker heartbeat file missing"
+fi
+
+# ---- nightly backup present (cron that dies silently is the failure db-backup.sh cannot report) ----
+if [ -n "${OPS_BACKUP_DIR:-}" ]; then
+  max_h="${OPS_BACKUP_MAX_AGE_HOURS:-26}"
+  if [ -n "$(find "$OPS_BACKUP_DIR" -maxdepth 1 -type f -name 'mos-*.dump' -mmin "-$((max_h * 60))" 2>/dev/null | head -n 1)" ]; then
+    report backup ok "a dump exists from the last ${max_h} h"
+  else report backup fail "no database dump newer than ${max_h} h in the backup directory"; fi
 fi
 
 # ---- reachability ----
