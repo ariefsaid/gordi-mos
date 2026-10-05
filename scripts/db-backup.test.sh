@@ -80,7 +80,7 @@ ls "$BK" | grep -q partial && bad "a .partial file is left behind" || ok "no .pa
 [ "$(msgs)" = 0 ] && ok "success is silent" || bad "success alerted"
 grep -q -- '--no-password' "$tmp/dump.log" && grep -q "passfile=$tmp/pgpass" "$tmp/dump.log" && ok "pg_dump reads the password file and is told never to prompt" || bad "pg_dump args" "$(cat "$tmp/dump.log")"
 grep -qiE 'password|postgresql://' <(grep '^argv' "$tmp/dump.log" | sed 's/--no-password//') && bad "credential-looking text in pg_dump argv" || ok "no credential in pg_dump argv"
-age "$BK/$new" 3
+age "$BK/$new" 5  # well past the 2-day limit: find -mtime truncates days differently on GNU and BSD
 EXTRA_ENV="OPS_BACKUP_KEEP_DAYS=2" mkenv "$tmp/ops.env"; run
 [ ! -e "$BK/$new" ] && ok "OPS_BACKUP_KEEP_DAYS is honoured" || bad "keep days ignored"
 
