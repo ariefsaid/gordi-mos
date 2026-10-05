@@ -1,6 +1,6 @@
 import { getMyOpenTaskCount } from '@/lib/db/open-task-count'
 import type { ReadLease, ReadScope } from '@/lib/scoped-reads'
-import { createReadLease, getReadScope } from '@/lib/scoped-reads'
+import { createReadLease, getReadScope, sameScope } from '@/lib/scoped-reads'
 
 // One shared result for every consumer (rail badge, Home), refreshed after task writes and on focus.
 type Snapshot = { personId: string; count: number | null } | null
@@ -19,15 +19,6 @@ let pending: PendingRead | null = null
 let latest = 0
 const listeners = new Set<() => void>()
 let listeningForFocus = false
-
-function sameScope(left: ReadScope | null, right: ReadScope | null): boolean {
-  if (left === null || right === null) return left === right
-  return left.generation === right.generation
-    && left.authUserId === right.authUserId
-    && left.viewerId === right.viewerId
-    && left.orgId === right.orgId
-    && left.authorityKey === right.authorityKey
-}
 
 function canUseScope(scope: ReadScope | null): boolean {
   return scope === null || sameScope(getReadScope(), scope)

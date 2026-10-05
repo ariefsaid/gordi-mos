@@ -2,7 +2,7 @@ import { forwardRef, useEffect, useId, useImperativeHandle, useLayoutEffect, use
 import * as Popover from '@radix-ui/react-popover'
 import { filterMentionCandidates, type MentionCandidate } from '@/lib/comments/mentions'
 import type { MentionKind } from '@/lib/db/signals.types'
-import { useListboxPopover } from '@/components/ui/use-listbox-popover'
+import { revealWithinList, useListboxPopover } from '@/components/ui/use-listbox-popover'
 import { useT } from '@/i18n/use-t'
 import './signal-mention-picker.css'
 
@@ -40,13 +40,6 @@ const GROUP_LIMIT: Record<MentionKind, number> = { person: 5, team: 4, bu: 3 }
 const NAV_KEYS = new Set(['ArrowDown', 'ArrowUp', 'Home', 'End', 'Enter', 'Escape'])
 
 type FlatOption = { kind: MentionKind; option: MentionCandidate; disabled: boolean }
-
-function revealWithinList(list: HTMLElement, option: HTMLElement) {
-  const listBounds = list.getBoundingClientRect()
-  const optionBounds = option.getBoundingClientRect()
-  if (optionBounds.top < listBounds.top) list.scrollTop -= listBounds.top - optionBounds.top
-  else if (optionBounds.bottom > listBounds.bottom) list.scrollTop += optionBounds.bottom - listBounds.bottom
-}
 
 const optionDomId = (baseId: string, option: FlatOption) =>
   `${baseId}-option-${option.kind}-${encodeURIComponent(option.option.id)}`

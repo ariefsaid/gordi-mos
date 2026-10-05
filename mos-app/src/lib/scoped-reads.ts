@@ -28,7 +28,8 @@ let currentScope: ReadScope | null = null
 const pendingReads = new Map<ReadKey, PendingRead>()
 const currentRevisions = new Map<ReadKey, number>()
 
-function sameScope(left: ReadScope | null, right: ReadScope | null): boolean {
+export function sameScope(left: ReadScope | null, right: ReadScope | null): boolean {
+  if (left === right) return true
   return left !== null
     && right !== null
     && left.generation === right.generation
@@ -72,7 +73,7 @@ function assertCurrentScopedRead(scope: ReadScope, key: ReadKey, revision: numbe
 }
 
 export function publishReadScope(scope: ReadScope | null): void {
-  if (sameScope(currentScope, scope)) return
+  if (scope !== null && sameScope(currentScope, scope)) return
 
   currentScope = scope === null ? null : Object.freeze({ ...scope })
   pendingReads.clear()

@@ -35,7 +35,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useAuth } from '@/auth/use-auth'
 import { useMyOpenTaskCount } from '@/hooks/useMyOpenTaskCount'
-import { createReadLease, type ReadLease, type ReadScope } from '@/lib/scoped-reads'
+import { createReadLease, sameScope, type ReadLease, type ReadScope } from '@/lib/scoped-reads'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
@@ -108,7 +108,7 @@ export function HomePage() {
   const previousReadOwner = readOwnerRef.current
   if (!previousReadOwner
     || previousReadOwner.personId !== personId
-    || !sameReadScope(previousReadOwner.readScope, readScope)
+    || !sameScope(previousReadOwner.readScope, readScope)
     || !sameRoleSet(previousReadOwner.accessRoles, viewer?.accessRoles ?? [])) {
     const lease = createReadLease(readScope)
     previousReadOwner?.lease.dispose()
@@ -119,7 +119,9 @@ export function HomePage() {
       lease,
     }
   }
-  const readLease = (readOwnerRef.current as NonNullable<typeof readOwnerRef.current>).lease
+  const currentReadOwner = readOwnerRef.current
+  if (currentReadOwner === null) throw new Error('Home read owner was not initialized')
+  const readLease = currentReadOwner.lease
   // Home arrangement is a Personal Profile preference. Resolve by person, not auth user, so a
   // dual-role account keeps one deliberate Home shape and a change of viewer cannot leak state.
   // Resolve during render so a viewer switch cannot paint the previous person's arrangement for
@@ -570,16 +572,6 @@ export function HomePage() {
       })()}</div>
     </PageFamilyFrame>
   )
-}
-
-function sameReadScope(left: ReadScope | null, right: ReadScope | null): boolean {
-  if (left === right) return true
-  return left !== null && right !== null
-    && left.generation === right.generation
-    && left.authUserId === right.authUserId
-    && left.viewerId === right.viewerId
-    && left.orgId === right.orgId
-    && left.authorityKey === right.authorityKey
 }
 
 function sameRoleSet(left: readonly string[], right: readonly string[]): boolean {

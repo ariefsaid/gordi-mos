@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react'
 import { supabase } from '@/lib/supabase'
 import { resolveViewer } from '@/lib/db/viewer'
 import type { ViewerResult } from '@/lib/db/viewer'
+import type { PeopleRow } from '@/lib/database.types'
 import {
   publishReadScope,
   type ReadScope,
@@ -50,11 +51,16 @@ function sameScopeFacts(left: ReadScope, right: Omit<ReadScope, 'generation'>): 
     && left.authorityKey === right.authorityKey
 }
 
-function buildReadScope(authUserId: string, result: ViewerResult, previous: ReadScope | null): ReadScope {
+function buildReadScope(
+  authUserId: string,
+  person: PeopleRow,
+  result: ViewerResult,
+  previous: ReadScope | null,
+): ReadScope {
   const facts = {
     authUserId,
-    viewerId: result.person!.id,
-    orgId: result.person!.org_id,
+    viewerId: person.id,
+    orgId: person.org_id,
     authorityKey: makeAuthorityKey(result),
   }
   if (previous && sameScopeFacts(previous, facts)) return previous
@@ -109,19 +115,20 @@ export function AuthProvider({ children }: Props) {
     const result = await resolveViewer(userId, accessToken)
     if (!providerMountedRef.current || ticket !== resolutionTicketRef.current || isRecoveringRef.current) return
 
-    if (result.person === null) {
+    const person = result.person
+    if (person === null) {
       retireReadScope()
       setState({ status: 'orphan', signOut: handleSignOut })
       return
     }
 
-    const readScope = buildReadScope(userId, result, activeScopeRef.current)
+    const readScope = buildReadScope(userId, person, result, activeScopeRef.current)
     activeScopeRef.current = readScope
     publishReadScope(readScope)
     setState({
       status: 'authenticated',
       viewer: {
-        person: result.person,
+        person,
         roles: result.roles,
         isManager: result.isManager,
         accessRoles: result.accessRoles,

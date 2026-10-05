@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type RefObject } from 'react'
 import { Command } from 'cmdk'
 import * as Popover from '@radix-ui/react-popover'
 import type { PersonOption } from '@/lib/db/directory'
+import { revealWithinList } from '@/components/ui/use-listbox-popover'
 import { useT } from '@/i18n/use-t'
 import { initials } from './task-formatters'
 
@@ -19,13 +20,6 @@ export type PersonPickerProps = {
 }
 
 const ATTACHED_RELATIONSHIP_ATTRIBUTES = ['aria-autocomplete', 'aria-controls', 'aria-activedescendant', 'data-escape-layer'] as const
-
-function revealWithinList(list: HTMLElement, option: HTMLElement) {
-  const listBounds = list.getBoundingClientRect()
-  const optionBounds = option.getBoundingClientRect()
-  if (optionBounds.top < listBounds.top) list.scrollTop -= listBounds.top - optionBounds.top
-  else if (optionBounds.bottom > listBounds.bottom) list.scrollTop += optionBounds.bottom - listBounds.bottom
-}
 
 export function PersonPicker({ people, onSelect, onClose, exclude = [], anchorRef, query }: PersonPickerProps) {
   const t = useT()
