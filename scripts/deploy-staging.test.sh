@@ -14,7 +14,7 @@ bad() { fail=$((fail+1)); printf '  FAIL  %s\n' "$1"; }
 SECRET_PW='p4ssw0rdZZ'
 SECRET_HOST='db.fakehost-zz.example.test'
 SECRET_URL="postgresql://deployer:${SECRET_PW}@${SECRET_HOST}:5432/postgres"
-ROOT_REPO="$(pwd -P)"; calls="$tmp/calls"; allout="$tmp/allout"; : > "$allout"
+ROOT_REPO="$(pwd -P)"; calls="$tmp/calls"; ARGVLOG="$tmp/argv"; : > "$ARGVLOG"; allout="$tmp/allout"; : > "$allout"
 mkdir -p "$tmp/bin" "$tmp/mig"
 
 cat > "$tmp/bin/op-get.sh" <<'EOF'
@@ -25,6 +25,7 @@ printf '%s\n' "$FAKE_URL"
 EOF
 cat > "$tmp/bin/supabase" <<'EOF'
 #!/usr/bin/env bash
+printf 'argv supabase %s\npgpw %s\n' "$*" "${PGPASSWORD:-}" >> "$ARGVLOG"
 case "$*" in
   *--dry-run*) printf 'supabase dry-run\n' >> "$CALLS"
     echo "Connecting to $FAKE_URL"
@@ -37,6 +38,7 @@ esac
 EOF
 cat > "$tmp/bin/psql" <<'EOF'
 #!/usr/bin/env bash
+printf 'argv psql %s\npgpw %s\n' "$*" "${PGPASSWORD:-}" >> "$ARGVLOG"
 sql="$*"; stdin=""; case "$sql" in *" -c "*) ;; *) stdin="$(cat)" ;; esac
 case "$sql$stdin" in
   *zz_preflight_probe*"create policy"*|*"create policy"*zz_preflight_probe*) printf 'psql probe\n' >> "$CALLS"
@@ -84,7 +86,7 @@ run() {
   local name="$1" want="$2" input="$3"; shift 3
   local envs=(); while [ "$#" -gt 0 ] && [ "$1" != -- ]; do envs+=("$1"); shift; done; shift
   : > "$calls"
-  out="$(printf '%s' "$input" | env PATH="$tmp/bin:$PATH" CALLS="$calls" WTFILE="$tmp/wtfile" ROOT_REPO="$ROOT_REPO" FAKE_URL="$SECRET_URL" FAKE_HOST="$SECRET_HOST" \
+  out="$(printf '%s' "$input" | env PATH="$tmp/bin:$PATH" CALLS="$calls" ARGVLOG="$ARGVLOG" WTFILE="$tmp/wtfile" ROOT_REPO="$ROOT_REPO" FAKE_URL="$SECRET_URL" FAKE_HOST="$SECRET_HOST" \
     FAKE_DRY_OUT="Would push these migrations:
  • 20260101000001_plain.sql
  • 20260101000002_gate.sql" tmp_main="$tmp" \
@@ -120,6 +122,11 @@ hasnt "trace does not leak the url" "$SECRET_PW"
 run "failed dry run" 1 "" FAKE_DRY_RC=7 -- --yes
 hasnt "failure output hides host" "$SECRET_HOST"
 if grep -qE "$SECRET_PW|$SECRET_HOST|postgresql://" "$allout"; then bad "connection string, password or host reached stdout/stderr"; else ok "connection string, password and host never reach stdout/stderr (all runs)"; fi
+
+echo "no secret in argv"
+if grep '^argv ' "$ARGVLOG" | grep -qF "$SECRET_PW"; then bad "password appears in a command's argv"; else ok "password never in argv of psql or supabase"; fi
+if grep -q '^argv ' "$ARGVLOG"; then ok "argv log recorded calls (check can fail)"; else bad "argv log empty"; fi
+if grep -qx "pgpw $SECRET_PW" "$ARGVLOG"; then ok "password reaches the commands through PGPASSWORD"; else bad "PGPASSWORD not set for the commands"; fi
 
 echo "preflight stops"
 run "stops on a failed dry run" 1 "" FAKE_DRY_RC=7 -- --yes
