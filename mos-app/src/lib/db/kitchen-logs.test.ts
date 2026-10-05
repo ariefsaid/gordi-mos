@@ -234,6 +234,7 @@ describe('listCaptureFormItems — stream-aware capture-form read (FR-011, DD-WA
           { id: 'u2-each', name: 'each', isShown: true, isDefault: true, labelOrdinal: null, labelCount: 1 },
           { id: 'u2-case', name: 'case', isShown: true, isDefault: false, labelOrdinal: null, labelCount: 1 },
         ],
+        unitMultiples: [0.5, 2],
       },
       {
         id: 'raw-1', erpName: 'ERP Beans', mosName: 'ERP Beans', category: 'Main', kind: 'RAW', isActive: true,
@@ -271,10 +272,8 @@ describe('listCaptureFormItems — stream-aware capture-form read (FR-011, DD-WA
       },
       {
         id: 'w2', name: 'MOS Nasi Goreng', category: 'Main', kind: 'WIP',
-        units: [
-          { id: 'u2-each', name: 'each', is_default: true },
-          { id: 'u2-case', name: 'case', is_default: false },
-        ],
+        units: [{ id: 'u2-each', name: 'each', is_default: true }],
+        unit_multiples: [0.5, 2],
       },
     ])
     expect(rec.fromTables).toEqual(expect.arrayContaining(['capture_form_items', 'stream_items']))
@@ -313,10 +312,10 @@ describe('listCaptureFormItems — stream-aware capture-form read (FR-011, DD-WA
     expect(result.map(item => [item.id, item.kind])).toEqual([['raw-1', 'RAW'], ['wip-1', 'WIP']])
   })
 
-  it('distinguishes repeated ERP unit labels without exposing ERP identifiers', async () => {
+  it('keeps the ERP default as the only capture coordinate and exposes configured factors separately', async () => {
     mockCafeItemSettings.mockResolvedValue([{
       id: 'w2', erpName: 'ERP Nasi Goreng', mosName: 'MOS Nasi Goreng', category: 'Main', kind: 'WIP', isActive: true,
-      defaultUnitId: 'detail-a',
+      defaultUnitId: 'detail-a', unitMultiples: [0.5, 2],
       units: [
         { id: 'detail-a', name: 'each', isShown: true, isDefault: true, labelOrdinal: 1, labelCount: 2 },
         { id: 'detail-b', name: 'each', isShown: true, isDefault: false, labelOrdinal: 2, labelCount: 2 },
@@ -331,8 +330,8 @@ describe('listCaptureFormItems — stream-aware capture-form read (FR-011, DD-WA
     const result = await listCaptureFormItems(STREAM)
     expect(result[0]?.units).toEqual([
       { id: 'detail-a', name: 'each (1/2)', is_default: true },
-      { id: 'detail-b', name: 'each (2/2)', is_default: false },
     ])
+    expect(result[0]?.unit_multiples).toEqual([0.5, 2])
   })
 
   it('reads the gated capture_form_items view ordered by name — never raw wip_items', async () => {
@@ -562,6 +561,33 @@ describe('insertKitchenLog — payload contract (AC-020/030)', () => {
     assertNoServerStamps([payload])
     // should not send the old (wrong) 'date' key
     expect(payload).not.toHaveProperty('date')
+  })
+
+  it('includes typed quantity and selected factor while retaining the ERP default unit id', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema(
+      { kitchen_logs: [{ data: { id: 'log-multiple' }, error: null }] },
+      rec,
+    ) as never)
+    await insertKitchenLog({
+      business_unit_id: BU_ID,
+      log_date: '2026-06-20',
+      branch_id: BRANCH_ID,
+      activity: 'kitchen',
+      action: 'produce',
+      destination_branch_id: null,
+      wip_item_id: WIP_ID,
+      item_unit_id: 'u-default',
+      qty_porsi: 1.5,
+      entry_quantity: 3,
+      entry_unit_factor: 0.5,
+    })
+    expect(rec.inserts[0]).toMatchObject({
+      item_unit_id: 'u-default',
+      qty_porsi: 1.5,
+      entry_quantity: 3,
+      entry_unit_factor: 0.5,
+    })
   })
 
   it('FR-021/022 (#234): an explicit item-unit binding rides the payload — the change-unit path', async () => {
@@ -1361,7 +1387,7 @@ describe('fetchActualsMap — the already-logged actuals, stream-scoped (FR-014,
     expect(map['w1'][`transfer:${RADIANT_ID}`]).toEqual([
       { key: 'unit:u-batch-1', item_unit_id: 'u-batch-1', unit_name: 'batch', qty_porsi: 4 },
     ])
-    expect(rec.selects).toContain('id,wip_item_id,action,destination_branch_id,item_unit_id,qty_porsi')
+    expect(rec.selects).toContain('id,wip_item_id,action,destination_branch_id,item_unit_id,qty_porsi,entry_quantity,entry_unit_factor,entry_unit_name')
     expect(rec.selects).toContain('id,unit_name')
     expect(rec.ins).toContainEqual(['id', ['u-batch-1', 'u-batch-2']])
     expect(rec.fromTables).toContain('item_units')
@@ -1370,6 +1396,26 @@ describe('fetchActualsMap — the already-logged actuals, stream-scoped (FR-014,
     expect(rec.eqs).toContainEqual(['branch_id', STREAM.branch.id])
     expect(rec.eqs).toContainEqual(['activity', STREAM.activity])
     expect(rec.neqs).toContainEqual(['status', 'Rejected'])
+    // A restarted waste draft is replaced, not added: only the live row counts.
+    expect(rec.iss).toContainEqual(['superseded_by', null])
+  })
+
+  it('keeps each newly captured multiple as its own history entry even on the same default unit', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({
+      kitchen_logs: [{ data: [
+        { id: 'log-half-1', wip_item_id: 'w1', action: 'produce', destination_branch_id: null, item_unit_id: 'u-each', qty_porsi: 1, entry_quantity: 2, entry_unit_factor: 0.5, entry_unit_name: 'each' },
+        { id: 'log-half-2', wip_item_id: 'w1', action: 'produce', destination_branch_id: null, item_unit_id: 'u-each', qty_porsi: 1.5, entry_quantity: 3, entry_unit_factor: 0.5, entry_unit_name: 'each' },
+      ], error: null }],
+      item_units: [{ data: [{ id: 'u-each', unit_name: 'each' }], error: null }],
+    }, rec) as never)
+
+    await expect(fetchActualsMap('2026-08-08', STREAM)).resolves.toEqual({
+      w1: { produce: [
+        { key: 'log:log-half-1', item_unit_id: 'u-each', unit_name: 'each', qty_porsi: 1, entry_quantity: 2, entry_unit_factor: 0.5, entry_unit_name: 'each' },
+        { key: 'log:log-half-2', item_unit_id: 'u-each', unit_name: 'each', qty_porsi: 1.5, entry_quantity: 3, entry_unit_factor: 0.5, entry_unit_name: 'each' },
+      ] },
+    })
   })
 
   it('returns an empty map when nothing is logged yet', async () => {

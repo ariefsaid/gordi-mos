@@ -1,7 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import { recordColumnPlacement } from './use-record-column-placement'
+import { findRecordIdentityHeader, recordColumnPlacement } from './use-record-column-placement'
 
 describe('recordColumnPlacement — Deputy uses the record column, not the task-list canvas', () => {
+  it('finds the pinned identity header used by the shared RecordViewer', () => {
+    const record = document.createElement('aside')
+    const chrome = document.createElement('div')
+    chrome.className = 'record-panel-chrome'
+    const identityHeader = document.createElement('header')
+    identityHeader.dataset.recordHeader = 'pinned'
+    record.append(chrome, identityHeader)
+
+    expect(findRecordIdentityHeader(record)).toBe(identityHeader)
+  })
+
   it('right-aligns below the identity header without entering the list columns', () => {
     const record = { left: 950, right: 1408, top: 165, width: 458 }
     const placement = recordColumnPlacement(record, 470, 1440, 400)

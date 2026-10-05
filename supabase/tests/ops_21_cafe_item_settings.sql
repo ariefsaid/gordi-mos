@@ -1,7 +1,7 @@
 -- #1242 — per-stream MOS item names and ERP product-detail choices.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(37);
+select plan(38);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -248,8 +248,8 @@ select throws_ok($$
      '2099-12-31', '00000000-0000-0000-0000-00000000bf01', 'kitchen', 'produce',
      (select id from ops.wip_items where esb_product_id = 'SYNTH-ERP-P-1242-WIP'),
      (select id from ops.item_units where esb_product_detail_id = 'SYNTH-ERP-PD-1242-WIP-B'), 2)
-$$, 'P0015', 'CAFE_ITEM_UNIT_NOT_SHOWN: the selected ERP detail is not shown for this stream item',
-  'a log cannot bind an ERP detail hidden from this stream');
+$$, 'P0015', 'CAFE_ITEM_UNIT_NOT_SHOWN: Café capture must use the default ERP detail; select a configured multiple for another quantity',
+  'a log cannot bind an ERP detail that is not the stream default');
 
 reset role;
 update ops.cafe_item_settings
@@ -282,13 +282,23 @@ select lives_ok($$
     ], 'WIP', true
   )
 $$, 'a manager can restore a configured default and shown-unit set');
+select throws_ok($$
+  insert into ops.kitchen_logs
+    (id, business_unit_id, log_date, branch_id, activity, action, wip_item_id, item_unit_id, qty_porsi)
+  values
+    ('00000000-0000-0000-0000-00000000c423', '00000000-0000-0000-0000-00000000bb01',
+     '2099-12-31', '00000000-0000-0000-0000-00000000bf01', 'kitchen', 'produce',
+     (select id from ops.wip_items where esb_product_id = 'SYNTH-ERP-P-1242-WIP'),
+     (select id from ops.item_units where esb_product_detail_id = 'SYNTH-ERP-PD-1242-WIP-B'), 3)
+$$, 'P0015', 'CAFE_ITEM_UNIT_NOT_SHOWN: Café capture must use the default ERP detail; select a configured multiple for another quantity',
+  'a shown alternate ERP detail cannot replace the default ERP coordinate');
+
 insert into ops.kitchen_logs
   (id, business_unit_id, log_date, branch_id, activity, action, wip_item_id, item_unit_id, qty_porsi)
 values
   ('00000000-0000-0000-0000-00000000c423', '00000000-0000-0000-0000-00000000bb01',
    '2099-12-31', '00000000-0000-0000-0000-00000000bf01', 'kitchen', 'produce',
-   (select id from ops.wip_items where esb_product_id = 'SYNTH-ERP-P-1242-WIP'),
-   (select id from ops.item_units where esb_product_detail_id = 'SYNTH-ERP-PD-1242-WIP-B'), 3),
+   (select id from ops.wip_items where esb_product_id = 'SYNTH-ERP-P-1242-WIP'), null, 3),
   ('00000000-0000-0000-0000-00000000c424', '00000000-0000-0000-0000-00000000bb01',
    '2099-12-31', '00000000-0000-0000-0000-00000000bf01', 'kitchen', 'produce',
    (select id from ops.wip_items where esb_product_id = 'SYNTH-ERP-P-1242-WIP'), null, 4);
@@ -296,14 +306,14 @@ select is((select item_unit_id from ops.kitchen_logs where id = '00000000-0000-0
           (select id from ops.item_units where esb_product_detail_id = 'SYNTH-ERP-PD-1242-WIP-A'),
   'a log without an explicit choice binds the per-stream default ERP detail');
 select is((select item_unit_id from ops.kitchen_logs where id = '00000000-0000-0000-0000-00000000c423'),
-          (select id from ops.item_units where esb_product_detail_id = 'SYNTH-ERP-PD-1242-WIP-B'),
-  'an explicitly selected shown ERP detail is bound to the log');
+          (select id from ops.item_units where esb_product_detail_id = 'SYNTH-ERP-PD-1242-WIP-A'),
+  'every Café capture binds the default ERP detail even when other details remain manager-visible');
 select is(ops.approve_kitchen_log('00000000-0000-0000-0000-00000000c423', 'checked'),
           'PR-20991231-001', 'approval retains the normal log and dispatch journey');
 select is((select push.payload ->> 'esb_product_detail_id_porsi'
              from integrations.esb_push push
-            where push.source_ref = 'PR-20991231-001'), 'SYNTH-ERP-PD-1242-WIP-B',
-  'the outbox payload uses the selected log product detail rather than the item-level legacy default');
+            where push.source_ref = 'PR-20991231-001'), 'SYNTH-ERP-PD-1242-WIP-A',
+  'the outbox payload stays on the default ERP detail; the selected multiple changes quantity, not the ERP coordinate');
 
 select * from finish();
 rollback;

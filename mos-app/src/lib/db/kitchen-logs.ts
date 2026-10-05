@@ -239,6 +239,7 @@ export async function listCaptureFormItems(
           name: cafeUnitDisplayLabel(unit),
           is_default: unit.isDefault,
         })),
+        unit_multiples: logItem.multiples,
       }] : []
     })
   const manualItems = legacyItems.filter(item => !erpItemIds.has(item.id) && offered.has(item.id))
@@ -290,7 +291,8 @@ export async function fetchPlanMap(
  * exact recorded non-null item_unit_id. Historical rows without a unit stay separate by log
  * ID; they are not evidence that two quantities share a basis. Unit labels are resolved by
  * recorded IDs across the full org catalog, not from today's offered/default units. Stream-
- * scoped like the plan and stock reads (OD-WAY-28). Submitted rows count; Rejected rows do not.
+ * scoped like the plan and stock reads (OD-WAY-28). Submitted rows count; Rejected rows and
+ * restarted (superseded) waste drafts do not.
  */
 export async function fetchActualsMap(
   logDate: string,
@@ -298,11 +300,12 @@ export async function fetchActualsMap(
 ): Promise<ActualsMap> {
   const { data, error } = await ops()
     .from('kitchen_logs')
-    .select('id,wip_item_id,action,destination_branch_id,item_unit_id,qty_porsi')
+    .select('id,wip_item_id,action,destination_branch_id,item_unit_id,qty_porsi,entry_quantity,entry_unit_factor,entry_unit_name')
     .eq('log_date', logDate)
     .eq('branch_id', stream.branch.id)
     .eq('activity', stream.activity)
     .neq('status', 'Rejected')
+    .is('superseded_by', null)
   if (error) throw new Error(`fetchActualsMap failed — ${error.message}`)
   type ActualRow = {
     id: string
@@ -311,6 +314,9 @@ export async function fetchActualsMap(
     destination_branch_id: string | null
     item_unit_id: string | null
     qty_porsi: number
+    entry_quantity?: number | null
+    entry_unit_factor?: number | null
+    entry_unit_name?: string | null
   }
   const rows = (data ?? []) as ActualRow[]
   const unitIds = [...new Set(rows.flatMap(row => row.item_unit_id ? [row.item_unit_id] : []))]
@@ -334,7 +340,17 @@ export async function fetchActualsMap(
     const key = movementKey({ action: row.action, destinationBranchId: row.destination_branch_id })
     if (!map[row.wip_item_id]) map[row.wip_item_id] = {}
     const entries = map[row.wip_item_id][key] ?? (map[row.wip_item_id][key] = [])
-    if (row.item_unit_id) {
+    if (row.entry_quantity != null && row.entry_unit_factor != null) {
+      entries.push({
+        key: `log:${row.id}`,
+        item_unit_id: row.item_unit_id,
+        unit_name: unitNames.get(row.item_unit_id ?? '') ?? null,
+        qty_porsi: row.qty_porsi,
+        entry_quantity: row.entry_quantity,
+        entry_unit_factor: row.entry_unit_factor,
+        entry_unit_name: row.entry_unit_name ?? null,
+      })
+    } else if (row.item_unit_id) {
       const exactUnit = entries.find(entry => entry.item_unit_id === row.item_unit_id)
       if (exactUnit) exactUnit.qty_porsi += row.qty_porsi
       else entries.push({
@@ -497,6 +513,15 @@ export async function fetchKitchenStock(
  */
 function toKitchenLogRow(input: CreateKitchenLogInput): Record<string, unknown> {
   if (input.qty_porsi <= 0) throw new Error('qty_porsi must be > 0')
+  if ((input.entry_quantity == null) !== (input.entry_unit_factor == null)) {
+    throw new Error('entry quantity and unit factor must be supplied together')
+  }
+  if (input.entry_quantity != null && (!Number.isFinite(input.entry_quantity) || input.entry_quantity <= 0)) {
+    throw new Error('entry quantity must be a finite positive number')
+  }
+  if (input.entry_unit_factor != null && (!Number.isFinite(input.entry_unit_factor) || input.entry_unit_factor <= 0)) {
+    throw new Error('entry unit factor must be a finite positive number')
+  }
   if (!input.branch_id || !input.activity) {
     throw new Error('a kitchen log must name its (branch, activity) production stream')
   }
@@ -521,6 +546,10 @@ function toKitchenLogRow(input: CreateKitchenLogInput): Record<string, unknown> 
     // server-side (FR-020) — the common path never entered a unit, but the row carries one.
     item_unit_id: input.item_unit_id ?? null,
     qty_porsi: input.qty_porsi,
+    ...(input.entry_quantity == null ? {} : {
+      entry_quantity: input.entry_quantity,
+      entry_unit_factor: input.entry_unit_factor,
+    }),
     notes: input.notes ?? null,
     // Waste starts as a Draft so the required photo can attach before submission.
     ...(input.action === 'waste' ? { status: 'Draft' } : {}),
@@ -593,7 +622,7 @@ export class KitchenRpcError extends Error {
 // added so the review queue can look up each row's plan baseline against ITS stream
 // rather than one hardcoded stream (the #247/#196 defect this port fixes).
 const REVIEW_SELECT =
-  'id,batch_id,log_date,action,destination_branch_id,branch_id,activity,action_label,wip_item_id,qty_porsi,notes,status,submitted_by,business_unit_id,created_at,wip_items(name)'
+  'id,batch_id,log_date,action,destination_branch_id,branch_id,activity,action_label,wip_item_id,qty_porsi,entry_quantity,entry_unit_factor,entry_unit_name,notes,status,submitted_by,business_unit_id,created_at,wip_items(name)'
 
 /**
  * List the Submitted kitchen logs for a date — the ops_lead review queue (FR-040).
@@ -626,6 +655,9 @@ export async function listSubmittedKitchenLogs(logDate: string): Promise<ReviewL
     action_label: string | null
     wip_item_id: string
     qty_porsi: number
+    entry_quantity: number | null
+    entry_unit_factor: number | null
+    entry_unit_name: string | null
     notes: string | null
     status: ReviewLogRow['status']
     submitted_by: string | null
@@ -649,6 +681,9 @@ export async function listSubmittedKitchenLogs(logDate: string): Promise<ReviewL
       wip_item_id: r.wip_item_id,
       wip_item_name: embed?.name ?? '—',
       qty_porsi: r.qty_porsi,
+      entry_quantity: r.entry_quantity ?? null,
+      entry_unit_factor: r.entry_unit_factor ?? null,
+      entry_unit_name: r.entry_unit_name ?? null,
       notes: r.notes,
       status: r.status,
       submitted_by: r.submitted_by,

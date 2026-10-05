@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { StrictMode } from 'react'
 import { MemoryRouter } from 'react-router-dom'
@@ -31,14 +31,16 @@ vi.mock('@/lib/db/cafe-missing-item-reports', () => ({
 }))
 
 import { useAuth } from '@/auth/use-auth'
-import { canManageCafeItemSettings, listCafeItemSettings } from '@/lib/db/cafe-item-settings'
+import { canManageCafeItemSettings, listCafeItemSettings, saveCafeItemSettings } from '@/lib/db/cafe-item-settings'
 import { listCafeMissingItemReports, resolveCafeMissingItemReport } from '@/lib/db/cafe-missing-item-reports'
 import { CafeItemSettingsPage } from './cafe-item-settings-page'
+import { useCafeItemSettingsSorting } from './cafe-item-settings-sorting'
 import { isCafeItemDraftKind } from './cafe-item-settings-kind'
 
 const mockUseAuth = vi.mocked(useAuth)
 const mockCanManage = vi.mocked(canManageCafeItemSettings)
 const mockListItems = vi.mocked(listCafeItemSettings)
+const mockSaveItem = vi.mocked(saveCafeItemSettings)
 const mockListReports = vi.mocked(listCafeMissingItemReports)
 const mockResolveReport = vi.mocked(resolveCafeMissingItemReport)
 
@@ -84,6 +86,18 @@ beforeEach(() => {
   }])
   mockListReports.mockResolvedValue([REPORT])
   mockResolveReport.mockResolvedValue()
+  mockSaveItem.mockResolvedValue()
+})
+
+describe('Cafe item table sorting', () => {
+  it('keeps an empty sorting state stable across rerenders', () => {
+    const { result, rerender } = renderHook(() => useCafeItemSettingsSorting(undefined))
+    const initialSorting = result.current
+
+    rerender()
+
+    expect(result.current).toBe(initialSorting)
+  })
 })
 
 it('accepts only the three Café item kind select values', () => {
@@ -199,19 +213,74 @@ describe('CafeItemSettingsPage filters', () => {
   })
 })
 
-describe('CafeItemSettingsPage default-unit setup note', () => {
-  it('says once how many items need a default unit and tags each row briefly', async () => {
-    const unit = (id: string) => ({ id, name: 'GR', isShown: true, isDefault: false, labelOrdinal: null, labelCount: 1 })
-    mockListItems.mockResolvedValue([
-      { id: 'item-1', erpName: 'ERP Oat milk', mosName: 'Oat milk', category: 'Dairy', kind: 'RAW', isActive: true,
-        defaultUnitId: null, units: [unit('u-1')] },
-      { id: 'item-2', erpName: 'ERP Sugar', mosName: 'Sugar', category: 'Dry', kind: 'RAW', isActive: true,
-        defaultUnitId: null, units: [unit('u-2')] },
-    ])
+describe('CafeItemSettingsPage unit multiples', () => {
+  it('offers all active ERP units as defaults, defines factors in one multi-select, and saves only the default detail', async () => {
+    mockListItems.mockResolvedValue([{
+      id: 'item-1', erpName: 'ERP Oat milk', mosName: 'Oat milk', category: 'Dairy', kind: 'RAW', isActive: true,
+      defaultUnitId: 'unit-each',
+      units: [
+        { id: 'unit-each', name: 'each', isShown: true, isDefault: true, labelOrdinal: null, labelCount: 1 },
+        { id: 'unit-case', name: 'case', isShown: false, isDefault: false, labelOrdinal: null, labelCount: 1 },
+      ],
+      unitMultiples: [0.5],
+    }])
+    const user = userEvent.setup()
     renderPage()
-    expect(await screen.findAllByText('2 items need a default unit before they can be logged.')).toHaveLength(1)
+
+    const defaultUnit = await screen.findByRole('combobox', { name: 'Default unit' })
+    await user.click(defaultUnit)
+    await user.click(await screen.findByRole('option', { name: 'case' }))
+
+    const multiples = screen.getByRole('button', { name: 'Extra units for Oat milk' })
+    await user.click(multiples)
+    expect(screen.queryByRole('option', { name: '0.5 case' })).not.toBeInTheDocument()
+    await user.keyboard('{Escape}')
+
+    await user.click(multiples)
+    const factor = screen.getByRole('spinbutton', { name: 'Multiple of case' })
+    await user.type(factor, '2')
+    await user.click(screen.getByRole('button', { name: 'Add a multiple for Oat milk' }))
+    expect(screen.getByRole('button', { name: 'Extra units for Oat milk' })).toHaveTextContent('2 case')
+
+    await user.click(screen.getByRole('button', { name: 'Save settings for Oat milk' }))
+    await waitFor(() => expect(mockSaveItem).toHaveBeenCalledWith(expect.objectContaining({
+      itemId: 'item-1',
+      defaultUnitId: 'unit-case',
+      shownUnitIds: ['unit-case'],
+      unitMultiples: [2],
+    })))
+    expect(await screen.findByText('Saved')).toBeInTheDocument()
+  })
+})
+
+describe('CafeItemSettingsPage default-unit setup note', () => {
+  it.each([
+    { locale: 'en' as const, count: 1, summary: '1 item needs a default unit before it can be logged.' },
+    { locale: 'en' as const, count: 2, summary: '2 items need a default unit before they can be logged.' },
+    { locale: 'id' as const, count: 1, summary: '1 item perlu satuan default sebelum dapat dicatat.' },
+    { locale: 'id' as const, count: 2, summary: '2 item perlu satuan default sebelum dapat dicatat.' },
+  ])('localizes the $locale setup summary for $count item(s) and tags each row', async ({ locale, count, summary }) => {
+    const unit = (id: string) => ({ id, name: 'GR', isShown: true, isDefault: false, labelOrdinal: null, labelCount: 1 })
+    mockListItems.mockResolvedValue(Array.from({ length: count }, (_, index) => ({
+      id: `item-${index + 1}`,
+      erpName: `ERP item ${index + 1}`,
+      mosName: `Item ${index + 1}`,
+      category: 'Dry',
+      kind: 'RAW' as const,
+      isActive: true,
+      defaultUnitId: null,
+      units: [unit(`u-${index + 1}`)],
+    })))
+    const { container } = renderPage(locale)
+
+    const summaryNote = await screen.findByText(summary, { exact: true })
+    expect(summaryNote).toHaveAttribute('role', 'status')
+    const statusTags = Array.from(container.querySelectorAll('.cafe-items__needs-unit-status'))
+    expect(statusTags).toHaveLength(count)
+    expect(statusTags.map(tag => tag.textContent)).toEqual(
+      Array.from({ length: count }, () => locale === 'en' ? 'Needs unit' : 'Perlu satuan'),
+    )
     expect(screen.queryByText('Choose a shown default to enable logging.')).not.toBeInTheDocument()
-    expect(screen.getAllByText('Needs unit').length).toBeGreaterThanOrEqual(2)
   })
 })
 
