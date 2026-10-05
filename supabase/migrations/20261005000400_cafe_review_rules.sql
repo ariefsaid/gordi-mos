@@ -64,9 +64,6 @@ begin
        or new.wip_item_id is distinct from old.wip_item_id
        or new.qty_porsi is distinct from old.qty_porsi
        or new.item_unit_id is distinct from old.item_unit_id
-       or new.entry_quantity is distinct from old.entry_quantity
-       or new.entry_unit_factor is distinct from old.entry_unit_factor
-       or new.entry_unit_name is distinct from old.entry_unit_name
      ) then
     raise exception 'reviewed kitchen log facts are immutable' using errcode = '42501';
   end if;
@@ -112,7 +109,7 @@ begin
   if v_log.id is null then
     raise exception 'kitchen log not found' using errcode = 'P0002';
   end if;
-  if v_log.org_id is distinct from shared.current_org_id() then
+  if v_log.org_id is distinct from (select shared.current_org_id()) then
     raise exception 'cannot approve a log outside your org' using errcode = '42501';
   end if;
   if v_log.status <> 'Submitted' then
@@ -124,7 +121,7 @@ begin
   if v_log.updated_at is distinct from p_expected_updated_at then
     raise exception 'review row changed; refresh before approval' using errcode = 'P0003';
   end if;
-  if v_log.submitted_by = shared.current_person_id()
+  if v_log.submitted_by = (select shared.current_person_id())
      and not (shared.has_access_role('ops_lead') or shared.has_access_role('admin')) then
     raise exception 'approval requires a different reviewer' using errcode = '42501';
   end if;
@@ -188,7 +185,7 @@ begin
   if exists (
     select 1 from ops.kitchen_logs l
      where l.id = any(v_ids)
-       and (l.org_id is distinct from shared.current_org_id() or l.status <> 'Submitted')
+       and (l.org_id is distinct from (select shared.current_org_id()) or l.status <> 'Submitted')
   ) or (select count(*) from ops.kitchen_logs where id = any(v_ids)) <> cardinality(v_ids) then
     raise exception 'bulk approval contains a log that is not eligible' using errcode = 'P0003';
   end if;
@@ -262,16 +259,16 @@ begin
   select * into v_comment
     from mos.comments c
    where c.id = p_comment_id
-     and c.org_id = shared.current_org_id()
-     and c.author_id = shared.current_person_id();
+     and c.org_id = (select shared.current_org_id())
+     and c.author_id = (select shared.current_person_id());
   if v_comment.id is null then
     raise exception 'comment notification requires its author' using errcode = '42501';
   end if;
 
   select p.full_name into v_actor_name
     from shared.people p
-   where p.id = shared.current_person_id()
-     and p.org_id = shared.current_org_id()
+   where p.id = (select shared.current_person_id())
+     and p.org_id = (select shared.current_org_id())
      and p.archived_at is null;
   if v_actor_name is null then
     raise exception 'comment author must be active in the current org' using errcode = '42501';
@@ -283,7 +280,7 @@ begin
   select p.full_name into v_owner_name
     from shared.people p
    where p.id = p_owner
-     and p.org_id = shared.current_org_id()
+     and p.org_id = (select shared.current_org_id())
      and p.archived_at is null;
   if v_owner_name is null then
     raise exception 'comment recipient must be active in the current org' using errcode = '42501';
@@ -295,7 +292,7 @@ begin
   end if;
   select count(*) into v_slug_count
     from shared.people p
-   where p.org_id = shared.current_org_id()
+   where p.org_id = (select shared.current_org_id())
      and p.archived_at is null
      and lower(split_part(btrim(p.full_name), ' ', 1)) = v_slug;
   if v_slug_count <> 1 then
@@ -341,7 +338,7 @@ begin
     jsonb_build_object(
       'source', 'mention',
       'actor', jsonb_build_object(
-        'id', shared.current_person_id(),
+        'id', (select shared.current_person_id()),
         'name', v_actor_name),
       'entity', jsonb_build_object(
         'type', v_comment.entity_type,
@@ -361,7 +358,7 @@ drop policy comments_select on mos.comments;
 create policy comments_select on mos.comments
   for select to authenticated
   using (
-    org_id = shared.current_org_id()
+    org_id = (select shared.current_org_id())
     and case entity_type
       when 'task' then exists (
         select 1 from mos.tasks parent
