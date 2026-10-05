@@ -284,7 +284,7 @@ test.describe('Café item settings', () => {
       await expect(visibleItems).toHaveCount(501, { timeout: 30_000 })
       await expect(page.getByRole('searchbox', { name: 'Find an ESB or MOS name' })).toBeVisible()
       await expect(page.locator('.cafe-items__unit-choice')).toHaveCount(503)
-      await expect(page.getByText('500 items need a shown default to enable logging.', { exact: true })).toHaveCount(1)
+      await expect(page.getByText('500 items need a default unit before they can be logged.', { exact: true })).toHaveCount(1)
       await expect(page.locator('.cafe-items__needs-unit-status')).toHaveCount(500)
       await assertNoOverflow(page, width)
 
