@@ -4,7 +4,8 @@ import { shrinkPhoto } from '@/lib/db/signal-photos'
 export const WASTE_PHOTO_BUCKET = 'waste-photos'
 export const MAX_WASTE_PHOTOS = 4
 export const MAX_WASTE_PHOTO_BYTES = 5 * 1024 * 1024
-export const WASTE_PHOTO_UPLOAD_WINDOW_MS = 15 * 60 * 1000
+export const WASTE_PHOTO_UPLOAD_WINDOW_MINUTES = 15
+export const WASTE_PHOTO_UPLOAD_WINDOW_MS = WASTE_PHOTO_UPLOAD_WINDOW_MINUTES * 60 * 1000
 export const WASTE_PHOTO_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const
 const SIGNED_URL_SECONDS = 60 * 60
 

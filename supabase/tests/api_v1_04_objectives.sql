@@ -8,7 +8,7 @@
 --   Unit-1 (a2)   d4 ops_lead   d5 member   d7 = apex head of Unit-2 (a3)   b4 another org.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(91);
+select plan(96);
 
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
@@ -376,6 +376,24 @@ select is((select count(*)::int from pg_proc p
                             'api_v1.set_key_result_current_value(uuid,numeric,timestamptz)'::regprocedure)
               and obj_description(p.oid, 'pg_proc') like '%never returns refused.targets; only refused_action answers such a request with refused.targets.'), 2,
   'both content writes say they never return refused.targets and name refused_action as the operation that does');
+
+-- An organization owns the successful API writes above and their log rows (#1155).
+reset role;
+select cmp_ok((select count(*) from shared.api_write_log
+               where org_id = '00000000-0000-0000-0000-0000000000a1'), '>', 0::bigint,
+  'the organization has log rows from successful API writes before deletion');
+select lives_ok($q$
+  delete from shared.orgs where id = '00000000-0000-0000-0000-0000000000a1'
+$q$, 'an organization can be deleted after successful API writes');
+select is((select count(*) from shared.orgs
+            where id = '00000000-0000-0000-0000-0000000000a1'), 0::bigint,
+  'the organization is deleted');
+select is((select count(*) from shared.api_write_log
+            where org_id = '00000000-0000-0000-0000-0000000000a1'), 0::bigint,
+  'the deleted organization leaves no API write log rows');
+select is((select count(*) from shared.orgs
+            where id = '00000000-0000-0000-0000-0000000000b1'), 1::bigint,
+  'deleting one organization preserves another organization');
 
 select * from finish();
 rollback;
