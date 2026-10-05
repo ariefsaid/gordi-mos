@@ -56,16 +56,15 @@ export async function listNotifications(): Promise<NotificationRow[]> {
  * reads metadata to match the Inbox's profile visibility rule; full keeps the id-only projection.
  */
 export async function countUnread(): Promise<number> {
-  const { data, error } = await mos()
-    .from('notifications')
-    .select(APP_RELEASE_PROFILE === 'cafe' ? 'id, metadata' : 'id')
-    .is('read_at', null)
-  if (error) throw new Error(`countUnread failed: ${error.message}`)
+  const notifications = mos().from('notifications')
   if (APP_RELEASE_PROFILE === 'cafe') {
-    return ((data ?? []) as Array<{ metadata: unknown }>).filter((row) =>
-      notificationAvailableInProfile(row, APP_RELEASE_PROFILE),
-    ).length
+    const { data, error } = await notifications.select('id, metadata').is('read_at', null)
+    if (error) throw new Error(`countUnread failed: ${error.message}`)
+    return (data ?? []).filter((row) => notificationAvailableInProfile(row, 'cafe')).length
   }
+
+  const { data, error } = await notifications.select('id').is('read_at', null)
+  if (error) throw new Error(`countUnread failed: ${error.message}`)
   return (data ?? []).length
 }
 
