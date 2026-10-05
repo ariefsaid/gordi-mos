@@ -360,7 +360,7 @@ test.describe('Café item settings', () => {
     for (const width of [390, 1440, 1920] as const) {
       await page.setViewportSize({ width, height: 960 })
       await page.goto('cafe/waste')
-      await expect(page.getByRole('heading', { name: 'Café · Log waste', exact: true })).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'Log waste', exact: true })).toBeVisible()
       const report = page.locator('.kl-missing')
       const reportButton = report.getByRole('button', { name: 'Missing an item? Report it', exact: true })
       const toolbar = page.locator('.ktb')

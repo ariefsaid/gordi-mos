@@ -537,7 +537,7 @@ test.describe('café toolbar desktop geometry guards (GUARD-SEARCH, #378)', () =
     await page.goto('cafe/production')
     await ensureStream(page)
     await expect(page.locator('.ktb-search')).toBeVisible()
-    await expect(page.locator('.ktb-kind')).toBeVisible()
+    await expect(page.locator('.ktb-kind')).toHaveCount(0)
     await expect(page.getByRole('combobox', { name: /^category$/i })).toBeVisible()
     await assertSearchComposed(page, 'Café · Log @1440')
   })

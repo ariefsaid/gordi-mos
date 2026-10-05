@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
@@ -27,6 +27,7 @@ import { useAuth } from '@/auth/use-auth'
 import { canManageCafeItemSettings, listCafeItemSettings } from '@/lib/db/cafe-item-settings'
 import { listCafeMissingItemReports, resolveCafeMissingItemReport } from '@/lib/db/cafe-missing-item-reports'
 import { CafeItemSettingsPage } from './cafe-item-settings-page'
+import { useCafeItemSettingsSorting } from './cafe-item-settings-sorting'
 import { isCafeItemDraftKind } from './cafe-item-settings-kind'
 
 const mockUseAuth = vi.mocked(useAuth)
@@ -73,6 +74,17 @@ beforeEach(() => {
   }])
   mockListReports.mockResolvedValue([REPORT])
   mockResolveReport.mockResolvedValue()
+})
+
+describe('Cafe item table sorting', () => {
+  it('keeps an empty sorting state stable across rerenders', () => {
+    const { result, rerender } = renderHook(() => useCafeItemSettingsSorting(undefined))
+    const initialSorting = result.current
+
+    rerender()
+
+    expect(result.current).toBe(initialSorting)
+  })
 })
 
 it('accepts only the three Café item kind select values', () => {
