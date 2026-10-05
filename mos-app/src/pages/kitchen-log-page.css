@@ -698,7 +698,10 @@
 .cafe-capture-content .ktb,
 .cafe-capture-content .msr { padding-inline: 0; }
 .cafe-capture-content .kl-missing-cta { padding-inline: 0; }
-.cafe-capture-content .dt-cards .dt-card { padding-inline: 0; }
+.cafe-capture-content .dt-cards .dt-card {
+  padding-inline: 0;
+  box-shadow: none;
+}
 .cafe-capture-content .dt-cards-group,
 .cafe-capture-content .dt-cards-group-actions { padding-inline: 0; }
 .cafe-capture-content .dt-cards-group,
@@ -711,6 +714,14 @@
   order: 1;
   align-self: center;
   margin-left: auto;
+}
+/* Keep the disclosure out of the text's baseline sizing; centre it on the single line. */
+.cafe-capture-content .dt-cards-group { position: relative; padding-right: 44px; }
+.cafe-capture-content .dt-cards-group-toggle {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
 }
 .cafe-capture-content .dt-table th:first-child,
 .cafe-capture-content .dt-table td:first-child { padding-left: 0; }
