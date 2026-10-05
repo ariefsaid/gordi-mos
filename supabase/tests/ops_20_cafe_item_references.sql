@@ -1,7 +1,7 @@
 -- #1240 — caller-supplied ERP item-detail references, classification, stream scope and RLS.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(47);
+select plan(50);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -12,16 +12,18 @@ select set_config('app.allow_test_seeds', 'off', true);
 create temporary table cafe_reference_test_source (source_rows jsonb not null);
 insert into cafe_reference_test_source values ($source$[
   {"esb_product_id":"SYNTH-ERP-P-1240-RAW","esb_product_detail_id":"SYNTH-ERP-PD-1240-RAW-A","name":"Synthetic RAW Sample","category":"KITCHEN","unit_name":"SYNTHETIC-ERP-UNIT","erp_category_type_name":"Inventory","is_stock":true,"has_active_bom_output":false,"is_active":true,"branch_code":null},
-  {"esb_product_id":"SYNTH-ERP-P-1240-RAW","esb_product_detail_id":"SYNTH-ERP-PD-1240-RAW-B","name":"Synthetic RAW Sample","category":"KITCHEN","unit_name":"SYNTHETIC-ERP-UNIT","erp_category_type_name":"Inventory","is_stock":true,"has_active_bom_output":false,"is_active":true,"branch_code":null},
+  {"esb_product_id":"SYNTH-ERP-P-1240-RAW","esb_product_detail_id":"SYNTH-ERP-PD-1240-RAW-B","name":"Synthetic RAW Sample","category":"KITCHEN","unit_name":"SYNTHETIC-ERP-UNIT","erp_category_type_name":"Inventory","is_stock":false,"has_active_bom_output":false,"is_active":true,"branch_code":null},
+  {"esb_product_id":"SYNTH-ERP-P-1240-RAW","esb_product_detail_id":"SYNTH-ERP-PD-1240-RAW-C","name":"Synthetic RAW Sample","category":"KITCHEN","unit_name":"SYNTHETIC-ERP-UNIT","erp_category_type_name":"Inventory","is_stock":false,"has_active_bom_output":false,"is_active":true,"branch_code":null},
+  {"esb_product_id":"SYNTH-ERP-P-1240-RAW","esb_product_detail_id":"SYNTH-ERP-PD-1240-RAW-INACTIVE","name":"Synthetic RAW Sample","category":"KITCHEN","unit_name":"SYNTHETIC-ERP-UNIT","erp_category_type_name":"Inventory","is_stock":false,"has_active_bom_output":false,"is_active":false,"branch_code":null},
   {"esb_product_id":"SYNTH-ERP-P-1240-WIP","esb_product_detail_id":"SYNTH-ERP-PD-1240-WIP","name":"Synthetic WIP Sample","category":"BAR","unit_name":"SYNTHETIC-ERP-UNIT","erp_category_type_name":"Inventory","is_stock":false,"has_active_bom_output":true,"is_active":true,"branch_code":"gordi_hq"},
   {"esb_product_id":"SYNTH-ERP-P-1240-NONSTOCK","esb_product_detail_id":"SYNTH-ERP-PD-1240-NONSTOCK","name":"Synthetic Nonstock Sample","category":"KITCHEN","unit_name":"SYNTHETIC-ERP-UNIT","erp_category_type_name":"Inventory","is_stock":false,"has_active_bom_output":false,"is_active":true,"branch_code":null}
 ]$source$::jsonb);
 select set_config('app.allow_test_seeds', 'on', true);
 select set_config('app.cafe_reference_test_org_id', '00000000-0000-0000-0000-0000000000a1', true);
 
-select is((select count(*)::int from ops.cafe_item_reference_source((select source_rows from cafe_reference_test_source))), 4,
+select is((select count(*)::int from ops.cafe_item_reference_source((select source_rows from cafe_reference_test_source))), 6,
   'source parser accepts one synthetic row per ERP product detail, including excluded non-stock rows');
-select is((select count(*)::int from ops.cafe_item_reference_source((select source_rows from cafe_reference_test_source)) where kind is null), 4,
+select is((select count(*)::int from ops.cafe_item_reference_source((select source_rows from cafe_reference_test_source)) where kind is null), 6,
   'source parser leaves every ERP row unclassified for team-owned settings');
 select is((select count(*)::int from ops.cafe_item_reference_source((select source_rows from cafe_reference_test_source)) where kind is not null), 0,
   'ERP classification evidence is not applied by the item source parser');
@@ -39,29 +41,63 @@ select is(ops.classify_cafe_item_kind('OTHER', 'Inventory', false, true, true), 
 
 select lives_ok($$select ops.refresh_cafe_item_references((select source_rows from cafe_reference_test_source))$$,
   'refresh: synthetic source rows populate the shared item/detail/stream catalog');
+insert into ops.cafe_item_settings (org_id, branch_id, activity, wip_item_id)
+select item.org_id, '00000000-0000-0000-0000-00000000bf01', 'kitchen', item.id
+  from ops.wip_items item
+ where item.esb_product_id = 'SYNTH-ERP-P-1240-RAW';
+insert into ops.cafe_item_setting_units (org_id, cafe_item_setting_id, item_unit_id)
+select setting.org_id, setting.id, unit.id
+  from ops.cafe_item_settings setting
+  join ops.wip_items item on item.id = setting.wip_item_id
+  join ops.item_units unit on unit.wip_item_id = item.id
+ where item.esb_product_id = 'SYNTH-ERP-P-1240-RAW'
+   and unit.esb_product_detail_id = 'SYNTH-ERP-PD-1240-RAW-A';
+update ops.cafe_item_settings setting
+   set default_item_unit_id = unit.id
+  from ops.wip_items item
+  join ops.item_units unit on unit.wip_item_id = item.id
+ where setting.wip_item_id = item.id
+   and item.esb_product_id = 'SYNTH-ERP-P-1240-RAW'
+   and unit.esb_product_detail_id = 'SYNTH-ERP-PD-1240-RAW-A';
 select lives_ok($$select ops.refresh_cafe_item_references((select source_rows from cafe_reference_test_source))$$,
   'refresh: replaying the same source snapshot is idempotent');
+select is((select unit.esb_product_detail_id from ops.cafe_item_settings setting
+  join ops.item_units unit on unit.id = setting.default_item_unit_id
+  join ops.wip_items item on item.id = setting.wip_item_id
+  where item.esb_product_id = 'SYNTH-ERP-P-1240-RAW'
+    and setting.branch_id = '00000000-0000-0000-0000-00000000bf01'),
+  'SYNTH-ERP-PD-1240-RAW-A', 'refresh preserves the manager-selected default detail');
+select is((select string_agg(unit.esb_product_detail_id, ',' order by unit.esb_product_detail_id)
+  from ops.cafe_item_settings setting
+  join ops.cafe_item_setting_units shown on shown.cafe_item_setting_id = setting.id
+  join ops.item_units unit on unit.id = shown.item_unit_id
+  join ops.wip_items item on item.id = setting.wip_item_id
+  where item.esb_product_id = 'SYNTH-ERP-P-1240-RAW'
+    and setting.branch_id = '00000000-0000-0000-0000-00000000bf01'),
+  'SYNTH-ERP-PD-1240-RAW-A', 'refresh preserves the manager-selected shown details');
 select is((select count(*)::int from ops.wip_items where esb_product_id = 'SYNTH-ERP-P-1240-RAW' and kind is null and flag_active), 1,
   'refresh: one ERP product creates one active but unclassified shared item');
 select is((select count(*)::int from ops.wip_items where esb_product_id = 'SYNTH-ERP-P-1240-WIP' and kind is null and flag_active), 1,
   'refresh: a BOM output also remains team-unclassified');
 select is((select count(*)::int from ops.item_units unit join ops.wip_items item on item.id = unit.wip_item_id
-  where item.esb_product_id = 'SYNTH-ERP-P-1240-RAW' and unit.source_active), 2,
-  'refresh: the RAW item has exactly its two source product details as units');
+  where item.esb_product_id = 'SYNTH-ERP-P-1240-RAW' and unit.source_active), 3,
+  'refresh: the RAW item has exactly its three active source product details as units');
 select is((select count(DISTINCT unit.unit_name)::int from ops.item_units unit join ops.wip_items item on item.id = unit.wip_item_id
   where item.esb_product_id = 'SYNTH-ERP-P-1240-RAW' and unit.source_active), 1,
   'refresh: duplicate ERP unit labels do not collapse distinct product details');
 select is((select string_agg(unit.esb_product_detail_id, ',' order by unit.esb_product_detail_id)
   from ops.item_units unit join ops.wip_items item on item.id = unit.wip_item_id
   where item.esb_product_id = 'SYNTH-ERP-P-1240-RAW' and unit.source_active),
-  'SYNTH-ERP-PD-1240-RAW-A,SYNTH-ERP-PD-1240-RAW-B',
+  'SYNTH-ERP-PD-1240-RAW-A,SYNTH-ERP-PD-1240-RAW-B,SYNTH-ERP-PD-1240-RAW-C',
   'refresh: each selectable unit retains its exact synthetic ERP product-detail identity');
 select is((select count(*)::int from ops.item_units unit join ops.wip_items item on item.id = unit.wip_item_id
   where item.esb_product_id = 'SYNTH-ERP-P-1240-RAW' and unit.is_default), 0,
-  'refresh: ERP source details do not create a MOS default or conversion');
+  'refresh: ERP import does not infer unit defaults or conversions');
 select is((select count(*)::int from ops.item_units unit join ops.wip_items item on item.id = unit.wip_item_id
-  where item.esb_product_id = 'SYNTH-ERP-P-1240-RAW' and unit.erp_is_stock), 2,
+  where item.esb_product_id = 'SYNTH-ERP-P-1240-RAW' and unit.erp_is_stock), 1,
   'refresh: ERP stock evidence remains attached to each source detail');
+select is((select count(*)::int from ops.item_units where esb_product_detail_id = 'SYNTH-ERP-PD-1240-RAW-INACTIVE'), 0,
+  'refresh: an inactive detail never becomes a selectable unit');
 select is((select unit.erp_is_stock from ops.item_units unit join ops.wip_items item on item.id = unit.wip_item_id
   where item.esb_product_id = 'SYNTH-ERP-P-1240-WIP'), false,
   'refresh: source detail stock evidence is retained for WIP outputs too');
@@ -78,11 +114,11 @@ select is((select count(*)::int from ops.stream_items stream_item join ops.wip_i
   'refresh: branch-scoped WIP is not added to other branches');
 select is((select count(*)::int from ops.cafe_item_references reference
   where reference.esb_product_id = 'SYNTH-ERP-P-1240-RAW' and reference.kind is null),
-  2 * (select count(DISTINCT team.branch_id)::int from shared.teams team join shared.orgs org on org.id = team.org_id
+  3 * (select count(DISTINCT team.branch_id)::int from shared.teams team join shared.orgs org on org.id = team.org_id
     where org.id = '00000000-0000-0000-0000-0000000000a1' and team.activity = 'kitchen' and team.branch_id is not null and team.archived_at is null),
   'reference view: every unclassified product detail appears on each mapped kitchen stream');
 select is((select count(DISTINCT reference.item_unit_id)::int from ops.cafe_item_references reference
-  where reference.esb_product_id = 'SYNTH-ERP-P-1240-RAW'), 2,
+  where reference.esb_product_id = 'SYNTH-ERP-P-1240-RAW'), 3,
   'reference view: product-detail identity remains distinct across streams');
 select is((select count(*)::int from ops.cafe_item_references reference
   where reference.esb_product_id = 'SYNTH-ERP-P-1240-WIP' and reference.kind is null), 1,
@@ -169,7 +205,7 @@ select is(has_function_privilege('authenticated', 'ops.cafe_item_reference_sourc
 select set_config('app.allow_test_seeds', 'on', true);
 select lives_ok($$select ops.refresh_cafe_item_references('[{"esb_product_id":"SYNTH-ERP-P-1240-RAW","esb_product_detail_id":"SYNTH-ERP-PD-1240-RAW-A","name":"Synthetic RAW Sample","category":"KITCHEN","unit_name":"SYNTHETIC-ERP-UNIT","erp_category_type_name":"Inventory","is_stock":true,"has_active_bom_output":false,"is_active":true}]'::jsonb)$$,
   'refresh: a smaller full snapshot retires omitted product details and products');
-select is((select count(*)::int from ops.item_units unit where unit.esb_product_detail_id = 'SYNTH-ERP-PD-1240-RAW-B' and not unit.source_active), 1,
+select is((select count(*)::int from ops.item_units unit where unit.esb_product_detail_id in ('SYNTH-ERP-PD-1240-RAW-B', 'SYNTH-ERP-PD-1240-RAW-C') and not unit.source_active), 2,
   'refresh: omitted ERP product details remain for history but become inactive');
 select is((select count(*)::int from ops.wip_items item where item.esb_product_id = 'SYNTH-ERP-P-1240-WIP' and not item.flag_active), 1,
   'refresh: omitted ERP products become inactive without deleting history');
