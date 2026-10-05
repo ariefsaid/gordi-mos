@@ -40,6 +40,7 @@ vi.mock('@/lib/db/kitchen-waste-photos', async importOriginal => {
     ...actual,
     listCurrentPersonKitchenWasteDrafts: vi.fn(),
     submitKitchenWasteLog: vi.fn(),
+    restartKitchenWasteDraft: vi.fn(),
     uploadKitchenWastePhoto: vi.fn(),
   }
 })
@@ -51,6 +52,7 @@ import { insertKitchenLog, resolveKitchenBuId } from '@/lib/db/kitchen-logs'
 import {
   listCurrentPersonKitchenWasteDrafts,
   submitKitchenWasteLog,
+  restartKitchenWasteDraft,
   uploadKitchenWastePhoto,
 } from '@/lib/db/kitchen-waste-photos'
 import type { KitchenWasteDraft } from '@/lib/db/kitchen-waste-photos'
@@ -61,6 +63,7 @@ const mockUseAuth = vi.mocked(useAuth)
 const mockListCafeItemSettings = vi.mocked(listCafeItemSettings)
 const mockInsertKitchenLog = vi.mocked(insertKitchenLog)
 const mockResolveKitchenBuId = vi.mocked(resolveKitchenBuId)
+const mockRestartWaste = vi.mocked(restartKitchenWasteDraft)
 const mockSubmitWaste = vi.mocked(submitKitchenWasteLog)
 const mockUploadPhoto = vi.mocked(uploadKitchenWastePhoto)
 const mockListWasteDrafts = vi.mocked(listCurrentPersonKitchenWasteDrafts)
@@ -167,6 +170,7 @@ beforeEach(() => {
   mockResolveKitchenBuId.mockResolvedValue('bu-kitchen')
   let draft = 0
   mockInsertKitchenLog.mockImplementation(async () => `waste-${++draft}`)
+  mockRestartWaste.mockResolvedValue({ logId: 'replacement-waste', logDate: '2026-10-02' })
   mockListWasteDrafts.mockResolvedValue([])
   mockSubmitWaste.mockResolvedValue()
   mockUploadPhoto.mockImplementation(async logId => ({
@@ -359,10 +363,10 @@ describe('CafeWastePage', () => {
     expect(mockInsertKitchenLog).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('button', { name: 'Start new waste entry' }))
-    await waitFor(() => expect(mockInsertKitchenLog).toHaveBeenCalledTimes(1))
-    expect(mockInsertKitchenLog).toHaveBeenCalledWith(expect.objectContaining({
-      action: 'waste', wip_item_id: 'wip-1', item_unit_id: 'unit-tray', qty_porsi: 2.5,
-    }))
+    await waitFor(() => expect(mockRestartWaste).toHaveBeenCalledWith('old-waste-draft', '2026-10-02'))
+    expect(mockInsertKitchenLog).not.toHaveBeenCalled()
+    expect(screen.getByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })).toHaveValue(2.5)
+    expect(screen.getByRole('combobox', { name: 'Waste unit for Oat Latte' })).toHaveTextContent('tray')
     expect(screen.getByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })).toBeDisabled()
     expect(screen.getByRole('spinbutton', { name: 'Waste quantity for Oat milk' })).toHaveValue(4)
     expect(await screen.findByLabelText(/take or choose photos/i)).toBeInTheDocument()
@@ -382,13 +386,28 @@ describe('CafeWastePage', () => {
     expect(await screen.findByRole('button', { name: 'Start new waste entry' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Submit waste' })).toBeDisabled()
     fireEvent.click(screen.getByRole('button', { name: 'Start new waste entry' }))
-    await waitFor(() => expect(mockInsertKitchenLog).toHaveBeenCalledTimes(2))
-    expect(mockInsertKitchenLog).toHaveBeenLastCalledWith(expect.objectContaining({
-      action: 'waste', wip_item_id: 'wip-1', item_unit_id: 'unit-cup', qty_porsi: 3,
-    }))
+    await waitFor(() => expect(mockRestartWaste).toHaveBeenCalledWith('waste-1', '2026-10-02'))
+    expect(mockInsertKitchenLog).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })).toHaveValue(3)
     expect(mockUploadPhoto).toHaveBeenCalledWith('waste-1', expect.any(File))
     expect(mockSubmitWaste).not.toHaveBeenCalled()
     expect(screen.getByRole('button', { name: 'Submit waste' })).toBeDisabled()
+  })
+
+  it('keeps the original expired draft available when replacement fails and retries the same draft', async () => {
+    mockListWasteDrafts.mockResolvedValue([wasteDraft()])
+    mockRestartWaste.mockRejectedValueOnce(new Error('Temporary restart failure'))
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: /resume oat latte · 2.5 tray/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Start new waste entry' }))
+    await waitFor(() => expect(mockRestartWaste).toHaveBeenCalledTimes(1))
+    expect(await screen.findByRole('button', { name: 'Start new waste entry' })).toBeEnabled()
+    expect(screen.getByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })).toHaveValue(2.5)
+    expect(mockInsertKitchenLog).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Start new waste entry' }))
+    await waitFor(() => expect(mockRestartWaste).toHaveBeenCalledTimes(2))
+    expect(mockRestartWaste).toHaveBeenNthCalledWith(2, 'old-waste-draft', '2026-10-02')
+    expect(await screen.findByLabelText(/take or choose photos/i)).toBeInTheDocument()
   })
 
   it('keeps each waste item name paired with a separate quantity column and its full unit label', async () => {

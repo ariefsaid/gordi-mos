@@ -52,6 +52,7 @@ export async function listCurrentPersonKitchenWasteDrafts(
     .eq('activity', scope.activity)
     .eq('action', 'waste')
     .eq('status', 'Draft')
+    .is('superseded_by', null)
     .order('created_at', { ascending: true })
   if (error) throw new Error(`listCurrentPersonKitchenWasteDrafts failed — ${error.message}`)
 
@@ -155,4 +156,16 @@ export async function listKitchenWastePhotos(logIds: readonly string[]): Promise
 export async function submitKitchenWasteLog(logId: string): Promise<void> {
   const { error } = await supabase.schema('ops').rpc('submit_cafe_waste_log', { p_log_id: logId })
   if (error) throw new Error(`submitKitchenWasteLog failed — ${error.message}`)
+}
+
+/** Replace and retire the original in one transaction; retries reuse the same replacement. */
+export async function restartKitchenWasteDraft(logId: string, logDate: string): Promise<{ logId: string; logDate: string }> {
+  const { data, error } = await supabase.schema('ops').rpc('restart_cafe_waste_draft', {
+    p_log_id: logId,
+    p_log_date: logDate,
+  })
+  if (error) throw new Error(`restartKitchenWasteDraft failed — ${error.message}`)
+  const replacement = (data as Array<{ id: string; log_date: string }> | null)?.[0]
+  if (!replacement) throw new Error('restartKitchenWasteDraft failed — replacement was not returned')
+  return { logId: replacement.id, logDate: replacement.log_date }
 }
