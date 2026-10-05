@@ -125,6 +125,21 @@ function setPhoneMatchMedia() {
   })
 }
 
+function setWideMatchMedia() {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    configurable: true,
+    value: (query: string) => ({
+      matches: query === '(min-width: 768px)' || query === '(min-width: 1280px)',
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }),
+  })
+}
+
 function image(name: string) {
   return new File(['realistic-image-bytes'], name, { type: 'image/jpeg' })
 }
@@ -173,18 +188,7 @@ afterEach(() => {
 
 describe('CafeWastePage', () => {
   it('shows each waste item quantity and unit without a grouped numeric total', async () => {
-    Object.defineProperty(window, 'matchMedia', {
-      writable: true,
-      configurable: true,
-      value: (query: string) => ({
-        matches: query === '(min-width: 768px)' || query === '(min-width: 1280px)',
-        media: query,
-        onchange: null,
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-        dispatchEvent: vi.fn(),
-      }),
-    })
+    setWideMatchMedia()
     renderPage()
 
     fireEvent.change(await screen.findByRole('spinbutton', { name: 'Waste quantity for Oat Latte' }), { target: { value: '2' } })
@@ -195,7 +199,21 @@ describe('CafeWastePage', () => {
     expect(aside).toHaveTextContent('1.5 litre')
     expect(aside.querySelector('.kl-capture-summary__totals')).toBeNull()
     expect(aside).not.toHaveTextContent('3.5')
-    expect(within(aside).getByRole('button', { name: 'Submit waste' })).toBeDisabled()
+    expect(within(aside).queryByRole('button', { name: 'Submit waste' })).toBeNull()
+    expect(within(document.querySelector('.cwl-footer')!).getByRole('button', { name: 'Submit waste' })).toBeDisabled()
+  })
+
+  it('keeps a disabled Submit bar visible for an empty item list at wide width', async () => {
+    setWideMatchMedia()
+    mockListCafeItemSettings.mockResolvedValueOnce([])
+    renderPage()
+
+    await screen.findByTestId('empty-state')
+
+    const footer = document.querySelector<HTMLElement>('.cwl-footer')
+    expect(footer).toBeInTheDocument()
+    expect(within(footer!).getByText('0 waste items')).toBeInTheDocument()
+    expect(within(footer!).getByRole('button', { name: 'Submit waste' })).toBeDisabled()
   })
 
   it('receiving-only phone category and kind filters narrow the waste list', async () => {
@@ -209,7 +227,7 @@ describe('CafeWastePage', () => {
     expect(screen.queryByText('Oat Latte')).toBeNull()
 
     fireEvent.click(screen.getByRole('combobox', { name: /category/i }))
-    fireEvent.click(await screen.findByRole('option', { name: 'All' }))
+    fireEvent.click(await screen.findByRole('option', { name: 'All categories' }))
     fireEvent.click(screen.getByRole('combobox', { name: /kind/i }))
     fireEvent.click(await screen.findByRole('option', { name: 'RAW' }))
     expect(screen.getByText('Oat milk')).toBeInTheDocument()
@@ -225,18 +243,19 @@ describe('CafeWastePage', () => {
     expect(within(empty).getByRole('link', { name: /open café item settings/i })).toHaveAttribute('href', '/cafe/items')
   })
 
-  it('loading uses the page title once, not again inside the loading state', async () => {
+  it('loading shows the page label once without repeating the café context', async () => {
     mockListCafeItemSettings.mockReturnValue(new Promise(() => {}))
     renderPage()
-    await screen.findByRole('heading', { name: 'Café · Log waste' })
-    expect(screen.getAllByRole('heading', { name: 'Café · Log waste' })).toHaveLength(1)
+    await screen.findByRole('heading', { name: 'Log waste' })
+    expect(screen.getAllByRole('heading', { name: 'Log waste' })).toHaveLength(1)
+    expect(screen.queryByRole('heading', { name: 'Café · Log waste' })).toBeNull()
   })
 
   it('lists RAW and WIP MOS names with their configured default and shown units', async () => {
     renderPage()
 
     expect(await screen.findByText('Oat Latte')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Café · Log waste' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Log waste' })).toBeInTheDocument()
     expect(screen.getByText('WIP', { exact: true })).toBeInTheDocument()
     expect(screen.getByText('Oat Latte')).toBeInTheDocument()
     expect(screen.getByText('RAW', { exact: true })).toBeInTheDocument()
@@ -351,6 +370,34 @@ describe('CafeWastePage', () => {
     expect(mockUploadPhoto).toHaveBeenCalledWith('waste-1', expect.any(File))
     expect(mockSubmitWaste).not.toHaveBeenCalled()
     expect(screen.getByRole('button', { name: 'Submit waste' })).toBeDisabled()
+  })
+
+  it('keeps each waste item name paired with a separate quantity column and its full unit label', async () => {
+    const longUnitLabel = 'Extra-long unit label (20 servings per batch)'
+    mockListCafeItemSettings.mockResolvedValueOnce([{
+      ...ITEM_SETTINGS[0]!,
+      id: 'long-unit-item',
+      erpName: 'ERP Coffee Syrup',
+      mosName: 'Coffee Syrup',
+      defaultUnitId: 'unit-long',
+      units: [
+        { id: 'unit-long', name: longUnitLabel, isShown: true, isDefault: true, labelOrdinal: null, labelCount: 2 },
+        { id: 'unit-alt', name: 'batch', isShown: true, isDefault: false, labelOrdinal: null, labelCount: 2 },
+      ],
+    }])
+
+    renderPage()
+
+    const row = await screen.findByRole('group', { name: 'WIP - Coffee Syrup' })
+    const name = within(row).getByText('Coffee Syrup')
+    const quantity = within(row).getByRole('spinbutton', { name: 'Waste quantity for Coffee Syrup' })
+    const unit = within(row).getByRole('combobox', { name: 'Waste unit for Coffee Syrup' })
+
+    expect(row.querySelector('.cwl-capture-row__item')).toContainElement(name)
+    expect(row.querySelector('.cwl-capture-row__controls')).toContainElement(quantity)
+    expect(unit).toHaveTextContent(longUnitLabel)
+    expect(quantity.parentElement).toHaveClass('cwl-quantity-row')
+    expect(unit.closest('.cwl-unit-select')?.parentElement).toBe(quantity.parentElement)
   })
 
   it('keeps the missing-item route beside the item controls on a long capture list', async () => {
