@@ -1,7 +1,7 @@
 -- #1242 — per-stream MOS item names and ERP product-detail choices.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(35);
+select plan(37);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -51,6 +51,11 @@ select ok(
                where table_schema = 'ops' and table_name = 'cafe_item_settings_read'
                  and column_name in ('esb_product_id', 'esb_product_detail_id')),
   'the client-facing settings view contains no ERP product or product-detail identifier columns');
+select ok(to_regprocedure('ops.save_cafe_item_settings(uuid,text,uuid,text,uuid,uuid[])') is null,
+  'the name/unit-only compatibility overload is retired');
+select has_function('ops', 'save_cafe_item_settings',
+  ARRAY['uuid','text','uuid','text','uuid','uuid[]','text','boolean'],
+  'the explicit kind/active save RPC remains available');
 select is((select count(*)::int from ops.cafe_item_settings_read
             where item_id = '00000000-0000-0000-0000-00000000c425'
               and branch_id = '00000000-0000-0000-0000-00000000bf01'
@@ -90,7 +95,7 @@ select lives_ok($$
     array[
       (select id from ops.item_units where esb_product_detail_id = 'SYNTH-ERP-PD-1242-WIP-A'),
       (select id from ops.item_units where esb_product_detail_id = 'SYNTH-ERP-PD-1242-WIP-B')
-    ]
+    ], 'WIP', true
   )
 $$, 'editing a configured item keeps the same per-stream selections');
 select is((select old_value from shared.record_history
@@ -155,7 +160,8 @@ select throws_ok($$
     (select id from ops.wip_items where esb_product_id = 'SYNTH-ERP-P-1242-WIP'),
     'Wrong business unit',
     (select id from ops.item_units where esb_product_detail_id = 'SYNTH-ERP-PD-1242-WIP-A'),
-    array[(select id from ops.item_units where esb_product_detail_id = 'SYNTH-ERP-PD-1242-WIP-A')]
+    array[(select id from ops.item_units where esb_product_detail_id = 'SYNTH-ERP-PD-1242-WIP-A')],
+    'WIP', true
   )
 $$, '42501', null, 'a manager outside Retail Ops cannot save Café settings');
 select throws_ok($$
@@ -172,7 +178,8 @@ select throws_ok($$
     (select id from ops.wip_items where esb_product_id = 'SYNTH-ERP-P-1242-WIP'),
     'Bad default',
     (select id from ops.item_units where esb_product_detail_id = 'SYNTH-ERP-PD-1242-WIP-B'),
-    array[(select id from ops.item_units where esb_product_detail_id = 'SYNTH-ERP-PD-1242-WIP-A')]
+    array[(select id from ops.item_units where esb_product_detail_id = 'SYNTH-ERP-PD-1242-WIP-A')],
+    'WIP', true
   )
 $$, 'P0016', 'CAFE_DEFAULT_UNIT_MUST_BE_SHOWN: the default ERP detail must be shown',
   'the database refuses a default that is not among the shown details');
@@ -185,7 +192,7 @@ select throws_ok($$
     array[
       (select id from ops.item_units where esb_product_detail_id = 'SYNTH-ERP-PD-1242-WIP-A'),
       (select id from ops.item_units where esb_product_detail_id = 'SYNTH-ERP-PD-1242-RAW-A')
-    ]
+    ], 'WIP', true
   )
 $$, '23514', 'shown details must be active ERP details of this item',
   'a manager cannot select another product''s ERP detail');
@@ -197,7 +204,8 @@ select lives_ok($$
     (select id from ops.wip_items where esb_product_id = 'SYNTH-ERP-P-1242-WIP'),
     'Manager renamed item',
     (select id from ops.item_units where esb_product_detail_id = 'SYNTH-ERP-PD-1242-WIP-A'),
-    array[(select id from ops.item_units where esb_product_detail_id = 'SYNTH-ERP-PD-1242-WIP-A')]
+    array[(select id from ops.item_units where esb_product_detail_id = 'SYNTH-ERP-PD-1242-WIP-A')],
+    'WIP', true
   )
 $$, 'the authorized atomic save can hide an unused detail without app-tier DELETE');
 select is((select count(*)::int from ops.cafe_item_settings_read
@@ -216,7 +224,7 @@ select lives_ok($$
     array[
       (select id from ops.item_units where esb_product_detail_id = 'SYNTH-ERP-PD-1242-WIP-A'),
       (select id from ops.item_units where esb_product_detail_id = 'SYNTH-ERP-PD-1242-WIP-B')
-    ]
+    ], 'WIP', true
   )
 $$, 'ops leads retain cross-stream item-settings authority');
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","admin"]}';
@@ -226,7 +234,8 @@ select lives_ok($$
     (select id from ops.wip_items where esb_product_id = 'SYNTH-ERP-P-1242-WIP'),
     'Admin edit',
     (select id from ops.item_units where esb_product_detail_id = 'SYNTH-ERP-PD-1242-WIP-A'),
-    array[(select id from ops.item_units where esb_product_detail_id = 'SYNTH-ERP-PD-1242-WIP-A')]
+    array[(select id from ops.item_units where esb_product_detail_id = 'SYNTH-ERP-PD-1242-WIP-A')],
+    'WIP', true
   )
 $$, 'admins retain cross-stream item-settings authority');
 
@@ -269,7 +278,7 @@ select lives_ok($$
     array[
       (select id from ops.item_units where esb_product_detail_id = 'SYNTH-ERP-PD-1242-WIP-A'),
       (select id from ops.item_units where esb_product_detail_id = 'SYNTH-ERP-PD-1242-WIP-B')
-    ]
+    ], 'WIP', true
   )
 $$, 'a manager can restore a configured default and shown-unit set');
 insert into ops.kitchen_logs

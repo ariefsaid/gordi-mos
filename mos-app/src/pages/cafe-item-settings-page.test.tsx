@@ -26,6 +26,7 @@ import { useAuth } from '@/auth/use-auth'
 import { canManageCafeItemSettings, listCafeItemSettings } from '@/lib/db/cafe-item-settings'
 import { listCafeMissingItemReports, resolveCafeMissingItemReport } from '@/lib/db/cafe-missing-item-reports'
 import { CafeItemSettingsPage } from './cafe-item-settings-page'
+import { isCafeItemDraftKind } from './cafe-item-settings-kind'
 
 const mockUseAuth = vi.mocked(useAuth)
 const mockCanManage = vi.mocked(canManageCafeItemSettings)
@@ -71,6 +72,11 @@ beforeEach(() => {
   }])
   mockListReports.mockResolvedValue([REPORT])
   mockResolveReport.mockResolvedValue()
+})
+
+it('accepts only the three Café item kind select values', () => {
+  expect(['', 'RAW', 'WIP'].every(isCafeItemDraftKind)).toBe(true)
+  expect(['OTHER', 'raw', 'null'].some(isCafeItemDraftKind)).toBe(false)
 })
 
 describe('CafeItemSettingsPage missing-item queue', () => {

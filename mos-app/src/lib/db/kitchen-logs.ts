@@ -437,11 +437,11 @@ export async function fetchStockMap(
 
 /**
  * Fetch the read-only Stock view's display rows for a date (S4, FR-060/061).
- * Lists every active WIP item on the stream's list, plus any other active item holding a
- * non-zero balance in the stream's books (`on_stream: false`) — sorted by name, with its two
- * cuts, `stok` (usable_qty) and `tersedia` (available_qty), for the selected date.
- * A listed item with no stock row defaults to 0/0 (it simply has no approved activity yet).
- * Negative balances are preserved, never clamped (FR-061/AC-032).
+ * Lists active manual WIP items on the stream with a 0/0 fallback, plus ERP settings joined to
+ * rows returned by the stream stock RPC. The RPC owns ERP eligibility, including active RAW at
+ * 0/0; nonzero off-list balances remain visible with `on_stream: false`. Returns both cuts,
+ * `stok` (usable_qty) and `tersedia` (available_qty), for the selected date. Negative balances
+ * are preserved, never clamped (FR-061/AC-032).
  */
 export async function fetchKitchenStock(
   asOf: string,
@@ -464,7 +464,9 @@ export async function fetchKitchenStock(
   const items: WipItemOption[] = [
     ...manualItems,
     ...settings
-      .filter(item => (item.kind === 'WIP' && item.isActive) || holdsBalance(item.id))
+      // The stock RPC owns ERP eligibility (active team-classified RAW/WIP). Its row may
+      // legitimately be 0/0, so do not repeat a kind/active test in this name join.
+      .filter(item => byItem.has(item.id))
       .filter(item => !manualIds.has(item.id))
       .map(item => ({ id: item.id, name: item.mosName, category: item.category })),
   ]

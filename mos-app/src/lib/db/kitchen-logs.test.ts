@@ -909,6 +909,52 @@ describe('fetchKitchenStock — per-item stock rows for the Stock view (FR-060/0
     ])
   })
 
+  it('uses returned stock rows for ERP eligibility and joins nonempty settings without losing zero or negative stock', async () => {
+    mockCafeItemSettings.mockResolvedValue([
+      { id: 'manual-shared', erpName: 'ERP duplicate', mosName: 'ERP duplicate MOS name', category: 'ERP category', kind: 'WIP', isActive: true, defaultUnitId: null, units: [] },
+      { id: 'raw-zero', erpName: 'Raw rice · ERP', mosName: 'Rice for prep', category: 'Dry goods', kind: 'RAW', isActive: true, defaultUnitId: null, units: [] },
+      { id: 'active-wip', erpName: 'Curry · ERP', mosName: 'Curry base', category: 'Prep', kind: 'WIP', isActive: true, defaultUnitId: null, units: [] },
+      { id: 'inactive-balance', erpName: 'Legacy spice · ERP', mosName: 'Legacy spice', category: 'Seasoning', kind: 'RAW', isActive: false, defaultUnitId: null, units: [] },
+      { id: 'without-row', erpName: 'Unlisted · ERP', mosName: 'Unlisted item', category: 'Other', kind: 'WIP', isActive: true, defaultUnitId: null, units: [] },
+    ])
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema(
+        {
+          wip_items: [{
+            data: [{ id: 'manual-shared', name: 'Manual name wins', category: 'Manual category' }],
+            error: null,
+          }],
+          kitchen_stock_for_date: [{
+            data: [
+              { wip_item_id: 'manual-shared', usable_qty: 0, available_qty: 0 },
+              { wip_item_id: 'raw-zero', usable_qty: 0, available_qty: 0 },
+              { wip_item_id: 'active-wip', usable_qty: -4, available_qty: -2 },
+              { wip_item_id: 'inactive-balance', usable_qty: 6, available_qty: 6 },
+            ],
+            error: null,
+          }],
+          stream_items: [{ data: [
+            { wip_item_id: 'manual-shared' },
+            { wip_item_id: 'raw-zero' },
+            { wip_item_id: 'active-wip' },
+          ], error: null }],
+        },
+        rec,
+      ) as never,
+    )
+
+    const rows = await fetchKitchenStock('2026-06-20', STREAM)
+    expect(rows).toEqual([
+      { wip_item_id: 'manual-shared', wip_item_name: 'Manual name wins', category: 'Manual category', on_stream: true, stok: 0, tersedia: 0 },
+      { wip_item_id: 'raw-zero', wip_item_name: 'Rice for prep', category: 'Dry goods', on_stream: true, stok: 0, tersedia: 0 },
+      { wip_item_id: 'active-wip', wip_item_name: 'Curry base', category: 'Prep', on_stream: true, stok: -4, tersedia: -2 },
+      { wip_item_id: 'inactive-balance', wip_item_name: 'Legacy spice', category: 'Seasoning', on_stream: false, stok: 6, tersedia: 6 },
+    ])
+    expect(rows.filter(row => row.wip_item_id === 'manual-shared')).toHaveLength(1)
+    expect(rows.some(row => row.wip_item_id === 'without-row')).toBe(false)
+  })
+
   it('issue 222: an item off the stream\'s list shows, labelled, only while it holds a balance there', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(
