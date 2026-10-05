@@ -15,7 +15,7 @@ import { insertKitchenLog, resolveKitchenBuId } from '@/lib/db/kitchen-logs'
 import {
   listCurrentPersonKitchenWasteDrafts,
   submitKitchenWasteLog,
-  WASTE_PHOTO_UPLOAD_WINDOW_MS,
+  isWastePhotoWindowExpired,
 } from '@/lib/db/kitchen-waste-photos'
 import type { KitchenWasteDraft, KitchenWastePhoto } from '@/lib/db/kitchen-waste-photos'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
@@ -88,10 +88,6 @@ function displayUnit(unit: CafeLogItem['units'][number], t: ReturnType<typeof us
   return unit.labelOrdinal === null
     ? unit.name
     : t('cafe.items.unitDisambiguated', { name: unit.name, number: unit.labelOrdinal })
-}
-
-function photoWindowExpired(createdAt: string): boolean {
-  return Date.now() >= Date.parse(createdAt) + WASTE_PHOTO_UPLOAD_WINDOW_MS
 }
 
 export function CafeWastePage() {
@@ -376,7 +372,8 @@ export function CafeWastePage() {
   }
 
   function resumeWasteDraft(draft: KitchenWasteDraft) {
-    if (!canCapture || !items.some(item => item.id === draft.itemId)) return
+    if (!canCapture || !draft.itemUnitId || !draft.unitName || !items.some(item => item.id === draft.itemId)) return
+    const { itemUnitId, unitName } = draft
     const entry = entries[draft.itemId]
     if (entry?.logId || entry?.preparing || entry?.quantity.trim()) return
     setEntries(current => {
@@ -387,12 +384,12 @@ export function CafeWastePage() {
         [draft.itemId]: {
           ...(currentEntry ?? initialEntries(items)[draft.itemId]!),
           quantity: String(draft.quantity),
-          unitId: draft.itemUnitId,
-          capturedUnitName: draft.unitName,
+          unitId: itemUnitId,
+          capturedUnitName: unitName,
           capturedLogDate: draft.logDate,
           logId: draft.logId,
           photoReady: draft.photos.length > 0,
-          photoWindowExpired: draft.photos.length === 0 && photoWindowExpired(draft.createdAt),
+          photoWindowExpired: draft.photos.length === 0 && isWastePhotoWindowExpired(draft.createdAt),
           preparing: false,
           submitted: false,
           photos: draft.photos,
@@ -611,18 +608,21 @@ export function CafeWastePage() {
                         <button
                           type="button"
                           className="btn btn-outline"
-                          disabled={alreadyEditing || submitting}
+                          disabled={alreadyEditing || submitting || !draft.itemUnitId || !draft.unitName}
                           onClick={() => resumeWasteDraft(draft)}
                         >
                           {t('kitchen.waste.resumeDraft', {
                             item: item.name,
                             quantity: formatWasteQty(draft.quantity),
-                            unit: draft.unitName,
+                            unit: draft.unitName ?? t('kitchen.waste.unitUnavailable'),
                             date: formatDayMonthYear(draft.logDate),
                             createdAt: timestamp,
                           })}
                         </button>
-                        {draft.photos.length === 0 && photoWindowExpired(draft.createdAt) && (
+                        {(!draft.itemUnitId || !draft.unitName) && (
+                          <span className="cwl-lock-note">{t('kitchen.waste.unitUnavailableHelp')}</span>
+                        )}
+                        {draft.photos.length === 0 && isWastePhotoWindowExpired(draft.createdAt) && (
                           <span className="cwl-lock-note">{t('kitchen.waste.expiredDraft')}</span>
                         )}
                       </li>
