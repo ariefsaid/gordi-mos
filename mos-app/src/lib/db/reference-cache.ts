@@ -12,11 +12,25 @@ interface Entry { data: unknown; fetchedAt: number }
 const TTL_MS = 60_000
 const cache = new Map<string, Entry>()
 const inFlight = new Map<string, Promise<unknown>>()
+let activeScope: string | null = null
 
 function scopeKey(name: string): string | null {
   const scope = getReadScope()
-  if (!scope) return null
-  return `${scope.generation}:${scope.authUserId}:${scope.viewerId}:${scope.orgId}:${scope.authorityKey}:${name}`
+  if (!scope) {
+    if (activeScope !== null) {
+      cache.clear()
+      inFlight.clear()
+      activeScope = null
+    }
+    return null
+  }
+  const identity = `${scope.generation}:${scope.authUserId}:${scope.viewerId}:${scope.orgId}:${scope.authorityKey}`
+  if (identity !== activeScope) {
+    cache.clear()
+    inFlight.clear()
+    activeScope = identity
+  }
+  return `${identity}:${name}`
 }
 
 /** SWR read: fresh cache → serve; stale cache → serve stale + revalidate in the background;
@@ -66,4 +80,5 @@ export function invalidateReferenceCache(prefix?: string): void {
 export function __resetReferenceCacheForTests(): void {
   cache.clear()
   inFlight.clear()
+  activeScope = null
 }

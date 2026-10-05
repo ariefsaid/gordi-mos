@@ -63,4 +63,15 @@ describe('reference data is stale-while-revalidate, invalidated on admin writes 
     expect(await withReferenceCache('x', load)).toBe(2)
     expect(load).toHaveBeenCalledTimes(2)
   })
+
+  it('discards scoped reference data when the viewer scope disappears', async () => {
+    let n = 0
+    const load = vi.fn(async () => ++n)
+    await withReferenceCache('shared.people.active', load)
+    publishReadScope(null)
+    await withReferenceCache('shared.people.active', load)
+    publishReadScope({ ...SCOPE, generation: SCOPE.generation + 1 })
+    await withReferenceCache('shared.people.active', load)
+    expect(load).toHaveBeenCalledTimes(3)
+  })
 })
