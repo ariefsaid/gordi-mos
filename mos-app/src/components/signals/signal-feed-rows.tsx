@@ -36,6 +36,7 @@ export interface SignalFeedRowsProps {
    * exception, §Operations event tokens). Home's row treatment is unchanged.
    */
   variant?: 'ambient' | 'archive'
+  ambientLimit?: number
 }
 
 /** The ambient column's depth (signed mockup: `const FEED_CAP = 6`). "A feed column that grows
@@ -46,7 +47,7 @@ export const AMBIENT_CAP = 6
 export function SignalFeedRows({
   signals, authorNamesById, teamNamesById, onShareClick, onOpen,
   showSearch = true,
-  variant = 'ambient',
+  variant = 'ambient', ambientLimit = AMBIENT_CAP,
 }: SignalFeedRowsProps) {
   const t = useT()
   const [query, setQuery] = useState('')
@@ -68,7 +69,7 @@ export function SignalFeedRows({
     return all.filter((s) => signalMatchesText(s, q, names))
   }, [signals, query, searchable, authorNamesById, teamNamesById])
   const filteredEmpty = ordered.length === 0 && query.trim() !== ''
-  const capped = variant === 'ambient' ? ordered.slice(0, AMBIENT_CAP) : ordered
+  const capped = variant === 'ambient' ? ordered.slice(0, ambientLimit) : ordered
   const hidden = ordered.length - capped.length
   const photosBySignal = useSignalPhotos(capped.filter((signal) => !signal.retracted_at).map((signal) => signal.id))
   // The remainder is a real DOOR, not a bare fact: it carries any active filter through as the

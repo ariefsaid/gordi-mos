@@ -1187,3 +1187,48 @@ describe('SignalsArchivePage — a hard load onto ?record=<id> lands on the cano
     expect(screen.queryByTestId('signal-record-host-stub')).not.toBeInTheDocument()
   })
 })
+
+
+describe('Signals archive — server paging', () => {
+  const page = (start: number, length: number) => Array.from({ length }, (_, offset) => row({
+    id: `paged-signal-${start + offset}`, body: `Paged signal ${start + offset}`,
+  }))
+  it('appends first, next and final windows without replacing or duplicating loaded rows', async () => {
+    mockListReadableSignals.mockResolvedValueOnce(page(1, 50)).mockResolvedValueOnce(page(51, 50)).mockResolvedValueOnce(page(101, 1))
+    renderPage()
+    await screen.findByText('Paged signal 1')
+    await userEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    await screen.findByText('Paged signal 100')
+    expect(mockListReadableSignals).toHaveBeenLastCalledWith(expect.objectContaining({ before: expect.objectContaining({ id: 'paged-signal-50' }) }))
+    await userEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    await screen.findByText('Paged signal 101')
+    expect(screen.getByText('101 loaded · end of list')).toBeInTheDocument()
+    expect(screen.getAllByText('Paged signal 1')).toHaveLength(1)
+    expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument()
+  })
+
+  it('next-page errors preserve the list and retry the same window', async () => {
+    mockListReadableSignals.mockResolvedValueOnce(page(1, 50)).mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce(page(51, 1))
+    renderPage()
+    await screen.findByText('Paged signal 1')
+    await userEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    await screen.findByText(/couldn’t load more/i)
+    expect(screen.getByText('Paged signal 1')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    await screen.findByText('Paged signal 51')
+    expect(mockListReadableSignals.mock.calls[1]).toEqual(mockListReadableSignals.mock.calls[2])
+  })
+
+  it('view filters start a fresh window and include retracted history at the server', async () => {
+    mockListReadableSignals.mockResolvedValueOnce(page(1, 50)).mockResolvedValueOnce([
+      row({ id: 'older-history', body: 'Retracted history', retracted_at: '2026-10-05T09:00:00Z', retract_reason: 'Historical record' }),
+    ])
+    renderPage()
+    await screen.findByText('Paged signal 1')
+    await userEvent.click(screen.getByRole('button', { name: 'Retracted' }))
+    await screen.findByText('Historical record')
+    expect(screen.queryByText('Paged signal 1')).not.toBeInTheDocument()
+    expect(mockListReadableSignals).toHaveBeenLastCalledWith({ includeRetracted: true, retractedOnly: true })
+    expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument()
+  })
+})

@@ -29,6 +29,7 @@ interface Recorder {
   limits: number[]
   inserts: unknown[]
   updates: unknown[]
+  ors: string[]
   orders: Array<[string, unknown]>
   rpcs: Array<[string, unknown]>
 }
@@ -36,7 +37,7 @@ interface Recorder {
 type Result = { data: unknown; error: unknown }
 
 function freshRec(): Recorder {
-  return { fromTables: [], selects: [], eqs: [], ilikes: [], limits: [], inserts: [], updates: [], orders: [], rpcs: [] }
+  return { fromTables: [], selects: [], eqs: [], ilikes: [], limits: [], inserts: [], updates: [], orders: [], ors: [], rpcs: [] }
 }
 
 function makeClient(responses: Record<string, Result[]>, rec: Recorder) {
@@ -56,6 +57,8 @@ function makeClient(responses: Record<string, Result[]>, rec: Recorder) {
     builder.update = vi.fn((patch: unknown) => { rec.updates.push(patch); return builder })
     builder.eq = vi.fn((c: string, v: unknown) => { rec.eqs.push([c, v]); return builder })
     builder.is = vi.fn((c: string, v: unknown) => { rec.eqs.push([c, v]); return builder })
+    builder.not = vi.fn((c: string, op: string, v: unknown) => { rec.eqs.push([c, `${op}.${v}`]); return builder })
+    builder.or = vi.fn((filter: string) => { rec.ors.push(filter); return builder })
     builder.in = vi.fn((c: string, v: unknown) => { rec.eqs.push([c, v]); return builder })
     builder.ilike = vi.fn((c: string, v: unknown) => { rec.ilikes.push([c, v]); return builder })
     builder.order = vi.fn((c: string, o: unknown) => { rec.orders.push([c, o]); return builder })
@@ -105,7 +108,8 @@ describe('listReadableSignals', () => {
     expect(rows).toEqual([sampleSignal])
     expect(rec.fromTables).toContain('mos.signals')
     expect(rec.eqs).toContainEqual(['retracted_at', null])
-    expect(rec.orders[0]).toEqual(['occurred_at', { ascending: false }])
+    expect(rec.orders).toEqual([['occurred_at', { ascending: false }], ['id', { ascending: false }]])
+    expect(rec.limits).toEqual([50])
     expect(rec.eqs.filter(([c]) => c === 'org_id')).toHaveLength(0)
   })
 
@@ -115,6 +119,28 @@ describe('listReadableSignals', () => {
 
     await listReadableSignals({ includeRetracted: true })
     expect(rec.eqs.find(([c]) => c === 'retracted_at')).toBeUndefined()
+  })
+
+  it('keeps the keyset tie-breaker independent from server search and view constraints', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'mos.signals': [{ data: [], error: null }] }, rec)
+    await listReadableSignals({
+      includeRetracted: true, retractedOnly: true, authorId: AUTHOR_ID, teamId: TEAM_ID,
+      attention: 'Urgent', category: 'Other', needsAttention: true,
+      before: { occurred_at: sampleSignal.occurred_at, id: SIGNAL_ID },
+      search: { term: '50%, "tea"', authorIds: [AUTHOR_ID], teamIds: [TEAM_ID] },
+    })
+    expect(rec.eqs).toContainEqual(['retracted_at', 'is.null'])
+    expect(rec.eqs).toContainEqual(['author_id', AUTHOR_ID])
+    expect(rec.eqs).toContainEqual(['owning_team_id', TEAM_ID])
+    expect(rec.eqs).toContainEqual(['attention', 'Urgent'])
+    expect(rec.eqs).toContainEqual(['attention', ['Needs attention', 'Urgent']])
+    expect(rec.eqs).toContainEqual(['category', 'Other'])
+    expect(rec.ors).toHaveLength(2)
+    expect(rec.ors[0]).toContain(`author_id.in.(${AUTHOR_ID})`)
+    expect(rec.ors[0]).toContain(`owning_team_id.in.(${TEAM_ID})`)
+    expect(rec.ors[0]).toContain(JSON.stringify('%50\\%, "tea"%'))
+    expect(rec.ors[1]).toBe(`occurred_at.lt.${sampleSignal.occurred_at},and(occurred_at.eq.${sampleSignal.occurred_at},id.lt.${SIGNAL_ID})`)
   })
 
   it('throws on a non-null PostgREST error', async () => {

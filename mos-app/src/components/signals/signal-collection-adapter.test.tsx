@@ -70,9 +70,9 @@ beforeEach(() => {
 })
 
 describe('signalCollectionDescriptor — the one Signal loader/projector (FR-V3-013)', () => {
-  it('FR-V3-013: load fetches readable Signals (incl. retracted), people, and teams into one context', async () => {
+  it('FR-V3-013: load fetches the active Signal page, people, and teams into one context', async () => {
     const loaded = await signalCollectionDescriptor.load({ query: query(), viewerId: 'p-me' })
-    expect(mockListReadableSignals).toHaveBeenCalledWith({ includeRetracted: true })
+    expect(mockListReadableSignals).toHaveBeenCalledWith({ includeRetracted: false, retractedOnly: false })
     expect(mockGetPeople).toHaveBeenCalledTimes(1)
     expect(mockListAllTeams).toHaveBeenCalledTimes(1)
     expect(loaded.records).toHaveLength(1)
@@ -81,7 +81,7 @@ describe('signalCollectionDescriptor — the one Signal loader/projector (FR-V3-
     expect(loaded.context.viewerId).toBe('p-me')
   })
 
-  it('AC-002: local Signal search changes reuse the loaded collection data', async () => {
+  it('AC-002: Signal search reloads the server window using the shared name catalogs', async () => {
     const controller = createRecordCollectionController(signalCollectionDescriptor, {
       query: query(),
       presentation: 'table',
@@ -95,9 +95,10 @@ describe('signalCollectionDescriptor — the one Signal loader/projector (FR-V3-
     await flushCollectionLoad()
 
     expect(controller.state.projection?.visibleRecords.map((signal) => signal.id)).toEqual(['signal-1'])
-    expect(mockListReadableSignals).toHaveBeenCalledTimes(1)
-    expect(mockGetPeople).toHaveBeenCalledTimes(1)
-    expect(mockListAllTeams).toHaveBeenCalledTimes(1)
+    expect(mockListReadableSignals).toHaveBeenCalledTimes(3)
+    expect(mockGetPeople).toHaveBeenCalledTimes(3)
+    expect(mockListAllTeams).toHaveBeenCalledTimes(3)
+    expect(mockListReadableSignals).toHaveBeenLastCalledWith(expect.objectContaining({ search: { term: 'alarm', authorIds: [], teamIds: [] } }))
   })
 
   it('getId returns the Signal id; getAccess is full read (no bulk actions)', () => {

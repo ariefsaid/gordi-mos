@@ -298,15 +298,6 @@ export async function fetchActualsMap(
   logDate: string,
   stream: ProductionStream,
 ): Promise<ActualsMap> {
-  const { data, error } = await ops()
-    .from('kitchen_logs')
-    .select('id,wip_item_id,action,destination_branch_id,item_unit_id,qty_porsi,entry_quantity,entry_unit_factor,entry_unit_name')
-    .eq('log_date', logDate)
-    .eq('branch_id', stream.branch.id)
-    .eq('activity', stream.activity)
-    .neq('status', 'Rejected')
-    .is('superseded_by', null)
-  if (error) throw new Error(`fetchActualsMap failed — ${error.message}`)
   type ActualRow = {
     id: string
     wip_item_id: string
@@ -318,7 +309,21 @@ export async function fetchActualsMap(
     entry_unit_factor?: number | null
     entry_unit_name?: string | null
   }
-  const rows = (data ?? []) as ActualRow[]
+  const rows: ActualRow[] = []
+  let before: string | undefined
+  for (;;) {
+    let query = ops().from('kitchen_logs')
+      .select('id,wip_item_id,action,destination_branch_id,item_unit_id,qty_porsi,entry_quantity,entry_unit_factor,entry_unit_name')
+      .eq('log_date', logDate).eq('branch_id', stream.branch.id).eq('activity', stream.activity)
+      .neq('status', 'Rejected').is('superseded_by', null)
+    if (before) query = query.lt('id', before)
+    const { data, error } = await query.order('id', { ascending: false }).limit(KITCHEN_LOGS_PAGE_SIZE)
+    if (error) throw new Error(`fetchActualsMap failed — ${error.message}`)
+    const page = (data ?? []) as ActualRow[]
+    rows.push(...page)
+    if (page.length < KITCHEN_LOGS_PAGE_SIZE) break
+    before = page.at(-1)!.id
+  }
   const unitIds = [...new Set(rows.flatMap(row => row.item_unit_id ? [row.item_unit_id] : []))]
   const unitNames = new Map<string, string>()
   if (unitIds.length > 0) {
@@ -624,24 +629,30 @@ export class KitchenRpcError extends Error {
 const REVIEW_SELECT =
   'id,batch_id,log_date,action,destination_branch_id,branch_id,activity,action_label,wip_item_id,qty_porsi,entry_quantity,entry_unit_factor,entry_unit_name,notes,status,submitted_by,business_unit_id,created_at,updated_at,wip_items(name)'
 
+export const KITCHEN_LOGS_PAGE_SIZE = 50
+
+export type KitchenLogsWindow = {
+  before?: Pick<ReviewLogRow, 'created_at' | 'id'>
+  stream?: { branchId: string; activity: ProductionActivity }
+}
+
 /**
- * List the Submitted kitchen logs for a date — the ops_lead review queue (FR-040).
+ * Page Submitted kitchen logs oldest first within a date — the ops_lead review queue (FR-040).
  * Only `status = 'Submitted'` rows (the GIGO queue, FR-024/040); RLS scopes to the
  * caller's org. Returns a flat display shape (WIP name embedded; plan-vs-logged is
  * merged at the page from fetchPlanMap; submitter name from the directory).
  */
-export async function listSubmittedKitchenLogs(logDate: string): Promise<ReviewLogRow[]> {
-  const { data, error } = await ops()
+export async function listSubmittedKitchenLogs(logDate: string, window: KitchenLogsWindow = {}): Promise<ReviewLogRow[]> {
+  let query = ops()
     .from('kitchen_logs')
     .select(REVIEW_SELECT)
     .eq('status', 'Submitted')
     .eq('log_date', logDate)
-    // `action_label` is computed, so it cannot be ordered on. Ordering by the stored pair it
-    // derives from puts produce before transfers and groups transfers by destination —
-    // the same grouping the label ordering produced, from the columns that actually exist.
-    .order('action', { ascending: true })
-    .order('destination_branch_id', { ascending: true, nullsFirst: true })
-    .order('created_at', { ascending: true })
+  if (window.stream) query = query.eq('branch_id', window.stream.branchId).eq('activity', window.stream.activity)
+  if (window.before) {
+    query = query.or(`created_at.gt.${window.before.created_at},and(created_at.eq.${window.before.created_at},id.gt.${window.before.id})`)
+  }
+  const { data, error } = await query.order('created_at', { ascending: true }).order('id', { ascending: true }).limit(KITCHEN_LOGS_PAGE_SIZE)
   if (error) throw new Error(`listSubmittedKitchenLogs failed — ${error.message}`)
 
   type RawRow = {
@@ -693,6 +704,15 @@ export async function listSubmittedKitchenLogs(logDate: string): Promise<ReviewL
       updated_at: r.updated_at,
     }
   })
+}
+
+/** The transfer gate must include production outside the loaded review window. */
+export async function hasSubmittedKitchenProduction(logDate: string, branchId: string, activity: ProductionActivity): Promise<boolean> {
+  const { data, error } = await ops().from('kitchen_logs').select('id')
+    .eq('log_date', logDate).eq('branch_id', branchId).eq('activity', activity)
+    .eq('status', 'Submitted').eq('action', 'produce').limit(1)
+  if (error) throw new Error(`hasSubmittedKitchenProduction failed — ${error.message}`)
+  return (data ?? []).length > 0
 }
 
 /**

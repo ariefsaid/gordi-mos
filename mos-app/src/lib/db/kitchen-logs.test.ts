@@ -38,6 +38,7 @@ import {
   insertKitchenLog,
   insertKitchenLogBatch,
   listSubmittedKitchenLogs,
+  hasSubmittedKitchenProduction,
   approveKitchenLog,
   approveKitchenLogsBulk,
   rejectKitchenLog,
@@ -68,7 +69,9 @@ interface Recorder {
   ins: Array<[string, unknown[]]>
   inserts: unknown[]
   updates: unknown[]
+  limits: number[]
   orders: Array<[string, unknown]>
+  orFilters: string[]
   rpcCalls: Array<[string, unknown]>
 }
 
@@ -122,7 +125,8 @@ function makeSchema(
       rec.orders.push([c, o])
       return builder
     })
-    builder.limit = vi.fn(() => builder)
+    builder.or = vi.fn((filter: string) => { rec.orFilters.push(filter); return builder })
+    builder.limit = vi.fn((limit: number) => { rec.limits.push(limit); return builder })
     builder.single = vi.fn(() => Promise.resolve(result()))
     builder.maybeSingle = vi.fn(() => Promise.resolve(result()))
     builder.then = (resolve: (v: unknown) => unknown) =>
@@ -144,7 +148,7 @@ function makeSchema(
 function freshRec(): Recorder {
   return {
     fromTables: [], selects: [], eqs: [], neqs: [], iss: [], nots: [],
-    inserts: [], updates: [], orders: [], rpcCalls: [], ins: [],
+    inserts: [], updates: [], limits: [], orders: [], orFilters: [], rpcCalls: [], ins: [],
   }
 }
 
@@ -1110,20 +1114,40 @@ describe('listSubmittedKitchenLogs — the ops_lead review queue (FR-040)', () =
 
     // Flattened display shape
     expect(rows).toHaveLength(2)
-    expect(rows[0]).toMatchObject({
-      id: 'log-1',
-      wip_item_name: 'Nasi Goreng',
-      log_date: '2026-06-20',
-      action_type: 'Production',
-      action: 'produce',
-      destination_branch_id: null,
-      branch_id: BRANCH_ID,
-      activity: 'kitchen',
-      qty_porsi: 8,
-      submitted_by: 'p1',
-    })
-    expect(rows[0].updated_at).toBe('2026-06-20T09:12:00Z')
-    expect(rows[1].wip_item_name).toBe('Cold Brew')
+    expect(rows).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'log-1',
+        wip_item_name: 'Nasi Goreng',
+        log_date: '2026-06-20',
+        action_type: 'Production',
+        action: 'produce',
+        destination_branch_id: null,
+        branch_id: BRANCH_ID,
+        activity: 'kitchen',
+        qty_porsi: 8,
+        submitted_by: 'p1',
+        updated_at: '2026-06-20T09:12:00Z',
+      }),
+      expect.objectContaining({ id: 'log-2', wip_item_name: 'Cold Brew' }),
+    ]))
+  })
+
+  it('keeps the review queue oldest-first with an ascending keyset window', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema({ kitchen_logs: [{ data: [], error: null }] }, rec) as never,
+    )
+    const cursor = { created_at: '2026-06-20T09:12:00Z', id: 'log-1' }
+
+    await listSubmittedKitchenLogs('2026-06-20', { before: cursor })
+
+    expect(rec.orders).toEqual([
+      ['created_at', { ascending: true }],
+      ['id', { ascending: true }],
+    ])
+    expect(rec.orFilters).toEqual([
+      `created_at.gt.${cursor.created_at},and(created_at.eq.${cursor.created_at},id.gt.${cursor.id})`,
+    ])
   })
 
   it('returns [] when nothing is Submitted (the good-empty queue)', async () => {
@@ -1484,5 +1508,22 @@ describe('fetchActualsMap — the already-logged actuals, stream-scoped (FR-014,
         produce: [{ key: 'unit:u-archived', item_unit_id: 'u-archived', unit_name: null, qty_porsi: 3 }],
       },
     })
+  })
+})
+
+
+describe('hasSubmittedKitchenProduction — the gate outside the review page', () => {
+  it.each([[[], false], [[{ id: 'unloaded-production' }], true]] as const)('checks the stream/day with a bounded existence read', async (data, expected) => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ kitchen_logs: [{ data, error: null }] }, rec) as never)
+    expect(await hasSubmittedKitchenProduction('2026-10-05', BRANCH_ID, 'bar')).toBe(expected)
+    expect(rec.selects).toEqual(['id'])
+    expect(rec.eqs).toEqual([['log_date', '2026-10-05'], ['branch_id', BRANCH_ID], ['activity', 'bar'], ['status', 'Submitted'], ['action', 'produce']])
+    expect(rec.limits).toEqual([1])
+  })
+  it('fails the read when the gate cannot be checked', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ kitchen_logs: [{ data: null, error: { message: 'offline' } }] }, rec) as never)
+    await expect(hasSubmittedKitchenProduction('2026-10-05', BRANCH_ID, 'bar')).rejects.toThrow('hasSubmittedKitchenProduction failed')
   })
 })
