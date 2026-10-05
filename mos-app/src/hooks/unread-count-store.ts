@@ -1,6 +1,6 @@
 import { countUnread } from '@/lib/db/notifications'
 import type { ReadLease, ReadScope } from '@/lib/scoped-reads'
-import { createReadLease, getReadScope } from '@/lib/scoped-reads'
+import { createReadLease, getReadScope, sameScope } from '@/lib/scoped-reads'
 import { onUnreadCountChanged as subscribeToUnreadChanges } from './unread-count-bus'
 
 const UNREAD_COUNT_KEY = 'notifications:unread-count'
@@ -25,16 +25,6 @@ let requestVersion = 0
 let pending: PendingRefresh | null = null
 const listeners = new Set<() => void>()
 let unsubscribeBus: (() => void) | null = null
-
-function sameScope(left: ReadScope | null, right: ReadScope | null): boolean {
-  return left !== null
-    && right !== null
-    && left.generation === right.generation
-    && left.authUserId === right.authUserId
-    && left.viewerId === right.viewerId
-    && left.orgId === right.orgId
-    && left.authorityKey === right.authorityKey
-}
 
 function notify(): void {
   for (const listen of [...listeners]) listen()

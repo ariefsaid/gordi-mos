@@ -5,7 +5,7 @@
 import { useContext, useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 import { useLocation, useSearchParams } from 'react-router-dom'
 import { AuthContext } from '@/auth/context'
-import { createReadLease, type ReadScope } from '@/lib/scoped-reads'
+import { createReadLease, sameScope, type ReadScope } from '@/lib/scoped-reads'
 import { useOptionalOverlayHost } from '@/shell/overlay-host'
 import { createRecordCollectionController, type RecordCollectionController } from './engine'
 import { writeCollectionQuery } from './query-state'
@@ -94,7 +94,7 @@ export function useRecordCollection<
 
   const previousOwner = controllerRef.current
   const ownerChanged = previousOwner === null
-    || !sameReadScope(previousOwner.readScope, readScope)
+    || !sameScope(previousOwner.readScope, readScope)
     || previousOwner.viewerId !== viewerId
     || !sameRoleSet(previousOwner.accessRoles, accessRoles)
   if (ownerChanged) {
@@ -133,7 +133,9 @@ export function useRecordCollection<
     controllerRef.current = { readScope, viewerId, accessRoles: [...accessRoles], readLease, controller }
   }
 
-  const controller = (controllerRef.current as NonNullable<typeof controllerRef.current>).controller
+  const currentOwner = controllerRef.current
+  if (currentOwner === null) throw new Error('Record collection owner was not initialized')
+  const controller = currentOwner.controller
 
   // React to isDesktop FLIPPING (not merely being false) — a mount that starts on phone is already
   // handled above by the constructor branch. Narrowing pins the presentation to the collection
@@ -224,16 +226,6 @@ function presentationOf<TQuery extends object, TPresentation extends string>(
 ): TPresentation {
   const layout = (query as { layout?: unknown }).layout
   return typeof layout === 'string' ? (layout as TPresentation) : fallback
-}
-
-function sameReadScope(left: ReadScope | null, right: ReadScope | null): boolean {
-  if (left === right) return true
-  return left !== null && right !== null
-    && left.generation === right.generation
-    && left.authUserId === right.authUserId
-    && left.viewerId === right.viewerId
-    && left.orgId === right.orgId
-    && left.authorityKey === right.authorityKey
 }
 
 function sameRoleSet(left: readonly string[], right: readonly string[]): boolean {

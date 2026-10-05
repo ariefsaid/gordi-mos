@@ -61,6 +61,13 @@ export interface UseListboxPopoverResult<E extends HTMLElement = HTMLDivElement>
   onKeyDown: (event: ReactKeyboardEvent) => void
 }
 
+export function revealWithinList(list: HTMLElement, option: HTMLElement): void {
+  const listBounds = list.getBoundingClientRect()
+  const optionBounds = option.getBoundingClientRect()
+  if (optionBounds.top < listBounds.top) list.scrollTop -= listBounds.top - optionBounds.top
+  else if (optionBounds.bottom > listBounds.bottom) list.scrollTop += optionBounds.bottom - listBounds.bottom
+}
+
 export function useListboxPopover<E extends HTMLElement = HTMLDivElement>(
   args: UseListboxPopoverArgs,
 ): UseListboxPopoverResult<E> {
