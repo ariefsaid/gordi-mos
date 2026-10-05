@@ -26,7 +26,8 @@ cat > "$tmp/bin/curl" <<'SH'
 #!/usr/bin/env bash
 printf 'argv %s\n' "$*" >> "$CURLLOG"; in="$(cat)"; printf 'stdin %s\n' "$in" >> "$CURLLOG"
 case "$in" in
-  *api.telegram.org*) f="$(printf '%s' "$in" | sed -n 's/^data-urlencode = "text@\(.*\)"$/\1/p')"; printf 'MSG %s\n' "$(cat "$f")" >> "$CURLLOG" ;;
+  *api.telegram.org*) f="$(printf '%s' "$in" | sed -n 's/^data-urlencode = "text@\(.*\)"$/\1/p')"; printf 'MSG %s\n' "$(cat "$f")" >> "$CURLLOG"
+    if [ -n "${TG_FAIL_ONCE:-}" ] && [ -e "$TG_FAIL_ONCE" ]; then rm -f "$TG_FAIL_ONCE"; exit 22; fi ;;
   *"$FAKE_FAIL_URL"*) [ -n "${FAKE_FAIL_URL:-}" ] && exit 22 ;;
 esac
 exit 0
@@ -106,6 +107,17 @@ grep -q "target_env = 'goo'" "$tmp/psql.log" && ok "target env filter reaches th
 EXTRA_ENV="OPS_ESB_TARGET_ENV=prod_x" mkenv "$tmp/ops.env"; run
 [ "$rc" = 2 ] && ok "a bad target env is refused" || bad "bad target env accepted"
 mkenv "$tmp/ops.env"
+
+echo "a failed send does not silence the condition"
+reset; : > "$tmp/failonce"; run FAKE_DEAD=2 TG_FAIL_ONCE="$tmp/failonce"
+[ "$(nmsg)" = 1 ] && [ ! -e "$tmp/state/dead_letter.alert" ] && ok "failed send: no state written" || bad "state written after a failed send" "$(ls "$tmp/state")"
+run FAKE_DEAD=2
+[ "$(nmsg)" = 1 ] && has_msg "dead-lettered" && [ -e "$tmp/state/dead_letter.alert" ] && ok "next run re-sends and records the alert" || bad "alert not retried" "$(msgs)"
+run FAKE_DEAD=2; [ "$(nmsg)" = 0 ] && ok "then stays silent" || bad "repeated after success" "$(msgs)"
+: > "$tmp/failonce"; run FAKE_DEAD=0 TG_FAIL_ONCE="$tmp/failonce"
+[ -e "$tmp/state/dead_letter.alert" ] && ok "failed recovery send keeps the state" || bad "state dropped after a failed recovery send"
+run FAKE_DEAD=0
+[ "$(nmsg)" = 1 ] && has_msg "recovered" && [ ! -e "$tmp/state/dead_letter.alert" ] && ok "recovery re-sent, then cleared" || bad "recovery not retried" "$(msgs)"
 
 echo "worker heartbeat"
 reset; age_heartbeat 60; run

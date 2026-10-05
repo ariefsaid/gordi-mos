@@ -32,7 +32,7 @@ errf="$(mktemp)"; trap 'rm -f "$errf" "$part"' EXIT
 fail() { # stage
   local tail
   tail="$(ops_scrub < "$errf" | tail -n 3 | tr '\n' ' ' | head -c 300)"
-  ops_notify "❌ db-backup FAILED at ${1} ($(date '+%H:%M WIB')): ${tail}"
+  ops_notify "❌ db-backup FAILED at ${1} ($(date '+%H:%M WIB')): ${tail}" || true
   echo "db-backup: FAILED at $1" >&2
   exit 1
 }

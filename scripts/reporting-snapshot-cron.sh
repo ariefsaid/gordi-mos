@@ -63,12 +63,12 @@ rc=$?
 set -e
 
 if [ "$rc" -eq 0 ]; then
-  ops_notify "✅ reporting-snapshot succeeded (org ${REPORTING_ORG_ID:0:8}…) at $(date '+%H:%M WIB')"
+  ops_notify "✅ reporting-snapshot succeeded (org ${REPORTING_ORG_ID:0:8}…) at $(date '+%H:%M WIB')" || true
 else
   # A psycopg traceback can echo the pooler DSN, which embeds the writer password: scrub it.
   LOG_TAIL="$(tail -n 5 "${SNAPSHOT_ROOT}/sync/logs/reporting-snapshot.log" 2>/dev/null \
     | ops_scrub | tr '\n' ' ' | head -c 300)"
-  ops_notify "❌ reporting-snapshot FAILED exit=${rc} at $(date '+%H:%M WIB'): ${LOG_TAIL}"
+  ops_notify "❌ reporting-snapshot FAILED exit=${rc} at $(date '+%H:%M WIB'): ${LOG_TAIL}" || true
 fi
 
 echo "--- reporting-snapshot END: $(date) exit=${rc} ---"

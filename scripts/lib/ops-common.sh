@@ -39,20 +39,23 @@ ops_scrub() {
 
 # ops_notify MESSAGE — Telegram. The bot token and chat id go to curl on stdin (-K -), never argv;
 # the text goes through a private temp file. Returns 0 when not configured (callers that must
-# alert call ops_require on the two variables first) and never fails the caller on a send error.
+# alert call ops_require on the two variables first), otherwise curl's exit status, so a caller
+# that records "alerted" can do so only after the send worked. Callers under `set -e` that must
+# not stop on a failed send use `|| true`.
 ops_notify() {
-  local msg="$1" f
+  local msg="$1" f rc
   [ -n "${TELEGRAM_BOT_TOKEN:-}" ] && [ -n "${TELEGRAM_CHAT_ID:-}" ] || return 0
-  f="$(umask 077; mktemp)" || return 0
+  f="$(umask 077; mktemp)" || return 1
   printf '%s' "$msg" > "$f"
   printf '%s\n' \
     "url = \"https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage\"" \
     "data = \"chat_id=${TELEGRAM_CHAT_ID}\"" \
     "data-urlencode = \"text@${f}\"" \
-    'max-time = 10' 'silent' 'output = "/dev/null"' \
-    | curl -K - >/dev/null 2>&1 || true
+    'max-time = 10' 'silent' 'fail' 'output = "/dev/null"' \
+    | curl -K - >/dev/null 2>&1
+  rc=$?
   rm -f "$f"
-  return 0
+  return "$rc"
 }
 
 # ---- connection-string handling shared by the deploy scripts ----

@@ -38,16 +38,16 @@ umask 077
 mkdir -p "$OPS_STATE_DIR" || { echo "ops-check: cannot create OPS_STATE_DIR" >&2; exit 2; }
 
 # ---- alert once per condition: <name>.alert in the state dir means "already alerted" ----
+# The state changes only after the send succeeded, so a failed Telegram send is retried on the
+# next run instead of silencing the condition.
 report() { # name status(ok|fail) message
   local name="$1" status="$2" msg="$3" f="$OPS_STATE_DIR/$1.alert"
   if [ "$status" = fail ]; then
-    if [ ! -e "$f" ]; then
+    if [ ! -e "$f" ] && ops_notify "🚨 ops-check ${name}: ${msg}"; then
       printf '%s\n' "$msg" > "$f"
-      ops_notify "🚨 ops-check ${name}: ${msg}"
     fi
-  elif [ -e "$f" ]; then
+  elif [ -e "$f" ] && ops_notify "✅ ops-check ${name} recovered: ${msg}"; then
     rm -f "$f"
-    ops_notify "✅ ops-check ${name} recovered: ${msg}"
   fi
 }
 
