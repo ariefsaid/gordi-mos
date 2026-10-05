@@ -54,3 +54,33 @@ ops_notify() {
   rm -f "$f"
   return 0
 }
+
+# ---- connection-string handling shared by the deploy scripts ----
+SECRETS=()
+
+# Replace every secret-bearing fragment (SECRETS) in the text read from stdin.
+ops_redact() {
+  local line s
+  while IFS= read -r line || [ -n "$line" ]; do
+    for s in "${SECRETS[@]}"; do line="${line//"$s"/<redacted>}"; done
+    printf '%s\n' "$line"
+  done
+}
+
+# ops_conn_from_url URL — sets CONN (the URL without its password) and exports PGPASSWORD (decoded),
+# so the password never appears in argv (visible to every local user in `ps`); libpq and the
+# supabase CLI read PGPASSWORD. Adds every secret-bearing fragment to SECRETS for ops_redact.
+ops_conn_from_url() {
+  local url="$1" rest hostpart host userinfo="" user pass="" s
+  rest="${url#*://}"; hostpart="${rest#*@}"; host="${hostpart%%[:/?]*}"
+  case "$rest" in *@*) userinfo="${rest%%@*}" ;; esac
+  user="${userinfo%%:*}"; case "$userinfo" in *:*) pass="${userinfo#*:}" ;; esac
+  CONN="$url"; PGPASSWORD=""
+  if [ -n "$pass" ]; then
+    CONN="${url%%://*}://${user}@${hostpart}"
+    PGPASSWORD="$(printf '%b' "${pass//\%/\\x}")"
+    export PGPASSWORD
+  fi
+  for s in "$url" "$userinfo" "$pass" "$PGPASSWORD" "$user" "$host"; do [ "${#s}" -ge 3 ] && SECRETS+=("$s"); done
+  return 0
+}
