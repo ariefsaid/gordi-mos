@@ -527,7 +527,7 @@
 .person-menu-item:focus-visible {
   background: var(--surface-tertiary);
 }
-.person-menu-item:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.person-menu-item:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 
 @media (max-width: 767.98px), (pointer: coarse) {
   .person-menu-item {
