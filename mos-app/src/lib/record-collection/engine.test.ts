@@ -600,3 +600,17 @@ describe('RecordCollection server continuation', () => {
     expect(controller.state.loadingMore).toBe(false)
   })
 })
+
+
+it('uses filtered-empty for an empty server window only when the descriptor opts in', async () => {
+  const descriptor = makeDescriptor({ rows: [] })
+  descriptor.project = () => ({ visibleRecords: [], groups: [], totalRecords: 0, visibleRecordsAreFiltered: true })
+  const knownEmpty = createRecordCollectionController(descriptor, INITIAL)
+  await flush()
+  expect(knownEmpty.state.status).toBe('empty')
+  const project = descriptor.project
+  descriptor.project = (...args) => ({ ...project(...args), emptyIsFiltered: true })
+  const serverWindow = createRecordCollectionController(descriptor, INITIAL)
+  await flush()
+  expect(serverWindow.state.status).toBe('filtered-empty')
+})

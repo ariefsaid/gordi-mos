@@ -324,6 +324,7 @@ function projectSignals(
     groups,
     totalRecords: data.records.length,
     visibleRecordsAreFiltered: isFiltered(query),
+    ...(data.records.length === 0 && isFiltered(query) ? { emptyIsFiltered: true } : {}),
   }
 }
 

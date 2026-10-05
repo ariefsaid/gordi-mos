@@ -89,6 +89,8 @@ export interface CollectionProjection<TRecord, TGroup> {
   groups: readonly TGroup[]
   totalRecords: number
   visibleRecordsAreFiltered: boolean
+  /** An empty server-filtered window does not establish that the whole source is empty. */
+  emptyIsFiltered?: boolean
 }
 
 export interface CollectionPresentationProps<

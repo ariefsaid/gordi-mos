@@ -110,10 +110,10 @@ function deriveStatus<TAction extends string>(
   if (access.mode === 'forbidden') return 'permission'
   if (!projection) return 'loading'
   const base: CollectionStatus =
-    projection.visibleRecords.length === 0 && projection.visibleRecordsAreFiltered
-      ? 'filtered-empty'
-      : projection.totalRecords === 0
-        ? 'empty'
+    projection.totalRecords === 0 && !projection.emptyIsFiltered
+      ? 'empty'
+      : projection.visibleRecords.length === 0 && projection.visibleRecordsAreFiltered
+        ? 'filtered-empty'
         : 'ready'
   if (access.mode === 'read-only' && base === 'ready') return 'read-only'
   return base
