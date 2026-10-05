@@ -99,13 +99,13 @@ describe('InboxPage — shared state kit', () => {
     expect(emptyState.querySelector('.empty-copy')).not.toBeNull()
   })
 
-  it('W4-3: empty copy names supported Signal notifications in both locales and stays actionless', () => {
+  it('W4-3: empty copy names supported Signal and comment notifications in both locales and stays actionless', () => {
     const english = renderPage('en')
 
     const emptyState = screen.getByTestId('empty-state')
     expect(emptyState).toHaveAttribute('data-empty-variant', 'quiet')
     expect(within(emptyState).getByText(
-      'You\'ll see a notification here when someone mentions you in a Signal or retracts a Signal you wrote.',
+      'You\'ll see a notification here when someone mentions you in a Signal or a comment, or retracts a Signal you wrote.',
     )).toBeInTheDocument()
     // The quiet empty state itself carries no call-to-action (no push-to-act when caught up); the
     // only controls on the surface are the persistent filter chips, never an empty-state CTA/link.
@@ -116,7 +116,7 @@ describe('InboxPage — shared state kit', () => {
     english.unmount()
     renderPage('id')
     expect(within(screen.getByTestId('empty-state')).getByText(
-      'Notifikasi muncul di sini saat seseorang menyebut Anda di Sinyal atau menarik kembali Sinyal yang Anda tulis.',
+      'Notifikasi muncul di sini saat seseorang menyebut Anda di Sinyal atau komentar, atau menarik kembali Sinyal yang Anda tulis.',
     )).toBeInTheDocument()
   })
 
