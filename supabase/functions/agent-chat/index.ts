@@ -7,14 +7,13 @@
  * Responsibilities:
  *   1. CORS preflight handling.
  *   2. Read Authorization header; reject 401 if absent.
- *   3. Verify JWT using the service-role client (service_role ONLY for auth.getUser — D3,
- *      FR-P2-DI-002).
+ *   3. Verify JWT, then create owner-bound approval rows through the trusted edge path.
  *   4. Decode org_id/person_id/access_roles from the JWT payload (D1 — no profiles lookup),
  *      via the shared decodeJwtClaims (T18, extracted from compose-view's T10 helper).
- *   5. Build the caller-JWT Supabase client for ALL business data (deputy auth — D2/D3).
+ *   5. Build the caller-JWT client for business actions and reads (deputy auth — D2/D3).
  *   6. Read AGENT_MODEL_API_KEY / AGENT_MODEL_BASE_URL / AGENT_MODEL_DEFAULT from function
  *      secrets — fail loud (502 MODEL_NOT_CONFIGURED) if the model id is unset (D4, FR-CF-001).
- *   7. Parse the JSON body into AgentChatRequest.
+ *   7. Cap the JSON body size, then parse into AgentChatRequest.
  *   8. Load journaledWrites/startSeq for a resumed run (body.runId present) — persistence gate.
  *   9. Delegate to agentChatHandler; pipe events into an SSE ReadableStream.
  */
@@ -24,6 +23,8 @@ import { createClient } from '@supabase/supabase-js'
 import { agentChatHandler } from './handler.ts'
 import type { HandlerDeps } from './handler.ts'
 import { loadJournaledWrites, loadMaxSeq } from './persistence.ts'
+import { createPendingActionStore } from './pendingActions.ts'
+import { readCappedJson } from './requestBody.ts'
 import { ChatCompletionsClient } from '../_shared/chatCompletionsClient.ts'
 import { resolveDefaultModel } from '../_shared/modelResolution.ts'
 import { logStructuredError } from '../_shared/errorLog.ts'
@@ -59,13 +60,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
     )
   }
 
-  // ── 2. Verify JWT using service-role client (D3) ─────────────────────────────
-  // service_role is used ONLY here for auth.getUser(jwt). Never for business data.
+  // ── 2. Verify JWT and prepare the narrowly scoped pending-action writer ──────
+  // Business actions and reads still use callerClient; service_role inserts only authenticated approvals.
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-  const verifierClient = createClient(supabaseUrl, serviceRoleKey)
+  const serviceRoleClient = createClient(supabaseUrl, serviceRoleKey)
 
-  const { data: { user }, error: authError } = await verifierClient.auth.getUser(jwt)
+  const { data: { user }, error: authError } = await serviceRoleClient.auth.getUser(jwt)
   if (authError || !user) {
     return new Response(
       JSON.stringify({ status: 401, error: 'UNAUTHORIZED', detail: 'invalid JWT' }),
@@ -88,6 +89,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const callerClient = createClient(supabaseUrl, anonKey, {
     global: { headers: { Authorization: `Bearer ${jwt}` } },
   })
+  const pendingActions = createPendingActionStore(serviceRoleClient as never, callerClient as never)
 
   // ── 5. Read the model config from function secrets (D4) ──────────────────────
   const apiKey = Deno.env.get('AGENT_MODEL_API_KEY')
@@ -114,7 +116,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // ── 6. Parse request body ─────────────────────────────────────────────────────
   let body: AgentChatRequest
   try {
-    body = (await req.json()) as AgentChatRequest
+    const parsed = await readCappedJson(req)
+    if (!parsed.ok) {
+      return new Response(
+        JSON.stringify({ status: 413, error: 'PAYLOAD_TOO_LARGE' }),
+        { status: 413, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      )
+    }
+    body = parsed.value as AgentChatRequest
   } catch {
     return new Response(
       JSON.stringify({ status: 400, error: 'BAD_REQUEST', detail: 'invalid JSON body' }),
@@ -123,7 +132,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   // ── 7. Persistence deps (default ON; AGENT_PERSISTENCE='false' disables) ─────
-  // Bound to the SAME callerClient (never verifierClient/service_role — the deputy invariant).
+  // Bound to the SAME callerClient (never serviceRoleClient — the deputy invariant).
   const persistenceEnabled = Deno.env.get('AGENT_PERSISTENCE') !== 'false'
 
   const persistenceDepsBase = {
@@ -167,6 +176,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         // A4 (compose_view): enabled by default in P2 — the panel gates rendering on
         // SHOW_ASSISTANT, so registering the tool is harmless when the flag is off client-side.
         composeEnabled: true,
+        pendingActions,
         persistence: persistenceEnabled
           ? { ...persistenceDepsBase, journaledWrites, startSeq }
           : undefined,

@@ -7,12 +7,10 @@
  * D7: handler is CI-testable; index.ts (Deno.serve) is not.
  * MAX_TOOL_ROUNDS=8 -> terminal completed (not errored) with "reached step limit".
  *
- * Approve/deny (FR-P2-WT-001..004, stateless):
- *   - confirm:true action -> emit needs-approval + END stream (no write executed).
- *   - On next POST with req.decision, re-validate args, re-derive authorization from the JWT
- *     (already decoded by index.ts into deps.personId/orgId/accessRoles — D1, no re-fetch),
- *     execute or decline. dispatchAction/dispatchActionForced are the ONLY sites that may call
- *     action.run.
+ * Approve/deny (FR-P2-WT-001..004):
+ *   - confirm:true action -> persist its validated args and emit needs-approval + END stream.
+ *   - On next POST, consume the owner's unexpired pending id and execute only its stored args.
+ *     dispatchAction/dispatchActionForced are the ONLY sites that may call action.run.
  *
  * D1 delta vs the sibling reference: there is no `profiles` lookup gate (2) — orgId/personId/
  * accessRoles arrive on HandlerDeps, already decoded from the caller's JWT by index.ts.
@@ -32,6 +30,8 @@ import {
 } from './persistence.ts'
 import type { PersistenceDeps, JournaledWrite, ToolJournal, HandlerSupabaseLike } from './persistence.ts'
 import { replayRunHistory } from './replay.ts'
+import { AGENT_PENDING_ACTION_TTL_MS } from './pendingActions.ts'
+import type { PendingActionStore } from './pendingActions.ts'
 import type { ModelClient, ModelMessage, ModelTool } from '../_shared/modelClient.ts'
 import type { AgentEvent, AgentRunStatus, AgentAction, DeputyContext, SupabaseLike } from '../../../mos-app/src/lib/agent/runtime/port.ts'
 import type { AgentChatRequest, ConversationMessage } from '../../../mos-app/src/lib/agent/runtime/transport.ts'
@@ -93,6 +93,8 @@ export interface HandlerDeps {
   can?: CanFn
   /** Flag-gated compose_view tool registration. */
   composeEnabled?: boolean
+  /** Durable, owner-bound approval storage. Missing storage fails closed for write actions. */
+  pendingActions?: PendingActionStore
   /**
    * Optional persistence dep (thread/run/event journal, heartbeat, de-dupe). Optional so
    * flag-off / existing tests pass unchanged — every persistence call site below is guarded
@@ -209,8 +211,8 @@ async function dispatchAction(action: AgentAction, toolInput: unknown, ctx: Depu
 }
 
 /** Execute an approved confirm:true action (bypasses the confirm guard — approval already fired). */
-async function dispatchActionForced(action: AgentAction, validatedInput: unknown, ctx: DeputyContext): Promise<unknown> {
-  return action.run(validatedInput, ctx)
+async function dispatchActionForced(action: AgentAction, storedArgs: unknown, ctx: DeputyContext): Promise<unknown> {
+  return action.run(storedArgs, ctx)
 }
 
 // ── Tool catalog builder ───────────────────────────────────────────────────────
@@ -399,6 +401,22 @@ async function* runToolLoop(opts: RunToolLoopOptions): AsyncGenerator<AgentEvent
 
         const pendingId = makeId()
         const humanSummary = writeAction.summarize(validation.value)
+        const pendingActions = deps.pendingActions
+        const stored = pendingActions
+          ? await pendingActions.create({
+            id: pendingId,
+            actionName: action.name,
+            args: validation.value,
+            toolCallId: toolId,
+            personId: deps.personId,
+            orgId: deps.orgId,
+            expiresAt: new Date((deps.now ?? (() => new Date()))().getTime() + AGENT_PENDING_ACTION_TTL_MS).toISOString(),
+          })
+          : false
+        if (!stored) {
+          yield statusEvent('error', { error: 'APPROVAL_STORAGE_UNAVAILABLE' })
+          return
+        }
 
         yield statusEvent('needs-approval', {
           pendingId, actionName: action.name, humanSummary, structuredArgs: validation.value as object,
@@ -578,22 +596,14 @@ async function* agentChatHandlerInner(
   })
 }
 
-// ── Decision handler (stateless approve/deny re-POST) ─────────────────────────
+// ── Decision handler (single-use pending-action resolution) ────────────────────
 
 /**
  * Handle a re-POST with req.decision (approve or reject a pending write).
  *
- * Protocol:
- * 1. Find the trailing unresolved confirm-action tool_use in the replayed transcript. If none,
- *    it is a no-op (stale/duplicate).
- * 2. Re-validate the action args against the action's inputSchema.
- * 3. Re-derive authorization: deps.personId/orgId/accessRoles ALREADY carry the JWT-decoded
- *    claims from THIS re-POST's Authorization header (D1) — no separate re-fetch needed; a
- *    forged/stale JWT is caught by index.ts's auth.getUser gate before the handler runs.
- * 4. can() preflight (UX seam; RLS is the enforcement authority).
- * 5a. reject OR any check fails -> rejection tool_result + model continues.
- * 5b. approve -> execute via dispatchActionForced under the caller JWT. Emit tool event +
- *    write_resolved system event; model continues and completes.
+ * Consume by pending id under the caller identity, validate the stored action again, and execute
+ * its stored args under the caller JWT. A reject consumes the same one-use record without dispatch.
+ * can() is a UX preflight; RLS remains the write authority.
  */
 async function* handleDecision(
   req: AgentChatRequest,
@@ -605,6 +615,10 @@ async function* handleDecision(
 ): AsyncGenerator<AgentEvent> {
   const decision = req.decision!
   const { pendingId, verdict } = decision
+  if (typeof pendingId !== 'string' || (verdict !== 'approve' && verdict !== 'reject')) {
+    yield statusEvent('error', { error: 'BAD_REQUEST' })
+    return
+  }
 
   const lastUserMsg = req.messages.filter((m) => m.role === 'user').at(-1)
   if (lastUserMsg && typeof lastUserMsg.content === 'string') {
@@ -618,25 +632,27 @@ async function* handleDecision(
     ...req.messages.map((m) => ({ role: m.role, content: typeof m.content === 'string' ? m.content : null })),
   ]
 
-  const trailingToolUse = findTrailingUnresolvedToolUse(req.messages, isConfirmToolUse)
-
-  if (!trailingToolUse) {
-    // No pending confirm action — stale/duplicate decision; treat as no-op.
-    yield* runLoop(req, deps, emit, statusEvent, deputyCtx, messages, persist)
+  const pending = await deps.pendingActions?.consume(pendingId)
+  if (!pending) {
+    yield statusEvent('error', { error: 'PENDING_ACTION_UNAVAILABLE' })
     return
   }
 
-  const { toolId, toolName, toolInput } = trailingToolUse
+  const { actionName: toolName, args: storedArgs, toolCallId: toolId } = pending
   const action = BASE_ACTION_BY_NAME.get(toolName)
-
-  if (!action || !action.confirm) {
-    yield* runLoop(req, deps, emit, statusEvent, deputyCtx, messages, persist)
+  if (!action?.confirm) {
+    yield statusEvent('error', { error: 'PENDING_ACTION_UNAVAILABLE' })
     return
   }
 
   const writeAction = action as AgentAction & {
     validate: (i: unknown) => { ok: boolean; error?: string; value?: unknown }
     summarize: (i: unknown) => string
+  }
+  const validation = writeAction.validate(storedArgs)
+  if (!validation.ok) {
+    yield statusEvent('error', { error: 'PENDING_ACTION_UNAVAILABLE' })
+    return
   }
 
   if (verdict === 'reject') {
@@ -645,15 +661,6 @@ async function* handleDecision(
       payload: { event: 'write_resolved', decision: 'rejected', actionName: toolName, pendingId },
     })
     messages.push({ role: 'tool', tool_call_id: toolId, name: toolName, content: JSON.stringify({ result: 'Write action declined by user.' }) })
-    yield* runLoop(req, deps, emit, statusEvent, deputyCtx, messages, persist)
-    return
-  }
-
-  // ── Approve path ─────────────────────────────────────────────────────────
-  const validation = writeAction.validate(toolInput)
-  if (!validation.ok) {
-    yield emit('system', { text: 'rejected', payload: { event: 'write_resolved', decision: 'rejected', actionName: toolName, pendingId } })
-    messages.push({ role: 'tool', tool_call_id: toolId, name: toolName, content: JSON.stringify({ error: `Invalid args on approval: ${validation.error}` }) })
     yield* runLoop(req, deps, emit, statusEvent, deputyCtx, messages, persist)
     return
   }
@@ -669,14 +676,14 @@ async function* handleDecision(
 
   // Resume de-dupe gate: a write whose (toolName, argsHash-of-VALIDATED-args) matches an
   // already-journaled COMPLETED call is hard-blocked — action.run is never re-invoked.
-  const journaled = persist ? findJournaledWrite(persist, toolName, hashToolArgs(validation.value)) : undefined
+  const journaled = persist ? findJournaledWrite(persist, toolName, hashToolArgs(storedArgs)) : undefined
 
   let writeResult: unknown
   if (journaled) {
     writeResult = journaled.payload
   } else {
     try {
-      writeResult = await dispatchActionForced(action, validation.value, deputyCtx)
+      writeResult = await dispatchActionForced(action, storedArgs, deputyCtx)
     } catch {
       messages.push({ role: 'tool', tool_call_id: toolId, name: toolName, content: JSON.stringify({ error: 'Write failed; database error.' }) })
       yield* runLoop(req, deps, emit, statusEvent, deputyCtx, messages, persist)
@@ -684,10 +691,8 @@ async function* handleDecision(
     }
   }
 
-  // `input` carries the VALIDATED args (never raw toolInput) so the journal hash matches
-  // what dispatchActionForced actually executed against (FR-P2-OB-001). tool_call_id pairs the
-  // resolved write's tool_result to the trailing assistant tool_use on replay (§3.1 #3).
-  yield emit('tool', { payload: { name: toolName, pendingId, input: validation.value, result: writeResult, tool_call_id: toolId } })
+  // The approval executes and journals the stored validated arguments, never request-time arguments.
+  yield emit('tool', { payload: { name: toolName, pendingId, input: storedArgs, result: writeResult, tool_call_id: toolId } })
 
   yield emit('system', { text: 'approved', payload: { event: 'write_resolved', decision: 'approved', actionName: toolName, pendingId } })
 
@@ -844,9 +849,4 @@ export function findTrailingUnresolvedToolUse(
   }
 
   return null
-}
-
-/** matchToolUse for the confirm-action interaction family. */
-function isConfirmToolUse(b: { name?: string }): boolean {
-  return BASE_ACTION_BY_NAME.has(b.name ?? '') && BASE_ACTION_BY_NAME.get(b.name ?? '')?.confirm === true
 }
