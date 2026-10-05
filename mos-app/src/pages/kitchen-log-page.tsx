@@ -337,7 +337,11 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     ...Array.from(new Set(wipItems.map(item => item.category ?? '').filter(Boolean)))
       .sort((a, b) => kitchenCategoryLabel(t, a).localeCompare(kitchenCategoryLabel(t, b))),
   ]
-  const groups = kitchenDataTableGroups(
+  // TanStack's grouped model queues its auto-reset update on first access. During the initial
+  // async bootstrap the route can still be suspended/uncommitted; reading that model then retries
+  // its mount and repeats the queued update. The loading frame doesn't consume groups, so defer
+  // grouped-row derivation until the page has committed and its data is ready.
+  const groups = status.kind === 'loading' ? [] : kitchenDataTableGroups(
     itemTable,
     groupKey => groupKey === 'planned' ? t('kitchen.log.group.planned') : t('kitchen.log.group.offplan'),
   ).sort((a, b) => (a.key === 'planned' ? -1 : b.key === 'planned' ? 1 : 0))
