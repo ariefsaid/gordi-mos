@@ -38,6 +38,7 @@
 .ktb-filter-selects {
   display: flex;
   flex: 0 1 auto;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   min-width: 0;
@@ -63,17 +64,23 @@
 }
 
 .ktb-kind,
-.ktb-category {
+.ktb-category,
+.ktb-active,
+.ktb-needs-unit {
   flex: none;
   min-width: 0;
 }
 .ktb-kind .mk-select__box,
-.ktb-category .mk-select__box {
+.ktb-category .mk-select__box,
+.ktb-active .mk-select__box,
+.ktb-needs-unit .mk-select__box {
   background: var(--card);
   border-color: var(--border);
 }
 .ktb-kind .mk-select__field,
-.ktb-category .mk-select__field {
+.ktb-category .mk-select__field,
+.ktb-active .mk-select__field,
+.ktb-needs-unit .mk-select__field {
   font-size: var(--font-size-mono);
 }
 
@@ -135,9 +142,25 @@
   .ktb { gap: 8px; flex-wrap: wrap; padding: 8px 0 14px; }
   .ktb-children { flex: 1 0 100%; }
   .ktb-children > * { width: 100%; }
-  .ktb-filters { flex: 1 1 100%; gap: 8px; }
-  .ktb-search-wrap { flex: 1 1 120px; min-width: 120px; max-width: none; }
+  .ktb-filters { flex: 1 1 100%; flex-wrap: wrap; gap: 8px; }
+  .ktb-search-wrap { flex: 1 1 100%; min-width: 0; max-width: none; }
   .ktb-search { height: 44px; }
-  .ktb-filter-selects { flex: 0 1 auto; gap: 6px; }
-  .ktb-kind, .ktb-category { max-width: 132px; }
+  .ktb-filter-selects {
+    display: grid;
+    flex: 1 1 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+  .ktb-kind, .ktb-category, .ktb-active, .ktb-needs-unit { width: 100%; min-width: 0; }
+  .ktb-filters--setup {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px 8px;
+  }
+  .ktb-filters--setup .ktb-search-wrap { grid-column: 1; flex: none; min-width: 0; max-width: none; }
+  .ktb-filters--setup .ktb-search { padding-inline: 7px; font-size: var(--font-size-label); }
+  .ktb-filters--setup .ktb-filter-selects { display: contents; }
+  .ktb-filters--setup .ktb-kind { grid-column: 2; grid-row: 1; }
+  .ktb-filters--setup .ktb-active { grid-column: 1; grid-row: 2; }
+  .ktb-filters--setup .ktb-needs-unit { grid-column: 2; grid-row: 2; }
 }
