@@ -90,7 +90,14 @@ describe('CafeItemSettingsPage missing-item queue', () => {
     mockListReports.mockResolvedValueOnce([])
     fireEvent.click(within(queue).getByRole('button', { name: 'Resolve' }))
     await waitFor(() => expect(mockResolveReport).toHaveBeenCalledWith('report-1'))
-    await waitFor(() => expect(queue).toHaveTextContent('No missing-item reports need attention for this stream.'))
+    await waitFor(() => expect(screen.queryByRole('region', { name: 'Missing-item reports for this stream' })).not.toBeInTheDocument())
+  })
+
+  it('does not show an empty report queue ahead of item settings', async () => {
+    mockListReports.mockResolvedValue([])
+    renderPage()
+    await waitFor(() => expect(mockListReports).toHaveBeenCalled())
+    expect(screen.queryByRole('region', { name: 'Missing-item reports for this stream' })).not.toBeInTheDocument()
   })
 
   it('localizes the report queue stream label', async () => {

@@ -15,7 +15,11 @@
 import type { ReactNode } from 'react'
 import { Select } from '@/components/ui/select'
 import { useT } from '@/i18n/use-t'
-import type { KitchenItemKindFilter } from '@/lib/kitchen-item-list'
+import type {
+  KitchenItemActiveFilter,
+  KitchenItemKindFilter,
+  KitchenItemNeedsUnitFilter,
+} from '@/lib/kitchen-item-list'
 import './kitchen-toolbar.css'
 
 interface KitchenToolbarProps {
@@ -25,6 +29,16 @@ interface KitchenToolbarProps {
   kinds?: readonly KitchenItemKindFilter[]
   kind?: KitchenItemKindFilter
   onKindChange?: (kind: KitchenItemKindFilter) => void
+  /** Active-state choices derived by the caller; omit → no active filter. */
+  activeStates?: readonly KitchenItemActiveFilter[]
+  active?: KitchenItemActiveFilter
+  onActiveChange?: (active: KitchenItemActiveFilter) => void
+  activeId?: string
+  /** Unit-setup choices derived by the caller; omit → no setup filter. */
+  needsUnitStates?: readonly KitchenItemNeedsUnitFilter[]
+  needsUnit?: KitchenItemNeedsUnitFilter
+  onNeedsUnitChange?: (needsUnit: KitchenItemNeedsUnitFilter) => void
+  needsUnitId?: string
   /** Optional stable id for the visible kind trigger when a surface is audited. */
   kindId?: string
   /** categories derived by the caller (['All', …unique sorted]); omit → no select. The
@@ -52,6 +66,14 @@ export function KitchenToolbar({
   kind,
   onKindChange,
   kindId,
+  activeStates,
+  active,
+  onActiveChange,
+  activeId,
+  needsUnitStates,
+  needsUnit,
+  onNeedsUnitChange,
+  needsUnitId,
   categories,
   category,
   onCategoryChange,
@@ -63,6 +85,9 @@ export function KitchenToolbar({
 }: KitchenToolbarProps) {
   const t = useT()
   const placeholder = searchPlaceholder ?? t('kitchen.log.searchPlaceholder')
+  const compactSetupFilters = Boolean(
+    activeStates && onActiveChange && needsUnitStates && onNeedsUnitChange,
+  )
   // #378: when BOTH filters ride this toolbar (search + category), the scope slot is a
   // BAND, not a row-sharer. The derived movement catalog made the slot's content
   // (931–1091px at 1440) wider than any row it could share with the filters, and
@@ -70,7 +95,12 @@ export function KitchenToolbar({
   // caught squeezing the search to 40.75px. The class carries the decision; the
   // geometry lives in kitchen-toolbar.css. Toolbars WITHOUT the category (Stock)
   // keep the leading-row composition — their scope still fits beside the search.
-  const filtersBand = Boolean((categories && onCategoryChange) || (kinds && onKindChange))
+  const filtersBand = Boolean(
+    (categories && onCategoryChange)
+    || (kinds && onKindChange)
+    || (activeStates && onActiveChange)
+    || (needsUnitStates && onNeedsUnitChange),
+  )
   return (
     <div className="ktb" aria-label={ariaLabel}>
       {children && (
@@ -78,7 +108,7 @@ export function KitchenToolbar({
           {children}
         </div>
       )}
-      <div className="ktb-filters">
+      <div className={`ktb-filters${compactSetupFilters ? ' ktb-filters--setup' : ''}`}>
         <div role="search" className="ktb-search-wrap">
           <input
             type="search"
@@ -100,7 +130,41 @@ export function KitchenToolbar({
             >
               {kinds.map(value => (
                 <option key={value} value={value}>
-                  {value === 'All' ? t('kitchen.filter.kind.all') : value}
+                  {value === 'All'
+                    ? t('kitchen.filter.kind.all')
+                    : value === 'Unclassified' ? t('kitchen.filter.kind.notSet') : value}
+                </option>
+              ))}
+            </Select>
+          )}
+          {activeStates && onActiveChange && (
+            <Select
+              id={activeId}
+              className="ktb-active"
+              aria-label={t('kitchen.toolbar.active.ariaLabel')}
+              value={active}
+              onChange={e => onActiveChange(e.target.value as KitchenItemActiveFilter)}
+            >
+              {activeStates.map(value => (
+                <option key={value} value={value}>
+                  {value === 'All'
+                    ? t('kitchen.filter.active.all')
+                    : value === 'Active' ? t('kitchen.filter.active.active') : t('kitchen.filter.active.inactive')}
+                </option>
+              ))}
+            </Select>
+          )}
+          {needsUnitStates && onNeedsUnitChange && (
+            <Select
+              id={needsUnitId}
+              className="ktb-needs-unit"
+              aria-label={t('kitchen.toolbar.needsUnit.ariaLabel')}
+              value={needsUnit}
+              onChange={e => onNeedsUnitChange(e.target.value as KitchenItemNeedsUnitFilter)}
+            >
+              {needsUnitStates.map(value => (
+                <option key={value} value={value}>
+                  {value === 'All' ? t('kitchen.filter.needsUnit.all') : t('kitchen.filter.needsUnit.needs')}
                 </option>
               ))}
             </Select>

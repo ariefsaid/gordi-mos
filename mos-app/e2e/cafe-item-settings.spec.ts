@@ -16,6 +16,22 @@ type MissingReportRow = {
   resolved_at: string | null
 }
 
+type SettingsReadRow = {
+  item_id: string
+  erp_name: string
+  mos_name: string
+  category: string | null
+  kind: 'RAW' | 'WIP' | null
+  is_active: boolean
+  item_unit_id: string | null
+  unit_name: string | null
+  default_item_unit_id: string | null
+  unit_is_default: boolean
+  unit_is_shown: boolean
+}
+
+type ItemReferenceRow = { item_id: string; item_unit_id: string; is_default: boolean }
+
 type SettingsMocks = {
   canManage: boolean
   permissionError: boolean
@@ -25,11 +41,14 @@ type SettingsMocks = {
   saveFailure: boolean
   lastSave: Record<string, unknown> | null
   reports: MissingReportRow[]
+  readRows?: SettingsReadRow[]
+  configuredItemIds?: string[]
+  references?: ItemReferenceRow[]
   captureKind?: 'RAW' | 'WIP'
   captureActive?: boolean
 }
 
-const rows = [
+const rows: SettingsReadRow[] = [
   {
     item_id: '00000000-0000-0000-0000-00000000a101',
     erp_name: 'Herbal tea · ERP reference',
@@ -97,6 +116,43 @@ const rows = [
   },
 ]
 
+function largeItemSettingsFixture(): Pick<SettingsMocks, 'readRows' | 'configuredItemIds' | 'references'> {
+  const itemIds = Array.from({ length: 501 }, (_, index) => index === 0
+    ? '00000000-0000-0000-0000-00000000a101'
+    : `00000000-0000-0000-0000-${(0xb000 + index).toString(16).padStart(12, '0')}`)
+  const firstUnitIds = [
+    '00000000-0000-0000-0000-00000000a201',
+    '00000000-0000-0000-0000-00000000a202',
+    '00000000-0000-0000-0000-00000000a203',
+  ]
+  const readRows = itemIds.flatMap((itemId, index) => {
+    const name = index === 0 ? 'A three-unit ESB product' : `Fixture item ${String(index).padStart(3, '0')}`
+    const mosName = index === 0 ? 'MOS tea lookup' : `${name} MOS name`
+    const unitNames = index === 0 ? ['Bag', 'Kilogram', 'Serving'] : ['Each']
+    const kind: SettingsReadRow['kind'] = index === 0 || index % 3 === 0 ? null : index % 3 === 1 ? 'RAW' : 'WIP'
+    return unitNames.map((unitName, unitIndex) => ({
+      item_id: itemId,
+      erp_name: name,
+      mos_name: mosName,
+      category: index % 2 === 0 ? 'BAR' : 'KITCHEN',
+      kind,
+      is_active: index === 0 ? false : index % 2 === 1,
+      item_unit_id: index === 0
+        ? firstUnitIds[unitIndex]
+        : `00000000-0000-0000-0000-${(0xc000 + index).toString(16).padStart(12, '0')}`,
+      unit_name: unitName,
+      default_item_unit_id: index === 0 ? firstUnitIds[0] : null,
+      unit_is_default: index === 0 && unitIndex === 0,
+      unit_is_shown: index === 0 && unitIndex !== 2,
+    }))
+  })
+  return {
+    readRows,
+    configuredItemIds: [itemIds[0]],
+    references: [{ item_id: itemIds[0], item_unit_id: firstUnitIds[0], is_default: true }],
+  }
+}
+
 async function mockSettingsApi(page: Page, overrides: Partial<SettingsMocks> = {}) {
   const state: SettingsMocks = {
     canManage: true,
@@ -120,7 +176,7 @@ async function mockSettingsApi(page: Page, overrides: Partial<SettingsMocks> = {
       })
       return
     }
-    const responseRows = state.readMode === 'empty' ? [] : rows.map(row => row.item_id === '00000000-0000-0000-0000-00000000a101'
+    const responseRows = state.readMode === 'empty' ? [] : (state.readRows ?? rows).map(row => row.item_id === '00000000-0000-0000-0000-00000000a101'
       ? { ...row, kind: state.captureKind ?? row.kind, is_active: state.captureActive ?? row.is_active }
       : row)
     await route.fulfill({
@@ -136,14 +192,15 @@ async function mockSettingsApi(page: Page, overrides: Partial<SettingsMocks> = {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify([{ wip_item_id: '00000000-0000-0000-0000-00000000a101' }]),
+      body: JSON.stringify((state.configuredItemIds ?? ['00000000-0000-0000-0000-00000000a101'])
+        .map(wip_item_id => ({ wip_item_id }))),
     })
   })
   await page.route(/\/rest\/v1\/cafe_item_references\?/, async route => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify([{
+      body: JSON.stringify(state.references ?? [{
         item_id: '00000000-0000-0000-0000-00000000a101',
         item_unit_id: '00000000-0000-0000-0000-00000000a201',
         is_default: true,
@@ -199,12 +256,94 @@ async function capture(page: Page, testInfo: TestInfo, name: string) {
   await page.screenshot({ path: output, fullPage: true, animations: 'disabled' })
 }
 
+async function captureViewport(page: Page, name: string) {
+  const reviewDir = process.env.GORDI_ITEM_SETTINGS_REVIEW_DIR
+  if (!reviewDir) return
+  await mkdir(reviewDir, { recursive: true })
+  await page.screenshot({ path: join(reviewDir, name), animations: 'disabled' })
+}
+
 async function assertNoOverflow(page: Page, width: number) {
   const documentWidth = await page.evaluate(() => document.documentElement.scrollWidth)
   expect(documentWidth, `horizontal overflow at ${width}px`).toBeLessThanOrEqual(width)
 }
 
 test.describe('Café item settings', () => {
+  test('searches and filters 501 items with three ESB units at phone and desktop widths', async ({ page }) => {
+    await mockSettingsApi(page, largeItemSettingsFixture())
+    await loginAs(page, BAR_MEMBER.email, BAR_MEMBER.password)
+
+    for (const width of [390, 1440] as const) {
+      await page.setViewportSize({ width, height: 960 })
+      await page.goto('cafe/items')
+      await expect(page.getByRole('heading', { name: 'Café items', exact: true })).toBeVisible({ timeout: 15_000 })
+      const cards = page.locator('.dt-cards .dt-card')
+      const tableRows = page.locator('.cafe-items__table tbody tr:not(.dt-group-row)')
+      const visibleItems = width === 390 ? cards : tableRows
+      const search = page.getByRole('searchbox', { name: 'Find an ESB or MOS name' })
+
+      await expect(search).toBeVisible()
+      await expect(visibleItems).toHaveCount(501)
+      await expect(page.locator('.cafe-items__unit-choice')).toHaveCount(503)
+      await expect(page.getByText('500 items need a shown default to enable logging.', { exact: true })).toHaveCount(1)
+      await expect(page.locator('.cafe-items__needs-unit-status')).toHaveCount(500)
+      await assertNoOverflow(page, width)
+      await captureViewport(page, `lane-1332-after-${width}.png`)
+
+      const threeUnitItem = visibleItems.filter({ hasText: 'A three-unit ESB product' }).first()
+      await expect(threeUnitItem).toBeVisible()
+      const defaultUnit = threeUnitItem.getByRole('combobox', { name: 'Default unit' })
+      await defaultUnit.focus()
+      await page.keyboard.press('Enter')
+      const defaultUnitOptions = page.getByRole('listbox', { name: 'Default unit' })
+      await expect(defaultUnitOptions.getByRole('option', { name: 'Bag', exact: true })).toBeVisible()
+      await expect(defaultUnitOptions.getByRole('option', { name: 'Kilogram', exact: true })).toBeVisible()
+      await expect(defaultUnitOptions.getByRole('option', { name: 'Serving', exact: true })).toHaveCount(0)
+      await page.keyboard.press('Escape')
+
+      await search.fill('MOS tea lookup')
+      await expect(visibleItems).toHaveCount(1)
+      await expect(visibleItems.first()).toContainText('A three-unit ESB product')
+      await search.fill('A three-unit ESB product')
+      await expect(visibleItems).toHaveCount(1)
+      await search.clear()
+
+      if (width === 1440) {
+        const nameHeader = page.getByRole('columnheader', { name: 'ESB name' })
+        await nameHeader.click()
+        await nameHeader.click()
+        await expect(nameHeader).toHaveAttribute('aria-sort', 'descending')
+        await expect(visibleItems.first()).toContainText('Fixture item 500')
+        const kindHeader = page.getByRole('columnheader', { name: 'Kind' })
+        await kindHeader.click()
+        await kindHeader.click()
+        await expect(kindHeader).toHaveAttribute('aria-sort', 'descending')
+        await expect(visibleItems.first()).toContainText('Fixture item 002')
+      }
+
+      await page.getByRole('combobox', { name: 'Item kind' }).click()
+      await page.getByRole('option', { name: 'Not set', exact: true }).click()
+      await expect(visibleItems).toHaveCount(167)
+      await page.getByRole('combobox', { name: 'Item kind' }).click()
+      await page.getByRole('option', { name: 'All kinds', exact: true }).click()
+
+      await page.getByRole('combobox', { name: 'Active status' }).click()
+      await page.getByRole('option', { name: 'Inactive', exact: true }).click()
+      await expect(visibleItems).toHaveCount(251)
+      await page.getByRole('combobox', { name: 'Active status' }).click()
+      await page.getByRole('option', { name: 'All statuses', exact: true }).click()
+
+      await page.getByRole('combobox', { name: 'Unit setup' }).click()
+      await page.getByRole('option', { name: 'Needs unit', exact: true }).click()
+      await expect(visibleItems).toHaveCount(500)
+      await page.getByRole('combobox', { name: 'Active status' }).click()
+      await page.getByRole('option', { name: 'Active', exact: true }).click()
+      await expect(visibleItems).toHaveCount(250)
+
+      await search.fill('not a café item')
+      await expect(page.getByText('No café items match your search or filters.', { exact: true })).toBeVisible()
+    }
+  })
   test('uses stacked cards on phones and a readable table on wide screens', async ({ page }, testInfo) => {
     await mockSettingsApi(page)
     await loginAs(page, BAR_MEMBER.email, BAR_MEMBER.password)
@@ -213,16 +352,16 @@ test.describe('Café item settings', () => {
       await page.setViewportSize({ width, height: 960 })
       await page.goto('cafe/items')
       await expect(page.getByRole('heading', { name: 'Café items', exact: true })).toBeVisible()
-      const itemName = width < 1100
-        ? page.locator('.cafe-items__cards').getByText('Herbal tea · ERP reference').first()
-        : page.locator('.cafe-items__table-wrap').getByText('Herbal tea · ERP reference').first()
+      const itemName = width < 768
+        ? page.locator('.dt-cards').getByText('Herbal tea · ERP reference').first()
+        : page.locator('.cafe-items__table').getByText('Herbal tea · ERP reference').first()
       await expect(itemName).toBeVisible()
-      if (width < 1100) {
-        await expect(page.locator('.cafe-items__cards')).toBeVisible()
-        await expect(page.locator('.cafe-items__table-wrap')).toBeHidden()
+      if (width < 768) {
+        await expect(page.locator('.dt-cards')).toBeVisible()
+        await expect(page.locator('.cafe-items__table')).toHaveCount(0)
       } else {
-        await expect(page.locator('.cafe-items__table-wrap')).toBeVisible()
-        await expect(page.locator('.cafe-items__cards')).toBeHidden()
+        await expect(page.locator('.cafe-items__table')).toBeVisible()
+        await expect(page.locator('.dt-cards')).toHaveCount(0)
       }
       await assertNoOverflow(page, width)
       await capture(page, testInfo, `item-settings-${width}`)
@@ -367,6 +506,6 @@ test.describe('Café item settings', () => {
     mocks.readMode = 'rows'
     mocks.readDelayMs = 0
     await page.getByRole('button', { name: 'Try again', exact: true }).click()
-    await expect(page.locator('.cafe-items__cards').getByText('Herbal tea · ERP reference').first()).toBeVisible()
+    await expect(page.locator('.dt-cards').getByText('Herbal tea · ERP reference').first()).toBeVisible()
   })
 })
