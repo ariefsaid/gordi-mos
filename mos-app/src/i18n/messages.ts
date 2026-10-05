@@ -304,15 +304,6 @@ export const messages = {
     'inbox.target.type.task': 'Task',
     'inbox.target.type.signal': 'Signal',
     'inbox.target.type.followUp': 'AR Follow-up',
-    // Issue #584 — the mention notification title, composed client-side at postComment (the row
-    // carries no actor beyond metadata.entity, so this is where the actor + entity kind meet).
-    'notifications.mention.title': '${name} mentioned you in a ${entity}',
-    'notifications.mention.someone': 'Someone',
-    'notifications.mention.entity.task': 'task',
-    'notifications.mention.entity.weekly_update': 'weekly update',
-    'notifications.mention.entity.daily_log': 'daily log',
-    'notifications.mention.entity.follow_up': 'follow-up',
-    'notifications.mention.entity.signal': 'signal',
     // NFR-300/FR-321 — phone card grammar + overdue prefix + catalog-resilience fallbacks.
     // Ported for #192 (Tasks): renamed by v4 to "AR". Both the Money page and the Task follow-ups
     // view (FollowUpQueueEmbed) read this ONE key, so the KEY is genuinely shared. Their TABLES are
@@ -2393,13 +2384,6 @@ export const messages = {
     'inbox.target.type.task': 'Tugas',
     'inbox.target.type.signal': 'Sinyal',
     'inbox.target.type.followUp': 'AR Follow-up',
-    'notifications.mention.title': '${name} menyebut Anda dalam sebuah ${entity}',
-    'notifications.mention.someone': 'Seseorang',
-    'notifications.mention.entity.task': 'tugas',
-    'notifications.mention.entity.weekly_update': 'pembaruan mingguan',
-    'notifications.mention.entity.daily_log': 'log harian',
-    'notifications.mention.entity.follow_up': 'tindak lanjut',
-    'notifications.mention.entity.signal': 'sinyal',
     // NFR-300/FR-321 — tata bahasa kartu ponsel + prefiks terlambat + fallback ketahanan katalog.
     'followUps.title': 'Antrean AR Follow-up',
     'followUps.overdue': 'Terlambat',

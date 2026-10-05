@@ -216,7 +216,7 @@ interface KitchenReviewDecisionProps {
   /** while a decision is in flight for this row — both actions disabled (confirmed-only). */
   submitting: boolean
   /** approve note is null when on-plan (no note needed), or the entered note on variance. */
-  onApprove: (logId: string, reviewNote: string | null) => void
+  onApprove: (logId: string, reviewNote: string | null, expectedUpdatedAt: string) => void
   onReject: (logId: string, reviewNote: string) => void
 }
 
@@ -244,7 +244,7 @@ function KitchenReviewDecision({
     // prompt on every off-plan approval, not a real safeguard. Trimmed, matching the DB's own
     // `nullif(btrim(notes),'')` — a whitespace-only note is not an explanation.
     if (!offPlan || log.notes?.trim()) {
-      onApprove(log.id, null)
+      onApprove(log.id, null, log.updated_at)
       return
     }
     // off-plan, no submitter note (AC-040) → reveal the required approve-note gate
@@ -269,7 +269,7 @@ function KitchenReviewDecision({
   function confirm() {
     if (pending === 'approve') {
       if (!note.trim()) { setNoteError(true); return } // AC-040: variance approve needs a note
-      onApprove(log.id, note.trim())
+      onApprove(log.id, note.trim(), log.updated_at)
     } else if (pending === 'reject') {
       if (!note.trim()) { setNoteError(true); return } // AC-041: reject needs a note
       onReject(log.id, note.trim())
@@ -686,13 +686,13 @@ function KitchenReviewPageForViewer() {
     }).catch(() => { /* Keep the last known gate until the queue is refreshed. */ })
   }, [logs, logDate])
 
-  async function handleApprove(logId: string, reviewNote: string | null) {
+  async function handleApprove(logId: string, reviewNote: string | null, expectedUpdatedAt: string) {
     if (!isOnline) return
     setSubmittingId(logId)
     setActionError('')
     setNoticeCanViewPushes(false)
     try {
-      const { batch_id } = await approveKitchenLog(logId, reviewNote)
+      const { batch_id } = await approveKitchenLog(logId, expectedUpdatedAt, reviewNote)
       removeRow(logId)
       setNotice(batch_id === null
         ? t('kitchen.review.notice.wasteHeld')
@@ -774,7 +774,7 @@ function KitchenReviewPageForViewer() {
     const documentRows = eligible.filter(log => !noop.includes(log))
     for (const log of noop) {
       try {
-        const result = await approveKitchenLog(log.id, null)
+        const result = await approveKitchenLog(log.id, log.updated_at, null)
         approved++
         if (result.batch_id) batches.push(result.batch_id)
         removeRow(log.id)
@@ -794,7 +794,7 @@ function KitchenReviewPageForViewer() {
     }
     for (const session of sessions.values()) {
       try {
-        const result = await approveKitchenLogsBulk(session.map(log => log.id), null)
+        const result = await approveKitchenLogsBulk(session, null)
         approved += session.length
         for (const batchId of result.batch_ids ?? []) batches.push(batchId)
         session.forEach(log => removeRow(log.id))
@@ -804,7 +804,7 @@ function KitchenReviewPageForViewer() {
           // the RPC then approves eligible rows and identifies only the stale ones.
           for (const log of session) {
             try {
-              const result = await approveKitchenLog(log.id, null)
+              const result = await approveKitchenLog(log.id, log.updated_at, null)
               approved++
               if (result.batch_id) batches.push(result.batch_id)
               removeRow(log.id)

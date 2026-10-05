@@ -3,6 +3,12 @@ begin;
 create extension if not exists pgtap with schema extensions;
 select plan(38);
 
+create function pg_temp.approve_kitchen_log(p_log_id uuid, p_review_note text)
+returns text language sql as $$
+  select ops.approve_kitchen_log(p_log_id, p_review_note,
+    (select l.updated_at from ops.kitchen_logs l where l.id = p_log_id))
+$$;
+
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
@@ -308,7 +314,7 @@ select is((select item_unit_id from ops.kitchen_logs where id = '00000000-0000-0
 select is((select item_unit_id from ops.kitchen_logs where id = '00000000-0000-0000-0000-00000000c423'),
           (select id from ops.item_units where esb_product_detail_id = 'SYNTH-ERP-PD-1242-WIP-A'),
   'every Café capture binds the default ERP detail even when other details remain manager-visible');
-select is(ops.approve_kitchen_log('00000000-0000-0000-0000-00000000c423', 'checked'),
+select is(pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000c423', 'checked'),
           'PR-20991231-001', 'approval retains the normal log and dispatch journey');
 select is((select push.payload ->> 'esb_product_detail_id_porsi'
              from integrations.esb_push push

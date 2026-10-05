@@ -40,6 +40,7 @@ import {
   listSubmittedKitchenLogs,
   hasSubmittedKitchenProduction,
   approveKitchenLog,
+  approveKitchenLogsBulk,
   rejectKitchenLog,
 } from './kitchen-logs'
 
@@ -1069,6 +1070,7 @@ describe('listSubmittedKitchenLogs — the ops_lead review queue (FR-040)', () =
       submitted_by: 'p1',
       business_unit_id: 'kb',
       created_at: '2026-06-20T09:12:00Z',
+      updated_at: '2026-06-20T09:12:00Z',
     },
     {
       id: 'log-2',
@@ -1086,6 +1088,7 @@ describe('listSubmittedKitchenLogs — the ops_lead review queue (FR-040)', () =
       submitted_by: 'p2',
       business_unit_id: 'kb',
       created_at: '2026-06-20T13:02:00Z',
+      updated_at: '2026-06-20T13:02:00Z',
     },
   ]
 
@@ -1107,6 +1110,7 @@ describe('listSubmittedKitchenLogs — the ops_lead review queue (FR-040)', () =
     // plan lookup depends on this being selected, not assumed from a single default.
     expect(rec.selects.join(' ')).toMatch(/branch_id/)
     expect(rec.selects.join(' ')).toMatch(/activity/)
+    expect(rec.selects.join(' ')).toMatch(/updated_at/)
 
     // Flattened display shape
     expect(rows).toHaveLength(2)
@@ -1122,6 +1126,7 @@ describe('listSubmittedKitchenLogs — the ops_lead review queue (FR-040)', () =
         activity: 'kitchen',
         qty_porsi: 8,
         submitted_by: 'p1',
+        updated_at: '2026-06-20T09:12:00Z',
       }),
       expect.objectContaining({ id: 'log-2', wip_item_name: 'Cold Brew' }),
     ]))
@@ -1193,11 +1198,11 @@ describe('approveKitchenLog — calls the approve RPC, returns the minted batch_
       ) as never,
     )
 
-    const result = await approveKitchenLog('log-1', 'looks good')
+    const result = await approveKitchenLog('log-1', '2026-06-20T09:12:00Z', 'looks good')
 
     expect(rec.rpcCalls).toContainEqual([
       'approve_kitchen_log',
-      { p_log_id: 'log-1', p_review_note: 'looks good' },
+      { p_log_id: 'log-1', p_review_note: 'looks good', p_expected_updated_at: '2026-06-20T09:12:00Z' },
     ])
     expect(result).toEqual({ batch_id: 'PR-20260620-003' })
   })
@@ -1211,11 +1216,36 @@ describe('approveKitchenLog — calls the approve RPC, returns the minted batch_
       ) as never,
     )
 
-    await approveKitchenLog('log-9')
+    await approveKitchenLog('log-9', '2026-06-20T13:02:00Z')
     expect(rec.rpcCalls).toContainEqual([
       'approve_kitchen_log',
-      { p_log_id: 'log-9', p_review_note: null },
+      { p_log_id: 'log-9', p_review_note: null, p_expected_updated_at: '2026-06-20T13:02:00Z' },
     ])
+  })
+
+  it('sends each bulk row version with its approval request', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema(
+        { approve_kitchen_logs: [{ data: { group_id: 'group-1', batch_ids: ['batch-1'] }, error: null }] },
+        rec,
+      ) as never,
+    )
+
+    const result = await approveKitchenLogsBulk([
+      { id: 'log-1', updated_at: '2026-06-20T09:12:00Z' },
+      { id: 'log-2', updated_at: '2026-06-20T13:02:00Z' },
+    ])
+
+    expect(rec.rpcCalls).toContainEqual([
+      'approve_kitchen_logs',
+      {
+        p_log_ids: ['log-1', 'log-2'],
+        p_review_note: null,
+        p_expected_updated_at: ['2026-06-20T09:12:00Z', '2026-06-20T13:02:00Z'],
+      },
+    ])
+    expect(result).toEqual({ push_group_id: 'group-1', batch_ids: ['batch-1'] })
   })
 
   it('surfaces P0003 (already actioned by someone else) as a typed code so the UI can refresh', async () => {
@@ -1231,7 +1261,7 @@ describe('approveKitchenLog — calls the approve RPC, returns the minted batch_
       ) as never,
     )
 
-    await expect(approveKitchenLog('log-1')).rejects.toMatchObject({ code: 'P0003' })
+    await expect(approveKitchenLog('log-1', '2026-06-20T09:12:00Z')).rejects.toMatchObject({ code: 'P0003' })
   })
 
   it('surfaces 42501 (not ops_lead / wrong org) as a typed code', async () => {
@@ -1246,7 +1276,7 @@ describe('approveKitchenLog — calls the approve RPC, returns the minted batch_
         rec,
       ) as never,
     )
-    await expect(approveKitchenLog('log-1')).rejects.toMatchObject({ code: '42501' })
+    await expect(approveKitchenLog('log-1', '2026-06-20T09:12:00Z')).rejects.toMatchObject({ code: '42501' })
   })
 })
 

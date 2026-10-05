@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { containsPattern } from './like-pattern'
+import { withReferenceCache, invalidateReferenceCache } from './reference-cache'
 
 // Data layer for mos.work_lines (cascade first slice, Task B).
 // Reads mos via supabase.schema('mos') — one auth session, RLS is the authority.
@@ -31,15 +32,18 @@ const ACTIVE_COLUMNS =
 const ADMIN_COLUMNS =
   'id,name,type,objective_id,business_unit_id,accountable_person_id,responsible_person_id,archived_at'
 
-/** List active (non-archived) work lines ordered by name (org-readable via RLS). */
+/** List active (non-archived) work lines ordered by name (org-readable via RLS). SWR-cached —
+ * the picker/palette re-read these on mount, a few times a day of change (#1359). */
 export async function listWorkLines(): Promise<WorkLineRow[]> {
-  const { data, error } = await mos()
-    .from('work_lines')
-    .select(ACTIVE_COLUMNS)
-    .is('archived_at', null)
-    .order('name')
-  if (error) throw new Error(`listWorkLines failed — ${error.message}`)
-  return (data ?? []) as unknown as WorkLineRow[]
+  return withReferenceCache('mos.work_lines.active', async () => {
+    const { data, error } = await mos()
+      .from('work_lines')
+      .select(ACTIVE_COLUMNS)
+      .is('archived_at', null)
+      .order('name')
+    if (error) throw new Error(`listWorkLines failed — ${error.message}`)
+    return (data ?? []) as unknown as WorkLineRow[]
+  })
 }
 
 /** Search active Projects and Processes by name for the ⌘K palette. RLS (org tenancy) is the read authority; org_id is never sent. */
@@ -96,6 +100,7 @@ export async function createWorkLine(
     .select(ADMIN_COLUMNS)
     .single()
   if (error) throw new Error(`createWorkLine failed — ${error.message}`)
+  invalidateReferenceCache('mos.work_lines')
   return data as unknown as WorkLineAdminRow
 }
 
@@ -103,6 +108,7 @@ export async function createWorkLine(
 export async function renameWorkLine(id: string, name: string): Promise<void> {
   const { error } = await mos().from('work_lines').update({ name }).eq('id', id)
   if (error) throw new Error(`renameWorkLine failed — ${error.message}`)
+  invalidateReferenceCache('mos.work_lines')
 }
 
 /** Archive / unarchive a work line (soft — toggles archived_at). */
@@ -112,6 +118,7 @@ export async function setWorkLineArchived(id: string, archived: boolean): Promis
     .update({ archived_at: archived ? new Date().toISOString() : null })
     .eq('id', id)
   if (error) throw new Error(`setWorkLineArchived failed — ${error.message}`)
+  invalidateReferenceCache('mos.work_lines')
 }
 
 // ── Record surface ────────────────────────────────────────────────────────────
@@ -155,4 +162,5 @@ export interface WorkLinePatch {
 export async function updateWorkLine(id: string, patch: WorkLinePatch): Promise<void> {
   const { error } = await mos().from('work_lines').update(patch).eq('id', id)
   if (error) throw new Error(`updateWorkLine failed — ${error.message}`)
+  invalidateReferenceCache('mos.work_lines')
 }

@@ -627,7 +627,7 @@ export class KitchenRpcError extends Error {
 // added so the review queue can look up each row's plan baseline against ITS stream
 // rather than one hardcoded stream (the #247/#196 defect this port fixes).
 const REVIEW_SELECT =
-  'id,batch_id,log_date,action,destination_branch_id,branch_id,activity,action_label,wip_item_id,qty_porsi,entry_quantity,entry_unit_factor,entry_unit_name,notes,status,submitted_by,business_unit_id,created_at,wip_items(name)'
+  'id,batch_id,log_date,action,destination_branch_id,branch_id,activity,action_label,wip_item_id,qty_porsi,entry_quantity,entry_unit_factor,entry_unit_name,notes,status,submitted_by,business_unit_id,created_at,updated_at,wip_items(name)'
 
 export const KITCHEN_LOGS_PAGE_SIZE = 50
 
@@ -674,6 +674,7 @@ export async function listSubmittedKitchenLogs(logDate: string, window: KitchenL
     submitted_by: string | null
     business_unit_id: string
     created_at: string
+    updated_at: string
     // PostgREST returns the embed as an object (to-one) — tolerate array-or-object-or-null.
     wip_items: { name: string } | { name: string }[] | null
   }
@@ -700,6 +701,7 @@ export async function listSubmittedKitchenLogs(logDate: string, window: KitchenL
       submitted_by: r.submitted_by,
       business_unit_id: r.business_unit_id,
       created_at: r.created_at,
+      updated_at: r.updated_at,
     }
   })
 }
@@ -727,11 +729,13 @@ export async function hasSubmittedKitchenProduction(logDate: string, branchId: s
  */
 export async function approveKitchenLog(
   logId: string,
+  expectedUpdatedAt: string,
   reviewNote?: string | null,
 ): Promise<ApproveResult> {
   const { data, error } = await ops().rpc('approve_kitchen_log', {
     p_log_id: logId,
     p_review_note: reviewNote ?? null,
+    p_expected_updated_at: expectedUpdatedAt,
   })
   if (error) {
     const code = (error as { code?: string }).code ?? 'UNKNOWN'
@@ -742,12 +746,13 @@ export async function approveKitchenLog(
 
 /** Approve one endpoint-homogeneous session as one ERP document. */
 export async function approveKitchenLogsBulk(
-  logIds: string[],
+  logs: Array<Pick<ReviewLogRow, 'id' | 'updated_at'>>,
   reviewNote?: string | null,
 ): Promise<{ push_group_id: string; batch_ids: string[] }> {
   const { data, error } = await ops().rpc('approve_kitchen_logs', {
-    p_log_ids: logIds,
+    p_log_ids: logs.map(log => log.id),
     p_review_note: reviewNote ?? null,
+    p_expected_updated_at: logs.map(log => log.updated_at),
   })
   if (error) {
     const code = (error as { code?: string }).code ?? 'UNKNOWN'

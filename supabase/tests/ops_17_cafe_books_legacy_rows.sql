@@ -6,6 +6,12 @@ begin;
 create extension if not exists pgtap with schema extensions;
 select plan(10);
 
+create function pg_temp.approve_kitchen_log(p_log_id uuid, p_review_note text)
+returns text language sql as $$
+  select ops.approve_kitchen_log(p_log_id, p_review_note,
+    (select l.updated_at from ops.kitchen_logs l where l.id = p_log_id))
+$$;
+
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
@@ -54,7 +60,7 @@ set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1"
 
 -- Deciding a row already on the (now non-producing) stream never re-checks the stream: approve
 -- and reject both proceed exactly as they would have before the catalog changed.
-select lives_ok($$ select ops.approve_kitchen_log('00000000-0000-0000-0000-00000000c101','fine') $$,
+select lives_ok($$ select pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000c101','fine') $$,
   '#832 AC: approving a Submitted log on a stream that has since stopped producing still succeeds');
 select lives_ok($$ update ops.kitchen_logs set status = 'Rejected', review_note = 'no longer needed' where id = '00000000-0000-0000-0000-00000000c102' $$,
   '#832 AC: rejecting a Submitted log on a stream that has since stopped producing still succeeds');
@@ -62,7 +68,7 @@ select lives_ok($$ update ops.kitchen_logs set status = 'Rejected', review_note 
 -- Annotating a decided row, or amending a plan, without touching branch/activity/action/
 -- destination never re-checks the stream either.
 select lives_ok($$ update ops.kitchen_logs set notes = 'amended after the fact' where id = '00000000-0000-0000-0000-00000000c101' $$,
-  '#832 AC: editing a non-coordinate field on an already-decided log never re-checks the stream');
+  'a reviewed kitchen log can be annotated without re-checking its stream');
 select lives_ok($$ update ops.kitchen_plans set qty_porsi = 4, notes = 'revised' where id = '00000000-0000-0000-0000-00000000c103' $$,
   '#832 AC: editing a non-coordinate field on a plan never re-checks the stream');
 

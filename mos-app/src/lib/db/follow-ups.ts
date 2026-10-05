@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { containsPattern } from './like-pattern'
 
 export type FollowUpKind = 'b2b_ar' | 'retail_pending'
 export type FollowUpLane = 'b2b_sales' | 'retail_ops'
@@ -46,8 +47,12 @@ export interface FollowUpReconDrift { org_id: string; counterparty: string; peri
 
 const mos = () => supabase.schema('mos')
 
+const FOLLOW_UP_COLUMNS = 'id,org_id,counterparty,kind,lane,source_invoice_ref,original_amount,running_balance,state,promise_date,issued_date,due_date,assigned_to,notes,created_at,updated_at'
+const FOLLOW_UP_EVENT_COLUMNS = 'id,org_id,follow_up_id,transition,from_state,to_state,amount,cash_in_date,evidence,promise_date,note,actor_person_id,created_at'
+const RECON_DRIFT_COLUMNS = 'org_id,counterparty,period,mos_amount,esb_amount,drift,is_drift'
+
 export async function listFollowUps(filters: FollowUpFilters = {}): Promise<FollowUpRow[]> {
-  let query = mos().from('follow_ups').select('*').order('due_date', { ascending: true, nullsFirst: false })
+  let query = mos().from('follow_ups').select(FOLLOW_UP_COLUMNS).order('due_date', { ascending: true, nullsFirst: false })
   if (filters.state) query = query.eq('state', filters.state)
   if (filters.overdue) query = query.lt('due_date', new Date().toISOString().slice(0, 10)).neq('state', 'settled').neq('state', 'confirmed')
   const { data, error } = await query
@@ -69,7 +74,7 @@ export async function searchFollowUpsByCounterparty(q: string, limit = 20): Prom
   const { data, error } = await mos()
     .from('follow_ups')
     .select('id,counterparty')
-    .ilike('counterparty', `%${term}%`)
+    .ilike('counterparty', containsPattern(term))
     .order('updated_at', { ascending: false })
     .limit(limit)
   if (error) throw new Error(`searchFollowUpsByCounterparty failed — ${error.message}`)
@@ -77,13 +82,13 @@ export async function searchFollowUpsByCounterparty(q: string, limit = 20): Prom
 }
 
 export async function getFollowUp(id: string): Promise<FollowUpRow | null> {
-  const { data, error } = await mos().from('follow_ups').select('*').eq('id', id).maybeSingle()
+  const { data, error } = await mos().from('follow_ups').select(FOLLOW_UP_COLUMNS).eq('id', id).maybeSingle()
   if (error) throw new Error(`getFollowUp failed — ${error.message}`)
   return (data as FollowUpRow | null) ?? null
 }
 
 export async function listFollowUpEvents(followUpId: string): Promise<FollowUpEvent[]> {
-  const { data, error } = await mos().from('follow_up_events').select('*').eq('follow_up_id', followUpId).order('created_at', { ascending: true })
+  const { data, error } = await mos().from('follow_up_events').select(FOLLOW_UP_EVENT_COLUMNS).eq('follow_up_id', followUpId).order('created_at', { ascending: true })
   if (error) throw new Error(`listFollowUpEvents failed — ${error.message}`)
   return (data ?? []) as FollowUpEvent[]
 }
@@ -95,7 +100,7 @@ export async function transitionFollowUp(id: string, transition: FollowUpTransit
 }
 
 export async function listReconDrift(): Promise<FollowUpReconDrift[]> {
-  const { data, error } = await mos().from('follow_up_recon_drift').select('*').eq('is_drift', true).order('period', { ascending: false })
+  const { data, error } = await mos().from('follow_up_recon_drift').select(RECON_DRIFT_COLUMNS).eq('is_drift', true).order('period', { ascending: false })
   if (error) throw new Error(`listReconDrift failed — ${error.message}`)
   return (data ?? []) as FollowUpReconDrift[]
 }
