@@ -365,7 +365,7 @@ it.each(['panel', 'page'] as const)('keeps the org-readable Work record availabl
   </MemoryRouter></I18nProvider></AuthContext.Provider>)
   expect(await screen.findByRole('heading', { name: 'Menu launch' })).toBeInTheDocument()
   expect(loadCatalogRecordData).toHaveBeenCalledWith('work-line', 'wl-1', 'p1')
-  await expectMemberReadOnly('Test Viewer (Accountable) manages this Project or Process. You can add tasks.')
+  await expectMemberReadOnly('Test Viewer is Accountable for this Project or Process. Ask a work manager or admin to edit it. You can add tasks.')
   // Read-only appears ONCE, as one line under the facts, in either mode.
   expect(screen.getAllByRole('note')).toHaveLength(1)
   expect(document.body.textContent).not.toContain('catalog changes')

@@ -348,7 +348,13 @@ export function CatalogRecordDocument({
   const businessUnitField: RecordFieldSpec = {
     key: 'businessUnit', label: t('catalog.record.businessUnit'), control: 'relation',
     value: row.isCompanyWide ? COMPANY_WIDE_OPTION : row.businessUnitId ?? null,
-    displayValue: row.isCompanyWide ? t('catalog.companyWide') : row.businessUnitId ? businessUnits.get(row.businessUnitId) ?? t('catalog.notAvailable') : t('record.page.setField', { field: t('catalog.record.businessUnit') }),
+    displayValue: row.isCompanyWide
+      ? t('catalog.companyWide')
+      : row.businessUnitId
+        ? businessUnits.get(row.businessUnitId) ?? t('catalog.notAvailable')
+        : canManage && !archived
+          ? t('record.page.setField', { field: t('catalog.record.businessUnit') })
+          : t('catalog.notSet'),
     editable: editable(true), readOnlyReason: readOnlyReason(true), options: businessUnitOptions,
   }
 
@@ -761,4 +767,3 @@ export function CatalogRecordDocument({
     </>
   )
 }
-
