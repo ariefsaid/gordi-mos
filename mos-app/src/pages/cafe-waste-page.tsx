@@ -268,7 +268,7 @@ export function CafeWastePage() {
     ...Array.from(new Set(items.map(item => item.category ?? '').filter(Boolean)))
       .sort((a, b) => kitchenCategoryLabel(t, a).localeCompare(kitchenCategoryLabel(t, b))),
   ], [items, t])
-  const groups = kitchenDataTableGroups(itemTable, () => null)
+  const groups = loadState === 'loading' ? [] : kitchenDataTableGroups(itemTable, () => null)
   const staged = items.flatMap(item => {
     const entry = entries[item.id]
     const quantity = quantityValue(entry?.quantity ?? '')
