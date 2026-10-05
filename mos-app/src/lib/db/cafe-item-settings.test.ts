@@ -164,7 +164,7 @@ describe('café item settings reader', () => {
       .mockResolvedValueOnce({ data: null, error: null })
     schemaMock.mockReturnValue({ rpc } as never)
 
-    await expect(canManageCafeItemSettings()).resolves.toBe(true)
+    await expect(canManageCafeItemSettings('kitchen')).resolves.toBe(true)
     await saveCafeItemSettings({
       stream: STREAM,
       itemId: 'item-1',
@@ -175,7 +175,7 @@ describe('café item settings reader', () => {
       isActive: true,
       unitMultiples: [0.5, 2],
     })
-    expect(rpc).toHaveBeenNthCalledWith(1, 'can_manage_cafe_item_settings')
+    expect(rpc).toHaveBeenNthCalledWith(1, 'can_manage_cafe_item_settings', { p_activity: 'kitchen' })
     expect(rpc).toHaveBeenNthCalledWith(2, 'save_cafe_item_settings', {
       p_branch_id: 'branch-1',
       p_activity: 'kitchen',
@@ -188,4 +188,16 @@ describe('café item settings reader', () => {
       p_unit_multiples: [0.5, 2],
     })
   })
+  it.each([false, null, 'true'])('fails closed on a non-boolean-true permission response (%s)', async data => {
+    const rpc = vi.fn().mockResolvedValue({ data, error: null })
+    schemaMock.mockReturnValue({ rpc } as never)
+    await expect(canManageCafeItemSettings('bar')).resolves.toBe(false)
+    expect(rpc).toHaveBeenCalledWith('can_manage_cafe_item_settings', { p_activity: 'bar' })
+  })
+
+  it('propagates a permission read failure', async () => {
+    schemaMock.mockReturnValue({ rpc: vi.fn().mockResolvedValue({ data: null, error: { message: 'Offline' } }) } as never)
+    await expect(canManageCafeItemSettings('bar')).rejects.toThrow('Offline')
+  })
+
 })

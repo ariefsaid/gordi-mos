@@ -214,10 +214,10 @@ export function toCafeLogItem(item: CafeItemSetting): CafeLogItem | null {
   }
 }
 
-export async function canManageCafeItemSettings(): Promise<boolean> {
+export async function canManageCafeItemSettings(activity: ProductionStream['activity']): Promise<boolean> {
   const { data, error } = await supabase
     .schema('ops')
-    .rpc('can_manage_cafe_item_settings')
+    .rpc('can_manage_cafe_item_settings', { p_activity: activity })
   if (error) throw new Error(`canManageCafeItemSettings failed: ${error.message}`)
   return data === true
 }

@@ -9,7 +9,7 @@ select shared._test_seed_access_roles();
 select ops._test_seed_cafe();
 
 -- The same access role means different things depending on the manager's org position: only a
--- manager whose assigned position belongs to Retail Ops edits Café item settings.
+-- manager whose assigned position has a Kitchen scope edits Kitchen item settings.
 insert into shared.business_units (id, org_id, name, code)
 values ('00000000-0000-0000-0000-00000000bb42',
         '00000000-0000-0000-0000-0000000000a1', 'Other unit', 'settings_test_other');
@@ -18,6 +18,7 @@ insert into shared.roles (id, org_id, business_unit_id, name) values
    '00000000-0000-0000-0000-00000000bb01', 'Retail Ops settings manager'),
   ('00000000-0000-0000-0000-00000000c422', '00000000-0000-0000-0000-0000000000a1',
    '00000000-0000-0000-0000-00000000bb42', 'Other unit settings manager');
+update shared.roles set cafe_item_settings_scope='kitchen' where id='00000000-0000-0000-0000-00000000c421';
 insert into shared.person_roles (org_id, person_id, role_id) values
   ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000d1',
    '00000000-0000-0000-0000-00000000c421'),
@@ -76,7 +77,7 @@ select lives_ok($$
     ],
     'WIP', true
   )
-$$, 'a Retail Ops manager can atomically choose a MOS name, kind, active status, default and shown ERP details for one stream');
+$$, 'a Kitchen manager can atomically choose a MOS name, kind, active status, default and shown ERP details for one stream');
 select is((select mos_name from ops.cafe_item_settings_read
             where item_id = (select id from ops.wip_items where esb_product_id = 'SYNTH-ERP-P-1242-WIP')
             limit 1), 'Manager item name',
@@ -133,7 +134,7 @@ select ok((select bool_and(unit_is_shown) and bool_or(unit_is_default)
   'both ERP details are shown and exactly one is the stream default');
 
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member"]}';
-select ok(not ops.can_manage_cafe_item_settings(),
+select ok(not ops.can_manage_cafe_item_settings('kitchen'),
   'an ordinary member cannot edit settings');
 select cmp_ok((select count(*)::int from ops.cafe_item_settings_read
                 where item_id = (select id from ops.wip_items where esb_product_id = 'SYNTH-ERP-P-1242-WIP')),
@@ -148,11 +149,11 @@ select is((select mos_name from ops.cafe_item_settings_read
   'RLS refuses a member edit without revealing a write path');
 
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","supervisor"]}';
-select ok(not ops.can_manage_cafe_item_settings(),
+select ok(not ops.can_manage_cafe_item_settings('kitchen'),
   'supervisor review access alone does not grant item-settings write access');
 
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","manager"]}';
-select ok(not ops.can_manage_cafe_item_settings(),
+select ok(not ops.can_manage_cafe_item_settings('kitchen'),
   'a manager assigned outside Retail Ops is not a relevant Café editor');
 select throws_ok($$
   select ops.save_cafe_item_settings(

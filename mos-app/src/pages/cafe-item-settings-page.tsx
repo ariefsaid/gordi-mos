@@ -26,7 +26,7 @@ import {
 } from '@/lib/kitchen-item-list'
 import { isCafeItemDraftKind, type CafeItemDraftKind } from './cafe-item-settings-kind'
 import { useCafeItemSettingsSorting } from './cafe-item-settings-sorting'
-import { streamLabel } from '@/lib/kitchen-action-label'
+import { streamKey, streamLabel } from '@/lib/kitchen-action-label'
 import {
   canManageCafeItemSettings,
   listCafeItemSettings,
@@ -132,6 +132,7 @@ function CafeItemSettingsPageForViewer() {
   const [readState, setReadState] = useState<ReadState>('loading')
   const [catalogReady, setCatalogReady] = useState(false)
   const [permission, setPermission] = useState<EditPermission>('checking')
+  const [permissionStreamKey, setPermissionStreamKey] = useState<string | null>(null)
   const [permissionError, setPermissionError] = useState(false)
   const [saveStates, setSaveStates] = useState<Record<string, SaveState>>({})
   const [savingIds, setSavingIds] = useState<Set<string>>(() => new Set())
@@ -177,7 +178,7 @@ function CafeItemSettingsPageForViewer() {
     try {
       const [nextItems, canEdit] = await Promise.all([
         listCafeItemSettings(stream),
-        canManageCafeItemSettings().then(
+        canManageCafeItemSettings(stream.activity).then(
           value => ({ value, failed: false as const }),
           () => ({ value: false, failed: true as const }),
         ),
@@ -192,6 +193,7 @@ function CafeItemSettingsPageForViewer() {
         }
       }
       if (generation !== requestGeneration.current) return
+      setPermissionStreamKey(streamKey(stream.branch.id, stream.activity))
       setItems(nextItems)
       setDrafts(Object.fromEntries(nextItems.map(item => [item.id, initialDraft(item)])))
       setReports(nextReports)
@@ -212,7 +214,8 @@ function CafeItemSettingsPageForViewer() {
     return () => { requestGeneration.current += 1 }
   }, [loadStreamItems, retryKey])
 
-  const canEdit = permission === 'allowed'
+  const canEdit = permission === 'allowed' && stream !== null
+    && permissionStreamKey === streamKey(stream.branch.id, stream.activity)
   const streamPicker = (
     <CafeStreamBar
       options={streamOptions}
