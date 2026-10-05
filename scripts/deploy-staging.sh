@@ -77,10 +77,18 @@ URL="$(op-get.sh "$OP_ITEM" "$OP_VAULT" "$OP_FIELD" 2>/dev/null </dev/null)" || 
 rest="${URL#*://}"; hostpart="${rest#*@}"; host="${hostpart%%[:/?]*}"
 userinfo=""; case "$rest" in *@*) userinfo="${rest%%@*}" ;; esac
 user="${userinfo%%:*}"; pass=""; case "$userinfo" in *:*) pass="${userinfo#*:}" ;; esac
-for s in "$URL" "$userinfo" "$pass" "$user" "$host"; do [ "${#s}" -ge 3 ] && SECRETS+=("$s"); done
+# The password never goes in argv (visible to every local user in `ps`): commands get the URL
+# without it and read the decoded password from PGPASSWORD, which libpq and the supabase CLI honor.
+CONN="$URL"; PGPASSWORD=""
+if [ -n "$pass" ]; then
+  CONN="${URL%%://*}://${user}@${hostpart}"
+  PGPASSWORD="$(printf '%b' "${pass//\%/\\x}")"
+  export PGPASSWORD
+fi
+for s in "$URL" "$userinfo" "$pass" "$PGPASSWORD" "$user" "$host"; do [ "${#s}" -ge 3 ] && SECRETS+=("$s"); done
 
 # psql helpers: stdout is the answer, stderr is shown (redacted) only on failure.
-sqlq() { local o; if ! o="$(psql "$URL" -X -At -v ON_ERROR_STOP=1 -c "$1" 2>"$errf" </dev/null)"; then redact < "$errf" >&2; return 1; fi; printf '%s' "$o"; }
+sqlq() { local o; if ! o="$(psql "$CONN" -X -At -v ON_ERROR_STOP=1 -c "$1" 2>"$errf" </dev/null)"; then redact < "$errf" >&2; return 1; fi; printf '%s' "$o"; }
 
 say "Staging deploy from $(git -C "$ROOT" branch --show-current) @ $(git -C "$ROOT" rev-parse --short HEAD)"
 
@@ -92,7 +100,7 @@ om="$(git -C "$ROOT" rev-parse --verify -q refs/remotes/origin/main)" || die "or
 [ -z "$(git -C "$ROOT" status --porcelain -- supabase/migrations)" ] || die "supabase/migrations has uncommitted changes"
 
 # ── 2. Dry run: the pending migration list (file names only).
-set +e; out="$(supabase --workdir "$ROOT" db push --dry-run --db-url "$URL" 2>&1 </dev/null)"; rc=$?; set -e
+set +e; out="$(supabase --workdir "$ROOT" db push --dry-run --db-url "$CONN" 2>&1 </dev/null)"; rc=$?; set -e
 if [ "$rc" -ne 0 ]; then printf '%s\n' "$out" | redact >&2; die "supabase db push --dry-run failed (exit $rc)"; fi
 pending=(); while IFS= read -r f; do [ -n "$f" ] && pending+=("$f"); done < <(printf '%s\n' "$out" | grep -oE '[0-9]{8,}_[A-Za-z0-9_.-]+\.sql' | sort -u || true)
 if [ "${#pending[@]}" -eq 0 ]; then
@@ -123,7 +131,7 @@ for f in "${pending[@]+"${pending[@]}"}"; do
 done
 if [ "$probe" = 1 ]; then
   say "Probing privileged steps (rolled back)..."
-  if ! psql "$URL" -X -q -v ON_ERROR_STOP=1 >"$errf.o" 2>"$errf" <<'SQL'
+  if ! psql "$CONN" -X -q -v ON_ERROR_STOP=1 >"$errf.o" 2>"$errf" <<'SQL'
 begin;
 alter role authenticator set pgrst.db_pre_request = 'api_private.check_request';
 create policy zz_preflight_probe on storage.buckets as restrictive for all to authenticated using (true);
@@ -148,7 +156,7 @@ if [ "${#pending[@]}" -gt 0 ]; then
     ans=""; read -r ans || true
     case "$ans" in y|Y|yes|YES) ;; *) die "not confirmed — nothing was pushed" ;; esac
   fi
-  set +e; out="$(supabase --workdir "$ROOT" db push --yes --db-url "$URL" 2>&1 </dev/null)"; rc=$?; set -e
+  set +e; out="$(supabase --workdir "$ROOT" db push --yes --db-url "$CONN" 2>&1 </dev/null)"; rc=$?; set -e
   printf '%s\n' "$out" | redact
   [ "$rc" -eq 0 ] || die "supabase db push failed (exit $rc)"
 fi
