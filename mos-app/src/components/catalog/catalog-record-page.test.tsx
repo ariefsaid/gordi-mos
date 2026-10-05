@@ -102,7 +102,7 @@ const task = (id: string, title: string, status: CatalogRelationTask['status'], 
   id, title, status, lastActivityAt: '2026-09-30T00:00:00Z', dueDate: null, picPersonId: 'p-maya', ...over,
 })
 
-interface ObjectiveOptions {
+type ObjectiveOptions = {
   row?: Partial<CatalogRow>
   linked?: { id: string; name: string; type: 'project' | 'process'; bu?: string }[]
   tasks?: CatalogRelationTask[]
