@@ -60,9 +60,9 @@ function ownRows(): OwnAgentConnectionsResult {
   }
 }
 
-function renderAdminPage() {
+function renderAdminPage(locale: 'en' | 'id' = 'en') {
   return render(
-    <I18nProvider initialLocale="en">
+    <I18nProvider initialLocale={locale}>
       <MemoryRouter initialEntries={['/admin/agents']}>
         <AdminAgentConnectionsPage />
       </MemoryRouter>
@@ -70,9 +70,9 @@ function renderAdminPage() {
   )
 }
 
-function renderOwnPage() {
+function renderOwnPage(locale: 'en' | 'id' = 'en') {
   return render(
-    <I18nProvider initialLocale="en">
+    <I18nProvider initialLocale={locale}>
       <MemoryRouter initialEntries={['/profile/connected-agents']}>
         <ProfileConnectedAgentsPage />
       </MemoryRouter>
@@ -152,12 +152,29 @@ describe('connected agent pages', () => {
     expect(mockAddTrusted).toHaveBeenCalledWith({ client_id: CLIENT_ID, display_name: 'Northstar' })
   })
 
-  it('renders the empty admin state when no apps are registered', async () => {
+  it.each([
+    {
+      locale: 'en' as const,
+      title: 'No agent apps registered',
+      copy: 'Use the form above to register an OAuth client and add an agent app to this organization.',
+      addLabel: 'Add app',
+    },
+    {
+      locale: 'id' as const,
+      title: 'Belum ada aplikasi agen',
+      copy: 'Gunakan formulir di atas untuk mendaftarkan klien OAuth dan menambahkan aplikasi agen ke organisasi ini.',
+      addLabel: 'Tambahkan aplikasi',
+    },
+  ])('uses next-step copy when no agent apps are registered ($locale)', async ({ locale, title, copy, addLabel }) => {
     mockListAdmin.mockResolvedValueOnce([])
-    renderAdminPage()
+    renderAdminPage(locale)
 
-    expect(await screen.findByRole('heading', { name: 'No agent apps registered' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Add app' })).toBeInTheDocument()
+    const empty = await screen.findByTestId('empty-state')
+    expect(empty).toHaveAttribute('data-empty-variant', 'next-step')
+    expect(within(empty).getByRole('heading', { name: title })).toBeInTheDocument()
+    expect(within(empty).getByText(copy)).toBeInTheDocument()
+    expect(empty.querySelector('.empty-state-icon')).toBeNull()
+    expect(screen.getByRole('button', { name: addLabel })).toBeInTheDocument()
   })
 
   it('requires confirmation to distrust a trusted app and reloads its state', async () => {
@@ -258,12 +275,27 @@ describe('connected agent pages', () => {
     expect(mockListOwn).toHaveBeenCalledTimes(2)
   })
 
-  it('shows a disabled state when Auth OAuth grant management is unavailable', async () => {
+  it.each([
+    {
+      locale: 'en' as const,
+      title: 'Connected agent controls are unavailable',
+      copy: 'OAuth agent sign-in is not enabled in this environment, so your connection list is unavailable here.',
+    },
+    {
+      locale: 'id' as const,
+      title: 'Pengelolaan koneksi agen tidak tersedia',
+      copy: 'OAuth untuk agen belum diaktifkan di lingkungan ini, sehingga daftar koneksi Anda tidak tersedia di sini.',
+    },
+  ])('uses a neutral empty state when Auth OAuth grant management is unavailable ($locale)', async ({ locale, title, copy }) => {
     mockListOwn.mockResolvedValueOnce({ oauthAvailable: false, connections: [] })
-    renderOwnPage()
+    renderOwnPage(locale)
 
-    expect(await screen.findByRole('heading', { name: 'Connected agent controls are unavailable' })).toBeInTheDocument()
-    expect(screen.getByText('OAuth agent sign-in is not enabled in this environment, so your connection list is unavailable here.')).toBeInTheDocument()
+    const empty = await screen.findByTestId('empty-state')
+    expect(empty).toHaveAttribute('data-empty-variant', 'blank')
+    expect(within(empty).getByRole('heading', { name: title })).toBeInTheDocument()
+    expect(within(empty).getByText(copy)).toBeInTheDocument()
+    expect(empty.querySelector('.empty-state-glyph')).toHaveTextContent('—')
+    expect(within(empty).queryByRole('button')).toBeNull()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
