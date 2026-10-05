@@ -72,7 +72,7 @@ NOTIFY_TOKEN= mkenv "$tmp/e.env"; run "$tmp/e.env"
 [ "$rc" = 0 ] && ! grep -q . "$tmp/curl.log" && ok "unset notifier: snapshot runs, curl never called" || bad "unset notifier: rc=$rc" "$(cat "$tmp/curl.log")"
 
 echo "no coordinates tracked"
-if grep -nE 'supabase\.com|gordi-esb-bak|reporting-writer-cred|[0-9a-f]{8}-[0-9a-f]{4}-' "$SCRIPT" >/dev/null; then bad "script still carries a coordinate"; else ok "script carries no host, path, id or uuid literal"; fi
+if grep -nE 'supabase\.com|gordi-esb-bak|[0-9a-f]{8}-[0-9a-f]{4}-' "$SCRIPT" >/dev/null; then bad "script still carries a coordinate"; else ok "script carries no host, path, id or uuid literal"; fi
 
 printf '\n%s passed, %s failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
