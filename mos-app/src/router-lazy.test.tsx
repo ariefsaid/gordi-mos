@@ -3,7 +3,7 @@
 //
 // Every feature flag is mocked ON here, deliberately. `router.test.tsx` owns the flag-OFF branch,
 // where several page routes collapse to a redirect; with the flags on, every page route has to
-// render its page, so "each entry except the index and login resolves through a lazy import" is
+// render its page, so "each entry except login resolves through a lazy import" is
 // asserted against the full table rather than the half of it the default configuration exposes.
 import { describe, it, expect, vi } from 'vitest'
 import { isValidElement, type ReactElement, type ReactNode } from 'react'
@@ -54,7 +54,7 @@ import { RecoveryPage } from './pages/recovery-page'
 import { SliceStubPage } from './pages/slice-stub-page'
 
 // The two landing screens (AC-019's stated exemptions).
-const EAGER_BY_DESIGN = new Set(['/', '/login'])
+const EAGER_BY_DESIGN = new Set(['/login'])
 
 function handleOf(handle: unknown): RouteHandle | undefined {
   return handle as RouteHandle | undefined
@@ -80,7 +80,7 @@ function surfaceRoutes() {
 // of the published redirect map is backed by one of these two runs.
 describeRedirectMap('plan/budget + follow-ups flags ON')
 
-describe('AC-019: every route but the index and login loads on demand, behind one loading shell', () => {
+describe('AC-019: every route but login loads on demand, behind one loading shell', () => {
   const routes = surfaceRoutes()
 
   it('the sweep enumerates the whole table, so it cannot pass by finding nothing', () => {
@@ -119,10 +119,8 @@ describe('AC-019: every route but the index and login loads on demand, behind on
     expect(isValidElement(element)).toBe(true)
   })
 
-  it('the index route renders HomePage and /login renders LoginPage, both directly', () => {
-    const index = surfaceRoutes().find((r) => r.path === '/')!
+  it('/login renders LoginPage directly', () => {
     const login = surfaceRoutes().find((r) => r.path === '/login')!
-    expect(isValidElement(index.route.element) && index.route.element.type).toBe(HomePage)
     expect(isValidElement(login.route.element) && login.route.element.type).toBe(LoginPage)
   })
 })
@@ -137,6 +135,7 @@ describe('AC-019: every route but the index and login loads on demand, behind on
 //
 // It is also the ledger every later surface ticket edits: porting a surface flips exactly one row.
 const WIRING: ReadonlyArray<readonly [path: string, component: unknown, provenance: string]> = [
+  ['/', HomePage, 'dev'],
   ['/work/tasks', TasksLayout, 'dev'],
   ['/work/tasks/:taskId', TaskDrawer, 'dev'],
   // Signals supersedes Weekly Updates (v4 redirects /updates here, and routes neither path at an
