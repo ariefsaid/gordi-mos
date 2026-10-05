@@ -387,3 +387,68 @@ describe('AC-007: the contrast table is a transcription of the shipped CSS, not 
     }
   })
 })
+
+
+describe('functional foregrounds on their actual theme surfaces (#1300)', () => {
+  const source = (path: string) => readFileSync(join(__dirname, '../..', path), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
+  const body = (path: string, selector: string) => {
+    const rule = [...source(path).matchAll(/([^{}]+)\{([^{}]*)\}/g)].find((match) =>
+      match[1].split(',').some((part) => part.trim() === selector))
+    expect(rule, `${selector} must exist in ${path}`).toBeTruthy()
+    return rule![2]
+  }
+
+  it('binds selected Appearance, mentions and recovery actions to readable foreground roles', () => {
+    expect(body('shell/appearance-control.css', '.appearance-control-option[aria-checked="true"]'))
+      .toContain('color: var(--popover-foreground, var(--foreground))')
+    expect(body('components/signals/signal-record.css', '.signal-record-mentions li'))
+      .toContain('color: var(--status-open-text)')
+    expect(body('components/tasks/task-record-document.css', '.checklist-retry'))
+      .toContain('color: var(--field-error-text)')
+  })
+
+  it.each(['light', 'dark'] as const)('%s selected, mention and recovery text clear AA on default, hover and focus surfaces', (theme) => {
+    const css = readFileSync(join(__dirname, `theme-${theme}.css`), 'utf8')
+    const dark = theme === 'dark'
+    const foregrounds = [
+      declaredP3(css, 'ds-font-color-primary')!,
+      TOKENS[dark ? '--status-open-text-dark' : '--status-open-text'],
+      TOKENS[dark ? '--status-lost-text-dark' : '--status-lost-text'],
+    ].map(p3ToSrgb)
+    for (const name of ['primary', 'secondary', 'tertiary']) {
+      const surface = p3ToSrgb(declaredP3(css, `ds-background-${name}`)!)
+      for (const fg of foregrounds) expect(contrastRatio(fg, surface)).toBeGreaterThanOrEqual(4.5)
+      const mentionBg = tint(p3ToSrgb(TOKENS['--ds-color-blue']), surface, 0.1)
+      expect(contrastRatio(foregrounds[1], mentionBg)).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+
+  it.each(['light', 'dark'] as const)('%s seeded avatar initials clear AA in every existing color family', (theme) => {
+    const css = readFileSync(join(__dirname, `theme-${theme}.css`), 'utf8')
+    const avatar = source('components/ui/avatar.tsx')
+    const palette = avatar.match(/const PALETTE = \[([\s\S]*?)\] as const/)![1]
+    const families = [...palette.matchAll(/'([^']+)'/g)].map((match) => match[1])
+    expect(families).not.toHaveLength(0)
+    expect(avatar).toContain('`var(--ds-color-${fam}12)`')
+    for (const family of families) {
+      const fg = declaredP3(css, `ds-color-${family}12`)!
+      const bg = declaredP3(css, `ds-color-${family}3`)!
+      expect(contrastRatio(p3ToSrgb(fg), p3ToSrgb(bg)), family).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+
+  it.each([
+    ['components/signals/signal-composer.css', '.signal-composer-field-hint'],
+    ['components/signals/signal-composer.css', '.signal-composer-send-hint'],
+    ['components/signals/signal-attention-picker.css', '.signal-attention-picker-meaning'],
+    ['components/assistant/AssistantPanel.css', '.assistant-composer-hint'],
+    ['components/ui/help-tip.css', '.help-tip'],
+    ['components/tasks/TaskSurface.css', '.tc-help'],
+    ['components/admin/admin-settings.css', '.admin-access-derived'],
+  ])('%s %s uses the documented readable caption rung', (path, selector) => {
+    const rule = body(path, selector)
+    const size = rule.match(/font-size:\s*var\(--font-size-([a-z-]+)\)/)?.[1]
+    const pixels = source('index.css').match(new RegExp(`--font-size-${size}:\\s*(\\d+)px`))?.[1]
+    expect(Number(pixels)).toBeGreaterThanOrEqual(11)
+  })
+})

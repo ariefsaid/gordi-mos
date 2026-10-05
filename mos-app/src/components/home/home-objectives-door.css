@@ -27,7 +27,7 @@
 }
 
 .home-objective-row:hover .home-objective-name {
-  color: var(--primary);
+  color: var(--text-on-accent-tint);
   text-decoration: underline;
 }
 

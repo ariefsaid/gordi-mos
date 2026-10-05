@@ -56,7 +56,7 @@
 
 .home-cafe-door-action {
   flex: none;
-  color: var(--primary);
+  color: var(--text-on-accent-tint);
   font-size: var(--font-size-control);
   font-weight: 600;
   white-space: nowrap;
@@ -76,7 +76,7 @@
 .home-cafe-door-log-link {
   justify-self: start;
   padding: 4px;
-  color: var(--primary);
+  color: var(--text-on-accent-tint);
   font-size: var(--font-size-control);
   font-weight: 600;
   text-decoration: none;

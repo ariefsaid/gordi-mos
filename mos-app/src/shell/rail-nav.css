@@ -134,7 +134,7 @@
   height: 14px;
   min-width: 14px;
   padding: 0 4px;
-  font-size: var(--font-size-micro); /* typeset: was 9px, below the ramp's own documented floor (micro = "the one sub-11 mark") */
+  font-size: var(--font-size-overline);
 }
 
 /* FINDING 3 (v4 shell a11y audit, 2026-07-27) — touch targets / adjacent-target spacing.

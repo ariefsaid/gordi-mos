@@ -190,7 +190,7 @@ describe('UserTable — desktop ⋯ menu', () => {
     expect(within(menu).getByRole('menuitem', { name: /disable login/i })).toBeInTheDocument()
     expect(within(menu).queryByRole('menuitem', { name: /enable login/i })).not.toBeInTheDocument()
     expect(within(menu).queryByRole('menuitem', { name: /create login/i })).not.toBeInTheDocument()
-    expect(within(menu).getByRole('menuitem', { name: /archive/i })).toBeInTheDocument()
+    expect(within(menu).getByRole('menuitem', { name: /archive/i })).toHaveStyle({ color: 'var(--status-lost-text)' })
   })
 
   it('shows "Create login" and no reset/disable for no-login person', async () => {
