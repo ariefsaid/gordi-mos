@@ -2,7 +2,7 @@
 -- capture and planning, who may change a list, and that history outlives a list change.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(36);
+select plan(35);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -139,12 +139,8 @@ select is((select count(*)::int from ops.kitchen_logs where id = '00000000-0000-
 
 -- ═══ F. Paths the list does not govern, and the list's own integrity ═════════════════════════
 reset role;
--- Re-pointing a log is otherwise possible only on a decided row and only for a privileged writer;
--- the list still holds there.
-select throws_ok($$update ops.kitchen_logs set wip_item_id = '00000000-0000-0000-0000-00000000c802'
-  where id = '00000000-0000-0000-0000-00000000c812'$$,
-  'P0012', 'CAFE_ITEM_NOT_ON_STREAM: the item is not on this stream''s item list',
-  'log: re-pointing a log to an unlisted item is refused');
+-- A log's item cannot be re-pointed on any update (Draft, Submitted and decided rows keep their
+-- facts), so the list is enforced for logs only at insert; plans are covered in section D.
 select lives_ok($$insert into ops.kitchen_logs (org_id, business_unit_id, log_date, branch_id, activity, action, wip_item_id, qty_porsi, status, source)
   values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','2026-06-01','00000000-0000-0000-0000-00000000bf01','bar','produce','00000000-0000-0000-0000-00000000c802',1,'Approved','teable_import')$$,
   'import: an imported log is not held to the list');

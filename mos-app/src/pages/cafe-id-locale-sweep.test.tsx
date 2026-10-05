@@ -77,7 +77,7 @@ const STOCK_ROW: KitchenStockRow = { wip_item_id: 'wip-chicken', wip_item_name: 
 const REVIEW_ROW: ReviewLogRow = {
   id: 'log-1', log_date: '2026-06-20', action_type: 'Production', action: 'produce', destination_branch_id: null,
   branch_id: 'branch-1', activity: 'kitchen', wip_item_id: 'wip-chicken', wip_item_name: 'Dish One', qty_porsi: 1,
-  notes: null, status: 'Submitted', submitted_by: 'person-1', business_unit_id: 'bu', created_at: '2026-06-20T09:00:00Z',
+  notes: null, status: 'Submitted', submitted_by: 'person-1', business_unit_id: 'bu', created_at: '2026-06-20T09:00:00Z', updated_at: '2026-06-20T09:00:00Z',
 }
 const PUSH_ROW: EsbPushRow = {
   id: 'push-1', source_module: 'kitchen', source_ref: 'batch-1', endpoint: 'assembly-actual', target_env: 'dry_run',

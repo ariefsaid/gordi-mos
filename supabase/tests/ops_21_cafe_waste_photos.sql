@@ -4,6 +4,20 @@ begin;
 create extension if not exists pgtap with schema extensions;
 select plan(36);
 
+create function pg_temp.approve_kitchen_logs(p_log_ids uuid[], p_review_note text)
+returns table(group_id uuid, batch_ids text[]) language sql as $$
+  select * from ops.approve_kitchen_logs(p_log_ids, p_review_note,
+    (select array_agg((select l.updated_at from ops.kitchen_logs l where l.id = requested.id)
+                      order by requested.position)
+       from unnest(p_log_ids) with ordinality as requested(id, position)))
+$$;
+
+create function pg_temp.approve_kitchen_log(p_log_id uuid, p_review_note text)
+returns text language sql as $$
+  select ops.approve_kitchen_log(p_log_id, p_review_note,
+    (select l.updated_at from ops.kitchen_logs l where l.id = p_log_id))
+$$;
+
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
@@ -150,7 +164,7 @@ create temporary table waste_groups_before as
 
 set local role authenticated;
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","admin"]}';
-select throws_ok($$select * from ops.approve_kitchen_logs(array['00000000-0000-0000-0000-00000000ac21'::uuid], 'reviewed')$$,
+select throws_ok($$select * from pg_temp.approve_kitchen_logs(array['00000000-0000-0000-0000-00000000ac21'::uuid], 'reviewed')$$,
   '22023','waste logs must be approved individually; ERP posting is held',
   'bulk approval refuses waste before creating a grouped ERP document');
 reset role;
@@ -161,7 +175,7 @@ select is((select count(*)::int from integrations.esb_push where org_id='0000000
 
 set local role authenticated;
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","admin"]}';
-select is(ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ac21','waste verified by reviewer'),
+select is(pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000ac21','waste verified by reviewer'),
   null::text,'single-row approval reviews waste and explicitly returns no ERP batch id');
 reset role;
 select is((select status='Approved' and batch_id is null and not posted_to_esb from ops.kitchen_logs

@@ -16,6 +16,12 @@ begin;
 create extension if not exists pgtap with schema extensions;
 select plan(62);
 
+create function pg_temp.approve_kitchen_log(p_log_id uuid, p_review_note text)
+returns text language sql as $$
+  select ops.approve_kitchen_log(p_log_id, p_review_note,
+    (select l.updated_at from ops.kitchen_logs l where l.id = p_log_id))
+$$;
+
 select set_config('app.allow_test_seeds', 'on', true);
 -- The caller seeds the directory (the fixture contract), then the Café fixture extends it with
 -- branches, stream Teams, master data, plans, logs and stock. The seeding writes fire the new
@@ -319,7 +325,7 @@ values ('00000000-0000-0000-0000-000000009921', '00000000-0000-0000-0000-0000000
         '00000000-0000-0000-0000-0000000000d1');
 set local role authenticated;
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
-select isnt((select ops.approve_kitchen_log('00000000-0000-0000-0000-000000009921', 'History approve')),
+select isnt((select pg_temp.approve_kitchen_log('00000000-0000-0000-0000-000000009921', 'History approve')),
   null, 'the approval RPC mints a batch id for the stream''s ops_lead');
 select is((select old_value from shared.record_history
            where record_key = '00000000-0000-0000-0000-000000009921' and field_name = 'status'),

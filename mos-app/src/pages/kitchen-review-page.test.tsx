@@ -156,18 +156,21 @@ const PROD_LOG: ReviewLogRow = {
   branch_id: BRANCH_ID, activity: 'kitchen',
   wip_item_id: 'w1', wip_item_name: 'Nasi Goreng', qty_porsi: 8, notes: 'kurang bahan',
   status: 'Submitted', submitted_by: 'p1', business_unit_id: 'kb', created_at: '2026-06-20T09:12:00Z',
+  updated_at: '2026-06-20T09:12:00Z',
 }
 const XFER_LOG: ReviewLogRow = {
   id: 'log-xfer', log_date: '2026-06-20', action_type: 'Transfer to Radiant', action: 'transfer' as const, destination_branch_id: RADIANT_ID,
   branch_id: BRANCH_ID, activity: 'kitchen',
   wip_item_id: 'w2', wip_item_name: 'Cold Brew', qty_porsi: 42, notes: null,
   status: 'Submitted', submitted_by: 'p2', business_unit_id: 'kb', created_at: '2026-06-20T13:02:00Z',
+  updated_at: '2026-06-20T13:02:00Z',
 }
 const WASTE_LOG: ReviewLogRow = {
   id: 'log-waste', log_date: '2026-06-20', action_type: 'Waste', action: 'waste', destination_branch_id: null,
   branch_id: BRANCH_ID, activity: 'kitchen',
   wip_item_id: 'w3', wip_item_name: 'Ayam Bakar', qty_porsi: 2.5, notes: 'Dropped tray',
   status: 'Submitted', submitted_by: 'p1', business_unit_id: 'kb', created_at: '2026-06-20T09:12:00Z',
+  updated_at: '2026-06-20T09:12:00Z',
 }
 
 beforeEach(() => {
@@ -420,7 +423,7 @@ describe('KitchenReviewPage — approve (FR-050, AC-090)', () => {
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Nasi Goreng')
     fireEvent.click(screen.getByRole('button', { name: /approve nasi goreng/i }))
-    await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-prod', null))
+    await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-prod', '2026-06-20T09:12:00Z', null))
     // confirmed batch id surfaced + row leaves the queue
     expect(await screen.findByText(/PR-20260620-003/)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /view pushes/i })).toHaveAttribute('href', '/cafe/pushes')
@@ -468,7 +471,7 @@ describe('KitchenReviewPage — approve (FR-050, AC-090)', () => {
     // #400 v4 copy: the confirm names the OBJECT ("Approve Cold Brew"), never a bare
     // "Confirm approve" — same matcher as the idle button because the gate replaces it.
     fireEvent.click(screen.getByRole('button', { name: /approve cold brew/i }))
-    await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-xfer', 'short on stock'))
+    await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-xfer', '2026-06-20T13:02:00Z', 'short on stock'))
   })
 
   // #783 AC-052 (DB half #778): the submitter's OWN note already accounts for the variance —
@@ -484,7 +487,7 @@ describe('KitchenReviewPage — approve (FR-050, AC-090)', () => {
     fireEvent.click(screen.getByRole('button', { name: /approve nasi goreng/i }))
     // no note gate — the submitter's own note already explains the variance
     expect(screen.queryByRole('textbox', { name: /approve note/i })).toBeNull()
-    await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-prod', null))
+    await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-prod', '2026-06-20T09:12:00Z', null))
   })
 
   // gpt-6-luna review (74d4ebf7): the DB requires `nullif(btrim(old.notes),'') is null` — a
@@ -504,7 +507,7 @@ describe('KitchenReviewPage — approve (FR-050, AC-090)', () => {
     const note = screen.getByRole('textbox', { name: /approve note for nasi goreng/i })
     fireEvent.change(note, { target: { value: 'short on stock' } })
     fireEvent.click(screen.getByRole('button', { name: /approve nasi goreng/i }))
-    await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-prod', 'short on stock'))
+    await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-prod', '2026-06-20T09:12:00Z', 'short on stock'))
   })
 })
 
@@ -576,18 +579,21 @@ const PROD_ONPLAN_A: ReviewLogRow = {
   branch_id: BRANCH_ID, activity: 'kitchen',
   wip_item_id: 'wA', wip_item_name: 'Ayam Bakar', qty_porsi: 20, notes: null,
   status: 'Submitted', submitted_by: 'p1', business_unit_id: 'kb', created_at: '2026-06-20T08:00:00Z',
+  updated_at: '2026-06-20T08:00:00Z',
 }
 const PROD_ONPLAN_B: ReviewLogRow = {
   id: 'log-b', log_date: '2026-06-20', action_type: 'Production', action: 'produce' as const, destination_branch_id: null,
   branch_id: BRANCH_ID, activity: 'kitchen',
   wip_item_id: 'wB', wip_item_name: 'Sambal', qty_porsi: 5, notes: null,
   status: 'Submitted', submitted_by: 'p2', business_unit_id: 'kb', created_at: '2026-06-20T08:05:00Z',
+  updated_at: '2026-06-20T08:05:00Z',
 }
 const PROD_OFFPLAN: ReviewLogRow = {
   id: 'log-c', log_date: '2026-06-20', action_type: 'Production', action: 'produce' as const, destination_branch_id: null,
   branch_id: BRANCH_ID, activity: 'kitchen',
   wip_item_id: 'wC', wip_item_name: 'Tahu', qty_porsi: 7, notes: null,
   status: 'Submitted', submitted_by: 'p1', business_unit_id: 'kb', created_at: '2026-06-20T08:10:00Z',
+  updated_at: '2026-06-20T08:10:00Z',
 }
 
 describe('KitchenReviewPage — bulk approve (FR-043, AC-042)', () => {
@@ -609,7 +615,7 @@ describe('KitchenReviewPage — bulk approve (FR-043, AC-042)', () => {
 
     // only the two on-plan rows use the grouped seam; the off-plan row is never handed to it
     await waitFor(() => expect(mockApproveBulk).toHaveBeenCalledTimes(1))
-    expect(mockApproveBulk).toHaveBeenCalledWith(['log-a', 'log-b'], null)
+    expect(mockApproveBulk).toHaveBeenCalledWith([PROD_ONPLAN_A, PROD_ONPLAN_B], null)
     expect(mockApprove).not.toHaveBeenCalled()
 
     // the on-plan rows leave the queue; the off-plan row stays, and its per-row Approve
@@ -659,8 +665,8 @@ describe('KitchenReviewPage — bulk approve (FR-043, AC-042)', () => {
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Noop')
     fireEvent.click(screen.getByRole('button', { name: /approve all on-plan \(2\)/i }))
-    await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-noop', null))
-    expect(mockApproveBulk).toHaveBeenCalledWith(['log-xfer'], null)
+    await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-noop', '2026-06-20T13:02:00Z', null))
+    expect(mockApproveBulk).toHaveBeenCalledWith([XFER_LOG], null)
   })
 
   it('bulk P0003 retries eligible rows individually and reports only stale rows', async () => {
@@ -675,9 +681,9 @@ describe('KitchenReviewPage — bulk approve (FR-043, AC-042)', () => {
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
     fireEvent.click(screen.getByRole('button', { name: /approve all on-plan \(3\)/i }))
-    await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-a', null))
-    expect(mockApprove).toHaveBeenCalledWith('log-b', null)
-    expect(mockApprove).toHaveBeenCalledWith('log-c', null)
+    await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-a', '2026-06-20T08:00:00Z', null))
+    expect(mockApprove).toHaveBeenCalledWith('log-b', '2026-06-20T08:05:00Z', null)
+    expect(mockApprove).toHaveBeenCalledWith('log-c', '2026-06-20T08:10:00Z', null)
     expect(await screen.findByText(/2 approved.*1 stale/i)).toBeInTheDocument()
   })
 
@@ -691,7 +697,7 @@ describe('KitchenReviewPage — bulk approve (FR-043, AC-042)', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /approve all on-plan \(2\)/i }))
 
-    await waitFor(() => expect(mockApproveBulk).toHaveBeenCalledWith(['log-a', 'log-b'], null))
+    await waitFor(() => expect(mockApproveBulk).toHaveBeenCalledWith([PROD_ONPLAN_A, PROD_ONPLAN_B], null))
     // The whole session stays visible on a group error.
     expect(screen.getByText('Ayam Bakar')).toBeInTheDocument()
     expect(screen.getByText('Sambal')).toBeInTheDocument()
@@ -723,6 +729,7 @@ const XFER_OTHER_STREAM: ReviewLogRow = {
   branch_id: RADIANT_ID, activity: 'bar',
   wip_item_id: 'w4', wip_item_name: 'Es Kopi', qty_porsi: 5, notes: null,
   status: 'Submitted', submitted_by: 'p2', business_unit_id: 'kb', created_at: '2026-06-20T10:00:00Z',
+  updated_at: '2026-06-20T10:00:00Z',
 }
 
 describe('KitchenReviewPage — the stream reads in the page head (#440)', () => {
@@ -1189,7 +1196,7 @@ describe('KitchenReviewPage — decision flow, locale id (#400)', () => {
     expect(note).toHaveAttribute('placeholder', 'Alasan jumlahnya berbeda dari rencana (wajib)')
     fireEvent.change(note, { target: { value: 'kurang bahan' } })
     fireEvent.click(screen.getByRole('button', { name: 'Konfirmasi setujui Nasi Goreng' }))
-    await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-prod', 'kurang bahan'))
+    await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-prod', '2026-06-20T09:12:00Z', 'kurang bahan'))
     expect(await screen.findByText(/Disetujui · batch PR-20260620-010/)).toBeInTheDocument()
   })
 

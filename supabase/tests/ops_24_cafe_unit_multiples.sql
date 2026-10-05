@@ -93,7 +93,10 @@ $$, 'P0015', 'CAFE_ITEM_UNIT_NOT_SHOWN: Café capture must use the default ERP d
   'a shown non-default ERP detail cannot replace the default coordinate');
 
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
-select lives_ok($$ select ops.approve_kitchen_log('00000000-0000-0000-0000-00000000c431', 'multiple capture approved') $$,
+select lives_ok($$
+  select ops.approve_kitchen_log('00000000-0000-0000-0000-00000000c431', 'multiple capture approved',
+    (select updated_at from ops.kitchen_logs where id = '00000000-0000-0000-0000-00000000c431'))
+$$,
   'approval uses the normal review and ERP dispatch path');
 select is((select qty_porsi from ops.kitchen_logs where id = '00000000-0000-0000-0000-00000000c431'),
           1.5::numeric, 'approval leaves canonical default-unit quantity intact');

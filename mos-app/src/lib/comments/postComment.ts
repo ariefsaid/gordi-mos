@@ -1,7 +1,6 @@
 import { buildPersonMentionIndex, extractMentions, type MentionPerson, type PersonMentionIndex } from './mentions'
 import { supabase } from '@/lib/supabase'
-import { translateFor } from '@/i18n/use-t'
-import type { Locale, MessageKey } from '@/i18n/messages'
+import type { Locale } from '@/i18n/messages'
 
 // Mirrors the CHECK on `mos.comments.entity_type` exactly. `'signal'` is in that CHECK on the
 // squashed baseline (mos_structure) and the comment SELECT policy already special-cases it via
@@ -29,18 +28,6 @@ export type CommentSupabase = {
 }
 
 type CommentInsertResult = { id: string }
-
-// Issue #584: the notification row carries no actor beyond metadata.entity, so the title (the
-// only thing the Inbox list renders) is composed HERE, at insert, from the commenting person's
-// name + the mentioned-into entity kind — never the bare "@mention in ${entityType}" a stacked
-// mention couldn't tell apart. `translateFor` (not `useT`) because this runs outside render.
-const ENTITY_LABEL_KEY: Record<CommentEntityType, MessageKey> = {
-  task: 'notifications.mention.entity.task',
-  weekly_update: 'notifications.mention.entity.weekly_update',
-  daily_log: 'notifications.mention.entity.daily_log',
-  follow_up: 'notifications.mention.entity.follow_up',
-  signal: 'notifications.mention.entity.signal',
-}
 
 export type CommentRow = {
   id: string
@@ -87,21 +74,12 @@ export async function postComment({
   entityType,
   entityId,
   body,
-  actorId,
-  actorName,
   locale,
 }: {
   sb?: CommentSupabase
   entityType: CommentEntityType
   entityId: string
   body: string
-  /** The commenting person's id — carried in metadata.actor so a future render (a locale switch,
-   *  a redesign) can recompose the title without re-parsing the frozen string (#584 review). */
-  actorId: string
-  /** The commenting person's display name — names the notification title (#584). Blank when the
-   *  caller has no resolved viewer yet (auth still loading); falls back to a real word rather than
-   *  producing "${blank} mentioned you in a task". */
-  actorName: string
   /** The commenting person's active locale — the title is composed in THEIR locale, once, at
    *  insert; a recipient on the other locale still reads a real sentence, just not their own. */
   locale: Locale
@@ -120,28 +98,15 @@ export async function postComment({
   const mentionedPersonIds = extractMentions(body, personIndex)
 
   // Mention fan-out is best-effort + parallel: the comment row is the durable unit (already
-  // committed above), so a transient create_notification failure must NOT invalidate it or
+  // committed above), so a transient mention-notification failure must NOT invalidate it or
   // abort the call (which would push the user to retry and duplicate the comment). Per-mention
-  // errors are swallowed; NFR-P3-CM-001 (fail-quiet) already governs unresolvable slugs.
-  const t = translateFor(locale)
-  const resolvedActorName = actorName.trim() || t('notifications.mention.someone')
-  const title = t('notifications.mention.title', {
-    name: resolvedActorName,
-    entity: t(ENTITY_LABEL_KEY[entityType]),
-  })
-
+  // errors are swallowed; unresolved slugs produce no notification.
   await Promise.allSettled(
     mentionedPersonIds.map((personId) =>
-      sb.schema('mos').rpc('create_notification', {
+      sb.schema('mos').rpc('create_comment_mention_notification', {
         p_owner: personId,
-        p_severity: 'info',
-        p_title: title,
-        p_body: body.slice(0, 200),
-        p_metadata: {
-          source: 'mention',
-          entity: { type: entityType, id: entityId },
-          actor: { id: actorId, name: resolvedActorName },
-        },
+        p_comment_id: data.id,
+        p_locale: locale,
       }),
     ),
   )

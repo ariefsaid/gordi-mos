@@ -435,11 +435,9 @@ describe('SignalRecordHost — comment thread reuse (postComment/listComments, R
     await userEvent.type(box, 'On it')
     await userEvent.click(screen.getByRole('button', { name: /post comment/i }))
 
-    // #584 review: pins actorId/actorName/locale so a call-site regression (e.g. dropping the
-    // viewer wiring) fails here rather than silently shipping a blank-actor notification.
     expect(mockPostComment).toHaveBeenCalledWith(expect.objectContaining({
       entityType: 'signal', entityId: SIGNAL_ID, body: 'On it',
-      actorId: VIEWER_ID, actorName: 'Author One', locale: 'en',
+      locale: 'en',
     }))
     await waitFor(() => expect(screen.getByText('On it')).toBeInTheDocument())
   })
