@@ -34,6 +34,7 @@
 // (B12 — an empty control sitting in the head previously did, simply by being there first).
 
 import { useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
+import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useListboxPopover } from '@/components/ui/use-listbox-popover'
 import { usePopoverReflow } from '@/components/ui/use-popover-reflow'
@@ -100,6 +101,8 @@ export interface CafeStreamBarProps {
   options: readonly ProductionStream[]
   /** The stream in view; null = none resolved yet, so the surface asks for an explicit choice. */
   stream: ProductionStream | null
+  /** Inline context after the stream value, before its navigation controls. */
+  context?: ReactNode
   /** Omit on a surface that cannot switch — it then STATES its stream and offers no control. */
   onChange?: (next: ProductionStream) => void
   /** This surface is reading every stream at once (the outbox; the review queue's 'all'). */
@@ -127,6 +130,7 @@ export interface CafeStreamBarProps {
 export function CafeStreamBar({
   options,
   stream,
+  context,
   onChange,
   allStreams = false,
   onAllStreams,
@@ -144,6 +148,7 @@ export function CafeStreamBar({
         <h2 className="cafe-stream__value cafe-stream__value--heading">
           {allStreams ? t('kitchen.review.allStreams') : streamLabel(t, stream)}
         </h2>
+        {context}
       </div>
     )
   }
@@ -164,6 +169,7 @@ export function CafeStreamBar({
   return (
     <div className="cafe-stream" data-testid="cafe-stream">
       <h2 className="cafe-stream__value cafe-stream__value--heading">{valueLabel}</h2>
+      {context}
       {backTarget && (
         <button
           type="button"
