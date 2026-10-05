@@ -27,6 +27,19 @@ describe('client error sink', () => {
     expect(JSON.stringify(report.mock.calls)).not.toContain('must-not-be-sent')
   })
 
+  it('redacts a bare signed token that appears in the error text', async () => {
+    const report = vi.fn().mockResolvedValue(undefined)
+    const sink = createClientErrorSink({
+      isSignedIn: vi.fn().mockResolvedValue(true), report, releaseSha: 'r',
+      getRoute: () => '/home', getUserAgent: () => 'ua',
+    })
+    const jwt = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.c2lnbmF0dXJl'
+    sink(new Error(`session refresh failed for ${jwt}`))
+    await vi.waitFor(() => expect(report).toHaveBeenCalledOnce())
+    expect(JSON.stringify(report.mock.calls)).not.toContain(jwt)
+    expect(report.mock.calls[0][0].message).toContain('[redacted-jwt]')
+  })
+
   it('does not send reports for signed-out users or throw when delivery fails', async () => {
     const report = vi.fn().mockRejectedValue(new Error('offline'))
     const signedOutSink = createClientErrorSink({

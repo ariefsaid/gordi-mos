@@ -15,6 +15,12 @@ import { validateSampleLoginBuild } from './src/config/sample-login-build-guard'
 
 const __dir = dirname(fileURLToPath(import.meta.url))
 
+// The build's release SHA: Cloudflare Pages provides it; otherwise git; never fails a build.
+function resolveReleaseSha(): string {
+  if (process.env.CF_PAGES_COMMIT_SHA) return process.env.CF_PAGES_COMMIT_SHA
+  try { return execFileSync('git', ['rev-parse', 'HEAD'], { cwd: __dir, encoding: 'utf8' }).trim() } catch { return 'unknown' }
+}
+
 function redirectToBase(basePath: string): Plugin {
   const base = normalizeBasePath(basePath)
   const bareBase = base === '/' ? '/' : base.slice(0, -1)
@@ -85,7 +91,7 @@ function previewBuildIdentity(basePath: string): Plugin {
     name: 'preview-build-identity',
     apply: 'build',
     buildStart() {
-      sha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: __dir, encoding: 'utf8' }).trim()
+      sha = resolveReleaseSha()
       clean = execFileSync('git', ['status', '--porcelain'], { cwd: __dir, encoding: 'utf8' }).trim() === ''
     },
     closeBundle() {
@@ -110,10 +116,7 @@ function previewBuildIdentity(basePath: string): Plugin {
 export default defineConfig(({ mode }) => {
   const env = { ...loadEnv(mode, __dir, ''), ...process.env }
   const { basePath } = resolveBuildSettings(env)
-  let releaseSha = process.env.CF_PAGES_COMMIT_SHA ?? ''
-  if (!releaseSha) {
-    try { releaseSha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: __dir, encoding: 'utf8' }).trim() } catch { releaseSha = 'unknown' }
-  }
+  const releaseSha = resolveReleaseSha()
   return {
   define: { 'import.meta.env.VITE_RELEASE_SHA': JSON.stringify(releaseSha) },
   base: basePath,

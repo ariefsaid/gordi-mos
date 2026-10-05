@@ -1,6 +1,6 @@
 import type { ErrorSink } from './telemetry'
 
-export interface ClientErrorReport {
+export type ClientErrorReport = {
   message: string
   stack: string
   route: string
@@ -8,7 +8,7 @@ export interface ClientErrorReport {
   userAgent: string
 }
 
-export interface ClientErrorSinkOptions {
+export type ClientErrorSinkOptions = {
   isSignedIn: () => Promise<boolean>
   report: (error: ClientErrorReport) => Promise<void>
   releaseSha: string
@@ -26,6 +26,7 @@ function sanitizeText(value: string, limit: number): string {
     .replace(/((?:https?:\/\/|\/)[^\s"'<>?#]+)\?[^\s"'<>#]*/gi, '$1')
     .replace(/\b((?:access|refresh|id)_token|token|password|authorization|api[_-]?key)\s*[:=]\s*[^\s,;)}]+/gi, '$1=[redacted]')
     .replace(/\bBearer\s+[A-Za-z0-9._~+/-]+/gi, 'Bearer [redacted]')
+    .replace(/\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, '[redacted-jwt]')
     .slice(0, limit)
 }
 

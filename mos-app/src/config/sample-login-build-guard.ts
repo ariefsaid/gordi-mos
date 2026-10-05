@@ -1,4 +1,4 @@
-export interface SampleLoginBuildSettings {
+export type SampleLoginBuildSettings = {
   command: string
   sampleLoginEnabled: string | undefined
   deploymentEnvironment: string | undefined
