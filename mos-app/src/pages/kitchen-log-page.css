@@ -755,3 +755,6 @@
   .cafe-capture-content.kl-capture-wide:has(> .kl-capture-summary) { display: grid; }
   .cafe-capture-content .kl-capture-main { align-self: stretch; }
 }
+
+.cafe-capture-content .kl-inline-summary { display: block; }
+.cafe-capture-content .dt-table .kls-row { justify-content: flex-end; }

@@ -1539,12 +1539,6 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
             aria-label={t(mode === 'transfer' ? 'kitchen.transfer.draft.title' : 'kitchen.log.summary.captureAria')}
           >
             <h2>{t(mode === 'transfer' ? 'kitchen.transfer.draft.title' : 'kitchen.log.summary.captureTitle')}</h2>
-            {status.kind === 'ready' && transferDestinationChosen && (
-              <div role="group" aria-label={summaryAriaLabel}>
-                <MetricSummaryRule metrics={displayedSummaryMetrics} variant="inline" />
-                {renderSummarySupport()}
-              </div>
-            )}
             {captureDraftContent}
             {submitError && <p role="alert" className="kl-submit-outcome kl-submit-outcome--error">{submitError}</p>}
             {showOfflineInFooter && <p className="kl-submit-reason">{t('kitchen.log.offline.banner')}</p>}
