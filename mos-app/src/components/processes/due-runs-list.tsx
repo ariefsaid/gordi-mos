@@ -12,7 +12,7 @@ import './due-runs.css'
 // rather than the already-visible Process title, identifies its ready run. The record header may
 // own the Start action, leaving these rows as non-interactive context.
 
-export interface DueRunsListProps {
+export type DueRunsListProps = {
   due: readonly DueProcessRun[]
   expanded: boolean
   startingKey: string | null
