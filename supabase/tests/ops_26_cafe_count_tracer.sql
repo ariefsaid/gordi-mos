@@ -270,7 +270,7 @@ select is((select count(*)::int from ops.cafe_count_posting_switches), 0,
 set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
 select throws_ok($$select ops.set_cafe_count_posting_enabled('00000000-0000-0000-0000-00000000bf01', true)$$,
   '42501', null, 'AC-028 only admin can change the branch posting switch');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","admin"]}';
+set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","admin"]}';
 select lives_ok($$select ops.set_cafe_count_posting_enabled('00000000-0000-0000-0000-00000000bf01', true)$$,
   'AC-028 admin can change the branch switch');
 select is((select posting_enabled from ops.cafe_count_posting_switches
