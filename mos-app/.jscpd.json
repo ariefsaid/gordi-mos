@@ -13,5 +13,5 @@
   "minLines": 5,
   "minTokens": 50,
   "reporters": ["console"],
-  "threshold": 1.92
+  "threshold": 1.95
 }

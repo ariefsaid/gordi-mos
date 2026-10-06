@@ -166,14 +166,23 @@ a.money-table__name:hover {
     min-height: 44px;
   }
 
-  /* Tablet: the eight columns fit the frame without scrolling once the cell gutters close up. */
+  /* Tablet: the eight columns fit the frame without scrolling once the cell gutters close up,
+     Indonesian labels included (#1453). */
   .money-table__head,
   .money-table__cell {
-    padding: 0 8px;
+    padding: 0 6px;
   }
 
   .money-table__cell--branch {
     min-width: 112px;
+  }
+
+  /* The longest words in a figure column are the muted "no comparison" / "not received" notes:
+     on a tablet they wrap under their own column instead of widening it past the frame (#1453). */
+  .money-table__cell .money-table__muted {
+    display: inline-block;
+    max-width: 9em;
+    white-space: normal;
   }
 }
 

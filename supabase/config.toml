@@ -429,9 +429,9 @@ deno_version = 2
 # secret_key = "env(SECRET_VALUE)"
 
 [functions.agent-chat]
-verify_jwt = false   # handler verifies JWT to return a typed 401 + stream a typed terminal status
+verify_jwt = false   # handler verifies through _shared/claims.ts requireVerifiedClaims to return a typed 401 + stream a typed terminal status
 [functions.compose-view]
-verify_jwt = false   # handler verifies JWT to return a typed 401/400/422
+verify_jwt = false   # handler verifies through _shared/claims.ts requireVerifiedClaims to return a typed 401/400/422
 [functions.mcp]
 verify_jwt = false   # handler validates the agent token itself (aud, client_id, JWKS) and answers 401 + resource metadata
 
