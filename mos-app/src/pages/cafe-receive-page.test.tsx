@@ -33,9 +33,14 @@ vi.mock('@/lib/db/cafe-receipts', async importOriginal => {
     listCafeReceivableItems: vi.fn(),
     listCafeReceipts: vi.fn(),
     submitCafeReceipt: vi.fn(),
+    saveCafeReceiptLineExplanation: vi.fn(),
     sendCafeReceiptForReview: vi.fn(),
     listCafeReceiptDifferences: vi.fn(),
   }
+})
+vi.mock('@/lib/db/cafe-receipt-photos', async importOriginal => {
+  const actual = await importOriginal<typeof import('@/lib/db/cafe-receipt-photos')>()
+  return { ...actual, listCafeReceiptPhotos: vi.fn().mockResolvedValue([]), uploadCafeReceiptLinePhoto: vi.fn() }
 })
 
 import { useAuth } from '@/auth/use-auth'
@@ -44,15 +49,22 @@ import {
   listCafeReceiptDifferences,
   listCafeReceipts,
   listCafeReceivableItems,
+  saveCafeReceiptLineExplanation,
   sendCafeReceiptForReview,
   submitCafeReceipt,
+  type CafeReceipt,
+  type CafeReceiptLine,
+  type CafeReceiptSubmitResult,
   type CafeReceivableItem,
 } from '@/lib/db/cafe-receipts'
+import { uploadCafeReceiptLinePhoto } from '@/lib/db/cafe-receipt-photos'
 import { CafeReceivePage } from './cafe-receive-page'
 
 const mockUseAuth = vi.mocked(useAuth)
 const mockItems = vi.mocked(listCafeReceivableItems)
 const mockSubmit = vi.mocked(submitCafeReceipt)
+const mockSaveExplanation = vi.mocked(saveCafeReceiptLineExplanation)
+const mockUploadReceiptPhoto = vi.mocked(uploadCafeReceiptLinePhoto)
 const mockSend = vi.mocked(sendCafeReceiptForReview)
 const mockDifferences = vi.mocked(listCafeReceiptDifferences)
 
@@ -70,6 +82,17 @@ function viewer(accessRoles: string[]): AuthState {
     signOut: vi.fn(),
   }
 }
+function receiptLine(overrides: Partial<CafeReceiptLine> = {}): CafeReceiptLine {
+  return {
+    id: 'line-1', item_unit_id: 'unit-kg', item_name: 'Coffee bean', item_category: 'Bar', unit_name: 'kg', received_quantity: '2.5',
+    conditions: [], condition_reason: null, condition_updated_at: null, photos: [], ...overrides,
+  }
+}
+
+function submitResult(receiptId: string, lines: CafeReceiptLine[], outcome: CafeReceiptSubmitResult['outcome'] = 'created'): CafeReceiptSubmitResult {
+  return { receipt_id: receiptId, outcome, row_version: 1, lines }
+}
+
 const ITEMS: CafeReceivableItem[] = [
   {
     id: 'bean', name: 'Coffee bean', category: 'Bar', kind: 'RAW', defaultUnitId: 'unit-kg',
@@ -140,8 +163,90 @@ describe('CafeReceivePage', () => {
     expect(screen.getByRole('textbox', { name: 'Received for Coffee bean' })).toHaveAttribute('inputmode', 'decimal')
   })
 
+  it('FR-1013 a receiver can mark a line damaged or wrong before locking its count', async () => {
+    mockSubmit.mockResolvedValue(submitResult('receipt-1', [receiptLine({ conditions: ['damaged_wrong'] })]))
+    renderPage()
+    const bean = await screen.findByRole('textbox', { name: 'Received for Coffee bean' })
+    fireEvent.change(bean, { target: { value: '2,5' } })
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Damaged or wrong for Coffee bean' }))
+
+    fireEvent.click(within(await openLockStep()).getByRole('button', { name: 'Lock counts' }))
+
+    await waitFor(() => expect(mockSubmit).toHaveBeenCalledTimes(1))
+    expect(mockSubmit.mock.calls[0][3]).toEqual([
+      { item_unit_id: 'unit-kg', quantity: '2.5', damaged_wrong: true },
+    ])
+  })
+
+  it('AC-1011 Send refuses a damaged line until its named reason and private photo are present', async () => {
+    mockSubmit.mockResolvedValue(submitResult('receipt-1', [receiptLine({ conditions: ['damaged_wrong'] })]))
+    renderPage()
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Coffee bean' }), { target: { value: '2.5' } })
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Damaged or wrong for Coffee bean' }))
+    fireEvent.click(within(await openLockStep()).getByRole('button', { name: 'Lock counts' }))
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Send for review' }))
+
+    const evidenceError = await screen.findByRole('alert')
+    expect(evidenceError).toHaveTextContent(/reason.*photo.*Coffee bean/i)
+    expect(evidenceError).toHaveFocus()
+    expect(mockSend).not.toHaveBeenCalled()
+
+    mockSaveExplanation.mockResolvedValue({ conditions: ['damaged_wrong'], condition_reason: 'The outer seal is torn', condition_updated_at: '2026-10-06T03:00:00Z' })
+    mockUploadReceiptPhoto.mockResolvedValue({
+      lineId: 'line-1', path: 'org-1/receipt-1/line-1/photo.jpg', url: 'https://private.test/photo',
+    })
+    mockSend.mockResolvedValue({ status: 'Submitted', row_version: 2 })
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => 'blob:receipt-photo') })
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Reason for Coffee bean' }), { target: { value: 'The outer seal is torn' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save explanation' }))
+    await screen.findByText('Explanation saved.')
+    const photo = new File(['image'], 'outer-seal.jpg', { type: 'image/jpeg' })
+    fireEvent.change(screen.getByLabelText('Add a photo for Coffee bean'), { target: { files: [photo] } })
+    fireEvent.click(await screen.findByRole('button', { name: 'Upload photos' }))
+    await screen.findByText('Private upload complete')
+    fireEvent.click(screen.getByRole('button', { name: 'Send for review' }))
+
+    await waitFor(() => expect(mockSend).toHaveBeenCalledWith('receipt-1', 1, ''))
+    expect(mockSaveExplanation).toHaveBeenCalledWith('line-1', true, 'The outer seal is torn')
+    expect(await screen.findByRole('heading', { name: 'Sent for review' })).toBeInTheDocument()
+  })
+
+  it('AC-1011 a condition can also be added after Count, where Send still names missing evidence', async () => {
+    mockSubmit.mockResolvedValue(submitResult('receipt-1', [receiptLine()]))
+    renderPage()
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Coffee bean' }), { target: { value: '2.5' } })
+    fireEvent.click(within(await openLockStep()).getByRole('button', { name: 'Lock counts' }))
+    await screen.findByRole('heading', { name: 'Counts locked' })
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Damaged or wrong for Coffee bean' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Send for review' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/reason.*photo.*Coffee bean/i)
+    expect(mockSend).not.toHaveBeenCalled()
+  })
+
+  it('AC-1011 focuses the first invalid line when several lines need evidence', async () => {
+    mockSubmit.mockResolvedValue(submitResult('receipt-1', [
+      receiptLine({ conditions: ['damaged_wrong'] }),
+      receiptLine({ id: 'line-2', item_name: 'Fresh milk', item_category: 'Dairy', unit_name: 'l', received_quantity: '12', conditions: ['damaged_wrong'] }),
+    ]))
+    renderPage()
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Coffee bean' }), { target: { value: '2.5' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '12' } })
+    fireEvent.click(within(await openLockStep()).getByRole('button', { name: 'Lock counts' }))
+    await screen.findByRole('heading', { name: 'Counts locked' })
+    fireEvent.click(screen.getByRole('button', { name: 'Send for review' }))
+
+    const errors = await screen.findAllByRole('alert')
+    expect(errors).toHaveLength(2)
+    expect(errors[0]).toHaveFocus()
+    expect(errors[0]).toHaveTextContent(/Coffee bean/i)
+    expect(mockSend).not.toHaveBeenCalled()
+  })
+
   it('AC-1005 changing unit keeps the chosen product detail and the typed quantity unconverted', async () => {
-    mockSubmit.mockResolvedValue({ receipt_id: 'receipt-1', outcome: 'created', row_version: 1 })
+    mockSubmit.mockResolvedValue(submitResult('receipt-1', [receiptLine({ unit_name: 'bag' })]))
     renderPage()
     const bean = await screen.findByRole('textbox', { name: 'Received for Coffee bean' })
     expect(within(screen.getAllByRole('listitem')[1]).queryByRole('button', { name: 'Change unit' })).toBeNull()
@@ -154,29 +259,38 @@ describe('CafeReceivePage', () => {
     fireEvent.click(within(await openLockStep()).getByRole('button', { name: 'Lock counts' }))
     await waitFor(() => expect(mockSubmit).toHaveBeenCalledTimes(1))
     expect(mockSubmit.mock.calls[0]).toEqual([
-      streamMocks.kitchen, '2026-10-06', 'receipt-key-1', [{ item_unit_id: 'unit-bag', quantity: '2.5' }],
+      streamMocks.kitchen, '2026-10-06', 'receipt-key-1', [{ item_unit_id: 'unit-bag', quantity: '2.5', damaged_wrong: false }],
     ])
   })
 
   it('FR-1011 Count submit locks the quantities, then the receiver sends with a delivery-note number', async () => {
-    mockSubmit.mockResolvedValue({ receipt_id: 'receipt-1', outcome: 'created', row_version: 1 })
+    mockSubmit.mockResolvedValue(submitResult('receipt-1', [receiptLine({
+      item_name: 'Fresh milk', item_category: 'Dairy', unit_name: 'l', received_quantity: '12',
+    })]))
     mockSend.mockResolvedValue({ status: 'Submitted', row_version: 2 })
     renderPage()
     fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '12' } })
     expect(screen.getByText('1 line')).toBeInTheDocument()
     fireEvent.click(within(await openLockStep()).getByRole('button', { name: 'Lock counts' }))
 
-    expect(await screen.findByRole('heading', { name: 'Counts locked' })).toHaveFocus()
+    const locked = await screen.findByRole('heading', { name: 'Counts locked' })
+    await waitFor(() => expect(locked).toHaveFocus())
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.queryByRole('textbox', { name: 'Received for Fresh milk' })).toBeNull()
     fireEvent.change(screen.getByRole('textbox', { name: 'Delivery-note number (optional)' }), { target: { value: 'DN-7' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Send for review' }))
+    const send = screen.getByRole('button', { name: 'Send for review' })
+    send.focus()
+    fireEvent.click(send)
     await waitFor(() => expect(mockSend).toHaveBeenCalledWith('receipt-1', 1, 'DN-7'))
-    expect(await screen.findByRole('heading', { name: 'Sent for review' })).toBeInTheDocument()
+    expect(mockSaveExplanation).not.toHaveBeenCalled()
+    const sent = await screen.findByRole('heading', { name: 'Sent for review' })
+    await waitFor(() => expect(sent).toHaveFocus())
   })
 
   it('FR-1011 an uncertain Count submit stays in the confirm step and retries with the same idempotency key', async () => {
-    mockSubmit.mockRejectedValueOnce(new Error('network')).mockResolvedValueOnce({ receipt_id: 'r', outcome: 'existing', row_version: 1 })
+    mockSubmit.mockRejectedValueOnce(new Error('network')).mockResolvedValueOnce(submitResult('r', [receiptLine({
+      item_name: 'Fresh milk', item_category: 'Dairy', unit_name: 'l', received_quantity: '3',
+    })], 'existing'))
     renderPage()
     fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '3' } })
     const step = await openLockStep()
@@ -239,7 +353,7 @@ describe('CafeReceivePage', () => {
   })
 
   it('issue 1437: confirming locks every listed line in one submit', async () => {
-    let settle: (value: { receipt_id: string; outcome: 'created'; row_version: number }) => void = () => {}
+    let settle: (value: CafeReceiptSubmitResult) => void = () => {}
     mockSubmit.mockReturnValue(new Promise(resolve => { settle = resolve }))
     renderPage()
     fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Coffee bean' }), { target: { value: '2,5' } })
@@ -248,13 +362,16 @@ describe('CafeReceivePage', () => {
 
     fireEvent.click(lock)
     fireEvent.click(lock)
-    settle({ receipt_id: 'receipt-1', outcome: 'created', row_version: 1 })
+    settle(submitResult('receipt-1', [
+      receiptLine(),
+      receiptLine({ id: 'line-2', item_name: 'Fresh milk', item_category: 'Dairy', unit_name: 'l', received_quantity: '12' }),
+    ]))
 
     expect(await screen.findByRole('heading', { name: 'Counts locked' })).toBeInTheDocument()
     expect(mockSubmit).toHaveBeenCalledTimes(1)
     expect(mockSubmit.mock.calls[0][3]).toEqual([
-      { item_unit_id: 'unit-kg', quantity: '2.5' },
-      { item_unit_id: 'unit-l', quantity: '12' },
+      { item_unit_id: 'unit-kg', quantity: '2.5', damaged_wrong: false },
+      { item_unit_id: 'unit-l', quantity: '12', damaged_wrong: false },
     ])
   })
 
@@ -322,7 +439,10 @@ describe('AC-1010 the difference after Lock counts', () => {
   }
 
   async function lockBeanAndMilk() {
-    mockSubmit.mockResolvedValue({ receipt_id: 'receipt-1', outcome: 'created', row_version: 1 })
+    mockSubmit.mockResolvedValue(submitResult('receipt-1', [
+      receiptLine({ id: 'line-bean', item_unit_id: 'unit-kg', item_name: 'Coffee bean', received_quantity: '3' }),
+      receiptLine({ id: 'line-milk', item_unit_id: 'unit-l', item_name: 'Fresh milk', unit_name: 'l', received_quantity: '5' }),
+    ]))
     renderPage()
     fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Coffee bean' }), { target: { value: '3' } })
     fireEvent.change(screen.getByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '5' } })
@@ -359,7 +479,7 @@ describe('AC-1010 the difference after Lock counts', () => {
     mockDifferences.mockResolvedValue([difference('unit-kg', 'unknown'), difference('unit-l', 'unknown')])
     await lockBeanAndMilk()
 
-    expect(await screen.findByRole('status')).toHaveTextContent('MOS can’t compare with the branch’s open POs right now. You can still send for review.')
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('MOS can’t compare with the branch’s open POs right now. You can still send for review.'))
     expect(screen.queryByText(/open PO$/)).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Send for review' }))
     await waitFor(() => expect(mockSend).toHaveBeenCalledWith('receipt-1', 1, ''))
@@ -396,6 +516,194 @@ describe('one open Counted receipt per receiver per branch', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(
       'Your earlier locked counts at this branch are not sent yet. Send them from Your recent receipts below, then lock these.')
     expect(screen.getByRole('textbox', { name: 'Received for Fresh milk' })).toHaveValue('3')
+  })
+})
+
+function countedReceipt(lines: CafeReceiptLine[], overrides: Partial<CafeReceipt> = {}): CafeReceipt {
+  return {
+    id: 'receipt-1', branch_id: 'branch-1', activity: 'kitchen', arrival_date: '2026-10-06', delivery_note_number: null,
+    status: 'Counted', posting_status: 'not_posted', posting_hold_reason: null, received_by: 'person-1',
+    received_at: '2026-10-06T02:00:00Z', submitted_at: null, reviewed_by: null, reviewed_at: null, review_note: null,
+    row_version: 1, lines, ...overrides,
+  }
+}
+
+const SEAL_PHOTO = { lineId: 'line-1', path: 'org-1/receipt-1/line-1/photo.jpg', url: 'https://private.test/photo' }
+
+/** Continue the listed Counted receipt and let its difference read settle. */
+async function continueListed() {
+  fireEvent.click(await screen.findByRole('button', { name: 'Continue receipt' }))
+  await waitFor(() => expect(screen.queryByText(/^Checking against the branch/)).toBeNull())
+}
+
+async function lockWith(lines: CafeReceiptLine[]) {
+  mockSubmit.mockResolvedValue(submitResult('receipt-1', lines))
+  renderPage()
+  fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Coffee bean' }), { target: { value: '2.5' } })
+  fireEvent.click(within(await openLockStep()).getByRole('button', { name: 'Lock counts' }))
+  await screen.findByRole('heading', { name: 'Counts locked' })
+}
+
+describe('issue 1425 condition evidence', () => {
+  beforeEach(() => localStorage.clear())
+
+  it('AC-1011 the receiver types a whole reason without focus leaving the field', async () => {
+    await lockWith([receiptLine({ conditions: ['damaged_wrong'] })])
+    const reason = screen.getByRole('textbox', { name: 'Reason for Coffee bean' })
+
+    await userEvent.setup().type(reason, 'Seal torn')
+
+    expect(reason).toHaveValue('Seal torn')
+    expect(reason).toHaveFocus()
+  })
+
+  it('FR-1016 a line saved as damaged and then unticked is saved clean before Send', async () => {
+    await lockWith([receiptLine({ conditions: ['damaged_wrong'] })])
+    mockSaveExplanation.mockResolvedValue({ conditions: [], condition_reason: null, condition_updated_at: '2026-10-06T03:00:00Z' })
+    mockSend.mockResolvedValue({ status: 'Submitted', row_version: 2 })
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Damaged or wrong for Coffee bean' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Send for review' }))
+
+    expect(await screen.findByRole('heading', { name: 'Sent for review' })).toBeInTheDocument()
+    expect(mockSaveExplanation).toHaveBeenCalledWith('line-1', false, '')
+    expect(mockSaveExplanation.mock.invocationCallOrder[0]).toBeLessThan(mockSend.mock.invocationCallOrder[0])
+  })
+
+  it('AC-1011 a Send the server refuses for one line marks that line by id, even beside another line of the same item', async () => {
+    const KG = '00000000-0000-0000-0000-0000000000a1'
+    const BAG = '00000000-0000-0000-0000-0000000000a2'
+    await lockWith([
+      receiptLine({ id: KG, conditions: ['damaged_wrong'], condition_reason: 'Seal torn', photos: [{ ...SEAL_PHOTO, lineId: KG }] }),
+      receiptLine({ id: BAG, item_unit_id: 'unit-bag', unit_name: 'bag', received_quantity: '3', conditions: ['damaged_wrong'], condition_reason: 'Bag split', photos: [{ ...SEAL_PHOTO, lineId: BAG, path: 'p2' }] }),
+    ])
+    mockSend.mockRejectedValue(new Error(`sendCafeReceiptForReview failed: CAFE_RECEIPT_PHOTO_REQUIRED: line ${BAG}: Coffee bean`))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Send for review' }))
+
+    const [kgLine, bagLine] = screen.getAllByRole('region', { name: 'Coffee bean' })
+    expect(await within(bagLine).findByRole('alert')).toHaveTextContent('Add at least one private photo for Coffee bean before sending for review.')
+    expect(within(bagLine).getAllByText(/at least one private photo/i)).toHaveLength(1)
+    expect(within(kgLine).queryByRole('alert')).toBeNull()
+    expect(screen.queryByText(/is still missing its reason or private photo/)).toBeNull()
+    expect(mockSaveExplanation).not.toHaveBeenCalled()
+  })
+
+  it('FR-1010 a reason saved on the server after the device draft started wins on reopen', async () => {
+    vi.mocked(listCafeReceipts).mockResolvedValue([countedReceipt([receiptLine({ conditions: ['damaged_wrong'], condition_updated_at: '2026-10-06T02:00:00Z' })])])
+    const first = renderPage()
+    await continueListed()
+    fireEvent.change(screen.getByRole('textbox', { name: 'Reason for Coffee bean' }), { target: { value: 'Typed on this phone' } })
+    first.unmount()
+
+    vi.mocked(listCafeReceipts).mockResolvedValue([countedReceipt([receiptLine({
+      conditions: ['damaged_wrong'], condition_reason: 'Saved on the tablet', condition_updated_at: '2026-10-06T02:05:00Z',
+    })])])
+    renderPage()
+    await continueListed()
+
+    expect(screen.getByRole('textbox', { name: 'Reason for Coffee bean' })).toHaveValue('Saved on the tablet')
+  })
+
+  it('FR-1010 a draft for a receipt that was sent elsewhere is removed from the device', async () => {
+    vi.mocked(listCafeReceipts).mockResolvedValue([countedReceipt([receiptLine({ conditions: ['damaged_wrong'] })])])
+    const first = renderPage()
+    await continueListed()
+    fireEvent.change(screen.getByRole('textbox', { name: 'Reason for Coffee bean' }), { target: { value: 'Seal torn' } })
+    first.unmount()
+    expect(Object.keys(localStorage).filter(key => key.startsWith('mos.cafe.receiptExplanations.'))).toHaveLength(1)
+
+    vi.mocked(listCafeReceipts).mockResolvedValue([countedReceipt([receiptLine({ conditions: ['damaged_wrong'] })], { status: 'Submitted' })])
+    renderPage()
+    await screen.findByRole('region', { name: 'Your recent receipts' })
+
+    await waitFor(() => expect(Object.keys(localStorage).filter(key => key.startsWith('mos.cafe.receiptExplanations.'))).toEqual([]))
+  })
+
+  it('NFR-1006 on a receipt whose photos could not be read, a flagged line does not claim it has none', async () => {
+    vi.mocked(listCafeReceipts).mockResolvedValue([countedReceipt([receiptLine({ conditions: ['damaged_wrong'] })], { photosUnavailable: true })])
+    renderPage()
+    await continueListed()
+
+    const line = screen.getByRole('region', { name: 'Coffee bean' })
+    expect(within(line).getByText('Photos unavailable')).toBeInTheDocument()
+    expect(within(line).queryByText('No photo yet.')).toBeNull()
+    expect(within(line).queryByText('Add at least one photo before sending.')).toBeNull()
+  })
+
+  it('NFR-1005 the photo control is named for its item but shows a short label', async () => {
+    await lockWith([receiptLine({ conditions: ['damaged_wrong'] })])
+    const line = screen.getByRole('region', { name: 'Coffee bean' })
+
+    expect(within(line).getByLabelText('Add a photo for Coffee bean')).toHaveAttribute('type', 'file')
+    expect(within(line).getByText('Add photo')).toBeInTheDocument()
+    expect(within(line).queryByText('Add a photo for Coffee bean')).toBeNull()
+  })
+
+  it('FR-1010 a typed but unsaved reason survives a reload of the page', async () => {
+    vi.mocked(listCafeReceipts).mockResolvedValue([countedReceipt([receiptLine({ conditions: ['damaged_wrong'] })])])
+    const first = renderPage()
+    await continueListed()
+    fireEvent.change(screen.getByRole('textbox', { name: 'Reason for Coffee bean' }), { target: { value: 'Seal torn' } })
+    first.unmount()
+
+    renderPage()
+    await continueListed()
+
+    expect(screen.getByRole('textbox', { name: 'Reason for Coffee bean' })).toHaveValue('Seal torn')
+    expect(screen.getByRole('button', { name: 'Save explanation' })).toBeInTheDocument()
+  })
+
+  it('FR-1010 a saved reason clears its device copy, so the server value shows after a reload', async () => {
+    vi.mocked(listCafeReceipts).mockResolvedValue([countedReceipt([receiptLine({ conditions: ['damaged_wrong'] })])])
+    mockSaveExplanation.mockResolvedValue({ conditions: ['damaged_wrong'], condition_reason: 'Seal torn', condition_updated_at: '2026-10-06T03:00:00Z' })
+    const first = renderPage()
+    await continueListed()
+    fireEvent.change(screen.getByRole('textbox', { name: 'Reason for Coffee bean' }), { target: { value: 'Seal torn' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save explanation' }))
+    await screen.findByText('Explanation saved.')
+    first.unmount()
+
+    vi.mocked(listCafeReceipts).mockResolvedValue([countedReceipt([receiptLine({ conditions: ['damaged_wrong'], condition_reason: 'Box dented' })])])
+    renderPage()
+    await continueListed()
+
+    expect(screen.getByRole('textbox', { name: 'Reason for Coffee bean' })).toHaveValue('Box dented')
+  })
+
+  it('NFR-1006 a receipt whose photos could not be read says so and can still be continued', async () => {
+    vi.mocked(listCafeReceipts).mockResolvedValue([countedReceipt([receiptLine({ conditions: ['damaged_wrong'] })], { photosUnavailable: true })])
+    renderPage()
+
+    const recent = await screen.findByRole('region', { name: 'Your recent receipts' })
+    expect(within(recent).getByText('Photos unavailable')).toBeInTheDocument()
+    fireEvent.click(within(recent).getByRole('button', { name: 'Continue receipt' }))
+    expect(await screen.findByRole('heading', { name: 'Counts locked' })).toBeInTheDocument()
+  })
+
+  it('DESIGN compact capture row: the damage flag appears only once its row has a quantity', async () => {
+    renderPage()
+    const bean = await screen.findByRole('textbox', { name: 'Received for Coffee bean' })
+    expect(screen.queryByRole('checkbox', { name: /^Damaged or wrong for/ })).toBeNull()
+
+    fireEvent.change(bean, { target: { value: '2' } })
+
+    expect(screen.getByRole('checkbox', { name: 'Damaged or wrong for Coffee bean' })).toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: 'Damaged or wrong for Fresh milk' })).toBeNull()
+  })
+
+  it('the counted step explains flagging once, not under every line', async () => {
+    mockSubmit.mockResolvedValue(submitResult('receipt-1', [
+      receiptLine(),
+      receiptLine({ id: 'line-2', item_name: 'Fresh milk', unit_name: 'l', received_quantity: '12' }),
+    ]))
+    renderPage()
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Coffee bean' }), { target: { value: '2.5' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '12' } })
+    fireEvent.click(within(await openLockStep()).getByRole('button', { name: 'Lock counts' }))
+    await screen.findByRole('heading', { name: 'Counts locked' })
+
+    expect(screen.getAllByText(/Flag a line when accepted goods were damaged or incorrect/)).toHaveLength(1)
   })
 })
 

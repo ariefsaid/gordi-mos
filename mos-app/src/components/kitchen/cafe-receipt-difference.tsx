@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { useT } from '@/i18n/use-t'
 import type { CafeReceiptDifferenceOutcome } from '@/lib/db/cafe-receipts'
 
@@ -20,12 +21,14 @@ export function CafeReceiptDifferenceLabel({ outcome }: { outcome: KnownOutcome 
  * One received line: name, quantity and, where a difference is expected, its label slot. The slot is
  * reserved before the label arrives so the row, and everything below it, does not move.
  */
-export function CafeReceiptLineRow({ name, quantity, unit, withDifference, outcome }: {
+export function CafeReceiptLineRow({ name, quantity, unit, withDifference, outcome, children }: {
   name: string
   quantity: string
   unit: string
   withDifference: boolean
   outcome?: KnownOutcome
+  /** Full-width detail under the row, such as a condition and its evidence. */
+  children?: ReactNode
 }) {
   const t = useT()
   return (
@@ -37,6 +40,7 @@ export function CafeReceiptLineRow({ name, quantity, unit, withDifference, outco
           <span className="cafe-receipt-lines__difference">{outcome && <CafeReceiptDifferenceLabel outcome={outcome} />}</span>
         )}
       </span>
+      {children}
     </li>
   )
 }

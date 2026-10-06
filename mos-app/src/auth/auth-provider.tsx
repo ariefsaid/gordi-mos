@@ -7,6 +7,7 @@ import {
   publishReadScope,
   type ReadScope,
 } from '@/lib/scoped-reads'
+import { clearCafeReceiptExplanationDrafts } from '@/lib/cafe-receipt-explanation-draft'
 import { isSampleAccountOutsideSampleOrg } from '@/pages/demo-personas'
 import { AuthContext, type AuthState } from './context'
 
@@ -90,6 +91,7 @@ export function AuthProvider({ children }: Props) {
     const ticket = ++resolutionTicketRef.current
     isRecoveringRef.current = false
     retireReadScope()
+    clearCafeReceiptExplanationDrafts()
     await supabase.auth.signOut()
     if (ticket === resolutionTicketRef.current) {
       setState({ status: 'unauthenticated', signedOut: true })
