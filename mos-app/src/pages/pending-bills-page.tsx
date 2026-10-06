@@ -57,6 +57,8 @@ function statePill(bill: PendingBillView, t: T): ReactNode {
 function columns(t: T, locale: ReturnType<typeof useI18n>['locale']): DataTableColumn<PendingBillView>[] {
   return [
     { key: 'date', header: t('pendingBills.col.date'), render: (b) => <span className="tabular pending-bills__nowrap">{formatDayMonthYear(b.billDate, locale)}</span> },
+    // When and how old, together: Age stays in view before the table needs to scroll.
+    { key: 'age', header: t('pendingBills.col.age'), numeric: true, render: (b) => ageText(b.ageDays, t) },
     { key: 'branch', header: t('pendingBills.col.branch'), render: (b) => branch(b, t) },
     { key: 'owes', header: t('pendingBills.col.owes'), render: (b) => <span className="pending-bills__owes">{owes(b, t)}</span> },
     // State sits beside Who owes so a flagged bill is in view before the table needs to scroll.
@@ -64,7 +66,6 @@ function columns(t: T, locale: ReturnType<typeof useI18n>['locale']): DataTableC
     { key: 'bill', header: t('pendingBills.col.billNo'), render: (b) => <span className="pending-bills__code">{b.billNo}</span> },
     { key: 'amount', header: t('pendingBills.col.amount'), numeric: true, render: (b) => formatIDR(b.amount) },
     { key: 'balance', header: t('pendingBills.col.balance'), numeric: true, render: (b) => formatIDR(b.balance) },
-    { key: 'age', header: t('pendingBills.col.age'), numeric: true, render: (b) => ageText(b.ageDays, t) },
   ]
 }
 
@@ -74,7 +75,7 @@ function BillCard({ bill }: { bill: PendingBillView }) {
   const { locale } = useI18n()
   return (
     <div className="pending-bill-card">
-      <div className="pending-bill-card__title">{owes(bill, t)}</div>
+      <div className={`pending-bill-card__title${bill.counterpartyNote ? '' : ' pending-bill-card__title--none'}`}>{owes(bill, t)}</div>
       <div className="pending-bill-card__amount tabular">{formatIDR(bill.amount)}</div>
       <div className="pending-bill-card__meta">
         <span className="tabular">{formatDayMonthYear(bill.billDate, locale)}</span>
@@ -157,7 +158,9 @@ export function PendingBillsPage() {
     <div className="pending-bills-body">
       {kept}
       {stale}
-      <div className="pending-bills-scroll">
+      {/* Below the table's width this box scrolls sideways; a name and a tab stop let a
+          keyboard or screen-reader user find and scroll it. */}
+      <div className="pending-bills-scroll" role="region" aria-label={t('pendingBills.table.scrollLabel')} tabIndex={0}>
         <DataTable
           columns={columns(t, locale)}
           rows={bills}

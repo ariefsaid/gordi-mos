@@ -90,6 +90,10 @@
   overflow-wrap: anywhere;
 }
 
+.pending-bill-card__title--none {
+  font-weight: 400;
+}
+
 .pending-bill-card__amount {
   font-weight: 600;
   text-align: right;
