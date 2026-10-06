@@ -3,12 +3,14 @@ import { supabase } from '@/lib/supabase'
 import type { ProductionStream } from './kitchen-logs.types'
 import {
   cafeReceiptArrivalDateBounds,
+  listCafeReceiptDifferences,
   listCafeReceipts,
   listCafeReceivableItems,
   normalizeCafeReceiptQuantity,
   reviewCafeReceipt,
   sendCafeReceiptForReview,
   submitCafeReceipt,
+  summarizeCafeReceiptDifferences,
 } from './cafe-receipts'
 
 vi.mock('@/lib/supabase', () => ({ supabase: { schema: vi.fn() } }))
@@ -97,5 +99,27 @@ describe('Café receipt adapter', () => {
     expect(rpc).toHaveBeenLastCalledWith('review_cafe_receipt',
       { p_receipt_id: 'r-1', p_decision: 'reject', p_expected_version: 2, p_note: 'wrong unit' })
     await expect(reviewCafeReceipt('r-1', 'approve', 3, '')).rejects.toThrow('CAFE_RECEIPT_SELF_APPROVAL')
+  })
+
+  it('FR-1012 reads labels for the asked receipts and refuses a row that is not a known label', async () => {
+    const row = { receipt_id: 'r', line_id: 'l', item_unit_id: 'u', outcome: 'over', cache_as_of: '2026-10-06T02:00:00Z' }
+    const rpc = vi.fn().mockResolvedValueOnce({ data: [row], error: null })
+      .mockResolvedValueOnce({ data: [{ ...row, outcome: '4.5' }], error: null })
+    schemaMock.mockReturnValue({ rpc } as never)
+    await expect(listCafeReceiptDifferences(['r'])).resolves.toEqual([row])
+    expect(rpc).toHaveBeenCalledWith('cafe_receipt_po_differences', { p_receipt_ids: ['r'] })
+    await expect(listCafeReceiptDifferences(['r'])).rejects.toThrow('invalid difference row')
+    await expect(listCafeReceiptDifferences([])).resolves.toEqual([])
+    expect(rpc).toHaveBeenCalledTimes(2)
+  })
+
+  it('FR-1012 a receipt is known only when every line has a label; it counts the lines that differ', () => {
+    const line = (id: string, outcome: 'over' | 'matches' | 'unknown') =>
+      ({ receipt_id: 'r', line_id: id, item_unit_id: `u-${id}`, outcome, cache_as_of: null })
+    expect(summarizeCafeReceiptDifferences([])).toEqual({ known: false, asOf: null })
+    expect(summarizeCafeReceiptDifferences([line('a', 'over'), line('b', 'unknown')]).known).toBe(false)
+    const summary = summarizeCafeReceiptDifferences([line('a', 'over'), line('b', 'matches')])
+    expect(summary.known && [summary.differing, summary.total, summary.byLine.get('a'), summary.byLine.get('u-b')])
+      .toEqual([1, 2, 'over', 'matches'])
   })
 })

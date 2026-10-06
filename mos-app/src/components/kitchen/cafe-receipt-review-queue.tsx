@@ -2,13 +2,22 @@ import { useEffect, useMemo, useState } from 'react'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { useT } from '@/i18n/use-t'
 import { getPeople } from '@/lib/db/directory'
-import { listCafeReceipts, reviewCafeReceipt, type CafeReceipt } from '@/lib/db/cafe-receipts'
+import {
+  listCafeReceiptDifferences,
+  listCafeReceipts,
+  reviewCafeReceipt,
+  summarizeCafeReceiptDifferences,
+  type CafeReceipt,
+  type CafeReceiptDifference,
+  type CafeReceiptDifferenceSummary,
+} from '@/lib/db/cafe-receipts'
 import { streamKey, streamLabel } from '@/lib/kitchen-action-label'
-import { formatWeekdayDayMonth } from '@/lib/format/date'
+import { formatWeekdayDayMonth, formatWibShortDateTime } from '@/lib/format/date'
 import { useIsOffline } from '@/shell/use-is-offline'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { ALL_STREAMS } from './cafe-stream-bar'
 import { CafeReceiptState } from './cafe-receipt-state'
+import { CafeReceiptDifferenceLabel } from './cafe-receipt-difference'
 import './cafe-count-review-queue.css'
 
 /** Submitted receipts the server lets this viewer review (RLS scopes the read; the RPC decides). */
@@ -24,6 +33,7 @@ export function CafeReceiptReviewQueue({
   const t = useT()
   const [rows, setRows] = useState<CafeReceipt[]>([])
   const [names, setNames] = useState<ReadonlyMap<string, string>>(new Map())
+  const [differences, setDifferences] = useState<ReadonlyMap<string, CafeReceiptDifferenceSummary>>(new Map())
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
   const [actionError, setActionError] = useState(false)
@@ -42,6 +52,14 @@ export function CafeReceiptReviewQueue({
       setRows(nextRows)
       setNames(new Map(people.map(person => [person.id, person.full_name])))
       setLoading(false)
+      // FR-1012/1032: labels and the cache as-of time; a failed read leaves every row "not yet known".
+      void listCafeReceiptDifferences(nextRows.map(row => row.id))
+        .catch((): CafeReceiptDifference[] => [])
+        .then(found => {
+          if (!active) return
+          setDifferences(new Map(nextRows.map(row =>
+            [row.id, summarizeCafeReceiptDifferences(found.filter(line => line.receipt_id === row.id))])))
+        })
     }).catch(() => {
       if (!active) return
       setLoadError(true)
@@ -106,6 +124,7 @@ export function CafeReceiptReviewQueue({
             const stream = streamCatalog.find(s => s.branch.id === receipt.branch_id && s.activity === receipt.activity) ?? null
             const ownReceipt = receipt.received_by === viewerId
             const noteId = `cafe-receipt-note-${receipt.id}`
+            const difference = differences.get(receipt.id)
             return (
               <li className="cafe-count-review__row cafe-receipt-review__row" key={receipt.id}>
                 <div className="cafe-count-review__identity">
@@ -117,15 +136,27 @@ export function CafeReceiptReviewQueue({
                     {stream && <span>{t('cafe.count.review.streamTag', { stream: streamLabel(t, stream) })}</span>}
                     {receipt.delivery_note_number && <span>{t('cafe.receipts.review.deliveryNote', { number: receipt.delivery_note_number })}</span>}
                     {receipt.posting_status === 'held' && <span>{t('cafe.receipts.review.locationMissing')}</span>}
+                    {difference && !difference.known && <span>{t('cafe.receipts.review.differenceUnknown')}</span>}
+                    {difference && (
+                      <span>{difference.asOf
+                        ? t('cafe.receipts.review.poAsOf', { time: formatWibShortDateTime(difference.asOf) })
+                        : t('cafe.receipts.review.poNeverRead')}</span>
+                    )}
                   </div>
                 </div>
                 <ul className="cafe-receipt-lines" aria-label={t('cafe.receipts.review.linesAria')}>
-                  {receipt.lines.map(line => (
-                    <li key={line.id}>
-                      <span>{line.item_name}</span>
-                      <span className="tabular">{t('cafe.receipts.quantityUnit', { quantity: line.received_quantity, unit: line.unit_name })}</span>
-                    </li>
-                  ))}
+                  {receipt.lines.map(line => {
+                    const outcome = difference?.known ? difference.byLine.get(line.id) : undefined
+                    return (
+                      <li key={line.id}>
+                        <span>{line.item_name}</span>
+                        <span className="cafe-receipt-lines__facts">
+                          <span className="tabular">{t('cafe.receipts.quantityUnit', { quantity: line.received_quantity, unit: line.unit_name })}</span>
+                          {outcome && <CafeReceiptDifferenceLabel outcome={outcome} />}
+                        </span>
+                      </li>
+                    )
+                  })}
                 </ul>
                 <div className="cafe-count-review__decision cafe-receipt-review__decision">
                   {receipt.status !== 'Submitted' ? (

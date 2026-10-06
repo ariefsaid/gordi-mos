@@ -191,6 +191,56 @@ export async function reviewCafeReceipt(
   return { status: row.status, row_version: row.row_version }
 }
 
+/** A line's difference against the branch's cached open POs; `unknown` when the cache is empty, stale or too old. */
+export type CafeReceiptDifferenceOutcome = 'over' | 'short' | 'matches' | 'no_open_po' | 'unknown'
+
+export type CafeReceiptDifference = {
+  receipt_id: string
+  line_id: string
+  item_unit_id: string
+  outcome: CafeReceiptDifferenceOutcome
+  cache_as_of: string | null
+}
+
+const OUTCOMES: readonly CafeReceiptDifferenceOutcome[] = ['over', 'short', 'matches', 'no_open_po', 'unknown']
+
+/** Labels only, for receipts the viewer reads: the server never returns an ordered or outstanding quantity. */
+export async function listCafeReceiptDifferences(receiptIds: readonly string[]): Promise<CafeReceiptDifference[]> {
+  if (receiptIds.length === 0) return []
+  const { data, error } = await ops().rpc('cafe_receipt_po_differences', { p_receipt_ids: [...receiptIds] })
+  if (error) throw new Error(`listCafeReceiptDifferences failed: ${error.message}`)
+  return ((data ?? []) as Array<Record<string, unknown>>).map(row => {
+    if (typeof row.receipt_id !== 'string' || typeof row.line_id !== 'string' || typeof row.item_unit_id !== 'string'
+      || !OUTCOMES.includes(row.outcome as CafeReceiptDifferenceOutcome)) {
+      throw new Error('listCafeReceiptDifferences failed: invalid difference row')
+    }
+    return {
+      receipt_id: row.receipt_id,
+      line_id: row.line_id,
+      item_unit_id: row.item_unit_id,
+      outcome: row.outcome as CafeReceiptDifferenceOutcome,
+      cache_as_of: typeof row.cache_as_of === 'string' ? row.cache_as_of : null,
+    }
+  })
+}
+
+export type CafeReceiptDifferenceSummary =
+  | { known: false; asOf: string | null }
+  | { known: true; asOf: string | null; byLine: ReadonlyMap<string, Exclude<CafeReceiptDifferenceOutcome, 'unknown'>>; differing: number; total: number }
+
+/** One receipt's labels keyed by line id and by product detail; any unknown line makes the whole receipt not yet known. */
+export function summarizeCafeReceiptDifferences(rows: readonly CafeReceiptDifference[]): CafeReceiptDifferenceSummary {
+  const asOf = rows.find(row => row.cache_as_of)?.cache_as_of ?? null
+  if (rows.length === 0 || rows.some(row => row.outcome === 'unknown')) return { known: false, asOf }
+  const byLine = new Map<string, Exclude<CafeReceiptDifferenceOutcome, 'unknown'>>()
+  for (const row of rows) {
+    const outcome = row.outcome as Exclude<CafeReceiptDifferenceOutcome, 'unknown'>
+    byLine.set(row.line_id, outcome)
+    byLine.set(row.item_unit_id, outcome)
+  }
+  return { known: true, asOf, byLine, differing: rows.filter(row => row.outcome !== 'matches').length, total: rows.length }
+}
+
 /** A received quantity is a typed positive decimal; zero and blank are not part of the receipt. */
 export function normalizeCafeReceiptQuantity(raw: string): string | null {
   const value = normalizeCafeCountQuantity(raw)

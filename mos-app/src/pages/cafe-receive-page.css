@@ -108,6 +108,8 @@
   line-height: 1.5;
 }
 
+.cafe-receive__counted .cafe-receive__difference { color: var(--foreground); }
+
 .cafe-receive__recent ul {
   display: grid;
   gap: 0;
