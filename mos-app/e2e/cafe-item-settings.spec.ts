@@ -117,6 +117,19 @@ const rows: SettingsReadRow[] = [
   },
 ]
 
+const LONG_GUARD_ITEM_NAME = 'Ayam Goreng Serundeng dengan Sambal Terasi'
+const longNameGuardRows: SettingsReadRow[] = rows.map(row => row.item_id === '00000000-0000-0000-0000-00000000a101'
+  ? {
+      ...row,
+      erp_name: LONG_GUARD_ITEM_NAME,
+      mos_name: LONG_GUARD_ITEM_NAME,
+      category: 'KITCHEN',
+      unit_name: row.item_unit_id === '00000000-0000-0000-0000-00000000a201'
+        ? 'Batch @50porsi · Default'
+        : row.unit_name,
+    }
+  : row)
+
 function largeItemSettingsFixture(): Pick<SettingsMocks, 'readRows' | 'configuredItemIds' | 'references'> {
   const itemIds = Array.from({ length: 501 }, (_, index) => index === 0
     ? '00000000-0000-0000-0000-00000000a101'
@@ -499,5 +512,32 @@ test.describe('Café item settings', () => {
     mocks.readDelayMs = 0
     await page.getByRole('button', { name: 'Try again', exact: true }).click()
     await expect(page.locator('.dt-cards').getByText('Herbal tea · ERP reference').first()).toBeVisible()
+  })
+
+  test('confirms before switching away from long item drafts at phone, tablet and desktop widths', async ({ page }) => {
+    await mockSettingsApi(page, { readRows: longNameGuardRows })
+    await loginAs(page, BAR_MEMBER.email, BAR_MEMBER.password)
+    await page.goto('cafe/items')
+    await expect(page.getByRole('heading', { name: 'Café items', exact: true })).toBeVisible()
+
+    for (const width of [390, 768, 1440] as const) {
+      await page.setViewportSize({ width, height: 900 })
+      const longItem = width === 390
+        ? page.getByRole('article', { name: LONG_GUARD_ITEM_NAME })
+        : page.getByRole('row').filter({ hasText: LONG_GUARD_ITEM_NAME })
+      const name = longItem.getByRole('textbox', { name: 'MOS name', exact: true })
+      await expect(name).toBeVisible()
+      await name.fill('Drafted item name')
+      await page.getByRole('button', { name: 'Change stream', exact: true }).click()
+      const option = page.getByRole('option').first()
+      await expect(option).toBeVisible()
+      await option.click()
+      const dialog = page.getByRole('dialog', { name: 'Discard unsaved item changes?' })
+      await expect(dialog).toBeVisible()
+      await assertNoOverflow(page, width)
+      await captureViewport(page, `cafe-items-unsaved-switch-${width}.png`)
+      await dialog.getByRole('button', { name: 'Stay on this page', exact: true }).click()
+      await expect(name).toHaveValue('Drafted item name')
+    }
   })
 })
