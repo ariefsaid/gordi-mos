@@ -5,7 +5,7 @@
  * pill next to a differently-sized "2 blocked" fragment — number soup with no label
  * sentence ("size soup" incident). The fix: ONE muted meta sentence in a single
  * `.ch-meta-line` at one font token. Since OD-REDESIGN-91 #17 + DD-COUNT-1 #1194 the Tasks
- * sentence reads "N tasks · M open" (the view's own count; the rail badge is the
+ * sentence reads "N tasks · M open in this view" (the view's own count; the rail badge is the
  * viewer's own open tasks).
  * Skill rule mechanized: impeccable distill "Every element should justify its existence"
  * (.claude/skills/impeccable/reference/distill.md) — a digit with no attached noun carries
@@ -169,7 +169,7 @@ describe('GUARD-R2: the Tasks page head never shows a number without a label sen
     // The task count leads, followed by the open subset (none Done here → open === total).
     const metaLines = head.querySelectorAll('.ch-meta-line')
     expect(metaLines).toHaveLength(1)
-    expect(metaLines[0].textContent?.trim()).toBe('3 tasks · 3 open')
+    expect(metaLines[0].textContent?.trim()).toBe('3 tasks · 3 open in this view')
 
     // The size-soup pill is gone from this head — count lives inside the sentence.
     expect(head.querySelectorAll('.ch-count')).toHaveLength(0)

@@ -27,9 +27,13 @@ describe('phone text-control type floor', () => {
     expect(tokenMatch, 'shared touch-input token').not.toBeNull()
     expect(Number(tokenMatch?.[1])).toBeGreaterThanOrEqual(16)
 
-    const phoneRule = blockAfter(css, '@media (max-width: 768px)')
-    const selector = '#root :is('
-    const controlRule = blockAfter(phoneRule, selector)
+    const phoneRule = css
+      .split('@media (max-width: 768px)')
+      .slice(1)
+      .map((rest) => blockAfter(`@media (max-width: 768px)${rest}`, '@media'))
+      .find((block) => block.includes('input:not('))
+    expect(phoneRule, 'phone media block holding the text-control rule').toBeDefined()
+    const controlRule = blockAfter(phoneRule ?? '', ':is(')
 
     expect(phoneRule).toContain('input:not(')
     expect(phoneRule).toContain('textarea')

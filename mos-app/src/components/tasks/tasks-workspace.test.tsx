@@ -2328,7 +2328,7 @@ describe('Tasks head meta names visible tasks and open work', () => {
     await waitFor(() => expect(screen.getByText('Resolved')).toBeInTheDocument())
     // Blocked still counts as open (not Done); only the Done task is excluded from open.
     await waitFor(() =>
-      expect(screen.getByTestId('tasks-count-line').textContent?.trim()).toBe('3 tasks · 2 open'),
+      expect(screen.getByTestId('tasks-count-line').textContent?.trim()).toBe('3 tasks · 2 open in this view'),
     )
   })
 })
