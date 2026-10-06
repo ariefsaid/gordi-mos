@@ -54,6 +54,10 @@ echo "contains secretword" > "$tmp/repo/body.md"
 check "--body-file content scanned" 1 no issue comment 5 --body-file "$tmp/repo/body.md"
 echo "clean file body" > "$tmp/repo/body.md"
 check "clean --body-file passes" 0 yes issue comment 5 --body-file "$tmp/repo/body.md"
+echo "contains secretword" > "$tmp/repo/short.md"
+check "short -F body file scanned on issue verbs" 1 no issue comment 5 -F "$tmp/repo/short.md"
+check "concatenated -Ffile scanned on pr verbs" 1 no pr comment 5 -F"$tmp/repo/short.md"
+check "clean short -F body file passes" 0 yes issue comment 5 -F "$tmp/repo/body.md"
 
 check "gh api -F field values scanned" 1 no api repos/x/y/issues -F body="has secretword inside"
 check "api path naming another repo refused, gh untouched" 1 no api repos/other/elsewhere/issues -f title=x
@@ -71,6 +75,7 @@ echo "contains secretword" > "$tmp/repo/eq.md"
 check "equals-form --body-file=… scanned" 1 no issue comment 5 --body-file="$tmp/repo/eq.md"
 check "equals-form --input=… scanned" 1 no api repos/x/y/issues --input="$tmp/repo/eq.md"
 check "concatenated -Fbody=@file scanned" 1 no api repos/x/y/issues -Fbody=@"$tmp/repo/eq.md"
+check "equals-form --field=body=@file scanned" 1 no api repos/x/y/issues --field=body=@"$tmp/repo/eq.md"
 echo '{"body":"has secretword"}' > "$tmp/repo/payload.json"
 check "gh api --input file scanned" 1 no api repos/x/y/issues --input "$tmp/repo/payload.json"
 check "gh api --input - refused" 1 no api repos/x/y/issues --input -
@@ -123,6 +128,50 @@ check "--base staging-hotfix is NOT the carve-out" 1 no pr create --base staging
 check "stray 'staging' arg without --base adjacency is NOT the carve-out" 1 no pr create --base dev --title staging --body "clean"
 g "$tmp/repo" checkout -qb rogue
 check "staging PR from a non-main branch still needs stamps" 1 no pr create --base staging --title t --body "clean"
+
+# ── REST PR create (api repos/<this>/pulls) passes the same four-stamp gate as pr create
+g "$tmp/repo" checkout -qb feat-rest
+rm -f "$gitdir/pre-pr-verify-ok" "$gitdir/pre-pr-verify-dev-ok" "$gitdir"/independent-review-*-ok
+check "REST pr create without stamps refused" 1 no api repos/x/y/pulls -f title=t -f head=feat-rest -f base=dev
+check "REST pr create, explicit --method POST, refused unstamped" 1 no api repos/x/y/pulls --method POST -f head=feat-rest -f base=dev
+check "REST pr create, concatenated -XPOST, refused unstamped" 1 no api repos/x/y/pulls -XPOST -f head=feat-rest -f base=dev
+check "REST pr create, leading and trailing slash, refused unstamped" 1 no api /repos/x/y/pulls/ -f head=feat-rest -f base=dev
+check "REST pr create, query string, refused unstamped" 1 no api 'repos/x/y/pulls?x=1' -f head=feat-rest -f base=dev
+check "api path with an empty segment refused" 1 no api repos/x/y//pulls -f head=feat-rest -f base=dev
+check "api path with an encoded segment refused" 1 no api repos/x/y/pull%73 -f head=feat-rest -f base=dev
+check "REST pulls list (explicit GET) passes unstamped" 0 yes api repos/x/y/pulls --method GET
+check "REST pulls list, concatenated -XGET, passes unstamped" 0 yes api repos/x/y/pulls -XGET
+check "REST pulls list, --method=get, passes unstamped" 0 yes api repos/x/y/pulls --method=get
+check "decoy flag value before the endpoint refused" 1 no api -p repos/x/y/issues/1 repos/x/y/pulls -f head=feat-rest -f base=dev
+check "flags before the endpoint refused" 1 no api -X POST repos/x/y/pulls -f head=feat-rest -f base=dev
+check "global flag before api refused" 1 no --repo x/y api repos/x/y/pulls -f head=feat-rest -f base=dev
+check "URL fragment in the path refused" 1 no api 'repos/x/y/pulls#x' -f head=feat-rest -f base=dev
+check "short-flag cluster hiding -X refused" 1 no api repos/x/y/pulls --method GET -iXPOST -f head=feat-rest -f base=dev
+check "short-flag cluster hiding -F refused" 1 no api repos/x/y/issues -iFbody=@"$tmp/repo/eq.md"
+check "stray positional after the endpoint refused" 1 no api repos/x/y/issues extra -f title=x
+check "end-of-flags marker refused" 1 no api repos/x/y/issues -- -f title=x
+check "value-taking flag at the end refused" 1 no api repos/x/y/issues -f
+check "REST merge (PUT pulls/N/merge) is not a create" 0 yes api repos/x/y/pulls/5/merge --method PUT -f merge_method=squash
+head="$(g "$tmp/repo" rev-parse HEAD)"
+printf '%s' "$head" > "$gitdir/pre-pr-verify-dev-ok"
+for lens in spec code-quality security; do printf '%s %s reviewer-x now art.md\n' "$head" "$lens" > "$gitdir/independent-review-$lens-ok"; done
+check "REST pr create, light stamp + lens stamps, base=dev passes" 0 yes api repos/x/y/pulls -f title=t -f head=feat-rest -f base=dev
+check "REST pr create, concatenated -f fields pass" 0 yes api repos/x/y/pulls -fhead=feat-rest -fbase=dev
+check "REST pr create, --raw-field= form passes" 0 yes api repos/x/y/pulls --raw-field=head=feat-rest --raw-field=base=dev
+check "REST pr create, owner:branch head passes" 0 yes api repos/x/y/pulls -f head=x:feat-rest -f base=dev
+check "REST pr create, cluster -ifbase=main after base=dev refused" 1 no api repos/x/y/pulls -f head=feat-rest -f base=dev -ifbase=main
+check "REST pr create, -F head=@file refused" 1 no api repos/x/y/pulls -F head=@"$tmp/repo/body.md" -f base=dev
+check "REST pr create, light stamp, base=main refused" 1 no api repos/x/y/pulls -f head=feat-rest -f base=main
+check "REST pr create, light stamp, no base refused" 1 no api repos/x/y/pulls -f head=feat-rest
+check "REST pr create, base dev then main (last wins) refused" 1 no api repos/x/y/pulls -f head=feat-rest -f base=dev -f base=main
+check "REST pr create, head naming another branch refused" 1 no api repos/x/y/pulls -f head=other -f base=dev
+check "REST pr create, head naming another owner refused" 1 no api repos/x/y/pulls -f head=evil:feat-rest -f base=dev
+check "REST pr create, no head refused" 1 no api repos/x/y/pulls -f base=dev
+check "REST pr create, head_repo refused" 1 no api repos/x/y/pulls -f head=feat-rest -f base=dev -f head_repo=evil/y
+echo '{"head":"feat-rest","base":"dev"}' > "$tmp/repo/pr.json"
+check "REST pr create, --input payload refused" 1 no api repos/x/y/pulls -f head=feat-rest -f base=dev --input "$tmp/repo/pr.json"
+printf 'deadbeef security reviewer-x now art.md\n' > "$gitdir/independent-review-security-ok"
+check "REST pr create, one lens on the wrong sha refused" 1 no api repos/x/y/pulls -f head=feat-rest -f base=dev
 
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

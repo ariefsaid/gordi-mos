@@ -105,7 +105,7 @@ insert into reporting.sales_margin_daily
 
 select is(
   (select count(distinct branch_id)::int from reporting.sales_daily_revenue
-    where branch_code in ('RRS','BGR')),
+    where org_id = '00000000-0000-0000-0000-0000000000a1' and branch_code in ('RRS','BGR')),
   1,
   'two ERP spellings — RRS and the incumbent''s "BGR" — resolve to ONE branch, which is exactly what free text could never do');
 
