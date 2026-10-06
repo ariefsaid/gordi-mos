@@ -44,7 +44,7 @@ import { CafeCountPage } from './pages/cafe-count-page'
 import { KitchenReviewPage } from './pages/kitchen-review-page'
 import { KitchenPushesPage } from './pages/kitchen-pushes-page'
 import { CafeRootPage } from './pages/cafe-opening-page'
-import { DashboardPage } from './pages/dashboard-page'
+import { MoneyPage } from './pages/money-page'
 import { BudgetPage } from './pages/budget-page'
 import { PricingPage } from './pages/pricing-page'
 import { AdminUsersPage } from './pages/admin-users-page'
@@ -150,8 +150,7 @@ const WIRING: ReadonlyArray<readonly [path: string, component: unknown, provenan
   ['/work/projects', ProjectsProcessesPage, 'dev'],
   ['/work/projects/:workLineId', WorkLineRecordPage, 'redesign'],
   ['/work/events', EventsWorkspacePage, 'dev'], 
-  ['/money', DashboardPage, 'dev'],
-  ['/money/detail', DashboardPage, 'dev'],
+  ['/money', MoneyPage, 'dev'],
   ['/money/budget', BudgetPage, 'dev'],
   ['/money/pricing', PricingPage, 'dev'],
   ['/money/follow-ups', FollowUpsPage, 'dev'],

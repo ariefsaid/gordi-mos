@@ -69,8 +69,8 @@ vi.mock('@/lib/db/admin-users', () => ({
 }))
 
 // ── money-lane heads (#250) ───────────────────────────────────────────────────────────────
-// `importActual` spread: dashboard-page also imports pure helpers (latestReportingDate,
-// latestMarginReportingDate) from these modules, and a bare factory would blank them.
+// `importActual` spread: the Money page's table model imports pure helpers (latestReportingDate)
+// from these modules, and a bare factory would blank them.
 vi.mock('@/lib/db/reporting', async () => ({
   ...(await vi.importActual<typeof import('@/lib/db/reporting')>('@/lib/db/reporting')),
   listSalesDailyRevenue: vi.fn(),
@@ -101,7 +101,7 @@ import { getBusinessUnits } from '@/lib/db/directory'
 import { ObjectivesPage } from './objectives-page'
 import { ProjectsProcessesPage } from './projects-processes-page'
 import { AdminUsersPage } from './admin-users-page'
-import { DashboardPage } from './dashboard-page'
+import { MoneyPage } from './money-page'
 import { BudgetPage } from './budget-page'
 import { PricingPage } from './pricing-page'
 
@@ -261,11 +261,11 @@ const pending = <T,>(): Promise<T> => new Promise<T>(() => {})
 
 const recentDate = new Date().toISOString().slice(0, 10)
 const MONEY_REVENUE: SalesDailyRevenueRow[] = [
-  { revenue_date: recentDate, channel: 'POS', esb_code: 'A', branch_code: 'BR-1', branch_name: 'Main', transactions: 10, clean_revenue: 100000, snapshot_as_of: new Date().toISOString(), source_contract_version: 'v1' },
-  { revenue_date: recentDate, channel: 'POS', esb_code: 'B', branch_code: 'BR-2', branch_name: 'Second', transactions: 8, clean_revenue: 80000, snapshot_as_of: new Date().toISOString(), source_contract_version: 'v1' },
+  { revenue_date: recentDate, channel: 'POS', esb_code: 'A', branch_code: 'BR-1', branch_name: 'Main', branch_id: null, transactions: 10, clean_revenue: 100000, snapshot_as_of: new Date().toISOString(), source_contract_version: 'v1' },
+  { revenue_date: recentDate, channel: 'POS', esb_code: 'B', branch_code: 'BR-2', branch_name: 'Second', branch_id: null, transactions: 8, clean_revenue: 80000, snapshot_as_of: new Date().toISOString(), source_contract_version: 'v1' },
 ]
 const MONEY_MARGIN: SalesMarginDailyRow[] = [
-  { margin_date: recentDate, esb_code: 'A', branch_code: 'BR-1', branch_name: 'Main', revenue: 100000, cogs_interim_sm: 50000, cogs_budget_bom: 50000, margin_interim: 50000, margin_interim_pct: 0.5, bom_coverage_pct: 1, snapshot_as_of: new Date().toISOString(), source_contract_version: 'v1' },
+  { margin_date: recentDate, esb_code: 'A', branch_code: 'BR-1', branch_name: 'Main', branch_id: null, revenue: 100000, cogs_interim_sm: 50000, cogs_budget_bom: 50000, margin_interim: 50000, bom_coverage_pct: 1, snapshot_as_of: new Date().toISOString(), source_contract_version: 'v1' },
 ]
 const budgetFixture = (id: string, scenario_label: string) => ({
   id, menu_item_esb_code: 'MENU-1', menu_item_name: 'Menu one', scenario_label,
@@ -275,46 +275,52 @@ const budgetFixture = (id: string, scenario_label: string) => ({
 const BOM_LINE = { menu_item_esb_code: 'MENU-1', ingredient_esb_code: 'ING-1', recipe_qty: 1, qty_unit: 'kg' }
 const COST_LINE = { ingredient_esb_code: 'ING-1', name: 'Ingredient', unit_cost: 1000, unit: 'kg', as_of: new Date().toISOString() }
 
-const renderMoney = () => renderInApp(<DashboardPage />, ['/money'])
+const renderMoney = () => renderInApp(<MoneyPage />, ['/money'])
 const renderBudget = () => renderInApp(<BudgetPage />, ['/plan/budget'])
 const renderPricing = () => renderInApp(<PricingPage />, ['/plan/pricing'])
 
-describe('GUARD-R2/money (#250): the Money head never shows a naked number, in any state', () => {
-  it('populated: one labelled meta sentence naming the cut and its freshness', async () => {
+/** A head that carries no meta at all: no count, no placeholder, no bare digit. */
+function expectNoHeadMeta() {
+  const head = screen.getByTestId('page-head')
+  expect(head.querySelectorAll('.ch-meta-line')).toHaveLength(0)
+  expect(head.textContent).not.toContain(DASH)
+  expect(head.querySelectorAll('.ch-count')).toHaveLength(0)
+  expect(bareNumberLeaves(head)).toHaveLength(0)
+}
+
+describe('GUARD-R2/money (#250, #1434): the Money head never shows a naked number, in any state', () => {
+  it('populated: one freshness sentence — the last day of sales and the sync', async () => {
     vi.mocked(listSalesDailyRevenue).mockResolvedValue(MONEY_REVENUE)
     vi.mocked(listSalesMarginDaily).mockResolvedValue(MONEY_MARGIN)
     renderMoney()
     await findPageInState('default')
-    // #804 A-3: the ONE loaded sentence — how much, how fresh, how far.
-    expectHeadMeta(/^2 branches · as of .+ · latest reporting day .+$/)
+    expectHeadMeta(/^Sales through .+ · synced .+$/)
   })
 
-  it('loading: the dash placeholder, never a stale digit', async () => {
+  // Loading, empty and error have no figures to date, so the head carries no meta line at all
+  // rather than a placeholder standing in for one.
+  it('loading: no meta line', async () => {
     vi.mocked(listSalesDailyRevenue).mockReturnValue(pending())
     vi.mocked(listSalesMarginDaily).mockReturnValue(pending())
     renderMoney()
     await findPageInState('loading')
-    expectHeadMeta(DASH)
+    expectNoHeadMeta()
   })
 
-  it('empty (#804 A-3): NO meta line at all — no "0" pill, and no dash standing in for a count that does not exist', async () => {
+  it('empty: no meta line', async () => {
     vi.mocked(listSalesDailyRevenue).mockResolvedValue([])
     vi.mocked(listSalesMarginDaily).mockResolvedValue([])
     renderMoney()
     await findPageInState('empty')
-    const head = screen.getByTestId('page-head')
-    expect(head.querySelectorAll('.ch-meta-line')).toHaveLength(0)
-    expect(head.textContent).not.toContain(DASH)
-    expect(head.querySelectorAll('.ch-count')).toHaveLength(0)
-    expect(bareNumberLeaves(head)).toHaveLength(0)
+    expectNoHeadMeta()
   })
 
-  it('error: the dash placeholder beside the retry, never a half-loaded count', async () => {
+  it('error: no meta line beside the retry', async () => {
     vi.mocked(listSalesDailyRevenue).mockRejectedValue(new Error('report unavailable'))
     vi.mocked(listSalesMarginDaily).mockRejectedValue(new Error('report unavailable'))
     renderMoney()
     await findPageInState('error')
-    expectHeadMeta(DASH)
+    expectNoHeadMeta()
   })
 })
 

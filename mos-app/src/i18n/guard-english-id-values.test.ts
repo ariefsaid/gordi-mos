@@ -29,8 +29,6 @@ const ID_EQUALS_EN_ALLOWLIST: ReadonlySet<string> = new Set([
   'signals.archive.attentionFyi', // FYI — the borrowed initialism stays in id (FR-024 "FYI kept", AC-031/AC-066)
   'inbox.target.type.followUp', // AR Follow-up — product term
   'followUps.counterparty', // Counterparty — domain term, no adopted id label yet
-  'money.footnote.interim', // Interim
-  'money.basis.interim', // interim — the same borrowed word in both locales
   'breadcrumb.detail', // Detail
   'dest.ecommerce', // Ecommerce
   'dest.inbox', // Inbox — pinned tab label per OD-WAY-93 (10)

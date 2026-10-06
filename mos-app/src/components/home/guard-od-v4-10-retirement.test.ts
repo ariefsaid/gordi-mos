@@ -10,8 +10,8 @@
  * test precisely because nothing renders them.
  *
  * Scope note (deliberate, not a blanket grep): `src/styles/segmented-track.css` is correctly KEPT.
- * The retired toggle was one of two consumers; `dashboard/cut-toggle.css` is still live, so the
- * shared pixel grammar stays and only the toggle's own selectors went. The assertions below pin
+ * The retired toggle was one of its consumers; Money's period control (`pages/money-page.css`) is
+ * live, so the shared pixel grammar stays and only the toggle's own selectors went. The assertions below pin
  * BOTH directions — the retired surface is gone AND the kept surface is intact — because a cleanup
  * that deletes a file with a live consumer is the same defect wearing the other face.
  *
@@ -99,10 +99,10 @@ describe('AC-933: the OD-V4-10 region-order toggle leaves no trace in the shippe
   // is the same defect as leaving a dead one behind, just wearing the other face.
   it('AC-933: the shared segmented-track grammar is KEPT — its live consumer still has its pixels', () => {
     const track = join(SRC, 'styles', 'segmented-track.css')
-    expect(existsSync(track), 'cut-toggle.css still imports this; deleting it is the mirror defect')
+    expect(existsSync(track), 'money-page.css still imports this; deleting it is the mirror defect')
       .toBe(true)
-    const cutToggle = readFileSync(join(SRC, 'components', 'dashboard', 'cut-toggle.css'), 'utf8')
-    expect(cutToggle).toMatch(/@import\s+['"][^'"]*segmented-track\.css['"]/)
+    const moneyPage = readFileSync(join(SRC, 'pages', 'money-page.css'), 'utf8')
+    expect(moneyPage).toMatch(/@import\s+['"][^'"]*segmented-track\.css['"]/)
     // …and what it keeps is the SHARED grammar only: none of the retired consumer's own selectors.
     expect(stripComments(readFileSync(track, 'utf8'))).not.toMatch(/home-order/)
   })

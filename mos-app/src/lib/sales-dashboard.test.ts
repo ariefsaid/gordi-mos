@@ -5,18 +5,8 @@
 
 import { describe, it, expect } from 'vitest'
 import type { SalesDailyRevenueRow } from '@/lib/db/reporting'
-import {
-  activityMap,
-  formatIDRCompact,
-  formatIDRFull,
-  trailingWindow,
-  formatDelta,
-  channelMixLabel,
-  dailySeries,
-  revenueTableRows,
-  sortRevenueRows,
-  computeSalesKpis,
-} from './sales-dashboard'
+import { translateFor } from '@/i18n/use-t'
+import { formatIDRCompact, trailingWindow, formatDelta } from './sales-dashboard'
 
 function row(overrides: Partial<SalesDailyRevenueRow>): SalesDailyRevenueRow {
   return {
@@ -25,6 +15,7 @@ function row(overrides: Partial<SalesDailyRevenueRow>): SalesDailyRevenueRow {
     esb_code: 'GHQ',
     branch_code: 'GHQ',
     branch_name: 'Gordi HQ',
+    branch_id: null,
     transactions: 10,
     clean_revenue: 1_000_000,
     snapshot_as_of: '2026-07-01T02:00:00Z',
@@ -40,39 +31,6 @@ const B2B_ROASTERY = row({
   branch_name: 'Gordi Roastery',
   transactions: 12,
   clean_revenue: 4_500_000,
-})
-
-// ── activityMap ────────────────────────────────────────────────────────────────
-describe('activityMap', () => {
-  it('maps POS to Cafe Ops', () => {
-    expect(activityMap(row({ channel: 'POS', esb_code: 'GHQ' }))).toBe('Cafe Ops')
-    expect(activityMap(row({ channel: 'POS', esb_code: 'SKC' }))).toBe('Cafe Ops')
-    expect(activityMap(row({ channel: 'POS', esb_code: 'GGS' }))).toBe('Cafe Ops')
-    expect(activityMap(row({ channel: 'POS', esb_code: 'RRS' }))).toBe('Cafe Ops')
-  })
-
-  it('AC-006: maps B2B/GRI to Roastery', () => {
-    expect(activityMap(B2B_ROASTERY)).toBe('Roastery')
-  })
-
-  it('maps unknown channel/esb_code to Unmapped', () => {
-    expect(activityMap(row({ channel: 'ONLINE', esb_code: 'XYZ' }))).toBe('Unmapped')
-  })
-})
-
-// ── IDR formatting ─────────────────────────────────────────────────────────────
-describe('formatIDRFull', () => {
-  it('formats a whole-rupiah amount with thousands grouping', () => {
-    expect(formatIDRFull(1_284_500_000)).toBe('Rp 1.284.500.000')
-  })
-
-  it('formats negative amounts with a leading minus before Rp', () => {
-    expect(formatIDRFull(-500_000)).toBe('-Rp 500.000')
-  })
-
-  it('formats zero', () => {
-    expect(formatIDRFull(0)).toBe('Rp 0')
-  })
 })
 
 describe('formatIDRCompact', () => {
@@ -128,174 +86,20 @@ describe('trailingWindow', () => {
 })
 
 describe('formatDelta', () => {
-  it('formats a positive delta as success tone with a % string', () => {
-    const d = formatDelta({ current: 1_100_000, prior: 1_000_000 })
-    expect(d.tone).toBe('success')
-    expect(d.text).toContain('+10')
-    expect(d.text).toContain('%')
+  const en = translateFor('en')
+  const id = translateFor('id')
+
+  it('a rise reads as success with a signed id-ID percent in the viewer\'s language', () => {
+    expect(formatDelta({ current: 1_100_000, prior: 1_000_000 }, en)).toEqual({ text: '+10,0% vs previous period', tone: 'success' })
+    expect(formatDelta({ current: 1_100_000, prior: 1_000_000 }, id).text).toBe('+10,0% vs periode sebelumnya')
   })
 
-  it('formats a negative delta as destructive tone', () => {
-    const d = formatDelta({ current: 900_000, prior: 1_000_000 })
-    expect(d.tone).toBe('destructive')
-    expect(d.text).toContain('-10')
+  it('a fall reads as destructive with the minus sign', () => {
+    expect(formatDelta({ current: 900_000, prior: 1_000_000 }, en)).toEqual({ text: '\u221210,0% vs previous period', tone: 'destructive' })
   })
 
-  it('renders neutral "no comparison" (never 0%/NaN) when prior is null', () => {
-    const d = formatDelta({ current: 500_000, prior: null })
-    expect(d.tone).toBe('neutral')
-    expect(d.text).toBe('no comparison')
-    expect(d.text).not.toMatch(/NaN|Infinity/)
-  })
-
-  it('renders neutral "no comparison" when prior is exactly 0 (avoids +Infinity%)', () => {
-    const d = formatDelta({ current: 500_000, prior: 0 })
-    expect(d.tone).toBe('neutral')
-    expect(d.text).not.toMatch(/NaN|Infinity/)
-  })
-})
-
-// ── channelMixLabel ─────────────────────────────────────────────────────────────
-describe('channelMixLabel', () => {
-  it('AC-006: shows a POS/B2B split string with Roastery revenue included', () => {
-    const rows = [
-      row({ channel: 'POS', clean_revenue: 8_000_000 }),
-      B2B_ROASTERY, // clean_revenue 4_500_000, channel B2B
-    ]
-    const label = channelMixLabel(rows)
-    expect(label).toContain('POS')
-    expect(label).toContain('B2B')
-    // 8m / 12.5m = 64%, 4.5m / 12.5m = 36%
-    expect(label).toMatch(/POS 64%/)
-    expect(label).toMatch(/B2B 36%/)
-  })
-
-  it('returns "No revenue" for an empty rows list', () => {
-    expect(channelMixLabel([])).toBe('No revenue')
-  })
-})
-
-// ── dailySeries ──────────────────────────────────────────────────────────────────
-describe('dailySeries', () => {
-  it('groups revenue by date and channel, sorted ascending by date', () => {
-    const rows = [
-      row({ revenue_date: '2026-06-30', channel: 'POS', clean_revenue: 1_000_000 }),
-      { ...B2B_ROASTERY, revenue_date: '2026-06-30' },
-      row({ revenue_date: '2026-06-29', channel: 'POS', clean_revenue: 500_000 }),
-    ]
-    const series = dailySeries(rows)
-    expect(series).toHaveLength(2)
-    expect(series[0].date).toBe('2026-06-29')
-    expect(series[1].date).toBe('2026-06-30')
-    expect(series[1].byChannel.POS).toBe(1_000_000)
-    expect(series[1].byChannel.B2B).toBe(4_500_000)
-    expect(series[1].total).toBe(5_500_000)
-  })
-
-  it('returns an empty array for no rows', () => {
-    expect(dailySeries([])).toEqual([])
-  })
-})
-
-// ── revenueTableRows ──────────────────────────────────────────────────────────────
-describe('revenueTableRows', () => {
-  const rows = [
-    row({ branch_code: 'GHQ', branch_name: 'Gordi HQ', channel: 'POS', clean_revenue: 8_000_000, transactions: 80 }),
-    { ...B2B_ROASTERY, transactions: 12, clean_revenue: 2_000_000 },
-  ]
-
-  it('AC-006: Branch cut keeps B2B/Roastery visible with its own branch row', () => {
-    const table = revenueTableRows(rows, 'Branch')
-    const roastery = table.find(r => r.dimension === 'Gordi Roastery')
-    expect(roastery).toBeDefined()
-    expect(roastery!.channel).toBe('B2B')
-    expect(roastery!.revenue).toBe(2_000_000)
-  })
-
-  it('Activity cut groups POS under Cafe Ops and B2B under Roastery', () => {
-    const table = revenueTableRows(rows, 'Activity')
-    expect(table.find(r => r.dimension === 'Cafe Ops')).toBeDefined()
-    expect(table.find(r => r.dimension === 'Roastery')).toBeDefined()
-  })
-
-  it('computes share-of-total and avg revenue per transaction', () => {
-    const table = revenueTableRows(rows, 'Branch')
-    const ghq = table.find(r => r.dimension === 'Gordi HQ')!
-    // total = 10,000,000; GHQ share = 80%
-    expect(ghq.sharePct).toBe(80)
-    expect(ghq.avgRevenuePerTxn).toBe(100_000)
-  })
-
-  it('groups unmapped branch/channel under Unmapped in Activity view only', () => {
-    const onlineRow = row({ channel: 'ONLINE', esb_code: 'XYZ', branch_code: 'XYZ', branch_name: 'Unknown Channel', clean_revenue: 300_000 })
-    const activityTable = revenueTableRows([...rows, onlineRow], 'Activity')
-    expect(activityTable.find(r => r.dimension === 'Unmapped')).toBeDefined()
-
-    const branchTable = revenueTableRows([...rows, onlineRow], 'Branch')
-    expect(branchTable.find(r => r.dimension === 'Unmapped')).toBeUndefined()
-    expect(branchTable.find(r => r.dimension === 'Unknown Channel')).toBeDefined()
-  })
-
-  it('returns an empty array for no rows', () => {
-    expect(revenueTableRows([], 'Branch')).toEqual([])
-  })
-})
-
-// ── sortRevenueRows (FR-009) ────────────────────────────────────────────────────────
-describe('sortRevenueRows', () => {
-  const table = revenueTableRows(
-    [
-      row({ branch_code: 'GHQ', branch_name: 'Gordi HQ', channel: 'POS', clean_revenue: 8_000_000, transactions: 80 }),
-      { ...B2B_ROASTERY, transactions: 12, clean_revenue: 2_000_000 },
-    ],
-    'Branch',
-  )
-
-  it('sorts by a numeric column ascending', () => {
-    const sorted = sortRevenueRows(table, { key: 'revenue', dir: 'asc' })
-    expect(sorted.map(r => r.dimension)).toEqual(['Gordi Roastery', 'Gordi HQ'])
-  })
-
-  it('sorts by a numeric column descending', () => {
-    const sorted = sortRevenueRows(table, { key: 'revenue', dir: 'desc' })
-    expect(sorted.map(r => r.dimension)).toEqual(['Gordi HQ', 'Gordi Roastery'])
-  })
-
-  it('sorts by a string column (dimension) ascending/descending', () => {
-    expect(sortRevenueRows(table, { key: 'dimension', dir: 'asc' }).map(r => r.dimension)).toEqual([
-      'Gordi HQ',
-      'Gordi Roastery',
-    ])
-    expect(sortRevenueRows(table, { key: 'dimension', dir: 'desc' }).map(r => r.dimension)).toEqual([
-      'Gordi Roastery',
-      'Gordi HQ',
-    ])
-  })
-
-  it('does not mutate the input array', () => {
-    const original = [...table]
-    sortRevenueRows(table, { key: 'revenue', dir: 'asc' })
-    expect(table).toEqual(original)
-  })
-
-  it('returns the input order unchanged when sort is undefined', () => {
-    expect(sortRevenueRows(table, undefined)).toEqual(table)
-  })
-})
-
-// ── computeSalesKpis ──────────────────────────────────────────────────────────────
-describe('computeSalesKpis', () => {
-  it('AC-004/005/006: bundles latest-day, 7d/30d windows, and channel mix anchored to latestDate', () => {
-    const rows = [
-      row({ revenue_date: '2026-06-30', channel: 'POS', clean_revenue: 8_000_000 }),
-      { ...B2B_ROASTERY, revenue_date: '2026-06-30' },
-    ]
-    const kpis = computeSalesKpis(rows, '2026-06-30')
-    expect(kpis.latestReportingDate).toBe('2026-06-30')
-    expect(kpis.latestDayRevenue).toBe(8_000_000 + 4_500_000)
-    expect(kpis.trailing7d.current).toBe(8_000_000 + 4_500_000)
-    expect(kpis.trailing30d.current).toBe(8_000_000 + 4_500_000)
-    expect(kpis.channelMix).toContain('POS')
-    expect(kpis.channelMix).toContain('B2B')
+  it('no earlier figure (null or zero) reads as a neutral "no comparison", never 0% or Infinity', () => {
+    expect(formatDelta({ current: 500_000, prior: null }, en)).toEqual({ text: 'no comparison', tone: 'neutral' })
+    expect(formatDelta({ current: 500_000, prior: 0 }, id)).toEqual({ text: 'tak ada pembanding', tone: 'neutral' })
   })
 })
