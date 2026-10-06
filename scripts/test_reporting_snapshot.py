@@ -557,6 +557,10 @@ class UsageSnapshotTests(unittest.TestCase):
         sql = " ".join(build_usage_source_query().split())
 
         self.assertIn("o.status_name in ('Finished', 'Void')", sql)
+        self.assertIn(
+            "select distinct esb_code, bom_id from recipe", sql,
+            "coverage counts each sold line once, however many ingredients its recipe has",
+        )
         self.assertNotIn("Cancel", sql)
 
     def test_usage_row_without_a_unit_is_refused_by_the_named_error(self):
