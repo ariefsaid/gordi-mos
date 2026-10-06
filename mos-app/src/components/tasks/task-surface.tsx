@@ -1,9 +1,10 @@
 import './TaskSurface.css'
+import { TASK_EVENTS_PAGE_SIZE } from '@/lib/db/task-paging'
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useNavigate, Link, useHref, useLocation, useSearchParams, type To } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import {
-  getTask, listTaskEvents, TASK_EVENTS_PAGE_SIZE, createTask,
+  getTask, listTaskEvents, createTask,
   type TaskEventsCursor,
   updateTaskStatus, updateTaskFields,
   addChecklistItem, toggleChecklistItem, reorderChecklistItem, deleteChecklistItem,

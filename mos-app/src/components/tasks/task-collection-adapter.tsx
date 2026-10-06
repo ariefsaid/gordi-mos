@@ -2,7 +2,8 @@
 // The full descriptor (load/project/presentations/viewer) is layered on in the migration task; this
 // module owns the typed Task query <-> URL schema and the vocabulary guard (PIC / Supervisor /
 // Business Unit — never RACI, never a role-free `person`, never a Team before Issue 8's team_id).
-import { listOlderDoneTasks, listTasks, taskDoneRecentCutoff, type OlderDoneTaskCursor, type TaskListFilters } from '@/lib/db/tasks'
+import { taskDoneRecentCutoff } from '@/lib/db/task-paging'
+import { listOlderDoneTasks, listTasks, type OlderDoneTaskCursor, type TaskListFilters } from '@/lib/db/tasks'
 import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
 import type { ProcessRunRollup } from '@/lib/db/processes.types'
 import { listRunRollups, listTaskDefs } from '@/lib/db/processes'

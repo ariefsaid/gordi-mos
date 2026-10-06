@@ -12,9 +12,7 @@ import type { TaskRow } from '@/lib/db/tasks.types'
 vi.mock('../lib/db/tasks', () => ({
   listTasks: vi.fn(),
   listOlderDoneTasks: vi.fn(),
-  taskDoneRecentCutoff: vi.fn(),
   listTaskEvents: vi.fn(),
-  TASK_EVENTS_PAGE_SIZE: 50,
   getTask: vi.fn(),
   createTask: vi.fn(),
   updateTaskStatus: vi.fn(),
@@ -46,7 +44,7 @@ vi.mock('../lib/comments/postComment', () => ({
 }))
 
 import {
-  listTasks, listOlderDoneTasks, taskDoneRecentCutoff, listTaskEvents,
+  listTasks, listOlderDoneTasks, listTaskEvents,
   getTask, updateTaskStatus, createTask, archiveTask,
 } from '@/lib/db/tasks'
 import { getBusinessUnits, getPeople, getDownlinePersonIds } from '@/lib/db/directory'
@@ -196,7 +194,6 @@ beforeEach(() => {
   vi.mocked(listObjectives).mockResolvedValue([])
   vi.mocked(listWorkLines).mockResolvedValue([])
   mockListOlderDoneTasks.mockResolvedValue({ rows: [], nextCursor: null, hasMore: false })
-  vi.mocked(taskDoneRecentCutoff).mockReturnValue('2026-09-01T00:00:00Z')
   vi.mocked(listTaskEvents).mockResolvedValue([])
   vi.mocked(listComments).mockResolvedValue([])
   mockPostComment.mockResolvedValue('comment-1')
