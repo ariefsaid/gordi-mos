@@ -12,10 +12,17 @@ bad() { fail=$((fail+1)); printf '  FAIL  %s\n' "$1"; }
 
 # A PATH with only the tools the helpers need, so the host's real supabase/docker/dockerd stay out.
 mkdir -p "$tmp/sys" "$tmp/bin"
-for t in bash tar gzip mkdir ln grep sleep cat rm touch nohup; do ln -s "$(command -v "$t")" "$tmp/sys/$t"; done
+for t in bash tar gzip mkdir ln grep sleep cat rm touch nohup mktemp; do ln -s "$(command -v "$t")" "$tmp/sys/$t"; done
 printf '#!/bin/sh\necho x86_64\n' > "$tmp/bin/uname"
 # curl stub: records its URL and streams $TARBALL.
-printf '#!/bin/sh\necho "$2" >> "%s/curl-calls"\ncat "$TARBALL"\n' "$tmp" > "$tmp/bin/curl"
+printf '#!/bin/sh\necho "$*" >> "%s/curl-calls"\ncat "$TARBALL"\n' "$tmp" > "$tmp/bin/curl"
+cat > "$tmp/bin/sha256sum" <<'SH'
+#!/bin/sh
+hash=5a0d3ed4c44f8dd1520a9f7ed6309aa60ef3bfc6c5483c9b11f70191f9d74cf6
+[ -z "${BAD_CHECKSUM:-}" ] || hash=0000000000000000000000000000000000000000000000000000000000000000
+printf '%s  %s\n' "$hash" "$1" >> "$CHECKSUMLOG"
+printf '%s  %s\n' "$hash" "$1"
+SH
 chmod +x "$tmp/bin/"*
 P="$tmp/bin:$tmp/sys"
 
@@ -27,13 +34,19 @@ mk_tarball() { # $1 out · $2.. member names
 mk_tarball "$tmp/full.tgz" supabase supabase-go
 mk_tarball "$tmp/partial.tgz" supabase
 
-run() { env -i HOME="$tmp" PATH="$P" TARBALL="$TARBALL" bash -c "source '$LIB'; $1" >/dev/null 2>&1; }
+run() { env -i HOME="$tmp" PATH="$P" TARBALL="$TARBALL" CHECKSUMLOG="$tmp/checksums" BAD_CHECKSUM="${BAD_CHECKSUM:-}" bash -c "source '$LIB'; $1" >/dev/null 2>&1; }
 
 TARBALL="$tmp/full.tgz"
 if run "install_supabase_cli 2.104.0 '$tmp/share' '$tmp/link'" && [ -x "$tmp/share/supabase-go" ] \
   && [ "$("$tmp/link/supabase" --version)" = 2.104.0 ]; then ok "install keeps supabase-go beside the linked supabase"
 else bad "install keeps supabase-go beside the linked supabase"; fi
 grep -q 'v2.104.0/supabase_linux_amd64.tar.gz' "$tmp/curl-calls" && ok "downloads the pinned linux asset" || bad "downloads the pinned linux asset: $(cat "$tmp/curl-calls")"
+grep -Eq '^[0-9a-f]{64}  /[^ ]+$' "$tmp/checksums" && ok "checks the downloaded archive" || bad "checks the downloaded archive"
+
+BAD_CHECKSUM=1; export BAD_CHECKSUM
+if ! run "install_supabase_cli 2.104.0 '$tmp/share-bad' '$tmp/link-bad'" && [ ! -e "$tmp/link-bad/supabase" ]; then ok "checksum mismatch fails before linking the CLI"
+else bad "checksum mismatch fails before linking the CLI"; fi
+unset BAD_CHECKSUM
 
 rm -f "$tmp/curl-calls"
 P="$tmp/link:$tmp/bin:$tmp/sys"
