@@ -343,7 +343,7 @@ class Config:
     timeout: float
     post_goods_receipts: bool = False
     post_org_id: str = ""
-    gr_shape: "GoodsReceiptShape" = field(default_factory=lambda: GoodsReceiptShape())
+    gr_shape: GoodsReceiptShape = field(default_factory=lambda: GoodsReceiptShape())
 
     @property
     def stamps_erp_of_record(self) -> bool:
@@ -1574,7 +1574,7 @@ class Found:
     authorized: bool = False
 
 
-def resume_point(outbox: "Outbox", gid: str, meta: dict[str, Any],
+def resume_point(outbox: Outbox, gid: str, meta: dict[str, Any],
                  lookup) -> tuple[str | None, str | None]:
     """Where an attempt starts: (authorized number, created number), either or both None.
 
@@ -1604,7 +1604,7 @@ def resume_point(outbox: "Outbox", gid: str, meta: dict[str, Any],
     return None, found.number
 
 
-def guarded_create(outbox: "Outbox", gid: str, send) -> str:
+def guarded_create(outbox: Outbox, gid: str, send) -> str:
     """Send one create. The create-sent mark is written BEFORE it goes out, so an answer lost
     on the way back sends the next attempt to the lookup instead of a second create. A
     definite refusal created nothing, so it clears the mark."""
@@ -1620,7 +1620,7 @@ def guarded_create(outbox: "Outbox", gid: str, send) -> str:
     return number
 
 
-def authorize_created(outbox: "Outbox", gid: str, created: str, send) -> str:
+def authorize_created(outbox: Outbox, gid: str, created: str, send) -> str:
     """Authorize a created document. Only the number this returns is evidence of a post
     (FR-1025): a portion is in ESB once it is recorded, never before."""
     number = send(created) or created
@@ -1628,7 +1628,7 @@ def authorize_created(outbox: "Outbox", gid: str, created: str, send) -> str:
     return number
 
 
-def fan_out(outbox: "Outbox", gid: str, rows: list[dict[str, Any]], number: str) -> None:
+def fan_out(outbox: Outbox, gid: str, rows: list[dict[str, Any]], number: str) -> None:
     for row in rows:
         if row.get("status") != "posted":
             outbox.close_posted(row, number)
@@ -1713,7 +1713,7 @@ def esb_product_details(cfg: Config, item_unit_ids: list[str]) -> dict[str, int]
     return out
 
 
-def read_po_outstanding(cfg: Config, client: "ErpClient", po_number: str) -> dict[int, dict[str, Any]]:
+def read_po_outstanding(cfg: Config, client: ErpClient, po_number: str) -> dict[int, dict[str, Any]]:
     """The PO's outstanding per ESB product detail, read fresh (FR-1027), with the product each
     line belongs to. An empty result means nothing on the PO is outstanding."""
     shape = OpenPoShape()
@@ -1774,7 +1774,7 @@ def goods_receipt_body(cfg: Config, group: GoodsReceiptGroup, pdids: dict[str, i
     }
 
 
-def lookup_goods_receipt(cfg: Config, client: "ErpClient", mos_key: str) -> Found:
+def lookup_goods_receipt(cfg: Config, client: ErpClient, mos_key: str) -> Found:
     """FR-1028: ESB's goods receipts carrying exactly this key. One match decides; none is
     provably absent only when the read itself was understood; anything else halts."""
     shape = cfg.gr_shape
@@ -1800,7 +1800,7 @@ def lookup_goods_receipt(cfg: Config, client: "ErpClient", mos_key: str) -> Foun
     return Found(number, authorized=status in shape.authorized_statuses)
 
 
-def run_goods_receipt_group(cfg: Config, client: "ErpClient", outbox: "Outbox | None",
+def run_goods_receipt_group(cfg: Config, client: ErpClient, outbox: Outbox | None,
                             rows: list[dict[str, Any]], *, plan_only: bool, out) -> int:
     """Post one (receipt, PO) group as one ESB goods receipt. Returns the rows not clean."""
     ref = rows[0].get("push_group_id") or rows[0].get("source_ref")
@@ -1869,7 +1869,7 @@ def run_goods_receipt_group(cfg: Config, client: "ErpClient", outbox: "Outbox | 
     return 0
 
 
-def post_goods_receipt(cfg: Config, client: "ErpClient", outbox: "Outbox", group: GoodsReceiptGroup,
+def post_goods_receipt(cfg: Config, client: ErpClient, outbox: Outbox, group: GoodsReceiptGroup,
                        meta: dict[str, Any], *, out) -> str | None:
     """Resume, re-read, fit, create, authorize. Returns the authorized number, or None when
     nothing of the group fits the PO any more (the database returned it to Receipt issues).
@@ -1902,7 +1902,7 @@ def post_goods_receipt(cfg: Config, client: "ErpClient", outbox: "Outbox", group
             body = goods_receipt_body(cfg, group, pdids, outstanding)
             try:
                 created = guarded_create(outbox, gid,
-                                         lambda: client.post(path, body, shape.create_result))
+                                         lambda body=body: client.post(path, body, shape.create_result))
                 break
             except Permanent as exc:
                 if attempt == 1 and exc.esb_message and re.search(shape.over_outstanding, exc.esb_message):
