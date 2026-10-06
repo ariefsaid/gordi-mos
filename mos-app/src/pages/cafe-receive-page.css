@@ -101,6 +101,8 @@
   font-weight: 600;
 }
 
+.cafe-receive__counted h2[tabindex='-1']:focus { outline: none; }
+
 .cafe-receive__counted p {
   margin: 0;
   color: var(--muted-foreground);

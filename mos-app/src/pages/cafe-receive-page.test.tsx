@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { AuthState } from '@/auth/context'
@@ -161,7 +161,7 @@ describe('CafeReceivePage', () => {
     expect(screen.getByText('1 line')).toBeInTheDocument()
     fireEvent.click(within(await openLockStep()).getByRole('button', { name: 'Lock counts' }))
 
-    expect(await screen.findByRole('heading', { name: 'Counts locked' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Counts locked' })).toHaveFocus()
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.queryByRole('textbox', { name: 'Received for Fresh milk' })).toBeNull()
     fireEvent.change(screen.getByRole('textbox', { name: 'Delivery-note number (optional)' }), { target: { value: 'DN-7' } })
@@ -180,7 +180,7 @@ describe('CafeReceivePage', () => {
 
     expect(await within(step).findByRole('alert')).toHaveTextContent('could not be submitted')
     expect(screen.getByRole('dialog')).toBe(step)
-    await waitFor(() => expect(lock).toBeEnabled())
+    await waitFor(() => expect(lock).not.toHaveAttribute('aria-disabled'))
     fireEvent.click(lock)
     await waitFor(() => expect(mockSubmit).toHaveBeenCalledTimes(2))
     expect(mockSubmit.mock.calls[1][2]).toBe(mockSubmit.mock.calls[0][2])
@@ -251,6 +251,19 @@ describe('CafeReceivePage', () => {
       { item_unit_id: 'unit-kg', quantity: '2.5' },
       { item_unit_id: 'unit-l', quantity: '12' },
     ])
+  })
+
+  it('issue 1437: going offline in the confirm step says so there and blocks Lock counts', async () => {
+    renderPage()
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '12' } })
+    const step = await openLockStep()
+
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: false })
+    act(() => { window.dispatchEvent(new Event('offline')) })
+
+    expect(within(step).getByRole('alert')).toHaveTextContent('Reconnect to send this receipt.')
+    expect(within(step).getByRole('button', { name: 'Lock counts' })).toBeDisabled()
+    expect(mockSubmit).not.toHaveBeenCalled()
   })
 
   it('FR-1004 a shift member may choose today or yesterday; an ops lead may backdate further', async () => {

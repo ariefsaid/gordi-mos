@@ -1,0 +1,89 @@
+/* Lock-confirm step: header and actions stay put, only the line list scrolls. */
+
+.modal-shell__surface.cafe-lock-confirm__surface {
+  display: flex;
+  overflow: hidden;
+}
+
+.cafe-lock-confirm {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  max-height: calc(100dvh - 34px);
+}
+
+.cafe-lock-confirm__head {
+  display: grid;
+  flex: none;
+  gap: 4px;
+  padding: 20px 24px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.cafe-lock-confirm__title {
+  margin: 0 0 2px;
+  color: var(--foreground);
+  font-family: var(--font-display);
+  font-size: var(--font-size-heading);
+  font-weight: 600;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+}
+
+.cafe-lock-confirm__context,
+.cafe-lock-confirm__warning {
+  margin: 0;
+  font-size: var(--font-size-body);
+  line-height: 1.45;
+}
+
+.cafe-lock-confirm__context { color: var(--muted-foreground); }
+.cafe-lock-confirm__warning { color: var(--foreground); font-weight: 600; }
+
+.cafe-lock-confirm__lines.cafe-receipt-lines {
+  flex: 1 1 auto;
+  align-content: start;
+  min-height: 0;
+  padding: 0 24px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.cafe-lock-confirm__lines li { padding: 10px 0; }
+.cafe-lock-confirm__lines li:last-child { border-bottom: 0; }
+
+.cafe-lock-confirm__lines:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+.cafe-lock-confirm__quantity {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+.cafe-lock-confirm__foot {
+  display: grid;
+  flex: none;
+  gap: 12px;
+  padding: 14px 24px 20px;
+  border-top: 1px solid var(--border);
+}
+
+.cafe-lock-confirm__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.cafe-lock-confirm__action { min-width: 132px; min-height: 44px; }
+
+@media (max-width: 640px) {
+  .cafe-lock-confirm { max-height: none; height: 100%; }
+  .cafe-lock-confirm__head { padding: max(16px, env(safe-area-inset-top)) 16px 12px; }
+  .cafe-lock-confirm__lines.cafe-receipt-lines { padding-inline: 16px; }
+  .cafe-lock-confirm__foot { padding: 12px 16px calc(16px + env(safe-area-inset-bottom)); }
+  .cafe-lock-confirm__actions { flex-direction: column; gap: 8px; }
+  .cafe-lock-confirm__action { width: 100%; min-height: 48px; }
+}
