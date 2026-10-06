@@ -76,6 +76,17 @@ describe('Café receipt private photo adapter', () => {
     expect(createSignedUrls).toHaveBeenCalledOnce()
   })
 
+  it('FR-1018 signs many photos in batches of at most 100, so no single signing request runs long', async () => {
+    const createSignedUrls = vi.fn(async (paths: string[]) => ({ data: paths.map(path => ({ signedUrl: `https://private.test/${path}` })), error: null }))
+    storageFromMock.mockReturnValue({ createSignedUrls })
+    const records = Array.from({ length: 1200 }, (_, index) => ({ lineId: `l-${index % 300}`, path: `p-${index}`, createdAt: 't' }))
+
+    const signed = await signCafeReceiptPhotos(records)
+
+    expect(createSignedUrls.mock.calls.map(([paths]) => paths.length)).toEqual(Array(12).fill(100))
+    expect(signed.map(photo => photo.url)).toEqual(records.map(record => `https://private.test/${record.path}`))
+  })
+
   it('AC-1013 refuses more than 50 receipts in one photo read', async () => {
     await expect(listCafeReceiptPhotos(Array.from({ length: 51 }, (_, index) => `receipt-${index}`)))
       .rejects.toThrow('at most 50 receipts')

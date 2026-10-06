@@ -67,15 +67,33 @@ export async function listCafeReceiptPhotos(receiptIds: readonly string[]): Prom
   return byReceipt
 }
 
+/**
+ * Paths per signing request. The storage API checks the bucket's read policy for every path, so
+ * one request for a whole review queue could outlast the statement timeout; batches stay short.
+ */
+const SIGN_BATCH = 100
+const SIGN_CONCURRENCY = 4
+
 /** Short-lived URLs for the photos about to be shown; each one passes the bucket's read policy. */
 export async function signCafeReceiptPhotos(records: readonly CafeReceiptPhotoRecord[]): Promise<CafeReceiptPhoto[]> {
-  if (records.length === 0) return []
-  const { data: signed, error } = await supabase.storage.from(CAFE_RECEIPT_PHOTO_BUCKET)
-    .createSignedUrls(records.map(record => record.path), SIGNED_URL_SECONDS)
-  if (error) throw new Error(`signCafeReceiptPhotos failed: ${error.message}`)
-  return records.map((record, index) => {
-    const url = signed[index]?.signedUrl
-    if (!url) throw new Error('signCafeReceiptPhotos failed: could not sign a stored photo')
-    return { ...record, url }
-  })
+  const batches: CafeReceiptPhotoRecord[][] = []
+  for (let start = 0; start < records.length; start += SIGN_BATCH) batches.push(records.slice(start, start + SIGN_BATCH))
+  const signed: CafeReceiptPhoto[][] = new Array(batches.length)
+  let next = 0
+  async function worker() {
+    while (next < batches.length) {
+      const index = next++
+      const batch = batches[index]
+      const { data, error } = await supabase.storage.from(CAFE_RECEIPT_PHOTO_BUCKET)
+        .createSignedUrls(batch.map(record => record.path), SIGNED_URL_SECONDS)
+      if (error) throw new Error(`signCafeReceiptPhotos failed: ${error.message}`)
+      signed[index] = batch.map((record, position) => {
+        const url = data[position]?.signedUrl
+        if (!url) throw new Error('signCafeReceiptPhotos failed: could not sign a stored photo')
+        return { ...record, url }
+      })
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(SIGN_CONCURRENCY, batches.length) }, worker))
+  return signed.flat()
 }
