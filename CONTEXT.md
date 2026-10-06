@@ -141,7 +141,7 @@ The step that locks a receipt's quantities and items; the difference against **O
 The quantity still to be received on an open purchase order line in **ESB**; MOS never sends a receipt above it.
 
 **Receipt issue**:
-A receipt portion or line procurement must act on: no purchase order, more than outstanding, a different unit, short, or damaged/wrong. Blocking kinds wait unposted until procurement links a purchase order or closes the issue.
+A receipt portion or line routed to procurement. No purchase order, more than outstanding, or a different unit blocks posting until procurement links a purchase order or closes the issue; short and damaged/wrong are for follow-up with the vendor and never block posting.
 
 **PO created after delivery**:
 A flag on a receipt line whose linked purchase order was created in **ESB** after the goods arrived; it makes backdating visible without blocking it.
