@@ -763,9 +763,16 @@ export function CafeReceivePage() {
         {loadState === 'ready' && stream && canCapture && captureReady && !counted && items.length > 0 && (
           <div className="cafe-count__footer">
             <div className="cafe-receive__band-status">
-              <p className="cafe-count__tally" aria-live="polite">
-                {t(lines.length === 1 ? 'cafe.receive.lines.one' : 'cafe.receive.lines.other', { count: lines.length })}
-              </p>
+              <div className="cafe-receive__band-row">
+                <p className="cafe-count__tally" aria-live="polite">
+                  {t(lines.length === 1 ? 'cafe.receive.lines.one' : 'cafe.receive.lines.other', { count: lines.length })}
+                </p>
+                {hasDraftData && (
+                  <button type="button" className="cafe-receive__discard-draft" onClick={() => setDiscardingDraft(true)}>
+                    {t('cafe.receive.draft.discard')}
+                  </button>
+                )}
+              </div>
               {invalidCount > 0 && (
                 <p className="cafe-count__field-error" role="status">
                   {t(invalidCount === 1 ? 'cafe.receive.fixInvalid.one' : 'cafe.receive.fixInvalid.other', { count: invalidCount })}
@@ -778,12 +785,7 @@ export function CafeReceivePage() {
                 </p>
               )}
               {draftSaved && hasDraftData && (
-                <p className="cafe-receive__band-note" role="status">
-                  {t(isOnline ? 'cafe.receive.draft.saved' : 'cafe.receive.draft.offline')}{' '}
-                  <button type="button" className="cafe-receive__discard-draft" onClick={() => setDiscardingDraft(true)}>
-                    {t('cafe.receive.draft.discard')}
-                  </button>
-                </p>
+                <p className="cafe-receive__band-note" role="status">{t(isOnline ? 'cafe.receive.draft.saved' : 'cafe.receive.draft.offline')}</p>
               )}
             </div>
             <button
