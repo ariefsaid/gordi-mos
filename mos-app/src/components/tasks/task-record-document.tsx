@@ -34,6 +34,10 @@ type TaskRecordDocumentProps = {
   onReorderChecklist: (id: string, direction: 'up' | 'down') => void
   onDeleteChecklist: (id: string) => void
   events: TaskEventRow[]
+  eventsHasMore?: boolean
+  eventsLoadingMore?: boolean
+  eventsMoreError?: boolean
+  onLoadMoreEvents?: () => void
   comments: TaskComment[]
   onPostComment: (body: string) => Promise<void> | void
   commentDraft: string
@@ -56,7 +60,8 @@ const STATUS_TONE: Record<TaskStatus, RecordFactTone> = {
 export function TaskRecordDocument({
   adapter, task, mode, headingLevel, canonicalHref, now, people,
   checklist, checklistError, onAddChecklist, onToggleChecklist, onReorderChecklist, onDeleteChecklist,
-  events, comments, onPostComment, commentDraft, onCommentDraftChange, onCommentDirtyChange,
+  events, eventsHasMore = false, eventsLoadingMore = false, eventsMoreError = false, onLoadMoreEvents,
+  comments, onPostComment, commentDraft, onCommentDraftChange, onCommentDirtyChange,
   notice, onCommitField, onDirtyChange, fieldCommitsFrozen,
 }: TaskRecordDocumentProps) {
   const t = useT()
@@ -192,7 +197,8 @@ export function TaskRecordDocument({
       history={events.length > 0 ? {
         title: t('tasks.history.title'),
         count: events.length,
-        node: <ActivityCard events={events} people={people} now={now} />,
+        node: <ActivityCard events={events} people={people} now={now} hasMore={eventsHasMore}
+          loadingMore={eventsLoadingMore} moreError={eventsMoreError} onLoadMore={onLoadMoreEvents} />,
       } : undefined}
     >
       {showDescription ? (

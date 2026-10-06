@@ -3,9 +3,10 @@ import { Button } from './button'
 import './list-paging.css'
 
 /** A continuation control for existing lists; the caller owns its server window. */
-export function ListPaging({ count, hasMore, loading = false, error = false, onLoadMore }: {
+export function ListPaging({ count, hasMore, loading = false, error = false, moreLabel, onLoadMore }: {
   count: number
   hasMore: boolean
+  moreLabel?: string
   loading?: boolean
   error?: boolean
   onLoadMore: () => void
@@ -17,7 +18,7 @@ export function ListPaging({ count, hasMore, loading = false, error = false, onL
       {error ? <p role="alert">{t('common.paging.error')}</p> : null}
       {hasMore ? (
         <Button onClick={onLoadMore} disabled={loading}>
-          {t(loading ? 'common.loading' : error ? 'common.retry' : 'common.paging.more')}
+          {loading ? t('common.loading') : error ? t('common.retry') : moreLabel ?? t('common.paging.more')}
         </Button>
       ) : null}
     </div>

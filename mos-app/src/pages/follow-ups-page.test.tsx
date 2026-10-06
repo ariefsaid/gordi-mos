@@ -149,6 +149,24 @@ describe('FollowUpsPage', () => {
     expect(screen.queryByRole('button', { name: 'Confirm' })).toBeNull()
   })
 
+  it('loads the next keyset page from an accessible button and preserves rows when that read fails', async () => {
+    const firstPage = Array.from({ length: 50 }, (_, index) => ({ ...row, id: `fu-${index + 1}`, counterparty: `Buyer ${index + 1}` }))
+    mockListFollowUps.mockResolvedValueOnce(firstPage)
+    mockListFollowUps.mockRejectedValueOnce(new Error('network down'))
+    mockListFollowUps.mockResolvedValueOnce([{ ...row, id: 'fu-51', counterparty: 'Buyer 51' }])
+    const user = userEvent.setup()
+    render(createElement(FollowUpsPage), { wrapper })
+
+    expect(await screen.findByText('Buyer 1')).toBeInTheDocument()
+    const more = screen.getByRole('button', { name: 'Load more' })
+    await user.click(more)
+    expect(await screen.findByRole('alert')).toHaveTextContent('Couldn’t load more')
+    expect(screen.getByText('Buyer 1')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Try again' }))
+    expect(await screen.findByText('Buyer 51')).toBeInTheDocument()
+    expect(mockListFollowUps.mock.calls[1][0]).toMatchObject({ before: firstPage.at(-1) })
+  })
+
   it('uses shared state-kit for loading, empty, and error states', async () => {
     mockListFollowUps.mockReturnValueOnce(new Promise(() => {}))
     const loading = render(createElement(FollowUpsPage), { wrapper })

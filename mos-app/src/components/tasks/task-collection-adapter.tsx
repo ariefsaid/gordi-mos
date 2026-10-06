@@ -2,7 +2,7 @@
 // The full descriptor (load/project/presentations/viewer) is layered on in the migration task; this
 // module owns the typed Task query <-> URL schema and the vocabulary guard (PIC / Supervisor /
 // Business Unit — never RACI, never a role-free `person`, never a Team before Issue 8's team_id).
-import { listTasks, type TaskListFilters } from '@/lib/db/tasks'
+import { listOlderDoneTasks, listTasks, taskDoneRecentCutoff, type OlderDoneTaskCursor, type TaskListFilters } from '@/lib/db/tasks'
 import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
 import type { ProcessRunRollup } from '@/lib/db/processes.types'
 import { listRunRollups, listTaskDefs } from '@/lib/db/processes'
@@ -354,6 +354,10 @@ export interface TaskCollectionContext {
   statusOverrides: ReadonlyMap<string, TaskStatus>
   /** The reference clock for overdue computation (kept in context so `project` stays pure). */
   now: Date
+  olderDoneCutoff?: string
+  olderDoneCursor?: OlderDoneTaskCursor | null
+  olderDoneHasMore?: boolean
+  olderDoneTaskIds?: ReadonlySet<string>
   refresh: () => void
 }
 
@@ -384,7 +388,7 @@ function isRecordOverdue(r: TaskCollectionRecord, now: Date): boolean {
   return isOverdue({ status: r.status, due_date: r.dueDate, archived_at: r.archivedAt }, now)
 }
 
-const DONE_LIVE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
+const DONE_LIVE_WINDOW_MS = 30 * 24 * 60 * 60 * 1000
 
 function isDoneWithinLiveWindow(r: TaskCollectionRecord, now: Date): boolean {
   if (r.status !== 'Done' || !r.completedAt) return false
@@ -428,7 +432,8 @@ function matchesTaskFilters(
   }
   if (query.view === 'my-pic' && viewerId && r.picId !== viewerId) return false
   if (query.view === 'my-supervisor' && viewerId && r.supervisorId !== viewerId) return false
-  if ((query.view === 'my-work' || query.view === 'team-work') && r.status === 'Done' && !isDoneWithinLiveWindow(r, ctx.now)) return false
+  if ((query.view === 'my-work' || query.view === 'team-work') && r.status === 'Done'
+    && !isDoneWithinLiveWindow(r, ctx.now) && !ctx.olderDoneTaskIds?.has(r.id)) return false
   if (query.picId && r.picId !== query.picId) return false
   if (query.supervisorId && r.supervisorId !== query.supervisorId) return false
   // The single "Person" filter matches PIC *or* Supervisor (the person's whole involvement).
@@ -837,8 +842,10 @@ async function loadTaskCollection(args: {
   const needsViewerTeams = args.query.view === 'team-work'
     || (args.query.view === 'all' && !viewerOrgWide)
   const lease = args.readLease
+  const now = new Date(Math.floor(Date.now() / 60_000) * 60_000)
+  const doneCutoff = taskDoneRecentCutoff(now)
   const [rows, businessUnits, people, downlinePersonIds, objectives, workLines, viewerTeams, viewerRoleBuIds] = await Promise.all([
-    lease ? listTasks(filters, lease) : listTasks(filters),
+    lease ? listTasks(filters, lease, doneCutoff) : listTasks(filters, undefined, doneCutoff),
     lease ? getBusinessUnits(lease) : getBusinessUnits(),
     lease ? getPeople(lease) : getPeople(),
     // Throws with its siblings — a downline failure must surface, not silently read-only
@@ -921,7 +928,11 @@ async function loadTaskCollection(args: {
     // Optimistic status overrides + refresh stay workspace-owned (Option B non-collection concerns);
     // load seeds them empty/no-op so the projection is a pure function of the fetched rows.
     statusOverrides: new Map(),
-    now: new Date(),
+    now,
+    olderDoneCutoff: doneCutoff,
+    olderDoneCursor: null,
+    olderDoneHasMore: true,
+    olderDoneTaskIds: new Set(),
     refresh: () => {},
   }
   return { records, context }
@@ -929,6 +940,93 @@ async function loadTaskCollection(args: {
 
 function readTaskFragment<T>(readLease: ReadLease | undefined, key: string, load: () => Promise<T>): Promise<T> {
   return readLease ? readLease.read(key, load) : load()
+}
+
+async function loadOlderDoneTaskPage(args: {
+  query: TaskCollectionQuery
+  viewerId: string | null
+  readLease?: ReadLease
+  data: CollectionData<TaskCollectionRecord, TaskCollectionContext>
+}): Promise<CollectionData<TaskCollectionRecord, TaskCollectionContext>> {
+  const { query, data, readLease } = args
+  const context = data.context
+  if (context.olderDoneHasMore === false) return data
+  const page = await listOlderDoneTasks(
+    {
+      ...(query.businessUnitId ? { businessUnitId: query.businessUnitId } : {}),
+      includeArchived: query.includeArchived,
+    },
+    context.olderDoneCursor,
+    context.olderDoneCutoff ?? taskDoneRecentCutoff(),
+  )
+  if (page.rows.length === 0) {
+    return { ...data, context: { ...context, olderDoneHasMore: false } }
+  }
+
+  const records = page.rows.map(toTaskCollectionRecord)
+  const rowsById = new Map(context.rowsById)
+  const olderDoneTaskIds = new Set(context.olderDoneTaskIds ?? [])
+  for (const row of page.rows) {
+    rowsById.set(row.id, row)
+    olderDoneTaskIds.add(row.id)
+  }
+
+  const teamNamesById = new Map(context.teamNamesById ?? [])
+  const taskTeamViewsById = new Map(context.taskTeamViewsById ?? [])
+  const newTeamIds = [...new Set(records.map((record) => record.teamId)
+    .filter((id): id is string => id !== null))]
+  const teams = newTeamIds.length === 0 ? []
+    : readLease ? await getTeamsByIds(newTeamIds, readLease) : await getTeamsByIds(newTeamIds)
+  for (const team of teams) teamNamesById.set(team.id, team.name)
+  const teamsById = new Map(teams.map((team) => [team.id, team]))
+  for (const row of page.rows) {
+    taskTeamViewsById.set(row.id, deriveTaskTeamView(
+      { org_id: row.org_id, business_unit_id: row.business_unit_id },
+      row.team_id ? teamsById.get(row.team_id) ?? null : null,
+    ))
+  }
+
+  let runRollupsByRunId = new Map(context.runRollupsByRunId)
+  const provenanceByTaskDefId = new Map(context.provenanceByTaskDefId)
+  if (query.groupBy === 'occurrence') {
+    const runIds = [...new Set(records.map((record) => record.processRunId)
+      .filter((id): id is string => Boolean(id) && !runRollupsByRunId.has(id as string)))].sort()
+    if (runIds.length > 0) {
+      const key = `mos.process_run_rollup:select(*):process_run_id.in=${JSON.stringify(runIds)}`
+      const rollups = await readTaskFragment(readLease, key, () => listRunRollups(runIds)).catch(() => [])
+      runRollupsByRunId = new Map([...runRollupsByRunId, ...rollups.map((row) => [row.process_run_id, row] as const)])
+    }
+    const defIds = [...new Set(records.map((record) => record.generatedFromTaskDefinitionId)
+      .filter((id): id is string => Boolean(id) && !provenanceByTaskDefId.has(id as string)))].sort()
+    if (defIds.length > 0) {
+      const key = `mos.process_task_defs:select(id,title,pic_role_id):id.in=${JSON.stringify(defIds)}`
+      const defs = await readTaskFragment(readLease, key, () => listTaskDefs(defIds)).catch(() => [])
+      const roleIds = [...new Set(defs.map((def) => def.pic_role_id).filter((id): id is string => Boolean(id)))]
+      const roles = roleIds.length > 0
+        ? await (readLease ? listRoleNames(roleIds, readLease) : listRoleNames(roleIds)).catch(() => [])
+        : []
+      const namesByRoleId = new Map(roles.map((role) => [role.id, role.name]))
+      for (const def of defs) {
+        const roleName = def.pic_role_id ? namesByRoleId.get(def.pic_role_id) : undefined
+        if (roleName) provenanceByTaskDefId.set(def.id, roleName)
+      }
+    }
+  }
+
+  return {
+    records: [...data.records, ...records],
+    context: {
+      ...context,
+      teamNamesById,
+      taskTeamViewsById,
+      rowsById,
+      runRollupsByRunId,
+      provenanceByTaskDefId,
+      olderDoneCursor: page.nextCursor,
+      olderDoneHasMore: page.hasMore,
+      olderDoneTaskIds,
+    },
+  }
 }
 
 // ── Access + viewer opening seam ──────────────────────────────────────────────────────────────────
@@ -987,6 +1085,7 @@ export const taskCollectionDescriptor: RecordCollectionDescriptor<
     ])
   },
   load: loadTaskCollection,
+  loadMore: loadOlderDoneTaskPage,
   project: (data, query) => projectTaskCollection(data, query),
   getId: (record) => record.id,
   getAccess: getTaskAccess,

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
@@ -8,8 +8,9 @@ import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { getBusinessUnits } from '@/lib/db/directory'
 import { canWorkAnyLane } from '@/lib/follow-up-lanes'
-import { listFollowUps, transitionFollowUp, isOverdue, type FollowUpRow, type FollowUpState, type FollowUpTransition } from '@/lib/db/follow-ups'
+import { FOLLOW_UPS_PAGE_SIZE, listFollowUps, transitionFollowUp, isOverdue, type FollowUpRow, type FollowUpState, type FollowUpTransition } from '@/lib/db/follow-ups'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
+import { ListPaging } from '@/components/ui/list-paging'
 import { Button } from '@/components/ui/button'
 import { DateField } from '@/components/ui/date-field'
 import { EmptyState, ErrorState, SkeletonRows } from '@/components/ui/state-kit'
@@ -46,17 +47,36 @@ export function FollowUpsPage() {
   const [canChase, setCanChase] = useState(accessRoles.includes('admin'))
   const [rows, setRows] = useState<FollowUpRow[]>([])
   const [state, setState] = useState<FetchState>('loading')
+  const [hasMore, setHasMore] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [moreError, setMoreError] = useState(false)
+  const cursorRef = useRef<Pick<FollowUpRow, 'created_at' | 'id'> | null>(null)
+  const loadGeneration = useRef(0)
+  const moreInFlight = useRef(false)
   const [active, setActive] = useState<{ id: string; verb: FollowUpTransition } | null>(null)
   const [form, setForm] = useState({ amount: '', cash_in_date: '', evidence: '', promise_date: '', note: '' })
   // Typed date text that is not a usable date: Submit stays off rather than sending the old date.
   const [dateInvalid, setDateInvalid] = useState(false)
 
   const load = useCallback(() => {
+    const generation = ++loadGeneration.current
     let cancelled = false
     setState('loading')
+    setHasMore(false)
+    setLoadingMore(false)
+    setMoreError(false)
+    moreInFlight.current = false
+    cursorRef.current = null
     listFollowUps({ overdue: params.get('filter') === 'overdue' })
-      .then((data) => { if (!cancelled) { setRows(data); setState('ready') } })
-      .catch(() => { if (!cancelled) setState('error') })
+      .then((data) => {
+        if (!cancelled && generation === loadGeneration.current) {
+          setRows(data)
+          cursorRef.current = data.length === FOLLOW_UPS_PAGE_SIZE ? data.at(-1)! : null
+          setHasMore(cursorRef.current !== null)
+          setState('ready')
+        }
+      })
+      .catch(() => { if (!cancelled && generation === loadGeneration.current) setState('error') })
     return () => { cancelled = true }
   }, [params])
 
@@ -74,6 +94,29 @@ export function FollowUpsPage() {
   }, [accessRoles, viewer])
 
   const overdueCount = useMemo(() => rows.filter((row) => isOverdue(row)).length, [rows])
+
+  async function loadMore() {
+    const before = cursorRef.current
+    if (!before || moreInFlight.current) return
+    const generation = loadGeneration.current
+    moreInFlight.current = true
+    setLoadingMore(true)
+    setMoreError(false)
+    try {
+      const page = await listFollowUps({ overdue: params.get('filter') === 'overdue', before })
+      if (generation !== loadGeneration.current) return
+      setRows((loaded) => [...loaded, ...page])
+      cursorRef.current = page.length === FOLLOW_UPS_PAGE_SIZE ? page.at(-1)! : null
+      setHasMore(cursorRef.current !== null)
+    } catch {
+      if (generation === loadGeneration.current) setMoreError(true)
+    } finally {
+      if (generation === loadGeneration.current) {
+        moreInFlight.current = false
+        setLoadingMore(false)
+      }
+    }
+  }
 
   async function run(row: FollowUpRow, verb: FollowUpTransition) {
     if (verb === 'partial' || verb === 'settle' || verb === 'promise') {
@@ -223,12 +266,16 @@ export function FollowUpsPage() {
         <EmptyState title={t('followUps.empty')} />
       )}
       {state === 'ready' && rows.length > 0 && (
-        <DataTable
-          columns={columns}
-          rows={rows}
-          isDesktop={isDesktop}
-          caption={t('followUps.title')}
-        />
+        <>
+          <DataTable
+            columns={columns}
+            rows={rows}
+            isDesktop={isDesktop}
+            caption={t('followUps.title')}
+          />
+          <ListPaging count={rows.length} hasMore={hasMore} loading={loadingMore}
+            error={moreError} onLoadMore={() => { void loadMore() }} />
+        </>
       )}
       {state === 'ready' && detailRow && (
         <aside

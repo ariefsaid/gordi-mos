@@ -11,6 +11,10 @@ import type { TaskRow } from '@/lib/db/tasks.types'
 // ── Mock the data layer (table + drawer both pull from it) ────────────────────
 vi.mock('../lib/db/tasks', () => ({
   listTasks: vi.fn(),
+  listOlderDoneTasks: vi.fn(),
+  taskDoneRecentCutoff: vi.fn(),
+  listTaskEvents: vi.fn(),
+  TASK_EVENTS_PAGE_SIZE: 50,
   getTask: vi.fn(),
   createTask: vi.fn(),
   updateTaskStatus: vi.fn(),
@@ -41,7 +45,10 @@ vi.mock('../lib/comments/postComment', () => ({
   postComment: vi.fn(),
 }))
 
-import { listTasks, getTask, updateTaskStatus, createTask, archiveTask } from '@/lib/db/tasks'
+import {
+  listTasks, listOlderDoneTasks, taskDoneRecentCutoff, listTaskEvents,
+  getTask, updateTaskStatus, createTask, archiveTask,
+} from '@/lib/db/tasks'
 import { getBusinessUnits, getPeople, getDownlinePersonIds } from '@/lib/db/directory'
 import * as directoryApi from '@/lib/db/directory'
 import { listObjectives } from '@/lib/db/objectives'
@@ -57,6 +64,7 @@ import { AgentRuntimeProvider } from '@/lib/agent/runtime/AgentRuntimeContext'
 import type { AgentRuntime, AgentEvent } from '@/lib/agent/runtime/port'
 
 const mockListTasks = vi.mocked(listTasks)
+const mockListOlderDoneTasks = vi.mocked(listOlderDoneTasks)
 const mockGetTask = vi.mocked(getTask)
 const mockUpdateTaskStatus = vi.mocked(updateTaskStatus)
 const mockCreateTask = vi.mocked(createTask)
@@ -187,6 +195,9 @@ beforeEach(() => {
   vi.mocked(getDownlinePersonIds).mockResolvedValue([])
   vi.mocked(listObjectives).mockResolvedValue([])
   vi.mocked(listWorkLines).mockResolvedValue([])
+  mockListOlderDoneTasks.mockResolvedValue({ rows: [], nextCursor: null, hasMore: false })
+  vi.mocked(taskDoneRecentCutoff).mockReturnValue('2026-09-01T00:00:00Z')
+  vi.mocked(listTaskEvents).mockResolvedValue([])
   vi.mocked(listComments).mockResolvedValue([])
   mockPostComment.mockResolvedValue('comment-1')
 })
@@ -343,6 +354,24 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     expect(document.querySelector('main')).toBeTruthy()
     // Tasks heading still renders (structural anchor for the page)
     expect(screen.getByRole('heading', { name: /tasks/i })).toBeInTheDocument()
+  })
+
+  it('loads older Done Tasks only after the operator asks and stops when the last page is reached', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Open task' })])
+    mockListOlderDoneTasks.mockResolvedValueOnce({
+      rows: [makeTask({ id: 'older-done', title: 'Older complete', status: 'Done', completed_at: '2026-06-01T00:00:00Z' })],
+      nextCursor: null,
+      hasMore: false,
+    })
+    renderAt('/work/tasks')
+
+    expect(await screen.findByText('Open task')).toBeInTheDocument()
+    await screen.findByRole('button', { name: 'Show older done tasks' })
+    expect(screen.queryByText('Older complete')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Show older done tasks' }))
+    expect(await screen.findByText('Older complete')).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Show older done tasks' })).toBeNull())
+    expect(mockListOlderDoneTasks).toHaveBeenCalledWith({ includeArchived: false }, null, expect.any(String))
   })
 
   it('AC-100: at /tasks the table renders and no drawer is present (nodrawer)', async () => {

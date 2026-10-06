@@ -10,6 +10,7 @@ import { writeCollectionQuery } from '@/lib/record-collection/query-state'
 import { collectionDisclosureSummary } from '@/lib/record-collection/disclosure-summary'
 import { useSetCollectionLeaf } from '@/shell/breadcrumb-title'
 import { RecordCollectionSurface } from '@/components/record-collection/record-collection'
+import { ListPaging } from '@/components/ui/list-paging'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import type { PageFamilyState } from '@/shell/page-families'
 import { HelpTip } from '@/components/ui/help-tip'
@@ -1033,6 +1034,18 @@ export function TasksWorkspace({
               error={{ message: t('tasks.error.load'), retry }}
               loadingLabel={t('tasks.loading')}
             />
+            {dataContext && state.status !== 'loading' && state.status !== 'error' && state.status !== 'permission'
+              && (query.status === null || query.status === 'Done')
+              && !query.overdueOnly && query.view !== 'overdue'
+              ? <ListPaging
+                  count={projection?.visibleRecords.length ?? 0}
+                  hasMore={dataContext.olderDoneHasMore !== false}
+                  loading={state.loadingMore}
+                  error={Boolean(state.moreError)}
+                  moreLabel={t('tasks.showOlderDone')}
+                  onLoadMore={() => { void controller.loadMore() }}
+                />
+              : null}
             </TaskCreateContext.Provider>
           </TaskCollectionRuntimeProvider>
         </section>

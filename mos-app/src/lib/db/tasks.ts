@@ -46,37 +46,105 @@ export interface TaskListFilters {
   includeArchived?: boolean
 }
 
-function taskListReadKey(filters: TaskListFilters): string {
+export const TASKS_LIST_MAX_ROWS = 1000
+export const TASK_EVENTS_PAGE_SIZE = 50
+export const TASKS_OLDER_DONE_PAGE_SIZE = 50
+const DONE_RECENT_DAYS = 30
+
+export function taskDoneRecentCutoff(now = new Date()): string {
+  // Minute precision keeps equivalent default reads coalescible without changing the 30-day window.
+  const minute = Math.floor(now.getTime() / 60_000) * 60_000
+  return new Date(minute - DONE_RECENT_DAYS * 24 * 60 * 60 * 1000).toISOString()
+}
+
+function taskListReadKey(filters: TaskListFilters, cutoff: string): string {
   return `mos.tasks:list:${JSON.stringify({
     select: LIST_SELECT,
     businessUnitId: filters.businessUnitId || null,
     status: filters.status ?? null,
     includeArchived: Boolean(filters.includeArchived),
+    recentDoneSince: cutoff,
     order: ['due_date', 'asc', 'nulls_last'],
   })}`
 }
 
-/** List tasks with BU/status/archived filters (FR-024/025/026). Person-membership is
- * client-side via raciMember() — the full org set is loaded (org-readable; ~15 people / dozens
- * of tasks at Gordi scale). BU + status + archived are server-side for server-side sorting. */
+/** List active tasks and Done tasks completed within 30 days; older Done records are explicit. */
 export async function listTasks(
-  f: TaskListFilters = {}, readLease?: ReadLease,
+  f: TaskListFilters = {}, readLease?: ReadLease, cutoff = taskDoneRecentCutoff(),
 ): Promise<TaskListRow[]> {
   const load = async (): Promise<TaskListRow[]> => {
     let q = mos().from('tasks').select(LIST_SELECT)
     if (!f.includeArchived) q = q.is('archived_at', null)
     if (f.businessUnitId) q = q.eq('business_unit_id', f.businessUnitId)
     if (f.status) q = q.eq('status', f.status)
-    q = q.order('due_date', { ascending: true, nullsFirst: false })
+    q = q.or(`status.neq.Done,completed_at.gte.${cutoff}`)
+      .order('due_date', { ascending: true, nullsFirst: false })
+      .limit(TASKS_LIST_MAX_ROWS)
     const { data, error } = await q
     if (error) throw new Error(`listTasks failed — ${error.message}`)
+    if ((data ?? []).length === TASKS_LIST_MAX_ROWS) {
+      throw new Error('listTasks exceeded the safe row limit; narrow the task filters')
+    }
     return (data ?? []) as unknown as TaskListRow[]
   }
 
-  const key = taskListReadKey(f)
+  const key = taskListReadKey(f, cutoff)
   if (readLease) return readLease.read(key, load)
   const scope = getReadScope()
   return scope ? sharePending(scope, key, load) : load()
+}
+
+export type TaskEventsCursor = Pick<TaskEventRow, 'created_at' | 'id'>
+
+/** Newest-first page of task history. */
+export async function listTaskEvents(
+  taskId: string, before?: TaskEventsCursor,
+): Promise<TaskEventRow[]> {
+  let q = mos().from('task_events').select(EVENT_COLUMNS).eq('task_id', taskId)
+  if (before) {
+    q = q.or(`created_at.lt.${before.created_at},and(created_at.eq.${before.created_at},id.lt.${before.id})`)
+  }
+  const { data, error } = await q.order('created_at', { ascending: false })
+    .order('id', { ascending: false }).limit(TASK_EVENTS_PAGE_SIZE)
+  if (error) throw new Error(`listTaskEvents failed — ${error.message}`)
+  return (data ?? []) as unknown as TaskEventRow[]
+}
+
+export type OlderDoneTaskCursor = Pick<TaskListRow, 'completed_at' | 'id'>
+export type OlderDoneTaskPage = {
+  rows: TaskListRow[]
+  nextCursor: OlderDoneTaskCursor | null
+  hasMore: boolean
+}
+
+/** Fetch older completed Tasks only when the operator asks to show completion history. */
+export async function listOlderDoneTasks(
+  filters: Pick<TaskListFilters, 'businessUnitId' | 'includeArchived'> = {},
+  before?: OlderDoneTaskCursor | null,
+  cutoff = taskDoneRecentCutoff(),
+): Promise<OlderDoneTaskPage> {
+  let q = mos().from('tasks').select(LIST_SELECT).eq('status', 'Done')
+  if (!filters.includeArchived) q = q.is('archived_at', null)
+  if (filters.businessUnitId) q = q.eq('business_unit_id', filters.businessUnitId)
+  if (before?.completed_at) {
+    q = q.or(`completed_at.lt.${before.completed_at},and(completed_at.eq.${before.completed_at},id.lt.${before.id}),completed_at.is.null`)
+  } else if (before) {
+    q = q.is('completed_at', null).lt('id', before.id)
+  } else {
+    q = q.or(`completed_at.lt.${cutoff},completed_at.is.null`)
+  }
+  const { data, error } = await q.order('completed_at', { ascending: false, nullsFirst: false })
+    .order('id', { ascending: false }).limit(TASKS_OLDER_DONE_PAGE_SIZE + 1)
+  if (error) throw new Error(`listOlderDoneTasks failed — ${error.message}`)
+  const fetched = (data ?? []) as unknown as TaskListRow[]
+  const rows = fetched.slice(0, TASKS_OLDER_DONE_PAGE_SIZE)
+  return {
+    rows,
+    nextCursor: fetched.length > TASKS_OLDER_DONE_PAGE_SIZE && rows.length > 0
+      ? { completed_at: rows.at(-1)!.completed_at ?? null, id: rows.at(-1)!.id }
+      : null,
+    hasMore: fetched.length > TASKS_OLDER_DONE_PAGE_SIZE,
+  }
 }
 
 export interface TaskDetail {
@@ -105,16 +173,14 @@ export async function getTask(id: string): Promise<TaskDetail> {
     mos().from('tasks').select(DETAIL_SELECT).eq('id', id).single(),
     mos().from('task_checklist_items').select(CHECKLIST_COLUMNS).eq('task_id', id)
       .order('position', { ascending: true }),
-    mos().from('task_events').select(EVENT_COLUMNS).eq('task_id', id)
-      .order('created_at', { ascending: false }),
+    listTaskEvents(id),
   ])
   if (taskRes.error) throw dbError(`getTask failed — ${taskRes.error.message}`, taskRes.error.code)
   if (checklistRes.error) throw new Error(`getTask checklist failed — ${checklistRes.error.message}`)
-  if (eventsRes.error) throw new Error(`getTask events failed — ${eventsRes.error.message}`)
   return {
     task: taskRes.data as unknown as TaskRow,
     checklist: (checklistRes.data ?? []) as unknown as ChecklistItemRow[],
-    events: (eventsRes.data ?? []) as unknown as TaskEventRow[],
+    events: eventsRes,
   }
 }
 
