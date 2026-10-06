@@ -125,3 +125,222 @@
   align-self: center;
   text-align: right;
 }
+
+.pending-bills-summary {
+  color: var(--muted-foreground);
+  font-size: var(--font-size-control);
+  font-variant-numeric: tabular-nums;
+}
+
+.pending-bills-confirmation {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--success) 12%, var(--card));
+  color: var(--foreground);
+  font-size: var(--font-size-control);
+  font-weight: 550;
+}
+
+.pending-bills-list-column { min-width: 0; }
+
+.pending-bills__record-trigger {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--primary);
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.pending-bills__record-trigger:hover { text-decoration: underline; }
+.pending-bills__record-trigger:focus-visible,
+.pending-bill-card__title:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.pending-bill-card__title {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pending-bill-card__title:hover { color: var(--primary); }
+
+.record-split .pending-bills-list-column { min-width: 0; }
+.record-split .pending-bills-scroll { overflow-x: auto; }
+
+.pending-bill-record-panel.drawer-split:not(.drawer-shell-split):not(.overlay-companion-host) {
+  position: sticky;
+  top: calc(var(--header-h) + 12px);
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - var(--header-h) - 24px);
+}
+
+.pending-bill-record {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  color: var(--foreground);
+}
+
+.pending-bill-record__body {
+  display: grid;
+  gap: 20px;
+  padding: 16px;
+}
+
+.pending-bill-record__status-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pending-bill-record__bill-no {
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-label);
+  overflow-wrap: anywhere;
+}
+
+.pending-bill-record__facts {
+  display: grid;
+  gap: 10px;
+  margin: 16px 0 0;
+}
+
+.pending-bill-record__facts > div {
+  display: grid;
+  grid-template-columns: minmax(7rem, 0.8fr) minmax(0, 1.2fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.pending-bill-record__facts dt {
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+}
+
+.pending-bill-record__facts dd {
+  min-width: 0;
+  margin: 0;
+  color: var(--foreground);
+  font-size: var(--font-size-control);
+  overflow-wrap: anywhere;
+}
+
+.pending-bill-record__facts .pending-bill-record__balance dd {
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.pending-bill-record__mark,
+.pending-bill-record__quiet {
+  margin: 12px 0 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  line-height: 1.45;
+}
+
+.pending-bill-record__record {
+  width: 100%;
+  min-height: 44px;
+  margin-top: 16px;
+}
+
+.pending-bill-record__form-inline {
+  margin: 0 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--background);
+}
+
+.pending-bill-record__history-section {
+  min-width: 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.pending-bill-record__history-section h2 {
+  margin: 0 0 12px;
+  font-size: var(--font-size-heading-sm);
+  font-weight: 650;
+}
+
+.pending-bill-record__history {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pending-bill-record__entry {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--background);
+}
+
+.pending-bill-record__entry-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+}
+
+.pending-bill-record__entry-kind,
+.pending-bill-record__entry-amount {
+  font-size: var(--font-size-control);
+  font-weight: 600;
+}
+
+.pending-bill-record__entry-amount { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pending-bill-record__entry-amount--reversal { color: var(--destructive); }
+
+.pending-bill-record__entry-meta,
+.pending-bill-record__entry-note,
+.pending-bill-record__reversed {
+  margin: 6px 0 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.pending-bill-record__proof {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-top: 4px;
+  color: var(--primary);
+  font-size: var(--font-size-label);
+}
+
+.pending-bill-record__reverse { min-height: 40px; margin-top: 4px; }
+.pending-bill-record__history-error { display: grid; justify-items: start; gap: 8px; }
+.pending-bill-record__history-error p { margin: 0; color: var(--muted-foreground); font-size: var(--font-size-label); }
+
+.pending-bill-payment-sheet { padding: 0; }
+
+@media (max-width: 767.98px) {
+  .pending-bills__record-trigger { min-height: 44px; }
+  .pending-bill-record__body { gap: 16px; padding: 16px; }
+}

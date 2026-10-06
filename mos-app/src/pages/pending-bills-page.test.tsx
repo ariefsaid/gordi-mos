@@ -11,6 +11,12 @@ vi.mock('@/lib/db/reporting-pending-bills', () => ({
   listPendingBills: vi.fn(),
   latestPendingBillSnapshot: vi.fn(),
 }))
+vi.mock('@/lib/db/pending-bill-payments', () => ({
+  listPendingBillPaymentAmounts: vi.fn(),
+  listPendingBillPaymentHistory: vi.fn(),
+  recordPendingBillPayment: vi.fn(),
+  uploadPendingBillProof: vi.fn(),
+}))
 // Money is ship-gated in today's builds; these tests are about the page and its role gate.
 vi.mock('@/lib/ship-gate', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/ship-gate')>()),
@@ -19,6 +25,14 @@ vi.mock('@/lib/ship-gate', async (importOriginal) => ({
 vi.mock('@/auth/use-auth')
 
 import { latestPendingBillSnapshot, listPendingBills, type PendingBillRow } from '@/lib/db/reporting-pending-bills'
+import {
+  listPendingBillPaymentAmounts,
+  listPendingBillPaymentHistory,
+  recordPendingBillPayment,
+  uploadPendingBillProof,
+  type PendingBillPaymentAmountRow,
+  type PendingBillPaymentHistoryEntry,
+} from '@/lib/db/pending-bill-payments'
 import { useAuth } from '@/auth/use-auth'
 import { RequireAccessRole } from '@/auth/require-access-role'
 import { I18nProvider } from '@/i18n/I18nProvider'
@@ -26,6 +40,10 @@ import { PendingBillsPage } from './pending-bills-page'
 
 const mockList = vi.mocked(listPendingBills)
 const mockSnapshot = vi.mocked(latestPendingBillSnapshot)
+const mockPaymentAmounts = vi.mocked(listPendingBillPaymentAmounts)
+const mockPaymentHistory = vi.mocked(listPendingBillPaymentHistory)
+const mockRecordPayment = vi.mocked(recordPendingBillPayment)
+const mockUploadProof = vi.mocked(uploadPendingBillProof)
 const mockUseAuth = vi.mocked(useAuth)
 
 function authViewer(accessRoles: string[]): AuthState {
@@ -90,6 +108,10 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(NOW)
   mockSnapshot.mockResolvedValue({ snapshot_as_of: COPY, bill_count: 3 })
+  mockPaymentAmounts.mockResolvedValue([])
+  mockPaymentHistory.mockResolvedValue([])
+  mockRecordPayment.mockResolvedValue({ paymentId: 'payment-new', replayed: false })
+  mockUploadProof.mockResolvedValue('org-1/proof.pdf')
   mockList.mockResolvedValue([
     bill({ bill_no: 'PB-2', bill_date: '2026-10-06', counterparty_note: null, amount: 96000 }),
     bill({ bill_no: 'PB-1', bill_date: '2025-08-12', branch_name: null, branch_code: 'pop_up_east', branch_id: null, amount: 2480000 }),
@@ -180,6 +202,74 @@ describe('the phone list', () => {
     renderPage()
     const placeholder = await screen.findByText('Not written on the bill')
     expect(placeholder.closest('.pending-bill-card__title')).toHaveClass('pending-bill-card__title--none')
+  })
+})
+
+describe('AC-1135: recording updates the selected row and confirms count plus total', () => {
+  it('settles the same bill row in place and leaves its record panel open', async () => {
+    const persisted: PendingBillPaymentAmountRow[] = [{
+      id: 'payment-new', esb_code: 'GKI', branch_code: 'rumah_rames', bill_no: 'PB-2', amount: 96000,
+    }]
+    const history: PendingBillPaymentHistoryEntry[] = [{
+      id: 'payment-new', esbCode: 'GKI', branchCode: 'rumah_rames', billNo: 'PB-2',
+      entryKind: 'payment', amount: 96000, cashInDate: '2026-10-06', proofPath: 'org-1/proof.pdf',
+      proofUrl: 'https://proof.example.test/signed', note: null, reversalOf: null, reversalReason: null,
+      actorName: 'Finance Person', createdAt: '2026-10-06T03:00:00Z',
+    }]
+    mockPaymentAmounts.mockResolvedValueOnce([]).mockResolvedValue(persisted)
+    mockPaymentHistory.mockResolvedValueOnce([]).mockResolvedValue(history)
+    renderPage()
+
+    const openRow = await screen.findByRole('button', { name: 'Open bill PB-2' })
+    const originalRow = openRow.closest('tr')
+    fireEvent.click(openRow)
+    await screen.findByRole('dialog', { name: 'Pending bill PB-2' })
+    await screen.findByText('No payments recorded for this bill.')
+    fireEvent.click(screen.getByRole('button', { name: 'Record payment' }))
+
+    fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '96000' } })
+    fireEvent.change(screen.getByLabelText('Cash-in date'), { target: { value: '06/10/2026' } })
+    fireEvent.change(screen.getByLabelText(/^Proof/), {
+      target: { files: [new File(['proof'], 'receipt.pdf', { type: 'application/pdf' })] },
+    })
+    const form = screen.getByRole('form', { name: 'Record payment' })
+    const submit = within(form).getByRole('button', { name: 'Record payment' })
+    await waitFor(() => expect(submit).toBeEnabled())
+    fireEvent.click(submit)
+
+    expect(await screen.findByText('1 payment recorded · Rp 96.000 total.')).toBeInTheDocument()
+    await waitFor(() => expect(mockRecordPayment).toHaveBeenCalledWith(expect.objectContaining({
+      esbCode: 'GKI', branchCode: 'rumah_rames', billNo: 'PB-2', amount: 96000,
+      cashInDate: '2026-10-06', proofPath: 'org-1/proof.pdf',
+    })))
+    const table = screen.getByRole('table', { name: 'Pending bills, oldest first' })
+    const updatedRow = within(table).getByRole('button', { name: 'Open bill PB-2' }).closest('tr')
+    expect(updatedRow).toBeInTheDocument()
+    expect(updatedRow).toHaveTextContent('Settled')
+    expect(updatedRow).toHaveTextContent('Rp 0')
+    expect(updatedRow).toBe(originalRow)
+    expect(screen.getByRole('dialog', { name: 'Pending bill PB-2' })).toBeInTheDocument()
+  })
+})
+
+describe('the payment form sheet on phone', () => {
+  it('opens as a bottom sheet and Escape returns focus to its opener', async () => {
+    setViewport(false)
+    renderPage()
+    const openBill = await screen.findByRole('button', { name: 'Open bill PB-2' })
+    fireEvent.click(openBill)
+    await screen.findByRole('dialog', { name: 'Pending bill PB-2' })
+    const recordPayment = await screen.findByRole('button', { name: 'Record payment' })
+    fireEvent.click(recordPayment)
+    const sheet = await waitFor(() => {
+      const element = document.querySelector('.modal-shell__surface[data-surface="sheet"]')
+      expect(element).toBeTruthy()
+      return element as HTMLElement
+    })
+    expect(sheet).toHaveAttribute('data-phone-mode', 'centered')
+    fireEvent.keyDown(document, { key: 'Escape' })
+    await waitFor(() => expect(document.querySelector('.modal-shell__surface[data-surface="sheet"]')).toBeNull())
+    expect(document.activeElement).toBe(recordPayment)
   })
 })
 

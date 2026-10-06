@@ -1,0 +1,56 @@
+import { describe, it, expect, vi } from 'vitest'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { I18nProvider } from '@/i18n/I18nProvider'
+import { wibToday } from '@/lib/home-attention'
+import type { PendingBillView } from '@/lib/pending-bills'
+import { PendingBillPaymentForm } from './pending-bill-payment-form'
+
+const bill: PendingBillView = {
+  id: '["ESB","BR","PB-1"]',
+  billDate: '2026-10-01',
+  esbCode: 'ESB',
+  branchName: 'Branch',
+  branchCode: 'BR',
+  branchKnown: true,
+  billNo: 'PB-1',
+  counterpartyNote: 'Table 4',
+  amount: 2500,
+  recordedPaid: 0,
+  balance: 2500,
+  ageDays: 5,
+  state: 'open',
+}
+
+function renderForm() {
+  return render(
+    <I18nProvider initialLocale="en">
+      <PendingBillPaymentForm bill={bill} orgId="org-1" onCancel={vi.fn()} onSaved={vi.fn()} />
+    </I18nProvider>,
+  )
+}
+
+describe('AC-1134: the payment form names invalid fields and keeps submit off', () => {
+  it('lists required fields, blocks an amount over the balance, then enables a valid payment', async () => {
+    renderForm()
+    const submit = screen.getByRole('button', { name: 'Record payment' })
+    expect(submit).toBeDisabled()
+    expect(screen.getByRole('status')).toHaveTextContent('Amount, Cash-in date, Proof')
+
+    const amount = screen.getByLabelText('Amount')
+    fireEvent.change(amount, { target: { value: '2501' } })
+    fireEvent.blur(amount)
+    expect(await screen.findByRole('alert')).toHaveTextContent('Amount cannot exceed the remaining balance of Rp 2.500.')
+    expect(submit).toBeDisabled()
+
+    fireEvent.change(amount, { target: { value: '2500' } })
+    const date = screen.getByLabelText('Cash-in date')
+    const today = wibToday()
+    fireEvent.change(date, { target: { value: today.split('-').reverse().join('/') } })
+    fireEvent.change(screen.getByLabelText(/^Proof/), {
+      target: { files: [new File(['proof'], 'receipt.pdf', { type: 'application/pdf' })] },
+    })
+
+    await waitFor(() => expect(submit).toBeEnabled())
+    expect(screen.queryByRole('status')).toBeNull()
+  })
+})

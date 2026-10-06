@@ -1,6 +1,7 @@
 // The desktop bill list keeps every figure, age and bill number on one line, lets Who owes take the
 // wrapping, and only scrolls sideways inside a container too narrow for the table — so the
-// DataTable's sticky header keeps its page scroll container at desktop widths.
+// DataTable's sticky header keeps its page scroll container at desktop widths; a docked record
+// panel narrows the list enough to need its own horizontal scroll area.
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -28,9 +29,16 @@ describe('pending bills table CSS', () => {
     expect(owes).not.toMatch(/max-width/)
   })
 
-  it('scrolls sideways only inside a container too narrow for the table', () => {
+  it('scrolls sideways only when the table is narrower than its available container', () => {
     expect(rule('.pending-bills-body')).toMatch(/container:\s*pending-bills\s*\/\s*inline-size/)
     expect(rule('.pending-bills-scroll')).not.toMatch(/overflow-x/)
     expect(css).toMatch(/@container pending-bills \(max-width:\s*979\.98px\)\s*\{\s*\.pending-bills-scroll\s*\{[^}]*overflow-x:\s*auto/)
+    expect(rule('.record-split .pending-bills-list-column')).toMatch(/min-width:\s*0/)
+    expect(rule('.record-split .pending-bills-scroll')).toMatch(/overflow-x:\s*auto/)
+  })
+
+  it('keeps the split record panel pinned and independently scrollable', () => {
+    expect(rule('.pending-bill-record-panel.drawer-split:not(.drawer-shell-split):not(.overlay-companion-host)')).toMatch(/position:\s*sticky/)
+    expect(rule('.pending-bill-record')).toMatch(/overflow:\s*auto/)
   })
 })

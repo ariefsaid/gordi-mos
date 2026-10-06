@@ -1,0 +1,120 @@
+.pending-bill-payment-form {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  min-width: 0;
+}
+
+.pending-bill-payment-form__heading h2 {
+  margin: 0;
+  color: var(--foreground);
+  font-size: var(--font-size-heading-sm);
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.pending-bill-payment-form__heading p,
+.pending-bill-payment-form__reversal-copy {
+  margin: 5px 0 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  line-height: 1.45;
+}
+
+.pending-bill-payment-form__hint {
+  margin: -7px 0 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  line-height: 1.4;
+}
+
+.pending-bill-payment-form__label {
+  display: block;
+  margin-bottom: -7px;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  font-weight: 500;
+}
+
+.pending-bill-payment-form__proof {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.pending-bill-payment-form__proof input[type='file'] {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 7px;
+  border: 1px dashed var(--input);
+  border-radius: var(--radius-sm);
+  background: var(--background);
+  color: var(--foreground);
+  font: inherit;
+  font-size: var(--font-size-label);
+}
+
+.pending-bill-payment-form__proof input[type='file']:focus-visible,
+.pending-bill-payment-form__textarea:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.pending-bill-payment-form__selected-proof {
+  margin: -4px 0 0;
+  color: var(--foreground);
+  font-size: var(--font-size-label);
+  overflow-wrap: anywhere;
+}
+
+.pending-bill-payment-form__textarea {
+  width: 100%;
+  min-height: 72px;
+  padding: 9px 10px;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-sm);
+  background: var(--background);
+  color: var(--foreground);
+  font: inherit;
+  font-size: var(--font-size-control);
+  line-height: 1.4;
+  resize: vertical;
+}
+
+.pending-bill-payment-form__textarea:focus-visible {
+  border-color: var(--primary);
+}
+
+.pending-bill-payment-form__field-error,
+.pending-bill-payment-form__request-error {
+  margin: -7px 0 0;
+  color: var(--destructive);
+  font-size: var(--font-size-label);
+  line-height: 1.4;
+}
+
+.pending-bill-payment-form__requirements {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  line-height: 1.4;
+}
+
+.pending-bill-payment-form__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+@media (max-width: 640px) {
+  .pending-bill-payment-form {
+    gap: 14px;
+    padding: 20px 16px max(20px, env(safe-area-inset-bottom));
+  }
+
+  .pending-bill-payment-form__textarea {
+    min-height: 88px;
+  }
+}
