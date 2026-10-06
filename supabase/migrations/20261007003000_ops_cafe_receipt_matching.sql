@@ -366,7 +366,7 @@ begin
   end loop;
 end;
 $$;
-revoke all on function ops._enqueue_cafe_receipt_portions(uuid, text) from public, anon, authenticated, service_role;
+revoke execute on function ops._enqueue_cafe_receipt_portions(uuid, text) from public, anon, authenticated, service_role;
 
 -- ── Approval-time matching ──────────────────────────────────────────────────────────────────
 -- Matches once. Without current PO data it records nothing (NFR-1006: no guessed issue) and the
@@ -425,7 +425,7 @@ end;
 $$;
 comment on function ops._match_cafe_receipt(uuid) is
   'Matches an Approved receipt once against current PO data: matched portions are queued (switch on, receiving location known) or held with a reason; unmatched portions become Receipt issues whatever the switch. Internal: called by the approval and cache-refresh triggers and the release.';
-revoke all on function ops._match_cafe_receipt(uuid) from public, anon, authenticated, service_role;
+revoke execute on function ops._match_cafe_receipt(uuid) from public, anon, authenticated, service_role;
 
 create or replace function ops._match_approved_cafe_receipt()
 returns trigger
@@ -438,7 +438,7 @@ begin
   return new;
 end;
 $$;
-revoke all on function ops._match_approved_cafe_receipt() from public, anon, authenticated, service_role;
+revoke execute on function ops._match_approved_cafe_receipt() from public, anon, authenticated, service_role;
 create trigger cafe_receipts_match_on_approval
   after update of status on ops.cafe_receipts
   for each row
@@ -466,7 +466,7 @@ end;
 $$;
 comment on function ops._match_waiting_cafe_receipts_at(uuid, uuid) is
   'Matches a branch''s Approved receipts still waiting for PO data, oldest arrival first.';
-revoke all on function ops._match_waiting_cafe_receipts_at(uuid, uuid) from public, anon, authenticated, service_role;
+revoke execute on function ops._match_waiting_cafe_receipts_at(uuid, uuid) from public, anon, authenticated, service_role;
 
 create or replace function ops._match_waiting_cafe_receipts()
 returns trigger
@@ -481,7 +481,7 @@ end;
 $$;
 comment on function ops._match_waiting_cafe_receipts() is
   'After the worker stores a branch''s open POs, matches that branch''s receipts waiting for PO data.';
-revoke all on function ops._match_waiting_cafe_receipts() from public, anon, authenticated, service_role;
+revoke execute on function ops._match_waiting_cafe_receipts() from public, anon, authenticated, service_role;
 create trigger cafe_open_po_branches_match_waiting
   after update of as_of on ops.cafe_open_po_branches
   for each row
