@@ -4,6 +4,8 @@ import { useAuth } from '@/auth/use-auth'
 import { CafeStreamBar, CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { CafeReceiptState } from '@/components/kitchen/cafe-receipt-state'
+import { CafeReceiptLineCondition } from '@/components/kitchen/cafe-receipt-line-condition'
+import { WastePhotoStrip } from '@/components/kitchen/waste-photo-strip'
 import { CafeReceiveLockConfirm } from '@/components/kitchen/cafe-receive-lock-confirm'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { useT } from '@/i18n/use-t'
@@ -15,9 +17,11 @@ import {
   listCafeReceivableItems,
   newCafeReceiptClientKey,
   normalizeCafeReceiptQuantity,
+  saveCafeReceiptLineExplanation,
   sendCafeReceiptForReview,
   submitCafeReceipt,
   type CafeReceipt,
+  type CafeReceiptLine,
   type CafeReceivableItem,
 } from '@/lib/db/cafe-receipts'
 import { wibToday } from '@/lib/db/cafe-opening'
@@ -34,17 +38,18 @@ import { formatWeekdayDayMonth } from '@/lib/format/date'
 import './cafe-count-page.css'
 import './cafe-receive-page.css'
 
-type Entry = { quantity: string; unitId: string; changingUnit: boolean }
+type Entry = { quantity: string; unitId: string; changingUnit: boolean; damagedWrong: boolean }
 type LoadState = 'loading' | 'ready' | 'error'
 
 /** A typed quantity that is not a positive decimal; it blocks Count submit rather than being dropped. */
 function isInvalidEntry(entry: Entry | undefined): boolean {
   return Boolean(entry?.quantity.trim()) && normalizeCafeReceiptQuantity(entry!.quantity) === null
 }
-type Counted = { receiptId: string; rowVersion: number; lines: Array<{ name: string; quantity: string; unit: string }> }
+type Counted = { receiptId: string; rowVersion: number; lines: CafeReceiptLine[] }
+type EvidenceValidation = 'reason' | 'photo' | 'both'
 
 function blankEntries(items: readonly CafeReceivableItem[]): Record<string, Entry> {
-  return Object.fromEntries(items.map(item => [item.id, { quantity: '', unitId: item.defaultUnitId, changingUnit: false }]))
+  return Object.fromEntries(items.map(item => [item.id, { quantity: '', unitId: item.defaultUnitId, changingUnit: false, damagedWrong: false }]))
 }
 
 function submitErrorKey(message: string) {
@@ -83,8 +88,9 @@ export function CafeReceivePage() {
   const [clientKey, setClientKey] = useState(() => newCafeReceiptClientKey())
   const [busy, setBusy] = useState(false)
   const [confirming, setConfirming] = useState(false)
-  const [error, setError] = useState<ReturnType<typeof submitErrorKey> | 'cafe.receive.error.send' | null>(null)
+  const [error, setError] = useState<ReturnType<typeof submitErrorKey> | 'cafe.receive.error.send' | 'cafe.receive.error.evidence' | null>(null)
   const [counted, setCounted] = useState<Counted | null>(null)
+  const [evidenceValidation, setEvidenceValidation] = useState<Record<string, EvidenceValidation>>({})
   const [deliveryNote, setDeliveryNote] = useState('')
   const [sent, setSent] = useState(false)
   const [recent, setRecent] = useState<CafeReceipt[]>([])
@@ -149,7 +155,9 @@ export function CafeReceivePage() {
     name: item.name,
     quantity,
     unit: item.units.find(unit => unit.id === entry.unitId)?.name ?? '',
+    damagedWrong: entry.damagedWrong,
   }))
+  const recentForStream = recent.filter(receipt => receipt.branch_id === stream?.branch.id && receipt.activity === stream?.activity)
   const hasInput = items.some(item => Boolean(entries[item.id]?.quantity.trim()))
   const invalidCount = items.filter(item => isInvalidEntry(entries[item.id])).length
   const canLock = Boolean(stream) && isOnline && !busy && lines.length > 0 && invalidCount === 0
@@ -180,6 +188,20 @@ export function CafeReceivePage() {
     if (canSwitch) setStream(next)
   }, [canSwitch, setStream])
 
+  function patchCountedLine(lineId: string, patch: Pick<Partial<CafeReceiptLine>, 'conditions' | 'condition_reason' | 'photos'>) {
+    setCounted(current => current ? {
+      ...current,
+      lines: current.lines.map(line => line.id === lineId ? { ...line, ...patch } : line),
+    } : current)
+    setEvidenceValidation(current => {
+      if (!(lineId in current)) return current
+      const next = { ...current }
+      delete next[lineId]
+      return next
+    })
+    setError(null)
+  }
+
   async function handleCountSubmit() {
     if (!stream || !canLock) return
     setBusy(true)
@@ -188,8 +210,10 @@ export function CafeReceivePage() {
       const result = await submitCafeReceipt(stream, arrivalDate, clientKey, lines.map(({ entry, quantity }) => ({
         item_unit_id: entry.unitId,
         quantity,
+        damaged_wrong: entry.damagedWrong,
       })))
-      setCounted({ receiptId: result.receipt_id, rowVersion: result.row_version, lines: lockLines })
+      setCounted({ receiptId: result.receipt_id, rowVersion: result.row_version, lines: result.lines })
+      setEvidenceValidation({})
       setConfirming(false)
       loadRecent()
     } catch (cause) {
@@ -202,22 +226,52 @@ export function CafeReceivePage() {
   }
 
   async function handleSend(receiptId: string, rowVersion: number, note: string) {
-    if (!isOnline || busy) return
+    const target = counted
+    if (!isOnline || busy || !target || target.receiptId !== receiptId) return
+    const validation: Record<string, EvidenceValidation> = {}
+    for (const line of target.lines) {
+      if (line.conditions.length === 0) continue
+      const missingReason = !line.condition_reason?.trim()
+      const missingPhoto = line.photos.length === 0
+      if (missingReason && missingPhoto) validation[line.id] = 'both'
+      else if (missingReason) validation[line.id] = 'reason'
+      else if (missingPhoto) validation[line.id] = 'photo'
+    }
+    setEvidenceValidation(validation)
+    if (Object.keys(validation).length > 0) return
+
     setBusy(true)
     setError(null)
     try {
+      for (const line of target.lines) {
+        if (line.conditions.length > 0) {
+          await saveCafeReceiptLineExplanation(line.id, line.conditions.includes('damaged_wrong'), line.condition_reason ?? '')
+        }
+      }
       await sendCafeReceiptForReview(receiptId, rowVersion, note)
-      if (counted?.receiptId === receiptId) setSent(true)
+      setSent(true)
       loadRecent()
-    } catch {
-      setError('cafe.receive.error.send')
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : ''
+      setError(message.includes('CAFE_RECEIPT_') && message.includes('REQUIRED')
+        ? 'cafe.receive.error.evidence'
+        : 'cafe.receive.error.send')
     } finally {
       setBusy(false)
     }
   }
 
+  function continueReceipt(receipt: CafeReceipt) {
+    if (receipt.status !== 'Counted' || busy) return
+    setCounted({ receiptId: receipt.id, rowVersion: receipt.row_version, lines: receipt.lines })
+    setEvidenceValidation({})
+    setDeliveryNote(receipt.delivery_note_number ?? '')
+    setSent(false)
+  }
+
   function startAnother() {
     setCounted(null)
+    setEvidenceValidation({})
     setSent(false)
     setDeliveryNote('')
     setClientKey(newCafeReceiptClientKey())
@@ -236,6 +290,7 @@ export function CafeReceivePage() {
     />
   )
   const pageState = loadState === 'loading' ? 'loading' : loadState === 'error' ? 'error' : busy ? 'saving' : 'default'
+  const firstEvidenceErrorId = Object.keys(evidenceValidation)[0]
 
   return (
     <PageFamilyFrame family="workspace" title={pageLabel} headClassName="cafe-count__head" statusRow={picker} state={pageState}>
@@ -260,11 +315,36 @@ export function CafeReceivePage() {
           <section className="cafe-receive__counted" aria-labelledby="cafe-receive-counted-title">
             <h2 id="cafe-receive-counted-title" ref={countedHeadingRef} tabIndex={-1}>{sent ? t('cafe.receive.sent.title') : t('cafe.receive.counted.title')}</h2>
             <p>{sent ? t('cafe.receive.sent.copy') : t('cafe.receive.counted.copy')}</p>
-            <ul className="cafe-receipt-lines" aria-label={t('cafe.receive.counted.linesAria')}>
+            <ul className="cafe-receipt-lines cafe-receive__counted-lines" aria-label={t('cafe.receive.counted.linesAria')}>
               {counted.lines.map(line => (
-                <li key={`${line.name}-${line.unit}`}>
-                  <span>{line.name}</span>
-                  <span className="tabular">{t('cafe.receipts.quantityUnit', { quantity: line.quantity, unit: line.unit })}</span>
+                <li key={line.id}>
+                  <span className="cafe-receive__line-name">{line.item_name}</span>
+                  <span className="tabular">{t('cafe.receipts.quantityUnit', { quantity: line.received_quantity, unit: line.unit_name })}</span>
+                  {sent ? (
+                    line.conditions.length > 0 && (
+                      <div className="cafe-receive__condition-readonly">
+                        {line.conditions.map(condition => (
+                          <span className="cafe-receive__condition-tag" key={condition}>{t('cafe.receive.damageFlag')}</span>
+                        ))}
+                        {line.condition_reason && <p>{line.condition_reason}</p>}
+                        <WastePhotoStrip
+                          photos={line.photos}
+                          copy={{
+                            reviewLabel: t('cafe.receive.photoReview'),
+                            openAlt: (n, total) => t('cafe.receive.photoOpen', { n, total }),
+                          }}
+                        />
+                      </div>
+                    )
+                  ) : (
+                    <CafeReceiptLineCondition
+                      line={line}
+                      disabled={busy}
+                      validation={evidenceValidation[line.id]}
+                      focusError={line.id === firstEvidenceErrorId}
+                      onChange={patch => patchCountedLine(line.id, patch)}
+                    />
+                  )}
                 </li>
               ))}
             </ul>
@@ -346,6 +426,16 @@ export function CafeReceivePage() {
                         <div className="cafe-count__item">
                           <div className="cafe-count__item-name">{item.name}</div>
                           {item.category && <div className="cafe-count__category">{kitchenCategoryLabel(t, item.category)}</div>}
+                          <label className="cafe-receive__damage-flag">
+                            <input
+                              type="checkbox"
+                              aria-label={t('cafe.receive.damageFlagFor', { item: item.name })}
+                              checked={entry?.damagedWrong ?? false}
+                              disabled={busy}
+                              onChange={event => patchEntry(item.id, { damagedWrong: event.target.checked })}
+                            />
+                            {t('cafe.receive.damageFlag')}
+                          </label>
                         </div>
                         <div className="cafe-count__input-group">
                           <label htmlFor={`cafe-receive-${item.id}`}>{t('cafe.receive.quantityLabel')}</label>
@@ -400,11 +490,11 @@ export function CafeReceivePage() {
             )}
           </>
         )}
-        {loadState === 'ready' && canCapture && recent.length > 0 && (
+        {loadState === 'ready' && canCapture && recentForStream.length > 0 && (
           <section className="cafe-receive__recent" aria-labelledby="cafe-receive-recent-title">
             <h2 id="cafe-receive-recent-title">{t('cafe.receive.recent.title')}</h2>
             <ul>
-              {recent.map(receipt => (
+              {recentForStream.map(receipt => (
                 <li key={receipt.id}>
                   <span className="tabular">{formatWeekdayDayMonth(receipt.arrival_date)}</span>
                   <span>{t(receipt.lines.length === 1 ? 'cafe.receive.lines.one' : 'cafe.receive.lines.other', { count: receipt.lines.length })}</span>
@@ -414,9 +504,9 @@ export function CafeReceivePage() {
                       type="button"
                       className="btn btn-outline"
                       disabled={!isOnline || busy}
-                      onClick={() => void handleSend(receipt.id, receipt.row_version, '')}
+                      onClick={() => continueReceipt(receipt)}
                     >
-                      {t('cafe.receive.send')}
+                      {t('cafe.receive.continue')}
                     </button>
                   )}
                 </li>

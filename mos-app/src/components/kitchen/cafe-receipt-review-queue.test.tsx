@@ -17,7 +17,10 @@ function receipt(id: string, receivedBy: string, overrides: Partial<CafeReceipt>
     status: 'Submitted', posting_status: 'not_posted', posting_hold_reason: null, received_by: receivedBy,
     received_at: '2026-10-06T02:00:00Z', submitted_at: '2026-10-06T02:05:00Z', reviewed_by: null, reviewed_at: null,
     review_note: null, row_version: 2,
-    lines: [{ id: `${id}-l1`, item_name: 'Coffee bean', item_category: 'Bar', unit_name: 'kg', received_quantity: '2.5' }],
+    lines: [{
+      id: `${id}-l1`, item_name: 'Coffee bean', item_category: 'Bar', unit_name: 'kg', received_quantity: '2.5',
+      conditions: [], condition_reason: null, photos: [],
+    }],
     ...overrides,
   }
 }
@@ -47,6 +50,21 @@ describe('CafeReceiptReviewQueue', () => {
     fireEvent.click(within(row).getByRole('button', { name: 'Approve' }))
     await waitFor(() => expect(reviewCafeReceipt).toHaveBeenCalledWith('r-1', 'approve', 2, ''))
     expect(await within(row).findByText('Approved · not posted to ESB')).toBeInTheDocument()
+  })
+
+  it('AC-1012 the reviewer sees each conditioned line’s reason and private photo', async () => {
+    vi.mocked(listCafeReceipts).mockResolvedValue([receipt('r-evidence', 'receiver', {
+      lines: [{
+        id: 'line-evidence', item_name: 'Fresh milk', item_category: 'Dairy', unit_name: 'l', received_quantity: '11',
+        conditions: ['damaged_wrong'], condition_reason: 'Seal broken on arrival',
+        photos: [{ lineId: 'line-evidence', path: 'org/receipt/line/photo.jpg', url: 'https://private.test/photo' }],
+      }],
+    })])
+    renderQueue()
+    const row = (await screen.findByText('Received by Shift member')).closest('li')!
+    expect(within(row).getByText('Seal broken on arrival')).toBeInTheDocument()
+    expect(within(row).getByText('Damaged or wrong')).toBeInTheDocument()
+    expect(within(row).getByRole('link', { name: 'Open photo 1 of 1' })).toHaveAttribute('href', 'https://private.test/photo')
   })
 
   it('FR-1020 the receiver’s own receipt cannot be approved from the queue but can be rejected', async () => {

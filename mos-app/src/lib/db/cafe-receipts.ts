@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { listCafeReceiptLinePhotos, type CafeReceiptPhoto } from './cafe-receipt-photos'
 import { normalizeCafeCountQuantity, newCafeCountClientKey } from './cafe-count'
 import type { ProductionActivity, ProductionStream } from './kitchen-logs.types'
 
@@ -16,12 +17,17 @@ export type CafeReceivableItem = {
 export type CafeReceiptStatus = 'Counted' | 'Submitted' | 'Approved' | 'Rejected'
 export type CafeReceiptPostingStatus = 'not_posted' | 'held'
 
+export type CafeReceiptCondition = 'damaged_wrong'
+
 export type CafeReceiptLine = {
   id: string
   item_name: string
   item_category: string | null
   unit_name: string
   received_quantity: string
+  conditions: CafeReceiptCondition[]
+  condition_reason: string | null
+  photos: CafeReceiptPhoto[]
 }
 
 export type CafeReceipt = {
@@ -43,12 +49,13 @@ export type CafeReceipt = {
   lines: CafeReceiptLine[]
 }
 
-export type CafeReceiptDraftLine = { item_unit_id: string; quantity: string }
+export type CafeReceiptDraftLine = { item_unit_id: string; quantity: string; damaged_wrong?: boolean }
 
 export type CafeReceiptSubmitResult = {
   receipt_id: string
   outcome: 'created' | 'existing'
   row_version: number
+  lines: CafeReceiptLine[]
 }
 
 type ReceivableRow = {
@@ -65,7 +72,7 @@ const RECEIPT_FIELDS = [
   'id', 'branch_id', 'activity', 'arrival_date', 'delivery_note_number', 'status', 'posting_status',
   'posting_hold_reason', 'received_by', 'received_at', 'submitted_at', 'reviewed_by', 'reviewed_at',
   'review_note', 'row_version',
-  'lines:cafe_receipt_lines(id, item_name, item_category, unit_name, received_quantity)',
+  'lines:cafe_receipt_lines(id, item_name, item_category, unit_name, received_quantity, conditions, condition_reason)',
 ].join(', ')
 
 const STATUSES: readonly CafeReceiptStatus[] = ['Counted', 'Submitted', 'Approved', 'Rejected']
@@ -115,22 +122,45 @@ export async function listCafeReceipts(
     .order('received_at', { ascending: false })
     .limit(limit)
   if (error) throw new Error(`listCafeReceipts failed: ${error.message}`)
-  return ((data ?? []) as unknown as Array<Record<string, unknown>>).map(row => {
+  const receipts = ((data ?? []) as unknown as Array<Record<string, unknown>>).map(row => {
     if ((row.activity !== 'kitchen' && row.activity !== 'bar') || !STATUSES.includes(row.status as CafeReceiptStatus)
       || (row.posting_status !== 'not_posted' && row.posting_status !== 'held') || !Array.isArray(row.lines)) {
       throw new Error('listCafeReceipts failed: invalid receipt row')
     }
     return {
       ...row,
-      lines: (row.lines as Array<Record<string, unknown>>).map(line => ({
-        ...line,
-        received_quantity: String(line.received_quantity),
-      })),
+      lines: (row.lines as Array<Record<string, unknown>>).map(parseCafeReceiptLine),
     } as unknown as CafeReceipt
   })
+  const allLineIds = receipts.flatMap(receipt => receipt.lines.map(line => line.id))
+  const photoRows = await listCafeReceiptLinePhotos(allLineIds)
+  const photosByLine = new Map<string, CafeReceiptPhoto[]>()
+  for (const photo of photoRows) photosByLine.set(photo.lineId, [...(photosByLine.get(photo.lineId) ?? []), photo])
+  return receipts.map(receipt => ({
+    ...receipt,
+    lines: receipt.lines.map(line => ({ ...line, photos: photosByLine.get(line.id) ?? [] })),
+  }))
 }
 
-/** Count submit: only the key, stream, arrival date and (product detail, quantity) pairs cross the boundary. */
+function parseCafeReceiptLine(line: Record<string, unknown>): CafeReceiptLine {
+  if (typeof line.id !== 'string' || typeof line.item_name !== 'string' || typeof line.unit_name !== 'string'
+    || !Array.isArray(line.conditions) || line.conditions.some(condition => condition !== 'damaged_wrong')
+    || (line.condition_reason !== null && typeof line.condition_reason !== 'string')) {
+    throw new Error('cafe receipt read failed: invalid line')
+  }
+  return {
+    id: line.id,
+    item_name: line.item_name,
+    item_category: typeof line.item_category === 'string' ? line.item_category : null,
+    unit_name: line.unit_name,
+    received_quantity: String(line.received_quantity),
+    conditions: line.conditions as CafeReceiptCondition[],
+    condition_reason: line.condition_reason as string | null,
+    photos: [],
+  }
+}
+
+/** Count submit carries the receiver's damaged/wrong observation, never matching or posting decisions. */
 export async function submitCafeReceipt(
   stream: ProductionStream,
   arrivalDate: string,
@@ -142,15 +172,40 @@ export async function submitCafeReceipt(
     p_activity: stream.activity,
     p_arrival_date: arrivalDate,
     p_client_key: clientKey,
-    p_lines: lines.map(({ item_unit_id, quantity }) => ({ item_unit_id, quantity })),
+    p_lines: lines.map(({ item_unit_id, quantity, damaged_wrong }) => ({ item_unit_id, quantity, damaged_wrong: damaged_wrong === true })),
   })
   if (error) throw new Error(`submitCafeReceipt failed: ${error.message}`)
   const row = data as Record<string, unknown> | null
   if (!row || typeof row.receipt_id !== 'string' || typeof row.row_version !== 'number'
-    || (row.outcome !== 'created' && row.outcome !== 'existing')) {
+    || (row.outcome !== 'created' && row.outcome !== 'existing') || !Array.isArray(row.lines)) {
     throw new Error('submitCafeReceipt failed: invalid response')
   }
-  return { receipt_id: row.receipt_id, outcome: row.outcome, row_version: row.row_version }
+  return {
+    receipt_id: row.receipt_id,
+    outcome: row.outcome,
+    row_version: row.row_version,
+    lines: row.lines.map(line => parseCafeReceiptLine(line as Record<string, unknown>)),
+  }
+}
+
+/** Save only this receiver's line condition and bounded reason on their Counted receipt. */
+export async function saveCafeReceiptLineExplanation(
+  lineId: string,
+  damagedWrong: boolean,
+  reason: string,
+): Promise<{ conditions: CafeReceiptCondition[]; condition_reason: string | null }> {
+  const { data, error } = await ops().rpc('set_cafe_receipt_line_explanation', {
+    p_line_id: lineId,
+    p_damaged_wrong: damagedWrong,
+    p_reason: reason.trim() || null,
+  })
+  if (error) throw new Error(`saveCafeReceiptLineExplanation failed: ${error.message}`)
+  const row = data as Record<string, unknown> | null
+  if (!row || !Array.isArray(row.conditions) || row.conditions.some(value => value !== 'damaged_wrong')
+    || (row.condition_reason !== null && typeof row.condition_reason !== 'string')) {
+    throw new Error('saveCafeReceiptLineExplanation failed: invalid response')
+  }
+  return { conditions: row.conditions as CafeReceiptCondition[], condition_reason: row.condition_reason as string | null }
 }
 
 export async function sendCafeReceiptForReview(

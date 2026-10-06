@@ -5,7 +5,7 @@ import { useT } from '@/i18n/use-t'
 import './cafe-receipt.css'
 import './cafe-receive-lock-confirm.css'
 
-export type CafeReceiveLockLine = { key: string; name: string; quantity: string; unit: string }
+export type CafeReceiveLockLine = { key: string; name: string; quantity: string; unit: string; damagedWrong?: boolean }
 
 type Props = {
   open: boolean
@@ -54,7 +54,10 @@ export function CafeReceiveLockConfirm({
         <ul className="cafe-receipt-lines cafe-lock-confirm__lines" aria-label={t('cafe.receive.confirm.linesAria')} tabIndex={0}>
           {lines.map(line => (
             <li key={line.key}>
-              <span>{line.name}</span>
+              <span>
+                {line.name}
+                {line.damagedWrong && <span className="cafe-lock-confirm__condition">{t('cafe.receive.damageFlag')}</span>}
+              </span>
               <span className="cafe-lock-confirm__quantity">{t('cafe.receipts.quantityUnit', { quantity: line.quantity, unit: line.unit })}</span>
             </li>
           ))}

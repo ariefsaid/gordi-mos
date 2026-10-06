@@ -45,6 +45,25 @@
   font-size: var(--font-size-touch-input);
 }
 
+.cafe-receive__damage-flag {
+  grid-column: 1 / -1;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  width: fit-content;
+  min-height: 44px;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-body);
+  cursor: pointer;
+}
+
+.cafe-receive__damage-flag input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--primary);
+}
+
 .cafe-receive__change-unit {
   justify-self: start;
   min-height: 44px;
@@ -144,6 +163,118 @@
 
 .cafe-receive__recent li .btn { margin-left: auto; min-height: 44px; }
 
+.cafe-receive__counted-lines li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 4px 16px;
+  padding: 12px 0;
+}
+
+.cafe-receive__line-name {
+  min-width: 0;
+  color: var(--foreground);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.cafe-receive__condition {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding-top: 4px;
+}
+
+.cafe-receive__condition-help {
+  margin: -3px 0 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-body);
+  line-height: 1.45;
+}
+
+.cafe-receive__evidence-fields {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.cafe-receive__counted .waste-photo-capture {
+  padding: 12px 0 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+}
+
+.cafe-receive__reason {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.cafe-receive__reason > label {
+  color: var(--foreground);
+  font-size: var(--font-size-body);
+  font-weight: 600;
+}
+
+.cafe-receive__reason textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 88px;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-md);
+  background: var(--background);
+  color: var(--foreground);
+  font: inherit;
+  font-size: var(--font-size-touch-input);
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.cafe-receive__reason-meta > :last-child { flex: 0 0 auto; white-space: nowrap; }
+
+.cafe-receive__reason textarea:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.cafe-receive__reason textarea[aria-invalid="true"] { border-color: var(--destructive); }
+
+.cafe-receive__reason-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  line-height: 1.4;
+}
+
+.cafe-receive__condition-readonly {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding-top: 6px;
+}
+
+.cafe-receive__condition-readonly p { color: var(--foreground); overflow-wrap: anywhere; }
+
+.cafe-receive__condition-tag {
+  justify-self: start;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--secondary);
+  color: var(--secondary-foreground);
+  font-size: var(--font-size-label);
+  font-weight: 600;
+}
+
+.cafe-receive__counted-lines li > :last-child { white-space: normal; }
+
 /* The sticky send bar is the page's last child here, so the list needs no bottom reserve. */
 .cafe-receive .cafe-count__list { padding-bottom: 0; margin-bottom: 24px; }
 
@@ -164,6 +295,7 @@
 
 @media (max-width: 639px) {
   .cafe-receive__date { grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; }
+  .cafe-receive__counted-lines li { grid-template-columns: minmax(0, 1fr); }
   /* The job is the page itself on a phone; the help line returns at wider widths. */
   .cafe-receive__help { display: none; }
   .cafe-receive__date { margin-bottom: 12px; }

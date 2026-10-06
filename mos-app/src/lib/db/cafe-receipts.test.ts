@@ -7,11 +7,13 @@ import {
   listCafeReceivableItems,
   normalizeCafeReceiptQuantity,
   reviewCafeReceipt,
+  saveCafeReceiptLineExplanation,
   sendCafeReceiptForReview,
   submitCafeReceipt,
 } from './cafe-receipts'
 
 vi.mock('@/lib/supabase', () => ({ supabase: { schema: vi.fn() } }))
+vi.mock('./cafe-receipt-photos', () => ({ listCafeReceiptLinePhotos: vi.fn().mockResolvedValue([]) }))
 
 const schemaMock = vi.mocked(supabase.schema)
 const STREAM: ProductionStream = {
@@ -50,16 +52,28 @@ describe('Café receipt adapter', () => {
     expect(rpc).toHaveBeenCalledWith('cafe_receivable_items', { p_branch_id: 'branch-1', p_activity: 'kitchen' })
   })
 
-  it('NFR-1001 Count submit sends only the stream, date, key and (product detail, quantity) pairs', async () => {
-    const rpc = vi.fn().mockResolvedValue({ data: { receipt_id: 'r-1', outcome: 'created', row_version: 1 }, error: null })
+  it('NFR-1001 Count submit sends only allowed line facts (never org or status)', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: {
+      receipt_id: 'r-1', outcome: 'created', row_version: 1,
+      lines: [{
+        id: 'line-1', item_name: 'Bean', item_category: 'Bar', unit_name: 'kg', received_quantity: '2.5',
+        conditions: ['damaged_wrong'], condition_reason: null,
+      }],
+    }, error: null })
     schemaMock.mockReturnValue({ rpc } as never)
-    const line = { item_unit_id: 'kg', quantity: '2.5', org_id: 'other', status: 'Approved' }
+    const line = { item_unit_id: 'kg', quantity: '2.5', damaged_wrong: true, org_id: 'other', status: 'Approved' }
 
     await expect(submitCafeReceipt(STREAM, '2026-10-06', 'key-1', [line])).resolves
-      .toEqual({ receipt_id: 'r-1', outcome: 'created', row_version: 1 })
+      .toEqual({
+        receipt_id: 'r-1', outcome: 'created', row_version: 1,
+        lines: [{
+          id: 'line-1', item_name: 'Bean', item_category: 'Bar', unit_name: 'kg', received_quantity: '2.5',
+          conditions: ['damaged_wrong'], condition_reason: null, photos: [],
+        }],
+      })
     expect(rpc).toHaveBeenCalledWith('submit_cafe_receipt', {
       p_branch_id: 'branch-1', p_activity: 'kitchen', p_arrival_date: '2026-10-06', p_client_key: 'key-1',
-      p_lines: [{ item_unit_id: 'kg', quantity: '2.5' }],
+      p_lines: [{ item_unit_id: 'kg', quantity: '2.5', damaged_wrong: true }],
     })
   })
 
@@ -67,7 +81,10 @@ describe('Café receipt adapter', () => {
     const query: Record<string, unknown> = {}
     const row = {
       id: 'r-1', activity: 'bar', status: 'Approved', posting_status: 'not_posted',
-      lines: [{ id: 'l-1', item_name: 'Milk', unit_name: 'l', received_quantity: 24 }],
+      lines: [{
+        id: 'l-1', item_name: 'Milk', item_category: 'Dairy', unit_name: 'l', received_quantity: 24,
+        conditions: [], condition_reason: null,
+      }],
     }
     let response: { data: unknown; error: unknown } = { data: [row], error: null }
     for (const method of ['select', 'in', 'eq', 'order', 'limit']) query[method] = vi.fn(() => query)
@@ -75,12 +92,26 @@ describe('Café receipt adapter', () => {
     schemaMock.mockReturnValue({ from: vi.fn(() => query) } as never)
 
     const [receipt] = await listCafeReceipts(['Approved'], { receivedBy: 'me', limit: 5 })
-    expect(receipt.lines[0].received_quantity).toBe('24')
+    expect(receipt.lines[0]).toMatchObject({ received_quantity: '24', conditions: [], condition_reason: null, photos: [] })
     expect(query.eq).toHaveBeenCalledWith('received_by', 'me')
     expect(query.limit).toHaveBeenCalledWith(5)
 
     response = { data: [{ ...row, status: 'Posted' }], error: null }
     await expect(listCafeReceipts(['Approved'])).rejects.toThrow('invalid receipt row')
+  })
+
+  it('AC-1011 explanation writer passes only a line id, damage flag and trimmed reason', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: {
+      line_id: 'line-1', conditions: ['damaged_wrong'], condition_reason: 'Seal torn', condition_updated_at: 'now',
+    }, error: null })
+    schemaMock.mockReturnValue({ rpc } as never)
+
+    await expect(saveCafeReceiptLineExplanation('line-1', true, '  Seal torn  ')).resolves.toEqual({
+      conditions: ['damaged_wrong'], condition_reason: 'Seal torn',
+    })
+    expect(rpc).toHaveBeenCalledWith('set_cafe_receipt_line_explanation', {
+      p_line_id: 'line-1', p_damaged_wrong: true, p_reason: 'Seal torn',
+    })
   })
 
   it('FR-1016 / FR-1019 send and review pass only the receipt, version, decision and trimmed note', async () => {

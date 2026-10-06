@@ -9,6 +9,7 @@ import { useIsOffline } from '@/shell/use-is-offline'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { ALL_STREAMS } from './cafe-stream-bar'
 import { CafeReceiptState } from './cafe-receipt-state'
+import { WastePhotoStrip } from './waste-photo-strip'
 import './cafe-count-review-queue.css'
 
 /** Submitted receipts the server lets this viewer review (RLS scopes the read; the RPC decides). */
@@ -127,6 +128,26 @@ export function CafeReceiptReviewQueue({
                     </li>
                   ))}
                 </ul>
+                {receipt.lines.some(line => line.conditions.length > 0 || line.photos.length > 0) && (
+                  <ul className="cafe-receipt-review__evidence" aria-label={t('cafe.receive.photoReview')}>
+                    {receipt.lines.filter(line => line.conditions.length > 0 || line.photos.length > 0).map(line => (
+                      <li key={line.id}>
+                        <strong>{line.item_name}</strong>
+                        {line.conditions.map(condition => (
+                          <span className="cafe-receipt-review__condition" key={condition}>{t('cafe.receive.damageFlag')}</span>
+                        ))}
+                        {line.condition_reason && <p>{line.condition_reason}</p>}
+                        <WastePhotoStrip
+                          photos={line.photos}
+                          copy={{
+                            reviewLabel: t('cafe.receive.photoReview'),
+                            openAlt: (n, total) => t('cafe.receive.photoOpen', { n, total }),
+                          }}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 <div className="cafe-count-review__decision cafe-receipt-review__decision">
                   {receipt.status !== 'Submitted' ? (
                     <span className="cafe-count-review__state" role="status"><CafeReceiptState receipt={receipt} /></span>
