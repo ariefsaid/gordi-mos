@@ -342,11 +342,12 @@ describe('router — Money gates (dev security series preserved)', () => {
     const readGate = shellChildren().find(
       (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'money'),
     )!
-    expect(readGate.children!.map((c) => c.path).sort()).toEqual([
+    expect(readGate.children!.flatMap((c) => c.path ?? c.children!.map((cc) => cc.path)).sort()).toEqual([
       'dashboard',
       'dashboard/detail',
       'money',
       'money/detail',
+      'money/pending-bills',
       'sales',
     ])
     const planGate = shellChildren().find(
@@ -359,6 +360,20 @@ describe('router — Money gates (dev security series preserved)', () => {
       'plan/budget',
       'plan/pricing',
     ])
+  })
+})
+
+describe('router — Pending bills is Finance only (#1464)', () => {
+  it('AC-1113: /money/pending-bills sits inside the Money read gate behind a Finance-only link gate', () => {
+    expect(gatesOnPath('/money/pending-bills')).toEqual([
+      'accessRole:finance|manager|supervisor',
+      'accessRole:finance',
+    ])
+    const readGate = shellChildren().find(
+      (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'money'),
+    )!
+    const financeGate = readGate.children!.find((c) => c.children?.some((cc) => cc.path === 'money/pending-bills'))!
+    expect(financeGate.element).toEqual(<RequireAccessRole anyOf={['finance']} scope="link" />)
   })
 })
 

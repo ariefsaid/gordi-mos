@@ -74,8 +74,19 @@ function renderPage(accessRoles = ['finance']) {
   )
 }
 
+function setViewport(desktop: boolean) {
+  window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+    matches: query === '(min-width: 768px)' ? desktop : false,
+    media: query, onchange: null,
+    addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
+  }))
+}
+
+const realMatchMedia = window.matchMedia
+
 beforeEach(() => {
   vi.clearAllMocks()
+  setViewport(true)
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(NOW)
   mockSnapshot.mockResolvedValue({ snapshot_as_of: COPY, bill_count: 3 })
@@ -86,7 +97,10 @@ beforeEach(() => {
     bill({ bill_no: 'PB-4', bill_date: '2026-10-04', source_state: 'missing' }),
   ])
 })
-afterEach(() => vi.useRealTimers())
+afterEach(() => {
+  vi.useRealTimers()
+  window.matchMedia = realMatchMedia
+})
 
 describe('AC-1113: only Finance reaches the list', () => {
   it.each([['manager'], ['supervisor']])('a %s deep link meets the outside-access panel and reads nothing', async (role) => {
@@ -113,6 +127,24 @@ describe('the ready list', () => {
     expect(within(rows[2]).getByText('Voided in ESB')).toBeInTheDocument()
     expect(within(rows[3]).getByText('Not written on the bill')).toBeInTheDocument()
     expect(within(rows[3]).getByText('Today')).toBeInTheDocument()
+  })
+})
+
+describe('the phone list', () => {
+  it('shows one card per bill: who owes and amount, then date, branch and bill no., then age, state and balance', async () => {
+    setViewport(false)
+    renderPage()
+    await screen.findByText('Copied from ESB Tue 6 Oct, 02:05 WIB')
+    expect(screen.queryByRole('table')).toBeNull()
+    const cards = document.querySelectorAll('.pending-bill-card')
+    expect(cards).toHaveLength(4)
+    const oldest = within(cards[0] as HTMLElement)
+    expect(oldest.getByText('Meja 4')).toBeInTheDocument()
+    expect(oldest.getAllByText('Rp 2.480.000')).toHaveLength(2)
+    expect(oldest.getByText('pop_up_east')).toBeInTheDocument()
+    expect(oldest.getByText('PB-1')).toBeInTheDocument()
+    expect(oldest.getByText('420 days')).toBeInTheDocument()
+    expect(oldest.getByText('Open')).toBeInTheDocument()
   })
 })
 

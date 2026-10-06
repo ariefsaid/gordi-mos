@@ -223,7 +223,7 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
             <DrawerGroupLabel>{t('rail.destinations')}</DrawerGroupLabel>
             <ul className="flex flex-col gap-[2px]">
               {liveWorkspace.map((d) => {
-                if (d.id === 'work') {
+                if (d.children) {
                   const children = workChildren(d, accessRoles)
                   return (
                     <li key={d.id}>

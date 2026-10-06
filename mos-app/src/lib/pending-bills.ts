@@ -4,7 +4,7 @@ import type { PendingBillRow } from '@/lib/db/reporting-pending-bills'
 export type PendingBillState = 'open' | 'void' | 'missing'
 
 export interface PendingBillView {
-  key: string
+  id: string
   billDate: string
   branchName: string | null
   branchCode: string
@@ -37,7 +37,7 @@ export function toPendingBillViews(rows: readonly PendingBillRow[], today: strin
     .map((row): PendingBillView => {
       const amount = Number(row.amount)
       return {
-        key: `${row.esb_code}|${row.branch_code}|${row.bill_no}`,
+        id: `${row.esb_code}|${row.branch_code}|${row.bill_no}`,
         billDate: row.bill_date,
         branchName: row.branch_name,
         branchCode: row.branch_code,
@@ -49,7 +49,7 @@ export function toPendingBillViews(rows: readonly PendingBillRow[], today: strin
         state: STATE[row.source_state],
       }
     })
-    .sort((a, b) => a.billDate.localeCompare(b.billDate) || a.key.localeCompare(b.key))
+    .sort((a, b) => a.billDate.localeCompare(b.billDate) || a.id.localeCompare(b.id))
 }
 
 export function isPendingBillCopyStale(snapshotAsOf: string, now: Date): boolean {

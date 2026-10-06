@@ -1,0 +1,106 @@
+/* PendingBillsPage — the freshness line, the stale warning, and the bill list's own cells.
+   The table and its phone cards are DataTable's (components/dashboard/data-table.css). Token-only. */
+
+.pending-bills-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.content-header .ch-meta-line.pending-bills-freshness {
+  white-space: normal;
+}
+
+/* Stale: a warning-tinted sentence with its one action, above the list. Text carries the meaning. */
+.pending-bills-stale {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 10px 16px;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--warning) 18%, transparent);
+  color: var(--warning-foreground);
+}
+
+.pending-bills-stale__text {
+  margin: 0;
+  font-size: var(--font-size-control);
+  font-weight: 500;
+}
+
+/* A column that cannot fit scrolls inside the list, never the page. */
+.pending-bills-scroll {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.pending-bills__nowrap {
+  white-space: nowrap;
+}
+
+/* Who owes wraps as written; never ellipsised. */
+.pending-bills__owes {
+  display: block;
+  min-width: 160px;
+  max-width: 320px;
+  overflow-wrap: anywhere;
+}
+
+.pending-bills__code {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-label);
+  overflow-wrap: anywhere;
+}
+
+.pending-bills__muted {
+  color: var(--muted-foreground);
+}
+
+/* Phone card body (DataTable renderCard). */
+.pending-bill-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 12px;
+  font-size: var(--font-size-control);
+}
+
+.pending-bill-card__title {
+  min-width: 0;
+  color: var(--foreground);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.pending-bill-card__amount {
+  font-weight: 600;
+  text-align: right;
+}
+
+.pending-bill-card__meta,
+.pending-bill-card__balance {
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+}
+
+.pending-bill-card__meta {
+  grid-column: 1 / -1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.pending-bill-card__status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+}
+
+.pending-bill-card__balance {
+  align-self: center;
+  text-align: right;
+}
