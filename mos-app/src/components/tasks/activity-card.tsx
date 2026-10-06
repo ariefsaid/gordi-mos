@@ -1,4 +1,5 @@
 import type { TaskEventRow } from '@/lib/db/tasks.types'
+import { ListPaging } from '@/components/ui/list-paging'
 import type { PersonOption } from '@/lib/db/directory'
 import { formatAge, initials } from './task-formatters'
 import { useT } from '@/i18n/use-t'
@@ -24,9 +25,13 @@ export type ActivityCardProps = {
   events: TaskEventRow[]
   people: PersonOption[]
   now: Date
+  hasMore?: boolean
+  loadingMore?: boolean
+  moreError?: boolean
+  onLoadMore?: () => void
 }
 
-export function ActivityCard({ events, people, now }: ActivityCardProps) {
+export function ActivityCard({ events, people, now, hasMore = false, loadingMore = false, moreError = false, onLoadMore }: ActivityCardProps) {
   const t = useT()
   const { locale } = useI18n()
   function personName(id: string) {
@@ -48,6 +53,8 @@ export function ActivityCard({ events, people, now }: ActivityCardProps) {
           </div>
         ))}
       </div>
+      {events.length > 0 ? <ListPaging count={events.length} hasMore={hasMore} loading={loadingMore}
+        error={moreError} onLoadMore={onLoadMore ?? (() => {})} /> : null}
     </div>
   )
 }

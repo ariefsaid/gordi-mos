@@ -7,7 +7,7 @@
 // logic and imports this hook zero times, so the Work Tasks saved-view embed is the only door on
 // it — two behavior implementations, not one, until #428 cuts the page over (rebuild deferred,
 // OD-WAY-34).
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { getBusinessUnits } from '@/lib/db/directory'
@@ -16,6 +16,7 @@ import {
   listFollowUps,
   transitionFollowUp,
   isOverdue,
+  FOLLOW_UPS_PAGE_SIZE,
   type FollowUpRow,
   type FollowUpTransition,
 } from '@/lib/db/follow-ups'
@@ -38,6 +39,10 @@ export interface UseFollowUpQueueOptions {
 export interface FollowUpQueueState {
   rows: FollowUpRow[]
   state: FollowUpFetchState
+  hasMore: boolean
+  loadingMore: boolean
+  moreError: boolean
+  loadMore: () => Promise<void>
   overdueCount: number
   canConfirm: boolean
   canChase: boolean
@@ -61,15 +66,34 @@ export function useFollowUpQueue({ detailId }: UseFollowUpQueueOptions = {}): Fo
   const [canChase, setCanChase] = useState(accessRoles.includes('admin'))
   const [rows, setRows] = useState<FollowUpRow[]>([])
   const [state, setState] = useState<FollowUpFetchState>('loading')
+  const [hasMore, setHasMore] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [moreError, setMoreError] = useState(false)
+  const cursorRef = useRef<Pick<FollowUpRow, 'created_at' | 'id'> | null>(null)
+  const loadGeneration = useRef(0)
+  const moreInFlight = useRef(false)
   const [active, setActive] = useState<{ id: string; verb: FollowUpTransition } | null>(null)
   const [form, setForm] = useState<FollowUpTransitionForm>(EMPTY_FORM)
 
   const load = useCallback(() => {
+    const generation = ++loadGeneration.current
     let cancelled = false
     setState('loading')
+    setHasMore(false)
+    setLoadingMore(false)
+    setMoreError(false)
+    moreInFlight.current = false
+    cursorRef.current = null
     listFollowUps({ overdue: params.get('filter') === 'overdue' })
-      .then((data) => { if (!cancelled) { setRows(data); setState('ready') } })
-      .catch(() => { if (!cancelled) setState('error') })
+      .then((data) => {
+        if (!cancelled && generation === loadGeneration.current) {
+          setRows(data)
+          cursorRef.current = data.length === FOLLOW_UPS_PAGE_SIZE ? data.at(-1)! : null
+          setHasMore(cursorRef.current !== null)
+          setState('ready')
+        }
+      })
+      .catch(() => { if (!cancelled && generation === loadGeneration.current) setState('error') })
     return () => { cancelled = true }
   }, [params])
 
@@ -87,6 +111,29 @@ export function useFollowUpQueue({ detailId }: UseFollowUpQueueOptions = {}): Fo
   }, [accessRoles, viewer])
 
   const overdueCount = useMemo(() => rows.filter((row) => isOverdue(row)).length, [rows])
+
+  const loadMore = useCallback(async () => {
+    const before = cursorRef.current
+    if (!before || moreInFlight.current) return
+    const generation = loadGeneration.current
+    moreInFlight.current = true
+    setLoadingMore(true)
+    setMoreError(false)
+    try {
+      const page = await listFollowUps({ overdue: params.get('filter') === 'overdue', before })
+      if (generation !== loadGeneration.current) return
+      setRows((loaded) => [...loaded, ...page])
+      cursorRef.current = page.length === FOLLOW_UPS_PAGE_SIZE ? page.at(-1)! : null
+      setHasMore(cursorRef.current !== null)
+    } catch {
+      if (generation === loadGeneration.current) setMoreError(true)
+    } finally {
+      if (generation === loadGeneration.current) {
+        moreInFlight.current = false
+        setLoadingMore(false)
+      }
+    }
+  }, [params])
 
   const run = useCallback(async (row: FollowUpRow, verb: FollowUpTransition) => {
     if (verb === 'partial' || verb === 'settle' || verb === 'promise') {
@@ -109,5 +156,5 @@ export function useFollowUpQueue({ detailId }: UseFollowUpQueueOptions = {}): Fo
 
   const detailRow = rows.find((row) => row.id === (active?.id ?? detailId)) ?? null
 
-  return { rows, state, overdueCount, canConfirm, canChase, active, form, detailRow, setForm, load, run, submit }
+  return { rows, state, hasMore, loadingMore, moreError, loadMore, overdueCount, canConfirm, canChase, active, form, detailRow, setForm, load, run, submit }
 }

@@ -71,7 +71,7 @@ function context(rows: TaskListRow[], over: Partial<TaskCollectionContext> = {})
 
 function runtime(over: Partial<TaskCollectionRuntime> = {}): TaskCollectionRuntime {
   return {
-    selectedId: null, drawerOpen: false, splitLayout: false, isDesktop: true, recordSearch: '',
+    selectedId: null, drawerOpen: false, splitLayout: false, isDesktop: true, hasPagedOlderDone: false, recordSearch: '',
     statusOverrides: new Map(), onOpenTask: vi.fn(), onEditTitle: async () => {},
     onEditStatus: async () => {}, onEditDue: async () => {}, onEditPic: async () => {},
     onEditTeam: async () => {}, onEditSupervisor: async () => {}, teamOptions: [],
