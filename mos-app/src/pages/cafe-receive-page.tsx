@@ -4,6 +4,7 @@ import { useAuth } from '@/auth/use-auth'
 import { CafeStreamBar, CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { CafeReceiptState } from '@/components/kitchen/cafe-receipt-state'
+import { CafeReceiveLockConfirm } from '@/components/kitchen/cafe-receive-lock-confirm'
 import { CafeReceiptLineRow } from '@/components/kitchen/cafe-receipt-difference'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { useT } from '@/i18n/use-t'
@@ -26,6 +27,7 @@ import {
 import { wibToday } from '@/lib/db/cafe-opening'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { kitchenCategoryLabel } from '@/lib/kitchen-category-label'
+import { streamLabel } from '@/lib/kitchen-action-label'
 import { useKitchenItemTable } from '@/lib/kitchen-item-list'
 import { useCafeStream } from '@/lib/use-cafe-stream'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
@@ -59,6 +61,13 @@ function submitErrorKey(message: string) {
   return 'cafe.receive.error.submit' as const
 }
 
+/** Submit refusals another Lock counts cannot fix: the lock step says so and sends the person back to the page. */
+function lockStepDeadEnd(key: string) {
+  if (key === 'cafe.receive.error.keyConflict') return 'cafe.receive.confirm.keyConflict' as const
+  if (key === 'cafe.receive.error.countedPending') return 'cafe.receive.confirm.countedPending' as const
+  return null
+}
+
 export function CafeReceivePage() {
   const t = useT()
   const auth = useAuth()
@@ -87,6 +96,7 @@ export function CafeReceivePage() {
   const [arrivalDate, setArrivalDate] = useState(today)
   const [clientKey, setClientKey] = useState(() => newCafeReceiptClientKey())
   const [busy, setBusy] = useState(false)
+  const [confirming, setConfirming] = useState(false)
   const [error, setError] = useState<ReturnType<typeof submitErrorKey> | 'cafe.receive.error.send' | null>(null)
   const [counted, setCounted] = useState<Counted | null>(null)
   const [difference, setDifference] = useState<CafeReceiptDifferenceSummary | 'checking'>('checking')
@@ -95,6 +105,8 @@ export function CafeReceivePage() {
   const [recent, setRecent] = useState<CafeReceipt[]>([])
   const isOnline = !useIsOffline()
   const requestGeneration = useRef(0)
+  const lockButtonRef = useRef<HTMLButtonElement>(null)
+  const countedHeadingRef = useRef<HTMLHeadingElement>(null)
 
   useEffect(() => {
     let active = true
@@ -139,6 +151,8 @@ export function CafeReceivePage() {
       .catch(() => setRecent([]))
   }, [canCapture, viewerId])
   useEffect(loadRecent, [loadRecent])
+  // The lock step closes with its opener gone, so focus lands on the result instead of the page body.
+  useEffect(() => { if (counted) countedHeadingRef.current?.focus() }, [counted])
 
   // FR-1012: labels arrive once the counts are locked; any failure reads "not yet known" (NFR-1006).
   const countedReceiptId = counted?.receiptId ?? null
@@ -158,8 +172,15 @@ export function CafeReceivePage() {
     const quantity = entry ? normalizeCafeReceiptQuantity(entry.quantity) : null
     return entry && quantity !== null ? [{ item, entry, quantity }] : []
   })
+  const lockLines = lines.map(({ item, entry, quantity }) => ({
+    unitId: entry.unitId,
+    name: item.name,
+    quantity,
+    unit: item.units.find(unit => unit.id === entry.unitId)?.name ?? '',
+  }))
   const hasInput = items.some(item => Boolean(entries[item.id]?.quantity.trim()))
   const invalidCount = items.filter(item => isInvalidEntry(entries[item.id])).length
+  const canLock = Boolean(stream) && isOnline && !busy && lines.length > 0 && invalidCount === 0
   const canSwitch = !busy && !hasInput && counted === null
 
   const filterRows = useMemo(() => items.map(item => ({
@@ -188,7 +209,7 @@ export function CafeReceivePage() {
   }, [canSwitch, setStream])
 
   async function handleCountSubmit() {
-    if (!stream || !isOnline || busy || lines.length === 0 || invalidCount > 0) return
+    if (!stream || !canLock) return
     setBusy(true)
     setError(null)
     try {
@@ -196,21 +217,13 @@ export function CafeReceivePage() {
         item_unit_id: entry.unitId,
         quantity,
       })))
-      setCounted({
-        receiptId: result.receipt_id,
-        rowVersion: result.row_version,
-        lines: lines.map(({ item, entry, quantity }) => ({
-          unitId: entry.unitId,
-          name: item.name,
-          quantity,
-          unit: item.units.find(unit => unit.id === entry.unitId)?.name ?? '',
-        })),
-      })
+      setCounted({ receiptId: result.receipt_id, rowVersion: result.row_version, lines: lockLines })
+      setConfirming(false)
       loadRecent()
     } catch (cause) {
       const key = submitErrorKey(cause instanceof Error ? cause.message : '')
       setError(key)
-      if (key === 'cafe.receive.error.keyConflict') loadRecent()
+      if (key === 'cafe.receive.error.keyConflict' || key === 'cafe.receive.error.countedPending') loadRecent()
     } finally {
       setBusy(false)
     }
@@ -273,7 +286,7 @@ export function CafeReceivePage() {
         )}
         {loadState === 'ready' && stream && canCapture && counted && (
           <section className="cafe-receive__counted" aria-labelledby="cafe-receive-counted-title">
-            <h2 id="cafe-receive-counted-title">{sent ? t('cafe.receive.sent.title') : t('cafe.receive.counted.title')}</h2>
+            <h2 id="cafe-receive-counted-title" ref={countedHeadingRef} tabIndex={-1}>{sent ? t('cafe.receive.sent.title') : t('cafe.receive.counted.title')}</h2>
             <p>{sent ? t('cafe.receive.sent.copy') : t('cafe.receive.counted.copy')}</p>
             <p className="cafe-receive__difference" role="status" aria-live="polite">
               {difference === 'checking' ? t('cafe.receive.difference.checking')
@@ -464,18 +477,31 @@ export function CafeReceivePage() {
                   {t(invalidCount === 1 ? 'cafe.receive.fixInvalid.one' : 'cafe.receive.fixInvalid.other', { count: invalidCount })}
                 </p>
               )}
-              {error && <p className="cafe-count__field-error" role="alert">{t(error)}</p>}
+              {error && !confirming && <p className="cafe-count__field-error" role="alert">{t(error)}</p>}
             </div>
             <button
+              ref={lockButtonRef}
               type="button"
               className="btn btn-primary cafe-count__submit"
-              disabled={!isOnline || busy || lines.length === 0 || invalidCount > 0}
-              onClick={() => void handleCountSubmit()}
+              disabled={!canLock}
+              onClick={() => setConfirming(true)}
             >
-              {busy ? t('common.working') : t('cafe.receive.countSubmit')}
+              {t('cafe.receive.countSubmit')}
             </button>
           </div>
         )}
+        <CafeReceiveLockConfirm
+          open={confirming && !counted}
+          lines={lockLines}
+          context={t('cafe.receive.confirm.context', { stream: streamLabel(t, stream), date: formatWeekdayDayMonth(arrivalDate) })}
+          busy={busy}
+          offline={!isOnline}
+          error={error ? t(lockStepDeadEnd(error) ?? error) : null}
+          canRetry={!error || lockStepDeadEnd(error) === null}
+          returnFocusRef={lockButtonRef}
+          onConfirm={() => void handleCountSubmit()}
+          onCancel={() => setConfirming(false)}
+        />
       </div>
     </PageFamilyFrame>
   )
