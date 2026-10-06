@@ -346,6 +346,7 @@ describe('router — Money gates (dev security series preserved)', () => {
       'dashboard',
       'dashboard/detail',
       'money',
+      'money/branch/:code',
       'money/detail',
       'money/pending-bills',
       'sales',

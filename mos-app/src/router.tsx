@@ -102,6 +102,7 @@ const KitchenPushesPage = lazyPage(() =>
   import('./pages/kitchen-pushes-page').then((m) => ({ default: m.KitchenPushesPage })),
 )
 const MoneyPage = lazyPage(() => import('./pages/money-page').then((m) => ({ default: m.MoneyPage })))
+const MoneyBranchPage = lazyPage(() => import('./pages/money-branch-page').then((m) => ({ default: m.MoneyBranchPage })))
 const PendingBillsPage = lazyPage(() => import('./pages/pending-bills-page').then((m) => ({ default: m.PendingBillsPage })))
 const BudgetPage = lazyPage(() => import('./pages/budget-page').then((m) => ({ default: m.BudgetPage })))
 const PricingPage = lazyPage(() => import('./pages/pricing-page').then((m) => ({ default: m.PricingPage })))
@@ -329,6 +330,7 @@ const routeTable: RouteObject[] = [
             handle: infrastructureHandle('capability'),
             children: [
               { path: 'money', element: withSuspense(<MoneyPage />), handle: pageHandle('workspace') },
+              { path: 'money/branch/:code', element: withSuspense(<MoneyBranchPage />), handle: pageHandle('workspace') },
               // Pending bills is Finance's alone (#1464): the other Money tiers meet the boundary
               // naming the link, and reporting.pending_bills' read policy refuses them the rows.
               {

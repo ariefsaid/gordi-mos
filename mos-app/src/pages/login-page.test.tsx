@@ -727,6 +727,17 @@ describe('LoginPage — staging sample one-click login', () => {
     expect(screen.queryByText(/SamplePassword123/)).not.toBeInTheDocument()
   })
 
+  it('says a refused sample account belongs only in Gordi Sample, not that its password was wrong', async () => {
+    mockSignIn.mockResolvedValue({
+      data: { user: null, session: null },
+      error: { name: 'AuthApiError', status: 403, message: 'Sample accounts sign in only to the sample organisation.' },
+    } as unknown as Awaited<ReturnType<typeof supabase.auth.signInWithPassword>>)
+    render(<LoginPage />)
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Director' }))
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/not in Gordi Sample/i))
+    expect(screen.getByRole('alert')).not.toHaveTextContent(/invalid email or password/i)
+  })
+
   it('signs out if the account resolves to a different organisation', async () => {
     const payload = Buffer.from(JSON.stringify({ org_id: '10000000-0000-0000-0000-000000000001' })).toString('base64url')
     mockSignIn.mockResolvedValue({
