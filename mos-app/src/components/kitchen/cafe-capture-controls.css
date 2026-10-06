@@ -2,11 +2,7 @@
    on the same field width/height/type scale; only the photo action adds a separate column. */
 .cafe-capture-content,
 .cafe-count {
-  --cafe-capture-quantity-width: 7.5rem;
-  --cafe-capture-unit-track-width: 17rem;
-  --cafe-capture-control-group-width: 25rem;
   --cafe-capture-control-height: 32px;
-  --cafe-capture-control-font-size: var(--font-size-control);
 }
 
 .cafe-capture-control-group {
@@ -23,7 +19,7 @@
   min-height: var(--cafe-capture-control-height);
   height: var(--cafe-capture-control-height);
   box-sizing: border-box;
-  font-size: var(--cafe-capture-control-font-size);
+  font-size: var(--font-size-control);
 }
 
 .cafe-capture-unit {
@@ -51,7 +47,11 @@
   .cafe-count {
     --cafe-capture-quantity-width: 5.5rem;
     --cafe-capture-control-height: 44px;
-    --cafe-capture-control-font-size: var(--font-size-touch-input);
+  }
+
+  .cafe-capture-content .cafe-capture-quantity-field,
+  .cafe-count .cafe-capture-quantity-field {
+    font-size: var(--font-size-touch-input);
   }
 
   .cafe-capture-unit {

@@ -939,7 +939,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   if (wipItems.length === 0) {
     return (
       <PageFamilyFrame family="workspace" title={pageTitle} headClassName="cafe-capture-head" statusRow={captureContext} state={streamNonProducing ? 'read-only' : 'empty'}>
-        <div className={`kl-page cafe-capture-content${isWide ? ' kl-capture-wide' : ''}`}>
+        <div className={`kl-page kl-capture-content cafe-capture-content${isWide ? ' kl-capture-wide' : ''}`}>
           <OfflineBanner show={!isOnline} />
           {streamNonProducing && receivingOnlyNotice}
           {mode === 'transfer' && movementOptions.length > 0 && (
@@ -1312,7 +1312,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       meta={<time className="cafe-capture-date tabular" dateTime={logDate}>{formatWeekdayDayMonth(logDate)}</time>}
       state={status.kind === 'submitting' ? 'saving' : status.kind === 'success' ? 'saved' : streamNonProducing ? 'read-only' : submitError ? 'validation' : 'default'}
     >
-      <div ref={captureRef} className={`kl-page cafe-capture-content${isWide ? ' kl-capture-wide' : ''}`}>
+      <div ref={captureRef} className={`kl-page kl-capture-content cafe-capture-content${isWide ? ' kl-capture-wide' : ''}`}>
         <div className="kl-capture-main">
         {/* GAP-4/#9: staged-but-unsubmitted quantities must not vanish on navigation — prompt
             stay/discard when leaving the route with unsaved entries. */}

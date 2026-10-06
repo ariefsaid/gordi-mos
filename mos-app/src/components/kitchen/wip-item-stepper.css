@@ -80,7 +80,7 @@
   border-radius: var(--radius-sm);
   background: var(--background);
   color: var(--foreground);
-  font-size: var(--cafe-capture-control-font-size, var(--font-size-touch-input));
+  font-size: var(--font-size-touch-input);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   font-family: inherit;

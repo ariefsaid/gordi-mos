@@ -600,7 +600,7 @@ export function CafeWastePage() {
       meta={<time className="cafe-capture-date tabular" dateTime={logDate}>{formatWeekdayDayMonth(logDate)}</time>}
       state={state}
     >
-      <div className="kl-page cwl-page kl-capture-wide cafe-capture-content">
+      <div className="kl-page cwl-page kl-capture-content kl-capture-wide cafe-capture-content">
         <div className="kl-capture-main">
         <RouteLeaveGuard when={remaining.length > 0} message={t('kitchen.log.leave.confirm')} />
         {!isOnline && <div role="alert" className="kl-banner kl-banner-offline">{t('kitchen.log.offline.banner')}</div>}
