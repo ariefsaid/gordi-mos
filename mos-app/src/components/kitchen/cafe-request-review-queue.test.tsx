@@ -53,12 +53,12 @@ describe('CafeRequestReviewQueue', () => {
     expect(await within(row).findByText('Approved · not posted to ESB')).toBeInTheDocument()
   })
 
-  it('AC-1041 the requester’s own request cannot be approved from the queue, and says who approves it', async () => {
+  it('FR-1053 the requester’s own request cannot be approved from the queue, and says who approves it', async () => {
     vi.mocked(listCafePurchaseRequests).mockResolvedValue([request('q-2', 'me')])
     renderQueue()
     const row = (await screen.findByText('Requested by Supervisor')).closest('li')!
     expect(within(row).getByRole('button', { name: 'Approve' })).toBeDisabled()
-    expect(within(row).getByText('You raised this; another supervisor approves it.')).toBeInTheDocument()
+    expect(within(row).getByText('You raised this; another reviewer approves it.')).toBeInTheDocument()
   })
 
   it('FR-1053 a reject needs a note before it can be sent', async () => {

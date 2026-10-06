@@ -9,12 +9,7 @@ import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { useT } from '@/i18n/use-t'
 import { canCaptureCafe } from '@/lib/cafe-affiliation'
 import { canReviewCafe } from '@/lib/kitchen-gates'
-import {
-  listCafeReceivableItems,
-  newCafeReceiptClientKey,
-  normalizeCafeReceiptQuantity,
-  type CafeReceivableItem,
-} from '@/lib/db/cafe-receipts'
+import { newCafeReceiptClientKey } from '@/lib/db/cafe-receipts'
 import {
   cafePurchaseRequestRequiredByBounds,
   listCafePurchaseRequests,
@@ -24,7 +19,7 @@ import {
 import { wibToday } from '@/lib/db/cafe-opening'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { kitchenCategoryLabel } from '@/lib/kitchen-category-label'
-import { useKitchenItemTable } from '@/lib/kitchen-item-list'
+import { isInvalidCafeItemEntry, useCafeItemCapture } from '@/lib/use-cafe-item-capture'
 import { useCafeStream } from '@/lib/use-cafe-stream'
 import { formatWeekdayDayMonth } from '@/lib/format/date'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
@@ -35,17 +30,7 @@ import './cafe-count-page.css'
 import './cafe-receive-page.css'
 import './cafe-request-page.css'
 
-type LoadState = 'loading' | 'ready' | 'error'
 type Sent = { lines: Array<{ name: string; quantity: string; unit: string }> }
-
-function blankEntries(items: readonly CafeReceivableItem[]): Record<string, CafeItemQuantityEntry> {
-  return Object.fromEntries(items.map(item => [item.id, { quantity: '', unitId: item.defaultUnitId, changingUnit: false }]))
-}
-
-/** A typed quantity that is not a positive decimal; it blocks Send rather than being dropped. */
-function isInvalidEntry(entry: CafeItemQuantityEntry | undefined): boolean {
-  return Boolean(entry?.quantity.trim()) && normalizeCafeReceiptQuantity(entry!.quantity) === null
-}
 
 function sendErrorKey(message: string) {
   if (message.includes('CAFE_PURCHASE_REQUEST_ITEM_NOT_AVAILABLE')) return 'cafe.request.error.itemUnavailable' as const
@@ -70,11 +55,6 @@ export function CafeRequestPage() {
   const pageLabel = t('cafe.request.title')
   useDocumentTitle(t('common.docTitle', { page: `${pageLabel} · ${t('nav.cafe')}` }))
 
-  const [catalogReady, setCatalogReady] = useState(false)
-  const [loadState, setLoadState] = useState<LoadState>('loading')
-  const [retryKey, setRetryKey] = useState(0)
-  const [items, setItems] = useState<CafeReceivableItem[]>([])
-  const [entries, setEntries] = useState<Record<string, CafeItemQuantityEntry>>({})
   const [requiredBy, setRequiredBy] = useState('')
   const [note, setNote] = useState('')
   const [search, setSearch] = useState('')
@@ -84,44 +64,10 @@ export function CafeRequestPage() {
   const [error, setError] = useState<ReturnType<typeof sendErrorKey> | null>(null)
   const [sent, setSent] = useState<Sent | null>(null)
   const [recent, setRecent] = useState<CafePurchaseRequest[]>([])
-  const requestGeneration = useRef(0)
   const sending = useRef(false)
-
-  useEffect(() => {
-    let active = true
-    setCatalogReady(false)
-    void resolve().then(catalog => {
-      if (!active) return
-      adopt(catalog)
-      setCatalogReady(true)
-    }).catch(() => {
-      if (active) setLoadState('error')
-    })
-    return () => { active = false }
-  }, [adopt, resolve, retryKey])
-
-  useEffect(() => {
-    if (!catalogReady) return
-    const generation = ++requestGeneration.current
-    let active = true
-    setItems([])
-    setEntries({})
-    setLoadState('loading')
-    if (!stream || !canRequest) {
-      setLoadState('ready')
-      return () => { active = false }
-    }
-    void listCafeReceivableItems(stream).then(nextItems => {
-      if (!active || generation !== requestGeneration.current) return
-      setItems(nextItems)
-      setEntries(blankEntries(nextItems))
-      setLoadState('ready')
-    }).catch(() => {
-      if (!active || generation !== requestGeneration.current) return
-      setLoadState('error')
-    })
-    return () => { active = false }
-  }, [canRequest, catalogReady, retryKey, stream, stream?.activity, stream?.branch.id])
+  // Filters beyond search are desktop-only (DESIGN: first capture row within 300px on phone).
+  const capture = useCafeItemCapture({ stream, enabled: canRequest, resolve, adopt, search, category: isDesktop ? category : 'All' })
+  const { loadState, items, entries, lines, invalidCount, visibleItems, categories, patchEntry: patchCaptureEntry } = capture
 
   const loadRecent = useCallback(() => {
     if (!viewerId || !canRequest) return
@@ -131,40 +77,17 @@ export function CafeRequestPage() {
   }, [canRequest, viewerId])
   useEffect(loadRecent, [loadRecent])
 
-  const lines = items.flatMap(item => {
-    const entry = entries[item.id]
-    const quantity = entry ? normalizeCafeReceiptQuantity(entry.quantity) : null
-    return entry && quantity !== null ? [{ item, entry, quantity }] : []
-  })
-  const hasInput = items.some(item => Boolean(entries[item.id]?.quantity.trim())) || requiredBy !== '' || note.trim() !== ''
-  const invalidCount = items.filter(item => isInvalidEntry(entries[item.id])).length
+  const hasInput = capture.hasQuantity || requiredBy !== '' || note.trim() !== ''
   const dateProblem = requiredBy === '' ? 'cafe.request.requiredByMissing' as const
     : requiredBy < dateBounds.min || requiredBy > dateBounds.max ? 'cafe.request.requiredByInvalid' as const
     : null
   const canSend = isOnline && !busy && lines.length > 0 && invalidCount === 0 && dateProblem === null
   const canSwitch = !busy && !hasInput && sent === null
 
-  const filterRows = useMemo(() => items.map(item => ({
-    ...item,
-    rowId: item.id,
-    kind: item.kind ?? 'Unclassified' as const,
-    itemName: item.name,
-    groupKey: 'request',
-  })), [items])
-  // Filters beyond search are desktop-only (DESIGN: first capture row within 300px on phone).
-  const itemTable = useKitchenItemTable({ data: filterRows, search, kind: 'All', category: isDesktop ? category : 'All' })
-  const itemById = useMemo(() => new Map(items.map(item => [item.id, item])), [items])
-  const visibleItems = itemTable.getFilteredRowModel().rows.flatMap(row => itemById.get(row.original.rowId) ?? [])
-  const categories = useMemo(() => [
-    'All',
-    ...Array.from(new Set(items.map(item => item.category ?? '').filter(Boolean)))
-      .sort((a, b) => kitchenCategoryLabel(t, a).localeCompare(kitchenCategoryLabel(t, b))),
-  ], [items, t])
-
   const patchEntry = useCallback((itemId: string, patch: Partial<CafeItemQuantityEntry>) => {
-    setEntries(current => current[itemId] ? { ...current, [itemId]: { ...current[itemId], ...patch } } : current)
+    patchCaptureEntry(itemId, patch)
     setError(null)
-  }, [])
+  }, [patchCaptureEntry])
 
   const chooseStream = useCallback((next: ProductionStream) => {
     if (canSwitch) setStream(next)
@@ -180,13 +103,7 @@ export function CafeRequestPage() {
         item_unit_id: entry.unitId,
         quantity,
       })))
-      setSent({
-        lines: lines.map(({ item, entry, quantity }) => ({
-          name: item.name,
-          quantity,
-          unit: item.units.find(unit => unit.id === entry.unitId)?.name ?? '',
-        })),
-      })
+      setSent({ lines: lines.map(({ item, quantity, unitName }) => ({ name: item.name, quantity, unit: unitName })) })
       loadRecent()
     } catch (cause) {
       const key = sendErrorKey(cause instanceof Error ? cause.message : '')
@@ -203,7 +120,7 @@ export function CafeRequestPage() {
     setRequiredBy('')
     setNote('')
     setClientKey(newCafeReceiptClientKey())
-    setEntries(blankEntries(items))
+    capture.resetEntries()
   }
 
   const picker = (
@@ -227,7 +144,7 @@ export function CafeRequestPage() {
         {loadState === 'error' && (
           <ErrorState
             message={t('common.loadFailed', { what: t('common.what.items') })}
-            onRetry={() => { setCatalogReady(false); setRetryKey(value => value + 1) }}
+            onRetry={capture.retry}
             retryLabel={t('common.retry')}
           />
         )}
@@ -319,7 +236,7 @@ export function CafeRequestPage() {
                       idPrefix="cafe-request"
                       quantityLabel={t('cafe.request.quantityLabel')}
                       quantityFor={t('cafe.request.quantityFor', { item: item.name })}
-                      invalid={isInvalidEntry(entries[item.id])}
+                      invalid={isInvalidCafeItemEntry(entries[item.id])}
                       disabled={busy}
                       onChange={patch => patchEntry(item.id, patch)}
                     />

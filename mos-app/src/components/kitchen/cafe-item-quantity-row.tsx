@@ -7,7 +7,7 @@ export type CafeItemQuantityEntry = { quantity: string; unitId: string; changing
 /**
  * One compact capture row (DESIGN "Compact capture row"): item identity, a typed decimal box with
  * the ESB unit fixed beside it, and a deliberate change-unit control only when the item has more
- * than one ESB unit. The saved line keeps the chosen product detail unconverted.
+ * than one ESB unit. The entry carries the chosen product detail; quantities are never converted.
  */
 export function CafeItemQuantityRow({
   item,

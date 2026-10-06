@@ -2,7 +2,7 @@
 -- self-approval (ops lead and admin included), the freeze and the org seam.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(47);
+select plan(48);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -206,6 +206,11 @@ select throws_ok($$select ops.review_cafe_purchase_request(current_setting('app.
 select shared._test_set_access_roles('{}');
 select is((select count(*)::int from ops.cafe_purchase_requests), 0, 'NFR-1001 a missing org claim fails closed');
 
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member"]}');
+select throws_ok($$select ops.review_cafe_purchase_request(current_setting('app.q1_id')::uuid, 'reject', 1, 'Withdraw')$$,
+  '42501', 'CAFE_PURCHASE_REQUEST_REVIEW_FORBIDDEN',
+  'FR-1053 a requester who does not review the stream cannot decide their own request, even to reject it');
+
 -- ── NFR-1002 decisions only through the versioned review function ────────────────────────────
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","supervisor"]}');
 select throws_ok($$update ops.cafe_purchase_requests set status = 'Approved' where id = current_setting('app.q1_id')::uuid$$,
@@ -266,12 +271,12 @@ select throws_ok($$select ops.review_cafe_purchase_request(current_setting('app.
 reset role;
 select set_config('request.jwt.claims', '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2"}', true);
 select throws_ok($$update ops.cafe_purchase_requests set note = 'changed' where id = current_setting('app.q1_id')::uuid$$,
-  '42501', null, 'AC-1041 an Approved request''s facts cannot be updated, even by the table owner');
+  '42501', 'CAFE_PURCHASE_REQUEST_FROZEN', 'AC-1041 an Approved request''s facts cannot be updated, even by the table owner');
 select throws_ok($$update ops.cafe_purchase_requests set required_by = required_by + 1 where id = current_setting('app.q_lead')::uuid$$,
-  '42501', null, 'AC-1041 a Rejected request cannot be updated');
+  '42501', 'CAFE_PURCHASE_REQUEST_FROZEN', 'AC-1041 a Rejected request cannot be updated');
 select set_config('app.cafe_purchase_request_action', 'decide', true);
 select throws_ok($$update ops.cafe_purchase_requests set status = 'Rejected' where id = current_setting('app.q1_id')::uuid$$,
-  '42501', null, 'AC-1041 even the decision action cannot reopen an Approved request');
+  '42501', 'CAFE_PURCHASE_REQUEST_FROZEN', 'AC-1041 even the decision action cannot reopen an Approved request');
 select set_config('app.cafe_purchase_request_action', '', true);
 select throws_ok($$update ops.cafe_purchase_request_lines set quantity = 1
   where request_id = current_setting('app.q1_id')::uuid$$,
