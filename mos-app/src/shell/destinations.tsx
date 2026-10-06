@@ -44,7 +44,7 @@ export interface Destination {
   Icon: React.FC
   /** live links under this destination; [] = destination not yet rolled in */
   links: Section[]
-  /** Always-expanded sub-links rendered beneath the entry (Work's 5; Café's 10). Undefined for a
+  /** Always-expanded sub-links rendered beneath the entry (Work's 5; Café's 11). Undefined for a
    *  destination whose root IS the whole surface. */
   children?: Section[]
   /** optional access gate applied to ALL links (rail/bottom-bar hide when unsatisfied).
@@ -135,10 +135,10 @@ export const MODULES: { bu: MessageKey; items: Destination[] }[] = [
   {
     bu: 'rail.retailOps',
     items: [
-      // Café carries its Today root, eight ungated work screens, and the gated Review + Pushes routes.
+      // Café carries its Today root, nine ungated work screens, and the gated Review + Pushes routes.
       // The port shipped this module with a single `/cafe` link while CAFE_SECTIONS held the paths,
       // correctly labelled and imported by nothing but a breadcrumb lookup — so Café's production,
-      // transfer, waste, Count, Receive, Plan, Stock, Review and Pushes screens became reachable only by URL.
+      // transfer, waste, Count, Receive, Request, Plan, Stock, Review and Pushes screens became reachable only by URL.
       //
       // `children` (not just `links`) is what actually renders them: every nav surface draws ONE
       // link per module at `primaryPath ?? links[0].path`, and the expanded child list is the
