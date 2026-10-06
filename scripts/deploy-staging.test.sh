@@ -49,7 +49,7 @@ case "$sql$stdin" in
   *"max(version)"*) echo "${FAKE_MAX:-20260101000002}" ;;
   *rolconfig*) echo "${FAKE_ROLCONFIG:-pgrst.db_pre_request=api_private.check_request}" ;;
   *trusted_agent_clients*) echo "${FAKE_TRUSTED:-0}" ;;
-  *"shared.orgs where is_sample"*) echo "${FAKE_SAMPLE_ORGS:-1}" ;;
+  *is_sample_org_shape*) echo "${FAKE_SAMPLE_ORGS:-1/1}" ;;
 esac
 EOF
 cat > "$tmp/rehearse.sh" <<'EOF'
@@ -123,7 +123,7 @@ expect_not "gh-post never called from another checkout" "gh-post-WRONG-CHECKOUT"
 expect "temp worktree checked out on main" "git checkout -q --ignore-other-worktrees main"
 expect "PR made from a temp worktree" "git worktree add"
 has "pending list printed" "20260101000002_gate.sql"
-has "verify line printed" "verify: max version 20260101000002 (newest local 20260101000002) · db_pre_request set · trusted clients 0 · sample orgs 1"
+has "verify line printed" "verify: max version 20260101000002 (newest local 20260101000002) · db_pre_request set · trusted clients 0 · sample orgs 1/1"
 expect_not "no function deploy" "supabase functions-deploy"
 expect_not "no config push" "supabase config-push"
 
@@ -201,9 +201,14 @@ has "trusted clients named" "trusted_agent_clients"
 expect_not "no PR when trusted clients exist" "gh-post"
 run "missing authenticator setting fails" 1 "" FAKE_ROLCONFIG="statement_timeout=8s" -- --yes
 has "rolconfig named" "pgrst.db_pre_request"
-run "no flagged sample org fails" 1 "" FAKE_SAMPLE_ORGS=0 -- --yes
-has "sample org check named" "expected exactly one sample org flagged"
+run "no flagged sample org fails" 1 "" FAKE_SAMPLE_ORGS=0/0 -- --yes
+has "sample org check named" "expected exactly one flagged org, shaped like the sample org"
 expect_not "no PR when the sample org is not flagged" "gh-post"
+run "a flagged org that is not sample-shaped fails" 1 "" FAKE_SAMPLE_ORGS=1/0 -- --yes
+has "the shape failure is named" "flagged/sample-shaped: '1/0'"
+expect_not "no PR when the flagged org is not sample-shaped" "gh-post"
+run "two flagged orgs fail" 1 "" FAKE_SAMPLE_ORGS=2/2 -- --yes --no-pr
+has "the count failure is named" "flagged/sample-shaped: '2/2'"
 
 echo "edge functions"
 run "changed functions are warned about, not deployed" 0 "" FAKE_FN_DIFF=$'supabase/functions/alpha/index.ts\nsupabase/functions/beta/x.ts\nsupabase/functions/mcp/index.ts\n' -- --yes --no-pr

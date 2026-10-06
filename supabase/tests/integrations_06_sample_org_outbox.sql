@@ -4,7 +4,7 @@
 -- unaffected. Org A starts as a real org and is flagged sample halfway through.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(38);
+select plan(41);
 
 create function pg_temp.approve(p_log_id uuid) returns text language sql as $$
   select ops.approve_kitchen_log(p_log_id, null,
@@ -102,9 +102,11 @@ select is((select array_agg(distinct p.target_env) from integrations.esb_push p
             join ops.kitchen_logs l on l.batch_id = p.source_ref and l.org_id = p.org_id
            where l.id in ('00000000-0000-0000-0000-00000000e602','00000000-0000-0000-0000-00000000e603','00000000-0000-0000-0000-00000000e604')),
   array['dry_run'], 'every sample-org outbox row targets dry_run');
--- Same session claims; the helper is owner-only.
-select is(integrations.current_esb_target_env(), 'dry_run',
-  'a sample-org session''s outbox environment is dry_run whatever the deployment sets');
+select is((select count(*)::int from integrations.esb_push p
+            join ops.kitchen_logs l on l.batch_id = p.source_ref and l.org_id = p.org_id
+           where l.id in ('00000000-0000-0000-0000-00000000e602','00000000-0000-0000-0000-00000000e603','00000000-0000-0000-0000-00000000e604')
+             and p.dedup_key not like '%|dry_run'), 0,
+  'every sample-org dedupe key names dry_run, so it cannot collide with an ERP environment''s');
 select is((select array_agg(distinct g.target_env) from integrations.esb_push_groups g
             join ops.kitchen_logs l on l.push_group_id = g.id
            where l.id = '00000000-0000-0000-0000-00000000e603'),
@@ -114,19 +116,19 @@ select p.id as sample_row from integrations.esb_push p
  where l.id = '00000000-0000-0000-0000-00000000e602' \gset
 select push_group_id as sample_group from ops.kitchen_logs where id = '00000000-0000-0000-0000-00000000e603' \gset
 
--- ── Every ERP-bound write for a sample-org row is refused, even for the table owner ──────────
-select throws_ok(format($$insert into integrations.esb_push (org_id, source_ref, endpoint, target_env, dedup_key)
-  values (%L, 'A-SAMPLE-1', 'assembly-actual', 'goo', 'kitchen|A-SAMPLE-1|goo')$$, :'org_a'),
-  '42501', 'the sample organisation never sends anything to the ERP',
-  'a sample-org outbox row aimed at the ERP sandbox is refused');
-select throws_ok(format($$insert into integrations.esb_push (org_id, source_ref, endpoint, target_env, dedup_key)
-  values (%L, 'A-SAMPLE-2', 'simple-transfer', 'gkid', 'kitchen|A-SAMPLE-2|gkid')$$, :'org_a'),
-  '42501', 'the sample organisation never sends anything to the ERP',
-  'a sample-org outbox row aimed at the ERP of record is refused');
-select throws_ok(format($$insert into integrations.esb_push_groups (org_id, target_env, dedup_key)
-  values (%L, 'goo', 'kitchen-group|sample-probe|goo')$$, :'org_a'),
-  '42501', 'the sample organisation never sends anything to the ERP',
-  'a sample-org approval group aimed at the ERP is refused');
+-- ── A direct enqueue that names an ERP environment is stored as dry_run, even for the owner ──
+insert into integrations.esb_push (org_id, source_ref, endpoint, target_env, dedup_key)
+  values (:'org_a', 'A-SAMPLE-1', 'assembly-actual', 'goo', 'kitchen|A-SAMPLE-1|goo');
+insert into integrations.esb_push (org_id, source_ref, endpoint, target_env, dedup_key)
+  values (:'org_a', 'A-SAMPLE-2', 'simple-transfer', 'gkid', 'kitchen|A-SAMPLE-2|gkid');
+insert into integrations.esb_push_groups (org_id, target_env, dedup_key)
+  values (:'org_a', 'goo', 'kitchen-group|sample-probe|goo');
+select is((select target_env || ' ' || dedup_key from integrations.esb_push where source_ref = 'A-SAMPLE-1'),
+  'dry_run kitchen|A-SAMPLE-1|dry_run', 'a sample-org outbox row aimed at the ERP sandbox is stored as dry_run');
+select is((select target_env || ' ' || dedup_key from integrations.esb_push where source_ref = 'A-SAMPLE-2'),
+  'dry_run kitchen|A-SAMPLE-2|dry_run', 'a sample-org outbox row aimed at the ERP of record is stored as dry_run');
+select is((select target_env || ' ' || dedup_key from integrations.esb_push_groups where dedup_key like 'kitchen-group|sample-probe|%'),
+  'dry_run kitchen-group|sample-probe|dry_run', 'a sample-org approval group aimed at the ERP is stored as dry_run');
 
 set local role service_role;
 select throws_ok(format($$update integrations.esb_push set status = 'in_flight' where id = %L$$, :'sample_row'),
@@ -153,6 +155,18 @@ select throws_ok(format($$update integrations.esb_push set org_id = %L where org
 select lives_ok(format($$update integrations.esb_push set status = 'dead_letter', last_error = 'retired'
   where id = %L$$, :'sample_row'),
   'a sample-org row can still be retired out of the queue');
+set local role service_role;
+select throws_ok(format($$update integrations.esb_push set status = 'pending', retry_count = 0 where id = %L$$, :'sample_row'),
+  '42501', 'the sample organisation never sends anything to the ERP',
+  'a retired sample-org row cannot be requeued');
+select throws_ok(format($$update integrations.esb_push set status = 'failed', retry_count = retry_count + 1, last_error = 'timeout'
+  where source_ref = 'A-SAMPLE-1'$$),
+  '42501', 'the sample organisation never sends anything to the ERP',
+  'a sample-org row cannot be closed as a failed post');
+select throws_ok(format($$update integrations.esb_push set esb_doc_num = 'DOC-2' where source_ref = 'A-SAMPLE-2'$$),
+  '42501', 'the sample organisation never sends anything to the ERP',
+  'a sample-org row cannot be stamped with an ERP document number');
+reset role;
 
 -- ── The flag itself ───────────────────────────────────────────────────────────────────────────
 select throws_ok(format($$update shared.orgs set is_sample = false where id = %L$$, :'org_a'),

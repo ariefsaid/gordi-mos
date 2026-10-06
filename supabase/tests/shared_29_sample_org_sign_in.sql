@@ -4,7 +4,7 @@
 -- write another org's photo objects. Real staff sign-in is unaffected.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(22);
+select plan(29);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -106,6 +106,36 @@ select lives_ok(format($$insert into storage.objects (bucket_id, name) values ('
 reset role;
 select is((select count(*)::int from storage.objects where name like :'real_org' || '/%'), 2,
   'the real org''s objects are unchanged');
+
+-- ── A sample-org admin cannot plant a real address, as a person or as a login ────────────────
+set local role authenticated;
+select shared._test_set_access_roles(:'sample_claims');
+select throws_ok(format($$insert into shared.people (org_id, full_name, email) values (%L, 'Squatter', 'new.hire@example.test')$$, :'sample_org'),
+  '42501', 'a sample organisation holds only people with @sample.gordi.test addresses',
+  'a sample-org admin cannot create a person at a real address');
+select lives_ok(format($$insert into shared.people (id, org_id, full_name, email)
+  values ('00000000-0000-0000-0000-00000000a5f6', %L, 'Second persona', 'persona2@sample.gordi.test')$$, :'sample_org'),
+  'control: a sample-org admin creates a person at a sample address');
+select throws_ok($$update shared.people set email = 'new.hire@example.test' where id = '00000000-0000-0000-0000-00000000a5f6'$$,
+  '42501', 'a sample organisation holds only people with @sample.gordi.test addresses',
+  'a sample-org admin cannot move a person to a real address');
+select lives_ok($$select shared.admin_create_login('00000000-0000-0000-0000-00000000a5f6', 'Chosen1Password')$$,
+  'control: a sample-org admin mints a login for a sample-address person');
+reset role;
+select is((select count(*)::int from auth.users where lower(email) = 'new.hire@example.test'), 0,
+  'no login exists for the real address');
+select is((select u.email from auth.users u join shared.people p on p.user_id = u.id
+            where p.id = '00000000-0000-0000-0000-00000000a5f6'),
+  'persona2@sample.gordi.test', 'the only login a sample-org admin can mint is at a sample address');
+
+-- A sample-org person whose login has a real address (changed later, or reached through Google)
+-- is refused a token, so that address never opens the sample org.
+insert into auth.users (id, email) values ('00000000-0000-0000-0000-00000000a5e7', 'real.hire@example.test');
+insert into shared.people (id, org_id, full_name, email, user_id)
+values ('00000000-0000-0000-0000-00000000a5f7', :'sample_org', 'Linked to a real address', 'linked@sample.gordi.test',
+        '00000000-0000-0000-0000-00000000a5e7');
+select is(pg_temp.mint('00000000-0000-0000-0000-00000000a5e7') -> 'error' ->> 'http_code', '403',
+  'a sample-org person whose login is at a real address is refused a token');
 
 select * from finish();
 rollback;

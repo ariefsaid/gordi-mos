@@ -175,8 +175,8 @@ if grep -qs 'pgrst.db_pre_request' "$MIG_DIR"/*.sql; then
 fi
 tc="$(sqlq "select count(*) from shared.trusted_agent_clients")" || tc="?"
 [ "$tc" = 0 ] || fail "shared.trusted_agent_clients has '$tc' rows — agent access must stay off"
-so="$(sqlq "select count(*) from shared.orgs where is_sample")" || so="?"
-[ "$so" = 1 ] || fail "expected exactly one sample org flagged in shared.orgs, found '$so'"
+so="$(sqlq "select count(*) filter (where is_sample) || '/' || count(*) filter (where is_sample and shared.is_sample_org_shape(id, name)) from shared.orgs")" || so="?"
+[ "$so" = 1/1 ] || fail "expected exactly one flagged org, shaped like the sample org (flagged/sample-shaped: '$so')"
 say "verify: max version $remote (newest local $newest) · db_pre_request $pre · trusted clients $tc · sample orgs $so"
 [ "$bad" = 0 ] || die "verification failed — staging is NOT in the expected state"
 
