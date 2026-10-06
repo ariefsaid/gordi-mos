@@ -14,10 +14,12 @@ $$;
 
 drop policy if exists cafe_receipt_photos_select on storage.objects;
 drop policy if exists cafe_receipt_photos_insert on storage.objects;
-drop view if exists ops.cafe_receipt_line_photos;
+drop function if exists ops.list_cafe_receipt_photos(uuid[]);
 drop function if exists ops.can_add_cafe_receipt_photo(text);
 drop function if exists ops.can_read_cafe_receipt_photo(text);
+drop function if exists ops.can_read_cafe_receipt_evidence(uuid);
 drop function if exists ops.cafe_receipt_photo_line_id(text);
+drop function if exists ops.cafe_receipt_photo_objects(text);
 drop function if exists ops.set_cafe_receipt_line_explanation(uuid, boolean, text);
 -- Supabase protects storage.buckets from SQL DELETE. Leave its empty, private row in place;
 -- an operator can remove it with the Storage API after this rollback if required.

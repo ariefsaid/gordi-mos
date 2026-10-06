@@ -186,7 +186,8 @@ begin
         'lines', (select coalesce(jsonb_agg(jsonb_build_object(
           'id', l.id, 'item_unit_id', l.item_unit_id, 'item_name', l.item_name, 'item_category', l.item_category,
           'unit_name', l.unit_name, 'received_quantity', trim_scale(l.received_quantity)::text,
-          'conditions', l.conditions, 'condition_reason', l.condition_reason, 'photos', '[]'::jsonb
+          'conditions', l.conditions, 'condition_reason', l.condition_reason,
+          'condition_updated_at', l.condition_updated_at, 'photos', '[]'::jsonb
         ) order by l.item_name, l.id), '[]'::jsonb)
           from ops.cafe_receipt_lines l where l.org_id = v_org_id and l.receipt_id = v_existing.id)
       );
@@ -217,7 +218,8 @@ begin
     'lines', (select coalesce(jsonb_agg(jsonb_build_object(
       'id', l.id, 'item_unit_id', l.item_unit_id, 'item_name', l.item_name, 'item_category', l.item_category,
       'unit_name', l.unit_name, 'received_quantity', trim_scale(l.received_quantity)::text,
-      'conditions', l.conditions, 'condition_reason', l.condition_reason, 'photos', '[]'::jsonb
+      'conditions', l.conditions, 'condition_reason', l.condition_reason,
+      'condition_updated_at', l.condition_updated_at, 'photos', '[]'::jsonb
     ) order by l.item_name, l.id), '[]'::jsonb)
       from ops.cafe_receipt_lines l where l.org_id = v_org_id and l.receipt_id = v_receipt.id)
   );
@@ -288,6 +290,29 @@ comment on function ops.set_cafe_receipt_line_explanation(uuid, boolean, text) i
 revoke execute on function ops.set_cafe_receipt_line_explanation(uuid, boolean, text) from public, anon, authenticated;
 grant execute on function ops.set_cafe_receipt_line_explanation(uuid, boolean, text) to authenticated;
 
+-- ── Photo objects by path prefix ─────────────────────────────────────────────────────────────
+-- A prefix '<org>/<receipt>/' or '<org>/<receipt>/<line>/' (ending in '/') read as a byte-order
+-- range: every name with the prefix sorts in [prefix, prefix with '/' raised to '0'), so
+-- idx_objects_bucket_id_name (bucket_id, name COLLATE "C") answers it without scanning the bucket.
+-- SECURITY INVOKER: callers are the definer functions below.
+create or replace function ops.cafe_receipt_photo_objects(p_prefix text)
+returns table (name text, created_at timestamptz)
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select o.name, o.created_at
+    from storage.objects o
+   where o.bucket_id = 'cafe-receipt-photos'
+     and right(p_prefix, 1) = '/'
+     and o.name collate "C" >= p_prefix collate "C"
+     and o.name collate "C" < (left(p_prefix, -1) || '0') collate "C";
+$$;
+comment on function ops.cafe_receipt_photo_objects(text) is
+  'Receipt photo objects under one path prefix ending in /, read as a byte-order range on the bucket/name index. SECURITY INVOKER.';
+revoke execute on function ops.cafe_receipt_photo_objects(text) from public, anon, authenticated;
+
 -- ── Send is the authoritative evidence gate, under the existing receipt row lock ─────────────
 create or replace function ops.send_cafe_receipt_for_review(
   p_receipt_id uuid,
@@ -333,16 +358,15 @@ begin
   loop
     v_reason_missing := nullif(btrim(coalesce(v_line.condition_reason, '')), '') is null;
     v_photo_missing := not exists (
-      select 1 from storage.objects photo
-       where photo.bucket_id = 'cafe-receipt-photos'
-         and ops.cafe_receipt_photo_line_id(photo.name) = v_line.id
+      select 1 from ops.cafe_receipt_photo_objects(format('%s/%s/%s/', v_line.org_id, v_line.receipt_id, v_line.id))
     );
+    -- The refusal names the line by id for the client, then by item for a person reading it.
     if v_reason_missing and v_photo_missing then
-      raise exception 'CAFE_RECEIPT_REASON_AND_PHOTO_REQUIRED: %', v_line.item_name using errcode = '23514';
+      raise exception 'CAFE_RECEIPT_REASON_AND_PHOTO_REQUIRED: line %: %', v_line.id, v_line.item_name using errcode = '23514';
     elsif v_reason_missing then
-      raise exception 'CAFE_RECEIPT_REASON_REQUIRED: %', v_line.item_name using errcode = '23514';
+      raise exception 'CAFE_RECEIPT_REASON_REQUIRED: line %: %', v_line.id, v_line.item_name using errcode = '23514';
     elsif v_photo_missing then
-      raise exception 'CAFE_RECEIPT_PHOTO_REQUIRED: %', v_line.item_name using errcode = '23514';
+      raise exception 'CAFE_RECEIPT_PHOTO_REQUIRED: line %: %', v_line.id, v_line.item_name using errcode = '23514';
     end if;
   end loop;
 
@@ -388,6 +412,24 @@ $$;
 comment on function ops.cafe_receipt_photo_line_id(text) is
   'Parses only canonical org/receipt/line/random-UUID image paths; malformed and traversal names return NULL.';
 
+create or replace function ops.can_read_cafe_receipt_evidence(p_receipt_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1 from ops.cafe_receipts r
+     where r.id = p_receipt_id and r.org_id = shared.current_org_id()
+       and (r.received_by = shared.current_person_id()
+            or (r.status in ('Submitted', 'Approved', 'Rejected') and ops.can_review_stream(r.branch_id, r.activity)))
+  );
+$$;
+comment on function ops.can_read_cafe_receipt_evidence(uuid) is
+  'Who reads a receipt''s photo evidence: same org, and its receiver, or a stream reviewer once it is Submitted, Approved or Rejected. SECURITY DEFINER.';
+revoke execute on function ops.can_read_cafe_receipt_evidence(uuid) from public, anon, authenticated;
+
 create or replace function ops.can_read_cafe_receipt_photo(p_name text)
 returns boolean
 language plpgsql
@@ -401,12 +443,9 @@ begin
   if v_line_id is null or split_part(p_name, '/', 1) <> shared.current_org_id()::text then return false; end if;
   return exists (
     select 1 from ops.cafe_receipt_lines l
-    join ops.cafe_receipts r on r.id = l.receipt_id and r.org_id = l.org_id
     where l.id = v_line_id and l.org_id = shared.current_org_id()
-      and split_part(p_name, '/', 2) = r.id::text
-      and (r.received_by = shared.current_person_id()
-           or (r.status in ('Submitted', 'Approved', 'Rejected') and ops.can_review_stream(r.branch_id, r.activity)))
-  );
+      and split_part(p_name, '/', 2) = l.receipt_id::text
+  ) and ops.can_read_cafe_receipt_evidence(split_part(p_name, '/', 2)::uuid);
 end;
 $$;
 comment on function ops.can_read_cafe_receipt_photo(text) is
@@ -434,9 +473,8 @@ begin
       and split_part(p_name, '/', 2) = r.id::text
       and r.status = 'Counted' and r.source = 'mos'
       and r.received_by = shared.current_person_id()
-      and (select count(*) from storage.objects photo
-           where photo.bucket_id = 'cafe-receipt-photos'
-             and ops.cafe_receipt_photo_line_id(photo.name) = v_line_id) < 4
+      and (select count(*) from ops.cafe_receipt_photo_objects(
+             format('%s/%s/%s/', split_part(p_name, '/', 1), split_part(p_name, '/', 2), split_part(p_name, '/', 3)))) < 4
   );
 end;
 $$;
@@ -452,15 +490,39 @@ create policy cafe_receipt_photos_insert on storage.objects
   for insert to authenticated
   with check (bucket_id = 'cafe-receipt-photos' and ops.can_add_cafe_receipt_photo(name));
 -- No update or delete policy: with none, storage RLS refuses both, as for waste and Signal photos.
-create or replace view ops.cafe_receipt_line_photos as
-select l.id as line_id, r.id as receipt_id, l.org_id, photo.name as path, photo.created_at
-from storage.objects photo
-join ops.cafe_receipt_lines l on l.id = ops.cafe_receipt_photo_line_id(photo.name)
-join ops.cafe_receipts r on r.id = l.receipt_id and r.org_id = l.org_id
-where photo.bucket_id = 'cafe-receipt-photos'
-  and split_part(photo.name, '/', 1) = l.org_id::text
-  and split_part(photo.name, '/', 2) = r.id::text;
-alter view ops.cafe_receipt_line_photos set (security_invoker = true);
-comment on view ops.cafe_receipt_line_photos is
-  'Per-line photo rows projected from private Storage objects; bucket RLS applies the receipt receiver/reviewer boundary. Objects have no update/delete path.';
-grant select on ops.cafe_receipt_line_photos to authenticated, service_role;
+-- ── The receipt photo list: one row per readable receipt, its photos aggregated ──────────────
+-- Access is decided once per receipt, then its photos are read by path prefix on the index, so the
+-- cost follows the asked receipts rather than the bucket, and no row cap can drop a photo.
+create or replace function ops.list_cafe_receipt_photos(p_receipt_ids uuid[])
+returns table (receipt_id uuid, photos jsonb)
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if shared.current_org_id() is null or shared.current_person_id() is null then
+    raise exception 'CAFE_RECEIPT_FORBIDDEN' using errcode = '42501';
+  end if;
+  if p_receipt_ids is null or cardinality(p_receipt_ids) > 50 then
+    raise exception 'CAFE_RECEIPT_PHOTO_READ_LIMIT: at most 50 receipts per read' using errcode = '22023';
+  end if;
+  return query
+  select r.id,
+         coalesce((
+           select jsonb_agg(jsonb_build_object(
+                    'line_id', ops.cafe_receipt_photo_line_id(o.name), 'path', o.name, 'created_at', o.created_at)
+                  order by o.created_at, o.name)
+             from ops.cafe_receipt_photo_objects(format('%s/%s/', r.org_id, r.id)) o
+            where ops.cafe_receipt_photo_line_id(o.name) is not null
+         ), '[]'::jsonb)
+    from ops.cafe_receipts r
+   where r.id = any(p_receipt_ids)
+     and r.org_id = shared.current_org_id()
+     and ops.can_read_cafe_receipt_evidence(r.id);
+end;
+$$;
+comment on function ops.list_cafe_receipt_photos(uuid[]) is
+  'Photo paths for up to 50 receipts, one row per receipt the caller may read (ops.can_read_cafe_receipt_evidence); other receipts return no row. Signing still goes through the storage SELECT policy. SECURITY DEFINER.';
+revoke execute on function ops.list_cafe_receipt_photos(uuid[]) from public, anon, authenticated;
+grant execute on function ops.list_cafe_receipt_photos(uuid[]) to authenticated;
