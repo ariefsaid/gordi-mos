@@ -14,7 +14,7 @@ export function ListPaging({ count, hasMore, loading = false, error = false, mor
   const t = useT()
   return (
     <div className="list-paging">
-      <p role="status">{t(hasMore ? 'common.paging.loaded' : 'common.paging.complete', { count })}</p>
+      <p aria-live="polite" aria-atomic="true">{t(hasMore ? 'common.paging.loaded' : 'common.paging.complete', { count })}</p>
       {error ? <p role="alert">{t('common.paging.error')}</p> : null}
       {hasMore ? (
         <Button onClick={onLoadMore} disabled={loading}>

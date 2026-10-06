@@ -843,7 +843,7 @@ async function loadTaskCollection(args: {
   const needsViewerTeams = args.query.view === 'team-work'
     || (args.query.view === 'all' && !viewerOrgWide)
   const lease = args.readLease
-  const now = new Date(Math.floor(Date.now() / 60_000) * 60_000)
+  const now = new Date()
   const doneCutoff = taskDoneRecentCutoff(now)
   const [rows, businessUnits, people, downlinePersonIds, objectives, workLines, viewerTeams, viewerRoleBuIds] = await Promise.all([
     lease ? listTasks(filters, lease, doneCutoff) : listTasks(filters, undefined, doneCutoff),

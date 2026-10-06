@@ -470,6 +470,7 @@ describe('Create from Signal convergence', () => {
     expect(screen.getByRole('textbox', { name: /title/i })).toHaveValue('Original')
     fireEvent.keyDown(await screen.findByRole('textbox', { name: /title/i }), { key: 'Escape' })
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/exists.*unlinked/i))
+    expect(document.querySelector('.list-paging p')).toHaveAttribute('aria-live', 'polite')
     expect(screen.queryByRole('textbox', { name: /title/i })).toBeNull()
   })
 
