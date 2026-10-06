@@ -6,7 +6,7 @@ import {
   HomeIcon, TasksIcon, SignalsIcon, WorkLineIcon, ObjectiveIcon,
   MoneyIcon, InboxIcon, CafeIcon, EcommerceIcon, RoasteryIcon,
   ProfileIcon, PeopleIcon, ShieldIcon,
-  TodayIcon, LogIcon, TransferIcon, WasteIcon, PlanIcon, StockIcon, ItemsIcon, ReviewIcon, DispatchIcon,
+  TodayIcon, LogIcon, TransferIcon, WasteIcon, PlanIcon, StockIcon, ItemsIcon, ReviewIcon, DispatchIcon, CountIcon,
 } from './icons'
 
 export interface Section {
@@ -53,7 +53,7 @@ export const SECTIONS: Section[] = [
 ]
 
 /**
- * Café Module sections — the Today/capture root, production, transfer and waste capture routes,
+ * Café Module sections — the Today/capture root, production, transfer, waste and Count capture routes,
  * Plan, Stock, Items, Review and Pushes. Review/Pushes visibility is enforced in the rail; every label
  * flows through the i18n catalog via its labelKey. All entries remain available for breadcrumb
  * resolution regardless of role. sectionForPath prefers exact and longest-prefix Café matches.
@@ -63,6 +63,7 @@ export const CAFE_SECTIONS: Section[] = [
   { path: '/cafe/production', label: 'Log production', labelKey: 'nav.cafe.production', Icon: LogIcon },
   { path: '/cafe/transfer', label: 'Log transfer', labelKey: 'nav.cafe.transfer', Icon: TransferIcon },
   { path: '/cafe/waste', label: 'Log waste', labelKey: 'nav.cafe.waste', Icon: WasteIcon },
+  { path: '/cafe/count', label: 'Count', labelKey: 'nav.cafe.count', Icon: CountIcon },
   { path: '/cafe/plan', label: 'Plan', labelKey: 'nav.cafe.plan', Icon: PlanIcon },
   { path: '/cafe/stock', label: 'Stock', labelKey: 'nav.cafe.stock', Icon: StockIcon },
   { path: '/cafe/items', label: 'Items', labelKey: 'nav.cafe.items', Icon: ItemsIcon },

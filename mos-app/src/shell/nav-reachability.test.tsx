@@ -400,9 +400,9 @@ describe('nav reachability — rendered links, real viewers, both viewports', ()
   // ── The phone half. There is no rail below 920px, and the bottom bar renders one link per
   // destination with no children, so the drawer is the ONLY route to a module's sub-screens.
   describe("Café's working screens on a phone (#242)", () => {
-    it('a Café floor member reaches Log, Plan, Stock and Items at 390px', () => {
+    it('a Café floor member reaches Log, Count, Plan, Stock and Items at 390px', () => {
       const links = phoneLinks(persona('Café floor member'))
-      for (const p of ['/cafe', '/cafe/waste', '/cafe/plan', '/cafe/stock', '/cafe/items']) {
+      for (const p of ['/cafe', '/cafe/waste', '/cafe/count', '/cafe/plan', '/cafe/stock', '/cafe/items']) {
         expect(links, `${p} unreachable on a phone`).toContain(p)
       }
     })
@@ -416,7 +416,7 @@ describe('nav reachability — rendered links, real viewers, both viewports', ()
     it('OD-WAY-51: a viewer whose job role matches NO module still reaches the ungated screens', () => {
       // The persona the old model excluded outright — a substantial share of the roster.
       const p = persona('no-module viewer')
-      for (const path of ['/cafe', '/cafe/waste', '/cafe/plan', '/cafe/stock', '/cafe/items']) {
+      for (const path of ['/cafe', '/cafe/waste', '/cafe/count', '/cafe/plan', '/cafe/stock', '/cafe/items']) {
         expect(phoneLinks(p), `${path} root entry unreachable on a phone`).toContain('/cafe')
         expect(railLinks(p), `${path} root entry unreachable on the rail`).toContain('/cafe')
       }
@@ -432,14 +432,14 @@ describe('nav reachability — rendered links, real viewers, both viewports', ()
 
     it('a Café ops lead reaches all working screens at 390px, Review and Pushes included', () => {
       const links = phoneLinks(persona('Café ops lead'))
-      for (const p of ['/cafe', '/cafe/waste', '/cafe/plan', '/cafe/stock', '/cafe/items', '/cafe/review', '/cafe/pushes']) {
+      for (const p of ['/cafe', '/cafe/waste', '/cafe/count', '/cafe/plan', '/cafe/stock', '/cafe/items', '/cafe/review', '/cafe/pushes']) {
         expect(links, `${p} unreachable on a phone`).toContain(p)
       }
     })
 
     it('…and reaches all working screens on the desktop rail too', () => {
       const links = railLinks(persona('Café ops lead'))
-      for (const p of ['/cafe', '/cafe/waste', '/cafe/plan', '/cafe/stock', '/cafe/items', '/cafe/review', '/cafe/pushes']) {
+      for (const p of ['/cafe', '/cafe/waste', '/cafe/count', '/cafe/plan', '/cafe/stock', '/cafe/items', '/cafe/review', '/cafe/pushes']) {
         expect(links, `${p} unreachable on the rail`).toContain(p)
       }
     })

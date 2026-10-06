@@ -90,7 +90,7 @@ select set_eq(
         and not t.tgisinternal $$,
   $$ values ('log_entries'), ('kitchen_logs'), ('kitchen_plans'), ('wip_items'),
             ('item_units'), ('stream_completeness'), ('stream_items'),
-            ('cafe_item_settings'), ('cafe_item_setting_units') $$,
+            ('cafe_item_settings'), ('cafe_item_setting_units'), ('cafe_count_lines') $$,
   'exactly the registered Café tables carry the one history trigger, and no other ops table does');
 
 -- The affiliation gate (20260905000001) requires a current stream-Team membership (or the

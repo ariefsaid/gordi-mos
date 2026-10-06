@@ -41,6 +41,16 @@ const ID_EQUALS_EN_ALLOWLIST: ReadonlySet<string> = new Set([
   'rail.b2bOps', // B2B Ops
   'kitchen.actionType.transferTo.short', // → ${branch} — symbol template
   'kitchen.activity.bar', // Bar
+  // #1366 Café Count preserves its feature, lifecycle and inventory terms in Indonesian copy.
+  'nav.cafe.count', // Count — feature name
+  'cafe.count.lineSubmitted', // Submitted — lifecycle state
+  'cafe.count.review.title', // Count — section name
+  'cafe.count.review.count', // Count — inventory fact
+  'cafe.count.review.expected', // Expected balance — inventory fact
+  'cafe.count.review.variance', // Variance — inventory fact
+  'cafe.count.review.submittedAt', // Submitted — lifecycle state
+  'cafe.count.review.streamTag', // Stream — Café vocabulary
+  'cafe.count.review.confirmedNotNeeded', // Confirmed / Not needed — lifecycle states
   'kitchen.log.col.status', // Status
   'kitchen.log.offline.aria', // Offline
   'kitchen.pushes.col.batch', // Batch

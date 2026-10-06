@@ -56,6 +56,7 @@ import type { DataTableColumn, DataTableGroup } from '@/components/dashboard/dat
 import { MetricSummaryRule } from '@/components/kitchen/metric-summary-rule'
 // #440: the ONE Café stream statement/picker, and the module-wide selection it writes to.
 import { CafeStreamBar, ALL_STREAMS } from '@/components/kitchen/cafe-stream-bar'
+import { CafeCountReviewQueue } from '@/components/kitchen/cafe-count-review-queue'
 import { rememberStream, rememberedStreamKey } from '@/lib/cafe-stream'
 import { activeCafeLocation } from '@/lib/cafe-opening-location'
 import { useReviewSummary } from '@/lib/kitchen-review-kpis'
@@ -1145,6 +1146,12 @@ function KitchenReviewPageForViewer() {
       meta={<span className="kr-date tabular">{formatWeekdayDayMonth(logDate)}</span>}
       state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : submittedCount === 0 ? 'empty' : 'default'}
     >
+      <CafeCountReviewQueue
+        streamFilter={streamFilter}
+        streamCatalog={streamCatalog}
+        canReviewAll={isLeadOrAdmin}
+        reviewableStreamKeys={myStreamKeys}
+      />
       {/* #422 / DD-WAY-40: Review is an ACT surface, so its figures render as the DESIGN.md
           Metric summary rule — one inline line, no card, no width branch — never a tile row.
           The delta ("note required to approve") renders only when off-plan rows exist, i.e.
