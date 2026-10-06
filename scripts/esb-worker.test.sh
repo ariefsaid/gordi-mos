@@ -28,7 +28,7 @@ cd "$(dirname "$0")/.."
 # Hermeticity is enforced, not assumed: a leaked variable from the operator's shell must
 # not turn a refusal case into a real drain (the lesson from import-kitchen-history).
 unset ESB_WORKER_TARGET_ENV ESB_WORKER_MAP_FILE ESB_BASE_URL ESB_USERNAME ESB_PASSWORD \
-      ESB_PUSH_ENABLED ESB_ALLOW_GKID ESB_MAX_RETRY ESB_MAX_ROWS ESB_HTTP_TIMEOUT \
+      ESB_PUSH_ENABLED ESB_ALLOW_GKID ESB_ALLOW_GKID_READ ESB_MAX_RETRY ESB_MAX_ROWS ESB_HTTP_TIMEOUT \
       MOS_SUPABASE_URL MOS_SUPABASE_SERVICE_ROLE_KEY ESB_OPEN_PO_ORG_ID \
       ESB_OPEN_PO_MAX_AGE_MINUTES ESB_OPEN_PO_WINDOW_DAYS ESB_OPEN_PO_SHAPE_FILE
 SCRIPT="$(pwd)/scripts/esb-worker.py"
