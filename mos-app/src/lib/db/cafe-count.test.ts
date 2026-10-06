@@ -34,6 +34,7 @@ describe('Cafe Count domain adapter', () => {
     expect(normalizeCafeCountQuantity('')).toBeNull()
     expect(normalizeCafeCountQuantity('0')).toBe('0')
     expect(normalizeCafeCountQuantity('0012,5000')).toBe('12.5')
+    expect(normalizeCafeCountQuantity('1,125')).toBe('1.125')
     expect(normalizeCafeCountQuantity('1.23456')).toBeNull()
     expect(normalizeCafeCountQuantity('1.500')).toBeNull()
     expect(normalizeCafeCountQuantity('-1')).toBeNull()

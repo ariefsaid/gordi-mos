@@ -67,11 +67,11 @@ type PageLoadState = 'loading' | 'ready' | 'error'
 
 const WASTE_KIND_OPTIONS: readonly KitchenItemKindFilter[] = ['All', 'WIP', 'RAW']
 
-function quantityValue(raw: string): number | null {
+function quantityValue(raw: string, unitFactor = 1): number | null {
   const parsed = parseQuantityInput(raw, {
     min: 0,
     maxIntegerDigits: 10,
-    maxFractionDigits: 3,
+    maxFractionDigits: unitFactor === 1 ? 2 : 3,
   })
   return parsed.kind === 'valid' && parsed.value > 0 ? parsed.value : null
 }
@@ -160,6 +160,7 @@ export function CafeWastePage() {
   const [items, setItems] = useState<CafeLogItem[]>([])
   const [businessUnitId, setBusinessUnitId] = useState('')
   const [entries, setEntries] = useState<Record<string, WasteEntry>>({})
+  const [invalidQuantityIds, setInvalidQuantityIds] = useState<Set<string>>(new Set())
   const [resumableDrafts, setResumableDrafts] = useState<KitchenWasteDraft[]>([])
   const [submitError, setSubmitError] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -214,6 +215,7 @@ export function CafeWastePage() {
     setLoadState('loading')
     setItems([])
     setEntries({})
+    setInvalidQuantityIds(new Set())
     setBusinessUnitId('')
     setResumableDrafts([])
     if (!stream) {
@@ -270,7 +272,7 @@ export function CafeWastePage() {
   const groups = loadState === 'loading' ? [] : kitchenDataTableGroups(itemTable, () => null)
   const staged = items.flatMap(item => {
     const entry = entries[item.id]
-    const quantity = quantityValue(entry?.quantity ?? '')
+    const quantity = quantityValue(entry?.quantity ?? '', entry?.unitFactor ?? 1)
     return entry && quantity !== null ? [{ item, entry, quantity }] : []
   })
   const stagedSummary = staged.map(line => ({
@@ -286,14 +288,25 @@ export function CafeWastePage() {
   ).format(quantity)
   const remaining = staged.filter(line => !line.entry.submitted)
   const allPhotosReady = remaining.length > 0 && remaining.every(line => line.entry.logId && line.entry.photoReady)
-  const allSubmitted = staged.length > 0 && remaining.length === 0
+  const allSubmitted = staged.length > 0 && remaining.length === 0 && invalidQuantityIds.size === 0
   const submittedCount = staged.length - remaining.length
-  const hasPendingCapture = staged.length > 0
+  const invalidQuantityCount = invalidQuantityIds.size
+  const hasPendingCapture = staged.length > 0 || invalidQuantityCount > 0
 
   const patchEntry = useCallback((itemId: string, patch: Partial<WasteEntry>) => {
     setEntries(current => {
       const entry = current[itemId]
       return entry ? { ...current, [itemId]: { ...entry, ...patch } } : current
+    })
+  }, [])
+
+  const reportQuantityValidity = useCallback((itemId: string, valid: boolean) => {
+    setInvalidQuantityIds(current => {
+      if (current.has(itemId) === !valid) return current
+      const next = new Set(current)
+      if (valid) next.delete(itemId)
+      else next.add(itemId)
+      return next
     })
   }, [])
 
@@ -318,7 +331,7 @@ export function CafeWastePage() {
       const entry = current[item.id]
       if (!entry || entry.logId || entry.preparing || entry.submitted) return current
       const currentFactor = entry.unitFactor ?? 1
-      const enteredQuantity = quantityValue(entry.quantity)
+      const enteredQuantity = quantityValue(entry.quantity, currentFactor)
       const canonical = enteredQuantity === null ? null : toDefaultUnitQuantity(enteredQuantity, currentFactor)
       const nextQuantity = canonical === null
         ? entry.quantity
@@ -348,7 +361,7 @@ export function CafeWastePage() {
 
   async function prepareEntry(item: CafeLogItem) {
     const entry = entries[item.id]
-    const quantity = quantityValue(entry?.quantity ?? '')
+    const quantity = quantityValue(entry?.quantity ?? '', entry?.unitFactor ?? 1)
     if (!entry || quantity === null || !stream || !businessUnitId || !canCapture || !isOnline
       || entry.logId || entry.preparing || draftRequests.current.has(item.id)) return
     draftRequests.current.add(item.id)
@@ -380,7 +393,7 @@ export function CafeWastePage() {
 
   async function restartExpiredEntry(item: CafeLogItem) {
     const entry = entries[item.id]
-    const quantity = quantityValue(entry?.quantity ?? '')
+    const quantity = quantityValue(entry?.quantity ?? '', entry?.unitFactor ?? 1)
     if (!entry?.logId || !entry.photoWindowExpired || entry.photos.length > 0 || quantity === null
       || !entry.unitBasisKnown || !stream || !businessUnitId || !canCapture || !isOnline || submitting || entry.preparing
       || draftRequests.current.has(item.id)) return
@@ -486,6 +499,7 @@ export function CafeWastePage() {
 
   function startAnotherLog() {
     setEntries(initialEntries(items))
+    setInvalidQuantityIds(new Set())
     setSubmitError(false)
   }
 
@@ -542,6 +556,7 @@ export function CafeWastePage() {
           isOnline={isOnline}
           disabled={submitting || loadState !== 'ready'}
           onQuantityChange={value => patchEntry(item.id, { quantity: value, error: undefined })}
+          onQuantityValidityChange={valid => reportQuantityValidity(item.id, valid)}
           onUnitChange={choice => changeWasteEntryUnit(item, choice)}
           onPrepare={() => void prepareEntry(item)}
         />
@@ -565,6 +580,7 @@ export function CafeWastePage() {
           isOnline={isOnline}
           disabled={submitting || loadState !== 'ready'}
           onQuantityChange={value => patchEntry(item.id, { quantity: value, error: undefined })}
+          onQuantityValidityChange={valid => reportQuantityValidity(item.id, valid)}
           onUnitChange={choice => changeWasteEntryUnit(item, choice)}
           onPrepare={() => void prepareEntry(item)}
         />
@@ -593,7 +609,7 @@ export function CafeWastePage() {
     >
       <div className="kl-page cwl-page kl-capture-wide cafe-capture-content">
         <div className="kl-capture-main">
-        <RouteLeaveGuard when={remaining.length > 0} message={t('kitchen.log.leave.confirm')} />
+        <RouteLeaveGuard when={remaining.length > 0 || invalidQuantityCount > 0} message={t('kitchen.log.leave.confirm')} />
         {!isOnline && <div role="alert" className="kl-banner kl-banner-offline">{t('kitchen.log.offline.banner')}</div>}
 
         {loadState === 'loading' && <LoadingShell />}
@@ -735,6 +751,11 @@ export function CafeWastePage() {
                   </span>
                 </div>
               </div>
+              {invalidQuantityCount > 0 && (
+                <p className="kl-submit-reason" role="status" aria-live="polite">
+                  {t(invalidQuantityCount === 1 ? 'quantityField.fixing.one' : 'quantityField.fixing.other', { count: invalidQuantityCount })}
+                </p>
+              )}
               {allSubmitted ? (
                 <button type="button" className="btn btn-outline" onClick={startAnotherLog}>
                   {t('kitchen.waste.newLog')}
@@ -785,6 +806,7 @@ function WasteItemControls({
   isOnline,
   disabled,
   onQuantityChange,
+  onQuantityValidityChange,
   onUnitChange,
   onPrepare,
 }: {
@@ -794,6 +816,7 @@ function WasteItemControls({
   isOnline: boolean
   disabled: boolean
   onQuantityChange: (quantity: string) => void
+  onQuantityValidityChange: (valid: boolean) => void
   onUnitChange: (choice: string) => void
   onPrepare: () => void
 }) {
@@ -815,7 +838,7 @@ function WasteItemControls({
     ? `multiple:${String(current.unitFactor)}`
     : current.unitId
   const locked = Boolean(current.logId || current.preparing || current.submitted)
-  const quantity = quantityValue(current.quantity)
+  const quantity = quantityValue(current.quantity, current.unitFactor ?? 1)
   const editable = canCapture && isOnline && !disabled && !locked
   const needsQuantity = editable && quantity === null
   const photoHintId = `cafe-waste-photo-hint-${item.id}`
@@ -833,35 +856,37 @@ function WasteItemControls({
           value={quantity ?? 0}
           onChange={next => onQuantityChange(next > 0 ? String(next) : '')}
           onInvalid={() => onQuantityChange('')}
+          onValidityChange={onQuantityValidityChange}
+          suffixPosition="below"
+          suffix={showUnitPicker ? (
+            <Select
+              id={unitId}
+              className="cwl-unit-select"
+              aria-label={t('kitchen.waste.unitFor', { item: item.name })}
+              value={selectedChoice}
+              disabled={!editable}
+              onChange={event => onUnitChange(event.target.value)}
+            >
+              {historicalUnit && <option value={current.unitId}>{entry?.capturedUnitName}</option>}
+              <option value={item.defaultUnit.id}>{displayUnit(selectedUnit, t)} · {t('cafe.items.defaultTag')}</option>
+              {item.multiples.map(factor => (
+                <option key={`multiple:${factor}`} value={`multiple:${String(factor)}`}>
+                  {formatUnitMultiple(factor, item.defaultUnit.name, document.documentElement.lang || undefined)}
+                </option>
+              ))}
+            </Select>
+          ) : (
+            <span className="cwl-unit-label" aria-label={t('kitchen.waste.unitFor', { item: item.name })}>
+              {selectedUnitLabel}
+            </span>
+          )}
           maxIntegerDigits={10}
-          maxFractionDigits={3}
+          maxFractionDigits={current.unitFactor === 1 ? 2 : 3}
           min={0}
           step="any"
           disabled={!editable}
           errorClassName="cwl-field-error"
         />
-        {showUnitPicker ? (
-          <Select
-            id={unitId}
-            className="cwl-unit-select"
-            aria-label={t('kitchen.waste.unitFor', { item: item.name })}
-            value={selectedChoice}
-            disabled={!editable}
-            onChange={event => onUnitChange(event.target.value)}
-          >
-            {historicalUnit && <option value={current.unitId}>{entry?.capturedUnitName}</option>}
-            <option value={item.defaultUnit.id}>{displayUnit(selectedUnit, t)} · {t('cafe.items.defaultTag')}</option>
-            {item.multiples.map(factor => (
-              <option key={`multiple:${factor}`} value={`multiple:${String(factor)}`}>
-                {formatUnitMultiple(factor, item.defaultUnit.name, document.documentElement.lang || undefined)}
-              </option>
-            ))}
-          </Select>
-        ) : (
-          <span className="cwl-unit-label" aria-label={t('kitchen.waste.unitFor', { item: item.name })}>
-            {selectedUnitLabel}
-          </span>
-        )}
       </div>
       {current.error && <span className="cwl-field-error" role="alert">{current.error}</span>}
       {current.logId && !current.submitted && (

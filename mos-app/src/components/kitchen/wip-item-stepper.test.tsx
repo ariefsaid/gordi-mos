@@ -51,6 +51,7 @@ function renderStepper(
     dense?: boolean
     alreadyLogged?: ActualUnitTotal[]
     unitOptions?: ItemUnitOption[]
+    unitMultiples?: number[]
     onUnitChange?: (id: string) => void
   } = {},
 ) {
@@ -64,6 +65,7 @@ function renderStepper(
       dense={over.dense}
       alreadyLogged={over.alreadyLogged}
       unitOptions={over.unitOptions}
+      unitMultiples={over.unitMultiples}
       onUnitChange={over.onUnitChange}
     />,
   )
@@ -235,8 +237,11 @@ describe('WipItemStepper — AC-020/021/022', () => {
     expect(quantity).not.toBeNull()
     expect(input.closest('.kls-quantity')).toBe(quantity)
     expect(unit.closest('.kls-quantity')).toBe(quantity)
-    expect(quantity?.querySelector('.quantity-field')?.firstElementChild).toBe(input)
-    expect(quantity?.lastElementChild).toBe(unit)
+    const field = quantity?.querySelector('.quantity-field')
+    const control = field?.querySelector('.quantity-field-control')
+    expect(control?.firstElementChild).toBe(input)
+    expect(control?.querySelector('.kls-unit')).toBe(unit)
+    expect(field?.lastElementChild).toBe(control)
   })
 
   it('uses the neutral zero placeholder when there is no plan for this action_type', () => {
@@ -466,7 +471,7 @@ describe('WipItemStepper — shared decimal quantity capture', () => {
     const onQtyChange = vi.fn()
     renderStepper({ onQtyChange })
     fireEvent.change(screen.getByLabelText(/quantity/i), { target: { value: '1.234,5' } })
-    expect(screen.getByRole('alert')).toHaveTextContent(/single decimal separator/i)
+    expect(screen.getByRole('alert')).toHaveTextContent('Use one mark: 1.5.')
     expect(onQtyChange).not.toHaveBeenCalledWith(1234.5)
   })
 
@@ -479,7 +484,30 @@ describe('WipItemStepper — shared decimal quantity capture', () => {
 
     expect(screen.queryByRole('alert')).toBeNull()
     await user.tab()
-    expect(await screen.findByRole('alert')).toHaveTextContent(/single decimal separator/i)
+    expect(await screen.findByRole('alert')).toHaveTextContent(/Use one mark: 1\.5\./i)
+  })
+
+  it('accepts 1,125 for a manager multiple but gives a precision error for the default unit below its limit', () => {
+    const onQtyChange = vi.fn()
+    const { container, rerender } = renderStepper({
+      line: { entry_quantity: 0, entry_unit_factor: 2, entry_unit_name: 'porsi' },
+      unitMultiples: [2],
+      onQtyChange,
+    })
+    fireEvent.change(screen.getByLabelText(/quantity/i), { target: { value: '1,125' } })
+    expect(onQtyChange).toHaveBeenCalledWith(1.125)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+
+    rerender(
+      <WipItemStepper itemName="Nasi Goreng" line={{ ...BASE_LINE }} movement={PRODUCE}
+        onQtyChange={onQtyChange} onNotesChange={vi.fn()} unitOptions={[UNIT_PORSI]} />,
+    )
+    fireEvent.change(screen.getByLabelText(/quantity/i), { target: { value: '1,125' } })
+    const error = screen.getByRole('alert')
+    expect(error).toHaveTextContent('Use up to 2 decimals.')
+    const control = container.querySelector('.quantity-field-control')
+    expect(control?.querySelector('.kls-unit')).toBeInTheDocument()
+    expect(control?.nextElementSibling).toBe(error)
   })
 })
 

@@ -94,11 +94,13 @@ export function PlanQtyField({ itemName, qty, disabled, onSave, dense = false }:
         maxFractionDigits={0}
         placeholder="0"
         enterKeyHint="next"
+        dataEscapeLayer="nested"
         disabled={disabled || pending}
         busy={pending}
         touchTarget
+        suffix={<span className="pqf-unit">{t('kitchen.unit.porsi')}</span>}
+        suffixPosition="inline"
       />
-      <span className="pqf-unit">{t('kitchen.unit.porsi')}</span>
     </div>
   )
 }

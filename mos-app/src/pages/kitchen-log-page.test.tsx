@@ -616,6 +616,17 @@ describe('Populated state — WIP items loaded', () => {
     })
   })
 
+  it('counts invalid quantities in the submit band and blocks batch submission until fixed', async () => {
+    await renderPage()
+    const quantity = await screen.findByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    fireEvent.change(quantity, { target: { value: '1,125' } })
+    fireEvent.blur(quantity)
+
+    const footer = document.querySelector('.kl-footer') as HTMLElement
+    expect(within(footer).getByText('1 item needs fixing')).toBeInTheDocument()
+    expect(within(footer).getByRole('button', { name: /^submit$/i })).toBeDisabled()
+  })
+
   // v4 P0 (design critique): the footer is now DELIBERATELY sticky — on phone the scroll
   // container ran ~3,000px, so Submit was unreachable without a long scroll past the FAB.
   // jsdom does not compute real layout from imported stylesheets (vite.config.ts `css: false`
@@ -1941,6 +1952,29 @@ describe('OD-K-5: Discard resets staged entries (confirmed)', () => {
     const dialog = await screen.findByRole('dialog')
     fireEvent.click(within(dialog).getByRole('button', { name: /cancel/i }))
     expect((ayamInput as HTMLInputElement).value).toBe('20') // unchanged
+  })
+
+  it('counts an invalid quantity draft in the discard confirmation', async () => {
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    const ayamInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    fireEvent.change(ayamInput, { target: { value: '1,125' } })
+    fireEvent.click(screen.getByRole('button', { name: /^discard$/i }))
+
+    expect(await screen.findByRole('dialog')).toHaveTextContent('This clears 1 typed quantity')
+  })
+
+  it('counts an invalid edit once even when the row had a previously valid quantity', async () => {
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    const ayamInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    fireEvent.change(ayamInput, { target: { value: '20' } })
+    fireEvent.change(ayamInput, { target: { value: '1,125' } })
+    fireEvent.click(screen.getByRole('button', { name: /^discard$/i }))
+
+    expect(await screen.findByRole('dialog')).toHaveTextContent('This clears 1 typed quantity')
   })
 })
 

@@ -54,6 +54,8 @@ interface WipItemStepperProps {
   unitMultiples?: readonly number[]
   /** Change the selected ERP unit or manager-defined multiple. */
   onUnitChange?: (unitChoice: string) => void
+  /** Reports whether this row currently contains a valid quantity draft. */
+  onQuantityValidityChange?: (valid: boolean) => void
 }
 
 function formatLoggedEntry(
@@ -87,6 +89,7 @@ export function WipItemStepper({
   unitOptions,
   unitMultiples = [],
   onUnitChange,
+  onQuantityValidityChange,
 }: WipItemStepperProps) {
   const t = useT()
   // Plan and stock are shown as unitless facts beside the item name. The plan is also a
@@ -155,6 +158,44 @@ export function WipItemStepper({
     ? `multiple:${String(selectedFactor)}`
     : line.item_unit_id ?? ''
   const offersUnitChange = ((unitOptions?.length ?? 0) > 1 || unitMultiples.length > 0) && onUnitChange !== undefined
+  const unitSuffix = !offersUnitChange
+    ? unitLabel ? <span className="kls-unit">{unitLabel}</span> : undefined
+    : unitPickerOpen ? (
+        <Select
+          className="kls-unit-select"
+          aria-label={t('kitchen.log.unit.selectAria', { item: itemName })}
+          value={selectedUnitValue}
+          disabled={disabled}
+          autoFocus
+          onChange={e => {
+            restoreUnitFocus.current = true
+            onUnitChange?.(e.target.value)
+            setUnitPickerOpen(false)
+          }}
+          onBlur={() => setUnitPickerOpen(false)}
+        >
+          {unitOptions?.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+          {unitMultiples.map(factor => (
+            <option key={`multiple:${factor}`} value={`multiple:${String(factor)}`}>
+              {formatUnitMultiple(factor, fallbackUnit?.name ?? '', locale)}
+            </option>
+          ))}
+        </Select>
+      ) : (
+        <button
+          ref={unitChangeButtonRef}
+          type="button"
+          className="kls-unit kls-unit-change"
+          aria-label={t('kitchen.log.unit.changeAria', { item: itemName })}
+          disabled={disabled}
+          onClick={() => setUnitPickerOpen(true)}
+        >
+          {unitLabel}
+          <svg aria-hidden="true" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </button>
+      )
   const entryQuantity = line.entry_quantity ?? qty_porsi
   const placeholderQuantity = selectedFactor === 1
     ? line.plan_qty
@@ -185,6 +226,9 @@ export function WipItemStepper({
           value={entryQuantity}
           onChange={onQtyChange}
           onInvalid={() => onQtyChange(0)}
+          onValidityChange={onQuantityValidityChange}
+          suffix={unitSuffix}
+          suffixPosition="below"
           placeholder={placeholderQuantity > 0 ? formatActualQty(placeholderQuantity) : '0'}
           min={0}
           maxIntegerDigits={10}
@@ -195,61 +239,6 @@ export function WipItemStepper({
           touchTarget
           onBlur={() => setBlurred(true)}
         />
-        {/* FR-020/021 (#234): the unit is fixed text on the common path. An item with
-            alternates gets a SMALL button wearing the same quiet label plus a change
-            glyph — one deliberate click opens the picker, selection closes it. An item
-            with one unit renders the bare text and NO button (AC-005): nothing to
-            change, nothing to mis-tap. */}
-          {!offersUnitChange && unitLabel && <span className="kls-unit">{unitLabel}</span>}
-          {offersUnitChange && !unitPickerOpen && (
-            <button
-              ref={unitChangeButtonRef}
-              type="button"
-              className="kls-unit kls-unit-change"
-              aria-label={t('kitchen.log.unit.changeAria', { item: itemName })}
-              disabled={disabled}
-              onClick={() => setUnitPickerOpen(true)}
-            >
-              {unitLabel}
-              <svg
-                aria-hidden="true"
-                width="10"
-                height="10"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-              >
-                <path d="m6 9 6 6 6-6" />
-              </svg>
-            </button>
-          )}
-          {offersUnitChange && unitPickerOpen && (
-            <Select
-              className="kls-unit-select"
-              aria-label={t('kitchen.log.unit.selectAria', { item: itemName })}
-              value={selectedUnitValue}
-              disabled={disabled}
-              autoFocus
-              onChange={e => {
-                restoreUnitFocus.current = true
-                onUnitChange?.(e.target.value)
-                setUnitPickerOpen(false)
-              }}
-              onBlur={() => setUnitPickerOpen(false)}
-            >
-              {unitOptions?.map(u => (
-                <option key={u.id} value={u.id}>
-                  {u.name}
-                </option>
-              ))}
-              {unitMultiples.map(factor => (
-                <option key={`multiple:${factor}`} value={`multiple:${String(factor)}`}>
-                  {formatUnitMultiple(factor, fallbackUnit?.name ?? '', locale)}
-                </option>
-              ))}
-            </Select>
-          )}
         </div>
       </div>
 

@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import { useT } from '@/i18n/use-t'
 import { formatQuantityInput, parseQuantityInput } from '@/lib/quantity-parser'
 import type { QuantityParseReason } from '@/lib/quantity-parser'
@@ -23,6 +24,10 @@ interface QuantityFieldProps {
   placeholder?: string
   className?: string
   errorClassName?: string
+  suffix?: ReactNode
+  suffixClassName?: string
+  suffixPosition?: 'below' | 'inline'
+  dataEscapeLayer?: 'nested'
   disabled?: boolean
   busy?: boolean
   enterKeyHint?: 'enter' | 'done' | 'go' | 'next' | 'previous' | 'search' | 'send'
@@ -31,6 +36,27 @@ interface QuantityFieldProps {
 
 function locale(): string {
   return document.documentElement.lang || 'en'
+}
+
+export function QuantityFieldError({
+  id,
+  reason,
+  maxFractionDigits = 2,
+  className,
+}: {
+  id?: string
+  reason: QuantityParseReason
+  maxFractionDigits?: number
+  className?: string
+}) {
+  const t = useT()
+  const message = reason === 'ambiguous' ? t('quantityField.error.ambiguous')
+    : reason === 'negative' ? t('quantityField.error.negative')
+    : reason === 'integer' ? t('quantityField.error.integer')
+    : reason === 'range' ? t('quantityField.error.range')
+    : reason === 'precision' ? t('quantityField.error.precision', { count: maxFractionDigits })
+    : t('quantityField.error.format')
+  return <p id={id} className={`quantity-field-error${className ? ` ${className}` : ''}`} role="alert">{message}</p>
 }
 
 export function QuantityField({
@@ -52,12 +78,15 @@ export function QuantityField({
   placeholder,
   className,
   errorClassName,
+  suffix,
+  suffixClassName,
+  suffixPosition = 'below',
+  dataEscapeLayer,
   disabled = false,
   busy = false,
   enterKeyHint,
   touchTarget = false,
 }: QuantityFieldProps) {
-  const t = useT()
   const generatedErrorId = useId()
   const [draft, setDraft] = useState(() => formatQuantityInput(value, locale(), maxFractionDigits))
   const [error, setError] = useState<QuantityParseReason | null>(null)
@@ -65,13 +94,25 @@ export function QuantityField({
   const focused = useRef(false)
   const latestValue = useRef(value)
   const latestMaxFractionDigits = useRef(maxFractionDigits)
+  const onValidityChangeRef = useRef(onValidityChange)
+  const previousMaxFractionDigits = useRef(maxFractionDigits)
   latestValue.current = value
   latestMaxFractionDigits.current = maxFractionDigits
+  onValidityChangeRef.current = onValidityChange
   const errorId = `${id ?? generatedErrorId}-quantity-error`
   const parseOptions = { integerOnly, min, max, maxIntegerDigits, maxFractionDigits }
 
   useEffect(() => {
-    if (!focused.current) setDraft(formatQuantityInput(value, locale(), maxFractionDigits))
+    const precisionChanged = previousMaxFractionDigits.current !== maxFractionDigits
+    previousMaxFractionDigits.current = maxFractionDigits
+    if (!focused.current) {
+      setDraft(formatQuantityInput(value, locale(), maxFractionDigits))
+      if (precisionChanged) {
+        setError(null)
+        setErrorVisible(false)
+        onValidityChangeRef.current?.(true)
+      }
+    }
   }, [value, maxFractionDigits])
 
   const lastResetKey = useRef(resetKey)
@@ -81,6 +122,7 @@ export function QuantityField({
     setDraft(formatQuantityInput(latestValue.current, locale(), latestMaxFractionDigits.current))
     setError(null)
     setErrorVisible(false)
+    onValidityChangeRef.current?.(true)
   }, [resetKey]) // resetKey is an explicit cancel signal; refs keep this effect inert on edits.
 
   function handleChange(raw: string) {
@@ -131,7 +173,10 @@ export function QuantityField({
     onKeyDown?.(event)
     if (event.defaultPrevented || disabled || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) return
     const parsed = parseQuantityInput(draft, parseOptions)
-    const current = parsed.kind === 'valid' ? parsed.value : min
+    // Arrow keys are an optional shortcut, never a way to turn a blank or invalid draft into
+    // a saved number. Keep the raw field intact until it parses successfully.
+    if (parsed.kind !== 'valid') return
+    const current = parsed.value
     const increment = typeof step === 'number' ? step : 1
     const next = Math.max(min, current + (event.key === 'ArrowUp' ? increment : -increment))
     if (max !== undefined && next > max) return
@@ -145,43 +190,41 @@ export function QuantityField({
 
   const currentParse = parseQuantityInput(draft, parseOptions)
   const ariaValue = currentParse.kind === 'valid' ? currentParse.value : undefined
-  const message = errorVisible && error === 'integer'
-    ? t('quantityField.error.whole')
-    : errorVisible && error
-      ? t('quantityField.error.invalid')
-      : undefined
+  const showError = errorVisible && error !== null
 
   return (
     <div className="quantity-field">
-      <input
-        id={id}
-        type="text"
-        role="spinbutton"
-        inputMode="decimal"
-        autoComplete="off"
-        aria-label={label}
-        aria-valuemin={min}
-        aria-valuemax={max}
-        aria-valuenow={ariaValue}
-        aria-invalid={Boolean(message) || undefined}
-        aria-busy={busy || undefined}
-        aria-describedby={message ? errorId : undefined}
-        className={className}
-        value={draft}
-        placeholder={placeholder}
-        disabled={disabled}
-        enterKeyHint={enterKeyHint}
-        data-touch-target={touchTarget ? 'true' : undefined}
-        onFocus={() => { focused.current = true; setErrorVisible(false) }}
-        onChange={event => handleChange(event.target.value)}
-        onKeyDown={handleKeyDown}
-        onBlur={handleBlur}
-      />
-      {message && (
-        <p id={errorId} className={`quantity-field-error${errorClassName ? ` ${errorClassName}` : ''}`} role="alert">
-          {message}
-        </p>
-      )}
+      <div className={`quantity-field-control quantity-field-control--${suffixPosition}`}>
+        <input
+          id={id}
+          type="text"
+          role="spinbutton"
+          inputMode="decimal"
+          autoComplete="off"
+          aria-label={label}
+          aria-valuemin={min}
+          aria-valuemax={max}
+          aria-valuenow={ariaValue}
+          aria-invalid={showError || undefined}
+          aria-busy={busy || undefined}
+          aria-describedby={showError ? errorId : undefined}
+          className={className}
+          value={draft}
+          placeholder={placeholder}
+          disabled={disabled}
+          enterKeyHint={enterKeyHint}
+          data-touch-target={touchTarget ? 'true' : undefined}
+          data-escape-layer={dataEscapeLayer}
+          onFocus={() => { focused.current = true; setErrorVisible(false) }}
+          onChange={event => handleChange(event.target.value)}
+          onKeyDown={handleKeyDown}
+          onBlur={handleBlur}
+        />
+        {suffix !== undefined && suffix !== null && (
+          <div className={`quantity-field-suffix${suffixClassName ? ` ${suffixClassName}` : ''}`}>{suffix}</div>
+        )}
+      </div>
+      {showError && <QuantityFieldError id={errorId} reason={error!} maxFractionDigits={maxFractionDigits} className={errorClassName} />}
     </div>
   )
 }

@@ -8,10 +8,9 @@
 //  - production-first gate disables Transfer Approve while Production Submitted (AC-042)
 //  - all states: loading, empty (good-empty), error+retry, forbidden, success (row leaves)
 //
-// #247/#197: every row's plan baseline is now looked up against ITS OWN (branch, activity)
-// stream (streamKey), not one hardcoded stream — fetchPlanMap is mocked per the real
-// contract (a PlanMap keyed by MOVEMENT — 'produce' | 'transfer:<destinationBranchId>' —
-// never by the derived label string).
+// #247/#197: every row's plan baseline is looked up against its exact (date, branch, activity)
+// context. The page batch read is mocked through fetchPlanMaps; each returned PlanMap is keyed
+// by MOVEMENT ('produce' | 'transfer:<destinationBranchId>'), never by the derived label.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { act, render, screen, waitFor, fireEvent, within } from '@testing-library/react'
@@ -30,7 +29,7 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
     ...actual,
     listSubmittedKitchenLogs: vi.fn(),
     hasSubmittedKitchenProduction: vi.fn().mockResolvedValue(false),
-    fetchPlanMap: vi.fn(),
+    fetchPlanMaps: vi.fn(),
     listStreamPairs: vi.fn(),
     approveKitchenLog: vi.fn(),
     approveKitchenLogsBulk: vi.fn(),
@@ -42,7 +41,7 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
 import {
   listSubmittedKitchenLogs,
   hasSubmittedKitchenProduction,
-  fetchPlanMap,
+  fetchPlanMaps,
   listStreamPairs,
   approveKitchenLog,
   approveKitchenLogsBulk,
@@ -97,13 +96,15 @@ import { listKitchenWastePhotos } from '@/lib/db/kitchen-waste-photos'
 
 import { KitchenReviewPage } from './kitchen-review-page'
 import { rememberStream } from '@/lib/cafe-stream'
+import { streamDateKey } from '@/lib/kitchen-action-label'
 import { rememberCafeLocation } from '@/lib/cafe-opening-location'
 import { resetCafeLocations } from '@/lib/cafe-opening-location'
-import type { ReviewLogRow } from '@/lib/db/kitchen-logs.types'
+import type { PlanMap, ProductionStream, ReviewLogRow } from '@/lib/db/kitchen-logs.types'
 
 const mockUseAuth = vi.mocked(useAuth)
 const mockList = vi.mocked(listSubmittedKitchenLogs)
-const mockPlan = vi.mocked(fetchPlanMap)
+const mockPlan = vi.fn<(date: string, stream: ProductionStream) => Promise<PlanMap>>()
+const mockPlanBatch = vi.mocked(fetchPlanMaps)
 const mockDefaultStream = vi.mocked(fetchDefaultStream)
 const mockStreamPairs = vi.mocked(listStreamPairs)
 const mockApprove = vi.mocked(approveKitchenLog)
@@ -203,6 +204,10 @@ beforeEach(() => {
   vi.mocked(hasSubmittedKitchenProduction).mockResolvedValue(false)
   mockWastePhotos.mockResolvedValue([])
   mockPlan.mockResolvedValue({})
+  mockPlanBatch.mockImplementation(async contexts => Promise.all(contexts.map(async context => [
+    streamDateKey(context.logDate, context.stream.branch.id, context.stream.activity),
+    await mockPlan(context.logDate, context.stream),
+  ] as const)))
   // #236: the review page resolves the viewer's own stream (filter default, FR-041) and
   // the enumerable stream catalog (the filter's options) on every load.
   mockDefaultStream.mockResolvedValue(null)
@@ -358,6 +363,9 @@ describe('KitchenReviewPage — queue (FR-040)', () => {
     expect(mockPlan).toHaveBeenCalledWith('2026-09-25', expect.objectContaining({ branch: expect.objectContaining({ id: BRANCH_ID }) }))
     const rows = Array.from(document.querySelectorAll('.krow-card'))
     expect(rows[0]).toHaveTextContent('Yesterday prep batch')
+    const cardHead = rows[0].querySelector('.krow-card-head')!
+    expect(cardHead.querySelector('.krow-card-tags')).toBeInTheDocument()
+    expect(cardHead.querySelector('.krow-card-tags')?.textContent).toContain('off-plan')
     expect(rows[0]).toHaveTextContent(/25 Sept?/i)
     expect(rows[1]).toHaveTextContent('Today prep batch')
   })
@@ -399,11 +407,12 @@ describe('KitchenReviewPage — queue (FR-040)', () => {
   it('can filter to one log date and return to all pending dates', async () => {
     mockList.mockResolvedValue([])
     render(<KitchenReviewPage />, { wrapper })
-    const date = screen.getByLabelText('Log date filter (optional)')
+    const date = screen.getByRole('textbox', { name: 'Date' })
 
     expect(date).toHaveValue('')
+    expect(date).toHaveAttribute('inputmode', 'numeric')
     expect(screen.getByText('All pending logs')).toBeInTheDocument()
-    fireEvent.change(date, { target: { value: '2026-09-25' } })
+    fireEvent.change(date, { target: { value: '25/09/2026' } })
     await waitFor(() => expect(mockList).toHaveBeenLastCalledWith('2026-09-25', {}))
     fireEvent.click(screen.getByRole('button', { name: 'Clear date' }))
     await waitFor(() => expect(mockList).toHaveBeenLastCalledWith(undefined, {}))
@@ -413,8 +422,8 @@ describe('KitchenReviewPage — queue (FR-040)', () => {
   it('renders a filtered empty-state date in the same house format as the page head (F32)', async () => {
     mockList.mockResolvedValue([])
     render(<KitchenReviewPage />, { wrapper })
-    const dateFilter = screen.getByLabelText('Log date filter (optional)')
-    fireEvent.change(dateFilter, { target: { value: '2026-09-25' } })
+    const dateFilter = screen.getByRole('textbox', { name: 'Date' })
+    fireEvent.change(dateFilter, { target: { value: '25/09/2026' } })
 
     await waitFor(() => expect(mockList).toHaveBeenLastCalledWith('2026-09-25', {}))
     await screen.findByRole('heading', { name: /nothing to review/i })
@@ -456,7 +465,7 @@ describe('KitchenReviewPage — queue (FR-040)', () => {
       // the shared review queue columns render (folded from the retired review-table test)
       const ths = Array.from(document.querySelectorAll('thead th'))
       expect(ths.map(th => th.textContent)).toEqual([
-        'Item', 'Log date', 'Plan vs logged', 'Submitter', 'Time', 'Note', 'Decision',
+        'Item', 'Plan vs logged', 'Submitter', 'Time', 'Note', 'Decision',
       ])
       // rows land under their owning group, in source order (Nasi Goreng under
       // Production, above the Transfer to Radiant header)
@@ -514,12 +523,14 @@ describe('KitchenReviewPage — queue (FR-040)', () => {
     }
     mockBranches.mockResolvedValue([...BRANCHES, { id: OTHER_BRANCH_ID, code: 'other', name: 'Other' }])
     mockList.mockResolvedValue([PROD_LOG, OTHER_LOG])
-    // Two distinct streams present → fetchPlanMap called once per stream.
+    // One visible page requests both distinct streams in a single batch.
     mockPlan.mockImplementation(async (_date, stream) =>
       stream.branch.id === BRANCH_ID ? { w1: { produce: 8 } } : { w1: { produce: 99 } })
     render(<KitchenReviewPage />, { wrapper })
     // Both rows share the same wip item name — wait for both to land.
     await waitFor(() => expect(screen.getAllByText('Nasi Goreng')).toHaveLength(2))
+    await waitFor(() => expect(mockPlanBatch).toHaveBeenCalledTimes(1))
+    expect(mockPlanBatch.mock.calls[0]?.[0]).toHaveLength(2)
     await waitFor(() => expect(mockPlan).toHaveBeenCalledTimes(2))
     // Both rows read on-plan (8==8 in stream 1, 99==99 in stream 2) — neither row's variance
     // was computed against the WRONG stream's plan.
@@ -1282,7 +1293,7 @@ describe('KitchenReviewPage — decision flow, locale id (#400)', () => {
       // column headers
       const ths = Array.from(document.querySelectorAll('thead th'))
       expect(ths.map((th) => th.textContent)).toEqual([
-        'Item', 'Tanggal log', 'Rencana vs dicatat', 'Pengaju', 'Waktu', 'Catatan', 'Keputusan',
+        'Item', 'Rencana vs dicatat', 'Pengaju', 'Waktu', 'Catatan', 'Keputusan',
       ])
       // the variance tag (row is on-plan: plan 8, logged 8) and the qty words
       expect(screen.getByText('sesuai rencana')).toBeInTheDocument()

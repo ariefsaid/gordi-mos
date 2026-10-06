@@ -28,12 +28,17 @@ vi.mock('@/lib/db/cafe-item-settings', () => ({ listCafeItemSettings: vi.fn().mo
 vi.mock('@/lib/db/kitchen-logs', async () => {
   const actual = await vi.importActual<typeof import('@/lib/db/kitchen-logs')>('@/lib/db/kitchen-logs')
   return { ...actual,
-    listActiveWipItems: vi.fn(), listCaptureFormItems: vi.fn(), fetchPlanMap: vi.fn(), fetchStockMap: vi.fn(),
+    listActiveWipItems: vi.fn(), listCaptureFormItems: vi.fn(), fetchPlanMap: vi.fn(), fetchPlanMaps: vi.fn(), fetchStockMap: vi.fn(),
     fetchActualsMap: vi.fn(), listStreamPairs: vi.fn(), resolveKitchenBuId: vi.fn(), listSubmittedKitchenLogs: vi.fn(),
     fetchKitchenStock: vi.fn(), approveKitchenLog: vi.fn(), approveKitchenLogsBulk: vi.fn(), rejectKitchenLog: vi.fn(),
     listStreamItemIds: vi.fn(async () => ({ has: () => true })), listAllStreamItemKeys: vi.fn(async () => ({ has: () => true })),
   }
 })
+vi.mock('@/lib/db/cafe-count', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/db/cafe-count')>('@/lib/db/cafe-count')
+  return { ...actual, listCafeCountLines: vi.fn().mockResolvedValue([]), confirmCafeCountLine: vi.fn() }
+})
+import { listCafeCountLines } from '@/lib/db/cafe-count'
 vi.mock('@/lib/db/kitchen-plans', () => ({ listKitchenPlans: vi.fn(), listPesanan: vi.fn(), upsertKitchenPlan: vi.fn() }))
 vi.mock('@/lib/db/kitchen-pushes', async () => {
   const actual = await vi.importActual<typeof import('@/lib/db/kitchen-pushes')>('@/lib/db/kitchen-pushes')
@@ -43,7 +48,7 @@ vi.mock('@/lib/db/directory', () => ({ getPeople: vi.fn() }))
 vi.mock('@/lib/db/stream-completeness', () => ({ listStreamCompleteness: vi.fn().mockResolvedValue([]), confirmStreamComplete: vi.fn() }))
 
 import { useAuth } from '@/auth/use-auth'
-import { listActiveWipItems, listCaptureFormItems, fetchPlanMap, fetchStockMap, fetchActualsMap, listStreamPairs, resolveKitchenBuId, listSubmittedKitchenLogs, fetchKitchenStock } from '@/lib/db/kitchen-logs'
+import { listActiveWipItems, listCaptureFormItems, fetchPlanMap, fetchPlanMaps, fetchStockMap, fetchActualsMap, listStreamPairs, resolveKitchenBuId, listSubmittedKitchenLogs, fetchKitchenStock } from '@/lib/db/kitchen-logs'
 import { listKitchenPlans } from '@/lib/db/kitchen-plans'
 import { listEsbPushes } from '@/lib/db/kitchen-pushes'
 import { getPeople } from '@/lib/db/directory'
@@ -100,6 +105,8 @@ describe('AC-063/AC-064: Café pages stay Indonesian end to end', () => {
     vi.mocked(listActiveWipItems).mockResolvedValue(ITEMS)
     vi.mocked(listCaptureFormItems).mockResolvedValue(CAPTURE_ITEMS)
     vi.mocked(fetchPlanMap).mockResolvedValue({ 'wip-chicken': { produce: 4 } })
+    vi.mocked(fetchPlanMaps).mockResolvedValue([[`${REVIEW_ROW.log_date}|${REVIEW_ROW.branch_id}|${REVIEW_ROW.activity}`, { 'wip-chicken': { produce: 4 } }]])
+    vi.mocked(listCafeCountLines).mockResolvedValue([])
     vi.mocked(fetchStockMap).mockResolvedValue({ 'wip-chicken': { stok: 2, tersedia: 1 } })
     vi.mocked(fetchActualsMap).mockResolvedValue({ 'wip-chicken': { produce: [ACTUAL] } })
     vi.mocked(listStreamPairs).mockResolvedValue([{ branch_id: 'branch-1', activity: 'kitchen' }])

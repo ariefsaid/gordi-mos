@@ -16,8 +16,9 @@
   flex: 0 0 auto;
 }
 
-/* Keep the unit label adjacent at rest; inline feedback gets a full readable line. */
-.pqf .quantity-field { flex: 0 0 68px; width: 68px; }
+/* Keep the unit label beside the field; inline feedback gets a full readable line below both. */
+.pqf .quantity-field { flex: 0 0 auto; width: auto; }
+.pqf .quantity-field-control--inline { gap: 8px; }
 .pqf .quantity-field:has(.quantity-field-error) {
   flex: 1 1 100%;
   width: 100%;

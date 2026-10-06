@@ -15,7 +15,7 @@ import {
   listSubmittedKitchenLogs,
   hasSubmittedKitchenProduction,
   KITCHEN_LOGS_PAGE_SIZE,
-  fetchPlanMap,
+  fetchPlanMaps,
   listStreamPairs,
   listAllStreamItemKeys,
   streamItemKey,
@@ -52,6 +52,7 @@ import { Avatar } from '@/components/ui/avatar'
 import { Tag } from '@/components/ui/tag'
 import { NotOnStreamTag } from '@/components/kitchen/not-on-stream-tag'
 import { DataTable } from '@/components/dashboard/data-table'
+import { DateField } from '@/components/ui/date-field'
 import type { DataTableColumn, DataTableGroup } from '@/components/dashboard/data-table'
 import { MetricSummaryRule } from '@/components/kitchen/metric-summary-rule'
 // #440: the ONE Café stream statement/picker, and the module-wide selection it writes to.
@@ -69,16 +70,12 @@ function isTransfer(a: string): boolean {
 }
 
 /**
- * plan qty for (date, item, movement) within the row's OWN (branch, activity) stream — 0
- * when no plan row (off-plan) or when that stream's plan was never fetched (no submitted
- * logs for it). #247 / #197 fix: the prior version compared every row's plan baseline
- * against ONE hardcoded stream — correct only by accident while exactly one stream is
- * captured, and silently wrong the moment a second stream exists. The queue can span more
- * than one stream; the plan a row is compared against must be the plan of ITS OWN stream.
+ * plan qty for the row's exact (date, branch, activity, item, movement) — 0 when no plan row
+ * exists. #247 / #197 fix: the queue can span dates and streams, so plan lookup must match
+ * both the row's date and its own stream; there is intentionally no broader fallback.
  */
 function planQtyFor(streamPlans: Map<string, PlanMap>, log: ReviewLogRow): number {
   const planMap = streamPlans.get(streamDateKey(log.log_date, log.branch_id, log.activity))
-    ?? streamPlans.get(streamKey(log.branch_id, log.activity))
   return planMap?.[log.wip_item_id]?.[
     movementKey({ action: log.action, destinationBranchId: log.destination_branch_id })
   ] ?? 0
@@ -485,7 +482,7 @@ function KitchenReviewPageForViewer() {
       }
     }
     const [plans, photos, gates] = await Promise.all([
-      Promise.all([...streams].map(async ([key, context]) => [key, await fetchPlanMap(context.logDate, context.stream)] as const)),
+      fetchPlanMaps([...streams.values()]),
       listKitchenWastePhotos(rows.filter(row => row.action === 'waste').map(row => row.id)),
       Promise.all([...streams].filter(([key]) => rows.some(row => row.action === 'transfer'
         && streamDateKey(row.log_date, row.branch_id, row.activity) === key))
@@ -922,11 +919,6 @@ function KitchenReviewPageForViewer() {
       },
     },
     {
-      key: 'logDate',
-      header: t('kitchen.review.col.logDate'),
-      render: (log) => <span className="krow-log-date">{formatWeekdayDayMonth(log.log_date)}</span>,
-    },
-    {
       key: 'planVsLogged',
       header: t('kitchen.review.col.planVsLogged'),
       render: (log) => (
@@ -1002,11 +994,13 @@ function KitchenReviewPageForViewer() {
       <div className="krow-card">
         <div className="krow-card-head">
           <span className="krow-name">{log.wip_item_name}</span>
-          {!offeredKeys.has(streamItemKey(log.branch_id, log.activity, log.wip_item_id)) && <NotOnStreamTag />}
-          <Tag color={offPlan ? 'amber' : 'green'}>
-            <span className="krow-dot" aria-hidden="true" />
-            {offPlan ? t('kitchen.review.tag.offPlan') : t('kitchen.review.tag.onPlan')}
-          </Tag>
+          <div className="krow-card-tags">
+            {!offeredKeys.has(streamItemKey(log.branch_id, log.activity, log.wip_item_id)) && <NotOnStreamTag />}
+            <Tag color={offPlan ? 'amber' : 'green'}>
+              <span className="krow-dot" aria-hidden="true" />
+              {offPlan ? t('kitchen.review.tag.offPlan') : t('kitchen.review.tag.onPlan')}
+            </Tag>
+          </div>
         </div>
         {log.action === 'waste' && <WastePhotoStrip photos={wastePhotosByLogId[log.id]} />}
         <div className="krow-card-meta">
@@ -1162,14 +1156,14 @@ function KitchenReviewPageForViewer() {
         reviewableStreamKeys={myStreamKeys}
       />
       <div className="kr-date-filterbar kr-block">
-        <label className="kr-date-filter">
-          <span>{t('kitchen.review.filter.date')}</span>
-          <input
-            type="date"
-            value={logDateFilter}
-            onChange={event => setLogDateFilter(event.target.value)}
-          />
-        </label>
+        <DateField
+          id="kitchen-review-date-filter"
+          className="kr-date-filter"
+          label={t('kitchen.review.filter.date')}
+          value={logDateFilter}
+          onChange={setLogDateFilter}
+          compact
+        />
         {logDateFilter
           ? <button type="button" className="btn btn-outline kr-date-clear" onClick={() => setLogDateFilter('')}>{t('kitchen.review.filter.clear')}</button>
           : <span className="kr-all-pending" role="status">{t('kitchen.review.filter.allPending')}</span>}

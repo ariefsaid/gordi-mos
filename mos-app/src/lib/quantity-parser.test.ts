@@ -14,6 +14,8 @@ describe('parseQuantityInput', () => {
     expect(parseQuantityInput('1.500')).toEqual({ kind: 'invalid', reason: 'ambiguous' })
     expect(parseQuantityInput('1,500')).toEqual({ kind: 'invalid', reason: 'ambiguous' })
     expect(parseQuantityInput('0001.500')).toEqual({ kind: 'invalid', reason: 'ambiguous' })
+    expect(parseQuantityInput('1,125', { maxFractionDigits: 3 })).toMatchObject({ kind: 'valid', value: 1.125 })
+    expect(parseQuantityInput('1.125', { maxFractionDigits: 2 })).toEqual({ kind: 'invalid', reason: 'precision' })
     expect(parseQuantityInput('0.125', { maxFractionDigits: 3 })).toMatchObject({ kind: 'valid', value: 0.125 })
     expect(parseQuantityInput('0.1255', { maxFractionDigits: 3 })).toEqual({ kind: 'invalid', reason: 'precision' })
     expect(parseQuantityInput('99999999999', { maxIntegerDigits: 10 })).toEqual({ kind: 'invalid', reason: 'range' })

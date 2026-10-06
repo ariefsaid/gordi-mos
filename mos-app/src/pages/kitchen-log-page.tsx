@@ -295,6 +295,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   const [pendingStream, setPendingStream] = useState<ProductionStream | null>(null)
   // Staged items the database refused as not on this stream's list (#222). Their lines stay, marked.
   const [invalidItemIds, setInvalidItemIds] = useState<Set<string>>(new Set())
+  const [invalidQuantityIds, setInvalidQuantityIds] = useState<Set<string>>(new Set())
 
   // Client-side search + category (P-3), URL-synced so the view survives refresh/share (I7 / D-E1).
   // Group collapse stays INTERNAL to the shared <DataTable> (no page-level collapsedGroups state).
@@ -448,6 +449,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
         if (gen !== requestGen.current) return
         setWipItems(items)
         setInvalidItemIds(new Set())
+        setInvalidQuantityIds(new Set())
         adoptStream(catalog)
         setMovement(resolvedMovement)
         setPlanMap(plan)
@@ -469,6 +471,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       if (gen !== requestGen.current) return // superseded — a newer read owns the state
       setWipItems(items)
       setInvalidItemIds(new Set())
+      setInvalidQuantityIds(new Set())
       adoptStream(catalog)
       setMovement(resolvedMovement)
       setPlanMap(plan)
@@ -494,7 +497,10 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   // The module root owns the location switch and cannot see these quantities. Publish how many are
   // staged so it can warn before discarding them, and retract it on unmount so a dead form never
   // makes the root warn about work that no longer exists. Above every early return: this is a hook.
-  const draftCount = Object.values(lines).filter(line => line.qty_porsi > 0).length
+  const invalidQuantityCount = invalidQuantityIds.size
+  const draftCount = Object.entries(lines).filter(([itemId, line]) =>
+    line.qty_porsi > 0 || invalidQuantityIds.has(itemId),
+  ).length
   useEffect(() => {
     setCafeDraftCount(draftCount)
     return () => { clearCafeDraftCount() }
@@ -543,8 +549,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   // unset here is what keeps the tab strip showing the OLD movement while the dialog is open.
   function handleMovementChange(next: KitchenMovement): boolean {
     if (writeClosed) return false
-    const staged = Object.values(lines).some(l => l.qty_porsi > 0)
-    if (!staged) {
+    if (draftCount === 0) {
       setMovement(next)
       return true
     }
@@ -555,6 +560,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   function confirmMovementSwitch() {
     if (!pendingMovement) return
     setLines(buildLines(wipItems, planMap, stockMap, pendingMovement))
+    setInvalidQuantityIds(new Set())
     setMovement(pendingMovement)
     setPendingMovement(null)
   }
@@ -570,6 +576,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   // it under a different one is how a COGS series acquires rows nobody meant.
   const applyStream = useCallback(async (nextStream: ProductionStream) => {
     const gen = ++requestGen.current
+    setInvalidQuantityIds(new Set())
     chooseStream(nextStream) // the whole Café module follows this choice (#440)
     setMovement(PRODUCE)
     setStatus({ kind: 'loading' })
@@ -694,6 +701,16 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     </section>
   )
 
+  function handleQuantityValidityChange(itemId: string, valid: boolean) {
+    setInvalidQuantityIds(current => {
+      if (current.has(itemId) === !valid) return current
+      const next = new Set(current)
+      if (valid) next.delete(itemId)
+      else next.add(itemId)
+      return next
+    })
+  }
+
   function handleQtyChange(itemId: string, qty: number) {
     if (captureClosed) return
     setLines(prev => {
@@ -758,8 +775,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   // dialog (DESIGN.md Overlays: "destructive confirmation is one centered blocking
   // dialog") rather than window.confirm, which is unstyled and not app-consistent.
   function handleDiscardClick() {
-    const stagedCount = Object.values(lines).filter(l => l.qty_porsi > 0).length
-    if (stagedCount === 0) return
+    if (draftCount === 0) return
     setDiscardConfirmOpen(true)
   }
 
@@ -768,12 +784,13 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   // them too, silently losing the user's filter context along with their entries.
   function performDiscard() {
     setLines(buildLines(wipItems, planMap, stockMap, movement))
+    setInvalidQuantityIds(new Set())
     setDiscardConfirmOpen(false)
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!isOnline) return
+    if (!isOnline || invalidQuantityCount > 0) return
 
     const staged = Object.values(lines).filter(l => l.qty_porsi > 0)
     if (staged.length === 0) return
@@ -863,6 +880,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       })
       setStatus({ kind: 'success', count: staged.length })
       setInvalidItemIds(new Set())
+      setInvalidQuantityIds(new Set())
       setLines(buildLines(wipItems, planMap, stockMap, movement))
     } catch (err) {
       reportError(err, { source: 'kitchen-log.submit' })
@@ -1162,6 +1180,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       destinationName={transferDestinationName ?? undefined}
       alreadyLogged={displayActualUnitsForItem(actualsMap[item.id]?.[movementKey(movement)] ?? [], item)}
       onQtyChange={qty => handleQtyChange(item.id, qty)}
+      onQuantityValidityChange={valid => handleQuantityValidityChange(item.id, valid)}
       onNotesChange={note => handleNotesChange(item.id, note)}
       unitOptions={item.units}
       unitMultiples={item.unit_multiples}
@@ -1324,7 +1343,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
         <div className="kl-capture-main">
         {/* GAP-4/#9: staged-but-unsubmitted quantities must not vanish on navigation — prompt
             stay/discard when leaving the route with unsaved entries. */}
-        <RouteLeaveGuard when={stagedCount > 0} message={t('kitchen.log.leave.confirm')} />
+        <RouteLeaveGuard when={draftCount > 0} message={t('kitchen.log.leave.confirm')} />
         <OfflineBanner show={!isOnline && !showOfflineInFooter} />
         {/* The Location/opening door and the Plan/Made/Off-plan figures dock into one compact
             context header so the summary reads as that header's own figures, never an orphan
@@ -1460,7 +1479,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
                   {t(stagedCount === 1 ? 'kitchen.log.footer.item.one' : 'kitchen.log.footer.item.other', { count: stagedCount })}
                 </span>
               </div>
-              {stagedCount > 0 && (
+              {draftCount > 0 && (
                 <button
                   type="button"
                   className="kl-discard-link"
@@ -1502,6 +1521,11 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
             )}
             {/* A count, not a restatement of the field's own cue — and a destination: it
                 scrolls to and focuses the first line still missing its note. */}
+            {invalidQuantityCount > 0 && (
+              <p className="kl-submit-reason" role="status" aria-live="polite">
+                {t(invalidQuantityCount === 1 ? 'quantityField.fixing.one' : 'quantityField.fixing.other', { count: invalidQuantityCount })}
+              </p>
+            )}
             {noteUnresolved && !streamMissing && !streamNonProducing && (
               <button
                 type="button"
@@ -1520,7 +1544,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
               stagedCount={stagedCount}
               isSubmitting={isSubmitting}
               isOnline={isOnline}
-              blocked={captureClosed || hasBlockingError || noteUnresolved}
+              blocked={captureClosed || hasBlockingError || noteUnresolved || invalidQuantityCount > 0}
               t={t}
             />
           </div>
@@ -1536,8 +1560,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
               open
               title={t('kitchen.log.discard.confirmTitle')}
               body={t('kitchen.log.discard.confirmBody', {
-                count: stagedCount,
-                qty: t(stagedCount === 1 ? 'kitchen.log.discard.qty.one' : 'kitchen.log.discard.qty.other'),
+                count: draftCount,
+                qty: t(draftCount === 1 ? 'kitchen.log.discard.qty.one' : 'kitchen.log.discard.qty.other'),
                 actionType: deriveActionLabel(t, movement, branches),
               })}
               confirmLabel={t('kitchen.log.discard')}
@@ -1558,8 +1582,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
               open
               title={t('kitchen.log.movementSwitch.confirmTitle')}
               body={t('kitchen.log.movementSwitch.confirmBody', {
-                count: stagedCount,
-                qty: t(stagedCount === 1 ? 'kitchen.log.discard.qty.one' : 'kitchen.log.discard.qty.other'),
+                count: draftCount,
+                qty: t(draftCount === 1 ? 'kitchen.log.discard.qty.one' : 'kitchen.log.discard.qty.other'),
                 actionType: deriveActionLabel(t, movement, branches),
               })}
               confirmLabel={t('kitchen.log.movementSwitch.confirm')}

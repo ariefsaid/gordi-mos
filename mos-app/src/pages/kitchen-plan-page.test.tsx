@@ -561,6 +561,7 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
     const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
+    expect(input).toHaveAttribute('data-escape-layer', 'nested')
     await user.clear(input)
     await user.type(input, '99{Escape}')
     // draft rolled back to the saved 12; tabbing away is then a no-op (no needless write)

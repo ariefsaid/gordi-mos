@@ -32,25 +32,8 @@
   gap: 8px 12px;
   margin-bottom: 12px;
 }
-.kr-date-filter {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-  color: var(--muted-foreground);
-  font-size: var(--font-size-label);
-}
-.kr-date-filter input {
-  min-height: 40px;
-  max-width: 100%;
-  box-sizing: border-box;
-  padding: 6px 10px;
-  border: 1px solid var(--input);
-  border-radius: var(--radius-sm);
-  background: var(--background);
-  color: var(--foreground);
-  font: inherit;
-  font-size: var(--font-size-control);
-}
+.kr-date-filter { flex: 0 0 auto; min-width: 0; }
+.kr-date-filter .mk-date__box { min-width: 148px; }
 .kr-date-clear { min-height: 40px; }
 .kr-all-pending {
   min-height: 40px;
@@ -151,7 +134,8 @@ td .krow-stream {
 
 /* plan-vs-logged */
 .krow-qty {
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
   font-variant-numeric: tabular-nums;
 }
 .krow-qty strong {
@@ -381,11 +365,20 @@ td .krow-stream {
 .krow-card { display: flex; flex-direction: column; gap: 6px; }
 .krow-card-head {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 6px;
+  min-width: 0;
 }
-.krow-card-head .krow-name { font-weight: 600; line-height: 1.2; }
+.krow-card-head .krow-name { min-width: 0; font-weight: 600; line-height: 1.2; overflow-wrap: anywhere; }
+.krow-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
 .krow-card-meta {
   display: flex;
   flex-wrap: wrap;
@@ -399,4 +392,9 @@ td .krow-stream {
   font-size: var(--font-size-label);
   color: var(--muted-foreground);
   font-style: italic;
+}
+
+@media (max-width: 767.98px) {
+  .kr-date-clear,
+  .kr-all-pending { min-height: 44px; }
 }

@@ -5,7 +5,7 @@
 
 import { supabase } from '@/lib/supabase'
 import { cafeUnitDisplayLabel, listCafeItemSettings, toCafeLogItem } from './cafe-item-settings'
-import { movementKey } from '@/lib/kitchen-action-label'
+import { movementKey, streamDateKey } from '@/lib/kitchen-action-label'
 import type {
   ActualsMap,
   BranchOption,
@@ -250,40 +250,50 @@ export async function listCaptureFormItems(
 
 // ── Kitchen plans ─────────────────────────────────────────────────────────────
 
-/**
- * Fetch kitchen plans for a date, SCOPED TO ONE (branch, activity) production stream
- * (OD-WAY-28). The date-only read this replaces silently summed every stream's plan into
- * one number the moment more than one stream existed.
- *
- * Returns a PlanMap: { [wip_item_id]: { [movement key]: qty_porsi } }, so the form looks up
- * the plan for the movement the capturer has selected in O(1). The key is derived from the
- * stored `(action, destination_branch_id)` pair — there is no stored action_type.
- */
-export async function fetchPlanMap(
-  logDate: string,
-  stream: ProductionStream,
-): Promise<PlanMap> {
+/** Single-context adapter for capture surfaces; Review uses fetchPlanMaps for each page. */
+export async function fetchPlanMap(logDate: string, stream: ProductionStream): Promise<PlanMap> {
+  const [entry] = await fetchPlanMaps([{ logDate, stream }])
+  return entry?.[1] ?? {}
+}
+
+/** Fetches plan maps for the exact date/stream contexts on one visible review page in one read. */
+export async function fetchPlanMaps(
+  contexts: Array<{ logDate: string; stream: ProductionStream }>,
+): Promise<Array<[string, PlanMap]>> {
+  const unique = new Map(contexts.map(context => [
+    streamDateKey(context.logDate, context.stream.branch.id, context.stream.activity),
+    context,
+  ]))
+  if (unique.size === 0) return []
+
+  const filter = [...unique.values()].map(({ logDate, stream }) =>
+    `and(log_date.eq.${logDate},branch_id.eq.${stream.branch.id},activity.eq.${stream.activity})`,
+  ).join(',')
   const { data, error } = await ops()
     .from('kitchen_plans')
-    .select('wip_item_id,action,destination_branch_id,qty_porsi')
-    .eq('log_date', logDate)
-    .eq('branch_id', stream.branch.id)
-    .eq('activity', stream.activity)
-  if (error) throw new Error(`fetchPlanMap failed — ${error.message}`)
-  type PlanKeyRow = {
+    .select('log_date,branch_id,activity,wip_item_id,action,destination_branch_id,qty_porsi')
+    .or(filter)
+  if (error) throw new Error(`fetchPlanMaps failed — ${error.message}`)
+
+  type PlanContextRow = {
+    log_date: string
+    branch_id: string
+    activity: ProductionActivity
     wip_item_id: string
     action: KitchenAction
     destination_branch_id: string | null
     qty_porsi: number
   }
-  const map: PlanMap = {}
-  for (const row of (data ?? []) as PlanKeyRow[]) {
-    if (!map[row.wip_item_id]) map[row.wip_item_id] = {}
-    map[row.wip_item_id][
+  const maps = new Map([...unique.keys()].map(key => [key, {} as PlanMap]))
+  for (const row of (data ?? []) as PlanContextRow[]) {
+    const planMap = maps.get(streamDateKey(row.log_date, row.branch_id, row.activity))
+    if (!planMap) continue
+    if (!planMap[row.wip_item_id]) planMap[row.wip_item_id] = {}
+    planMap[row.wip_item_id][
       movementKey({ action: row.action, destinationBranchId: row.destination_branch_id })
     ] = row.qty_porsi
   }
-  return map
+  return [...maps.entries()]
 }
 
 /**
@@ -641,7 +651,7 @@ export type KitchenLogsWindow = {
  * optional date narrows the queue; omitting it returns every pending log.
  * Only `status = 'Submitted'` rows (the GIGO queue, FR-024/040); RLS scopes to the
  * caller's org. Returns a flat display shape (WIP name embedded; plan-vs-logged is
- * merged at the page from fetchPlanMap; submitter name from the directory).
+ * merged at the page from fetchPlanMaps; submitter name from the directory).
  */
 export async function listSubmittedKitchenLogs(logDate?: string, window: KitchenLogsWindow = {}): Promise<ReviewLogRow[]> {
   let query = ops()

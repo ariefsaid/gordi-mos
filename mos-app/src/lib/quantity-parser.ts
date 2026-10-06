@@ -15,7 +15,8 @@ export interface QuantityParseOptions {
 
 /**
  * Parse one ungrouped quantity. Both comma and point are accepted as decimal marks, but
- * combined/repeated marks and three-digit grouping-shaped strings are refused instead of guessed.
+ * combined/repeated marks and high-confidence grouping forms (000/500) are refused instead
+ * of guessed. Other three-place fractions are valid only when the selected unit allows them.
  */
 export function parseQuantityInput(raw: string, options: QuantityParseOptions = {}): QuantityParseResult {
   const value = raw.trim()
@@ -35,14 +36,17 @@ export function parseQuantityInput(raw: string, options: QuantityParseOptions = 
   if (options.maxIntegerDigits !== undefined && integerDigits.length > options.maxIntegerDigits) {
     return { kind: 'invalid', reason: 'range' }
   }
+  const significantInteger = integerPart.replace(/^0+/, '')
+  const threeDigitGroupShape = decimalMark && significantInteger.length > 0
+    && significantInteger.length <= 3 && fractionPart.length === 3
+  const commonGroupFraction = fractionPart === '000' || fractionPart === '500'
+  if (threeDigitGroupShape && commonGroupFraction) return { kind: 'invalid', reason: 'ambiguous' }
   if (options.maxFractionDigits !== undefined && fractionPart.length > options.maxFractionDigits) {
     return { kind: 'invalid', reason: 'precision' }
   }
-
-  const significantInteger = integerPart.replace(/^0+/, '')
-  const couldBeGrouped = decimalMark && significantInteger.length > 0
-    && significantInteger.length <= 3 && fractionPart.length === 3
-  if (couldBeGrouped) return { kind: 'invalid', reason: 'ambiguous' }
+  if (threeDigitGroupShape && options.maxFractionDigits === undefined) {
+    return { kind: 'invalid', reason: 'ambiguous' }
+  }
 
   const normalizedInteger = integerDigits.replace(/^0+(?=\d)/, '')
   const normalizedFraction = fractionPart.replace(/0+$/, '')

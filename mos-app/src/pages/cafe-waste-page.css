@@ -78,6 +78,9 @@
   min-width: 0;
   width: min(100%, 7.5rem);
 }
+.cwl-quantity-row .quantity-field,
+.cwl-quantity-row .quantity-field-control--below,
+.cwl-quantity-row .quantity-field-suffix { width: 100%; }
 .cwl-quantity-input {
   width: 100%;
   max-width: 100%;

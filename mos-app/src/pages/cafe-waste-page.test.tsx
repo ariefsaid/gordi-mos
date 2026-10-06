@@ -204,14 +204,26 @@ describe('CafeWastePage', () => {
     })))
   })
 
-  it('shows an inline correction and does not prepare a waste entry for ambiguous input', async () => {
+  it('shows a reason-specific correction and does not prepare waste for ambiguous input', async () => {
     renderPage()
     const input = await screen.findByLabelText('Waste quantity for Oat Latte')
     fireEvent.change(input, { target: { value: '1.234,5' } })
 
-    expect(screen.getByRole('alert')).toHaveTextContent(/single decimal separator/i)
+    expect(screen.getByRole('alert')).toHaveTextContent('Use one mark: 1.5.')
     expect(screen.getAllByRole('button', { name: /add photo/i })[0]).toBeDisabled()
     expect(mockInsertKitchenLog).not.toHaveBeenCalled()
+  })
+
+  it('places precision feedback after the unit and reports invalid rows in the submit band', async () => {
+    renderPage()
+    const input = await screen.findByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })
+    fireEvent.change(input, { target: { value: '1,125' } })
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Use up to 2 decimals.')
+    const field = input.closest('.quantity-field')!
+    expect(field.querySelector('.cwl-unit-select')).toBeInTheDocument()
+    expect(field.lastElementChild).toHaveClass('quantity-field-error')
+    expect(within(document.querySelector('.cwl-footer')!).getByText('1 item needs fixing')).toBeInTheDocument()
   })
 
   it('shows each waste item quantity and unit without a grouped numeric total', async () => {
@@ -462,7 +474,8 @@ describe('CafeWastePage', () => {
     expect(unit).toHaveTextContent(longUnitLabel)
     const quantityRow = quantity.closest('.cwl-quantity-row')
     expect(quantityRow).toBeInTheDocument()
-    expect(unit.closest('.cwl-unit-select')?.parentElement).toBe(quantityRow)
+    expect(quantityRow).toContainElement(unit.closest('.cwl-unit-select') as HTMLElement)
+    expect(unit.closest('.cwl-unit-select')?.parentElement).toHaveClass('quantity-field-suffix')
   })
 
   it('keeps the missing-item route beside the item controls on a long capture list', async () => {

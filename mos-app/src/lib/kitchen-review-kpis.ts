@@ -9,20 +9,17 @@
 import { useMemo } from 'react'
 import type { MessageKey } from '@/i18n/messages'
 import type { PlanMap, ReviewLogRow } from '@/lib/db/kitchen-logs.types'
-import { movementKey, streamDateKey, streamKey } from '@/lib/kitchen-action-label'
+import { movementKey, streamDateKey } from '@/lib/kitchen-action-label'
 
 // The plan map is keyed by MOVEMENT, not by the derived label (DD-WAY-13). Keying it by the
 // label here would silently resolve every lookup to 0 — a plan-vs-logged column that always
 // reads "off-plan" and never says why.
 //
-// #197/#198 fix: `streamPlans` is keyed by the row's OWN (branch, activity) stream
-// (streamKey), not a single flat PlanMap for the whole queue. A queue that can span more
-// than one stream and compares every row to ONE stream's plan silently mis-scores every
-// row from a different stream — this was the exact defect #196 flagged for whoever ported
-// this surface.
+// #197/#198 fix: `streamPlans` is keyed by the row's exact (date, branch, activity) context,
+// not one PlanMap for the whole queue or even one map per stream. Comparing an older row to a
+// different day's plan silently mis-scores it, so lookups intentionally have no stream-only fallback.
 function planQtyFor(streamPlans: Map<string, PlanMap>, log: ReviewLogRow): number {
   const planMap = streamPlans.get(streamDateKey(log.log_date, log.branch_id, log.activity))
-    ?? streamPlans.get(streamKey(log.branch_id, log.activity))
   return planMap?.[log.wip_item_id]?.[
     movementKey({ action: log.action, destinationBranchId: log.destination_branch_id })
   ] ?? 0
