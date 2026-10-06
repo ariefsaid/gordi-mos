@@ -245,9 +245,9 @@ jobs:
         run: bash scripts/mcp-catalog.test.sh
       - name: statement-timeout check self-test
         run: bash scripts/check-statement-timeout.test.sh
-      - name: staging deploy script self-test
+      - name: staging deploy script self-test (with the migration rehearsal on a throwaway Postgres)
         if: steps.scope.outputs.agent == 'true'
-        run: bash scripts/deploy-staging.test.sh
+        run: bash scripts/deploy-staging.test.sh   # also covers scripts/rehearse-migrations.sh
       - name: operations scripts self-tests (snapshot cron, ops check, backup, production deploy)
         if: steps.scope.outputs.agent == 'true'
         run: |
