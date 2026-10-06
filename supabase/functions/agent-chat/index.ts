@@ -5,17 +5,16 @@
  * (pure, importable in Vitest).
  *
  * Responsibilities:
- *   1. CORS preflight handling.
- *   2. Read Authorization header; reject 401 if absent.
- *   3. Verify JWT, then create owner-bound approval rows through the trusted edge path.
- *   4. Decode org_id/person_id/access_roles from the JWT payload (D1 — no profiles lookup),
- *      via the shared decodeJwtClaims (T18, extracted from compose-view's T10 helper).
- *   5. Build the caller-JWT client for business actions and reads (deputy auth — D2/D3).
- *   6. Read AGENT_MODEL_API_KEY / AGENT_MODEL_BASE_URL / AGENT_MODEL_DEFAULT from function
+ *   1. CORS preflight handling for the configured app origins (_shared/cors.ts).
+ *   2. requireVerifiedClaims (_shared/claims.ts): Bearer token, agent tokens refused, JWT verified,
+ *      then org_id/person_id/access_roles read from it (D1 — no profiles lookup); 401 otherwise.
+ *   3. Create owner-bound approval rows through the trusted edge path.
+ *   4. Build the caller-JWT client for business actions and reads (deputy auth — D2/D3).
+ *   5. Read AGENT_MODEL_API_KEY / AGENT_MODEL_BASE_URL / AGENT_MODEL_DEFAULT from function
  *      secrets — fail loud (502 MODEL_NOT_CONFIGURED) if the model id is unset (D4, FR-CF-001).
- *   7. Cap the JSON body size, then parse into AgentChatRequest.
- *   8. Load journaledWrites/startSeq for a resumed run (body.runId present) — persistence gate.
- *   9. Delegate to agentChatHandler; pipe events into an SSE ReadableStream.
+ *   6. Cap the JSON body size, then parse into AgentChatRequest.
+ *   7. Load journaledWrites/startSeq for a resumed run (body.runId present) — persistence gate.
+ *   8. Delegate to agentChatHandler; pipe events into an SSE ReadableStream.
  */
 
 // Deno-native imports (not in mos-app/package.json — this file is Deno-only glue, D7).
@@ -28,70 +27,44 @@ import { readCappedJson } from './requestBody.ts'
 import { ChatCompletionsClient } from '../_shared/chatCompletionsClient.ts'
 import { resolveDefaultModel } from '../_shared/modelResolution.ts'
 import { logStructuredError } from '../_shared/errorLog.ts'
-import { carriesClientId, decodeJwtClaims } from '../_shared/jwt.ts'
+import { requireVerifiedClaims } from '../_shared/claims.ts'
+import { appOrigins, corsHeaders as corsHeadersFor } from '../_shared/cors.ts'
 import { encodeSse } from '../../../mos-app/src/lib/agent/runtime/transport.ts'
 import type { AgentChatRequest } from '../../../mos-app/src/lib/agent/runtime/transport.ts'
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+const origins = appOrigins(Deno.env.get('APP_ALLOWED_ORIGINS'))
 
 Deno.serve(async (req: Request): Promise<Response> => {
+  const corsHeaders = corsHeadersFor(req, origins)
+
   // ── CORS preflight ──────────────────────────────────────────────────────────
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
-  // ── 1. Authorization header ──────────────────────────────────────────────────
-  const authHeader = req.headers.get('Authorization')
-  if (!authHeader?.startsWith('Bearer ')) {
-    return new Response(
-      JSON.stringify({ status: 401, error: 'UNAUTHORIZED', detail: 'missing Authorization header' }),
-      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-    )
-  }
-  const jwt = authHeader.slice(7)
-
-  if (carriesClientId(jwt)) {
-    return new Response(
-      JSON.stringify({ status: 401, error: 'UNAUTHORIZED', detail: 'agent tokens are not accepted here' }),
-      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-    )
-  }
-
-  // ── 2. Verify JWT and prepare the narrowly scoped pending-action writer ──────
-  // Business actions and reads still use callerClient; service_role inserts only authenticated approvals.
+  // ── 1. Verify the caller and read its claims (the shared gate) ─────────────
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+  const verdict = await requireVerifiedClaims(req, () => createClient(supabaseUrl, serviceRoleKey))
+  if (!verdict.ok) {
+    return new Response(
+      JSON.stringify({ status: 401, error: 'UNAUTHORIZED', detail: verdict.detail }),
+      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+    )
+  }
+  const { jwt, userId, orgId, personId, accessRoles } = verdict.claims
+
+  // Business actions and reads use callerClient; service_role inserts only authenticated approvals.
   const serviceRoleClient = createClient(supabaseUrl, serviceRoleKey)
 
-  const { data: { user }, error: authError } = await serviceRoleClient.auth.getUser(jwt)
-  if (authError || !user) {
-    return new Response(
-      JSON.stringify({ status: 401, error: 'UNAUTHORIZED', detail: 'invalid JWT' }),
-      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-    )
-  }
-  const userId = user.id
-
-  // ── 3. Decode org_id/person_id/access_roles from the JWT payload (D1) ────────
-  const claims = decodeJwtClaims(jwt)
-  if (!claims.org_id || !claims.person_id) {
-    return new Response(
-      JSON.stringify({ status: 401, error: 'UNAUTHORIZED', detail: 'missing org_id/person_id claim' }),
-      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-    )
-  }
-
-  // ── 4. Build the caller-JWT Supabase client (deputy auth — D2/D3) ────────────
+  // ── 2. Build the caller-JWT Supabase client (deputy auth — D2/D3) ────────────
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? ''
   const callerClient = createClient(supabaseUrl, anonKey, {
     global: { headers: { Authorization: `Bearer ${jwt}` } },
   })
   const pendingActions = createPendingActionStore(serviceRoleClient as never, callerClient as never)
 
-  // ── 5. Read the model config from function secrets (D4) ──────────────────────
+  // ── 3. Read the model config from function secrets (D4) ──────────────────────
   const apiKey = Deno.env.get('AGENT_MODEL_API_KEY')
   const baseUrl = Deno.env.get('AGENT_MODEL_BASE_URL')
   const model = resolveDefaultModel({ AGENT_MODEL_DEFAULT: Deno.env.get('AGENT_MODEL_DEFAULT') ?? undefined })
@@ -113,7 +86,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   const modelClient = new ChatCompletionsClient({ apiKey, baseUrl })
 
-  // ── 6. Parse request body ─────────────────────────────────────────────────────
+  // ── 4. Parse request body ─────────────────────────────────────────────────────
   let body: AgentChatRequest
   try {
     const parsed = await readCappedJson(req)
@@ -131,7 +104,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     )
   }
 
-  // ── 7. Persistence deps (default ON; AGENT_PERSISTENCE='false' disables) ─────
+  // ── 5. Persistence deps (default ON; AGENT_PERSISTENCE='false' disables) ─────
   // Bound to the SAME callerClient (never serviceRoleClient — the deputy invariant).
   const persistenceEnabled = Deno.env.get('AGENT_PERSISTENCE') !== 'false'
 
@@ -141,8 +114,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // real client's generic type here is unnecessary ceremony — every other `supabase:
     // callerClient` site in this file relies on the same structural fit.
     supabase: callerClient as never,
-    ownerId: claims.person_id,
-    orgId: claims.org_id,
+    ownerId: personId,
+    orgId,
     now: () => new Date(),
   }
 
@@ -156,7 +129,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     ? (await loadMaxSeq(persistenceDepsBase, body.runId)) + 1
     : undefined
 
-  // ── 8. Pipe agentChatHandler events into an SSE ReadableStream ────────────────
+  // ── 6. Pipe agentChatHandler events into an SSE ReadableStream ────────────────
   const stream = new ReadableStream({
     async start(controller) {
       const enc = new TextEncoder()
@@ -170,9 +143,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
         model,
         supabase: callerClient as never,
         userId,
-        personId: claims.person_id!,
-        orgId: claims.org_id!,
-        accessRoles: claims.access_roles ?? [],
+        personId,
+        orgId,
+        accessRoles,
         // A4 (compose_view): enabled by default in P2 — the panel gates rendering on
         // SHOW_ASSISTANT, so registering the tool is harmless when the flag is off client-side.
         composeEnabled: true,
