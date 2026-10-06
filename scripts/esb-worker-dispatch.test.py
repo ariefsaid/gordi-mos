@@ -697,16 +697,26 @@ DETAILS = {
 
 
 class FakeEsb:
-    def __init__(self, *, fail_detail: str | None = None, targets=None) -> None:
+    """`cap` makes the server return at most that many rows per page whatever the request asks;
+    `total` adds the reported total to each page; `extra` adds rows to the first status page."""
+
+    def __init__(self, *, fail_detail: str | None = None, targets=None, cap: int | None = None,
+                 total: bool = False, extra=None) -> None:
         self.fail_detail = fail_detail
         self.targets = targets if targets is not None else [
             {"branch_id": BRANCH_MOS, "branch_code": "rumah_rames", "refresh_requested_at": None}]
+        self.cap, self.total, self.extra = cap, total, extra or []
 
     def po_list(self, fake, method, url, body):
         query = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
-        pages = LIST.get(query["statusID"][0], [])
+        status = query["statusID"][0]
+        rows = [row for page in LIST.get(status, []) for row in page] + (self.extra if status == "3" else [])
+        size = min(int(query["limit"][0]), self.cap or 10**6)
         page = int(query["page"][0])
-        return {"status": "ok", "result": {"data": pages[page - 1] if page <= len(pages) else []}}
+        result = {"data": rows[(page - 1) * size: page * size]}
+        if self.total:
+            result["total"] = len(rows)
+        return {"status": "ok", "result": result}
 
     def detail(self, fake, method, url, body):
         number = urllib.parse.unquote(url.rsplit("/", 1)[1])
@@ -769,9 +779,36 @@ bad_n, f, out = refresh(esb=FakeEsb(fail_detail="PO-2"))
 check("AC-1029 a failed outstanding read writes no partial cache", f.to("rpc/replace_cafe_open_pos") == [],
       repr(f.calls))
 stale = f.bodies("rpc/mark_cafe_open_pos_stale")
-check("AC-1029 ...and marks the previous cache stale with the error",
-      bad_n == 1 and len(stale) == 1 and stale[0]["p_branch_id"] == BRANCH_MOS and "503" in stale[0]["p_error"],
+check("AC-1029 ...and marks the previous cache stale with the error class",
+      bad_n == 1 and len(stale) == 1 and stale[0]["p_branch_id"] == BRANCH_MOS and stale[0]["p_error"] == "http_503",
       out + repr(stale))
+check("FR-1032 the stored error never carries a host, path or ESB body; the worker log keeps the detail",
+      not any(word in stale[0]["p_error"] for word in ("http://", "https://", "/", "unavailable"))
+      and "HTTP 503: unavailable" in out, out + repr(stale))
+
+bad_n, f, out = refresh(esb=FakeEsb(cap=1))
+pos = (f.bodies("rpc/replace_cafe_open_pos") or [{"p_pos": []}])[0]["p_pos"]
+check("FR-1031 a server that caps its page size below the request still yields every open PO",
+      bad_n == 0 and sorted(p["po_number"] for p in pos) == ["PO-1", "PO-2", "PO-3", "PO-4"], out + repr(pos))
+pages_3 = [c for c in f.to("purchase/purchase-order") if "statusID=3" in c["url"]]
+check("FR-1031 ...reading pages until an empty one", len(pages_3) == 4, repr([c["url"] for c in pages_3]))
+
+bad_n, f, out = refresh(esb=FakeEsb(cap=1, total=True))
+pages_3 = [c for c in f.to("purchase/purchase-order") if "statusID=3" in c["url"]]
+check("FR-1031 a reported total ends the list without an extra page", bad_n == 0 and len(pages_3) == 3,
+      repr([c["url"] for c in pages_3]))
+
+bad_n, f, out = refresh(esb=FakeEsb(extra=[po_row("PO-7", "Authorised", "2026-10-02")]))
+stale = f.bodies("rpc/mark_cafe_open_pos_stale")
+check("NFR-1006 a PO status the shape does not recognise marks the branch stale, never a current partial cache",
+      bad_n == 1 and f.to("rpc/replace_cafe_open_pos") == [] and stale and stale[0]["p_error"] == "shape_unrecognised",
+      out + repr(stale))
+bad_n, f, out = refresh(esb=FakeEsb(extra=[{"supplierName": "Fabricated", "statusID": 3}]))
+stale = f.bodies("rpc/mark_cafe_open_pos_stale")
+check("NFR-1006 a listed row with no PO number marks the branch stale",
+      bad_n == 1 and stale and stale[0]["p_error"] == "shape_unrecognised", out + repr(stale))
+check_raises("FR-1031 the PO date window must be between 1 and 366 days", W.ConfigError,
+             lambda: W.load_refresh_config(po_env(ESB_OPEN_PO_WINDOW_DAYS="0")), needle="ESB_OPEN_PO_WINDOW_DAYS")
 
 bad_n, f, out = refresh(scope="requested", esb=FakeEsb(targets=[]))
 targets = f.bodies("rpc/cafe_open_po_refresh_targets")

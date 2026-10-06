@@ -118,7 +118,7 @@ Environment
                             cache this environment fills
   ESB_OPEN_PO_MAX_AGE_MINUTES  age after which a cache reads "difference not yet known"
                             (default 360); keep it above the schedule's interval
-  ESB_OPEN_PO_WINDOW_DAYS   PO date window read from ESB (default 120)
+  ESB_OPEN_PO_WINDOW_DAYS   PO date window read from ESB, 1..366 (default 120)
   ESB_OPEN_PO_SHAPE_FILE    optional JSON overriding OpenPoShape fields (FR-1033)
 
 Map file:
@@ -192,9 +192,10 @@ class Classified(Exception):
     whose body merely mentions one.
     """
 
-    def __init__(self, message: str, *, status: int | None = None) -> None:
+    def __init__(self, message: str, *, status: int | None = None, kind: str | None = None) -> None:
         super().__init__(message)
         self.status = status
+        self.kind = kind
 
 
 class Permanent(Classified):
@@ -203,6 +204,21 @@ class Permanent(Classified):
 
 class Transient(Classified):
     """This row might succeed later — spend one retry."""
+
+
+class Unrecognised(Transient):
+    """An ESB reply this worker's configured shape does not recognise."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message, kind="shape_unrecognised")
+
+
+def error_class(exc: Classified) -> str:
+    """What may be stored where in-app readers see it: a class, never the ESB host, path or
+    body. The full message belongs in the worker's own log."""
+    if exc.kind:
+        return exc.kind
+    return f"http_{exc.status}" if exc.status else "read_failed"
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════
@@ -473,7 +489,11 @@ def _request(method: str, url: str, *, headers: dict[str, str],
         raise Permanent(f"{method} {_safe(url)} -> HTTP {exc.code}: {detail}",
                         status=exc.code) from None
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
-        raise Transient(f"{method} {_safe(url)} failed: {type(exc).__name__}: {exc}") from None
+        kind = ("shape_unrecognised" if isinstance(exc, json.JSONDecodeError)
+                else "timeout" if isinstance(exc, TimeoutError)
+                or isinstance(getattr(exc, "reason", None), TimeoutError) else "network")
+        raise Transient(f"{method} {_safe(url)} failed: {type(exc).__name__}: {exc}",
+                        kind=kind) from None
 
 
 def _safe(url: str) -> str:
@@ -692,7 +712,7 @@ def _erp_object(value: Any, what: str) -> dict[str, Any]:
     ERP misbehaved, and the row may well post next tick."""
     if not isinstance(value, dict):
         raise Transient(f"ERP {what} returned {type(value).__name__}, not an object: "
-                        f"{str(value)[:200]}")
+                        f"{str(value)[:200]}", kind="shape_unrecognised")
     return value
 
 
@@ -742,7 +762,8 @@ class ErpClient:
                               timeout=self.cfg.timeout)
         out = _erp_object(out, f"{method} {path}")
         if out.get("status") != "ok":
-            raise Permanent(f"ERP {method} {path} returned non-ok: {str(out)[:400]}")
+            raise Permanent(f"ERP {method} {path} returned non-ok: {str(out)[:400]}",
+                            kind="esb_refused")
         return out
 
     def get(self, path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -1129,7 +1150,10 @@ class OpenPoShape:
     page_size: int = 50
     max_pages: int = 40
     statuses: dict[str, str] = field(default_factory=lambda: {"3": "Authorized", "4": "Receiving"})
+    # Known statuses that are not open: such a row is dropped. Any other status is unrecognised.
+    other_statuses: tuple[str, ...] = ("1", "2", "5", "6", "Draft", "Waiting", "Closed", "Rejected")
     list_rows: str = "result.data"
+    list_total: str = "result.total"
     number: str = "purchaseOrderNum"
     supplier: str = "supplierName"
     po_date: str = "purchaseOrderDate"
@@ -1175,6 +1199,9 @@ def load_refresh_config(environ: dict[str, str]) -> RefreshConfig:
     max_age = _int_env(environ, "ESB_OPEN_PO_MAX_AGE_MINUTES", 360)
     if not 5 <= max_age <= 10080:
         raise ConfigError("ESB_OPEN_PO_MAX_AGE_MINUTES must be between 5 and 10080")
+    window_days = _int_env(environ, "ESB_OPEN_PO_WINDOW_DAYS", 120)
+    if not 1 <= window_days <= 366:
+        raise ConfigError("ESB_OPEN_PO_WINDOW_DAYS must be between 1 and 366")
     shape = OpenPoShape()
     shape_file = environ.get("ESB_OPEN_PO_SHAPE_FILE", "").strip()
     if shape_file:
@@ -1188,7 +1215,7 @@ def load_refresh_config(environ: dict[str, str]) -> RefreshConfig:
             raise ConfigError(f"open-PO shape {shape_file} has unknown fields: {sorted(unknown)}")
         shape = OpenPoShape(**{**shape.__dict__, **overrides})
     return RefreshConfig(cfg=cfg, org_id=org_id, max_age_minutes=max_age,
-                         window_days=_int_env(environ, "ESB_OPEN_PO_WINDOW_DAYS", 120),
+                         window_days=window_days,
                          shape=shape)
 
 
@@ -1225,9 +1252,9 @@ def _quantity(value: Any, number: str) -> float:
     try:
         qty = float(value)
     except (TypeError, ValueError):
-        raise Permanent(f"PO {number}: outstanding quantity is not a number: {value!r}") from None
+        raise Unrecognised(f"PO {number}: outstanding quantity is not a number: {value!r}") from None
     if qty < 0 or qty != qty:
-        raise Permanent(f"PO {number}: outstanding quantity is negative or invalid: {value!r}")
+        raise Unrecognised(f"PO {number}: outstanding quantity is negative or invalid: {value!r}")
     return qty
 
 
@@ -1266,19 +1293,24 @@ def read_open_pos(rcfg: RefreshConfig, client: ErpClient, esb_branch_id: int,
     open_names = set(shape.statuses.values())
     rows: list[dict[str, Any]] = []
     for status_value in shape.statuses:
+        # A short page proves nothing: a server may cap its page size below the request. The list
+        # ends on an empty page, or once the reported total is reached.
+        listed = 0
         for page in range(1, shape.max_pages + 2):
             if page > shape.max_pages:
-                raise Permanent(f"the PO list did not end within {shape.max_pages} pages")
+                raise Unrecognised(f"the PO list did not end within {shape.max_pages} pages")
             result = client.get(shape.list_path, {
                 shape.branch_param: esb_branch_id, shape.status_param: status_value,
                 shape.date_from_param: start, shape.date_to_param: today,
                 shape.page_param: page, shape.page_size_param: shape.page_size})
             batch = _dig(result, shape.list_rows)
             if not isinstance(batch, list):
-                raise Transient(f"the PO list returned {type(batch).__name__} at "
-                                f"{shape.list_rows!r}, not a list")
+                raise Unrecognised(f"the PO list returned {type(batch).__name__} at "
+                                   f"{shape.list_rows!r}, not a list")
             rows.extend(batch)
-            if len(batch) < shape.page_size:
+            listed += len(batch)
+            total = _dig(result, shape.list_total)
+            if not batch or (isinstance(total, int) and listed >= total):
                 break
 
     pos: dict[str, dict[str, Any]] = {}
@@ -1286,19 +1318,23 @@ def read_open_pos(rcfg: RefreshConfig, client: ErpClient, esb_branch_id: int,
         raw_status = _dig(row, shape.status)
         status = shape.statuses.get(str(raw_status)) or (raw_status if raw_status in open_names else None)
         number = str(_dig(row, shape.number) or "").strip()
-        if status is None or not number or number in pos:
+        if not number or (status is None and str(raw_status) not in shape.other_statuses):
+            # Never let a reply the shape cannot read become a current, smaller cache.
+            raise Unrecognised(f"a listed PO has no number or an unrecognised status: "
+                               f"{str(raw_status)[:40]!r}")
+        if status is None or number in pos:
             continue
         po_date = str(_dig(row, shape.po_date) or "")[:10]
         try:
             datetime.strptime(po_date, "%Y-%m-%d")
         except ValueError:
-            raise Permanent(f"PO {number}: PO date is not a date: {_dig(row, shape.po_date)!r}") from None
+            raise Unrecognised(f"PO {number}: PO date is not a date: {_dig(row, shape.po_date)!r}") from None
         if po_date < start:
             continue
         detail = client.get(shape.outstanding_path.format(number=urllib.parse.quote(number, safe="")))
         lines = _dig(detail, shape.detail_lines)
         if not isinstance(lines, list):
-            raise Transient(f"PO {number}: the outstanding read returned no line list")
+            raise Unrecognised(f"PO {number}: the outstanding read returned no line list")
         pos[number] = {
             "po_number": number,
             "supplier_name": str(_dig(row, shape.supplier) or "").strip() or None,
@@ -1347,8 +1383,8 @@ def refresh_open_pos(rcfg: RefreshConfig, scope: str, *, out, today: str | None 
             stale += 1
             try:
                 _rpc(cfg, "mark_cafe_open_pos_stale", {
-                    "p_org_id": rcfg.org_id, "p_branch_id": branch_id, "p_error": str(exc)[:2000]})
-                print(f"{code}: STALE — previous cache kept — {exc}", file=out)
+                    "p_org_id": rcfg.org_id, "p_branch_id": branch_id, "p_error": error_class(exc)})
+                print(f"{code}: STALE ({error_class(exc)}) — previous cache kept — {exc}", file=out)
             except (Permanent, Transient) as mark_exc:
                 print(f"{code}: STALE, and the stale mark failed — {mark_exc}", file=out)
             continue
