@@ -32,12 +32,14 @@ something real. The identifiers below are fabricated — this repo is public.
 from __future__ import annotations
 
 import contextlib
+import http.server
 import importlib.util
 import io
 import json
 import os
 import sys
 import tempfile
+import threading
 import urllib.parse
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -135,7 +137,51 @@ def cfg_for(target: str, **over: str):
     return W.load_config(env(target, **over), offline=False, drains=False)
 
 
-def row(endpoint: str = "assembly-actual", target: str = "goo", **over):
+for name, values in (
+    ("Supabase endpoint requires HTTPS", {"MOS_SUPABASE_URL": "http://db.example.invalid"}),
+    ("ERP endpoint requires HTTPS", {"ESB_BASE_URL": "http://erp.example.invalid"}),
+):
+    check_raises(name, W.ConfigError,
+                 lambda values=values: W.load_config(env("goo", **values),
+                                                     offline=False, drains=False),
+                 needle="HTTPS")
+
+
+class RedirectHandler(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.server.seen.append((self.path, self.headers.get("Authorization")))
+        if self.path == "/start":
+            self.send_response(302)
+            self.send_header("Location", "/target")
+            self.end_headers()
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write(b"{}")
+
+    def log_message(self, *_args):
+        pass
+
+
+with http.server.ThreadingHTTPServer(("127.0.0.1", 0), RedirectHandler) as redirect_server:
+    redirect_server.seen = []
+    redirect_thread = threading.Thread(target=redirect_server.serve_forever, daemon=True)
+    redirect_thread.start()
+    try:
+        try:
+            W._request("GET", f"http://127.0.0.1:{redirect_server.server_port}/start",
+                       headers={"Authorization": "Bearer test-key"}, timeout=2)
+        except W.Permanent:
+            pass
+        check("service request stops at the redirect response",
+              redirect_server.seen == [("/start", "Bearer test-key")])
+    finally:
+        redirect_server.shutdown()
+        redirect_thread.join(timeout=2)
+
+
+def row(endpoint: str = "assembly-actual", target: str = "goo", **over: str):
     r = {
         "id": "aaaaaaaa-0000-0000-0000-000000000001",
         "org_id": ORG, "source_module": "kitchen", "source_ref": BATCH,

@@ -30,9 +30,9 @@ grep -q 'run_tests\|quality_block' adws/adw_design_audit.py \
 grep -q 'never audits staging' adws/adw_design_audit.py \
   && ok "localhost-only refusal present (worktrees lack .env; Director starts the server)" \
   || bad "localhost-only base-url refusal missing from the chain"
-grep -q 'sssf-design-audit.test.sh' .github/workflows/guards.yml \
-  && ok "self-test registered in the guard lane (guards.yml)" \
-  || bad "scripts/sssf-design-audit.test.sh is not registered in .github/workflows/guards.yml"
+grep -q 'sssf-design-audit.test.sh' .github/workflows/agent-tooling.yml \
+  && ok "self-test registered in the path-filtered agent guard lane" \
+  || bad "scripts/sssf-design-audit.test.sh is not registered in .github/workflows/agent-tooling.yml"
 grep -q 'adw_design_audit.py' adws/PORT-MANIFEST.md \
   && ok "chain has its PORT-MANIFEST row" \
   || bad "adws/adw_design_audit.py has no row in adws/PORT-MANIFEST.md"

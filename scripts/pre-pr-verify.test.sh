@@ -476,11 +476,11 @@ if run; then bad "checkout changed during verification must refuse"
 else ok "checkout changed during verification refuses"; fi
 [ ! -f "$STAMP" ] && ok "no stamp after in-flight checkout change" || bad "stamp written after in-flight checkout change"
 
-# A scripts/ change runs the guard self-tests guards.yml lists in the full battery (red refuses, green
+# A scripts/ change runs the self-tests listed in the path-filtered CI workflow (red refuses, green
 # stamps); --dev leaves them to CI.
 G reset -q --hard; G clean -fdq; printf '#!/bin/sh\nexit 0\n' > "$tmp/bin/npm"; chmod +x "$tmp/bin/npm"
 mkdir -p "$tmp/repo/.github/workflows"
-printf 'jobs:\n  g:\n    steps:\n      - run: sh scripts/demo-guard.test.sh   # any runner, as CI writes it\n' > "$tmp/repo/.github/workflows/guards.yml"
+printf 'jobs:\n  g:\n    steps:\n      - run: sh scripts/demo-guard.test.sh   # any runner, as CI writes it\n' > "$tmp/repo/.github/workflows/agent-tooling.yml"
 G add .github; G commit -qm "guards list for the guard self-test case"
 G update-ref refs/remotes/origin/lightbase "$(G rev-parse HEAD)"
 printf '#!/bin/sh\nexit 0\n' > "$tmp/repo/scripts/demo-guard.sh"

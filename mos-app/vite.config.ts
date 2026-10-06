@@ -1,9 +1,7 @@
 /// <reference types="vitest/config" />
-import { dirname } from 'node:path'
-import { resolve, relative } from 'node:path'
-import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
-import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { defineConfig, loadEnv, type Plugin, type ViteDevServer, type PreviewServer } from 'vite'
 import react from '@vitejs/plugin-react'
@@ -11,6 +9,7 @@ import tailwindcss from '@tailwindcss/vite'
 import { legacyRedirectDestination, normalizeBasePath, resolveBuildSettings } from './src/config/build-settings'
 import { buildSettingsArtifactsPlugin } from './src/config/build-settings-artifacts'
 import { MOS_DEV_IDENTITY_PATH, worktreeFingerprint } from './src/lib/dev-server'
+import { createBuildIdentity } from './src/config/build-identity'
 import { stampServiceWorker } from './src/config/sw-build-id'
 import { validateSampleLoginBuild } from './src/config/sample-login-build-guard'
 
@@ -98,30 +97,17 @@ function serviceWorkerBuildId(): Plugin {
   }
 }
 
-function previewBuildIdentity(basePath: string): Plugin {
-  let sha = ''
-  let clean = false
+function previewBuildIdentity(): Plugin {
+  let identity: ReturnType<typeof createBuildIdentity> | undefined
   return {
     name: 'preview-build-identity',
     apply: 'build',
     buildStart() {
-      sha = resolveReleaseSha()
-      clean = execFileSync('git', ['status', '--porcelain'], { cwd: __dir, encoding: 'utf8' }).trim() === ''
+      identity = createBuildIdentity(resolveReleaseSha(), new Date())
     },
     closeBundle() {
-      const dist = resolve(__dir, 'dist')
-      const assets: Record<string, string> = {}
-      const walk = (directory: string) => {
-        for (const name of readdirSync(directory)) {
-          const path = resolve(directory, name)
-          if (statSync(path).isDirectory()) { walk(path); continue }
-          const key = relative(dist, path).replaceAll('\\', '/')
-          if (key === 'mos-build-identity.json') continue
-          assets[key] = createHash('sha256').update(readFileSync(path)).digest('hex')
-        }
-      }
-      walk(dist)
-      writeFileSync(resolve(dist, 'mos-build-identity.json'), JSON.stringify({ sha, clean, basePath, assets }))
+      if (!identity) throw new Error('build identity was not created')
+      writeFileSync(resolve(__dir, 'dist/mos-build-identity.json'), JSON.stringify(identity))
     },
   }
 }
@@ -140,7 +126,7 @@ export default defineConfig(({ mode }) => {
     sampleLoginBuildGuard(),
     buildSettingsArtifactsPlugin(basePath),
     serviceWorkerBuildId(),
-    previewBuildIdentity(basePath),
+    previewBuildIdentity(),
     react(),
     tailwindcss(),
   ],
