@@ -288,35 +288,29 @@
 @media (min-width: 768px) {
   .kl-form .dt-table { table-layout: fixed; }
   .kl-form .dt-table tbody tr:not(.dt-group-row) > td { padding-block: 5px; }
-  .kl-form .kls-quantity {
-    flex: 0 0 var(--cafe-capture-control-group-width, 25rem);
-    flex-direction: row;
-    align-items: center;
-    gap: 8px;
+  .kl-form .kls-quantity .quantity-field-control--inline {
+    grid-template-columns: var(--cafe-capture-quantity-width, 7.5rem) var(--cafe-capture-unit-track-width, 17rem);
     width: var(--cafe-capture-control-group-width, 25rem);
     max-width: 100%;
   }
   .kl-form .kls-quantity .kls-qty {
-    flex: 0 0 var(--cafe-capture-quantity-width, 7.5rem);
     width: var(--cafe-capture-quantity-width, 7.5rem);
   }
   .kl-form .kls-quantity .cafe-capture-unit {
-    flex: 0 0 var(--cafe-capture-unit-track-width, 17rem);
-    width: var(--cafe-capture-unit-track-width, 17rem);
+    width: 100%;
     max-width: var(--cafe-capture-unit-track-width, 17rem);
     overflow: visible;
-    overflow-wrap: normal;
+    overflow-wrap: anywhere;
     text-align: left;
     text-overflow: clip;
-    white-space: nowrap;
+    white-space: normal;
   }
   .kl-form .kls-quantity .kls-unit-change {
     justify-content: flex-start;
     text-align: left;
   }
   .kl-form .kls-quantity .kls-unit-select {
-    flex: 0 0 var(--cafe-capture-unit-track-width, 17rem);
-    width: var(--cafe-capture-unit-track-width, 17rem);
+    width: 100%;
     max-width: none;
   }
   .kl-form .kls-quantity .kls-unit-select .mk-select__box,
@@ -326,8 +320,9 @@
   }
   .kl-form .kls-quantity .kls-unit-select .mk-select__field > span:first-child {
     overflow: visible;
+    overflow-wrap: anywhere;
     text-overflow: clip;
-    white-space: nowrap;
+    white-space: normal;
   }
   .kl-form .dt-table thead th:nth-child(1),
   .kl-form .dt-table tbody tr:not(.dt-group-row) > td:nth-child(1) { width: auto; }
@@ -498,6 +493,10 @@
 }
 .kl-card-head > .kls-card { display: contents; }
 .kl-card-head > .kls-card > .kls-row { grid-column: 1; grid-row: 2; }
+.kl-card-head:has(.quantity-field-error) > .kls-card > .kls-row {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
 .kl-card-head > .kls-card > :not(.kls-row) { grid-column: 1 / -1; }
 .kl-card-identity {
   display: flex;

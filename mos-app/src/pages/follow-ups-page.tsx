@@ -2,8 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
-import { PageFrame } from '@/shell/page-frame'
-import { PageHead } from '@/shell/page-head'
+import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { getBusinessUnits } from '@/lib/db/directory'
@@ -94,6 +93,7 @@ export function FollowUpsPage() {
   }, [accessRoles, viewer])
 
   const overdueCount = useMemo(() => rows.filter((row) => isOverdue(row)).length, [rows])
+  const frameState = state === 'loading' ? 'loading' : state === 'error' ? 'error' : rows.length === 0 ? 'empty' : 'default'
 
   async function loadMore() {
     const before = cursorRef.current
@@ -248,13 +248,13 @@ export function FollowUpsPage() {
   ]
 
   return (
-    <PageFrame variant="data">
-      <PageHead
-        variant="content"
-        title={t('followUps.title')}
-        count={state === 'ready' ? (hasMore ? `${rows.length}+` : rows.length) : null}
-        meta={<span>{t('followUps.overdue')}: {hasMore ? `${overdueCount}+` : overdueCount}</span>}
-      />
+    <PageFamilyFrame
+      family="workspace"
+      title={t('followUps.title')}
+      state={frameState}
+      count={state === 'ready' ? (hasMore ? `${rows.length}+` : rows.length) : null}
+      meta={<span>{t('followUps.overdue')}: {hasMore ? `${overdueCount}+` : overdueCount}</span>}
+    >
       {state === 'loading' && <SkeletonRows count={5} />}
       {state === 'error' && (
         <ErrorState
@@ -304,6 +304,6 @@ export function FollowUpsPage() {
           {active?.id === detailRow.id && renderTransitionForm(detailRow, active.verb)}
         </aside>
       )}
-    </PageFrame>
+    </PageFamilyFrame>
   )
 }

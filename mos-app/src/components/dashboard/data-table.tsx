@@ -83,6 +83,8 @@ export interface DataTableProps<Row> {
   onRetry?: () => void
   /** <caption> / aria — a11y table name */
   caption: string
+  /** Optional full-width detail row rendered beneath a desktop data row. */
+  renderRowDetail?: (row: Row, index: number) => ReactNode
   /**
    * Opt-in, purpose-built phone card body. The default card is a <dl> of every detail
    * column — right for READING a record, wrong for a high-frequency capture list where the
@@ -117,6 +119,7 @@ export function DataTable<Row extends object>({
   defaultCollapsedGroupKeys,
   rowClassName,
   renderCard,
+  renderRowDetail,
   sort,
   onSortChange,
   footer,
@@ -175,6 +178,7 @@ export function DataTable<Row extends object>({
           groups={groups}
           tableClassName={tableClassName}
           rowClassName={rowClassName}
+          renderRowDetail={renderRowDetail}
           sort={sort}
           onSortChange={onSortChange}
           footer={footer}
@@ -207,6 +211,7 @@ interface DesktopTableProps<Row> {
   groups?: DataTableGroup<Row>[]
   tableClassName?: string
   rowClassName?: (row: Row, index: number) => string | undefined
+  renderRowDetail?: (row: Row, index: number) => ReactNode
   sort?: DataTableSort
   onSortChange?: (sort: DataTableSort) => void
   footer?: ReactNode
@@ -223,28 +228,38 @@ function DesktopRow<Row>({
   rowIndex,
   columns,
   rowClassName,
+  renderRowDetail,
 }: {
   row: Row
   rowIndex: number
   columns: DataTableColumn<Row>[]
   rowClassName?: (row: Row, index: number) => string | undefined
+  renderRowDetail?: (row: Row, index: number) => ReactNode
 }) {
+  const detail = renderRowDetail?.(row, rowIndex)
   return (
-    <tr className={rowClassName?.(row, rowIndex)}>
-      {columns.map(column => {
-        const value = cellValue(row, column)
-        const isNumeric = column.numeric || column.align === 'right'
-        const negative = column.numeric && isNegative(value)
-        return (
-          <td
-            key={column.key}
-            className={isNumeric ? `dt-num tabular${negative ? ' dt-neg' : ''}` : undefined}
-          >
-            {value as ReactNode}
-          </td>
-        )
-      })}
-    </tr>
+    <Fragment>
+      <tr className={rowClassName?.(row, rowIndex)}>
+        {columns.map(column => {
+          const value = cellValue(row, column)
+          const isNumeric = column.numeric || column.align === 'right'
+          const negative = column.numeric && isNegative(value)
+          return (
+            <td
+              key={column.key}
+              className={isNumeric ? `dt-num tabular${negative ? ' dt-neg' : ''}` : undefined}
+            >
+              {value as ReactNode}
+            </td>
+          )
+        })}
+      </tr>
+      {detail !== null && detail !== undefined && detail !== false && (
+        <tr className="dt-row-detail">
+          <td colSpan={columns.length}>{detail}</td>
+        </tr>
+      )}
+    </Fragment>
   )
 }
 
@@ -294,6 +309,7 @@ function DesktopTable<Row>({
   groups,
   tableClassName,
   rowClassName,
+  renderRowDetail,
   sort,
   onSortChange,
   footer,
@@ -363,6 +379,7 @@ function DesktopTable<Row>({
             rowIndex={rowIndex}
             columns={columns}
             rowClassName={rowClassName}
+            renderRowDetail={renderRowDetail}
           />
         ))}
         {state === 'ready' && groups && groups.map(group => (
@@ -382,6 +399,7 @@ function DesktopTable<Row>({
                 rowIndex={rowIndex}
                 columns={columns}
                 rowClassName={rowClassName}
+                renderRowDetail={renderRowDetail}
               />
             ))}
           </Fragment>

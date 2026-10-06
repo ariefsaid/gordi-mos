@@ -10,12 +10,14 @@ const toolbarCss = readFileSync(resolve(process.cwd(), 'src/components/kitchen/k
   .replace(/\/\*[\s\S]*?\*\//g, '')
 const captureControlsCss = readFileSync(resolve(process.cwd(), 'src/components/kitchen/cafe-capture-controls.css'), 'utf8')
   .replace(/\/\*[\s\S]*?\*\//g, '')
+const stepperCss = readFileSync(resolve(process.cwd(), 'src/components/kitchen/wip-item-stepper.css'), 'utf8')
+  .replace(/\/\*[\s\S]*?\*\//g, '')
 
-function ruleBodyAt(idx: number): string {
-  expect(idx, 'expected kitchen-log-page.css to contain the capture layout rule').toBeGreaterThanOrEqual(0)
-  const open = css.indexOf('{', idx)
-  const close = css.indexOf('}', open)
-  return css.slice(open + 1, close)
+function ruleBodyAt(idx: number, source = css): string {
+  expect(idx, 'expected the stylesheet to contain the capture layout rule').toBeGreaterThanOrEqual(0)
+  const open = source.indexOf('{', idx)
+  const close = source.indexOf('}', open)
+  return source.slice(open + 1, close)
 }
 
 describe('KL-FOOTER-NAV: the capture footer stays reachable above the shell bottom-tab bar', () => {
@@ -62,16 +64,16 @@ describe('KL-FOOTER-NAV: the capture footer stays reachable above the shell bott
 
 describe('dense Café capture controls stay in one aligned desktop row', () => {
   it('keeps the quantity and full unit label inline in a fixed shared track', () => {
-    const quantityGroup = ruleBodyAt(css.indexOf('.kl-form .kls-quantity {'))
+    const quantityGroup = ruleBodyAt(stepperCss.indexOf('.kls-quantity .quantity-field-control--inline {'), stepperCss)
     const desktopQuantity = ruleBodyAt(css.indexOf('.kl-form .kls-quantity .kls-qty {'))
     const desktopUnit = ruleBodyAt(css.indexOf('.kl-form .kls-quantity .cafe-capture-unit {'))
     const sharedUnit = captureControlsCss.slice(captureControlsCss.indexOf('.cafe-capture-unit {'), captureControlsCss.indexOf('.cafe-capture-action {'))
-    expect(quantityGroup).toMatch(/flex-direction:\s*row/)
+    expect(quantityGroup).toMatch(/grid-template-columns:\s*var\(--cafe-capture-quantity-width,[^)]+\)\s*var\(--cafe-capture-unit-track-width/)
     expect(quantityGroup).toMatch(/width:\s*var\(--cafe-capture-control-group-width/)
     expect(quantityGroup).toMatch(/gap:\s*8px/)
-    expect(desktopQuantity).toMatch(/flex:\s*0\s+0\s+var\(--cafe-capture-quantity-width/)
-    expect(desktopUnit).toMatch(/flex:\s*0 0 var\(--cafe-capture-unit-track-width/)
-    expect(desktopUnit).toMatch(/white-space:\s*nowrap/)
+    expect(desktopQuantity).toMatch(/width:\s*var\(--cafe-capture-quantity-width/)
+    expect(desktopUnit).toMatch(/max-width:\s*var\(--cafe-capture-unit-track-width/)
+    expect(desktopUnit).toMatch(/white-space:\s*normal/)
     expect(desktopUnit).toMatch(/text-align:\s*left/)
     expect(css).toMatch(/dt-table thead th:nth-child\(2\),[\s\S]*?td:nth-child\(2\) \{ width: 27rem; \}/)
     expect(sharedUnit).toMatch(/overflow-wrap:\s*anywhere/)
@@ -89,6 +91,14 @@ describe('AC-046: DESIGN.md carries the #790 A3/A4 amendments verbatim', () => {
 
   it('A4 — the capture band', () => {
     expect(design).toContain('> **The capture band.** One sticky band: a count line (`N item · N porsi`) and **one** primary (`Kirim N entri`), full-width at 390. Discard is a text link that renders only while something is staged; a precondition that blocks Submit is stated once, in the band, never as a third column. Content above the band ends with clearance equal to the band\'s height, so the list\'s last control is never occluded at max scroll.')
+  })
+})
+
+describe('capture quantity errors span the entry row', () => {
+  it('lets a phone error occupy the full identity-and-quantity row below the unit', () => {
+    expect(stepperCss).toMatch(/\.kls-row\s*\{[^}]*display:\s*grid/)
+    expect(stepperCss).toMatch(/\.kls-quantity \.quantity-field-error\s*\{[^}]*grid-column:\s*1 \/ -1/)
+    expect(css).toMatch(/\.kl-card-head:has\(\.quantity-field-error\)[^{]*\{[^}]*grid-column:\s*1 \/ -1/)
   })
 })
 

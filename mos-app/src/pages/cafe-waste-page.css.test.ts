@@ -7,8 +7,8 @@ const css = readFileSync(resolve(process.cwd(), 'src/pages/cafe-waste-page.css')
 const selectCss = readFileSync(resolve(process.cwd(), 'src/components/ui/Select.css'), 'utf8')
   .replace(/\/\*[\s\S]*?\*\//g, '')
 
-function rule(selector: string): string {
-  const index = css.indexOf(selector)
+function rule(selector: string, last = false): string {
+  const index = last ? css.lastIndexOf(selector) : css.indexOf(selector)
   expect(index, `expected ${selector} in cafe-waste-page.css`).toBeGreaterThanOrEqual(0)
   const open = css.indexOf('{', index)
   const close = css.indexOf('}', open)
@@ -18,7 +18,7 @@ function rule(selector: string): string {
 describe('Waste capture controls stay paired and complete', () => {
   it('keeps quantity, unit and photo action in an inline desktop track', () => {
     const controls = rule('.cwl-controls {')
-    const photo = rule('.cwl-add-photo {')
+    const photo = rule('.cwl-add-photo {', true)
     expect(controls).toMatch(/grid-template-columns:\s*var\(--cafe-capture-quantity-width,[^)]+\)\s+minmax\(0,\s*1fr\)\s+6rem/)
     expect(controls).toMatch(/gap:\s*8px/)
     expect(controls).toMatch(/width:\s*100%/)
@@ -58,7 +58,7 @@ describe('Waste capture controls stay paired and complete', () => {
   })
 
   it('wraps long units on phones instead of hiding their tail', () => {
-    const unitRules = css.slice(css.indexOf('.cwl-unit-select .mk-select__field > span:first-child {'), css.indexOf('.cwl-add-photo {'))
+    const unitRules = css.slice(css.indexOf('.cwl-unit-select .mk-select__field > span:first-child {'), css.lastIndexOf('.cwl-add-photo {'))
     expect(unitRules).toMatch(/text-overflow:\s*clip/)
     expect(unitRules).toMatch(/overflow:\s*visible/)
     expect(unitRules).not.toMatch(/text-overflow:\s*ellipsis/)
@@ -69,5 +69,14 @@ describe('Waste capture controls stay paired and complete', () => {
   it('keeps category context available on phone while preserving dense desktop rows', () => {
     expect(rule('.cwl-category {')).toMatch(/display:\s*none/)
     expect(css).toMatch(/@media\s*\(max-width:\s*767\.98px\)[\s\S]*?\.cwl-category\s*\{\s*display:\s*block/)
+  })
+})
+
+describe('Café Waste quantity-error layout', () => {
+  it('places the quantity error under the input and unit, before the photo action', () => {
+    expect(css).toMatch(/\.cwl-quantity-row,[\s\S]*?\.quantity-field-control--inline,[\s\S]*?\.quantity-field-suffix\s*\{\s*display:\s*contents/)
+    expect(rule('.cwl-controls:has(.quantity-field-error) .quantity-field-error {')).toMatch(/grid-column:\s*1\s*\/\s*3;[\s\S]*grid-row:\s*2/)
+    expect(rule('.cwl-controls:has(.quantity-field-error) .cwl-add-photo {')).toMatch(/grid-column:\s*3;[\s\S]*grid-row:\s*1\s*\/\s*span\s*2/)
+    expect(css).toMatch(/\.cwl-capture-row:has\(\.quantity-field-error\)[\s\S]*?\.cwl-capture-row__controls\s*\{\s*grid-column:\s*1/)
   })
 })

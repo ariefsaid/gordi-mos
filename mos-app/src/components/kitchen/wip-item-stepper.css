@@ -39,20 +39,14 @@
 .kls-card.kls-dense.kls-invalid { border: none; }
 
 .kls-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, var(--cafe-capture-control-group-width, 25rem));
   align-items: center;
-  gap: 16px;
+  gap: 4px 16px;
   min-width: 0;
 }
-.kls-quantity {
-  display: flex;
-  flex: 0 0 auto;
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
-  width: max-content;
-  min-width: 0;
-}
+.kls-quantity,
+.kls-quantity .quantity-field { display: contents; }
 .kls-name {
   flex: 1;
   min-width: 0;
@@ -68,9 +62,25 @@
    rather than a centred token, and the greyed placeholder echoes the plan as an anchor.
    font-size stays 16px: below that, mobile Safari zooms the viewport on focus, which is
    unacceptable on a field the floor taps ~21 times in a pass. */
+.kls-quantity .quantity-field-control--inline {
+  display: grid;
+  grid-template-columns: var(--cafe-capture-quantity-width, 7.5rem) var(--cafe-capture-unit-track-width, 17rem);
+  grid-column: 2;
+  grid-row: 1;
+  align-items: center;
+  gap: 8px;
+  width: var(--cafe-capture-control-group-width, 25rem);
+  max-width: 100%;
+  min-width: 0;
+}
+.kls-quantity .quantity-field-error {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  width: 100%;
+}
+.kls-qty[aria-invalid='true'] { border-color: var(--destructive); }
 .kls-qty {
-  flex: 0 0 var(--cafe-capture-quantity-width, 7.5rem);
-  width: var(--cafe-capture-quantity-width, 7.5rem);
+  width: 100%;
   max-width: 100%;
   height: var(--cafe-capture-control-height, 44px);
   box-sizing: border-box;
@@ -103,7 +113,7 @@
 @media (min-width: 768px) {
   .kls-card.kls-dense { width: 100%; }
   .kls-dense .kls-qty {
-    height: 32px;
+    height: var(--cafe-capture-control-height, 32px);
     font-size: var(--font-size-control);
   }
 
@@ -122,9 +132,14 @@
     flex: 1 1 auto;
     min-width: 0;
   }
-  .kls-card.kls-dense .kls-row { justify-content: flex-start; }
-  .kls-card.kls-dense .kls-quantity { flex: 1 1 auto; width: 100%; }
-  .kls-dense .kls-unit-select { flex: 1 1 auto; width: auto; }
+  .kls-card.kls-dense .kls-row { grid-template-columns: minmax(0, 1fr); }
+  .kls-card.kls-dense .kls-quantity .quantity-field-control--inline {
+    grid-template-columns: var(--cafe-capture-quantity-width, 5.5rem) minmax(0, 1fr);
+    grid-column: 1;
+    width: 100%;
+  }
+  .kls-card.kls-dense .kls-quantity .quantity-field-error { grid-column: 1; }
+  .kls-dense .kls-unit-select { width: 100%; }
   .kls-dense .kls-unit-select .mk-select__box { width: 100%; }
   /* The note needs full width in the phone card. At rest the stepper shares the head row with
      the item name (`.kl-card-head`, kitchen-log-page.css); once a note is showing it claims the
@@ -215,7 +230,8 @@
   color: var(--muted-foreground);
   line-height: 1.2;
   text-align: left;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 /* ── The deliberate "change unit" affordance (#234, FR-021/AC-005) ─────────────
@@ -239,16 +255,22 @@
   font-family: inherit;
   cursor: pointer;
   text-align: left;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .kls-unit-change:disabled { cursor: default; opacity: 0.6; }
 .kls-unit-change svg { flex: 0 0 auto; }
 
 /* The opened picker (one per row at most, closed again on selection/blur). The shared
    Select already renders the 32px box; this only keeps it from stretching the row. */
-.kls-unit-select { flex: 0 1 auto; width: max-content; max-width: 100%; }
-.kls-unit-select .mk-select__box { width: max-content; max-width: 100%; }
-.kls-unit-select .mk-select__field { max-width: 100%; }
+.kls-unit-select { width: 100%; max-width: 100%; }
+.kls-unit-select .mk-select__box,
+.kls-unit-select .mk-select__field { width: 100%; max-width: 100%; }
+.kls-unit-select .mk-select__field > span:first-child {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+}
 
 @media (min-width: 768px) {
   .kls-dense .kls-unit-change {

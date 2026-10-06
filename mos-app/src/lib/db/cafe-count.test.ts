@@ -6,6 +6,7 @@ import {
   listCafeCountLines,
   newCafeCountClientKey,
   normalizeCafeCountQuantity,
+  parseCafeCountQuantity,
   submitCafeCounts,
 } from './cafe-count'
 
@@ -33,8 +34,15 @@ describe('Cafe Count domain adapter', () => {
   it('normalizes decimal comma/point, accepts zero and keeps blank distinct', () => {
     expect(normalizeCafeCountQuantity('')).toBeNull()
     expect(normalizeCafeCountQuantity('0')).toBe('0')
-    expect(normalizeCafeCountQuantity('0012,5000')).toBe('12.5')
+    expect(normalizeCafeCountQuantity('0012,50')).toBe('12.5')
+    expect(normalizeCafeCountQuantity('0012,5000')).toBeNull()
+    expect(normalizeCafeCountQuantity('0,12')).toBe('0.12')
+    expect(normalizeCafeCountQuantity('0,125')).toBeNull()
+    expect(normalizeCafeCountQuantity('1.250')).toBeNull()
+    expect(parseCafeCountQuantity('1.250')).toEqual({ kind: 'invalid', reason: 'thousands' })
+    expect(parseCafeCountQuantity('0,125')).toEqual({ kind: 'invalid', reason: 'thousands' })
     expect(normalizeCafeCountQuantity('1.23456')).toBeNull()
+    expect(normalizeCafeCountQuantity('1.500')).toBeNull()
     expect(normalizeCafeCountQuantity('-1')).toBeNull()
   })
 
@@ -87,15 +95,18 @@ describe('Cafe Count domain adapter', () => {
     }])).resolves.toEqual([{ client_key: 'key-1', outcome: 'existing', line_id: 'original-line' }])
   })
 
-  it('reads the WIB day without sending an org or a submitter', async () => {
+  it('reads all Submitted dates oldest first without sending an org or a submitter', async () => {
     const query = makeQuery({ data: [], error: null })
     const from = vi.fn(() => query)
     schemaMock.mockReturnValue({ from } as never)
 
-    await expect(listCafeCountLines('2026-10-06')).resolves.toEqual([])
+    await expect(listCafeCountLines()).resolves.toEqual([])
     expect(schemaMock).toHaveBeenCalledWith('ops')
     expect(from).toHaveBeenCalledWith('cafe_count_lines')
-    expect(query.eq).toHaveBeenCalledWith('count_date', '2026-10-06')
+    expect(query.eq).toHaveBeenCalledWith('status', 'Submitted')
+    expect(query.eq).not.toHaveBeenCalledWith('count_date', expect.anything())
+    expect(query.order).toHaveBeenNthCalledWith(1, 'count_date', { ascending: true })
+    expect(query.order).toHaveBeenNthCalledWith(2, 'submitted_at', { ascending: true })
     expect(query.select).toHaveBeenCalledWith(expect.not.stringContaining('org_id'))
     expect(query.select).toHaveBeenCalledWith(expect.not.stringContaining('submitted_by'))
   })

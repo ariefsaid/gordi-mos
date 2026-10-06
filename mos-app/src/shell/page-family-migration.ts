@@ -9,37 +9,12 @@ export interface PageFamilyMigrationEntry {
 }
 
 /**
- * The routes whose page renders on a `PageFamilyFrame`, and whose region-3 page head therefore
- * OWNS the job sentence. `ContextRow` reads this list to stay silent on those routes, so the
- * sentence is shown exactly once across regions 2 and 3 (see context-row.tsx).
+ * Routes whose page components render `PageFamilyFrame`. `ContextRow` consults this registry so
+ * the shared page head owns the route's job sentence; route paths, families and source symbols are
+ * verified against the router and page files in `page-family-migration.test.ts`.
  *
- * It started empty on this branch (`PageFamilyFrame` landed with the app-shell chrome port,
- * before any page used it) and was meant to fill in per surface as each one ported onto the
- * frame — the same cutover shape the route table uses.
- *
- * **That cutover never happened.** Every surface ported onto the frame and none of them added its
- * row, so the list stood at five entries while nineteen routes rendered the frame. The visible
- * cost: on every unregistered route ContextRow kept printing the scope crumb and the job sentence
- * above a page head already carrying the sentence — the same words twice, and a 40px band that
- * left the content 40px shorter than v4 at every width. Measured at 1280: v4's `main` began at
- * y=56 on every route; this branch began at y=96 on all but Home, which was the one route that
- * had been registered (#270).
- *
- * **An entry is a claim about the FRAME, not about how finished the surface is.** A route serving
- * `SliceStubPage` belongs here too, because that stub renders the frame as well. A route whose
- * record page passes `hideHead` belongs here too: the frame still owns region 3, and the record's
- * own identity header is the heading — a shell crumb above it is the orphan the silence exists to
- * prevent.
- *
- * **The one exclusion is real, not an oversight.** v4's list carries `/money/follow-ups` and
- * `/work/follow-ups/:id`; `follow-ups-page.tsx` on this branch renders **no** `PageFamilyFrame`
- * at all, so registering those two would silence ContextRow with nothing filling the gap. They
- * join this list when that page moves onto the frame — not before.
- *
- * `page-family-migration.test.ts` holds this honest in both directions: every entry must name a
- * file that exists, exports its symbol and renders the frame; and every page under `pages/` that
- * renders the frame must be named by an entry. The second is the one that matters — it is the
- * direction this list drifted.
+ * Feature-gated routes stay registered when their page code renders the frame: gating changes
+ * runtime availability, not the route/component contract.
  */
 export const PAGE_FAMILY_FRAME_ROUTES: readonly PageFamilyMigrationEntry[] = [
   { path: '/', family: 'workspace', sourceFile: 'pages/home-page.tsx', symbol: 'HomePage' },
@@ -82,12 +57,17 @@ export const PAGE_FAMILY_FRAME_ROUTES: readonly PageFamilyMigrationEntry[] = [
   { path: '/oauth/consent', family: 'management', sourceFile: 'pages/oauth-consent-page.tsx', symbol: 'OAuthConsentPage' },
   { path: '/profile/connected-agents', family: 'management', sourceFile: 'pages/profile-connected-agents-page.tsx', symbol: 'ProfileConnectedAgentsPage' },
 
+  // ── Developer tooling ─────────────────────────────────────────────────────────────────────
+  { path: '/dev/views', family: 'management', sourceFile: 'pages/dev-views-page.tsx', symbol: 'DevViewsPage' },
+  { path: '/dev/views/:viewId', family: 'management', sourceFile: 'pages/dev-views-page.tsx', symbol: 'DevViewsPage' },
+
   // ── Money ─────────────────────────────────────────────────────────────────────────────────
   { path: '/money', family: 'workspace', sourceFile: 'pages/money-page.tsx', symbol: 'MoneyPage' },
   { path: '/money/branch/:code', family: 'workspace', sourceFile: 'pages/money-branch-page.tsx', symbol: 'MoneyBranchPage' },
   { path: '/money/pending-bills', family: 'workspace', sourceFile: 'pages/pending-bills-page.tsx', symbol: 'PendingBillsPage' },
   { path: '/money/budget', family: 'workspace', sourceFile: 'pages/budget-page.tsx', symbol: 'BudgetPage' },
   { path: '/money/pricing', family: 'workspace', sourceFile: 'pages/pricing-page.tsx', symbol: 'PricingPage' },
+  { path: '/money/follow-ups', family: 'workspace', sourceFile: 'pages/follow-ups-page.tsx', symbol: 'FollowUpsPage' },
 
   // ── Café ──────────────────────────────────────────────────────────────────────────────────
   // /cafe remains the Today root. Dedicated capture routes render KitchenLogPage directly;

@@ -130,7 +130,7 @@ describe('CafeCountPage', () => {
     renderPage()
     const rawInput = await screen.findByRole('textbox', { name: 'Count for Raw flour' })
     const wipInput = screen.getByRole('textbox', { name: 'Count for Prepared sauce' })
-    fireEvent.change(rawInput, { target: { value: '1.12345' } })
+    fireEvent.change(rawInput, { target: { value: '1.500' } })
     fireEvent.change(wipInput, { target: { value: '2' } })
     fireEvent.click(screen.getByRole('button', { name: 'Submit Count' }))
 
@@ -139,6 +139,35 @@ describe('CafeCountPage', () => {
       { client_key: 'client-2', item_id: 'wip-1', quantity: '2' },
     ])
     expect(screen.getAllByRole('alert')).toHaveLength(1)
+    expect(screen.getByRole('alert')).toHaveTextContent('Did you mean 1500 or 1.500? Use up to 2 decimals.')
+    expect(within(document.querySelector('.cafe-count__footer')!).getByText('1 item needs fixing')).toBeInTheDocument()
+  })
+
+  it('rejects Count values beyond two decimal places instead of accepting four-place fractions', async () => {
+    renderPage()
+    const input = await screen.findByRole('textbox', { name: 'Count for Raw flour' })
+    fireEvent.change(input, { target: { value: '1.2345' } })
+
+    expect(input).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByRole('alert')).toHaveTextContent('Use up to 2 decimals.')
+    expect(screen.getByRole('button', { name: 'Submit Count' })).toBeDisabled()
+    expect(mockSubmit).not.toHaveBeenCalled()
+  })
+
+  it('AC-011 refuses both ambiguous Count readings and offers typed-digit corrections', async () => {
+    renderPage()
+    const rawInput = await screen.findByRole('textbox', { name: 'Count for Raw flour' })
+    const wipInput = screen.getByRole('textbox', { name: 'Count for Prepared sauce' })
+    fireEvent.change(rawInput, { target: { value: '1.250' } })
+    fireEvent.change(wipInput, { target: { value: '0,125' } })
+
+    expect(rawInput).toHaveAttribute('aria-invalid', 'true')
+    expect(wipInput).toHaveAttribute('aria-invalid', 'true')
+    const errors = screen.getAllByRole('alert')
+    expect(errors[0]).toHaveTextContent('Did you mean 1250 or 1.250? Use up to 2 decimals.')
+    expect(errors[1]).toHaveTextContent('Did you mean 125 or 0.125? Use up to 2 decimals.')
+    expect(screen.getByRole('button', { name: 'Submit Count' })).toBeDisabled()
+    expect(mockSubmit).not.toHaveBeenCalled()
   })
 
   it('AC-012 retries an uncertain submit with the same UUID key and quantity', async () => {
@@ -166,6 +195,18 @@ describe('CafeCountPage', () => {
     expect(await screen.findByText('Submitted')).toBeInTheDocument()
   })
 
+  it('shows a short reason-specific quantity error in Indonesian', async () => {
+    const { unmount } = render(
+      <MemoryRouter initialEntries={['/cafe/count']}>
+        <I18nProvider initialLocale="id"><CafeCountPage /></I18nProvider>
+      </MemoryRouter>,
+    )
+    const input = await screen.findByRole('textbox', { name: 'Count untuk Raw flour' })
+    fireEvent.change(input, { target: { value: '-1' } })
+    expect(screen.getByRole('alert')).toHaveTextContent('Masukkan nol atau lebih.')
+    unmount()
+  })
+
   it('AC-007 zero is submitted while a blank item is omitted; a refused line is shown individually', async () => {
     mockSubmit.mockResolvedValue([
       { client_key: 'client-1', outcome: 'submitted', line_id: 'line-1' },
@@ -175,14 +216,14 @@ describe('CafeCountPage', () => {
     const rawInput = await screen.findByRole('textbox', { name: 'Count for Raw flour' })
     const wipInput = screen.getByRole('textbox', { name: 'Count for Prepared sauce' })
     fireEvent.change(rawInput, { target: { value: '0' } })
-    fireEvent.change(wipInput, { target: { value: '2,5' } })
+    fireEvent.change(wipInput, { target: { value: '0,12' } })
     fireEvent.click(screen.getByRole('button', { name: 'Submit Count' }))
 
     await waitFor(() => expect(mockSubmit).toHaveBeenCalledTimes(1))
     const [stream, lines] = mockSubmit.mock.calls[0]
     expect(stream).toEqual(streamMocks.stream)
     expect(lines).toHaveLength(2)
-    expect(lines.map(line => line.quantity)).toEqual(['0', '2.5'])
+    expect(lines.map(line => line.quantity)).toEqual(['0', '0.12'])
     expect(lines.every(line => Object.keys(line).sort().join(',') === 'client_key,item_id,quantity')).toBe(true)
     expect(await screen.findByText('Submitted')).toBeInTheDocument()
     expect(await screen.findByText('This item already has a Count today.')).toBeInTheDocument()

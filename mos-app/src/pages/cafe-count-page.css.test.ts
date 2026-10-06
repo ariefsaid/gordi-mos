@@ -33,3 +33,10 @@ describe('Count keeps one shared quantity column without clipping units', () => 
     expect(unit).not.toMatch(/text-overflow:\s*ellipsis/)
   })
 })
+
+describe('Cafe Count quantity errors', () => {
+  it('places invalid-row guidance on its own full-width row at desktop and phone widths', () => {
+    expect(css).toMatch(/\.cafe-count__row:has\(\.cafe-count__field-error\)\s+\.cafe-count__input-group\s*\{[^}]*display:\s*contents/)
+    expect(css).toMatch(/\.cafe-count__row:has\(\.cafe-count__field-error\)\s+\.cafe-count__field-error\s*\{[^}]*grid-column:\s*1\s*\/\s*-1/)
+  })
+})
