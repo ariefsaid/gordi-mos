@@ -84,6 +84,8 @@ export function Breadcrumb() {
       if (sec) crumbs.push(sec.labelKey ? t(sec.labelKey) : sec.label)
       if (dynamicTitle) crumbs.push(dynamicTitle)
     }
+  } else if (destination.id === 'money' && pathname.startsWith('/money/branch/') && dynamicTitle) {
+    crumbs.push(dynamicTitle)
   } else if (destination.id === 'admin') {
     const sec = sectionForPath(pathname)
     if (sec) crumbs.push(sec.labelKey ? t(sec.labelKey) : sec.label)

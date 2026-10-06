@@ -146,6 +146,7 @@ const GATED_SURFACE_FILES = new Set([
   // The Money workspace itself; its Follow-up queue and Branch links stay within Money.
   join('pages', 'money-page.tsx'),
   join('components', 'money', 'branch-table.tsx'),
+  join('pages', 'money-branch-page.tsx'),
   // Home's Objectives band — Home already asks the gate before mounting it (home-page.tsx).
   join('components', 'home', 'home-objectives-door.tsx'),
   // The Tasks group Objective hint. Not a gated surface but the one place allowed to spell the
