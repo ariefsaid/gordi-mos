@@ -1,8 +1,7 @@
 // RouteLeaveGuard — the route-level unsaved-changes guard for full PAGES (GAP-4 / OD-REDESIGN-91
-// #9). It is the page-route sibling of the overlay/record seam `dirtyLeaveGuard` (which guards
-// record drawers via OverlayEntry.leaveGuard): this one guards a whole route so that leaving with
-// unsaved work asks the user to stay or discard, instead of silently dropping it (the live-
-// reproduced Kitchen Log "20 dishes vanish on navigate" loss).
+// #9). Record drawers guard their own transitions with `OverlayEntry.leaveGuard`; this one guards
+// a whole route, asking the user to stay or discard when leaving with unsaved work instead of
+// silently dropping it (the live-reproduced Kitchen Log "20 dishes vanish on navigate" loss).
 //
 // harden (2026-07-28): the prompt was `window.confirm`. Three defects, all H9:
 //   1. DESIGN.md (Overlays) prescribes ONE centered blocking dialog for consequential confirms,

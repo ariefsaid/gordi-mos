@@ -1,4 +1,4 @@
-import { formatWibDateTime } from '@/lib/wib-time'
+import { formatWibDateTime } from '@/lib/format/date'
 import '@/components/dashboard/freshness-label.css'
 
 type SnapshotProvenanceNoteProps = {
