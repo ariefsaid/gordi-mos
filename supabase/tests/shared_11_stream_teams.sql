@@ -397,6 +397,9 @@ select throws_ok(
 -- own stream, so it is a manager scope like the reviewer arms, not a member wall.
 -- #1422 (DD-2026-10-06-1422): a goods receipt is read by its receiver or by a reviewer of its
 -- stream, through ops.can_review_stream — the reviewer arm again, never the caller's own stream.
+-- #1427 (DD-CAFE-MVP-6): a branch's cached open POs are read by a reviewer of any stream of that
+-- branch, through ops.can_read_cafe_open_pos, which is ops.can_review_stream over the branch's
+-- streams — a reviewer arm, never the caller's own stream.
 reset role;
 select set_eq($$
   select schemaname || '.' || tablename || ' :: ' || policyname from pg_policies
@@ -412,15 +415,17 @@ select set_eq($$
     ('ops.cafe_item_setting_units :: cafe_item_setting_units_insert_manager'),
     ('ops.cafe_missing_item_reports :: cafe_missing_item_reports_select_managers'),
     ('ops.cafe_missing_item_reports :: cafe_missing_item_reports_resolve_managers'),
-    ('ops.cafe_receipts :: cafe_receipts_select_receiver_or_reviewer')
+    ('ops.cafe_receipts :: cafe_receipts_select_receiver_or_reviewer'),
+    ('ops.cafe_open_po_branches :: cafe_open_po_branches_select_reader'),
+    ('ops.cafe_open_pos :: cafe_open_pos_select_reader')
   $$,
-  'OD-WAY-49: the only policies referencing a stream column are the #236 kitchen-log reviewer arm, the #238 completeness write arms, the #1260 Café item-settings manager arms and the #1422 receipt reviewer arm — the stream is a capture default, never a member authorization dimension');
+  'OD-WAY-49: the only policies referencing a stream column are the #236 kitchen-log reviewer arm, the #238 completeness write arms, the #1260 Café item-settings manager arms, the #1422 receipt reviewer arm and the #1427 open-PO reader arms — the stream is a capture default, never a member authorization dimension');
 
 select is(
   (select coalesce(array_agg(schemaname || '.' || policyname order by policyname), '{}')
      from pg_policies
     where coalesce(qual,'') || ' ' || coalesce(with_check,'') ~* '(branch_id|\mactivity\M)'
-      and coalesce(qual,'') || ' ' || coalesce(with_check,'') !~* '(is_stream_reviewer|can_review_stream|can_manage_cafe_item_settings)'),
+      and coalesce(qual,'') || ' ' || coalesce(with_check,'') !~* '(is_stream_reviewer|can_review_stream|can_manage_cafe_item_settings|can_read_cafe_open_pos)'),
   '{}'::text[],
   'OD-WAY-49: ...and every one of them reaches the stream through the REVIEWER or Café item-settings MANAGER-SCOPE predicate — no policy compares a stream column to the caller''s own, which is what a member wall would look like');
 
