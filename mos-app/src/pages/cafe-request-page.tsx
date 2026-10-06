@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { CafeItemQuantityRow, type CafeItemQuantityEntry } from '@/components/kitchen/cafe-item-quantity-row'
 import { CafeRequestHistory } from '@/components/kitchen/cafe-request-history'
-import { CafeStreamBar, CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
+import { CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
+import { CafePageFrame } from '@/components/kitchen/cafe-page-frame'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { useT } from '@/i18n/use-t'
@@ -22,8 +23,6 @@ import { kitchenCategoryLabel } from '@/lib/kitchen-category-label'
 import { isInvalidCafeItemEntry, useCafeItemCapture } from '@/lib/use-cafe-item-capture'
 import { useCafeStream } from '@/lib/use-cafe-stream'
 import { formatWeekdayDayMonth } from '@/lib/format/date'
-import { PageFamilyFrame } from '@/shell/page-family-frame'
-import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useIsOffline } from '@/shell/use-is-offline'
 import './cafe-count-page.css'
@@ -52,9 +51,6 @@ export function CafeRequestPage() {
   const isOnline = !useIsOffline()
   const today = useMemo(() => wibToday(), [])
   const dateBounds = cafePurchaseRequestRequiredByBounds(today)
-  const pageLabel = t('cafe.request.title')
-  useDocumentTitle(t('common.docTitle', { page: `${pageLabel} · ${t('nav.cafe')}` }))
-
   const [requiredBy, setRequiredBy] = useState('')
   const [note, setNote] = useState('')
   const [search, setSearch] = useState('')
@@ -130,22 +126,20 @@ export function CafeRequestPage() {
     capture.resetEntries()
   }
 
-  const picker = (
-    <CafeStreamBar
-      options={streamOptions}
-      locationBranchId={branchId ?? undefined}
-      stream={stream}
-      homeStream={homeStream}
-      myStreamKeys={myStreamKeys}
-      onChange={chooseStream}
-      disabled={!canSwitch}
-    />
-  )
+  const streamBar = {
+    options: streamOptions,
+    locationBranchId: branchId ?? undefined,
+    stream,
+    homeStream,
+    myStreamKeys,
+    onChange: chooseStream,
+    disabled: !canSwitch,
+  }
   const pageState = loadState === 'loading' ? 'loading' : loadState === 'error' ? 'error' : busy ? 'saving' : 'default'
   const ready = loadState === 'ready' && stream !== null && canRequest
 
   return (
-    <PageFamilyFrame family="workspace" title={pageLabel} headClassName="cafe-count__head" statusRow={picker} state={pageState}>
+    <CafePageFrame page="request" streamBar={streamBar} state={pageState}>
       <div className="cafe-count cafe-receive cafe-request">
         {loadState === 'loading' && <LoadingShell count={3} />}
         {loadState === 'error' && (
@@ -156,9 +150,7 @@ export function CafeRequestPage() {
           />
         )}
         {loadState === 'ready' && !stream && (
-          <EmptyState variant="next-step" title={t('cafe.request.noStream.title')} copy={t('cafe.request.noStream.copy')}>
-            <CafeStreamChoices options={streamOptions} homeStream={homeStream} myStreamKeys={myStreamKeys} onChoose={chooseStream} />
-          </EmptyState>
+          <CafeStreamChoices options={streamOptions} homeStream={homeStream} myStreamKeys={myStreamKeys} onChoose={chooseStream} />
         )}
         {(canReview || (loadState === 'ready' && canRequest)) && (
           <div className="cafe-request__top">
@@ -292,6 +284,6 @@ export function CafeRequestPage() {
           </div>
         )}
       </div>
-    </PageFamilyFrame>
+    </CafePageFrame>
   )
 }

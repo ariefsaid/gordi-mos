@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '@/auth/use-auth'
-import { CafeStreamBar, CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
+import { CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
+import { CafePageFrame } from '@/components/kitchen/cafe-page-frame'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { DataTable, type DataTableColumn, type DataTableSort } from '@/components/dashboard/data-table'
 import { Button } from '@/components/ui/button'
@@ -38,8 +39,6 @@ import {
   type CafeMissingItemReport,
 } from '@/lib/db/cafe-missing-item-reports'
 import { useCafeStream } from '@/lib/use-cafe-stream'
-import { PageFamilyFrame } from '@/shell/page-family-frame'
-import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import '@/components/record-collection/record-collection.css'
 import './cafe-item-settings-page.css'
@@ -104,9 +103,6 @@ export function CafeItemSettingsPage() {
 
 function CafeItemSettingsPageForViewer() {
   const t = useT()
-  const pageTitle = t('cafe.items.title')
-  useDocumentTitle(t('common.docTitle', { page: `${pageTitle} · ${t('nav.cafe')}` }))
-
   const cafeStream = useCafeStream()
   const {
     options: streamOptions,
@@ -216,17 +212,15 @@ function CafeItemSettingsPageForViewer() {
 
   const canEdit = permission === 'allowed' && stream !== null
     && permissionStreamKey === streamKey(stream.branch.id, stream.activity)
-  const streamPicker = (
-    <CafeStreamBar
-      options={streamOptions}
-      stream={stream}
-      onChange={setStream}
-      homeStream={homeStream}
-      myStreamKeys={myStreamKeys}
-      locationBranchId={branchId ?? undefined}
-      disabled={readState === 'loading'}
-    />
-  )
+  const streamBar = {
+    options: streamOptions,
+    stream,
+    onChange: setStream,
+    homeStream,
+    myStreamKeys,
+    locationBranchId: branchId ?? undefined,
+    disabled: readState === 'loading',
+  }
 
   const changed = useMemo(() => {
     const result = new Set<string>()
@@ -429,24 +423,19 @@ function CafeItemSettingsPageForViewer() {
     : undefined
 
   return (
-    <PageFamilyFrame
-      family="workspace"
-      title={pageTitle}
-      jobSentence={t('cafe.items.job')}
-      statusRow={streamPicker}
+    <CafePageFrame
+      page="items"
+      streamBar={streamBar}
       meta={pageMeta}
       state={readState === 'loading' ? 'loading' : readState === 'error' ? 'error' : 'default'}
     >
       {!stream && readState === 'ready' && (
-        <section className="cafe-items__stream-choice" aria-label={t('cafe.items.chooseStream')}>
-          <h2>{t('cafe.items.chooseStream')}</h2>
-          <CafeStreamChoices
-            options={locationOptions}
-            homeStream={homeStream}
-            myStreamKeys={myStreamKeys}
-            onChoose={setStream}
-          />
-        </section>
+        <CafeStreamChoices
+          options={locationOptions}
+          homeStream={homeStream}
+          myStreamKeys={myStreamKeys}
+          onChoose={setStream}
+        />
       )}
 
       {readState === 'loading' && <LoadingShell count={4} label={t('cafe.items.loading')} />}
@@ -555,7 +544,7 @@ function CafeItemSettingsPageForViewer() {
           </div>
         </section>
       )}
-    </PageFamilyFrame>
+    </CafePageFrame>
   )
 }
 

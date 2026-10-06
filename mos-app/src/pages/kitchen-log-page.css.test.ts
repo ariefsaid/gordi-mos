@@ -18,7 +18,7 @@ function ruleBodyAt(idx: number): string {
 
 describe('KL-FOOTER-NAV: the capture footer stays reachable above the shell bottom-tab bar', () => {
   it('keeps the footer at the scrollport edge without a tab-bar-sized gap', () => {
-    const captureFrame = ruleBodyAt(css.indexOf('.page-frame--v3:has(.cafe-capture-head) {'))
+    const captureFrame = ruleBodyAt(css.indexOf('.page-frame--v3:has(.cafe-capture-content) {'))
     const captureContent = ruleBodyAt(css.indexOf('.cafe-capture-content,\n.cafe-capture-content .kl-capture-main,'))
     const captureFooter = ruleBodyAt(css.indexOf('.cafe-capture-footer.kl-footer {'))
 

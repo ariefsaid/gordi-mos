@@ -144,7 +144,7 @@ const loggedUnit = (
   qty_porsi: quantity,
 })
 
-// #781: CafeStreamBar states a resolved stream as text with a quiet "Switch" beside it (opens a
+// #781: CafeStreamBar states a resolved stream as text with an action-specific Switch beside it (opens a
 // portaled listbox, same as Select's) — or, with no default resolved at all, offers the
 // location's streams as direct one-click buttons (CafeStreamChoices) with no separate open step.
 // `startsWith` rather than an exact match because an option carries an appended tag ("— Your
@@ -154,7 +154,7 @@ function startsWith(label: string) {
 }
 
 async function chooseStream(optionName: string) {
-  const switchButton = screen.queryByRole('button', { name: /^change stream$/i })
+  const switchButton = screen.queryByRole('button', { name: /^switch (kitchen|bar)$/i })
   if (switchButton) {
     fireEvent.click(switchButton)
     fireEvent.click(await screen.findByRole('option', { name: startsWith(optionName) }))
@@ -598,7 +598,7 @@ describe('Populated state — WIP items loaded', () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
     expect(screen.queryByRole('tab')).not.toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: /log production/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Production' })).toBeInTheDocument()
   })
 
   it('shows the unitless plan quantity as a placeholder without entering it as a value', async () => {
@@ -856,27 +856,27 @@ describe('AC-744  AC-007: Café capture renders read-only for the unaffiliated',
     expect(screen.getByRole('button', { name: /report it/i })).toBeInTheDocument()
   })
 
-  // #744 review: with capture closed the footer's stream hint and tally describe a submit
-  // path the viewer cannot take — the reason line is the ONE message.
-  it('with capture closed and no stream, the stream hint and the tally are suppressed', async () => {
-    mockFetchDefaultStream.mockResolvedValue(null) // FR-002: the state that would hint
+  // #744 review: without an eligible stream, no selector can offer a truthful choice. The page
+  // keeps its read-only explanation and suppresses the submit-path tally.
+  it('with capture closed and no eligible stream, keeps the read-only state and suppresses the tally', async () => {
+    mockFetchDefaultStream.mockResolvedValue(null)
     await renderPage(UNAFFILIATED)
-    await waitFor(() => screen.getByText('Ayam Bakar'))
+    await waitFor(() => screen.getByRole('heading', { name: 'Choose a production stream to see this screen.' }))
 
-    expect(screen.queryByText(/choose a production stream/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: /production stream/i })).not.toBeInTheDocument()
     expect(screen.queryByText(/pending review/i)).not.toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent(/read café records/i)
+    expect(screen.queryByText(/\b0 items?\b/i)).not.toBeInTheDocument()
   })
 
-  it('with capture open, the same missing-stream state shows the hint but no misleading tally', async () => {
+  it('with capture open and no eligible stream, shows the empty state without a misleading tally', async () => {
     mockFetchDefaultStream.mockResolvedValue(null)
-    await renderPage() // affiliated
-    await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
+    await renderPage()
+    await waitFor(() => screen.getByRole('heading', { name: 'Choose a production stream to see this screen.' }))
 
-    // Two things now say "choose a production stream" (the top guidance and the footer's
-    // own reason) — both present is fine, but there must be no stale/misleading tally.
-    expect(screen.getAllByText(/choose a production stream/i).length).toBeGreaterThan(0)
+    expect(screen.queryByRole('group', { name: /production stream/i })).not.toBeInTheDocument()
     expect(screen.queryByText(/pending review/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/\b0 items?\b/i)).not.toBeInTheDocument()
   })
 })
 
@@ -1498,21 +1498,19 @@ describe('#3: Kitchen-and-Bar BU resolution', () => {
 
 // ── I3: S1 uses the ONE shared content PageHead (not a bespoke .kl-head) ───────
 describe('I3: shared PageHead variant="content"', () => {
-  it('renders one page title and keeps the selected stream and date on a single context line', async () => {
+  it('renders one page title, date meta, and the shared stream status row', async () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     const head = screen.getByTestId('page-head')
-    // the signed mockup .content-header chrome (icon + title + count/meta), same as S2–S5
+    // the shared content-header chrome (title + meta + status row), same as every Café route
     expect(head).toHaveClass('content-header')
-    // ONE accessible heading carrying the page title (RI-IA-1)
     const h1 = within(head).getByRole('heading', { level: 1 })
-    expect(h1).toHaveTextContent('Log production')
-    const context = head.querySelector('.cafe-capture-context') as HTMLElement
-    expect(context).toBeInTheDocument()
-    expect(context.querySelector('[data-testid="cafe-stream"]')).toBeInTheDocument()
-    expect(within(context).getByText(/^\w{3} \d{1,2} \w{3,5}$/)).toBeInTheDocument()
-    expect(head.querySelector('.page-head-meta')).toBeNull()
+    expect(h1).toHaveTextContent('Production')
+    expect(head.querySelector('.ch-meta time.cafe-page-date')).toHaveAttribute('datetime', expect.any(String))
+    const statusRow = head.querySelector('.ch-status-row') as HTMLElement
+    expect(statusRow.querySelector('[data-testid="cafe-stream"]')).toBeInTheDocument()
+    expect(head.querySelector('.cafe-capture-context')).toBeNull()
     // the bespoke hand-rolled header is gone
     expect(document.querySelector('.kl-head')).toBeNull()
   })
@@ -2172,14 +2170,14 @@ describe("AC-002 / FR-001: the capture surface opens on the person's own stream 
 })
 
 describe('FR-002: no stream-linked primary Team → an explicit stream choice is required before capture', () => {
-  it('renders the "choose stream" guidance placeholder in place of the list, fetches no stream-scoped data, and offers no Submit', async () => {
+  it('renders the shared no-default choice in place of the list, fetches no stream-scoped data, and offers no Submit', async () => {
     mockFetchDefaultStream.mockResolvedValue(null)
     await renderPage(OPS_LEAD)
-    await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
+    await waitFor(() => screen.getByRole('heading', { name: 'Choose a kitchen or bar' }))
 
     // #781 item 2 / B5: with no default resolved the head states nothing (B12 — an empty
-    // control must never sit above the page's own content), and the guidance state offers the
-    // location's own streams as direct one-click choices instead of a control to be opened first.
+    // control must never sit above the page's own content), and the shared state offers this
+    // location's streams as direct one-click choices instead of a control to be opened first.
     expect(screen.queryByTestId('cafe-stream')).toBeNull()
     const choice = screen.getByRole('button', { name: startsWith('Radiant · Bar') })
     expect(choice).toBeInTheDocument()
@@ -2187,8 +2185,7 @@ describe('FR-002: no stream-linked primary Team → an explicit stream choice is
     expect(mockFetchPlanMap).not.toHaveBeenCalled()
     expect(mockFetchStockMap).not.toHaveBeenCalled()
     expect(mockFetchActualsMap).not.toHaveBeenCalled()
-    // Nothing can be staged without a stream, so the action bar is absent: the placeholder is the
-    // one message, and there is no Submit to press.
+    // Nothing can be staged without a stream, so the action bar is absent and there is no Submit.
     expect(screen.queryByText(/choose a production stream before submitting/i)).toBeNull()
     expect(screen.queryByRole('button', { name: /^submit/i })).toBeNull()
     // Nothing that LOOKS like an editable quantity field is rendered until a stream makes it
@@ -2202,11 +2199,11 @@ describe('FR-002: no stream-linked primary Team → an explicit stream choice is
     await waitFor(() => screen.getByText('Nasi Goreng'))
   })
 
-  it('choosing a stream from the picker loads it and capture proceeds against the chosen pair', async () => {
+  it('choosing a stream from the shared choice loads it and capture proceeds against the chosen pair', async () => {
     mockFetchDefaultStream.mockResolvedValue(null)
     mockInsertKitchenLogBatch.mockResolvedValue(['log-001'])
     await renderPage(OPS_LEAD)
-    await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
+    await waitFor(() => screen.getByRole('heading', { name: 'Choose a kitchen or bar' }))
 
     await chooseStream('Radiant · Bar')
     await waitFor(() => screen.getByText('Nasi Goreng'))
@@ -2245,7 +2242,7 @@ describe('FR-002: no stream-linked primary Team → an explicit stream choice is
       },
     ])
     await renderPage()
-    await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
+    await waitFor(() => screen.getByRole('heading', { name: 'Choose a kitchen or bar' }))
 
     // Nothing preselected — the office Team is still not a stream.
     expect(screen.queryByText('Nasi Goreng')).toBeNull()
@@ -2258,7 +2255,7 @@ describe('FR-002: no stream-linked primary Team → an explicit stream choice is
   })
 })
 
-// OD-CAFE-6: Log's default follows the shared ladder, and it LOOKS like Plan — heading + Change.
+// OD-CAFE-6: Log's default follows the shared ladder, and it uses the shared title/stream grammar.
 describe('OD-CAFE-6: Log opens by the one stream rule, with one look', () => {
   const sole = {
     id: 'team-ghq-kitchen', name: 'Gordi HQ Kitchen', business_unit_id: 'bu-1', site_id: null,
@@ -2272,7 +2269,7 @@ describe('OD-CAFE-6: Log opens by the one stream rule, with one look', () => {
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     expect(within(screen.getByTestId('cafe-stream')).getByText('Gordi HQ · Kitchen')).toBeInTheDocument()
-    expect(screen.queryByText(/choose a production stream to start logging/i)).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Choose a kitchen or bar' })).toBeNull()
     expect(mockFetchPlanMap.mock.calls[0][1]).toMatchObject({ branch: BRANCH_GORDI_HQ, activity: 'kitchen' })
   })
 
@@ -2283,15 +2280,14 @@ describe('OD-CAFE-6: Log opens by the one stream rule, with one look', () => {
     expect(within(screen.getByTestId('cafe-stream')).getByText('Rumah Rames · Kitchen')).toBeInTheDocument()
   })
 
-  it('shows the stream as a heading with a Change link — no "Stream:" label, no "Switch"', async () => {
+  it('shows the stream as a heading with an action-specific Switch — no "Stream:" label', async () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     const bar = screen.getByTestId('cafe-stream')
     expect(within(bar).getByRole('heading', { name: 'Rumah Rames · Kitchen' })).toBeInTheDocument()
-    expect(within(bar).getByRole('button', { name: /^change stream$/i })).toHaveTextContent('Change')
+    expect(within(bar).getByRole('button', { name: /^switch kitchen$/i })).toHaveTextContent('Switch kitchen')
     expect(within(bar).queryByText(/^stream:?$/i)).toBeNull()
-    expect(screen.queryByRole('button', { name: /^switch/i })).toBeNull()
   })
 })
 
@@ -2368,7 +2364,7 @@ describe('FR-005: the picker offers exactly the catalog pairs it is given — th
     await renderPage(OPS_LEAD)
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
-    fireEvent.click(screen.getByRole('button', { name: /^change stream$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^switch kitchen$/i }))
     const listbox = screen.getByRole('listbox')
     const options = within(listbox).getAllByRole('option')
     // Exactly STREAM_PAIRS minus the stream already in view — no placeholder (a default
@@ -2563,7 +2559,7 @@ describe('stale-response race: an older stream fetch resolving LAST never lands 
 
     // While switch #1 is in flight the Switch action MUST stay mounted (FR-003 — a slow
     // stream is never a dead end; getByRole throws here if the switch unmounts it).
-    const switchDuringLoad = screen.getByRole('button', { name: /^change stream$/i })
+    const switchDuringLoad = screen.getByRole('button', { name: /^switch bar$/i })
 
     // Switch #2 → (Gordi HQ, kitchen): the LATEST read — resolves immediately (w2 → 33).
     mockFetchPlanMap.mockResolvedValueOnce({ w2: { [PRODUCE_KEY]: 33 } })
@@ -2649,7 +2645,7 @@ describe('AC-007: destinations cover both movement classes from both activity su
   it('AC-007: with no resolved stream (FR-002) nothing is intra-branch yet, so no option is qualified', async () => {
     mockFetchDefaultStream.mockResolvedValue(null)
     await renderTransferPage()
-    await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
+    await waitFor(() => screen.getByRole('heading', { name: 'Choose a production stream to see this screen.' }))
 
     expect(screen.queryByRole('tab')).toBeNull()
     expect(screen.queryByRole('tablist')).toBeNull()
@@ -2717,7 +2713,7 @@ function cafeDocTitle(leaf: keyof typeof messages.en): string {
 describe('issue 455: document title', () => {
   it('titles the tab from the Café nav label, not the retired kitchen one', async () => {
     await renderPage()
-    await waitFor(() => expect(document.title).toBe(cafeDocTitle('nav.cafe.production')))
+    await waitFor(() => expect(document.title).toBe(cafeDocTitle('cafe.pageTitle.production')))
   })
 })
 
@@ -3052,9 +3048,9 @@ describe('OD-CAFE-1 — the production picker is bounded by the active location'
 
   it('offers only the active location’s streams, not every branch’s', async () => {
     await renderPage(VIEWER_MEMBER, appUrl('/cafe'), HQ)
-    // The remembered default (Rumah Rames) is outside HQ, so this opens on the no-stream
-    // guidance state (OD-CAFE-1) — the one-step choice itself is still reachable (#781 item 2).
-    await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
+    // The remembered default (Rumah Rames) is outside HQ, so this opens on the shared no-stream
+    // choice state (OD-CAFE-1), still reachable through direct one-click choices.
+    await waitFor(() => screen.getByRole('heading', { name: 'Choose a kitchen or bar' }))
 
     const group = screen.getByRole('group', { name: /production stream/i })
     const offered = within(group).getAllByRole('button').map(o => o.textContent?.trim() ?? '')
@@ -3068,7 +3064,7 @@ describe('OD-CAFE-1 — the production picker is bounded by the active location'
   it('treats a remembered stream from another location as stale, and says which location this is', async () => {
     // The person's own default stream is Rumah Rames; they are standing at Gordi HQ.
     await renderPage(VIEWER_MEMBER, appUrl('/cafe'), HQ)
-    await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
+    await waitFor(() => screen.getByRole('heading', { name: 'Choose a kitchen or bar' }))
 
     // #781/B12: with nothing resolved the head states NOTHING — not silently re-pointed at an
     // HQ stream, and not left showing Rumah Rames either.
@@ -3115,11 +3111,11 @@ describe('OD-CAFE-1 — the root Log is location-bound without the Opening wrapp
     is_primary: false, branch_id: branchId, activity, effective_to: null,
   })
 
-  it('home stream names the location: Change offers only that location’s other streams', async () => {
+  it('home stream names the location: Switch offers only that location’s other streams', async () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
-    fireEvent.click(screen.getByRole('button', { name: /^change stream$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^switch kitchen$/i }))
     const offered = labels(await screen.findAllByRole('option'))
     expect(offered).toEqual(['Rumah Rames · Bar'])
   })
@@ -3130,7 +3126,7 @@ describe('OD-CAFE-1 — the root Log is location-bound without the Opening wrapp
       team(BRANCH_RUMAH_RAMES.id, 'kitchen'), team(BRANCH_RUMAH_RAMES.id, 'bar'),
     ])
     await renderPage()
-    await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
+    await waitFor(() => screen.getByRole('heading', { name: 'Choose a kitchen or bar' }))
     expect(document.querySelector('.msr')).toBeNull()
 
     const group = screen.getByRole('group', { name: /production stream/i })
@@ -3145,7 +3141,7 @@ describe('OD-CAFE-1 — the root Log is location-bound without the Opening wrapp
       team(BRANCH_RUMAH_RAMES.id, 'kitchen'), team(BRANCH_GORDI_HQ.id, 'bar'),
     ])
     await renderPage()
-    await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
+    await waitFor(() => screen.getByRole('heading', { name: 'Choose a kitchen or bar' }))
 
     const group = screen.getByRole('group', { name: /production stream/i })
     const offered = labels(within(group).getAllByRole('button')).map(label => label.replace(/Your Team$/, '').trim())
@@ -3156,7 +3152,7 @@ describe('OD-CAFE-1 — the root Log is location-bound without the Opening wrapp
     mockFetchDefaultStream.mockResolvedValue({ branch: BRANCH_RADIANT, activity: 'bar', produces: true })
     rememberCafeLocation(PERSON, { branchId: BRANCH_RUMAH_RAMES.id, branchName: BRANCH_RUMAH_RAMES.name })
     await renderPage()
-    await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
+    await waitFor(() => screen.getByRole('heading', { name: 'Choose a kitchen or bar' }))
 
     expect(screen.queryByText('Ayam Bakar')).toBeNull()
     const group = screen.getByRole('group', { name: /production stream/i })
@@ -3171,7 +3167,7 @@ describe('OD-CAFE-1 — the root Log is location-bound without the Opening wrapp
     expect(activeCafeLocation(PERSON)?.branchId).not.toBe(BRANCH_RADIANT.id)
 
     // Another location's stream is marked as such before it is chosen.
-    fireEvent.click(screen.getByRole('button', { name: /^change stream$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^switch kitchen$/i }))
     expect(labels(await screen.findAllByRole('option'))).toContain('Radiant · Bar — Other location')
     fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
 
@@ -3180,7 +3176,7 @@ describe('OD-CAFE-1 — the root Log is location-bound without the Opening wrapp
 
     expect(activeCafeLocation(PERSON)?.branchId).toBe(BRANCH_RADIANT.id)
     // The picker is now bounded to the NEW location: Radiant's other stream, plus other locations.
-    fireEvent.click(screen.getByRole('button', { name: /^change stream$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^switch bar$/i }))
     const offered = labels(await screen.findAllByRole('option'))
     expect(offered).toContain('Radiant · Kitchen — Receiving only')
     expect(offered).not.toContain('Radiant · Bar')
@@ -3189,7 +3185,7 @@ describe('OD-CAFE-1 — the root Log is location-bound without the Opening wrapp
   it('a person with no Team at another branch is not offered it (no silent mixing)', async () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
-    fireEvent.click(screen.getByRole('button', { name: /^change stream$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^switch kitchen$/i }))
     const offered = labels(await screen.findAllByRole('option'))
     expect(offered.some(label => /Radiant|Gordi HQ/.test(label))).toBe(false)
   })

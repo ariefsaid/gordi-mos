@@ -1,7 +1,7 @@
 /* ════════════════════════════════════════════════════════════════════════════
-   Kitchen Log capture (OD-K-5 redesign) — full-bleed responsive capture surface.
+   Kitchen Log capture (OD-K-5 redesign) — responsive capture surface.
    Design authority: docs/plans/2026-06-21-kitchen-log-redesign.md (§8).
-   PageFrame variant="data" (full-bleed, no cap). ONE branch in the DOM: the
+   The shared Café frame owns the 1180px measure. ONE branch in the DOM: the
    useIsDesktop() branch (the shared <DataTable>) + ONE sticky footer.
    Token-only (DESIGN.md); spacing in px (sibling kitchen idiom). All `kl-*` classes
    owned here (C1 namespace guard — no other kitchen .css may define them).
@@ -113,15 +113,6 @@
   line-height: 1.25;
 }
 .kl-summary-unavailable { margin-top: 4px; }
-
-/* ── log date chip in the PageHead meta slot ── */
-.kl-date {
-  font-size: var(--font-size-mono);
-  color: var(--muted-foreground);
-  background: var(--muted);
-  padding: 2px 8px;
-  border-radius: var(--radius-sm);
-}
 
 /* ── Banners (offline / submit-error / success) ── */
 .kl-banner {
@@ -634,46 +625,18 @@
   color: var(--status-won-text);
 }
 
-/* Shared capture chrome for Log, Transfer and Waste. */
-.page-frame--v3:has(.cafe-capture-head) {
+/* Capture pages fill the available height for their sticky action footer without overriding
+   the shared Café gutters or the 1180px readable measure. */
+.page-frame--v3:has(.cafe-capture-content) {
   display: flex;
   flex-direction: column;
-  padding-inline: 16px;
   padding-bottom: 0;
 }
 
-.page-frame--v3:has(.cafe-capture-head) > .page-frame__content {
+.page-frame--v3:has(.cafe-capture-content) > .page-frame__content {
   display: flex;
   flex: 1 0 auto;
   flex-direction: column;
-  max-width: none;
-}
-
-/* Capture owns its visible page title; keep the breadcrumb ancestors as navigation. */
-.h-dvh:has(.cafe-capture-head) .top-bar__breadcrumb-leaf { display: none; }
-.h-dvh:has(.cafe-capture-head) .top-bar__breadcrumb-fixed:last-of-type > [aria-hidden] { display: none; }
-
-.cafe-capture-head.content-header { align-items: baseline; }
-
-.cafe-capture-context {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 4px 8px;
-  min-width: 0;
-  font-size: var(--font-size-control);
-}
-.cafe-capture-context .cafe-stream { width: auto; align-items: baseline; }
-.cafe-capture-context .cafe-stream__value--heading {
-  font-size: var(--font-size-control);
-  font-weight: 400;
-}
-.cafe-capture-context .kl-date {
-  padding: 0;
-  border-radius: 0;
-  background: transparent;
-  font-size: inherit;
-  white-space: nowrap;
 }
 
 /* Grow the existing flow to the scrollport height, so short and long lists share one footer. */

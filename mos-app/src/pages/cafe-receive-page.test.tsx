@@ -109,7 +109,7 @@ describe('CafeReceivePage', () => {
     renderPage()
     await screen.findByRole('textbox', { name: 'Received for Coffee bean' })
     expect(mockItems).toHaveBeenCalledWith(streamMocks.kitchen)
-    fireEvent.click(screen.getByRole('button', { name: /^change stream$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^switch kitchen$/i }))
     expect(screen.getByRole('option', { name: /Cafe Branch · Bar/ })).toBeInTheDocument()
   })
 
@@ -117,7 +117,7 @@ describe('CafeReceivePage', () => {
     streamMocks.catalog.stream = null
     streamMocks.catalog.homeStream = null
     renderPage()
-    expect(await screen.findByText('Choose the Café stream receiving this delivery.')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Choose a kitchen or bar' })).toBeInTheDocument()
     fireEvent.click(within(screen.getByRole('group', { name: /stream/i })).getAllByRole('button')[0])
     expect(streamMocks.setStream).toHaveBeenCalledTimes(1)
     expect(mockItems).not.toHaveBeenCalled()

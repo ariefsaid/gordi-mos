@@ -29,8 +29,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { PageFamilyFrame } from '@/shell/page-family-frame'
-import { useDocumentTitle } from '@/shell/use-document-title'
+import { CafePageFrame } from '@/components/kitchen/cafe-page-frame'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
@@ -42,7 +41,7 @@ import { streamLabel } from '@/lib/kitchen-action-label'
 import { kitchenCategoryLabel } from '@/lib/kitchen-category-label'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
-import { CafeStreamBar, CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
+import { CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
 import { MetricSummaryRule } from '@/components/kitchen/metric-summary-rule'
 import { DataProvenanceNote } from '@/components/ui/data-provenance-note'
@@ -77,10 +76,6 @@ export function KitchenStockPage() {
 
 function KitchenStockPageForViewer() {
   const t = useT()
-  // issue 455: the tab names the module the rail and breadcrumb name; leaf-first per
-  // the catalog's own docTitle convention (tasks-layout, signals-archive).
-  useDocumentTitle(t('common.docTitle', { page: `${t('nav.cafe.stock')} · ${t('nav.cafe')}` }))
-  const pageTitle = `${t('dest.cafe')} · ${t('nav.cafe.stock')}`
   const auth = useAuth()
 
   const [asOf] = useState(wibToday) // today WIB (date stepper deferred — owner OQ-7)
@@ -214,19 +209,19 @@ function KitchenStockPageForViewer() {
   // ── Auth loading / unauth ──────────────────────────────────────────────────
   if (auth.status === 'loading') {
     return (
-      <PageFamilyFrame family="workspace" title={pageTitle} jobSentence={t('job.cafe')} state="loading">
+      <CafePageFrame page="stock" streamBar={{ options: [], stream: null, onChange: () => undefined }} state="loading">
         <LoadingShell count={3} />
-      </PageFamilyFrame>
+      </CafePageFrame>
     )
   }
   if (auth.status === 'unauthenticated' || auth.status === 'orphan') {
     return (
-      <PageFamilyFrame family="workspace" title={pageTitle} jobSentence={t('job.cafe')} state="permission">
+      <CafePageFrame page="stock" streamBar={{ options: [], stream: null, onChange: () => undefined }} state="permission">
         <div className="ks-block ks-forbidden">
           <p className="ks-forbidden-msg">{t('kitchen.stock.signInMsg')}</p>
           <Link to="/login" className="btn btn-primary">{t('common.signIn')}</Link>
         </div>
-      </PageFamilyFrame>
+      </CafePageFrame>
     )
   }
 
@@ -235,24 +230,19 @@ function KitchenStockPageForViewer() {
   // very stream that has nothing to show) and a picker that unmounts during the re-read makes
   // rapid correction impossible — both violate FR-003. The generation guard above is what
   // makes rapid switching safe to allow.
-  const streamHead = (
-    <CafeStreamBar
-      options={locationOptions}
-      stream={stream}
-      homeStream={homeStream}
-      myStreamKeys={myStreamKeys}
-      onChange={next => { void applyStream(next) }}
-    />
-  )
+  const streamBar = {
+    options: locationOptions,
+    stream,
+    homeStream,
+    myStreamKeys,
+    onChange: (next: ProductionStream) => { void applyStream(next) },
+  }
 
   return (
-    <PageFamilyFrame
-      family="workspace"
-      title={pageTitle}
-      statusRow={streamHead}
-      // B9: one date format across Log/Plan/Stock heads — Stock used to print the raw ISO
-      // date (`2026-09-24`) while Log/Plan already read "Thu 24 Sept".
-      meta={<span className="ks-date tabular">{formatWeekdayDayMonth(asOf)}</span>}
+    <CafePageFrame
+      page="stock"
+      date={asOf}
+      streamBar={streamBar}
       state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : rows.length === 0 ? 'empty' : 'read-only'}
     >
       {/* FR-027: one summary line only — no tile strip and no second "no entries" note. */}
@@ -280,14 +270,12 @@ function KitchenStockPageForViewer() {
           head has nothing to state, so the one-step choice renders here instead of a table of
           nothing under an em dash. */}
       {load.kind === 'ready' && stream === null && (
-        <EmptyState variant="next-step" title={t('cafe.stream.none')}>
-          <CafeStreamChoices
-            options={locationOptions}
-            homeStream={homeStream}
-            myStreamKeys={myStreamKeys}
-            onChoose={next => { void applyStream(next) }}
-          />
-        </EmptyState>
+        <CafeStreamChoices
+          options={locationOptions}
+          homeStream={homeStream}
+          myStreamKeys={myStreamKeys}
+          onChoose={next => { void applyStream(next) }}
+        />
       )}
 
       {((load.kind === 'ready' && stream !== null) || (load.kind === 'loading' && streamOptions.length > 0)) && (
@@ -321,6 +309,6 @@ function KitchenStockPageForViewer() {
           )}
         </div>
       )}
-    </PageFamilyFrame>
+    </CafePageFrame>
   )
 }

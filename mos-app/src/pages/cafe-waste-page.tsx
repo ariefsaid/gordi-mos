@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { PageFamilyFrame } from '@/shell/page-family-frame'
-import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useIsWide } from '@/shell/use-is-wide'
 import { useAuth } from '@/auth/use-auth'
@@ -23,7 +21,7 @@ import {
 import type { KitchenWasteDraft, KitchenWastePhoto } from '@/lib/db/kitchen-waste-photos'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { wibToday } from '@/lib/db/cafe-opening'
-import { formatDayMonthYear, formatWeekdayDayMonth } from '@/lib/format/date'
+import { formatDayMonthYear } from '@/lib/format/date'
 import { useSearchParamState } from '@/lib/use-search-param-state'
 import {
   useKitchenItemTable,
@@ -34,7 +32,8 @@ import {
 import { kitchenCategoryLabel } from '@/lib/kitchen-category-label'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { ReportMissingItem } from '@/components/kitchen/report-missing-item'
-import { CafeStreamBar, CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
+import { CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
+import { CafePageFrame } from '@/components/kitchen/cafe-page-frame'
 import { WastePhotoCapture } from '@/components/kitchen/waste-photo-capture'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
 import { Select } from '@/components/ui/select'
@@ -116,9 +115,6 @@ export function CafeWastePage() {
   const isDesktop = useIsDesktop()
   const isWide = useIsWide()
   const logDate = useMemo(() => wibToday(), [])
-  const pageLabel = t('nav.cafe.waste')
-  useDocumentTitle(t('common.docTitle', { page: `${pageLabel} · ${t('nav.cafe')}` }))
-
   const cafeStream = useCafeStream()
   const {
     options: streamOptions,
@@ -500,21 +496,15 @@ export function CafeWastePage() {
     setStream(next)
   }
 
-  const streamPicker = (
-    <CafeStreamBar
-      options={[...locationStreams, ...otherLocationStreams]}
-      locationBranchId={locationId}
-      stream={stream}
-      homeStream={homeStream}
-      myStreamKeys={myStreamKeys}
-      onChange={selectStream}
-      disabled={submitting || hasPendingCapture}
-      context={<>
-        <span aria-hidden="true">·</span>
-        <span className="kl-date tabular">{formatWeekdayDayMonth(logDate)}</span>
-      </>}
-    />
-  )
+  const streamBar = {
+    options: [...locationStreams, ...otherLocationStreams],
+    locationBranchId: locationId,
+    stream,
+    homeStream,
+    myStreamKeys,
+    onChange: selectStream,
+    disabled: submitting || hasPendingCapture,
+  }
 
   const columns: DataTableColumn<WasteRow>[] = [
     {
@@ -577,21 +567,9 @@ export function CafeWastePage() {
   const state = loadState === 'loading' ? 'loading' : loadState === 'error' ? 'error'
     : submitting ? 'saving' : allSubmitted ? 'saved' : !canCapture ? 'read-only' : 'default'
 
-  const captureContext = (
-    <div className="cafe-capture-context">
-      {streamPicker}
-      {stream === null && <span className="kl-date tabular">{formatWeekdayDayMonth(logDate)}</span>}
-    </div>
-  )
-
   return (
-    <PageFamilyFrame
-      family="workspace"
-      title={pageLabel}
-      headClassName="cafe-capture-head"
-      statusRow={captureContext}
-      state={state}
-    >
+    <CafePageFrame page="waste" date={logDate} streamBar={streamBar} state={state}>
+
       <div className="kl-page cwl-page kl-capture-wide cafe-capture-content">
         <div className="kl-capture-main">
         <RouteLeaveGuard when={remaining.length > 0} message={t('kitchen.log.leave.confirm')} />
@@ -607,19 +585,13 @@ export function CafeWastePage() {
         )}
 
         {loadState === 'ready' && !stream && (
-          <EmptyState
-            variant="next-step"
-            title={t('kitchen.waste.noStream.title')}
-            copy={t('kitchen.waste.noStream.copy')}
-          >
-            <CafeStreamChoices
-              options={locationStreams}
-              homeStream={homeStream}
-              myStreamKeys={myStreamKeys}
-              onChoose={selectStream}
-              disabled={submitting}
-            />
-          </EmptyState>
+          <CafeStreamChoices
+            options={locationStreams}
+            homeStream={homeStream}
+            myStreamKeys={myStreamKeys}
+            onChoose={selectStream}
+            disabled={submitting}
+          />
         )}
 
         {loadState === 'ready' && stream && (
@@ -775,7 +747,7 @@ export function CafeWastePage() {
           </aside>
         )}
       </div>
-    </PageFamilyFrame>
+    </CafePageFrame>
   )
 }
 

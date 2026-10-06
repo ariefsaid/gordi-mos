@@ -250,16 +250,16 @@ describe('CafeWastePage', () => {
   it('loading shows the page label once without repeating the café context', async () => {
     mockListCafeItemSettings.mockReturnValue(new Promise(() => {}))
     renderPage()
-    await screen.findByRole('heading', { name: 'Log waste' })
-    expect(screen.getAllByRole('heading', { name: 'Log waste' })).toHaveLength(1)
-    expect(screen.queryByRole('heading', { name: 'Café · Log waste' })).toBeNull()
+    await screen.findByRole('heading', { name: 'Waste' })
+    expect(screen.getAllByRole('heading', { name: 'Waste' })).toHaveLength(1)
+    expect(screen.queryByRole('heading', { name: 'Café · Waste' })).toBeNull()
   })
 
   it('lists RAW and WIP MOS names with their configured default and shown units', async () => {
     renderPage()
 
     expect(await screen.findByText('Oat Latte')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Log waste' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Waste' })).toBeInTheDocument()
     expect(screen.getByText('WIP', { exact: true })).toBeInTheDocument()
     expect(screen.getByText('Oat Latte')).toBeInTheDocument()
     expect(screen.getByText('RAW', { exact: true })).toBeInTheDocument()

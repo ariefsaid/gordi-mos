@@ -112,10 +112,10 @@ describe('AC-063/AC-064: Café pages stay Indonesian end to end', () => {
   })
 
   it.each([
-    // OD-CAFE-6: every Café head is the stream-name heading plus a Change link, no "Stream" label.
-    ['id', ENGLISH_TOKENS, 'Ganti', 'Kirim Log', 'Ayam', 'Stok'],
-    ['en', INDONESIAN_TOKENS, 'Change', 'Pushes', 'Chicken', 'Stock'],
-  ] as const)('renders every stream-resolved page in the %s catalog', async (locale, denyList, changeWord, pushesWord, categoryLabel, stockLabel) => {
+    // OD-CAFE-6: every Café head uses a stream-name heading plus its localized Switch action.
+    ['id', ENGLISH_TOKENS, 'Ganti dapur', 'Pengiriman', 'Ayam', 'Stok'],
+    ['en', INDONESIAN_TOKENS, 'Switch kitchen', 'Pushes', 'Chicken', 'Stock'],
+  ] as const)('renders every stream-resolved page in the %s catalog', async (locale, denyList, switchLabel, pushesWord, categoryLabel, stockLabel) => {
     for (const [name, Page] of pages) {
       const originalMatchMedia = window.matchMedia
       if (name === 'Pushes') {
@@ -132,7 +132,7 @@ describe('AC-063/AC-064: Café pages stay Indonesian end to end', () => {
       expect(bar.queryByText(/^stream:?$/i)).toBeNull()
       if (name === 'Plan') {
         expect(bar.getByRole('heading', { level: 2, name: /Rumah Rames/ })).toBeInTheDocument()
-        expect(bar.getByRole('button', { name: /^(change|ganti) stream$/i })).toHaveTextContent(changeWord)
+        expect(bar.getByRole('button', { name: switchLabel })).toHaveTextContent(switchLabel)
       }
       if (name === 'Plan') expect(container.querySelector('.dt-group-label, .dt-cards-group-label')?.textContent).toContain(categoryLabel)
       if (name === 'Log') expect(container.textContent).toContain(stockLabel)

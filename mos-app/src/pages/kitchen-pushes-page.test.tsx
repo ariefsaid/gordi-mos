@@ -767,6 +767,6 @@ describe('issue 455: document title', () => {
   it('titles the tab from the Café nav label, not the retired kitchen one', async () => {
     mockListPushes.mockResolvedValue([])
     render(<KitchenPushesPage />)
-    await waitFor(() => expect(document.title).toBe(cafeDocTitle('nav.cafe.pushes')))
+    await waitFor(() => expect(document.title).toBe(cafeDocTitle('cafe.pageTitle.pushes')))
   })
 })

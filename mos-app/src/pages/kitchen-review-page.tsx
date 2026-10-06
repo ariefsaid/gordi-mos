@@ -2,8 +2,7 @@ import { ListPaging } from '@/components/ui/list-paging'
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { PageFamilyFrame } from '@/shell/page-family-frame'
-import { useDocumentTitle } from '@/shell/use-document-title'
+import { CafePageFrame } from '@/components/kitchen/cafe-page-frame'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
@@ -55,12 +54,11 @@ import { DataTable } from '@/components/dashboard/data-table'
 import type { DataTableColumn, DataTableGroup } from '@/components/dashboard/data-table'
 import { MetricSummaryRule } from '@/components/kitchen/metric-summary-rule'
 // #440: the ONE Café stream statement/picker, and the module-wide selection it writes to.
-import { CafeStreamBar, ALL_STREAMS } from '@/components/kitchen/cafe-stream-bar'
+import { ALL_STREAMS } from '@/components/kitchen/cafe-stream-bar'
 import { CafeCountReviewQueue } from '@/components/kitchen/cafe-count-review-queue'
 import { rememberStream, rememberedStreamKey } from '@/lib/cafe-stream'
 import { activeCafeLocation } from '@/lib/cafe-opening-location'
 import { useReviewSummary } from '@/lib/kitchen-review-kpis'
-import { formatWeekdayDayMonth } from '@/lib/format/date'
 import { formatUnitMultiple } from '@/lib/cafe-unit-multiples'
 import './kitchen-review-page.css'
 
@@ -387,10 +385,6 @@ export function KitchenReviewPage() {
 
 function KitchenReviewPageForViewer() {
   const t = useT()
-  // issue 455: the tab names the module the rail and breadcrumb name; leaf-first per
-  // the catalog's own docTitle convention (tasks-layout, signals-archive).
-  useDocumentTitle(t('common.docTitle', { page: `${t('nav.cafe.review')} · ${t('nav.cafe')}` }))
-  const pageTitle = `${t('dest.cafe')} · ${t('nav.cafe.review')}`
   const auth = useAuth()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
 
@@ -1037,31 +1031,31 @@ function KitchenReviewPageForViewer() {
 
   if (auth.status === 'loading') {
     return (
-      <PageFamilyFrame family="workspace" title={pageTitle} jobSentence={t('job.cafe')} state="loading">
+      <CafePageFrame page="review" streamBar={{ options: [], stream: null, allStreams: true }} state="loading">
         <LoadingShell count={3} />
-      </PageFamilyFrame>
+      </CafePageFrame>
     )
   }
   if (auth.status === 'unauthenticated' || auth.status === 'orphan') {
     return (
-      <PageFamilyFrame family="workspace" title={pageTitle} jobSentence={t('job.cafe')} state="permission">
+      <CafePageFrame page="review" streamBar={{ options: [], stream: null, allStreams: true }} state="permission">
         <div className="kr-block kr-forbidden">
           <p className="kr-forbidden-msg">{t('kitchen.review.signInMsg')}</p>
           <Link to="/login" className="btn btn-primary">{t('common.signIn')}</Link>
         </div>
-      </PageFamilyFrame>
+      </CafePageFrame>
     )
   }
 
   if (!allowed) {
     return (
-      <PageFamilyFrame family="workspace" title={pageTitle} jobSentence={t('job.cafe')} state="permission">
+      <CafePageFrame page="review" streamBar={{ options: [], stream: null, allStreams: true }} state="permission">
         <div className="kr-block kr-forbidden" role="region" aria-label={t('kitchen.review.restrictedAria')}>
           <p className="kr-forbidden-title">{t('kitchen.review.leadsOnly')}</p>
           <p className="kr-forbidden-msg">{t('kitchen.review.leadsOnlyMsg')}</p>
           <Link to="/cafe" className="btn btn-outline">{t('kitchen.review.backToLog')}</Link>
         </div>
-      </PageFamilyFrame>
+      </CafePageFrame>
     )
   }
 
@@ -1117,9 +1111,8 @@ function KitchenReviewPageForViewer() {
     : null
 
   return (
-    <PageFamilyFrame
-      family="workspace"
-      title={pageTitle}
+    <CafePageFrame
+      page="review"
       /* #236 (FR-041) + #440: the queue's stream — a supervisor opens on their own, ops_lead/
          admin cross-stream, and a stream chosen elsewhere in Café outranks both; either can move
          it. It reads in the head now, like every other Café surface, instead of as a filter chip
@@ -1127,23 +1120,18 @@ function KitchenReviewPageForViewer() {
          "All streams" stays a first-class choice here — reviewing across streams is this
          surface's job (OD-WAY-48), and it is the one Café surface that has one. Display scoping
          only (NFR-002: the decision contract is the server's). */
-      statusRow={
-        <CafeStreamBar
-          options={streamCatalog}
-          stream={selectedStream}
-          allStreams={streamFilter === ALL_STREAMS}
-          onChange={next => {
-            setStreamFilter(streamKey(next.branch.id, next.activity))
-            // Review is the one deliberately cross-stream surface (OD-WAY-48), so it does NOT
-            // claim a location. It still records against the chosen stream's OWN branch rather
-            // than the location-agnostic slot, so a look at another branch's queue here cannot
-            // decide which books Log opens on.
-            rememberStream(next, viewerId, next.branch.id)
-          }}
-          onAllStreams={() => setStreamFilter(ALL_STREAMS)}
-        />
-      }
-      meta={<span className="kr-date tabular">{formatWeekdayDayMonth(logDate)}</span>}
+      streamBar={{
+        options: streamCatalog,
+        stream: selectedStream,
+        allStreams: streamFilter === ALL_STREAMS,
+        onChange: next => {
+          setStreamFilter(streamKey(next.branch.id, next.activity))
+          // Review deliberately does not claim a location, but remembers the selected stream's
+          // branch so other Café surfaces can still preserve their own location selection.
+          rememberStream(next, viewerId, next.branch.id)
+        },
+        onAllStreams: () => setStreamFilter(ALL_STREAMS),
+      }}
       state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : submittedCount === 0 ? 'empty' : 'default'}
     >
       <CafeCountReviewQueue
@@ -1239,6 +1227,6 @@ function KitchenReviewPageForViewer() {
       {load.kind === 'ready' ? <ListPaging count={visibleLogs.length} hasMore={hasMore}
         loading={loadingMore} error={moreError} onLoadMore={() => { void loadMore() }} /> : null}
       {completenessRow}
-    </PageFamilyFrame>
+    </CafePageFrame>
   )
 }

@@ -86,6 +86,25 @@ describe('PAGE_FAMILY_FRAME_ROUTES (#191)', () => {
       symbol: 'CafeCountPage',
     })
   })
+
+  it('every classified Café page route uses the one CafePageFrame composition', () => {
+    const cafeRoutes = collectClassifiedRoutes(routeConfig)
+      .filter(({ path, handle }) => (path === '/cafe' || path.startsWith('/cafe/')) && handle.kind === 'page')
+      .map(route => route.path)
+      .sort()
+    const registeredCafeRoutes = PAGE_FAMILY_FRAME_ROUTES
+      .filter(route => route.path === '/cafe' || route.path.startsWith('/cafe/'))
+      .map(route => route.path)
+      .sort()
+
+    expect(registeredCafeRoutes, 'every live Café page must be covered by the frame registry').toEqual(cafeRoutes)
+    for (const route of PAGE_FAMILY_FRAME_ROUTES.filter(entry => entry.path === '/cafe' || entry.path.startsWith('/cafe/'))) {
+      const source = readFileSync(join(SRC, route.sourceFile), 'utf8')
+      expect(source, `${route.path} must use CafePageFrame`).toContain('<CafePageFrame')
+      expect(source, `${route.path} must not build a private PageFamilyFrame`).not.toContain('<PageFamilyFrame')
+      expect(source, `${route.path} must not render a private PageHead`).not.toContain('<PageHead')
+    }
+  })
 })
 
 /**
@@ -110,9 +129,13 @@ describe('issue 270 — the registry describes the pages that really render the 
       expect(src, `${sourceFile} does not export ${symbol}`).toMatch(
         new RegExp(`export\\s+(function|const)\\s+${symbol}\\b`),
       )
-      // And the file must genuinely render the frame: that is the claim the entry makes, and
-      // without it ContextRow falls silent with nothing replacing the sentence.
-      expect(src, `${sourceFile} renders no PageFamilyFrame`).toContain('PageFamilyFrame')
+      // Café pages compose the inner PageFamilyFrame through CafePageFrame; other routes render
+      // PageFamilyFrame directly. In either case this entry must point at a real shared frame.
+      if (_path === '/cafe' || _path.startsWith('/cafe/')) {
+        expect(src, `${sourceFile} renders no CafePageFrame`).toContain('<CafePageFrame')
+      } else {
+        expect(src, `${sourceFile} renders no PageFamilyFrame`).toContain('PageFamilyFrame')
+      }
     },
   )
 

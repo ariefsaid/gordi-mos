@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
-import { CafeStreamBar, CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
+import { CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
+import { CafePageFrame } from '@/components/kitchen/cafe-page-frame'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { useT } from '@/i18n/use-t'
 import { canCaptureCafe } from '@/lib/cafe-affiliation'
@@ -15,10 +16,7 @@ import {
 import { wibToday } from '@/lib/db/cafe-opening'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { useCafeStream } from '@/lib/use-cafe-stream'
-import { PageFamilyFrame } from '@/shell/page-family-frame'
-import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsOffline } from '@/shell/use-is-offline'
-import { formatWeekdayDayMonth } from '@/lib/format/date'
 import './cafe-count-page.css'
 
 type CountEntry = {
@@ -57,9 +55,6 @@ export function CafeCountPage() {
     accessRoles: auth.viewer.accessRoles,
   })
   const logDate = useMemo(() => wibToday(), [])
-  const pageLabel = t('nav.cafe.count')
-  useDocumentTitle(t('common.docTitle', { page: `${pageLabel} · ${t('nav.cafe')}` }))
-
   const [catalogReady, setCatalogReady] = useState(false)
   const [loadState, setLoadState] = useState<LoadState>('loading')
   const [retryKey, setRetryKey] = useState(0)
@@ -167,26 +162,20 @@ export function CafeCountPage() {
     setRetryKey(value => value + 1)
   }
 
-  const picker = (
-    <CafeStreamBar
-      options={streamOptions}
-      locationBranchId={branchId ?? undefined}
-      stream={stream}
-      homeStream={homeStream}
-      myStreamKeys={myStreamKeys}
-      onChange={chooseStream}
-      disabled={!canSwitch}
-      context={<>
-        <span aria-hidden="true">·</span>
-        <span className="cafe-count__date tabular">{formatWeekdayDayMonth(logDate)}</span>
-      </>}
-    />
-  )
+  const streamBar = {
+    options: streamOptions,
+    locationBranchId: branchId ?? undefined,
+    stream,
+    homeStream,
+    myStreamKeys,
+    onChange: chooseStream,
+    disabled: !canSwitch,
+  }
   const pageState = loadState === 'loading' ? 'loading' : loadState === 'error' ? 'error'
     : submitting ? 'saving' : hasSubmitted && entered.length === 0 && !hasUnsubmittedInput ? 'saved' : 'default'
 
   return (
-    <PageFamilyFrame family="workspace" title={pageLabel} headClassName="cafe-count__head" statusRow={picker} state={pageState}>
+    <CafePageFrame page="count" date={logDate} streamBar={streamBar} state={pageState}>
       <div className="cafe-count">
         {loadState === 'loading' && <LoadingShell count={3} />}
         {loadState === 'error' && (
@@ -197,15 +186,13 @@ export function CafeCountPage() {
           />
         )}
         {loadState === 'ready' && !stream && (
-          <EmptyState variant="next-step" title={t('cafe.count.noStream.title')} copy={t('cafe.count.noStream.copy')}>
-            <CafeStreamChoices
-              options={streamOptions}
-              homeStream={homeStream}
-              myStreamKeys={myStreamKeys}
-              onChoose={chooseStream}
-              disabled={submitting}
-            />
-          </EmptyState>
+          <CafeStreamChoices
+            options={streamOptions}
+            homeStream={homeStream}
+            myStreamKeys={myStreamKeys}
+            onChoose={chooseStream}
+            disabled={submitting}
+          />
         )}
         {loadState === 'ready' && stream && !canCapture && (
           <p className="cafe-count__notice" role="status">{t('cafe.count.readOnly')}</p>
@@ -277,6 +264,6 @@ export function CafeCountPage() {
           </>
         )}
       </div>
-    </PageFamilyFrame>
+    </CafePageFrame>
   )
 }

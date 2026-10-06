@@ -1,0 +1,13 @@
+/* One shared inline title/meta row for every Café route. The status stream remains the head's
+   second row; meta stays beside the title on phone whenever the localized pair fits. */
+@media (max-width: 767.98px) {
+  .cafe-page-head.content-header .ch-meta {
+    order: 0;
+    flex: 0 1 auto;
+    align-items: baseline;
+  }
+}
+
+/* The page head replaces the breadcrumb leaf on every Café route, not only capture pages. */
+.h-dvh:has(.cafe-page-head) .top-bar__breadcrumb-leaf { display: none; }
+.h-dvh:has(.cafe-page-head) .top-bar__breadcrumb-fixed:last-of-type > [aria-hidden] { display: none; }
