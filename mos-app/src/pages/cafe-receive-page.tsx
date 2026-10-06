@@ -26,6 +26,7 @@ import {
 } from '@/lib/cafe-receipt-explanation-draft'
 import {
   cafeReceiptArrivalDateBounds,
+  listCafeOpenPoIdentities,
   listCafeReceiptDifferences,
   listCafeReceipts,
   listCafeReceivableItems,
@@ -35,6 +36,8 @@ import {
   sendCafeReceiptForReview,
   submitCafeReceipt,
   summarizeCafeReceiptDifferences,
+  type CafeOpenPoIdentity,
+  type CafeOpenPoIdentityCache,
   type CafeReceipt,
   type CafeReceiptDifferenceSummary,
   type CafeReceiptLine,
@@ -65,6 +68,14 @@ import './cafe-receive-page.css'
 
 type Entry = { quantity: string; unitId: string; changingUnit: boolean; damagedWrong: boolean }
 type LoadState = 'loading' | 'ready' | 'error'
+type OpenPoState = { branchId: string | null; status: LoadState; cache: CafeOpenPoIdentityCache | null }
+
+function formatOpenPoCacheTime(asOf: string): string {
+  const date = new Date(asOf)
+  return Number.isNaN(date.getTime()) ? asOf : date.toLocaleString(undefined, {
+    timeZone: 'Asia/Jakarta', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  })
+}
 
 /** A typed quantity that is not a positive decimal; it blocks Count submit rather than being dropped. */
 function isInvalidEntry(entry: Entry | undefined): boolean {
@@ -173,6 +184,12 @@ export function CafeReceivePage() {
   const [catalogReady, setCatalogReady] = useState(false)
   const [loadState, setLoadState] = useState<LoadState>('loading')
   const [retryKey, setRetryKey] = useState(0)
+  const [openPoRetryKey, setOpenPoRetryKey] = useState(0)
+  const [openPoPickerExpanded, setOpenPoPickerExpanded] = useState(false)
+  const [openPoState, setOpenPoState] = useState<OpenPoState>({ branchId: null, status: 'loading', cache: null })
+  const [selectedPoKey, setSelectedPoKey] = useState<{ branchId: string; poNumber: string } | null>(null)
+  const selectedPoBranchRef = useRef<string | null>(stream?.branch.id ?? null)
+  const openPoPickerToggleRef = useRef<HTMLButtonElement>(null)
   const [items, setItems] = useState<CafeReceivableItem[]>([])
   const [entries, setEntries] = useState<Record<string, Entry>>({})
   const [search, setSearch] = useState('')
@@ -223,6 +240,31 @@ export function CafeReceivePage() {
     })
     return () => { active = false }
   }, [adopt, resolve, retryKey])
+
+  useEffect(() => {
+    const branchId = stream?.branch.id ?? null
+    if (selectedPoBranchRef.current !== branchId) {
+      selectedPoBranchRef.current = branchId
+      setSelectedPoKey(null)
+      setOpenPoPickerExpanded(false)
+    }
+  }, [stream?.branch.id])
+
+  useEffect(() => {
+    const branchId = stream?.branch.id
+    if (!branchId || !canCapture) {
+      setOpenPoState({ branchId: branchId ?? null, status: 'ready', cache: null })
+      return
+    }
+    let active = true
+    setOpenPoState({ branchId, status: 'loading', cache: null })
+    void listCafeOpenPoIdentities(branchId).then(cache => {
+      if (active) setOpenPoState({ branchId, status: 'ready', cache })
+    }).catch(() => {
+      if (active) setOpenPoState({ branchId, status: 'error', cache: null })
+    })
+    return () => { active = false }
+  }, [canCapture, openPoRetryKey, stream?.branch.id])
 
   useEffect(() => {
     if (!catalogReady) return
@@ -318,6 +360,13 @@ export function CafeReceivePage() {
     return () => { active = false }
   }, [countedReceiptId])
 
+  const poStateForBranch = stream && openPoState.branchId === stream.branch.id
+    ? openPoState
+    : { branchId: stream?.branch.id ?? null, status: 'loading' as const, cache: null }
+  const selectedPo = stream && selectedPoKey?.branchId === stream.branch.id
+    ? poStateForBranch.cache?.purchaseOrders.find(po => po.poNumber === selectedPoKey.poNumber) ?? null
+    : null
+
   const lines = items.flatMap(item => {
     const entry = entries[item.id]
     const quantity = entry ? normalizeCafeReceiptQuantity(entry.quantity) : null
@@ -347,12 +396,38 @@ export function CafeReceivePage() {
   })), [items])
   // Filters beyond search are desktop-only (DESIGN: first capture row within 300px on phone).
   const itemTable = useKitchenItemTable({ data: filterRows, search, kind: 'All', category: isDesktop ? category : 'All' })
-  const visibleItems = itemTable.getFilteredRowModel().rows.map(row => row.original)
+  const searchMatchedItems = itemTable.getFilteredRowModel().rows.map(row => row.original)
+  const selectedPoUnitIds = new Set((selectedPo?.items ?? []).flatMap(poItem => poItem.itemUnitId ? [poItem.itemUnitId] : []))
+  const selectedPoItems = items.filter(item => item.units.some(unit => selectedPoUnitIds.has(unit.id)))
+  const selectedPoItemIds = new Set(selectedPoItems.map(item => item.id))
+  const visibleItems = [...selectedPoItems, ...searchMatchedItems.filter(item => !selectedPoItemIds.has(item.id))]
   const categories = useMemo(() => [
     'All',
     ...Array.from(new Set(items.map(item => item.category ?? '').filter(Boolean)))
       .sort((a, b) => kitchenCategoryLabel(t, a).localeCompare(kitchenCategoryLabel(t, b))),
   ], [items, t])
+
+  const pickPurchaseOrder = useCallback((po: CafeOpenPoIdentity | null) => {
+    if (!stream) return
+    setSelectedPoKey(po ? { branchId: stream.branch.id, poNumber: po.poNumber } : null)
+    setOpenPoPickerExpanded(false)
+    if (!po) return
+    openPoPickerToggleRef.current?.focus()
+    const expectedUnitIds = new Set(po.items.flatMap(item => item.itemUnitId ? [item.itemUnitId] : []))
+    setEntries(current => {
+      let changed = false
+      const next = { ...current }
+      for (const item of items) {
+        const expectedUnit = item.units.find(unit => expectedUnitIds.has(unit.id))
+        const entry = current[item.id]
+        if (expectedUnit && entry && !hasEntryContent(item, entry)) {
+          next[item.id] = { ...entry, unitId: expectedUnit.id }
+          changed = true
+        }
+      }
+      return changed ? next : current
+    })
+  }, [items, stream])
 
   const patchEntry = useCallback((itemId: string, patch: Partial<Entry>) => {
     setEntries(current => current[itemId] ? { ...current, [itemId]: { ...current[itemId], ...patch } } : current)
@@ -642,6 +717,93 @@ export function CafeReceivePage() {
               </EmptyState>
             ) : (
               <>
+                <section className="cafe-receive__open-pos" aria-labelledby="cafe-receive-open-pos-title">
+                  <div className="cafe-receive__open-pos-head">
+                    <div>
+                      <h2 id="cafe-receive-open-pos-title" className="cafe-receive__open-pos-title">{t('cafe.receive.openPos.title')}</h2>
+                      <p className="cafe-receive__open-pos-help">{t('cafe.receive.openPos.help')}</p>
+                    </div>
+                    <div className="cafe-receive__open-po-actions">
+                      {poStateForBranch.cache && poStateForBranch.cache.purchaseOrders.length > 0 && (
+                        <button
+                          ref={openPoPickerToggleRef}
+                          type="button"
+                          className="cafe-receive__without-po"
+                          aria-expanded={openPoPickerExpanded}
+                          aria-controls="cafe-receive-open-po-list"
+                          onClick={() => setOpenPoPickerExpanded(value => !value)}
+                        >
+                          {t(selectedPo ? 'cafe.receive.openPos.change' : 'cafe.receive.openPos.choose', {
+                            count: poStateForBranch.cache.purchaseOrders.length,
+                            poNumber: selectedPo?.poNumber ?? '',
+                          })}
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="cafe-receive__without-po"
+                        aria-pressed={selectedPo === null}
+                        onClick={() => pickPurchaseOrder(null)}
+                      >
+                        {t('cafe.receive.openPos.withoutPo')}
+                      </button>
+                    </div>
+                  </div>
+                  {poStateForBranch.status === 'loading' && <p role="status">{t('cafe.receive.openPos.loading')}</p>}
+                  {poStateForBranch.status === 'error' && (
+                    <div className="cafe-receive__open-pos-state">
+                      <p role="alert">{t('cafe.receive.openPos.error')}</p>
+                      <button type="button" className="cafe-receive__without-po" onClick={() => setOpenPoRetryKey(value => value + 1)}>
+                        {t('cafe.receive.openPos.retry')}
+                      </button>
+                    </div>
+                  )}
+                  {poStateForBranch.status === 'ready' && poStateForBranch.cache && (
+                    <>
+                      {!poStateForBranch.cache.asOf && <p role="status">{t('cafe.receive.openPos.notRead')}</p>}
+                      {poStateForBranch.cache.asOf && !poStateForBranch.cache.isCurrent && (
+                        <p role="status">{t('cafe.receive.openPos.stale', { time: formatOpenPoCacheTime(poStateForBranch.cache.asOf) })}</p>
+                      )}
+                      {poStateForBranch.cache.asOf && poStateForBranch.cache.isCurrent && poStateForBranch.cache.purchaseOrders.length === 0 && (
+                        <p role="status">{t('cafe.receive.openPos.empty')}</p>
+                      )}
+                      {poStateForBranch.cache.purchaseOrders.length > 0 && (
+                        <ul
+                          id="cafe-receive-open-po-list"
+                          className="cafe-receive__open-po-list"
+                          aria-label={t('cafe.receive.openPos.listAria')}
+                          hidden={!openPoPickerExpanded}
+                        >
+                          {poStateForBranch.cache.purchaseOrders.map(po => (
+                            <li key={po.poNumber}>
+                              <button
+                                type="button"
+                                className="cafe-receive__open-po"
+                                aria-pressed={selectedPo?.poNumber === po.poNumber}
+                                disabled={!poStateForBranch.cache?.isCurrent || !poStateForBranch.cache.asOf}
+                                onClick={() => pickPurchaseOrder(po)}
+                              >
+                                <span className="cafe-receive__open-po-topline">
+                                  <strong>{po.poNumber}</strong>
+                                  <span>{po.supplierName || t('cafe.receive.openPos.supplierUnknown')}</span>
+                                  <span>{formatWeekdayDayMonth(po.poDate)}</span>
+                                </span>
+                                <span className="cafe-receive__open-po-items">
+                                  {po.items.map((item, index) => (
+                                    <span className="cafe-receive__open-po-item" key={`${item.itemUnitId ?? item.itemName}-${index}`}>
+                                      <span>{item.itemName}</span>
+                                      {item.unitName && <span className="cafe-receive__open-po-unit">{item.unitName}</span>}
+                                    </span>
+                                  ))}
+                                </span>
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </>
+                  )}
+                </section>
                 <KitchenToolbar
                   search={search}
                   onSearchChange={setSearch}

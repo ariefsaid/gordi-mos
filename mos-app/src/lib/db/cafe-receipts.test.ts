@@ -8,6 +8,7 @@ import {
   listCafeReceipts,
   listCafeHeldReceipts,
   listCafeReceivableItems,
+  listCafeOpenPoIdentities,
   normalizeCafeReceiptQuantity,
   readCafeReceiptPosting,
   releaseCafeReceipts,
@@ -60,6 +61,28 @@ describe('Café receipt adapter', () => {
       { id: 'cup', name: 'Cup', category: null, kind: null, defaultUnitId: 'pcs', units: [{ id: 'pcs', name: 'pcs' }] },
     ])
     expect(rpc).toHaveBeenCalledWith('cafe_receivable_items', { p_branch_id: 'branch-1', p_activity: 'kitchen' })
+  })
+
+  it('AC-1045 reads open-PO identities through the floor-safe RPC and returns no quantity or price fields', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: {
+      as_of: '2026-10-06T02:10:00Z', is_current: true,
+      purchase_orders: [{
+        po_number: 'PO-1043', supplier_name: 'Sample supplier', po_date: '2026-10-04', esb_created_at: '2026-10-04T01:00:00Z',
+        items: [{ item_unit_id: 'kg', item_name: 'Coffee bean', unit_name: 'kg', outstanding_quantity: 80, unit_price: 7.5 }],
+        purchase_order_total: 900,
+      }],
+    }, error: null })
+    schemaMock.mockReturnValue({ rpc } as never)
+
+    await expect(listCafeOpenPoIdentities('branch-1')).resolves.toEqual({
+      asOf: '2026-10-06T02:10:00Z', isCurrent: true,
+      purchaseOrders: [{
+        poNumber: 'PO-1043', supplierName: 'Sample supplier', poDate: '2026-10-04',
+        items: [{ itemUnitId: 'kg', itemName: 'Coffee bean', unitName: 'kg' }],
+      }],
+    })
+    expect(schemaMock).toHaveBeenCalledWith('ops')
+    expect(rpc).toHaveBeenCalledWith('cafe_open_po_identities', { p_branch_id: 'branch-1' })
   })
 
   it('NFR-1001 Count submit sends only allowed line facts (never org or status)', async () => {

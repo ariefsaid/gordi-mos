@@ -25,6 +25,7 @@ vi.mock('@/lib/db/cafe-opening', async importOriginal => {
   return { ...actual, wibToday: () => '2026-10-06' }
 })
 const keyMocks = vi.hoisted(() => ({ key: 0 }))
+const poMocks = vi.hoisted(() => ({ list: vi.fn() }))
 vi.mock('@/lib/db/cafe-receipts', async importOriginal => {
   const actual = await importOriginal<typeof import('@/lib/db/cafe-receipts')>()
   return {
@@ -36,6 +37,7 @@ vi.mock('@/lib/db/cafe-receipts', async importOriginal => {
     saveCafeReceiptLineExplanation: vi.fn(),
     sendCafeReceiptForReview: vi.fn(),
     listCafeReceiptDifferences: vi.fn(),
+    listCafeOpenPoIdentities: poMocks.list,
   }
 })
 vi.mock('@/lib/offline-photo-drafts', async importOriginal => {
@@ -106,6 +108,29 @@ const ITEMS: CafeReceivableItem[] = [
   { id: 'milk', name: 'Fresh milk', category: 'Dairy', kind: 'RAW', defaultUnitId: 'unit-l', units: [{ id: 'unit-l', name: 'l' }] },
 ]
 
+const EMPTY_PO_CACHE = { asOf: '2026-10-06T02:10:00Z', isCurrent: true, purchaseOrders: [] }
+const TWO_PO_CACHE = {
+  asOf: '2026-10-06T02:10:00Z',
+  isCurrent: true,
+  purchaseOrders: [
+    {
+      poNumber: 'PO-1043', supplierName: 'Sample produce supplier', poDate: '2026-10-04',
+      items: [
+        { itemUnitId: 'unit-kg', itemName: 'Coffee bean', unitName: 'kg' },
+        { itemUnitId: 'unit-l', itemName: 'Fresh milk', unitName: 'l' },
+      ],
+    },
+    {
+      poNumber: 'PO-1044', supplierName: 'Sample dairy supplier', poDate: '2026-10-05',
+      items: [{ itemUnitId: 'unit-l', itemName: 'Fresh milk', unitName: 'l' }],
+    },
+  ],
+}
+const PICKER_ITEMS: CafeReceivableItem[] = [
+  ...ITEMS,
+  { id: 'pastry', name: 'Whole-grain pastry dough prepared for morning service', category: 'Bakery', kind: 'RAW', defaultUnitId: 'unit-each', units: [{ id: 'unit-each', name: 'each' }] },
+]
+
 function renderPage() {
   return render(
     <MemoryRouter initialEntries={['/cafe/receive']}>
@@ -128,6 +153,7 @@ beforeEach(() => {
   localStorage.clear()
   mockUseAuth.mockReturnValue(viewer(['member']))
   mockItems.mockResolvedValue(ITEMS)
+  poMocks.list.mockReset().mockResolvedValue(EMPTY_PO_CACHE as never)
   vi.mocked(listCafeReceipts).mockResolvedValue([])
   mockDifferences.mockResolvedValue([])
   Object.defineProperty(navigator, 'onLine', { configurable: true, value: true })
@@ -152,7 +178,7 @@ describe('CafeReceivePage', () => {
     expect(mockItems).not.toHaveBeenCalled()
   })
 
-  it('AC-1003 searching “bean” shows matching items with no PO, ordered, outstanding, price or location control', async () => {
+  it('AC-1003 searching “bean” shows matching items with no typed PO number, ordered quantity, outstanding, price or location', async () => {
     const { container } = renderPage()
     await screen.findByRole('textbox', { name: 'Received for Coffee bean' })
     fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'bean' } })
@@ -161,12 +187,101 @@ describe('CafeReceivePage', () => {
     expect(screen.getByRole('textbox', { name: 'Received for Coffee bean' })).toHaveValue('')
     expect(screen.queryByRole('textbox', { name: 'Received for Fresh milk' })).toBeNull()
     const page = container.textContent?.toLowerCase() ?? ''
-    for (const word of ['purchase order', 'po number', 'ordered', 'outstanding', 'price', 'location']) {
+    for (const word of ['ordered', 'outstanding', 'price', 'location']) {
       expect(page).not.toContain(word)
     }
     expect(screen.getAllByRole('textbox').map(box => box.getAttribute('aria-label')))
       .toEqual(['Received for Coffee bean'])
+    expect(screen.queryByRole('textbox', { name: /po number/i })).toBeNull()
     expect(screen.getByRole('textbox', { name: 'Received for Coffee bean' })).toHaveAttribute('inputmode', 'decimal')
+  })
+
+  it('Issue 1443 lists branch open POs without quantities, and picking one adds blank lines while search can add other items', async () => {
+    mockItems.mockResolvedValue(PICKER_ITEMS)
+    poMocks.list.mockResolvedValue(TWO_PO_CACHE as never)
+    const { container } = renderPage()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Choose from 2 open POs' }))
+    expect(await screen.findByRole('button', { name: /PO-1043/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /PO-1044/ })).toBeInTheDocument()
+    expect(container.textContent).toContain('Sample produce supplier')
+    expect(container.textContent).toContain('Coffee bean')
+    expect(container.textContent).toContain('Fresh milk')
+    for (const word of ['outstanding', 'ordered quantity', 'price']) expect(container.textContent?.toLowerCase()).not.toContain(word)
+    expect(screen.queryByRole('textbox', { name: /po number/i })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: /PO-1043/ }))
+    expect(screen.getByRole('textbox', { name: 'Received for Coffee bean' })).toHaveValue('')
+    expect(screen.getByRole('textbox', { name: 'Received for Fresh milk' })).toHaveValue('')
+    expect(screen.getByRole('textbox', { name: 'Received for Whole-grain pastry dough prepared for morning service' })).toHaveValue('')
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Find an item by name' }), { target: { value: 'pastry' } })
+    expect(screen.getByRole('textbox', { name: 'Received for Whole-grain pastry dough prepared for morning service' })).toHaveValue('')
+    expect(screen.getByRole('textbox', { name: 'Received for Coffee bean' })).toHaveValue('')
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Received for Coffee bean' }), { target: { value: '2.5' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '4' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Received for Whole-grain pastry dough prepared for morning service' }), { target: { value: '6' } })
+    const lockStep = await openLockStep()
+    expect(within(lockStep).getByText('Coffee bean')).toBeInTheDocument()
+    expect(within(lockStep).getByText('Fresh milk')).toBeInTheDocument()
+    expect(within(lockStep).getByText('Whole-grain pastry dough prepared for morning service')).toBeInTheDocument()
+  })
+
+  it('Issue 1443 supports keyboard PO selection and returns focus after collapsing the picker', async () => {
+    mockItems.mockResolvedValue(PICKER_ITEMS)
+    poMocks.list.mockResolvedValue(TWO_PO_CACHE as never)
+    renderPage()
+    const toggle = await screen.findByRole('button', { name: 'Choose from 2 open POs' })
+    toggle.focus()
+    await userEvent.keyboard('{Enter}')
+    await userEvent.keyboard('{Tab}{Tab}')
+    const firstPo = screen.getByRole('button', { name: /PO-1043/ })
+    expect(firstPo).toHaveFocus()
+    await userEvent.keyboard('{Enter}')
+    expect(await screen.findByRole('button', { name: 'Change PO-1043' })).toHaveFocus()
+    expect(screen.getByRole('textbox', { name: 'Received for Coffee bean' })).toHaveValue('')
+  })
+
+  it('Issue 1443 says when the branch has no open POs without blocking item search', async () => {
+    renderPage()
+    expect(await screen.findByText(/no open purchase orders/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Receive without a PO' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('textbox', { name: 'Received for Coffee bean' })).toBeInTheDocument()
+  })
+
+  it('Issue 1443 keeps item search available while the open-PO read is loading', async () => {
+    let resolveCache!: (cache: typeof EMPTY_PO_CACHE) => void
+    poMocks.list.mockImplementation(() => new Promise<typeof EMPTY_PO_CACHE>(resolve => { resolveCache = resolve }) as never)
+    renderPage()
+    expect(await screen.findByText(/loading open purchase orders/i)).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Received for Coffee bean' })).toBeInTheDocument()
+    await act(async () => resolveCache(EMPTY_PO_CACHE))
+    expect(await screen.findByText(/no open purchase orders/i)).toBeInTheDocument()
+  })
+
+  it('Issue 1443 explains when this branch has not synced open POs yet', async () => {
+    poMocks.list.mockResolvedValue({ asOf: null, isCurrent: false, purchaseOrders: [] } as never)
+    renderPage()
+    expect(await screen.findByText(/have not synced for this branch yet/i)).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Received for Coffee bean' })).toBeInTheDocument()
+  })
+
+  it('Issue 1443 identifies a stale PO cache and does not offer stale orders for selection', async () => {
+    poMocks.list.mockResolvedValue({ ...TWO_PO_CACHE, asOf: '2026-10-05T02:10:00Z', isCurrent: false } as never)
+    renderPage()
+    expect(await screen.findByText(/open PO list is out of date/i)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Choose from 2 open POs' }))
+    expect(screen.getByRole('button', { name: /PO-1043/ })).toBeDisabled()
+    expect(screen.getByRole('textbox', { name: 'Received for Coffee bean' })).toBeInTheDocument()
+  })
+
+  it('Issue 1443 reports an open-PO read error with retry while item search remains available', async () => {
+    poMocks.list.mockRejectedValue(new Error('network'))
+    renderPage()
+    expect(await screen.findByRole('alert')).toHaveTextContent(/could not load open purchase orders/i)
+    expect(screen.getByRole('button', { name: /retry open PO list/i })).toBeEnabled()
+    expect(screen.getByRole('textbox', { name: 'Received for Coffee bean' })).toBeInTheDocument()
   })
 
   it('FR-1013 a receiver can mark a line damaged or wrong before locking its count', async () => {
