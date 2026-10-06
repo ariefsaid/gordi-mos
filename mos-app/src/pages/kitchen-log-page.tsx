@@ -650,7 +650,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       disabled={status.kind === 'submitting'}
       context={<>
         <span aria-hidden="true">·</span>
-        <span className="kl-date tabular">{formatWeekdayDayMonth(logDate)}</span>
+        <time className="kl-date tabular" dateTime={logDate}>{formatWeekdayDayMonth(logDate)}</time>
       </>}
     />
     {pendingStream && <ConfirmDialog
@@ -674,7 +674,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   const captureContext = (
     <div className="cafe-capture-context">
       {streamPicker}
-      {stream === null && <span className="kl-date tabular">{formatWeekdayDayMonth(logDate)}</span>}
+      {stream === null && <time className="kl-date tabular" dateTime={logDate}>{formatWeekdayDayMonth(logDate)}</time>}
     </div>
   )
 

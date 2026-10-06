@@ -168,19 +168,21 @@ export function CafeCountPage() {
   }
 
   const picker = (
-    <CafeStreamBar
-      options={streamOptions}
-      locationBranchId={branchId ?? undefined}
-      stream={stream}
-      homeStream={homeStream}
-      myStreamKeys={myStreamKeys}
-      onChange={chooseStream}
-      disabled={!canSwitch}
-      context={<>
-        <span aria-hidden="true">·</span>
-        <span className="cafe-count__date tabular">{formatWeekdayDayMonth(logDate)}</span>
-      </>}
-    />
+    <div className="cafe-capture-context">
+      <CafeStreamBar
+        options={streamOptions}
+        locationBranchId={branchId ?? undefined}
+        stream={stream}
+        homeStream={homeStream}
+        myStreamKeys={myStreamKeys}
+        onChange={chooseStream}
+        disabled={!canSwitch}
+        context={<>
+          <span aria-hidden="true">·</span>
+          <time className="cafe-count__date tabular" dateTime={logDate}>{formatWeekdayDayMonth(logDate)}</time>
+        </>}
+      />
+    </div>
   )
   const pageState = loadState === 'loading' ? 'loading' : loadState === 'error' ? 'error'
     : submitting ? 'saving' : hasSubmitted && entered.length === 0 && !hasUnsubmittedInput ? 'saved' : 'default'

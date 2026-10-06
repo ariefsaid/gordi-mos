@@ -8,12 +8,13 @@ vi.mock('@/auth/use-auth')
 const cafeStreamMock = vi.hoisted(() => ({ produces: true }))
 vi.mock('@/lib/use-cafe-stream', () => {
   const branch = { id: 'branch-1', code: 'rumah_rames', name: 'Rumah Rames' }
-  const stream = { branch, activity: 'bar', get produces() { return cafeStreamMock.produces } }
+  const stream = { branch, activity: 'bar' as const, get produces() { return cafeStreamMock.produces } }
+  const alternateStream = { branch, activity: 'kitchen' as const, produces: true }
   const catalog = {
     branches: [branch],
-    options: [stream],
+    options: [stream, alternateStream],
     destinations: [],
-    locationOptions: [stream],
+    locationOptions: [stream, alternateStream],
     stream,
     homeStream: stream,
     myStreamKeys: new Set(['branch-1|bar']),
@@ -58,6 +59,7 @@ import {
 import type { KitchenWasteDraft } from '@/lib/db/kitchen-waste-photos'
 import type { CafeItemSetting } from '@/lib/db/cafe-item-settings'
 import { CafeWastePage } from './cafe-waste-page'
+import { formatWeekdayDayMonth } from '@/lib/format/date'
 
 const mockUseAuth = vi.mocked(useAuth)
 const mockListCafeItemSettings = vi.mocked(listCafeItemSettings)
@@ -101,10 +103,10 @@ const ITEM_SETTINGS: CafeItemSetting[] = [
   },
 ]
 
-function renderPage() {
+function renderPage(locale: 'en' | 'id' = 'en') {
   return render(
     <MemoryRouter initialEntries={['/cafe/waste']}>
-      <I18nProvider>
+      <I18nProvider initialLocale={locale}>
         <CafeWastePage />
       </I18nProvider>
     </MemoryRouter>,
@@ -245,6 +247,25 @@ describe('CafeWastePage', () => {
 
     expect(within(empty).getByText(/ops lead, admin, or your stream manager/i)).toBeInTheDocument()
     expect(within(empty).getByRole('link', { name: /open café item settings/i })).toHaveAttribute('href', '/cafe/items')
+  })
+
+  it('keeps the stream, localized date, and working switch together in the waste header', async () => {
+    for (const locale of ['en', 'id'] as const) {
+      const { unmount } = renderPage(locale)
+      const stream = await screen.findByRole('heading', { name: 'Rumah Rames · Bar' })
+      const context = stream.closest('.cafe-capture-context')
+      expect(context).toBeInTheDocument()
+      const date = context?.querySelector('time')
+      expect(date).toHaveAttribute('datetime', '2026-10-02')
+      expect(date).toHaveTextContent(formatWeekdayDayMonth('2026-10-02', locale))
+
+      const switchLabel = locale === 'en' ? 'Change stream' : 'Ganti stream'
+      const switchButton = within(context as HTMLElement).getByRole('button', { name: switchLabel })
+      expect(switchButton).toHaveTextContent(locale === 'en' ? 'Change' : 'Ganti')
+      fireEvent.click(switchButton)
+      expect(await screen.findByRole('option', { name: /Rumah Rames/ })).toBeInTheDocument()
+      unmount()
+    }
   })
 
   it('loading shows the page label once without repeating the café context', async () => {
@@ -451,10 +472,12 @@ describe('CafeWastePage', () => {
   it('explains that a quantity unlocks Add photo and removes the hint once entered', async () => {
     renderPage()
     const addPhoto = (await screen.findAllByRole('button', { name: 'Add photo' }))[0]!
+    const quantity = screen.getByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })
     expect(addPhoto).toBeDisabled()
+    expect(addPhoto.closest('.cwl-controls')).toContainElement(quantity)
     expect(screen.getAllByText('Enter a quantity before adding a photo.')).toHaveLength(2)
 
-    fireEvent.change(screen.getByRole('spinbutton', { name: 'Waste quantity for Oat Latte' }), { target: { value: '2' } })
+    fireEvent.change(quantity, { target: { value: '2' } })
     await waitFor(() => expect(addPhoto).toBeEnabled())
     expect(screen.getAllByText('Enter a quantity before adding a photo.')).toHaveLength(1)
   })

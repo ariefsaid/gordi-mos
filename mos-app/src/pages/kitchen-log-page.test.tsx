@@ -1498,22 +1498,28 @@ describe('#3: Kitchen-and-Bar BU resolution', () => {
 
 // ── I3: S1 uses the ONE shared content PageHead (not a bespoke .kl-head) ───────
 describe('I3: shared PageHead variant="content"', () => {
-  it('renders one page title and keeps the selected stream and date on a single context line', async () => {
-    await renderPage()
+  it.each([
+    { route: 'production', path: appUrl('/cafe'), title: 'Log production' },
+    { route: 'transfer', path: appUrl('/cafe/transfer'), title: 'Log transfer' },
+  ])('$route keeps its selected stream, date, and working switch in one context row', async ({ path, title }) => {
+    await renderPage(VIEWER_MEMBER, path)
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     const head = screen.getByTestId('page-head')
-    // the signed mockup .content-header chrome (icon + title + count/meta), same as S2–S5
     expect(head).toHaveClass('content-header')
-    // ONE accessible heading carrying the page title (RI-IA-1)
     const h1 = within(head).getByRole('heading', { level: 1 })
-    expect(h1).toHaveTextContent('Log production')
+    expect(h1).toHaveTextContent(title)
     const context = head.querySelector('.cafe-capture-context') as HTMLElement
     expect(context).toBeInTheDocument()
     expect(context.querySelector('[data-testid="cafe-stream"]')).toBeInTheDocument()
-    expect(within(context).getByText(/^\w{3} \d{1,2} \w{3,5}$/)).toBeInTheDocument()
+    const date = context.querySelector('time')
+    expect(date).toBeInTheDocument()
+    expect(date?.getAttribute('datetime')).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    expect(date).toHaveTextContent(/\d/)
+    const change = within(context).getByRole('button', { name: 'Change stream' })
+    fireEvent.click(change)
+    expect(await screen.findByRole('listbox', { name: 'Production stream' })).toBeInTheDocument()
     expect(head.querySelector('.page-head-meta')).toBeNull()
-    // the bespoke hand-rolled header is gone
     expect(document.querySelector('.kl-head')).toBeNull()
   })
 })

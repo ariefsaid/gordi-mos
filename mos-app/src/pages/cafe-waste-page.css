@@ -68,15 +68,16 @@
 .cwl-controls {
   display: grid;
   gap: 8px;
-  width: 100%;
+  width: min(100%, 7.5rem);
   min-width: 0;
+  margin-inline-start: auto;
 }
 .cwl-quantity-row {
   display: grid;
   gap: 4px;
-  justify-self: end;
+  justify-self: stretch;
   min-width: 0;
-  width: min(100%, 7.5rem);
+  width: 100%;
 }
 .cwl-quantity-input {
   width: 100%;

@@ -29,6 +29,30 @@
   line-height: 1.3;
 }
 
+/* Capture headers share one compact status register across production, transfer, waste and
+   count. Keep the stream value, date and switch on the same quiet line below the page title. */
+.cafe-capture-context {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  min-width: 0;
+  font-size: var(--font-size-control);
+}
+.cafe-capture-context .cafe-stream { width: auto; align-items: baseline; }
+.cafe-capture-context .cafe-stream__value--heading {
+  font-size: var(--font-size-control);
+  font-weight: 400;
+}
+.cafe-capture-context .kl-date,
+.cafe-capture-context .cafe-count__date {
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: inherit;
+  white-space: nowrap;
+}
+
 /* "Change" / "Back to …" — quiet text actions, never a bordered field: the stream is already
    named by `.cafe-stream__value` beside them, so neither one repeats it. Underline is the only
    affordance at rest; the shared focus ring covers keyboard/`:focus-visible`. */

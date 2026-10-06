@@ -511,7 +511,7 @@ export function CafeWastePage() {
       disabled={submitting || hasPendingCapture}
       context={<>
         <span aria-hidden="true">·</span>
-        <span className="kl-date tabular">{formatWeekdayDayMonth(logDate)}</span>
+        <time className="kl-date tabular" dateTime={logDate}>{formatWeekdayDayMonth(logDate)}</time>
       </>}
     />
   )
@@ -580,7 +580,7 @@ export function CafeWastePage() {
   const captureContext = (
     <div className="cafe-capture-context">
       {streamPicker}
-      {stream === null && <span className="kl-date tabular">{formatWeekdayDayMonth(logDate)}</span>}
+      {stream === null && <time className="kl-date tabular" dateTime={logDate}>{formatWeekdayDayMonth(logDate)}</time>}
     </div>
   )
 

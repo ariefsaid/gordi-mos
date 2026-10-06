@@ -655,27 +655,6 @@
 
 .cafe-capture-head.content-header { align-items: baseline; }
 
-.cafe-capture-context {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 4px 8px;
-  min-width: 0;
-  font-size: var(--font-size-control);
-}
-.cafe-capture-context .cafe-stream { width: auto; align-items: baseline; }
-.cafe-capture-context .cafe-stream__value--heading {
-  font-size: var(--font-size-control);
-  font-weight: 400;
-}
-.cafe-capture-context .kl-date {
-  padding: 0;
-  border-radius: 0;
-  background: transparent;
-  font-size: inherit;
-  white-space: nowrap;
-}
-
 /* Grow the existing flow to the scrollport height, so short and long lists share one footer. */
 .cafe-capture-content,
 .cafe-capture-content .kl-capture-main,

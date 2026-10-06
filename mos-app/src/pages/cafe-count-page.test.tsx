@@ -7,9 +7,11 @@ import type { AuthState } from '@/auth/context'
 vi.mock('@/auth/use-auth')
 const streamMocks = vi.hoisted(() => {
   const branch = { id: 'branch-1', code: 'cafe-branch', name: 'Cafe Branch' }
+  const alternateBranch = { id: 'branch-2', code: 'other-cafe', name: 'Other Cafe' }
   const stream = { branch, activity: 'kitchen' as const }
+  const alternateStream = { branch: alternateBranch, activity: 'bar' as const }
   const catalog = {
-    branches: [branch], options: [stream], destinations: [], locationOptions: [stream],
+    branches: [branch, alternateBranch], options: [stream, alternateStream], destinations: [], locationOptions: [stream, alternateStream],
     stream, homeStream: stream, myStreamKeys: new Set(['branch-1|kitchen']), branchId: 'branch-1',
   }
   return { stream, catalog, resolve: vi.fn(async () => catalog), adopt: vi.fn(), setStream: vi.fn() }
@@ -36,6 +38,7 @@ import { useAuth } from '@/auth/use-auth'
 import { listCafeCountableItems, submitCafeCounts } from '@/lib/db/cafe-count'
 import type { CafeCountableItem } from '@/lib/db/cafe-count'
 import { CafeCountPage } from './cafe-count-page'
+import { formatWeekdayDayMonth } from '@/lib/format/date'
 
 const mockUseAuth = vi.mocked(useAuth)
 const mockListItems = vi.mocked(listCafeCountableItems)
@@ -58,10 +61,10 @@ const ITEMS: CafeCountableItem[] = [
   { id: 'raw-2', name: 'Uncounted rice', category: 'Pantry', kind: 'RAW', unitId: 'unit-bag', unitName: 'bag' },
 ]
 
-function renderPage() {
+function renderPage(locale: 'en' | 'id' = 'en') {
   return render(
     <MemoryRouter initialEntries={['/cafe/count']}>
-      <I18nProvider><CafeCountPage /></I18nProvider>
+      <I18nProvider initialLocale={locale}><CafeCountPage /></I18nProvider>
     </MemoryRouter>,
   )
 }
@@ -75,6 +78,26 @@ beforeEach(() => {
 })
 
 describe('CafeCountPage', () => {
+  it('keeps the stream, localized date, and working switch together in the compact Count header', async () => {
+    for (const locale of ['en', 'id'] as const) {
+      const { unmount } = renderPage(locale)
+      const streamName = locale === 'en' ? 'Cafe Branch · Kitchen' : 'Cafe Branch · Dapur'
+      const stream = await screen.findByRole('heading', { name: streamName })
+      const context = stream.closest('.cafe-capture-context')
+      expect(context).toBeInTheDocument()
+      const date = context?.querySelector('time')
+      expect(date).toHaveAttribute('datetime', '2026-10-06')
+      expect(date).toHaveTextContent(formatWeekdayDayMonth('2026-10-06', locale))
+
+      const switchLabel = locale === 'en' ? 'Change stream' : 'Ganti stream'
+      const switchButton = within(context as HTMLElement).getByRole('button', { name: switchLabel })
+      expect(switchButton).toHaveTextContent(locale === 'en' ? 'Change' : 'Ganti')
+      fireEvent.click(switchButton)
+      expect(await screen.findByRole('option', { name: /Other Cafe · Bar/ })).toBeInTheDocument()
+      unmount()
+    }
+  })
+
   it('AC-007 renders one blank fixed-unit input per item with a decimal keyboard and no prior figures', async () => {
     const { container } = renderPage()
     const rawInput = await screen.findByRole('textbox', { name: 'Count for Raw flour' })
