@@ -124,7 +124,10 @@ describe('buildBranchTable', () => {
     expect(alpha.margin!.pct).toBeCloseTo(0.65, 10)
     expect(alpha.margin!.cogsVsBudget).toBeCloseTo(0.05, 10)
     expect(alpha.margin!.coverage).toBeCloseTo(0.9, 10)
-    expect(table.branches.find((r) => r.code === 'beta')!.margin).toEqual({ pct: null, cogsVsBudget: null, coverage: null })
+    // The sentence's two shares: 35% COGS against a 30% budget.
+    expect(alpha.margin!.budgetBasis!.cogsShare).toBeCloseTo(0.35, 10)
+    expect(alpha.margin!.budgetBasis!.budgetShare).toBeCloseTo(0.3, 10)
+    expect(table.branches.find((r) => r.code === 'beta')!.margin).toEqual({ pct: null, cogsVsBudget: null, coverage: null, budgetBasis: null })
     expect(table.company.margin!.pct).toBeCloseTo(0.65, 10)
     expect(table.b2b[0].margin).toBeNull()
   })

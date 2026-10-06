@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { CafeStreamBar, CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
@@ -37,7 +38,7 @@ import {
   resolveCafeMissingItemReport,
   type CafeMissingItemReport,
 } from '@/lib/db/cafe-missing-item-reports'
-import { useCafeStream } from '@/lib/use-cafe-stream'
+import { useCafeStream, type CafeStreamCatalog } from '@/lib/use-cafe-stream'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsDesktop } from '@/shell/use-is-desktop'
@@ -102,6 +103,19 @@ export function CafeItemSettingsPage() {
   return <CafeItemSettingsPageForViewer key={viewerKey} />
 }
 
+/** `catalog` opened on the linked stream (a `branch|activity` key) when it is one of the org's
+ *  streams; otherwise unchanged. */
+function withLinkedStream(catalog: CafeStreamCatalog, wanted: string | null): CafeStreamCatalog {
+  const option = wanted ? catalog.options.find(o => streamKey(o.branch.id, o.activity) === wanted) : undefined
+  if (!option) return catalog
+  return {
+    ...catalog,
+    stream: option,
+    branchId: option.branch.id,
+    locationOptions: catalog.options.filter(o => o.branch.id === option.branch.id),
+  }
+}
+
 function CafeItemSettingsPageForViewer() {
   const t = useT()
   const pageTitle = t('cafe.items.title')
@@ -123,7 +137,13 @@ function CafeItemSettingsPageForViewer() {
   const [items, setItems] = useState<CafeItemSetting[]>([])
   const needsUnitCount = items.filter(needsUnit).length
   const [drafts, setDrafts] = useState<Record<string, ItemDraft>>({})
-  const [search, setSearch] = useState('')
+  // A link from elsewhere (Money's Branch page) may name an item (?q=) and its stream (?stream=
+  // branch|activity). Both are read once and dropped from the URL. The linked stream is shown for
+  // this visit only, at any branch: it is adopted, not chosen, so the viewer's Café location and
+  // remembered stream stay as they were.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const linked = useRef({ q: searchParams.get('q'), stream: searchParams.get('stream') })
+  const [search, setSearch] = useState(linked.current.q ?? '')
   const [kindFilter, setKindFilter] = useState<KitchenItemKindFilter>('All')
   const [activeFilter, setActiveFilter] = useState<KitchenItemActiveFilter>('All')
   const [needsUnitFilter, setNeedsUnitFilter] = useState<KitchenItemNeedsUnitFilter>('All')
@@ -149,7 +169,9 @@ function CafeItemSettingsPageForViewer() {
     setCatalogReady(false)
     void resolveStream().then(catalog => {
       if (active) {
-        adoptStream(catalog)
+        const wanted = linked.current.stream
+        linked.current.stream = null
+        adoptStream(withLinkedStream(catalog, wanted))
         setCatalogReady(true)
       }
     }).catch(() => {
@@ -157,6 +179,14 @@ function CafeItemSettingsPageForViewer() {
     })
     return () => { active = false }
   }, [adoptStream, resolveStream, retryKey])
+
+  useEffect(() => {
+    if (!searchParams.has('q') && !searchParams.has('stream')) return
+    const next = new URLSearchParams(searchParams)
+    next.delete('q')
+    next.delete('stream')
+    setSearchParams(next, { replace: true })
+  }, [searchParams, setSearchParams])
 
   const loadStreamItems = useCallback(async () => {
     if (!catalogReady) return
