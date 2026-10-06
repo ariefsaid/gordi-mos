@@ -4,19 +4,23 @@ import { useAuth } from '@/auth/use-auth'
 import { CafeStreamBar, CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { CafeReceiptState } from '@/components/kitchen/cafe-receipt-state'
+import { CafeReceiptLineRow } from '@/components/kitchen/cafe-receipt-difference'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { useT } from '@/i18n/use-t'
 import { canCaptureCafe } from '@/lib/cafe-affiliation'
 import { canReviewCafe } from '@/lib/kitchen-gates'
 import {
   cafeReceiptArrivalDateBounds,
+  listCafeReceiptDifferences,
   listCafeReceipts,
   listCafeReceivableItems,
   newCafeReceiptClientKey,
   normalizeCafeReceiptQuantity,
   sendCafeReceiptForReview,
   submitCafeReceipt,
+  summarizeCafeReceiptDifferences,
   type CafeReceipt,
+  type CafeReceiptDifferenceSummary,
   type CafeReceivableItem,
 } from '@/lib/db/cafe-receipts'
 import { wibToday } from '@/lib/db/cafe-opening'
@@ -39,7 +43,7 @@ type LoadState = 'loading' | 'ready' | 'error'
 function isInvalidEntry(entry: Entry | undefined): boolean {
   return Boolean(entry?.quantity.trim()) && normalizeCafeReceiptQuantity(entry!.quantity) === null
 }
-type Counted = { receiptId: string; rowVersion: number; lines: Array<{ name: string; quantity: string; unit: string }> }
+type Counted = { receiptId: string; rowVersion: number; lines: Array<{ unitId: string; name: string; quantity: string; unit: string }> }
 
 function blankEntries(items: readonly CafeReceivableItem[]): Record<string, Entry> {
   return Object.fromEntries(items.map(item => [item.id, { quantity: '', unitId: item.defaultUnitId, changingUnit: false }]))
@@ -48,6 +52,9 @@ function blankEntries(items: readonly CafeReceivableItem[]): Record<string, Entr
 function submitErrorKey(message: string) {
   if (message.includes('CAFE_RECEIPT_ITEM_NOT_RECEIVABLE')) return 'cafe.receive.error.itemUnavailable' as const
   if (message.includes('CAFE_RECEIPT_CLIENT_KEY_CONFLICT')) return 'cafe.receive.error.keyConflict' as const
+  if (message.includes('CAFE_RECEIPT_COUNTED_PENDING') || message.includes('cafe_receipts_one_counted_per_receiver_branch_uk')) {
+    return 'cafe.receive.error.countedPending' as const
+  }
   if (message.includes('CAFE_RECEIPT_ARRIVAL_DATE')) return 'cafe.receive.error.arrivalDate' as const
   return 'cafe.receive.error.submit' as const
 }
@@ -82,6 +89,7 @@ export function CafeReceivePage() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<ReturnType<typeof submitErrorKey> | 'cafe.receive.error.send' | null>(null)
   const [counted, setCounted] = useState<Counted | null>(null)
+  const [difference, setDifference] = useState<CafeReceiptDifferenceSummary | 'checking'>('checking')
   const [deliveryNote, setDeliveryNote] = useState('')
   const [sent, setSent] = useState(false)
   const [recent, setRecent] = useState<CafeReceipt[]>([])
@@ -132,6 +140,19 @@ export function CafeReceivePage() {
   }, [canCapture, viewerId])
   useEffect(loadRecent, [loadRecent])
 
+  // FR-1012: labels arrive once the counts are locked; any failure reads "not yet known" (NFR-1006).
+  const countedReceiptId = counted?.receiptId ?? null
+  useEffect(() => {
+    if (!countedReceiptId) return
+    let active = true
+    setDifference('checking')
+    void listCafeReceiptDifferences([countedReceiptId])
+      .then(rows => summarizeCafeReceiptDifferences(rows))
+      .catch((): CafeReceiptDifferenceSummary => ({ known: false, asOf: null }))
+      .then(summary => { if (active) setDifference(summary) })
+    return () => { active = false }
+  }, [countedReceiptId])
+
   const lines = items.flatMap(item => {
     const entry = entries[item.id]
     const quantity = entry ? normalizeCafeReceiptQuantity(entry.quantity) : null
@@ -179,6 +200,7 @@ export function CafeReceivePage() {
         receiptId: result.receipt_id,
         rowVersion: result.row_version,
         lines: lines.map(({ item, entry, quantity }) => ({
+          unitId: entry.unitId,
           name: item.name,
           quantity,
           unit: item.units.find(unit => unit.id === entry.unitId)?.name ?? '',
@@ -253,12 +275,22 @@ export function CafeReceivePage() {
           <section className="cafe-receive__counted" aria-labelledby="cafe-receive-counted-title">
             <h2 id="cafe-receive-counted-title">{sent ? t('cafe.receive.sent.title') : t('cafe.receive.counted.title')}</h2>
             <p>{sent ? t('cafe.receive.sent.copy') : t('cafe.receive.counted.copy')}</p>
+            <p className="cafe-receive__difference" role="status" aria-live="polite">
+              {difference === 'checking' ? t('cafe.receive.difference.checking')
+                : !difference.known ? t(sent ? 'cafe.receive.difference.unknownSent' : 'cafe.receive.difference.unknown')
+                : difference.differing === 0 ? t('cafe.receive.difference.allMatch')
+                : t('cafe.receive.difference.differ', { count: difference.differing, total: difference.total })}
+            </p>
             <ul className="cafe-receipt-lines" aria-label={t('cafe.receive.counted.linesAria')}>
               {counted.lines.map(line => (
-                <li key={`${line.name}-${line.unit}`}>
-                  <span>{line.name}</span>
-                  <span className="tabular">{t('cafe.receipts.quantityUnit', { quantity: line.quantity, unit: line.unit })}</span>
-                </li>
+                <CafeReceiptLineRow
+                  key={line.unitId}
+                  name={line.name}
+                  quantity={line.quantity}
+                  unit={line.unit}
+                  withDifference
+                  outcome={difference !== 'checking' && difference.known ? difference.byUnit.get(line.unitId) : undefined}
+                />
               ))}
             </ul>
             {!sent && (
