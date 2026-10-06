@@ -15,12 +15,17 @@
 --   drop table ops.cafe_open_po_branches;
 --   drop function ops._cafe_open_po_cache_current(uuid, uuid);
 --   drop function ops.can_read_cafe_open_pos(uuid);
---   drop function ops.is_cafe_member_at_branch(uuid);
+--   drop trigger cafe_receipts_one_counted on ops.cafe_receipts;
+--   drop function ops._guard_one_counted_cafe_receipt();
+--   drop index ops.cafe_receipts_one_counted_per_receiver_branch_uk;
+--   create or replace function shared.is_cafe_affiliated() returns boolean language sql stable
+--     security invoker set search_path = '' as $$ <the 20260905000001 body> $$;
+--   drop function shared.is_cafe_affiliated_at(uuid);
 
--- ── Who is a floor member of a branch (DD-CAFE-MVP-6) ───────────────────────────────────────
--- shared.is_cafe_affiliated() stays existence-only (it gates writes, and the stream is never a
--- write wall). The identity read is the one place a branch scopes what the floor sees.
-create or replace function ops.is_cafe_member_at_branch(p_branch_id uuid)
+-- ── Café affiliation, optionally at one branch (DD-CAFE-MVP-6) ─────────────────────────────
+-- One predicate body. With no branch it is the write gate's existence-only test (the stream is
+-- never a write wall); with a branch it scopes what the floor may see of that branch's POs.
+create or replace function shared.is_cafe_affiliated_at(p_branch_id uuid)
 returns boolean
 language sql
 stable
@@ -34,16 +39,27 @@ as $$
     where m.org_id = shared.current_org_id()
       and m.person_id = shared.current_person_id()
       and t.org_id = m.org_id
-      and t.branch_id = p_branch_id
+      and t.branch_id is not null
       and t.activity is not null
       and t.archived_at is null
+      and (p_branch_id is null or t.branch_id = p_branch_id)
       and m.effective_from <= current_date
       and (m.effective_to is null or m.effective_to >= current_date)
   )
 $$;
-comment on function ops.is_cafe_member_at_branch(uuid) is
-  'True iff the caller holds a current membership in a production-stream Team of p_branch_id (the shared.is_cafe_affiliated predicate, at one branch). Used only by the open-PO identity read. Explicitly person/org-scoped so it stays correct inside definer functions.';
-grant execute on function ops.is_cafe_member_at_branch(uuid) to authenticated;
+comment on function shared.is_cafe_affiliated_at(uuid) is
+  'True iff the caller holds a current membership in a production-stream Team, at p_branch_id when one is given. The branch is compared only to the argument, never to the caller''s own stream. Explicitly person/org-scoped so it stays correct inside definer functions.';
+grant execute on function shared.is_cafe_affiliated_at(uuid) to authenticated;
+
+create or replace function shared.is_cafe_affiliated()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$ select shared.is_cafe_affiliated_at(null) $$;
+comment on function shared.is_cafe_affiliated() is
+  'Café write affiliation is existence of one current membership in any production-stream Team (shared.is_cafe_affiliated_at with no branch). The stream pair is never an access boundary.';
 
 -- ── Who reads cached PO rows with quantities ────────────────────────────────────────────────
 create or replace function ops.can_read_cafe_open_pos(p_branch_id uuid)
@@ -75,7 +91,9 @@ create table ops.cafe_open_po_branches (
   max_age_minutes      integer not null default 360 check (max_age_minutes between 5 and 10080),
   is_stale             boolean not null default false,
   last_attempt_at      timestamptz,
-  last_error           text check (last_error is null or char_length(last_error) <= 2000),
+  -- An error CLASS (http_503, timeout, shape_unrecognised), never a host, path or ESB body:
+  -- branch reviewers read this row. The worker's own log keeps the detail.
+  last_error           text check (last_error is null or last_error ~ '^[a-z0-9_]{1,64}$'),
   refresh_requested_at timestamptz,
   updated_at           timestamptz not null default now(),
   primary key (org_id, branch_id),
@@ -250,7 +268,7 @@ begin
     raise exception 'CAFE_OPEN_PO_BRANCH_NOT_FOUND' using errcode = '22023';
   end if;
   insert into ops.cafe_open_po_branches (org_id, branch_id, is_stale, last_attempt_at, last_error, updated_at)
-  values (p_org_id, p_branch_id, true, clock_timestamp(), left(p_error, 2000), clock_timestamp())
+  values (p_org_id, p_branch_id, true, clock_timestamp(), p_error, clock_timestamp())
   on conflict (org_id, branch_id) do update
     set is_stale = true,
         last_attempt_at = excluded.last_attempt_at,
@@ -259,7 +277,7 @@ begin
 end;
 $$;
 comment on function ops.mark_cafe_open_pos_stale(uuid, uuid, text) is
-  'Worker only: a failed ESB read keeps the branch''s previous cache and marks it stale with the error, so the receiver sees "difference not yet known".';
+  'Worker only: a failed ESB read keeps the branch''s previous cache and marks it stale with the error class, so the receiver sees "difference not yet known".';
 revoke execute on function ops.mark_cafe_open_pos_stale(uuid, uuid, text) from public, anon, authenticated;
 grant execute on function ops.mark_cafe_open_pos_stale(uuid, uuid, text) to service_role;
 
@@ -299,7 +317,7 @@ declare
   v_result jsonb;
 begin
   if v_org_id is null or shared.current_person_id() is null
-     or not (ops.can_read_cafe_open_pos(p_branch_id) or ops.is_cafe_member_at_branch(p_branch_id)) then
+     or not (ops.can_read_cafe_open_pos(p_branch_id) or shared.is_cafe_affiliated_at(p_branch_id)) then
     raise exception 'CAFE_OPEN_PO_FORBIDDEN' using errcode = '42501';
   end if;
   select jsonb_build_object(
@@ -357,8 +375,12 @@ begin
   end if;
   return query
   with receipts as (
+    -- A receiver's labels stay with the branch's own floor: a member of another branch who
+    -- received here learns nothing beyond "not yet known" (DD-CAFE-MVP-6). Reviewers see labels.
     select r.id, r.branch_id,
-           ops._cafe_open_po_cache_current(r.org_id, r.branch_id) as is_current,
+           ops._cafe_open_po_cache_current(r.org_id, r.branch_id)
+             and (ops.can_review_stream(r.branch_id, r.activity) or shared.is_cafe_affiliated_at(r.branch_id))
+             as is_current,
            (select s.as_of from ops.cafe_open_po_branches s
              where s.org_id = r.org_id and s.branch_id = r.branch_id) as as_of
       from ops.cafe_receipts r
@@ -392,7 +414,7 @@ begin
 end;
 $$;
 comment on function ops.cafe_receipt_po_differences(uuid[]) is
-  'Per receipt line: over, short, matches or no_open_po against the summed outstanding of the branch''s cached open-PO lines with the same product detail, or unknown when the cache is empty, stale or older than its configured age; plus the cache as-of time. Only receipts the caller reads (receiver or stream reviewer); never returns an outstanding quantity.';
+  'Per receipt line: over, short, matches or no_open_po against the summed outstanding of the branch''s cached open-PO lines with the same product detail, or unknown when the cache is empty, stale or older than its configured age, or when the receiver holds no stream membership at the receipt''s branch; plus the cache as-of time. Only receipts the caller reads (receiver or stream reviewer); never returns an outstanding quantity.';
 revoke execute on function ops.cafe_receipt_po_differences(uuid[]) from public, anon;
 grant execute on function ops.cafe_receipt_po_differences(uuid[]) to authenticated;
 
@@ -420,3 +442,37 @@ create trigger cafe_receipts_request_open_po_refresh
   for each row
   when (new.status = 'Approved' and old.status is distinct from 'Approved')
   execute function ops._request_cafe_open_po_refresh();
+
+-- ── One open Counted receipt per receiver per branch ────────────────────────────────────────
+-- Each Count submit answers the difference for its lines, so a receiver could lock throwaway
+-- receipts to search outstanding. A receiver therefore holds at most one Counted receipt per
+-- branch: the next Count submit waits until that one is sent for review, where reviewers see it.
+-- A receiver has no discard path (no DELETE grant and no RPC), so a probe cannot be hidden.
+create unique index cafe_receipts_one_counted_per_receiver_branch_uk
+  on ops.cafe_receipts (org_id, branch_id, received_by)
+  where status = 'Counted';
+
+create or replace function ops._guard_one_counted_cafe_receipt()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  if exists (
+    select 1 from ops.cafe_receipts r
+     where r.org_id = new.org_id and r.branch_id = new.branch_id
+       and r.received_by = new.received_by and r.status = 'Counted'
+  ) then
+    raise exception 'CAFE_RECEIPT_COUNTED_PENDING: send your locked receipt at this branch for review first'
+      using errcode = 'P0020';
+  end if;
+  return new;
+end;
+$$;
+comment on function ops._guard_one_counted_cafe_receipt() is
+  'Refuses a second Counted receipt for the same receiver and branch with CAFE_RECEIPT_COUNTED_PENDING; the partial unique index backs it under concurrency. Runs after the stamping guard (trigger name order). SECURITY INVOKER.';
+revoke all on function ops._guard_one_counted_cafe_receipt() from public, anon, authenticated;
+create trigger cafe_receipts_one_counted
+  before insert on ops.cafe_receipts
+  for each row execute function ops._guard_one_counted_cafe_receipt();

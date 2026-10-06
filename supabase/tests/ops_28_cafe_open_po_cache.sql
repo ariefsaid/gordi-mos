@@ -2,7 +2,7 @@
 -- identity-only read (DD-CAFE-MVP-6), the post-lock difference labels and the refresh request.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(46);
+select plan(54);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -89,6 +89,25 @@ select set_config('app.r1', ops.submit_cafe_receipt('00000000-0000-0000-0000-000
     jsonb_build_object('item_unit_id', current_setting('app.bean_kg'), 'quantity', '3'),
     jsonb_build_object('item_unit_id', current_setting('app.milk_l'), 'quantity', '5'),
     jsonb_build_object('item_unit_id', current_setting('app.bean_bag'), 'quantity', '1')))->>'receipt_id', true);
+
+-- ── One open Counted receipt per receiver per branch (no throwaway-receipt probing) ──────────
+select throws_ok($$select ops.submit_cafe_receipt('00000000-0000-0000-0000-00000000bf01', 'kitchen', null,
+  'f1427000-0000-0000-0000-000000000009', jsonb_build_array(
+    jsonb_build_object('item_unit_id', current_setting('app.bean_kg'), 'quantity', '1')))$$,
+  'P0020', null, 'FR-1012 a second Count submit at the branch is refused while the first receipt is not sent');
+select is(ops.submit_cafe_receipt('00000000-0000-0000-0000-00000000bf01', 'kitchen', null,
+  'f1427000-0000-0000-0000-000000000001', jsonb_build_array(
+    jsonb_build_object('item_unit_id', current_setting('app.bean_kg'), 'quantity', '3'),
+    jsonb_build_object('item_unit_id', current_setting('app.milk_l'), 'quantity', '5'),
+    jsonb_build_object('item_unit_id', current_setting('app.bean_bag'), 'quantity', '1'))) ->> 'outcome',
+  'existing', 'FR-1011 a same-key replay of the open Count submit still returns the existing receipt');
+select throws_ok($$delete from ops.cafe_receipts where id = current_setting('app.r1')::uuid$$,
+  '42501', null, 'FR-1012 a receiver cannot discard a Counted receipt');
+select ok(not exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                       where n.nspname = 'ops' and p.proname ~ 'cafe_receipt'
+                         and p.proname ~ '(discard|cancel|delete|remove|withdraw)'),
+          'FR-1012 no function discards or cancels a receipt');
+select ops.send_cafe_receipt_for_review(current_setting('app.r1')::uuid, 1, null);
 select set_config('app.r2', ops.submit_cafe_receipt('00000000-0000-0000-0000-00000000bf01', 'kitchen', null,
   'f1427000-0000-0000-0000-000000000002', jsonb_build_array(
     jsonb_build_object('item_unit_id', current_setting('app.bean_kg'), 'quantity', '9')))->>'receipt_id', true);
@@ -188,6 +207,10 @@ select throws_ok($$select ops.cafe_open_po_identities('00000000-0000-0000-0000-0
   '42501', null, 'AC-1030 a floor member of another branch cannot read this branch''s open POs');
 select is(jsonb_array_length(ops.cafe_open_po_identities('00000000-0000-0000-0000-00000000bf02') -> 'purchase_orders'), 1,
           'AC-1030 ...and reads their own branch''s');
+select ok(shared.is_cafe_affiliated() and shared.is_cafe_affiliated_at(null)
+          and shared.is_cafe_affiliated_at('00000000-0000-0000-0000-00000000bf02')
+          and not shared.is_cafe_affiliated_at('00000000-0000-0000-0000-00000000bf01'),
+          'AC-005 one affiliation predicate: the write gate stays branch-blind while the identity read asks about one branch');
 select shared._test_set_access_roles('{}');
 select throws_ok($$select ops.cafe_open_po_identities('00000000-0000-0000-0000-00000000bf01')$$,
   '42501', null, 'NFR-1001 a session with no organisation is refused');
@@ -210,10 +233,19 @@ select is((select string_agg(a, ',' order by n)
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d7","access_roles":["member"]}');
 select is((select count(*)::int from ops.cafe_receipt_po_differences(array[current_setting('app.r1')::uuid])), 0,
           'NFR-1001 another floor member gets no difference for a receipt they cannot read');
+-- A member of another branch may receive here (the stream is never a write wall), but the labels
+-- stay with the branch's own floor (DD-CAFE-MVP-6).
+select set_config('app.r_other', ops.submit_cafe_receipt('00000000-0000-0000-0000-00000000bf01', 'kitchen', null,
+  'f1427000-0000-0000-0000-000000000007', jsonb_build_array(
+    jsonb_build_object('item_unit_id', current_setting('app.bean_kg'), 'quantity', '9')))->>'receipt_id', true);
+select is((select array_agg(distinct outcome) from ops.cafe_receipt_po_differences(array[current_setting('app.r_other')::uuid])),
+          array['unknown'], 'DD-CAFE-MVP-6 a member of another branch who receives here gets "not yet known", never this branch''s labels');
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","supervisor"]}');
 select is((select count(*)::int from ops.cafe_receipt_po_differences(array[current_setting('app.r1')::uuid])
             where cache_as_of is not null), 3,
           'FR-1032 the stream reviewer reads the difference with the cache as-of time');
+select is((select status from ops.cafe_receipts where id = current_setting('app.r2')::uuid), 'Counted',
+          'FR-1018 the stream reviewer reads a Counted receipt that is not sent yet');
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member","admin"]}');
 select is((select count(*)::int from ops.cafe_receipt_po_differences(array[current_setting('app.r1')::uuid])), 0,
           'NFR-1001 another organisation gets no difference');
@@ -221,8 +253,11 @@ reset role;
 
 -- ── FR-1032 a failed read keeps the previous cache, marked stale; an old cache is not known ──
 set local role service_role;
+select throws_ok($$select ops.mark_cafe_open_pos_stale('00000000-0000-0000-0000-0000000000a1',
+  '00000000-0000-0000-0000-00000000bf01', 'GET https://esb.example.invalid/purchase -> HTTP 503: upstream body')$$,
+  '23514', null, 'FR-1032 a stale mark stores only an error class, never a host, path or body');
 select lives_ok($$select ops.mark_cafe_open_pos_stale('00000000-0000-0000-0000-0000000000a1',
-  '00000000-0000-0000-0000-00000000bf01', 'ESB list read failed: HTTP 503')$$,
+  '00000000-0000-0000-0000-00000000bf01', 'http_503')$$,
   'FR-1032 the worker marks a branch stale after a failed read');
 select is((select count(*)::int from ops.cafe_open_pos where branch_id = '00000000-0000-0000-0000-00000000bf01'), 2,
           'FR-1032 the previous cache is kept');

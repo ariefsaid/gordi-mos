@@ -472,11 +472,17 @@ select ok(
 -- through the function door, underneath the two policy-text scans above. Existence-only means the
 -- stream columns appear solely as is-not-null guards; the default-stream resolution (WHICH stream
 -- is this person''s) is never consulted, because affiliation is not a per-stream fact.
+-- #1427 gives the predicate one body, shared.is_cafe_affiliated_at(branch): the open-PO identity
+-- read asks it about ONE named branch. The write gate is that body with no branch, so the rule
+-- now reads: is_cafe_affiliated() is exactly is_cafe_affiliated_at(null), and the body's only
+-- stream comparison is against its own argument, switched off by null — never the caller's stream.
 select ok(
-  (select pg_get_functiondef('shared.is_cafe_affiliated()'::regprocedure)) ~* 'exists\s*\('
-  and (select pg_get_functiondef('shared.is_cafe_affiliated()'::regprocedure))
+  (select pg_get_functiondef('shared.is_cafe_affiliated()'::regprocedure)) ~* 'shared\.is_cafe_affiliated_at\(\s*null\s*\)'
+  and (select pg_get_functiondef('shared.is_cafe_affiliated_at(uuid)'::regprocedure)) ~* 'exists\s*\('
+  and regexp_replace((select pg_get_functiondef('shared.is_cafe_affiliated_at(uuid)'::regprocedure)),
+                     '\(p_branch_id is null or t\.branch_id = p_branch_id\)', '', 'i')
         !~* '(branch_id|\mactivity\M)\s*(=|<>|!=|<|>|\min\M)'
-  and (select pg_get_functiondef('shared.is_cafe_affiliated()'::regprocedure)) !~* 'default_stream',
+  and (select pg_get_functiondef('shared.is_cafe_affiliated_at(uuid)'::regprocedure)) !~* 'default_stream',
   'AC-005: the affiliation predicate reads EXISTENCE of a stream membership — stream columns appear only as is-not-null guards, never compared to the caller''s own stream, and the default-stream resolution is never consulted');
 
 select ok(
