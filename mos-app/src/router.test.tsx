@@ -169,6 +169,21 @@ describe('issue 1422: Café receiving destinations', () => {
   })
 })
 
+describe('issue 1428: Café purchase request destinations', () => {
+  it('Request and Request review are live, navigable and open in the cafe and full profiles', () => {
+    expect(CAFE_SECTIONS.map(section => section.path)).toContain('/cafe/request')
+    for (const path of ['/cafe/request', '/cafe/request/review']) {
+      const leaf = leafInThisTable(path)
+      expect(leaf, `${path} must be a declared route`).toBeDefined()
+      expect(leaf!.route.path).not.toBe('*')
+      expect(isRedirect(leaf!.route.element)).toBe(false)
+      expect(sectionForPath(path)?.path, `${path} marks Request in the navigation`).toBe('/cafe/request')
+      expect(isShipGatedInProfile(path, 'cafe'), `${path} blocked in the cafe profile`).toBe(false)
+      expect(isShipGatedInProfile(path, 'full'), `${path} blocked in the full profile`).toBe(false)
+    }
+  })
+})
+
 describe('issue 1239: Café capture split routes', () => {
   it('keeps production and transfer as live pages and redirects the legacy log alias to production', () => {
     for (const path of ['/cafe/production', '/cafe/transfer', '/cafe/waste', '/cafe/count']) {
@@ -357,7 +372,7 @@ describe('router — Café review + pushes are role-gated', () => {
       (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'cafe/review'),
     )!
     expect(gate.element).toEqual(<RequireAccessRole anyOf={['ops_lead', 'admin', 'supervisor']} scope="link" />)
-    expect(gate.children!.map((c) => c.path).sort()).toEqual(['cafe/receive/review', 'cafe/review', 'kitchen/review'])
+    expect(gate.children!.map((c) => c.path).sort()).toEqual(['cafe/receive/review', 'cafe/request/review', 'cafe/review', 'kitchen/review'])
   })
 
   it('AC-006: /cafe/pushes stays behind RequireAccessRole(ops_lead|admin) — posting state is not a review queue', () => {

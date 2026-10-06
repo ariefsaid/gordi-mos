@@ -21,6 +21,8 @@ export const ROUTE_PATHS = {
   cafeReceive: 'cafe/receive',
   cafeReceiptReview: 'cafe/receive/review',
   cafeReceiptIssues: 'cafe/receive/issues',
+  cafeRequest: 'cafe/request',
+  cafeRequestReview: 'cafe/request/review',
   cafePlan: 'cafe/plan',
   cafeStock: 'cafe/stock',
   cafeItems: 'cafe/items',
@@ -52,6 +54,8 @@ export type RouteParityId =
   | 'cafeReceive'
   | 'cafeReceiptReview'
   | 'cafeReceiptIssues'
+  | 'cafeRequest'
+  | 'cafeRequestReview'
   | 'cafePlan'
   | 'cafeStock'
   | 'cafeItems'
@@ -93,6 +97,8 @@ export const ROUTE_PARITY_CATALOG: readonly RouteParityEntry[] = [
   { id: 'cafeReceive', path: absolutePath(ROUTE_PATHS.cafeReceive), kind: 'child' },
   { id: 'cafeReceiptReview', path: absolutePath(ROUTE_PATHS.cafeReceiptReview), kind: 'child' },
   { id: 'cafeReceiptIssues', path: absolutePath(ROUTE_PATHS.cafeReceiptIssues), kind: 'child' },
+  { id: 'cafeRequest', path: absolutePath(ROUTE_PATHS.cafeRequest), kind: 'child' },
+  { id: 'cafeRequestReview', path: absolutePath(ROUTE_PATHS.cafeRequestReview), kind: 'child' },
   { id: 'cafePlan', path: absolutePath(ROUTE_PATHS.cafePlan), kind: 'child' },
   { id: 'cafeStock', path: absolutePath(ROUTE_PATHS.cafeStock), kind: 'child' },
   { id: 'cafeItems', path: absolutePath(ROUTE_PATHS.cafeItems), kind: 'child' },

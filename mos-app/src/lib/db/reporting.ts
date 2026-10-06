@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase'
-import { daysAgoIsoDate, latestBy } from '@/lib/db/reporting-shared'
+import { daysAgoIsoDate, latestBy, REPORTING_READ_MAX_ROWS, REPORTING_WINDOW_DAYS } from '@/lib/db/reporting-shared'
 
 // Data layer for reporting.sales_daily_revenue (sales dashboard, Issue 1 — OD-P4-2 / ADR-0010
 // D5 / ADR-0017 D3). Reads via supabase.schema('reporting') on the existing client (mirrors the
@@ -27,7 +27,7 @@ const SELECT =
   'revenue_date,channel,esb_code,branch_code,branch_name,transactions,clean_revenue,snapshot_as_of,source_contract_version'
 
 export interface SalesDailyRevenueFilters {
-  /** Only include rows with revenue_date >= (today − sinceDays). Omit for the full org-visible set. */
+  /** Only include rows with revenue_date >= (today − sinceDays). Defaults to the dashboard's 60-day window. */
   sinceDays?: number
 }
 
@@ -41,10 +41,13 @@ export async function listSalesDailyRevenue(
   f: SalesDailyRevenueFilters = {},
 ): Promise<SalesDailyRevenueRow[]> {
   let q = reporting().from('sales_daily_revenue').select(SELECT)
-  if (f.sinceDays !== undefined) q = q.gte('revenue_date', daysAgoIsoDate(f.sinceDays))
-  q = q.order('revenue_date', { ascending: true })
+  q = q.gte('revenue_date', daysAgoIsoDate(f.sinceDays ?? REPORTING_WINDOW_DAYS))
+    .order('revenue_date', { ascending: true }).limit(REPORTING_READ_MAX_ROWS)
   const { data, error } = await q
   if (error) throw new Error(`listSalesDailyRevenue failed — ${error.message}`)
+  if ((data ?? []).length === REPORTING_READ_MAX_ROWS) {
+    throw new Error('listSalesDailyRevenue exceeded the safe reporting row limit')
+  }
   return (data ?? []) as unknown as SalesDailyRevenueRow[]
 }
 
