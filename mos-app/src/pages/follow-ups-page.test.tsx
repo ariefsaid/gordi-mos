@@ -115,6 +115,33 @@ describe('FollowUpsPage', () => {
     expect(container.querySelector('.follow-ups-table-wrap')).toBeNull()
   })
 
+  it('wraps a no-space counterparty name in the 390px follow-up card', async () => {
+    applyViewport(false)
+    const counterparty = 'PTSupercalifragilisticexpialidociousCounterpartyWithoutSpaces'
+    mockListFollowUps.mockResolvedValueOnce([{ ...row, counterparty }])
+    const { container } = render(createElement(FollowUpsPage), { wrapper })
+
+    const name = await screen.findByText(counterparty)
+    expect(name).toHaveClass('follow-ups-counterparty')
+    expect(container.querySelector('.dt-card-title')).toContainElement(name)
+  })
+
+  it('marks follow-up and overdue counts as partial while another page is available', async () => {
+    const overdueRows = Array.from({ length: 50 }, (_, index) => ({
+      ...row,
+      id: `overdue-${index}`,
+      counterparty: `Buyer ${index}`,
+      due_date: '2000-01-01',
+    }))
+    mockListFollowUps.mockResolvedValueOnce(overdueRows)
+    renderRoute('/money/follow-ups?filter=overdue')
+
+    await screen.findByText('Buyer 0')
+    const pageHead = screen.getByTestId('page-head')
+    expect(pageHead.querySelector('.ch-count')).toHaveTextContent('50+')
+    expect(pageHead).toHaveTextContent('Overdue: 50+')
+  })
+
   it('DD-WAY-36: the queue renders the source ref as plain text — no link to the deleted Work path', async () => {
     renderRoute('/money/follow-ups')
     expect(await screen.findByText('PT Big Buyer')).toBeInTheDocument()

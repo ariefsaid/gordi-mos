@@ -938,14 +938,75 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
   // container the virtualizer measures (otherwise it'd window to 0 rows).
   function stubViewportHeight(height = 600) {
     const orig = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight')
-    Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
-      configurable: true,
-      get(this: HTMLElement) {
-        if (this.className?.includes?.('tasks-scroll-virtual')) return height
-        return orig?.get?.call(this) ?? 0
+    const origClientHeight = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientHeight')
+    const origScrollHeight = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollHeight')
+    Object.defineProperties(HTMLElement.prototype, {
+      offsetHeight: {
+        configurable: true,
+        get(this: HTMLElement) {
+          if (this.className?.includes?.('tasks-scroll')) return height
+          return orig?.get?.call(this) ?? 0
+        },
+      },
+      clientHeight: {
+        configurable: true,
+        get(this: HTMLElement) {
+          if (this.className?.includes?.('tasks-scroll')) return height
+          return origClientHeight?.get?.call(this) ?? 0
+        },
+      },
+      scrollHeight: {
+        configurable: true,
+        get(this: HTMLElement) {
+          if (this.className?.includes?.('tasks-scroll')) return height * 6
+          return origScrollHeight?.get?.call(this) ?? 0
+        },
+      },
+      scrollTo: {
+        configurable: true,
+        value(this: HTMLElement, options: ScrollToOptions) {
+          if (options.top !== undefined) {
+            this.scrollTop = options.top
+            this.dispatchEvent(new Event('scroll'))
+          }
+        },
       },
     })
   }
+
+  it('keeps the member paging layout stable and scrolls the first appended row into view without moving focus', async () => {
+    stubWidths({ split: false, desktop: true })
+    stubViewportHeight()
+    const currentRows = Array.from({ length: 36 }, (_, index) =>
+      makeTask({ id: `current-${index}`, title: `Current task ${index}` }))
+    const olderRows = Array.from({ length: 25 }, (_, index) =>
+      makeTask({
+        id: `older-${index}`,
+        title: `Older done ${index}`,
+        status: 'Done',
+        completed_at: '2020-01-01T00:00:00Z',
+      }))
+    mockListTasks.mockResolvedValue(currentRows)
+    mockListOlderDoneTasks.mockResolvedValueOnce({
+      rows: olderRows,
+      nextCursor: { completed_at: '2020-01-01T00:00:00Z', id: 'older-24' },
+      hasMore: true,
+    })
+    renderAt('/work/tasks?view=all')
+
+    const button = await screen.findByRole('button', { name: 'Show older done tasks' })
+    const scroller = document.querySelector('.tasks-scroll') as HTMLElement | null
+    expect(scroller).not.toBeNull()
+    expect(scroller).not.toHaveClass('tasks-scroll-virtual')
+    button.focus()
+    fireEvent.click(button)
+
+    await waitFor(() => expect(scroller).toHaveClass('tasks-scroll-virtual'))
+    await waitFor(() => expect(scroller!.scrollTop).toBeGreaterThan(0))
+    expect(within(scroller!).getByText('Older done 0')).toBeInTheDocument()
+    expect(document.querySelector('.tasks-scroll-virtual')).toBe(scroller)
+    expect(button).toHaveFocus()
+  })
 
   it('AC-114: with 60 rows the table windows (not all 60 <tr> in the DOM)', async () => {
     stubViewportHeight()

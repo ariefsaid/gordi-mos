@@ -1142,6 +1142,19 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
     expect(screen.getByRole('link', { name: /\+ create task/i })).toBeInTheDocument()
   })
 
+  it('qualifies an empty filtered first page and keeps the older-tasks continuation action', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Alpha task' })])
+    renderTable()
+    await waitFor(() => screen.getByText('Alpha task'))
+    fireEvent.change(screen.getByLabelText('Search tasks'), { target: { value: 'zzz-no-match' } })
+
+    await waitFor(() => expect(screen.getAllByText('No match in the loaded tasks')).toHaveLength(2))
+    expect(screen.getByText('Load more to continue through the list.')).toBeInTheDocument()
+    expect(screen.queryByText('0 loaded')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Show older done tasks' })).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /clear filters/i }).length).toBeGreaterThan(0)
+  })
+
   it('AC-133: no-results-after-filter shows distinct message + Clear filters + Create task (not the empty-no-tasks copy)', async () => {
     // Use search to create a no-results-after-filter state
     mockListTasks.mockResolvedValue([makeTask({ title: 'Alpha task' })])
@@ -1151,7 +1164,7 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
     const search = screen.getByLabelText('Search tasks')
     fireEvent.change(search, { target: { value: 'zzz-no-match' } })
     await waitFor(() => {
-      expect(screen.getByText(/no tasks match these filters/i)).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: /no match in the loaded tasks/i })).toBeInTheDocument()
     })
     // Clear filters button present
     expect(screen.getAllByRole('button', { name: /clear filters/i }).length).toBeGreaterThan(0)
@@ -1162,15 +1175,15 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
   })
 
   // AC-D04 (PR-6 state-vocabulary lock): the table distinguishes a truly-empty result
-  // ("no tasks" + create CTA) from a filtered-empty result ("no tasks match these filters"
-  // + Clear filters) — they must NOT share copy. This is the durable cross-surface state
+  // ("no tasks" + create CTA) from a filtered-empty result ("no match in the loaded tasks"
+  // + Clear filters while more pages are available) — they must NOT share copy. This is the durable cross-surface state
   // invariant the capstone audit verified; tagged here so grep -r AC-D04 finds the proof.
   it('AC-D04: filtered-empty copy differs from truly-empty copy (distinct state vocabulary)', async () => {
     // truly-empty
     mockListTasks.mockResolvedValue([])
     const { unmount } = renderTable()
     await waitFor(() => expect(screen.getByText(/no tasks yet/i)).toBeInTheDocument())
-    expect(screen.queryByText(/no tasks match these filters/i)).toBeNull()
+    expect(screen.queryByText(/no match in the loaded tasks/i)).toBeNull()
     unmount()
 
     // filtered-empty (a task exists but the search matches nothing)
@@ -1178,7 +1191,7 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
     renderTable()
     await waitFor(() => screen.getByText('Alpha task'))
     fireEvent.change(screen.getByLabelText('Search tasks'), { target: { value: 'zzz-no-match' } })
-    await waitFor(() => expect(screen.getByText(/no tasks match these filters/i)).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('heading', { name: /no match in the loaded tasks/i })).toBeInTheDocument())
     // distinct from the truly-empty copy + offers Clear filters
     expect(screen.queryByText(/no tasks yet/i)).toBeNull()
     expect(screen.getAllByRole('button', { name: /clear filters/i }).length).toBeGreaterThan(0)
@@ -1295,7 +1308,7 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
   })
 
   // #1031: an empty My work with no filter set is a scope, not a filter — it must not claim
-  // "No tasks match these filters". A real filter still gets the filtered wording.
+  // "No match in the loaded tasks". A real filter still gets the filtered wording.
   it('empty My work with no filters says nothing is assigned, not that filters matched nothing', async () => {
     mockListTasks.mockResolvedValue([
       makeTask({ id: 'other', title: 'Someone else’s task', responsible_person_id: 'other-person', accountable_person_id: 'other-person' }),
@@ -1305,7 +1318,7 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
     ensureFiltersOpen()
     fireEvent.click(screen.getByRole('button', { name: 'My work' }))
     await waitFor(() => expect(screen.getByText('No tasks assigned to you')).toBeInTheDocument())
-    expect(screen.queryByText(/match these filters/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/no match in the loaded tasks/i)).not.toBeInTheDocument()
   })
 
   it('explains Team work when the viewer has no active Team and omits false filter/create actions', async () => {
@@ -1340,7 +1353,7 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
     await screen.findByRole('button', { name: 'Team work' })
     fireEvent.change(screen.getByLabelText('Search tasks'), { target: { value: 'no-match' } })
 
-    expect(await screen.findByText(/no tasks match these filters/i)).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /no match in the loaded tasks/i })).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: /clear filters/i }).length).toBeGreaterThan(0)
     expect(screen.queryByRole('region', { name: 'No Team work yet' })).toBeNull()
   })
@@ -1358,7 +1371,7 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
     await waitFor(() => screen.getByText('My own task'))
     ensureFiltersOpen()
     chooseFilterOption(screen.getByRole('combobox', { name: /person/i }), 'Budi Setiawan')
-    await waitFor(() => expect(screen.getByText(/no tasks match these filters/i)).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('heading', { name: /no match in the loaded tasks/i })).toBeInTheDocument())
     expect(screen.queryByText(/no tasks assigned to you/i)).toBeNull()
     // The Clear filters action functions: clearing returns the row.
     fireEvent.click(screen.getAllByRole('button', { name: /clear filters/i })[0])
@@ -1373,7 +1386,7 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
     await waitFor(() => screen.getByText('On time task'))
     ensureFiltersOpen()
     fireEvent.click(screen.getByRole('button', { name: 'Overdue' }))
-    await waitFor(() => expect(screen.getByText(/no tasks match these filters/i)).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('heading', { name: /no match in the loaded tasks/i })).toBeInTheDocument())
     expect(screen.queryByText(/no tasks assigned to you/i)).toBeNull()
     expect(screen.getAllByRole('button', { name: /clear filters/i }).length).toBeGreaterThan(0)
   })
@@ -1388,7 +1401,7 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'My work' }))
     await waitFor(() => expect(screen.getByText('My own task')).toBeInTheDocument())
     fireEvent.change(screen.getByLabelText('Search tasks'), { target: { value: 'zzz-no-match' } })
-    await waitFor(() => expect(screen.getByText(/no tasks match these filters/i)).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('heading', { name: /no match in the loaded tasks/i })).toBeInTheDocument())
     expect(screen.queryByText(/no tasks assigned to you/i)).toBeNull()
     expect(screen.getAllByRole('button', { name: /clear filters/i }).length).toBeGreaterThan(0)
   })

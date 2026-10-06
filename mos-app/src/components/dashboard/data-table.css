@@ -158,6 +158,8 @@
 .dt-card--compact { padding: 10px 12px; }
 
 .dt-card-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-size: var(--font-size-control);
   font-weight: 500;
   color: var(--foreground);

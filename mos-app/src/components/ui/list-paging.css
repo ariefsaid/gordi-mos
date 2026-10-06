@@ -11,3 +11,20 @@
   color: var(--muted-foreground);
   font-size: var(--font-size-body);
 }
+
+.list-paging p.list-paging__error {
+  flex: 0 0 100%;
+  min-height: 4.2em;
+  color: var(--status-lost-text);
+  line-height: 1.4;
+}
+
+.list-paging__error--hidden {
+  visibility: hidden;
+}
+
+@media (pointer: coarse), (max-width: 768px) {
+  .list-paging .btn {
+    min-height: 44px;
+  }
+}

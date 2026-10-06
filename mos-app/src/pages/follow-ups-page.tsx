@@ -190,7 +190,7 @@ export function FollowUpsPage() {
       cardLabel: '',
       render: (row) => (
         <div>
-          <strong>{row.counterparty}</strong>
+          <strong className="follow-ups-counterparty">{row.counterparty}</strong>
           <br />
           {row.source_invoice_ref ?? row.kind}
         </div>
@@ -252,8 +252,8 @@ export function FollowUpsPage() {
       <PageHead
         variant="content"
         title={t('followUps.title')}
-        count={state === 'ready' ? rows.length : null}
-        meta={<span>{t('followUps.overdue')}: {overdueCount}</span>}
+        count={state === 'ready' ? (hasMore ? `${rows.length}+` : rows.length) : null}
+        meta={<span>{t('followUps.overdue')}: {hasMore ? `${overdueCount}+` : overdueCount}</span>}
       />
       {state === 'loading' && <SkeletonRows count={5} />}
       {state === 'error' && (

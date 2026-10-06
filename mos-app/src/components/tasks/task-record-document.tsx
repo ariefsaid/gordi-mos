@@ -196,7 +196,7 @@ export function TaskRecordDocument({
       about={{ title: t('record.page.about'), node: <RecordAbout items={aboutItems} /> }}
       history={events.length > 0 ? {
         title: t('tasks.history.title'),
-        count: events.length,
+        count: eventsHasMore ? `${events.length}+` : events.length,
         node: <ActivityCard events={events} people={people} now={now} hasMore={eventsHasMore}
           loadingMore={eventsLoadingMore} moreError={eventsMoreError} onLoadMore={onLoadMoreEvents} />,
       } : undefined}
