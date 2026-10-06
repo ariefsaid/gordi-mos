@@ -352,6 +352,25 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
     expect(Object.keys(arg)).not.toContain('plan_by')
   })
 
+  it('a save completing after a stream switch cannot add its cell to the new stream plan', async () => {
+    let resolveSave!: (id: string) => void
+    mockUpsert.mockImplementation(() => new Promise(resolve => { resolveSave = resolve }))
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+
+    const quantity = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
+    fireEvent.change(quantity, { target: { value: '15' } })
+    fireEvent.blur(quantity)
+    await waitFor(() => expect(mockUpsert).toHaveBeenCalledOnce())
+
+    chooseStream('Rumah Rames · Bar')
+    await screen.findByRole('heading', { level: 2, name: 'Rumah Rames · Bar' })
+    await waitFor(() => expect(mockPlans).toHaveBeenCalledTimes(2))
+    await act(async () => { resolveSave('late-kitchen-plan') })
+
+    expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })).toHaveValue(null)
+  })
+
   it('does not save when the value is unchanged (no needless write)', async () => {
     mockPlans.mockResolvedValue(PLAN_CELLS)
     render(<KitchenPlanPage />, { wrapper })

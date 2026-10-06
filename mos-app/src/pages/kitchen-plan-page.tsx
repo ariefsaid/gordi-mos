@@ -424,6 +424,7 @@ function PlanEditor() {
         destination_branch_id: movement.destinationBranchId,
         qty_porsi: nextQty,
       })
+      if (gen !== requestGen.current) return
       // Reflect the confirmed result in place (no view transition).
       setCells(prev => {
         const without = prev.filter(
@@ -437,6 +438,7 @@ function PlanEditor() {
       if (savedTimer.current) clearTimeout(savedTimer.current)
       savedTimer.current = setTimeout(() => setJustSavedId(null), 1500)
     } catch (err) {
+      if (gen !== requestGen.current) return
       if (isItemNotOnStreamError(err)) {
         // The list changed while the editor was open (#222): re-read it so the row reads as off-list.
         setSaveError(t('kitchen.plan.error.itemNotOnStream'))
@@ -450,7 +452,7 @@ function PlanEditor() {
         setSaveError(saveErrorMessage(err, t))
       }
     } finally {
-      setSavingId(null)
+      if (gen === requestGen.current) setSavingId(null)
     }
   }
 
