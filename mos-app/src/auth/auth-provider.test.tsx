@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, act } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { render, screen, act, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 // Mock supabase and resolveViewer before imports that use them
@@ -16,6 +16,13 @@ vi.mock('../lib/supabase', () => ({
 vi.mock('../lib/db/viewer', () => ({
   resolveViewer: vi.fn(),
 }))
+
+// The device clear runs for real unless a test swaps in a failing or hanging one.
+const deviceDrafts = vi.hoisted(() => ({ clear: null as null | (() => Promise<void>) }))
+vi.mock('@/lib/device-drafts', async importOriginal => {
+  const actual = await importOriginal<typeof import('@/lib/device-drafts')>()
+  return { clearDeviceDrafts: vi.fn(() => (deviceDrafts.clear ?? actual.clearDeviceDrafts)()) }
+})
 
 import { AuthProvider } from './auth-provider'
 import { useAuth } from './use-auth'
@@ -91,6 +98,11 @@ async function flushAuth() {
 }
 
 describe('AuthProvider', () => {
+  afterEach(() => {
+    deviceDrafts.clear = null
+    vi.unstubAllGlobals()
+  })
+
   beforeEach(() => {
     vi.clearAllMocks()
     // Default: onAuthStateChange returns an unsubscribe fn
@@ -265,11 +277,41 @@ describe('AuthProvider', () => {
     expect(Object.keys(localStorage).filter(key => key.startsWith('mos.cafe.') || key.startsWith('cafe.receive.'))).toEqual([])
     expect(deleteDatabase).toHaveBeenCalledWith('gordi-mos-offline-photos')
     expect(localStorage.getItem('mos.tasks.groupBy')).toBe('owner')
-    vi.unstubAllGlobals()
     expect(mockSignOut).toHaveBeenCalledOnce()
     expect(screen.getByTestId('status').textContent).toBe('unauthenticated')
     // Marks the session as ended, so ProtectedRoute keeps no return route for the next person.
     expect(screen.getByTestId('signed-out')).toBeInTheDocument()
+  })
+
+  async function signOutWithClear(clear: () => Promise<void>) {
+    deviceDrafts.clear = clear
+    mockGetSession.mockResolvedValue({
+      data: { session: { user: { id: 'auth-user-001' } } },
+      error: null,
+    } as Awaited<ReturnType<typeof supabase.auth.getSession>>)
+    mockResolveViewer.mockResolvedValue({ person: personRow, roles, isManager: false, accessRoles: [], affiliated: [] })
+    mockSignOut.mockResolvedValue({ error: null })
+    const user = userEvent.setup()
+    await act(async () => {
+      render(<AuthProvider><AuthConsumer /></AuthProvider>)
+    })
+    await act(async () => {
+      await user.click(screen.getByRole('button', { name: 'Sign out' }))
+    })
+  }
+
+  it('sign-out still ends the session when clearing the device fails', async () => {
+    await signOutWithClear(() => Promise.reject(new Error('storage denied')))
+
+    expect(mockSignOut).toHaveBeenCalledOnce()
+    expect(screen.getByTestId('status').textContent).toBe('unauthenticated')
+  })
+
+  it('sign-out still ends the session when clearing the device never finishes', async () => {
+    await signOutWithClear(() => new Promise<void>(() => {}))
+
+    await waitFor(() => expect(mockSignOut).toHaveBeenCalledOnce(), { timeout: 4000 })
+    await waitFor(() => expect(screen.getByTestId('status').textContent).toBe('unauthenticated'))
   })
 
   it('does not revive A across A → B → A or an AuthProvider remount, and ignores a late B resolution', async () => {

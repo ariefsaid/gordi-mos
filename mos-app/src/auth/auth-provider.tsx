@@ -11,6 +11,9 @@ import { clearDeviceDrafts } from '@/lib/device-drafts'
 import { isSampleAccountOutsideSampleOrg } from '@/pages/demo-personas'
 import { AuthContext, type AuthState } from './context'
 
+/** How long sign-out waits for the device clear before ending the session anyway. */
+const DEVICE_CLEAR_TIMEOUT_MS = 2000
+
 // FR-009: session persistence + auto-refresh is configured on the supabase client (T-004) —
 // no extra code needed here; just subscribe to state changes.
 //
@@ -91,8 +94,14 @@ export function AuthProvider({ children }: Props) {
     const ticket = ++resolutionTicketRef.current
     isRecoveringRef.current = false
     retireReadScope()
-    await clearDeviceDrafts()
-    await supabase.auth.signOut()
+    // Ending the session is the control; clearing the device is best effort and may not stall it.
+    try {
+      await Promise.race([clearDeviceDrafts(), new Promise(resolve => setTimeout(resolve, DEVICE_CLEAR_TIMEOUT_MS))])
+    } catch {
+      // A store that refuses to clear is left as it is; the drafts carry their owner and expire.
+    } finally {
+      await supabase.auth.signOut()
+    }
     if (ticket === resolutionTicketRef.current) {
       setState({ status: 'unauthenticated', signedOut: true })
     }

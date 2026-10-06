@@ -9,7 +9,7 @@ const NativeURL = globalThis.URL
 const photoWindow = vi.hoisted(() => ({ minutes: 15 }))
 vi.mock('@/lib/offline-photo-drafts', () => ({
   loadOfflinePhotoDraft: vi.fn().mockResolvedValue([]),
-  saveOfflinePhotoDraft: vi.fn().mockResolvedValue(true),
+  saveOfflinePhotoDraft: vi.fn().mockResolvedValue('saved'),
   clearOfflinePhotoDraft: vi.fn().mockResolvedValue(undefined),
 }))
 vi.mock('@/lib/db/kitchen-waste-photos', async importOriginal => {
@@ -47,7 +47,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   photoWindow.minutes = 15
   vi.mocked(loadOfflinePhotoDraft).mockResolvedValue([])
-  vi.mocked(saveOfflinePhotoDraft).mockResolvedValue(true)
+  vi.mocked(saveOfflinePhotoDraft).mockResolvedValue('saved')
   onUpload.mockResolvedValue()
   class TestURL extends NativeURL {
     static createObjectURL = vi.fn(() => 'blob:waste-preview')
@@ -110,7 +110,7 @@ describe('WastePhotoCapture', () => {
     vi.mocked(saveOfflinePhotoDraft).mockImplementation(async (key, files) => {
       if (files.length === 0) device.delete(key)
       else device.set(key, [...files])
-      return true
+      return 'saved'
     })
     const first = renderCapture([], 'en', 'person|receipt|line')
     await waitFor(() => expect(loadOfflinePhotoDraft).toHaveBeenCalled())
@@ -122,6 +122,15 @@ describe('WastePhotoCapture', () => {
 
     expect(await screen.findByText('delivery.jpg')).toBeInTheDocument()
     expect(device.get('person|receipt|line')?.map(file => file.name)).toEqual(['delivery.jpg'])
+  })
+
+  it('NFR-1007 a photo too large to keep even after shrinking says so in size terms, not as a device failure', async () => {
+    vi.mocked(saveOfflinePhotoDraft).mockResolvedValue('tooLarge')
+    renderCapture([], 'en', 'person|receipt|line', true)
+    fireEvent.change(screen.getByLabelText(/take or choose photos/i), { target: { files: [photo('camera-raw.jpg')] } })
+
+    expect(await screen.findByText('This image is too large after compression (5 MB maximum).')).toBeInTheDocument()
+    expect(screen.queryByText(/could not be saved/)).toBeNull()
   })
 
   it('AC-1006 allows offline photo selection and saves locally while Upload remains disabled', async () => {

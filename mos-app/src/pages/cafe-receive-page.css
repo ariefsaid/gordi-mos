@@ -263,6 +263,7 @@
 
 .cafe-receive__band-status {
   display: grid;
+  flex: 1 1 auto;
   gap: 2px;
   min-width: 0;
 }

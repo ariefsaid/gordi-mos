@@ -1,4 +1,4 @@
-import { PRIVATE_PHOTO_MAX_BYTES } from '@/lib/db/photo-evidence'
+import { prepareEvidencePhoto } from '@/lib/db/photo-evidence'
 
 const DATABASE_NAME = 'gordi-mos-offline-photos'
 const STORE_NAME = 'pending'
@@ -77,21 +77,37 @@ async function writeTransaction(run: (store: IDBObjectStore) => void): Promise<b
   })
 }
 
+export type OfflinePhotoDraftResult = 'saved' | 'tooLarge' | 'failed'
+
+/** Each chosen file's stored JPEG, shrunk once however often the selection is saved. */
+const prepared = new WeakMap<File, Promise<Blob | 'tooLarge' | 'failed'>>()
+function storedForm(file: File): Promise<Blob | 'tooLarge' | 'failed'> {
+  let form = prepared.get(file)
+  if (!form) {
+    form = prepareEvidencePhoto(file).catch((cause: unknown) =>
+      cause instanceof Error && cause.message === 'WASTE_PHOTO_TOO_LARGE' ? 'tooLarge' as const : 'failed' as const)
+    prepared.set(file, form)
+  }
+  return form
+}
+
 /**
- * Store a key's selected photos, replacing what was there; no files deletes the record. A file over
- * the 5 MB evidence limit is not stored, and the save reports false so the capture can say so.
+ * Store a key's selected photos as the JPEGs the upload would send, replacing what was there; no
+ * files deletes the record. A photo still over the 5 MB cap after shrinking is not stored, and the
+ * save reports `tooLarge` so the capture can say so in size terms.
  */
-export async function saveOfflinePhotoDraft(key: string, files: readonly File[], now = Date.now()): Promise<boolean> {
-  const storable = files.filter(file => file.size <= PRIVATE_PHOTO_MAX_BYTES)
+export async function saveOfflinePhotoDraft(key: string, files: readonly File[], now = Date.now()): Promise<OfflinePhotoDraftResult> {
+  const forms = await Promise.all(files.map(storedForm))
+  const storable = files.flatMap((file, index) => {
+    const blob = forms[index]
+    return blob instanceof Blob ? [{ blob, name: file.name, type: blob.type || 'image/jpeg', lastModified: file.lastModified }] : []
+  })
   const committed = await writeTransaction(store => {
     if (storable.length === 0) store.delete(key)
-    else store.put({
-      key,
-      savedAt: now,
-      files: storable.map(file => ({ blob: file, name: file.name, type: file.type, lastModified: file.lastModified })),
-    } satisfies StoredPhotoDraft)
+    else store.put({ key, savedAt: now, files: storable } satisfies StoredPhotoDraft)
   })
-  return committed && storable.length === files.length
+  if (!committed || forms.includes('failed')) return 'failed'
+  return forms.includes('tooLarge') ? 'tooLarge' : 'saved'
 }
 
 export async function clearOfflinePhotoDraft(key: string): Promise<void> {
