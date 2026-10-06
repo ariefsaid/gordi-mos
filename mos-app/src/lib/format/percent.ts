@@ -48,6 +48,11 @@ export function formatSignedPercent(frac: number, decimals = 1): string {
 
 const pointsFmt = new Intl.NumberFormat('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
 
+/** A difference between two 0..1 fractions as unsigned percentage points: 0.072 → "7,2". */
+export function formatPoints(frac: number): string {
+  return pointsFmt.format(Math.abs(frac * 100))
+}
+
 /** A difference between two 0..1 fractions as signed percentage points with id-ID comma decimals:
  *  0.072 → "+7,2", −0.005 → "−0,5", and "0,0" when it rounds to nothing. The unit is the caller's. */
 export function formatSignedPoints(frac: number): string {

@@ -2,7 +2,7 @@
 // (census g-money r5 F-2). Oracle: every percent on the Money/Plan family speaks
 // id-ID (comma decimals) — never a raw-period "23.1%" beside a comma "36,7%".
 import { describe, it, expect } from 'vitest'
-import { formatPercent, formatSignedPercent, formatSignedPoints } from './percent'
+import { formatPercent, formatSignedPercent, formatSignedPoints, formatPoints } from './percent'
 import { formatPct } from '@/lib/plan-budget-logic'
 
 describe('formatSignedPercent — a change always carries its sign as text', () => {
@@ -64,5 +64,12 @@ describe('formatPercent (r5 F-2: one locale-aware percent everywhere)', () => {
     expect(formatPct(12.3456)).toBe('1.235%')
     // A hand-rolled Math.round path prints "NaN%" here; the module's placeholder wins.
     expect(formatPct(Number.NaN)).toBe('—')
+  })
+})
+
+describe('formatPoints — the size of a difference, the sentence carries over or under', () => {
+  it('drops the sign either way', () => {
+    expect(formatPoints(0.072)).toBe('7,2')
+    expect(formatPoints(-0.0051)).toBe('0,5')
   })
 })
