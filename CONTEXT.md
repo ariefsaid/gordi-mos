@@ -130,6 +130,22 @@ A second physical quantity asked only when the first count differs from the expe
 A new linked **Count** that supersedes a confirmed count while leaving the original unchanged; confirmed counts are never edited.
 _Avoid_: adjustment
 
+**Receipt** (goods receipt):
+MOS's record of what physically arrived from a supplier at a branch, counted blind by whoever is on shift, independent of any purchase order. Only the approved portions that match an open purchase order post to **ESB** as goods receipts.
+_Avoid_: GR (in copy), delivery
+
+**Count submit** (on a **Receipt**):
+The step that locks a receipt's quantities and items; the difference against **Outstanding** is shown only after it. Not the daily **Count**.
+
+**Outstanding**:
+The quantity still to be received on an open purchase order line in **ESB**; MOS never sends a receipt above it.
+
+**Receipt issue**:
+A receipt portion or line procurement must act on: no purchase order, more than outstanding, a different unit, short, or damaged/wrong. Blocking kinds wait unposted until procurement links a purchase order or closes the issue.
+
+**PO created after delivery**:
+A flag on a receipt line whose linked purchase order was created in **ESB** after the goods arrived; it makes backdating visible without blocking it.
+
 **Unit** (of a WIP item):
 **Master data, not an input.** An item is made in one unit, shown fixed beside the quantity box;
 changing it costs a deliberate extra click (OD-WAY-46). The unit is not a MOS label — ESB
