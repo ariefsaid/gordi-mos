@@ -76,6 +76,7 @@ import {
 } from '@/lib/kitchen-item-list'
 import { usePlanSummary } from '@/lib/kitchen-plan-kpis'
 import { formatDayMonthYear } from '@/lib/format/date'
+import '@/components/kitchen/status-banner-tone.css'
 import './kitchen-plan-page.css'
 
 function CafePlanStreamBar({

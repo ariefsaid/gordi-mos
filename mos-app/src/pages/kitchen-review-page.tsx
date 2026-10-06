@@ -62,6 +62,7 @@ import { activeCafeLocation } from '@/lib/cafe-opening-location'
 import { useReviewSummary } from '@/lib/kitchen-review-kpis'
 import { formatWeekdayDayMonth } from '@/lib/format/date'
 import { formatUnitMultiple } from '@/lib/cafe-unit-multiples'
+import '@/components/kitchen/status-banner-tone.css'
 import './kitchen-review-page.css'
 
 function wibToday(): string {

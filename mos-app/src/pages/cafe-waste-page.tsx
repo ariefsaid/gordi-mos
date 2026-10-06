@@ -50,6 +50,7 @@ import { Select } from '@/components/ui/select'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { CafeItemsEmptyState } from '@/components/kitchen/cafe-items-empty-state'
 import { RouteLeaveGuard } from '@/shell/route-leave-guard'
+import '@/components/kitchen/status-banner-tone.css'
 import './kitchen-log-page.css'
 import './cafe-waste-page.css'
 
@@ -207,6 +208,17 @@ export function CafeWastePage() {
   const { restoredDraftInfo, setRestoredDraftInfo, restoreAnnouncement, setRestoreAnnouncement, setRestorationNotice } = capturePageState
   const [otherDateDrafts, setOtherDateDrafts] = useState<StoredCafeCaptureDraft<StoredWasteCaptureDraft>[]>([])
   const [pendingDraftDiscard, setPendingDraftDiscard] = useState<{ scope: CafeCaptureDraftScope; current: boolean } | null>(null)
+  const captureRootRef = useRef<HTMLDivElement>(null)
+  const draftListHeadingRef = useRef<HTMLHeadingElement>(null)
+  const focusDraftAfterDiscardRef = useRef(false)
+
+  useEffect(() => {
+    if (!focusDraftAfterDiscardRef.current) return
+    focusDraftAfterDiscardRef.current = false
+    const target = draftListHeadingRef.current
+      ?? captureRootRef.current?.querySelector<HTMLInputElement>('.cwl-quantity-input')
+    target?.focus()
+  }, [otherDateDrafts, pendingDraftDiscard, restoredDraft])
   const [submitError, setSubmitError] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [isOnline, setIsOnline] = useState(navigator.onLine)
@@ -664,6 +676,7 @@ export function CafeWastePage() {
 
   function confirmDraftDiscard() {
     if (!pendingDraftDiscard) return
+    focusDraftAfterDiscardRef.current = true
     if (pendingDraftDiscard.current) discardCurrentLocalDraft()
     else discardOtherDateDraft(pendingDraftDiscard.scope)
     setPendingDraftDiscard(null)
@@ -768,7 +781,7 @@ export function CafeWastePage() {
       statusRow={captureContext}
       state={state}
     >
-      <div className="kl-page cwl-page kl-capture-wide cafe-capture-content">
+      <div ref={captureRootRef} className="kl-page cwl-page kl-capture-wide cafe-capture-content">
         <div className="kl-capture-main">
         <RouteLeaveGuard when={remaining.length > 0} message={t('kitchen.log.leave.confirm')} />
         {!isOnline && <div role="alert" className="kl-banner kl-banner-offline">{t('kitchen.log.offline.banner')}</div>}
@@ -836,7 +849,7 @@ export function CafeWastePage() {
             )}
             {canCapture && otherDateDrafts.length > 0 && (
               <section className="kl-capture-draft-list" aria-labelledby="cwl-other-date-drafts">
-                <h2 id="cwl-other-date-drafts">{t('cafe.captureDraft.otherDates')}</h2>
+                <h2 id="cwl-other-date-drafts" ref={draftListHeadingRef} tabIndex={-1}>{t('cafe.captureDraft.otherDates')}</h2>
                 <p className="kl-capture-draft-guidance">{t('cafe.captureDraft.otherDatesNextStep')}</p>
                 {otherDateDrafts.map(record => {
                   const savedEntries = record.value?.entries && typeof record.value.entries === 'object'

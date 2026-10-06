@@ -238,6 +238,22 @@ describe('CafeWastePage', () => {
         },
       },
     })
+    const nextScope = { ...scope, logDate: '2026-10-03' }
+    writeCafeCaptureDraft(nextScope, {
+      branch_id: 'branch-1',
+      activity: 'bar',
+      entries: {
+        'wip-1': {
+          client_request_id: '20000000-0000-0000-0000-000000000002',
+          client_attempted: false,
+          quantity: '2',
+          unitId: 'unit-cup',
+          unitFactor: 1,
+          unitBasisKnown: true,
+          capturedUnitName: 'cup',
+        },
+      },
+    })
 
     renderPage()
 
@@ -258,8 +274,12 @@ describe('CafeWastePage', () => {
     fireEvent.click(within(yesterday).getByRole('button', { name: 'Discard' }))
     const confirm = await screen.findByRole('dialog', { name: 'Discard this saved draft?' })
     fireEvent.click(within(confirm).getByRole('button', { name: 'Discard' }))
-    await waitFor(() => expect(screen.queryByRole('article', { name: /unsent from/i })).toBeNull())
+    await waitFor(() => expect(screen.queryByRole('article', { name: /unsent from 1 oct 2026/i })).toBeNull())
+    expect(screen.getByRole('article', { name: /unsent from 3 oct 2026/i })).toHaveTextContent('2 cup')
+    const draftHeading = screen.getByRole('heading', { name: 'Unsent entries from other dates' })
+    await waitFor(() => expect(document.activeElement).toBe(draftHeading))
     expect(localStorage.getItem(cafeCaptureDraftStorageKey(scope))).toBeNull()
+    expect(localStorage.getItem(cafeCaptureDraftStorageKey(nextScope))).not.toBeNull()
     expect(screen.getByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })).toHaveValue(null)
   })
 

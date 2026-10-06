@@ -97,6 +97,7 @@ import { RouteLeaveGuard } from '@/shell/route-leave-guard'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { NotOnStreamTag } from '@/components/kitchen/not-on-stream-tag'
 import { ReportMissingItem } from '@/components/kitchen/report-missing-item'
+import '@/components/kitchen/status-banner-tone.css'
 import './kitchen-log-page.css'
 
 // WIB "today" as YYYY-MM-DD (fixed +7h offset, NFR-007)
@@ -380,6 +381,16 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   const { restoredDraftInfo, setRestoredDraftInfo, restoreAnnouncement, setRestoreAnnouncement, setRestorationNotice } = capturePageState
   const [otherDateDrafts, setOtherDateDrafts] = useState<StoredCafeCaptureDraft<StoredKitchenCaptureDraft>[]>([])
   const [pendingDateDraftDiscard, setPendingDateDraftDiscard] = useState<CafeCaptureDraftScope | null>(null)
+  const draftListHeadingRef = useRef<HTMLHeadingElement>(null)
+  const focusDraftAfterDiscardRef = useRef(false)
+
+  useEffect(() => {
+    if (!focusDraftAfterDiscardRef.current) return
+    focusDraftAfterDiscardRef.current = false
+    const target = draftListHeadingRef.current
+      ?? captureRef.current?.querySelector<HTMLInputElement>('input[type="number"]')
+    target?.focus()
+  }, [captureRef, discardConfirmOpen, otherDateDrafts, pendingDateDraftDiscard, restoredDraft])
   // #586: `lines` stages ONE row per item across every movement segment (produce, each
   // transfer) — a qty typed under Produce was still there, unchanged, when the segment
   // switched to a Transfer that never touched that item, and Submit filed it under
@@ -841,6 +852,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
 
   function discardDateDraft() {
     if (!pendingDateDraftDiscard) return
+    focusDraftAfterDiscardRef.current = true
     clearCafeCaptureDraft(pendingDateDraftDiscard)
     const key = `${pendingDateDraftDiscard.branchId}:${pendingDateDraftDiscard.activity}:${pendingDateDraftDiscard.logDate}`
     setOtherDateDrafts(current => current.filter(record =>
@@ -1005,6 +1017,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   // category are independent view/filter state, not staged data — Discard used to wipe
   // them too, silently losing the user's filter context along with their entries.
   function performDiscard() {
+    focusDraftAfterDiscardRef.current = true
     setLines(buildLines(wipItems, planMap, stockMap, movement))
     if (auth.status === 'authenticated' && stream) {
       clearCafeCaptureDraft(kitchenDraftScope(
@@ -1610,7 +1623,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
         )}
         {status.kind === 'ready' && otherDateDrafts.length > 0 && (
           <section className="kl-capture-draft-list" aria-labelledby="kl-other-date-drafts">
-            <h2 id="kl-other-date-drafts">{t('cafe.captureDraft.otherDates')}</h2>
+            <h2 id="kl-other-date-drafts" ref={draftListHeadingRef} tabIndex={-1}>{t('cafe.captureDraft.otherDates')}</h2>
             <p className="kl-capture-draft-guidance">{t('cafe.captureDraft.otherDatesNextStep')}</p>
             {otherDateDrafts.map(record => {
               const savedLines = kitchenDraftLines(record.value)

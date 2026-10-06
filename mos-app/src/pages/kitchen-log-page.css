@@ -161,7 +161,8 @@
 .kl-capture-draft-details > summary { min-height: 44px; cursor: pointer; }
 .kl-capture-draft-details > summary::marker { color: var(--muted-foreground); }
 .kl-capture-draft-details > summary > strong {
-  display: block;
+  display: inline-block;
+  max-width: calc(100% - 1.5em);
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;

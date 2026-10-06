@@ -1439,20 +1439,37 @@ describe('capture retry identity and saved drafts', () => {
         item_unit_id: 'u2-porsi', entry_unit_name: 'porsi', client_request_id: '50000000-0000-0000-0000-000000000001',
       } as KitchenLogLine },
     })
+    const twoDaysAgo = new Date(`${today}T00:00:00.000Z`)
+    twoDaysAgo.setUTCDate(twoDaysAgo.getUTCDate() - 2)
+    const nextScope = { ...scope, logDate: twoDaysAgo.toISOString().slice(0, 10) }
+    writeCafeCaptureDraft(nextScope, {
+      branch_id: BRANCH_RUMAH_RAMES.id,
+      activity: 'kitchen',
+      movement: { action: 'produce' },
+      lines: { w2: {
+        wip_item_id: 'w2', qty_porsi: 4, entry_quantity: 4, entry_unit_factor: 1,
+        item_unit_id: 'u2-porsi', entry_unit_name: 'porsi', client_request_id: '50000000-0000-0000-0000-000000000002',
+      } as KitchenLogLine },
+    })
 
     await renderPage()
     const quantity = await screen.findByRole('spinbutton', { name: /quantity produced for nasi goreng/i })
 
     expect(quantity).not.toHaveValue(8)
-    const oldDraft = await screen.findByRole('article', { name: /unsent from/i })
+    const oldDrafts = await screen.findAllByRole('article', { name: /unsent from/i })
+    const oldDraft = oldDrafts.find(draft => draft.textContent?.includes('8 porsi'))!
     expect(oldDraft).toHaveTextContent('WIP - Nasi Goreng')
     expect(screen.getByText(/today's form can't send older entries.*ask a café lead/i)).toBeInTheDocument()
     expect(screen.getAllByText(/expire after 7 days/i)).toHaveLength(1)
     fireEvent.click(within(oldDraft).getByRole('button', { name: 'Discard' }))
     const discardDialog = await screen.findByRole('dialog', { name: 'Discard this saved draft?' })
     fireEvent.click(within(discardDialog).getByRole('button', { name: 'Discard' }))
-    await waitFor(() => expect(screen.queryByRole('article', { name: /unsent from/i })).toBeNull())
+    await waitFor(() => expect(screen.getAllByRole('article', { name: /unsent from/i })).toHaveLength(1))
+    expect(screen.getByRole('article', { name: /unsent from/i })).toHaveTextContent('4 porsi')
+    const draftHeading = screen.getByRole('heading', { name: 'Unsent entries from other dates' })
+    await waitFor(() => expect(document.activeElement).toBe(draftHeading))
     expect(localStorage.getItem(cafeCaptureDraftStorageKey(scope))).toBeNull()
+    expect(localStorage.getItem(cafeCaptureDraftStorageKey(nextScope))).not.toBeNull()
   })
 
   it('restores a matching saved draft after an explicit stream choice when no default stream is available', async () => {
