@@ -1,5 +1,5 @@
 -- OD-2026-10-06-ESB-ITEMS — MOS refuses new hand-made café items and new MOS writes against them,
--- ESB-catalog writes still pass, and existing hand-made rows stay readable and editable.
+-- ESB-catalog writes still pass, and existing hand-made rows stay readable with their plans editable.
 --
 -- Personas (shared fixture): ...0d1 member+admin (logs, counts); ...0d2 ops_lead (items, plans,
 -- stream lists, settings). The legacy item is written in replica mode, which is how a row created
@@ -167,14 +167,17 @@ select lives_ok($$
 
 set local role authenticated;
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
-update ops.wip_items set flag_active = false where id = '00000000-0000-0000-0000-000000001456';
 select lives_ok($$
   update ops.kitchen_plans set qty_porsi = 5
    where wip_item_id = '00000000-0000-0000-0000-000000001456' and log_date = '2099-12-29'
   $$, 'an existing plan of a hand-made item can still be edited');
+-- Item columns are granted per column, not per row: the refresh-owned ones (ops_32) are closed to
+-- app sessions on a hand-made row too, which stays as it is.
+select throws_ok($$
+  update ops.wip_items set flag_active = false where id = '00000000-0000-0000-0000-000000001456'
+  $$, '42501', null,
+  'an existing hand-made item is left as it is: an app session cannot withdraw it either');
 reset role;
-select is((select flag_active from ops.wip_items where id = '00000000-0000-0000-0000-000000001456'),
-  false, 'an existing hand-made item can still be deactivated');
 
 select * from finish();
 rollback;
