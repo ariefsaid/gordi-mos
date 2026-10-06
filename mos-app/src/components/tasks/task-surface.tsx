@@ -1,9 +1,11 @@
 import './TaskSurface.css'
+import { TASK_EVENTS_PAGE_SIZE } from '@/lib/db/task-paging'
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useNavigate, Link, useHref, useLocation, useSearchParams, type To } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import {
-  getTask, createTask,
+  getTask, listTaskEvents, createTask,
+  type TaskEventsCursor,
   updateTaskStatus, updateTaskFields,
   addChecklistItem, toggleChecklistItem, reorderChecklistItem, deleteChecklistItem,
   archiveTask, unarchiveTask,
@@ -154,6 +156,10 @@ function ViewSurface({
   // isMissingTaskError above.
   const [loadError, setLoadError] = useState(false)
   const [data, setData] = useState<TaskDetailData | null>(null)
+  const [eventsHasMore, setEventsHasMore] = useState(false)
+  const [eventsLoadingMore, setEventsLoadingMore] = useState(false)
+  const [eventsMoreError, setEventsMoreError] = useState(false)
+  const eventsInFlight = useRef(false)
   const [busDirectory, setBusDirectory] = useState<BusinessUnitOption[]>([])
   const [peopleDirectory, setPeopleDirectory] = useState<PersonOption[]>([])
   // Keep the canonical Team directory rows here so a Team change can derive its owning BU id;
@@ -203,6 +209,9 @@ function ViewSurface({
     if (!taskId) return
     const seq = ++loadSeq.current
     const isCurrent = () => seq === loadSeq.current
+    eventsInFlight.current = false
+    setEventsLoadingMore(false)
+    setEventsMoreError(false)
     setLoading(true)
     setNotFound(false)
     setLoadError(false)
@@ -217,6 +226,8 @@ function ViewSurface({
     ]).then(([taskData, bus, people, downline, viewerTeams]) => {
       if (!isCurrent()) return
       setData(taskData)
+      setEventsHasMore(taskData.events.length === TASK_EVENTS_PAGE_SIZE)
+      setEventsMoreError(false)
       setLocalTask(taskData.task)
       setLocalChecklist(taskData.checklist)
       setBusDirectory(bus)
@@ -304,6 +315,8 @@ function ViewSurface({
       await updateTaskStatus(localTask.id, oldStatus, newStatus, viewerId)
       const refreshed = await getTask(localTask.id)
       setData(refreshed)
+      setEventsHasMore(refreshed.events.length === TASK_EVENTS_PAGE_SIZE)
+      setEventsMoreError(false)
       setLocalTask(refreshed.task)
       setLocalChecklist(refreshed.checklist)
       onTaskChanged?.(refreshed.task)
@@ -332,6 +345,8 @@ function ViewSurface({
     try {
       const refreshed = await getTask(id)
       setData(refreshed)
+      setEventsHasMore(refreshed.events.length === TASK_EVENTS_PAGE_SIZE)
+      setEventsMoreError(false)
     } catch { /* non-critical — stale events are acceptable */ }
   }
 
@@ -388,6 +403,8 @@ function ViewSurface({
       if (field === 'team') {
         const refreshed = await getTask(localTask.id)
         setData(refreshed)
+        setEventsHasMore(refreshed.events.length === TASK_EVENTS_PAGE_SIZE)
+        setEventsMoreError(false)
         setLocalTask(refreshed.task)
         setLocalChecklist(refreshed.checklist)
         await getTeamsByIds([refreshed.task.team_id ?? ''])
@@ -705,6 +722,28 @@ function ViewSurface({
     </div>
   ) : null
 
+  const loadMoreTaskEvents = async () => {
+    const before: TaskEventsCursor | undefined = data?.events.at(-1)
+    if (!taskId || !before || eventsInFlight.current) return
+    const seq = loadSeq.current
+    eventsInFlight.current = true
+    setEventsLoadingMore(true)
+    setEventsMoreError(false)
+    try {
+      const older = await listTaskEvents(taskId, before)
+      if (seq !== loadSeq.current) return
+      setData((current) => current ? { ...current, events: [...current.events, ...older] } : current)
+      setEventsHasMore(older.length === TASK_EVENTS_PAGE_SIZE)
+    } catch {
+      if (seq === loadSeq.current) setEventsMoreError(true)
+    } finally {
+      if (seq === loadSeq.current) {
+        eventsInFlight.current = false
+        setEventsLoadingMore(false)
+      }
+    }
+  }
+
   const recordDocument = (mode: 'panel' | 'page', headingLevel: 1 | 2) => taskViewerAdapter && (
     <TaskRecordDocument
       adapter={taskViewerAdapter}
@@ -721,6 +760,10 @@ function ViewSurface({
       onReorderChecklist={handleReorder}
       onDeleteChecklist={handleDeleteChecklist}
       events={data?.events ?? []}
+      eventsHasMore={eventsHasMore}
+      eventsLoadingMore={eventsLoadingMore}
+      eventsMoreError={eventsMoreError}
+      onLoadMoreEvents={loadMoreTaskEvents}
       comments={comments}
       onPostComment={handlePostComment}
       commentDraft={commentDraft}

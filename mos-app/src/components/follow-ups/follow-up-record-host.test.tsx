@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { ReactNode } from 'react'
 import type { FollowUpRow, FollowUpEvent } from '@/lib/db/follow-ups'
@@ -25,6 +25,13 @@ const row: FollowUpRow = {
   notes: null, created_at: '2026-07-01T00:00:00Z', updated_at: '2026-07-10T00:00:00Z',
 }
 const events: FollowUpEvent[] = []
+function historyEvent(index: number, note: string): FollowUpEvent {
+  return {
+    id: `event-${index}`, org_id: 'org-1', follow_up_id: 'fu-1', transition: 'chase',
+    from_state: 'open', to_state: 'chased', amount: null, cash_in_date: null, evidence: null,
+    promise_date: null, note, actor_person_id: null, created_at: '2026-07-10T00:00:00Z',
+  }
+}
 
 function wrapper({ children }: { children: ReactNode }) {
   return <I18nProvider>{children}</I18nProvider>
@@ -50,6 +57,18 @@ describe('FollowUpRecordHost', () => {
     expect(screen.getAllByText('INV-1001').length).toBeGreaterThan(0)
     expect(screen.getByText('Person in charge (PIC)')).toBeInTheDocument()
     expect(screen.getByText('Sari')).toBeInTheDocument()
+  })
+
+  it('loads older lifecycle history without replacing the newest events', async () => {
+    const firstPage = Array.from({ length: 50 }, (_, index) => historyEvent(index + 1, `note-${index + 1}`))
+    mockEvents.mockResolvedValueOnce(firstPage).mockResolvedValueOnce([historyEvent(51, 'older-entry')])
+    render(<FollowUpRecordHost followUpId="fu-1" mode="page" />, { wrapper })
+    expect(await screen.findByRole('heading', { name: 'PT Big Buyer' })).toBeInTheDocument()
+    expect(await screen.findByText(/note-1$/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    expect(await screen.findByText(/older-entry$/)).toBeInTheDocument()
+    expect(screen.getByText(/note-1$/)).toBeInTheDocument()
+    expect(mockEvents.mock.calls[1][1]).toEqual(firstPage.at(-1))
   })
 
   it('renders an honest not-found state (never a blank surface) when the id resolves to nothing', async () => {

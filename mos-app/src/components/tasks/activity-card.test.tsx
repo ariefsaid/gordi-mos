@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { describe, it, expect, vi } from 'vitest'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { ActivityCard } from './activity-card'
 import type { TaskEventRow } from '@/lib/db/tasks.types'
 import type { PersonOption } from '@/lib/db/directory'
@@ -15,6 +15,17 @@ describe('ActivityCard', () => {
     }]
     render(<ActivityCard events={events} people={people} now={new Date('2026-06-15T01:00:00Z')} />)
     expect(screen.getByText(/Open → Blocked/)).toBeInTheDocument()
+  })
+
+  it('offers a real load-more button for a full history page', () => {
+    const events: TaskEventRow[] = Array.from({ length: 50 }, (_, index) => ({
+      id: `event-${index}`, org_id: 'org', task_id: 't', event_type: 'created',
+      from_value: null, to_value: null, actor_person_id: 'p1', created_at: '2026-06-15T00:00:00Z',
+    }))
+    const onLoadMore = vi.fn()
+    render(<ActivityCard events={events} people={people} now={new Date()} hasMore onLoadMore={onLoadMore} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    expect(onLoadMore).toHaveBeenCalledOnce()
   })
 
   it('renders the empty state when there are no events', () => {

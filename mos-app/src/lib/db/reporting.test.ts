@@ -30,6 +30,7 @@ interface Recorder {
   eqs: Array<[string, unknown]>
   gtes: Array<[string, unknown]>
   orders: Array<[string, unknown]>
+  limits: number[]
 }
 
 function makeSchema(
@@ -62,6 +63,7 @@ function makeSchema(
       rec.orders.push([c, o])
       return builder
     })
+    builder.limit = vi.fn((n: number) => { rec.limits.push(n); return builder })
     builder.then = (resolve: (v: unknown) => unknown) =>
       Promise.resolve(result()).then(resolve)
     return builder
@@ -70,7 +72,7 @@ function makeSchema(
 }
 
 function freshRec(): Recorder {
-  return { schemaNames: [], fromTables: [], selects: [], eqs: [], gtes: [], orders: [] }
+  return { schemaNames: [], fromTables: [], selects: [], eqs: [], gtes: [], orders: [], limits: [] }
 }
 
 beforeEach(() => vi.clearAllMocks())
@@ -116,6 +118,8 @@ describe('listSalesDailyRevenue', () => {
     expect(schemaMock).toHaveBeenCalledWith('reporting')
     expect(rec.fromTables).toContain('sales_daily_revenue')
     expect(rec.orders).toContainEqual(['revenue_date', { ascending: true }])
+    expect(rec.gtes[0][0]).toBe('revenue_date')
+    expect(rec.limits).toEqual([1000])
     expect(rows).toHaveLength(2)
   })
 
@@ -140,6 +144,7 @@ describe('listSalesDailyRevenue', () => {
 
     expect(rec.gtes).toHaveLength(1)
     expect(rec.gtes[0][0]).toBe('revenue_date')
+    expect(rec.limits).toEqual([1000])
   })
 
   it('passes B2B/Roastery rows through unchanged — AC-006', async () => {
@@ -168,6 +173,14 @@ describe('listSalesDailyRevenue', () => {
 
     const rows = await listSalesDailyRevenue()
     expect(rows).toEqual([])
+  })
+
+  it('rejects a result that reaches the safe row cap instead of returning a silent truncation', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema({ sales_daily_revenue: [{ data: Array.from({ length: 1000 }, () => POS_ROW), error: null }] }, rec) as never,
+    )
+    await expect(listSalesDailyRevenue()).rejects.toThrow(/safe reporting row limit/)
   })
 
   it('throws a clear, surfaceable error on PostgREST failure', async () => {

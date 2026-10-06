@@ -107,7 +107,11 @@ describe('load — DAL wiring and context', () => {
     expect(data.context.personNamesById.get('p-raka')).toBe('Raka')
     expect(data.context.workLineTypeById.get('wl-1')).toBe('project')
     // Only includeArchived is a server filter; BU/Status stay client-side.
-    expect(mock(listTasks)).toHaveBeenCalledWith({ includeArchived: false })
+    expect(mock(listTasks)).toHaveBeenCalledWith(
+      { includeArchived: false },
+      undefined,
+      expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
+    )
   })
 
   it('fetches occurrence roll-ups + PIC provenance ONLY when grouping by occurrence', async () => {
