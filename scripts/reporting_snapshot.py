@@ -442,11 +442,13 @@ def plan_bill_flags(
     existing_present_keys: set[BillKey],
     run_keys: set[BillKey],
     void_keys: set[BillKey],
+    existing_missing_keys: set[BillKey] = frozenset(),
 ) -> dict[str, list[BillKey]]:
-    """Which present rows tonight's run flags. Rows this run carries stay present."""
+    """Which rows tonight's run flags. Rows this run carries stay present; a present row that is
+    gone becomes void or missing, and a missing row the source now reports void becomes void."""
     gone = existing_present_keys - run_keys
     return {
-        "void": sorted(gone & void_keys),
+        "void": sorted((gone | (existing_missing_keys - run_keys)) & void_keys),
         "missing": sorted(gone - void_keys),
     }
 
@@ -494,11 +496,11 @@ def build_pending_bill_upsert_sql() -> str:
     """
 
 
-def build_present_bill_keys_sql() -> str:
+def build_flaggable_bill_keys_sql() -> str:
     return """
-        select esb_code, branch_code, bill_no
+        select esb_code, branch_code, bill_no, source_state
         from reporting.pending_bills
-        where org_id = %s and source_state = 'present' and bill_date >= %s::date
+        where org_id = %s and source_state in ('present', 'missing') and bill_date >= %s::date
     """
 
 
@@ -507,7 +509,7 @@ def build_bill_flag_sql() -> str:
         update reporting.pending_bills
         set source_state = %(state)s, source_state_at = now()
         where org_id = %(org_id)s and esb_code = %(esb_code)s and branch_code = %(branch_code)s
-          and bill_no = %(bill_no)s and source_state = 'present'
+          and bill_no = %(bill_no)s and source_state <> 'void'
     """
 
 
@@ -560,9 +562,14 @@ def run_pending_bill_snapshot(config: SnapshotConfig, snapshot_as_of: datetime) 
             # Same rule as the revenue path: declare first, in the transaction that writes.
             reporting_cur.execute(build_org_scope_sql(), (config.org_id,))
             reporting_cur.executemany(build_pending_bill_upsert_sql(), bills)
-            reporting_cur.execute(build_present_bill_keys_sql(), (config.org_id, window_start))
-            existing = {tuple(row) for row in reporting_cur.fetchall()}
-            plan = plan_bill_flags(existing, run_keys, void_keys)
+            reporting_cur.execute(build_flaggable_bill_keys_sql(), (config.org_id, window_start))
+            existing = [tuple(row) for row in reporting_cur.fetchall()]
+            plan = plan_bill_flags(
+                {row[:3] for row in existing if row[3] == "present"},
+                run_keys,
+                void_keys,
+                {row[:3] for row in existing if row[3] == "missing"},
+            )
             reporting_cur.executemany(
                 build_bill_flag_sql(),
                 [
