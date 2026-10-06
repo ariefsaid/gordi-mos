@@ -48,7 +48,7 @@ config = SnapshotConfig(
 counts = run_all_snapshots(config)
 print(
     "reporting_snapshot END "
-    f"revenue={counts['revenue']} margin={counts['margin']} "
+    f"revenue={counts['revenue']} margin={counts['margin']} usage={counts['usage']} "
     f"window_days={config.window_days} "
     f"contract={config.source_contract_version}"
 )

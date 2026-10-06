@@ -7,6 +7,7 @@ import {
   publishReadScope,
   type ReadScope,
 } from '@/lib/scoped-reads'
+import { isSampleAccountOutsideSampleOrg } from '@/pages/demo-personas'
 import { AuthContext, type AuthState } from './context'
 
 // FR-009: session persistence + auto-refresh is configured on the supabase client (T-004) —
@@ -103,6 +104,11 @@ export function AuthProvider({ children }: Props) {
       retireReadScope()
       recoveryUserIdRef.current = undefined
       setState({ status: 'unauthenticated' })
+      return
+    }
+
+    if (isSampleAccountOutsideSampleOrg(accessToken)) {
+      await handleSignOut()
       return
     }
 
