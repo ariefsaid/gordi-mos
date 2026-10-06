@@ -13,7 +13,7 @@ begin
 end;
 $$;
 
-select plan(87);
+select plan(88);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -177,6 +177,11 @@ select set_config('app.r1_retry', ops.submit_cafe_receipt('00000000-0000-0000-00
 select is(current_setting('app.r1_retry')::jsonb ->> 'outcome', 'existing', 'AC-1007 a repeated Count submit with key K returns the existing receipt');
 select is(current_setting('app.r1_retry')::jsonb ->> 'receipt_id', current_setting('app.r1_id'),
           'AC-1007 the repeat names the original receipt');
+select is((select array_agg(line ->> 'item_unit_id' order by line ->> 'item_unit_id')
+             from jsonb_array_elements(current_setting('app.r1')::jsonb -> 'lines') line),
+          (select array_agg(item_unit_id::text order by item_unit_id::text)
+             from ops.cafe_receipt_lines where receipt_id = current_setting('app.r1_id')::uuid),
+          'FR-1012 the created submit names each line''s product detail so the difference can be read per line');
 select is((select count(*)::int from ops.cafe_receipts where client_key = 'f1422000-0000-0000-0000-000000000001'), 1,
           'AC-1007 no second receipt exists for key K');
 select throws_ok(format($$select ops.submit_cafe_receipt('00000000-0000-0000-0000-00000000bf01', 'kitchen', null,
