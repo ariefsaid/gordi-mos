@@ -257,7 +257,7 @@ describe('AC-021: an unmatched path renders the not-found surface inside the she
 // ── Gates ────────────────────────────────────────────────────────────────────────────────────
 describe('router — Work catalog read access', () => {
   it('OD-V4-1: /work/objectives and /work/projects carry NO read gate — the reads are open at the database', () => {
-    // v4-redesign's own router.test.tsx asserts a RequireCapability(objective.manage) gate here,
+    // v4-redesign's own router.test.tsx asserted an objective.manage gate here,
     // which contradicts v4's own router.tsx. OD-V4-1 (owner-ratified) removed the gate: the
     // objectives SELECT policy carries no role check, so the gate hid a screen RLS already
     // permits. #188 removed it from the rail; this is the route half. Write stays behind

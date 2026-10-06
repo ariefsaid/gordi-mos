@@ -6,7 +6,6 @@ import {
   KITCHEN_KIND_FILTER_OPTIONS,
   WIP_KIND_FILTER_OPTIONS,
   kitchenDataTableGroups,
-  kitchenItemLabel,
   toKitchenListRows,
   useKitchenItemTable,
   type KitchenItemActiveFilter,
@@ -52,11 +51,6 @@ function FilterProbe() {
 }
 
 describe('Café kind-aware list model', () => {
-  it('prefixes item names with their stable kind in either locale', () => {
-    expect(kitchenItemLabel('RAW', 'Sea salt')).toBe('RAW - Sea salt')
-    expect(kitchenItemLabel('WIP', 'Salted egg')).toBe('WIP - Salted egg')
-  })
-
   it('enables RAW for transfers and keeps planning WIP-only', () => {
     expect(KITCHEN_KIND_FILTER_OPTIONS).toEqual(['All', 'WIP', 'RAW'])
     expect(WIP_KIND_FILTER_OPTIONS).toEqual(['All', 'WIP'])

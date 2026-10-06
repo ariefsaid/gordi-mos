@@ -85,7 +85,7 @@ import { CafeItemsEmptyState } from '@/components/kitchen/cafe-items-empty-state
 import { useFocusRestore } from '@/components/ui/use-focus-restore'
 import { reportError } from '@/lib/telemetry'
 import { RouteLeaveGuard } from '@/shell/route-leave-guard'
-import { ConfirmDialog } from '@/components/admin/confirm-dialog'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { NotOnStreamTag } from '@/components/kitchen/not-on-stream-tag'
 import { ReportMissingItem } from '@/components/kitchen/report-missing-item'
 import './kitchen-log-page.css'

@@ -8,7 +8,7 @@ import { DataTable, type DataTableColumn } from '@/components/dashboard/data-tab
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useOptionalOverlayHost } from '@/shell/overlay-host'
 import { useCollectionKeyboard } from '@/components/record-collection/use-collection-keyboard'
-import { formatWibDateTime } from '@/lib/wib-time'
+import { formatWibDateTime } from '@/lib/format/date'
 import { attentionSlug, SIGNAL_CATEGORIES, type Attention, type SignalCategory, type SignalRow } from '@/lib/db/signals.types'
 import type { CollectionPresentationProps, CollectionProjection } from '@/lib/record-collection/types'
 import type { SignalCollectionContext, SignalCollectionQuery, SignalRenderGroup } from './signal-collection-adapter'

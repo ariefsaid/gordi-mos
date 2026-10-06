@@ -200,7 +200,6 @@ describe('RI-IA-2: data/list pages use the content-header PageHead chrome', () =
     'pages/follow-ups-page.tsx',
     'pages/pricing-page.tsx',
     'pages/budget-page.tsx',
-    'components/catalog/catalog-manager.tsx',
   ]
 
   // The invariant is that these pages get the CONTENT-variant head — not that they each

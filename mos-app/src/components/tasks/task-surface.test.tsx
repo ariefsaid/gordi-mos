@@ -17,7 +17,6 @@ vi.mock('../../lib/db/tasks', () => ({
   getTask: vi.fn(),
   createTask: vi.fn(),
   updateTaskStatus: vi.fn(),
-  updateTaskRaci: vi.fn(),
   updateTaskFields: vi.fn(),
   addChecklistItem: vi.fn(),
   toggleChecklistItem: vi.fn(),
