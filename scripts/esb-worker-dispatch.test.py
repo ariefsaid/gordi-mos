@@ -830,5 +830,52 @@ check_raises("NFR-1006 a refresh without this environment's own credentials is r
              W.ConfigError, lambda: W.load_refresh_config(po_env(ESB_PASSWORD="")),
              needle="never borrows")
 
+# ══════════════════════════════════════════════════════════════════════════════════════
+print("R. reading the ERP of record is switched separately from posting to it (#1447)")
+# ══════════════════════════════════════════════════════════════════════════════════════
+def gkid_po_env(**flags: str) -> dict[str, str]:
+    e = po_env(ESB_WORKER_TARGET_ENV="gkid", ESB_WORKER_MAP_FILE=os.path.join(TMP, "gkid.json"),
+               ESB_ALLOW_GKID="", ESB_ALLOW_GKID_READ="")
+    e.update(flags)
+    return e
+
+
+try:
+    esb = FakeEsb()
+    f = Fake(**esb.routes(), **{"rest/v1/item_units": lambda *a: []})
+    out = io.StringIO()
+    rcfg = W.load_refresh_config(gkid_po_env(ESB_ALLOW_GKID_READ="1"))
+    bad_n = run(lambda: W.refresh_open_pos(rcfg, "all", out=out, today=TODAY), f)
+    check("a refresh of the ERP of record with only the read switch reads ESB and fills the cache",
+          bad_n == 0 and len(f.to("rpc/replace_cafe_open_pos")) == 1
+          and all(c["method"] == "GET" for c in f.calls
+                  if "erp.example.invalid" in c["url"] and "auth/login" not in c["url"]),
+          out.getvalue() + repr(f.calls))
+except W.ConfigError as exc:
+    bad("a refresh of the ERP of record with only the read switch reads ESB and fills the cache",
+        str(exc))
+check_raises("a refresh of the ERP of record with neither switch is refused, naming the read switch",
+             W.ConfigError, lambda: W.load_refresh_config(gkid_po_env()),
+             needle="ESB_ALLOW_GKID_READ")
+check_raises("the posting switch alone does not enable a refresh of the ERP of record",
+             W.ConfigError, lambda: W.load_refresh_config(gkid_po_env(ESB_ALLOW_GKID="1")),
+             needle="ESB_ALLOW_GKID_READ")
+
+# The drain, through the CLI with the push on: the read switch must not unlock posting.
+drain_fake = Fake(**happy_routes())
+saved_req, W._request = W._request, drain_fake
+saved_env = dict(os.environ)
+os.environ.update(env("gkid", ESB_ALLOW_GKID="", ESB_ALLOW_GKID_READ="1", ESB_PUSH_ENABLED="1"))
+err = io.StringIO()
+try:
+    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
+        drain_rc = W.main([])
+finally:
+    W._request = saved_req
+    os.environ.clear(); os.environ.update(saved_env)
+check("a drain with only the read switch is refused, naming the posting switch, and calls nothing",
+      drain_rc == 2 and drain_fake.calls == [] and "ESB_ALLOW_GKID is not set" in err.getvalue(),
+      f"rc={drain_rc} calls={drain_fake.calls!r} stderr={err.getvalue()}")
+
 print(f"{_pass} passed, {_fail} failed")
 sys.exit(1 if _fail else 0)
