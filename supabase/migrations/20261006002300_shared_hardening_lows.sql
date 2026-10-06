@@ -33,7 +33,7 @@
 
 begin;
 
--- F11: identity resolution follows the auth user, not an email shared by separate tenants.
+-- identity resolution follows the auth user, not an email shared by separate tenants.
 create unique index people_org_lower_email_unique
   on shared.people (org_id, lower(email))
   where email is not null and btrim(email) <> '';
@@ -170,7 +170,7 @@ comment on function shared.custom_access_token_hook(jsonb) is
 revoke execute on function shared.custom_access_token_hook(jsonb) from public, anon, authenticated;
 grant execute on function shared.custom_access_token_hook(jsonb) to supabase_auth_admin;
 
--- F12/F15: role-authority helpers were already revoked from authenticated in 20261005000400.
+-- role-authority helpers were already revoked from authenticated in 20261005000400.
 -- Anonymous callers do not need shared-schema access; check_request still needs the authenticated
 -- fence helper for API authorization, so only its public and anon grants are removed.
 revoke usage on schema shared from anon;
@@ -178,7 +178,7 @@ revoke execute on function api_private._agent_fence(text) from public, anon, aut
 grant execute on function api_private._agent_fence(text) to authenticated;
 revoke update on integrations.esb_push from authenticated;
 
--- F13: keep last-admin checks serialized for each organization.
+-- keep last-admin checks serialized for each organization.
 create or replace function shared._count_active_admins()
 returns integer
 language plpgsql
@@ -332,7 +332,7 @@ comment on function shared.admin_reset_password(uuid, text) is
 revoke execute on function shared.admin_reset_password(uuid, text) from public, anon, authenticated;
 grant execute on function shared.admin_reset_password(uuid, text) to authenticated;
 
--- F14: database-enforced text and endpoint bounds match the public write contract.
+-- database-enforced text and endpoint bounds match the public write contract.
 alter table mos.signals add constraint signals_body_length_ck check (char_length(body) <= 4000);
 alter table mos.comments add constraint comments_body_length_ck check (char_length(body) <= 4000);
 alter table mos.tasks
@@ -361,9 +361,6 @@ begin
     new.created_at := clock_timestamp();
     new.last_activity_at := new.created_at;
   elsif tg_op = 'UPDATE' and current_user = 'authenticated' then
-    if new.created_by is distinct from old.created_by then
-      raise exception 'created_by is immutable on a task' using errcode = '42501';
-    end if;
     if new.created_at is distinct from old.created_at then
       raise exception 'created_at is server-managed on a task' using errcode = '42501';
     end if;
@@ -445,7 +442,7 @@ revoke execute on function ops._guard_confirmed_erp_item_unit() from public, ano
 create trigger kitchen_logs_z_confirmed_unit_guard before insert or update on ops.kitchen_logs
   for each row execute function ops._guard_confirmed_erp_item_unit();
 
--- F14: compare waste-photo windows against the wall clock after acquiring the shared lock.
+-- compare waste-photo windows against the wall clock after acquiring the shared lock.
 create or replace function ops.can_add_cafe_waste_photo(p_name text)
 returns boolean
 language plpgsql
@@ -536,7 +533,7 @@ comment on function ops.restart_cafe_waste_draft(uuid,date) is
 revoke execute on function ops.restart_cafe_waste_draft(uuid,date) from public, anon, authenticated;
 grant execute on function ops.restart_cafe_waste_draft(uuid,date) to authenticated;
 
--- F14: scope rows before FOR UPDATE so foreign and missing ids have identical responses.
+-- scope rows before FOR UPDATE so foreign and missing ids have identical responses.
 create or replace function mos.resolve_pending_task(p_pending_id uuid, p_pic_person_id uuid)
 returns uuid
 language plpgsql
