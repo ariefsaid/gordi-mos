@@ -3,7 +3,7 @@
 -- delivery, and record history of receipts, lines, portions, issues and grants.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(73);
+select plan(84);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -127,6 +127,8 @@ select set_config('app.bag_line', (select id::text from ops.cafe_receipt_lines
   where receipt_id = current_setting('app.r1')::uuid and item_unit_id = current_setting('app.bean_bag')::uuid), true);
 select set_config('app.sugar_line', (select id::text from ops.cafe_receipt_lines
   where receipt_id = current_setting('app.r1')::uuid and item_unit_id = current_setting('app.sugar_kg')::uuid), true);
+select set_config('app.bean_line', (select id::text from ops.cafe_receipt_lines
+  where receipt_id = current_setting('app.r1')::uuid and item_unit_id = current_setting('app.bean_kg')::uuid), true);
 select ops.set_cafe_receipt_line_explanation(current_setting('app.bag_line')::uuid, true, 'Bag torn open on arrival');
 reset role;
 insert into storage.objects (bucket_id, name)
@@ -137,7 +139,22 @@ select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000
 select ops.send_cafe_receipt_for_review(current_setting('app.r1')::uuid, 1, null);
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","supervisor"]}');
 select ops.review_cafe_receipt(current_setting('app.r1')::uuid, 'approve', 2, null);
+-- r2 is sent but not decided: it stays with its receiver and the stream's reviewers.
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member"]}');
+select set_config('app.r2', ops.submit_cafe_receipt('00000000-0000-0000-0000-00000000bf01', 'kitchen', null,
+  'f1431000-0000-0000-0000-000000000002', jsonb_build_array(
+    jsonb_build_object('item_unit_id', current_setting('app.milk_l'), 'quantity', '1'))) ->> 'receipt_id', true);
+select ops.send_cafe_receipt_for_review(current_setting('app.r2')::uuid, 1, null);
 reset role;
+select set_config('app.r2_line', (select id::text from ops.cafe_receipt_lines where receipt_id = current_setting('app.r2')::uuid), true);
+select set_config('app.r2_photo', format('00000000-0000-0000-0000-0000000000a1/%s/%s/%s.jpg',
+  current_setting('app.r2'), current_setting('app.r2_line'), gen_random_uuid()), true);
+insert into storage.objects (bucket_id, name) values ('cafe-receipt-photos', current_setting('app.r2_photo'));
+-- An issue row on a receipt that is not Approved cannot arise through matching; it is planted to
+-- prove the issue read does not lean on that invariant.
+insert into ops.cafe_receipt_issues (org_id, receipt_id, line_id, item_unit_id, kind, quantity)
+values ('00000000-0000-0000-0000-0000000000a1', current_setting('app.r2')::uuid, current_setting('app.r2_line')::uuid,
+        current_setting('app.milk_l')::uuid, 'no_po', 1);
 
 select is((select array_agg(i.kind || ':' || trim_scale(i.quantity)::text || ':' || i.status order by i.kind)
              from ops.cafe_receipt_issues i where i.receipt_id = current_setting('app.r1')::uuid),
@@ -159,7 +176,8 @@ select is((select ops.cafe_receipt_posting(r) - 'state' from ops.cafe_receipts r
 
 -- ── AC-1035 who reads and who acts ───────────────────────────────────────────────────────────
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d6","access_roles":["member"]}');
-select is((select count(*)::int from ops.cafe_receipt_issues), 5, 'AC-1035 procurement reads every issue of the organisation');
+select is((select count(*)::int from ops.cafe_receipt_issues where receipt_id = current_setting('app.r1')::uuid), 5,
+  'AC-1035 procurement reads every issue of an Approved receipt');
 select is((select count(*)::int from ops.cafe_receipt_lines where receipt_id = current_setting('app.r1')::uuid), 4,
   'AC-1035 procurement reads the lines of an Approved receipt with issues');
 select ok((select count(*) > 0 from ops.cafe_receipt_portions where receipt_id = current_setting('app.r1')::uuid),
@@ -171,9 +189,18 @@ select ok(ops.can_read_cafe_receipt_photo((select name from storage.objects wher
   'FR-1034 procurement may sign the private photo');
 select throws_ok($$select ops.close_cafe_receipt_issue('00000000-0000-0000-0000-0000000000ff', 'handled')$$,
   '22023', null, 'NFR-1001 an issue outside the organisation is not found');
+select is((select count(*)::int from ops.cafe_receipts where id = current_setting('app.r2')::uuid)
+          + (select count(*)::int from ops.cafe_receipt_lines where receipt_id = current_setting('app.r2')::uuid)
+          + (select count(*)::int from ops.cafe_receipt_issues where receipt_id = current_setting('app.r2')::uuid), 0,
+  'NFR-1001 procurement reads no Submitted receipt, none of its lines and none of its issues');
+select is((select count(*)::int from ops.list_cafe_receipt_photos(array[current_setting('app.r2')::uuid])), 0,
+  'NFR-1001 procurement lists no photo of a Submitted receipt');
+select ok(not ops.can_read_cafe_receipt_photo(current_setting('app.r2_photo')),
+  'NFR-1001 procurement may not sign a Submitted receipt''s photo');
 
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member"]}');
-select is((select count(*)::int from ops.cafe_receipt_issues), 5, 'AC-1035 the receiver reads the issues on their own receipt');
+select is((select count(*)::int from ops.cafe_receipt_issues where receipt_id = current_setting('app.r1')::uuid), 5,
+  'AC-1035 the receiver reads the issues on their own receipt');
 select throws_ok($$select ops.close_cafe_receipt_issue(current_setting('app.short')::uuid, 'handled')$$,
   '42501', null, 'AC-1035 the receiver cannot close an issue');
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d7","access_roles":["member"]}');
@@ -229,6 +256,11 @@ select ops.replace_cafe_open_pos('00000000-0000-0000-0000-0000000000a1', '000000
       'lines', jsonb_build_array(
         jsonb_build_object('item_unit_id', current_setting('app.bean_kg'), 'item_name', 'Coffee bean (ESB)', 'unit_name', 'kg', 'outstanding_quantity', 10),
         jsonb_build_object('item_unit_id', current_setting('app.bean_bag'), 'item_name', 'Coffee bean bag (ESB)', 'unit_name', 'bag', 'outstanding_quantity', 5))),
+    jsonb_build_object('po_number', 'PO-SYNTH-1431-OLD', 'supplier_name', 'Synthetic supplier six',
+      'po_date', (current_setting('app.arrival')::date - 5)::text, 'esb_created_at', null, 'esb_status', 'Receiving',
+      'lines', jsonb_build_array(
+        jsonb_build_object('item_unit_id', current_setting('app.sugar_kg'), 'item_name', 'Sugar (ESB)', 'unit_name', 'kg', 'outstanding_quantity', 10),
+        jsonb_build_object('item_unit_id', current_setting('app.bean_kg'), 'item_name', 'Coffee bean (ESB)', 'unit_name', 'kg', 'outstanding_quantity', 10))),
     jsonb_build_object('po_number', 'PO-SYNTH-1431-FUTURE', 'supplier_name', 'Synthetic supplier four',
       'po_date', (current_setting('app.arrival')::date + 1)::text, 'esb_created_at', now()::text, 'esb_status', 'Authorized',
       'lines', jsonb_build_array(
@@ -245,7 +277,7 @@ set local role authenticated;
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d6","access_roles":["member"]}');
 select is((select jsonb_agg(o ->> 'po_number' || ':' || (o ->> 'available') || ':' || (o ->> 'date_eligible') || ':' || (o ->> 'created_after_delivery') order by o ->> 'po_number')
              from jsonb_array_elements(ops.cafe_receipt_issue_open_pos(current_setting('app.no_po')::uuid) -> 'options') o),
-  '["PO-SYNTH-1431-FUTURE:10:false:true", "PO-SYNTH-1431-LATE:10:true:true"]'::jsonb,
+  '["PO-SYNTH-1431-FUTURE:10:false:true", "PO-SYNTH-1431-LATE:10:true:true", "PO-SYNTH-1431-OLD:10:true:false"]'::jsonb,
   'FR-1035 the picker offers only same-branch open POs holding the item, with what each has left and which dates allow the link');
 select is((select o ->> 'available' from jsonb_array_elements(ops.cafe_receipt_issue_open_pos(current_setting('app.over')::uuid) -> 'options') o
             where o ->> 'po_number' = 'PO-SYNTH-1431-A'), '0',
@@ -272,7 +304,7 @@ select ok((select status = 'linked' and linked_po_number = 'PO-SYNTH-1431-LATE' 
   'AC-1033 the issue records the PO, who linked it, when, and PO created after delivery');
 select ok((select ops.cafe_receipt_line_po_created_after_delivery(l) from ops.cafe_receipt_lines l
             where l.id = current_setting('app.sugar_line')::uuid)
-          and (select bool_and(ops.cafe_receipt_portion_po_created_after_delivery(q)) from ops.cafe_receipt_portions q
+          and (select bool_and(q.po_created_after_delivery) from ops.cafe_receipt_portions q
                 where q.line_id = current_setting('app.sugar_line')::uuid),
   'AC-1033 the receipt line and its posting portion read PO created after delivery');
 select is((select array_agg(q.po_number || ':' || trim_scale(q.quantity)::text || ':' || q.state || ':' || q.hold_reason)
@@ -287,12 +319,19 @@ select is(ops.link_cafe_receipt_issue(current_setting('app.over')::uuid, 'PO-SYN
   'FR-1035 a link takes what the PO still has');
 select is((select kind || ':' || trim_scale(quantity)::text || ':' || status from ops.cafe_receipt_issues where id = current_setting('app.over')::uuid),
   'over:1:open', 'FR-1035 the rest stays an open over-delivery issue');
+select ok((select po_created_after_delivery from ops.cafe_receipt_issues where id = current_setting('app.over')::uuid)
+          and (select po_created_after_delivery and issue_id = current_setting('app.over')::uuid from ops.cafe_receipt_portions
+                where line_id = current_setting('app.bean_line')::uuid and po_number = 'PO-SYNTH-1431-LATE')
+          and (select ops.cafe_receipt_line_po_created_after_delivery(l) from ops.cafe_receipt_lines l
+                where l.id = current_setting('app.bean_line')::uuid),
+  'AC-1033 a partial link to a PO created after delivery records it on the issue, its portion and the receipt line');
 select throws_ok($$select ops.link_cafe_receipt_issue(current_setting('app.over')::uuid, 'PO-SYNTH-1431-LATE')$$,
   '22023', null, 'FR-1035 a PO with nothing left for the item is refused');
 select is(ops.link_cafe_receipt_issue(current_setting('app.over')::uuid, 'PO-SYNTH-1431-EQUAL') ->> 'po_created_after_delivery', 'false',
   'AC-1033 a PO created on the arrival date records no flag');
-select ok((select status = 'linked' and not po_created_after_delivery from ops.cafe_receipt_issues where id = current_setting('app.over')::uuid),
-  'AC-1033 the issue linked to a PO created on the arrival date carries no flag');
+select ok((select not po_created_after_delivery from ops.cafe_receipt_portions
+            where issue_id = current_setting('app.over')::uuid and po_number = 'PO-SYNTH-1431-EQUAL'),
+  'AC-1033 the portion linked to a PO created on the arrival date carries no flag');
 
 -- With posting on and a receiving location, a link enqueues its portion once.
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","admin"]}');
@@ -300,6 +339,8 @@ select ops.set_cafe_receipt_posting_enabled('00000000-0000-0000-0000-00000000bf0
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d6","access_roles":["member"]}');
 select is(ops.link_cafe_receipt_issue(current_setting('app.wrong_unit')::uuid, 'PO-SYNTH-1431-EQUAL') ->> 'posting', 'queued',
   'AC-1032 with posting on, the linked portion is queued');
+select ok((select status = 'linked' and not po_created_after_delivery from ops.cafe_receipt_issues where id = current_setting('app.wrong_unit')::uuid),
+  'AC-1033 an issue linked only to a PO created on the arrival date carries no flag');
 reset role;
 select is((select count(*)::int || '/' || count(distinct e.push_group_id)::int from integrations.esb_push e
             where e.source_module = 'cafe_receipt' and e.payload ->> 'receipt_id' = current_setting('app.r1')),
@@ -344,7 +385,32 @@ select is((select count(*)::int from ops.cafe_receipt_issues), 0, 'FR-1040 a rev
 
 -- ── AC-1036 record history: approve, link, close, release and the grants leave who and when ──
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
+-- LATE has since been received elsewhere for bean; sugar still fits on it. OLD, an older PO, has room for both.
+reset role;
+update ops.cafe_open_po_lines l set outstanding_quantity = 0
+  from ops.cafe_open_pos p
+ where p.id = l.po_id and p.po_number = 'PO-SYNTH-1431-LATE' and l.item_unit_id = current_setting('app.bean_kg')::uuid;
+set local role authenticated;
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select ops.release_cafe_receipts('00000000-0000-0000-0000-00000000bf01');
+reset role;
+select is((select array_agg(q.po_number || ':' || trim_scale(q.quantity)::text || ':' || q.state || ':' || q.po_created_after_delivery order by q.created_at)
+             from ops.cafe_receipt_portions q where q.line_id = current_setting('app.sugar_line')::uuid and q.state <> 'superseded'),
+  array['PO-SYNTH-1431-LATE:3:queued:true'],
+  'S1 a release posts a linked portion on the PO procurement picked, never an older one, and keeps its flag');
+select is((select e.payload ->> 'po_number' from integrations.esb_push e
+             join ops.cafe_receipt_portions q on q.push_id = e.id
+            where q.line_id = current_setting('app.sugar_line')::uuid and q.state = 'queued'),
+  'PO-SYNTH-1431-LATE', 'S1 the outbox member names the linked PO');
+select is((select array_agg(q.po_number || ':' || trim_scale(q.quantity)::text || ':' || q.state || ':' || coalesce(q.hold_reason, '-') order by q.po_number)
+             from ops.cafe_receipt_portions q
+            where q.line_id = current_setting('app.bean_line')::uuid and q.issue_id is not null and q.state <> 'superseded'),
+  array['PO-SYNTH-1431-EQUAL:1:queued:-', 'PO-SYNTH-1431-LATE:1:held:no_longer_fits'],
+  'S1 a linked portion its PO no longer has room for stays held on that PO, no longer fits');
+set local role authenticated;
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","supervisor"]}');
+select is((select ops.cafe_receipt_posting(r) ->> 'po_created_after_delivery' from ops.cafe_receipts r where r.id = current_setting('app.r1')::uuid),
+  'true', 'FR-1038 the receipt''s posting state says a PO it posts against was created after delivery');
 reset role;
 select ok(exists (select 1 from shared.record_history h
                    where h.schema_name = 'ops' and h.table_name = 'cafe_receipts' and h.record_key = current_setting('app.r1')
@@ -386,6 +452,20 @@ select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000
 select is((select count(*)::int from shared.record_history
             where table_name in ('cafe_receipts', 'cafe_receipt_lines', 'cafe_receipt_issues', 'cafe_receipt_portions', 'cafe_receipt_issue_access')),
   0, 'NFR-1001 a member who cannot read the receipt reads none of its history');
+reset role;
+
+-- A person archived while holding the capability can still have it removed.
+set local role authenticated;
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","admin"]}');
+select ops.set_cafe_receipt_issue_access('00000000-0000-0000-0000-0000000000d1', true);
+reset role;
+update shared.people set archived_at = now() where id = '00000000-0000-0000-0000-0000000000d1';
+set local role authenticated;
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","admin"]}');
+select is(ops.set_cafe_receipt_issue_access('00000000-0000-0000-0000-0000000000d1', false) ->> 'enabled', 'false',
+  'FR-1040 an admin removes the capability from an archived person');
+select throws_ok($$select ops.set_cafe_receipt_issue_access('00000000-0000-0000-0000-0000000000d1', true)$$,
+  '22023', null, 'FR-1040 an archived person cannot be granted it');
 reset role;
 
 select * from finish();

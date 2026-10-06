@@ -1,11 +1,13 @@
 -- Rollback for 20261007008200_ops_cafe_receipt_issues.sql (#1431).
--- Refuses once the capability was granted or an issue was linked, closed or recorded as informational.
+-- Refuses once the capability was granted, an issue was linked in whole or in part or closed, or an
+-- informational issue was recorded.
 begin;
 do $$
 begin
   if exists (select 1 from ops.cafe_receipt_issue_access)
-     or exists (select 1 from ops.cafe_receipt_issues where kind in ('short', 'damaged_wrong') or status <> 'open') then
-    raise exception 'manual rollback blocked: Receipt issue grants, resolutions or informational issues exist; export or retain them first';
+     or exists (select 1 from ops.cafe_receipt_issues where kind in ('short', 'damaged_wrong') or status <> 'open')
+     or exists (select 1 from ops.cafe_receipt_portions where issue_id is not null) then
+    raise exception 'manual rollback blocked: Receipt issue grants, links, resolutions or informational issues exist; export or retain them first';
   end if;
 end;
 $$;
@@ -35,8 +37,105 @@ drop function ops.cafe_receipt_issue_open_pos(uuid);
 drop function ops._cafe_receipt_issue_po_available(uuid, uuid, text, uuid);
 drop trigger cafe_receipt_matches_information_issues on ops.cafe_receipt_matches;
 drop function ops._record_cafe_receipt_information_issues();
-drop function ops.cafe_receipt_portion_po_created_after_delivery(ops.cafe_receipt_portions);
 drop function ops.cafe_receipt_line_po_created_after_delivery(ops.cafe_receipt_lines);
+
+-- The release as 20261007003000.
+create or replace function ops.release_cafe_receipts(p_branch_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_org_id uuid := shared.current_org_id();
+  v_started timestamptz := clock_timestamp();
+  v_receipt ops.cafe_receipts%rowtype;
+  v_location text;
+  v_lines jsonb;
+  v_alloc jsonb;
+  v_reason text;
+begin
+  if v_org_id is null or shared.current_person_id() is null
+     or not (shared.has_access_role('ops_lead') or shared.has_access_role('admin')) then
+    raise exception 'CAFE_RECEIPT_RELEASE_FORBIDDEN' using errcode = '42501';
+  end if;
+  if not exists (select 1 from shared.branches b where b.org_id = v_org_id and b.id = p_branch_id) then
+    raise exception 'CAFE_RECEIPT_RELEASE_BRANCH_NOT_FOUND' using errcode = '22023';
+  end if;
+  if not coalesce((select s.posting_enabled from ops.cafe_receipt_posting_switches s
+                     where s.org_id = v_org_id and s.branch_id = p_branch_id), false) then
+    raise exception 'CAFE_RECEIPT_POSTING_OFF' using errcode = '55000';
+  end if;
+  perform pg_advisory_xact_lock(hashtextextended('cafe-receipt-match:' || v_org_id || ':' || p_branch_id, 0));
+
+  if not ops._cafe_open_po_cache_current(v_org_id, p_branch_id) then
+    insert into ops.cafe_open_po_branches (org_id, branch_id, refresh_requested_at)
+    values (v_org_id, p_branch_id, clock_timestamp())
+    on conflict (org_id, branch_id) do update
+      set refresh_requested_at = coalesce(ops.cafe_open_po_branches.refresh_requested_at, excluded.refresh_requested_at),
+          updated_at = clock_timestamp();
+    v_reason := 'po_data_not_current';
+  else
+    -- Receipts approved while PO data was missing are matched now, which also enqueues what fits.
+    perform ops._match_waiting_cafe_receipts_at(v_org_id, p_branch_id);
+
+    for v_receipt in
+      select r.* from ops.cafe_receipts r
+       where r.org_id = v_org_id and r.branch_id = p_branch_id and r.status = 'Approved'
+         and exists (select 1 from ops.cafe_receipt_portions q
+                      where q.org_id = r.org_id and q.receipt_id = r.id and q.state = 'held')
+       order by r.arrival_date, r.received_at, r.id
+    loop
+      v_location := ops._cafe_receipt_location(v_org_id, p_branch_id, v_receipt.receiving_location_key);
+      select jsonb_agg(jsonb_build_object('line_id', l.id, 'item_unit_id', l.item_unit_id, 'wip_item_id', l.wip_item_id,
+                                          'quantity', h.quantity) order by l.created_at, l.id)
+        into v_lines
+        from (select q.line_id, sum(q.quantity) as quantity from ops.cafe_receipt_portions q
+               where q.org_id = v_org_id and q.receipt_id = v_receipt.id and q.state = 'held'
+               group by q.line_id) h
+        join ops.cafe_receipt_lines l on l.id = h.line_id;
+      v_alloc := ops.match_cafe_receipt_lines(v_lines, ops._cafe_receipt_po_lines(v_org_id, p_branch_id));
+      if v_location is null or not exists (select 1 from jsonb_array_elements(v_alloc) a where a ->> 'kind' = 'matched') then
+        update ops.cafe_receipt_portions q
+           set hold_reason = case when v_location is null then 'receiving_location_missing' else 'no_longer_fits' end,
+               updated_at = clock_timestamp()
+         where q.org_id = v_org_id and q.receipt_id = v_receipt.id and q.state = 'held'
+           and q.hold_reason is distinct from case when v_location is null then 'receiving_location_missing' else 'no_longer_fits' end;
+        continue;
+      end if;
+      update ops.cafe_receipt_portions q
+         set state = 'superseded', hold_reason = null, updated_at = clock_timestamp()
+       where q.org_id = v_org_id and q.receipt_id = v_receipt.id and q.state = 'held';
+      insert into ops.cafe_receipt_portions (org_id, receipt_id, line_id, item_unit_id, po_number, po_date, quantity, state, hold_reason)
+      select v_org_id, v_receipt.id, l.id, l.item_unit_id,
+             case when a ->> 'kind' = 'matched' then a ->> 'po_number' end,
+             case when a ->> 'kind' = 'matched' then (a ->> 'po_date')::date end,
+             (a ->> 'quantity')::numeric,
+             case when a ->> 'kind' = 'matched' then 'queued' else 'held' end,
+             case when a ->> 'kind' = 'matched' then null else 'no_longer_fits' end
+        from jsonb_array_elements(v_alloc) a
+        join ops.cafe_receipt_lines l on l.id = (a ->> 'line_id')::uuid;
+      perform ops._enqueue_cafe_receipt_portions(v_receipt.id, v_location);
+    end loop;
+  end if;
+
+  return (
+    select jsonb_strip_nulls(jsonb_build_object('reason', v_reason)) || jsonb_build_object(
+             'released_receipts', count(distinct q.receipt_id) filter (where q.state = 'queued' and q.created_at >= v_started),
+             'queued_portions', count(*) filter (where q.state = 'queued' and q.created_at >= v_started),
+             'held_portions', count(*) filter (where q.state = 'held'),
+             'held_receipts', count(distinct q.receipt_id) filter (where q.state = 'held'),
+             'held_location_missing', count(*) filter (where q.hold_reason = 'receiving_location_missing'))
+      from ops.cafe_receipt_portions q
+      join ops.cafe_receipts r on r.org_id = q.org_id and r.id = q.receipt_id
+     where q.org_id = v_org_id and r.branch_id = p_branch_id
+  );
+end;
+$$;
+comment on function ops.release_cafe_receipts(uuid) is
+  'FR-1030: an ops lead or admin releases a branch''s held Approved receipts once its posting switch is on. Re-matches each receipt''s held quantity against the current cache less what is already enqueued, queues what fits once and keeps the rest held with a reason; a rerun enqueues nothing new. Without current PO data it enqueues nothing, asks for a refresh and says why.';
+revoke execute on function ops.release_cafe_receipts(uuid) from public, anon, authenticated;
+grant execute on function ops.release_cafe_receipts(uuid) to authenticated;
 
 -- The receipt posting summary as 20261007003000.
 create or replace function ops.cafe_receipt_posting(p_receipt ops.cafe_receipts)
@@ -152,7 +251,11 @@ alter policy cafe_receipt_portions_select_reviewer on ops.cafe_receipt_portions
 comment on policy cafe_receipt_portions_select_reviewer on ops.cafe_receipt_portions is
   'Matched quantities per PO reveal outstanding, so only reviewers of the receipt''s stream read them (DD-CAFE-MVP-6); the receiver reads the posting state as text through ops.cafe_receipt_posting.';
 
--- The issue table as 20261007003000.
+-- The portion and issue tables as 20261007003000.
+alter table ops.cafe_receipt_portions
+  drop constraint cafe_receipt_portions_link_ck,
+  drop column issue_id,
+  drop column po_created_after_delivery;
 alter table ops.cafe_receipt_issues
   drop constraint cafe_receipt_issues_resolution_ck,
   drop column linked_po_number,
