@@ -89,6 +89,12 @@ const CafeReceivePage = lazyPage(() =>
 const CafeReceiptReviewPage = lazyPage(() =>
   import('./pages/cafe-receipt-review-page').then((m) => ({ default: m.CafeReceiptReviewPage })),
 )
+const CafeRequestPage = lazyPage(() =>
+  import('./pages/cafe-request-page').then((m) => ({ default: m.CafeRequestPage })),
+)
+const CafeRequestReviewPage = lazyPage(() =>
+  import('./pages/cafe-request-review-page').then((m) => ({ default: m.CafeRequestReviewPage })),
+)
 const CafeReceiptIssuesPage = lazyPage(() =>
   import('./pages/cafe-receipt-issues-page').then((m) => ({ default: m.CafeReceiptIssuesPage })),
 )
@@ -406,6 +412,7 @@ const routeTable: RouteObject[] = [
           { path: ROUTE_PATHS.cafeCount, element: withSuspense(<CafeCountPage />), handle: pageHandle('workspace') },
           { path: ROUTE_PATHS.cafeReceive, element: withSuspense(<CafeReceivePage />), handle: pageHandle('workspace') },
           { path: ROUTE_PATHS.cafeReceiptIssues, element: withSuspense(<CafeReceiptIssuesPage />), handle: pageHandle('workspace') },
+          { path: ROUTE_PATHS.cafeRequest, element: withSuspense(<CafeRequestPage />), handle: pageHandle('workspace') },
           { path: ROUTE_PATHS.cafeItems, element: withSuspense(<CafeItemSettingsPage />), handle: pageHandle('workspace') },
           // #1239 split the former kitchen log into production and transfer; the retired kitchen
           // entry and log alias land directly on production rather than stopping at the Today root.
@@ -433,6 +440,7 @@ const routeTable: RouteObject[] = [
             children: [
               { path: ROUTE_PATHS.cafeReview, element: withSuspense(<KitchenReviewPage />), handle: pageHandle('workspace') },
               { path: ROUTE_PATHS.cafeReceiptReview, element: withSuspense(<CafeReceiptReviewPage />), handle: pageHandle('workspace') },
+              { path: ROUTE_PATHS.cafeRequestReview, element: withSuspense(<CafeRequestReviewPage />), handle: pageHandle('workspace') },
               // Inside the gate, for the same reason as the catalog redirects above.
               {
                 path: 'kitchen/review',
