@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { SalesDailyRevenueRow } from '@/lib/db/reporting'
 import type { SalesMarginDailyRow } from '@/lib/db/reporting-margin'
-import { branchViewPath, buildBranchPage, readBranchView } from './money-branch-page'
+import { buildBranchPage, readBranchView } from './money-branch-page'
 
 const LATEST = '2026-10-05'
 function day(offset: number): string {
@@ -32,13 +32,6 @@ describe('readBranchView', () => {
   it('reads the period and a well-formed day, else the defaults', () => {
     expect(readBranchView(new URLSearchParams('period=7&d=2026-10-03'))).toEqual({ period: 7, day: '2026-10-03' })
     expect(readBranchView(new URLSearchParams('period=14&d=yesterday'))).toEqual({ period: 30, day: null })
-  })
-})
-
-describe('branchViewPath', () => {
-  it('keeps the period and the chosen day, and encodes the code', () => {
-    expect(branchViewPath('G H', 7, '2026-10-05')).toBe('/money/branch/G%20H?period=7&d=2026-10-05')
-    expect(branchViewPath('ghq', 30, null)).toBe('/money/branch/ghq?period=30')
   })
 })
 

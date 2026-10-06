@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { CafeStreamBar, CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
@@ -123,7 +124,12 @@ function CafeItemSettingsPageForViewer() {
   const [items, setItems] = useState<CafeItemSetting[]>([])
   const needsUnitCount = items.filter(needsUnit).length
   const [drafts, setDrafts] = useState<Record<string, ItemDraft>>({})
-  const [search, setSearch] = useState('')
+  // A link from elsewhere (Money's Branch page) may name an item (?q=) and its stream (?stream=
+  // branch|activity). Both are read once and dropped from the URL; the stream is taken only when it
+  // is at the viewer's location (or none is claimed yet), so a link never moves their Café location.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const linked = useRef({ q: searchParams.get('q'), stream: searchParams.get('stream') })
+  const [search, setSearch] = useState(linked.current.q ?? '')
   const [kindFilter, setKindFilter] = useState<KitchenItemKindFilter>('All')
   const [activeFilter, setActiveFilter] = useState<KitchenItemActiveFilter>('All')
   const [needsUnitFilter, setNeedsUnitFilter] = useState<KitchenItemNeedsUnitFilter>('All')
@@ -157,6 +163,22 @@ function CafeItemSettingsPageForViewer() {
     })
     return () => { active = false }
   }, [adoptStream, resolveStream, retryKey])
+
+  useEffect(() => {
+    if (!searchParams.has('q') && !searchParams.has('stream')) return
+    const next = new URLSearchParams(searchParams)
+    next.delete('q')
+    next.delete('stream')
+    setSearchParams(next, { replace: true })
+  }, [searchParams, setSearchParams])
+
+  useEffect(() => {
+    const wanted = linked.current.stream
+    if (!catalogReady || !wanted) return
+    linked.current.stream = null
+    const option = locationOptions.find(o => streamKey(o.branch.id, o.activity) === wanted)
+    if (option && (!stream || streamKey(stream.branch.id, stream.activity) !== wanted)) setStream(option)
+  }, [catalogReady, locationOptions, setStream, stream])
 
   const loadStreamItems = useCallback(async () => {
     if (!catalogReady) return

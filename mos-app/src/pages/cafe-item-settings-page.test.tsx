@@ -344,3 +344,32 @@ describe('Cafe item permissions per activity', () => {
     expect(within(item).queryByRole('button')).not.toBeInTheDocument()
   })
 })
+
+describe('Cafe items opened from a link (Money Branch page, #1436)', () => {
+  it('opens on the linked stream with the item found, and drops the link parameters', async () => {
+    selectedActivity.initial = 'kitchen'
+    render(
+      <I18nProvider initialLocale="en">
+        <MemoryRouter initialEntries={['/cafe/items?q=Oat%20milk&stream=branch-1%7Cbar']}>
+          <CafeItemSettingsPage />
+        </MemoryRouter>
+      </I18nProvider>,
+    )
+    await waitFor(() => expect(mockCanManage).toHaveBeenCalledWith('bar'))
+    expect(screen.getByRole('searchbox', { name: 'Find an ESB or MOS name' })).toHaveValue('Oat milk')
+    expect(await screen.findByRole('article', { name: 'ERP Oat milk' })).toBeInTheDocument()
+  })
+
+  it('ignores a stream that is not at the viewer\'s location', async () => {
+    selectedActivity.initial = 'kitchen'
+    render(
+      <I18nProvider initialLocale="en">
+        <MemoryRouter initialEntries={['/cafe/items?stream=branch-9%7Cbar']}>
+          <CafeItemSettingsPage />
+        </MemoryRouter>
+      </I18nProvider>,
+    )
+    await waitFor(() => expect(mockCanManage).toHaveBeenCalledWith('kitchen'))
+    expect(mockCanManage).not.toHaveBeenCalledWith('bar')
+  })
+})

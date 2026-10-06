@@ -29,11 +29,6 @@ export function readBranchView(params: URLSearchParams): BranchView {
   return { period, day: d && ISO_DAY.test(d) ? d : null }
 }
 
-/** The app path of one branch's view: the period and, when chosen, the day. */
-export function branchViewPath(code: string, period: MoneyPeriod, day: string | null): string {
-  return `/money/branch/${encodeURIComponent(code)}?period=${period}${day ? `&d=${day}` : ''}`
-}
-
 export interface BranchDay {
   date: string
   /** Revenue that day; null when the branch did not send it. */

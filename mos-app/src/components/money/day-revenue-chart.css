@@ -1,0 +1,77 @@
+/* DayRevenueChart — readout line, plot, legend. Series colours come from the palette (DESIGN.md
+   charts rule): bars --primary, the comparison line --muted-foreground dashed, axes/grid --border
+   and --muted-foreground. Token-only. */
+
+.money-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+}
+
+/* The tooltip: one line, wraps as a sentence on a phone, figures never split. */
+.money-chart__readout {
+  min-height: 1.5em;
+  margin: 0;
+  color: var(--foreground);
+  font-size: var(--font-size-control);
+  font-weight: 500;
+}
+
+.money-chart__plot {
+  height: 240px;
+  min-width: 0;
+  border-radius: var(--radius-sm);
+  cursor: crosshair;
+}
+
+/* Axis ticks in the label size; Recharts writes font-size as an attribute, so CSS sets it. */
+.money-chart__plot .recharts-cartesian-axis-tick text {
+  font-size: var(--font-size-label);
+}
+
+/* Recharts' own wrappers never take focus or overflow the plot. */
+.money-chart__plot :is(.recharts-wrapper, .recharts-surface):focus {
+  outline: none;
+}
+
+.money-chart__legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+}
+
+.money-chart__key {
+  display: inline-block;
+  width: 14px;
+  height: 10px;
+}
+
+.money-chart__key:not(:first-child) {
+  margin-left: 8px;
+}
+
+.money-chart__key--bar {
+  border-radius: var(--radius-xs) var(--radius-xs) 0 0;
+  background: var(--primary);
+}
+
+.money-chart__key--line {
+  height: 0;
+  border-top: 2px dashed var(--muted-foreground);
+}
+
+.money-chart__key--missing {
+  height: 6px;
+  background: repeating-linear-gradient(45deg, var(--muted-foreground) 0 1.5px, transparent 1.5px 4px);
+}
+
+@media (max-width: 767.98px) {
+  .money-chart__plot {
+    height: 200px;
+  }
+}
