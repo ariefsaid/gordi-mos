@@ -72,7 +72,7 @@ export function CafeReceiptRelease({ online, refreshKey = 0 }: { online: boolean
     <section className="cafe-receipt-release" aria-labelledby={titleId}>
       <h3 id={titleId} className="cafe-receipt-release__title">{t('cafe.receipts.release.title')}</h3>
       <p className="cafe-receipt-release__help">{t('cafe.receipts.release.help')}</p>
-      {branches === 'failed' && <p className="cafe-receipt-release__outcome--failed">{t('cafe.receipts.release.loadFailed')}</p>}
+      {branches === 'failed' && <p className="cafe-receipt-release__outcome--failed" role="alert">{t('cafe.receipts.release.loadFailed')}</p>}
       <ul className="cafe-receipt-release__list">
         {rows.map(branch => (
           <li className="cafe-receipt-release__row" key={branch.branchId}>

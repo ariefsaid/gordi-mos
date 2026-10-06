@@ -85,7 +85,7 @@ describe('CafeReceiptReviewQueue', () => {
     vi.mocked(listCafeReceipts).mockResolvedValue([])
     vi.mocked(listCafeHeldReceipts).mockResolvedValue([{ branchId: 'b-1', branchName: 'Gordi HQ', heldReceipts: 2, postingEnabled: true }])
     renderQueue()
-    expect(await screen.findByRole('button', { name: 'Release Gordi HQ to ESB' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Release to ESB: Gordi HQ' })).toBeInTheDocument()
   })
 
   it('FR-1020 the receiver’s own receipt cannot be approved from the queue but can be rejected', async () => {
