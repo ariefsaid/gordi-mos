@@ -312,7 +312,7 @@ describe('PersonPanel — sections', () => {
   it('FR-1040 an admin cannot grant the capability to themselves', async () => {
     renderPanel({ ...BAYU, id: 'admin-person-id' })
     expect(await screen.findByRole('checkbox', { name: 'Resolve Receipt issues' })).toHaveAttribute('aria-disabled', 'true')
-    expect(screen.getByText('Another admin grants this to you.')).toBeInTheDocument()
+    expect(screen.getByText('Can’t grant this to yourself — another admin can.')).toBeInTheDocument()
   })
 
   it('a collapsed section opens on its heading button', async () => {

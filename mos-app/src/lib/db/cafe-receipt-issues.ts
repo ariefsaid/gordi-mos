@@ -27,6 +27,8 @@ export type CafeReceiptIssueOpenPo = {
   po_number: string
   supplier_name: string | null
   po_date: string
+  /** What the PO still has for the item: the cache less what is queued or held against it. */
+  available: string
   /** The PO is dated on or before the arrival date, so ESB accepts the receipt against it (FR-1036). */
   date_eligible: boolean
   created_after_delivery: boolean
@@ -119,6 +121,7 @@ export async function listCafeReceiptIssueOpenPos(issueId: string): Promise<Cafe
         po_number: row.po_number,
         supplier_name: nullableString(row.supplier_name),
         po_date: row.po_date,
+        available: String(row.available ?? '0'),
         date_eligible: row.date_eligible,
         created_after_delivery: row.created_after_delivery === true,
       }

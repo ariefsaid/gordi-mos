@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { ViewTabs } from '@/components/ui/view-tabs'
 import { formatAge } from '@/components/tasks/task-formatters'
@@ -75,16 +75,20 @@ export function CafeReceiptIssuesQueue() {
   const [busy, setBusy] = useState(false)
   const [refusal, setRefusal] = useState<MessageKey | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const noticeRef = useRef<HTMLParagraphElement>(null)
+  const loaded = useRef(false)
 
   useEffect(() => {
     let active = true
-    setLoading(true)
+    // A reload after an action keeps the rows in place; only the first read shows the skeleton.
+    if (!loaded.current) setLoading(true)
     setLoadError(false)
     void Promise.all([listCafeReceiptIssues(), canManageCafeReceiptIssues()]).then(([rows, allowed]) => {
       if (!active) return
       setIssues(rows)
       setCanManage(allowed)
       setLoading(false)
+      loaded.current = true
     }).catch(() => {
       if (!active) return
       setLoadError(true)
@@ -132,6 +136,8 @@ export function CafeReceiptIssuesQueue() {
       setNotice(await run())
       setResolving(null)
       setReload(value => value + 1)
+      // The row that held the focused button may move tabs; the outcome keeps the keyboard's place.
+      noticeRef.current?.focus()
     } catch (error) {
       const message = error instanceof Error ? error.message : ''
       setRefusal(REFUSAL.find(([token]) => message.includes(token))?.[1] ?? 'cafe.receipts.issues.actionFailed')
@@ -155,19 +161,23 @@ export function CafeReceiptIssuesQueue() {
   })
 
   const person = (id: string | null) => (id && names.people.get(id)) || t('cafe.receipts.review.unknownPerson')
+  // Counts and the role-specific help are facts about a completed read, so neither shows before one.
+  const known = !loading && !loadError
   const tabs = [
-    { id: 'blocking', label: t('cafe.receipts.issues.tab.blocking'), count: byTab.blocking.length },
-    { id: 'information', label: t('cafe.receipts.issues.tab.information'), count: byTab.information.length },
-    { id: 'resolved', label: t('cafe.receipts.issues.tab.resolved'), count: byTab.resolved.length },
+    { id: 'blocking', label: t('cafe.receipts.issues.tab.blocking'), count: known ? byTab.blocking.length : undefined },
+    { id: 'information', label: t('cafe.receipts.issues.tab.information'), count: known ? byTab.information.length : undefined },
+    { id: 'resolved', label: t('cafe.receipts.issues.tab.resolved'), count: known ? byTab.resolved.length : undefined },
   ]
 
   return (
-    <section className="cafe-count-review cafe-receipt-issues" aria-labelledby="cafe-receipt-issues-help">
-      <header className="cafe-count-review__header">
-        <p id="cafe-receipt-issues-help">{t(canManage ? 'cafe.receipts.issues.help' : 'cafe.receipts.issues.helpReadOnly')}</p>
-      </header>
+    <section className="cafe-count-review cafe-receipt-issues" aria-label={t('cafe.receipts.issues.title')}>
+      {known && (
+        <header className="cafe-count-review__header">
+          <p>{t(canManage ? 'cafe.receipts.issues.help' : 'cafe.receipts.issues.helpReadOnly')}</p>
+        </header>
+      )}
       <ViewTabs tabs={tabs} active={tab} onChange={id => setTab(id as Tab)} ariaLabel={t('cafe.receipts.issues.title')} />
-      <p className="cafe-receipt-issues__notice" role="status">{notice}</p>
+      <p ref={noticeRef} tabIndex={-1} className="cafe-receipt-issues__notice" role="status">{notice}</p>
       {!online && <p className="cafe-count-review__offline" role="alert">{t('cafe.receipts.issues.offline')}</p>}
       {loadError ? (
         <ErrorState
@@ -194,12 +204,14 @@ export function CafeReceiptIssuesQueue() {
             const open = resolving?.issueId === issue.id ? resolving.mode : null
             const noteId = `cafe-issue-note-${issue.id}`
             return (
-              <li className="cafe-count-review__row cafe-receipt-review__row" key={issue.id}>
+              <li className={`cafe-count-review__row cafe-receipt-review__row${open ? ' cafe-receipt-issue--resolving' : ''}`} key={issue.id}>
                 <div className="cafe-count-review__identity">
                   <div className="cafe-count-review__name">{t(KIND[issue.kind].label)}</div>
                   <div className="cafe-count-review__meta">
                     <span>{names.branches.get(receipt.branch_id) ?? t('cafe.receipts.issues.unknownBranch')}</span>
                     <span>{t('cafe.receipts.review.arrival', { date: formatWeekdayDayMonth(receipt.arrival_date) })}</span>
+                  </div>
+                  <div className="cafe-count-review__meta">
                     <span>{t('cafe.receipts.review.receivedBy', { person: person(receipt.received_by) })}</span>
                     <span>{t('cafe.receipts.issues.age', { age: formatAge(issue.created_at, new Date(), locale) })}</span>
                   </div>
@@ -246,6 +258,7 @@ export function CafeReceiptIssuesQueue() {
                   ) : open === 'link' ? (
                     <CafeReceiptIssuePoPicker
                       pos={pos}
+                      unit={line.unit_name}
                       busy={busy}
                       online={online}
                       refusal={refusal}
@@ -276,8 +289,9 @@ export function CafeReceiptIssuesQueue() {
 }
 
 /** The eligible open POs for one issue, from the worker's cache; ESB is never read from here. */
-function CafeReceiptIssuePoPicker({ pos, busy, online, refusal, onLink, onRefresh, onCancel }: {
+function CafeReceiptIssuePoPicker({ pos, unit, busy, online, refusal, onLink, onRefresh, onCancel }: {
   pos: CafeReceiptIssueOpenPos | 'loading' | 'failed'
+  unit: string
   busy: boolean
   online: boolean
   refusal: MessageKey | null
@@ -303,10 +317,11 @@ function CafeReceiptIssuePoPicker({ pos, busy, online, refusal, onLink, onRefres
                 <span className="cafe-receipt-issue__po">
                   <strong>{po.po_number}</strong>
                   <span>{[po.supplier_name, t('cafe.receipts.issues.poDated', { date: formatWeekdayDayMonth(po.po_date) })].filter(Boolean).join(' · ')}</span>
+                  <span>{Number(po.available) > 0 ? t('cafe.receipts.issues.poLeft', { quantity: po.available, unit }) : t('cafe.receipts.issues.refused.noOutstanding')}</span>
                   {po.created_after_delivery && <span>{t('cafe.receipts.issues.latePo')}</span>}
                   {!po.date_eligible && <span>{t('cafe.receipts.issues.refused.afterArrival')}</span>}
                 </span>
-                {po.date_eligible && (
+                {po.date_eligible && Number(po.available) > 0 && (
                   <button type="button" className="btn btn-outline" disabled={!online || busy} onClick={() => onLink(po.po_number)}
                     aria-label={t('cafe.receipts.issues.linkTo', { po: po.po_number })}>
                     {busy ? t('common.working') : t('cafe.receipts.issues.linkShort')}

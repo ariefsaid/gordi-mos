@@ -2399,6 +2399,7 @@ export const messages = {
     'cafe.receipts.issues.linkShort': 'Link',
     'cafe.receipts.issues.linkTo': 'Link to ${po}',
     'cafe.receipts.issues.poDated': 'dated ${date}',
+    'cafe.receipts.issues.poLeft': '${quantity} × ${unit} left on this PO',
     'cafe.receipts.issues.noPos': 'No open PO at this branch has this item. Raise or amend the PO in ESB, then refresh.',
     'cafe.receipts.issues.posFailed': 'Couldn’t load the open POs. Try again.',
     'cafe.receipts.issues.refreshPos': 'Refresh POs',
@@ -2419,7 +2420,7 @@ export const messages = {
     'admin.person.procurement.title': 'Procurement',
     'admin.person.procurement.grant': 'Resolve Receipt issues',
     'admin.person.procurement.description': 'Reads every Receipt issue in the organisation and links it to a PO or closes it. Grants nothing else.',
-    'admin.person.procurement.selfGuard': 'Another admin grants this to you.',
+    'admin.person.procurement.selfGuard': 'Can’t grant this to yourself — another admin can.',
   },
   id: {
     'catalog.record.owningTeam': 'Tim pemilik',
@@ -4687,6 +4688,7 @@ export const messages = {
     'cafe.receipts.issues.linkShort': 'Tautkan',
     'cafe.receipts.issues.linkTo': 'Tautkan ke ${po}',
     'cafe.receipts.issues.poDated': 'bertanggal ${date}',
+    'cafe.receipts.issues.poLeft': 'Sisa ${quantity} × ${unit} di PO ini',
     'cafe.receipts.issues.noPos': 'Tidak ada PO terbuka di cabang ini yang memuat item ini. Buat atau ubah PO di ESB, lalu muat ulang.',
     'cafe.receipts.issues.posFailed': 'PO terbuka gagal dimuat. Coba lagi.',
     'cafe.receipts.issues.refreshPos': 'Muat ulang PO',
@@ -4707,7 +4709,7 @@ export const messages = {
     'admin.person.procurement.title': 'Procurement',
     'admin.person.procurement.grant': 'Selesaikan masalah penerimaan',
     'admin.person.procurement.description': 'Membaca semua masalah penerimaan di organisasi dan menautkannya ke PO atau menutupnya. Tidak memberi akses lain.',
-    'admin.person.procurement.selfGuard': 'Admin lain yang memberikan ini kepada Anda.',
+    'admin.person.procurement.selfGuard': 'Tidak bisa diberikan ke diri sendiri — admin lain bisa.',
   },
 } as const
 

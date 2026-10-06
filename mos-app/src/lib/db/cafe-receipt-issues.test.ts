@@ -90,13 +90,13 @@ describe('Café receipt issues adapter', () => {
 
   it('FR-1035 reads the PO picker with each PO date eligibility and the cache as-of time', async () => {
     const rpc = vi.fn().mockResolvedValue({ data: {
-      options: [{ po_number: 'PO-1', supplier_name: null, po_date: '2026-10-06', date_eligible: false, created_after_delivery: true }],
+      options: [{ po_number: 'PO-1', supplier_name: null, po_date: '2026-10-06', available: '4', date_eligible: false, created_after_delivery: true }],
       cache_as_of: '2026-10-07T01:00:00Z', is_current: true, refresh_requested_at: null,
     }, error: null })
     schemaMock.mockReturnValue({ rpc } as never)
 
     await expect(listCafeReceiptIssueOpenPos('issue-1')).resolves.toEqual({
-      options: [{ po_number: 'PO-1', supplier_name: null, po_date: '2026-10-06', date_eligible: false, created_after_delivery: true }],
+      options: [{ po_number: 'PO-1', supplier_name: null, po_date: '2026-10-06', available: '4', date_eligible: false, created_after_delivery: true }],
       cache_as_of: '2026-10-07T01:00:00Z', is_current: true, refresh_requested_at: null,
     })
     expect(rpc).toHaveBeenCalledWith('cafe_receipt_issue_open_pos', { p_issue_id: 'issue-1' })

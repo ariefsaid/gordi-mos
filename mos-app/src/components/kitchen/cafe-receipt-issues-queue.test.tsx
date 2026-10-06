@@ -68,8 +68,9 @@ beforeEach(() => {
   mockCanManage.mockResolvedValue(true)
   mockOpenPos.mockResolvedValue({
     options: [
-      { po_number: 'PO-2610-0042', supplier_name: 'PT Sumber Susu Nusantara', po_date: '2026-10-05', date_eligible: true, created_after_delivery: true },
-      { po_number: 'PO-2610-0051', supplier_name: null, po_date: '2026-10-06', date_eligible: false, created_after_delivery: true },
+      { po_number: 'PO-2610-0042', supplier_name: 'PT Sumber Susu Nusantara', po_date: '2026-10-05', available: '4', date_eligible: true, created_after_delivery: true },
+      { po_number: 'PO-2610-0051', supplier_name: null, po_date: '2026-10-06', available: '6', date_eligible: false, created_after_delivery: true },
+      { po_number: 'PO-2610-0038', supplier_name: null, po_date: '2026-10-01', available: '0', date_eligible: true, created_after_delivery: false },
     ],
     cache_as_of: '2026-10-06T01:00:00Z', is_current: true, refresh_requested_at: null,
   })
@@ -110,11 +111,15 @@ describe('Receipt issues', () => {
     expect(await screen.findByText('PO-2610-0051')).toBeInTheDocument()
     expect(screen.getByText(/ESB refuses a receipt dated before its PO/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Link to PO-2610-0051' })).not.toBeInTheDocument()
+    expect(screen.getByText('4 × karton left on this PO')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Link to PO-2610-0038' })).not.toBeInTheDocument()
+    expect(screen.getByText('This PO has nothing left for this item.')).toBeInTheDocument()
     expect(screen.getAllByText('PO created after delivery')).toHaveLength(2)
 
     await userEvent.click(screen.getByRole('button', { name: 'Link to PO-2610-0042' }))
     expect(mockLink).toHaveBeenCalledWith('issue-over', 'PO-2610-0042')
-    expect(await screen.findByText('Linked to PO-2610-0042. It is held until the branch posts receipts.')).toBeInTheDocument()
+    const notice = await screen.findByText('Linked to PO-2610-0042. It is held until the branch posts receipts.')
+    expect(notice).toHaveFocus()
 
     await userEvent.click(screen.getByRole('tab', { name: /Resolved/ }))
     const resolved = (await screen.findByText('Over-delivery')).closest('li')!

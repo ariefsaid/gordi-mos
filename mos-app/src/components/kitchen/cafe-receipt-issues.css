@@ -1,6 +1,8 @@
 /* Receipt issues reuse the receipt review row (cafe-count-review-queue.css, cafe-receipt.css);
    these rules cover only what an issue adds: its explanation, the resolution and the PO picker. */
 
+.cafe-receipt-issues .cafe-count-review__meta + .cafe-count-review__meta { margin-top: 2px; }
+
 .cafe-receipt-issues__notice:empty { display: none; }
 
 .cafe-receipt-issues__notice {
@@ -67,3 +69,26 @@
   color: var(--muted-foreground);
   font-size: var(--font-size-label);
 }
+
+/* The shared view tabs sit inside the issues card, so they take the card's inline placement
+   (as the records toolbar does) and never wrap a label at phone width. */
+.cafe-receipt-issues .view-tabs {
+  position: static;
+  padding: 0;
+  overflow-x: auto;
+  background: transparent;
+}
+
+.cafe-receipt-issues .view-tabs__tab { white-space: nowrap; }
+
+@media (max-width: 767.98px) {
+  .cafe-receipt-issues .view-tabs__tab { gap: 5px; padding: 0 7px; }
+}
+
+/* On a phone each issue is already its own bordered row; the outer frame only costs width. */
+@media (max-width: 480px) {
+  .cafe-receipt-issues.cafe-count-review { padding: 0; border: 0; background: transparent; }
+}
+
+/* Choosing a PO or writing a close note takes the row's full width below the issue. */
+.cafe-receipt-issue--resolving .cafe-count-review__decision { grid-column: 1 / -1; }
