@@ -5,11 +5,11 @@
 -- freshly read outstanding to Receipt issues (FR-1026/1027).
 --
 -- DOWN (manual, reversible):
---   drop trigger esb_push_groups_cafe_receipt_refused on integrations.esb_push_groups;
---   drop function ops._hold_refused_cafe_receipt_group();
+--   drop trigger esb_push_groups_cafe_receipt_post_failed on integrations.esb_push_groups;
+--   drop function ops._hold_failed_cafe_receipt_group();
 --   restore ops.cafe_receipt_posting(ops.cafe_receipts) from 20261007003000_ops_cafe_receipt_matching.sql;
---   update ops.cafe_receipt_portions set hold_reason = 'no_longer_fits' where hold_reason = 'esb_refused';
---   restore cafe_receipt_portions_hold_reason_check without 'esb_refused';
+--   update ops.cafe_receipt_portions set hold_reason = 'no_longer_fits' where hold_reason = 'post_failed';
+--   restore cafe_receipt_portions_hold_reason_check without 'post_failed';
 --   drop function ops.return_cafe_receipt_excess(uuid, jsonb);
 --   restore ops._enqueue_cafe_receipt_portions(uuid, text) from 20261007003000_ops_cafe_receipt_matching.sql;
 --   alter table integrations.esb_push_groups drop column esb_create_sent_at, drop column esb_created_num,
@@ -206,17 +206,17 @@ grant execute on function ops.return_cafe_receipt_excess(uuid, jsonb) to service
 comment on table ops.cafe_receipt_portions is
   'The matched part of a receipt line on one open PO. held: matched but not enqueued (posting off, no receiving location, or no longer fits the cache at release; a no-longer-fits portion has no PO). queued: enqueued once as an outbox member (push_id); the worker''s outcome is that member''s status. superseded: replaced by a release''s re-match, or returned whole to Receipt issues by the worker''s re-read of the PO.';
 
--- ── DD-2026-10-06-1429 (6) a definitely refused group's portions leave queued ───────────────────
+-- ── DD-2026-10-06-1429 (6) a group that failed before any create leaves queued ───────────────────
 -- When a goods-receipt group dead-letters with no create sent and no document created, ESB holds
--- nothing of it: its portions become held "ESB refused" (no longer counted against the PO's
+-- nothing of it: its portions become held "not posted" (no longer counted against the PO's
 -- outstanding, released again by an ops lead or admin once the cause is fixed) and its members leave
 -- the group, keeping their error, so no requeue can send them beside the release. A group that may
 -- be in ESB (create sent, or created and not authorized) keeps its portions queued for a person.
 alter table ops.cafe_receipt_portions drop constraint cafe_receipt_portions_hold_reason_check;
 alter table ops.cafe_receipt_portions add constraint cafe_receipt_portions_hold_reason_check
-  check (hold_reason in ('posting_off', 'receiving_location_missing', 'no_longer_fits', 'esb_refused'));
+  check (hold_reason in ('posting_off', 'receiving_location_missing', 'no_longer_fits', 'post_failed'));
 
-create or replace function ops._hold_refused_cafe_receipt_group()
+create or replace function ops._hold_failed_cafe_receipt_group()
 returns trigger
 language plpgsql
 security definer
@@ -224,7 +224,7 @@ set search_path = ''
 as $$
 begin
   update ops.cafe_receipt_portions q
-     set state = 'held', hold_reason = 'esb_refused', push_id = null, updated_at = clock_timestamp()
+     set state = 'held', hold_reason = 'post_failed', push_id = null, updated_at = clock_timestamp()
     from integrations.esb_push e
    where e.push_group_id = new.id and e.status = 'dead_letter'
      and q.org_id = e.org_id and q.push_id = e.id and q.state = 'queued';
@@ -234,17 +234,17 @@ begin
   return null;
 end;
 $$;
-comment on function ops._hold_refused_cafe_receipt_group() is
-  'DD-2026-10-06-1429 (6): a goods-receipt group dead-lettered before any create was sent holds its portions as "ESB refused" and detaches its members, so the PO''s outstanding is freed and only a release sends them again.';
-revoke execute on function ops._hold_refused_cafe_receipt_group() from public, anon, authenticated, service_role;
-create trigger esb_push_groups_cafe_receipt_refused
+comment on function ops._hold_failed_cafe_receipt_group() is
+  'DD-2026-10-06-1429 (6): a goods-receipt group dead-lettered before any create was sent holds its portions as "not posted" and detaches its members, so the PO''s outstanding is freed and only a release sends them again.';
+revoke execute on function ops._hold_failed_cafe_receipt_group() from public, anon, authenticated, service_role;
+create trigger esb_push_groups_cafe_receipt_post_failed
   after update of status on integrations.esb_push_groups
   for each row
   when (new.source_module = 'cafe_receipt' and new.status = 'dead_letter' and old.status is distinct from 'dead_letter'
         and new.esb_create_sent_at is null and new.esb_created_num is null and new.esb_doc_num is null)
-  execute function ops._hold_refused_cafe_receipt_group();
+  execute function ops._hold_failed_cafe_receipt_group();
 
--- FR-1042: a portion ESB refused reads failed, like its dead-lettered member did.
+-- FR-1042: a portion that failed to post reads failed, like its dead-lettered member did.
 create or replace function ops.cafe_receipt_posting(p_receipt ops.cafe_receipts)
 returns jsonb
 language plpgsql
@@ -264,7 +264,7 @@ begin
   end if;
   select jsonb_build_object(
            'state', case
-                      when bool_or(e.status in ('failed', 'dead_letter')) or bool_or(q.hold_reason = 'esb_refused') then 'failed'
+                      when bool_or(e.status in ('failed', 'dead_letter')) or bool_or(q.hold_reason = 'post_failed') then 'failed'
                       when bool_or(e.status in ('pending', 'in_flight')) then 'queued'
                       when bool_or(q.hold_reason = 'receiving_location_missing')
                         or (count(q.id) = 0 and v_receipt.posting_status = 'held') then 'held'
@@ -285,6 +285,6 @@ begin
 end;
 $$;
 comment on function ops.cafe_receipt_posting(ops.cafe_receipts) is
-  'An Approved receipt''s posting state (not_posted, held, queued, posted, failed — failed includes a portion ESB refused), whether it was matched, and how many unmatched portions and open issues it has; null for any other status or a receipt the caller cannot read.';
+  'An Approved receipt''s posting state (not_posted, held, queued, posted, failed — failed includes a portion that failed to post), whether it was matched, and how many unmatched portions and open issues it has; null for any other status or a receipt the caller cannot read.';
 revoke execute on function ops.cafe_receipt_posting(ops.cafe_receipts) from public, anon;
 grant execute on function ops.cafe_receipt_posting(ops.cafe_receipts) to authenticated;

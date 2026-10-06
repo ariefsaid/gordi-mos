@@ -1235,6 +1235,13 @@ on_url = urllib.parse.unquote(f.calls[0]["url"])
 check("posting off leaves goods receipts out of the drain page; posting on reads them",
       "endpoint=not.in.(noop,goods-receipt)" in off_url and "endpoint=neq.noop" in on_url, off_url + " | " + on_url)
 
+# A tick whose claims all lose to another tick leaves the group row alone (it may be posted).
+esb = FakeEsb()
+esb.fake.routes["esb_push"] = lambda f, m, u, b: [] if (m == "PATCH" and "status=in." in u) else None
+n, out = gr_tick(esb)
+check("a tick that claims no member writes nothing to the group and sends nothing",
+      n == 2 and esb.group_patches == [] and esb.esb_calls() == [], repr(esb.group_patches) + out)
+
 # An organisation id given in upper case still names the organisation.
 esb = FakeEsb()
 n, out = gr_tick(esb, cfg=gr_cfg(ESB_POST_ORG_ID=ORG.upper()))

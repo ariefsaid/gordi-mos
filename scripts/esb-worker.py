@@ -787,7 +787,10 @@ class Outbox:
         for row in claimed:
             self._patch(row["id"], {"status": "failed", "retry_count": int(row.get("retry_count") or 0),
                                     "last_error": error})
-        self.patch_group(gid, {"status": "failed", "last_error": error})
+        if claimed:
+            # A tick that claimed nothing lost to one that holds the group, maybe already posted
+            # it: it leaves the group row alone.
+            self.patch_group(gid, {"status": "failed", "last_error": error})
         return False
 
     def fail_group(self, gid: str, rows: list[dict[str, Any]], error: str, *, permanent: bool,

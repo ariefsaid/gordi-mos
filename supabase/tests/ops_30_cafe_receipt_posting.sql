@@ -242,14 +242,14 @@ select ok((select p.state = 'queued' and p.push_id = current_setting('app.bean_c
           'DD-2026-10-06-1429 a group that sent a create keeps its portion queued for a person');
 update integrations.esb_push_groups set status = 'failed', esb_create_sent_at = null where id = current_setting('app.group_c')::uuid;
 update integrations.esb_push_groups set status = 'dead_letter' where id = current_setting('app.group_c')::uuid;
-select ok((select p.state = 'held' and p.hold_reason = 'esb_refused' and p.push_id is null from ops.cafe_receipt_portions p
+select ok((select p.state = 'held' and p.hold_reason = 'post_failed' and p.push_id is null from ops.cafe_receipt_portions p
             where p.receipt_id = current_setting('app.r1')::uuid and p.po_number = 'PO-SYNTH-1430-B' and p.quantity = 1),
-          'DD-2026-10-06-1429 a definitely refused portion leaves queued and is held as ESB refused');
+          'DD-2026-10-06-1429 a definitely refused portion leaves queued and is held as not posted');
 select ok((select e.push_group_id is null and e.status = 'dead_letter' and e.last_error = 'ESB: synthetic refusal'
              from integrations.esb_push e where e.id = current_setting('app.bean_c')::uuid),
           'DD-2026-10-06-1429 its member leaves the group with its ESB message, so no requeue can send it beside a release');
 select is((select ops.cafe_receipt_posting(r) ->> 'state' from ops.cafe_receipts r where r.id = current_setting('app.r1')::uuid),
-          'failed', 'FR-1042 a receipt with an ESB-refused portion reads failed');
+          'failed', 'FR-1042 a receipt with a portion that failed to post reads failed');
 
 select * from finish();
 rollback;
