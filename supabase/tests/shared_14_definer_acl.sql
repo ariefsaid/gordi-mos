@@ -1,4 +1,4 @@
--- shared — every SECURITY DEFINER function in an exposed application schema is closed to PUBLIC and anon.
+-- shared — every SECURITY DEFINER function in an application or API schema is closed to PUBLIC and anon.
 begin;
 create extension if not exists pgtap with schema extensions;
 create temporary table definer_acl_anon_allowlist (
@@ -16,7 +16,7 @@ select plan(1 + (select count(*)::int
                    from pg_proc p
                    join pg_namespace n on n.oid = p.pronamespace
                   where p.prosecdef
-                    and n.nspname in ('mos', 'ops', 'shared', 'integrations', 'reporting')));
+                    and n.nspname in ('mos', 'ops', 'shared', 'integrations', 'reporting', 'api_v1', 'api_private')));
 
 select ok(
   exists (
@@ -24,7 +24,7 @@ select ok(
     from pg_proc p
     join pg_namespace n on n.oid = p.pronamespace
     where p.prosecdef
-      and n.nspname in ('mos', 'ops', 'shared', 'integrations', 'reporting')
+      and n.nspname in ('mos', 'ops', 'shared', 'integrations', 'reporting', 'api_v1', 'api_private')
       and not exists (
         select 1
         from definer_acl_anon_allowlist a
@@ -51,7 +51,7 @@ select ok(
 from pg_proc p
 join pg_namespace n on n.oid = p.pronamespace
 where p.prosecdef
-  and n.nspname in ('mos', 'ops', 'shared', 'integrations', 'reporting')
+  and n.nspname in ('mos', 'ops', 'shared', 'integrations', 'reporting', 'api_v1', 'api_private')
 order by n.nspname, p.proname, p.oid;
 
 select * from finish();
