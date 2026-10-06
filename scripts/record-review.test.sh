@@ -172,5 +172,18 @@ printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$
 if [ $? -ne 0 ]; then pass=$((pass+1)); printf '  ok    shell tsx requires skills evidence\n'
 else fail=$((fail+1)); printf '  FAIL  shell tsx bypassed the gate\n'; fi
 
+# A deleted UI file does not trigger the gate.
+mkdir -p "$tmp/del-repo/mos-app/src/components"
+git init -q "$tmp/del-repo"
+gd() { git -C "$tmp/del-repo" -c user.email=t@t -c user.name=t "$@"; }
+printf 'export const A = () => null;\n' > "$tmp/del-repo/mos-app/src/components/a.tsx"
+gd add -A && gd commit -qm init
+gd update-ref refs/remotes/origin/dev "$(gd rev-parse HEAD)"
+gd rm -q mos-app/src/components/a.tsx && gd commit -qm 'delete ui file'
+printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$(gd rev-parse HEAD)" > "$tmp/del-repo/review.md"
+(cd "$tmp/del-repo" && bash "$SCRIPT" --lens spec --reviewer gpt-5.6-luna --artifact review.md) >/dev/null 2>&1
+if [ $? -eq 0 ]; then pass=$((pass+1)); printf '  ok    deleting a UI file does not require skills evidence\n'
+else fail=$((fail+1)); printf '  FAIL  deleted UI file wrongly gated\n'; fi
+
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

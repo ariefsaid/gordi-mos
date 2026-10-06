@@ -1,11 +1,12 @@
 import { useEffect, useId, useRef, type RefObject } from 'react'
 import { ModalShell } from '@/components/ui/modal-shell'
 import { Button } from '@/components/ui/button'
+import { CafeReceiptLineRow } from '@/components/kitchen/cafe-receipt-difference'
 import { useT } from '@/i18n/use-t'
 import './cafe-receipt.css'
 import './cafe-receive-lock-confirm.css'
 
-export type CafeReceiveLockLine = { key: string; name: string; quantity: string; unit: string }
+export type CafeReceiveLockLine = { unitId: string; name: string; quantity: string; unit: string }
 
 type Props = {
   open: boolean
@@ -57,10 +58,7 @@ export function CafeReceiveLockConfirm({
         </header>
         <ul className="cafe-receipt-lines cafe-lock-confirm__lines" aria-label={t('cafe.receive.confirm.linesAria')} tabIndex={0}>
           {lines.map(line => (
-            <li key={line.key}>
-              <span>{line.name}</span>
-              <span className="tabular">{t('cafe.receipts.quantityUnit', { quantity: line.quantity, unit: line.unit })}</span>
-            </li>
+            <CafeReceiptLineRow key={line.unitId} name={line.name} quantity={line.quantity} unit={line.unit} withDifference={false} />
           ))}
         </ul>
         <footer className="cafe-lock-confirm__foot">

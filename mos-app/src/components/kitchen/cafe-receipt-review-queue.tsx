@@ -2,13 +2,23 @@ import { useEffect, useMemo, useState } from 'react'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { useT } from '@/i18n/use-t'
 import { getPeople } from '@/lib/db/directory'
-import { listCafeReceipts, reviewCafeReceipt, type CafeReceipt } from '@/lib/db/cafe-receipts'
+import {
+  listCafeReceiptDifferences,
+  listCafeReceipts,
+  reviewCafeReceipt,
+  summarizeCafeReceiptDifferences,
+  type CafeReceipt,
+  type CafeReceiptDifferenceSummary,
+} from '@/lib/db/cafe-receipts'
 import { streamKey, streamLabel } from '@/lib/kitchen-action-label'
-import { formatWeekdayDayMonth } from '@/lib/format/date'
+import { formatWeekdayDayMonth, formatWibShortDateTime } from '@/lib/format/date'
 import { useIsOffline } from '@/shell/use-is-offline'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { ALL_STREAMS } from './cafe-stream-bar'
 import { CafeReceiptState } from './cafe-receipt-state'
+import { CafeReceiptLineRow } from './cafe-receipt-difference'
+import { formatAge } from '@/components/tasks/task-formatters'
+import { useI18n } from '@/i18n/I18nProvider'
 import './cafe-count-review-queue.css'
 
 /** Submitted receipts the server lets this viewer review (RLS scopes the read; the RPC decides). */
@@ -22,8 +32,10 @@ export function CafeReceiptReviewQueue({
   viewerId: string | null
 }) {
   const t = useT()
+  const { locale } = useI18n()
   const [rows, setRows] = useState<CafeReceipt[]>([])
   const [names, setNames] = useState<ReadonlyMap<string, string>>(new Map())
+  const [differences, setDifferences] = useState<ReadonlyMap<string, CafeReceiptDifferenceSummary> | 'failed'>(new Map())
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
   const [actionError, setActionError] = useState(false)
@@ -37,11 +49,19 @@ export function CafeReceiptReviewQueue({
     let active = true
     setLoading(true)
     setLoadError(false)
-    void Promise.all([listCafeReceipts(['Submitted']), getPeople()]).then(([nextRows, people]) => {
+    // Counted receipts that are not sent yet are listed too, with their age, so an unsent lock is
+    // visible; only Submitted ones can be decided.
+    void Promise.all([listCafeReceipts(['Submitted', 'Counted']), getPeople()]).then(([nextRows, people]) => {
       if (!active) return
       setRows(nextRows)
       setNames(new Map(people.map(person => [person.id, person.full_name])))
       setLoading(false)
+      // FR-1012/1032: labels and the cache as-of time; a failed read says so rather than guessing why.
+      void listCafeReceiptDifferences(nextRows.map(row => row.id))
+        .then(found => new Map(nextRows.map(row =>
+          [row.id, summarizeCafeReceiptDifferences(found.filter(line => line.receipt_id === row.id))])))
+        .catch((): 'failed' => 'failed')
+        .then(next => { if (active) setDifferences(next) })
     }).catch(() => {
       if (!active) return
       setLoadError(true)
@@ -106,6 +126,7 @@ export function CafeReceiptReviewQueue({
             const stream = streamCatalog.find(s => s.branch.id === receipt.branch_id && s.activity === receipt.activity) ?? null
             const ownReceipt = receipt.received_by === viewerId
             const noteId = `cafe-receipt-note-${receipt.id}`
+            const difference = differences === 'failed' ? undefined : differences.get(receipt.id)
             return (
               <li className="cafe-count-review__row cafe-receipt-review__row" key={receipt.id}>
                 <div className="cafe-count-review__identity">
@@ -117,18 +138,33 @@ export function CafeReceiptReviewQueue({
                     {stream && <span>{t('cafe.count.review.streamTag', { stream: streamLabel(t, stream) })}</span>}
                     {receipt.delivery_note_number && <span>{t('cafe.receipts.review.deliveryNote', { number: receipt.delivery_note_number })}</span>}
                     {receipt.posting_status === 'held' && <span>{t('cafe.receipts.review.locationMissing')}</span>}
+                    {differences === 'failed' && <span>{t('cafe.receipts.review.differenceFailed')}</span>}
+                    {difference && !difference.known && <span>{t('cafe.receipts.review.differenceUnknown')}</span>}
+                    {difference && (
+                      <span>{!difference.asOf ? t('cafe.receipts.review.poNeverRead')
+                        : t(difference.known ? 'cafe.receipts.review.poAsOf' : 'cafe.receipts.review.poTooOld',
+                          { time: formatWibShortDateTime(difference.asOf) })}</span>
+                    )}
                   </div>
                 </div>
                 <ul className="cafe-receipt-lines" aria-label={t('cafe.receipts.review.linesAria')}>
                   {receipt.lines.map(line => (
-                    <li key={line.id}>
-                      <span>{line.item_name}</span>
-                      <span className="tabular">{t('cafe.receipts.quantityUnit', { quantity: line.received_quantity, unit: line.unit_name })}</span>
-                    </li>
+                    <CafeReceiptLineRow
+                      key={line.id}
+                      name={line.item_name}
+                      quantity={line.received_quantity}
+                      unit={line.unit_name}
+                      withDifference
+                      outcome={difference?.known ? difference.byUnit.get(line.item_unit_id) : undefined}
+                    />
                   ))}
                 </ul>
                 <div className="cafe-count-review__decision cafe-receipt-review__decision">
-                  {receipt.status !== 'Submitted' ? (
+                  {receipt.status === 'Counted' ? (
+                    <span className="cafe-count-review__state">
+                      {t('cafe.receipts.review.countedNotSent', { age: formatAge(receipt.received_at, new Date(), locale) })}
+                    </span>
+                  ) : receipt.status !== 'Submitted' ? (
                     <span className="cafe-count-review__state" role="status"><CafeReceiptState receipt={receipt} /></span>
                   ) : rejecting === receipt.id ? (
                     <div className="cafe-receipt-review__reject">

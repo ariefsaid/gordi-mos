@@ -64,3 +64,46 @@
   .cafe-receipt-review__actions .btn { flex: 1 1 0; }
 }
 
+/* A line's difference sits on the quantity row in a slot reserved before it arrives (FR-1012). */
+.cafe-receipt-lines__facts {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 16px;
+}
+
+.cafe-receipt-lines__difference {
+  min-width: 11.5rem;
+  text-align: right;
+}
+
+/* DESIGN "Row status as text": toned label text, no fill; matches stays quiet. */
+.cafe-receipt-difference {
+  font-size: var(--font-size-label);
+  font-weight: 500;
+  color: var(--warning-foreground);
+}
+
+.cafe-receipt-difference[data-outcome='matches'] { color: var(--muted-foreground); }
+
+/* Two rows for a line with a difference slot when the list itself is narrow (a phone, or the
+   review queue's line column): the name, then the quantity with the label at the row's end.
+   Every such line takes the shape from the start, so a label arriving moves nothing. */
+.cafe-receipt-lines:has(.cafe-receipt-line--difference) { container-type: inline-size; }
+
+@container (max-width: 560px) {
+  .cafe-receipt-lines li.cafe-receipt-line--difference { flex-wrap: wrap; row-gap: 2px; }
+  .cafe-receipt-lines li.cafe-receipt-line--difference > :first-child { flex: 1 1 100%; }
+  .cafe-receipt-lines li.cafe-receipt-line--difference > .cafe-receipt-lines__facts {
+    flex: 1 1 100%;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .cafe-receipt-line--difference .cafe-receipt-lines__difference {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    min-width: 0;
+    height: 20px;
+    margin-inline-start: auto;
+  }
+}
