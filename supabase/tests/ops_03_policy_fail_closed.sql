@@ -113,7 +113,7 @@ select isnt((select count(*)::int from ops.wip_items), 0,
   'wip_items_select_org (positive): a member reads the item list they log against');
 
 select throws_ok($$
-  insert into ops.wip_items (name) values ('member added')
+  insert into ops.wip_items (name, reference_source, esb_product_id) values ('member added', 'erp_catalog', 'P-MEMBER')
   $$, '42501', 'new row violates row-level security policy for table "wip_items"',
   'wip_items_insert_ops_lead_or_admin: a member without ops_lead cannot add master data — the item list decides what every capture surface can record');
 
@@ -125,7 +125,7 @@ select is((select name from ops.wip_items where id = '00000000-0000-0000-0000-00
 
 set local role authenticated;
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
-select lives_ok($$ insert into ops.wip_items (name) values ('ops_lead added') $$,
+select lives_ok($$ insert into ops.wip_items (name, reference_source, esb_product_id) values ('ops_lead added', 'erp_catalog', 'P-OPS-LEAD') $$,
   'wip_items_insert_ops_lead_or_admin (positive): ops_lead CAN add master data');
 update ops.wip_items set name = 'ops renamed' where id = '00000000-0000-0000-0000-00000000ab01';
 reset role;

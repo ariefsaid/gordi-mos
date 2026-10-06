@@ -125,8 +125,8 @@ select throws_ok($$
   'AC-002: plan writes are unchanged — an unaffiliated member still cannot write the plan (ops_lead/admin only, as before)');
 
 select throws_ok($$
-  insert into ops.wip_items (org_id, name)
-  values ('00000000-0000-0000-0000-0000000000a1','Gate Probe Item')
+  insert into ops.wip_items (org_id, name, reference_source, esb_product_id)
+  values ('00000000-0000-0000-0000-0000000000a1','Gate Probe Item','erp_catalog','P-GATE-PROBE')
   $$, '42501', 'new row violates row-level security policy for table "wip_items"',
   'AC-002: master-data writes are unchanged — a member (affiliated or not) still cannot create items');
 
@@ -138,7 +138,8 @@ select lives_ok($$
   $$, 'AC-002: plan writes are unchanged — ops_lead still CAN write the plan');
 
 select lives_ok($$
-  insert into ops.wip_items (org_id, name) values ('00000000-0000-0000-0000-0000000000a1','Gate Probe Item')
+  insert into ops.wip_items (org_id, name, reference_source, esb_product_id)
+  values ('00000000-0000-0000-0000-0000000000a1','Gate Probe Item','erp_catalog','P-GATE-PROBE')
   $$, 'AC-002: master-data writes are unchanged — ops_lead still CAN create items');
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
