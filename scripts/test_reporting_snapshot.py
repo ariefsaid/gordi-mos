@@ -538,6 +538,38 @@ class PendingBillNormaliserTests(unittest.TestCase):
         self.assertEqual(void_bill_keys(rows), {("GKI", "RRS", "B-004")})
 
 
+class PendingBillNonPositiveTests(unittest.TestCase):
+    def test_zero_and_negative_totals_are_dropped_by_the_normaliser(self):
+        """Given deferred-payment bills totalling zero or less, when normalised, then they are
+        dropped — they owe nothing, or are refunds the copy does not model."""
+        self.assertEqual(_normalise_all([_bill("B-020", total="0"), _bill("B-021", total="-5000.00")]), [])
+
+    def test_run_counts_the_skipped_bills_and_writes_the_rest(self):
+        """Given a run whose source holds one zero and one negative deferred bill, then the run
+        writes the payable bills and reports the two it skipped instead of failing."""
+        rows = [dict(r) for r in PENDING_SOURCE_ROWS] + [_bill("B-020", total="0"), _bill("B-021", total="-5000")]
+        config = SnapshotConfig(warehouse_db_url=WAREHOUSE_DSN, supabase_reporting_db_url=REPORTING_DSN, org_id=ORG_A)
+        with _observed_run(rows):
+            written, skipped = run_pending_bill_snapshot(config, datetime(2026, 10, 6, 19, 5, tzinfo=timezone.utc))
+        self.assertEqual((written, skipped), (2, 2))
+
+    def test_end_line_prints_the_skipped_count(self):
+        env = {
+            "WAREHOUSE_DB_URL": WAREHOUSE_DSN,
+            "SUPABASE_REPORTING_DB_URL": REPORTING_DSN,
+            "REPORTING_ORG_ID": ORG_A,
+            "REPORTING_PENDING_BILLS": "1",
+        }
+        rows = [_bill("B-020", total="0")]
+        with _observed_run(rows), mock.patch.dict("os.environ", env, clear=True), \
+                mock.patch("reporting_snapshot.normalize_row", return_value={}), \
+                mock.patch("reporting_snapshot.normalize_margin_row", return_value={}):
+            out = io.StringIO()
+            with redirect_stdout(out):
+                main()
+        self.assertIn("pending_bills=0 pending_bills_skipped=1", out.getvalue())
+
+
 class PendingBillFlagTests(unittest.TestCase):
     def test_ac1102_a_bill_that_disappears_is_flagged_missing(self):
         """AC-1102: Given a present bill that is absent from tonight's run, then it is flagged
@@ -578,7 +610,7 @@ class PendingBillRunTests(unittest.TestCase):
     def _run(self, existing_present):
         snapshot = datetime(2026, 10, 6, 19, 5, tzinfo=timezone.utc)
         with _observed_run([dict(r) for r in PENDING_SOURCE_ROWS], existing_present) as connections:
-            count = run_pending_bill_snapshot(self._config(), snapshot)
+            count, _skipped = run_pending_bill_snapshot(self._config(), snapshot)
         reporting = [c for c in connections if c.dsn == REPORTING_DSN]
         self.assertEqual(len(reporting), 1, "one reporting connection, one transaction")
         return count, reporting[0].calls
