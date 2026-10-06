@@ -58,8 +58,14 @@ export function formatDelta(window: WindowResult, t: Translate): DeltaDisplay {
   if (window.prior === null || window.prior === 0) {
     return { text: t('money.delta.noComparison'), tone: 'neutral' }
   }
-  const change = (window.current - window.prior) / window.prior
-  const pct = formatSignedPercent(change)
-  const tone: DeltaDisplay['tone'] = pct.startsWith('+') ? 'success' : pct.startsWith('\u2212') ? 'destructive' : 'neutral'
-  return { text: t('money.delta.vsPrevious', { pct }), tone }
+  const { text, tone } = signedChange((window.current - window.prior) / window.prior)
+  return { text: t('money.delta.vsPrevious', { pct: text }), tone }
+}
+
+/** A change as signed percent text, toned by the sign that text shows (a change that rounds to
+ *  0,0% is neutral). */
+export function signedChange(frac: number): DeltaDisplay {
+  const text = formatSignedPercent(frac)
+  const tone: DeltaDisplay['tone'] = text.startsWith('+') ? 'success' : text.startsWith('\u2212') ? 'destructive' : 'neutral'
+  return { text, tone }
 }

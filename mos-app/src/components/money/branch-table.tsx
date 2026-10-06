@@ -19,8 +19,8 @@ import { Pill } from '@/components/ui/pill'
 import { Select } from '@/components/ui/select'
 import { useT, type Translate } from '@/i18n/use-t'
 import type { MessageKey } from '@/i18n/messages'
-import { formatIDRCompact } from '@/lib/sales-dashboard'
-import { formatPercent, formatSignedPercent, formatSignedPoints } from '@/lib/format/percent'
+import { formatIDRCompact, signedChange } from '@/lib/sales-dashboard'
+import { formatPercent, formatSignedPoints } from '@/lib/format/percent'
 import { formatWeekdayDayMonth } from '@/lib/format/date'
 import {
   MARGIN_COLUMNS,
@@ -48,8 +48,7 @@ function Muted({ children }: { children: ReactNode }) {
 
 function Delta({ value, t }: { value: number | null; t: Translate }) {
   if (value === null) return <Muted>{t('money.delta.noComparison')}</Muted>
-  const text = formatSignedPercent(value)
-  const tone = text.startsWith('+') ? 'success' : text.startsWith('−') ? 'destructive' : 'neutral'
+  const { text, tone } = signedChange(value)
   return <Pill tone={tone} dot={false} className="money-table__delta tabular">{text}</Pill>
 }
 
@@ -108,6 +107,8 @@ function columnDefs(ids: readonly MoneyColumn[]): ColumnDef<BranchRow>[] {
   }))
 }
 
+const ALL_COLUMNS: readonly MoneyColumn[] = [...REVENUE_COLUMNS, ...MARGIN_COLUMNS]
+
 function branchHref(code: string, period: MoneyPeriod): string {
   return `/money/branch/${encodeURIComponent(code)}?period=${period}`
 }
@@ -123,9 +124,12 @@ export function BranchTable({ data, period, sort, onSortChange }: BranchTablePro
   const t = useT()
   const navigate = useNavigate()
   const withMargin = 'margin' in data.company
-  const ids: readonly MoneyColumn[] = withMargin ? [...REVENUE_COLUMNS, ...MARGIN_COLUMNS] : REVENUE_COLUMNS
-  const columns = useMemo(() => columnDefs(ids), [ids.length]) // eslint-disable-line react-hooks/exhaustive-deps
-  const sorting: SortingState = [{ id: sort.column, desc: sort.desc }]
+  const ids: readonly MoneyColumn[] = withMargin ? ALL_COLUMNS : REVENUE_COLUMNS
+  const columns = useMemo(() => columnDefs(withMargin ? ALL_COLUMNS : REVENUE_COLUMNS), [withMargin])
+  // A stable sorting array, and no page-index reset (there is no pagination): TanStack recomputes
+  // the sorted rows when `sorting` changes identity and queues a reset each time, so a fresh array
+  // per render re-rendered the table forever once the URL changed.
+  const sorting: SortingState = useMemo(() => [{ id: sort.column, desc: sort.desc }], [sort.column, sort.desc])
   const onSortingChange = (updater: Updater<SortingState>) => {
     const [next] = typeof updater === 'function' ? updater(sorting) : updater
     if (next) onSortChange({ column: next.id as MoneyColumn, desc: next.desc })
@@ -136,6 +140,7 @@ export function BranchTable({ data, period, sort, onSortChange }: BranchTablePro
     state: { sorting },
     onSortingChange,
     enableSortingRemoval: false,
+    autoResetPageIndex: false,
     enableMultiSort: false,
     getRowId: (row) => row.code,
     getCoreRowModel: getCoreRowModel(),

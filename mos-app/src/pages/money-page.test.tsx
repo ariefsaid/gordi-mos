@@ -188,6 +188,16 @@ describe('MoneyPage — period and sort live in the URL', () => {
     expect(screen.getByRole('columnheader', { name: /^Revenue/ })).toHaveAttribute('aria-sort', 'ascending')
   })
 
+  it('choosing a period after sorting keeps the sort', async () => {
+    renderMoney(['manager'])
+    await screen.findByRole('table')
+    fireEvent.click(within(screen.getByRole('columnheader', { name: /^Latest day/ })).getByRole('button'))
+    await waitFor(() => expect(where()).toBe('/money?period=30&sort=latest-day.desc'))
+    fireEvent.click(screen.getByRole('button', { name: '7 days' }))
+    await waitFor(() => expect(where()).toBe('/money?period=7&sort=latest-day.desc'))
+    expect(screen.getByRole('columnheader', { name: /^Latest day/ })).toHaveAttribute('aria-sort', 'descending')
+  })
+
   it('a reloaded link restores the period and the sort it was shared with', async () => {
     renderMoney(['manager'], '/money?period=60&sort=branch.asc')
     await screen.findByRole('table')
