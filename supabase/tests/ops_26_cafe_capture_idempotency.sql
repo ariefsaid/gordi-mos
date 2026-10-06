@@ -60,10 +60,8 @@ select is((select is_nullable = 'YES' from information_schema.columns
   'legacy and imported rows may keep a NULL request identity');
 select has_index('ops', 'kitchen_logs', 'kitchen_logs_org_client_request_id_key', 'request identity is unique within an organization');
 
--- Hold the same org/request advisory key on a second backend to prove a competing first attempt
--- waits while a different org's identical request id remains independent. The psql role in some
--- local/CI stacks cannot open a dblink connection, so run this DB-level assertion only when the
--- test connection is superuser-capable; the core pgTAP plan stays unconditional below.
+-- Use libpq's local defaults for the second backend; the race probe keeps no endpoint or
+-- credentials in this public test. It runs only when the test connection can use dblink.
 select current_setting('is_superuser') = 'on' as can_test_capture_race \gset
 \if :can_test_capture_race
 do $capture_race$
@@ -74,8 +72,7 @@ declare
     '00000000-0000-0000-0000-0000000000b1:40000000-0000-0000-0000-000000000001', 0);
   v_remote_lock text;
 begin
-  perform extensions.dblink_connect('cafe_capture_race',
-    'host=127.0.0.1 port=5432 dbname=postgres user=supabase_admin password=postgres');
+  perform extensions.dblink_connect('cafe_capture_race', '');
   perform extensions.dblink_exec('cafe_capture_race', 'begin');
   select held into v_remote_lock
   from extensions.dblink('cafe_capture_race',

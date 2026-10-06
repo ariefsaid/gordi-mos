@@ -3,8 +3,7 @@
 -- Legacy/imported rows keep NULL; the MOS capture RPC requires a key for every new app write.
 --
 -- DOWN (manual): drop function ops.insert_cafe_capture_logs(jsonb); drop constraint
--- kitchen_logs_org_client_request_id_key; drop column ops.kitchen_logs.client_request_id; restore the
--- current-org RLS helper calls in the three kitchen_logs policies below to their prior direct form.
+-- kitchen_logs_org_client_request_id_key; drop column ops.kitchen_logs.client_request_id.
 
 alter table ops.kitchen_logs
   add column client_request_id uuid;
@@ -13,34 +12,6 @@ comment on column ops.kitchen_logs.client_request_id is
 
 alter table ops.kitchen_logs
   add constraint kitchen_logs_org_client_request_id_key unique (org_id, client_request_id);
-
--- Keep RLS helper evaluation out of per-row policy work while preserving the existing predicates.
-alter policy kitchen_logs_select_org on ops.kitchen_logs
-  using (org_id = (select shared.current_org_id()));
-alter policy kitchen_logs_insert_member on ops.kitchen_logs
-  with check (
-    org_id = (select shared.current_org_id())
-    and submitted_by = (select shared.current_person_id())
-    and source = 'mos'
-    and ((status = 'Submitted' and action in ('produce','transfer'))
-      or (action = 'waste' and status = 'Draft'))
-    and (shared.is_cafe_affiliated() or shared.has_access_role('ops_lead') or shared.has_access_role('admin'))
-  );
-alter policy kitchen_logs_update_own_or_reviewer on ops.kitchen_logs
-  using (
-    org_id = (select shared.current_org_id())
-    and ((submitted_by = (select shared.current_person_id()) and status = 'Submitted')
-         or shared.has_access_role('ops_lead')
-         or shared.has_access_role('admin')
-         or (ops.is_stream_reviewer(branch_id, activity) and status = 'Submitted'))
-  )
-  with check (
-    org_id = (select shared.current_org_id())
-    and ((submitted_by = (select shared.current_person_id()) and status = 'Submitted')
-         or shared.has_access_role('ops_lead')
-         or shared.has_access_role('admin')
-         or (ops.is_stream_reviewer(branch_id, activity) and status in ('Submitted','Rejected')))
-  );
 
 create or replace function ops.insert_cafe_capture_logs(p_rows jsonb)
 returns setof ops.kitchen_logs
@@ -119,7 +90,6 @@ begin
         and existing.client_request_id = input.client_request_id
     )
     on conflict (org_id, client_request_id) do nothing
-    returning id
   )
   select existing.*
   from input_rows input

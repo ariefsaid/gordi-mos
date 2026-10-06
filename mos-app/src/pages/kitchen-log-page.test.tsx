@@ -1508,6 +1508,56 @@ describe('capture retry identity and saved drafts', () => {
     expect(localStorage.length).toBe(0)
   })
 
+  it('does not double-count a committed production row when its saved request replays after reload', async () => {
+    const requestId = '50000000-0000-4000-8000-000000000001'
+    mockFetchActualsMap.mockResolvedValue({
+      w1: { [PRODUCE_KEY]: [{
+        key: `log:${requestId}`,
+        item_unit_id: 'u1-porsi',
+        unit_name: 'porsi',
+        qty_porsi: 8,
+        entry_quantity: 8,
+        entry_unit_factor: 1,
+        entry_unit_name: 'porsi',
+      }] },
+    })
+    mockInsertKitchenLogBatch.mockResolvedValue([requestId])
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date())
+    writeCafeCaptureDraft({
+      orgId: '10000000-0000-0000-0000-000000000001',
+      personId: '40000000-0000-0000-0000-000000000001',
+      form: 'production',
+      branchId: BRANCH_RUMAH_RAMES.id,
+      activity: 'kitchen',
+      logDate: today,
+    }, {
+      branch_id: BRANCH_RUMAH_RAMES.id,
+      activity: 'kitchen',
+      movement: { action: 'produce' },
+      lines: { w1: {
+        wip_item_id: 'w1',
+        client_request_id: requestId,
+        client_attempted: true,
+        item_unit_id: 'u1-porsi',
+        entry_quantity: 8,
+        entry_unit_factor: 1,
+        entry_unit_name: 'porsi',
+        qty_porsi: 8,
+        notes: 'Saved retry note',
+        dirty: true,
+      } },
+    })
+
+    await renderPage(VIEWER_MEMBER)
+    expect(await screen.findByRole('spinbutton', { name: /quantity produced for ayam bakar/i })).toHaveValue(8)
+    expect(document.querySelector('.kls-meta')?.textContent).toMatch(/logged\s*8/i)
+    fireEvent.click(screen.getByRole('button', { name: /^submit/i }))
+    await screen.findByText(/submitted/i)
+
+    expect(document.querySelector('.kls-meta')?.textContent).toMatch(/logged\s*8/i)
+    expect(document.querySelectorAll('.kls-logged-unit')).toHaveLength(1)
+  })
+
   it.each([
     ['production', '/cafe', /quantity produced for nasi goreng/i, 12],
     ['transfer', '/cafe/transfer', /quantity to transfer to radiant for ayam bakar/i, 10],

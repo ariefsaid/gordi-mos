@@ -1068,10 +1068,13 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       setActualsMap(prev => {
         const next = { ...prev }
         staged.forEach((line, index) => {
+          const entries = next[line.wip_item_id]?.[key] ?? []
+          const entryKey = `log:${insertedLogIds[index] ?? `pending-${Date.now()}-${index}`}`
+          if (entries.some(entry => entry.key === entryKey)) return
           const item = wipItems.find(candidate => candidate.id === line.wip_item_id)
           const selectedUnit = item?.units.find(unit => unit.id === line.item_unit_id)
           const entry: ActualUnitTotal = {
-            key: `log:${insertedLogIds[index] ?? `pending-${Date.now()}-${index}`}`,
+            key: entryKey,
             item_unit_id: line.item_unit_id,
             unit_name: selectedUnit?.name ?? null,
             qty_porsi: line.qty_porsi,
@@ -1079,10 +1082,9 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
             entry_unit_factor: line.entry_unit_factor ?? 1,
             entry_unit_name: line.entry_unit_name ?? selectedUnit?.name ?? null,
           }
-          const entries = [...(next[line.wip_item_id]?.[key] ?? []), entry]
           next[line.wip_item_id] = {
             ...next[line.wip_item_id],
-            [key]: entries,
+            [key]: [...entries, entry],
           }
         })
         return next
