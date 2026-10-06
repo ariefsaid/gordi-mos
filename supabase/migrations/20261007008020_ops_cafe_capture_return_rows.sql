@@ -1,7 +1,7 @@
 -- Return newly inserted captures as well as idempotent replays from the capture RPC.
 --
 -- DOWN (manual): restore the prior ops.insert_cafe_capture_logs(jsonb) body from
--- 20261007007000_ops_cafe_capture_idempotency.sql. This changes only the function body;
+-- 20261007008010_ops_cafe_capture_idempotency.sql. This changes only the function body;
 -- schema grants, table constraints, and RLS policies are unchanged.
 
 create or replace function ops.insert_cafe_capture_logs(p_rows jsonb)
