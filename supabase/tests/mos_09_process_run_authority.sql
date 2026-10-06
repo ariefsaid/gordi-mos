@@ -23,11 +23,11 @@ values
    '00000000-0000-0000-0000-000000005b01',
    '2026-03-09', 'Null starter control', date '2026-03-09', 1, '{}'::jsonb, null);
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-00000000f002","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-00000000f002","access_roles":["member"]}');
 select throws_ok($$
   select mos.complete_process_run('00000000-0000-0000-0000-00000000a018')
 $$, '42501', null, 'an ordinary member cannot close a run with no starter');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-00000000f001","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-00000000f001","access_roles":["member"]}');
 
 -- Starter completion is admitted and stamped server-side.
 select mos.spawn_process_run('00000000-0000-0000-0000-00000000c001',
@@ -47,7 +47,7 @@ select ok(
 -- A same-Team member can start, but cannot complete another person''s run.
 select mos.spawn_process_run('00000000-0000-0000-0000-00000000c001',
                              '00000000-0000-0000-0000-000000005b01', date '2026-03-11');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-00000000f002","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-00000000f002","access_roles":["member"]}');
 select throws_ok($$
   select mos.complete_process_run((select id from mos.process_runs where period_key = '2026-03-11'))
 $$, '42501', null, 'a same-Team non-starter cannot complete the run');
@@ -56,14 +56,14 @@ select is(
   'open', 'a denied completion leaves the run open');
 
 -- The operational lead and admin paths are organization-wide role gates.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-00000000f002","access_roles":["ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-00000000f002","access_roles":["ops_lead"]}');
 select is(
   (select status from mos.complete_process_run((select id from mos.process_runs where period_key = '2026-03-11'))),
   'completed', 'ops_lead can complete an open run');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-00000000f001","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-00000000f001","access_roles":["member"]}');
 select mos.spawn_process_run('00000000-0000-0000-0000-00000000c001',
                              '00000000-0000-0000-0000-000000005b01', date '2026-03-12');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-00000000f002","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-00000000f002","access_roles":["admin"]}');
 select is(
   (select status from mos.complete_process_run((select id from mos.process_runs where period_key = '2026-03-12'))),
   'completed', 'admin can complete an open run');
@@ -72,7 +72,7 @@ select throws_ok($$
 $$, 'P0003', null, 'a completed run cannot be completed again');
 
 -- Cancellation records an actor, time, and required reason, and leaves generated Tasks alone.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-00000000f001","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-00000000f001","access_roles":["member"]}');
 select mos.spawn_process_run('00000000-0000-0000-0000-00000000c001',
                              '00000000-0000-0000-0000-000000005b01', date '2026-03-13');
 select is(
@@ -115,7 +115,7 @@ $$, 'P0003', null, 'a completed run cannot be cancelled');
 -- Same-Team non-starters remain denied for cancellation; role gates may cancel.
 select mos.spawn_process_run('00000000-0000-0000-0000-00000000c001',
                              '00000000-0000-0000-0000-000000005b01', date '2026-03-15');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-00000000f002","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-00000000f002","access_roles":["member"]}');
 select throws_ok($$
   select mos.cancel_process_run((select id from mos.process_runs where period_key = '2026-03-15'), 'not my run')
 $$, '42501', null, 'a same-Team non-starter cannot cancel the run');
@@ -123,19 +123,19 @@ select is(
   (select status from mos.process_runs where period_key = '2026-03-15'),
   'open', 'a denied cancellation leaves the run open');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-00000000f001","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-00000000f001","access_roles":["member"]}');
 select mos.spawn_process_run('00000000-0000-0000-0000-00000000c001',
                              '00000000-0000-0000-0000-000000005b01', date '2026-03-16');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-00000000f002","access_roles":["ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-00000000f002","access_roles":["ops_lead"]}');
 select is(
   (select status from mos.cancel_process_run(
     (select id from mos.process_runs where period_key = '2026-03-16'), 'Ops stopped this occurrence.')),
   'cancelled', 'ops_lead can cancel an open run');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-00000000f001","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-00000000f001","access_roles":["member"]}');
 select mos.spawn_process_run('00000000-0000-0000-0000-00000000c001',
                              '00000000-0000-0000-0000-000000005b01', date '2026-03-17');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-00000000f002","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-00000000f002","access_roles":["admin"]}');
 select is(
   (select status from mos.cancel_process_run(
     (select id from mos.process_runs where period_key = '2026-03-17'), 'Admin stopped this occurrence.')),
@@ -166,7 +166,7 @@ select throws_ok($$
 $$, '23514', null, 'new cancelled rows still require complete cancellation audit');
 select mos._test_seed_rows();
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-00000000f001","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-00000000f001","access_roles":["member"]}');
 select throws_ok($$
   select mos.complete_process_run('00000000-0000-0000-0000-000000071007')
 $$, 'P0002', 'run not found', 'a run in another org has the same close result as a missing run');

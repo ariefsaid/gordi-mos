@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path'
 import { expect, test, type Page, type TestInfo } from '@playwright/test'
 import { BAR_MEMBER } from './fixtures/users'
 import { loginAs } from './helpers/login'
+import { STREAM_CONTROL_NAME } from './helpers/cafe-stream'
 
 type ReadMode = 'rows' | 'empty' | 'error'
 
@@ -269,8 +270,28 @@ async function assertNoOverflow(page: Page, width: number) {
 }
 
 test.describe('Café item settings', () => {
+  for (const width of [390, 1280] as const) {
+    test(`keeps settings operable after choosing the first stream at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 })
+      await mockSettingsApi(page)
+      await page.route('**/rest/v1/rpc/default_stream', route => route.fulfill({ json: null }))
+      await page.route('**/rest/v1/team_memberships*', route => route.fulfill({ json: [] }))
+      await openItems(page)
+      await page.getByRole('group', { name: STREAM_CONTROL_NAME }).getByRole('button').first().click()
+      const settings = page.getByRole('region', { name: 'Café item settings', exact: true })
+      const item = settings.getByText('Herbal tea · ERP reference', { exact: true })
+      await expect(item).toBeVisible()
+      const search = settings.getByRole('searchbox', { name: 'Find an ESB or MOS name' })
+      await search.fill('no-matching-item')
+      await expect(item).toHaveCount(0)
+      await search.clear()
+      await expect(item).toBeVisible()
+      await expect(settings.getByRole('textbox', { name: 'MOS name' }).first()).toBeEnabled()
+    })
+  }
+
   for (const width of [390, 1440] as const) {
-    test(`renders 501 items with three ESB units at ${width}px`, async ({ page }) => {
+    test(`exposes three ERP unit choices and gated multiples across 501 items at ${width}px`, async ({ page }) => {
       test.setTimeout(60_000)
       await page.setViewportSize({ width, height: 960 })
       await mockSettingsApi(page, largeItemSettingsFixture())
@@ -283,15 +304,23 @@ test.describe('Café item settings', () => {
 
       await expect(visibleItems).toHaveCount(501, { timeout: 30_000 })
       await expect(page.getByRole('searchbox', { name: 'Find an ESB or MOS name' })).toBeVisible()
-      await expect(page.locator('.cafe-items__unit-choice')).toHaveCount(503)
+      const extraUnitControls = page.getByRole('button', { name: /^Extra units for / })
+      await expect(extraUnitControls).toHaveCount(501)
       await expect(page.getByText('500 items need a default unit before they can be logged.', { exact: true })).toHaveCount(1)
       await expect(page.locator('.cafe-items__needs-unit-status')).toHaveCount(500)
       await assertNoOverflow(page, width)
 
       const threeUnitItem = visibleItems.filter({ hasText: 'A three-unit ESB product' }).first()
       await expect(threeUnitItem).toBeVisible()
-      const defaultUnitOptions = threeUnitItem.locator('.mk-select__native').nth(1).locator('option')
-      await expect(defaultUnitOptions).toHaveText(['No default', 'Bag', 'Kilogram'])
+      const defaultUnit = threeUnitItem.getByRole('combobox', { name: 'Default unit' })
+      await expect(defaultUnit).toHaveText('Bag')
+      await expect(threeUnitItem.getByRole('button', { name: 'Extra units for MOS tea lookup' })).toBeEnabled()
+      await expect(page.getByRole('button', { name: 'Extra units for Fixture item 001 MOS name' })).toBeDisabled()
+      await defaultUnit.click()
+      await expect(page.getByRole('listbox', { name: 'Default unit' }).getByRole('option')).toHaveText([
+        'No default', 'Bag', 'Kilogram', 'Serving',
+      ])
+      await page.keyboard.press('Escape')
       if (width === 390) {
         const save = threeUnitItem.getByRole('button', { name: 'Save settings for MOS tea lookup' })
         const saveBox = await save.boundingBox()
@@ -401,6 +430,14 @@ test.describe('Café item settings', () => {
       await itemCard.getByRole('combobox', { name: 'Kind for Herbal tea' }).click()
       await page.getByRole('option', { name: 'Raw material', exact: true }).click()
       await itemCard.getByRole('checkbox', { name: 'Active for Herbal tea' }).click()
+      const defaultUnit = itemCard.getByRole('combobox', { name: 'Default unit' })
+      await defaultUnit.click()
+      await page.getByRole('listbox', { name: 'Default unit' }).getByRole('option', { name: 'kg · option 1', exact: true }).click()
+      const extraUnits = itemCard.getByRole('button', { name: 'Extra units for Herbal tea' })
+      await extraUnits.click()
+      await page.getByRole('spinbutton', { name: 'Multiple of kg · option 1' }).fill('2')
+      await page.getByRole('button', { name: 'Add a multiple for Herbal tea for the bar', exact: true }).click()
+      await expect(extraUnits).toContainText('2 kg · option 1')
       await expect(save).toBeEnabled()
       await capture(page, testInfo, `item-settings-dirty-${width}`)
 
@@ -417,11 +454,9 @@ test.describe('Café item settings', () => {
         p_mos_name: 'Herbal tea for the bar',
         p_kind: 'RAW',
         p_is_active: true,
-        p_default_item_unit_id: '00000000-0000-0000-0000-00000000a201',
-        p_shown_item_unit_ids: [
-          '00000000-0000-0000-0000-00000000a201',
-          '00000000-0000-0000-0000-00000000a202',
-        ],
+        p_default_item_unit_id: '00000000-0000-0000-0000-00000000a202',
+        p_shown_item_unit_ids: ['00000000-0000-0000-0000-00000000a202'],
+        p_unit_multiples: [2],
       })
       await capture(page, testInfo, `item-settings-saved-${width}`)
     }
@@ -431,7 +466,7 @@ test.describe('Café item settings', () => {
     const mocks = await mockSettingsApi(page, { canManage: false })
     await page.setViewportSize({ width: 390, height: 960 })
     await openItems(page)
-    await expect(page.getByText('Reference settings are read-only.', { exact: false })).toBeVisible()
+    await expect(page.getByText('These item settings are read-only for you.', { exact: false })).toBeVisible()
     await expect(page.getByRole('textbox', { name: 'MOS name', exact: true })).toHaveCount(0)
     await capture(page, testInfo, 'item-settings-read-only')
 

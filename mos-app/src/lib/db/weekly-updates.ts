@@ -12,10 +12,13 @@ import type {
 
 const mos = () => supabase.schema('mos')
 
+const WEEKLY_UPDATE_COLUMNS = 'id,org_id,person_id,week_start,summary,status,submitted_at,created_by,created_at,updated_at'
+const WEEKLY_UPDATE_ITEM_COLUMNS = 'id,org_id,weekly_update_id,label,progress,position,created_at,updated_at'
+
 /** Load the author's update + ordered lines for (person, week), or null if none (FR-010). */
 export async function getMyUpdate(personId: string, weekStart: string): Promise<MyUpdate | null> {
   const { data: update, error } = await mos()
-    .from('weekly_updates').select('*')
+    .from('weekly_updates').select(WEEKLY_UPDATE_COLUMNS)
     .eq('person_id', personId).eq('week_start', weekStart)
     .maybeSingle()
   if (error) throw new Error(`getMyUpdate failed — ${error.message}`)
@@ -23,7 +26,7 @@ export async function getMyUpdate(personId: string, weekStart: string): Promise<
 
   const u = update as unknown as WeeklyUpdateRow
   const { data: items, error: itemsErr } = await mos()
-    .from('weekly_update_items').select('*')
+    .from('weekly_update_items').select(WEEKLY_UPDATE_ITEM_COLUMNS)
     .eq('weekly_update_id', u.id)
     .order('position', { ascending: true })
   if (itemsErr) throw new Error(`getMyUpdate lines failed — ${itemsErr.message}`)
@@ -150,7 +153,7 @@ export interface TeamMember {
  */
 export async function listTeamUpdates(weekStart: string, team: TeamMember[]): Promise<TeamUpdateRow[]> {
   const { data, error } = await mos()
-    .from('weekly_updates').select('*')
+    .from('weekly_updates').select(WEEKLY_UPDATE_COLUMNS)
     .eq('week_start', weekStart)
   if (error) throw new Error(`listTeamUpdates failed — ${error.message}`)
 

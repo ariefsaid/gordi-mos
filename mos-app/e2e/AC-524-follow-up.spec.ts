@@ -55,7 +55,7 @@ test('AC-524: chase→promise→partial→settle-with-evidence→confirm reaches
     select mos.transition_follow_up('${FU}','partial','{"amount":300000,"cash_in_date":"2026-07-09","evidence":"TRF-AC-524-A"}'::jsonb);
     select mos.transition_follow_up('${FU}','settle','{"cash_in_date":"2026-07-10","evidence":"TRF-AC-524-B"}'::jsonb);
     reset role;`)
-  await sql(`set local role authenticated; set local request.jwt.claims='${claims('40000000-0000-0000-0000-000000000002', ['finance'])}';
+  await sql(`set local role authenticated; set local request.jwt.claims='${claims('40000000-0000-0000-0000-000000000005', ['finance'])}';
     select mos.transition_follow_up('${FU}','confirm','{}'::jsonb);
     reset role;`)
 

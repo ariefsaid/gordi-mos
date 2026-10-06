@@ -10,7 +10,9 @@
 // only reads the cache this worker filled — never a same-named entry a sibling app happens to have.
 const CACHE_PREFIX = 'mos-'
 const OFFLINE_URL = new URL('offline.html', self.registration.scope).pathname
-const OFFLINE_CACHE = `${CACHE_PREFIX}offline-v1`
+// The build stamps the release SHA over the placeholder, so every release opens a fresh cache.
+const BUILD_ID = '__MOS_BUILD_ID__'
+const OFFLINE_CACHE = `${CACHE_PREFIX}offline-${BUILD_ID}`
 
 self.addEventListener('install', (event) => {
   event.waitUntil(

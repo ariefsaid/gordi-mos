@@ -97,30 +97,55 @@ export async function listCafeViewerTeams(personId: string): Promise<CafeViewerT
     .sort((a, b) => Number(b.is_primary) - Number(a.is_primary))
 }
 
+/** Resolve canonical Opening Teams for multiple branches with parallel RPCs and one name lookup. */
+export async function resolveCafeOpeningTeamsForBranches(
+  branchIds: readonly string[],
+): Promise<Map<string, CafeOpeningTeam>> {
+  const ids = [...new Set(branchIds.filter(Boolean))]
+  if (ids.length === 0) return new Map()
+
+  const resolved = await Promise.all(ids.map(async (branchId) =>
+    [branchId, await getCafeOpeningTeamId(branchId)] as const,
+  ))
+  const teamIds = [...new Set(resolved.flatMap(([, teamId]) => teamId ? [teamId] : []))]
+  if (teamIds.length === 0) return new Map()
+
+  const { data, error } = await shared().from('teams').select('id,name').in('id', teamIds)
+  if (error) throw new Error(`resolveCafeOpeningTeamsForBranches teams failed — ${error.message}`)
+  const names = new Map(((data ?? []) as Array<{ id: string; name: string }>).map((team) => [team.id, team.name]))
+  return new Map(resolved.flatMap(([branchId, teamId]) => {
+    const name = teamId ? names.get(teamId) : undefined
+    return teamId && name !== undefined ? [[branchId, { id: teamId, name, branchId }] as const] : []
+  }))
+}
+
+/** Resolve multiple authored/membership Teams through their branches with bounded round trips. */
+export async function resolveCafeOpeningTeamsForTeamIds(
+  teamIds: readonly string[],
+): Promise<Map<string, CafeOpeningTeam>> {
+  const ids = [...new Set(teamIds.filter(Boolean))]
+  if (ids.length === 0) return new Map()
+
+  const { data, error } = await shared().from('teams').select('id,branch_id').in('id', ids)
+  if (error) throw new Error(`resolveCafeOpeningTeamsForTeamIds sources failed — ${error.message}`)
+  const branchByTeam = new Map(((data ?? []) as Array<{ id: string; branch_id: string | null }>)
+    .filter((team): team is { id: string; branch_id: string } => team.branch_id !== null)
+    .map((team) => [team.id, team.branch_id]))
+  const teamsByBranch = await resolveCafeOpeningTeamsForBranches([...new Set(branchByTeam.values())])
+  return new Map([...branchByTeam].flatMap(([teamId, branchId]) => {
+    const team = teamsByBranch.get(branchId)
+    return team ? [[teamId, team] as const] : []
+  }))
+}
+
 /** Resolve an authored/membership Team through its branch to the canonical Café Opening Team. */
 export async function resolveCafeOpeningTeamForTeam(teamId: string): Promise<CafeOpeningTeam | null> {
-  const { data: source, error: sourceError } = await shared()
-    .from('teams').select('branch_id').eq('id', teamId).maybeSingle()
-  if (sourceError) throw new Error(`resolveCafeOpeningTeamForTeam source failed — ${sourceError.message}`)
-
-  const branchId = (source as { branch_id: string | null } | null)?.branch_id ?? null
-  if (!branchId) return null
-
-  return resolveCafeOpeningTeamForBranch(branchId)
+  return (await resolveCafeOpeningTeamsForTeamIds([teamId])).get(teamId) ?? null
 }
 
 /** Resolve a live branch directly to the canonical Opening Team. */
 export async function resolveCafeOpeningTeamForBranch(branchId: string): Promise<CafeOpeningTeam | null> {
-  const openingTeamId = await getCafeOpeningTeamId(branchId)
-  if (!openingTeamId) return null
-
-  const { data: openingTeam, error: openingError } = await shared()
-    .from('teams').select('id,name').eq('id', openingTeamId).maybeSingle()
-  if (openingError) throw new Error(`resolveCafeOpeningTeamForTeam opening failed — ${openingError.message}`)
-
-  const row = openingTeam as { id?: unknown; name?: unknown } | null
-  if (typeof row?.id !== 'string' || typeof row.name !== 'string') return null
-  return { id: row.id, name: row.name, branchId }
+  return (await resolveCafeOpeningTeamsForBranches([branchId])).get(branchId) ?? null
 }
 
 export interface TodayOpening {

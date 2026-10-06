@@ -45,11 +45,11 @@ function rows() {
   return [
     {
       item_id: 'item-1', erp_name: 'ERP Flour', mos_name: 'MOS Flour', category: 'Kitchen', kind: 'RAW', is_active: true,
-      item_unit_id: 'unit-a', unit_name: 'kg', default_item_unit_id: 'unit-b', unit_is_default: false, unit_is_shown: true,
+      item_unit_id: 'unit-a', unit_name: 'kg', default_item_unit_id: 'unit-b', unit_is_default: false, unit_is_shown: true, unit_multiples: [0.5, 2],
     },
     {
       item_id: 'item-1', erp_name: 'ERP Flour', mos_name: 'MOS Flour', category: 'Kitchen', kind: 'RAW', is_active: true,
-      item_unit_id: 'unit-b', unit_name: 'kg', default_item_unit_id: 'unit-b', unit_is_default: true, unit_is_shown: true,
+      item_unit_id: 'unit-b', unit_name: 'kg', default_item_unit_id: 'unit-b', unit_is_default: true, unit_is_shown: true, unit_multiples: [0.5, 2],
     },
     {
       item_id: 'item-2', erp_name: 'ERP Salt', mos_name: 'ERP Salt', category: 'Kitchen', kind: null, is_active: false,
@@ -72,7 +72,7 @@ describe('café item settings reader', () => {
 
     await expect(listCafeItemSettings(STREAM)).resolves.toEqual([
       {
-        id: 'item-1', erpName: 'ERP Flour', mosName: 'MOS Flour', category: 'Kitchen', kind: 'RAW', isActive: true, defaultUnitId: 'unit-b',
+        id: 'item-1', erpName: 'ERP Flour', mosName: 'MOS Flour', category: 'Kitchen', kind: 'RAW', isActive: true, defaultUnitId: 'unit-b', unitMultiples: [0.5, 2],
         units: [
           { id: 'unit-a', name: 'kg', isShown: true, isDefault: false, labelOrdinal: 1, labelCount: 2 },
           { id: 'unit-b', name: 'kg', isShown: true, isDefault: true, labelOrdinal: 2, labelCount: 2 },
@@ -80,11 +80,11 @@ describe('café item settings reader', () => {
       },
       {
         id: 'item-3', erpName: 'ERP Item Without Details', mosName: 'ERP Item Without Details', category: null, kind: null, isActive: false,
-        defaultUnitId: null, units: [],
+        defaultUnitId: null, units: [], unitMultiples: [],
       },
       {
         id: 'item-2', erpName: 'ERP Salt', mosName: 'ERP Salt', category: 'Kitchen', kind: null, isActive: false,
-        defaultUnitId: null,
+        defaultUnitId: null, unitMultiples: [],
         units: [{ id: 'unit-c', name: 'bag', isShown: true, isDefault: false, labelOrdinal: null, labelCount: 1 }],
       },
     ])
@@ -112,8 +112,8 @@ describe('café item settings reader', () => {
       defaultUnit: { id: 'unit-b', name: 'kg' },
       units: [
         { id: 'unit-b', name: 'kg', isDefault: true, labelOrdinal: 2, labelCount: 2 },
-        { id: 'unit-a', name: 'kg', isDefault: false, labelOrdinal: 1, labelCount: 2 },
       ],
+      multiples: [0.5, 2],
     })
     expect(settings.filter(item => item.id !== 'item-1').map(toCafeLogItem)).toEqual([null, null])
   })
@@ -138,6 +138,7 @@ describe('café item settings reader', () => {
         { id: 'unit-b', name: 'bag', isShown: true, isDefault: true, labelOrdinal: null, labelCount: 1 },
         { id: 'unit-a', name: 'kg', isShown: true, isDefault: false, labelOrdinal: null, labelCount: 1 },
       ],
+      unitMultiples: [],
     }])
     expect(from).toHaveBeenCalledWith('cafe_item_settings')
     expect(from).toHaveBeenCalledWith('cafe_item_references')
@@ -163,7 +164,7 @@ describe('café item settings reader', () => {
       .mockResolvedValueOnce({ data: null, error: null })
     schemaMock.mockReturnValue({ rpc } as never)
 
-    await expect(canManageCafeItemSettings()).resolves.toBe(true)
+    await expect(canManageCafeItemSettings('kitchen')).resolves.toBe(true)
     await saveCafeItemSettings({
       stream: STREAM,
       itemId: 'item-1',
@@ -172,8 +173,9 @@ describe('café item settings reader', () => {
       shownUnitIds: ['unit-a', 'unit-b'],
       kind: 'RAW',
       isActive: true,
+      unitMultiples: [0.5, 2],
     })
-    expect(rpc).toHaveBeenNthCalledWith(1, 'can_manage_cafe_item_settings')
+    expect(rpc).toHaveBeenNthCalledWith(1, 'can_manage_cafe_item_settings', { p_activity: 'kitchen' })
     expect(rpc).toHaveBeenNthCalledWith(2, 'save_cafe_item_settings', {
       p_branch_id: 'branch-1',
       p_activity: 'kitchen',
@@ -183,6 +185,19 @@ describe('café item settings reader', () => {
       p_shown_item_unit_ids: ['unit-a', 'unit-b'],
       p_kind: 'RAW',
       p_is_active: true,
+      p_unit_multiples: [0.5, 2],
     })
   })
+  it.each([false, null, 'true'])('fails closed on a non-boolean-true permission response (%s)', async data => {
+    const rpc = vi.fn().mockResolvedValue({ data, error: null })
+    schemaMock.mockReturnValue({ rpc } as never)
+    await expect(canManageCafeItemSettings('bar')).resolves.toBe(false)
+    expect(rpc).toHaveBeenCalledWith('can_manage_cafe_item_settings', { p_activity: 'bar' })
+  })
+
+  it('propagates a permission read failure', async () => {
+    schemaMock.mockReturnValue({ rpc: vi.fn().mockResolvedValue({ data: null, error: { message: 'Offline' } }) } as never)
+    await expect(canManageCafeItemSettings('bar')).rejects.toThrow('Offline')
+  })
+
 })

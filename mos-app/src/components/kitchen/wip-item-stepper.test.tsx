@@ -188,6 +188,16 @@ describe('WipItemStepper — already-logged actuals (FR-014, AC-006)', () => {
     expect(meta?.querySelectorAll('.kls-logged-unit')).toHaveLength(4)
   })
 
+  it('shows a multiple snapshot as entered while the line retains its canonical total separately', () => {
+    renderStepper({ alreadyLogged: [{
+      key: 'log:multiple-1', item_unit_id: 'u-porsi', unit_name: 'porsi', qty_porsi: 1.5,
+      entry_quantity: 3, entry_unit_factor: 0.5, entry_unit_name: 'porsi',
+    }] })
+    const meta = document.querySelector('.kls-meta')
+    expect(meta?.textContent).toContain('3 × 0.5 porsi')
+    expect(meta?.textContent).not.toContain('1.5 porsi')
+  })
+
   it('renders no actual-history line for an empty list', () => {
     renderStepper({ alreadyLogged: [] })
     expect(document.querySelector('.kls-meta')).toBeNull()

@@ -74,7 +74,7 @@ select is(
 -- She is in no Team (R1), holds no role in the owning BU (R2), her Unit-2 rank is not strictly
 -- higher than the owning BU's (R3, both default 0 — the rule is inert until an admin configures
 -- ranks), holds no mention (R4), and signal.read_all is unregistered (R5).
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d7","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d7","access_roles":["member"]}');
 
 select is((select count(*)::int from mos.signals), 0,
   'signals_select: a same-org member no read rule reaches sees ZERO signals — the gate is default-deny, not org-readable');
@@ -95,7 +95,7 @@ select cmp_ok((select count(*) from mos.tasks), '>', 0::bigint,
   'signals_select control: that same session DOES read org-readable tasks — the Signal zeros are the gate, not a dead claim');
 
 -- ── Weekly updates: upward-only. A peer is not a manager. ────────────────────────────────────
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select is((select count(*)::int from mos.weekly_updates), 0,
   'weekly_updates_select_upward: a PEER holding the same role as the author reads zero — sideways is not upward');
 select is((select count(*)::int from mos.weekly_update_items), 0,
@@ -104,7 +104,7 @@ select is((select count(*)::int from mos.weekly_update_items), 0,
 -- ── Owner-scoped surfaces do not yield to admin ──────────────────────────────────────────────
 -- GrandMgr is a real admin of this org; that is the point. An inbox, a deputy transcript, a private
 -- view and a push endpoint belong to one person, and "admin" is not an exception to that.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select is((select count(*)::int from mos.notifications), 0,
   'notifications_select: a same-org ADMIN reads zero notifications they do not own');
 select is((select count(*)::int from mos.push_subscriptions), 0,
@@ -119,7 +119,7 @@ select is((select count(*)::int from mos.agent_events), 0,
   'agent_events_select: a same-org ADMIN reads zero deputy events they do not own — the transcript has no admin read path at all');
 
 -- ── Money surfaces: finance or admin only, and admin is not enough for the lane ──────────────
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select is((select count(*)::int from mos.certified_metrics), 0,
   'certified_metrics_select_finance_admin: a plain member reads zero certified metric definitions');
 select is((select count(*)::int from mos.budgets), 0,
@@ -141,7 +141,7 @@ select is((select count(*)::int from reporting.esb_ar_reduction), 0,
 -- finance holds signal.create, signal.retract, signal.mention_bu, cogs.write and followup.confirm —
 -- and neither cascade capability. That makes it a genuine "holds roles but not this one" negative
 -- rather than a claimless session that would fail everything.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance"]}');
 
 select throws_ok($$
   insert into mos.objectives (name) values ('Uncapable Objective')
@@ -163,7 +163,7 @@ $$, '42501', null,
   'work_lines_update_can_manage: same shape — the WITH CHECK is what refuses it');
 
 -- ── Process definitions: admin or ops_lead ───────────────────────────────────────────────────
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select throws_ok($$
   insert into mos.process_cadences (work_line_id, cadence_kind)
   values ('00000000-0000-0000-0000-000000070003','weekly')
@@ -214,7 +214,7 @@ $$, '42501', null,
 -- Peer holds a role in the OWNING BU, so read rule R2 grants her the Signal and she would pass the
 -- read half of these predicates. Lead2Holder is the only org-A persona no read rule reaches, so a
 -- denial here is the gate rather than an accident of who the fixture happened to pick.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d7","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d7","access_roles":["member"]}');
 select throws_ok($$
   insert into mos.signal_mentions (signal_id, mention_kind, target_person_id)
   values ('00000000-0000-0000-0000-00000007000c','person','00000000-0000-0000-0000-0000000000d7')
@@ -231,7 +231,7 @@ select throws_ok($$
 $$, '42501', null,
   'signal_tasks_insert: linking a Task to a Signal requires being able to read the Signal');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select throws_ok($$
   insert into mos.weekly_updates (person_id, week_start, created_by)
   values ('00000000-0000-0000-0000-0000000000d1','2026-02-02','00000000-0000-0000-0000-0000000000d4')
@@ -289,7 +289,7 @@ update mos.agent_runs         set status = 'cancelled'      where id = '00000000
 update mos.agent_events       set rating = 'down'           where id = '00000000-0000-0000-0000-000000070019';
 
 -- ── A manager may READ a weekly update and must never WRITE one ──────────────────────────────
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member"]}');
 select cmp_ok((select count(*) from mos.weekly_updates), '>', 0::bigint,
   'weekly_updates_select_upward control: the direct manager CAN read the report''s update — the upward arm works');
 update mos.weekly_updates set summary = 'Rewritten by the manager'
@@ -298,7 +298,7 @@ update mos.weekly_updates set summary = 'Rewritten by the manager'
 -- ── A signal.retract holder is not an author ─────────────────────────────────────────────────
 -- finance holds signal.retract, so the UPDATE policy's USING admits this session; the content-author
 -- guard is what stops it rewriting the body. Asserted at the guard, which is where the control is.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin","finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin","finance"]}');
 select throws_ok($$
   update mos.signals set body = 'Rewritten by a retract holder'
   where id = '00000000-0000-0000-0000-00000007000c'
@@ -306,7 +306,7 @@ $$, '42501', null,
   'signals_update_author: a signal.retract holder who is not the author is admitted by USING and then refused — content is author-only');
 
 -- ── Cross-tenant writes: org B''s admin reaches nothing of org A''s ──────────────────────────
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["admin"]}');
 -- The refusal is 23514, not 42501, and that is worth naming rather than papering over: mos._guard_tasks
 -- is SECURITY INVOKER and BEFORE triggers run ahead of the RLS WITH CHECK, so under org B's own RLS
 -- the org-A business unit and people are INVISIBLE, the lookups return NULL, and the guard refuses

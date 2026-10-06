@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { containsPattern } from './like-pattern'
 import { filterEffectiveMemberships } from '@/lib/team-context/eligible-teams'
 import type {
   Attention, SignalRow, MentionKind, CreateSignalInput, TeamOption, SiteOption, StagedMention,
@@ -7,7 +8,7 @@ import type {
 // Data layer for mos.signals + the Signal child tables (Step 4 / ADR-0050). Reads/writes mos via
 // supabase.schema('mos') and shared substrate (teams/sites/team_memberships) via
 // supabase.schema('shared') — same client, RLS is the authority (mirrors tasks.ts §8): this layer
-// NEVER sends org_id/author_id (the DB default stamps them) and throws on any non-null PostgREST
+// writes never send org_id/author_id (the DB default stamps them) and throws on any non-null PostgREST
 // error so the UI can surface failures.
 
 const mos = () => supabase.schema('mos')
@@ -17,14 +18,39 @@ const shared = () => supabase.schema('shared')
 
 export interface ListSignalsFilters {
   includeRetracted?: boolean
+  before?: Pick<SignalRow, 'occurred_at' | 'id'>
+  retractedOnly?: boolean
+  authorId?: string
+  teamId?: string
+  attention?: Attention
+  needsAttention?: boolean
+  category?: SignalRow['category']
+  search?: { term: string; authorIds: string[]; teamIds: string[] }
 }
 
-/** List Signals the caller's RLS grants read on (mos.can_read_signal). Excludes retracted rows by
- * default (D31 — the query layer, not RLS, hides tombstones from default feeds/archive). */
+export const SIGNALS_PAGE_SIZE = 50
+
+/** One newest-first Signal window under mos.can_read_signal. Timestamp plus ID preserves ties.
+ * Retracted rows are excluded by default; archive views can include their history. */
 export async function listReadableSignals(f: ListSignalsFilters = {}): Promise<SignalRow[]> {
   let q = mos().from('signals').select('*')
-  if (!f.includeRetracted) q = q.is('retracted_at', null)
-  q = q.order('occurred_at', { ascending: false })
+  if (f.retractedOnly) q = q.not('retracted_at', 'is', null)
+  else if (!f.includeRetracted) q = q.is('retracted_at', null)
+  if (f.authorId) q = q.eq('author_id', f.authorId)
+  if (f.teamId) q = q.eq('owning_team_id', f.teamId)
+  if (f.attention) q = q.eq('attention', f.attention)
+  if (f.needsAttention) q = q.in('attention', ['Needs attention', 'Urgent'])
+  if (f.category) q = q.eq('category', f.category)
+  if (f.search?.term) {
+    const clauses = [`body.ilike.${JSON.stringify(containsPattern(f.search.term))}`]
+    if (f.search.authorIds.length) clauses.push(`author_id.in.(${f.search.authorIds.join(',')})`)
+    if (f.search.teamIds.length) clauses.push(`owning_team_id.in.(${f.search.teamIds.join(',')})`)
+    q = q.or(clauses.join(','))
+  }
+  if (f.before) {
+    q = q.or(`occurred_at.lt.${f.before.occurred_at},and(occurred_at.eq.${f.before.occurred_at},id.lt.${f.before.id})`)
+  }
+  q = q.order('occurred_at', { ascending: false }).order('id', { ascending: false }).limit(SIGNALS_PAGE_SIZE)
   const { data, error } = await q
   if (error) throw new Error(`listReadableSignals failed — ${error.message}`)
   return (data ?? []) as unknown as SignalRow[]
@@ -44,7 +70,7 @@ export async function searchSignalsByBody(q: string, limit = 20): Promise<Signal
   const { data, error } = await mos()
     .from('signals')
     .select('id,body')
-    .ilike('body', `%${term}%`)
+    .ilike('body', containsPattern(term))
     .is('retracted_at', null)
     .order('created_at', { ascending: false })
     .limit(limit)

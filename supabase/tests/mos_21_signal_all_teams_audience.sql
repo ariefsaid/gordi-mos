@@ -55,7 +55,7 @@ $$, 'every defined category resolves org for signal.tag');
 -- The defaults are durable configuration, so an ordinary org member resolves tag authority at the
 -- runtime seam without any signal-specific access role.
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is((select can_tag from mos.get_signal_post_authority()), true,
   'an ordinary org member resolves signal.tag at the composer authority seam');
 

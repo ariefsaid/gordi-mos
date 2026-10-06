@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { publishReadScope } from '@/lib/scoped-reads'
+import { __resetReferenceCacheForTests } from './reference-cache'
 
 vi.mock('../supabase', () => {
   const schema = vi.fn()
@@ -136,6 +138,33 @@ describe('createObjective', () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(makeSchema({ objectives: [{ data: null, error: { message: 'denied' } }] }, rec) as never)
     await expect(createObjective('X')).rejects.toThrow(/createObjective failed — denied/)
+  })
+
+  it('an admin write invalidates the reference cache so the next list read hits the wire (#1359)', async () => {
+    __resetReferenceCacheForTests()
+    publishReadScope({ generation: 1, authUserId: 'a', viewerId: 'v', orgId: 'o', authorityKey: 'admin' })
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({
+      objectives: [
+        { data: [{ id: 'o-1', name: 'Alpha' }], error: null }, // first list — miss, hits the wire
+        { data: { id: 'o-2', name: 'Fresh', archived_at: null }, error: null }, // create insert
+        { data: [{ id: 'o-1', name: 'Alpha' }, { id: 'o-2', name: 'Fresh' }], error: null }, // re-list after the write
+      ],
+    }, rec) as never)
+
+    await listObjectives()
+    await createObjective('Fresh Objective')
+    // list + create-insert = 2 from('objectives') calls so far.
+    expect(rec.fromTables.filter((t) => t === 'objectives').length).toBe(2)
+    // The write invalidated the cache, so the next list re-reads the wire.
+    await listObjectives()
+    expect(rec.fromTables.filter((t) => t === 'objectives').length).toBe(3)
+    // Fresh again — served from cache, no third wire hit.
+    await listObjectives()
+    expect(rec.fromTables.filter((t) => t === 'objectives').length).toBe(3)
+
+    publishReadScope(null)
+    __resetReferenceCacheForTests()
   })
 
   it('carries unit, owner, and year when given', async () => {

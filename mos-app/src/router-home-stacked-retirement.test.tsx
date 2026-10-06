@@ -17,13 +17,13 @@
 //
 // Prose is exempt (comments stripped before scanning): the retirement is documented here and in
 // git history, and a guard that forbade explaining itself would be deleted by the next reader.
-import { isValidElement } from 'react'
 import { describe, it, expect } from 'vitest'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import type { RouteObject } from 'react-router-dom'
 import { routeConfig } from './router'
 import { HomePage } from './pages/home-page'
+import { lazyPayloadOf } from './test/route-table'
 import { holdsHomeCockpitScope } from '@/lib/home-composition'
 import type { RolesRow } from '@/lib/database.types'
 
@@ -94,12 +94,12 @@ describe('OD-REDESIGN-85: the stacked-union Home fossil is gone and stays gone',
     expect(offenders, 'the ruling deleted this surface; a re-added route row must turn this red').toEqual([])
   })
 
-  it('the `/` index route renders the ranked-stream HomePage — the one Home', () => {
+  it('the `/` index route renders the ranked-stream HomePage — the one Home', async () => {
     const index = allRoutes(routeConfig).find((r) => r.index === true)
     expect(index).toBeDefined()
-    expect(isValidElement(index!.element)).toBe(true)
-    if (!isValidElement(index!.element)) throw new Error('index route element is not a React element')
-    expect(index!.element.type).toBe(HomePage)
+    const payload = lazyPayloadOf(index!.element)
+    expect(payload, 'the index route is a lazy page behind the loading shell').toBeDefined()
+    expect((await payload!.preload!()).default).toBe(HomePage)
   })
 
   it('no code anywhere in src/ still references the fossil', () => {

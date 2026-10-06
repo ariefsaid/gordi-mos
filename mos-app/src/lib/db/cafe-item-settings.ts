@@ -20,6 +20,8 @@ export type CafeItemSetting = {
   isActive: boolean
   defaultUnitId: string | null
   units: CafeItemSettingUnit[]
+  /** Manager-defined factors relative to the stream's default ERP unit. */
+  unitMultiples?: number[]
 }
 
 /** Keep repeated ERP unit labels distinguishable without exposing product-detail identifiers. */
@@ -37,6 +39,7 @@ type CafeLogItem = {
   kind: 'RAW' | 'WIP'
   defaultUnit: Pick<CafeItemSettingUnit, 'id' | 'name'>
   units: Array<Pick<CafeItemSettingUnit, 'id' | 'name' | 'isDefault' | 'labelOrdinal' | 'labelCount'>>
+  multiples: number[]
 }
 
 type CafeItemSettingReadRow = {
@@ -51,6 +54,7 @@ type CafeItemSettingReadRow = {
   default_item_unit_id: string | null
   unit_is_default: boolean
   unit_is_shown: boolean
+  unit_multiples?: number[] | null
 }
 
 function mapCafeItemSettings(
@@ -82,6 +86,7 @@ function mapCafeItemSettings(
         isActive: row.is_active,
         defaultUnitId: row.default_item_unit_id,
         units: [],
+        unitMultiples: (row.unit_multiples ?? []).map(Number),
       }
       grouped.set(row.item_id, item)
     } else if (
@@ -91,10 +96,14 @@ function mapCafeItemSettings(
       || item.isActive !== row.is_active
       || item.category !== row.category
       || item.defaultUnitId !== row.default_item_unit_id
+      || (item.unitMultiples ?? []).join(',') !== (row.unit_multiples ?? []).map(Number).join(',')
     ) {
       throw new Error('listCafeItemSettings failed: item details disagree within the same stream')
     }
 
+    if ((item.unitMultiples ?? []).some(factor => !Number.isFinite(factor) || factor <= 0 || factor === 1)) {
+      throw new Error('listCafeItemSettings failed: unit multiples are invalid')
+    }
     if (row.item_unit_id === null) {
       if (row.unit_name !== null || row.unit_is_default || row.unit_is_shown) {
         throw new Error('listCafeItemSettings failed: an empty ERP unit row has unit settings')
@@ -147,7 +156,7 @@ export async function listCafeItemSettings(stream: ProductionStream): Promise<Ca
   const { data, error } = await supabase
     .schema('ops')
     .from('cafe_item_settings_read')
-    .select('item_id, erp_name, mos_name, category, kind, is_active, item_unit_id, unit_name, default_item_unit_id, unit_is_default, unit_is_shown')
+    .select('item_id, erp_name, mos_name, category, kind, is_active, item_unit_id, unit_name, default_item_unit_id, unit_is_default, unit_is_shown, unit_multiples')
     .eq('branch_id', stream.branch.id)
     .eq('activity', stream.activity)
     .order('erp_name', { ascending: true })
@@ -186,26 +195,29 @@ export async function listCafeItemSettings(stream: ProductionStream): Promise<Ca
 
 /** Log readers omit items until a shown default exists; the write trigger enforces this again. */
 export function toCafeLogItem(item: CafeItemSetting): CafeLogItem | null {
-  const units = item.units.filter(unit => unit.isShown)
-  const defaultUnit = units.find(unit => unit.id === item.defaultUnitId && unit.isDefault)
+  const defaultUnit = item.units.find(unit => unit.id === item.defaultUnitId && unit.isDefault)
   if (!item.isActive || (item.kind !== 'RAW' && item.kind !== 'WIP') || !defaultUnit) return null
-  units.sort((a, b) => Number(b.isDefault) - Number(a.isDefault))
   return {
     id: item.id,
     name: item.mosName,
     category: item.category,
     kind: item.kind,
     defaultUnit: { id: defaultUnit.id, name: defaultUnit.name },
-    units: units.map(({ id, name, isDefault, labelOrdinal, labelCount }) => ({
-      id, name, isDefault, labelOrdinal, labelCount,
-    })),
+    units: [{
+      id: defaultUnit.id,
+      name: defaultUnit.name,
+      isDefault: true,
+      labelOrdinal: defaultUnit.labelOrdinal,
+      labelCount: defaultUnit.labelCount,
+    }],
+    multiples: [...(item.unitMultiples ?? [])],
   }
 }
 
-export async function canManageCafeItemSettings(): Promise<boolean> {
+export async function canManageCafeItemSettings(activity: ProductionStream['activity']): Promise<boolean> {
   const { data, error } = await supabase
     .schema('ops')
-    .rpc('can_manage_cafe_item_settings')
+    .rpc('can_manage_cafe_item_settings', { p_activity: activity })
   if (error) throw new Error(`canManageCafeItemSettings failed: ${error.message}`)
   return data === true
 }
@@ -218,6 +230,7 @@ export async function saveCafeItemSettings(input: {
   shownUnitIds: string[]
   kind: 'RAW' | 'WIP' | null
   isActive: boolean
+  unitMultiples: number[]
 }): Promise<void> {
   const { error } = await supabase
     .schema('ops')
@@ -230,6 +243,7 @@ export async function saveCafeItemSettings(input: {
       p_shown_item_unit_ids: input.shownUnitIds,
       p_kind: input.kind,
       p_is_active: input.isActive,
+      p_unit_multiples: input.unitMultiples,
     })
   if (error) throw new Error(`saveCafeItemSettings failed: ${error.message}`)
 }

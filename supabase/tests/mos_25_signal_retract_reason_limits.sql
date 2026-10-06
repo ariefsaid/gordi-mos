@@ -24,7 +24,7 @@ insert into t1016 default values;
 grant select, update on t1016 to authenticated;
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 update t1016 set live_signal = mos.create_signal_with_mentions('Limits: live target', now(), '[]'::jsonb);
 update t1016 set max_signal = mos.create_signal_with_mentions('Limits: 500 target', now(), '[]'::jsonb);
 update t1016 set multi_signal = mos.create_signal_with_mentions('Limits: multibyte target', now(), '[]'::jsonb);

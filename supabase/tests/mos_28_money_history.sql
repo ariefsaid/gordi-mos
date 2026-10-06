@@ -56,7 +56,7 @@ values ('00000000-0000-0000-0000-000000009966', '00000000-0000-0000-0000-0000000
 
 -- ── an INSERT appends exactly one summary row, on each of the four ────────────────────────────
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}');
 select is((select count(*)::int from shared.record_history
            where schema_name = 'mos' and table_name = 'certified_metrics'
              and record_key = '00000000-0000-0000-0000-0000000000a1:cogs.test_metric'),
@@ -79,7 +79,7 @@ select is((select actor_person_id is null from shared.record_history
              and action = 'update'),
   true, 'the service-seeded registry write records no actor (FR-005)');
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}');
 select is((select count(*)::int from shared.record_history
            where schema_name = 'mos' and table_name = 'budgets'
              and record_key = '00000000-0000-0000-0000-000000009961'),
@@ -103,7 +103,7 @@ update mos.budget_lines set recipe_qty = 0.75
  where id = '00000000-0000-0000-0000-000000009962';
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}');
 select is((select count(*)::int from shared.record_history
            where record_key = '00000000-0000-0000-0000-000000009961'),
   3, 'a two-column UPDATE on mos.budgets appends exactly two rows (insert + 2)');
@@ -139,7 +139,7 @@ update mos.budgets set notes = 'Recosted after price rise'
  where id = '00000000-0000-0000-0000-000000009961';
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}');
 select is((select count(*)::int from shared.record_history
            where record_key = '00000000-0000-0000-0000-000000009961'),
   3, 'an UPDATE that changes no column appends no row');
@@ -181,7 +181,7 @@ select is((select actor_person_id::text from shared.record_history
 -- ── AC-007: the money reads are role-gated — history is readable exactly by ───────────────────
 -- those who could read the record. Peer ...0d4 is same-org but a plain member: below the
 -- finance/admin tier of the budget pair's SELECT policy, no scope grant names them.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select is((select count(*)::int from shared.record_history
            where schema_name = 'mos' and table_name = 'budgets'
              and record_key = '00000000-0000-0000-0000-000000009961'),
@@ -198,7 +198,7 @@ select is((select count(*)::int from shared.record_history
   0, 'AC-007: a non-admin no grant names reads none of the scope history');
 
 -- GrandMgr ...0d3: the admin tier reads what finance reads.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select is((select count(*)::int from shared.record_history
            where schema_name = 'mos' and table_name = 'budgets'
              and record_key = '00000000-0000-0000-0000-000000009961'),
@@ -209,7 +209,7 @@ select is((select count(*)::int from shared.record_history
   2, 'AC-007: an admin reads the certified metric''s insert + revision rows through the composite-key arm');
 
 -- ── the scope grant: the admin's INSERT through the real write path stamps the claim ─────────
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 insert into reporting.supervisor_revenue_scope (id, org_id, person_id, channel, branch_code)
 values ('00000000-0000-0000-0000-000000009965', '00000000-0000-0000-0000-0000000000a1',
         '00000000-0000-0000-0000-0000000000d4', 'POS', null);
@@ -224,11 +224,11 @@ select is((select actor_person_id::text from shared.record_history
 
 -- The grant's own person reads its history (the select policy's self-read arm); a same-org
 -- finance non-admin who is not the target reads none of it.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select is((select count(*)::int from shared.record_history
            where record_key = '00000000-0000-0000-0000-000000009965'),
   1, 'AC-007: the grant''s own person reads its insert row');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}');
 select is((select count(*)::int from shared.record_history
            where record_key = '00000000-0000-0000-0000-000000009965'),
   0, 'AC-007: finance — not admin, not the target — reads none of the grant''s history');
@@ -237,7 +237,7 @@ select is((select count(*)::int from shared.record_history
 -- As the org-A admin, revoke the grant. Exactly one action='delete' row — NULL field/old/new,
 -- whole-row snapshot — and it stays readable afterwards by exactly those who could read the grant
 -- before deletion: the admin, and the grant's own person; never a same-org non-admin other person.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 delete from reporting.supervisor_revenue_scope
  where id = '00000000-0000-0000-0000-000000009965';
 
@@ -263,24 +263,24 @@ select is((select actor_person_id::text from shared.record_history
            where record_key = '00000000-0000-0000-0000-000000009965'),
   '00000000-0000-0000-0000-0000000000d3', 'the authenticated revoke stamps the revoking admin''s claim as the delete actor');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select is((select count(*)::int from shared.record_history
            where record_key = '00000000-0000-0000-0000-000000009965'),
   1, 'the revoked grant''s own person reads its delete row through the snapshot arm');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}');
 select is((select count(*)::int from shared.record_history
            where record_key = '00000000-0000-0000-0000-000000009965'),
   0, 'a same-org finance non-admin who was not the target reads none of the deleted grant''s history');
 
 -- The org-B control: its admin revokes its own grant and reads the delete row; org A reads
 -- none of it.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["admin"]}');
 delete from reporting.supervisor_revenue_scope
  where id = '00000000-0000-0000-0000-000000009966';
 select is((select count(*)::int from shared.record_history
            where record_key = '00000000-0000-0000-0000-000000009966'),
   1, 'the org-B admin reads exactly their own org''s delete row');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select is((select count(*)::int from shared.record_history
            where record_key = '00000000-0000-0000-0000-000000009966'),
   0, 'the org-A admin reads none of the org-B grant''s history');
@@ -289,11 +289,11 @@ select is((select count(*)::int from shared.record_history
   1, 'the scope table''s whole visible history for the org-A admin is exactly their one delete row');
 
 -- ── the org wall on the finance-gated pair ────────────────────────────────────────────────────
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}');
 select is((select count(*)::int from shared.record_history
            where record_key = '00000000-0000-0000-0000-000000009963'),
   0, 'org A''s finance reads none of org B''s budget history');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["admin"]}');
 select is((select count(*)::int from shared.record_history
            where record_key = '00000000-0000-0000-0000-000000009963'),
   1, 'org B''s admin reads their own budget''s insert row');
@@ -310,11 +310,11 @@ select is((select count(*)::int from shared.record_history
   1, 'the claimless service delete appends its delete row with no actor (FR-012/FR-005)');
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}');
 select is((select count(*)::int from shared.record_history
            where record_key = '00000000-0000-0000-0000-000000009962'),
   0, 'a hard-deleted budget line''s rows — delete row included — are unreadable while no delete arm is registered (finance)');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select is((select count(*)::int from shared.record_history
            where record_key = '00000000-0000-0000-0000-000000009962'),
   0, 'the same fail-closed hold for the admin tier');

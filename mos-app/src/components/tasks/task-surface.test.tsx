@@ -364,7 +364,7 @@ describe('TaskSurface — view mode', () => {
     await waitFor(() => expect(screen.getByRole('textbox', { name: /comment/i })).toHaveValue(''))
   })
 
-  it('issue 584 review: posting a comment threads the viewer as actorId/actorName + the active locale', async () => {
+  it('posts comments with the active locale for notification titles', async () => {
     mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events: [] })
     mockListComments.mockResolvedValue([])
     renderSurface()
@@ -374,11 +374,9 @@ describe('TaskSurface — view mode', () => {
     fireEvent.change(box, { target: { value: 'On it' } })
     fireEvent.click(screen.getByRole('button', { name: /post comment/i }))
 
-    // #584 review: pins actorId/actorName/locale so a call-site regression (e.g. dropping the
-    // viewer wiring) fails here rather than silently shipping a blank-actor notification.
     await waitFor(() => expect(mockPostComment).toHaveBeenCalledWith(expect.objectContaining({
       entityType: 'task', entityId: 'task-abc', body: 'On it',
-      actorId: VIEWER_ID, actorName: 'Cahya Cafe', locale: 'en',
+      locale: 'en',
     })))
   })
 

@@ -24,7 +24,7 @@ values ('00000000-0000-0000-0000-00000000e874','00000000-0000-0000-0000-00000000
         '00000000-0000-0000-0000-000000009874','person','00000000-0000-0000-0000-0000000000d5');
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is((select count(*)::int from mos.signals where id = '00000000-0000-0000-0000-000000009874'), 1,
   'an outside-Team author reads their historical Team Signal');
 -- Controls for the freeze below: both mention writes land while the Signal is active.
@@ -37,14 +37,14 @@ select lives_ok($$
   update mos.signal_mentions set revoked_at = now()
    where id = '00000000-0000-0000-0000-00000000e875'
 $$, 'the author can revoke a mention while the Signal is active');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select is((select count(*)::int from mos.signals where id = '00000000-0000-0000-0000-000000009874'), 0,
   'a same-org member with no rule reads zero');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member"]}');
 select is((select count(*)::int from mos.signals where id = '00000000-0000-0000-0000-000000009874'), 0,
   'the same outside person without the ops_lead role reads zero — the role is the grant');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["ops_lead"]}');
 select is((select count(*)::int from mos.signals where id = '00000000-0000-0000-0000-000000009874'), 1,
   'an org-scoped moderator outside the Team reads the historical Team Signal');
 with moved as (
@@ -57,7 +57,7 @@ select is((select count(*)::int from moved), 1,
   'the moderator''s retraction UPDATE changes one row');
 
 -- Mention freeze on the tombstone.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select throws_ok($$
   insert into mos.signal_mentions (org_id, signal_id, mention_kind, target_person_id)
   values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-000000009874',
@@ -71,20 +71,20 @@ select throws_ok($$
   update mos.signal_mentions set revoked_at = null
    where id = '00000000-0000-0000-0000-00000000e875'
 $$, '42501', null, 'a revoked mention cannot be restored after the Signal becomes a tombstone');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select is((select count(*)::int from mos.signals where id = '00000000-0000-0000-0000-000000009874'), 0,
   'a person outside the original audience gains no read of the tombstone');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member"]}');
 select is((select count(*)::int from mos.signals where id = '00000000-0000-0000-0000-000000009874'), 1,
   'a person in the original audience keeps read of the tombstone');
 
 reset role;
 update shared.teams set archived_at = now() where id = '00000000-0000-0000-0000-000000005b03';
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is((select count(*)::int from mos.signals where id = '00000000-0000-0000-0000-000000009874'), 1,
   'the author keeps read of the tombstone after Team archival');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["ops_lead"]}');
 select is((select count(*)::int from mos.signals where id = '00000000-0000-0000-0000-000000009874'), 1,
   'the moderator keeps read of the tombstone after Team archival');
 select is((select retracted_by from mos.signals where id = '00000000-0000-0000-0000-000000009874'),

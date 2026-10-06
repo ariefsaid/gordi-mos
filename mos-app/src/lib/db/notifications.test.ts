@@ -4,11 +4,12 @@ import { listNotifications, countUnread } from './notifications'
 describe('notifications DAL — bounded reads (CQ#2)', () => {
   const limitCalls: string[] = []
   const nullFilters: Array<[string, unknown]> = []
+  const selectCalls: Array<[string, unknown?]> = []
 
-  function makeSb(data: unknown) {
+  function makeSb(data: unknown, count: number | null = null) {
     const b: Record<string, unknown> = {}
-    const result = Promise.resolve({ data, error: null })
-    b.select = vi.fn(() => b)
+    const result = Promise.resolve({ data, error: null, count })
+    b.select = vi.fn((columns: string, options?: unknown) => { selectCalls.push([columns, options]); return b })
     b.eq = vi.fn(() => b)
     b.is = vi.fn((col: string, val: unknown) => {
       nullFilters.push([col, val])
@@ -26,6 +27,7 @@ describe('notifications DAL — bounded reads (CQ#2)', () => {
   beforeEach(() => {
     limitCalls.length = 0
     nullFilters.length = 0
+    selectCalls.length = 0
     vi.resetModules()
     vi.doMock('@/lib/supabase', () => ({ supabase: makeSb([{ id: 'n1' }]) }))
   })
@@ -36,14 +38,12 @@ describe('notifications DAL — bounded reads (CQ#2)', () => {
     expect(limitCalls.some((c) => c.startsWith('limit:'))).toBe(true)
   })
 
-  it('countUnread filters to read_at IS NULL (badge path does not load read rows)', async () => {
+  it('countUnread is a HEAD exact count — no unread rows cross the wire (#1359)', async () => {
     vi.doUnmock('@/lib/supabase')
-    vi.doMock('@/lib/supabase', () => ({
-      supabase: makeSb([{ id: 'u1' }, { id: 'u2' }, { id: 'u3' }]),
-    }))
+    vi.doMock('@/lib/supabase', () => ({ supabase: makeSb(null, 3) }))
     const { countUnread: fresh } = await import('./notifications')
-    const n = await fresh()
-    expect(n).toBe(3)
+    expect(await fresh()).toBe(3)
+    expect(selectCalls).toContainEqual(['id', { count: 'exact', head: true }])
     expect(nullFilters).toContainEqual(['read_at', null])
   })
 
@@ -59,9 +59,11 @@ describe('notifications DAL — bounded reads (CQ#2)', () => {
     ]
     const filters: Array<[string, unknown]> = []
     let selectedColumns = ''
+    let selectedOpts: unknown = null
     const query: Record<string, unknown> = {}
-    query.select = vi.fn((columns: string) => {
+    query.select = vi.fn((columns: string, opts?: unknown) => {
       selectedColumns = columns
+      selectedOpts = opts ?? null
       return query
     })
     query.is = vi.fn((column: string, value: unknown) => {
@@ -69,10 +71,11 @@ describe('notifications DAL — bounded reads (CQ#2)', () => {
       return query
     })
     query.then = (resolve: (value: unknown) => unknown) => {
+      const withSelectOpts = selectedOpts != null
       const rows = fixture
         .filter((row) => !filters.some(([column, value]) => column === 'read_at' && value === null) || row.read_at === null)
         .map((row) => Object.fromEntries(selectedColumns.split(',').map((column) => [column.trim(), row[column.trim() as keyof typeof row]])))
-      return Promise.resolve({ data: rows, error: null }).then(resolve)
+      return Promise.resolve({ data: withSelectOpts ? null : rows, error: null, count: withSelectOpts ? 211 : null }).then(resolve)
     }
 
     vi.stubEnv('VITE_RELEASE_PROFILE', 'cafe')
@@ -101,6 +104,7 @@ describe('notifications DAL — bounded reads (CQ#2)', () => {
       const { countUnread: freshFull } = await import('./notifications')
       expect(await freshFull()).toBe(211)
       expect(selectedColumns).toBe('id')
+      expect(selectedOpts).toEqual({ count: 'exact', head: true })
     } finally {
       vi.unstubAllEnvs()
     }

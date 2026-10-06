@@ -72,7 +72,7 @@ export async function resolveViewer(userId: string, accessToken?: string): Promi
   // 1. Fetch the person row
   const { data: person, error: personError } = await supabase
     .from('people')
-    .select('*')
+    .select('id,org_id,user_id,full_name,email,must_change_password,archived_at,created_at,updated_at')
     .eq('user_id', userId)
     .maybeSingle()
 
@@ -97,7 +97,7 @@ export async function resolveViewer(userId: string, accessToken?: string): Promi
   // 3. Fetch all org roles (no org_id filter — RLS scopes it)
   const { data: allRoles, error: rolesError } = await supabase
     .from('roles')
-    .select('*')
+    .select('id,org_id,business_unit_id,name,reports_to_role_id,created_at,updated_at')
 
   if (rolesError) {
     throw new Error(`resolveViewer: roles read failed — ${rolesError.message}`)

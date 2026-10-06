@@ -67,7 +67,7 @@ select has_function('mos', 'can_edit_objective_content', ARRAY['uuid'],
 
 -- ═══ AC-001 — Company-wide and a real unit are mutually exclusive by CHECK ═══════════════════
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select throws_ok($$
   update mos.objectives set is_company_wide = true where id = '00000000-0000-0000-0000-0000000009e2'
 $$, '23514', null,
@@ -79,7 +79,7 @@ $$, '23514', null,
   'AC-001: ...and so is giving a Company-wide Objective a unit — the CHECK holds both ways');
 
 -- ═══ AC-002 — Company-wide is a distinct, readable row shape (never "unset") ═════════════════
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is((select (is_company_wide, business_unit_id)::text from mos.objectives
            where id = '00000000-0000-0000-0000-0000000009e4'),
   '(t,)', 'AC-002: an org member reads the Company-wide Objective as (true, null)');
@@ -88,7 +88,7 @@ select is((select (is_company_wide, business_unit_id)::text from mos.objectives
   '(f,)', 'AC-002: an unset Objective keeps the different (false, null) shape — never conflated');
 
 -- ═══ AC-004 — the period quarter admits only Q1–Q4 ══════════════════════════════════════════
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select lives_ok($$
   update mos.objectives set period_year = 2027, period_quarter = 4 where id = '00000000-0000-0000-0000-0000000009e2'
 $$, 'AC-004: an admin sets a year and a Q1–Q4 quarter alongside it');
@@ -103,7 +103,7 @@ select throws_ok($$
 $$, '23514', null, 'AC-004: a quarter without its year is a CHECK rejection — the quarter rides the year');
 
 -- ═══ AC-005..007 — ops_lead: no structural writes, write-up yes ══════════════════════════════
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["ops_lead"]}');
 select throws_ok($$
   insert into mos.objectives (name) values ('Ops Lead Objective')
 $$, '42501', null, 'AC-005: ops_lead cannot create an Objective (42501, admin-only)');
@@ -142,15 +142,15 @@ select ok(shared.can('objective.edit_content'),
   'ops_lead holds objective.edit_content — the narrowed grant (OD-OBJ-1)');
 select ok(not shared.can('objective.manage'),
   'ops_lead no longer holds objective.manage — OD-OBJ-1 narrows OD-V4-1');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select ok(shared.can('objective.manage'), 'admin keeps objective.manage');
 select ok(shared.can('objective.edit_content'), 'admin also holds objective.edit_content');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select ok(not shared.can('objective.edit_content'),
   'a plain member holds neither Objective authority');
 
 -- ── The content predicate: the BU apex head, and only over their own unit ═══════════════════
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d7","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d7","access_roles":["member"]}');
 select ok(mos.can_edit_objective_content('00000000-0000-0000-0000-0000000009e3'),
   'the Unit-2 apex head holds content authority over a Unit-2 Objective');
 select ok(not mos.can_edit_objective_content('00000000-0000-0000-0000-0000000009e2'),
@@ -236,7 +236,7 @@ select throws_ok($$
 $$, '42501', null, 'AC-009: ...nor an unset Objective''s key result');
 
 -- ═══ AC-010 — admin performs every write the others were refused ════════════════════════════
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select lives_ok($$
   insert into mos.objectives (id, name, business_unit_id, period_year, period_quarter, write_up)
   values ('00000000-0000-0000-0000-0000000009ec', 'Admin Objective',
@@ -271,7 +271,7 @@ select lives_ok($$
 $$, 'AC-010: admin writes an unset Objective''s write-up');
 
 -- ═══ AC-011 — key results: content writers move current_value ALONE ═════════════════════════
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["ops_lead"]}');
 select lives_ok($$
   update mos.objective_key_results set current_value = 42
   where id = '00000000-0000-0000-0000-0000000009e6'
@@ -302,14 +302,14 @@ select throws_ok($$
   where id = '00000000-0000-0000-0000-0000000009e6'
 $$, '42501', null, 'AC-011: ops_lead cannot move a key result to another Objective');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d7","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d7","access_roles":["member"]}');
 select lives_ok($$
   update mos.objective_key_results set current_value = 7
   where id = '00000000-0000-0000-0000-0000000009e7'
 $$, 'AC-011: the Unit-2 head updates their own key result''s current value');
 
 -- ═══ AC-012 — add/remove is admin-only ═══════════════════════════════════════════════════════
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["ops_lead"]}');
 select throws_ok($$
   insert into mos.objective_key_results (objective_id, what) values
     ('00000000-0000-0000-0000-0000000009e3', 'Ops Lead KR')
@@ -317,7 +317,7 @@ $$, '42501', null, 'AC-012: ops_lead cannot add a key result');
 select throws_ok($$
   delete from mos.objective_key_results where id = '00000000-0000-0000-0000-0000000009e6'
 $$, '42501', null, 'AC-012: ops_lead cannot remove one (42501, not a silent no-op)');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d7","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d7","access_roles":["member"]}');
 select throws_ok($$
   insert into mos.objective_key_results (objective_id, what) values
     ('00000000-0000-0000-0000-0000000009e3', 'BU Head KR')
@@ -325,7 +325,7 @@ $$, '42501', null, 'AC-012: the BU head cannot add a key result either');
 select throws_ok($$
   delete from mos.objective_key_results where id = '00000000-0000-0000-0000-0000000009e7'
 $$, '42501', null, 'AC-012: ...nor can the BU head remove one');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select lives_ok($$
   insert into mos.objective_key_results (id, objective_id, what, target_value, unit, due_date, owner_person_id)
   values ('00000000-0000-0000-0000-0000000009ed', '00000000-0000-0000-0000-0000000009e3',
@@ -370,14 +370,14 @@ select lives_ok($$
 $$, 'AC-014: a valid small array document is accepted');
 
 -- ── Read visibility mirrors the Objective's org-wide read; history stays wired ───────────────
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is((select count(*)::int from mos.objective_key_results), 5,
   'an org member reads all five org-A key results and no org-B row');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}');
 select is((select count(*)::int from mos.objective_key_results), 1,
   'an org-B member reads only their own org''s key result');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["ops_lead"]}');
 select is((
   select count(*)::int from shared.record_history
    where schema_name = 'mos' and table_name = 'objectives'
@@ -388,7 +388,7 @@ select is((
 
 -- ═══ Review round 1 — the guard is default-deny, and a removal keeps readable history ════════
 -- The row policy admits any org member, so the guard is what refuses columns no tier owns.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select throws_ok($$
   update mos.objectives set accountable_person_id = '00000000-0000-0000-0000-0000000000d4'
    where id = '00000000-0000-0000-0000-0000000009e2'
@@ -422,29 +422,29 @@ $$, '42501', null, 'the same server-owned clock hold on a key result');
 
 -- A key-result removal keeps its history, readable through the org-wide predicate over the
 -- snapshot columns (the registered delete arm).
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 delete from mos.objective_key_results where id = '00000000-0000-0000-0000-0000000009e9';
 select is((select count(*)::int from shared.record_history
            where schema_name = 'mos' and table_name = 'objective_key_results'
              and record_key = '00000000-0000-0000-0000-0000000009e9' and action = 'delete'),
   1, 'an admin key-result removal appends exactly one delete row with the whole-row snapshot');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is((select count(*)::int from shared.record_history
            where record_key = '00000000-0000-0000-0000-0000000009e9' and action = 'delete'),
   1, 'an org member reads the removed key result''s delete row (org-wide read over the snapshot)');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}');
 select is((select count(*)::int from shared.record_history
            where record_key = '00000000-0000-0000-0000-0000000009e9'),
   0, 'another org reads none of it');
 
 -- ── Key-result history: an update row is read through the live row, same org only ───────────
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select cmp_ok((select count(*)::int from shared.record_history
                 where schema_name = 'mos' and table_name = 'objective_key_results'
                   and record_key = '00000000-0000-0000-0000-0000000009e6'
                   and action = 'update' and field_name = 'current_value'),
   '>=', 1, 'an org member reads a key result''s current_value update row');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}');
 select is((select count(*)::int from shared.record_history
             where record_key = '00000000-0000-0000-0000-0000000009e6'),
   0, 'a reader in another org sees none of a key result''s insert or update history');
@@ -458,22 +458,22 @@ alter table mos.objectives            add column t_probe int;
 alter table mos.objective_key_results add column t_probe int;
 set local role authenticated;
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select throws_ok($$ update mos.objectives set t_probe = 1 where id = '00000000-0000-0000-0000-0000000009e3' $$,
   '42501', null, 'drift: a member cannot set a column added after the guard was written (Objective)');
 select throws_ok($$ update mos.objective_key_results set t_probe = 1 where id = '00000000-0000-0000-0000-0000000009e7' $$,
   '42501', null, 'drift: ...nor on a key result');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["ops_lead"]}');
 select throws_ok($$ update mos.objectives set t_probe = 1 where id = '00000000-0000-0000-0000-0000000009e3' $$,
   '42501', null, 'drift: an ops_lead (content authority only) cannot set it on an Objective');
 select throws_ok($$ update mos.objective_key_results set t_probe = 1 where id = '00000000-0000-0000-0000-0000000009e7' $$,
   '42501', null, 'drift: ...nor on a key result');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d7","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d7","access_roles":["member"]}');
 select throws_ok($$ update mos.objectives set t_probe = 1 where id = '00000000-0000-0000-0000-0000000009e3' $$,
   '42501', null, 'drift: the BU head of the Objective''s own unit cannot set it on an Objective');
 select throws_ok($$ update mos.objective_key_results set t_probe = 1 where id = '00000000-0000-0000-0000-0000000009e7' $$,
   '42501', null, 'drift: ...nor on a key result');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select lives_ok($$ update mos.objectives set t_probe = 1 where id = '00000000-0000-0000-0000-0000000009e3' $$,
   'drift: admin (objective.manage) sets it on an Objective');
 select lives_ok($$ update mos.objective_key_results set t_probe = 1 where id = '00000000-0000-0000-0000-0000000009e7' $$,

@@ -1,11 +1,6 @@
 import {
   isValidElement,
-  lazy,
   Suspense,
-  useState,
-  type ComponentProps,
-  type ComponentType,
-  type LazyExoticComponent,
   type ReactNode,
 } from 'react'
 import { createBrowserRouter, Navigate, type RouteObject } from 'react-router-dom'
@@ -29,67 +24,25 @@ import { LoadingShell } from './components/ui/state-kit'
 import { APP_RELEASE_PROFILE, APP_ROUTER_BASENAME } from './config/app-build-settings'
 import { profileLandingPath, type ReleaseProfile } from './config/build-settings'
 import { ROUTE_PATHS } from './shell/route-parity'
-// Eager, deliberately: both are above-the-fold first paints. HomePage is the index route (the
-// screen every authenticated session opens on) and LoginPage is what a logged-out visitor lands
-// on. Code-splitting either trades a bundle-size win for a visible blank frame on first paint.
-import { HomePage } from './pages/home-page'
+import { lazyPage } from './lib/lazy-page'
+// Eager, deliberately: LoginPage is what a logged-out visitor lands on, an above-the-fold first
+// paint; splitting it trades a bundle-size win for a visible blank frame.
 import { LoginPage } from './pages/login-page'
 import { RouteErrorBoundary } from './components/RouteErrorBoundary'
 
 // ── Code splitting (NFR-012 / AC-019) ────────────────────────────────────────────────────────
-// Every route except the index and login loads on demand. Before this, all ~25 route surfaces
+// Every route except login loads on demand. Before this, all ~25 route surfaces
 // shipped in one entry chunk to every viewer regardless of which single screen they opened — a
 // real cost for the floor personas, who open one capture screen on café wifi.
 //
-// `lazyPage` is `React.lazy` plus the loader kept on the component. That is what lets the route
-// tests prove WHICH module a split route resolves to — `preload()` and compare the export by
-// identity — instead of trusting a name or a comment; it also gives a future prefetch-on-hover
-// somewhere to hook in. `withSuspense` wraps each split element in the app's one sanctioned
-// loading grammar (LoadingShell), so no route invents its own spinner.
-//
-// **Why the wrapper around React.lazy isn't just `lazy()`** (#802): `React.lazy` caches the
-// resolved OR REJECTED module promise forever. If the browser was offline when a chunk import
-// first ran, that lazy holds the rejection, and every later render — including the
-// `ContentErrorBoundary`'s Retry remount — re-throws the same `TypeError: Failed to fetch
-// dynamically imported module`. Offline is supposed to be recoverable inside the frame, so this
-// wrapper stores each fresh `React.lazy(loader)` in `useState`: the boundary's Retry bumps its
-// remount key, the wrapper mounts anew, `useState`'s initializer runs again, and the new lazy has
-// not been rejected yet — so it re-runs the import. A resolved import is memoised in the outer
-// `cached` slot so a later navigation to the same route resolves synchronously (no Suspense flash),
-// and a rejected import is NOT memoised — that is the whole point.
 
-/* eslint-disable @typescript-eslint/no-explicit-any -- mirrors React.lazy's own type parameter */
-type Preloadable<T extends ComponentType<any>> = ComponentType<ComponentProps<T>> & {
-  /** The module loader, exposed so a test can resolve what this route actually renders. */
-  preload: () => Promise<{ default: T }>
-}
-
-export function lazyPage<T extends ComponentType<any>>(
-  loader: () => Promise<{ default: T }>,
-): Preloadable<T> {
-  let cached: { default: T } | undefined
-  const cachingLoader = (): Promise<{ default: T }> => {
-    if (cached !== undefined) return Promise.resolve(cached)
-    return loader().then((mod) => {
-      cached = mod
-      return mod
-    })
-  }
-
-  function LazyRoute(props: ComponentProps<T>) {
-    const [Impl] = useState<LazyExoticComponent<T>>(() => lazy(cachingLoader))
-    return <Impl {...(props as ComponentProps<T>)} />
-  }
-  const Wrapper = LazyRoute as unknown as Preloadable<T>
-  Wrapper.preload = cachingLoader
-  return Wrapper
-}
-/* eslint-enable @typescript-eslint/no-explicit-any */
 
 function withSuspense(element: ReactNode, fallback: ReactNode = <LoadingShell />) {
   return <Suspense fallback={fallback}>{element}</Suspense>
 }
 
+export { lazyPage }
+const HomePage = lazyPage(() => import('./pages/home-page').then((m) => ({ default: m.HomePage })))
 const TasksLayout = lazyPage(() => import('./pages/tasks-layout').then((m) => ({ default: m.TasksLayout })))
 const TaskDrawer = lazyPage(() => import('./components/tasks/task-drawer').then((m) => ({ default: m.TaskDrawer })))
 // Signals replaces Weekly Updates (v4): `/updates` redirects here and the retired page is not routed.
@@ -223,12 +176,10 @@ const routeTable: RouteObject[] = [
         children: withShellErrorBoundary([
           // Home (#191, PORT-023 — the one entry this PR changes). HomePage is now v4's ported
           // design: the region/attention model (needs-you, failed checks, my work today) in
-          // whichever of Focused/Overview/List the viewer has chosen. Eager, still,
-          // for the same reason as the import above: the index route is the first paint every
-          // session gets.
+          // whichever of Focused/Overview/List the viewer has chosen.
           {
             index: true,
-            element: <HomePage />,
+            element: withSuspense(<HomePage />),
             handle: pageHandle('workspace'),
           },
           // ── Work ────────────────────────────────────────────────────────────────────────

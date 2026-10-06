@@ -7,6 +7,7 @@ import {
   BASE_ACTIONS, runComposeView, deriveTitle,
 } from './../../../../supabase/functions/agent-chat/actions'
 import type { DeputyContext } from './runtime/port'
+import { ENTITY_WHITELIST } from '@/lib/viewspec/types'
 
 // ── Test doubles ───────────────────────────────────────────────────────────────
 
@@ -67,6 +68,21 @@ describe('runQueryEntity (T16, AC-RT-001..004)', () => {
     expect(result).toEqual({ error: 'unknown column: secret_col on entity tasks' })
   })
 
+  it('rejects a query that omits an entity-required filter', async () => {
+    const { ctx, selectSpy } = makeCtx()
+    const entry = ENTITY_WHITELIST.tasks as { requiredFilter?: string }
+    const previousRequiredFilter = entry.requiredFilter
+    entry.requiredFilter = 'business_unit_id'
+    try {
+      const result = await runQueryEntity({ entity: 'tasks', columns: ['title'] }, ctx)
+      expect(result).toEqual({ error: 'required filter missing: business_unit_id' })
+      expect(selectSpy).not.toHaveBeenCalled()
+    } finally {
+      if (previousRequiredFilter === undefined) delete entry.requiredFilter
+      else entry.requiredFilter = previousRequiredFilter
+    }
+  })
+
   it('AC-RT-003: unknown filter column -> structured error (filter-column whitelist)', async () => {
     const { ctx } = makeCtx()
     const result = await runQueryEntity({ entity: 'tasks', filter: { column: 'org_id', op: 'eq', value: 'x' } }, ctx)
@@ -113,12 +129,15 @@ describe('createTaskAction (T16, AC-WT-001/002/004)', () => {
     expect(v.ok).toBe(true)
   })
 
-  it('summarize() is a server-composed human string mentioning the title', () => {
+  it('summarize() names every field that createTaskAction.run executes', () => {
     const summary = createTaskAction.summarize({
       title: 'Ship the report', businessUnitId: 'bu-1',
       responsiblePersonId: 'p-r', accountablePersonId: 'p-a',
+      dueDate: '2026-10-08', objectiveId: 'objective-1', workLineId: 'line-1', description: 'Include the chart',
     })
-    expect(summary).toContain('Ship the report')
+    for (const value of ['Ship the report', 'bu-1', 'p-r', 'p-a', '2026-10-08', 'objective-1', 'line-1', 'Include the chart']) {
+      expect(summary).toContain(value)
+    }
   })
 
   it('run() inserts mos.tasks with created_by = ctx.personId (FR-WT-004), never a model-supplied value', async () => {
@@ -169,9 +188,19 @@ describe('postUpdateAction (T16, add-line only)', () => {
     expect(postUpdateAction.validate({ label: 'x', progress: 'done' }).ok).toBe(true)
   })
 
-  it('summarize() mentions the label', () => {
+  it('materializes the default week before it is summarized and stored', () => {
+    const validation = postUpdateAction.validate({ label: 'Finished the deck', progress: 'done' })
+    expect(validation.ok).toBe(true)
+    if (!validation.ok) return
+    expect(validation.value.weekStart).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    expect(postUpdateAction.summarize(validation.value)).toContain(`week start=${JSON.stringify(validation.value.weekStart)}`)
+  })
+
+  it('summarize() names every field that postUpdateAction.run executes', () => {
     const summary = postUpdateAction.summarize({ label: 'Finished the deck', progress: 'done', weekStart: '2026-07-06' })
     expect(summary).toContain('Finished the deck')
+    expect(summary).toContain('progress="done"')
+    expect(summary).toContain('week start="2026-07-06"')
   })
 
   it('run() creates a draft weekly_update (if none exists) then a line, attributed to ctx.personId', async () => {

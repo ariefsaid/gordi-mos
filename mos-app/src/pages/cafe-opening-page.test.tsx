@@ -12,8 +12,8 @@ import type { CafeOpeningTeam, CafeViewerTeam } from '@/lib/db/cafe-opening'
 
 vi.mock('@/lib/db/cafe-opening', () => ({
   getCafeOpeningProcessId: vi.fn(),
-  resolveCafeOpeningTeamForTeam: vi.fn(),
-  resolveCafeOpeningTeamForBranch: vi.fn(),
+  resolveCafeOpeningTeamsForTeamIds: vi.fn(),
+  resolveCafeOpeningTeamsForBranches: vi.fn(),
   listCafeViewerTeams: vi.fn(),
   listStartableCafeTeams: vi.fn(),
   getTodayOpeningForTeam: vi.fn(),
@@ -44,8 +44,8 @@ import {
   getTodayOpeningForTeam,
   listCafeViewerTeams,
   listStartableCafeTeams,
-  resolveCafeOpeningTeamForBranch,
-  resolveCafeOpeningTeamForTeam,
+  resolveCafeOpeningTeamsForBranches,
+  resolveCafeOpeningTeamsForTeamIds,
 } from '@/lib/db/cafe-opening'
 import { listActiveBranches } from '@/lib/db/branches'
 import { canStartProcessForTeam } from '@/lib/db/processes'
@@ -57,8 +57,8 @@ const mockGetCafeOpeningProcessId = vi.mocked(getCafeOpeningProcessId)
 const mockGetTodayOpeningForTeam = vi.mocked(getTodayOpeningForTeam)
 const mockListCafeViewerTeams = vi.mocked(listCafeViewerTeams)
 const mockListStartableCafeTeams = vi.mocked(listStartableCafeTeams)
-const mockResolveCafeOpeningTeamForBranch = vi.mocked(resolveCafeOpeningTeamForBranch)
-const mockResolveCafeOpeningTeamForTeam = vi.mocked(resolveCafeOpeningTeamForTeam)
+const mockResolveCafeOpeningTeamsForBranches = vi.mocked(resolveCafeOpeningTeamsForBranches)
+const mockResolveCafeOpeningTeamsForTeamIds = vi.mocked(resolveCafeOpeningTeamsForTeamIds)
 const mockBranches = vi.mocked(listActiveBranches)
 const mockCanStartProcessForTeam = vi.mocked(canStartProcessForTeam)
 const mockGetPeople = vi.mocked(getPeople)
@@ -126,12 +126,21 @@ function renderPage(accessRoles: string[] = ['ops_lead'], personId = VIEWER_ID, 
 }
 
 function mapResolver() {
-  mockResolveCafeOpeningTeamForTeam.mockImplementation(async (sourceId) => {
-    if (sourceId === TEAM_RAD || sourceId === OPENING_RAD.id) return OPENING_RAD
-    if (sourceId === TEAM_RR || sourceId === OPENING_RR.id) return OPENING_RR
-    if (sourceId === TEAM_HQ) return OPENING_RAD
-    return null
-  })
+  mockResolveCafeOpeningTeamsForTeamIds.mockImplementation(async (sourceIds) => new Map(
+    sourceIds.flatMap((sourceId) => {
+      if (sourceId === TEAM_RAD || sourceId === OPENING_RAD.id) return [[sourceId, OPENING_RAD] as const]
+      if (sourceId === TEAM_RR || sourceId === OPENING_RR.id) return [[sourceId, OPENING_RR] as const]
+      if (sourceId === TEAM_HQ) return [[sourceId, OPENING_RAD] as const]
+      return []
+    }),
+  ))
+  mockResolveCafeOpeningTeamsForBranches.mockImplementation(async (branchIds) => new Map(
+    branchIds.flatMap((branchId) => {
+      if (branchId === BRANCH_RAD.id) return [[branchId, OPENING_RAD] as const]
+      if (branchId === BRANCH_RR.id) return [[branchId, OPENING_RR] as const]
+      return []
+    }),
+  ))
 }
 
 beforeEach(() => {
@@ -145,8 +154,8 @@ beforeEach(() => {
   mockListCafeViewerTeams.mockResolvedValue([])
   mockListStartableCafeTeams.mockResolvedValue([])
   mockBranches.mockResolvedValue([BRANCH_RAD, BRANCH_RR])
-  mockResolveCafeOpeningTeamForBranch.mockResolvedValue(null)
-  mockResolveCafeOpeningTeamForTeam.mockResolvedValue(null)
+  mockResolveCafeOpeningTeamsForBranches.mockResolvedValue(new Map())
+  mockResolveCafeOpeningTeamsForTeamIds.mockResolvedValue(new Map())
   mockGetTodayOpeningForTeam.mockResolvedValue(notStarted)
 })
 
@@ -267,9 +276,20 @@ describe('Café Opening context', () => {
     expect(mockGetTodayOpeningForTeam).toHaveBeenCalledWith(PROCESS_ID, OPENING_RAD.id)
   })
 
+  it('resolves opening teams from café list sources in one batched lookup (#1359)', async () => {
+    mapResolver()
+    mockListCafeViewerTeams.mockResolvedValue([viewerTeam(TEAM_RAD), viewerTeam(TEAM_RR)])
+
+    renderPage(['member'])
+
+    expect(await screen.findByRole('heading', { name: 'Choose a location' })).toBeInTheDocument()
+    expect(mockResolveCafeOpeningTeamsForTeamIds).toHaveBeenCalledTimes(1)
+    expect(mockResolveCafeOpeningTeamsForTeamIds).toHaveBeenCalledWith([TEAM_RAD, TEAM_RR])
+  })
+
   it('includes started branches for an elevated viewer without profile memberships', async () => {
-    mockResolveCafeOpeningTeamForBranch.mockImplementation(async (branchId) => (
-      branchId === BRANCH_RAD.id ? OPENING_RAD : OPENING_RR
+    mockResolveCafeOpeningTeamsForBranches.mockImplementation(async (branchIds) => new Map(
+      branchIds.map((branchId) => [branchId, branchId === BRANCH_RAD.id ? OPENING_RAD : OPENING_RR]),
     ))
     mapResolver()
     mockGetTodayOpeningForTeam.mockImplementation(async (_processId, teamId) => (

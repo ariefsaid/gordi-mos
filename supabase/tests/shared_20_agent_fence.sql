@@ -35,11 +35,14 @@ update shared.agent_access_settings set mcp_resource = 'https://mcp.example.test
 -- Present a request the way the data API does: claims first, then the request schema.
 create function public._t_req(p_person uuid, p_roles text, p_client text, p_sess text, p_sub uuid,
                               p_org uuid default '00000000-0000-0000-0000-0000000000a1')
-returns void language sql as $$
-  select set_config('request.jwt.claims',
-    jsonb_strip_nulls(jsonb_build_object(
-      'role', 'authenticated', 'sub', p_sub, 'session_id', p_sess, 'client_id', p_client,
-      'org_id', p_org, 'person_id', p_person, 'access_roles', p_roles::jsonb))::text, true)
+returns void language plpgsql as $$
+declare v_claims jsonb;
+begin
+  v_claims := jsonb_strip_nulls(jsonb_build_object(
+    'role', 'authenticated', 'sub', p_sub, 'session_id', p_sess, 'client_id', p_client,
+    'org_id', p_org, 'person_id', p_person, 'access_roles', p_roles::jsonb));
+  perform shared._test_set_access_roles(v_claims::text);
+end
 $$;
 create function public._t_schema(p_schema text) returns void language sql as $$
   select set_config('search_path', '"' || p_schema || '", "public", "extensions"', true)

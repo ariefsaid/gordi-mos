@@ -544,9 +544,7 @@ export function SignalRecordHost({ signalId, mode = 'panel', onTitleResolved, on
   }
 
   async function handlePostComment(body: string) {
-    const actorId = auth.status === 'authenticated' ? auth.viewer.person.id : ''
-    const actorName = auth.status === 'authenticated' ? auth.viewer.person.full_name : ''
-    await postComment({ entityType: 'signal', entityId: signalId, body, actorId, actorName, locale })
+    await postComment({ entityType: 'signal', entityId: signalId, body, locale })
     setComments(await listComments({ entityType: 'signal', entityId: signalId }))
   }
 

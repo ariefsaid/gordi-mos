@@ -38,7 +38,7 @@ select is((select c.relrowsecurity and c.relforcerowsecurity from pg_class c
 
 -- ── nobody but a migration writes it ─────────────────────────────────────────────────────────
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select throws_ok(
   $$ insert into shared.record_history_readers (schema_name, table_name, reader)
      values ('mos', 'forged', 'shared.can_read_history_record(text,text,text,text,jsonb)') $$,
@@ -77,7 +77,7 @@ insert into shared.record_history (org_id, schema_name, table_name, record_key, 
   ('00000000-0000-0000-0000-0000000000a1', 'mos', 'stub_true',         'k1', 'insert');
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select is((select count(*)::int from shared.record_history where table_name = 'stub_unregistered'),
   0, 'an unregistered table''s history is unreadable, even for an admin (fail closed)');
 select is((select count(*)::int from shared.record_history where table_name = 'stub_null'),
@@ -98,7 +98,7 @@ insert into shared.record_history (org_id, schema_name, table_name, record_key, 
 values ('00000000-0000-0000-0000-0000000000a1', 'mos', 'stub_echo', 'k-echo', 'insert'),
        ('00000000-0000-0000-0000-0000000000a1', 'mos', 'stub_echo', 'k-other', 'insert');
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select is((select array_agg(record_key order by record_key) from shared.record_history where table_name = 'stub_echo'),
   ARRAY['k-echo'], 'the reader receives (record_key, action, snapshot) exactly as stored');
 
@@ -107,14 +107,14 @@ reset role;
 insert into mos.objectives (id, org_id, name)
 values ('00000000-0000-0000-0000-000000009922', '00000000-0000-0000-0000-0000000000a1', 'Registry Objective');
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is((select count(*)::int from shared.record_history
            where table_name = 'objectives' and record_key = '00000000-0000-0000-0000-000000009922'),
   1, 'a registered table''s history is readable by a member of its org');
 reset role;
 delete from shared.record_history_readers where schema_name = 'mos' and table_name = 'objectives';
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is((select count(*)::int from shared.record_history
            where table_name = 'objectives' and record_key = '00000000-0000-0000-0000-000000009922'),
   0, 'with its registry row gone, the same history is unreadable — no code change, no fallback');
@@ -128,13 +128,13 @@ values ('mos', 'stub_gone', 'public._t_reader_gone(text,text,jsonb)');
 insert into shared.record_history (org_id, schema_name, table_name, record_key, action)
 values ('00000000-0000-0000-0000-0000000000a1', 'mos', 'stub_gone', 'k1', 'insert');
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select is((select count(*)::int from shared.record_history where table_name = 'stub_gone'),
   1, 'a registered reader that resolves answers the read');
 reset role;
 drop function public._t_reader_gone(text, text, jsonb);
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select is((select count(*)::int from shared.record_history where table_name = 'stub_gone'),
   0, 'once the named reader no longer resolves, the read denies instead of erroring');
 
