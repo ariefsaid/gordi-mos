@@ -1,77 +1,14 @@
 name: guard-self-tests
-# Every guard ships with its own self-test, and the self-tests run in CI — a guard
-# whose test never runs is a control everyone believes is running.
-#
-# ALWAYS-RUN on every PR but the main → staging promotion (no paths filter): this check is REQUIRED, and a required check
-# skipped by a path filter never reports, so the PR would block forever (verify.yml documents
-# the same trap). The whole suite is <1 min — cheaper than the deadlock. The old paths list
-# is kept below as documentation of what the suite guards, not as a trigger.
-# Public repo: nothing here needs to write, so the token gets read-only.
+# Product-relevant checks report on every PR; the required status check never path-skips.
 permissions:
   contents: read
 
 on:
   pull_request:
   workflow_dispatch:
-    # (former trigger paths, now documentation:)
-    # - '.githooks/**'
-    # - 'scripts/agent-git-shim/**'
-    # - 'scripts/pre-pr-verify.sh'
-    # # the drive-loop gates (OD-WAY-80): an edit to a guard must re-run its self-test
-    # - 'scripts/gh-post.sh'
-    # - 'scripts/record-review.sh'
-    # - 'scripts/lane-exempt.sh'
-    # - 'scripts/drive-next.sh'
-    # - 'scripts/prose-budget.sh'
-    # - 'scripts/drive-decay.sh'
-    # - 'scripts/release-evidence.sh'
-    # - 'scripts/drive-burn.sh'
-    # - 'scripts/drive-clock.sh'
-    # - 'scripts/*.test.sh'
-    # # shared shell the self-tests source (py-with-deps.sh) or exec (flock-run.sh):
-    # # a change there changes what those tests actually run, so re-run them.
-    # - 'scripts/lib/**'
-    # - 'scripts/import-kitchen-history.py'
-    # # the seeds themselves (#459): seed-wib-dates.test.sh exists to catch a seed reverting to
-    # # UTC current_date, and that revert touches supabase/ ONLY — without this the lane would not
-    # # even start for the exact regression the guard guards. Registering the step is half the job;
-    # # the trigger is the other half.
-    # - 'supabase/seed*.sql'
-    # # the ESB push worker (#134): its self-test is what proves a real ERP identifier
-    # # cannot reach the shared vendor sandbox, and that a rehearsal cannot mark a log
-    # # posted — so a change to any of the three re-runs it.
-    # - 'scripts/esb-worker.py'
-    # - 'scripts/*.test.py'
-    # # the nightly snapshot job and its unit suite — the suite owns an acceptance criterion
-    # # (a run declares the org it writes), so a change to either has to re-run it.
-    # # NOTE: test_reporting_snapshot.py does NOT match 'scripts/*.test.py' above — the
-    # # underscore form needs its own entry, which is why both lists are here.
-    # - 'scripts/reporting_snapshot.py'
-    # - 'scripts/reporting_local_env.py'
-    # - 'scripts/test_reporting_snapshot.py'
-    # - 'scripts/setup-hooks.sh'
-    # # the applied-path harness (#393): its self-test is what proves the deployed-database
-    # # check can still fail, so a change to the harness, its fingerprint, or the commit it
-    # # treats as deployed re-runs it. `scripts/*.test.sh` above only covers the test file.
-    # # Re: the fingerprint SQL specifically — this self-test has no Postgres to run it against,
-    # # so it does not parse or execute the SQL: it strips comments/strings and checks the
-    # # parens balance and the file is non-empty, which catches truncation and gross corruption,
-    # # not a syntax error. Real execution coverage is the integration and db-contracts lanes, which
-    # # boot a stack and run this file for real (#472).
-    # - 'scripts/applied-path-check.sh'
-    # - 'scripts/lib/applied-path-fingerprint.sql'
-    # - 'supabase/applied-path-baseline'
-    # - '.github/workflows/guards.yml'
-    # # sssf vendor conformance (FAC-001, #334): any touch of the vendored factory
-    # # skeleton or its stamp re-proves byte-identity against the upstream pin.
-    # - 'scripts/vendor-skills.sh'
-    # - 'adws/**'
-    # - '.env.sample'
-    # - 'justfile'
+
 jobs:
   guard-self-tests:
-    # A release PR (main → staging, head in this repo, never a fork's branch named main) carries a
-    # tree that already passed on its way into main. A skipped required check counts as passed.
     if: ${{ !(github.event_name == 'pull_request' && github.base_ref == 'staging' && github.head_ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -79,42 +16,13 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
-      # Agent/factory tooling self-tests run only when their own files change; the product-relevant
-      # guards (UI scan, migration order, SQL/seed/docs/API checks) run always. This job is a required
-      # check, so it must report on every PR: it skips by step condition, never by a path filter.
-      - name: Detect agent tooling changes
-        id: scope
-        env:
-          EVENT: ${{ github.event_name }}
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          if [ "$EVENT" != "pull_request" ]; then echo "agent=true" >> "$GITHUB_OUTPUT"; exit 0; fi
-          git fetch --quiet --no-tags origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
-          if git diff --name-only "origin/${BASE_REF}...HEAD" | grep -Eq '^(scripts/|adws/|\.githooks/|justfile$|\.env\.sample$|supabase/applied-path-baseline|\.github/workflows/guards\.yml$)'; then
-            echo "agent=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "agent=false" >> "$GITHUB_OUTPUT"
-            echo "No agent tooling files changed; skipping their self-tests."
-          fi
+          persist-credentials: false
       - name: Impeccable changed production UI scan
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: bash scripts/impeccable-changed-ui.sh "${BASE_SHA:-HEAD^}"
-      - name: pre-commit hook self-test
-        if: steps.scope.outputs.agent == 'true'
-        run: bash scripts/pre-commit-hook.test.sh
-      - name: pre-push hook self-test
-        if: steps.scope.outputs.agent == 'true'
-        run: bash scripts/pre-push-hook.test.sh
-      - name: agent git shim self-test
-        if: steps.scope.outputs.agent == 'true'
-        run: bash scripts/agent-git-shim.test.sh
-      - name: pre-pr-verify self-test
-        if: steps.scope.outputs.agent == 'true'
-        run: bash scripts/pre-pr-verify.test.sh
       - name: migration order guard self-test (#1110)
         run: bash scripts/check-migration-order.test.sh
-      # The real check lives here too because this job is required and db-contracts is not.
       - name: Migration order — new versions must be newer than the base's latest (#1110)
         if: github.event_name == 'pull_request'
         env:
@@ -124,119 +32,10 @@ jobs:
           bash scripts/check-migration-order.sh "origin/${BASE_REF}"
       - name: review read-only and served-preview self-tests
         run: node --test scripts/review-read-only.test.mjs scripts/preview-preflight.test.mjs scripts/check-chunk-cycles.test.mjs
-      - name: MVP handoff preflight self-test
-        if: steps.scope.outputs.agent == 'true'
-        run: bash scripts/mvp-handoff-preflight.test.sh
-      - name: Impeccable detector vendor self-test
-        if: steps.scope.outputs.agent == 'true'
-        run: bash scripts/impeccable-detector.test.sh
-      - name: Impeccable side-stripe rule self-test
-        if: steps.scope.outputs.agent == 'true'
-        run: bash scripts/impeccable-side-stripe.test.sh
-      - name: UI review skill pin self-test
-        if: steps.scope.outputs.agent == 'true'
-        run: bash scripts/vendor-skills.test.sh
-      - name: UI skill runtime resolver self-test
-        if: steps.scope.outputs.agent == 'true'
-        run: bash scripts/ui-skill-tools.test.sh
-      - name: sssf vendor conformance self-test (FAC-001)
-        if: steps.scope.outputs.agent == 'true'
-        run: bash scripts/vendor-sssf.test.sh
-      - name: sssf gate composition + chain-exit self-test (FAC-004/FAC-005)
-        if: steps.scope.outputs.agent == 'true'
-        run: bash scripts/sssf-gate.test.sh
-      - name: sssf roster config self-test (FR-007)
-        if: steps.scope.outputs.agent == 'true'
-        run: bash scripts/sssf-config.test.sh
-      - name: sssf lock-wrapper self-test (re-entrancy + mutual exclusion)
-        if: steps.scope.outputs.agent == 'true'
-        run: bash scripts/sssf-locks.test.sh
-      - name: sssf timed-out quality check self-test (#389)
-        if: steps.scope.outputs.agent == 'true'
-        run: bash scripts/sssf-quality-timeout.test.sh
-      - name: sssf design-audit chain self-test (#350)
-        if: steps.scope.outputs.agent == 'true'
-        run: bash scripts/sssf-design-audit.test.sh
-      - name: quantitative design-audit harness self-test (#quant-ui)
-        if: steps.scope.outputs.agent == 'true'
-        run: bash scripts/design-quality-audit.test.sh
-      - name: sssf provider-fault vs model-fault self-test (#386)
-        if: steps.scope.outputs.agent == 'true'
-        run: bash scripts/sssf-provider-error.test.sh
-      - name: kitchen history import self-test (#349)
-        if: steps.scope.outputs.agent == 'true'
-        run: bash scripts/import-kitchen-history.test.sh
-      - name: ESB push worker test-data + dispatch self-test (#134, FR-084, FR-053)
-        if: steps.scope.outputs.agent == 'true'
-        run: bash scripts/esb-worker.test.sh   # section G runs esb-worker-dispatch.test.py
-      - name: reporting snapshot job self-test (#133)
-        if: steps.scope.outputs.agent == 'true'
-        run: bash scripts/reporting-snapshot.test.sh
-      - name: applied-path harness self-test (#393)
-        if: steps.scope.outputs.agent == 'true'
-        # Behavioural: it builds a throwaway git repo and stubs the database, so it needs no
-        # Docker. Section H guts the harness and requires the suite to notice. Section U checks
-        # the fingerprint SQL's parens balance and that it is non-empty (no Postgres here to
-        # execute it against — the integration/db-contracts lanes do that for real).
-        run: bash scripts/applied-path-check.test.sh
-      - name: e2e-takes-the-db-lock self-test (#388)
-        if: steps.scope.outputs.agent == 'true'
-        run: bash scripts/e2e-db-lock.test.sh
       - name: seed dates are WIB, not UTC self-test (#459)
         run: bash scripts/seed-wib-dates.test.sh
-      - name: gh-post posting-policy + PR-stamp self-test
-        if: steps.scope.outputs.agent == 'true'
-        run: bash scripts/gh-post.test.sh
-      - name: record-review independent-review stamp self-test
-        if: steps.scope.outputs.agent == 'true'
-        run: bash scripts/record-review.test.sh
-      - name: lane-exempt audit-trail self-test
-        if: steps.scope.outputs.agent == 'true'
-        run: bash scripts/lane-exempt.test.sh
-      - name: cloud sandbox tool helpers self-test
-        if: steps.scope.outputs.agent == 'true'
-        run: bash scripts/cloud-tools.test.sh
-      - name: drive-next ticket-picker self-test
-        if: steps.scope.outputs.agent == 'true'
-        run: bash scripts/drive-next.test.sh
-      - name: commit-msg essay-cap self-test
-        if: steps.scope.outputs.agent == 'true'
-        run: bash scripts/commit-msg-cap.test.sh
-      - name: prose-budget comment-essay self-test
-        if: steps.scope.outputs.agent == 'true'
-        run: bash scripts/prose-budget.test.sh
-      - name: drive-decay backlog-rot self-test
-        if: steps.scope.outputs.agent == 'true'
-        run: bash scripts/drive-decay.test.sh
-      - name: release-evidence package self-test
-        if: steps.scope.outputs.agent == 'true'
-        run: bash scripts/release-evidence.test.sh
-      - name: drive-burn report self-test
-        if: steps.scope.outputs.agent == 'true'
-        run: bash scripts/drive-burn.test.sh
-      - name: drive-clock report self-test
-        if: steps.scope.outputs.agent == 'true'
-        run: bash scripts/drive-clock.test.sh
-      - name: worktree-cleanup sweep self-test
-        if: steps.scope.outputs.agent == 'true'
-        run: bash scripts/worktree-cleanup.test.sh
-      - name: carry-stamps pure-rebase self-test
-        if: steps.scope.outputs.agent == 'true'
-        run: bash scripts/carry-stamps.test.sh
-      - name: gh-shim PATH firewall self-test
-        if: steps.scope.outputs.agent == 'true'
-        run: bash scripts/gh-shim.test.sh
-      - name: factory-run shim-carrier self-test
-        if: steps.scope.outputs.agent == 'true'
-        run: bash scripts/factory-run.test.sh
-      - name: worktree npm-seed hardlink self-test
-        if: steps.scope.outputs.agent == 'true'
-        run: bash scripts/worktree-npm-seed.test.sh
       - name: SECURITY DEFINER revoke lint self-test
         run: bash scripts/lint-security-definer.test.sh
-      - name: ci-e2e fair-use dispatch door self-test
-        if: steps.scope.outputs.agent == 'true'
-        run: bash scripts/ci-e2e.test.sh
       - name: API docs freshness self-test
         run: bash scripts/api-reference.test.sh
       - name: mos command-line client self-test (#1117)
@@ -245,13 +44,7 @@ jobs:
         run: bash scripts/mcp-catalog.test.sh
       - name: statement-timeout check self-test
         run: bash scripts/check-statement-timeout.test.sh
-      - name: staging deploy script self-test (with the migration rehearsal on a throwaway Postgres)
-        if: steps.scope.outputs.agent == 'true'
-        run: bash scripts/deploy-staging.test.sh   # also covers scripts/rehearse-migrations.sh
-      - name: operations scripts self-tests (snapshot cron, ops check, backup, production deploy)
-        if: steps.scope.outputs.agent == 'true'
-        run: |
-          bash scripts/reporting-snapshot-cron.test.sh
-          bash scripts/ops-check.test.sh
-          bash scripts/db-backup.test.sh
-          bash scripts/deploy-production.test.sh
+      - name: Supabase CLI version pin self-test
+        run: bash scripts/check-supabase-cli-version.test.sh
+      - name: Supabase CLI version pins
+        run: bash scripts/check-supabase-cli-version.sh

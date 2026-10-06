@@ -39,7 +39,6 @@ vi.mock('@/auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
 import { RequireAccessRole } from '@/auth/require-access-role'
 import { AdminRoute } from '@/auth/admin-route'
-import { RequireCapability } from '@/auth/require-capability'
 import { routeConfig } from '@/router'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { BreadcrumbTitleProvider } from './breadcrumb-title'
@@ -295,11 +294,10 @@ describe('access boundary', () => {
   })
 
   // ── AC-023 ────────────────────────────────────────────────────────────────────────────────
-  describe('AC-023: all three guards render the ONE boundary', () => {
+  describe('AC-023: both live guards render the ONE boundary', () => {
     const CASES = [
       ['RequireAccessRole', '/cafe/pushes', <RequireAccessRole anyOf={CAFE_PUSHES_ROLES} />, 'Café'],
       ['AdminRoute', '/admin/people', <AdminRoute />, 'Admin Settings'],
-      ['RequireCapability', '/work/projects', <RequireCapability capability="workline.manage" />, 'Projects & Processes'],
     ] as const
 
     it.each(CASES)('%s renders the boundary in place for an authenticated viewer', (_n, path, guard, area) => {
@@ -316,22 +314,12 @@ describe('access boundary', () => {
       expect(screen.queryByTestId('empty-state')).not.toBeInTheDocument()
       expect(screen.getByTestId('landing')).toHaveTextContent('/')
     })
-
-    // A capability gate closes ONE link inside a destination the viewer holds: the rail beside
-    // this panel lists Work, expanded and marked active. "Work is outside your access" denies
-    // something the same screen shows the viewer holding, so the panel names the link.
-    it('the capability gate names the LINK, never the area the viewer plainly has', () => {
-      setViewer(['member'])
-      renderAt('/work/projects', <RequireCapability capability="workline.manage" />)
-      expect(screen.getByRole('heading', { level: 2 }).textContent).not.toContain('Work is outside')
-    })
   })
 
   // ── The shell chrome says the same word the panel does ─────────────────────────────────────
   describe('the chrome does not name what the panel withholds', () => {
     const CHROME_CASES = [
       ['/admin/people', 'Admin Settings', <AdminRoute />],
-      ['/work/projects', 'Projects & Processes', <RequireCapability capability="workline.manage" />],
     ] as const
 
     it.each(CHROME_CASES)('%s: the desktop breadcrumb reads "%s" and nothing else', (path, label, guard) => {
@@ -346,11 +334,6 @@ describe('access boundary', () => {
       expect(crumbText()).toBe(label)
     })
 
-    it('not vacuous: with no boundary mounted the same crumbs keep their trail', () => {
-      setViewer(['admin'])
-      renderChrome('/work/projects', <RequireCapability capability="workline.manage" />, false)
-      expect(crumbText()).toBe('Work · Projects & Processes')
-    })
   })
 })
 
@@ -359,7 +342,7 @@ describe('access boundary', () => {
 function isGuard(element: ReactNode): boolean {
   return (
     isValidElement(element) &&
-    (element.type === RequireAccessRole || element.type === AdminRoute || element.type === RequireCapability)
+    (element.type === RequireAccessRole || element.type === AdminRoute)
   )
 }
 
