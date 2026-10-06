@@ -61,7 +61,7 @@ describe('KL-FOOTER-NAV: the capture footer stays reachable above the shell bott
 })
 
 describe('dense Café capture controls stay inside their table column', () => {
-  it('lets long unit labels ellipsize instead of widening across the item name', () => {
+  it('stacks and wraps unit labels without widening across the item name', () => {
     const quantityGroup = ruleBodyAt(css.indexOf('.kl-form .kls-quantity {'))
     const unit = captureControlsCss.slice(captureControlsCss.indexOf('.cafe-capture-unit {'))
     const desktopQuantity = ruleBodyAt(css.indexOf('.kl-form .kls-quantity .kls-qty {'))
