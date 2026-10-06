@@ -3,8 +3,8 @@
 .cwl-held {
   margin-top: 4px;
   color: var(--warning-foreground);
-  background: color-mix(in srgb, var(--warning) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
+  background: var(--ds-tag-background-amber);
+  border: 1px solid var(--ds-color-amber11);
 }
 .cwl-help {
   margin: 0 0 14px;
@@ -118,6 +118,7 @@
   min-width: 0;
   width: 100%;
   color: var(--foreground);
+  text-align: left;
   font-size: var(--font-size-control);
   line-height: 1.2;
   white-space: nowrap;

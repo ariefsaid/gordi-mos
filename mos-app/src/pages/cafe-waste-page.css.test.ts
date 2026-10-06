@@ -4,6 +4,8 @@ import { resolve } from 'node:path'
 
 const css = readFileSync(resolve(process.cwd(), 'src/pages/cafe-waste-page.css'), 'utf8')
   .replace(/\/\*[\s\S]*?\*\//g, '')
+const selectCss = readFileSync(resolve(process.cwd(), 'src/components/ui/Select.css'), 'utf8')
+  .replace(/\/\*[\s\S]*?\*\//g, '')
 
 function rule(selector: string): string {
   const index = css.indexOf(selector)
@@ -24,6 +26,18 @@ describe('Waste capture controls stay paired and complete', () => {
     expect(css).toMatch(/@media\s*\(min-width:\s*768px\)[\s\S]*?\.cwl-unit-menu\s*\{\s*font-size:\s*var\(--font-size-label\)/)
     expect(css).toMatch(/\.cwl-unit-menu \.mk-select__option \{ gap: 4px; padding-inline: 6px; \}/)
     expect(photo).toMatch(/justify-self:\s*stretch/)
+  })
+
+  it('left-aligns fixed unit labels with the quantity-to-unit track', () => {
+    expect(rule('.cwl-unit-label {')).toMatch(/text-align:\s*left/)
+    expect(selectCss).toMatch(/\.mk-select__field\s*\{[^}]*text-align:\s*left/)
+  })
+
+  it('uses in-gamut semantic warning tokens for the held banner', () => {
+    const held = rule('.cwl-held {')
+    expect(held).toMatch(/background:\s*var\(--ds-tag-background-amber\)/)
+    expect(held).toMatch(/border:\s*1px solid var\(--ds-color-amber11\)/)
+    expect(held).not.toMatch(/color-mix/)
   })
 
   it('wraps long units on phones instead of hiding their tail', () => {

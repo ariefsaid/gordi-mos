@@ -251,7 +251,10 @@
 .kls-unit-select .mk-select__field { max-width: 100%; }
 
 @media (min-width: 768px) {
-  .kls-dense .kls-unit-change { min-height: var(--cafe-capture-control-height, 32px); }
+  .kls-dense .kls-unit-change {
+    min-height: var(--cafe-capture-control-height, 32px);
+    padding-inline: 2px;
+  }
 }
 
 /* Phone card: the running "logged N" reads with the quantity it totals, so it sits under the
