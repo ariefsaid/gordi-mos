@@ -88,7 +88,7 @@ import {
   type KitchenListRow,
 } from '@/lib/kitchen-item-list'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
-import { formatDayMonthYear, formatWeekdayDayMonth, formatWibDateTime } from '@/lib/format/date'
+import { formatDayMonthYear, formatWibDateTime } from '@/lib/format/date'
 import { EmptyState, LoadingShell } from '@/components/ui/state-kit'
 import { useFocusRestore } from '@/components/ui/use-focus-restore'
 import { reportError } from '@/lib/telemetry'
@@ -375,6 +375,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false)
   const [savedDraftAt, setSavedDraftAt] = useState<string | null>(null)
   const [restoredDraft, setRestoredDraft] = useState(false)
+  const [restoredDraftInfo, setRestoredDraftInfo] = useState<{ count: number; savedAt: string } | null>(null)
+  const [restoreAnnouncement, setRestoreAnnouncement] = useState('')
   const [otherDateDrafts, setOtherDateDrafts] = useState<StoredCafeCaptureDraft<StoredKitchenCaptureDraft>[]>([])
   const [pendingDateDraftDiscard, setPendingDateDraftDiscard] = useState<CafeCaptureDraftScope | null>(null)
   // #586: `lines` stages ONE row per item across every movement segment (produce, each
@@ -392,6 +394,12 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   const [pendingStream, setPendingStream] = useState<ProductionStream | null>(null)
   // Staged items the database refused as not on this stream's list (#222). Their lines stay, marked.
   const [invalidItemIds, setInvalidItemIds] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    if (!restoreAnnouncement) return
+    const timer = window.setTimeout(() => setRestoreAnnouncement(''), 1500)
+    return () => window.clearTimeout(timer)
+  }, [restoreAnnouncement])
 
   // Client-side search + category (P-3), URL-synced so the view survives refresh/share (I7 / D-E1).
   // Group collapse stays INTERNAL to the shared <DataTable> (no page-level collapsedGroups state).
@@ -509,6 +517,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   const loadData = useCallback(async () => {
     const gen = ++requestGen.current
     setStatus({ kind: 'loading' })
+    setRestoredDraftInfo(null)
+    setRestoreAnnouncement('')
     setSummaryCountsAvailable(false)
     try {
       const [catalog, bu] = await Promise.all([
@@ -574,6 +584,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
         setLines({})
         setSavedDraftAt(storedDraftRecord?.updatedAt ?? null)
         setRestoredDraft(Boolean(storedDraftRecord))
+        setRestoredDraftInfo(null)
+        setRestoreAnnouncement('')
         setOtherDateDrafts(dateDrafts)
         setStatus({ kind: 'ready' })
         return
@@ -601,6 +613,15 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       setLines(restored.lines)
       setSavedDraftAt(storedDraftRecord?.updatedAt ?? null)
       setRestoredDraft(Boolean(storedDraftRecord))
+      const restoredCount = Object.values(restored.lines).filter(line => line.qty_porsi > 0).length
+      const restoredInfo = storedDraftRecord && restoredCount > 0
+        ? { count: restoredCount, savedAt: storedDraftRecord.updatedAt }
+        : null
+      setRestoredDraftInfo(restoredInfo)
+      setRestoreAnnouncement(restoredInfo ? t(
+        restoredInfo.count === 1 ? 'cafe.captureDraft.restored.one' : 'cafe.captureDraft.restored.other',
+        { count: restoredInfo.count, time: formatWibDateTime(restoredInfo.savedAt) },
+      ) : '')
       setOtherDateDrafts(dateDrafts)
       setStatus({ kind: 'ready' })
     } catch {
@@ -632,6 +653,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       clearCafeCaptureDraft(scope)
       setSavedDraftAt(null)
       setRestoredDraft(false)
+      setRestoredDraftInfo(null)
+      setRestoreAnnouncement('')
       return
     }
     const updatedAt = writeCafeCaptureDraft<StoredKitchenCaptureDraft>(scope, {
@@ -717,6 +740,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     setMovement(PRODUCE)
     setSavedDraftAt(null)
     setRestoredDraft(false)
+    setRestoredDraftInfo(null)
+    setRestoreAnnouncement('')
     setOtherDateDrafts([])
     setStatus({ kind: 'loading' })
     setSummaryCountsAvailable(false)
@@ -791,6 +816,15 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       setLines(restored.lines)
       setSavedDraftAt(storedDraftRecord?.updatedAt ?? null)
       setRestoredDraft(Boolean(storedDraftRecord))
+      const restoredCount = Object.values(restored.lines).filter(line => line.qty_porsi > 0).length
+      const restoredInfo = storedDraftRecord && restoredCount > 0
+        ? { count: restoredCount, savedAt: storedDraftRecord.updatedAt }
+        : null
+      setRestoredDraftInfo(restoredInfo)
+      setRestoreAnnouncement(restoredInfo ? t(
+        restoredInfo.count === 1 ? 'cafe.captureDraft.restored.one' : 'cafe.captureDraft.restored.other',
+        { count: restoredInfo.count, time: formatWibDateTime(restoredInfo.savedAt) },
+      ) : '')
       setOtherDateDrafts(dateDrafts)
       setStatus({ kind: 'ready' })
     } catch {
@@ -840,7 +874,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       disabled={status.kind === 'submitting'}
       context={<>
         <span aria-hidden="true">·</span>
-        <span className="kl-date tabular">{formatWeekdayDayMonth(logDate)}</span>
+        <span className="kl-date tabular">{formatDayMonthYear(logDate)}</span>
       </>}
     />
     {pendingStream && <ConfirmDialog
@@ -873,7 +907,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   const captureContext = (
     <div className="cafe-capture-context">
       {streamPicker}
-      {stream === null && <span className="kl-date tabular">{formatWeekdayDayMonth(logDate)}</span>}
+      {stream === null && <span className="kl-date tabular">{formatDayMonthYear(logDate)}</span>}
     </div>
   )
 
@@ -986,6 +1020,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     }
     setSavedDraftAt(null)
     setRestoredDraft(false)
+    setRestoredDraftInfo(null)
+    setRestoreAnnouncement('')
     setDiscardConfirmOpen(false)
   }
 
@@ -1093,6 +1129,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       if (stream) clearCafeCaptureDraft(kitchenDraftScope(mode, draftOrgId, draftPersonId, stream, logDate))
       setSavedDraftAt(null)
       setRestoredDraft(false)
+      setRestoredDraftInfo(null)
+      setRestoreAnnouncement('')
       setInvalidItemIds(new Set())
       setLines(buildLines(wipItems, planMap, stockMap, movement))
     } catch (err) {
@@ -1557,15 +1595,26 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
             stay/discard when leaving the route with unsaved entries. */}
         <RouteLeaveGuard when={stagedCount > 0} message={t('kitchen.log.leave.confirm')} />
         <OfflineBanner show={!isOnline && !showOfflineInFooter} />
-        {status.kind === 'ready' && restoredDraft && draftCount > 0 && savedDraftAt && (
-          <section className="kl-capture-draft-notice" role="status" aria-live="polite">
-            <div>
-              <strong>{t(draftCount === 1 ? 'cafe.captureDraft.restored.one' : 'cafe.captureDraft.restored.other', {
-                count: draftCount,
-                time: formatWibDateTime(savedDraftAt),
-              })}</strong>
-              <small>{t('cafe.captureDraft.expiry')}</small>
-            </div>
+        {restoreAnnouncement && (
+          <p className="sr-only" role="status" aria-live="polite">{restoreAnnouncement}</p>
+        )}
+        {status.kind === 'ready' && restoredDraft && draftCount > 0 && savedDraftAt && restoredDraftInfo && (
+          <section className="kl-capture-draft-notice" aria-live="off">
+            <details className="kl-capture-draft-details" open={isDesktop}>
+              <summary>
+                <strong>{t(
+                  restoredDraftInfo.count === 1
+                    ? 'cafe.captureDraft.restoredCompact.one'
+                    : 'cafe.captureDraft.restoredCompact.other',
+                  { count: restoredDraftInfo.count },
+                )}</strong>
+                <span className="sr-only">{t('cafe.captureDraft.details')}</span>
+              </summary>
+              <div className="kl-capture-draft-details__body">
+                <small>{t('cafe.captureDraft.savedAt', { time: formatWibDateTime(restoredDraftInfo.savedAt) })}</small>
+                {otherDateDrafts.length === 0 && <small>{t('cafe.captureDraft.expiry')}</small>}
+              </div>
+            </details>
             <button type="button" className="btn btn-outline" onClick={handleDiscardClick} disabled={isSubmitting}>
               {t('kitchen.log.discard')}
             </button>
@@ -1574,6 +1623,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
         {status.kind === 'ready' && otherDateDrafts.length > 0 && (
           <section className="kl-capture-draft-list" aria-labelledby="kl-other-date-drafts">
             <h2 id="kl-other-date-drafts">{t('cafe.captureDraft.otherDates')}</h2>
+            <p className="kl-capture-draft-guidance">{t('cafe.captureDraft.otherDatesNextStep')}</p>
             {otherDateDrafts.map(record => {
               const savedLines = kitchenDraftLines(record.value)
               const date = formatDayMonthYear(record.scope.logDate)
@@ -1583,25 +1633,34 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
                   className="kl-capture-draft-notice"
                   aria-label={t(savedLines.length === 1 ? 'cafe.captureDraft.otherDate.one' : 'cafe.captureDraft.otherDate.other', { date, count: savedLines.length })}
                 >
-                  <div>
-                    <strong>{t(savedLines.length === 1 ? 'cafe.captureDraft.otherDate.one' : 'cafe.captureDraft.otherDate.other', { date, count: savedLines.length })}</strong>
-                    <ul>
-                      {savedLines.map(line => {
-                        const item = wipItems.find(candidate => candidate.id === line.wip_item_id)
-                        return <li key={line.wip_item_id}>
-                          <span>{item?.name ?? t('kitchen.log.draft.itemUnavailable')}</span>
-                          <span>{formatCaptureQty(line.entry_quantity ?? line.qty_porsi)} {line.entry_unit_name ?? t('kitchen.unit.porsi')}</span>
-                        </li>
-                      })}
-                    </ul>
-                    <small>{formatWibDateTime(record.updatedAt)} · {t('cafe.captureDraft.expiry')}</small>
-                  </div>
+                  <details className="kl-capture-draft-details" open={isDesktop}>
+                    <summary>
+                      <strong>{t(savedLines.length === 1 ? 'cafe.captureDraft.otherDate.one' : 'cafe.captureDraft.otherDate.other', { date, count: savedLines.length })}</strong>
+                      <span className="sr-only">{t('cafe.captureDraft.details')}</span>
+                    </summary>
+                    <div className="kl-capture-draft-details__body">
+                      <ul>
+                        {savedLines.map(line => {
+                          const item = wipItems.find(candidate => candidate.id === line.wip_item_id)
+                          const itemName = item
+                            ? `${item.kind ?? 'WIP'} - ${item.name}`
+                            : t('kitchen.log.draft.itemUnavailable')
+                          return <li key={line.wip_item_id}>
+                            <span>{itemName}</span>
+                            <span>{formatCaptureQty(line.entry_quantity ?? line.qty_porsi)} {line.entry_unit_name ?? t('kitchen.unit.porsi')}</span>
+                          </li>
+                        })}
+                      </ul>
+                      <small>{t('cafe.captureDraft.savedAt', { time: formatWibDateTime(record.updatedAt) })}</small>
+                    </div>
+                  </details>
                   <button type="button" className="btn btn-outline" onClick={() => requestDiscardDateDraft(record.scope)}>
                     {t('kitchen.log.discard')}
                   </button>
                 </article>
               )
             })}
+            <small className="kl-capture-draft-expiry">{t('cafe.captureDraft.expiry')}</small>
           </section>
         )}
         {/* The Location/opening door and the Plan/Made/Off-plan figures dock into one compact

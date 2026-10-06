@@ -54,6 +54,9 @@ describe('formatWibDateTime — Asia/Jakarta wall clock with the WIB suffix', ()
   it('accepts a Date instance', () => {
     expect(formatWibDateTime(new Date('2026-06-12T05:30:00Z'))).toBe('12 Jun 2026, 12:30 WIB')
   })
+  it('uses the same unpadded day as other shared date labels', () => {
+    expect(formatWibDateTime('2026-10-05T01:30:00Z', 'en')).toBe('5 Oct 2026, 08:30 WIB')
+  })
 })
 
 describe('dateLocaleTag — the app Locale → BCP-47 seam', () => {

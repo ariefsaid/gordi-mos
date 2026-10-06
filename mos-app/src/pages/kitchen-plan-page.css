@@ -72,6 +72,19 @@
   /* AA-darkened red text, not base --destructive (WCAG-AA) — mirrors .kl-banner-error */
   color: var(--status-lost-text);
 }
+.kp-save-failed-after-switch {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+.kp-save-failed-after-switch p { min-width: 0; margin: 0; }
+/* The alert is inline at wider widths; undo .btn-touch's full-width default there. */
+.kp-save-failed-after-switch .btn { flex: 0 0 auto; width: auto; }
+@media (max-width: 480px) {
+  .kp-save-failed-after-switch { flex-direction: column; }
+  .kp-save-failed-after-switch .btn { width: 100%; }
+}
 
 /* ── #401: the Pesanan read-only explainer — one muted sentence + the CTA to the log
    surface where the member's work actually happens. ── */

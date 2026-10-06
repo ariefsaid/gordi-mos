@@ -214,7 +214,7 @@ describe('CafeWastePage', () => {
     expect(localStorage.length).toBe(0)
   })
 
-  it('keeps yesterday’s local waste draft out of today’s form and offers it with Discard', async () => {
+  it('confirms before discarding an other-date waste draft and preserves it on cancel', async () => {
     const scope = {
       orgId: 'org-1',
       personId: 'person-1',
@@ -245,11 +245,64 @@ describe('CafeWastePage', () => {
     const yesterday = await screen.findByRole('article', { name: /unsent from 1 oct 2026/i })
     expect(yesterday).toHaveTextContent('Oat Latte')
     expect(yesterday).toHaveTextContent('4 cup')
+    expect(screen.getByText(/today's form can't send older entries.*ask a café lead/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/expire after 7 days/i)).toHaveLength(1)
     fireEvent.click(within(yesterday).getByRole('button', { name: 'Discard' }))
 
+    const dialog = await screen.findByRole('dialog', { name: 'Discard this saved draft?' })
+    expect(dialog).toHaveTextContent('1 Oct 2026')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    expect(yesterday).toBeInTheDocument()
+    expect(localStorage.getItem(cafeCaptureDraftStorageKey(scope))).not.toBeNull()
+
+    fireEvent.click(within(yesterday).getByRole('button', { name: 'Discard' }))
+    const confirm = await screen.findByRole('dialog', { name: 'Discard this saved draft?' })
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Discard' }))
     await waitFor(() => expect(screen.queryByRole('article', { name: /unsent from/i })).toBeNull())
     expect(localStorage.getItem(cafeCaptureDraftStorageKey(scope))).toBeNull()
     expect(screen.getByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })).toHaveValue(null)
+  })
+
+  it('confirms before discarding the restored current-date waste draft', async () => {
+    const scope = {
+      orgId: 'org-1',
+      personId: 'person-1',
+      form: 'waste' as const,
+      branchId: 'branch-1',
+      activity: 'bar',
+      logDate: '2026-10-02',
+    }
+    writeCafeCaptureDraft(scope, {
+      branch_id: 'branch-1',
+      activity: 'bar',
+      entries: {
+        'wip-1': {
+          client_request_id: '20000000-0000-0000-0000-000000000002',
+          client_attempted: false,
+          quantity: '2.5',
+          unitId: 'unit-cup',
+          unitFactor: 1,
+          unitBasisKnown: true,
+          capturedUnitName: 'cup',
+        },
+      },
+    })
+
+    renderPage()
+    const quantity = await screen.findByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })
+    expect(quantity).toHaveValue(2.5)
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
+
+    const dialog = await screen.findByRole('dialog', { name: 'Discard this saved draft?' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    expect(quantity).toHaveValue(2.5)
+    expect(localStorage.getItem(cafeCaptureDraftStorageKey(scope))).not.toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
+    const confirm = await screen.findByRole('dialog', { name: 'Discard this saved draft?' })
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Discard' }))
+    await waitFor(() => expect(quantity).toHaveValue(null))
+    expect(localStorage.getItem(cafeCaptureDraftStorageKey(scope))).toBeNull()
   })
 
   it('retries waste preparation with the same request id after a dropped response', async () => {

@@ -149,30 +149,50 @@
   border: 1px solid color-mix(in srgb, var(--success) 25%, transparent);
   color: var(--status-won-text);
 }
-.kl-capture-draft-list { display: grid; gap: 8px; margin: 0 0 16px; }
-.kl-capture-draft-list > h2 { margin: 0; font-size: var(--font-size-subheading); }
+.kl-capture-draft-list { display: grid; gap: 8px; margin: 16px 0; }
+.kl-capture-draft-list > h2 {
+  margin: 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  color: var(--foreground);
+  font-family: var(--font-display);
+  font-size: var(--font-size-body-lg);
+  font-weight: 600;
+}
+.kl-capture-draft-guidance { margin: 0; color: var(--muted-foreground); font-size: var(--font-size-body); }
 .kl-capture-draft-notice {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px 12px;
   min-width: 0;
-  padding: 12px;
+  padding: 8px 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--card);
   color: var(--foreground);
   font-size: var(--font-size-control);
 }
-.kl-capture-draft-notice > div { min-width: 0; flex: 1; }
-.kl-capture-draft-notice ul { display: grid; gap: 4px; margin: 8px 0 0; padding: 0; list-style: none; }
+.kl-capture-draft-details { flex: 1 1 auto; min-width: 0; }
+.kl-capture-draft-details > summary { min-height: 44px; cursor: pointer; }
+.kl-capture-draft-details > summary::marker { color: var(--muted-foreground); }
+.kl-capture-draft-details > summary > strong {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kl-capture-draft-details__body { min-width: 0; padding: 0 0 8px 14px; }
+.kl-capture-draft-notice ul { display: grid; gap: 4px; margin: 0 0 8px; padding: 0; list-style: none; }
 .kl-capture-draft-notice li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; min-width: 0; }
 .kl-capture-draft-notice li > span { min-width: 0; overflow-wrap: anywhere; }
-.kl-capture-draft-notice small { display: block; margin-top: 8px; color: var(--muted-foreground); }
-.kl-capture-draft-notice .btn { flex: 0 0 auto; min-height: 44px; }
+.kl-capture-draft-notice small,
+.kl-capture-draft-expiry { display: block; margin-top: 8px; color: var(--muted-foreground); }
+.kl-capture-draft-notice .btn { flex: 0 0 auto; min-height: 44px; align-self: center; }
 @media (max-width: 480px) {
-  .kl-capture-draft-notice { flex-direction: column; }
-  .kl-capture-draft-notice .btn { align-self: flex-start; }
+  .kl-capture-draft-notice { gap: 8px; padding: 6px 8px; }
+  .kl-capture-draft-notice .btn { align-self: center; }
 }
 
 /* v4 chrome merge: `.kl-seg-wrap` is gone. The action_type seg was a standalone band

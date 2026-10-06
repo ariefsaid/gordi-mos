@@ -56,7 +56,7 @@ export function formatWibDateTime(value: string | Date, locale?: Locale): string
     timeZone: 'Asia/Jakarta',
     year: 'numeric',
     month: 'short',
-    day: '2-digit',
+    day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,

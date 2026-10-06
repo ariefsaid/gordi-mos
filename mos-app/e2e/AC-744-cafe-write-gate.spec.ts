@@ -178,7 +178,8 @@ test.describe('AC-744  AC-008: the Café write gate — barista submits, Sales c
         await expect(page.locator('html')).toHaveAttribute('lang', locale)
         await ensureStream(page)
         await expect(page.getByRole('heading', { name: locale === 'en' ? 'Log production' : 'Catat produksi', exact: true })).toBeVisible()
-        await expect(page.locator('.kl-capture-draft-notice').first()).toContainText(locale === 'en' ? /Restored 1 unsent entry · saved/ : /Memulihkan 1 entri yang belum dikirim · tersimpan/)
+        await expect(page.locator('.kl-capture-draft-notice').first()).toContainText(locale === 'en' ? '1 unsent entry restored' : '1 entri belum dikirim dipulihkan')
+        await expect(page.getByRole('status').filter({ hasText: locale === 'en' ? /Restored 1 unsent entry · saved/ : /Dipulihkan 1 entri yang belum dikirim · tersimpan/ })).toBeVisible()
         await expect(page.locator('.kl-capture-draft-list')).toContainText(ITEM_NAME)
         await expect(page.locator('.kl-capture-draft-list')).toContainText(locale === 'en' ? 'Unsent entries from other dates' : 'Entri belum dikirim dari tanggal lain')
         const quantityLabel = locale === 'en'
@@ -187,6 +188,11 @@ test.describe('AC-744  AC-008: the Café write gate — barista submits, Sales c
         await expect(page.getByRole('spinbutton', { name: quantityLabel })).toHaveValue('9')
         const documentWidth = await page.evaluate(() => document.documentElement.scrollWidth)
         expect(documentWidth, `horizontal overflow at ${width}px (${locale})`).toBeLessThanOrEqual(width)
+        if (width === 390) {
+          const otherDateDetails = page.locator('.kl-capture-draft-list article details')
+          if (await otherDateDetails.getAttribute('open') === null) await otherDateDetails.locator('summary').click()
+          await expect(page.locator('.kl-capture-draft-list')).toContainText(ITEM_NAME)
+        }
         if (REVIEW_DIR) {
           await mkdir(REVIEW_DIR, { recursive: true })
           await page.screenshot({

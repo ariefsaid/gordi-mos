@@ -553,7 +553,7 @@ test.describe('Café item settings', () => {
         await expect(switchDialog).toContainText(locale === 'en' ? /will be discarded before switching to/ : /akan dibuang sebelum pindah ke/)
         await assertNoOverflow(page, width)
         await captureViewport(page, `cafe-items-unsaved-switch-${locale}-${width}.png`)
-        await switchDialog.getByRole('button', { name: locale === 'en' ? 'Stay on this page' : 'Tetap di halaman ini', exact: true }).click()
+        await switchDialog.getByRole('button', { name: locale === 'en' ? 'Keep editing' : 'Lanjut mengedit', exact: true }).click()
         await expect(name).toHaveValue('Drafted item name')
 
         const leaveLink = page.getByRole('navigation', { name: 'Primary' }).getByRole('link', {

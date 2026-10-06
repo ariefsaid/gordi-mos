@@ -1444,7 +1444,9 @@ describe('capture retry identity and saved drafts', () => {
 
     expect(quantity).not.toHaveValue(8)
     const oldDraft = await screen.findByRole('article', { name: /unsent from/i })
-    expect(oldDraft).toHaveTextContent('Nasi Goreng')
+    expect(oldDraft).toHaveTextContent('WIP - Nasi Goreng')
+    expect(screen.getByText(/today's form can't send older entries.*ask a café lead/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/expire after 7 days/i)).toHaveLength(1)
     fireEvent.click(within(oldDraft).getByRole('button', { name: 'Discard' }))
     const discardDialog = await screen.findByRole('dialog', { name: 'Discard this saved draft?' })
     fireEvent.click(within(discardDialog).getByRole('button', { name: 'Discard' }))
@@ -1503,9 +1505,29 @@ describe('capture retry identity and saved drafts', () => {
     await renderPage(VIEWER_MEMBER, appUrl(path))
     const restored = await screen.findByRole('spinbutton', { name: quantityLabel })
     expect(restored).toHaveValue(quantity)
+    const compactNotice = screen.getByText('1 unsent entry restored').closest('.kl-capture-draft-notice')
+    expect(compactNotice).toHaveAttribute('aria-live', 'off')
     fireEvent.click(screen.getByRole('button', { name: /^submit/i }))
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/submitted/i))
     expect(localStorage.length).toBe(0)
+  })
+
+  it('freezes restore count and timestamp while later typing changes the draft', async () => {
+    const first = await renderPage(VIEWER_MEMBER, appUrl('/cafe'))
+    fireEvent.change(await screen.findByRole('spinbutton', { name: /quantity produced for nasi goreng/i }), { target: { value: '12' } })
+    await waitFor(() => expect(localStorage.length).toBeGreaterThan(0))
+    first.unmount()
+
+    await renderPage(VIEWER_MEMBER, appUrl('/cafe'))
+    const restored = await screen.findByRole('spinbutton', { name: /quantity produced for nasi goreng/i })
+    const notice = screen.getByText('1 unsent entry restored').closest('.kl-capture-draft-notice')
+    expect(notice).toHaveAttribute('aria-live', 'off')
+    const announcement = screen.getByRole('status').textContent
+    fireEvent.change(screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i }), { target: { value: '3' } })
+
+    expect(notice).toHaveTextContent('1 unsent entry restored')
+    expect(screen.getByRole('status')).toHaveTextContent(announcement ?? '')
+    expect(restored).toHaveValue(12)
   })
 
   it('does not double-count a committed production row when its saved request replays after reload', async () => {
@@ -1679,7 +1701,7 @@ describe('I3: shared PageHead variant="content"', () => {
     const context = head.querySelector('.cafe-capture-context') as HTMLElement
     expect(context).toBeInTheDocument()
     expect(context.querySelector('[data-testid="cafe-stream"]')).toBeInTheDocument()
-    expect(within(context).getByText(/^\w{3} \d{1,2} \w{3,5}$/)).toBeInTheDocument()
+    expect(within(context).getByText(/^\d{1,2} \w{3,5} \d{4}$/)).toBeInTheDocument()
     expect(head.querySelector('.page-head-meta')).toBeNull()
     // the bespoke hand-rolled header is gone
     expect(document.querySelector('.kl-head')).toBeNull()

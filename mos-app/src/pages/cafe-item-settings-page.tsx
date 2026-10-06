@@ -499,7 +499,7 @@ function CafeItemSettingsPageForViewer() {
             to: streamLabel(t, pendingStream),
           })}
           confirmLabel={t('cafe.items.unsaved.switch')}
-          cancelLabel={t('leaveGuard.stay')}
+          cancelLabel={t('cafe.items.unsaved.keepEditing')}
           tone="destructive"
           onConfirm={async () => applyStreamChange(pendingStream)}
           onCancel={() => setPendingStream(null)}

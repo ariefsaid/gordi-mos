@@ -334,7 +334,7 @@ describe('Cafe item permissions per activity', () => {
     expect(mockCanManage).toHaveBeenCalledWith(activity)
   })
 
-  it('confirms before switching streams with an unsaved item draft; Stay keeps the draft', async () => {
+  it('confirms before switching streams with an unsaved item draft; Keep editing preserves it', async () => {
     const user = userEvent.setup()
     renderPage()
     const name = await screen.findByRole('textbox', { name: 'MOS name' })
@@ -347,7 +347,7 @@ describe('Cafe item permissions per activity', () => {
     const switchDialog = await screen.findByRole('dialog', { name: 'Discard item changes and switch stream?' })
     expect(switchDialog).toHaveTextContent('Gordi HQ · Bar')
     expect(mockCanManage).not.toHaveBeenCalledWith('bar')
-    await user.click(screen.getByRole('button', { name: 'Stay on this page' }))
+    await user.click(screen.getByRole('button', { name: 'Keep editing' }))
     expect(screen.getByRole('heading', { level: 2, name: 'Gordi HQ · Kitchen' })).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: 'MOS name' })).toHaveValue('Draft oat milk')
 

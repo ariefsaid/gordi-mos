@@ -25,8 +25,6 @@ import { useDocumentTitle } from '@/shell/use-document-title'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { saveErrorMessage } from '@/lib/save-error'
-import { Toast } from '@/components/admin/toast'
-import { useToast } from '@/components/admin/use-toast'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useSearchParamState } from '@/lib/use-search-param-state'
 import { isItemNotOnStreamError, listActiveWipItems, listStreamItemIds } from '@/lib/db/kitchen-logs'
@@ -76,7 +74,7 @@ import {
   type KitchenListRow,
 } from '@/lib/kitchen-item-list'
 import { usePlanSummary } from '@/lib/kitchen-plan-kpis'
-import { formatWeekdayDayMonth } from '@/lib/format/date'
+import { formatDayMonthYear } from '@/lib/format/date'
 import './kitchen-plan-page.css'
 
 // WIB "today" as YYYY-MM-DD (fixed +7h offset, NFR-007) — matches the other Café pages.
@@ -279,7 +277,7 @@ function PlanEditor() {
   const [justSavedId, setJustSavedId] = useState<string | null>(null)
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [saveError, setSaveError] = useState('')
-  const { toast, showToast, clearToast } = useToast()
+  const [saveFailureAfterSwitch, setSaveFailureAfterSwitch] = useState<{ stream: string; item: string } | null>(null)
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const isDesktop = useIsDesktop()
   const [search, setSearch] = useSearchParamState('q', '')
@@ -359,6 +357,9 @@ function PlanEditor() {
     const gen = ++requestGen.current
     chooseStream(nextStream) // the whole Café module follows this choice (#440)
     setMovement(PRODUCE)
+    setSavingId(null)
+    setJustSavedId(null)
+    if (savedTimer.current) clearTimeout(savedTimer.current)
     setLoad({ kind: 'loading' })
     try {
       const [itemRows, planCells, offered, settings] = await Promise.all([
@@ -442,7 +443,10 @@ function PlanEditor() {
       savedTimer.current = setTimeout(() => setJustSavedId(null), 1500)
     } catch (err) {
       if (gen !== requestGen.current) {
-        showToast(t('kitchen.plan.saveFailedAfterSwitch', { stream: streamLabel(t, stream) }))
+        setSaveFailureAfterSwitch({
+          stream: streamLabel(t, stream),
+          item: items.find(item => item.id === wipItemId)?.name ?? wipItemId,
+        })
         return
       }
       if (isItemNotOnStreamError(err)) {
@@ -625,9 +629,9 @@ function PlanEditor() {
         />
       }
       meta={
-        <span className="kp-date tabular">{formatWeekdayDayMonth(logDate)}</span>
+        <span className="kp-date tabular">{formatDayMonthYear(logDate)}</span>
       }
-      state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : streamMissing ? 'default' : streamNonProducing ? 'read-only' : items.length === 0 ? 'empty' : saveError ? 'validation' : savingId ? 'saving' : 'default'}
+      state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : streamMissing ? 'default' : streamNonProducing ? 'read-only' : items.length === 0 ? 'empty' : saveError || saveFailureAfterSwitch ? 'validation' : savingId ? 'saving' : 'default'}
     >
       {/* #401 / DD-WAY-40: Plan is an ACT surface — its figures render as the DESIGN.md
           Metric summary rule: one inline line, no card, no width branch, never a tile
@@ -639,7 +643,6 @@ function PlanEditor() {
         />
       )}
 
-      <Toast toast={toast} onDismiss={clearToast} />
       {!isOnline && (
         <div role="alert" className="kp-banner kp-banner-offline kp-block">
           {t('kitchen.plan.offline')}
@@ -647,6 +650,18 @@ function PlanEditor() {
       )}
       {saveError && (
         <div role="alert" className="kp-banner kp-banner-error kp-block">{saveError}</div>
+      )}
+      {saveFailureAfterSwitch && (
+        <section className="kp-banner kp-banner-error kp-block kp-save-failed-after-switch" role="alert">
+          <p>{t('kitchen.plan.saveFailedAfterSwitch', saveFailureAfterSwitch)}</p>
+          <button
+            type="button"
+            className="btn btn-outline btn-touch"
+            onClick={() => setSaveFailureAfterSwitch(null)}
+          >
+            {t('kitchen.plan.saveFailure.dismiss')}
+          </button>
+        </section>
       )}
       {/* #548 FR-006 / #781 item 2: the precondition is a muted hint at rest (Log's
           .kl-submit-reason grammar, role="status" — programmatically associated as a live
