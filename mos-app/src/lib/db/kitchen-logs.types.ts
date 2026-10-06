@@ -223,6 +223,7 @@ export interface KitchenStockRow {
 // Only what the client sends — DB stamps org_id + submitted_by.
 // status defaults to 'Submitted' at the DB; never sent by the client.
 export interface CreateKitchenLogInput {
+  client_request_id: string
   business_unit_id: string
   log_date: string // 'YYYY-MM-DD' WIB
   /** origin half of the (branch, activity) stream — NOT NULL at the DB (AC-007) */
@@ -379,6 +380,10 @@ export interface PesananRow {
 
 // ── Per-line form state (one stepper row per WIP item) ───────────────────────
 export interface KitchenLogLine {
+  /** Client-stable key retained with this unsent line through a retry and browser reload. */
+  client_request_id?: string
+  /** Once attempted, changing captured facts starts a new request identity. */
+  client_attempted?: boolean
   wip_item_id: string
   /**
    * the item-unit this line is bound to (#234, FR-021/022) — the item's default at rest,

@@ -163,6 +163,7 @@ function wasteDraft(overrides: Partial<KitchenWasteDraft> = {}): KitchenWasteDra
 
 beforeEach(() => {
   vi.clearAllMocks()
+  localStorage.clear()
   cafeStreamMock.produces = true
   setPhoneMatchMedia()
   mockUseAuth.mockReturnValue(VIEWER)
@@ -191,6 +192,38 @@ afterEach(() => {
 })
 
 describe('CafeWastePage', () => {
+  it('restores an unsent waste draft after reload and clears it after confirmed submit', async () => {
+    const first = renderPage()
+    const quantity = await screen.findByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })
+    fireEvent.change(quantity, { target: { value: '2.5' } })
+    await waitFor(() => expect(localStorage.length).toBeGreaterThan(0))
+    first.unmount()
+
+    renderPage()
+    expect(await screen.findByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })).toHaveValue(2.5)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Add photo' })[0]!)
+    const fileInput = await screen.findByLabelText(/take or choose photos/i)
+    fireEvent.change(fileInput, { target: { files: [image('latte.jpg')] } })
+    fireEvent.click(await screen.findByRole('button', { name: 'Upload photos' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Submit waste' }))
+
+    expect(await screen.findByText('1 waste entry submitted for review.')).toBeInTheDocument()
+    expect(localStorage.length).toBe(0)
+  })
+
+  it('retries waste preparation with the same request id after a dropped response', async () => {
+    mockInsertKitchenLog.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce('waste-retry')
+    renderPage()
+    fireEvent.change(await screen.findByRole('spinbutton', { name: 'Waste quantity for Oat Latte' }), { target: { value: '2.5' } })
+    const addPhoto = screen.getAllByRole('button', { name: 'Add photo' })[0]!
+    fireEvent.click(addPhoto)
+    await screen.findByText(/could not prepare this waste entry/i)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Add photo' })[0]!)
+    await waitFor(() => expect(mockInsertKitchenLog).toHaveBeenCalledTimes(2))
+    expect(mockInsertKitchenLog.mock.calls[0]![0].client_request_id).toBeTruthy()
+    expect(mockInsertKitchenLog.mock.calls[1]![0].client_request_id)
+      .toBe(mockInsertKitchenLog.mock.calls[0]![0].client_request_id)
+  })
   it('shows each waste item quantity and unit without a grouped numeric total', async () => {
     setWideMatchMedia()
     renderPage()

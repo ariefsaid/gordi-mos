@@ -278,9 +278,11 @@ import { KitchenLogPage } from './kitchen-log-page'
 import { rememberStream } from '@/lib/cafe-stream'
 import { activeCafeLocation, rememberCafeLocation, resetCafeLocations } from '@/lib/cafe-opening-location'
 import { cafeDraftCount } from '@/lib/cafe-capture-draft'
+import { cafeCaptureDraftStorageKey } from '@/lib/cafe-capture-storage'
 
 beforeEach(() => {
   vi.clearAllMocks()
+  localStorage.clear()
   // #440: the Café stream is remembered for the whole module (sessionStorage), so a test that
   // switches streams would otherwise seed the NEXT test's opening stream. Clear it per test.
   rememberStream(null)
@@ -1409,6 +1411,75 @@ describe('Submit error state', () => {
     })
     const done = await screen.findByText(/submitted/i)
     expect(done.closest('.kl-footer')).not.toBeNull()
+  })
+})
+
+describe('capture retry identity and saved drafts', () => {
+  it('restores a matching saved draft after an explicit stream choice when no default stream is available', async () => {
+    mockFetchDefaultStream.mockResolvedValue(null)
+    localStorage.setItem(cafeCaptureDraftStorageKey('production', '10000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000001'), JSON.stringify({
+      branch_id: BRANCH_RADIANT.id,
+      activity: 'bar',
+      movement: { action: 'produce' },
+      lines: {
+        w2: {
+          client_request_id: '50000000-0000-0000-0000-000000000001',
+          item_unit_id: 'u2-porsi',
+          entry_quantity: 7,
+          entry_unit_factor: 1,
+          qty_porsi: 7,
+        },
+      },
+    }))
+
+    await renderPage(OPS_LEAD)
+    await screen.findByText(/choose a production stream to start logging/i)
+    await chooseStream('Radiant · Bar')
+
+    expect(await screen.findByRole('spinbutton', { name: /quantity produced for nasi goreng/i })).toHaveValue(7)
+  })
+
+  it.each([
+    ['production', '/cafe', /quantity produced for nasi goreng/i, 12],
+    ['transfer', '/cafe/transfer', /quantity to transfer to radiant for ayam bakar/i, 10],
+  ] as const)('%s restores an unsent draft across reload, then clears it after success', async (_form, path, quantityLabel, quantity) => {
+    mockInsertKitchenLogBatch.mockResolvedValue(['log-ok'])
+    if (_form === 'transfer') {
+      mockFetchStockMap.mockResolvedValue({ w1: { stok: 0, tersedia: 100 }, w2: { stok: 0, tersedia: 100 } })
+    }
+    const first = await renderPage(VIEWER_MEMBER, appUrl(path))
+    const input = await screen.findByRole('spinbutton', { name: quantityLabel })
+    fireEvent.change(input, { target: { value: String(quantity) } })
+    await waitFor(() => expect(localStorage.length).toBeGreaterThan(0))
+    first.unmount()
+
+    await renderPage(VIEWER_MEMBER, appUrl(path))
+    const restored = await screen.findByRole('spinbutton', { name: quantityLabel })
+    expect(restored).toHaveValue(quantity)
+    fireEvent.click(screen.getByRole('button', { name: /^submit/i }))
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/submitted/i))
+    expect(localStorage.length).toBe(0)
+  })
+
+  it.each([
+    ['production', '/cafe', /quantity produced for nasi goreng/i, 12],
+    ['transfer', '/cafe/transfer', /quantity to transfer to radiant for ayam bakar/i, 10],
+  ] as const)('%s retries the same capture attempt with its original request id', async (_form, path, quantityLabel, quantity) => {
+    mockInsertKitchenLogBatch.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce(['log-ok'])
+    if (_form === 'transfer') {
+      mockFetchStockMap.mockResolvedValue({ w1: { stok: 0, tersedia: 100 }, w2: { stok: 0, tersedia: 100 } })
+    }
+    await renderPage(VIEWER_MEMBER, appUrl(path))
+    fireEvent.change(await screen.findByRole('spinbutton', { name: quantityLabel }), { target: { value: String(quantity) } })
+    fireEvent.click(screen.getByRole('button', { name: /^submit/i }))
+    await screen.findByRole('alert')
+    fireEvent.click(screen.getByRole('button', { name: /^submit/i }))
+    await waitFor(() => expect(mockInsertKitchenLogBatch).toHaveBeenCalledTimes(2))
+    const firstIds = mockInsertKitchenLogBatch.mock.calls[0]![0].map(row => row.client_request_id)
+    const retryIds = mockInsertKitchenLogBatch.mock.calls[1]![0].map(row => row.client_request_id)
+    expect(firstIds).toHaveLength(1)
+    expect(firstIds[0]).toEqual(expect.any(String))
+    expect(retryIds).toEqual(firstIds)
   })
 })
 

@@ -34,6 +34,12 @@ import {
 import { useCafeStream } from '@/lib/use-cafe-stream'
 import { fromDefaultUnitQuantity, formatUnitMultiple, toDefaultUnitQuantity } from '@/lib/cafe-unit-multiples'
 import { clearCafeDraftCount, setCafeDraftCount } from '@/lib/cafe-capture-draft'
+import {
+  clearCafeCaptureDraft,
+  isCafeCaptureRequestId,
+  readCafeCaptureDraft,
+  writeCafeCaptureDraft,
+} from '@/lib/cafe-capture-storage'
 import { CafeStreamBar, CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
 import type { ReactNode } from 'react'
 import type {
@@ -112,6 +118,8 @@ function buildLines(
     const stock = stockMap[item.id]
     lines[item.id] = {
       wip_item_id: item.id,
+      client_request_id: crypto.randomUUID(),
+      client_attempted: false,
       item_unit_id: item.units[0]?.id ?? null,
       entry_quantity: 0,
       entry_unit_factor: 1,
@@ -137,6 +145,63 @@ function gateLine(line: KitchenLogLine, movement: KitchenMovement): KitchenLogLi
   const error = needsVarianceNote(line, movement) && !line.notes.trim() ? VARIANCE_NOTE_CUE : ''
   const capError = transferExceedsAvailable(line, movement) ? TRANSFER_SHORT_CUE : ''
   return { ...line, error, capError }
+}
+
+type StoredKitchenCaptureDraft = {
+  branch_id: string
+  activity: string
+  movement: KitchenMovement
+  lines: Record<string, KitchenLogLine>
+}
+
+function restoreKitchenCaptureDraft(
+  saved: StoredKitchenCaptureDraft | null,
+  items: CaptureFormItem[],
+  planMap: PlanMap,
+  stockMap: StockMap,
+  stream: ProductionStream,
+  allowedMovements: KitchenMovement[],
+  fallbackMovement: KitchenMovement,
+): { lines: Record<string, KitchenLogLine>; movement: KitchenMovement } {
+  const blankLines = buildLines(items, planMap, stockMap, fallbackMovement)
+  if (!saved || saved.branch_id !== stream.branch.id || saved.activity !== stream.activity
+    || !saved.lines || typeof saved.lines !== 'object' || Array.isArray(saved.lines)
+    || !saved.movement || typeof saved.movement !== 'object'
+    || (saved.movement.action !== 'produce'
+      && !(saved.movement.action === 'transfer' && typeof saved.movement.destinationBranchId === 'string'))) {
+    return { lines: blankLines, movement: fallbackMovement }
+  }
+  const movement = allowedMovements.find(option => movementKey(option) === movementKey(saved.movement))
+  if (!movement) return { lines: blankLines, movement: fallbackMovement }
+
+  const lines = buildLines(items, planMap, stockMap, movement)
+  for (const item of items) {
+    const stored = saved.lines?.[item.id]
+    const line = lines[item.id]
+    if (!stored || !line) continue
+    const itemUnitId = item.units.some(unit => unit.id === stored.item_unit_id)
+      ? stored.item_unit_id
+      : line.item_unit_id
+    const quantity = Number.isFinite(stored.qty_porsi) && stored.qty_porsi > 0 ? stored.qty_porsi : 0
+    lines[item.id] = gateLine({
+      ...line,
+      client_request_id: isCafeCaptureRequestId(stored.client_request_id)
+        ? stored.client_request_id
+        : line.client_request_id,
+      client_attempted: stored.client_attempted === true,
+      item_unit_id: itemUnitId,
+      entry_quantity: Number.isFinite(stored.entry_quantity) ? stored.entry_quantity : quantity,
+      entry_unit_factor: typeof stored.entry_unit_factor === 'number'
+        && Number.isFinite(stored.entry_unit_factor) && stored.entry_unit_factor > 0
+        ? stored.entry_unit_factor
+        : 1,
+      entry_unit_name: typeof stored.entry_unit_name === 'string' ? stored.entry_unit_name : line.entry_unit_name,
+      qty_porsi: quantity,
+      notes: typeof stored.notes === 'string' ? stored.notes : '',
+      dirty: quantity > 0,
+    }, movement)
+  }
+  return { lines, movement }
 }
 
 type PageStatus =
@@ -173,6 +238,8 @@ export function KitchenLogPage({ mode = 'production', leading, activeBranchId, a
  *  above the capture form when this surface IS the Café root. */
 function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchName }: { mode: KitchenLogMode; leading?: ReactNode; activeBranchId?: string; activeBranchName?: string }) {
   const auth = useAuth()
+  const draftOrgId = auth.status === 'authenticated' ? auth.viewer.person.org_id : ''
+  const draftPersonId = auth.status === 'authenticated' ? auth.viewer.person.id : ''
   const t = useT()
   // issue 455: the tab names the module the rail and breadcrumb name; leaf-first per
   // the catalog's own docTitle convention (tasks-layout, signals-archive).
@@ -423,10 +490,19 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
         resolveKitchenBuId(),
       ])
       const resolvedStream = catalog.stream
+      const availableMovements = mode === 'transfer' && resolvedStream
+        ? movementsForStream(resolvedStream, catalog.options, catalog.destinations).filter(option => option.action === 'transfer')
+        : [PRODUCE]
+      const fallbackMovement = availableMovements[0] ?? PRODUCE
+      const storedDraft = draftOrgId && draftPersonId
+        ? readCafeCaptureDraft<StoredKitchenCaptureDraft>(mode, draftOrgId, draftPersonId)
+        : null
+      const resolvedMovement = storedDraft?.movement
+        ? availableMovements.find(option => movementKey(option) === movementKey(storedDraft.movement)) ?? fallbackMovement
+        : fallbackMovement
       // The stream's own list (#222). No stream yet: the whole gated catalog, as before — nothing
       // is writable until a stream is chosen, and the choose-stream state replaces the list.
       const items = await listCaptureFormItems(resolvedStream ?? undefined, mode === 'transfer' ? 'transfer' : 'produce')
-      const resolvedMovement = PRODUCE
       // An empty offered roster still has submitted plan/actual membership for a producing
       // stream. Keep those counts independent of the item list; stock is only needed to build
       // editable lines, so do not fetch it when there are none.
@@ -467,16 +543,19 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
           ])
         : [{} as PlanMap, {} as StockMap, {} as ActualsMap]
       if (gen !== requestGen.current) return // superseded — a newer read owns the state
+      const restored = resolvedStream
+        ? restoreKitchenCaptureDraft(storedDraft, items, plan, stock, resolvedStream, availableMovements, resolvedMovement)
+        : { lines: buildLines(items, plan, stock, resolvedMovement), movement: resolvedMovement }
       setWipItems(items)
       setInvalidItemIds(new Set())
       adoptStream(catalog)
-      setMovement(resolvedMovement)
+      setMovement(restored.movement)
       setPlanMap(plan)
       setStockMap(stock)
       setActualsMap(actuals)
       setSummaryCountsAvailable(streamProduces(resolvedStream, catalog.options))
       setBuId(bu)
-      setLines(buildLines(items, plan, stock, resolvedMovement))
+      setLines(restored.lines)
       setStatus({ kind: 'ready' })
     } catch {
       if (gen !== requestGen.current) return
@@ -484,7 +563,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       // wrong BU or capturing against a guessed stream.
       setStatus({ kind: 'error', message: t('common.loadFailed', { what: t('common.what.items') }) })
     }
-  }, [adoptStream, logDate, mode, resolveStream, t])
+  }, [adoptStream, draftOrgId, draftPersonId, logDate, mode, resolveStream, t])
 
   useEffect(() => {
     if (auth.status !== 'authenticated') return
@@ -499,6 +578,20 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     setCafeDraftCount(draftCount)
     return () => { clearCafeDraftCount() }
   }, [draftCount])
+
+  useEffect(() => {
+    if (status.kind !== 'ready' || !draftOrgId || !draftPersonId || !canCapture || !stream) return
+    if (draftCount === 0) {
+      clearCafeCaptureDraft(mode, draftOrgId, draftPersonId)
+      return
+    }
+    writeCafeCaptureDraft<StoredKitchenCaptureDraft>(mode, draftOrgId, draftPersonId, {
+      branch_id: stream.branch.id,
+      activity: stream.activity,
+      movement,
+      lines,
+    })
+  }, [canCapture, draftCount, draftOrgId, draftPersonId, lines, mode, movement, status.kind, stream])
 
   // A required-note field can make a lower row and the sticky footer taller while the person
   // keeps typing in its quantity input. Recheck only that focused capture input after React has
@@ -609,19 +702,30 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
         fetchActualsMap(logDate, nextStream),
       ])
       if (gen !== requestGen.current) return // superseded — a newer read owns the state
+      const availableMovements = mode === 'transfer'
+        ? movementsForStream(nextStream, streamOptions, cafeStream.destinations).filter(option => option.action === 'transfer')
+        : [PRODUCE]
+      const fallbackMovement = availableMovements[0] ?? PRODUCE
+      const storedDraft = draftOrgId && draftPersonId
+        ? readCafeCaptureDraft<StoredKitchenCaptureDraft>(mode, draftOrgId, draftPersonId)
+        : null
+      const restored = restoreKitchenCaptureDraft(
+        storedDraft, items, plan, stock, nextStream, availableMovements, fallbackMovement,
+      )
       setPlanMap(plan)
       setWipItems(items)
       setInvalidItemIds(new Set())
       setStockMap(stock)
       setActualsMap(actuals)
       setSummaryCountsAvailable(streamProduces(nextStream, streamOptions))
-      setLines(buildLines(items, plan, stock, PRODUCE))
+      setMovement(restored.movement)
+      setLines(restored.lines)
       setStatus({ kind: 'ready' })
     } catch {
       if (gen !== requestGen.current) return
       setStatus({ kind: 'error', message: t('common.loadFailed', { what: t('common.what.items') }) })
     }
-  }, [chooseStream, logDate, mode, streamOptions, t])
+  }, [cafeStream.destinations, chooseStream, draftOrgId, draftPersonId, logDate, mode, streamOptions, t])
 
   // Staged quantities belong to the stream they were typed against: ask before a switch
   // discards them, and switch straight through when nothing is staged. Shared by the head's
@@ -665,7 +769,14 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       confirmLabel={t('kitchen.log.streamSwitch.confirm')}
       cancelLabel={t('common.cancel')}
       tone="destructive"
-      onConfirm={async () => { const next = pendingStream; setPendingStream(null); await applyStream(next) }}
+      onConfirm={async () => {
+        const next = pendingStream
+        setPendingStream(null)
+        if (auth.status === 'authenticated') {
+          clearCafeCaptureDraft(mode, auth.viewer.person.org_id, auth.viewer.person.id)
+        }
+        await applyStream(next)
+      }}
       onCancel={() => setPendingStream(null)}
     />}
     </>
@@ -705,6 +816,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       const staged = qty > 0
       const gated = gateLine({
         ...cur,
+        client_request_id: cur.client_attempted || !staged ? crypto.randomUUID() : cur.client_request_id,
+        client_attempted: false,
         entry_quantity: qty,
         qty_porsi: toDefaultUnitQuantity(qty, factor),
         dirty: staged,
@@ -716,7 +829,13 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   function handleNotesChange(itemId: string, note: string) {
     if (captureClosed) return
     setLines(prev => {
-      const next: KitchenLogLine = { ...prev[itemId], notes: note }
+      const current = prev[itemId]
+      const next: KitchenLogLine = {
+        ...current,
+        ...(current.client_attempted ? { client_request_id: crypto.randomUUID() } : {}),
+        client_attempted: false,
+        notes: note,
+      }
       return { ...prev, [itemId]: gateLine(next, movement) }
     })
   }
@@ -734,6 +853,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
         if (!Number.isFinite(factor) || !item?.unit_multiples?.includes(factor) || !defaultUnit) return prev
         const next: KitchenLogLine = {
           ...current,
+          ...(current.client_attempted ? { client_request_id: crypto.randomUUID() } : {}),
+          client_attempted: false,
           item_unit_id: defaultUnit.id,
           entry_quantity: fromDefaultUnitQuantity(current.qty_porsi, factor),
           entry_unit_factor: factor,
@@ -745,6 +866,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       if (!selectedUnit) return prev
       const next: KitchenLogLine = {
         ...current,
+        ...(current.client_attempted ? { client_request_id: crypto.randomUUID() } : {}),
+        client_attempted: false,
         item_unit_id: selectedUnit.id,
         entry_quantity: current.qty_porsi,
         entry_unit_factor: 1,
@@ -768,6 +891,9 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   // them too, silently losing the user's filter context along with their entries.
   function performDiscard() {
     setLines(buildLines(wipItems, planMap, stockMap, movement))
+    if (auth.status === 'authenticated') {
+      clearCafeCaptureDraft(mode, auth.viewer.person.org_id, auth.viewer.person.id)
+    }
     setDiscardConfirmOpen(false)
   }
 
@@ -816,9 +942,17 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
 
     setStatus({ kind: 'submitting' })
     setSubmitError('')
+    setLines(prev => {
+      const next = { ...prev }
+      for (const line of staged) {
+        if (next[line.wip_item_id]) next[line.wip_item_id] = { ...next[line.wip_item_id], client_attempted: true }
+      }
+      return next
+    })
     try {
       const insertedLogIds = await insertKitchenLogBatch(
         staged.map(line => ({
+          client_request_id: line.client_request_id ?? crypto.randomUUID(),
           business_unit_id: buId,
           log_date: logDate,
           // the (branch, activity) production stream this row belongs to (OD-WAY-28)
@@ -862,6 +996,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
         return next
       })
       setStatus({ kind: 'success', count: staged.length })
+      clearCafeCaptureDraft(mode, draftOrgId, draftPersonId)
       setInvalidItemIds(new Set())
       setLines(buildLines(wipItems, planMap, stockMap, movement))
     } catch (err) {

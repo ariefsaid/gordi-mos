@@ -11,6 +11,12 @@ import { canCaptureCafe } from '@/lib/cafe-affiliation'
 import { canPushCafe } from '@/lib/kitchen-gates'
 import { formatUnitMultiple, fromDefaultUnitQuantity, toDefaultUnitQuantity } from '@/lib/cafe-unit-multiples'
 import { streamKey, streamLabel } from '@/lib/kitchen-action-label'
+import {
+  clearCafeCaptureDraft,
+  isCafeCaptureRequestId,
+  readCafeCaptureDraft,
+  writeCafeCaptureDraft,
+} from '@/lib/cafe-capture-storage'
 import { listCafeItemSettings, toCafeLogItem } from '@/lib/db/cafe-item-settings'
 import { insertKitchenLog, resolveKitchenBuId } from '@/lib/db/kitchen-logs'
 import {
@@ -46,6 +52,8 @@ import './cafe-waste-page.css'
 type CafeLogItem = NonNullable<ReturnType<typeof toCafeLogItem>>
 
 type WasteEntry = {
+  client_request_id: string
+  client_attempted: boolean
   quantity: string
   unitId: string
   unitFactor: number
@@ -65,6 +73,16 @@ type PageLoadState = 'loading' | 'ready' | 'error'
 
 const WASTE_KIND_OPTIONS: readonly KitchenItemKindFilter[] = ['All', 'WIP', 'RAW']
 
+type StoredWasteEntry = Pick<WasteEntry,
+  'client_request_id' | 'client_attempted' | 'quantity' | 'unitId' | 'unitFactor' | 'unitBasisKnown'
+  | 'logId' | 'capturedUnitName' | 'capturedLogDate'>
+
+type StoredWasteCaptureDraft = {
+  branch_id: string
+  activity: string
+  entries: Record<string, StoredWasteEntry>
+}
+
 function quantityValue(raw: string): number | null {
   if (!raw.trim()) return null
   const quantity = Number(raw.trim().replace(',', '.'))
@@ -79,6 +97,8 @@ function isInvalidQuantity(raw: string): boolean {
 
 function initialEntries(items: readonly CafeLogItem[]): Record<string, WasteEntry> {
   return Object.fromEntries(items.map(item => [item.id, {
+    client_request_id: crypto.randomUUID(),
+    client_attempted: false,
     quantity: '',
     unitId: item.defaultUnit.id,
     unitFactor: 1,
@@ -236,9 +256,44 @@ export function CafeWastePage() {
         return item ? [item] : []
       })
       setItems(nextItems)
-      setEntries(initialEntries(nextItems))
       const offeredItemIds = new Set(nextItems.map(item => item.id))
-      setResumableDrafts(drafts.filter(draft => offeredItemIds.has(draft.itemId)))
+      const stored = canCapture && orgId && personId
+        ? readCafeCaptureDraft<StoredWasteCaptureDraft>('waste', orgId, personId)
+        : null
+      const storedEntries = stored?.branch_id === stream.branch.id && stored.activity === stream.activity
+        && stored.entries && typeof stored.entries === 'object' && !Array.isArray(stored.entries)
+        ? stored.entries
+        : {}
+      const nextEntries = Object.fromEntries(nextItems.map(item => {
+        const initial = initialEntries([item])[item.id]!
+        const candidate = storedEntries[item.id]
+        const saved = candidate && typeof candidate === 'object' && !Array.isArray(candidate) ? candidate : undefined
+        const serverDraft = saved && drafts.find(draft => draft.logId === saved.logId
+          || (!!saved.client_request_id && draft.clientRequestId === saved.client_request_id))
+        if (!saved) return [item.id, initial]
+        if (saved.logId && !serverDraft) return [item.id, initial]
+        return [item.id, {
+          ...initial,
+          client_request_id: isCafeCaptureRequestId(saved.client_request_id) ? saved.client_request_id : initial.client_request_id,
+          client_attempted: saved.client_attempted === true,
+          quantity: serverDraft ? String(serverDraft.quantity) : typeof saved.quantity === 'string' ? saved.quantity : '',
+          unitId: serverDraft?.itemUnitId ?? (item.units.some(unit => unit.id === saved.unitId) ? saved.unitId : initial.unitId),
+          unitFactor: serverDraft?.entryUnitFactor ?? (Number.isFinite(saved.unitFactor) && saved.unitFactor > 0 ? saved.unitFactor : 1),
+          unitBasisKnown: saved.unitBasisKnown !== false,
+          logId: serverDraft?.logId,
+          capturedUnitName: serverDraft?.entryUnitName ?? saved.capturedUnitName ?? initial.capturedUnitName,
+          capturedLogDate: serverDraft?.logDate ?? saved.capturedLogDate,
+          photoReady: Boolean(serverDraft?.photos.length),
+          photoWindowExpired: Boolean(serverDraft && serverDraft.photos.length === 0 && isWastePhotoWindowExpired(serverDraft.createdAt)),
+          preparing: false,
+          submitted: false,
+          photos: serverDraft?.photos ?? [],
+          error: undefined,
+        }]
+      }))
+      setEntries(nextEntries)
+      setResumableDrafts(drafts.filter(draft => offeredItemIds.has(draft.itemId)
+        && !Object.values(nextEntries).some(entry => entry.logId === draft.logId)))
       setBusinessUnitId(buId)
       setLoadState('ready')
     }).catch(() => {
@@ -291,6 +346,33 @@ export function CafeWastePage() {
   const submittedCount = staged.length - remaining.length
   const hasPendingCapture = staged.length > 0
 
+  useEffect(() => {
+    if (loadState !== 'ready' || !canCapture || !stream || !orgId || !personId) return
+    const unsent = Object.fromEntries(Object.entries(entries).flatMap(([itemId, entry]) => {
+      if (entry.submitted || quantityValue(entry.quantity) === null) return []
+      return [[itemId, {
+        client_request_id: entry.client_request_id,
+        client_attempted: entry.client_attempted,
+        quantity: entry.quantity,
+        unitId: entry.unitId,
+        unitFactor: entry.unitFactor,
+        unitBasisKnown: entry.unitBasisKnown,
+        logId: entry.logId,
+        capturedUnitName: entry.capturedUnitName,
+        capturedLogDate: entry.capturedLogDate,
+      } satisfies StoredWasteEntry]]
+    }))
+    if (Object.keys(unsent).length === 0) {
+      clearCafeCaptureDraft('waste', orgId, personId)
+      return
+    }
+    writeCafeCaptureDraft<StoredWasteCaptureDraft>('waste', orgId, personId, {
+      branch_id: stream.branch.id,
+      activity: stream.activity,
+      entries: unsent,
+    })
+  }, [canCapture, entries, loadState, orgId, personId, stream])
+
   const patchEntry = useCallback((itemId: string, patch: Partial<WasteEntry>) => {
     setEntries(current => {
       const entry = current[itemId]
@@ -328,6 +410,8 @@ export function CafeWastePage() {
         ...current,
         [item.id]: {
           ...entry,
+          ...(entry.client_attempted ? { client_request_id: crypto.randomUUID() } : {}),
+          client_attempted: false,
           quantity: nextQuantity,
           unitId: item.defaultUnit.id,
           unitFactor: nextFactor,
@@ -353,9 +437,10 @@ export function CafeWastePage() {
     if (!entry || quantity === null || !stream || !businessUnitId || !canCapture || !isOnline
       || entry.logId || entry.preparing || draftRequests.current.has(item.id)) return
     draftRequests.current.add(item.id)
-    patchEntry(item.id, { preparing: true, error: undefined })
+    patchEntry(item.id, { preparing: true, client_attempted: true, error: undefined })
     try {
       const logId = await insertKitchenLog({
+        client_request_id: entry.client_request_id,
         business_unit_id: businessUnitId,
         log_date: logDate,
         branch_id: stream.branch.id,
@@ -391,6 +476,8 @@ export function CafeWastePage() {
       const replacement = await restartKitchenWasteDraft(entry.logId, logDate)
       patchEntry(item.id, {
         logId: replacement.logId,
+        client_request_id: crypto.randomUUID(),
+        client_attempted: false,
         capturedUnitName: entry.capturedUnitName,
         capturedLogDate: replacement.logDate,
         preparing: false,
@@ -417,6 +504,8 @@ export function CafeWastePage() {
         ...current,
         [draft.itemId]: {
           ...(currentEntry ?? initialEntries(items)[draft.itemId]!),
+          client_request_id: draft.clientRequestId ?? currentEntry?.client_request_id ?? crypto.randomUUID(),
+          client_attempted: true,
           quantity: String(draft.quantity),
           unitId: itemUnitId,
           unitFactor: draft.entryUnitFactor ?? 1,
@@ -478,6 +567,7 @@ export function CafeWastePage() {
         await submitKitchenWasteLog(line.entry.logId!)
         patchEntry(line.item.id, { submitted: true })
       }
+      clearCafeCaptureDraft('waste', orgId, personId)
     } catch {
       setSubmitError(true)
     } finally {
@@ -542,7 +632,13 @@ export function CafeWastePage() {
           canCapture={canCapture}
           isOnline={isOnline}
           disabled={submitting || loadState !== 'ready'}
-          onQuantityChange={value => patchEntry(item.id, { quantity: value, error: undefined })}
+          onQuantityChange={value => patchEntry(item.id, {
+            quantity: value,
+            error: undefined,
+            ...(entries[item.id]?.client_attempted || !value.trim()
+              ? { client_request_id: crypto.randomUUID(), client_attempted: false }
+              : {}),
+          })}
           onUnitChange={choice => changeWasteEntryUnit(item, choice)}
           onPrepare={() => void prepareEntry(item)}
         />
@@ -565,7 +661,13 @@ export function CafeWastePage() {
           canCapture={canCapture}
           isOnline={isOnline}
           disabled={submitting || loadState !== 'ready'}
-          onQuantityChange={value => patchEntry(item.id, { quantity: value, error: undefined })}
+          onQuantityChange={value => patchEntry(item.id, {
+            quantity: value,
+            error: undefined,
+            ...(entries[item.id]?.client_attempted || !value.trim()
+              ? { client_request_id: crypto.randomUUID(), client_attempted: false }
+              : {}),
+          })}
           onUnitChange={choice => changeWasteEntryUnit(item, choice)}
           onPrepare={() => void prepareEntry(item)}
         />
@@ -802,7 +904,7 @@ function WasteItemControls({
   const inputId = `cafe-waste-qty-${item.id}`
   const unitId = `cafe-waste-unit-${item.id}`
   const current: WasteEntry = entry ?? {
-    quantity: '', unitId: item.defaultUnit.id, unitFactor: 1, unitBasisKnown: true,
+    client_request_id: '', client_attempted: false, quantity: '', unitId: item.defaultUnit.id, unitFactor: 1, unitBasisKnown: true,
     capturedUnitName: item.defaultUnit.name, photoReady: false, photoWindowExpired: false,
     preparing: false, submitted: false, photos: [],
   }

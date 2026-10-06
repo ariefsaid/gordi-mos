@@ -519,12 +519,13 @@ describe('fetchPlanMap', () => {
 describe('insertKitchenLog — payload contract (AC-020/030)', () => {
   const BU_ID = '20000000-0000-0000-0000-000000000001'
   const WIP_ID = 'w1'
+  const REQUEST_ID = '40000000-0000-0000-0000-000000000001'
 
   it('AC-030: sends correct payload WITHOUT status/org_id/submitted_by', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(
       makeSchema(
-        { kitchen_logs: [{ data: { id: 'log-001' }, error: null }] },
+        { insert_cafe_capture_logs: [{ data: [{ id: 'log-001', client_request_id: REQUEST_ID }], error: null }] },
         rec,
       ) as never,
     )
@@ -536,13 +537,14 @@ describe('insertKitchenLog — payload contract (AC-020/030)', () => {
       activity: 'kitchen',
       action: 'produce',
       destination_branch_id: null,
+      client_request_id: REQUEST_ID,
       wip_item_id: WIP_ID,
       qty_porsi: 8,
       notes: 'test note',
     })
 
-    expect(rec.inserts).toHaveLength(1)
-    const payload = rec.inserts[0] as Record<string, unknown>
+    expect(rec.rpcCalls).toHaveLength(1)
+    const payload = (rec.rpcCalls[0]![1] as { p_rows: Record<string, unknown>[] }).p_rows[0]!
 
     // Required fields
     expect(payload.business_unit_id).toBe(BU_ID)
@@ -568,13 +570,41 @@ describe('insertKitchenLog — payload contract (AC-020/030)', () => {
     expect(payload).not.toHaveProperty('date')
   })
 
+  it('returns the original row id when the same client attempt is retried', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({
+      insert_cafe_capture_logs: [
+        { data: [{ id: 'log-original', client_request_id: REQUEST_ID }], error: null },
+        { data: [{ id: 'log-original', client_request_id: REQUEST_ID }], error: null },
+      ],
+    }, rec) as never)
+    const input = {
+      client_request_id: REQUEST_ID,
+      business_unit_id: BU_ID,
+      log_date: '2026-06-20',
+      branch_id: BRANCH_ID,
+      activity: 'kitchen' as const,
+      action: 'produce' as const,
+      destination_branch_id: null,
+      wip_item_id: WIP_ID,
+      qty_porsi: 8,
+    }
+
+    await expect(insertKitchenLog(input)).resolves.toBe('log-original')
+    await expect(insertKitchenLog(input)).resolves.toBe('log-original')
+    expect(rec.rpcCalls).toHaveLength(2)
+    expect(rec.rpcCalls.map(([, args]) => (args as { p_rows: Array<{ client_request_id: string }> }).p_rows[0]!.client_request_id))
+      .toEqual([REQUEST_ID, REQUEST_ID])
+  })
+
   it('includes typed quantity and selected factor while retaining the ERP default unit id', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(makeSchema(
-      { kitchen_logs: [{ data: { id: 'log-multiple' }, error: null }] },
+      { insert_cafe_capture_logs: [{ data: [{ id: 'log-multiple', client_request_id: REQUEST_ID }], error: null }] },
       rec,
     ) as never)
     await insertKitchenLog({
+      client_request_id: REQUEST_ID,
       business_unit_id: BU_ID,
       log_date: '2026-06-20',
       branch_id: BRANCH_ID,
@@ -587,7 +617,7 @@ describe('insertKitchenLog — payload contract (AC-020/030)', () => {
       entry_quantity: 3,
       entry_unit_factor: 0.5,
     })
-    expect(rec.inserts[0]).toMatchObject({
+    expect((rec.rpcCalls[0]![1] as { p_rows: Record<string, unknown>[] }).p_rows[0]).toMatchObject({
       item_unit_id: 'u-default',
       qty_porsi: 1.5,
       entry_quantity: 3,
@@ -599,7 +629,7 @@ describe('insertKitchenLog — payload contract (AC-020/030)', () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(
       makeSchema(
-        { kitchen_logs: [{ data: { id: 'log-003' }, error: null }] },
+        { insert_cafe_capture_logs: [{ data: [{ id: 'log-003', client_request_id: REQUEST_ID }], error: null }] },
         rec,
       ) as never,
     )
@@ -611,18 +641,20 @@ describe('insertKitchenLog — payload contract (AC-020/030)', () => {
       activity: 'kitchen',
       action: 'produce',
       destination_branch_id: null,
+      client_request_id: REQUEST_ID,
       wip_item_id: WIP_ID,
       item_unit_id: 'u-botol',
       qty_porsi: 2,
     })
 
-    const payload = rec.inserts[0] as Record<string, unknown>
+    const payload = (rec.rpcCalls[0]![1] as { p_rows: Record<string, unknown>[] }).p_rows[0]!
     expect(payload.item_unit_id).toBe('u-botol')
   })
 
   it('AC-020: rejects when qty_porsi = 0', async () => {
     await expect(
       insertKitchenLog({
+        client_request_id: REQUEST_ID,
         business_unit_id: BU_ID,
         log_date: '2026-06-20',
         branch_id: BRANCH_ID,
@@ -638,6 +670,7 @@ describe('insertKitchenLog — payload contract (AC-020/030)', () => {
   it('AC-020: rejects when qty_porsi is negative', async () => {
     await expect(
       insertKitchenLog({
+        client_request_id: REQUEST_ID,
         business_unit_id: BU_ID,
         log_date: '2026-06-20',
         branch_id: BRANCH_ID,
@@ -654,7 +687,7 @@ describe('insertKitchenLog — payload contract (AC-020/030)', () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(
       makeSchema(
-        { kitchen_logs: [{ data: { id: 'log-002' }, error: null }] },
+        { insert_cafe_capture_logs: [{ data: [{ id: 'log-002', client_request_id: REQUEST_ID }], error: null }] },
         rec,
       ) as never,
     )
@@ -666,11 +699,12 @@ describe('insertKitchenLog — payload contract (AC-020/030)', () => {
       activity: 'kitchen',
       action: 'transfer',
       destination_branch_id: RADIANT_ID,
+      client_request_id: REQUEST_ID,
       wip_item_id: WIP_ID,
       qty_porsi: 5,
     })
 
-    const payload = rec.inserts[0] as Record<string, unknown>
+    const payload = (rec.rpcCalls[0]![1] as { p_rows: Record<string, unknown>[] }).p_rows[0]!
     expect(payload.notes).toBeNull()
   })
 
@@ -678,13 +712,14 @@ describe('insertKitchenLog — payload contract (AC-020/030)', () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(
       makeSchema(
-        { kitchen_logs: [{ data: null, error: { message: 'RLS denied' } }] },
+        { insert_cafe_capture_logs: [{ data: null, error: { message: 'RLS denied' } }] },
         rec,
       ) as never,
     )
 
     await expect(
       insertKitchenLog({
+        client_request_id: REQUEST_ID,
         business_unit_id: BU_ID,
         log_date: '2026-06-20',
         branch_id: BRANCH_ID,
@@ -701,18 +736,24 @@ describe('insertKitchenLog — payload contract (AC-020/030)', () => {
 // ── insertKitchenLogBatch — AC-030 increment semantics ────────────────────────
 describe('insertKitchenLogBatch — AC-030 increment semantics', () => {
   const BU_ID = '20000000-0000-0000-0000-000000000001'
+  const REQUEST_ID_1 = '40000000-0000-0000-0000-000000000001'
+  const REQUEST_ID_2 = '40000000-0000-0000-0000-000000000002'
 
   it('AC-030: inserts multiple rows, each as a new row (increment semantics)', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(
       makeSchema(
-        { kitchen_logs: [{ data: [{ id: 'log-1' }, { id: 'log-2' }], error: null }] },
+        { insert_cafe_capture_logs: [{ data: [
+          { id: 'log-1', client_request_id: REQUEST_ID_1 },
+          { id: 'log-2', client_request_id: REQUEST_ID_2 },
+        ], error: null }] },
         rec,
       ) as never,
     )
 
     const ids = await insertKitchenLogBatch([
       {
+        client_request_id: REQUEST_ID_1,
         business_unit_id: BU_ID,
         log_date: '2026-06-20',
         branch_id: BRANCH_ID,
@@ -723,6 +764,7 @@ describe('insertKitchenLogBatch — AC-030 increment semantics', () => {
         qty_porsi: 5,
       },
       {
+        client_request_id: REQUEST_ID_2,
         business_unit_id: BU_ID,
         log_date: '2026-06-20',
         branch_id: BRANCH_ID,
@@ -735,7 +777,7 @@ describe('insertKitchenLogBatch — AC-030 increment semantics', () => {
     ])
 
     expect(ids).toEqual(['log-1', 'log-2'])
-    const rows = rec.inserts[0] as Record<string, unknown>[]
+    const rows = (rec.rpcCalls[0]![1] as { p_rows: Record<string, unknown>[] }).p_rows
     expect(rows).toHaveLength(2)
     // CRITICAL: each row is a new insert (increment semantics — no upsert/on-conflict)
     assertNoServerStamps(rows)
@@ -751,6 +793,7 @@ describe('insertKitchenLogBatch — AC-030 increment semantics', () => {
     await expect(
       insertKitchenLogBatch([
         {
+          client_request_id: REQUEST_ID_1,
           business_unit_id: BU_ID,
           log_date: '2026-06-20',
           branch_id: BRANCH_ID,
@@ -761,6 +804,7 @@ describe('insertKitchenLogBatch — AC-030 increment semantics', () => {
           qty_porsi: 5,
         },
         {
+          client_request_id: REQUEST_ID_2,
           business_unit_id: BU_ID,
           log_date: '2026-06-20',
           branch_id: BRANCH_ID,
