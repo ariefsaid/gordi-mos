@@ -1,6 +1,6 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(22);
+select plan(25);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -35,7 +35,18 @@ select lives_ok($$select ops.save_cafe_item_settings(
   'Synthetic waste RAW','00000000-0000-0000-0000-00000000c921',
   array['00000000-0000-0000-0000-00000000c921'::uuid],'RAW',true,array[0.5::numeric]
 )$$, 'the stream team classifies and activates the ERP RAW waste item');
-
+reset role;
+update ops.item_units set confirmed_at=null where id='00000000-0000-0000-0000-00000000c921';
+set local role authenticated;
+select throws_ok($$insert into ops.kitchen_logs
+  (business_unit_id,log_date,branch_id,activity,action,wip_item_id,item_unit_id,qty_porsi)
+  values ('00000000-0000-0000-0000-00000000bb01','2026-10-01','00000000-0000-0000-0000-00000000bf02',
+    'kitchen','produce','00000000-0000-0000-0000-00000000c920','00000000-0000-0000-0000-00000000c921',1)$$,
+  'P0015','CAFE_ITEM_UNIT_NOT_SHOWN: the selected ERP detail is not confirmed and available',
+  'an ERP detail without confirmation cannot be bound to a captured log');
+reset role;
+update ops.item_units set confirmed_at=now() where id='00000000-0000-0000-0000-00000000c921';
+set local role authenticated;
 
 insert into ops.kitchen_logs
   (id,business_unit_id,log_date,branch_id,activity,action,wip_item_id,item_unit_id,qty_porsi,notes,status,created_at,
@@ -48,7 +59,15 @@ select ('00000000-0000-0000-0000-00000000ac' || suffix)::uuid,
   case when suffix = '31' then 3::numeric else null end,
   case when suffix = '31' then 0.5::numeric else null end
 from unnest(array['31','32','33','34']) suffix;
+select ok((select created_at > '2000-01-01'::timestamptz from ops.kitchen_logs
+  where id='00000000-0000-0000-0000-00000000ac31'),
+  'the database stamps the waste-photo window rather than accepting a client timestamp');
+select throws_ok($$update ops.kitchen_logs set created_at='2000-01-01' where id='00000000-0000-0000-0000-00000000ac31'$$,
+  '42501',null,'an authenticated submitter cannot rewrite the waste-photo window');
 reset role;
+update ops.kitchen_logs set created_at=now()-interval '16 minutes'
+  where id in ('00000000-0000-0000-0000-00000000ac31','00000000-0000-0000-0000-00000000ac32','00000000-0000-0000-0000-00000000ac34');
+update ops.kitchen_logs set created_at=now()-interval '1 minute' where id='00000000-0000-0000-0000-00000000ac33';
 update ops.item_units set unit_name='crate' where id='00000000-0000-0000-0000-00000000c921';
 -- Existing evidence on an expired draft must remain resumable, never be superseded.
 insert into storage.objects (bucket_id,name) values ('waste-photos',
