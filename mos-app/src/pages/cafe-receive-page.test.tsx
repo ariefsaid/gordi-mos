@@ -116,6 +116,7 @@ describe('CafeReceivePage', () => {
     const { container } = renderPage()
     await screen.findByRole('textbox', { name: 'Received for Coffee bean' })
     fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'bean' } })
+    await screen.findByRole('textbox', { name: 'Received for Coffee bean' })
 
     expect(screen.getByRole('textbox', { name: 'Received for Coffee bean' })).toHaveValue('')
     expect(screen.queryByRole('textbox', { name: 'Received for Fresh milk' })).toBeNull()
@@ -139,7 +140,7 @@ describe('CafeReceivePage', () => {
 
     expect(bean).toHaveValue('2,5')
     expect(bean.parentElement).toHaveTextContent('bag')
-    fireEvent.click(screen.getByRole('button', { name: 'Count submit' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Lock counts' }))
     await waitFor(() => expect(mockSubmit).toHaveBeenCalledTimes(1))
     expect(mockSubmit.mock.calls[0]).toEqual([
       streamMocks.kitchen, '2026-10-06', 'receipt-key-1', [{ item_unit_id: 'unit-bag', quantity: '2.5' }],
@@ -152,9 +153,9 @@ describe('CafeReceivePage', () => {
     renderPage()
     fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '12' } })
     expect(screen.getByText('1 line')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Count submit' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Lock counts' }))
 
-    expect(await screen.findByRole('heading', { name: 'Counted · quantities locked' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Counts locked' })).toBeInTheDocument()
     expect(screen.queryByRole('textbox', { name: 'Received for Fresh milk' })).toBeNull()
     fireEvent.change(screen.getByRole('textbox', { name: 'Delivery-note number (optional)' }), { target: { value: 'DN-7' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send for review' }))
@@ -166,13 +167,38 @@ describe('CafeReceivePage', () => {
     mockSubmit.mockRejectedValueOnce(new Error('network')).mockResolvedValueOnce({ receipt_id: 'r', outcome: 'existing', row_version: 1 })
     renderPage()
     fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '3' } })
-    const submit = screen.getByRole('button', { name: 'Count submit' })
+    const submit = screen.getByRole('button', { name: 'Lock counts' })
     fireEvent.click(submit)
     expect(await screen.findByText(/could not be submitted/)).toBeInTheDocument()
     await waitFor(() => expect(submit).toBeEnabled())
     fireEvent.click(submit)
     await waitFor(() => expect(mockSubmit).toHaveBeenCalledTimes(2))
     expect(mockSubmit.mock.calls[1][2]).toBe(mockSubmit.mock.calls[0][2])
+  })
+
+  it('issue 1422: an invalid typed quantity blocks Count submit and says why in the send bar', async () => {
+    renderPage()
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '12' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Received for Coffee bean' }), { target: { value: 'abc' } })
+    const submit = screen.getByRole('button', { name: 'Lock counts' })
+
+    expect(submit).toBeDisabled()
+    expect(within(submit.closest('.cafe-count__footer') as HTMLElement).getByText('Fix 1 quantity to continue')).toBeInTheDocument()
+    fireEvent.click(submit)
+    expect(mockSubmit).not.toHaveBeenCalled()
+    fireEvent.change(screen.getByRole('textbox', { name: 'Received for Coffee bean' }), { target: { value: '1' } })
+    expect(submit).toBeEnabled()
+  })
+
+  it('issue 1422: a Count submit failure is announced inside the pinned send bar', async () => {
+    mockSubmit.mockRejectedValue(new Error('network'))
+    renderPage()
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '3' } })
+    const submit = screen.getByRole('button', { name: 'Lock counts' })
+    fireEvent.click(submit)
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('could not be submitted')
+    expect(submit.closest('.cafe-count__footer')).toContainElement(alert)
   })
 
   it('FR-1004 a shift member may choose today or yesterday; an ops lead may backdate further', async () => {

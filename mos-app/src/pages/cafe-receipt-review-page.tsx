@@ -7,6 +7,7 @@ import { streamKey } from '@/lib/kitchen-action-label'
 import { useCafeStream } from '@/lib/use-cafe-stream'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
+import { useSetBreadcrumbTitle } from '@/shell/breadcrumb-title'
 import './cafe-count-page.css'
 
 /** Receipt review is cross-stream like Café review: it opens on All streams and claims no location. */
@@ -16,6 +17,7 @@ export function CafeReceiptReviewPage() {
   const { options, resolve, adopt } = useCafeStream()
   const [streamFilter, setStreamFilter] = useState(ALL_STREAMS)
   const title = t('cafe.receipts.review.title')
+  useSetBreadcrumbTitle(title)
   useDocumentTitle(t('common.docTitle', { page: `${title} · ${t('nav.cafe')}` }))
 
   useEffect(() => {

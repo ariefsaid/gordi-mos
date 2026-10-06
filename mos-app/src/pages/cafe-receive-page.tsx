@@ -7,6 +7,7 @@ import { CafeReceiptState } from '@/components/kitchen/cafe-receipt-state'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { useT } from '@/i18n/use-t'
 import { canCaptureCafe } from '@/lib/cafe-affiliation'
+import { canReviewCafe } from '@/lib/kitchen-gates'
 import {
   cafeReceiptArrivalDateBounds,
   listCafeReceipts,
@@ -26,16 +27,27 @@ import { useCafeStream } from '@/lib/use-cafe-stream'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsOffline } from '@/shell/use-is-offline'
+import { useIsDesktop } from '@/shell/use-is-desktop'
 import { formatWeekdayDayMonth } from '@/lib/format/date'
 import './cafe-count-page.css'
 import './cafe-receive-page.css'
 
 type Entry = { quantity: string; unitId: string; changingUnit: boolean }
 type LoadState = 'loading' | 'ready' | 'error'
+
+/** A typed quantity that is not a positive decimal; it blocks Count submit rather than being dropped. */
+function isInvalidEntry(entry: Entry | undefined): boolean {
+  return Boolean(entry?.quantity.trim()) && normalizeCafeReceiptQuantity(entry!.quantity) === null
+}
 type Counted = { receiptId: string; rowVersion: number; lines: Array<{ name: string; quantity: string; unit: string }> }
+
+function blankEntries(items: readonly CafeReceivableItem[]): Record<string, Entry> {
+  return Object.fromEntries(items.map(item => [item.id, { quantity: '', unitId: item.defaultUnitId, changingUnit: false }]))
+}
 
 function submitErrorKey(message: string) {
   if (message.includes('CAFE_RECEIPT_ITEM_NOT_RECEIVABLE')) return 'cafe.receive.error.itemUnavailable' as const
+  if (message.includes('CAFE_RECEIPT_CLIENT_KEY_CONFLICT')) return 'cafe.receive.error.keyConflict' as const
   if (message.includes('CAFE_RECEIPT_ARRIVAL_DATE')) return 'cafe.receive.error.arrivalDate' as const
   return 'cafe.receive.error.submit' as const
 }
@@ -51,7 +63,8 @@ export function CafeReceivePage() {
     accessRoles,
   })
   const canBackdate = accessRoles.includes('ops_lead') || accessRoles.includes('admin')
-  const canReview = canBackdate || accessRoles.includes('supervisor')
+  const canReview = canReviewCafe(accessRoles)
+  const isDesktop = useIsDesktop()
   const today = useMemo(() => wibToday(), [])
   const dateBounds = cafeReceiptArrivalDateBounds(today, canBackdate)
   const pageLabel = t('nav.cafe.receive')
@@ -102,7 +115,7 @@ export function CafeReceivePage() {
     void listCafeReceivableItems(stream).then(nextItems => {
       if (!active || generation !== requestGeneration.current) return
       setItems(nextItems)
-      setEntries(Object.fromEntries(nextItems.map(item => [item.id, { quantity: '', unitId: item.defaultUnitId, changingUnit: false }])))
+      setEntries(blankEntries(nextItems))
       setLoadState('ready')
     }).catch(() => {
       if (!active || generation !== requestGeneration.current) return
@@ -125,6 +138,7 @@ export function CafeReceivePage() {
     return entry && quantity !== null ? [{ item, entry, quantity }] : []
   })
   const hasInput = items.some(item => Boolean(entries[item.id]?.quantity.trim()))
+  const invalidCount = items.filter(item => isInvalidEntry(entries[item.id])).length
   const canSwitch = !busy && !hasInput && counted === null
 
   const filterRows = useMemo(() => items.map(item => ({
@@ -134,7 +148,8 @@ export function CafeReceivePage() {
     itemName: item.name,
     groupKey: 'receive',
   })), [items])
-  const itemTable = useKitchenItemTable({ data: filterRows, search, kind: 'All', category })
+  // Filters beyond search are desktop-only (DESIGN: first capture row within 300px on phone).
+  const itemTable = useKitchenItemTable({ data: filterRows, search, kind: 'All', category: isDesktop ? category : 'All' })
   const visibleItems = itemTable.getFilteredRowModel().rows.map(row => row.original)
   const categories = useMemo(() => [
     'All',
@@ -152,7 +167,7 @@ export function CafeReceivePage() {
   }, [canSwitch, setStream])
 
   async function handleCountSubmit() {
-    if (!stream || !isOnline || busy || lines.length === 0) return
+    if (!stream || !isOnline || busy || lines.length === 0 || invalidCount > 0) return
     setBusy(true)
     setError(null)
     try {
@@ -171,7 +186,9 @@ export function CafeReceivePage() {
       })
       loadRecent()
     } catch (cause) {
-      setError(submitErrorKey(cause instanceof Error ? cause.message : ''))
+      const key = submitErrorKey(cause instanceof Error ? cause.message : '')
+      setError(key)
+      if (key === 'cafe.receive.error.keyConflict') loadRecent()
     } finally {
       setBusy(false)
     }
@@ -197,7 +214,7 @@ export function CafeReceivePage() {
     setSent(false)
     setDeliveryNote('')
     setClientKey(newCafeReceiptClientKey())
-    setEntries(Object.fromEntries(items.map(item => [item.id, { quantity: '', unitId: item.defaultUnitId, changingUnit: false }])))
+    setEntries(blankEntries(items))
   }
 
   const picker = (
@@ -240,7 +257,7 @@ export function CafeReceivePage() {
               {counted.lines.map(line => (
                 <li key={`${line.name}-${line.unit}`}>
                   <span>{line.name}</span>
-                  <span className="tabular">{line.quantity} {line.unit}</span>
+                  <span className="tabular">{t('cafe.receipts.quantityUnit', { quantity: line.quantity, unit: line.unit })}</span>
                 </li>
               ))}
             </ul>
@@ -280,7 +297,6 @@ export function CafeReceivePage() {
               <p>{t('cafe.receive.blindHelp')}</p>
               {hasInput && <p className="cafe-count__switch-note" role="status">{t('cafe.receive.streamLocked')}</p>}
               {!isOnline && <p className="cafe-count__notice" role="alert">{t('cafe.receive.offline')}</p>}
-              {error && <p className="cafe-count__notice" role="alert">{t(error)}</p>}
             </div>
             <div className="cafe-receive__date">
               <label htmlFor="cafe-receive-arrival">{t('cafe.receive.arrivalDate')}</label>
@@ -304,7 +320,7 @@ export function CafeReceivePage() {
                 <KitchenToolbar
                   search={search}
                   onSearchChange={setSearch}
-                  categories={categories}
+                  categories={isDesktop ? categories : undefined}
                   categoryId="cafe-receive-category"
                   categoryLabel={value => kitchenCategoryLabel(t, value)}
                   category={category}
@@ -316,7 +332,7 @@ export function CafeReceivePage() {
                 <ul className="cafe-count__list" aria-label={t('cafe.receive.listAria')}>
                   {visibleItems.map(item => {
                     const entry = entries[item.id]
-                    const invalid = Boolean(entry?.quantity.trim()) && normalizeCafeReceiptQuantity(entry.quantity) === null
+                    const invalid = isInvalidEntry(entry)
                     const unitName = item.units.find(unit => unit.id === entry?.unitId)?.name ?? ''
                     return (
                       <li className="cafe-count__row" key={item.id}>
@@ -407,13 +423,21 @@ export function CafeReceivePage() {
         </nav>
         {loadState === 'ready' && stream && canCapture && !counted && items.length > 0 && (
           <div className="cafe-count__footer">
-            <p className="cafe-count__tally" aria-live="polite">
-              {t(lines.length === 1 ? 'cafe.receive.lines.one' : 'cafe.receive.lines.other', { count: lines.length })}
-            </p>
+            <div className="cafe-receive__band-status">
+              <p className="cafe-count__tally" aria-live="polite">
+                {t(lines.length === 1 ? 'cafe.receive.lines.one' : 'cafe.receive.lines.other', { count: lines.length })}
+              </p>
+              {invalidCount > 0 && (
+                <p className="cafe-count__field-error" role="status">
+                  {t(invalidCount === 1 ? 'cafe.receive.fixInvalid.one' : 'cafe.receive.fixInvalid.other', { count: invalidCount })}
+                </p>
+              )}
+              {error && <p className="cafe-count__field-error" role="alert">{t(error)}</p>}
+            </div>
             <button
               type="button"
               className="btn btn-primary cafe-count__submit"
-              disabled={!isOnline || busy || lines.length === 0}
+              disabled={!isOnline || busy || lines.length === 0 || invalidCount > 0}
               onClick={() => void handleCountSubmit()}
             >
               {busy ? t('common.working') : t('cafe.receive.countSubmit')}

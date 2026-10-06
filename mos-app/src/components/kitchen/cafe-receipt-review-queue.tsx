@@ -75,10 +75,7 @@ export function CafeReceiptReviewQueue({
   return (
     <section className="cafe-count-review" aria-labelledby="cafe-receipt-review-title">
       <header className="cafe-count-review__header">
-        <div>
-          <h2 id="cafe-receipt-review-title">{t('cafe.receipts.review.queueTitle')}</h2>
-          <p>{t('cafe.receipts.review.help')}</p>
-        </div>
+        <p id="cafe-receipt-review-title">{t('cafe.receipts.review.help')}</p>
       </header>
       {actionError && (
         <div className="cafe-count-review__error" role="alert">
@@ -126,7 +123,7 @@ export function CafeReceiptReviewQueue({
                   {receipt.lines.map(line => (
                     <li key={line.id}>
                       <span>{line.item_name}</span>
-                      <span className="tabular">{line.received_quantity} {line.unit_name}</span>
+                      <span className="tabular">{t('cafe.receipts.quantityUnit', { quantity: line.received_quantity, unit: line.unit_name })}</span>
                     </li>
                   ))}
                 </ul>

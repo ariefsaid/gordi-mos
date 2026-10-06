@@ -43,7 +43,7 @@ describe('CafeReceiptReviewQueue', () => {
     renderQueue()
     const row = (await screen.findByText('Received by Shift member')).closest('li')!
     expect(within(row).getByText('Delivery note DN-7')).toBeInTheDocument()
-    expect(within(row).getByText('2.5 kg')).toBeInTheDocument()
+    expect(within(row).getByText('2.5 × kg')).toBeInTheDocument()
     fireEvent.click(within(row).getByRole('button', { name: 'Approve' }))
     await waitFor(() => expect(reviewCafeReceipt).toHaveBeenCalledWith('r-1', 'approve', 2, ''))
     expect(await within(row).findByText('Approved · not posted to ESB')).toBeInTheDocument()
