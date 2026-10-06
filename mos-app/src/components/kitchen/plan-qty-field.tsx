@@ -29,6 +29,8 @@
 // reflow the row's one control mid-entry.
 // Token-only (DESIGN.md); .pqf-* namespace (C1 guard).
 
+import { useRef, useState } from 'react'
+import { QuantityField } from '@/components/ui/quantity-field'
 import { useInlineCommit } from '@/components/ui/use-inline-commit'
 import { useT } from '@/i18n/use-t'
 import './plan-qty-field.css'
@@ -60,38 +62,46 @@ export function PlanQtyField({ itemName, qty, disabled, onSave, dense = false, u
     onCommit: onSave,
     disabled,
   })
+  const invalidRef = useRef(false)
+  const [resetKey, setResetKey] = useState(0)
 
-  function handleInput(e: React.ChangeEvent<HTMLInputElement>) {
-    const raw = e.target.value
-    // Empty clears the plan rather than coercing mid-keystroke — a blank field means
-    // "nothing planned", which is a real state here, and must stay typeable through.
-    if (raw === '') { setDraft(0); return }
-    const val = parseInt(raw, 10)
-    if (!Number.isNaN(val) && val >= 0) setDraft(val)
+  function handleKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (event.key === 'Escape') {
+      invalidRef.current = false
+      setResetKey(key => key + 1)
+      onKeyDown(event)
+      return
+    }
+    if (event.key === 'Enter' && invalidRef.current) {
+      event.preventDefault()
+      return
+    }
+    onKeyDown(event)
   }
 
   return (
     <div className={`pqf${dense ? ' pqf-dense' : ''}`}>
-      <input
-        type="number"
-        inputMode="decimal"
-        aria-label={t('kitchen.qty.plannedAria', { item: itemName })}
+      <QuantityField
+        label={t('kitchen.qty.plannedAria', { item: itemName })}
         className="pqf-qty"
-        value={draft > 0 ? draft : ''}
-        placeholder="0"
+        value={draft}
+        onChange={setDraft}
+        onValidityChange={valid => { invalidRef.current = !valid }}
+        onKeyDown={handleKeyDown}
+        onBlur={valid => { if (valid) onBlur() }}
+        resetKey={resetKey}
+        integerOnly
         min={0}
-        step={1}
+        maxFractionDigits={0}
+        placeholder="0"
         enterKeyHint="next"
-        // The hook owns duplicate suppression; these attributes still expose pending state.
+        dataEscapeLayer="nested"
         disabled={disabled || pending}
-        aria-busy={pending || undefined}
-        data-escape-layer="nested"
-        data-touch-target="true"
-        onChange={handleInput}
-        onKeyDown={onKeyDown}
-        onBlur={onBlur}
+        busy={pending}
+        touchTarget
+        suffix={unitName !== null ? <span className="pqf-unit">{unitName ?? t('kitchen.unit.porsi')}</span> : undefined}
+        suffixPosition="inline"
       />
-      {unitName !== null && <span className="pqf-unit">{unitName ?? t('kitchen.unit.porsi')}</span>}
     </div>
   )
 }

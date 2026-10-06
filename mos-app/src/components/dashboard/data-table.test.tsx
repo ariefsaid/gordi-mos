@@ -85,6 +85,24 @@ describe('DataTable — desktop, ready state', () => {
     expect(screen.getByText('Total')).toBeInTheDocument()
   })
 
+  it('renders caller-owned validation detail in a full-width row after the data row', () => {
+    render(
+      <DataTable
+        columns={COLUMNS}
+        rows={ROWS.slice(0, 1)}
+        isDesktop
+        caption="Sales by branch"
+        renderRowDetail={row => <p role="alert">Fix {row.dimension}</p>}
+      />,
+    )
+    const alert = screen.getByRole('alert')
+    expect(alert).toHaveTextContent('Fix GHQ')
+    const detailRow = alert.closest('tr')
+    expect(detailRow).toHaveClass('dt-row-detail')
+    expect(detailRow?.previousElementSibling).toContainElement(screen.getByText('GHQ'))
+    expect(detailRow?.querySelector('td')).toHaveAttribute('colspan', '4')
+  })
+
   it('applies rowClassName to desktop rows for caller-owned attention states', () => {
     render(
       <DataTable

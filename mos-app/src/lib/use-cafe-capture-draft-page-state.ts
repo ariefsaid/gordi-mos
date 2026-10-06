@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useT } from '@/i18n/use-t'
 import { formatWibDateTime } from '@/lib/format/date'
-import { useSearchParamState } from '@/lib/use-search-param-state'
+import { useSearchParamReset, useSearchParamState } from '@/lib/use-search-param-state'
 
 export interface CafeCaptureDraftRestoreInfo {
   count: number
@@ -23,6 +23,7 @@ export function useCafeCaptureDraftPageState() {
   const [search, setSearch] = useSearchParamState('q', '')
   const [kindFilter, setKindFilter] = useSearchParamState('kind', 'All')
   const [category, setCategory] = useSearchParamState('category', 'All')
+  const resetSearchFilters = useSearchParamReset(['q', 'kind', 'category'])
 
   const setRestorationNotice = useCallback((savedAt: string | null, count: number) => {
     const info = savedAt && count > 0 ? { count, savedAt } : null
@@ -45,5 +46,6 @@ export function useCafeCaptureDraftPageState() {
     setKindFilter,
     category,
     setCategory,
+    resetSearchFilters,
   }
 }

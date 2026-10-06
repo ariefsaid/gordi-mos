@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import userEvent from '@testing-library/user-event'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
@@ -201,7 +202,7 @@ describe('CafeWastePage', () => {
     first.unmount()
 
     renderPage()
-    expect(await screen.findByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })).toHaveValue(2.5)
+    expect(await screen.findByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })).toHaveValue('2.5')
     expect(await screen.findByText(/restored 1 unsent entry · saved/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Discard' })).toBeInTheDocument()
     fireEvent.click(screen.getAllByRole('button', { name: 'Add photo' })[0]!)
@@ -257,7 +258,7 @@ describe('CafeWastePage', () => {
 
     renderPage()
 
-    expect(await screen.findByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })).toHaveValue(null)
+    expect(await screen.findByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })).toHaveValue('')
     const yesterday = await screen.findByRole('article', { name: /unsent from 1 oct 2026/i })
     expect(yesterday).toHaveTextContent('Oat Latte')
     expect(yesterday).toHaveTextContent('4 cup')
@@ -280,7 +281,7 @@ describe('CafeWastePage', () => {
     await waitFor(() => expect(document.activeElement).toBe(draftHeading))
     expect(localStorage.getItem(cafeCaptureDraftStorageKey(scope))).toBeNull()
     expect(localStorage.getItem(cafeCaptureDraftStorageKey(nextScope))).not.toBeNull()
-    expect(screen.getByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })).toHaveValue(null)
+    expect(screen.getByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })).toHaveValue('')
   })
 
   it('confirms before discarding the restored current-date waste draft', async () => {
@@ -310,18 +311,18 @@ describe('CafeWastePage', () => {
 
     renderPage()
     const quantity = await screen.findByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })
-    expect(quantity).toHaveValue(2.5)
+    expect(quantity).toHaveValue('2.5')
     fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
 
     const dialog = await screen.findByRole('dialog', { name: 'Discard this saved draft?' })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
-    expect(quantity).toHaveValue(2.5)
+    expect(quantity).toHaveValue('2.5')
     expect(localStorage.getItem(cafeCaptureDraftStorageKey(scope))).not.toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
     const confirm = await screen.findByRole('dialog', { name: 'Discard this saved draft?' })
     fireEvent.click(within(confirm).getByRole('button', { name: 'Discard' }))
-    await waitFor(() => expect(quantity).toHaveValue(null))
+    await waitFor(() => expect(quantity).toHaveValue(''))
     expect(localStorage.getItem(cafeCaptureDraftStorageKey(scope))).toBeNull()
   })
 
@@ -338,6 +339,94 @@ describe('CafeWastePage', () => {
     expect(mockInsertKitchenLog.mock.calls[1]![0].client_request_id)
       .toBe(mockInsertKitchenLog.mock.calls[0]![0].client_request_id)
   })
+  it.each(['1,5', '1.5'])('captures waste quantity %s as 1.5 in the saved entry', async raw => {
+    renderPage()
+    const input = await screen.findByLabelText('Waste quantity for Oat Latte')
+    fireEvent.change(input, { target: { value: raw } })
+    fireEvent.click(screen.getAllByRole('button', { name: /add photo/i })[0]!)
+
+    await waitFor(() => expect(mockInsertKitchenLog).toHaveBeenCalledWith(expect.objectContaining({
+      wip_item_id: 'wip-1',
+      qty_porsi: 1.5,
+      entry_quantity: 1.5,
+    })))
+  })
+
+  it('shows a reason-specific correction and does not prepare waste for ambiguous input', async () => {
+    renderPage()
+    const input = await screen.findByLabelText('Waste quantity for Oat Latte')
+    fireEvent.change(input, { target: { value: '1.234,5' } })
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Use one mark: 1.5.')
+    expect(screen.getAllByRole('button', { name: /add photo/i })[0]).toBeDisabled()
+    expect(mockInsertKitchenLog).not.toHaveBeenCalled()
+  })
+
+  it('renders the desktop quantity error in its controls cell after the field and before Add photo', async () => {
+    setWideMatchMedia()
+    renderPage()
+    const input = await screen.findByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })
+    fireEvent.change(input, { target: { value: '1.125' } })
+    fireEvent.blur(input)
+
+    const error = screen.getByRole('alert')
+    const controls = input.closest('.cwl-controls') as HTMLElement
+    const addPhoto = within(controls).getByRole('button', { name: 'Add photo' })
+    expect(controls).toContainElement(error)
+    expect(error.closest('tr')).toBe(input.closest('tr'))
+    expect(input.compareDocumentPosition(error) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(error.compareDocumentPosition(addPhoto) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(input).toHaveAttribute('aria-describedby', error.id)
+  })
+
+  it('keeps a valid decimal and the Add photo action intact on ArrowDown', async () => {
+    renderPage()
+    const input = await screen.findByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })
+    fireEvent.change(input, { target: { value: '2.3' } })
+    const addPhoto = screen.getAllByRole('button', { name: /add photo/i })[0]!
+    expect(addPhoto).toBeEnabled()
+
+    fireEvent.keyDown(input, { key: 'ArrowDown' })
+
+    expect(input).toHaveValue('2.3')
+    expect(addPhoto).toBeEnabled()
+    expect(mockInsertKitchenLog).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['1.250', 'Did you mean 1250 or 1.250? Use up to 2 decimals.'],
+    ['0,125', 'Did you mean 125 or 0.125? Use up to 2 decimals.'],
+  ])('refuses ambiguous waste quantity %s with both readings and blocks Add photo', async (raw, correction) => {
+    renderPage()
+    const input = await screen.findByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })
+    fireEvent.change(input, { target: { value: raw } })
+
+    expect(screen.getByRole('alert')).toHaveTextContent(correction)
+    const field = input.closest('.quantity-field')!
+    expect(field.querySelector('.cwl-unit-select')).toBeInTheDocument()
+    expect(field.lastElementChild).toHaveClass('quantity-field-error')
+    expect(screen.getAllByRole('button', { name: /add photo/i })[0]).toBeDisabled()
+    expect(within(document.querySelector('.cwl-footer')!).getByRole('button', { name: '1 item needs fixing' })).toBeInTheDocument()
+    expect(mockInsertKitchenLog).not.toHaveBeenCalled()
+  })
+
+  it('clears search and restores a hidden invalid waste draft from the needs-fixing action', async () => {
+    renderPage()
+    const input = await screen.findByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })
+    fireEvent.change(input, { target: { value: '1,125' } })
+    fireEvent.blur(input)
+    const search = screen.getByRole('searchbox', { name: /find an item/i })
+    fireEvent.change(search, { target: { value: 'Oat milk' } })
+    expect(screen.queryByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })).toBeNull()
+
+    const footer = document.querySelector('.cwl-footer') as HTMLElement
+    fireEvent.click(within(footer).getByRole('button', { name: '1 item needs fixing' }))
+    expect(search).toHaveValue('')
+    const restored = await screen.findByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })
+    expect(restored).toHaveValue('1,125')
+    expect(restored).toHaveFocus()
+  })
+
   it('shows each waste item quantity and unit without a grouped numeric total', async () => {
     setWideMatchMedia()
     renderPage()
@@ -426,7 +515,7 @@ describe('CafeWastePage', () => {
     }
     mockListWasteDrafts.mockResolvedValue([
       wasteDraft({ photos: [photo] }),
-      wasteDraft({ logId: 'another-waste-draft', quantity: 8.75, unitName: 'cup', itemUnitId: 'unit-cup' }),
+      wasteDraft({ logId: 'another-waste-draft', quantity: 1000, unitName: 'cup', itemUnitId: 'unit-cup' }),
     ])
     renderPage()
 
@@ -441,12 +530,12 @@ describe('CafeWastePage', () => {
 
     const quantity = screen.getByRole('spinbutton', { name: 'Waste quantity for Oat Latte' }) as HTMLInputElement
     const unit = screen.getByRole('combobox', { name: 'Waste unit for Oat Latte' })
-    expect(quantity).toHaveValue(2.5)
+    expect(quantity).toHaveValue('2.5')
     expect(quantity).toBeDisabled()
     expect(unit).toHaveTextContent('tray')
     expect(unit).toBeDisabled()
     expect(screen.getByRole('img', { name: /photo 1 preview/i })).toHaveAttribute('src', photo.url)
-    expect(screen.getByRole('button', { name: /resume oat latte · 8.75 cup/i })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /resume oat latte · 1000 cup/i })).toBeDisabled()
 
     const submit = screen.getByRole('button', { name: 'Submit waste' })
     expect(submit).toBeEnabled()
@@ -489,7 +578,7 @@ describe('CafeWastePage', () => {
     const valid = screen.getByRole('button', { name: /resume oat milk.*litre/i })
     expect(valid).toBeEnabled()
     fireEvent.click(valid)
-    expect(screen.getByRole('spinbutton', { name: 'Waste quantity for Oat milk' })).toHaveValue(2.5)
+    expect(screen.getByRole('spinbutton', { name: 'Waste quantity for Oat milk' })).toHaveValue('2.5')
     expect(screen.getByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })).toBeEnabled()
     expect(mockInsertKitchenLog).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: 'Submit waste' }))
@@ -514,10 +603,10 @@ describe('CafeWastePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Start new waste entry' }))
     await waitFor(() => expect(mockRestartWaste).toHaveBeenCalledWith('old-waste-draft', '2026-10-02'))
     expect(mockInsertKitchenLog).not.toHaveBeenCalled()
-    expect(screen.getByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })).toHaveValue(2.5)
+    expect(screen.getByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })).toHaveValue('2.5')
     expect(screen.getByRole('combobox', { name: 'Waste unit for Oat Latte' })).toHaveTextContent('cup')
     expect(screen.getByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })).toBeDisabled()
-    expect(screen.getByRole('spinbutton', { name: 'Waste quantity for Oat milk' })).toHaveValue(4)
+    expect(screen.getByRole('spinbutton', { name: 'Waste quantity for Oat milk' })).toHaveValue('4')
     expect(await screen.findByLabelText(/take or choose photos/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Submit waste' })).toBeDisabled()
   })
@@ -537,7 +626,7 @@ describe('CafeWastePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Start new waste entry' }))
     await waitFor(() => expect(mockRestartWaste).toHaveBeenCalledWith('waste-1', '2026-10-02'))
     expect(mockInsertKitchenLog).toHaveBeenCalledTimes(1)
-    expect(screen.getByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })).toHaveValue(3)
+    expect(screen.getByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })).toHaveValue('3')
     expect(mockUploadPhoto).toHaveBeenCalledWith('waste-1', expect.any(File))
     expect(mockSubmitWaste).not.toHaveBeenCalled()
     expect(screen.getByRole('button', { name: 'Submit waste' })).toBeDisabled()
@@ -553,7 +642,7 @@ describe('CafeWastePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Start new waste entry' }))
     await waitFor(() => expect(mockRestartWaste).toHaveBeenCalledTimes(1))
     expect(await screen.findByRole('button', { name: 'Start new waste entry' })).toBeEnabled()
-    expect(screen.getByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })).toHaveValue(2.5)
+    expect(screen.getByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })).toHaveValue('2.5')
     expect(mockInsertKitchenLog).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: 'Start new waste entry' }))
     await waitFor(() => expect(mockRestartWaste).toHaveBeenCalledTimes(2))
@@ -584,8 +673,10 @@ describe('CafeWastePage', () => {
     expect(row.querySelector('.cwl-capture-row__item')).toContainElement(name)
     expect(row.querySelector('.cwl-capture-row__controls')).toContainElement(quantity)
     expect(unit).toHaveTextContent(longUnitLabel)
-    expect(quantity.parentElement).toHaveClass('cwl-quantity-row')
-    expect(unit.closest('.cwl-unit-select')?.parentElement).toBe(quantity.parentElement)
+    const quantityRow = quantity.closest('.cwl-quantity-row')
+    expect(quantityRow).toBeInTheDocument()
+    expect(quantityRow).toContainElement(unit.closest('.cwl-unit-select') as HTMLElement)
+    expect(unit.closest('.cwl-unit-select')?.parentElement).toHaveClass('quantity-field-suffix')
   })
 
   it('keeps the missing-item route beside the item controls on a long capture list', async () => {
@@ -604,6 +695,51 @@ describe('CafeWastePage', () => {
     fireEvent.change(screen.getByRole('spinbutton', { name: 'Waste quantity for Oat Latte' }), { target: { value: '2' } })
     await waitFor(() => expect(addPhoto).toBeEnabled())
     expect(screen.getAllByText('Enter a quantity before adding a photo.')).toHaveLength(1)
+  })
+
+  it('keeps 2 unchanged through a 3× unit round trip with no quantity error', async () => {
+    mockListCafeItemSettings.mockResolvedValue([{
+      ...ITEM_SETTINGS[0]!,
+      unitMultiples: [3],
+    }])
+    renderPage()
+
+    const input = await screen.findByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })
+    fireEvent.change(input, { target: { value: '2' } })
+    await userEvent.click(screen.getByRole('combobox', { name: 'Waste unit for Oat Latte' }))
+    await userEvent.click(await screen.findByRole('option', { name: '3 cup' }))
+    expect(input).toHaveValue('2')
+    expect(input.closest('.quantity-field')?.querySelector('.quantity-field-error')).toBeNull()
+
+    await userEvent.click(screen.getByRole('combobox', { name: 'Waste unit for Oat Latte' }))
+    await userEvent.click(await screen.findByRole('option', { name: 'cup · Default' }))
+    expect(input).toHaveValue('2')
+    expect(input.closest('.quantity-field')?.querySelector('.quantity-field-error')).toBeNull()
+  })
+
+  it('switching one default unit to a 3× multiple keeps the typed amount and submits its default-unit conversion', async () => {
+    mockListCafeItemSettings.mockResolvedValue([{
+      ...ITEM_SETTINGS[0]!,
+      unitMultiples: [3],
+    }])
+    renderPage()
+
+    const input = await screen.findByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })
+    fireEvent.change(input, { target: { value: '1' } })
+    await userEvent.click(screen.getByRole('combobox', { name: 'Waste unit for Oat Latte' }))
+    await userEvent.click(await screen.findByRole('option', { name: '3 cup' }))
+
+    expect(input).toHaveValue('1')
+    expect(input).not.toHaveAttribute('aria-invalid', 'true')
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(document.querySelector('.cwl-footer')).not.toHaveTextContent(/needs fixing/i)
+    expect(screen.getAllByRole('button', { name: 'Add photo' })[0]).toBeEnabled()
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Add photo' })[0]!)
+    await waitFor(() => expect(mockInsertKitchenLog).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'waste', wip_item_id: 'wip-1', item_unit_id: 'unit-cup',
+      qty_porsi: 3, entry_quantity: 1, entry_unit_factor: 3,
+    })))
   })
 
   it('converts a selected multiple to the default ERP unit and stores its entry snapshot', async () => {

@@ -74,6 +74,29 @@ describe('CafeCountReviewQueue', () => {
     expect(screen.queryByText(/Stock/)).not.toBeInTheDocument()
   })
 
+  it('loads Submitted Counts across dates, oldest first, with each date in the shared short format', async () => {
+    mockList.mockResolvedValue([
+      line({ id: 'older', item_name: 'Earlier Count', count_date: '2026-10-04' }),
+      line({ id: 'newer', item_name: 'Later Count', count_date: '2026-10-06' }),
+    ])
+    const { container } = renderQueue()
+
+    expect(await screen.findByText('Earlier Count')).toBeInTheDocument()
+    expect(mockList).toHaveBeenCalledWith()
+    const rows = [...container.querySelectorAll('.cafe-count-review__row')]
+    expect(rows[0]).toHaveTextContent('Sun 4 Oct')
+    expect(rows[1]).toHaveTextContent('Tue 6 Oct')
+    expect(rows[0]).not.toHaveTextContent('2026-10-04')
+  })
+
+  it('uses a compact single-line empty state for all Submitted Counts', async () => {
+    mockList.mockResolvedValue([])
+    const { container } = renderQueue()
+    expect(await screen.findByText('No Submitted Counts.')).toBeInTheDocument()
+    expect(container.querySelector('.empty-state')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Refresh' })).toBeInTheDocument()
+  })
+
   it('confirms through the versioned RPC and closes a zero Variance as not needed', async () => {
     mockConfirm.mockResolvedValue({
       line_id: 'zero', status: 'Confirmed', posting_status: 'not_needed', row_version: 3, variance: '0',

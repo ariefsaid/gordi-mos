@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '@/auth/use-auth'
 import { CafeStreamBar, CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
+import { QuantityFieldError } from '@/components/ui/quantity-field'
 import { CafeItemsEmptyState } from '@/components/kitchen/cafe-items-empty-state'
 import { useT } from '@/i18n/use-t'
 import { canCaptureCafe } from '@/lib/cafe-affiliation'
@@ -9,6 +10,7 @@ import {
   listCafeCountableItems,
   newCafeCountClientKey,
   normalizeCafeCountQuantity,
+  parseCafeCountQuantity,
   submitCafeCounts,
   type CafeCountableItem,
 } from '@/lib/db/cafe-count'
@@ -114,6 +116,10 @@ export function CafeCountPage() {
     return quantity === null ? [] : [{ item, entry, quantity }]
   })
   const enteredCount = entered.length
+  const invalidCount = items.filter(item => {
+    const entry = entries[item.id]
+    return Boolean(entry && !entry.outcome && parseCafeCountQuantity(entry.quantity).kind === 'invalid')
+  }).length
   const hasSubmitted = items.some(item => Boolean(entries[item.id]?.outcome))
   const hasUnsubmittedInput = items.some(item => Boolean(entries[item.id]?.quantity.trim() && !entries[item.id]?.outcome))
   const canSwitch = !submitting && !hasUnsubmittedInput
@@ -225,8 +231,9 @@ export function CafeCountPage() {
                 <ul className="cafe-count__list" aria-label={t('cafe.count.listAria')}>
                   {items.map(item => {
                     const entry = entries[item.id]
-                    const normalized = entry ? normalizeCafeCountQuantity(entry.quantity) : null
-                    const invalid = Boolean(entry?.quantity.trim()) && normalized === null
+                    const parsed = parseCafeCountQuantity(entry?.quantity ?? '')
+                    const invalid = parsed.kind === 'invalid'
+                    const errorId = `cafe-count-${item.id}-quantity-error`
                     return (
                       <li className="cafe-count__row" key={item.id}>
                         <div className="cafe-count__item">
@@ -245,12 +252,15 @@ export function CafeCountPage() {
                               autoComplete="off"
                               value={entry?.quantity ?? ''}
                               aria-invalid={invalid || undefined}
+                              aria-describedby={invalid ? errorId : undefined}
                               disabled={submitting || Boolean(entry?.outcome)}
                               onChange={event => patchQuantity(item.id, event.target.value)}
                             />
                             <span className="cafe-count__unit">{item.unitName}</span>
                           </div>
-                          {invalid && <p className="cafe-count__field-error" role="alert">{t('cafe.count.quantityInvalid')}</p>}
+                          {invalid && parsed.kind === 'invalid' && (
+                            <QuantityFieldError id={errorId} reason={parsed.reason} rawValue={entry?.quantity ?? ''} maxFractionDigits={2} className="cafe-count__field-error" />
+                          )}
                           {entry?.outcome && <p className="cafe-count__line-success" role="status">{t('cafe.count.lineSubmitted')}</p>}
                           {entry?.refusal && <p className="cafe-count__field-error" role="alert">{refusalText(entry.refusal, t)}</p>}
                         </div>
@@ -259,9 +269,16 @@ export function CafeCountPage() {
                   })}
                 </ul>
                 <div className="cafe-count__footer">
-                  <p className="cafe-count__tally" aria-live="polite">
-                    {t(enteredCount === 1 ? 'cafe.count.entered.one' : 'cafe.count.entered.other', { count: enteredCount })}
-                  </p>
+                  <div className="cafe-count__footer-copy">
+                    <p className="cafe-count__tally" aria-live="polite">
+                      {t(enteredCount === 1 ? 'cafe.count.entered.one' : 'cafe.count.entered.other', { count: enteredCount })}
+                    </p>
+                    {invalidCount > 0 && (
+                      <p className="cafe-count__fixing" role="status" aria-live="polite">
+                        {t(invalidCount === 1 ? 'quantityField.fixing.one' : 'quantityField.fixing.other', { count: invalidCount })}
+                      </p>
+                    )}
+                  </div>
                   <button
                     type="button"
                     className="btn btn-primary cafe-count__submit"

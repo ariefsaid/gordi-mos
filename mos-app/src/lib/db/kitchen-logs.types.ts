@@ -281,7 +281,7 @@ export interface KitchenLogRow {
 // logged) is merged in at the page from fetchPlanMap, and the submitter's display
 // name is resolved client-side from the shared.people directory (cross-schema
 // embed is impossible under the ops PostgREST profile — PGRST200), mirroring
-// tasks.ts. This keeps the data fn a single ops-schema read.
+// tasks.ts. Review loads date/stream plan maps in one page-scoped read.
 export interface ReviewLogRow {
   id: string
   batch_id?: string | null

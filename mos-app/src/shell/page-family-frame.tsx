@@ -18,7 +18,7 @@ export interface PageFamilyFrameProps {
   jobSentence?: string
   // #958: passthrough to PageHead.titleHelp.
   titleHelp?: ReactNode
-  count?: number | null
+  count?: number | string | null
   meta?: ReactNode
   action?: ReactNode
   /** Full-width row below the title row, inside the same header block (see PageHead.statusRow).

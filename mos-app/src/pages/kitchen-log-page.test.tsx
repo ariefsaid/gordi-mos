@@ -610,7 +610,7 @@ describe('Populated state — WIP items loaded', () => {
     await waitFor(() => screen.getByText('Ayam Bakar'))
     const quantity = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
     expect(quantity).toHaveAttribute('placeholder', '20')
-    expect(quantity).toHaveValue(null)
+    expect(quantity).toHaveValue('')
   })
 
   it('shows pinned Submit button', async () => {
@@ -618,6 +618,54 @@ describe('Populated state — WIP items loaded', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /submit/i })).toBeInTheDocument()
     })
+  })
+
+  it('counts invalid quantities in the submit band and blocks batch submission until fixed', async () => {
+    await renderPage()
+    const quantity = await screen.findByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    fireEvent.change(quantity, { target: { value: '1,125' } })
+    fireEvent.blur(quantity)
+
+    const footer = document.querySelector('.kl-footer') as HTMLElement
+    expect(within(footer).getByRole('button', { name: '1 item needs fixing' })).toBeInTheDocument()
+    expect(within(footer).getByRole('button', { name: /^submit$/i })).toBeDisabled()
+  })
+
+  it('clears search and restores the raw invalid draft from the needs-fixing action', async () => {
+    setDesktopMatchMedia(true)
+    await renderPage()
+    const quantity = await screen.findByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    fireEvent.change(quantity, { target: { value: '1,125' } })
+    fireEvent.blur(quantity)
+
+    const search = screen.getByRole('searchbox', { name: /find an item/i })
+    fireEvent.change(search, { target: { value: 'nasi' } })
+    expect(screen.queryByRole('spinbutton', { name: /quantity produced for ayam bakar/i })).toBeNull()
+
+    const footer = document.querySelector('.kl-footer') as HTMLElement
+    fireEvent.click(within(footer).getByRole('button', { name: '1 item needs fixing' }))
+    expect(search).toHaveValue('')
+    const restored = await screen.findByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    expect(restored).toHaveValue('1,125')
+    expect(restored).toHaveFocus()
+  })
+
+  it('expands the invalid row\'s group and restores its draft from the needs-fixing action', async () => {
+    setDesktopMatchMedia(true)
+    mockListCaptureFormItems.mockResolvedValue(WIP_ITEMS_WITH_OFFPLAN)
+    await renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: /expand not planned today/i }))
+    const quantity = await screen.findByRole('spinbutton', { name: /quantity produced for sambal matah/i })
+    fireEvent.change(quantity, { target: { value: '1,125' } })
+    fireEvent.blur(quantity)
+    fireEvent.click(screen.getByRole('button', { name: /collapse not planned today/i }))
+    expect(screen.queryByRole('spinbutton', { name: /quantity produced for sambal matah/i })).toBeNull()
+
+    const footer = document.querySelector('.kl-footer') as HTMLElement
+    fireEvent.click(within(footer).getByRole('button', { name: '1 item needs fixing' }))
+    const restored = await screen.findByRole('spinbutton', { name: /quantity produced for sambal matah/i })
+    expect(restored).toHaveValue('1,125')
+    expect(screen.getByRole('button', { name: /collapse not planned today/i })).toBeInTheDocument()
   })
 
   // v4 P0 (design critique): the footer is now DELIBERATELY sticky — on phone the scroll
@@ -1093,6 +1141,37 @@ describe('AC-022: transfer over-availability rejects submit — "Insufficient st
 
 // ── AC-030: successful submit ──────────────────────────────────────────────────
 describe('AC-030: successful submit (increment semantics)', () => {
+  it.each(['1,5', '1.5'])('production accepts %s and saves 1.5', async raw => {
+    mockInsertKitchenLogBatch.mockResolvedValue(['decimal-production-log'])
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    fireEvent.change(screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i }), { target: { value: raw } })
+    fireEvent.change(await screen.findByRole('textbox', { name: /^note for ayam bakar$/i }), { target: { value: 'small batch' } })
+    fireEvent.click(screen.getAllByRole('button', { name: /^submit/i })[0]!)
+
+    await waitFor(() => expect(mockInsertKitchenLogBatch).toHaveBeenCalledTimes(1))
+    expect(mockInsertKitchenLogBatch.mock.calls[0][0]).toEqual([
+      expect.objectContaining({ action: 'produce', wip_item_id: 'w1', qty_porsi: 1.5, entry_quantity: 1.5 }),
+    ])
+  })
+
+  it.each(['1,5', '1.5'])('transfer accepts %s and saves 1.5', async raw => {
+    mockInsertKitchenLogBatch.mockResolvedValue(['decimal-transfer-log'])
+    await renderTransferPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+    fireEvent.click(screen.getByRole('tab', { name: /transfer to radiant/i }))
+
+    fireEvent.change(screen.getByRole('spinbutton', { name: /quantity to transfer to radiant for ayam bakar/i }), { target: { value: raw } })
+    fireEvent.change(await screen.findByRole('textbox', { name: /^note for ayam bakar$/i }), { target: { value: 'small transfer' } })
+    fireEvent.click(screen.getAllByRole('button', { name: /^submit/i })[0]!)
+
+    await waitFor(() => expect(mockInsertKitchenLogBatch).toHaveBeenCalledTimes(1))
+    expect(mockInsertKitchenLogBatch.mock.calls[0][0]).toEqual([
+      expect.objectContaining({ action: 'transfer', destination_branch_id: BRANCH_RADIANT.id, wip_item_id: 'w1', qty_porsi: 1.5, entry_quantity: 1.5 }),
+    ])
+  })
+
   it('AC-030: submits correct payload without status/org_id/submitted_by', async () => {
     mockInsertKitchenLogBatch.mockResolvedValue(['log-001', 'log-002'])
     await renderPage()
@@ -1200,6 +1279,73 @@ describe('FR-021/022: "change unit" re-binds the row to the chosen item-unit', (
 })
 
 describe('issue 1345: manager-defined multiples keep the ERP default coordinate', () => {
+  it.each(['production', 'transfer'] as const)('keeps 2 unchanged through a unit round trip on %s with no quantity error', async mode => {
+    mockListCaptureFormItems.mockResolvedValue([{
+      ...WIP_ITEMS[0]!,
+      unit_multiples: [3],
+    }])
+    if (mode === 'transfer') {
+      await renderTransferPage()
+      await userEvent.click(await screen.findByRole('tab', { name: /transfer to radiant/i }))
+    } else {
+      await renderPage()
+    }
+
+    const input = screen.getByRole('spinbutton', {
+      name: mode === 'transfer'
+        ? /quantity to transfer to radiant for ayam bakar/i
+        : /quantity produced for ayam bakar/i,
+    })
+    fireEvent.change(input, { target: { value: '2' } })
+    await userEvent.click(screen.getByRole('button', { name: /change unit for ayam bakar/i }))
+    await userEvent.click(screen.getByRole('combobox', { name: /unit for ayam bakar/i }))
+    await userEvent.click(await screen.findByRole('option', { name: '3 porsi' }))
+    expect(input).toHaveValue('2')
+    expect(input).not.toHaveAttribute('aria-invalid', 'true')
+    expect(input.closest('.quantity-field')?.querySelector('.quantity-field-error')).toBeNull()
+
+    await userEvent.click(screen.getByRole('button', { name: /change unit for ayam bakar/i }))
+    await userEvent.click(screen.getByRole('combobox', { name: /unit for ayam bakar/i }))
+    await userEvent.click(await screen.findByRole('option', { name: 'porsi' }))
+    expect(input).toHaveValue('2')
+    expect(input).not.toHaveAttribute('aria-invalid', 'true')
+    expect(input.closest('.quantity-field')?.querySelector('.quantity-field-error')).toBeNull()
+  })
+
+  it('switching one default unit to a 3× multiple keeps the typed amount and submits its default-unit conversion', async () => {
+    mockListCaptureFormItems.mockResolvedValue([{
+      id: 'w1', name: 'Ayam Bakar', category: 'Main',
+      units: [{ id: 'u1-default', name: 'porsi', is_default: true }],
+      unit_multiples: [3],
+    }])
+    mockFetchPlanMap.mockResolvedValue({ w1: { [PRODUCE_KEY]: 1 } })
+    mockInsertKitchenLogBatch.mockResolvedValue(['multiple-log-3'])
+    await renderPage()
+
+    const qtyInput = await screen.findByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    fireEvent.change(qtyInput, { target: { value: '1' } })
+    await userEvent.click(screen.getByRole('button', { name: /change unit for ayam bakar/i }))
+    await userEvent.click(screen.getByRole('combobox', { name: /unit for ayam bakar/i }))
+    await userEvent.click(await screen.findByRole('option', { name: '3 porsi' }))
+
+    expect(qtyInput).toHaveValue('1')
+    expect(qtyInput).not.toHaveAttribute('aria-invalid', 'true')
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(document.querySelector('.kl-footer')).not.toHaveTextContent(/needs fixing/i)
+    fireEvent.change(screen.getByRole('textbox', { name: /note for ayam bakar/i }), {
+      target: { value: 'Entered one 3× unit.' },
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /^submit/i }))
+    await waitFor(() => expect(mockInsertKitchenLogBatch).toHaveBeenCalledTimes(1))
+    expect(mockInsertKitchenLogBatch.mock.calls[0][0]).toEqual([
+      expect.objectContaining({
+        wip_item_id: 'w1', item_unit_id: 'u1-default',
+        qty_porsi: 3, entry_quantity: 1, entry_unit_factor: 3,
+      }),
+    ])
+  })
+
   it('starts on the default and submits converted quantity plus the typed amount and factor', async () => {
     mockListCaptureFormItems.mockResolvedValue([{
       id: 'w1', name: 'Ayam Bakar', category: 'Main',
@@ -1211,7 +1357,7 @@ describe('issue 1345: manager-defined multiples keep the ERP default coordinate'
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
-    expect(qtyInput).toHaveValue(null)
+    expect(qtyInput).toHaveValue('')
     expect(screen.getByRole('button', { name: /change unit for ayam bakar/i })).toHaveTextContent('porsi')
 
     await userEvent.click(screen.getByRole('button', { name: /change unit for ayam bakar/i }))
@@ -1296,7 +1442,7 @@ describe('issue 222: capture offers the stream\'s own item list', () => {
       await screen.findByRole('alert')
       expect(mockInsertKitchenLogBatch).toHaveBeenCalledTimes(1)
       await waitFor(() => expect(ayam).toHaveFocus())
-      expect(ayam).toHaveValue(17)
+      expect(ayam).toHaveValue('17')
 
       await act(async () => {
         fireEvent.click(screen.getByRole('button', { name: /^submit/i }))
@@ -1324,8 +1470,8 @@ describe('issue 222: capture offers the stream\'s own item list', () => {
 
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent(/no longer on this stream.s list\. clear the marked lines or switch stream/i)
-    expect(ayam).toHaveValue(17)
-    expect(nasi).toHaveValue(12)
+    expect(ayam).toHaveValue('17')
+    expect(nasi).toHaveValue('12')
     expect(screen.getAllByText('Not on this stream’s list')).toHaveLength(1)
     const marked = screen.getByText('Not on this stream’s list').closest('tr, .dt-card')
     expect(marked).toHaveTextContent('Ayam Bakar')
@@ -1354,7 +1500,7 @@ describe('issue 222: capture offers the stream\'s own item list', () => {
 
     fireEvent.click(within(dialog).getByRole('button', { name: /cancel/i }))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-    expect(nasi).toHaveValue(12)
+    expect(nasi).toHaveValue('12')
     expect(screen.getByTestId('cafe-stream')).toHaveTextContent('Rumah Rames · Kitchen')
     expect(mockFetchPlanMap.mock.calls.length).toBe(planCallsBefore)
 
@@ -1367,7 +1513,7 @@ describe('issue 222: capture offers the stream\'s own item list', () => {
     await waitFor(() => {
       expect(screen.getByTestId('cafe-stream')).toHaveTextContent('Gordi HQ · Kitchen')
     })
-    expect(screen.getByRole('spinbutton', { name: /quantity produced for nasi goreng/i })).not.toHaveValue(12)
+    expect(screen.getByRole('spinbutton', { name: /quantity produced for nasi goreng/i })).not.toHaveValue('12')
   })
 })
 
@@ -1397,7 +1543,7 @@ describe('Submit error state', () => {
     expect(alert).toHaveTextContent(/couldn.t submit\. your entries are still here/i)
     expect(alert).not.toHaveTextContent(/server error/i)
     expect(alert.closest('.kl-footer')).not.toBeNull()
-    expect(nasiInput).toHaveValue(12)
+    expect(nasiInput).toHaveValue('12')
     expect(screen.getByRole('button', { name: /^submit/i })).toBeEnabled()
   })
 
@@ -1503,7 +1649,7 @@ describe('capture retry identity and saved drafts', () => {
     await screen.findByText(/choose a production stream to start logging/i)
     await chooseStream('Radiant · Bar')
 
-    expect(await screen.findByRole('spinbutton', { name: /quantity produced for nasi goreng/i })).toHaveValue(7)
+    expect(await screen.findByRole('spinbutton', { name: /quantity produced for nasi goreng/i })).toHaveValue('7')
   })
 
   it.each([
@@ -1522,7 +1668,7 @@ describe('capture retry identity and saved drafts', () => {
 
     await renderPage(VIEWER_MEMBER, appUrl(path))
     const restored = await screen.findByRole('spinbutton', { name: quantityLabel })
-    expect(restored).toHaveValue(quantity)
+    expect(restored).toHaveValue(String(quantity))
     const compactNotice = screen.getByText('1 unsent entry restored').closest('.kl-capture-draft-notice')
     expect(compactNotice).toHaveAttribute('aria-live', 'off')
     fireEvent.click(screen.getByRole('button', { name: /^submit/i }))
@@ -1545,7 +1691,7 @@ describe('capture retry identity and saved drafts', () => {
 
     expect(notice).toHaveTextContent('1 unsent entry restored')
     expect(screen.getByRole('status')).toHaveTextContent(announcement ?? '')
-    expect(restored).toHaveValue(12)
+    expect(restored).toHaveValue('12')
   })
 
   it('does not double-count a committed production row when its saved request replays after reload', async () => {
@@ -1589,7 +1735,7 @@ describe('capture retry identity and saved drafts', () => {
     })
 
     await renderPage(VIEWER_MEMBER)
-    expect(await screen.findByRole('spinbutton', { name: /quantity produced for ayam bakar/i })).toHaveValue(8)
+    expect(await screen.findByRole('spinbutton', { name: /quantity produced for ayam bakar/i })).toHaveValue('8')
     expect(document.querySelector('.kls-meta')?.textContent).toMatch(/logged\s*8/i)
     fireEvent.click(screen.getByRole('button', { name: /^submit/i }))
     await screen.findByText(/submitted/i)
@@ -2119,6 +2265,29 @@ describe('OD-K-5: Discard resets staged entries (confirmed)', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: /cancel/i }))
     expect((ayamInput as HTMLInputElement).value).toBe('20') // unchanged
   })
+
+  it('counts an invalid quantity draft in the discard confirmation', async () => {
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    const ayamInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    fireEvent.change(ayamInput, { target: { value: '1,125' } })
+    fireEvent.click(screen.getByRole('button', { name: /^discard$/i }))
+
+    expect(await screen.findByRole('dialog')).toHaveTextContent('This clears 1 typed quantity')
+  })
+
+  it('counts an invalid edit once even when the row had a previously valid quantity', async () => {
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    const ayamInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    fireEvent.change(ayamInput, { target: { value: '20' } })
+    fireEvent.change(ayamInput, { target: { value: '1,125' } })
+    fireEvent.click(screen.getByRole('button', { name: /^discard$/i }))
+
+    expect(await screen.findByRole('dialog')).toHaveTextContent('This clears 1 typed quantity')
+  })
 })
 
 // task 10f — phone footer counts staged items only; unlike units across items are never summed.
@@ -2196,6 +2365,23 @@ describe('OD-K-5: reflow = one branch in the DOM (P-4)', () => {
     expect(table).toBeInTheDocument()
     expect(within(table).queryByText('Unit not recorded')).not.toBeInTheDocument()
     expect(document.querySelector('.dt-cards')).toBeNull()
+  })
+
+  it.each(['production', 'transfer'] as const)('keeps the desktop %s error in a full-width row under the entry', async mode => {
+    setDesktopMatchMedia(true)
+    if (mode === 'transfer') await renderTransferPage()
+    else await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    const input = screen.getByRole('spinbutton', { name: /quantity .* ayam bakar/i })
+    fireEvent.change(input, { target: { value: '1.125' } })
+    fireEvent.blur(input)
+
+    const error = screen.getByRole('alert')
+    const detailRow = error.closest('tr')
+    expect(detailRow).toHaveClass('dt-row-detail')
+    expect(detailRow?.querySelector('td')).toHaveAttribute('colspan', '2')
+    expect(input).toHaveAttribute('aria-describedby', error.id)
   })
 
   it('phone capture cards omit redundant category captions and show current stock figure', async () => {
@@ -2726,7 +2912,7 @@ describe('phone focused-quantity visibility after reactive footer layout', () =>
 
     expect(scroll).toHaveBeenCalledWith({ block: 'nearest' })
     expect(qty).toHaveFocus()
-    expect(qty).toHaveValue(1)
+    expect(qty).toHaveValue('1')
   })
 
   it('does not scroll a quantity that is already above the footer', async () => {
@@ -2734,7 +2920,7 @@ describe('phone focused-quantity visibility after reactive footer layout', () =>
     fireEvent.change(qty, { target: { value: '1' } })
     expect(scroll).not.toHaveBeenCalled()
     expect(qty).toHaveFocus()
-    expect(qty).toHaveValue(1)
+    expect(qty).toHaveValue('1')
   })
 
   it('does not move a focused note field when another quantity updates', async () => {
@@ -2753,7 +2939,7 @@ describe('phone focused-quantity visibility after reactive footer layout', () =>
     fireEvent.change(qty, { target: { value: '1' } })
     expect(scroll).not.toHaveBeenCalled()
     expect(qty).toHaveFocus()
-    expect(qty).toHaveValue(1)
+    expect(qty).toHaveValue('1')
   })
 })
 
@@ -3109,7 +3295,7 @@ describe('/cafe/transfer destination selection', () => {
     const nextTab = tabs.find(tab => tab !== currentTab)!
     const quantity = screen.getByRole('spinbutton', { name: /quantity .* for ayam bakar/i })
     await user.type(quantity, '15')
-    await waitFor(() => expect(quantity).toHaveValue(15))
+    await waitFor(() => expect(quantity).toHaveValue('15'))
 
     await user.click(currentTab)
     await user.keyboard('{ArrowRight}')

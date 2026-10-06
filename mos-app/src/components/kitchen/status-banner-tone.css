@@ -23,8 +23,3 @@
   color: var(--warning-foreground);
 }
 
-.kp-banner-notice {
-  background: var(--secondary);
-  border: 1px solid var(--border);
-  color: var(--foreground);
-}

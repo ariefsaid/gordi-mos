@@ -13,6 +13,8 @@ import { resolve } from 'node:path'
 
 const css = readFileSync(resolve(process.cwd(), 'src/pages/kitchen-plan-page.css'), 'utf8')
   .replace(/\/\*[\s\S]*?\*\//g, '')
+const bannerCss = readFileSync(resolve(process.cwd(), 'src/components/kitchen/status-banner-tone.css'), 'utf8')
+  .replace(/\/\*[\s\S]*?\*\//g, '')
 
 function ruleBody(selector: string): string {
   const idx = css.indexOf(selector)
@@ -20,6 +22,14 @@ function ruleBody(selector: string): string {
   const open = css.indexOf('{', idx)
   const close = css.indexOf('}', open)
   return css.slice(open + 1, close)
+}
+
+function bannerRuleBody(selector: string): string {
+  expect(bannerCss).toContain(selector)
+  const idx = bannerCss.indexOf(selector)
+  const open = bannerCss.indexOf('{', idx)
+  const close = bannerCss.indexOf('}', open)
+  return bannerCss.slice(open + 1, close)
 }
 
 describe('KP-LINEHEIGHT: the dish stack leads at 1.2 (the 52px desktop row)', () => {
@@ -39,12 +49,12 @@ describe('KP-FILTERPHONE: desktop-only selects leave the phone search available'
 
 describe('KP-BANNER: same warning vocabulary as Café · Log (amber offline, red error)', () => {
   it('.kp-banner-offline is amber (--warning), not a grey box', () => {
-    const body = ruleBody('.kp-banner-offline')
+    const body = bannerRuleBody('.kp-banner-offline')
     expect(body).toMatch(/var\(--warning\)/)
     expect(body).not.toMatch(/background:\s*var\(--muted\)/)
   })
   it('.kp-banner-error is red (--destructive), not a grey box', () => {
-    const body = ruleBody('.kp-banner-error')
+    const body = bannerRuleBody('.kp-banner-error')
     expect(body).toMatch(/var\(--destructive\)/)
     expect(body).not.toMatch(/background:\s*var\(--muted\)/)
   })

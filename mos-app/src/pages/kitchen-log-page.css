@@ -159,7 +159,7 @@
 }
 .kl-capture-draft-details { flex: 1 1 auto; min-width: 0; }
 .kl-capture-draft-details > summary { min-height: 44px; cursor: pointer; }
-.kl-capture-draft-details > summary::marker { color: var(--muted-foreground); }
+.kl-capture-draft-details > summary::marker { color: var(--muted-foreground); vertical-align: top; }
 .kl-capture-draft-details > summary > strong {
   display: inline-block;
   max-width: calc(100% - 1.5em);
@@ -491,6 +491,10 @@
 }
 .kl-card-head > .kls-card { display: contents; }
 .kl-card-head > .kls-card > .kls-row { grid-column: 2; grid-row: 1; }
+.kl-card-head:has(.quantity-field-error) > .kls-card > .kls-row {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
 .kl-card-head > .kls-card > :not(.kls-row) { grid-column: 1 / -1; }
 .kl-card-identity {
   display: flex;

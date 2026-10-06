@@ -4,7 +4,7 @@
 //  - status NOT in payload (DB default 'Submitted') — AC-030
 //  - org_id / submitted_by NOT in payload (server-stamped) — NFR-003
 //  - qty_porsi must be > 0 — AC-020
-//  - PlanMap keyed correctly — fetchPlanMap
+//  - capture plan map reads and review-page context batching stay movement-keyed
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
@@ -21,12 +21,14 @@ vi.mock('../supabase', () => {
 })
 
 import type { ProductionStream } from './kitchen-logs.types'
+import { streamDateKey } from '@/lib/kitchen-action-label'
 import { listCafeItemSettings } from './cafe-item-settings'
 import { supabase } from '@/lib/supabase'
 import {
   listCaptureFormItems,
   fetchActualsMap,
   fetchPlanMap,
+  fetchPlanMaps,
   fetchStockMap,
   fetchKitchenStock,
   listCafeDestinations,
@@ -51,7 +53,6 @@ const mockCafeItemSettings = vi.mocked(listCafeItemSettings)
 // point of the catalog is that nothing keys off a name (OD-WAY-39).
 const BRANCH_ID = '30000000-0000-0000-0000-0000000000b1'
 const RADIANT_ID = '30000000-0000-0000-0000-0000000000b2'
-const BUNGUR_ID = BRANCH_ID // "Transfer to Bungur" is a within-books move: destination = origin
 const STREAM: ProductionStream = {
   branch: { id: BRANCH_ID, code: 'rumah_rames', name: 'Rumah Rames' },
   activity: 'kitchen',
@@ -266,54 +267,76 @@ describe('listCaptureFormItems — stream ESB items only (FR-011, OD-2026-10-06-
 
 })
 
-// ── fetchPlanMap ──────────────────────────────────────────────────────────────
-describe('fetchPlanMap', () => {
-  it('builds a PlanMap keyed by wip_item_id/movement', async () => {
+// ── fetchPlanMaps — review-page batch ─────────────────────────────────────────
+describe('fetchPlanMaps', () => {
+  it('keeps the single-context adapter used by capture surfaces', async () => {
     const rec = freshRec()
-    schemaMock.mockReturnValue(
-      makeSchema(
-        {
-          kitchen_plans: [
-            {
-              data: [
-                { wip_item_id: 'w1', action: 'produce', destination_branch_id: null, qty_porsi: 12 },
-                { wip_item_id: 'w1', action: 'transfer', destination_branch_id: RADIANT_ID, qty_porsi: 5 },
-                { wip_item_id: 'w2', action: 'produce', destination_branch_id: null, qty_porsi: 20 },
-              ],
-              error: null,
-            },
-          ],
-        },
-        rec,
-      ) as never,
-    )
+    schemaMock.mockReturnValue(makeSchema({ kitchen_plans: [{
+      data: [{
+        log_date: '2026-06-20', branch_id: BRANCH_ID, activity: 'kitchen', wip_item_id: 'w1',
+        action: 'produce', destination_branch_id: null, qty_porsi: 12,
+      }],
+      error: null,
+    }] }, rec) as never)
 
-    const map = await fetchPlanMap('2026-06-20', STREAM)
-    expect(map['w1']['produce']).toBe(12)
-    expect(map['w1'][`transfer:${RADIANT_ID}`]).toBe(5)
-    expect(map['w2']['produce']).toBe(20)
-    expect(map['w1'][`transfer:${BUNGUR_ID}`]).toBeUndefined()
-    expect(rec.eqs).toContainEqual(['log_date', '2026-06-20'])
+    await expect(fetchPlanMap('2026-06-20', STREAM)).resolves.toEqual({ w1: { produce: 12 } })
+    expect(rec.fromTables).toEqual(['kitchen_plans'])
   })
 
-  it('returns empty map when no plan rows', async () => {
+  it('reads only the requested date/stream pairs in one query and separates their maps', async () => {
     const rec = freshRec()
-    schemaMock.mockReturnValue(
-      makeSchema({ kitchen_plans: [{ data: [], error: null }] }, rec) as never,
-    )
-    const map = await fetchPlanMap('2026-06-20', STREAM)
-    expect(Object.keys(map)).toHaveLength(0)
+    const otherStream: ProductionStream = { ...STREAM, activity: 'bar' }
+    schemaMock.mockReturnValue(makeSchema({
+      kitchen_plans: [{
+        data: [
+          { log_date: '2026-06-20', branch_id: BRANCH_ID, activity: 'kitchen', wip_item_id: 'w1', action: 'produce', destination_branch_id: null, qty_porsi: 12 },
+          { log_date: '2026-06-20', branch_id: BRANCH_ID, activity: 'kitchen', wip_item_id: 'w1', action: 'transfer', destination_branch_id: RADIANT_ID, qty_porsi: 5 },
+          { log_date: '2026-06-21', branch_id: BRANCH_ID, activity: 'kitchen', wip_item_id: 'w1', action: 'produce', destination_branch_id: null, qty_porsi: 5 },
+          { log_date: '2026-06-20', branch_id: BRANCH_ID, activity: 'bar', wip_item_id: 'w2', action: 'produce', destination_branch_id: null, qty_porsi: 7 },
+          { log_date: '2026-06-22', branch_id: BRANCH_ID, activity: 'bar', wip_item_id: 'ignored', action: 'produce', destination_branch_id: null, qty_porsi: 99 },
+        ],
+        error: null,
+      }],
+    }, rec) as never)
+
+    const entries = await fetchPlanMaps([
+      { logDate: '2026-06-20', stream: STREAM },
+      { logDate: '2026-06-21', stream: STREAM },
+      { logDate: '2026-06-20', stream: otherStream },
+    ])
+    const maps = new Map(entries)
+
+    expect(rec.fromTables).toEqual(['kitchen_plans'])
+    expect(rec.orFilters).toEqual([
+      `and(log_date.eq.2026-06-20,branch_id.eq.${BRANCH_ID},activity.eq.kitchen),and(log_date.eq.2026-06-21,branch_id.eq.${BRANCH_ID},activity.eq.kitchen),and(log_date.eq.2026-06-20,branch_id.eq.${BRANCH_ID},activity.eq.bar)`,
+    ])
+    expect(maps.get(streamDateKey('2026-06-20', BRANCH_ID, 'kitchen'))?.w1?.produce).toBe(12)
+    expect(maps.get(streamDateKey('2026-06-20', BRANCH_ID, 'kitchen'))?.w1?.[`transfer:${RADIANT_ID}`]).toBe(5)
+    expect(maps.get(streamDateKey('2026-06-21', BRANCH_ID, 'kitchen'))?.w1?.produce).toBe(5)
+    expect(maps.get(streamDateKey('2026-06-20', BRANCH_ID, 'bar'))?.w2?.produce).toBe(7)
+    expect(maps.get(streamDateKey('2026-06-20', BRANCH_ID, 'bar'))?.ignored).toBeUndefined()
   })
 
-  it('throws on error', async () => {
+  it('returns empty maps for visible contexts with no plan rows', async () => {
     const rec = freshRec()
-    schemaMock.mockReturnValue(
-      makeSchema(
-        { kitchen_plans: [{ data: null, error: { message: 'failed' } }] },
-        rec,
-      ) as never,
-    )
-    await expect(fetchPlanMap('2026-06-20', STREAM)).rejects.toThrow('fetchPlanMap failed')
+    schemaMock.mockReturnValue(makeSchema({ kitchen_plans: [{ data: [], error: null }] }, rec) as never)
+    await expect(fetchPlanMaps([{ logDate: '2026-06-20', stream: STREAM }])).resolves.toEqual([
+      [streamDateKey('2026-06-20', BRANCH_ID, 'kitchen'), {}],
+    ])
+  })
+
+  it('does not query when no page contexts are visible', async () => {
+    await expect(fetchPlanMaps([])).resolves.toEqual([])
+    expect(schemaMock).not.toHaveBeenCalled()
+  })
+
+  it('throws on a plan-read error', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema(
+      { kitchen_plans: [{ data: null, error: { message: 'failed' } }] },
+      rec,
+    ) as never)
+    await expect(fetchPlanMaps([{ logDate: '2026-06-20', stream: STREAM }])).rejects.toThrow('fetchPlanMaps failed')
   })
 })
 
@@ -925,7 +948,7 @@ describe('listSubmittedKitchenLogs — the ops_lead review queue (FR-040)', () =
     schemaMock.mockReturnValue(
       makeSchema({ kitchen_logs: [{ data: [], error: null }] }, rec) as never,
     )
-    const cursor = { created_at: '2026-06-20T09:12:00Z', id: 'log-1' }
+    const cursor = { log_date: '2026-06-20', created_at: '2026-06-20T09:12:00Z', id: 'log-1' }
 
     await listSubmittedKitchenLogs('2026-06-20', { before: cursor })
 
@@ -936,6 +959,38 @@ describe('listSubmittedKitchenLogs — the ops_lead review queue (FR-040)', () =
     expect(rec.orFilters).toEqual([
       `created_at.gt.${cursor.created_at},and(created_at.eq.${cursor.created_at},id.gt.${cursor.id})`,
     ])
+  })
+
+  it('defaults to all dates, ordered by log date before submission time', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema({ kitchen_logs: [{ data: [], error: null }] }, rec) as never,
+    )
+
+    await listSubmittedKitchenLogs()
+
+    expect(rec.eqs).toContainEqual(['status', 'Submitted'])
+    expect(rec.eqs).not.toContainEqual(['log_date', expect.any(String)])
+    expect(rec.orders).toEqual([
+      ['log_date', { ascending: true }],
+      ['created_at', { ascending: true }],
+      ['id', { ascending: true }],
+    ])
+  })
+
+  it('pages the all-date queue after its date/time/id boundary', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema({ kitchen_logs: [{ data: [], error: null }] }, rec) as never,
+    )
+    const cursor = { log_date: '2026-06-19', created_at: '2026-06-19T09:12:00Z', id: 'log-1' }
+
+    await listSubmittedKitchenLogs(undefined, { before: cursor })
+
+    expect(rec.orFilters).toEqual([
+      'log_date.gt.2026-06-19,and(log_date.eq.2026-06-19,or(created_at.gt.2026-06-19T09:12:00Z,and(created_at.eq.2026-06-19T09:12:00Z,id.gt.log-1)))',
+    ])
+    expect(rec.orders[0]).toEqual(['log_date', { ascending: true }])
   })
 
   it('returns [] when nothing is Submitted (the good-empty queue)', async () => {
