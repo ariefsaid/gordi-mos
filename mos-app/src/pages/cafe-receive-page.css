@@ -128,7 +128,7 @@
 
 .cafe-receive__open-po[aria-pressed='true'] {
   border-color: var(--primary);
-  box-shadow: inset 3px 0 0 var(--primary);
+  background: var(--muted);
 }
 
 .cafe-receive__open-po:disabled { cursor: not-allowed; opacity: 0.72; }
