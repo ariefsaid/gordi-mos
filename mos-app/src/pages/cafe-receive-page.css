@@ -1,0 +1,154 @@
+/* Receive reuses the Count layout (cafe-count-page.css); these rules cover only what a receipt adds. */
+
+.cafe-receive__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  margin: 0 0 24px;
+  font-size: var(--font-size-body);
+}
+
+.cafe-receive__links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--foreground);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.cafe-receive__date {
+  display: grid;
+  grid-template-columns: auto minmax(0, 220px) auto;
+  justify-content: start;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 0 0 16px;
+  font-size: var(--font-size-body);
+}
+
+.cafe-receive__date label { color: var(--muted-foreground); }
+.cafe-receive__date-hint { color: var(--muted-foreground); }
+
+.cafe-receive__date input,
+.cafe-receive__send input {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-md);
+  background: var(--background);
+  color: var(--foreground);
+  font: inherit;
+  font-size: var(--font-size-touch-input);
+}
+
+.cafe-receive__change-unit {
+  justify-self: start;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--foreground);
+  font: inherit;
+  font-size: var(--font-size-body);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.cafe-receive__units {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: var(--font-size-body);
+}
+
+.cafe-receive__units legend {
+  margin-bottom: 4px;
+  padding: 0;
+  color: var(--muted-foreground);
+}
+
+.cafe-receive__units label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+}
+
+.cafe-receive__counted,
+.cafe-receive__recent {
+  display: grid;
+  gap: 12px;
+  margin: 0 0 24px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--background);
+}
+
+.cafe-receive__counted h2,
+.cafe-receive__recent h2 {
+  margin: 0;
+  color: var(--foreground);
+  font-size: var(--font-size-heading);
+  font-weight: 600;
+}
+
+.cafe-receive__counted p {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-body);
+  line-height: 1.5;
+}
+
+.cafe-receive__recent ul {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--font-size-body);
+}
+
+.cafe-receive__send {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 6px 12px;
+}
+
+.cafe-receive__send label {
+  grid-column: 1 / -1;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-body);
+}
+
+.cafe-receive__recent li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  min-height: 44px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.cafe-receive__recent li .btn { margin-left: auto; min-height: 44px; }
+
+/* The sticky send bar is the page's last child here, so the list needs no bottom reserve. */
+.cafe-receive .cafe-count__list { padding-bottom: 0; margin-bottom: 24px; }
+
+@media (max-width: 639px) {
+  .cafe-receive__date { grid-template-columns: minmax(0, 1fr) auto; }
+  .cafe-receive__date label { grid-column: 1 / -1; }
+  .cafe-receive__send { grid-template-columns: minmax(0, 1fr); }
+  .cafe-receive__counted,
+  .cafe-receive__recent { padding: 14px; }
+}

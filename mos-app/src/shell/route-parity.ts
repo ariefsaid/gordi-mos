@@ -18,6 +18,9 @@ export const ROUTE_PATHS = {
   cafeTransfer: 'cafe/transfer',
   cafeWaste: 'cafe/waste',
   cafeCount: 'cafe/count',
+  cafeReceive: 'cafe/receive',
+  cafeReceiptReview: 'cafe/receive/review',
+  cafeReceiptIssues: 'cafe/receive/issues',
   cafePlan: 'cafe/plan',
   cafeStock: 'cafe/stock',
   cafeItems: 'cafe/items',
@@ -46,6 +49,9 @@ export type RouteParityId =
   | 'cafeTransfer'
   | 'cafeWaste'
   | 'cafeCount'
+  | 'cafeReceive'
+  | 'cafeReceiptReview'
+  | 'cafeReceiptIssues'
   | 'cafePlan'
   | 'cafeStock'
   | 'cafeItems'
@@ -83,6 +89,10 @@ export const ROUTE_PARITY_CATALOG: readonly RouteParityEntry[] = [
   { id: 'cafeTransfer', path: absolutePath(ROUTE_PATHS.cafeTransfer), kind: 'child' },
   { id: 'cafeWaste', path: absolutePath(ROUTE_PATHS.cafeWaste), kind: 'child' },
   { id: 'cafeCount', path: absolutePath(ROUTE_PATHS.cafeCount), kind: 'child' },
+  // Receipt review and issues live under Receive, whose rail entry marks them as the current place.
+  { id: 'cafeReceive', path: absolutePath(ROUTE_PATHS.cafeReceive), kind: 'child' },
+  { id: 'cafeReceiptReview', path: absolutePath(ROUTE_PATHS.cafeReceiptReview), kind: 'child' },
+  { id: 'cafeReceiptIssues', path: absolutePath(ROUTE_PATHS.cafeReceiptIssues), kind: 'child' },
   { id: 'cafePlan', path: absolutePath(ROUTE_PATHS.cafePlan), kind: 'child' },
   { id: 'cafeStock', path: absolutePath(ROUTE_PATHS.cafeStock), kind: 'child' },
   { id: 'cafeItems', path: absolutePath(ROUTE_PATHS.cafeItems), kind: 'child' },

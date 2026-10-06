@@ -170,7 +170,7 @@ describe('AC-021/008: aria-current — primary tab page on its route; More page 
     expect(page[0]).toHaveAccessibleName(/Work/)
   })
 
-  it.each(['/cafe', '/cafe/production', '/cafe/transfer', '/cafe/waste', '/cafe/count', '/cafe/plan', '/cafe/stock', '/cafe/items', '/cafe/review', '/cafe/pushes'])('Café tab page at %s (café viewer)', (path) => {
+  it.each(['/cafe', '/cafe/production', '/cafe/transfer', '/cafe/waste', '/cafe/count', '/cafe/receive', '/cafe/plan', '/cafe/stock', '/cafe/items', '/cafe/review', '/cafe/pushes'])('Café tab page at %s (café viewer)', (path) => {
     setCafeViewer()
     renderTabBar(path)
     const nav = screen.getByRole('navigation', { name: 'Primary' })
@@ -179,7 +179,7 @@ describe('AC-021/008: aria-current — primary tab page on its route; More page 
     expect(page[0]).toHaveAccessibleName(/Café/)
   })
 
-  it.each(['/cafe', '/cafe/production', '/cafe/transfer', '/cafe/waste', '/cafe/count', '/cafe/plan', '/cafe/stock', '/cafe/review'])('capture surface %s yields the + launcher to its own action', (path) => {
+  it.each(['/cafe', '/cafe/production', '/cafe/transfer', '/cafe/waste', '/cafe/count', '/cafe/receive', '/cafe/plan', '/cafe/stock', '/cafe/review'])('capture surface %s yields the + launcher to its own action', (path) => {
     setCafeViewer()
     renderTabBar(path)
     expect(screen.queryByRole('button', { name: /open actions/i })).not.toBeInTheDocument()
