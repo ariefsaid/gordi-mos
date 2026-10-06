@@ -395,6 +395,8 @@ select throws_ok(
 -- kitchen item, a bar manager every bar item, ops lead/admin all. The item's activity is matched to
 -- the caller's ROLE scope through ops.can_manage_cafe_item_settings(activity), never to the caller's
 -- own stream, so it is a manager scope like the reviewer arms, not a member wall.
+-- #1422: a goods receipt is read by its receiver or by a reviewer of its stream, through
+-- ops.can_review_stream — the reviewer arm again, never the caller's own stream.
 reset role;
 select set_eq($$
   select schemaname || '.' || tablename || ' :: ' || policyname from pg_policies
@@ -409,9 +411,10 @@ select set_eq($$
     ('ops.cafe_item_settings :: cafe_item_settings_update_manager'),
     ('ops.cafe_item_setting_units :: cafe_item_setting_units_insert_manager'),
     ('ops.cafe_missing_item_reports :: cafe_missing_item_reports_select_managers'),
-    ('ops.cafe_missing_item_reports :: cafe_missing_item_reports_resolve_managers')
+    ('ops.cafe_missing_item_reports :: cafe_missing_item_reports_resolve_managers'),
+    ('ops.cafe_receipts :: cafe_receipts_select_receiver_or_reviewer')
   $$,
-  'OD-WAY-49: the only policies referencing a stream column are the #236 kitchen-log reviewer arm, the #238 completeness write arms and the #1260 Café item-settings manager arms — the stream is a capture default, never a member authorization dimension');
+  'OD-WAY-49: the only policies referencing a stream column are the #236 kitchen-log reviewer arm, the #238 completeness write arms, the #1260 Café item-settings manager arms and the #1422 receipt reviewer arm — the stream is a capture default, never a member authorization dimension');
 
 select is(
   (select coalesce(array_agg(schemaname || '.' || policyname order by policyname), '{}')
