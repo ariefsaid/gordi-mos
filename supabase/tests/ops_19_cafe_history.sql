@@ -186,9 +186,13 @@ select is((select new_value from shared.record_history
   '00000000-0000-0000-0000-0000000000d2',
   'the server-stamped reviewed_by provenance stays RECORDED — the human review is in the history');
 
--- Master data, through the ops_lead tier: a wip item reclassification and the item-unit
--- confirmation event — whose confirmed_at is server-STAMPED but is the recorded fact itself
--- (the DD-WAY-29 gate predicate), so it is deliberately NOT excluded.
+-- Master data. An item's descriptive columns are written only by the catalog refresh, as the
+-- database owner with no session person (OD-2026-10-06-ESB-ITEMS); its reclassification is still
+-- recorded. The ops_lead tier's master-data write is the item-unit confirmation event, whose
+-- confirmed_at is server-STAMPED but is the recorded fact itself (the DD-WAY-29 gate predicate),
+-- so it is deliberately NOT excluded.
+reset role;
+set local request.jwt.claims = '{}';
 update ops.wip_items set category = 'History cat'
  where id = '00000000-0000-0000-0000-000000009902';
 select is((select count(*)::int from shared.record_history
@@ -196,8 +200,10 @@ select is((select count(*)::int from shared.record_history
   2, 'a master-data UPDATE appends exactly one row (insert + 1)');
 select is((select actor_person_id::text from shared.record_history
            where record_key = '00000000-0000-0000-0000-000000009902' and action = 'update'),
-  '00000000-0000-0000-0000-0000000000d2',
-  'the ops_lead''s master-data edit stamps the session''s person claim as actor');
+  null,
+  'the catalog refresh''s item edit records no session person as actor');
+set local role authenticated;
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 
 update ops.item_units set esb_product_detail_id = 'PD-BOTOL-001', confirmed_at = now()
  where id = '00000000-0000-0000-0000-000000009905';
