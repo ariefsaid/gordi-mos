@@ -72,3 +72,16 @@
   align-items: flex-end;
   gap: 4px;
 }
+
+/* On a phone a labelled line gives the name the full width; quantity and label follow beneath. */
+@media (max-width: 639px) {
+  .cafe-receipt-lines li:has(.cafe-receipt-difference) { flex-wrap: wrap; row-gap: 4px; }
+  .cafe-receipt-lines li:has(.cafe-receipt-difference) > :first-child { flex: 1 1 100%; }
+  .cafe-receipt-lines li:has(.cafe-receipt-difference) .cafe-receipt-lines__facts {
+    flex: 1 1 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+  }
+}
