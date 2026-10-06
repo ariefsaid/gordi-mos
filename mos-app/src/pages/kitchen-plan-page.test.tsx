@@ -43,19 +43,18 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
   // #222: every item is on the stream's list unless a test says otherwise.
   return {
     ...actual,
-    listActiveWipItems: vi.fn(),
     listStreamPairs: vi.fn(),
     listCafeDestinations: vi.fn(),
     listStreamItemIds: vi.fn(async () => ({ has: () => true })),
   }
 })
-import { listActiveWipItems, listCafeDestinations, listStreamItemIds, listStreamPairs } from '@/lib/db/kitchen-logs'
+import { listCafeDestinations, listStreamItemIds, listStreamPairs } from '@/lib/db/kitchen-logs'
 
 vi.mock('@/lib/db/cafe-item-settings', async () => {
   const actual = await vi.importActual<typeof import('@/lib/db/cafe-item-settings')>('@/lib/db/cafe-item-settings')
-  return { ...actual, listCafeItemSettings: vi.fn() }
+  return { ...actual, listCafeItemSettings: vi.fn(), canManageCafeItemSettings: vi.fn(async () => false) }
 })
-import { listCafeItemSettings } from '@/lib/db/cafe-item-settings'
+import { listCafeItemSettings, type CafeItemSetting } from '@/lib/db/cafe-item-settings'
 
 // shared.default_stream() (FR-001) — the viewer's own stream. #440: the plan surfaces resolve
 // their stream the way the capture surface always did, instead of guessing at the catalog.
@@ -82,7 +81,6 @@ import { resetCafeLocations } from '@/lib/cafe-opening-location'
 import type { CafeDestination, WipItemOption, PlanCell, PesananRow } from '@/lib/db/kitchen-logs.types'
 
 const mockUseAuth = vi.mocked(useAuth)
-const mockItems = vi.mocked(listActiveWipItems)
 const mockPlans = vi.mocked(listKitchenPlans)
 const mockPesanan = vi.mocked(listPesanan)
 const mockUpsert = vi.mocked(upsertKitchenPlan)
@@ -153,6 +151,12 @@ const ITEMS: WipItemOption[] = [
   { id: 'w1', name: 'Ayam Bakar', category: 'Main' },
   { id: 'w2', name: 'Nasi Goreng', category: 'Main' },
 ]
+// Every Plan row is an ESB item on the stream, configured as an active WIP item with a porsi default.
+const esb = (item: WipItemOption): CafeItemSetting => ({
+  id: item.id, erpName: item.name, mosName: item.name, category: item.category, kind: 'WIP', isActive: true,
+  defaultUnitId: `${item.id}-porsi`,
+  units: [{ id: `${item.id}-porsi`, name: 'porsi', isShown: true, isDefault: true, labelOrdinal: null, labelCount: 1 }],
+})
 const PRODUCE = { action: 'produce' as const, destinationBranchId: null }
 const PLAN_CELLS: PlanCell[] = [
   { id: 'pl1', wip_item_id: 'w1', movement: PRODUCE, qty_porsi: 12 },
@@ -169,12 +173,11 @@ beforeEach(() => {
   rememberStream(null)
   resetCafeLocations()
   mockUseAuth.mockReturnValue(viewer(['ops_lead']))
-  mockItems.mockResolvedValue(ITEMS)
   mockBranches.mockResolvedValue(BRANCHES)
   mockStreamPairs.mockResolvedValue(STREAM_PAIRS)
   mockDestinations.mockResolvedValue(DESTINATIONS)
   mockDefaultStream.mockResolvedValue(OWN_STREAM)
-  mockCafeItemSettings.mockResolvedValue([])
+  mockCafeItemSettings.mockResolvedValue(ITEMS.map(esb))
   mockPlans.mockResolvedValue([])
   mockPesanan.mockResolvedValue([])
   vi.mocked(listCafeViewerTeams).mockResolvedValue([])
@@ -456,6 +459,18 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
     expect(screen.queryByText('ERP Ayam Bakar')).toBeNull()
   })
 
+  it('reads each plan quantity in the item\'s default ESB unit, beside the field', async () => {
+    mockCafeItemSettings.mockResolvedValue([{
+      id: 'w1', erpName: 'Ayam Bakar Madu Bumbu Rujak Porsi Katering Besar', mosName: 'Ayam Bakar Madu Bumbu Rujak Porsi Katering Besar',
+      category: 'Main', kind: 'WIP', isActive: true, defaultUnitId: 'unit-batch',
+      units: [{ id: 'unit-batch', name: 'Batch @50porsi', isShown: true, isDefault: true, labelOrdinal: null, labelCount: 1 }],
+    }])
+    render(<KitchenPlanPage />, { wrapper })
+    const field = await screen.findByRole('spinbutton', { name: /planned quantity for ayam bakar madu/i })
+    expect(field.parentElement).toHaveTextContent('Batch @50porsi')
+    expect(screen.getAllByText('Batch @50porsi')).toHaveLength(1)
+  })
+
   it('labels Plan rows as WIP and offers only enabled item kinds', async () => {
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
@@ -539,7 +554,7 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
   })
 
   it('error + retry: surfaces a retry that re-fetches', async () => {
-    mockItems.mockRejectedValueOnce(new Error('boom')).mockResolvedValue(ITEMS)
+    mockCafeItemSettings.mockRejectedValueOnce(new Error('boom')).mockResolvedValue(ITEMS.map(esb))
     render(<KitchenPlanPage />, { wrapper })
     const retry = await screen.findByRole('button', { name: /try again/i })
     fireEvent.click(retry)
@@ -739,9 +754,9 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
     ['receiving-only', RADIANT_KITCHEN],
   ] as const)('phone ignores desktop category query for the %s Plan list', async (_state, stream) => {
     mockDefaultStream.mockResolvedValue(stream)
-    mockItems.mockResolvedValue([
-      { ...ITEMS[0], category: 'Main' },
-      { ...ITEMS[1], category: 'Rice' },
+    mockCafeItemSettings.mockResolvedValue([
+      esb({ ...ITEMS[0], category: 'Main' }),
+      esb({ ...ITEMS[1], category: 'Rice' }),
     ])
     render(
       <MemoryRouter initialEntries={['/cafe/plan?category=__no_matching_category__']}>
@@ -768,9 +783,9 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
         dispatchEvent: () => false,
       }),
     })
-    mockItems.mockResolvedValue([
-      { ...ITEMS[0], category: 'Main' },
-      { ...ITEMS[1], category: 'Rice' },
+    mockCafeItemSettings.mockResolvedValue([
+      esb({ ...ITEMS[0], category: 'Main' }),
+      esb({ ...ITEMS[1], category: 'Rice' }),
     ])
     render(
       <MemoryRouter initialEntries={['/cafe/plan?category=Rice']}>
@@ -1011,6 +1026,7 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
       { ...PESANAN[0], category: 'Main' },
       { ...PESANAN[1], category: 'Rice' },
     ])
+    mockCafeItemSettings.mockResolvedValue([esb({ ...ITEMS[0], category: 'Main' }), esb({ ...ITEMS[1], category: 'Rice' })])
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
     expect(screen.getByRole('combobox', { name: /category/i })).toHaveAttribute('id', 'cafe-plan-category')
@@ -1260,7 +1276,7 @@ describe('issue 222: the plan offers the stream\'s own item list', () => {
   const NOT_ON_LIST = new Error('upsertKitchenPlan failed — CAFE_ITEM_NOT_ON_STREAM: the item is not on this stream\'s item list')
 
   it('a row already planned for an off-list item stays, labelled and editable; an off-list item with no plan is not offered', async () => {
-    mockItems.mockResolvedValue(WITH_UNLISTED)
+    mockCafeItemSettings.mockResolvedValue(WITH_UNLISTED.map(esb))
     mockOffered.mockResolvedValue(new Set(['w2']))
     mockPlans.mockResolvedValue(PLAN_CELLS) // Ayam Bakar (w1) planned at 12, then left the list
     render(<KitchenPlanPage />, { wrapper })
@@ -1321,11 +1337,12 @@ describe('issue 222: the plan offers the stream\'s own item list', () => {
     expect(mockUpsert).toHaveBeenCalledOnce()
   })
 
-  it('an empty list names the stream and who can fill it', async () => {
+  it('an empty list names the stream and says its items come from ESB', async () => {
     mockOffered.mockResolvedValue(new Set())
+    mockCafeItemSettings.mockResolvedValue([])
     render(<KitchenPlanPage />, { wrapper })
-    expect(await screen.findByText('No items for Rumah Rames · Kitchen')).toBeInTheDocument()
-    expect(screen.getByText(/an ops lead or admin can add them/i)).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'No ESB items on Rumah Rames · Kitchen' })).toBeInTheDocument()
+    expect(screen.getByText(/added to this stream in ESB/i)).toBeInTheDocument()
     expect(screen.queryByRole('spinbutton')).toBeNull()
   })
 
