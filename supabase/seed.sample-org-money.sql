@@ -32,9 +32,7 @@ declare
   margin_rows int;
 begin
   if exists (select 1 from shared.orgs where id = sample_org) then
-    if (select name from shared.orgs where id = sample_org) is distinct from 'Gordi Sample'
-       or exists (select 1 from shared.people where org_id = sample_org
-                   and coalesce(email, '') not like '%@sample.gordi.test') then
+    if not shared.is_sample_org_shape(sample_org, (select name from shared.orgs where id = sample_org)) then
       raise exception 'seed.sample-org-money: refused, % is not the Gordi Sample org', sample_org;
     end if;
     target := sample_org;
