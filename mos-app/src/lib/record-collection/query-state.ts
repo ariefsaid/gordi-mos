@@ -2,20 +2,10 @@
 // No React, no Supabase. Domain schemas (Tasks, Signals) supply the typed parse/serialize.
 import type {
   CollectionQueryIssue,
-  CollectionQueryParse,
   CollectionQuerySchema,
   PresentationSwitchResult,
   QueryKey,
 } from './types'
-
-/** Parse the collection's owned URL keys into a typed query, or return typed issues. */
-export function readCollectionQuery<TQuery extends object>(
-  schema: CollectionQuerySchema<TQuery>,
-  params: URLSearchParams,
-  presentation: string,
-): CollectionQueryParse<TQuery> {
-  return schema.parse(params, presentation)
-}
 
 /**
  * Serialize the typed query into `source`, replacing ONLY the URL keys the schema owns and

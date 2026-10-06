@@ -34,11 +34,6 @@ export const jobSentences = {
   roastery: 'Record today’s roasts, yield, and transfers truthfully.',
 } as const
 
-/** Work children may have a page-specific job sentence without becoming destinations. */
-export const workChildJobSentences = {
-  events: 'See commitments of people and space.',
-} as const
-
 /** The union of registry ids. */
 export type JobKey = keyof typeof jobSentences
 

@@ -123,13 +123,6 @@ export type CogsBasis = 'interim-stock-movement' | 'budget-bom' | 'certified-gl'
 
 export type DqBadge = 'good' | 'partial' | 'unknown'
 
-/** DQ badge from BOM coverage (AC-024). bom_coverage_pct is the avg fraction of
- * revenue backed by a BOM recipe on the window. ≥0.9 good, 0.5–0.9 partial, else
- * unknown (including all-null). */
-export function bomCoverageDq(rows: SalesMarginDailyRow[], start: string, end: string): DqBadge {
-  return bucketBomCoverage(bomCoveragePct(rows, start, end))
-}
-
 /** The average bom_coverage_pct over the window (0–1), or null when all rows are
  * null/empty. Surfaced to the BOM-coverage tile so "how partial is partial?" is
  * answerable — a bare category hides the decision-relevant number. */

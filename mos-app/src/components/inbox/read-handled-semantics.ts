@@ -27,17 +27,8 @@ export type InboxFilter = 'all' | 'unread' | 'handled'
 /** The exactly-three Inbox triage filters. */
 export const INBOX_FILTERS = ['all', 'unread', 'handled'] as const
 
-export function isUnread(row: TriageNotificationRow): boolean {
-  return row.read_at == null
-}
-
 export function isHandled(row: TriageNotificationRow): boolean {
   return row.handled_at != null
-}
-
-/** The distinct read-but-unhandled state: seen, but still in the active queue. */
-export function isReadButUnhandled(row: TriageNotificationRow): boolean {
-  return row.read_at != null && row.handled_at == null
 }
 
 /** Whether a row belongs in a given filter view. Mirrors the persisted Issue 6 view semantics. */
@@ -50,15 +41,6 @@ export function matchesFilter(row: TriageNotificationRow, filter: InboxFilter): 
     case 'handled':
       return row.handled_at != null
   }
-}
-
-/**
- * Opening a notification marks it READ only — never handled, and never re-stamped once read.
- * Returns a new row; opening an already-read row is a no-op on both timestamps.
- */
-export function applyOpen(row: TriageNotificationRow, nowIso: string): TriageNotificationRow {
-  if (row.read_at != null) return row
-  return { ...row, read_at: nowIso }
 }
 
 /**

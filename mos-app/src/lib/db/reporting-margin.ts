@@ -64,11 +64,6 @@ export async function listSalesMarginDaily(
   return (data ?? []) as unknown as SalesMarginDailyRow[]
 }
 
-/** Freshness: the latest `snapshot_as_of` across the given rows, or null if empty. */
-export function latestMarginSnapshotAsOf(rows: SalesMarginDailyRow[]): string | null {
-  return latestBy(rows, r => r.snapshot_as_of)
-}
-
 /** Reporting-day window: the latest `margin_date` across the given rows, or null if empty.
  * Current-period metrics must key off this, not the browser's local calendar date. */
 export function latestMarginReportingDate(rows: SalesMarginDailyRow[]): string | null {

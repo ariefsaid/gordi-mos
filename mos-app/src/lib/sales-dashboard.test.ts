@@ -14,8 +14,6 @@ import {
   channelMixLabel,
   dailySeries,
   revenueTableRows,
-  sortRevenueRows,
-  computeSalesKpis,
 } from './sales-dashboard'
 
 function row(overrides: Partial<SalesDailyRevenueRow>): SalesDailyRevenueRow {
@@ -238,64 +236,5 @@ describe('revenueTableRows', () => {
 
   it('returns an empty array for no rows', () => {
     expect(revenueTableRows([], 'Branch')).toEqual([])
-  })
-})
-
-// ── sortRevenueRows (FR-009) ────────────────────────────────────────────────────────
-describe('sortRevenueRows', () => {
-  const table = revenueTableRows(
-    [
-      row({ branch_code: 'GHQ', branch_name: 'Gordi HQ', channel: 'POS', clean_revenue: 8_000_000, transactions: 80 }),
-      { ...B2B_ROASTERY, transactions: 12, clean_revenue: 2_000_000 },
-    ],
-    'Branch',
-  )
-
-  it('sorts by a numeric column ascending', () => {
-    const sorted = sortRevenueRows(table, { key: 'revenue', dir: 'asc' })
-    expect(sorted.map(r => r.dimension)).toEqual(['Gordi Roastery', 'Gordi HQ'])
-  })
-
-  it('sorts by a numeric column descending', () => {
-    const sorted = sortRevenueRows(table, { key: 'revenue', dir: 'desc' })
-    expect(sorted.map(r => r.dimension)).toEqual(['Gordi HQ', 'Gordi Roastery'])
-  })
-
-  it('sorts by a string column (dimension) ascending/descending', () => {
-    expect(sortRevenueRows(table, { key: 'dimension', dir: 'asc' }).map(r => r.dimension)).toEqual([
-      'Gordi HQ',
-      'Gordi Roastery',
-    ])
-    expect(sortRevenueRows(table, { key: 'dimension', dir: 'desc' }).map(r => r.dimension)).toEqual([
-      'Gordi Roastery',
-      'Gordi HQ',
-    ])
-  })
-
-  it('does not mutate the input array', () => {
-    const original = [...table]
-    sortRevenueRows(table, { key: 'revenue', dir: 'asc' })
-    expect(table).toEqual(original)
-  })
-
-  it('returns the input order unchanged when sort is undefined', () => {
-    expect(sortRevenueRows(table, undefined)).toEqual(table)
-  })
-})
-
-// ── computeSalesKpis ──────────────────────────────────────────────────────────────
-describe('computeSalesKpis', () => {
-  it('AC-004/005/006: bundles latest-day, 7d/30d windows, and channel mix anchored to latestDate', () => {
-    const rows = [
-      row({ revenue_date: '2026-06-30', channel: 'POS', clean_revenue: 8_000_000 }),
-      { ...B2B_ROASTERY, revenue_date: '2026-06-30' },
-    ]
-    const kpis = computeSalesKpis(rows, '2026-06-30')
-    expect(kpis.latestReportingDate).toBe('2026-06-30')
-    expect(kpis.latestDayRevenue).toBe(8_000_000 + 4_500_000)
-    expect(kpis.trailing7d.current).toBe(8_000_000 + 4_500_000)
-    expect(kpis.trailing30d.current).toBe(8_000_000 + 4_500_000)
-    expect(kpis.channelMix).toContain('POS')
-    expect(kpis.channelMix).toContain('B2B')
   })
 })

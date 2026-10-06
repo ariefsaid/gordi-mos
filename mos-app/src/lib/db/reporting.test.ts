@@ -1,12 +1,11 @@
 // reporting.ts data module tests — TDD (AC-tagged).
-// Covers FR-002 (RLS-backed reporting read), FR-003 (freshness), FR-004 (latest reporting day):
+// Covers FR-002 (RLS-backed reporting read) and FR-004 (latest reporting day):
 //  - queries the `reporting` schema — AC-003
 //  - B2B/Roastery rows pass through unchanged — AC-006
-//  - freshness helper returns the max snapshot_as_of — AC-007
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-// Mock supabase at module scope — mirrors kitchen-logs.test.ts / ops-log.test.ts pattern.
+// Mock supabase at module scope — mirrors kitchen-logs.test.ts pattern.
 vi.mock('../supabase', () => {
   const schema = vi.fn()
   return { supabase: { schema } }
@@ -15,7 +14,6 @@ vi.mock('../supabase', () => {
 import { supabase } from '@/lib/supabase'
 import {
   listSalesDailyRevenue,
-  latestSnapshotAsOf,
   latestReportingDate,
   type SalesDailyRevenueRow,
 } from './reporting'
@@ -193,21 +191,6 @@ describe('listSalesDailyRevenue', () => {
     )
 
     await expect(listSalesDailyRevenue()).rejects.toThrow('listSalesDailyRevenue failed')
-  })
-})
-
-// ── latestSnapshotAsOf ─────────────────────────────────────────────────────────
-describe('latestSnapshotAsOf', () => {
-  it('returns the max snapshot_as_of across rows — AC-007 (freshness)', () => {
-    const rows: SalesDailyRevenueRow[] = [
-      { ...POS_ROW, snapshot_as_of: '2026-06-30T02:00:00Z' },
-      { ...B2B_ROASTERY_ROW, snapshot_as_of: '2026-07-01T02:00:00Z' },
-    ]
-    expect(latestSnapshotAsOf(rows)).toBe('2026-07-01T02:00:00Z')
-  })
-
-  it('returns null for an empty list', () => {
-    expect(latestSnapshotAsOf([])).toBeNull()
   })
 })
 

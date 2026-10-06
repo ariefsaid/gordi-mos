@@ -1,7 +1,7 @@
 // reporting-margin.ts data module tests — TDD (AC-tagged).
 // Covers the §7a-corrected reporting.sales_margin_daily contract: queries the
 // `reporting` schema (mirrors reporting.ts's RLS-backed pattern — org_id is never
-// sent, RLS scopes it), the POS-only/no-channel grain, and freshness.
+// sent, RLS scopes it), and the POS-only/no-channel grain.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
@@ -14,7 +14,6 @@ vi.mock('../supabase', () => {
 import { supabase } from '@/lib/supabase'
 import {
   listSalesMarginDaily,
-  latestMarginSnapshotAsOf,
   type SalesMarginDailyRow,
 } from './reporting-margin'
 
@@ -190,17 +189,5 @@ describe('listSalesMarginDaily', () => {
     )
 
     await expect(listSalesMarginDaily()).rejects.toThrow(/listSalesMarginDaily failed/)
-  })
-})
-
-describe('latestMarginSnapshotAsOf', () => {
-  it('returns the max snapshot_as_of across rows', () => {
-    const older = { ...POS_ROW, snapshot_as_of: '2026-07-01T01:00:00Z' }
-    const newer = { ...POS_ROW, snapshot_as_of: '2026-07-01T03:00:00Z' }
-    expect(latestMarginSnapshotAsOf([older, newer])).toBe('2026-07-01T03:00:00Z')
-  })
-
-  it('returns null for an empty array', () => {
-    expect(latestMarginSnapshotAsOf([])).toBeNull()
   })
 })

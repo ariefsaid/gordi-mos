@@ -29,7 +29,7 @@
 // RecordField never owns an overlay, history, focus trap, or confirmation dialog —
 // the containing tenant composes the Issue 4 host leave-guard from onDirtyChange.
 //
-// `commitsFrozen` (D1 fix, dirty-leave-guard-during-blur defect): a host-owned leave-guard
+// `commitsFrozen` (D1 fix, leave-guard-during-blur defect): a host-owned leave-guard
 // confirm dialog (ModalShell) auto-focuses its own first control the instant it mounts —
 // which, if a RecordField is still focused and mid-edit, fires a NATIVE blur on the field
 // BEFORE the user has chosen Retain or Discard. Left unguarded, that stray blur runs the
