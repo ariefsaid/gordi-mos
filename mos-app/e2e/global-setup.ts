@@ -11,9 +11,9 @@ import { DEMO_PASSWORD, DEMO_PERSONAS } from '../src/pages/demo-personas'
 //   • ensures every *.dev@example.test persona has an auth user (CREATE-IF-MISSING, never delete)
 //     and is linked to its shared.people row → running e2e now HEALS dev login instead of breaking it;
 //   • e2e specs log in AS the dev personas (VIEWER = cahya.dev, MANAGER = dewi.dev);
-//   • only the dedicated, e2e-OWNED users (ORPHAN, RECOVERY, ADMIN) are delete-then-create — they
-//     touch NO dev person row, so the destructive AC-005 password rotation / the ADMIN grant can't
-//     affect any dev login.
+//   • only dedicated, e2e-OWNED users (ORPHAN, RECOVERY, ADMIN, count reviewer, stream personas)
+//     are delete-then-create — they touch NO dev person row, so destructive e2e grants and password
+//     rotation cannot affect any dev login.
 //
 // shared.people writes go via the local /pg/query endpoint (postgres role): service_role has only
 // SELECT on shared.people. This endpoint is local-only — never available in production.
@@ -23,7 +23,7 @@ import { chromium } from '@playwright/test'
 import { readFileSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
-import { ORPHAN, RECOVERY_VIEWER, ADMIN, BAR_MEMBER, BAR_SUPERVISOR, BAR_STREAM } from './fixtures/users'
+import { ORPHAN, RECOVERY_VIEWER, ADMIN, COUNT_OPS_LEAD, BAR_MEMBER, BAR_SUPERVISOR, BAR_STREAM } from './fixtures/users'
 import { AC204, TASKS } from './fixtures/tasks'
 import { assertFixtureSqlSafe, assertLocalFixtureDatabase, fixtureCleanupSql } from './fixtures/cleanup'
 import { captureStorageState } from './helpers/auth-state'
@@ -240,6 +240,30 @@ export default async function globalSetup() {
   )
   console.log(`[global-setup] created + linked ADMIN user → dedicated person ${ADMIN.personId} (admin role)`)
 
+  // ── #1368 — dedicated ops-lead reviewer; never the count submitter/re-counter ──────────────
+  await execSql(
+    SUPABASE_URL,
+    SERVICE_ROLE_KEY,
+    `INSERT INTO shared.people (id, org_id, full_name, email)
+     VALUES ('${COUNT_OPS_LEAD.personId}', '${ORG}', '${COUNT_OPS_LEAD.displayName}', '${COUNT_OPS_LEAD.email}')
+     ON CONFLICT (id) DO UPDATE SET full_name = EXCLUDED.full_name;
+     INSERT INTO shared.person_access_roles (org_id, person_id, access_role) VALUES
+       ('${ORG}', '${COUNT_OPS_LEAD.personId}', 'member'),
+       ('${ORG}', '${COUNT_OPS_LEAD.personId}', 'ops_lead')
+     ON CONFLICT (person_id, access_role) DO NOTHING`,
+  )
+  await deleteUserByEmail(adminClient, COUNT_OPS_LEAD.email)
+  const { data: countOpsData, error: countOpsErr } = await adminClient.auth.admin.createUser({
+    email: COUNT_OPS_LEAD.email, password: COUNT_OPS_LEAD.password, email_confirm: true,
+  })
+  if (countOpsErr) throw new Error(`[global-setup] createUser COUNT_OPS_LEAD failed: ${countOpsErr.message}`)
+  await execSql(
+    SUPABASE_URL,
+    SERVICE_ROLE_KEY,
+    `UPDATE shared.people SET user_id = '${countOpsData.user.id}' WHERE id = '${COUNT_OPS_LEAD.personId}'`,
+  )
+  console.log(`[global-setup] created + linked Count reviewer → dedicated person ${COUNT_OPS_LEAD.personId}`)
+
   // ── 3d. AC-014 (#238) — the bar-capture journey's two stream personas ─────────────────────────
   // A member and a supervisor whose LIVE PRIMARY Team is the (Rumah Rames, bar) stream Team. That
   // membership is the whole point: it is what makes the capture surface open on that stream by
@@ -296,6 +320,7 @@ export default async function globalSetup() {
   const statefulPersonas: Array<{ email: string; password: string }> = [
     ...DEV_PERSONAS.map((email) => ({ email, password: DEV_PASSWORD })),
     ADMIN,
+    COUNT_OPS_LEAD,
     BAR_MEMBER,
     BAR_SUPERVISOR,
   ]

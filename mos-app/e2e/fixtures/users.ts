@@ -63,6 +63,14 @@ export const ADMIN = {
   displayName: 'E2E Admin',
 }
 
+// #1368: the only Count reviewer in the journey; distinct from its floor submitter/re-counter.
+export const COUNT_OPS_LEAD = {
+  email: 'e2e.count.opslead@example.test',
+  password: 'e2e-password-123',
+  personId: '4e000000-0000-0000-0000-0000000000c1',
+  displayName: 'E2E Count Ops Lead',
+}
+
 // ── AC-014 (#238) — the bar-capture journey's two personas ────────────────────────────────────
 // A BAR STREAM is what this journey needs and no dev persona is one: every dev persona's primary
 // Team is org structure, not a (branch, activity). So these two are dedicated e2e people, granted

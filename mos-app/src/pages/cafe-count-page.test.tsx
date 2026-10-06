@@ -28,17 +28,29 @@ vi.mock('@/lib/db/cafe-count', async importOriginal => {
     ...actual,
     newCafeCountClientKey: () => `client-${++countMocks.key}`,
     listCafeCountableItems: vi.fn(),
+    listCafeCountFloorLines: vi.fn(),
+    recordCafeCountRecount: vi.fn(),
+    recordCafeCountReason: vi.fn(),
     submitCafeCounts: vi.fn(),
   }
 })
 
 import { useAuth } from '@/auth/use-auth'
-import { listCafeCountableItems, submitCafeCounts } from '@/lib/db/cafe-count'
+import {
+  listCafeCountableItems,
+  listCafeCountFloorLines,
+  recordCafeCountReason,
+  recordCafeCountRecount,
+  submitCafeCounts,
+} from '@/lib/db/cafe-count'
 import type { CafeCountableItem } from '@/lib/db/cafe-count'
 import { CafeCountPage } from './cafe-count-page'
 
 const mockUseAuth = vi.mocked(useAuth)
 const mockListItems = vi.mocked(listCafeCountableItems)
+const mockListLines = vi.mocked(listCafeCountFloorLines)
+const mockRecordRecount = vi.mocked(recordCafeCountRecount)
+const mockRecordReason = vi.mocked(recordCafeCountReason)
 const mockSubmit = vi.mocked(submitCafeCounts)
 const VIEWER: AuthState = {
   status: 'authenticated',
@@ -71,6 +83,9 @@ beforeEach(() => {
   countMocks.key = 0
   mockUseAuth.mockReturnValue(VIEWER)
   mockListItems.mockResolvedValue(ITEMS)
+  mockListLines.mockResolvedValue([])
+  mockRecordRecount.mockResolvedValue({ line_id: 'line-1', row_version: 3, reason_required: true })
+  mockRecordReason.mockResolvedValue({ line_id: 'line-1', row_version: 4, reason_recorded: true })
   Object.defineProperty(navigator, 'onLine', { configurable: true, value: true })
 })
 
@@ -131,6 +146,49 @@ describe('CafeCountPage', () => {
     await waitFor(() => expect(mockSubmit).toHaveBeenCalledTimes(2))
     expect(mockSubmit.mock.calls[1][1]).toEqual(mockSubmit.mock.calls[0][1])
     expect(await screen.findByText('Submitted')).toBeInTheDocument()
+  })
+
+  it('AC-017 asks only for a blind recount and then a reason when the final Count still differs', async () => {
+    const longItem: CafeCountableItem = {
+      id: 'raw-1',
+      name: 'Slow-roasted coffee beans for the weekend service',
+      category: 'Pantry',
+      kind: 'RAW',
+      unitId: 'unit-case',
+      unitName: 'sealed five-kilogram stock carton',
+    }
+    mockListItems.mockResolvedValue([longItem])
+    mockListLines.mockResolvedValue([{
+      id: 'line-1', branch_id: 'branch-1', activity: 'kitchen', count_date: '2026-10-06',
+      wip_item_id: 'raw-1', item_name: longItem.name, item_category: 'Pantry', item_kind: 'RAW',
+      item_unit_id: 'unit-case', unit_name: longItem.unitName, counted_quantity: '5.0000',
+      recounted_quantity: null, reason: null, expected_ready: true, recount_required: true,
+      reason_required: false, status: 'Submitted', posting_status: 'not_posted',
+      submitted_at: '2026-10-06T03:00:00.000Z', reviewed_at: null, row_version: 2,
+    }])
+    renderPage()
+    expect(await screen.findByText('This item differs. Recount it, then explain if it still differs.')).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: `Recount for ${longItem.name}` })).toBeInTheDocument()
+    const beforeRecount = screen.getByRole('list', { name: 'Countable Café items' }).textContent ?? ''
+    expect(beforeRecount).not.toContain('Expected balance')
+    expect(beforeRecount).not.toContain('Variance')
+    expect(beforeRecount).not.toContain('4.0000')
+    expect(beforeRecount).not.toContain('1.0000')
+
+    fireEvent.change(screen.getByRole('textbox', { name: `Recount for ${longItem.name}` }), { target: { value: '4.5' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Submit recount' }))
+    await waitFor(() => expect(mockRecordRecount).toHaveBeenCalledWith('line-1', '4.5'))
+    expect(await screen.findByText('This item still differs. Add a reason to continue.')).toBeInTheDocument()
+    fireEvent.change(screen.getByRole('textbox', { name: `Reason for ${longItem.name}` }), {
+      target: { value: 'Recounted the sealed stock carton.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save reason' }))
+    await waitFor(() => expect(mockRecordReason).toHaveBeenCalledWith('line-1', 'Recounted the sealed stock carton.'))
+    expect(await screen.findByText('Recount and reason recorded. Waiting for review.')).toBeInTheDocument()
+    const finalFloorText = screen.getByRole('list', { name: 'Countable Café items' }).textContent ?? ''
+    expect(finalFloorText).not.toContain('Expected balance')
+    expect(finalFloorText).not.toContain('Variance')
+    expect(finalFloorText).not.toContain('4.0000')
   })
 
   it('AC-007 zero is submitted while a blank item is omitted; a refused line is shown individually', async () => {

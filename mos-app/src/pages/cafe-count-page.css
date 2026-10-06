@@ -152,7 +152,8 @@
 }
 
 .cafe-count__field-error,
-.cafe-count__line-success {
+.cafe-count__line-success,
+.cafe-count__recount-prompt {
   margin: 0;
   font-size: var(--font-size-body);
   line-height: 1.4;
@@ -160,6 +161,34 @@
 
 .cafe-count__field-error { color: var(--destructive); }
 .cafe-count__line-success { color: var(--muted-foreground); }
+.cafe-count__recount-prompt { color: var(--foreground); font-weight: 600; }
+
+.cafe-count__input-group textarea {
+  width: 100%;
+  min-height: 88px;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-md);
+  background: var(--background);
+  color: var(--foreground);
+  font: inherit;
+  font-size: var(--font-size-touch-input);
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.cafe-count__input-group textarea:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.cafe-count__input-group textarea[aria-invalid="true"] { border-color: var(--destructive); }
+
+.cafe-count__followup-submit {
+  min-height: 44px;
+  justify-self: start;
+}
 
 .cafe-count__footer {
   position: sticky;
@@ -205,6 +234,7 @@
   }
 
   .cafe-count__item-name { font-size: var(--font-size-body-lg); }
+  .cafe-count__followup-submit { width: 100%; }
 
   .cafe-count__footer {
     bottom: calc(-1 * (16px + var(--tabbar-h, 60px)));

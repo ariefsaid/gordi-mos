@@ -1151,6 +1151,7 @@ function KitchenReviewPageForViewer() {
         streamCatalog={streamCatalog}
         canReviewAll={isLeadOrAdmin}
         reviewableStreamKeys={myStreamKeys}
+        viewerPersonId={viewerId}
       />
       {/* #422 / DD-WAY-40: Review is an ACT surface, so its figures render as the DESIGN.md
           Metric summary rule — one inline line, no card, no width branch — never a tile row.

@@ -71,10 +71,10 @@ vi.mock('@/lib/db/cafe-opening', () => ({
 import { listCafeViewerTeams } from '@/lib/db/cafe-opening'
 
 vi.mock('@/lib/db/cafe-count', () => ({
-  listCafeCountLines: vi.fn().mockResolvedValue([]),
+  listCafeCountReviewLines: vi.fn().mockResolvedValue([]),
   confirmCafeCountLine: vi.fn(),
 }))
-import { listCafeCountLines } from '@/lib/db/cafe-count'
+import { listCafeCountReviewLines } from '@/lib/db/cafe-count'
 
 // resolveDefaultCaptureStream (OD-WAY-28) reads the live branch catalog to resolve the
 // stream the plan read is scoped to (kitchen-review-page.tsx fetchQueue) — un-mocked, it
@@ -220,7 +220,7 @@ beforeEach(() => {
   // #783 AC-051: no extra current-membership streams unless a test says so — her primary
   // (mockDefaultStream) alone still decides for her, matching every existing supervisor test.
   vi.mocked(listCafeViewerTeams).mockResolvedValue([])
-  vi.mocked(listCafeCountLines).mockResolvedValue([])
+  vi.mocked(listCafeCountReviewLines).mockResolvedValue([])
 })
 
 describe('KitchenReviewPage — role gate (FR-003/044)', () => {
@@ -251,7 +251,7 @@ describe('KitchenReviewPage — role gate (FR-003/044)', () => {
 describe('KitchenReviewPage — states', () => {
   it('loading: shows a busy skeleton while the queue loads', () => {
     mockList.mockReturnValue(new Promise(() => {})) // never resolves
-    vi.mocked(listCafeCountLines).mockReturnValue(new Promise(() => {})) // this queue is independent
+    vi.mocked(listCafeCountReviewLines).mockReturnValue(new Promise(() => {})) // this queue is independent
     render(<KitchenReviewPage />, { wrapper })
     const pageLoading = screen.getAllByRole('status', { name: /loading/i })
       .find(status => !status.closest('.cafe-count-review'))

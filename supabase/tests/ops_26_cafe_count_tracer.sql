@@ -149,7 +149,7 @@ select is(current_setting('app.count_submit_results')::jsonb -> 4 ->> 'reason', 
           'AC-004 an unconfirmed default ERP unit is refused at insert');
 select is(current_setting('app.count_submit_results')::jsonb -> 5 ->> 'reason', 'item_not_countable',
           'AC-004 an inactive default ERP unit is refused at insert');
-select is((select count(*)::int from ops.cafe_count_lines
+select is((select count(id)::int from ops.cafe_count_lines
             where org_id = '00000000-0000-0000-0000-0000000000a1'
               and branch_id = '00000000-0000-0000-0000-00000000bf01'
               and count_date = (now() at time zone 'Asia/Jakarta')::date),
@@ -158,10 +158,10 @@ select ok((select org_id = '00000000-0000-0000-0000-0000000000a1'
                   and submitted_by = '00000000-0000-0000-0000-0000000000d2'
                   and source = 'mos' and status = 'Submitted'
                   and count_date = (submitted_at at time zone 'Asia/Jakarta')::date
-                  and expected_status = 'waiting' and expected_balance is null
+                  and expected_status = 'waiting'
                   and posting_status = 'not_posted' and row_version = 1
              from ops.cafe_count_lines where id = current_setting('app.count_raw_line_id')::uuid),
-          'NFR-001 org, submitter, WIB date, source, status, Expected balance and posting state are server-stamped');
+          'NFR-001 org, submitter, WIB date, source, status, Expected readiness and posting state are server-stamped');
 select ok(position('expected_balance' in current_setting('app.count_submit_results')) = 0,
           'AC-009 submit response does not disclose the blind Expected balance');
 select set_config('app.count_retry_result', ops.submit_cafe_counts(
@@ -194,7 +194,7 @@ select is(ops.submit_cafe_counts(
   jsonb_build_array(jsonb_build_object('client_key','f1366000-0000-0000-0000-000000000005',
     'item_id',current_setting('app.count_raw_id'),'quantity','0'))
 ) -> 0 ->> 'reason', 'already_counted', 'AC-006 a second stream of the branch cannot count a live item again');
-select is((select count(*)::int from ops.cafe_count_lines
+select is((select count(id)::int from ops.cafe_count_lines
             where client_key = 'f1366000-0000-0000-0000-000000000001'),
           1, 'AC-012 an idempotent retry creates no second row');
 select ok(not has_function_privilege('authenticated', 'ops.record_cafe_count_expected_balance(uuid,numeric)', 'EXECUTE')
@@ -233,7 +233,8 @@ select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000
 select is((select row_version from ops.cafe_count_lines where id = current_setting('app.count_raw_line_id')::uuid),
           2, 'AC-021 Expected balance refresh increments the optimistic version');
 select ok((select expected_status = 'ready' and expected_balance = 0 and variance = 0
-             from ops.cafe_count_lines where id = current_setting('app.count_raw_line_id')::uuid),
+             from ops.cafe_count_review_lines((now() at time zone 'Asia/Jakarta')::date)
+            where id = current_setting('app.count_raw_line_id')::uuid),
           'AC-015 server-stored zero Variance is exact');
 
 reset role;
@@ -242,25 +243,27 @@ set local request.jwt.claims = '{"role":"service_role","org_id":"00000000-0000-0
 select ops.record_cafe_count_expected_balance(current_setting('app.count_raw_line_id')::uuid, 0);
 reset role;
 set local role authenticated;
-select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","admin"]}');
 select throws_ok($$select ops.confirm_cafe_count_line(current_setting('app.count_raw_line_id')::uuid, 1)$$,
   'P0019', null, 'AC-021 reviewer token from before the first Expected balance is stale');
 select throws_ok($$select ops.confirm_cafe_count_line(current_setting('app.count_raw_line_id')::uuid, 2)$$,
   'P0019', null, 'AC-021 a refreshed Expected balance invalidates the prior review version');
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","admin"]}');
 select set_config('app.count_confirm_result', ops.confirm_cafe_count_line(
   current_setting('app.count_raw_line_id')::uuid, 3)::text, true);
 select is(current_setting('app.count_confirm_result')::jsonb ->> 'status', 'Confirmed',
           'AC-019 current-version zero-Variance line is confirmed');
 select is(current_setting('app.count_confirm_result')::jsonb ->> 'posting_status', 'not_needed',
           'AC-028 zero Variance closes as not needed with the switch off');
-select ok((select status = 'Confirmed' and reviewed_by = '00000000-0000-0000-0000-0000000000d2'
-                  and reviewed_at is not null and row_version = 4 and variance = 0
+select ok((select status = 'Confirmed' and reviewed_by = '00000000-0000-0000-0000-0000000000d3'
+                  and reviewed_at is not null and row_version = 4
              from ops.cafe_count_lines where id = current_setting('app.count_raw_line_id')::uuid),
           'AC-019 reviewer, time, immutable facts and new version are stored');
 select throws_ok($$select ops.confirm_cafe_count_line(current_setting('app.count_wip_line_id')::uuid, 2)$$,
-  'P0020', null, 'AC-028 non-zero Variance cannot be confirmed yet');
+  'P0018', null, 'AC-020 non-zero Variance without a recount cannot be confirmed yet');
 select ok((select status = 'Submitted' and variance = 1.25 and posting_status = 'not_posted'
-             from ops.cafe_count_lines where id = current_setting('app.count_wip_line_id')::uuid),
+             from ops.cafe_count_review_lines((now() at time zone 'Asia/Jakarta')::date)
+            where id = current_setting('app.count_wip_line_id')::uuid),
           'AC-028 non-zero line remains Submitted and no ERP document is claimed');
 
 reset role;
@@ -274,19 +277,19 @@ reset role;
 revoke update on ops.cafe_count_lines from service_role;
 set local role authenticated;
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
-select is((select count(*)::int from ops.cafe_count_lines), 2,
-          'NFR-001 current-org reviewer can read Count lines');
+select is((select count(id)::int from ops.cafe_count_lines), 2,
+          'NFR-001 current-org reviewer can read safe Count fields');
 select is((select count(*)::int from ops.cafe_count_posting_switches
             where branch_id = '00000000-0000-0000-0000-00000000bf01'), 1,
           'NFR-001 current-org member can read its branch switch');
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}');
-select is((select count(*)::int from ops.cafe_count_lines), 0,
+select is((select count(id)::int from ops.cafe_count_lines), 0,
           'NFR-001 foreign organization is refused Count-line reads');
 select is((select count(*)::int from ops.cafe_count_posting_switches
             where branch_id = '00000000-0000-0000-0000-00000000bf01'), 0,
           'NFR-001 foreign organization is refused switch reads');
 select shared._test_set_access_roles('{}');
-select is((select count(*)::int from ops.cafe_count_lines), 0,
+select is((select count(id)::int from ops.cafe_count_lines), 0,
           'NFR-001 missing org claim fails closed for Count lines');
 select is((select count(*)::int from ops.cafe_count_posting_switches), 0,
           'NFR-001 missing org claim fails closed for switch reads');

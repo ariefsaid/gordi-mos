@@ -1,4 +1,5 @@
 import { AC204, TASKS } from './tasks'
+import { countRecountCatalogCleanupSql, countRecountCleanupSql } from './count-recount'
 
 // Only fixed IDs declared by this harness are owned. Titles, dates, authors and org membership
 // do not establish ownership. Dynamic UI fixtures must be cleaned by their creating journey.
@@ -184,6 +185,7 @@ export const E2E_CLEANUP_REGISTRY = {
   'AC-020-catalog.spec.ts': 'captured-objective-id-and-fixed-task-id',
   'AC-090-kitchen-log-approve.spec.ts': 'fixed-item-id',
   'cafe-waste-review.spec.ts': 'fixed-waste-item-id-with-storage-api-cleanup',
+  'AC-037-cafe-count-recount.spec.ts': 'fixed-catalog-items-settings-streams-and-owned-count-lines',
   'AC-134.spec.ts': 'fixed-task-ids',
   'AC-230.spec.ts': 'fixed-task-and-work-line-ids',
   'AC-411-catalog-manage-mode.spec.ts': 'fixed-catalog-ids',
@@ -271,7 +273,7 @@ export function assertFixtureSqlSafe(query: string): void {
   const normalize = (sql: string) => sql.trim().replace(/\s+/g, ' ').toLowerCase()
   const executableSql = executableSqlOnly(query)
   const allowed = new Set(
-    [...fixtureCleanupSql.split(';'), ...cafeWasteCleanupSql.split(';'), ...cafePlanGuardCleanupSql.split(';')]
+    [...fixtureCleanupSql.split(';'), ...cafeWasteCleanupSql.split(';'), ...cafePlanGuardCleanupSql.split(';'), ...countRecountCleanupSql.split(';'), ...countRecountCatalogCleanupSql.split(';')]
       .filter((sql) => sql.trim())
       .map(normalize),
   )

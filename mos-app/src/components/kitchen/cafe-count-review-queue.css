@@ -84,12 +84,13 @@
 
 .cafe-count-review__facts {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 10px;
   margin: 0;
 }
 
 .cafe-count-review__facts > div { min-width: 0; }
+.cafe-count-review__reason { grid-column: 1 / -1; }
 
 .cafe-count-review__facts dt {
   color: var(--muted-foreground);
@@ -155,6 +156,7 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
     row-gap: 12px;
   }
+  .cafe-count-review__reason { grid-column: 1 / -1; }
 
   .cafe-count-review__decision { justify-content: stretch; }
   .cafe-count-review__confirm { width: 100%; }

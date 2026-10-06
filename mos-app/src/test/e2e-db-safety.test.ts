@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process'
 import { readdirSync, readFileSync } from 'node:fs'
 import { afterEach, expect, test, vi } from 'vitest'
 import { AC204, TASKS } from '@/../e2e/fixtures/tasks'
+import { countRecountCatalogCleanupSql, countRecountCleanupSql } from '@/../e2e/fixtures/count-recount'
 import { localSql } from '@/../e2e/helpers/local-sql'
 import { localSqlRead } from '@/../e2e/helpers/local-sql-read'
 import {
@@ -169,6 +170,8 @@ test('SQL guard rejects broad and disguised deletes and allows the owned cleanup
   expect(() => assertFixtureSqlSafe(fixtureCleanupSql)).not.toThrow()
   expect(() => assertFixtureSqlSafe(cafeWasteCleanupSql)).not.toThrow()
   expect(() => assertFixtureSqlSafe(cafePlanGuardCleanupSql)).not.toThrow()
+  expect(() => assertFixtureSqlSafe(countRecountCleanupSql)).not.toThrow()
+  expect(() => assertFixtureSqlSafe(countRecountCatalogCleanupSql)).not.toThrow()
   const capturedCleanup = taskCleanupSql(['a1000000-0000-0000-0000-000000000001'])
   expect(() => assertFixtureSqlSafe(capturedCleanup)).not.toThrow()
   expect(() => taskCleanupSql(['not-a-uuid'])).toThrow(/UUID-owned/)
