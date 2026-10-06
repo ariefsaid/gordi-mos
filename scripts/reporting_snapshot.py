@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal, InvalidOperation
 import os
 import sys
 from typing import Any, Mapping
@@ -395,6 +396,19 @@ def _bill_key(row: Mapping[str, Any]) -> BillKey:
     return (esb_code, branch_code, _required_text(row.get("bill_num"), "bill_num"))
 
 
+def _is_payable(row: Mapping[str, Any]) -> bool:
+    """A positive total. Zero owes nothing and a negative total is a refund the copy does not
+    model; both are skipped and counted rather than refused by the table's amount check."""
+    try:
+        return Decimal(str(row.get("grand_total"))) > 0
+    except (InvalidOperation, ValueError):
+        return False
+
+
+def is_skipped_pending_bill(row: Mapping[str, Any]) -> bool:
+    return _is_deferred_tender(row) and not _is_void(row) and not _is_payable(row)
+
+
 def normalize_pending_bill(
     row: Mapping[str, Any],
     *,
@@ -402,7 +416,7 @@ def normalize_pending_bill(
     org_id: str,
     source_contract_version: str,
 ) -> dict[str, Any] | None:
-    if not _is_deferred_tender(row) or _is_void(row):
+    if not _is_deferred_tender(row) or _is_void(row) or not _is_payable(row):
         return None
     esb_code, branch_code, bill_no = _bill_key(row)
     return {
@@ -508,7 +522,8 @@ def build_bill_snapshot_insert_sql() -> str:
     """
 
 
-def run_pending_bill_snapshot(config: SnapshotConfig, snapshot_as_of: datetime) -> int:
+def run_pending_bill_snapshot(config: SnapshotConfig, snapshot_as_of: datetime) -> tuple[int, int]:
+    """Returns (bills written, non-positive bills skipped)."""
     try:
         import psycopg
         from psycopg.rows import dict_row
@@ -536,6 +551,7 @@ def run_pending_bill_snapshot(config: SnapshotConfig, snapshot_as_of: datetime) 
         )
         if bill is not None
     ]
+    skipped = sum(1 for row in source_rows if is_skipped_pending_bill(row))
     run_keys = {(b["esb_code"], b["branch_code"], b["bill_no"]) for b in bills}
     void_keys = void_bill_keys(source_rows)
 
@@ -573,7 +589,7 @@ def run_pending_bill_snapshot(config: SnapshotConfig, snapshot_as_of: datetime) 
             )
         reporting_conn.commit()
 
-    return len(bills)
+    return len(bills), skipped
 
 
 def run_all_snapshots(config: SnapshotConfig) -> dict[str, int | None]:
@@ -581,20 +597,30 @@ def run_all_snapshots(config: SnapshotConfig) -> dict[str, int | None]:
     snapshot_as_of = datetime.now(timezone.utc)
     revenue_count = run_snapshot(config, snapshot_as_of=snapshot_as_of)
     margin_count = run_margin_snapshot(config, snapshot_as_of)
-    pending_count = (
-        run_pending_bill_snapshot(config, snapshot_as_of) if config.pending_bills_enabled else None
+    pending, skipped = (
+        run_pending_bill_snapshot(config, snapshot_as_of)
+        if config.pending_bills_enabled
+        else (None, None)
     )
-    return {"revenue": revenue_count, "margin": margin_count, "pending_bills": pending_count}
+    return {
+        "revenue": revenue_count,
+        "margin": margin_count,
+        "pending_bills": pending,
+        "pending_bills_skipped": skipped,
+    }
 
 
 def main() -> int:
     config = SnapshotConfig.from_env(os.environ)
     counts = run_all_snapshots(config)
-    pending = "off" if counts["pending_bills"] is None else counts["pending_bills"]
+    def shown(key: str) -> object:
+        return "off" if counts[key] is None else counts[key]
+
     print(
         "reporting_snapshot END "
         f"revenue={counts['revenue']} margin={counts['margin']} "
-        f"pending_bills={pending} "
+        f"pending_bills={shown('pending_bills')} "
+        f"pending_bills_skipped={shown('pending_bills_skipped')} "
         f"window_days={config.window_days}"
     )
     return 0
