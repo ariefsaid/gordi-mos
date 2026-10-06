@@ -8,6 +8,7 @@
 --   drop trigger cafe_open_po_branches_match_waiting on ops.cafe_open_po_branches;
 --   drop trigger cafe_receipts_match_on_approval on ops.cafe_receipts;
 --   drop function ops._match_waiting_cafe_receipts();
+--   drop function ops._match_waiting_cafe_receipts_at(uuid, uuid);
 --   drop function ops._match_approved_cafe_receipt();
 --   drop function ops.cafe_held_receipts();
 --   drop function ops.release_cafe_receipts(uuid);
@@ -15,6 +16,7 @@
 --   drop function ops._match_cafe_receipt(uuid);
 --   drop function ops._enqueue_cafe_receipt_portions(uuid, text);
 --   drop function ops._cafe_receipt_hold_reason(uuid, uuid, text);
+--   drop function ops._cafe_receipt_location(uuid, uuid, text);
 --   drop function ops._cafe_receipt_po_lines(uuid, uuid);
 --   drop function ops.match_cafe_receipt_lines(jsonb, jsonb);
 --   drop function ops.set_cafe_receipt_posting_enabled(uuid, boolean);
@@ -252,8 +254,8 @@ comment on function ops.match_cafe_receipt_lines(jsonb, jsonb) is
 revoke execute on function ops.match_cafe_receipt_lines(jsonb, jsonb) from public, anon, authenticated;
 grant execute on function ops.match_cafe_receipt_lines(jsonb, jsonb) to service_role;
 
--- What a branch's open POs still have per (PO, product detail): the cached outstanding less the
--- portions enqueued since the cache was read, which ESB cannot have counted yet.
+-- What a branch's open POs still have per (PO, product detail): the cached outstanding less every
+-- queued portion ESB had not posted when the cache was read (pending, failed, or posted after it).
 create or replace function ops._cafe_receipt_po_lines(p_org_id uuid, p_branch_id uuid)
 returns jsonb
 language sql
@@ -272,9 +274,10 @@ as $$
     select q.po_number, q.item_unit_id, sum(q.quantity) as quantity
       from ops.cafe_receipt_portions q
       join ops.cafe_receipts r on r.org_id = q.org_id and r.id = q.receipt_id
+      join integrations.esb_push e on e.id = q.push_id
      where q.org_id = p_org_id and r.branch_id = p_branch_id and q.state = 'queued'
-       and q.created_at > (select s.as_of from ops.cafe_open_po_branches s
-                            where s.org_id = p_org_id and s.branch_id = p_branch_id)
+       and (e.status <> 'posted' or e.posted_at > (select s.as_of from ops.cafe_open_po_branches s
+                                                    where s.org_id = p_org_id and s.branch_id = p_branch_id))
      group by q.po_number, q.item_unit_id
   )
   select coalesce(jsonb_agg(jsonb_build_object(
@@ -285,6 +288,20 @@ as $$
     left join queued on queued.po_number = po.po_number and queued.item_unit_id = po.item_unit_id
 $$;
 revoke all on function ops._cafe_receipt_po_lines(uuid, uuid) from public, anon, authenticated, service_role;
+
+create or replace function ops._cafe_receipt_location(p_org_id uuid, p_branch_id uuid, p_receipt_key text)
+returns text
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(p_receipt_key, (select l.location_key from ops.cafe_receiving_locations l
+                                   where l.org_id = p_org_id and l.branch_id = p_branch_id))
+$$;
+comment on function ops._cafe_receipt_location(uuid, uuid, text) is
+  'The receiving location a receipt posts to: the one copied at Count submit, else the branch''s current one.';
+revoke all on function ops._cafe_receipt_location(uuid, uuid, text) from public, anon, authenticated, service_role;
 
 create or replace function ops._cafe_receipt_hold_reason(p_org_id uuid, p_branch_id uuid, p_location_key text)
 returns text
@@ -387,9 +404,7 @@ begin
     from ops.cafe_receipt_lines l
    where l.org_id = v_receipt.org_id and l.receipt_id = v_receipt.id;
   v_alloc := ops.match_cafe_receipt_lines(v_lines, ops._cafe_receipt_po_lines(v_receipt.org_id, v_receipt.branch_id));
-  v_location := coalesce(v_receipt.receiving_location_key,
-                         (select l.location_key from ops.cafe_receiving_locations l
-                           where l.org_id = v_receipt.org_id and l.branch_id = v_receipt.branch_id));
+  v_location := ops._cafe_receipt_location(v_receipt.org_id, v_receipt.branch_id, v_receipt.receiving_location_key);
   v_hold := ops._cafe_receipt_hold_reason(v_receipt.org_id, v_receipt.branch_id, v_location);
 
   insert into ops.cafe_receipt_portions (org_id, receipt_id, line_id, item_unit_id, po_number, po_date, quantity, state, hold_reason)
@@ -430,8 +445,8 @@ create trigger cafe_receipts_match_on_approval
   when (new.status = 'Approved' and old.status is distinct from 'Approved')
   execute function ops._match_approved_cafe_receipt();
 
-create or replace function ops._match_waiting_cafe_receipts()
-returns trigger
+create or replace function ops._match_waiting_cafe_receipts_at(p_org_id uuid, p_branch_id uuid)
+returns void
 language plpgsql
 security definer
 set search_path = ''
@@ -441,17 +456,31 @@ declare
 begin
   for v_receipt_id in
     select r.id from ops.cafe_receipts r
-     where r.org_id = new.org_id and r.branch_id = new.branch_id and r.status = 'Approved'
+     where r.org_id = p_org_id and r.branch_id = p_branch_id and r.status = 'Approved'
        and not exists (select 1 from ops.cafe_receipt_matches m where m.receipt_id = r.id)
      order by r.arrival_date, r.received_at, r.id
   loop
     perform ops._match_cafe_receipt(v_receipt_id);
   end loop;
+end;
+$$;
+comment on function ops._match_waiting_cafe_receipts_at(uuid, uuid) is
+  'Matches a branch''s Approved receipts still waiting for PO data, oldest arrival first.';
+revoke all on function ops._match_waiting_cafe_receipts_at(uuid, uuid) from public, anon, authenticated, service_role;
+
+create or replace function ops._match_waiting_cafe_receipts()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  perform ops._match_waiting_cafe_receipts_at(new.org_id, new.branch_id);
   return new;
 end;
 $$;
 comment on function ops._match_waiting_cafe_receipts() is
-  'After the worker stores a branch''s open POs, matches that branch''s Approved receipts still waiting for PO data, oldest arrival first.';
+  'After the worker stores a branch''s open POs, matches that branch''s receipts waiting for PO data.';
 revoke all on function ops._match_waiting_cafe_receipts() from public, anon, authenticated, service_role;
 create trigger cafe_open_po_branches_match_waiting
   after update of as_of on ops.cafe_open_po_branches
@@ -469,12 +498,11 @@ as $$
 declare
   v_org_id uuid := shared.current_org_id();
   v_started timestamptz := clock_timestamp();
-  v_branch_location text;
   v_receipt ops.cafe_receipts%rowtype;
   v_location text;
   v_lines jsonb;
   v_alloc jsonb;
-  v_held integer;
+  v_reason text;
 begin
   if v_org_id is null or shared.current_person_id() is null
      or not (shared.has_access_role('ops_lead') or shared.has_access_role('admin')) then
@@ -495,69 +523,58 @@ begin
     on conflict (org_id, branch_id) do update
       set refresh_requested_at = coalesce(ops.cafe_open_po_branches.refresh_requested_at, excluded.refresh_requested_at),
           updated_at = clock_timestamp();
-    select count(*)::int into v_held
-      from ops.cafe_receipt_portions q join ops.cafe_receipts r on r.org_id = q.org_id and r.id = q.receipt_id
-     where q.org_id = v_org_id and r.branch_id = p_branch_id and q.state = 'held';
-    return jsonb_build_object('released_receipts', 0, 'queued_portions', 0, 'held_portions', v_held,
-                              'reason', 'po_data_not_current');
+    v_reason := 'po_data_not_current';
+  else
+    -- Receipts approved while PO data was missing are matched now, which also enqueues what fits.
+    perform ops._match_waiting_cafe_receipts_at(v_org_id, p_branch_id);
+
+    for v_receipt in
+      select r.* from ops.cafe_receipts r
+       where r.org_id = v_org_id and r.branch_id = p_branch_id and r.status = 'Approved'
+         and exists (select 1 from ops.cafe_receipt_portions q
+                      where q.org_id = r.org_id and q.receipt_id = r.id and q.state = 'held')
+       order by r.arrival_date, r.received_at, r.id
+    loop
+      v_location := ops._cafe_receipt_location(v_org_id, p_branch_id, v_receipt.receiving_location_key);
+      select jsonb_agg(jsonb_build_object('line_id', l.id, 'item_unit_id', l.item_unit_id, 'wip_item_id', l.wip_item_id,
+                                          'quantity', h.quantity) order by l.created_at, l.id)
+        into v_lines
+        from (select q.line_id, sum(q.quantity) as quantity from ops.cafe_receipt_portions q
+               where q.org_id = v_org_id and q.receipt_id = v_receipt.id and q.state = 'held'
+               group by q.line_id) h
+        join ops.cafe_receipt_lines l on l.id = h.line_id;
+      v_alloc := ops.match_cafe_receipt_lines(v_lines, ops._cafe_receipt_po_lines(v_org_id, p_branch_id));
+      if v_location is null or not exists (select 1 from jsonb_array_elements(v_alloc) a where a ->> 'kind' = 'matched') then
+        update ops.cafe_receipt_portions q
+           set hold_reason = case when v_location is null then 'receiving_location_missing' else 'no_longer_fits' end,
+               updated_at = clock_timestamp()
+         where q.org_id = v_org_id and q.receipt_id = v_receipt.id and q.state = 'held'
+           and q.hold_reason is distinct from case when v_location is null then 'receiving_location_missing' else 'no_longer_fits' end;
+        continue;
+      end if;
+      update ops.cafe_receipt_portions q
+         set state = 'superseded', hold_reason = null, updated_at = clock_timestamp()
+       where q.org_id = v_org_id and q.receipt_id = v_receipt.id and q.state = 'held';
+      insert into ops.cafe_receipt_portions (org_id, receipt_id, line_id, item_unit_id, po_number, po_date, quantity, state, hold_reason)
+      select v_org_id, v_receipt.id, l.id, l.item_unit_id,
+             case when a ->> 'kind' = 'matched' then a ->> 'po_number' end,
+             case when a ->> 'kind' = 'matched' then (a ->> 'po_date')::date end,
+             (a ->> 'quantity')::numeric,
+             case when a ->> 'kind' = 'matched' then 'queued' else 'held' end,
+             case when a ->> 'kind' = 'matched' then null else 'no_longer_fits' end
+        from jsonb_array_elements(v_alloc) a
+        join ops.cafe_receipt_lines l on l.id = (a ->> 'line_id')::uuid;
+      perform ops._enqueue_cafe_receipt_portions(v_receipt.id, v_location);
+    end loop;
   end if;
 
-  -- Receipts approved while PO data was missing are matched now, which also enqueues what fits.
-  for v_receipt in
-    select r.* from ops.cafe_receipts r
-     where r.org_id = v_org_id and r.branch_id = p_branch_id and r.status = 'Approved'
-       and not exists (select 1 from ops.cafe_receipt_matches m where m.receipt_id = r.id)
-     order by r.arrival_date, r.received_at, r.id
-  loop
-    perform ops._match_cafe_receipt(v_receipt.id);
-  end loop;
-
-  select l.location_key into v_branch_location
-    from ops.cafe_receiving_locations l where l.org_id = v_org_id and l.branch_id = p_branch_id;
-  for v_receipt in
-    select r.* from ops.cafe_receipts r
-     where r.org_id = v_org_id and r.branch_id = p_branch_id and r.status = 'Approved'
-       and exists (select 1 from ops.cafe_receipt_portions q
-                    where q.org_id = r.org_id and q.receipt_id = r.id and q.state = 'held')
-     order by r.arrival_date, r.received_at, r.id
-  loop
-    v_location := coalesce(v_receipt.receiving_location_key, v_branch_location);
-    select jsonb_agg(jsonb_build_object('line_id', l.id, 'item_unit_id', l.item_unit_id, 'wip_item_id', l.wip_item_id,
-                                        'quantity', h.quantity) order by l.created_at, l.id)
-      into v_lines
-      from (select q.line_id, sum(q.quantity) as quantity from ops.cafe_receipt_portions q
-             where q.org_id = v_org_id and q.receipt_id = v_receipt.id and q.state = 'held'
-             group by q.line_id) h
-      join ops.cafe_receipt_lines l on l.id = h.line_id;
-    v_alloc := ops.match_cafe_receipt_lines(v_lines, ops._cafe_receipt_po_lines(v_org_id, p_branch_id));
-    if v_location is null or not exists (select 1 from jsonb_array_elements(v_alloc) a where a ->> 'kind' = 'matched') then
-      update ops.cafe_receipt_portions q
-         set hold_reason = case when v_location is null then 'receiving_location_missing' else 'no_longer_fits' end,
-             updated_at = clock_timestamp()
-       where q.org_id = v_org_id and q.receipt_id = v_receipt.id and q.state = 'held'
-         and q.hold_reason is distinct from case when v_location is null then 'receiving_location_missing' else 'no_longer_fits' end;
-      continue;
-    end if;
-    update ops.cafe_receipt_portions q
-       set state = 'superseded', hold_reason = null, updated_at = clock_timestamp()
-     where q.org_id = v_org_id and q.receipt_id = v_receipt.id and q.state = 'held';
-    insert into ops.cafe_receipt_portions (org_id, receipt_id, line_id, item_unit_id, po_number, po_date, quantity, state, hold_reason)
-    select v_org_id, v_receipt.id, l.id, l.item_unit_id,
-           case when a ->> 'kind' = 'matched' then a ->> 'po_number' end,
-           case when a ->> 'kind' = 'matched' then (a ->> 'po_date')::date end,
-           (a ->> 'quantity')::numeric,
-           case when a ->> 'kind' = 'matched' then 'queued' else 'held' end,
-           case when a ->> 'kind' = 'matched' then null else 'no_longer_fits' end
-      from jsonb_array_elements(v_alloc) a
-      join ops.cafe_receipt_lines l on l.id = (a ->> 'line_id')::uuid;
-    perform ops._enqueue_cafe_receipt_portions(v_receipt.id, v_location);
-  end loop;
-
   return (
-    select jsonb_build_object(
+    select jsonb_strip_nulls(jsonb_build_object('reason', v_reason)) || jsonb_build_object(
              'released_receipts', count(distinct q.receipt_id) filter (where q.state = 'queued' and q.created_at >= v_started),
              'queued_portions', count(*) filter (where q.state = 'queued' and q.created_at >= v_started),
-             'held_portions', count(*) filter (where q.state = 'held'))
+             'held_portions', count(*) filter (where q.state = 'held'),
+             'held_receipts', count(distinct q.receipt_id) filter (where q.state = 'held'),
+             'held_location_missing', count(*) filter (where q.hold_reason = 'receiving_location_missing'))
       from ops.cafe_receipt_portions q
       join ops.cafe_receipts r on r.org_id = q.org_id and r.id = q.receipt_id
      where q.org_id = v_org_id and r.branch_id = p_branch_id

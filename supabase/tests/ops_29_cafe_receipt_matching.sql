@@ -4,7 +4,7 @@
 -- releases held receipts once posting is on.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(56);
+select plan(57);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -239,7 +239,7 @@ select is((select count(*)::int from integrations.esb_push where source_module =
   '3/2', 'AC-1021 re-approving and re-matching create nothing');
 
 -- The worker's outcome becomes the receipt's state.
-update integrations.esb_push set status = 'posted', posted_at = now()
+update integrations.esb_push set status = 'posted', posted_at = clock_timestamp()
  where id in (select push_id from ops.cafe_receipt_portions where receipt_id = current_setting('app.r2')::uuid);
 select is((select ops.cafe_receipt_posting(r) ->> 'state' from ops.cafe_receipts r where r.id = current_setting('app.r2')::uuid),
   'posted', 'FR-1042 every portion posted reads posted');
@@ -267,7 +267,7 @@ select is((select held_receipts::text || '/' || posting_enabled::text from ops.c
   '1/true', 'FR-1030 an ops lead sees the branch''s held receipt once posting is on');
 -- What is left on the cache after r2's queued portions: 2 kg of bean on PO B, nothing else.
 select is(ops.release_cafe_receipts('00000000-0000-0000-0000-00000000bf01'),
-  jsonb_build_object('released_receipts', 1, 'queued_portions', 1, 'held_portions', 2),
+  jsonb_build_object('released_receipts', 1, 'queued_portions', 1, 'held_portions', 2, 'held_receipts', 1, 'held_location_missing', 0),
   'AC-1028 a release enqueues what still fits and holds the rest');
 reset role;
 select is((select array_agg(coalesce(p.po_number, '-') || ':' || p.quantity::text || ':' || p.state || ':' || coalesce(p.hold_reason, '-')
@@ -282,7 +282,7 @@ select is((select count(*)::int from integrations.esb_push_groups g
 set local role authenticated;
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","admin"]}');
 select is(ops.release_cafe_receipts('00000000-0000-0000-0000-00000000bf01'),
-  jsonb_build_object('released_receipts', 0, 'queued_portions', 0, 'held_portions', 2),
+  jsonb_build_object('released_receipts', 0, 'queued_portions', 0, 'held_portions', 2, 'held_receipts', 1, 'held_location_missing', 0),
   'AC-1028 an admin''s rerun enqueues nothing new');
 reset role;
 select is((select count(*)::int from integrations.esb_push where source_module = 'cafe_receipt')
@@ -303,10 +303,10 @@ reset role;
 set local role authenticated;
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select is(ops.release_cafe_receipts('00000000-0000-0000-0000-00000000bf01'),
-  jsonb_build_object('released_receipts', 1, 'queued_portions', 2, 'held_portions', 0),
+  jsonb_build_object('released_receipts', 1, 'queued_portions', 2, 'held_portions', 0, 'held_receipts', 0, 'held_location_missing', 0),
   'FR-1030 a release after a refresh enqueues the held rest');
 select is(ops.release_cafe_receipts('00000000-0000-0000-0000-00000000bf01'),
-  jsonb_build_object('released_receipts', 0, 'queued_portions', 0, 'held_portions', 0),
+  jsonb_build_object('released_receipts', 0, 'queued_portions', 0, 'held_portions', 0, 'held_receipts', 0, 'held_location_missing', 0),
   'FR-1030 and a rerun still enqueues nothing new');
 reset role;
 select is((select string_agg(p.po_number || ':' || p.quantity::text, ',' order by p.po_number, p.quantity)
@@ -330,7 +330,8 @@ select is((select ops.cafe_receipt_posting(r) from ops.cafe_receipts r where r.i
   jsonb_build_object('state', 'held', 'matched', false, 'unmatched', 0, 'open_issues', 0),
   'NFR-1006 with no PO data the receipt is approved and not matched: no issue is guessed');
 select is(ops.release_cafe_receipts('00000000-0000-0000-0000-00000000bf02'),
-  jsonb_build_object('released_receipts', 0, 'queued_portions', 0, 'held_portions', 0, 'reason', 'po_data_not_current'),
+  jsonb_build_object('released_receipts', 0, 'queued_portions', 0, 'held_portions', 0, 'held_receipts', 0, 'held_location_missing', 0,
+                     'reason', 'po_data_not_current'),
   'FR-1030 a release without current PO data enqueues nothing and says why');
 reset role;
 set local role service_role;
@@ -349,6 +350,47 @@ select is((select i.kind || ':' || i.quantity::text from ops.cafe_receipt_issues
 select is((select count(*)::int from integrations.esb_push e join ops.cafe_receipt_portions p on p.push_id = e.id
             where p.receipt_id = current_setting('app.r3')::uuid), 0,
   'FR-1023 a branch without a receiving location enqueues nothing');
+
+-- ── FR-1027 a refresh read before ESB posted a queued portion does not give its quantity twice ─
+set local role service_role;
+select ops.replace_cafe_open_pos('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000bf01', now(), 360,
+  jsonb_build_array(jsonb_build_object('po_number', 'PO-SYNTH-1429-E', 'supplier_name', 'Synthetic supplier five',
+    'po_date', (current_date - 1)::text, 'esb_created_at', null, 'esb_status', 'Authorized',
+    'lines', jsonb_build_array(
+      jsonb_build_object('item_unit_id', current_setting('app.bean_kg'), 'item_name', 'Coffee bean (ESB)', 'unit_name', 'kg', 'outstanding_quantity', 9)))));
+reset role;
+set local role authenticated;
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member"]}');
+select set_config('app.r4', ops.submit_cafe_receipt('00000000-0000-0000-0000-00000000bf01', 'kitchen', null,
+  'f1429000-0000-0000-0000-000000000004', jsonb_build_array(
+    jsonb_build_object('item_unit_id', current_setting('app.bean_kg'), 'quantity', '7')))->>'receipt_id', true);
+select ops.send_cafe_receipt_for_review(current_setting('app.r4')::uuid, 1, null);
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","supervisor"]}');
+select ops.review_cafe_receipt(current_setting('app.r4')::uuid, 'approve', 2, null);
+reset role;
+-- The worker refreshes after r4 was queued but before ESB posted it: ESB still reports 9.
+set local role service_role;
+select ops.replace_cafe_open_pos('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000bf01', clock_timestamp(), 360,
+  jsonb_build_array(jsonb_build_object('po_number', 'PO-SYNTH-1429-E', 'supplier_name', 'Synthetic supplier five',
+    'po_date', (current_date - 1)::text, 'esb_created_at', null, 'esb_status', 'Authorized',
+    'lines', jsonb_build_array(
+      jsonb_build_object('item_unit_id', current_setting('app.bean_kg'), 'item_name', 'Coffee bean (ESB)', 'unit_name', 'kg', 'outstanding_quantity', 9)))));
+reset role;
+set local role authenticated;
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member"]}');
+select set_config('app.r5', ops.submit_cafe_receipt('00000000-0000-0000-0000-00000000bf01', 'kitchen', null,
+  'f1429000-0000-0000-0000-000000000005', jsonb_build_array(
+    jsonb_build_object('item_unit_id', current_setting('app.bean_kg'), 'quantity', '7')))->>'receipt_id', true);
+select ops.send_cafe_receipt_for_review(current_setting('app.r5')::uuid, 1, null);
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","supervisor"]}');
+select ops.review_cafe_receipt(current_setting('app.r5')::uuid, 'approve', 2, null);
+reset role;
+select is((select string_agg(p.po_number || ':' || p.quantity::text, ',') from ops.cafe_receipt_portions p
+            where p.receipt_id = current_setting('app.r5')::uuid and p.state = 'queued')
+          || ' / ' || (select string_agg(i.kind || ':' || i.quantity::text, ',') from ops.cafe_receipt_issues i
+                        where i.receipt_id = current_setting('app.r5')::uuid),
+  'PO-SYNTH-1429-E:2.0000 / over:5.0000',
+  'FR-1027 a portion queued but not yet posted still counts against the outstanding a later refresh reads');
 
 select * from finish();
 rollback;
