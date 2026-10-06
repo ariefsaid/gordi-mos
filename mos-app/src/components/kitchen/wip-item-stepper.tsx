@@ -19,6 +19,7 @@ import { formatUnitMultiple, fromDefaultUnitQuantity } from '@/lib/cafe-unit-mul
 import { isStockConsuming, VARIANCE_NOTE_CUE, TRANSFER_SHORT_CUE } from '@/lib/kitchen-gates'
 import { useT } from '@/i18n/use-t'
 import { Select } from '@/components/ui/select'
+import { QuantityField } from '@/components/ui/quantity-field'
 import './wip-item-stepper.css'
 
 interface WipItemStepperProps {
@@ -53,6 +54,14 @@ interface WipItemStepperProps {
   unitMultiples?: readonly number[]
   /** Change the selected ERP unit or manager-defined multiple. */
   onUnitChange?: (unitChoice: string) => void
+  /** Reports whether this row currently contains a valid quantity draft. */
+  onQuantityValidityChange?: (valid: boolean) => void
+  /** The draft text is kept outside the row while table filters unmount it. */
+  invalidDraft?: string
+  onInvalidQuantityDraft?: (raw: string) => void
+  onQuantityErrorVisibilityChange?: (visible: boolean) => void
+  hideQuantityError?: boolean
+  quantityErrorId?: string
 }
 
 function formatLoggedEntry(
@@ -86,6 +95,12 @@ export function WipItemStepper({
   unitOptions,
   unitMultiples = [],
   onUnitChange,
+  onQuantityValidityChange,
+  invalidDraft,
+  onInvalidQuantityDraft,
+  onQuantityErrorVisibilityChange,
+  hideQuantityError = false,
+  quantityErrorId,
 }: WipItemStepperProps) {
   const t = useT()
   // Plan and stock are shown as unitless facts beside the item name. The plan is also a
@@ -130,7 +145,7 @@ export function WipItemStepper({
       : error
   const capCueText = capError === TRANSFER_SHORT_CUE ? t('kitchen.log.stepper.capCue') : capError
   const formatActualQty = (quantity: number) => new Intl.NumberFormat(
-    document.documentElement.lang || 'en', { maximumFractionDigits: 3 },
+    document.documentElement.lang || 'en', { useGrouping: false, maximumFractionDigits: 2 },
   ).format(quantity)
 
   // ── The fixed unit + the deliberate "change unit" affordance (#234) ─────────
@@ -154,19 +169,48 @@ export function WipItemStepper({
     ? `multiple:${String(selectedFactor)}`
     : line.item_unit_id ?? ''
   const offersUnitChange = ((unitOptions?.length ?? 0) > 1 || unitMultiples.length > 0) && onUnitChange !== undefined
+  const unitSuffix = !offersUnitChange
+    ? unitLabel ? <span className="kls-unit">{unitLabel}</span> : undefined
+    : unitPickerOpen ? (
+        <Select
+          className="kls-unit-select"
+          aria-label={t('kitchen.log.unit.selectAria', { item: itemName })}
+          value={selectedUnitValue}
+          disabled={disabled}
+          autoFocus
+          onChange={e => {
+            restoreUnitFocus.current = true
+            onUnitChange?.(e.target.value)
+            setUnitPickerOpen(false)
+          }}
+          onBlur={() => setUnitPickerOpen(false)}
+        >
+          {unitOptions?.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+          {unitMultiples.map(factor => (
+            <option key={`multiple:${factor}`} value={`multiple:${String(factor)}`}>
+              {formatUnitMultiple(factor, fallbackUnit?.name ?? '', locale)}
+            </option>
+          ))}
+        </Select>
+      ) : (
+        <button
+          ref={unitChangeButtonRef}
+          type="button"
+          className="kls-unit kls-unit-change"
+          aria-label={t('kitchen.log.unit.changeAria', { item: itemName })}
+          disabled={disabled}
+          onClick={() => setUnitPickerOpen(true)}
+        >
+          {unitLabel}
+          <svg aria-hidden="true" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </button>
+      )
   const entryQuantity = line.entry_quantity ?? qty_porsi
   const placeholderQuantity = selectedFactor === 1
     ? line.plan_qty
     : fromDefaultUnitQuantity(line.plan_qty, selectedFactor)
-
-  function handleQtyInput(e: React.ChangeEvent<HTMLInputElement>) {
-    const raw = e.target.value
-    // Empty clears the entry rather than coercing to 0 — a blank field means "nothing entered
-    // yet" and must stay distinguishable from a deliberate zero while typing.
-    if (raw === '') { onQtyChange(0); return }
-    const val = Number.parseFloat(raw)
-    if (!Number.isNaN(val) && val >= 0) onQtyChange(val)
-  }
 
   return (
     <div className={`kls-card${dense ? ' kls-dense' : ''}${invalid ? ' kls-invalid' : ''}${showNote ? ' kls-has-note' : ''}`}>
@@ -182,81 +226,34 @@ export function WipItemStepper({
         {!hideName && <span className="kls-name">{itemName}</span>}
 
         <div className="kls-quantity">
-        <input
-          type="number"
-          inputMode="decimal"
-          aria-label={transfer
+        <QuantityField
+          id={`quantity-${line.wip_item_id}`}
+          label={transfer
             ? t('kitchen.qty.transferAria', {
               branch: destinationName ?? t('kitchen.actionType.transferTo.fallback'),
               item: itemName,
             })
             : t('kitchen.qty.producedAria', { item: itemName })}
           className="kls-qty"
-          value={entryQuantity > 0 ? entryQuantity : ''}
+          value={entryQuantity}
+          onChange={onQtyChange}
+          onInvalid={(_reason, raw) => { onQtyChange(0); onInvalidQuantityDraft?.(raw) }}
+          onValidityChange={onQuantityValidityChange}
+          onErrorVisibilityChange={onQuantityErrorVisibilityChange}
+          onBlur={() => setBlurred(true)}
+          hideError={hideQuantityError}
+          errorMessageId={quantityErrorId}
+          initialDraft={invalidDraft}
+          suffix={unitSuffix}
+          suffixPosition="below"
           placeholder={placeholderQuantity > 0 ? formatActualQty(placeholderQuantity) : '0'}
           min={0}
-          step="any"
+          maxIntegerDigits={10}
+          maxFractionDigits={2}
           enterKeyHint="next"
           disabled={disabled}
-          data-touch-target="true"
-          onChange={handleQtyInput}
-          onBlur={() => setBlurred(true)}
+          touchTarget
         />
-        {/* FR-020/021 (#234): the unit is fixed text on the common path. An item with
-            alternates gets a SMALL button wearing the same quiet label plus a change
-            glyph — one deliberate click opens the picker, selection closes it. An item
-            with one unit renders the bare text and NO button (AC-005): nothing to
-            change, nothing to mis-tap. */}
-          {!offersUnitChange && unitLabel && <span className="kls-unit">{unitLabel}</span>}
-          {offersUnitChange && !unitPickerOpen && (
-            <button
-              ref={unitChangeButtonRef}
-              type="button"
-              className="kls-unit kls-unit-change"
-              aria-label={t('kitchen.log.unit.changeAria', { item: itemName })}
-              disabled={disabled}
-              onClick={() => setUnitPickerOpen(true)}
-            >
-              {unitLabel}
-              <svg
-                aria-hidden="true"
-                width="10"
-                height="10"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-              >
-                <path d="m6 9 6 6 6-6" />
-              </svg>
-            </button>
-          )}
-          {offersUnitChange && unitPickerOpen && (
-            <Select
-              className="kls-unit-select"
-              aria-label={t('kitchen.log.unit.selectAria', { item: itemName })}
-              value={selectedUnitValue}
-              disabled={disabled}
-              autoFocus
-              onChange={e => {
-                restoreUnitFocus.current = true
-                onUnitChange?.(e.target.value)
-                setUnitPickerOpen(false)
-              }}
-              onBlur={() => setUnitPickerOpen(false)}
-            >
-              {unitOptions?.map(u => (
-                <option key={u.id} value={u.id}>
-                  {u.name}
-                </option>
-              ))}
-              {unitMultiples.map(factor => (
-                <option key={`multiple:${factor}`} value={`multiple:${String(factor)}`}>
-                  {formatUnitMultiple(factor, fallbackUnit?.name ?? '', locale)}
-                </option>
-              ))}
-            </Select>
-          )}
         </div>
       </div>
 

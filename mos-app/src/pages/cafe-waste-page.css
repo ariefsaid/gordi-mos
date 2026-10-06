@@ -78,6 +78,9 @@
   min-width: 0;
   width: min(100%, 7.5rem);
 }
+.cwl-quantity-row .quantity-field,
+.cwl-quantity-row .quantity-field-control--below,
+.cwl-quantity-row .quantity-field-suffix { width: 100%; }
 .cwl-quantity-input {
   width: 100%;
   max-width: 100%;
@@ -91,6 +94,7 @@
   color: var(--foreground);
   font: inherit;
   font-size: var(--font-size-control);
+  text-align: right;
 }
 .cwl-quantity-input:focus-visible {
   outline: 2px solid var(--ring);
@@ -149,6 +153,18 @@
   .cwl-list .dt-cards {
     padding-bottom: calc(144px + env(safe-area-inset-bottom, 0px));
   }
+  .cwl-capture-row:has(.quantity-field-error) {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: 'item' 'controls' 'evidence';
+  }
+  .cwl-capture-row:has(.quantity-field-error) .cwl-capture-row__controls { grid-column: 1; }
+  .cwl-controls:has(.quantity-field-error) .cwl-quantity-row,
+  .cwl-controls:has(.quantity-field-error) .quantity-field { display: contents; }
+  .cwl-controls:has(.quantity-field-error) .quantity-field-control {
+    justify-self: end;
+    width: min(100%, 7.5rem);
+  }
+  .cwl-controls:has(.quantity-field-error) .quantity-field-error { width: 100%; }
   .cwl-quantity-input { width: 7.5rem; }
   .cwl-unit-select { width: 7.5rem; max-width: 100%; }
   .cwl-evidence { max-width: none; }

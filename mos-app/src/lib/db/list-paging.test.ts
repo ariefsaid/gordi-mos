@@ -47,12 +47,20 @@ vi.mock('@/lib/supabase', async () => {
       })
       const keyset = url.searchParams.getAll('or').find(value => /id\.(lt|gt)\./.test(value))
       if (keyset) {
-        const match = keyset.match(/\((\w+)\.(lt|gt)\.([^,]+),and\(\w+\.eq\.[^,]+,id\.(?:lt|gt)\.([^)]+)\)/)
-        if (!match) throw new Error(`Unexpected cursor: ${keyset}`)
-        const [, field, op, timestamp, id] = match
-        const after = (a: string, b: string) => (op === 'gt' ? a > b : a < b)
-        const includesNull = keyset.includes(`${field}.is.null`)
-        rows = rows.filter(row => (includesNull && row[field] == null) || after(String(row[field]), timestamp) || (row[field] === timestamp && after(String(row.id), id)))
+        const allDate = keyset.match(/^log_date\.gt\.([^,]+),and\(log_date\.eq\.([^,]+),or\(created_at\.gt\.([^,]+),and\(created_at\.eq\.([^,]+),id\.gt\.([^)]+)\)\)\)$/)
+        if (allDate) {
+          const [, date, , createdAt, , id] = allDate
+          rows = rows.filter(row => String(row.log_date) > date
+            || (row.log_date === date && (String(row.created_at) > createdAt
+              || (row.created_at === createdAt && String(row.id) > id))))
+        } else {
+          const match = keyset.match(/\((\w+)\.(lt|gt)\.([^,]+),and\(\w+\.eq\.[^,]+,id\.(?:lt|gt)\.([^)]+)\)/)
+          if (!match) throw new Error(`Unexpected cursor: ${keyset}`)
+          const [, field, op, timestamp, id] = match
+          const after = (a: string, b: string) => (op === 'gt' ? a > b : a < b)
+          const includesNull = keyset.includes(`${field}.is.null`)
+          rows = rows.filter(row => (includesNull && row[field] == null) || after(String(row[field]), timestamp) || (row[field] === timestamp && after(String(row.id), id)))
+        }
       }
       // Model the API's default cap as well as explicit per-request limits.
       rows = rows.slice(0, Number(url.searchParams.get('limit') ?? 1000))
@@ -102,7 +110,7 @@ describe('server list paging boundaries', () => {
     harness.rows.push({ ...fixture(2000), log_date: '2026-10-04' }, { ...fixture(2001), activity: 'bar' }, { ...fixture(2002), status: 'Approved' })
     const expected = harness.rows.slice(0, 1103).map(row => row.id)
     const ids: string[] = []
-    let before: { created_at: string; id: string } | undefined
+    let before: { log_date: string; created_at: string; id: string } | undefined
     const sizes: number[] = []
     do {
       const rows = await listSubmittedKitchenLogs('2026-10-05', { before, stream: { branchId: 'branch-1', activity: 'kitchen' } })
@@ -116,6 +124,31 @@ describe('server list paging boundaries', () => {
     expect(ids).toEqual(expected)
     expect(new Set(ids).size).toBe(1103)
     expect(harness.requests.every(url => url.searchParams.get('limit') === '50')).toBe(true)
+  })
+
+  it('Café all-date review pages stay oldest-first across dates without cursor gaps or duplicates', async () => {
+    harness.rows = harness.rows.map((row, index) => ({
+      ...row,
+      log_date: index < 73 ? '2026-10-03' : index < 519 ? '2026-10-04' : '2026-10-05',
+    }))
+    const expected = [...harness.rows].sort((a, b) => String(a.log_date).localeCompare(String(b.log_date))
+      || String(a.created_at).localeCompare(String(b.created_at)) || String(a.id).localeCompare(String(b.id)))
+      .map(row => row.id)
+    const ids: string[] = []
+    let before: { log_date: string; created_at: string; id: string } | undefined
+    const sizes: number[] = []
+    do {
+      const rows = await listSubmittedKitchenLogs(undefined, { before })
+      sizes.push(rows.length)
+      ids.push(...rows.map(row => row.id))
+      before = rows.at(-1)
+      if (rows.length < 50) break
+    } while (sizes.length < 30)
+
+    expect(sizes.slice(0, 2)).toEqual([50, 50])
+    expect(sizes.at(-1)).toBe(3)
+    expect(ids).toEqual(expected)
+    expect(new Set(ids).size).toBe(1103)
   })
 
   it('Café history totals include every recorded fact beyond the API cap, using bounded stream/date reads', async () => {

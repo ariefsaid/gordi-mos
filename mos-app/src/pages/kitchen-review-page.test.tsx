@@ -8,10 +8,9 @@
 //  - production-first gate disables Transfer Approve while Production Submitted (AC-042)
 //  - all states: loading, empty (good-empty), error+retry, forbidden, success (row leaves)
 //
-// #247/#197: every row's plan baseline is now looked up against ITS OWN (branch, activity)
-// stream (streamKey), not one hardcoded stream — fetchPlanMap is mocked per the real
-// contract (a PlanMap keyed by MOVEMENT — 'produce' | 'transfer:<destinationBranchId>' —
-// never by the derived label string).
+// #247/#197: every row's plan baseline is looked up against its exact (date, branch, activity)
+// context. The page batch read is mocked through fetchPlanMaps; each returned PlanMap is keyed
+// by MOVEMENT ('produce' | 'transfer:<destinationBranchId>'), never by the derived label.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { act, render, screen, waitFor, fireEvent, within } from '@testing-library/react'
@@ -30,7 +29,7 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
     ...actual,
     listSubmittedKitchenLogs: vi.fn(),
     hasSubmittedKitchenProduction: vi.fn().mockResolvedValue(false),
-    fetchPlanMap: vi.fn(),
+    fetchPlanMaps: vi.fn(),
     listStreamPairs: vi.fn(),
     approveKitchenLog: vi.fn(),
     approveKitchenLogsBulk: vi.fn(),
@@ -42,7 +41,7 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
 import {
   listSubmittedKitchenLogs,
   hasSubmittedKitchenProduction,
-  fetchPlanMap,
+  fetchPlanMaps,
   listStreamPairs,
   approveKitchenLog,
   approveKitchenLogsBulk,
@@ -97,13 +96,15 @@ import { listKitchenWastePhotos } from '@/lib/db/kitchen-waste-photos'
 
 import { KitchenReviewPage } from './kitchen-review-page'
 import { rememberStream } from '@/lib/cafe-stream'
+import { streamDateKey } from '@/lib/kitchen-action-label'
 import { rememberCafeLocation } from '@/lib/cafe-opening-location'
 import { resetCafeLocations } from '@/lib/cafe-opening-location'
-import type { ReviewLogRow } from '@/lib/db/kitchen-logs.types'
+import type { PlanMap, ProductionStream, ReviewLogRow } from '@/lib/db/kitchen-logs.types'
 
 const mockUseAuth = vi.mocked(useAuth)
 const mockList = vi.mocked(listSubmittedKitchenLogs)
-const mockPlan = vi.mocked(fetchPlanMap)
+const mockPlan = vi.fn<(date: string, stream: ProductionStream) => Promise<PlanMap>>()
+const mockPlanBatch = vi.mocked(fetchPlanMaps)
 const mockDefaultStream = vi.mocked(fetchDefaultStream)
 const mockStreamPairs = vi.mocked(listStreamPairs)
 const mockApprove = vi.mocked(approveKitchenLog)
@@ -203,6 +204,10 @@ beforeEach(() => {
   vi.mocked(hasSubmittedKitchenProduction).mockResolvedValue(false)
   mockWastePhotos.mockResolvedValue([])
   mockPlan.mockResolvedValue({})
+  mockPlanBatch.mockImplementation(async contexts => Promise.all(contexts.map(async context => [
+    streamDateKey(context.logDate, context.stream.branch.id, context.stream.activity),
+    await mockPlan(context.logDate, context.stream),
+  ] as const)))
   // #236: the review page resolves the viewer's own stream (filter default, FR-041) and
   // the enumerable stream catalog (the filter's options) on every load.
   mockDefaultStream.mockResolvedValue(null)
@@ -329,6 +334,108 @@ describe('KitchenReviewPage — states', () => {
 })
 
 describe('KitchenReviewPage — queue (FR-040)', () => {
+  it('defaults to every pending date and shows older Submitted logs first with their log dates', async () => {
+    const older = {
+      ...PROD_LOG,
+      id: 'log-yesterday',
+      log_date: '2026-09-25',
+      wip_item_id: 'w-old',
+      wip_item_name: 'Yesterday prep batch',
+      created_at: '2026-09-25T08:00:00Z',
+      updated_at: '2026-09-25T08:00:00Z',
+    }
+    const newer = {
+      ...PROD_LOG,
+      id: 'log-today',
+      log_date: '2026-09-28',
+      wip_item_id: 'w-new',
+      wip_item_name: 'Today prep batch',
+      created_at: '2026-09-28T08:00:00Z',
+      updated_at: '2026-09-28T08:00:00Z',
+    }
+    mockList.mockResolvedValue([newer, older])
+    mockPlan.mockResolvedValue({})
+    render(<KitchenReviewPage />, { wrapper })
+
+    expect(await screen.findByText('Yesterday prep batch')).toBeInTheDocument()
+    expect(screen.getByText('Today prep batch')).toBeInTheDocument()
+    expect(mockList).toHaveBeenCalledWith(undefined, {})
+    expect(mockPlan).toHaveBeenCalledWith('2026-09-25', expect.objectContaining({ branch: expect.objectContaining({ id: BRANCH_ID }) }))
+    const rows = Array.from(document.querySelectorAll('.krow-card'))
+    expect(rows[0]).toHaveTextContent('Yesterday prep batch')
+    const cardHead = rows[0].querySelector('.krow-card-head')!
+    expect(cardHead.querySelector('.krow-card-tags')).toBeInTheDocument()
+    expect(cardHead.querySelector('.krow-card-tags')?.textContent).toContain('off-plan')
+    expect(rows[0]).toHaveTextContent(/25 Sept?/i)
+    expect(rows[1]).toHaveTextContent('Today prep batch')
+  })
+
+  it('looks up each row against that row date\'s plan, not one shared day', async () => {
+    const older = {
+      ...PROD_LOG,
+      id: 'log-older-plan',
+      log_date: '2026-09-25',
+      wip_item_name: 'Earlier plan row',
+      qty_porsi: 8,
+      created_at: '2026-09-25T08:00:00Z',
+      updated_at: '2026-09-25T08:00:00Z',
+    }
+    const newer = {
+      ...PROD_LOG,
+      id: 'log-newer-plan',
+      log_date: '2026-09-28',
+      wip_item_name: 'Later plan row',
+      qty_porsi: 8,
+      created_at: '2026-09-28T08:00:00Z',
+      updated_at: '2026-09-28T08:00:00Z',
+    }
+    mockList.mockResolvedValue([newer, older])
+    mockPlan.mockImplementation(async (date) => date === '2026-09-25'
+      ? { w1: { produce: 8 } }
+      : { w1: { produce: 12 } })
+    render(<KitchenReviewPage />, { wrapper })
+
+    await screen.findByText('Earlier plan row')
+    const olderRow = screen.getByText('Earlier plan row').closest('.krow-card') as HTMLElement
+    const newerRow = screen.getByText('Later plan row').closest('.krow-card') as HTMLElement
+    expect(within(olderRow).getByText('on-plan')).toBeInTheDocument()
+    expect(within(newerRow).getByText('off-plan')).toBeInTheDocument()
+    expect(mockPlan).toHaveBeenCalledWith('2026-09-25', expect.objectContaining({ branch: expect.objectContaining({ id: BRANCH_ID }) }))
+    expect(mockPlan).toHaveBeenCalledWith('2026-09-28', expect.objectContaining({ branch: expect.objectContaining({ id: BRANCH_ID }) }))
+  })
+
+  it('can filter to one log date and return to all pending dates', async () => {
+    mockList.mockResolvedValue([])
+    render(<KitchenReviewPage />, { wrapper })
+    const date = screen.getByRole('textbox', { name: 'Date' })
+
+    expect(date).toHaveValue('')
+    expect(date).toHaveAttribute('inputmode', 'numeric')
+    expect(screen.getByText('All pending logs')).toBeInTheDocument()
+    fireEvent.change(date, { target: { value: '25/09/2026' } })
+    await waitFor(() => expect(mockList).toHaveBeenLastCalledWith('2026-09-25', {}))
+    fireEvent.click(screen.getByRole('button', { name: 'Clear date' }))
+    await waitFor(() => expect(mockList).toHaveBeenLastCalledWith(undefined, {}))
+    expect(screen.getByText('All pending logs')).toBeInTheDocument()
+  })
+
+  it('renders a filtered empty-state date in the same house format as the page head (F32)', async () => {
+    mockList.mockResolvedValue([])
+    render(<KitchenReviewPage />, { wrapper })
+    const dateFilter = screen.getByRole('textbox', { name: 'Date' })
+    fireEvent.change(dateFilter, { target: { value: '25/09/2026' } })
+
+    await waitFor(() => expect(mockList).toHaveBeenLastCalledWith('2026-09-25', {}))
+    await screen.findByRole('heading', { name: /nothing to review/i })
+    const headDate = document.querySelector('.kr-date')?.textContent?.trim()
+    const queueEmpty = kitchenReviewEmptyState()
+    const emptyCopy = queueEmpty.querySelector('.empty-copy')!
+    expect(headDate).toBeTruthy()
+    expect(headDate).not.toBe('2026-09-25')
+    expect(emptyCopy).toHaveTextContent(headDate!)
+    expect(emptyCopy).not.toHaveTextContent('2026-09-25')
+  })
+
   it('lists ONLY Submitted logs grouped by action_type', async () => {
     // force the DESKTOP table branch so the DataTable group-header rows + the
     // review columns render (jsdom matchMedia defaults to phone/cards)
@@ -350,11 +457,11 @@ describe('KitchenReviewPage — queue (FR-040)', () => {
       render(<KitchenReviewPage />, { wrapper })
       expect(await screen.findByText('Nasi Goreng')).toBeInTheDocument()
       expect(screen.getByText('Cold Brew')).toBeInTheDocument()
-      // one DataTable group per action_type, Production first (FR-042's gate)
+      // one DataTable group per (date, action), with action groups in the same-day order
       const groupLabels = document.querySelectorAll('.dt-group-label')
       expect(groupLabels).toHaveLength(2)
-      expect(groupLabels[0].textContent).toBe('Production')
-      expect(groupLabels[1].textContent).toBe('Transfer to Radiant')
+      expect(groupLabels[0].textContent).toContain('Production')
+      expect(groupLabels[1].textContent).toContain('Transfer to Radiant')
       // the shared review queue columns render (folded from the retired review-table test)
       const ths = Array.from(document.querySelectorAll('thead th'))
       expect(ths.map(th => th.textContent)).toEqual([
@@ -388,7 +495,7 @@ describe('KitchenReviewPage — queue (FR-040)', () => {
       'href',
       'https://storage.example/signed/photo-1.jpg',
     )
-    expect(screen.getByText('Waste')).toBeInTheDocument()
+    expect(screen.getByText(/· Waste$/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /approve all/i })).not.toBeInTheDocument()
     expect(mockWastePhotos).toHaveBeenCalledWith([WASTE_LOG.id])
   })
@@ -416,12 +523,14 @@ describe('KitchenReviewPage — queue (FR-040)', () => {
     }
     mockBranches.mockResolvedValue([...BRANCHES, { id: OTHER_BRANCH_ID, code: 'other', name: 'Other' }])
     mockList.mockResolvedValue([PROD_LOG, OTHER_LOG])
-    // Two distinct streams present → fetchPlanMap called once per stream.
+    // One visible page requests both distinct streams in a single batch.
     mockPlan.mockImplementation(async (_date, stream) =>
       stream.branch.id === BRANCH_ID ? { w1: { produce: 8 } } : { w1: { produce: 99 } })
     render(<KitchenReviewPage />, { wrapper })
     // Both rows share the same wip item name — wait for both to land.
     await waitFor(() => expect(screen.getAllByText('Nasi Goreng')).toHaveLength(2))
+    await waitFor(() => expect(mockPlanBatch).toHaveBeenCalledTimes(1))
+    expect(mockPlanBatch.mock.calls[0]?.[0]).toHaveLength(2)
     await waitFor(() => expect(mockPlan).toHaveBeenCalledTimes(2))
     // Both rows read on-plan (8==8 in stream 1, 99==99 in stream 2) — neither row's variance
     // was computed against the WRONG stream's plan.
@@ -586,6 +695,40 @@ describe('KitchenReviewPage — production-first gate (FR-042, AC-042)', () => {
     // and the Transfer Reject stays live
     expect(screen.getByRole('button', { name: /reject cold brew/i })).not.toBeDisabled()
   })
+
+  it('checks the production-first gate against each transfer row date', async () => {
+    const olderProduction = { ...PROD_LOG, id: 'old-production', log_date: '2026-09-25' }
+    const olderTransfer = {
+      ...XFER_LOG,
+      id: 'old-transfer',
+      log_date: '2026-09-25',
+      wip_item_name: 'Earlier transfer',
+      created_at: '2026-09-25T09:00:00Z',
+      updated_at: '2026-09-25T09:00:00Z',
+    }
+    const newerTransfer = {
+      ...XFER_LOG,
+      id: 'new-transfer',
+      log_date: '2026-09-28',
+      wip_item_name: 'Later transfer',
+      created_at: '2026-09-28T09:00:00Z',
+      updated_at: '2026-09-28T09:00:00Z',
+    }
+    mockList.mockResolvedValue([olderProduction, olderTransfer, newerTransfer])
+    vi.mocked(hasSubmittedKitchenProduction).mockImplementation(async date => date === '2026-09-25')
+    mockPlan.mockResolvedValue({ w1: { produce: 8 }, w2: { [`transfer:${RADIANT_ID}`]: 40 } })
+    render(<KitchenReviewPage />, { wrapper })
+
+    await screen.findByText('Earlier transfer')
+    expect(vi.mocked(hasSubmittedKitchenProduction).mock.calls).toEqual(expect.arrayContaining([
+      ['2026-09-25', BRANCH_ID, 'kitchen'],
+      ['2026-09-28', BRANCH_ID, 'kitchen'],
+    ]))
+    const olderRow = screen.getByText('Earlier transfer').closest('.krow-card') as HTMLElement
+    const newerRow = screen.getByText('Later transfer').closest('.krow-card') as HTMLElement
+    expect(within(olderRow).getByRole('button', { name: /approve earlier transfer/i })).toBeDisabled()
+    expect(within(newerRow).getByRole('button', { name: /approve later transfer/i })).toBeEnabled()
+  })
 })
 
 // ── Bulk approve (FR-043, AC-042 extension) ──────────────────────────────────
@@ -650,6 +793,48 @@ describe('KitchenReviewPage — bulk approve (FR-043, AC-042)', () => {
     expect(await screen.findByRole('textbox', { name: /approve note for tahu/i })).toBeInTheDocument()
     expect(mockApproveBulk).toHaveBeenCalledTimes(1)
     expect(mockApprove).not.toHaveBeenCalled()
+  })
+
+  it('scopes bulk controls and RPC calls to one log date', async () => {
+    const oldA = {
+      ...PROD_ONPLAN_A,
+      id: 'old-a',
+      log_date: '2026-09-25',
+      wip_item_name: 'Yesterday A',
+      created_at: '2026-09-25T08:00:00Z',
+      updated_at: '2026-09-25T08:00:00Z',
+    }
+    const oldB = {
+      ...PROD_ONPLAN_B,
+      id: 'old-b',
+      log_date: '2026-09-25',
+      wip_item_name: 'Yesterday B',
+      created_at: '2026-09-25T08:05:00Z',
+      updated_at: '2026-09-25T08:05:00Z',
+    }
+    const newer = {
+      ...PROD_ONPLAN_A,
+      id: 'newer',
+      log_date: '2026-09-28',
+      wip_item_name: 'Today batch',
+      created_at: '2026-09-28T08:00:00Z',
+      updated_at: '2026-09-28T08:00:00Z',
+    }
+    mockList.mockResolvedValue([newer, oldB, oldA])
+    mockPlan.mockResolvedValue({ wA: { produce: 20 }, wB: { produce: 5 } })
+    mockApproveBulk.mockResolvedValue({ push_group_id: 'group-multi-date', batch_ids: [] })
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Yesterday A')
+    const yesterdayBulk = screen.getByRole('button', { name: /approve all on-plan \(2\).*25 Sept/i })
+    expect(screen.getByRole('button', { name: /approve all on-plan \(1\).*28 Sept/i })).toBeInTheDocument()
+    fireEvent.click(yesterdayBulk)
+
+    await waitFor(() => expect(mockApproveBulk).toHaveBeenCalledTimes(1))
+    expect(mockApproveBulk).toHaveBeenCalledWith([oldA, oldB], null)
+    const todayBulk = await screen.findByRole('button', { name: /approve all on-plan \(1\).*28 Sept/i })
+    fireEvent.click(todayBulk)
+    await waitFor(() => expect(mockApproveBulk).toHaveBeenCalledTimes(2))
+    expect(mockApproveBulk).toHaveBeenLastCalledWith([newer], null)
   })
 
   it('AC-042: a Transfer group bulk-approve is blocked while a Production log is still Submitted', async () => {
@@ -1332,11 +1517,11 @@ describe('issue 587: the row names its own stream in the All-streams view', () =
       render(<KitchenReviewPage />, { wrapper })
       await screen.findByText('Nasi Goreng')
       await screen.findByText('Kopi Susu')
-      // ONE "Production" group (grouping is still by action_type only — #587 names the
-      // stream on the ROW, it does not split the group).
+      // Both same-date Production rows share one date/action group; #587 names the stream
+      // on the ROW, it does not split the same-day action group.
       const groupLabels = document.querySelectorAll('.dt-group-label')
       expect(groupLabels).toHaveLength(1)
-      expect(groupLabels[0].textContent).toBe('Production')
+      expect(groupLabels[0].textContent).toContain('Production')
       const nasiRow = screen.getByText('Nasi Goreng').closest('tr')!
       const kopiRow = screen.getByText('Kopi Susu').closest('tr')!
       expect(within(nasiRow).getByText('Rumah Rames · Kitchen')).toBeInTheDocument()
@@ -1396,7 +1581,7 @@ describe('KitchenReviewPage — server paging', () => {
     await screen.findByText('Paged item 1')
     fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
     await screen.findByText('Paged item 100')
-    expect(mockList).toHaveBeenLastCalledWith(expect.any(String), { before: expect.objectContaining({ id: 'paged-log-50' }) })
+    expect(mockList).toHaveBeenLastCalledWith(undefined, { before: expect.objectContaining({ id: 'paged-log-50' }) })
     fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
     await screen.findByText('Paged item 101')
     expect(screen.getByText('101 loaded · end of list')).toBeInTheDocument()
@@ -1440,7 +1625,7 @@ it('Review paging keeps the fetched cursor after approving the boundary row', as
   await waitFor(() => expect(screen.queryByText('Boundary item 49')).not.toBeInTheDocument())
   fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
   await screen.findByText('Older item')
-  expect(mockList).toHaveBeenLastCalledWith(expect.any(String), { before: expect.objectContaining({ id: 'boundary-49' }) })
+  expect(mockList).toHaveBeenLastCalledWith(undefined, { before: expect.objectContaining({ id: 'boundary-49' }) })
 })
 
 it('Review stream changes discard a slow continuation and start the selected server window', async () => {
@@ -1453,7 +1638,7 @@ it('Review stream changes discard a slow continuation and start the selected ser
   await waitFor(() => expect(mockList).toHaveBeenCalledTimes(2))
   chooseStream('Radiant · Bar')
   await screen.findByText(/nothing to review/i)
-  expect(mockList).toHaveBeenLastCalledWith(expect.any(String), { stream: { branchId: RADIANT_ID, activity: 'bar' } })
+  expect(mockList).toHaveBeenLastCalledWith(undefined, { stream: { branchId: RADIANT_ID, activity: 'bar' } })
   await act(async () => { resolveOlder([{ ...PROD_LOG, id: 'stale', wip_item_name: 'Stale continuation' }]) })
   expect(screen.queryByText('Stale continuation')).not.toBeInTheDocument()
   expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument()
