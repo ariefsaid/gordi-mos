@@ -88,6 +88,7 @@
 }
 
 .cafe-items__inherited-name-note {
+  max-width: 75ch;
   margin-bottom: 12px;
   font-size: var(--font-size-label);
 }
@@ -158,15 +159,6 @@
   min-width: 0;
   color: var(--foreground);
   font-weight: 600;
-  overflow-wrap: anywhere;
-}
-
-.cafe-items__item-meta {
-  display: block;
-  margin-top: 4px;
-  color: var(--muted-foreground);
-  font-size: var(--font-size-label);
-  font-weight: 400;
   overflow-wrap: anywhere;
 }
 
@@ -370,7 +362,6 @@
   overflow-wrap: anywhere;
 }
 
-.cafe-items__card-header .cafe-items__item-meta { margin-top: 4px; }
 
 .cafe-items__card-field {
   display: grid;
