@@ -223,7 +223,7 @@ describe('CafeWastePage', () => {
     fireEvent.blur(input)
 
     const error = screen.getByRole('alert')
-    const controls = input.closest('.cwl-controls')!
+    const controls = input.closest('.cwl-controls') as HTMLElement
     const addPhoto = within(controls).getByRole('button', { name: 'Add photo' })
     expect(controls).toContainElement(error)
     expect(error.closest('tr')).toBe(input.closest('tr'))
