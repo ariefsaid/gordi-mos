@@ -192,16 +192,17 @@ else
   echo "── every changed path proven inert — npm lane skipped (CI verify applies the same polarity)"
 fi
 
-# Full battery: a change under scripts/ runs the guard self-tests CI's guards job runs (the list in
-# guards.yml). --dev leaves them to CI, which runs them all on every PR in about a minute. The
-# marker keeps a self-test that drives this script from recursing.
+# Full battery: a change under scripts/ runs the self-tests listed in both CI guard workflows.
+# --dev leaves them to CI. The marker keeps a self-test that drives this script from recursing.
 if [ "$light" = 0 ] && [ -n "$base" ] && [ -z "${MOS_GUARD_SELFTESTS_RUNNING:-}" ] \
-   && [ -n "$(git diff --name-only "$base"...HEAD -- scripts/)" ] && [ -f .github/workflows/guards.yml ]; then
-  # Every self-test command guards.yml runs (bash or node), exactly as CI writes it.
+   && [ -n "$(git diff --name-only "$base"...HEAD -- scripts/)" ] \
+   && [ -f .github/workflows/agent-tooling.yml ]; then
+  # Every self-test command from both workflows (bash or node), exactly as CI writes it.
   while IFS= read -r _cmd; do
     echo "── guard self-test: $_cmd"
     MOS_GUARD_SELFTESTS_RUNNING=1 bash -c "$_cmd" >/dev/null 2>&1 || { echo "✗ $_cmd failed — run it for details" >&2; exit 1; }
-  done < <(sed -nE 's/^[[:space:]]*(-[[:space:]]+)?run:[[:space:]]*([^#]*\.test\.[^#]*).*$/\2/p' .github/workflows/guards.yml)
+  done < <(sed -nE 's/^[[:space:]]*(-[[:space:]]+)?run:[[:space:]]*([^#]*\.test\.[^#]*).*$/\2/p' \
+    .github/workflows/guards.yml .github/workflows/agent-tooling.yml)
 fi
 
 if [ "$(git rev-parse HEAD)" != "$head" ] || [ -n "$(git status --porcelain)" ]; then
