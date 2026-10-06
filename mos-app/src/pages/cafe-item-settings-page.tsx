@@ -489,12 +489,15 @@ function CafeItemSettingsPageForViewer() {
       meta={pageMeta}
       state={readState === 'loading' ? 'loading' : readState === 'error' ? 'error' : 'default'}
     >
-      <RouteLeaveGuard when={changed.size > 0} message={t('cafe.items.unsaved.copy')} />
+      <RouteLeaveGuard when={changed.size > 0} message={t('cafe.items.unsaved.leave')} />
       {pendingStream && (
         <ConfirmDialog
           open
           title={t('cafe.items.unsaved.title')}
-          body={t('cafe.items.unsaved.copy')}
+          body={t('cafe.items.unsaved.switchBody', {
+            from: streamLabel(t, stream),
+            to: streamLabel(t, pendingStream),
+          })}
           confirmLabel={t('cafe.items.unsaved.switch')}
           cancelLabel={t('leaveGuard.stay')}
           tone="destructive"

@@ -35,6 +35,7 @@ type ItemReferenceRow = { item_id: string; item_unit_id: string; is_default: boo
 
 type SettingsMocks = {
   canManage: boolean
+  locale: 'en' | 'id'
   permissionError: boolean
   readMode: ReadMode
   readDelayMs: number
@@ -170,6 +171,7 @@ function largeItemSettingsFixture(): Pick<SettingsMocks, 'readRows' | 'configure
 async function mockSettingsApi(page: Page, overrides: Partial<SettingsMocks> = {}) {
   const state: SettingsMocks = {
     canManage: true,
+    locale: 'en',
     permissionError: false,
     readMode: 'rows',
     readDelayMs: 0,
@@ -180,6 +182,13 @@ async function mockSettingsApi(page: Page, overrides: Partial<SettingsMocks> = {
     ...overrides,
   }
 
+  await page.route(/\/rest\/v1\/person_preferences\?/, async route => {
+    if (route.request().method() === 'GET') {
+      await route.fulfill({ json: [{ locale: state.locale }] })
+      return
+    }
+    await route.fulfill({ status: 204, body: '' })
+  })
   await page.route('**/rest/v1/cafe_item_settings_read**', async route => {
     if (state.readDelayMs > 0) await new Promise(resolve => setTimeout(resolve, state.readDelayMs))
     if (state.readMode === 'error') {
@@ -514,30 +523,54 @@ test.describe('Café item settings', () => {
     await expect(page.locator('.dt-cards').getByText('Herbal tea · ERP reference').first()).toBeVisible()
   })
 
-  test('confirms before switching away from long item drafts at phone, tablet and desktop widths', async ({ page }) => {
-    await mockSettingsApi(page, { readRows: longNameGuardRows })
+  test('shows distinct bilingual stream-switch and route-leave dialogs with long item content at phone, tablet and desktop widths', async ({ page }) => {
+    const mocks = await mockSettingsApi(page, { readRows: longNameGuardRows })
     await loginAs(page, BAR_MEMBER.email, BAR_MEMBER.password)
-    await page.goto('cafe/items')
-    await expect(page.getByRole('heading', { name: 'Café items', exact: true })).toBeVisible()
 
-    for (const width of [390, 768, 1440] as const) {
-      await page.setViewportSize({ width, height: 900 })
-      const longItem = width === 390
-        ? page.getByRole('article', { name: LONG_GUARD_ITEM_NAME })
-        : page.getByRole('row').filter({ hasText: LONG_GUARD_ITEM_NAME })
-      const name = longItem.getByRole('textbox', { name: 'MOS name', exact: true })
-      await expect(name).toBeVisible()
-      await name.fill('Drafted item name')
-      await page.getByRole('button', { name: 'Change stream', exact: true }).click()
-      const option = page.getByRole('option').first()
-      await expect(option).toBeVisible()
-      await option.click()
-      const dialog = page.getByRole('dialog', { name: 'Discard unsaved item changes?' })
-      await expect(dialog).toBeVisible()
-      await assertNoOverflow(page, width)
-      await captureViewport(page, `cafe-items-unsaved-switch-${width}.png`)
-      await dialog.getByRole('button', { name: 'Stay on this page', exact: true }).click()
-      await expect(name).toHaveValue('Drafted item name')
+    for (const locale of ['en', 'id'] as const) {
+      mocks.locale = locale
+      await page.setViewportSize({ width: 390, height: 900 })
+      await page.goto('cafe/items')
+      await expect(page.locator('html')).toHaveAttribute('lang', locale)
+      await expect(page.getByRole('heading', { name: locale === 'en' ? 'Café items' : 'Item Kafe', exact: true })).toBeVisible()
+
+      for (const width of [390, 768, 1440] as const) {
+        await page.setViewportSize({ width, height: 900 })
+        const longItem = width === 390
+          ? page.getByRole('article', { name: LONG_GUARD_ITEM_NAME })
+          : page.getByRole('row').filter({ hasText: LONG_GUARD_ITEM_NAME })
+        const name = longItem.getByRole('textbox', { name: locale === 'en' ? 'MOS name' : 'Nama MOS', exact: true })
+        await expect(name).toBeVisible()
+        await name.fill('Drafted item name')
+        await page.getByRole('button', { name: /Change stream|Ganti stream/i }).click()
+        const option = page.getByRole('option').first()
+        await expect(option).toBeVisible()
+        await option.click()
+        const switchDialog = page.getByRole('dialog', {
+          name: locale === 'en' ? 'Discard item changes and switch stream?' : 'Buang perubahan item dan pindah stream?',
+        })
+        await expect(switchDialog).toBeVisible()
+        await expect(switchDialog).toContainText(locale === 'en' ? /will be discarded before switching to/ : /akan dibuang sebelum pindah ke/)
+        await assertNoOverflow(page, width)
+        await captureViewport(page, `cafe-items-unsaved-switch-${locale}-${width}.png`)
+        await switchDialog.getByRole('button', { name: locale === 'en' ? 'Stay on this page' : 'Tetap di halaman ini', exact: true }).click()
+        await expect(name).toHaveValue('Drafted item name')
+
+        const leaveLink = page.getByRole('navigation', { name: 'Primary' }).getByRole('link', {
+          name: locale === 'en' ? 'Café' : 'Kafe',
+          exact: true,
+        }).first()
+        await leaveLink.click()
+        const leaveDialog = page.getByRole('dialog', { name: locale === 'en' ? 'Leave without saving?' : 'Keluar tanpa menyimpan?' })
+        await expect(leaveDialog).toBeVisible()
+        await expect(leaveDialog).toContainText(locale === 'en'
+          ? 'Your unsaved item changes will be discarded.'
+          : 'Perubahan item yang belum disimpan akan dibuang.')
+        await assertNoOverflow(page, width)
+        await captureViewport(page, `cafe-items-route-leave-${locale}-${width}.png`)
+        await leaveDialog.getByRole('button', { name: locale === 'en' ? 'Stay on this page' : 'Tetap di halaman ini', exact: true }).click()
+        await expect(name).toHaveValue('Drafted item name')
+      }
     }
   })
 })

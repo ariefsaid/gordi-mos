@@ -371,6 +371,26 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
     expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })).toHaveValue(null)
   })
 
+  it('names the original stream when a pending save fails after switching', async () => {
+    let rejectSave!: (error: Error) => void
+    mockUpsert.mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectSave = reject }))
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+
+    const quantity = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
+    fireEvent.change(quantity, { target: { value: '15' } })
+    fireEvent.blur(quantity)
+    await waitFor(() => expect(mockUpsert).toHaveBeenCalledOnce())
+
+    chooseStream('Rumah Rames · Bar')
+    await screen.findByRole('heading', { level: 2, name: 'Rumah Rames · Bar' })
+    await waitFor(() => expect(mockPlans).toHaveBeenCalledTimes(2))
+    await act(async () => { rejectSave(new Error('network failure')) })
+
+    expect(await screen.findByText(/could not confirm the plan save for rumah rames · kitchen/i)).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
   it('does not save when the value is unchanged (no needless write)', async () => {
     mockPlans.mockResolvedValue(PLAN_CELLS)
     render(<KitchenPlanPage />, { wrapper })

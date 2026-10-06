@@ -14,8 +14,11 @@ import { streamKey, streamLabel } from '@/lib/kitchen-action-label'
 import {
   clearCafeCaptureDraft,
   isCafeCaptureRequestId,
+  listCafeCaptureDrafts,
   readCafeCaptureDraft,
   writeCafeCaptureDraft,
+  type CafeCaptureDraftScope,
+  type StoredCafeCaptureDraft,
 } from '@/lib/cafe-capture-storage'
 import { listCafeItemSettings, toCafeLogItem } from '@/lib/db/cafe-item-settings'
 import { insertKitchenLog, resolveKitchenBuId } from '@/lib/db/kitchen-logs'
@@ -29,7 +32,7 @@ import {
 import type { KitchenWasteDraft, KitchenWastePhoto } from '@/lib/db/kitchen-waste-photos'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { wibToday } from '@/lib/db/cafe-opening'
-import { formatDayMonthYear, formatWeekdayDayMonth } from '@/lib/format/date'
+import { formatDayMonthYear, formatWeekdayDayMonth, formatWibDateTime } from '@/lib/format/date'
 import { useSearchParamState } from '@/lib/use-search-param-state'
 import {
   useKitchenItemTable,
@@ -81,6 +84,17 @@ type StoredWasteCaptureDraft = {
   branch_id: string
   activity: string
   entries: Record<string, StoredWasteEntry>
+}
+
+function wasteDraftScope(orgId: string, personId: string, stream: ProductionStream, logDate: string): CafeCaptureDraftScope {
+  return {
+    orgId,
+    personId,
+    form: 'waste',
+    branchId: stream.branch.id,
+    activity: stream.activity,
+    logDate,
+  }
 }
 
 function quantityValue(raw: string): number | null {
@@ -182,6 +196,9 @@ export function CafeWastePage() {
   const [businessUnitId, setBusinessUnitId] = useState('')
   const [entries, setEntries] = useState<Record<string, WasteEntry>>({})
   const [resumableDrafts, setResumableDrafts] = useState<KitchenWasteDraft[]>([])
+  const [savedDraftAt, setSavedDraftAt] = useState<string | null>(null)
+  const [restoredDraft, setRestoredDraft] = useState(false)
+  const [otherDateDrafts, setOtherDateDrafts] = useState<StoredCafeCaptureDraft<StoredWasteCaptureDraft>[]>([])
   const [submitError, setSubmitError] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [isOnline, setIsOnline] = useState(navigator.onLine)
@@ -237,6 +254,9 @@ export function CafeWastePage() {
     setEntries({})
     setBusinessUnitId('')
     setResumableDrafts([])
+    setSavedDraftAt(null)
+    setRestoredDraft(false)
+    setOtherDateDrafts([])
     if (!stream) {
       setLoadState('ready')
       return () => { active = false }
@@ -257,9 +277,19 @@ export function CafeWastePage() {
       })
       setItems(nextItems)
       const offeredItemIds = new Set(nextItems.map(item => item.id))
-      const stored = canCapture && orgId && personId
-        ? readCafeCaptureDraft<StoredWasteCaptureDraft>('waste', orgId, personId)
+      const currentDraftScope = canCapture && orgId && personId
+        ? wasteDraftScope(orgId, personId, stream, logDate)
         : null
+      const storedRecord = currentDraftScope
+        ? readCafeCaptureDraft<StoredWasteCaptureDraft>(currentDraftScope)
+        : null
+      const stored = storedRecord?.value ?? null
+      const dateDrafts = canCapture && orgId && personId
+        ? listCafeCaptureDrafts<StoredWasteCaptureDraft>(orgId, personId, 'waste')
+          .filter(record => record.scope.branchId === stream.branch.id
+            && record.scope.activity === stream.activity
+            && record.scope.logDate !== logDate)
+        : []
       const storedEntries = stored?.branch_id === stream.branch.id && stored.activity === stream.activity
         && stored.entries && typeof stored.entries === 'object' && !Array.isArray(stored.entries)
         ? stored.entries
@@ -268,8 +298,10 @@ export function CafeWastePage() {
         const initial = initialEntries([item])[item.id]!
         const candidate = storedEntries[item.id]
         const saved = candidate && typeof candidate === 'object' && !Array.isArray(candidate) ? candidate : undefined
-        const serverDraft = saved && drafts.find(draft => draft.logId === saved.logId
-          || (!!saved.client_request_id && draft.clientRequestId === saved.client_request_id))
+        const serverDraft = saved && drafts.find(draft => draft.logDate === logDate && (
+          draft.logId === saved.logId
+          || (!!saved.client_request_id && draft.clientRequestId === saved.client_request_id)
+        ))
         if (!saved) return [item.id, initial]
         if (saved.logId && !serverDraft) return [item.id, initial]
         return [item.id, {
@@ -294,6 +326,9 @@ export function CafeWastePage() {
       setEntries(nextEntries)
       setResumableDrafts(drafts.filter(draft => offeredItemIds.has(draft.itemId)
         && !Object.values(nextEntries).some(entry => entry.logId === draft.logId)))
+      setSavedDraftAt(storedRecord?.updatedAt ?? null)
+      setRestoredDraft(Boolean(storedRecord))
+      setOtherDateDrafts(dateDrafts)
       setBusinessUnitId(buId)
       setLoadState('ready')
     }).catch(() => {
@@ -301,7 +336,7 @@ export function CafeWastePage() {
       setLoadState('error')
     })
     return () => { active = false }
-  }, [canCapture, catalogReady, loadRetry, orgId, personId, stream, stream?.activity, stream?.branch.id])
+  }, [canCapture, catalogReady, loadRetry, logDate, orgId, personId, stream, stream?.activity, stream?.branch.id])
 
   const filterRows = useMemo<WasteRow[]>(() => items.map(item => ({
     ...item,
@@ -345,11 +380,13 @@ export function CafeWastePage() {
   const allSubmitted = staged.length > 0 && remaining.length === 0
   const submittedCount = staged.length - remaining.length
   const hasPendingCapture = staged.length > 0
+  const localDraftEntries = staged.filter(line => !line.entry.submitted && !line.entry.logId)
 
   useEffect(() => {
     if (loadState !== 'ready' || !canCapture || !stream || !orgId || !personId) return
+    const scope = wasteDraftScope(orgId, personId, stream, logDate)
     const unsent = Object.fromEntries(Object.entries(entries).flatMap(([itemId, entry]) => {
-      if (entry.submitted || quantityValue(entry.quantity) === null) return []
+      if (entry.submitted || entry.logId || quantityValue(entry.quantity) === null) return []
       return [[itemId, {
         client_request_id: entry.client_request_id,
         client_attempted: entry.client_attempted,
@@ -363,15 +400,18 @@ export function CafeWastePage() {
       } satisfies StoredWasteEntry]]
     }))
     if (Object.keys(unsent).length === 0) {
-      clearCafeCaptureDraft('waste', orgId, personId)
+      clearCafeCaptureDraft(scope)
+      setSavedDraftAt(null)
+      setRestoredDraft(false)
       return
     }
-    writeCafeCaptureDraft<StoredWasteCaptureDraft>('waste', orgId, personId, {
+    const updatedAt = writeCafeCaptureDraft<StoredWasteCaptureDraft>(scope, {
       branch_id: stream.branch.id,
       activity: stream.activity,
       entries: unsent,
     })
-  }, [canCapture, entries, loadState, orgId, personId, stream])
+    if (updatedAt) setSavedDraftAt(updatedAt)
+  }, [canCapture, entries, loadState, logDate, orgId, personId, stream])
 
   const patchEntry = useCallback((itemId: string, patch: Partial<WasteEntry>) => {
     setEntries(current => {
@@ -567,7 +607,9 @@ export function CafeWastePage() {
         await submitKitchenWasteLog(line.entry.logId!)
         patchEntry(line.item.id, { submitted: true })
       }
-      clearCafeCaptureDraft('waste', orgId, personId)
+      if (stream) clearCafeCaptureDraft(wasteDraftScope(orgId, personId, stream, logDate))
+      setSavedDraftAt(null)
+      setRestoredDraft(false)
     } catch {
       setSubmitError(true)
     } finally {
@@ -578,6 +620,26 @@ export function CafeWastePage() {
   function startAnotherLog() {
     setEntries(initialEntries(items))
     setSubmitError(false)
+  }
+
+  function discardCurrentLocalDraft() {
+    if (!stream) return
+    clearCafeCaptureDraft(wasteDraftScope(orgId, personId, stream, logDate))
+    const blank = initialEntries(items)
+    setEntries(current => Object.fromEntries(items.map(item => {
+      const entry = current[item.id]
+      return [item.id, entry?.logId || entry?.submitted ? entry : blank[item.id]!]
+    })))
+    setSavedDraftAt(null)
+    setRestoredDraft(false)
+  }
+
+  function discardOtherDateDraft(scope: CafeCaptureDraftScope) {
+    clearCafeCaptureDraft(scope)
+    setOtherDateDrafts(current => current.filter(record =>
+      record.scope.branchId !== scope.branchId || record.scope.activity !== scope.activity
+        || record.scope.logDate !== scope.logDate,
+    ))
   }
 
   function retryLoad() {
@@ -730,6 +792,63 @@ export function CafeWastePage() {
               {t('kitchen.waste.held')}
             </div>
             <p className="cwl-help">{t('kitchen.waste.help')}</p>
+            {canCapture && restoredDraft && localDraftEntries.length > 0 && savedDraftAt && (
+              <section className="kl-capture-draft-notice" role="status" aria-live="polite">
+                <div>
+                  <strong>{t(localDraftEntries.length === 1 ? 'cafe.captureDraft.restored.one' : 'cafe.captureDraft.restored.other', {
+                    count: localDraftEntries.length,
+                    time: formatWibDateTime(savedDraftAt),
+                  })}</strong>
+                  <small>{t('cafe.captureDraft.expiry')}</small>
+                </div>
+                <button type="button" className="btn btn-outline" onClick={discardCurrentLocalDraft}>
+                  {t('kitchen.log.discard')}
+                </button>
+              </section>
+            )}
+            {canCapture && otherDateDrafts.length > 0 && (
+              <section className="kl-capture-draft-list" aria-labelledby="cwl-other-date-drafts">
+                <h2 id="cwl-other-date-drafts">{t('cafe.captureDraft.otherDates')}</h2>
+                {otherDateDrafts.map(record => {
+                  const savedEntries = record.value?.entries && typeof record.value.entries === 'object'
+                    && !Array.isArray(record.value.entries) ? record.value.entries : {}
+                  const rows = Object.entries(savedEntries).filter(([, entry]) => entry
+                    && typeof entry === 'object' && quantityValue(entry.quantity) !== null)
+                  const date = formatDayMonthYear(record.scope.logDate)
+                  return (
+                    <article
+                    key={`${record.scope.branchId}:${record.scope.activity}:${record.scope.logDate}`}
+                    className="kl-capture-draft-notice"
+                    aria-label={t(rows.length === 1 ? 'cafe.captureDraft.otherDate.one' : 'cafe.captureDraft.otherDate.other', { date, count: rows.length })}
+                  >
+                      <div>
+                        <strong>{t(rows.length === 1 ? 'cafe.captureDraft.otherDate.one' : 'cafe.captureDraft.otherDate.other', { date, count: rows.length })}</strong>
+                        <ul>
+                          {rows.map(([itemId, entry]) => {
+                            const item = items.find(candidate => candidate.id === itemId)
+                            const quantity = quantityValue(entry.quantity) ?? 0
+                            const unit = entry.capturedUnitName
+                              ?? item?.units.find(candidate => candidate.id === entry.unitId)?.name
+                              ?? t('kitchen.waste.unitUnavailable')
+                            const label = entry.unitFactor !== 1 && item
+                              ? formatUnitMultiple(entry.unitFactor, item.defaultUnit.name, document.documentElement.lang || 'en')
+                              : unit
+                            return <li key={itemId}>
+                              <span>{item?.name ?? t('kitchen.log.draft.itemUnavailable')}</span>
+                              <span>{formatWasteQty(quantity)} {label}</span>
+                            </li>
+                          })}
+                        </ul>
+                        <small>{formatWibDateTime(record.updatedAt)} · {t('cafe.captureDraft.expiry')}</small>
+                      </div>
+                      <button type="button" className="btn btn-outline" onClick={() => discardOtherDateDraft(record.scope)}>
+                        {t('kitchen.log.discard')}
+                      </button>
+                    </article>
+                  )
+                })}
+              </section>
+            )}
             {!canCapture && <p className="kl-banner cwl-read-only" role="status">{t('kitchen.waste.readOnly')}</p>}
             {canCapture && resumableDrafts.length > 0 && (
               <section className="cwl-resume" aria-labelledby="cwl-resume-title">

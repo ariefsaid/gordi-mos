@@ -58,6 +58,7 @@ import {
 import type { KitchenWasteDraft } from '@/lib/db/kitchen-waste-photos'
 import type { CafeItemSetting } from '@/lib/db/cafe-item-settings'
 import { CafeWastePage } from './cafe-waste-page'
+import { cafeCaptureDraftStorageKey, writeCafeCaptureDraft } from '@/lib/cafe-capture-storage'
 
 const mockUseAuth = vi.mocked(useAuth)
 const mockListCafeItemSettings = vi.mocked(listCafeItemSettings)
@@ -201,6 +202,8 @@ describe('CafeWastePage', () => {
 
     renderPage()
     expect(await screen.findByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })).toHaveValue(2.5)
+    expect(await screen.findByText(/restored 1 unsent entry · saved/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Discard' })).toBeInTheDocument()
     fireEvent.click(screen.getAllByRole('button', { name: 'Add photo' })[0]!)
     const fileInput = await screen.findByLabelText(/take or choose photos/i)
     fireEvent.change(fileInput, { target: { files: [image('latte.jpg')] } })
@@ -209,6 +212,44 @@ describe('CafeWastePage', () => {
 
     expect(await screen.findByText('1 waste entry submitted for review.')).toBeInTheDocument()
     expect(localStorage.length).toBe(0)
+  })
+
+  it('keeps yesterday’s local waste draft out of today’s form and offers it with Discard', async () => {
+    const scope = {
+      orgId: 'org-1',
+      personId: 'person-1',
+      form: 'waste' as const,
+      branchId: 'branch-1',
+      activity: 'bar',
+      logDate: '2026-10-01',
+    }
+    writeCafeCaptureDraft(scope, {
+      branch_id: 'branch-1',
+      activity: 'bar',
+      entries: {
+        'wip-1': {
+          client_request_id: '20000000-0000-0000-0000-000000000001',
+          client_attempted: false,
+          quantity: '4',
+          unitId: 'unit-cup',
+          unitFactor: 1,
+          unitBasisKnown: true,
+          capturedUnitName: 'cup',
+        },
+      },
+    })
+
+    renderPage()
+
+    expect(await screen.findByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })).toHaveValue(null)
+    const yesterday = await screen.findByRole('article', { name: /unsent from 1 oct 2026/i })
+    expect(yesterday).toHaveTextContent('Oat Latte')
+    expect(yesterday).toHaveTextContent('4 cup')
+    fireEvent.click(within(yesterday).getByRole('button', { name: 'Discard' }))
+
+    await waitFor(() => expect(screen.queryByRole('article', { name: /unsent from/i })).toBeNull())
+    expect(localStorage.getItem(cafeCaptureDraftStorageKey(scope))).toBeNull()
+    expect(screen.getByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })).toHaveValue(null)
   })
 
   it('retries waste preparation with the same request id after a dropped response', async () => {

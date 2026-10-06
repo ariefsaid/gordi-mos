@@ -344,7 +344,8 @@ describe('Cafe item permissions per activity', () => {
     await user.click(screen.getByRole('button', { name: /change stream/i }))
     await user.click(screen.getByRole('option', { name: /Gordi HQ · Bar/ }))
 
-    expect(await screen.findByRole('dialog', { name: 'Discard unsaved item changes?' })).toBeInTheDocument()
+    const switchDialog = await screen.findByRole('dialog', { name: 'Discard item changes and switch stream?' })
+    expect(switchDialog).toHaveTextContent('Gordi HQ · Bar')
     expect(mockCanManage).not.toHaveBeenCalledWith('bar')
     await user.click(screen.getByRole('button', { name: 'Stay on this page' }))
     expect(screen.getByRole('heading', { level: 2, name: 'Gordi HQ · Kitchen' })).toBeInTheDocument()
@@ -386,7 +387,7 @@ describe('Cafe item permissions per activity', () => {
     await user.type(name, 'Draft oat milk')
     await user.click(screen.getByRole('link', { name: 'Leave items' }))
 
-    expect(await screen.findByRole('dialog', { name: 'Leave without saving?' })).toBeInTheDocument()
+    expect(await screen.findByRole('dialog', { name: 'Leave without saving?' })).toHaveTextContent(/unsaved item changes will be discarded/i)
     await user.click(screen.getByRole('button', { name: 'Stay on this page' }))
     expect(screen.getByRole('textbox', { name: 'MOS name' })).toHaveValue('Draft oat milk')
     expect(screen.queryByText('Elsewhere')).not.toBeInTheDocument()

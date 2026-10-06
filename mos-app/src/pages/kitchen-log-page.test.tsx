@@ -74,6 +74,7 @@ import type {
   CafeDestination,
   ProductionStream,
   StreamPair,
+  KitchenLogLine,
 } from '@/lib/db/kitchen-logs.types'
 
 const mockUseAuth = vi.mocked(useAuth)
@@ -278,7 +279,7 @@ import { KitchenLogPage } from './kitchen-log-page'
 import { rememberStream } from '@/lib/cafe-stream'
 import { activeCafeLocation, rememberCafeLocation, resetCafeLocations } from '@/lib/cafe-opening-location'
 import { cafeDraftCount } from '@/lib/cafe-capture-draft'
-import { cafeCaptureDraftStorageKey } from '@/lib/cafe-capture-storage'
+import { cafeCaptureDraftStorageKey, writeCafeCaptureDraft } from '@/lib/cafe-capture-storage'
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -1415,22 +1416,68 @@ describe('Submit error state', () => {
 })
 
 describe('capture retry identity and saved drafts', () => {
+  it('does not restore yesterday’s staged quantities into today’s capture form', async () => {
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date())
+    const yesterdayDate = new Date(`${today}T00:00:00.000Z`)
+    yesterdayDate.setUTCDate(yesterdayDate.getUTCDate() - 1)
+    const yesterday = yesterdayDate.toISOString().slice(0, 10)
+    const scope = {
+      orgId: '10000000-0000-0000-0000-000000000001',
+      personId: '40000000-0000-0000-0000-000000000001',
+      form: 'production' as const,
+      branchId: BRANCH_RUMAH_RAMES.id,
+      activity: 'kitchen',
+      logDate: yesterday,
+    }
+    writeCafeCaptureDraft(scope, {
+      branch_id: BRANCH_RUMAH_RAMES.id,
+      activity: 'kitchen',
+      movement: { action: 'produce' },
+      lines: { w2: {
+        wip_item_id: 'w2', qty_porsi: 8, entry_quantity: 8, entry_unit_factor: 1,
+        item_unit_id: 'u2-porsi', entry_unit_name: 'porsi', client_request_id: '50000000-0000-0000-0000-000000000001',
+      } as KitchenLogLine },
+    })
+
+    await renderPage()
+    const quantity = await screen.findByRole('spinbutton', { name: /quantity produced for nasi goreng/i })
+
+    expect(quantity).not.toHaveValue(8)
+    const oldDraft = await screen.findByRole('article', { name: /unsent from/i })
+    expect(oldDraft).toHaveTextContent('Nasi Goreng')
+    fireEvent.click(within(oldDraft).getByRole('button', { name: 'Discard' }))
+    const discardDialog = await screen.findByRole('dialog', { name: 'Discard this saved draft?' })
+    fireEvent.click(within(discardDialog).getByRole('button', { name: 'Discard' }))
+    await waitFor(() => expect(screen.queryByRole('article', { name: /unsent from/i })).toBeNull())
+    expect(localStorage.getItem(cafeCaptureDraftStorageKey(scope))).toBeNull()
+  })
+
   it('restores a matching saved draft after an explicit stream choice when no default stream is available', async () => {
     mockFetchDefaultStream.mockResolvedValue(null)
-    localStorage.setItem(cafeCaptureDraftStorageKey('production', '10000000-0000-0000-0000-000000000001', '40000000-0000-0000-0000-000000000001'), JSON.stringify({
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date())
+    writeCafeCaptureDraft({
+      orgId: '10000000-0000-0000-0000-000000000001',
+      personId: '40000000-0000-0000-0000-000000000001',
+      form: 'production',
+      branchId: BRANCH_RADIANT.id,
+      activity: 'bar',
+      logDate: today,
+    }, {
       branch_id: BRANCH_RADIANT.id,
       activity: 'bar',
       movement: { action: 'produce' },
       lines: {
         w2: {
+          wip_item_id: 'w2',
           client_request_id: '50000000-0000-0000-0000-000000000001',
           item_unit_id: 'u2-porsi',
           entry_quantity: 7,
           entry_unit_factor: 1,
+          entry_unit_name: 'porsi',
           qty_porsi: 7,
-        },
+        } as KitchenLogLine,
       },
-    }))
+    })
 
     await renderPage(OPS_LEAD)
     await screen.findByText(/choose a production stream to start logging/i)

@@ -25,6 +25,8 @@ import { useDocumentTitle } from '@/shell/use-document-title'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { saveErrorMessage } from '@/lib/save-error'
+import { Toast } from '@/components/admin/toast'
+import { useToast } from '@/components/admin/use-toast'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useSearchParamState } from '@/lib/use-search-param-state'
 import { isItemNotOnStreamError, listActiveWipItems, listStreamItemIds } from '@/lib/db/kitchen-logs'
@@ -277,6 +279,7 @@ function PlanEditor() {
   const [justSavedId, setJustSavedId] = useState<string | null>(null)
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [saveError, setSaveError] = useState('')
+  const { toast, showToast, clearToast } = useToast()
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const isDesktop = useIsDesktop()
   const [search, setSearch] = useSearchParamState('q', '')
@@ -438,7 +441,10 @@ function PlanEditor() {
       if (savedTimer.current) clearTimeout(savedTimer.current)
       savedTimer.current = setTimeout(() => setJustSavedId(null), 1500)
     } catch (err) {
-      if (gen !== requestGen.current) return
+      if (gen !== requestGen.current) {
+        showToast(t('kitchen.plan.saveFailedAfterSwitch', { stream: streamLabel(t, stream) }))
+        return
+      }
       if (isItemNotOnStreamError(err)) {
         // The list changed while the editor was open (#222): re-read it so the row reads as off-list.
         setSaveError(t('kitchen.plan.error.itemNotOnStream'))
@@ -633,6 +639,7 @@ function PlanEditor() {
         />
       )}
 
+      <Toast toast={toast} onDismiss={clearToast} />
       {!isOnline && (
         <div role="alert" className="kp-banner kp-banner-offline kp-block">
           {t('kitchen.plan.offline')}
