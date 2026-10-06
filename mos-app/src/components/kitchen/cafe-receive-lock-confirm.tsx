@@ -1,4 +1,4 @@
-import { useId, useRef, type RefObject } from 'react'
+import { useEffect, useId, useRef, type RefObject } from 'react'
 import { ModalShell } from '@/components/ui/modal-shell'
 import { Button } from '@/components/ui/button'
 import { useT } from '@/i18n/use-t'
@@ -16,6 +16,8 @@ type Props = {
   offline: boolean
   /** Translated submit error; shown inside the step so it stays open for a retry. */
   error: string | null
+  /** False when another Lock counts can only fail the same way; the step then offers only Back to edit. */
+  canRetry: boolean
   /** Where focus returns on Back to edit when the opener did not hold focus. */
   returnFocusRef: RefObject<HTMLElement | null>
   onConfirm: () => void
@@ -24,12 +26,14 @@ type Props = {
 
 /** The step between Lock counts and the irreversible Count submit: every line, then lock or go back. */
 export function CafeReceiveLockConfirm({
-  open, lines, context, busy, offline, error, returnFocusRef, onConfirm, onCancel,
+  open, lines, context, busy, offline, error, canRetry, returnFocusRef, onConfirm, onCancel,
 }: Props) {
   const t = useT()
   const titleId = useId()
   const descriptionId = useId()
   const backRef = useRef<HTMLButtonElement>(null)
+  // Lock counts leaves the step when a retry cannot succeed; focus moves to the one way out.
+  useEffect(() => { if (open && !canRetry) backRef.current?.focus() }, [open, canRetry])
 
   return (
     <ModalShell
@@ -55,7 +59,7 @@ export function CafeReceiveLockConfirm({
           {lines.map(line => (
             <li key={line.key}>
               <span>{line.name}</span>
-              <span className="cafe-lock-confirm__quantity">{t('cafe.receipts.quantityUnit', { quantity: line.quantity, unit: line.unit })}</span>
+              <span className="tabular">{t('cafe.receipts.quantityUnit', { quantity: line.quantity, unit: line.unit })}</span>
             </li>
           ))}
         </ul>
@@ -67,7 +71,7 @@ export function CafeReceiveLockConfirm({
               {t('cafe.receive.confirm.back')}
             </Button>
             {/* aria-disabled, not disabled, while locking: focus stays on the button for a retry. */}
-            <Button
+            {canRetry && <Button
               variant="primary"
               className="cafe-lock-confirm__action"
               aria-disabled={busy || undefined}
@@ -75,7 +79,7 @@ export function CafeReceiveLockConfirm({
               onClick={() => { if (!busy) onConfirm() }}
             >
               {busy ? t('cafe.receive.confirm.locking') : t('cafe.receive.countSubmit')}
-            </Button>
+            </Button>}
           </div>
         </footer>
       </div>

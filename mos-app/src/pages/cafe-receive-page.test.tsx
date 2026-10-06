@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import userEvent from '@testing-library/user-event'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { AuthState } from '@/auth/context'
 
@@ -251,6 +252,36 @@ describe('CafeReceivePage', () => {
       { item_unit_id: 'unit-kg', quantity: '2.5' },
       { item_unit_id: 'unit-l', quantity: '12' },
     ])
+  })
+
+  it('issue 1437: Tab while locking stays inside the confirm step', async () => {
+    const user = userEvent.setup()
+    mockSubmit.mockReturnValue(new Promise(() => {}))
+    renderPage()
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '12' } })
+    const step = await openLockStep()
+    const lock = within(step).getByRole('button', { name: 'Lock counts' })
+    lock.focus()
+    fireEvent.click(lock)
+    await within(step).findByRole('button', { name: 'Locking…' })
+
+    await user.tab()
+    expect(step.contains(document.activeElement)).toBe(true)
+    await user.tab({ shift: true })
+    expect(step.contains(document.activeElement)).toBe(true)
+  })
+
+  it('issue 1437: a key conflict in the confirm step points back to the page and offers no futile retry', async () => {
+    mockSubmit.mockRejectedValueOnce(new Error('submitCafeReceipt failed: CAFE_RECEIPT_CLIENT_KEY_CONFLICT'))
+    renderPage()
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '12' } })
+    const step = await openLockStep()
+    fireEvent.click(within(step).getByRole('button', { name: 'Lock counts' }))
+
+    expect(await within(step).findByRole('alert')).toHaveTextContent('Go back to edit and check Your recent receipts.')
+    expect(within(step).queryByRole('button', { name: 'Lock counts' })).toBeNull()
+    expect(within(step).getByRole('button', { name: 'Back to edit' })).toHaveFocus()
+    expect(mockSubmit).toHaveBeenCalledTimes(1)
   })
 
   it('issue 1437: going offline in the confirm step says so there and blocks Lock counts', async () => {

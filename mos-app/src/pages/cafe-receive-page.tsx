@@ -458,7 +458,8 @@ export function CafeReceivePage() {
           context={t('cafe.receive.confirm.context', { stream: streamLabel(t, stream), date: formatWeekdayDayMonth(arrivalDate) })}
           busy={busy}
           offline={!isOnline}
-          error={error ? t(error) : null}
+          error={error === 'cafe.receive.error.keyConflict' ? t('cafe.receive.confirm.keyConflict') : error ? t(error) : null}
+          canRetry={error !== 'cafe.receive.error.keyConflict'}
           returnFocusRef={lockButtonRef}
           onConfirm={() => void handleCountSubmit()}
           onCancel={() => setConfirming(false)}
