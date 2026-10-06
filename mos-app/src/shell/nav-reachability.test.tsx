@@ -255,11 +255,7 @@ const NO_NAV_ENTRY_BY_DESIGN: Record<string, string> = {
   '/work/signals/:signalId': 'record door — opened from the Signals list or a deep link, never from nav',
   '/work/tasks/new': 'record door — opened by the create action, not a nav entry',
   '/work/tasks/:taskId': 'record door — opened from the Tasks table or a deep link',
-  // Corrected: the previous reason said "reached from the Money surface itself", which is false.
-  // The Detail tab does not navigate to this PATH — it writes `?tab=detail` onto the current one
-  // via setSearchParams. Nothing in the app links `/money/detail`; breadcrumb.tsx only renders a
-  // crumb for it. Its one real caller is the `/dashboard/detail` redirect.
-  '/money/detail': 'no link exists to this path — the Detail tab writes ?tab=detail on /money via setSearchParams. It survives only as the /dashboard/detail redirect target, for old bookmarks',
+  '/money/detail': 'redirect to /money — kept so old bookmarks and the /dashboard/detail redirect still land on Money',
   '/money/budget': "flag-gated (SHOW_PLAN_BUDGET, default off). dev's Plan destination linked it when the flag was on; restoring that link belongs to the Money surface port",
   '/money/pricing': 'flag-gated (SHOW_PLAN_BUDGET, default off). Same as /money/budget',
   '/money/follow-ups': 'flag-gated (SHOW_FOLLOWUPS, default off) and deferred past the MVP',

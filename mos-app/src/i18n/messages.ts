@@ -394,7 +394,6 @@ export const messages = {
     'account.appearance.system': 'System',
     'account.signOut': 'Sign out',
     'actionLauncher.open': 'Open actions',
-    'breadcrumb.detail': 'Detail',
     // The one loading announcement — LoadingShell's default label, and therefore what every
     // code-split route says while its chunk is in flight (router.tsx).
     'common.paging.emptyLoaded': 'No rows in the loaded page',
@@ -2532,7 +2531,6 @@ export const messages = {
     'account.appearance.system': 'Sistem',
     'account.signOut': 'Keluar',
     'actionLauncher.open': 'Buka aksi',
-    'breadcrumb.detail': 'Detail',
     'common.paging.emptyLoaded': 'Tidak ada baris pada halaman yang dimuat',
     'common.paging.continue': 'Muat lebih banyak untuk melanjutkan daftar.',
     'common.paging.more': 'Muat lebih banyak',
