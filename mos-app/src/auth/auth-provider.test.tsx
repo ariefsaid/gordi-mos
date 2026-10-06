@@ -244,11 +244,17 @@ describe('AuthProvider', () => {
     })
 
     expect(screen.getByTestId('status').textContent).toBe('authenticated')
+    localStorage.setItem('mos.cafe.receiptExplanations.person-a.receipt-1', '{"line-1":{"conditions":["damaged_wrong"],"condition_reason":"Seal torn","serverUpdatedAt":null}}')
+    localStorage.setItem('mos.cafe.receiptExplanations.person-b.receipt-2', '{}')
+    localStorage.setItem('mos.tasks.groupBy', 'owner')
 
     await act(async () => {
       await user.click(screen.getByRole('button', { name: 'Sign out' }))
     })
 
+    // A shared phone keeps no receiver's unsent reason for the next person; other preferences stay.
+    expect(Object.keys(localStorage).filter(key => key.startsWith('mos.cafe.receiptExplanations.'))).toEqual([])
+    expect(localStorage.getItem('mos.tasks.groupBy')).toBe('owner')
     expect(mockSignOut).toHaveBeenCalledOnce()
     expect(screen.getByTestId('status').textContent).toBe('unauthenticated')
     // Marks the session as ended, so ProtectedRoute keeps no return route for the next person.

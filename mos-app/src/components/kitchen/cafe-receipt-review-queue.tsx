@@ -18,6 +18,7 @@ import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { ALL_STREAMS } from './cafe-stream-bar'
 import { CafeReceiptState } from './cafe-receipt-state'
 import { CafeReceiptLineRow } from './cafe-receipt-difference'
+import { CafeReceiptLineEvidence } from './cafe-receipt-line-condition'
 import { CafeReceiptRelease } from './cafe-receipt-release'
 import { formatAge } from '@/components/tasks/task-formatters'
 import { useI18n } from '@/i18n/I18nProvider'
@@ -55,7 +56,7 @@ export function CafeReceiptReviewQueue({
     setLoadError(false)
     // Counted receipts that are not sent yet are listed too, with their age, so an unsent lock is
     // visible; only Submitted ones can be decided.
-    void Promise.all([listCafeReceipts(['Submitted', 'Counted']), getPeople()]).then(([nextRows, people]) => {
+    void Promise.all([listCafeReceipts(['Submitted', 'Counted'], { photosFor: ['Submitted'] }), getPeople()]).then(([nextRows, people]) => {
       if (!active) return
       setRows(nextRows)
       setNames(new Map(people.map(person => [person.id, person.full_name])))
@@ -151,6 +152,7 @@ export function CafeReceiptReviewQueue({
                     {receipt.delivery_note_number && <span>{t('cafe.receipts.review.deliveryNote', { number: receipt.delivery_note_number })}</span>}
                     {receipt.posting_status === 'held' && receipt.status !== 'Approved' && <span>{t('cafe.receipts.review.locationMissing')}</span>}
                     {differences === 'failed' && <span>{t('cafe.receipts.review.differenceFailed')}</span>}
+                    {receipt.photosUnavailable && <span>{t('cafe.receipts.photosUnavailable')}</span>}
                     {difference && !difference.known && <span>{t('cafe.receipts.review.differenceUnknown')}</span>}
                     {difference && (
                       <span>{!difference.asOf ? t('cafe.receipts.review.poNeverRead')
@@ -168,7 +170,9 @@ export function CafeReceiptReviewQueue({
                       unit={line.unit_name}
                       withDifference
                       outcome={difference?.known ? difference.byUnit.get(line.item_unit_id) : undefined}
-                    />
+                    >
+                      <CafeReceiptLineEvidence line={line} />
+                    </CafeReceiptLineRow>
                   ))}
                 </ul>
                 <div className="cafe-count-review__decision cafe-receipt-review__decision">
