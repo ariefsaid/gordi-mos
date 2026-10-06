@@ -444,11 +444,34 @@ on conflict (org_id, key) do nothing;
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- ops — the item catalog and a plan for today
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
+-- The synthetic refresh runs first: it is a full ESB snapshot for the org, so it would deactivate
+-- any ESB-catalog row inserted before it that its rows do not name.
+-- Synthetic-only source rows exercise the same refresh contract without exposing the private ERP catalog.
+select ops.refresh_cafe_item_references(
+  $cafe_seed_1240$[
+    {"esb_product_id":"DEV-ERP-P-1240-RAW","esb_product_detail_id":"DEV-ERP-PD-1240-RAW-A","name":"Synthetic RAW Sample","category":"Kitchen","unit_name":"DEV-ERP-UNIT","erp_category_type_name":"Inventory","is_stock":true,"has_active_bom_output":false,"is_active":true,"branch_code":null},
+    {"esb_product_id":"DEV-ERP-P-1240-RAW","esb_product_detail_id":"DEV-ERP-PD-1240-RAW-B","name":"Synthetic RAW Sample","category":"Kitchen","unit_name":"DEV-ERP-UNIT","erp_category_type_name":"Inventory","is_stock":true,"has_active_bom_output":false,"is_active":true,"branch_code":null},
+    {"esb_product_id":"DEV-ERP-P-1240-WIP","esb_product_detail_id":"DEV-ERP-PD-1240-WIP","name":"Synthetic WIP Sample","category":"Bar","unit_name":"DEV-ERP-UNIT","erp_category_type_name":"Inventory","is_stock":false,"has_active_bom_output":true,"is_active":true,"branch_code":"gordi_hq"}
+  ]$cafe_seed_1240$::jsonb
+);
+-- The synthetic WIP reference is capture-form eligible in dev; confirming its ERP detail creates no MOS default or conversion.
+update ops.item_units unit
+   set confirmed_at = now()
+  from ops.wip_items item
+ where item.id = unit.wip_item_id
+   and item.org_id = unit.org_id
+   and item.org_id = '10000000-0000-0000-0000-000000000001'
+   and item.esb_product_id = 'DEV-ERP-P-1240-WIP'
+   and unit.esb_product_detail_id = 'DEV-ERP-PD-1240-WIP'
+   and unit.confirmed_at is null;
+
 -- ── Kitchen WIP items — the real roster (32: 16 CREATE + 16 REUSE) ───────────────────────────
--- Names are parity with the incumbent's own item list. ESB identifiers are populated by the push
--- flow later (the Teable source carries none), so they are left null here; `flag_active` defaults
--- true, which is what puts every row in front of a capture surface.
-insert into ops.wip_items (id, org_id, name, category) values
+-- Names are parity with the incumbent's own item list. Every café item comes from the ESB catalog
+-- (OD-2026-10-06-ESB-ITEMS), so each dish is an ESB-catalog row with a DEV-only synthetic product id
+-- derived from its row id — the same coordinate its confirmed unit below carries.
+insert into ops.wip_items (id, org_id, name, category, reference_source, esb_product_id)
+select v.id::uuid, v.org_id::uuid, v.name, v.category, 'erp_catalog', 'DEV-P-' || replace(v.id, '-', '')
+from (values
   ('a1100000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'Nasi Putih', 'Rice/Staple'),
   ('a1100000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', 'Risoles Beef Mayo', 'Snack/Sweet'),
   ('a1100000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000001', 'Bakwan Sayur', 'Snack/Sweet'),
@@ -481,6 +504,7 @@ insert into ops.wip_items (id, org_id, name, category) values
   ('a1100000-0000-0000-0000-00000000001e', '10000000-0000-0000-0000-000000000001', 'Terong Balado', 'Veg/Tempe/Tofu'),
   ('a1100000-0000-0000-0000-00000000001f', '10000000-0000-0000-0000-000000000001', 'Ayam Goreng Lengkuas', 'Chicken'),
   ('a1100000-0000-0000-0000-000000000020', '10000000-0000-0000-0000-000000000001', 'Balado Cumi Asin', 'Seafood')
+) as v(id, org_id, name, category)
 on conflict (id) do nothing;
 
 -- Real café catalog rows are loaded from the private data repository. Local seed uses synthetic
@@ -571,6 +595,12 @@ insert into ops.stream_items (org_id, branch_id, activity, wip_item_id, source) 
   ('10000000-0000-0000-0000-000000000001', '25000000-0000-0000-0000-000000000002', 'kitchen',
    'a1100000-0000-0000-0000-000000000002', 'manual')
 on conflict (org_id, branch_id, activity, wip_item_id) do nothing;
+-- Each listed dish is an active WIP item with its confirmed porsi default on every stream that lists it.
+select set_config('app.allow_test_seeds', 'on', false);
+select ops._test_configure_cafe_items(array(
+  select w.id from ops.wip_items w
+   where w.org_id = '10000000-0000-0000-0000-000000000001' and w.id::text like 'a1100000-%'));
+select set_config('app.allow_test_seeds', 'off', false);
 insert into ops.kitchen_plans
   (org_id, log_date, wip_item_id, branch_id, activity, action, qty_porsi, plan_by) values
   ('10000000-0000-0000-0000-000000000001', (now() at time zone 'Asia/Jakarta')::date, 'a1100000-0000-0000-0000-000000000001',
@@ -584,24 +614,6 @@ delete from ops.stream_items
 where org_id = '10000000-0000-0000-0000-000000000001' and branch_id = '25000000-0000-0000-0000-000000000002'
   and activity = 'kitchen' and wip_item_id = 'a1100000-0000-0000-0000-000000000002';
 
--- Synthetic-only source rows exercise the same refresh contract without exposing the private ERP catalog.
-select ops.refresh_cafe_item_references(
-  $cafe_seed_1240$[
-    {"esb_product_id":"DEV-ERP-P-1240-RAW","esb_product_detail_id":"DEV-ERP-PD-1240-RAW-A","name":"Synthetic RAW Sample","category":"Kitchen","unit_name":"DEV-ERP-UNIT","erp_category_type_name":"Inventory","is_stock":true,"has_active_bom_output":false,"is_active":true,"branch_code":null},
-    {"esb_product_id":"DEV-ERP-P-1240-RAW","esb_product_detail_id":"DEV-ERP-PD-1240-RAW-B","name":"Synthetic RAW Sample","category":"Kitchen","unit_name":"DEV-ERP-UNIT","erp_category_type_name":"Inventory","is_stock":true,"has_active_bom_output":false,"is_active":true,"branch_code":null},
-    {"esb_product_id":"DEV-ERP-P-1240-WIP","esb_product_detail_id":"DEV-ERP-PD-1240-WIP","name":"Synthetic WIP Sample","category":"Bar","unit_name":"DEV-ERP-UNIT","erp_category_type_name":"Inventory","is_stock":false,"has_active_bom_output":true,"is_active":true,"branch_code":"gordi_hq"}
-  ]$cafe_seed_1240$::jsonb
-);
--- The synthetic WIP reference is capture-form eligible in dev; confirming its ERP detail creates no MOS default or conversion.
-update ops.item_units unit
-   set confirmed_at = now()
-  from ops.wip_items item
- where item.id = unit.wip_item_id
-   and item.org_id = unit.org_id
-   and item.org_id = '10000000-0000-0000-0000-000000000001'
-   and item.esb_product_id = 'DEV-ERP-P-1240-WIP'
-   and unit.esb_product_detail_id = 'DEV-ERP-PD-1240-WIP'
-   and unit.confirmed_at is null;
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- reporting — the Plan-destination COGS read-models (ADR-0022 D2/D6, ADR-0010)
