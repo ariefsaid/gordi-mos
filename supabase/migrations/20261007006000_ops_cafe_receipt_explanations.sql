@@ -2,7 +2,7 @@
 -- The accepted quantity remains immutable; this migration only adds condition evidence to a
 -- Counted receipt. Sending for review rechecks the evidence in the database. No ESB write/outbox.
 --
--- DOWN: see supabase/rollbacks/20261007005500_ops_cafe_receipt_explanations.sql. It refuses to
+-- DOWN: see supabase/rollbacks/20261007006000_ops_cafe_receipt_explanations.sql. It refuses to
 -- remove non-empty evidence or photos, and restores the prior receipt RPC/guard implementations.
 
 -- ── Condition facts remain separate from the immutable accepted quantity ────────────────────

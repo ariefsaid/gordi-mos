@@ -1,4 +1,4 @@
--- Rollback for 20261007005500_ops_cafe_receipt_explanations.sql (#1425).
+-- Rollback for 20261007006000_ops_cafe_receipt_explanations.sql (#1425).
 -- Refuses to erase persisted conditions or private photo evidence. Review the guard before use.
 begin;
 do $$
