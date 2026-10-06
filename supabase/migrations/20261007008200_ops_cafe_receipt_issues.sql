@@ -1,7 +1,7 @@
 -- #1431 — procurement's Receipt issues list, per-person access, resolutions and audit history.
 -- Linking records a matched portion as held. This migration never creates or enqueues an ESB outbox row.
 --
--- DOWN: see supabase/rollbacks/20261007005800_ops_cafe_receipt_issues.sql.
+-- DOWN: see supabase/rollbacks/20261007008200_ops_cafe_receipt_issues.sql.
 
 -- ── Procurement is a separate, admin-granted capability, not an access role ─────────────────
 create table ops.cafe_receipt_issue_access (
