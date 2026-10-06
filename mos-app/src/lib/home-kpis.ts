@@ -7,6 +7,7 @@
 import type { SalesMarginDailyRow } from '@/lib/db/reporting-margin'
 import { formatIDRCompact, formatDelta, type DeltaDisplay } from '@/lib/sales-dashboard'
 import { trailingSum } from '@/lib/trailing-window'
+import type { Translate } from '@/i18n/use-t'
 
 export interface MarginWindow {
   /** margin_interim summed over the current trailing window */
@@ -45,10 +46,10 @@ export interface MarginKpiDisplay {
  * KPITile-ready display (AC-HK02 — NULL pct renders as an absent sub, never "0% margin"
  * or "NaN% margin"; formatDelta already treats a null/zero prior as "no comparison").
  */
-export function formatMarginKpi(window: MarginWindow, latestPct: number | null): MarginKpiDisplay {
+export function formatMarginKpi(window: MarginWindow, latestPct: number | null, t: Translate): MarginKpiDisplay {
   return {
     value: formatIDRCompact(window.current),
-    delta: formatDelta(window),
+    delta: formatDelta(window, t),
     pctSub: latestPct == null ? '' : `${Math.round(latestPct * 1000) / 10}% margin`,
   }
 }

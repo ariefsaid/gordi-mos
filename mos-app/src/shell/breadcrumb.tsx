@@ -77,8 +77,6 @@ export function Breadcrumb() {
         collectionLeafShown = true
       }
     }
-  } else if (destination.id === 'money') {
-    if (pathname === '/money/detail') crumbs.push(t('breadcrumb.detail'))
   } else if (destination.id === 'cafe') {
     // /cafe and /cafe/log are the module default → bare "Café"; other sub-routes get a leaf.
     if (pathname !== '/cafe' && pathname !== '/cafe/log') {

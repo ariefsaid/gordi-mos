@@ -2,9 +2,28 @@
 // (census g-money r5 F-2). Oracle: every percent on the Money/Plan family speaks
 // id-ID (comma decimals) — never a raw-period "23.1%" beside a comma "36,7%".
 import { describe, it, expect } from 'vitest'
-import { formatPercent } from './percent'
-import { formatMarginPct } from '@/lib/dashboard'
+import { formatPercent, formatSignedPercent, formatSignedPoints } from './percent'
 import { formatPct } from '@/lib/plan-budget-logic'
+
+describe('formatSignedPercent — a change always carries its sign as text', () => {
+  it('writes + or − (the minus sign, not a hyphen) with id-ID comma decimals', () => {
+    expect(formatSignedPercent(0.032)).toBe('+3,2%')
+    expect(formatSignedPercent(-0.249)).toBe('\u221224,9%')
+  })
+
+  it('no change reads as 0,0% with no sign', () => {
+    expect(formatSignedPercent(0)).toBe('0,0%')
+    expect(formatSignedPercent(-0.00001)).toBe('0,0%')
+  })
+})
+
+describe('formatSignedPoints — a difference of two percentages, in points', () => {
+  it('a 0,072 difference reads +7,2 and a negative one carries the minus sign', () => {
+    expect(formatSignedPoints(0.072)).toBe('+7,2')
+    expect(formatSignedPoints(-0.0051)).toBe('\u22120,5')
+    expect(formatSignedPoints(0.00001)).toBe('0,0')
+  })
+})
 
 describe('formatPercent (r5 F-2: one locale-aware percent everywhere)', () => {
   it('formats a fraction with id-ID comma decimals at the default 1dp', () => {
@@ -23,11 +42,9 @@ describe('formatPercent (r5 F-2: one locale-aware percent everywhere)', () => {
     expect(formatPercent(Number.NaN)).toBe('—')
   })
 
-  it('the margin and pricing formatters are views over the SAME module (no third format)', () => {
-    // formatMarginPct takes a 0..1 fraction at 1dp; formatPct integer — both id-ID.
-    expect(formatMarginPct(0.367)).toBe(formatPercent(0.367, 1))
+  it('the pricing formatter is a view over the SAME module (no second format)', () => {
+    // formatPct takes a 0..1 fraction at integer precision — id-ID.
     expect(formatPct(0.8)).toBe(formatPercent(0.8, 0))
-    expect(formatMarginPct(null)).toBe('—')
     expect(formatPct(null)).toBe('—')
   })
 
@@ -43,11 +60,9 @@ describe('formatPercent (r5 F-2: one locale-aware percent everywhere)', () => {
   //   · a non-finite input renders the em-dash placeholder, where a hand-roll prints "NaN%".
   // Both mutations now land red.
   it('delegation is real, not coincidental: the grouped and non-finite cases diverge from any hand-roll', () => {
-    // Grouping is the module's, so it appears in both views.
-    expect(formatMarginPct(12.3456)).toBe('1.234,6%')
+    // Grouping is the module's, so it appears in the view.
     expect(formatPct(12.3456)).toBe('1.235%')
     // A hand-rolled Math.round path prints "NaN%" here; the module's placeholder wins.
-    expect(formatMarginPct(Number.NaN)).toBe('—')
     expect(formatPct(Number.NaN)).toBe('—')
   })
 })
