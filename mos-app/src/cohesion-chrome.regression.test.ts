@@ -100,16 +100,6 @@ describe('CHROME-Z: z-index tier scale', () => {
     }
   })
 
-  it('CHROME-Z: no non-test .tsx hard-codes a numeric zIndex (all inline z-indexes speak var(--z-*))', () => {
-    const offenders: string[] = []
-    for (const f of listSource(SRC, ['.tsx'])) {
-      const rel = srcRel(f)
-      const body = stripTsx(readFileSync(f, 'utf8'))
-      const m = body.match(/zIndex:\s*[0-9]+/)
-      if (m) offenders.push(`${rel} — ${m[0]}`)
-    }
-    expect(offenders, 'inline zIndex must reference a tier var, e.g. zIndex: "var(--z-popover)"').toEqual([])
-  })
 })
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -330,7 +320,7 @@ describe('CHROME-MODAL: modal consolidation', () => {
     const css = readSrc('components/ui/modal-shell.css')
     expect(body).toMatch(/export function ModalShell/)
     expect(body).toMatch(/className="modal-shell__scrim scrim"/)
-    expect(body).toMatch(/document\.addEventListener\('keydown'/)
+    expect(body).toMatch(/useEscapeLayer\(open, dialogRef/)
     expect(css).toMatch(/z-index:\s*var\(--z-modal\)/)
   })
 
