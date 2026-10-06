@@ -33,33 +33,49 @@ export async function uploadCafeReceiptLinePhoto(lineId: string, file: File): Pr
     upsert: false,
   })
   if (uploadError) throw new Error(`uploadCafeReceiptLinePhoto failed: ${uploadError.message}`)
-  const stored = await listCafeReceiptPhotos([line.receipt_id])
-  const uploaded = stored.find(photo => photo.path === path)
-  if (!uploaded) throw new Error('uploadCafeReceiptLinePhoto failed: the private photo was not returned')
-  return { ...uploaded, name: file.name }
+  const { data: signed, error: signError } = await supabase.storage.from(CAFE_RECEIPT_PHOTO_BUCKET)
+    .createSignedUrl(path, SIGNED_URL_SECONDS)
+  if (signError || !signed?.signedUrl) throw new Error(`uploadCafeReceiptLinePhoto failed: ${signError?.message ?? 'could not sign the photo'}`)
+  return { lineId, path, url: signed.signedUrl, name: file.name }
 }
 
-/** Receipts per photo read: the ids travel in the request URL, so a read stays far below its length limit. */
+/** Receipts per photo read; the server refuses more. */
 export const CAFE_RECEIPT_PHOTO_READ_LIMIT = 50
 
-/** One org-scoped read of the photos on at most 50 receipts, followed by short-lived URLs from the private bucket. */
-export async function listCafeReceiptPhotos(receiptIds: readonly string[]): Promise<CafeReceiptPhoto[]> {
+export type CafeReceiptPhotoRecord = { lineId: string; path: string; createdAt: string }
+
+/**
+ * The photo records of up to 50 receipts, keyed by receipt. The server returns a receipt only when
+ * the caller may read its evidence, with every photo in one row, so no row cap can drop one.
+ */
+export async function listCafeReceiptPhotos(receiptIds: readonly string[]): Promise<Map<string, CafeReceiptPhotoRecord[]>> {
   const ids = [...new Set(receiptIds)]
-  if (ids.length === 0) return []
+  if (ids.length === 0) return new Map()
   if (ids.length > CAFE_RECEIPT_PHOTO_READ_LIMIT) throw new Error('listCafeReceiptPhotos: at most 50 receipts per read')
-  const { data, error } = await supabase.schema('ops').from('cafe_receipt_line_photos')
-    .select('line_id,path,created_at')
-    .in('receipt_id', ids)
-    .order('created_at', { ascending: true })
+  const { data, error } = await supabase.schema('ops').rpc('list_cafe_receipt_photos', { p_receipt_ids: ids })
   if (error) throw new Error(`listCafeReceiptPhotos failed: ${error.message}`)
-  const rows = (data ?? []) as Array<{ line_id: string; path: string; created_at: string }>
-  if (rows.length === 0) return []
-  const { data: signed, error: signedError } = await supabase.storage.from(CAFE_RECEIPT_PHOTO_BUCKET)
-    .createSignedUrls(rows.map(row => row.path), SIGNED_URL_SECONDS)
-  if (signedError) throw new Error(`listCafeReceiptPhotos failed: ${signedError.message}`)
-  return rows.map((row, index) => {
+  const byReceipt = new Map<string, CafeReceiptPhotoRecord[]>()
+  for (const row of (data ?? []) as Array<{ receipt_id: unknown; photos: unknown }>) {
+    if (typeof row.receipt_id !== 'string' || !Array.isArray(row.photos)) throw new Error('listCafeReceiptPhotos failed: invalid row')
+    byReceipt.set(row.receipt_id, row.photos.map((photo: Record<string, unknown>) => {
+      if (typeof photo.line_id !== 'string' || typeof photo.path !== 'string' || typeof photo.created_at !== 'string') {
+        throw new Error('listCafeReceiptPhotos failed: invalid photo')
+      }
+      return { lineId: photo.line_id, path: photo.path, createdAt: photo.created_at }
+    }))
+  }
+  return byReceipt
+}
+
+/** Short-lived URLs for the photos about to be shown; each one passes the bucket's read policy. */
+export async function signCafeReceiptPhotos(records: readonly CafeReceiptPhotoRecord[]): Promise<CafeReceiptPhoto[]> {
+  if (records.length === 0) return []
+  const { data: signed, error } = await supabase.storage.from(CAFE_RECEIPT_PHOTO_BUCKET)
+    .createSignedUrls(records.map(record => record.path), SIGNED_URL_SECONDS)
+  if (error) throw new Error(`signCafeReceiptPhotos failed: ${error.message}`)
+  return records.map((record, index) => {
     const url = signed[index]?.signedUrl
-    if (!url) throw new Error('listCafeReceiptPhotos failed: could not sign a stored photo')
-    return { lineId: row.line_id, path: row.path, url, createdAt: row.created_at }
+    if (!url) throw new Error('signCafeReceiptPhotos failed: could not sign a stored photo')
+    return { ...record, url }
   })
 }

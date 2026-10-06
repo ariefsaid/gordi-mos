@@ -49,6 +49,7 @@ export function CafeReceiptLineEvidence({ line }: { line: CafeReceiptLine }) {
 export function CafeReceiptLineCondition({
   line,
   dirty,
+  photosUnavailable = false,
   disabled,
   validation,
   focusError = false,
@@ -58,11 +59,13 @@ export function CafeReceiptLineCondition({
   line: CafeReceiptLine
   /** The flag or reason differs from what the server holds. */
   dirty: boolean
+  /** The photo read failed, so whether the line has a photo is not known here. */
+  photosUnavailable?: boolean
   disabled: boolean
   validation?: EvidenceValidation
   focusError?: boolean
   onChange: (patch: EvidencePatch) => void
-  onSaved: (saved: CafeReceiptExplanation) => void
+  onSaved: (saved: CafeReceiptExplanation & { condition_updated_at: string | null }) => void
 }) {
   const t = useT()
   const reasonId = useId()
@@ -162,12 +165,13 @@ export function CafeReceiptLineCondition({
             copy={{
               title: t('cafe.receive.photoTitle'),
               help: t('cafe.receive.photoHelp'),
-              add: t('cafe.receive.photoAdd', { item: line.item_name }),
+              add: t('cafe.receive.photoAddShort'),
+              addName: t('cafe.receive.photoAdd', { item: line.item_name }),
               invalidType: t('cafe.receive.photoType'),
               tooMany: t('cafe.receive.photoTooMany'),
               tooLarge: t('cafe.receive.photoTooLarge'),
-              // A refused line already names the missing photo in its alert above.
-              required: t(photoError ? 'cafe.receive.photoNone' : 'cafe.receive.photoNeeded'),
+              // A refused line already names the missing photo in its alert above; an unread one is not known.
+              required: t(photosUnavailable ? 'cafe.receipts.photosUnavailable' : photoError ? 'cafe.receive.photoNone' : 'cafe.receive.photoNeeded'),
               upload: t('cafe.receive.photoUpload'),
               uploaded: t('cafe.receive.photoUploaded'),
               failed: t('cafe.receive.photoUploadFailed'),

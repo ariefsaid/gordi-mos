@@ -167,7 +167,7 @@
 
 .cafe-receive__recent li .btn { margin-left: auto; min-height: 44px; }
 
-.cafe-receive__counted-lines li {
+.cafe-receive__counted-lines > li {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
@@ -175,7 +175,7 @@
   padding: 12px 0;
 }
 
-.cafe-receive__counted-lines li > :first-child {
+.cafe-receive__counted-lines > li > :first-child {
   min-width: 0;
   color: var(--foreground);
   font-weight: 600;
@@ -229,7 +229,7 @@
 
 .cafe-receive__photos-unavailable { color: var(--muted-foreground); }
 
-.cafe-receive__counted-lines li > :last-child { white-space: normal; }
+.cafe-receive__counted-lines > li > :last-child { white-space: normal; }
 
 /* The sticky send bar is the page's last child here, so the list needs no bottom reserve. */
 .cafe-receive .cafe-count__list { padding-bottom: 0; margin-bottom: 24px; }
@@ -251,7 +251,7 @@
 
 @media (max-width: 639px) {
   .cafe-receive__date { grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; }
-  .cafe-receive__counted-lines li { grid-template-columns: minmax(0, 1fr); }
+  .cafe-receive__counted-lines > li { grid-template-columns: minmax(0, 1fr); }
   /* The job is the page itself on a phone; the help line returns at wider widths. */
   .cafe-receive__help { display: none; }
   .cafe-receive__date { margin-bottom: 12px; }

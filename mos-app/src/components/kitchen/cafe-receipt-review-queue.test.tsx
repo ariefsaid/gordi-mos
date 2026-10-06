@@ -27,7 +27,7 @@ function receipt(id: string, receivedBy: string, overrides: Partial<CafeReceipt>
     review_note: null, row_version: 2,
     lines: [{
       id: `${id}-l1`, item_unit_id: 'unit-kg', item_name: 'Coffee bean', item_category: 'Bar', unit_name: 'kg', received_quantity: '2.5',
-      conditions: [], condition_reason: null, photos: [],
+      conditions: [], condition_reason: null, condition_updated_at: null, photos: [],
     }],
     ...overrides,
   }
@@ -67,7 +67,7 @@ describe('CafeReceiptReviewQueue', () => {
     vi.mocked(listCafeReceipts).mockResolvedValue([receipt('r-evidence', 'receiver', {
       lines: [{
         id: 'line-evidence', item_unit_id: 'unit-l', item_name: 'Fresh milk', item_category: 'Dairy', unit_name: 'l', received_quantity: '11',
-        conditions: ['damaged_wrong'], condition_reason: 'Seal broken on arrival',
+        conditions: ['damaged_wrong'], condition_reason: 'Seal broken on arrival', condition_updated_at: null,
         photos: [{ lineId: 'line-evidence', path: 'org/receipt/line/photo.jpg', url: 'https://private.test/photo' }],
       }],
     })])
@@ -84,7 +84,7 @@ describe('CafeReceiptReviewQueue', () => {
       photosUnavailable: true,
       lines: [{
         id: 'line-evidence', item_unit_id: 'unit-l', item_name: 'Fresh milk', item_category: 'Dairy', unit_name: 'l', received_quantity: '11',
-        conditions: ['damaged_wrong'], condition_reason: 'Seal broken on arrival', photos: [],
+        conditions: ['damaged_wrong'], condition_reason: 'Seal broken on arrival', condition_updated_at: null, photos: [],
       }],
     })])
     renderQueue()
@@ -195,7 +195,7 @@ describe('CafeReceiptReviewQueue', () => {
       expect(within(row).getByText('Counted, not sent · locked 2h ago')).toBeInTheDocument()
       expect(within(row).queryByRole('button', { name: 'Approve' })).toBeNull()
       expect(within(row).queryByRole('button', { name: 'Reject' })).toBeNull()
-      expect(vi.mocked(listCafeReceipts)).toHaveBeenCalledWith(['Submitted', 'Counted'])
+      expect(vi.mocked(listCafeReceipts)).toHaveBeenCalledWith(['Submitted', 'Counted'], { photosFor: ['Submitted'] })
     } finally {
       vi.useRealTimers()
     }

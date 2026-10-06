@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { supabase } from '@/lib/supabase'
-import { listCafeReceiptPhotos } from './cafe-receipt-photos'
+import { listCafeReceiptPhotos, signCafeReceiptPhotos } from './cafe-receipt-photos'
 import type { ProductionStream } from './kitchen-logs.types'
 import {
   cafeReceiptArrivalDateBounds,
@@ -19,7 +19,11 @@ import {
 } from './cafe-receipts'
 
 vi.mock('@/lib/supabase', () => ({ supabase: { schema: vi.fn() } }))
-vi.mock('./cafe-receipt-photos', () => ({ CAFE_RECEIPT_PHOTO_READ_LIMIT: 50, listCafeReceiptPhotos: vi.fn().mockResolvedValue([]) }))
+vi.mock('./cafe-receipt-photos', () => ({
+  CAFE_RECEIPT_PHOTO_READ_LIMIT: 50,
+  listCafeReceiptPhotos: vi.fn().mockResolvedValue(new Map()),
+  signCafeReceiptPhotos: vi.fn(async (records: Array<Record<string, unknown>>) => records.map(record => ({ ...record, url: `https://private.test/${String(record.path)}` }))),
+}))
 
 const schemaMock = vi.mocked(supabase.schema)
 const STREAM: ProductionStream = {
@@ -62,8 +66,8 @@ describe('Café receipt adapter', () => {
     const rpc = vi.fn().mockResolvedValue({ data: {
       receipt_id: 'r-1', outcome: 'created', row_version: 1,
       lines: [{
-        id: 'line-1', item_name: 'Bean', item_category: 'Bar', unit_name: 'kg', received_quantity: '2.5',
-        conditions: ['damaged_wrong'], condition_reason: null,
+        id: 'line-1', item_unit_id: 'kg', item_name: 'Bean', item_category: 'Bar', unit_name: 'kg', received_quantity: '2.5',
+        conditions: ['damaged_wrong'], condition_reason: null, condition_updated_at: '2026-10-06T02:00:00Z',
       }],
     }, error: null })
     schemaMock.mockReturnValue({ rpc } as never)
@@ -73,8 +77,8 @@ describe('Café receipt adapter', () => {
       .toEqual({
         receipt_id: 'r-1', outcome: 'created', row_version: 1,
         lines: [{
-          id: 'line-1', item_name: 'Bean', item_category: 'Bar', unit_name: 'kg', received_quantity: '2.5',
-          conditions: ['damaged_wrong'], condition_reason: null, photos: [],
+          id: 'line-1', item_unit_id: 'kg', item_name: 'Bean', item_category: 'Bar', unit_name: 'kg', received_quantity: '2.5',
+          conditions: ['damaged_wrong'], condition_reason: null, condition_updated_at: '2026-10-06T02:00:00Z', photos: [],
         }],
       })
     expect(rpc).toHaveBeenCalledWith('submit_cafe_receipt', {
@@ -115,20 +119,41 @@ describe('Café receipt adapter', () => {
     for (const method of ['select', 'in', 'eq', 'order', 'limit']) query[method] = vi.fn(() => query)
     query.then = (resolve: (value: unknown) => unknown) => Promise.resolve({ data: rows, error: null }).then(resolve)
     schemaMock.mockReturnValue({ from: vi.fn(() => query) } as never)
-    const photo = { lineId: 'l-0', path: 'org/r-0/l-0/p.jpg', url: 'https://private.test/p' }
     vi.mocked(listCafeReceiptPhotos)
-      .mockResolvedValueOnce([photo])
-      .mockRejectedValueOnce(new Error('listCafeReceiptPhotos failed: 414'))
-      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce(new Map([['r-0', [{ lineId: 'l-0', path: 'org/r-0/l-0/p.jpg', createdAt: 't' }]]]))
+      .mockRejectedValueOnce(new Error('listCafeReceiptPhotos failed: statement timeout'))
+      .mockResolvedValueOnce(new Map())
 
     const receipts = await listCafeReceipts(['Counted'], { limit: 120 })
 
     expect(vi.mocked(listCafeReceiptPhotos).mock.calls.map(([ids]) => ids.length)).toEqual([50, 50, 20])
     expect(vi.mocked(listCafeReceiptPhotos).mock.calls[1][0][0]).toBe('r-50')
     expect(receipts).toHaveLength(120)
-    expect(receipts[0]).toMatchObject({ photosUnavailable: false, lines: [{ photos: [photo] }] })
+    expect(receipts[0]).toMatchObject({ photosUnavailable: false, lines: [{ photos: [{ path: 'org/r-0/l-0/p.jpg', url: 'https://private.test/org/r-0/l-0/p.jpg' }] }] })
     expect(receipts.filter(receipt => receipt.photosUnavailable).map(receipt => receipt.id))
       .toEqual(rows.slice(50, 100).map(row => row.id))
+  })
+
+  it('FR-1018 reads and signs photos only for the asked statuses, and only those on the receipt’s own lines', async () => {
+    const line = (id: string) => ({ id, item_name: 'Milk', item_category: null, unit_name: 'l', received_quantity: 1, conditions: [], condition_reason: null })
+    const rows = [
+      { id: 'r-sub', activity: 'kitchen', status: 'Submitted', posting_status: 'not_posted', lines: [line('l-sub')] },
+      { id: 'r-cnt', activity: 'kitchen', status: 'Counted', posting_status: 'not_posted', lines: [line('l-cnt')] },
+    ]
+    const query: Record<string, unknown> = {}
+    for (const method of ['select', 'in', 'eq', 'order', 'limit']) query[method] = vi.fn(() => query)
+    query.then = (resolve: (value: unknown) => unknown) => Promise.resolve({ data: rows, error: null }).then(resolve)
+    schemaMock.mockReturnValue({ from: vi.fn(() => query) } as never)
+    vi.mocked(listCafeReceiptPhotos).mockResolvedValueOnce(new Map([['r-sub', [
+      { lineId: 'l-sub', path: 'org/r-sub/l-sub/a.jpg', createdAt: 't' },
+      { lineId: 'l-elsewhere', path: 'org/r-sub/l-elsewhere/b.jpg', createdAt: 't' },
+    ]]]))
+
+    const receipts = await listCafeReceipts(['Submitted', 'Counted'], { photosFor: ['Submitted'] })
+
+    expect(vi.mocked(listCafeReceiptPhotos)).toHaveBeenCalledWith(['r-sub'])
+    expect(vi.mocked(signCafeReceiptPhotos)).toHaveBeenCalledWith([{ lineId: 'l-sub', path: 'org/r-sub/l-sub/a.jpg', createdAt: 't' }])
+    expect(receipts.map(receipt => receipt.lines[0].photos.length)).toEqual([1, 0])
   })
 
   it('AC-1011 explanation writer passes only a line id, damage flag and trimmed reason', async () => {
@@ -138,7 +163,7 @@ describe('Café receipt adapter', () => {
     schemaMock.mockReturnValue({ rpc } as never)
 
     await expect(saveCafeReceiptLineExplanation('line-1', true, '  Seal torn  ')).resolves.toEqual({
-      conditions: ['damaged_wrong'], condition_reason: 'Seal torn',
+      conditions: ['damaged_wrong'], condition_reason: 'Seal torn', condition_updated_at: 'now',
     })
     expect(rpc).toHaveBeenCalledWith('set_cafe_receipt_line_explanation', {
       p_line_id: 'line-1', p_damaged_wrong: true, p_reason: 'Seal torn',

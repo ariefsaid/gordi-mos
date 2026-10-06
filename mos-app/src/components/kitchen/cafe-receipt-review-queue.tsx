@@ -56,7 +56,7 @@ export function CafeReceiptReviewQueue({
     setLoadError(false)
     // Counted receipts that are not sent yet are listed too, with their age, so an unsent lock is
     // visible; only Submitted ones can be decided.
-    void Promise.all([listCafeReceipts(['Submitted', 'Counted']), getPeople()]).then(([nextRows, people]) => {
+    void Promise.all([listCafeReceipts(['Submitted', 'Counted'], { photosFor: ['Submitted'] }), getPeople()]).then(([nextRows, people]) => {
       if (!active) return
       setRows(nextRows)
       setNames(new Map(people.map(person => [person.id, person.full_name])))

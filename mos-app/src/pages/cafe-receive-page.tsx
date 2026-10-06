@@ -17,7 +17,9 @@ import { canCaptureCafe } from '@/lib/cafe-affiliation'
 import { canReviewCafe } from '@/lib/kitchen-gates'
 import {
   explanationDiffers,
+  pruneCafeReceiptExplanationDrafts,
   readCafeReceiptExplanationDrafts,
+  sameServerStamp,
   writeCafeReceiptExplanationDrafts,
   type CafeReceiptExplanation,
 } from '@/lib/cafe-receipt-explanation-draft'
@@ -63,18 +65,20 @@ type Counted = {
   rowVersion: number
   lines: CafeReceiptLine[]
   /** Each line's explanation as the server holds it, so Send saves exactly the lines that differ. */
-  server: Record<string, CafeReceiptExplanation>
+  server: Record<string, ServerExplanation>
   photosUnavailable: boolean
 }
 
+type ServerExplanation = CafeReceiptExplanation & { condition_updated_at: string | null }
+
 const explanationOf = ({ conditions, condition_reason }: CafeReceiptExplanation): CafeReceiptExplanation => ({ conditions, condition_reason })
 
-/** Send's refusal names the line by item: `CAFE_RECEIPT_<WHAT>_REQUIRED: <item name>`. */
-function sendRefusal(message: string): { item: string; missing: EvidenceValidation } | null {
-  const match = /CAFE_RECEIPT_(REASON_AND_PHOTO|REASON|PHOTO)_REQUIRED: (.+)$/.exec(message)
+/** Send's refusal names the line: `CAFE_RECEIPT_<WHAT>_REQUIRED: line <id>: <item name>`. */
+function sendRefusal(message: string): { lineId: string | null; missing: EvidenceValidation } | null {
+  const match = /CAFE_RECEIPT_(REASON_AND_PHOTO|REASON|PHOTO)_REQUIRED(?:: line ([0-9a-f-]{36}))?/.exec(message)
   if (!match) return null
   const missing = match[1] === 'REASON_AND_PHOTO' ? 'both' : match[1] === 'REASON' ? 'reason' : 'photo'
-  return { item: match[2].trim(), missing }
+  return { lineId: match[2] ?? null, missing }
 }
 
 function blankEntries(items: readonly CafeReceivableItem[]): Record<string, Entry> {
@@ -177,21 +181,26 @@ export function CafeReceivePage() {
 
   const loadRecent = useCallback(() => {
     if (!viewerId || !canCapture) return
-    void listCafeReceipts(['Counted', 'Submitted', 'Approved', 'Rejected'], { receivedBy: viewerId, limit: 10 })
-      .then(setRecent)
+    // Only a Counted receipt's photos show here (after Continue), so only those are read and signed.
+    void listCafeReceipts(['Counted', 'Submitted', 'Approved', 'Rejected'], { receivedBy: viewerId, limit: 10, photosFor: ['Counted'] })
+      .then(receipts => {
+        setRecent(receipts)
+        pruneCafeReceiptExplanationDrafts(viewerId, receipts)
+      })
       .catch(() => setRecent([]))
   }, [canCapture, viewerId])
   useEffect(loadRecent, [loadRecent])
   const countedReceiptId = counted?.receiptId ?? null
-  // The lock step closes with its opener gone, so focus lands on the result instead of the page body.
-  useEffect(() => { if (countedReceiptId) countedHeadingRef.current?.focus() }, [countedReceiptId])
+  // The lock step closes with its opener gone, and Send replaces its own button, so focus lands on
+  // the result heading instead of the page body.
+  useEffect(() => { if (countedReceiptId) countedHeadingRef.current?.focus() }, [countedReceiptId, sent])
 
   // FR-1010: an explanation changed but not saved stays on this device until it is saved or sent.
   useEffect(() => {
     if (!counted || !viewerId) return
     const unsaved = sent ? {} : Object.fromEntries(counted.lines
       .filter(line => explanationDiffers(line, counted.server[line.id]))
-      .map(line => [line.id, explanationOf(line)]))
+      .map(line => [line.id, { ...explanationOf(line), serverUpdatedAt: counted.server[line.id]?.condition_updated_at ?? null }]))
     writeCafeReceiptExplanationDrafts(viewerId, counted.receiptId, unsaved)
   }, [counted, sent, viewerId])
 
@@ -250,14 +259,20 @@ export function CafeReceivePage() {
     if (canSwitch) setStream(next)
   }, [canSwitch, setStream])
 
-  /** Open a Counted receipt, with this person's unsaved explanations from this device laid over the server's. */
+  /**
+   * Open a Counted receipt, with this person's unsaved explanations from this device laid over the
+   * server's. A draft started from an older server value is dropped: the later save wins.
+   */
   function openCounted(receiptId: string, rowVersion: number, lines: CafeReceiptLine[], photosUnavailable = false) {
     const drafts = viewerId ? readCafeReceiptExplanationDrafts(viewerId, receiptId) : {}
     setCounted({
       receiptId,
       rowVersion,
-      lines: lines.map(line => drafts[line.id] ? { ...line, ...drafts[line.id] } : line),
-      server: Object.fromEntries(lines.map(line => [line.id, explanationOf(line)])),
+      lines: lines.map(line => {
+        const draft = drafts[line.id]
+        return draft && sameServerStamp(draft.serverUpdatedAt, line.condition_updated_at) ? { ...line, ...explanationOf(draft) } : line
+      }),
+      server: Object.fromEntries(lines.map(line => [line.id, { ...explanationOf(line), condition_updated_at: line.condition_updated_at }])),
       photosUnavailable,
     })
     setEvidenceValidation({})
@@ -277,7 +292,7 @@ export function CafeReceivePage() {
     setError(null)
   }
 
-  function markSaved(saved: Record<string, CafeReceiptExplanation>) {
+  function markSaved(saved: Record<string, ServerExplanation>) {
     setCounted(current => current ? {
       ...current,
       lines: current.lines.map(line => saved[line.id] ? { ...line, ...saved[line.id] } : line),
@@ -325,7 +340,7 @@ export function CafeReceivePage() {
 
     setBusy(true)
     setError(null)
-    const saved: Record<string, CafeReceiptExplanation> = {}
+    const saved: Record<string, ServerExplanation> = {}
     try {
       // Every line whose flag or reason differs from the server is saved first, an unflagged one included.
       for (const line of target.lines) {
@@ -338,7 +353,7 @@ export function CafeReceivePage() {
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : ''
       const refusal = sendRefusal(message)
-      const refusedLine = refusal && target.lines.find(line => line.item_name.trim() === refusal.item)
+      const refusedLine = refusal && target.lines.find(line => line.id === refusal.lineId)
       if (refusal && refusedLine) setEvidenceValidation({ [refusedLine.id]: refusal.missing })
       else setError(refusal ? 'cafe.receive.error.evidence' : 'cafe.receive.error.send')
     } finally {
@@ -424,6 +439,7 @@ export function CafeReceivePage() {
                     <CafeReceiptLineCondition
                       line={line}
                       dirty={explanationDiffers(line, counted.server[line.id])}
+                      photosUnavailable={counted.photosUnavailable}
                       disabled={busy}
                       validation={evidenceValidation[line.id]}
                       focusError={line.id === firstEvidenceErrorId}

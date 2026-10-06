@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase'
-import { CAFE_RECEIPT_PHOTO_READ_LIMIT, listCafeReceiptPhotos, type CafeReceiptPhoto } from './cafe-receipt-photos'
+import { CAFE_RECEIPT_PHOTO_READ_LIMIT, listCafeReceiptPhotos, signCafeReceiptPhotos, type CafeReceiptPhoto } from './cafe-receipt-photos'
 import { normalizeCafeCountQuantity, newCafeCountClientKey } from './cafe-count'
 import type { ProductionActivity, ProductionStream } from './kitchen-logs.types'
 
@@ -37,6 +37,8 @@ export type CafeReceiptLine = {
   received_quantity: string
   conditions: CafeReceiptCondition[]
   condition_reason: string | null
+  /** When the server last changed the condition or reason; null before any explanation. */
+  condition_updated_at: string | null
   photos: CafeReceiptPhoto[]
 }
 
@@ -86,7 +88,7 @@ const RECEIPT_FIELDS = [
   'id', 'branch_id', 'activity', 'arrival_date', 'delivery_note_number', 'status', 'posting_status',
   'posting_hold_reason', 'received_by', 'received_at', 'submitted_at', 'reviewed_by', 'reviewed_at',
   'review_note', 'row_version',
-  'lines:cafe_receipt_lines(id, item_unit_id, item_name, item_category, unit_name, received_quantity, conditions, condition_reason)',
+  'lines:cafe_receipt_lines(id, item_unit_id, item_name, item_category, unit_name, received_quantity, conditions, condition_reason, condition_updated_at)',
   'posting:cafe_receipt_posting',
 ].join(', ')
 
@@ -141,7 +143,12 @@ export async function listCafeReceivableItems(stream: ProductionStream): Promise
 /** Receipts the viewer may read, newest first; RLS returns their own and the streams they review. */
 export async function listCafeReceipts(
   statuses: readonly CafeReceiptStatus[],
-  { receivedBy, limit = 50 }: { receivedBy?: string; limit?: number } = {},
+  { receivedBy, limit = 50, photosFor = statuses }: {
+    receivedBy?: string
+    limit?: number
+    /** Statuses whose photos are read and signed; a surface asks only for the photos it shows. */
+    photosFor?: readonly CafeReceiptStatus[]
+  } = {},
 ): Promise<CafeReceipt[]> {
   let query = ops()
     .from('cafe_receipts')
@@ -167,15 +174,27 @@ export async function listCafeReceipts(
   })
   const photosByLine = new Map<string, CafeReceiptPhoto[]>()
   const unavailable = new Set<string>()
-  const chunks: string[][] = []
-  for (let start = 0; start < receipts.length; start += CAFE_RECEIPT_PHOTO_READ_LIMIT) {
-    chunks.push(receipts.slice(start, start + CAFE_RECEIPT_PHOTO_READ_LIMIT).map(receipt => receipt.id))
+  const withPhotos = receipts.filter(receipt => photosFor.includes(receipt.status))
+  const chunks: CafeReceipt[][] = []
+  for (let start = 0; start < withPhotos.length; start += CAFE_RECEIPT_PHOTO_READ_LIMIT) {
+    chunks.push(withPhotos.slice(start, start + CAFE_RECEIPT_PHOTO_READ_LIMIT))
   }
   // A failed photo read leaves its receipts listed and says so, rather than failing the whole list.
-  await Promise.all(chunks.map(ids => listCafeReceiptPhotos(ids).then(
-    photos => { for (const photo of photos) photosByLine.set(photo.lineId, [...(photosByLine.get(photo.lineId) ?? []), photo]) },
-    () => { for (const id of ids) unavailable.add(id) },
-  )))
+  await Promise.all(chunks.map(async chunk => {
+    try {
+      const records = await listCafeReceiptPhotos(chunk.map(receipt => receipt.id))
+      // Only photos on the receipt's own lines are shown, so only those are signed.
+      const shown = chunk.flatMap(receipt => {
+        const lineIds = new Set(receipt.lines.map(line => line.id))
+        return (records.get(receipt.id) ?? []).filter(record => lineIds.has(record.lineId))
+      })
+      for (const photo of await signCafeReceiptPhotos(shown)) {
+        photosByLine.set(photo.lineId, [...(photosByLine.get(photo.lineId) ?? []), photo])
+      }
+    } catch {
+      for (const receipt of chunk) unavailable.add(receipt.id)
+    }
+  }))
   return receipts.map(receipt => ({
     ...receipt,
     photosUnavailable: unavailable.has(receipt.id),
@@ -198,6 +217,7 @@ function parseCafeReceiptLine(line: Record<string, unknown>): CafeReceiptLine {
     received_quantity: String(line.received_quantity),
     conditions: line.conditions as CafeReceiptCondition[],
     condition_reason: line.condition_reason as string | null,
+    condition_updated_at: typeof line.condition_updated_at === 'string' ? line.condition_updated_at : null,
     photos: [],
   }
 }
@@ -235,7 +255,7 @@ export async function saveCafeReceiptLineExplanation(
   lineId: string,
   damagedWrong: boolean,
   reason: string,
-): Promise<{ conditions: CafeReceiptCondition[]; condition_reason: string | null }> {
+): Promise<{ conditions: CafeReceiptCondition[]; condition_reason: string | null; condition_updated_at: string | null }> {
   const { data, error } = await ops().rpc('set_cafe_receipt_line_explanation', {
     p_line_id: lineId,
     p_damaged_wrong: damagedWrong,
@@ -247,7 +267,11 @@ export async function saveCafeReceiptLineExplanation(
     || (row.condition_reason !== null && typeof row.condition_reason !== 'string')) {
     throw new Error('saveCafeReceiptLineExplanation failed: invalid response')
   }
-  return { conditions: row.conditions as CafeReceiptCondition[], condition_reason: row.condition_reason as string | null }
+  return {
+    conditions: row.conditions as CafeReceiptCondition[],
+    condition_reason: row.condition_reason as string | null,
+    condition_updated_at: typeof row.condition_updated_at === 'string' ? row.condition_updated_at : null,
+  }
 }
 
 export async function sendCafeReceiptForReview(
