@@ -113,6 +113,11 @@
 }
 
 .cafe-count__quantity-control {
+  display: grid;
+  /* A fixed unit column keeps every field the same width whatever the ESB unit is called. */
+  grid-template-columns: var(--cafe-capture-quantity-width, 7.5rem) 110px;
+  align-items: center;
+  gap: 10px;
   width: max-content;
 }
 
@@ -144,6 +149,13 @@
   font-size: var(--font-size-label);
   line-height: 1.2;
 }
+.cafe-count__quantity-control .cafe-count__unit {
+  min-width: 0;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
+}
 
 .cafe-count__field-error,
 .cafe-count__line-success {
@@ -166,18 +178,8 @@
   }
 
   .cafe-count__quantity-control {
-    display: grid;
-    grid-template-columns: var(--cafe-capture-quantity-width, 7.5rem) var(--cafe-capture-unit-track-width, 17rem);
-    align-items: center;
-    gap: 8px;
     width: var(--cafe-capture-control-group-width, 25rem);
     max-width: 100%;
-  }
-  .cafe-count__unit {
-    white-space: nowrap;
-    overflow: visible;
-    overflow-wrap: normal;
-    text-overflow: clip;
   }
 
   .cafe-count__field-error,

@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsDesktop } from '@/shell/use-is-desktop'
@@ -39,6 +38,7 @@ import { WastePhotoCapture } from '@/components/kitchen/waste-photo-capture'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
 import { Select } from '@/components/ui/select'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
+import { CafeItemsEmptyState } from '@/components/kitchen/cafe-items-empty-state'
 import { RouteLeaveGuard } from '@/shell/route-leave-guard'
 import './kitchen-log-page.css'
 import './cafe-waste-page.css'
@@ -160,6 +160,7 @@ export function CafeWastePage() {
   const [loadRetry, setLoadRetry] = useState(0)
   const [catalogReady, setCatalogReady] = useState(false)
   const [items, setItems] = useState<CafeLogItem[]>([])
+  const [esbItemCount, setEsbItemCount] = useState(0)
   const [businessUnitId, setBusinessUnitId] = useState('')
   const [entries, setEntries] = useState<Record<string, WasteEntry>>({})
   const [resumableDrafts, setResumableDrafts] = useState<KitchenWasteDraft[]>([])
@@ -237,6 +238,7 @@ export function CafeWastePage() {
         return item ? [item] : []
       })
       setItems(nextItems)
+      setEsbItemCount(settings.length)
       setEntries(initialEntries(nextItems))
       const offeredItemIds = new Set(nextItems.map(item => item.id))
       setResumableDrafts(drafts.filter(draft => offeredItemIds.has(draft.itemId)))
@@ -680,11 +682,7 @@ export function CafeWastePage() {
             )}
 
             {items.length === 0 ? (
-              <EmptyState variant="blank" title={t('kitchen.waste.empty.title')} copy={t('kitchen.waste.empty.copy')}>
-                <Link to="/cafe/items" className="btn btn-outline btn-touch">
-                  {t('kitchen.log.missing.destination')}
-                </Link>
-              </EmptyState>
+              <CafeItemsEmptyState stream={stream} esbItemCount={esbItemCount} />
             ) : (
               <>
                 <KitchenToolbar
@@ -825,6 +823,8 @@ function WasteItemControls({
   const invalid = isInvalidQuantity(current.quantity)
   const quantity = quantityValue(current.quantity)
   const editable = canCapture && isOnline && !disabled && !locked
+  const needsQuantity = editable && quantity === null
+  const photoHintId = `cafe-waste-photo-hint-${item.id}`
 
   return (
     <div className="cwl-controls">
@@ -888,12 +888,15 @@ function WasteItemControls({
         <button
           type="button"
           className="btn btn-outline cwl-add-photo cafe-capture-action"
-          aria-describedby="cafe-waste-photo-guidance"
+          aria-describedby={needsQuantity ? `cafe-waste-photo-guidance ${photoHintId}` : 'cafe-waste-photo-guidance'}
           disabled={!canCapture || !isOnline || disabled || current.preparing || Boolean(current.logId) || quantity === null}
           onClick={onPrepare}
         >
           {current.preparing ? t('common.working') : t('kitchen.waste.addPhoto')}
         </button>
+      )}
+      {needsQuantity && (
+        <p id={photoHintId} className="cwl-photo-hint">{t('kitchen.waste.quantityBeforePhoto')}</p>
       )}
     </div>
   )

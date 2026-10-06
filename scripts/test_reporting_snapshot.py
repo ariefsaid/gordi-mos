@@ -1,12 +1,22 @@
-from contextlib import contextmanager
+from contextlib import contextmanager, redirect_stdout
+from datetime import datetime, timezone
+import io
 import sys
 import types
 import unittest
+from unittest import mock
 
 from reporting_snapshot import (
     DEFAULT_MARGIN_SOURCE_CONTRACT_VERSION,
+    DEFAULT_PENDING_BILLS_SOURCE_CONTRACT_VERSION,
     REQUIRED_ENV,
     SnapshotConfig,
+    main,
+    normalize_pending_bill,
+    plan_bill_flags,
+    run_all_snapshots,
+    run_pending_bill_snapshot,
+    void_bill_keys,
     build_margin_source_query,
     build_margin_upsert_sql,
     build_source_query,
@@ -338,7 +348,7 @@ class _RecordingConnection:
 
 
 @contextmanager
-def _observed_run(source_rows):
+def _observed_run(source_rows, reporting_rows=()):
     """Stand in for psycopg for the duration of a run, and hand back the connections it opened.
 
     reporting_snapshot imports psycopg inside its run functions, so substituting the module in
@@ -348,7 +358,8 @@ def _observed_run(source_rows):
     connections = []
 
     def connect(dsn, **_kwargs):
-        connection = _RecordingConnection(dsn, source_rows)
+        rows = reporting_rows if dsn == REPORTING_DSN else source_rows
+        connection = _RecordingConnection(dsn, rows)
         connections.append(connection)
         return connection
 
@@ -457,6 +468,260 @@ class OrgScopedRunTests(unittest.TestCase):
                 calls = run(org)
                 self._assert_declares_then_writes(calls, org)
                 self.assertNotIn(other, repr(calls))
+
+
+# ── pending bills (#1464) ─────────────────────────────────────────────────────────────────────
+
+def _bill(bill_num, *, tender="PENDING BILL", status="Paid", total="250000.00", **extra):
+    row = {
+        "sales_num": f"S-{bill_num}",
+        "bill_num": bill_num,
+        "sales_date": "2026-09-01",
+        "esb_code": "GKI",
+        "branch_code": "RRS",
+        "branch_name": "Rumah Rames",
+        "counterparty_note": "  table 4, office order  ",
+        "grand_total": total,
+        "status_name": status,
+        "payment_method_name": tender,
+    }
+    row.update(extra)
+    return row
+
+
+def _normalise_all(rows, snapshot_as_of="2026-10-06T19:05:00+00:00"):
+    out = []
+    for row in rows:
+        bill = normalize_pending_bill(
+            row,
+            snapshot_as_of=snapshot_as_of,
+            org_id=ORG_A,
+            source_contract_version=DEFAULT_PENDING_BILLS_SOURCE_CONTRACT_VERSION,
+        )
+        if bill is not None:
+            out.append(bill)
+    return out
+
+
+def _keys(bills):
+    return [(b["esb_code"], b["branch_code"], b["bill_no"]) for b in bills]
+
+
+PENDING_SOURCE_ROWS = [
+    _bill("B-001"),
+    _bill("B-002", tender=" pending  bill "),
+    _bill("B-003", tender="CASH"),
+    _bill("B-004", status="Void"),
+    _bill("B-005", tender="QRIS"),
+]
+
+
+class PendingBillNormaliserTests(unittest.TestCase):
+    def test_ac1101_only_non_void_deferred_payment_bills_come_out(self):
+        """AC-1101: Given till rows of every tender and status, when they are normalised, then only
+        the non-void deferred-payment bills come out."""
+        self.assertEqual(
+            _keys(_normalise_all(PENDING_SOURCE_ROWS)),
+            [("GKI", "RRS", "B-001"), ("GKI", "RRS", "B-002")],
+        )
+
+    def test_ac1101_rerun_yields_the_same_keys(self):
+        """AC-1101: Given the same bills on a later night — new snapshot time, a re-numbered sale,
+        an edited note and a corrected total — when normalised again, then the keys are the till's
+        own bill identity and unchanged, so the re-run upserts the rows it wrote, never new ones."""
+        tonight = _normalise_all(PENDING_SOURCE_ROWS)
+        later = [
+            dict(r, sales_num=f"S2-{r['bill_num']}", counterparty_note="edited", grand_total="999.00")
+            for r in PENDING_SOURCE_ROWS
+        ]
+        tomorrow = _normalise_all(later, snapshot_as_of="2026-10-07T19:05:00+00:00")
+        expected = [("GKI", "RRS", "B-001"), ("GKI", "RRS", "B-002")]
+        self.assertEqual(_keys(tonight), expected)
+        self.assertEqual(_keys(tomorrow), expected)
+
+    def test_note_is_kept_as_given_and_branch_falls_back_to_esb_code(self):
+        """Given a bill with a blank branch code and a padded note, when normalised, then the note
+        is only stripped and the branch key is the ESB code."""
+        bill = _normalise_all([_bill("B-010", branch_code="  ", counterparty_note="  Ibu A, 2 box  ")])[0]
+        self.assertEqual(bill["branch_code"], "GKI")
+        self.assertEqual(bill["counterparty_note"], "Ibu A, 2 box")
+        self.assertEqual(bill["amount"], "250000.00")
+        self.assertEqual(bill["bill_date"], "2026-09-01")
+        self.assertEqual(bill["sales_no"], "S-B-010")
+
+    def test_empty_note_is_none(self):
+        bill = _normalise_all([_bill("B-011", counterparty_note="   ")])[0]
+        self.assertIsNone(bill["counterparty_note"])
+
+    def test_void_keys_are_the_deferred_tender_void_rows_only(self):
+        """Given rows with void bills of several tenders, then only the deferred-payment ones are
+        void keys — a voided cash sale was never a pending bill."""
+        rows = PENDING_SOURCE_ROWS + [_bill("B-006", tender="CASH", status="Void")]
+        self.assertEqual(void_bill_keys(rows), {("GKI", "RRS", "B-004")})
+
+
+class PendingBillNonPositiveTests(unittest.TestCase):
+    def test_zero_and_negative_totals_are_dropped_by_the_normaliser(self):
+        """Given deferred-payment bills totalling zero or less, when normalised, then they are
+        dropped — they owe nothing, or are refunds the copy does not model."""
+        self.assertEqual(_normalise_all([_bill("B-020", total="0"), _bill("B-021", total="-5000.00")]), [])
+
+    def test_run_counts_the_skipped_bills_and_writes_the_rest(self):
+        """Given a run whose source holds one zero and one negative deferred bill, then the run
+        writes the payable bills and reports the two it skipped instead of failing."""
+        rows = [dict(r) for r in PENDING_SOURCE_ROWS] + [_bill("B-020", total="0"), _bill("B-021", total="-5000")]
+        config = SnapshotConfig(warehouse_db_url=WAREHOUSE_DSN, supabase_reporting_db_url=REPORTING_DSN, org_id=ORG_A)
+        with _observed_run(rows):
+            written, skipped = run_pending_bill_snapshot(config, datetime(2026, 10, 6, 19, 5, tzinfo=timezone.utc))
+        self.assertEqual((written, skipped), (2, 2))
+
+    def test_end_line_prints_the_skipped_count(self):
+        env = {
+            "WAREHOUSE_DB_URL": WAREHOUSE_DSN,
+            "SUPABASE_REPORTING_DB_URL": REPORTING_DSN,
+            "REPORTING_ORG_ID": ORG_A,
+            "REPORTING_PENDING_BILLS": "1",
+        }
+        rows = [_bill("B-020", total="0")]
+        with _observed_run(rows), mock.patch.dict("os.environ", env, clear=True), \
+                mock.patch("reporting_snapshot.normalize_row", return_value={}), \
+                mock.patch("reporting_snapshot.normalize_margin_row", return_value={}), \
+                mock.patch("reporting_snapshot.normalize_usage_row", return_value={}):
+            out = io.StringIO()
+            with redirect_stdout(out):
+                main()
+        self.assertIn("usage=1 pending_bills=0 pending_bills_skipped=1", out.getvalue())
+
+
+class PendingBillFlagTests(unittest.TestCase):
+    def test_ac1102_a_bill_that_disappears_is_flagged_missing(self):
+        """AC-1102: Given a present bill that is absent from tonight's run, then it is flagged
+        missing."""
+        plan = plan_bill_flags(
+            existing_present_keys={("GKI", "RRS", "B-001"), ("GKI", "RRS", "B-009")},
+            run_keys={("GKI", "RRS", "B-001")},
+            void_keys=set(),
+        )
+        self.assertEqual(plan, {"void": [], "missing": [("GKI", "RRS", "B-009")]})
+
+    def test_ac1102_a_bill_that_turns_void_is_flagged_void(self):
+        """AC-1102: Given a present bill that the source now reports void, then it is flagged void,
+        not missing."""
+        plan = plan_bill_flags(
+            existing_present_keys={("GKI", "RRS", "B-001"), ("GKI", "RRS", "B-004")},
+            run_keys={("GKI", "RRS", "B-001")},
+            void_keys={("GKI", "RRS", "B-004")},
+        )
+        self.assertEqual(plan, {"void": [("GKI", "RRS", "B-004")], "missing": []})
+
+    def test_a_bill_flagged_missing_that_returns_void_becomes_void(self):
+        """Given a bill already flagged missing that the source now reports void, then it is
+        flagged void; a missing bill that stays absent is left as it is."""
+        plan = plan_bill_flags(
+            existing_present_keys=set(),
+            run_keys=set(),
+            void_keys={("GKI", "RRS", "B-004")},
+            existing_missing_keys={("GKI", "RRS", "B-004"), ("GKI", "RRS", "B-009")},
+        )
+        self.assertEqual(plan, {"void": [("GKI", "RRS", "B-004")], "missing": []})
+
+    def test_ac1102_a_void_bill_never_seen_before_flags_nothing(self):
+        plan = plan_bill_flags(
+            existing_present_keys=set(), run_keys=set(), void_keys={("GKI", "RRS", "B-004")}
+        )
+        self.assertEqual(plan, {"void": [], "missing": []})
+
+
+class PendingBillRunTests(unittest.TestCase):
+    def _config(self, **overrides):
+        return SnapshotConfig(
+            warehouse_db_url=WAREHOUSE_DSN,
+            supabase_reporting_db_url=REPORTING_DSN,
+            org_id=ORG_A,
+            **overrides,
+        )
+
+    def _run(self, existing_present):
+        snapshot = datetime(2026, 10, 6, 19, 5, tzinfo=timezone.utc)
+        with _observed_run([dict(r) for r in PENDING_SOURCE_ROWS], existing_present) as connections:
+            count, _skipped = run_pending_bill_snapshot(self._config(), snapshot)
+        reporting = [c for c in connections if c.dsn == REPORTING_DSN]
+        self.assertEqual(len(reporting), 1, "one reporting connection, one transaction")
+        return count, reporting[0].calls
+
+    def test_ac1102_run_flags_and_never_deletes(self):
+        """AC-1102: Given yesterday's copy holds a bill that is now void and one that is gone, when
+        the run writes, then it flags both with UPDATE and issues no DELETE."""
+        count, calls = self._run(
+            [("GKI", "RRS", "B-001", "present"), ("GKI", "RRS", "B-004", "missing"),
+             ("GKI", "RRS", "B-009", "present")]
+        )
+        self.assertEqual(count, 2)
+        statements = " ".join(sql.lower() for _k, sql, _p in calls if sql)
+        self.assertNotIn("delete", statements)
+        flags = {
+            (p["state"], p["esb_code"], p["branch_code"], p["bill_no"])
+            for kind, sql, params in calls
+            if kind == "executemany" and "source_state = %(state)s" in sql
+            for p in params
+        }
+        self.assertEqual(flags, {("void", "GKI", "RRS", "B-004"), ("missing", "GKI", "RRS", "B-009")})
+        # B-004 is currently 'missing': the flag UPDATE must reach it, so its predicate may exclude
+        # only rows already void — a predicate of source_state = 'present' would match 0 rows.
+        flag_sql = next(
+            " ".join(sql.split()) for kind, sql, _p in calls
+            if kind == "executemany" and "source_state = %(state)s" in sql
+        )
+        self.assertIn("and source_state <> 'void'", flag_sql)
+        self.assertNotIn("source_state = 'present'", flag_sql)
+
+    def test_run_declares_org_before_writes_in_the_same_transaction(self):
+        """Given a pending-bill run, then the org declaration is the first statement, every write
+        follows it, and the only commit is the last call."""
+        _count, calls = self._run([("GKI", "RRS", "B-009", "present")])
+        kind, sql, params = calls[0]
+        self.assertIn("set_config('app.reporting_org'", sql)
+        self.assertEqual(params, (ORG_A,))
+        self.assertEqual([c[0] for c in calls].count("commit"), 1)
+        self.assertEqual(calls[-1][0], "commit")
+        upserts = [p for k, s, p in calls if k == "executemany" and "reporting.pending_bills (" in s]
+        self.assertEqual({r["org_id"] for r in upserts[0]}, {ORG_A})
+        snapshot_rows = [p for k, s, p in calls if "reporting.pending_bill_snapshots" in (s or "")]
+        self.assertEqual(len(snapshot_rows), 1)
+        self.assertEqual(snapshot_rows[0]["bill_count"], 2)
+        self.assertEqual(snapshot_rows[0]["window_start"].isoformat(), "2024-10-08")
+
+    def test_step_is_off_by_default(self):
+        """Given no REPORTING_PENDING_BILLS, when config loads and the job runs, then the pending
+        step opens no connection and the END line says pending_bills=off."""
+        env = {
+            "WAREHOUSE_DB_URL": WAREHOUSE_DSN,
+            "SUPABASE_REPORTING_DB_URL": REPORTING_DSN,
+            "REPORTING_ORG_ID": ORG_A,
+        }
+        config = SnapshotConfig.from_env(env)
+        self.assertFalse(config.pending_bills_enabled)
+        self.assertEqual(config.pending_bills_window_days, 730)
+        with _observed_run([]) as connections, mock.patch.dict("os.environ", env, clear=True):
+            out = io.StringIO()
+            with redirect_stdout(out):
+                main()
+        self.assertEqual(len(connections), 6, "revenue, margin and usage only")
+        self.assertIn("usage=0 pending_bills=off pending_bills_skipped=off", out.getvalue())
+
+    def test_step_runs_after_margin_when_enabled(self):
+        env = {
+            "WAREHOUSE_DB_URL": WAREHOUSE_DSN,
+            "SUPABASE_REPORTING_DB_URL": REPORTING_DSN,
+            "REPORTING_ORG_ID": ORG_A,
+            "REPORTING_PENDING_BILLS": "1",
+        }
+        config = SnapshotConfig.from_env(env)
+        with _observed_run([]) as connections:
+            counts = run_all_snapshots(config)
+        self.assertEqual(len(connections), 8, "revenue, margin, usage, then pending bills")
+        self.assertIn("reporting.pending_bill_snapshots", repr(connections[-1].calls))
+        self.assertEqual(counts["pending_bills"], 0)
 
 
 USAGE_SOURCE_ROW = {

@@ -45,6 +45,11 @@ describe('Waste capture controls stay paired and complete', () => {
     expect(rule('.cwl-unit-select .mk-select__field > span:first-child {')).toMatch(/overflow-wrap:\s*anywhere/)
   })
 
+  it('keeps the per-item quantity-before-photo hint inside the control row', () => {
+    expect(css).toMatch(/\.cwl-field-error,[\s\S]*?\.cwl-photo-hint\s*\{\s*grid-column:\s*1\s*\/\s*-1/)
+    expect(css).toMatch(/\.cwl-lock-note,[\s\S]*?\.cwl-photo-hint\s*\{[^}]*font-size:\s*var\(--font-size-label\)/)
+  })
+
   it('uses in-gamut semantic warning tokens for the held banner', () => {
     const held = rule('.cwl-held {')
     expect(held).toMatch(/background:\s*var\(--ds-tag-background-amber\)/)

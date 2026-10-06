@@ -142,14 +142,16 @@
 .cwl-add-photo { justify-self: stretch; min-width: 6rem; min-height: var(--cafe-capture-control-height, 44px); padding-inline: 8px; }
 .cwl-field-error,
 .cwl-lock-note,
-.cwl-submitted { grid-column: 1 / -1; }
+.cwl-submitted,
+.cwl-photo-hint { grid-column: 1 / -1; }
 .cwl-field-error {
   color: var(--status-lost-text);
   font-size: var(--font-size-label);
   line-height: 1.35;
 }
 .cwl-lock-note,
-.cwl-submitted {
+.cwl-submitted,
+.cwl-photo-hint {
   margin: 0;
   color: var(--muted-foreground);
   font-size: var(--font-size-label);

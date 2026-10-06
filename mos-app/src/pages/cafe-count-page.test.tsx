@@ -114,7 +114,8 @@ describe('CafeCountPage', () => {
     expect(rawInput).not.toHaveAttribute('placeholder')
     expect(container.querySelector('.cafe-count__unit')).toHaveTextContent('kg')
     expect(rawInput).toHaveClass('cafe-capture-quantity-field')
-    expect(rawInput.closest('.cafe-count__quantity-control')).toHaveClass('cafe-capture-control-group')
+    expect(rawInput.closest('.cafe-count__quantity-control')).toHaveClass('cafe-count__quantity-control')
+    expect(rawInput.closest('.cafe-count__quantity-control')).not.toHaveClass('cafe-capture-control-group')
     expect(rawInput.closest('.cafe-count__input-group')?.querySelector('label')).toHaveClass('sr-only')
     expect(rawInput.closest('.cafe-count__row')?.querySelector('.cafe-count__unit')).toHaveAttribute('aria-label', 'kg')
     const entry = container.querySelector('.cafe-count')?.textContent?.toLowerCase() ?? ''

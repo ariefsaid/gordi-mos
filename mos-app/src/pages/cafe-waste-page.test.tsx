@@ -240,13 +240,13 @@ describe('CafeWastePage', () => {
     expect(screen.queryByText('Oat Latte')).toBeNull()
   })
 
-  it('names the item/unit resolver and links to Café item settings when no item is loggable', async () => {
+  it('says the stream has no ESB items, with no link a floor member cannot use', async () => {
     mockListCafeItemSettings.mockResolvedValue([])
     renderPage()
     const empty = await screen.findByTestId('empty-state')
 
-    expect(within(empty).getByText(/ops lead, admin, or your stream manager/i)).toBeInTheDocument()
-    expect(within(empty).getByRole('link', { name: /open café item settings/i })).toHaveAttribute('href', '/cafe/items')
+    expect(within(empty).getByRole('heading', { name: /^No ESB items on / })).toBeInTheDocument()
+    expect(within(empty).queryByRole('link')).not.toBeInTheDocument()
   })
 
   it('puts the localized date in PageHead metadata and labels the bar switch in both locales', async () => {
@@ -476,20 +476,28 @@ describe('CafeWastePage', () => {
     expect(report.compareDocumentPosition(firstQuantity) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  it('explains the quantity-before-photo rule once for the whole list', async () => {
+  it('states the photo rule once and describes why each empty-quantity photo action is disabled', async () => {
     renderPage()
     const addPhoto = (await screen.findAllByRole('button', { name: 'Add photo' }))[0]!
     const quantity = screen.getByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })
-    const help = 'Choose items and quantities to waste. Add a photo after entering the quantity for each item.'
+    const help = 'Choose the items and quantities to waste. Every item needs at least one photo.'
+    const quantityHint = 'Enter a quantity before adding a photo.'
     expect(addPhoto).toBeDisabled()
     expect(addPhoto.closest('.cwl-controls')).toContainElement(quantity)
     expect(screen.getAllByText(help)).toHaveLength(1)
-    expect(addPhoto).toHaveAttribute('aria-describedby', 'cafe-waste-photo-guidance')
-    expect(document.getElementById(addPhoto.getAttribute('aria-describedby') ?? '')).toHaveTextContent(help)
+    expect(screen.getAllByText(quantityHint)).toHaveLength(2)
+    const describedBy = addPhoto.getAttribute('aria-describedby')?.split(/\s+/) ?? []
+    expect(describedBy).toContain('cafe-waste-photo-guidance')
+    const specificHint = describedBy.find(id => id.startsWith('cafe-waste-photo-hint-'))
+    expect(specificHint).toBeTruthy()
+    expect(document.getElementById('cafe-waste-photo-guidance')).toHaveTextContent(help)
+    expect(document.getElementById(specificHint!)).toHaveTextContent(quantityHint)
 
     fireEvent.change(quantity, { target: { value: '2' } })
     await waitFor(() => expect(addPhoto).toBeEnabled())
     expect(screen.getAllByText(help)).toHaveLength(1)
+    expect(screen.getAllByText(quantityHint)).toHaveLength(1)
+    expect(addPhoto).toHaveAttribute('aria-describedby', 'cafe-waste-photo-guidance')
   })
 
   it('converts a selected multiple to the default ERP unit and stores its entry snapshot', async () => {
