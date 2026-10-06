@@ -5,8 +5,7 @@
 # disagree, so a `current_date` seed silently lands on yesterday and the surface renders empty
 # with nothing on screen to explain it.
 #
-# Static check: no docker, no DB, runs in the guards lane. guards.yml also lists supabase/seed*.sql
-# in its `paths:` filter — registering the step is only half the job, the trigger is the other half.
+# Static check: no docker, no DB, runs in the guards lane as an unconditional guards.yml step.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 pass=0; fail=0

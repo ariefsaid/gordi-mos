@@ -402,6 +402,8 @@ select throws_ok(
 -- #1427 (DD-CAFE-MVP-6): a branch's cached open POs are read by a reviewer of any stream of that
 -- branch, through ops.can_read_cafe_open_pos, which is ops.can_review_stream over the branch's
 -- streams — a reviewer arm, never the caller's own stream.
+-- #1429 (DD-2026-10-06-1429): a receipt's match, matched portions and issues follow that receipt:
+-- reviewers of its stream through ops.can_review_stream, and for issues also its receiver.
 reset role;
 select set_eq($$
   select schemaname || '.' || tablename || ' :: ' || policyname from pg_policies
@@ -420,9 +422,12 @@ select set_eq($$
     ('ops.cafe_receipts :: cafe_receipts_select_receiver_or_reviewer'),
     ('ops.cafe_purchase_requests :: cafe_purchase_requests_select_requester_or_reviewer'),
     ('ops.cafe_open_po_branches :: cafe_open_po_branches_select_reader'),
-    ('ops.cafe_open_pos :: cafe_open_pos_select_reader')
+    ('ops.cafe_open_pos :: cafe_open_pos_select_reader'),
+    ('ops.cafe_receipt_matches :: cafe_receipt_matches_select_reviewer'),
+    ('ops.cafe_receipt_portions :: cafe_receipt_portions_select_reviewer'),
+    ('ops.cafe_receipt_issues :: cafe_receipt_issues_select_receiver_or_reviewer')
   $$,
-  'OD-WAY-49: the only policies referencing a stream column are the #236 kitchen-log reviewer arm, the #238 completeness write arms, the #1260 Café item-settings manager arms, the #1422 receipt and #1428 purchase-request reviewer arms and the #1427 open-PO reader arms — the stream is a capture default, never a member authorization dimension');
+  'OD-WAY-49: the only policies referencing a stream column are the #236 kitchen-log reviewer arm, the #238 completeness write arms, the #1260 Café item-settings manager arms, the #1422 receipt and #1428 purchase-request reviewer arms, the #1427 open-PO reader arms and the #1429 receipt-matching reviewer arms — the stream is a capture default, never a member authorization dimension');
 
 select is(
   (select coalesce(array_agg(schemaname || '.' || policyname order by policyname), '{}')

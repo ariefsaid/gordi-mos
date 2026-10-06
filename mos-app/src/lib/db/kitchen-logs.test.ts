@@ -1,5 +1,5 @@
 // kitchen-logs.ts data module tests — TDD (AC-tagged)
-// Mirrors the ops-log.test.ts harness pattern (makeSchema + Recorder).
+// Uses a local schema mock harness (makeSchema + Recorder).
 // Key assertions:
 //  - status NOT in payload (DB default 'Submitted') — AC-030
 //  - org_id / submitted_by NOT in payload (server-stamped) — NFR-003
@@ -14,7 +14,7 @@ vi.mock('./cafe-item-settings', async () => {
   return { ...actual, listCafeItemSettings: vi.fn() }
 })
 
-// Mock supabase at module scope — mirrors ops-log.test.ts pattern
+// Mock supabase at module scope.
 vi.mock('../supabase', () => {
   const schema = vi.fn()
   return { supabase: { schema } }
@@ -59,7 +59,7 @@ const STREAM: ProductionStream = {
   activity: 'kitchen',
 }
 
-// ── Schema mock harness (mirrors ops-log.test.ts) ───────────────────────────
+// ── Schema mock harness ─────────────────────────────────────────────────────
 interface Recorder {
   fromTables: string[]
   selects: string[]

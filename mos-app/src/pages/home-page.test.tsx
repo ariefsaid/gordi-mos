@@ -24,7 +24,6 @@ const mockUseAuth = vi.mocked(useAuth)
 // Finance reporting stays on /dashboard; Home must never start these reads.
 vi.mock('../lib/db/reporting', () => ({
   listSalesDailyRevenue: vi.fn(),
-  latestSnapshotAsOf: vi.fn(() => null),
   latestReportingDate: vi.fn(() => null),
 }))
 import { listSalesDailyRevenue } from '@/lib/db/reporting'
@@ -32,7 +31,6 @@ const mockListRevenue = vi.mocked(listSalesDailyRevenue)
 
 vi.mock('../lib/db/reporting-margin', () => ({
   listSalesMarginDaily: vi.fn(),
-  latestMarginSnapshotAsOf: vi.fn(() => null),
   latestMarginReportingDate: vi.fn(() => null),
 }))
 import { listSalesMarginDaily } from '@/lib/db/reporting-margin'

@@ -100,17 +100,6 @@ export type TaskColumnId =
   | 'task' | 'status' | 'owner' | 'supervisor'
   | 'businessUnit' | 'workline' | 'objective' | 'activity' | 'due'
 
-/** Column span of the desktop Tasks table: the five decision columns, plus one per visible
- * optional field. The ⋯ row-menu column is retired (AC-020, #750), so the fixed part is five.
- * Group-header rows and the virtualized body's pad rows must agree with the thead (AC-006,
- * #743). The live table derives that number from `table.getVisibleLeafColumns().length`
- * (#997, FR-002); this helper stays as the instance-less wrapper for callers that hold only
- * the query, and must agree exactly with the table-derived number (spec AC-003). */
-export function taskTableColumnSpan(visibleFields: readonly TaskCollectionVisibleField[]): number {
-  const optional = (field: TaskCollectionVisibleField) => (visibleFields.includes(field) ? 1 : 0)
-  return 5 + optional('businessUnit') + optional('workline') + optional('objective') + optional('activity')
-}
-
 export const TASK_COLLECTION_NEUTRAL_QUERY: TaskCollectionQuery = {
   layout: 'table',
   visibleFields: TASK_DECISION_FIELDS,

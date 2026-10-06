@@ -16,7 +16,7 @@ import { isShipGated } from '@/lib/ship-gate'
 
 vi.mock('@/lib/db/tasks', () => ({
   listTasks: vi.fn(), getTask: vi.fn(), createTask: vi.fn(), updateTaskStatus: vi.fn(),
-  updateTaskRaci: vi.fn(), updateTaskFields: vi.fn(), addChecklistItem: vi.fn(),
+  updateTaskFields: vi.fn(), addChecklistItem: vi.fn(),
   toggleChecklistItem: vi.fn(), reorderChecklistItem: vi.fn(), deleteChecklistItem: vi.fn(),
   archiveTask: vi.fn(), unarchiveTask: vi.fn(),
 }))

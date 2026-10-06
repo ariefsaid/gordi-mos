@@ -19,7 +19,7 @@ import { TaskRow } from './task-row'
 import { TASK_TITLE_MAX_LENGTH } from './task-formatters'
 import type { TaskRowProps } from './task-row'
 import { visibleTaskColumnDefs, TASK_COLUMN_DEFS, taskColumnVisibilityState } from './task-columns'
-import { TASK_DECISION_FIELDS, taskTableColumnSpan } from './task-collection-query'
+import { TASK_DECISION_FIELDS } from './task-collection-query'
 import type { TaskColumnId } from './task-collection-query'
 import type { TaskCollectionVisibleField } from '@/lib/record-collection/collection-view-spec'
 import type { TaskListRow } from '@/lib/db/tasks.types'
@@ -77,9 +77,8 @@ const supervisorFocusRule = () => readFileSync(resolve(process.cwd(), 'src/compo
   .split('.supervisor-cell-stop:focus-visible')[1]?.split('}')[0] ?? ''
 
 // ── Issue 997: the ONE column list (spec AC-001/002/003) ─────────────────────────────
-// The rendered <td> chain, the TanStack visible-leaf derivation and taskTableColumnSpan
-// must all agree for EVERY Fields combination — this is the regression guard for the old
-// two-hand-kept-lists drift (the hard-coded colSpan fallback that already disagreed once).
+// The rendered <td> chain and TanStack visible-leaf derivation must agree for EVERY Fields
+// combination — this is the regression guard for the old two-hand-kept-lists drift.
 
 const TD_HOOK: Record<TaskColumnId, string> = {
   task: 'td-main',
@@ -158,7 +157,7 @@ describe('TaskRow — the column list is the one TanStack column-definition arra
     }
   })
 
-  it('AC-003: for every combination, the table-visible leaf count matches taskTableColumnSpan and the row chain', () => {
+  it('AC-003: for every combination, the table-visible leaf ids match the configured fields', () => {
     expect(TASK_COLUMN_DEFS.map((column) => column.id)).toEqual([
       'task', 'status', 'owner', 'supervisor', 'businessUnit', 'workline', 'objective', 'activity', 'due',
     ])
@@ -167,7 +166,6 @@ describe('TaskRow — the column list is the one TanStack column-definition arra
       const { unmount } = renderProbe(visibleFields)
       const probe = screen.getByRole('row')
       expect(probe.textContent, `fields=[${visibleFields.join(',')}]`).toBe(expectedIds.join(','))
-      expect(expectedIds.length, `fields=[${visibleFields.join(',')}]`).toBe(taskTableColumnSpan(visibleFields))
       unmount()
     }
   })

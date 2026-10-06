@@ -41,7 +41,6 @@ export async function updateTaskStatus(): Promise<void> {}
 
 export async function updateTaskFields(): Promise<void> {}
 
-export async function updateTaskRaci(): Promise<void> {}
 
 export async function archiveTask(): Promise<void> {}
 
