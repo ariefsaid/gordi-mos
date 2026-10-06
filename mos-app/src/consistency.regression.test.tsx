@@ -7,6 +7,7 @@ import { render } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { resolve, join } from 'node:path'
+import * as ts from 'typescript'
 import { AuthContext } from './auth/context'
 import type { AuthState } from './auth/context'
 import { I18nProvider } from './i18n/I18nProvider'
@@ -195,58 +196,50 @@ describe('RI-IA-1: every main route renders the shared PageHead (no bespoke *-pa
   })
 })
 
-describe('RI-IA-2: data/list pages use the content-header PageHead chrome', () => {
-  const targets = [
-    'pages/follow-ups-page.tsx',
-    'pages/pricing-page.tsx',
-    'pages/budget-page.tsx',
-  ]
+const sharedPageHeadRoutes = [
+  ['Home', 'pages/home-page.tsx', 'workspace'],
+  ['Tasks', 'components/tasks/tasks-workspace.tsx', 'workspace'],
+  ['Signals', 'pages/signals-archive-page.tsx', 'workspace'],
+  ['Projects & Processes', 'pages/projects-processes-page.tsx', 'management'],
+  ['Objectives', 'pages/objectives-page.tsx', 'management'],
+  ['Inbox', 'pages/inbox-page.tsx', 'workspace'],
+  ['Events', 'pages/events-workspace-page.tsx', 'workspace'],
+  ['Money', 'pages/money-page.tsx', 'workspace'],
+  ['Money branch', 'pages/money-branch-page.tsx', 'workspace'],
+  ['Money budget', 'pages/budget-page.tsx', 'workspace'],
+  ['Money pricing', 'pages/pricing-page.tsx', 'workspace'],
+  ['Money follow-ups', 'pages/follow-ups-page.tsx', 'workspace'],
+  ['Admin people', 'pages/admin-users-page.tsx', 'management'],
+  ['Admin teams', 'pages/admin-teams-page.tsx', 'management'],
+  ['Admin access', 'pages/admin-access-page.tsx', 'management'],
+  ['Admin agent connections', 'pages/admin-agent-connections-page.tsx', 'management'],
+  ['Profile', 'pages/profile-page.tsx', 'management'],
+  ['Profile connected agents', 'pages/profile-connected-agents-page.tsx', 'management'],
+  ['Developer views', 'pages/dev-views-page.tsx', 'management'],
+] as const
 
-  // The invariant is that these pages get the CONTENT-variant head — not that they each
-  // spell `<PageHead variant="content">` themselves. Two sanctioned routes reach it:
-  //
-  //   1. a direct <PageHead variant="content">, and
-  //   2. <PageFamilyFrame family="workspace"|"management">, which renders PageHead with
-  //      `variant={PAGE_FAMILY_CONTRACTS[family].headVariant}` — 'content' for both.
-  //
-  // The original grep only knew route 1, so a page migrating to the shared frame failed a
-  // guard whose stated invariant it still satisfied. That is a test crediting a mechanism
-  // rather than the guarantee: it would have blocked every page-family migration in the
-  // port while the head each of them rendered was correct throughout.
-  //
-  // Route 2's premise is pinned by its own test below, so this cannot quietly become a
-  // rubber stamp if someone re-points a family at the prose head.
-  const CONTENT_HEAD = /<PageHead[\s\S]{0,160}variant="content"/
-  const CONTENT_FAMILY_FRAME = /<PageFamilyFrame[\s\S]{0,200}family="(workspace|management)"/
+function hasRouteOwnedH1(source: string): boolean {
+  const file = ts.createSourceFile('route.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  let found = false
+  const visit = (node: ts.Node) => {
+    if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node))
+      && ts.isIdentifier(node.tagName) && node.tagName.text === 'h1') found = true
+    ts.forEachChild(node, visit)
+  }
+  visit(file)
+  return found
+}
 
-  for (const file of targets) {
-    it(`${file} renders the content-variant head (directly or via PageFamilyFrame)`, () => {
-      const src = readSrc(file)
-      expect(CONTENT_HEAD.test(src) || CONTENT_FAMILY_FRAME.test(src)).toBe(true)
+describe('RI-IA-2: non-Café route entrypoints use the shared page-family heading', () => {
+  for (const [route, file, family] of sharedPageHeadRoutes) {
+    it(`${route} delegates its page identity to PageFamilyFrame`, () => {
+      const source = readSrc(file)
+      const frames = [...source.matchAll(/<PageFamilyFrame\b[^>]*>/gs)].map(([tag]) => tag)
+      expect(frames.some((tag) => tag.includes(`family="${family}"`)), file).toBe(true)
+      expect(PAGE_FAMILY_CONTRACTS[family].headVariant).toBe('content')
+      expect(hasRouteOwnedH1(source), `${file} declares a route-local page heading`).toBe(false)
     })
   }
-
-  it('the PageFamilyFrame route really does yield the content head (the premise above)', () => {
-    // If this flips, the second branch of the assertion above stops meaning what it says —
-    // and every page that migrated to the frame would be on the prose head unnoticed.
-    expect(PAGE_FAMILY_CONTRACTS.workspace.headVariant).toBe('content')
-    expect(PAGE_FAMILY_CONTRACTS.management.headVariant).toBe('content')
-  })
-})
-
-// `pages/inbox-page.tsx` left RI-IA-2's literal source-scan above when #195 ported it onto the v4
-// shell's `PageFamilyFrame` (Stage 2, #188) — the same content-header PageHead chrome the scan
-// checks for, just rendered by the shared frame rather than written out in the page's own JSX. A
-// text match can't see through that indirection, so the contract is proven structurally instead:
-// InboxPage passes `family="workspace"`, and `PAGE_FAMILY_CONTRACTS.workspace.headVariant` is
-// `'content'` (page-families.ts) — the exact PageHead variant this page renders is pinned at the
-// contract, not re-derived here. Every other surface still on the list above is unported and still
-// writes `<PageHead>` directly; each drops off the same way when its own port lands.
-describe('RI-IA-2: pages/inbox-page.tsx proves the content-header contract via PageFamilyFrame', () => {
-  it("InboxPage's family ('workspace') resolves to PageHead variant 'content'", () => {
-    expect(readSrc('pages/inbox-page.tsx')).toMatch(/family="workspace"/)
-    expect(PAGE_FAMILY_CONTRACTS.workspace.headVariant).toBe('content')
-  })
 })
 
 describe('RI-SEC-1: page empty/error copy does not expose internal reporting table names', () => {

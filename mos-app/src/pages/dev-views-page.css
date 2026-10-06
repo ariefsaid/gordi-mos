@@ -16,18 +16,6 @@
   box-sizing: border-box;
 }
 
-.dev-views__head h1 {
-  font-family: var(--font-display);
-  font-size: var(--font-size-page-title);
-  font-weight: 600;
-}
-
-.dev-views__sub {
-  color: var(--muted-foreground);
-  font-size: var(--font-size-body);
-  margin-top: 4px;
-}
-
 /* ── Saved-views list ── */
 .dev-views__list {
   border: 1px solid var(--border);

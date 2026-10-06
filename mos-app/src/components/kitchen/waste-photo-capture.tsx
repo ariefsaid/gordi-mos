@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import { useT } from '@/i18n/use-t'
+import { loadOfflinePhotoDraft, saveOfflinePhotoDraft, type OfflinePhotoDraftResult } from '@/lib/offline-photo-drafts'
 import {
   MAX_WASTE_PHOTOS,
   WASTE_PHOTO_MIME_TYPES,
@@ -40,6 +41,8 @@ export interface PrivatePhotoCaptureCopy {
   retry: (n: number) => string
   ready: (n: number) => string
   windowExpired: (minutes: number) => string
+  draftSaved: string
+  draftSaveFailed: string
 }
 
 type PhotoOwner = { ownerId: string; wasteLogId?: never } | { wasteLogId: string; ownerId?: never }
@@ -52,7 +55,11 @@ export type WastePhotoCaptureProps<TPhoto extends PrivatePhotoEvidence = Kitchen
   onPhotoUploaded?: (photo: TPhoto) => void
   onCanSubmitChange?: (canSubmit: boolean) => void
   onPhotoWindowExpired?: () => void
+  /** Optional device-local key for restoring selected files until upload succeeds. */
+  draftKey?: string
   disabled?: boolean
+  /** Keeps file selection available offline while preventing network upload controls. */
+  uploadDisabled?: boolean
   /** Reuse this capture interaction with domain-specific accessible copy. */
   copy?: Partial<PrivatePhotoCaptureCopy>
 }
@@ -65,7 +72,9 @@ export function WastePhotoCapture<TPhoto extends PrivatePhotoEvidence = KitchenW
   onPhotoUploaded,
   onCanSubmitChange,
   onPhotoWindowExpired,
+  draftKey,
   disabled = false,
+  uploadDisabled = false,
   copy: copyOverrides,
 }: WastePhotoCaptureProps<TPhoto>) {
   const t = useT()
@@ -88,6 +97,8 @@ export function WastePhotoCapture<TPhoto extends PrivatePhotoEvidence = KitchenW
     retry: copyOverrides?.retry ?? (n => t('kitchen.wastePhotos.retry', { n })),
     ready: copyOverrides?.ready ?? (n => t(n === 1 ? 'kitchen.wastePhotos.ready.one' : 'kitchen.wastePhotos.ready.other', { count: n })),
     windowExpired: copyOverrides?.windowExpired ?? (minutes => t('kitchen.wastePhotos.windowExpired', { minutes })),
+    draftSaved: copyOverrides?.draftSaved ?? t('kitchen.wastePhotos.draftSaved'),
+    draftSaveFailed: copyOverrides?.draftSaveFailed ?? t('kitchen.wastePhotos.draftSaveFailed'),
   }
   const titleId = useId()
   const [photos, setPhotos] = useState<PhotoEntry[]>(() => initialPhotos.map((photo) => ({
@@ -99,7 +110,56 @@ export function WastePhotoCapture<TPhoto extends PrivatePhotoEvidence = KitchenW
   })))
   const [validationError, setValidationError] = useState('')
   const [isUploading, setIsUploading] = useState(false)
+  // Nothing is saved for a draft key until its stored photos have loaded, or the save would erase them.
+  const [hydratedDraftKey, setHydratedDraftKey] = useState<string | null>(draftKey ? null : '')
+  const [draftSaveStatus, setDraftSaveStatus] = useState<'idle' | OfflinePhotoDraftResult>('idle')
   const previewUrls = useRef(new Map<string, string>())
+
+  useEffect(() => {
+    let active = true
+    if (!draftKey) {
+      setHydratedDraftKey('')
+      return () => { active = false }
+    }
+    setHydratedDraftKey(null)
+    void loadOfflinePhotoDraft(draftKey).then(files => {
+      if (!active) return
+      const restored = files.map(file => {
+        const id = crypto.randomUUID()
+        const previewUrl = URL.createObjectURL(file)
+        previewUrls.current.set(id, previewUrl)
+        return { id, file, name: file.name, previewUrl, status: 'selected' as const }
+      })
+      setPhotos(current => {
+        const uploaded = current.filter(photo => photo.status === 'uploaded')
+        const pendingByFile = new Map<string, PhotoEntry>()
+        for (const photo of restored) {
+          if (photo.file) pendingByFile.set(`${photo.file.name}|${photo.file.size}|${photo.file.lastModified}`, photo)
+        }
+        for (const photo of current.filter(item => item.status !== 'uploaded')) {
+          if (photo.file) pendingByFile.set(`${photo.file.name}|${photo.file.size}|${photo.file.lastModified}`, photo)
+        }
+        return [...uploaded, ...pendingByFile.values()]
+      })
+      setHydratedDraftKey(draftKey)
+    })
+    return () => { active = false }
+  }, [draftKey])
+
+  useEffect(() => {
+    let active = true
+    if (!draftKey || hydratedDraftKey !== draftKey) return () => { active = false }
+    const pending = photos.filter(photo => (photo.status === 'selected' || photo.status === 'error') && photo.file)
+    if (pending.length === 0) {
+      setDraftSaveStatus('idle')
+      void saveOfflinePhotoDraft(draftKey, [])
+      return () => { active = false }
+    }
+    void saveOfflinePhotoDraft(draftKey, pending.map(photo => photo.file!)).then(result => {
+      if (active) setDraftSaveStatus(result)
+    })
+    return () => { active = false }
+  }, [draftKey, hydratedDraftKey, photos])
 
   const uploadedCount = useMemo(() => photos.filter(photo => photo.status === 'uploaded').length, [photos])
   const canUpload = photos.some(photo => photo.status === 'selected' || photo.status === 'error')
@@ -147,7 +207,7 @@ export function WastePhotoCapture<TPhoto extends PrivatePhotoEvidence = KitchenW
 
   async function uploadPhoto(photoId: string) {
     const photo = photos.find(item => item.id === photoId)
-    if (!photo?.file || photo.status === 'uploading' || photo.status === 'uploaded') return
+    if (disabled || uploadDisabled || !photo?.file || photo.status === 'uploading' || photo.status === 'uploaded') return
     setValidationError('')
     setPhotos(current => current.map(item => item.id === photoId ? { ...item, status: 'uploading' } : item))
     try {
@@ -181,7 +241,7 @@ export function WastePhotoCapture<TPhoto extends PrivatePhotoEvidence = KitchenW
   }
 
   async function uploadSelected() {
-    if (isUploading) return
+    if (isUploading || disabled || uploadDisabled) return
     setIsUploading(true)
     try {
       const pending = photos.filter(photo => photo.status === 'selected' || photo.status === 'error')
@@ -212,6 +272,9 @@ export function WastePhotoCapture<TPhoto extends PrivatePhotoEvidence = KitchenW
       </label>
 
       {validationError && <p role="alert" className="waste-photo-capture-error">{validationError}</p>}
+      {draftSaveStatus === 'saved' && <p role="status" className="waste-photo-capture-readiness">{copy.draftSaved}</p>}
+      {draftSaveStatus === 'failed' && <p role="alert" className="waste-photo-capture-error">{copy.draftSaveFailed}</p>}
+      {draftSaveStatus === 'tooLarge' && <p role="alert" className="waste-photo-capture-error">{copy.tooLarge}</p>}
 
       {photos.length > 0 && (
         <ul className="waste-photo-capture-list">
@@ -235,7 +298,7 @@ export function WastePhotoCapture<TPhoto extends PrivatePhotoEvidence = KitchenW
                 {photo.status === 'uploaded' && <span className="waste-photo-capture-uploaded">{copy.uploaded}</span>}
               </div>
               {photo.status === 'error' ? (
-                <button type="button" className="btn btn-ghost waste-photo-capture-remove" disabled={disabled} onClick={() => void uploadPhoto(photo.id)}>
+                <button type="button" className="btn btn-ghost waste-photo-capture-remove" disabled={disabled || uploadDisabled} onClick={() => void uploadPhoto(photo.id)}>
                   {copy.retry(index + 1)}
                 </button>
               ) : photo.status !== 'uploaded' && photo.status !== 'uploading' ? (
@@ -252,7 +315,7 @@ export function WastePhotoCapture<TPhoto extends PrivatePhotoEvidence = KitchenW
         <button
           type="button"
           className="btn btn-primary waste-photo-capture-upload"
-          disabled={isUploading || disabled}
+          disabled={isUploading || disabled || uploadDisabled}
           onClick={() => void uploadSelected()}
         >
           {isUploading ? t('common.working') : copy.upload}

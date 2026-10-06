@@ -1,8 +1,7 @@
 import { supabase } from '@/lib/supabase'
-import { shrinkPhoto } from '@/lib/db/signal-photos'
 import {
-  PRIVATE_PHOTO_MAX_BYTES,
   PRIVATE_PHOTO_MIME_TYPES,
+  prepareEvidencePhoto,
   type PrivatePhotoEvidence,
 } from './photo-evidence'
 
@@ -25,8 +24,7 @@ export async function uploadCafeReceiptLinePhoto(lineId: string, file: File): Pr
     .single()
   if (lineError) throw new Error(`uploadCafeReceiptLinePhoto failed: ${lineError.message}`)
 
-  const body = await shrinkPhoto(file)
-  if (body.size > PRIVATE_PHOTO_MAX_BYTES) throw new Error('WASTE_PHOTO_TOO_LARGE')
+  const body = await prepareEvidencePhoto(file)
   const path = `${line.org_id}/${line.receipt_id}/${lineId}/${crypto.randomUUID()}.jpg`
   const { error: uploadError } = await supabase.storage.from(CAFE_RECEIPT_PHOTO_BUCKET).upload(path, body, {
     contentType: 'image/jpeg',
