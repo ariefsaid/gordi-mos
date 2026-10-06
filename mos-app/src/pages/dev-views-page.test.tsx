@@ -63,6 +63,13 @@ beforeEach(() => {
 })
 
 describe('DevViewsPage — AC-UV-018', () => {
+  it('renders its page heading inside the shared management PageFamilyFrame', async () => {
+    const { container } = render(<DevViewsPage />, { wrapper })
+    const heading = await screen.findByRole('heading', { level: 1 })
+    expect(heading.closest('[data-testid="page-head"]')).toBeTruthy()
+    expect(container.querySelector('main')).toHaveAttribute('data-page-family', 'management')
+  })
+
   it('renders the title + the seeded sample spec in the textarea', async () => {
     render(<DevViewsPage />, { wrapper })
     expect(await screen.findByText('User Views')).toBeInTheDocument()
