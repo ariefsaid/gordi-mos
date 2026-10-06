@@ -114,7 +114,7 @@ describe('Projects & Processes collection-first contract', () => {
     expect(screen.getByRole('columnheader', { name: 'Objective' })).toBeInTheDocument()
     expect(within(menuLaunchRow).getByText('Contributes through Tasks to: Grow revenue')).toBeInTheDocument()
     expect(screen.getByText('1 / 2 done')).toBeInTheDocument()
-    expect(screen.getByText('07 Jul 2026, 07:00 WIB')).toBeInTheDocument()
+    expect(screen.getByText('7 Jul 2026, 07:00 WIB')).toBeInTheDocument()
     expect(container.querySelector('.catalog-collection__disclosure')).toBeNull()
     expect(screen.queryByRole('button', { name: /rename menu launch/i })).toBeNull()
   })
