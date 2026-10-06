@@ -34,10 +34,10 @@ describe('mcp entry point', () => {
     expect(res.headers.get('WWW-Authenticate')).toContain('resource_metadata=')
   })
 
-  it('does not import the client_id refusal helper', () => {
+  it('does not use the app-token gate, which refuses agent tokens', () => {
     const dir = join(__dirname, '../../../../supabase/functions/mcp')
     for (const f of ['index.ts', 'handler.ts', 'auth.ts']) {
-      expect(readFileSync(join(dir, f), 'utf8')).not.toMatch(/carriesClientId/)
+      expect(readFileSync(join(dir, f), 'utf8')).not.toMatch(/requireVerifiedClaims/)
     }
   })
 
