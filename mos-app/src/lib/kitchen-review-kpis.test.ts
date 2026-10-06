@@ -1,10 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import { computeReviewSummary } from './kitchen-review-kpis'
 import type { PlanMap, ReviewLogRow } from '@/lib/db/kitchen-logs.types'
+import { streamDateKey, streamKey } from '@/lib/kitchen-action-label'
 
 const BRANCH_ID = 'branch-rumah-rames'
 const RADIANT_ID = 'branch-radiant'
-const STREAM_KEY = `${BRANCH_ID}|kitchen`
+const STREAM_KEY = streamDateKey('2026-06-22', BRANCH_ID, 'kitchen')
 
 const LOGS: ReviewLogRow[] = [
   {
@@ -50,6 +51,16 @@ describe('computeReviewSummary — the summary-rule derivation (DD-WAY-40)', () 
     ])
     // w1 on-plan (20==20), w2 off-plan (7 != 10), w3 on-plan (10==10)
     expect(s.metrics.map(m => m.value)).toEqual(['3', '2', '1'])
+  })
+
+  it('does not fall back to a plan keyed only by stream or by a different date', () => {
+    const stalePlans = new Map([
+      [streamKey(BRANCH_ID, 'kitchen'), PLAN_MAP],
+      [streamDateKey('2026-06-21', BRANCH_ID, 'kitchen'), PLAN_MAP],
+    ])
+    const s = computeReviewSummary([LOGS[0]], stalePlans)
+    expect(s.metrics[1].value).toBe('0')
+    expect(s.metrics[2].value).toBe('1')
   })
 
   it('off-plan > 0 → the destructive note-gate delta; no other metric carries one', () => {
