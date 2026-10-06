@@ -114,7 +114,7 @@ $$, 'supervisor_revenue_scope_delete_admin: a supervisor deleting their OWN gran
 select is((select count(*)::int from reporting.supervisor_revenue_scope), 1,
   '...and the grant is still there: the delete matched zero rows, so a supervisor cannot widen their own scope by removing its bounds');
 
--- ══ The *_write_reporting_writer policies ═══════════════════════════════════════════════════════════════════════════════════════════════
+-- ══ The *_write_reporting_writer policies ══════════════════════════════════════════════════
 -- Their fail-closed proof is that they admit nobody an app session can be. Asserted two ways: the
 -- catalog says each is restricted to the reporting_writer role and to no other, and an authenticated
 -- session's write is refused outright.

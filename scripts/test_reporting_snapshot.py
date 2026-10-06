@@ -473,12 +473,12 @@ def _bill(bill_num, *, tender="PENDING BILL", status="Paid", total="250000.00", 
     return row
 
 
-def _normalise_all(rows):
+def _normalise_all(rows, snapshot_as_of="2026-10-06T19:05:00+00:00"):
     out = []
     for row in rows:
         bill = normalize_pending_bill(
             row,
-            snapshot_as_of="2026-10-06T19:05:00+00:00",
+            snapshot_as_of=snapshot_as_of,
             org_id=ORG_A,
             source_contract_version=DEFAULT_PENDING_BILLS_SOURCE_CONTRACT_VERSION,
         )
@@ -510,12 +510,18 @@ class PendingBillNormaliserTests(unittest.TestCase):
         )
 
     def test_ac1101_rerun_yields_the_same_keys(self):
-        """AC-1101: Given the same source rows, when the normaliser runs twice, then it yields the
-        same keys — a re-run upserts the rows it wrote, never new ones."""
-        self.assertEqual(
-            _keys(_normalise_all(PENDING_SOURCE_ROWS)),
-            _keys(_normalise_all([dict(r) for r in PENDING_SOURCE_ROWS])),
-        )
+        """AC-1101: Given the same bills on a later night — new snapshot time, a re-numbered sale,
+        an edited note and a corrected total — when normalised again, then the keys are the till's
+        own bill identity and unchanged, so the re-run upserts the rows it wrote, never new ones."""
+        tonight = _normalise_all(PENDING_SOURCE_ROWS)
+        later = [
+            dict(r, sales_num=f"S2-{r['bill_num']}", counterparty_note="edited", grand_total="999.00")
+            for r in PENDING_SOURCE_ROWS
+        ]
+        tomorrow = _normalise_all(later, snapshot_as_of="2026-10-07T19:05:00+00:00")
+        expected = [("GKI", "RRS", "B-001"), ("GKI", "RRS", "B-002")]
+        self.assertEqual(_keys(tonight), expected)
+        self.assertEqual(_keys(tomorrow), expected)
 
     def test_note_is_kept_as_given_and_branch_falls_back_to_esb_code(self):
         """Given a bill with a blank branch code and a padded note, when normalised, then the note
@@ -591,6 +597,17 @@ class PendingBillFlagTests(unittest.TestCase):
         )
         self.assertEqual(plan, {"void": [("GKI", "RRS", "B-004")], "missing": []})
 
+    def test_a_bill_flagged_missing_that_returns_void_becomes_void(self):
+        """Given a bill already flagged missing that the source now reports void, then it is
+        flagged void; a missing bill that stays absent is left as it is."""
+        plan = plan_bill_flags(
+            existing_present_keys=set(),
+            run_keys=set(),
+            void_keys={("GKI", "RRS", "B-004")},
+            existing_missing_keys={("GKI", "RRS", "B-004"), ("GKI", "RRS", "B-009")},
+        )
+        self.assertEqual(plan, {"void": [("GKI", "RRS", "B-004")], "missing": []})
+
     def test_ac1102_a_void_bill_never_seen_before_flags_nothing(self):
         plan = plan_bill_flags(
             existing_present_keys=set(), run_keys=set(), void_keys={("GKI", "RRS", "B-004")}
@@ -619,7 +636,8 @@ class PendingBillRunTests(unittest.TestCase):
         """AC-1102: Given yesterday's copy holds a bill that is now void and one that is gone, when
         the run writes, then it flags both with UPDATE and issues no DELETE."""
         count, calls = self._run(
-            [("GKI", "RRS", "B-001"), ("GKI", "RRS", "B-004"), ("GKI", "RRS", "B-009")]
+            [("GKI", "RRS", "B-001", "present"), ("GKI", "RRS", "B-004", "missing"),
+             ("GKI", "RRS", "B-009", "present")]
         )
         self.assertEqual(count, 2)
         statements = " ".join(sql.lower() for _k, sql, _p in calls if sql)
@@ -635,7 +653,7 @@ class PendingBillRunTests(unittest.TestCase):
     def test_run_declares_org_before_writes_in_the_same_transaction(self):
         """Given a pending-bill run, then the org declaration is the first statement, every write
         follows it, and the only commit is the last call."""
-        _count, calls = self._run([("GKI", "RRS", "B-009")])
+        _count, calls = self._run([("GKI", "RRS", "B-009", "present")])
         kind, sql, params = calls[0]
         self.assertIn("set_config('app.reporting_org'", sql)
         self.assertEqual(params, (ORG_A,))
