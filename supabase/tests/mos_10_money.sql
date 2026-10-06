@@ -89,8 +89,8 @@ select throws_ok($$
 $$, '42501', null, 'the chaser cannot advance the OTHER lane');
 select throws_ok($$
   select mos.transition_follow_up('00000000-0000-0000-0000-000000000e03','chase','{}'::jsonb)
-$$, '42501', null,
-  'and cannot touch another org''s follow-up — the RPC bypasses RLS, so it checks the org itself before any gate');
+$$, 'P0002', 'follow-up not found',
+  'and an out-of-org follow-up receives the same no-record response as a missing id');
 
 -- ── The state machine and its required fields ────────────────────────────────────────────────
 select throws_ok($$

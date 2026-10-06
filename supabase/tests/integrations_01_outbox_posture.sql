@@ -307,13 +307,10 @@ select is(
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- B. Privilege, where privilege is the control
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
--- The app tier reads; it never mints and never flips. INSERT is refused by the ABSENCE of a grant,
--- which has nothing to widen. UPDATE is granted (#778) so the write control is the RLS
--- default-deny itself: no UPDATE policy exists (pinned structurally in section C), and
--- integrations_05 proves an UPDATE therefore lands as 0 rows rather than a privilege error.
+-- The app tier reads; it never mints or changes rows. The worker alone advances dispatch state.
 select ok(not has_table_privilege('authenticated','integrations.esb_push','INSERT')
-      and has_table_privilege('authenticated','integrations.esb_push','UPDATE'),
-  'the app tier cannot mint a posting row (no INSERT grant) and cannot flip posting state (no UPDATE policy; the grant only makes the refusal observable as 0 rows)');
+      and not has_table_privilege('authenticated','integrations.esb_push','UPDATE'),
+  'the app tier has no direct write privilege on the outbox');
 
 select ok(has_table_privilege('authenticated','integrations.esb_push','SELECT'),
   '...and it IS readable, so the assertion above is a write gate and not an unreachable table');

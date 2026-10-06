@@ -31,14 +31,8 @@ select is((select count(*)::int from integrations.esb_push), 0,
 select shared._test_set_access_roles('{"org_id":"10000000-0000-0000-0000-000000000001","person_id":"40000000-0000-0000-0000-000000000005","access_roles":["member","manager","finance"]}');
 select is((select count(*)::int from integrations.esb_push), 0,
   'AC-013: finance is refused the outbox');
-do $$
-declare affected integer;
-begin
-  update integrations.esb_push set payload = payload
-   where id = (select id from integrations.esb_push limit 1);
-  get diagnostics affected = row_count;
-  if affected <> 0 then raise exception 'unexpected update'; end if;
-end $$;
-select pass('AC-013: manager cannot escalate or retry the queue (UPDATE affects 0 rows)');
+select throws_ok($$ update integrations.esb_push set payload = payload
+  where id = (select id from integrations.esb_push limit 1) $$,
+  '42501', null, 'AC-013: the manager has no direct UPDATE privilege on the outbox');
 select * from finish();
 rollback;
