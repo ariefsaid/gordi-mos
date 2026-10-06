@@ -51,6 +51,7 @@ const ID_EQUALS_EN_ALLOWLIST: ReadonlySet<string> = new Set([
   'cafe.count.review.submittedAt', // Submitted — lifecycle state
   'cafe.count.review.streamTag', // Stream — Café vocabulary
   'cafe.count.review.confirmedNotNeeded', // Confirmed / Not needed — lifecycle states
+  'cafe.receipts.quantityUnit', // ${quantity} × ${unit} — symbol template
   'kitchen.log.col.status', // Status
   'kitchen.log.offline.aria', // Offline
   'kitchen.pushes.col.batch', // Batch

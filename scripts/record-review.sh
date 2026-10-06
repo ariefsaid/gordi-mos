@@ -20,7 +20,7 @@ die() { printf '✗ record-review: %s\n' "$1" >&2; exit 1; }
 validate_ui_skills_evidence() {
   local head="$1" artifact="$2" section main_checkout playbook row_rc evidence_path evidence_file
   local render_found=0 phone_found=0 tablet_found=0 wide_found=0 real_length_found=0 complete_render=0 line
-  local -a playbooks=('Impeccable critique' 'Impeccable layout' 'Impeccable clarify' 'Impeccable harden' 'Impeccable polish' 'Taste')
+  local -a playbooks=('Impeccable shape' 'ui-ux-pro-max' 'Impeccable critique' 'Impeccable layout' 'Impeccable clarify' 'Impeccable harden' 'Impeccable polish' 'Taste')
 
   grep -qxE '^## Skills evidence[[:space:]]*$' "$artifact" \
     || die "UI diff requires a '## Skills evidence' section in the review artifact"

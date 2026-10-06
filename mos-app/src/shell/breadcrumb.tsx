@@ -84,6 +84,7 @@ export function Breadcrumb() {
     if (pathname !== '/cafe' && pathname !== '/cafe/log') {
       const sec = sectionForPath(pathname)
       if (sec) crumbs.push(sec.labelKey ? t(sec.labelKey) : sec.label)
+      if (dynamicTitle) crumbs.push(dynamicTitle)
     }
   } else if (destination.id === 'admin') {
     const sec = sectionForPath(pathname)
