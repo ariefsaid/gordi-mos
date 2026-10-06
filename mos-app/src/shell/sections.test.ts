@@ -23,7 +23,7 @@ describe('T5: SECTIONS — workspace fallback registry', () => {
 })
 
 describe('T5: CAFE_SECTIONS — Kitchen re-homed under /cafe/*', () => {
-  // /cafe is the Today/capture root followed by production, transfer, waste, Count, Plan, Stock, Items, Review and Pushes.
+  // /cafe is the Today/capture root followed by production, transfer, waste, Count, Receive, Plan, Stock, Items, Review and Pushes.
   it('exports the Today root and Café routes in canonical order', () => {
     expect(CAFE_SECTIONS.map((s) => s.path)).toEqual([
       '/cafe',
@@ -31,6 +31,7 @@ describe('T5: CAFE_SECTIONS — Kitchen re-homed under /cafe/*', () => {
       '/cafe/transfer',
       '/cafe/waste',
       '/cafe/count',
+      '/cafe/receive',
       '/cafe/plan',
       '/cafe/stock',
       '/cafe/items',
@@ -57,11 +58,12 @@ describe('T5: CAFE_SECTIONS — Kitchen re-homed under /cafe/*', () => {
     expect(sectionForPath('/cafe/waste')).toMatchObject({ path: '/cafe/waste', label: 'Log waste' })
   })
 
-  it('sectionForPath resolves production, transfer, Count, items, review and pushes', () => {
+  it('sectionForPath resolves production, transfer, Count, Receive, items, review and pushes', () => {
     expect(sectionForPath('/cafe/production')!.label).toBe('Log production')
     expect(sectionForPath('/cafe/transfer')!.label).toBe('Log transfer')
     expect(sectionForPath('/cafe/waste')!.label).toBe('Log waste')
     expect(sectionForPath('/cafe/count')!.label).toBe('Count')
+    expect(sectionForPath('/cafe/receive/review')!.label).toBe('Receive')
     expect(sectionForPath('/cafe/items')!.label).toBe('Items')
     expect(sectionForPath('/cafe/review')!.label).toBe('Review')
     expect(sectionForPath('/cafe/pushes')!.label).toBe('Pushes')
@@ -132,8 +134,8 @@ describe('the Café children carry marks of their own (#457)', () => {
   // Several rungs, one picture: each Café tab gets its own mark so compact rail and phone drawer entries remain identifiable.
   it('the Café root and routes use distinct components', () => {
     const icons = CAFE_SECTIONS.map((s) => s.Icon)
-    expect(icons).toHaveLength(10)
-    expect(new Set(icons).size).toBe(10)
+    expect(icons).toHaveLength(11)
+    expect(new Set(icons).size).toBe(11)
   })
 
   it('none of them is a mark another destination already draws', () => {

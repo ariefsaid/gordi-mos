@@ -114,6 +114,7 @@ describe('nav i18n (AC-409, FR-440) — every nav label through the catalog', ()
     'nav.cafe',
     'nav.cafe.log',
     'nav.cafe.count',
+    'nav.cafe.receive',
     'nav.cafe.plan',
     'nav.cafe.stock',
     'nav.cafe.review',
