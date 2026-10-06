@@ -31,6 +31,6 @@ describe('pending bills table CSS', () => {
   it('scrolls sideways only inside a container too narrow for the table', () => {
     expect(rule('.pending-bills-body')).toMatch(/container:\s*pending-bills\s*\/\s*inline-size/)
     expect(rule('.pending-bills-scroll')).not.toMatch(/overflow-x/)
-    expect(css).toMatch(/@container pending-bills \(max-width:\s*949\.98px\)\s*\{\s*\.pending-bills-scroll\s*\{[^}]*overflow-x:\s*auto/)
+    expect(css).toMatch(/@container pending-bills \(max-width:\s*979\.98px\)\s*\{\s*\.pending-bills-scroll\s*\{[^}]*overflow-x:\s*auto/)
   })
 })
