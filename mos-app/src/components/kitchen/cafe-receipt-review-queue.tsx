@@ -5,6 +5,7 @@ import { getPeople } from '@/lib/db/directory'
 import {
   listCafeReceiptDifferences,
   listCafeReceipts,
+  readCafeReceiptPosting,
   reviewCafeReceipt,
   summarizeCafeReceiptDifferences,
   type CafeReceipt,
@@ -17,6 +18,7 @@ import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { ALL_STREAMS } from './cafe-stream-bar'
 import { CafeReceiptState } from './cafe-receipt-state'
 import { CafeReceiptLineRow } from './cafe-receipt-difference'
+import { CafeReceiptRelease } from './cafe-receipt-release'
 import { formatAge } from '@/components/tasks/task-formatters'
 import { useI18n } from '@/i18n/I18nProvider'
 import './cafe-count-review-queue.css'
@@ -43,6 +45,8 @@ export function CafeReceiptReviewQueue({
   const [rejecting, setRejecting] = useState<string | null>(null)
   const [note, setNote] = useState('')
   const [retry, setRetry] = useState(0)
+  const [decided, setDecided] = useState(0)
+  const [postingUnknown, setPostingUnknown] = useState<ReadonlySet<string>>(new Set())
   const online = !useIsOffline()
 
   useEffect(() => {
@@ -85,6 +89,13 @@ export function CafeReceiptReviewQueue({
         : row))
       setRejecting(null)
       setNote('')
+      // FR-1042: approval matches and may enqueue at once, so the state is read back, not assumed.
+      if (result.status === 'Approved') {
+        const posting = await readCafeReceiptPosting(receipt.id).catch(() => undefined)
+        if (posting === undefined) setPostingUnknown(current => new Set(current).add(receipt.id))
+        else setRows(current => current.map(row => row.id === receipt.id ? { ...row, posting } : row))
+        setDecided(value => value + 1)
+      }
     } catch {
       setActionError(true)
     } finally {
@@ -106,6 +117,7 @@ export function CafeReceiptReviewQueue({
         </div>
       )}
       {!online && <p className="cafe-count-review__offline" role="alert">{t('cafe.receive.offline')}</p>}
+      <CafeReceiptRelease online={online} refreshKey={decided} />
       {loadError ? (
         <ErrorState
           message={t('common.loadFailed', { what: t('cafe.receipts.review.queueTitle') })}
@@ -137,7 +149,7 @@ export function CafeReceiptReviewQueue({
                     <span>{t('cafe.receipts.review.arrival', { date: formatWeekdayDayMonth(receipt.arrival_date) })}</span>
                     {stream && <span>{t('cafe.count.review.streamTag', { stream: streamLabel(t, stream) })}</span>}
                     {receipt.delivery_note_number && <span>{t('cafe.receipts.review.deliveryNote', { number: receipt.delivery_note_number })}</span>}
-                    {receipt.posting_status === 'held' && <span>{t('cafe.receipts.review.locationMissing')}</span>}
+                    {receipt.posting_status === 'held' && receipt.status !== 'Approved' && <span>{t('cafe.receipts.review.locationMissing')}</span>}
                     {differences === 'failed' && <span>{t('cafe.receipts.review.differenceFailed')}</span>}
                     {difference && !difference.known && <span>{t('cafe.receipts.review.differenceUnknown')}</span>}
                     {difference && (
@@ -165,7 +177,7 @@ export function CafeReceiptReviewQueue({
                       {t('cafe.receipts.review.countedNotSent', { age: formatAge(receipt.received_at, new Date(), locale) })}
                     </span>
                   ) : receipt.status !== 'Submitted' ? (
-                    <span className="cafe-count-review__state" role="status"><CafeReceiptState receipt={receipt} /></span>
+                    <span className="cafe-count-review__state" role="status"><CafeReceiptState receipt={receipt} postingUnknown={postingUnknown.has(receipt.id)} /></span>
                   ) : rejecting === receipt.id ? (
                     <div className="cafe-receipt-review__reject">
                       <label htmlFor={noteId}>{t('cafe.receipts.review.rejectNote')}</label>
