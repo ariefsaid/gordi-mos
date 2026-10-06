@@ -2,7 +2,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 create extension if not exists dblink with schema extensions;
-select plan(case when current_setting('is_superuser') = 'on' then 17 else 14 end);
+select plan(14);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -61,29 +61,41 @@ select is((select is_nullable = 'YES' from information_schema.columns
 select has_index('ops', 'kitchen_logs', 'kitchen_logs_org_client_request_id_key', 'request identity is unique within an organization');
 
 -- Hold the same org/request advisory key on a second backend to prove a competing first attempt
--- waits while a different org's identical request id remains independent. This optional backend
--- test runs when the local test connection is superuser-capable; the deterministic capture/replay
--- contract below always runs under the normal authenticated role.
+-- waits while a different org's identical request id remains independent. The psql role in some
+-- local/CI stacks cannot open a dblink connection, so run this DB-level assertion only when the
+-- test connection is superuser-capable; the core pgTAP plan stays unconditional below.
 select current_setting('is_superuser') = 'on' as can_test_capture_race \gset
 \if :can_test_capture_race
-select extensions.dblink_connect('cafe_capture_race',
-  'host=127.0.0.1 port=5432 dbname=postgres user=supabase_admin password=postgres');
-select extensions.dblink_exec('cafe_capture_race', 'begin');
-select * from extensions.dblink('cafe_capture_race',
-  $$select pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
-    '00000000-0000-0000-0000-0000000000a1:40000000-0000-0000-0000-000000000001', 0))::text$$
-) as held_lock(held text);
-select is(pg_catalog.pg_try_advisory_xact_lock(pg_catalog.hashtextextended(
-  '00000000-0000-0000-0000-0000000000a1:40000000-0000-0000-0000-000000000001', 0)), false,
-  'a concurrent first attempt on the same org/request key is serialized');
-select is(pg_catalog.pg_try_advisory_xact_lock(pg_catalog.hashtextextended(
-  '00000000-0000-0000-0000-0000000000b1:40000000-0000-0000-0000-000000000001', 0)), true,
-  'the same request id under another org does not share the lock');
-select extensions.dblink_exec('cafe_capture_race', 'commit');
-select is(pg_catalog.pg_try_advisory_xact_lock(pg_catalog.hashtextextended(
-  '00000000-0000-0000-0000-0000000000a1:40000000-0000-0000-0000-000000000001', 0)), true,
-  'the waiting request key is available when the competing transaction commits');
-select extensions.dblink_disconnect('cafe_capture_race');
+do $capture_race$
+declare
+  v_same_key bigint := pg_catalog.hashtextextended(
+    '00000000-0000-0000-0000-0000000000a1:40000000-0000-0000-0000-000000000001', 0);
+  v_other_org_key bigint := pg_catalog.hashtextextended(
+    '00000000-0000-0000-0000-0000000000b1:40000000-0000-0000-0000-000000000001', 0);
+  v_remote_lock text;
+begin
+  perform extensions.dblink_connect('cafe_capture_race',
+    'host=127.0.0.1 port=5432 dbname=postgres user=supabase_admin password=postgres');
+  perform extensions.dblink_exec('cafe_capture_race', 'begin');
+  select held into v_remote_lock
+  from extensions.dblink('cafe_capture_race',
+    'select pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(''00000000-0000-0000-0000-0000000000a1:40000000-0000-0000-0000-000000000001'', 0))::text'
+  ) as held_lock(held text);
+
+  if pg_catalog.pg_try_advisory_xact_lock(v_same_key) then
+    raise exception 'same-org competing request key was not serialized';
+  end if;
+  if not pg_catalog.pg_try_advisory_xact_lock(v_other_org_key) then
+    raise exception 'same request ID under a different org shared the lock';
+  end if;
+
+  perform extensions.dblink_exec('cafe_capture_race', 'commit');
+  if not pg_catalog.pg_try_advisory_xact_lock(v_same_key) then
+    raise exception 'request key lock was not released at transaction commit';
+  end if;
+  perform extensions.dblink_disconnect('cafe_capture_race');
+end;
+$capture_race$;
 \endif
 
 set local role authenticated;
