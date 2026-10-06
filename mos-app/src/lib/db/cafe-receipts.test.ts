@@ -105,6 +105,10 @@ describe('Café receipt adapter', () => {
     expect(receipt.lines[0]).toMatchObject({ received_quantity: '24', conditions: [], condition_reason: null, photos: [] })
     expect(query.eq).toHaveBeenCalledWith('received_by', 'me')
     expect(query.limit).toHaveBeenCalledWith(5)
+    expect(query.in).not.toHaveBeenCalledWith('id', expect.anything())
+
+    await listCafeReceipts(['Approved'], { ids: ['r-1', 'r-2'] })
+    expect(query.in).toHaveBeenCalledWith('id', ['r-1', 'r-2'])
 
     response = { data: [{ ...row, status: 'Posted' }], error: null }
     await expect(listCafeReceipts(['Approved'])).rejects.toThrow('invalid receipt row')

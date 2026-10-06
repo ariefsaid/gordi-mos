@@ -18,8 +18,8 @@ vi.mock('@/shell/use-is-phone', () => ({ useIsPhone: vi.fn(() => false) }))
 import { useIsPhone } from '@/shell/use-is-phone'
 
 vi.mock('@/lib/db/cafe-receipt-issues', () => ({
-  getCafeReceiptIssueAccess: vi.fn().mockResolvedValue(false),
-  setCafeReceiptIssueAccess: vi.fn().mockResolvedValue(true),
+  getCafeReceiptIssueAccess: vi.fn(),
+  setCafeReceiptIssueAccess: vi.fn(),
 }))
 import { getCafeReceiptIssueAccess, setCafeReceiptIssueAccess } from '@/lib/db/cafe-receipt-issues'
 
@@ -165,9 +165,8 @@ beforeEach(() => {
   mockRevokeRole.mockResolvedValue(undefined)
   serverReceiptIssueAccess = false
   mockGetReceiptIssueAccess.mockImplementation(async () => serverReceiptIssueAccess)
-  mockSetReceiptIssueAccess.mockImplementation(async (_personId, enabled) => {
-    serverReceiptIssueAccess = enabled
-    return enabled
+  mockSetReceiptIssueAccess.mockImplementation(async (_personId, grant) => {
+    serverReceiptIssueAccess = grant
   })
 })
 
@@ -279,7 +278,7 @@ describe('PersonPanel — sections', () => {
   it('runs Teams · Position · Access, and Revenue scope only while Supervisor is on', () => {
     const { unmount } = renderPanel()
     const toggles = () => screen.getAllByRole('button', { expanded: true }).map((b) => b.textContent)
-    expect(toggles().map((text) => text?.replace(/\d+ selected/, '').trim())).toEqual(['Teams', 'Position', 'Access', 'Receipt issues'])
+    expect(toggles().map((text) => text?.replace(/\d+ selected/, '').trim())).toEqual(['Teams', 'Position', 'Access', 'Procurement'])
     unmount()
     renderPanel({ ...BAYU, access_roles: ['member', 'supervisor'] })
     expect(screen.getByRole('button', { name: /Revenue scope/ })).toBeInTheDocument()
@@ -291,18 +290,29 @@ describe('PersonPanel — sections', () => {
     expect(screen.getByRole('button', { name: /^Teams/ })).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByRole('button', { name: /^Position/ })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.getByRole('button', { name: /^Access/ })).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.getByRole('button', { name: /^Receipt issues/ })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('button', { name: /^Procurement/ })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.getByRole('checkbox', { name: 'Gordi HQ Bar' })).toBeVisible()
     expect(screen.queryByRole('checkbox', { name: 'Ops Lead' })).toBeNull()
   })
 
-  it('an admin grants procurement capability per person and the row re-reads saved state', async () => {
+  it('FR-1040 an admin grants and removes the procurement capability; the row re-reads what the server saved', async () => {
     const user = userEvent.setup()
-    const refresh = vi.fn().mockResolvedValue(undefined)
-    renderPanel(BAYU, { refresh })
-    await user.click(await screen.findByRole('checkbox', { name: 'Receipt issue management' }))
+    renderPanel()
+    const box = await screen.findByRole('checkbox', { name: 'Resolve Receipt issues' })
+    expect(box).not.toBeChecked()
+    await user.click(box)
     await waitFor(() => expect(mockSetReceiptIssueAccess).toHaveBeenCalledWith('bayu-id', true))
-    expect(refresh).toHaveBeenCalled()
+    await waitFor(() => expect(screen.getByRole('checkbox', { name: 'Resolve Receipt issues' })).toBeChecked())
+    expect(mockGetReceiptIssueAccess).toHaveBeenCalledTimes(2)
+    await user.click(screen.getByRole('checkbox', { name: 'Resolve Receipt issues' }))
+    await waitFor(() => expect(mockSetReceiptIssueAccess).toHaveBeenLastCalledWith('bayu-id', false))
+    await waitFor(() => expect(screen.getByRole('checkbox', { name: 'Resolve Receipt issues' })).not.toBeChecked())
+  })
+
+  it('FR-1040 an admin cannot grant the capability to themselves', async () => {
+    renderPanel({ ...BAYU, id: 'admin-person-id' })
+    expect(await screen.findByRole('checkbox', { name: 'Resolve Receipt issues' })).toHaveAttribute('aria-disabled', 'true')
+    expect(screen.getByText('Another admin grants this to you.')).toBeInTheDocument()
   })
 
   it('a collapsed section opens on its heading button', async () => {

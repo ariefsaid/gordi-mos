@@ -1,78 +1,69 @@
-.cafe-receipt-issues {
-  display: grid;
-  gap: 1rem;
-  max-width: 72rem;
-  margin-inline: auto;
-  padding-bottom: 2rem;
-}
+/* Receipt issues reuse the receipt review row (cafe-count-review-queue.css, cafe-receipt.css);
+   these rules cover only what an issue adds: its explanation, the resolution and the PO picker. */
 
-.cafe-receipt-issues__intro,
-.cafe-receipt-issue__topline,
-.cafe-receipt-issue__resolve-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-}
+.cafe-receipt-issues__notice:empty { display: none; }
 
-.cafe-receipt-issues__intro > div:first-child { min-width: 0; }
-.cafe-receipt-issues__intro p { margin: 0; }
-.cafe-receipt-issues__count { margin-top: .35rem !important; color: var(--muted-foreground); font-size: .875rem; }
-.cafe-receipt-issues__tabs { display: flex; gap: .25rem; flex: 0 0 auto; }
-.cafe-receipt-issues__tabs button {
-  min-height: 2.75rem;
-  padding: .45rem .75rem;
-  border: 1px solid var(--border);
-  border-radius: .5rem;
-  background: var(--background);
+.cafe-receipt-issues__notice {
+  margin: 0;
   color: var(--foreground);
-  font-weight: 600;
+  font-size: var(--font-size-body);
 }
-.cafe-receipt-issues__tabs button[aria-pressed="true"] { border-color: var(--primary); background: var(--accent); }
-.cafe-receipt-issues__list { display: grid; gap: .75rem; margin: 0; padding: 0; list-style: none; }
-.cafe-receipt-issue {
-  display: grid;
-  gap: .75rem;
-  min-width: 0;
-  padding: 1rem;
-  border: 1px solid var(--border);
-  border-radius: .75rem;
-  background: var(--card);
-}
-.cafe-receipt-issue__branch { margin: 0; font-weight: 700; }
-.cafe-receipt-issue__meta { display: flex; flex-wrap: wrap; gap: .25rem .75rem; margin: .25rem 0 0; color: var(--muted-foreground); font-size: .875rem; }
-.cafe-receipt-issue__status { flex: 0 0 auto; padding: .2rem .55rem; border: 1px solid var(--border); border-radius: 999px; font-size: .8125rem; font-weight: 650; }
-.cafe-receipt-issue__facts { display: flex; flex-wrap: wrap; align-items: baseline; gap: .35rem .8rem; }
-.cafe-receipt-issue__kind { font-weight: 650; }
-.cafe-receipt-issue__informational,
-.cafe-receipt-issue__readonly,
-.cafe-receipt-issue__resolved,
-.cafe-receipt-issue__refresh-note { color: var(--muted-foreground); font-size: .875rem; }
-.cafe-receipt-issue__reason,
-.cafe-receipt-issue__resolution-note { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-.cafe-receipt-issue__late-po { margin: 0; color: var(--muted-foreground); font-size: .875rem; }
-.cafe-receipt-issue__actions { display: flex; flex-wrap: wrap; gap: .5rem; }
-.cafe-receipt-issue__actions .btn { min-height: 2.75rem; }
-.cafe-receipt-issue__resolve { display: grid; gap: .75rem; padding: .9rem; border: 1px solid var(--border); border-radius: .6rem; background: var(--background); }
-.cafe-receipt-issue__resolve h3,
-.cafe-receipt-issue__resolve p { margin: 0; }
-.cafe-receipt-issue__resolve-header { align-items: center; }
-.cafe-receipt-issue__resolve-header p { margin-top: .25rem; color: var(--muted-foreground); font-size: .875rem; }
-.cafe-receipt-issue__resolve textarea { width: 100%; min-height: 6rem; padding: .75rem; border: 1px solid var(--input); border-radius: .5rem; background: var(--background); color: var(--foreground); font: inherit; }
-.cafe-receipt-issue__po-list { display: grid; gap: .5rem; margin: 0; padding: 0; list-style: none; }
-.cafe-receipt-issue__po-list li { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .75rem; border: 1px solid var(--border); border-radius: .5rem; }
-.cafe-receipt-issue__po-list li > span { display: grid; gap: .2rem; min-width: 0; }
-.cafe-receipt-issue__po-list li > span > span { color: var(--muted-foreground); font-size: .875rem; }
-.cafe-receipt-issues__action-error,
-.cafe-receipt-issues__offline { margin: 0; padding: .75rem; border: 1px solid var(--destructive); border-radius: .5rem; }
 
-@media (max-width: 600px) {
-  .cafe-receipt-issues__intro { display: grid; }
-  .cafe-receipt-issues__tabs { width: 100%; }
-  .cafe-receipt-issues__tabs button { flex: 1; }
-  .cafe-receipt-issue { padding: .85rem; }
-  .cafe-receipt-issue__topline { display: grid; }
-  .cafe-receipt-issue__status { justify-self: start; }
-  .cafe-receipt-issue__resolve-header { align-items: flex-start; flex-direction: column; }
-  .cafe-receipt-issue__po-list li { align-items: stretch; flex-direction: column; }
+.cafe-receipt-issue__why,
+.cafe-receipt-issue__resolved {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.cafe-receipt-issues .cafe-count-review__state {
+  display: grid;
+  gap: 4px;
+}
+
+.cafe-receipt-issue__note {
+  color: var(--foreground);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.cafe-receipt-issue__picker {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.cafe-receipt-issue__pos {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cafe-receipt-issue__pos > li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+}
+
+.cafe-receipt-issue__pos .btn { min-height: 44px; min-width: 96px; }
+
+.cafe-receipt-issue__po {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  font-size: var(--font-size-body);
+  overflow-wrap: anywhere;
+}
+
+.cafe-receipt-issue__po > span {
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
 }

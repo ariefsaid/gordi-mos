@@ -1,106 +1,117 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { supabase } from '@/lib/supabase'
-import { listCafeReceiptLinePhotos } from './cafe-receipt-photos'
+import { listCafeReceipts, type CafeReceipt } from './cafe-receipts'
 import {
   closeCafeReceiptIssue,
+  getCafeReceiptIssueAccess,
   linkCafeReceiptIssue,
-  listCafeReceiptIssues,
   listCafeReceiptIssueOpenPos,
-  requestCafeReceiptIssuePoRefresh,
+  listCafeReceiptIssues,
   setCafeReceiptIssueAccess,
 } from './cafe-receipt-issues'
 
 vi.mock('@/lib/supabase', () => ({ supabase: { schema: vi.fn() } }))
-vi.mock('./cafe-receipt-photos', () => ({ listCafeReceiptLinePhotos: vi.fn() }))
+vi.mock('./cafe-receipts', () => ({ listCafeReceipts: vi.fn() }))
 
 const schemaMock = vi.mocked(supabase.schema)
-const photosMock = vi.mocked(listCafeReceiptLinePhotos)
+const receiptsMock = vi.mocked(listCafeReceipts)
 
-function queryMock(response: { data: unknown; error: unknown }) {
+const LINE = {
+  id: 'line-1', item_unit_id: 'unit-1', item_name: 'Long-life milk', item_category: 'Dairy', unit_name: 'carton',
+  received_quantity: '6', conditions: [], condition_reason: null, condition_updated_at: null,
+  photos: [{ lineId: 'line-1', path: 'org/receipt-1/line-1/photo.jpg', url: 'https://private.test/photo.jpg' }],
+}
+const RECEIPT = {
+  id: 'receipt-1', branch_id: 'branch-1', activity: 'kitchen', arrival_date: '2026-10-06', delivery_note_number: null,
+  status: 'Approved', posting_status: 'not_posted', posting_hold_reason: null, received_by: 'person-1',
+  received_at: '2026-10-06T02:00:00Z', submitted_at: null, reviewed_by: 'person-2', reviewed_at: null, review_note: null,
+  row_version: 3, lines: [LINE], posting: null,
+} as unknown as CafeReceipt
+const ISSUE_ROW = {
+  id: 'issue-1', receipt_id: 'receipt-1', line_id: 'line-1', kind: 'over', quantity: '2.0000', status: 'open',
+  created_at: '2026-10-06T03:00:00Z', linked_po_number: null, po_created_after_delivery: false, closed_note: null,
+  resolved_by: null, resolved_at: null,
+}
+
+function issuesQuery(response: { data: unknown; error: unknown }) {
   const query: Record<string, unknown> = {}
-  for (const method of ['select', 'in', 'eq', 'is', 'order', 'limit']) query[method] = vi.fn(() => query)
+  for (const method of ['select', 'order', 'limit']) query[method] = vi.fn(() => query)
   query.then = (resolve: (value: unknown) => unknown) => Promise.resolve(response).then(resolve)
   return query
 }
 
 beforeEach(() => {
   vi.clearAllMocks()
-  photosMock.mockResolvedValue([])
+  receiptsMock.mockResolvedValue([RECEIPT])
 })
 
 describe('Café receipt issues adapter', () => {
-  it('FR-1034 reads issue evidence, receipt context, age, and photos without inventing resolved fields', async () => {
-    const issues = queryMock({ data: [{
-      id: 'issue-1', receipt_id: 'receipt-1', line_id: 'line-1', item_unit_id: 'unit-1',
-      kind: 'no_po', quantity: '2.5', status: 'open', reason: 'PO not raised yet', created_at: '2026-10-06T10:00:00Z',
-      linked_po_number: null, linked_po_date: null, linked_po_created_at: null, closed_note: null, resolved_at: null,
-    }], error: null })
-    const receipts = queryMock({ data: [{
-      id: 'receipt-1', branch_id: 'branch-1', activity: 'kitchen', arrival_date: '2026-10-06',
-      received_by: 'person-1', received_at: '2026-10-06T09:00:00Z', delivery_note_number: null,
-    }], error: null })
-    const lines = queryMock({ data: [{
-      id: 'line-1', item_name: 'Long-life milk', item_category: 'Dairy', unit_name: 'carton',
-      received_quantity: '2.5', conditions: [], condition_reason: 'PO not raised yet',
-    }], error: null })
-    const portions = queryMock({ data: [], error: null })
-    const branches = queryMock({ data: [{ id: 'branch-1', name: 'Northside Café' }], error: null })
-    const people = queryMock({ data: [{ id: 'person-1', full_name: 'Shift receiver' }], error: null })
-    schemaMock.mockReturnValue({
-      from: vi.fn((table: string) => ({
-        cafe_receipt_issues: issues,
-        cafe_receipts: receipts,
-        cafe_receipt_lines: lines,
-        cafe_receipt_portions: portions,
-        branches,
-        people,
-      }[table])),
-    } as never)
-    photosMock.mockResolvedValue([{ lineId: 'line-1', path: 'org/receipt/line/photo.jpg', url: 'signed-url' }])
+  it('FR-1034 reads each issue with its Approved receipt, line and photos from the shared receipt read', async () => {
+    const query = issuesQuery({ data: [ISSUE_ROW, { ...ISSUE_ROW, id: 'issue-2', kind: 'short' }], error: null })
+    schemaMock.mockReturnValue({ from: vi.fn(() => query) } as never)
 
-    await expect(listCafeReceiptIssues({ now: new Date('2026-10-07T10:00:00Z') })).resolves.toMatchObject([{
-      id: 'issue-1', kind: 'no_po', quantity: '2.5', status: 'open', reason: 'PO not raised yet',
-      item_name: 'Long-life milk', unit_name: 'carton', branch_name: 'Northside Café',
-      receiver_name: 'Shift receiver', age_days: 1, photos: [{ url: 'signed-url' }], portions: [],
-    }])
-    expect(photosMock).toHaveBeenCalledWith(['line-1'])
+    const issues = await listCafeReceiptIssues()
+
+    expect(issues.map(issue => [issue.id, issue.kind, issue.quantity, issue.line.item_name, issue.receipt.arrival_date]))
+      .toEqual([['issue-1', 'over', '2.0000', 'Long-life milk', '2026-10-06'], ['issue-2', 'short', '2.0000', 'Long-life milk', '2026-10-06']])
+    expect(issues[0].line.photos).toHaveLength(1)
+    // One receipt read for both issues, by id: no second photo or line path to drift from review.
+    expect(receiptsMock).toHaveBeenCalledTimes(1)
+    expect(receiptsMock).toHaveBeenCalledWith(['Approved'], { ids: ['receipt-1'], limit: 1 })
   })
 
-  it('NFR-1001 link and close send only the issue key, selected PO number, or required note', async () => {
+  it('FR-1034 an empty list reads no receipts, and a row without its receipt is refused', async () => {
+    schemaMock.mockReturnValue({ from: vi.fn(() => issuesQuery({ data: [], error: null })) } as never)
+    await expect(listCafeReceiptIssues()).resolves.toEqual([])
+    expect(receiptsMock).not.toHaveBeenCalled()
+
+    schemaMock.mockReturnValue({ from: vi.fn(() => issuesQuery({ data: [{ ...ISSUE_ROW, line_id: 'other' }], error: null })) } as never)
+    await expect(listCafeReceiptIssues()).rejects.toThrow('invalid issue row')
+  })
+
+  it('NFR-1001 link and close send only the issue, the chosen PO number or the trimmed note', async () => {
     const rpc = vi.fn()
-      .mockResolvedValueOnce({ data: { status: 'linked', linked_po_number: 'PO-1' }, error: null })
+      .mockResolvedValueOnce({ data: { status: 'open', linked_po_number: 'PO-1', matched_quantity: '1', remaining_quantity: '1', posting: 'held', po_created_after_delivery: true }, error: null })
       .mockResolvedValueOnce({ data: { status: 'closed' }, error: null })
     schemaMock.mockReturnValue({ rpc } as never)
 
-    await expect(linkCafeReceiptIssue('issue-1', 'PO-1')).resolves.toEqual({ status: 'linked', linked_po_number: 'PO-1' })
-    await expect(closeCafeReceiptIssue('issue-1', '  Vendor follow-up  ')).resolves.toEqual({ status: 'closed' })
+    await expect(linkCafeReceiptIssue('issue-1', 'PO-1')).resolves.toEqual({
+      status: 'open', matched_quantity: '1', remaining_quantity: '1', posting: 'held', po_created_after_delivery: true,
+    })
+    await closeCafeReceiptIssue('issue-1', '  Supplier credit  ')
     expect(rpc).toHaveBeenNthCalledWith(1, 'link_cafe_receipt_issue', { p_issue_id: 'issue-1', p_po_number: 'PO-1' })
-    expect(rpc).toHaveBeenNthCalledWith(2, 'close_cafe_receipt_issue', { p_issue_id: 'issue-1', p_note: 'Vendor follow-up' })
+    expect(rpc).toHaveBeenNthCalledWith(2, 'close_cafe_receipt_issue', { p_issue_id: 'issue-1', p_note: 'Supplier credit' })
   })
 
-  it('FR-1035 offers only same-branch cached open POs containing the exact product detail', async () => {
+  it('FR-1036 a refused link surfaces the database token for a plain explanation', async () => {
+    schemaMock.mockReturnValue({ rpc: vi.fn().mockResolvedValue({ data: null, error: { message: 'CAFE_RECEIPT_ISSUE_PO_AFTER_ARRIVAL: the PO must be dated on or before the arrival date' } }) } as never)
+    await expect(linkCafeReceiptIssue('issue-1', 'PO-2')).rejects.toThrow('CAFE_RECEIPT_ISSUE_PO_AFTER_ARRIVAL')
+  })
+
+  it('FR-1035 reads the PO picker with each PO date eligibility and the cache as-of time', async () => {
     const rpc = vi.fn().mockResolvedValue({ data: {
-      options: [{ po_number: 'PO-1', supplier_name: 'Supplier', po_date: '2026-10-05', date_eligible: true, esb_created_at: '2026-10-05T08:00:00Z' }],
-      cache_as_of: '2026-10-07T09:00:00Z', is_current: true, refresh_requested_at: null,
+      options: [{ po_number: 'PO-1', supplier_name: null, po_date: '2026-10-06', date_eligible: false, created_after_delivery: true }],
+      cache_as_of: '2026-10-07T01:00:00Z', is_current: true, refresh_requested_at: null,
     }, error: null })
     schemaMock.mockReturnValue({ rpc } as never)
 
     await expect(listCafeReceiptIssueOpenPos('issue-1')).resolves.toEqual({
-      options: [{ po_number: 'PO-1', supplier_name: 'Supplier', po_date: '2026-10-05', date_eligible: true, esb_created_at: '2026-10-05T08:00:00Z' }],
-      cache_as_of: '2026-10-07T09:00:00Z', is_current: true, refresh_requested_at: null,
+      options: [{ po_number: 'PO-1', supplier_name: null, po_date: '2026-10-06', date_eligible: false, created_after_delivery: true }],
+      cache_as_of: '2026-10-07T01:00:00Z', is_current: true, refresh_requested_at: null,
     })
     expect(rpc).toHaveBeenCalledWith('cafe_receipt_issue_open_pos', { p_issue_id: 'issue-1' })
   })
 
-  it('FR-1032 requests a worker-owned cache refresh and manages the Admin capability only through RPCs', async () => {
+  it('FR-1040 the capability is read and written only through the admin RPCs, and a write is confirmed', async () => {
     const rpc = vi.fn()
-      .mockResolvedValueOnce({ data: { requested_at: '2026-10-07T10:00:00Z' }, error: null })
+      .mockResolvedValueOnce({ data: { enabled: false }, error: null })
       .mockResolvedValueOnce({ data: { enabled: true }, error: null })
+      .mockResolvedValueOnce({ data: { enabled: false }, error: null })
     schemaMock.mockReturnValue({ rpc } as never)
 
-    await expect(requestCafeReceiptIssuePoRefresh('issue-1')).resolves.toEqual({ requested_at: '2026-10-07T10:00:00Z' })
-    await expect(setCafeReceiptIssueAccess('person-1', true)).resolves.toBe(true)
-    expect(rpc).toHaveBeenNthCalledWith(1, 'request_cafe_receipt_issue_po_refresh', { p_issue_id: 'issue-1' })
+    await expect(getCafeReceiptIssueAccess('person-1')).resolves.toBe(false)
+    await setCafeReceiptIssueAccess('person-1', true)
+    await expect(setCafeReceiptIssueAccess('person-1', true)).rejects.toThrow('not saved')
     expect(rpc).toHaveBeenNthCalledWith(2, 'set_cafe_receipt_issue_access', { p_person_id: 'person-1', p_enabled: true })
   })
 })

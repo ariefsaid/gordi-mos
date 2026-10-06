@@ -143,7 +143,9 @@ export async function listCafeReceivableItems(stream: ProductionStream): Promise
 /** Receipts the viewer may read, newest first; RLS returns their own and the streams they review. */
 export async function listCafeReceipts(
   statuses: readonly CafeReceiptStatus[],
-  { receivedBy, limit = 50, photosFor = statuses }: {
+  { ids, receivedBy, limit = 50, photosFor = statuses }: {
+    /** Only these receipts, when given. */
+    ids?: readonly string[]
     receivedBy?: string
     limit?: number
     /** Statuses whose photos are read and signed; a surface asks only for the photos it shows. */
@@ -154,6 +156,7 @@ export async function listCafeReceipts(
     .from('cafe_receipts')
     .select(RECEIPT_FIELDS)
     .in('status', [...statuses])
+  if (ids) query = query.in('id', [...ids])
   if (receivedBy) query = query.eq('received_by', receivedBy)
   const { data, error } = await query
     .order('received_at', { ascending: false })
