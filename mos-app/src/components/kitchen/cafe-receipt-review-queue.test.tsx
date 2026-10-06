@@ -3,10 +3,13 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { I18nProvider } from '@/i18n/I18nProvider'
 
 vi.mock('@/lib/db/directory', () => ({ getPeople: vi.fn() }))
-vi.mock('@/lib/db/cafe-receipts', () => ({ listCafeReceipts: vi.fn(), reviewCafeReceipt: vi.fn() }))
+vi.mock('@/lib/db/cafe-receipts', async importOriginal => {
+  const actual = await importOriginal<typeof import('@/lib/db/cafe-receipts')>()
+  return { ...actual, listCafeReceipts: vi.fn(), reviewCafeReceipt: vi.fn(), listCafeReceiptDifferences: vi.fn() }
+})
 
 import { getPeople } from '@/lib/db/directory'
-import { listCafeReceipts, reviewCafeReceipt, type CafeReceipt } from '@/lib/db/cafe-receipts'
+import { listCafeReceiptDifferences, listCafeReceipts, reviewCafeReceipt, type CafeReceipt } from '@/lib/db/cafe-receipts'
 import { ALL_STREAMS } from './cafe-stream-bar'
 import { CafeReceiptReviewQueue } from './cafe-receipt-review-queue'
 
@@ -17,7 +20,7 @@ function receipt(id: string, receivedBy: string, overrides: Partial<CafeReceipt>
     status: 'Submitted', posting_status: 'not_posted', posting_hold_reason: null, received_by: receivedBy,
     received_at: '2026-10-06T02:00:00Z', submitted_at: '2026-10-06T02:05:00Z', reviewed_by: null, reviewed_at: null,
     review_note: null, row_version: 2,
-    lines: [{ id: `${id}-l1`, item_name: 'Coffee bean', item_category: 'Bar', unit_name: 'kg', received_quantity: '2.5' }],
+    lines: [{ id: `${id}-l1`, item_unit_id: 'unit-kg', item_name: 'Coffee bean', item_category: 'Bar', unit_name: 'kg', received_quantity: '2.5' }],
     ...overrides,
   }
 }
@@ -33,6 +36,7 @@ function renderQueue() {
 beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(getPeople).mockResolvedValue([{ id: 'receiver', full_name: 'Shift member' }, { id: 'me', full_name: 'Reviewer' }])
+  vi.mocked(listCafeReceiptDifferences).mockResolvedValue([])
   Object.defineProperty(navigator, 'onLine', { configurable: true, value: true })
 })
 
@@ -69,5 +73,63 @@ describe('CafeReceiptReviewQueue', () => {
     fireEvent.click(confirm)
     await waitFor(() => expect(reviewCafeReceipt).toHaveBeenCalledWith('r-3', 'reject', 2, 'Counted in crates'))
     expect(await within(row).findByText('Rejected · re-enter as a new receipt')).toBeInTheDocument()
+  })
+
+  it('FR-1032 a reviewer sees each line’s difference with the open-PO cache’s as-of time', async () => {
+    vi.mocked(listCafeReceipts).mockResolvedValue([receipt('r-4', 'receiver')])
+    vi.mocked(listCafeReceiptDifferences).mockResolvedValue([
+      { receipt_id: 'r-4', line_id: 'r-4-l1', item_unit_id: 'unit-kg', outcome: 'over', cache_as_of: '2026-10-06T02:10:00Z' },
+    ])
+    renderQueue()
+    const row = (await screen.findByText('Received by Shift member')).closest('li')!
+    expect(await within(row).findByText('Over the open PO')).toBeInTheDocument()
+    expect(within(row).getByText('Open POs as of 06 Oct 09:10')).toBeInTheDocument()
+    expect(vi.mocked(listCafeReceiptDifferences)).toHaveBeenCalledWith(['r-4'])
+  })
+
+  it('FR-1032 a stale or never-read cache tells the reviewer the difference is not yet known', async () => {
+    vi.mocked(listCafeReceipts).mockResolvedValue([receipt('r-5', 'receiver')])
+    vi.mocked(listCafeReceiptDifferences).mockResolvedValue([
+      { receipt_id: 'r-5', line_id: 'r-5-l1', item_unit_id: 'unit-kg', outcome: 'unknown', cache_as_of: null },
+    ])
+    renderQueue()
+    const row = (await screen.findByText('Received by Shift member')).closest('li')!
+    expect(await within(row).findByText('Difference not yet known')).toBeInTheDocument()
+    expect(within(row).getByText('Open POs not read from ESB yet')).toBeInTheDocument()
+    expect(within(row).getByRole('button', { name: 'Approve' })).toBeEnabled()
+  })
+
+  it('FR-1032 a stale cache gives the reason the difference is not known', async () => {
+    vi.mocked(listCafeReceipts).mockResolvedValue([receipt('r-6', 'receiver')])
+    vi.mocked(listCafeReceiptDifferences).mockResolvedValue([
+      { receipt_id: 'r-6', line_id: 'r-6-l1', item_unit_id: 'unit-kg', outcome: 'unknown', cache_as_of: '2026-10-05T23:05:00Z' },
+    ])
+    renderQueue()
+    const row = (await screen.findByText('Received by Shift member')).closest('li')!
+    expect(await within(row).findByText('Open POs as of 06 Oct 06:05 · too old to compare')).toBeInTheDocument()
+  })
+
+  it('NFR-1006 a failed difference read says so, never that the open POs were not read', async () => {
+    vi.mocked(listCafeReceipts).mockResolvedValue([receipt('r-7', 'receiver')])
+    vi.mocked(listCafeReceiptDifferences).mockRejectedValue(new Error('network'))
+    renderQueue()
+    const row = (await screen.findByText('Received by Shift member')).closest('li')!
+    expect(await within(row).findByText('Difference could not be loaded; refresh to try again')).toBeInTheDocument()
+    expect(within(row).queryByText('Open POs not read from ESB yet')).toBeNull()
+  })
+
+  it('FR-1012 a Counted receipt not yet sent shows as “Counted, not sent” with its age and cannot be decided', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true, now: new Date('2026-10-06T04:00:00Z') })
+    try {
+      vi.mocked(listCafeReceipts).mockResolvedValue([receipt('r-8', 'receiver', { status: 'Counted', submitted_at: null, row_version: 1 })])
+      renderQueue()
+      const row = (await screen.findByText('Received by Shift member')).closest('li')!
+      expect(within(row).getByText('Counted, not sent · locked 2h ago')).toBeInTheDocument()
+      expect(within(row).queryByRole('button', { name: 'Approve' })).toBeNull()
+      expect(within(row).queryByRole('button', { name: 'Reject' })).toBeNull()
+      expect(vi.mocked(listCafeReceipts)).toHaveBeenCalledWith(['Submitted', 'Counted'])
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
