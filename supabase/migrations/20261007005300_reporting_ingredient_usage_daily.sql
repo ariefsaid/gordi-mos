@@ -1,7 +1,7 @@
 -- reporting.ingredient_usage_daily — the nightly ingredient-usage copy behind the yield measures
 -- (drinks per kg of coffee, per litre of milk). The snapshot job (scripts/reporting_snapshot.py)
 -- fills it; nothing reads it yet: yield is not shown until actual consumption from the daily stock
--- count exists (OD-2026-10-06-MONTH2).
+-- count exists (owner ruling, Month 2 grill).
 --
 -- Access is the branch-cost tier: finance and manager of the row's own org read it, exactly as
 -- reporting.sales_margin_daily. No app session has a write privilege; the snapshot writer upserts

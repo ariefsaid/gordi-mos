@@ -135,7 +135,7 @@ def build_org_scope_sql() -> str:
     """Declare the org this run writes, for the transaction that writes it.
 
     The third set_config argument is is_local, and `true` — TRANSACTION scope — is deliberate.
-    Both callers below open a connection, declare, write, commit, close; psycopg is not in
+    _copy_window opens a connection, declares, writes, commits, closes; psycopg is not in
     autocommit, so the declaration and the writes it authorises already share one implicit
     transaction. Transaction scope therefore does exactly the work session scope would, with a
     strictly shorter lifetime, and that difference is the reason to prefer it:
@@ -149,7 +149,7 @@ def build_org_scope_sql() -> str:
       rest of this design.
 
     The obligation this buys is small and local: the declaration must be executed in the same
-    transaction as the writes. Both call sites do, and scripts/test_reporting_snapshot.py asserts
+    transaction as the writes. _copy_window does, and scripts/test_reporting_snapshot.py asserts
     the ordering with no commit in between.
     """
     return "select set_config('app.reporting_org', %s, true)"
@@ -355,8 +355,9 @@ def run_margin_snapshot(config: SnapshotConfig, snapshot_as_of: datetime) -> int
 # Recipe-based ingredient usage per branch and day: each sold menu line times its recipe, grouped
 # by the ingredient's ERP product detail id (never its name). Unlike the warehouse's COGS views,
 # this keeps menus the ERP has soft-deleted and zero-price add-on lines (package sub-items): both
-# were really made and really used ingredients. Finished and Void sales count (a voided order was
-# still prepared); Cancelled does not.
+# were really made and really used ingredients. The sale statuses are the warehouse's own
+# consumption rule (v_transaction_cogs_total): Finished and Void count, because a voided order was
+# prepared and refunded; Cancelled was never prepared.
 
 
 class UnknownUnitError(ValueError):
@@ -414,8 +415,8 @@ def normalize_usage_row(
     source_contract_version: str,
 ) -> dict[str, Any]:
     esb_code = _required_text(row.get("esb_code"), "esb_code")
+    unit_basis, factor = normalize_unit(row.get("source_unit"))
     source_unit = _required_text(row.get("source_unit"), "source_unit")
-    unit_basis, factor = normalize_unit(source_unit)
     source_qty = float(row.get("source_qty") or 0)
     units_sold = float(row.get("units_sold") or 0)
     units_with_recipe = float(row.get("units_with_recipe") or 0)
@@ -466,13 +467,15 @@ def build_usage_source_query() -> str:
         where bi.qty > 0 and bi.product_detail_id is not null
         group by bi.esb_code, bi.bom_id, bi.product_detail_id, btrim(bi.uom_name)
       ),
+      recipe_boms as (
+        select distinct esb_code, bom_id from recipe
+      ),
       sold as (
         select l.sales_date, l.esb_code, l.branch_code,
                sum(l.qty) as units_sold,
-               sum(l.qty) filter (where exists (
-                 select 1 from recipe b where b.esb_code = l.esb_code and b.bom_id = l.bom_id
-               )) as units_with_recipe
+               sum(l.qty) filter (where rb.bom_id is not null) as units_with_recipe
         from lines l
+        left join recipe_boms rb on rb.esb_code = l.esb_code and rb.bom_id = l.bom_id
         group by l.sales_date, l.esb_code, l.branch_code
       ),
       used as (

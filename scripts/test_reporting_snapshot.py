@@ -552,6 +552,17 @@ class UsageSnapshotTests(unittest.TestCase):
         self.assertNotIn("is_package_sub_item", sql, "add-on lines ride as package sub-items")
         self.assertIn("from oms_sales_items si", sql)
 
+    def test_usage_query_counts_finished_and_void_sales_and_never_cancelled(self):
+        """The warehouse's consumption rule: a voided order was prepared, a cancelled one was not."""
+        sql = " ".join(build_usage_source_query().split())
+
+        self.assertIn("o.status_name in ('Finished', 'Void')", sql)
+        self.assertNotIn("Cancel", sql)
+
+    def test_usage_row_without_a_unit_is_refused_by_the_named_error(self):
+        with self.assertRaises(UnknownUnitError):
+            self._normalize(source_unit=None)
+
     def test_usage_query_joins_ingredients_by_product_detail_id_never_by_name(self):
         sql = " ".join(build_usage_source_query().split())
 
