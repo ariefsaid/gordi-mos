@@ -14,7 +14,7 @@
 
 .list-paging p.list-paging__error {
   flex: 0 0 100%;
-  min-height: 4.2em;
+  min-height: 1.4em;
   color: var(--status-lost-text);
   line-height: 1.4;
 }

@@ -12,7 +12,7 @@ function ruleBody(selector: string): string {
 describe('ListPaging responsive and error styles', () => {
   it('reserves the error message space and uses the established error text token', () => {
     const error = ruleBody('.list-paging p.list-paging__error')
-    expect(error).toMatch(/min-height:\s*\d+(?:\.\d+)?em/)
+    expect(error).toMatch(/min-height:\s*1\.4em/)
     expect(error).toMatch(/color:\s*var\(--status-lost-text\)/)
     expect(ruleBody('.list-paging__error--hidden')).toMatch(/visibility:\s*hidden/)
   })

@@ -38,6 +38,24 @@ describe('ListPaging', () => {
     expect(loadingButton).toHaveFocus()
   })
 
+  it('moves focus to the count line when the last page removes the button, and never steals focus on first render', () => {
+    function Harness() {
+      const [more, setMore] = useState(true)
+      return <ListPaging count={more ? 50 : 60} hasMore={more} onLoadMore={() => setMore(false)} />
+    }
+    render(<I18nProvider><Harness /></I18nProvider>)
+    const button = screen.getByRole('button', { name: 'Load more' })
+    button.focus()
+    fireEvent.click(button)
+    expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull()
+    expect(screen.getByText('60 loaded · end of list')).toHaveFocus()
+  })
+
+  it('does not take focus when the list is complete on first render', () => {
+    render(<I18nProvider><ListPaging count={12} hasMore={false} onLoadMore={() => {}} /></I18nProvider>)
+    expect(document.body).toHaveFocus()
+  })
+
   it('uses generic empty-page wording when the empty list is not filter-specific', () => {
     render(
       <I18nProvider>
