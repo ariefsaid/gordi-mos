@@ -149,5 +149,24 @@ rc=$?
 if [ "$rc" -eq 0 ]; then pass=$((pass+1)); printf '  ok    non-UI diff does not require skills evidence\n'
 else fail=$((fail+1)); printf '  FAIL  non-UI diff changed behavior — rc=%s\n' "$rc"; fi
 
+# Trigger scope: shell-level UI files gate; a test-only .tsx change does not.
+mkdir -p "$tmp/scope-repo/mos-app/src/shell"
+git init -q "$tmp/scope-repo"
+gs() { git -C "$tmp/scope-repo" -c user.email=t@t -c user.name=t "$@"; }
+gs commit -qm init --allow-empty
+gs update-ref refs/remotes/origin/dev "$(gs rev-parse HEAD)"
+printf 'export const T = () => null;\n' > "$tmp/scope-repo/mos-app/src/shell/tab.test.tsx"
+gs add -A && gs commit -qm 'test only'
+printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$(gs rev-parse HEAD)" > "$tmp/scope-repo/review.md"
+(cd "$tmp/scope-repo" && bash "$SCRIPT" --lens spec --reviewer gpt-5.6-luna --artifact review.md) >/dev/null 2>&1
+if [ $? -eq 0 ]; then pass=$((pass+1)); printf '  ok    test-only tsx does not require skills evidence\n'
+else fail=$((fail+1)); printf '  FAIL  test-only tsx wrongly gated\n'; fi
+printf 'export const B = () => null;\n' > "$tmp/scope-repo/mos-app/src/shell/bar.tsx"
+gs add -A && gs commit -qm 'shell ui'
+printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$(gs rev-parse HEAD)" > "$tmp/scope-repo/review.md"
+(cd "$tmp/scope-repo" && bash "$SCRIPT" --lens spec --reviewer gpt-5.6-luna --artifact review.md) >/dev/null 2>&1
+if [ $? -ne 0 ]; then pass=$((pass+1)); printf '  ok    shell tsx requires skills evidence\n'
+else fail=$((fail+1)); printf '  FAIL  shell tsx bypassed the gate\n'; fi
+
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

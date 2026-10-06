@@ -26,10 +26,10 @@ validate_ui_skills_evidence() {
     || die "UI diff requires a '## Skills evidence' section in the review artifact"
   section="$(awk '
     /^## Skills evidence[[:space:]]*$/ { inside = 1; next }
-    inside && /^#{1,6}[[:space:]]/ { exit }
+    inside && /^##[[:space:]]/ { exit }
     inside { print }
   ' "$artifact")"
-  main_checkout="$(git worktree list | head -1 | awk '{print $1}')"
+  main_checkout="$(git worktree list --porcelain | awk '$1=="worktree"{print $2; exit}')"
   [ -n "$main_checkout" ] || die "cannot find the main checkout for Skills evidence paths"
 
   for playbook in "${playbooks[@]}"; do
@@ -134,7 +134,7 @@ changed_files="$(git diff --name-only origin/dev...HEAD 2>/dev/null)" || {
   changed_files="$(git diff --name-only "$merge_base" HEAD)" \
     || die "could not list the diff from origin/dev's merge-base"
 }
-if printf '%s\n' "$changed_files" | grep -Eq '(^|/)mos-app/src/(components|pages)/.*\.tsx$|\.css$'; then
+if printf '%s\n' "$changed_files" | grep -E '(^|/)mos-app/src/.*\.tsx$|\.css$' | grep -qvE '\.test\.tsx$'; then
   validate_ui_skills_evidence "$head" "$artifact"
 fi
 
