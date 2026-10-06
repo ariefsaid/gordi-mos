@@ -45,6 +45,7 @@ function SkipLink() {
   return (
     <a
       href="#main-content"
+      onClick={() => document.getElementById('main-content')?.focus()}
       onFocus={() => setFocused(true)}
       onBlur={() => setFocused(false)}
       style={

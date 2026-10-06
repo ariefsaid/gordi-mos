@@ -397,6 +397,7 @@ describe('WCAG 2.1 AA: every interactive control in the chrome is named and keyb
 
       await user.keyboard('{Enter}')
       expect(window.location.hash).toBe('#main-content')
+      expect(target).toHaveFocus()
       expect(target).toHaveAttribute('tabindex', '-1')
       window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`)
     },
