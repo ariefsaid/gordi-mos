@@ -58,6 +58,11 @@ export function streamKey(branchId: string, activity: ProductionActivity): strin
   return `${branchId}|${activity}`
 }
 
+/** Stable key for review context scoped to one log date and production stream. */
+export function streamDateKey(logDate: string, branchId: string, activity: ProductionActivity): string {
+  return `${logDate}|${streamKey(branchId, activity)}`
+}
+
 export function movementsEqual(a: KitchenMovement, b: KitchenMovement): boolean {
   return movementKey(a) === movementKey(b)
 }

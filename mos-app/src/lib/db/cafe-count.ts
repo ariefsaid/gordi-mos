@@ -1,4 +1,6 @@
 import { supabase } from '@/lib/supabase'
+import { parseQuantityInput } from '@/lib/quantity-parser'
+import type { QuantityParseResult } from '@/lib/quantity-parser'
 import type { ProductionActivity, ProductionStream } from './kitchen-logs.types'
 
 export type CafeCountableItem = {
@@ -96,14 +98,17 @@ export async function listCafeCountableItems(stream: ProductionStream): Promise<
   })
 }
 
-/** Reads only today's Submitted and Confirmed rows; RLS enforces the Café-log org read scope. */
-export async function listCafeCountLines(countDate: string): Promise<CafeCountLine[]> {
-  const { data, error } = await supabase.schema('ops')
+/** Reads Submitted Counts oldest-first across dates by default; RLS enforces the Café-log org read scope. */
+export async function listCafeCountLines(countDate?: string): Promise<CafeCountLine[]> {
+  let query = supabase.schema('ops')
     .from('cafe_count_lines')
     .select(COUNT_LINE_FIELDS)
-    .eq('count_date', countDate)
-    .in('status', ['Submitted', 'Confirmed'])
-    .order('submitted_at', { ascending: false })
+    .eq('status', 'Submitted')
+  if (countDate) query = query.eq('count_date', countDate)
+  const { data, error } = await query
+    .order('count_date', { ascending: true })
+    .order('submitted_at', { ascending: true })
+    .order('id', { ascending: true })
   if (error) throw new Error(`listCafeCountLines failed: ${error.message}`)
   return ((data ?? []) as unknown as Array<Record<string, unknown>>).map(row => {
     if (row.activity !== 'kitchen' && row.activity !== 'bar') {
@@ -169,15 +174,17 @@ export async function confirmCafeCountLine(lineId: string, expectedVersion: numb
 }
 
 /** Empty means “not counted”; zero is valid; decimal comma and point are both accepted. */
+export function parseCafeCountQuantity(raw: string): QuantityParseResult {
+  return parseQuantityInput(raw, {
+    min: 0,
+    maxIntegerDigits: 10,
+    maxFractionDigits: 2,
+  })
+}
+
 export function normalizeCafeCountQuantity(raw: string): string | null {
-  const value = raw.trim()
-  if (value === '') return null
-  const match = /^(\d+)(?:[.,](\d{1,4}))?$/.exec(value)
-  if (!match) return null
-  const whole = match[1].replace(/^0+(?=\d)/, '')
-  const fraction = (match[2] ?? '').replace(/0+$/, '')
-  if (whole.length > 10) return null
-  return fraction ? `${whole}.${fraction}` : whole
+  const parsed = parseCafeCountQuantity(raw)
+  return parsed.kind === 'valid' ? parsed.normalized : null
 }
 
 export function newCafeCountClientKey(): string {

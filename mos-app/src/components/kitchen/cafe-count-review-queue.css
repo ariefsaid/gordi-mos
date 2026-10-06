@@ -9,6 +9,16 @@
   background: var(--background);
 }
 
+.cafe-count-review--empty {
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+}
+.cafe-count-review--empty .cafe-count-review__header {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
 .cafe-count-review__header {
   display: flex;
   align-items: flex-start;
@@ -35,8 +45,24 @@
 .cafe-count-review__date {
   flex: 0 0 auto;
   color: var(--muted-foreground);
-  font-size: var(--font-size-body);
+  font-size: var(--font-size-label);
+  font-variant-numeric: tabular-nums;
 }
+
+.cafe-count-review__empty {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+.cafe-count-review__empty p {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-body);
+  line-height: 1.4;
+}
+.cafe-count-review__empty .btn { min-height: 44px; }
 
 .cafe-count-review__list {
   display: grid;
@@ -163,6 +189,8 @@
 
 @media (max-width: 420px) {
   .cafe-count-review__header { display: grid; gap: 6px; }
+  .cafe-count-review__empty { align-items: flex-start; }
+  .cafe-count-review__empty .btn { flex: 0 0 auto; }
   .cafe-count-review__facts { gap: 10px 8px; }
   .cafe-count-review__facts dd { font-size: var(--font-size-body); }
 }
