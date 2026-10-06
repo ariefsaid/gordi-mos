@@ -51,6 +51,9 @@ export interface MarginFigures {
   cogsVsBudget: number | null
   /** Mean recipe (BOM) coverage over the period. */
   coverage: number | null
+  /** Over the days that carry both COGS bases: interim COGS and recipe-budget COGS, each as a
+   *  share of those days' revenue. Their difference is `cogsVsBudget`. */
+  budgetBasis: { cogsShare: number; budgetShare: number } | null
 }
 
 export interface BranchRow {
@@ -81,7 +84,7 @@ export interface BranchTable {
   b2b: BranchRow[]
 }
 
-const B2B_CHANNEL = 'B2B'
+export const B2B_CHANNEL = 'B2B'
 
 /** Daily revenue of one row group; a date absent from the map was not received. */
 interface Series { code: string; name: string; byDate: Map<string, number> }
@@ -120,18 +123,23 @@ function addPairs(a: Pairs, b: Pairs): Pairs {
   return { current: a.current + b.current, earlier: a.earlier + b.earlier }
 }
 
-function marginFigures(rows: SalesMarginDailyRow[], start: string, end: string): MarginFigures {
+/** Margin figures over [start, end] of one branch's (or the company's) margin rows. */
+export function marginFigures(rows: SalesMarginDailyRow[], start: string, end: string): MarginFigures {
   const inWindow = rows.filter((r) => r.margin_date >= start && r.margin_date <= end)
   const costed = inWindow.filter((r) => r.cogs_interim_sm != null)
   const costedRevenue = costed.reduce((s, r) => s + r.revenue, 0)
   const cogs = costed.reduce((s, r) => s + (r.cogs_interim_sm ?? 0), 0)
   const budgeted = costed.filter((r) => r.cogs_budget_bom != null)
   const budgetedRevenue = budgeted.reduce((s, r) => s + r.revenue, 0)
-  const overBudget = budgeted.reduce((s, r) => s + (r.cogs_interim_sm ?? 0) - (r.cogs_budget_bom ?? 0), 0)
+  const budgetedCogs = budgeted.reduce((s, r) => s + (r.cogs_interim_sm ?? 0), 0)
+  const budget = budgeted.reduce((s, r) => s + (r.cogs_budget_bom ?? 0), 0)
   return {
     pct: costedRevenue > 0 ? (costedRevenue - cogs) / costedRevenue : null,
-    cogsVsBudget: budgetedRevenue > 0 ? overBudget / budgetedRevenue : null,
+    cogsVsBudget: budgetedRevenue > 0 ? (budgetedCogs - budget) / budgetedRevenue : null,
     coverage: bomCoveragePct(inWindow, start, end),
+    budgetBasis: budgetedRevenue > 0
+      ? { cogsShare: budgetedCogs / budgetedRevenue, budgetShare: budget / budgetedRevenue }
+      : null,
   }
 }
 

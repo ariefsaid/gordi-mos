@@ -84,6 +84,7 @@ export const PAGE_FAMILY_FRAME_ROUTES: readonly PageFamilyMigrationEntry[] = [
 
   // ── Money ─────────────────────────────────────────────────────────────────────────────────
   { path: '/money', family: 'workspace', sourceFile: 'pages/money-page.tsx', symbol: 'MoneyPage' },
+  { path: '/money/branch/:code', family: 'workspace', sourceFile: 'pages/money-branch-page.tsx', symbol: 'MoneyBranchPage' },
   { path: '/money/budget', family: 'workspace', sourceFile: 'pages/budget-page.tsx', symbol: 'BudgetPage' },
   { path: '/money/pricing', family: 'workspace', sourceFile: 'pages/pricing-page.tsx', symbol: 'PricingPage' },
 
