@@ -649,6 +649,14 @@ class PendingBillRunTests(unittest.TestCase):
             for p in params
         }
         self.assertEqual(flags, {("void", "GKI", "RRS", "B-004"), ("missing", "GKI", "RRS", "B-009")})
+        # B-004 is currently 'missing': the flag UPDATE must reach it, so its predicate may exclude
+        # only rows already void — a predicate of source_state = 'present' would match 0 rows.
+        flag_sql = next(
+            " ".join(sql.split()) for kind, sql, _p in calls
+            if kind == "executemany" and "source_state = %(state)s" in sql
+        )
+        self.assertIn("and source_state <> 'void'", flag_sql)
+        self.assertNotIn("source_state = 'present'", flag_sql)
 
     def test_run_declares_org_before_writes_in_the_same_transaction(self):
         """Given a pending-bill run, then the org declaration is the first statement, every write

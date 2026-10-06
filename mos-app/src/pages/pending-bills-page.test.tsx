@@ -131,12 +131,19 @@ describe('the ready list', () => {
 })
 
 describe('the table columns', () => {
-  it('puts State right after Who owes, so a flagged bill is visible at tablet widths', async () => {
+  it('puts Age beside Date and State right after Who owes, so how old and flagged are visible at tablet widths', async () => {
     renderPage()
     const table = await screen.findByRole('table')
     expect(within(table).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(
-      ['Date', 'Branch', 'Who owes', 'State', 'Bill no.', 'Amount', 'Balance', 'Age'],
+      ['Date', 'Age', 'Branch', 'Who owes', 'State', 'Bill no.', 'Amount', 'Balance'],
     )
+  })
+
+  it('names the sideways-scrolling table box and lets the keyboard reach it', async () => {
+    renderPage()
+    const box = await screen.findByRole('region', { name: 'Pending bills table, scrolls sideways' })
+    expect(box).toHaveAttribute('tabindex', '0')
+    expect(within(box).getByRole('table')).toBeInTheDocument()
   })
 
   it('says a branch MOS does not know is unknown, beside the code the till sent', async () => {
@@ -165,6 +172,14 @@ describe('the phone list', () => {
     expect(oldest.getByText('PB-1')).toBeInTheDocument()
     expect(oldest.getByText('420 days')).toBeInTheDocument()
     expect(oldest.getByText('Open')).toBeInTheDocument()
+    expect(oldest.getByText('Meja 4').closest('.pending-bill-card__title')).not.toHaveClass('pending-bill-card__title--none')
+  })
+
+  it('keeps the card title muted when no one is named on the bill', async () => {
+    setViewport(false)
+    renderPage()
+    const placeholder = await screen.findByText('Not written on the bill')
+    expect(placeholder.closest('.pending-bill-card__title')).toHaveClass('pending-bill-card__title--none')
   })
 })
 
@@ -221,7 +236,7 @@ describe('AC-1123: every state says what happened and offers an action', () => {
     mockList.mockRejectedValue(new Error('down'))
     renderPage()
     const alert = await screen.findByRole('alert')
-    expect(within(alert).getByText("Couldn't load pending bills.")).toBeInTheDocument()
+    expect(within(alert).getByText("Couldn't load pending bills. Try again; if it keeps failing, tell the admin.")).toBeInTheDocument()
     fireEvent.click(within(alert).getByRole('button', { name: 'Try again' }))
     await waitFor(() => expect(mockList).toHaveBeenCalledTimes(2))
   })
