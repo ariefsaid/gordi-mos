@@ -111,10 +111,11 @@ export function DayRevenueChart({ days, selected, onSelect, label }: DayRevenueC
         onKeyDown={onKeyDown}
         // Recharts' inner layers take focus on a click; the named group keeps it, so the keys and
         // the one focus ring stay on the chart.
-        onFocus={(event) => { if (event.target !== event.currentTarget) event.currentTarget.focus() }}
+        onFocus={(event) => { if (event.target !== event.currentTarget) event.currentTarget.focus({ preventScroll: true }) }}
         onPointerDown={(event) => { pressRef.current = event.button === 0 }}
+        onPointerCancel={() => { pressRef.current = false }}
         onPointerMove={(event) => { if (event.pointerType === 'mouse') setHover(pointerDay(event)) }}
-        onPointerLeave={() => setHover(null)}
+        onPointerLeave={() => { setHover(null); pressRef.current = false }}
         onPointerUp={(event) => {
           const pressed = pressRef.current
           pressRef.current = false
