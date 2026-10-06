@@ -102,6 +102,7 @@ const KitchenPushesPage = lazyPage(() =>
   import('./pages/kitchen-pushes-page').then((m) => ({ default: m.KitchenPushesPage })),
 )
 const MoneyPage = lazyPage(() => import('./pages/money-page').then((m) => ({ default: m.MoneyPage })))
+const MoneyBranchPage = lazyPage(() => import('./pages/money-branch-page').then((m) => ({ default: m.MoneyBranchPage })))
 const BudgetPage = lazyPage(() => import('./pages/budget-page').then((m) => ({ default: m.BudgetPage })))
 const PricingPage = lazyPage(() => import('./pages/pricing-page').then((m) => ({ default: m.PricingPage })))
 const AdminUsersPage = lazyPage(() => import('./pages/admin-users-page').then((m) => ({ default: m.AdminUsersPage })))
@@ -328,6 +329,7 @@ const routeTable: RouteObject[] = [
             handle: infrastructureHandle('capability'),
             children: [
               { path: 'money', element: withSuspense(<MoneyPage />), handle: pageHandle('workspace') },
+              { path: 'money/branch/:code', element: withSuspense(<MoneyBranchPage />), handle: pageHandle('workspace') },
               // The Detail tab duplicated the table; the table IS the page now. Old links land on it.
               { path: 'money/detail', element: <RouteRedirect to="/money" />, handle: redirectHandle('/money') },
               // /sales names /money directly — never chained through /dashboard.

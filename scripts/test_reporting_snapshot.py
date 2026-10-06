@@ -16,6 +16,15 @@ from reporting_snapshot import (
     run_margin_snapshot,
     run_snapshot,
 )
+from reporting_snapshot import (
+    DEFAULT_USAGE_SOURCE_CONTRACT_VERSION,
+    UnknownUnitError,
+    build_usage_source_query,
+    build_usage_upsert_sql,
+    normalize_unit,
+    normalize_usage_row,
+    run_usage_snapshot,
+)
 
 
 class ReportingSnapshotTests(unittest.TestCase):
@@ -387,6 +396,11 @@ class OrgScopedRunTests(unittest.TestCase):
             run_margin_snapshot(self._config(org_id), snapshot_as_of="2026-08-03T20:30:00+00:00")
         return self._reporting_calls(connections)
 
+    def _run_usage(self, org_id=ORG_A):
+        with _observed_run([dict(USAGE_SOURCE_ROW)]) as connections:
+            run_usage_snapshot(self._config(org_id), "2026-08-03T20:30:00+00:00")
+        return self._reporting_calls(connections)
+
     def _assert_declares_then_writes(self, calls, org_id):
         # The whole statement sequence, not just its first element: an exact match is what pins
         # "declaration, then write, and no COMMIT between them" — the declaration is transaction
@@ -436,11 +450,164 @@ class OrgScopedRunTests(unittest.TestCase):
             (self._run_revenue, ORG_B, ORG_A),
             (self._run_margin, ORG_A, ORG_B),
             (self._run_margin, ORG_B, ORG_A),
+            (self._run_usage, ORG_A, ORG_B),
+            (self._run_usage, ORG_B, ORG_A),
         ):
             with self.subTest(run=run.__name__, org=org):
                 calls = run(org)
                 self._assert_declares_then_writes(calls, org)
                 self.assertNotIn(other, repr(calls))
+
+
+USAGE_SOURCE_ROW = {
+    "usage_date": "2026-08-03",
+    "esb_code": "GKI",
+    "branch_code": "RRS",
+    "ingredient_detail_id": 4711,
+    "ingredient_name": "Fresh Milk",
+    "source_unit": "ML",
+    "source_qty": "3600.0000",
+    "menu_units": "20",
+    "units_sold": "50",
+    "units_with_recipe": "45",
+}
+
+
+class UsageSnapshotTests(unittest.TestCase):
+    """#1473: the nightly ingredient-usage copy. Nothing in here touches the ERP; the source rows
+    are the deterministic fake below and the query is asserted by its text."""
+
+    def _normalize(self, **overrides):
+        row = dict(USAGE_SOURCE_ROW, **overrides)
+        return normalize_usage_row(
+            row,
+            snapshot_as_of="2026-08-03T20:30:00+00:00",
+            org_id=ORG_A,
+            source_contract_version=DEFAULT_USAGE_SOURCE_CONTRACT_VERSION,
+        )
+
+    def test_unit_normaliser_converts_gram_millilitre_kilogram_and_carton_units(self):
+        """AC: gram, millilitre, kilogram and carton-style units normalise to kg or litres."""
+        cases = {
+            "GR": ("kg", 0.001),
+            "g": ("kg", 0.001),
+            "KG": ("kg", 1.0),
+            "ML": ("l", 0.001),
+            "L": ("l", 1.0),
+            "CARTON @ 12 L": ("l", 12.0),
+            "BOTTLE @ 250 ml": ("l", 0.25),
+            "JERIGEN @ 5 L": ("l", 5.0),
+            "Jerigen @ 6,7Kg": ("kg", 6.7),
+            "Jerigen @5Kg": ("kg", 5.0),
+            "POUCH @ 250 GR": ("kg", 0.25),
+        }
+        for unit, (basis, factor) in cases.items():
+            with self.subTest(unit=unit):
+                got_basis, got_factor = normalize_unit(unit)
+                self.assertEqual(got_basis, basis)
+                self.assertAlmostEqual(got_factor, factor)
+
+    def test_unit_normaliser_counts_portions_and_pieces_without_inventing_a_weight(self):
+        """Count units are kept as counts: a cup or a portion has no weight to convert to."""
+        for unit, factor in (("PCS", 1.0), ("Porsi", 1.0), ("Batch @10porsi", 10.0),
+                             ("CARTON @ 24 BTL", 24.0), ("PACK", 1.0)):
+            with self.subTest(unit=unit):
+                self.assertEqual(normalize_unit(unit), ("each", factor))
+
+    def test_unit_normaliser_refuses_an_unknown_unit_by_name(self):
+        """AC: an unknown unit is refused with a named error that names the unit."""
+        for unit in ("GALLON", "CARTON @ 2 SOMETHING", "", None):
+            with self.subTest(unit=unit):
+                with self.assertRaises(UnknownUnitError) as raised:
+                    normalize_unit(unit)
+                self.assertIn(repr(unit), str(raised.exception))
+
+    def test_usage_row_keeps_the_source_unit_and_converts_the_quantity(self):
+        normalized = self._normalize()
+
+        self.assertEqual(normalized["org_id"], ORG_A)
+        self.assertEqual(normalized["ingredient_detail_id"], "4711")
+        self.assertEqual(normalized["source_unit"], "ML")
+        self.assertEqual(normalized["unit_basis"], "l")
+        self.assertAlmostEqual(normalized["source_qty"], 3600.0)
+        self.assertAlmostEqual(normalized["qty_used"], 3.6)
+        self.assertAlmostEqual(normalized["menu_units"], 20.0)
+
+    def test_usage_row_coverage_is_units_with_a_recipe_over_units_sold(self):
+        """AC: coverage = units with a recipe / units sold, per branch and day."""
+        self.assertAlmostEqual(self._normalize()["recipe_coverage"], 0.9)
+        self.assertIsNone(self._normalize(units_sold="0", units_with_recipe="0")["recipe_coverage"])
+
+    def test_usage_row_refuses_a_row_without_an_ingredient_id(self):
+        """Identity is the product detail id, never the name: a row without one is refused."""
+        with self.assertRaises(ValueError):
+            self._normalize(ingredient_detail_id=None)
+
+    def test_usage_query_keeps_soft_deleted_menus_and_zero_price_add_on_lines(self):
+        """AC: soft-deleted menu rows and zero-price add-on lines are included."""
+        sql = " ".join(build_usage_source_query().split())
+
+        self.assertNotIn("deleted_at", sql, "a soft-deleted menu still carries real usage")
+        self.assertNotIn("price", sql, "a zero-price add-on line still carries real usage")
+        self.assertNotIn("is_package_sub_item", sql, "add-on lines ride as package sub-items")
+        self.assertIn("from oms_sales_items si", sql)
+
+    def test_usage_query_counts_finished_and_void_sales_and_never_cancelled(self):
+        """The warehouse's consumption rule: a voided order was prepared, a cancelled one was not."""
+        sql = " ".join(build_usage_source_query().split())
+
+        self.assertIn("o.status_name in ('Finished', 'Void')", sql)
+        self.assertIn(
+            "select distinct esb_code, bom_id from recipe", sql,
+            "coverage counts each sold line once, however many ingredients its recipe has",
+        )
+        self.assertNotIn("Cancel", sql)
+
+    def test_usage_row_without_a_unit_is_refused_by_the_named_error(self):
+        with self.assertRaises(UnknownUnitError):
+            self._normalize(source_unit=None)
+
+    def test_usage_query_joins_ingredients_by_product_detail_id_never_by_name(self):
+        sql = " ".join(build_usage_source_query().split())
+
+        self.assertIn("bi.product_detail_id", sql)
+        self.assertIn("on b.esb_code = l.esb_code and b.bom_id = l.bom_id", sql)
+        self.assertNotIn("product_name =", sql)
+        self.assertNotIn("menu_name", sql)
+        self.assertIn("si.sales_date >= current_date - ((%s::int - 1) * interval '1 day')", sql)
+
+    def test_usage_upsert_is_keyed_on_the_table_grain(self):
+        """AC: re-running a day yields the same rows — the upsert key is the table grain."""
+        sql = build_usage_upsert_sql()
+
+        self.assertIn(
+            "on conflict (org_id, usage_date, esb_code, branch_code, ingredient_detail_id, source_unit)",
+            sql,
+        )
+        self.assertIn("qty_used = excluded.qty_used", sql)
+        self.assertIn("recipe_coverage = excluded.recipe_coverage", sql)
+
+    def test_rerunning_a_day_writes_the_same_rows(self):
+        """AC: re-running a day yields the same rows (idempotent)."""
+        def written():
+            with _observed_run([dict(USAGE_SOURCE_ROW)]) as connections:
+                run_usage_snapshot(
+                    SnapshotConfig(WAREHOUSE_DSN, REPORTING_DSN, ORG_A),
+                    "2026-08-03T20:30:00+00:00",
+                )
+            [reporting] = [c for c in connections if c.dsn == REPORTING_DSN]
+            return [call for call in reporting.calls if call[0] == "executemany"]
+
+        self.assertEqual(written(), written())
+
+    def test_an_unknown_unit_stops_the_run_before_it_writes(self):
+        with _observed_run([dict(USAGE_SOURCE_ROW, source_unit="GALLON")]) as connections:
+            with self.assertRaises(UnknownUnitError):
+                run_usage_snapshot(
+                    SnapshotConfig(WAREHOUSE_DSN, REPORTING_DSN, ORG_A),
+                    "2026-08-03T20:30:00+00:00",
+                )
+        self.assertEqual([c.dsn for c in connections], [WAREHOUSE_DSN])
 
 
 class LocalSnapshotEnvTests(unittest.TestCase):

@@ -241,12 +241,21 @@ describe('MoneyPage — states in text', () => {
     expect(within(alert).getAllByRole('button')).toHaveLength(1)
   })
 
+  it('a failed margin read keeps the revenue table and says only margin failed', async () => {
+    mockMarg.mockRejectedValueOnce(new Error('down'))
+    renderMoney(['finance'])
+    await screen.findByRole('table')
+    expect(screen.getByRole('alert')).toHaveTextContent('Margin figures could not be loaded')
+  })
+
   it('more rows than one read may hold says so, instead of blaming the reporting service', async () => {
     mockRev.mockRejectedValue(new ReportingRowCapError('listSalesDailyRevenue needs more than 20000 rows'))
     renderMoney(['manager'])
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent('There are more sales rows than Money can read at once. Tell the admin.')
     expect(alert).not.toHaveTextContent('did not answer')
+    // Reading again returns the same rows: no Try again that cannot succeed (#1453).
+    expect(within(alert).queryByRole('button')).toBeNull()
   })
 
   it('a slow earlier read that lands after a newer one does not replace the newer figures', async () => {
