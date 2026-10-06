@@ -19,6 +19,7 @@ import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsOffline } from '@/shell/use-is-offline'
 import { formatWeekdayDayMonth } from '@/lib/format/date'
+import { kitchenCategoryLabel } from '@/lib/kitchen-category-label'
 import './cafe-count-page.css'
 import '@/components/kitchen/cafe-capture-controls.css'
 
@@ -115,6 +116,7 @@ export function CafeCountPage() {
     return quantity === null ? [] : [{ item, entry, quantity }]
   })
   const enteredCount = entered.length
+  const hasMixedCategories = new Set(items.map(item => item.category).filter(Boolean)).size > 1
   const hasSubmitted = items.some(item => Boolean(entries[item.id]?.outcome))
   const hasUnsubmittedInput = items.some(item => Boolean(entries[item.id]?.quantity.trim() && !entries[item.id]?.outcome))
   const canSwitch = !submitting && !hasUnsubmittedInput
@@ -237,10 +239,15 @@ export function CafeCountPage() {
                     const entry = entries[item.id]
                     const normalized = entry ? normalizeCafeCountQuantity(entry.quantity) : null
                     const invalid = Boolean(entry?.quantity.trim()) && normalized === null
+                    const fullCategoryLabel = item.category ? kitchenCategoryLabel(t, item.category) : ''
+                    const categoryLabel = hasMixedCategories ? fullCategoryLabel : ''
                     return (
                       <li className="cafe-count__row" key={item.id}>
                         <div className="cafe-count__item">
-                          <div className="cafe-count__item-name">{item.name}</div>
+                          <div className="cafe-count__item-copy">
+                            <div className="cafe-count__item-name" title={fullCategoryLabel ? `${item.name} · ${fullCategoryLabel}` : item.name}>{item.name}</div>
+                            {categoryLabel && <div className="cafe-count__category">{categoryLabel}</div>}
+                          </div>
                           <span className="cafe-count__kind">{item.kind}</span>
                         </div>
                         <div className="cafe-count__input-group">
@@ -257,7 +264,7 @@ export function CafeCountPage() {
                               disabled={submitting || Boolean(entry?.outcome)}
                               onChange={event => patchQuantity(item.id, event.target.value)}
                             />
-                            <span className="cafe-count__unit cafe-capture-unit" aria-label={item.unitName} title={item.unitName}>{item.unitName}</span>
+                            <span className="cafe-count__unit cafe-capture-unit" title={item.unitName}>{item.unitName}</span>
                           </div>
                           {invalid && <p className="cafe-count__field-error" role="alert">{t('cafe.count.quantityInvalid')}</p>}
                           {entry?.outcome && <p className="cafe-count__line-success" role="status">{t('cafe.count.lineSubmitted')}</p>}

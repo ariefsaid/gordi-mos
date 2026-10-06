@@ -264,6 +264,7 @@ export function CafeWastePage() {
     category: effectiveCategory,
   })
   const visibleItems = itemTable.getFilteredRowModel().rows.map(row => row.original)
+  const hasMixedCategories = new Set(visibleItems.map(item => item.category).filter(Boolean)).size > 1
   const categories = useMemo(() => [
     'All',
     ...Array.from(new Set(items.map(item => item.category ?? '').filter(Boolean)))
@@ -523,7 +524,10 @@ export function CafeWastePage() {
       render: item => (
         <div className="cwl-item-cell">
           <div className="kl-dish">
-            <span className="kl-dish-name"><span>{item.kind} - </span><span>{item.name}</span></span>
+            <span className="kl-dish-name" title={item.category ? `${item.kind} - ${item.name} · ${kitchenCategoryLabel(t, item.category)}` : `${item.kind} - ${item.name}`}>
+              <span>{item.kind} - </span><span>{item.name}</span>
+            </span>
+            {hasMixedCategories && item.category && <span className="kl-dish-cat cwl-category">{kitchenCategoryLabel(t, item.category)}</span>}
           </div>
           {renderEvidence(item)}
         </div>
@@ -552,7 +556,14 @@ export function CafeWastePage() {
     <div className="cwl-capture-row" role="group" aria-labelledby={`cafe-waste-item-${item.id}`}>
       <div className="cwl-capture-row__item">
         <div className="kl-dish">
-          <span id={`cafe-waste-item-${item.id}`} className="kl-dish-name"><span>{item.kind} - </span><span>{item.name}</span></span>
+          <span
+            id={`cafe-waste-item-${item.id}`}
+            className="kl-dish-name"
+            title={item.category ? `${item.kind} - ${item.name} · ${kitchenCategoryLabel(t, item.category)}` : `${item.kind} - ${item.name}`}
+          >
+            <span>{item.kind} - </span><span>{item.name}</span>
+          </span>
+          {hasMixedCategories && item.category && <span className="kl-dish-cat cwl-category">{kitchenCategoryLabel(t, item.category)}</span>}
         </div>
       </div>
       <div className="cwl-capture-row__controls">
@@ -622,7 +633,7 @@ export function CafeWastePage() {
             <div className="kl-banner cwl-held" role="status">
               {t('kitchen.waste.held')}
             </div>
-            <p className="cwl-help">{t('kitchen.waste.help')}</p>
+            <p id="cafe-waste-photo-guidance" className="cwl-help">{t('kitchen.waste.help')}</p>
             {!canCapture && <p className="kl-banner cwl-read-only" role="status">{t('kitchen.waste.readOnly')}</p>}
             {canCapture && resumableDrafts.length > 0 && (
               <section className="cwl-resume" aria-labelledby="cwl-resume-title">
@@ -838,6 +849,7 @@ function WasteItemControls({
             <Select
               id={unitId}
               className="cwl-unit-select"
+              contentClassName="cwl-unit-menu"
               aria-label={t('kitchen.waste.unitFor', { item: item.name })}
               aria-describedby={`cafe-waste-selected-unit-${item.id}`}
               title={selectedUnitLabel}
@@ -856,7 +868,7 @@ function WasteItemControls({
             <span id={`cafe-waste-selected-unit-${item.id}`} className="sr-only">{selectedUnitLabel}</span>
           </>
         ) : (
-          <span className="cwl-unit-label cafe-capture-unit" aria-label={selectedUnitLabel} title={selectedUnitLabel}>
+          <span className="cwl-unit-label cafe-capture-unit" title={selectedUnitLabel}>
             {selectedUnitLabel}
           </span>
         )}
@@ -876,6 +888,7 @@ function WasteItemControls({
         <button
           type="button"
           className="btn btn-outline cwl-add-photo cafe-capture-action"
+          aria-describedby="cafe-waste-photo-guidance"
           disabled={!canCapture || !isOnline || disabled || current.preparing || Boolean(current.logId) || quantity === null}
           onClick={onPrepare}
         >

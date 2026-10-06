@@ -287,28 +287,56 @@
    Scoped to this page's own table only. */
 @media (min-width: 768px) {
   .kl-form .dt-table { table-layout: fixed; }
+  .kl-form .dt-table tbody tr:not(.dt-group-row) > td { padding-block: 5px; }
   .kl-form .kls-quantity {
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 4px;
-    width: var(--cafe-capture-quantity-width, 7.5rem);
+    flex: 0 0 var(--cafe-capture-control-group-width, 25rem);
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    width: var(--cafe-capture-control-group-width, 25rem);
     max-width: 100%;
   }
   .kl-form .kls-quantity .kls-qty {
-    flex-basis: var(--cafe-capture-control-height, 32px);
+    flex: 0 0 var(--cafe-capture-quantity-width, 7.5rem);
+    width: var(--cafe-capture-quantity-width, 7.5rem);
   }
-  .kl-form .cafe-capture-unit {
-    max-width: 100%;
+  .kl-form .kls-quantity .cafe-capture-unit {
+    flex: 0 0 var(--cafe-capture-unit-track-width, 17rem);
+    width: var(--cafe-capture-unit-track-width, 17rem);
+    max-width: var(--cafe-capture-unit-track-width, 17rem);
     overflow: visible;
-    overflow-wrap: anywhere;
-    text-align: right;
+    overflow-wrap: normal;
+    text-align: left;
     text-overflow: clip;
-    white-space: normal;
+    white-space: nowrap;
+  }
+  .kl-form .kls-quantity .kls-unit-change {
+    justify-content: flex-start;
+    text-align: left;
+  }
+  .kl-form .kls-quantity .kls-unit-select {
+    flex: 0 0 var(--cafe-capture-unit-track-width, 17rem);
+    width: var(--cafe-capture-unit-track-width, 17rem);
+    max-width: none;
+  }
+  .kl-form .kls-quantity .kls-unit-select .mk-select__box,
+  .kl-form .kls-quantity .kls-unit-select .mk-select__field {
+    width: 100%;
+    max-width: none;
+  }
+  .kl-form .kls-quantity .kls-unit-select .mk-select__field > span:first-child {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: nowrap;
   }
   .kl-form .dt-table thead th:nth-child(1),
   .kl-form .dt-table tbody tr:not(.dt-group-row) > td:nth-child(1) { width: auto; }
   .kl-form .dt-table thead th:nth-child(2),
-  .kl-form .dt-table tbody tr:not(.dt-group-row) > td:nth-child(2) { width: 10rem; }
+  .kl-form .dt-table tbody tr:not(.dt-group-row) > td:nth-child(2) { width: 27rem; }
+  .kl-form .dt-table thead th:nth-child(2) {
+    padding-left: 32px;
+    text-align: left;
+  }
   .kl-form .dt-table td { vertical-align: top; }
 }
 .kl-footer-count-row {

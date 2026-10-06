@@ -60,20 +60,23 @@ describe('KL-FOOTER-NAV: the capture footer stays reachable above the shell bott
   })
 })
 
-describe('dense Café capture controls stay inside their table column', () => {
-  it('stacks and wraps unit labels without widening across the item name', () => {
+describe('dense Café capture controls stay in one aligned desktop row', () => {
+  it('keeps the quantity and full unit label inline in a fixed shared track', () => {
     const quantityGroup = ruleBodyAt(css.indexOf('.kl-form .kls-quantity {'))
-    const unit = captureControlsCss.slice(captureControlsCss.indexOf('.cafe-capture-unit {'))
     const desktopQuantity = ruleBodyAt(css.indexOf('.kl-form .kls-quantity .kls-qty {'))
-    const desktopUnit = ruleBodyAt(css.indexOf('.kl-form .cafe-capture-unit {'))
-    expect(quantityGroup).toMatch(/flex-direction:\s*column/)
-    expect(desktopQuantity).toMatch(/flex-basis:\s*var\(--cafe-capture-control-height/)
-    expect(quantityGroup).toMatch(/width:\s*var\(--cafe-capture-quantity-width/)
-    expect(quantityGroup).toMatch(/max-width:\s*100%/)
-    expect(desktopUnit).toMatch(/white-space:\s*normal/)
-    expect(desktopUnit).toMatch(/overflow-wrap:\s*anywhere/)
-    expect(unit).toMatch(/overflow:\s*hidden/)
-    expect(unit).toMatch(/text-overflow:\s*ellipsis/)
+    const desktopUnit = ruleBodyAt(css.indexOf('.kl-form .kls-quantity .cafe-capture-unit {'))
+    const sharedUnit = captureControlsCss.slice(captureControlsCss.indexOf('.cafe-capture-unit {'), captureControlsCss.indexOf('.cafe-capture-action {'))
+    expect(quantityGroup).toMatch(/flex-direction:\s*row/)
+    expect(quantityGroup).toMatch(/width:\s*var\(--cafe-capture-control-group-width/)
+    expect(quantityGroup).toMatch(/gap:\s*8px/)
+    expect(desktopQuantity).toMatch(/flex-basis:\s*var\(--cafe-capture-quantity-width/)
+    expect(desktopUnit).toMatch(/flex:\s*0 0 var\(--cafe-capture-unit-track-width/)
+    expect(desktopUnit).toMatch(/white-space:\s*nowrap/)
+    expect(desktopUnit).toMatch(/text-align:\s*left/)
+    expect(css).toMatch(/dt-table thead th:nth-child\(2\),[\s\S]*?td:nth-child\(2\) \{ width: 27rem; \}/)
+    expect(sharedUnit).toMatch(/overflow-wrap:\s*anywhere/)
+    expect(sharedUnit).toMatch(/text-overflow:\s*clip/)
+    expect(sharedUnit).not.toMatch(/text-overflow:\s*ellipsis/)
   })
 })
 

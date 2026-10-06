@@ -208,7 +208,7 @@ export function WipItemStepper({
             glyph — one deliberate click opens the picker, selection closes it. An item
             with one unit renders the bare text and NO button (AC-005): nothing to
             change, nothing to mis-tap. */}
-          {!offersUnitChange && unitLabel && <span className="kls-unit cafe-capture-unit" aria-label={unitLabel} title={unitLabel}>{unitLabel}</span>}
+          {!offersUnitChange && unitLabel && <span className="kls-unit cafe-capture-unit" title={unitLabel}>{unitLabel}</span>}
           {offersUnitChange && !unitPickerOpen && (
             <button
               ref={unitChangeButtonRef}

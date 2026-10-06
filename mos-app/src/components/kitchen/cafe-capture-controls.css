@@ -3,6 +3,8 @@
 .cafe-capture-content,
 .cafe-count {
   --cafe-capture-quantity-width: 7.5rem;
+  --cafe-capture-unit-track-width: 17rem;
+  --cafe-capture-control-group-width: 25rem;
   --cafe-capture-control-height: 32px;
   --cafe-capture-control-font-size: var(--font-size-control);
 }
@@ -26,14 +28,22 @@
 
 .cafe-capture-unit {
   min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
 }
 
 .cafe-capture-action {
   min-height: var(--cafe-capture-control-height);
   white-space: nowrap;
+}
+
+@media (min-width: 768px) {
+  .cafe-capture-unit {
+    white-space: nowrap;
+    overflow-wrap: normal;
+  }
 }
 
 @media (max-width: 767.98px) {

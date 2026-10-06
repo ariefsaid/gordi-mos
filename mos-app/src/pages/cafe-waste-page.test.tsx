@@ -484,7 +484,8 @@ describe('CafeWastePage', () => {
     expect(addPhoto).toBeDisabled()
     expect(addPhoto.closest('.cwl-controls')).toContainElement(quantity)
     expect(screen.getAllByText(help)).toHaveLength(1)
-    expect(addPhoto).not.toHaveAttribute('aria-describedby')
+    expect(addPhoto).toHaveAttribute('aria-describedby', 'cafe-waste-photo-guidance')
+    expect(document.getElementById(addPhoto.getAttribute('aria-describedby') ?? '')).toHaveTextContent(help)
 
     fireEvent.change(quantity, { target: { value: '2' } })
     await waitFor(() => expect(addPhoto).toBeEnabled())
@@ -496,6 +497,7 @@ describe('CafeWastePage', () => {
     renderPage()
 
     fireEvent.click(await screen.findByRole('combobox', { name: 'Waste unit for Oat Latte' }))
+    expect(await screen.findByRole('listbox')).toHaveClass('cwl-unit-menu')
     fireEvent.click(await screen.findByRole('option', { name: '0.5 cup' }))
     fireEvent.change(screen.getByRole('spinbutton', { name: 'Waste quantity for Oat Latte' }), { target: { value: '4' } })
     fireEvent.click(screen.getAllByRole('button', { name: 'Add photo' })[0]!)
