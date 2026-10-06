@@ -642,10 +642,11 @@ class PendingBillRunTests(unittest.TestCase):
             "REPORTING_PENDING_BILLS": "1",
         }
         config = SnapshotConfig.from_env(env)
-        with _observed_run([dict(r) for r in PENDING_SOURCE_ROWS]) as connections:
+        with _observed_run([]) as connections:
             counts = run_all_snapshots(config)
-        self.assertEqual(len(connections), 6)
-        self.assertEqual(counts["pending_bills"], 2)
+        self.assertEqual(len(connections), 6, "revenue, margin, then pending bills")
+        self.assertIn("reporting.pending_bill_snapshots", repr(connections[-1].calls))
+        self.assertEqual(counts["pending_bills"], 0)
 
 
 class LocalSnapshotEnvTests(unittest.TestCase):
