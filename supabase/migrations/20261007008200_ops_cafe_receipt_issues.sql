@@ -353,6 +353,30 @@ grant execute on function ops.cafe_receipt_posting(ops.cafe_receipts) to authent
 
 -- ── Procurement's PO picker, refresh request, link and close ─────────────────────────────────
 -- No caller supplies org, actor, receipt, match, posting or outbox data.
+
+-- What a PO still has for one product detail, for a link: the cache less unposted queued portions,
+-- as approval and release compute it (ops._cafe_receipt_po_lines), less the portions held against
+-- it, so links made while posting is off cannot promise the same outstanding twice. Internal: the
+-- picker and the link call it.
+create or replace function ops._cafe_receipt_issue_po_available(p_org_id uuid, p_branch_id uuid, p_po_number text, p_item_unit_id uuid)
+returns numeric
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select greatest(
+    coalesce((select sum((x ->> 'outstanding')::numeric)
+                from jsonb_array_elements(ops._cafe_receipt_po_lines(p_org_id, p_branch_id)) x
+               where x ->> 'po_number' = p_po_number and (x ->> 'item_unit_id')::uuid = p_item_unit_id), 0)
+    - coalesce((select sum(q.quantity)
+                  from ops.cafe_receipt_portions q
+                  join ops.cafe_receipts r on r.org_id = q.org_id and r.id = q.receipt_id
+                 where q.org_id = p_org_id and r.branch_id = p_branch_id and q.state = 'held'
+                   and q.po_number = p_po_number and q.item_unit_id = p_item_unit_id), 0),
+    0)
+$$;
+revoke all on function ops._cafe_receipt_issue_po_available(uuid, uuid, text, uuid) from public, anon, authenticated, service_role;
 create or replace function ops.cafe_receipt_issue_open_pos(p_issue_id uuid)
 returns jsonb
 language plpgsql
@@ -387,6 +411,7 @@ begin
              'po_date', p.po_date,
              'esb_created_at', p.esb_created_at,
              'date_eligible', p.po_date <= v_receipt.arrival_date,
+             'available', trim_scale(ops._cafe_receipt_issue_po_available(v_org_id, v_receipt.branch_id, p.po_number, v_issue.item_unit_id))::text,
              'created_after_delivery', p.esb_created_at is not null
                and (p.esb_created_at at time zone 'Asia/Jakarta')::date > v_receipt.arrival_date)
            order by p.po_date, p.po_number), '[]'::jsonb)
@@ -405,7 +430,7 @@ begin
 end;
 $$;
 comment on function ops.cafe_receipt_issue_open_pos(uuid) is
-  'Procurement only (FR-1035): the open POs of the issue''s branch holding its exact product detail, from a current cache, each with whether its date allows the link and whether ESB created it after delivery; plus the cache as-of time and refresh request. Never contacts ESB.';
+  'Procurement only (FR-1035): the open POs of the issue''s branch holding its exact product detail, from a current cache, each with what it still has for the item, whether its date allows the link and whether ESB created it after delivery; plus the cache as-of time and refresh request. Never contacts ESB.';
 revoke execute on function ops.cafe_receipt_issue_open_pos(uuid) from public, anon, authenticated;
 grant execute on function ops.cafe_receipt_issue_open_pos(uuid) to authenticated;
 
@@ -457,7 +482,6 @@ declare
   v_issue ops.cafe_receipt_issues%rowtype;
   v_receipt ops.cafe_receipts%rowtype;
   v_po ops.cafe_open_pos%rowtype;
-  v_outstanding numeric;
   v_matched numeric;
   v_location text;
   v_hold text;
@@ -488,19 +512,9 @@ begin
     raise exception 'CAFE_RECEIPT_ISSUE_PO_AFTER_ARRIVAL: the PO must be dated on or before the arrival date' using errcode = '22023';
   end if;
 
-  -- FR-1035 re-match: what the PO still has for this product detail as approval and release
-  -- compute it (the cache less unposted queued portions), less the portions held against it, so
-  -- links made while posting is off cannot promise the same outstanding twice.
-  select coalesce(sum((x ->> 'outstanding')::numeric), 0)
-         - coalesce((select sum(q.quantity)
-                       from ops.cafe_receipt_portions q
-                       join ops.cafe_receipts qr on qr.org_id = q.org_id and qr.id = q.receipt_id
-                      where q.org_id = v_org_id and qr.branch_id = v_receipt.branch_id and q.state = 'held'
-                        and q.po_number = v_po.po_number and q.item_unit_id = v_issue.item_unit_id), 0)
-    into v_outstanding
-    from jsonb_array_elements(ops._cafe_receipt_po_lines(v_org_id, v_receipt.branch_id)) x
-   where x ->> 'po_number' = v_po.po_number and (x ->> 'item_unit_id')::uuid = v_issue.item_unit_id;
-  v_matched := least(v_issue.quantity, greatest(v_outstanding, 0));
+  -- FR-1035 re-match against what the PO still has for this product detail.
+  v_matched := least(v_issue.quantity,
+                     ops._cafe_receipt_issue_po_available(v_org_id, v_receipt.branch_id, v_po.po_number, v_issue.item_unit_id));
   if v_matched <= 0 then
     raise exception 'CAFE_RECEIPT_ISSUE_PO_NO_OUTSTANDING' using errcode = '22023';
   end if;

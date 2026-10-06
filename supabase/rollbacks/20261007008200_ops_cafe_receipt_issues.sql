@@ -32,6 +32,7 @@ drop function ops.close_cafe_receipt_issue(uuid, text);
 drop function ops.link_cafe_receipt_issue(uuid, text);
 drop function ops.request_cafe_receipt_issue_po_refresh(uuid);
 drop function ops.cafe_receipt_issue_open_pos(uuid);
+drop function ops._cafe_receipt_issue_po_available(uuid, uuid, text, uuid);
 drop trigger cafe_receipt_matches_information_issues on ops.cafe_receipt_matches;
 drop function ops._record_cafe_receipt_information_issues();
 drop function ops.cafe_receipt_portion_po_created_after_delivery(ops.cafe_receipt_portions);

@@ -3,7 +3,7 @@
 -- delivery, and record history of receipts, lines, portions, issues and grants.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(72);
+select plan(73);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -243,10 +243,13 @@ reset role;
 -- ── AC-1032 / AC-1033 link ───────────────────────────────────────────────────────────────────
 set local role authenticated;
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d6","access_roles":["member"]}');
-select is((select jsonb_agg(o ->> 'po_number' || ':' || (o ->> 'date_eligible') || ':' || (o ->> 'created_after_delivery') order by o ->> 'po_number')
+select is((select jsonb_agg(o ->> 'po_number' || ':' || (o ->> 'available') || ':' || (o ->> 'date_eligible') || ':' || (o ->> 'created_after_delivery') order by o ->> 'po_number')
              from jsonb_array_elements(ops.cafe_receipt_issue_open_pos(current_setting('app.no_po')::uuid) -> 'options') o),
-  '["PO-SYNTH-1431-FUTURE:false:true", "PO-SYNTH-1431-LATE:true:true"]'::jsonb,
-  'FR-1035 the picker offers only same-branch open POs holding the item, saying which dates allow the link');
+  '["PO-SYNTH-1431-FUTURE:10:false:true", "PO-SYNTH-1431-LATE:10:true:true"]'::jsonb,
+  'FR-1035 the picker offers only same-branch open POs holding the item, with what each has left and which dates allow the link');
+select is((select o ->> 'available' from jsonb_array_elements(ops.cafe_receipt_issue_open_pos(current_setting('app.over')::uuid) -> 'options') o
+            where o ->> 'po_number' = 'PO-SYNTH-1431-A'), '0',
+  'FR-1035 a PO whose outstanding is held by the receipt''s own matched portion has nothing left to link');
 select throws_ok($$select ops.cafe_receipt_issue_open_pos(current_setting('app.short')::uuid)$$,
   '22023', null, 'FR-1034 an informational issue is not linked to a PO');
 select throws_ok($$select ops.link_cafe_receipt_issue(current_setting('app.no_po')::uuid, 'PO-SYNTH-1431-FUTURE')$$,
