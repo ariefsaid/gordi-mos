@@ -2,7 +2,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 create extension if not exists dblink with schema extensions;
-select plan(14);
+select plan(15);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -110,6 +110,8 @@ select is((select count(*)::int from ops.kitchen_logs
   where org_id = (select shared.current_org_id())
     and client_request_id = '40000000-0000-0000-0000-000000000001'), 1,
   'production retry leaves one row for the request key');
+select is((select count(*)::int from pg_temp.capture_once('40000000-0000-0000-0000-000000000004', 'produce')), 1,
+  'a first production capture returns its newly inserted row');
 select ok(exists (
   select 1 from pg_catalog.pg_locks held
   where held.pid = pg_catalog.pg_backend_pid()
