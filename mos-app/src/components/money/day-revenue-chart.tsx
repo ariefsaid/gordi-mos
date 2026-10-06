@@ -46,8 +46,6 @@ export function DayRevenueChart({ days, selected, onSelect, label }: DayRevenueC
   const max = Math.max(1, ...days.map((d) => Math.max(d.value ?? 0, d.compare ?? 0)))
   const data = days.map((d) => ({ ...d, stub: d.value === null ? max * STUB_SHARE : null }))
   const ticks = [0, max / 2, max]
-  // A date tick for roughly every week; every day when the period is a week.
-  const tickEvery = days.length <= 7 ? 0 : Math.ceil(days.length / 6) - 1
 
   const day = days[index]
   const readout = day ? readoutText(day) : ''
@@ -107,8 +105,8 @@ export function DayRevenueChart({ days, selected, onSelect, label }: DayRevenueC
               dataKey="date"
               tickLine={false}
               axisLine={{ stroke: 'var(--border)' }}
-              interval={tickEvery}
-              minTickGap={8}
+              interval="preserveStartEnd"
+              minTickGap={16}
               tick={{ fill: 'var(--muted-foreground)' }}
               tickFormatter={(date: string) => formatWeekdayDayMonth(date, locale).replace(/^\S+,?\s/, '')}
             />
@@ -147,12 +145,18 @@ export function DayRevenueChart({ days, selected, onSelect, label }: DayRevenueC
         </ResponsiveContainer>
       </div>
       <figcaption className="money-chart__legend">
-        <span className="money-chart__key money-chart__key--bar" aria-hidden="true" />
-        <span>{t('money.chart.legend.revenue')}</span>
-        <span className="money-chart__key money-chart__key--line" aria-hidden="true" />
-        <span>{t('money.chart.legend.compare')}</span>
-        <span className="money-chart__key money-chart__key--missing" aria-hidden="true" />
-        <span>{t('money.table.notReceived')}</span>
+        <span className="money-chart__entry">
+          <span className="money-chart__key money-chart__key--bar" aria-hidden="true" />
+          {t('money.chart.legend.revenue')}
+        </span>
+        <span className="money-chart__entry">
+          <span className="money-chart__key money-chart__key--line" aria-hidden="true" />
+          {t('money.chart.legend.compare')}
+        </span>
+        <span className="money-chart__entry">
+          <span className="money-chart__key money-chart__key--missing" aria-hidden="true" />
+          {t('money.table.notReceived')}
+        </span>
         <span id={hintId} className="sr-only">{t('money.chart.keys')}</span>
       </figcaption>
     </figure>

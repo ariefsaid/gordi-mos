@@ -201,7 +201,7 @@ export function MoneyBranchPage() {
   }
 
   const askButton = canAsk ? (
-    <Button onClick={() => void onAsk()} disabled={ask.status === 'pending'} className="money-branch__ask">
+    <Button variant="primary" onClick={() => void onAsk()} disabled={ask.status === 'pending'}>
       {ask.status === 'pending' ? t('money.branch.ask.pending') : t('money.branch.ask', { branch: name })}
     </Button>
   ) : undefined

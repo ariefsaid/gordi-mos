@@ -40,7 +40,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 8px;
+  gap: 4px 16px;
   color: var(--muted-foreground);
   font-size: var(--font-size-label);
 }
@@ -51,8 +51,11 @@
   height: 10px;
 }
 
-.money-chart__key:not(:first-child) {
-  margin-left: 8px;
+.money-chart__entry {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
 }
 
 .money-chart__key--bar {
