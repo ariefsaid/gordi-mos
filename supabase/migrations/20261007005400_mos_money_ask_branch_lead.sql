@@ -13,7 +13,7 @@
 -- holds that tier, the branch is the caller's org's, the Team is the branch's live Café Team
 -- (shared.cafe_opening_team: kitchen first, then bar) and the PIC is that Team's active lead.
 --
--- Rollback: supabase/rollbacks/20261007003300_mos_money_ask_branch_lead.sql.
+-- Rollback: supabase/rollbacks/20261007005400_mos_money_ask_branch_lead.sql.
 
 create or replace function mos.ask_branch_lead(
   p_branch_code text,
