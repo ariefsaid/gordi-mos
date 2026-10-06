@@ -1,0 +1,326 @@
+/* BranchTable — one card holding the company row, the branches and the B2B group.
+   Desktop and tablet: a real table, numeric columns right-aligned with the header edge on the
+   figure edge. Phone (≤767.98px): the same rows reflow into stacked cards and a Sort by control
+   replaces the header buttons. Token-only. */
+
+.money-table-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* If a column cannot fit, the table scrolls inside its card — never the page. */
+.money-table-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+  box-shadow: var(--shadow-rest);
+}
+
+.money-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-control);
+}
+
+.money-table__head {
+  height: 40px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  font-weight: 600;
+  text-align: right;
+  vertical-align: bottom;
+}
+
+.money-table__head.money-table__cell--branch {
+  text-align: left;
+}
+
+.money-table__sort {
+  all: unset;
+  display: inline-flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 2px;
+  width: 100%;
+  min-height: 32px;
+  padding: 6px 0;
+  cursor: pointer;
+  line-height: 1.25;
+  text-align: inherit;
+}
+
+.money-table__cell--branch .money-table__sort {
+  justify-content: flex-start;
+}
+
+.money-table__sort:hover {
+  color: var(--foreground);
+}
+
+/* The arrow slot only takes room when a column is sorted, so an unsorted numeric header's right
+   edge stays on its figures' right edge. */
+.money-table__sort .collection-grammar-sort-indicator:empty {
+  display: none;
+}
+
+.money-table__cell {
+  height: 52px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--row-divider);
+  text-align: right;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.money-table__cell--branch {
+  min-width: 140px;
+  text-align: left;
+  white-space: normal;
+}
+
+.money-table__group:last-child .money-table__row:last-child .money-table__cell {
+  border-bottom: 0;
+}
+
+.money-table__cell-label {
+  display: none;
+}
+
+.money-table__name {
+  color: var(--foreground);
+  font-size: var(--font-size-body);
+  font-weight: 600;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+a.money-table__name {
+  text-decoration: none;
+}
+
+a.money-table__name:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.money-table__note {
+  display: block;
+  margin-top: 2px;
+  color: var(--warning-foreground);
+  font-size: var(--font-size-label);
+  font-weight: 500;
+}
+
+.money-table__muted {
+  color: var(--muted-foreground);
+}
+
+.money-table__row--link {
+  cursor: pointer;
+}
+
+.money-table__row--link:hover .money-table__cell {
+  background: color-mix(in srgb, var(--surface-secondary) 60%, transparent);
+}
+
+/* The total reads as a total: a quiet fill and a heavier rule below, not a link. */
+.money-table__row--company .money-table__cell {
+  background: color-mix(in srgb, var(--secondary) 40%, transparent);
+  border-bottom: 1.5px solid var(--border);
+  font-weight: 600;
+}
+
+/* B2B is not a branch: its group opens with a rule of its own. */
+.money-table__group--b2b .money-table__row:first-child .money-table__cell {
+  border-top: 1.5px solid var(--border);
+}
+
+.money-table__delta {
+  min-width: 56px;
+  justify-content: flex-end;
+}
+
+.money-table__basis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  line-height: 1.45;
+}
+
+.money-table__phone-sort,
+.money-table__company-margin {
+  display: none;
+}
+
+@media (max-width: 919.98px) {
+  .money-table__sort,
+  .money-table__direction {
+    min-height: 44px;
+  }
+
+  /* Tablet: the eight columns fit the frame without scrolling once the cell gutters close up. */
+  .money-table__head,
+  .money-table__cell {
+    padding: 0 8px;
+  }
+
+  .money-table__cell--branch {
+    min-width: 112px;
+  }
+}
+
+/* ── Phone: stacked rows ─────────────────────────────────────────────────────────────── */
+@media (max-width: 767.98px) {
+  /* The table's header row on a phone: "Sort by", the column, the direction, on one line. */
+  .money-table__phone-sort {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .money-table__phone-sort-label {
+    flex: none;
+    color: var(--muted-foreground);
+    font-size: var(--font-size-label);
+    font-weight: 600;
+  }
+
+  .money-table__phone-sort > .mk-select {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .money-table__direction {
+    flex: none;
+    padding: 0 12px;
+    border: 1px solid var(--input);
+    border-radius: var(--radius-sm);
+    background: var(--background);
+    color: var(--foreground);
+    font: inherit;
+    font-size: var(--font-size-control);
+    cursor: pointer;
+  }
+
+  .money-table-scroll {
+    overflow-x: visible;
+  }
+
+  /* :where() keeps these resets at class weight, so the row grid below still applies. */
+  .money-table,
+  .money-table :where(tbody, tr, th, td) {
+    display: block;
+  }
+
+  .money-table thead {
+    display: none;
+  }
+
+  .money-table__row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--row-divider);
+  }
+
+  .money-table__group:last-child .money-table__row:last-child {
+    border-bottom: 0;
+  }
+
+  .money-table__cell {
+    height: auto;
+    padding: 0;
+    border: 0;
+    text-align: left;
+    white-space: normal;
+  }
+
+  .money-table__row--company .money-table__cell,
+  .money-table__row--link:hover .money-table__cell {
+    border: 0;
+    background: none;
+  }
+
+  .money-table__row--company {
+    background: color-mix(in srgb, var(--secondary) 40%, transparent);
+    border-bottom: 1.5px solid var(--border);
+  }
+
+  .money-table__group--b2b .money-table__row:first-child {
+    border-top: 1.5px solid var(--border);
+  }
+
+  .money-table__group--b2b .money-table__row:first-child .money-table__cell {
+    border-top: 0;
+  }
+
+  /* Line 1: name and period revenue. */
+  .money-table__cell--branch {
+    grid-column: 1 / 3;
+    min-width: 0;
+  }
+
+  .money-table__cell--revenue {
+    grid-column: 3;
+    text-align: right;
+    font-size: var(--font-size-body);
+    font-weight: 600;
+  }
+
+  .money-table__cell--revenue .money-table__cell-label {
+    display: none;
+  }
+
+  /* Lines 2 and 3: the comparisons, then the margin trio, each with its own label. */
+  .money-table__cell-label {
+    display: block;
+    color: var(--muted-foreground);
+    font-size: var(--font-size-label);
+    line-height: 1.3;
+  }
+
+  .money-table__cell-value {
+    display: block;
+    margin-top: 2px;
+  }
+
+  .money-table__delta {
+    min-width: 0;
+  }
+
+  /* The company's margin trio collapses to one line under the comparisons. */
+  .money-table__row--company .money-table__cell--cogs-vs-budget,
+  .money-table__row--company .money-table__cell--coverage,
+  .money-table__row--company .money-table__cell--margin > .money-table__cell-label,
+  .money-table__row--company .money-table__cell--margin > .money-table__cell-value {
+    display: none;
+  }
+
+  .money-table__row--company .money-table__cell--margin {
+    grid-column: 1 / -1;
+  }
+
+  .money-table__company-margin {
+    display: block;
+    color: var(--muted-foreground);
+    font-size: var(--font-size-label);
+    font-weight: 500;
+    line-height: 1.3;
+  }
+
+  /* Labels stay labels on the bold total row: figures carry the weight. */
+  .money-table__row--company .money-table__cell-label {
+    font-weight: 400;
+  }
+}

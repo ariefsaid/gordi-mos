@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import userEvent from '@testing-library/user-event'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { AuthState } from '@/auth/context'
 
@@ -33,12 +34,14 @@ vi.mock('@/lib/db/cafe-receipts', async importOriginal => {
     listCafeReceipts: vi.fn(),
     submitCafeReceipt: vi.fn(),
     sendCafeReceiptForReview: vi.fn(),
+    listCafeReceiptDifferences: vi.fn(),
   }
 })
 
 import { useAuth } from '@/auth/use-auth'
 import { messages } from '@/i18n/messages'
 import {
+  listCafeReceiptDifferences,
   listCafeReceipts,
   listCafeReceivableItems,
   sendCafeReceiptForReview,
@@ -51,6 +54,7 @@ const mockUseAuth = vi.mocked(useAuth)
 const mockItems = vi.mocked(listCafeReceivableItems)
 const mockSubmit = vi.mocked(submitCafeReceipt)
 const mockSend = vi.mocked(sendCafeReceiptForReview)
+const mockDifferences = vi.mocked(listCafeReceiptDifferences)
 
 function viewer(accessRoles: string[]): AuthState {
   return {
@@ -82,6 +86,12 @@ function renderPage() {
   )
 }
 
+/** Presses the page's Lock counts and returns the confirm step it opens. */
+async function openLockStep() {
+  fireEvent.click(screen.getByRole('button', { name: 'Lock counts' }))
+  return screen.findByRole('dialog', { name: /^Lock \d+ lines?\?$/ })
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   keyMocks.key = 0
@@ -90,6 +100,7 @@ beforeEach(() => {
   mockUseAuth.mockReturnValue(viewer(['member']))
   mockItems.mockResolvedValue(ITEMS)
   vi.mocked(listCafeReceipts).mockResolvedValue([])
+  mockDifferences.mockResolvedValue([])
   Object.defineProperty(navigator, 'onLine', { configurable: true, value: true })
 })
 
@@ -140,7 +151,7 @@ describe('CafeReceivePage', () => {
 
     expect(bean).toHaveValue('2,5')
     expect(bean.parentElement).toHaveTextContent('bag')
-    fireEvent.click(screen.getByRole('button', { name: 'Lock counts' }))
+    fireEvent.click(within(await openLockStep()).getByRole('button', { name: 'Lock counts' }))
     await waitFor(() => expect(mockSubmit).toHaveBeenCalledTimes(1))
     expect(mockSubmit.mock.calls[0]).toEqual([
       streamMocks.kitchen, '2026-10-06', 'receipt-key-1', [{ item_unit_id: 'unit-bag', quantity: '2.5' }],
@@ -153,9 +164,10 @@ describe('CafeReceivePage', () => {
     renderPage()
     fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '12' } })
     expect(screen.getByText('1 line')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Lock counts' }))
+    fireEvent.click(within(await openLockStep()).getByRole('button', { name: 'Lock counts' }))
 
-    expect(await screen.findByRole('heading', { name: 'Counts locked' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Counts locked' })).toHaveFocus()
+    expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.queryByRole('textbox', { name: 'Received for Fresh milk' })).toBeNull()
     fireEvent.change(screen.getByRole('textbox', { name: 'Delivery-note number (optional)' }), { target: { value: 'DN-7' } })
     fireEvent.click(screen.getByRole('button', { name: 'Send for review' }))
@@ -163,17 +175,21 @@ describe('CafeReceivePage', () => {
     expect(await screen.findByRole('heading', { name: 'Sent for review' })).toBeInTheDocument()
   })
 
-  it('FR-1011 an uncertain Count submit retries with the same idempotency key', async () => {
+  it('FR-1011 an uncertain Count submit stays in the confirm step and retries with the same idempotency key', async () => {
     mockSubmit.mockRejectedValueOnce(new Error('network')).mockResolvedValueOnce({ receipt_id: 'r', outcome: 'existing', row_version: 1 })
     renderPage()
     fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '3' } })
-    const submit = screen.getByRole('button', { name: 'Lock counts' })
-    fireEvent.click(submit)
-    expect(await screen.findByText(/could not be submitted/)).toBeInTheDocument()
-    await waitFor(() => expect(submit).toBeEnabled())
-    fireEvent.click(submit)
+    const step = await openLockStep()
+    const lock = within(step).getByRole('button', { name: 'Lock counts' })
+    fireEvent.click(lock)
+
+    expect(await within(step).findByRole('alert')).toHaveTextContent('could not be submitted')
+    expect(screen.getByRole('dialog')).toBe(step)
+    await waitFor(() => expect(lock).not.toHaveAttribute('aria-disabled'))
+    fireEvent.click(lock)
     await waitFor(() => expect(mockSubmit).toHaveBeenCalledTimes(2))
     expect(mockSubmit.mock.calls[1][2]).toBe(mockSubmit.mock.calls[0][2])
+    expect(await screen.findByRole('heading', { name: 'Counts locked' })).toBeInTheDocument()
   })
 
   it('issue 1422: an invalid typed quantity blocks Count submit and says why in the send bar', async () => {
@@ -190,15 +206,99 @@ describe('CafeReceivePage', () => {
     expect(submit).toBeEnabled()
   })
 
-  it('issue 1422: a Count submit failure is announced inside the pinned send bar', async () => {
-    mockSubmit.mockRejectedValue(new Error('network'))
+  it('issue 1437: Lock counts opens a confirm step listing every line and submits nothing yet', async () => {
     renderPage()
-    fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '3' } })
-    const submit = screen.getByRole('button', { name: 'Lock counts' })
-    fireEvent.click(submit)
-    const alert = await screen.findByRole('alert')
-    expect(alert).toHaveTextContent('could not be submitted')
-    expect(submit.closest('.cafe-count__footer')).toContainElement(alert)
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Coffee bean' }), { target: { value: '2,5' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '12' } })
+    const step = await openLockStep()
+
+    expect(step).toHaveAccessibleName('Lock 2 lines?')
+    expect(within(step).getAllByRole('listitem').map(line => line.textContent)).toEqual([
+      'Coffee bean2.5 × kg',
+      'Fresh milk12 × l',
+    ])
+    expect(within(step).getAllByText(/cannot change after locking/)).toHaveLength(1)
+    expect(within(step).getByRole('button', { name: 'Back to edit' })).toHaveFocus()
+    expect(mockSubmit).not.toHaveBeenCalled()
+  })
+
+  it('issue 1437: Back to edit closes the step with every entry intact and focus on Lock counts', async () => {
+    renderPage()
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Coffee bean' }), { target: { value: '2,5' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '12' } })
+    const pageLock = screen.getByRole('button', { name: 'Lock counts' })
+    const step = await openLockStep()
+
+    fireEvent.click(within(step).getByRole('button', { name: 'Back to edit' }))
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.getByRole('textbox', { name: 'Received for Coffee bean' })).toHaveValue('2,5')
+    expect(screen.getByRole('textbox', { name: 'Received for Fresh milk' })).toHaveValue('12')
+    expect(pageLock).toHaveFocus()
+    expect(mockSubmit).not.toHaveBeenCalled()
+  })
+
+  it('issue 1437: confirming locks every listed line in one submit', async () => {
+    let settle: (value: { receipt_id: string; outcome: 'created'; row_version: number }) => void = () => {}
+    mockSubmit.mockReturnValue(new Promise(resolve => { settle = resolve }))
+    renderPage()
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Coffee bean' }), { target: { value: '2,5' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '12' } })
+    const lock = within(await openLockStep()).getByRole('button', { name: 'Lock counts' })
+
+    fireEvent.click(lock)
+    fireEvent.click(lock)
+    settle({ receipt_id: 'receipt-1', outcome: 'created', row_version: 1 })
+
+    expect(await screen.findByRole('heading', { name: 'Counts locked' })).toBeInTheDocument()
+    expect(mockSubmit).toHaveBeenCalledTimes(1)
+    expect(mockSubmit.mock.calls[0][3]).toEqual([
+      { item_unit_id: 'unit-kg', quantity: '2.5' },
+      { item_unit_id: 'unit-l', quantity: '12' },
+    ])
+  })
+
+  it('issue 1437: Tab while locking stays inside the confirm step', async () => {
+    const user = userEvent.setup()
+    mockSubmit.mockReturnValue(new Promise(() => {}))
+    renderPage()
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '12' } })
+    const step = await openLockStep()
+    const lock = within(step).getByRole('button', { name: 'Lock counts' })
+    lock.focus()
+    fireEvent.click(lock)
+    await within(step).findByRole('button', { name: 'Locking…' })
+
+    await user.tab()
+    expect(step.contains(document.activeElement)).toBe(true)
+    await user.tab({ shift: true })
+    expect(step.contains(document.activeElement)).toBe(true)
+  })
+
+  it('issue 1437: a key conflict in the confirm step points back to the page and offers no futile retry', async () => {
+    mockSubmit.mockRejectedValueOnce(new Error('submitCafeReceipt failed: CAFE_RECEIPT_CLIENT_KEY_CONFLICT'))
+    renderPage()
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '12' } })
+    const step = await openLockStep()
+    fireEvent.click(within(step).getByRole('button', { name: 'Lock counts' }))
+
+    expect(await within(step).findByRole('alert')).toHaveTextContent('Go back to edit and check Your recent receipts.')
+    expect(within(step).queryByRole('button', { name: 'Lock counts' })).toBeNull()
+    expect(within(step).getByRole('button', { name: 'Back to edit' })).toHaveFocus()
+    expect(mockSubmit).toHaveBeenCalledTimes(1)
+  })
+
+  it('issue 1437: going offline in the confirm step says so there and blocks Lock counts', async () => {
+    renderPage()
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '12' } })
+    const step = await openLockStep()
+
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: false })
+    act(() => { window.dispatchEvent(new Event('offline')) })
+
+    expect(within(step).getByRole('alert')).toHaveTextContent('Reconnect to send this receipt.')
+    expect(within(step).getByRole('button', { name: 'Lock counts' })).toBeDisabled()
+    expect(mockSubmit).not.toHaveBeenCalled()
   })
 
   it('FR-1004 a shift member may choose today or yesterday; an ops lead may backdate further', async () => {
@@ -212,6 +312,90 @@ describe('CafeReceivePage', () => {
     const leadDate = await screen.findByLabelText('Arrival date')
     expect(leadDate).not.toHaveAttribute('min')
     expect(leadDate).toHaveAttribute('max', '2026-10-06')
+  })
+})
+
+describe('AC-1010 the difference after Lock counts', () => {
+  const AS_OF = '2026-10-06T02:10:00Z'
+  function difference(item_unit_id: string, outcome: 'over' | 'short' | 'matches' | 'no_open_po' | 'unknown') {
+    return { receipt_id: 'receipt-1', line_id: `line-${item_unit_id}`, item_unit_id, outcome, cache_as_of: AS_OF }
+  }
+
+  async function lockBeanAndMilk() {
+    mockSubmit.mockResolvedValue({ receipt_id: 'receipt-1', outcome: 'created', row_version: 1 })
+    renderPage()
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Coffee bean' }), { target: { value: '3' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '5' } })
+    fireEvent.click(within(await openLockStep()).getByRole('button', { name: 'Lock counts' }))
+    await screen.findByRole('heading', { name: 'Counts locked' })
+  }
+
+  function lockedLine(name: string) {
+    return within(screen.getByRole('list', { name: 'Counted lines' })).getByText(name).closest('li') as HTMLElement
+  }
+
+  it('AC-1010 each line shows over or short against the summed outstanding, and Send stays available', async () => {
+    mockDifferences.mockResolvedValue([difference('unit-kg', 'short'), difference('unit-l', 'over')])
+    await lockBeanAndMilk()
+
+    expect(await within(lockedLine('Coffee bean')).findByText('Short of the open PO')).toBeInTheDocument()
+    expect(within(lockedLine('Fresh milk')).getByText('Over the open PO')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('2 of 2 lines differ from the branch’s open POs. The reviewer checks them.')
+    expect(mockDifferences).toHaveBeenCalledWith(['receipt-1'])
+    expect(screen.getByRole('button', { name: 'Send for review' })).toBeEnabled()
+  })
+
+  it('AC-1010 a line that matches says so, and a product with no open PO line says “No open PO”', async () => {
+    mockDifferences.mockResolvedValue([difference('unit-kg', 'matches'), difference('unit-l', 'no_open_po')])
+    await lockBeanAndMilk()
+
+    expect(await within(lockedLine('Coffee bean')).findByText('Matches the open PO')).toBeInTheDocument()
+    expect(within(lockedLine('Fresh milk')).getByText('No open PO')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('1 of 2 lines differ')
+  })
+
+  it('AC-1010 an empty or stale cache says the difference is not yet known and does not block Send', async () => {
+    mockSend.mockResolvedValue({ status: 'Submitted', row_version: 2 })
+    mockDifferences.mockResolvedValue([difference('unit-kg', 'unknown'), difference('unit-l', 'unknown')])
+    await lockBeanAndMilk()
+
+    expect(await screen.findByRole('status')).toHaveTextContent('MOS can’t compare with the branch’s open POs right now. You can still send for review.')
+    expect(screen.queryByText(/open PO$/)).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Send for review' }))
+    await waitFor(() => expect(mockSend).toHaveBeenCalledWith('receipt-1', 1, ''))
+    expect(await screen.findByRole('heading', { name: 'Sent for review' })).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('the reviewer sees the difference once it can')
+    expect(screen.getByRole('status')).not.toHaveTextContent('You can still send')
+  })
+
+  it('NFR-1006 a failed read of the PO cache degrades to “not yet known”, never an error', async () => {
+    mockDifferences.mockRejectedValue(new Error('network'))
+    await lockBeanAndMilk()
+
+    expect(await screen.findByText(/MOS can’t compare/)).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Send for review' })).toBeEnabled()
+  })
+})
+
+describe('one open Counted receipt per receiver per branch', () => {
+  it('FR-1012 a second Lock counts while an earlier receipt is not sent says so inside the confirm step, then on the page', async () => {
+    mockSubmit.mockRejectedValue(new Error('submitCafeReceipt failed: CAFE_RECEIPT_COUNTED_PENDING: send your locked receipt'))
+    renderPage()
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '3' } })
+    const step = await openLockStep()
+    fireEvent.click(within(step).getByRole('button', { name: 'Lock counts' }))
+
+    expect(await within(step).findByRole('alert')).toHaveTextContent(
+      'Your earlier locked counts at this branch are not sent yet. Go back to edit, send them from Your recent receipts, then lock these.')
+    expect(within(step).queryByRole('button', { name: 'Lock counts' })).toBeNull()
+    expect(mockSubmit).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(within(step).getByRole('button', { name: 'Back to edit' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Your earlier locked counts at this branch are not sent yet. Send them from Your recent receipts below, then lock these.')
+    expect(screen.getByRole('textbox', { name: 'Received for Fresh milk' })).toHaveValue('3')
   })
 })
 

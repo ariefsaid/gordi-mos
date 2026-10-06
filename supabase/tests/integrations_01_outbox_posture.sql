@@ -390,8 +390,8 @@ select is(
 -- CONSTANT is the same blind spot wearing a different column name — the seeded rows are `kitchen`
 -- / `assembly-actual` / `dry_run` / retry 0 to a row, so `or (endpoint = 'noop' and ...)` would
 -- have been just as invisible as the status version. Spanning those costs nothing here: the same
--- five rows carry every value of every enumerated column between them (both source_modules, all
--- three endpoints, all three target_envs) and a spread of retry counts, rather than five rows that
+-- five rows carry every value of every enumerated column between them (every source_module,
+-- every endpoint, all three target_envs) and a spread of retry counts, rather than five rows that
 -- differ only in status. What is NOT covered, and cannot be by enumeration, is a predicate keyed
 -- on a specific COMBINATION these five rows do not happen to form, or on an unbounded column at a
 -- value they do not take.
@@ -405,11 +405,11 @@ insert into integrations.esb_push
   ('00000000-0000-0000-0000-00000000ba02','00000000-0000-0000-0000-0000000000a1','kitchen', 'PR-POSTURE-A-INFLIGHT','simple-transfer','goo',    'kitchen|PR-POSTURE-A-INFLIGHT|goo',    'in_flight',   1, null),
   ('00000000-0000-0000-0000-00000000ba03','00000000-0000-0000-0000-0000000000a1','kitchen', 'PR-POSTURE-A-POSTED',  'noop',           'gkid',   'kitchen|PR-POSTURE-A-POSTED|gkid',     'posted',      0, now()),
   ('00000000-0000-0000-0000-00000000ba04','00000000-0000-0000-0000-0000000000a1','roastery','PR-POSTURE-A-FAILED',  'assembly-actual','goo',    'roastery|PR-POSTURE-A-FAILED|goo',     'failed',      3, null),
-  ('00000000-0000-0000-0000-00000000ba05','00000000-0000-0000-0000-0000000000a1','kitchen', 'PR-POSTURE-A-DEAD',    'noop',           'dry_run','kitchen|PR-POSTURE-A-DEAD|dry_run',    'dead_letter', 7, null),
+  ('00000000-0000-0000-0000-00000000ba05','00000000-0000-0000-0000-0000000000a1','cafe_receipt','PR-POSTURE-A-DEAD','goods-receipt',  'dry_run','cafe_receipt|PR-POSTURE-A-DEAD|dry_run',    'dead_letter', 7, null),
   ('00000000-0000-0000-0000-00000000ba0a','00000000-0000-0000-0000-0000000000b1','kitchen', 'PR-POSTURE-B-INFLIGHT','simple-transfer','goo',    'kitchen|PR-POSTURE-B-INFLIGHT|goo',    'in_flight',   1, null),
   ('00000000-0000-0000-0000-00000000ba0b','00000000-0000-0000-0000-0000000000b1','kitchen', 'PR-POSTURE-B-POSTED',  'noop',           'gkid',   'kitchen|PR-POSTURE-B-POSTED|gkid',     'posted',      0, now()),
   ('00000000-0000-0000-0000-00000000ba0c','00000000-0000-0000-0000-0000000000b1','roastery','PR-POSTURE-B-FAILED',  'assembly-actual','goo',    'roastery|PR-POSTURE-B-FAILED|goo',     'failed',      3, null),
-  ('00000000-0000-0000-0000-00000000ba0d','00000000-0000-0000-0000-0000000000b1','kitchen', 'PR-POSTURE-B-DEAD',    'noop',           'dry_run','kitchen|PR-POSTURE-B-DEAD|dry_run',    'dead_letter', 7, null);
+  ('00000000-0000-0000-0000-00000000ba0d','00000000-0000-0000-0000-0000000000b1','cafe_receipt','PR-POSTURE-B-DEAD','goods-receipt',  'dry_run','cafe_receipt|PR-POSTURE-B-DEAD|dry_run',    'dead_letter', 7, null);
 
 -- The fixture is only worth its numbers if it really covers the state space, so that is asserted
 -- against the table's own CHECK rather than assumed. A state added by a later migration and not
@@ -554,7 +554,7 @@ reset role;
 -- group per org. Every count in this section is therefore five.
 -- target_env is spanned across the same five rows for the same reason it is on the outbox: a
 -- column the fixture holds constant is a column a predicate can be scoped to for free.
--- source_module is not spanned because the group table's CHECK admits only 'kitchen'.
+-- source_module is not spanned: the group policy does not read it.
 insert into integrations.esb_push_groups (id, org_id, target_env, dedup_key, status, posted_at) values
   ('00000000-0000-0000-0000-00000000bd01','00000000-0000-0000-0000-0000000000a1','dry_run','kitchen-group|posture-org-a-pending|dry_run',  'pending',     null),
   ('00000000-0000-0000-0000-00000000bd02','00000000-0000-0000-0000-0000000000a1','goo',    'kitchen-group|posture-org-a-inflight|goo',     'in_flight',   null),

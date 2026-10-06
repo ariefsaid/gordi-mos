@@ -178,10 +178,13 @@ select throws_ok($$select ops.submit_cafe_receipt('00000000-0000-0000-0000-00000
   '22023', null, 'FR-1008 a receipt needs at least one line');
 
 -- ── AC-1002 arrival date window ──────────────────────────────────────────────────────────────
+-- The receiver of r1 still holds it Counted, and a receiver holds one Counted receipt per branch
+-- (#1427), so the accepted-date cases use people with none open and are removed again below.
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d6","access_roles":["member","supervisor"]}');
 select lives_ok(format($$select ops.submit_cafe_receipt('00000000-0000-0000-0000-00000000bf01', 'kitchen',
   (now() at time zone 'Asia/Jakarta')::date - 1,
   'f1422000-0000-0000-0000-0000000000b1', '[{"item_unit_id":"%s","quantity":"1"}]'::jsonb)$$,
-  current_setting('app.milk_l')), 'AC-1002 a shift member may receive dated yesterday');
+  current_setting('app.milk_l')), 'AC-1002 a shift member (here a stream supervisor) may receive dated yesterday');
 select throws_ok(format($$select ops.submit_cafe_receipt('00000000-0000-0000-0000-00000000bf01', 'kitchen',
   (now() at time zone 'Asia/Jakarta')::date + 1,
   'f1422000-0000-0000-0000-0000000000b2', '[{"item_unit_id":"%s","quantity":"1"}]'::jsonb)$$,
@@ -199,20 +202,9 @@ select throws_ok(format($$select ops.submit_cafe_receipt('00000000-0000-0000-000
   (now() at time zone 'Asia/Jakarta')::date + 1,
   'f1422000-0000-0000-0000-0000000000b5', '[{"item_unit_id":"%s","quantity":"1"}]'::jsonb)$$,
   current_setting('app.milk_l')), '23514', null, 'AC-1002 an ops lead still cannot use a future date');
-
--- ── AC-1009 a branch without a receiving location: accepted, posting held with a reason ──────
-select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","admin"]}');
-select ops.set_cafe_receiving_location('00000000-0000-0000-0000-00000000bf01', null);
-select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member"]}');
-select set_config('app.r_held', ops.submit_cafe_receipt('00000000-0000-0000-0000-00000000bf01', 'kitchen', null,
-  'f1422000-0000-0000-0000-0000000000c1',
-  jsonb_build_array(jsonb_build_object('item_unit_id', current_setting('app.bean_kg'), 'quantity', '3')))::text, true);
-select ok((select status = 'Counted' and receiving_location_key is null
-                  and posting_status = 'held' and posting_hold_reason = 'receiving_location_missing'
-             from ops.cafe_receipts where id = (current_setting('app.r_held')::jsonb ->> 'receipt_id')::uuid),
-          'AC-1009 with no location the receipt is accepted and its posting is held with a reason');
-select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","admin"]}');
-select ops.set_cafe_receiving_location('00000000-0000-0000-0000-00000000bf01', 'main_store');
+reset role;
+delete from ops.cafe_receipts where client_key in ('f1422000-0000-0000-0000-0000000000b1', 'f1422000-0000-0000-0000-0000000000b4');
+set local role authenticated;
 
 -- ── AC-1008 a Counted receipt's lines are locked; its explanation can still be added ─────────
 reset role;
@@ -242,6 +234,21 @@ select ok((select status = 'Submitted' and delivery_note_number = 'DN-0042' and 
           'AC-1008 the receiver adds the delivery-note explanation and sends the Counted receipt for review');
 select ok((select sum(received_quantity) = 14.5 from ops.cafe_receipt_lines where receipt_id = current_setting('app.r1_id')::uuid),
           'AC-1008 sending for review leaves every counted quantity unchanged');
+
+-- ── AC-1009 a branch without a receiving location: accepted, posting held with a reason ──────
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","admin"]}');
+select ops.set_cafe_receiving_location('00000000-0000-0000-0000-00000000bf01', null);
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member"]}');
+select set_config('app.r_held', ops.submit_cafe_receipt('00000000-0000-0000-0000-00000000bf01', 'kitchen', null,
+  'f1422000-0000-0000-0000-0000000000c1',
+  jsonb_build_array(jsonb_build_object('item_unit_id', current_setting('app.bean_kg'), 'quantity', '3')))::text, true);
+select ok((select status = 'Counted' and receiving_location_key is null
+                  and posting_status = 'held' and posting_hold_reason = 'receiving_location_missing'
+             from ops.cafe_receipts where id = (current_setting('app.r_held')::jsonb ->> 'receipt_id')::uuid),
+          'AC-1009 with no location the receipt is accepted and its posting is held with a reason');
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","admin"]}');
+select ops.set_cafe_receiving_location('00000000-0000-0000-0000-00000000bf01', 'main_store');
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member"]}');
 
 -- A second Submitted receipt on the bar stream, received by the bar supervisor, and one by the ops lead.
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d6","access_roles":["member","supervisor"]}');

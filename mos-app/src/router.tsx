@@ -101,7 +101,7 @@ const CafeReceiptIssuesPage = lazyPage(() =>
 const KitchenPushesPage = lazyPage(() =>
   import('./pages/kitchen-pushes-page').then((m) => ({ default: m.KitchenPushesPage })),
 )
-const DashboardPage = lazyPage(() => import('./pages/dashboard-page').then((m) => ({ default: m.DashboardPage })))
+const MoneyPage = lazyPage(() => import('./pages/money-page').then((m) => ({ default: m.MoneyPage })))
 const BudgetPage = lazyPage(() => import('./pages/budget-page').then((m) => ({ default: m.BudgetPage })))
 const PricingPage = lazyPage(() => import('./pages/pricing-page').then((m) => ({ default: m.PricingPage })))
 const AdminUsersPage = lazyPage(() => import('./pages/admin-users-page').then((m) => ({ default: m.AdminUsersPage })))
@@ -130,7 +130,7 @@ const DevViewsPage = lazyPage(() => import('./pages/dev-views-page').then((m) =>
 //     /work/objectives           Objectives (org-readable; write scope resolved in the page)
 //     /work/projects             Projects & Processes (org-readable; write scope resolved in the page)
 //     /events /ecommerce /roastery /profile
-//     /money[/detail|/budget|/pricing|/follow-ups]
+//     /money[/budget|/pricing|/follow-ups]   (/money/detail redirects to /money)
 //     /inbox
 //     /cafe[/log|/plan|/stock|/review|/pushes]
 //     /admin/people
@@ -327,20 +327,13 @@ const routeTable: RouteObject[] = [
             element: <RequireAccessRole anyOf={REVENUE_VIEW_ROLES} />,
             handle: infrastructureHandle('capability'),
             children: [
-              { path: 'money', element: withSuspense(<DashboardPage />), handle: pageHandle('workspace') },
-              {
-                path: 'money/detail',
-                element: withSuspense(<DashboardPage defaultTab="detail" />),
-                handle: pageHandle('workspace'),
-              },
+              { path: 'money', element: withSuspense(<MoneyPage />), handle: pageHandle('workspace') },
+              // The Detail tab duplicated the table; the table IS the page now. Old links land on it.
+              { path: 'money/detail', element: <RouteRedirect to="/money" />, handle: redirectHandle('/money') },
               // /sales names /money directly — never chained through /dashboard.
               { path: 'sales', element: <RouteRedirect to="/money" />, handle: redirectHandle('/money') },
               { path: 'dashboard', element: <RouteRedirect to="/money" />, handle: redirectHandle('/money') },
-              {
-                path: 'dashboard/detail',
-                element: <RouteRedirect to="/money/detail" />,
-                handle: redirectHandle('/money/detail'),
-              },
+              { path: 'dashboard/detail', element: <RouteRedirect to="/money" />, handle: redirectHandle('/money') },
             ],
           },
           {

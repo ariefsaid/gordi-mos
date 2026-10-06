@@ -4,7 +4,7 @@
 // — one date grammar, three implementations. This locks the canonical output and
 // the locale seam (a param, falling back to the non-React readPersistedLocale()).
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { formatWeekdayDayMonth, formatDayMonthYear, formatWibDateTime, dateLocaleTag } from './date'
+import { formatWeekdayDayMonth, formatDayMonthYear, formatWibDateTime, dateLocaleTag, formatWibWeekdayTime } from './date'
 
 afterEach(() => vi.unstubAllEnvs())
 
@@ -63,5 +63,12 @@ describe('dateLocaleTag — the app Locale → BCP-47 seam', () => {
   it('maps id to id-ID and en to en-GB', () => {
     expect(dateLocaleTag('id')).toBe('id-ID')
     expect(dateLocaleTag('en')).toBe('en-GB')
+  })
+})
+
+describe('formatWibWeekdayTime — a sync time in the same style as the reporting day', () => {
+  it('reads the Jakarta wall clock with the weekday: 19:05 UTC on Mon 5 Oct is Tue 6 Oct, 02:05', () => {
+    expect(formatWibWeekdayTime('2026-10-05T19:05:00Z', 'en')).toBe('Tue 6 Oct, 02:05')
+    expect(formatWibWeekdayTime('2026-10-05T19:05:00Z', 'id')).toBe('Sel, 6 Okt, 02:05')
   })
 })
