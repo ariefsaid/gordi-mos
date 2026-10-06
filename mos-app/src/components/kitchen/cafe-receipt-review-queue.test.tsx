@@ -5,11 +5,16 @@ import { I18nProvider } from '@/i18n/I18nProvider'
 vi.mock('@/lib/db/directory', () => ({ getPeople: vi.fn() }))
 vi.mock('@/lib/db/cafe-receipts', async importOriginal => {
   const actual = await importOriginal<typeof import('@/lib/db/cafe-receipts')>()
-  return { ...actual, listCafeReceipts: vi.fn(), reviewCafeReceipt: vi.fn(), listCafeReceiptDifferences: vi.fn() }
+  return {
+    ...actual, listCafeReceipts: vi.fn(), reviewCafeReceipt: vi.fn(), listCafeReceiptDifferences: vi.fn(),
+    readCafeReceiptPosting: vi.fn(), listCafeHeldReceipts: vi.fn(),
+  }
 })
 
 import { getPeople } from '@/lib/db/directory'
-import { listCafeReceiptDifferences, listCafeReceipts, reviewCafeReceipt, type CafeReceipt } from '@/lib/db/cafe-receipts'
+import {
+  listCafeHeldReceipts, listCafeReceiptDifferences, listCafeReceipts, readCafeReceiptPosting, reviewCafeReceipt, type CafeReceipt,
+} from '@/lib/db/cafe-receipts'
 import { ALL_STREAMS } from './cafe-stream-bar'
 import { CafeReceiptReviewQueue } from './cafe-receipt-review-queue'
 
@@ -37,6 +42,8 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(getPeople).mockResolvedValue([{ id: 'receiver', full_name: 'Shift member' }, { id: 'me', full_name: 'Reviewer' }])
   vi.mocked(listCafeReceiptDifferences).mockResolvedValue([])
+  vi.mocked(readCafeReceiptPosting).mockResolvedValue(null)
+  vi.mocked(listCafeHeldReceipts).mockResolvedValue([])
   Object.defineProperty(navigator, 'onLine', { configurable: true, value: true })
 })
 
@@ -51,6 +58,34 @@ describe('CafeReceiptReviewQueue', () => {
     fireEvent.click(within(row).getByRole('button', { name: 'Approve' }))
     await waitFor(() => expect(reviewCafeReceipt).toHaveBeenCalledWith('r-1', 'approve', 2, ''))
     expect(await within(row).findByText('Approved · not posted to ESB')).toBeInTheDocument()
+  })
+
+  it('FR-1042 after approval the row shows the receipt’s posting state read back from the server', async () => {
+    vi.mocked(listCafeReceipts).mockResolvedValue([receipt('r-9', 'receiver')])
+    vi.mocked(reviewCafeReceipt).mockResolvedValue({ status: 'Approved', row_version: 3 })
+    vi.mocked(readCafeReceiptPosting).mockResolvedValue({ state: 'queued', matched: true, unmatched: 1, openIssues: 1 })
+    renderQueue()
+    const row = (await screen.findByText('Received by Shift member')).closest('li')!
+    fireEvent.click(within(row).getByRole('button', { name: 'Approve' }))
+    expect(await within(row).findByText('Approved · queued for ESB · not on an open PO: 1 · open Receipt issues: 1')).toBeInTheDocument()
+    expect(readCafeReceiptPosting).toHaveBeenCalledWith('r-9')
+  })
+
+  it('FR-1042 a failed read-back after approval claims no posting state', async () => {
+    vi.mocked(listCafeReceipts).mockResolvedValue([receipt('r-10', 'receiver')])
+    vi.mocked(reviewCafeReceipt).mockResolvedValue({ status: 'Approved', row_version: 3 })
+    vi.mocked(readCafeReceiptPosting).mockRejectedValue(new Error('network'))
+    renderQueue()
+    const row = (await screen.findByText('Received by Shift member')).closest('li')!
+    fireEvent.click(within(row).getByRole('button', { name: 'Approve' }))
+    expect(await within(row).findByText('Approved · posting state not loaded; refresh to see it')).toBeInTheDocument()
+  })
+
+  it('FR-1030 the queue carries the release control for held receipts', async () => {
+    vi.mocked(listCafeReceipts).mockResolvedValue([])
+    vi.mocked(listCafeHeldReceipts).mockResolvedValue([{ branchId: 'b-1', branchName: 'Gordi HQ', heldReceipts: 2, postingEnabled: true }])
+    renderQueue()
+    expect(await screen.findByRole('button', { name: 'Release to ESB: Gordi HQ' })).toBeInTheDocument()
   })
 
   it('FR-1020 the receiver’s own receipt cannot be approved from the queue but can be rejected', async () => {

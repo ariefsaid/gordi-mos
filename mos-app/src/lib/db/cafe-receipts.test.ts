@@ -5,8 +5,11 @@ import {
   cafeReceiptArrivalDateBounds,
   listCafeReceiptDifferences,
   listCafeReceipts,
+  listCafeHeldReceipts,
   listCafeReceivableItems,
   normalizeCafeReceiptQuantity,
+  readCafeReceiptPosting,
+  releaseCafeReceipts,
   reviewCafeReceipt,
   sendCafeReceiptForReview,
   submitCafeReceipt,
@@ -83,6 +86,46 @@ describe('Café receipt adapter', () => {
 
     response = { data: [{ ...row, status: 'Posted' }], error: null }
     await expect(listCafeReceipts(['Approved'])).rejects.toThrow('invalid receipt row')
+  })
+
+  it('FR-1042 reads each receipt’s posting state with it and refuses an unknown state', async () => {
+    const query: Record<string, unknown> = {}
+    const row = {
+      id: 'r-1', activity: 'kitchen', status: 'Approved', posting_status: 'not_posted', lines: [],
+      posting: { state: 'queued', matched: true, unmatched: 2, open_issues: 1 },
+    }
+    let response: { data: unknown; error: unknown } = { data: [row, { ...row, id: 'r-2', status: 'Submitted', posting: null }], error: null }
+    for (const method of ['select', 'in', 'eq', 'order', 'limit', 'maybeSingle']) query[method] = vi.fn(() => query)
+    query.then = (resolve: (value: unknown) => unknown) => Promise.resolve(response).then(resolve)
+    schemaMock.mockReturnValue({ from: vi.fn(() => query) } as never)
+
+    const [approved, submitted] = await listCafeReceipts(['Approved', 'Submitted'])
+    expect(approved.posting).toEqual({ state: 'queued', matched: true, unmatched: 2, openIssues: 1 })
+    expect(submitted.posting).toBeNull()
+    expect(String(vi.mocked(query.select as () => unknown).mock.calls[0])).toContain('posting:cafe_receipt_posting')
+
+    response = { data: { posting: { state: 'posted', matched: true, unmatched: 0, open_issues: 0 } }, error: null }
+    await expect(readCafeReceiptPosting('r-1')).resolves.toEqual({ state: 'posted', matched: true, unmatched: 0, openIssues: 0 })
+    expect(query.eq).toHaveBeenLastCalledWith('id', 'r-1')
+
+    response = { data: [{ ...row, posting: { state: 'sent', matched: true, unmatched: 0, open_issues: 0 } }], error: null }
+    await expect(listCafeReceipts(['Approved'])).rejects.toThrow('invalid receipt row')
+  })
+
+  it('FR-1030 lists held receipts per branch and releases one branch, reporting what was queued', async () => {
+    const rpc = vi.fn()
+      .mockResolvedValueOnce({ data: [{ branch_id: 'b-1', branch_name: 'HQ', held_receipts: 3, posting_enabled: true }], error: null })
+      .mockResolvedValueOnce({ data: { released_receipts: 2, queued_portions: 4, held_portions: 1, held_receipts: 1, held_location_missing: 0 }, error: null })
+      .mockResolvedValueOnce({ data: { released_receipts: 0, queued_portions: 0, held_portions: 1, held_receipts: 1, held_location_missing: 1, reason: 'po_data_not_current' }, error: null })
+      .mockResolvedValueOnce({ data: null, error: { message: 'CAFE_RECEIPT_RELEASE_FORBIDDEN' } })
+    schemaMock.mockReturnValue({ rpc } as never)
+
+    await expect(listCafeHeldReceipts()).resolves.toEqual([{ branchId: 'b-1', branchName: 'HQ', heldReceipts: 3, postingEnabled: true }])
+    expect(rpc).toHaveBeenLastCalledWith('cafe_held_receipts')
+    await expect(releaseCafeReceipts('b-1')).resolves.toEqual({ releasedReceipts: 2, queuedPortions: 4, heldPortions: 1, heldReceipts: 1, heldLocationMissing: 0, waitingForPoData: false })
+    expect(rpc).toHaveBeenLastCalledWith('release_cafe_receipts', { p_branch_id: 'b-1' })
+    await expect(releaseCafeReceipts('b-1')).resolves.toEqual({ releasedReceipts: 0, queuedPortions: 0, heldPortions: 1, heldReceipts: 1, heldLocationMissing: 1, waitingForPoData: true })
+    await expect(releaseCafeReceipts('b-1')).rejects.toThrow('CAFE_RECEIPT_RELEASE_FORBIDDEN')
   })
 
   it('FR-1016 / FR-1019 send and review pass only the receipt, version, decision and trimmed note', async () => {

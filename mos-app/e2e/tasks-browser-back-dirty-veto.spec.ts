@@ -1,4 +1,4 @@
-// AC-1010 — browser-back dirty-veto proof (V3 dirty-leave-guard, FR-V3-012 / DirtyLeaveGuardContract).
+// AC-1010 — browser-back dirty-veto proof (FR-V3-012 / DirtyLeaveGuardContract).
 //
 // The unit/RTL layer (docs/plans/2026-07-20-v3-record-viewer.md Task 3A + the task-drawer dirty-
 // guard wiring) proves the Escape/Close dirty-veto journey against an injected OverlayHistoryDriver,
