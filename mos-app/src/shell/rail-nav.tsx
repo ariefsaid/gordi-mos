@@ -34,6 +34,12 @@ function badgeLabelKeyFor(path: string): MessageKey | undefined {
   return undefined
 }
 
+// A workspace root with children is active anywhere under its first path segment (/work/*, /money/*).
+function sectionActive(pathname: string, d: Destination): boolean {
+  const root = `/${(d.primaryPath ?? d.links[0].path).split('/')[1]}`
+  return pathname === root || pathname.startsWith(`${root}/`)
+}
+
 type RailNavProps = {
   onNavigate?: () => void
   /** The viewer's own open-task count for the Tasks badge. Undefined/null → no badge. */
@@ -242,7 +248,6 @@ export function RailNav({ onNavigate, openTasks, compact = false }: RailNavProps
   // Rule 5 needs are computed by hand below instead of leaned on from NavLink's `to` matching
   // (the same split bottom-tab-bar.tsx already uses via its own `sectionPrefix`).
   const { pathname } = useLocation()
-  const workActive = pathname === '/work' || pathname.startsWith('/work/')
   // H1 fix (design audit, 2026-07-27): Inbox's unread badge — the SAME cheap, dedicated,
   // unread-only read the header bell already uses (useUnreadCount → countUnread, backed by the
   // owner-unread index), not a per-render full-list count. Fetched once per shell mount like the
@@ -278,13 +283,14 @@ export function RailNav({ onNavigate, openTasks, compact = false }: RailNavProps
         {!compact && <RailGroupLabel>{t('rail.destinations')}</RailGroupLabel>}
         <div className="flex flex-col gap-[2px] rail-item-list">
           {liveDestinations.map((d) => {
-            if (d.id === 'work') {
-              // Work parent: aria-current="location" when any /work/* route is active (Rule 5 —
-              // parent never carries "page"; the active child does). `workActive` (computed above
-              // from the URL directly) drives that, now that `to` targets the real canonical
-              // destination instead of the `/work` redirect entry.
-              const children = visibleSections(d.children ?? [], accessRoles)
+            if (d.children) {
+              // Work parent (and Money, the other workspace root with children): aria-current=
+              // "location" when any route in its section is active (Rule 5 — parent never carries
+              // "page"; the active child does). Computed from the URL directly, now that `to`
+              // targets the real canonical destination instead of the `/work` redirect entry.
+              const children = visibleSections(d.children, accessRoles)
               const workLabel = t(d.labelKey)
+              const workActive = sectionActive(pathname, d)
               return (
                 <div key={d.id}>
                   {/* Plain Link, not NavLink: NavLink only emits `aria-current` when ITS OWN
@@ -312,7 +318,7 @@ export function RailNav({ onNavigate, openTasks, compact = false }: RailNavProps
                       from `children` by the time it gets here. */}
                   <div className={compact ? 'flex flex-col gap-[2px] rail-item-list' : 'flex flex-col gap-[2px] rail-item-list rail-item-children'}>
                     {children.map((c) => (
-                      <WorkChild key={c.path} section={c} onNavigate={onNavigate} badge={badgeCountFor(c.path, openTasks)} badgeLabelKey={badgeLabelKeyFor(c.path)} compact={compact} />
+                      <WorkChild key={c.path} section={c} onNavigate={onNavigate} badge={badgeCountFor(c.path, openTasks)} badgeLabelKey={badgeLabelKeyFor(c.path)} compact={compact} end={sectionHasPrefixChild(c, children)} />
                     ))}
                   </div>
                 </div>
