@@ -427,6 +427,8 @@ begin
     raise exception 'CAFE_RECEIPT_LINE_DUPLICATE' using errcode = '22023';
   end if;
 
+  -- A concurrent submit with the same key waits here, then finds the committed receipt below.
+  perform pg_advisory_xact_lock(hashtextextended(v_org_id::text || ':' || p_client_key::text, 0));
   select * into v_existing from ops.cafe_receipts r
    where r.org_id = v_org_id and r.client_key = p_client_key;
   if found then

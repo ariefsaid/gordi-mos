@@ -1,7 +1,7 @@
 -- #1422 — blind Café goods receipt: Count submit lock, receiving location, review, freeze, org seam.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(66);
+select plan(67);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -103,6 +103,10 @@ select lives_ok($$select ops.set_cafe_receiving_location('00000000-0000-0000-000
   'FR-1043 an admin sets the branch receiving location');
 select throws_ok($$select ops.set_cafe_receiving_location('00000000-0000-0000-0000-00000000bf09', 'main_store')$$,
   '22023', null, 'FR-1043 an admin cannot configure another organisation''s branch');
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member"]}');
+select is((select location_key from ops.cafe_receiving_locations
+            where branch_id = '00000000-0000-0000-0000-00000000bf01'),
+          'main_store', 'NFR-1001 a same-organisation member reads the branch receiving location');
 
 -- ── FR-1006 receivable items ─────────────────────────────────────────────────────────────────
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member"]}');
@@ -150,7 +154,7 @@ select ok((select bool_and(org_id = '00000000-0000-0000-0000-0000000000a1')
                   and bool_or(item_unit_id = current_setting('app.bean_bag')::uuid and unit_name = 'bag'
                               and item_name = 'Receipt coffee bean' and received_quantity = 2.5)
              from ops.cafe_receipt_lines where receipt_id = current_setting('app.r1_id')::uuid),
-          'AC-1005 the line keeps the chosen product detail and typed quantity unconverted; names come from the server');
+          'FR-1007 the stored line keeps the chosen product detail and typed quantity unconverted; names come from the server');
 select ok((select receiving_location_key = 'main_store' and posting_status = 'not_posted' and posting_hold_reason is null
              from ops.cafe_receipts where id = current_setting('app.r1_id')::uuid),
           'AC-1009 the location resolves from the branch and the client-supplied location is ignored');
