@@ -31,8 +31,8 @@
   font-size: var(--font-size-label);
 }
 
-/* Recharts' own wrappers never take focus or overflow the plot. */
-.money-chart__plot :is(.recharts-wrapper, .recharts-surface):focus {
+/* Recharts' own wrappers and layers never show a focus ring: the plot group holds focus. */
+.money-chart__plot :is(.recharts-wrapper, .recharts-surface, [tabindex]):focus {
   outline: none;
 }
 

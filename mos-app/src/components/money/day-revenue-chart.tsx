@@ -55,6 +55,9 @@ export function DayRevenueChart({ days, selected, onSelect, label }: DayRevenueC
     indexRef.current = selectedIndex
   }
   const [hover, setHover] = useState<number | null>(null)
+  // A pick is a primary press that starts and ends on the plot: a right click, or a drag released
+  // here, picks nothing.
+  const pressRef = useRef(false)
   const choose = (i: number) => {
     if (i === indexRef.current) return
     indexRef.current = i
@@ -106,10 +109,16 @@ export function DayRevenueChart({ days, selected, onSelect, label }: DayRevenueC
         aria-label={label}
         aria-describedby={`${readoutId} ${hintId}`}
         onKeyDown={onKeyDown}
+        // Recharts' inner layers take focus on a click; the named group keeps it, so the keys and
+        // the one focus ring stay on the chart.
+        onFocus={(event) => { if (event.target !== event.currentTarget) event.currentTarget.focus() }}
+        onPointerDown={(event) => { pressRef.current = event.button === 0 }}
         onPointerMove={(event) => { if (event.pointerType === 'mouse') setHover(pointerDay(event)) }}
         onPointerLeave={() => setHover(null)}
         onPointerUp={(event) => {
-          const i = pointerDay(event)
+          const pressed = pressRef.current
+          pressRef.current = false
+          const i = pressed ? pointerDay(event) : null
           if (i !== null) choose(i)
           // A tap leaves no pointer behind to leave: the readout returns to the chosen day.
           if (event.pointerType !== 'mouse') setHover(null)
