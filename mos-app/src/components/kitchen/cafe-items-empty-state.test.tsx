@@ -1,6 +1,6 @@
 // An empty Café item list names its real cause and who fixes it (OD-2026-10-06-ESB-ITEMS, audit F02).
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 
@@ -30,12 +30,21 @@ beforeEach(() => {
 })
 
 describe('CafeItemsEmptyState', () => {
-  it('says the stream has no ESB items, who adds them in ESB, and offers nothing to click', async () => {
+  it('says the stream has no ESB items, that they are added in ESB first, and offers nothing to click', async () => {
     mockSettings.mockResolvedValue([])
     renderEmpty({ stream: KITCHEN })
-    expect(await screen.findByRole('heading', { name: 'No ESB items on Rumah Rames · Kitchen' })).toBeInTheDocument()
-    expect(screen.getByText(/an ops lead adds them to this stream in ESB/i)).toBeInTheDocument()
+    const empty = await screen.findByTestId('empty-state')
+    expect(within(empty).getByRole('heading', { name: 'No ESB items on Rumah Rames · Kitchen' })).toBeInTheDocument()
+    expect(within(empty).getByText('Add it in ESB first; it appears here after the next refresh.', { exact: true })).toBeInTheDocument()
+    expect(empty).not.toHaveTextContent(/ops lead|manager|admin/i)
     expect(screen.queryByRole('link')).not.toBeInTheDocument()
+  })
+
+  it('says the no-ESB copy in Indonesian', async () => {
+    mockSettings.mockResolvedValue([])
+    render(<I18nProvider initialLocale="id"><MemoryRouter><CafeItemsEmptyState stream={KITCHEN} /></MemoryRouter></I18nProvider>)
+    const empty = await screen.findByTestId('empty-state')
+    expect(within(empty).getByText('Tambahkan dulu di ESB; item muncul di sini setelah pembaruan berikutnya.', { exact: true })).toBeInTheDocument()
   })
 
   it('sends a person who can manage the items straight to Café items to set them up', async () => {

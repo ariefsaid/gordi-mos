@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { CafeStreamBar, CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { CafeItemsEmptyState } from '@/components/kitchen/cafe-items-empty-state'
+import { RecordAbout } from '@/components/record/record-page-layout'
 import { Select } from '@/components/ui/select'
 import { MultiPicker } from '@/components/ui/picker'
 import { TextInput } from '@/components/ui/text-input'
@@ -45,7 +46,7 @@ import { useCafeStream, type CafeStreamCatalog } from '@/lib/use-cafe-stream'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { RouteLeaveGuard } from '@/shell/route-leave-guard'
 import { useDocumentTitle } from '@/shell/use-document-title'
-import { useIsDesktop } from '@/shell/use-is-desktop'
+import { useIsWide } from '@/shell/use-is-wide'
 import '@/components/record-collection/record-collection.css'
 import './cafe-item-settings-page.css'
 
@@ -164,7 +165,9 @@ function CafeItemSettingsPageForViewer() {
   const [activeFilter, setActiveFilter] = useState<KitchenItemActiveFilter>('All')
   const [needsUnitFilter, setNeedsUnitFilter] = useState<KitchenItemNeedsUnitFilter>('All')
   const [listSort, setListSort] = useState<DataTableSort>()
-  const isDesktop = useIsDesktop()
+  // The editor table needs the wide operating layout, as on the other Café pages; narrower widths
+  // get one card per item.
+  const isWide = useIsWide()
   const [readState, setReadState] = useState<ReadState>('loading')
   const [catalogReady, setCatalogReady] = useState(false)
   const [permission, setPermission] = useState<EditPermission>('checking')
@@ -641,7 +644,7 @@ function CafeItemSettingsPageForViewer() {
               rowClassName={item => item.needsUnit ? 'cafe-items__row--needs-unit' : undefined}
               sort={listSort}
               onSortChange={next => setListSort(next)}
-              isDesktop={isDesktop}
+              isDesktop={isWide}
               state={visibleItems.length === 0 ? 'empty' : 'ready'}
               emptyLabel={t('cafe.items.noMatches')}
               caption={t('cafe.items.tableCaption')}
@@ -671,11 +674,20 @@ function defaultUnitLabel(item: CafeItemSetting, t: ReturnType<typeof useT>): st
   return unit ? unitLabel(unit, t) : t('cafe.items.noDefault')
 }
 
+/** The fields the ESB catalog refresh writes, shown as values: MOS cannot change them. */
+function esbFields(item: CafeItemListRow, t: ReturnType<typeof useT>, name?: ReactNode) {
+  return [
+    ...(name === undefined ? [] : [{ key: 'erpName', label: t('cafe.items.erpName'), value: name }]),
+    ...(item.category ? [{ key: 'erpCategory', label: t('cafe.items.erpCategory'), value: item.category }] : []),
+  ]
+}
+
 function ItemIdentity({ item }: { item: CafeItemListRow }) {
+  const t = useT()
   return (
     <div className="cafe-items__erp-cell">
       <span className="cafe-items__item-name">{item.erpName}</span>
-      {item.category && <span className="cafe-items__item-meta">{item.category}</span>}
+      <RecordAbout items={esbFields(item, t)} />
       {item.needsUnit && <NeedsUnitStatus />}
     </div>
   )
@@ -805,11 +817,11 @@ function ItemCard({ item, draft, canEdit, saving, changed, saveState, onDraftCha
   return (
     <article className="cafe-items__card-body" aria-labelledby={`cafe-item-${item.id}`}>
       <header className="cafe-items__card-header">
-        <span className="cafe-items__field-label">{t('cafe.items.erpName')}</span>
-        <h2 id={`cafe-item-${item.id}`} className="cafe-items__item-name">
-          {item.erpName}{item.needsUnit && <NeedsUnitStatus />}
-        </h2>
-        {item.category && <p className="cafe-items__item-meta">{item.category}</p>}
+        <RecordAbout items={esbFields(item, t, (
+          <h2 id={`cafe-item-${item.id}`} className="cafe-items__item-name">
+            {item.erpName}{item.needsUnit && <NeedsUnitStatus />}
+          </h2>
+        ))} />
       </header>
       <div className="cafe-items__card-field">
         {!canEdit && <span className="cafe-items__field-label">{t('cafe.items.mosName')}</span>}

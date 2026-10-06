@@ -167,7 +167,7 @@ describe('TeamPicker', () => {
 
     await waitFor(() => expect(within(row('Gordi HQ Bar')).getByRole('alert')).toHaveTextContent('Failed'))
     // The attempted value survives the failure — the box stays checked, not snapped back.
-    expect(screen.getByRole('checkbox', { name: 'Gordi HQ Bar' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('checkbox', { name: 'Gordi HQ Bar' })).toBeChecked()
     // Reload is mandatory after a failure: setPrimaryTeam clears the old primary BEFORE setting the
     // new one, so a throw can leave real state changed.
     expect(refresh).toHaveBeenCalled()
@@ -186,7 +186,7 @@ describe('TeamPicker', () => {
     await waitFor(() => expect(within(row('Gordi HQ Bar')).getByRole('alert')).toBeInTheDocument())
 
     await user.click(screen.getByRole('checkbox', { name: 'Gordi HQ Bar' }))
-    expect(screen.getByRole('checkbox', { name: 'Gordi HQ Bar' })).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByRole('checkbox', { name: 'Gordi HQ Bar' })).not.toBeChecked()
     expect(within(row('Gordi HQ Bar')).queryByRole('alert')).toBeNull()
     expect(mockAdd).toHaveBeenCalledTimes(1)
     expect(mockEnd).not.toHaveBeenCalled()

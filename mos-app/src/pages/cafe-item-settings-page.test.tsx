@@ -310,11 +310,11 @@ describe('Cafe item permissions per activity', () => {
   })
 
   it.each([
-    { activity: 'kitchen', desktop: false }, { activity: 'bar', desktop: false },
-    { activity: 'kitchen', desktop: true }, { activity: 'bar', desktop: true },
-  ] as const)('reads $activity settings without write controls (desktop=$desktop)', async ({ activity, desktop }) => {
+    { activity: 'kitchen', wide: false }, { activity: 'bar', wide: false },
+    { activity: 'kitchen', wide: true }, { activity: 'bar', wide: true },
+  ] as const)('reads $activity settings without write controls (wide=$wide)', async ({ activity, wide }) => {
     const mediaSpy = vi.spyOn(window, 'matchMedia').mockImplementation(query => ({
-      matches: desktop && query === '(min-width: 768px)', media: query, onchange: null,
+      matches: wide && query === '(min-width: 1280px)', media: query, onchange: null,
       addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(),
       dispatchEvent: vi.fn(() => true),
     }))
@@ -322,7 +322,7 @@ describe('Cafe item permissions per activity', () => {
     selectedActivity.initial = activity
     mockCanManage.mockResolvedValue(false)
     renderPage()
-    const item = await screen.findByRole(desktop ? 'row' : 'article', { name: /ERP Oat milk/ })
+    const item = await screen.findByRole(wide ? 'row' : 'article', { name: /ERP Oat milk/ })
     expect(mockCanManage).toHaveBeenCalledWith(activity)
     expect(item).toHaveTextContent('Oat milk')
     expect(within(item).queryByRole('textbox')).not.toBeInTheDocument()
@@ -450,5 +450,72 @@ describe('Cafe items opened from a link (Money Branch page, #1436)', () => {
     )
     await waitFor(() => expect(mockCanManage).toHaveBeenCalledWith('kitchen'))
     expect(mockCanManage).not.toHaveBeenCalledWith('bar')
+  })
+})
+
+describe('ESB-owned item fields (OD-2026-10-06-ESB-ITEMS)', () => {
+  function viewportWidth(width: number) {
+    const mediaSpy = vi.spyOn(window, 'matchMedia').mockImplementation(query => {
+      const min = /min-width:\s*([\d.]+)px/.exec(query)
+      const max = /max-width:\s*([\d.]+)px/.exec(query)
+      return {
+        matches: (!min || width >= Number(min[1])) && (!max || width <= Number(max[1])) && (min !== null || max !== null),
+        media: query, onchange: null,
+        addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(() => true),
+      }
+    })
+    restoreMedia = () => mediaSpy.mockRestore()
+  }
+
+  function esbField(scope: HTMLElement, label: string): HTMLElement {
+    const term = within(scope).getByText(label, { selector: 'dt' })
+    const value = term.nextElementSibling
+    if (!(value instanceof HTMLElement) || value.tagName !== 'DD') throw new Error(`${label} has no value`)
+    return value
+  }
+
+  it.each([390, 1024])('shows the ESB name and category as read-only values on a %ipx card while MOS settings stay editable', async width => {
+    viewportWidth(width)
+    renderPage()
+    const card = await screen.findByRole('article', { name: 'ERP Oat milk' })
+    expect(esbField(card, 'ESB name')).toHaveTextContent('ERP Oat milk')
+    expect(esbField(card, 'ESB category')).toHaveTextContent('Dairy')
+    expect(within(card).getAllByRole('textbox')).toEqual([within(card).getByRole('textbox', { name: 'MOS name' })])
+    expect(within(card).getByRole('textbox', { name: 'MOS name' })).toHaveValue('Oat milk')
+    expect(within(card).getByRole('checkbox', { name: 'Active for Oat milk' })).toBeEnabled()
+  })
+
+  it('lays the editor out as a table only at the wide width, with the ESB fields read-only', async () => {
+    viewportWidth(1280)
+    renderPage()
+    const row = await screen.findByRole('row', { name: /ERP Oat milk/ })
+    expect(screen.getByRole('columnheader', { name: 'ESB name' })).toBeInTheDocument()
+    expect(within(row).getByText('ERP Oat milk')).toBeInTheDocument()
+    expect(esbField(row, 'ESB category')).toHaveTextContent('Dairy')
+    expect(within(row).getAllByRole('textbox')).toEqual([within(row).getByRole('textbox', { name: 'MOS name' })])
+  })
+
+  it('saves an edited MOS name without touching the ESB name', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    const card = await screen.findByRole('article', { name: 'ERP Oat milk' })
+    const name = within(card).getByRole('textbox', { name: 'MOS name' })
+    await user.clear(name)
+    await user.type(name, 'Oat milk (barista)')
+    await user.click(within(card).getByRole('button', { name: 'Save settings for Oat milk' }))
+    await waitFor(() => expect(mockSaveItem).toHaveBeenCalledWith(expect.objectContaining({
+      itemId: 'item-1', mosName: 'Oat milk (barista)',
+    })))
+    expect(await within(card).findByText('Saved')).toBeInTheDocument()
+    expect(esbField(card, 'ESB name')).toHaveTextContent('ERP Oat milk')
+  })
+
+  it.each([
+    { locale: 'en' as const, note: 'ESB names and categories are read-only here; change them in ESB and they update after the next refresh. MOS names and settings are stream-specific.' },
+    { locale: 'id' as const, note: 'Nama dan kategori ESB hanya-baca di sini; ubah di ESB, dan perubahannya muncul setelah pembaruan berikutnya. Nama dan pengaturan MOS khusus untuk stream ini.' },
+  ])('says in $locale where the read-only ESB fields are changed', async ({ locale, note }) => {
+    renderPage(locale)
+    expect(await screen.findByText(note, { exact: true })).toBeInTheDocument()
   })
 })
