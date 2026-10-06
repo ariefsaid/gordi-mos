@@ -37,6 +37,8 @@ vi.mock('./config/features', () => ({
 const mockUseAuth = vi.mocked(useAuth)
 
 import { ProtectedRoute } from './auth/protected-route'
+import { isShipGatedInProfile } from './lib/ship-gate'
+import { CAFE_SECTIONS, sectionForPath } from './shell/sections'
 import { AppShell } from './shell/app-shell'
 import { TasksLayout } from './pages/tasks-layout'
 import { KitchenLogPage } from './pages/kitchen-log-page'
@@ -149,6 +151,21 @@ describe('issue 1366: Café Count route', () => {
     const count = leafInThisTable('/cafe/count')
     expect(count, '/cafe/count must be a declared route').toBeDefined()
     expect(isRedirect(count!.route.element)).toBe(false)
+  })
+})
+
+describe('issue 1422: Café receiving destinations', () => {
+  it('AC-1037 Receive, receipt review and Receipt issues are live, navigable and open in the cafe and full profiles', () => {
+    expect(CAFE_SECTIONS.map(section => section.path)).toContain('/cafe/receive')
+    for (const path of ['/cafe/receive', '/cafe/receive/review', '/cafe/receive/issues']) {
+      const leaf = leafInThisTable(path)
+      expect(leaf, `${path} must be a declared route`).toBeDefined()
+      expect(leaf!.route.path).not.toBe('*')
+      expect(isRedirect(leaf!.route.element)).toBe(false)
+      expect(sectionForPath(path)?.path, `${path} marks Receive in the navigation`).toBe('/cafe/receive')
+      expect(isShipGatedInProfile(path, 'cafe'), `${path} blocked in the cafe profile`).toBe(false)
+      expect(isShipGatedInProfile(path, 'full'), `${path} blocked in the full profile`).toBe(false)
+    }
   })
 })
 
@@ -335,12 +352,12 @@ describe('router — Café review + pushes are role-gated', () => {
   // server and in the page but not here, so the reviewer it created was bounced off the URL —
   // found by #238's cross-stack journey. Review now admits them; Pushes, the dispatch surface,
   // does not, so the two gates are deliberately different and asserted apart.
-  it('AC-006: /cafe/review sits behind RequireAccessRole(ops_lead|admin|supervisor) — the FR-040 reviewer included', () => {
+  it('AC-006: /cafe/review and receipt review sit behind RequireAccessRole(ops_lead|admin|supervisor) — the FR-040 reviewer included', () => {
     const gate = shellChildren().find(
       (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'cafe/review'),
     )!
     expect(gate.element).toEqual(<RequireAccessRole anyOf={['ops_lead', 'admin', 'supervisor']} scope="link" />)
-    expect(gate.children!.map((c) => c.path).sort()).toEqual(['cafe/review', 'kitchen/review'])
+    expect(gate.children!.map((c) => c.path).sort()).toEqual(['cafe/receive/review', 'cafe/review', 'kitchen/review'])
   })
 
   it('AC-006: /cafe/pushes stays behind RequireAccessRole(ops_lead|admin) — posting state is not a review queue', () => {

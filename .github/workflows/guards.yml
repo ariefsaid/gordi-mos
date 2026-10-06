@@ -193,6 +193,9 @@ jobs:
       - name: lane-exempt audit-trail self-test
         if: steps.scope.outputs.agent == 'true'
         run: bash scripts/lane-exempt.test.sh
+      - name: cloud sandbox tool helpers self-test
+        if: steps.scope.outputs.agent == 'true'
+        run: bash scripts/cloud-tools.test.sh
       - name: drive-next ticket-picker self-test
         if: steps.scope.outputs.agent == 'true'
         run: bash scripts/drive-next.test.sh
