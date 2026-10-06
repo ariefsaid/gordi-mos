@@ -3,10 +3,11 @@
 -- OWNS: FR-020 server half — a row submitted with NO unit records the item's DEFAULT unit
 --                (the common path enters no unit, yet every submitted row carries which
 --                item-unit its quantity means).
---       FR-021/022 server half — an explicit binding (the "change unit" path) lands on the
---                row, must reference a unit of the row's OWN wip item in the row's own org
---                (23514 both ways), and is immutable after insert (42501 — provenance, like
---                submitted_by).
+--       FR-022 server half — a binding must reference a unit of the row's OWN wip item in the
+--                row's own org, and is immutable after insert (42501 — provenance, like
+--                submitted_by). A new MOS row on an ESB item binds only its stream default
+--                (ops_21 owns that refusal); the explicit alternate of FR-021 existed only for
+--                hand-made items, which take no new logs (OD-2026-10-06-ESB-ITEMS).
 --       FR-032 substrate — ops.capture_form_items carries is_transferable, and the DD-WAY-29
 --                confirmed gate is unchanged by the view replace: an unconfirmed alternate is
 --                absent, a confirmed one is present whatever its flag (the OFFERING filter is
@@ -16,13 +17,14 @@
 --                session reads an empty form.
 --
 -- Personas (shared fixture): Author ...0d1 member (submits logs); DirectMgr ...0d2 ops_lead.
--- Fixture rows (ops._test_seed_cafe): de01 ab01/porsi confirmed default; de02 ab02/porsi
--- confirmed default; de09 org B's confirmed default (the cross-org negative).
--- Inline rows below (this file's own, ops_11 §D convention): de04/de05 confirmed alternates of
--- ab02 (transferable / NON-transferable), de06 an UNCONFIRMED alternate of ab02.
+-- Fixture rows (ops._test_seed_cafe): de01 ab01/porsi confirmed default of an ESB item; de09 org
+-- B's confirmed default (the cross-org negative).
+-- Inline rows below: c131, a hand-made item from before OD-2026-10-06-ESB-ITEMS (replica mode, the
+-- way a pre-existing row looks), with a confirmed porsi default (c1d0), de04/de05 confirmed
+-- alternates (transferable / NON-transferable) and de06 an UNCONFIRMED alternate.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(17);
+select plan(15);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -39,17 +41,16 @@ select '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000
 from shared.teams t
 where t.org_id = '00000000-0000-0000-0000-0000000000a1' and t.code = 'gordi_hq_bar';
 
--- Alternate units for Ayam Bakar (ab02), inserted here rather than grown in the shared fixture
--- so ops_11's per-item view counts stay untouched. Superuser context, claims cleared — the
--- confirmation stamp records confirmed_by NULL, the system-migrated shape (ops_11 §D pattern).
-set local request.jwt.claims = '{}';
+set local session_replication_role = replica;
+insert into ops.wip_items (id, org_id, name, category, flag_active, kind, reference_source) values
+  ('00000000-0000-0000-0000-00000000c131','00000000-0000-0000-0000-0000000000a1','Legacy unit WIP','Drinks',true,'WIP','manual');
 insert into ops.item_units
-  (id, org_id, wip_item_id, unit_name, esb_product_detail_id, confirmed_at, is_transferable) values
-  ('00000000-0000-0000-0000-00000000de04','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000ab02','botol','PD-BOTOL-002',now(),true),
-  ('00000000-0000-0000-0000-00000000de05','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000ab02','karton','PD-KARTON-002',now(),false);
-insert into ops.item_units
-  (id, org_id, wip_item_id, unit_name, esb_product_detail_id, is_transferable) values
-  ('00000000-0000-0000-0000-00000000de06','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000ab02','gelas','PD-GELAS-002',true);
+  (id, org_id, wip_item_id, unit_name, esb_product_detail_id, is_default, confirmed_at, is_transferable) values
+  ('00000000-0000-0000-0000-00000000c1d0','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000c131','porsi','PD-PORSI-C131',true,now(),true),
+  ('00000000-0000-0000-0000-00000000de04','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000c131','botol','PD-BOTOL-C131',false,now(),true),
+  ('00000000-0000-0000-0000-00000000de05','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000c131','karton','PD-KARTON-C131',false,now(),false),
+  ('00000000-0000-0000-0000-00000000de06','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000c131','gelas','PD-GELAS-C131',false,null,true);
+set local session_replication_role = origin;
 
 set local role authenticated;
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}');
@@ -59,7 +60,7 @@ select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 select is(
   (select count(*)::int from ops.capture_form_items
-    where wip_item_id = '00000000-0000-0000-0000-00000000ab02'),
+    where wip_item_id = '00000000-0000-0000-0000-00000000c131'),
   3,
   'the view returns every CONFIRMED unit of an item — porsi default + both confirmed alternates; the DD-WAY-29 gate is per-row and unchanged by the replace');
 
@@ -103,27 +104,10 @@ select is(
   'FR-020/022: the row bound to the item''s DEFAULT unit server-side — every submitted row names which ERP coordinate its quantity means');
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
--- C. FR-021/022: an explicit alternate binds; wrong-item and cross-org bindings are refused
+-- C. FR-022: another item's or another org's unit is refused on a new row
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
-select lives_ok($$
-  insert into ops.kitchen_logs
-    (business_unit_id, log_date, branch_id, activity, action, wip_item_id, qty_porsi, item_unit_id)
-  values
-    ('00000000-0000-0000-0000-00000000bb01','2026-06-23',
-     '00000000-0000-0000-0000-00000000bf02','kitchen','produce',
-     '00000000-0000-0000-0000-00000000ab02',2,
-     '00000000-0000-0000-0000-00000000de04')
-  $$,
-  'FR-021: the "change unit" path — an explicit alternate binding is accepted');
-
-select is(
-  (select item_unit_id from ops.kitchen_logs
-    where log_date = '2026-06-23'
-      and wip_item_id = '00000000-0000-0000-0000-00000000ab02'
-      and submitted_by = '00000000-0000-0000-0000-0000000000d1'),
-  '00000000-0000-0000-0000-00000000de04'::uuid,
-  'FR-022: the submitted row carries THAT item-unit — the alternate is a distinct ERP coordinate, never a label');
-
+-- On an ESB item the binder answers with its default-unit rule before the generic seam check; the
+-- generic seam itself is exercised by the first-fill arm in section E.
 select throws_ok($$
   insert into ops.kitchen_logs
     (business_unit_id, log_date, branch_id, activity, action, wip_item_id, qty_porsi, item_unit_id)
@@ -132,7 +116,7 @@ select throws_ok($$
      '00000000-0000-0000-0000-00000000bf02','kitchen','produce',
      '00000000-0000-0000-0000-00000000ab01',1,
      '00000000-0000-0000-0000-00000000de04')
-  $$, '23514', 'item_unit_id must reference a unit of the log''s own wip item',
+  $$, 'P0015', null,
   '_bind_kitchen_log_item_unit: a row cannot bind another ITEM''s unit — the coordinate would price the wrong product');
 
 select throws_ok($$
@@ -143,7 +127,7 @@ select throws_ok($$
      '00000000-0000-0000-0000-00000000bf02','kitchen','produce',
      '00000000-0000-0000-0000-00000000ab01',1,
      '00000000-0000-0000-0000-00000000de09')
-  $$, '23514', 'item_unit_id must belong to the same org as the kitchen log',
+  $$, 'P0015', null,
   '_bind_kitchen_log_item_unit: another org''s unit is invisible under INVOKER RLS and refused — cross-org stays fail-closed');
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
@@ -174,14 +158,17 @@ select throws_ok($$
 -- Recreate its input: a log whose item had NO unit row at insert time (the bind trigger resolves
 -- nothing and leaves NULL — the nullable-by-design case), then a default unit arrives, then THE
 -- SAME STATEMENT as 20260810000001 §2 — keep the UPDATE below in lockstep with it, verbatim.
+-- The subject is a hand-made item from before OD-2026-10-06-ESB-ITEMS (replica mode). Its log is an
+-- imported row, the only new row such an item can still take, left Submitted so the backfill may
+-- fill its unit; the binder runs on it as on any row.
 set local request.jwt.claims = '{}';
-insert into ops.wip_items (id, org_id, name, flag_active) values
-  ('00000000-0000-0000-0000-00000000dd11','00000000-0000-0000-0000-0000000000a1','Backfill Subject',true);
-insert into ops.stream_items (org_id, branch_id, activity, wip_item_id, source) values
-  ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bf02','kitchen','00000000-0000-0000-0000-00000000dd11','manual');
+set local session_replication_role = replica;
+insert into ops.wip_items (id, org_id, name, flag_active, kind, reference_source) values
+  ('00000000-0000-0000-0000-00000000dd11','00000000-0000-0000-0000-0000000000a1','Backfill Subject',true,'WIP','manual');
+set local session_replication_role = origin;
 insert into ops.kitchen_logs
-  (id, org_id, business_unit_id, log_date, branch_id, activity, action, wip_item_id, qty_porsi, submitted_by) values
-  ('00000000-0000-0000-0000-00000000ac21','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','2026-06-23','00000000-0000-0000-0000-00000000bf02','kitchen','produce','00000000-0000-0000-0000-00000000dd11',3,'00000000-0000-0000-0000-0000000000d1');
+  (id, org_id, business_unit_id, log_date, branch_id, activity, action, wip_item_id, qty_porsi, status, source) values
+  ('00000000-0000-0000-0000-00000000ac21','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','2026-06-23','00000000-0000-0000-0000-00000000bf02','kitchen','produce','00000000-0000-0000-0000-00000000dd11',3,'Submitted','teable_import');
 
 select is(
   (select item_unit_id from ops.kitchen_logs where id = '00000000-0000-0000-0000-00000000ac21'),

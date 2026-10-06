@@ -40,9 +40,9 @@ insert into ops.log_entries (id, org_id, business_unit_id, title, created_by)
 values ('00000000-0000-0000-0000-000000009901', '00000000-0000-0000-0000-0000000000a1',
         '00000000-0000-0000-0000-00000000bb01', 'History daily log',
         '00000000-0000-0000-0000-0000000000d1');
-insert into ops.wip_items (id, org_id, name)
+insert into ops.wip_items (id, org_id, name, reference_source, esb_product_id)
 values ('00000000-0000-0000-0000-000000009902', '00000000-0000-0000-0000-0000000000a1',
-        'History WIP');
+        'History WIP', 'erp_catalog', 'P-9902');
 insert into ops.kitchen_plans (id, org_id, log_date, wip_item_id, branch_id, activity, action,
                                qty_porsi)
 values ('00000000-0000-0000-0000-000000009903', '00000000-0000-0000-0000-0000000000a1',
