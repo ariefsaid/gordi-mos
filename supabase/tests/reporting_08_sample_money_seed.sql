@@ -6,7 +6,7 @@
 -- the window it was given.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(14);
+select plan(16);
 
 create temp table t_org on commit drop as
   select distinct org_id as id from shared.people where email like '%.dev@example.test';
@@ -36,15 +36,22 @@ select is(
 
 select is((select count(*)::int from t_pos), 4, 'the catalog has four POS branches besides the roastery');
 
+-- Exact counts, so a second load that added rows under other codes goes red.
 select is(
-  (select count(*)::int
-     from t_pos p cross join t_days d
+  (select count(*)::int from reporting.sales_daily_revenue
+    where org_id = (select id from t_org)),
+  (select count(distinct (branch_id, channel, revenue_date))::int from reporting.sales_daily_revenue
+    where org_id = (select id from t_org)),
+  'each branch has at most one row per channel and day');
+
+select is(
+  (select count(*)::int from t_pos p
     where p.code <> 'cikal'
-      and not exists (select 1 from reporting.sales_daily_revenue r
-                       where r.org_id = (select id from t_org) and r.channel = 'POS'
-                         and r.branch_id = p.id and r.revenue_date = d.day)),
+      and (select count(*) from reporting.sales_daily_revenue r
+            where r.org_id = (select id from t_org) and r.channel = 'POS' and r.branch_id = p.id
+              and r.revenue_date >= (select min(day) from t_days)) <> 120),
   0,
-  'every POS branch but the partial one has a revenue row on each of the 120 days');
+  'every POS branch but the partial one has exactly 120 revenue rows, one per day');
 
 select ok(
   not exists (select 1 from reporting.sales_daily_revenue r join t_pos p on p.id = r.branch_id
@@ -72,6 +79,13 @@ select is(
                          and r.revenue_date = d.day)),
   0,
   'the roastery has a B2B row on every weekday of the window');
+
+select is(
+  (select count(*)::int from reporting.sales_daily_revenue
+    where org_id = (select id from t_org) and channel = 'B2B'
+      and revenue_date >= (select min(day) from t_days)),
+  (select count(*)::int from t_days where extract(isodow from day) <= 5),
+  'and exactly one per weekday, none on weekends');
 
 select is(
   (select count(*)::int

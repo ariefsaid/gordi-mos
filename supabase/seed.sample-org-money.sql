@@ -75,7 +75,7 @@ begin
            (('x' || substr(h.md5, 25, 8))::bit(32)::bigint / 4294967296.0) as r4
       from branch br
       cross join day d
-      cross join lateral (select md5(br.code || ':' || d.day::text) as md5) h
+      cross join lateral (select md5(br.code || ':' || to_char(d.day, 'YYYY-MM-DD')) as md5) h
      where not (br.channel = 'B2B' and extract(isodow from d.day) > 5)
        and not (br.code = 'cikal' and (d.day = load_day - 1 or d.n % 41 in (0, 1)))
   ),
