@@ -1,11 +1,12 @@
 // DayRevenueChart — one branch's revenue per day as bars, with the same weekday a week earlier as a
 // dashed line (shape, not hue), a labelled rupiah axis and date ticks. MOS owns the interaction:
-// the chart is one focus stop; ←/→ move a day, Home/End jump to the ends, and a click picks the
-// day under the pointer. Those set the caller's selected day (the Branch page keeps it in ?d=).
-// Hovering only previews: the readout line above the plot — the chart's tooltip, announced
-// politely — follows the pointer and returns to the selected day when it leaves. Recharts draws
-// the marks only (its keyboard layer and cursor are off, so there is one focus stop and one marker).
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
+// the chart is one focus stop; ←/→ move a day, Home/End jump to the ends, and a click or tap picks
+// the day under the pointer. Those set the caller's selected day (the Branch page keeps it in ?d=).
+// A mouse hovering only previews: the readout line above the plot — the chart's tooltip, announced
+// politely — follows it and returns to the selected day when it leaves. The day under the pointer
+// is read from the pointer's own position, so a tap with no hover before it picks the right day.
+// Recharts draws the marks only (its keyboard layer and cursor are off: one focus stop, one marker).
+import { useId, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import {
   Bar,
   CartesianGrid,
@@ -22,6 +23,7 @@ import { formatIDR } from '@/lib/format/money'
 import { formatIDRCompact, signedChange } from '@/lib/sales-dashboard'
 import { formatWeekdayDayMonth } from '@/lib/format/date'
 import type { BranchDay } from '@/lib/money-branch-page'
+import { PLOT_MARGIN, Y_AXIS_WIDTH, dayAt } from './day-chart-geometry'
 import './day-revenue-chart.css'
 
 export interface DayRevenueChartProps {
@@ -43,11 +45,22 @@ export function DayRevenueChart({ days, selected, onSelect, label }: DayRevenueC
   const hintId = useId()
   const patternId = `money-missing-${useId().replace(/:/g, '')}`
   const selectedIndex = Math.max(0, days.findIndex((d) => d.date === selected))
-  // Keys act on the latest index at once, not on the URL's next render, so a held arrow never
-  // skips a day.
+  // Keys and taps act on the latest index at once, not on the URL's next render, so a held arrow
+  // never stops short. The prop takes over only once it reaches the day last asked for (or when
+  // nothing is pending), so a render from an earlier URL never writes an older day back.
   const indexRef = useRef(selectedIndex)
-  useEffect(() => { indexRef.current = selectedIndex }, [selectedIndex])
+  const pendingRef = useRef<string | null>(null)
+  if (pendingRef.current === null || pendingRef.current === selected || !days.some((d) => d.date === pendingRef.current)) {
+    pendingRef.current = null
+    indexRef.current = selectedIndex
+  }
   const [hover, setHover] = useState<number | null>(null)
+  const choose = (i: number) => {
+    if (i === indexRef.current) return
+    indexRef.current = i
+    pendingRef.current = days[i].date
+    onSelect(days[i].date)
+  }
   const index = selectedIndex
   const max = Math.max(1, ...days.map((d) => Math.max(d.value ?? 0, d.compare ?? 0)))
   const data = days.map((d) => ({ ...d, stub: d.value === null ? max * STUB_SHARE : null }))
@@ -75,15 +88,11 @@ export function DayRevenueChart({ days, selected, onSelect, label }: DayRevenueC
     if (next === null) return
     event.preventDefault()
     setHover(null)
-    const clamped = Math.min(days.length - 1, Math.max(0, next))
-    if (clamped !== indexRef.current) {
-      indexRef.current = clamped
-      onSelect(days[clamped].date)
-    }
+    choose(Math.min(days.length - 1, Math.max(0, next)))
   }
-  const at = (state: { activeTooltipIndex?: number | string | null } | null | undefined) => {
-    const i = Number(state?.activeTooltipIndex)
-    return Number.isInteger(i) && days[i] ? i : null
+  const pointerDay = (event: PointerEvent<HTMLDivElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect()
+    return dayAt(event.clientX - rect.left, rect.width, days.length)
   }
   const anyMissing = days.some((d) => d.value === null)
 
@@ -97,22 +106,21 @@ export function DayRevenueChart({ days, selected, onSelect, label }: DayRevenueC
         aria-label={label}
         aria-describedby={`${readoutId} ${hintId}`}
         onKeyDown={onKeyDown}
+        onPointerMove={(event) => { if (event.pointerType === 'mouse') setHover(pointerDay(event)) }}
+        onPointerLeave={() => setHover(null)}
+        onPointerUp={(event) => {
+          const i = pointerDay(event)
+          if (i !== null) choose(i)
+          // A tap leaves no pointer behind to leave: the readout returns to the chosen day.
+          if (event.pointerType !== 'mouse') setHover(null)
+        }}
       >
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart
             data={data}
-            margin={{ top: 8, right: 4, bottom: 0, left: 0 }}
+            margin={PLOT_MARGIN}
             barCategoryGap="20%"
             accessibilityLayer={false}
-            onMouseMove={(state) => setHover(at(state))}
-            onMouseLeave={() => setHover(null)}
-            onClick={(state) => {
-              const i = at(state)
-              if (i !== null && i !== indexRef.current) {
-                indexRef.current = i
-                onSelect(days[i].date)
-              }
-            }}
           >
             <defs>
               <pattern id={patternId} width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
@@ -132,7 +140,7 @@ export function DayRevenueChart({ days, selected, onSelect, label }: DayRevenueC
             <YAxis
               ticks={ticks}
               domain={[0, max]}
-              width={68}
+              width={Y_AXIS_WIDTH}
               tickLine={false}
               axisLine={false}
               tick={{ fill: 'var(--muted-foreground)' }}

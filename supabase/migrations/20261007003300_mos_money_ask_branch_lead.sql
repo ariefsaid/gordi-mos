@@ -4,7 +4,7 @@
 -- view and never a money figure: Tasks are readable beyond Money's tiers, so the caller cannot pass
 -- free text at all. The title and the description are built here from the branch name, the day and
 -- the link. Caller input reaches the Task only as validated parts of that link: the app URL (which
--- must be on the caller's own request origin), the branch code, the period and the day.
+-- must match the request's Origin header), the branch code, the period and the day.
 --
 -- Why SECURITY DEFINER: the lead is read from shared.team_lead_assignments, which only the Team's
 -- own members may read, and the Task's PIC is the lead, whom mos._guard_tasks admits only for the
@@ -55,8 +55,9 @@ begin
   if p_locale is null or p_locale not in ('en', 'id') then
     raise exception 'locale must be en or id' using errcode = '22023';
   end if;
-  -- Scheme, host, optional port and path only, on the origin the request came from: the link
-  -- can only point back into the app the caller is using.
+  -- Scheme, host, optional port and path only, and on the request's Origin header. A browser sets
+  -- that header to the app's own origin; a direct API call can set any, so this keeps the app's
+  -- own asks on the app and is not an allowlist.
   if p_app_url is null
      or p_app_url !~ '^https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?(/[A-Za-z0-9._~-]+)*$'
      or v_origin is null

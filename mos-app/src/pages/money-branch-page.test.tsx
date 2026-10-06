@@ -164,6 +164,12 @@ describe('MoneyBranchPage — what each tier receives', () => {
     expect(screen.getByText('58,8%')).toBeInTheDocument()
   })
 
+  it('COGS on its budget reads as on budget, not "0,0 points under"', async () => {
+    mockMarg.mockResolvedValue(MARGIN.map((m) => ({ ...m, cogs_budget_bom: m.cogs_interim_sm })))
+    renderBranch(['finance'])
+    expect(await screen.findByText('COGS 41,2% of revenue, on its 41,2% budget.')).toBeInTheDocument()
+  })
+
   it('each Café item without a recipe opens Café items on that item and stream', async () => {
     renderBranch(['manager'])
     const link = await screen.findByRole('link', { name: 'Cold brew base' })

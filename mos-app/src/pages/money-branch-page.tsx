@@ -44,7 +44,8 @@ import './money-branch-page.css'
 /** The branch codes the ask function accepts in its link; any other code gets no Ask. */
 const ASKABLE_CODE = /^[A-Za-z0-9_-]{1,40}$/
 
-type Ask = { status: 'idle' | 'pending' | 'failed' } | { status: 'done'; result: AskBranchLeadResult }
+/** `day` is the asked day as shown: an answer that lands after the view moved still names it. */
+type Ask = { status: 'idle' | 'pending' | 'failed' } | { status: 'done'; result: AskBranchLeadResult; day: string }
 
 function cafeItemHref(item: UncoveredCafeItem, branchId: string): string {
   const params = new URLSearchParams({ q: item.name, stream: streamKey(branchId, item.activities[0]) })
@@ -217,10 +218,11 @@ export function MoneyBranchPage() {
 
   const onAsk = async () => {
     if (!page) return
+    const askedText = selectedText
     setAsk({ status: 'pending' })
     try {
       const result = await askBranchLead({ code: page.code, period: view.period, day: selected, locale: locale === 'id' ? 'id' : 'en' })
-      setAsk({ status: 'done', result })
+      setAsk({ status: 'done', result, day: askedText })
     } catch {
       setAsk({ status: 'failed' })
     }
@@ -274,7 +276,7 @@ export function MoneyBranchPage() {
   } else if (ask.status === 'done' && ask.result.kind === 'created') {
     askStatus = (
       <p role="status" className="money-branch__ask-status">
-        {t('money.branch.ask.created', { branch: page.name, day: selectedText })}{' '}
+        {t('money.branch.ask.created', { branch: page.name, day: ask.day })}{' '}
         <Link to={`/work/tasks/${ask.result.taskId}`} className="money-branch__link">{t('money.branch.ask.open')}</Link>
       </p>
     )
