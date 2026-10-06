@@ -245,7 +245,15 @@ export async function listCafeHeldReceipts(): Promise<CafeHeldReceipts[]> {
   }))
 }
 
-export type CafeReceiptRelease = { releasedReceipts: number; queuedPortions: number; heldPortions: number; waitingForPoData: boolean }
+export type CafeReceiptRelease = {
+  releasedReceipts: number
+  queuedPortions: number
+  heldPortions: number
+  heldReceipts: number
+  /** Held portions that wait for the branch's receiving location rather than for an open PO. */
+  heldLocationMissing: number
+  waitingForPoData: boolean
+}
 
 /** FR-1030: re-matches a branch's held receipts and queues what fits; a rerun queues nothing new. */
 export async function releaseCafeReceipts(branchId: string): Promise<CafeReceiptRelease> {
@@ -256,6 +264,8 @@ export async function releaseCafeReceipts(branchId: string): Promise<CafeReceipt
     releasedReceipts: Number(row.released_receipts),
     queuedPortions: Number(row.queued_portions),
     heldPortions: Number(row.held_portions),
+    heldReceipts: Number(row.held_receipts),
+    heldLocationMissing: Number(row.held_location_missing),
     waitingForPoData: row.reason === 'po_data_not_current',
   }
 }

@@ -115,16 +115,16 @@ describe('Café receipt adapter', () => {
   it('FR-1030 lists held receipts per branch and releases one branch, reporting what was queued', async () => {
     const rpc = vi.fn()
       .mockResolvedValueOnce({ data: [{ branch_id: 'b-1', branch_name: 'HQ', held_receipts: 3, posting_enabled: true }], error: null })
-      .mockResolvedValueOnce({ data: { released_receipts: 2, queued_portions: 4, held_portions: 1 }, error: null })
-      .mockResolvedValueOnce({ data: { released_receipts: 0, queued_portions: 0, held_portions: 1, reason: 'po_data_not_current' }, error: null })
+      .mockResolvedValueOnce({ data: { released_receipts: 2, queued_portions: 4, held_portions: 1, held_receipts: 1, held_location_missing: 0 }, error: null })
+      .mockResolvedValueOnce({ data: { released_receipts: 0, queued_portions: 0, held_portions: 1, held_receipts: 1, held_location_missing: 1, reason: 'po_data_not_current' }, error: null })
       .mockResolvedValueOnce({ data: null, error: { message: 'CAFE_RECEIPT_RELEASE_FORBIDDEN' } })
     schemaMock.mockReturnValue({ rpc } as never)
 
     await expect(listCafeHeldReceipts()).resolves.toEqual([{ branchId: 'b-1', branchName: 'HQ', heldReceipts: 3, postingEnabled: true }])
     expect(rpc).toHaveBeenLastCalledWith('cafe_held_receipts')
-    await expect(releaseCafeReceipts('b-1')).resolves.toEqual({ releasedReceipts: 2, queuedPortions: 4, heldPortions: 1, waitingForPoData: false })
+    await expect(releaseCafeReceipts('b-1')).resolves.toEqual({ releasedReceipts: 2, queuedPortions: 4, heldPortions: 1, heldReceipts: 1, heldLocationMissing: 0, waitingForPoData: false })
     expect(rpc).toHaveBeenLastCalledWith('release_cafe_receipts', { p_branch_id: 'b-1' })
-    await expect(releaseCafeReceipts('b-1')).resolves.toEqual({ releasedReceipts: 0, queuedPortions: 0, heldPortions: 1, waitingForPoData: true })
+    await expect(releaseCafeReceipts('b-1')).resolves.toEqual({ releasedReceipts: 0, queuedPortions: 0, heldPortions: 1, heldReceipts: 1, heldLocationMissing: 1, waitingForPoData: true })
     await expect(releaseCafeReceipts('b-1')).rejects.toThrow('CAFE_RECEIPT_RELEASE_FORBIDDEN')
   })
 
