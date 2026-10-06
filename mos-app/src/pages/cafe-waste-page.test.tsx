@@ -238,13 +238,13 @@ describe('CafeWastePage', () => {
     expect(screen.queryByText('Oat Latte')).toBeNull()
   })
 
-  it('names the item/unit resolver and links to Café item settings when no item is loggable', async () => {
+  it('says the stream has no ESB items, with no link a floor member cannot use', async () => {
     mockListCafeItemSettings.mockResolvedValue([])
     renderPage()
     const empty = await screen.findByTestId('empty-state')
 
-    expect(within(empty).getByText(/ops lead, admin, or your stream manager/i)).toBeInTheDocument()
-    expect(within(empty).getByRole('link', { name: /open café item settings/i })).toHaveAttribute('href', '/cafe/items')
+    expect(within(empty).getByRole('heading', { name: /^No ESB items on / })).toBeInTheDocument()
+    expect(within(empty).queryByRole('link')).not.toBeInTheDocument()
   })
 
   it('loading shows the page label once without repeating the café context', async () => {

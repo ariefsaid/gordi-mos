@@ -39,6 +39,9 @@ function mapAuthError(error: unknown): string {
   return ERR_CREDENTIAL
 }
 
+// The server refuses (403) a sample account outside Gordi Sample before any session exists.
+const NOT_IN_SAMPLE_ORG = 'That account is not in Gordi Sample. Try another sample login.'
+
 export function LoginPage() {
   const location = useLocation()
   const t = useT()
@@ -114,13 +117,13 @@ export function LoginPage() {
         password: demoMode.password,
       })
       if (authError) {
-        setError(mapAuthError(authError))
+        setError(demoMode.kind === 'sample' && authError.status === 403 ? NOT_IN_SAMPLE_ORG : mapAuthError(authError))
       } else if (demoMode.kind === 'sample' && (
         data.user?.email !== personaEmail ||
         !isSampleSession(data.session?.access_token)
       )) {
         await supabase.auth.signOut()
-        setError('That account is not in Gordi Sample. Try another sample login.')
+        setError(NOT_IN_SAMPLE_ORG)
       }
     } catch {
       setError(ERR_NETWORK)

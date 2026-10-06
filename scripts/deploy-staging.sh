@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
-# One-command staging deploy: preflight, confirm, push migrations, verify, open the promotion PR.
+# One-command staging deploy: preflight, rehearse, confirm, push migrations, verify, open the promotion PR.
 #
-#   bash scripts/deploy-staging.sh [--dry-run] [--yes] [--no-pr]
+#   bash scripts/deploy-staging.sh [--dry-run] [--yes] [--no-pr] [--rehearse-from=<dump>] [--no-rehearsal]
 #
-#   --dry-run  stop after the preflight (pending list, edge-function notice, privileged-step probe)
-#   --yes      skip the y/N confirmation (default answer is No)
-#   --no-pr    do not open the main -> staging promotion PR
+#   --dry-run       stop after the preflight and rehearsal (nothing is pushed)
+#   --yes           skip the y/N confirmation (default answer is No)
+#   --no-pr         do not open the main -> staging promotion PR
+#   --rehearse-from the newest staging dump: a .dump file, or a directory whose newest *.dump is
+#                   used (default: $STAGING_REHEARSAL_DUMP). Pending migrations are applied to a
+#                   restored copy in a throwaway local container first; a failure stops the deploy.
+#   --no-rehearsal  skip that rehearsal (said loudly in the output)
 #
 # The connection string is read from the host's secret store at run time and lives only in this
 # process: it is never printed, written or put in the PR. Where it lives (item/vault/field) is read
@@ -19,17 +23,20 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 MIG_DIR="${MIGRATIONS_DIR:-$ROOT/supabase/migrations}"
 GH_POST="${GH_POST:-$ROOT/scripts/gh-post.sh}"
+REHEARSE="${REHEARSE:-$ROOT/scripts/rehearse-migrations.sh}"
 PATH="$PATH:$HOME/.local/bin:/opt/homebrew/opt/libpq/bin"
 # shellcheck source=lib/ops-common.sh
 . "$ROOT/scripts/lib/ops-common.sh"
 
-DRY=0 YES=0 PR=1
+DRY=0 YES=0 PR=1 REHEARSAL=1 DUMP="${STAGING_REHEARSAL_DUMP:-}"
 for a in "$@"; do
   case "$a" in
     --dry-run) DRY=1 ;;
     --yes) YES=1 ;;
     --no-pr) PR=0 ;;
-    -h|--help) sed -n 2,8p "$0"; exit 0 ;;
+    --no-rehearsal) REHEARSAL=0 ;;
+    --rehearse-from=*) DUMP="${a#*=}" ;;
+    -h|--help) sed -n 2,13p "$0"; exit 0 ;;
     *) printf 'deploy-staging: unknown option %s\n' "$a" >&2; exit 2 ;;
   esac
 done
@@ -130,9 +137,20 @@ SQL
   say "Probe ok, rolled back."
 fi
 
+# ── 5. Rehearsal: the pending migrations on a restored copy of the newest staging dump.
+if [ "${#pending[@]}" -gt 0 ]; then
+  if [ "$REHEARSAL" = 0 ]; then
+    say "WARNING: migration rehearsal SKIPPED (--no-rehearsal): these migrations were not tried on a restored copy."
+  else
+    [ -n "$DUMP" ] || die "no dump to rehearse on: pass --rehearse-from=<dump file or directory>, or --no-rehearsal to skip"
+    set +e; env -u PGPASSWORD bash "$REHEARSE" "$DUMP" "$MIG_DIR" "${pending[@]}" 2>&1 </dev/null | ops_redact; rc="${PIPESTATUS[0]}"; set -e
+    [ "$rc" -eq 0 ] || die "migration rehearsal failed (exit $rc) — nothing was pushed"
+  fi
+fi
+
 if [ "$DRY" = 1 ]; then say "Dry run: stopping before push."; exit 0; fi
 
-# ── 5. Confirm, then push.
+# ── 6. Confirm, then push.
 if [ "${#pending[@]}" -gt 0 ]; then
   if [ "$YES" != 1 ]; then
     printf 'Apply %d migration(s) to staging? [y/N] ' "${#pending[@]}" >&2
@@ -144,7 +162,7 @@ if [ "${#pending[@]}" -gt 0 ]; then
   [ "$rc" -eq 0 ] || die "supabase db push failed (exit $rc)"
 fi
 
-# ── 6. Verify.
+# ── 7. Verify.
 bad=0
 fail() { printf '✗ VERIFY FAILED: %s\n' "$1" >&2; bad=1; }
 newest="$(ls "$MIG_DIR" | grep -E '^[0-9]+_.*\.sql$' | sort | tail -1 | cut -d_ -f1)"
@@ -157,10 +175,12 @@ if grep -qs 'pgrst.db_pre_request' "$MIG_DIR"/*.sql; then
 fi
 tc="$(sqlq "select count(*) from shared.trusted_agent_clients")" || tc="?"
 [ "$tc" = 0 ] || fail "shared.trusted_agent_clients has '$tc' rows — agent access must stay off"
-say "verify: max version $remote (newest local $newest) · db_pre_request $pre · trusted clients $tc"
+so="$(sqlq "select count(*) filter (where is_sample) || '/' || count(*) filter (where is_sample and shared.is_sample_org_shape(id, name)) from shared.orgs")" || so="?"
+[ "$so" = 1/1 ] || fail "expected exactly one flagged org, shaped like the sample org (flagged/sample-shaped: '$so')"
+say "verify: max version $remote (newest local $newest) · db_pre_request $pre · trusted clients $tc · sample orgs $so"
 [ "$bad" = 0 ] || die "verification failed — staging is NOT in the expected state"
 
-# ── 7. Promotion PR: gh-post accepts a staging PR only from a checkout on branch main.
+# ── 8. Promotion PR: gh-post accepts a staging PR only from a checkout on branch main.
 if [ "$PR" = 1 ]; then
   if [ "$(git -C "$ROOT" rev-list --count origin/staging..origin/main)" = 0 ]; then
     say "staging already contains main: no promotion PR needed."

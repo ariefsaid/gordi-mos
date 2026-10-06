@@ -128,10 +128,10 @@ esac
 
 head="$(git rev-parse HEAD)" || die "not a git repo"
 
-changed_files="$(git diff --name-only origin/dev...HEAD 2>/dev/null)" || {
+changed_files="$(git diff --name-only --diff-filter=d origin/dev...HEAD 2>/dev/null)" || {
   merge_base="$(git merge-base origin/dev HEAD 2>/dev/null)" \
     || die "cannot compare HEAD with origin/dev to determine whether this is a UI diff"
-  changed_files="$(git diff --name-only "$merge_base" HEAD)" \
+  changed_files="$(git diff --name-only --diff-filter=d "$merge_base" HEAD)" \
     || die "could not list the diff from origin/dev's merge-base"
 }
 ui_files="$(printf '%s\n' "$changed_files" | grep -E '(^|/)mos-app/src/.*\.tsx$|\.css$' | grep -vE '\.test\.tsx$' || true)"

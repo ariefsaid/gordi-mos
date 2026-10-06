@@ -8,6 +8,8 @@ export type CafeReceiveDraftScope = {
 }
 
 export type CafeReceiveDraftEntry = {
+  /** The item's name when it was counted, to say which line could not be restored. */
+  name: string
   quantity: string
   unitId: string
   damagedWrong: boolean
@@ -18,26 +20,18 @@ export type CafeReceiveDraftContent = {
   entries: Record<string, CafeReceiveDraftEntry>
 }
 
-export type CafeReceiveEvidenceLine = {
-  conditions: Array<'damaged_wrong'>
-  condition_reason: string | null
-}
+type StoredDraft = CafeReceiveDraftScope & CafeReceiveDraftContent & { version: 2; savedAt: number }
 
-export type CafeReceiveEvidenceDraft = Record<string, CafeReceiveEvidenceLine>
-
-type StoredDraft = CafeReceiveDraftScope & CafeReceiveDraftContent & { version: 1 }
-type StoredEvidenceDraft = CafeReceiveDraftScope & { version: 1; receiptId: string; evidence: CafeReceiveEvidenceDraft }
-
-const STORAGE_PREFIX = 'cafe.receive.draft.v1'
+const STORAGE_PREFIX = 'mos.cafe.receiveDrafts.v2'
+/** The first, unshipped key shape; anything left under it is deleted, never restored. */
+const LEGACY_PREFIX = 'cafe.receive.draft.v1:'
+/** An unsent count older than this is dropped from the device. */
+export const CAFE_RECEIVE_DRAFT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
 
 function storageKey(scope: CafeReceiveDraftScope): string {
   return [STORAGE_PREFIX, scope.personId, scope.branchId, scope.activity, scope.arrivalDate]
     .map((part, index) => index === 0 ? part : encodeURIComponent(part))
-    .join(':')
-}
-
-function evidenceStorageKey(scope: CafeReceiveDraftScope, receiptId: string): string {
-  return `${storageKey(scope)}:counted:${encodeURIComponent(receiptId)}`
+    .join('.')
 }
 
 function localStore(): Storage | null {
@@ -61,8 +55,9 @@ function parseEntries(value: unknown): Record<string, CafeReceiveDraftEntry> | n
   for (const [itemId, raw] of Object.entries(value)) {
     if (!itemId || raw === null || typeof raw !== 'object' || Array.isArray(raw)) return null
     const entry = raw as Record<string, unknown>
-    if (typeof entry.quantity !== 'string' || typeof entry.unitId !== 'string' || typeof entry.damagedWrong !== 'boolean') return null
-    entries[itemId] = { quantity: entry.quantity, unitId: entry.unitId, damagedWrong: entry.damagedWrong }
+    if (typeof entry.name !== 'string' || typeof entry.quantity !== 'string' || typeof entry.unitId !== 'string'
+      || typeof entry.damagedWrong !== 'boolean') return null
+    entries[itemId] = { name: entry.name, quantity: entry.quantity, unitId: entry.unitId, damagedWrong: entry.damagedWrong }
   }
   return entries
 }
@@ -76,7 +71,7 @@ export function loadCafeReceiveDraft(scope: CafeReceiveDraftScope): CafeReceiveD
     const value: unknown = JSON.parse(raw)
     if (value === null || typeof value !== 'object' || Array.isArray(value)) return null
     const stored = value as Record<string, unknown>
-    if (stored.version !== 1 || !isScope(stored, scope) || typeof stored.clientKey !== 'string' || !stored.clientKey) return null
+    if (stored.version !== 2 || !isScope(stored, scope) || typeof stored.clientKey !== 'string' || !stored.clientKey) return null
     const entries = parseEntries(stored.entries)
     return entries ? { clientKey: stored.clientKey, entries } : null
   } catch {
@@ -87,10 +82,11 @@ export function loadCafeReceiveDraft(scope: CafeReceiveDraftScope): CafeReceiveD
 export function saveCafeReceiveDraft(
   scope: CafeReceiveDraftScope,
   draft: CafeReceiveDraftContent,
+  now = Date.now(),
 ): boolean {
   const store = localStore()
   if (!store || !draft.clientKey || !parseEntries(draft.entries)) return false
-  const value: StoredDraft = { version: 1, ...scope, ...draft }
+  const value: StoredDraft = { version: 2, savedAt: now, ...scope, ...draft }
   try {
     store.setItem(storageKey(scope), JSON.stringify(value))
     return true
@@ -100,68 +96,38 @@ export function saveCafeReceiveDraft(
 }
 
 export function clearCafeReceiveDraft(scope: CafeReceiveDraftScope): void {
-  const store = localStore()
-  if (!store) return
   try {
-    store.removeItem(storageKey(scope))
+    localStore()?.removeItem(storageKey(scope))
   } catch {
     // Private browsing and device storage policies can deny even a remove; local drafts are best effort.
   }
 }
 
-export function loadCafeReceiveEvidenceDraft(
-  scope: CafeReceiveDraftScope,
-  receiptId: string,
-): CafeReceiveEvidenceDraft | null {
-  const store = localStore()
-  if (!store) return null
-  try {
-    const raw = store.getItem(evidenceStorageKey(scope, receiptId))
-    if (!raw) return null
-    const value: unknown = JSON.parse(raw)
-    if (value === null || typeof value !== 'object' || Array.isArray(value)) return null
-    const stored = value as Record<string, unknown>
-    if (stored.version !== 1 || stored.receiptId !== receiptId || !isScope(stored, scope)
-      || stored.evidence === null || typeof stored.evidence !== 'object' || Array.isArray(stored.evidence)) return null
-    const evidence: CafeReceiveEvidenceDraft = {}
-    for (const [lineId, rawLine] of Object.entries(stored.evidence)) {
-      if (!lineId || rawLine === null || typeof rawLine !== 'object' || Array.isArray(rawLine)) return null
-      const line = rawLine as Record<string, unknown>
-      if (!Array.isArray(line.conditions) || line.conditions.some(condition => condition !== 'damaged_wrong')
-        || (line.condition_reason !== null && typeof line.condition_reason !== 'string')) return null
-      evidence[lineId] = {
-        conditions: line.conditions as Array<'damaged_wrong'>,
-        condition_reason: line.condition_reason as string | null,
-      }
-    }
-    return evidence
-  } catch {
-    return null
-  }
+function draftKeys(store: Storage): string[] {
+  return Array.from({ length: store.length }, (_, index) => store.key(index))
+    .filter((key): key is string => key !== null && (key.startsWith(`${STORAGE_PREFIX}.`) || key.startsWith(LEGACY_PREFIX)))
 }
 
-export function saveCafeReceiveEvidenceDraft(
-  scope: CafeReceiveDraftScope,
-  receiptId: string,
-  evidence: CafeReceiveEvidenceDraft,
-): boolean {
-  const store = localStore()
-  if (!store) return false
-  const value: StoredEvidenceDraft = { version: 1, ...scope, receiptId, evidence }
-  try {
-    store.setItem(evidenceStorageKey(scope, receiptId), JSON.stringify(value))
-    return true
-  } catch {
-    return false
-  }
-}
-
-export function clearCafeReceiveEvidenceDraft(scope: CafeReceiveDraftScope, receiptId: string): void {
+/** Remove every person's unsent counts from this device, for sign-out on a shared phone. */
+export function clearAllCafeReceiveDrafts(): void {
   const store = localStore()
   if (!store) return
   try {
-    store.removeItem(evidenceStorageKey(scope, receiptId))
-  } catch {
-    // Best-effort cleanup; the server receipt remains the durable Counted record.
-  }
+    for (const key of draftKeys(store)) store.removeItem(key)
+  } catch { /* storage disabled: nothing was kept */ }
+}
+
+/** Drop legacy keys and drafts not saved within the last seven days. */
+export function pruneCafeReceiveDrafts(now = Date.now()): void {
+  const store = localStore()
+  if (!store) return
+  try {
+    for (const key of draftKeys(store)) {
+      let savedAt: unknown = null
+      if (key.startsWith(`${STORAGE_PREFIX}.`)) {
+        try { savedAt = (JSON.parse(store.getItem(key) ?? 'null') as Record<string, unknown> | null)?.savedAt } catch { /* unreadable */ }
+      }
+      if (typeof savedAt !== 'number' || now - savedAt > CAFE_RECEIVE_DRAFT_MAX_AGE_MS) store.removeItem(key)
+    }
+  } catch { /* storage disabled: nothing was kept */ }
 }

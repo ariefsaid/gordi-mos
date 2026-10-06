@@ -10,7 +10,7 @@ vi.mock('../supabase', () => {
 
 import {
   listTasks, getTask, createTask,
-  updateTaskStatus, updateTaskFields, updateTaskRaci,
+  updateTaskStatus, updateTaskFields,
   archiveTask, unarchiveTask,
   addChecklistItem, toggleChecklistItem, reorderChecklistItem, deleteChecklistItem,
   searchTasksByTitle, getTaskTitlesByIds,
@@ -456,18 +456,6 @@ describe('update mutations', () => {
     await updateTaskFields(TASK_ID, { team_id: 'team-2' }, ACTOR, 'team-1')
     expect(rec.updates[0]).toEqual({ team_id: 'team-2' })
     expect((rec.inserts[0] as Record<string, unknown>).event_type).toBe('field_edited')
-  })
-
-  it('updateTaskRaci updates consulted/informed arrays then logs a raci_edited event', async () => {
-    const rec = freshRec()
-    schemaMock.mockReturnValue(makeSchema({
-      tasks: [{ data: null, error: null }],
-      task_events: [{ data: null, error: null }],
-    }, rec) as never)
-    await updateTaskRaci(TASK_ID, { consulted_person_ids: ['p1'], informed_person_ids: ['p2'] }, ACTOR)
-    expect(rec.updates[0]).toEqual({ consulted_person_ids: ['p1'], informed_person_ids: ['p2'] })
-    expect((rec.inserts[0] as Record<string, unknown>).event_type).toBe('raci_edited')
-    noOrgId(rec)
   })
 
   it('updateTaskStatus throws if the update errors', async () => {

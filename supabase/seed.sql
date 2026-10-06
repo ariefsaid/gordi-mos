@@ -444,43 +444,64 @@ on conflict (org_id, key) do nothing;
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- ops — the item catalog and a plan for today
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
+-- The synthetic refresh runs first: it is a full ESB snapshot for the org, so it would deactivate
+-- any ESB-catalog row inserted before it that its rows do not name.
+-- Synthetic-only source rows exercise the same refresh contract without exposing the private ERP catalog.
+select ops.refresh_cafe_item_references(
+  $cafe_seed_1240$[
+    {"esb_product_id":"DEV-ERP-P-1240-RAW","esb_product_detail_id":"DEV-ERP-PD-1240-RAW-A","name":"Synthetic RAW Sample","category":"Kitchen","unit_name":"DEV-ERP-UNIT","erp_category_type_name":"Inventory","is_stock":true,"has_active_bom_output":false,"is_active":true,"branch_code":null},
+    {"esb_product_id":"DEV-ERP-P-1240-RAW","esb_product_detail_id":"DEV-ERP-PD-1240-RAW-B","name":"Synthetic RAW Sample","category":"Kitchen","unit_name":"DEV-ERP-UNIT","erp_category_type_name":"Inventory","is_stock":true,"has_active_bom_output":false,"is_active":true,"branch_code":null},
+    {"esb_product_id":"DEV-ERP-P-1240-WIP","esb_product_detail_id":"DEV-ERP-PD-1240-WIP","name":"Synthetic WIP Sample","category":"Bar","unit_name":"DEV-ERP-UNIT","erp_category_type_name":"Inventory","is_stock":false,"has_active_bom_output":true,"is_active":true,"branch_code":"gordi_hq"}
+  ]$cafe_seed_1240$::jsonb
+);
+-- The synthetic WIP reference is capture-form eligible in dev; confirming its ERP detail creates no MOS default or conversion.
+update ops.item_units unit
+   set confirmed_at = now()
+  from ops.wip_items item
+ where item.id = unit.wip_item_id
+   and item.org_id = unit.org_id
+   and item.org_id = '10000000-0000-0000-0000-000000000001'
+   and item.esb_product_id = 'DEV-ERP-P-1240-WIP'
+   and unit.esb_product_detail_id = 'DEV-ERP-PD-1240-WIP'
+   and unit.confirmed_at is null;
+
 -- ── Kitchen WIP items — the real roster (32: 16 CREATE + 16 REUSE) ───────────────────────────
--- Names are parity with the incumbent's own item list. ESB identifiers are populated by the push
--- flow later (the Teable source carries none), so they are left null here; `flag_active` defaults
--- true, which is what puts every row in front of a capture surface.
-insert into ops.wip_items (id, org_id, name, category) values
-  ('a1100000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'Nasi Putih', 'Rice/Staple'),
-  ('a1100000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', 'Risoles Beef Mayo', 'Snack/Sweet'),
-  ('a1100000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000001', 'Bakwan Sayur', 'Snack/Sweet'),
-  ('a1100000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000001', 'Oseng Bakso', 'Meat'),
-  ('a1100000-0000-0000-0000-000000000005', '10000000-0000-0000-0000-000000000001', 'Lontong Sayur', 'Rice/Staple'),
-  ('a1100000-0000-0000-0000-000000000006', '10000000-0000-0000-0000-000000000001', 'Ayam Gulai', 'Chicken'),
-  ('a1100000-0000-0000-0000-000000000007', '10000000-0000-0000-0000-000000000001', 'Pisang Goreng', 'Snack/Sweet'),
-  ('a1100000-0000-0000-0000-000000000008', '10000000-0000-0000-0000-000000000001', 'Singkong Goreng', 'Snack/Sweet'),
-  ('a1100000-0000-0000-0000-000000000009', '10000000-0000-0000-0000-000000000001', 'Tongkol Sambal Matah', 'Seafood'),
-  ('a1100000-0000-0000-0000-00000000000a', '10000000-0000-0000-0000-000000000001', 'Kaya Toast', 'Snack/Sweet'),
-  ('a1100000-0000-0000-0000-00000000000b', '10000000-0000-0000-0000-000000000001', 'Cumi Cabe Ijo', 'Seafood'),
-  ('a1100000-0000-0000-0000-00000000000c', '10000000-0000-0000-0000-000000000001', 'Ayam Garang Asem', 'Chicken'),
-  ('a1100000-0000-0000-0000-00000000000d', '10000000-0000-0000-0000-000000000001', 'Bakwan Jagung', 'Snack/Sweet'),
-  ('a1100000-0000-0000-0000-00000000000e', '10000000-0000-0000-0000-000000000001', 'Sosis Solo', 'Meat'),
-  ('a1100000-0000-0000-0000-00000000000f', '10000000-0000-0000-0000-000000000001', 'Tape Goreng', 'Snack/Sweet'),
-  ('a1100000-0000-0000-0000-000000000010', '10000000-0000-0000-0000-000000000001', 'Arem Arem', 'Snack/Sweet'),
-  ('a1100000-0000-0000-0000-000000000011', '10000000-0000-0000-0000-000000000001', 'Tumis Buncis', 'Veg/Tempe/Tofu'),
-  ('a1100000-0000-0000-0000-000000000012', '10000000-0000-0000-0000-000000000001', 'Orek Tempe', 'Veg/Tempe/Tofu'),
-  ('a1100000-0000-0000-0000-000000000013', '10000000-0000-0000-0000-000000000001', 'Tumis Daun Singkong', 'Veg/Tempe/Tofu'),
-  ('a1100000-0000-0000-0000-000000000014', '10000000-0000-0000-0000-000000000001', 'Semur Telur', 'Veg/Tempe/Tofu'),
-  ('a1100000-0000-0000-0000-000000000015', '10000000-0000-0000-0000-000000000001', 'Ayam Suwir', 'Chicken'),
-  ('a1100000-0000-0000-0000-000000000016', '10000000-0000-0000-0000-000000000001', 'Ayam Woku', 'Chicken'),
-  ('a1100000-0000-0000-0000-000000000017', '10000000-0000-0000-0000-000000000001', 'Kentang Balado', 'Veg/Tempe/Tofu'),
-  ('a1100000-0000-0000-0000-000000000018', '10000000-0000-0000-0000-000000000001', 'Sayur Lodeh', 'Veg/Tempe/Tofu'),
-  ('a1100000-0000-0000-0000-000000000019', '10000000-0000-0000-0000-000000000001', 'Sambal Merah', 'Veg/Tempe/Tofu'),
-  ('a1100000-0000-0000-0000-00000000001a', '10000000-0000-0000-0000-000000000001', 'Teri Kacang', 'Seafood'),
-  ('a1100000-0000-0000-0000-00000000001b', '10000000-0000-0000-0000-000000000001', 'Semur Tahu', 'Veg/Tempe/Tofu'),
-  ('a1100000-0000-0000-0000-00000000001c', '10000000-0000-0000-0000-000000000001', 'Kentang Mustofa', 'Snack/Sweet'),
-  ('a1100000-0000-0000-0000-00000000001d', '10000000-0000-0000-0000-000000000001', 'Sayur Asem', 'Veg/Tempe/Tofu'),
-  ('a1100000-0000-0000-0000-00000000001e', '10000000-0000-0000-0000-000000000001', 'Terong Balado', 'Veg/Tempe/Tofu'),
-  ('a1100000-0000-0000-0000-00000000001f', '10000000-0000-0000-0000-000000000001', 'Ayam Goreng Lengkuas', 'Chicken'),
-  ('a1100000-0000-0000-0000-000000000020', '10000000-0000-0000-0000-000000000001', 'Balado Cumi Asin', 'Seafood')
+-- Names are parity with the incumbent's own item list. Every café item comes from the ESB catalog
+-- (OD-2026-10-06-ESB-ITEMS), so each dish is an ESB-catalog row with a DEV-only synthetic product id
+-- derived from its row id — the same coordinate its confirmed unit below carries.
+insert into ops.wip_items (id, org_id, name, reference_source, esb_product_id, category) values
+  ('a1100000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'Nasi Putih', 'erp_catalog', 'DEV-P-a1100000000000000000000000000001', 'Rice/Staple'),
+  ('a1100000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000001', 'Risoles Beef Mayo', 'erp_catalog', 'DEV-P-a1100000000000000000000000000002', 'Snack/Sweet'),
+  ('a1100000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000001', 'Bakwan Sayur', 'erp_catalog', 'DEV-P-a1100000000000000000000000000003', 'Snack/Sweet'),
+  ('a1100000-0000-0000-0000-000000000004', '10000000-0000-0000-0000-000000000001', 'Oseng Bakso', 'erp_catalog', 'DEV-P-a1100000000000000000000000000004', 'Meat'),
+  ('a1100000-0000-0000-0000-000000000005', '10000000-0000-0000-0000-000000000001', 'Lontong Sayur', 'erp_catalog', 'DEV-P-a1100000000000000000000000000005', 'Rice/Staple'),
+  ('a1100000-0000-0000-0000-000000000006', '10000000-0000-0000-0000-000000000001', 'Ayam Gulai', 'erp_catalog', 'DEV-P-a1100000000000000000000000000006', 'Chicken'),
+  ('a1100000-0000-0000-0000-000000000007', '10000000-0000-0000-0000-000000000001', 'Pisang Goreng', 'erp_catalog', 'DEV-P-a1100000000000000000000000000007', 'Snack/Sweet'),
+  ('a1100000-0000-0000-0000-000000000008', '10000000-0000-0000-0000-000000000001', 'Singkong Goreng', 'erp_catalog', 'DEV-P-a1100000000000000000000000000008', 'Snack/Sweet'),
+  ('a1100000-0000-0000-0000-000000000009', '10000000-0000-0000-0000-000000000001', 'Tongkol Sambal Matah', 'erp_catalog', 'DEV-P-a1100000000000000000000000000009', 'Seafood'),
+  ('a1100000-0000-0000-0000-00000000000a', '10000000-0000-0000-0000-000000000001', 'Kaya Toast', 'erp_catalog', 'DEV-P-a110000000000000000000000000000a', 'Snack/Sweet'),
+  ('a1100000-0000-0000-0000-00000000000b', '10000000-0000-0000-0000-000000000001', 'Cumi Cabe Ijo', 'erp_catalog', 'DEV-P-a110000000000000000000000000000b', 'Seafood'),
+  ('a1100000-0000-0000-0000-00000000000c', '10000000-0000-0000-0000-000000000001', 'Ayam Garang Asem', 'erp_catalog', 'DEV-P-a110000000000000000000000000000c', 'Chicken'),
+  ('a1100000-0000-0000-0000-00000000000d', '10000000-0000-0000-0000-000000000001', 'Bakwan Jagung', 'erp_catalog', 'DEV-P-a110000000000000000000000000000d', 'Snack/Sweet'),
+  ('a1100000-0000-0000-0000-00000000000e', '10000000-0000-0000-0000-000000000001', 'Sosis Solo', 'erp_catalog', 'DEV-P-a110000000000000000000000000000e', 'Meat'),
+  ('a1100000-0000-0000-0000-00000000000f', '10000000-0000-0000-0000-000000000001', 'Tape Goreng', 'erp_catalog', 'DEV-P-a110000000000000000000000000000f', 'Snack/Sweet'),
+  ('a1100000-0000-0000-0000-000000000010', '10000000-0000-0000-0000-000000000001', 'Arem Arem', 'erp_catalog', 'DEV-P-a1100000000000000000000000000010', 'Snack/Sweet'),
+  ('a1100000-0000-0000-0000-000000000011', '10000000-0000-0000-0000-000000000001', 'Tumis Buncis', 'erp_catalog', 'DEV-P-a1100000000000000000000000000011', 'Veg/Tempe/Tofu'),
+  ('a1100000-0000-0000-0000-000000000012', '10000000-0000-0000-0000-000000000001', 'Orek Tempe', 'erp_catalog', 'DEV-P-a1100000000000000000000000000012', 'Veg/Tempe/Tofu'),
+  ('a1100000-0000-0000-0000-000000000013', '10000000-0000-0000-0000-000000000001', 'Tumis Daun Singkong', 'erp_catalog', 'DEV-P-a1100000000000000000000000000013', 'Veg/Tempe/Tofu'),
+  ('a1100000-0000-0000-0000-000000000014', '10000000-0000-0000-0000-000000000001', 'Semur Telur', 'erp_catalog', 'DEV-P-a1100000000000000000000000000014', 'Veg/Tempe/Tofu'),
+  ('a1100000-0000-0000-0000-000000000015', '10000000-0000-0000-0000-000000000001', 'Ayam Suwir', 'erp_catalog', 'DEV-P-a1100000000000000000000000000015', 'Chicken'),
+  ('a1100000-0000-0000-0000-000000000016', '10000000-0000-0000-0000-000000000001', 'Ayam Woku', 'erp_catalog', 'DEV-P-a1100000000000000000000000000016', 'Chicken'),
+  ('a1100000-0000-0000-0000-000000000017', '10000000-0000-0000-0000-000000000001', 'Kentang Balado', 'erp_catalog', 'DEV-P-a1100000000000000000000000000017', 'Veg/Tempe/Tofu'),
+  ('a1100000-0000-0000-0000-000000000018', '10000000-0000-0000-0000-000000000001', 'Sayur Lodeh', 'erp_catalog', 'DEV-P-a1100000000000000000000000000018', 'Veg/Tempe/Tofu'),
+  ('a1100000-0000-0000-0000-000000000019', '10000000-0000-0000-0000-000000000001', 'Sambal Merah', 'erp_catalog', 'DEV-P-a1100000000000000000000000000019', 'Veg/Tempe/Tofu'),
+  ('a1100000-0000-0000-0000-00000000001a', '10000000-0000-0000-0000-000000000001', 'Teri Kacang', 'erp_catalog', 'DEV-P-a110000000000000000000000000001a', 'Seafood'),
+  ('a1100000-0000-0000-0000-00000000001b', '10000000-0000-0000-0000-000000000001', 'Semur Tahu', 'erp_catalog', 'DEV-P-a110000000000000000000000000001b', 'Veg/Tempe/Tofu'),
+  ('a1100000-0000-0000-0000-00000000001c', '10000000-0000-0000-0000-000000000001', 'Kentang Mustofa', 'erp_catalog', 'DEV-P-a110000000000000000000000000001c', 'Snack/Sweet'),
+  ('a1100000-0000-0000-0000-00000000001d', '10000000-0000-0000-0000-000000000001', 'Sayur Asem', 'erp_catalog', 'DEV-P-a110000000000000000000000000001d', 'Veg/Tempe/Tofu'),
+  ('a1100000-0000-0000-0000-00000000001e', '10000000-0000-0000-0000-000000000001', 'Terong Balado', 'erp_catalog', 'DEV-P-a110000000000000000000000000001e', 'Veg/Tempe/Tofu'),
+  ('a1100000-0000-0000-0000-00000000001f', '10000000-0000-0000-0000-000000000001', 'Ayam Goreng Lengkuas', 'erp_catalog', 'DEV-P-a110000000000000000000000000001f', 'Chicken'),
+  ('a1100000-0000-0000-0000-000000000020', '10000000-0000-0000-0000-000000000001', 'Balado Cumi Asin', 'erp_catalog', 'DEV-P-a1100000000000000000000000000020', 'Seafood')
 on conflict (id) do nothing;
 
 -- Real café catalog rows are loaded from the private data repository. Local seed uses synthetic
@@ -571,6 +592,12 @@ insert into ops.stream_items (org_id, branch_id, activity, wip_item_id, source) 
   ('10000000-0000-0000-0000-000000000001', '25000000-0000-0000-0000-000000000002', 'kitchen',
    'a1100000-0000-0000-0000-000000000002', 'manual')
 on conflict (org_id, branch_id, activity, wip_item_id) do nothing;
+-- Each listed dish is an active WIP item with its confirmed porsi default on every stream that lists it.
+select set_config('app.allow_test_seeds', 'on', false);
+select ops._test_configure_cafe_items(array(
+  select w.id from ops.wip_items w
+   where w.org_id = '10000000-0000-0000-0000-000000000001' and w.id::text like 'a1100000-%'));
+select set_config('app.allow_test_seeds', 'off', false);
 insert into ops.kitchen_plans
   (org_id, log_date, wip_item_id, branch_id, activity, action, qty_porsi, plan_by) values
   ('10000000-0000-0000-0000-000000000001', (now() at time zone 'Asia/Jakarta')::date, 'a1100000-0000-0000-0000-000000000001',
@@ -584,24 +611,6 @@ delete from ops.stream_items
 where org_id = '10000000-0000-0000-0000-000000000001' and branch_id = '25000000-0000-0000-0000-000000000002'
   and activity = 'kitchen' and wip_item_id = 'a1100000-0000-0000-0000-000000000002';
 
--- Synthetic-only source rows exercise the same refresh contract without exposing the private ERP catalog.
-select ops.refresh_cafe_item_references(
-  $cafe_seed_1240$[
-    {"esb_product_id":"DEV-ERP-P-1240-RAW","esb_product_detail_id":"DEV-ERP-PD-1240-RAW-A","name":"Synthetic RAW Sample","category":"Kitchen","unit_name":"DEV-ERP-UNIT","erp_category_type_name":"Inventory","is_stock":true,"has_active_bom_output":false,"is_active":true,"branch_code":null},
-    {"esb_product_id":"DEV-ERP-P-1240-RAW","esb_product_detail_id":"DEV-ERP-PD-1240-RAW-B","name":"Synthetic RAW Sample","category":"Kitchen","unit_name":"DEV-ERP-UNIT","erp_category_type_name":"Inventory","is_stock":true,"has_active_bom_output":false,"is_active":true,"branch_code":null},
-    {"esb_product_id":"DEV-ERP-P-1240-WIP","esb_product_detail_id":"DEV-ERP-PD-1240-WIP","name":"Synthetic WIP Sample","category":"Bar","unit_name":"DEV-ERP-UNIT","erp_category_type_name":"Inventory","is_stock":false,"has_active_bom_output":true,"is_active":true,"branch_code":"gordi_hq"}
-  ]$cafe_seed_1240$::jsonb
-);
--- The synthetic WIP reference is capture-form eligible in dev; confirming its ERP detail creates no MOS default or conversion.
-update ops.item_units unit
-   set confirmed_at = now()
-  from ops.wip_items item
- where item.id = unit.wip_item_id
-   and item.org_id = unit.org_id
-   and item.org_id = '10000000-0000-0000-0000-000000000001'
-   and item.esb_product_id = 'DEV-ERP-P-1240-WIP'
-   and unit.esb_product_detail_id = 'DEV-ERP-PD-1240-WIP'
-   and unit.confirmed_at is null;
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- reporting — the Plan-destination COGS read-models (ADR-0022 D2/D6, ADR-0010)

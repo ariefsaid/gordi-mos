@@ -1,13 +1,8 @@
-// #410 — lib/wib-time must BE the locale-aware formatter, not a second copy with 'en-GB'
-// nailed in. Every signal timestamp/freshness/provenance call site imports from here, so an
-// en-GB-pinned copy shows English month abbreviations to an Indonesian viewer on every signal.
-// v4 shipped this module as a one-line re-export of lib/format/date's formatWibDateTime; the
-// port re-grew the copy. This test pins the re-export by observable behaviour: the id locale
-// renders an Indonesian month abbreviation, and the Jakarta wall clock + WIB suffix hold.
+// The shared locale-aware WIB formatter keeps Indonesian month names and Jakarta time intact.
 import { describe, it, expect } from 'vitest'
-import { formatWibDateTime } from './wib-time'
+import { formatWibDateTime } from './format/date'
 
-describe('formatWibDateTime (lib/wib-time re-export, #410)', () => {
+describe('formatWibDateTime', () => {
   // 2026-08-15T17:00:00Z = 2026-08-16 00:00 WIB (UTC+7) — crosses the date line so the
   // Jakarta wall clock is proven, not assumed.
   const iso = '2026-08-15T17:00:00Z'

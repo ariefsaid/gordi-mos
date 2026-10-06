@@ -4,7 +4,7 @@ import { can } from '@/lib/capabilities'
 import { isShipGated } from '@/lib/ship-gate'
 import {
   HomeIcon, TasksIcon, SignalsIcon, WorkLineIcon, ObjectiveIcon,
-  MoneyIcon, InboxIcon, CafeIcon, EcommerceIcon, RoasteryIcon,
+  MoneyIcon, PendingBillIcon, InboxIcon, CafeIcon, EcommerceIcon, RoasteryIcon,
   ProfileIcon, PeopleIcon, ShieldIcon,
   TodayIcon, LogIcon, TransferIcon, WasteIcon, PlanIcon, StockIcon, ItemsIcon, ReviewIcon, DispatchIcon, CountIcon, ReceiveIcon, RequestIcon,
 } from './icons'
@@ -29,6 +29,11 @@ export interface Section {
   anyOf?: readonly string[]
 }
 
+/** Money's Finance-only list; `anyOf` matches its route gate in router.tsx. */
+export const PENDING_BILLS_SECTION: Section = {
+  path: '/money/pending-bills', label: 'Pending bills', labelKey: 'nav.money.pendingBills', Icon: PendingBillIcon, anyOf: ['finance'],
+}
+
 /**
  * SECTIONS — the flat leaf registry used by the breadcrumb as a fallback for
  * destination-owned roots (Redesign Step 2). Retired `/updates` + `/ops` entries
@@ -45,6 +50,7 @@ export const SECTIONS: Section[] = [
   // become live the moment anyone filtered SECTIONS.
   { path: '/work/objectives', label: 'Objectives', labelKey: 'nav.work.objectives', Icon: ObjectiveIcon },
   { path: '/money', label: 'Money', labelKey: 'nav.money', Icon: MoneyIcon },
+  PENDING_BILLS_SECTION,
   { path: '/inbox', label: 'Inbox', labelKey: 'nav.inbox', Icon: InboxIcon },
   { path: '/cafe', label: 'Café', labelKey: 'nav.cafe', Icon: CafeIcon },
   { path: '/ecommerce', label: 'Ecommerce', labelKey: 'nav.ecommerce', Icon: EcommerceIcon },

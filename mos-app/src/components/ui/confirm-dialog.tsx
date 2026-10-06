@@ -1,6 +1,6 @@
 // ConfirmDialog — the ONE centered-modal confirm primitive (cohesion-debt 2026-07-19,
-// item #4). Promoted from components/admin/confirm-dialog.tsx to a shared path so every
-// centered confirm (admin reset/disable/archive, task ConfirmArchive, …) composes one
+// item #4). Every centered confirm (admin reset/disable/archive, task ConfirmArchive, …)
+// composes one
 // implementation instead of N hand-rolled overlays. Gates destructive/consequential
 // actions behind an explicit confirm step; non-destructive actions need no confirm.
 //

@@ -20,8 +20,11 @@ select tables_are('reporting', array[
   'ingredient_cost_lines',
   'bom_lines',
   'supervisor_revenue_scope',
-  'esb_ar_reduction'
-], 'reporting holds exactly these six tables — a seventh has to be added here before it can hide from the assertions below');
+  'esb_ar_reduction',
+  'ingredient_usage_daily',
+  'pending_bills',
+  'pending_bill_snapshots'
+], 'reporting holds exactly these nine tables — a tenth has to be added here before it can hide from the assertions below');
 
 -- ── AC-005: RLS enabled AND forced on every one of them ──────────────────────────────────────
 select is(

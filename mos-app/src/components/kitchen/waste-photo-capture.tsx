@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import { useT } from '@/i18n/use-t'
-import { loadOfflinePhotoDraft, saveOfflinePhotoDraft } from '@/lib/offline-photo-drafts'
+import { loadOfflinePhotoDraft, saveOfflinePhotoDraft, type OfflinePhotoDraftResult } from '@/lib/offline-photo-drafts'
 import {
   MAX_WASTE_PHOTOS,
   WASTE_PHOTO_MIME_TYPES,
@@ -26,6 +26,8 @@ export interface PrivatePhotoCaptureCopy {
   title: string
   help: string
   add: string
+  /** The add control's accessible name, when the visible label is shortened. */
+  addName: string
   invalidType: string
   tooMany: string
   tooLarge: string
@@ -81,6 +83,7 @@ export function WastePhotoCapture<TPhoto extends PrivatePhotoEvidence = KitchenW
     title: copyOverrides?.title ?? t('kitchen.wastePhotos.title'),
     help: copyOverrides?.help ?? t('kitchen.wastePhotos.help'),
     add: copyOverrides?.add ?? t('kitchen.wastePhotos.add'),
+    addName: copyOverrides?.addName ?? copyOverrides?.add ?? t('kitchen.wastePhotos.add'),
     invalidType: copyOverrides?.invalidType ?? t('kitchen.wastePhotos.invalidType'),
     tooMany: copyOverrides?.tooMany ?? t('kitchen.wastePhotos.tooMany'),
     tooLarge: copyOverrides?.tooLarge ?? t('kitchen.wastePhotos.tooLarge'),
@@ -107,8 +110,9 @@ export function WastePhotoCapture<TPhoto extends PrivatePhotoEvidence = KitchenW
   })))
   const [validationError, setValidationError] = useState('')
   const [isUploading, setIsUploading] = useState(false)
-  const [hydratedDraftKey, setHydratedDraftKey] = useState<string | null>(draftKey ?? '')
-  const [draftSaveStatus, setDraftSaveStatus] = useState<'idle' | 'saved' | 'failed'>('idle')
+  // Nothing is saved for a draft key until its stored photos have loaded, or the save would erase them.
+  const [hydratedDraftKey, setHydratedDraftKey] = useState<string | null>(draftKey ? null : '')
+  const [draftSaveStatus, setDraftSaveStatus] = useState<'idle' | OfflinePhotoDraftResult>('idle')
   const previewUrls = useRef(new Map<string, string>())
 
   useEffect(() => {
@@ -151,8 +155,8 @@ export function WastePhotoCapture<TPhoto extends PrivatePhotoEvidence = KitchenW
       void saveOfflinePhotoDraft(draftKey, [])
       return () => { active = false }
     }
-    void saveOfflinePhotoDraft(draftKey, pending.map(photo => photo.file!)).then(saved => {
-      if (active) setDraftSaveStatus(saved ? 'saved' : 'failed')
+    void saveOfflinePhotoDraft(draftKey, pending.map(photo => photo.file!)).then(result => {
+      if (active) setDraftSaveStatus(result)
     })
     return () => { active = false }
   }, [draftKey, hydratedDraftKey, photos])
@@ -259,6 +263,7 @@ export function WastePhotoCapture<TPhoto extends PrivatePhotoEvidence = KitchenW
           type="file"
           accept="image/jpeg,image/png,image/webp"
           capture="environment"
+          aria-label={copy.addName}
           multiple
           onChange={addFiles}
           disabled={photos.length >= MAX_WASTE_PHOTOS || isUploading || disabled}
@@ -269,6 +274,7 @@ export function WastePhotoCapture<TPhoto extends PrivatePhotoEvidence = KitchenW
       {validationError && <p role="alert" className="waste-photo-capture-error">{validationError}</p>}
       {draftSaveStatus === 'saved' && <p role="status" className="waste-photo-capture-readiness">{copy.draftSaved}</p>}
       {draftSaveStatus === 'failed' && <p role="alert" className="waste-photo-capture-error">{copy.draftSaveFailed}</p>}
+      {draftSaveStatus === 'tooLarge' && <p role="alert" className="waste-photo-capture-error">{copy.tooLarge}</p>}
 
       {photos.length > 0 && (
         <ul className="waste-photo-capture-list">

@@ -1,9 +1,9 @@
 import { supabase } from '@/lib/supabase'
-import { shrinkPhoto } from '@/lib/db/signal-photos'
 import {
   PRIVATE_PHOTO_MAX_BYTES,
   PRIVATE_PHOTO_MAX_PHOTOS,
   PRIVATE_PHOTO_MIME_TYPES,
+  prepareEvidencePhoto,
   type PrivatePhotoEvidence,
 } from './photo-evidence'
 
@@ -126,8 +126,7 @@ export async function uploadKitchenWastePhoto(logId: string, file: File): Promis
     throw new Error('WASTE_PHOTO_WINDOW_EXPIRED')
   }
 
-  const body = await shrinkPhoto(file)
-  if (body.size > MAX_WASTE_PHOTO_BYTES) throw new Error('WASTE_PHOTO_TOO_LARGE')
+  const body = await prepareEvidencePhoto(file)
   const path = `${data.org_id}/${logId}/${crypto.randomUUID()}.jpg`
   const { error: uploadError } = await supabase.storage.from(WASTE_PHOTO_BUCKET).upload(path, body, {
     contentType: 'image/jpeg',

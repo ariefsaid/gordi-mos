@@ -27,7 +27,7 @@ import { useT } from '@/i18n/use-t'
 import { saveErrorMessage } from '@/lib/save-error'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useSearchParamState } from '@/lib/use-search-param-state'
-import { isItemNotOnStreamError, listActiveWipItems, listStreamItemIds } from '@/lib/db/kitchen-logs'
+import { isItemNotOnStreamError, listStreamItemIds } from '@/lib/db/kitchen-logs'
 import { cafeUnitDisplayLabel, listCafeItemSettings } from '@/lib/db/cafe-item-settings'
 import type { CafeItemSetting } from '@/lib/db/cafe-item-settings'
 import { useCafeStream } from '@/lib/use-cafe-stream'
@@ -50,13 +50,13 @@ import {
   movementsForStream,
   movementKey,
   PRODUCE,
-  streamLabel,
   streamProduces,
 } from '@/lib/kitchen-action-label'
 import { MovementSeg } from '@/components/kitchen/movement-seg'
 import { CafeStreamBar, CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
 import { NotOnStreamTag } from '@/components/kitchen/not-on-stream-tag'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
+import { CafeItemsEmptyState } from '@/components/kitchen/cafe-items-empty-state'
 import { MetricSummaryRule } from '@/components/kitchen/metric-summary-rule'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { PlanQtyField } from '@/components/kitchen/plan-qty-field'
@@ -139,40 +139,27 @@ type PlanItem = WipItemOption & {
 }
 
 function withStreamSettings(
-  items: WipItemOption[],
   settings: CafeItemSetting[],
   planCells: PlanCell[] = [],
 ): PlanItem[] {
   const plannedIds = new Set(planCells.map(cell => cell.wip_item_id))
-  const visibleSettings = settings.filter(item =>
-    (item.kind === 'WIP' && item.isActive) || plannedIds.has(item.id),
-  )
-  const byId = new Map(visibleSettings.map(item => [item.id, item]))
-  const manualIds = new Set(items.map(item => item.id))
-  const streamWipItems = [
-    ...items,
-    ...visibleSettings.filter(item => !manualIds.has(item.id)).map(item => ({
-      id: item.id, name: item.mosName, category: item.category,
-    })),
-  ]
-  return streamWipItems.map(item => {
-    const setting = byId.get(item.id)
-    const defaultUnit = setting?.units.find(unit => unit.id === setting.defaultUnitId)
-    return {
-      ...item,
-      name: setting?.mosName ?? item.name,
-      defaultUnitName: defaultUnit ? cafeUnitDisplayLabel(defaultUnit) : null,
-      otherLogUnitNames: setting?.units
-        .filter(unit => unit.isShown && unit.id !== setting.defaultUnitId)
-        .map(cafeUnitDisplayLabel) ?? [],
-      currentKind: setting ? setting.kind : manualIds.has(item.id) ? 'WIP' : null,
-      unavailableReason: setting && !setting.isActive
-        ? 'inactive'
-        : setting && setting.kind !== 'WIP'
-          ? 'not-wip'
-          : null,
-    }
-  })
+  return settings
+    .filter(item => (item.kind === 'WIP' && item.isActive) || plannedIds.has(item.id))
+    .map((setting): PlanItem => {
+      const defaultUnit = setting.units.find(unit => unit.id === setting.defaultUnitId)
+      return {
+        id: setting.id,
+        name: setting.mosName,
+        category: setting.category,
+        defaultUnitName: defaultUnit ? cafeUnitDisplayLabel(defaultUnit) : null,
+        otherLogUnitNames: setting.units
+          .filter(unit => unit.isShown && unit.id !== setting.defaultUnitId)
+          .map(cafeUnitDisplayLabel),
+        currentKind: setting.kind,
+        unavailableReason: !setting.isActive ? 'inactive' : setting.kind !== 'WIP' ? 'not-wip' : null,
+      }
+    })
+    .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
 }
 
 function planableItemIds(items: PlanItem[], streamItemIds: ReadonlySet<string>): Set<string> {
@@ -262,6 +249,8 @@ function PlanEditor() {
   )
   const [movement, setMovement] = useState<KitchenMovement>(PRODUCE)
   const [items, setItems] = useState<PlanItem[]>([])
+  // How many ESB items the stream lists, from the settings this page reads; the empty state uses it.
+  const [esbItemCount, setEsbItemCount] = useState<number>()
   // The stream's item list (#222). New plan rows are offered only for these; a row already
   // planned for any other item stays on screen, labelled, with its quantity editable.
   const [offeredIds, setOfferedIds] = useState<Set<string>>(new Set())
@@ -309,8 +298,7 @@ function PlanEditor() {
     const gen = ++requestGen.current
     setLoad({ kind: 'loading' })
     try {
-      const [itemRows, catalog, myTeams] = await Promise.all([
-        listActiveWipItems(),
+      const [catalog, myTeams] = await Promise.all([
         resolveStream(),
         // Only a supervisor's per-stream write authority depends on this; ops_lead/admin
         // already write everywhere. Display only: a failure drops the extra streams, never
@@ -327,11 +315,12 @@ function PlanEditor() {
         ])
         : [[], null, []]
       if (gen !== requestGen.current) return
-      // Existing off-list plans remain readable; stream-listed items use their MOS name and
-      // ERP-selected default detail from the same reader as Log.
+      // The stream's ESB items, with their MOS name and default ESB detail from the same reader as
+      // Log; an existing plan for a listed item that went inactive or changed kind stays readable.
       // Without a resolved stream there is no working catalog to plan against. Do not present
       // the org-wide reference list beside a disabled quantity editor.
-      const displayItems = catalog.stream ? withStreamSettings(itemRows, settings, planCells) : []
+      const displayItems = catalog.stream ? withStreamSettings(settings, planCells) : []
+      setEsbItemCount(settings.length)
       const nextPlanableIds = planableItemIds(displayItems, offered ?? new Set())
       setItems(offered ? streamRows(displayItems, nextPlanableIds, planCells) : displayItems)
       setOfferedIds(offered ?? new Set())
@@ -358,14 +347,14 @@ function PlanEditor() {
     setMovement(PRODUCE)
     setLoad({ kind: 'loading' })
     try {
-      const [itemRows, planCells, offered, settings] = await Promise.all([
-        listActiveWipItems(),
+      const [planCells, offered, settings] = await Promise.all([
         listKitchenPlans(logDate, nextStream),
         listStreamItemIds(nextStream),
         listCafeItemSettings(nextStream),
       ])
       if (gen !== requestGen.current) return
-      const displayItems = withStreamSettings(itemRows, settings, planCells)
+      const displayItems = withStreamSettings(settings, planCells)
+      setEsbItemCount(settings.length)
       setItems(streamRows(displayItems, planableItemIds(displayItems, offered), planCells))
       setOfferedIds(offered)
       setPlanableIds(planableItemIds(displayItems, offered))
@@ -490,7 +479,6 @@ function PlanEditor() {
         {item.unavailableReason === 'inactive' && <span className="kp-cat">{t('kitchen.plan.item.inactive')}</span>}
         {item.unavailableReason === 'not-wip' && <span className="kp-cat">{t('kitchen.plan.item.notWip')}</span>}
         {item.category && <span className="kp-cat">{kitchenCategoryLabel(t, item.category)}</span>}
-        {item.defaultUnitName && <span className="kp-unit">{item.defaultUnitName}</span>}
         {item.otherLogUnitNames.length > 0 && (
           <span className="kp-unit-options">
             {t('kitchen.plan.item.otherLogUnits', { units: item.otherLogUnitNames.join(', ') })}
@@ -530,6 +518,7 @@ function PlanEditor() {
               disabled={!isOnline || planWriteClosed || !canWriteStream || !canPlan(item.id)}
               onSave={next => saveCell(item.id, next)}
               dense={isDesktop}
+              unitName={item.defaultUnitName}
             />
             {(saving || saved) && (
               <span className="kp-cell-status" role="status" aria-live="polite">
@@ -572,7 +561,6 @@ function PlanEditor() {
             {offList(item.id) && <NotOnStreamTag />}
             {item.unavailableReason === 'inactive' && <span className="kp-cat">{t('kitchen.plan.item.inactive')}</span>}
             {item.unavailableReason === 'not-wip' && <span className="kp-cat">{t('kitchen.plan.item.notWip')}</span>}
-            {item.defaultUnitName && <span className="kp-card-unit">{item.defaultUnitName}</span>}
             {item.otherLogUnitNames.length > 0 && (
               <span className="kp-card-unit-options">
                 {t('kitchen.plan.item.otherLogUnits', { units: item.otherLogUnitNames.join(', ') })}
@@ -584,6 +572,7 @@ function PlanEditor() {
             qty={qtyOf(item.id)}
             disabled={!isOnline || planWriteClosed || !canWriteStream || !canPlan(item.id)}
             onSave={next => saveCell(item.id, next)}
+            unitName={item.defaultUnitName}
           />
         </div>
         {(saving || saved) && (
@@ -669,12 +658,8 @@ function PlanEditor() {
         />
       )}
 
-      {load.kind === 'ready' && !streamMissing && items.length === 0 && (
-        <EmptyState
-          variant="blank"
-          title={stream ? t('kitchen.streamItems.empty.title', { stream: streamLabel(t, stream) }) : t('kitchen.empty.noActiveItems.title')}
-          copy={stream ? t('kitchen.streamItems.empty.copy') : t('kitchen.plan.empty.copy')}
-        />
+      {load.kind === 'ready' && stream && items.length === 0 && (
+        <CafeItemsEmptyState stream={stream} esbItemCount={esbItemCount} />
       )}
 
       {load.kind === 'ready' && !streamMissing && items.length > 0 && (
