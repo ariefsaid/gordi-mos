@@ -50,8 +50,16 @@
 .cwl-list .dt-table tbody td { padding-block: 8px; }
 .cwl-list .dt-table thead th:first-child,
 .cwl-list .dt-table tbody tr:not(.dt-group-row) > td:first-child { width: auto; vertical-align: middle; }
+/* Keep a stable 520px controls column; the Waste summary stacks until the remaining list
+   measure can give item names at least 12rem plus their 12px cell inset. */
 .cwl-list .dt-table thead th:last-child,
-.cwl-list .dt-table tbody tr:not(.dt-group-row) > td:last-child { width: 32.5rem; vertical-align: middle; }
+.cwl-list .dt-table tbody tr:not(.dt-group-row) > td:last-child {
+  width: 32.5rem;
+  vertical-align: middle;
+}
+@media (min-width: 1280px) and (max-width: 1372.98px) {
+  .cwl-page.kl-capture-wide { grid-template-columns: minmax(0, 1fr); }
+}
 .cwl-list .dt-table thead th:last-child { padding-left: 12px; text-align: left; }
 .cwl-item-cell { min-width: 0; }
 .cwl-capture-row {
@@ -70,11 +78,11 @@
 .cwl-item-cell .kl-dish-name { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
 .cwl-controls {
   display: grid;
-  grid-template-columns: var(--cafe-capture-quantity-width, 7.5rem) var(--cafe-capture-unit-track-width, 17rem) 6rem;
+  grid-template-columns: var(--cafe-capture-quantity-width, 7.5rem) minmax(0, 1fr) 6rem;
   align-items: center;
   gap: 8px;
-  width: 31.5rem;
-  max-width: 100%;
+  width: 100%;
+  max-width: 31.5rem;
   min-width: 0;
   margin-inline-start: auto;
 }
@@ -109,9 +117,9 @@
 .cwl-unit-select .mk-select__field { align-items: center; }
 .cwl-unit-select .mk-select__field > span:first-child {
   overflow: visible;
-  overflow-wrap: normal;
+  overflow-wrap: anywhere;
   text-overflow: clip;
-  white-space: nowrap;
+  white-space: normal;
 }
 .cwl-unit-label {
   display: block;
@@ -121,10 +129,15 @@
   text-align: left;
   font-size: var(--font-size-control);
   line-height: 1.2;
-  white-space: nowrap;
+  white-space: normal;
   overflow: visible;
-  overflow-wrap: normal;
+  overflow-wrap: anywhere;
   text-overflow: clip;
+}
+/* Override the shared ≥768px nowrap rule: Waste units share a bounded grid track. */
+.cwl-controls .cwl-unit-label {
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .cwl-add-photo { justify-self: stretch; min-width: 6rem; min-height: var(--cafe-capture-control-height, 44px); padding-inline: 8px; }
 .cwl-field-error,

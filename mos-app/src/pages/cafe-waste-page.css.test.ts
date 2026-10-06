@@ -19,10 +19,13 @@ describe('Waste capture controls stay paired and complete', () => {
   it('keeps quantity, unit and photo action in an inline desktop track', () => {
     const controls = rule('.cwl-controls {')
     const photo = rule('.cwl-add-photo {')
-    expect(controls).toMatch(/grid-template-columns:\s*var\(--cafe-capture-quantity-width,[^)]+\)\s+var\(--cafe-capture-unit-track-width,[^)]+\)\s+6rem/)
+    expect(controls).toMatch(/grid-template-columns:\s*var\(--cafe-capture-quantity-width,[^)]+\)\s+minmax\(0,\s*1fr\)\s+6rem/)
     expect(controls).toMatch(/gap:\s*8px/)
-    expect(controls).toMatch(/width:\s*31\.5rem/)
+    expect(controls).toMatch(/width:\s*100%/)
+    expect(controls).toMatch(/max-width:\s*31\.5rem/)
     expect(css).toMatch(/dt-table thead th:last-child \{ padding-left: 12px; text-align: left; \}/)
+    expect(css).toMatch(/width:\s*32\.5rem/)
+    expect(css).toMatch(/@media\s*\(min-width:\s*1280px\)\s*and\s*\(max-width:\s*1372\.98px\)[\s\S]*?\.cwl-page\.kl-capture-wide\s*\{\s*grid-template-columns:\s*minmax\(0,\s*1fr\)/)
     expect(css).toMatch(/@media\s*\(min-width:\s*768px\)[\s\S]*?\.cwl-unit-menu\s*\{\s*font-size:\s*var\(--font-size-label\)/)
     expect(css).toMatch(/\.cwl-unit-menu \.mk-select__option \{ gap: 4px; padding-inline: 6px; \}/)
     expect(photo).toMatch(/justify-self:\s*stretch/)
@@ -31,6 +34,15 @@ describe('Waste capture controls stay paired and complete', () => {
   it('left-aligns fixed unit labels with the quantity-to-unit track', () => {
     expect(rule('.cwl-unit-label {')).toMatch(/text-align:\s*left/)
     expect(selectCss).toMatch(/\.mk-select__field\s*\{[^}]*text-align:\s*left/)
+  })
+
+  it('wraps long unit labels inside the flexible desktop track', () => {
+    expect(rule('.cwl-unit-label {')).toMatch(/white-space:\s*normal/)
+    expect(rule('.cwl-unit-label {')).toMatch(/overflow-wrap:\s*anywhere/)
+    expect(rule('.cwl-controls .cwl-unit-label {')).toMatch(/white-space:\s*normal/)
+    expect(rule('.cwl-controls .cwl-unit-label {')).toMatch(/overflow-wrap:\s*anywhere/)
+    expect(rule('.cwl-unit-select .mk-select__field > span:first-child {')).toMatch(/white-space:\s*normal/)
+    expect(rule('.cwl-unit-select .mk-select__field > span:first-child {')).toMatch(/overflow-wrap:\s*anywhere/)
   })
 
   it('uses in-gamut semantic warning tokens for the held banner', () => {
