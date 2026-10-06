@@ -33,29 +33,67 @@ export async function uploadCafeReceiptLinePhoto(lineId: string, file: File): Pr
     upsert: false,
   })
   if (uploadError) throw new Error(`uploadCafeReceiptLinePhoto failed: ${uploadError.message}`)
-  const stored = await listCafeReceiptLinePhotos([lineId])
-  const uploaded = stored.find(photo => photo.path === path)
-  if (!uploaded) throw new Error('uploadCafeReceiptLinePhoto failed: the private photo was not returned')
-  return { ...uploaded, name: file.name }
+  const { data: signed, error: signError } = await supabase.storage.from(CAFE_RECEIPT_PHOTO_BUCKET)
+    .createSignedUrl(path, SIGNED_URL_SECONDS)
+  if (signError || !signed?.signedUrl) throw new Error(`uploadCafeReceiptLinePhoto failed: ${signError?.message ?? 'could not sign the photo'}`)
+  return { lineId, path, url: signed.signedUrl, name: file.name }
 }
 
-/** One org-scoped read for requested lines, followed by short-lived URLs from the private bucket. */
-export async function listCafeReceiptLinePhotos(lineIds: readonly string[]): Promise<CafeReceiptPhoto[]> {
-  const ids = [...new Set(lineIds)]
-  if (ids.length === 0) return []
-  const { data, error } = await supabase.schema('ops').from('cafe_receipt_line_photos')
-    .select('line_id,path,created_at')
-    .in('line_id', ids)
-    .order('created_at', { ascending: true })
-  if (error) throw new Error(`listCafeReceiptLinePhotos failed: ${error.message}`)
-  const rows = (data ?? []) as Array<{ line_id: string; path: string; created_at: string }>
-  if (rows.length === 0) return []
-  const { data: signed, error: signedError } = await supabase.storage.from(CAFE_RECEIPT_PHOTO_BUCKET)
-    .createSignedUrls(rows.map(row => row.path), SIGNED_URL_SECONDS)
-  if (signedError) throw new Error(`listCafeReceiptLinePhotos failed: ${signedError.message}`)
-  return rows.map((row, index) => {
-    const url = signed[index]?.signedUrl
-    if (!url) throw new Error('listCafeReceiptLinePhotos failed: could not sign a stored photo')
-    return { lineId: row.line_id, path: row.path, url, createdAt: row.created_at }
-  })
+/** Receipts per photo read; the server refuses more. */
+export const CAFE_RECEIPT_PHOTO_READ_LIMIT = 50
+
+export type CafeReceiptPhotoRecord = { lineId: string; path: string; createdAt: string }
+
+/**
+ * The photo records of up to 50 receipts, keyed by receipt. The server returns a receipt only when
+ * the caller may read its evidence, with every photo in one row, so no row cap can drop one.
+ */
+export async function listCafeReceiptPhotos(receiptIds: readonly string[]): Promise<Map<string, CafeReceiptPhotoRecord[]>> {
+  const ids = [...new Set(receiptIds)]
+  if (ids.length === 0) return new Map()
+  if (ids.length > CAFE_RECEIPT_PHOTO_READ_LIMIT) throw new Error('listCafeReceiptPhotos: at most 50 receipts per read')
+  const { data, error } = await supabase.schema('ops').rpc('list_cafe_receipt_photos', { p_receipt_ids: ids })
+  if (error) throw new Error(`listCafeReceiptPhotos failed: ${error.message}`)
+  const byReceipt = new Map<string, CafeReceiptPhotoRecord[]>()
+  for (const row of (data ?? []) as Array<{ receipt_id: unknown; photos: unknown }>) {
+    if (typeof row.receipt_id !== 'string' || !Array.isArray(row.photos)) throw new Error('listCafeReceiptPhotos failed: invalid row')
+    byReceipt.set(row.receipt_id, row.photos.map((photo: Record<string, unknown>) => {
+      if (typeof photo.line_id !== 'string' || typeof photo.path !== 'string' || typeof photo.created_at !== 'string') {
+        throw new Error('listCafeReceiptPhotos failed: invalid photo')
+      }
+      return { lineId: photo.line_id, path: photo.path, createdAt: photo.created_at }
+    }))
+  }
+  return byReceipt
+}
+
+/**
+ * Paths per signing request. The storage API checks the bucket's read policy for every path, so
+ * one request for a whole review queue could outlast the statement timeout; batches stay short.
+ */
+const SIGN_BATCH = 100
+const SIGN_CONCURRENCY = 4
+
+/** Short-lived URLs for the photos about to be shown; each one passes the bucket's read policy. */
+export async function signCafeReceiptPhotos(records: readonly CafeReceiptPhotoRecord[]): Promise<CafeReceiptPhoto[]> {
+  const batches: CafeReceiptPhotoRecord[][] = []
+  for (let start = 0; start < records.length; start += SIGN_BATCH) batches.push(records.slice(start, start + SIGN_BATCH))
+  const signed: CafeReceiptPhoto[][] = new Array(batches.length)
+  let next = 0
+  async function worker() {
+    while (next < batches.length) {
+      const index = next++
+      const batch = batches[index]
+      const { data, error } = await supabase.storage.from(CAFE_RECEIPT_PHOTO_BUCKET)
+        .createSignedUrls(batch.map(record => record.path), SIGNED_URL_SECONDS)
+      if (error) throw new Error(`signCafeReceiptPhotos failed: ${error.message}`)
+      signed[index] = batch.map((record, position) => {
+        const url = data[position]?.signedUrl
+        if (!url) throw new Error('signCafeReceiptPhotos failed: could not sign a stored photo')
+        return { ...record, url }
+      })
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(SIGN_CONCURRENCY, batches.length) }, worker))
+  return signed.flat()
 }

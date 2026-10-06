@@ -82,3 +82,22 @@ export function formatWibShortDateTime(value: string | Date, locale?: Locale): s
     parts.find((part) => part.type === type)?.value ?? ''
   return `${pick('day')} ${pick('month')} ${pick('hour')}:${pick('minute')}`
 }
+
+/** "Tue 6 Oct, 02:05" — a timestamp on the Asia/Jakarta wall clock in the weekday-day-month style
+ *  of formatWeekdayDayMonth, so a sync time reads like the reporting day beside it (WIB implied). */
+export function formatWibWeekdayTime(value: string | Date, locale?: Locale): string {
+  const date = value instanceof Date ? value : new Date(value)
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date)
+  const pick = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? ''
+  const day = `${pick('year')}-${pick('month')}-${pick('day')}`
+  return `${formatWeekdayDayMonth(day, locale)}, ${pick('hour')}:${pick('minute')}`
+}

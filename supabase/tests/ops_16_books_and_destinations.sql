@@ -14,8 +14,10 @@ insert into shared.branches (id, org_id, code, name) values
   ('00000000-0000-0000-0000-00000000bf03','00000000-0000-0000-0000-0000000000a1','radiant','Radiant'),
   ('00000000-0000-0000-0000-00000000bf04','00000000-0000-0000-0000-0000000000a1','cikal','Cikal'),
   ('00000000-0000-0000-0000-00000000bf05','00000000-0000-0000-0000-0000000000a1','roastery','Roastery');
-insert into ops.wip_items (id, org_id, name, flag_active) values
-  ('00000000-0000-0000-0000-00000000ab01','00000000-0000-0000-0000-0000000000a1','Nasi Goreng',true);
+insert into ops.wip_items (id, org_id, name, flag_active, reference_source, esb_product_id) values
+  ('00000000-0000-0000-0000-00000000ab01','00000000-0000-0000-0000-0000000000a1','Nasi Goreng',true,'erp_catalog','P-001');
+insert into ops.item_units (org_id, wip_item_id, unit_name, esb_product_detail_id, is_default, confirmed_at) values
+  ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000ab01','porsi','PD-PORSI-001',true,now());
 select shared.seed_stream_teams();
 select results_eq($$
   select activity from shared.teams
@@ -37,13 +39,15 @@ select ok(not has_table_privilege('authenticated', 'ops.cafe_destinations', 'INS
           and not has_table_privilege('authenticated', 'ops.cafe_destinations', 'UPDATE')
           and not has_table_privilege('authenticated', 'ops.cafe_destinations', 'DELETE'),
   'destination reference data has no authenticated write grant');
--- The item is on every stream's list (#222), so each refusal below is the books guard's own.
+-- The item is on every stream's list (#222) as an active WIP item, so each refusal below is the
+-- books guard's own.
 insert into ops.stream_items (org_id,branch_id,activity,wip_item_id,source)
 select '00000000-0000-0000-0000-0000000000a1', t.branch_id, t.activity,
        '00000000-0000-0000-0000-00000000ab01', 'manual'
 from shared.teams t
 where t.org_id='00000000-0000-0000-0000-0000000000a1'
   and t.branch_id is not null and t.archived_at is null;
+select ops._test_configure_cafe_items(array['00000000-0000-0000-0000-00000000ab01']::uuid[]);
 insert into shared.teams (id, org_id, business_unit_id, name, code)
 values ('00000000-0000-0000-0000-00000000ba18','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bb01','Back Office','fixture_back_office');
 -- The positive capture persona needs the same real Café affiliation required by the live INSERT

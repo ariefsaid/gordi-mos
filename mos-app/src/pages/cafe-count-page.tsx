@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { CafeStreamBar, CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
+import { CafeItemsEmptyState } from '@/components/kitchen/cafe-items-empty-state'
 import { useT } from '@/i18n/use-t'
 import { canCaptureCafe } from '@/lib/cafe-affiliation'
 import {
@@ -219,9 +219,7 @@ export function CafeCountPage() {
               {submitError && <p className="cafe-count__notice" role="alert">{t('cafe.count.submitFailed')}</p>}
             </div>
             {items.length === 0 ? (
-              <EmptyState variant="blank" title={t('cafe.count.empty.title')} copy={t('cafe.count.empty.copy')}>
-                <Link to="/cafe/items" className="btn btn-outline btn-touch">{t('cafe.count.empty.action')}</Link>
-              </EmptyState>
+              <CafeItemsEmptyState stream={stream} />
             ) : (
               <>
                 <ul className="cafe-count__list" aria-label={t('cafe.count.listAria')}>
@@ -237,7 +235,8 @@ export function CafeCountPage() {
                           <span className="cafe-count__kind">{item.kind}</span>
                         </div>
                         <div className="cafe-count__input-group">
-                          <label htmlFor={`cafe-count-${item.id}`}>{t('cafe.count.quantityFor', { item: item.name })}</label>
+                          {/* The item name sits beside the field; the label carries it for assistive tech only. */}
+                          <label htmlFor={`cafe-count-${item.id}`} className="sr-only">{t('cafe.count.quantityFor', { item: item.name })}</label>
                           <div className="cafe-count__quantity-control">
                             <input
                               id={`cafe-count-${item.id}`}

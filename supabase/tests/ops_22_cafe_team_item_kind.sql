@@ -7,6 +7,12 @@ select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
 select ops._test_seed_cafe();
+-- A hand-made WIP item that predates OD-2026-10-06-ESB-ITEMS, written in replica mode the way an
+-- existing row looks to the new guards.
+set local session_replication_role = replica;
+insert into ops.wip_items (id, org_id, name, category, flag_active, kind, reference_source) values
+  ('00000000-0000-0000-0000-00000000c287','00000000-0000-0000-0000-0000000000a1','Legacy hand-made WIP','Mains',true,'WIP','manual');
+set local session_replication_role = origin;
 select set_config('app.cafe_reference_test_org_id', '00000000-0000-0000-0000-0000000000a1', true);
 select ops.refresh_cafe_item_references($source$[
   {"esb_product_id":"SYNTH-ERP-P-1287-RAW","esb_product_detail_id":"SYNTH-ERP-PD-1287-RAW","name":"Synthetic RAW 1287","category":"KITCHEN","unit_name":"kg","erp_category_type_name":"Inventory","is_stock":true,"has_active_bom_output":false,"is_active":true},
@@ -22,7 +28,7 @@ select is((select count(*)::int from ops.cafe_item_settings_read
               and activity = 'kitchen' and kind is null and not is_active),
           2, 'every stream starts unclassified and inactive');
 select is((select count(*)::int from ops.wip_items
-            where id = '00000000-0000-0000-0000-00000000ab01' and kind = 'WIP' and flag_active
+            where id = '00000000-0000-0000-0000-00000000c287' and kind = 'WIP' and flag_active
               and reference_source = 'manual'),
           1, 'existing manually maintained kitchen WIP remains active');
 select is((select count(*)::int from ops.cafe_item_reference_source($source$[

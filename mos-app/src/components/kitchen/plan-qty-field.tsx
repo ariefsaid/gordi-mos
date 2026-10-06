@@ -49,9 +49,11 @@ interface PlanQtyFieldProps {
    * changes — this is the ONE typed-qty control, not a second one wearing a costume.
    */
   dense?: boolean
+  /** The unit the plan quantity is in: the item's default ESB unit; omitted means porsi, null none. */
+  unitName?: string | null
 }
 
-export function PlanQtyField({ itemName, qty, disabled, onSave, dense = false }: PlanQtyFieldProps) {
+export function PlanQtyField({ itemName, qty, disabled, onSave, dense = false, unitName }: PlanQtyFieldProps) {
   const t = useT()
   const { draft, setDraft, pending, onKeyDown, onBlur } = useInlineCommit<number>({
     value: qty,
@@ -89,7 +91,7 @@ export function PlanQtyField({ itemName, qty, disabled, onSave, dense = false }:
         onKeyDown={onKeyDown}
         onBlur={onBlur}
       />
-      <span className="pqf-unit">{t('kitchen.unit.porsi')}</span>
+      {unitName !== null && <span className="pqf-unit">{unitName ?? t('kitchen.unit.porsi')}</span>}
     </div>
   )
 }

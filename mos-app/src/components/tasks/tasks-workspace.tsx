@@ -1006,19 +1006,17 @@ export function TasksWorkspace({
         </button>
       ) : undefined}
       meta={
-        // OD-REDESIGN-91 #17 (F2) + DD-COUNT-1 (#1194): counts are OPEN everywhere — the head
-        // meta reads "9 open in this view · 11 shown" (the view's own count, labelled as such;
-        // "shown" includes Done rows kept 7 days; the rail badge is the viewer's own open
-        // tasks, #1129). ONE muted meta sentence in the E7 grammar, a single font size (the body
-        // token), every number followed by its noun (the naked-numbers guard). Live counts;
-        // "—" while loading or on error. The "?" help tip is retired (#743 AC-009): its
-        // sentence lives in the true-empty copy now.
+        // Name the visible task count and its open subset in one muted meta sentence.
+        // Counts stay live; "—" is shown while loading or on error.
         <span data-testid="tasks-count-line" className="ch-meta-line tabular-nums">
           {stats === null
             ? '—'
             : [
+                t(
+                  stats.total === 1 ? 'tasks.meta.taskCount.one' : 'tasks.meta.taskCount.other',
+                  { count: stats.total },
+                ),
                 t('tasks.meta.openCount', { count: stats.open }),
-                t('tasks.meta.totalCount', { count: stats.total }),
               ].join(' · ')}
         </span>
       }

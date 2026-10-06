@@ -33,6 +33,7 @@ import { fileURLToPath } from 'url'
 import { loginAs } from './helpers/login'
 import { BAR_MEMBER, BAR_SUPERVISOR, BAR_STREAM } from './fixtures/users'
 import { ensureStream, STREAM_CONTROL_NAME, streamStatement, streamSwitch } from './helpers/cafe-stream'
+import { configureCafeEsbItemSql } from './fixtures/cafe-esb-item'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dir = dirname(__filename)
@@ -121,9 +122,9 @@ test.describe('AC-014: bar capture → approve → stock, one journey on the rea
     // unconfirmed→confirmed transition, so sending it as a non-null marker is enough; confirmed_by
     // lands NULL under this claimless postgres session, which is exactly the system-recorded shape.
     await sql(`
-      INSERT INTO ops.wip_items (id, org_id, name, category, flag_active, esb_bom_id, esb_product_detail_id_porsi)
-      VALUES ('${ITEM_ID}', '${ORG}', '${ITEM_NAME}', 'Drinks', true, 'BOM-E2E-014', 'PD-E2E-014')
-      ON CONFLICT (id) DO UPDATE SET flag_active = true;
+      INSERT INTO ops.wip_items (id, org_id, name, category, flag_active, esb_bom_id, esb_product_detail_id_porsi, reference_source, esb_product_id)
+      VALUES ('${ITEM_ID}', '${ORG}', '${ITEM_NAME}', 'Drinks', true, 'BOM-E2E-014', 'PD-E2E-014', 'erp_catalog', 'P-E2E-014')
+      ON CONFLICT (id) DO UPDATE SET flag_active = true, reference_source = 'erp_catalog', esb_product_id = 'P-E2E-014';
       INSERT INTO ops.item_units (org_id, wip_item_id, unit_name, esb_product_detail_id, esb_product_id, is_default, is_transferable, confirmed_at)
       VALUES ('${ORG}', '${ITEM_ID}', '${UNIT_NAME}', 'PD-E2E-014', 'P-E2E-014', true, true, now())
       ON CONFLICT (wip_item_id, esb_product_detail_id)
@@ -132,6 +133,7 @@ test.describe('AC-014: bar capture → approve → stock, one journey on the rea
       INSERT INTO ops.stream_items (org_id, branch_id, activity, wip_item_id, source)
       VALUES ('${ORG}', ${BRANCH_SQL}, '${BAR_STREAM.activity}', '${ITEM_ID}', 'manual')
       ON CONFLICT (org_id, branch_id, activity, wip_item_id) DO NOTHING;
+      ${configureCafeEsbItemSql(ITEM_ID)}
     `)
 
     // The plan the member logs AGAINST (FR-015): the stream's own plan for today.

@@ -18,15 +18,7 @@ export type CafeReceiveDraftContent = {
   entries: Record<string, CafeReceiveDraftEntry>
 }
 
-export type CafeReceiveEvidenceLine = {
-  conditions: Array<'damaged_wrong'>
-  condition_reason: string | null
-}
-
-export type CafeReceiveEvidenceDraft = Record<string, CafeReceiveEvidenceLine>
-
 type StoredDraft = CafeReceiveDraftScope & CafeReceiveDraftContent & { version: 1 }
-type StoredEvidenceDraft = CafeReceiveDraftScope & { version: 1; receiptId: string; evidence: CafeReceiveEvidenceDraft }
 
 const STORAGE_PREFIX = 'cafe.receive.draft.v1'
 
@@ -34,10 +26,6 @@ function storageKey(scope: CafeReceiveDraftScope): string {
   return [STORAGE_PREFIX, scope.personId, scope.branchId, scope.activity, scope.arrivalDate]
     .map((part, index) => index === 0 ? part : encodeURIComponent(part))
     .join(':')
-}
-
-function evidenceStorageKey(scope: CafeReceiveDraftScope, receiptId: string): string {
-  return `${storageKey(scope)}:counted:${encodeURIComponent(receiptId)}`
 }
 
 function localStore(): Storage | null {
@@ -106,62 +94,5 @@ export function clearCafeReceiveDraft(scope: CafeReceiveDraftScope): void {
     store.removeItem(storageKey(scope))
   } catch {
     // Private browsing and device storage policies can deny even a remove; local drafts are best effort.
-  }
-}
-
-export function loadCafeReceiveEvidenceDraft(
-  scope: CafeReceiveDraftScope,
-  receiptId: string,
-): CafeReceiveEvidenceDraft | null {
-  const store = localStore()
-  if (!store) return null
-  try {
-    const raw = store.getItem(evidenceStorageKey(scope, receiptId))
-    if (!raw) return null
-    const value: unknown = JSON.parse(raw)
-    if (value === null || typeof value !== 'object' || Array.isArray(value)) return null
-    const stored = value as Record<string, unknown>
-    if (stored.version !== 1 || stored.receiptId !== receiptId || !isScope(stored, scope)
-      || stored.evidence === null || typeof stored.evidence !== 'object' || Array.isArray(stored.evidence)) return null
-    const evidence: CafeReceiveEvidenceDraft = {}
-    for (const [lineId, rawLine] of Object.entries(stored.evidence)) {
-      if (!lineId || rawLine === null || typeof rawLine !== 'object' || Array.isArray(rawLine)) return null
-      const line = rawLine as Record<string, unknown>
-      if (!Array.isArray(line.conditions) || line.conditions.some(condition => condition !== 'damaged_wrong')
-        || (line.condition_reason !== null && typeof line.condition_reason !== 'string')) return null
-      evidence[lineId] = {
-        conditions: line.conditions as Array<'damaged_wrong'>,
-        condition_reason: line.condition_reason as string | null,
-      }
-    }
-    return evidence
-  } catch {
-    return null
-  }
-}
-
-export function saveCafeReceiveEvidenceDraft(
-  scope: CafeReceiveDraftScope,
-  receiptId: string,
-  evidence: CafeReceiveEvidenceDraft,
-): boolean {
-  const store = localStore()
-  if (!store) return false
-  const value: StoredEvidenceDraft = { version: 1, ...scope, receiptId, evidence }
-  try {
-    store.setItem(evidenceStorageKey(scope, receiptId), JSON.stringify(value))
-    return true
-  } catch {
-    return false
-  }
-}
-
-export function clearCafeReceiveEvidenceDraft(scope: CafeReceiveDraftScope, receiptId: string): void {
-  const store = localStore()
-  if (!store) return
-  try {
-    store.removeItem(evidenceStorageKey(scope, receiptId))
-  } catch {
-    // Best-effort cleanup; the server receipt remains the durable Counted record.
   }
 }

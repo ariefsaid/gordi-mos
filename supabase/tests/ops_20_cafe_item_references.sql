@@ -8,6 +8,14 @@ select shared._test_seed_directory();
 select shared._test_seed_access_roles();
 select ops._test_seed_cafe();
 select set_config('app.allow_test_seeds', 'off', true);
+-- A hand-made WIP item that predates OD-2026-10-06-ESB-ITEMS. Replica mode writes it the way an
+-- existing row looks to the new guards: present and never re-checked.
+set local session_replication_role = replica;
+insert into ops.wip_items (id, org_id, name, category, flag_active, kind, reference_source) values
+  ('00000000-0000-0000-0000-00000000c240','00000000-0000-0000-0000-0000000000a1','Legacy hand-made WIP','Mains',true,'WIP','manual');
+insert into ops.item_units (org_id, wip_item_id, unit_name, esb_product_detail_id, is_default, confirmed_at) values
+  ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000c240','porsi','PD-PORSI-C240',true,now());
+set local session_replication_role = origin;
 
 create temporary table cafe_reference_test_source (source_rows jsonb not null);
 insert into cafe_reference_test_source values ($source$[
@@ -148,8 +156,8 @@ where item.id = unit.wip_item_id and item.esb_product_id = 'SYNTH-ERP-P-1240-RAW
 select is((select count(*)::int from ops.capture_form_items capture
   join ops.wip_items item on item.id = capture.wip_item_id where item.esb_product_id = 'SYNTH-ERP-P-1240-RAW'), 0,
   'production capture excludes RAW even when one source detail is confirmed');
-select is((select count(*)::int from ops.capture_form_items where wip_item_id = '00000000-0000-0000-0000-00000000ab01'), 1,
-  'production capture continues to offer an existing confirmed WIP item');
+select is((select count(*)::int from ops.capture_form_items where wip_item_id = '00000000-0000-0000-0000-00000000c240'), 1,
+  'the legacy capture view still lists an existing hand-made WIP item after a refresh');
 
 select throws_ok($$select ops.refresh_cafe_item_references('[]'::jsonb)$$, '22023', null,
   'refresh rejects an empty snapshot instead of deactivating the catalog');

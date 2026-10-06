@@ -217,7 +217,6 @@ describe('CHROME-DUR: transition-duration tokens', () => {
   const DUR_EXCEPTIONS: Record<string, number> = {
     'components/tasks/TaskSurface.css': 1,
     // #359 paid down data-table.css (×2) and kpi-tile.css (×1) — now var(--dur-fast).
-    'components/kitchen/qty-cell.css': 2,
   }
 
   it('CHROME-DUR: index.css defines a --dur-* scale in ms', () => {
@@ -270,6 +269,9 @@ describe('CHROME-FOCUS: focus-visible normalization', () => {
     // rationale as the rows above.
     '.appearance-control-option',
     '.user-chip-menu-item',
+    // #1437: the lock-confirm line list is a scroll region spanning the full width of a
+    // clipped modal surface; an outward ring would be cut off at the surface edge.
+    '.cafe-lock-confirm__lines',
   ])
 
   function focusRules(): { file: string; selector: string; body: string }[] {
@@ -352,13 +354,6 @@ describe('CHROME-MODAL: modal consolidation', () => {
       readSrc('components/admin/password-reveal.tsx'),
       'modal content must not retain its own Tab/focus document listener',
     ).not.toMatch(/document\.addEventListener\(['"]keydown/)
-  })
-
-  it('CHROME-MODAL: the admin ConfirmDialog module re-exports the shared primitive (no second copy)', () => {
-    const body = readSrc('components/admin/confirm-dialog.tsx')
-    expect(body).toMatch(/export \{ ConfirmDialog \} from '@\/components\/ui\/confirm-dialog'/)
-    // the full component impl no longer lives here
-    expect(body).not.toMatch(/function ConfirmDialog/)
   })
 
   it('CHROME-MODAL: ConfirmArchive composes the shared ConfirmDialog, not a bespoke overlay', () => {

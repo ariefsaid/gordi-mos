@@ -26,6 +26,8 @@ export interface PrivatePhotoCaptureCopy {
   title: string
   help: string
   add: string
+  /** The add control's accessible name, when the visible label is shortened. */
+  addName: string
   invalidType: string
   tooMany: string
   tooLarge: string
@@ -81,6 +83,7 @@ export function WastePhotoCapture<TPhoto extends PrivatePhotoEvidence = KitchenW
     title: copyOverrides?.title ?? t('kitchen.wastePhotos.title'),
     help: copyOverrides?.help ?? t('kitchen.wastePhotos.help'),
     add: copyOverrides?.add ?? t('kitchen.wastePhotos.add'),
+    addName: copyOverrides?.addName ?? copyOverrides?.add ?? t('kitchen.wastePhotos.add'),
     invalidType: copyOverrides?.invalidType ?? t('kitchen.wastePhotos.invalidType'),
     tooMany: copyOverrides?.tooMany ?? t('kitchen.wastePhotos.tooMany'),
     tooLarge: copyOverrides?.tooLarge ?? t('kitchen.wastePhotos.tooLarge'),
@@ -259,6 +262,7 @@ export function WastePhotoCapture<TPhoto extends PrivatePhotoEvidence = KitchenW
           type="file"
           accept="image/jpeg,image/png,image/webp"
           capture="environment"
+          aria-label={copy.addName}
           multiple
           onChange={addFiles}
           disabled={photos.length >= MAX_WASTE_PHOTOS || isUploading || disabled}

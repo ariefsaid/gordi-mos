@@ -2,12 +2,8 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import {
   clearCafeReceiveDraft,
   loadCafeReceiveDraft,
-  loadCafeReceiveEvidenceDraft,
   saveCafeReceiveDraft,
-  saveCafeReceiveEvidenceDraft,
-  clearCafeReceiveEvidenceDraft,
   type CafeReceiveDraftScope,
-  type CafeReceiveEvidenceDraft,
 } from './cafe-receive-drafts'
 
 const SCOPE: CafeReceiveDraftScope = {
@@ -48,16 +44,5 @@ describe('Café receive offline drafts', () => {
     expect(loadCafeReceiveDraft(SCOPE)).toBeNull()
     localStorage.setItem(key, JSON.stringify({ version: 1, ...SCOPE, ...DRAFT, personId: 'person-2' }))
     expect(loadCafeReceiveDraft(SCOPE)).toBeNull()
-  })
-
-  it('AC-1006 persists Counted-line reason and condition until send, isolated by receipt and scope', () => {
-    const evidence: CafeReceiveEvidenceDraft = { line1: { conditions: ['damaged_wrong'], condition_reason: 'Seal broken' } }
-    expect(saveCafeReceiveEvidenceDraft(SCOPE, 'receipt-1', evidence)).toBe(true)
-    expect(loadCafeReceiveEvidenceDraft(SCOPE, 'receipt-1')).toEqual(evidence)
-    expect(loadCafeReceiveEvidenceDraft(SCOPE, 'receipt-2')).toBeNull()
-    expect(loadCafeReceiveEvidenceDraft({ ...SCOPE, arrivalDate: '2026-10-05' }, 'receipt-1')).toBeNull()
-
-    clearCafeReceiveEvidenceDraft(SCOPE, 'receipt-1')
-    expect(loadCafeReceiveEvidenceDraft(SCOPE, 'receipt-1')).toBeNull()
   })
 })

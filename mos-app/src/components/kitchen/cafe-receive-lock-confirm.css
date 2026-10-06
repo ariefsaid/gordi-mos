@@ -1,16 +1,18 @@
-/* Lock-confirm step: header and actions stay put, only the line list scrolls. */
+/* Lock-confirm step: header and actions stay put, only the line list scrolls. The column flex
+   chain shrinks to ModalShell's own max-height, so no modal geometry is repeated here. */
 
 .modal-shell__surface.cafe-lock-confirm__surface {
   display: flex;
+  flex-direction: column;
   overflow: hidden;
 }
 
 .cafe-lock-confirm {
   display: flex;
-  flex: 1;
+  flex: 1 1 auto;
   flex-direction: column;
   min-width: 0;
-  max-height: calc(100dvh - 34px);
+  min-height: 0;
 }
 
 .cafe-lock-confirm__head {
@@ -28,7 +30,6 @@
   font-size: var(--font-size-heading);
   font-weight: 600;
   line-height: 1.25;
-  font-variant-numeric: tabular-nums;
 }
 
 .cafe-lock-confirm__context,
@@ -58,19 +59,6 @@
   outline-offset: -2px;
 }
 
-.cafe-lock-confirm__condition {
-  display: block;
-  margin-top: 2px;
-  color: var(--muted-foreground);
-  font-size: var(--font-size-label);
-  font-weight: 500;
-}
-
-.cafe-lock-confirm__quantity {
-  font-variant-numeric: tabular-nums;
-  font-feature-settings: "tnum";
-}
-
 .cafe-lock-confirm__foot {
   display: grid;
   flex: none;
@@ -88,7 +76,6 @@
 .cafe-lock-confirm__action { min-width: 132px; min-height: 44px; }
 
 @media (max-width: 640px) {
-  .cafe-lock-confirm { max-height: none; height: 100%; }
   .cafe-lock-confirm__head { padding: max(16px, env(safe-area-inset-top)) 16px 12px; }
   .cafe-lock-confirm__lines.cafe-receipt-lines { padding-inline: 16px; }
   .cafe-lock-confirm__foot { padding: 12px 16px calc(16px + env(safe-area-inset-bottom)); }

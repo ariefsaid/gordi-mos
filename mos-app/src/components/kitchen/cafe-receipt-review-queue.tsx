@@ -2,14 +2,26 @@ import { useEffect, useMemo, useState } from 'react'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { useT } from '@/i18n/use-t'
 import { getPeople } from '@/lib/db/directory'
-import { listCafeReceipts, reviewCafeReceipt, type CafeReceipt } from '@/lib/db/cafe-receipts'
+import {
+  listCafeReceiptDifferences,
+  listCafeReceipts,
+  readCafeReceiptPosting,
+  reviewCafeReceipt,
+  summarizeCafeReceiptDifferences,
+  type CafeReceipt,
+  type CafeReceiptDifferenceSummary,
+} from '@/lib/db/cafe-receipts'
 import { streamKey, streamLabel } from '@/lib/kitchen-action-label'
-import { formatWeekdayDayMonth, formatWibDateTime } from '@/lib/format/date'
+import { formatWeekdayDayMonth, formatWibShortDateTime } from '@/lib/format/date'
 import { useIsOffline } from '@/shell/use-is-offline'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { ALL_STREAMS } from './cafe-stream-bar'
 import { CafeReceiptState } from './cafe-receipt-state'
-import { WastePhotoStrip } from './waste-photo-strip'
+import { CafeReceiptLineRow } from './cafe-receipt-difference'
+import { CafeReceiptLineEvidence } from './cafe-receipt-line-condition'
+import { CafeReceiptRelease } from './cafe-receipt-release'
+import { formatAge } from '@/components/tasks/task-formatters'
+import { useI18n } from '@/i18n/I18nProvider'
 import './cafe-count-review-queue.css'
 
 /** Submitted receipts the server lets this viewer review (RLS scopes the read; the RPC decides). */
@@ -23,9 +35,10 @@ export function CafeReceiptReviewQueue({
   viewerId: string | null
 }) {
   const t = useT()
+  const { locale } = useI18n()
   const [rows, setRows] = useState<CafeReceipt[]>([])
-  const [staleRows, setStaleRows] = useState<CafeReceipt[]>([])
   const [names, setNames] = useState<ReadonlyMap<string, string>>(new Map())
+  const [differences, setDifferences] = useState<ReadonlyMap<string, CafeReceiptDifferenceSummary> | 'failed'>(new Map())
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
   const [actionError, setActionError] = useState(false)
@@ -33,23 +46,27 @@ export function CafeReceiptReviewQueue({
   const [rejecting, setRejecting] = useState<string | null>(null)
   const [note, setNote] = useState('')
   const [retry, setRetry] = useState(0)
+  const [decided, setDecided] = useState(0)
+  const [postingUnknown, setPostingUnknown] = useState<ReadonlySet<string>>(new Set())
   const online = !useIsOffline()
 
   useEffect(() => {
     let active = true
     setLoading(true)
     setLoadError(false)
-    const receivedBefore = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-    void Promise.all([
-      listCafeReceipts(['Submitted']),
-      listCafeReceipts(['Counted'], { receivedBefore }),
-      getPeople(),
-    ]).then(([nextRows, nextStaleRows, people]) => {
+    // Counted receipts that are not sent yet are listed too, with their age, so an unsent lock is
+    // visible; only Submitted ones can be decided.
+    void Promise.all([listCafeReceipts(['Submitted', 'Counted'], { photosFor: ['Submitted'] }), getPeople()]).then(([nextRows, people]) => {
       if (!active) return
       setRows(nextRows)
-      setStaleRows(nextStaleRows)
       setNames(new Map(people.map(person => [person.id, person.full_name])))
       setLoading(false)
+      // FR-1012/1032: labels and the cache as-of time; a failed read says so rather than guessing why.
+      void listCafeReceiptDifferences(nextRows.map(row => row.id))
+        .then(found => new Map(nextRows.map(row =>
+          [row.id, summarizeCafeReceiptDifferences(found.filter(line => line.receipt_id === row.id))])))
+        .catch((): 'failed' => 'failed')
+        .then(next => { if (active) setDifferences(next) })
     }).catch(() => {
       if (!active) return
       setLoadError(true)
@@ -61,9 +78,6 @@ export function CafeReceiptReviewQueue({
   const visibleRows = useMemo(() => rows.filter(receipt =>
     streamFilter === ALL_STREAMS || streamKey(receipt.branch_id, receipt.activity) === streamFilter,
   ), [rows, streamFilter])
-  const visibleStaleRows = useMemo(() => staleRows.filter(receipt =>
-    streamFilter === ALL_STREAMS || streamKey(receipt.branch_id, receipt.activity) === streamFilter,
-  ), [staleRows, streamFilter])
 
   async function decide(receipt: CafeReceipt, decision: 'approve' | 'reject') {
     if (busyId || !online) return
@@ -76,6 +90,13 @@ export function CafeReceiptReviewQueue({
         : row))
       setRejecting(null)
       setNote('')
+      // FR-1042: approval matches and may enqueue at once, so the state is read back, not assumed.
+      if (result.status === 'Approved') {
+        const posting = await readCafeReceiptPosting(receipt.id).catch(() => undefined)
+        if (posting === undefined) setPostingUnknown(current => new Set(current).add(receipt.id))
+        else setRows(current => current.map(row => row.id === receipt.id ? { ...row, posting } : row))
+        setDecided(value => value + 1)
+      }
     } catch {
       setActionError(true)
     } finally {
@@ -97,6 +118,7 @@ export function CafeReceiptReviewQueue({
         </div>
       )}
       {!online && <p className="cafe-count-review__offline" role="alert">{t('cafe.receive.offline')}</p>}
+      <CafeReceiptRelease online={online} refreshKey={decided} />
       {loadError ? (
         <ErrorState
           message={t('common.loadFailed', { what: t('cafe.receipts.review.queueTitle') })}
@@ -105,56 +127,19 @@ export function CafeReceiptReviewQueue({
         />
       ) : loading ? (
         <LoadingShell count={2} />
+      ) : visibleRows.length === 0 ? (
+        <EmptyState variant="awaiting" title={t('cafe.receipts.review.empty.title')} copy={t('cafe.receipts.review.empty.copy')}>
+          <button type="button" className="btn btn-outline" onClick={() => setRetry(value => value + 1)}>
+            {t('cafe.count.review.refresh')}
+          </button>
+        </EmptyState>
       ) : (
-        <>
-          {visibleStaleRows.length > 0 && (
-            <section className="cafe-receipt-review__stale" aria-labelledby="cafe-receipt-stale-title">
-              <header>
-                <h2 id="cafe-receipt-stale-title">{t('cafe.receipts.review.stale.title')}</h2>
-                <p>{t('cafe.receipts.review.stale.help')}</p>
-              </header>
-              <ul className="cafe-receipt-review__stale-list">
-                {visibleStaleRows.map(receipt => {
-                  const stream = streamCatalog.find(s => s.branch.id === receipt.branch_id && s.activity === receipt.activity) ?? null
-                  return (
-                    <li key={receipt.id}>
-                      <div className="cafe-count-review__identity">
-                        <div className="cafe-count-review__name">
-                          {t('cafe.receipts.review.receivedBy', { person: names.get(receipt.received_by) ?? t('cafe.receipts.review.unknownPerson') })}
-                        </div>
-                        <div className="cafe-count-review__meta">
-                          <span>{t('cafe.receipts.review.arrival', { date: formatWeekdayDayMonth(receipt.arrival_date) })}</span>
-                          {stream && <span>{t('cafe.count.review.streamTag', { stream: streamLabel(t, stream) })}</span>}
-                          <span>{t('cafe.receipts.review.stale.since', { date: formatWibDateTime(receipt.received_at) })}</span>
-                        </div>
-                      </div>
-                      <ul className="cafe-receipt-lines" aria-label={t('cafe.receipts.review.linesAria')}>
-                        {receipt.lines.map(line => (
-                          <li key={line.id}>
-                            <span>{line.item_name}</span>
-                            <span className="tabular">{t('cafe.receipts.quantityUnit', { quantity: line.received_quantity, unit: line.unit_name })}</span>
-                          </li>
-                        ))}
-                      </ul>
-                      <span className="cafe-count-review__state"><CafeReceiptState receipt={receipt} /></span>
-                    </li>
-                  )
-                })}
-              </ul>
-            </section>
-          )}
-          {visibleRows.length === 0 && visibleStaleRows.length === 0 ? (
-            <EmptyState variant="awaiting" title={t('cafe.receipts.review.empty.title')} copy={t('cafe.receipts.review.empty.copy')}>
-              <button type="button" className="btn btn-outline" onClick={() => setRetry(value => value + 1)}>
-                {t('cafe.count.review.refresh')}
-              </button>
-            </EmptyState>
-          ) : visibleRows.length > 0 ? (
-            <ul className="cafe-count-review__list">
-              {visibleRows.map(receipt => {
+        <ul className="cafe-count-review__list">
+          {visibleRows.map(receipt => {
             const stream = streamCatalog.find(s => s.branch.id === receipt.branch_id && s.activity === receipt.activity) ?? null
             const ownReceipt = receipt.received_by === viewerId
             const noteId = `cafe-receipt-note-${receipt.id}`
+            const difference = differences === 'failed' ? undefined : differences.get(receipt.id)
             return (
               <li className="cafe-count-review__row cafe-receipt-review__row" key={receipt.id}>
                 <div className="cafe-count-review__identity">
@@ -165,40 +150,38 @@ export function CafeReceiptReviewQueue({
                     <span>{t('cafe.receipts.review.arrival', { date: formatWeekdayDayMonth(receipt.arrival_date) })}</span>
                     {stream && <span>{t('cafe.count.review.streamTag', { stream: streamLabel(t, stream) })}</span>}
                     {receipt.delivery_note_number && <span>{t('cafe.receipts.review.deliveryNote', { number: receipt.delivery_note_number })}</span>}
-                    {receipt.posting_status === 'held' && <span>{t('cafe.receipts.review.locationMissing')}</span>}
+                    {receipt.posting_status === 'held' && receipt.status !== 'Approved' && <span>{t('cafe.receipts.review.locationMissing')}</span>}
+                    {differences === 'failed' && <span>{t('cafe.receipts.review.differenceFailed')}</span>}
+                    {receipt.photosUnavailable && <span>{t('cafe.receipts.photosUnavailable')}</span>}
+                    {difference && !difference.known && <span>{t('cafe.receipts.review.differenceUnknown')}</span>}
+                    {difference && (
+                      <span>{!difference.asOf ? t('cafe.receipts.review.poNeverRead')
+                        : t(difference.known ? 'cafe.receipts.review.poAsOf' : 'cafe.receipts.review.poTooOld',
+                          { time: formatWibShortDateTime(difference.asOf) })}</span>
+                    )}
                   </div>
                 </div>
                 <ul className="cafe-receipt-lines" aria-label={t('cafe.receipts.review.linesAria')}>
                   {receipt.lines.map(line => (
-                    <li key={line.id}>
-                      <span>{line.item_name}</span>
-                      <span className="tabular">{t('cafe.receipts.quantityUnit', { quantity: line.received_quantity, unit: line.unit_name })}</span>
-                    </li>
+                    <CafeReceiptLineRow
+                      key={line.id}
+                      name={line.item_name}
+                      quantity={line.received_quantity}
+                      unit={line.unit_name}
+                      withDifference
+                      outcome={difference?.known ? difference.byUnit.get(line.item_unit_id) : undefined}
+                    >
+                      <CafeReceiptLineEvidence line={line} />
+                    </CafeReceiptLineRow>
                   ))}
                 </ul>
-                {receipt.lines.some(line => line.conditions.length > 0 || line.photos.length > 0) && (
-                  <ul className="cafe-receipt-review__evidence" aria-label={t('cafe.receive.photoReview')}>
-                    {receipt.lines.filter(line => line.conditions.length > 0 || line.photos.length > 0).map(line => (
-                      <li key={line.id}>
-                        <strong>{line.item_name}</strong>
-                        {line.conditions.map(condition => (
-                          <span className="cafe-receipt-review__condition" key={condition}>{t('cafe.receive.damageFlag')}</span>
-                        ))}
-                        {line.condition_reason && <p>{line.condition_reason}</p>}
-                        <WastePhotoStrip
-                          photos={line.photos}
-                          copy={{
-                            reviewLabel: t('cafe.receive.photoReview'),
-                            openAlt: (n, total) => t('cafe.receive.photoOpen', { n, total }),
-                          }}
-                        />
-                      </li>
-                    ))}
-                  </ul>
-                )}
                 <div className="cafe-count-review__decision cafe-receipt-review__decision">
-                  {receipt.status !== 'Submitted' ? (
-                    <span className="cafe-count-review__state" role="status"><CafeReceiptState receipt={receipt} /></span>
+                  {receipt.status === 'Counted' ? (
+                    <span className="cafe-count-review__state">
+                      {t('cafe.receipts.review.countedNotSent', { age: formatAge(receipt.received_at, new Date(), locale) })}
+                    </span>
+                  ) : receipt.status !== 'Submitted' ? (
+                    <span className="cafe-count-review__state" role="status"><CafeReceiptState receipt={receipt} postingUnknown={postingUnknown.has(receipt.id)} /></span>
                   ) : rejecting === receipt.id ? (
                     <div className="cafe-receipt-review__reject">
                       <label htmlFor={noteId}>{t('cafe.receipts.review.rejectNote')}</label>
@@ -236,10 +219,8 @@ export function CafeReceiptReviewQueue({
                 </div>
               </li>
             )
-              })}
-            </ul>
-          ) : null}
-        </>
+          })}
+        </ul>
       )}
     </section>
   )

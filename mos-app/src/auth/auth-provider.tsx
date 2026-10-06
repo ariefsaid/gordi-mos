@@ -7,6 +7,8 @@ import {
   publishReadScope,
   type ReadScope,
 } from '@/lib/scoped-reads'
+import { clearCafeReceiptExplanationDrafts } from '@/lib/cafe-receipt-explanation-draft'
+import { isSampleAccountOutsideSampleOrg } from '@/pages/demo-personas'
 import { AuthContext, type AuthState } from './context'
 
 // FR-009: session persistence + auto-refresh is configured on the supabase client (T-004) —
@@ -89,6 +91,7 @@ export function AuthProvider({ children }: Props) {
     const ticket = ++resolutionTicketRef.current
     isRecoveringRef.current = false
     retireReadScope()
+    clearCafeReceiptExplanationDrafts()
     await supabase.auth.signOut()
     if (ticket === resolutionTicketRef.current) {
       setState({ status: 'unauthenticated', signedOut: true })
@@ -103,6 +106,11 @@ export function AuthProvider({ children }: Props) {
       retireReadScope()
       recoveryUserIdRef.current = undefined
       setState({ status: 'unauthenticated' })
+      return
+    }
+
+    if (isSampleAccountOutsideSampleOrg(accessToken)) {
+      await handleSignOut()
       return
     }
 

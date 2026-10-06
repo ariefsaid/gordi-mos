@@ -77,8 +77,6 @@ export function Breadcrumb() {
         collectionLeafShown = true
       }
     }
-  } else if (destination.id === 'money') {
-    if (pathname === '/money/detail') crumbs.push(t('breadcrumb.detail'))
   } else if (destination.id === 'cafe') {
     // /cafe and /cafe/log are the module default → bare "Café"; other sub-routes get a leaf.
     if (pathname !== '/cafe' && pathname !== '/cafe/log') {
@@ -86,6 +84,8 @@ export function Breadcrumb() {
       if (sec) crumbs.push(sec.labelKey ? t(sec.labelKey) : sec.label)
       if (dynamicTitle) crumbs.push(dynamicTitle)
     }
+  } else if (destination.id === 'money' && pathname.startsWith('/money/branch/') && dynamicTitle) {
+    crumbs.push(dynamicTitle)
   } else if (destination.id === 'admin') {
     const sec = sectionForPath(pathname)
     if (sec) crumbs.push(sec.labelKey ? t(sec.labelKey) : sec.label)

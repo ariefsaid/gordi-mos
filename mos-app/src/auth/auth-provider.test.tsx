@@ -244,11 +244,17 @@ describe('AuthProvider', () => {
     })
 
     expect(screen.getByTestId('status').textContent).toBe('authenticated')
+    localStorage.setItem('mos.cafe.receiptExplanations.person-a.receipt-1', '{"line-1":{"conditions":["damaged_wrong"],"condition_reason":"Seal torn","serverUpdatedAt":null}}')
+    localStorage.setItem('mos.cafe.receiptExplanations.person-b.receipt-2', '{}')
+    localStorage.setItem('mos.tasks.groupBy', 'owner')
 
     await act(async () => {
       await user.click(screen.getByRole('button', { name: 'Sign out' }))
     })
 
+    // A shared phone keeps no receiver's unsent reason for the next person; other preferences stay.
+    expect(Object.keys(localStorage).filter(key => key.startsWith('mos.cafe.receiptExplanations.'))).toEqual([])
+    expect(localStorage.getItem('mos.tasks.groupBy')).toBe('owner')
     expect(mockSignOut).toHaveBeenCalledOnce()
     expect(screen.getByTestId('status').textContent).toBe('unauthenticated')
     // Marks the session as ended, so ProtectedRoute keeps no return route for the next person.
@@ -409,5 +415,65 @@ describe('AuthProvider', () => {
     expect(getReadScope()).toBeNull()
     expect(screen.getByTestId('status').textContent).toBe('unauthenticated')
     expect(mockResolveViewer).not.toHaveBeenCalled()
+  })
+
+  describe('a sample account only enters the sample org', () => {
+    const token = (claims: Record<string, unknown>) =>
+      `header.${Buffer.from(JSON.stringify(claims)).toString('base64url')}.sig`
+    const sampleOrg = '5a000000-0000-0000-0000-000000000001'
+    const realOrg = '10000000-0000-0000-0000-000000000001'
+
+    async function signInWith(accessToken: string) {
+      let capturedCallback: ((event: string, session: Session | null) => void) | undefined
+      mockGetSession.mockResolvedValue({ data: { session: null }, error: null } as Awaited<ReturnType<typeof supabase.auth.getSession>>)
+      mockOnAuthStateChange.mockImplementation((cb) => {
+        capturedCallback = cb as typeof capturedCallback
+        return {
+          data: { subscription: { unsubscribe: vi.fn(), id: 'sub', callback: vi.fn() } },
+        } as ReturnType<typeof supabase.auth.onAuthStateChange>
+      })
+      mockResolveViewer.mockResolvedValue(viewerFor('auth-user-001'))
+      mockSignOut.mockResolvedValue({ error: null })
+      render(
+        <AuthProvider>
+          <><AuthConsumer /><AuthScopeConsumer /></>
+        </AuthProvider>,
+      )
+      await flushAuth()
+      await act(async () => {
+        capturedCallback!('SIGNED_IN', { user: { id: 'auth-user-001' }, access_token: accessToken } as Partial<Session> as Session)
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+    }
+
+    it('signs a sample account out before reading anything when its token names another org', async () => {
+      await signInWith(token({ email: 'dewi@sample.gordi.test', org_id: realOrg }))
+
+      expect(mockResolveViewer).not.toHaveBeenCalled()
+      expect(mockSignOut).toHaveBeenCalledOnce()
+      expect(getReadScope()).toBeNull()
+      expect(screen.getByTestId('status').textContent).toBe('unauthenticated')
+    })
+
+    it('matches the sample address without regard to letter case', async () => {
+      await signInWith(token({ email: 'Dewi@Sample.Gordi.Test', org_id: realOrg }))
+
+      expect(mockResolveViewer).not.toHaveBeenCalled()
+      expect(mockSignOut).toHaveBeenCalledOnce()
+    })
+
+    it('lets a sample account into the sample org', async () => {
+      await signInWith(token({ email: 'dewi@sample.gordi.test', org_id: sampleOrg }))
+
+      expect(mockSignOut).not.toHaveBeenCalled()
+      expect(screen.getByTestId('status').textContent).toBe('authenticated')
+    })
+
+    it('lets real staff into the real org', async () => {
+      await signInWith(token({ email: 'cahya.dev@example.test', org_id: realOrg }))
+
+      expect(mockSignOut).not.toHaveBeenCalled()
+      expect(screen.getByTestId('status').textContent).toBe('authenticated')
+    })
   })
 })
