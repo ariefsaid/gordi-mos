@@ -12,11 +12,12 @@ import { resolve } from 'node:path'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, fireEvent, act, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { ReactNode } from 'react'
+import { Profiler, StrictMode, Suspense, type ReactNode } from 'react'
 import { installDisabledBlur } from '@/test/browser-focus-fixup'
 import { APP_ROUTER_BASENAME, appUrl } from '@/config/app-build-settings'
 import { MemoryRouter, Route, Routes, createMemoryRouter, RouterProvider, Link } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
+import * as kitchenItemList from '@/lib/kitchen-item-list'
 
 vi.mock('@/auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
@@ -318,6 +319,52 @@ afterEach(() => {
 
 // ── loading state ─────────────────────────────────────────────────────────────
 describe('Loading state', () => {
+  it('settles the production route without deriving grouped rows during bootstrap', async () => {
+    const item: CaptureFormItem = {
+      ...WIP_ITEMS[0],
+      unit_multiples: [0.5, 2],
+    }
+    let completeItems!: (items: CaptureFormItem[]) => void
+    mockListCaptureFormItems.mockImplementation(() => new Promise(resolve => { completeItems = resolve }))
+    mockUseAuth.mockReturnValue(VIEWER_MEMBER)
+    const groupedRows = vi.spyOn(kitchenItemList, 'kitchenDataTableGroups')
+    let commits = 0
+
+    try {
+      await act(async () => {
+        render(
+          <StrictMode>
+            <Suspense fallback={<div role="status">Loading route</div>}>
+              <Profiler id="cafe-production" onRender={() => { commits += 1 }}>
+                <MemoryRouter basename={APP_ROUTER_BASENAME} initialEntries={[appUrl('/cafe/production')]}>
+                  <Routes>
+                    <Route path="/cafe/production" element={<KitchenLogPage mode="production" activeBranchId={BRANCH_RUMAH_RAMES.id} activeBranchName={BRANCH_RUMAH_RAMES.name} />} />
+                  </Routes>
+                </MemoryRouter>
+              </Profiler>
+            </Suspense>
+          </StrictMode>,
+        )
+        await Promise.resolve()
+      })
+
+      expect(screen.getByRole('main')).toBeVisible()
+      expect(groupedRows.mock.calls).toHaveLength(0)
+
+      await act(async () => {
+        completeItems([item])
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+
+      expect(await screen.findByText(item.name)).toBeInTheDocument()
+      expect(groupedRows).toHaveBeenCalled()
+      expect(commits).toBeLessThan(20)
+    } finally {
+      groupedRows.mockRestore()
+    }
+  })
+
   it('shows loading skeleton while fetching WIP items', () => {
     // Never resolve — keeps loading
     mockListCaptureFormItems.mockReturnValue(new Promise(() => {}))
@@ -1145,6 +1192,47 @@ describe('FR-021/022: "change unit" re-binds the row to the chosen item-unit', (
       expect.objectContaining({ wip_item_id: 'w1', qty_porsi: 17, item_unit_id: 'u1-botol' }),
     ])
     expect(document.querySelector('.kls-meta')?.textContent).toContain('17 botol')
+  })
+})
+
+describe('issue 1345: manager-defined multiples keep the ERP default coordinate', () => {
+  it('starts on the default and submits converted quantity plus the typed amount and factor', async () => {
+    mockListCaptureFormItems.mockResolvedValue([{
+      id: 'w1', name: 'Ayam Bakar', category: 'Main',
+      units: [{ id: 'u1-default', name: 'porsi', is_default: true }],
+      unit_multiples: [0.5, 2],
+    }])
+    mockInsertKitchenLogBatch.mockResolvedValue(['multiple-log-1'])
+    await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    const qtyInput = screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    expect(qtyInput).toHaveValue(null)
+    expect(screen.getByRole('button', { name: /change unit for ayam bakar/i })).toHaveTextContent('porsi')
+
+    await userEvent.click(screen.getByRole('button', { name: /change unit for ayam bakar/i }))
+    await userEvent.click(screen.getByRole('combobox', { name: /unit for ayam bakar/i }))
+    await userEvent.click(await screen.findByRole('option', { name: '0.5 porsi' }))
+    await act(async () => {
+      fireEvent.change(qtyInput, { target: { value: '34' } })
+      await Promise.resolve()
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /submit/i }))
+      await Promise.resolve()
+    })
+
+    await waitFor(() => expect(mockInsertKitchenLogBatch).toHaveBeenCalledTimes(1))
+    expect(mockInsertKitchenLogBatch.mock.calls[0][0]).toEqual([
+      expect.objectContaining({
+        wip_item_id: 'w1',
+        item_unit_id: 'u1-default',
+        qty_porsi: 17,
+        entry_quantity: 34,
+        entry_unit_factor: 0.5,
+      }),
+    ])
+    expect(document.querySelector('.kls-meta')?.textContent).toContain('34 × 0.5 porsi')
   })
 })
 

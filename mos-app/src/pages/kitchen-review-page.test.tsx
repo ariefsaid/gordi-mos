@@ -14,7 +14,7 @@
 // never by the derived label string).
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
+import { act, render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { createElement, type ReactNode } from 'react'
 import type { AuthState } from '@/auth/context'
@@ -29,6 +29,7 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
   return {
     ...actual,
     listSubmittedKitchenLogs: vi.fn(),
+    hasSubmittedKitchenProduction: vi.fn().mockResolvedValue(false),
     fetchPlanMap: vi.fn(),
     listStreamPairs: vi.fn(),
     approveKitchenLog: vi.fn(),
@@ -40,6 +41,7 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
 })
 import {
   listSubmittedKitchenLogs,
+  hasSubmittedKitchenProduction,
   fetchPlanMap,
   listStreamPairs,
   approveKitchenLog,
@@ -156,18 +158,21 @@ const PROD_LOG: ReviewLogRow = {
   branch_id: BRANCH_ID, activity: 'kitchen',
   wip_item_id: 'w1', wip_item_name: 'Nasi Goreng', qty_porsi: 8, notes: 'kurang bahan',
   status: 'Submitted', submitted_by: 'p1', business_unit_id: 'kb', created_at: '2026-06-20T09:12:00Z',
+  updated_at: '2026-06-20T09:12:00Z',
 }
 const XFER_LOG: ReviewLogRow = {
   id: 'log-xfer', log_date: '2026-06-20', action_type: 'Transfer to Radiant', action: 'transfer' as const, destination_branch_id: RADIANT_ID,
   branch_id: BRANCH_ID, activity: 'kitchen',
   wip_item_id: 'w2', wip_item_name: 'Cold Brew', qty_porsi: 42, notes: null,
   status: 'Submitted', submitted_by: 'p2', business_unit_id: 'kb', created_at: '2026-06-20T13:02:00Z',
+  updated_at: '2026-06-20T13:02:00Z',
 }
 const WASTE_LOG: ReviewLogRow = {
   id: 'log-waste', log_date: '2026-06-20', action_type: 'Waste', action: 'waste', destination_branch_id: null,
   branch_id: BRANCH_ID, activity: 'kitchen',
   wip_item_id: 'w3', wip_item_name: 'Ayam Bakar', qty_porsi: 2.5, notes: 'Dropped tray',
   status: 'Submitted', submitted_by: 'p1', business_unit_id: 'kb', created_at: '2026-06-20T09:12:00Z',
+  updated_at: '2026-06-20T09:12:00Z',
 }
 
 beforeEach(() => {
@@ -179,6 +184,7 @@ beforeEach(() => {
   resetCafeLocations()
   mockUseAuth.mockReturnValue(viewer(['ops_lead']))
   mockList.mockResolvedValue([])
+  vi.mocked(hasSubmittedKitchenProduction).mockResolvedValue(false)
   mockWastePhotos.mockResolvedValue([])
   mockPlan.mockResolvedValue({})
   // #236: the review page resolves the viewer's own stream (filter default, FR-041) and
@@ -230,6 +236,19 @@ describe('KitchenReviewPage — states', () => {
     mockList.mockReturnValue(new Promise(() => {})) // never resolves
     render(<KitchenReviewPage />, { wrapper })
     expect(screen.getByRole('status', { name: /loading/i })).toBeInTheDocument()
+  })
+
+  it('shows the captured multiple and canonical default-unit amount in review history', async () => {
+    mockList.mockResolvedValue([{
+      ...PROD_LOG,
+      qty_porsi: 1.5,
+      entry_quantity: 3,
+      entry_unit_factor: 0.5,
+      entry_unit_name: 'pack',
+    }])
+    mockPlan.mockResolvedValue({ w1: { produce: 1.5 } })
+    render(<KitchenReviewPage />, { wrapper })
+    expect(await screen.findByText('3 × 0.5 pack (1.5 pack)')).toBeInTheDocument()
   })
 
   it('empty: renders the shared awaiting EmptyState without a completion control', async () => {
@@ -407,7 +426,7 @@ describe('KitchenReviewPage — approve (FR-050, AC-090)', () => {
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Nasi Goreng')
     fireEvent.click(screen.getByRole('button', { name: /approve nasi goreng/i }))
-    await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-prod', null))
+    await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-prod', '2026-06-20T09:12:00Z', null))
     // confirmed batch id surfaced + row leaves the queue
     expect(await screen.findByText(/PR-20260620-003/)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /view pushes/i })).toHaveAttribute('href', '/cafe/pushes')
@@ -455,7 +474,7 @@ describe('KitchenReviewPage — approve (FR-050, AC-090)', () => {
     // #400 v4 copy: the confirm names the OBJECT ("Approve Cold Brew"), never a bare
     // "Confirm approve" — same matcher as the idle button because the gate replaces it.
     fireEvent.click(screen.getByRole('button', { name: /approve cold brew/i }))
-    await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-xfer', 'short on stock'))
+    await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-xfer', '2026-06-20T13:02:00Z', 'short on stock'))
   })
 
   // #783 AC-052 (DB half #778): the submitter's OWN note already accounts for the variance —
@@ -471,7 +490,7 @@ describe('KitchenReviewPage — approve (FR-050, AC-090)', () => {
     fireEvent.click(screen.getByRole('button', { name: /approve nasi goreng/i }))
     // no note gate — the submitter's own note already explains the variance
     expect(screen.queryByRole('textbox', { name: /approve note/i })).toBeNull()
-    await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-prod', null))
+    await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-prod', '2026-06-20T09:12:00Z', null))
   })
 
   // gpt-6-luna review (74d4ebf7): the DB requires `nullif(btrim(old.notes),'') is null` — a
@@ -491,7 +510,7 @@ describe('KitchenReviewPage — approve (FR-050, AC-090)', () => {
     const note = screen.getByRole('textbox', { name: /approve note for nasi goreng/i })
     fireEvent.change(note, { target: { value: 'short on stock' } })
     fireEvent.click(screen.getByRole('button', { name: /approve nasi goreng/i }))
-    await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-prod', 'short on stock'))
+    await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-prod', '2026-06-20T09:12:00Z', 'short on stock'))
   })
 })
 
@@ -563,18 +582,21 @@ const PROD_ONPLAN_A: ReviewLogRow = {
   branch_id: BRANCH_ID, activity: 'kitchen',
   wip_item_id: 'wA', wip_item_name: 'Ayam Bakar', qty_porsi: 20, notes: null,
   status: 'Submitted', submitted_by: 'p1', business_unit_id: 'kb', created_at: '2026-06-20T08:00:00Z',
+  updated_at: '2026-06-20T08:00:00Z',
 }
 const PROD_ONPLAN_B: ReviewLogRow = {
   id: 'log-b', log_date: '2026-06-20', action_type: 'Production', action: 'produce' as const, destination_branch_id: null,
   branch_id: BRANCH_ID, activity: 'kitchen',
   wip_item_id: 'wB', wip_item_name: 'Sambal', qty_porsi: 5, notes: null,
   status: 'Submitted', submitted_by: 'p2', business_unit_id: 'kb', created_at: '2026-06-20T08:05:00Z',
+  updated_at: '2026-06-20T08:05:00Z',
 }
 const PROD_OFFPLAN: ReviewLogRow = {
   id: 'log-c', log_date: '2026-06-20', action_type: 'Production', action: 'produce' as const, destination_branch_id: null,
   branch_id: BRANCH_ID, activity: 'kitchen',
   wip_item_id: 'wC', wip_item_name: 'Tahu', qty_porsi: 7, notes: null,
   status: 'Submitted', submitted_by: 'p1', business_unit_id: 'kb', created_at: '2026-06-20T08:10:00Z',
+  updated_at: '2026-06-20T08:10:00Z',
 }
 
 describe('KitchenReviewPage — bulk approve (FR-043, AC-042)', () => {
@@ -596,7 +618,7 @@ describe('KitchenReviewPage — bulk approve (FR-043, AC-042)', () => {
 
     // only the two on-plan rows use the grouped seam; the off-plan row is never handed to it
     await waitFor(() => expect(mockApproveBulk).toHaveBeenCalledTimes(1))
-    expect(mockApproveBulk).toHaveBeenCalledWith(['log-a', 'log-b'], null)
+    expect(mockApproveBulk).toHaveBeenCalledWith([PROD_ONPLAN_A, PROD_ONPLAN_B], null)
     expect(mockApprove).not.toHaveBeenCalled()
 
     // the on-plan rows leave the queue; the off-plan row stays, and its per-row Approve
@@ -646,8 +668,8 @@ describe('KitchenReviewPage — bulk approve (FR-043, AC-042)', () => {
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Noop')
     fireEvent.click(screen.getByRole('button', { name: /approve all on-plan \(2\)/i }))
-    await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-noop', null))
-    expect(mockApproveBulk).toHaveBeenCalledWith(['log-xfer'], null)
+    await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-noop', '2026-06-20T13:02:00Z', null))
+    expect(mockApproveBulk).toHaveBeenCalledWith([XFER_LOG], null)
   })
 
   it('bulk P0003 retries eligible rows individually and reports only stale rows', async () => {
@@ -662,9 +684,9 @@ describe('KitchenReviewPage — bulk approve (FR-043, AC-042)', () => {
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
     fireEvent.click(screen.getByRole('button', { name: /approve all on-plan \(3\)/i }))
-    await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-a', null))
-    expect(mockApprove).toHaveBeenCalledWith('log-b', null)
-    expect(mockApprove).toHaveBeenCalledWith('log-c', null)
+    await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-a', '2026-06-20T08:00:00Z', null))
+    expect(mockApprove).toHaveBeenCalledWith('log-b', '2026-06-20T08:05:00Z', null)
+    expect(mockApprove).toHaveBeenCalledWith('log-c', '2026-06-20T08:10:00Z', null)
     expect(await screen.findByText(/2 approved.*1 stale/i)).toBeInTheDocument()
   })
 
@@ -678,7 +700,7 @@ describe('KitchenReviewPage — bulk approve (FR-043, AC-042)', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /approve all on-plan \(2\)/i }))
 
-    await waitFor(() => expect(mockApproveBulk).toHaveBeenCalledWith(['log-a', 'log-b'], null))
+    await waitFor(() => expect(mockApproveBulk).toHaveBeenCalledWith([PROD_ONPLAN_A, PROD_ONPLAN_B], null))
     // The whole session stays visible on a group error.
     expect(screen.getByText('Ayam Bakar')).toBeInTheDocument()
     expect(screen.getByText('Sambal')).toBeInTheDocument()
@@ -710,6 +732,7 @@ const XFER_OTHER_STREAM: ReviewLogRow = {
   branch_id: RADIANT_ID, activity: 'bar',
   wip_item_id: 'w4', wip_item_name: 'Es Kopi', qty_porsi: 5, notes: null,
   status: 'Submitted', submitted_by: 'p2', business_unit_id: 'kb', created_at: '2026-06-20T10:00:00Z',
+  updated_at: '2026-06-20T10:00:00Z',
 }
 
 describe('KitchenReviewPage — the stream reads in the page head (#440)', () => {
@@ -1176,7 +1199,7 @@ describe('KitchenReviewPage — decision flow, locale id (#400)', () => {
     expect(note).toHaveAttribute('placeholder', 'Alasan jumlahnya berbeda dari rencana (wajib)')
     fireEvent.change(note, { target: { value: 'kurang bahan' } })
     fireEvent.click(screen.getByRole('button', { name: 'Konfirmasi setujui Nasi Goreng' }))
-    await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-prod', 'kurang bahan'))
+    await waitFor(() => expect(mockApprove).toHaveBeenCalledWith('log-prod', '2026-06-20T09:12:00Z', 'kurang bahan'))
     expect(await screen.findByText(/Disetujui · batch PR-20260620-010/)).toBeInTheDocument()
   })
 
@@ -1338,4 +1361,80 @@ describe('issue 222: a queued row whose item left its stream\'s list stays revie
     expect(card).toHaveTextContent('Nasi Goreng')
     expect(within(card).getByRole('button', { name: /approve/i })).toBeEnabled()
   })
+})
+
+
+describe('KitchenReviewPage — server paging', () => {
+  const page = (start: number, length: number) => Array.from({ length }, (_, offset) => ({
+    ...PROD_LOG, id: `paged-log-${start + offset}`, wip_item_name: `Paged item ${start + offset}`,
+  }))
+
+  it('appends first, next and last pages from the fetched boundaries', async () => {
+    const first = page(1, 50)
+    mockList.mockResolvedValueOnce(first).mockResolvedValueOnce(page(51, 50)).mockResolvedValueOnce(page(101, 1))
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Paged item 1')
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    await screen.findByText('Paged item 100')
+    expect(mockList).toHaveBeenLastCalledWith(expect.any(String), { before: expect.objectContaining({ id: 'paged-log-50' }) })
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    await screen.findByText('Paged item 101')
+    expect(screen.getByText('101 loaded · end of list')).toBeInTheDocument()
+    expect(screen.getAllByText('Paged item 1')).toHaveLength(1)
+    expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument()
+  })
+
+  it('keeps loaded rows on a next-page failure and retries the same cursor', async () => {
+    const first = page(1, 50)
+    mockList.mockResolvedValueOnce(first).mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce(page(51, 1))
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Paged item 1')
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    await screen.findByText(/couldn’t load more/i)
+    expect(screen.getByText('Paged item 1')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    await screen.findByText('Paged item 51')
+    expect(mockList.mock.calls[1]).toEqual(mockList.mock.calls[2])
+  })
+
+  it('keeps transfers gated when the pending production is outside the loaded window', async () => {
+    mockList.mockResolvedValue([XFER_LOG])
+    vi.mocked(hasSubmittedKitchenProduction).mockResolvedValue(true)
+    render(<KitchenReviewPage />, { wrapper })
+    await screen.findByText('Cold Brew')
+    expect(screen.getByText(/finish production approvals first/i)).toBeInTheDocument()
+    expect(vi.mocked(hasSubmittedKitchenProduction)).toHaveBeenCalledWith(expect.any(String), BRANCH_ID, 'kitchen')
+  })
+})
+
+
+it('Review paging keeps the fetched cursor after approving the boundary row', async () => {
+  const first = Array.from({ length: 50 }, (_, index) => ({ ...PROD_LOG, id: `boundary-${index}`, wip_item_name: `Boundary item ${index}`, qty_porsi: 8 }))
+  mockList.mockResolvedValueOnce(first).mockResolvedValueOnce([{ ...PROD_LOG, id: 'older-row', wip_item_name: 'Older item' }])
+  mockPlan.mockResolvedValue({ w1: { produce: 8 } })
+  mockApprove.mockResolvedValue({ batch_id: 'PR-example' })
+  render(<KitchenReviewPage />, { wrapper })
+  await screen.findByText('Boundary item 49')
+  expect(screen.getByRole('button', { name: /approve loaded on-plan/i })).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: /approve boundary item 49/i }))
+  await waitFor(() => expect(screen.queryByText('Boundary item 49')).not.toBeInTheDocument())
+  fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+  await screen.findByText('Older item')
+  expect(mockList).toHaveBeenLastCalledWith(expect.any(String), { before: expect.objectContaining({ id: 'boundary-49' }) })
+})
+
+it('Review stream changes discard a slow continuation and start the selected server window', async () => {
+  const first = Array.from({ length: 50 }, (_, index) => ({ ...PROD_LOG, id: `old-${index}`, wip_item_name: `Old item ${index}` }))
+  let resolveOlder!: (rows: ReviewLogRow[]) => void
+  mockList.mockResolvedValueOnce(first).mockImplementationOnce(() => new Promise(resolve => { resolveOlder = resolve })).mockResolvedValue([])
+  render(<KitchenReviewPage />, { wrapper })
+  await screen.findByText('Old item 1')
+  fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+  await waitFor(() => expect(mockList).toHaveBeenCalledTimes(2))
+  chooseStream('Radiant · Bar')
+  await screen.findByText(/nothing to review/i)
+  expect(mockList).toHaveBeenLastCalledWith(expect.any(String), { stream: { branchId: RADIANT_ID, activity: 'bar' } })
+  await act(async () => { resolveOlder([{ ...PROD_LOG, id: 'stale', wip_item_name: 'Stale continuation' }]) })
+  expect(screen.queryByText('Stale continuation')).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument()
 })

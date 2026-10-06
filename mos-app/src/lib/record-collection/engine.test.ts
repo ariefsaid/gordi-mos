@@ -540,3 +540,77 @@ describe('RecordCollection engine', () => {
     ).not.toThrow()
   })
 })
+
+describe('RecordCollection server continuation', () => {
+  it('allows one continuation at a time, preserves rows on failure and retries', async () => {
+    const descriptor = makeDescriptor()
+    let rejectMore!: (reason: Error) => void
+    const more = vi.fn(() => new Promise<CollectionData<FakeTask, { viewerId: string | null }>>((_, reject) => { rejectMore = reject }))
+    descriptor.loadMore = more
+    const controller = createRecordCollectionController(descriptor, INITIAL)
+    await flush()
+    const original = controller.state.data
+    const pending = controller.loadMore()
+    await controller.loadMore()
+    expect(more).toHaveBeenCalledTimes(1)
+    expect(controller.state.loadingMore).toBe(true)
+    rejectMore(new Error('offline'))
+    await pending
+    expect(controller.state.data).toBe(original)
+    expect(controller.state.status).toBe('ready')
+    expect(controller.state.loadingMore).toBe(false)
+    expect(controller.state.moreError).toBe('offline')
+    more.mockResolvedValueOnce({ records: [...ROWS, { ...ROWS[0], id: 'older' }], context: { viewerId: 'p-me' } })
+    await controller.loadMore()
+    expect(controller.state.data?.records).toHaveLength(3)
+    expect(controller.state.moreError).toBeNull()
+  })
+
+  it('drops a slow continuation after the query starts a fresh window', async () => {
+    const descriptor = makeDescriptor()
+    let resolveMore!: (data: CollectionData<FakeTask, { viewerId: string | null }>) => void
+    descriptor.loadMore = () => new Promise(resolve => { resolveMore = resolve })
+    const controller = createRecordCollectionController(descriptor, INITIAL)
+    await flush()
+    const pending = controller.loadMore()
+    controller.setQuery({ ...INITIAL.query, q: 'forecast' })
+    await flush()
+    resolveMore({ records: [{ ...ROWS[0], id: 'stale' }], context: { viewerId: 'p-me' } })
+    await pending
+    expect(controller.state.data?.records).toEqual(ROWS)
+    expect(controller.state.projection?.visibleRecords.map(row => row.id)).toEqual(['t-2'])
+    expect(controller.state.loadingMore).toBe(false)
+  })
+
+  it('blocks continuation while a server query refresh preserves the projection', async () => {
+    const descriptor = makeDescriptor()
+    let resolveRefresh!: (data: CollectionData<FakeTask, { viewerId: string | null }>) => void
+    descriptor.load = vi.fn(descriptor.load).mockImplementationOnce(descriptor.load)
+      .mockImplementationOnce(() => new Promise(resolve => { resolveRefresh = resolve }))
+    const more = vi.fn(async ({ data }: { data: CollectionData<FakeTask, { viewerId: string | null }> }) => data)
+    descriptor.loadMore = more
+    const controller = createRecordCollectionController(descriptor, INITIAL)
+    await flush()
+    controller.setQuery({ ...INITIAL.query, q: 'forecast' })
+    await controller.loadMore()
+    expect(more).not.toHaveBeenCalled()
+    expect(controller.state.loadingMore).toBe(true)
+    resolveRefresh({ records: [ROWS[1]], context: { viewerId: 'p-me' } })
+    await flush()
+    expect(controller.state.loadingMore).toBe(false)
+  })
+})
+
+
+it('uses filtered-empty for an empty server window only when the descriptor opts in', async () => {
+  const descriptor = makeDescriptor({ rows: [] })
+  descriptor.project = () => ({ visibleRecords: [], groups: [], totalRecords: 0, visibleRecordsAreFiltered: true })
+  const knownEmpty = createRecordCollectionController(descriptor, INITIAL)
+  await flush()
+  expect(knownEmpty.state.status).toBe('empty')
+  const project = descriptor.project
+  descriptor.project = (...args) => ({ ...project(...args), emptyIsFiltered: true })
+  const serverWindow = createRecordCollectionController(descriptor, INITIAL)
+  await flush()
+  expect(serverWindow.state.status).toBe('filtered-empty')
+})

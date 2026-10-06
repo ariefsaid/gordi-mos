@@ -70,9 +70,14 @@ begin
   end;
 end $f$;
 
-create function pg_temp.claims(p_org text, p_person text, p_roles text) returns text language sql as $f$
-  select format('{"org_id":"00000000-0000-0000-0000-0000000000%s","person_id":"00000000-0000-0000-0000-0000000000%s","access_roles":[%s]}',
-                p_org, p_person, p_roles)
+create function pg_temp.claims(p_org text, p_person text, p_roles text) returns text language plpgsql as $f$
+declare v_claims jsonb;
+begin
+  v_claims := format('{"org_id":"00000000-0000-0000-0000-0000000000%s","person_id":"00000000-0000-0000-0000-0000000000%s","access_roles":[%s]}',
+                     p_org, p_person, p_roles)::jsonb;
+  perform shared._test_set_access_roles(v_claims::text);
+  return v_claims::text;
+end
 $f$;
 
 create function pg_temp.personas() returns table (label text, org text, person text, roles text) language sql as $f$
@@ -98,7 +103,7 @@ set local role authenticated;
 -- ═════════════════════════════════════════════════════════════════════════════════════════════
 -- Reads
 -- ═════════════════════════════════════════════════════════════════════════════════════════════
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is((select array_agg(e ->> 'name' order by ord) from jsonb_array_elements(api_v1.list_objectives() -> 'items') with ordinality x(e, ord)),
   array['Unit-2 Quality','Unit-1 Growth','Company Focus','Unhomed | pipe'],
   'list_objectives returns the live Objectives, newest period first, whole year before its quarters');
@@ -153,7 +158,7 @@ select is(pg_temp.err($q$ select api_v1.list_objectives(q => repeat('a', 201)) $
 select is(pg_temp.err($q$ select api_v1.get_objective(null) $q$), 'PT400|invalid_input|id|id is required.', 'get_objective without an id is invalid_input');
 select is(pg_temp.err($q$ select api_v1.get_objective('00000000-0000-0000-0000-00000000dead') $q$),
   'PT404|not_found||Objective not found.', 'get_objective on a missing id is not_found');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}');
 select is(pg_temp.err($q$ select api_v1.get_objective('00000000-0000-0000-0000-0000000008a2') $q$),
   'PT404|not_found||Objective not found.', 'AC-008: another org''s Objective answers exactly like a missing one');
 select is((select array_agg(e ->> 'name') from jsonb_array_elements(api_v1.list_objectives() -> 'items') e),
@@ -163,7 +168,7 @@ select is((select array_agg(e ->> 'name') from jsonb_array_elements(api_v1.list_
 -- edit_objective_write_up
 -- ═════════════════════════════════════════════════════════════════════════════════════════════
 -- AC-016: the ops lead stores a valid array
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","ops_lead"]}');
 insert into ctx values ('w1', api_v1.edit_objective_write_up(
   id => '00000000-0000-0000-0000-0000000008a2',
   write_up => '[{"type":"heading","props":{"level":2}},{"type":"paragraph","text":"Updated"}]',
@@ -220,7 +225,7 @@ select is(pg_temp.err($q$ select api_v1.edit_objective_write_up('00000000-0000-0
   'PT404|not_found||Objective not found.', 'a missing Objective is not_found');
 
 -- Scope: the unit head reaches their own unit only; nobody reaches a Company-wide or unset Objective without org-wide authority
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d7","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d7","access_roles":["member"]}');
 select is(pg_temp.err($q$ select api_v1.edit_objective_write_up('00000000-0000-0000-0000-0000000008a2', '[{"type":"paragraph"}]', (select updated_at from mos.objectives where id = '00000000-0000-0000-0000-0000000008a2')) $q$),
   'no error', 'a unit head edits the write-up of an Objective in their unit');
 select is(pg_temp.err($q$ select api_v1.edit_objective_write_up('00000000-0000-0000-0000-0000000008a1', '[{"type":"paragraph"}]', (select updated_at from mos.objectives where id = '00000000-0000-0000-0000-0000000008a1')) $q$),
@@ -229,7 +234,7 @@ select is(pg_temp.err($q$ select api_v1.edit_objective_write_up('00000000-0000-0
   'PT403|forbidden||the objective write_up requires objective content authority', 'a unit head cannot edit a Company-wide Objective');
 select is(pg_temp.err($q$ select api_v1.edit_objective_write_up('00000000-0000-0000-0000-0000000008a4', '[{"type":"paragraph"}]', (select updated_at from mos.objectives where id = '00000000-0000-0000-0000-0000000008a4')) $q$),
   'PT403|forbidden||the objective write_up requires objective content authority', 'a unit head cannot edit an Objective with no unit');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is(pg_temp.err($q$ select api_v1.edit_objective_write_up('00000000-0000-0000-0000-0000000008a2', '[{"type":"paragraph"}]', (select updated_at from mos.objectives where id = '00000000-0000-0000-0000-0000000008a2')) $q$),
   'PT403|forbidden||the objective write_up requires objective content authority', 'AC-009: a member with no content authority is forbidden');
 select is(pg_temp.err($q$ select api_v1.edit_objective_write_up('00000000-0000-0000-0000-0000000008a2', (select write_up from mos.objectives where id = '00000000-0000-0000-0000-0000000008a2'), (select updated_at from mos.objectives where id = '00000000-0000-0000-0000-0000000008a2')) $q$),
@@ -254,7 +259,7 @@ select is(pg_temp.matrix(
 -- set_key_result_current_value
 -- ═════════════════════════════════════════════════════════════════════════════════════════════
 -- AC-017: the unit head moves a key result inside their unit
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d7","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d7","access_roles":["member"]}');
 insert into ctx values ('k1', api_v1.set_key_result_current_value(
   key_result_id => '00000000-0000-0000-0000-0000000008c1', current_value => 45.5)::text);
 select is((select v::jsonb -> 'item' ->> 'current_value' from ctx where k = 'k1'), '45.5', 'AC-017: a unit head sets the current value of a key result in their unit');
@@ -271,7 +276,7 @@ select is(pg_temp.err($q$ select api_v1.set_key_result_current_value('00000000-0
   'PT403|forbidden||a key result current_value requires objective content authority', 'a unit head is forbidden on a Company-wide Objective');
 
 -- clearing, bounds, conflict
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","ops_lead"]}');
 select is(api_v1.set_key_result_current_value('00000000-0000-0000-0000-0000000008c1', null) -> 'item' -> 'current_value', 'null'::jsonb, 'a null current value clears it');
 select is((select current_value from mos.objective_key_results where id = '00000000-0000-0000-0000-0000000008c1'), null, 'the cleared value is stored');
 select is(pg_temp.err($q$ select api_v1.set_key_result_current_value('00000000-0000-0000-0000-0000000008c4', 7) $q$), 'no error', 'an ops lead sets a key result on a Company-wide Objective');
@@ -289,10 +294,10 @@ select is(pg_temp.err($q$ select api_v1.set_key_result_current_value('00000000-0
   'PT404|not_found||Key result not found.', 'a missing key result is not_found');
 
 -- member, other org
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is(pg_temp.err($q$ select api_v1.set_key_result_current_value('00000000-0000-0000-0000-0000000008c1', 1) $q$),
   'PT403|forbidden||a key result current_value requires objective content authority', 'AC-009: a member with no content authority is forbidden');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}');
 select is(pg_temp.err($q$ select api_v1.set_key_result_current_value('00000000-0000-0000-0000-0000000008c1', 1) $q$),
   'PT404|not_found||Key result not found.', 'another org''s key result answers exactly like a missing one');
 
@@ -313,7 +318,7 @@ select is(pg_temp.matrix(
 -- ═════════════════════════════════════════════════════════════════════════════════════════════
 -- AC-017: every other Objective or key-result change is refused
 -- ═════════════════════════════════════════════════════════════════════════════════════════════
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select is(pg_temp.err($q$ select api_v1.refused_action('change_target', 'key_result', '00000000-0000-0000-0000-0000000008c1') $q$),
   'PT403|refused.targets||Objective settings and key-result targets can''t be changed through the API or an agent. Do this in MOS.',
   'AC-017: a target change is refused.targets, for an admin too');
@@ -340,7 +345,7 @@ select is((select array_agg(p.proname::text order by p.proname) from pg_proc p
 -- ═════════════════════════════════════════════════════════════════════════════════════════════
 -- Key-result value bounds (#1063): finite, smaller than 1e15 in size, at most 6 decimal places
 -- ═════════════════════════════════════════════════════════════════════════════════════════════
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","ops_lead"]}');
 select is(pg_temp.err($q$ select api_v1.set_key_result_current_value('00000000-0000-0000-0000-0000000008c1', 1000000000000000) $q$),
   'PT400|invalid_input|current_value|current_value must be smaller than 1000000000000000 in size and have at most 6 decimal places.',
   'a value of 1e15 in size is invalid_input');
@@ -358,7 +363,7 @@ select throws_ok($q$ update mos.objective_key_results set current_value = 0.0000
   '23514', null, 'the table refuses a current_value with 7 decimal places');
 select throws_ok($q$ update mos.objective_key_results set current_value = 'NaN' where id = '00000000-0000-0000-0000-0000000008c1' $q$,
   '23514', null, 'the table refuses a current_value that is not a number');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select throws_ok($q$ update mos.objective_key_results set target_value = 1000000000000000 where id = '00000000-0000-0000-0000-0000000008c1' $q$,
   '23514', null, 'the table refuses a target_value of 1e15 in size, for an admin too');
 select throws_ok($q$ insert into mos.objective_key_results (objective_id, what, target_value)

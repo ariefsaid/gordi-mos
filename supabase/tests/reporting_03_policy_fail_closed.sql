@@ -39,29 +39,29 @@ set local role authenticated;
 
 -- ══ sales_daily_revenue_select ══════════════════════════════════════════════════════════════
 -- POSITIVE first, so every zero below is measured against a table that is demonstrably readable.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance","member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance","member"]}');
 select is((select count(*)::int from reporting.sales_daily_revenue), 2,
   'finance reads both revenue rows — the control the negatives below are measured against');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select is((select count(*)::int from reporting.sales_daily_revenue), 0,
   'sales_daily_revenue_select: a plain member reads zero revenue rows');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["ops_lead","member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["ops_lead","member"]}');
 select is((select count(*)::int from reporting.sales_daily_revenue), 0,
   'sales_daily_revenue_select: ops_lead is an operational role, not a financial one — zero revenue rows');
 
 -- ══ sales_margin_daily_select ═══════════════════════════════════════════════════════════════
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance"]}');
 select is((select count(*)::int from reporting.sales_margin_daily), 1,
   'finance reads the margin row — the control for the margin negatives');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["manager"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["manager"]}');
 select is((select count(*)::int from reporting.sales_margin_daily), 1,
   'and so does manager — the two money arms are checked on every table, because a policy that admits only one of them is a plausible-looking mistake');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select is((select count(*)::int from reporting.sales_margin_daily), 0,
   'sales_margin_daily_select: admin reads zero margin rows — the users-and-settings role is not a money tier (#797)');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","ops_lead"]}');
 select is((select count(*)::int from reporting.sales_margin_daily), 0,
   'sales_margin_daily_select: member and ops_lead read zero margin rows');
 
@@ -70,32 +70,32 @@ select is((select count(*)::int from reporting.sales_margin_daily), 0,
 -- and margin is where it meets COGS — as an already-aggregated figure. It was never granted the
 -- underlying cost and recipe reference data, and the two policies here are narrower than the two
 -- above precisely because of that. A manager reading these rows would be a silent widening.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance"]}');
 select is((select count(*)::int from reporting.ingredient_cost_lines), 1,
   'finance reads the ingredient cost line — the control for the reference-data negatives');
 select is((select count(*)::int from reporting.bom_lines), 1,
   'finance reads the recipe line');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select is((select count(*)::int from reporting.ingredient_cost_lines), 1,
   'and admin reads the cost line too');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["manager"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["manager"]}');
 select is((select count(*)::int from reporting.ingredient_cost_lines), 0,
   'ingredient_cost_lines_select: a manager reads ZERO cost lines — the tier gets aggregated margin, never the underlying unit costs');
 select is((select count(*)::int from reporting.bom_lines), 0,
   'bom_lines_select: a manager reads zero recipe lines for the same reason');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select is((select count(*)::int from reporting.ingredient_cost_lines)
         + (select count(*)::int from reporting.bom_lines), 0,
   'and a plain member reads neither');
 
 -- ══ supervisor_revenue_scope_select ═════════════════════════════════════════════════════════
 -- Who holds financial visibility is itself sensitive: the grant list is a map of whom to target.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select is((select count(*)::int from reporting.supervisor_revenue_scope), 1,
   'admin reads the grant list — the control for the scope negatives');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","finance"]}');
 select is((select count(*)::int from reporting.supervisor_revenue_scope), 0,
   'supervisor_revenue_scope_select: a non-admin who is named on no grant reads zero — even holding finance, because the self-read arm is by person, not by role');
 
@@ -106,7 +106,7 @@ select throws_ok($$
 $$, '42501', null,
   'supervisor_revenue_scope_insert_admin: a finance user cannot grant revenue scope — granting visibility is admin-only, and finance is not admin');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["supervisor"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["supervisor"]}');
 select lives_ok($$
   delete from reporting.supervisor_revenue_scope
    where person_id = '00000000-0000-0000-0000-0000000000d5'
@@ -138,7 +138,7 @@ select is(
   0, 'no policy in the schema names `anon` — an unauthenticated caller is refused before RLS is even consulted');
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance","admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["finance","admin"]}');
 select throws_ok($$
   insert into reporting.sales_daily_revenue (org_id, revenue_date, channel, esb_code, branch_code, transactions, clean_revenue, snapshot_as_of)
   values ('00000000-0000-0000-0000-0000000000a1','2026-07-09','POS','GKI','RRS',1,1.00,now())

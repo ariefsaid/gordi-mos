@@ -135,6 +135,8 @@ export interface CaptureFormItem extends WipItemOption {
   /** The ERP product family used to label RAW/WIP rows on Café capture lists. */
   kind?: 'RAW' | 'WIP'
   units: ItemUnitOption[]
+  /** Stream manager-defined factors relative to the sole default ERP unit. */
+  unit_multiples?: number[]
 }
 
 // ── ops.kitchen_plans (plan qty per date/item/action) ────────────────────────
@@ -176,6 +178,10 @@ export interface ActualUnitTotal {
   /** Resolved from ops.item_units by the recorded ID; null means the label is unknown. */
   unit_name: string | null
   qty_porsi: number
+  /** Original amount and unit snapshot for per-log history; null on legacy rows. */
+  entry_quantity?: number | null
+  entry_unit_factor?: number | null
+  entry_unit_name?: string | null
 }
 
 // Today's already-logged actuals, keyed by item and movement. Known units can be summed only
@@ -234,6 +240,9 @@ export interface CreateKitchenLogInput {
    */
   item_unit_id?: string | null
   qty_porsi: number // > 0 (client + DB CHECK)
+  /** Amount and factor as entered; the trigger owns the unit-name snapshot and canonical qty. */
+  entry_quantity?: number | null
+  entry_unit_factor?: number | null
   notes?: string | null
 }
 
@@ -249,6 +258,9 @@ export interface KitchenLogRow {
   destination_branch_id: string | null
   wip_item_id: string
   qty_porsi: number
+  entry_quantity?: number | null
+  entry_unit_factor?: number | null
+  entry_unit_name?: string | null
   notes: string | null
   status: KitchenLogRecordStatus
   submitted_by: string | null
@@ -296,12 +308,16 @@ export interface ReviewLogRow {
   /** WIP item display name (embedded from ops.wip_items). */
   wip_item_name: string
   qty_porsi: number
+  entry_quantity?: number | null
+  entry_unit_factor?: number | null
+  entry_unit_name?: string | null
   notes: string | null
   status: KitchenLogStatus
   /** submitter person id (display name resolved client-side via directory). */
   submitted_by: string | null
   business_unit_id: string
   created_at: string
+  updated_at: string
 }
 
 /** A null batch id is the explicit held-ERP result for approved waste. */
@@ -370,6 +386,12 @@ export interface KitchenLogLine {
    * offered-unit list is somehow empty (never for view-sourced items).
    */
   item_unit_id: string | null
+  /** Qty typed in entry_unit_name; null on the default-unit path before the first edit. */
+  entry_quantity?: number
+  /** 1 for the default unit, otherwise a validated manager-defined multiple. */
+  entry_unit_factor?: number
+  /** Unit-name snapshot for existing-log summaries. */
+  entry_unit_name?: string | null
   qty_porsi: number
   notes: string
   /** plan qty for the current action_type (0 if no plan row) */

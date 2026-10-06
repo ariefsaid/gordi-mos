@@ -391,6 +391,10 @@ select throws_ok(
 -- org-wide read, scoped write).
 -- (ops_12 proves the member arms of the kitchen-log policy are byte-identical to the baseline;
 -- ops_14 proves the completeness policies refuse every unauthorised writer.)
+-- #1260 (owner ruling): Café item settings are edited by activity — a kitchen manager edits every
+-- kitchen item, a bar manager every bar item, ops lead/admin all. The item's activity is matched to
+-- the caller's ROLE scope through ops.can_manage_cafe_item_settings(activity), never to the caller's
+-- own stream, so it is a manager scope like the reviewer arms, not a member wall.
 reset role;
 select set_eq($$
   select schemaname || '.' || tablename || ' :: ' || policyname from pg_policies
@@ -400,17 +404,22 @@ select set_eq($$
     ('ops.kitchen_plans :: kitchen_plans_insert_ops_lead_or_admin'),
     ('ops.kitchen_plans :: kitchen_plans_update_ops_lead_or_admin'),
     ('ops.stream_completeness :: stream_completeness_insert_stream_lead'),
-    ('ops.stream_completeness :: stream_completeness_update_stream_lead')
+    ('ops.stream_completeness :: stream_completeness_update_stream_lead'),
+    ('ops.cafe_item_settings :: cafe_item_settings_insert_manager'),
+    ('ops.cafe_item_settings :: cafe_item_settings_update_manager'),
+    ('ops.cafe_item_setting_units :: cafe_item_setting_units_insert_manager'),
+    ('ops.cafe_missing_item_reports :: cafe_missing_item_reports_select_managers'),
+    ('ops.cafe_missing_item_reports :: cafe_missing_item_reports_resolve_managers')
   $$,
-  'OD-WAY-49: the only policies referencing a stream column are the #236 kitchen-log reviewer arm and the #238 completeness write arms — the stream is a capture default, never a member authorization dimension');
+  'OD-WAY-49: the only policies referencing a stream column are the #236 kitchen-log reviewer arm, the #238 completeness write arms and the #1260 Café item-settings manager arms — the stream is a capture default, never a member authorization dimension');
 
 select is(
   (select coalesce(array_agg(schemaname || '.' || policyname order by policyname), '{}')
      from pg_policies
     where coalesce(qual,'') || ' ' || coalesce(with_check,'') ~* '(branch_id|\mactivity\M)'
-      and coalesce(qual,'') || ' ' || coalesce(with_check,'') !~* '(is_stream_reviewer|can_review_stream)'),
+      and coalesce(qual,'') || ' ' || coalesce(with_check,'') !~* '(is_stream_reviewer|can_review_stream|can_manage_cafe_item_settings)'),
   '{}'::text[],
-  'OD-WAY-49: ...and every one of them reaches the stream through the REVIEWER predicate — no policy compares a stream column to the caller''s own, which is what a member wall would look like');
+  'OD-WAY-49: ...and every one of them reaches the stream through the REVIEWER or Café item-settings MANAGER-SCOPE predicate — no policy compares a stream column to the caller''s own, which is what a member wall would look like');
 
 -- The two substrate tables' whole policy surface, enumerated. It was SELECT-only when this slice
 -- landed; the two admin-write policies joined it on 2026-08-26 (20260826000001) so the admin screen

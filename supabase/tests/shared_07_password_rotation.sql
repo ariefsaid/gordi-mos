@@ -14,7 +14,7 @@ select shared._test_seed_access_roles();
 
 set local role authenticated;
 -- Act as Peer (...0d04): an ordinary org-A member holding no access role.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":[]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":[]}');
 
 -- Preconditions, so the "denied" assertions below cannot pass on an empty fixture.
 select cmp_ok((select count(*) from shared.people), '>', 1::bigint,
@@ -28,7 +28,7 @@ update shared.people set must_change_password = true
  where id = '00000000-0000-0000-0000-0000000000d4';
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":[]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":[]}');
 
 select is(shared.current_org_id(), null,
   'current_org_id() is the seam: it returns NULL while flagged, so every policy scoped by it is false at once');
@@ -56,7 +56,7 @@ select is(
 -- An admin session cannot lower it by writing the column. This is the arm that matters: the org
 -- admin write surface would otherwise let admin B — whose password admin A chose and knows — clear
 -- their own flag and skip the rotation entirely.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 select throws_ok($$
   update shared.people set must_change_password = false
    where id = '00000000-0000-0000-0000-0000000000d4'
@@ -140,7 +140,7 @@ select is(
 -- somebody whose org seam is shut; without it the caller reaches the orphan screen with sign-out as
 -- the only action and no way to ever clear the flag.
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","sub":"00000000-0000-0000-0000-00000000aa01","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","sub":"00000000-0000-0000-0000-00000000aa01","access_roles":["member"]}');
 select is(shared.current_org_id(), null,
   'precondition: the flagged caller''s org seam is shut, so the assertion below is about a genuinely closed session');
 select is(
@@ -158,7 +158,7 @@ reset role;
 update shared.people set must_change_password = false
  where id = '00000000-0000-0000-0000-0000000000d1';
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","sub":"00000000-0000-0000-0000-00000000aa01","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","sub":"00000000-0000-0000-0000-00000000aa01","access_roles":["member"]}');
 select is(shared.current_org_id(), '00000000-0000-0000-0000-0000000000a1'::uuid,
   'clearing the flag reopens the SAME claim set — so the closure above was the rotation gate, and an ordinary signed-in session satisfies every directory condition the seam applies');
 reset role;

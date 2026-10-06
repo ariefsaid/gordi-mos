@@ -162,6 +162,22 @@ describe('AdminTeamsPage', () => {
     await waitFor(() => expect(screen.getByRole('combobox', { name: 'Lead for Gordi HQ Bar' })).toBeEnabled())
   })
 
+  it('fans out the per-Team candidate reads before the stream labels resolve (#1359)', async () => {
+    let resolveTeams: (v: never) => void = () => {}
+    vi.mocked(listTeams).mockImplementation(
+      () => new Promise((resolve) => { resolveTeams = resolve as never }),
+    )
+    renderPage()
+    // The candidate reads are issued from the assignments alone — before the labels settle.
+    await waitFor(() => expect(mockCandidates).toHaveBeenCalledWith('team-1'))
+    expect(mockCandidates).toHaveBeenCalledWith('team-2')
+    // Labels are still pending here, but the candidates never waited on them.
+    expect(mockCandidates).toHaveBeenCalledTimes(2)
+    // Once the labels resolve the page renders fully with the stream label.
+    resolveTeams([{ id: 'team-1', name: 'Gordi HQ Bar', branch_name: 'Gordi HQ', activity: 'bar' }] as never)
+    expect(await screen.findByText('Gordi HQ · Bar')).toBeInTheDocument()
+  })
+
   it('reads in Indonesian', async () => {
     renderPage('id')
     expect(await screen.findByRole('heading', { level: 1, name: 'Tim' })).toBeInTheDocument()

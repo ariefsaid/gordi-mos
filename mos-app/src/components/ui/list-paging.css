@@ -1,0 +1,13 @@
+.list-paging {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding-block: 16px;
+}
+
+.list-paging p {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-body);
+}

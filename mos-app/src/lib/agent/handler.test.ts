@@ -235,12 +235,15 @@ describe('agentChatHandler — propose branch (confirm:true action)', () => {
       insert: (row: Record<string, unknown>) => ({ select: () => ({ single: async () => insertSpy({ __table: table, ...row }) }) }),
       update: () => ({ eq: async () => ({ data: null, error: null }) }),
     })
+    const createPendingAction = vi.fn(async () => true)
     const deps = makeDeps({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       supabase: { from: tableOps, schema: () => ({ from: tableOps }) } as any,
+      pendingActions: { create: createPendingAction, consume: async () => null },
       modelResponses: [
         toolCallResponse('create_task', {
           title: 'Ship it', businessUnitId: 'bu-1', responsiblePersonId: 'p-r', accountablePersonId: 'p-a',
+          dueDate: '2026-10-08', objectiveId: 'objective-1', workLineId: 'line-1', description: 'Include the chart',
         }),
       ],
     })
@@ -248,10 +251,34 @@ describe('agentChatHandler — propose branch (confirm:true action)', () => {
     const last = events.at(-1)
     expect(last?.type).toBe('status')
     expect((last?.payload as { status?: string })?.status).toBe('needs-approval')
-    expect((last?.payload as { humanSummary?: string })?.humanSummary).toContain('Ship it')
-    expect((last?.payload as { pendingId?: string })?.pendingId).toBeTruthy()
+    const payload = last?.payload as { humanSummary?: string; pendingId?: string }
+    expect(payload.humanSummary).toContain('Ship it')
+    for (const fieldValue of ['bu-1', 'p-r', 'p-a', '2026-10-08', 'objective-1', 'line-1', 'Include the chart']) {
+      expect(payload.humanSummary).toContain(fieldValue)
+    }
+    expect(payload.pendingId).toBeTruthy()
+    expect(createPendingAction).toHaveBeenCalledWith(expect.objectContaining({
+      id: payload.pendingId,
+      actionName: 'create_task',
+      args: expect.objectContaining({ title: 'Ship it', dueDate: '2026-10-08', description: 'Include the chart' }),
+      toolCallId: 'call-1',
+      personId: 'person-1',
+      orgId: 'org-1',
+    }))
     expect((last?.payload as { structuredArgs?: object })?.structuredArgs).toMatchObject({ title: 'Ship it' })
     expect(insertSpy).not.toHaveBeenCalled()
+  })
+
+  it('does not publish an approval if the pending action cannot be stored', async () => {
+    const deps = makeDeps({
+      pendingActions: { create: vi.fn(async () => false), consume: async () => null },
+      modelResponses: [toolCallResponse('create_task', {
+        title: 'Ship it', businessUnitId: 'bu-1', responsiblePersonId: 'p-r', accountablePersonId: 'p-a',
+      })],
+    })
+    const events = await collect({ messages: [{ role: 'user', content: 'create a task' }] }, deps)
+    expect(events.some((event) => (event.payload as { status?: string } | undefined)?.status === 'needs-approval')).toBe(false)
+    expect(events.at(-1)?.payload).toMatchObject({ status: 'error', error: 'APPROVAL_STORAGE_UNAVAILABLE' })
   })
 })
 

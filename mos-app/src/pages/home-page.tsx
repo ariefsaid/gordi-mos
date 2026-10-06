@@ -20,7 +20,7 @@
 // rows. HomePage owns the ONE Signals read, as it owns every other read on this page — the
 // section is presentational (FR-V3-013: no second Signal loader).
 //
-// Home passes EVERY readable Signal, not only the FYI tail v4 passed. v4 split them because its
+// Home pages readable Signals at every attention tier, including the FYI tail v4 passed. v4 split them because its
 // attention-worthy Signals led the ranked stream as their own band; this line's region model has
 // three regions and none of them is Signals, so filtering to FYI here would drop Urgent and
 // Needs-attention Signals off Home altogether. `orderSignalsForFeed` (inside the rows) already
@@ -76,6 +76,7 @@ const MY_WORK_CAP = 7
 
 const NO_NAMES: ReadonlyMap<string, string> = new Map()
 const NO_TASKS: TaskListRow[] = []
+const NO_SIGNALS: SignalRow[] = []
 const NO_DIRECTORY: AttentionDirectory = {}
 const NO_ORG_ROLES: RoleScopeRow[] = []
 
@@ -235,36 +236,33 @@ export function HomePage() {
   // so a stale response from a superseded viewer can never win. Team names ride along in the SAME
   // load: they decorate the rows the load returns, so splitting them into a second effect would let
   // rows paint with a name the page could still fail to fetch.
-  const [signals, setSignals] = useState<SignalRow[]>([])
+  const [signalSnapshot, setSignalSnapshot] = useState<{
+    owner: ReadLease; rows: SignalRow[]; state: FetchState
+  }>(() => ({ owner: readLease, rows: NO_SIGNALS, state: 'loading' }))
+  const signals = signalSnapshot.owner === readLease ? signalSnapshot.rows : NO_SIGNALS
+  const signalsState = signalSnapshot.owner === readLease ? signalSnapshot.state : 'loading'
   const [teamNames, setTeamNames] = useState<ReadonlyMap<string, string>>(NO_NAMES)
-  const [signalsState, setSignalsState] = useState<FetchState>('loading')
-  const signalsInFlightRef = useRef(false)
   const signalsTokenRef = useRef(0)
 
   const loadSignals = useCallback(() => {
-    if (!personId || signalsInFlightRef.current) return
-    signalsInFlightRef.current = true
+    const ownsCurrentRead = () => readOwnerRef.current?.lease === readLease
+    if (!personId || !ownsCurrentRead()) return
     const token = ++signalsTokenRef.current
-    setSignalsState('loading')
+    setSignalSnapshot({ owner: readLease, rows: NO_SIGNALS, state: 'loading' })
     Promise.all([listReadableSignals(), listAllTeams()])
       .then(([rows, teams]) => {
-        if (!isMountedRef.current || signalsTokenRef.current !== token) return
-        setSignals(rows)
+        if (!isMountedRef.current || signalsTokenRef.current !== token || !ownsCurrentRead()) return
+        setSignalSnapshot({ owner: readLease, state: 'ready', rows })
         setTeamNames(new Map(teams.map(team => [team.id, team.name])))
-        setSignalsState('ready')
       })
       .catch(() => {
-        if (!isMountedRef.current || signalsTokenRef.current !== token) return
-        setSignalsState('error')
+        if (!isMountedRef.current || signalsTokenRef.current !== token || !ownsCurrentRead()) return
+        setSignalSnapshot({ owner: readLease, rows: NO_SIGNALS, state: 'error' })
       })
-      .finally(() => {
-        if (signalsTokenRef.current === token) signalsInFlightRef.current = false
-      })
-  }, [personId])
+  }, [personId, readLease])
 
   useEffect(() => {
     signalsTokenRef.current += 1
-    signalsInFlightRef.current = false
     loadSignals()
   }, [loadSignals])
 

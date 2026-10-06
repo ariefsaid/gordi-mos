@@ -33,7 +33,7 @@ insert into mos.certified_metrics (org_id, key, name, meaning, unit, grain, cert
 set local role authenticated;
 
 -- ── The certified-metric registry: read by finance/admin, written by nobody ──────────────────
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}');
 select is((select count(*)::int from mos.certified_metrics), 2,
   'finance reads the certified-metric definitions');
 select is((select certified from mos.certified_metrics where key = 'margin.gross_pct'), false,
@@ -44,7 +44,7 @@ select throws_ok($$
 $$, '42501', null,
   'even finance cannot add a metric definition at runtime — the registry is migration-owned, exactly like the capability vocabulary');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select is((select count(*)::int from mos.certified_metrics), 0,
   'a plain member reads no metric definitions — the fail-loud badge renders on the finance-gated surfaces');
 
@@ -55,7 +55,7 @@ select throws_ok($$
 $$, '42501', null,
   'capture_budget requires can(''cogs.write'') — a plain member cannot capture a budget');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}');
 select throws_ok($$
   select mos.capture_budget('SKU-1','Latte','baseline','baseline',
     '00000000-0000-0000-0000-0000000000b2', now())
@@ -73,7 +73,7 @@ select ok(not has_table_privilege('authenticated','mos.budgets','INSERT')
 -- ── The AR bridge: lane gates ────────────────────────────────────────────────────────────────
 -- SalesChaser holds a role in the BU whose code IS the b2b_sales lane. That is the whole mechanism:
 -- the lane is matched against a business-unit code, not against an access role.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-000000000d10","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-000000000d10","access_roles":["member"]}');
 select is((select count(*)::int from mos.follow_ups), 1,
   'a lane chaser reads only their OWN lane''s follow-ups');
 select is((select count(*)::int from mos.follow_ups where lane = 'retail_ops'), 0,
@@ -136,7 +136,7 @@ select throws_ok($$
   select mos.transition_follow_up('00000000-0000-0000-0000-000000000e01','confirm','{}'::jsonb)
 $$, '42501', null, 'the chaser cannot CONFIRM their own settlement');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}');
 select is(
   (select state from mos.transition_follow_up('00000000-0000-0000-0000-000000000e01','confirm','{}'::jsonb)),
   'confirmed', 'finance can confirm a settled follow-up');

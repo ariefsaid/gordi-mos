@@ -829,7 +829,7 @@ describe('DIV-G5: shared task loading/error states never become an empty all-cle
       await Promise.resolve()
       await Promise.resolve()
     })
-    await waitFor(() => expect(screen.queryAllByRole('status')).toHaveLength(0))
+    await waitFor(() => expect(screen.queryAllByRole('status').filter(node => !node.closest('.list-paging'))).toHaveLength(0))
   })
 })
 
@@ -990,4 +990,40 @@ describe('R5 independent Home regions', () => {
     expect(mockLoadHomeCafeDoor).toHaveBeenCalledTimes(2)
     expect(mockListTasks).toHaveBeenCalledTimes(taskReads)
   })
+})
+
+
+describe('Home Signals — ambient archive door', () => {
+  it('keeps the archive door as the only continuation and does not load another page', async () => {
+    const first = Array.from({ length: 50 }, (_, index) => signalRow({ id: `paged-${index}`, body: `Home signal ${index}` }))
+    mockListSignals.mockResolvedValueOnce(first)
+    await renderHome()
+    await screen.findByText('Home signal 0')
+
+    const signals = screen.getByRole('region', { name: 'Signals · 6' })
+    const archiveDoor = within(signals).getByRole('link', { name: 'See 44 more →' })
+    expect(archiveDoor).toHaveAttribute('href', '/work/signals')
+    expect(within(signals).queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument()
+    expect(mockListSignals).toHaveBeenCalledTimes(1)
+  })
+})
+
+it('Home discards a slow Signals read when the same person changes read scope', async () => {
+  if (financeViewer.status !== 'authenticated') throw new Error('authenticated fixture required')
+  const scope = (generation: number): ReadScope => ({ generation, authUserId: 'test-auth', viewerId: financeViewer.viewer.person.id, orgId: `scope-${generation}`, authorityKey: 'member' })
+  const firstScope = scope(901)
+  const nextScope = scope(902)
+  const authForScope = (readScope: ReadScope): AuthState => ({ ...financeViewer, readScope })
+  let resolveOldRead!: (rows: SignalRow[]) => void
+  mockListSignals.mockImplementationOnce(() => new Promise(resolve => { resolveOldRead = resolve }))
+    .mockResolvedValueOnce([signalRow({ id: 'new-scope-signal', body: 'New scope signal' })])
+  publishReadScope(firstScope)
+  const mounted = await renderHome(authForScope(firstScope))
+  publishReadScope(nextScope)
+  mockUseAuth.mockReturnValue(authForScope(nextScope))
+  mounted.rerender(createElement(HomePage))
+  await screen.findByText('New scope signal')
+  await act(async () => { resolveOldRead([signalRow({ id: 'stale', body: 'Stale Home signal' })]) })
+  expect(screen.queryByText('Stale Home signal')).not.toBeInTheDocument()
+  expect(screen.getByText('New scope signal')).toBeInTheDocument()
 })

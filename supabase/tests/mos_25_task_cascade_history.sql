@@ -149,7 +149,7 @@ select is((select count(*)::int from shared.record_history
 -- step-definition edit rides the org admin's workline.manage (the authority matrix owns that gate
 -- — a plain member is not admitted, by design).
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 update mos.tasks set title = 'Admin Renamed'
  where id = '00000000-0000-0000-0000-000000009916';
 
@@ -178,7 +178,7 @@ select is((select actor_person_id::text from shared.record_history
 select is((select count(*)::int from shared.record_history
            where record_key = '00000000-0000-0000-0000-000000009917'),
   3, 'an authorized reader sees the checklist item''s whole history (insert + toggle + flip)');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin"]}');
 update mos.process_task_defs set title = 'History step v2'
  where id = '00000000-0000-0000-0000-000000009913';
 
@@ -188,7 +188,7 @@ select is((select actor_person_id::text from shared.record_history
   'an authenticated step-definition edit stamps its own session''s person claim as actor');
 
 -- ── AC-007: a reader of the records reads their history; another org reads none of it ─────────
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is((select count(*)::int from shared.record_history
            where schema_name = 'mos' and table_name = 'tasks'
              and record_key = '00000000-0000-0000-0000-000000009916'),
@@ -217,7 +217,7 @@ select is((select count(*)::int from shared.record_history
            where record_key = '00000000-0000-0000-0000-000000009918'),
   0, 'an org-A member cannot read the org-B Task''s history');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}');
 -- Scoped to the six task-cascade tables: later batches (#989) wire the shared directory, whose
 -- org-B history an org-B member legitimately reads — the wall asserted here is around org A's tasks.
 select is((select count(*)::int from shared.record_history

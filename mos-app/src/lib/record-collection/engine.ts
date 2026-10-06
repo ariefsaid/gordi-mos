@@ -78,6 +78,7 @@ export interface RecordCollectionController<
   openRecord(record: TRecord, source?: CollectionOpenSource<TQuery, TPresentation>): void
   runBulkAction(action: TAction): Promise<void>
   retry(): void
+  loadMore(): Promise<void>
   loadSavedViews(): Promise<void>
   saveCurrentView(
     name: string,
@@ -109,7 +110,7 @@ function deriveStatus<TAction extends string>(
   if (access.mode === 'forbidden') return 'permission'
   if (!projection) return 'loading'
   const base: CollectionStatus =
-    projection.totalRecords === 0
+    projection.totalRecords === 0 && !projection.emptyIsFiltered
       ? 'empty'
       : projection.visibleRecords.length === 0 && projection.visibleRecordsAreFiltered
         ? 'filtered-empty'
@@ -156,6 +157,8 @@ export function createRecordCollectionController<
     collapsedGroupIds: new Set<string>(),
     queryIssues: [],
     error: null,
+    loadingMore: false,
+    moreError: null,
     access,
     savedViews: { items: [], operation: 'idle', error: null },
   }
@@ -191,6 +194,8 @@ export function createRecordCollectionController<
         ? deriveStatus(state.access, state.projection)
         : 'loading',
       error: null,
+      loadingMore: preserveCurrentProjection && Boolean(state.projection),
+      moreError: null,
     })
     const loadArgs = {
       query: state.query,
@@ -203,12 +208,13 @@ export function createRecordCollectionController<
       .then((data) => {
         if (token !== loadToken) return // stale result — dropped
         const projection = descriptor.project(data, state.query, state.presentation)
-        set({ data, projection, status: deriveStatus(state.access, projection), error: null })
+        set({ data, projection, status: deriveStatus(state.access, projection), error: null, loadingMore: false })
       })
       .catch((err: unknown) => {
         if (token !== loadToken) return
         set({
           status: 'error',
+          loadingMore: false,
           error: err instanceof Error ? err.message : String(err),
         })
       })
@@ -343,6 +349,24 @@ export function createRecordCollectionController<
     retry() {
       initial.readLease?.invalidate()
       runLoad()
+    },
+    async loadMore() {
+      if (!descriptor.loadMore || !state.data || state.loadingMore || state.status === 'loading' || state.access.mode === 'forbidden') return
+      const token = loadToken
+      const data = state.data
+      set({ loadingMore: true, moreError: null })
+      try {
+        const next = await descriptor.loadMore({
+          query: state.query, viewerId: initial.viewerId, data,
+          ...(initial.readLease ? { readLease: initial.readLease } : {}),
+        })
+        if (token !== loadToken) return
+        const projection = descriptor.project(next, state.query, state.presentation)
+        set({ data: next, projection, status: deriveStatus(state.access, projection), loadingMore: false })
+      } catch (error) {
+        if (token !== loadToken) return
+        set({ loadingMore: false, moreError: error instanceof Error ? error.message : String(error) })
+      }
     },
     async loadSavedViews() {
       setSavedViews({ operation: 'loading', error: null })

@@ -1,3 +1,4 @@
+import { ListPaging } from '@/components/ui/list-paging'
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
@@ -12,6 +13,8 @@ import type { KitchenWastePhoto } from '@/lib/db/kitchen-waste-photos'
 import { WastePhotoStrip } from '@/components/kitchen/waste-photo-strip'
 import {
   listSubmittedKitchenLogs,
+  hasSubmittedKitchenProduction,
+  KITCHEN_LOGS_PAGE_SIZE,
   fetchPlanMap,
   listStreamPairs,
   listAllStreamItemKeys,
@@ -57,6 +60,7 @@ import { rememberStream, rememberedStreamKey } from '@/lib/cafe-stream'
 import { activeCafeLocation } from '@/lib/cafe-opening-location'
 import { useReviewSummary } from '@/lib/kitchen-review-kpis'
 import { formatWeekdayDayMonth } from '@/lib/format/date'
+import { formatUnitMultiple } from '@/lib/cafe-unit-multiples'
 import './kitchen-review-page.css'
 
 function wibToday(): string {
@@ -94,6 +98,18 @@ function planQtyFor(streamPlans: Map<string, PlanMap>, log: ReviewLogRow): numbe
  */
 function isOffPlan(log: ReviewLogRow, planQty: number): boolean {
   return log.qty_porsi !== planQty
+}
+
+function formatLogEntryQuantity(log: ReviewLogRow): string {
+  if (log.entry_quantity == null || log.entry_unit_name == null) return String(log.qty_porsi)
+  const locale = document.documentElement.lang || 'en'
+  const format = (quantity: number) => new Intl.NumberFormat(locale, { maximumFractionDigits: 3 }).format(quantity)
+  const factor = log.entry_unit_factor ?? 1
+  const enteredUnit = factor === 1 ? log.entry_unit_name : formatUnitMultiple(factor, log.entry_unit_name, locale)
+  const entered = factor === 1
+    ? `${format(log.entry_quantity)} ${enteredUnit}`
+    : `${format(log.entry_quantity)} × ${enteredUnit}`
+  return factor === 1 ? entered : `${entered} (${format(log.qty_porsi)} ${log.entry_unit_name})`
 }
 
 /**
@@ -137,6 +153,7 @@ interface GroupActionsProps {
   transferGated: boolean
   /** N eligible ON-PLAN Submitted rows in the section (0 hides the bulk button — #398). */
   eligibleCount: number
+  partial: boolean
   /** this section's bulk run is in flight → "Approving…". */
   bulkBusy: boolean
   /** disabled while offline, a per-row decision is in flight, or any bulk run is live. */
@@ -148,6 +165,7 @@ interface GroupActionsProps {
 function GroupActions({
   transferGated,
   eligibleCount,
+  partial,
   bulkBusy,
   disabled,
   actionLabel,
@@ -165,11 +183,11 @@ function GroupActions({
         <button
           type="button"
           className="btn btn-primary kr-bulk-btn"
-          aria-label={`${t('kitchen.review.bulkApprove', { count: eligibleCount })} — ${actionLabel}`}
+          aria-label={`${t(partial ? 'kitchen.review.bulkApproveLoaded' : 'kitchen.review.bulkApprove', { count: eligibleCount })} — ${actionLabel}`}
           disabled={disabled}
           onClick={onBulkApprove}
         >
-          {bulkBusy ? t('kitchen.review.bulkApproving') : t('kitchen.review.bulkApprove', { count: eligibleCount })}
+          {bulkBusy ? t('kitchen.review.bulkApproving') : t(partial ? 'kitchen.review.bulkApproveLoaded' : 'kitchen.review.bulkApprove', { count: eligibleCount })}
         </button>
       )}
     </>
@@ -198,7 +216,7 @@ interface KitchenReviewDecisionProps {
   /** while a decision is in flight for this row — both actions disabled (confirmed-only). */
   submitting: boolean
   /** approve note is null when on-plan (no note needed), or the entered note on variance. */
-  onApprove: (logId: string, reviewNote: string | null) => void
+  onApprove: (logId: string, reviewNote: string | null, expectedUpdatedAt: string) => void
   onReject: (logId: string, reviewNote: string) => void
 }
 
@@ -226,7 +244,7 @@ function KitchenReviewDecision({
     // prompt on every off-plan approval, not a real safeguard. Trimmed, matching the DB's own
     // `nullif(btrim(notes),'')` — a whitespace-only note is not an explanation.
     if (!offPlan || log.notes?.trim()) {
-      onApprove(log.id, null)
+      onApprove(log.id, null, log.updated_at)
       return
     }
     // off-plan, no submitter note (AC-040) → reveal the required approve-note gate
@@ -251,7 +269,7 @@ function KitchenReviewDecision({
   function confirm() {
     if (pending === 'approve') {
       if (!note.trim()) { setNoteError(true); return } // AC-040: variance approve needs a note
-      onApprove(log.id, note.trim())
+      onApprove(log.id, note.trim(), log.updated_at)
     } else if (pending === 'reject') {
       if (!note.trim()) { setNoteError(true); return } // AC-041: reject needs a note
       onReject(log.id, note.trim())
@@ -384,6 +402,13 @@ function KitchenReviewPageForViewer() {
   const allowed = isLeadOrAdmin || isSupervisor
 
   const [logDate] = useState(wibToday)
+  const [hasMore, setHasMore] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [moreError, setMoreError] = useState(false)
+  const cursorRef = useRef<Pick<ReviewLogRow, 'created_at' | 'id'> | null>(null)
+  const moreInFlight = useRef(false)
+  const [externalProductionStreams, setExternalProductionStreams] = useState<ReadonlySet<string>>(new Set())
+  const gateTokens = useRef(new Map<string, number>())
   const [logs, setLogs] = useState<ReviewLogRow[]>([])
   const [wastePhotosByLogId, setWastePhotosByLogId] = useState<Record<string, KitchenWastePhoto[]>>({})
   // Every stream's item list (#222): a queued row whose item left its stream's list is labelled.
@@ -411,6 +436,7 @@ function KitchenReviewPageForViewer() {
   // ref, not state, so re-fetches never fight the viewer's own filter choice.
   const filterInitialized = useRef(false)
   const requestGen = useRef(0)
+  const skipInitialFilterReload = useRef<string | null>(null)
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
   const [retryKey, setRetryKey] = useState(0)
 
@@ -432,6 +458,7 @@ function KitchenReviewPageForViewer() {
   useEffect(() => {
     requestGen.current += 1
     filterInitialized.current = false
+    skipInitialFilterReload.current = null
     setStreamFilter(ALL_STREAMS)
     setLogs([])
     setWastePhotosByLogId({})
@@ -452,12 +479,34 @@ function KitchenReviewPageForViewer() {
     return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off) }
   }, [])
 
+  const readPageContext = useCallback(async (rows: ReviewLogRow[], branches: BranchOption[]) => {
+    const branchById = new Map(branches.map(branch => [branch.id, branch]))
+    const streams = new Map<string, ProductionStream>()
+    for (const row of rows) {
+      const branch = branchById.get(row.branch_id)
+      if (branch) streams.set(streamKey(row.branch_id, row.activity), { branch, activity: row.activity })
+    }
+    const [plans, photos, gates] = await Promise.all([
+      Promise.all([...streams].map(async ([key, stream]) => [key, await fetchPlanMap(logDate, stream)] as const)),
+      listKitchenWastePhotos(rows.filter(row => row.action === 'waste').map(row => row.id)),
+      Promise.all([...streams].filter(([key]) => rows.some(row => row.action === 'transfer' && streamKey(row.branch_id, row.activity) === key))
+        .map(async ([key, stream]) => [key, await hasSubmittedKitchenProduction(logDate, stream.branch.id, stream.activity)] as const)),
+    ])
+    const photosByLog: Record<string, KitchenWastePhoto[]> = {}
+    for (const photo of photos) (photosByLog[photo.logId] ??= []).push(photo)
+    return { plans, photosByLog, pending: gates.filter(([, pending]) => pending).map(([key]) => key) }
+  }, [logDate])
+
   const fetchQueue = useCallback(async () => {
     const gen = ++requestGen.current
     setLoad({ kind: 'loading' })
+    setHasMore(false)
+    setLoadingMore(false)
+    setMoreError(false)
+    moreInFlight.current = false
+    cursorRef.current = null
     try {
-      const [rows, branchRows, people, pairs, confirmations, itemKeys, myTeams] = await Promise.all([
-        listSubmittedKitchenLogs(logDate),
+      const [branchRows, people, pairs, confirmations, itemKeys, myTeams] = await Promise.all([
         listActiveBranches(),
         getPeople(),
         listStreamPairs(),
@@ -471,25 +520,19 @@ function KitchenReviewPageForViewer() {
           : Promise.resolve<CafeViewerTeam[]>([]),
       ])
       const ownStream = await fetchDefaultStream(branchRows)
-      // Fetch the plan baseline for every DISTINCT (branch, activity) stream present in
-      // the queue (#247/#197) — not the single hardcoded stream the prior version read.
-      const branchById = new Map(branchRows.map((b: BranchOption) => [b.id, b]))
-      const distinctStreams = new Map<string, ProductionStream>()
-      for (const row of rows) {
-        const key = streamKey(row.branch_id, row.activity)
-        if (distinctStreams.has(key)) continue
-        const branch = branchById.get(row.branch_id)
-        if (branch) distinctStreams.set(key, { branch, activity: row.activity })
-      }
-      const [planEntries, wastePhotos] = await Promise.all([
-        Promise.all(Array.from(distinctStreams.entries()).map(
-          async ([key, stream]) => [key, await fetchPlanMap(logDate, stream)] as const,
-        )),
-        listKitchenWastePhotos(rows.filter(row => row.action === 'waste').map(row => row.id)),
-      ])
-      if (gen !== requestGen.current) return
       const ownKey = ownStream ? streamKey(ownStream.branch.id, ownStream.activity) : null
       const catalog = streamCatalogFrom(pairs, branchRows)
+      const activeBranchId = activeCafeLocation(viewerId)?.branchId ?? null
+      const chosenKey = activeBranchId ? rememberedStreamKey(viewerId, activeBranchId) : null
+      const chosen = chosenKey && catalog.some(stream => streamKey(stream.branch.id, stream.activity) === chosenKey) ? chosenKey : null
+      const effectiveFilter = filterInitialized.current ? streamFilter : chosen ?? (!isLeadOrAdmin && isSupervisor && ownKey ? ownKey : ALL_STREAMS)
+      const stream = catalog.find(stream => streamKey(stream.branch.id, stream.activity) === effectiveFilter)
+      const rows = await listSubmittedKitchenLogs(logDate, stream ? { stream: { branchId: stream.branch.id, activity: stream.activity } } : {})
+      const page = await readPageContext(rows, branchRows)
+      if (gen !== requestGen.current) return
+      cursorRef.current = rows.length === KITCHEN_LOGS_PAGE_SIZE ? rows.at(-1)! : null
+      setHasMore(Boolean(cursorRef.current))
+      setExternalProductionStreams(new Set(page.pending))
       // #783 AC-051: every stream Team she holds an OPEN-ENDED membership on, plus her
       // primary — matches ops.is_stream_reviewer exactly (isReviewerEligibleTeam); a
       // finite-end membership is current for display elsewhere but not a decide right here.
@@ -498,58 +541,68 @@ function KitchenReviewPageForViewer() {
         .map((team) => streamKey(team.branch_id, team.activity))
       const myKeys = new Set(teamKeys)
       if (ownKey) myKeys.add(ownKey)
-      const photosByLogId: Record<string, KitchenWastePhoto[]> = {}
-      for (const photo of wastePhotos) (photosByLogId[photo.logId] ??= []).push(photo)
       setLogs(rows)
-      setWastePhotosByLogId(photosByLogId)
+      setWastePhotosByLogId(page.photosByLog)
       setOfferedKeys(itemKeys)
-      setStreamPlans(new Map(planEntries))
+      setStreamPlans(new Map(page.plans))
       setPeopleMap(new Map(people.map(p => [p.id, p.full_name])))
       setBranchCatalog(branchRows)
       setStreamCatalog(catalog)
       setMyStreamKeys(myKeys)
       setCompleteness(new Map(confirmations.map(c => [streamKey(c.branch_id, c.activity), c])))
-      // FR-041 filter defaults, applied once: a stream supervisor opens on THEIR stream;
-      // ops_lead/admin open cross-stream. A supervisor with no stream (no live primary
-      // stream Team) opens cross-stream too — sight is org-wide, decisions are not.
-      // #440: a stream CHOSEN elsewhere in Café this session outranks both — it is an
-      // explicit act, where the role defaults are only a guess about what you meant.
-      // That choice is kept per location, so it is read under the location the person is
-      // working at. Review still claims no location of its own (OD-WAY-48); it reads the one
-      // already set. With no active location there is no choice to honour, and the role
-      // defaults stand — never the location-agnostic slot, which nothing writes.
-      const activeBranchId = activeCafeLocation(viewerId)?.branchId ?? null
-      const chosenKey = activeBranchId ? rememberedStreamKey(viewerId, activeBranchId) : null
-      const chosen = chosenKey && catalog.some(s => streamKey(s.branch.id, s.activity) === chosenKey)
-        ? chosenKey
-        : null
       if (!filterInitialized.current) {
         filterInitialized.current = true
-        if (chosen) setStreamFilter(chosen)
-        else if (!isLeadOrAdmin && isSupervisor && ownKey) setStreamFilter(ownKey)
+        if (effectiveFilter !== streamFilter) skipInitialFilterReload.current = effectiveFilter
+        setStreamFilter(effectiveFilter)
       }
       setLoad({ kind: 'ready' })
     } catch {
       if (gen === requestGen.current) setLoad({ kind: 'error' })
     }
-  }, [isLeadOrAdmin, isSupervisor, logDate, viewerId])
+  }, [isLeadOrAdmin, isSupervisor, logDate, viewerId, streamFilter, readPageContext])
 
   useEffect(() => {
     if (auth.status !== 'authenticated' || !allowed) return
+    if (skipInitialFilterReload.current === streamFilter) { skipInitialFilterReload.current = null; return }
     fetchQueue()
-  }, [auth.status, allowed, fetchQueue, retryKey])
+  }, [auth.status, allowed, fetchQueue, retryKey, streamFilter])
+
+  async function loadMore() {
+    if (!cursorRef.current || moreInFlight.current || load.kind !== 'ready') return
+    const gen = requestGen.current
+    moreInFlight.current = true
+    setLoadingMore(true)
+    setMoreError(false)
+    const stream = streamCatalog.find(stream => streamKey(stream.branch.id, stream.activity) === streamFilter)
+    try {
+      const rows = await listSubmittedKitchenLogs(logDate, { before: cursorRef.current,
+        ...(stream ? { stream: { branchId: stream.branch.id, activity: stream.activity } } : {}) })
+      const page = await readPageContext(rows, branchCatalog)
+      if (gen !== requestGen.current) return
+      setLogs(previous => [...new Map([...previous, ...rows].map(row => [row.id, row])).values()])
+      setStreamPlans(previous => new Map([...previous, ...page.plans]))
+      setWastePhotosByLogId(previous => ({ ...previous, ...page.photosByLog }))
+      setExternalProductionStreams(previous => new Set([...previous, ...page.pending]))
+      cursorRef.current = rows.length === KITCHEN_LOGS_PAGE_SIZE ? rows.at(-1)! : null
+      setHasMore(Boolean(cursorRef.current))
+    } catch {
+      if (gen === requestGen.current) setMoreError(true)
+    } finally {
+      if (gen === requestGen.current) { moreInFlight.current = false; setLoadingMore(false) }
+    }
+  }
 
   // #236 (FR-043): the production-first gate is PER STREAM — the set of streams whose
   // production is still Submitted, computed over the WHOLE queue (a row's lock depends on
   // its own stream's state, never on what the filter happens to show). The server owns
   // the rule (P0004); this mirror only decides which Approve buttons are worth offering.
   const pendingProductionStreams = useMemo(() => {
-    const set = new Set<string>()
+    const set = new Set(externalProductionStreams)
     for (const l of logs) {
       if (l.action === 'produce') set.add(streamKey(l.branch_id, l.activity))
     }
     return set
-  }, [logs])
+  }, [logs, externalProductionStreams])
 
   const rowGated = useCallback(
     (log: ReviewLogRow) =>
@@ -615,16 +668,31 @@ function KitchenReviewPageForViewer() {
   }, [visibleLogs])
 
   const removeRow = useCallback((id: string) => {
-    setLogs(prev => prev.filter(l => l.id !== id))
-  }, [])
+    setLogs(previous => previous.filter(row => row.id !== id))
+    const removed = logs.find(row => row.id === id)
+    if (removed?.action !== 'produce') return
+    const key = streamKey(removed.branch_id, removed.activity)
+    const token = (gateTokens.current.get(key) ?? 0) + 1
+    gateTokens.current.set(key, token)
+    const gen = requestGen.current
+    void hasSubmittedKitchenProduction(logDate, removed.branch_id, removed.activity).then(pending => {
+      if (gen !== requestGen.current || token !== gateTokens.current.get(key)) return
+      setExternalProductionStreams(previous => {
+        const next = new Set(previous)
+        if (pending) next.add(key)
+        else next.delete(key)
+        return next
+      })
+    }).catch(() => { /* Keep the last known gate until the queue is refreshed. */ })
+  }, [logs, logDate])
 
-  async function handleApprove(logId: string, reviewNote: string | null) {
+  async function handleApprove(logId: string, reviewNote: string | null, expectedUpdatedAt: string) {
     if (!isOnline) return
     setSubmittingId(logId)
     setActionError('')
     setNoticeCanViewPushes(false)
     try {
-      const { batch_id } = await approveKitchenLog(logId, reviewNote)
+      const { batch_id } = await approveKitchenLog(logId, expectedUpdatedAt, reviewNote)
       removeRow(logId)
       setNotice(batch_id === null
         ? t('kitchen.review.notice.wasteHeld')
@@ -706,7 +774,7 @@ function KitchenReviewPageForViewer() {
     const documentRows = eligible.filter(log => !noop.includes(log))
     for (const log of noop) {
       try {
-        const result = await approveKitchenLog(log.id, null)
+        const result = await approveKitchenLog(log.id, log.updated_at, null)
         approved++
         if (result.batch_id) batches.push(result.batch_id)
         removeRow(log.id)
@@ -726,7 +794,7 @@ function KitchenReviewPageForViewer() {
     }
     for (const session of sessions.values()) {
       try {
-        const result = await approveKitchenLogsBulk(session.map(log => log.id), null)
+        const result = await approveKitchenLogsBulk(session, null)
         approved += session.length
         for (const batchId of result.batch_ids ?? []) batches.push(batchId)
         session.forEach(log => removeRow(log.id))
@@ -736,7 +804,7 @@ function KitchenReviewPageForViewer() {
           // the RPC then approves eligible rows and identifies only the stale ones.
           for (const log of session) {
             try {
-              const result = await approveKitchenLog(log.id, null)
+              const result = await approveKitchenLog(log.id, log.updated_at, null)
               approved++
               if (result.batch_id) batches.push(result.batch_id)
               removeRow(log.id)
@@ -809,6 +877,7 @@ function KitchenReviewPageForViewer() {
               <GroupActions
                 transferGated={transferGated}
                 eligibleCount={eligibleCount}
+                partial={hasMore}
                 bulkBusy={bulkAction === action}
                 disabled={bulkDisabled}
                 actionLabel={groupLabel}
@@ -859,7 +928,7 @@ function KitchenReviewPageForViewer() {
           <span className="krow-meta">{t('kitchen.review.qty.plan')}</span>
           <strong>{planQtyFor(streamPlans, log)}</strong>
           <span className="krow-meta">· {t('kitchen.review.qty.logged')}</span>
-          <strong>{log.qty_porsi}</strong>
+          <strong>{formatLogEntryQuantity(log)}</strong>
         </span>
       ),
     },
@@ -942,7 +1011,7 @@ function KitchenReviewPageForViewer() {
           )}
           <span className="krow-qty">
             <span className="krow-meta">{t('kitchen.review.qty.plan')}</span> <strong>{planQty}</strong>
-            <span className="krow-meta"> · {t('kitchen.review.qty.logged')}</span> <strong>{log.qty_porsi}</strong>
+            <span className="krow-meta"> · {t('kitchen.review.qty.logged')}</span> <strong>{formatLogEntryQuantity(log)}</strong>
           </span>
           <span className="krow-byname">{name}</span>
           <span className="krow-time">{formatTime(log.created_at)}</span>
@@ -1127,13 +1196,13 @@ function KitchenReviewPageForViewer() {
       {load.kind === 'ready' && submittedCount === 0 && (
         <EmptyState
           variant="awaiting"
-          title={t('kitchen.review.empty.title')}
+          title={t(hasMore ? 'common.paging.emptyLoaded' : 'kitchen.review.empty.title')}
           /* #589: scoped to one stream, "No submitted logs for <date>" read as "day done" even
              while other streams still held pending rows — the date was named, the stream was
              not. Naming the selected stream too (Stock's own empty copy already does this,
              kitchen-stock-page.tsx) makes it "day done FOR THIS STREAM". The all-streams case
              has no single stream to name, so it keeps the date-only sentence. */
-          copy={
+          copy={hasMore ? t('common.paging.continue') :
             selectedStream
               ? t('kitchen.review.empty.copyStream', { stream: streamLabel(t, selectedStream), date: logDate })
               : t('kitchen.review.empty.copy', { date: logDate })
@@ -1160,6 +1229,8 @@ function KitchenReviewPageForViewer() {
           caption={t('kitchen.review.caption')}
         />
       )}
+      {load.kind === 'ready' ? <ListPaging count={visibleLogs.length} hasMore={hasMore}
+        loading={loadingMore} error={moreError} onLoadMore={() => { void loadMore() }} /> : null}
       {completenessRow}
     </PageFamilyFrame>
   )

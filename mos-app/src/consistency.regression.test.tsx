@@ -20,6 +20,7 @@ vi.mock('./lib/db/tasks', () => ({
 vi.mock('./lib/db/directory', () => ({
   getBusinessUnits: vi.fn(() => new Promise(() => {})),
   getPeople: vi.fn(() => new Promise(() => {})),
+  getMyTeamLeads: vi.fn(() => new Promise(() => {})),
   getPersonTeams: vi.fn(() => new Promise(() => {})),
   getDownlinePersonIds: vi.fn().mockResolvedValue([]),
 }))
@@ -197,7 +198,6 @@ describe('RI-IA-1: every main route renders the shared PageHead (no bespoke *-pa
 describe('RI-IA-2: data/list pages use the content-header PageHead chrome', () => {
   const targets = [
     'pages/follow-ups-page.tsx',
-    'pages/sales-dashboard-page.tsx',
     'pages/pricing-page.tsx',
     'pages/budget-page.tsx',
     'components/catalog/catalog-manager.tsx',
@@ -252,7 +252,6 @@ describe('RI-IA-2: pages/inbox-page.tsx proves the content-header contract via P
 
 describe('RI-SEC-1: page empty/error copy does not expose internal reporting table names', () => {
   const pageFiles = [
-    'pages/sales-dashboard-page.tsx',
     'pages/budget-page.tsx',
     'pages/pricing-page.tsx',
     'pages/inbox-page.tsx',
@@ -471,7 +470,6 @@ describe('RI-IXD-7: no brand-orange outside the logo, active view-tab underline,
 describe('RI-IXD-8: retrofit list/table targets import DataTable and state-kit', () => {
   const sharedTableTargets = [
     'pages/follow-ups-page.tsx',
-    'pages/sales-dashboard-page.tsx',
     'pages/kitchen-stock-page.tsx',
     'pages/kitchen-pushes-page.tsx',
     'pages/kitchen-plan-page.tsx',

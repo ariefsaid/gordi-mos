@@ -22,7 +22,7 @@ select shared._test_seed_access_roles();   -- GrandMgr ...0d3 -> admin
 select ops._test_seed_daily_log();         -- rows in every ops table, in BOTH orgs
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin","ops_lead"]}');
 
 -- ── Not one org-B row is reachable, from any table ───────────────────────────────────────────
 select is((select count(*)::int from ops.log_entries   where org_id = '00000000-0000-0000-0000-0000000000b1'), 0,
@@ -57,7 +57,7 @@ select is((select count(*)::int from integrations.esb_push where org_id = '00000
 
 -- ── The seam holds in the other direction too ────────────────────────────────────────────────
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["admin","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["admin","ops_lead"]}');
 select is((select count(*)::int from ops.kitchen_logs  where org_id = '00000000-0000-0000-0000-0000000000a1'), 0,
   'AC-006: and an org-B admin reads zero org-A production logs — the seam is not one-directional');
 select is((select count(*)::int from ops.kitchen_plans where org_id = '00000000-0000-0000-0000-0000000000a1'), 0,
@@ -75,7 +75,7 @@ select isnt((select count(*)::int from ops.kitchen_logs), 0,
 -- Three independent parts hold it, and any one alone is defeatable: the column default, the policy
 -- WITH CHECK, and the fail-closed claim helper. A write that names another org's id is refused even
 -- though the writer is an admin of their own org.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["admin","ops_lead"]}');
 -- Asserted on wip_items rather than on kitchen_logs, and the reason is worth recording because it
 -- looks like the wrong table to pick. kitchen_logs carries a BEFORE trigger that refuses a
 -- cross-org reference first, so a cross-org write there raises 23514 from the guard and the POLICY

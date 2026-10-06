@@ -1,5 +1,5 @@
-// #1242 — Log uses a stream's shown ERP details through approval and into the outbox.
-// Local fixture only: synthetic ERP product/detail identities, seeded personas, and self-cleaning rows.
+// #1242 / #1345 / #1383 — the stream's chosen default ERP detail and its configured multiples
+// survive Café capture, approval, and posting. Fixture identities/personas are local and self-cleaning.
 
 import { readFileSync } from 'node:fs'
 import { mkdir } from 'node:fs/promises'
@@ -140,7 +140,7 @@ async function cleanupFixture(): Promise<void> {
 const today = wibToday()
 let submittedLogId: string | null = null
 
-test.describe('Cafe unit wiring: shown ERP detail survives Café log approval', () => {
+test.describe('Café default-unit multiples: selected ERP detail survives capture and approval', () => {
   test.beforeAll(async () => {
     await cleanupFixture()
     await execSql(`
@@ -169,8 +169,8 @@ test.describe('Cafe unit wiring: shown ERP detail survives Café log approval', 
       SET LOCAL request.jwt.claims = '{"org_id":"${ORG}","person_id":"${MANAGER.personId}","access_roles":["admin"]}';
       SELECT ops.save_cafe_item_settings(
         ${uuidLiteral(STREAM_BRANCH_ID)}, '${STREAM_ACTIVITY}', ${uuidLiteral(ITEM_ID)}, ${sqlText(MOS_NAME)},
-        ${uuidLiteral(DEFAULT_UNIT_ID)}, ARRAY[${uuidLiteral(DEFAULT_UNIT_ID)}, ${uuidLiteral(ALT_UNIT_ID)}]::uuid[],
-        'WIP', true
+        ${uuidLiteral(ALT_UNIT_ID)}, ARRAY[${uuidLiteral(ALT_UNIT_ID)}]::uuid[],
+        'WIP', true, ARRAY[2]::numeric[]
       );
       COMMIT;
     `)
@@ -186,7 +186,7 @@ test.describe('Cafe unit wiring: shown ERP detail survives Café log approval', 
     await cleanupFixture()
   })
 
-  test('operator selects a shown non-default detail, submits, and approval enqueues that ERP detail', async ({ page }, testInfo) => {
+  test('operator captures a configured multiple of the chosen default and approval posts its ERP detail', async ({ page }, testInfo) => {
     test.setTimeout(120_000)
     await loginAs(page, VIEWER.email, VIEWER.password)
     await page.goto('cafe/production')
@@ -197,38 +197,50 @@ test.describe('Cafe unit wiring: shown ERP detail survives Café log approval', 
     await expect(itemRow).toBeVisible()
     await page.setViewportSize({ width: 390, height: 844 })
     const changeUnit = page.getByRole('button', { name: new RegExp(`change unit for ${MOS_NAME}`, 'i') })
+    await expect(changeUnit).toContainText(ALT_UNIT_NAME)
     await changeUnit.click()
     const unitPicker = page.getByRole('combobox', { name: new RegExp(`unit for ${MOS_NAME}`, 'i') })
     await unitPicker.click()
-    const alternateOption = page.getByRole('option', { name: ALT_UNIT_NAME, exact: true })
-    await alternateOption.click()
+    await page.getByRole('option', { name: `2 ${ALT_UNIT_NAME}`, exact: true }).click()
     const selectedUnit = page.getByRole('button', { name: new RegExp(`change unit for ${MOS_NAME}`, 'i') })
-    await expect(selectedUnit).toContainText(ALT_UNIT_NAME)
+    await expect(selectedUnit).toContainText(`2 ${ALT_UNIT_NAME}`)
     await expect(selectedUnit).toBeFocused()
 
     for (const width of [390, 1440, 1920]) {
       await page.setViewportSize({ width, height: 960 })
-      await expect(page.getByRole('button', { name: new RegExp(`change unit for ${MOS_NAME}`, 'i') })).toContainText(ALT_UNIT_NAME)
+      await expect(page.getByRole('button', { name: new RegExp(`change unit for ${MOS_NAME}`, 'i') })).toContainText(`2 ${ALT_UNIT_NAME}`)
       await capture(page, testInfo, 'log-selected-unit', width)
     }
 
     const quantity = page.getByRole('spinbutton', { name: new RegExp(`quantity produced for ${MOS_NAME}`, 'i') })
-    await quantity.fill(String(PLAN_QTY))
+    await quantity.fill(String(PLAN_QTY / 2))
     await quantity.press('Tab')
     const submit = page.getByRole('button', { name: /submit 1 entry/i })
     await expect(submit).toBeEnabled()
     await submit.click()
     await expect(page.getByRole('status').filter({ hasText: /1 line submitted.*pending review/i })).toBeVisible()
 
-    const landed = await execSqlRead<{ id: string; item_unit_id: string; status: string }>(`
-      SELECT id::text AS id, item_unit_id::text AS item_unit_id, status
+    const landed = await execSqlRead<{
+      id: string
+      item_unit_id: string
+      status: string
+      qty_porsi: number | string
+      entry_quantity: number | string | null
+      entry_unit_factor: number | string | null
+      entry_unit_name: string | null
+    }>(`
+      SELECT id::text AS id, item_unit_id::text AS item_unit_id, status, qty_porsi,
+             entry_quantity, entry_unit_factor, entry_unit_name
         FROM ops.kitchen_logs
        WHERE org_id=${uuidLiteral(ORG)} AND wip_item_id=${uuidLiteral(ITEM_ID)} AND log_date='${today}'
     `)
     expect(landed).toHaveLength(1)
     submittedLogId = landed[0]?.id ?? null
     expect(submittedLogId).toMatch(UUID)
-    expect(landed[0]).toMatchObject({ item_unit_id: ALT_UNIT_ID, status: 'Submitted' })
+    expect(landed[0]).toMatchObject({ item_unit_id: ALT_UNIT_ID, status: 'Submitted', entry_unit_name: ALT_UNIT_NAME })
+    expect(Number(landed[0]?.qty_porsi)).toBe(PLAN_QTY)
+    expect(Number(landed[0]?.entry_quantity)).toBe(PLAN_QTY / 2)
+    expect(Number(landed[0]?.entry_unit_factor)).toBe(2)
 
     await page.evaluate(() => localStorage.clear())
     await page.waitForTimeout(500)
@@ -257,7 +269,8 @@ test.describe('Cafe unit wiring: shown ERP detail survives Café log approval', 
     await stateOnFixtureStream(page)
     await page.setViewportSize({ width: 390, height: 960 })
     await expect(page.getByText(MOS_NAME, { exact: true })).toBeVisible()
-    await expect(page.getByText(`Also shown for logging: ${ALT_UNIT_NAME}`, { exact: true })).toBeVisible()
+    await expect(page.getByRole('spinbutton', { name: `Planned quantity for ${MOS_NAME}` })).toHaveValue(String(PLAN_QTY))
+    await expect(page.getByText(ALT_UNIT_NAME, { exact: true })).toBeVisible()
     await page.getByText(MOS_NAME, { exact: true }).scrollIntoViewIfNeeded()
     await capture(page, testInfo, 'plan', 390)
     await page.reload()
@@ -273,8 +286,8 @@ test.describe('Cafe unit wiring: shown ERP detail survives Café log approval', 
       SET LOCAL request.jwt.claims = '{"org_id":"${ORG}","person_id":"${MANAGER.personId}","access_roles":["admin"]}';
       SELECT ops.save_cafe_item_settings(
         ${uuidLiteral(STREAM_BRANCH_ID)}, '${STREAM_ACTIVITY}', ${uuidLiteral(ITEM_ID)}, ${sqlText(MOS_NAME)},
-        ${uuidLiteral(DEFAULT_UNIT_ID)}, ARRAY[${uuidLiteral(DEFAULT_UNIT_ID)}, ${uuidLiteral(ALT_UNIT_ID)}]::uuid[],
-        'RAW', true
+        ${uuidLiteral(ALT_UNIT_ID)}, ARRAY[${uuidLiteral(ALT_UNIT_ID)}]::uuid[],
+        'RAW', true, ARRAY[]::numeric[]
       );
       COMMIT;
     `)

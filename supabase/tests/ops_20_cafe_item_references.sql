@@ -1,7 +1,7 @@
 -- #1240 — caller-supplied ERP item-detail references, classification, stream scope and RLS.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(50);
+select plan(52);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -160,13 +160,33 @@ select throws_ok($$select ops.refresh_cafe_item_references('[{"esb_product_id":"
 select throws_ok($$select ops.refresh_cafe_item_references('[{"esb_product_id":"SYNTH-ERP-P-DUP","esb_product_detail_id":"SYNTH-ERP-PD-DUP","name":"Synthetic Duplicate","category":"BAR","unit_name":"SYNTHETIC-ERP-UNIT-A","erp_category_type_name":"Inventory","is_stock":true,"has_active_bom_output":false,"is_active":true},{"esb_product_id":"SYNTH-ERP-P-DUP","esb_product_detail_id":"SYNTH-ERP-PD-DUP","name":"Synthetic Duplicate","category":"BAR","unit_name":"SYNTHETIC-ERP-UNIT-B","erp_category_type_name":"Inventory","is_stock":true,"has_active_bom_output":false,"is_active":true}]'::jsonb)$$,
   '23514', 'an ERP product detail has conflicting source identity or unit labels',
   'refresh rejects conflicting records for one ERP product detail');
+select throws_ok($$select ops.refresh_cafe_item_references($json$[
+  {"esb_product_id":"SYNTH-ERP-P-1340-REQUIRED","esb_product_detail_id":"SYNTH-ERP-PD-1340-STOCK","name":"Synthetic Required Fields","category":"KITCHEN","unit_name":"SYNTHETIC-ERP-UNIT","erp_category_type_name":"Inventory","is_stock":true,"has_active_bom_output":false,"is_active":true},
+  {"esb_product_id":"SYNTH-ERP-P-1340-REQUIRED","esb_product_detail_id":"","name":"Synthetic Required Fields","category":"KITCHEN","unit_name":"","erp_category_type_name":"Inventory","is_stock":false,"has_active_bom_output":false,"is_active":true}
+]$json$::jsonb)$$,
+  '23514', 'active café Inventory reference rows need ERP product/detail ids, name, unit, stock and BOM evidence',
+  'refresh validates required fields on active non-stock non-output details of an imported product');
+select throws_ok($$select ops.refresh_cafe_item_references($json$[
+  {"esb_product_id":"SYNTH-ERP-P-1340-IDENTITY","esb_product_detail_id":"SYNTH-ERP-PD-1340-STOCK","name":"Synthetic Detail Identity","category":"KITCHEN","unit_name":"SYNTHETIC-ERP-UNIT","erp_category_type_name":"Inventory","is_stock":true,"has_active_bom_output":false,"is_active":true},
+  {"esb_product_id":"SYNTH-ERP-P-1340-IDENTITY","esb_product_detail_id":"SYNTH-ERP-PD-1340-NONSTOCK","name":"Synthetic Detail Identity","category":"KITCHEN","unit_name":"SYNTHETIC-ERP-UNIT-A","erp_category_type_name":"Inventory","is_stock":false,"has_active_bom_output":false,"is_active":true},
+  {"esb_product_id":"SYNTH-ERP-P-1340-IDENTITY","esb_product_detail_id":"SYNTH-ERP-PD-1340-NONSTOCK","name":"Synthetic Detail Identity","category":"KITCHEN","unit_name":"SYNTHETIC-ERP-UNIT-B","erp_category_type_name":"Inventory","is_stock":false,"has_active_bom_output":false,"is_active":true}
+]$json$::jsonb)$$,
+  '23514', 'an ERP product detail has conflicting source identity or unit labels',
+  'refresh rejects conflicting identity on active non-stock non-output details');
+-- If the old importer unexpectedly accepts the conflicting snapshot, restore the baseline before
+-- later assertions about the synthetic RAW item; the successful import is a full snapshot.
+do $$
+begin
+  perform ops.refresh_cafe_item_references((select source_rows from cafe_reference_test_source));
+end
+$$;
 select throws_ok($$select ops.refresh_cafe_item_references('[{"esb_product_id":"SYNTH-ERP-P-CONFLICT","esb_product_detail_id":"SYNTH-ERP-PD-CONFLICT-A","name":"Synthetic Conflict","category":"KITCHEN","unit_name":"SYNTHETIC-ERP-UNIT","erp_category_type_name":"Inventory","is_stock":true,"has_active_bom_output":false,"is_active":true},{"esb_product_id":"SYNTH-ERP-P-CONFLICT","esb_product_detail_id":"SYNTH-ERP-PD-CONFLICT-B","name":"Synthetic Conflict","category":"KITCHEN","unit_name":"SYNTHETIC-ERP-UNIT","erp_category_type_name":"Inventory","is_stock":true,"has_active_bom_output":true,"is_active":true}]'::jsonb)$$,
   '23514', 'an ERP product has conflicting source classification',
   'refresh rejects conflicting RAW/WIP evidence for one ERP product');
 
 select set_config('app.allow_test_seeds', 'off', true);
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select cmp_ok((select count(*)::int from ops.cafe_item_references reference
   where reference.esb_product_id = 'SYNTH-ERP-P-1240-RAW'), '>', 0,
   'RLS: an org member can read their synthetic RAW references');

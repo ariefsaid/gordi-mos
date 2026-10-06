@@ -23,6 +23,12 @@ begin;
 create extension if not exists pgtap with schema extensions;
 select plan(39);
 
+create function pg_temp.approve_kitchen_log(p_log_id uuid, p_review_note text)
+returns text language sql as $$
+  select ops.approve_kitchen_log(p_log_id, p_review_note,
+    (select l.updated_at from ops.kitchen_logs l where l.id = p_log_id))
+$$;
+
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
@@ -75,7 +81,7 @@ set local role authenticated;
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- A. AC-009 — the stream reviewer decides their OWN stream and nothing else
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","supervisor"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","supervisor"]}');
 
 -- The predicate itself, pinned directly on both sides.
 select ok(ops.is_stream_reviewer('00000000-0000-0000-0000-00000000bf01','bar'),
@@ -85,7 +91,7 @@ select ok(not ops.is_stream_reviewer('00000000-0000-0000-0000-00000000bf02','kit
 
 -- Cross-stream approval refused, on the RPC path (AC-009's refusal, 42501).
 select throws_ok($$
-  select ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ac01','looks fine')
+  select pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000ac01','looks fine')
   $$, '42501', 'only the stream''s supervisor or ops_lead/admin may approve',
   'AC-009: a (GHQ, bar) supervisor cannot approve a (Rumah Rames, kitchen) row');
 
@@ -103,18 +109,18 @@ set local role authenticated;
 
 -- Both halves of the predicate are required: the SAME person with the SAME live membership but no
 -- supervisor claim reviews nothing.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select ok(not ops.is_stream_reviewer('00000000-0000-0000-0000-00000000bf01','bar'),
   'fail-closed: the membership alone is NOT authority — without the supervisor role the predicate is false');
 select throws_ok($$
-  select ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ac12','mine tho')
+  select pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000ac12','mine tho')
   $$, '42501', 'only the stream''s supervisor or ops_lead/admin may approve',
   'fail-closed: a member on the stream team still cannot approve — role and membership are BOTH required');
 
 -- Approval must travel through the RPC even for the stream's own reviewer: the policy's WITH CHECK
 -- admits Submitted and Rejected for the supervisor arm, never Approved — a direct flip would skip
 -- the batch mint and the outbox.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","supervisor"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","supervisor"]}');
 select throws_ok($$
   update ops.kitchen_logs set status = 'Approved' where id = '00000000-0000-0000-0000-00000000ac12'
   $$, '42501', null,
@@ -122,7 +128,7 @@ select throws_ok($$
 
 -- The positive, own stream, RPC path. '-001' is also the no-trace proof: had any refusal above
 -- consumed a sequence number, this would mint -002.
-select is(ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ac12', 'reviewed'),
+select is(pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000ac12', 'reviewed'),
   'PR-20260620-001',
   'AC-009 (positive): the stream reviewer approves their OWN stream''s row, and nothing before it consumed a mint');
 reset role;
@@ -132,7 +138,7 @@ select is((select reviewed_by from ops.kitchen_logs where id = '00000000-0000-00
 set local role authenticated;
 
 -- The positive reject, own stream, plain guarded UPDATE path.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","supervisor"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","supervisor"]}');
 select lives_ok($$
   update ops.kitchen_logs set status = 'Rejected', review_note = 'over-counted'
    where id = '00000000-0000-0000-0000-00000000ac13'
@@ -145,30 +151,30 @@ set local role authenticated;
 
 -- ── The two supervisors who review NOTHING ───────────────────────────────────────────────────
 -- No team at all: the world before a stream is provisioned — the ops-lead fallback's whole reason.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member","supervisor"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member","supervisor"]}');
 select throws_ok($$
-  select ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ac11','sure')
+  select pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000ac11','sure')
   $$, '42501', 'only the stream''s supervisor or ops_lead/admin may approve',
   'AC-009: a supervisor with NO stream team approves nothing — the role alone names no stream');
 
 -- Future-dated end: on the team today, NOT live — the same deliberate liveness rule as
 -- shared.default_stream() (20260806000001), mirrored so the reviewer and the default cannot drift.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d6","access_roles":["member","supervisor"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d6","access_roles":["member","supervisor"]}');
 select ok(not ops.is_stream_reviewer('00000000-0000-0000-0000-00000000bf02','kitchen'),
   'liveness: a primary membership with a FUTURE end date is not live — same rule as default_stream()');
 select throws_ok($$
-  select ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ac02','still here this week')
+  select pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000ac02','still here this week')
   $$, '42501', 'only the stream''s supervisor or ops_lead/admin may approve',
   'liveness: ...so a hand-over-week supervisor reviews via the ops lead, never via a stale default');
 
 -- ── The fallback: ops_lead and admin decide ANY stream (FR-041) ──────────────────────────────
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select lives_ok($$
-  select ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ac02','ok')
+  select pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000ac02','ok')
   $$, 'FR-041: ops_lead approves a (RRS, kitchen) row with no membership anywhere — cross-stream fallback');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","admin"]}');
 select lives_ok($$
-  select ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ac03','ok')
+  select pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000ac03','ok')
   $$, 'FR-041: and so does admin — no stream is ever stranded on an unprovisioned reviewer');
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
@@ -183,10 +189,10 @@ select lives_ok($$
 reset role;
 create temp table _outbox_prelock as select count(*)::int as n from integrations.esb_push;
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 
 select throws_ok($$
-  select ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ac04','ship it')
+  select pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000ac04','ship it')
   $$, 'P0004', 'transfer approval is locked while the stream''s production is still Submitted for the day',
   'AC-010: a transfer approval is refused while the SAME stream/day has Submitted production');
 select throws_ok($$
@@ -204,37 +210,37 @@ set local role authenticated;
 -- Cross-stream isolation: (GHQ, bar)'s transfer approves fine once ITS OWN production is decided,
 -- even though (RRS, kitchen)'s production is still Submitted on the very same day. Done by the
 -- stream's own reviewer, so the two features are proven composed.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 insert into ops.kitchen_plans (log_date, wip_item_id, branch_id, activity, action, qty_porsi)
 values ('2026-06-20', '00000000-0000-0000-0000-00000000ab01', '00000000-0000-0000-0000-00000000bf01', 'bar', 'produce', 1);
-select throws_ok($$select ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ac14', null)$$,
+select throws_ok($$select pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000ac14', null)$$,
   '42501', 'an off-plan approval requires a reviewer note',
   'AC-012: the plan deviation is refused when neither submitter nor reviewer supplies a note');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","supervisor"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","supervisor"]}');
 select lives_ok($$
-  select ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ac14', 'reviewed')
+  select pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000ac14', 'reviewed')
   $$, 'setup: the (GHQ, bar) reviewer decides the last of their own stream''s production');
-select is(ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ac15', 'reviewed'),
+select is(pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000ac15', 'reviewed'),
   'TR-20260620-001',
   'AC-010: another stream''s Submitted production does NOT lock this stream''s transfer — same day, approved by its own reviewer');
 
 -- Day isolation: the same locked stream's OTHER day has no pending production, and its transfer
 -- approves — the gate keys on (stream, day), not on the stream's whole backlog.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select lives_ok($$
-  select ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ad05', 'reviewed')
+  select pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000ad05', 'reviewed')
   $$, 'AC-010: the SAME stream''s transfer on a DIFFERENT day is not locked — the gate is per stream AND day');
 
 -- Release: one pending row decided by APPROVE, the other by REJECT — both count as decided
 -- (FR-043: "decided", not "approved"), and the lock lifts.
 select lives_ok($$
-  select ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ac01', 'reviewed')
+  select pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000ac01', 'reviewed')
   $$, 'AC-010 release setup: one pending production row is Approved...');
 select lives_ok($$
   update ops.kitchen_logs set status = 'Rejected', review_note = 'double-entered'
    where id = '00000000-0000-0000-0000-00000000ac06'
   $$, 'AC-010 release setup: ...and the other is Rejected — a decided row, not an approved one');
-select is(ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ac04','clear now'),
+select is(pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000ac04','clear now'),
   'TR-20260620-002',
   'AC-010: with the stream/day''s production decided (both ways), the transfer approval succeeds');
 
@@ -243,7 +249,7 @@ select is(ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ac04','clear 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- The supervisor arm reaches only SUBMITTED rows: a decided row in their own stream is out of
 -- their hands again (ops_lead/admin keep review-edit; the reviewer does not).
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","supervisor"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","supervisor"]}');
 select lives_ok($$
   update ops.kitchen_logs set qty_porsi = 99 where id = '00000000-0000-0000-0000-00000000ac12'
   $$, 'fail-closed: an edit of an already-Approved own-stream row executes...');
@@ -254,7 +260,7 @@ set local role authenticated;
 
 -- A member's world is unchanged (OD-WAY-49: the stream is never a wall for members): the submitter
 -- still edits their own pending row, and still cannot decide it.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}');
 select lives_ok($$
   update ops.kitchen_logs set qty_porsi = 8, notes = 'recounted'
    where id = '00000000-0000-0000-0000-00000000ad01'
@@ -266,11 +272,11 @@ select throws_ok($$
 
 -- Cross-tenant stays shut on the new predicate: org B's supervisor claims never reach org A's
 -- teams or rows. The RPC's org guard fires before the authority check, exactly as carried.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member","supervisor"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member","supervisor"]}');
 select ok(not ops.is_stream_reviewer('00000000-0000-0000-0000-00000000bf01','bar'),
   'fail-closed: another tenant''s supervisor is nobody''s stream reviewer here — the predicate is org-scoped explicitly');
 select throws_ok($$
-  select ops.approve_kitchen_log('00000000-0000-0000-0000-00000000ad02','mine now')
+  select pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000ad02','mine now')
   $$, '42501', 'cannot approve a log outside your org',
   'fail-closed: the cross-tenant refusal still precedes every authority question');
 
@@ -282,7 +288,7 @@ select throws_ok($$
 -- WITH CHECK validated the NEW one. Now ANY identity/qty/note change riding a status transition
 -- is refused, on the direct-UPDATE path here and therefore on the RPC path too (the RPC's own
 -- UPDATE fires this same guard, and its signature — a log id and a note — can carry no field).
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 
 select throws_ok($$
   update ops.kitchen_logs

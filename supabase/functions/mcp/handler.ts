@@ -20,7 +20,6 @@ export type McpDeps = {
 }
 
 const SUPPORTED_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05']
-const MAX_MESSAGE = 500
 const MAX_BODY_BYTES = 1_048_576
 const METADATA_PATH = '/.well-known/oauth-protected-resource'
 
@@ -83,20 +82,11 @@ function toolSuccess(value: unknown) {
   return { content: [{ type: 'text', text: JSON.stringify(value) }], structuredContent: structured }
 }
 
-const clip = (s: string) => (s.length > MAX_MESSAGE ? `${s.slice(0, MAX_MESSAGE)}...` : s)
-
-// Maps a data-API error body to the structured tool error: {code: details, message, field: hint}.
-async function failureFrom(res: Response): Promise<ToolFailure> {
-  let body: Record<string, unknown> = {}
-  try {
-    const parsed: unknown = JSON.parse(await res.text())
-    if (typeof parsed === 'object' && parsed !== null) body = parsed as Record<string, unknown>
-  } catch { /* a non-JSON body gets the generic failure below */ }
-  const text = (value: unknown) => (typeof value === 'string' && value !== '' ? value : null)
+function failureFrom(): ToolFailure {
   return {
-    code: text(body.details) ?? text(body.code) ?? `http_${res.status}`,
-    message: clip(text(body.message) ?? 'The request could not be completed.'),
-    field: text(body.hint),
+    code: 'request_failed',
+    message: 'The request could not be completed.',
+    field: null,
   }
 }
 
@@ -141,7 +131,9 @@ async function callTool(
   }
   if (res.status === 401) return { result: null, unauthorized: true, outcome: 'unauthorized' }
   if (!res.ok) {
-    const f = await failureFrom(res)
+    deps.log({ event: 'data_api_error', tool: name, status: res.status })
+    try { await res.body?.cancel() } catch { /* the response is already closed */ }
+    const f = failureFrom()
     return { result: toolError(f), outcome: f.code }
   }
   try {

@@ -17,6 +17,12 @@ begin;
 create extension if not exists pgtap with schema extensions;
 select plan(20);
 
+create function pg_temp.approve_kitchen_log(p_log_id uuid, p_review_note text)
+returns text language sql as $$
+  select ops.approve_kitchen_log(p_log_id, p_review_note,
+    (select l.updated_at from ops.kitchen_logs l where l.id = p_log_id))
+$$;
+
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
@@ -108,9 +114,9 @@ select is((select count(*)::int from integrations.esb_push),
 
 -- ══ §D the only enqueuer refuses imported rows before touching anything ══════════════════════
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select throws_ok($$
-  select ops.approve_kitchen_log('00000000-0000-0000-0000-00000000a9b1','again')
+  select pg_temp.approve_kitchen_log('00000000-0000-0000-0000-00000000a9b1','again')
   $$, 'P0003', 'log is not Submitted (current: Approved)',
   'the sole creator of outbox rows refuses an imported row — history can never be re-enqueued');
 reset role;
@@ -125,7 +131,7 @@ select is((select batch_id from ops.kitchen_logs where id='00000000-0000-0000-00
 
 -- ══ §E imported rows read like any other record ══════════════════════════════════════════════
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is((select count(*)::int from ops.kitchen_logs
      where id='00000000-0000-0000-0000-00000000a9b1'), 1,
   'OD-WAY-57: a plain member reads the imported row through the same policy — no source seam');

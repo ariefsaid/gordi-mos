@@ -58,11 +58,11 @@ update mos.tasks set archived_at = now()
 where id = '00000000-0000-0000-0000-0000000000d9';
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000d1","person_id":"00000000-0000-0000-0000-00000000d110","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000d1","person_id":"00000000-0000-0000-0000-00000000d110","access_roles":["member"]}');
 select is((select (done, total)::text from mos.objective_progress where id = '00000000-0000-0000-0000-0000000000d3'), '(2,4)',
   'Objective progress counts direct and work-line tasks, excluding archived tasks');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000d2","person_id":"00000000-0000-0000-0000-00000000d210","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000d2","person_id":"00000000-0000-0000-0000-00000000d210","access_roles":["member"]}');
 select is((select count(*)::int from mos.objective_progress), 0,
   'a non-org persona cannot read another org''s objective progress');
 

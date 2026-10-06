@@ -474,7 +474,7 @@ function PlanEditor() {
   const categories = ['All', ...Array.from(new Set(items.map(item => item.category ?? '').filter(Boolean)))
     .sort((a, b) => kitchenCategoryLabel(t, a).localeCompare(kitchenCategoryLabel(t, b)))]
   // TanStack's grouped row model supplies category groups; the shared DataTable owns collapse.
-  const planGroups = kitchenDataTableGroups(
+  const planGroups = load.kind === 'loading' ? [] : kitchenDataTableGroups(
     itemTable,
     groupKey => groupKey === '__uncategorized__' ? null : kitchenCategoryLabel(t, groupKey),
   ).sort((a, b) => a.label === null ? 1 : b.label === null ? -1 : a.label.localeCompare(b.label))
@@ -828,7 +828,7 @@ function PesananView() {
   const visible = pesananTable.getFilteredRowModel().rows.map(row => row.original)
   const categories = ['All', ...Array.from(new Set(rows.map(row => row.category ?? '').filter(Boolean)))
     .sort((a, b) => kitchenCategoryLabel(t, a).localeCompare(kitchenCategoryLabel(t, b)))]
-  const pesananGroups = kitchenDataTableGroups(pesananTable, date => date)
+  const pesananGroups = load.kind === 'loading' ? [] : kitchenDataTableGroups(pesananTable, date => date)
     .sort((a, b) => String(a.label).localeCompare(String(b.label)))
 
   // Read-only pesanan columns: Item (name + category sub-label) · Action · Planned.

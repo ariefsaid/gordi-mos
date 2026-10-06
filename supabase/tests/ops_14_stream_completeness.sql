@@ -65,7 +65,7 @@ set local role authenticated;
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- A. FR-031 — the stream's lead confirms their own stream, and the event is the SERVER's
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","supervisor"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","supervisor"]}');
 
 -- The positive write LIES about both halves of the event: it claims Author (...0d1) confirmed the
 -- list, six years ago. Both must come back as the session's own. Written this way on purpose — a
@@ -98,7 +98,7 @@ select throws_ok($$
 
 -- Both halves of the predicate are required. The SAME person with the SAME live membership, minus
 -- the supervisor claim, confirms nothing: being on the stream is not standing to speak for it.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 select throws_ok($$
   insert into ops.stream_completeness (org_id, branch_id, activity)
   values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bf01','bar')
@@ -107,7 +107,7 @@ select throws_ok($$
 
 -- A supervisor with no team at all: the world before a stream is provisioned. Nothing to lead,
 -- nothing to confirm — the ops-lead fallback below is the honest path.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member","supervisor"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member","supervisor"]}');
 select throws_ok($$
   insert into ops.stream_completeness (org_id, branch_id, activity)
   values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bf01','bar')
@@ -117,7 +117,7 @@ select throws_ok($$
 -- A supervisor whose membership is NOT LIVE (future end date). The write predicate is
 -- ops.can_review_stream, so the deliberate liveness rule (…0811000001) governs here too — one
 -- predicate, one answer, in both slices.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d6","access_roles":["member","supervisor"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d6","access_roles":["member","supervisor"]}');
 select throws_ok($$
   insert into ops.stream_completeness (org_id, branch_id, activity)
   values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bf02','kitchen')
@@ -127,7 +127,7 @@ select throws_ok($$
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- B. FR-041's fallback — ops_lead confirms any stream, so an unprovisioned one never stalls
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select lives_ok($$
   insert into ops.stream_completeness (org_id, branch_id, activity)
   values ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bf02','kitchen')
@@ -144,7 +144,7 @@ set local role authenticated;
 -- C. Re-confirmation, and what a re-confirmation may NOT carry
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- The record is a CURRENT state ("complete as of when"), so confirming again overwrites who/when.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select lives_ok($$
   update ops.stream_completeness
      set confirmed_by = '00000000-0000-0000-0000-0000000000d1', confirmed_at = '2020-01-01T00:00:00Z'
@@ -161,7 +161,7 @@ set local role authenticated;
 -- A confirmation belongs to the stream it was made about. Re-pointing one would move a lead's
 -- assertion onto a stream they never looked at — and the write was authorised against the OLD
 -- stream, so USING and WITH CHECK would have judged different rows.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select throws_ok($$
   update ops.stream_completeness set branch_id = '00000000-0000-0000-0000-00000000bf02'
    where branch_id = '00000000-0000-0000-0000-00000000bf01' and activity = 'bar'
@@ -171,7 +171,7 @@ select throws_ok($$
 -- The UPDATE path's refusal has the OTHER shape: RLS excludes the row from USING, so the write
 -- affects zero rows and reports success. Read the state back as the owner — a silent no-op looks
 -- exactly like a successful write to the caller.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select lives_ok($$
   update ops.stream_completeness set confirmed_by = '00000000-0000-0000-0000-0000000000d1'
    where branch_id = '00000000-0000-0000-0000-00000000bf01' and activity = 'bar'
@@ -186,7 +186,7 @@ set local role authenticated;
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- D. Structural refusals — one row per stream, and only for a stream that exists
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 
 -- Unprovisioned has no stream Team — the roastery's permanent case in miniature (OD-WAY-42): a
 -- branch that runs no such stream. Confirming its list would record a fact about nothing. The
@@ -219,11 +219,11 @@ select lives_ok($$
 -- E. Fail-closed: the new table's read policy, and the org seam
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- The POSITIVE first, so "reads nothing" below is a scoping result and not an empty table.
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}');
 select is((select count(*)::int from ops.stream_completeness), 2,
   'stream_completeness_select_org (positive): read is ORG-WIDE — a member sees both streams'' state, because a gap that is private is the tribal knowledge FR-031 ends');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member","admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member","admin"]}');
 select is((select count(*)::int from ops.stream_completeness), 0,
   'org seam: another org''s admin reads none of org A''s confirmations');
 

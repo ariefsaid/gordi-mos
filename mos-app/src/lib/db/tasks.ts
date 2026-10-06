@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { containsPattern } from './like-pattern'
 import { announceOpenTaskCountChanged } from '@/lib/open-task-count-store'
 import { getReadScope, sharePending } from '@/lib/scoped-reads'
 import type { ReadLease } from '@/lib/scoped-reads'
@@ -22,14 +23,17 @@ const mos = () => supabase.schema('mos')
 // Raw mos.tasks columns only — no cross-schema FK embeds.
 // PostgREST CANNOT FK-embed across schemas (mos→shared) under the mos profile (PGRST200).
 // Display-name resolution is client-side via directory.ts (Fix C1).
-const LIST_SELECT = [
+// LIST_SELECT is exported for processes.ts rollup reuse (Rule 11 — never re-implement task fetching).
+export const LIST_SELECT = [
   'id', 'org_id', 'title', 'business_unit_id', 'team_id', 'status',
   'responsible_person_id', 'accountable_person_id', 'consulted_person_ids',
   'informed_person_ids', 'due_date', 'objective_id', 'work_line_id',
   'last_activity_at', 'archived_at', 'created_by', 'completed_at',
   'process_run_id', 'generated_from_task_def_id',
 ].join(',')
-const DETAIL_SELECT = '*'
+const DETAIL_SELECT = `${LIST_SELECT},description,created_at,updated_at`
+const CHECKLIST_COLUMNS = 'id,org_id,task_id,label,is_done,position,created_at,updated_at'
+const EVENT_COLUMNS = 'id,org_id,task_id,actor_person_id,event_type,from_value,to_value,created_at'
 
 export interface TaskListFilters {
   businessUnitId?: string
@@ -94,26 +98,23 @@ function dbError(message: string, code?: string): DbError {
   return err
 }
 
-/** Read one task plus its checklist (position asc) and events (created_at desc, FR-034). */
+/** Read one task plus its checklist (position asc) and events (created_at desc, FR-034). The
+ * three reads share only the id — issued together, not as a waterfall (#1359). */
 export async function getTask(id: string): Promise<TaskDetail> {
-  const { data: task, error: taskErr } = await mos()
-    .from('tasks').select(DETAIL_SELECT).eq('id', id).single()
-  if (taskErr) throw dbError(`getTask failed — ${taskErr.message}`, taskErr.code)
-
-  const { data: checklist, error: clErr } = await mos()
-    .from('task_checklist_items').select('*').eq('task_id', id)
-    .order('position', { ascending: true })
-  if (clErr) throw new Error(`getTask checklist failed — ${clErr.message}`)
-
-  const { data: events, error: evErr } = await mos()
-    .from('task_events').select('*').eq('task_id', id)
-    .order('created_at', { ascending: false })
-  if (evErr) throw new Error(`getTask events failed — ${evErr.message}`)
-
+  const [taskRes, checklistRes, eventsRes] = await Promise.all([
+    mos().from('tasks').select(DETAIL_SELECT).eq('id', id).single(),
+    mos().from('task_checklist_items').select(CHECKLIST_COLUMNS).eq('task_id', id)
+      .order('position', { ascending: true }),
+    mos().from('task_events').select(EVENT_COLUMNS).eq('task_id', id)
+      .order('created_at', { ascending: false }),
+  ])
+  if (taskRes.error) throw dbError(`getTask failed — ${taskRes.error.message}`, taskRes.error.code)
+  if (checklistRes.error) throw new Error(`getTask checklist failed — ${checklistRes.error.message}`)
+  if (eventsRes.error) throw new Error(`getTask events failed — ${eventsRes.error.message}`)
   return {
-    task: task as unknown as TaskRow,
-    checklist: (checklist ?? []) as unknown as ChecklistItemRow[],
-    events: (events ?? []) as unknown as TaskEventRow[],
+    task: taskRes.data as unknown as TaskRow,
+    checklist: (checklistRes.data ?? []) as unknown as ChecklistItemRow[],
+    events: (eventsRes.data ?? []) as unknown as TaskEventRow[],
   }
 }
 
@@ -257,7 +258,7 @@ export async function searchTasksByTitle(q: string, limit = 20): Promise<TaskTit
   const { data, error } = await mos()
     .from('tasks')
     .select('id,title,status')
-    .ilike('title', `%${term}%`)
+    .ilike('title', containsPattern(term))
     .is('archived_at', null)
     .order('last_activity_at', { ascending: false })
     .limit(limit)

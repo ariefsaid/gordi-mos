@@ -38,7 +38,9 @@ import {
   insertKitchenLog,
   insertKitchenLogBatch,
   listSubmittedKitchenLogs,
+  hasSubmittedKitchenProduction,
   approveKitchenLog,
+  approveKitchenLogsBulk,
   rejectKitchenLog,
 } from './kitchen-logs'
 
@@ -67,7 +69,9 @@ interface Recorder {
   ins: Array<[string, unknown[]]>
   inserts: unknown[]
   updates: unknown[]
+  limits: number[]
   orders: Array<[string, unknown]>
+  orFilters: string[]
   rpcCalls: Array<[string, unknown]>
 }
 
@@ -121,7 +125,8 @@ function makeSchema(
       rec.orders.push([c, o])
       return builder
     })
-    builder.limit = vi.fn(() => builder)
+    builder.or = vi.fn((filter: string) => { rec.orFilters.push(filter); return builder })
+    builder.limit = vi.fn((limit: number) => { rec.limits.push(limit); return builder })
     builder.single = vi.fn(() => Promise.resolve(result()))
     builder.maybeSingle = vi.fn(() => Promise.resolve(result()))
     builder.then = (resolve: (v: unknown) => unknown) =>
@@ -143,7 +148,7 @@ function makeSchema(
 function freshRec(): Recorder {
   return {
     fromTables: [], selects: [], eqs: [], neqs: [], iss: [], nots: [],
-    inserts: [], updates: [], orders: [], rpcCalls: [], ins: [],
+    inserts: [], updates: [], limits: [], orders: [], orFilters: [], rpcCalls: [], ins: [],
   }
 }
 
@@ -234,6 +239,7 @@ describe('listCaptureFormItems — stream-aware capture-form read (FR-011, DD-WA
           { id: 'u2-each', name: 'each', isShown: true, isDefault: true, labelOrdinal: null, labelCount: 1 },
           { id: 'u2-case', name: 'case', isShown: true, isDefault: false, labelOrdinal: null, labelCount: 1 },
         ],
+        unitMultiples: [0.5, 2],
       },
       {
         id: 'raw-1', erpName: 'ERP Beans', mosName: 'ERP Beans', category: 'Main', kind: 'RAW', isActive: true,
@@ -271,10 +277,8 @@ describe('listCaptureFormItems — stream-aware capture-form read (FR-011, DD-WA
       },
       {
         id: 'w2', name: 'MOS Nasi Goreng', category: 'Main', kind: 'WIP',
-        units: [
-          { id: 'u2-each', name: 'each', is_default: true },
-          { id: 'u2-case', name: 'case', is_default: false },
-        ],
+        units: [{ id: 'u2-each', name: 'each', is_default: true }],
+        unit_multiples: [0.5, 2],
       },
     ])
     expect(rec.fromTables).toEqual(expect.arrayContaining(['capture_form_items', 'stream_items']))
@@ -313,10 +317,10 @@ describe('listCaptureFormItems — stream-aware capture-form read (FR-011, DD-WA
     expect(result.map(item => [item.id, item.kind])).toEqual([['raw-1', 'RAW'], ['wip-1', 'WIP']])
   })
 
-  it('distinguishes repeated ERP unit labels without exposing ERP identifiers', async () => {
+  it('keeps the ERP default as the only capture coordinate and exposes configured factors separately', async () => {
     mockCafeItemSettings.mockResolvedValue([{
       id: 'w2', erpName: 'ERP Nasi Goreng', mosName: 'MOS Nasi Goreng', category: 'Main', kind: 'WIP', isActive: true,
-      defaultUnitId: 'detail-a',
+      defaultUnitId: 'detail-a', unitMultiples: [0.5, 2],
       units: [
         { id: 'detail-a', name: 'each', isShown: true, isDefault: true, labelOrdinal: 1, labelCount: 2 },
         { id: 'detail-b', name: 'each', isShown: true, isDefault: false, labelOrdinal: 2, labelCount: 2 },
@@ -331,8 +335,8 @@ describe('listCaptureFormItems — stream-aware capture-form read (FR-011, DD-WA
     const result = await listCaptureFormItems(STREAM)
     expect(result[0]?.units).toEqual([
       { id: 'detail-a', name: 'each (1/2)', is_default: true },
-      { id: 'detail-b', name: 'each (2/2)', is_default: false },
     ])
+    expect(result[0]?.unit_multiples).toEqual([0.5, 2])
   })
 
   it('reads the gated capture_form_items view ordered by name — never raw wip_items', async () => {
@@ -562,6 +566,33 @@ describe('insertKitchenLog — payload contract (AC-020/030)', () => {
     assertNoServerStamps([payload])
     // should not send the old (wrong) 'date' key
     expect(payload).not.toHaveProperty('date')
+  })
+
+  it('includes typed quantity and selected factor while retaining the ERP default unit id', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema(
+      { kitchen_logs: [{ data: { id: 'log-multiple' }, error: null }] },
+      rec,
+    ) as never)
+    await insertKitchenLog({
+      business_unit_id: BU_ID,
+      log_date: '2026-06-20',
+      branch_id: BRANCH_ID,
+      activity: 'kitchen',
+      action: 'produce',
+      destination_branch_id: null,
+      wip_item_id: WIP_ID,
+      item_unit_id: 'u-default',
+      qty_porsi: 1.5,
+      entry_quantity: 3,
+      entry_unit_factor: 0.5,
+    })
+    expect(rec.inserts[0]).toMatchObject({
+      item_unit_id: 'u-default',
+      qty_porsi: 1.5,
+      entry_quantity: 3,
+      entry_unit_factor: 0.5,
+    })
   })
 
   it('FR-021/022 (#234): an explicit item-unit binding rides the payload — the change-unit path', async () => {
@@ -1039,6 +1070,7 @@ describe('listSubmittedKitchenLogs — the ops_lead review queue (FR-040)', () =
       submitted_by: 'p1',
       business_unit_id: 'kb',
       created_at: '2026-06-20T09:12:00Z',
+      updated_at: '2026-06-20T09:12:00Z',
     },
     {
       id: 'log-2',
@@ -1056,6 +1088,7 @@ describe('listSubmittedKitchenLogs — the ops_lead review queue (FR-040)', () =
       submitted_by: 'p2',
       business_unit_id: 'kb',
       created_at: '2026-06-20T13:02:00Z',
+      updated_at: '2026-06-20T13:02:00Z',
     },
   ]
 
@@ -1077,22 +1110,44 @@ describe('listSubmittedKitchenLogs — the ops_lead review queue (FR-040)', () =
     // plan lookup depends on this being selected, not assumed from a single default.
     expect(rec.selects.join(' ')).toMatch(/branch_id/)
     expect(rec.selects.join(' ')).toMatch(/activity/)
+    expect(rec.selects.join(' ')).toMatch(/updated_at/)
 
     // Flattened display shape
     expect(rows).toHaveLength(2)
-    expect(rows[0]).toMatchObject({
-      id: 'log-1',
-      wip_item_name: 'Nasi Goreng',
-      log_date: '2026-06-20',
-      action_type: 'Production',
-      action: 'produce',
-      destination_branch_id: null,
-      branch_id: BRANCH_ID,
-      activity: 'kitchen',
-      qty_porsi: 8,
-      submitted_by: 'p1',
-    })
-    expect(rows[1].wip_item_name).toBe('Cold Brew')
+    expect(rows).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'log-1',
+        wip_item_name: 'Nasi Goreng',
+        log_date: '2026-06-20',
+        action_type: 'Production',
+        action: 'produce',
+        destination_branch_id: null,
+        branch_id: BRANCH_ID,
+        activity: 'kitchen',
+        qty_porsi: 8,
+        submitted_by: 'p1',
+        updated_at: '2026-06-20T09:12:00Z',
+      }),
+      expect.objectContaining({ id: 'log-2', wip_item_name: 'Cold Brew' }),
+    ]))
+  })
+
+  it('keeps the review queue oldest-first with an ascending keyset window', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema({ kitchen_logs: [{ data: [], error: null }] }, rec) as never,
+    )
+    const cursor = { created_at: '2026-06-20T09:12:00Z', id: 'log-1' }
+
+    await listSubmittedKitchenLogs('2026-06-20', { before: cursor })
+
+    expect(rec.orders).toEqual([
+      ['created_at', { ascending: true }],
+      ['id', { ascending: true }],
+    ])
+    expect(rec.orFilters).toEqual([
+      `created_at.gt.${cursor.created_at},and(created_at.eq.${cursor.created_at},id.gt.${cursor.id})`,
+    ])
   })
 
   it('returns [] when nothing is Submitted (the good-empty queue)', async () => {
@@ -1143,11 +1198,11 @@ describe('approveKitchenLog — calls the approve RPC, returns the minted batch_
       ) as never,
     )
 
-    const result = await approveKitchenLog('log-1', 'looks good')
+    const result = await approveKitchenLog('log-1', '2026-06-20T09:12:00Z', 'looks good')
 
     expect(rec.rpcCalls).toContainEqual([
       'approve_kitchen_log',
-      { p_log_id: 'log-1', p_review_note: 'looks good' },
+      { p_log_id: 'log-1', p_review_note: 'looks good', p_expected_updated_at: '2026-06-20T09:12:00Z' },
     ])
     expect(result).toEqual({ batch_id: 'PR-20260620-003' })
   })
@@ -1161,11 +1216,36 @@ describe('approveKitchenLog — calls the approve RPC, returns the minted batch_
       ) as never,
     )
 
-    await approveKitchenLog('log-9')
+    await approveKitchenLog('log-9', '2026-06-20T13:02:00Z')
     expect(rec.rpcCalls).toContainEqual([
       'approve_kitchen_log',
-      { p_log_id: 'log-9', p_review_note: null },
+      { p_log_id: 'log-9', p_review_note: null, p_expected_updated_at: '2026-06-20T13:02:00Z' },
     ])
+  })
+
+  it('sends each bulk row version with its approval request', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema(
+        { approve_kitchen_logs: [{ data: { group_id: 'group-1', batch_ids: ['batch-1'] }, error: null }] },
+        rec,
+      ) as never,
+    )
+
+    const result = await approveKitchenLogsBulk([
+      { id: 'log-1', updated_at: '2026-06-20T09:12:00Z' },
+      { id: 'log-2', updated_at: '2026-06-20T13:02:00Z' },
+    ])
+
+    expect(rec.rpcCalls).toContainEqual([
+      'approve_kitchen_logs',
+      {
+        p_log_ids: ['log-1', 'log-2'],
+        p_review_note: null,
+        p_expected_updated_at: ['2026-06-20T09:12:00Z', '2026-06-20T13:02:00Z'],
+      },
+    ])
+    expect(result).toEqual({ push_group_id: 'group-1', batch_ids: ['batch-1'] })
   })
 
   it('surfaces P0003 (already actioned by someone else) as a typed code so the UI can refresh', async () => {
@@ -1181,7 +1261,7 @@ describe('approveKitchenLog — calls the approve RPC, returns the minted batch_
       ) as never,
     )
 
-    await expect(approveKitchenLog('log-1')).rejects.toMatchObject({ code: 'P0003' })
+    await expect(approveKitchenLog('log-1', '2026-06-20T09:12:00Z')).rejects.toMatchObject({ code: 'P0003' })
   })
 
   it('surfaces 42501 (not ops_lead / wrong org) as a typed code', async () => {
@@ -1196,7 +1276,7 @@ describe('approveKitchenLog — calls the approve RPC, returns the minted batch_
         rec,
       ) as never,
     )
-    await expect(approveKitchenLog('log-1')).rejects.toMatchObject({ code: '42501' })
+    await expect(approveKitchenLog('log-1', '2026-06-20T09:12:00Z')).rejects.toMatchObject({ code: '42501' })
   })
 })
 
@@ -1361,7 +1441,7 @@ describe('fetchActualsMap — the already-logged actuals, stream-scoped (FR-014,
     expect(map['w1'][`transfer:${RADIANT_ID}`]).toEqual([
       { key: 'unit:u-batch-1', item_unit_id: 'u-batch-1', unit_name: 'batch', qty_porsi: 4 },
     ])
-    expect(rec.selects).toContain('id,wip_item_id,action,destination_branch_id,item_unit_id,qty_porsi')
+    expect(rec.selects).toContain('id,wip_item_id,action,destination_branch_id,item_unit_id,qty_porsi,entry_quantity,entry_unit_factor,entry_unit_name')
     expect(rec.selects).toContain('id,unit_name')
     expect(rec.ins).toContainEqual(['id', ['u-batch-1', 'u-batch-2']])
     expect(rec.fromTables).toContain('item_units')
@@ -1372,6 +1452,24 @@ describe('fetchActualsMap — the already-logged actuals, stream-scoped (FR-014,
     expect(rec.neqs).toContainEqual(['status', 'Rejected'])
     // A restarted waste draft is replaced, not added: only the live row counts.
     expect(rec.iss).toContainEqual(['superseded_by', null])
+  })
+
+  it('keeps each newly captured multiple as its own history entry even on the same default unit', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({
+      kitchen_logs: [{ data: [
+        { id: 'log-half-1', wip_item_id: 'w1', action: 'produce', destination_branch_id: null, item_unit_id: 'u-each', qty_porsi: 1, entry_quantity: 2, entry_unit_factor: 0.5, entry_unit_name: 'each' },
+        { id: 'log-half-2', wip_item_id: 'w1', action: 'produce', destination_branch_id: null, item_unit_id: 'u-each', qty_porsi: 1.5, entry_quantity: 3, entry_unit_factor: 0.5, entry_unit_name: 'each' },
+      ], error: null }],
+      item_units: [{ data: [{ id: 'u-each', unit_name: 'each' }], error: null }],
+    }, rec) as never)
+
+    await expect(fetchActualsMap('2026-08-08', STREAM)).resolves.toEqual({
+      w1: { produce: [
+        { key: 'log:log-half-1', item_unit_id: 'u-each', unit_name: 'each', qty_porsi: 1, entry_quantity: 2, entry_unit_factor: 0.5, entry_unit_name: 'each' },
+        { key: 'log:log-half-2', item_unit_id: 'u-each', unit_name: 'each', qty_porsi: 1.5, entry_quantity: 3, entry_unit_factor: 0.5, entry_unit_name: 'each' },
+      ] },
+    })
   })
 
   it('returns an empty map when nothing is logged yet', async () => {
@@ -1410,5 +1508,22 @@ describe('fetchActualsMap — the already-logged actuals, stream-scoped (FR-014,
         produce: [{ key: 'unit:u-archived', item_unit_id: 'u-archived', unit_name: null, qty_porsi: 3 }],
       },
     })
+  })
+})
+
+
+describe('hasSubmittedKitchenProduction — the gate outside the review page', () => {
+  it.each([[[], false], [[{ id: 'unloaded-production' }], true]] as const)('checks the stream/day with a bounded existence read', async (data, expected) => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ kitchen_logs: [{ data, error: null }] }, rec) as never)
+    expect(await hasSubmittedKitchenProduction('2026-10-05', BRANCH_ID, 'bar')).toBe(expected)
+    expect(rec.selects).toEqual(['id'])
+    expect(rec.eqs).toEqual([['log_date', '2026-10-05'], ['branch_id', BRANCH_ID], ['activity', 'bar'], ['status', 'Submitted'], ['action', 'produce']])
+    expect(rec.limits).toEqual([1])
+  })
+  it('fails the read when the gate cannot be checked', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ kitchen_logs: [{ data: null, error: { message: 'offline' } }] }, rec) as never)
+    await expect(hasSubmittedKitchenProduction('2026-10-05', BRANCH_ID, 'bar')).rejects.toThrow('hasSubmittedKitchenProduction failed')
   })
 })

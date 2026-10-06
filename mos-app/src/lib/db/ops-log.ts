@@ -5,7 +5,9 @@ import type { LogEntryRow, LogEventType } from './ops-log.types'
 // The ops data layer reaches ops via the PostgREST `ops` profile. RLS stamps org_id + created_by;
 // the client NEVER sends them (NFR-002). No cross-schema embed — names resolved client-side (NFR-006).
 const ops = () => supabase.schema('ops')
-const LIST_SELECT = '*' // raw columns only — names resolved client-side (NFR-006).
+// Raw columns only — names resolved client-side (NFR-006). Explicit list so the ops-log list read
+// never drags a full row shape it does not use (#1359).
+const LIST_SELECT = 'id,org_id,business_unit_id,origin,event_type,title,detail,occurred_at,needs_attention,linked_task_id,archived_at,created_by,created_at,updated_at'
 
 export interface LogFilters {
   businessUnitId?: string
@@ -101,7 +103,7 @@ export async function getTodayOpsSummary(now: Date = new Date()): Promise<TodayO
 
 /** Get a single log entry by id (for edit mode pre-fill) */
 export async function getLogEntry(id: string): Promise<LogEntryRow> {
-  const { data, error } = await ops().from('log_entries').select('*').eq('id', id).single()
+  const { data, error } = await ops().from('log_entries').select(LIST_SELECT).eq('id', id).single()
   if (error) throw new Error(`getLogEntry failed — ${error.message}`)
   return data as unknown as LogEntryRow
 }
