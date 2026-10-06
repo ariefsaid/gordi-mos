@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import userEvent from '@testing-library/user-event'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
@@ -214,6 +215,20 @@ describe('CafeWastePage', () => {
     expect(mockInsertKitchenLog).not.toHaveBeenCalled()
   })
 
+  it('renders a desktop quantity error in a full-width row directly below the input and unit', async () => {
+    setWideMatchMedia()
+    renderPage()
+    const input = await screen.findByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })
+    fireEvent.change(input, { target: { value: '1.125' } })
+    fireEvent.blur(input)
+
+    const error = screen.getByRole('alert')
+    const detailRow = error.closest('tr')
+    expect(detailRow).toHaveClass('dt-row-detail')
+    expect(detailRow?.querySelector('td')).toHaveAttribute('colspan', '2')
+    expect(input).toHaveAttribute('aria-describedby', error.id)
+  })
+
   it('keeps a valid decimal and the Add photo action intact on ArrowDown', async () => {
     renderPage()
     const input = await screen.findByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })
@@ -229,8 +244,8 @@ describe('CafeWastePage', () => {
   })
 
   it.each([
-    ['1.250', 'Did you mean 1250 or 1.250? If decimal, re-enter it with one or two decimal places.'],
-    ['0,125', 'Did you mean 125 or 0.125? If decimal, re-enter it with one or two decimal places.'],
+    ['1.250', 'Could mean 1250 or 1.250. If decimal, use 1–2 places.'],
+    ['0,125', 'Could mean 125 or 0.125. If decimal, use 1–2 places.'],
   ])('refuses ambiguous waste quantity %s with both readings and blocks Add photo', async (raw, correction) => {
     renderPage()
     const input = await screen.findByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })
@@ -530,6 +545,31 @@ describe('CafeWastePage', () => {
     fireEvent.change(screen.getByRole('spinbutton', { name: 'Waste quantity for Oat Latte' }), { target: { value: '2' } })
     await waitFor(() => expect(addPhoto).toBeEnabled())
     expect(screen.getAllByText('Enter a quantity before adding a photo.')).toHaveLength(1)
+  })
+
+  it('switching one default unit to a 3× multiple stays valid and submits the rounded entry quantity', async () => {
+    mockListCafeItemSettings.mockResolvedValue([{
+      ...ITEM_SETTINGS[0]!,
+      unitMultiples: [3],
+    }])
+    renderPage()
+
+    const input = await screen.findByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })
+    fireEvent.change(input, { target: { value: '1' } })
+    await userEvent.click(screen.getByRole('combobox', { name: 'Waste unit for Oat Latte' }))
+    await userEvent.click(await screen.findByRole('option', { name: '3 cup' }))
+
+    expect(input).toHaveValue('0.33')
+    expect(input).not.toHaveAttribute('aria-invalid', 'true')
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(document.querySelector('.cwl-footer')).not.toHaveTextContent(/needs fixing/i)
+    expect(screen.getAllByRole('button', { name: 'Add photo' })[0]).toBeEnabled()
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Add photo' })[0]!)
+    await waitFor(() => expect(mockInsertKitchenLog).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'waste', wip_item_id: 'wip-1', item_unit_id: 'unit-cup',
+      qty_porsi: 0.99, entry_quantity: 0.33, entry_unit_factor: 3,
+    })))
   })
 
   it('converts a selected multiple to the default ERP unit and stores its entry snapshot', async () => {

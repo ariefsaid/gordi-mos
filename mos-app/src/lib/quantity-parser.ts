@@ -68,7 +68,7 @@ export function parseQuantityInput(raw: string, options: QuantityParseOptions = 
 }
 
 /** Format a quantity for direct display in the viewer's locale without grouping. */
-export function formatQuantityInput(value: number, locale: string, maximumFractionDigits = 3): string {
+export function formatQuantityInput(value: number, locale: string, maximumFractionDigits = 2): string {
   if (!Number.isFinite(value) || value === 0) return ''
   return new Intl.NumberFormat(locale, {
     useGrouping: false,

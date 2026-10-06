@@ -59,6 +59,9 @@ interface WipItemStepperProps {
   /** The draft text is kept outside the row while table filters unmount it. */
   invalidDraft?: string
   onInvalidQuantityDraft?: (raw: string) => void
+  onQuantityErrorVisibilityChange?: (visible: boolean) => void
+  hideQuantityError?: boolean
+  quantityErrorId?: string
 }
 
 function formatLoggedEntry(
@@ -95,6 +98,9 @@ export function WipItemStepper({
   onQuantityValidityChange,
   invalidDraft,
   onInvalidQuantityDraft,
+  onQuantityErrorVisibilityChange,
+  hideQuantityError = false,
+  quantityErrorId,
 }: WipItemStepperProps) {
   const t = useT()
   // Plan and stock are shown as unitless facts beside the item name. The plan is also a
@@ -139,7 +145,7 @@ export function WipItemStepper({
       : error
   const capCueText = capError === TRANSFER_SHORT_CUE ? t('kitchen.log.stepper.capCue') : capError
   const formatActualQty = (quantity: number) => new Intl.NumberFormat(
-    document.documentElement.lang || 'en', { maximumFractionDigits: 3 },
+    document.documentElement.lang || 'en', { maximumFractionDigits: 2 },
   ).format(quantity)
 
   // ── The fixed unit + the deliberate "change unit" affordance (#234) ─────────
@@ -233,17 +239,20 @@ export function WipItemStepper({
           onChange={onQtyChange}
           onInvalid={(_reason, raw) => { onQtyChange(0); onInvalidQuantityDraft?.(raw) }}
           onValidityChange={onQuantityValidityChange}
+          onErrorVisibilityChange={onQuantityErrorVisibilityChange}
+          onBlur={() => setBlurred(true)}
+          hideError={hideQuantityError}
+          errorMessageId={quantityErrorId}
           initialDraft={invalidDraft}
           suffix={unitSuffix}
           suffixPosition="below"
           placeholder={placeholderQuantity > 0 ? formatActualQty(placeholderQuantity) : '0'}
           min={0}
           maxIntegerDigits={10}
-          maxFractionDigits={selectedFactor === 1 ? 2 : 3}
+          maxFractionDigits={2}
           enterKeyHint="next"
           disabled={disabled}
           touchTarget
-          onBlur={() => setBlurred(true)}
         />
         </div>
       </div>

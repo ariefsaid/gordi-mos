@@ -34,7 +34,8 @@ describe('Cafe Count domain adapter', () => {
   it('normalizes decimal comma/point, accepts zero and keeps blank distinct', () => {
     expect(normalizeCafeCountQuantity('')).toBeNull()
     expect(normalizeCafeCountQuantity('0')).toBe('0')
-    expect(normalizeCafeCountQuantity('0012,5000')).toBe('12.5')
+    expect(normalizeCafeCountQuantity('0012,50')).toBe('12.5')
+    expect(normalizeCafeCountQuantity('0012,5000')).toBeNull()
     expect(normalizeCafeCountQuantity('0,12')).toBe('0.12')
     expect(normalizeCafeCountQuantity('0,125')).toBeNull()
     expect(normalizeCafeCountQuantity('1.250')).toBeNull()

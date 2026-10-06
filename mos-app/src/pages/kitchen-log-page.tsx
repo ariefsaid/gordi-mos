@@ -33,6 +33,7 @@ import {
 // Plan/Stock/Review open on the same books, and every switch carries across (issue 456).
 import { useCafeStream } from '@/lib/use-cafe-stream'
 import { fromDefaultUnitQuantity, formatUnitMultiple, toDefaultUnitQuantity } from '@/lib/cafe-unit-multiples'
+import { parseQuantityInput } from '@/lib/quantity-parser'
 import { clearCafeDraftCount, setCafeDraftCount } from '@/lib/cafe-capture-draft'
 import { CafeStreamBar, CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
 import type { ReactNode } from 'react'
@@ -81,6 +82,7 @@ import {
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
 import { formatWeekdayDayMonth } from '@/lib/format/date'
 import { EmptyState, LoadingShell } from '@/components/ui/state-kit'
+import { QuantityFieldError } from '@/components/ui/quantity-field'
 import { CafeItemsEmptyState } from '@/components/kitchen/cafe-items-empty-state'
 import { useFocusRestore } from '@/components/ui/use-focus-restore'
 import { reportError } from '@/lib/telemetry'
@@ -298,6 +300,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   const [invalidItemIds, setInvalidItemIds] = useState<Set<string>>(new Set())
   const [invalidQuantityIds, setInvalidQuantityIds] = useState<Set<string>>(new Set())
   const [invalidQuantityDrafts, setInvalidQuantityDrafts] = useState<Record<string, string>>({})
+  const [visibleQuantityErrors, setVisibleQuantityErrors] = useState<Set<string>>(new Set())
   const [focusInvalidId, setFocusInvalidId] = useState<string | null>(null)
   const [tableResetKey, setTableResetKey] = useState(0)
 
@@ -459,6 +462,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
         setInvalidItemIds(new Set())
         setInvalidQuantityIds(new Set())
         setInvalidQuantityDrafts({})
+        setVisibleQuantityErrors(new Set())
         setFocusInvalidId(null)
         adoptStream(catalog)
         setMovement(resolvedMovement)
@@ -483,6 +487,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       setInvalidItemIds(new Set())
       setInvalidQuantityIds(new Set())
       setInvalidQuantityDrafts({})
+      setVisibleQuantityErrors(new Set())
       setFocusInvalidId(null)
       adoptStream(catalog)
       setMovement(resolvedMovement)
@@ -583,6 +588,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     setLines(buildLines(wipItems, planMap, stockMap, pendingMovement))
     setInvalidQuantityIds(new Set())
     setInvalidQuantityDrafts({})
+    setVisibleQuantityErrors(new Set())
     setFocusInvalidId(null)
     setMovement(pendingMovement)
     setPendingMovement(null)
@@ -601,6 +607,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     const gen = ++requestGen.current
     setInvalidQuantityIds(new Set())
     setInvalidQuantityDrafts({})
+    setVisibleQuantityErrors(new Set())
     setFocusInvalidId(null)
     chooseStream(nextStream) // the whole Café module follows this choice (#440)
     setMovement(PRODUCE)
@@ -748,6 +755,16 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     setInvalidQuantityDrafts(current => ({ ...current, [itemId]: raw }))
   }
 
+  function handleQuantityErrorVisibilityChange(itemId: string, visible: boolean) {
+    setVisibleQuantityErrors(current => {
+      if (current.has(itemId) === visible) return current
+      const next = new Set(current)
+      if (visible) next.add(itemId)
+      else next.delete(itemId)
+      return next
+    })
+  }
+
   function focusFirstInvalidQuantity() {
     const itemId = Array.from(invalidQuantityIds).find(id => wipItems.some(item => item.id === id))
     if (!itemId) return
@@ -783,8 +800,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     })
   }
 
-  // Selecting a multiple changes only the entry basis. The stored ERP coordinate remains
-  // the default item-unit; preserve the canonical amount if staff switch units mid-entry.
+  // A selected multiple keeps the ERP coordinate at the default unit. Recompute the canonical
+  // amount from its two-place entry value so the submitted quantity matches what the field shows.
   function handleUnitChange(itemId: string, unitChoice: string) {
     if (captureClosed) return
     const item = wipItems.find(candidate => candidate.id === itemId)
@@ -794,12 +811,14 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
         const factor = Number(unitChoice.slice('multiple:'.length))
         const defaultUnit = item?.units.find(unit => unit.is_default) ?? item?.units[0]
         if (!Number.isFinite(factor) || !item?.unit_multiples?.includes(factor) || !defaultUnit) return prev
+        const entryQuantity = fromDefaultUnitQuantity(current.qty_porsi, factor)
         const next: KitchenLogLine = {
           ...current,
           item_unit_id: defaultUnit.id,
-          entry_quantity: fromDefaultUnitQuantity(current.qty_porsi, factor),
+          entry_quantity: entryQuantity,
           entry_unit_factor: factor,
           entry_unit_name: defaultUnit.name,
+          qty_porsi: toDefaultUnitQuantity(entryQuantity, factor),
         }
         return { ...prev, [itemId]: gateLine(next, movement) }
       }
@@ -831,6 +850,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     setLines(buildLines(wipItems, planMap, stockMap, movement))
     setInvalidQuantityIds(new Set())
     setInvalidQuantityDrafts({})
+    setVisibleQuantityErrors(new Set())
     setFocusInvalidId(null)
     setDiscardConfirmOpen(false)
   }
@@ -929,6 +949,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       setInvalidItemIds(new Set())
       setInvalidQuantityIds(new Set())
       setInvalidQuantityDrafts({})
+      setVisibleQuantityErrors(new Set())
       setFocusInvalidId(null)
       setLines(buildLines(wipItems, planMap, stockMap, movement))
     } catch (err) {
@@ -1073,7 +1094,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     }]
   })
   const formatCaptureQty = (quantity: number) => new Intl.NumberFormat(
-    document.documentElement.lang || 'en', { maximumFractionDigits: 3 },
+    document.documentElement.lang || 'en', { maximumFractionDigits: 2 },
   ).format(quantity)
   const renderUnitlessValue = (value: ReactNode) => (
     <span className="kl-unitless-value">
@@ -1216,6 +1237,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     item: KitchenListRow<CaptureFormItem>,
     line: KitchenLogLine,
     dense: boolean,
+    hideQuantityError = false,
   ) => (
     <WipItemStepper
       itemName={item.name}
@@ -1225,6 +1247,9 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       alreadyLogged={displayActualUnitsForItem(actualsMap[item.id]?.[movementKey(movement)] ?? [], item)}
       onQtyChange={qty => handleQtyChange(item.id, qty)}
       onQuantityValidityChange={valid => handleQuantityValidityChange(item.id, valid)}
+      onQuantityErrorVisibilityChange={visible => handleQuantityErrorVisibilityChange(item.id, visible)}
+      hideQuantityError={hideQuantityError}
+      quantityErrorId={`quantity-${item.id}-quantity-error`}
       invalidDraft={invalidQuantityDrafts[item.id]}
       onInvalidQuantityDraft={raw => handleInvalidQuantityDraft(item.id, raw)}
       onNotesChange={note => handleNotesChange(item.id, note)}
@@ -1236,6 +1261,22 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       dense={dense}
     />
   )
+
+  const renderQuantityError = (item: KitchenListRow<CaptureFormItem>) => {
+    const rawValue = invalidQuantityDrafts[item.id]
+    if (!rawValue || !visibleQuantityErrors.has(item.id)) return null
+    const parsed = parseQuantityInput(rawValue, { min: 0, maxIntegerDigits: 10, maxFractionDigits: 2 })
+    if (parsed.kind !== 'invalid') return null
+    return (
+      <QuantityFieldError
+        id={`quantity-${item.id}-quantity-error`}
+        reason={parsed.reason}
+        rawValue={rawValue}
+        maxFractionDigits={2}
+        className="kl-row-quantity-error"
+      />
+    )
+  }
 
   const columns: DataTableColumn<KitchenListRow<CaptureFormItem>>[] = [
     {
@@ -1249,7 +1290,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       header: mode === 'transfer'
         ? t('kitchen.transfer.col.quantity', { branch: transferDestinationName ?? t('kitchen.actionType.transferTo.fallback') })
         : t('kitchen.log.col.made'),
-      render: item => renderCaptureStepper(item, lines[item.id], isDesktop),
+      render: item => renderCaptureStepper(item, lines[item.id], isDesktop, isDesktop),
     },
   ]
 
@@ -1363,6 +1404,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       key={`${movementKey(movement)}:${plannedLines.length > 0 ? 'planned' : 'off-plan'}:${tableResetKey}`}
       defaultCollapsedGroupKeys={plannedLines.length > 0 && focusInvalidGroupKey !== 'offplan' ? new Set(['offplan']) : undefined}
       renderCard={streamNonProducing ? undefined : renderLogCard}
+      renderRowDetail={renderQuantityError}
       isDesktop={isDesktop}
       state={visibleItems.length > 0 ? 'ready' : 'empty'}
       emptyLabel={t('kitchen.filter.noMatch')}

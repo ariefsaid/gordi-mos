@@ -12,6 +12,7 @@ interface QuantityFieldProps {
   onChange: (value: number) => void
   onInvalid?: (reason: QuantityParseReason, raw: string) => void
   onValidityChange?: (valid: boolean) => void
+  onErrorVisibilityChange?: (visible: boolean) => void
   onBlur?: (valid: boolean) => void
   onKeyDown?: (event: React.KeyboardEvent<HTMLInputElement>) => void
   resetKey?: number
@@ -25,6 +26,8 @@ interface QuantityFieldProps {
   placeholder?: string
   className?: string
   errorClassName?: string
+  errorMessageId?: string
+  hideError?: boolean
   suffix?: ReactNode
   suffixClassName?: string
   suffixPosition?: 'below' | 'inline'
@@ -73,6 +76,7 @@ export function QuantityField({
   onChange,
   onInvalid,
   onValidityChange,
+  onErrorVisibilityChange,
   onBlur,
   onKeyDown,
   resetKey,
@@ -81,10 +85,12 @@ export function QuantityField({
   min = 0,
   max,
   maxIntegerDigits = 10,
-  maxFractionDigits = 3,
+  maxFractionDigits = 2,
   placeholder,
   className,
   errorClassName,
+  errorMessageId,
+  hideError = false,
   suffix,
   suffixClassName,
   suffixPosition = 'below',
@@ -108,12 +114,14 @@ export function QuantityField({
   const latestValue = useRef(value)
   const latestMaxFractionDigits = useRef(maxFractionDigits)
   const onValidityChangeRef = useRef(onValidityChange)
+  const onErrorVisibilityChangeRef = useRef(onErrorVisibilityChange)
   const previousMaxFractionDigits = useRef(maxFractionDigits)
   const initialDraftRef = useRef(initialDraft)
   latestValue.current = value
   latestMaxFractionDigits.current = maxFractionDigits
   onValidityChangeRef.current = onValidityChange
-  const errorId = `${id ?? generatedErrorId}-quantity-error`
+  onErrorVisibilityChangeRef.current = onErrorVisibilityChange
+  const errorId = errorMessageId ?? `${id ?? generatedErrorId}-quantity-error`
 
   useEffect(() => {
     const precisionChanged = previousMaxFractionDigits.current !== maxFractionDigits
@@ -167,7 +175,7 @@ export function QuantityField({
       return
     }
     setError(parsed.reason)
-    setErrorVisible(!focused.current)
+    setErrorVisible(current => current || !focused.current)
     onValidityChange?.(false)
     onInvalid?.(parsed.reason, raw)
   }
@@ -201,6 +209,10 @@ export function QuantityField({
   const ariaValue = currentParse.kind === 'valid' ? currentParse.value : undefined
   const showError = errorVisible && error !== null
 
+  useEffect(() => {
+    onErrorVisibilityChangeRef.current?.(showError)
+  }, [showError])
+
   return (
     <div className="quantity-field">
       <div className={`quantity-field-control quantity-field-control--${suffixPosition}`}>
@@ -224,7 +236,7 @@ export function QuantityField({
           enterKeyHint={enterKeyHint}
           data-touch-target={touchTarget ? 'true' : undefined}
           data-escape-layer={dataEscapeLayer}
-          onFocus={() => { focused.current = true; setErrorVisible(false) }}
+          onFocus={() => { focused.current = true }}
           onChange={event => handleChange(event.target.value)}
           onKeyDown={handleKeyDown}
           onBlur={handleBlur}
@@ -233,7 +245,7 @@ export function QuantityField({
           <div className={`quantity-field-suffix${suffixClassName ? ` ${suffixClassName}` : ''}`}>{suffix}</div>
         )}
       </div>
-      {showError && <QuantityFieldError id={errorId} reason={error!} rawValue={draft} maxFractionDigits={maxFractionDigits} className={errorClassName} />}
+      {showError && !hideError && <QuantityFieldError id={errorId} reason={error!} rawValue={draft} maxFractionDigits={maxFractionDigits} className={errorClassName} />}
     </div>
   )
 }

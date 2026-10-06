@@ -1276,6 +1276,40 @@ describe('FR-021/022: "change unit" re-binds the row to the chosen item-unit', (
 })
 
 describe('issue 1345: manager-defined multiples keep the ERP default coordinate', () => {
+  it('switching one default unit to a 3× multiple yields a valid two-place draft and submits that entry', async () => {
+    mockListCaptureFormItems.mockResolvedValue([{
+      id: 'w1', name: 'Ayam Bakar', category: 'Main',
+      units: [{ id: 'u1-default', name: 'porsi', is_default: true }],
+      unit_multiples: [3],
+    }])
+    mockFetchPlanMap.mockResolvedValue({ w1: { [PRODUCE_KEY]: 1 } })
+    mockInsertKitchenLogBatch.mockResolvedValue(['multiple-log-3'])
+    await renderPage()
+
+    const qtyInput = await screen.findByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    fireEvent.change(qtyInput, { target: { value: '1' } })
+    await userEvent.click(screen.getByRole('button', { name: /change unit for ayam bakar/i }))
+    await userEvent.click(screen.getByRole('combobox', { name: /unit for ayam bakar/i }))
+    await userEvent.click(await screen.findByRole('option', { name: '3 porsi' }))
+
+    expect(qtyInput).toHaveValue('0.33')
+    expect(qtyInput).not.toHaveAttribute('aria-invalid', 'true')
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(document.querySelector('.kl-footer')).not.toHaveTextContent(/needs fixing/i)
+    fireEvent.change(screen.getByRole('textbox', { name: /note for ayam bakar/i }), {
+      target: { value: 'Rounded in the selected 3× unit.' },
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /^submit/i }))
+    await waitFor(() => expect(mockInsertKitchenLogBatch).toHaveBeenCalledTimes(1))
+    expect(mockInsertKitchenLogBatch.mock.calls[0][0]).toEqual([
+      expect.objectContaining({
+        wip_item_id: 'w1', item_unit_id: 'u1-default',
+        qty_porsi: 0.99, entry_quantity: 0.33, entry_unit_factor: 3,
+      }),
+    ])
+  })
+
   it('starts on the default and submits converted quantity plus the typed amount and factor', async () => {
     mockListCaptureFormItems.mockResolvedValue([{
       id: 'w1', name: 'Ayam Bakar', category: 'Main',
@@ -2091,6 +2125,23 @@ describe('OD-K-5: reflow = one branch in the DOM (P-4)', () => {
     expect(table).toBeInTheDocument()
     expect(within(table).queryByText('Unit not recorded')).not.toBeInTheDocument()
     expect(document.querySelector('.dt-cards')).toBeNull()
+  })
+
+  it.each(['production', 'transfer'] as const)('keeps the desktop %s error in a full-width row under the entry', async mode => {
+    setDesktopMatchMedia(true)
+    if (mode === 'transfer') await renderTransferPage()
+    else await renderPage()
+    await waitFor(() => screen.getByText('Ayam Bakar'))
+
+    const input = screen.getByRole('spinbutton', { name: /quantity .* ayam bakar/i })
+    fireEvent.change(input, { target: { value: '1.125' } })
+    fireEvent.blur(input)
+
+    const error = screen.getByRole('alert')
+    const detailRow = error.closest('tr')
+    expect(detailRow).toHaveClass('dt-row-detail')
+    expect(detailRow?.querySelector('td')).toHaveAttribute('colspan', '2')
+    expect(input).toHaveAttribute('aria-describedby', error.id)
   })
 
   it('phone capture cards omit redundant category captions and show current stock figure', async () => {

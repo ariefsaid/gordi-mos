@@ -39,20 +39,14 @@
 .kls-card.kls-dense.kls-invalid { border: none; }
 
 .kls-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 7.5rem;
   align-items: baseline;
-  gap: 16px;
+  gap: 4px 16px;
   min-width: 0; /* let the name ellipsize rather than push the row past the viewport */
 }
-.kls-quantity {
-  display: flex;
-  flex: 0 0 7.5rem;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
-  width: 7.5rem;
-  min-width: 0;
-}
+.kls-quantity,
+.kls-quantity .quantity-field { display: contents; }
 .kls-name {
   flex: 1;
   min-width: 0;
@@ -68,7 +62,17 @@
    rather than a centred token, and the greyed placeholder echoes the plan as an anchor.
    font-size stays 16px: below that, mobile Safari zooms the viewport on focus, which is
    unacceptable on a field the floor taps ~21 times in a pass. */
-.kls-quantity .quantity-field,
+.kls-quantity .quantity-field-control {
+  grid-column: 2;
+  grid-row: 1;
+  width: 100%;
+  min-width: 0;
+}
+.kls-quantity .quantity-field-error {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  width: 100%;
+}
 .kls-quantity .quantity-field-control--below,
 .kls-quantity .quantity-field-suffix { width: 100%; }
 .kls-qty[aria-invalid='true'] { border-color: var(--destructive); }

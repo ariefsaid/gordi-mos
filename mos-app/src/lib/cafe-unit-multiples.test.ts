@@ -10,9 +10,9 @@ describe('café unit-multiple conversion', () => {
     expect(fromDefaultUnitQuantity(1.5, 0.5)).toBe(3)
   })
 
-  it('matches the database quantity scale when rounding decimal ties', () => {
+  it('rounds converted entry quantities to the two decimal places accepted by capture fields', () => {
     expect(toDefaultUnitQuantity(1.005, 1)).toBe(1.01)
-    expect(fromDefaultUnitQuantity(1, 3)).toBe(0.333)
+    expect(fromDefaultUnitQuantity(1, 3)).toBe(0.33)
   })
 
   it.each([[0], [-0.5], [Number.NaN], [Number.POSITIVE_INFINITY]])(

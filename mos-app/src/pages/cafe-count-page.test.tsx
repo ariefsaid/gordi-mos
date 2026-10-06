@@ -106,8 +106,19 @@ describe('CafeCountPage', () => {
       { client_key: 'client-2', item_id: 'wip-1', quantity: '2' },
     ])
     expect(screen.getAllByRole('alert')).toHaveLength(1)
-    expect(screen.getByRole('alert')).toHaveTextContent('Did you mean 1500 or 1.500? If decimal, re-enter it with one or two decimal places.')
+    expect(screen.getByRole('alert')).toHaveTextContent('Could mean 1500 or 1.500. If decimal, use 1–2 places.')
     expect(within(document.querySelector('.cafe-count__footer')!).getByText('1 item needs fixing')).toBeInTheDocument()
+  })
+
+  it('rejects Count values beyond two decimal places instead of accepting four-place fractions', async () => {
+    renderPage()
+    const input = await screen.findByRole('textbox', { name: 'Count for Raw flour' })
+    fireEvent.change(input, { target: { value: '1.2345' } })
+
+    expect(input).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByRole('alert')).toHaveTextContent('Use up to 2 decimals.')
+    expect(screen.getByRole('button', { name: 'Submit Count' })).toBeDisabled()
+    expect(mockSubmit).not.toHaveBeenCalled()
   })
 
   it('AC-011 refuses both ambiguous Count readings and offers typed-digit corrections', async () => {
@@ -120,8 +131,8 @@ describe('CafeCountPage', () => {
     expect(rawInput).toHaveAttribute('aria-invalid', 'true')
     expect(wipInput).toHaveAttribute('aria-invalid', 'true')
     const errors = screen.getAllByRole('alert')
-    expect(errors[0]).toHaveTextContent('Did you mean 1250 or 1.250? If decimal, re-enter it with one or two decimal places.')
-    expect(errors[1]).toHaveTextContent('Did you mean 125 or 0.125? If decimal, re-enter it with one or two decimal places.')
+    expect(errors[0]).toHaveTextContent('Could mean 1250 or 1.250. If decimal, use 1–2 places.')
+    expect(errors[1]).toHaveTextContent('Could mean 125 or 0.125. If decimal, use 1–2 places.')
     expect(screen.getByRole('button', { name: 'Submit Count' })).toBeDisabled()
     expect(mockSubmit).not.toHaveBeenCalled()
   })

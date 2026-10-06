@@ -37,7 +37,7 @@ import { CafeStreamBar, CafeStreamChoices } from '@/components/kitchen/cafe-stre
 import { WastePhotoCapture } from '@/components/kitchen/waste-photo-capture'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
 import { Select } from '@/components/ui/select'
-import { QuantityField } from '@/components/ui/quantity-field'
+import { QuantityField, QuantityFieldError } from '@/components/ui/quantity-field'
 import { parseQuantityInput } from '@/lib/quantity-parser'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { CafeItemsEmptyState } from '@/components/kitchen/cafe-items-empty-state'
@@ -67,11 +67,11 @@ type PageLoadState = 'loading' | 'ready' | 'error'
 
 const WASTE_KIND_OPTIONS: readonly KitchenItemKindFilter[] = ['All', 'WIP', 'RAW']
 
-function quantityValue(raw: string, unitFactor = 1): number | null {
+function quantityValue(raw: string): number | null {
   const parsed = parseQuantityInput(raw, {
     min: 0,
     maxIntegerDigits: 10,
-    maxFractionDigits: unitFactor === 1 ? 2 : 3,
+    maxFractionDigits: 2,
   })
   return parsed.kind === 'valid' && parsed.value > 0 ? parsed.value : null
 }
@@ -162,6 +162,7 @@ export function CafeWastePage() {
   const [businessUnitId, setBusinessUnitId] = useState('')
   const [entries, setEntries] = useState<Record<string, WasteEntry>>({})
   const [invalidQuantityIds, setInvalidQuantityIds] = useState<Set<string>>(new Set())
+  const [visibleQuantityErrors, setVisibleQuantityErrors] = useState<Set<string>>(new Set())
   const [focusInvalidId, setFocusInvalidId] = useState<string | null>(null)
   const [resumableDrafts, setResumableDrafts] = useState<KitchenWasteDraft[]>([])
   const [submitError, setSubmitError] = useState(false)
@@ -219,6 +220,7 @@ export function CafeWastePage() {
     setItems([])
     setEntries({})
     setInvalidQuantityIds(new Set())
+    setVisibleQuantityErrors(new Set())
     setFocusInvalidId(null)
     setBusinessUnitId('')
     setResumableDrafts([])
@@ -277,7 +279,7 @@ export function CafeWastePage() {
   const groups = loadState === 'loading' ? [] : kitchenDataTableGroups(itemTable, () => null)
   const staged = items.flatMap(item => {
     const entry = entries[item.id]
-    const quantity = quantityValue(entry?.quantity ?? '', entry?.unitFactor ?? 1)
+    const quantity = quantityValue(entry?.quantity ?? '')
     return entry && quantity !== null ? [{ item, entry, quantity }] : []
   })
   const stagedSummary = staged.map(line => ({
@@ -289,7 +291,7 @@ export function CafeWastePage() {
     submitted: line.entry.submitted,
   }))
   const formatWasteQty = (quantity: number) => new Intl.NumberFormat(
-    document.documentElement.lang || 'en', { maximumFractionDigits: 3 },
+    document.documentElement.lang || 'en', { maximumFractionDigits: 2 },
   ).format(quantity)
   const remaining = staged.filter(line => !line.entry.submitted)
   const allPhotosReady = remaining.length > 0 && remaining.every(line => line.entry.logId && line.entry.photoReady)
@@ -302,6 +304,16 @@ export function CafeWastePage() {
     setEntries(current => {
       const entry = current[itemId]
       return entry ? { ...current, [itemId]: { ...entry, ...patch } } : current
+    })
+  }, [])
+
+  const reportQuantityErrorVisibility = useCallback((itemId: string, visible: boolean) => {
+    setVisibleQuantityErrors(current => {
+      if (current.has(itemId) === visible) return current
+      const next = new Set(current)
+      if (visible) next.add(itemId)
+      else next.delete(itemId)
+      return next
     })
   }, [])
 
@@ -352,7 +364,7 @@ export function CafeWastePage() {
       const entry = current[item.id]
       if (!entry || entry.logId || entry.preparing || entry.submitted) return current
       const currentFactor = entry.unitFactor ?? 1
-      const enteredQuantity = quantityValue(entry.quantity, currentFactor)
+      const enteredQuantity = quantityValue(entry.quantity)
       const canonical = enteredQuantity === null ? null : toDefaultUnitQuantity(enteredQuantity, currentFactor)
       const nextQuantity = canonical === null
         ? entry.quantity
@@ -382,7 +394,7 @@ export function CafeWastePage() {
 
   async function prepareEntry(item: CafeLogItem) {
     const entry = entries[item.id]
-    const quantity = quantityValue(entry?.quantity ?? '', entry?.unitFactor ?? 1)
+    const quantity = quantityValue(entry?.quantity ?? '')
     if (!entry || quantity === null || !stream || !businessUnitId || !canCapture || !isOnline
       || entry.logId || entry.preparing || draftRequests.current.has(item.id)) return
     draftRequests.current.add(item.id)
@@ -414,7 +426,7 @@ export function CafeWastePage() {
 
   async function restartExpiredEntry(item: CafeLogItem) {
     const entry = entries[item.id]
-    const quantity = quantityValue(entry?.quantity ?? '', entry?.unitFactor ?? 1)
+    const quantity = quantityValue(entry?.quantity ?? '')
     if (!entry?.logId || !entry.photoWindowExpired || entry.photos.length > 0 || quantity === null
       || !entry.unitBasisKnown || !stream || !businessUnitId || !canCapture || !isOnline || submitting || entry.preparing
       || draftRequests.current.has(item.id)) return
@@ -521,6 +533,7 @@ export function CafeWastePage() {
   function startAnotherLog() {
     setEntries(initialEntries(items))
     setInvalidQuantityIds(new Set())
+    setVisibleQuantityErrors(new Set())
     setFocusInvalidId(null)
     setSubmitError(false)
   }
@@ -579,6 +592,9 @@ export function CafeWastePage() {
           disabled={submitting || loadState !== 'ready'}
           onQuantityChange={value => patchEntry(item.id, { quantity: value, error: undefined })}
           onQuantityValidityChange={valid => reportQuantityValidity(item.id, valid)}
+          onQuantityErrorVisibilityChange={visible => reportQuantityErrorVisibility(item.id, visible)}
+          hideQuantityError
+          quantityErrorId={`cafe-waste-qty-${item.id}-quantity-error`}
           onUnitChange={choice => changeWasteEntryUnit(item, choice)}
           onPrepare={() => void prepareEntry(item)}
         />
@@ -603,6 +619,7 @@ export function CafeWastePage() {
           disabled={submitting || loadState !== 'ready'}
           onQuantityChange={value => patchEntry(item.id, { quantity: value, error: undefined })}
           onQuantityValidityChange={valid => reportQuantityValidity(item.id, valid)}
+          onQuantityErrorVisibilityChange={visible => reportQuantityErrorVisibility(item.id, visible)}
           onUnitChange={choice => changeWasteEntryUnit(item, choice)}
           onPrepare={() => void prepareEntry(item)}
         />
@@ -610,6 +627,22 @@ export function CafeWastePage() {
       <div className="cwl-capture-row__evidence">{renderEvidence(item)}</div>
     </div>
   )
+
+  const renderQuantityError = (item: WasteRow) => {
+    const rawValue = entries[item.id]?.quantity ?? ''
+    if (!invalidQuantityIds.has(item.id) || !visibleQuantityErrors.has(item.id)) return null
+    const parsed = parseQuantityInput(rawValue, { min: 0, maxIntegerDigits: 10, maxFractionDigits: 2 })
+    if (parsed.kind !== 'invalid') return null
+    return (
+      <QuantityFieldError
+        id={`cafe-waste-qty-${item.id}-quantity-error`}
+        reason={parsed.reason}
+        rawValue={rawValue}
+        maxFractionDigits={2}
+        className="cwl-field-error"
+      />
+    )
+  }
 
   const state = loadState === 'loading' ? 'loading' : loadState === 'error' ? 'error'
     : submitting ? 'saving' : allSubmitted ? 'saved' : !canCapture ? 'read-only' : 'default'
@@ -735,6 +768,7 @@ export function CafeWastePage() {
                     rows={visibleItems}
                     groups={groups}
                     renderCard={renderCard}
+                    renderRowDetail={renderQuantityError}
                     isDesktop={isDesktop}
                     state={visibleItems.length > 0 ? 'ready' : 'empty'}
                     emptyLabel={t('kitchen.filter.noMatch')}
@@ -827,6 +861,9 @@ function WasteItemControls({
   disabled,
   onQuantityChange,
   onQuantityValidityChange,
+  onQuantityErrorVisibilityChange,
+  hideQuantityError = false,
+  quantityErrorId,
   onUnitChange,
   onPrepare,
 }: {
@@ -837,6 +874,9 @@ function WasteItemControls({
   disabled: boolean
   onQuantityChange: (quantity: string) => void
   onQuantityValidityChange: (valid: boolean) => void
+  onQuantityErrorVisibilityChange: (visible: boolean) => void
+  hideQuantityError?: boolean
+  quantityErrorId?: string
   onUnitChange: (choice: string) => void
   onPrepare: () => void
 }) {
@@ -858,7 +898,7 @@ function WasteItemControls({
     ? `multiple:${String(current.unitFactor)}`
     : current.unitId
   const locked = Boolean(current.logId || current.preparing || current.submitted)
-  const quantity = quantityValue(current.quantity, current.unitFactor ?? 1)
+  const quantity = quantityValue(current.quantity)
   const editable = canCapture && isOnline && !disabled && !locked
   const needsQuantity = editable && quantity === null
   const photoHintId = `cafe-waste-photo-hint-${item.id}`
@@ -877,6 +917,9 @@ function WasteItemControls({
           onChange={next => onQuantityChange(next > 0 ? String(next) : '')}
           onInvalid={(_reason, raw) => onQuantityChange(raw)}
           onValidityChange={onQuantityValidityChange}
+          onErrorVisibilityChange={onQuantityErrorVisibilityChange}
+          hideError={hideQuantityError}
+          errorMessageId={quantityErrorId}
           initialDraft={quantity === null && current.quantity !== '' ? current.quantity : undefined}
           suffixPosition="below"
           suffix={showUnitPicker ? (
@@ -902,7 +945,7 @@ function WasteItemControls({
             </span>
           )}
           maxIntegerDigits={10}
-          maxFractionDigits={current.unitFactor === 1 ? 2 : 3}
+          maxFractionDigits={2}
           min={0}
           disabled={!editable}
           errorClassName="cwl-field-error"

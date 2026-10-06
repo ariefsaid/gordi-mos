@@ -178,7 +178,7 @@ export function parseCafeCountQuantity(raw: string): QuantityParseResult {
   return parseQuantityInput(raw, {
     min: 0,
     maxIntegerDigits: 10,
-    maxFractionDigits: 4,
+    maxFractionDigits: 2,
   })
 }
 

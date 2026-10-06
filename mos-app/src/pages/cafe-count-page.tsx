@@ -259,7 +259,7 @@ export function CafeCountPage() {
                             <span className="cafe-count__unit">{item.unitName}</span>
                           </div>
                           {invalid && parsed.kind === 'invalid' && (
-                            <QuantityFieldError id={errorId} reason={parsed.reason} rawValue={entry?.quantity ?? ''} maxFractionDigits={4} className="cafe-count__field-error" />
+                            <QuantityFieldError id={errorId} reason={parsed.reason} rawValue={entry?.quantity ?? ''} maxFractionDigits={2} className="cafe-count__field-error" />
                           )}
                           {entry?.outcome && <p className="cafe-count__line-success" role="status">{t('cafe.count.lineSubmitted')}</p>}
                           {entry?.refusal && <p className="cafe-count__field-error" role="alert">{refusalText(entry.refusal, t)}</p>}
