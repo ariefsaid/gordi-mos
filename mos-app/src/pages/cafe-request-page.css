@@ -1,4 +1,76 @@
-/* Request reuses the Count and Receive layouts; these rules cover only the request's own fields. */
+/* Request reuses the Count and Receive layouts; these rules cover only the request's own parts. */
+
+.cafe-request__top {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 12px;
+  font-size: var(--font-size-body);
+}
+
+.cafe-request__review-link {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  min-height: 44px;
+  color: var(--foreground);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.cafe-request__history {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--background);
+}
+
+.cafe-request__history summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 14px;
+  color: var(--foreground);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cafe-request__history ul {
+  display: grid;
+  margin: 0;
+  padding: 0 14px 6px;
+  list-style: none;
+}
+
+.cafe-request__history li {
+  display: grid;
+  gap: 2px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+
+.cafe-request__history-items { color: var(--foreground); }
+.cafe-request__history-more,
+.cafe-request__history-meta { color: var(--muted-foreground); }
+
+.cafe-request__history-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 16px;
+  font-size: var(--font-size-label);
+}
+
+.cafe-request__history-reason { margin: 0; color: var(--foreground); }
+
+.cafe-request__history-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 0;
+  color: var(--muted-foreground);
+}
+
+.cafe-request__history-error .btn { min-height: 44px; }
 
 .cafe-request__fields {
   display: grid;
@@ -6,19 +78,28 @@
   margin: 0 0 16px;
 }
 
-.cafe-request__fields .cafe-receive__date { margin: 0; }
-
-.cafe-request__note {
+/* Label above its control at every width, so a long label never squeezes the field. */
+.cafe-request__field {
   display: grid;
   gap: 6px;
+  max-width: 560px;
   font-size: var(--font-size-body);
 }
 
-.cafe-request__note label { color: var(--muted-foreground); }
+.cafe-request__field label { color: var(--muted-foreground); }
 
-.cafe-request__note textarea {
+.cafe-request__date-control {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+}
+
+.cafe-request__date-hint { color: var(--muted-foreground); }
+
+.cafe-request__field input,
+.cafe-request__field textarea {
   width: 100%;
-  max-width: 560px;
   min-width: 0;
   min-height: 44px;
   box-sizing: border-box;
@@ -30,5 +111,11 @@
   font: inherit;
   font-size: var(--font-size-touch-input);
   line-height: 1.4;
-  resize: vertical;
 }
+
+.cafe-request__date-control input { flex: 0 1 220px; }
+.cafe-request__field textarea { resize: vertical; }
+
+.cafe-request__sent-facts { color: var(--foreground); }
+
+.cafe-request .cafe-count__intro { margin-bottom: 12px; }

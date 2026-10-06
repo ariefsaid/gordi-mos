@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { CafeItemQuantityRow, type CafeItemQuantityEntry } from '@/components/kitchen/cafe-item-quantity-row'
-import { CafeRequestState } from '@/components/kitchen/cafe-request-state'
+import { CafeRequestHistory } from '@/components/kitchen/cafe-request-history'
 import { CafeStreamBar, CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
@@ -30,7 +30,7 @@ import './cafe-count-page.css'
 import './cafe-receive-page.css'
 import './cafe-request-page.css'
 
-type Sent = { lines: Array<{ name: string; quantity: string; unit: string }> }
+type Sent = { requiredBy: string; note: string; lines: Array<{ name: string; quantity: string; unit: string }> }
 
 function sendErrorKey(message: string) {
   if (message.includes('CAFE_PURCHASE_REQUEST_ITEM_NOT_AVAILABLE')) return 'cafe.request.error.itemUnavailable' as const
@@ -64,6 +64,7 @@ export function CafeRequestPage() {
   const [error, setError] = useState<ReturnType<typeof sendErrorKey> | null>(null)
   const [sent, setSent] = useState<Sent | null>(null)
   const [recent, setRecent] = useState<CafePurchaseRequest[]>([])
+  const [recentFailed, setRecentFailed] = useState(false)
   const sending = useRef(false)
   // Filters beyond search are desktop-only (DESIGN: first capture row within 300px on phone).
   const capture = useCafeItemCapture({ stream, enabled: canRequest, resolve, adopt, search, category: isDesktop ? category : 'All' })
@@ -72,8 +73,8 @@ export function CafeRequestPage() {
   const loadRecent = useCallback(() => {
     if (!viewerId || !canRequest) return
     void listCafePurchaseRequests(['Submitted', 'Approved', 'Rejected'], { requestedBy: viewerId, limit: 10 })
-      .then(setRecent)
-      .catch(() => setRecent([]))
+      .then(rows => { setRecent(rows); setRecentFailed(false) })
+      .catch(() => setRecentFailed(true))
   }, [canRequest, viewerId])
   useEffect(loadRecent, [loadRecent])
 
@@ -103,7 +104,7 @@ export function CafeRequestPage() {
         item_unit_id: entry.unitId,
         quantity,
       })))
-      setSent({ lines: lines.map(({ item, quantity, unitName }) => ({ name: item.name, quantity, unit: unitName })) })
+      setSent({ requiredBy, note: note.trim(), lines: lines.map(({ item, quantity, unitName }) => ({ name: item.name, quantity, unit: unitName })) })
       loadRecent()
     } catch (cause) {
       const key = sendErrorKey(cause instanceof Error ? cause.message : '')
@@ -153,6 +154,14 @@ export function CafeRequestPage() {
             <CafeStreamChoices options={streamOptions} homeStream={homeStream} myStreamKeys={myStreamKeys} onChoose={chooseStream} />
           </EmptyState>
         )}
+        {(canReview || (loadState === 'ready' && canRequest)) && (
+          <div className="cafe-request__top">
+            {loadState === 'ready' && canRequest && (
+              <CafeRequestHistory requests={recent} failed={recentFailed} open={sent !== null} onRetry={loadRecent} />
+            )}
+            {canReview && <Link className="cafe-request__review-link" to="/cafe/request/review">{t('cafe.request.review.title')}</Link>}
+          </div>
+        )}
         {loadState === 'ready' && stream && !canRequest && (
           <p className="cafe-count__notice" role="status">{t('cafe.request.readOnly')}</p>
         )}
@@ -160,6 +169,10 @@ export function CafeRequestPage() {
           <section className="cafe-receive__counted" aria-labelledby="cafe-request-sent-title">
             <h2 id="cafe-request-sent-title">{t('cafe.request.sent.title')}</h2>
             <p>{t('cafe.request.sent.copy')}</p>
+            <p className="cafe-request__sent-facts">
+              {t('cafe.request.recent.neededBy', { date: formatWeekdayDayMonth(sent.requiredBy) })}
+              {sent.note && <><br />{t('cafe.request.review.note', { note: sent.note })}</>}
+            </p>
             <ul className="cafe-receipt-lines" aria-label={t('cafe.request.sent.linesAria')}>
               {sent.lines.map(line => (
                 <li key={`${line.name}-${line.unit}`}>
@@ -178,30 +191,29 @@ export function CafeRequestPage() {
             <div className="cafe-count__intro">
               <p className="cafe-receive__help">{t('cafe.request.help')}</p>
               {hasInput && <p className="cafe-count__switch-note" role="status">{t('cafe.request.streamLocked')}</p>}
-              {!isOnline && <p className="cafe-count__notice" role="alert">{t('cafe.request.offline')}</p>}
             </div>
             <div className="cafe-request__fields">
-              <div className="cafe-receive__date">
+              <div className="cafe-request__field">
                 <label htmlFor="cafe-request-required-by">{t('cafe.request.requiredBy')}</label>
-                <input
-                  id="cafe-request-required-by"
-                  type="date"
-                  required
-                  value={requiredBy}
-                  min={dateBounds.min}
-                  max={dateBounds.max}
-                  disabled={busy}
-                  onChange={event => { setRequiredBy(event.target.value); setError(null) }}
-                />
-                {requiredBy && (
-                  <span className="cafe-receive__date-hint" aria-hidden="true">{formatWeekdayDayMonth(requiredBy)}</span>
-                )}
+                <div className="cafe-request__date-control">
+                  <input
+                    id="cafe-request-required-by"
+                    type="date"
+                    required
+                    value={requiredBy}
+                    min={dateBounds.min}
+                    max={dateBounds.max}
+                    disabled={busy}
+                    onChange={event => { setRequiredBy(event.target.value); setError(null) }}
+                  />
+                  {requiredBy && <span className="cafe-request__date-hint" aria-hidden="true">{formatWeekdayDayMonth(requiredBy)}</span>}
+                </div>
               </div>
-              <div className="cafe-request__note">
+              <div className="cafe-request__field">
                 <label htmlFor="cafe-request-note">{t('cafe.request.note')}</label>
                 <textarea
                   id="cafe-request-note"
-                  rows={1}
+                  rows={2}
                   maxLength={500}
                   value={note}
                   disabled={busy}
@@ -246,39 +258,22 @@ export function CafeRequestPage() {
             )}
           </>
         )}
-        {loadState === 'ready' && canRequest && recent.length > 0 && (
-          <section className="cafe-receive__recent" aria-labelledby="cafe-request-recent-title">
-            <h2 id="cafe-request-recent-title">{t('cafe.request.recent.title')}</h2>
-            <ul>
-              {recent.map(request => (
-                <li key={request.id}>
-                  <span className="tabular">{t('cafe.request.recent.neededBy', { date: formatWeekdayDayMonth(request.required_by) })}</span>
-                  <span>{t(request.lines.length === 1 ? 'cafe.receive.lines.one' : 'cafe.receive.lines.other', { count: request.lines.length })}</span>
-                  <CafeRequestState request={request} />
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-        {canReview && (
-          <nav className="cafe-receive__links" aria-label={t('cafe.request.linksAria')}>
-            <Link to="/cafe/request/review">{t('cafe.request.review.title')}</Link>
-          </nav>
-        )}
         {ready && !sent && items.length > 0 && (
           <div className="cafe-count__footer">
             <div className="cafe-receive__band-status">
               <p className="cafe-count__tally" aria-live="polite">
                 {t(lines.length === 1 ? 'cafe.receive.lines.one' : 'cafe.receive.lines.other', { count: lines.length })}
               </p>
-              {invalidCount > 0 ? (
+              {!isOnline ? (
+                <p className="cafe-count__field-error" role="status">{t('cafe.request.offline')}</p>
+              ) : invalidCount > 0 ? (
                 <p className="cafe-count__field-error" role="status">
                   {t(invalidCount === 1 ? 'cafe.receive.fixInvalid.one' : 'cafe.receive.fixInvalid.other', { count: invalidCount })}
                 </p>
               ) : lines.length > 0 && dateProblem && (
                 <p className="cafe-count__field-error" role="status">{t(dateProblem)}</p>
               )}
-              {error && <p className="cafe-count__field-error" role="alert">{t(error)}</p>}
+              {error && isOnline && <p className="cafe-count__field-error" role="alert">{t(error)}</p>}
             </div>
             <button
               type="button"

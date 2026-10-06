@@ -21,6 +21,14 @@ const COPY: CafeDecisionCopy = {
   rejectNote: 'cafe.request.review.rejectNote',
   confirmReject: 'cafe.request.review.confirmReject',
   ownRecord: 'cafe.request.review.ownRequest',
+  withdraw: 'cafe.request.review.withdraw',
+  withdrawNote: 'cafe.request.review.withdrawNote',
+  confirmWithdraw: 'cafe.request.review.confirmWithdraw',
+}
+
+/** Earliest needed-by first, then oldest sent: the request due soonest is decided first. */
+function byNeededBy(a: CafePurchaseRequest, b: CafePurchaseRequest): number {
+  return a.required_by.localeCompare(b.required_by) || a.requested_at.localeCompare(b.requested_at)
 }
 
 /** Submitted purchase requests the server lets this viewer review (RLS scopes the read; the RPC decides). */
@@ -30,7 +38,7 @@ export function CafeRequestReviewQueue(props: {
   viewerId: string | null
 }) {
   const t = useT()
-  const load = useCallback(() => listCafePurchaseRequests(['Submitted']), [])
+  const load = useCallback(() => listCafePurchaseRequests(['Submitted']).then(rows => [...rows].sort(byNeededBy)), [])
   return (
     <CafeDecisionQueue<CafePurchaseRequest>
       {...props}
@@ -41,10 +49,14 @@ export function CafeRequestReviewQueue(props: {
       title={(_, person) => t('cafe.request.review.requestedBy', { person })}
       meta={request => [
         <span key="needed">{t('cafe.request.review.neededBy', { date: formatWeekdayDayMonth(request.required_by) })}</span>,
-        request.note ? <span key="note">{t('cafe.request.review.note', { note: request.note })}</span> : null,
       ]}
+      detail={request => request.note
+        ? <p className="cafe-decision-queue__detail">{t('cafe.request.review.note', { note: request.note })}</p>
+        : null}
       lines={request => request.lines.map(line => ({ id: line.id, name: line.item_name, quantity: line.quantity, unit: line.unit_name }))}
-      state={request => <CafeRequestState request={request} />}
+      state={request => request.status === 'Rejected'
+        ? <span className="cafe-receipt-state">{t('cafe.request.review.rejected')}</span>
+        : <CafeRequestState request={request} />}
     />
   )
 }

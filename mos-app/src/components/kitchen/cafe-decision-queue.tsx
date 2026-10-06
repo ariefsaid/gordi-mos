@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { useT } from '@/i18n/use-t'
 import type { MessageKey } from '@/i18n/messages'
@@ -9,6 +9,7 @@ import type { ProductionActivity, ProductionStream } from '@/lib/db/kitchen-logs
 import { ALL_STREAMS } from './cafe-stream-bar'
 import './cafe-count-review-queue.css'
 import './cafe-receipt.css'
+import './cafe-decision-queue.css'
 
 /** The record shape a Café approve/reject queue needs; the server decides, this only offers. */
 export type CafeDecisionRecord = {
@@ -30,6 +31,10 @@ export type CafeDecisionCopy = {
   rejectNote: MessageKey
   confirmReject: MessageKey
   ownRecord: MessageKey
+  /** The owner's own reject is a withdrawal; it gets its own words. */
+  withdraw: MessageKey
+  withdrawNote: MessageKey
+  confirmWithdraw: MessageKey
 }
 
 /**
@@ -47,6 +52,7 @@ export function CafeDecisionQueue<Row extends CafeDecisionRecord>({
   ownerOf,
   title,
   meta,
+  detail,
   lines,
   state,
 }: {
@@ -59,6 +65,8 @@ export function CafeDecisionQueue<Row extends CafeDecisionRecord>({
   ownerOf: (row: Row) => string
   title: (row: Row, person: string) => string
   meta: (row: Row) => ReactNode[]
+  /** Free text the decider must read (a note), shown at body size under the identity. */
+  detail?: (row: Row) => ReactNode
   lines: (row: Row) => ReadonlyArray<{ id: string; name: string; quantity: string; unit: string }>
   state: (row: Row) => ReactNode
 }) {
@@ -73,6 +81,12 @@ export function CafeDecisionQueue<Row extends CafeDecisionRecord>({
   const [note, setNote] = useState('')
   const [retry, setRetry] = useState(0)
   const online = !useIsOffline()
+  const noteRef = useRef<HTMLTextAreaElement>(null)
+
+  // Opening a reject moves focus into its note, where the next keystroke belongs.
+  useEffect(() => {
+    if (rejecting) noteRef.current?.focus()
+  }, [rejecting])
 
   useEffect(() => {
     let active = true
@@ -155,10 +169,11 @@ export function CafeDecisionQueue<Row extends CafeDecisionRecord>({
                   <div className="cafe-count-review__name">
                     {title(row, names.get(owner) ?? t('cafe.receipts.review.unknownPerson'))}
                   </div>
-                  <div className="cafe-count-review__meta">
+                  <div className="cafe-count-review__meta cafe-decision-queue__meta">
                     {meta(row)}
                     {stream && <span>{t('cafe.count.review.streamTag', { stream: streamLabel(t, stream) })}</span>}
                   </div>
+                  {detail?.(row)}
                 </div>
                 <ul className="cafe-receipt-lines" aria-label={t(copy.linesAria)}>
                   {lines(row).map(line => (
@@ -173,19 +188,19 @@ export function CafeDecisionQueue<Row extends CafeDecisionRecord>({
                     <span className="cafe-count-review__state" role="status">{state(row)}</span>
                   ) : rejecting === row.id ? (
                     <div className="cafe-receipt-review__reject">
-                      <label htmlFor={noteId}>{t(copy.rejectNote)}</label>
-                      <textarea id={noteId} value={note} maxLength={500} onChange={event => setNote(event.target.value)} />
+                      <label htmlFor={noteId}>{t(ownRecord ? copy.withdrawNote : copy.rejectNote)}</label>
+                      <textarea ref={noteRef} id={noteId} value={note} maxLength={500} onChange={event => setNote(event.target.value)} />
                       <div className="cafe-receipt-review__actions">
                         <button type="button" className="btn btn-outline" onClick={() => { setRejecting(null); setNote('') }}>
                           {t('common.cancel')}
                         </button>
                         <button
                           type="button"
-                          className="btn btn-primary"
+                          className="btn btn-destructive"
                           disabled={!online || busyId !== null || note.trim() === ''}
                           onClick={() => void handleDecision(row, 'reject')}
                         >
-                          {busyId === row.id ? t('common.working') : t(copy.confirmReject)}
+                          {busyId === row.id ? t('common.working') : t(ownRecord ? copy.confirmWithdraw : copy.confirmReject)}
                         </button>
                       </div>
                     </div>
@@ -198,7 +213,7 @@ export function CafeDecisionQueue<Row extends CafeDecisionRecord>({
                         disabled={!online || busyId !== null}
                         onClick={() => { setRejecting(row.id); setNote('') }}
                       >
-                        {t('cafe.receipts.review.reject')}
+                        {ownRecord ? t(copy.withdraw) : t('cafe.receipts.review.reject')}
                       </button>
                       <button
                         type="button"

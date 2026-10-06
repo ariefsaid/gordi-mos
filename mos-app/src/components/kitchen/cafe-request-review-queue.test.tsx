@@ -59,6 +59,20 @@ describe('CafeRequestReviewQueue', () => {
     const row = (await screen.findByText('Requested by Supervisor')).closest('li')!
     expect(within(row).getByRole('button', { name: 'Approve' })).toBeDisabled()
     expect(within(row).getByText('You raised this; another reviewer approves it.')).toBeInTheDocument()
+    fireEvent.click(within(row).getByRole('button', { name: 'Withdraw' }))
+    expect(within(row).getByLabelText('Why are you withdrawing this request?')).toHaveFocus()
+    expect(within(row).getByRole('button', { name: 'Withdraw request' })).toBeDisabled()
+  })
+
+  it('lists the request needed soonest first', async () => {
+    vi.mocked(listCafePurchaseRequests).mockResolvedValue([
+      request('q-late', 'requester', { required_by: '2026-10-20', requested_at: '2026-10-01T00:00:00Z' }),
+      request('q-soon', 'me', { required_by: '2026-10-07', requested_at: '2026-10-06T00:00:00Z' }),
+    ])
+    renderQueue()
+    await screen.findByText('Requested by Shift member')
+    const names = screen.getAllByText(/^Requested by /).map(node => node.textContent)
+    expect(names).toEqual(['Requested by Supervisor', 'Requested by Shift member'])
   })
 
   it('FR-1053 a reject needs a note before it can be sent', async () => {
@@ -67,12 +81,13 @@ describe('CafeRequestReviewQueue', () => {
     renderQueue()
     const row = (await screen.findByText('Requested by Shift member')).closest('li')!
     fireEvent.click(within(row).getByRole('button', { name: 'Reject' }))
+    expect(within(row).getByLabelText('Why is this request rejected?')).toHaveFocus()
     const confirm = within(row).getByRole('button', { name: 'Reject request' })
     expect(confirm).toBeDisabled()
     fireEvent.change(within(row).getByLabelText('Why is this request rejected?'), { target: { value: 'Raised twice' } })
     fireEvent.click(confirm)
     await waitFor(() => expect(reviewCafePurchaseRequest).toHaveBeenCalledWith('q-3', 'reject', 1, 'Raised twice'))
-    expect(await within(row).findByText('Rejected · raise a new request')).toBeInTheDocument()
+    expect(await within(row).findByText('Rejected')).toBeInTheDocument()
   })
 
   it('filters to the chosen stream and shows the empty state when nothing waits there', async () => {

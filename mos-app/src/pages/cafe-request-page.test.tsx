@@ -155,6 +155,9 @@ describe('CafeRequestPage', () => {
     resolve({ request_id: 'q-1', outcome: 'created', row_version: 1 })
     expect(await screen.findByRole('heading', { name: 'Sent for approval' })).toBeInTheDocument()
     expect(within(screen.getByRole('list', { name: 'Requested lines' })).getByText('12 × l')).toBeInTheDocument()
+    const sentCard = screen.getByRole('heading', { name: 'Sent for approval' }).closest('section')!
+    expect(sentCard).toHaveTextContent(/Needed by .*7 Oct/)
+    expect(sentCard).toHaveTextContent('Note: Weekend menu')
     fireEvent.click(screen.getByRole('button', { name: 'Raise another request' }))
     expect(await screen.findByRole('textbox', { name: 'Needed for Fresh milk' })).toHaveValue('')
     expect(neededBy()).toHaveValue('')
@@ -186,16 +189,39 @@ describe('CafeRequestPage', () => {
     expect(send()).toBeDisabled()
   })
 
-  it('lists the person’s own requests with their state as text', async () => {
-    mockList.mockResolvedValue([{
-      id: 'q-9', branch_id: 'branch-1', activity: 'kitchen', required_by: '2026-10-08', note: null, status: 'Approved',
-      requested_by: 'person-1', requested_at: '2026-10-06T01:00:00Z', reviewed_by: 'p-2', reviewed_at: '2026-10-06T02:00:00Z',
-      review_note: null, row_version: 2, lines: [{ id: 'l-1', item_name: 'Fresh milk', item_category: null, unit_name: 'l', quantity: '12' }],
-    }])
+  it('folds the person’s own requests above the form, each named by its items, with state and a rejection reason', async () => {
+    const line = (id: string, item_name: string) => ({ id, item_name, item_category: null, unit_name: 'l', quantity: '1' })
+    mockList.mockResolvedValue([
+      {
+        id: 'q-9', branch_id: 'branch-1', activity: 'kitchen', required_by: '2026-10-08', note: null, status: 'Rejected',
+        requested_by: 'person-1', requested_at: '2026-10-06T01:00:00Z', reviewed_by: 'p-2', reviewed_at: '2026-10-06T02:00:00Z',
+        review_note: 'Raised twice', row_version: 2,
+        lines: [line('l-1', 'Fresh milk'), line('l-2', 'Oat milk'), line('l-3', 'Cocoa powder')],
+      },
+      {
+        id: 'q-8', branch_id: 'branch-1', activity: 'kitchen', required_by: '2026-10-07', note: null, status: 'Approved',
+        requested_by: 'person-1', requested_at: '2026-10-05T01:00:00Z', reviewed_by: 'p-2', reviewed_at: '2026-10-05T02:00:00Z',
+        review_note: null, row_version: 2, lines: [line('l-4', 'Vanilla syrup')],
+      },
+    ])
     renderPage()
-    const recent = await screen.findByRole('region', { name: 'Your requests' })
-    expect(within(recent).getByText('Approved · not posted to ESB')).toBeInTheDocument()
+    fireEvent.click(await screen.findByText('Your requests (2)'))
+    const recent = screen.getByRole('list', { name: 'Your requests' })
+    const [rejected, approved] = within(recent).getAllByRole('listitem')
+    expect(rejected).toHaveTextContent('Fresh milk, Oat milk +1 more')
+    expect(rejected).toHaveTextContent('Rejected · raise a new request')
+    expect(rejected).toHaveTextContent('Reason: Raised twice')
+    expect(approved).toHaveTextContent('Approved · not posted to ESB')
     expect(mockList).toHaveBeenCalledWith(['Submitted', 'Approved', 'Rejected'], { requestedBy: 'person-1', limit: 10 })
+  })
+
+  it('says when the person’s requests could not be loaded and retries', async () => {
+    mockList.mockRejectedValueOnce(new Error('down'))
+    renderPage()
+    expect(await screen.findByText('Your requests could not be loaded.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    await waitFor(() => expect(screen.queryByText('Your requests could not be loaded.')).not.toBeInTheDocument())
+    expect(mockList).toHaveBeenCalledTimes(2)
   })
 
   it('a person outside the café reads why they cannot raise a request', async () => {
