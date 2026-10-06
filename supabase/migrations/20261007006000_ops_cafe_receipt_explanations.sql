@@ -227,6 +227,8 @@ end;
 $$;
 comment on function ops.submit_cafe_receipt(uuid, text, date, uuid, jsonb) is
   'Atomically Count-locks accepted product detail and quantity, plus the receiver-set damaged/wrong observation. Stamps identity/server facts, returns line identities for explanation capture, and idempotently compares the same captured facts. Never accepts matching or posting state.';
+revoke execute on function ops.submit_cafe_receipt(uuid, text, date, uuid, jsonb) from public, anon, authenticated;
+grant execute on function ops.submit_cafe_receipt(uuid, text, date, uuid, jsonb) to authenticated;
 
 -- ── A narrow owner-only writer; the quantity is never accepted as an argument ─────────────────
 create or replace function ops.set_cafe_receipt_line_explanation(
@@ -385,6 +387,8 @@ end;
 $$;
 comment on function ops.send_cafe_receipt_for_review(uuid, integer, text) is
   'The receiver moves their own Counted receipt to Submitted at its current version. Each conditioned line must have a bounded nonblank reason and at least one private photo; quantities stay locked. No outbox write.';
+revoke execute on function ops.send_cafe_receipt_for_review(uuid, integer, text) from public, anon, authenticated;
+grant execute on function ops.send_cafe_receipt_for_review(uuid, integer, text) to authenticated;
 
 -- ── Private immutable photo evidence: <org>/<receipt>/<line>/<random-id>.<image-ext> ─────────
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
