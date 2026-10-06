@@ -164,6 +164,16 @@ a.money-table__name:hover {
   .money-table__direction {
     min-height: 44px;
   }
+
+  /* Tablet: the eight columns fit the frame without scrolling once the cell gutters close up. */
+  .money-table__head,
+  .money-table__cell {
+    padding: 0 8px;
+  }
+
+  .money-table__cell--branch {
+    min-width: 112px;
+  }
 }
 
 /* ── Phone: stacked rows ─────────────────────────────────────────────────────────────── */
@@ -195,11 +205,9 @@ a.money-table__name:hover {
     overflow-x: visible;
   }
 
+  /* :where() keeps these resets at class weight, so the row grid below still applies. */
   .money-table,
-  .money-table tbody,
-  .money-table tr,
-  .money-table th,
-  .money-table td {
+  .money-table :where(tbody, tr, th, td) {
     display: block;
   }
 
@@ -229,6 +237,7 @@ a.money-table__name:hover {
 
   .money-table__row--company .money-table__cell,
   .money-table__row--link:hover .money-table__cell {
+    border: 0;
     background: none;
   }
 

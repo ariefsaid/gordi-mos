@@ -23,7 +23,7 @@ import { useI18n } from '@/i18n/I18nProvider'
 import { listSalesDailyRevenue, type SalesDailyRevenueRow } from '@/lib/db/reporting'
 import { listSalesMarginDaily, type SalesMarginDailyRow } from '@/lib/db/reporting-margin'
 import { latestBy } from '@/lib/db/reporting-shared'
-import { formatWeekdayDayMonth, formatWibDateTime } from '@/lib/format/date'
+import { formatWeekdayDayMonth, formatWibShortDateTime } from '@/lib/format/date'
 import {
   MONEY_FETCH_DAYS,
   MONEY_PERIODS,
@@ -176,7 +176,7 @@ export function MoneyPage() {
     <span className={`ch-meta-line money-freshness${stale ? ' money-freshness--stale' : ''}`}>
       {t(stale ? 'money.freshness.stale' : 'money.freshness', {
         through: formatWeekdayDayMonth(table.latestDate, locale),
-        synced: syncedAt ? formatWibDateTime(syncedAt, locale) : '',
+        synced: syncedAt ? formatWibShortDateTime(syncedAt, locale) : '',
       })}
     </span>
   )
