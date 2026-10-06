@@ -1,8 +1,7 @@
 /* CafeStreamBar — cafe-stream- namespace (C1: disjoint from kl-/kp-/kpu-/kr-/ks-/kpe-).
    Lives in the page head's status row, so it stays one quiet line: the stream as a heading with
-   a text "Change"/"Back to …" action beside it — never a "Stream:" label, never a full-width
-   control (#781: the old bordered <select> read as a mandatory choice on every visit, and cost a
-   whole extra head row on a 390px phone). */
+   a text switch/back action beside it — never a "Stream:" label, never a full-width control
+   (#781: the old bordered <select> read as mandatory on every visit and cost a head row). */
 .cafe-stream {
   display: flex;
   align-items: baseline;
@@ -30,7 +29,8 @@
 }
 
 /* Capture headers share one compact status register across production, transfer, waste and
-   count. Keep the stream value, date and switch on the same quiet line below the page title. */
+   count. Keep the stream value and activity-specific switch on one quiet line below the title;
+   the date belongs in PageHead metadata. */
 .cafe-capture-context {
   display: flex;
   align-items: baseline;
@@ -44,12 +44,9 @@
   font-size: var(--font-size-control);
   font-weight: 400;
 }
-.cafe-capture-context .kl-date,
-.cafe-capture-context .cafe-count__date {
-  padding: 0;
-  border-radius: 0;
-  background: transparent;
-  font-size: inherit;
+.cafe-capture-date {
+  color: var(--muted-foreground);
+  font-size: var(--font-size-control);
   white-space: nowrap;
 }
 

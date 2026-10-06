@@ -144,17 +144,16 @@ const loggedUnit = (
   qty_porsi: quantity,
 })
 
-// #781: CafeStreamBar states a resolved stream as text with a quiet "Switch" beside it (opens a
-// portaled listbox, same as Select's) — or, with no default resolved at all, offers the
-// location's streams as direct one-click buttons (CafeStreamChoices) with no separate open step.
-// `startsWith` rather than an exact match because an option carries an appended tag ("— Your
-// Team" / "— Receiving only") when it applies; the journey below is real either way.
+// #781: CafeStreamBar states a resolved stream as text with a quiet activity-specific Switch
+// beside it (opens a portaled listbox, same as Select's) — or, with no default resolved at all,
+// offers the location's streams as direct one-click buttons (CafeStreamChoices) with no separate
+// open step. `startsWith` allows a menu option's appended membership tag.
 function startsWith(label: string) {
   return (accessibleName: string) => accessibleName.startsWith(label)
 }
 
 async function chooseStream(optionName: string) {
-  const switchButton = screen.queryByRole('button', { name: /^change stream$/i })
+  const switchButton = screen.queryByRole('button', { name: /^(?:change stream|switch (?:bar|kitchen) stream)$/i })
   if (switchButton) {
     fireEvent.click(switchButton)
     fireEvent.click(await screen.findByRole('option', { name: startsWith(optionName) }))
@@ -1501,7 +1500,7 @@ describe('I3: shared PageHead variant="content"', () => {
   it.each([
     { route: 'production', path: appUrl('/cafe'), title: 'Log production' },
     { route: 'transfer', path: appUrl('/cafe/transfer'), title: 'Log transfer' },
-  ])('$route keeps its selected stream, date, and working switch in one context row', async ({ path, title }) => {
+  ])('$route keeps its stream action in statusRow and the date in PageHead metadata', async ({ path, title }) => {
     await renderPage(VIEWER_MEMBER, path)
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
@@ -1512,14 +1511,21 @@ describe('I3: shared PageHead variant="content"', () => {
     const context = head.querySelector('.cafe-capture-context') as HTMLElement
     expect(context).toBeInTheDocument()
     expect(context.querySelector('[data-testid="cafe-stream"]')).toBeInTheDocument()
-    const date = context.querySelector('time')
+    expect(context.querySelector('time')).toBeNull()
+    const date = head.querySelector('time.cafe-capture-date')
     expect(date).toBeInTheDocument()
+    expect(date?.closest('.ch-meta, .page-head-meta')).toBeInTheDocument()
     expect(date?.getAttribute('datetime')).toMatch(/^\d{4}-\d{2}-\d{2}$/)
     expect(date).toHaveTextContent(/\d/)
-    const change = within(context).getByRole('button', { name: 'Change stream' })
-    fireEvent.click(change)
+    const actionName = context.querySelector('.cafe-stream__value')?.textContent?.endsWith('· Bar')
+      ? 'Switch bar stream'
+      : 'Switch kitchen stream'
+    const actionText = actionName.replace(' stream', '')
+    const switchButton = within(context).getByRole('button', { name: actionName })
+    expect(switchButton).toHaveTextContent(actionText)
+    expect(context).not.toHaveTextContent(date?.textContent ?? '')
+    fireEvent.click(switchButton)
     expect(await screen.findByRole('listbox', { name: 'Production stream' })).toBeInTheDocument()
-    expect(head.querySelector('.page-head-meta')).toBeNull()
     expect(document.querySelector('.kl-head')).toBeNull()
   })
 })
@@ -2289,15 +2295,14 @@ describe('OD-CAFE-6: Log opens by the one stream rule, with one look', () => {
     expect(within(screen.getByTestId('cafe-stream')).getByText('Rumah Rames · Kitchen')).toBeInTheDocument()
   })
 
-  it('shows the stream as a heading with a Change link — no "Stream:" label, no "Switch"', async () => {
+  it('shows the stream heading with its activity-specific Switch action and no generic Stream label', async () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
     const bar = screen.getByTestId('cafe-stream')
     expect(within(bar).getByRole('heading', { name: 'Rumah Rames · Kitchen' })).toBeInTheDocument()
-    expect(within(bar).getByRole('button', { name: /^change stream$/i })).toHaveTextContent('Change')
+    expect(within(bar).getByRole('button', { name: /^switch kitchen stream$/i })).toHaveTextContent('Switch kitchen')
     expect(within(bar).queryByText(/^stream:?$/i)).toBeNull()
-    expect(screen.queryByRole('button', { name: /^switch/i })).toBeNull()
   })
 })
 
@@ -2374,7 +2379,7 @@ describe('FR-005: the picker offers exactly the catalog pairs it is given — th
     await renderPage(OPS_LEAD)
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
-    fireEvent.click(screen.getByRole('button', { name: /^change stream$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^switch (?:bar|kitchen) stream$/i }))
     const listbox = screen.getByRole('listbox')
     const options = within(listbox).getAllByRole('option')
     // Exactly STREAM_PAIRS minus the stream already in view — no placeholder (a default
@@ -2569,7 +2574,7 @@ describe('stale-response race: an older stream fetch resolving LAST never lands 
 
     // While switch #1 is in flight the Switch action MUST stay mounted (FR-003 — a slow
     // stream is never a dead end; getByRole throws here if the switch unmounts it).
-    const switchDuringLoad = screen.getByRole('button', { name: /^change stream$/i })
+    const switchDuringLoad = screen.getByRole('button', { name: /^switch (?:bar|kitchen) stream$/i })
 
     // Switch #2 → (Gordi HQ, kitchen): the LATEST read — resolves immediately (w2 → 33).
     mockFetchPlanMap.mockResolvedValueOnce({ w2: { [PRODUCE_KEY]: 33 } })
@@ -3121,11 +3126,11 @@ describe('OD-CAFE-1 — the root Log is location-bound without the Opening wrapp
     is_primary: false, branch_id: branchId, activity, effective_to: null,
   })
 
-  it('home stream names the location: Change offers only that location’s other streams', async () => {
+  it('home stream names the location: Switch offers only that location’s other streams', async () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
 
-    fireEvent.click(screen.getByRole('button', { name: /^change stream$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^switch (?:bar|kitchen) stream$/i }))
     const offered = labels(await screen.findAllByRole('option'))
     expect(offered).toEqual(['Rumah Rames · Bar'])
   })
@@ -3177,7 +3182,7 @@ describe('OD-CAFE-1 — the root Log is location-bound without the Opening wrapp
     expect(activeCafeLocation(PERSON)?.branchId).not.toBe(BRANCH_RADIANT.id)
 
     // Another location's stream is marked as such before it is chosen.
-    fireEvent.click(screen.getByRole('button', { name: /^change stream$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^switch (?:bar|kitchen) stream$/i }))
     expect(labels(await screen.findAllByRole('option'))).toContain('Radiant · Bar — Other location')
     fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
 
@@ -3186,7 +3191,7 @@ describe('OD-CAFE-1 — the root Log is location-bound without the Opening wrapp
 
     expect(activeCafeLocation(PERSON)?.branchId).toBe(BRANCH_RADIANT.id)
     // The picker is now bounded to the NEW location: Radiant's other stream, plus other locations.
-    fireEvent.click(screen.getByRole('button', { name: /^change stream$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^switch (?:bar|kitchen) stream$/i }))
     const offered = labels(await screen.findAllByRole('option'))
     expect(offered).toContain('Radiant · Kitchen — Receiving only')
     expect(offered).not.toContain('Radiant · Bar')
@@ -3195,7 +3200,7 @@ describe('OD-CAFE-1 — the root Log is location-bound without the Opening wrapp
   it('a person with no Team at another branch is not offered it (no silent mixing)', async () => {
     await renderPage()
     await waitFor(() => screen.getByText('Ayam Bakar'))
-    fireEvent.click(screen.getByRole('button', { name: /^change stream$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^switch (?:bar|kitchen) stream$/i }))
     const offered = labels(await screen.findAllByRole('option'))
     expect(offered.some(label => /Radiant|Gordi HQ/.test(label))).toBe(false)
   })

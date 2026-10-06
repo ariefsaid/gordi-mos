@@ -648,10 +648,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       myStreamKeys={myStreamKeys}
       onChange={selectStream}
       disabled={status.kind === 'submitting'}
-      context={<>
-        <span aria-hidden="true">·</span>
-        <time className="kl-date tabular" dateTime={logDate}>{formatWeekdayDayMonth(logDate)}</time>
-      </>}
+      switchLabel={t(stream?.activity === 'bar' ? 'cafe.stream.switchBar' : 'cafe.stream.switchKitchen')}
+      switchAriaLabel={t(stream?.activity === 'bar' ? 'cafe.stream.switchBarAria' : 'cafe.stream.switchKitchenAria')}
     />
     {pendingStream && <ConfirmDialog
       open
@@ -671,11 +669,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     </>
   )
 
-  const captureContext = (
-    <div className="cafe-capture-context">
-      {streamPicker}
-      {stream === null && <time className="kl-date tabular" dateTime={logDate}>{formatWeekdayDayMonth(logDate)}</time>}
-    </div>
+  const captureContext = stream === null ? undefined : (
+    <div className="cafe-capture-context">{streamPicker}</div>
   )
 
   const receivingOnlyNotice = (
@@ -1318,6 +1313,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
          a row lands in decides what the row MEANS, so it outranks the static job sentence the
          shared head would otherwise carry (PageHead renders one or the other). */
       statusRow={captureContext}
+      meta={<time className="cafe-capture-date tabular" dateTime={logDate}>{formatWeekdayDayMonth(logDate)}</time>}
       state={status.kind === 'submitting' ? 'saving' : status.kind === 'success' ? 'saved' : streamNonProducing ? 'read-only' : submitError ? 'validation' : 'default'}
     >
       <div ref={captureRef} className={`kl-page cafe-capture-content${isWide ? ' kl-capture-wide' : ''}`}>

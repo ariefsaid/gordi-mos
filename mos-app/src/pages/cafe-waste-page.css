@@ -47,17 +47,18 @@
   margin-bottom: 144px;
   scroll-margin-bottom: 144px;
 }
+.cwl-list .dt-table tbody td { padding-block: 8px; }
 .cwl-list .dt-table thead th:first-child,
-.cwl-list .dt-table tbody tr:not(.dt-group-row) > td:first-child { width: auto; vertical-align: top; }
+.cwl-list .dt-table tbody tr:not(.dt-group-row) > td:first-child { width: auto; vertical-align: middle; }
 .cwl-list .dt-table thead th:last-child,
-.cwl-list .dt-table tbody tr:not(.dt-group-row) > td:last-child { width: 10rem; vertical-align: top; }
+.cwl-list .dt-table tbody tr:not(.dt-group-row) > td:last-child { width: 32rem; vertical-align: middle; }
 .cwl-item-cell { min-width: 0; }
 .cwl-capture-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 7.5rem;
-  grid-template-areas: 'item controls' 'evidence evidence';
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: 'item' 'controls' 'evidence';
   align-items: start;
-  gap: 12px;
+  gap: 8px;
   min-width: 0;
 }
 .cwl-capture-row__item { grid-area: item; min-width: 0; }
@@ -67,31 +68,28 @@
 .cwl-item-cell .kl-dish-name { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
 .cwl-controls {
   display: grid;
+  grid-template-columns: var(--cafe-capture-quantity-width, 7.5rem) minmax(0, 1fr) max-content;
+  align-items: center;
   gap: 8px;
-  width: min(100%, 7.5rem);
+  width: 32rem;
+  max-width: 100%;
   min-width: 0;
   margin-inline-start: auto;
 }
-.cwl-quantity-row {
-  display: grid;
-  gap: 4px;
-  justify-self: stretch;
-  min-width: 0;
-  width: 100%;
-}
+.cwl-quantity-row { display: contents; }
 .cwl-quantity-input {
-  width: 100%;
+  width: var(--cafe-capture-quantity-width, 7.5rem);
   max-width: 100%;
   min-width: 0;
-  min-height: 44px;
+  min-height: var(--cafe-capture-control-height, 44px);
   box-sizing: border-box;
-  padding: 0 10px;
+  padding: 0 8px;
   border: 1px solid var(--input);
   border-radius: var(--radius-sm);
   background: var(--background);
   color: var(--foreground);
   font: inherit;
-  font-size: var(--font-size-control);
+  font-size: var(--cafe-capture-control-font-size, var(--font-size-touch-input));
 }
 .cwl-quantity-input:focus-visible {
   outline: 2px solid var(--ring);
@@ -101,13 +99,13 @@
 .cwl-unit-select { min-width: 0; width: 100%; }
 .cwl-unit-select .mk-select__box { width: 100%; }
 .cwl-unit-select .mk-select__box,
-.cwl-unit-select .mk-select__field { min-height: 44px; }
-.cwl-unit-select .mk-select__field { align-items: flex-start; height: auto; }
+.cwl-unit-select .mk-select__field { min-height: var(--cafe-capture-control-height, 32px); }
+.cwl-unit-select .mk-select__field { align-items: center; }
 .cwl-unit-select .mk-select__field > span:first-child {
-  overflow: visible;
-  overflow-wrap: anywhere;
-  text-overflow: clip;
-  white-space: normal;
+  overflow: hidden;
+  overflow-wrap: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .cwl-unit-label {
   display: block;
@@ -115,16 +113,15 @@
   width: 100%;
   color: var(--foreground);
   font-size: var(--font-size-control);
-  line-height: 1.35;
-  overflow-wrap: anywhere;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.cwl-add-photo { justify-self: start; min-height: 40px; }
-.cwl-photo-hint {
-  margin: 0;
-  color: var(--muted-foreground);
-  font-size: var(--font-size-label);
-  line-height: 1.35;
-}
+.cwl-add-photo { justify-self: stretch; min-width: 6rem; min-height: var(--cafe-capture-control-height, 44px); padding-inline: 8px; }
+.cwl-field-error,
+.cwl-lock-note,
+.cwl-submitted { grid-column: 1 / -1; }
 .cwl-field-error {
   color: var(--status-lost-text);
   font-size: var(--font-size-label);
@@ -142,18 +139,16 @@
 .cwl-footer { z-index: var(--z-sticky); }
 .cwl-footer .btn { min-height: 44px; }
 
-@media (min-width: 768px) {
-  .cwl-capture-row { grid-template-columns: minmax(0, 1fr) 10rem; }
-}
-
 @media (max-width: 767.98px) {
   .cwl-list .dt-cards {
     padding-bottom: calc(144px + env(safe-area-inset-bottom, 0px));
   }
-  .cwl-quantity-input { width: 7.5rem; }
-  .cwl-unit-select { width: 7.5rem; max-width: 100%; }
+  .cwl-controls {
+    grid-template-columns: var(--cafe-capture-quantity-width, 5.5rem) minmax(0, 1fr) max-content;
+    width: 100%;
+    margin-inline-start: 0;
+  }
   .cwl-evidence { max-width: none; }
-  .cwl-add-photo { min-height: 44px; }
 }
 
 .cwl-list .dt-card {

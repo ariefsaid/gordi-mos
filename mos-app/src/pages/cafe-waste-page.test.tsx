@@ -249,19 +249,24 @@ describe('CafeWastePage', () => {
     expect(within(empty).getByRole('link', { name: /open café item settings/i })).toHaveAttribute('href', '/cafe/items')
   })
 
-  it('keeps the stream, localized date, and working switch together in the waste header', async () => {
+  it('puts the localized date in PageHead metadata and labels the bar switch in both locales', async () => {
     for (const locale of ['en', 'id'] as const) {
       const { unmount } = renderPage(locale)
       const stream = await screen.findByRole('heading', { name: 'Rumah Rames · Bar' })
       const context = stream.closest('.cafe-capture-context')
       expect(context).toBeInTheDocument()
-      const date = context?.querySelector('time')
+      expect(context?.querySelector('time')).toBeNull()
+
+      const head = screen.getByTestId('page-head')
+      const date = head.querySelector('time')
       expect(date).toHaveAttribute('datetime', '2026-10-02')
       expect(date).toHaveTextContent(formatWeekdayDayMonth('2026-10-02', locale))
+      expect(date?.closest('.ch-meta, .page-head-meta')).toBeInTheDocument()
 
-      const switchLabel = locale === 'en' ? 'Change stream' : 'Ganti stream'
+      const switchLabel = locale === 'en' ? 'Switch bar stream' : 'Ganti stream bar'
       const switchButton = within(context as HTMLElement).getByRole('button', { name: switchLabel })
-      expect(switchButton).toHaveTextContent(locale === 'en' ? 'Change' : 'Ganti')
+      expect(switchButton).toHaveTextContent(locale === 'en' ? 'Switch bar' : 'Ganti bar')
+      expect(context).not.toHaveTextContent(formatWeekdayDayMonth('2026-10-02', locale))
       fireEvent.click(switchButton)
       expect(await screen.findByRole('option', { name: /Rumah Rames/ })).toBeInTheDocument()
       unmount()
@@ -458,8 +463,10 @@ describe('CafeWastePage', () => {
     expect(row.querySelector('.cwl-capture-row__item')).toContainElement(name)
     expect(row.querySelector('.cwl-capture-row__controls')).toContainElement(quantity)
     expect(unit).toHaveTextContent(longUnitLabel)
+    expect(document.getElementById(unit.getAttribute('aria-describedby') ?? '')).toHaveTextContent(longUnitLabel)
+    expect(quantity).toHaveClass('cafe-capture-quantity-field')
     expect(quantity.parentElement).toHaveClass('cwl-quantity-row')
-    expect(unit.closest('.cwl-unit-select')?.parentElement).toBe(quantity.parentElement)
+    expect(unit.closest('.cwl-controls')).toBe(quantity.closest('.cwl-controls'))
   })
 
   it('keeps the missing-item route beside the item controls on a long capture list', async () => {
@@ -469,17 +476,19 @@ describe('CafeWastePage', () => {
     expect(report.compareDocumentPosition(firstQuantity) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  it('explains that a quantity unlocks Add photo and removes the hint once entered', async () => {
+  it('explains the quantity-before-photo rule once for the whole list', async () => {
     renderPage()
     const addPhoto = (await screen.findAllByRole('button', { name: 'Add photo' }))[0]!
     const quantity = screen.getByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })
+    const help = 'Choose items and quantities to waste. Add a photo after entering the quantity for each item.'
     expect(addPhoto).toBeDisabled()
     expect(addPhoto.closest('.cwl-controls')).toContainElement(quantity)
-    expect(screen.getAllByText('Enter a quantity before adding a photo.')).toHaveLength(2)
+    expect(screen.getAllByText(help)).toHaveLength(1)
+    expect(addPhoto).not.toHaveAttribute('aria-describedby')
 
     fireEvent.change(quantity, { target: { value: '2' } })
     await waitFor(() => expect(addPhoto).toBeEnabled())
-    expect(screen.getAllByText('Enter a quantity before adding a photo.')).toHaveLength(1)
+    expect(screen.getAllByText(help)).toHaveLength(1)
   })
 
   it('converts a selected multiple to the default ERP unit and stores its entry snapshot', async () => {

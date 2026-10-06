@@ -78,20 +78,25 @@ beforeEach(() => {
 })
 
 describe('CafeCountPage', () => {
-  it('keeps the stream, localized date, and working switch together in the compact Count header', async () => {
+  it('puts the localized date in PageHead metadata and labels the kitchen switch in both locales', async () => {
     for (const locale of ['en', 'id'] as const) {
       const { unmount } = renderPage(locale)
       const streamName = locale === 'en' ? 'Cafe Branch · Kitchen' : 'Cafe Branch · Dapur'
       const stream = await screen.findByRole('heading', { name: streamName })
       const context = stream.closest('.cafe-capture-context')
       expect(context).toBeInTheDocument()
-      const date = context?.querySelector('time')
+      expect(context?.querySelector('time')).toBeNull()
+
+      const head = screen.getByTestId('page-head')
+      const date = head.querySelector('time')
       expect(date).toHaveAttribute('datetime', '2026-10-06')
       expect(date).toHaveTextContent(formatWeekdayDayMonth('2026-10-06', locale))
+      expect(date?.closest('.ch-meta, .page-head-meta')).toBeInTheDocument()
 
-      const switchLabel = locale === 'en' ? 'Change stream' : 'Ganti stream'
+      const switchLabel = locale === 'en' ? 'Switch kitchen stream' : 'Ganti stream dapur'
       const switchButton = within(context as HTMLElement).getByRole('button', { name: switchLabel })
-      expect(switchButton).toHaveTextContent(locale === 'en' ? 'Change' : 'Ganti')
+      expect(switchButton).toHaveTextContent(locale === 'en' ? 'Switch kitchen' : 'Ganti dapur')
+      expect(context).not.toHaveTextContent(formatWeekdayDayMonth('2026-10-06', locale))
       fireEvent.click(switchButton)
       expect(await screen.findByRole('option', { name: /Other Cafe · Bar/ })).toBeInTheDocument()
       unmount()
@@ -108,6 +113,10 @@ describe('CafeCountPage', () => {
     expect(rawInput).toHaveAttribute('inputmode', 'decimal')
     expect(rawInput).not.toHaveAttribute('placeholder')
     expect(container.querySelector('.cafe-count__unit')).toHaveTextContent('kg')
+    expect(rawInput).toHaveClass('cafe-capture-quantity-field')
+    expect(rawInput.closest('.cafe-count__quantity-control')).toHaveClass('cafe-capture-control-group')
+    expect(rawInput.closest('.cafe-count__input-group')?.querySelector('label')).toHaveClass('sr-only')
+    expect(rawInput.closest('.cafe-count__row')?.querySelector('.cafe-count__unit')).toHaveAttribute('aria-label', 'kg')
     const entry = container.querySelector('.cafe-count')?.textContent?.toLowerCase() ?? ''
     expect(entry).not.toContain('expected balance')
     expect(entry).not.toContain('variance')

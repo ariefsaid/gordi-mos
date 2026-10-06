@@ -20,6 +20,7 @@ import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsOffline } from '@/shell/use-is-offline'
 import { formatWeekdayDayMonth } from '@/lib/format/date'
 import './cafe-count-page.css'
+import '@/components/kitchen/cafe-capture-controls.css'
 
 type CountEntry = {
   quantity: string
@@ -167,7 +168,7 @@ export function CafeCountPage() {
     setRetryKey(value => value + 1)
   }
 
-  const picker = (
+  const picker = stream === null ? undefined : (
     <div className="cafe-capture-context">
       <CafeStreamBar
         options={streamOptions}
@@ -177,10 +178,8 @@ export function CafeCountPage() {
         myStreamKeys={myStreamKeys}
         onChange={chooseStream}
         disabled={!canSwitch}
-        context={<>
-          <span aria-hidden="true">·</span>
-          <time className="cafe-count__date tabular" dateTime={logDate}>{formatWeekdayDayMonth(logDate)}</time>
-        </>}
+        switchLabel={t(stream.activity === 'bar' ? 'cafe.stream.switchBar' : 'cafe.stream.switchKitchen')}
+        switchAriaLabel={t(stream.activity === 'bar' ? 'cafe.stream.switchBarAria' : 'cafe.stream.switchKitchenAria')}
       />
     </div>
   )
@@ -188,7 +187,14 @@ export function CafeCountPage() {
     : submitting ? 'saving' : hasSubmitted && entered.length === 0 && !hasUnsubmittedInput ? 'saved' : 'default'
 
   return (
-    <PageFamilyFrame family="workspace" title={pageLabel} headClassName="cafe-count__head" statusRow={picker} state={pageState}>
+    <PageFamilyFrame
+      family="workspace"
+      title={pageLabel}
+      headClassName="cafe-count__head"
+      statusRow={picker}
+      meta={<time className="cafe-capture-date tabular" dateTime={logDate}>{formatWeekdayDayMonth(logDate)}</time>}
+      state={pageState}
+    >
       <div className="cafe-count">
         {loadState === 'loading' && <LoadingShell count={3} />}
         {loadState === 'error' && (
@@ -235,14 +241,14 @@ export function CafeCountPage() {
                       <li className="cafe-count__row" key={item.id}>
                         <div className="cafe-count__item">
                           <div className="cafe-count__item-name">{item.name}</div>
-                          {item.category && <div className="cafe-count__category">{item.category}</div>}
                           <span className="cafe-count__kind">{item.kind}</span>
                         </div>
                         <div className="cafe-count__input-group">
-                          <label htmlFor={`cafe-count-${item.id}`}>{t('cafe.count.quantityFor', { item: item.name })}</label>
-                          <div className="cafe-count__quantity-control">
+                          <label className="sr-only" htmlFor={`cafe-count-${item.id}`}>{t('cafe.count.quantityFor', { item: item.name })}</label>
+                          <div className="cafe-count__quantity-control cafe-capture-control-group">
                             <input
                               id={`cafe-count-${item.id}`}
+                              className="cafe-capture-quantity-field"
                               type="text"
                               inputMode="decimal"
                               autoComplete="off"
@@ -251,7 +257,7 @@ export function CafeCountPage() {
                               disabled={submitting || Boolean(entry?.outcome)}
                               onChange={event => patchQuantity(item.id, event.target.value)}
                             />
-                            <span className="cafe-count__unit">{item.unitName}</span>
+                            <span className="cafe-count__unit cafe-capture-unit" aria-label={item.unitName} title={item.unitName}>{item.unitName}</span>
                           </div>
                           {invalid && <p className="cafe-count__field-error" role="alert">{t('cafe.count.quantityInvalid')}</p>}
                           {entry?.outcome && <p className="cafe-count__line-success" role="status">{t('cafe.count.lineSubmitted')}</p>}

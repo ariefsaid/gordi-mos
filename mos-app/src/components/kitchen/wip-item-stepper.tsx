@@ -20,6 +20,7 @@ import { isStockConsuming, VARIANCE_NOTE_CUE, TRANSFER_SHORT_CUE } from '@/lib/k
 import { useT } from '@/i18n/use-t'
 import { Select } from '@/components/ui/select'
 import './wip-item-stepper.css'
+import './cafe-capture-controls.css'
 
 interface WipItemStepperProps {
   itemName: string
@@ -181,7 +182,7 @@ export function WipItemStepper({
       <div className="kls-row">
         {!hideName && <span className="kls-name">{itemName}</span>}
 
-        <div className="kls-quantity">
+        <div className="kls-quantity cafe-capture-control-group">
         <input
           type="number"
           inputMode="decimal"
@@ -191,7 +192,7 @@ export function WipItemStepper({
               item: itemName,
             })
             : t('kitchen.qty.producedAria', { item: itemName })}
-          className="kls-qty"
+          className="kls-qty cafe-capture-quantity-field"
           value={entryQuantity > 0 ? entryQuantity : ''}
           placeholder={placeholderQuantity > 0 ? formatActualQty(placeholderQuantity) : '0'}
           min={0}
@@ -207,13 +208,14 @@ export function WipItemStepper({
             glyph — one deliberate click opens the picker, selection closes it. An item
             with one unit renders the bare text and NO button (AC-005): nothing to
             change, nothing to mis-tap. */}
-          {!offersUnitChange && unitLabel && <span className="kls-unit">{unitLabel}</span>}
+          {!offersUnitChange && unitLabel && <span className="kls-unit cafe-capture-unit" aria-label={unitLabel} title={unitLabel}>{unitLabel}</span>}
           {offersUnitChange && !unitPickerOpen && (
             <button
               ref={unitChangeButtonRef}
               type="button"
-              className="kls-unit kls-unit-change"
-              aria-label={t('kitchen.log.unit.changeAria', { item: itemName })}
+              className="kls-unit kls-unit-change cafe-capture-unit"
+              aria-label={`${t('kitchen.log.unit.changeAria', { item: itemName })}: ${unitLabel}`}
+              title={unitLabel}
               disabled={disabled}
               onClick={() => setUnitPickerOpen(true)}
             >
@@ -234,7 +236,8 @@ export function WipItemStepper({
           {offersUnitChange && unitPickerOpen && (
             <Select
               className="kls-unit-select"
-              aria-label={t('kitchen.log.unit.selectAria', { item: itemName })}
+              aria-label={`${t('kitchen.log.unit.selectAria', { item: itemName })}: ${unitLabel}`}
+              title={unitLabel}
               value={selectedUnitValue}
               disabled={disabled}
               autoFocus

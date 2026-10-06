@@ -114,15 +114,6 @@
 }
 .kl-summary-unavailable { margin-top: 4px; }
 
-/* ── log date chip in the PageHead meta slot ── */
-.kl-date {
-  font-size: var(--font-size-mono);
-  color: var(--muted-foreground);
-  background: var(--muted);
-  padding: 2px 8px;
-  border-radius: var(--radius-sm);
-}
-
 /* ── Banners (offline / submit-error / success) ── */
 .kl-banner {
   width: 100%;
@@ -454,13 +445,13 @@
 .kl-row { display: flex; flex-direction: column; gap: 6px; width: 100%; min-width: 0; }
 .kl-card-head {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 7.5rem;
-  align-items: baseline;
-  gap: 8px 16px;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+  gap: 8px;
   min-width: 0;
 }
 .kl-card-head > .kls-card { display: contents; }
-.kl-card-head > .kls-card > .kls-row { grid-column: 2; grid-row: 1; }
+.kl-card-head > .kls-card > .kls-row { grid-column: 1; grid-row: 2; }
 .kl-card-head > .kls-card > :not(.kls-row) { grid-column: 1 / -1; }
 .kl-card-identity {
   display: flex;
