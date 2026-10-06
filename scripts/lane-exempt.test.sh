@@ -11,6 +11,7 @@ pass=0; fail=0
 g() { git -C "$tmp/repo" -c user.email=t@t -c user.name=t "$@"; }
 git init -q "$tmp/repo"
 g commit -qm init --allow-empty
+g remote add origin https://github.com/x/y.git
 gitdir="$(g rev-parse --absolute-git-dir)"
 mkdir -p "$tmp/repo/scripts"
 cp scripts/lane-exempt.sh "$tmp/repo/scripts/"
@@ -47,6 +48,15 @@ check "owner UI records bounded delegation locally" 0 yes no - owner-ui "Owner a
 export GH_POST_RC=1
 check "build lane where post fails leaves NO marker" 1 no yes 42 diagnosis "flaky seed"
 unset GH_POST_RC
+
+# The marker post goes through gh-post's REST door (GraphQL is unavailable to cloud sessions).
+rm -f "$tmp/post-calls"
+(cd "$tmp/repo" && bash scripts/lane-exempt.sh 42 money-auth "rest form") >/dev/null 2>&1
+case "$(head -1 "$tmp/post-calls" 2>/dev/null)" in
+  "api repos/x/y/issues/42/comments -f body=In flight"*"money-auth — rest form."*)
+    pass=$((pass+1)); printf '  ok    marker posted via REST issue comment\n' ;;
+  *) fail=$((fail+1)); printf '  FAIL  marker post argv: %s\n' "$(cat "$tmp/post-calls" 2>/dev/null)" ;;
+esac
 
 # Marker format: "<epoch> <category> <issue> <reason…>" — what the hook parses.
 (cd "$tmp/repo" && bash scripts/lane-exempt.sh - review "battery") >/dev/null 2>&1

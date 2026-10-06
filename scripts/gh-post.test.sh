@@ -124,5 +124,36 @@ check "stray 'staging' arg without --base adjacency is NOT the carve-out" 1 no p
 g "$tmp/repo" checkout -qb rogue
 check "staging PR from a non-main branch still needs stamps" 1 no pr create --base staging --title t --body "clean"
 
+# ── REST PR create (api repos/<this>/pulls) passes the same four-stamp gate as pr create
+g "$tmp/repo" checkout -qb feat-rest
+rm -f "$gitdir/pre-pr-verify-ok" "$gitdir/pre-pr-verify-dev-ok" "$gitdir"/independent-review-*-ok
+check "REST pr create without stamps refused" 1 no api repos/x/y/pulls -f title=t -f head=feat-rest -f base=dev
+check "REST pr create, explicit --method POST, refused unstamped" 1 no api repos/x/y/pulls --method POST -f head=feat-rest -f base=dev
+check "REST pr create, concatenated -XPOST, refused unstamped" 1 no api repos/x/y/pulls -XPOST -f head=feat-rest -f base=dev
+check "REST pr create, leading and trailing slash, refused unstamped" 1 no api /repos/x/y/pulls/ -f head=feat-rest -f base=dev
+check "REST pr create, query string, refused unstamped" 1 no api 'repos/x/y/pulls?x=1' -f head=feat-rest -f base=dev
+check "api path with an empty segment refused" 1 no api repos/x/y//pulls -f head=feat-rest -f base=dev
+check "api path with an encoded segment refused" 1 no api repos/x/y/pull%73 -f head=feat-rest -f base=dev
+check "REST pulls list (explicit GET) passes unstamped" 0 yes api repos/x/y/pulls --method GET
+check "REST merge (PUT pulls/N/merge) is not a create" 0 yes api repos/x/y/pulls/5/merge --method PUT -f merge_method=squash
+head="$(g "$tmp/repo" rev-parse HEAD)"
+printf '%s' "$head" > "$gitdir/pre-pr-verify-dev-ok"
+for lens in spec code-quality security; do printf '%s %s reviewer-x now art.md\n' "$head" "$lens" > "$gitdir/independent-review-$lens-ok"; done
+check "REST pr create, light stamp + lens stamps, base=dev passes" 0 yes api repos/x/y/pulls -f title=t -f head=feat-rest -f base=dev
+check "REST pr create, concatenated -f fields pass" 0 yes api repos/x/y/pulls -fhead=feat-rest -fbase=dev
+check "REST pr create, --raw-field= form passes" 0 yes api repos/x/y/pulls --raw-field=head=feat-rest --raw-field=base=dev
+check "REST pr create, owner:branch head passes" 0 yes api repos/x/y/pulls -f head=x:feat-rest -f base=dev
+check "REST pr create, light stamp, base=main refused" 1 no api repos/x/y/pulls -f head=feat-rest -f base=main
+check "REST pr create, light stamp, no base refused" 1 no api repos/x/y/pulls -f head=feat-rest
+check "REST pr create, base dev then main (last wins) refused" 1 no api repos/x/y/pulls -f head=feat-rest -f base=dev -f base=main
+check "REST pr create, head naming another branch refused" 1 no api repos/x/y/pulls -f head=other -f base=dev
+check "REST pr create, head naming another owner refused" 1 no api repos/x/y/pulls -f head=evil:feat-rest -f base=dev
+check "REST pr create, no head refused" 1 no api repos/x/y/pulls -f base=dev
+check "REST pr create, head_repo refused" 1 no api repos/x/y/pulls -f head=feat-rest -f base=dev -f head_repo=evil/y
+echo '{"head":"feat-rest","base":"dev"}' > "$tmp/repo/pr.json"
+check "REST pr create, --input payload refused" 1 no api repos/x/y/pulls --input "$tmp/repo/pr.json"
+printf 'deadbeef security reviewer-x now art.md\n' > "$gitdir/independent-review-security-ok"
+check "REST pr create, one lens on the wrong sha refused" 1 no api repos/x/y/pulls -f head=feat-rest -f base=dev
+
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

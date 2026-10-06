@@ -38,8 +38,11 @@ if [ "$build_lane" = 1 ]; then
   case "$n" in ''|*[!0-9]*) die "build-lane exemption needs an issue number (got '$issue')" ;; esac
   [ -n "$reason" ] || die "build-lane exemption needs a one-line reason"
   # The post IS the audit trail — no post, no exemption.
-  "$(dirname "$0")/gh-post.sh" issue comment "$n" \
-    --body "In flight (Director lane, $(date -u +%Y-%m-%d)): $cat — $reason. Do not re-dispatch." \
+  # REST, not `gh issue comment`: GraphQL is unavailable to cloud sessions.
+  repo="$(git remote get-url origin 2>/dev/null | sed -E 's#^(https://github\.com/|git@github\.com:)##; s#\.git$##')"
+  [ -n "$repo" ] || die "no GitHub origin to post the in-flight marker to"
+  "$(dirname "$0")/gh-post.sh" api "repos/$repo/issues/$n/comments" \
+    -f body="In flight (Director lane, $(date -u +%Y-%m-%d)): $cat — $reason. Do not re-dispatch." \
     || die "could not post the in-flight marker to #$n — no marker, no exemption"
 fi
 
