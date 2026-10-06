@@ -32,7 +32,8 @@ import {
 // #440: the stream is the MODULE's selection, not this page's — useCafeStream records it so
 // Plan/Stock/Review open on the same books, and every switch carries across (issue 456).
 import { useCafeStream } from '@/lib/use-cafe-stream'
-import { fromDefaultUnitQuantity, formatUnitMultiple, toDefaultUnitQuantity } from '@/lib/cafe-unit-multiples'
+import { formatUnitMultiple, toDefaultUnitQuantity } from '@/lib/cafe-unit-multiples'
+import { parseQuantityInput } from '@/lib/quantity-parser'
 import { clearCafeDraftCount, setCafeDraftCount } from '@/lib/cafe-capture-draft'
 import { CafeStreamBar, CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
 import type { ReactNode } from 'react'
@@ -64,7 +65,7 @@ import {
   TRANSFER_SHORT_CUE,
 } from '@/lib/kitchen-gates'
 import { useKitchenKpis } from '@/lib/kitchen-kpis'
-import { useSearchParamState } from '@/lib/use-search-param-state'
+import { useSearchParamReset, useSearchParamState } from '@/lib/use-search-param-state'
 import { MovementSeg } from '@/components/kitchen/movement-seg'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { WipItemStepper } from '@/components/kitchen/wip-item-stepper'
@@ -81,6 +82,7 @@ import {
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
 import { formatWeekdayDayMonth } from '@/lib/format/date'
 import { EmptyState, LoadingShell } from '@/components/ui/state-kit'
+import { QuantityFieldError } from '@/components/ui/quantity-field'
 import { CafeItemsEmptyState } from '@/components/kitchen/cafe-items-empty-state'
 import { useFocusRestore } from '@/components/ui/use-focus-restore'
 import { reportError } from '@/lib/telemetry'
@@ -296,12 +298,18 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   const [pendingStream, setPendingStream] = useState<ProductionStream | null>(null)
   // Staged items the database refused as not on this stream's list (#222). Their lines stay, marked.
   const [invalidItemIds, setInvalidItemIds] = useState<Set<string>>(new Set())
+  const [invalidQuantityIds, setInvalidQuantityIds] = useState<Set<string>>(new Set())
+  const [invalidQuantityDrafts, setInvalidQuantityDrafts] = useState<Record<string, string>>({})
+  const [visibleQuantityErrors, setVisibleQuantityErrors] = useState<Set<string>>(new Set())
+  const [focusInvalidId, setFocusInvalidId] = useState<string | null>(null)
+  const [tableResetKey, setTableResetKey] = useState(0)
 
   // Client-side search + category (P-3), URL-synced so the view survives refresh/share (I7 / D-E1).
   // Group collapse stays INTERNAL to the shared <DataTable> (no page-level collapsedGroups state).
   const [search, setSearch] = useSearchParamState('q', '')
   const [kindFilter, setKindFilter] = useSearchParamState('kind', 'All')
   const [category, setCategory] = useSearchParamState('category', 'All')
+  const resetSearchFilters = useSearchParamReset(['q', 'kind', 'category'])
   // Category and kind selectors are hidden inside the capture form on phones, so copied
   // production/transfer links must not hide rows behind controls the reader cannot use. The
   // receiving toolbar is outside that form and stays filterable at phone widths. RAW is only
@@ -346,6 +354,9 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     itemTable,
     groupKey => groupKey === 'planned' ? t('kitchen.log.group.planned') : t('kitchen.log.group.offplan'),
   ).sort((a, b) => (a.key === 'planned' ? -1 : b.key === 'planned' ? 1 : 0))
+  const focusInvalidGroupKey = focusInvalidId
+    ? filterRows.find(row => row.rowId === focusInvalidId)?.groupKey ?? null
+    : null
 
   // The day summary uses only submitted map membership, independent of draft lines and the
   // currently offered list. Plan and actual quantities have no proven shared unit basis.
@@ -449,6 +460,10 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
         if (gen !== requestGen.current) return
         setWipItems(items)
         setInvalidItemIds(new Set())
+        setInvalidQuantityIds(new Set())
+        setInvalidQuantityDrafts({})
+        setVisibleQuantityErrors(new Set())
+        setFocusInvalidId(null)
         adoptStream(catalog)
         setMovement(resolvedMovement)
         setPlanMap(plan)
@@ -470,6 +485,10 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       if (gen !== requestGen.current) return // superseded — a newer read owns the state
       setWipItems(items)
       setInvalidItemIds(new Set())
+      setInvalidQuantityIds(new Set())
+      setInvalidQuantityDrafts({})
+      setVisibleQuantityErrors(new Set())
+      setFocusInvalidId(null)
       adoptStream(catalog)
       setMovement(resolvedMovement)
       setPlanMap(plan)
@@ -495,7 +514,10 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   // The module root owns the location switch and cannot see these quantities. Publish how many are
   // staged so it can warn before discarding them, and retract it on unmount so a dead form never
   // makes the root warn about work that no longer exists. Above every early return: this is a hook.
-  const draftCount = Object.values(lines).filter(line => line.qty_porsi > 0).length
+  const invalidQuantityCount = invalidQuantityIds.size
+  const draftCount = Object.entries(lines).filter(([itemId, line]) =>
+    line.qty_porsi > 0 || invalidQuantityIds.has(itemId),
+  ).length
   useEffect(() => {
     setCafeDraftCount(draftCount)
     return () => { clearCafeDraftCount() }
@@ -518,6 +540,15 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     if (inputRect.bottom <= footerRect.top) return
     active.scrollIntoView?.({ block: 'nearest' })
   }, [captureRef, lines])
+
+  useLayoutEffect(() => {
+    if (!focusInvalidId) return
+    const field = document.getElementById(`quantity-${focusInvalidId}`)
+    if (!(field instanceof HTMLInputElement)) return
+    field.scrollIntoView?.({ block: 'center' })
+    field.focus()
+    setFocusInvalidId(null)
+  }, [focusInvalidId, tableResetKey, search, effectiveKindFilter, effectiveCategory, status.kind])
 
   // Rebuild plan_qty / stock / gate state per line when the movement or the loaded
   // stream-scoped plan/stock change.
@@ -544,8 +575,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   // unset here is what keeps the tab strip showing the OLD movement while the dialog is open.
   function handleMovementChange(next: KitchenMovement): boolean {
     if (writeClosed) return false
-    const staged = Object.values(lines).some(l => l.qty_porsi > 0)
-    if (!staged) {
+    if (draftCount === 0) {
       setMovement(next)
       return true
     }
@@ -556,6 +586,10 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   function confirmMovementSwitch() {
     if (!pendingMovement) return
     setLines(buildLines(wipItems, planMap, stockMap, pendingMovement))
+    setInvalidQuantityIds(new Set())
+    setInvalidQuantityDrafts({})
+    setVisibleQuantityErrors(new Set())
+    setFocusInvalidId(null)
     setMovement(pendingMovement)
     setPendingMovement(null)
   }
@@ -571,6 +605,10 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   // it under a different one is how a COGS series acquires rows nobody meant.
   const applyStream = useCallback(async (nextStream: ProductionStream) => {
     const gen = ++requestGen.current
+    setInvalidQuantityIds(new Set())
+    setInvalidQuantityDrafts({})
+    setVisibleQuantityErrors(new Set())
+    setFocusInvalidId(null)
     chooseStream(nextStream) // the whole Café module follows this choice (#440)
     setMovement(PRODUCE)
     setStatus({ kind: 'loading' })
@@ -695,6 +733,46 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     </section>
   )
 
+  function handleQuantityValidityChange(itemId: string, valid: boolean) {
+    setInvalidQuantityIds(current => {
+      if (current.has(itemId) === !valid) return current
+      const next = new Set(current)
+      if (valid) next.delete(itemId)
+      else next.add(itemId)
+      return next
+    })
+    if (valid) {
+      setInvalidQuantityDrafts(current => {
+        if (!(itemId in current)) return current
+        const next = { ...current }
+        delete next[itemId]
+        return next
+      })
+    }
+  }
+
+  function handleInvalidQuantityDraft(itemId: string, raw: string) {
+    setInvalidQuantityDrafts(current => ({ ...current, [itemId]: raw }))
+  }
+
+  function handleQuantityErrorVisibilityChange(itemId: string, visible: boolean) {
+    setVisibleQuantityErrors(current => {
+      if (current.has(itemId) === visible) return current
+      const next = new Set(current)
+      if (visible) next.add(itemId)
+      else next.delete(itemId)
+      return next
+    })
+  }
+
+  function focusFirstInvalidQuantity() {
+    const itemId = Array.from(invalidQuantityIds).find(id => wipItems.some(item => item.id === id))
+    if (!itemId) return
+    resetSearchFilters()
+    setFocusInvalidId(itemId)
+    setTableResetKey(key => key + 1)
+  }
+
   function handleQtyChange(itemId: string, qty: number) {
     if (captureClosed) return
     setLines(prev => {
@@ -722,8 +800,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     })
   }
 
-  // Selecting a multiple changes only the entry basis. The stored ERP coordinate remains
-  // the default item-unit; preserve the canonical amount if staff switch units mid-entry.
+  // The selected unit gives the unchanged typed amount its meaning; only the canonical quantity
+  // submitted to the ERP changes with the factor.
   function handleUnitChange(itemId: string, unitChoice: string) {
     if (captureClosed) return
     const item = wipItems.find(candidate => candidate.id === itemId)
@@ -733,23 +811,27 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
         const factor = Number(unitChoice.slice('multiple:'.length))
         const defaultUnit = item?.units.find(unit => unit.is_default) ?? item?.units[0]
         if (!Number.isFinite(factor) || !item?.unit_multiples?.includes(factor) || !defaultUnit) return prev
+        const entryQuantity = current.entry_quantity ?? current.qty_porsi
         const next: KitchenLogLine = {
           ...current,
           item_unit_id: defaultUnit.id,
-          entry_quantity: fromDefaultUnitQuantity(current.qty_porsi, factor),
+          entry_quantity: entryQuantity,
           entry_unit_factor: factor,
           entry_unit_name: defaultUnit.name,
+          qty_porsi: toDefaultUnitQuantity(entryQuantity, factor),
         }
         return { ...prev, [itemId]: gateLine(next, movement) }
       }
       const selectedUnit = item?.units.find(unit => unit.id === unitChoice)
       if (!selectedUnit) return prev
+      const entryQuantity = current.entry_quantity ?? current.qty_porsi
       const next: KitchenLogLine = {
         ...current,
         item_unit_id: selectedUnit.id,
-        entry_quantity: current.qty_porsi,
+        entry_quantity: entryQuantity,
         entry_unit_factor: 1,
         entry_unit_name: selectedUnit.name,
+        qty_porsi: toDefaultUnitQuantity(entryQuantity, 1),
       }
       return { ...prev, [itemId]: gateLine(next, movement) }
     })
@@ -759,8 +841,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   // dialog (DESIGN.md Overlays: "destructive confirmation is one centered blocking
   // dialog") rather than window.confirm, which is unstyled and not app-consistent.
   function handleDiscardClick() {
-    const stagedCount = Object.values(lines).filter(l => l.qty_porsi > 0).length
-    if (stagedCount === 0) return
+    if (draftCount === 0) return
     setDiscardConfirmOpen(true)
   }
 
@@ -769,12 +850,16 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   // them too, silently losing the user's filter context along with their entries.
   function performDiscard() {
     setLines(buildLines(wipItems, planMap, stockMap, movement))
+    setInvalidQuantityIds(new Set())
+    setInvalidQuantityDrafts({})
+    setVisibleQuantityErrors(new Set())
+    setFocusInvalidId(null)
     setDiscardConfirmOpen(false)
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!isOnline) return
+    if (!isOnline || invalidQuantityCount > 0) return
 
     const staged = Object.values(lines).filter(l => l.qty_porsi > 0)
     if (staged.length === 0) return
@@ -864,6 +949,10 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       })
       setStatus({ kind: 'success', count: staged.length })
       setInvalidItemIds(new Set())
+      setInvalidQuantityIds(new Set())
+      setInvalidQuantityDrafts({})
+      setVisibleQuantityErrors(new Set())
+      setFocusInvalidId(null)
       setLines(buildLines(wipItems, planMap, stockMap, movement))
     } catch (err) {
       reportError(err, { source: 'kitchen-log.submit' })
@@ -1007,7 +1096,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     }]
   })
   const formatCaptureQty = (quantity: number) => new Intl.NumberFormat(
-    document.documentElement.lang || 'en', { maximumFractionDigits: 3 },
+    document.documentElement.lang || 'en', { useGrouping: false, maximumFractionDigits: 2 },
   ).format(quantity)
   const renderUnitlessValue = (value: ReactNode) => (
     <span className="kl-unitless-value">
@@ -1150,6 +1239,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     item: KitchenListRow<CaptureFormItem>,
     line: KitchenLogLine,
     dense: boolean,
+    hideQuantityError = false,
   ) => (
     <WipItemStepper
       itemName={item.name}
@@ -1158,6 +1248,12 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       destinationName={transferDestinationName ?? undefined}
       alreadyLogged={displayActualUnitsForItem(actualsMap[item.id]?.[movementKey(movement)] ?? [], item)}
       onQtyChange={qty => handleQtyChange(item.id, qty)}
+      onQuantityValidityChange={valid => handleQuantityValidityChange(item.id, valid)}
+      onQuantityErrorVisibilityChange={visible => handleQuantityErrorVisibilityChange(item.id, visible)}
+      hideQuantityError={hideQuantityError}
+      quantityErrorId={`quantity-${item.id}-quantity-error`}
+      invalidDraft={invalidQuantityDrafts[item.id]}
+      onInvalidQuantityDraft={raw => handleInvalidQuantityDraft(item.id, raw)}
       onNotesChange={note => handleNotesChange(item.id, note)}
       unitOptions={item.units}
       unitMultiples={item.unit_multiples}
@@ -1167,6 +1263,22 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       dense={dense}
     />
   )
+
+  const renderQuantityError = (item: KitchenListRow<CaptureFormItem>) => {
+    const rawValue = invalidQuantityDrafts[item.id]
+    if (!rawValue || !visibleQuantityErrors.has(item.id)) return null
+    const parsed = parseQuantityInput(rawValue, { min: 0, maxIntegerDigits: 10, maxFractionDigits: 2 })
+    if (parsed.kind !== 'invalid') return null
+    return (
+      <QuantityFieldError
+        id={`quantity-${item.id}-quantity-error`}
+        reason={parsed.reason}
+        rawValue={rawValue}
+        maxFractionDigits={2}
+        className="kl-row-quantity-error"
+      />
+    )
+  }
 
   const columns: DataTableColumn<KitchenListRow<CaptureFormItem>>[] = [
     {
@@ -1180,7 +1292,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       header: mode === 'transfer'
         ? t('kitchen.transfer.col.quantity', { branch: transferDestinationName ?? t('kitchen.actionType.transferTo.fallback') })
         : t('kitchen.log.col.made'),
-      render: item => renderCaptureStepper(item, lines[item.id], isDesktop),
+      render: item => renderCaptureStepper(item, lines[item.id], isDesktop, isDesktop),
     },
   ]
 
@@ -1291,9 +1403,10 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       columns={streamNonProducing ? receivingColumns : columns}
       rows={visibleItems}
       groups={groups}
-      key={`${movementKey(movement)}:${plannedLines.length > 0 ? 'planned' : 'off-plan'}`}
-      defaultCollapsedGroupKeys={plannedLines.length > 0 ? new Set(['offplan']) : undefined}
+      key={`${movementKey(movement)}:${plannedLines.length > 0 ? 'planned' : 'off-plan'}:${tableResetKey}`}
+      defaultCollapsedGroupKeys={plannedLines.length > 0 && focusInvalidGroupKey !== 'offplan' ? new Set(['offplan']) : undefined}
       renderCard={streamNonProducing ? undefined : renderLogCard}
+      renderRowDetail={renderQuantityError}
       isDesktop={isDesktop}
       state={visibleItems.length > 0 ? 'ready' : 'empty'}
       emptyLabel={t('kitchen.filter.noMatch')}
@@ -1320,7 +1433,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
         <div className="kl-capture-main">
         {/* GAP-4/#9: staged-but-unsubmitted quantities must not vanish on navigation — prompt
             stay/discard when leaving the route with unsaved entries. */}
-        <RouteLeaveGuard when={stagedCount > 0} message={t('kitchen.log.leave.confirm')} />
+        <RouteLeaveGuard when={draftCount > 0} message={t('kitchen.log.leave.confirm')} />
         <OfflineBanner show={!isOnline && !showOfflineInFooter} />
         {/* The Location/opening door and the Plan/Made/Off-plan figures dock into one compact
             context header so the summary reads as that header's own figures, never an orphan
@@ -1456,7 +1569,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
                   {t(stagedCount === 1 ? 'kitchen.log.footer.item.one' : 'kitchen.log.footer.item.other', { count: stagedCount })}
                 </span>
               </div>
-              {stagedCount > 0 && (
+              {draftCount > 0 && (
                 <button
                   type="button"
                   className="kl-discard-link"
@@ -1498,6 +1611,13 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
             )}
             {/* A count, not a restatement of the field's own cue — and a destination: it
                 scrolls to and focuses the first line still missing its note. */}
+            {invalidQuantityCount > 0 && (
+              <p className="kl-submit-reason" role="status" aria-live="polite">
+                <button type="button" className="kl-submit-reason kl-note-pointer" onClick={focusFirstInvalidQuantity}>
+                  {t(invalidQuantityCount === 1 ? 'quantityField.fixing.one' : 'quantityField.fixing.other', { count: invalidQuantityCount })}
+                </button>
+              </p>
+            )}
             {noteUnresolved && !streamMissing && !streamNonProducing && (
               <button
                 type="button"
@@ -1516,7 +1636,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
               stagedCount={stagedCount}
               isSubmitting={isSubmitting}
               isOnline={isOnline}
-              blocked={captureClosed || hasBlockingError || noteUnresolved}
+              blocked={captureClosed || hasBlockingError || noteUnresolved || invalidQuantityCount > 0}
               t={t}
             />
           </div>
@@ -1532,8 +1652,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
               open
               title={t('kitchen.log.discard.confirmTitle')}
               body={t('kitchen.log.discard.confirmBody', {
-                count: stagedCount,
-                qty: t(stagedCount === 1 ? 'kitchen.log.discard.qty.one' : 'kitchen.log.discard.qty.other'),
+                count: draftCount,
+                qty: t(draftCount === 1 ? 'kitchen.log.discard.qty.one' : 'kitchen.log.discard.qty.other'),
                 actionType: deriveActionLabel(t, movement, branches),
               })}
               confirmLabel={t('kitchen.log.discard')}
@@ -1554,8 +1674,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
               open
               title={t('kitchen.log.movementSwitch.confirmTitle')}
               body={t('kitchen.log.movementSwitch.confirmBody', {
-                count: stagedCount,
-                qty: t(stagedCount === 1 ? 'kitchen.log.discard.qty.one' : 'kitchen.log.discard.qty.other'),
+                count: draftCount,
+                qty: t(draftCount === 1 ? 'kitchen.log.discard.qty.one' : 'kitchen.log.discard.qty.other'),
                 actionType: deriveActionLabel(t, movement, branches),
               })}
               confirmLabel={t('kitchen.log.movementSwitch.confirm')}

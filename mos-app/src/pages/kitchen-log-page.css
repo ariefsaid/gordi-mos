@@ -461,6 +461,10 @@
 }
 .kl-card-head > .kls-card { display: contents; }
 .kl-card-head > .kls-card > .kls-row { grid-column: 2; grid-row: 1; }
+.kl-card-head:has(.quantity-field-error) > .kls-card > .kls-row {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
 .kl-card-head > .kls-card > :not(.kls-row) { grid-column: 1 / -1; }
 .kl-card-identity {
   display: flex;

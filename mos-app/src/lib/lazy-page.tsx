@@ -10,12 +10,12 @@ import { lazy, useState, type ComponentProps, type ComponentType, type LazyExoti
 // resolved OR REJECTED module promise forever. If the browser was offline when a chunk import
 // first ran, that lazy holds the rejection, and every later render — including the
 // `ContentErrorBoundary`'s Retry remount — re-throws the same `TypeError: Failed to fetch
-// dynamically imported module`. Offline is supposed to be recoverable inside the frame, so this
-// wrapper stores each fresh `React.lazy(loader)` in `useState`: the boundary's Retry bumps its
-// remount key, the wrapper mounts anew, `useState`'s initializer runs again, and the new lazy has
-// not been rejected yet — so it re-runs the import. A resolved import is memoised in the outer
-// `cached` slot so a later navigation to the same route resolves synchronously (no Suspense flash),
-// and a rejected import is NOT memoised — that is the whole point.
+// dynamically imported module`. Offline is supposed to be recoverable inside the frame, so a
+// rejected import drops the shared `React.lazy`: the boundary's Retry bumps its remount key, the
+// wrapper mounts anew, `useState`'s initializer finds no lazy and creates a fresh one, which
+// re-runs the import. Every other mount reuses the one shared lazy, including React's own retry
+// of a first mount that suspended: once it has resolved, later mounts render synchronously, and a
+// retry never starts a new pending load (which an open `act` scope would wait on forever).
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- mirrors React.lazy's own type parameter */
 type Preloadable<T extends ComponentType<any>> = ComponentType<ComponentProps<T>> & {
@@ -27,6 +27,7 @@ export function lazyPage<T extends ComponentType<any>>(
   loader: () => Promise<{ default: T }>,
 ): Preloadable<T> {
   let cached: { default: T } | undefined
+  let shared: LazyExoticComponent<T> | undefined
   const cachingLoader = (): Promise<{ default: T }> => {
     if (cached !== undefined) return Promise.resolve(cached)
     return loader().then((mod) => {
@@ -34,9 +35,18 @@ export function lazyPage<T extends ComponentType<any>>(
       return mod
     })
   }
+  const sharedLazy = (): LazyExoticComponent<T> => {
+    shared ??= lazy(() =>
+      cachingLoader().catch((error: unknown) => {
+        shared = undefined
+        throw error
+      }),
+    )
+    return shared
+  }
 
   function LazyRoute(props: ComponentProps<T>) {
-    const [Impl] = useState<LazyExoticComponent<T>>(() => lazy(cachingLoader))
+    const [Impl] = useState(sharedLazy)
     return <Impl {...(props as ComponentProps<T>)} />
   }
   const Wrapper = LazyRoute as unknown as Preloadable<T>

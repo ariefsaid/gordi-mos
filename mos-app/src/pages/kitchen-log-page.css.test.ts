@@ -8,6 +8,8 @@ const css = readFileSync(resolve(process.cwd(), 'src/pages/kitchen-log-page.css'
   .replace(/\/\*[\s\S]*?\*\//g, '')
 const toolbarCss = readFileSync(resolve(process.cwd(), 'src/components/kitchen/kitchen-toolbar.css'), 'utf8')
   .replace(/\/\*[\s\S]*?\*\//g, '')
+const stepperCss = readFileSync(resolve(process.cwd(), 'src/components/kitchen/wip-item-stepper.css'), 'utf8')
+  .replace(/\/\*[\s\S]*?\*\//g, '')
 
 function ruleBodyAt(idx: number): string {
   expect(idx, 'expected kitchen-log-page.css to contain the capture layout rule').toBeGreaterThanOrEqual(0)
@@ -67,6 +69,14 @@ describe('AC-046: DESIGN.md carries the #790 A3/A4 amendments verbatim', () => {
 
   it('A4 — the capture band', () => {
     expect(design).toContain('> **The capture band.** One sticky band: a count line (`N item · N porsi`) and **one** primary (`Kirim N entri`), full-width at 390. Discard is a text link that renders only while something is staged; a precondition that blocks Submit is stated once, in the band, never as a third column. Content above the band ends with clearance equal to the band\'s height, so the list\'s last control is never occluded at max scroll.')
+  })
+})
+
+describe('capture quantity errors span the entry row', () => {
+  it('lets a phone error occupy the full identity-and-quantity row below the unit', () => {
+    expect(stepperCss).toMatch(/\.kls-row\s*\{[^}]*display:\s*grid/)
+    expect(stepperCss).toMatch(/\.kls-quantity \.quantity-field-error\s*\{[^}]*grid-column:\s*1 \/ -1/)
+    expect(css).toMatch(/\.kl-card-head:has\(\.quantity-field-error\)[^{]*\{[^}]*grid-column:\s*1 \/ -1/)
   })
 })
 
