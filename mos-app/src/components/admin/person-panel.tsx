@@ -28,6 +28,7 @@ import { TeamPicker } from './team-picker'
 import { PositionPicker } from './position-picker'
 import { AccessRoles } from './access-roles'
 import { RevenueScopePicker } from './revenue-scope-picker'
+import { CafeReceiptIssueAccess } from './cafe-receipt-issue-access'
 import './admin-settings.css'
 
 export type PersonAuthoritySource = {
@@ -225,6 +226,9 @@ function PersonSections({ person, people, roles, teams, scopeOptions, commits, r
       </PanelSection>
       <PanelSection title={t('admin.person.access')} summary={count(person.access_roles.length)} defaultOpen={!isPhone}>
         <AccessRoles person={person} people={people} commits={commits} refresh={refresh} />
+      </PanelSection>
+      <PanelSection title={t('admin.person.receiptIssues.title')} defaultOpen={!isPhone}>
+        <CafeReceiptIssueAccess person={person} commits={commits} refresh={refresh} />
       </PanelSection>
       {supervisor && (
         <PanelSection title={t('admin.person.scope')} summary={count(person.revenue_scope.length)} defaultOpen={!isPhone}>

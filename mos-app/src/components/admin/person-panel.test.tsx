@@ -17,6 +17,12 @@ import { useAuth } from '@/auth/use-auth'
 vi.mock('@/shell/use-is-phone', () => ({ useIsPhone: vi.fn(() => false) }))
 import { useIsPhone } from '@/shell/use-is-phone'
 
+vi.mock('@/lib/db/cafe-receipt-issues', () => ({
+  getCafeReceiptIssueAccess: vi.fn().mockResolvedValue(false),
+  setCafeReceiptIssueAccess: vi.fn().mockResolvedValue(true),
+}))
+import { getCafeReceiptIssueAccess, setCafeReceiptIssueAccess } from '@/lib/db/cafe-receipt-issues'
+
 vi.mock('@/lib/db/admin-users', () => ({
   grantRole: vi.fn(),
   revokeRole: vi.fn(),
@@ -40,6 +46,9 @@ const mockGrantRole = vi.mocked(grantRole)
 const mockRevokeRole = vi.mocked(revokeRole)
 const mockAddTeam = vi.mocked(addTeamMembership)
 const mockEndTeam = vi.mocked(endTeamMembership)
+const mockGetReceiptIssueAccess = vi.mocked(getCafeReceiptIssueAccess)
+const mockSetReceiptIssueAccess = vi.mocked(setCafeReceiptIssueAccess)
+let serverReceiptIssueAccess = false
 
 const ADMIN_VIEWER: AuthState = {
   status: 'authenticated',
@@ -154,6 +163,12 @@ beforeEach(() => {
   mockUseIsPhone.mockReturnValue(false)
   mockGrantRole.mockResolvedValue(undefined)
   mockRevokeRole.mockResolvedValue(undefined)
+  serverReceiptIssueAccess = false
+  mockGetReceiptIssueAccess.mockImplementation(async () => serverReceiptIssueAccess)
+  mockSetReceiptIssueAccess.mockImplementation(async (_personId, enabled) => {
+    serverReceiptIssueAccess = enabled
+    return enabled
+  })
 })
 
 describe('PersonPanel — read first', () => {
@@ -264,7 +279,7 @@ describe('PersonPanel — sections', () => {
   it('runs Teams · Position · Access, and Revenue scope only while Supervisor is on', () => {
     const { unmount } = renderPanel()
     const toggles = () => screen.getAllByRole('button', { expanded: true }).map((b) => b.textContent)
-    expect(toggles().map((text) => text?.replace(/\d+ selected/, '').trim())).toEqual(['Teams', 'Position', 'Access'])
+    expect(toggles().map((text) => text?.replace(/\d+ selected/, '').trim())).toEqual(['Teams', 'Position', 'Access', 'Receipt issues'])
     unmount()
     renderPanel({ ...BAYU, access_roles: ['member', 'supervisor'] })
     expect(screen.getByRole('button', { name: /Revenue scope/ })).toBeInTheDocument()
@@ -276,8 +291,18 @@ describe('PersonPanel — sections', () => {
     expect(screen.getByRole('button', { name: /^Teams/ })).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByRole('button', { name: /^Position/ })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.getByRole('button', { name: /^Access/ })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('button', { name: /^Receipt issues/ })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.getByRole('checkbox', { name: 'Gordi HQ Bar' })).toBeVisible()
     expect(screen.queryByRole('checkbox', { name: 'Ops Lead' })).toBeNull()
+  })
+
+  it('an admin grants procurement capability per person and the row re-reads saved state', async () => {
+    const user = userEvent.setup()
+    const refresh = vi.fn().mockResolvedValue(undefined)
+    renderPanel(BAYU, { refresh })
+    await user.click(await screen.findByRole('checkbox', { name: 'Receipt issue management' }))
+    await waitFor(() => expect(mockSetReceiptIssueAccess).toHaveBeenCalledWith('bayu-id', true))
+    expect(refresh).toHaveBeenCalled()
   })
 
   it('a collapsed section opens on its heading button', async () => {
