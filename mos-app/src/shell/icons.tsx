@@ -722,3 +722,24 @@ export function ReceiveIcon() {
     </svg>
   )
 }
+
+// RequestIcon — a clipboard with a plus, for raising a purchase request (distinct from Receive and Count).
+export function RequestIcon() {
+  return (
+    <svg
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M9 4h6v3H9z" />
+      <path d="M9 5H6a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-3" />
+      <path d="M12 11v6m-3-3h6" />
+    </svg>
+  )
+}

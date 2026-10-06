@@ -115,6 +115,33 @@ describe('FollowUpsPage', () => {
     expect(container.querySelector('.follow-ups-table-wrap')).toBeNull()
   })
 
+  it('wraps a no-space counterparty name in the 390px follow-up card', async () => {
+    applyViewport(false)
+    const counterparty = 'PTSupercalifragilisticexpialidociousCounterpartyWithoutSpaces'
+    mockListFollowUps.mockResolvedValueOnce([{ ...row, counterparty }])
+    const { container } = render(createElement(FollowUpsPage), { wrapper })
+
+    const name = await screen.findByText(counterparty)
+    expect(name).toHaveClass('follow-ups-counterparty')
+    expect(container.querySelector('.dt-card-title')).toContainElement(name)
+  })
+
+  it('marks follow-up and overdue counts as partial while another page is available', async () => {
+    const overdueRows = Array.from({ length: 50 }, (_, index) => ({
+      ...row,
+      id: `overdue-${index}`,
+      counterparty: `Buyer ${index}`,
+      due_date: '2000-01-01',
+    }))
+    mockListFollowUps.mockResolvedValueOnce(overdueRows)
+    renderRoute('/money/follow-ups?filter=overdue')
+
+    await screen.findByText('Buyer 0')
+    const pageHead = screen.getByTestId('page-head')
+    expect(pageHead.querySelector('.ch-count')).toHaveTextContent('50+')
+    expect(pageHead).toHaveTextContent('Overdue: 50+')
+  })
+
   it('DD-WAY-36: the queue renders the source ref as plain text — no link to the deleted Work path', async () => {
     renderRoute('/money/follow-ups')
     expect(await screen.findByText('PT Big Buyer')).toBeInTheDocument()
@@ -147,6 +174,24 @@ describe('FollowUpsPage', () => {
     render(createElement(FollowUpsPage), { wrapper })
     await waitFor(() => expect(screen.getByText('settled')).toBeInTheDocument())
     expect(screen.queryByRole('button', { name: 'Confirm' })).toBeNull()
+  })
+
+  it('loads the next keyset page from an accessible button and preserves rows when that read fails', async () => {
+    const firstPage = Array.from({ length: 50 }, (_, index) => ({ ...row, id: `fu-${index + 1}`, counterparty: `Buyer ${index + 1}` }))
+    mockListFollowUps.mockResolvedValueOnce(firstPage)
+    mockListFollowUps.mockRejectedValueOnce(new Error('network down'))
+    mockListFollowUps.mockResolvedValueOnce([{ ...row, id: 'fu-51', counterparty: 'Buyer 51' }])
+    const user = userEvent.setup()
+    render(createElement(FollowUpsPage), { wrapper })
+
+    expect(await screen.findByText('Buyer 1')).toBeInTheDocument()
+    const more = screen.getByRole('button', { name: 'Load more' })
+    await user.click(more)
+    expect(await screen.findByRole('alert')).toHaveTextContent('Couldn’t load more')
+    expect(screen.getByText('Buyer 1')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Try again' }))
+    expect(await screen.findByText('Buyer 51')).toBeInTheDocument()
+    expect(mockListFollowUps.mock.calls[1][0]).toMatchObject({ before: firstPage.at(-1) })
   })
 
   it('uses shared state-kit for loading, empty, and error states', async () => {

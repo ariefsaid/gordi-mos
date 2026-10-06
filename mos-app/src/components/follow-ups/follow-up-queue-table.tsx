@@ -11,6 +11,7 @@ import { useState } from 'react'
 import { useT } from '@/i18n/use-t'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
+import { ListPaging } from '@/components/ui/list-paging'
 import { Button } from '@/components/ui/button'
 import { TextInput } from '@/components/ui/text-input'
 import { DateField } from '@/components/ui/date-field'
@@ -44,7 +45,7 @@ export function FollowUpQueueTable({
 }) {
   const t = useT()
   const isDesktop = useIsDesktop()
-  const { rows, state, canConfirm, canChase, active, form, detailRow, setForm, load, run, submit } = queue
+  const { rows, state, hasMore, loadingMore, moreError, loadMore, canConfirm, canChase, active, form, detailRow, setForm, load, run, submit } = queue
   // Typed date text that is not a usable date: Submit stays off rather than sending the old date.
   const [dateInvalid, setDateInvalid] = useState(false)
 
@@ -172,7 +173,11 @@ export function FollowUpQueueTable({
       )}
       {state === 'ready' && rows.length === 0 && <EmptyState title={t('followUps.empty')} />}
       {state === 'ready' && rows.length > 0 && (
-        <DataTable columns={columns} rows={rows} isDesktop={isDesktop} caption={t('followUps.title')} />
+        <>
+          <DataTable columns={columns} rows={rows} isDesktop={isDesktop} caption={t('followUps.title')} />
+          <ListPaging count={rows.length} hasMore={hasMore} loading={loadingMore}
+            error={moreError} onLoadMore={() => { void loadMore() }} />
+        </>
       )}
       {state === 'ready' && detailRow && (
         <aside

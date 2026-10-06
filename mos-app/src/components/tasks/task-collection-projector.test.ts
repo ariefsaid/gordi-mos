@@ -231,14 +231,16 @@ describe('projectTaskCollection — filtering', () => {
     expect(admin.visibleRecords).toHaveLength(3)
   })
 
-  it('My work and Team work hide Done older than seven days, while All keeps the explicit archive history', () => {
+  it('My work and Team work keep Done rows in the 30-day window until older Done is explicitly loaded', () => {
     const rows = [
       rawTask({ id: 'fresh-done', title: 'Freshly done', status: 'Done', team_id: TEAM_CAFE, completed_at: '2026-07-16T04:00:00Z' }),
-      rawTask({ id: 'old-done', title: 'Done too long ago', status: 'Done', team_id: TEAM_CAFE, completed_at: '2026-07-13T04:00:00Z' }),
+      rawTask({ id: 'old-done', title: 'Done too long ago', status: 'Done', team_id: TEAM_CAFE, completed_at: '2026-06-13T04:00:00Z' }),
     ]
     const context = { viewerTeams: [{ id: TEAM_CAFE, name: 'Café Floor', businessUnitId: BU_CAFE, siteId: null, orgId: 'org-1' }] }
     expect(projectTaskCollection(makeData(rows, context), q({ view: 'team-work' })).visibleRecords.map((r) => r.id)).toEqual(['fresh-done'])
     expect(projectTaskCollection(makeData(rows, context), q({ view: 'my-work' })).visibleRecords.map((r) => r.id)).toEqual(['fresh-done'])
+    const withOlderDone = { ...context, olderDoneTaskIds: new Set(['old-done']) }
+    expect(projectTaskCollection(makeData(rows, withOlderDone), q({ view: 'team-work' })).visibleRecords.map((r) => r.id)).toEqual(['fresh-done', 'old-done'])
     expect(projectTaskCollection(makeData(rows, context), q({ view: 'all' })).visibleRecords.map((r) => r.id)).toEqual(['fresh-done', 'old-done'])
   })
 
