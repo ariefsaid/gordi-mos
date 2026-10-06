@@ -19,6 +19,7 @@ import { formatUnitMultiple, fromDefaultUnitQuantity } from '@/lib/cafe-unit-mul
 import { isStockConsuming, VARIANCE_NOTE_CUE, TRANSFER_SHORT_CUE } from '@/lib/kitchen-gates'
 import { useT } from '@/i18n/use-t'
 import { Select } from '@/components/ui/select'
+import { QuantityField } from '@/components/ui/quantity-field'
 import './wip-item-stepper.css'
 
 interface WipItemStepperProps {
@@ -159,15 +160,6 @@ export function WipItemStepper({
     ? line.plan_qty
     : fromDefaultUnitQuantity(line.plan_qty, selectedFactor)
 
-  function handleQtyInput(e: React.ChangeEvent<HTMLInputElement>) {
-    const raw = e.target.value
-    // Empty clears the entry rather than coercing to 0 — a blank field means "nothing entered
-    // yet" and must stay distinguishable from a deliberate zero while typing.
-    if (raw === '') { onQtyChange(0); return }
-    const val = Number.parseFloat(raw)
-    if (!Number.isNaN(val) && val >= 0) onQtyChange(val)
-  }
-
   return (
     <div className={`kls-card${dense ? ' kls-dense' : ''}${invalid ? ' kls-invalid' : ''}${showNote ? ' kls-has-note' : ''}`}>
       {/* Row: name + typed quantity.
@@ -182,24 +174,25 @@ export function WipItemStepper({
         {!hideName && <span className="kls-name">{itemName}</span>}
 
         <div className="kls-quantity">
-        <input
-          type="number"
-          inputMode="decimal"
-          aria-label={transfer
+        <QuantityField
+          label={transfer
             ? t('kitchen.qty.transferAria', {
               branch: destinationName ?? t('kitchen.actionType.transferTo.fallback'),
               item: itemName,
             })
             : t('kitchen.qty.producedAria', { item: itemName })}
           className="kls-qty"
-          value={entryQuantity > 0 ? entryQuantity : ''}
+          value={entryQuantity}
+          onChange={onQtyChange}
+          onInvalid={() => onQtyChange(0)}
           placeholder={placeholderQuantity > 0 ? formatActualQty(placeholderQuantity) : '0'}
           min={0}
+          maxIntegerDigits={10}
+          maxFractionDigits={selectedFactor === 1 ? 2 : 3}
           step="any"
           enterKeyHint="next"
           disabled={disabled}
-          data-touch-target="true"
-          onChange={handleQtyInput}
+          touchTarget
           onBlur={() => setBlurred(true)}
         />
         {/* FR-020/021 (#234): the unit is fixed text on the common path. An item with

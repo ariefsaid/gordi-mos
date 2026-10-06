@@ -97,7 +97,7 @@ describe('CafeCountPage', () => {
     renderPage()
     const rawInput = await screen.findByRole('textbox', { name: 'Count for Raw flour' })
     const wipInput = screen.getByRole('textbox', { name: 'Count for Prepared sauce' })
-    fireEvent.change(rawInput, { target: { value: '1.12345' } })
+    fireEvent.change(rawInput, { target: { value: '1.500' } })
     fireEvent.change(wipInput, { target: { value: '2' } })
     fireEvent.click(screen.getByRole('button', { name: 'Submit Count' }))
 
@@ -142,14 +142,14 @@ describe('CafeCountPage', () => {
     const rawInput = await screen.findByRole('textbox', { name: 'Count for Raw flour' })
     const wipInput = screen.getByRole('textbox', { name: 'Count for Prepared sauce' })
     fireEvent.change(rawInput, { target: { value: '0' } })
-    fireEvent.change(wipInput, { target: { value: '2,5' } })
+    fireEvent.change(wipInput, { target: { value: '1,25' } })
     fireEvent.click(screen.getByRole('button', { name: 'Submit Count' }))
 
     await waitFor(() => expect(mockSubmit).toHaveBeenCalledTimes(1))
     const [stream, lines] = mockSubmit.mock.calls[0]
     expect(stream).toEqual(streamMocks.stream)
     expect(lines).toHaveLength(2)
-    expect(lines.map(line => line.quantity)).toEqual(['0', '2.5'])
+    expect(lines.map(line => line.quantity)).toEqual(['0', '1.25'])
     expect(lines.every(line => Object.keys(line).sort().join(',') === 'client_key,item_id,quantity')).toBe(true)
     expect(await screen.findByText('Submitted')).toBeInTheDocument()
     expect(await screen.findByText('This item already has a Count today.')).toBeInTheDocument()

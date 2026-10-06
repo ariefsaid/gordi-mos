@@ -235,7 +235,7 @@ describe('WipItemStepper — AC-020/021/022', () => {
     expect(quantity).not.toBeNull()
     expect(input.closest('.kls-quantity')).toBe(quantity)
     expect(unit.closest('.kls-quantity')).toBe(quantity)
-    expect(quantity?.firstElementChild).toBe(input)
+    expect(quantity?.querySelector('.quantity-field')?.firstElementChild).toBe(input)
     expect(quantity?.lastElementChild).toBe(unit)
   })
 
@@ -260,12 +260,12 @@ describe('WipItemStepper — AC-020/021/022', () => {
   // distinguishable from a deliberate zero (never coerced to the string "0").
   it('is blank at rest (qty=0 renders an empty field, not "0")', () => {
     renderStepper({ line: { qty_porsi: 0 } })
-    expect(screen.getByRole('spinbutton', { name: /quantity/i })).toHaveValue(null)
+    expect(screen.getByRole('spinbutton', { name: /quantity/i })).toHaveValue('')
   })
 
   it('renders the typed quantity once a value is staged', () => {
     renderStepper({ line: { qty_porsi: 15 } })
-    expect(screen.getByRole('spinbutton', { name: /quantity/i })).toHaveValue(15)
+    expect(screen.getByRole('spinbutton', { name: /quantity/i })).toHaveValue('15')
   })
 
   it('allows direct numeric input in the qty field', () => {
@@ -277,11 +277,13 @@ describe('WipItemStepper — AC-020/021/022', () => {
 
   // v4: no decrement button to floor at 0 — the field itself rejects a negative typed value
   // (the −/+ stepper's "does not decrement below 0" floor, ported to the typed control).
-  it('rejects a typed negative value — the qty never goes below 0', () => {
+  it('rejects a typed negative value, clears any staged save quantity, and explains the correction', () => {
     const onQtyChange = vi.fn()
     renderStepper({ onQtyChange })
     fireEvent.change(screen.getByRole('spinbutton', { name: /quantity/i }), { target: { value: '-5' } })
-    expect(onQtyChange).not.toHaveBeenCalled()
+    expect(onQtyChange).toHaveBeenCalledWith(0)
+    expect(onQtyChange).not.toHaveBeenCalledWith(-5)
+    expect(screen.getByRole('alert')).toBeInTheDocument()
   })
 
   // v4: clearing the field back to blank reports 0 (an intentional "nothing staged"), not NaN.
@@ -446,6 +448,40 @@ function StagedLineHarness({
     />
   )
 }
+
+describe('WipItemStepper — shared decimal quantity capture', () => {
+  it.each([
+    ['production', PRODUCE, '1,5'],
+    ['production', PRODUCE, '1.5'],
+    ['transfer', TRANSFER_RADIANT, '1,5'],
+    ['transfer', TRANSFER_RADIANT, '1.5'],
+  ] as const)('%s saves %s as 1.5', (_path, movement, raw) => {
+    const onQtyChange = vi.fn()
+    renderStepper({ movement, onQtyChange })
+    fireEvent.change(screen.getByLabelText(/quantity/i), { target: { value: raw } })
+    expect(onQtyChange).toHaveBeenCalledWith(1.5)
+  })
+
+  it('shows a correction for ambiguous decimal input without sending it to the save path', () => {
+    const onQtyChange = vi.fn()
+    renderStepper({ onQtyChange })
+    fireEvent.change(screen.getByLabelText(/quantity/i), { target: { value: '1.234,5' } })
+    expect(screen.getByRole('alert')).toHaveTextContent(/single decimal separator/i)
+    expect(onQtyChange).not.toHaveBeenCalledWith(1234.5)
+  })
+
+  it('waits for blur before exposing the inline invalid-input message', async () => {
+    const user = userEvent.setup()
+    renderStepper()
+    const input = screen.getByRole('spinbutton', { name: /quantity produced for nasi goreng/i })
+    await user.click(input)
+    await user.type(input, '1.234,5')
+
+    expect(screen.queryByRole('alert')).toBeNull()
+    await user.tab()
+    expect(await screen.findByRole('alert')).toHaveTextContent(/single decimal separator/i)
+  })
+})
 
 describe('WipItemStepper — DD-18: the variance-note field survives being filled in', () => {
   it('DD-18(a): a floor worker can write a whole variance note — the field stays mounted and keeps focus across every keystroke', async () => {

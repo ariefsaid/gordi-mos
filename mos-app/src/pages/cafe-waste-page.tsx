@@ -38,6 +38,8 @@ import { CafeStreamBar, CafeStreamChoices } from '@/components/kitchen/cafe-stre
 import { WastePhotoCapture } from '@/components/kitchen/waste-photo-capture'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
 import { Select } from '@/components/ui/select'
+import { QuantityField } from '@/components/ui/quantity-field'
+import { parseQuantityInput } from '@/lib/quantity-parser'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { RouteLeaveGuard } from '@/shell/route-leave-guard'
 import './kitchen-log-page.css'
@@ -66,15 +68,12 @@ type PageLoadState = 'loading' | 'ready' | 'error'
 const WASTE_KIND_OPTIONS: readonly KitchenItemKindFilter[] = ['All', 'WIP', 'RAW']
 
 function quantityValue(raw: string): number | null {
-  if (!raw.trim()) return null
-  const quantity = Number(raw.trim().replace(',', '.'))
-  return Number.isFinite(quantity) && quantity > 0 ? quantity : null
-}
-
-function isInvalidQuantity(raw: string): boolean {
-  if (!raw.trim()) return false
-  const value = Number(raw.trim().replace(',', '.'))
-  return !Number.isFinite(value) || value < 0
+  const parsed = parseQuantityInput(raw, {
+    min: 0,
+    maxIntegerDigits: 10,
+    maxFractionDigits: 3,
+  })
+  return parsed.kind === 'valid' && parsed.value > 0 ? parsed.value : null
 }
 
 function initialEntries(items: readonly CafeLogItem[]): Record<string, WasteEntry> {
@@ -816,7 +815,6 @@ function WasteItemControls({
     ? `multiple:${String(current.unitFactor)}`
     : current.unitId
   const locked = Boolean(current.logId || current.preparing || current.submitted)
-  const invalid = isInvalidQuantity(current.quantity)
   const quantity = quantityValue(current.quantity)
   const editable = canCapture && isOnline && !disabled && !locked
   const needsQuantity = editable && quantity === null
@@ -828,17 +826,19 @@ function WasteItemControls({
         {t('kitchen.waste.quantityFor', { item: item.name })}
       </label>
       <div className="cwl-quantity-row">
-        <input
+        <QuantityField
           id={inputId}
+          label={t('kitchen.waste.quantityFor', { item: item.name })}
           className="cwl-quantity-input tabular"
-          type="number"
-          inputMode="decimal"
-          min="0"
+          value={quantity ?? 0}
+          onChange={next => onQuantityChange(next > 0 ? String(next) : '')}
+          onInvalid={() => onQuantityChange('')}
+          maxIntegerDigits={10}
+          maxFractionDigits={3}
+          min={0}
           step="any"
-          value={current.quantity}
-          aria-invalid={invalid || undefined}
           disabled={!editable}
-          onChange={event => onQuantityChange(event.target.value)}
+          errorClassName="cwl-field-error"
         />
         {showUnitPicker ? (
           <Select
@@ -863,7 +863,6 @@ function WasteItemControls({
           </span>
         )}
       </div>
-      {invalid && <span className="cwl-field-error" role="alert">{t('kitchen.waste.quantityInvalid')}</span>}
       {current.error && <span className="cwl-field-error" role="alert">{current.error}</span>}
       {current.logId && !current.submitted && (
         <p className="cwl-lock-note">

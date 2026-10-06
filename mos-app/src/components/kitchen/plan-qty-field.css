@@ -10,10 +10,20 @@
 
 .pqf {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   flex: 0 0 auto;
 }
+
+/* Keep the unit label adjacent at rest; inline feedback gets a full readable line. */
+.pqf .quantity-field { flex: 0 0 68px; width: 68px; }
+.pqf .quantity-field:has(.quantity-field-error) {
+  flex: 1 1 100%;
+  width: 100%;
+  max-width: 18rem;
+}
+.pqf-qty[aria-invalid='true'] { border-color: var(--destructive); }
 
 /* 44px touch floor; 16px type so mobile Safari does not zoom the viewport on focus. */
 .pqf-qty {

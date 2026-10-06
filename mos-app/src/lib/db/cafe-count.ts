@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { parseQuantityInput } from '@/lib/quantity-parser'
 import type { ProductionActivity, ProductionStream } from './kitchen-logs.types'
 
 export type CafeCountableItem = {
@@ -170,14 +171,12 @@ export async function confirmCafeCountLine(lineId: string, expectedVersion: numb
 
 /** Empty means “not counted”; zero is valid; decimal comma and point are both accepted. */
 export function normalizeCafeCountQuantity(raw: string): string | null {
-  const value = raw.trim()
-  if (value === '') return null
-  const match = /^(\d+)(?:[.,](\d{1,4}))?$/.exec(value)
-  if (!match) return null
-  const whole = match[1].replace(/^0+(?=\d)/, '')
-  const fraction = (match[2] ?? '').replace(/0+$/, '')
-  if (whole.length > 10) return null
-  return fraction ? `${whole}.${fraction}` : whole
+  const parsed = parseQuantityInput(raw, {
+    min: 0,
+    maxIntegerDigits: 10,
+    maxFractionDigits: 4,
+  })
+  return parsed.kind === 'valid' ? parsed.normalized : null
 }
 
 export function newCafeCountClientKey(): string {

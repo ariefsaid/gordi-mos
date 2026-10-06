@@ -1,0 +1,13 @@
+.quantity-field {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.quantity-field-error {
+  margin: 0;
+  color: var(--status-lost-text);
+  font-size: var(--font-size-label);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}

@@ -25,6 +25,40 @@
   padding: 2px 8px;
   border-radius: var(--radius-sm);
 }
+.kr-date-filterbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 8px 12px;
+  margin-bottom: 12px;
+}
+.kr-date-filter {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+}
+.kr-date-filter input {
+  min-height: 40px;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 6px 10px;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-sm);
+  background: var(--background);
+  color: var(--foreground);
+  font: inherit;
+  font-size: var(--font-size-control);
+}
+.kr-date-clear { min-height: 40px; }
+.kr-all-pending {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-control);
+}
 
 /* ── Banners (offline / notice / error) ── */
 .kr-banner {
@@ -139,7 +173,8 @@ td .krow-stream {
   color: var(--foreground);
 }
 
-.krow-time {
+.krow-time,
+.krow-log-date {
   color: var(--muted-foreground);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;

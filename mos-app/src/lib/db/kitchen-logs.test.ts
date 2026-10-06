@@ -1137,7 +1137,7 @@ describe('listSubmittedKitchenLogs — the ops_lead review queue (FR-040)', () =
     schemaMock.mockReturnValue(
       makeSchema({ kitchen_logs: [{ data: [], error: null }] }, rec) as never,
     )
-    const cursor = { created_at: '2026-06-20T09:12:00Z', id: 'log-1' }
+    const cursor = { log_date: '2026-06-20', created_at: '2026-06-20T09:12:00Z', id: 'log-1' }
 
     await listSubmittedKitchenLogs('2026-06-20', { before: cursor })
 
@@ -1148,6 +1148,38 @@ describe('listSubmittedKitchenLogs — the ops_lead review queue (FR-040)', () =
     expect(rec.orFilters).toEqual([
       `created_at.gt.${cursor.created_at},and(created_at.eq.${cursor.created_at},id.gt.${cursor.id})`,
     ])
+  })
+
+  it('defaults to all dates, ordered by log date before submission time', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema({ kitchen_logs: [{ data: [], error: null }] }, rec) as never,
+    )
+
+    await listSubmittedKitchenLogs()
+
+    expect(rec.eqs).toContainEqual(['status', 'Submitted'])
+    expect(rec.eqs).not.toContainEqual(['log_date', expect.any(String)])
+    expect(rec.orders).toEqual([
+      ['log_date', { ascending: true }],
+      ['created_at', { ascending: true }],
+      ['id', { ascending: true }],
+    ])
+  })
+
+  it('pages the all-date queue after its date/time/id boundary', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema({ kitchen_logs: [{ data: [], error: null }] }, rec) as never,
+    )
+    const cursor = { log_date: '2026-06-19', created_at: '2026-06-19T09:12:00Z', id: 'log-1' }
+
+    await listSubmittedKitchenLogs(undefined, { before: cursor })
+
+    expect(rec.orFilters).toEqual([
+      'log_date.gt.2026-06-19,and(log_date.eq.2026-06-19,or(created_at.gt.2026-06-19T09:12:00Z,and(created_at.eq.2026-06-19T09:12:00Z,id.gt.log-1)))',
+    ])
+    expect(rec.orders[0]).toEqual(['log_date', { ascending: true }])
   })
 
   it('returns [] when nothing is Submitted (the good-empty queue)', async () => {

@@ -632,27 +632,33 @@ const REVIEW_SELECT =
 export const KITCHEN_LOGS_PAGE_SIZE = 50
 
 export type KitchenLogsWindow = {
-  before?: Pick<ReviewLogRow, 'created_at' | 'id'>
+  before?: Pick<ReviewLogRow, 'log_date' | 'created_at' | 'id'>
   stream?: { branchId: string; activity: ProductionActivity }
 }
 
 /**
- * Page Submitted kitchen logs oldest first within a date — the ops_lead review queue (FR-040).
+ * Page Submitted kitchen logs oldest-first by log date, then submission time (FR-040). An
+ * optional date narrows the queue; omitting it returns every pending log.
  * Only `status = 'Submitted'` rows (the GIGO queue, FR-024/040); RLS scopes to the
  * caller's org. Returns a flat display shape (WIP name embedded; plan-vs-logged is
  * merged at the page from fetchPlanMap; submitter name from the directory).
  */
-export async function listSubmittedKitchenLogs(logDate: string, window: KitchenLogsWindow = {}): Promise<ReviewLogRow[]> {
+export async function listSubmittedKitchenLogs(logDate?: string, window: KitchenLogsWindow = {}): Promise<ReviewLogRow[]> {
   let query = ops()
     .from('kitchen_logs')
     .select(REVIEW_SELECT)
     .eq('status', 'Submitted')
-    .eq('log_date', logDate)
+  if (logDate) query = query.eq('log_date', logDate)
   if (window.stream) query = query.eq('branch_id', window.stream.branchId).eq('activity', window.stream.activity)
   if (window.before) {
-    query = query.or(`created_at.gt.${window.before.created_at},and(created_at.eq.${window.before.created_at},id.gt.${window.before.id})`)
+    query = logDate
+      ? query.or(`created_at.gt.${window.before.created_at},and(created_at.eq.${window.before.created_at},id.gt.${window.before.id})`)
+      : query.or(`log_date.gt.${window.before.log_date},and(log_date.eq.${window.before.log_date},or(created_at.gt.${window.before.created_at},and(created_at.eq.${window.before.created_at},id.gt.${window.before.id})))`)
   }
-  const { data, error } = await query.order('created_at', { ascending: true }).order('id', { ascending: true }).limit(KITCHEN_LOGS_PAGE_SIZE)
+  const ordered = logDate
+    ? query.order('created_at', { ascending: true }).order('id', { ascending: true })
+    : query.order('log_date', { ascending: true }).order('created_at', { ascending: true }).order('id', { ascending: true })
+  const { data, error } = await ordered.limit(KITCHEN_LOGS_PAGE_SIZE)
   if (error) throw new Error(`listSubmittedKitchenLogs failed — ${error.message}`)
 
   type RawRow = {

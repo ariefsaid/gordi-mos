@@ -68,6 +68,8 @@
    rather than a centred token, and the greyed placeholder echoes the plan as an anchor.
    font-size stays 16px: below that, mobile Safari zooms the viewport on focus, which is
    unacceptable on a field the floor taps ~21 times in a pass. */
+.kls-quantity .quantity-field { width: 100%; }
+.kls-qty[aria-invalid='true'] { border-color: var(--destructive); }
 .kls-qty {
   flex: 0 0 auto;
   width: 100%;

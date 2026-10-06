@@ -9,7 +9,7 @@
 import { useMemo } from 'react'
 import type { MessageKey } from '@/i18n/messages'
 import type { PlanMap, ReviewLogRow } from '@/lib/db/kitchen-logs.types'
-import { movementKey, streamKey } from '@/lib/kitchen-action-label'
+import { movementKey, streamDateKey, streamKey } from '@/lib/kitchen-action-label'
 
 // The plan map is keyed by MOVEMENT, not by the derived label (DD-WAY-13). Keying it by the
 // label here would silently resolve every lookup to 0 — a plan-vs-logged column that always
@@ -21,7 +21,8 @@ import { movementKey, streamKey } from '@/lib/kitchen-action-label'
 // row from a different stream — this was the exact defect #196 flagged for whoever ported
 // this surface.
 function planQtyFor(streamPlans: Map<string, PlanMap>, log: ReviewLogRow): number {
-  const planMap = streamPlans.get(streamKey(log.branch_id, log.activity))
+  const planMap = streamPlans.get(streamDateKey(log.log_date, log.branch_id, log.activity))
+    ?? streamPlans.get(streamKey(log.branch_id, log.activity))
   return planMap?.[log.wip_item_id]?.[
     movementKey({ action: log.action, destinationBranchId: log.destination_branch_id })
   ] ?? 0
