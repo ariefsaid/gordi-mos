@@ -143,8 +143,9 @@ describe('GUARD #225: no in-app navigation target matches a route-table redirect
 // a runtime conditional). An exemption list rather than a code change, because every one of these
 // surfaces must come back whole when a path leaves SHIP_GATED_PATHS, with no edit here.
 const GATED_SURFACE_FILES = new Set([
-  // The Money workspace itself; its Follow-up queue link is a link within Money.
-  join('pages', 'dashboard-page.tsx'),
+  // The Money workspace itself; its Follow-up queue and Branch links stay within Money.
+  join('pages', 'money-page.tsx'),
+  join('components', 'money', 'branch-table.tsx'),
   // Home's Objectives band — Home already asks the gate before mounting it (home-page.tsx).
   join('components', 'home', 'home-objectives-door.tsx'),
   // The Tasks group Objective hint. Not a gated surface but the one place allowed to spell the

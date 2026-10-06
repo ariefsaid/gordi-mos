@@ -270,6 +270,9 @@ describe('CHROME-FOCUS: focus-visible normalization', () => {
     // rationale as the rows above.
     '.appearance-control-option',
     '.user-chip-menu-item',
+    // #1437: the lock-confirm line list is a scroll region spanning the full width of a
+    // clipped modal surface; an outward ring would be cut off at the surface edge.
+    '.cafe-lock-confirm__lines',
   ])
 
   function focusRules(): { file: string; selector: string; body: string }[] {
