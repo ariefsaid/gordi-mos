@@ -61,10 +61,8 @@ export async function listStartableProcessRuns(workLineId: string): Promise<DueP
 
 // ── listTaskDefs (design fix wave items 2/4 — Rule 11 shared batching helper) ───────────────────
 
-/** Batched lookup of `mos.process_task_defs` by id — title + pic_role_id. Shared by
- * listPendingTasks' title resolution (item 2) and the Occurrence group-by's "via <role name>"
- * generated-ownership provenance line (item 4, use-occurrence-groups.ts). Returns `[]` (no network
- * call) for an empty id list. */
+/** Batched lookup of `mos.process_task_defs` by id — title + pic_role_id. Returns `[]` (no
+ * network call) for an empty id list. */
 export async function listTaskDefs(defIds: string[]): Promise<TaskDefLookup[]> {
   if (defIds.length === 0) return []
   const { data, error } = await mos()

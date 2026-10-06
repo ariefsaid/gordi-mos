@@ -1,11 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import type { NotificationRow } from '@/lib/db/notifications'
 import {
-  isUnread,
   isHandled,
-  isReadButUnhandled,
   matchesFilter,
-  applyOpen,
   applyMarkHandled,
   INBOX_FILTERS,
   type TriageNotificationRow,
@@ -29,21 +26,9 @@ function trow(over?: Partial<TriageNotificationRow>): TriageNotificationRow {
 // owner-gated semantics"): read = seen/opened; handled = explicitly triaged out of the queue.
 // read-but-unhandled is a valid, representable state; handled never means completion/ack/approval.
 describe('read/handled triage semantics (provisional, owner-gated)', () => {
-  it('unread = read_at IS NULL', () => {
-    expect(isUnread(trow({ read_at: null }))).toBe(true)
-    expect(isUnread(trow({ read_at: '2026-07-20T01:00:00Z' }))).toBe(false)
-  })
-
   it('handled = handled_at IS NOT NULL', () => {
     expect(isHandled(trow({ handled_at: null }))).toBe(false)
     expect(isHandled(trow({ handled_at: '2026-07-20T02:00:00Z' }))).toBe(true)
-  })
-
-  it('read-but-unhandled is a valid, distinct state', () => {
-    const row = trow({ read_at: '2026-07-20T01:00:00Z', handled_at: null })
-    expect(isReadButUnhandled(row)).toBe(true)
-    expect(isUnread(row)).toBe(false)
-    expect(isHandled(row)).toBe(false)
   })
 
   it('exposes exactly the all/unread/handled filters', () => {
@@ -71,19 +56,6 @@ describe('read/handled triage semantics (provisional, owner-gated)', () => {
     expect(matchesFilter(row, 'all')).toBe(true)
     expect(matchesFilter(row, 'unread')).toBe(false)
     expect(matchesFilter(row, 'handled')).toBe(false)
-  })
-
-  it('applyOpen marks read only — it never sets handled_at', () => {
-    const opened = applyOpen(trow({ read_at: null, handled_at: null }), '2026-07-20T03:00:00Z')
-    expect(opened.read_at).toBe('2026-07-20T03:00:00Z')
-    expect(opened.handled_at).toBeNull()
-  })
-
-  it('applyOpen leaves an already-read row unchanged (idempotent, never re-triages)', () => {
-    const already = trow({ read_at: '2026-07-20T00:30:00Z', handled_at: null })
-    const opened = applyOpen(already, '2026-07-20T03:00:00Z')
-    expect(opened.read_at).toBe('2026-07-20T00:30:00Z')
-    expect(opened.handled_at).toBeNull()
   })
 
   it('applyMarkHandled sets handled_at and may also mark read', () => {

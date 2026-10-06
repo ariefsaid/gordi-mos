@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import {
   COLLECTION_VIEW_SPEC_VERSION,
   parseCollectionViewSpec,
-  serializeCollectionViewSpec,
   type CollectionViewSpec,
 } from './collection-view-spec'
 
@@ -43,7 +42,7 @@ const signalFeedSpec: CollectionViewSpec = {
 }
 
 describe('collection-view-spec validator', () => {
-  it('FR-V3-007: Task saved view serializes presentation, Business Unit, PIC, Supervisor, sort, grouping, visible fields, and layout', () => {
+  it('FR-V3-007: Task saved view accepts presentation, Business Unit, PIC, Supervisor, sort, grouping, visible fields, and layout', () => {
     const result = parseCollectionViewSpec(taskSpec)
     expect(result.ok).toBe(true)
     if (result.ok) {
@@ -54,10 +53,6 @@ describe('collection-view-spec validator', () => {
         expect(result.spec.query.businessUnitId).toBe('bu-cafe')
       }
     }
-    // Stable serialization is order-independent.
-    const a = serializeCollectionViewSpec(taskSpec)
-    const shuffled = { ...taskSpec, layout: { density: 'compact' as const } }
-    expect(serializeCollectionViewSpec(shuffled)).toBe(a)
   })
 
   it('rejects the retired Completed task view instead of persisting a fifth scope', () => {
@@ -70,14 +65,13 @@ describe('collection-view-spec validator', () => {
     if (!result.ok) expect(result.issues.some((issue) => issue.path === 'query.view')).toBe(true)
   })
 
-  it('accepts and serializes the canonical Team-work task view without adding a free-form Team filter', () => {
+  it('accepts the canonical Team-work task view without adding a free-form Team filter', () => {
     const teamWork = {
       ...taskSpec,
       query: { ...taskSpec.query, view: 'team-work' as const, businessUnitId: null },
     }
     const result = parseCollectionViewSpec(teamWork)
     expect(result.ok).toBe(true)
-    expect(serializeCollectionViewSpec(teamWork)).toContain('"view":"team-work"')
   })
 
   it('FR-V3-007: Task saved view rejects arbitrary Team field/query keys', () => {
@@ -136,9 +130,5 @@ describe('collection-view-spec validator', () => {
     expect(withRows.ok).toBe(false)
     const withSql = parseCollectionViewSpec({ ...taskSpec, sql: 'select 1' })
     expect(withSql.ok).toBe(false)
-    // Serialized spec is pure JSON with no code/HTML.
-    const serialized = serializeCollectionViewSpec(taskSpec)
-    expect(serialized).not.toContain('select')
-    expect(serialized).not.toContain('<')
   })
 })

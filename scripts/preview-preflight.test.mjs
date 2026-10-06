@@ -12,17 +12,14 @@ test('refuses an incomplete verification command before opening a browser', asyn
   await assert.rejects(run(['--url', 'http://127.0.0.1:4185/']), /missing --sha/)
 })
 
-test('checks the production entry against the base path recorded in the build identity', () => {
-  const identity = { sha: 'a'.repeat(40), clean: true, basePath: '/', assets: { 'index.html': 'hash', 'assets/index-abc.js': 'hash' } }
+test('checks the production entry using only the public build identity', () => {
+  const identity = { sha: 'a'.repeat(40), builtAt: '2026-10-06T12:00:00.000Z' }
   assert.doesNotThrow(() => assertBuildIdentity(identity, identity.sha, '/assets/index-abc.js'))
   assert.throws(() => assertBuildIdentity(identity, 'b'.repeat(40), '/assets/index-abc.js'), /stale/)
-  assert.throws(() => assertBuildIdentity({ ...identity, clean: false }, identity.sha, '/assets/index-abc.js'), /dirty/)
-  assert.throws(() => assertBuildIdentity(identity, identity.sha, '/assets/index-other.js'), /does not cover/)
+  assert.throws(() => assertBuildIdentity({ ...identity, builtAt: 'invalid' }, identity.sha, '/assets/index-abc.js'), /build time/)
+  assert.throws(() => assertBuildIdentity(identity, identity.sha, '/assets/other.js'), /entry asset/)
   assert.throws(() => assertBuildIdentity(identity, identity.sha, 'https://other.test/assets/index-abc.js'), /outside/)
-
-  const nestedIdentity = { ...identity, basePath: '/preview/' }
-  assert.doesNotThrow(() => assertBuildIdentity(nestedIdentity, nestedIdentity.sha, '/preview/assets/index-abc.js'))
-  assert.throws(() => assertBuildIdentity(nestedIdentity, nestedIdentity.sha, '/assets/index-abc.js'), /outside/)
+  assert.doesNotThrow(() => assertBuildIdentity(identity, identity.sha, '/preview/assets/index-abc.js'))
 })
 
 test('rejects a changed stylesheet even if the entry script is unchanged', () => {

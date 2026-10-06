@@ -2,8 +2,6 @@ import type { RolesRow } from '@/lib/database.types'
 import { can } from './capabilities'
 import { buHeadsForViewer, isOwnerDirector, type RoleScopeNode } from './role-scope'
 
-export type HomePersona = 'member' | 'cockpit'
-
 export interface HomeViewerScope {
   roles: readonly RolesRow[]
   isManager: boolean
@@ -29,8 +27,4 @@ export function holdsHomeCockpitScope(
     || can(viewer.accessRoles, 'objective.manage')
     || can(viewer.accessRoles, 'workline.manage')
     || (orgRoles !== null && buHeadsForViewer(heldRoles, [...orgRoles]).length > 0)
-}
-
-export function homePersona(viewer: HomeViewerScope, orgRoles: readonly RolesRow[]): HomePersona {
-  return holdsHomeCockpitScope(viewer, orgRoles) ? 'cockpit' : 'member'
 }

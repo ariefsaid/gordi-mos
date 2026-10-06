@@ -37,12 +37,10 @@ vi.mock('@/lib/db/tasks', () => ({
 }))
 vi.mock('@/lib/db/reporting', () => ({
   listSalesDailyRevenue: vi.fn().mockResolvedValue([]),
-  latestSnapshotAsOf: vi.fn(() => null),
   latestReportingDate: vi.fn(() => null),
 }))
 vi.mock('@/lib/db/reporting-margin', () => ({
   listSalesMarginDaily: vi.fn().mockResolvedValue([]),
-  latestMarginSnapshotAsOf: vi.fn(() => null),
   latestMarginReportingDate: vi.fn(() => null),
 }))
 vi.mock('@/lib/db/directory', () => ({

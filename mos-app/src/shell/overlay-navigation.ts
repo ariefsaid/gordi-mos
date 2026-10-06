@@ -133,25 +133,6 @@ export function historyDeltaForClose(depth: number): number {
   return -(depth + 1)
 }
 
-function toSearchString(target: To): string {
-  if (typeof target === 'string') {
-    const idx = target.indexOf('?')
-    return idx === -1 ? '' : target.slice(idx)
-  }
-  return target.search ?? ''
-}
-
-/** Carry the source location's query onto a target `To` unless the target already sets one. */
-export function preserveSearch(source: Location, target: To): To {
-  const targetSearch = toSearchString(target)
-  const search = targetSearch !== '' ? targetSearch : source.search
-  if (typeof target === 'string') {
-    const pathname = target.includes('?') ? target.slice(0, target.indexOf('?')) : target
-    return { pathname, search }
-  }
-  return { ...target, search }
-}
-
 export type RecordRouteAdapterConfig = {
   collectionPath: string
   /** `null` for path-based records (Task); a query param name for query-based records (Signal). */

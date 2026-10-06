@@ -122,12 +122,3 @@ export function isOverdue(row: Pick<FollowUpRow, 'due_date' | 'state'>, today = 
   if (!row.due_date || row.state === 'settled' || row.state === 'confirmed') return false
   return row.due_date < today.toISOString().slice(0, 10)
 }
-
-export function summarizeAging(rows: readonly FollowUpRow[], today = new Date()) {
-  return {
-    overdue: rows.filter((row) => isOverdue(row, today)).length,
-    chased: rows.filter((row) => row.state === 'chased').length,
-    promised: rows.filter((row) => row.state === 'promised').length,
-    partial: rows.filter((row) => row.state === 'partial').length,
-  }
-}
