@@ -140,15 +140,14 @@ describe('issue 270 — the registry describes the pages that really render the 
     ).toEqual([])
   })
 
-  it('follow-ups is deliberately excluded — that page renders no frame yet', () => {
-    // The one place this branch's registry departs from v4's, guarded in both directions. If this
-    // fails because follow-ups GAINED a frame, add its two routes and delete this case — that is
-    // the cutover, and it should be a deliberate edit rather than a silent drift.
-    const src = readFileSync(join(SRC, MONEY_DOOR), 'utf8')
-    expect(src).not.toContain('PageFamilyFrame')
-    const paths = PAGE_FAMILY_FRAME_ROUTES.map((e) => e.path)
-    expect(paths).not.toContain('/money/follow-ups')
-    expect(paths).not.toContain('/work/follow-ups/:id')
+  it('registers the converged developer and Money follow-up frames', () => {
+    expect(PAGE_FAMILY_FRAME_ROUTES.filter(({ path }) =>
+      path.startsWith('/dev/views') || path === '/money/follow-ups',
+    )).toMatchObject([
+      { path: '/dev/views', family: 'management', sourceFile: 'pages/dev-views-page.tsx', symbol: 'DevViewsPage' },
+      { path: '/dev/views/:viewId', family: 'management', sourceFile: 'pages/dev-views-page.tsx', symbol: 'DevViewsPage' },
+      { path: '/money/follow-ups', family: 'workspace', sourceFile: MONEY_DOOR, symbol: 'FollowUpsPage' },
+    ])
   })
 
   it('the Money door reaches none of the shared follow-up queue — #428’s marker', () => {
@@ -165,7 +164,7 @@ describe('issue 270 — the registry describes the pages that really render the 
     // import edge into the shared queue. That is the shape a cutover takes, and it is the earliest
     // honest moment to send someone to look — but it is not by itself proof the cutover happened,
     // and the failure message is written not to claim that it is. Deliberate edit, not silent
-    // drift — the same contract as the frame exclusion above.
+    // drift — the route registry above independently records frame ownership.
     //
     // Earlier spellings of this marker enumerated names, then specifier patterns, and each was
     // defeated by a syntax its author had not listed. Why this one asks TypeScript's own parser
@@ -249,8 +248,8 @@ describe('issue 270 — the registry describes the pages that really render the 
         `retiring, not something you broke. Re-read every comment below and delete or narrow ` +
         `whatever has stopped being true:\n      ` +
         `${COMMENTS_THIS_CASE_ANCHORS.join('\n      ')}\n` +
-        `      Then delete THIS case, and revisit the /money/follow-ups row in ` +
-        `DEFERRED_PAGE_ROUTES below and the frame exclusion above at the same time. If only some ` +
+        `      Then delete THIS case only if the page has switched to the shared queue; keep its ` +
+        `PageFamilyFrame registry entries aligned with the route and renderer. If only some ` +
         `of the modules are reached because the cutover is partial, narrow the list this case ` +
         `checks to what still diverges rather than deleting it.\n\n` +
         `  (b) IT STILL RENDERS ITS OWN BESPOKE TABLE — then the two doors still diverge, every ` +
@@ -279,9 +278,8 @@ const DEFERRED_PAGE_ROUTES = new Map<string, string>([
   // registry rows with `matchPath`, and `:taskId` matches `new`. A dedicated row would be a
   // second way to say the same thing.
   ['/work/tasks/new', 'silenced by the /work/tasks/:taskId pattern'],
-  // follow-ups-page.tsx renders no PageFamilyFrame yet (#428 owns that cutover); a row would
-  // silence ContextRow with nothing filling the gap (pinned by the case above).
-  ['/money/follow-ups', 'no frame on the page yet — #428'],
+  ['/dev/views', 'DEV-only route omitted from the test router'],
+  ['/dev/views/:viewId', 'DEV-only route omitted from the test router'],
 ])
 
 describe('issue 424 — the registry and the real route table agree', () => {
@@ -301,13 +299,13 @@ describe('issue 424 — the registry and the real route table agree', () => {
     ).toEqual([])
   })
 
-  it('every registry path is a real classified page route — a row for a deleted path is a lie', () => {
+  it('every registry path is classified or deliberately deferred', () => {
     const real = new Set(pagePaths)
-    const orphaned = PAGE_FAMILY_FRAME_ROUTES.map((e) => e.path).filter((path) => !real.has(path))
+    const orphaned = PAGE_FAMILY_FRAME_ROUTES.map((e) => e.path)
+      .filter((path) => !real.has(path) && !DEFERRED_PAGE_ROUTES.has(path))
     expect(
       orphaned,
-      `these registry rows name no route in the real table (deleted? renamed? never served?): ` +
-        `${orphaned.join(', ')}`,
+      `these registry rows name no classified or deferred route: ${orphaned.join(', ')}`,
     ).toEqual([])
   })
 })
