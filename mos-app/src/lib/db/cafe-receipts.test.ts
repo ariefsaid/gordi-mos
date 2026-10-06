@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { supabase } from '@/lib/supabase'
+import { listCafeReceiptPhotos } from './cafe-receipt-photos'
 import type { ProductionStream } from './kitchen-logs.types'
 import {
   cafeReceiptArrivalDateBounds,
@@ -18,7 +19,7 @@ import {
 } from './cafe-receipts'
 
 vi.mock('@/lib/supabase', () => ({ supabase: { schema: vi.fn() } }))
-vi.mock('./cafe-receipt-photos', () => ({ listCafeReceiptLinePhotos: vi.fn().mockResolvedValue([]) }))
+vi.mock('./cafe-receipt-photos', () => ({ CAFE_RECEIPT_PHOTO_READ_LIMIT: 50, listCafeReceiptPhotos: vi.fn().mockResolvedValue([]) }))
 
 const schemaMock = vi.mocked(supabase.schema)
 const STREAM: ProductionStream = {
@@ -103,6 +104,31 @@ describe('Café receipt adapter', () => {
 
     response = { data: [{ ...row, status: 'Posted' }], error: null }
     await expect(listCafeReceipts(['Approved'])).rejects.toThrow('invalid receipt row')
+  })
+
+  it('NFR-1006 reads photos by receipt, 50 receipts a request, and marks a failed read unavailable instead of failing the list', async () => {
+    const rows = Array.from({ length: 120 }, (_, index) => ({
+      id: `r-${index}`, activity: 'kitchen', status: 'Counted', posting_status: 'not_posted',
+      lines: [{ id: `l-${index}`, item_name: 'Milk', item_category: null, unit_name: 'l', received_quantity: 1, conditions: [], condition_reason: null }],
+    }))
+    const query: Record<string, unknown> = {}
+    for (const method of ['select', 'in', 'eq', 'order', 'limit']) query[method] = vi.fn(() => query)
+    query.then = (resolve: (value: unknown) => unknown) => Promise.resolve({ data: rows, error: null }).then(resolve)
+    schemaMock.mockReturnValue({ from: vi.fn(() => query) } as never)
+    const photo = { lineId: 'l-0', path: 'org/r-0/l-0/p.jpg', url: 'https://private.test/p' }
+    vi.mocked(listCafeReceiptPhotos)
+      .mockResolvedValueOnce([photo])
+      .mockRejectedValueOnce(new Error('listCafeReceiptPhotos failed: 414'))
+      .mockResolvedValueOnce([])
+
+    const receipts = await listCafeReceipts(['Counted'], { limit: 120 })
+
+    expect(vi.mocked(listCafeReceiptPhotos).mock.calls.map(([ids]) => ids.length)).toEqual([50, 50, 20])
+    expect(vi.mocked(listCafeReceiptPhotos).mock.calls[1][0][0]).toBe('r-50')
+    expect(receipts).toHaveLength(120)
+    expect(receipts[0]).toMatchObject({ photosUnavailable: false, lines: [{ photos: [photo] }] })
+    expect(receipts.filter(receipt => receipt.photosUnavailable).map(receipt => receipt.id))
+      .toEqual(rows.slice(50, 100).map(row => row.id))
   })
 
   it('AC-1011 explanation writer passes only a line id, damage flag and trimmed reason', async () => {

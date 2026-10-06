@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase'
-import { listCafeReceiptLinePhotos, type CafeReceiptPhoto } from './cafe-receipt-photos'
+import { CAFE_RECEIPT_PHOTO_READ_LIMIT, listCafeReceiptPhotos, type CafeReceiptPhoto } from './cafe-receipt-photos'
 import { normalizeCafeCountQuantity, newCafeCountClientKey } from './cafe-count'
 import type { ProductionActivity, ProductionStream } from './kitchen-logs.types'
 
@@ -59,6 +59,8 @@ export type CafeReceipt = {
   lines: CafeReceiptLine[]
   /** Null unless Approved; absent where the reader did not ask for it. */
   posting?: CafeReceiptPosting | null
+  /** The photo read failed for this receipt, so `photos` on its lines is not known to be complete. */
+  photosUnavailable?: boolean
 }
 
 export type CafeReceiptDraftLine = { item_unit_id: string; quantity: string; damaged_wrong?: boolean }
@@ -163,12 +165,20 @@ export async function listCafeReceipts(
       lines: (row.lines as Array<Record<string, unknown>>).map(parseCafeReceiptLine),
     } as unknown as CafeReceipt
   })
-  const allLineIds = receipts.flatMap(receipt => receipt.lines.map(line => line.id))
-  const photoRows = await listCafeReceiptLinePhotos(allLineIds)
   const photosByLine = new Map<string, CafeReceiptPhoto[]>()
-  for (const photo of photoRows) photosByLine.set(photo.lineId, [...(photosByLine.get(photo.lineId) ?? []), photo])
+  const unavailable = new Set<string>()
+  const chunks: string[][] = []
+  for (let start = 0; start < receipts.length; start += CAFE_RECEIPT_PHOTO_READ_LIMIT) {
+    chunks.push(receipts.slice(start, start + CAFE_RECEIPT_PHOTO_READ_LIMIT).map(receipt => receipt.id))
+  }
+  // A failed photo read leaves its receipts listed and says so, rather than failing the whole list.
+  await Promise.all(chunks.map(ids => listCafeReceiptPhotos(ids).then(
+    photos => { for (const photo of photos) photosByLine.set(photo.lineId, [...(photosByLine.get(photo.lineId) ?? []), photo]) },
+    () => { for (const id of ids) unavailable.add(id) },
+  )))
   return receipts.map(receipt => ({
     ...receipt,
+    photosUnavailable: unavailable.has(receipt.id),
     lines: receipt.lines.map(line => ({ ...line, photos: photosByLine.get(line.id) ?? [] })),
   }))
 }

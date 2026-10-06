@@ -3,6 +3,7 @@ import { ModalShell } from '@/components/ui/modal-shell'
 import { Button } from '@/components/ui/button'
 import { CafeReceiptLineRow } from '@/components/kitchen/cafe-receipt-difference'
 import { useT } from '@/i18n/use-t'
+import { CafeReceiptConditionPills } from './cafe-receipt-line-condition'
 import './cafe-receipt.css'
 import './cafe-receive-lock-confirm.css'
 
@@ -59,7 +60,7 @@ export function CafeReceiveLockConfirm({
         <ul className="cafe-receipt-lines cafe-lock-confirm__lines" aria-label={t('cafe.receive.confirm.linesAria')} tabIndex={0}>
           {lines.map(line => (
             <CafeReceiptLineRow key={line.unitId} name={line.name} quantity={line.quantity} unit={line.unit} withDifference={false}>
-              {line.damagedWrong && <span className="cafe-lock-confirm__condition">{t('cafe.receive.damageFlag')}</span>}
+              {line.damagedWrong && <div className="cafe-receipt-evidence"><CafeReceiptConditionPills conditions={['damaged_wrong']} /></div>}
             </CafeReceiptLineRow>
           ))}
         </ul>

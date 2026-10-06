@@ -76,6 +76,21 @@ describe('CafeReceiptReviewQueue', () => {
     expect(within(row).getByText('Seal broken on arrival')).toBeInTheDocument()
     expect(within(row).getByText('Damaged or wrong')).toBeInTheDocument()
     expect(within(row).getByRole('link', { name: 'Open photo 1 of 1' })).toHaveAttribute('href', 'https://private.test/photo')
+    expect(within(row).getAllByText('Fresh milk')).toHaveLength(1)
+  })
+
+  it('NFR-1006 a receipt whose photos could not be read says so on that receipt, and its decision stays available', async () => {
+    vi.mocked(listCafeReceipts).mockResolvedValue([receipt('r-photos', 'receiver', {
+      photosUnavailable: true,
+      lines: [{
+        id: 'line-evidence', item_unit_id: 'unit-l', item_name: 'Fresh milk', item_category: 'Dairy', unit_name: 'l', received_quantity: '11',
+        conditions: ['damaged_wrong'], condition_reason: 'Seal broken on arrival', photos: [],
+      }],
+    })])
+    renderQueue()
+    const row = (await screen.findByText('Received by Shift member')).closest('li')!
+    expect(within(row).getByText('Photos unavailable')).toBeInTheDocument()
+    expect(within(row).getByRole('button', { name: 'Approve' })).toBeEnabled()
   })
 
   it('FR-1042 after approval the row shows the receipt’s posting state read back from the server', async () => {

@@ -4,14 +4,23 @@ import { useAuth } from '@/auth/use-auth'
 import { CafeStreamBar, CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { CafeReceiptState } from '@/components/kitchen/cafe-receipt-state'
-import { CafeReceiptLineCondition } from '@/components/kitchen/cafe-receipt-line-condition'
-import { WastePhotoStrip } from '@/components/kitchen/waste-photo-strip'
+import {
+  CafeReceiptLineCondition,
+  CafeReceiptLineEvidence,
+  type EvidenceValidation,
+} from '@/components/kitchen/cafe-receipt-line-condition'
 import { CafeReceiveLockConfirm } from '@/components/kitchen/cafe-receive-lock-confirm'
 import { CafeReceiptLineRow } from '@/components/kitchen/cafe-receipt-difference'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { useT } from '@/i18n/use-t'
 import { canCaptureCafe } from '@/lib/cafe-affiliation'
 import { canReviewCafe } from '@/lib/kitchen-gates'
+import {
+  explanationDiffers,
+  readCafeReceiptExplanationDrafts,
+  writeCafeReceiptExplanationDrafts,
+  type CafeReceiptExplanation,
+} from '@/lib/cafe-receipt-explanation-draft'
 import {
   cafeReceiptArrivalDateBounds,
   listCafeReceiptDifferences,
@@ -49,8 +58,24 @@ type LoadState = 'loading' | 'ready' | 'error'
 function isInvalidEntry(entry: Entry | undefined): boolean {
   return Boolean(entry?.quantity.trim()) && normalizeCafeReceiptQuantity(entry!.quantity) === null
 }
-type Counted = { receiptId: string; rowVersion: number; lines: CafeReceiptLine[] }
-type EvidenceValidation = 'reason' | 'photo' | 'both'
+type Counted = {
+  receiptId: string
+  rowVersion: number
+  lines: CafeReceiptLine[]
+  /** Each line's explanation as the server holds it, so Send saves exactly the lines that differ. */
+  server: Record<string, CafeReceiptExplanation>
+  photosUnavailable: boolean
+}
+
+const explanationOf = ({ conditions, condition_reason }: CafeReceiptExplanation): CafeReceiptExplanation => ({ conditions, condition_reason })
+
+/** Send's refusal names the line by item: `CAFE_RECEIPT_<WHAT>_REQUIRED: <item name>`. */
+function sendRefusal(message: string): { item: string; missing: EvidenceValidation } | null {
+  const match = /CAFE_RECEIPT_(REASON_AND_PHOTO|REASON|PHOTO)_REQUIRED: (.+)$/.exec(message)
+  if (!match) return null
+  const missing = match[1] === 'REASON_AND_PHOTO' ? 'both' : match[1] === 'REASON' ? 'reason' : 'photo'
+  return { item: match[2].trim(), missing }
+}
 
 function blankEntries(items: readonly CafeReceivableItem[]): Record<string, Entry> {
   return Object.fromEntries(items.map(item => [item.id, { quantity: '', unitId: item.defaultUnitId, changingUnit: false, damagedWrong: false }]))
@@ -157,11 +182,20 @@ export function CafeReceivePage() {
       .catch(() => setRecent([]))
   }, [canCapture, viewerId])
   useEffect(loadRecent, [loadRecent])
+  const countedReceiptId = counted?.receiptId ?? null
   // The lock step closes with its opener gone, so focus lands on the result instead of the page body.
-  useEffect(() => { if (counted) countedHeadingRef.current?.focus() }, [counted])
+  useEffect(() => { if (countedReceiptId) countedHeadingRef.current?.focus() }, [countedReceiptId])
+
+  // FR-1010: an explanation changed but not saved stays on this device until it is saved or sent.
+  useEffect(() => {
+    if (!counted || !viewerId) return
+    const unsaved = sent ? {} : Object.fromEntries(counted.lines
+      .filter(line => explanationDiffers(line, counted.server[line.id]))
+      .map(line => [line.id, explanationOf(line)]))
+    writeCafeReceiptExplanationDrafts(viewerId, counted.receiptId, unsaved)
+  }, [counted, sent, viewerId])
 
   // FR-1012: labels arrive once the counts are locked; any failure reads "not yet known" (NFR-1006).
-  const countedReceiptId = counted?.receiptId ?? null
   useEffect(() => {
     if (!countedReceiptId) return
     let active = true
@@ -216,6 +250,19 @@ export function CafeReceivePage() {
     if (canSwitch) setStream(next)
   }, [canSwitch, setStream])
 
+  /** Open a Counted receipt, with this person's unsaved explanations from this device laid over the server's. */
+  function openCounted(receiptId: string, rowVersion: number, lines: CafeReceiptLine[], photosUnavailable = false) {
+    const drafts = viewerId ? readCafeReceiptExplanationDrafts(viewerId, receiptId) : {}
+    setCounted({
+      receiptId,
+      rowVersion,
+      lines: lines.map(line => drafts[line.id] ? { ...line, ...drafts[line.id] } : line),
+      server: Object.fromEntries(lines.map(line => [line.id, explanationOf(line)])),
+      photosUnavailable,
+    })
+    setEvidenceValidation({})
+  }
+
   function patchCountedLine(lineId: string, patch: Pick<Partial<CafeReceiptLine>, 'conditions' | 'condition_reason' | 'photos'>) {
     setCounted(current => current ? {
       ...current,
@@ -230,6 +277,14 @@ export function CafeReceivePage() {
     setError(null)
   }
 
+  function markSaved(saved: Record<string, CafeReceiptExplanation>) {
+    setCounted(current => current ? {
+      ...current,
+      lines: current.lines.map(line => saved[line.id] ? { ...line, ...saved[line.id] } : line),
+      server: { ...current.server, ...saved },
+    } : current)
+  }
+
   async function handleCountSubmit() {
     if (!stream || !canLock) return
     setBusy(true)
@@ -240,8 +295,7 @@ export function CafeReceivePage() {
         quantity,
         damaged_wrong: entry.damagedWrong,
       })))
-      setCounted({ receiptId: result.receipt_id, rowVersion: result.row_version, lines: result.lines })
-      setEvidenceValidation({})
+      openCounted(result.receipt_id, result.row_version, result.lines)
       setConfirming(false)
       loadRecent()
     } catch (cause) {
@@ -260,7 +314,8 @@ export function CafeReceivePage() {
     for (const line of target.lines) {
       if (line.conditions.length === 0) continue
       const missingReason = !line.condition_reason?.trim()
-      const missingPhoto = line.photos.length === 0
+      // Unread photos are not known to be missing; the server's own check on Send decides.
+      const missingPhoto = line.photos.length === 0 && !target.photosUnavailable
       if (missingReason && missingPhoto) validation[line.id] = 'both'
       else if (missingReason) validation[line.id] = 'reason'
       else if (missingPhoto) validation[line.id] = 'photo'
@@ -270,29 +325,31 @@ export function CafeReceivePage() {
 
     setBusy(true)
     setError(null)
+    const saved: Record<string, CafeReceiptExplanation> = {}
     try {
+      // Every line whose flag or reason differs from the server is saved first, an unflagged one included.
       for (const line of target.lines) {
-        if (line.conditions.length > 0) {
-          await saveCafeReceiptLineExplanation(line.id, line.conditions.includes('damaged_wrong'), line.condition_reason ?? '')
-        }
+        if (!explanationDiffers(line, target.server[line.id])) continue
+        saved[line.id] = await saveCafeReceiptLineExplanation(line.id, line.conditions.includes('damaged_wrong'), line.condition_reason ?? '')
       }
       await sendCafeReceiptForReview(receiptId, rowVersion, note)
       setSent(true)
       loadRecent()
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : ''
-      setError(message.includes('CAFE_RECEIPT_') && message.includes('REQUIRED')
-        ? 'cafe.receive.error.evidence'
-        : 'cafe.receive.error.send')
+      const refusal = sendRefusal(message)
+      const refusedLine = refusal && target.lines.find(line => line.item_name.trim() === refusal.item)
+      if (refusal && refusedLine) setEvidenceValidation({ [refusedLine.id]: refusal.missing })
+      else setError(refusal ? 'cafe.receive.error.evidence' : 'cafe.receive.error.send')
     } finally {
+      markSaved(saved)
       setBusy(false)
     }
   }
 
   function continueReceipt(receipt: CafeReceipt) {
     if (receipt.status !== 'Counted' || busy) return
-    setCounted({ receiptId: receipt.id, rowVersion: receipt.row_version, lines: receipt.lines })
-    setEvidenceValidation({})
+    openCounted(receipt.id, receipt.row_version, receipt.lines, receipt.photosUnavailable)
     setDeliveryNote(receipt.delivery_note_number ?? '')
     setSent(false)
   }
@@ -343,6 +400,8 @@ export function CafeReceivePage() {
           <section className="cafe-receive__counted" aria-labelledby="cafe-receive-counted-title">
             <h2 id="cafe-receive-counted-title" ref={countedHeadingRef} tabIndex={-1}>{sent ? t('cafe.receive.sent.title') : t('cafe.receive.counted.title')}</h2>
             <p>{sent ? t('cafe.receive.sent.copy') : t('cafe.receive.counted.copy')}</p>
+            {!sent && <p>{t('cafe.receive.conditionHelp')}</p>}
+            {counted.photosUnavailable && <p role="status">{t('cafe.receipts.photosUnavailable')}</p>}
             <p className="cafe-receive__difference" role="status" aria-live="polite">
               {difference === 'checking' ? t('cafe.receive.difference.checking')
                 : !difference.known ? t(sent ? 'cafe.receive.difference.unknownSent' : 'cafe.receive.difference.unknown')
@@ -360,28 +419,16 @@ export function CafeReceivePage() {
                   outcome={difference !== 'checking' && difference.known ? difference.byUnit.get(line.item_unit_id) : undefined}
                 >
                   {sent ? (
-                    line.conditions.length > 0 && (
-                      <div className="cafe-receive__condition-readonly">
-                        {line.conditions.map(condition => (
-                          <span className="cafe-receive__condition-tag" key={condition}>{t('cafe.receive.damageFlag')}</span>
-                        ))}
-                        {line.condition_reason && <p>{line.condition_reason}</p>}
-                        <WastePhotoStrip
-                          photos={line.photos}
-                          copy={{
-                            reviewLabel: t('cafe.receive.photoReview'),
-                            openAlt: (n, total) => t('cafe.receive.photoOpen', { n, total }),
-                          }}
-                        />
-                      </div>
-                    )
+                    <CafeReceiptLineEvidence line={line} />
                   ) : (
                     <CafeReceiptLineCondition
                       line={line}
+                      dirty={explanationDiffers(line, counted.server[line.id])}
                       disabled={busy}
                       validation={evidenceValidation[line.id]}
                       focusError={line.id === firstEvidenceErrorId}
                       onChange={patch => patchCountedLine(line.id, patch)}
+                      onSaved={explanation => markSaved({ [line.id]: explanation })}
                     />
                   )}
                 </CafeReceiptLineRow>
@@ -465,16 +512,6 @@ export function CafeReceivePage() {
                         <div className="cafe-count__item">
                           <div className="cafe-count__item-name">{item.name}</div>
                           {item.category && <div className="cafe-count__category">{kitchenCategoryLabel(t, item.category)}</div>}
-                          <label className="cafe-receive__damage-flag">
-                            <input
-                              type="checkbox"
-                              aria-label={t('cafe.receive.damageFlagFor', { item: item.name })}
-                              checked={entry?.damagedWrong ?? false}
-                              disabled={busy}
-                              onChange={event => patchEntry(item.id, { damagedWrong: event.target.checked })}
-                            />
-                            {t('cafe.receive.damageFlag')}
-                          </label>
                         </div>
                         <div className="cafe-count__input-group">
                           <label htmlFor={`cafe-receive-${item.id}`}>{t('cafe.receive.quantityLabel')}</label>
@@ -520,6 +557,19 @@ export function CafeReceivePage() {
                             </fieldset>
                           )}
                           {invalid && <p className="cafe-count__field-error" role="alert">{t('cafe.receive.quantityInvalid')}</p>}
+                          {/* DESIGN "Compact capture row": the flag shows once the row has a quantity to flag. */}
+                          {entry?.quantity.trim() && (
+                            <label className="cafe-receive__damage-flag">
+                              <input
+                                type="checkbox"
+                                aria-label={t('cafe.receive.damageFlagFor', { item: item.name })}
+                                checked={entry.damagedWrong}
+                                disabled={busy}
+                                onChange={event => patchEntry(item.id, { damagedWrong: event.target.checked })}
+                              />
+                              {t('cafe.receive.damageFlag')}
+                            </label>
+                          )}
                         </div>
                       </li>
                     )
@@ -538,6 +588,7 @@ export function CafeReceivePage() {
                   <span className="tabular">{formatWeekdayDayMonth(receipt.arrival_date)}</span>
                   <span>{t(receipt.lines.length === 1 ? 'cafe.receive.lines.one' : 'cafe.receive.lines.other', { count: receipt.lines.length })}</span>
                   <CafeReceiptState receipt={receipt} />
+                  {receipt.photosUnavailable && <span className="cafe-receive__photos-unavailable">{t('cafe.receipts.photosUnavailable')}</span>}
                   {receipt.status === 'Counted' && receipt.id !== counted?.receiptId && (
                     <button
                       type="button"

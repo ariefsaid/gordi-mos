@@ -17,8 +17,8 @@ import { useIsOffline } from '@/shell/use-is-offline'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { ALL_STREAMS } from './cafe-stream-bar'
 import { CafeReceiptState } from './cafe-receipt-state'
-import { WastePhotoStrip } from './waste-photo-strip'
 import { CafeReceiptLineRow } from './cafe-receipt-difference'
+import { CafeReceiptLineEvidence } from './cafe-receipt-line-condition'
 import { CafeReceiptRelease } from './cafe-receipt-release'
 import { formatAge } from '@/components/tasks/task-formatters'
 import { useI18n } from '@/i18n/I18nProvider'
@@ -152,6 +152,7 @@ export function CafeReceiptReviewQueue({
                     {receipt.delivery_note_number && <span>{t('cafe.receipts.review.deliveryNote', { number: receipt.delivery_note_number })}</span>}
                     {receipt.posting_status === 'held' && receipt.status !== 'Approved' && <span>{t('cafe.receipts.review.locationMissing')}</span>}
                     {differences === 'failed' && <span>{t('cafe.receipts.review.differenceFailed')}</span>}
+                    {receipt.photosUnavailable && <span>{t('cafe.receipts.photosUnavailable')}</span>}
                     {difference && !difference.known && <span>{t('cafe.receipts.review.differenceUnknown')}</span>}
                     {difference && (
                       <span>{!difference.asOf ? t('cafe.receipts.review.poNeverRead')
@@ -169,29 +170,11 @@ export function CafeReceiptReviewQueue({
                       unit={line.unit_name}
                       withDifference
                       outcome={difference?.known ? difference.byUnit.get(line.item_unit_id) : undefined}
-                    />
+                    >
+                      <CafeReceiptLineEvidence line={line} />
+                    </CafeReceiptLineRow>
                   ))}
                 </ul>
-                {receipt.lines.some(line => line.conditions.length > 0 || line.photos.length > 0) && (
-                  <ul className="cafe-receipt-review__evidence" aria-label={t('cafe.receive.photoReview')}>
-                    {receipt.lines.filter(line => line.conditions.length > 0 || line.photos.length > 0).map(line => (
-                      <li key={line.id}>
-                        <strong>{line.item_name}</strong>
-                        {line.conditions.map(condition => (
-                          <span className="cafe-receipt-review__condition" key={condition}>{t('cafe.receive.damageFlag')}</span>
-                        ))}
-                        {line.condition_reason && <p>{line.condition_reason}</p>}
-                        <WastePhotoStrip
-                          photos={line.photos}
-                          copy={{
-                            reviewLabel: t('cafe.receive.photoReview'),
-                            openAlt: (n, total) => t('cafe.receive.photoOpen', { n, total }),
-                          }}
-                        />
-                      </li>
-                    ))}
-                  </ul>
-                )}
                 <div className="cafe-count-review__decision cafe-receipt-review__decision">
                   {receipt.status === 'Counted' ? (
                     <span className="cafe-count-review__state">

@@ -59,13 +59,6 @@
   outline-offset: -2px;
 }
 
-.cafe-lock-confirm__condition {
-  grid-column: 1 / -1;
-  color: var(--muted-foreground);
-  font-size: var(--font-size-label);
-  font-weight: 500;
-}
-
 .cafe-lock-confirm__foot {
   display: grid;
   flex: none;

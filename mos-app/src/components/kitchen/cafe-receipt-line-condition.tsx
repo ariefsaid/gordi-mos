@@ -1,59 +1,96 @@
 import { useEffect, useId, useRef, useState } from 'react'
+import { Pill } from '@/components/ui/pill'
 import { useT } from '@/i18n/use-t'
+import type { CafeReceiptExplanation } from '@/lib/cafe-receipt-explanation-draft'
 import {
   saveCafeReceiptLineExplanation,
+  type CafeReceiptCondition,
   type CafeReceiptLine,
 } from '@/lib/db/cafe-receipts'
 import { uploadCafeReceiptLinePhoto } from '@/lib/db/cafe-receipt-photos'
 import type { CafeReceiptPhoto } from '@/lib/db/cafe-receipt-photos'
 import { useIsOffline } from '@/shell/use-is-offline'
 import { WastePhotoCapture } from './waste-photo-capture'
+import { WastePhotoStrip } from './waste-photo-strip'
+import './cafe-receipt.css'
 
-type EvidenceValidation = 'reason' | 'photo' | 'both'
+export type EvidenceValidation = 'reason' | 'photo' | 'both'
 type EvidencePatch = Pick<Partial<CafeReceiptLine>, 'conditions' | 'condition_reason' | 'photos'>
+
+/** The one place a line condition gets its label. */
+const CONDITION_LABEL = { damaged_wrong: 'cafe.receive.damageFlag' } as const satisfies Record<CafeReceiptCondition, string>
+
+/** A line's conditions as status pills, for the lock step, the sent receipt and review. */
+export function CafeReceiptConditionPills({ conditions }: { conditions: readonly CafeReceiptCondition[] }) {
+  const t = useT()
+  return conditions.map(condition => <Pill key={condition} tone="warning">{t(CONDITION_LABEL[condition])}</Pill>)
+}
+
+/** Read-only evidence under a received line: its conditions, reason and private photos. */
+export function CafeReceiptLineEvidence({ line }: { line: CafeReceiptLine }) {
+  const t = useT()
+  if (line.conditions.length === 0 && line.photos.length === 0) return null
+  return (
+    <div className="cafe-receipt-evidence">
+      <CafeReceiptConditionPills conditions={line.conditions} />
+      {line.condition_reason && <p>{line.condition_reason}</p>}
+      <WastePhotoStrip
+        photos={line.photos}
+        copy={{
+          reviewLabel: t('cafe.receive.photoReview'),
+          openAlt: (n, total) => t('cafe.receive.photoOpen', { n, total }),
+        }}
+      />
+    </div>
+  )
+}
 
 /** Receiver-owned condition and evidence editor, separate from the immutable counted quantity. */
 export function CafeReceiptLineCondition({
   line,
+  dirty,
   disabled,
   validation,
   focusError = false,
   onChange,
+  onSaved,
 }: {
   line: CafeReceiptLine
+  /** The flag or reason differs from what the server holds. */
+  dirty: boolean
   disabled: boolean
   validation?: EvidenceValidation
   focusError?: boolean
   onChange: (patch: EvidencePatch) => void
+  onSaved: (saved: CafeReceiptExplanation) => void
 }) {
   const t = useT()
   const reasonId = useId()
   const helpId = useId()
   const errorId = useId()
   const errorRef = useRef<HTMLParagraphElement>(null)
-  const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [saveFailed, setSaveFailed] = useState(false)
   const online = !useIsOffline()
   const damagedWrong = line.conditions.includes('damaged_wrong')
-  const showEvidence = line.conditions.length > 0 || dirty
   const reasonError = validation === 'reason' || validation === 'both'
+  const photoError = validation === 'photo' || validation === 'both'
   useEffect(() => {
     if (validation && focusError) errorRef.current?.focus()
   }, [focusError, validation])
+
+  function edit(patch: EvidencePatch) {
+    onChange(patch)
+    setSaved(false)
+    setSaveFailed(false)
+  }
 
   function updateCondition(checked: boolean) {
     const conditions = checked
       ? [...line.conditions.filter(condition => condition !== 'damaged_wrong'), 'damaged_wrong' as const]
       : line.conditions.filter(condition => condition !== 'damaged_wrong')
-    onChange({
-      conditions,
-      condition_reason: conditions.length > 0 ? line.condition_reason : null,
-    })
-    setDirty(true)
-    setSaved(false)
-    setSaveFailed(false)
+    edit({ conditions, condition_reason: conditions.length > 0 ? line.condition_reason : null })
   }
 
   async function saveExplanation() {
@@ -61,9 +98,7 @@ export function CafeReceiptLineCondition({
     setSaving(true)
     setSaveFailed(false)
     try {
-      const result = await saveCafeReceiptLineExplanation(line.id, damagedWrong, line.condition_reason ?? '')
-      onChange(result)
-      setDirty(false)
+      onSaved(await saveCafeReceiptLineExplanation(line.id, damagedWrong, line.condition_reason ?? ''))
       setSaved(true)
     } catch {
       setSaveFailed(true)
@@ -98,9 +133,7 @@ export function CafeReceiptLineCondition({
               : 'cafe.receive.photoRequired', { item: line.item_name })}
         </p>
       )}
-      {!showEvidence ? (
-        <p className="cafe-receive__condition-help">{t('cafe.receive.conditionHelp')}</p>
-      ) : (
+      {line.conditions.length > 0 && (
         <div className="cafe-receive__evidence-fields">
           <div className="cafe-receive__reason">
             <label htmlFor={reasonId}>{t('cafe.receive.reasonLabel', { item: line.item_name })}</label>
@@ -113,12 +146,7 @@ export function CafeReceiptLineCondition({
               disabled={disabled || saving}
               aria-invalid={reasonError || undefined}
               aria-describedby={reasonError ? `${helpId} ${errorId}` : helpId}
-              onChange={event => {
-                onChange({ condition_reason: event.target.value })
-                setDirty(true)
-                setSaved(false)
-                setSaveFailed(false)
-              }}
+              onChange={event => edit({ condition_reason: event.target.value })}
             />
             <div className="cafe-receive__reason-meta">
               <span id={helpId}>{t('cafe.receive.reasonHelp')}</span>
@@ -138,7 +166,8 @@ export function CafeReceiptLineCondition({
               invalidType: t('cafe.receive.photoType'),
               tooMany: t('cafe.receive.photoTooMany'),
               tooLarge: t('cafe.receive.photoTooLarge'),
-              required: t('cafe.receive.photoRequired', { item: line.item_name }),
+              // A refused line already names the missing photo in its alert above.
+              required: t(photoError ? 'cafe.receive.photoNone' : 'cafe.receive.photoNeeded'),
               upload: t('cafe.receive.photoUpload'),
               uploaded: t('cafe.receive.photoUploaded'),
               failed: t('cafe.receive.photoUploadFailed'),
@@ -155,7 +184,7 @@ export function CafeReceiptLineCondition({
               {saving ? t('common.working') : t('cafe.receive.saveExplanation')}
             </button>
           )}
-          {saved && <p className="cafe-count__line-success" role="status">{t('cafe.receive.explanationSaved')}</p>}
+          {saved && !dirty && <p className="cafe-count__line-success" role="status">{t('cafe.receive.explanationSaved')}</p>}
           {saveFailed && <p className="cafe-count__field-error" role="alert">{t('cafe.receive.explanationSaveFailed')}</p>}
         </div>
       )}

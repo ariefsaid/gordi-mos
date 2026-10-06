@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { supabase } from '@/lib/supabase'
 import { shrinkPhoto } from '@/lib/db/signal-photos'
-import { listCafeReceiptLinePhotos, uploadCafeReceiptLinePhoto } from './cafe-receipt-photos'
+import { listCafeReceiptPhotos, uploadCafeReceiptLinePhoto } from './cafe-receipt-photos'
 
 const mocks = vi.hoisted(() => ({ schema: vi.fn(), storageFrom: vi.fn() }))
 vi.mock('@/lib/supabase', () => ({ supabase: { schema: mocks.schema, storage: { from: mocks.storageFrom } } }))
@@ -62,7 +62,7 @@ describe('Café receipt private photo adapter', () => {
     expect(upload).not.toHaveBeenCalled()
   })
 
-  it('AC-1013 lists only requested line photo records and signs their private paths', async () => {
+  it('AC-1013 lists the requested receipts’ photo records by receipt and signs their private paths', async () => {
     const query: Record<string, unknown> = {}
     for (const method of ['select', 'in', 'order']) query[method] = vi.fn(() => query)
     query.then = (resolve: (value: unknown) => unknown) => Promise.resolve({ data: [
@@ -72,10 +72,16 @@ describe('Café receipt private photo adapter', () => {
     const createSignedUrls = vi.fn().mockResolvedValue({ data: [{ signedUrl: 'https://private.test/signed' }], error: null })
     storageFromMock.mockReturnValue({ createSignedUrls })
 
-    await expect(listCafeReceiptLinePhotos(['line-1', 'line-1'])).resolves.toEqual([{
+    await expect(listCafeReceiptPhotos(['receipt-1', 'receipt-1'])).resolves.toEqual([{
       lineId: 'line-1', path: 'org-1/receipt-1/line-1/photo-1.jpg',
       url: 'https://private.test/signed', createdAt: '2026-10-06T08:00:00Z',
     }])
-    expect(query.in).toHaveBeenCalledWith('line_id', ['line-1'])
+    expect(query.in).toHaveBeenCalledWith('receipt_id', ['receipt-1'])
+  })
+
+  it('AC-1013 refuses more than 50 receipts in one photo read', async () => {
+    await expect(listCafeReceiptPhotos(Array.from({ length: 51 }, (_, index) => `receipt-${index}`)))
+      .rejects.toThrow('at most 50 receipts')
+    expect(schemaMock).not.toHaveBeenCalled()
   })
 })

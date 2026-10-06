@@ -33,29 +33,33 @@ export async function uploadCafeReceiptLinePhoto(lineId: string, file: File): Pr
     upsert: false,
   })
   if (uploadError) throw new Error(`uploadCafeReceiptLinePhoto failed: ${uploadError.message}`)
-  const stored = await listCafeReceiptLinePhotos([lineId])
+  const stored = await listCafeReceiptPhotos([line.receipt_id])
   const uploaded = stored.find(photo => photo.path === path)
   if (!uploaded) throw new Error('uploadCafeReceiptLinePhoto failed: the private photo was not returned')
   return { ...uploaded, name: file.name }
 }
 
-/** One org-scoped read for requested lines, followed by short-lived URLs from the private bucket. */
-export async function listCafeReceiptLinePhotos(lineIds: readonly string[]): Promise<CafeReceiptPhoto[]> {
-  const ids = [...new Set(lineIds)]
+/** Receipts per photo read: the ids travel in the request URL, so a read stays far below its length limit. */
+export const CAFE_RECEIPT_PHOTO_READ_LIMIT = 50
+
+/** One org-scoped read of the photos on at most 50 receipts, followed by short-lived URLs from the private bucket. */
+export async function listCafeReceiptPhotos(receiptIds: readonly string[]): Promise<CafeReceiptPhoto[]> {
+  const ids = [...new Set(receiptIds)]
   if (ids.length === 0) return []
+  if (ids.length > CAFE_RECEIPT_PHOTO_READ_LIMIT) throw new Error('listCafeReceiptPhotos: at most 50 receipts per read')
   const { data, error } = await supabase.schema('ops').from('cafe_receipt_line_photos')
     .select('line_id,path,created_at')
-    .in('line_id', ids)
+    .in('receipt_id', ids)
     .order('created_at', { ascending: true })
-  if (error) throw new Error(`listCafeReceiptLinePhotos failed: ${error.message}`)
+  if (error) throw new Error(`listCafeReceiptPhotos failed: ${error.message}`)
   const rows = (data ?? []) as Array<{ line_id: string; path: string; created_at: string }>
   if (rows.length === 0) return []
   const { data: signed, error: signedError } = await supabase.storage.from(CAFE_RECEIPT_PHOTO_BUCKET)
     .createSignedUrls(rows.map(row => row.path), SIGNED_URL_SECONDS)
-  if (signedError) throw new Error(`listCafeReceiptLinePhotos failed: ${signedError.message}`)
+  if (signedError) throw new Error(`listCafeReceiptPhotos failed: ${signedError.message}`)
   return rows.map((row, index) => {
     const url = signed[index]?.signedUrl
-    if (!url) throw new Error('listCafeReceiptLinePhotos failed: could not sign a stored photo')
+    if (!url) throw new Error('listCafeReceiptPhotos failed: could not sign a stored photo')
     return { lineId: row.line_id, path: row.path, url, createdAt: row.created_at }
   })
 }
