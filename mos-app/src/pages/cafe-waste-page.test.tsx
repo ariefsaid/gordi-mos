@@ -243,7 +243,7 @@ describe('CafeWastePage', () => {
     renderPage()
     const empty = await screen.findByTestId('empty-state')
 
-    expect(within(empty).getByText(/added to this stream in ESB/i)).toBeInTheDocument()
+    expect(within(empty).getByRole('heading', { name: /^No ESB items on / })).toBeInTheDocument()
     expect(within(empty).queryByRole('link')).not.toBeInTheDocument()
   })
 

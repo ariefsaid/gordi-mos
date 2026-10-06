@@ -249,6 +249,8 @@ function PlanEditor() {
   )
   const [movement, setMovement] = useState<KitchenMovement>(PRODUCE)
   const [items, setItems] = useState<PlanItem[]>([])
+  // How many ESB items the stream lists, from the settings this page reads; the empty state uses it.
+  const [esbItemCount, setEsbItemCount] = useState<number>()
   // The stream's item list (#222). New plan rows are offered only for these; a row already
   // planned for any other item stays on screen, labelled, with its quantity editable.
   const [offeredIds, setOfferedIds] = useState<Set<string>>(new Set())
@@ -318,6 +320,7 @@ function PlanEditor() {
       // Without a resolved stream there is no working catalog to plan against. Do not present
       // the org-wide reference list beside a disabled quantity editor.
       const displayItems = catalog.stream ? withStreamSettings(settings, planCells) : []
+      setEsbItemCount(settings.length)
       const nextPlanableIds = planableItemIds(displayItems, offered ?? new Set())
       setItems(offered ? streamRows(displayItems, nextPlanableIds, planCells) : displayItems)
       setOfferedIds(offered ?? new Set())
@@ -351,6 +354,7 @@ function PlanEditor() {
       ])
       if (gen !== requestGen.current) return
       const displayItems = withStreamSettings(settings, planCells)
+      setEsbItemCount(settings.length)
       setItems(streamRows(displayItems, planableItemIds(displayItems, offered), planCells))
       setOfferedIds(offered)
       setPlanableIds(planableItemIds(displayItems, offered))
@@ -655,7 +659,7 @@ function PlanEditor() {
       )}
 
       {load.kind === 'ready' && stream && items.length === 0 && (
-        <CafeItemsEmptyState stream={stream} />
+        <CafeItemsEmptyState stream={stream} esbItemCount={esbItemCount} />
       )}
 
       {load.kind === 'ready' && !streamMissing && items.length > 0 && (

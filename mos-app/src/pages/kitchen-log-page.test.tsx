@@ -435,7 +435,6 @@ describe('Empty state — no WIP items (FR-011)', () => {
     mockFetchActualsMap.mockRejectedValue(new Error('optional history read failed'))
     await renderPage()
     expect(await screen.findByRole('heading', { name: 'No ESB items on Rumah Rames · Kitchen' })).toBeInTheDocument()
-    expect(screen.getByText(/added to this stream in ESB/i)).toBeInTheDocument()
     expect(mockListCaptureFormItems).toHaveBeenCalledWith(DEFAULT_STREAM, 'produce')
     expect(mockFetchPlanMap).toHaveBeenCalled()
     expect(mockFetchActualsMap).toHaveBeenCalled()

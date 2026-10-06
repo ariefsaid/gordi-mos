@@ -30,11 +30,11 @@ beforeEach(() => {
 })
 
 describe('CafeItemsEmptyState', () => {
-  it('says the stream has no ESB items and that items are added in ESB first, with nothing to click', async () => {
+  it('says the stream has no ESB items, who adds them in ESB, and offers nothing to click', async () => {
     mockSettings.mockResolvedValue([])
     renderEmpty({ stream: KITCHEN })
     expect(await screen.findByRole('heading', { name: 'No ESB items on Rumah Rames · Kitchen' })).toBeInTheDocument()
-    expect(screen.getByText(/added to this stream in ESB/i)).toBeInTheDocument()
+    expect(screen.getByText(/an ops lead adds them to this stream in ESB/i)).toBeInTheDocument()
     expect(screen.queryByRole('link')).not.toBeInTheDocument()
   })
 

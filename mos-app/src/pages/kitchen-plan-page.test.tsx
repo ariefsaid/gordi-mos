@@ -1337,13 +1337,14 @@ describe('issue 222: the plan offers the stream\'s own item list', () => {
     expect(mockUpsert).toHaveBeenCalledOnce()
   })
 
-  it('an empty list names the stream and says its items come from ESB', async () => {
+  it('an empty list names the stream from the settings the page already read', async () => {
     mockOffered.mockResolvedValue(new Set())
     mockCafeItemSettings.mockResolvedValue([])
     render(<KitchenPlanPage />, { wrapper })
     expect(await screen.findByRole('heading', { name: 'No ESB items on Rumah Rames · Kitchen' })).toBeInTheDocument()
-    expect(screen.getByText(/added to this stream in ESB/i)).toBeInTheDocument()
     expect(screen.queryByRole('spinbutton')).toBeNull()
+    // The empty state uses the settings the page already read rather than reading them again.
+    expect(mockCafeItemSettings).toHaveBeenCalledTimes(1)
   })
 
   it('a save refused as off-list reads as guidance and the row turns read-only', async () => {

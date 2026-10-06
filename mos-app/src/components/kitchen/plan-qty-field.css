@@ -47,12 +47,17 @@
   font-size: var(--font-size-control);
 }
 
-/* Unit label beside the typed quantity ("porsi"). Quiet — it names the unit, it is not data. A fixed
-   minimum width keeps every field in the column on one edge whatever the ESB unit is called. */
+/* Unit label beside the typed quantity ("porsi"). Quiet — it names the unit, it is not data. */
 .pqf-unit {
   flex: 0 0 auto;
-  min-inline-size: 14ch;
   text-align: start;
   font-size: var(--font-size-label);
   color: var(--muted-foreground);
 }
+/* In the desktop table the fields share one column: a fixed minimum keeps them on one edge whatever
+   the ESB unit is called. */
+.pqf-dense .pqf-unit { min-inline-size: 14ch; }
+/* A phone card holds one field: the unit sits under it, so a long ESB unit ("Batch @50porsi") takes
+   no width from the item name beside it. */
+.pqf:not(.pqf-dense) { flex-direction: column; align-items: flex-end; gap: 4px; }
+.pqf:not(.pqf-dense) .pqf-unit { text-align: end; }
