@@ -104,7 +104,7 @@ describe('RevenueScopePicker (AC-323 / FR-323)', () => {
     renderPicker(PERSON_WITH_SCOPE, OPTIONS, { refresh })
 
     const bgrBox = screen.getByRole('checkbox', { name: /bungur/i })
-    expect(bgrBox).toHaveAttribute('aria-checked', 'true')
+    expect(bgrBox).toBeChecked()
     await user.click(bgrBox)
 
     await waitFor(() => {

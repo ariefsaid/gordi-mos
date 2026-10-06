@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { IconButton } from './icon-button'
@@ -114,25 +115,57 @@ describe('TextInput (AC-145)', () => {
 })
 
 describe('Checkbox (AC-145)', () => {
-  it('role=checkbox + aria-checked toggles on click', () => {
+  it('uses a native checkbox that toggles when its associated label is clicked', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    const { container } = render(
+      <>
+        <label htmlFor="terms">Agree to the terms</label>
+        <Checkbox id="terms" onChange={onChange} />
+      </>,
+    )
+
+    expect(container.querySelector('input[type="checkbox"]')).not.toBeNull()
+    await user.click(screen.getByText('Agree to the terms'))
+    expect(onChange).toHaveBeenCalledWith(true)
+  })
+
+  it('native checkbox toggles on click', () => {
     const onChange = vi.fn()
     render(<Checkbox onChange={onChange} aria-label="Agree" />)
-    const cb = screen.getByRole('checkbox', { name: 'Agree' })
-    expect(cb.getAttribute('aria-checked')).toBe('false')
+    const cb = screen.getByRole('checkbox', { name: 'Agree' }) as HTMLInputElement
+    expect(cb.tagName).toBe('INPUT')
+    expect(cb.checked).toBe(false)
     fireEvent.click(cb)
     expect(onChange).toHaveBeenCalledWith(true)
   })
-  it('aria-checked="mixed" when indeterminate', () => {
-    render(<Checkbox indeterminate aria-label="Select all" />)
-    expect(screen.getByRole('checkbox').getAttribute('aria-checked')).toBe('mixed')
+  it('exposes and preserves the native indeterminate state with a mixed accessibility value', () => {
+    const { rerender } = render(<Checkbox indeterminate aria-label="Select all" />)
+    const cb = screen.getByRole('checkbox') as HTMLInputElement
+    expect(cb.indeterminate).toBe(true)
+    expect(cb).toHaveAttribute('aria-checked', 'mixed')
+
+    rerender(<Checkbox checked indeterminate aria-label="Select all" />)
+    expect(cb.indeterminate).toBe(true)
   })
-  it('Space toggles (keyboard)', () => {
+  it('Space toggles the native checkbox', async () => {
+    const user = userEvent.setup()
     const onChange = vi.fn()
     render(<Checkbox onChange={onChange} aria-label="K" />)
     const cb = screen.getByRole('checkbox')
     cb.focus()
-    fireEvent.keyDown(cb, { key: ' ' })
+    expect(cb).toHaveFocus()
+    await user.keyboard(' ')
     expect(onChange).toHaveBeenCalledWith(true)
+  })
+  it('disabled checkbox uses the native disabled state', () => {
+    render(<Checkbox disabled aria-label="Unavailable" />)
+    expect(screen.getByRole('checkbox')).toBeDisabled()
+  })
+  it('keeps the visible focus ring on the custom visual', () => {
+    const css = readFileSync(resolve(process.cwd(), 'src/components/ui/Checkbox.css'), 'utf8')
+    expect(css).toMatch(/\.mk-checkbox__input:focus-visible\s*\+\s*\.mk-checkbox__visual/)
+    expect(css).toMatch(/outline:\s*2px solid var\(--ring\)/)
   })
 })
 
