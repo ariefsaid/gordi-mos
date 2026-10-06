@@ -32,12 +32,14 @@ something real. The identifiers below are fabricated — this repo is public.
 from __future__ import annotations
 
 import contextlib
+import http.server
 import importlib.util
 import io
 import json
 import os
 import sys
 import tempfile
+import threading
 import urllib.parse
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -135,7 +137,51 @@ def cfg_for(target: str, **over: str):
     return W.load_config(env(target, **over), offline=False, drains=False)
 
 
-def row(endpoint: str = "assembly-actual", target: str = "goo", **over):
+for name, values in (
+    ("Supabase endpoint requires HTTPS", {"MOS_SUPABASE_URL": "http://db.example.invalid"}),
+    ("ERP endpoint requires HTTPS", {"ESB_BASE_URL": "http://erp.example.invalid"}),
+):
+    check_raises(name, W.ConfigError,
+                 lambda values=values: W.load_config(env("goo", **values),
+                                                     offline=False, drains=False),
+                 needle="HTTPS")
+
+
+class RedirectHandler(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.server.seen.append((self.path, self.headers.get("Authorization")))
+        if self.path == "/start":
+            self.send_response(302)
+            self.send_header("Location", "/target")
+            self.end_headers()
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write(b"{}")
+
+    def log_message(self, *_args):
+        pass
+
+
+with http.server.ThreadingHTTPServer(("127.0.0.1", 0), RedirectHandler) as redirect_server:
+    redirect_server.seen = []
+    redirect_thread = threading.Thread(target=redirect_server.serve_forever, daemon=True)
+    redirect_thread.start()
+    try:
+        try:
+            W._request("GET", f"http://127.0.0.1:{redirect_server.server_port}/start",
+                       headers={"Authorization": "Bearer test-key"}, timeout=2)
+        except W.Permanent:
+            pass
+        check("service request stops at the redirect response",
+              redirect_server.seen == [("/start", "Bearer test-key")])
+    finally:
+        redirect_server.shutdown()
+        redirect_thread.join(timeout=2)
+
+
+def row(endpoint: str = "assembly-actual", target: str = "goo", **over: str):
     r = {
         "id": "aaaaaaaa-0000-0000-0000-000000000001",
         "org_id": ORG, "source_module": "kitchen", "source_ref": BATCH,
@@ -829,6 +875,60 @@ check_raises("NFR-1006 a refresh against 'dry_run' is refused — it names no ES
 check_raises("NFR-1006 a refresh without this environment's own credentials is refused",
              W.ConfigError, lambda: W.load_refresh_config(po_env(ESB_PASSWORD="")),
              needle="never borrows")
+
+# ══════════════════════════════════════════════════════════════════════════════════════
+print("R. reading the ERP of record is switched separately from posting to it (#1447)")
+# ══════════════════════════════════════════════════════════════════════════════════════
+def gkid_po_env(**flags: str) -> dict[str, str]:
+    e = po_env(ESB_WORKER_TARGET_ENV="gkid", ESB_WORKER_MAP_FILE=os.path.join(TMP, "gkid.json"),
+               ESB_ALLOW_GKID="", ESB_ALLOW_GKID_READ="")
+    e.update(flags)
+    return e
+
+
+try:
+    esb = FakeEsb()
+    f = Fake(**esb.routes(), **{"rest/v1/item_units": lambda *a: []})
+    out = io.StringIO()
+    rcfg = W.load_refresh_config(gkid_po_env(ESB_ALLOW_GKID_READ="1"))
+    bad_n = run(lambda: W.refresh_open_pos(rcfg, "all", out=out, today=TODAY), f)
+    check("a refresh of the ERP of record with only the read switch reads ESB and fills the cache",
+          bad_n == 0 and len(f.to("rpc/replace_cafe_open_pos")) == 1
+          and all(c["method"] == "GET" for c in f.calls
+                  if "erp.example.invalid" in c["url"] and "auth/login" not in c["url"]),
+          out.getvalue() + repr(f.calls))
+except W.ConfigError as exc:
+    bad("a refresh of the ERP of record with only the read switch reads ESB and fills the cache",
+        str(exc))
+check_raises("a refresh of the ERP of record with neither switch is refused, naming the read switch",
+             W.ConfigError, lambda: W.load_refresh_config(gkid_po_env()),
+             needle="ESB_ALLOW_GKID_READ")
+check_raises("the posting switch alone does not enable a refresh of the ERP of record",
+             W.ConfigError, lambda: W.load_refresh_config(gkid_po_env(ESB_ALLOW_GKID="1")),
+             needle="ESB_ALLOW_GKID_READ")
+
+# Every posting path, through the CLI with the push on: the read switch must not unlock it.
+def read_switch_only_main(argv: list[str]) -> tuple[int, Fake, str]:
+    fake = Fake(**happy_routes())
+    saved_req, W._request = W._request, fake
+    saved_env = dict(os.environ)
+    os.environ.update(env("gkid", ESB_ALLOW_GKID="", ESB_ALLOW_GKID_READ="1", ESB_PUSH_ENABLED="1"))
+    err = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
+            rc = W.main(argv)
+    finally:
+        W._request = saved_req
+        os.environ.clear(); os.environ.update(saved_env)
+    return rc, fake, err.getvalue()
+
+
+for name, argv in (("a drain", []), ("--plan", ["--plan"]),
+                   ("--requeue", ["--requeue", "aaaaaaaa-0000-0000-0000-000000000001"])):
+    rc, fake, err = read_switch_only_main(argv)
+    check(f"{name} with only the read switch is refused, naming the posting switch, and calls nothing",
+          rc == 2 and fake.calls == [] and "ESB_ALLOW_GKID is not set" in err,
+          f"rc={rc} calls={fake.calls!r} stderr={err}")
 
 print(f"{_pass} passed, {_fail} failed")
 sys.exit(1 if _fail else 0)

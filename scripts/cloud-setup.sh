@@ -33,7 +33,7 @@ say() { printf '\n\033[1m==> %s\033[0m\n' "$1"; }
 # Not a repo dependency (package.json ships @supabase/supabase-js only), so a fresh sandbox has no
 # CLI. Version pinned to match CI (integration.yml) — a sandbox that drifts from CI is a lie
 # about CI.
-SUPABASE_VERSION=2.104.0
+SUPABASE_VERSION="$(tr -d '[:space:]' < "$REPO/supabase/CLI_VERSION")"
 say "Installing Supabase CLI ${SUPABASE_VERSION}"
 source scripts/lib/cloud-tools.sh
 BIN=/usr/local/bin; [ -w "$BIN" ] || { BIN="$HOME/.local/bin"; echo "installing to ~/.local/bin — ensure it is on PATH"; }

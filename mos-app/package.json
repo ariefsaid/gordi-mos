@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "engines": {
-    "node": ">=22"
+    "node": "22.x"
   },
   "scripts": {
     "dev": "vite",
@@ -12,9 +12,10 @@
     "build": "tsc -b && vite build && node scripts/check-chunk-cycles.mjs",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
-    "lint": "eslint . --max-warnings=0 && npm run lint:css",
-    "lint:ci": "eslint . --max-warnings=0 && npm run lint:css",
+    "lint": "eslint . --max-warnings=0 && npm run lint:css && npm run lint:clones",
+    "lint:ci": "eslint . --max-warnings=0 && npm run lint:css && npm run lint:clones",
     "lint:css": "stylelint 'src/**/*.css'",
+    "lint:clones": "jscpd src --config .jscpd.json",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
@@ -66,6 +67,7 @@
     "eslint": "^9.30.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
+    "jscpd": "^5.4.0",
     "jsdom": "^26.0.0",
     "storybook": "10.5.2",
     "stylelint": "^17.13.0",

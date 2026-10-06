@@ -91,10 +91,13 @@ export function ModalShell({
 
       const first = focusable[0]
       const last = focusable[focusable.length - 1]
-      if (event.shiftKey && (document.activeElement === first || !dialog.contains(document.activeElement))) {
+      // Focus outside the list (a busy aria-disabled button, the dialog itself, or outside it) has
+      // no browser-safe next stop, so it wraps to an end of the list.
+      const unlisted = !focusable.includes(document.activeElement as HTMLElement)
+      if (event.shiftKey && (document.activeElement === first || unlisted)) {
         event.preventDefault()
         last.focus()
-      } else if (!event.shiftKey && (document.activeElement === last || !dialog.contains(document.activeElement))) {
+      } else if (!event.shiftKey && (document.activeElement === last || unlisted)) {
         event.preventDefault()
         first.focus()
       }
