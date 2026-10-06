@@ -17,7 +17,7 @@
 -- role fact — the POLICY admits the roles separately, and this file asserts both halves).
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(22);
+select plan(21);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -127,8 +127,8 @@ select throws_ok($$
 select throws_ok($$
   insert into ops.wip_items (org_id, name, reference_source, esb_product_id)
   values ('00000000-0000-0000-0000-0000000000a1','Gate Probe Item','erp_catalog','P-GATE-PROBE')
-  $$, '42501', 'new row violates row-level security policy for table "wip_items"',
-  'AC-002: master-data writes are unchanged — a member (affiliated or not) still cannot create items');
+  $$, '42501', 'permission denied for table wip_items',
+  'AC-002: a member (affiliated or not) still cannot create items');
 
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select lives_ok($$
@@ -136,11 +136,6 @@ select lives_ok($$
   values ('2026-06-28','00000000-0000-0000-0000-00000000ab01',
           '00000000-0000-0000-0000-00000000bf02','kitchen','produce',5)
   $$, 'AC-002: plan writes are unchanged — ops_lead still CAN write the plan');
-
-select lives_ok($$
-  insert into ops.wip_items (org_id, name, reference_source, esb_product_id)
-  values ('00000000-0000-0000-0000-0000000000a1','Gate Probe Item','erp_catalog','P-GATE-PROBE')
-  $$, 'AC-002: master-data writes are unchanged — ops_lead still CAN create items');
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- AC-003 — ops.log_entries: the same gate on floor records

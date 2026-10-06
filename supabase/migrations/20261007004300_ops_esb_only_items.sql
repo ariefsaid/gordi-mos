@@ -1,10 +1,12 @@
 -- OD-2026-10-06-ESB-ITEMS — every café item comes from the ESB catalog. MOS refuses new hand-made
 -- items and new MOS writes against them; existing rows are not changed or re-checked.
 --
+--   * App sessions (authenticated) lose INSERT on ops.wip_items and UPDATE of its ESB identity
+--     columns; only the catalog refresh, run by the database owner, writes them.
 --   * ops._guard_esb_item_source (ops.wip_items): a new item is an ESB-catalog row carrying its ESB
---     product id, and an ESB-catalog row cannot be turned back into a hand-made one.
---   * ops._guard_esb_item_reference (new MOS kitchen logs and plans, new stream item list rows): the
---     item is an ESB-catalog row. Imported history keeps its own source and passes.
+--     product id, an ESB-catalog row keeps its product id, and it cannot become hand-made again.
+--   * ops._guard_esb_item_reference (MOS kitchen logs and plans, stream item list rows, on insert
+--     and when the item changes): the item is an ESB-catalog row. Imported history passes.
 --   Settings, counts, receipts and purchase requests already resolve their item through ESB-only
 --   readers (the settings guard and ops.cafe_item_references) and keep those checks.
 --   * ops._guard_cafe_stream_item checks the stream's item list before per-stream activation.
@@ -32,16 +34,28 @@ begin
     raise exception 'CAFE_ITEM_NOT_FROM_ESB: an ESB-catalog item stays an ESB-catalog item'
       using errcode = 'P0021';
   end if;
+  if tg_op = 'UPDATE'
+     and new.reference_source = 'erp_catalog'
+     and nullif(btrim(coalesce(new.esb_product_id, '')), '') is null then
+    raise exception 'CAFE_ITEM_NOT_FROM_ESB: an ESB-catalog item carries its ESB product id'
+      using errcode = 'P0021';
+  end if;
   return new;
 end;
 $$;
 comment on function ops._guard_esb_item_source() is
-  'OD-2026-10-06-ESB-ITEMS: a new café item must be an ESB-catalog row carrying its ESB product id, and an ESB-catalog row cannot become hand-made (P0021, token CAFE_ITEM_NOT_FROM_ESB). Existing hand-made rows can still be updated or deleted. SECURITY INVOKER.';
+  'OD-2026-10-06-ESB-ITEMS: a new café item must be an ESB-catalog row carrying its ESB product id; an ESB-catalog row keeps a product id and cannot become hand-made (P0021, token CAFE_ITEM_NOT_FROM_ESB). Existing hand-made rows can still be updated or deleted. SECURITY INVOKER.';
 revoke execute on function ops._guard_esb_item_source() from public, anon, authenticated, service_role;
 
 create trigger wip_items_esb_source_guard
-  before insert or update of reference_source on ops.wip_items
+  before insert or update of reference_source, esb_product_id on ops.wip_items
   for each row execute function ops._guard_esb_item_source();
+
+-- Whether an item exists in ESB is known only to the catalog refresh, so app sessions write no item
+-- identity: no insert, and updates only of the columns MOS owns.
+revoke insert, update on ops.wip_items from authenticated;
+grant update (id, org_id, name, category, flag_active, created_at, updated_at, kind,
+  erp_category_type_name, has_active_bom_output) on ops.wip_items to authenticated;
 
 create or replace function ops._guard_esb_item_reference()
 returns trigger
@@ -50,7 +64,11 @@ security invoker
 set search_path = ''
 as $$
 begin
-  if tg_table_name in ('kitchen_logs', 'kitchen_plans') and new.source <> 'mos' then
+  if tg_op = 'UPDATE' and new.wip_item_id is not distinct from old.wip_item_id then
+    return new;
+  end if;
+  if tg_table_name in ('kitchen_logs', 'kitchen_plans') and new.source <> 'mos'
+     and (tg_op = 'INSERT' or old.source <> 'mos') then
     return new;
   end if;
   if not exists (
@@ -65,18 +83,18 @@ begin
 end;
 $$;
 comment on function ops._guard_esb_item_reference() is
-  'OD-2026-10-06-ESB-ITEMS: a new MOS kitchen log or plan, and every new stream item list row, must reference an ESB-catalog item (P0021, token CAFE_ITEM_NOT_FROM_ESB). Imported history passes. Fires after the org and stream checks, so those keep their own errors. SECURITY INVOKER.';
+  'OD-2026-10-06-ESB-ITEMS: a MOS kitchen log or plan, and a stream item list row, must reference an ESB-catalog item when written or re-pointed (P0021, token CAFE_ITEM_NOT_FROM_ESB). Imported history and updates that keep the item pass. Fires after the org and stream checks, so those keep their own errors. SECURITY INVOKER.';
 revoke execute on function ops._guard_esb_item_reference() from public, anon, authenticated, service_role;
 
 -- zz_ sorts after every existing BEFORE trigger on these tables (org seam, stream list, units).
 create trigger kitchen_logs_zz_esb_item_guard
-  before insert on ops.kitchen_logs
+  before insert or update of wip_item_id on ops.kitchen_logs
   for each row execute function ops._guard_esb_item_reference();
 create trigger kitchen_plans_zz_esb_item_guard
-  before insert on ops.kitchen_plans
+  before insert or update of wip_item_id on ops.kitchen_plans
   for each row execute function ops._guard_esb_item_reference();
 create trigger stream_items_zz_esb_item_guard
-  before insert on ops.stream_items
+  before insert or update of wip_item_id on ops.stream_items
   for each row execute function ops._guard_esb_item_reference();
 
 -- With every item from the ESB catalog, per-stream activation rows exist only for listed items, so

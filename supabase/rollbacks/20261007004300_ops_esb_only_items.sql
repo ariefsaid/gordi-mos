@@ -1,6 +1,7 @@
 -- Rollback for 20261007004300_ops_esb_only_items.sql (OD-2026-10-06-ESB-ITEMS). Drops the ESB-only
 -- guards and the test-only configure helper, and restores the stream guard from
--- 20261004000010_ops_cafe_team_item_kind.sql and the test seed from 20260924000002_ops_stream_items.sql.
+-- 20261004000010_ops_cafe_team_item_kind.sql and the test seed from 20260924000002_ops_stream_items.sql,
+-- and gives app sessions back insert and update on ops.wip_items.
 -- Rows written while the guards were live stay as they are.
 begin;
 drop trigger if exists stream_items_zz_esb_item_guard on ops.stream_items;
@@ -9,6 +10,9 @@ drop trigger if exists kitchen_logs_zz_esb_item_guard on ops.kitchen_logs;
 drop trigger if exists wip_items_esb_source_guard on ops.wip_items;
 drop function if exists ops._guard_esb_item_reference();
 drop function if exists ops._guard_esb_item_source();
+revoke update (id, org_id, name, category, flag_active, created_at, updated_at, kind,
+  erp_category_type_name, has_active_bom_output) on ops.wip_items from authenticated;
+grant insert, update on ops.wip_items to authenticated;
 
 create or replace function ops._guard_cafe_stream_item()
 returns trigger

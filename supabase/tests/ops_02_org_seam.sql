@@ -79,12 +79,13 @@ select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000
 -- Asserted on wip_items rather than on kitchen_logs, and the reason is worth recording because it
 -- looks like the wrong table to pick. kitchen_logs carries a BEFORE trigger that refuses a
 -- cross-org reference first, so a cross-org write there raises 23514 from the guard and the POLICY
--- is never reached — the test would pass while proving something else. wip_items' only guard is the
--- ESB-source check, which an ESB-shaped row passes, so what refuses is the policy's WITH CHECK and
--- nothing else. ops_08 asserts the log guard separately, on the table that has one.
+-- is never reached — the test would pass while proving something else. App sessions cannot insert
+-- items, so the write moves an existing org-A item into org B; no wip_items guard watches org_id,
+-- so what refuses is the policy's WITH CHECK and nothing else. ops_08 asserts the log guard
+-- separately, on the table that has one.
 select throws_ok($$
-  insert into ops.wip_items (org_id, name, reference_source, esb_product_id)
-  values ('00000000-0000-0000-0000-0000000000b1','planted','erp_catalog','P-PLANTED')
+  update ops.wip_items set org_id = '00000000-0000-0000-0000-0000000000b1'
+   where id = '00000000-0000-0000-0000-00000000ab01'
   $$, '42501',
   'new row violates row-level security policy for table "wip_items"',
   'org seam: an org-A admin cannot write a row INTO org B — the seam is a write control, not only a read filter');

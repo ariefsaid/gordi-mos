@@ -6,7 +6,7 @@
 -- before the rule looks to the new guards: present, never re-checked.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(17);
+select plan(24);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -32,24 +32,53 @@ insert into ops.item_units (id, org_id, wip_item_id, unit_name, esb_product_deta
 insert into ops.stream_items (org_id, branch_id, activity, wip_item_id, source) values
   ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000bf01', 'kitchen',
    '00000000-0000-0000-0000-000000001456', 'manual');
+insert into ops.kitchen_plans (org_id, log_date, wip_item_id, branch_id, activity, action, qty_porsi, source) values
+  ('00000000-0000-0000-0000-0000000000a1', '2099-12-29', '00000000-0000-0000-0000-000000001456',
+   '00000000-0000-0000-0000-00000000bf01', 'kitchen', 'produce', 3, 'mos');
 set local session_replication_role = origin;
 
 -- ═══ Items: only the ESB catalog creates them ════════════════════════════════════════════════
 select is((select reference_source from ops.wip_items where id = current_setting('app.esb_item')::uuid),
   'erp_catalog', 'the ESB catalog refresh still creates café items');
 
+-- App sessions cannot write an item's ESB identity at all: no item insert, and no update of the
+-- identity columns. Only the catalog refresh, run by the database owner, writes them.
 set local role authenticated;
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select throws_ok($$
-  insert into ops.wip_items (name, category) values ('Hand-made by an ops lead', 'Mains')
-  $$, 'P0021', null,
-  'a hand-made item is refused, even for an ops lead');
+  insert into ops.wip_items (name, reference_source, esb_product_id) values ('Invented ESB item', 'erp_catalog', 'NOT-IN-ESB-1')
+  $$, '42501', null,
+  'an ops lead cannot create an item with an invented ESB product id');
 select throws_ok($$
-  insert into ops.wip_items (name, reference_source) values ('Claims ESB without an id', 'erp_catalog')
+  update ops.wip_items set reference_source = 'erp_catalog', esb_product_id = 'NOT-IN-ESB-2'
+   where id = '00000000-0000-0000-0000-000000001456'
+  $$, '42501', null,
+  'an ops lead cannot turn a hand-made item into an ESB-catalog item');
+select throws_ok(format($$
+  update ops.wip_items set esb_product_id = null where esb_product_id = %L
+  $$, 'SYNTH-ERP-P-1456-KEEP'), '42501', null,
+  'an ops lead cannot clear an ESB-catalog item''s product id');
+
+-- Below the grants, the table itself refuses an item without ESB origin, whoever writes it.
+reset role;
+select throws_ok($$
+  insert into ops.wip_items (org_id, name, category)
+  values ('00000000-0000-0000-0000-0000000000a1', 'Hand-made item', 'Mains')
+  $$, 'P0021', null,
+  'a hand-made item is refused by the table');
+select throws_ok($$
+  insert into ops.wip_items (org_id, name, reference_source)
+  values ('00000000-0000-0000-0000-0000000000a1', 'Claims ESB without an id', 'erp_catalog')
   $$, 'P0021', null,
   'an item that claims the ESB catalog without its ESB product id is refused');
-
-reset role;
+select throws_ok($$
+  update ops.wip_items set reference_source = 'erp_catalog' where id = '00000000-0000-0000-0000-000000001456'
+  $$, 'P0021', null,
+  'a hand-made item without an ESB product id cannot become an ESB-catalog item');
+select throws_ok(format($$
+  update ops.wip_items set esb_product_id = ' ' where esb_product_id = %L
+  $$, 'SYNTH-ERP-P-1456-KEEP'), 'P0021', null,
+  'an ESB-catalog item keeps a product id');
 select throws_ok(format($$
   update ops.wip_items set reference_source = 'manual' where esb_product_id = %L
   $$, 'SYNTH-ERP-P-1456-KEEP'), 'P0021', null,
@@ -103,6 +132,11 @@ select lives_ok(format($$
   values ('2099-12-30', %L, '00000000-0000-0000-0000-00000000bf01', 'kitchen', 'produce', 4)
   $$, current_setting('app.esb_item')),
   'a plan against an ESB-catalog item is accepted');
+select throws_ok(format($$
+  update ops.kitchen_plans set wip_item_id = '00000000-0000-0000-0000-000000001456'
+   where wip_item_id = %L and log_date = '2099-12-30'
+  $$, current_setting('app.esb_item')), 'P0021', null,
+  'a plan cannot be re-pointed at a hand-made item');
 select lives_ok(format($$
   insert into ops.stream_items (branch_id, activity, wip_item_id, source)
   values ('00000000-0000-0000-0000-00000000bf01', 'bar', %L, 'manual')
@@ -134,6 +168,10 @@ select lives_ok($$
 set local role authenticated;
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 update ops.wip_items set flag_active = false where id = '00000000-0000-0000-0000-000000001456';
+select lives_ok($$
+  update ops.kitchen_plans set qty_porsi = 5
+   where wip_item_id = '00000000-0000-0000-0000-000000001456' and log_date = '2099-12-29'
+  $$, 'an existing plan of a hand-made item can still be edited');
 reset role;
 select is((select flag_active from ops.wip_items where id = '00000000-0000-0000-0000-000000001456'),
   false, 'an existing hand-made item can still be deactivated');
