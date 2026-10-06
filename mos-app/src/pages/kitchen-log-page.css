@@ -287,6 +287,24 @@
    Scoped to this page's own table only. */
 @media (min-width: 768px) {
   .kl-form .dt-table { table-layout: fixed; }
+  .kl-form .kls-quantity {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    width: var(--cafe-capture-quantity-width, 7.5rem);
+    max-width: 100%;
+  }
+  .kl-form .kls-quantity .kls-qty {
+    flex-basis: var(--cafe-capture-control-height, 32px);
+  }
+  .kl-form .cafe-capture-unit {
+    max-width: 100%;
+    overflow: visible;
+    overflow-wrap: anywhere;
+    text-align: right;
+    text-overflow: clip;
+    white-space: normal;
+  }
   .kl-form .dt-table thead th:nth-child(1),
   .kl-form .dt-table tbody tr:not(.dt-group-row) > td:nth-child(1) { width: auto; }
   .kl-form .dt-table thead th:nth-child(2),

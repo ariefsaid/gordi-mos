@@ -50,10 +50,3 @@
   }
 }
 
-@media (min-width: 768px) {
-  .cafe-capture-unit {
-    flex: 0 0 auto;
-    overflow: visible;
-    text-overflow: clip;
-  }
-}

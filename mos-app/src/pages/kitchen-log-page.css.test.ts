@@ -8,6 +8,8 @@ const css = readFileSync(resolve(process.cwd(), 'src/pages/kitchen-log-page.css'
   .replace(/\/\*[\s\S]*?\*\//g, '')
 const toolbarCss = readFileSync(resolve(process.cwd(), 'src/components/kitchen/kitchen-toolbar.css'), 'utf8')
   .replace(/\/\*[\s\S]*?\*\//g, '')
+const captureControlsCss = readFileSync(resolve(process.cwd(), 'src/components/kitchen/cafe-capture-controls.css'), 'utf8')
+  .replace(/\/\*[\s\S]*?\*\//g, '')
 
 function ruleBodyAt(idx: number): string {
   expect(idx, 'expected kitchen-log-page.css to contain the capture layout rule').toBeGreaterThanOrEqual(0)
@@ -55,6 +57,23 @@ describe('KL-FOOTER-NAV: the capture footer stays reachable above the shell bott
     expect(toolbarCss).toMatch(/\.ktb-children--band > \*\s*\{\s*width:\s*100%/)
     expect(css).toMatch(/\.kl-form \.ktb:has\(\.kl-scope\) \.ktb-search-wrap\s*\{\s*max-width:\s*none/)
     expect(css).toMatch(/@media\s*\(max-width:\s*767\.98px\)[\s\S]*?\.kl-form \.ktb-filter-selects\s*\{\s*display:\s*none/)
+  })
+})
+
+describe('dense Café capture controls stay inside their table column', () => {
+  it('lets long unit labels ellipsize instead of widening across the item name', () => {
+    const quantityGroup = ruleBodyAt(css.indexOf('.kl-form .kls-quantity {'))
+    const unit = captureControlsCss.slice(captureControlsCss.indexOf('.cafe-capture-unit {'))
+    const desktopQuantity = ruleBodyAt(css.indexOf('.kl-form .kls-quantity .kls-qty {'))
+    const desktopUnit = ruleBodyAt(css.indexOf('.kl-form .cafe-capture-unit {'))
+    expect(quantityGroup).toMatch(/flex-direction:\s*column/)
+    expect(desktopQuantity).toMatch(/flex-basis:\s*var\(--cafe-capture-control-height/)
+    expect(quantityGroup).toMatch(/width:\s*var\(--cafe-capture-quantity-width/)
+    expect(quantityGroup).toMatch(/max-width:\s*100%/)
+    expect(desktopUnit).toMatch(/white-space:\s*normal/)
+    expect(desktopUnit).toMatch(/overflow-wrap:\s*anywhere/)
+    expect(unit).toMatch(/overflow:\s*hidden/)
+    expect(unit).toMatch(/text-overflow:\s*ellipsis/)
   })
 })
 
