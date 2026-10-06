@@ -12,8 +12,6 @@ begin
 end;
 $$;
 
-drop policy if exists cafe_receipt_photos_no_update on storage.objects;
-drop policy if exists cafe_receipt_photos_no_delete on storage.objects;
 drop policy if exists cafe_receipt_photos_select on storage.objects;
 drop policy if exists cafe_receipt_photos_insert on storage.objects;
 drop view if exists ops.cafe_receipt_line_photos;

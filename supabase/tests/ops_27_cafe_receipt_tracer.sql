@@ -12,8 +12,19 @@ begin
   return v_rows;
 end;
 $$;
+create function pg_temp.try_delete_cafe_receipt_photos() returns integer
+language plpgsql set search_path = '' as $$
+declare v_rows integer;
+begin
+  delete from storage.objects
+   where bucket_id = 'cafe-receipt-photos'
+     and name like current_setting('app.r1_photo_prefix') || '/%';
+  get diagnostics v_rows = row_count;
+  return v_rows;
+end;
+$$;
 
-select plan(88);
+select plan(96);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -182,6 +193,14 @@ select is((select array_agg(line ->> 'item_unit_id' order by line ->> 'item_unit
           (select array_agg(item_unit_id::text order by item_unit_id::text)
              from ops.cafe_receipt_lines where receipt_id = current_setting('app.r1_id')::uuid),
           'FR-1012 the created submit names each line''s product detail so the difference can be read per line');
+select is((select array_agg(line ->> 'received_quantity' order by line ->> 'received_quantity')
+             from jsonb_array_elements(current_setting('app.r1')::jsonb -> 'lines') line),
+          array['12', '2.5'],
+          'FR-1011 the created submit returns each quantity as typed, without trailing zeros');
+select is((select array_agg(line ->> 'received_quantity' order by line ->> 'received_quantity')
+             from jsonb_array_elements(current_setting('app.r1_retry')::jsonb -> 'lines') line),
+          array['12', '2.5'],
+          'FR-1011 the repeated submit returns the same quantities as typed');
 select is((select count(*)::int from ops.cafe_receipts where client_key = 'f1422000-0000-0000-0000-000000000001'), 1,
           'AC-1007 no second receipt exists for key K');
 select throws_ok(format($$select ops.submit_cafe_receipt('00000000-0000-0000-0000-00000000bf01', 'kitchen', null,
@@ -250,10 +269,6 @@ reset role;
 select is((select row(public, file_size_limit, allowed_mime_types)::text from storage.buckets where id = 'cafe-receipt-photos'),
   row(false, 5242880, array['image/jpeg','image/png','image/webp'])::text,
   'AC-1013 receipt evidence is private, capped at 5 MB, and accepts JPEG/PNG/WebP');
-select is((select count(*)::int from pg_policies where schemaname = 'storage' and tablename = 'objects'
-  and policyname like 'cafe_receipt_photos_no_%' and permissive = 'RESTRICTIVE'
-  and upper(cmd) in ('UPDATE','DELETE')), 2,
-  'AC-1013 restrictive policies defeat shared storage write grants for update and delete');
 set local role authenticated;
 select is(ops.cafe_receipt_photo_line_id(current_setting('app.r1_photo_prefix') || '/00000000-0000-0000-0000-00000000f501.jpg'),
   current_setting('app.r1_line')::uuid, 'AC-1013 the canonical org/receipt/line/photo path binds to one line');
@@ -292,18 +307,31 @@ select throws_ok(format($$insert into storage.objects (bucket_id, name) values
   '42501', null, 'AC-1013 a fifth image per line is refused');
 select is((select count(*)::int from ops.cafe_receipt_line_photos where line_id = current_setting('app.r1_line')::uuid),
   4, 'AC-1013 the receiver reads their four private line photos');
-select is(pg_temp.try_rename_cafe_receipt_photo(), 0, 'AC-1013 stored evidence cannot be renamed');
-select throws_ok(format($$delete from storage.objects where bucket_id = 'cafe-receipt-photos' and name like '%s/%%'$$,
-  current_setting('app.r1_photo_prefix')), '42501', null, 'AC-1013 stored evidence cannot be deleted');
+-- The Storage API deletes with this setting on, past storage's own delete trigger; with no update
+-- or delete policy on the bucket, row security still matches no row.
+select set_config('storage.allow_delete_query', 'true', true);
+select is(pg_temp.try_rename_cafe_receipt_photo(), 0, 'AC-1013 the receiver cannot rename stored evidence');
+select is(pg_temp.try_delete_cafe_receipt_photos(), 0, 'AC-1013 the receiver cannot delete stored evidence, even through the Storage API path');
+select is((select count(*)::int from ops.cafe_receipt_line_photos where line_id = current_setting('app.r1_line')::uuid),
+  4, 'AC-1013 all four photos are still stored after the refused rename and delete');
+select set_config('storage.allow_delete_query', 'false', true);
+set local role anon;
+select is((select count(*)::int from storage.objects where bucket_id = 'cafe-receipt-photos'), 0,
+  'AC-1013 a public (anon) request reads no receipt photo, even carrying the receiver''s claims');
+set local role authenticated;
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","supervisor"]}');
 select is((select count(*)::int from storage.objects where bucket_id = 'cafe-receipt-photos'), 0,
   'AC-1013 a same-org peer cannot read photos while the receipt is Counted');
+select throws_ok($$select ops.set_cafe_receipt_line_explanation(current_setting('app.r1_line')::uuid, false, null)$$,
+  '42501', 'CAFE_RECEIPT_EXPLANATION_RECEIVER_ONLY', 'NFR-1001 a same-org peer cannot change the receiver''s line explanation');
 select throws_ok(format($$insert into storage.objects (bucket_id, name) values
   ('cafe-receipt-photos', '%s/00000000-0000-0000-0000-00000000f598.jpg')$$, current_setting('app.r1_photo_prefix')),
   '42501', null, 'AC-1013 a peer cannot add a photo to the receiver''s counted receipt');
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member","admin"]}');
 select is((select count(*)::int from storage.objects where bucket_id = 'cafe-receipt-photos'), 0,
   'AC-1013 another organization reads no receipt photos');
+select throws_ok($$select ops.set_cafe_receipt_line_explanation(current_setting('app.r1_line')::uuid, false, null)$$,
+  'P0002', 'CAFE_RECEIPT_LINE_NOT_FOUND', 'NFR-1001 another organisation cannot change a line explanation');
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member"]}');
 select throws_ok($$select ops.send_cafe_receipt_for_review(current_setting('app.r1_id')::uuid, 7, null)$$,
   'P0019', null, 'FR-1019 sending needs the current version');
@@ -314,6 +342,15 @@ select ok((select status = 'Submitted' and delivery_note_number = 'DN-0042' and 
           'AC-1008 the receiver adds the delivery-note explanation and sends the Counted receipt for review');
 select ok((select sum(received_quantity) = 14.5 from ops.cafe_receipt_lines where receipt_id = current_setting('app.r1_id')::uuid),
           'AC-1008 sending for review leaves every counted quantity unchanged');
+select throws_ok($$select ops.set_cafe_receipt_line_explanation(current_setting('app.r1_line')::uuid, false, null)$$,
+  'P0018', 'CAFE_RECEIPT_EXPLANATION_COUNTED_ONLY', 'NFR-1001 the receiver cannot change an explanation once the receipt is Submitted');
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","supervisor"]}');
+select is((select count(*)::int from ops.cafe_receipt_line_photos where line_id = current_setting('app.r1_line')::uuid), 4,
+  'AC-1012 the stream reviewer reads the line''s photos once the receipt is Submitted');
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d6","access_roles":["member","supervisor"]}');
+select is((select count(*)::int from storage.objects where bucket_id = 'cafe-receipt-photos'), 0,
+  'AC-1012 another stream''s supervisor reads none of its photos');
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member"]}');
 
 -- ── AC-1009 a branch without a receiving location: accepted, posting held with a reason ──────
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","admin"]}');

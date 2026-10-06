@@ -185,7 +185,7 @@ begin
         'row_version', v_existing.row_version,
         'lines', (select coalesce(jsonb_agg(jsonb_build_object(
           'id', l.id, 'item_unit_id', l.item_unit_id, 'item_name', l.item_name, 'item_category', l.item_category,
-          'unit_name', l.unit_name, 'received_quantity', l.received_quantity::text,
+          'unit_name', l.unit_name, 'received_quantity', trim_scale(l.received_quantity)::text,
           'conditions', l.conditions, 'condition_reason', l.condition_reason, 'photos', '[]'::jsonb
         ) order by l.item_name, l.id), '[]'::jsonb)
           from ops.cafe_receipt_lines l where l.org_id = v_org_id and l.receipt_id = v_existing.id)
@@ -216,7 +216,7 @@ begin
     'row_version', v_receipt.row_version, 'posting_status', v_receipt.posting_status,
     'lines', (select coalesce(jsonb_agg(jsonb_build_object(
       'id', l.id, 'item_unit_id', l.item_unit_id, 'item_name', l.item_name, 'item_category', l.item_category,
-      'unit_name', l.unit_name, 'received_quantity', l.received_quantity::text,
+      'unit_name', l.unit_name, 'received_quantity', trim_scale(l.received_quantity)::text,
       'conditions', l.conditions, 'condition_reason', l.condition_reason, 'photos', '[]'::jsonb
     ) order by l.item_name, l.id), '[]'::jsonb)
       from ops.cafe_receipt_lines l where l.org_id = v_org_id and l.receipt_id = v_receipt.id)
@@ -451,13 +451,7 @@ create policy cafe_receipt_photos_select on storage.objects
 create policy cafe_receipt_photos_insert on storage.objects
   for insert to authenticated
   with check (bucket_id = 'cafe-receipt-photos' and ops.can_add_cafe_receipt_photo(name));
-create policy cafe_receipt_photos_no_update on storage.objects
-  as restrictive for update to authenticated
-  using (bucket_id <> 'cafe-receipt-photos')
-  with check (bucket_id <> 'cafe-receipt-photos');
-create policy cafe_receipt_photos_no_delete on storage.objects
-  as restrictive for delete to authenticated
-  using (bucket_id <> 'cafe-receipt-photos');
+-- No update or delete policy: with none, storage RLS refuses both, as for waste and Signal photos.
 create or replace view ops.cafe_receipt_line_photos as
 select l.id as line_id, r.id as receipt_id, l.org_id, photo.name as path, photo.created_at
 from storage.objects photo
