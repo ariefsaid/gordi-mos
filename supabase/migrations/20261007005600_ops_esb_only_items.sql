@@ -13,7 +13,7 @@
 --   * ops._test_seed_cafe() seeds ESB-catalog items, configured for every stream that lists them by
 --     the test-only ops._test_configure_cafe_items(uuid[]).
 --
--- Rollback: supabase/rollbacks/20261007004300_ops_esb_only_items.sql.
+-- Rollback: supabase/rollbacks/20261007005600_ops_esb_only_items.sql.
 
 create or replace function ops._guard_esb_item_source()
 returns trigger

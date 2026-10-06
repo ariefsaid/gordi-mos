@@ -1,4 +1,4 @@
--- Rollback for 20261007004300_ops_esb_only_items.sql (OD-2026-10-06-ESB-ITEMS). Drops the ESB-only
+-- Rollback for 20261007005600_ops_esb_only_items.sql (OD-2026-10-06-ESB-ITEMS). Drops the ESB-only
 -- guards and the test-only configure helper, and restores the stream guard from
 -- 20261004000010_ops_cafe_team_item_kind.sql and the test seed from 20260924000002_ops_stream_items.sql,
 -- and gives app sessions back insert and update on ops.wip_items.
