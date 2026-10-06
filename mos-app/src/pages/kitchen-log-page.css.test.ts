@@ -69,7 +69,7 @@ describe('dense Café capture controls stay in one aligned desktop row', () => {
     expect(quantityGroup).toMatch(/flex-direction:\s*row/)
     expect(quantityGroup).toMatch(/width:\s*var\(--cafe-capture-control-group-width/)
     expect(quantityGroup).toMatch(/gap:\s*8px/)
-    expect(desktopQuantity).toMatch(/flex-basis:\s*var\(--cafe-capture-quantity-width/)
+    expect(desktopQuantity).toMatch(/flex:\s*0\s+0\s+var\(--cafe-capture-quantity-width/)
     expect(desktopUnit).toMatch(/flex:\s*0 0 var\(--cafe-capture-unit-track-width/)
     expect(desktopUnit).toMatch(/white-space:\s*nowrap/)
     expect(desktopUnit).toMatch(/text-align:\s*left/)

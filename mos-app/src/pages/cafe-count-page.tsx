@@ -264,7 +264,7 @@ export function CafeCountPage() {
                               disabled={submitting || Boolean(entry?.outcome)}
                               onChange={event => patchQuantity(item.id, event.target.value)}
                             />
-                            <span className="cafe-count__unit cafe-capture-unit" title={item.unitName}>{item.unitName}</span>
+                            <span className="cafe-count__unit cafe-capture-unit" aria-label={item.unitName} title={item.unitName}>{item.unitName}</span>
                           </div>
                           {invalid && <p className="cafe-count__field-error" role="alert">{t('cafe.count.quantityInvalid')}</p>}
                           {entry?.outcome && <p className="cafe-count__line-success" role="status">{t('cafe.count.lineSubmitted')}</p>}
