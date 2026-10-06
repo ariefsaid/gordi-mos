@@ -83,8 +83,7 @@ export const PAGE_FAMILY_FRAME_ROUTES: readonly PageFamilyMigrationEntry[] = [
   { path: '/profile/connected-agents', family: 'management', sourceFile: 'pages/profile-connected-agents-page.tsx', symbol: 'ProfileConnectedAgentsPage' },
 
   // ── Money ─────────────────────────────────────────────────────────────────────────────────
-  { path: '/money', family: 'workspace', sourceFile: 'pages/dashboard-page.tsx', symbol: 'DashboardPage' },
-  { path: '/money/detail', family: 'workspace', sourceFile: 'pages/dashboard-page.tsx', symbol: 'DashboardPage' },
+  { path: '/money', family: 'workspace', sourceFile: 'pages/money-page.tsx', symbol: 'MoneyPage' },
   { path: '/money/budget', family: 'workspace', sourceFile: 'pages/budget-page.tsx', symbol: 'BudgetPage' },
   { path: '/money/pricing', family: 'workspace', sourceFile: 'pages/pricing-page.tsx', symbol: 'PricingPage' },
 

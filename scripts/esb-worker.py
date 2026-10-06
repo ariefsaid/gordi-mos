@@ -107,7 +107,12 @@ Environment
   ESB_USERNAME / ESB_PASSWORD     this environment's own credentials
   ESB_PUSH_ENABLED          "1" to actually POST. A drain REQUIRES it — anything else and
                             the tick is refused, because rehearsal is --plan (see above).
-  ESB_ALLOW_GKID            "1" lifts the block on the ERP of record (owner-gated flip)
+  ESB_ALLOW_GKID            "1" lifts the block on the ERP of record for a drain, --plan
+                            and --requeue (owner-gated flip). It does not enable
+                            --refresh-open-pos.
+  ESB_ALLOW_GKID_READ       "1" lifts that block for --refresh-open-pos only, which reads
+                            ESB and posts nothing. Every other path ignores it, so it
+                            never unlocks posting.
   ESB_MAX_RETRY             retry budget before dead_letter (default 5)
   ESB_MAX_ROWS              rows drained per tick (default 50)
   ESB_HTTP_TIMEOUT          seconds (default 30)
@@ -174,6 +179,8 @@ from typing import Any
 
 TARGET_ENVS = ("dry_run", "goo", "gkid")
 ERP_OF_RECORD = "gkid"
+POST_SWITCH = "ESB_ALLOW_GKID"
+READ_SWITCH = "ESB_ALLOW_GKID_READ"
 PASSTHROUGH = "from-payload"
 
 TRANSIENT_STATUS = {408, 429}
@@ -286,7 +293,6 @@ class Config:
     esb_username: str
     esb_password: str
     push_enabled: bool
-    allow_gkid: bool
     max_retry: int
     max_rows: int
     timeout: float
@@ -369,20 +375,22 @@ def load_id_map(path: str, target_env: str) -> IdMap:
     return IdMap(target_env=target_env, branches=branches, items=items, item_units=item_units)
 
 
-def load_config(environ: dict[str, str], *, offline: bool, drains: bool) -> Config:
+def load_config(environ: dict[str, str], *, offline: bool, drains: bool,
+                gkid_switch: str = POST_SWITCH) -> Config:
     """`drains` is True for an invocation that will claim rows and close them — i.e. a
     tick that is neither --plan nor --requeue. It is the predicate the rehearsal refusal
-    hangs on; see THE SAFETY LINE at the top."""
+    hangs on; see THE SAFETY LINE at the top. `gkid_switch` names the one flag that lifts
+    the block on the ERP of record; only the open-PO refresh passes READ_SWITCH."""
     target_env = environ.get("ESB_WORKER_TARGET_ENV", "").strip() or "dry_run"
     if target_env not in TARGET_ENVS:
         raise ConfigError(f"ESB_WORKER_TARGET_ENV must be one of {', '.join(TARGET_ENVS)}")
 
-    allow_gkid = _flag(environ, "ESB_ALLOW_GKID")
-    if target_env == ERP_OF_RECORD and not allow_gkid:
+    if target_env == ERP_OF_RECORD and not _flag(environ, gkid_switch):
         raise ConfigError(
-            "refusing to target the ERP of record: ESB_ALLOW_GKID is not set. The flip "
-            "is owner-gated (OD-K-2, FR-080..082) and is not something a worker enables "
-            "for itself."
+            f"refusing to target the ERP of record: {gkid_switch} is not set. The flip "
+            f"is owner-gated (OD-K-2, FR-080..082) and is not something a worker enables "
+            f"for itself. Reading and posting are switched separately: {READ_SWITCH} for "
+            f"--refresh-open-pos, {POST_SWITCH} for everything else."
         )
 
     map_file = environ.get("ESB_WORKER_MAP_FILE", "").strip()
@@ -442,7 +450,7 @@ def load_config(environ: dict[str, str], *, offline: bool, drains: bool) -> Conf
         target_env=target_env, id_map=id_map,
         supabase_url=supabase_url, supabase_key=supabase_key,
         esb_base_url=esb_base, esb_username=username, esb_password=password,
-        push_enabled=push_enabled, allow_gkid=allow_gkid,
+        push_enabled=push_enabled,
         max_retry=_int_env(environ, "ESB_MAX_RETRY", 5),
         max_rows=_int_env(environ, "ESB_MAX_ROWS", 50),
         timeout=float(_int_env(environ, "ESB_HTTP_TIMEOUT", 30)),
@@ -1180,8 +1188,9 @@ class RefreshConfig:
 def load_refresh_config(environ: dict[str, str]) -> RefreshConfig:
     """A refresh reads the target environment's ESB with that environment's own
     credentials and writes one organisation's cache. It posts nothing, so it does not
-    need ESB_PUSH_ENABLED — but every other refusal of load_config still applies."""
-    cfg = load_config(environ, offline=False, drains=False)
+    need ESB_PUSH_ENABLED, and on the ERP of record it is lifted by the read switch
+    rather than the posting one — but every other refusal of load_config still applies."""
+    cfg = load_config(environ, offline=False, drains=False, gkid_switch=READ_SWITCH)
     if cfg.target_env == "dry_run":
         raise ConfigError("refusing to refresh open POs for 'dry_run': it names no ESB to read")
     missing = [n for n, v in (("ESB_BASE_URL", cfg.esb_base_url),

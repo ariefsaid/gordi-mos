@@ -37,7 +37,6 @@ const KNOWN_DYNAMIC_PREFIXES: Record<string, string> = {
   'assistant.rating.reason.': 'AssistantPanel.tsx — t(`assistant.rating.reason.${r}`) over DOWNVOTE_REASONS',
   'tasks.status.': 'tasks-toolbar.tsx — t(`tasks.status.${key}` as const)',
   'signals.record.field.': 'signal-record.tsx — t(`signals.record.field.${rev.field}`)',
-  'money.cut.': 'global-toolbar.tsx / dashboard-page.tsx — t(`money.cut.${stem}` …) incl. plural .one/.other',
   'followUps.action.': 'follow-up-queue-table.tsx / follow-ups-page.tsx — t(`followUps.action.${verb}`)',
   'admin.role.': 'admin-users.types.ts — t(`admin.role.${slug}`) and `${slug}.desc`',
   'kitchen.pushes.tally.': 'kitchen-pushes-page.tsx — plural tally keys are selected by count',

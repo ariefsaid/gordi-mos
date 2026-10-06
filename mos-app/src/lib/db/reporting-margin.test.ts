@@ -17,6 +17,7 @@ import {
   latestMarginSnapshotAsOf,
   type SalesMarginDailyRow,
 } from './reporting-margin'
+import { ReportingRowCapError } from './reporting-shared'
 
 const schemaMock = vi.mocked(supabase.schema)
 
@@ -29,6 +30,7 @@ interface Recorder {
   gtes: Array<[string, unknown]>
   orders: Array<[string, unknown]>
   limits: number[]
+  ranges: Array<[number, number]>
 }
 
 function makeSchema(
@@ -62,6 +64,7 @@ function makeSchema(
       return builder
     })
     builder.limit = vi.fn((n: number) => { rec.limits.push(n); return builder })
+    builder.range = vi.fn((from: number, to: number) => { rec.ranges.push([from, to]); return builder })
     builder.then = (resolve: (v: unknown) => unknown) =>
       Promise.resolve(result()).then(resolve)
     return builder
@@ -70,7 +73,7 @@ function makeSchema(
 }
 
 function freshRec(): Recorder {
-  return { schemaNames: [], fromTables: [], selects: [], eqs: [], gtes: [], orders: [], limits: [] }
+  return { schemaNames: [], fromTables: [], selects: [], eqs: [], gtes: [], orders: [], limits: [], ranges: [] }
 }
 
 beforeEach(() => vi.clearAllMocks())
@@ -80,11 +83,11 @@ const POS_ROW: SalesMarginDailyRow = {
   esb_code: 'GHQ',
   branch_code: 'GHQ',
   branch_name: 'Gordi HQ',
+  branch_id: null,
   revenue: 12_300_000,
   cogs_interim_sm: 6_800_000,
   cogs_budget_bom: 6_500_000,
   margin_interim: 5_500_000,
-  margin_interim_pct: 0.4472,
   bom_coverage_pct: 0.92,
   snapshot_as_of: '2026-07-01T02:00:00Z',
   source_contract_version: 'pos_margin_interim.v1',
@@ -96,7 +99,6 @@ const NULL_COGS_ROW: SalesMarginDailyRow = {
   cogs_interim_sm: null,
   cogs_budget_bom: null,
   margin_interim: null,
-  margin_interim_pct: null,
   bom_coverage_pct: null,
 }
 
@@ -117,8 +119,22 @@ describe('listSalesMarginDaily', () => {
     expect(rec.fromTables).toContain('sales_margin_daily')
     expect(rec.orders).toContainEqual(['margin_date', { ascending: true }])
     expect(rec.gtes[0][0]).toBe('margin_date')
-    expect(rec.limits).toEqual([1000])
+    expect(rec.ranges).toEqual([[0, 999]])
     expect(rows).toHaveLength(1)
+  })
+
+  it('selects the branch link and leaves out the daily margin ratio nothing reads', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema({ sales_margin_daily: [{ data: [], error: null }] }, rec) as never,
+    )
+
+    await listSalesMarginDaily()
+
+    const columns = rec.selects[0].split(',')
+    expect(columns).toContain('branch_id')
+    expect(columns).toContain('cogs_budget_bom')
+    expect(columns).not.toContain('margin_interim_pct')
   })
 
   it('never sends org_id as a query filter (RLS scopes it)', async () => {
@@ -142,7 +158,7 @@ describe('listSalesMarginDaily', () => {
 
     expect(rec.gtes).toHaveLength(1)
     expect(rec.gtes[0][0]).toBe('margin_date')
-    expect(rec.limits).toEqual([1000])
+    expect(rec.ranges).toEqual([[0, 999]])
   })
 
   it('passes rows through unchanged, including a NULL-COGS sync-gap day (never a fake margin)', async () => {
@@ -159,7 +175,6 @@ describe('listSalesMarginDaily', () => {
     expect(rows).toHaveLength(1)
     expect(rows[0]).toEqual(NULL_COGS_ROW)
     expect(rows[0].margin_interim).toBeNull()
-    expect(rows[0].margin_interim_pct).toBeNull()
   })
 
   it('returns an empty array when there are no rows (empty snapshot)', async () => {
@@ -172,12 +187,12 @@ describe('listSalesMarginDaily', () => {
     expect(rows).toEqual([])
   })
 
-  it('rejects a result that reaches the safe row cap instead of returning a silent truncation', async () => {
+  it('past the row ceiling the read refuses with a cap error instead of truncating', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(
       makeSchema({ sales_margin_daily: [{ data: Array.from({ length: 1000 }, () => POS_ROW), error: null }] }, rec) as never,
     )
-    await expect(listSalesMarginDaily()).rejects.toThrow(/safe reporting row limit/)
+    await expect(listSalesMarginDaily()).rejects.toBeInstanceOf(ReportingRowCapError)
   })
 
   it('throws a clear, surfaceable error on PostgREST failure', async () => {
