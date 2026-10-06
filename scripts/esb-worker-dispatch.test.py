@@ -861,21 +861,28 @@ check_raises("the posting switch alone does not enable a refresh of the ERP of r
              W.ConfigError, lambda: W.load_refresh_config(gkid_po_env(ESB_ALLOW_GKID="1")),
              needle="ESB_ALLOW_GKID_READ")
 
-# The drain, through the CLI with the push on: the read switch must not unlock posting.
-drain_fake = Fake(**happy_routes())
-saved_req, W._request = W._request, drain_fake
-saved_env = dict(os.environ)
-os.environ.update(env("gkid", ESB_ALLOW_GKID="", ESB_ALLOW_GKID_READ="1", ESB_PUSH_ENABLED="1"))
-err = io.StringIO()
-try:
-    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
-        drain_rc = W.main([])
-finally:
-    W._request = saved_req
-    os.environ.clear(); os.environ.update(saved_env)
-check("a drain with only the read switch is refused, naming the posting switch, and calls nothing",
-      drain_rc == 2 and drain_fake.calls == [] and "ESB_ALLOW_GKID is not set" in err.getvalue(),
-      f"rc={drain_rc} calls={drain_fake.calls!r} stderr={err.getvalue()}")
+# Every posting path, through the CLI with the push on: the read switch must not unlock it.
+def read_switch_only_main(argv: list[str]) -> tuple[int, Fake, str]:
+    fake = Fake(**happy_routes())
+    saved_req, W._request = W._request, fake
+    saved_env = dict(os.environ)
+    os.environ.update(env("gkid", ESB_ALLOW_GKID="", ESB_ALLOW_GKID_READ="1", ESB_PUSH_ENABLED="1"))
+    err = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
+            rc = W.main(argv)
+    finally:
+        W._request = saved_req
+        os.environ.clear(); os.environ.update(saved_env)
+    return rc, fake, err.getvalue()
+
+
+for name, argv in (("a drain", []), ("--plan", ["--plan"]),
+                   ("--requeue", ["--requeue", "aaaaaaaa-0000-0000-0000-000000000001"])):
+    rc, fake, err = read_switch_only_main(argv)
+    check(f"{name} with only the read switch is refused, naming the posting switch, and calls nothing",
+          rc == 2 and fake.calls == [] and "ESB_ALLOW_GKID is not set" in err,
+          f"rc={rc} calls={fake.calls!r} stderr={err}")
 
 print(f"{_pass} passed, {_fail} failed")
 sys.exit(1 if _fail else 0)
