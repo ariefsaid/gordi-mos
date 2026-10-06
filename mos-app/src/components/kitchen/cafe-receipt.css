@@ -107,3 +107,31 @@
     margin-inline-start: auto;
   }
 }
+
+/* FR-1030 release of held receipts: a quiet notice above the review queue, one row per branch. */
+.cafe-receipt-release {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-body);
+}
+
+.cafe-receipt-release p { margin: 0; overflow-wrap: anywhere; }
+
+.cafe-receipt-release__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.cafe-receipt-release__row .btn { flex: 0 0 auto; min-height: 44px; }
+
+.cafe-receipt-release__error { color: var(--destructive); }
+
+@media (max-width: 800px) {
+  .cafe-receipt-release__row { display: grid; }
+  .cafe-receipt-release__row .btn { width: 100%; }
+}

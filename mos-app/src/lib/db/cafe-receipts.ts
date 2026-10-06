@@ -16,6 +16,15 @@ export type CafeReceivableItem = {
 export type CafeReceiptStatus = 'Counted' | 'Submitted' | 'Approved' | 'Rejected'
 export type CafeReceiptPostingStatus = 'not_posted' | 'held'
 
+/** An Approved receipt's posting as the server derives it (FR-1042); never a quantity. */
+export type CafeReceiptPosting = {
+  state: 'not_posted' | 'held' | 'queued' | 'posted' | 'failed'
+  /** False while the receipt waits for current open-PO data to be matched. */
+  matched: boolean
+  unmatched: number
+  openIssues: number
+}
+
 export type CafeReceiptLine = {
   id: string
   item_unit_id: string
@@ -42,6 +51,8 @@ export type CafeReceipt = {
   review_note: string | null
   row_version: number
   lines: CafeReceiptLine[]
+  /** Null unless Approved; absent where the reader did not ask for it. */
+  posting?: CafeReceiptPosting | null
 }
 
 export type CafeReceiptDraftLine = { item_unit_id: string; quantity: string }
@@ -67,9 +78,25 @@ const RECEIPT_FIELDS = [
   'posting_hold_reason', 'received_by', 'received_at', 'submitted_at', 'reviewed_by', 'reviewed_at',
   'review_note', 'row_version',
   'lines:cafe_receipt_lines(id, item_unit_id, item_name, item_category, unit_name, received_quantity)',
+  'posting:cafe_receipt_posting',
 ].join(', ')
 
 const STATUSES: readonly CafeReceiptStatus[] = ['Counted', 'Submitted', 'Approved', 'Rejected']
+const POSTING_STATES: readonly CafeReceiptPosting['state'][] = ['not_posted', 'held', 'queued', 'posted', 'failed']
+
+/** `undefined` marks a malformed value so the caller can refuse the row. */
+function parsePosting(raw: unknown): CafeReceiptPosting | null | undefined {
+  if (raw === null || raw === undefined) return null
+  const value = raw as Record<string, unknown>
+  if (!POSTING_STATES.includes(value.state as CafeReceiptPosting['state']) || typeof value.matched !== 'boolean'
+    || typeof value.unmatched !== 'number' || typeof value.open_issues !== 'number') return undefined
+  return {
+    state: value.state as CafeReceiptPosting['state'],
+    matched: value.matched,
+    unmatched: value.unmatched,
+    openIssues: value.open_issues,
+  }
+}
 
 function ops() {
   return supabase.schema('ops')
@@ -117,12 +144,15 @@ export async function listCafeReceipts(
     .limit(limit)
   if (error) throw new Error(`listCafeReceipts failed: ${error.message}`)
   return ((data ?? []) as unknown as Array<Record<string, unknown>>).map(row => {
+    const posting = parsePosting(row.posting)
     if ((row.activity !== 'kitchen' && row.activity !== 'bar') || !STATUSES.includes(row.status as CafeReceiptStatus)
-      || (row.posting_status !== 'not_posted' && row.posting_status !== 'held') || !Array.isArray(row.lines)) {
+      || (row.posting_status !== 'not_posted' && row.posting_status !== 'held') || !Array.isArray(row.lines)
+      || posting === undefined) {
       throw new Error('listCafeReceipts failed: invalid receipt row')
     }
     return {
       ...row,
+      posting,
       lines: (row.lines as Array<Record<string, unknown>>).map(line => ({
         ...line,
         received_quantity: String(line.received_quantity),
@@ -190,6 +220,44 @@ export async function reviewCafeReceipt(
     throw new Error('reviewCafeReceipt failed: invalid response')
   }
   return { status: row.status, row_version: row.row_version }
+}
+
+/** One receipt's posting state, read again after a decision changes it. */
+export async function readCafeReceiptPosting(receiptId: string): Promise<CafeReceiptPosting | null> {
+  const { data, error } = await ops().from('cafe_receipts').select('posting:cafe_receipt_posting').eq('id', receiptId).maybeSingle()
+  if (error) throw new Error(`readCafeReceiptPosting failed: ${error.message}`)
+  const posting = parsePosting((data as Record<string, unknown> | null)?.posting)
+  if (posting === undefined) throw new Error('readCafeReceiptPosting failed: invalid posting state')
+  return posting
+}
+
+export type CafeHeldReceipts = { branchId: string; branchName: string; heldReceipts: number; postingEnabled: boolean }
+
+/** Per branch, Approved receipts held or waiting for PO data; the server answers only ops lead and admin. */
+export async function listCafeHeldReceipts(): Promise<CafeHeldReceipts[]> {
+  const { data, error } = await ops().rpc('cafe_held_receipts')
+  if (error) throw new Error(`listCafeHeldReceipts failed: ${error.message}`)
+  return ((data ?? []) as Array<Record<string, unknown>>).map(row => ({
+    branchId: String(row.branch_id),
+    branchName: String(row.branch_name),
+    heldReceipts: Number(row.held_receipts),
+    postingEnabled: row.posting_enabled === true,
+  }))
+}
+
+export type CafeReceiptRelease = { releasedReceipts: number; queuedPortions: number; heldPortions: number; waitingForPoData: boolean }
+
+/** FR-1030: re-matches a branch's held receipts and queues what fits; a rerun queues nothing new. */
+export async function releaseCafeReceipts(branchId: string): Promise<CafeReceiptRelease> {
+  const { data, error } = await ops().rpc('release_cafe_receipts', { p_branch_id: branchId })
+  if (error) throw new Error(`releaseCafeReceipts failed: ${error.message}`)
+  const row = (data ?? {}) as Record<string, unknown>
+  return {
+    releasedReceipts: Number(row.released_receipts),
+    queuedPortions: Number(row.queued_portions),
+    heldPortions: Number(row.held_portions),
+    waitingForPoData: row.reason === 'po_data_not_current',
+  }
 }
 
 /** A line's difference against the branch's cached open POs; `unknown` when the cache is empty, stale or too old. */

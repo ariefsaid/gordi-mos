@@ -5,6 +5,7 @@ import { getPeople } from '@/lib/db/directory'
 import {
   listCafeReceiptDifferences,
   listCafeReceipts,
+  readCafeReceiptPosting,
   reviewCafeReceipt,
   summarizeCafeReceiptDifferences,
   type CafeReceipt,
@@ -17,6 +18,7 @@ import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { ALL_STREAMS } from './cafe-stream-bar'
 import { CafeReceiptState } from './cafe-receipt-state'
 import { CafeReceiptLineRow } from './cafe-receipt-difference'
+import { CafeReceiptRelease } from './cafe-receipt-release'
 import { formatAge } from '@/components/tasks/task-formatters'
 import { useI18n } from '@/i18n/I18nProvider'
 import './cafe-count-review-queue.css'
@@ -85,6 +87,11 @@ export function CafeReceiptReviewQueue({
         : row))
       setRejecting(null)
       setNote('')
+      // FR-1042: approval matches and may enqueue at once, so the state is read back, not assumed.
+      if (result.status === 'Approved') {
+        const posting = await readCafeReceiptPosting(receipt.id).catch(() => null)
+        setRows(current => current.map(row => row.id === receipt.id ? { ...row, posting } : row))
+      }
     } catch {
       setActionError(true)
     } finally {
@@ -106,6 +113,7 @@ export function CafeReceiptReviewQueue({
         </div>
       )}
       {!online && <p className="cafe-count-review__offline" role="alert">{t('cafe.receive.offline')}</p>}
+      <CafeReceiptRelease online={online} />
       {loadError ? (
         <ErrorState
           message={t('common.loadFailed', { what: t('cafe.receipts.review.queueTitle') })}
