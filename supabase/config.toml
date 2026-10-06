@@ -93,8 +93,8 @@ enabled = true
 # e2e journeys assume the clean post-reset ops state and no captured budgets.
 # seed.sample-org-money.sql writes the Money revenue and margin rows for the personas' org,
 # relative to the load day; it needs seed.sql's people and branches. Its header covers the
-# hosted sample-org run.
-sql_paths = ["./seed.sql", "./seed.dev-tasks.sql", "./seed.dev-auth.sql", "./seed.dev-processes.sql", "./seed.dev-cafe-opening.sql", "./seed.dev-signals.sql", "./seed.dev-events.sql", "./seed.dev-home-work.sql", "./seed.sample-org-money.sql"]
+# hosted sample-org run. seed.sample-org-pending-bills.sql does the same for the Pending bills list.
+sql_paths = ["./seed.sql", "./seed.dev-tasks.sql", "./seed.dev-auth.sql", "./seed.dev-processes.sql", "./seed.dev-cafe-opening.sql", "./seed.dev-signals.sql", "./seed.dev-events.sql", "./seed.dev-home-work.sql", "./seed.sample-org-money.sql", "./seed.sample-org-pending-bills.sql"]
 
 [db.network_restrictions]
 # Enable management of network restrictions.

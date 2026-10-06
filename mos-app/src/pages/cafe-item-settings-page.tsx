@@ -6,7 +6,8 @@ import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { DataTable, type DataTableColumn, type DataTableSort } from '@/components/dashboard/data-table'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
+import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
+import { CafeItemsEmptyState } from '@/components/kitchen/cafe-items-empty-state'
 import { Select } from '@/components/ui/select'
 import { MultiPicker } from '@/components/ui/picker'
 import { TextInput } from '@/components/ui/text-input'
@@ -541,11 +542,7 @@ function CafeItemSettingsPageForViewer() {
         </p>
       )}
       {readState === 'ready' && stream && items.length === 0 && (
-        <EmptyState
-          variant="awaiting"
-          title={t('cafe.items.emptyTitle')}
-          copy={t('cafe.items.emptyCopy')}
-        />
+        <CafeItemsEmptyState stream={stream} esbItemCount={0} canManage={canEdit} />
       )}
       {readState === 'ready' && stream && items.length > 0 && (
         <section className="cafe-items" aria-label={t('cafe.items.listLabel')}>
