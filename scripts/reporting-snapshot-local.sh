@@ -50,7 +50,7 @@ config = SnapshotConfig.from_env(os.environ)
 counts = run_all_snapshots(config)
 print(
     "reporting_snapshot-local END "
-    f"revenue={counts[\"revenue\"]} margin={counts[\"margin\"]} "
+    f"revenue={counts[\"revenue\"]} margin={counts[\"margin\"]} usage={counts[\"usage\"]} "
     f"window_days={config.window_days}"
 )
 '
