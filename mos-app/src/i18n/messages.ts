@@ -789,7 +789,7 @@ export const messages = {
     // #781: the quiet action beside the stated stream, and the one-step choice's own heading —
     // both read the same "choose a production stream" job, wherever the choice actually renders.
     'cafe.pageTitle.production': 'Production',
-    'cafe.pageTitle.transfer': 'Pemindahan',
+    'cafe.pageTitle.transfer': 'Transfer',
     'cafe.pageTitle.waste': 'Waste',
     'cafe.pageTitle.count': 'Count',
     'cafe.pageTitle.receive': 'Receive',
