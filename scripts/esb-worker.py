@@ -114,11 +114,20 @@ Environment
   ESB_WORKER_HEARTBEAT_FILE optional path touched each time a drain tick reached the outbox
                             (scripts/ops-check.sh alerts when it goes stale). Not touched by
                             --plan, --rows-from or --requeue.
+  ESB_OPEN_PO_ORG_ID        --refresh-open-pos only: the one organisation whose open-PO
+                            cache this environment fills
+  ESB_OPEN_PO_MAX_AGE_MINUTES  age after which a cache reads "difference not yet known"
+                            (default 360); keep it above the schedule's interval
+  ESB_OPEN_PO_WINDOW_DAYS   PO date window read from ESB (default 120)
+  ESB_OPEN_PO_SHAPE_FILE    optional JSON overriding OpenPoShape fields (FR-1033)
 
 Map file:
   {"target_env": "goo",
    "branches": {"<mos branch code>": {"branch_id": 0, "location_id": 0}, ...},
-   "items":    {"<mos wip_item_id uuid>": {"bom_id": 0, "product_detail_id": 0}, ...}}
+   "items":    {"<mos wip_item_id uuid>": {"bom_id": 0, "product_detail_id": 0}, ...},
+   "item_units": {"<mos item_unit uuid>": {"product_detail_id": 0}, ...}}
+  "item_units" is optional; the open-PO refresh uses it to name an ESB PO line's MOS product
+  detail. On the ERP of record ("items": "from-payload") the MOS catalog's own ids are used.
   "items" may be the string "from-payload" ONLY when target_env is "gkid"; the loader
   refuses that combination anywhere else, which is the safety line enforced at config
   time as well as at dispatch time.
@@ -129,6 +138,9 @@ Usage:
   python3 scripts/esb-worker.py                 # drain one tick (needs ESB_PUSH_ENABLED)
   python3 scripts/esb-worker.py --rows-from f.json --plan     # hermetic rehearsal
   python3 scripts/esb-worker.py --requeue <uuid>              # dead_letter -> pending
+  python3 scripts/esb-worker.py --refresh-open-pos all        # schedule: every mapped branch
+  python3 scripts/esb-worker.py --refresh-open-pos requested  # on demand: approval asked
+  python3 scripts/esb-worker.py --refresh-open-pos <code>     # on demand: one branch
 
 `--rows-from` REQUIRES `--plan`. The outbox is the authority for what gets drained, never
 a file: a live tick reading rows from a file transmits the file's payload while the
@@ -151,12 +163,13 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 TARGET_ENVS = ("dry_run", "goo", "gkid")
@@ -204,6 +217,7 @@ class IdMap:
     target_env: str
     branches: dict[str, dict[str, int]]
     items: dict[str, dict[str, int]] | str
+    item_units: dict[str, dict[str, int]] = field(default_factory=dict)
 
     @property
     def passthrough(self) -> bool:
@@ -328,7 +342,15 @@ def load_id_map(path: str, target_env: str) -> IdMap:
         raise ConfigError(f"id map {path} needs an `items` object, or the string "
                           f"{PASSTHROUGH!r} on the ERP of record")
 
-    return IdMap(target_env=target_env, branches=branches, items=items)
+    item_units = raw.get("item_units", {})
+    if not isinstance(item_units, dict):
+        raise ConfigError(f"id map {path}: `item_units` must be an object")
+    for unit, entry in item_units.items():
+        if not isinstance(entry, dict) or not isinstance(entry.get("product_detail_id"), int):
+            raise ConfigError(f"id map {path}: item unit {unit!r} needs an integer "
+                              f"`product_detail_id`")
+
+    return IdMap(target_env=target_env, branches=branches, items=items, item_units=item_units)
 
 
 def load_config(environ: dict[str, str], *, offline: bool, drains: bool) -> Config:
@@ -723,6 +745,10 @@ class ErpClient:
             raise Permanent(f"ERP {method} {path} returned non-ok: {str(out)[:400]}")
         return out
 
+    def get(self, path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+        query = f"?{urllib.parse.urlencode(params)}" if params else ""
+        return self._call("GET", f"{path}{query}")
+
     def bom_materials(self, bom_id: int) -> list[dict[str, Any]]:
         result = self._call("GET", f"/product/bom/{bom_id}").get("result")
         result = _erp_object(result, f"GET /product/bom/{bom_id} result")
@@ -1073,6 +1099,264 @@ def run_tick(cfg: Config, rows: list[dict[str, Any]], *,
     return bad
 
 
+# ══════════════════════════════════════════════════════════════════════════════════════
+# The open-PO cache (FR-1031..1033) — a READ of ESB, written to MOS, never posted anywhere
+# ══════════════════════════════════════════════════════════════════════════════════════
+# ESB cannot search purchase orders by item, so the worker keeps each mapped branch's open
+# POs (Authorized, Receiving) with their outstanding lines in MOS. A branch's cache is
+# replaced whole or not at all: any failed or malformed read leaves the previous cache in
+# place, marked stale, and the receiver sees "difference not yet known".
+#
+# THE FIELD NAMES BELOW ARE NOT PROVEN. Which returned quantity is outstanding, whether the
+# list carries a creation date, and the exact list filter are fixed by the sandbox proof
+# (FR-1033); until then they are configuration, overridable per deployment with
+# ESB_OPEN_PO_SHAPE_FILE (a JSON object of the OpenPoShape fields to change).
+
+WIB = timezone(timedelta(hours=7))
+_UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.I)
+_STAMP = re.compile(r"^(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}:\d{2}(?::\d{2})?))?(Z|[+-]\d{2}:?\d{2})?$")
+
+
+@dataclass(frozen=True)
+class OpenPoShape:
+    list_path: str = "/purchase/purchase-order"
+    branch_param: str = "branchID"
+    status_param: str = "statusID"
+    date_from_param: str = "startDate"
+    date_to_param: str = "endDate"
+    page_param: str = "page"
+    page_size_param: str = "limit"
+    page_size: int = 50
+    max_pages: int = 40
+    statuses: dict[str, str] = field(default_factory=lambda: {"3": "Authorized", "4": "Receiving"})
+    list_rows: str = "result.data"
+    number: str = "purchaseOrderNum"
+    supplier: str = "supplierName"
+    po_date: str = "purchaseOrderDate"
+    created: str = "createdDate"
+    status: str = "statusID"
+    outstanding_path: str = "/inventory/goods-receipt/initialize/{number}"
+    detail_lines: str = "result.details"
+    product_detail: str = "productDetailID"
+    product_name: str = "productName"
+    unit_name: str = "unitName"
+    outstanding: str = "outstandingQty"
+    created_tz: str = "+07:00"
+
+
+@dataclass(frozen=True)
+class RefreshConfig:
+    cfg: Config
+    org_id: str
+    max_age_minutes: int
+    window_days: int
+    shape: OpenPoShape
+
+
+def load_refresh_config(environ: dict[str, str]) -> RefreshConfig:
+    """A refresh reads the target environment's ESB with that environment's own
+    credentials and writes one organisation's cache. It posts nothing, so it does not
+    need ESB_PUSH_ENABLED — but every other refusal of load_config still applies."""
+    cfg = load_config(environ, offline=False, drains=False)
+    if cfg.target_env == "dry_run":
+        raise ConfigError("refusing to refresh open POs for 'dry_run': it names no ESB to read")
+    missing = [n for n, v in (("ESB_BASE_URL", cfg.esb_base_url),
+                              ("ESB_USERNAME", cfg.esb_username),
+                              ("ESB_PASSWORD", cfg.esb_password)) if not v]
+    if missing:
+        raise ConfigError(f"refreshing open POs from {cfg.target_env!r} needs "
+                          f"{', '.join(missing)}. This worker never borrows another "
+                          f"environment's credentials.")
+    org_id = environ.get("ESB_OPEN_PO_ORG_ID", "").strip()
+    if not _UUID.match(org_id):
+        raise ConfigError("ESB_OPEN_PO_ORG_ID must name the one organisation whose open-PO "
+                          "cache this environment fills — the id map's branch codes are "
+                          "not unique across organisations")
+    max_age = _int_env(environ, "ESB_OPEN_PO_MAX_AGE_MINUTES", 360)
+    if not 5 <= max_age <= 10080:
+        raise ConfigError("ESB_OPEN_PO_MAX_AGE_MINUTES must be between 5 and 10080")
+    shape = OpenPoShape()
+    shape_file = environ.get("ESB_OPEN_PO_SHAPE_FILE", "").strip()
+    if shape_file:
+        try:
+            with open(shape_file, encoding="utf-8") as fh:
+                overrides = json.load(fh)
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ConfigError(f"cannot read open-PO shape {shape_file}: {exc}") from None
+        unknown = set(overrides) - set(OpenPoShape.__dataclass_fields__) if isinstance(overrides, dict) else {"<not an object>"}
+        if unknown:
+            raise ConfigError(f"open-PO shape {shape_file} has unknown fields: {sorted(unknown)}")
+        shape = OpenPoShape(**{**shape.__dict__, **overrides})
+    return RefreshConfig(cfg=cfg, org_id=org_id, max_age_minutes=max_age,
+                         window_days=_int_env(environ, "ESB_OPEN_PO_WINDOW_DAYS", 120),
+                         shape=shape)
+
+
+def _dig(value: Any, path: str) -> Any:
+    for key in path.split("."):
+        value = value.get(key) if isinstance(value, dict) else None
+    return value
+
+
+def _rpc(cfg: Config, name: str, body: dict[str, Any]) -> Any:
+    _, out = _request("POST", f"{cfg.supabase_url}/rest/v1/rpc/{name}",
+                      headers=_pgrst_headers(cfg, "ops", write=True), body=body,
+                      timeout=cfg.timeout)
+    return out
+
+
+def _created_at(value: Any, tz: str) -> str | None:
+    """ESB's creation stamp as ISO 8601 with an offset, or None when it is absent or in a
+    form this worker does not recognise — the "created after delivery" label then stays
+    off rather than being guessed."""
+    match = _STAMP.match(str(value or "").strip())
+    if not match:
+        return None
+    day, clock, offset = match.groups()
+    clock = (clock or "00:00:00") + (":00" if clock and len(clock) == 5 else "")
+    if offset == "Z":
+        offset = "+00:00"
+    elif offset and ":" not in offset:
+        offset = f"{offset[:3]}:{offset[3:]}"
+    return f"{day}T{clock}{offset or tz}"
+
+
+def _quantity(value: Any, number: str) -> float:
+    try:
+        qty = float(value)
+    except (TypeError, ValueError):
+        raise Permanent(f"PO {number}: outstanding quantity is not a number: {value!r}") from None
+    if qty < 0 or qty != qty:
+        raise Permanent(f"PO {number}: outstanding quantity is negative or invalid: {value!r}")
+    return qty
+
+
+def mos_units_by_product_detail(rcfg: RefreshConfig) -> dict[str, str]:
+    """ESB product detail id -> MOS item unit, for the environment being read. Outside the
+    ERP of record the id map is the only source (its `item_units`); on the ERP of record
+    the map says the MOS catalog's own identifiers are that ERP's, so they are read from
+    ops.item_units. An ESB line with no entry keeps no MOS product detail and never
+    matches a receipt line."""
+    cfg = rcfg.cfg
+    if not cfg.id_map.passthrough:
+        return {str(e["product_detail_id"]): unit for unit, e in cfg.id_map.item_units.items()}
+    units: dict[str, str] = {}
+    offset = 0
+    while True:
+        query = urllib.parse.urlencode({
+            "org_id": f"eq.{rcfg.org_id}", "esb_product_detail_id": "not.is.null",
+            "select": "id,esb_product_detail_id", "order": "id", "limit": "1000",
+            "offset": str(offset)})
+        _, rows = _request("GET", f"{cfg.supabase_url}/rest/v1/item_units?{query}",
+                           headers=_pgrst_headers(cfg, "ops"), timeout=cfg.timeout)
+        rows = list(rows or [])
+        units.update({str(r["esb_product_detail_id"]): str(r["id"]) for r in rows})
+        if len(rows) < 1000:
+            return units
+        offset += 1000
+
+
+def read_open_pos(rcfg: RefreshConfig, client: ErpClient, esb_branch_id: int,
+                  units: dict[str, str], today: str) -> list[dict[str, Any]]:
+    """One branch's open POs and outstanding lines, in the shape ops.replace_cafe_open_pos
+    takes. Raises on any read or shape fault: a partial list must never replace a whole one."""
+    shape = rcfg.shape
+    end = datetime.strptime(today, "%Y-%m-%d").date()
+    start = (end - timedelta(days=rcfg.window_days)).isoformat()
+    open_names = set(shape.statuses.values())
+    rows: list[dict[str, Any]] = []
+    for status_value in shape.statuses:
+        for page in range(1, shape.max_pages + 2):
+            if page > shape.max_pages:
+                raise Permanent(f"the PO list did not end within {shape.max_pages} pages")
+            result = client.get(shape.list_path, {
+                shape.branch_param: esb_branch_id, shape.status_param: status_value,
+                shape.date_from_param: start, shape.date_to_param: today,
+                shape.page_param: page, shape.page_size_param: shape.page_size})
+            batch = _dig(result, shape.list_rows)
+            if not isinstance(batch, list):
+                raise Transient(f"the PO list returned {type(batch).__name__} at "
+                                f"{shape.list_rows!r}, not a list")
+            rows.extend(batch)
+            if len(batch) < shape.page_size:
+                break
+
+    pos: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        raw_status = _dig(row, shape.status)
+        status = shape.statuses.get(str(raw_status)) or (raw_status if raw_status in open_names else None)
+        number = str(_dig(row, shape.number) or "").strip()
+        if status is None or not number or number in pos:
+            continue
+        po_date = str(_dig(row, shape.po_date) or "")[:10]
+        try:
+            datetime.strptime(po_date, "%Y-%m-%d")
+        except ValueError:
+            raise Permanent(f"PO {number}: PO date is not a date: {_dig(row, shape.po_date)!r}") from None
+        if po_date < start:
+            continue
+        detail = client.get(shape.outstanding_path.format(number=urllib.parse.quote(number, safe="")))
+        lines = _dig(detail, shape.detail_lines)
+        if not isinstance(lines, list):
+            raise Transient(f"PO {number}: the outstanding read returned no line list")
+        pos[number] = {
+            "po_number": number,
+            "supplier_name": str(_dig(row, shape.supplier) or "").strip() or None,
+            "po_date": po_date,
+            "esb_created_at": _created_at(_dig(row, shape.created) or _dig(detail, f"result.{shape.created}"),
+                                          shape.created_tz),
+            "esb_status": status,
+            "lines": [{
+                "item_unit_id": units.get(str(_dig(line, shape.product_detail))),
+                "item_name": str(_dig(line, shape.product_name) or "").strip()
+                             or f"ESB product detail {_dig(line, shape.product_detail)}",
+                "unit_name": str(_dig(line, shape.unit_name) or "").strip() or None,
+                "outstanding_quantity": _quantity(_dig(line, shape.outstanding), number),
+            } for line in lines],
+        }
+    return list(pos.values())
+
+
+def refresh_open_pos(rcfg: RefreshConfig, scope: str, *, out, today: str | None = None) -> int:
+    """Refresh the cache for `scope`: 'all' mapped branches (the schedule), 'requested'
+    (branches whose cache was asked for, e.g. at receipt approval) or one branch code.
+    Returns how many branches were left stale."""
+    cfg = rcfg.cfg
+    if scope in ("all", "requested"):
+        codes = sorted(cfg.id_map.branches)
+    elif scope in cfg.id_map.branches:
+        codes = [scope]
+    else:
+        raise ConfigError(f"branch {scope!r} is not in the {cfg.target_env} id map")
+    today = today or datetime.now(WIB).date().isoformat()
+    targets = _rpc(cfg, "cafe_open_po_refresh_targets", {
+        "p_org_id": rcfg.org_id, "p_codes": codes, "p_requested_only": scope == "requested"})
+    targets = list(targets or [])
+    client = ErpClient(cfg)
+    units = mos_units_by_product_detail(rcfg) if targets else {}
+    stale = 0
+    for target in targets:
+        code, branch_id = target["branch_code"], target["branch_id"]
+        as_of = _now()
+        try:
+            pos = read_open_pos(rcfg, client, cfg.id_map.branch(code)["branch_id"], units, today)
+            _rpc(cfg, "replace_cafe_open_pos", {
+                "p_org_id": rcfg.org_id, "p_branch_id": branch_id, "p_as_of": as_of,
+                "p_max_age_minutes": rcfg.max_age_minutes, "p_pos": pos})
+        except (Permanent, Transient) as exc:
+            stale += 1
+            try:
+                _rpc(cfg, "mark_cafe_open_pos_stale", {
+                    "p_org_id": rcfg.org_id, "p_branch_id": branch_id, "p_error": str(exc)[:2000]})
+                print(f"{code}: STALE — previous cache kept — {exc}", file=out)
+            except (Permanent, Transient) as mark_exc:
+                print(f"{code}: STALE, and the stale mark failed — {mark_exc}", file=out)
+            continue
+        lines = sum(len(po["lines"]) for po in pos)
+        print(f"{code}: cached {len(pos)} open PO(s), {lines} line(s), as of {as_of}", file=out)
+    return stale
+
+
 def load_rows(path: str) -> list[dict[str, Any]]:
     try:
         with open(path, encoding="utf-8") as fh:
@@ -1110,7 +1394,27 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--requeue", metavar="ID",
                         help="return one dead-lettered row to pending, retry budget "
                              "reset (operator action)")
+    parser.add_argument("--refresh-open-pos", metavar="SCOPE",
+                        help="read open purchase orders from ESB into the MOS cache: 'all' "
+                             "mapped branches (schedule), 'requested' (on demand) or one "
+                             "branch code. Posts nothing")
     args = parser.parse_args(argv)
+
+    if args.refresh_open_pos:
+        if args.plan or args.rows_from or args.requeue:
+            print("--refresh-open-pos runs alone: it reads ESB and writes only the MOS cache",
+                  file=sys.stderr)
+            return 2
+        try:
+            rcfg = load_refresh_config(dict(os.environ))
+            stale = refresh_open_pos(rcfg, args.refresh_open_pos, out=sys.stdout)
+        except ConfigError as exc:
+            print(f"config: {exc}", file=sys.stderr)
+            return 2
+        except (Permanent, Transient) as exc:
+            print(f"cache unreachable: {exc}", file=sys.stderr)
+            return 2
+        return 3 if stale else 0
 
     if args.rows_from and not args.plan:
         # The dangerous reading of this flag has to be spelled out, not defaulted into.

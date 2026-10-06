@@ -38,6 +38,7 @@ import json
 import os
 import sys
 import tempfile
+import urllib.parse
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 WIP = "11111111-2222-3333-4444-555555555555"
@@ -648,6 +649,149 @@ check("--plan does not touch it", not os.path.exists(hb))
 check("an unwritable heartbeat path does not stop the drain",
       _main_with([], ESB_WORKER_HEARTBEAT_FILE=os.path.join(TMP, "no-dir", "hb")) == 0)
 check("no path configured, no file", _main_with([]) == 0)
+
+# ══════════════════════════════════════════════════════════════════════════════════════
+print("O. the open-PO cache refresh reads ESB and writes MOS (AC-1029)")
+# ══════════════════════════════════════════════════════════════════════════════════════
+# A deterministic fake ESB: the purchase-order list in pages per status, then one outstanding
+# read per PO. Every identifier and name is fabricated.
+ORG_ID = "00000000-0000-0000-0000-0000000000a1"
+BRANCH_MOS = "00000000-0000-0000-0000-00000000bf02"
+UNIT_KG = "11111111-0000-0000-0000-0000000000b1"
+TODAY = "2026-10-06"
+with open(os.path.join(TMP, "goo-po.json"), "w", encoding="utf-8") as fh:
+    json.dump({"target_env": "goo",
+               "branches": {"rumah_rames": {"branch_id": 176, "location_id": 510}},
+               "items": {}, "item_units": {UNIT_KG: {"product_detail_id": 69}}}, fh)
+
+
+# The deployment's shape override (FR-1033): a page size of 2 makes the list span pages.
+with open(os.path.join(TMP, "po-shape.json"), "w", encoding="utf-8") as fh:
+    json.dump({"page_size": 2}, fh)
+
+
+def po_env(**over: str) -> dict[str, str]:
+    e = env("goo", ESB_WORKER_MAP_FILE=os.path.join(TMP, "goo-po.json"),
+            ESB_OPEN_PO_ORG_ID=ORG_ID, ESB_OPEN_PO_SHAPE_FILE=os.path.join(TMP, "po-shape.json"))
+    e.update(over)
+    return e
+
+
+def po_row(number, status, day, created="2026-09-01 08:30:00"):
+    return {"purchaseOrderNum": number, "supplierName": f"Fabricated supplier {number}",
+            "purchaseOrderDate": day, "createdDate": created, "statusID": status}
+
+
+LIST = {  # status -> pages of at most 2
+    "3": [[po_row("PO-1", 3, "2026-09-01"), po_row("PO-2", 3, "2026-09-20")],
+          [po_row("PO-3", 3, "2026-10-01")]],
+    # The list filter is not trusted: a Closed PO the server returns anyway is dropped.
+    "4": [[po_row("PO-4", 4, "2026-10-05", created=None), po_row("PO-9", 5, "2026-10-05")]],
+}
+DETAILS = {
+    "PO-1": [{"productDetailID": 69, "productName": "Fabricated bean", "unitName": "kg", "outstandingQty": 5}],
+    "PO-2": [{"productDetailID": 69, "productName": "Fabricated bean", "unitName": "kg", "outstandingQty": "4.5"}],
+    "PO-3": [{"productDetailID": 777, "productName": "Fabricated cup", "unitName": "pcs", "outstandingQty": 0}],
+    "PO-4": [{"productDetailID": 69, "productName": "Fabricated bean", "unitName": "kg", "outstandingQty": 2}],
+}
+
+
+class FakeEsb:
+    def __init__(self, *, fail_detail: str | None = None, targets=None) -> None:
+        self.fail_detail = fail_detail
+        self.targets = targets if targets is not None else [
+            {"branch_id": BRANCH_MOS, "branch_code": "rumah_rames", "refresh_requested_at": None}]
+
+    def po_list(self, fake, method, url, body):
+        query = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
+        pages = LIST.get(query["statusID"][0], [])
+        page = int(query["page"][0])
+        return {"status": "ok", "result": {"data": pages[page - 1] if page <= len(pages) else []}}
+
+    def detail(self, fake, method, url, body):
+        number = urllib.parse.unquote(url.rsplit("/", 1)[1])
+        if number == self.fail_detail:
+            raise W.Transient("GET outstanding -> HTTP 503: unavailable", status=503)
+        return {"status": "ok", "result": {"details": DETAILS[number]}}
+
+    def routes(self):
+        return {"auth/login": _login_ok,
+                "rpc/cafe_open_po_refresh_targets": lambda *a: self.targets,
+                "rpc/replace_cafe_open_pos": lambda *a: {"lines": 4},
+                "rpc/mark_cafe_open_pos_stale": lambda *a: None,
+                "purchase/purchase-order": self.po_list,
+                "goods-receipt/initialize": self.detail}
+
+
+def refresh(scope="all", environ=None, esb=None):
+    esb = esb or FakeEsb()
+    fake = Fake(**esb.routes())
+    out = io.StringIO()
+    cfg = W.load_refresh_config(environ or po_env())
+    bad = run(lambda: W.refresh_open_pos(cfg, scope, out=out, today=TODAY), fake)
+    return bad, fake, out.getvalue()
+
+
+bad_n, f, out = refresh()
+replaced = f.bodies("rpc/replace_cafe_open_pos")
+pos = replaced[0]["p_pos"] if replaced else []
+check("AC-1029 a refresh writes the branch's cache once", bad_n == 0 and len(replaced) == 1,
+      out + repr(f.calls))
+check("AC-1029 only Authorized and Receiving POs appear, across every list page",
+      sorted((p["po_number"], p["esb_status"]) for p in pos)
+      == [("PO-1", "Authorized"), ("PO-2", "Authorized"), ("PO-3", "Authorized"), ("PO-4", "Receiving")],
+      repr(pos))
+by_number = {p["po_number"]: p for p in pos}
+check("AC-1029 lines carry the MOS product detail, item name, unit and outstanding quantity",
+      by_number.get("PO-2", {}).get("lines") == [{"item_unit_id": UNIT_KG, "item_name": "Fabricated bean",
+                                                  "unit_name": "kg", "outstanding_quantity": 4.5}],
+      repr(by_number.get("PO-2")))
+check("AC-1029 an ESB product detail the id map does not list is kept with no MOS product detail",
+      by_number.get("PO-3", {}).get("lines", [{}])[0].get("item_unit_id", "absent") is None,
+      repr(by_number.get("PO-3")))
+check("AC-1029 each PO carries its PO date and its ESB creation date",
+      by_number.get("PO-1", {}).get("po_date") == "2026-09-01"
+      and by_number.get("PO-1", {}).get("esb_created_at") == "2026-09-01T08:30:00+07:00"
+      and by_number.get("PO-4", {}).get("esb_created_at") is None, repr(pos))
+check("AC-1029 the as-of time and the configured age are stored with the branch",
+      bool(replaced) and replaced[0]["p_org_id"] == ORG_ID and replaced[0]["p_branch_id"] == BRANCH_MOS
+      and replaced[0]["p_as_of"].endswith("+00:00") and replaced[0]["p_max_age_minutes"] == 360,
+      repr(replaced))
+lists = [urllib.parse.parse_qs(urllib.parse.urlparse(c["url"]).query) for c in f.to("purchase/purchase-order")]
+check("FR-1031 the list is filtered by the id map's ESB branch, each open status and a 120-day window",
+      lists and all(q["branchID"] == ["176"] and q["startDate"] == ["2026-06-08"] and q["endDate"] == [TODAY]
+                    for q in lists)
+      and sorted({q["statusID"][0] for q in lists}) == ["3", "4"], repr(lists))
+check("FR-1031 nothing is written back to ESB", all(c["method"] == "GET" for c in f.calls
+      if "erp.example.invalid" in c["url"] and "auth/login" not in c["url"]), repr(f.calls))
+
+bad_n, f, out = refresh(esb=FakeEsb(fail_detail="PO-2"))
+check("AC-1029 a failed outstanding read writes no partial cache", f.to("rpc/replace_cafe_open_pos") == [],
+      repr(f.calls))
+stale = f.bodies("rpc/mark_cafe_open_pos_stale")
+check("AC-1029 ...and marks the previous cache stale with the error",
+      bad_n == 1 and len(stale) == 1 and stale[0]["p_branch_id"] == BRANCH_MOS and "503" in stale[0]["p_error"],
+      out + repr(stale))
+
+bad_n, f, out = refresh(scope="requested", esb=FakeEsb(targets=[]))
+targets = f.bodies("rpc/cafe_open_po_refresh_targets")
+check("FR-1032 the on-demand pass asks only for branches with a refresh request",
+      targets == [{"p_org_id": ORG_ID, "p_codes": ["rumah_rames"], "p_requested_only": True}]
+      and f.to("purchase/purchase-order") == [] and bad_n == 0, repr(targets) + out)
+bad_n, f, out = refresh(scope="rumah_rames")
+check("FR-1032 a single branch can be refreshed on demand by its code",
+      f.bodies("rpc/cafe_open_po_refresh_targets")[0]["p_codes"] == ["rumah_rames"] and bad_n == 0, out)
+check_raises("FR-1031 a branch code the id map does not list is refused", W.ConfigError,
+             lambda: refresh(scope="radiant"), needle="id map")
+
+check_raises("NFR-1006 a refresh names the one organisation whose cache it fills", W.ConfigError,
+             lambda: W.load_refresh_config(po_env(ESB_OPEN_PO_ORG_ID="")), needle="ESB_OPEN_PO_ORG_ID")
+check_raises("NFR-1006 a refresh against 'dry_run' is refused — it names no ESB to read",
+             W.ConfigError, lambda: W.load_refresh_config(
+                 env("dry_run", ESB_OPEN_PO_ORG_ID=ORG_ID)), needle="dry_run")
+check_raises("NFR-1006 a refresh without this environment's own credentials is refused",
+             W.ConfigError, lambda: W.load_refresh_config(po_env(ESB_PASSWORD="")),
+             needle="never borrows")
 
 print(f"{_pass} passed, {_fail} failed")
 sys.exit(1 if _fail else 0)
