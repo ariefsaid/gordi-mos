@@ -143,7 +143,12 @@ describe('Checkbox (AC-145)', () => {
     const { rerender } = render(<Checkbox indeterminate aria-label="Select all" />)
     const cb = screen.getByRole('checkbox') as HTMLInputElement
     expect(cb.indeterminate).toBe(true)
-    expect(cb).toHaveAttribute('aria-checked', 'mixed')
+    expect(cb).toBePartiallyChecked()
+    expect(cb).not.toHaveAttribute('aria-checked')
+
+    // A click clears the native flag; the prop keeps ownership, so the announced state cannot drift.
+    fireEvent.click(cb)
+    expect(cb.indeterminate).toBe(true)
 
     rerender(<Checkbox checked indeterminate aria-label="Select all" />)
     expect(cb.indeterminate).toBe(true)

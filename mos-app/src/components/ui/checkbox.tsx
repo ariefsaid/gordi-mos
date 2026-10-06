@@ -37,9 +37,10 @@ export function Checkbox({
   className,
 }: CheckboxProps) {
   const inputRef = useRef<HTMLInputElement>(null)
+  // A native click clears the property; the prop owns it, re-asserted here and in onChange.
   useLayoutEffect(() => {
     if (inputRef.current) inputRef.current.indeterminate = indeterminate
-  }, [checked, indeterminate])
+  })
   const cls = ['mk-checkbox', `mk-checkbox--${size}`, className].filter(Boolean).join(' ')
 
   return (
@@ -52,8 +53,11 @@ export function Checkbox({
         checked={checked}
         disabled={disabled}
         aria-label={ariaLabel}
-        aria-checked={indeterminate ? 'mixed' : undefined}
-        onChange={(event) => onChange?.(event.currentTarget.checked)}
+        onChange={(event) => {
+          const next = event.currentTarget.checked
+          event.currentTarget.indeterminate = indeterminate
+          onChange?.(next)
+        }}
       />
       <span className="mk-checkbox__visual" aria-hidden="true">
         {checked && !indeterminate && <Check />}

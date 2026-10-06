@@ -224,7 +224,7 @@
   min-height: 40px;
 }
 
-.cafe-items__active-control .mk-checkbox { flex: 0 0 16px; }
+.cafe-items__active-control .mk-checkbox { flex: 0 0 auto; }
 
 .cafe-items__default-value,
 .cafe-items__muted { color: var(--muted-foreground); }
@@ -265,7 +265,7 @@
 }
 
 .cafe-items__unit-choice:hover { background: var(--surface-tertiary); }
-.cafe-items__unit-choice .mk-checkbox { flex: 0 0 16px; }
+.cafe-items__unit-choice .mk-checkbox { flex: 0 0 auto; }
 
 .cafe-items__default-tag {
   display: inline-flex;

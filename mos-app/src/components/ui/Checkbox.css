@@ -33,11 +33,11 @@
   outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
-.mk-checkbox:hover .mk-checkbox__input:not(:disabled):not(:checked):not([aria-checked="mixed"]) + .mk-checkbox__visual {
+.mk-checkbox:hover .mk-checkbox__input:not(:disabled):not(:checked):not(:indeterminate) + .mk-checkbox__visual {
   border-color: color-mix(in srgb, var(--primary) 50%, var(--border));
 }
 .mk-checkbox__input:checked + .mk-checkbox__visual,
-.mk-checkbox__input[aria-checked="mixed"] + .mk-checkbox__visual {
+.mk-checkbox__input:indeterminate + .mk-checkbox__visual {
   background: var(--primary);
   border-color: var(--primary);
 }
