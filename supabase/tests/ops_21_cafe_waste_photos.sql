@@ -111,6 +111,9 @@ select throws_ok($$
 select throws_ok($$select ops.submit_cafe_waste_log('00000000-0000-0000-0000-00000000ac21')$$,
   '23514','a waste log needs at least one uploaded photo before submission',
   'the submit RPC refuses a photo-less Draft');
+reset role;
+update ops.kitchen_logs set created_at=now()-interval '16 minutes' where id='00000000-0000-0000-0000-00000000ac24';
+set local role authenticated;
 
 select lives_ok($$
   insert into storage.objects (bucket_id,name) values

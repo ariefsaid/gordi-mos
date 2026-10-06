@@ -78,6 +78,14 @@ describe('PAGE_FAMILY_FRAME_ROUTES (#191)', () => {
       symbol: 'CafeWastePage',
     })
   })
+
+  it('/cafe/count names its dedicated physical Count page frame', () => {
+    expect(PAGE_FAMILY_FRAME_ROUTES.find(route => route.path === '/cafe/count')).toMatchObject({
+      family: 'workspace',
+      sourceFile: 'pages/cafe-count-page.tsx',
+      symbol: 'CafeCountPage',
+    })
+  })
 })
 
 /**

@@ -10,7 +10,7 @@ select shared._test_seed_access_roles();
 select ops._test_seed_cafe();
 select set_config('app.allow_test_seeds', 'off', true);
 
--- Rows a DELETE removed. RLS turns a refused delete into zero rows, not an error.
+-- The helper returns the number of rows affected so the tests can distinguish a successful delete from an RLS-filtered no-op.
 create function pg_temp.deleted(p_sql text) returns int language plpgsql as $f$
 declare n int;
 begin
