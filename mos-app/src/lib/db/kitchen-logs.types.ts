@@ -113,7 +113,7 @@ export interface WipItemOption {
 // ── Item units on the capture form (#234, FR-020/021/032) ────────────────────
 
 /**
- * One OFFERED unit of a capture-form item, read from ops.capture_form_items. `id` is the
+ * One offered unit of a capture-form item: the stream's default ESB detail. `id` is the
  * ops.item_units row — the ERP coordinate identity (FR-022): binding a capture row to a
  * unit means binding it to this id, never to a name string.
  */
@@ -126,10 +126,9 @@ export interface ItemUnitOption {
 }
 
 /**
- * A capture-form item with its offered units: the confirmed default first, then confirmed
- * TRANSFERABLE alternates (FR-032/AC-015 — a non-transferable synced variant is never
- * offered). `units.length > 1` is what earns a row the "change unit" affordance (FR-021,
- * AC-005); exactly one means the unit renders as fixed text and nothing else.
+ * A capture-form item with its offered units: the stream's default ESB detail. Other
+ * quantities use `unit_multiples`. `units.length > 1` is what earns a row the "change unit"
+ * affordance (FR-021, AC-005); exactly one means the unit renders as fixed text.
  */
 export interface CaptureFormItem extends WipItemOption {
   /** The ERP product family used to label RAW/WIP rows on Café capture lists. */

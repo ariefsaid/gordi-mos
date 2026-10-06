@@ -22,6 +22,7 @@ import { fileURLToPath } from 'url'
 import { loginAs } from './helpers/login'
 import { BAR_MEMBER, BAR_STREAM } from './fixtures/users'
 import { ensureStream } from './helpers/cafe-stream'
+import { configureCafeEsbItemSql } from './fixtures/cafe-esb-item'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dir = dirname(__filename)
@@ -96,9 +97,9 @@ test.describe('AC-744  AC-008: the Café write gate — barista submits, Sales c
   test.beforeAll(async () => {
     await resetFixtureRows()
     await sql(`
-      INSERT INTO ops.wip_items (id, org_id, name, category, flag_active, esb_bom_id, esb_product_detail_id_porsi)
-      VALUES ('${ITEM_ID}', '${ORG}', '${ITEM_NAME}', 'Drinks', true, 'BOM-E2E-744', 'PD-E2E-744')
-      ON CONFLICT (id) DO UPDATE SET flag_active = true;
+      INSERT INTO ops.wip_items (id, org_id, name, category, flag_active, esb_bom_id, esb_product_detail_id_porsi, reference_source, esb_product_id)
+      VALUES ('${ITEM_ID}', '${ORG}', '${ITEM_NAME}', 'Drinks', true, 'BOM-E2E-744', 'PD-E2E-744', 'erp_catalog', 'P-E2E-744')
+      ON CONFLICT (id) DO UPDATE SET flag_active = true, reference_source = 'erp_catalog', esb_product_id = 'P-E2E-744';
       INSERT INTO ops.item_units (org_id, wip_item_id, unit_name, esb_product_detail_id, esb_product_id, is_default, is_transferable, confirmed_at)
       VALUES ('${ORG}', '${ITEM_ID}', '${UNIT_NAME}', 'PD-E2E-744', 'P-E2E-744', true, true, now())
       ON CONFLICT (wip_item_id, esb_product_detail_id)
@@ -107,6 +108,7 @@ test.describe('AC-744  AC-008: the Café write gate — barista submits, Sales c
       INSERT INTO ops.stream_items (org_id, branch_id, activity, wip_item_id, source)
       VALUES ('${ORG}', ${BRANCH_SQL}, '${BAR_STREAM.activity}', '${ITEM_ID}', 'manual')
       ON CONFLICT (org_id, branch_id, activity, wip_item_id) DO NOTHING;
+      ${configureCafeEsbItemSql(ITEM_ID)}
       INSERT INTO ops.kitchen_plans
         (org_id, log_date, wip_item_id, branch_id, activity, action, destination_branch_id, qty_porsi, plan_by)
       VALUES ('${ORG}', '${today}', '${ITEM_ID}', ${BRANCH_SQL}, '${BAR_STREAM.activity}', 'produce', NULL,

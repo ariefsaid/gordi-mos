@@ -90,6 +90,7 @@ import {
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
 import { formatDayMonthYear, formatWibDateTime } from '@/lib/format/date'
 import { EmptyState, LoadingShell } from '@/components/ui/state-kit'
+import { CafeItemsEmptyState } from '@/components/kitchen/cafe-items-empty-state'
 import { useFocusRestore } from '@/components/ui/use-focus-restore'
 import { reportError } from '@/lib/telemetry'
 import { RouteLeaveGuard } from '@/shell/route-leave-guard'
@@ -576,8 +577,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       const resolvedMovement = storedDraft?.movement
         ? availableMovements.find(option => movementKey(option) === movementKey(storedDraft.movement)) ?? fallbackMovement
         : fallbackMovement
-      // The stream's own list (#222). No stream yet: the whole gated catalog, as before — nothing
-      // is writable until a stream is chosen, and the choose-stream state replaces the list.
+      // The stream's own ESB list (#222), plus the person's stream/date-scoped draft restore.
+      // With no stream, there is no list — the choose-stream state replaces it.
       const items = await listCaptureFormItems(resolvedStream ?? undefined, mode === 'transfer' ? 'transfer' : 'produce')
       // An empty offered roster still has submitted plan/actual membership for a producing
       // stream. Keep those counts independent of the item list; stock is only needed to build
@@ -1225,14 +1226,9 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
               {renderSummarySupport()}
             </div>
           )}
-          {/* 'blank' — no WIP items are configured yet (an ops-lead task), not a source that
-              fills on its own; never 'quiet' ✓, which would misread as "nothing to log,
-              all done" instead of "nothing CAN be logged until items exist". */}
-          <EmptyState
-            variant="blank"
-            title={stream ? t('kitchen.streamItems.empty.title', { stream: streamLabel(t, stream) }) : t('kitchen.empty.noActiveItems.title')}
-            copy={stream ? t('kitchen.streamItems.empty.copy') : t('kitchen.log.empty.copy')}
-          />
+          {stream
+            ? <CafeItemsEmptyState stream={stream} />
+            : <EmptyState variant="blank" title={t('cafe.stream.none')} />}
           {/* AC-013: the DD-WAY-29 gate also empties this list when nothing is confirmed —
               the report route must be reachable from here too, not only under a full list.
               #744 review: the report files a WRITE (ops.log_entries), so it closes with the

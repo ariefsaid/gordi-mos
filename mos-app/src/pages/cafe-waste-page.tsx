@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsDesktop } from '@/shell/use-is-desktop'
@@ -49,6 +48,7 @@ import { DataTable, type DataTableColumn } from '@/components/dashboard/data-tab
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Select } from '@/components/ui/select'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
+import { CafeItemsEmptyState } from '@/components/kitchen/cafe-items-empty-state'
 import { RouteLeaveGuard } from '@/shell/route-leave-guard'
 import './kitchen-log-page.css'
 import './cafe-waste-page.css'
@@ -198,6 +198,7 @@ export function CafeWastePage() {
   const [loadRetry, setLoadRetry] = useState(0)
   const [catalogReady, setCatalogReady] = useState(false)
   const [items, setItems] = useState<CafeLogItem[]>([])
+  const [esbItemCount, setEsbItemCount] = useState(0)
   const [businessUnitId, setBusinessUnitId] = useState('')
   const [entries, setEntries] = useState<Record<string, WasteEntry>>({})
   const [resumableDrafts, setResumableDrafts] = useState<KitchenWasteDraft[]>([])
@@ -281,6 +282,8 @@ export function CafeWastePage() {
         return item ? [item] : []
       })
       setItems(nextItems)
+      setEsbItemCount(settings.length)
+      setEntries(initialEntries(nextItems))
       const offeredItemIds = new Set(nextItems.map(item => item.id))
       const currentDraftScope = canCapture && orgId && personId
         ? wasteDraftScope(orgId, personId, stream, logDate)
@@ -935,11 +938,7 @@ export function CafeWastePage() {
             )}
 
             {items.length === 0 ? (
-              <EmptyState variant="blank" title={t('kitchen.waste.empty.title')} copy={t('kitchen.waste.empty.copy')}>
-                <Link to="/cafe/items" className="btn btn-outline btn-touch">
-                  {t('kitchen.log.missing.destination')}
-                </Link>
-              </EmptyState>
+              <CafeItemsEmptyState stream={stream} esbItemCount={esbItemCount} />
             ) : (
               <>
                 <KitchenToolbar

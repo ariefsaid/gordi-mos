@@ -31,7 +31,6 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
   )
   return {
     streamCatalogFrom: actual.streamCatalogFrom,
-    listActiveWipItems: vi.fn(),
     listCaptureFormItems: vi.fn(),
     fetchPlanMap: vi.fn(),
     fetchStockMap: vi.fn(),
@@ -53,6 +52,11 @@ vi.mock('@/lib/db/cafe-opening', () => ({ listCafeViewerTeams: vi.fn().mockResol
 vi.mock('@/lib/db/branches', () => ({ listActiveBranches: vi.fn() }))
 // Missing-item reports now use their stream-scoped Café settings queue data layer.
 vi.mock('@/lib/db/cafe-missing-item-reports', () => ({ reportMissingCafeItem: vi.fn() }))
+// The shared empty state reads the stream's ESB items and the viewer's manage right.
+vi.mock('@/lib/db/cafe-item-settings', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/db/cafe-item-settings')>('@/lib/db/cafe-item-settings')
+  return { ...actual, listCafeItemSettings: vi.fn().mockResolvedValue([]), canManageCafeItemSettings: vi.fn().mockResolvedValue(false) }
+})
 import {
   listCaptureFormItems,
   fetchActualsMap,
@@ -433,10 +437,7 @@ describe('Empty state — no WIP items (FR-011)', () => {
     })
     mockFetchActualsMap.mockRejectedValue(new Error('optional history read failed'))
     await renderPage()
-    await waitFor(() => {
-      expect(screen.getByText('No items for Rumah Rames · Kitchen')).toBeInTheDocument()
-    })
-    expect(screen.getByText(/an ops lead or admin can add them/i)).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'No ESB items on Rumah Rames · Kitchen' })).toBeInTheDocument()
     expect(mockListCaptureFormItems).toHaveBeenCalledWith(DEFAULT_STREAM, 'produce')
     expect(mockFetchPlanMap).toHaveBeenCalled()
     expect(mockFetchActualsMap).toHaveBeenCalled()
