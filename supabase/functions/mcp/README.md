@@ -19,7 +19,8 @@ the `api_v1` profile. The function holds no authority and never reads a table.
 - **Key fetch:** the login service's key set is cached per isolate; one fetch at most every 30 s (success or
   failure), concurrent misses share it, and each is cut off at 5 s.
 - **No client_id refusal here:** `agent-chat` and `compose-view` refuse tokens carrying `client_id`; this
-  function is the one that requires them, so `_shared/jwt.ts`'s `carriesClientId` is not used.
+  function is the one that requires them, so it verifies with its own agent-token check rather than
+  `_shared/claims.ts`'s `requireVerifiedClaims`.
 - **No passthrough:** the token goes only to the data API on the same instance. A `401` from the data API
   (session revoked, token expired) is returned as a `401` challenge so the client re-authenticates.
 - **Errors:** a function or fence error becomes a tool result with `isError: true`, the message as text and

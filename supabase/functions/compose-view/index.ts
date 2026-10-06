@@ -35,12 +35,12 @@ const origins = appOrigins(Deno.env.get('APP_ALLOWED_ORIGINS'))
 Deno.serve(async (req: Request): Promise<Response> => {
   const corsHeaders = corsHeadersFor(req, origins)
 
-  // Handle CORS preflight
+  // ── 1. CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
-  // ── 1. Verify the caller and read its claims (the shared gate) ─────────────
+  // ── 2. Verify the caller and read its claims (the shared gate) ─────────────
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
   const verdict = await requireVerifiedClaims(req, () => createClient(supabaseUrl, serviceRoleKey))
@@ -52,7 +52,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
   const { userId, orgId, personId } = verdict.claims
 
-  // ── 2. Read the model config from function secrets (D4) ────────────────────
+  // ── 3. Read the model config from function secrets (D4) ────────────────────
   const apiKey = Deno.env.get('AGENT_MODEL_API_KEY')
   const baseUrl = Deno.env.get('AGENT_MODEL_BASE_URL')
   const model = resolveComposeModel({
@@ -77,7 +77,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   const modelClient = new ChatCompletionsClient({ apiKey, baseUrl })
 
-  // ── 3. Parse request body ─────────────────────────────────────────────────
+  // ── 4. Parse request body ─────────────────────────────────────────────────
   let body: ComposeViewRequest
   try {
     body = await req.json() as ComposeViewRequest
@@ -88,7 +88,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     )
   }
 
-  // ── 4. Delegate to the pure handler ───────────────────────────────────────
+  // ── 5. Delegate to the pure handler ───────────────────────────────────────
   const result = await composeViewHandler(body, {
     modelClient,
     model,
@@ -97,7 +97,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     callerOrgId: orgId,
   })
 
-  // ── 5. Return JSON response ───────────────────────────────────────────────
+  // ── 6. Return JSON response ───────────────────────────────────────────────
   return new Response(
     JSON.stringify(result.body),
     {

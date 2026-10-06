@@ -9,6 +9,8 @@
  *
  * Pure (no Deno globals; the verifier is injected), so it runs in Deno and in Vitest.
  */
+import { parseSegment } from './jwtSegment.ts'
+
 export type ClaimsVerifier = {
   auth: { getUser(jwt: string): Promise<{ data: { user: { id: string } | null }; error: unknown }> }
 }
@@ -23,23 +25,13 @@ export type VerifiedClaims = {
 
 export type ClaimsVerdict = { ok: true; claims: VerifiedClaims } | { ok: false; detail: string }
 
-function decodePayload(jwt: string): Record<string, unknown> | null {
-  try {
-    const payload = jwt.split('.')[1]
-    if (!payload) return null
-    const json: unknown = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')))
-    return typeof json === 'object' && json !== null ? (json as Record<string, unknown>) : null
-  } catch {
-    return null
-  }
-}
-
 export async function requireVerifiedClaims(req: Request, verifier: () => ClaimsVerifier): Promise<ClaimsVerdict> {
   const authHeader = req.headers.get('Authorization')
   if (!authHeader?.startsWith('Bearer ')) return { ok: false, detail: 'missing Authorization header' }
   const jwt = authHeader.slice(7)
+  const payload = parseSegment(jwt.split('.')[1] ?? '')
 
-  if (decodePayload(jwt)?.client_id !== undefined) return { ok: false, detail: 'agent tokens are not accepted here' }
+  if (payload?.client_id !== undefined) return { ok: false, detail: 'agent tokens are not accepted here' }
 
   let userId: string
   try {
@@ -50,7 +42,6 @@ export async function requireVerifiedClaims(req: Request, verifier: () => Claims
     return { ok: false, detail: 'invalid JWT' }
   }
 
-  const payload = decodePayload(jwt)
   const orgId = payload?.org_id
   const personId = payload?.person_id
   if (typeof orgId !== 'string' || !orgId || typeof personId !== 'string' || !personId) {

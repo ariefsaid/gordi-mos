@@ -22,12 +22,18 @@ const functionNames = readdirSync(FUNCTIONS_DIR, { withFileTypes: true })
   .filter((d) => d.isDirectory() && !d.name.startsWith('_'))
   .map((d) => d.name)
 
+// Source with comments removed, so a mention in prose never satisfies or trips a check.
+const code = (path: string) => readFileSync(path, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
+
 const entrySource = (name: string) =>
   ['index.ts', 'handler.ts']
     .map((f) => join(FUNCTIONS_DIR, name, f))
     .filter(existsSync)
-    .map((p) => readFileSync(p, 'utf8'))
+    .map(code)
     .join('\n')
+
+// The first point a request's body, claims or caller-bound client is used.
+const FIRST_USE = /\breq\.(json|text|formData|arrayBuffer)\(|\breadCappedJson\(|\bverdict\.claims\b/
 
 describe('edge function gate (source scan)', () => {
   it('finds the deployed functions', () => {
@@ -39,9 +45,13 @@ describe('edge function gate (source scan)', () => {
     const own = OWN_VERIFICATION[name]
     if (own) {
       expect(src).toMatch(own.calls)
-    } else {
-      expect(src).toMatch(/\brequireVerifiedClaims\(/)
+      return
     }
+    const gate = src.search(/\bconst\s+verdict\s*=\s*await\s+requireVerifiedClaims\(/)
+    expect(gate, 'the gate is called and its verdict kept').toBeGreaterThanOrEqual(0)
+    expect(src, 'a refused verdict returns').toMatch(/if\s*\(\s*!verdict\.ok\s*\)\s*\{?\s*return\b/)
+    const firstUse = src.search(FIRST_USE)
+    expect(firstUse, 'the request is used only after the gate').toBeGreaterThan(gate)
   })
 
   // The protected-resource metadata document is public discovery data any client may read.
@@ -50,21 +60,27 @@ describe('edge function gate (source scan)', () => {
   it.each(functionNames)('%s never sets a wildcard CORS origin outside public discovery data', (name) => {
     for (const f of readdirSync(join(FUNCTIONS_DIR, name)).filter((f) => f.endsWith('.ts'))) {
       if (PUBLIC_WILDCARD.includes(`${name}/${f}`)) continue
-      expect(readFileSync(join(FUNCTIONS_DIR, name, f), 'utf8')).not.toMatch(/['"]Access-Control-Allow-Origin['"]\s*:\s*['"]\*['"]/)
+      expect(code(join(FUNCTIONS_DIR, name, f))).not.toMatch(/['"`]Access-Control-Allow-Origin['"`]\s*[:,]\s*['"`]\*['"`]/i)
     }
   })
 
-  it('decodes token payloads only inside the shared gate and the agent-token verifier', () => {
+  it('decodes token segments only through the shared helper, used by the gate and the agent-token verifier', () => {
     const decoders: string[] = []
+    const segmentUsers: string[] = []
     const walk = (dir: string) => {
       for (const d of readdirSync(dir, { withFileTypes: true })) {
         const p = join(dir, d.name)
-        if (d.isDirectory()) walk(p)
-        else if (d.name.endsWith('.ts') && /\.split\('\.'\)/.test(readFileSync(p, 'utf8'))) decoders.push(p.slice(FUNCTIONS_DIR.length + 1))
+        if (d.isDirectory()) { walk(p); continue }
+        if (!d.name.endsWith('.ts')) continue
+        const src = code(p)
+        const rel = p.slice(FUNCTIONS_DIR.length + 1)
+        if (/\batob\(/.test(src)) decoders.push(rel)
+        if (/\bjwtSegment(\.ts)?['"`]/.test(src)) segmentUsers.push(rel)
       }
     }
     walk(FUNCTIONS_DIR)
-    expect(decoders.sort()).toEqual(['_shared/claims.ts', 'mcp/auth.ts'])
+    expect(decoders).toEqual(['_shared/jwtSegment.ts'])
+    expect(segmentUsers.sort()).toEqual(['_shared/claims.ts', 'mcp/auth.ts'])
   })
 })
 

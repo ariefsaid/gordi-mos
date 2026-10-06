@@ -153,7 +153,7 @@ describe('de-reference firewall — P2 agent stack (AC-P2-CF-002, D4, FR-P2-DI-0
   it('each exempt index.ts verifies the JWT through the shared gate, which calls auth.getUser (service_role is for JWT verify, never business data)', () => {
     for (const f of SERVICE_ROLE_EXEMPT) {
       const src = readFileSync(f, 'utf8')
-      expect(src, `${f} must verify through requireVerifiedClaims to justify its service_role use`).toContain('requireVerifiedClaims(req, () => createClient(')
+      expect(src, `${f} must verify through requireVerifiedClaims to justify its service_role use`).toMatch(/requireVerifiedClaims\(\s*req\s*,\s*\(\)\s*=>\s*createClient\(/)
     }
     expect(readFileSync(resolve(FUNCTIONS_DIR, '_shared/claims.ts'), 'utf8')).toContain('.auth.getUser(jwt)')
   })

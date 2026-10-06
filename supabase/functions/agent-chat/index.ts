@@ -8,13 +8,13 @@
  *   1. CORS preflight handling for the configured app origins (_shared/cors.ts).
  *   2. requireVerifiedClaims (_shared/claims.ts): Bearer token, agent tokens refused, JWT verified,
  *      then org_id/person_id/access_roles read from it (D1 — no profiles lookup); 401 otherwise.
- *   3. Create owner-bound approval rows through the trusted edge path.
- *   4. Build the caller-JWT client for business actions and reads (deputy auth — D2/D3).
- *   5. Read AGENT_MODEL_API_KEY / AGENT_MODEL_BASE_URL / AGENT_MODEL_DEFAULT from function
+ *   3. Build the caller-JWT client for business actions and reads (deputy auth — D2/D3) and the
+ *      service-role writer that creates owner-bound approval rows (the trusted edge path).
+ *   4. Read AGENT_MODEL_API_KEY / AGENT_MODEL_BASE_URL / AGENT_MODEL_DEFAULT from function
  *      secrets — fail loud (502 MODEL_NOT_CONFIGURED) if the model id is unset (D4, FR-CF-001).
- *   6. Cap the JSON body size, then parse into AgentChatRequest.
- *   7. Load journaledWrites/startSeq for a resumed run (body.runId present) — persistence gate.
- *   8. Delegate to agentChatHandler; pipe events into an SSE ReadableStream.
+ *   5. Cap the JSON body size, then parse into AgentChatRequest.
+ *   6. Load journaledWrites/startSeq for a resumed run (body.runId present) — persistence gate.
+ *   7. Delegate to agentChatHandler; pipe events into an SSE ReadableStream.
  */
 
 // Deno-native imports (not in mos-app/package.json — this file is Deno-only glue, D7).
@@ -37,12 +37,12 @@ const origins = appOrigins(Deno.env.get('APP_ALLOWED_ORIGINS'))
 Deno.serve(async (req: Request): Promise<Response> => {
   const corsHeaders = corsHeadersFor(req, origins)
 
-  // ── CORS preflight ──────────────────────────────────────────────────────────
+  // ── 1. CORS preflight ─────────────────────────────────────────────────────────
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
-  // ── 1. Verify the caller and read its claims (the shared gate) ─────────────
+  // ── 2. Verify the caller and read its claims (the shared gate) ─────────────
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
   const verdict = await requireVerifiedClaims(req, () => createClient(supabaseUrl, serviceRoleKey))
@@ -54,17 +54,16 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
   const { jwt, userId, orgId, personId, accessRoles } = verdict.claims
 
+  // ── 3. Build the caller-JWT Supabase client (deputy auth — D2/D3) ────────────
   // Business actions and reads use callerClient; service_role inserts only authenticated approvals.
   const serviceRoleClient = createClient(supabaseUrl, serviceRoleKey)
-
-  // ── 2. Build the caller-JWT Supabase client (deputy auth — D2/D3) ────────────
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? ''
   const callerClient = createClient(supabaseUrl, anonKey, {
     global: { headers: { Authorization: `Bearer ${jwt}` } },
   })
   const pendingActions = createPendingActionStore(serviceRoleClient as never, callerClient as never)
 
-  // ── 3. Read the model config from function secrets (D4) ──────────────────────
+  // ── 4. Read the model config from function secrets (D4) ──────────────────────
   const apiKey = Deno.env.get('AGENT_MODEL_API_KEY')
   const baseUrl = Deno.env.get('AGENT_MODEL_BASE_URL')
   const model = resolveDefaultModel({ AGENT_MODEL_DEFAULT: Deno.env.get('AGENT_MODEL_DEFAULT') ?? undefined })
@@ -86,7 +85,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   const modelClient = new ChatCompletionsClient({ apiKey, baseUrl })
 
-  // ── 4. Parse request body ─────────────────────────────────────────────────────
+  // ── 5. Parse request body ─────────────────────────────────────────────────────
   let body: AgentChatRequest
   try {
     const parsed = await readCappedJson(req)
@@ -104,7 +103,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     )
   }
 
-  // ── 5. Persistence deps (default ON; AGENT_PERSISTENCE='false' disables) ─────
+  // ── 6. Persistence deps (default ON; AGENT_PERSISTENCE='false' disables) ─────
   // Bound to the SAME callerClient (never serviceRoleClient — the deputy invariant).
   const persistenceEnabled = Deno.env.get('AGENT_PERSISTENCE') !== 'false'
 
@@ -129,7 +128,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     ? (await loadMaxSeq(persistenceDepsBase, body.runId)) + 1
     : undefined
 
-  // ── 6. Pipe agentChatHandler events into an SSE ReadableStream ────────────────
+  // ── 7. Pipe agentChatHandler events into an SSE ReadableStream ────────────────
   const stream = new ReadableStream({
     async start(controller) {
       const enc = new TextEncoder()

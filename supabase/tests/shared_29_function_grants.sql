@@ -44,9 +44,16 @@ select ok(
   'every request role can run the pre-request function');
 
 -- check_request reads the request schema from the caller's search_path, so it cannot pin its own;
--- every name in its body is schema-qualified instead.
-select ok(
-  pg_get_functiondef('api_private.check_request()'::regprocedure) !~ '[^.a-z_](_agent_fence|current_setting|jsonb_exists|btrim|split_part)\(',
+-- every function its body calls is schema-qualified instead (comments and literals aside; nullif
+-- and the keywords listed are SQL syntax, not lookups).
+select is(
+  (select array_agg(distinct m[1] order by m[1])
+     from pg_proc p,
+          regexp_matches(regexp_replace(regexp_replace(p.prosrc, '--[^\n]*', '', 'g'), '''[^'']*''', '', 'g'),
+                         '(?:^|[^.a-z0-9_"])([a-z_][a-z0-9_]*)\s*\(', 'gi') m
+    where p.oid = 'api_private.check_request()'::regprocedure
+      and lower(m[1]) not in ('nullif', 'if', 'and', 'or', 'not', 'in', 'exists')),
+  null::text[],
   'api_private.check_request qualifies every function it calls');
 
 -- No PUBLIC or anon EXECUTE outside the pre-request functions.
