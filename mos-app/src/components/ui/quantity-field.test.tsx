@@ -7,16 +7,47 @@ const REASONS = [
   { raw: '12x', options: {}, en: 'Enter a number.', id: 'Masukkan angka.' },
   { raw: '1,2.3', options: {}, en: 'Use one mark: 1.5.', id: 'Gunakan satu tanda: 1,5.' },
   {
-    raw: '1.500', options: { maxFractionDigits: 4, rejectThreeDigitGrouping: true },
-    en: 'Type 1.5 or 1500 — no thousands mark.', id: 'Ketik 1,5 atau 1500 — tanpa tanda ribuan.',
+    raw: '1.500', options: { maxFractionDigits: 3 },
+    en: 'Did you mean 1500 or 1.500? If decimal, re-enter it with one or two decimal places.',
+    id: 'Maksudnya 1500 atau 1,500? Jika desimal, masukkan ulang dengan satu atau dua angka desimal.',
   },
   { raw: '-2', options: {}, en: 'Use zero or more.', id: 'Masukkan nol atau lebih.' },
   { raw: '1.5', options: { integerOnly: true }, en: 'Whole numbers only.', id: 'Bilangan bulat saja.' },
   { raw: '11', options: { max: 10 }, en: 'Number too large.', id: 'Angka terlalu besar.' },
-  { raw: '1.125', options: { maxFractionDigits: 2 }, en: 'Use up to 2 decimals.', id: 'Maks. 2 angka desimal.' },
+  {
+    raw: '1.125', options: { maxFractionDigits: 2 },
+    en: 'Did you mean 1125 or 1.125? If decimal, re-enter it with one or two decimal places.',
+    id: 'Maksudnya 1125 atau 1,125? Jika desimal, masukkan ulang dengan satu atau dua angka desimal.',
+  },
 ] as const
 
 describe('QuantityField validation copy and keyboard entry', () => {
+  it.each([
+    {
+      raw: '1.250',
+      en: 'Did you mean 1250 or 1.250? If decimal, re-enter it with one or two decimal places.',
+      id: 'Maksudnya 1250 atau 1,250? Jika desimal, masukkan ulang dengan satu atau dua angka desimal.',
+    },
+    {
+      raw: '0,125',
+      en: 'Did you mean 125 or 0.125? If decimal, re-enter it with one or two decimal places.',
+      id: 'Maksudnya 125 atau 0,125? Jika desimal, masukkan ulang dengan satu atau dua angka desimal.',
+    },
+  ])('rejects three-digit capture quantity $raw and offers both readings in each locale', ({ raw, en, id }) => {
+    const onChange = vi.fn()
+    for (const [locale, expected] of [['en', en], ['id', id]] as const) {
+      const view = render(
+        <I18nProvider initialLocale={locale}>
+          <QuantityField label="Quantity" value={0} onChange={onChange} maxFractionDigits={3} />
+        </I18nProvider>,
+      )
+      fireEvent.change(screen.getByRole('spinbutton', { name: 'Quantity' }), { target: { value: raw } })
+      expect(screen.getByRole('alert')).toHaveTextContent(expected)
+      expect(onChange).not.toHaveBeenCalledWith(raw === '1.250' ? 1.25 : 0.125)
+      view.unmount()
+    }
+  })
+
   it.each(REASONS)('shows the $raw reason in English and Indonesian', ({ raw, options, en, id }) => {
     for (const [locale, expected] of [['en', en], ['id', id]] as const) {
       const view = render(

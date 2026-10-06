@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useT } from '@/i18n/use-t'
-import { formatQuantityInput, parseQuantityInput } from '@/lib/quantity-parser'
+import { formatQuantityInput, getQuantityAmbiguitySuggestions, parseQuantityInput } from '@/lib/quantity-parser'
 import type { QuantityParseReason } from '@/lib/quantity-parser'
 import './quantity-field.css'
 
@@ -22,7 +22,6 @@ interface QuantityFieldProps {
   max?: number
   maxIntegerDigits?: number
   maxFractionDigits?: number
-  rejectThreeDigitGrouping?: boolean
   placeholder?: string
   className?: string
   errorClassName?: string
@@ -43,17 +42,22 @@ function locale(): string {
 export function QuantityFieldError({
   id,
   reason,
+  rawValue,
   maxFractionDigits = 2,
   className,
 }: {
   id?: string
   reason: QuantityParseReason
+  rawValue: string
   maxFractionDigits?: number
   className?: string
 }) {
   const t = useT()
+  const suggestions = reason === 'thousands' ? getQuantityAmbiguitySuggestions(rawValue, locale()) : null
   const message = reason === 'ambiguous' ? t('quantityField.error.ambiguous')
-    : reason === 'thousands' ? t('quantityField.error.thousands')
+    : reason === 'thousands' ? suggestions
+      ? t('quantityField.error.thousands', suggestions)
+      : t('quantityField.error.format')
     : reason === 'negative' ? t('quantityField.error.negative')
     : reason === 'integer' ? t('quantityField.error.integer')
     : reason === 'range' ? t('quantityField.error.range')
@@ -78,7 +82,6 @@ export function QuantityField({
   max,
   maxIntegerDigits = 10,
   maxFractionDigits = 3,
-  rejectThreeDigitGrouping = false,
   placeholder,
   className,
   errorClassName,
@@ -93,8 +96,8 @@ export function QuantityField({
 }: QuantityFieldProps) {
   const generatedErrorId = useId()
   const parseOptions = useMemo(() => ({
-    integerOnly, min, max, maxIntegerDigits, maxFractionDigits, rejectThreeDigitGrouping,
-  }), [integerOnly, min, max, maxIntegerDigits, maxFractionDigits, rejectThreeDigitGrouping])
+    integerOnly, min, max, maxIntegerDigits, maxFractionDigits,
+  }), [integerOnly, min, max, maxIntegerDigits, maxFractionDigits])
   const initialParse = initialDraft === undefined ? null : parseQuantityInput(initialDraft, parseOptions)
   const [draft, setDraft] = useState(() => initialDraft ?? formatQuantityInput(value, locale(), maxFractionDigits))
   const [error, setError] = useState<QuantityParseReason | null>(
@@ -230,7 +233,7 @@ export function QuantityField({
           <div className={`quantity-field-suffix${suffixClassName ? ` ${suffixClassName}` : ''}`}>{suffix}</div>
         )}
       </div>
-      {showError && <QuantityFieldError id={errorId} reason={error!} maxFractionDigits={maxFractionDigits} className={errorClassName} />}
+      {showError && <QuantityFieldError id={errorId} reason={error!} rawValue={draft} maxFractionDigits={maxFractionDigits} className={errorClassName} />}
     </div>
   )
 }

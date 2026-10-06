@@ -228,16 +228,21 @@ describe('CafeWastePage', () => {
     expect(mockInsertKitchenLog).not.toHaveBeenCalled()
   })
 
-  it('places precision feedback after the unit and reports invalid rows in the submit band', async () => {
+  it.each([
+    ['1.250', 'Did you mean 1250 or 1.250? If decimal, re-enter it with one or two decimal places.'],
+    ['0,125', 'Did you mean 125 or 0.125? If decimal, re-enter it with one or two decimal places.'],
+  ])('refuses ambiguous waste quantity %s with both readings and blocks Add photo', async (raw, correction) => {
     renderPage()
     const input = await screen.findByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })
-    fireEvent.change(input, { target: { value: '1,125' } })
+    fireEvent.change(input, { target: { value: raw } })
 
-    expect(screen.getByRole('alert')).toHaveTextContent('Use up to 2 decimals.')
+    expect(screen.getByRole('alert')).toHaveTextContent(correction)
     const field = input.closest('.quantity-field')!
     expect(field.querySelector('.cwl-unit-select')).toBeInTheDocument()
     expect(field.lastElementChild).toHaveClass('quantity-field-error')
+    expect(screen.getAllByRole('button', { name: /add photo/i })[0]).toBeDisabled()
     expect(within(document.querySelector('.cwl-footer')!).getByRole('button', { name: '1 item needs fixing' })).toBeInTheDocument()
+    expect(mockInsertKitchenLog).not.toHaveBeenCalled()
   })
 
   it('clears search and restores a hidden invalid waste draft from the needs-fixing action', async () => {

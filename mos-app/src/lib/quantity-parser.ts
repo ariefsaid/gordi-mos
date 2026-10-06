@@ -11,14 +11,27 @@ export interface QuantityParseOptions {
   max?: number
   maxIntegerDigits?: number
   maxFractionDigits?: number
-  /** Refuse every one-mark, three-digit grouping shape instead of accepting it as a decimal. */
-  rejectThreeDigitGrouping?: boolean
+}
+
+export type QuantityAmbiguitySuggestions = { grouped: string; decimal: string }
+
+/** Offer whole-number and decimal readings of a three-digit fraction without altering its digits. */
+export function getQuantityAmbiguitySuggestions(raw: string, locale: string): QuantityAmbiguitySuggestions | null {
+  const match = /^(\d+)[.,](\d{3})$/.exec(raw.trim())
+  if (!match) return null
+
+  const [, integerPart, fractionPart] = match
+  const grouped = BigInt(`${integerPart}${fractionPart}`).toString()
+  const decimalMark = new Intl.NumberFormat(locale, { useGrouping: false })
+    .formatToParts(1.1).find(part => part.type === 'decimal')?.value ?? '.'
+  const decimal = `${BigInt(integerPart)}${decimalMark}${fractionPart}`
+
+  return { grouped, decimal }
 }
 
 /**
  * Parse one ungrouped quantity. Both comma and point are accepted as decimal marks, but
- * combined/repeated marks and likely grouping forms are refused instead of guessed. Other
- * three-place fractions are valid only when the selected unit allows them.
+ * combined/repeated marks and any exactly-three-digit fraction are refused instead of guessed.
  */
 export function parseQuantityInput(raw: string, options: QuantityParseOptions = {}): QuantityParseResult {
   const value = raw.trim()
@@ -35,23 +48,13 @@ export function parseQuantityInput(raw: string, options: QuantityParseOptions = 
   if (options.integerOnly && decimalMark) return { kind: 'invalid', reason: 'integer' }
   const [integerPart = '', fractionPart = ''] = decimalMark ? value.split(decimalMark) : [value, '']
   const integerDigits = integerPart || '0'
+  if (decimalMark && fractionPart.length === 3) return { kind: 'invalid', reason: 'thousands' }
   if (options.maxIntegerDigits !== undefined && integerDigits.length > options.maxIntegerDigits) {
     return { kind: 'invalid', reason: 'range' }
-  }
-  const significantInteger = integerPart.replace(/^0+/, '')
-  const threeDigitGroupShape = decimalMark && significantInteger.length > 0
-    && significantInteger.length <= 3 && fractionPart.length === 3
-  const commonGroupFraction = fractionPart === '000' || fractionPart === '500'
-  if (threeDigitGroupShape && (commonGroupFraction || options.rejectThreeDigitGrouping)) {
-    return { kind: 'invalid', reason: 'thousands' }
   }
   if (options.maxFractionDigits !== undefined && fractionPart.length > options.maxFractionDigits) {
     return { kind: 'invalid', reason: 'precision' }
   }
-  if (threeDigitGroupShape && options.maxFractionDigits === undefined) {
-    return { kind: 'invalid', reason: 'thousands' }
-  }
-
   const normalizedInteger = integerDigits.replace(/^0+(?=\d)/, '')
   const normalizedFraction = fractionPart.replace(/0+$/, '')
   const normalized = normalizedFraction ? `${normalizedInteger}.${normalizedFraction}` : normalizedInteger

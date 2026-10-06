@@ -487,7 +487,18 @@ describe('WipItemStepper — shared decimal quantity capture', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(/Use one mark: 1\.5\./i)
   })
 
-  it('accepts 1,125 for a manager multiple but gives a precision error for the default unit below its limit', () => {
+  it.each([
+    ['1.250', 'Did you mean 1250 or 1.250? If decimal, re-enter it with one or two decimal places.'],
+    ['0,125', 'Did you mean 125 or 0.125? If decimal, re-enter it with one or two decimal places.'],
+  ])('rejects ambiguous capture input %s with both typed-digit readings', (raw, correction) => {
+    const onQtyChange = vi.fn()
+    renderStepper({ onQtyChange })
+    fireEvent.change(screen.getByRole('spinbutton', { name: /quantity produced for nasi goreng/i }), { target: { value: raw } })
+    expect(screen.getByRole('alert')).toHaveTextContent(correction)
+    expect(onQtyChange).not.toHaveBeenCalledWith(raw === '1.250' ? 1.25 : 0.125)
+  })
+
+  it('refuses three-decimal manager multiples with the same ambiguity correction as the default unit', () => {
     const onQtyChange = vi.fn()
     const { container, rerender } = renderStepper({
       line: { entry_quantity: 0, entry_unit_factor: 2, entry_unit_name: 'porsi' },
@@ -495,8 +506,9 @@ describe('WipItemStepper — shared decimal quantity capture', () => {
       onQtyChange,
     })
     fireEvent.change(screen.getByLabelText(/quantity/i), { target: { value: '1,125' } })
-    expect(onQtyChange).toHaveBeenCalledWith(1.125)
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    const multipleError = screen.getByRole('alert')
+    expect(multipleError).toHaveTextContent('Did you mean 1125 or 1.125? If decimal, re-enter it with one or two decimal places.')
+    expect(onQtyChange).not.toHaveBeenCalledWith(1.125)
 
     rerender(
       <WipItemStepper itemName="Nasi Goreng" line={{ ...BASE_LINE }} movement={PRODUCE}
@@ -504,7 +516,8 @@ describe('WipItemStepper — shared decimal quantity capture', () => {
     )
     fireEvent.change(screen.getByLabelText(/quantity/i), { target: { value: '1,125' } })
     const error = screen.getByRole('alert')
-    expect(error).toHaveTextContent('Use up to 2 decimals.')
+    expect(error).toHaveTextContent('Did you mean 1125 or 1.125? If decimal, re-enter it with one or two decimal places.')
+    expect(onQtyChange).not.toHaveBeenCalledWith(1.125)
     const control = container.querySelector('.quantity-field-control')
     expect(control?.querySelector('.kls-unit')).toBeInTheDocument()
     expect(control?.nextElementSibling).toBe(error)

@@ -179,7 +179,6 @@ export function parseCafeCountQuantity(raw: string): QuantityParseResult {
     min: 0,
     maxIntegerDigits: 10,
     maxFractionDigits: 4,
-    rejectThreeDigitGrouping: true,
   })
 }
 
