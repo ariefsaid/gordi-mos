@@ -18,6 +18,7 @@ export type CafeReceiptPostingStatus = 'not_posted' | 'held'
 
 export type CafeReceiptLine = {
   id: string
+  item_unit_id: string
   item_name: string
   item_category: string | null
   unit_name: string
@@ -65,7 +66,7 @@ const RECEIPT_FIELDS = [
   'id', 'branch_id', 'activity', 'arrival_date', 'delivery_note_number', 'status', 'posting_status',
   'posting_hold_reason', 'received_by', 'received_at', 'submitted_at', 'reviewed_by', 'reviewed_at',
   'review_note', 'row_version',
-  'lines:cafe_receipt_lines(id, item_name, item_category, unit_name, received_quantity)',
+  'lines:cafe_receipt_lines(id, item_unit_id, item_name, item_category, unit_name, received_quantity)',
 ].join(', ')
 
 const STATUSES: readonly CafeReceiptStatus[] = ['Counted', 'Submitted', 'Approved', 'Rejected']
@@ -226,19 +227,15 @@ export async function listCafeReceiptDifferences(receiptIds: readonly string[]):
 
 export type CafeReceiptDifferenceSummary =
   | { known: false; asOf: string | null }
-  | { known: true; asOf: string | null; byLine: ReadonlyMap<string, Exclude<CafeReceiptDifferenceOutcome, 'unknown'>>; differing: number; total: number }
+  | { known: true; asOf: string | null; byUnit: ReadonlyMap<string, Exclude<CafeReceiptDifferenceOutcome, 'unknown'>>; differing: number; total: number }
 
-/** One receipt's labels keyed by line id and by product detail; any unknown line makes the whole receipt not yet known. */
+/** One receipt's labels keyed by product detail (unique per receipt); any unknown line makes the whole receipt not yet known. */
 export function summarizeCafeReceiptDifferences(rows: readonly CafeReceiptDifference[]): CafeReceiptDifferenceSummary {
   const asOf = rows.find(row => row.cache_as_of)?.cache_as_of ?? null
   if (rows.length === 0 || rows.some(row => row.outcome === 'unknown')) return { known: false, asOf }
-  const byLine = new Map<string, Exclude<CafeReceiptDifferenceOutcome, 'unknown'>>()
-  for (const row of rows) {
-    const outcome = row.outcome as Exclude<CafeReceiptDifferenceOutcome, 'unknown'>
-    byLine.set(row.line_id, outcome)
-    byLine.set(row.item_unit_id, outcome)
-  }
-  return { known: true, asOf, byLine, differing: rows.filter(row => row.outcome !== 'matches').length, total: rows.length }
+  const byUnit = new Map<string, Exclude<CafeReceiptDifferenceOutcome, 'unknown'>>()
+  for (const row of rows) byUnit.set(row.item_unit_id, row.outcome as Exclude<CafeReceiptDifferenceOutcome, 'unknown'>)
+  return { known: true, asOf, byUnit, differing: rows.filter(row => row.outcome !== 'matches').length, total: rows.length }
 }
 
 /** A received quantity is a typed positive decimal; zero and blank are not part of the receipt. */

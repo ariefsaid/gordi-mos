@@ -4,7 +4,7 @@ import { useAuth } from '@/auth/use-auth'
 import { CafeStreamBar, CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { CafeReceiptState } from '@/components/kitchen/cafe-receipt-state'
-import { CafeReceiptDifferenceLabel } from '@/components/kitchen/cafe-receipt-difference'
+import { CafeReceiptLineRow } from '@/components/kitchen/cafe-receipt-difference'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { useT } from '@/i18n/use-t'
 import { canCaptureCafe } from '@/lib/cafe-affiliation'
@@ -52,6 +52,9 @@ function blankEntries(items: readonly CafeReceivableItem[]): Record<string, Entr
 function submitErrorKey(message: string) {
   if (message.includes('CAFE_RECEIPT_ITEM_NOT_RECEIVABLE')) return 'cafe.receive.error.itemUnavailable' as const
   if (message.includes('CAFE_RECEIPT_CLIENT_KEY_CONFLICT')) return 'cafe.receive.error.keyConflict' as const
+  if (message.includes('CAFE_RECEIPT_COUNTED_PENDING') || message.includes('cafe_receipts_one_counted_per_receiver_branch_uk')) {
+    return 'cafe.receive.error.countedPending' as const
+  }
   if (message.includes('CAFE_RECEIPT_ARRIVAL_DATE')) return 'cafe.receive.error.arrivalDate' as const
   return 'cafe.receive.error.submit' as const
 }
@@ -274,23 +277,21 @@ export function CafeReceivePage() {
             <p>{sent ? t('cafe.receive.sent.copy') : t('cafe.receive.counted.copy')}</p>
             <p className="cafe-receive__difference" role="status" aria-live="polite">
               {difference === 'checking' ? t('cafe.receive.difference.checking')
-                : !difference.known ? t('cafe.receive.difference.unknown')
+                : !difference.known ? t(sent ? 'cafe.receive.difference.unknownSent' : 'cafe.receive.difference.unknown')
                 : difference.differing === 0 ? t('cafe.receive.difference.allMatch')
                 : t('cafe.receive.difference.differ', { count: difference.differing, total: difference.total })}
             </p>
             <ul className="cafe-receipt-lines" aria-label={t('cafe.receive.counted.linesAria')}>
-              {counted.lines.map(line => {
-                const outcome = difference !== 'checking' && difference.known ? difference.byLine.get(line.unitId) : undefined
-                return (
-                  <li key={line.unitId}>
-                    <span>{line.name}</span>
-                    <span className="cafe-receipt-lines__facts">
-                      <span className="tabular">{t('cafe.receipts.quantityUnit', { quantity: line.quantity, unit: line.unit })}</span>
-                      {outcome && <CafeReceiptDifferenceLabel outcome={outcome} />}
-                    </span>
-                  </li>
-                )
-              })}
+              {counted.lines.map(line => (
+                <CafeReceiptLineRow
+                  key={line.unitId}
+                  name={line.name}
+                  quantity={line.quantity}
+                  unit={line.unit}
+                  withDifference
+                  outcome={difference !== 'checking' && difference.known ? difference.byUnit.get(line.unitId) : undefined}
+                />
+              ))}
             </ul>
             {!sent && (
               <div className="cafe-receive__send">

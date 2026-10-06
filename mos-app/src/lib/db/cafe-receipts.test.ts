@@ -113,13 +113,13 @@ describe('Café receipt adapter', () => {
     expect(rpc).toHaveBeenCalledTimes(2)
   })
 
-  it('FR-1012 a receipt is known only when every line has a label; it counts the lines that differ', () => {
+  it('FR-1012 a receipt is known only when every line has a label; labels key by product detail and it counts the lines that differ', () => {
     const line = (id: string, outcome: 'over' | 'matches' | 'unknown') =>
       ({ receipt_id: 'r', line_id: id, item_unit_id: `u-${id}`, outcome, cache_as_of: null })
     expect(summarizeCafeReceiptDifferences([])).toEqual({ known: false, asOf: null })
     expect(summarizeCafeReceiptDifferences([line('a', 'over'), line('b', 'unknown')]).known).toBe(false)
     const summary = summarizeCafeReceiptDifferences([line('a', 'over'), line('b', 'matches')])
-    expect(summary.known && [summary.differing, summary.total, summary.byLine.get('a'), summary.byLine.get('u-b')])
+    expect(summary.known && [summary.differing, summary.total, summary.byUnit.get('u-a'), summary.byUnit.get('u-b')])
       .toEqual([1, 2, 'over', 'matches'])
   })
 })

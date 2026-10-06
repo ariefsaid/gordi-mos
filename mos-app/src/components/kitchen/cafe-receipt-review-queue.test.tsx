@@ -20,7 +20,7 @@ function receipt(id: string, receivedBy: string, overrides: Partial<CafeReceipt>
     status: 'Submitted', posting_status: 'not_posted', posting_hold_reason: null, received_by: receivedBy,
     received_at: '2026-10-06T02:00:00Z', submitted_at: '2026-10-06T02:05:00Z', reviewed_by: null, reviewed_at: null,
     review_note: null, row_version: 2,
-    lines: [{ id: `${id}-l1`, item_name: 'Coffee bean', item_category: 'Bar', unit_name: 'kg', received_quantity: '2.5' }],
+    lines: [{ id: `${id}-l1`, item_unit_id: 'unit-kg', item_name: 'Coffee bean', item_category: 'Bar', unit_name: 'kg', received_quantity: '2.5' }],
     ...overrides,
   }
 }
@@ -97,5 +97,39 @@ describe('CafeReceiptReviewQueue', () => {
     expect(await within(row).findByText('Difference not yet known')).toBeInTheDocument()
     expect(within(row).getByText('Open POs not read from ESB yet')).toBeInTheDocument()
     expect(within(row).getByRole('button', { name: 'Approve' })).toBeEnabled()
+  })
+
+  it('FR-1032 a stale cache gives the reason the difference is not known', async () => {
+    vi.mocked(listCafeReceipts).mockResolvedValue([receipt('r-6', 'receiver')])
+    vi.mocked(listCafeReceiptDifferences).mockResolvedValue([
+      { receipt_id: 'r-6', line_id: 'r-6-l1', item_unit_id: 'unit-kg', outcome: 'unknown', cache_as_of: '2026-10-05T23:05:00Z' },
+    ])
+    renderQueue()
+    const row = (await screen.findByText('Received by Shift member')).closest('li')!
+    expect(await within(row).findByText('Open POs as of 06 Oct 06:05 · too old to compare')).toBeInTheDocument()
+  })
+
+  it('NFR-1006 a failed difference read says so, never that the open POs were not read', async () => {
+    vi.mocked(listCafeReceipts).mockResolvedValue([receipt('r-7', 'receiver')])
+    vi.mocked(listCafeReceiptDifferences).mockRejectedValue(new Error('network'))
+    renderQueue()
+    const row = (await screen.findByText('Received by Shift member')).closest('li')!
+    expect(await within(row).findByText('Difference could not be loaded; refresh to try again')).toBeInTheDocument()
+    expect(within(row).queryByText('Open POs not read from ESB yet')).toBeNull()
+  })
+
+  it('FR-1012 a Counted receipt not yet sent shows as “Counted, not sent” with its age and cannot be decided', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true, now: new Date('2026-10-06T04:00:00Z') })
+    try {
+      vi.mocked(listCafeReceipts).mockResolvedValue([receipt('r-8', 'receiver', { status: 'Counted', submitted_at: null, row_version: 1 })])
+      renderQueue()
+      const row = (await screen.findByText('Received by Shift member')).closest('li')!
+      expect(within(row).getByText('Counted, not sent · locked 2h ago')).toBeInTheDocument()
+      expect(within(row).queryByRole('button', { name: 'Approve' })).toBeNull()
+      expect(within(row).queryByRole('button', { name: 'Reject' })).toBeNull()
+      expect(vi.mocked(listCafeReceipts)).toHaveBeenCalledWith(['Submitted', 'Counted'])
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

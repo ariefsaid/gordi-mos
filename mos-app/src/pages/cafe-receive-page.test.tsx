@@ -244,7 +244,7 @@ describe('AC-1010 the difference after Lock counts', () => {
 
     expect(await within(lockedLine('Coffee bean')).findByText('Short of the open PO')).toBeInTheDocument()
     expect(within(lockedLine('Fresh milk')).getByText('Over the open PO')).toBeInTheDocument()
-    expect(screen.getByRole('status')).toHaveTextContent('2 of 2 lines differ from the branch’s open purchase orders.')
+    expect(screen.getByRole('status')).toHaveTextContent('2 of 2 lines differ from the branch’s open POs. The reviewer checks them.')
     expect(mockDifferences).toHaveBeenCalledWith(['receipt-1'])
     expect(screen.getByRole('button', { name: 'Send for review' })).toBeEnabled()
   })
@@ -263,19 +263,34 @@ describe('AC-1010 the difference after Lock counts', () => {
     mockDifferences.mockResolvedValue([difference('unit-kg', 'unknown'), difference('unit-l', 'unknown')])
     await lockBeanAndMilk()
 
-    expect(await screen.findByText(/The difference is not yet known/)).toBeInTheDocument()
+    expect(await screen.findByRole('status')).toHaveTextContent('MOS can’t compare with the branch’s open POs right now. You can still send for review.')
     expect(screen.queryByText(/open PO$/)).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Send for review' }))
     await waitFor(() => expect(mockSend).toHaveBeenCalledWith('receipt-1', 1, ''))
+    expect(await screen.findByRole('heading', { name: 'Sent for review' })).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('the reviewer sees the difference once it can')
+    expect(screen.getByRole('status')).not.toHaveTextContent('You can still send')
   })
 
   it('NFR-1006 a failed read of the PO cache degrades to “not yet known”, never an error', async () => {
     mockDifferences.mockRejectedValue(new Error('network'))
     await lockBeanAndMilk()
 
-    expect(await screen.findByText(/The difference is not yet known/)).toBeInTheDocument()
+    expect(await screen.findByText(/MOS can’t compare/)).toBeInTheDocument()
     expect(screen.queryByRole('alert')).toBeNull()
     expect(screen.getByRole('button', { name: 'Send for review' })).toBeEnabled()
+  })
+})
+
+describe('one open Counted receipt per receiver per branch', () => {
+  it('FR-1012 a second Lock counts while an earlier receipt is not sent says to send that one first', async () => {
+    mockSubmit.mockRejectedValue(new Error('submitCafeReceipt failed: CAFE_RECEIPT_COUNTED_PENDING: send your locked receipt'))
+    renderPage()
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '3' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Lock counts' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Your earlier locked counts at this branch are not sent yet. Send them from Your recent receipts below, then lock these.')
+    expect(screen.getByRole('textbox', { name: 'Received for Fresh milk' })).toHaveValue('3')
   })
 })
 
