@@ -106,8 +106,24 @@ describe('CafeCountPage', () => {
       { client_key: 'client-2', item_id: 'wip-1', quantity: '2' },
     ])
     expect(screen.getAllByRole('alert')).toHaveLength(1)
-    expect(screen.getByRole('alert')).toHaveTextContent('Use one mark: 1.5.')
+    expect(screen.getByRole('alert')).toHaveTextContent('Type 1.5 or 1500 — no thousands mark.')
     expect(within(document.querySelector('.cafe-count__footer')!).getByText('1 item needs fixing')).toBeInTheDocument()
+  })
+
+  it('AC-011 refuses a thousands-shaped Count and excludes it from submission', async () => {
+    mockSubmit.mockResolvedValue([{ client_key: 'client-2', outcome: 'submitted', line_id: 'line-2' }])
+    renderPage()
+    const rawInput = await screen.findByRole('textbox', { name: 'Count for Raw flour' })
+    const wipInput = screen.getByRole('textbox', { name: 'Count for Prepared sauce' })
+    fireEvent.change(rawInput, { target: { value: '1.250' } })
+    fireEvent.change(wipInput, { target: { value: '0.125' } })
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Type 1.5 or 1500 — no thousands mark.')
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Count' }))
+    await waitFor(() => expect(mockSubmit).toHaveBeenCalledTimes(1))
+    expect(mockSubmit.mock.calls[0][1]).toEqual([
+      { client_key: 'client-2', item_id: 'wip-1', quantity: '0.125' },
+    ])
   })
 
   it('AC-012 retries an uncertain submit with the same UUID key and quantity', async () => {
@@ -156,14 +172,14 @@ describe('CafeCountPage', () => {
     const rawInput = await screen.findByRole('textbox', { name: 'Count for Raw flour' })
     const wipInput = screen.getByRole('textbox', { name: 'Count for Prepared sauce' })
     fireEvent.change(rawInput, { target: { value: '0' } })
-    fireEvent.change(wipInput, { target: { value: '1,125' } })
+    fireEvent.change(wipInput, { target: { value: '0,125' } })
     fireEvent.click(screen.getByRole('button', { name: 'Submit Count' }))
 
     await waitFor(() => expect(mockSubmit).toHaveBeenCalledTimes(1))
     const [stream, lines] = mockSubmit.mock.calls[0]
     expect(stream).toEqual(streamMocks.stream)
     expect(lines).toHaveLength(2)
-    expect(lines.map(line => line.quantity)).toEqual(['0', '1.125'])
+    expect(lines.map(line => line.quantity)).toEqual(['0', '0.125'])
     expect(lines.every(line => Object.keys(line).sort().join(',') === 'client_key,item_id,quantity')).toBe(true)
     expect(await screen.findByText('Submitted')).toBeInTheDocument()
     expect(await screen.findByText('This item already has a Count today.')).toBeInTheDocument()

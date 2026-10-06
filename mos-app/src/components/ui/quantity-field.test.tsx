@@ -6,6 +6,10 @@ import { QuantityField } from './quantity-field'
 const REASONS = [
   { raw: '12x', options: {}, en: 'Enter a number.', id: 'Masukkan angka.' },
   { raw: '1,2.3', options: {}, en: 'Use one mark: 1.5.', id: 'Gunakan satu tanda: 1,5.' },
+  {
+    raw: '1.500', options: { maxFractionDigits: 4, rejectThreeDigitGrouping: true },
+    en: 'Type 1.5 or 1500 — no thousands mark.', id: 'Ketik 1,5 atau 1500 — tanpa tanda ribuan.',
+  },
   { raw: '-2', options: {}, en: 'Use zero or more.', id: 'Masukkan nol atau lebih.' },
   { raw: '1.5', options: { integerOnly: true }, en: 'Whole numbers only.', id: 'Bilangan bulat saja.' },
   { raw: '11', options: { max: 10 }, en: 'Number too large.', id: 'Angka terlalu besar.' },

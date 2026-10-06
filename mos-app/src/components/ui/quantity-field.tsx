@@ -20,6 +20,7 @@ interface QuantityFieldProps {
   max?: number
   maxIntegerDigits?: number
   maxFractionDigits?: number
+  rejectThreeDigitGrouping?: boolean
   step?: 'any' | number
   placeholder?: string
   className?: string
@@ -51,6 +52,7 @@ export function QuantityFieldError({
 }) {
   const t = useT()
   const message = reason === 'ambiguous' ? t('quantityField.error.ambiguous')
+    : reason === 'thousands' ? t('quantityField.error.thousands')
     : reason === 'negative' ? t('quantityField.error.negative')
     : reason === 'integer' ? t('quantityField.error.integer')
     : reason === 'range' ? t('quantityField.error.range')
@@ -74,6 +76,7 @@ export function QuantityField({
   max,
   maxIntegerDigits = 10,
   maxFractionDigits = 3,
+  rejectThreeDigitGrouping = false,
   step = 'any',
   placeholder,
   className,
@@ -100,7 +103,7 @@ export function QuantityField({
   latestMaxFractionDigits.current = maxFractionDigits
   onValidityChangeRef.current = onValidityChange
   const errorId = `${id ?? generatedErrorId}-quantity-error`
-  const parseOptions = { integerOnly, min, max, maxIntegerDigits, maxFractionDigits }
+  const parseOptions = { integerOnly, min, max, maxIntegerDigits, maxFractionDigits, rejectThreeDigitGrouping }
 
   useEffect(() => {
     const precisionChanged = previousMaxFractionDigits.current !== maxFractionDigits

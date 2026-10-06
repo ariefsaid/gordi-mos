@@ -1,4 +1,4 @@
-export type QuantityParseReason = 'format' | 'ambiguous' | 'negative' | 'integer' | 'range' | 'precision'
+export type QuantityParseReason = 'format' | 'ambiguous' | 'thousands' | 'negative' | 'integer' | 'range' | 'precision'
 
 export type QuantityParseResult =
   | { kind: 'empty' }
@@ -11,12 +11,14 @@ export interface QuantityParseOptions {
   max?: number
   maxIntegerDigits?: number
   maxFractionDigits?: number
+  /** Refuse every one-mark, three-digit grouping shape instead of accepting it as a decimal. */
+  rejectThreeDigitGrouping?: boolean
 }
 
 /**
  * Parse one ungrouped quantity. Both comma and point are accepted as decimal marks, but
- * combined/repeated marks and high-confidence grouping forms (000/500) are refused instead
- * of guessed. Other three-place fractions are valid only when the selected unit allows them.
+ * combined/repeated marks and likely grouping forms are refused instead of guessed. Other
+ * three-place fractions are valid only when the selected unit allows them.
  */
 export function parseQuantityInput(raw: string, options: QuantityParseOptions = {}): QuantityParseResult {
   const value = raw.trim()
@@ -40,12 +42,14 @@ export function parseQuantityInput(raw: string, options: QuantityParseOptions = 
   const threeDigitGroupShape = decimalMark && significantInteger.length > 0
     && significantInteger.length <= 3 && fractionPart.length === 3
   const commonGroupFraction = fractionPart === '000' || fractionPart === '500'
-  if (threeDigitGroupShape && commonGroupFraction) return { kind: 'invalid', reason: 'ambiguous' }
+  if (threeDigitGroupShape && (commonGroupFraction || options.rejectThreeDigitGrouping)) {
+    return { kind: 'invalid', reason: 'thousands' }
+  }
   if (options.maxFractionDigits !== undefined && fractionPart.length > options.maxFractionDigits) {
     return { kind: 'invalid', reason: 'precision' }
   }
   if (threeDigitGroupShape && options.maxFractionDigits === undefined) {
-    return { kind: 'invalid', reason: 'ambiguous' }
+    return { kind: 'invalid', reason: 'thousands' }
   }
 
   const normalizedInteger = integerDigits.replace(/^0+(?=\d)/, '')

@@ -10,10 +10,10 @@ describe('parseQuantityInput', () => {
 
   it('rejects combined separators, malformed strings, negatives, and likely locale grouping', () => {
     expect(parseQuantityInput('1.234,5')).toEqual({ kind: 'invalid', reason: 'ambiguous' })
-    expect(parseQuantityInput('1,234')).toEqual({ kind: 'invalid', reason: 'ambiguous' })
-    expect(parseQuantityInput('1.500')).toEqual({ kind: 'invalid', reason: 'ambiguous' })
-    expect(parseQuantityInput('1,500')).toEqual({ kind: 'invalid', reason: 'ambiguous' })
-    expect(parseQuantityInput('0001.500')).toEqual({ kind: 'invalid', reason: 'ambiguous' })
+    expect(parseQuantityInput('1,234')).toEqual({ kind: 'invalid', reason: 'thousands' })
+    expect(parseQuantityInput('1.500')).toEqual({ kind: 'invalid', reason: 'thousands' })
+    expect(parseQuantityInput('1,500')).toEqual({ kind: 'invalid', reason: 'thousands' })
+    expect(parseQuantityInput('0001.500')).toEqual({ kind: 'invalid', reason: 'thousands' })
     expect(parseQuantityInput('1,125', { maxFractionDigits: 3 })).toMatchObject({ kind: 'valid', value: 1.125 })
     expect(parseQuantityInput('1.125', { maxFractionDigits: 2 })).toEqual({ kind: 'invalid', reason: 'precision' })
     expect(parseQuantityInput('0.125', { maxFractionDigits: 3 })).toMatchObject({ kind: 'valid', value: 0.125 })
@@ -21,6 +21,18 @@ describe('parseQuantityInput', () => {
     expect(parseQuantityInput('99999999999', { maxIntegerDigits: 10 })).toEqual({ kind: 'invalid', reason: 'range' })
     expect(parseQuantityInput('2x')).toEqual({ kind: 'invalid', reason: 'format' })
     expect(parseQuantityInput('-2')).toEqual({ kind: 'invalid', reason: 'negative' })
+  })
+
+  it('can refuse every three-digit grouping shape for blind Count entry', () => {
+    expect(parseQuantityInput('1.250', { maxFractionDigits: 4, rejectThreeDigitGrouping: true })).toEqual({
+      kind: 'invalid', reason: 'thousands',
+    })
+    expect(parseQuantityInput('1,125', { maxFractionDigits: 4, rejectThreeDigitGrouping: true })).toEqual({
+      kind: 'invalid', reason: 'thousands',
+    })
+    expect(parseQuantityInput('0.125', { maxFractionDigits: 4, rejectThreeDigitGrouping: true })).toMatchObject({
+      kind: 'valid', value: 0.125,
+    })
   })
 
   it('refuses fractional notation for integer-only fields rather than truncating', () => {
