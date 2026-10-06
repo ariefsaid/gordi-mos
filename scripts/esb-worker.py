@@ -180,9 +180,9 @@ import json
 import os
 import re
 import sys
+import unicodedata
 import urllib.error
 import urllib.parse
-import unicodedata
 import urllib.request
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
