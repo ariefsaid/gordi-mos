@@ -25,7 +25,7 @@ select p.oid, n.nspname, p.oid::regprocedure as sig, p.prosecdef, p.prorettype =
    and p.prokind = 'f'
    and not exists (select 1 from pg_depend d where d.objid = p.oid and d.deptype = 'e');
 
-select plan(5 + (select count(*)::int from scoped_functions) * 3);
+select plan(1 + (select count(*)::int * 3 from scoped_functions) + 4);
 
 select ok((select count(*) from scoped_functions where nspname = 'shared') > 0
           and (select count(*) from scoped_functions where nspname = 'api_private') > 0,

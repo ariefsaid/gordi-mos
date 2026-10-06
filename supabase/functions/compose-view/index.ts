@@ -41,8 +41,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   // ── 1. Verify the caller and read its claims (the shared gate) ─────────────
-  const verdict = await requireVerifiedClaims(req, () =>
-    createClient(Deno.env.get('SUPABASE_URL') ?? '', Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''))
+  const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+  const verdict = await requireVerifiedClaims(req, () => createClient(supabaseUrl, serviceRoleKey))
   if (!verdict.ok) {
     return new Response(
       JSON.stringify({ status: 401, error: 'UNAUTHORIZED', detail: verdict.detail }),
