@@ -17,7 +17,7 @@ select shared._test_seed_directory();
 \set sample_claims '{"org_id":"00000000-0000-0000-0000-00000000a5a1","person_id":"00000000-0000-0000-0000-00000000a5f1","access_roles":["member","admin"]}'
 \set real_claims   '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member"]}'
 
-insert into shared.orgs (id, name, slug) values (:'sample_org', 'Sample test org', 'sample-test-org');
+insert into shared.orgs (id, name, slug) values (:'sample_org', 'Gordi Sample', 'gordi-sample-test');
 update shared.orgs set is_sample = true where id = :'sample_org';
 
 insert into auth.users (id, email) values

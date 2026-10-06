@@ -7,7 +7,9 @@
 --      Flagging an org retires the outbox rows it still had queued or in flight.
 --   2. A sample account (@sample.gordi.test, the accounts the one-click sample login uses) is issued
 --      a token only for a person in a sample org.
---   3. Once flagged, an org stays a sample org.
+--   3. Only an org named Gordi Sample whose people all have @sample.gordi.test addresses can be
+--      flagged (shared.is_sample_org_shape). Once flagged it stays flagged, keeps that name, and
+--      takes only people at sample addresses.
 --
 -- DOWN (manual, reversible):
 --   drop trigger esb_push_sample_org_guard on integrations.esb_push;
@@ -15,11 +17,16 @@
 --   drop function integrations._guard_sample_org_outbox();
 --   drop trigger orgs_sample_flag_guard on shared.orgs;
 --   drop function shared._guard_sample_org_flag();
+--   drop trigger people_sample_org_address_guard on shared.people;
+--   drop function shared._guard_sample_org_people();
 --   drop trigger orgs_sample_flag_retire_outbox on shared.orgs;
 --   drop function integrations._retire_sample_org_outbox();
 --   restore integrations.current_esb_target_env() from 20260805000013_integrations_dispatch.sql;
 --   restore shared.custom_access_token_hook(jsonb) from 20261006002300_shared_hardening_lows.sql;
 --   drop function shared.is_sample_org(uuid);
+--   restore supabase/seed.sample-org-money.sql's inline refusal check;
+--   drop function shared.is_sample_org_shape(uuid, text);
+--   drop function shared.is_sample_address(text);
 --   alter table shared.orgs drop column is_sample;
 --   (rows this migration retired to dead_letter keep that status; requeue them deliberately.)
 
@@ -44,6 +51,38 @@ comment on function shared.is_sample_org(uuid) is
   'The one reader of shared.orgs.is_sample: true only for an existing sample org. Unknown or null ids read false. SECURITY DEFINER.';
 revoke execute on function shared.is_sample_org(uuid) from public, anon, authenticated;
 
+-- The sample login's accounts are the @sample.gordi.test addresses. A missing address is not one.
+create or replace function shared.is_sample_address(p_email text)
+returns boolean
+language sql
+immutable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(lower(p_email) like '%@sample.gordi.test', false)
+$$;
+comment on function shared.is_sample_address(text) is
+  'True for an @sample.gordi.test address, in any letter case; false for any other or no address.';
+revoke execute on function shared.is_sample_address(text) from public, anon, authenticated;
+
+-- The shape a sample org must have, used by the flag guard and by seed.sample-org-money.sql.
+create or replace function shared.is_sample_org_shape(p_org_id uuid, p_name text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select p_name = 'Gordi Sample'
+     and not exists (
+       select 1 from shared.people p
+        where p.org_id = p_org_id
+          and not shared.is_sample_address(p.email))
+$$;
+comment on function shared.is_sample_org_shape(uuid, text) is
+  'True when an org with this id and name may be a sample org: it is named Gordi Sample and every person in it, archived or not, has an @sample.gordi.test address. SECURITY DEFINER.';
+revoke execute on function shared.is_sample_org_shape(uuid, text) from public, anon, authenticated;
+
 create or replace function shared._guard_sample_org_flag()
 returns trigger
 language plpgsql
@@ -51,19 +90,46 @@ security definer
 set search_path = ''
 as $$
 begin
-  if old.is_sample and not new.is_sample then
+  if tg_op = 'UPDATE' and old.is_sample and not new.is_sample then
     raise exception 'a sample organisation stays a sample organisation' using errcode = '42501';
+  end if;
+  if new.is_sample and not shared.is_sample_org_shape(new.id, new.name) then
+    raise exception 'only an org named Gordi Sample whose people all have @sample.gordi.test addresses can be a sample organisation'
+      using errcode = '42501';
   end if;
   return new;
 end;
 $$;
 comment on function shared._guard_sample_org_flag() is
-  'Refuses clearing shared.orgs.is_sample for every role. SECURITY DEFINER.';
+  'Refuses clearing shared.orgs.is_sample, and refuses a flagged org (on insert, flagging or rename) that fails shared.is_sample_org_shape, for every role. SECURITY DEFINER.';
 revoke execute on function shared._guard_sample_org_flag() from public, anon, authenticated;
 
 create trigger orgs_sample_flag_guard
-  before update of is_sample on shared.orgs
+  before insert or update of is_sample, name on shared.orgs
   for each row execute function shared._guard_sample_org_flag();
+
+-- A person added to a sample org later must have a sample address too (org_id is immutable).
+create or replace function shared._guard_sample_org_people()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if shared.is_sample_org(new.org_id) and not shared.is_sample_address(new.email) then
+    raise exception 'a sample organisation holds only people with @sample.gordi.test addresses'
+      using errcode = '42501';
+  end if;
+  return new;
+end;
+$$;
+comment on function shared._guard_sample_org_people() is
+  'Refuses a person in a sample org without an @sample.gordi.test address, on insert and on a change of address, for every role. SECURITY DEFINER.';
+revoke execute on function shared._guard_sample_org_people() from public, anon, authenticated;
+
+create trigger people_sample_org_address_guard
+  before insert or update of email on shared.people
+  for each row execute function shared._guard_sample_org_people();
 
 -- ── The outbox: a sample org's rows never reach an ERP ───────────────────────────────────────
 -- Allowed for a sample-org row: an insert that targets dry_run, linking it to its approval group,
@@ -196,11 +262,10 @@ begin
     and p.archived_at is null
   limit 1;
 
-  -- The sample login's accounts are the @sample.gordi.test addresses.
   if exists (
        select 1 from auth.users u
         where u.id = v_user_id
-          and lower(u.email) like '%@sample.gordi.test'
+          and shared.is_sample_address(u.email)
      ) and not shared.is_sample_org(v_person.org_id) then
     return jsonb_build_object('error', jsonb_build_object(
       'http_code', 403,
@@ -249,6 +314,7 @@ revoke execute on function shared.custom_access_token_hook(jsonb) from public, a
 grant execute on function shared.custom_access_token_hook(jsonb) to supabase_auth_admin;
 
 -- ── The project's sample org (the id the sample login checks for) ────────────────────────────
+-- The flag guard refuses this, and so the whole migration, if that org is not sample-shaped.
 update shared.orgs set is_sample = true where id = '5a000000-0000-0000-0000-000000000001';
 
 commit;

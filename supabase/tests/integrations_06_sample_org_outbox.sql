@@ -4,7 +4,7 @@
 -- unaffected. Org A starts as a real org and is flagged sample halfway through.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(28);
+select plan(38);
 
 create function pg_temp.approve(p_log_id uuid) returns text language sql as $$
   select ops.approve_kitchen_log(p_log_id, null,
@@ -59,8 +59,29 @@ select lives_ok(format($$insert into integrations.esb_push (org_id, source_ref, 
   'another real org enqueues to the ERP');
 
 -- ── Flag org A as a sample org ────────────────────────────────────────────────────────────────
+-- Only an org shaped like the sample org takes the flag: named Gordi Sample, every person at a
+-- sample address. Org B gets sample addresses but keeps its name; org A gets the name first.
+update shared.people set email = 'b-' || id || '@sample.gordi.test' where org_id = :'org_b'::uuid;
+select throws_ok(format($$update shared.orgs set is_sample = true where id = %L$$, :'org_b'),
+  '42501', 'only an org named Gordi Sample whose people all have @sample.gordi.test addresses can be a sample organisation',
+  'an org with another name is refused the sample flag');
+update shared.orgs set name = 'Gordi Sample' where id = :'org_a'::uuid;
+update shared.people set email = 'a-' || id || '@sample.gordi.test' where org_id = :'org_a'::uuid;
+update shared.people set email = 'staff@example.test' where id = '00000000-0000-0000-0000-0000000000d1';
+select throws_ok(format($$update shared.orgs set is_sample = true where id = %L$$, :'org_a'),
+  '42501', 'only an org named Gordi Sample whose people all have @sample.gordi.test addresses can be a sample organisation',
+  'an org with a person at a non-sample address is refused the sample flag');
+update shared.people set email = null where id = '00000000-0000-0000-0000-0000000000d1';
+select throws_ok(format($$update shared.orgs set is_sample = true where id = %L$$, :'org_a'),
+  '42501', 'only an org named Gordi Sample whose people all have @sample.gordi.test addresses can be a sample organisation',
+  'an org with a person with no address is refused the sample flag');
+select throws_ok($$insert into shared.orgs (id, name, slug, is_sample)
+  values ('00000000-0000-0000-0000-0000000000c7', 'Org C', 'org-c', true)$$,
+  '42501', 'only an org named Gordi Sample whose people all have @sample.gordi.test addresses can be a sample organisation',
+  'a new org with another name cannot be created flagged');
+update shared.people set email = 'a-' || id || '@sample.gordi.test' where org_id = :'org_a'::uuid;
 select lives_ok(format($$update shared.orgs set is_sample = true where id = %L$$, :'org_a'),
-  'an org can be flagged as a sample org');
+  'the org named Gordi Sample whose people all have sample addresses can be flagged');
 select ok(shared.is_sample_org(:'org_a'::uuid) and not shared.is_sample_org(:'org_b'::uuid),
   'the shared helper names the flagged org and only it');
 select is((select count(*)::int from integrations.esb_push
@@ -137,6 +158,25 @@ select lives_ok(format($$update integrations.esb_push set status = 'dead_letter'
 select throws_ok(format($$update shared.orgs set is_sample = false where id = %L$$, :'org_a'),
   '42501', 'a sample organisation stays a sample organisation',
   'the sample flag cannot be cleared, even by the table owner');
+select throws_ok(format($$update shared.orgs set name = 'Gordi' where id = %L$$, :'org_a'),
+  '42501', 'only an org named Gordi Sample whose people all have @sample.gordi.test addresses can be a sample organisation',
+  'a flagged org cannot be renamed away from Gordi Sample');
+select lives_ok($$insert into shared.orgs (id, name, slug, is_sample)
+  values ('00000000-0000-0000-0000-0000000000c8', 'Gordi Sample', 'gordi-sample-second', true)$$,
+  'a new org named Gordi Sample with no people can be created flagged');
+
+-- A person added to a flagged org later must also have a sample address (refused, not tolerated).
+select throws_ok(format($$insert into shared.people (org_id, full_name, email) values (%L, 'New staff', 'new.staff@example.test')$$, :'org_a'),
+  '42501', 'a sample organisation holds only people with @sample.gordi.test addresses',
+  'a person at a non-sample address cannot be added to a sample org');
+select throws_ok(format($$insert into shared.people (org_id, full_name) values (%L, 'No address')$$, :'org_a'),
+  '42501', 'a sample organisation holds only people with @sample.gordi.test addresses',
+  'a person with no address cannot be added to a sample org');
+select throws_ok($$update shared.people set email = 'staff@example.test' where id = '00000000-0000-0000-0000-0000000000d1'$$,
+  '42501', 'a sample organisation holds only people with @sample.gordi.test addresses',
+  'a sample-org person cannot be given a non-sample address');
+select lives_ok(format($$insert into shared.people (org_id, full_name, email) values (%L, 'New persona', 'new.persona@sample.gordi.test')$$, :'org_a'),
+  'a person at a sample address can be added to a sample org');
 set local role authenticated;
 select shared._test_set_access_roles(:'lead_claims');
 select throws_ok(format($$update shared.orgs set is_sample = false where id = %L$$, :'org_a'),
