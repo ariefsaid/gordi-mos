@@ -1,0 +1,15 @@
+/* A decision row's facts stack one per line, so a wrapped fact never starts with a stray separator. */
+.cafe-decision-queue__meta {
+  display: grid;
+  gap: 2px;
+}
+
+.cafe-decision-queue__meta > span + span::before { content: none; }
+
+.cafe-decision-queue__detail {
+  margin: 8px 0 0;
+  color: var(--foreground);
+  font-size: var(--font-size-body);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}

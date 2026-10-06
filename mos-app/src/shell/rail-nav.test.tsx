@@ -367,6 +367,7 @@ describe('AC-009: aria-current — Work parent location, child page (at /work/si
     ['/cafe/waste', 'Log waste'],
     ['/cafe/count', 'Count'],
     ['/cafe/receive', 'Receive'],
+    ['/cafe/request', 'Request'],
     ['/cafe/plan', 'Plan'],
     ['/cafe/stock', 'Stock'],
     ['/cafe/items', 'Items'],
