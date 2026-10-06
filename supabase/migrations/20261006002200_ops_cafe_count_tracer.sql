@@ -50,13 +50,13 @@ comment on table ops.cafe_count_lines is
 comment on column ops.cafe_count_lines.variance is
   'Generated exact stored-precision Variance = counted_quantity - expected_balance when the expected snapshot is ready.';
 comment on column ops.cafe_count_lines.client_key is
-  'Client-generated idempotency key, unique per org and submitter; it is the only submit metadata accepted from the browser.';
+  'Client-generated UUID idempotency key, unique per org; it is the only submit metadata accepted from the browser.';
 
 create unique index cafe_count_lines_live_branch_item_day_uidx
   on ops.cafe_count_lines (org_id, branch_id, count_date, wip_item_id)
   where status in ('Submitted', 'Confirmed');
-create unique index cafe_count_lines_submitter_client_key_uidx
-  on ops.cafe_count_lines (org_id, submitted_by, client_key);
+create unique index cafe_count_lines_org_client_key_uidx
+  on ops.cafe_count_lines (org_id, client_key);
 create index cafe_count_lines_review_queue_idx
   on ops.cafe_count_lines (org_id, branch_id, activity, status, count_date, submitted_at);
 
@@ -358,9 +358,10 @@ begin
 
     select * into v_existing
       from ops.cafe_count_lines line
-     where line.org_id = v_org_id and line.submitted_by = v_submitter_id and line.client_key = v_key;
+     where line.org_id = v_org_id and line.client_key = v_key;
     if found then
-      if v_existing.branch_id = p_branch_id
+      if v_existing.submitted_by = v_submitter_id
+         and v_existing.branch_id = p_branch_id
          and v_existing.activity = p_activity
          and v_existing.wip_item_id = v_item_id
          and v_existing.counted_quantity = v_qty then
@@ -390,18 +391,24 @@ begin
         v_org_id, p_branch_id, p_activity, v_today, v_item.item_id,
         v_item.item_name, v_item.item_category, v_item.item_kind, v_item.item_unit_id, v_item.unit_name,
         v_qty, v_key, 'mos', 'Submitted', 'not_posted', v_submitter_id
-      ) returning * into v_existing;
-      v_outcome := jsonb_build_object('client_key', v_key, 'outcome', 'submitted', 'line_id', v_existing.id);
-    exception when unique_violation then
-      select * into v_existing
-        from ops.cafe_count_lines line
-       where line.org_id = v_org_id and line.submitted_by = v_submitter_id and line.client_key = v_key;
-      if found and v_existing.branch_id = p_branch_id and v_existing.activity = p_activity
-         and v_existing.wip_item_id = v_item_id and v_existing.counted_quantity = v_qty then
-        v_outcome := jsonb_build_object('client_key', v_key, 'outcome', 'existing', 'line_id', v_existing.id);
+      ) on conflict (org_id, client_key) do nothing
+      returning * into v_existing;
+      if found then
+        v_outcome := jsonb_build_object('client_key', v_key, 'outcome', 'submitted', 'line_id', v_existing.id);
       else
-        v_outcome := jsonb_build_object('client_key', v_key, 'outcome', 'refused', 'reason', 'already_counted');
+        select * into v_existing
+          from ops.cafe_count_lines line
+         where line.org_id = v_org_id and line.client_key = v_key;
+        if found and v_existing.submitted_by = v_submitter_id
+           and v_existing.branch_id = p_branch_id and v_existing.activity = p_activity
+           and v_existing.wip_item_id = v_item_id and v_existing.counted_quantity = v_qty then
+          v_outcome := jsonb_build_object('client_key', v_key, 'outcome', 'existing', 'line_id', v_existing.id);
+        else
+          v_outcome := jsonb_build_object('client_key', v_key, 'outcome', 'refused', 'reason', 'client_key_conflict');
+        end if;
       end if;
+    exception when unique_violation then
+      v_outcome := jsonb_build_object('client_key', v_key, 'outcome', 'refused', 'reason', 'already_counted');
     end;
     v_result := v_result || jsonb_build_array(v_outcome);
   end loop;
@@ -409,7 +416,7 @@ begin
 end;
 $$;
 comment on function ops.submit_cafe_counts(uuid, text, jsonb) is
-  'Atomically processes at most 150 Count lines independently. Accepts only client key, item id and decimal quantity; stamps org, submitter, WIB date, source, status, expected snapshot and posting state; idempotent per line.';
+  'Atomically processes at most 150 Count lines independently. Accepts only client UUID key, item id and decimal quantity; stamps org, submitter, WIB date, source, status, expected snapshot and posting state; idempotent per organization and returns the existing line for a matching retry.';
 revoke execute on function ops.submit_cafe_counts(uuid, text, jsonb) from public, anon, authenticated;
 grant execute on function ops.submit_cafe_counts(uuid, text, jsonb) to authenticated;
 

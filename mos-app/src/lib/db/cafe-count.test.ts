@@ -4,6 +4,7 @@ import type { ProductionStream } from './kitchen-logs.types'
 import {
   listCafeCountableItems,
   listCafeCountLines,
+  newCafeCountClientKey,
   normalizeCafeCountQuantity,
   submitCafeCounts,
 } from './cafe-count'
@@ -37,6 +38,12 @@ describe('Cafe Count domain adapter', () => {
     expect(normalizeCafeCountQuantity('-1')).toBeNull()
   })
 
+  it('creates a browser-generated UUID idempotency key', () => {
+    expect(newCafeCountClientKey()).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    )
+  })
+
   it('gets the blind, server-filtered Countable items for the selected stream', async () => {
     const rpc = vi.fn().mockResolvedValue({ data: [{
       item_id: 'item-1', item_name: 'Raw flour', item_category: 'Pantry', item_kind: 'RAW',
@@ -67,6 +74,17 @@ describe('Cafe Count domain adapter', () => {
       p_activity: 'kitchen',
       p_lines: [{ client_key: 'key-1', item_id: 'item-1', quantity: '0' }],
     })
+  })
+
+  it('maps the existing-line response returned by an idempotent retry', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: [{
+      client_key: 'key-1', outcome: 'existing', line_id: 'original-line',
+    }], error: null })
+    schemaMock.mockReturnValue({ rpc } as never)
+
+    await expect(submitCafeCounts(STREAM, [{
+      client_key: 'key-1', item_id: 'item-1', quantity: '0',
+    }])).resolves.toEqual([{ client_key: 'key-1', outcome: 'existing', line_id: 'original-line' }])
   })
 
   it('reads the WIB day without sending an org or a submitter', async () => {

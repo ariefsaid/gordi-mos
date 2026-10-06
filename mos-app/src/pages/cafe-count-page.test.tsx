@@ -108,6 +108,31 @@ describe('CafeCountPage', () => {
     expect(screen.getAllByRole('alert')).toHaveLength(1)
   })
 
+  it('AC-012 retries an uncertain submit with the same UUID key and quantity', async () => {
+    mockSubmit
+      .mockRejectedValueOnce(new Error('connection dropped after commit'))
+      .mockResolvedValueOnce([{ client_key: 'client-1', outcome: 'existing', line_id: 'line-1' }])
+    renderPage()
+    const rawInput = await screen.findByRole('textbox', { name: 'Count for Raw flour' })
+    fireEvent.change(rawInput, { target: { value: '0' } })
+    const submit = screen.getByRole('button', { name: 'Submit Count' })
+
+    fireEvent.click(submit)
+    expect(await screen.findByText(
+      'This Count could not be submitted. Your quantities are still here; retry when ready.',
+    )).toBeInTheDocument()
+    expect(rawInput).toHaveValue('0')
+    expect(mockSubmit.mock.calls[0][1]).toEqual([
+      { client_key: 'client-1', item_id: 'raw-1', quantity: '0' },
+    ])
+    await waitFor(() => expect(submit).toBeEnabled())
+
+    fireEvent.click(submit)
+    await waitFor(() => expect(mockSubmit).toHaveBeenCalledTimes(2))
+    expect(mockSubmit.mock.calls[1][1]).toEqual(mockSubmit.mock.calls[0][1])
+    expect(await screen.findByText('Submitted')).toBeInTheDocument()
+  })
+
   it('AC-007 zero is submitted while a blank item is omitted; a refused line is shown individually', async () => {
     mockSubmit.mockResolvedValue([
       { client_key: 'client-1', outcome: 'submitted', line_id: 'line-1' },

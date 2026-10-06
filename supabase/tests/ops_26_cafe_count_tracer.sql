@@ -1,7 +1,7 @@
 -- #1366 — blind Cafe Count, reviewer gate, version, freeze, posting switch and org seam.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(52);
+select plan(57);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -38,7 +38,7 @@ select is((select posting_enabled from ops.cafe_count_posting_switches
           false, 'AC-028 a branch created after migration receives a posting switch defaulted off');
 
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 update ops.item_units set confirmed_at = now()
  where esb_product_id like 'SYNTH-ERP-P-1366-%';
 select ops.save_cafe_item_settings(
@@ -164,11 +164,28 @@ select ok((select org_id = '00000000-0000-0000-0000-0000000000a1'
           'NFR-001 org, submitter, WIB date, source, status, Expected balance and posting state are server-stamped');
 select ok(position('expected_balance' in current_setting('app.count_submit_results')) = 0,
           'AC-009 submit response does not disclose the blind Expected balance');
-select is(ops.submit_cafe_counts(
+select set_config('app.count_retry_result', ops.submit_cafe_counts(
   '00000000-0000-0000-0000-00000000bf01', 'kitchen',
   jsonb_build_array(jsonb_build_object('client_key','f1366000-0000-0000-0000-000000000001',
     'item_id',current_setting('app.count_raw_id'),'quantity','0'))
-) -> 0 ->> 'outcome', 'existing', 'AC-012 repeating the same key returns the existing line');
+)::text, true);
+select is(current_setting('app.count_retry_result')::jsonb -> 0 ->> 'outcome', 'existing',
+          'AC-012 repeating the same key returns the existing line');
+select is(current_setting('app.count_retry_result')::jsonb -> 0 ->> 'line_id',
+          current_setting('app.count_raw_line_id'), 'AC-012 an idempotent retry returns the original line ID');
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","admin"]}');
+select set_config('app.count_cross_submitter_result', ops.submit_cafe_counts(
+  '00000000-0000-0000-0000-00000000bf01', 'kitchen',
+  jsonb_build_array(jsonb_build_object('client_key','f1366000-0000-0000-0000-000000000001',
+    'item_id',current_setting('app.count_raw_id'),'quantity','0'))
+)::text, true);
+select is(current_setting('app.count_cross_submitter_result')::jsonb -> 0 ->> 'outcome', 'refused',
+          'AC-012 another same-org submitter cannot adopt an existing idempotency key');
+select is(current_setting('app.count_cross_submitter_result')::jsonb -> 0 ->> 'reason', 'client_key_conflict',
+          'AC-012 a key collision from another submitter is a non-disclosing conflict');
+select ok(not ((current_setting('app.count_cross_submitter_result')::jsonb -> 0) ? 'line_id'),
+          'AC-012 a cross-submitter key collision does not reveal the existing row ID');
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select throws_ok($$select ops.submit_cafe_counts(
   '00000000-0000-0000-0000-00000000bf01', 'kitchen', null::jsonb)$$,
   '22023', null, 'AC-011 a null batch is refused rather than treated as an empty success');
@@ -183,6 +200,13 @@ select is((select count(*)::int from ops.cafe_count_lines
 select ok(not has_function_privilege('authenticated', 'ops.record_cafe_count_expected_balance(uuid,numeric)', 'EXECUTE')
           and has_function_privilege('service_role', 'ops.record_cafe_count_expected_balance(uuid,numeric)', 'EXECUTE'),
           'NFR-001 only the worker role can write the Expected balance');
+select ok(exists (
+  select 1 from pg_indexes
+   where schemaname = 'ops' and tablename = 'cafe_count_lines'
+     and indexname = 'cafe_count_lines_org_client_key_uidx'
+     and indexdef like '%UNIQUE INDEX%'
+     and indexdef like '%(org_id, client_key)%'
+), 'AC-012 client idempotency UUID is unique per organization, across submitters');
 select throws_ok($$select ops.record_cafe_count_expected_balance(
   current_setting('app.count_raw_line_id')::uuid, 0)$$,
   '42501', null, 'NFR-001 browser role cannot call the worker-only Expected balance function');
@@ -205,7 +229,7 @@ select throws_ok($$update ops.cafe_count_lines set status = 'Confirmed'
 reset role;
 revoke update on ops.cafe_count_lines from service_role;
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select is((select row_version from ops.cafe_count_lines where id = current_setting('app.count_raw_line_id')::uuid),
           2, 'AC-021 Expected balance refresh increments the optimistic version');
 select ok((select expected_status = 'ready' and expected_balance = 0 and variance = 0
@@ -218,7 +242,7 @@ set local request.jwt.claims = '{"role":"service_role","org_id":"00000000-0000-0
 select ops.record_cafe_count_expected_balance(current_setting('app.count_raw_line_id')::uuid, 0);
 reset role;
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select throws_ok($$select ops.confirm_cafe_count_line(current_setting('app.count_raw_line_id')::uuid, 1)$$,
   'P0019', null, 'AC-021 reviewer token from before the first Expected balance is stale');
 select throws_ok($$select ops.confirm_cafe_count_line(current_setting('app.count_raw_line_id')::uuid, 2)$$,
@@ -249,28 +273,28 @@ select throws_ok($$update ops.cafe_count_lines set counted_quantity = 99
 reset role;
 revoke update on ops.cafe_count_lines from service_role;
 set local role authenticated;
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select is((select count(*)::int from ops.cafe_count_lines), 2,
           'NFR-001 current-org reviewer can read Count lines');
 select is((select count(*)::int from ops.cafe_count_posting_switches
             where branch_id = '00000000-0000-0000-0000-00000000bf01'), 1,
           'NFR-001 current-org member can read its branch switch');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member"]}');
 select is((select count(*)::int from ops.cafe_count_lines), 0,
           'NFR-001 foreign organization is refused Count-line reads');
 select is((select count(*)::int from ops.cafe_count_posting_switches
             where branch_id = '00000000-0000-0000-0000-00000000bf01'), 0,
           'NFR-001 foreign organization is refused switch reads');
-set local request.jwt.claims = '{}';
+select shared._test_set_access_roles('{}');
 select is((select count(*)::int from ops.cafe_count_lines), 0,
           'NFR-001 missing org claim fails closed for Count lines');
 select is((select count(*)::int from ops.cafe_count_posting_switches), 0,
           'NFR-001 missing org claim fails closed for switch reads');
 
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select throws_ok($$select ops.set_cafe_count_posting_enabled('00000000-0000-0000-0000-00000000bf01', true)$$,
   '42501', null, 'AC-028 only admin can change the branch posting switch');
-set local request.jwt.claims = '{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","admin"]}';
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","admin"]}');
 select lives_ok($$select ops.set_cafe_count_posting_enabled('00000000-0000-0000-0000-00000000bf01', true)$$,
   'AC-028 admin can change the branch switch');
 select is((select posting_enabled from ops.cafe_count_posting_switches
