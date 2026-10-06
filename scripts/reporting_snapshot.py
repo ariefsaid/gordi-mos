@@ -8,7 +8,8 @@ This script deliberately does not load .env files.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal, InvalidOperation
 import os
 import re
 import sys
@@ -19,6 +20,9 @@ REQUIRED_ENV = ("WAREHOUSE_DB_URL", "SUPABASE_REPORTING_DB_URL", "REPORTING_ORG_
 DEFAULT_WINDOW_DAYS = 60
 DEFAULT_SOURCE_CONTRACT_VERSION = "v_daily_revenue_unified.v1"
 DEFAULT_MARGIN_SOURCE_CONTRACT_VERSION = "pos_margin_interim.v1"
+DEFAULT_PENDING_BILLS_WINDOW_DAYS = 730
+DEFAULT_PENDING_BILLS_SOURCE_CONTRACT_VERSION = "pos_pending_bills.v1"
+WIB = timezone(timedelta(hours=7))
 DEFAULT_USAGE_SOURCE_CONTRACT_VERSION = "ingredient_usage_daily.v1"
 
 
@@ -30,6 +34,10 @@ class SnapshotConfig:
     window_days: int = DEFAULT_WINDOW_DAYS
     source_contract_version: str = DEFAULT_SOURCE_CONTRACT_VERSION
     margin_source_contract_version: str = DEFAULT_MARGIN_SOURCE_CONTRACT_VERSION
+    # Off until the warehouse contract view is confirmed; when off the step opens no connection.
+    pending_bills_enabled: bool = False
+    pending_bills_window_days: int = DEFAULT_PENDING_BILLS_WINDOW_DAYS
+    pending_bills_source_contract_version: str = DEFAULT_PENDING_BILLS_SOURCE_CONTRACT_VERSION
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str]) -> "SnapshotConfig":
@@ -38,6 +46,11 @@ class SnapshotConfig:
             raise SystemExit(f"Missing required env: {', '.join(missing)}")
 
         window_days = _parse_window_days(environ.get("REPORTING_WINDOW_DAYS"))
+        pending_bills_window_days = _parse_window_days(
+            environ.get("REPORTING_PENDING_BILLS_WINDOW_DAYS"),
+            name="REPORTING_PENDING_BILLS_WINDOW_DAYS",
+            default=DEFAULT_PENDING_BILLS_WINDOW_DAYS,
+        )
         return cls(
             warehouse_db_url=environ["WAREHOUSE_DB_URL"],
             supabase_reporting_db_url=environ["SUPABASE_REPORTING_DB_URL"],
@@ -51,18 +64,25 @@ class SnapshotConfig:
                 "SOURCE_MARGIN_CONTRACT_VERSION",
                 DEFAULT_MARGIN_SOURCE_CONTRACT_VERSION,
             ),
+            pending_bills_enabled=environ.get("REPORTING_PENDING_BILLS", "").strip() == "1",
+            pending_bills_window_days=pending_bills_window_days,
         )
 
 
-def _parse_window_days(raw: str | None) -> int:
+def _parse_window_days(
+    raw: str | None,
+    *,
+    name: str = "REPORTING_WINDOW_DAYS",
+    default: int = DEFAULT_WINDOW_DAYS,
+) -> int:
     if raw is None or raw.strip() == "":
-        return DEFAULT_WINDOW_DAYS
+        return default
     try:
         value = int(raw)
     except ValueError as exc:
-        raise SystemExit("REPORTING_WINDOW_DAYS must be an integer") from exc
+        raise SystemExit(f"{name} must be an integer") from exc
     if value < 1:
-        raise SystemExit("REPORTING_WINDOW_DAYS must be >= 1")
+        raise SystemExit(f"{name} must be >= 1")
     return value
 
 
@@ -534,25 +554,273 @@ def run_usage_snapshot(config: SnapshotConfig, snapshot_as_of: Any) -> int:
     )
 
 
-def run_all_snapshots(config: SnapshotConfig) -> dict[str, int]:
-    """Run the revenue, margin and usage snapshots in one job run sharing one snapshot_as_of.
+# --- reporting.pending_bills (#1464) ------------------------------------------------------------
+#
+# A bill-grain copy of the till's deferred-payment ("PENDING BILL" tender) bills. The source has no
+# open/closed signal, so the copy only ever adds, refreshes and flags: a bill the source voids or
+# stops sending keeps its row with source_state 'void' or 'missing'. Nothing here deletes.
 
-    Usage runs last: an unknown recipe unit fails the run loudly without holding back the
-    revenue and margin figures, which have already committed.
+PENDING_BILL_TENDER = "PENDING BILL"
+BillKey = tuple[str, str, str]
+
+
+def _squash(value: Any) -> str:
+    return " ".join(str(value or "").split()).upper()
+
+
+def _is_deferred_tender(row: Mapping[str, Any]) -> bool:
+    return _squash(row.get("payment_method_name")) == PENDING_BILL_TENDER
+
+
+def _is_void(row: Mapping[str, Any]) -> bool:
+    return _squash(row.get("status_name")) == "VOID"
+
+
+def _bill_key(row: Mapping[str, Any]) -> BillKey:
+    esb_code = _required_text(row.get("esb_code"), "esb_code")
+    branch_code = _clean_text(row.get("branch_code")) or esb_code
+    return (esb_code, branch_code, _required_text(row.get("bill_num"), "bill_num"))
+
+
+def _is_payable(row: Mapping[str, Any]) -> bool:
+    """A positive total. Zero owes nothing and a negative total is a refund the copy does not
+    model; both are skipped and counted rather than refused by the table's amount check."""
+    try:
+        return Decimal(str(row.get("grand_total"))) > 0
+    except (InvalidOperation, ValueError):
+        return False
+
+
+def is_skipped_pending_bill(row: Mapping[str, Any]) -> bool:
+    return _is_deferred_tender(row) and not _is_void(row) and not _is_payable(row)
+
+
+def normalize_pending_bill(
+    row: Mapping[str, Any],
+    *,
+    snapshot_as_of: Any,
+    org_id: str,
+    source_contract_version: str,
+) -> dict[str, Any] | None:
+    if not _is_deferred_tender(row) or _is_void(row) or not _is_payable(row):
+        return None
+    esb_code, branch_code, bill_no = _bill_key(row)
+    return {
+        "org_id": org_id,
+        "esb_code": esb_code,
+        "branch_code": branch_code,
+        "bill_no": bill_no,
+        "sales_no": _clean_text(row.get("sales_num")),
+        "bill_date": row["sales_date"],
+        "branch_name": _clean_text(row.get("branch_name")),
+        "counterparty_note": _clean_text(row.get("counterparty_note")),
+        "amount": row.get("grand_total"),
+        "snapshot_as_of": snapshot_as_of,
+        "source_contract_version": source_contract_version,
+    }
+
+
+def void_bill_keys(rows: list[Mapping[str, Any]]) -> set[BillKey]:
+    return {_bill_key(row) for row in rows if _is_deferred_tender(row) and _is_void(row)}
+
+
+def plan_bill_flags(
+    existing_present_keys: set[BillKey],
+    run_keys: set[BillKey],
+    void_keys: set[BillKey],
+    existing_missing_keys: set[BillKey] = frozenset(),
+) -> dict[str, list[BillKey]]:
+    """Which rows tonight's run flags. Rows this run carries stay present; a present row that is
+    gone becomes void or missing, and a missing row the source now reports void becomes void."""
+    gone = existing_present_keys - run_keys
+    return {
+        "void": sorted((gone | (existing_missing_keys - run_keys)) & void_keys),
+        "missing": sorted(gone - void_keys),
+    }
+
+
+def pending_bill_window_start(snapshot_as_of: datetime, window_days: int) -> date:
+    return snapshot_as_of.astimezone(WIB).date() - timedelta(days=window_days - 1)
+
+
+def build_pending_bill_source_query() -> str:
+    # Void rows are read too, so a bill the till voided can be flagged rather than left present.
+    return """
+        select sales_num, bill_num, sales_date, esb_code::text as esb_code, branch_code,
+               branch_name, counterparty_note, grand_total, status_name, payment_method_name
+        from public.v_pos_pending_bills
+        where sales_date >= %s::date
+        order by sales_date, esb_code, branch_code, bill_num
+    """
+
+
+def build_pending_bill_upsert_sql() -> str:
+    return """
+        insert into reporting.pending_bills (
+          org_id, esb_code, branch_code, bill_no, sales_no, bill_date, branch_name,
+          counterparty_note, amount, snapshot_as_of, source_contract_version
+        ) values (
+          %(org_id)s, %(esb_code)s, %(branch_code)s, %(bill_no)s, %(sales_no)s, %(bill_date)s,
+          %(branch_name)s, %(counterparty_note)s, %(amount)s, %(snapshot_as_of)s,
+          %(source_contract_version)s
+        )
+        on conflict (org_id, esb_code, branch_code, bill_no)
+        do update set
+          sales_no = excluded.sales_no,
+          bill_date = excluded.bill_date,
+          branch_name = excluded.branch_name,
+          counterparty_note = excluded.counterparty_note,
+          amount = excluded.amount,
+          source_state = 'present',
+          source_state_at = case
+            when reporting.pending_bills.source_state <> 'present' then now()
+            else reporting.pending_bills.source_state_at
+          end,
+          snapshot_as_of = excluded.snapshot_as_of,
+          source_contract_version = excluded.source_contract_version,
+          loaded_at = now()
+    """
+
+
+def build_flaggable_bill_keys_sql() -> str:
+    return """
+        select esb_code, branch_code, bill_no, source_state
+        from reporting.pending_bills
+        where org_id = %s and source_state in ('present', 'missing') and bill_date >= %s::date
+    """
+
+
+def build_bill_flag_sql() -> str:
+    return """
+        update reporting.pending_bills
+        set source_state = %(state)s, source_state_at = now()
+        where org_id = %(org_id)s and esb_code = %(esb_code)s and branch_code = %(branch_code)s
+          and bill_no = %(bill_no)s and source_state <> 'void'
+    """
+
+
+def build_bill_snapshot_insert_sql() -> str:
+    return """
+        insert into reporting.pending_bill_snapshots (
+          org_id, snapshot_as_of, bill_count, window_start, source_contract_version
+        ) values (
+          %(org_id)s, %(snapshot_as_of)s, %(bill_count)s, %(window_start)s,
+          %(source_contract_version)s
+        )
+    """
+
+
+def run_pending_bill_snapshot(config: SnapshotConfig, snapshot_as_of: datetime) -> tuple[int, int]:
+    """Returns (bills written, non-positive bills skipped)."""
+    try:
+        import psycopg
+        from psycopg.rows import dict_row
+    except ImportError as exc:
+        raise SystemExit(
+            "Missing dependency: install psycopg on the VPS snapshot environment"
+        ) from exc
+
+    window_start = pending_bill_window_start(snapshot_as_of, config.pending_bills_window_days)
+    with psycopg.connect(config.warehouse_db_url, row_factory=dict_row) as warehouse_conn:
+        with warehouse_conn.cursor() as warehouse_cur:
+            warehouse_cur.execute(build_pending_bill_source_query(), (window_start,))
+            source_rows = warehouse_cur.fetchall()
+
+    bills = [
+        bill
+        for bill in (
+            normalize_pending_bill(
+                row,
+                snapshot_as_of=snapshot_as_of,
+                org_id=config.org_id,
+                source_contract_version=config.pending_bills_source_contract_version,
+            )
+            for row in source_rows
+        )
+        if bill is not None
+    ]
+    skipped = sum(1 for row in source_rows if is_skipped_pending_bill(row))
+    run_keys = {(b["esb_code"], b["branch_code"], b["bill_no"]) for b in bills}
+    void_keys = void_bill_keys(source_rows)
+
+    with psycopg.connect(config.supabase_reporting_db_url) as reporting_conn:
+        with reporting_conn.cursor() as reporting_cur:
+            # Same rule as the revenue path: declare first, in the transaction that writes.
+            reporting_cur.execute(build_org_scope_sql(), (config.org_id,))
+            reporting_cur.executemany(build_pending_bill_upsert_sql(), bills)
+            reporting_cur.execute(build_flaggable_bill_keys_sql(), (config.org_id, window_start))
+            existing = [tuple(row) for row in reporting_cur.fetchall()]
+            plan = plan_bill_flags(
+                {row[:3] for row in existing if row[3] == "present"},
+                run_keys,
+                void_keys,
+                {row[:3] for row in existing if row[3] == "missing"},
+            )
+            reporting_cur.executemany(
+                build_bill_flag_sql(),
+                [
+                    {
+                        "state": state,
+                        "org_id": config.org_id,
+                        "esb_code": key[0],
+                        "branch_code": key[1],
+                        "bill_no": key[2],
+                    }
+                    for state in ("void", "missing")
+                    for key in plan[state]
+                ],
+            )
+            reporting_cur.execute(
+                build_bill_snapshot_insert_sql(),
+                {
+                    "org_id": config.org_id,
+                    "snapshot_as_of": snapshot_as_of,
+                    "bill_count": len(bills),
+                    "window_start": window_start,
+                    "source_contract_version": config.pending_bills_source_contract_version,
+                },
+            )
+        reporting_conn.commit()
+
+    return len(bills), skipped
+
+
+def run_all_snapshots(config: SnapshotConfig) -> dict[str, int | None]:
+    """Run the revenue, margin, usage (and pending bills when enabled) snapshots in one job run
+    sharing one snapshot_as_of.
+
+    Usage runs after revenue and margin: an unknown recipe unit fails the run loudly without holding
+    back the revenue and margin figures, which have already committed. Pending bills run last.
     """
     snapshot_as_of = datetime.now(timezone.utc)
     revenue_count = run_snapshot(config, snapshot_as_of=snapshot_as_of)
     margin_count = run_margin_snapshot(config, snapshot_as_of)
     usage_count = run_usage_snapshot(config, snapshot_as_of)
-    return {"revenue": revenue_count, "margin": margin_count, "usage": usage_count}
+    pending, skipped = (
+        run_pending_bill_snapshot(config, snapshot_as_of)
+        if config.pending_bills_enabled
+        else (None, None)
+    )
+    return {
+        "revenue": revenue_count,
+        "margin": margin_count,
+        "usage": usage_count,
+        "pending_bills": pending,
+        "pending_bills_skipped": skipped,
+    }
 
 
 def main() -> int:
     config = SnapshotConfig.from_env(os.environ)
     counts = run_all_snapshots(config)
+    def shown(key: str) -> object:
+        return "off" if counts[key] is None else counts[key]
+
     print(
         "reporting_snapshot END "
         f"revenue={counts['revenue']} margin={counts['margin']} usage={counts['usage']} "
+        f"pending_bills={shown('pending_bills')} "
+        f"pending_bills_skipped={shown('pending_bills_skipped')} "
         f"window_days={config.window_days}"
     )
     return 0
