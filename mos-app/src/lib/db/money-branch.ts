@@ -15,6 +15,9 @@ export interface UncoveredCafeItem {
   activities: ProductionActivity[]
 }
 
+/** Unit rows read at most; a branch's prep catalog is a few dozen items. */
+const UNCOVERED_LIMIT = 500
+
 /** The branch's active prep (WIP) items whose ERP item has no active recipe. An ingredient (RAW)
  *  never has one, so it is not listed; an item whose recipe state is unknown (null) is not either. */
 export async function listUncoveredCafeItems(branchId: string): Promise<UncoveredCafeItem[]> {
@@ -25,6 +28,7 @@ export async function listUncoveredCafeItems(branchId: string): Promise<Uncovere
     .eq('has_active_bom_output', false)
     .eq('is_active', true)
     .order('name', { ascending: true })
+    .limit(UNCOVERED_LIMIT)
   if (error) throw new Error(`listUncoveredCafeItems failed: ${error.message}`)
   const byId = new Map<string, UncoveredCafeItem>()
   for (const row of (data ?? []) as { item_id: string; name: string; activity: ProductionActivity }[]) {
@@ -32,7 +36,8 @@ export async function listUncoveredCafeItems(branchId: string): Promise<Uncovere
     if (!item.activities.includes(row.activity)) item.activities.push(row.activity)
     byId.set(row.item_id, item)
   }
-  for (const item of byId.values()) item.activities.sort((a) => (a === 'kitchen' ? -1 : 1))
+  const rank = (a: ProductionActivity) => (a === 'kitchen' ? 0 : 1)
+  for (const item of byId.values()) item.activities.sort((a, b) => rank(a) - rank(b))
   return [...byId.values()]
 }
 

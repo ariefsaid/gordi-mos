@@ -1,10 +1,11 @@
 // DayRevenueChart — one branch's revenue per day as bars, with the same weekday a week earlier as a
 // dashed line (shape, not hue), a labelled rupiah axis and date ticks. MOS owns the interaction:
-// the chart is one focus stop; ←/→ move a day, Home/End jump to the ends, and hover or click picks
-// the day under the pointer. Every move updates one readout line above the plot — the chart's
-// tooltip, announced politely — and the caller's selected day (the Branch page keeps it in ?d=).
-// Recharts draws the marks only (its own keyboard layer is off, so there is one focus stop).
-import { useId, type KeyboardEvent } from 'react'
+// the chart is one focus stop; ←/→ move a day, Home/End jump to the ends, and a click picks the
+// day under the pointer. Those set the caller's selected day (the Branch page keeps it in ?d=).
+// Hovering only previews: the readout line above the plot — the chart's tooltip, announced
+// politely — follows the pointer and returns to the selected day when it leaves. Recharts draws
+// the marks only (its keyboard layer and cursor are off, so there is one focus stop and one marker).
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
 import {
   Bar,
   CartesianGrid,
@@ -12,7 +13,6 @@ import {
   ComposedChart,
   Line,
   ResponsiveContainer,
-  Tooltip,
   XAxis,
   YAxis,
 } from 'recharts'
@@ -34,7 +34,7 @@ export interface DayRevenueChartProps {
 }
 
 /** A missing day's stub, as a share of the tallest bar: visible, never mistaken for a figure. */
-const STUB_SHARE = 0.04
+const STUB_SHARE = 0.08
 
 export function DayRevenueChart({ days, selected, onSelect, label }: DayRevenueChartProps) {
   const t = useT()
@@ -42,12 +42,18 @@ export function DayRevenueChart({ days, selected, onSelect, label }: DayRevenueC
   const readoutId = useId()
   const hintId = useId()
   const patternId = `money-missing-${useId().replace(/:/g, '')}`
-  const index = Math.max(0, days.findIndex((d) => d.date === selected))
+  const selectedIndex = Math.max(0, days.findIndex((d) => d.date === selected))
+  // Keys act on the latest index at once, not on the URL's next render, so a held arrow never
+  // skips a day.
+  const indexRef = useRef(selectedIndex)
+  useEffect(() => { indexRef.current = selectedIndex }, [selectedIndex])
+  const [hover, setHover] = useState<number | null>(null)
+  const index = selectedIndex
   const max = Math.max(1, ...days.map((d) => Math.max(d.value ?? 0, d.compare ?? 0)))
   const data = days.map((d) => ({ ...d, stub: d.value === null ? max * STUB_SHARE : null }))
   const ticks = [0, max / 2, max]
 
-  const day = days[index]
+  const day = days[hover ?? index]
   const readout = day ? readoutText(day) : ''
   function readoutText(d: BranchDay): string {
     const date = formatWeekdayDayMonth(d.date, locale)
@@ -60,20 +66,26 @@ export function DayRevenueChart({ days, selected, onSelect, label }: DayRevenueC
   }
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    const next = event.key === 'ArrowLeft' ? index - 1
-      : event.key === 'ArrowRight' ? index + 1
+    const current = indexRef.current
+    const next = event.key === 'ArrowLeft' ? current - 1
+      : event.key === 'ArrowRight' ? current + 1
         : event.key === 'Home' ? 0
           : event.key === 'End' ? days.length - 1
             : null
     if (next === null) return
     event.preventDefault()
+    setHover(null)
     const clamped = Math.min(days.length - 1, Math.max(0, next))
-    if (clamped !== index) onSelect(days[clamped].date)
+    if (clamped !== indexRef.current) {
+      indexRef.current = clamped
+      onSelect(days[clamped].date)
+    }
   }
-  const pick = (state: { activeTooltipIndex?: number | string | null } | null | undefined) => {
+  const at = (state: { activeTooltipIndex?: number | string | null } | null | undefined) => {
     const i = Number(state?.activeTooltipIndex)
-    if (Number.isInteger(i) && days[i] && i !== index) onSelect(days[i].date)
+    return Number.isInteger(i) && days[i] ? i : null
   }
+  const anyMissing = days.some((d) => d.value === null)
 
   return (
     <figure className="money-chart">
@@ -92,8 +104,15 @@ export function DayRevenueChart({ days, selected, onSelect, label }: DayRevenueC
             margin={{ top: 8, right: 4, bottom: 0, left: 0 }}
             barCategoryGap="20%"
             accessibilityLayer={false}
-            onMouseMove={pick}
-            onClick={pick}
+            onMouseMove={(state) => setHover(at(state))}
+            onMouseLeave={() => setHover(null)}
+            onClick={(state) => {
+              const i = at(state)
+              if (i !== null && i !== indexRef.current) {
+                indexRef.current = i
+                onSelect(days[i].date)
+              }
+            }}
           >
             <defs>
               <pattern id={patternId} width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
@@ -119,7 +138,6 @@ export function DayRevenueChart({ days, selected, onSelect, label }: DayRevenueC
               tick={{ fill: 'var(--muted-foreground)' }}
               tickFormatter={(v: number) => formatIDRCompact(v)}
             />
-            <Tooltip content={() => null} cursor={{ fill: 'var(--muted)', opacity: 0.6 }} isAnimationActive={false} />
             <Bar dataKey="value" stackId="day" radius={[4, 4, 0, 0]} isAnimationActive={false}>
               {data.map((d, i) => (
                 <Cell
@@ -153,10 +171,12 @@ export function DayRevenueChart({ days, selected, onSelect, label }: DayRevenueC
           <span className="money-chart__key money-chart__key--line" aria-hidden="true" />
           {t('money.chart.legend.compare')}
         </span>
-        <span className="money-chart__entry">
-          <span className="money-chart__key money-chart__key--missing" aria-hidden="true" />
-          {t('money.table.notReceived')}
-        </span>
+        {anyMissing && (
+          <span className="money-chart__entry">
+            <span className="money-chart__key money-chart__key--missing" aria-hidden="true" />
+            {t('money.chart.legend.missing')}
+          </span>
+        )}
         <span id={hintId} className="sr-only">{t('money.chart.keys')}</span>
       </figcaption>
     </figure>

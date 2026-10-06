@@ -117,18 +117,33 @@ describe('MoneyBranchPage — the day chart', () => {
     expect(chart).toHaveAttribute('aria-describedby')
   })
 
-  it('a day the branch did not send reads "not received", never zero', async () => {
+  it('a branch missing the latest day opens on its last received day; the missing day reads "not received", never zero', async () => {
     mockRev.mockResolvedValue(REVENUE.filter((r) => !(r.branch_code === 'GHQ' && r.revenue_date === LATEST)))
     renderBranch(['finance'])
     await screen.findByRole('heading', { level: 1, name: 'Gordi HQ' })
-    expect(readout()).toHaveTextContent('Mon 5 Oct · not received')
+    expect(readout()).toHaveTextContent(/^Sun 4 Oct · Rp /)
+    expect(screen.getByText(/Sales through Sun 4 Oct/)).toBeInTheDocument()
+    expect(screen.getByText(/over 7 days · 1 day not received/)).toBeInTheDocument()
+    const chart = screen.getByRole('group', { name: 'Gordi HQ revenue per day' })
+    fireEvent.keyDown(chart, { key: 'End' })
+    await waitFor(() => expect(readout()).toHaveTextContent('Mon 5 Oct · not received'))
+  })
+
+  it('held arrow keys move one day per press, before the URL catches up', async () => {
+    renderBranch(['finance'])
+    await screen.findByRole('heading', { level: 1, name: 'Gordi HQ' })
+    const chart = screen.getByRole('group', { name: 'Gordi HQ revenue per day' })
+    fireEvent.keyDown(chart, { key: 'ArrowLeft' })
+    fireEvent.keyDown(chart, { key: 'ArrowLeft' })
+    fireEvent.keyDown(chart, { key: 'ArrowLeft' })
+    await waitFor(() => expect(where()).toBe(`/money/branch/GHQ?period=7&d=${day(3)}`))
   })
 
   it('the days are also a table, newest first', async () => {
     renderBranch(['finance'])
     const table = await screen.findByRole('table', { name: /Gordi HQ revenue per day, 7 days/ })
     const firstRow = within(table).getAllByRole('row')[1]
-    expect(firstRow).toHaveTextContent('Mon 5 OctRp 14.200.000Rp 18.900.000−24,9%')
+    expect(firstRow).toHaveTextContent('Mon 5 OctRp 14.200.000−24,9%Rp 18.900.000')
   })
 })
 
@@ -167,10 +182,12 @@ describe('MoneyBranchPage — Ask branch lead', () => {
   it('asks about the chosen day of this view and links to the created Task', async () => {
     const user = userEvent.setup()
     renderBranch(['finance'], `/money/branch/GHQ?period=7&d=${day(2)}`)
-    await user.click(await screen.findByRole('button', { name: 'Ask Gordi HQ lead' }))
+    await user.click(await screen.findByRole('button', { name: 'Ask Gordi HQ lead about Sat 3 Oct' }))
     expect(mockAsk).toHaveBeenCalledWith({ code: 'GHQ', period: 7, day: day(2), locale: 'en' })
-    const status = (await screen.findByText(/Task created for the Gordi HQ lead\./)).closest('[role="status"]') as HTMLElement
+    const status = (await screen.findByText(/Task created for the Gordi HQ lead about Sat 3 Oct\./)).closest('[role="status"]') as HTMLElement
     expect(status).not.toBeNull()
+    // The answer takes focus, so a keyboard user lands next to the Task link.
+    expect(status.parentElement).toHaveFocus()
     expect(within(status).getByRole('link', { name: 'Open the Task' })).toHaveAttribute('href', '/work/tasks/task-9')
   })
 
@@ -178,22 +195,50 @@ describe('MoneyBranchPage — Ask branch lead', () => {
     mockAsk.mockResolvedValue({ kind: 'no-lead' })
     const user = userEvent.setup()
     renderBranch(['manager'])
-    await user.click(await screen.findByRole('button', { name: 'Ask Gordi HQ lead' }))
+    await user.click(await screen.findByRole('button', { name: /^Ask Gordi HQ lead/ }))
     expect((await screen.findByText(/Gordi HQ has no Café Team lead in MOS\./)).closest('[role="status"]')).not.toBeNull()
   })
 
-  it('a failure offers Try again', async () => {
+  it('a failure says so and the Ask button asks again', async () => {
     mockAsk.mockRejectedValueOnce(new Error('down'))
     const user = userEvent.setup()
     renderBranch(['finance'])
-    await user.click(await screen.findByRole('button', { name: 'Ask Gordi HQ lead' }))
-    const alert = await screen.findByRole('alert')
-    await user.click(within(alert).getByRole('button', { name: 'Try again' }))
+    const ask = await screen.findByRole('button', { name: /^Ask Gordi HQ lead/ })
+    await user.click(ask)
+    expect(await screen.findByRole('alert')).toHaveTextContent('The Task could not be created.')
+    await user.click(ask)
     expect(await screen.findByText(/Task created/)).toBeInTheDocument()
+  })
+
+  it('a change of day clears the answer about the previous one', async () => {
+    const user = userEvent.setup()
+    renderBranch(['finance'])
+    await user.click(await screen.findByRole('button', { name: /^Ask Gordi HQ lead/ }))
+    await screen.findByText(/Task created/)
+    fireEvent.keyDown(screen.getByRole('group', { name: 'Gordi HQ revenue per day' }), { key: 'ArrowLeft' })
+    await waitFor(() => expect(screen.queryByText(/Task created/)).toBeNull())
+  })
+
+  it('an ESB code not linked to a MOS branch gets no Ask', async () => {
+    renderBranch(['finance'], '/money/branch/CKL?period=7')
+    await screen.findByRole('heading', { level: 1, name: 'Cikal' })
+    expect(screen.queryByRole('button', { name: /^Ask/ })).toBeNull()
   })
 })
 
 describe('MoneyBranchPage — states', () => {
+  it('a failed margin read keeps the revenue and says only margin failed', async () => {
+    mockMarg.mockRejectedValueOnce(new Error('down'))
+    const user = userEvent.setup()
+    renderBranch(['finance'])
+    expect(await screen.findByRole('heading', { level: 1, name: 'Gordi HQ' })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Gordi HQ revenue per day' })).toBeInTheDocument()
+    const alert = screen.getByRole('alert')
+    expect(alert).toHaveTextContent('Margin figures could not be loaded')
+    await user.click(within(alert).getByRole('button', { name: 'Try again' }))
+    expect(await screen.findByRole('heading', { name: 'Margin, last 7 days' })).toBeInTheDocument()
+  })
+
   it('too many rows names the next step and offers no Try again', async () => {
     mockRev.mockRejectedValue(new ReportingRowCapError('too many'))
     renderBranch(['finance'])
@@ -224,7 +269,7 @@ describe('MoneyBranchPage — states', () => {
 
   it('Indonesian', async () => {
     renderBranch(['finance'], '/money/branch/GHQ?period=7', 'id')
-    expect(await screen.findByRole('button', { name: 'Tanya kepala Gordi HQ' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /^Tanya kepala Gordi HQ soal / })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Margin, 7 hari terakhir' })).toBeInTheDocument()
   })
 })

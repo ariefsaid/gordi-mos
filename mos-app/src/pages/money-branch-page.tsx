@@ -7,7 +7,7 @@
 // Same two gates as /money: the route admits the revenue roles (router.tsx); below the margin tier
 // the margin query is never issued and the margin, uncovered and ask pieces are absent. Postgres is
 // the boundary. ?period=7|30|60 and ?d=YYYY-MM-DD (the chosen day) live in the URL.
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { canViewMargin } from '@/lib/capabilities'
@@ -21,9 +21,11 @@ import { formatIDR } from '@/lib/format/money'
 import { formatPercent, formatPoints } from '@/lib/format/percent'
 import { formatWeekdayDayMonth } from '@/lib/format/date'
 import { formatIDRCompact, signedChange } from '@/lib/sales-dashboard'
+import { isoDaysBefore } from '@/lib/trailing-window'
+import { Pill } from '@/components/ui/pill'
 import { useMoneyRows } from '@/lib/use-money-rows'
 import { buildBranchPage, readBranchView, type BranchPage } from '@/lib/money-branch-page'
-import type { MarginFigures, MoneyPeriod } from '@/lib/money-branch-table'
+import { MONEY_FETCH_DAYS, type MarginFigures, type MoneyPeriod } from '@/lib/money-branch-table'
 import {
   askBranchLead,
   listUncoveredCafeItems,
@@ -38,6 +40,9 @@ import { Button } from '@/components/ui/button'
 import { streamKey } from '@/lib/kitchen-action-label'
 import './money-page.css'
 import './money-branch-page.css'
+
+/** The branch codes the ask function accepts in its link; any other code gets no Ask. */
+const ASKABLE_CODE = /^[A-Za-z0-9_-]{1,40}$/
 
 type Ask = { status: 'idle' | 'pending' | 'failed' } | { status: 'done'; result: AskBranchLeadResult }
 
@@ -54,11 +59,15 @@ function MarginPanel({ margin, period }: { margin: MarginFigures; period: MoneyP
       <h2 id="money-branch-margin" className="money-branch__h2">{t('money.branch.margin.title', { days: String(period) })}</h2>
       <p className="money-branch__sentence tabular">
         {basis && margin.cogsVsBudget !== null
-          ? t(margin.cogsVsBudget > 0 ? 'money.branch.margin.over' : 'money.branch.margin.under', {
-            cogs: formatPercent(basis.cogsShare, 1),
-            budget: formatPercent(basis.budgetShare, 1),
-            points: formatPoints(margin.cogsVsBudget),
-          })
+          ? t(
+            formatPoints(margin.cogsVsBudget) === formatPoints(0) ? 'money.branch.margin.on'
+              : margin.cogsVsBudget > 0 ? 'money.branch.margin.over' : 'money.branch.margin.under',
+            {
+              cogs: formatPercent(basis.cogsShare, 1),
+              budget: formatPercent(basis.budgetShare, 1),
+              points: formatPoints(margin.cogsVsBudget),
+            },
+          )
           : t('money.branch.margin.noBudget')}
       </p>
       <dl className="money-branch__figures">
@@ -133,8 +142,8 @@ function DaysTable({ page, period }: { page: BranchPage; period: MoneyPeriod }) 
             <tr>
               <th scope="col">{t('money.branch.days.col.day')}</th>
               <th scope="col">{t('money.chart.legend.revenue')}</th>
-              <th scope="col">{t('money.chart.legend.compare')}</th>
               <th scope="col">{t('money.branch.days.col.change')}</th>
+              <th scope="col">{t('money.chart.legend.compare')}</th>
             </tr>
           </thead>
           <tbody>
@@ -142,10 +151,15 @@ function DaysTable({ page, period }: { page: BranchPage; period: MoneyPeriod }) 
               <tr key={d.date}>
                 <th scope="row">{formatWeekdayDayMonth(d.date, locale)}</th>
                 <td className="tabular">{d.value === null ? t('money.table.notReceived') : formatIDR(d.value)}</td>
-                <td className="tabular">{d.compare === null ? t('money.table.notReceived') : formatIDR(d.compare)}</td>
-                <td className="tabular">
-                  {d.value !== null && d.compare ? signedChange(d.value / d.compare - 1).text : t('money.delta.noComparison')}
+                <td>
+                  {d.value !== null && d.compare
+                    ? (() => {
+                      const { text, tone } = signedChange(d.value / d.compare - 1)
+                      return <Pill tone={tone} dot={false} className="tabular">{text}</Pill>
+                    })()
+                    : <span className="money-branch__muted">{t('money.delta.noComparison')}</span>}
                 </td>
+                <td className="tabular">{d.compare === null ? t('money.table.notReceived') : formatIDR(d.compare)}</td>
               </tr>
             ))}
           </tbody>
@@ -174,6 +188,11 @@ export function MoneyBranchPage() {
   // A supervisor who sees one branch was sent here from /money; a link back would send them here again.
   const onlyBranch = !canSeeMargin && data !== null && new Set(data.revenue.map((r) => r.branch_code)).size === 1
   const [ask, setAsk] = useState<Ask>({ status: 'idle' })
+  const askStatusRef = useRef<HTMLDivElement>(null)
+  // The result is announced and takes focus, so a keyboard user lands on the Task link.
+  useEffect(() => {
+    if (ask.status === 'done' || ask.status === 'failed') askStatusRef.current?.focus()
+  }, [ask.status])
 
   const name = page?.name ?? code
   useDocumentTitle(t('money.branch.documentTitle', { branch: name }))
@@ -182,12 +201,19 @@ export function MoneyBranchPage() {
   const setView = (period: MoneyPeriod, day: string | null) => {
     const next = new URLSearchParams(searchParams)
     next.set('period', String(period))
-    if (day) next.set('d', day)
+    // A chosen day outside the new period is dropped rather than kept in the URL unseen.
+    if (day && (!page || day >= isoDaysBefore(page.latestDate, period - 1))) next.set('d', day)
     else next.delete('d')
     setSearchParams(next, { replace: true })
+    // An answer about the previous view no longer describes this one.
+    setAsk({ status: 'idle' })
   }
-  const selected = page && view.day && page.days.some((d) => d.date === view.day) ? view.day : page?.latestDate ?? ''
-  const canAsk = canSeeMargin && page !== null && !page.isB2B
+  // The branch's own latest received day: the page opens on it and its freshness names it.
+  const lastReceived = page ? [...page.days].reverse().find((d) => d.value !== null)?.date ?? page.latestDate : ''
+  const selected = page && view.day && page.days.some((d) => d.date === view.day) ? view.day : lastReceived
+  const selectedText = selected ? formatWeekdayDayMonth(selected, locale) : ''
+  const canAsk = canSeeMargin && page !== null && !page.isB2B && page.branchId !== null && ASKABLE_CODE.test(page.code)
+  const missingDays = page ? page.days.filter((d) => d.value === null).length : 0
 
   const onAsk = async () => {
     if (!page) return
@@ -202,7 +228,7 @@ export function MoneyBranchPage() {
 
   const askButton = canAsk ? (
     <Button variant="primary" onClick={() => void onAsk()} disabled={ask.status === 'pending'}>
-      {ask.status === 'pending' ? t('money.branch.ask.pending') : t('money.branch.ask', { branch: name })}
+      {ask.status === 'pending' ? t('money.branch.ask.pending') : t('money.branch.ask', { branch: name, day: selectedText })}
     </Button>
   ) : undefined
 
@@ -211,7 +237,7 @@ export function MoneyBranchPage() {
       <div className="money-body money-branch">
         {!onlyBranch && (
           <Link to={`/money?period=${view.period}`} className="money-branch__back">
-            <span aria-hidden="true">← </span>{t('money.branch.back')}
+            <span aria-hidden="true">←</span>{t('money.branch.back')}
           </Link>
         )}
         {children}
@@ -237,19 +263,19 @@ export function MoneyBranchPage() {
   if (!data) return frame(<MoneyLoadError tooMany={load.tooMany} onRetry={() => void read()} />, 'error')
   if (!page) {
     return frame(
-      <EmptyState variant="awaiting" title={t('money.branch.notFound.title')} copy={t('money.branch.notFound.copy')} />,
+      <EmptyState variant="awaiting" title={t('money.branch.notFound.title')} copy={t('money.branch.notFound.copy', { days: String(MONEY_FETCH_DAYS) })} />,
       'empty',
     )
   }
 
   let askStatus: ReactNode = null
   if (ask.status === 'failed') {
-    askStatus = <ErrorState message={t('money.branch.ask.failed')} onRetry={() => void onAsk()} />
+    askStatus = <ErrorState message={t('money.branch.ask.failed')} />
   } else if (ask.status === 'done' && ask.result.kind === 'created') {
     askStatus = (
       <p role="status" className="money-branch__ask-status">
-        {t('money.branch.ask.created', { branch: page.name })}{' '}
-        <Link to={`/work/tasks/${ask.result.taskId}`}>{t('money.branch.ask.open')}</Link>
+        {t('money.branch.ask.created', { branch: page.name, day: selectedText })}{' '}
+        <Link to={`/work/tasks/${ask.result.taskId}`} className="money-branch__link">{t('money.branch.ask.open')}</Link>
       </p>
     )
   } else if (ask.status === 'done') {
@@ -260,13 +286,17 @@ export function MoneyBranchPage() {
     <>
       {periodControl()}
       {load.status === 'error' && <MoneyLoadError kept tooMany={load.tooMany} onRetry={() => void read()} />}
-      {askStatus}
-      <div className={`money-branch__grid${page.margin === undefined || page.margin === null ? ' money-branch__grid--single' : ''}`}>
+      {askStatus && <div ref={askStatusRef} tabIndex={-1} className="money-branch__ask-result">{askStatus}</div>}
+      <div className={`money-branch__grid${page.margin || (data.marginFailed && !page.isB2B) ? '' : ' money-branch__grid--single'}`}>
         <section className="money-branch__panel money-branch__panel--chart" aria-labelledby="money-branch-chart">
           <div className="money-branch__panel-head">
             <h2 id="money-branch-chart" className="money-branch__h2">{t('money.branch.chart.title')}</h2>
             <span className="money-branch__total tabular">
-              {t('money.branch.total', { value: formatIDRCompact(page.total), days: String(view.period) })}
+              {missingDays === 0
+                ? t('money.branch.total', { value: formatIDRCompact(page.total), days: String(view.period) })
+                : t(missingDays === 1 ? 'money.branch.total.missingOne' : 'money.branch.total.missingOther', {
+                  value: formatIDRCompact(page.total), days: String(view.period), count: String(missingDays),
+                })}
             </span>
           </div>
           <DayRevenueChart
@@ -276,6 +306,7 @@ export function MoneyBranchPage() {
             label={t('money.chart.label', { branch: page.name })}
           />
           <DaysTable page={page} period={view.period} />
+          {canSeeMargin && page.isB2B && <p className="money-branch__note">{t('money.note.b2b')}</p>}
         </section>
         {page.margin && (
           <div className="money-branch__side">
@@ -283,10 +314,15 @@ export function MoneyBranchPage() {
             <UncoveredPanel branchId={page.branchId} />
           </div>
         )}
+        {data.marginFailed && !page.isB2B && (
+          <div className="money-branch__side">
+            <MoneyLoadError margin onRetry={() => void read()} />
+          </div>
+        )}
       </div>
     </>,
     undefined,
-    <MoneyFreshness latestDate={page.latestDate} syncedAt={syncedAt} />,
+    <MoneyFreshness latestDate={lastReceived} syncedAt={syncedAt} />,
     askButton,
   )
 }

@@ -5,6 +5,7 @@
 .money-branch__back {
   display: inline-flex;
   align-items: center;
+  gap: 4px;
   min-height: 44px;
   color: var(--muted-foreground);
   font-size: var(--font-size-control);
@@ -122,6 +123,7 @@
   display: flex;
   align-items: center;
   min-height: 44px;
+  padding: 8px 0;
   color: var(--primary);
   font-size: var(--font-size-control);
   text-decoration: none;
@@ -134,6 +136,18 @@
 .money-branch__ask-status {
   margin: 0;
   font-size: var(--font-size-control);
+}
+
+/* Takes focus when the ask answers; the text inside is the message, not a control. */
+.money-branch__ask-result:focus {
+  outline: none;
+}
+
+.money-branch__link {
+  color: var(--primary);
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .money-branch__days summary {

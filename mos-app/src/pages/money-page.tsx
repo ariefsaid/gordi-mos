@@ -108,6 +108,7 @@ export function MoneyPage() {
     <div className="money-body">
       {periodControl()}
       {load.status === 'error' && <MoneyLoadError kept tooMany={load.tooMany} onRetry={() => void read()} />}
+      {load.status === 'ready' && data.marginFailed && <MoneyLoadError margin onRetry={() => void read()} />}
       <BranchTable
         data={table}
         period={view.period}

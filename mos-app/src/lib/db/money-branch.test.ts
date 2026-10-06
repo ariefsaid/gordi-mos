@@ -38,7 +38,8 @@ describe('listUncoveredCafeItems', () => {
     const calls: [string, unknown][] = []
     const builder: Record<string, unknown> = {}
     for (const m of ['select', 'eq']) builder[m] = vi.fn((...a: unknown[]) => { calls.push([m, a]); return builder })
-    builder.order = vi.fn().mockResolvedValue({
+    builder.order = vi.fn(() => builder)
+    builder.limit = vi.fn().mockResolvedValue({
       data: [
         { item_id: 'i1', name: 'Cold brew base', activity: 'bar' },
         { item_id: 'i1', name: 'Cold brew base', activity: 'kitchen' },

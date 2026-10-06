@@ -10,16 +10,21 @@ import type { AuthState } from '@/auth/context'
 vi.mock('@/auth/use-auth')
 const selectedActivity = vi.hoisted(() => ({ initial: 'kitchen' as 'kitchen' | 'bar' | null }))
 vi.mock('@/lib/use-cafe-stream', async () => {
-  const { useState } = await import('react')
+  const { useCallback, useState } = await import('react')
   const branch = { id: 'branch-1', code: 'gordi_hq', name: 'Gordi HQ' }
   const stream: ProductionStream = { branch, activity: 'kitchen', produces: true }
   const bar: ProductionStream = { branch, activity: 'bar', produces: true }
-  const catalog = { branches: [branch], options: [stream, bar], locationOptions: [stream, bar], stream, homeStream: stream,
+  const radiant = { id: 'branch-2', code: 'radiant', name: 'Radiant' }
+  const radiantBar: ProductionStream = { branch: radiant, activity: 'bar', produces: true }
+  const catalog = { branches: [branch, radiant], options: [stream, bar, radiantBar], locationOptions: [stream, bar], stream, homeStream: stream,
     myStreamKeys: new Set(['branch-1|kitchen']), branchId: branch.id }
   const resolve = vi.fn().mockResolvedValue(catalog)
-  const adopt = vi.fn()
   return { useCafeStream: () => {
     const [chosen, setStream] = useState<ProductionStream | null>(selectedActivity.initial === null ? null : selectedActivity.initial === 'bar' ? bar : stream)
+    // A catalog adopted on another stream than the bootstrap's (a linked stream) opens on it.
+    const adopt = useCallback((next: { stream: ProductionStream | null }) => {
+      if (next.stream && next.stream !== stream) setStream(next.stream)
+    }, [])
     return { ...catalog, stream: chosen, resolve, adopt, setStream }
   } }
 })
@@ -360,7 +365,20 @@ describe('Cafe items opened from a link (Money Branch page, #1436)', () => {
     expect(await screen.findByRole('article', { name: 'ERP Oat milk' })).toBeInTheDocument()
   })
 
-  it('ignores a stream that is not at the viewer\'s location', async () => {
+  it('opens a linked stream at another branch', async () => {
+    selectedActivity.initial = 'kitchen'
+    render(
+      <I18nProvider initialLocale="en">
+        <MemoryRouter initialEntries={['/cafe/items?q=Oat%20milk&stream=branch-2%7Cbar']}>
+          <CafeItemSettingsPage />
+        </MemoryRouter>
+      </I18nProvider>,
+    )
+    await waitFor(() => expect(mockListItems).toHaveBeenCalledWith(expect.objectContaining({ branch: expect.objectContaining({ id: 'branch-2' }), activity: 'bar' })))
+    expect(await screen.findByRole('article', { name: 'ERP Oat milk' })).toBeInTheDocument()
+  })
+
+  it('ignores a stream the org does not have', async () => {
     selectedActivity.initial = 'kitchen'
     render(
       <I18nProvider initialLocale="en">
