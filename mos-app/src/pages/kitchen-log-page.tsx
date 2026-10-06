@@ -37,7 +37,7 @@ import { clearCafeDraftCount, setCafeDraftCount } from '@/lib/cafe-capture-draft
 import {
   clearCafeCaptureDraft,
   isCafeCaptureRequestId,
-  listCafeCaptureDrafts,
+  listOtherDateCafeCaptureDrafts,
   readCafeCaptureDraft,
   writeCafeCaptureDraft,
   type CafeCaptureDraftScope,
@@ -73,7 +73,7 @@ import {
   TRANSFER_SHORT_CUE,
 } from '@/lib/kitchen-gates'
 import { useKitchenKpis } from '@/lib/kitchen-kpis'
-import { useSearchParamState } from '@/lib/use-search-param-state'
+import { useCafeCaptureDraftPageState } from '@/lib/use-cafe-capture-draft-page-state'
 import { MovementSeg } from '@/components/kitchen/movement-seg'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { WipItemStepper } from '@/components/kitchen/wip-item-stepper'
@@ -375,8 +375,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false)
   const [savedDraftAt, setSavedDraftAt] = useState<string | null>(null)
   const [restoredDraft, setRestoredDraft] = useState(false)
-  const [restoredDraftInfo, setRestoredDraftInfo] = useState<{ count: number; savedAt: string } | null>(null)
-  const [restoreAnnouncement, setRestoreAnnouncement] = useState('')
+  const capturePageState = useCafeCaptureDraftPageState()
+  const { restoredDraftInfo, setRestoredDraftInfo, restoreAnnouncement, setRestoreAnnouncement, setRestorationNotice } = capturePageState
   const [otherDateDrafts, setOtherDateDrafts] = useState<StoredCafeCaptureDraft<StoredKitchenCaptureDraft>[]>([])
   const [pendingDateDraftDiscard, setPendingDateDraftDiscard] = useState<CafeCaptureDraftScope | null>(null)
   // #586: `lines` stages ONE row per item across every movement segment (produce, each
@@ -395,29 +395,20 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   // Staged items the database refused as not on this stream's list (#222). Their lines stay, marked.
   const [invalidItemIds, setInvalidItemIds] = useState<Set<string>>(new Set())
 
-  useEffect(() => {
-    if (!restoreAnnouncement) return
-    const timer = window.setTimeout(() => setRestoreAnnouncement(''), 1500)
-    return () => window.clearTimeout(timer)
-  }, [restoreAnnouncement])
-
   // Client-side search + category (P-3), URL-synced so the view survives refresh/share (I7 / D-E1).
   // Group collapse stays INTERNAL to the shared <DataTable> (no page-level collapsedGroups state).
-  const [search, setSearch] = useSearchParamState('q', '')
-  const [kindFilter, setKindFilter] = useSearchParamState('kind', 'All')
-  const [category, setCategory] = useSearchParamState('category', 'All')
   // Category and kind selectors are hidden inside the capture form on phones, so copied
   // production/transfer links must not hide rows behind controls the reader cannot use. The
   // receiving toolbar is outside that form and stays filterable at phone widths. RAW is only
   // valid for Transfer.
   const canUseCategoryAndKindFilters = isDesktop || streamNonProducing
-  const requestedKindFilter = kindFilter as KitchenItemKindFilter
+  const requestedKindFilter = capturePageState.kindFilter as KitchenItemKindFilter
   const supportedKindFilter = requestedKindFilter === 'All' || requestedKindFilter === 'WIP'
     || (mode === 'transfer' && requestedKindFilter === 'RAW')
     ? requestedKindFilter
     : 'All'
   const effectiveKindFilter: KitchenItemKindFilter = canUseCategoryAndKindFilters ? supportedKindFilter : 'All'
-  const effectiveCategory = canUseCategoryAndKindFilters ? category : 'All'
+  const effectiveCategory = canUseCategoryAndKindFilters ? capturePageState.category : 'All'
   const filterRows = useMemo(
     () => toKitchenListRows(wipItems, {
       kind: 'WIP',
@@ -431,7 +422,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   )
   const itemTable = useKitchenItemTable({
     data: filterRows,
-    search,
+    search: capturePageState.search,
     kind: effectiveKindFilter,
     category: effectiveCategory,
   })
@@ -504,6 +495,42 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     }
   }, [])
 
+  const recordDraftRestoration = useCallback((
+    record: StoredCafeCaptureDraft<StoredKitchenCaptureDraft> | null,
+    restoredLines: Record<string, KitchenLogLine>,
+  ) => {
+    setSavedDraftAt(record?.updatedAt ?? null)
+    setRestoredDraft(Boolean(record))
+    const restoredCount = Object.values(restoredLines).filter(line => line.qty_porsi > 0).length
+    setRestorationNotice(record?.updatedAt ?? null, restoredCount)
+  }, [setRestorationNotice])
+
+  const commitRestoredStreamDraft = useCallback((
+    { items, plan, stock, actuals, restored, record, dateDrafts }: {
+      items: CaptureFormItem[]
+      plan: PlanMap
+      stock: StockMap
+      actuals: ActualsMap
+      restored: ReturnType<typeof restoreKitchenCaptureDraft>
+      record: StoredCafeCaptureDraft<StoredKitchenCaptureDraft> | null
+      dateDrafts: StoredCafeCaptureDraft<StoredKitchenCaptureDraft>[]
+    },
+    stream: ProductionStream | null,
+    options: readonly ProductionStream[],
+  ) => {
+    setWipItems(items)
+    setInvalidItemIds(new Set())
+    setPlanMap(plan)
+    setStockMap(stock)
+    setActualsMap(actuals)
+    setSummaryCountsAvailable(streamProduces(stream, options))
+    setMovement(restored.movement)
+    setLines(restored.lines)
+    recordDraftRestoration(record, restored.lines)
+    setOtherDateDrafts(dateDrafts)
+    setStatus({ kind: 'ready' })
+  }, [recordDraftRestoration])
+
   // Load the branch catalog + the stream catalog + the person's own default stream + WIP
   // items + the Café BU id, then the plan, stock and actuals FOR THE RESOLVED STREAM.
   // All three are stream-scoped reads (OD-WAY-28): the date-only signatures they replace
@@ -542,10 +569,9 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
         : null
       const storedDraft = storedDraftRecord?.value ?? null
       const dateDrafts = resolvedStream && canCapture && draftOrgId && draftPersonId
-        ? listCafeCaptureDrafts<StoredKitchenCaptureDraft>(draftOrgId, draftPersonId, mode)
-          .filter(record => record.scope.branchId === resolvedStream.branch.id
-            && record.scope.activity === resolvedStream.activity
-            && record.scope.logDate !== logDate)
+        ? listOtherDateCafeCaptureDrafts<StoredKitchenCaptureDraft>(
+          kitchenDraftScope(mode, draftOrgId, draftPersonId, resolvedStream, logDate),
+        )
         : []
       const resolvedMovement = storedDraft?.movement
         ? availableMovements.find(option => movementKey(option) === movementKey(storedDraft.movement)) ?? fallbackMovement
@@ -601,36 +627,20 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       const restored = resolvedStream
         ? restoreKitchenCaptureDraft(storedDraft, items, plan, stock, resolvedStream, availableMovements, resolvedMovement)
         : { lines: buildLines(items, plan, stock, resolvedMovement), movement: resolvedMovement }
-      setWipItems(items)
-      setInvalidItemIds(new Set())
       adoptStream(catalog)
-      setMovement(restored.movement)
-      setPlanMap(plan)
-      setStockMap(stock)
-      setActualsMap(actuals)
-      setSummaryCountsAvailable(streamProduces(resolvedStream, catalog.options))
       setBuId(bu)
-      setLines(restored.lines)
-      setSavedDraftAt(storedDraftRecord?.updatedAt ?? null)
-      setRestoredDraft(Boolean(storedDraftRecord))
-      const restoredCount = Object.values(restored.lines).filter(line => line.qty_porsi > 0).length
-      const restoredInfo = storedDraftRecord && restoredCount > 0
-        ? { count: restoredCount, savedAt: storedDraftRecord.updatedAt }
-        : null
-      setRestoredDraftInfo(restoredInfo)
-      setRestoreAnnouncement(restoredInfo ? t(
-        restoredInfo.count === 1 ? 'cafe.captureDraft.restored.one' : 'cafe.captureDraft.restored.other',
-        { count: restoredInfo.count, time: formatWibDateTime(restoredInfo.savedAt) },
-      ) : '')
-      setOtherDateDrafts(dateDrafts)
-      setStatus({ kind: 'ready' })
+      commitRestoredStreamDraft(
+        { items, plan, stock, actuals, restored, record: storedDraftRecord, dateDrafts },
+        resolvedStream,
+        catalog.options,
+      )
     } catch {
       if (gen !== requestGen.current) return
       // Can't resolve items/streams/stock/BU — render an error state rather than stamping a
       // wrong BU or capturing against a guessed stream.
       setStatus({ kind: 'error', message: t('common.loadFailed', { what: t('common.what.items') }) })
     }
-  }, [adoptStream, canCapture, draftOrgId, draftPersonId, logDate, mode, resolveStream, t])
+  }, [adoptStream, canCapture, commitRestoredStreamDraft, draftOrgId, draftPersonId, logDate, mode, resolveStream, setRestoreAnnouncement, setRestoredDraftInfo, t])
 
   useEffect(() => {
     if (auth.status !== 'authenticated') return
@@ -664,7 +674,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       lines,
     })
     if (updatedAt) setSavedDraftAt(updatedAt)
-  }, [canCapture, draftCount, draftOrgId, draftPersonId, lines, logDate, mode, movement, status.kind, stream])
+  }, [canCapture, draftCount, draftOrgId, draftPersonId, lines, logDate, mode, movement, setRestoreAnnouncement, setRestoredDraftInfo, status.kind, stream])
 
   // A required-note field can make a lower row and the sticky footer taller while the person
   // keeps typing in its quantity input. Recheck only that focused capture input after React has
@@ -772,10 +782,9 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
         setSummaryCountsAvailable(countsAvailable)
         setLines({})
         setOtherDateDrafts(draftOrgId && draftPersonId
-          ? listCafeCaptureDrafts<StoredKitchenCaptureDraft>(draftOrgId, draftPersonId, mode)
-            .filter(record => record.scope.branchId === nextStream.branch.id
-              && record.scope.activity === nextStream.activity
-              && record.scope.logDate !== logDate)
+          ? listOtherDateCafeCaptureDrafts<StoredKitchenCaptureDraft>(
+            kitchenDraftScope(mode, draftOrgId, draftPersonId, nextStream, logDate),
+          )
           : [])
         setStatus({ kind: 'ready' })
         return
@@ -798,40 +807,23 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
         : null
       const storedDraft = storedDraftRecord?.value ?? null
       const dateDrafts = draftOrgId && draftPersonId
-        ? listCafeCaptureDrafts<StoredKitchenCaptureDraft>(draftOrgId, draftPersonId, mode)
-          .filter(record => record.scope.branchId === nextStream.branch.id
-            && record.scope.activity === nextStream.activity
-            && record.scope.logDate !== logDate)
+        ? listOtherDateCafeCaptureDrafts<StoredKitchenCaptureDraft>(
+          kitchenDraftScope(mode, draftOrgId, draftPersonId, nextStream, logDate),
+        )
         : []
       const restored = restoreKitchenCaptureDraft(
         storedDraft, items, plan, stock, nextStream, availableMovements, fallbackMovement,
       )
-      setPlanMap(plan)
-      setWipItems(items)
-      setInvalidItemIds(new Set())
-      setStockMap(stock)
-      setActualsMap(actuals)
-      setSummaryCountsAvailable(streamProduces(nextStream, streamOptions))
-      setMovement(restored.movement)
-      setLines(restored.lines)
-      setSavedDraftAt(storedDraftRecord?.updatedAt ?? null)
-      setRestoredDraft(Boolean(storedDraftRecord))
-      const restoredCount = Object.values(restored.lines).filter(line => line.qty_porsi > 0).length
-      const restoredInfo = storedDraftRecord && restoredCount > 0
-        ? { count: restoredCount, savedAt: storedDraftRecord.updatedAt }
-        : null
-      setRestoredDraftInfo(restoredInfo)
-      setRestoreAnnouncement(restoredInfo ? t(
-        restoredInfo.count === 1 ? 'cafe.captureDraft.restored.one' : 'cafe.captureDraft.restored.other',
-        { count: restoredInfo.count, time: formatWibDateTime(restoredInfo.savedAt) },
-      ) : '')
-      setOtherDateDrafts(dateDrafts)
-      setStatus({ kind: 'ready' })
+      commitRestoredStreamDraft(
+        { items, plan, stock, actuals, restored, record: storedDraftRecord, dateDrafts },
+        nextStream,
+        streamOptions,
+      )
     } catch {
       if (gen !== requestGen.current) return
       setStatus({ kind: 'error', message: t('common.loadFailed', { what: t('common.what.items') }) })
     }
-  }, [cafeStream.destinations, chooseStream, draftOrgId, draftPersonId, logDate, mode, streamOptions, t])
+  }, [cafeStream.destinations, chooseStream, commitRestoredStreamDraft, draftOrgId, draftPersonId, logDate, mode, setRestoreAnnouncement, setRestoredDraftInfo, streamOptions, t])
 
   // Staged quantities belong to the stream they were typed against: ask before a switch
   // discards them, and switch straight through when nothing is staged. Shared by the head's
@@ -1532,17 +1524,17 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
 
   const logToolbar = (
     <KitchenToolbar
-      search={search}
-      onSearchChange={setSearch}
+      search={capturePageState.search}
+      onSearchChange={capturePageState.setSearch}
       kinds={mode === 'transfer' ? KITCHEN_KIND_FILTER_OPTIONS : undefined}
       kind={effectiveKindFilter}
       kindId="cafe-log-kind"
-      onKindChange={setKindFilter}
+      onKindChange={capturePageState.setKindFilter}
       categories={categories}
       categoryId="cafe-log-category"
       categoryLabel={value => kitchenCategoryLabel(t, value)}
-      category={category}
-      onCategoryChange={setCategory}
+      category={capturePageState.category}
+      onCategoryChange={capturePageState.setCategory}
       searchPlaceholder={t('kitchen.log.searchPlaceholder')}
       ariaLabel={t('kitchen.log.toolbarAria')}
     >

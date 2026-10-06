@@ -42,6 +42,7 @@ import { streamKey, streamLabel } from '@/lib/kitchen-action-label'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { useT, type Translate } from '@/i18n/use-t'
 import './cafe-stream-bar.css'
+import './status-banner-tone.css'
 
 /** Sentinel option value for the cross-stream view — never a stream key (those carry a '|'). */
 export const ALL_STREAMS = 'all'

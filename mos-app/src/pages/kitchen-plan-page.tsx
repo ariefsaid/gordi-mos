@@ -77,6 +77,25 @@ import { usePlanSummary } from '@/lib/kitchen-plan-kpis'
 import { formatDayMonthYear } from '@/lib/format/date'
 import './kitchen-plan-page.css'
 
+function CafePlanStreamBar({
+  cafeStream,
+  onChange,
+}: {
+  cafeStream: ReturnType<typeof useCafeStream>
+  onChange: (next: ProductionStream) => Promise<void>
+}) {
+  return (
+    <CafeStreamBar
+      options={cafeStream.options}
+      stream={cafeStream.stream}
+      homeStream={cafeStream.homeStream}
+      myStreamKeys={cafeStream.myStreamKeys}
+      locationBranchId={cafeStream.branchId ?? undefined}
+      onChange={next => { void onChange(next) }}
+    />
+  )
+}
+
 // WIB "today" as YYYY-MM-DD (fixed +7h offset, NFR-007) — matches the other Café pages.
 function wibToday(): string {
   const WIB_OFFSET_MS = 7 * 60 * 60 * 1000
@@ -618,16 +637,7 @@ function PlanEditor() {
       /* #440: the stream this plan is being written INTO, stated in the head. Plan's existing
          Change menu also allows a deliberate working-branch switch; applyStream commits the new
          branch before re-reading its plan. Capture remains bounded to its active location. */
-      statusRow={
-        <CafeStreamBar
-          options={streamOptions}
-          stream={stream}
-          homeStream={homeStream}
-          myStreamKeys={myStreamKeys}
-          locationBranchId={cafeStream.branchId ?? undefined}
-          onChange={next => { void applyStream(next) }}
-        />
-      }
+      statusRow={<CafePlanStreamBar cafeStream={cafeStream} onChange={applyStream} />}
       meta={
         <span className="kp-date tabular">{formatDayMonthYear(logDate)}</span>
       }
@@ -887,16 +897,7 @@ function PesananView() {
     <PageFamilyFrame
       family="workspace"
       title={pageTitle}
-      statusRow={
-        <CafeStreamBar
-          options={streamOptions}
-          stream={stream}
-          homeStream={homeStream}
-          myStreamKeys={myStreamKeys}
-          locationBranchId={cafeStream.branchId ?? undefined}
-          onChange={next => { void applyStream(next) }}
-        />
-      }
+      statusRow={<CafePlanStreamBar cafeStream={cafeStream} onChange={applyStream} />}
       meta={
         <span className="kp-date tabular">
           {t('kitchen.plan.pesanan.meta.horizon', { days: PESANAN_HORIZON_DAYS })}

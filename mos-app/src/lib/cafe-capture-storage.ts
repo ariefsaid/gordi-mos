@@ -129,6 +129,14 @@ export function listCafeCaptureDrafts<T>(
   }
 }
 
+export function listOtherDateCafeCaptureDrafts<T>(scope: CafeCaptureDraftScope): StoredCafeCaptureDraft<T>[] {
+  return listCafeCaptureDrafts<T>(scope.orgId, scope.personId, scope.form).filter(record =>
+    record.scope.branchId === scope.branchId
+      && record.scope.activity === scope.activity
+      && record.scope.logDate !== scope.logDate,
+  )
+}
+
 export function writeCafeCaptureDraft<T>(scope: CafeCaptureDraftScope, value: T): string | null {
   try {
     const updatedAt = new Date().toISOString()

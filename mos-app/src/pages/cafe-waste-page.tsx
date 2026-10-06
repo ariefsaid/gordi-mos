@@ -14,7 +14,7 @@ import { streamKey, streamLabel } from '@/lib/kitchen-action-label'
 import {
   clearCafeCaptureDraft,
   isCafeCaptureRequestId,
-  listCafeCaptureDrafts,
+  listOtherDateCafeCaptureDrafts,
   readCafeCaptureDraft,
   writeCafeCaptureDraft,
   type CafeCaptureDraftScope,
@@ -33,7 +33,7 @@ import type { KitchenWasteDraft, KitchenWastePhoto } from '@/lib/db/kitchen-wast
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { wibToday } from '@/lib/db/cafe-opening'
 import { formatDayMonthYear, formatWibDateTime } from '@/lib/format/date'
-import { useSearchParamState } from '@/lib/use-search-param-state'
+import { useCafeCaptureDraftPageState } from '@/lib/use-cafe-capture-draft-page-state'
 import {
   useKitchenItemTable,
   kitchenDataTableGroups,
@@ -110,9 +110,9 @@ function isInvalidQuantity(raw: string): boolean {
   return !Number.isFinite(value) || value < 0
 }
 
-function initialEntries(items: readonly CafeLogItem[]): Record<string, WasteEntry> {
-  return Object.fromEntries(items.map(item => [item.id, {
-    client_request_id: crypto.randomUUID(),
+function createWasteEntry(item: CafeLogItem, clientRequestId = ''): WasteEntry {
+  return {
+    client_request_id: clientRequestId,
     client_attempted: false,
     quantity: '',
     unitId: item.defaultUnit.id,
@@ -124,7 +124,11 @@ function initialEntries(items: readonly CafeLogItem[]): Record<string, WasteEntr
     preparing: false,
     submitted: false,
     photos: [],
-  }]))
+  }
+}
+
+function initialEntries(items: readonly CafeLogItem[]): Record<string, WasteEntry> {
+  return Object.fromEntries(items.map(item => [item.id, createWasteEntry(item, crypto.randomUUID())]))
 }
 
 function displayUnit(unit: CafeLogItem['units'][number], t: ReturnType<typeof useT>): string {
@@ -198,8 +202,8 @@ export function CafeWastePage() {
   const [entries, setEntries] = useState<Record<string, WasteEntry>>({})
   const [resumableDrafts, setResumableDrafts] = useState<KitchenWasteDraft[]>([])
   const [restoredDraft, setRestoredDraft] = useState(false)
-  const [restoredDraftInfo, setRestoredDraftInfo] = useState<{ count: number; savedAt: string } | null>(null)
-  const [restoreAnnouncement, setRestoreAnnouncement] = useState('')
+  const capturePageState = useCafeCaptureDraftPageState()
+  const { restoredDraftInfo, setRestoredDraftInfo, restoreAnnouncement, setRestoreAnnouncement, setRestorationNotice } = capturePageState
   const [otherDateDrafts, setOtherDateDrafts] = useState<StoredCafeCaptureDraft<StoredWasteCaptureDraft>[]>([])
   const [pendingDraftDiscard, setPendingDraftDiscard] = useState<{ scope: CafeCaptureDraftScope; current: boolean } | null>(null)
   const [submitError, setSubmitError] = useState(false)
@@ -208,19 +212,10 @@ export function CafeWastePage() {
   const readGeneration = useRef(0)
   const draftRequests = useRef(new Set<string>())
 
-  useEffect(() => {
-    if (!restoreAnnouncement) return
-    const timer = window.setTimeout(() => setRestoreAnnouncement(''), 1500)
-    return () => window.clearTimeout(timer)
-  }, [restoreAnnouncement])
-
-  const [search, setSearch] = useSearchParamState('q', '')
-  const [kindFilter, setKindFilter] = useSearchParamState('kind', 'All')
-  const [category, setCategory] = useSearchParamState('category', 'All')
   // Kind/category controls remain visible on phone, including for receiving-only streams, so
   // their URL-backed values must filter the compact list just as they do on desktop.
-  const effectiveKind: KitchenItemKindFilter = kindFilter === 'WIP' || kindFilter === 'RAW' ? kindFilter : 'All'
-  const effectiveCategory = category
+  const effectiveKind: KitchenItemKindFilter = capturePageState.kindFilter === 'WIP' || capturePageState.kindFilter === 'RAW' ? capturePageState.kindFilter : 'All'
+  const effectiveCategory = capturePageState.category
 
   useEffect(() => {
     const onOnline = () => setIsOnline(true)
@@ -295,10 +290,9 @@ export function CafeWastePage() {
         : null
       const stored = storedRecord?.value ?? null
       const dateDrafts = canCapture && orgId && personId
-        ? listCafeCaptureDrafts<StoredWasteCaptureDraft>(orgId, personId, 'waste')
-          .filter(record => record.scope.branchId === stream.branch.id
-            && record.scope.activity === stream.activity
-            && record.scope.logDate !== logDate)
+        ? listOtherDateCafeCaptureDrafts<StoredWasteCaptureDraft>(
+          wasteDraftScope(orgId, personId, stream, logDate),
+        )
         : []
       const storedEntries = stored?.branch_id === stream.branch.id && stored.activity === stream.activity
         && stored.entries && typeof stored.entries === 'object' && !Array.isArray(stored.entries)
@@ -338,14 +332,7 @@ export function CafeWastePage() {
         && !Object.values(nextEntries).some(entry => entry.logId === draft.logId)))
       setRestoredDraft(Boolean(storedRecord))
       const restoredCount = Object.values(nextEntries).filter(entry => quantityValue(entry.quantity) !== null).length
-      const restoredInfo = storedRecord && restoredCount > 0
-        ? { count: restoredCount, savedAt: storedRecord.updatedAt }
-        : null
-      setRestoredDraftInfo(restoredInfo)
-      setRestoreAnnouncement(restoredInfo ? t(
-        restoredInfo.count === 1 ? 'cafe.captureDraft.restored.one' : 'cafe.captureDraft.restored.other',
-        { count: restoredInfo.count, time: formatWibDateTime(restoredInfo.savedAt) },
-      ) : '')
+      setRestorationNotice(storedRecord?.updatedAt ?? null, restoredCount)
       setOtherDateDrafts(dateDrafts)
       setBusinessUnitId(buId)
       setLoadState('ready')
@@ -354,7 +341,7 @@ export function CafeWastePage() {
       setLoadState('error')
     })
     return () => { active = false }
-  }, [canCapture, catalogReady, loadRetry, logDate, orgId, personId, stream, stream?.activity, stream?.branch.id, t])
+  }, [canCapture, catalogReady, loadRetry, logDate, orgId, personId, setRestorationNotice, setRestoreAnnouncement, setRestoredDraftInfo, stream, stream?.activity, stream?.branch.id, t])
 
   const filterRows = useMemo<WasteRow[]>(() => items.map(item => ({
     ...item,
@@ -366,7 +353,7 @@ export function CafeWastePage() {
   })), [items])
   const itemTable = useKitchenItemTable({
     data: filterRows,
-    search,
+    search: capturePageState.search,
     kind: effectiveKind,
     category: effectiveCategory,
   })
@@ -429,7 +416,7 @@ export function CafeWastePage() {
       activity: stream.activity,
       entries: unsent,
     })
-  }, [canCapture, entries, loadState, logDate, orgId, personId, stream])
+  }, [canCapture, entries, loadState, logDate, orgId, personId, setRestoreAnnouncement, setRestoredDraftInfo, stream])
 
   const patchEntry = useCallback((itemId: string, patch: Partial<WasteEntry>) => {
     setEntries(current => {
@@ -705,6 +692,25 @@ export function CafeWastePage() {
     />
   )
 
+  const renderControls = (item: WasteRow) => (
+    <WasteItemControls
+      item={item}
+      entry={entries[item.id]}
+      canCapture={canCapture}
+      isOnline={isOnline}
+      disabled={submitting || loadState !== 'ready'}
+      onQuantityChange={value => patchEntry(item.id, {
+        quantity: value,
+        error: undefined,
+        ...(entries[item.id]?.client_attempted || !value.trim()
+          ? { client_request_id: crypto.randomUUID(), client_attempted: false }
+          : {}),
+      })}
+      onUnitChange={choice => changeWasteEntryUnit(item, choice)}
+      onPrepare={() => void prepareEntry(item)}
+    />
+  )
+
   const columns: DataTableColumn<WasteRow>[] = [
     {
       key: 'item',
@@ -724,24 +730,7 @@ export function CafeWastePage() {
       key: 'quantity',
       header: t('kitchen.waste.quantity'),
       numeric: true,
-      render: item => (
-        <WasteItemControls
-          item={item}
-          entry={entries[item.id]}
-          canCapture={canCapture}
-          isOnline={isOnline}
-          disabled={submitting || loadState !== 'ready'}
-          onQuantityChange={value => patchEntry(item.id, {
-            quantity: value,
-            error: undefined,
-            ...(entries[item.id]?.client_attempted || !value.trim()
-              ? { client_request_id: crypto.randomUUID(), client_attempted: false }
-              : {}),
-          })}
-          onUnitChange={choice => changeWasteEntryUnit(item, choice)}
-          onPrepare={() => void prepareEntry(item)}
-        />
-      ),
+      render: item => renderControls(item),
     },
   ]
 
@@ -753,24 +742,7 @@ export function CafeWastePage() {
           {item.category && <span className="kl-dish-cat">{kitchenCategoryLabel(t, item.category)}</span>}
         </div>
       </div>
-      <div className="cwl-capture-row__controls">
-        <WasteItemControls
-          item={item}
-          entry={entries[item.id]}
-          canCapture={canCapture}
-          isOnline={isOnline}
-          disabled={submitting || loadState !== 'ready'}
-          onQuantityChange={value => patchEntry(item.id, {
-            quantity: value,
-            error: undefined,
-            ...(entries[item.id]?.client_attempted || !value.trim()
-              ? { client_request_id: crypto.randomUUID(), client_attempted: false }
-              : {}),
-          })}
-          onUnitChange={choice => changeWasteEntryUnit(item, choice)}
-          onPrepare={() => void prepareEntry(item)}
-        />
-      </div>
+      <div className="cwl-capture-row__controls">{renderControls(item)}</div>
       <div className="cwl-capture-row__evidence">{renderEvidence(item)}</div>
     </div>
   )
@@ -971,17 +943,17 @@ export function CafeWastePage() {
             ) : (
               <>
                 <KitchenToolbar
-                  search={search}
-                  onSearchChange={setSearch}
+                  search={capturePageState.search}
+                  onSearchChange={capturePageState.setSearch}
                   kinds={WASTE_KIND_OPTIONS}
-                  kind={kindFilter as KitchenItemKindFilter}
+                  kind={capturePageState.kindFilter as KitchenItemKindFilter}
                   kindId="cafe-waste-kind"
-                  onKindChange={setKindFilter}
+                  onKindChange={capturePageState.setKindFilter}
                   categories={categories}
                   categoryId="cafe-waste-category"
                   categoryLabel={value => kitchenCategoryLabel(t, value)}
-                  category={category}
-                  onCategoryChange={setCategory}
+                  category={capturePageState.category}
+                  onCategoryChange={capturePageState.setCategory}
                   searchPlaceholder={t('kitchen.log.searchPlaceholder')}
                   ariaLabel={t('kitchen.log.toolbarAria')}
                 />
@@ -1104,11 +1076,7 @@ function WasteItemControls({
   const t = useT()
   const inputId = `cafe-waste-qty-${item.id}`
   const unitId = `cafe-waste-unit-${item.id}`
-  const current: WasteEntry = entry ?? {
-    client_request_id: '', client_attempted: false, quantity: '', unitId: item.defaultUnit.id, unitFactor: 1, unitBasisKnown: true,
-    capturedUnitName: item.defaultUnit.name, photoReady: false, photoWindowExpired: false,
-    preparing: false, submitted: false, photos: [],
-  }
+  const current = entry ?? createWasteEntry(item)
   const selectedUnit = item.units.find(unit => unit.id === item.defaultUnit.id)
     ?? { ...item.defaultUnit, isDefault: true, labelOrdinal: null, labelCount: 1 }
   const selectedUnitLabel = wasteEntryUnitLabel(item, current, t)
