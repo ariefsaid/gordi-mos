@@ -30,6 +30,20 @@
 .cafe-receive__date label { color: var(--muted-foreground); }
 .cafe-receive__date-hint { color: var(--muted-foreground); }
 
+.cafe-receive__band-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.cafe-receive__band-note {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-body);
+  line-height: 1.4;
+}
+
 .cafe-receive__date input,
 .cafe-receive__send input {
   width: 100%;
@@ -64,7 +78,9 @@
   accent-color: var(--primary);
 }
 
-.cafe-receive__change-unit {
+/* Change unit and the band's Discard draft are the same quiet text control (DESIGN capture band). */
+.cafe-receive__change-unit,
+.cafe-receive__discard-draft {
   justify-self: start;
   min-height: 44px;
   padding: 0;
@@ -77,6 +93,8 @@
   text-underline-offset: 3px;
   cursor: pointer;
 }
+
+.cafe-receive__discard-draft { color: var(--muted-foreground); }
 
 .cafe-receive__units {
   display: flex;
@@ -245,6 +263,7 @@
 
 .cafe-receive__band-status {
   display: grid;
+  flex: 1 1 auto;
   gap: 2px;
   min-width: 0;
 }

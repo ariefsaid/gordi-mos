@@ -30,7 +30,7 @@ language sql set search_path = '' as $$
     from ops.list_cafe_receipt_photos(array[current_setting('app.r1_id')::uuid]);
 $$;
 
-select plan(102);
+select plan(104);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -402,6 +402,25 @@ select set_config('app.r_sup', ops.submit_cafe_receipt('00000000-0000-0000-0000-
   'f1422000-0000-0000-0000-0000000000d4',
   jsonb_build_array(jsonb_build_object('item_unit_id', current_setting('app.milk_l'), 'quantity', '7')))::jsonb ->> 'receipt_id', true);
 select ops.send_cafe_receipt_for_review(current_setting('app.r_sup')::uuid, 1, null);
+
+-- ── AC-1040 a supervisor can read an aged Counted receipt on their stream ──────────────────
+reset role;
+alter table ops.cafe_receipts disable trigger cafe_receipts_guard;
+update ops.cafe_receipts
+   set received_at = clock_timestamp() - interval '25 hours'
+ where id = any(array[
+   (current_setting('app.r_held')::jsonb ->> 'receipt_id')::uuid,
+   current_setting('app.r1_id')::uuid
+ ]);
+alter table ops.cafe_receipts enable trigger cafe_receipts_guard;
+set local role authenticated;
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","supervisor"]}');
+select set_eq($$select id from ops.cafe_receipts where status = 'Counted' and received_at < clock_timestamp() - interval '1 day'$$,
+  format($$values ('%s'::uuid)$$, current_setting('app.r_held')::jsonb ->> 'receipt_id'),
+  'AC-1040 a supervisor can read an aged Counted row on their stream, and only that one as aged and Counted');
+select is((select count(*)::int from ops.cafe_receipts
+  where status = 'Submitted' and received_at < clock_timestamp() - interval '1 day'), 1,
+  'AC-1040 fixture: an aged Submitted row also exists, so the aged Counted read above excludes it by status');
 
 -- ── AC-1014 the review queue is stream-scoped for supervisors, org-wide for ops lead and admin ─
 select set_eq($$select id from ops.cafe_receipts where status = 'Submitted'$$,

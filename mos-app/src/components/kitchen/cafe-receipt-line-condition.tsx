@@ -48,6 +48,7 @@ export function CafeReceiptLineEvidence({ line }: { line: CafeReceiptLine }) {
 /** Receiver-owned condition and evidence editor, separate from the immutable counted quantity. */
 export function CafeReceiptLineCondition({
   line,
+  draftKey,
   dirty,
   photosUnavailable = false,
   disabled,
@@ -57,6 +58,7 @@ export function CafeReceiptLineCondition({
   onSaved,
 }: {
   line: CafeReceiptLine
+  draftKey?: string
   /** The flag or reason differs from what the server holds. */
   dirty: boolean
   /** The photo read failed, so whether the line has a photo is not known here. */
@@ -158,10 +160,12 @@ export function CafeReceiptLineCondition({
           </div>
           <WastePhotoCapture<CafeReceiptPhoto>
             ownerId={line.id}
+            draftKey={draftKey}
             initialPhotos={line.photos}
             onUpload={uploadCafeReceiptLinePhoto}
             onPhotoUploaded={receivePhoto}
-            disabled={disabled || !online}
+            disabled={disabled}
+            uploadDisabled={disabled || !online}
             copy={{
               title: t('cafe.receive.photoTitle'),
               help: t('cafe.receive.photoHelp'),
