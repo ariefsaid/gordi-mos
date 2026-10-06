@@ -370,6 +370,7 @@ export const messages = {
     'money.empty.refresh': 'Check again',
     'money.error': 'Sales figures could not be loaded: the reporting service did not answer.',
     'money.error.kept': 'Showing the figures loaded earlier. The refresh failed: the reporting service did not answer.',
+    'money.error.tooMany': 'There are more sales rows than Money can read at once. Tell the admin.',
     // Kitchen Stock column headers (audit D7 fix)
     'kitchen.stock.col.item': 'Item',
     'kitchen.stock.col.stok': 'Stock',
@@ -2567,6 +2568,7 @@ export const messages = {
     'money.empty.refresh': 'Periksa lagi',
     'money.error': 'Angka penjualan tidak dapat dimuat: layanan pelaporan tidak menjawab.',
     'money.error.kept': 'Menampilkan angka yang dimuat sebelumnya. Penyegaran gagal: layanan pelaporan tidak menjawab.',
+    'money.error.tooMany': 'Baris penjualan lebih banyak daripada yang dapat dibaca Money sekaligus. Beri tahu admin.',
     // Kitchen Stock column headers (audit D7 fix)
     'kitchen.stock.col.item': 'Item',
     'kitchen.stock.col.stok': 'Stok',

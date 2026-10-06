@@ -20,6 +20,7 @@ import { listSalesDailyRevenue, type SalesDailyRevenueRow } from '@/lib/db/repor
 import { listSalesMarginDaily, type SalesMarginDailyRow } from '@/lib/db/reporting-margin'
 import { useAuth } from '@/auth/use-auth'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import { ReportingRowCapError } from '@/lib/db/reporting-shared'
 import { MoneyPage } from './money-page'
 
 const mockRev = vi.mocked(listSalesDailyRevenue)
@@ -238,6 +239,29 @@ describe('MoneyPage — states in text', () => {
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent('Sales figures could not be loaded: the reporting service did not answer.')
     expect(within(alert).getAllByRole('button')).toHaveLength(1)
+  })
+
+  it('more rows than one read may hold says so, instead of blaming the reporting service', async () => {
+    mockRev.mockRejectedValue(new ReportingRowCapError('listSalesDailyRevenue needs more than 20000 rows'))
+    renderMoney(['manager'])
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('There are more sales rows than Money can read at once. Tell the admin.')
+    expect(alert).not.toHaveTextContent('did not answer')
+  })
+
+  it('a slow earlier read that lands after a newer one does not replace the newer figures', async () => {
+    let finishFirst: (rows: SalesDailyRevenueRow[]) => void = () => {}
+    mockRev.mockReturnValueOnce(new Promise((resolve) => { finishFirst = resolve }))
+    mockRev.mockResolvedValueOnce(revenue(['gordi_hq', 'cikal', 'roastery']))
+    renderMoney(['manager'])
+    // The viewer comes back to the tab while the first read is still out: a second read starts.
+    document.dispatchEvent(new Event('visibilitychange'))
+    await screen.findByRole('table')
+    expect(screen.getByText('B2B (invoices)')).toBeInTheDocument()
+    finishFirst(revenue(['gordi_hq']))
+    await new Promise((r) => setTimeout(r, 20))
+    expect(screen.getByText('B2B (invoices)')).toBeInTheDocument()
+    expect(screen.getByText('Cikal')).toBeInTheDocument()
   })
 
   it('a failed background refresh keeps the figures already on screen and says so', async () => {

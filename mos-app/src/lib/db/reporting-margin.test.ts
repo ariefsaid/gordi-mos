@@ -17,6 +17,7 @@ import {
   latestMarginSnapshotAsOf,
   type SalesMarginDailyRow,
 } from './reporting-margin'
+import { ReportingRowCapError } from './reporting-shared'
 
 const schemaMock = vi.mocked(supabase.schema)
 
@@ -29,6 +30,7 @@ interface Recorder {
   gtes: Array<[string, unknown]>
   orders: Array<[string, unknown]>
   limits: number[]
+  ranges: Array<[number, number]>
 }
 
 function makeSchema(
@@ -62,6 +64,7 @@ function makeSchema(
       return builder
     })
     builder.limit = vi.fn((n: number) => { rec.limits.push(n); return builder })
+    builder.range = vi.fn((from: number, to: number) => { rec.ranges.push([from, to]); return builder })
     builder.then = (resolve: (v: unknown) => unknown) =>
       Promise.resolve(result()).then(resolve)
     return builder
@@ -70,7 +73,7 @@ function makeSchema(
 }
 
 function freshRec(): Recorder {
-  return { schemaNames: [], fromTables: [], selects: [], eqs: [], gtes: [], orders: [], limits: [] }
+  return { schemaNames: [], fromTables: [], selects: [], eqs: [], gtes: [], orders: [], limits: [], ranges: [] }
 }
 
 beforeEach(() => vi.clearAllMocks())
@@ -116,7 +119,7 @@ describe('listSalesMarginDaily', () => {
     expect(rec.fromTables).toContain('sales_margin_daily')
     expect(rec.orders).toContainEqual(['margin_date', { ascending: true }])
     expect(rec.gtes[0][0]).toBe('margin_date')
-    expect(rec.limits).toEqual([1000])
+    expect(rec.ranges).toEqual([[0, 999]])
     expect(rows).toHaveLength(1)
   })
 
@@ -155,7 +158,7 @@ describe('listSalesMarginDaily', () => {
 
     expect(rec.gtes).toHaveLength(1)
     expect(rec.gtes[0][0]).toBe('margin_date')
-    expect(rec.limits).toEqual([1000])
+    expect(rec.ranges).toEqual([[0, 999]])
   })
 
   it('passes rows through unchanged, including a NULL-COGS sync-gap day (never a fake margin)', async () => {
@@ -184,12 +187,12 @@ describe('listSalesMarginDaily', () => {
     expect(rows).toEqual([])
   })
 
-  it('rejects a result that reaches the safe row cap instead of returning a silent truncation', async () => {
+  it('past the row ceiling the read refuses with a cap error instead of truncating', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(
       makeSchema({ sales_margin_daily: [{ data: Array.from({ length: 1000 }, () => POS_ROW), error: null }] }, rec) as never,
     )
-    await expect(listSalesMarginDaily()).rejects.toThrow(/safe reporting row limit/)
+    await expect(listSalesMarginDaily()).rejects.toBeInstanceOf(ReportingRowCapError)
   })
 
   it('throws a clear, surfaceable error on PostgREST failure', async () => {

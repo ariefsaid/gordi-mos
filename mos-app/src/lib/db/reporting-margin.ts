@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase'
-import { daysAgoIsoDate, latestBy, REPORTING_READ_MAX_ROWS, REPORTING_WINDOW_DAYS } from '@/lib/db/reporting-shared'
+import { daysAgoIsoDate, latestBy, readAllPages, REPORTING_WINDOW_DAYS } from '@/lib/db/reporting-shared'
 
 // Data layer for reporting.sales_margin_daily (Home v1 margin KPI — ADR-0018 D6 prereq /
 // ADR-0010 D5 / ADR-0019 D3). Reads via supabase.schema('reporting') on the existing
@@ -54,15 +54,14 @@ export interface SalesMarginDailyFilters {
 export async function listSalesMarginDaily(
   f: SalesMarginDailyFilters = {},
 ): Promise<SalesMarginDailyRow[]> {
-  let q = reporting().from('sales_margin_daily').select(SELECT)
-  q = q.gte('margin_date', daysAgoIsoDate(f.sinceDays ?? REPORTING_WINDOW_DAYS))
-    .order('margin_date', { ascending: true }).limit(REPORTING_READ_MAX_ROWS)
-  const { data, error } = await q
-  if (error) throw new Error(`listSalesMarginDaily failed — ${error.message}`)
-  if ((data ?? []).length === REPORTING_READ_MAX_ROWS) {
-    throw new Error('listSalesMarginDaily exceeded the safe reporting row limit')
-  }
-  return (data ?? []) as unknown as SalesMarginDailyRow[]
+  const since = daysAgoIsoDate(f.sinceDays ?? REPORTING_WINDOW_DAYS)
+  return readAllPages<SalesMarginDailyRow>('listSalesMarginDaily', (from, to) =>
+    reporting().from('sales_margin_daily').select(SELECT)
+      .gte('margin_date', since)
+      .order('margin_date', { ascending: true })
+      .order('esb_code', { ascending: true })
+      .order('branch_code', { ascending: true })
+      .range(from, to))
 }
 
 /** Freshness: the latest `snapshot_as_of` across the given rows, or null if empty. */

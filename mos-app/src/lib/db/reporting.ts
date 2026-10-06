@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase'
-import { daysAgoIsoDate, latestBy, REPORTING_READ_MAX_ROWS, REPORTING_WINDOW_DAYS } from '@/lib/db/reporting-shared'
+import { daysAgoIsoDate, latestBy, readAllPages, REPORTING_WINDOW_DAYS } from '@/lib/db/reporting-shared'
 
 // Data layer for reporting.sales_daily_revenue (sales dashboard, Issue 1 — OD-P4-2 / ADR-0010
 // D5 / ADR-0017 D3). Reads via supabase.schema('reporting') on the existing client (mirrors the
@@ -42,15 +42,15 @@ export interface SalesDailyRevenueFilters {
 export async function listSalesDailyRevenue(
   f: SalesDailyRevenueFilters = {},
 ): Promise<SalesDailyRevenueRow[]> {
-  let q = reporting().from('sales_daily_revenue').select(SELECT)
-  q = q.gte('revenue_date', daysAgoIsoDate(f.sinceDays ?? REPORTING_WINDOW_DAYS))
-    .order('revenue_date', { ascending: true }).limit(REPORTING_READ_MAX_ROWS)
-  const { data, error } = await q
-  if (error) throw new Error(`listSalesDailyRevenue failed — ${error.message}`)
-  if ((data ?? []).length === REPORTING_READ_MAX_ROWS) {
-    throw new Error('listSalesDailyRevenue exceeded the safe reporting row limit')
-  }
-  return (data ?? []) as unknown as SalesDailyRevenueRow[]
+  const since = daysAgoIsoDate(f.sinceDays ?? REPORTING_WINDOW_DAYS)
+  return readAllPages<SalesDailyRevenueRow>('listSalesDailyRevenue', (from, to) =>
+    reporting().from('sales_daily_revenue').select(SELECT)
+      .gte('revenue_date', since)
+      .order('revenue_date', { ascending: true })
+      .order('channel', { ascending: true })
+      .order('esb_code', { ascending: true })
+      .order('branch_code', { ascending: true })
+      .range(from, to))
 }
 
 /** Freshness (FR-003): the latest `snapshot_as_of` across the given rows, or null if empty. */

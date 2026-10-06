@@ -22,7 +22,7 @@ import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
 import { listSalesDailyRevenue, type SalesDailyRevenueRow } from '@/lib/db/reporting'
 import { listSalesMarginDaily, type SalesMarginDailyRow } from '@/lib/db/reporting-margin'
-import { latestBy } from '@/lib/db/reporting-shared'
+import { latestBy, ReportingRowCapError } from '@/lib/db/reporting-shared'
 import { formatWeekdayDayMonth, formatWibShortDateTime } from '@/lib/format/date'
 import {
   MONEY_FETCH_DAYS,
@@ -48,6 +48,8 @@ interface Load {
   status: 'loading' | 'ready' | 'error'
   /** The last rows read, kept through a later refresh's loading or failure. */
   data: Loaded | null
+  /** The failure was the read's row ceiling, not the service. */
+  tooMany?: boolean
 }
 
 /** The nightly sync runs once a day; a snapshot older than this missed at least one run. */
@@ -86,17 +88,22 @@ export function MoneyPage() {
 
   const [load, setLoad] = useState<Load>({ status: 'loading', data: null })
   const dataRef = useRef<Loaded | null>(null)
+  // Reads can overlap (a Retry, a tab coming back); only the latest one may land.
+  const latestRead = useRef(0)
   const read = useCallback(async () => {
+    const id = ++latestRead.current
     setLoad({ status: 'loading', data: dataRef.current })
     try {
       const [revenue, margin] = await Promise.all([
         listSalesDailyRevenue({ sinceDays: MONEY_FETCH_DAYS }),
         canSeeMargin ? listSalesMarginDaily({ sinceDays: MONEY_FETCH_DAYS }) : Promise.resolve(null),
       ])
+      if (id !== latestRead.current) return
       dataRef.current = { revenue, margin }
       setLoad({ status: 'ready', data: dataRef.current })
-    } catch {
-      setLoad({ status: 'error', data: dataRef.current })
+    } catch (error) {
+      if (id !== latestRead.current) return
+      setLoad({ status: 'error', data: dataRef.current, tooMany: error instanceof ReportingRowCapError })
     }
   }, [canSeeMargin])
 
@@ -158,7 +165,7 @@ export function MoneyPage() {
     )
   }
 
-  if (!data) return frame(<ErrorState message={t('money.error')} onRetry={() => void read()} />, 'error')
+  if (!data) return frame(<ErrorState message={t(load.tooMany ? 'money.error.tooMany' : 'money.error')} onRetry={() => void read()} />, 'error')
 
   if (!table) {
     return frame(
@@ -184,7 +191,7 @@ export function MoneyPage() {
   return frame(
     <div className="money-body">
       {periodControl()}
-      {load.status === 'error' && <ErrorState message={t('money.error.kept')} onRetry={() => void read()} />}
+      {load.status === 'error' && <ErrorState message={t(load.tooMany ? 'money.error.tooMany' : 'money.error.kept')} onRetry={() => void read()} />}
       <BranchTable
         data={table}
         period={view.period}
