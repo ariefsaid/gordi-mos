@@ -66,6 +66,7 @@ export function CafeRequestPage() {
   const [recent, setRecent] = useState<CafePurchaseRequest[]>([])
   const [recentFailed, setRecentFailed] = useState(false)
   const sending = useRef(false)
+  const sentHeading = useRef<HTMLHeadingElement>(null)
   // Filters beyond search are desktop-only (DESIGN: first capture row within 300px on phone).
   const capture = useCafeItemCapture({ stream, enabled: canRequest, resolve, adopt, search, category: isDesktop ? category : 'All' })
   const { loadState, items, entries, lines, invalidCount, visibleItems, categories, patchEntry: patchCaptureEntry } = capture
@@ -89,6 +90,11 @@ export function CafeRequestPage() {
     patchCaptureEntry(itemId, patch)
     setError(null)
   }, [patchCaptureEntry])
+
+  // The Send button unmounts on success; the confirmation takes focus so its outcome is announced.
+  useEffect(() => {
+    if (sent) sentHeading.current?.focus()
+  }, [sent])
 
   const chooseStream = useCallback((next: ProductionStream) => {
     if (canSwitch) setStream(next)
@@ -157,7 +163,7 @@ export function CafeRequestPage() {
         {(canReview || (loadState === 'ready' && canRequest)) && (
           <div className="cafe-request__top">
             {loadState === 'ready' && canRequest && (
-              <CafeRequestHistory requests={recent} failed={recentFailed} open={sent !== null} onRetry={loadRecent} />
+              <CafeRequestHistory requests={recent} failed={recentFailed} onRetry={loadRecent} />
             )}
             {canReview && <Link className="cafe-request__review-link" to="/cafe/request/review">{t('cafe.request.review.title')}</Link>}
           </div>
@@ -167,7 +173,7 @@ export function CafeRequestPage() {
         )}
         {ready && sent && (
           <section className="cafe-receive__counted" aria-labelledby="cafe-request-sent-title">
-            <h2 id="cafe-request-sent-title">{t('cafe.request.sent.title')}</h2>
+            <h2 id="cafe-request-sent-title" ref={sentHeading} tabIndex={-1}>{t('cafe.request.sent.title')}</h2>
             <p>{t('cafe.request.sent.copy')}</p>
             <p className="cafe-request__sent-facts">
               {t('cafe.request.recent.neededBy', { date: formatWeekdayDayMonth(sent.requiredBy) })}

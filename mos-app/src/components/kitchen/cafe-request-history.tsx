@@ -13,12 +13,10 @@ const NAMED_ITEMS = 2
 export function CafeRequestHistory({
   requests,
   failed,
-  open,
   onRetry,
 }: {
   requests: readonly CafePurchaseRequest[]
   failed: boolean
-  open: boolean
   onRetry: () => void
 }) {
   const t = useT()
@@ -32,7 +30,7 @@ export function CafeRequestHistory({
   }
   if (requests.length === 0) return null
   return (
-    <details className="cafe-request__history" open={open || undefined}>
+    <details className="cafe-request__history">
       <summary>{t('cafe.request.recent.summary', { count: requests.length })}</summary>
       <ul aria-label={t('cafe.request.recent.title')}>
         {requests.map(request => {
