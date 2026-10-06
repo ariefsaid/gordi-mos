@@ -247,6 +247,8 @@ describe('MoneyPage — states in text', () => {
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent('There are more sales rows than Money can read at once. Tell the admin.')
     expect(alert).not.toHaveTextContent('did not answer')
+    // Reading again returns the same rows: no Try again that cannot succeed (#1453).
+    expect(within(alert).queryByRole('button')).toBeNull()
   })
 
   it('a slow earlier read that lands after a newer one does not replace the newer figures', async () => {
