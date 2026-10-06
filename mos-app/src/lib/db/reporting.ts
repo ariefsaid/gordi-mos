@@ -53,11 +53,6 @@ export async function listSalesDailyRevenue(
       .range(from, to))
 }
 
-/** Freshness (FR-003): the latest `snapshot_as_of` across the given rows, or null if empty. */
-export function latestSnapshotAsOf(rows: SalesDailyRevenueRow[]): string | null {
-  return latestBy(rows, r => r.snapshot_as_of)
-}
-
 /** Reporting-day window (FR-004): the latest `revenue_date` across the given rows, or null if
  * empty. Current-period metrics must key off this, not the browser's local calendar date. */
 export function latestReportingDate(rows: SalesDailyRevenueRow[]): string | null {
