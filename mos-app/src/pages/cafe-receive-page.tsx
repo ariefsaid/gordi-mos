@@ -294,7 +294,7 @@ export function CafeReceivePage() {
         {loadState === 'ready' && stream && canCapture && !counted && (
           <>
             <div className="cafe-count__intro">
-              <p>{t('cafe.receive.blindHelp')}</p>
+              <p className="cafe-receive__help">{t('cafe.receive.blindHelp')}</p>
               {hasInput && <p className="cafe-count__switch-note" role="status">{t('cafe.receive.streamLocked')}</p>}
               {!isOnline && <p className="cafe-count__notice" role="alert">{t('cafe.receive.offline')}</p>}
             </div>

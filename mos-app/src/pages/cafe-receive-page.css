@@ -162,6 +162,10 @@
 
 @media (max-width: 639px) {
   .cafe-receive__date { grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; }
+  /* The job is the page itself on a phone; the help line returns at wider widths. */
+  .cafe-receive__help { display: none; }
+  .cafe-receive__date { margin-bottom: 12px; }
+  .cafe-receive .cafe-count__intro { margin-bottom: 0; }
   .cafe-receive .cafe-count__row { grid-template-columns: minmax(0, 1fr); }
   .cafe-receive .cafe-count__footer { flex-wrap: wrap; gap: 8px; }
   .cafe-receive .cafe-count__submit { flex: 1 1 100%; }
