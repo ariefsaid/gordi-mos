@@ -28,8 +28,9 @@ cd "$(dirname "$0")/.."
 # Hermeticity is enforced, not assumed: a leaked variable from the operator's shell must
 # not turn a refusal case into a real drain (the lesson from import-kitchen-history).
 unset ESB_WORKER_TARGET_ENV ESB_WORKER_MAP_FILE ESB_BASE_URL ESB_USERNAME ESB_PASSWORD \
-      ESB_PUSH_ENABLED ESB_ALLOW_GKID ESB_MAX_RETRY ESB_MAX_ROWS ESB_HTTP_TIMEOUT \
-      MOS_SUPABASE_URL MOS_SUPABASE_SERVICE_ROLE_KEY
+      ESB_PUSH_ENABLED ESB_ALLOW_GKID ESB_ALLOW_GKID_READ ESB_MAX_RETRY ESB_MAX_ROWS ESB_HTTP_TIMEOUT \
+      MOS_SUPABASE_URL MOS_SUPABASE_SERVICE_ROLE_KEY ESB_OPEN_PO_ORG_ID \
+      ESB_OPEN_PO_MAX_AGE_MINUTES ESB_OPEN_PO_WINDOW_DAYS ESB_OPEN_PO_SHAPE_FILE
 SCRIPT="$(pwd)/scripts/esb-worker.py"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
@@ -251,6 +252,17 @@ run "${GKID_ENV[@]}" MOS_SUPABASE_URL=https://db.example.invalid \
 expect_rc   "a real tick with the push off is refused before it reaches the database" 2
 expect_has  "...pointing at --plan as the way to rehearse" "Rehearse with --plan"
 expect_lacks "...and never dialled the outbox" "outbox unreachable"
+
+# The open-PO refresh reads ESB and writes the MOS cache only; it never combines with a
+# rehearsal, and needs this environment's own credentials (dispatch self-test section O).
+run "${GOO_ENV[@]}" -- --refresh-open-pos all --plan
+expect_rc   "--refresh-open-pos with --plan is refused" 2
+expect_has  "...because it runs alone" "runs alone"
+run "${GOO_ENV[@]}" ESB_OPEN_PO_ORG_ID=00000000-0000-0000-0000-0000000000a1 \
+    MOS_SUPABASE_URL=https://db.example.invalid MOS_SUPABASE_SERVICE_ROLE_KEY=not-a-key \
+    -- --refresh-open-pos all
+expect_rc   "--refresh-open-pos without this environment's credentials is refused" 2
+expect_has  "...without borrowing another environment's" "never borrows"
 
 # ══════════════════════════════════════════════════════════════════════════════════════
 echo "G. the write half — dispatch, retry budget, write-back (scripts/esb-worker-dispatch.test.py)"

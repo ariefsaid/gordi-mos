@@ -11,7 +11,6 @@ import type { BusinessUnitOption, PersonOption } from '@/lib/db/directory'
 vi.mock('../lib/db/tasks', () => ({
   getTask: vi.fn(),
   updateTaskStatus: vi.fn(),
-  updateTaskRaci: vi.fn(),
   updateTaskFields: vi.fn(),
   addChecklistItem: vi.fn(),
   toggleChecklistItem: vi.fn(),

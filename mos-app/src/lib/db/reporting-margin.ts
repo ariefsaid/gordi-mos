@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase'
-import { daysAgoIsoDate, latestBy, REPORTING_READ_MAX_ROWS, REPORTING_WINDOW_DAYS } from '@/lib/db/reporting-shared'
+import { daysAgoIsoDate, latestBy, readAllPages, REPORTING_WINDOW_DAYS } from '@/lib/db/reporting-shared'
 
 // Data layer for reporting.sales_margin_daily (Home v1 margin KPI — ADR-0018 D6 prereq /
 // ADR-0010 D5 / ADR-0019 D3). Reads via supabase.schema('reporting') on the existing
@@ -10,9 +10,10 @@ import { daysAgoIsoDate, latestBy, REPORTING_READ_MAX_ROWS, REPORTING_WINDOW_DAY
 // POS-only grain (no `channel` column — COGS has no channel dimension upstream). Two
 // COGS bases are carried distinctly per the finance doctrine (gordi-esb-bak
 // COGS-REPORT-WORKFLOW.md): `cogs_interim_sm` (stock-movement, INTERIM/not GL-certified)
-// and `cogs_budget_bom` (BOM/recipe, a budget — never an actual). `margin_interim`/
-// `margin_interim_pct` are NULL (never a fake number) on a sync-gap day where COGS is
-// missing — the dashboard must render "no data", never 0.
+// and `cogs_budget_bom` (BOM/recipe, a budget — never an actual). `margin_interim` is NULL
+// (never a fake number) on a sync-gap day where COGS is missing — the page renders "no data",
+// never 0. The table's `margin_interim_pct` is not read: a period margin is recomputed from the
+// summed amounts, and a mean of daily ratios would be a different (wrong) figure.
 
 const reporting = () => supabase.schema('reporting')
 
@@ -23,6 +24,8 @@ export interface SalesMarginDailyRow {
   esb_code: string
   branch_code: string
   branch_name: string | null
+  /** Link to shared.branches; null until a human confirms the ERP code's mapping. */
+  branch_id: string | null
   revenue: number
   /** stock-movement POS consumption — INTERIM basis, not GL-certified. Null = sync gap. */
   cogs_interim_sm: number | null
@@ -30,8 +33,6 @@ export interface SalesMarginDailyRow {
   cogs_budget_bom: number | null
   /** revenue − cogs_interim_sm; null when cogs_interim_sm is null (never a fake margin). */
   margin_interim: number | null
-  /** margin_interim/revenue; null when revenue <= 0 or margin_interim is null. */
-  margin_interim_pct: number | null
   /** data-quality badge for low BOM-recipe-coverage days. */
   bom_coverage_pct: number | null
   snapshot_as_of: string
@@ -39,7 +40,7 @@ export interface SalesMarginDailyRow {
 }
 
 const SELECT =
-  'margin_date,esb_code,branch_code,branch_name,revenue,cogs_interim_sm,cogs_budget_bom,margin_interim,margin_interim_pct,bom_coverage_pct,snapshot_as_of,source_contract_version'
+  'margin_date,esb_code,branch_code,branch_name,branch_id,revenue,cogs_interim_sm,cogs_budget_bom,margin_interim,bom_coverage_pct,snapshot_as_of,source_contract_version'
 
 export interface SalesMarginDailyFilters {
   /** Only include rows with margin_date >= (today − sinceDays). Defaults to the dashboard's 60-day window. */
@@ -53,20 +54,14 @@ export interface SalesMarginDailyFilters {
 export async function listSalesMarginDaily(
   f: SalesMarginDailyFilters = {},
 ): Promise<SalesMarginDailyRow[]> {
-  let q = reporting().from('sales_margin_daily').select(SELECT)
-  q = q.gte('margin_date', daysAgoIsoDate(f.sinceDays ?? REPORTING_WINDOW_DAYS))
-    .order('margin_date', { ascending: true }).limit(REPORTING_READ_MAX_ROWS)
-  const { data, error } = await q
-  if (error) throw new Error(`listSalesMarginDaily failed — ${error.message}`)
-  if ((data ?? []).length === REPORTING_READ_MAX_ROWS) {
-    throw new Error('listSalesMarginDaily exceeded the safe reporting row limit')
-  }
-  return (data ?? []) as unknown as SalesMarginDailyRow[]
-}
-
-/** Freshness: the latest `snapshot_as_of` across the given rows, or null if empty. */
-export function latestMarginSnapshotAsOf(rows: SalesMarginDailyRow[]): string | null {
-  return latestBy(rows, r => r.snapshot_as_of)
+  const since = daysAgoIsoDate(f.sinceDays ?? REPORTING_WINDOW_DAYS)
+  return readAllPages<SalesMarginDailyRow>('listSalesMarginDaily', (from, to) =>
+    reporting().from('sales_margin_daily').select(SELECT)
+      .gte('margin_date', since)
+      .order('margin_date', { ascending: true })
+      .order('esb_code', { ascending: true })
+      .order('branch_code', { ascending: true })
+      .range(from, to))
 }
 
 /** Reporting-day window: the latest `margin_date` across the given rows, or null if empty.

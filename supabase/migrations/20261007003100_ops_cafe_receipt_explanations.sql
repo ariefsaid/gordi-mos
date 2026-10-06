@@ -184,7 +184,7 @@ begin
         'receipt_id', v_existing.id, 'outcome', 'existing', 'status', v_existing.status,
         'row_version', v_existing.row_version,
         'lines', (select coalesce(jsonb_agg(jsonb_build_object(
-          'id', l.id, 'item_name', l.item_name, 'item_category', l.item_category,
+          'id', l.id, 'item_unit_id', l.item_unit_id, 'item_name', l.item_name, 'item_category', l.item_category,
           'unit_name', l.unit_name, 'received_quantity', l.received_quantity::text,
           'conditions', l.conditions, 'condition_reason', l.condition_reason, 'photos', '[]'::jsonb
         ) order by l.item_name, l.id), '[]'::jsonb)
@@ -215,7 +215,7 @@ begin
     'receipt_id', v_receipt.id, 'outcome', 'created', 'status', v_receipt.status,
     'row_version', v_receipt.row_version, 'posting_status', v_receipt.posting_status,
     'lines', (select coalesce(jsonb_agg(jsonb_build_object(
-      'id', l.id, 'item_name', l.item_name, 'item_category', l.item_category,
+      'id', l.id, 'item_unit_id', l.item_unit_id, 'item_name', l.item_name, 'item_category', l.item_category,
       'unit_name', l.unit_name, 'received_quantity', l.received_quantity::text,
       'conditions', l.conditions, 'condition_reason', l.condition_reason, 'photos', '[]'::jsonb
     ) order by l.item_name, l.id), '[]'::jsonb)

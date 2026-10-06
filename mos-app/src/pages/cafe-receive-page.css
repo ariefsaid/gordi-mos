@@ -123,11 +123,14 @@
 .cafe-receive__counted h2[tabindex='-1']:focus { outline: none; }
 
 .cafe-receive__counted p {
+  max-width: 72ch;
   margin: 0;
   color: var(--muted-foreground);
   font-size: var(--font-size-body);
   line-height: 1.5;
 }
+
+.cafe-receive__counted .cafe-receive__difference { color: var(--foreground); }
 
 .cafe-receive__recent ul {
   display: grid;
@@ -171,7 +174,7 @@
   padding: 12px 0;
 }
 
-.cafe-receive__line-name {
+.cafe-receive__counted-lines li > :first-child {
   min-width: 0;
   color: var(--foreground);
   font-weight: 600;

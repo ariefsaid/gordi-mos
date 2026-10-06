@@ -8,6 +8,7 @@ import {
   trailingMargin,
   formatMarginKpi,
 } from './home-kpis'
+import { translateFor } from '@/i18n/use-t'
 
 function marginRow(overrides: Partial<SalesMarginDailyRow>): SalesMarginDailyRow {
   return {
@@ -19,7 +20,7 @@ function marginRow(overrides: Partial<SalesMarginDailyRow>): SalesMarginDailyRow
     cogs_interim_sm: 6_000_000,
     cogs_budget_bom: 5_800_000,
     margin_interim: 4_000_000,
-    margin_interim_pct: 0.4,
+    branch_id: null,
     bom_coverage_pct: 0.95,
     snapshot_as_of: '2026-07-01T02:00:00Z',
     source_contract_version: 'pos_margin_interim.v1',
@@ -69,14 +70,14 @@ describe('trailingMargin', () => {
 // ── formatMarginKpi (AC-HK02) ─────────────────────────────────────────────────
 describe('formatMarginKpi', () => {
   it('AC-HK02: formats value + delta + a margin-pct sub when pct is present', () => {
-    const display = formatMarginKpi({ current: 4_000_000, prior: 2_000_000 }, 0.4)
+    const display = formatMarginKpi({ current: 4_000_000, prior: 2_000_000 }, 0.4, translateFor('en'))
     expect(display.value).toMatch(/Rp/)
     expect(display.delta.tone).toBe('success')
     expect(display.pctSub).toMatch(/40(\.0)?% margin/)
   })
 
   it('AC-HK02: pct is null (not NaN) when revenue was 0/absent — sub is blank, delta is "no comparison"', () => {
-    const display = formatMarginKpi({ current: 0, prior: null }, null)
+    const display = formatMarginKpi({ current: 0, prior: null }, null, translateFor('en'))
     expect(display.delta.text).toBe('no comparison')
     expect(display.pctSub).toBe('')
   })

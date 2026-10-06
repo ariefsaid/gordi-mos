@@ -84,6 +84,27 @@ describe('ModalShell — one centered interaction contract', () => {
     expect(invoker).toHaveFocus()
   })
 
+  it('keeps Tab inside when focus sits on a control the trap cannot list', async () => {
+    const user = userEvent.setup()
+    render(
+      <>
+        <button type="button">Behind</button>
+        <ModalShell open onClose={() => {}} ariaLabel="Busy dialog">
+          <ul tabIndex={0} aria-label="Lines"><li>Line</li></ul>
+          <button type="button" disabled>Back</button>
+          <button type="button" aria-disabled="true">Working</button>
+        </ModalShell>
+      </>,
+    )
+    const busy = screen.getByRole('button', { name: 'Working' })
+    busy.focus()
+
+    await user.tab()
+    expect(screen.getByRole('dialog').contains(document.activeElement)).toBe(true)
+    await user.tab({ shift: true })
+    expect(screen.getByRole('dialog').contains(document.activeElement)).toBe(true)
+  })
+
   it('honors backdrop and dismissal policies', () => {
     const onClose = vi.fn()
     const { rerender } = render(

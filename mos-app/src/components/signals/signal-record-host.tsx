@@ -28,7 +28,7 @@ import type { TeamOption } from '@/lib/db/signals.types'
 import { getBusinessUnits, getPeople, type BusinessUnitOption, type PersonOption } from '@/lib/db/directory'
 import { getTaskTitlesByIds, searchTasksByTitle, type TaskTitleRef } from '@/lib/db/tasks'
 import { listComments, postComment, type CommentRow } from '@/lib/comments/postComment'
-import { formatWibDateTime } from '@/lib/wib-time'
+import { formatWibDateTime } from '@/lib/format/date'
 import {
   SignalReach, SignalDiscussion, SignalFacts, SignalHistory, SignalOverflowMenu,
   type SignalMentionView, type LinkedTaskView,

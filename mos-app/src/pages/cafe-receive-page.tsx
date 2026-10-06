@@ -7,12 +7,14 @@ import { CafeReceiptState } from '@/components/kitchen/cafe-receipt-state'
 import { CafeReceiptLineCondition } from '@/components/kitchen/cafe-receipt-line-condition'
 import { WastePhotoStrip } from '@/components/kitchen/waste-photo-strip'
 import { CafeReceiveLockConfirm } from '@/components/kitchen/cafe-receive-lock-confirm'
+import { CafeReceiptLineRow } from '@/components/kitchen/cafe-receipt-difference'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { useT } from '@/i18n/use-t'
 import { canCaptureCafe } from '@/lib/cafe-affiliation'
 import { canReviewCafe } from '@/lib/kitchen-gates'
 import {
   cafeReceiptArrivalDateBounds,
+  listCafeReceiptDifferences,
   listCafeReceipts,
   listCafeReceivableItems,
   newCafeReceiptClientKey,
@@ -20,7 +22,9 @@ import {
   saveCafeReceiptLineExplanation,
   sendCafeReceiptForReview,
   submitCafeReceipt,
+  summarizeCafeReceiptDifferences,
   type CafeReceipt,
+  type CafeReceiptDifferenceSummary,
   type CafeReceiptLine,
   type CafeReceivableItem,
 } from '@/lib/db/cafe-receipts'
@@ -55,8 +59,18 @@ function blankEntries(items: readonly CafeReceivableItem[]): Record<string, Entr
 function submitErrorKey(message: string) {
   if (message.includes('CAFE_RECEIPT_ITEM_NOT_RECEIVABLE')) return 'cafe.receive.error.itemUnavailable' as const
   if (message.includes('CAFE_RECEIPT_CLIENT_KEY_CONFLICT')) return 'cafe.receive.error.keyConflict' as const
+  if (message.includes('CAFE_RECEIPT_COUNTED_PENDING') || message.includes('cafe_receipts_one_counted_per_receiver_branch_uk')) {
+    return 'cafe.receive.error.countedPending' as const
+  }
   if (message.includes('CAFE_RECEIPT_ARRIVAL_DATE')) return 'cafe.receive.error.arrivalDate' as const
   return 'cafe.receive.error.submit' as const
+}
+
+/** Submit refusals another Lock counts cannot fix: the lock step says so and sends the person back to the page. */
+function lockStepDeadEnd(key: string) {
+  if (key === 'cafe.receive.error.keyConflict') return 'cafe.receive.confirm.keyConflict' as const
+  if (key === 'cafe.receive.error.countedPending') return 'cafe.receive.confirm.countedPending' as const
+  return null
 }
 
 export function CafeReceivePage() {
@@ -91,6 +105,7 @@ export function CafeReceivePage() {
   const [error, setError] = useState<ReturnType<typeof submitErrorKey> | 'cafe.receive.error.send' | 'cafe.receive.error.evidence' | null>(null)
   const [counted, setCounted] = useState<Counted | null>(null)
   const [evidenceValidation, setEvidenceValidation] = useState<Record<string, EvidenceValidation>>({})
+  const [difference, setDifference] = useState<CafeReceiptDifferenceSummary | 'checking'>('checking')
   const [deliveryNote, setDeliveryNote] = useState('')
   const [sent, setSent] = useState(false)
   const [recent, setRecent] = useState<CafeReceipt[]>([])
@@ -145,13 +160,26 @@ export function CafeReceivePage() {
   // The lock step closes with its opener gone, so focus lands on the result instead of the page body.
   useEffect(() => { if (counted) countedHeadingRef.current?.focus() }, [counted])
 
+  // FR-1012: labels arrive once the counts are locked; any failure reads "not yet known" (NFR-1006).
+  const countedReceiptId = counted?.receiptId ?? null
+  useEffect(() => {
+    if (!countedReceiptId) return
+    let active = true
+    setDifference('checking')
+    void listCafeReceiptDifferences([countedReceiptId])
+      .then(rows => summarizeCafeReceiptDifferences(rows))
+      .catch((): CafeReceiptDifferenceSummary => ({ known: false, asOf: null }))
+      .then(summary => { if (active) setDifference(summary) })
+    return () => { active = false }
+  }, [countedReceiptId])
+
   const lines = items.flatMap(item => {
     const entry = entries[item.id]
     const quantity = entry ? normalizeCafeReceiptQuantity(entry.quantity) : null
     return entry && quantity !== null ? [{ item, entry, quantity }] : []
   })
   const lockLines = lines.map(({ item, entry, quantity }) => ({
-    key: item.id,
+    unitId: entry.unitId,
     name: item.name,
     quantity,
     unit: item.units.find(unit => unit.id === entry.unitId)?.name ?? '',
@@ -219,7 +247,7 @@ export function CafeReceivePage() {
     } catch (cause) {
       const key = submitErrorKey(cause instanceof Error ? cause.message : '')
       setError(key)
-      if (key === 'cafe.receive.error.keyConflict') loadRecent()
+      if (key === 'cafe.receive.error.keyConflict' || key === 'cafe.receive.error.countedPending') loadRecent()
     } finally {
       setBusy(false)
     }
@@ -315,11 +343,22 @@ export function CafeReceivePage() {
           <section className="cafe-receive__counted" aria-labelledby="cafe-receive-counted-title">
             <h2 id="cafe-receive-counted-title" ref={countedHeadingRef} tabIndex={-1}>{sent ? t('cafe.receive.sent.title') : t('cafe.receive.counted.title')}</h2>
             <p>{sent ? t('cafe.receive.sent.copy') : t('cafe.receive.counted.copy')}</p>
+            <p className="cafe-receive__difference" role="status" aria-live="polite">
+              {difference === 'checking' ? t('cafe.receive.difference.checking')
+                : !difference.known ? t(sent ? 'cafe.receive.difference.unknownSent' : 'cafe.receive.difference.unknown')
+                : difference.differing === 0 ? t('cafe.receive.difference.allMatch')
+                : t('cafe.receive.difference.differ', { count: difference.differing, total: difference.total })}
+            </p>
             <ul className="cafe-receipt-lines cafe-receive__counted-lines" aria-label={t('cafe.receive.counted.linesAria')}>
               {counted.lines.map(line => (
-                <li key={line.id}>
-                  <span className="cafe-receive__line-name">{line.item_name}</span>
-                  <span className="tabular">{t('cafe.receipts.quantityUnit', { quantity: line.received_quantity, unit: line.unit_name })}</span>
+                <CafeReceiptLineRow
+                  key={line.id}
+                  name={line.item_name}
+                  quantity={line.received_quantity}
+                  unit={line.unit_name}
+                  withDifference
+                  outcome={difference !== 'checking' && difference.known ? difference.byUnit.get(line.item_unit_id) : undefined}
+                >
                   {sent ? (
                     line.conditions.length > 0 && (
                       <div className="cafe-receive__condition-readonly">
@@ -345,7 +384,7 @@ export function CafeReceivePage() {
                       onChange={patch => patchCountedLine(line.id, patch)}
                     />
                   )}
-                </li>
+                </CafeReceiptLineRow>
               ))}
             </ul>
             {!sent && (
@@ -548,7 +587,8 @@ export function CafeReceivePage() {
           context={t('cafe.receive.confirm.context', { stream: streamLabel(t, stream), date: formatWeekdayDayMonth(arrivalDate) })}
           busy={busy}
           offline={!isOnline}
-          error={error ? t(error) : null}
+          error={error ? t(lockStepDeadEnd(error) ?? error) : null}
+          canRetry={!error || lockStepDeadEnd(error) === null}
           returnFocusRef={lockButtonRef}
           onConfirm={() => void handleCountSubmit()}
           onCancel={() => setConfirming(false)}

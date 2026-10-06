@@ -33,6 +33,7 @@ jobs:
         with:
           # Need the base commit to diff against; the default shallow clone has only HEAD.
           fetch-depth: 0
+          persist-credentials: false
 
       # Every step below costs ~170s and can only ever exercise mos-app/. On a commit that
       # touches none of it the run is pure latency AND a false-negative source: on 2026-07-30 a

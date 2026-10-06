@@ -266,18 +266,6 @@ export async function updateTaskFields(
   await logEvent(id, actor, 'field_edited', fromValue, toValue == null ? null : String(toValue))
 }
 
-export type TaskRaciPatch = Partial<Pick<
-  TaskRow, 'consulted_person_ids' | 'informed_person_ids'
->>
-
-/** Edit Consulted/Informed arrays, then log a `raci_edited` event (FR-033/055). */
-export async function updateTaskRaci(
-  id: string, patch: TaskRaciPatch, actor: string,
-): Promise<void> {
-  await updateTask(id, patch)
-  await logEvent(id, actor, 'raci_edited')
-}
-
 /** Soft-archive (set archived_at), then log an `archived` event (FR-051/054). */
 export async function archiveTask(id: string, actor: string): Promise<void> {
   await updateTask(id, { archived_at: new Date().toISOString() })

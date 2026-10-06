@@ -1,10 +1,9 @@
 // Certifies a served production build, then a populated authenticated route. Run after build.
 import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
-import { readFile } from 'node:fs/promises'
-import { dirname, resolve } from 'node:path'
+import { readFile, readdir } from 'node:fs/promises'
+import { dirname, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { normalizeBasePath, stripBasePath } from '../src/config/build-settings.ts'
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex')
@@ -17,18 +16,35 @@ export function entryAsset(html) {
 }
 
 export function assertBuildIdentity(identity, sha, entry) {
-  if (identity.sha !== sha || identity.clean !== true) {
-    throw new Error('build identity is stale or was built from a dirty checkout')
+  const keys = Object.keys(identity).sort()
+  if (keys.join(',') !== 'builtAt,sha') throw new Error('build identity must contain only the SHA and build time')
+  if (identity.sha !== sha) throw new Error('build identity is stale')
+  if (typeof identity.builtAt !== 'string' || Number.isNaN(Date.parse(identity.builtAt))) {
+    throw new Error('build identity has an invalid build time')
   }
-  const basePath = normalizeBasePath(identity.basePath)
   const entryUrl = new URL(entry, 'http://localhost')
-  if (entryUrl.origin !== 'http://localhost' || (basePath !== '/' && !entryUrl.pathname.startsWith(basePath))) {
-    throw new Error('build entry is outside its configured base path')
+  if (entryUrl.origin !== 'http://localhost' || !/(?:^|\/)assets\/index-[^/]+\.js$/.test(entryUrl.pathname)) {
+    throw new Error('build entry is outside its configured base path or is not the production entry asset')
   }
-  const entryPath = stripBasePath(entryUrl.pathname, basePath).replace(/^\//, '')
-  if (!identity.assets?.['index.html'] || !identity.assets?.[entryPath]) {
-    throw new Error('build identity does not cover the HTML and entry asset')
+}
+
+async function localAssetDigests(dist) {
+  const assets = {}
+  const walk = async (directory) => {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const path = resolve(directory, entry.name)
+      if (entry.isDirectory()) {
+        await walk(path)
+        continue
+      }
+      const key = relative(dist, path).replaceAll('\\', '/')
+      if (key !== 'mos-build-identity.json') {
+        assets[key] = sha256(await readFile(path))
+      }
+    }
   }
+  await walk(dist)
+  return assets
 }
 
 export function assertAssetDigest(bytes, digest, path) {
@@ -76,11 +92,16 @@ export async function run(argv) {
   const identityBytes = await readFile(identityPath)
   const identity = JSON.parse(identityBytes.toString('utf8'))
   assertBuildIdentity(identity, head, builtAsset)
+  const assets = await localAssetDigests(resolve(appRoot, 'dist'))
+  const entryPath = new URL(builtAsset, 'http://localhost').pathname.match(/(?:^|\/)(assets\/index-[^/]+\.js)$/)?.[1]
+  if (!assets['index.html'] || !entryPath || !assets[entryPath]) {
+    throw new Error('build identity does not cover the HTML and entry asset')
+  }
   const servedIdentity = await request(new URL('mos-build-identity.json', base))
   if (!servedIdentity.ok || sha256(Buffer.from(await servedIdentity.arrayBuffer())) !== sha256(identityBytes)) {
     throw new Error('served build identity differs from this checkout')
   }
-  for (const [path, digest] of Object.entries(identity.assets)) {
+  for (const [path, digest] of Object.entries(assets)) {
     if (typeof digest !== 'string' || !/^[0-9a-f]{64}$/.test(digest) ||
         path.startsWith('/') || path.split('/').includes('..')) throw new Error('invalid build identity asset')
     const localBytes = await readFile(resolve(appRoot, 'dist', path))
@@ -107,7 +128,7 @@ export async function run(argv) {
     await marker.first().waitFor({ state: 'visible', timeout: 15_000 })
     assertRenderedRoute(page.url(), base, route, await marker.count())
     if (errors.length) throw new Error(`browser runtime error: ${errors[0]}`)
-    console.log(`preview preflight PASS: ${head} serves ${Object.keys(identity.assets).length} matching files; authenticated route rendered`)
+    console.log(`preview preflight PASS: ${head} serves ${Object.keys(assets).length} matching files; authenticated route rendered`)
   } finally {
     await browser.close()
   }

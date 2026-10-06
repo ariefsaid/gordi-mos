@@ -15,7 +15,7 @@ import { useMemo, useEffect, useId, useRef, useState, type KeyboardEvent, type R
 import { Link, useInRouterContext } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
-import { formatWibDateTime } from '@/lib/wib-time'
+import { formatWibDateTime } from '@/lib/format/date'
 import { reportError } from '@/lib/telemetry'
 import { copyCanonicalLink } from '@/lib/copy-canonical-link'
 import { Toast } from '@/components/admin/toast'
