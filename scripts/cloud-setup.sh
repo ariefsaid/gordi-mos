@@ -35,18 +35,9 @@ say() { printf '\n\033[1m==> %s\033[0m\n' "$1"; }
 # about CI.
 SUPABASE_VERSION=2.104.0
 say "Installing Supabase CLI ${SUPABASE_VERSION}"
-if command -v supabase >/dev/null && supabase --version 2>/dev/null | grep -q "$SUPABASE_VERSION"; then
-  echo "already present"
-else
-  ARCH="$(uname -m)"; case "$ARCH" in x86_64) ARCH=amd64 ;; aarch64|arm64) ARCH=arm64 ;; esac
-  TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
-  curl -fsSL "https://github.com/supabase/cli/releases/download/v${SUPABASE_VERSION}/supabase_linux_${ARCH}.tar.gz" -o "$TMP/cli.tar.gz"
-  tar -xzf "$TMP/cli.tar.gz" -C "$TMP"
-  install -m 0755 "$TMP/supabase" /usr/local/bin/supabase 2>/dev/null || {
-    mkdir -p "$HOME/.local/bin"; install -m 0755 "$TMP/supabase" "$HOME/.local/bin/supabase"
-    echo "installed to ~/.local/bin — ensure it is on PATH"
-  }
-fi
+source scripts/lib/cloud-tools.sh
+BIN=/usr/local/bin; [ -w "$BIN" ] || { BIN="$HOME/.local/bin"; echo "installing to ~/.local/bin — ensure it is on PATH"; }
+install_supabase_cli "$SUPABASE_VERSION" "$HOME/.local/share/supabase" "$BIN"
 supabase --version
 
 # ── 2. Pre-pull the Docker images (this is what the cache is FOR) ────────────────
@@ -54,6 +45,7 @@ supabase --version
 # filesystem, so each session's `supabase start` is fast. Then stop — the cache keeps files, not
 # processes. Same exclusion list as CI and as cloud-agent-bootstrap.sh; keep all three identical.
 say "Pre-pulling Supabase images (cached for every later session)"
+ensure_dockerd 60
 supabase start -x edge-runtime,functions,studio,meta,imgproxy,storage,realtime,vector,analytics
 supabase stop
 
