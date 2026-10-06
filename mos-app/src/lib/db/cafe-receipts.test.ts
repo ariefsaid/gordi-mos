@@ -87,7 +87,7 @@ describe('Café receipt adapter', () => {
       }],
     }
     let response: { data: unknown; error: unknown } = { data: [row], error: null }
-    for (const method of ['select', 'in', 'eq', 'order', 'limit']) query[method] = vi.fn(() => query)
+    for (const method of ['select', 'in', 'eq', 'lt', 'order', 'limit']) query[method] = vi.fn(() => query)
     query.then = (resolve: (value: unknown) => unknown) => Promise.resolve(response).then(resolve)
     schemaMock.mockReturnValue({ from: vi.fn(() => query) } as never)
 
@@ -95,6 +95,9 @@ describe('Café receipt adapter', () => {
     expect(receipt.lines[0]).toMatchObject({ received_quantity: '24', conditions: [], condition_reason: null, photos: [] })
     expect(query.eq).toHaveBeenCalledWith('received_by', 'me')
     expect(query.limit).toHaveBeenCalledWith(5)
+
+    await listCafeReceipts(['Counted'], { receivedBefore: '2026-10-05T12:00:00.000Z' })
+    expect(query.lt).toHaveBeenCalledWith('received_at', '2026-10-05T12:00:00.000Z')
 
     response = { data: [{ ...row, status: 'Posted' }], error: null }
     await expect(listCafeReceipts(['Approved'])).rejects.toThrow('invalid receipt row')

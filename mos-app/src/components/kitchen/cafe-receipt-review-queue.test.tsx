@@ -25,6 +25,10 @@ function receipt(id: string, receivedBy: string, overrides: Partial<CafeReceipt>
   }
 }
 
+function mockSubmittedRows(...rows: CafeReceipt[]) {
+  vi.mocked(listCafeReceipts).mockImplementation(async statuses => statuses.includes('Submitted') ? rows : [])
+}
+
 function renderQueue() {
   return render(
     <I18nProvider>
@@ -41,7 +45,7 @@ beforeEach(() => {
 
 describe('CafeReceiptReviewQueue', () => {
   it('FR-1018 lists each receipt with receiver, arrival date, delivery note and lines, and approves with its version', async () => {
-    vi.mocked(listCafeReceipts).mockResolvedValue([receipt('r-1', 'receiver')])
+    mockSubmittedRows(receipt('r-1', 'receiver'))
     vi.mocked(reviewCafeReceipt).mockResolvedValue({ status: 'Approved', row_version: 3 })
     renderQueue()
     const row = (await screen.findByText('Received by Shift member')).closest('li')!
@@ -53,13 +57,13 @@ describe('CafeReceiptReviewQueue', () => {
   })
 
   it('AC-1012 the reviewer sees each conditioned line’s reason and private photo', async () => {
-    vi.mocked(listCafeReceipts).mockResolvedValue([receipt('r-evidence', 'receiver', {
+    mockSubmittedRows(receipt('r-evidence', 'receiver', {
       lines: [{
         id: 'line-evidence', item_name: 'Fresh milk', item_category: 'Dairy', unit_name: 'l', received_quantity: '11',
         conditions: ['damaged_wrong'], condition_reason: 'Seal broken on arrival',
         photos: [{ lineId: 'line-evidence', path: 'org/receipt/line/photo.jpg', url: 'https://private.test/photo' }],
       }],
-    })])
+    }))
     renderQueue()
     const row = (await screen.findByText('Received by Shift member')).closest('li')!
     expect(within(row).getByText('Seal broken on arrival')).toBeInTheDocument()
@@ -68,7 +72,7 @@ describe('CafeReceiptReviewQueue', () => {
   })
 
   it('FR-1020 the receiver’s own receipt cannot be approved from the queue but can be rejected', async () => {
-    vi.mocked(listCafeReceipts).mockResolvedValue([receipt('r-2', 'me')])
+    mockSubmittedRows(receipt('r-2', 'me'))
     renderQueue()
     const row = (await screen.findByText('Received by Reviewer')).closest('li')!
     expect(within(row).getByRole('button', { name: 'Approve' })).toBeDisabled()
@@ -76,7 +80,7 @@ describe('CafeReceiptReviewQueue', () => {
   })
 
   it('FR-1021 a reject needs a note before it can be sent', async () => {
-    vi.mocked(listCafeReceipts).mockResolvedValue([receipt('r-3', 'receiver')])
+    mockSubmittedRows(receipt('r-3', 'receiver'))
     vi.mocked(reviewCafeReceipt).mockResolvedValue({ status: 'Rejected', row_version: 3 })
     renderQueue()
     const row = (await screen.findByText('Received by Shift member')).closest('li')!
@@ -87,5 +91,22 @@ describe('CafeReceiptReviewQueue', () => {
     fireEvent.click(confirm)
     await waitFor(() => expect(reviewCafeReceipt).toHaveBeenCalledWith('r-3', 'reject', 2, 'Counted in crates'))
     expect(await within(row).findByText('Rejected · re-enter as a new receipt')).toBeInTheDocument()
+  })
+
+  it('AC-1040 shows a Counted receipt after a day as a read-only stale nudge', async () => {
+    const stale = receipt('stale', 'receiver', {
+      status: 'Counted',
+      received_at: new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString(),
+      submitted_at: null,
+    })
+    vi.mocked(listCafeReceipts).mockImplementation(async statuses => statuses[0] === 'Counted' ? [stale] : [])
+    renderQueue()
+
+    expect(await screen.findByText('Counted receipts older than a day')).toBeInTheDocument()
+    expect(screen.getByText('Counted · not sent for review')).toBeInTheDocument()
+    const row = screen.getByText('Received by Shift member').closest('li')!
+    expect(within(row).getByText('Coffee bean')).toBeInTheDocument()
+    expect(within(row).queryByRole('button', { name: 'Approve' })).toBeNull()
+    expect(listCafeReceipts).toHaveBeenCalledWith(['Counted'], expect.objectContaining({ receivedBefore: expect.any(String) }))
   })
 })

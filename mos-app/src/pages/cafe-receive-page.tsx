@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { CafeStreamBar, CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { CafeReceiptState } from '@/components/kitchen/cafe-receipt-state'
@@ -25,6 +26,17 @@ import {
   type CafeReceivableItem,
 } from '@/lib/db/cafe-receipts'
 import { wibToday } from '@/lib/db/cafe-opening'
+import { clearOfflinePhotoDraft } from '@/lib/offline-photo-drafts'
+import {
+  clearCafeReceiveDraft,
+  loadCafeReceiveDraft,
+  saveCafeReceiveDraft,
+  loadCafeReceiveEvidenceDraft,
+  saveCafeReceiveEvidenceDraft,
+  clearCafeReceiveEvidenceDraft,
+  type CafeReceiveDraftEntry,
+  type CafeReceiveDraftScope,
+} from '@/lib/cafe-receive-drafts'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { kitchenCategoryLabel } from '@/lib/kitchen-category-label'
 import { streamLabel } from '@/lib/kitchen-action-label'
@@ -50,6 +62,44 @@ type EvidenceValidation = 'reason' | 'photo' | 'both'
 
 function blankEntries(items: readonly CafeReceivableItem[]): Record<string, Entry> {
   return Object.fromEntries(items.map(item => [item.id, { quantity: '', unitId: item.defaultUnitId, changingUnit: false, damagedWrong: false }]))
+}
+
+function hasDraftContent(items: readonly CafeReceivableItem[], entries: Record<string, Entry>): boolean {
+  return items.some(item => {
+    const entry = entries[item.id]
+    return Boolean(entry && (entry.quantity.trim() || entry.damagedWrong || entry.unitId !== item.defaultUnitId))
+  })
+}
+
+function storedEntries(items: readonly CafeReceivableItem[], entries: Record<string, Entry>): Record<string, CafeReceiveDraftEntry> {
+  return Object.fromEntries(items.map(item => {
+    const entry = entries[item.id]
+    return [item.id, {
+      quantity: entry?.quantity ?? '',
+      unitId: entry?.unitId ?? item.defaultUnitId,
+      damagedWrong: entry?.damagedWrong ?? false,
+    }]
+  }))
+}
+
+function restoreEntries(items: readonly CafeReceivableItem[], stored: Record<string, CafeReceiveDraftEntry> | null): Record<string, Entry> {
+  const entries = blankEntries(items)
+  if (!stored) return entries
+  for (const item of items) {
+    const entry = stored[item.id]
+    if (!entry) continue
+    entries[item.id] = {
+      quantity: entry.quantity,
+      unitId: item.units.some(unit => unit.id === entry.unitId) ? entry.unitId : item.defaultUnitId,
+      changingUnit: false,
+      damagedWrong: entry.damagedWrong,
+    }
+  }
+  return entries
+}
+
+function receivePhotoDraftKey(scope: CafeReceiveDraftScope, receiptId: string, lineId: string): string {
+  return JSON.stringify([scope.personId, scope.branchId, scope.activity, scope.arrivalDate, receiptId, lineId])
 }
 
 function submitErrorKey(message: string) {
@@ -85,10 +135,15 @@ export function CafeReceivePage() {
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('All')
   const [arrivalDate, setArrivalDate] = useState(today)
-  const [clientKey, setClientKey] = useState(() => newCafeReceiptClientKey())
+  const [clientKey, setClientKey] = useState('')
+  const [itemsStreamScope, setItemsStreamScope] = useState<string | null>(null)
+  const [hydratedDraftScope, setHydratedDraftScope] = useState<string | null>(null)
+  const [draftSaved, setDraftSaved] = useState(false)
+  const [discardingDraft, setDiscardingDraft] = useState(false)
+  const [pendingStream, setPendingStream] = useState<ProductionStream | null>(null)
   const [busy, setBusy] = useState(false)
   const [confirming, setConfirming] = useState(false)
-  const [error, setError] = useState<ReturnType<typeof submitErrorKey> | 'cafe.receive.error.send' | 'cafe.receive.error.evidence' | null>(null)
+  const [error, setError] = useState<ReturnType<typeof submitErrorKey> | 'cafe.receive.error.send' | 'cafe.receive.error.evidence' | 'cafe.receive.draft.saveFailed' | null>(null)
   const [counted, setCounted] = useState<Counted | null>(null)
   const [evidenceValidation, setEvidenceValidation] = useState<Record<string, EvidenceValidation>>({})
   const [deliveryNote, setDeliveryNote] = useState('')
@@ -98,6 +153,16 @@ export function CafeReceivePage() {
   const requestGeneration = useRef(0)
   const lockButtonRef = useRef<HTMLButtonElement>(null)
   const countedHeadingRef = useRef<HTMLHeadingElement>(null)
+  const itemScopeKey = stream ? JSON.stringify([stream.branch.id, stream.activity]) : null
+  const draftScope = useMemo<CafeReceiveDraftScope | null>(() => viewerId && stream ? {
+    personId: viewerId,
+    branchId: stream.branch.id,
+    activity: stream.activity,
+    arrivalDate,
+  } : null, [arrivalDate, stream, viewerId])
+  const draftScopeKey = draftScope
+    ? JSON.stringify([draftScope.personId, draftScope.branchId, draftScope.activity, draftScope.arrivalDate])
+    : null
 
   useEffect(() => {
     let active = true
@@ -118,6 +183,7 @@ export function CafeReceivePage() {
     let active = true
     setItems([])
     setEntries({})
+    setItemsStreamScope(null)
     setLoadState('loading')
     if (!stream || !canCapture) {
       setLoadState('ready')
@@ -127,13 +193,44 @@ export function CafeReceivePage() {
       if (!active || generation !== requestGeneration.current) return
       setItems(nextItems)
       setEntries(blankEntries(nextItems))
+      setItemsStreamScope(itemScopeKey)
       setLoadState('ready')
     }).catch(() => {
       if (!active || generation !== requestGeneration.current) return
       setLoadState('error')
     })
     return () => { active = false }
-  }, [canCapture, catalogReady, retryKey, stream, stream?.activity, stream?.branch.id])
+  }, [canCapture, catalogReady, itemScopeKey, retryKey, stream, stream?.activity, stream?.branch.id])
+
+  useEffect(() => {
+    if (!draftScope || !draftScopeKey || !itemScopeKey || itemsStreamScope !== itemScopeKey || loadState !== 'ready') return
+    const draft = loadCafeReceiveDraft(draftScope)
+    setEntries(restoreEntries(items, draft?.entries ?? null))
+    setClientKey(draft?.clientKey ?? newCafeReceiptClientKey())
+    setHydratedDraftScope(draftScopeKey)
+    setDraftSaved(Boolean(draft))
+  }, [draftScope, draftScopeKey, itemScopeKey, items, itemsStreamScope, loadState])
+
+  useEffect(() => {
+    if (!draftScope || !draftScopeKey || hydratedDraftScope !== draftScopeKey || itemsStreamScope !== itemScopeKey) return
+    if (!hasDraftContent(items, entries)) {
+      clearCafeReceiveDraft(draftScope)
+      setDraftSaved(false)
+      return
+    }
+    const saved = saveCafeReceiveDraft(draftScope, { clientKey, entries: storedEntries(items, entries) })
+    setDraftSaved(saved)
+    if (!saved) setError('cafe.receive.draft.saveFailed')
+  }, [clientKey, draftScope, draftScopeKey, entries, hydratedDraftScope, itemScopeKey, items, itemsStreamScope])
+
+  useEffect(() => {
+    if (!counted || !draftScope) return
+    const evidence = Object.fromEntries(counted.lines.map(line => [line.id, {
+      conditions: line.conditions,
+      condition_reason: line.condition_reason,
+    }]))
+    saveCafeReceiveEvidenceDraft(draftScope, counted.receiptId, evidence)
+  }, [counted, draftScope])
 
   const loadRecent = useCallback(() => {
     if (!viewerId || !canCapture) return
@@ -158,10 +255,12 @@ export function CafeReceivePage() {
     damagedWrong: entry.damagedWrong,
   }))
   const recentForStream = recent.filter(receipt => receipt.branch_id === stream?.branch.id && receipt.activity === stream?.activity)
-  const hasInput = items.some(item => Boolean(entries[item.id]?.quantity.trim()))
+  const captureReady = Boolean(draftScopeKey) && hydratedDraftScope === draftScopeKey
+  const hasDraftData = hasDraftContent(items, entries)
   const invalidCount = items.filter(item => isInvalidEntry(entries[item.id])).length
   const canLock = Boolean(stream) && isOnline && !busy && lines.length > 0 && invalidCount === 0
-  const canSwitch = !busy && !hasInput && counted === null
+    && Boolean(draftScopeKey) && hydratedDraftScope === draftScopeKey && clientKey !== ''
+  const canSwitch = !busy && counted === null
 
   const filterRows = useMemo(() => items.map(item => ({
     ...item,
@@ -184,9 +283,24 @@ export function CafeReceivePage() {
     setError(null)
   }, [])
 
+  function persistCurrentDraft(): boolean {
+    if (!draftScope || !draftScopeKey || hydratedDraftScope !== draftScopeKey) return false
+    if (!hasDraftContent(items, entries)) {
+      clearCafeReceiveDraft(draftScope)
+      setDraftSaved(false)
+      return true
+    }
+    const saved = saveCafeReceiveDraft(draftScope, { clientKey, entries: storedEntries(items, entries) })
+    setDraftSaved(saved)
+    if (!saved) setError('cafe.receive.draft.saveFailed')
+    return saved
+  }
+
   const chooseStream = useCallback((next: ProductionStream) => {
-    if (canSwitch) setStream(next)
-  }, [canSwitch, setStream])
+    if (!canSwitch) return
+    if (hasDraftData) setPendingStream(next)
+    else setStream(next)
+  }, [canSwitch, hasDraftData, setStream])
 
   function patchCountedLine(lineId: string, patch: Pick<Partial<CafeReceiptLine>, 'conditions' | 'condition_reason' | 'photos'>) {
     setCounted(current => current ? {
@@ -212,6 +326,8 @@ export function CafeReceivePage() {
         quantity,
         damaged_wrong: entry.damagedWrong,
       })))
+      if (draftScope) clearCafeReceiveDraft(draftScope)
+      setDraftSaved(false)
       setCounted({ receiptId: result.receipt_id, rowVersion: result.row_version, lines: result.lines })
       setEvidenceValidation({})
       setConfirming(false)
@@ -249,6 +365,12 @@ export function CafeReceivePage() {
         }
       }
       await sendCafeReceiptForReview(receiptId, rowVersion, note)
+      if (draftScope) {
+        clearCafeReceiveEvidenceDraft(draftScope, receiptId)
+        await Promise.all(target.lines.map(line =>
+          clearOfflinePhotoDraft(receivePhotoDraftKey(draftScope, receiptId, line.id)),
+        ))
+      }
       setSent(true)
       loadRecent()
     } catch (cause) {
@@ -263,19 +385,27 @@ export function CafeReceivePage() {
 
   function continueReceipt(receipt: CafeReceipt) {
     if (receipt.status !== 'Counted' || busy) return
-    setCounted({ receiptId: receipt.id, rowVersion: receipt.row_version, lines: receipt.lines })
+    const receiptScope = draftScope ? { ...draftScope, arrivalDate: receipt.arrival_date } : null
+    const evidence = receiptScope ? loadCafeReceiveEvidenceDraft(receiptScope, receipt.id) : null
+    const lines = receipt.lines.map(line => evidence?.[line.id]
+      ? { ...line, ...evidence[line.id] }
+      : line)
+    if (receiptScope) setArrivalDate(receipt.arrival_date)
+    setCounted({ receiptId: receipt.id, rowVersion: receipt.row_version, lines })
     setEvidenceValidation({})
     setDeliveryNote(receipt.delivery_note_number ?? '')
     setSent(false)
   }
 
   function startAnother() {
+    const savedDraft = draftScope ? loadCafeReceiveDraft(draftScope) : null
     setCounted(null)
     setEvidenceValidation({})
     setSent(false)
     setDeliveryNote('')
-    setClientKey(newCafeReceiptClientKey())
-    setEntries(blankEntries(items))
+    setClientKey(savedDraft?.clientKey ?? newCafeReceiptClientKey())
+    setEntries(restoreEntries(items, savedDraft?.entries ?? null))
+    setDraftSaved(Boolean(savedDraft))
   }
 
   const picker = (
@@ -339,6 +469,7 @@ export function CafeReceivePage() {
                   ) : (
                     <CafeReceiptLineCondition
                       line={line}
+                      draftKey={draftScope ? receivePhotoDraftKey(draftScope, counted.receiptId, line.id) : undefined}
                       disabled={busy}
                       validation={evidenceValidation[line.id]}
                       focusError={line.id === firstEvidenceErrorId}
@@ -378,12 +509,20 @@ export function CafeReceivePage() {
             )}
           </section>
         )}
-        {loadState === 'ready' && stream && canCapture && !counted && (
+        {loadState === 'ready' && stream && canCapture && captureReady && !counted && (
           <>
             <div className="cafe-count__intro">
               <p className="cafe-receive__help">{t('cafe.receive.blindHelp')}</p>
-              {hasInput && <p className="cafe-count__switch-note" role="status">{t('cafe.receive.streamLocked')}</p>}
-              {!isOnline && <p className="cafe-count__notice" role="alert">{t('cafe.receive.offline')}</p>}
+              {hasDraftData && <p className="cafe-count__switch-note" role="status">{t('cafe.receive.streamDraft.note')}</p>}
+              {draftSaved && hasDraftData && <p className="cafe-receive__draft-saved" role="status">{t('cafe.receive.draft.saved')}</p>}
+              {hasDraftData && (
+                <button type="button" className="btn btn-ghost btn-touch cafe-receive__discard-draft" onClick={() => setDiscardingDraft(true)}>
+                  {t('cafe.receive.draft.discard')}
+                </button>
+              )}
+              {!isOnline && <p className="cafe-count__notice" role="alert">
+                {t(draftSaved && hasDraftData ? 'cafe.receive.draft.offline' : 'cafe.receive.offline')}
+              </p>}
             </div>
             <div className="cafe-receive__date">
               <label htmlFor="cafe-receive-arrival">{t('cafe.receive.arrivalDate')}</label>
@@ -394,7 +533,11 @@ export function CafeReceivePage() {
                 min={dateBounds.min}
                 max={dateBounds.max}
                 disabled={busy}
-                onChange={event => setArrivalDate(event.target.value || today)}
+                onChange={event => {
+                  if (hasDraftData && !persistCurrentDraft()) return
+                  setError(null)
+                  setArrivalDate(event.target.value || today)
+                }}
               />
               <span className="cafe-receive__date-hint" aria-hidden="true">{formatWeekdayDayMonth(arrivalDate)}</span>
             </div>
@@ -518,7 +661,7 @@ export function CafeReceivePage() {
           {canReview && <Link to="/cafe/receive/review">{t('cafe.receipts.review.title')}</Link>}
           <Link to="/cafe/receive/issues">{t('cafe.receipts.issues.title')}</Link>
         </nav>
-        {loadState === 'ready' && stream && canCapture && !counted && items.length > 0 && (
+        {loadState === 'ready' && stream && canCapture && captureReady && !counted && items.length > 0 && (
           <div className="cafe-count__footer">
             <div className="cafe-receive__band-status">
               <p className="cafe-count__tally" aria-live="polite">
@@ -552,6 +695,43 @@ export function CafeReceivePage() {
           returnFocusRef={lockButtonRef}
           onConfirm={() => void handleCountSubmit()}
           onCancel={() => setConfirming(false)}
+        />
+        <ConfirmDialog
+          open={discardingDraft}
+          title={t('cafe.receive.draft.discard.title')}
+          body={t('cafe.receive.draft.discard.copy', {
+            stream: streamLabel(t, stream),
+            date: formatWeekdayDayMonth(arrivalDate),
+          })}
+          confirmLabel={t('cafe.receive.draft.discard')}
+          cancelLabel={t('cafe.receive.draft.discard.cancel')}
+          tone="destructive"
+          onConfirm={async () => {
+            if (draftScope) clearCafeReceiveDraft(draftScope)
+            setEntries(blankEntries(items))
+            setClientKey(newCafeReceiptClientKey())
+            setDraftSaved(false)
+            setError(null)
+            setDiscardingDraft(false)
+          }}
+          onCancel={() => setDiscardingDraft(false)}
+        />
+        <ConfirmDialog
+          open={pendingStream !== null}
+          title={t('cafe.receive.streamDraft.title')}
+          body={t('cafe.receive.streamDraft.copy', {
+            current: streamLabel(t, stream),
+            date: formatWeekdayDayMonth(arrivalDate),
+            next: pendingStream ? streamLabel(t, pendingStream) : '',
+          })}
+          confirmLabel={t('cafe.receive.streamDraft.confirm')}
+          onConfirm={async () => {
+            if (!pendingStream) return
+            if (!persistCurrentDraft()) throw new Error(t('cafe.receive.draft.saveFailed'))
+            setStream(pendingStream)
+            setPendingStream(null)
+          }}
+          onCancel={() => setPendingStream(null)}
         />
       </div>
     </PageFamilyFrame>

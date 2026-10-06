@@ -15,12 +15,14 @@ type EvidencePatch = Pick<Partial<CafeReceiptLine>, 'conditions' | 'condition_re
 /** Receiver-owned condition and evidence editor, separate from the immutable counted quantity. */
 export function CafeReceiptLineCondition({
   line,
+  draftKey,
   disabled,
   validation,
   focusError = false,
   onChange,
 }: {
   line: CafeReceiptLine
+  draftKey?: string
   disabled: boolean
   validation?: EvidenceValidation
   focusError?: boolean
@@ -127,10 +129,12 @@ export function CafeReceiptLineCondition({
           </div>
           <WastePhotoCapture<CafeReceiptPhoto>
             ownerId={line.id}
+            draftKey={draftKey}
             initialPhotos={line.photos}
             onUpload={uploadCafeReceiptLinePhoto}
             onPhotoUploaded={receivePhoto}
-            disabled={disabled || !online}
+            disabled={disabled}
+            uploadDisabled={disabled || !online}
             copy={{
               title: t('cafe.receive.photoTitle'),
               help: t('cafe.receive.photoHelp'),

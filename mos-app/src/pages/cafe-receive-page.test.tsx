@@ -11,7 +11,7 @@ const streamMocks = vi.hoisted(() => {
   const bar = { branch, activity: 'bar' as const }
   const catalog = {
     branches: [branch], options: [kitchen, bar], destinations: [], locationOptions: [kitchen, bar],
-    stream: kitchen as typeof kitchen | null, homeStream: kitchen as typeof kitchen | null,
+    stream: kitchen as typeof kitchen | typeof bar | null, homeStream: kitchen as typeof kitchen | typeof bar | null,
     myStreamKeys: new Set(['branch-1|kitchen']), branchId: 'branch-1',
   }
   return { kitchen, bar, catalog, resolve: vi.fn(async () => catalog), adopt: vi.fn(), setStream: vi.fn() }
@@ -49,11 +49,13 @@ import {
   saveCafeReceiptLineExplanation,
   sendCafeReceiptForReview,
   submitCafeReceipt,
+  type CafeReceipt,
   type CafeReceiptLine,
   type CafeReceiptSubmitResult,
   type CafeReceivableItem,
 } from '@/lib/db/cafe-receipts'
 import { uploadCafeReceiptLinePhoto } from '@/lib/db/cafe-receipt-photos'
+import { loadCafeReceiveEvidenceDraft, type CafeReceiveDraftScope } from '@/lib/cafe-receive-drafts'
 import { CafeReceivePage } from './cafe-receive-page'
 
 const mockUseAuth = vi.mocked(useAuth)
@@ -115,6 +117,7 @@ beforeEach(() => {
   keyMocks.key = 0
   streamMocks.catalog.stream = streamMocks.kitchen
   streamMocks.catalog.homeStream = streamMocks.kitchen
+  localStorage.clear()
   mockUseAuth.mockReturnValue(viewer(['member']))
   mockItems.mockResolvedValue(ITEMS)
   vi.mocked(listCafeReceipts).mockResolvedValue([])
@@ -205,6 +208,34 @@ describe('CafeReceivePage', () => {
     await waitFor(() => expect(mockSend).toHaveBeenCalledWith('receipt-1', 1, ''))
     expect(mockSaveExplanation).toHaveBeenCalledWith('line-1', true, 'The outer seal is torn')
     expect(await screen.findByRole('heading', { name: 'Sent for review' })).toBeInTheDocument()
+  })
+
+  it('AC-1006 an unsent Counted-line reason and condition survive reload and continue', async () => {
+    const countedReceipt: CafeReceipt = {
+      id: 'counted-local', branch_id: 'branch-1', activity: 'kitchen', arrival_date: '2026-10-06',
+      delivery_note_number: null, status: 'Counted', posting_status: 'not_posted', posting_hold_reason: null,
+      received_by: 'person-1', received_at: '2026-10-06T02:00:00Z', submitted_at: null,
+      reviewed_by: null, reviewed_at: null, review_note: null, row_version: 1,
+      lines: [receiptLine()],
+    }
+    vi.mocked(listCafeReceipts).mockImplementation(async statuses => statuses.includes('Counted') ? [countedReceipt] : [])
+    const scope: CafeReceiveDraftScope = {
+      personId: 'person-1', branchId: 'branch-1', activity: 'kitchen', arrivalDate: '2026-10-06',
+    }
+    const first = renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue receipt' }))
+    fireEvent.click(await screen.findByRole('checkbox', { name: 'Damaged or wrong for Coffee bean' }))
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Reason for Coffee bean' }), { target: { value: 'Seal torn on arrival' } })
+    await waitFor(() => expect(loadCafeReceiveEvidenceDraft(scope, countedReceipt.id)).toEqual({
+      'line-1': { conditions: ['damaged_wrong'], condition_reason: 'Seal torn on arrival' },
+    }))
+    first.unmount()
+
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue receipt' }))
+    expect(await screen.findByRole('checkbox', { name: 'Damaged or wrong for Coffee bean' })).toBeChecked()
+    expect(screen.getByRole('textbox', { name: 'Reason for Coffee bean' })).toHaveValue('Seal torn on arrival')
+    expect(mockSend).not.toHaveBeenCalled()
   })
 
   it('AC-1011 a condition can also be added after Count, where Send still names missing evidence', async () => {
@@ -389,6 +420,78 @@ describe('CafeReceivePage', () => {
     const leadDate = await screen.findByLabelText('Arrival date')
     expect(leadDate).not.toHaveAttribute('min')
     expect(leadDate).toHaveAttribute('max', '2026-10-06')
+  })
+
+  it('AC-1039 an offline draft survives reload and reconnect never submits it automatically', async () => {
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: false })
+    const first = renderPage()
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Coffee bean' }), { target: { value: '2.5' } })
+    expect(await screen.findByText(/Draft saved on this device/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Lock counts' })).toBeDisabled()
+    first.unmount()
+
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: true })
+    mockSubmit.mockResolvedValue(submitResult('receipt-reconnected', [receiptLine()]))
+    renderPage()
+    const bean = await screen.findByRole('textbox', { name: 'Received for Coffee bean' })
+    expect(bean).toHaveValue('2.5')
+    expect(mockSubmit).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Lock counts' })).toBeEnabled()
+
+    fireEvent.click(within(await openLockStep()).getByRole('button', { name: 'Lock counts' }))
+    await waitFor(() => expect(mockSubmit).toHaveBeenCalledTimes(1))
+  })
+
+  it('AC-1039 an explicit discard is confirmed and clears only the local draft', async () => {
+    renderPage()
+    const bean = await screen.findByRole('textbox', { name: 'Received for Coffee bean' })
+    fireEvent.change(bean, { target: { value: '2.5' } })
+    fireEvent.click(await screen.findByRole('button', { name: 'Discard draft' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Discard this draft?' })
+    expect(bean).toHaveValue('2.5')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Keep draft' }))
+    expect(screen.getByRole('textbox', { name: 'Received for Coffee bean' })).toHaveValue('2.5')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Discard draft' }))
+    fireEvent.click(within(await screen.findByRole('dialog', { name: 'Discard this draft?' })).getByRole('button', { name: 'Discard draft' }))
+    expect(screen.getByRole('textbox', { name: 'Received for Coffee bean' })).toHaveValue('')
+    expect(localStorage.length).toBe(0)
+  })
+
+  it('AC-1039 keeps arrival-date drafts separate and restores each date when revisited', async () => {
+    renderPage()
+    const bean = await screen.findByRole('textbox', { name: 'Received for Coffee bean' })
+    fireEvent.change(bean, { target: { value: '2.5' } })
+    fireEvent.change(screen.getByLabelText('Arrival date'), { target: { value: '2026-10-05' } })
+    const yesterdayBean = await screen.findByRole('textbox', { name: 'Received for Coffee bean' })
+    expect(yesterdayBean).toHaveValue('')
+    fireEvent.change(yesterdayBean, { target: { value: '1' } })
+
+    fireEvent.change(screen.getByLabelText('Arrival date'), { target: { value: '2026-10-06' } })
+    expect(await screen.findByRole('textbox', { name: 'Received for Coffee bean' })).toHaveValue('2.5')
+    fireEvent.change(screen.getByLabelText('Arrival date'), { target: { value: '2026-10-05' } })
+    expect(await screen.findByRole('textbox', { name: 'Received for Coffee bean' })).toHaveValue('1')
+    expect(mockSubmit).not.toHaveBeenCalled()
+  })
+
+  it('AC-1039 warns before switching streams and restores the saved draft only on its original stream', async () => {
+    const view = renderPage()
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Coffee bean' }), { target: { value: '2.5' } })
+    fireEvent.click(screen.getByRole('button', { name: /^change stream$/i }))
+    fireEvent.click(screen.getByRole('option', { name: /Cafe Branch · Bar/ }))
+    const dialog = await screen.findByRole('dialog', { name: 'Switch streams?' })
+    expect(within(dialog).getByText(/will not send it/)).toBeInTheDocument()
+    expect(streamMocks.setStream).not.toHaveBeenCalled()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save draft and switch' }))
+    await waitFor(() => expect(streamMocks.setStream).toHaveBeenCalledWith(streamMocks.bar))
+
+    streamMocks.catalog.stream = streamMocks.bar
+    view.rerender(<MemoryRouter initialEntries={['/cafe/receive']}><I18nProvider><CafeReceivePage /></I18nProvider></MemoryRouter>)
+    expect(await screen.findByRole('textbox', { name: 'Received for Coffee bean' })).toHaveValue('')
+    streamMocks.catalog.stream = streamMocks.kitchen
+    view.rerender(<MemoryRouter initialEntries={['/cafe/receive']}><I18nProvider><CafeReceivePage /></I18nProvider></MemoryRouter>)
+    expect(await screen.findByRole('textbox', { name: 'Received for Coffee bean' })).toHaveValue('2.5')
+    expect(mockSubmit).not.toHaveBeenCalled()
   })
 })
 

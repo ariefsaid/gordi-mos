@@ -111,13 +111,14 @@ export async function listCafeReceivableItems(stream: ProductionStream): Promise
 /** Receipts the viewer may read, newest first; RLS returns their own and the streams they review. */
 export async function listCafeReceipts(
   statuses: readonly CafeReceiptStatus[],
-  { receivedBy, limit = 50 }: { receivedBy?: string; limit?: number } = {},
+  { receivedBy, receivedBefore, limit = 50 }: { receivedBy?: string; receivedBefore?: string; limit?: number } = {},
 ): Promise<CafeReceipt[]> {
   let query = ops()
     .from('cafe_receipts')
     .select(RECEIPT_FIELDS)
     .in('status', [...statuses])
   if (receivedBy) query = query.eq('received_by', receivedBy)
+  if (receivedBefore) query = query.lt('received_at', receivedBefore)
   const { data, error } = await query
     .order('received_at', { ascending: false })
     .limit(limit)

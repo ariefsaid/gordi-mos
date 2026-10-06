@@ -4,7 +4,7 @@ import { useT } from '@/i18n/use-t'
 import { getPeople } from '@/lib/db/directory'
 import { listCafeReceipts, reviewCafeReceipt, type CafeReceipt } from '@/lib/db/cafe-receipts'
 import { streamKey, streamLabel } from '@/lib/kitchen-action-label'
-import { formatWeekdayDayMonth } from '@/lib/format/date'
+import { formatWeekdayDayMonth, formatWibDateTime } from '@/lib/format/date'
 import { useIsOffline } from '@/shell/use-is-offline'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { ALL_STREAMS } from './cafe-stream-bar'
@@ -24,6 +24,7 @@ export function CafeReceiptReviewQueue({
 }) {
   const t = useT()
   const [rows, setRows] = useState<CafeReceipt[]>([])
+  const [staleRows, setStaleRows] = useState<CafeReceipt[]>([])
   const [names, setNames] = useState<ReadonlyMap<string, string>>(new Map())
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
@@ -38,9 +39,15 @@ export function CafeReceiptReviewQueue({
     let active = true
     setLoading(true)
     setLoadError(false)
-    void Promise.all([listCafeReceipts(['Submitted']), getPeople()]).then(([nextRows, people]) => {
+    const receivedBefore = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+    void Promise.all([
+      listCafeReceipts(['Submitted']),
+      listCafeReceipts(['Counted'], { receivedBefore }),
+      getPeople(),
+    ]).then(([nextRows, nextStaleRows, people]) => {
       if (!active) return
       setRows(nextRows)
+      setStaleRows(nextStaleRows)
       setNames(new Map(people.map(person => [person.id, person.full_name])))
       setLoading(false)
     }).catch(() => {
@@ -54,6 +61,9 @@ export function CafeReceiptReviewQueue({
   const visibleRows = useMemo(() => rows.filter(receipt =>
     streamFilter === ALL_STREAMS || streamKey(receipt.branch_id, receipt.activity) === streamFilter,
   ), [rows, streamFilter])
+  const visibleStaleRows = useMemo(() => staleRows.filter(receipt =>
+    streamFilter === ALL_STREAMS || streamKey(receipt.branch_id, receipt.activity) === streamFilter,
+  ), [staleRows, streamFilter])
 
   async function decide(receipt: CafeReceipt, decision: 'approve' | 'reject') {
     if (busyId || !online) return
@@ -95,15 +105,53 @@ export function CafeReceiptReviewQueue({
         />
       ) : loading ? (
         <LoadingShell count={2} />
-      ) : visibleRows.length === 0 ? (
-        <EmptyState variant="awaiting" title={t('cafe.receipts.review.empty.title')} copy={t('cafe.receipts.review.empty.copy')}>
-          <button type="button" className="btn btn-outline" onClick={() => setRetry(value => value + 1)}>
-            {t('cafe.count.review.refresh')}
-          </button>
-        </EmptyState>
       ) : (
-        <ul className="cafe-count-review__list">
-          {visibleRows.map(receipt => {
+        <>
+          {visibleStaleRows.length > 0 && (
+            <section className="cafe-receipt-review__stale" aria-labelledby="cafe-receipt-stale-title">
+              <header>
+                <h2 id="cafe-receipt-stale-title">{t('cafe.receipts.review.stale.title')}</h2>
+                <p>{t('cafe.receipts.review.stale.help')}</p>
+              </header>
+              <ul className="cafe-receipt-review__stale-list">
+                {visibleStaleRows.map(receipt => {
+                  const stream = streamCatalog.find(s => s.branch.id === receipt.branch_id && s.activity === receipt.activity) ?? null
+                  return (
+                    <li key={receipt.id}>
+                      <div className="cafe-count-review__identity">
+                        <div className="cafe-count-review__name">
+                          {t('cafe.receipts.review.receivedBy', { person: names.get(receipt.received_by) ?? t('cafe.receipts.review.unknownPerson') })}
+                        </div>
+                        <div className="cafe-count-review__meta">
+                          <span>{t('cafe.receipts.review.arrival', { date: formatWeekdayDayMonth(receipt.arrival_date) })}</span>
+                          {stream && <span>{t('cafe.count.review.streamTag', { stream: streamLabel(t, stream) })}</span>}
+                          <span>{t('cafe.receipts.review.stale.since', { date: formatWibDateTime(receipt.received_at) })}</span>
+                        </div>
+                      </div>
+                      <ul className="cafe-receipt-lines" aria-label={t('cafe.receipts.review.linesAria')}>
+                        {receipt.lines.map(line => (
+                          <li key={line.id}>
+                            <span>{line.item_name}</span>
+                            <span className="tabular">{t('cafe.receipts.quantityUnit', { quantity: line.received_quantity, unit: line.unit_name })}</span>
+                          </li>
+                        ))}
+                      </ul>
+                      <span className="cafe-count-review__state"><CafeReceiptState receipt={receipt} /></span>
+                    </li>
+                  )
+                })}
+              </ul>
+            </section>
+          )}
+          {visibleRows.length === 0 && visibleStaleRows.length === 0 ? (
+            <EmptyState variant="awaiting" title={t('cafe.receipts.review.empty.title')} copy={t('cafe.receipts.review.empty.copy')}>
+              <button type="button" className="btn btn-outline" onClick={() => setRetry(value => value + 1)}>
+                {t('cafe.count.review.refresh')}
+              </button>
+            </EmptyState>
+          ) : visibleRows.length > 0 ? (
+            <ul className="cafe-count-review__list">
+              {visibleRows.map(receipt => {
             const stream = streamCatalog.find(s => s.branch.id === receipt.branch_id && s.activity === receipt.activity) ?? null
             const ownReceipt = receipt.received_by === viewerId
             const noteId = `cafe-receipt-note-${receipt.id}`
@@ -188,8 +236,10 @@ export function CafeReceiptReviewQueue({
                 </div>
               </li>
             )
-          })}
-        </ul>
+              })}
+            </ul>
+          ) : null}
+        </>
       )}
     </section>
   )

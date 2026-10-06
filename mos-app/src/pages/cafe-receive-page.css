@@ -30,6 +30,19 @@
 .cafe-receive__date label { color: var(--muted-foreground); }
 .cafe-receive__date-hint { color: var(--muted-foreground); }
 
+.cafe-receive__draft-saved {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  line-height: 1.45;
+}
+
+.cafe-receive__discard-draft {
+  justify-self: start;
+  min-height: 44px;
+  padding-inline: 0;
+}
+
 .cafe-receive__date input,
 .cafe-receive__send input {
   width: 100%;

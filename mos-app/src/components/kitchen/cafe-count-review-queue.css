@@ -142,8 +142,55 @@
 
 .cafe-count-review__error .btn { min-height: 44px; }
 
+.cafe-receipt-review__stale {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-inline-start: 3px solid var(--muted-foreground);
+  border-radius: var(--radius-md);
+  background: var(--muted);
+}
+
+.cafe-receipt-review__stale header h2 {
+  margin: 0;
+  color: var(--foreground);
+  font-size: var(--font-size-body-lg);
+  font-weight: 600;
+}
+
+.cafe-receipt-review__stale header p {
+  margin: 4px 0 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-body);
+  line-height: 1.45;
+}
+
+.cafe-receipt-review__stale-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cafe-receipt-review__stale-list > li {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(240px, 1.4fr) minmax(140px, auto);
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.cafe-receipt-review__stale-list .cafe-count-review__state { text-align: right; }
+
 @media (max-width: 800px) {
   .cafe-count-review { padding: 14px; }
+
+  .cafe-receipt-review__stale-list > li { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .cafe-receipt-review__stale-list .cafe-count-review__state { text-align: left; }
 
   .cafe-count-review__row {
     grid-template-columns: minmax(0, 1fr);
