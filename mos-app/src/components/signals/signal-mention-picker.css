@@ -1,7 +1,7 @@
 /* Signal mentions use the shared Radix popup layer so the composer host cannot clip the list. */
 .mention-pop {
   /* Portaled above the modal surface that can host the driving textarea. */
-  z-index: calc(var(--z-modal) + 1); box-sizing: border-box;
+  z-index: var(--z-modal-popover); box-sizing: border-box;
   width: 320px; max-width: min(320px, calc(100vw - 24px), var(--radix-popover-content-available-width, 320px));
   background: var(--card); border: 1px solid var(--border);
   border-radius: var(--radius-lg); box-shadow: var(--shadow-overlay); outline: none;

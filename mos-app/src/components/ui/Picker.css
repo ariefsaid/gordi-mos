@@ -37,7 +37,7 @@
 .picker--error .picker__trigger[aria-expanded='true'] { outline-color: var(--destructive); }
 .picker--disabled .picker__trigger { background: var(--secondary); cursor: not-allowed; opacity: .72; }
 .picker__menu {
-  z-index: 100;
+  z-index: var(--z-popover-top);
   box-sizing: border-box;
   width: max(var(--radix-popover-trigger-width, 220px), 220px);
   max-width: calc(100vw - 24px);

@@ -56,8 +56,8 @@ describe('mention popup stays inside its collision-bounded viewport', () => {
     expect(popup).toMatch(/max-width:\s*min\(320px,\s*calc\(100vw - 24px\),\s*var\(--radix-popover-content-available-width/)
   })
 
-  it('stacks the portaled popup above a ModalShell surface', () => {
-    expect(ruleBody(css, '.mention-pop')).toMatch(/z-index:\s*calc\(var\(--z-modal\)\s*\+\s*1\)/)
+  it('stacks the portaled popup on the modal-popover layer', () => {
+    expect(ruleBody(css, '.mention-pop')).toMatch(/z-index:\s*var\(--z-modal-popover\)/)
   })
 
   it('bounds list scrolling to the available popup height', () => {
