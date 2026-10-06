@@ -247,14 +247,25 @@ describe('AuthProvider', () => {
     localStorage.setItem('mos.cafe.receiptExplanations.person-a.receipt-1', '{"line-1":{"conditions":["damaged_wrong"],"condition_reason":"Seal torn","serverUpdatedAt":null}}')
     localStorage.setItem('mos.cafe.receiptExplanations.person-b.receipt-2', '{}')
     localStorage.setItem('mos.tasks.groupBy', 'owner')
+    localStorage.setItem('mos.cafe.receiveDrafts.v2.person-a.branch-1.kitchen.2026-10-06', '{"version":2}')
+    localStorage.setItem('cafe.receive.draft.v1:person-a:branch-1:kitchen:2026-10-06', '{"version":1}')
+    const deleteDatabase = vi.fn(() => {
+      const request = {} as IDBOpenDBRequest
+      queueMicrotask(() => request.onsuccess?.(new Event('success')))
+      return request
+    })
+    vi.stubGlobal('indexedDB', { deleteDatabase })
 
     await act(async () => {
       await user.click(screen.getByRole('button', { name: 'Sign out' }))
     })
 
-    // A shared phone keeps no receiver's unsent reason for the next person; other preferences stay.
-    expect(Object.keys(localStorage).filter(key => key.startsWith('mos.cafe.receiptExplanations.'))).toEqual([])
+    // A shared phone keeps no receiver's unsent reason, counts or photos for the next person;
+    // other preferences stay.
+    expect(Object.keys(localStorage).filter(key => key.startsWith('mos.cafe.') || key.startsWith('cafe.receive.'))).toEqual([])
+    expect(deleteDatabase).toHaveBeenCalledWith('gordi-mos-offline-photos')
     expect(localStorage.getItem('mos.tasks.groupBy')).toBe('owner')
+    vi.unstubAllGlobals()
     expect(mockSignOut).toHaveBeenCalledOnce()
     expect(screen.getByTestId('status').textContent).toBe('unauthenticated')
     // Marks the session as ended, so ProtectedRoute keeps no return route for the next person.

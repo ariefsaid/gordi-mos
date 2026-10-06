@@ -100,6 +100,30 @@ describe('WastePhotoCapture', () => {
     expect(onUpload).not.toHaveBeenCalled()
   })
 
+  it('AC-1006 a photo saved on the device is still there after the capture unmounts and mounts again', async () => {
+    const device = new Map<string, File[]>()
+    // Like IndexedDB, the read lands after the database opens; a save in the meantime wins.
+    vi.mocked(loadOfflinePhotoDraft).mockImplementation(async key => {
+      await new Promise(resolve => setTimeout(resolve, 0))
+      return device.get(key) ?? []
+    })
+    vi.mocked(saveOfflinePhotoDraft).mockImplementation(async (key, files) => {
+      if (files.length === 0) device.delete(key)
+      else device.set(key, [...files])
+      return true
+    })
+    const first = renderCapture([], 'en', 'person|receipt|line')
+    await waitFor(() => expect(loadOfflinePhotoDraft).toHaveBeenCalled())
+    fireEvent.change(screen.getByLabelText(/take or choose photos/i), { target: { files: [photo('delivery.jpg')] } })
+    await waitFor(() => expect(device.get('person|receipt|line')).toHaveLength(1))
+    first.unmount()
+
+    renderCapture([], 'en', 'person|receipt|line')
+
+    expect(await screen.findByText('delivery.jpg')).toBeInTheDocument()
+    expect(device.get('person|receipt|line')?.map(file => file.name)).toEqual(['delivery.jpg'])
+  })
+
   it('AC-1006 allows offline photo selection and saves locally while Upload remains disabled', async () => {
     renderCapture([], 'en', 'offline-photo-scope', true)
     fireEvent.change(screen.getByLabelText(/take or choose photos/i), { target: { files: [photo('offline.jpg')] } })

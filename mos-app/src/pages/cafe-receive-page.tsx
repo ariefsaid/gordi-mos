@@ -41,10 +41,11 @@ import {
   type CafeReceivableItem,
 } from '@/lib/db/cafe-receipts'
 import { wibToday } from '@/lib/db/cafe-opening'
-import { clearOfflinePhotoDraft } from '@/lib/offline-photo-drafts'
+import { clearOfflinePhotoDraft, pruneOfflinePhotoDrafts } from '@/lib/offline-photo-drafts'
 import {
   clearCafeReceiveDraft,
   loadCafeReceiveDraft,
+  pruneCafeReceiveDrafts,
   saveCafeReceiveDraft,
   type CafeReceiveDraftEntry,
   type CafeReceiveDraftScope,
@@ -94,42 +95,44 @@ function blankEntries(items: readonly CafeReceivableItem[]): Record<string, Entr
   return Object.fromEntries(items.map(item => [item.id, { quantity: '', unitId: item.defaultUnitId, changingUnit: false, damagedWrong: false }]))
 }
 
-function hasDraftContent(items: readonly CafeReceivableItem[], entries: Record<string, Entry>): boolean {
-  return items.some(item => {
-    const entry = entries[item.id]
-    return Boolean(entry && (entry.quantity.trim() || entry.damagedWrong || entry.unitId !== item.defaultUnitId))
-  })
+function hasEntryContent(item: CafeReceivableItem, entry: Entry | undefined): boolean {
+  return Boolean(entry && (entry.quantity.trim() || entry.damagedWrong || entry.unitId !== item.defaultUnitId))
 }
 
+function hasDraftContent(items: readonly CafeReceivableItem[], entries: Record<string, Entry>): boolean {
+  return items.some(item => hasEntryContent(item, entries[item.id]))
+}
+
+/** Only the rows the person touched are kept on the device. */
 function storedEntries(items: readonly CafeReceivableItem[], entries: Record<string, Entry>): Record<string, CafeReceiveDraftEntry> {
-  return Object.fromEntries(items.map(item => {
+  return Object.fromEntries(items.filter(item => hasEntryContent(item, entries[item.id])).map(item => {
     const entry = entries[item.id]
-    return [item.id, {
-      quantity: entry?.quantity ?? '',
-      unitId: entry?.unitId ?? item.defaultUnitId,
-      damagedWrong: entry?.damagedWrong ?? false,
-    }]
+    return [item.id, { name: item.name, quantity: entry.quantity, unitId: entry.unitId, damagedWrong: entry.damagedWrong }]
   }))
 }
 
-function restoreEntries(items: readonly CafeReceivableItem[], stored: Record<string, CafeReceiveDraftEntry> | null): Record<string, Entry> {
+/**
+ * A stored count comes back only onto the item and ESB unit it was typed in. A line whose item is
+ * no longer receivable, or whose unit is no longer offered, stays blank and is named, since a
+ * number moved onto another unit would be a different quantity (AC-1005).
+ */
+function restoreEntries(items: readonly CafeReceivableItem[], stored: Record<string, CafeReceiveDraftEntry> | null) {
   const entries = blankEntries(items)
-  if (!stored) return entries
-  for (const item of items) {
-    const entry = stored[item.id]
-    if (!entry) continue
-    entries[item.id] = {
-      quantity: entry.quantity,
-      unitId: item.units.some(unit => unit.id === entry.unitId) ? entry.unitId : item.defaultUnitId,
-      changingUnit: false,
-      damagedWrong: entry.damagedWrong,
+  const notRestored: string[] = []
+  for (const [itemId, entry] of Object.entries(stored ?? {})) {
+    const item = items.find(candidate => candidate.id === itemId)
+    if (!item || !item.units.some(unit => unit.id === entry.unitId)) {
+      notRestored.push(item?.name ?? entry.name)
+      continue
     }
+    entries[item.id] = { quantity: entry.quantity, unitId: entry.unitId, changingUnit: false, damagedWrong: entry.damagedWrong }
   }
-  return entries
+  return { entries, notRestored }
 }
 
-function receivePhotoDraftKey(scope: CafeReceiveDraftScope, receiptId: string, lineId: string): string {
-  return JSON.stringify([scope.personId, scope.branchId, scope.activity, scope.arrivalDate, receiptId, lineId])
+/** A photo waiting to upload belongs to one person's line on one receipt, whatever date is on screen. */
+function receivePhotoDraftKey(personId: string, receiptId: string, lineId: string): string {
+  return JSON.stringify([personId, receiptId, lineId])
 }
 
 function submitErrorKey(message: string) {
@@ -180,6 +183,7 @@ export function CafeReceivePage() {
   const [hydratedDraftScope, setHydratedDraftScope] = useState<string | null>(null)
   const [draftSaved, setDraftSaved] = useState(false)
   const [discardingDraft, setDiscardingDraft] = useState(false)
+  const [notRestored, setNotRestored] = useState<string[]>([])
   const [pendingStream, setPendingStream] = useState<ProductionStream | null>(null)
   const [busy, setBusy] = useState(false)
   const [confirming, setConfirming] = useState(false)
@@ -194,6 +198,8 @@ export function CafeReceivePage() {
   const requestGeneration = useRef(0)
   const lockButtonRef = useRef<HTMLButtonElement>(null)
   const countedHeadingRef = useRef<HTMLHeadingElement>(null)
+  const arrivalDateRef = useRef<HTMLInputElement>(null)
+  const focusDateAfterDiscard = useRef(false)
   const itemScopeKey = stream ? JSON.stringify([stream.branch.id, stream.activity]) : null
   const draftScope = useMemo<CafeReceiveDraftScope | null>(() => viewerId && stream ? {
     personId: viewerId,
@@ -246,23 +252,34 @@ export function CafeReceivePage() {
   useEffect(() => {
     if (!draftScope || !draftScopeKey || !itemScopeKey || itemsStreamScope !== itemScopeKey || loadState !== 'ready') return
     const draft = loadCafeReceiveDraft(draftScope)
-    setEntries(restoreEntries(items, draft?.entries ?? null))
+    const restored = restoreEntries(items, draft?.entries ?? null)
+    setEntries(restored.entries)
+    setNotRestored(restored.notRestored)
     setClientKey(draft?.clientKey ?? newCafeReceiptClientKey())
     setHydratedDraftScope(draftScopeKey)
     setDraftSaved(Boolean(draft))
   }, [draftScope, draftScopeKey, itemScopeKey, items, itemsStreamScope, loadState])
 
+  // FR-1010: every change to the counts is kept on this device until it is locked or discarded.
   useEffect(() => {
-    if (!draftScope || !draftScopeKey || hydratedDraftScope !== draftScopeKey || itemsStreamScope !== itemScopeKey) return
-    if (!hasDraftContent(items, entries)) {
-      clearCafeReceiveDraft(draftScope)
-      setDraftSaved(false)
-      return
-    }
-    const saved = saveCafeReceiveDraft(draftScope, { clientKey, entries: storedEntries(items, entries) })
-    setDraftSaved(saved)
-    if (!saved) setError('cafe.receive.draft.saveFailed')
+    if (itemsStreamScope !== itemScopeKey) return
+    persistCurrentDraft()
+    // persistCurrentDraft reads exactly these values.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientKey, draftScope, draftScopeKey, entries, hydratedDraftScope, itemScopeKey, items, itemsStreamScope])
+
+  // Drafts left behind for a week, on this device, are dropped.
+  useEffect(() => {
+    pruneCafeReceiveDrafts()
+    void pruneOfflinePhotoDrafts()
+  }, [])
+
+  // Confirming Discard removes the band link that opened it, so focus goes to the arrival date.
+  useEffect(() => {
+    if (discardingDraft || !focusDateAfterDiscard.current) return
+    focusDateAfterDiscard.current = false
+    arrivalDateRef.current?.focus()
+  }, [discardingDraft])
 
   const loadRecent = useCallback(() => {
     if (!viewerId || !canCapture) return
@@ -414,6 +431,7 @@ export function CafeReceivePage() {
       })))
       if (draftScope) clearCafeReceiveDraft(draftScope)
       setDraftSaved(false)
+      setNotRestored([])
       openCounted(result.receipt_id, result.row_version, result.lines)
       setConfirming(false)
       loadRecent()
@@ -452,10 +470,8 @@ export function CafeReceivePage() {
         saved[line.id] = await saveCafeReceiptLineExplanation(line.id, line.conditions.includes('damaged_wrong'), line.condition_reason ?? '')
       }
       await sendCafeReceiptForReview(receiptId, rowVersion, note)
-      if (draftScope) {
-        await Promise.all(target.lines.map(line =>
-          clearOfflinePhotoDraft(receivePhotoDraftKey(draftScope, receiptId, line.id)),
-        ))
+      if (viewerId) {
+        await Promise.all(target.lines.map(line => clearOfflinePhotoDraft(receivePhotoDraftKey(viewerId, receiptId, line.id))))
       }
       setSent(true)
       loadRecent()
@@ -473,8 +489,6 @@ export function CafeReceivePage() {
 
   function continueReceipt(receipt: CafeReceipt) {
     if (receipt.status !== 'Counted' || busy) return
-    // A photo draft is keyed by arrival date, so the date follows the receipt being continued.
-    setArrivalDate(receipt.arrival_date)
     openCounted(receipt.id, receipt.row_version, receipt.lines, receipt.photosUnavailable)
     setDeliveryNote(receipt.delivery_note_number ?? '')
     setSent(false)
@@ -486,8 +500,10 @@ export function CafeReceivePage() {
     setEvidenceValidation({})
     setSent(false)
     setDeliveryNote('')
+    const restored = restoreEntries(items, savedDraft?.entries ?? null)
     setClientKey(savedDraft?.clientKey ?? newCafeReceiptClientKey())
-    setEntries(restoreEntries(items, savedDraft?.entries ?? null))
+    setEntries(restored.entries)
+    setNotRestored(restored.notRestored)
     setDraftSaved(Boolean(savedDraft))
   }
 
@@ -551,7 +567,7 @@ export function CafeReceivePage() {
                   ) : (
                     <CafeReceiptLineCondition
                       line={line}
-                      draftKey={draftScope ? receivePhotoDraftKey(draftScope, counted.receiptId, line.id) : undefined}
+                      draftKey={viewerId ? receivePhotoDraftKey(viewerId, counted.receiptId, line.id) : undefined}
                       dirty={explanationDiffers(line, counted.server[line.id])}
                       photosUnavailable={counted.photosUnavailable}
                       disabled={busy}
@@ -598,21 +614,14 @@ export function CafeReceivePage() {
           <>
             <div className="cafe-count__intro">
               <p className="cafe-receive__help">{t('cafe.receive.blindHelp')}</p>
-              {hasDraftData && <p className="cafe-count__switch-note" role="status">{t('cafe.receive.streamDraft.note')}</p>}
-              {draftSaved && hasDraftData && <p className="cafe-receive__draft-saved" role="status">{t('cafe.receive.draft.saved')}</p>}
-              {hasDraftData && (
-                <button type="button" className="btn btn-ghost btn-touch cafe-receive__discard-draft" onClick={() => setDiscardingDraft(true)}>
-                  {t('cafe.receive.draft.discard')}
-                </button>
-              )}
-              {!isOnline && <p className="cafe-count__notice" role="alert">
-                {t(draftSaved && hasDraftData ? 'cafe.receive.draft.offline' : 'cafe.receive.offline')}
-              </p>}
+              {/* With a draft the band says it is kept and how to send it; nothing is added above the rows. */}
+              {!isOnline && !(draftSaved && hasDraftData) && <p className="cafe-count__notice" role="alert">{t('cafe.receive.offline')}</p>}
             </div>
             <div className="cafe-receive__date">
               <label htmlFor="cafe-receive-arrival">{t('cafe.receive.arrivalDate')}</label>
               <input
                 id="cafe-receive-arrival"
+                ref={arrivalDateRef}
                 type="date"
                 value={arrivalDate}
                 min={dateBounds.min}
@@ -621,6 +630,7 @@ export function CafeReceivePage() {
                 onChange={event => {
                   if (hasDraftData && !persistCurrentDraft()) return
                   setError(null)
+                  setNotRestored([])
                   setArrivalDate(event.target.value || today)
                 }}
               />
@@ -762,6 +772,19 @@ export function CafeReceivePage() {
                 </p>
               )}
               {error && !confirming && <p className="cafe-count__field-error" role="alert">{t(error)}</p>}
+              {notRestored.length > 0 && (
+                <p className="cafe-receive__band-note" role="status">
+                  {t(notRestored.length === 1 ? 'cafe.receive.draft.notRestored.one' : 'cafe.receive.draft.notRestored.other', { items: notRestored.join(', ') })}
+                </p>
+              )}
+              {draftSaved && hasDraftData && (
+                <p className="cafe-receive__band-note" role="status">
+                  {t(isOnline ? 'cafe.receive.draft.saved' : 'cafe.receive.draft.offline')}{' '}
+                  <button type="button" className="cafe-receive__discard-draft" onClick={() => setDiscardingDraft(true)}>
+                    {t('cafe.receive.draft.discard')}
+                  </button>
+                </p>
+              )}
             </div>
             <button
               ref={lockButtonRef}
@@ -801,7 +824,9 @@ export function CafeReceivePage() {
             setEntries(blankEntries(items))
             setClientKey(newCafeReceiptClientKey())
             setDraftSaved(false)
+            setNotRestored([])
             setError(null)
+            focusDateAfterDiscard.current = true
             setDiscardingDraft(false)
           }}
           onCancel={() => setDiscardingDraft(false)}

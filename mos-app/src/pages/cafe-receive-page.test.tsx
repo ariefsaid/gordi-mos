@@ -38,6 +38,10 @@ vi.mock('@/lib/db/cafe-receipts', async importOriginal => {
     listCafeReceiptDifferences: vi.fn(),
   }
 })
+vi.mock('@/lib/offline-photo-drafts', async importOriginal => {
+  const actual = await importOriginal<typeof import('@/lib/offline-photo-drafts')>()
+  return { ...actual, clearOfflinePhotoDraft: vi.fn().mockResolvedValue(undefined) }
+})
 vi.mock('@/lib/db/cafe-receipt-photos', async importOriginal => {
   const actual = await importOriginal<typeof import('@/lib/db/cafe-receipt-photos')>()
   return { ...actual, listCafeReceiptPhotos: vi.fn().mockResolvedValue([]), uploadCafeReceiptLinePhoto: vi.fn() }
@@ -58,6 +62,7 @@ import {
   type CafeReceivableItem,
 } from '@/lib/db/cafe-receipts'
 import { uploadCafeReceiptLinePhoto } from '@/lib/db/cafe-receipt-photos'
+import { clearOfflinePhotoDraft } from '@/lib/offline-photo-drafts'
 import { CafeReceivePage } from './cafe-receive-page'
 
 const mockUseAuth = vi.mocked(useAuth)
@@ -432,11 +437,12 @@ describe('CafeReceivePage', () => {
     expect(leadDate).toHaveAttribute('max', '2026-10-06')
   })
 
-  it('AC-1039 an offline draft survives reload and reconnect never submits it automatically', async () => {
+  it('AC-1006 an offline draft survives reload and reconnect never submits it automatically', async () => {
     Object.defineProperty(navigator, 'onLine', { configurable: true, value: false })
     const first = renderPage()
     fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Coffee bean' }), { target: { value: '2.5' } })
-    expect(await screen.findByText(/Draft saved on this device/)).toBeInTheDocument()
+    expect(await screen.findByText(/Saved on this device, nothing sent\. Reconnect to lock counts\./)).toBeInTheDocument()
+    expect(screen.getAllByText(/Saved on this device/)).toHaveLength(1)
     expect(screen.getByRole('button', { name: 'Lock counts' })).toBeDisabled()
     first.unmount()
 
@@ -452,7 +458,7 @@ describe('CafeReceivePage', () => {
     await waitFor(() => expect(mockSubmit).toHaveBeenCalledTimes(1))
   })
 
-  it('AC-1039 an explicit discard is confirmed and clears only the local draft', async () => {
+  it('AC-1006 an explicit discard is confirmed and clears only the local draft', async () => {
     renderPage()
     const bean = await screen.findByRole('textbox', { name: 'Received for Coffee bean' })
     fireEvent.change(bean, { target: { value: '2.5' } })
@@ -464,11 +470,75 @@ describe('CafeReceivePage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Discard draft' }))
     fireEvent.click(within(await screen.findByRole('dialog', { name: 'Discard this draft?' })).getByRole('button', { name: 'Discard draft' }))
-    expect(screen.getByRole('textbox', { name: 'Received for Coffee bean' })).toHaveValue('')
+    expect(await screen.findByRole('textbox', { name: 'Received for Coffee bean' })).toHaveValue('')
     expect(localStorage.length).toBe(0)
+    await waitFor(() => expect(screen.getByLabelText('Arrival date')).toHaveFocus())
   })
 
-  it('AC-1039 keeps arrival-date drafts separate and restores each date when revisited', async () => {
+  it('AC-1005 a restored count whose unit is no longer offered stays blank and is named, never moved to another unit', async () => {
+    const first = renderPage()
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Coffee bean' }), { target: { value: '12' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Change unit' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'bag' }))
+    first.unmount()
+
+    mockItems.mockResolvedValue([{ ...ITEMS[0], units: [{ id: 'unit-kg', name: 'kg' }] }, ITEMS[1]])
+    renderPage()
+
+    expect(await screen.findByRole('textbox', { name: 'Received for Coffee bean' })).toHaveValue('')
+    expect(screen.getByText('Not restored, count it again: Coffee bean.')).toBeInTheDocument()
+  })
+
+  it('AC-1006 locking the counts clears their device draft, so the next delivery starts blank', async () => {
+    mockSubmit.mockResolvedValue(submitResult('receipt-1', [receiptLine()]))
+    mockSend.mockResolvedValue({ status: 'Submitted', row_version: 2 })
+    renderPage()
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Coffee bean' }), { target: { value: '2.5' } })
+    fireEvent.click(within(await openLockStep()).getByRole('button', { name: 'Lock counts' }))
+    await screen.findByRole('heading', { name: 'Counts locked' })
+    fireEvent.click(screen.getByRole('button', { name: 'Send for review' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Receive another delivery' }))
+
+    expect(await screen.findByRole('textbox', { name: 'Received for Coffee bean' })).toHaveValue('')
+  })
+
+  it('AC-1006 a successful Send clears each line’s waiting photos for this person and receipt', async () => {
+    mockSubmit.mockResolvedValue(submitResult('receipt-1', [receiptLine(), receiptLine({ id: 'line-2', item_name: 'Fresh milk', unit_name: 'l' })]))
+    mockSend.mockResolvedValue({ status: 'Submitted', row_version: 2 })
+    renderPage()
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Coffee bean' }), { target: { value: '2.5' } })
+    fireEvent.click(within(await openLockStep()).getByRole('button', { name: 'Lock counts' }))
+    await screen.findByRole('heading', { name: 'Counts locked' })
+    fireEvent.click(screen.getByRole('button', { name: 'Send for review' }))
+    await screen.findByRole('heading', { name: 'Sent for review' })
+
+    expect(vi.mocked(clearOfflinePhotoDraft).mock.calls.map(([key]) => key).sort()).toEqual([
+      JSON.stringify(['person-1', 'receipt-1', 'line-1']),
+      JSON.stringify(['person-1', 'receipt-1', 'line-2']),
+    ])
+  })
+
+  it('AC-1006 continuing yesterday’s receipt leaves the capture on today’s date and today’s draft', async () => {
+    const first = renderPage()
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '5' } })
+    first.unmount()
+    vi.mocked(listCafeReceipts).mockResolvedValue([{
+      id: 'receipt-old', branch_id: 'branch-1', activity: 'kitchen', arrival_date: '2026-10-05', delivery_note_number: null,
+      status: 'Counted', posting_status: 'not_posted', posting_hold_reason: null, received_by: 'person-1',
+      received_at: '2026-10-05T02:00:00Z', submitted_at: null, reviewed_by: null, reviewed_at: null, review_note: null,
+      row_version: 1, lines: [receiptLine({ id: 'line-old' })],
+    }])
+    mockSend.mockResolvedValue({ status: 'Submitted', row_version: 2 })
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue receipt' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Send for review' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Receive another delivery' }))
+
+    expect(await screen.findByLabelText('Arrival date')).toHaveValue('2026-10-06')
+    expect(screen.getByRole('textbox', { name: 'Received for Fresh milk' })).toHaveValue('5')
+  })
+
+  it('AC-1006 keeps arrival-date drafts separate and restores each date when revisited', async () => {
     renderPage()
     const bean = await screen.findByRole('textbox', { name: 'Received for Coffee bean' })
     fireEvent.change(bean, { target: { value: '2.5' } })
@@ -484,13 +554,13 @@ describe('CafeReceivePage', () => {
     expect(mockSubmit).not.toHaveBeenCalled()
   })
 
-  it('AC-1039 warns before switching streams and restores the saved draft only on its original stream', async () => {
+  it('AC-1006 warns before switching streams and restores the saved draft only on its original stream', async () => {
     const view = renderPage()
     fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Coffee bean' }), { target: { value: '2.5' } })
     fireEvent.click(screen.getByRole('button', { name: /^change stream$/i }))
     fireEvent.click(screen.getByRole('option', { name: /Cafe Branch · Bar/ }))
     const dialog = await screen.findByRole('dialog', { name: 'Switch streams?' })
-    expect(within(dialog).getByText(/will not send it/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/does not send it/)).toBeInTheDocument()
     expect(streamMocks.setStream).not.toHaveBeenCalled()
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save draft and switch' }))
     await waitFor(() => expect(streamMocks.setStream).toHaveBeenCalledWith(streamMocks.bar))

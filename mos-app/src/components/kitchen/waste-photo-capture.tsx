@@ -110,7 +110,8 @@ export function WastePhotoCapture<TPhoto extends PrivatePhotoEvidence = KitchenW
   })))
   const [validationError, setValidationError] = useState('')
   const [isUploading, setIsUploading] = useState(false)
-  const [hydratedDraftKey, setHydratedDraftKey] = useState<string | null>(draftKey ?? '')
+  // Nothing is saved for a draft key until its stored photos have loaded, or the save would erase them.
+  const [hydratedDraftKey, setHydratedDraftKey] = useState<string | null>(draftKey ? null : '')
   const [draftSaveStatus, setDraftSaveStatus] = useState<'idle' | 'saved' | 'failed'>('idle')
   const previewUrls = useRef(new Map<string, string>())
 

@@ -8,6 +8,8 @@ export type CafeReceiveDraftScope = {
 }
 
 export type CafeReceiveDraftEntry = {
+  /** The item's name when it was counted, to say which line could not be restored. */
+  name: string
   quantity: string
   unitId: string
   damagedWrong: boolean
@@ -18,14 +20,18 @@ export type CafeReceiveDraftContent = {
   entries: Record<string, CafeReceiveDraftEntry>
 }
 
-type StoredDraft = CafeReceiveDraftScope & CafeReceiveDraftContent & { version: 1 }
+type StoredDraft = CafeReceiveDraftScope & CafeReceiveDraftContent & { version: 2; savedAt: number }
 
-const STORAGE_PREFIX = 'cafe.receive.draft.v1'
+const STORAGE_PREFIX = 'mos.cafe.receiveDrafts.v2'
+/** The first, unshipped key shape; anything left under it is deleted, never restored. */
+const LEGACY_PREFIX = 'cafe.receive.draft.v1:'
+/** An unsent count older than this is dropped from the device. */
+export const CAFE_RECEIVE_DRAFT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
 
 function storageKey(scope: CafeReceiveDraftScope): string {
   return [STORAGE_PREFIX, scope.personId, scope.branchId, scope.activity, scope.arrivalDate]
     .map((part, index) => index === 0 ? part : encodeURIComponent(part))
-    .join(':')
+    .join('.')
 }
 
 function localStore(): Storage | null {
@@ -49,8 +55,9 @@ function parseEntries(value: unknown): Record<string, CafeReceiveDraftEntry> | n
   for (const [itemId, raw] of Object.entries(value)) {
     if (!itemId || raw === null || typeof raw !== 'object' || Array.isArray(raw)) return null
     const entry = raw as Record<string, unknown>
-    if (typeof entry.quantity !== 'string' || typeof entry.unitId !== 'string' || typeof entry.damagedWrong !== 'boolean') return null
-    entries[itemId] = { quantity: entry.quantity, unitId: entry.unitId, damagedWrong: entry.damagedWrong }
+    if (typeof entry.name !== 'string' || typeof entry.quantity !== 'string' || typeof entry.unitId !== 'string'
+      || typeof entry.damagedWrong !== 'boolean') return null
+    entries[itemId] = { name: entry.name, quantity: entry.quantity, unitId: entry.unitId, damagedWrong: entry.damagedWrong }
   }
   return entries
 }
@@ -64,7 +71,7 @@ export function loadCafeReceiveDraft(scope: CafeReceiveDraftScope): CafeReceiveD
     const value: unknown = JSON.parse(raw)
     if (value === null || typeof value !== 'object' || Array.isArray(value)) return null
     const stored = value as Record<string, unknown>
-    if (stored.version !== 1 || !isScope(stored, scope) || typeof stored.clientKey !== 'string' || !stored.clientKey) return null
+    if (stored.version !== 2 || !isScope(stored, scope) || typeof stored.clientKey !== 'string' || !stored.clientKey) return null
     const entries = parseEntries(stored.entries)
     return entries ? { clientKey: stored.clientKey, entries } : null
   } catch {
@@ -75,10 +82,11 @@ export function loadCafeReceiveDraft(scope: CafeReceiveDraftScope): CafeReceiveD
 export function saveCafeReceiveDraft(
   scope: CafeReceiveDraftScope,
   draft: CafeReceiveDraftContent,
+  now = Date.now(),
 ): boolean {
   const store = localStore()
   if (!store || !draft.clientKey || !parseEntries(draft.entries)) return false
-  const value: StoredDraft = { version: 1, ...scope, ...draft }
+  const value: StoredDraft = { version: 2, savedAt: now, ...scope, ...draft }
   try {
     store.setItem(storageKey(scope), JSON.stringify(value))
     return true
@@ -88,11 +96,38 @@ export function saveCafeReceiveDraft(
 }
 
 export function clearCafeReceiveDraft(scope: CafeReceiveDraftScope): void {
-  const store = localStore()
-  if (!store) return
   try {
-    store.removeItem(storageKey(scope))
+    localStore()?.removeItem(storageKey(scope))
   } catch {
     // Private browsing and device storage policies can deny even a remove; local drafts are best effort.
   }
+}
+
+function draftKeys(store: Storage): string[] {
+  return Array.from({ length: store.length }, (_, index) => store.key(index))
+    .filter((key): key is string => key !== null && (key.startsWith(`${STORAGE_PREFIX}.`) || key.startsWith(LEGACY_PREFIX)))
+}
+
+/** Remove every person's unsent counts from this device, for sign-out on a shared phone. */
+export function clearAllCafeReceiveDrafts(): void {
+  const store = localStore()
+  if (!store) return
+  try {
+    for (const key of draftKeys(store)) store.removeItem(key)
+  } catch { /* storage disabled: nothing was kept */ }
+}
+
+/** Drop legacy keys and drafts not saved within the last seven days. */
+export function pruneCafeReceiveDrafts(now = Date.now()): void {
+  const store = localStore()
+  if (!store) return
+  try {
+    for (const key of draftKeys(store)) {
+      let savedAt: unknown = null
+      if (key.startsWith(`${STORAGE_PREFIX}.`)) {
+        try { savedAt = (JSON.parse(store.getItem(key) ?? 'null') as Record<string, unknown> | null)?.savedAt } catch { /* unreadable */ }
+      }
+      if (typeof savedAt !== 'number' || now - savedAt > CAFE_RECEIVE_DRAFT_MAX_AGE_MS) store.removeItem(key)
+    }
+  } catch { /* storage disabled: nothing was kept */ }
 }
