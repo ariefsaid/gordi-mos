@@ -15,6 +15,7 @@ g remote add origin https://github.com/x/y.git
 gitdir="$(g rev-parse --absolute-git-dir)"
 mkdir -p "$tmp/repo/scripts"
 cp scripts/lane-exempt.sh "$tmp/repo/scripts/"
+mkdir -p "$tmp/repo/scripts/lib" && cp scripts/lib/github-repo.sh "$tmp/repo/scripts/lib/"
 cat > "$tmp/repo/scripts/gh-post.sh" <<EOF
 #!/usr/bin/env bash
 printf '%s\n' "\$*" >> "$tmp/post-calls"

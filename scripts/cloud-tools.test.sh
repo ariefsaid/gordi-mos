@@ -55,7 +55,8 @@ drun 3 && [ ! -e "$tmp/dockerd-calls" ] && ok "daemon already up: dockerd not st
 rm -f "$tmp/up" "$tmp/dockerd-calls"
 drun 5 && [ -s "$tmp/dockerd-calls" ] && ok "daemon down: dockerd started and awaited" || bad "daemon down: dockerd started and awaited"
 rm -f "$tmp/up"; DUD=1
-drun 2 && bad "daemon that never comes up fails" || ok "daemon that never comes up fails"
+start=$SECONDS
+drun 30 && bad "dockerd that exits fails" || { [ $((SECONDS - start)) -lt 10 ] && ok "dockerd that exits fails without waiting out the timeout" || bad "dockerd that exits waited out the timeout"; }
 DUD=""; rm -f "$tmp/up" "$tmp/bin/dockerd"
 drun 2 && bad "no dockerd installed fails" || ok "no dockerd installed fails"
 

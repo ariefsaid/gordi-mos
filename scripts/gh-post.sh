@@ -50,6 +50,33 @@ case "$verb1 $verb2" in
   *) die "'$verb1 $verb2' is not in the allowlist — this door permits the writes the repo actually uses (issue/pr create·comment·edit·close·reopen·review, api). Canonical verbs only, no aliases. Extend scripts/gh-post.sh deliberately if this write is legitimate." ;;
 esac
 
+# ── api argv is parsed exactly as gh parses it, so the path, method and fields the door checks are
+# the ones gh sends: the endpoint comes straight after `api`, and every flag is one gh documents.
+# A short-flag cluster (`-iXPOST`) or a decoy flag value would otherwise slip a second meaning past.
+api_method="" api_input=0 api_fields=()
+if [ "$verb1" = "api" ]; then
+  [ "${1:-}" = "api" ] && [ "${2:-}" = "$verb2" ] || die "'api' must come first, with the endpoint straight after it"
+  argv=("$@")
+  for ((i = 2; i < ${#argv[@]}; i++)); do
+    a="${argv[$i]}" val=""
+    case "$a" in
+      -X|--method|-f|--raw-field|-F|--field|-H|--header|-p|--preview|-q|--jq|-t|--template|--cache|--input)
+        [ $((i + 1)) -lt ${#argv[@]} ] || die "'$a' needs a value"
+        i=$((i + 1)); val="${argv[$i]}"; flag="$a" ;;
+      --method=*|--raw-field=*|--field=*|--header=*|--preview=*|--jq=*|--template=*|--cache=*|--input=*)
+        flag="${a%%=*}"; val="${a#*=}" ;;
+      -[XfFHpqt]?*) flag="${a:0:2}"; val="${a:2}" ;;
+      -i|--include|--paginate|--silent|--slurp|--verbose) continue ;;
+      *) die "'api' argument '$a' is not one this door parses — pass each flag separately, after the endpoint" ;;
+    esac
+    case "$flag" in
+      -X|--method) api_method="$val" ;;
+      -f|--raw-field|-F|--field) api_fields+=("$val") ;;
+      --input) api_input=1 ;;
+    esac
+  done
+fi
+
 # ── Collect every outbound string: all argv, plus the contents of any file-carrying flag
 # (--body-file / --input / -F key=@file, in space or equals form). Stdin payloads ('-') are
 # refused outright — text the scanner can't see is text that doesn't leave.
@@ -64,6 +91,11 @@ for ((i = 0; i < ${#args[@]}; i++)); do
     -F|--field) v="${args[$((i + 1))]:-}" ;;
     -F?*) v="${a#-F}" ;;
     --field=*) v="${a#--field=}" ;;
+  esac
+  # On issue/pr verbs -F is --body-file.
+  [ "$verb1" = "api" ] || case "$a" in
+    -F) f="${args[$((i + 1))]:-}" ;;
+    -F?*) f="${a#-F}" ;;
   esac
   case "$v" in *=@*) f="${v#*=@}" ;; esac
   if [ -n "$f" ]; then
@@ -86,7 +118,8 @@ done < "$denylist"
 # ── Repo scope: every write through this door lands in THIS checkout's repo. An `api` path must
 # name it (repos/<owner>/<name>/…); a --repo on any other verb must equal it. A caller acting on
 # text found in an issue or PR body cannot redirect a write elsewhere.
-this_repo="$(git remote get-url origin 2>/dev/null | sed -E 's#^(https://github\.com/|git@github\.com:)##; s#\.git$##')"
+source "$(dirname "$0")/lib/github-repo.sh"
+this_repo="$(origin_repo)"
 [ -n "$this_repo" ] || die "this checkout has no GitHub origin — the door scopes every write to it"
 # gh resolves the repo and host from these before any flag or remote; the door never lets them.
 [ -z "${GH_REPO:-}" ] || die "GH_REPO is set — the door resolves the repo from this checkout only"
@@ -94,7 +127,7 @@ this_repo="$(git remote get-url origin 2>/dev/null | sed -E 's#^(https://github\
 for a in "$@"; do case "$a" in --hostname|--hostname=*) die "--hostname is refused — the door writes to github.com only" ;; esac; done
 if [ "$verb1" = "api" ]; then
   case "${verb2%%\?*}" in
-    *"//"*|*"%"*) die "'api $verb2' carries an empty or encoded path segment — the path must name the target directly" ;;
+    *"//"*|*[!A-Za-z0-9/_.-]*) die "'api $verb2' carries an empty segment or a character outside [A-Za-z0-9/_.-] — the path must name the target directly" ;;
   esac
   case "$verb2" in
     *"/../"*|*"/./"*|*"/.."|*"/.") die "'api $verb2' carries a dot segment — the path must name the target directly" ;;
@@ -156,24 +189,11 @@ fi
 
 if [ "$verb1" = "api" ]; then
   path="${verb2#/}"; path="${path%%\?*}"; path="${path%/}"
-  method="" prev=""
-  for a in "$@"; do
-    case "$prev" in -X|--method) method="$a"; prev=""; continue ;; esac
-    case "$a" in -X|--method) prev="$a" ;; -X?*) method="${a#-X}" ;; --method=*) method="${a#--method=}" ;; esac
-  done
   # Only an explicit GET reads the pulls collection; anything else may create a PR.
-  if [ "$path" = "repos/$this_repo/pulls" ] && [ "$(printf '%s' "$method" | tr '[:lower:]' '[:upper:]')" != "GET" ]; then
-    base_val="" head_val="" prev=""
-    for a in "$@"; do
-      kv=""
-      case "$prev" in -f|-F|--field|--raw-field) kv="$a" ;; esac
-      prev=""
-      case "$a" in
-        -f|-F|--field|--raw-field) prev="$a"; continue ;;
-        --input|--input=*) die "REST PR create must pass base/head as -f fields — an --input payload hides them from the stamp check" ;;
-        --field=*|--raw-field=*) kv="${a#*=}" ;;
-        -f?*|-F?*) kv="${a#-?}" ;;
-      esac
+  if [ "$path" = "repos/$this_repo/pulls" ] && [ "$(printf '%s' "$api_method" | tr '[:lower:]' '[:upper:]')" != "GET" ]; then
+    [ "$api_input" = 0 ] || die "REST PR create must pass base/head as -f fields — an --input payload hides them from the stamp check"
+    base_val="" head_val=""
+    for kv in "${api_fields[@]}"; do
       case "$kv" in
         base=*) base_val="${kv#base=}" ;;
         head=*) head_val="${kv#head=}" ;;

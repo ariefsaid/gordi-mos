@@ -18,12 +18,14 @@ install_supabase_cli() { # $1 version · $2 install dir · $3 bin dir
 
 # The sandbox ships Docker but does not start its daemon.
 ensure_dockerd() { # $1 seconds to wait · $2 daemon log
-  local wait="${1:-60}" log="${2:-/tmp/dockerd.log}" i
+  local wait="${1:-60}" log="${2:-/tmp/dockerd.log}" i pid
   docker info >/dev/null 2>&1 && return 0
   command -v dockerd >/dev/null || { echo "docker daemon is down and dockerd is not installed" >&2; return 1; }
   nohup dockerd >"$log" 2>&1 &
+  pid=$!
   for ((i = 0; i < wait; i++)); do
     docker info >/dev/null 2>&1 && return 0
+    kill -0 "$pid" 2>/dev/null || { echo "dockerd exited (see $log)" >&2; return 1; }
     sleep 1
   done
   echo "dockerd did not come up in ${wait}s (see $log)" >&2
