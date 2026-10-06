@@ -117,8 +117,9 @@
 /* ── Table scroll container ──
    Non-virtual: a passthrough wrapper with overflow-x:auto so a 10-column fixed
    layout scrolls horizontally instead of starving the Task column (RI-3 fix).
-   Virtual (AC-114, 50+ rows): a bounded scroll viewport so @tanstack/react-virtual
-   can window the rows. The <thead> with aria-sort stays sticky atop the viewport. */
+   Virtual (AC-114, 50+ rows, or while older Done tasks can be paged): a bounded
+   viewport so @tanstack/react-virtual can window rows without a paging-mode jump.
+   The <thead> with aria-sort stays sticky atop the viewport. */
 .tasks-scroll { container: work-list / inline-size; min-width: 0; max-width: 100%; overflow-x: auto; }
 .tasks-scroll-virtual { max-height: 70vh; overflow-y: auto; }
 .tasks-scroll-virtual thead th { position: sticky; top: 0; z-index: 1; background: var(--card); }

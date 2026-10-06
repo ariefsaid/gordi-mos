@@ -59,13 +59,14 @@ type Options = {
   checklist?: ChecklistItemRow[]
   comments?: { id: string; author_id: string; body: string; created_at: string }[]
   events?: TaskEventRow[]
+  eventsHasMore?: boolean
   input?: Partial<TaskRecordAdapterInput>
   mode?: 'panel' | 'page'
 }
 
 function renderRecord({
   task = makeTask(), viewerId = PIC, downlineIds = [], checklist = [step('c1', 'Check fridge stock')],
-  comments = [], events = [EVENT], input = {}, mode = 'page',
+  comments = [], events = [EVENT], eventsHasMore = false, input = {}, mode = 'page',
 }: Options = {}) {
   const adapter = createTaskRecordAdapter({
     detail: { task, checklist, events }, viewerId, downlineIds, people, businessUnits, labels, now: NOW,
@@ -81,7 +82,7 @@ function renderRecord({
         canonicalHref="/work/tasks/task-1" now={NOW} people={people}
         checklist={checklist} checklistError={null}
         onAddChecklist={vi.fn()} onToggleChecklist={vi.fn()} onReorderChecklist={vi.fn()} onDeleteChecklist={vi.fn()}
-        events={events} comments={comments} onPostComment={vi.fn()}
+        events={events} eventsHasMore={eventsHasMore} comments={comments} onPostComment={vi.fn()}
         commentDraft="" onCommentDraftChange={vi.fn()} onCommentDirtyChange={vi.fn()}
         onCommitField={vi.fn(async () => {})} onDirtyChange={vi.fn()}
       />
@@ -146,12 +147,18 @@ describe('Task record anatomy', () => {
     expect(container.textContent).not.toMatch(/→/)
   })
 
-  it('omits History when there are no events, and counts it when there are', () => {
+  it('omits History when there are no events, counts it when there are, and marks a capped page', () => {
     const none = renderRecord({ events: [] }).container
     expect(within(none).queryByRole('button', { name: /History/ })).toBeNull()
     expect(none).not.toHaveTextContent(/History|No activity yet/)
     const some = renderRecord({ events: [EVENT, { ...EVENT, id: 'e2' }] }).container
     expect(within(some).getByRole('button', { name: /History/ })).toHaveTextContent('History2')
+
+    const capped = renderRecord({
+      events: Array.from({ length: 50 }, (_, index) => ({ ...EVENT, id: `event-${index}` })),
+      eventsHasMore: true,
+    }).container
+    expect(within(capped).getByRole('button', { name: /History/ })).toHaveTextContent('50+')
   })
 
   it('offers no weekly-update write or acknowledge action (this is a Task, not the upward-review pane)', () => {

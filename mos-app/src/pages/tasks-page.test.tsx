@@ -573,6 +573,7 @@ describe('AC-065 / AC-008 — archived rows hidden by default; Include archived 
     expect(mockListTasks).toHaveBeenCalledWith(
       { includeArchived: false },
       expect.objectContaining({ read: expect.any(Function) }),
+      expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
     )
   })
 
@@ -608,6 +609,7 @@ describe('AC-065 / AC-008 — archived rows hidden by default; Include archived 
       expect(mockListTasks).toHaveBeenLastCalledWith(
         { includeArchived: true },
         expect.objectContaining({ read: expect.any(Function) }),
+        expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
       )
     })
     await waitFor(() => screen.getByText('Archived task'))

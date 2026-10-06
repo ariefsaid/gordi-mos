@@ -59,6 +59,7 @@ export interface TaskCollectionRuntime {
   drawerOpen: boolean
   splitLayout: boolean
   isDesktop: boolean
+  hasPagedOlderDone: boolean
   recordSearch: string
   statusOverrides: ReadonlyMap<string, TaskStatus>
   onOpenTask: (taskId: string) => void
@@ -124,6 +125,7 @@ const DEFAULT_TASK_RUNTIME: TaskCollectionRuntime = {
   drawerOpen: false,
   splitLayout: false,
   isDesktop: true,
+  hasPagedOlderDone: false,
   recordSearch: '',
   statusOverrides: new Map(),
   onOpenTask: () => {},
@@ -454,7 +456,7 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
     setSearchParams(next, { replace: true })
   }, [searchParams, setSearchParams])
   const desktopLayout = runtime.isDesktop && !cardLayout
-  const virtualize = desktopLayout && leafTasks.length >= 50
+  const virtualize = desktopLayout && (leafTasks.length >= 50 || runtime.hasPagedOlderDone)
   const rowVirtualizer = useVirtualizer({
     count: virtualize ? flatRows.length : 0,
     getScrollElement: () => scrollRef.current,
@@ -464,6 +466,7 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
     initialRect: { width: 0, height: 600 },
   })
   const cursorFlatIndex = flatRows.findIndex((row) => leafIndexByRowId.get(row.id) === cursor)
+  const previousOlderDoneIds = useRef(new Set(context.olderDoneTaskIds ?? []))
 
   const openTask = useCallback((taskId: string) => {
     if (providedRuntime) {
@@ -505,6 +508,19 @@ export function TaskTablePresentation(props: TaskPresentationProps & { cardLayou
   useEffect(() => {
     if (virtualize && cursorFlatIndex >= 0) rowVirtualizer.scrollToIndex(cursorFlatIndex, { align: 'auto' })
   }, [cursorFlatIndex, rowVirtualizer, virtualize])
+  useEffect(() => {
+    const currentOlderDoneIds = context.olderDoneTaskIds ?? new Set<string>()
+    const appendedIds = new Set([...currentOlderDoneIds].filter((id) => !previousOlderDoneIds.current.has(id)))
+    previousOlderDoneIds.current = new Set(currentOlderDoneIds)
+    if (!virtualize || appendedIds.size === 0) return
+    const firstAppendedRowIndex = flatRows.findIndex((row) =>
+      row.original.kind === 'leaf' && appendedIds.has(row.original.task.id),
+    )
+    if (firstAppendedRowIndex >= 0) {
+      rowVirtualizer.measure()
+      rowVirtualizer.scrollToIndex(firstAppendedRowIndex, { align: 'start' })
+    }
+  }, [context.olderDoneTaskIds, flatRows, rowVirtualizer, virtualize])
 
 
 

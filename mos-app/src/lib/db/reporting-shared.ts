@@ -6,6 +6,9 @@
 
 /** ISO yyyy-mm-dd date `days` before today (UTC "today" — used to build a `>= since`
  * filter for a rolling reporting window). */
+export const REPORTING_READ_MAX_ROWS = 1000
+export const REPORTING_WINDOW_DAYS = 60
+
 export function daysAgoIsoDate(days: number): string {
   const d = new Date()
   d.setUTCDate(d.getUTCDate() - days)
