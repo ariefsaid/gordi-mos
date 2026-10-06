@@ -83,6 +83,15 @@ const CafeWastePage = lazyPage(() =>
 const CafeCountPage = lazyPage(() =>
   import('./pages/cafe-count-page').then((m) => ({ default: m.CafeCountPage })),
 )
+const CafeReceivePage = lazyPage(() =>
+  import('./pages/cafe-receive-page').then((m) => ({ default: m.CafeReceivePage })),
+)
+const CafeReceiptReviewPage = lazyPage(() =>
+  import('./pages/cafe-receipt-review-page').then((m) => ({ default: m.CafeReceiptReviewPage })),
+)
+const CafeReceiptIssuesPage = lazyPage(() =>
+  import('./pages/cafe-receipt-issues-page').then((m) => ({ default: m.CafeReceiptIssuesPage })),
+)
 const KitchenPushesPage = lazyPage(() =>
   import('./pages/kitchen-pushes-page').then((m) => ({ default: m.KitchenPushesPage })),
 )
@@ -395,6 +404,8 @@ const routeTable: RouteObject[] = [
           { path: ROUTE_PATHS.cafeStock, element: withSuspense(<KitchenStockPage />), handle: pageHandle('workspace') },
           { path: ROUTE_PATHS.cafeWaste, element: withSuspense(<CafeWastePage />), handle: pageHandle('workspace') },
           { path: ROUTE_PATHS.cafeCount, element: withSuspense(<CafeCountPage />), handle: pageHandle('workspace') },
+          { path: ROUTE_PATHS.cafeReceive, element: withSuspense(<CafeReceivePage />), handle: pageHandle('workspace') },
+          { path: ROUTE_PATHS.cafeReceiptIssues, element: withSuspense(<CafeReceiptIssuesPage />), handle: pageHandle('workspace') },
           { path: ROUTE_PATHS.cafeItems, element: withSuspense(<CafeItemSettingsPage />), handle: pageHandle('workspace') },
           // #1239 split the former kitchen log into production and transfer; the retired kitchen
           // entry and log alias land directly on production rather than stopping at the Today root.
@@ -421,6 +432,7 @@ const routeTable: RouteObject[] = [
             handle: infrastructureHandle('capability'),
             children: [
               { path: ROUTE_PATHS.cafeReview, element: withSuspense(<KitchenReviewPage />), handle: pageHandle('workspace') },
+              { path: ROUTE_PATHS.cafeReceiptReview, element: withSuspense(<CafeReceiptReviewPage />), handle: pageHandle('workspace') },
               // Inside the gate, for the same reason as the catalog redirects above.
               {
                 path: 'kitchen/review',

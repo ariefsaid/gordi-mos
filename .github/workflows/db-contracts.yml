@@ -139,6 +139,27 @@ jobs:
         if: steps.scope.outputs.render == 'true'
         run: supabase test db
 
+      # pgTAP cannot load a file outside supabase/tests, so the sample-org Money seed's second run
+      # and its refusal are checked here: a rerun must add nothing (reporting_08's exact counts
+      # still hold), and a database holding a non-fixture person must refuse it.
+      - name: Sample-org Money seed — a second run adds nothing, a non-fixture person refuses it
+        if: steps.scope.outputs.render == 'true'
+        run: |
+          seed=supabase/seed.sample-org-money.sql
+          db="supabase_db_$(sed -n 's/^project_id *= *"\(.*\)"/\1/p' supabase/config.toml | head -1)"
+          psql_db() { docker exec -i "$db" psql -U postgres -d postgres -X -q -v ON_ERROR_STOP=1 -f -; }
+          psql_db < "$seed" > rerun.log 2>&1 || { cat rerun.log; exit 1; }
+          grep -q 'seed.sample-org-money: org .*, 0 revenue and 0 margin rows added' rerun.log \
+            || { echo "the second run wrote rows:"; cat rerun.log; exit 1; }
+          if { echo 'begin;'
+               echo "insert into shared.people (org_id, full_name, email) select org_id, 'Not a fixture', 'person@realorg.invalid' from shared.people where email like '%.dev@example.test' limit 1;"
+               cat "$seed"
+               echo 'rollback;'; } | psql_db > refusal.log 2>&1; then
+            echo "the seed ran in a database holding a non-fixture person:"; cat refusal.log; exit 1
+          fi
+          grep -q 'seed.sample-org-money: refused' refusal.log || { cat refusal.log; exit 1; }
+          supabase test db supabase/tests/reporting_08_sample_money_seed.sql
+
       # #393. Everything above starts from nothing, so every conditional migration has a branch
       # CI structurally cannot reach. This builds a database from the DEPLOYED commit's tree,
       # runs the real migration chain over it, and asserts the result is indistinguishable from
