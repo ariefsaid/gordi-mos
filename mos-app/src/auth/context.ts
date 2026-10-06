@@ -1,5 +1,5 @@
 import { createContext } from 'react'
-import type { PeopleRow, RolesRow } from '@/lib/database.types'
+import type { ViewerPerson, ViewerRole } from '@/lib/db/viewer'
 import type { ReadScope } from '@/lib/scoped-reads'
 
 export type AuthState =
@@ -10,7 +10,7 @@ export type AuthState =
   | { status: 'orphan'; signOut: () => Promise<void> }
   | {
       status: 'authenticated'
-      viewer: { person: PeopleRow; roles: RolesRow[]; isManager: boolean; accessRoles: string[]; affiliated: string[] }
+      viewer: { person: ViewerPerson; roles: ViewerRole[]; isManager: boolean; accessRoles: string[]; affiliated: string[] }
       signOut: () => Promise<void>
       // Optional for provider-less typed fixtures; production AuthProvider always supplies a scope.
       readScope?: ReadScope
