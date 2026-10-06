@@ -5,7 +5,7 @@
 -- Receipt issues through one service-only RPC.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(26);
+select plan(33);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -203,6 +203,53 @@ reset role;
 select ok((select g.status = 'dead_letter' and g.last_error like '%Receipt issue%' from integrations.esb_push_groups g
             where g.id = current_setting('app.group_a')::uuid),
           'AC-1025 an emptied group is closed with the reason, never sent');
+
+-- ── FR-1028 a document key names one document, even after its group empties ──────────────────
+select ok((select bool_and(g.mos_key = (select distinct e.payload ->> 'mos_key' from integrations.esb_push e
+                                          where e.push_group_id = g.id) or not exists (
+                                 select 1 from integrations.esb_push e where e.push_group_id = g.id))
+             from integrations.esb_push_groups g where g.source_module = 'cafe_receipt')
+          and exists (select 1 from pg_constraint c where c.conname = 'esb_push_groups_env_mos_key_uk'),
+          'FR-1028 the group row carries its document key, unique per environment');
+-- Group A is now empty. A later enqueue for the same receipt must not reuse its key.
+insert into ops.cafe_receipt_portions (org_id, receipt_id, line_id, item_unit_id, po_number, po_date, quantity, state)
+select l.org_id, l.receipt_id, l.id, l.item_unit_id, 'PO-SYNTH-1430-B', current_date - 3, 1, 'queued'
+  from ops.cafe_receipt_lines l
+ where l.receipt_id = current_setting('app.r1')::uuid and l.item_unit_id = current_setting('app.bean_kg')::uuid;
+select ops._enqueue_cafe_receipt_portions(current_setting('app.r1')::uuid, 'main_store');
+select is((select g.mos_key from integrations.esb_push_groups g
+            where g.source_module = 'cafe_receipt' and g.dedup_key like 'cafe-receipt|' || current_setting('app.r1') || '|%'
+            order by g.created_at desc, g.mos_key desc limit 1),
+          current_setting('app.key') || '-3', 'FR-1028 a later group of the receipt gets a new key, never an emptied group''s');
+
+-- ── FR-1028 no shrink once a create may be in ESB ───────────────────────────────────────────
+select set_config('app.group_c', (select g.id::text from integrations.esb_push_groups g
+                                   where g.mos_key = current_setting('app.key') || '-3'), true);
+select set_config('app.bean_c', (select e.id::text from integrations.esb_push e
+                                  where e.push_group_id = current_setting('app.group_c')::uuid), true);
+update integrations.esb_push_groups set esb_create_sent_at = clock_timestamp() where id = current_setting('app.group_c')::uuid;
+set local role service_role;
+select throws_ok(format($$select ops.return_cafe_receipt_excess(%L, jsonb_build_array(jsonb_build_object('push_id', %L, 'fits', 0, 'kind', 'over')))$$,
+                        current_setting('app.group_c'), current_setting('app.bean_c')),
+  '22023', null, 'FR-1028 once a create was sent, nothing is shrunk: ESB may hold the document as it was');
+reset role;
+
+-- ── DD-2026-10-06-1429 (6) refused portions leave queued only when nothing can be in ESB ─────
+update integrations.esb_push set status = 'dead_letter', last_error = 'ESB: synthetic refusal' where id = current_setting('app.bean_c')::uuid;
+update integrations.esb_push_groups set status = 'dead_letter' where id = current_setting('app.group_c')::uuid;
+select ok((select p.state = 'queued' and p.push_id = current_setting('app.bean_c')::uuid from ops.cafe_receipt_portions p
+            where p.push_id = current_setting('app.bean_c')::uuid),
+          'DD-2026-10-06-1429 a group that sent a create keeps its portion queued for a person');
+update integrations.esb_push_groups set status = 'failed', esb_create_sent_at = null where id = current_setting('app.group_c')::uuid;
+update integrations.esb_push_groups set status = 'dead_letter' where id = current_setting('app.group_c')::uuid;
+select ok((select p.state = 'held' and p.hold_reason = 'esb_refused' and p.push_id is null from ops.cafe_receipt_portions p
+            where p.receipt_id = current_setting('app.r1')::uuid and p.po_number = 'PO-SYNTH-1430-B' and p.quantity = 1),
+          'DD-2026-10-06-1429 a definitely refused portion leaves queued and is held as ESB refused');
+select ok((select e.push_group_id is null and e.status = 'dead_letter' and e.last_error = 'ESB: synthetic refusal'
+             from integrations.esb_push e where e.id = current_setting('app.bean_c')::uuid),
+          'DD-2026-10-06-1429 its member leaves the group with its ESB message, so no requeue can send it beside a release');
+select is((select ops.cafe_receipt_posting(r) ->> 'state' from ops.cafe_receipts r where r.id = current_setting('app.r1')::uuid),
+          'failed', 'FR-1042 a receipt with an ESB-refused portion reads failed');
 
 select * from finish();
 rollback;

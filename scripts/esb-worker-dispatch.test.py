@@ -303,7 +303,8 @@ check("...and it says it is held, not pending", "held" in out, out)
 f = Fake(esb_push=lambda *a: [])
 run(lambda: W.Outbox(cfg_for("goo", ESB_PUSH_ENABLED="1")).pending(), f)
 check("...and the drain filter excludes held rows at the source",
-      "endpoint=neq.noop" in f.calls[0]["url"], f.calls[0]["url"])
+      "endpoint=neq.noop" in f.calls[0]["url"]
+      or "endpoint=not.in.(noop," in urllib.parse.unquote(f.calls[0]["url"]), f.calls[0]["url"])
 
 # The rule, stated where it is enforced: close_posted will not write a posted state
 # without evidence, whatever the caller thinks it has.
@@ -930,12 +931,14 @@ class FakeEsb:
     initialize read returns per product detail; `create`, `authorize` and `lookup` script the
     replies in order (a callable raises a fault, a dict is the reply)."""
 
-    def __init__(self, *, outstanding=None, create=None, authorize=None, lookup=None, meta=None):
+    def __init__(self, *, outstanding=None, create=None, authorize=None, lookup=None, meta=None, fresh=None):
         self.outstanding = {901: 5, 902: 4} if outstanding is None else outstanding
         self.create = list(create or [{"status": "ok", "result": {"goodsReceiptNum": "GR-NEW-1"}}])
         self.authorize = list(authorize or [{"status": "ok", "result": {"goodsReceiptNum": "GR-AUTH-1"}}])
         self.lookup = list(lookup or [])
         self.meta = meta or {}
+        # What the group row reads after the claims; another tick may have moved it on.
+        self.fresh = {"id": GR_GID, "mos_key": "GR000123-1", **self.meta, **(fresh or {})}
         self.group_patches: list[dict] = []
         self.member_patches: list[tuple[str, dict]] = []
         self.rpc: list[dict] = []
@@ -974,7 +977,8 @@ class FakeEsb:
     def _group(self, f, m, u, b):
         if m == "PATCH":
             self.group_patches.append(b)
-        return None
+            return None
+        return [self.fresh]
 
     def _member(self, f, m, u, b):
         if m == "PATCH" and "status=in." in u:
@@ -1185,6 +1189,81 @@ n, out = gr_tick(esb, [{**gr_rows()[0], "status": "posted"}, {**gr_rows()[1], "s
 check("an authorized group resumes its fan-out without a claim or any ESB call",
       n == 0 and esb.esb_calls() == [] and esb.member_states() == {gr_rows()[1]["id"]: "posted"}
       and not any("status=in." in c["url"] for c in esb.fake.calls), repr(esb.fake.calls) + out)
+
+
+# The create-sent mark is written before the create goes out (the guard behind AC-1026).
+esb = FakeEsb()
+gr_tick(esb)
+calls = esb.fake.calls
+mark = next((i for i, c in enumerate(calls) if c["method"] == "PATCH" and "esb_push_groups" in c["url"]
+             and isinstance(c["body"], dict) and c["body"].get("esb_create_sent_at")), None)
+first_create = next((i for i, c in enumerate(calls) if c["method"] == "POST"
+                     and "/inventory/goods-receipt/PO-SYNTH-1" in c["url"]), None)
+check("AC-1026 the create-sent mark is recorded before the create is sent",
+      mark is not None and first_create is not None and mark < first_create, f"mark={mark} create={first_create}")
+
+# Overlapping ticks: this tick's snapshot shows nothing sent, but the row now says a create went out.
+esb = FakeEsb(fresh={"esb_create_sent_at": "2026-10-06T00:00:00+00:00"}, lookup=[{"status": "ok", "result": {"data": [
+    {"additionalInfo": "GR000123-1", "goodsReceiptNum": "GR-OTHER-TICK", "statusID": "3"}]}}])
+n, out = gr_tick(esb)
+check("AC-1026 the group is re-read after the claims: another tick's create is looked up, never sent again",
+      n == 0 and not esb.creates() and esb.group_patches[-1].get("esb_doc_num") == "GR-OTHER-TICK",
+      repr(esb.fake.calls) + out)
+
+# A looked-up number other than the one recorded halts.
+esb = FakeEsb(meta={"esb_created_num": "GR-NEW-1"}, lookup=[{"status": "ok", "result": {"data": [
+    {"additionalInfo": "GR000123-1", "goodsReceiptNum": "GR-ELSE", "statusID": "3"}]}}])
+n, out = gr_tick(esb)
+check("AC-1026 a number under the key other than the recorded one halts; nothing is adopted or sent",
+      n == 2 and not esb.creates() and not esb.esb("authorize/")
+      and not any(p.get("esb_doc_num") for p in esb.group_patches)
+      and set(esb.member_states().values()) == {"dead_letter"}, repr(esb.group_patches) + out)
+
+# The group row's key must be the members' key.
+esb = FakeEsb(fresh={"mos_key": "GR000999-1"})
+n, out = gr_tick(esb)
+check("FR-1046 a group whose row names another document key sends nothing",
+      n == 2 and esb.esb_calls() == [], repr(esb.fake.calls) + out)
+
+# Posting off: goods receipts are not even read, so they cannot starve the families that post.
+f = Fake(esb_push=lambda *a: [])
+run(lambda: W.Outbox(gr_cfg(ESB_POST_GOODS_RECEIPTS="")).pending(), f)
+off_url = urllib.parse.unquote(f.calls[0]["url"])
+f = Fake(esb_push=lambda *a: [])
+run(lambda: W.Outbox(gr_cfg()).pending(), f)
+on_url = urllib.parse.unquote(f.calls[0]["url"])
+check("posting off leaves goods receipts out of the drain page; posting on reads them",
+      "endpoint=not.in.(noop,goods-receipt)" in off_url and "endpoint=neq.noop" in on_url, off_url + " | " + on_url)
+
+# An organisation id given in upper case still names the organisation.
+esb = FakeEsb()
+n, out = gr_tick(esb, cfg=gr_cfg(ESB_POST_ORG_ID=ORG.upper()))
+check("the posting organisation is matched case-insensitively", n == 0 and len(esb.creates()) == 1, out)
+
+# What last_error may say: never a path or a reply body.
+refused = W.Permanent("ERP POST /inventory/goods-receipt/PO-1 returned non-ok: {'status': 'error'}", kind="esb_refused")
+check("an ESB refusal without a message is recorded without its path or body",
+      "/inventory" not in W.failure_text(refused) and "refused" in W.failure_text(refused), W.failure_text(refused))
+esb = FakeEsb(outstanding={901: 2})
+esb.fake.routes["rpc/return_cafe_receipt_excess"] = lambda *a: (_ for _ in ()).throw(
+    W.Permanent("POST /rest/v1/rpc/x -> HTTP 400: {}", status=400))
+n, out = gr_tick(esb)
+check("a MOS fault returning the excess sends nothing, retries, and is not blamed on ESB",
+      n == 2 and not esb.creates() and set(esb.member_states().values()) == {"failed"}
+      and (esb.group_patches[-1].get("last_error") or "").startswith("MOS did not take back"),
+      repr(esb.group_patches) + out)
+
+# The deployment's proven open-PO shape governs the re-read before the create, as it does the cache.
+with open(os.path.join(TMP, "po_shape.json"), "w", encoding="utf-8") as fh:
+    json.dump({"outstanding": "remainingQty"}, fh)
+esb = FakeEsb()
+esb.fake.routes["goods-receipt/initialize/"] = lambda f, m, u, b: {"status": "ok", "result": {"details": [
+    {"productID": 1601, "productDetailID": 901, "outstandingQty": 99, "remainingQty": 1},
+    {"productID": 1602, "productDetailID": 902, "outstandingQty": 99, "remainingQty": 4}]}}
+n, out = gr_tick(esb, cfg=gr_cfg(ESB_OPEN_PO_SHAPE_FILE=os.path.join(TMP, "po_shape.json")))
+check("FR-1027 the re-read uses the deployment's open-PO shape, not the default field",
+      esb.creates() and [d["qty"] for d in esb.creates()[0]["body"]["goodsReceiptDetails"]] == [1.0, 4.0],
+      repr(esb.creates()) + out)
 
 # On the ERP of record the product details come from the MOS catalog, never from the payload.
 with open(os.path.join(TMP, "gr_gkid.json"), "w", encoding="utf-8") as fh:
