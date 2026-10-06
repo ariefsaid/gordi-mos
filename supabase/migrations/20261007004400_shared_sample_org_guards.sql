@@ -248,7 +248,8 @@ begin
     and p.archived_at is null
   limit 1;
 
-  if (select shared.is_sample_address(u.email) from auth.users u where u.id = v_user_id)
+  -- A user with no auth row is no sample account, so it keeps the empty-claims path.
+  if coalesce((select shared.is_sample_address(u.email) from auth.users u where u.id = v_user_id), false)
        is distinct from shared.is_sample_org(v_person.org_id) then
     return jsonb_build_object('error', jsonb_build_object(
       'http_code', 403,
@@ -298,8 +299,8 @@ grant execute on function shared.custom_access_token_hook(jsonb) to supabase_aut
 
 -- ── The project's sample org (the id the sample login checks for) ────────────────────────────
 -- The flag guard refuses this, and so the whole migration, if that org is not sample-shaped. The
--- lock makes the retire see every outbox row committed before the flag.
-lock table integrations.esb_push, integrations.esb_push_groups in share row exclusive mode;
+-- lock makes the shape check and the retire see every person and outbox row committed before the flag.
+lock table shared.people, integrations.esb_push, integrations.esb_push_groups in share row exclusive mode;
 update shared.orgs set is_sample = true where id = '5a000000-0000-0000-0000-000000000001';
 
 commit;
