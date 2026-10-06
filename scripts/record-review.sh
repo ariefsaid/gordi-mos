@@ -134,7 +134,8 @@ changed_files="$(git diff --name-only origin/dev...HEAD 2>/dev/null)" || {
   changed_files="$(git diff --name-only "$merge_base" HEAD)" \
     || die "could not list the diff from origin/dev's merge-base"
 }
-if printf '%s\n' "$changed_files" | grep -E '(^|/)mos-app/src/.*\.tsx$|\.css$' | grep -qvE '\.test\.tsx$'; then
+ui_files="$(printf '%s\n' "$changed_files" | grep -E '(^|/)mos-app/src/.*\.tsx$|\.css$' | grep -vE '\.test\.tsx$' || true)"
+if [ -n "$ui_files" ]; then
   validate_ui_skills_evidence "$head" "$artifact"
 fi
 
