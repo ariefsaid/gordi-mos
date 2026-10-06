@@ -12,6 +12,7 @@ g() { git -C "$tmp/repo" -c user.email=t@t -c user.name=t "$@"; }
 git init -q "$tmp/repo"
 g commit -qm init --allow-empty
 head="$(g rev-parse HEAD)"
+g update-ref refs/remotes/origin/dev "$head"
 gitdir="$(g rev-parse --absolute-git-dir)"
 
 check() { # $1 name · $2 expected rc · args…
@@ -82,6 +83,90 @@ if [ "$(cat "$gitdir/independent-review-spec-ok" 2>/dev/null)" = "$spec_stamp_be
   && [ "$(cat "$gitdir/independent-review-code-quality-ok" 2>/dev/null)" = "$quality_stamp_before" ]; then
   pass=$((pass+1)); printf '  ok    other exact-HEAD lens stamps remain unchanged after security DNM\n'
 else fail=$((fail+1)); printf '  FAIL  security DNM changed another lens stamp\n'; fi
+
+# UI evidence gate: each playbook needs an existing HEAD-bound evidence file; renders need
+# representative phone/tablet/desktop widths and real-length data.
+mkdir -p "$tmp/ui-repo"
+git init -q "$tmp/ui-repo"
+gi() { git -C "$tmp/ui-repo" -c user.email=t@t -c user.name=t "$@"; }
+gi commit -qm init --allow-empty
+gi update-ref refs/remotes/origin/dev "$(gi rev-parse HEAD)"
+mkdir -p "$tmp/ui-repo/mos-app/src/pages" "$tmp/ui-repo/docs/reviews"
+printf 'export const Page = () => null;\n' > "$tmp/ui-repo/mos-app/src/pages/Page.tsx"
+gi add mos-app/src/pages/Page.tsx && gi commit -qm 'add UI page'
+ui_head="$(gi rev-parse HEAD)"
+printf 'Commit: %s\n' "$ui_head" > "$tmp/ui-repo/docs/reviews/evidence.md"
+write_ui_review() { # $1 artifact · $2 evidence path · $3 omitted row · $4 render line
+  local file="$1" evidence="$2" omitted="$3" render="$4"
+  {
+    printf '## Skills evidence\n| Playbook | Evidence file | Render evidence |\n|---|---|---|\n'
+    for playbook in 'Impeccable critique' 'Impeccable layout' 'Impeccable clarify' 'Impeccable harden' 'Impeccable polish' 'Taste'; do
+      [ "$playbook" = "$omitted" ] && continue
+      if [ "$playbook" = 'Impeccable critique' ]; then
+        printf '| %s | %s | %s |\n' "$playbook" "$evidence" "$render"
+      else
+        printf '| %s | %s | |\n' "$playbook" "$evidence"
+      fi
+    done
+    printf '\n## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$ui_head"
+  } > "$tmp/ui-repo/$file"
+}
+check_ui() { # $1 name · $2 expected rc · $3 artifact · $4 expected diagnostic (optional)
+  local name="$1" want="$2" artifact="$3" diagnostic="${4:-}"
+  (cd "$tmp/ui-repo" && bash "$SCRIPT" --lens spec --reviewer gpt-5.6-luna --artifact "$artifact") > "$tmp/ui-output" 2>&1
+  local rc=$?
+  if [ "$rc" -eq "$want" ] && { [ -z "$diagnostic" ] || grep -Fq "$diagnostic" "$tmp/ui-output"; }; then
+    pass=$((pass+1)); printf '  ok    %s\n' "$name"
+  else
+    fail=$((fail+1)); printf '  FAIL  %s — rc=%s (want %s); %s\n' "$name" "$rc" "$want" "$(tr '\n' ' ' < "$tmp/ui-output")"
+  fi
+}
+write_ui_review missing-row.md reviews/evidence.md 'Taste' 'Render evidence: 390px, 768px, 1440px; real-length data used'
+check_ui 'UI diff refuses missing playbook row' 1 missing-row.md 'Skills evidence is missing required row: Taste'
+write_ui_review missing-file.md reviews/not-there.md '' 'Render evidence: 390px, 768px, 1440px; real-length data used'
+check_ui 'UI diff refuses nonexistent evidence file' 1 missing-file.md 'does not exist: reviews/not-there.md'
+printf 'Commit: %s\n' '0000000000000000000000000000000000000000' > "$tmp/ui-repo/docs/reviews/evidence.md"
+write_ui_review stale-evidence.md reviews/evidence.md '' 'Render evidence: 390px, 768px, 1440px; real-length data used'
+check_ui 'UI diff refuses evidence without exact HEAD' 1 stale-evidence.md 'does not cite exact full 40-character HEAD'
+printf 'Commit: %s\n' "$ui_head" > "$tmp/ui-repo/docs/reviews/evidence.md"
+write_ui_review missing-width.md reviews/evidence.md '' 'Render evidence: 390px, 1440px; real-length data used'
+check_ui 'UI diff refuses missing render width' 1 missing-width.md 'render evidence is missing width 768'
+write_ui_review complete-ui.md reviews/evidence.md '' 'Render evidence: 390px, 768px, 1440px; real-length data used'
+check_ui 'complete UI skills evidence accepted' 0 complete-ui.md
+
+mkdir -p "$tmp/non-ui-repo"
+git init -q "$tmp/non-ui-repo"
+gn() { git -C "$tmp/non-ui-repo" -c user.email=t@t -c user.name=t "$@"; }
+printf 'base\n' > "$tmp/non-ui-repo/README.md"
+gn add README.md && gn commit -qm init
+gn update-ref refs/remotes/origin/dev "$(gn rev-parse HEAD)"
+printf 'changed\n' >> "$tmp/non-ui-repo/README.md"
+gn add README.md && gn commit -qm 'non-UI change'
+non_ui_head="$(gn rev-parse HEAD)"
+printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$non_ui_head" > "$tmp/non-ui-repo/review.md"
+(cd "$tmp/non-ui-repo" && bash "$SCRIPT" --lens spec --reviewer gpt-5.6-luna --artifact review.md) >/dev/null 2>&1
+rc=$?
+if [ "$rc" -eq 0 ]; then pass=$((pass+1)); printf '  ok    non-UI diff does not require skills evidence\n'
+else fail=$((fail+1)); printf '  FAIL  non-UI diff changed behavior — rc=%s\n' "$rc"; fi
+
+# Trigger scope: shell-level UI files gate; a test-only .tsx change does not.
+mkdir -p "$tmp/scope-repo/mos-app/src/shell"
+git init -q "$tmp/scope-repo"
+gs() { git -C "$tmp/scope-repo" -c user.email=t@t -c user.name=t "$@"; }
+gs commit -qm init --allow-empty
+gs update-ref refs/remotes/origin/dev "$(gs rev-parse HEAD)"
+printf 'export const T = () => null;\n' > "$tmp/scope-repo/mos-app/src/shell/tab.test.tsx"
+gs add -A && gs commit -qm 'test only'
+printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$(gs rev-parse HEAD)" > "$tmp/scope-repo/review.md"
+(cd "$tmp/scope-repo" && bash "$SCRIPT" --lens spec --reviewer gpt-5.6-luna --artifact review.md) >/dev/null 2>&1
+if [ $? -eq 0 ]; then pass=$((pass+1)); printf '  ok    test-only tsx does not require skills evidence\n'
+else fail=$((fail+1)); printf '  FAIL  test-only tsx wrongly gated\n'; fi
+printf 'export const B = () => null;\n' > "$tmp/scope-repo/mos-app/src/shell/bar.tsx"
+gs add -A && gs commit -qm 'shell ui'
+printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$(gs rev-parse HEAD)" > "$tmp/scope-repo/review.md"
+(cd "$tmp/scope-repo" && bash "$SCRIPT" --lens spec --reviewer gpt-5.6-luna --artifact review.md) >/dev/null 2>&1
+if [ $? -ne 0 ]; then pass=$((pass+1)); printf '  ok    shell tsx requires skills evidence\n'
+else fail=$((fail+1)); printf '  FAIL  shell tsx bypassed the gate\n'; fi
 
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
