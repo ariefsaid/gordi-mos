@@ -912,12 +912,7 @@
     flex-wrap: wrap;
   }
 
-  /* The phone tap box is 44px; overlap the row padding so the row keeps its height. */
-@media (pointer: coarse) {
-  .admin-check-row .mk-checkbox { margin: -14px 0 -10px; }
-}
-
-.admin-check-row__trailing {
+  .admin-check-row__trailing {
     padding-left: 40px;
   }
 
