@@ -9,6 +9,7 @@ import { canManageCafeItemSettings, listCafeItemSettings } from '@/lib/db/cafe-i
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { streamLabel } from '@/lib/kitchen-action-label'
 import { useT } from '@/i18n/use-t'
+import './cafe-items-empty-state.css'
 
 export interface CafeItemsEmptyStateProps {
   stream: ProductionStream
@@ -51,6 +52,7 @@ export function CafeItemsEmptyState({ stream, esbItemCount, canManage }: CafeIte
   if (diagnosis.kind === 'unknown') {
     return (
       <EmptyState
+        className="cie"
         variant="blank"
         title={t('cafe.itemsEmpty.unknown.title', { stream: label })}
         copy={t('cafe.itemsEmpty.unknown.copy')}
@@ -60,6 +62,7 @@ export function CafeItemsEmptyState({ stream, esbItemCount, canManage }: CafeIte
   if (diagnosis.count === 0) {
     return (
       <EmptyState
+        className="cie"
         variant="blank"
         title={t('cafe.itemsEmpty.noEsb.title', { stream: label })}
         copy={t('cafe.itemsEmpty.noEsb.copy')}
@@ -70,6 +73,7 @@ export function CafeItemsEmptyState({ stream, esbItemCount, canManage }: CafeIte
   if (diagnosis.canManage) {
     return (
       <EmptyState
+        className="cie"
         variant="next-step"
         title={t('cafe.itemsEmpty.setup.title', { stream: label })}
         copy={t(one ? 'cafe.itemsEmpty.setup.manage.one' : 'cafe.itemsEmpty.setup.manage.other', { count: diagnosis.count })}
@@ -80,6 +84,7 @@ export function CafeItemsEmptyState({ stream, esbItemCount, canManage }: CafeIte
   }
   return (
     <EmptyState
+      className="cie"
       variant="blank"
       title={t('cafe.itemsEmpty.setup.title', { stream: label })}
       copy={t(one ? 'cafe.itemsEmpty.setup.ask.one' : 'cafe.itemsEmpty.setup.ask.other', {

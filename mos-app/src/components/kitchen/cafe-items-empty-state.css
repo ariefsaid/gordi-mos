@@ -1,0 +1,5 @@
+/* CafeItemsEmptyState — the shared empty state for Café item lists. Balanced title lines keep a
+   stream label such as "Rumah Rames · Bar" from leaving its last word alone on a phone. .cie-* scope. */
+.cie .empty-title {
+  text-wrap: balance;
+}

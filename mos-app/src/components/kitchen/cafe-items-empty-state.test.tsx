@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import { I18nProvider } from '@/i18n/I18nProvider'
 
 vi.mock('@/lib/db/cafe-item-settings', async () => {
   const actual = await vi.importActual<typeof import('@/lib/db/cafe-item-settings')>('@/lib/db/cafe-item-settings')
@@ -76,5 +77,13 @@ describe('CafeItemsEmptyState', () => {
     expect(await screen.findByRole('link', { name: 'Set up items' })).toBeInTheDocument()
     expect(mockSettings).not.toHaveBeenCalled()
     expect(mockCanManage).not.toHaveBeenCalled()
+  })
+
+  it('speaks Indonesian in the id locale', async () => {
+    mockSettings.mockResolvedValue([unsetItem('a'), unsetItem('b')])
+    render(<MemoryRouter><I18nProvider initialLocale="id"><CafeItemsEmptyState stream={KITCHEN} /></I18nProvider></MemoryRouter>)
+    expect(await screen.findByRole('heading', { name: 'Belum ada item yang siap di Rumah Rames · Dapur' })).toBeInTheDocument()
+    expect(screen.getByText(/2 item ESB ada di stream ini/)).toBeInTheDocument()
+    expect(screen.getByText(/Manajer dapur Anda atau ops lead/)).toBeInTheDocument()
   })
 })
