@@ -3,8 +3,11 @@ import { supabase } from '@/lib/supabase'
 import type { ProductionStream } from './kitchen-logs.types'
 import {
   cafeReceiptArrivalDateBounds,
+  listCafeReceipts,
   listCafeReceivableItems,
   normalizeCafeReceiptQuantity,
+  reviewCafeReceipt,
+  sendCafeReceiptForReview,
   submitCafeReceipt,
 } from './cafe-receipts'
 
@@ -58,5 +61,41 @@ describe('Café receipt adapter', () => {
       p_branch_id: 'branch-1', p_activity: 'kitchen', p_arrival_date: '2026-10-06', p_client_key: 'key-1',
       p_lines: [{ item_unit_id: 'kg', quantity: '2.5' }],
     })
+  })
+
+  it('FR-1018 reads receipts with their lines, optionally only the receiver’s own, and rejects malformed rows', async () => {
+    const query: Record<string, unknown> = {}
+    const row = {
+      id: 'r-1', activity: 'bar', status: 'Approved', posting_status: 'not_posted',
+      lines: [{ id: 'l-1', item_name: 'Milk', unit_name: 'l', received_quantity: 24 }],
+    }
+    let response: { data: unknown; error: unknown } = { data: [row], error: null }
+    for (const method of ['select', 'in', 'eq', 'order', 'limit']) query[method] = vi.fn(() => query)
+    query.then = (resolve: (value: unknown) => unknown) => Promise.resolve(response).then(resolve)
+    schemaMock.mockReturnValue({ from: vi.fn(() => query) } as never)
+
+    const [receipt] = await listCafeReceipts(['Approved'], { receivedBy: 'me', limit: 5 })
+    expect(receipt.lines[0].received_quantity).toBe('24')
+    expect(query.eq).toHaveBeenCalledWith('received_by', 'me')
+    expect(query.limit).toHaveBeenCalledWith(5)
+
+    response = { data: [{ ...row, status: 'Posted' }], error: null }
+    await expect(listCafeReceipts(['Approved'])).rejects.toThrow('invalid receipt row')
+  })
+
+  it('FR-1016 / FR-1019 send and review pass only the receipt, version, decision and trimmed note', async () => {
+    const rpc = vi.fn()
+      .mockResolvedValueOnce({ data: { status: 'Submitted', row_version: 2 }, error: null })
+      .mockResolvedValueOnce({ data: { status: 'Rejected', row_version: 3 }, error: null })
+      .mockResolvedValueOnce({ data: null, error: { message: 'CAFE_RECEIPT_SELF_APPROVAL' } })
+    schemaMock.mockReturnValue({ rpc } as never)
+
+    await expect(sendCafeReceiptForReview('r-1', 1, '  ')).resolves.toEqual({ status: 'Submitted', row_version: 2 })
+    expect(rpc).toHaveBeenLastCalledWith('send_cafe_receipt_for_review',
+      { p_receipt_id: 'r-1', p_expected_version: 1, p_delivery_note_number: null })
+    await expect(reviewCafeReceipt('r-1', 'reject', 2, ' wrong unit ')).resolves.toEqual({ status: 'Rejected', row_version: 3 })
+    expect(rpc).toHaveBeenLastCalledWith('review_cafe_receipt',
+      { p_receipt_id: 'r-1', p_decision: 'reject', p_expected_version: 2, p_note: 'wrong unit' })
+    await expect(reviewCafeReceipt('r-1', 'approve', 3, '')).rejects.toThrow('CAFE_RECEIPT_SELF_APPROVAL')
   })
 })
