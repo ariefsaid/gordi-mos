@@ -32,13 +32,14 @@
   font-weight: 500;
 }
 
-/* The table needs about 935px. Below that container width it scrolls inside the list, never the
-   page; above it there is no scroll box, so DataTable's sticky header pins to the page scroll. */
+/* The table's narrowest layout measured 969px (Indonesian headers, Rp 50 jt amounts); the
+   threshold keeps 10px over that. Below it the list scrolls inside this box, never the page; above
+   it there is no scroll box, so DataTable's sticky header pins to the page scroll. */
 .pending-bills-scroll {
   min-width: 0;
 }
 
-@container pending-bills (max-width: 949.98px) {
+@container pending-bills (max-width: 979.98px) {
   .pending-bills-scroll {
     overflow-x: auto;
   }
