@@ -17,7 +17,7 @@
  * descendant leaf anywhere in the head whose entire text is a bare number.
  *
  * #192 (Tasks) scope note: v4's version of this file ALSO enumerates the same guard onto the
- * Money (dashboard-page.tsx), Budget (budget-page.tsx) and Pricing (pricing-page.tsx) page heads
+ * Money (money-page.tsx), Budget (budget-page.tsx) and Pricing (pricing-page.tsx) page heads
  * (census R2 DO-7 and r5 F-1). Those three cases are dropped here — the pages themselves differ
  * between `dev` and v4 by 300+ combined lines (a Money-domain redesign, not a one-line head fix),
  * and fixing them is Money surface work — #200, not this PR (docs/specs/v4-port.spec.md "Staging

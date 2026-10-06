@@ -17,6 +17,7 @@ import {
   latestReportingDate,
   type SalesDailyRevenueRow,
 } from './reporting'
+import { ReportingRowCapError } from './reporting-shared'
 
 const schemaMock = vi.mocked(supabase.schema)
 
@@ -29,6 +30,7 @@ interface Recorder {
   gtes: Array<[string, unknown]>
   orders: Array<[string, unknown]>
   limits: number[]
+  ranges: Array<[number, number]>
 }
 
 function makeSchema(
@@ -62,6 +64,7 @@ function makeSchema(
       return builder
     })
     builder.limit = vi.fn((n: number) => { rec.limits.push(n); return builder })
+    builder.range = vi.fn((from: number, to: number) => { rec.ranges.push([from, to]); return builder })
     builder.then = (resolve: (v: unknown) => unknown) =>
       Promise.resolve(result()).then(resolve)
     return builder
@@ -70,7 +73,7 @@ function makeSchema(
 }
 
 function freshRec(): Recorder {
-  return { schemaNames: [], fromTables: [], selects: [], eqs: [], gtes: [], orders: [], limits: [] }
+  return { schemaNames: [], fromTables: [], selects: [], eqs: [], gtes: [], orders: [], limits: [], ranges: [] }
 }
 
 beforeEach(() => vi.clearAllMocks())
@@ -81,6 +84,7 @@ const B2B_ROASTERY_ROW: SalesDailyRevenueRow = {
   esb_code: 'GRI',
   branch_code: 'GRI',
   branch_name: 'Gordi Roastery',
+  branch_id: null,
   transactions: 12,
   clean_revenue: 4_500_000,
   snapshot_as_of: '2026-07-01T02:00:00Z',
@@ -93,6 +97,7 @@ const POS_ROW: SalesDailyRevenueRow = {
   esb_code: 'GHQ',
   branch_code: 'GHQ',
   branch_name: 'Gordi HQ',
+  branch_id: null,
   transactions: 80,
   clean_revenue: 12_300_000,
   snapshot_as_of: '2026-07-01T02:00:00Z',
@@ -117,8 +122,19 @@ describe('listSalesDailyRevenue', () => {
     expect(rec.fromTables).toContain('sales_daily_revenue')
     expect(rec.orders).toContainEqual(['revenue_date', { ascending: true }])
     expect(rec.gtes[0][0]).toBe('revenue_date')
-    expect(rec.limits).toEqual([1000])
+    expect(rec.ranges).toEqual([[0, 999]])
     expect(rows).toHaveLength(2)
+  })
+
+  it('selects the branch link so a row can resolve to its branch', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema({ sales_daily_revenue: [{ data: [], error: null }] }, rec) as never,
+    )
+
+    await listSalesDailyRevenue()
+
+    expect(rec.selects[0].split(',')).toContain('branch_id')
   })
 
   it('never sends org_id as a query filter (RLS scopes it)', async () => {
@@ -142,7 +158,7 @@ describe('listSalesDailyRevenue', () => {
 
     expect(rec.gtes).toHaveLength(1)
     expect(rec.gtes[0][0]).toBe('revenue_date')
-    expect(rec.limits).toEqual([1000])
+    expect(rec.ranges).toEqual([[0, 999]])
   })
 
   it('passes B2B/Roastery rows through unchanged — AC-006', async () => {
@@ -173,12 +189,23 @@ describe('listSalesDailyRevenue', () => {
     expect(rows).toEqual([])
   })
 
-  it('rejects a result that reaches the safe row cap instead of returning a silent truncation', async () => {
+  it('a read longer than one page returns every row, page by page, in a stable order', async () => {
+    const rec = freshRec()
+    const page = (n: number) => ({ data: Array.from({ length: n }, () => POS_ROW), error: null })
+    schemaMock.mockReturnValue(makeSchema({ sales_daily_revenue: [page(1000), page(500)] }, rec) as never)
+    const rows = await listSalesDailyRevenue({ sinceDays: 120 })
+    expect(rows).toHaveLength(1500)
+    expect(rec.ranges).toEqual([[0, 999], [1000, 1999]])
+    // A tie-broken order, so a row cannot move between pages while they are read.
+    expect(rec.orders.slice(0, 4).map(([c]) => c)).toEqual(['revenue_date', 'channel', 'esb_code', 'branch_code'])
+  })
+
+  it('past the row ceiling the read refuses with a cap error instead of truncating', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(
       makeSchema({ sales_daily_revenue: [{ data: Array.from({ length: 1000 }, () => POS_ROW), error: null }] }, rec) as never,
     )
-    await expect(listSalesDailyRevenue()).rejects.toThrow(/safe reporting row limit/)
+    await expect(listSalesDailyRevenue()).rejects.toBeInstanceOf(ReportingRowCapError)
   })
 
   it('throws a clear, surfaceable error on PostgREST failure', async () => {
