@@ -3,14 +3,15 @@
 -- One function creates a Task for the lead of the branch's Team that carries a link to the Branch
 -- view and never a money figure: Tasks are readable beyond Money's tiers, so the caller cannot pass
 -- free text at all. The title and the description are built here from the branch name, the day and
--- the link; the only caller input that reaches the Task is a validated scheme-host-path app URL.
+-- the link. Caller input reaches the Task only as validated parts of that link: the app URL (which
+-- must be on the caller's own request origin), the branch code, the period and the day.
 --
 -- Why SECURITY DEFINER: the lead is read from shared.team_lead_assignments, which only the Team's
 -- own members may read, and the Task's PIC is the lead, whom mos._guard_tasks admits only for the
 -- lead themselves, an org-wide writer or the lead's manager. Money's margin tier (finance, manager)
 -- asks across the org's branches, so the function stands in for both checks, narrowly: the caller
 -- holds that tier, the branch is the caller's org's, the Team is the branch's live Café Team
--- (kitchen first, then bar, as shared.cafe_opening_team) and the PIC is that Team's lead.
+-- (shared.cafe_opening_team: kitchen first, then bar) and the PIC is that Team's active lead.
 --
 -- Rollback: supabase/rollbacks/20261007003300_mos_money_ask_branch_lead.sql.
 
@@ -39,6 +40,7 @@ declare
   v_day_text    text;
   v_title       text;
   v_task_id     uuid;
+  v_origin      text := nullif(current_setting('request.headers', true), '')::json ->> 'origin';
 begin
   if v_org is null or v_caller is null
      or not (shared.has_access_role('finance') or shared.has_access_role('manager')) then
@@ -53,10 +55,18 @@ begin
   if p_locale is null or p_locale not in ('en', 'id') then
     raise exception 'locale must be en or id' using errcode = '22023';
   end if;
-  -- Scheme, host, optional port and path only: no query, fragment, space or other text.
+  -- Scheme, host, optional port and path only, on the origin the request came from: the link
+  -- can only point back into the app the caller is using.
   if p_app_url is null
-     or p_app_url !~ '^https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?(/[A-Za-z0-9._~-]+)*$' then
-    raise exception 'app URL must be scheme, host and path only' using errcode = '22023';
+     or p_app_url !~ '^https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?(/[A-Za-z0-9._~-]+)*$'
+     or v_origin is null
+     or not (p_app_url = v_origin or starts_with(p_app_url, v_origin || '/')) then
+    raise exception 'app URL must be scheme, host and path on the request origin' using errcode = '22023';
+  end if;
+  -- A day the Money read can show (its 120-day window), so a varied date cannot mint Tasks.
+  if p_day > (now() at time zone 'Asia/Jakarta')::date
+     or p_day < (now() at time zone 'Asia/Jakarta')::date - 120 then
+    raise exception 'day is outside the Money window' using errcode = '22023';
   end if;
   if p_branch_code is null or p_branch_code !~ '^[A-Za-z0-9_-]{1,40}$' then
     raise exception 'branch code is malformed' using errcode = '22023';
@@ -75,14 +85,11 @@ begin
     raise exception 'no MOS branch for this code' using errcode = 'P0002';
   end if;
 
-  select t.id, t.business_unit_id into v_team_id, v_bu_id
-    from shared.teams t
-   where t.org_id = v_org and t.branch_id = v_branch_id and t.archived_at is null
-     and t.activity in ('kitchen', 'bar')
-   order by case t.activity when 'kitchen' then 0 else 1 end, t.id
-   limit 1;
+  v_team_id := shared.cafe_opening_team(v_branch_id);
+  select t.business_unit_id into v_bu_id from shared.teams t where t.id = v_team_id;
   select a.lead_person_id into v_lead_id
     from shared.team_lead_assignments a
+    join shared.people p on p.id = a.lead_person_id and p.archived_at is null
    where a.org_id = v_org and a.team_id = v_team_id;
   if v_lead_id is null then
     raise exception 'the branch has no Team lead' using errcode = 'P0002';
