@@ -43,6 +43,7 @@ import { kitchenCategoryLabel } from '@/lib/kitchen-category-label'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { CafeStreamBar, CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
+import { CafeItemsEmptyState } from '@/components/kitchen/cafe-items-empty-state'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
 import { MetricSummaryRule } from '@/components/kitchen/metric-summary-rule'
 import { DataProvenanceNote } from '@/components/ui/data-provenance-note'
@@ -301,10 +302,7 @@ function KitchenStockPageForViewer() {
           {load.kind === 'loading' ? (
             <LoadingShell count={3} />
           ) : rows.length === 0 ? (
-            <EmptyState
-              title={t('kitchen.stock.empty.title')}
-              copy={t('kitchen.stock.empty.copy', { stream: streamLabel(t, stream), date: formatWeekdayDayMonth(asOf) })}
-            />
+            stream && <CafeItemsEmptyState stream={stream} />
           ) : (
             <>
               <DataTable

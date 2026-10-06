@@ -11,8 +11,6 @@ import type {
   BranchOption,
   CafeDestination,
   CaptureFormItem,
-  ItemUnitOption,
-  WipItemOption,
   PlanMap,
   StockMap,
   ItemStock,
@@ -104,30 +102,6 @@ export function streamCatalogFrom(
   return streams
 }
 
-// ── WIP items ────────────────────────────────────────────────────────────────
-
-/**
- * List active manually maintained WIP items sorted by name — the legacy plan/stock catalog.
- * ERP items are added from per-stream team settings and their item-level kind is never read.
- *
- * DELIBERATELY not the capture form's source. The DD-WAY-29 gate scopes absence to the
- * CAPTURE form only (FR-011) — this read feeds the stock/verification plane (FR-060,
- * OD-WAY-45) and the plan surface, which must keep seeing every active item: an
- * unconfirmed item still has real balances to verify, and hiding it there would blind
- * the very plane that audits the gate. The capture form reads listCaptureFormItems.
- */
-export async function listActiveWipItems(): Promise<WipItemOption[]> {
-  const { data, error } = await ops()
-    .from('wip_items')
-    .select('id,name,category')
-    .eq('flag_active', true)
-    .eq('reference_source', 'manual')
-    .eq('kind', 'WIP')
-    .order('name', { ascending: true })
-  if (error) throw new Error(`listActiveWipItems failed — ${error.message}`)
-  return (data ?? []) as WipItemOption[]
-}
-
 // ── Stream item lists (#222) ──────────────────────────────────────────────────
 
 /** The items a stream offers for new capture and planning (ops.stream_items). */
@@ -160,70 +134,24 @@ export function isItemNotOnStreamError(err: unknown): boolean {
 }
 
 /**
- * List the items the CAPTURE FORM may offer, sorted by name. With a chosen stream, the
- * per-stream Café settings reader supplies the MOS name, default ERP detail and shown details;
- * only WIP items remain eligible under the existing capture contract. Before a stream is chosen,
- * the prior gated `capture_form_items` view remains visible as a read-only catalog, so the
- * explicit stream picker can still be used without allowing an unscoped save.
- *
- * The no-stream view returns one row per confirmed (item, unit); rows fold into items carrying
- * their OFFERED units (#234): the default first — the fixed unit beside the qty input (FR-020) —
- * then transferable alternates. A non-transferable ALTERNATE is dropped here (FR-032,
- * AC-015: never offered); the default is kept whatever its flag, because the fixed unit is
- * master data, not an offer. An item whose confirmed rows yield no offerable unit at all
- * (non-transferable alternates only, no default) is absent — a row that cannot name its unit
- * cannot be captured. Stream-specific log writes are checked again by the database.
+ * List the items the capture form may offer on a stream, sorted by the name operators see. The
+ * stream's Café settings supply the MOS name, default ERP detail and kind; every item is an ESB
+ * catalog item (OD-2026-10-06-ESB-ITEMS). Production offers active WIP items, transfer active RAW and
+ * WIP items. Without a stream nothing can be logged, so nothing is read. The database checks the
+ * stream list and item again on write.
  */
-async function listLegacyCaptureFormItems(): Promise<CaptureFormItem[]> {
-  const { data, error } = await ops()
-    .from('capture_form_items')
-    .select('wip_item_id,name,category,item_unit_id,unit_name,is_default,is_transferable')
-    .order('name', { ascending: true })
-    .order('unit_name', { ascending: true })
-  if (error) throw new Error(`listCaptureFormItems failed — ${error.message}`)
-  type ViewRow = {
-    wip_item_id: string
-    name: string
-    category: string | null
-    item_unit_id: string
-    unit_name: string
-    is_default: boolean
-    is_transferable: boolean
-  }
-  const byItem = new Map<string, CaptureFormItem>()
-  for (const row of (data ?? []) as ViewRow[]) {
-    if (!row.is_default && !row.is_transferable) continue // FR-032/AC-015: never offered
-    let item = byItem.get(row.wip_item_id)
-    if (!item) {
-      item = { id: row.wip_item_id, name: row.name, category: row.category, units: [] }
-      byItem.set(row.wip_item_id, item)
-    }
-    const unit: ItemUnitOption = {
-      id: row.item_unit_id,
-      name: row.unit_name,
-      is_default: row.is_default,
-    }
-    // Default first (FR-020 — it IS the row's fixed unit); alternates keep name order.
-    if (unit.is_default) item.units.unshift(unit)
-    else item.units.push(unit)
-  }
-  return [...byItem.values()]
-}
-
 export async function listCaptureFormItems(
   stream?: ProductionStream,
   action: 'produce' | 'transfer' = 'produce',
 ): Promise<CaptureFormItem[]> {
-  if (!stream) return listLegacyCaptureFormItems()
+  if (!stream) return []
 
-  const [settings, legacyItems, offered] = await Promise.all([
+  const [settings, offered] = await Promise.all([
     listCafeItemSettings(stream),
-    listLegacyCaptureFormItems(),
     listStreamItemIds(stream),
   ])
-  const erpItemIds = new Set(settings.map(item => item.id))
   // The settings view is stream-scoped; intersect again so a future view change cannot widen capture.
-  const erpItems = settings
+  return settings
     .filter(item => item.isActive
       && (action === 'produce' ? item.kind === 'WIP' : item.kind === 'RAW' || item.kind === 'WIP')
       && offered.has(item.id))
@@ -242,10 +170,7 @@ export async function listCaptureFormItems(
         unit_multiples: logItem.multiples,
       }] : []
     })
-  const manualItems = legacyItems.filter(item => !erpItemIds.has(item.id) && offered.has(item.id))
-  // Production exposes team-active WIP items; transfer exposes team-active RAW and WIP items.
-  // Manual legacy items remain WIP. Sort by the name operators see, then stable ID.
-  return [...erpItems, ...manualItems].sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
+    .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
 }
 
 // ── Kitchen plans ─────────────────────────────────────────────────────────────
@@ -457,51 +382,43 @@ export async function fetchStockMap(
 }
 
 /**
- * Fetch the read-only Stock view's display rows for a date (S4, FR-060/061).
- * Lists active manual WIP items on the stream with a 0/0 fallback, plus ERP settings joined to
- * rows returned by the stream stock RPC. The RPC owns ERP eligibility, including active RAW at
- * 0/0; nonzero off-list balances remain visible with `on_stream: false`. Returns both cuts,
- * `stok` (usable_qty) and `tersedia` (available_qty), for the selected date. Negative balances
- * are preserved, never clamped (FR-061/AC-032).
+ * Fetch the read-only Stock view's display rows for a date (S4, FR-060/061): the stream's ESB items
+ * joined to the rows the stream stock RPC returns. The RPC owns ERP eligibility, including active RAW
+ * at 0/0; a listed item that went inactive keeps showing while it holds a balance, with
+ * `on_stream: false`. Hand-made items are not listed (OD-2026-10-06-ESB-ITEMS). Returns both cuts,
+ * `stok` (usable_qty) and `tersedia` (available_qty). Negative balances are preserved, never clamped
+ * (FR-061/AC-032).
  */
 export async function fetchKitchenStock(
   asOf: string,
   stream: ProductionStream,
 ): Promise<KitchenStockRow[]> {
-  const [manualItems, settings, stockRows, offered] = await Promise.all([
-    listActiveWipItems(),
+  const [settings, stockRows, offered] = await Promise.all([
     listCafeItemSettings(stream),
     fetchStockForDate(asOf, stream),
     listStreamItemIds(stream),
   ])
   const byItem = new Map(stockRows.map(r => [r.wip_item_id, r]))
-  // A stream's own items, plus any other item still holding a balance in its books (#222): a
-  // list change never hides stock someone has to account for.
   const holdsBalance = (id: string) => {
     const s = byItem.get(id)
     return !!s && (Number(s.usable_qty) !== 0 || Number(s.available_qty) !== 0)
   }
-  const manualIds = new Set(manualItems.map(item => item.id))
-  const items: WipItemOption[] = [
-    ...manualItems,
-    ...settings
-      // The stock RPC owns ERP eligibility (active team-classified RAW/WIP). Its row may
-      // legitimately be 0/0, so do not repeat a kind/active test in this name join.
-      .filter(item => byItem.has(item.id))
-      .filter(item => !manualIds.has(item.id))
-      .map(item => ({ id: item.id, name: item.mosName, category: item.category })),
-  ]
-  return items.filter(item => offered.has(item.id) || holdsBalance(item.id)).map(item => {
-    const s = byItem.get(item.id)
-    return {
-      wip_item_id: item.id,
-      wip_item_name: item.name,
-      category: item.category,
-      on_stream: offered.has(item.id),
-      stok: s?.usable_qty ?? 0,
-      tersedia: s?.available_qty ?? 0,
-    }
-  })
+  return settings
+    // The stock RPC owns ERP eligibility (active team-classified RAW/WIP). Its row may
+    // legitimately be 0/0, so do not repeat a kind/active test in this name join.
+    .filter(item => byItem.has(item.id))
+    .filter(item => offered.has(item.id) || holdsBalance(item.id))
+    .map(item => {
+      const s = byItem.get(item.id)
+      return {
+        wip_item_id: item.id,
+        wip_item_name: item.mosName,
+        category: item.category,
+        on_stream: offered.has(item.id),
+        stok: s?.usable_qty ?? 0,
+        tersedia: s?.available_qty ?? 0,
+      }
+    })
 }
 
 // ── Kitchen log insert ────────────────────────────────────────────────────────

@@ -4,9 +4,8 @@
 // from the per-item-unit COORDINATE confirmation (FR-030, ops.item_units): two roles, neither
 // sufficient alone.
 //
-// This record GATES NOTHING. DD-WAY-29's coordinate gate already decides which rows reach a
-// capture form (ops.capture_form_items), and NFR-004 keeps that a query predicate with nothing
-// to bypass. Nothing here is ever consulted before a write is allowed — it exists so a stream's
+// This record GATES NOTHING. The stream's Café item settings already decide which rows reach a
+// capture form, and the database checks each write again. Nothing here is ever consulted before a write is allowed — it exists so a stream's
 // gaps are a tracked state with a name and a date on them.
 //
 // The client sends the STREAM and nothing else: confirmed_by/confirmed_at are server-stamped
