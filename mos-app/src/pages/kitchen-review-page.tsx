@@ -61,7 +61,7 @@ import { CafeCountReviewQueue } from '@/components/kitchen/cafe-count-review-que
 import { rememberStream, rememberedStreamKey } from '@/lib/cafe-stream'
 import { activeCafeLocation } from '@/lib/cafe-opening-location'
 import { useReviewSummary } from '@/lib/kitchen-review-kpis'
-import { formatWeekdayDayMonth } from '@/lib/format/date'
+import { formatWeekdayDayMonth, WIB_OFFSET_MS, wibToday } from '@/lib/format/date'
 import { formatUnitMultiple } from '@/lib/cafe-unit-multiples'
 import './kitchen-review-page.css'
 
@@ -119,7 +119,6 @@ function rowStreamLabel(t: Translate, streamCatalog: ProductionStream[], log: Re
 
 /** Format an ISO timestamp to HH:MM (WIB, fixed +7 offset — NFR-007). */
 function formatTime(iso: string): string {
-  const WIB_OFFSET_MS = 7 * 60 * 60 * 1000
   const d = new Date(new Date(iso).getTime() + WIB_OFFSET_MS)
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`
@@ -127,7 +126,6 @@ function formatTime(iso: string): string {
 
 /** Format an ISO timestamp to YYYY-MM-DD (WIB, same fixed offset as formatTime). */
 function formatDate(iso: string): string {
-  const WIB_OFFSET_MS = 7 * 60 * 60 * 1000
   const d = new Date(new Date(iso).getTime() + WIB_OFFSET_MS)
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`

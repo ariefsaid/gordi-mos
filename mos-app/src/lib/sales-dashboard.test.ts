@@ -3,7 +3,7 @@
 // deltas), AC-006 (B2B/Roastery visible in aggregates), plus channel mix / activity
 // mapping / IDR formatting / daily series / table-row aggregation edge cases.
 
-import { describe, it, expect } from 'vitest'
+import { afterEach, describe, it, expect, vi } from 'vitest'
 import type { SalesDailyRevenueRow } from '@/lib/db/reporting'
 import { translateFor } from '@/i18n/use-t'
 import { formatIDRCompact, trailingWindow, formatDelta } from './sales-dashboard'
@@ -49,6 +49,14 @@ describe('formatIDRCompact', () => {
 
 // ── trailingWindow / formatDelta ───────────────────────────────────────────────
 describe('trailingWindow', () => {
+  afterEach(() => vi.useRealTimers())
+
+  it('keeps its supplied WIB date anchor at the UTC/WIB rollover', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-10-05T17:00:00Z'))
+    const rows = [row({ revenue_date: '2026-10-05', clean_revenue: 1 }), row({ revenue_date: '2026-10-06', clean_revenue: 2 })]
+    expect(trailingWindow(rows, '2026-10-06', 1).current).toBe(2)
+  })
   it('AC-004: anchors the current window to the given latestDate, not Date.now()', () => {
     const rows = [
       row({ revenue_date: '2020-01-01', clean_revenue: 100 }), // ancient — must not affect "today"

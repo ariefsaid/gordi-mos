@@ -1,12 +1,12 @@
 import type { EventRow } from '@/lib/db/events.types'
 import { wibMonthRange } from '@/lib/week'
+import { WIB_OFFSET_MS } from '@/lib/format/date'
 import { useT } from '@/i18n/use-t'
 import { useI18n } from '@/i18n/I18nProvider'
 import './events-calendar-presentation.css'
 
 export interface EventCalendarProps { month: string; events: readonly EventRow[]; businessUnits?: ReadonlyMap<string, string>; people?: ReadonlyMap<string, string> }
-const offset = 7 * 60 * 60 * 1000
-const parts = (iso: string) => new Date(Date.parse(iso) + offset)
+const parts = (iso: string) => new Date(Date.parse(iso) + WIB_OFFSET_MS)
 const dateKey = (date: Date) => `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`
 const displayDate = (date: Date, locale: string) => date.toLocaleDateString(locale === 'id' ? 'id-ID' : 'en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
 const displayTime = (iso: string, locale: string) => parts(iso).toLocaleTimeString(locale === 'id' ? 'id-ID' : 'en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'UTC' })

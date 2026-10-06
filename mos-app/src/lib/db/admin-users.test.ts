@@ -2,7 +2,7 @@
 // AC-011 (email helper), wrapper contracts.
 // Mirror directory.test.ts chainable-mock pattern; mock @/lib/supabase.
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 vi.mock('../supabase', () => {
   const schema = vi.fn()
@@ -67,6 +67,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   __resetReferenceCacheForTests()
 })
+afterEach(() => vi.useRealTimers())
 
 // ── synthesizeEmail ───────────────────────────────────────────────────────────
 describe('synthesizeEmail (AC-011 helper, FR-021)', () => {
@@ -551,6 +552,8 @@ describe('Revenue scope (supervisor) wrappers', () => {
 // sets. Both were claimed in a docblock and asserted nowhere.
 describe('Team wrappers', () => {
   it('reads memberships with the GATES definition of live, not `effective_to is null`', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-10-05T17:00:00Z'))
     const schemaObj = makeSharedSchema({
       people: { data: [], error: null },
       person_access_roles: { data: [], error: null },
@@ -571,8 +574,7 @@ describe('Team wrappers', () => {
     // The literal date, not just its shape. A shape-only assertion stays green if `today` is
     // hardcoded to 2000-01-01, which reads EVERY ended membership as live — the exact inverse of
     // the defect this line fixed, and just as wrong.
-    const today = new Date().toISOString().slice(0, 10)
-    expect(builder.or).toHaveBeenCalledWith(`effective_to.is.null,effective_to.gte.${today}`)
+    expect(builder.or).toHaveBeenCalledWith('effective_to.is.null,effective_to.gte.2026-10-06')
   })
 
   it('attaches memberships to the right person, and only calls a live-and-open one Home', async () => {
@@ -694,6 +696,8 @@ describe('Team wrappers', () => {
   })
 
   it('setPrimaryTeam scopes its set to a membership that can actually BE the home team', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-10-05T17:00:00Z'))
     const schemaObj = makeSharedSchema({ team_memberships: { data: [{ id: 'm1' }], error: null } })
     schemaMock.mockReturnValue(schemaObj as never)
 
@@ -708,8 +712,7 @@ describe('Team wrappers', () => {
     // for the same reason: `.lte('effective_from', '2099-01-01')` is date-shaped and admits exactly
     // the not-yet-started row this clause exists to exclude, and a shape-only matcher stays green
     // through it.
-    const today = new Date().toISOString().slice(0, 10)
-    expect(set.lte).toHaveBeenCalledWith('effective_from', today)
+    expect(set.lte).toHaveBeenCalledWith('effective_from', '2026-10-06')
   })
 
   it('setPrimaryTeam refuses an ineligible target WITHOUT clearing the existing home team', async () => {
