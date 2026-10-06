@@ -117,7 +117,8 @@
 
 .cafe-count__quantity-control {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  /* A fixed unit column keeps every field the same width whatever the ESB unit is called. */
+  grid-template-columns: minmax(0, 1fr) 110px;
   align-items: center;
   gap: 10px;
 }
