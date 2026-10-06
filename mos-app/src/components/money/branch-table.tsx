@@ -5,7 +5,7 @@
 //
 // One DOM for every width: at phone width each row reflows into a stacked card and a "Sort by"
 // control stands in for the header buttons (branch-table.css).
-import { useMemo, type ReactNode } from 'react'
+import { useId, useMemo, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   getCoreRowModel,
@@ -123,6 +123,7 @@ export interface BranchTableProps {
 export function BranchTable({ data, period, sort, onSortChange }: BranchTableProps) {
   const t = useT()
   const navigate = useNavigate()
+  const sortId = useId()
   const withMargin = 'margin' in data.company
   const ids: readonly MoneyColumn[] = withMargin ? ALL_COLUMNS : REVENUE_COLUMNS
   const columns = useMemo(() => columnDefs(withMargin ? ALL_COLUMNS : REVENUE_COLUMNS), [withMargin])
@@ -148,15 +149,30 @@ export function BranchTable({ data, period, sort, onSortChange }: BranchTablePro
   })
   const leafColumns = table.getVisibleLeafColumns()
 
-  const figureCells = (row: Figures) => leafColumns.slice(1).map((column) => {
+  const figureCells = (row: Figures, summary?: ReactNode) => leafColumns.slice(1).map((column) => {
     const id = column.id as MoneyColumn
     return (
       <td key={id} className={`money-table__cell money-table__cell--${id}`}>
         <span className="money-table__cell-label">{t(COLUMN_META[id].labelKey)}</span>
         <span className="money-table__cell-value">{COLUMN_META[id].cell(row, t)}</span>
+        {id === 'margin' && summary}
       </td>
     )
   })
+
+  // Phone: the company's three margin figures read as one line (branch-table.css shows it <768px).
+  const companyMargin = data.company.margin
+  const companySummary = companyMargin ? (
+    <span className="money-table__company-margin tabular">
+      {t('money.table.companyMargin', {
+        margin: companyMargin.pct === null ? t('money.table.notReceived') : formatPercent(companyMargin.pct, 1),
+        budget: companyMargin.cogsVsBudget === null
+          ? t('money.table.notReceived')
+          : t('money.table.points', { value: formatSignedPoints(companyMargin.cogsVsBudget) }),
+        coverage: companyMargin.coverage === null ? t('money.table.notReceived') : formatPercent(companyMargin.coverage, 0),
+      })}
+    </span>
+  ) : undefined
 
   const linkedRow = (row: BranchRow, name: string) => {
     const href = branchHref(row.code, period)
@@ -184,23 +200,26 @@ export function BranchTable({ data, period, sort, onSortChange }: BranchTablePro
 
   return (
     <div className="money-table-block">
-      <div className="money-table__phone-sort">
-        <Select
-          label={t('money.sort.label')}
-          value={sort.column}
-          onChange={(event) => onSortChange({ column: event.target.value as MoneyColumn, desc: event.target.value !== 'branch' })}
-        >
-          {ids.map((id) => <option key={id} value={id}>{t(COLUMN_META[id].labelKey)}</option>)}
-        </Select>
-        <button
-          type="button"
-          className="money-table__direction"
-          onClick={() => onSortChange({ column: sort.column, desc: !sort.desc })}
-        >
-          {sortLabel(sort.column, sort.desc)}
-        </button>
-      </div>
       <div className="money-table-scroll">
+        {/* Phone only: the table's header row, standing in for the column header buttons. */}
+        <div className="money-table__phone-sort">
+          <label className="money-table__phone-sort-label" htmlFor={sortId}>{t('money.sort.label')}</label>
+          <Select
+            id={sortId}
+            value={sort.column}
+            onChange={(event) => onSortChange({ column: event.target.value as MoneyColumn, desc: event.target.value !== 'branch' })}
+          >
+            {ids.map((id) => <option key={id} value={id}>{t(COLUMN_META[id].labelKey)}</option>)}
+          </Select>
+          <button
+            type="button"
+            className="money-table__direction"
+            aria-label={t('money.sort.order', { order: sortLabel(sort.column, sort.desc) })}
+            onClick={() => onSortChange({ column: sort.column, desc: !sort.desc })}
+          >
+            {sortLabel(sort.column, sort.desc)}
+          </button>
+        </div>
         <table className={`money-table${withMargin ? ' money-table--margin' : ''}`}>
           <caption className="sr-only">
             {t('money.table.caption', { days: String(period), date: formatWeekdayDayMonth(data.latestDate) })}
@@ -244,7 +263,7 @@ export function BranchTable({ data, period, sort, onSortChange }: BranchTablePro
                   </span>
                 )}
               </th>
-              {figureCells(data.company)}
+              {figureCells(data.company, companySummary)}
             </tr>
           </tbody>
           <tbody className="money-table__group">
