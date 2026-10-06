@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
+import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { useT } from '@/i18n/use-t'
 import { areCafeCountDecimalsEqual, calculateCafeCountVariance } from '@/lib/cafe-count-variance'
 import { confirmCafeCountLine, listCafeCountLines, type CafeCountLine } from '@/lib/db/cafe-count'
-import { wibToday } from '@/lib/db/cafe-opening'
+import { formatWeekdayDayMonth } from '@/lib/format/date'
 import { streamKey, streamLabel } from '@/lib/kitchen-action-label'
 import { useIsOffline } from '@/shell/use-is-offline'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
@@ -22,7 +22,6 @@ export function CafeCountReviewQueue({
   reviewableStreamKeys: ReadonlySet<string>
 }) {
   const t = useT()
-  const countDate = useMemo(() => wibToday(), [])
   const [rows, setRows] = useState<CafeCountLine[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
@@ -35,7 +34,7 @@ export function CafeCountReviewQueue({
     let active = true
     setLoading(true)
     setLoadError(false)
-    void listCafeCountLines(countDate).then(nextRows => {
+    void listCafeCountLines().then(nextRows => {
       if (!active) return
       setRows(nextRows)
       setLoading(false)
@@ -45,13 +44,14 @@ export function CafeCountReviewQueue({
       setLoading(false)
     })
     return () => { active = false }
-  }, [countDate, retry])
+  }, [retry])
 
   const visibleRows = useMemo(() => rows.filter(line => {
     const key = streamKey(line.branch_id, line.activity)
     if (streamFilter !== ALL_STREAMS && key !== streamFilter) return false
     return canReviewAll || reviewableStreamKeys.has(key)
   }), [canReviewAll, reviewableStreamKeys, rows, streamFilter])
+  const empty = !loading && !loadError && visibleRows.length === 0
 
   async function confirm(line: CafeCountLine) {
     if (busyId || !online || line.status !== 'Submitted') return
@@ -74,13 +74,12 @@ export function CafeCountReviewQueue({
   }
 
   return (
-    <section className="cafe-count-review" aria-labelledby="cafe-count-review-title">
+    <section className={`cafe-count-review${empty ? ' cafe-count-review--empty' : ''}`} aria-labelledby="cafe-count-review-title">
       <header className="cafe-count-review__header">
         <div>
           <h2 id="cafe-count-review-title">{t('cafe.count.review.title')}</h2>
-          <p>{t('cafe.count.review.help')}</p>
+          {!empty && <p>{t('cafe.count.review.help')}</p>}
         </div>
-        <span className="cafe-count-review__date tabular">{countDate}</span>
       </header>
 
       {actionError && (
@@ -101,19 +100,16 @@ export function CafeCountReviewQueue({
       ) : loading ? (
         <LoadingShell count={2} />
       ) : visibleRows.length === 0 ? (
-        <EmptyState
-          variant="awaiting"
-          title={t('cafe.count.review.empty.title')}
-          copy={streamFilter === ALL_STREAMS
+        <div className="cafe-count-review__empty">
+          <p role="status">{streamFilter === ALL_STREAMS
             ? t('cafe.count.review.empty.all')
             : t('cafe.count.review.empty.stream', {
               stream: streamLabel(t, streamCatalog.find(s => streamKey(s.branch.id, s.activity) === streamFilter) ?? null),
-            })}
-        >
-          <button type="button" className="btn btn-outline" onClick={() => setRetry(value => value + 1)}>
+            })}</p>
+          <button type="button" className="btn btn-ghost" onClick={() => setRetry(value => value + 1)}>
             {t('cafe.count.review.refresh')}
           </button>
-        </EmptyState>
+        </div>
       ) : (
         <ul className="cafe-count-review__list">
           {visibleRows.map(line => {
@@ -137,6 +133,7 @@ export function CafeCountReviewQueue({
                 <div className="cafe-count-review__identity">
                   <div className="cafe-count-review__name">{line.item_name}</div>
                   <div className="cafe-count-review__meta">
+                    <span className="cafe-count-review__date">{formatWeekdayDayMonth(line.count_date)}</span>
                     <span>{line.item_kind}</span>
                     {line.item_category && <span>{t('cafe.count.review.categoryTag', { category: line.item_category })}</span>}
                     {stream && <span>{t('cafe.count.review.streamTag', { stream: streamLabel(t, stream) })}</span>}

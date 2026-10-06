@@ -97,14 +97,17 @@ export async function listCafeCountableItems(stream: ProductionStream): Promise<
   })
 }
 
-/** Reads only today's Submitted and Confirmed rows; RLS enforces the Café-log org read scope. */
-export async function listCafeCountLines(countDate: string): Promise<CafeCountLine[]> {
-  const { data, error } = await supabase.schema('ops')
+/** Reads Submitted Counts oldest-first across dates by default; RLS enforces the Café-log org read scope. */
+export async function listCafeCountLines(countDate?: string): Promise<CafeCountLine[]> {
+  let query = supabase.schema('ops')
     .from('cafe_count_lines')
     .select(COUNT_LINE_FIELDS)
-    .eq('count_date', countDate)
-    .in('status', ['Submitted', 'Confirmed'])
-    .order('submitted_at', { ascending: false })
+    .eq('status', 'Submitted')
+  if (countDate) query = query.eq('count_date', countDate)
+  const { data, error } = await query
+    .order('count_date', { ascending: true })
+    .order('submitted_at', { ascending: true })
+    .order('id', { ascending: true })
   if (error) throw new Error(`listCafeCountLines failed: ${error.message}`)
   return ((data ?? []) as unknown as Array<Record<string, unknown>>).map(row => {
     if (row.activity !== 'kitchen' && row.activity !== 'bar') {
