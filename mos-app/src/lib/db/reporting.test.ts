@@ -81,6 +81,7 @@ const B2B_ROASTERY_ROW: SalesDailyRevenueRow = {
   esb_code: 'GRI',
   branch_code: 'GRI',
   branch_name: 'Gordi Roastery',
+  branch_id: null,
   transactions: 12,
   clean_revenue: 4_500_000,
   snapshot_as_of: '2026-07-01T02:00:00Z',
@@ -93,6 +94,7 @@ const POS_ROW: SalesDailyRevenueRow = {
   esb_code: 'GHQ',
   branch_code: 'GHQ',
   branch_name: 'Gordi HQ',
+  branch_id: null,
   transactions: 80,
   clean_revenue: 12_300_000,
   snapshot_as_of: '2026-07-01T02:00:00Z',
@@ -117,6 +119,17 @@ describe('listSalesDailyRevenue', () => {
     expect(rec.fromTables).toContain('sales_daily_revenue')
     expect(rec.orders).toContainEqual(['revenue_date', { ascending: true }])
     expect(rows).toHaveLength(2)
+  })
+
+  it('selects the branch link so a row can resolve to its branch', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema({ sales_daily_revenue: [{ data: [], error: null }] }, rec) as never,
+    )
+
+    await listSalesDailyRevenue()
+
+    expect(rec.selects[0].split(',')).toContain('branch_id')
   })
 
   it('never sends org_id as a query filter (RLS scopes it)', async () => {

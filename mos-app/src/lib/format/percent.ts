@@ -29,3 +29,24 @@ export function formatPercent(frac: number | null, decimals = 1): string {
   if (frac == null || !Number.isFinite(frac)) return '—'
   return fmt(decimals).format(frac)
 }
+
+/**
+ * A change as a signed id-ID percent: "+3,2%", "−24,9%" (the minus sign U+2212, never a hyphen),
+ * and "0,0%" with no sign when it rounds to nothing. The sign is part of the text so a change
+ * reads the same without colour.
+ */
+export function formatSignedPercent(frac: number, decimals = 1): string {
+  const text = fmt(decimals).format(Math.abs(frac))
+  if (text === fmt(decimals).format(0)) return text
+  return `${frac > 0 ? '+' : '\u2212'}${text}`
+}
+
+const pointsFmt = new Intl.NumberFormat('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+
+/** A difference between two 0..1 fractions as signed percentage points with id-ID comma decimals:
+ *  0.072 → "+7,2", −0.005 → "−0,5", and "0,0" when it rounds to nothing. The unit is the caller's. */
+export function formatSignedPoints(frac: number): string {
+  const text = pointsFmt.format(Math.abs(frac * 100))
+  if (text === pointsFmt.format(0)) return text
+  return `${frac > 0 ? '+' : '−'}${text}`
+}

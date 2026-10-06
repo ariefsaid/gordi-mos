@@ -17,6 +17,8 @@ export interface SalesDailyRevenueRow {
   esb_code: string
   branch_code: string
   branch_name: string | null
+  /** Link to shared.branches; null until a human confirms the ERP code's mapping. */
+  branch_id: string | null
   transactions: number
   clean_revenue: number
   snapshot_as_of: string
@@ -24,7 +26,7 @@ export interface SalesDailyRevenueRow {
 }
 
 const SELECT =
-  'revenue_date,channel,esb_code,branch_code,branch_name,transactions,clean_revenue,snapshot_as_of,source_contract_version'
+  'revenue_date,channel,esb_code,branch_code,branch_name,branch_id,transactions,clean_revenue,snapshot_as_of,source_contract_version'
 
 export interface SalesDailyRevenueFilters {
   /** Only include rows with revenue_date >= (today − sinceDays). Omit for the full org-visible set. */
