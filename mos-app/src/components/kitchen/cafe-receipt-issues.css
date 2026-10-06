@@ -3,8 +3,6 @@
 
 .cafe-receipt-issues .cafe-count-review__meta + .cafe-count-review__meta { margin-top: 2px; }
 
-.cafe-receipt-issues__notice:empty { display: none; }
-
 .cafe-receipt-issues__notice {
   margin: 0;
   color: var(--foreground);
@@ -28,6 +26,7 @@
 
 .cafe-receipt-issue__note {
   color: var(--foreground);
+  text-align: start;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }

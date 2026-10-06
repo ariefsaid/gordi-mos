@@ -33,6 +33,7 @@ export function CafeReceiptState({
     if (!posting.matched) parts.push(t('cafe.receipts.state.waitingForPoData'))
     if (posting.unmatched > 0) parts.push(t('cafe.receipts.state.unmatched', { count: posting.unmatched }))
     if (posting.openIssues > 0) parts.push(t('cafe.receipts.state.openIssues', { open: posting.openIssues }))
+    if (posting.poCreatedAfterDelivery) parts.push(t('cafe.receipts.issues.latePo'))
   }
   return (
     <span className="cafe-receipt-state" data-status={receipt.status} data-posting={postingUnknown ? undefined : posting?.state}>

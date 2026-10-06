@@ -12,6 +12,7 @@ import {
 } from '@/components/kitchen/cafe-receipt-line-condition'
 import { CafeReceiveLockConfirm } from '@/components/kitchen/cafe-receive-lock-confirm'
 import { CafeReceiptLineRow } from '@/components/kitchen/cafe-receipt-difference'
+import { CafeReceiptIssuesLink } from '@/components/kitchen/cafe-receipt-issues-link'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { useT } from '@/i18n/use-t'
 import { canCaptureCafe } from '@/lib/cafe-affiliation'
@@ -758,7 +759,7 @@ export function CafeReceivePage() {
         )}
         <nav className="cafe-receive__links" aria-label={t('cafe.receive.linksAria')}>
           {canReview && <Link to="/cafe/receive/review">{t('cafe.receipts.review.title')}</Link>}
-          <Link to="/cafe/receive/issues">{t('cafe.receipts.issues.title')}</Link>
+          <CafeReceiptIssuesLink />
         </nav>
         {loadState === 'ready' && stream && canCapture && captureReady && !counted && items.length > 0 && (
           <div className="cafe-count__footer">

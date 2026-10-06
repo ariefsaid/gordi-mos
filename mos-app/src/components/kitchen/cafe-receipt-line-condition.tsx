@@ -26,14 +26,15 @@ export function CafeReceiptConditionPills({ conditions }: { conditions: readonly
   return conditions.map(condition => <Pill key={condition} tone="warning">{t(CONDITION_LABEL[condition])}</Pill>)
 }
 
-/** Read-only evidence under a received line: its conditions, reason and private photos. */
+/** Read-only evidence under a received line: its conditions, reason, private photos and FR-1038. */
 export function CafeReceiptLineEvidence({ line }: { line: CafeReceiptLine }) {
   const t = useT()
-  if (line.conditions.length === 0 && line.photos.length === 0) return null
+  if (line.conditions.length === 0 && line.photos.length === 0 && !line.po_created_after_delivery) return null
   return (
     <div className="cafe-receipt-evidence">
       <CafeReceiptConditionPills conditions={line.conditions} />
       {line.condition_reason && <p>{line.condition_reason}</p>}
+      {line.po_created_after_delivery && <p className="cafe-receipt-evidence__quiet">{t('cafe.receipts.issues.latePo')}</p>}
       <WastePhotoStrip
         photos={line.photos}
         copy={{

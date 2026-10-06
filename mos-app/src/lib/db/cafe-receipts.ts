@@ -26,6 +26,8 @@ export type CafeReceiptPosting = {
   matched: boolean
   unmatched: number
   openIssues: number
+  /** FR-1038: a PO this receipt posts against was created in ESB after the arrival date. */
+  poCreatedAfterDelivery?: boolean
 }
 
 export type CafeReceiptLine = {
@@ -39,6 +41,8 @@ export type CafeReceiptLine = {
   condition_reason: string | null
   /** When the server last changed the condition or reason; null before any explanation. */
   condition_updated_at: string | null
+  /** FR-1038: a PO linked to this line's issues was created in ESB after the arrival date. */
+  po_created_after_delivery?: boolean
   photos: CafeReceiptPhoto[]
 }
 
@@ -88,7 +92,7 @@ const RECEIPT_FIELDS = [
   'id', 'branch_id', 'activity', 'arrival_date', 'delivery_note_number', 'status', 'posting_status',
   'posting_hold_reason', 'received_by', 'received_at', 'submitted_at', 'reviewed_by', 'reviewed_at',
   'review_note', 'row_version',
-  'lines:cafe_receipt_lines(id, item_unit_id, item_name, item_category, unit_name, received_quantity, conditions, condition_reason, condition_updated_at)',
+  'lines:cafe_receipt_lines(id, item_unit_id, item_name, item_category, unit_name, received_quantity, conditions, condition_reason, condition_updated_at, po_created_after_delivery:cafe_receipt_line_po_created_after_delivery)',
   'posting:cafe_receipt_posting',
 ].join(', ')
 
@@ -106,6 +110,7 @@ function parsePosting(raw: unknown): CafeReceiptPosting | null | undefined {
     matched: value.matched,
     unmatched: value.unmatched,
     openIssues: value.open_issues,
+    poCreatedAfterDelivery: value.po_created_after_delivery === true,
   }
 }
 
@@ -221,6 +226,7 @@ function parseCafeReceiptLine(line: Record<string, unknown>): CafeReceiptLine {
     conditions: line.conditions as CafeReceiptCondition[],
     condition_reason: line.condition_reason as string | null,
     condition_updated_at: typeof line.condition_updated_at === 'string' ? line.condition_updated_at : null,
+    po_created_after_delivery: line.po_created_after_delivery === true,
     photos: [],
   }
 }

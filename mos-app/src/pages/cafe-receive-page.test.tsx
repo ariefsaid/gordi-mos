@@ -38,6 +38,8 @@ vi.mock('@/lib/db/cafe-receipts', async importOriginal => {
     listCafeReceiptDifferences: vi.fn(),
   }
 })
+vi.mock('@/lib/db/cafe-receipt-issues', () => ({ countCafeReceiptIssuesNeedingPo: vi.fn().mockResolvedValue(0) }))
+import { countCafeReceiptIssuesNeedingPo } from '@/lib/db/cafe-receipt-issues'
 vi.mock('@/lib/offline-photo-drafts', async importOriginal => {
   const actual = await importOriginal<typeof import('@/lib/offline-photo-drafts')>()
   return { ...actual, clearOfflinePhotoDraft: vi.fn().mockResolvedValue(undefined) }
@@ -134,6 +136,22 @@ beforeEach(() => {
 })
 
 describe('CafeReceivePage', () => {
+  it('FR-1034 the Receipt issues link carries a badge with how many wait for a PO', async () => {
+    vi.mocked(countCafeReceiptIssuesNeedingPo).mockResolvedValue(3)
+    renderPage()
+    const link = await screen.findByRole('link', { name: /Receipt issues/ })
+    await waitFor(() => expect(link).toHaveAccessibleName('Receipt issues 3 waiting for a PO'))
+    expect(within(link).getByText('3')).toBeInTheDocument()
+  })
+
+  it('FR-1034 no badge when nothing waits, or when the count cannot be read', async () => {
+    vi.mocked(countCafeReceiptIssuesNeedingPo).mockRejectedValue(new Error('countCafeReceiptIssuesNeedingPo failed'))
+    renderPage()
+    const link = await screen.findByRole('link', { name: /Receipt issues/ })
+    await waitFor(() => expect(countCafeReceiptIssuesNeedingPo).toHaveBeenCalled())
+    expect(link).toHaveAccessibleName('Receipt issues')
+  })
+
   it('AC-1001 opens on the person’s own stream with every other stream selectable', async () => {
     renderPage()
     await screen.findByRole('textbox', { name: 'Received for Coffee bean' })

@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { listCafeReceipts, type CafeReceipt } from './cafe-receipts'
 import {
   closeCafeReceiptIssue,
+  countCafeReceiptIssuesNeedingPo,
   getCafeReceiptIssueAccess,
   linkCafeReceiptIssue,
   listCafeReceiptIssueOpenPos,
@@ -16,56 +17,114 @@ vi.mock('./cafe-receipts', () => ({ listCafeReceipts: vi.fn() }))
 const schemaMock = vi.mocked(supabase.schema)
 const receiptsMock = vi.mocked(listCafeReceipts)
 
-const LINE = {
-  id: 'line-1', item_unit_id: 'unit-1', item_name: 'Long-life milk', item_category: 'Dairy', unit_name: 'carton',
-  received_quantity: '6', conditions: [], condition_reason: null, condition_updated_at: null,
-  photos: [{ lineId: 'line-1', path: 'org/receipt-1/line-1/photo.jpg', url: 'https://private.test/photo.jpg' }],
+function line(id: string) {
+  return {
+    id, item_unit_id: 'unit-1', item_name: 'Long-life milk', item_category: 'Dairy', unit_name: 'carton',
+    received_quantity: '6', conditions: [], condition_reason: null, condition_updated_at: null, po_created_after_delivery: false,
+    photos: [],
+  }
 }
-const RECEIPT = {
-  id: 'receipt-1', branch_id: 'branch-1', activity: 'kitchen', arrival_date: '2026-10-06', delivery_note_number: null,
-  status: 'Approved', posting_status: 'not_posted', posting_hold_reason: null, received_by: 'person-1',
-  received_at: '2026-10-06T02:00:00Z', submitted_at: null, reviewed_by: 'person-2', reviewed_at: null, review_note: null,
-  row_version: 3, lines: [LINE], posting: null,
-} as unknown as CafeReceipt
-const ISSUE_ROW = {
-  id: 'issue-1', receipt_id: 'receipt-1', line_id: 'line-1', kind: 'over', quantity: '2.0000', status: 'open',
-  created_at: '2026-10-06T03:00:00Z', linked_po_number: null, po_created_after_delivery: false, closed_note: null,
-  resolved_by: null, resolved_at: null,
+function receipt(id: string, lineIds: string[]): CafeReceipt {
+  return {
+    id, branch_id: 'branch-1', activity: 'kitchen', arrival_date: '2026-10-06', delivery_note_number: null,
+    status: 'Approved', posting_status: 'not_posted', posting_hold_reason: null, received_by: 'person-1',
+    received_at: '2026-10-06T02:00:00Z', submitted_at: null, reviewed_by: 'person-2', reviewed_at: null, review_note: null,
+    row_version: 3, lines: lineIds.map(line), posting: null,
+  } as unknown as CafeReceipt
+}
+function issueRow(n: number, status = 'open') {
+  return {
+    id: `issue-${n}`, receipt_id: `receipt-${n}`, line_id: `line-${n}`, kind: 'over', quantity: '2.0000', status,
+    created_at: '2026-10-06T03:00:00Z', linked_po_number: null, closed_note: null, resolved_by: null, resolved_at: null,
+  }
 }
 
-function issuesQuery(response: { data: unknown; error: unknown }) {
-  const query: Record<string, unknown> = {}
-  for (const method of ['select', 'order', 'limit']) query[method] = vi.fn(() => query)
-  query.then = (resolve: (value: unknown) => unknown) => Promise.resolve(response).then(resolve)
-  return query
+/** A query per table read; records each call so the tests can assert the read shape. */
+type Call = { table: string; select: unknown[]; filters: unknown[][]; range?: [number, number]; limit?: number }
+function backend(responses: Record<string, (call: Call) => { data?: unknown[]; count?: number }>) {
+  const calls: Call[] = []
+  const from = vi.fn((table: string) => {
+    const call: Call = { table, select: [], filters: [] }
+    calls.push(call)
+    const query: Record<string, unknown> = {}
+    query.select = vi.fn((...args: unknown[]) => { call.select = args; return query })
+    for (const method of ['eq', 'neq', 'in', 'order', 'is']) query[method] = vi.fn((...args: unknown[]) => { call.filters.push([method, ...args]); return query })
+    query.range = vi.fn((a: number, b: number) => { call.range = [a, b]; return query })
+    query.limit = vi.fn((n: number) => { call.limit = n; return query })
+    query.then = (resolve: (value: unknown) => unknown) => {
+      const result = responses[table](call)
+      return Promise.resolve({ data: result.data ?? null, count: result.count ?? null, error: null }).then(resolve)
+    }
+    return query
+  })
+  schemaMock.mockReturnValue({ from } as never)
+  return calls
 }
 
 beforeEach(() => {
   vi.clearAllMocks()
-  receiptsMock.mockResolvedValue([RECEIPT])
+  receiptsMock.mockImplementation(async (_statuses, options) =>
+    (options?.ids ?? []).map(id => receipt(id, [id.replace('receipt', 'line')])))
 })
 
 describe('Café receipt issues adapter', () => {
-  it('FR-1034 reads each issue with its Approved receipt, line and photos from the shared receipt read', async () => {
-    const query = issuesQuery({ data: [ISSUE_ROW, { ...ISSUE_ROW, id: 'issue-2', kind: 'short' }], error: null })
-    schemaMock.mockReturnValue({ from: vi.fn(() => query) } as never)
+  it('C2 open issues are read in full, past any window, and resolved ones newest first with their total', async () => {
+    const open = Array.from({ length: 1200 }, (_, n) => issueRow(n))
+    const calls = backend({
+      cafe_receipt_issues: call => {
+        if (call.select[1]) return { count: 340 }
+        if (call.filters.some(f => f[0] === 'eq' && f[1] === 'status')) return { data: open.slice(call.range![0], call.range![1] + 1) }
+        return { data: [issueRow(5000, 'closed')] }
+      },
+      cafe_receipt_portions: () => ({ data: [] }),
+    })
 
-    const issues = await listCafeReceiptIssues()
+    const list = await listCafeReceiptIssues()
 
-    expect(issues.map(issue => [issue.id, issue.kind, issue.quantity, issue.line.item_name, issue.receipt.arrival_date]))
-      .toEqual([['issue-1', 'over', '2.0000', 'Long-life milk', '2026-10-06'], ['issue-2', 'short', '2.0000', 'Long-life milk', '2026-10-06']])
-    expect(issues[0].line.photos).toHaveLength(1)
-    // One receipt read for both issues, by id: no second photo or line path to drift from review.
-    expect(receiptsMock).toHaveBeenCalledTimes(1)
-    expect(receiptsMock).toHaveBeenCalledWith(['Approved'], { ids: ['receipt-1'], limit: 1 })
+    expect(list.issues.filter(issue => issue.status === 'open')).toHaveLength(1200)
+    expect(list.issues.filter(issue => issue.status === 'closed')).toHaveLength(1)
+    expect(list.resolvedTotal).toBe(340)
+    const resolved = calls.find(call => call.table === 'cafe_receipt_issues' && call.filters.some(f => f[0] === 'neq') && !call.select[1])!
+    expect(resolved.limit).toBe(100)
+    // 1201 receipts: read 50 at a time, as the receipt photo read does.
+    expect(receiptsMock).toHaveBeenCalledTimes(25)
+    expect(Math.max(...receiptsMock.mock.calls.map(([, options]) => options?.ids?.length ?? 0))).toBe(50)
   })
 
-  it('FR-1034 an empty list reads no receipts, and a row without its receipt is refused', async () => {
-    schemaMock.mockReturnValue({ from: vi.fn(() => issuesQuery({ data: [], error: null })) } as never)
-    await expect(listCafeReceiptIssues()).resolves.toEqual([])
-    expect(receiptsMock).not.toHaveBeenCalled()
+  it('DD-2026-10-06-1429 held portions that no longer fit a PO come back with their receipt and line', async () => {
+    backend({
+      cafe_receipt_issues: call => (call.select[1] ? { count: 0 } : { data: [] }),
+      cafe_receipt_portions: call => {
+        expect(call.filters).toEqual(expect.arrayContaining([['eq', 'state', 'held'], ['eq', 'hold_reason', 'no_longer_fits']]))
+        return { data: [{ id: 'portion-1', receipt_id: 'receipt-7', line_id: 'line-7', quantity: '4.0000', po_number: 'PO-1', issue_id: 'issue-9', created_at: '2026-10-06T05:00:00Z' }] }
+      },
+    })
 
-    schemaMock.mockReturnValue({ from: vi.fn(() => issuesQuery({ data: [{ ...ISSUE_ROW, line_id: 'other' }], error: null })) } as never)
+    const list = await listCafeReceiptIssues()
+
+    expect(list.held).toEqual([expect.objectContaining({
+      id: 'portion-1', quantity: '4.0000', po_number: 'PO-1', linked: true, created_at: '2026-10-06T05:00:00Z',
+    })])
+    expect(list.held[0].line.id).toBe('line-7')
+    expect(list.held[0].receipt.id).toBe('receipt-7')
+  })
+
+  it('S5 the badge counts open blocking issues and held portions that need a PO, without reading rows', async () => {
+    const calls = backend({
+      cafe_receipt_issues: () => ({ count: 3 }),
+      cafe_receipt_portions: () => ({ count: 2 }),
+    })
+    await expect(countCafeReceiptIssuesNeedingPo()).resolves.toBe(5)
+    expect(calls.every(call => (call.select[1] as { head?: boolean } | undefined)?.head === true)).toBe(true)
+    expect(calls[0].filters).toEqual(expect.arrayContaining([['eq', 'status', 'open'], ['in', 'kind', ['no_po', 'over', 'wrong_unit']]]))
+  })
+
+  it('FR-1034 a row without its readable receipt is refused', async () => {
+    receiptsMock.mockResolvedValue([])
+    backend({
+      cafe_receipt_issues: call => (call.select[1] ? { count: 0 } : call.filters.some(f => f[0] === 'eq') ? { data: [issueRow(1)] } : { data: [] }),
+      cafe_receipt_portions: () => ({ data: [] }),
+    })
     await expect(listCafeReceiptIssues()).rejects.toThrow('invalid issue row')
   })
 
