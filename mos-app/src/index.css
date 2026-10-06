@@ -464,3 +464,13 @@ textarea,
   text-underline-offset: 0.18em;
   text-decoration-skip-ink: auto;
 }
+
+@media (max-width: 768px) {
+  :is(
+    input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']):not([type='file']):not([type='image']):not([type='hidden']):not([type='button']):not([type='submit']):not([type='reset']),
+    textarea,
+    select
+  ) {
+    font-size: var(--font-size-touch-input);
+  }
+}
