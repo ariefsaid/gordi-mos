@@ -395,8 +395,8 @@ select throws_ok(
 -- kitchen item, a bar manager every bar item, ops lead/admin all. The item's activity is matched to
 -- the caller's ROLE scope through ops.can_manage_cafe_item_settings(activity), never to the caller's
 -- own stream, so it is a manager scope like the reviewer arms, not a member wall.
--- #1422: a goods receipt is read by its receiver or by a reviewer of its stream, through
--- ops.can_review_stream — the reviewer arm again, never the caller's own stream.
+-- #1422 (DD-2026-10-06-1422): a goods receipt is read by its receiver or by a reviewer of its
+-- stream, through ops.can_review_stream — the reviewer arm again, never the caller's own stream.
 reset role;
 select set_eq($$
   select schemaname || '.' || tablename || ' :: ' || policyname from pg_policies
