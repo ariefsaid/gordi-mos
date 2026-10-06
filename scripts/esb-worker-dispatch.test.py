@@ -662,7 +662,7 @@ TODAY = "2026-10-06"
 with open(os.path.join(TMP, "goo-po.json"), "w", encoding="utf-8") as fh:
     json.dump({"target_env": "goo",
                "branches": {"rumah_rames": {"branch_id": 176, "location_id": 510}},
-               "items": {}, "item_units": {UNIT_KG: {"product_detail_id": 69}}}, fh)
+               "items": {}, "item_units": {UNIT_KG: {"product_detail_id": 9069}}}, fh)
 
 
 # The deployment's shape override (FR-1033): a page size of 2 makes the list span pages.
@@ -689,10 +689,10 @@ LIST = {  # status -> pages of at most 2
     "4": [[po_row("PO-4", 4, "2026-10-05", created=None), po_row("PO-9", 5, "2026-10-05")]],
 }
 DETAILS = {
-    "PO-1": [{"productDetailID": 69, "productName": "Fabricated bean", "unitName": "kg", "outstandingQty": 5}],
-    "PO-2": [{"productDetailID": 69, "productName": "Fabricated bean", "unitName": "kg", "outstandingQty": "4.5"}],
+    "PO-1": [{"productDetailID": 9069, "productName": "Fabricated bean", "unitName": "kg", "outstandingQty": 5}],
+    "PO-2": [{"productDetailID": 9069, "productName": "Fabricated bean", "unitName": "kg", "outstandingQty": "4.5"}],
     "PO-3": [{"productDetailID": 777, "productName": "Fabricated cup", "unitName": "pcs", "outstandingQty": 0}],
-    "PO-4": [{"productDetailID": 69, "productName": "Fabricated bean", "unitName": "kg", "outstandingQty": 2}],
+    "PO-4": [{"productDetailID": 9069, "productName": "Fabricated bean", "unitName": "kg", "outstandingQty": 2}],
 }
 
 
