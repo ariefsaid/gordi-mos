@@ -106,7 +106,7 @@ describe('CafeCountPage', () => {
       { client_key: 'client-2', item_id: 'wip-1', quantity: '2' },
     ])
     expect(screen.getAllByRole('alert')).toHaveLength(1)
-    expect(screen.getByRole('alert')).toHaveTextContent('Could mean 1500 or 1.500. If decimal, use 1–2 places.')
+    expect(screen.getByRole('alert')).toHaveTextContent('Did you mean 1500 or 1.500? Use up to 2 decimals.')
     expect(within(document.querySelector('.cafe-count__footer')!).getByText('1 item needs fixing')).toBeInTheDocument()
   })
 
@@ -131,8 +131,8 @@ describe('CafeCountPage', () => {
     expect(rawInput).toHaveAttribute('aria-invalid', 'true')
     expect(wipInput).toHaveAttribute('aria-invalid', 'true')
     const errors = screen.getAllByRole('alert')
-    expect(errors[0]).toHaveTextContent('Could mean 1250 or 1.250. If decimal, use 1–2 places.')
-    expect(errors[1]).toHaveTextContent('Could mean 125 or 0.125. If decimal, use 1–2 places.')
+    expect(errors[0]).toHaveTextContent('Did you mean 1250 or 1.250? Use up to 2 decimals.')
+    expect(errors[1]).toHaveTextContent('Did you mean 125 or 0.125? Use up to 2 decimals.')
     expect(screen.getByRole('button', { name: 'Submit Count' })).toBeDisabled()
     expect(mockSubmit).not.toHaveBeenCalled()
   })

@@ -145,7 +145,7 @@ export function WipItemStepper({
       : error
   const capCueText = capError === TRANSFER_SHORT_CUE ? t('kitchen.log.stepper.capCue') : capError
   const formatActualQty = (quantity: number) => new Intl.NumberFormat(
-    document.documentElement.lang || 'en', { maximumFractionDigits: 2 },
+    document.documentElement.lang || 'en', { useGrouping: false, maximumFractionDigits: 2 },
   ).format(quantity)
 
   // ── The fixed unit + the deliberate "change unit" affordance (#234) ─────────

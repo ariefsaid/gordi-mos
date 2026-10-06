@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { fromDefaultUnitQuantity, toDefaultUnitQuantity } from './cafe-unit-multiples'
+import { formatUnitMultiple, fromDefaultUnitQuantity, toDefaultUnitQuantity } from './cafe-unit-multiples'
 
 describe('café unit-multiple conversion', () => {
+  it('formats a four-digit multiple without grouping', () => {
+    expect(formatUnitMultiple(1000, 'porsi', 'en')).toBe('1000 porsi')
+  })
+
   it('converts the entered count to the ERP default-unit quantity', () => {
     expect(toDefaultUnitQuantity(3, 0.5)).toBe(1.5)
   })

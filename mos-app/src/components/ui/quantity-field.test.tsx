@@ -8,16 +8,16 @@ const REASONS = [
   { raw: '1,2.3', options: {}, en: 'Use one mark: 1.5.', id: 'Gunakan satu tanda: 1,5.' },
   {
     raw: '1.500', options: { maxFractionDigits: 2 },
-    en: 'Could mean 1500 or 1.500. If decimal, use 1–2 places.',
-    id: 'Bisa berarti 1500 atau 1,500. Jika desimal, gunakan 1–2 angka.',
+    en: 'Did you mean 1500 or 1.500? Use up to 2 decimals.',
+    id: 'Maksudnya 1500 atau 1,500? Gunakan maks. 2 desimal.'
   },
   { raw: '-2', options: {}, en: 'Use zero or more.', id: 'Masukkan nol atau lebih.' },
   { raw: '1.5', options: { integerOnly: true }, en: 'Whole numbers only.', id: 'Bilangan bulat saja.' },
   { raw: '11', options: { max: 10 }, en: 'Number too large.', id: 'Angka terlalu besar.' },
   {
     raw: '1.125', options: { maxFractionDigits: 2 },
-    en: 'Could mean 1125 or 1.125. If decimal, use 1–2 places.',
-    id: 'Bisa berarti 1125 atau 1,125. Jika desimal, gunakan 1–2 angka.',
+    en: 'Did you mean 1125 or 1.125? Use up to 2 decimals.',
+    id: 'Maksudnya 1125 atau 1,125? Gunakan maks. 2 desimal.'
   },
 ] as const
 
@@ -25,13 +25,13 @@ describe('QuantityField validation copy and keyboard entry', () => {
   it.each([
     {
       raw: '1.250',
-      en: 'Could mean 1250 or 1.250. If decimal, use 1–2 places.',
-      id: 'Bisa berarti 1250 atau 1,250. Jika desimal, gunakan 1–2 angka.',
+      en: 'Did you mean 1250 or 1.250? Use up to 2 decimals.',
+      id: 'Maksudnya 1250 atau 1,250? Gunakan maks. 2 desimal.'
     },
     {
       raw: '0,125',
-      en: 'Could mean 125 or 0.125. If decimal, use 1–2 places.',
-      id: 'Bisa berarti 125 atau 0,125. Jika desimal, gunakan 1–2 angka.',
+      en: 'Did you mean 125 or 0.125? Use up to 2 decimals.',
+      id: 'Maksudnya 125 atau 0,125? Gunakan maks. 2 desimal.'
     },
   ])('rejects three-digit capture quantity $raw and offers both readings in each locale', ({ raw, en, id }) => {
     const onChange = vi.fn()

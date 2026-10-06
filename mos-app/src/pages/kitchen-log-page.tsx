@@ -32,7 +32,7 @@ import {
 // #440: the stream is the MODULE's selection, not this page's — useCafeStream records it so
 // Plan/Stock/Review open on the same books, and every switch carries across (issue 456).
 import { useCafeStream } from '@/lib/use-cafe-stream'
-import { fromDefaultUnitQuantity, formatUnitMultiple, toDefaultUnitQuantity } from '@/lib/cafe-unit-multiples'
+import { formatUnitMultiple, toDefaultUnitQuantity } from '@/lib/cafe-unit-multiples'
 import { parseQuantityInput } from '@/lib/quantity-parser'
 import { clearCafeDraftCount, setCafeDraftCount } from '@/lib/cafe-capture-draft'
 import { CafeStreamBar, CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
@@ -800,8 +800,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     })
   }
 
-  // A selected multiple keeps the ERP coordinate at the default unit. Recompute the canonical
-  // amount from its two-place entry value so the submitted quantity matches what the field shows.
+  // The selected unit gives the unchanged typed amount its meaning; only the canonical quantity
+  // submitted to the ERP changes with the factor.
   function handleUnitChange(itemId: string, unitChoice: string) {
     if (captureClosed) return
     const item = wipItems.find(candidate => candidate.id === itemId)
@@ -811,7 +811,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
         const factor = Number(unitChoice.slice('multiple:'.length))
         const defaultUnit = item?.units.find(unit => unit.is_default) ?? item?.units[0]
         if (!Number.isFinite(factor) || !item?.unit_multiples?.includes(factor) || !defaultUnit) return prev
-        const entryQuantity = fromDefaultUnitQuantity(current.qty_porsi, factor)
+        const entryQuantity = current.entry_quantity ?? current.qty_porsi
         const next: KitchenLogLine = {
           ...current,
           item_unit_id: defaultUnit.id,
@@ -824,12 +824,14 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       }
       const selectedUnit = item?.units.find(unit => unit.id === unitChoice)
       if (!selectedUnit) return prev
+      const entryQuantity = current.entry_quantity ?? current.qty_porsi
       const next: KitchenLogLine = {
         ...current,
         item_unit_id: selectedUnit.id,
-        entry_quantity: current.qty_porsi,
+        entry_quantity: entryQuantity,
         entry_unit_factor: 1,
         entry_unit_name: selectedUnit.name,
+        qty_porsi: toDefaultUnitQuantity(entryQuantity, 1),
       }
       return { ...prev, [itemId]: gateLine(next, movement) }
     })
@@ -1094,7 +1096,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     }]
   })
   const formatCaptureQty = (quantity: number) => new Intl.NumberFormat(
-    document.documentElement.lang || 'en', { maximumFractionDigits: 2 },
+    document.documentElement.lang || 'en', { useGrouping: false, maximumFractionDigits: 2 },
   ).format(quantity)
   const renderUnitlessValue = (value: ReactNode) => (
     <span className="kl-unitless-value">

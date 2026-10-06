@@ -71,6 +71,6 @@ export function fromDefaultUnitQuantity(quantity: number, factor: number): numbe
 
 /** A locale-aware, stable label for a manager-defined multiple of a default ERP unit. */
 export function formatUnitMultiple(factor: number, unitName: string, locale?: string): string {
-  const formattedFactor = new Intl.NumberFormat(locale, { maximumFractionDigits: 6 }).format(factor)
+  const formattedFactor = new Intl.NumberFormat(locale, { useGrouping: false, maximumFractionDigits: 6 }).format(factor)
   return `${formattedFactor} ${unitName}`
 }

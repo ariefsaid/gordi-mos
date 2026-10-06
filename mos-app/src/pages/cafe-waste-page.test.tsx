@@ -215,7 +215,7 @@ describe('CafeWastePage', () => {
     expect(mockInsertKitchenLog).not.toHaveBeenCalled()
   })
 
-  it('renders a desktop quantity error in a full-width row directly below the input and unit', async () => {
+  it('renders the desktop quantity error in its controls cell after the field and before Add photo', async () => {
     setWideMatchMedia()
     renderPage()
     const input = await screen.findByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })
@@ -223,9 +223,12 @@ describe('CafeWastePage', () => {
     fireEvent.blur(input)
 
     const error = screen.getByRole('alert')
-    const detailRow = error.closest('tr')
-    expect(detailRow).toHaveClass('dt-row-detail')
-    expect(detailRow?.querySelector('td')).toHaveAttribute('colspan', '2')
+    const controls = input.closest('.cwl-controls')!
+    const addPhoto = within(controls).getByRole('button', { name: 'Add photo' })
+    expect(controls).toContainElement(error)
+    expect(error.closest('tr')).toBe(input.closest('tr'))
+    expect(input.compareDocumentPosition(error) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(error.compareDocumentPosition(addPhoto) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(input).toHaveAttribute('aria-describedby', error.id)
   })
 
@@ -244,8 +247,8 @@ describe('CafeWastePage', () => {
   })
 
   it.each([
-    ['1.250', 'Could mean 1250 or 1.250. If decimal, use 1–2 places.'],
-    ['0,125', 'Could mean 125 or 0.125. If decimal, use 1–2 places.'],
+    ['1.250', 'Did you mean 1250 or 1.250? Use up to 2 decimals.'],
+    ['0,125', 'Did you mean 125 or 0.125? Use up to 2 decimals.'],
   ])('refuses ambiguous waste quantity %s with both readings and blocks Add photo', async (raw, correction) => {
     renderPage()
     const input = await screen.findByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })
@@ -365,7 +368,7 @@ describe('CafeWastePage', () => {
     }
     mockListWasteDrafts.mockResolvedValue([
       wasteDraft({ photos: [photo] }),
-      wasteDraft({ logId: 'another-waste-draft', quantity: 8.75, unitName: 'cup', itemUnitId: 'unit-cup' }),
+      wasteDraft({ logId: 'another-waste-draft', quantity: 1000, unitName: 'cup', itemUnitId: 'unit-cup' }),
     ])
     renderPage()
 
@@ -385,7 +388,7 @@ describe('CafeWastePage', () => {
     expect(unit).toHaveTextContent('tray')
     expect(unit).toBeDisabled()
     expect(screen.getByRole('img', { name: /photo 1 preview/i })).toHaveAttribute('src', photo.url)
-    expect(screen.getByRole('button', { name: /resume oat latte · 8.75 cup/i })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /resume oat latte · 1000 cup/i })).toBeDisabled()
 
     const submit = screen.getByRole('button', { name: 'Submit waste' })
     expect(submit).toBeEnabled()
@@ -547,7 +550,27 @@ describe('CafeWastePage', () => {
     expect(screen.getAllByText('Enter a quantity before adding a photo.')).toHaveLength(1)
   })
 
-  it('switching one default unit to a 3× multiple stays valid and submits the rounded entry quantity', async () => {
+  it('keeps 2 unchanged through a 3× unit round trip with no quantity error', async () => {
+    mockListCafeItemSettings.mockResolvedValue([{
+      ...ITEM_SETTINGS[0]!,
+      unitMultiples: [3],
+    }])
+    renderPage()
+
+    const input = await screen.findByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })
+    fireEvent.change(input, { target: { value: '2' } })
+    await userEvent.click(screen.getByRole('combobox', { name: 'Waste unit for Oat Latte' }))
+    await userEvent.click(await screen.findByRole('option', { name: '3 cup' }))
+    expect(input).toHaveValue('2')
+    expect(input.closest('.quantity-field')?.querySelector('.quantity-field-error')).toBeNull()
+
+    await userEvent.click(screen.getByRole('combobox', { name: 'Waste unit for Oat Latte' }))
+    await userEvent.click(await screen.findByRole('option', { name: 'cup · Default' }))
+    expect(input).toHaveValue('2')
+    expect(input.closest('.quantity-field')?.querySelector('.quantity-field-error')).toBeNull()
+  })
+
+  it('switching one default unit to a 3× multiple keeps the typed amount and submits its default-unit conversion', async () => {
     mockListCafeItemSettings.mockResolvedValue([{
       ...ITEM_SETTINGS[0]!,
       unitMultiples: [3],
@@ -559,7 +582,7 @@ describe('CafeWastePage', () => {
     await userEvent.click(screen.getByRole('combobox', { name: 'Waste unit for Oat Latte' }))
     await userEvent.click(await screen.findByRole('option', { name: '3 cup' }))
 
-    expect(input).toHaveValue('0.33')
+    expect(input).toHaveValue('1')
     expect(input).not.toHaveAttribute('aria-invalid', 'true')
     expect(screen.queryByRole('alert')).toBeNull()
     expect(document.querySelector('.cwl-footer')).not.toHaveTextContent(/needs fixing/i)
@@ -568,7 +591,7 @@ describe('CafeWastePage', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Add photo' })[0]!)
     await waitFor(() => expect(mockInsertKitchenLog).toHaveBeenCalledWith(expect.objectContaining({
       action: 'waste', wip_item_id: 'wip-1', item_unit_id: 'unit-cup',
-      qty_porsi: 0.99, entry_quantity: 0.33, entry_unit_factor: 3,
+      qty_porsi: 3, entry_quantity: 1, entry_unit_factor: 3,
     })))
   })
 

@@ -237,6 +237,14 @@ describe('WipItemStepper — AC-020/021/022', () => {
     expect(screen.getByRole('spinbutton', { name: /quantity/i })).toHaveAttribute('placeholder', '0.33')
   })
 
+  it('does not group a four-digit converted plan placeholder', () => {
+    renderStepper({
+      line: { plan_qty: 3000, entry_unit_factor: 3, entry_unit_name: 'porsi' },
+      unitMultiples: [3],
+    })
+    expect(screen.getByRole('spinbutton', { name: /quantity/i })).toHaveAttribute('placeholder', '1000')
+  })
+
   it('keeps the fixed-width quantity and selected unit together, with the unit below the input', () => {
     renderStepper({ unitOptions: [UNIT_PORSI] })
     const input = screen.getByRole('spinbutton', { name: /quantity/i })
@@ -496,8 +504,8 @@ describe('WipItemStepper — shared decimal quantity capture', () => {
   })
 
   it.each([
-    ['1.250', 'Could mean 1250 or 1.250. If decimal, use 1–2 places.'],
-    ['0,125', 'Could mean 125 or 0.125. If decimal, use 1–2 places.']
+    ['1.250', 'Did you mean 1250 or 1.250? Use up to 2 decimals.'],
+    ['0,125', 'Did you mean 125 or 0.125? Use up to 2 decimals.']
   ])('rejects ambiguous capture input %s with both typed-digit readings', (raw, correction) => {
     const onQtyChange = vi.fn()
     renderStepper({ onQtyChange })
@@ -515,7 +523,7 @@ describe('WipItemStepper — shared decimal quantity capture', () => {
     })
     fireEvent.change(screen.getByLabelText(/quantity/i), { target: { value: '1,125' } })
     const multipleError = screen.getByRole('alert')
-    expect(multipleError).toHaveTextContent('Could mean 1125 or 1.125. If decimal, use 1–2 places.')
+    expect(multipleError).toHaveTextContent('Did you mean 1125 or 1.125? Use up to 2 decimals.')
     expect(onQtyChange).not.toHaveBeenCalledWith(1.125)
 
     rerender(
@@ -524,7 +532,7 @@ describe('WipItemStepper — shared decimal quantity capture', () => {
     )
     fireEvent.change(screen.getByLabelText(/quantity/i), { target: { value: '1,125' } })
     const error = screen.getByRole('alert')
-    expect(error).toHaveTextContent('Could mean 1125 or 1.125. If decimal, use 1–2 places.')
+    expect(error).toHaveTextContent('Did you mean 1125 or 1.125? Use up to 2 decimals.')
     expect(onQtyChange).not.toHaveBeenCalledWith(1.125)
     const control = container.querySelector('.quantity-field-control')
     expect(control?.querySelector('.kls-unit')).toBeInTheDocument()

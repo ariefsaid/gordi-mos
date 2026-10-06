@@ -1276,7 +1276,40 @@ describe('FR-021/022: "change unit" re-binds the row to the chosen item-unit', (
 })
 
 describe('issue 1345: manager-defined multiples keep the ERP default coordinate', () => {
-  it('switching one default unit to a 3× multiple yields a valid two-place draft and submits that entry', async () => {
+  it.each(['production', 'transfer'] as const)('keeps 2 unchanged through a unit round trip on %s with no quantity error', async mode => {
+    mockListCaptureFormItems.mockResolvedValue([{
+      ...WIP_ITEMS[0]!,
+      unit_multiples: [3],
+    }])
+    if (mode === 'transfer') {
+      await renderTransferPage()
+      await userEvent.click(await screen.findByRole('tab', { name: /transfer to radiant/i }))
+    } else {
+      await renderPage()
+    }
+
+    const input = screen.getByRole('spinbutton', {
+      name: mode === 'transfer'
+        ? /quantity to transfer to radiant for ayam bakar/i
+        : /quantity produced for ayam bakar/i,
+    })
+    fireEvent.change(input, { target: { value: '2' } })
+    await userEvent.click(screen.getByRole('button', { name: /change unit for ayam bakar/i }))
+    await userEvent.click(screen.getByRole('combobox', { name: /unit for ayam bakar/i }))
+    await userEvent.click(await screen.findByRole('option', { name: '3 porsi' }))
+    expect(input).toHaveValue('2')
+    expect(input).not.toHaveAttribute('aria-invalid', 'true')
+    expect(input.closest('.quantity-field')?.querySelector('.quantity-field-error')).toBeNull()
+
+    await userEvent.click(screen.getByRole('button', { name: /change unit for ayam bakar/i }))
+    await userEvent.click(screen.getByRole('combobox', { name: /unit for ayam bakar/i }))
+    await userEvent.click(await screen.findByRole('option', { name: 'porsi' }))
+    expect(input).toHaveValue('2')
+    expect(input).not.toHaveAttribute('aria-invalid', 'true')
+    expect(input.closest('.quantity-field')?.querySelector('.quantity-field-error')).toBeNull()
+  })
+
+  it('switching one default unit to a 3× multiple keeps the typed amount and submits its default-unit conversion', async () => {
     mockListCaptureFormItems.mockResolvedValue([{
       id: 'w1', name: 'Ayam Bakar', category: 'Main',
       units: [{ id: 'u1-default', name: 'porsi', is_default: true }],
@@ -1292,12 +1325,12 @@ describe('issue 1345: manager-defined multiples keep the ERP default coordinate'
     await userEvent.click(screen.getByRole('combobox', { name: /unit for ayam bakar/i }))
     await userEvent.click(await screen.findByRole('option', { name: '3 porsi' }))
 
-    expect(qtyInput).toHaveValue('0.33')
+    expect(qtyInput).toHaveValue('1')
     expect(qtyInput).not.toHaveAttribute('aria-invalid', 'true')
     expect(screen.queryByRole('alert')).toBeNull()
     expect(document.querySelector('.kl-footer')).not.toHaveTextContent(/needs fixing/i)
     fireEvent.change(screen.getByRole('textbox', { name: /note for ayam bakar/i }), {
-      target: { value: 'Rounded in the selected 3× unit.' },
+      target: { value: 'Entered one 3× unit.' },
     })
 
     fireEvent.click(screen.getByRole('button', { name: /^submit/i }))
@@ -1305,7 +1338,7 @@ describe('issue 1345: manager-defined multiples keep the ERP default coordinate'
     expect(mockInsertKitchenLogBatch.mock.calls[0][0]).toEqual([
       expect.objectContaining({
         wip_item_id: 'w1', item_unit_id: 'u1-default',
-        qty_porsi: 0.99, entry_quantity: 0.33, entry_unit_factor: 3,
+        qty_porsi: 3, entry_quantity: 1, entry_unit_factor: 3,
       }),
     ])
   })
