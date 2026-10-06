@@ -4,7 +4,7 @@
 -- releases held receipts once posting is on.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(57);
+select plan(63);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -239,18 +239,31 @@ select is((select count(*)::int from integrations.esb_push where source_module =
   '3/2', 'AC-1021 re-approving and re-matching create nothing');
 
 -- The worker's outcome becomes the receipt's state.
-update integrations.esb_push set status = 'posted', posted_at = clock_timestamp()
- where id in (select push_id from ops.cafe_receipt_portions where receipt_id = current_setting('app.r2')::uuid);
-select is((select ops.cafe_receipt_posting(r) ->> 'state' from ops.cafe_receipts r where r.id = current_setting('app.r2')::uuid),
-  'posted', 'FR-1042 every portion posted reads posted');
-update integrations.esb_push set status = 'dead_letter'
+set local role service_role;
+select is((select count(*)::int from integrations.claim_esb_pushes(array(
+  select push_id from ops.cafe_receipt_portions
+   where receipt_id = current_setting('app.r2')::uuid and push_id is not null))), 3,
+  'the worker atomically claims the receipt portions');
+update integrations.esb_push set status = 'failed', retry_count = retry_count + 1,
+       last_error = 'synthetic retryable failure'
  where id = (select push_id from ops.cafe_receipt_portions where receipt_id = current_setting('app.r2')::uuid
               and po_number = 'PO-SYNTH-1429-B');
+reset role;
 select is((select ops.cafe_receipt_posting(r) ->> 'state' from ops.cafe_receipts r where r.id = current_setting('app.r2')::uuid),
   'failed', 'FR-1042 a failed portion reads failed');
-update integrations.esb_push set status = 'pending'
+set local role service_role;
+update integrations.esb_push set next_attempt_at = clock_timestamp() - interval '1 second'
  where id = (select push_id from ops.cafe_receipt_portions where receipt_id = current_setting('app.r2')::uuid
               and po_number = 'PO-SYNTH-1429-B');
+select is(integrations.reap_esb_pushes(), 1, 'the worker reaper promotes the due receipt retry');
+select is((select count(*)::int from integrations.claim_esb_pushes(array(
+  select push_id from ops.cafe_receipt_portions where receipt_id = current_setting('app.r2')::uuid
+    and po_number = 'PO-SYNTH-1429-B'))), 1, 'the retried receipt portion can be claimed again');
+update integrations.esb_push set status = 'posted', posted_at = clock_timestamp()
+ where id in (select push_id from ops.cafe_receipt_portions where receipt_id = current_setting('app.r2')::uuid);
+reset role;
+select is((select ops.cafe_receipt_posting(r) ->> 'state' from ops.cafe_receipts r where r.id = current_setting('app.r2')::uuid),
+  'posted', 'FR-1042 every portion posted reads posted');
 
 -- ── AC-1028 releasing held receipts once posting is on ───────────────────────────────────────
 set local role authenticated;
@@ -391,6 +404,21 @@ select is((select string_agg(p.po_number || ':' || p.quantity::text, ',') from o
                         where i.receipt_id = current_setting('app.r5')::uuid),
   'PO-SYNTH-1429-E:2.0000 / over:5.0000',
   'FR-1027 a portion queued but not yet posted still counts against the outstanding a later refresh reads');
+
+select set_config('app.retention_push_id', (select push_id::text from ops.cafe_receipt_portions
+  where receipt_id = current_setting('app.r2')::uuid and push_id is not null limit 1), true);
+set local role service_role;
+update integrations.esb_push set posted_at = clock_timestamp() - interval '31 days'
+ where id = current_setting('app.retention_push_id')::uuid;
+select is(integrations.prune_esb_pushes(), 1,
+  'retention prunes a sent receipt row after detaching its history link');
+reset role;
+select is((select count(*)::int from ops.cafe_receipt_portions
+            where push_id = current_setting('app.retention_push_id')::uuid), 0,
+  'retention clears the receipt foreign key before removing the outbox row');
+select is((select count(*)::int from integrations.esb_push
+            where id = current_setting('app.retention_push_id')::uuid), 0,
+  'the aged sent receipt row is removed');
 
 select * from finish();
 rollback;

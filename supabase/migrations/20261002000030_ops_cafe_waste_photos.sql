@@ -566,7 +566,7 @@ begin
   insert into integrations.esb_push
     (org_id, source_module, source_ref, endpoint, payload, target_env, dedup_key)
   values (v_log.org_id, 'kitchen', v_batch_id, v_endpoint, v_payload, v_target, v_dedup)
-  on conflict (dedup_key) do nothing;
+  on conflict (org_id, dedup_key) do nothing;
   return v_batch_id;
 end;
 $$;

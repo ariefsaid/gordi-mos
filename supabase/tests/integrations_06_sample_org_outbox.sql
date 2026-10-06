@@ -48,8 +48,8 @@ select is((select target_env from integrations.esb_push where id = :'real_row'),
   'a real-org outbox row targets the deployment''s ERP environment');
 
 set local role service_role;
-select lives_ok(format($$update integrations.esb_push set status = 'in_flight' where id = %L$$, :'real_row'),
-  'the worker claims a real-org row');
+select is((select count(*)::int from integrations.claim_esb_pushes(array[:'real_row'::uuid])), 1,
+  'the worker atomically claims a real-org row');
 reset role;
 select lives_ok(format($$insert into integrations.esb_push_groups (org_id, target_env, dedup_key)
   values (%L, 'goo', 'kitchen-group|real-org-probe|goo')$$, :'org_a'),
