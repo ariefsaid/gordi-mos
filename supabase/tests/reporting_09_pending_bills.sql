@@ -13,7 +13,7 @@ create extension if not exists pgtap with schema extensions;
 grant reporting_writer to postgres with set true;
 grant usage on schema extensions to reporting_writer;
 
-select plan(37);
+select plan(45);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -121,6 +121,54 @@ select is(
   (select branch_id from reporting.pending_bills where bill_no = 'B-006'), null,
   'a code known only in another org leaves the link empty');
 delete from reporting.pending_bills where bill_no = 'B-006';
+
+-- A bill first copied under a code the catalog did not know is linked by the next night's upsert
+-- once the branch is catalogued — the nightly ON CONFLICT DO UPDATE never touches branch_code.
+select set_config('app.reporting_org', '00000000-0000-0000-0000-0000000000a1', true);
+set local role reporting_writer;
+insert into reporting.pending_bills (org_id, esb_code, branch_code, bill_no, bill_date, amount, snapshot_as_of)
+values ('00000000-0000-0000-0000-0000000000a1','GKI','NEWBR','B-007','2026-09-04',2000.00,now());
+reset role;
+insert into shared.branches (id, org_id, code, name) values
+  ('00000000-0000-0000-0000-0000000000e2','00000000-0000-0000-0000-0000000000a1','NEWBR','Branch Two');
+set local role reporting_writer;
+insert into reporting.pending_bills (org_id, esb_code, branch_code, bill_no, bill_date, amount, snapshot_as_of)
+values ('00000000-0000-0000-0000-0000000000a1','GKI','NEWBR','B-007','2026-09-04',2000.00,now())
+on conflict (org_id, esb_code, branch_code, bill_no) do update set amount = excluded.amount;
+reset role;
+select is(
+  (select branch_id from reporting.pending_bills where bill_no = 'B-007'),
+  '00000000-0000-0000-0000-0000000000e2'::uuid,
+  'a bill copied before its branch was catalogued is linked by the next upsert');
+delete from reporting.pending_bills where bill_no = 'B-007';
+
+-- The writer's USING half: a run declared for org B neither reads nor reaches org A's rows.
+select set_config('app.reporting_org', '00000000-0000-0000-0000-0000000000b1', true);
+set local role reporting_writer;
+select is((select count(*)::int from reporting.pending_bills), 0,
+  'a run declared for another org reads none of this org''s bills');
+select is((select count(*)::int from reporting.pending_bill_snapshots), 0,
+  '...and none of its run log');
+select lives_ok($$
+  update reporting.pending_bills set amount = 1.00, org_id = '00000000-0000-0000-0000-0000000000b1'
+   where org_id = '00000000-0000-0000-0000-0000000000a1'
+$$, 'an update aimed at another org''s bills raises nothing — USING filters');
+select lives_ok($$
+  update reporting.pending_bill_snapshots set bill_count = 0
+   where org_id = '00000000-0000-0000-0000-0000000000a1'
+$$, 'an update aimed at another org''s run log raises nothing — USING filters');
+reset role;
+select is((select amount from reporting.pending_bills where bill_no = 'B-002'), 300000.00::numeric,
+  '...and the bill is untouched');
+select is((select bill_count from reporting.pending_bill_snapshots
+            where org_id = '00000000-0000-0000-0000-0000000000a1'), 2,
+  '...and the run log is untouched');
+
+-- The definer trigger cannot be steered by a caller's search_path.
+select ok(
+  (select proconfig @> array['search_path=""'] from pg_proc
+    where oid = 'reporting._link_pending_bill_branch()'::regprocedure),
+  'the branch-link trigger function pins search_path to empty');
 
 -- ══ AC-1110: Finance is the only reader ═════════════════════════════════════════════════════
 set local role authenticated;
