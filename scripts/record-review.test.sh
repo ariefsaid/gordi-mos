@@ -100,7 +100,7 @@ write_ui_review() { # $1 artifact · $2 evidence path · $3 omitted row · $4 re
   local file="$1" evidence="$2" omitted="$3" render="$4"
   {
     printf '## Skills evidence\n| Playbook | Evidence file | Render evidence |\n|---|---|---|\n'
-    for playbook in 'Impeccable critique' 'Impeccable layout' 'Impeccable clarify' 'Impeccable harden' 'Impeccable polish' 'Taste'; do
+    for playbook in 'Impeccable shape' 'ui-ux-pro-max' 'Impeccable critique' 'Impeccable layout' 'Impeccable clarify' 'Impeccable harden' 'Impeccable polish' 'Taste'; do
       [ "$playbook" = "$omitted" ] && continue
       if [ "$playbook" = 'Impeccable critique' ]; then
         printf '| %s | %s | %s |\n' "$playbook" "$evidence" "$render"
@@ -123,6 +123,10 @@ check_ui() { # $1 name · $2 expected rc · $3 artifact · $4 expected diagnosti
 }
 write_ui_review missing-row.md reviews/evidence.md 'Taste' 'Render evidence: 390px, 768px, 1440px; real-length data used'
 check_ui 'UI diff refuses missing playbook row' 1 missing-row.md 'Skills evidence is missing required row: Taste'
+write_ui_review missing-shape.md reviews/evidence.md 'Impeccable shape' 'Render evidence: 390px, 768px, 1440px; real-length data used'
+check_ui 'UI diff refuses missing Impeccable shape row' 1 missing-shape.md 'Skills evidence is missing required row: Impeccable shape'
+write_ui_review missing-search.md reviews/evidence.md 'ui-ux-pro-max' 'Render evidence: 390px, 768px, 1440px; real-length data used'
+check_ui 'UI diff refuses missing ui-ux-pro-max row' 1 missing-search.md 'Skills evidence is missing required row: ui-ux-pro-max'
 write_ui_review missing-file.md reviews/not-there.md '' 'Render evidence: 390px, 768px, 1440px; real-length data used'
 check_ui 'UI diff refuses nonexistent evidence file' 1 missing-file.md 'does not exist: reviews/not-there.md'
 printf 'Commit: %s\n' '0000000000000000000000000000000000000000' > "$tmp/ui-repo/docs/reviews/evidence.md"

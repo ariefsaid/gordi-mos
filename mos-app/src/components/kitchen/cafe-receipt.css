@@ -21,7 +21,7 @@
 
 .cafe-receipt-state { color: var(--foreground); font-weight: 600; }
 
-.cafe-count-review__row.cafe-receipt-review__row {
+.cafe-receipt-review__row.cafe-count-review__row {
   grid-template-columns: minmax(160px, 1fr) minmax(240px, 1.6fr) minmax(220px, 1fr);
   align-items: start;
 }
@@ -59,7 +59,7 @@
 }
 
 @media (max-width: 800px) {
-  .cafe-count-review__row.cafe-receipt-review__row { grid-template-columns: minmax(0, 1fr); }
+  .cafe-receipt-review__row.cafe-count-review__row { grid-template-columns: minmax(0, 1fr); }
   .cafe-receipt-review__actions { justify-content: stretch; }
   .cafe-receipt-review__actions .btn { flex: 1 1 0; }
 }
