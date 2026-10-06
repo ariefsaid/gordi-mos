@@ -20,6 +20,8 @@
 -- DOWN: drop table reporting.pending_bill_snapshots;
 --       drop table reporting.pending_bills;       -- drops its trigger and policies with it
 --       drop function reporting._link_pending_bill_branch();
+--       -- restore reporting.current_writer_org()'s comment from
+--       -- 20260821000001_reporting_writer_org_scope.sql
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- 1. reporting.pending_bills
@@ -54,8 +56,8 @@ comment on table reporting.pending_bills is
 comment on column reporting.pending_bills.branch_code is
   'The ERP''s own branch code, stored exactly as sent and never validated against MOS''s catalog (OD-WAY-39).';
 comment on column reporting.pending_bills.branch_id is
-  'Link to shared.branches set by trigger from (org_id, branch_code); null when the code is unknown. '
-  'The composite FK keeps a set link inside the same org.';
+  'Link to shared.branches filled by trigger from (org_id, branch_code) while empty; null until the '
+  'code is catalogued. The composite FK keeps a set link inside the same org.';
 comment on column reporting.pending_bills.counterparty_note is
   'Who owes, as written on the bill at the till — kept as given (trimmed only), null when blank.';
 comment on column reporting.pending_bills.amount is
@@ -83,19 +85,24 @@ security definer
 set search_path = ''
 as $$
 begin
-  new.branch_id := (select b.id from shared.branches b
-                     where b.org_id = new.org_id and b.code = new.branch_code);
+  if new.branch_id is null then
+    new.branch_id := (select b.id from shared.branches b
+                       where b.org_id = new.org_id and b.code = new.branch_code);
+  end if;
   return new;
 end;
 $$;
 comment on function reporting._link_pending_bill_branch() is
-  'Trigger: sets pending_bills.branch_id from shared.branches in the same org with code = '
-  'branch_code, null when unknown. Never rejects a bill. SECURITY DEFINER so the snapshot writer '
-  'needs no read on the branch catalog.';
+  'Trigger: fills an empty pending_bills.branch_id from shared.branches in the same org with code = '
+  'branch_code on every insert and update, so the nightly upsert links a bill once its branch is '
+  'catalogued; stays null while the code is unknown. Never rejects a bill. SECURITY DEFINER so the '
+  'snapshot writer needs no read on the branch catalog.';
 revoke execute on function reporting._link_pending_bill_branch() from public;
 
+-- Every UPDATE, not only UPDATE OF branch_code: the nightly upsert never sets branch_code (it is
+-- part of the key), and it is that upsert which must pick up a branch catalogued since.
 create trigger pending_bills_link_branch
-  before insert or update of branch_code on reporting.pending_bills
+  before insert or update on reporting.pending_bills
   for each row execute function reporting._link_pending_bill_branch();
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
@@ -159,3 +166,11 @@ create policy pending_bill_snapshots_write_reporting_writer on reporting.pending
   with check (org_id = (select reporting.current_writer_org()));
 comment on policy pending_bill_snapshots_write_reporting_writer on reporting.pending_bill_snapshots is
   'The copy run logs itself, scoped to the org the run declared in app.reporting_org.';
+
+-- The writer-org function's comment named how many policies it backs; this file adds two more.
+-- Restated without a count so the next table cannot make it wrong again.
+comment on function reporting.current_writer_org() is
+  'The org a snapshot run has declared for the transaction it is writing in, via '
+  'set_config(''app.reporting_org'', <uuid>, true). Absent, empty or unparseable all return NULL, which no '
+  'row''s org_id can equal — so a run that has not declared an org writes nothing. Backs every '
+  '*_write_reporting_writer policy in the reporting schema.';
