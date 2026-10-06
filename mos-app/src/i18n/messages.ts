@@ -1508,9 +1508,8 @@ export const messages = {
     'tasks.loading': "Loading tasks",
     'tasks.markComplete': "Mark complete",
     'tasks.meta.openCount': "${count} open in this view",
-    // Counted over the records IN VIEW, so it cannot say "total": a filter that matches nothing
-    // reported "0 total" on a workspace holding thirteen tasks. The noun was wrong, not the number.
-    'tasks.meta.totalCount': "${count} shown",
+    'tasks.meta.taskCount.one': "${count} task",
+    'tasks.meta.taskCount.other': "${count} tasks",
     'tasks.new': "+ Create task",
     'tasks.notFound.copy': "This task doesn't exist or you don't have access.",
     'tasks.notFound.title': "Task not found",
@@ -3747,7 +3746,8 @@ export const messages = {
     'tasks.loading': "Memuat tugas",
     'tasks.markComplete': "Tandai selesai",
     'tasks.meta.openCount': "${count} terbuka di tampilan ini",
-    'tasks.meta.totalCount': "${count} ditampilkan",
+    'tasks.meta.taskCount.one': "${count} tugas",
+    'tasks.meta.taskCount.other': "${count} tugas",
     'tasks.new': "+ Buat tugas",
     'tasks.notFound.copy': "Tugas ini tidak ada atau Anda tidak memiliki akses.",
     'tasks.notFound.title': "Tugas tidak ditemukan",

@@ -46,6 +46,15 @@ describe('i18n messages catalog', () => {
     expect(messages.id['catalog.record.unsaved.copy']).toBe('Perubahan Anda belum disimpan. Buang dan tinggalkan catatan ini?')
   })
 
+  it('task list counts name visible tasks and open work in both locales', () => {
+    expect(interpolate(messages.en['tasks.meta.taskCount.one'], { count: 1 })).toBe('1 task')
+    expect(interpolate(messages.en['tasks.meta.taskCount.other'], { count: 13 })).toBe('13 tasks')
+    expect(interpolate(messages.en['tasks.meta.openCount'], { count: 11 })).toBe('11 open in this view')
+    expect(interpolate(messages.id['tasks.meta.taskCount.one'], { count: 1 })).toBe('1 tugas')
+    expect(interpolate(messages.id['tasks.meta.taskCount.other'], { count: 13 })).toBe('13 tugas')
+    expect(interpolate(messages.id['tasks.meta.openCount'], { count: 11 })).toBe('11 terbuka di tampilan ini')
+  })
+
   it('issue 579: common.resultCount has a singular noun in both locales', () => {
     expect(interpolate(messages.en['common.resultCount.one'], { count: 1 })).toBe(
       '1 item in your scope',
