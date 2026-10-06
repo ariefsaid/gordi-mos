@@ -130,6 +130,26 @@ describe('the ready list', () => {
   })
 })
 
+describe('the table columns', () => {
+  it('puts State right after Who owes, so a flagged bill is visible at tablet widths', async () => {
+    renderPage()
+    const table = await screen.findByRole('table')
+    expect(within(table).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(
+      ['Date', 'Branch', 'Who owes', 'State', 'Bill no.', 'Amount', 'Balance', 'Age'],
+    )
+  })
+
+  it('says a branch MOS does not know is unknown, beside the code the till sent', async () => {
+    renderPage()
+    const table = await screen.findByRole('table')
+    const row = within(table).getByText('PB-1').closest('tr')!
+    expect(within(row).getByText('pop_up_east')).toBeInTheDocument()
+    expect(within(row).getByText('· unknown branch')).toBeInTheDocument()
+    const linked = within(table).getByText('PB-2').closest('tr')!
+    expect(within(linked).queryByText('· unknown branch')).toBeNull()
+  })
+})
+
 describe('the phone list', () => {
   it('shows one card per bill: who owes and amount, then date, branch and bill no., then age, state and balance', async () => {
     setViewport(false)
@@ -180,6 +200,21 @@ describe('AC-1123: every state says what happened and offers an action', () => {
     expect(await screen.findByText('No pending bills in the last copy.')).toBeInTheDocument()
     expect(screen.getByText('Copied from ESB Tue 6 Oct, 02:05 WIB')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Refresh' })).toBeInTheDocument()
+  })
+
+  it('empty copy reads as settled, not as waiting', async () => {
+    mockList.mockResolvedValue([])
+    renderPage()
+    await screen.findByText('No pending bills in the last copy.')
+    expect(screen.getByTestId('empty-state')).not.toHaveAttribute('data-empty-variant', 'awaiting')
+  })
+
+  it('a stale copy with no bills still warns that the list may be out of date', async () => {
+    mockList.mockResolvedValue([])
+    vi.setSystemTime(new Date('2026-10-07T03:00:00Z'))
+    renderPage()
+    await screen.findByText('No pending bills in the last copy.')
+    expect(screen.getByText('This list may be out of date. The last copy from ESB was Tue 6 Oct, 02:05 WIB.')).toBeInTheDocument()
   })
 
   it('error: says the list could not load and offers Try again', async () => {
