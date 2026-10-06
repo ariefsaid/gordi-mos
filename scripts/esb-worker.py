@@ -125,14 +125,24 @@ Environment
                             (default 360); keep it above the schedule's interval
   ESB_OPEN_PO_WINDOW_DAYS   PO date window read from ESB, 1..366 (default 120)
   ESB_OPEN_PO_SHAPE_FILE    optional JSON overriding OpenPoShape fields (FR-1033)
+  ESB_POST_GOODS_RECEIPTS   "1" lets a drain post Café goods-receipt groups (#1430). Off by
+                            default: the groups stay pending, untouched. Every other posting
+                            refusal above still applies, and the branch's own receipt-posting
+                            switch decides whether a group exists at all.
+  ESB_POST_ORG_ID           required with ESB_POST_GOODS_RECEIPTS: the one organisation whose
+                            goods receipts this environment posts. A group of any other
+                            organisation (a sample org among them) is refused, never sent.
+  ESB_GOODS_RECEIPT_SHAPE_FILE  optional JSON overriding GoodsReceiptShape fields (#1423 proof)
 
 Map file:
   {"target_env": "goo",
-   "branches": {"<mos branch code>": {"branch_id": 0, "location_id": 0}, ...},
+   "branches": {"<mos branch code>": {"branch_id": 0, "location_id": 0,
+                                      "receiving_locations": {"<mos location key>": 0}}, ...},
    "items":    {"<mos wip_item_id uuid>": {"bom_id": 0, "product_detail_id": 0}, ...},
    "item_units": {"<mos item_unit uuid>": {"product_detail_id": 0}, ...}}
   "item_units" is optional; the open-PO refresh uses it to name an ESB PO line's MOS product
-  detail. On the ERP of record ("items": "from-payload") the MOS catalog's own ids are used.
+  detail, and a goods receipt to name its lines' ESB product details. "receiving_locations" is
+  optional; a goods receipt's location comes only from it. On the ERP of record ("items": "from-payload") the MOS catalog's own ids are used.
   "items" may be the string "from-payload" ONLY when target_env is "gkid"; the loader
   refuses that combination anywhere else, which is the safety line enforced at config
   time as well as at dispatch time.
@@ -175,6 +185,7 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 TARGET_ENVS = ("dry_run", "goo", "gkid")
@@ -199,10 +210,14 @@ class Classified(Exception):
     whose body merely mentions one.
     """
 
-    def __init__(self, message: str, *, status: int | None = None, kind: str | None = None) -> None:
+    def __init__(self, message: str, *, status: int | None = None, kind: str | None = None,
+                 esb_message: str | None = None) -> None:
         super().__init__(message)
         self.status = status
         self.kind = kind
+        # ESB's own refusal text, without host, path or body around it: what a person may be
+        # shown (FR-1025).
+        self.esb_message = esb_message
 
 
 class Permanent(Classified):
@@ -211,6 +226,14 @@ class Permanent(Classified):
 
 class Transient(Classified):
     """This row might succeed later — spend one retry."""
+
+
+class Halt(Permanent):
+    """Nothing may be sent until a person has looked: ESB may already hold the document and
+    this worker cannot tell (FR-1028)."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message, kind="needs_person")
 
 
 class Unrecognised(Transient):
@@ -257,6 +280,28 @@ class IdMap:
             )
         return entry
 
+    def receiving_location(self, code: str | None, key: str | None) -> int:
+        """A goods receipt's ESB location: the branch's receiving location, from this
+        environment's map only. Never the branch's default location, never a guess."""
+        branch = self.branch(code)
+        if not key:
+            raise Permanent(f"branch {code!r} has no receiving location to post to")
+        location = (branch.get("receiving_locations") or {}).get(key)
+        if not isinstance(location, int):
+            raise Permanent(
+                f"receiving location {key!r} of branch {code!r} has no {self.target_env} ERP "
+                f"mapping — add it to the id map; another location is never used instead"
+            )
+        return location
+
+    def product_detail(self, item_unit_id: str) -> int:
+        """The ESB product detail for a MOS item unit, outside the ERP of record."""
+        entry = self.item_units.get(str(item_unit_id))
+        if entry is None:
+            raise Permanent(f"item unit {item_unit_id} has no {self.target_env} id map entry — "
+                            f"refusing to send it")
+        return entry["product_detail_id"]
+
     def item(self, payload: dict[str, Any]) -> dict[str, int]:
         """The ERP identifiers for this movement's WIP item.
 
@@ -296,6 +341,9 @@ class Config:
     max_retry: int
     max_rows: int
     timeout: float
+    post_goods_receipts: bool = False
+    post_org_id: str = ""
+    gr_shape: "GoodsReceiptShape" = field(default_factory=lambda: GoodsReceiptShape())
 
     @property
     def stamps_erp_of_record(self) -> bool:
@@ -344,6 +392,11 @@ def load_id_map(path: str, target_env: str) -> IdMap:
            or not isinstance(entry.get("location_id"), int):
             raise ConfigError(f"id map {path}: branch {code!r} needs integer "
                               f"`branch_id` and `location_id`")
+        receiving = entry.get("receiving_locations", {})
+        if not isinstance(receiving, dict) or not all(
+                isinstance(k, str) and isinstance(v, int) for k, v in receiving.items()):
+            raise ConfigError(f"id map {path}: branch {code!r} `receiving_locations` must map "
+                              f"location keys to integer ids")
 
     items = raw.get("items")
     if items == PASSTHROUGH:
@@ -440,6 +493,14 @@ def load_config(environ: dict[str, str], *, offline: bool, drains: bool,
                 f"row, prints what would be sent, and writes nothing."
             )
 
+    post_goods_receipts = _flag(environ, "ESB_POST_GOODS_RECEIPTS")
+    post_org_id = environ.get("ESB_POST_ORG_ID", "").strip()
+    if post_goods_receipts and not _UUID.match(post_org_id):
+        raise ConfigError("ESB_POST_GOODS_RECEIPTS needs ESB_POST_ORG_ID: the one organisation "
+                          "whose goods receipts this environment posts. No other organisation's "
+                          "receipt, and never a sample organisation's, is sent")
+    gr_shape = _load_shape(GoodsReceiptShape, environ.get("ESB_GOODS_RECEIPT_SHAPE_FILE", ""))
+
     supabase_url = environ.get("MOS_SUPABASE_URL", "").strip().rstrip("/")
     supabase_key = environ.get("MOS_SUPABASE_SERVICE_ROLE_KEY", "").strip()
     if not offline and not (supabase_url and supabase_key):
@@ -454,7 +515,26 @@ def load_config(environ: dict[str, str], *, offline: bool, drains: bool,
         max_retry=_int_env(environ, "ESB_MAX_RETRY", 5),
         max_rows=_int_env(environ, "ESB_MAX_ROWS", 50),
         timeout=float(_int_env(environ, "ESB_HTTP_TIMEOUT", 30)),
+        post_goods_receipts=post_goods_receipts, post_org_id=post_org_id, gr_shape=gr_shape,
     )
+
+
+def _load_shape(cls, path: str):
+    """An ESB reply/request shape: the class defaults, with any fields a deployment's JSON file
+    overrides (field names the sandbox proof fixes, #1423)."""
+    shape = cls()
+    path = path.strip()
+    if not path:
+        return shape
+    try:
+        with open(path, encoding="utf-8") as fh:
+            overrides = json.load(fh)
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ConfigError(f"cannot read {cls.__name__} file {path}: {exc}") from None
+    unknown = set(overrides) - set(cls.__dataclass_fields__) if isinstance(overrides, dict) else {"<not an object>"}
+    if unknown:
+        raise ConfigError(f"{cls.__name__} file {path} has unknown fields: {sorted(unknown)}")
+    return cls(**{**shape.__dict__, **overrides})
 
 
 def _int_env(environ: dict[str, str], name: str, default: int) -> int:
@@ -493,15 +573,26 @@ def _request(method: str, url: str, *, headers: dict[str, str],
         # must never have to read the code back out of it — see Classified.
         if exc.code >= 500 or exc.code in TRANSIENT_STATUS:
             raise Transient(f"{method} {_safe(url)} -> HTTP {exc.code}: {detail}",
-                            status=exc.code) from None
+                            status=exc.code, esb_message=_reply_message(detail)) from None
         raise Permanent(f"{method} {_safe(url)} -> HTTP {exc.code}: {detail}",
-                        status=exc.code) from None
+                        status=exc.code, esb_message=_reply_message(detail)) from None
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
         kind = ("shape_unrecognised" if isinstance(exc, json.JSONDecodeError)
                 else "timeout" if isinstance(exc, TimeoutError)
                 or isinstance(getattr(exc, "reason", None), TimeoutError) else "network")
         raise Transient(f"{method} {_safe(url)} failed: {type(exc).__name__}: {exc}",
                         kind=kind) from None
+
+
+def _reply_message(detail: Any) -> str | None:
+    """The `message` of a JSON reply (ESB's refusal text), or None."""
+    if isinstance(detail, str):
+        try:
+            detail = json.loads(detail)
+        except json.JSONDecodeError:
+            return None
+    message = detail.get("message") if isinstance(detail, dict) else None
+    return str(message).strip()[:400] or None if message else None
 
 
 def _safe(url: str) -> str:
@@ -556,7 +647,8 @@ class Outbox:
         # a prior tick left members in_flight or posted. Never strand accepted money.
         group_query = urllib.parse.urlencode({'id': f"in.({','.join(group_ids)})",
                                               'target_env': f'eq.{self.cfg.target_env}',
-                                              'select': 'id,esb_doc_num,status'})
+                                              'select': 'id,esb_doc_num,status,esb_created_num,'
+                                                        'esb_create_sent_at'})
         _, group_rows = _request(
             'GET', f"{self.cfg.supabase_url}/rest/v1/esb_push_groups?{group_query}",
             headers=self._headers(write=False), timeout=self.cfg.timeout)
@@ -771,7 +863,7 @@ class ErpClient:
         out = _erp_object(out, f"{method} {path}")
         if out.get("status") != "ok":
             raise Permanent(f"ERP {method} {path} returned non-ok: {str(out)[:400]}",
-                            kind="esb_refused")
+                            kind="esb_refused", esb_message=_reply_message(out))
         return out
 
     def get(self, path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -787,8 +879,8 @@ class ErpClient:
                             f"{type(details).__name__}, not a list")
         return details
 
-    def post(self, path: str, body: dict[str, Any], key: str) -> str:
-        result = self._call("POST", path, body).get("result")
+    def post(self, path: str, body: dict[str, Any], key: str, method: str = "POST") -> str:
+        result = self._call(method, path, body).get("result")
         if isinstance(result, dict):
             return (result.get(key) or "").strip()
         if isinstance(result, str) and "#" in result:
@@ -826,6 +918,9 @@ def compose(cfg: Config, row: dict[str, Any],
     endpoint = row.get("endpoint")
     if endpoint == "noop":
         return None
+    if endpoint == "goods-receipt":
+        raise Permanent("a goods receipt is posted only with its whole group (one ESB document "
+                        "per receipt and PO); a member without its group is never sent")
 
     origin = cfg.id_map.branch(payload.get("branch_code"))
     date_str = str(payload.get("log_date") or "")[:10]
@@ -1078,6 +1173,9 @@ def run_tick(cfg: Config, rows: list[dict[str, Any]], *,
         else:
             singles.append(row)
     for grouped in groups.values():
+        if any(r.get("endpoint") == "goods-receipt" for r in grouped):
+            bad += run_goods_receipt_group(cfg, client, outbox, grouped, plan_only=plan_only, out=out)
+            continue
         bad += _run_group(cfg, client, outbox, grouped, plan_only=plan_only, out=out,
                           wip_names=wip_names)
     rows = singles
@@ -1211,18 +1309,7 @@ def load_refresh_config(environ: dict[str, str]) -> RefreshConfig:
     window_days = _int_env(environ, "ESB_OPEN_PO_WINDOW_DAYS", 120)
     if not 1 <= window_days <= 366:
         raise ConfigError("ESB_OPEN_PO_WINDOW_DAYS must be between 1 and 366")
-    shape = OpenPoShape()
-    shape_file = environ.get("ESB_OPEN_PO_SHAPE_FILE", "").strip()
-    if shape_file:
-        try:
-            with open(shape_file, encoding="utf-8") as fh:
-                overrides = json.load(fh)
-        except (OSError, json.JSONDecodeError) as exc:
-            raise ConfigError(f"cannot read open-PO shape {shape_file}: {exc}") from None
-        unknown = set(overrides) - set(OpenPoShape.__dataclass_fields__) if isinstance(overrides, dict) else {"<not an object>"}
-        if unknown:
-            raise ConfigError(f"open-PO shape {shape_file} has unknown fields: {sorted(unknown)}")
-        shape = OpenPoShape(**{**shape.__dict__, **overrides})
+    shape = _load_shape(OpenPoShape, environ.get("ESB_OPEN_PO_SHAPE_FILE", ""))
     return RefreshConfig(cfg=cfg, org_id=org_id, max_age_minutes=max_age,
                          window_days=window_days,
                          shape=shape)
@@ -1400,6 +1487,432 @@ def refresh_open_pos(rcfg: RefreshConfig, scope: str, *, out, today: str | None 
         lines = sum(len(po["lines"]) for po in pos)
         print(f"{code}: cached {len(pos)} open PO(s), {lines} line(s), as of {as_of}", file=out)
     return stale
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════
+# Café goods receipts (#1430) — one ESB goods receipt per (receipt, PO) outbox group
+# ══════════════════════════════════════════════════════════════════════════════════════
+# ESB has no request idempotency, so a goods receipt is posted in checkpoints the group row
+# records: create-sent (before the create goes out), created-awaiting-authorization (the
+# number create returned), then posted (the authorized number, fanned out to the members).
+# After an ambiguous failure the next attempt looks ESB up by the group's MOS key before
+# anything else is sent (FR-1028). The checkpoint, lookup and id-map pieces are generic: the
+# purchase-request family (#1432) posts through the same ones.
+#
+# THE FIELD NAMES BELOW ARE NOT PROVEN, like the open-PO shape: create, authorize and lookup
+# paths, body keys, field limits and refusal texts are fixed by the sandbox proof (#1423) and
+# overridable per deployment with ESB_GOODS_RECEIPT_SHAPE_FILE.
+
+GR_ENDPOINT = "goods-receipt"
+
+
+@dataclass(frozen=True)
+class GoodsReceiptShape:
+    create_path: str = "/inventory/goods-receipt/{po_number}"
+    create_result: str = "goodsReceiptNum"
+    authorize_path: str = "/inventory/goods-receipt/authorize/{number}"
+    authorize_method: str = "PUT"
+    lookup_path: str = "/inventory/goods-receipt"
+    lookup_param: str = "keyword"
+    lookup_rows: str = "result.data"
+    lookup_number: str = "goodsReceiptNum"
+    lookup_status: str = "statusID"
+    authorized_statuses: tuple[str, ...] = ("3", "Authorized")
+    created_statuses: tuple[str, ...] = ("1", "2", "Draft", "Waiting")
+    date: str = "goodsReceiptDate"
+    location: str = "locationID"
+    information: str = "additionalInfo"
+    delivery_number: str = "deliveryNum"
+    auto_close_po: str = "isAutoClosePO"
+    details: str = "goodsReceiptDetails"
+    product: str = "productID"
+    product_detail: str = "productDetailID"
+    quantity: str = "qty"
+    deviation: str = "deviationQty"
+    notes: str = "notes"
+    information_max: int = 100
+    delivery_number_max: int = 50
+    notes_max: int = 100
+    po_line_product: str = "productID"
+    over_outstanding: str = r"(?i)less than or equal.{0,40}outstanding|outstanding.{0,40}less than or equal"
+
+
+def _ascii(text: Any, limit: int) -> str:
+    """ESB text fields take ASCII within a limit (FR-1024): accents folded, anything else and
+    control characters dropped, whitespace collapsed."""
+    import unicodedata
+    folded = unicodedata.normalize("NFKD", str(text or "")).encode("ascii", "ignore").decode("ascii")
+    return " ".join("".join(ch for ch in folded if ch.isprintable()).split())[:limit]
+
+
+def _qty(value: Any) -> Decimal:
+    try:
+        qty = Decimal(str(value)).quantize(Decimal("0.0001"))
+    except (InvalidOperation, ValueError):
+        raise Permanent(f"quantity is not a number: {value!r}") from None
+    if not qty.is_finite() or qty <= 0:
+        raise Permanent(f"quantity must be above zero: {value!r}")
+    return qty
+
+
+def failure_text(exc: Classified) -> str:
+    """What a group's last_error may say where procurement and finance read it: ESB's own
+    refusal text, or this worker's own reason — never a host, path or reply body."""
+    if exc.esb_message:
+        return f"ESB: {exc.esb_message}"
+    if isinstance(exc, Transient) or exc.status:
+        return f"ESB not reached or not understood ({error_class(exc)}); will retry"
+    return str(exc)
+
+
+# ── The reusable checkpoints: lookup by key, guarded create, authorize, fan-out ──────────
+@dataclass(frozen=True)
+class Found:
+    """What a lookup by MOS key decided: `number` is None when ESB provably holds none."""
+
+    number: str | None
+    authorized: bool = False
+
+
+def resume_point(outbox: "Outbox", gid: str, meta: dict[str, Any],
+                 lookup) -> tuple[str | None, str | None]:
+    """Where an attempt starts: (authorized number, created number), either or both None.
+
+    A group that sent a create without a recorded answer, or holds a created number from an
+    earlier attempt, is looked up by its key first (FR-1028): found and authorized adopts the
+    number, found and awaiting authorization adopts it as created, provably absent lets a new
+    create go out, and anything else halts the group for a person."""
+    if meta.get("esb_doc_num"):
+        return str(meta["esb_doc_num"]), None
+    created = meta.get("esb_created_num")
+    if not (created or meta.get("esb_create_sent_at")):
+        return None, None
+    found = lookup()
+    if found.number is None:
+        if created:
+            raise Halt(f"ESB has no document {created} that this group recorded as created — "
+                       f"a person must check ESB before anything is sent again")
+        outbox.patch_group(gid, {"esb_create_sent_at": None})
+        return None, None
+    if created and found.number != created:
+        raise Halt(f"ESB holds {found.number} under this group's key, but the group recorded "
+                   f"{created} — a person must check ESB")
+    if found.authorized:
+        outbox.patch_group(gid, {"esb_doc_num": found.number, "esb_created_num": found.number})
+        return found.number, None
+    outbox.patch_group(gid, {"esb_created_num": found.number})
+    return None, found.number
+
+
+def guarded_create(outbox: "Outbox", gid: str, send) -> str:
+    """Send one create. The create-sent mark is written BEFORE it goes out, so an answer lost
+    on the way back sends the next attempt to the lookup instead of a second create. A
+    definite refusal created nothing, so it clears the mark."""
+    outbox.patch_group(gid, {"esb_create_sent_at": _now()})
+    try:
+        number = send()
+    except Permanent:
+        outbox.patch_group(gid, {"esb_create_sent_at": None})
+        raise
+    if not number:
+        raise Transient("ESB accepted the create but returned no document number")
+    outbox.patch_group(gid, {"esb_created_num": number})
+    return number
+
+
+def authorize_created(outbox: "Outbox", gid: str, created: str, send) -> str:
+    """Authorize a created document. Only the number this returns is evidence of a post
+    (FR-1025): a portion is in ESB once it is recorded, never before."""
+    number = send(created) or created
+    outbox.patch_group(gid, {"esb_doc_num": number})
+    return number
+
+
+def fan_out(outbox: "Outbox", gid: str, rows: list[dict[str, Any]], number: str) -> None:
+    for row in rows:
+        if row.get("status") != "posted":
+            outbox.close_posted(row, number)
+            row["status"] = "posted"
+    outbox.patch_group(gid, {"status": "posted", "esb_doc_num": number, "posted_at": _now(),
+                             "last_error": None})
+
+
+# ── The goods-receipt document ───────────────────────────────────────────────────────────
+@dataclass(frozen=True)
+class GoodsReceiptGroup:
+    gid: str
+    org_id: str
+    po_number: str
+    arrival_date: str
+    branch_code: str
+    location_id: int
+    mos_key: str
+    delivery_note: str
+    members: list[dict[str, Any]]  # [{push_id, item_unit_id, quantity: Decimal}]
+
+
+def goods_receipt_group(cfg: Config, rows: list[dict[str, Any]]) -> GoodsReceiptGroup:
+    """Every refusal that needs no ESB call: the group's own consistency, the organisation,
+    and this environment's id map (FR-1027, FR-1029). Raises Permanent."""
+    if not rows or not rows[0].get("push_group_id"):
+        raise Permanent("a goods receipt is posted only with its whole group")
+    first = rows[0]
+    for row in rows:
+        if row.get("target_env") != cfg.target_env:
+            raise Permanent(f"row is stamped for {row.get('target_env')!r} and this worker "
+                            f"drains {cfg.target_env!r} — refusing")
+        if row.get("endpoint") != GR_ENDPOINT or row.get("source_module") != "cafe_receipt":
+            raise Permanent("a goods-receipt group holds only goods-receipt members")
+        if str(row.get("org_id")) != cfg.post_org_id:
+            raise Permanent("this worker posts goods receipts for one organisation only, and "
+                            "this group belongs to another (a sample organisation never posts)")
+    payloads = [r.get("payload") or {} for r in rows]
+    shared_keys = ("receipt_id", "po_number", "arrival_date", "branch_code",
+                   "receiving_location_key", "mos_key", "delivery_note_number")
+    for key in shared_keys:
+        if len({json.dumps(p.get(key)) for p in payloads}) != 1:
+            raise Permanent(f"the group's members disagree on {key}; one ESB goods receipt has one")
+    p = payloads[0]
+    po_number = str(p.get("po_number") or "").strip()
+    if not po_number:
+        raise Permanent("a goods receipt without a PO is never sent (FR-1027)")
+    arrival = str(p.get("arrival_date") or "")[:10]
+    try:
+        datetime.strptime(arrival, "%Y-%m-%d")
+    except ValueError:
+        raise Permanent(f"arrival date is not a date: {p.get('arrival_date')!r}") from None
+    mos_key = _ascii(p.get("mos_key"), cfg.gr_shape.information_max)
+    if not mos_key or mos_key != p.get("mos_key"):
+        raise Permanent("the group's MOS key is missing or not plain ASCII within the field limit")
+    location_id = cfg.id_map.receiving_location(p.get("branch_code"), p.get("receiving_location_key"))
+    members = [{"push_id": str(r["id"]), "item_unit_id": str((r.get("payload") or {}).get("item_unit_id") or ""),
+                "quantity": _qty((r.get("payload") or {}).get("quantity"))} for r in rows]
+    if any(not m["item_unit_id"] for m in members):
+        raise Permanent("a member names no item unit")
+    return GoodsReceiptGroup(
+        gid=str(first["push_group_id"]), org_id=str(first.get("org_id")), po_number=po_number,
+        arrival_date=arrival, branch_code=str(p.get("branch_code")), location_id=location_id,
+        mos_key=mos_key, delivery_note=_ascii(p.get("delivery_note_number"),
+                                              cfg.gr_shape.delivery_number_max),
+        members=members)
+
+
+def esb_product_details(cfg: Config, item_unit_ids: list[str]) -> dict[str, int]:
+    """MOS item unit -> ESB product detail, for this environment only. Outside the ERP of
+    record the id map is the only source; on it, the MOS catalog's own ids are that ERP's."""
+    if not cfg.id_map.passthrough:
+        return {u: cfg.id_map.product_detail(u) for u in item_unit_ids}
+    query = urllib.parse.urlencode({"id": f"in.({','.join(sorted(set(item_unit_ids)))})",
+                                    "select": "id,esb_product_detail_id"})
+    _, rows = _request("GET", f"{cfg.supabase_url}/rest/v1/item_units?{query}",
+                       headers=_pgrst_headers(cfg, "ops"), timeout=cfg.timeout)
+    found = {str(r["id"]): r.get("esb_product_detail_id") for r in (rows or []) if isinstance(r, dict)}
+    out: dict[str, int] = {}
+    for unit in item_unit_ids:
+        out[unit] = _as_int(found.get(unit), f"item unit {unit} ESB product detail")
+    return out
+
+
+def read_po_outstanding(cfg: Config, client: "ErpClient", po_number: str) -> dict[int, dict[str, Any]]:
+    """The PO's outstanding per ESB product detail, read fresh (FR-1027), with the product each
+    line belongs to. An empty result means nothing on the PO is outstanding."""
+    shape = OpenPoShape()
+    detail = client.get(shape.outstanding_path.format(number=urllib.parse.quote(po_number, safe="")))
+    lines = _dig(detail, shape.detail_lines)
+    if not isinstance(lines, list):
+        raise Unrecognised(f"PO {po_number}: the outstanding read returned no line list")
+    out: dict[int, dict[str, Any]] = {}
+    for line in lines:
+        pdid = _as_int(_dig(line, shape.product_detail), "PO line product detail")
+        entry = out.setdefault(pdid, {"outstanding": Decimal(0),
+                                      "product_id": _dig(line, cfg.gr_shape.po_line_product)})
+        entry["outstanding"] += Decimal(str(_quantity(_dig(line, shape.outstanding), po_number))).quantize(Decimal("0.0001"))
+    return out
+
+
+def fit_members(members: list[dict[str, Any]], pdids: dict[str, int],
+                outstanding: dict[int, dict[str, Any]]) -> list[dict[str, Any]]:
+    """FR-1026/1027, pure: how much of each member still fits the PO's fresh outstanding, in
+    member order. A shortfall's excess is `over` when the PO still lists the product detail,
+    `no_po` when it does not. Returns only the members that do not fit whole."""
+    left = {pdid: entry["outstanding"] for pdid, entry in outstanding.items()}
+    shortfalls = []
+    for m in members:
+        pdid = pdids[m["item_unit_id"]]
+        fits = min(m["quantity"], max(left.get(pdid, Decimal(0)), Decimal(0)))
+        left[pdid] = left.get(pdid, Decimal(0)) - fits
+        if fits < m["quantity"]:
+            shortfalls.append({"push_id": m["push_id"], "fits": fits,
+                               "kind": "over" if pdid in outstanding else "no_po"})
+    return shortfalls
+
+
+def goods_receipt_body(cfg: Config, group: GoodsReceiptGroup, pdids: dict[str, int],
+                       outstanding: dict[int, dict[str, Any]]) -> dict[str, Any]:
+    """FR-1024: one goods receipt against the PO — arrival date, the receiving location from
+    the id map, the MOS key and delivery-note text, one detail per member with deviation zero,
+    and automatic PO close off."""
+    shape = cfg.gr_shape
+    details = []
+    for m in group.members:
+        pdid = pdids[m["item_unit_id"]]
+        product = outstanding.get(pdid, {}).get("product_id")
+        details.append({
+            shape.product: _as_int(product, f"PO {group.po_number} line product"),
+            shape.product_detail: pdid,
+            shape.quantity: float(m["quantity"]),
+            shape.deviation: 0,
+            shape.notes: _ascii(group.mos_key, shape.notes_max),
+        })
+    return {
+        shape.date: group.arrival_date,
+        shape.location: group.location_id,
+        shape.information: group.mos_key,
+        shape.delivery_number: group.delivery_note,
+        shape.auto_close_po: False,
+        shape.details: details,
+    }
+
+
+def lookup_goods_receipt(cfg: Config, client: "ErpClient", mos_key: str) -> Found:
+    """FR-1028: ESB's goods receipts carrying exactly this key. One match decides; none is
+    provably absent only when the read itself was understood; anything else halts."""
+    shape = cfg.gr_shape
+    try:
+        result = client.get(shape.lookup_path, {shape.lookup_param: mos_key})
+    except Permanent as exc:
+        raise Halt(f"the lookup by MOS key was refused ({failure_text(exc)}); a person must check "
+                   f"ESB for {mos_key} before anything is sent") from None
+    rows = _dig(result, shape.lookup_rows)
+    if not isinstance(rows, list):
+        raise Halt(f"the lookup by MOS key returned no list; a person must check ESB for {mos_key}")
+    matches = [r for r in rows if isinstance(r, dict) and str(_dig(r, shape.information) or "").strip() == mos_key]
+    if not matches:
+        return Found(None)
+    if len(matches) > 1:
+        raise Halt(f"ESB holds {len(matches)} goods receipts under {mos_key}; a person must "
+                   f"decide which one stands")
+    number = str(_dig(matches[0], shape.lookup_number) or "").strip()
+    status = str(_dig(matches[0], shape.lookup_status) or "")
+    if not number or status not in shape.authorized_statuses + shape.created_statuses:
+        raise Halt(f"ESB's goods receipt under {mos_key} has no number or an unrecognised "
+                   f"status; a person must check it")
+    return Found(number, authorized=status in shape.authorized_statuses)
+
+
+def run_goods_receipt_group(cfg: Config, client: "ErpClient", outbox: "Outbox | None",
+                            rows: list[dict[str, Any]], *, plan_only: bool, out) -> int:
+    """Post one (receipt, PO) group as one ESB goods receipt. Returns the rows not clean."""
+    ref = rows[0].get("push_group_id") or rows[0].get("source_ref")
+    if not cfg.post_goods_receipts:
+        # Off is the default and is not a failure: the group stays pending, untouched.
+        print(f"{ref}: held — goods-receipt posting is off in this worker "
+              f"(ESB_POST_GOODS_RECEIPTS); nothing claimed or sent", file=out)
+        return 0
+    try:
+        group = goods_receipt_group(cfg, rows)
+    except Permanent as exc:
+        print(f"{ref}: {'REFUSED' if plan_only else 'group failed'} — {exc}", file=out)
+        if not plan_only and outbox:
+            for row in rows:
+                outbox.close_failed(row, str(exc), permanent=True)
+            if rows[0].get("push_group_id"):
+                outbox.patch_group(str(rows[0]["push_group_id"]),
+                                   {"status": "dead_letter", "last_error": str(exc)[:2000]})
+        return len(rows)
+    if plan_only:
+        print(f"{ref}: GET {OpenPoShape().outstanding_path.format(number=group.po_number)} "
+              f"(re-read outstanding), then POST "
+              f"{cfg.gr_shape.create_path.format(po_number=group.po_number)} "
+              f"{json.dumps({'date': group.arrival_date, 'location': group.location_id, 'key': group.mos_key, 'lines': [[m['item_unit_id'], str(m['quantity'])] for m in group.members]}, sort_keys=True)}"
+              f", then authorize", file=out)
+        return 0
+    assert outbox is not None
+    gid = group.gid
+    meta = outbox.group_meta(gid)
+    if not meta.get("esb_doc_num"):
+        # An authorized group only fans out (resume): its members may already be posted.
+        claimed = [row for row in rows if outbox.claim(row["id"])]
+        if len(claimed) != len(rows):
+            for row in claimed:
+                outbox._patch(row["id"], {"status": "failed", "retry_count": int(row.get("retry_count") or 0),
+                                          "last_error": "goods-receipt group could not claim every member"})
+            print(f"{ref}: group failed — could not claim every member", file=out)
+            return len(rows)
+    try:
+        number = post_goods_receipt(cfg, client, outbox, group, meta, out=out)
+        if number is None:
+            print(f"{ref}: nothing fits PO {group.po_number} now — returned to Receipt issues, "
+                  f"nothing sent", file=out)
+            return 0
+        kept = {m["push_id"] for m in group.members}
+        fan_out(outbox, gid, [r for r in rows if str(r["id"]) in kept], number)
+    except Classified as exc:
+        # Members the database returned to Receipt issues have left the group: not touched.
+        kept = {m["push_id"] for m in group.members}
+        text = failure_text(exc)
+        states = []
+        for row in rows:
+            if str(row["id"]) in kept and row.get("status") != "posted":
+                try:
+                    states.append(outbox.close_failed(row, text, permanent=isinstance(exc, Permanent)))
+                except Classified:
+                    pass
+        try:
+            outbox.patch_group(gid, {"status": "dead_letter" if states and all(s == "dead_letter" for s in states)
+                                     else "failed", "last_error": text[:2000]})
+        except Classified:
+            pass
+        print(f"{ref}: group failed — {exc}", file=out)
+        return len(rows)
+    print(f"{ref}: posted -> {number} ({len(group.members)} lines, PO {group.po_number})", file=out)
+    return 0
+
+
+def post_goods_receipt(cfg: Config, client: "ErpClient", outbox: "Outbox", group: GoodsReceiptGroup,
+                       meta: dict[str, Any], *, out) -> str | None:
+    """Resume, re-read, fit, create, authorize. Returns the authorized number, or None when
+    nothing of the group fits the PO any more (the database returned it to Receipt issues).
+    `group.members` is narrowed in place to what was sent."""
+    shape = cfg.gr_shape
+    gid = group.gid
+    number, created = resume_point(outbox, gid, meta,
+                                   lambda: lookup_goods_receipt(cfg, client, group.mos_key))
+    if number:
+        return number
+    if not created:
+        pdids = esb_product_details(cfg, [m["item_unit_id"] for m in group.members])
+        path = shape.create_path.format(po_number=urllib.parse.quote(group.po_number, safe=""))
+        for attempt in (1, 2):
+            outstanding = read_po_outstanding(cfg, client, group.po_number)
+            shortfalls = fit_members(group.members, pdids, outstanding)
+            if shortfalls:
+                remaining = _rpc(cfg, "return_cafe_receipt_excess", {
+                    "p_group_id": gid,
+                    "p_fits": [{**s, "fits": float(s["fits"])} for s in shortfalls]})
+                kept = {str(r["push_id"]): _qty(r["quantity"]) for r in (remaining or [])}
+                group.members[:] = [{**m, "quantity": kept[m["push_id"]]}
+                                    for m in group.members if m["push_id"] in kept]
+                if not group.members:
+                    return None
+            elif attempt == 2:
+                raise Permanent(f"ESB refused PO {group.po_number}'s quantities as above "
+                                f"outstanding, yet its outstanding read says they fit; nothing is "
+                                f"sent again until a person has looked")
+            body = goods_receipt_body(cfg, group, pdids, outstanding)
+            try:
+                created = guarded_create(outbox, gid,
+                                         lambda: client.post(path, body, shape.create_result))
+                break
+            except Permanent as exc:
+                if attempt == 1 and exc.esb_message and re.search(shape.over_outstanding, exc.esb_message):
+                    print(f"{gid}: ESB says above outstanding — re-reading PO {group.po_number}", file=out)
+                    continue
+                raise
+    assert created
+    return authorize_created(outbox, gid, created, lambda n: client.post(
+        shape.authorize_path.format(number=urllib.parse.quote(n, safe="")), {},
+        shape.create_result, method=shape.authorize_method))
 
 
 def load_rows(path: str) -> list[dict[str, Any]]:
