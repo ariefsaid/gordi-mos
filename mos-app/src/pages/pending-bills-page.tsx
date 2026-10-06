@@ -43,8 +43,11 @@ function owes(bill: PendingBillView, t: T): ReactNode {
   return bill.counterpartyNote ?? <span className="pending-bills__muted">{t('pendingBills.owes.none')}</span>
 }
 
-function branch(bill: PendingBillView): ReactNode {
-  return bill.branchName ?? <span className="pending-bills__code">{bill.branchCode}</span>
+function branch(bill: PendingBillView, t: T): ReactNode {
+  if (bill.branchKnown && bill.branchName) return bill.branchName
+  const code = <span className="pending-bills__code">{bill.branchCode}</span>
+  if (bill.branchKnown) return code
+  return <>{code} <span className="pending-bills__muted">{t('pendingBills.branch.unknown')}</span></>
 }
 
 function statePill(bill: PendingBillView, t: T): ReactNode {
@@ -54,13 +57,14 @@ function statePill(bill: PendingBillView, t: T): ReactNode {
 function columns(t: T, locale: ReturnType<typeof useI18n>['locale']): DataTableColumn<PendingBillView>[] {
   return [
     { key: 'date', header: t('pendingBills.col.date'), render: (b) => <span className="tabular pending-bills__nowrap">{formatDayMonthYear(b.billDate, locale)}</span> },
-    { key: 'branch', header: t('pendingBills.col.branch'), render: branch },
+    { key: 'branch', header: t('pendingBills.col.branch'), render: (b) => branch(b, t) },
     { key: 'owes', header: t('pendingBills.col.owes'), render: (b) => <span className="pending-bills__owes">{owes(b, t)}</span> },
+    // State sits beside Who owes so a flagged bill is in view before the table needs to scroll.
+    { key: 'state', header: t('pendingBills.col.state'), render: (b) => statePill(b, t) },
     { key: 'bill', header: t('pendingBills.col.billNo'), render: (b) => <span className="pending-bills__code">{b.billNo}</span> },
     { key: 'amount', header: t('pendingBills.col.amount'), numeric: true, render: (b) => formatIDR(b.amount) },
     { key: 'balance', header: t('pendingBills.col.balance'), numeric: true, render: (b) => formatIDR(b.balance) },
     { key: 'age', header: t('pendingBills.col.age'), numeric: true, render: (b) => ageText(b.ageDays, t) },
-    { key: 'state', header: t('pendingBills.col.state'), render: (b) => statePill(b, t) },
   ]
 }
 
@@ -74,7 +78,7 @@ function BillCard({ bill }: { bill: PendingBillView }) {
       <div className="pending-bill-card__amount tabular">{formatIDR(bill.amount)}</div>
       <div className="pending-bill-card__meta">
         <span className="tabular">{formatDayMonthYear(bill.billDate, locale)}</span>
-        {' · '}{branch(bill)}{' · '}
+        {' · '}{branch(bill, t)}{' · '}
         <span className="pending-bills__code">{bill.billNo}</span>
       </div>
       <div className="pending-bill-card__status">
@@ -130,12 +134,19 @@ export function PendingBillsPage() {
   const copiedAt = formatWibWeekdayTime(data.snapshot.snapshot_as_of, locale)
   const asOf = <span className="ch-meta-line pending-bills-freshness">{t('pendingBills.asOf', { time: copiedAt })}</span>
   const bills = toPendingBillViews(data.bills, wibToday())
+  const stale = isPendingBillCopyStale(data.snapshot.snapshot_as_of, new Date()) && (
+    <div className="pending-bills-stale">
+      <p className="pending-bills-stale__text">{t('pendingBills.stale', { time: copiedAt })}</p>
+      {refresh}
+    </div>
+  )
 
   if (bills.length === 0) {
     return frame(
       <div className="pending-bills-body">
         {kept}
-        <EmptyState variant="awaiting" title={t('pendingBills.empty.title')}>{refresh}</EmptyState>
+        {stale}
+        <EmptyState variant="quiet" title={t('pendingBills.empty.title')}>{!stale && refresh}</EmptyState>
       </div>,
       'empty',
       asOf,
@@ -145,12 +156,7 @@ export function PendingBillsPage() {
   return frame(
     <div className="pending-bills-body">
       {kept}
-      {isPendingBillCopyStale(data.snapshot.snapshot_as_of, new Date()) && (
-        <div className="pending-bills-stale">
-          <p className="pending-bills-stale__text">{t('pendingBills.stale', { time: copiedAt })}</p>
-          {refresh}
-        </div>
-      )}
+      {stale}
       <div className="pending-bills-scroll">
         <DataTable
           columns={columns(t, locale)}

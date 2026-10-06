@@ -2,6 +2,7 @@
    The table and its phone cards are DataTable's (components/dashboard/data-table.css). Token-only. */
 
 .pending-bills-body {
+  container: pending-bills / inline-size;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -31,21 +32,36 @@
   font-weight: 500;
 }
 
-/* A column that cannot fit scrolls inside the list, never the page. */
+/* The table needs about 935px. Below that container width it scrolls inside the list, never the
+   page; above it there is no scroll box, so DataTable's sticky header pins to the page scroll. */
 .pending-bills-scroll {
   min-width: 0;
-  overflow-x: auto;
+}
+
+@container pending-bills (max-width: 949.98px) {
+  .pending-bills-scroll {
+    overflow-x: auto;
+  }
+}
+
+/* Amount, balance and age read on one line; a figure split across lines is hard to reconcile. */
+.pending-bills-scroll td.dt-num {
+  white-space: nowrap;
+}
+
+.pending-bills-scroll td .pending-bills__code {
+  white-space: nowrap;
+  overflow-wrap: normal;
 }
 
 .pending-bills__nowrap {
   white-space: nowrap;
 }
 
-/* Who owes wraps as written; never ellipsised. */
+/* Who owes wraps as written, never ellipsised, and takes the width the other columns leave. */
 .pending-bills__owes {
   display: block;
-  min-width: 160px;
-  max-width: 320px;
+  min-width: 12ch;
   overflow-wrap: anywhere;
 }
 

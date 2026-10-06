@@ -8,6 +8,8 @@ export interface PendingBillView {
   billDate: string
   branchName: string | null
   branchCode: string
+  /** Linked to a branch MOS knows; false while the till's code is not in the catalog. */
+  branchKnown: boolean
   billNo: string
   counterpartyNote: string | null
   amount: number
@@ -41,6 +43,7 @@ export function toPendingBillViews(rows: readonly PendingBillRow[], today: strin
         billDate: row.bill_date,
         branchName: row.branch_name,
         branchCode: row.branch_code,
+        branchKnown: row.branch_id !== null,
         billNo: row.bill_no,
         counterpartyNote: row.counterparty_note,
         amount,
