@@ -262,6 +262,7 @@ alter table ops.cafe_receipt_issues
   drop column linked_po_date,
   drop column linked_po_created_at,
   drop column po_created_after_delivery,
+  drop column reopened_po_number,
   drop column closed_note,
   drop column resolved_by,
   drop column resolved_at;

@@ -140,6 +140,7 @@ alter table ops.cafe_receipt_issues
   add column linked_po_date date,
   add column linked_po_created_at timestamptz,
   add column po_created_after_delivery boolean not null default false,
+  add column reopened_po_number text,
   add column closed_note text,
   add column resolved_by uuid references shared.people(id),
   add column resolved_at timestamptz,
@@ -153,6 +154,8 @@ comment on table ops.cafe_receipt_issues is
   'A Receipt issue on one receipt line. Blocking kinds (no_po, over, wrong_unit) are the part matching left unposted; informational kinds (short, damaged_wrong) are recorded at matching and never block posting. Open until procurement links it to a PO or closes it with a note; written only by the matching path and the procurement RPCs.';
 comment on column ops.cafe_receipt_issues.po_created_after_delivery is
   'FR-1038: a PO linked to all or part of this issue was created in ESB (Asia/Jakarta date) after the receipt''s arrival date. Recorded at link and kept; shown as quiet text, never a block.';
+comment on column ops.cafe_receipt_issues.reopened_po_number is
+  'The linked PO a release last found without room for this issue''s part, which re-opened the issue for a new link or a close (#1431).';
 
 -- A link's portion belongs to its issue and its PO: a release re-checks it against that PO only.
 alter table ops.cafe_receipt_portions
@@ -160,45 +163,46 @@ alter table ops.cafe_receipt_portions
   add column po_created_after_delivery boolean not null default false,
   add constraint cafe_receipt_portions_link_ck check (issue_id is null or po_number is not null);
 comment on column ops.cafe_receipt_portions.issue_id is
-  'The Receipt issue whose link made this portion; it stays on the PO procurement chose (#1431).';
+  'The Receipt issue whose link made this portion; it posts only on the PO procurement chose, or goes back to that issue (#1431).';
 comment on column ops.cafe_receipt_portions.po_created_after_delivery is
   'FR-1038 on the posting trail: this portion posts against a PO that ESB created after the arrival date.';
 
 -- ── Who reads what: procurement joins the receipt, issue, portion and open-PO reads ──────────
 -- Procurement reads Approved receipts only: issues exist only there, and a Counted or Submitted
--- receipt stays with its receiver and reviewers.
+-- receipt stays with its receiver and reviewers. In each read the capability, evaluated once per
+-- statement, comes before ops.can_review_stream, which runs once per row.
 alter policy cafe_receipts_select_receiver_or_reviewer on ops.cafe_receipts
   using (
     org_id = (select shared.current_org_id())
-    and (received_by = (select shared.current_person_id())
-         or ops.can_review_stream(branch_id, activity)
-         or (status = 'Approved' and (select ops.can_manage_cafe_receipt_issues())))
+    and ((status = 'Approved' and (select ops.can_manage_cafe_receipt_issues()))
+         or received_by = (select shared.current_person_id())
+         or ops.can_review_stream(branch_id, activity))
   );
 comment on policy cafe_receipts_select_receiver_or_reviewer on ops.cafe_receipts is
-  'A receiver reads their own receipts; a stream reviewer reads that stream''s, and ops lead and admin read every stream (ops.can_review_stream); a procurement capability holder reads Approved receipts (#1431).';
+  'A procurement capability holder reads Approved receipts (#1431); a receiver reads their own; a stream reviewer reads that stream''s, and ops lead and admin read every stream (ops.can_review_stream). The capability is tested first, once per statement, so a holder never pays the per-row stream check.';
 
 alter policy cafe_receipt_issues_select_receiver_or_reviewer on ops.cafe_receipt_issues
   using (
     org_id = (select shared.current_org_id())
     and exists (select 1 from ops.cafe_receipts r
                  where r.org_id = cafe_receipt_issues.org_id and r.id = cafe_receipt_issues.receipt_id
-                   and (r.received_by = (select shared.current_person_id())
-                        or ops.can_review_stream(r.branch_id, r.activity)
-                        or (r.status = 'Approved' and (select ops.can_manage_cafe_receipt_issues()))))
+                   and ((r.status = 'Approved' and (select ops.can_manage_cafe_receipt_issues()))
+                        or r.received_by = (select shared.current_person_id())
+                        or ops.can_review_stream(r.branch_id, r.activity)))
   );
 comment on policy cafe_receipt_issues_select_receiver_or_reviewer on ops.cafe_receipt_issues is
-  'The receiver reads the issues on their own receipts (FR-1040), reviewers of the stream read the stream''s, and a procurement capability holder reads every issue of the organisation (#1431).';
+  'A procurement capability holder reads every issue of the organisation''s Approved receipts (#1431), the receiver reads the issues on their own receipts (FR-1040), and reviewers of the stream read the stream''s. The capability is tested first, once per statement, so a holder never pays the per-row stream check.';
 
 alter policy cafe_receipt_portions_select_reviewer on ops.cafe_receipt_portions
   using (
     org_id = (select shared.current_org_id())
     and exists (select 1 from ops.cafe_receipts r
                  where r.org_id = cafe_receipt_portions.org_id and r.id = cafe_receipt_portions.receipt_id
-                   and (ops.can_review_stream(r.branch_id, r.activity)
-                        or (select ops.can_manage_cafe_receipt_issues())))
+                   and ((select ops.can_manage_cafe_receipt_issues())
+                        or ops.can_review_stream(r.branch_id, r.activity)))
   );
 comment on policy cafe_receipt_portions_select_reviewer on ops.cafe_receipt_portions is
-  'Matched quantities per PO reveal outstanding, so only reviewers of the receipt''s stream and procurement capability holders read them (DD-CAFE-MVP-6); the receiver reads the posting state as text through ops.cafe_receipt_posting.';
+  'Matched quantities per PO reveal outstanding, so only procurement capability holders and reviewers of the receipt''s stream read them (DD-CAFE-MVP-6); the receiver reads the posting state as text through ops.cafe_receipt_posting. The capability is tested first, once per statement, so a holder never pays the per-row stream check.';
 
 create or replace function ops.can_read_cafe_receipt_evidence(p_receipt_id uuid)
 returns boolean
@@ -210,9 +214,9 @@ as $$
   select exists (
     select 1 from ops.cafe_receipts r
      where r.id = p_receipt_id and r.org_id = shared.current_org_id()
-       and (r.received_by = shared.current_person_id()
-            or (r.status in ('Submitted', 'Approved', 'Rejected') and ops.can_review_stream(r.branch_id, r.activity))
-            or (r.status = 'Approved' and ops.can_manage_cafe_receipt_issues()))
+       and ((r.status = 'Approved' and ops.can_manage_cafe_receipt_issues())
+            or r.received_by = shared.current_person_id()
+            or (r.status in ('Submitted', 'Approved', 'Rejected') and ops.can_review_stream(r.branch_id, r.activity)))
   );
 $$;
 comment on function ops.can_read_cafe_receipt_evidence(uuid) is
@@ -594,8 +598,9 @@ grant execute on function ops.close_cafe_receipt_issue(uuid, text) to authentica
 
 -- ── FR-1030 release, with linked portions kept on their PO (#1431) ────────────────────────────
 -- A portion a procurement link made stays on the PO procurement chose: the release re-checks it
--- against that PO alone, before any re-match, and keeps it held "no longer fits" when that PO no
--- longer has the quantity. Every other held portion is re-matched as 20261007003000 does.
+-- against that PO alone, before any re-match. When that PO no longer has the quantity, the part
+-- goes back to its issue, open, for procurement to link again or close. Every other held portion
+-- is re-matched as 20261007003000 does.
 create or replace function ops.release_cafe_receipts(p_branch_id uuid)
 returns jsonb
 language plpgsql
@@ -636,8 +641,9 @@ begin
     -- Receipts approved while PO data was missing are matched now, which also enqueues what fits.
     perform ops._match_waiting_cafe_receipts_at(v_org_id, p_branch_id);
 
-    -- Linked portions first, oldest arrival first: each posts on its own PO or stays held. One is
-    -- enqueued before the next is checked, so two links on one PO never post its outstanding twice.
+    -- Linked portions release before approval-held ones: procurement's pick wins a lowered outstanding.
+    -- Oldest arrival first, each is enqueued before the next is checked, so two links on one PO
+    -- never post its outstanding twice.
     for v_link in
       select q.* from ops.cafe_receipt_portions q
         join ops.cafe_receipts r on r.org_id = q.org_id and r.id = q.receipt_id
@@ -647,16 +653,27 @@ begin
     loop
       select * into v_receipt from ops.cafe_receipts r where r.org_id = v_org_id and r.id = v_link.receipt_id;
       v_location := ops._cafe_receipt_location(v_org_id, p_branch_id, v_receipt.receiving_location_key);
-      if v_location is null
-         or v_link.quantity > coalesce((select sum((x ->> 'outstanding')::numeric)
-                                          from jsonb_array_elements(ops._cafe_receipt_po_lines(v_org_id, p_branch_id)) x
-                                         where x ->> 'po_number' = v_link.po_number
-                                           and (x ->> 'item_unit_id')::uuid = v_link.item_unit_id), 0) then
+      if v_location is null then
         update ops.cafe_receipt_portions q
-           set hold_reason = case when v_location is null then 'receiving_location_missing' else 'no_longer_fits' end,
-               updated_at = clock_timestamp()
-         where q.id = v_link.id
-           and q.hold_reason is distinct from case when v_location is null then 'receiving_location_missing' else 'no_longer_fits' end;
+           set hold_reason = 'receiving_location_missing', updated_at = clock_timestamp()
+         where q.id = v_link.id and q.hold_reason is distinct from 'receiving_location_missing';
+        continue;
+      end if;
+      if v_link.quantity > coalesce((select sum((x ->> 'outstanding')::numeric)
+                                       from jsonb_array_elements(ops._cafe_receipt_po_lines(v_org_id, p_branch_id)) x
+                                      where x ->> 'po_number' = v_link.po_number
+                                        and (x ->> 'item_unit_id')::uuid = v_link.item_unit_id), 0) then
+        -- The linked PO has no room for the part: it leaves the posting path and its issue is open
+        -- again for that quantity, added to any part still open.
+        update ops.cafe_receipt_portions q
+           set state = 'superseded', hold_reason = null, updated_at = clock_timestamp()
+         where q.id = v_link.id;
+        update ops.cafe_receipt_issues i
+           set quantity = case when i.status = 'open' then i.quantity + v_link.quantity else v_link.quantity end,
+               status = 'open', reopened_po_number = v_link.po_number,
+               linked_po_number = null, linked_po_date = null, linked_po_created_at = null,
+               closed_note = null, resolved_by = null, resolved_at = null
+         where i.org_id = v_org_id and i.id = v_link.issue_id;
         continue;
       end if;
       update ops.cafe_receipt_portions q
@@ -723,7 +740,7 @@ begin
 end;
 $$;
 comment on function ops.release_cafe_receipts(uuid) is
-  'FR-1030: an ops lead or admin releases a branch''s held Approved receipts once its posting switch is on. A portion a procurement link made posts only on its linked PO, or stays held no longer fits; every other held quantity is re-matched against the current cache less what is already enqueued, queues what fits once and keeps the rest held with a reason; a rerun enqueues nothing new. Without current PO data it enqueues nothing, asks for a refresh and says why.';
+  'FR-1030: an ops lead or admin releases a branch''s held Approved receipts once its posting switch is on. A portion a procurement link made posts only on its linked PO; when that PO has no room, its issue is open again for that quantity. Every other held quantity is re-matched against the current cache less what is already enqueued, queues what fits once and keeps the rest held with a reason; a rerun enqueues nothing new. Without current PO data it enqueues nothing, asks for a refresh and says why.';
 revoke execute on function ops.release_cafe_receipts(uuid) from public, anon, authenticated;
 grant execute on function ops.release_cafe_receipts(uuid) to authenticated;
 

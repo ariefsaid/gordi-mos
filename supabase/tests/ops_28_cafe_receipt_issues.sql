@@ -3,7 +3,10 @@
 -- delivery, and record history of receipts, lines, portions, issues and grants.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(84);
+select plan(92);
+-- C8 counts calls of the per-receipt stream check, so a policy that runs it before procurement's
+-- capability fails here at any volume.
+set local track_functions = 'all';
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -197,6 +200,43 @@ select is((select count(*)::int from ops.list_cafe_receipt_photos(array[current_
   'NFR-1001 procurement lists no photo of a Submitted receipt');
 select ok(not ops.can_read_cafe_receipt_photo(current_setting('app.r2_photo')),
   'NFR-1001 procurement may not sign a Submitted receipt''s photo');
+-- C8: more Approved receipts, each with an open no-PO issue, then procurement's three reads. The
+-- stream check may run only for receipts that are not Approved; a policy that tests it before the
+-- capability runs it for every Approved receipt as well.
+do $$
+declare
+  v_receipt uuid;
+begin
+  for i in 1..30 loop
+    perform shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member"]}');
+    v_receipt := (ops.submit_cafe_receipt('00000000-0000-0000-0000-00000000bf01', 'kitchen', null,
+      gen_random_uuid(), jsonb_build_array(jsonb_build_object('item_unit_id', current_setting('app.sugar_kg'), 'quantity', '1'))) ->> 'receipt_id')::uuid;
+    perform ops.send_cafe_receipt_for_review(v_receipt, 1, null);
+    perform shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","supervisor"]}');
+    perform ops.review_cafe_receipt(v_receipt, 'approve', 2, null);
+  end loop;
+end;
+$$;
+reset role;
+select set_config('app.not_approved', (select count(*)::text from ops.cafe_receipts
+  where org_id = '00000000-0000-0000-0000-0000000000a1' and status <> 'Approved'), true);
+set local role authenticated;
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d6","access_roles":["member"]}');
+select set_config('app.stream_calls', pg_stat_get_xact_function_calls('ops.can_review_stream(uuid,text)'::regprocedure)::text, true);
+select count(*) from ops.cafe_receipts;
+select cmp_ok(pg_stat_get_xact_function_calls('ops.can_review_stream(uuid,text)'::regprocedure) - current_setting('app.stream_calls')::bigint,
+  '<=', current_setting('app.not_approved')::bigint,
+  'C8 procurement reads the receipts with the per-row stream check only for those not Approved');
+select set_config('app.stream_calls', pg_stat_get_xact_function_calls('ops.can_review_stream(uuid,text)'::regprocedure)::text, true);
+select count(*) from ops.cafe_receipt_issues where status = 'open';
+select cmp_ok(pg_stat_get_xact_function_calls('ops.can_review_stream(uuid,text)'::regprocedure) - current_setting('app.stream_calls')::bigint,
+  '<=', current_setting('app.not_approved')::bigint,
+  'C8 procurement counts the open issues with the per-row stream check only for receipts not Approved');
+select set_config('app.stream_calls', pg_stat_get_xact_function_calls('ops.can_review_stream(uuid,text)'::regprocedure)::text, true);
+select count(*) from ops.cafe_receipt_portions;
+select cmp_ok(pg_stat_get_xact_function_calls('ops.can_review_stream(uuid,text)'::regprocedure) - current_setting('app.stream_calls')::bigint,
+  '<=', current_setting('app.not_approved')::bigint,
+  'C8 procurement reads the portions with the per-row stream check only for receipts not Approved');
 
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member"]}');
 select is((select count(*)::int from ops.cafe_receipt_issues where receipt_id = current_setting('app.r1')::uuid), 5,
@@ -405,8 +445,13 @@ select is((select e.payload ->> 'po_number' from integrations.esb_push e
 select is((select array_agg(q.po_number || ':' || trim_scale(q.quantity)::text || ':' || q.state || ':' || coalesce(q.hold_reason, '-') order by q.po_number)
              from ops.cafe_receipt_portions q
             where q.line_id = current_setting('app.bean_line')::uuid and q.issue_id is not null and q.state <> 'superseded'),
-  array['PO-SYNTH-1431-EQUAL:1:queued:-', 'PO-SYNTH-1431-LATE:1:held:no_longer_fits'],
-  'S1 a linked portion its PO no longer has room for stays held on that PO, no longer fits');
+  array['PO-SYNTH-1431-EQUAL:1:queued:-'],
+  'S8 a linked part its PO no longer has room for leaves the posting path; the part that fits stays queued');
+select is((select kind || ':' || trim_scale(quantity)::text || ':' || status || ':' || coalesce(linked_po_number, '-') || ':'
+                  || coalesce(reopened_po_number, '-') || ':' || (resolved_by is null and resolved_at is null)
+             from ops.cafe_receipt_issues where id = current_setting('app.over')::uuid),
+  'over:1:open:-:PO-SYNTH-1431-LATE:true',
+  'S8 that part is an open over-delivery issue again, naming the PO that had no room');
 set local role authenticated;
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","supervisor"]}');
 select is((select ops.cafe_receipt_posting(r) ->> 'po_created_after_delivery' from ops.cafe_receipts r where r.id = current_setting('app.r1')::uuid),
@@ -452,6 +497,33 @@ select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000
 select is((select count(*)::int from shared.record_history
             where table_name in ('cafe_receipts', 'cafe_receipt_lines', 'cafe_receipt_issues', 'cafe_receipt_portions', 'cafe_receipt_issue_access')),
   0, 'NFR-1001 a member who cannot read the receipt reads none of its history');
+reset role;
+
+-- ── S8 procurement links the re-opened part again ─────────────────────────────────────────────
+select ok(exists (select 1 from shared.record_history h
+                   where h.table_name = 'cafe_receipt_issues' and h.record_key = current_setting('app.over')
+                     and h.field_name = 'status' and h.old_value = 'linked' and h.new_value = 'open'
+                     and h.actor_person_id = '00000000-0000-0000-0000-0000000000d2'),
+  'S8 the re-open records who and when, and history keeps the link it replaced');
+set local role authenticated;
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","admin"]}');
+select ops.set_cafe_receipt_issue_access('00000000-0000-0000-0000-0000000000d6', true);
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d6","access_roles":["member"]}');
+select is(ops.link_cafe_receipt_issue(current_setting('app.over')::uuid, 'PO-SYNTH-1431-OLD') - 'linked_po_number',
+  jsonb_build_object('status', 'linked', 'matched_quantity', '1', 'remaining_quantity', '0', 'posting', 'queued',
+                     'po_created_after_delivery', false),
+  'S8 procurement links the re-opened part to another PO, and it is queued');
+reset role;
+select is((select array_agg(e.payload ->> 'po_number' || ':' || trim_scale((e.payload ->> 'quantity')::numeric)::text order by e.payload ->> 'po_number')
+             from integrations.esb_push e
+            where e.source_module = 'cafe_receipt' and e.payload ->> 'receipt_id' = current_setting('app.r1')
+              and e.payload ->> 'item_unit_id' = current_setting('app.bean_kg')),
+  array['PO-SYNTH-1431-A:5', 'PO-SYNTH-1431-EQUAL:1', 'PO-SYNTH-1431-OLD:1'],
+  'S8 the re-linked part posts once, on the new PO, and nothing posts on the PO that had no room');
+set local role authenticated;
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
+select is((ops.release_cafe_receipts('00000000-0000-0000-0000-00000000bf01') ->> 'queued_portions')::int, 0,
+  'S8 a later release enqueues nothing new');
 reset role;
 
 -- A person archived while holding the capability can still have it removed.
