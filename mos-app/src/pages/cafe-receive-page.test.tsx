@@ -273,7 +273,8 @@ describe('CafeReceivePage', () => {
     expect(screen.getByText('1 line')).toBeInTheDocument()
     fireEvent.click(within(await openLockStep()).getByRole('button', { name: 'Lock counts' }))
 
-    expect(await screen.findByRole('heading', { name: 'Counts locked' })).toHaveFocus()
+    const locked = await screen.findByRole('heading', { name: 'Counts locked' })
+    await waitFor(() => expect(locked).toHaveFocus())
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.queryByRole('textbox', { name: 'Received for Fresh milk' })).toBeNull()
     fireEvent.change(screen.getByRole('textbox', { name: 'Delivery-note number (optional)' }), { target: { value: 'DN-7' } })
@@ -282,7 +283,8 @@ describe('CafeReceivePage', () => {
     fireEvent.click(send)
     await waitFor(() => expect(mockSend).toHaveBeenCalledWith('receipt-1', 1, 'DN-7'))
     expect(mockSaveExplanation).not.toHaveBeenCalled()
-    expect(await screen.findByRole('heading', { name: 'Sent for review' })).toHaveFocus()
+    const sent = await screen.findByRole('heading', { name: 'Sent for review' })
+    await waitFor(() => expect(sent).toHaveFocus())
   })
 
   it('FR-1011 an uncertain Count submit stays in the confirm step and retries with the same idempotency key', async () => {
@@ -477,7 +479,7 @@ describe('AC-1010 the difference after Lock counts', () => {
     mockDifferences.mockResolvedValue([difference('unit-kg', 'unknown'), difference('unit-l', 'unknown')])
     await lockBeanAndMilk()
 
-    expect(await screen.findByRole('status')).toHaveTextContent('MOS can’t compare with the branch’s open POs right now. You can still send for review.')
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('MOS can’t compare with the branch’s open POs right now. You can still send for review.'))
     expect(screen.queryByText(/open PO$/)).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Send for review' }))
     await waitFor(() => expect(mockSend).toHaveBeenCalledWith('receipt-1', 1, ''))

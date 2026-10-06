@@ -30,7 +30,7 @@ language sql set search_path = '' as $$
     from ops.list_cafe_receipt_photos(array[current_setting('app.r1_id')::uuid]);
 $$;
 
-select plan(101);
+select plan(102);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -362,6 +362,8 @@ select is((select count(*)::int from storage.objects where bucket_id = 'cafe-rec
   'AC-1012 another stream''s supervisor reads none of its photos');
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d6","access_roles":["member"]}');
 select is(pg_temp.listed_r1_photos(), 0, 'AC-1012 a same-org peer lists no photo of a Submitted receipt');
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000b1","person_id":"00000000-0000-0000-0000-0000000000b4","access_roles":["member","admin"]}');
+select is(pg_temp.listed_r1_photos(), 0, 'AC-1012 another organisation''s admin lists no photo of a Submitted receipt');
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member"]}');
 
 -- ── AC-1009 a branch without a receiving location: accepted, posting held with a reason ──────
