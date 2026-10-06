@@ -64,7 +64,7 @@ import {
   TRANSFER_SHORT_CUE,
 } from '@/lib/kitchen-gates'
 import { useKitchenKpis } from '@/lib/kitchen-kpis'
-import { useSearchParamState } from '@/lib/use-search-param-state'
+import { useSearchParamReset, useSearchParamState } from '@/lib/use-search-param-state'
 import { MovementSeg } from '@/components/kitchen/movement-seg'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { WipItemStepper } from '@/components/kitchen/wip-item-stepper'
@@ -296,12 +296,16 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   // Staged items the database refused as not on this stream's list (#222). Their lines stay, marked.
   const [invalidItemIds, setInvalidItemIds] = useState<Set<string>>(new Set())
   const [invalidQuantityIds, setInvalidQuantityIds] = useState<Set<string>>(new Set())
+  const [invalidQuantityDrafts, setInvalidQuantityDrafts] = useState<Record<string, string>>({})
+  const [focusInvalidId, setFocusInvalidId] = useState<string | null>(null)
+  const [tableResetKey, setTableResetKey] = useState(0)
 
   // Client-side search + category (P-3), URL-synced so the view survives refresh/share (I7 / D-E1).
   // Group collapse stays INTERNAL to the shared <DataTable> (no page-level collapsedGroups state).
   const [search, setSearch] = useSearchParamState('q', '')
   const [kindFilter, setKindFilter] = useSearchParamState('kind', 'All')
   const [category, setCategory] = useSearchParamState('category', 'All')
+  const resetSearchFilters = useSearchParamReset(['q', 'kind', 'category'])
   // Category and kind selectors are hidden inside the capture form on phones, so copied
   // production/transfer links must not hide rows behind controls the reader cannot use. The
   // receiving toolbar is outside that form and stays filterable at phone widths. RAW is only
@@ -346,6 +350,9 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     itemTable,
     groupKey => groupKey === 'planned' ? t('kitchen.log.group.planned') : t('kitchen.log.group.offplan'),
   ).sort((a, b) => (a.key === 'planned' ? -1 : b.key === 'planned' ? 1 : 0))
+  const focusInvalidGroupKey = focusInvalidId
+    ? filterRows.find(row => row.rowId === focusInvalidId)?.groupKey ?? null
+    : null
 
   // The day summary uses only submitted map membership, independent of draft lines and the
   // currently offered list. Plan and actual quantities have no proven shared unit basis.
@@ -450,6 +457,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
         setWipItems(items)
         setInvalidItemIds(new Set())
         setInvalidQuantityIds(new Set())
+        setInvalidQuantityDrafts({})
+        setFocusInvalidId(null)
         adoptStream(catalog)
         setMovement(resolvedMovement)
         setPlanMap(plan)
@@ -472,6 +481,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       setWipItems(items)
       setInvalidItemIds(new Set())
       setInvalidQuantityIds(new Set())
+      setInvalidQuantityDrafts({})
+      setFocusInvalidId(null)
       adoptStream(catalog)
       setMovement(resolvedMovement)
       setPlanMap(plan)
@@ -524,6 +535,15 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     active.scrollIntoView?.({ block: 'nearest' })
   }, [captureRef, lines])
 
+  useLayoutEffect(() => {
+    if (!focusInvalidId) return
+    const field = document.getElementById(`quantity-${focusInvalidId}`)
+    if (!(field instanceof HTMLInputElement)) return
+    field.scrollIntoView?.({ block: 'center' })
+    field.focus()
+    setFocusInvalidId(null)
+  }, [focusInvalidId, tableResetKey, search, effectiveKindFilter, effectiveCategory, status.kind])
+
   // Rebuild plan_qty / stock / gate state per line when the movement or the loaded
   // stream-scoped plan/stock change.
   useEffect(() => {
@@ -561,6 +581,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     if (!pendingMovement) return
     setLines(buildLines(wipItems, planMap, stockMap, pendingMovement))
     setInvalidQuantityIds(new Set())
+    setInvalidQuantityDrafts({})
+    setFocusInvalidId(null)
     setMovement(pendingMovement)
     setPendingMovement(null)
   }
@@ -577,6 +599,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   const applyStream = useCallback(async (nextStream: ProductionStream) => {
     const gen = ++requestGen.current
     setInvalidQuantityIds(new Set())
+    setInvalidQuantityDrafts({})
+    setFocusInvalidId(null)
     chooseStream(nextStream) // the whole Café module follows this choice (#440)
     setMovement(PRODUCE)
     setStatus({ kind: 'loading' })
@@ -709,6 +733,26 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       else next.add(itemId)
       return next
     })
+    if (valid) {
+      setInvalidQuantityDrafts(current => {
+        if (!(itemId in current)) return current
+        const next = { ...current }
+        delete next[itemId]
+        return next
+      })
+    }
+  }
+
+  function handleInvalidQuantityDraft(itemId: string, raw: string) {
+    setInvalidQuantityDrafts(current => ({ ...current, [itemId]: raw }))
+  }
+
+  function focusFirstInvalidQuantity() {
+    const itemId = Array.from(invalidQuantityIds).find(id => wipItems.some(item => item.id === id))
+    if (!itemId) return
+    resetSearchFilters()
+    setFocusInvalidId(itemId)
+    setTableResetKey(key => key + 1)
   }
 
   function handleQtyChange(itemId: string, qty: number) {
@@ -785,6 +829,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   function performDiscard() {
     setLines(buildLines(wipItems, planMap, stockMap, movement))
     setInvalidQuantityIds(new Set())
+    setInvalidQuantityDrafts({})
+    setFocusInvalidId(null)
     setDiscardConfirmOpen(false)
   }
 
@@ -881,6 +927,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       setStatus({ kind: 'success', count: staged.length })
       setInvalidItemIds(new Set())
       setInvalidQuantityIds(new Set())
+      setInvalidQuantityDrafts({})
+      setFocusInvalidId(null)
       setLines(buildLines(wipItems, planMap, stockMap, movement))
     } catch (err) {
       reportError(err, { source: 'kitchen-log.submit' })
@@ -1181,6 +1229,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       alreadyLogged={displayActualUnitsForItem(actualsMap[item.id]?.[movementKey(movement)] ?? [], item)}
       onQtyChange={qty => handleQtyChange(item.id, qty)}
       onQuantityValidityChange={valid => handleQuantityValidityChange(item.id, valid)}
+      invalidDraft={invalidQuantityDrafts[item.id]}
+      onInvalidQuantityDraft={raw => handleInvalidQuantityDraft(item.id, raw)}
       onNotesChange={note => handleNotesChange(item.id, note)}
       unitOptions={item.units}
       unitMultiples={item.unit_multiples}
@@ -1314,8 +1364,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       columns={streamNonProducing ? receivingColumns : columns}
       rows={visibleItems}
       groups={groups}
-      key={`${movementKey(movement)}:${plannedLines.length > 0 ? 'planned' : 'off-plan'}`}
-      defaultCollapsedGroupKeys={plannedLines.length > 0 ? new Set(['offplan']) : undefined}
+      key={`${movementKey(movement)}:${plannedLines.length > 0 ? 'planned' : 'off-plan'}:${tableResetKey}`}
+      defaultCollapsedGroupKeys={plannedLines.length > 0 && focusInvalidGroupKey !== 'offplan' ? new Set(['offplan']) : undefined}
       renderCard={streamNonProducing ? undefined : renderLogCard}
       isDesktop={isDesktop}
       state={visibleItems.length > 0 ? 'ready' : 'empty'}
@@ -1523,7 +1573,9 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
                 scrolls to and focuses the first line still missing its note. */}
             {invalidQuantityCount > 0 && (
               <p className="kl-submit-reason" role="status" aria-live="polite">
-                {t(invalidQuantityCount === 1 ? 'quantityField.fixing.one' : 'quantityField.fixing.other', { count: invalidQuantityCount })}
+                <button type="button" className="kl-submit-reason kl-note-pointer" onClick={focusFirstInvalidQuantity}>
+                  {t(invalidQuantityCount === 1 ? 'quantityField.fixing.one' : 'quantityField.fixing.other', { count: invalidQuantityCount })}
+                </button>
               </p>
             )}
             {noteUnresolved && !streamMissing && !streamNonProducing && (

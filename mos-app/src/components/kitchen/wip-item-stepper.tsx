@@ -56,6 +56,9 @@ interface WipItemStepperProps {
   onUnitChange?: (unitChoice: string) => void
   /** Reports whether this row currently contains a valid quantity draft. */
   onQuantityValidityChange?: (valid: boolean) => void
+  /** The draft text is kept outside the row while table filters unmount it. */
+  invalidDraft?: string
+  onInvalidQuantityDraft?: (raw: string) => void
 }
 
 function formatLoggedEntry(
@@ -90,6 +93,8 @@ export function WipItemStepper({
   unitMultiples = [],
   onUnitChange,
   onQuantityValidityChange,
+  invalidDraft,
+  onInvalidQuantityDraft,
 }: WipItemStepperProps) {
   const t = useT()
   // Plan and stock are shown as unitless facts beside the item name. The plan is also a
@@ -216,6 +221,7 @@ export function WipItemStepper({
 
         <div className="kls-quantity">
         <QuantityField
+          id={`quantity-${line.wip_item_id}`}
           label={transfer
             ? t('kitchen.qty.transferAria', {
               branch: destinationName ?? t('kitchen.actionType.transferTo.fallback'),
@@ -225,15 +231,15 @@ export function WipItemStepper({
           className="kls-qty"
           value={entryQuantity}
           onChange={onQtyChange}
-          onInvalid={() => onQtyChange(0)}
+          onInvalid={(_reason, raw) => { onQtyChange(0); onInvalidQuantityDraft?.(raw) }}
           onValidityChange={onQuantityValidityChange}
+          initialDraft={invalidDraft}
           suffix={unitSuffix}
           suffixPosition="below"
           placeholder={placeholderQuantity > 0 ? formatActualQty(placeholderQuantity) : '0'}
           min={0}
           maxIntegerDigits={10}
           maxFractionDigits={selectedFactor === 1 ? 2 : 3}
-          step="any"
           enterKeyHint="next"
           disabled={disabled}
           touchTarget

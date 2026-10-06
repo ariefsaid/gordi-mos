@@ -90,7 +90,6 @@ export function PlanQtyField({ itemName, qty, disabled, onSave, dense = false }:
         resetKey={resetKey}
         integerOnly
         min={0}
-        step={1}
         maxFractionDigits={0}
         placeholder="0"
         enterKeyHint="next"

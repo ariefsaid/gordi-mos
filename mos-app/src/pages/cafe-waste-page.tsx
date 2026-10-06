@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
@@ -24,7 +24,7 @@ import type { KitchenWasteDraft, KitchenWastePhoto } from '@/lib/db/kitchen-wast
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { wibToday } from '@/lib/db/cafe-opening'
 import { formatDayMonthYear, formatWeekdayDayMonth } from '@/lib/format/date'
-import { useSearchParamState } from '@/lib/use-search-param-state'
+import { useSearchParamReset, useSearchParamState } from '@/lib/use-search-param-state'
 import {
   useKitchenItemTable,
   kitchenDataTableGroups,
@@ -161,6 +161,7 @@ export function CafeWastePage() {
   const [businessUnitId, setBusinessUnitId] = useState('')
   const [entries, setEntries] = useState<Record<string, WasteEntry>>({})
   const [invalidQuantityIds, setInvalidQuantityIds] = useState<Set<string>>(new Set())
+  const [focusInvalidId, setFocusInvalidId] = useState<string | null>(null)
   const [resumableDrafts, setResumableDrafts] = useState<KitchenWasteDraft[]>([])
   const [submitError, setSubmitError] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -171,6 +172,7 @@ export function CafeWastePage() {
   const [search, setSearch] = useSearchParamState('q', '')
   const [kindFilter, setKindFilter] = useSearchParamState('kind', 'All')
   const [category, setCategory] = useSearchParamState('category', 'All')
+  const resetSearchFilters = useSearchParamReset(['q', 'kind', 'category'])
   // Kind/category controls remain visible on phone, including for receiving-only streams, so
   // their URL-backed values must filter the compact list just as they do on desktop.
   const effectiveKind: KitchenItemKindFilter = kindFilter === 'WIP' || kindFilter === 'RAW' ? kindFilter : 'All'
@@ -216,6 +218,7 @@ export function CafeWastePage() {
     setItems([])
     setEntries({})
     setInvalidQuantityIds(new Set())
+    setFocusInvalidId(null)
     setBusinessUnitId('')
     setResumableDrafts([])
     if (!stream) {
@@ -309,6 +312,22 @@ export function CafeWastePage() {
       return next
     })
   }, [])
+
+  function focusFirstInvalidQuantity() {
+    const itemId = Array.from(invalidQuantityIds).find(id => items.some(item => item.id === id))
+    if (!itemId) return
+    resetSearchFilters()
+    setFocusInvalidId(itemId)
+  }
+
+  useLayoutEffect(() => {
+    if (!focusInvalidId) return
+    const field = document.getElementById(`cafe-waste-qty-${focusInvalidId}`)
+    if (!field) return
+    field.scrollIntoView?.({ block: 'center' })
+    field.focus()
+    setFocusInvalidId(null)
+  }, [focusInvalidId, search, effectiveKind, effectiveCategory, items])
 
   // Stable callback identities keep readiness effects from firing again on every parent entry update.
   const photoReadyCallbacks = useMemo(() => new Map(items.map(item => [item.id, (ready: boolean) => {
@@ -500,6 +519,7 @@ export function CafeWastePage() {
   function startAnotherLog() {
     setEntries(initialEntries(items))
     setInvalidQuantityIds(new Set())
+    setFocusInvalidId(null)
     setSubmitError(false)
   }
 
@@ -753,7 +773,9 @@ export function CafeWastePage() {
               </div>
               {invalidQuantityCount > 0 && (
                 <p className="kl-submit-reason" role="status" aria-live="polite">
-                  {t(invalidQuantityCount === 1 ? 'quantityField.fixing.one' : 'quantityField.fixing.other', { count: invalidQuantityCount })}
+                  <button type="button" className="kl-submit-reason kl-note-pointer" onClick={focusFirstInvalidQuantity}>
+                    {t(invalidQuantityCount === 1 ? 'quantityField.fixing.one' : 'quantityField.fixing.other', { count: invalidQuantityCount })}
+                  </button>
                 </p>
               )}
               {allSubmitted ? (
@@ -855,8 +877,9 @@ function WasteItemControls({
           className="cwl-quantity-input tabular"
           value={quantity ?? 0}
           onChange={next => onQuantityChange(next > 0 ? String(next) : '')}
-          onInvalid={() => onQuantityChange('')}
+          onInvalid={(_reason, raw) => onQuantityChange(raw)}
           onValidityChange={onQuantityValidityChange}
+          initialDraft={quantity === null && current.quantity !== '' ? current.quantity : undefined}
           suffixPosition="below"
           suffix={showUnitPicker ? (
             <Select
@@ -883,7 +906,6 @@ function WasteItemControls({
           maxIntegerDigits={10}
           maxFractionDigits={current.unitFactor === 1 ? 2 : 3}
           min={0}
-          step="any"
           disabled={!editable}
           errorClassName="cwl-field-error"
         />

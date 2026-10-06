@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useT } from '@/i18n/use-t'
 import { formatQuantityInput, parseQuantityInput } from '@/lib/quantity-parser'
@@ -10,18 +10,19 @@ interface QuantityFieldProps {
   label: string
   value: number
   onChange: (value: number) => void
-  onInvalid?: (reason: QuantityParseReason) => void
+  onInvalid?: (reason: QuantityParseReason, raw: string) => void
   onValidityChange?: (valid: boolean) => void
   onBlur?: (valid: boolean) => void
   onKeyDown?: (event: React.KeyboardEvent<HTMLInputElement>) => void
   resetKey?: number
+  /** Restore a preserved invalid draft when a filtered row remounts. */
+  initialDraft?: string
   integerOnly?: boolean
   min?: number
   max?: number
   maxIntegerDigits?: number
   maxFractionDigits?: number
   rejectThreeDigitGrouping?: boolean
-  step?: 'any' | number
   placeholder?: string
   className?: string
   errorClassName?: string
@@ -71,13 +72,13 @@ export function QuantityField({
   onBlur,
   onKeyDown,
   resetKey,
+  initialDraft,
   integerOnly = false,
   min = 0,
   max,
   maxIntegerDigits = 10,
   maxFractionDigits = 3,
   rejectThreeDigitGrouping = false,
-  step = 'any',
   placeholder,
   className,
   errorClassName,
@@ -91,23 +92,40 @@ export function QuantityField({
   touchTarget = false,
 }: QuantityFieldProps) {
   const generatedErrorId = useId()
-  const [draft, setDraft] = useState(() => formatQuantityInput(value, locale(), maxFractionDigits))
-  const [error, setError] = useState<QuantityParseReason | null>(null)
-  const [errorVisible, setErrorVisible] = useState(false)
+  const parseOptions = useMemo(() => ({
+    integerOnly, min, max, maxIntegerDigits, maxFractionDigits, rejectThreeDigitGrouping,
+  }), [integerOnly, min, max, maxIntegerDigits, maxFractionDigits, rejectThreeDigitGrouping])
+  const initialParse = initialDraft === undefined ? null : parseQuantityInput(initialDraft, parseOptions)
+  const [draft, setDraft] = useState(() => initialDraft ?? formatQuantityInput(value, locale(), maxFractionDigits))
+  const [error, setError] = useState<QuantityParseReason | null>(
+    () => initialParse?.kind === 'invalid' ? initialParse.reason : null,
+  )
+  const [errorVisible, setErrorVisible] = useState(() => initialParse?.kind === 'invalid')
   const focused = useRef(false)
   const latestValue = useRef(value)
   const latestMaxFractionDigits = useRef(maxFractionDigits)
   const onValidityChangeRef = useRef(onValidityChange)
   const previousMaxFractionDigits = useRef(maxFractionDigits)
+  const initialDraftRef = useRef(initialDraft)
   latestValue.current = value
   latestMaxFractionDigits.current = maxFractionDigits
   onValidityChangeRef.current = onValidityChange
   const errorId = `${id ?? generatedErrorId}-quantity-error`
-  const parseOptions = { integerOnly, min, max, maxIntegerDigits, maxFractionDigits, rejectThreeDigitGrouping }
 
   useEffect(() => {
     const precisionChanged = previousMaxFractionDigits.current !== maxFractionDigits
     previousMaxFractionDigits.current = maxFractionDigits
+    const preservedDraft = initialDraftRef.current
+    initialDraftRef.current = undefined
+    if (preservedDraft !== undefined) {
+      const parsed = parseQuantityInput(preservedDraft, parseOptions)
+      if (parsed.kind === 'invalid') {
+        setDraft(preservedDraft)
+        setError(parsed.reason)
+        setErrorVisible(true)
+        return
+      }
+    }
     if (!focused.current) {
       setDraft(formatQuantityInput(value, locale(), maxFractionDigits))
       if (precisionChanged) {
@@ -116,7 +134,7 @@ export function QuantityField({
         onValidityChangeRef.current?.(true)
       }
     }
-  }, [value, maxFractionDigits])
+  }, [value, maxFractionDigits, parseOptions])
 
   const lastResetKey = useRef(resetKey)
   useEffect(() => {
@@ -148,7 +166,7 @@ export function QuantityField({
     setError(parsed.reason)
     setErrorVisible(!focused.current)
     onValidityChange?.(false)
-    onInvalid?.(parsed.reason)
+    onInvalid?.(parsed.reason, raw)
   }
 
   function handleBlur() {
@@ -166,7 +184,7 @@ export function QuantityField({
     } else {
       setError(parsed.reason)
       setErrorVisible(true)
-      onInvalid?.(parsed.reason)
+      onInvalid?.(parsed.reason, draft)
     }
     onValidityChange?.(valid)
     onBlur?.(valid)
@@ -174,21 +192,6 @@ export function QuantityField({
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
     onKeyDown?.(event)
-    if (event.defaultPrevented || disabled || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) return
-    const parsed = parseQuantityInput(draft, parseOptions)
-    // Arrow keys are an optional shortcut, never a way to turn a blank or invalid draft into
-    // a saved number. Keep the raw field intact until it parses successfully.
-    if (parsed.kind !== 'valid') return
-    const current = parsed.value
-    const increment = typeof step === 'number' ? step : 1
-    const next = Math.max(min, current + (event.key === 'ArrowUp' ? increment : -increment))
-    if (max !== undefined && next > max) return
-    event.preventDefault()
-    setError(null)
-    setErrorVisible(false)
-    setDraft(formatQuantityInput(next, locale(), maxFractionDigits))
-    onValidityChange?.(true)
-    onChange(next)
   }
 
   const currentParse = parseQuantityInput(draft, parseOptions)

@@ -214,6 +214,20 @@ describe('CafeWastePage', () => {
     expect(mockInsertKitchenLog).not.toHaveBeenCalled()
   })
 
+  it('keeps a valid decimal and the Add photo action intact on ArrowDown', async () => {
+    renderPage()
+    const input = await screen.findByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })
+    fireEvent.change(input, { target: { value: '2.3' } })
+    const addPhoto = screen.getAllByRole('button', { name: /add photo/i })[0]!
+    expect(addPhoto).toBeEnabled()
+
+    fireEvent.keyDown(input, { key: 'ArrowDown' })
+
+    expect(input).toHaveValue('2.3')
+    expect(addPhoto).toBeEnabled()
+    expect(mockInsertKitchenLog).not.toHaveBeenCalled()
+  })
+
   it('places precision feedback after the unit and reports invalid rows in the submit band', async () => {
     renderPage()
     const input = await screen.findByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })
@@ -223,7 +237,24 @@ describe('CafeWastePage', () => {
     const field = input.closest('.quantity-field')!
     expect(field.querySelector('.cwl-unit-select')).toBeInTheDocument()
     expect(field.lastElementChild).toHaveClass('quantity-field-error')
-    expect(within(document.querySelector('.cwl-footer')!).getByText('1 item needs fixing')).toBeInTheDocument()
+    expect(within(document.querySelector('.cwl-footer')!).getByRole('button', { name: '1 item needs fixing' })).toBeInTheDocument()
+  })
+
+  it('clears search and restores a hidden invalid waste draft from the needs-fixing action', async () => {
+    renderPage()
+    const input = await screen.findByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })
+    fireEvent.change(input, { target: { value: '1,125' } })
+    fireEvent.blur(input)
+    const search = screen.getByRole('searchbox', { name: /find an item/i })
+    fireEvent.change(search, { target: { value: 'Oat milk' } })
+    expect(screen.queryByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })).toBeNull()
+
+    const footer = document.querySelector('.cwl-footer') as HTMLElement
+    fireEvent.click(within(footer).getByRole('button', { name: '1 item needs fixing' }))
+    expect(search).toHaveValue('')
+    const restored = await screen.findByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })
+    expect(restored).toHaveValue('1,125')
+    expect(restored).toHaveFocus()
   })
 
   it('shows each waste item quantity and unit without a grouped numeric total', async () => {

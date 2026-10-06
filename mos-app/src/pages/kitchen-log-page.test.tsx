@@ -623,8 +623,45 @@ describe('Populated state — WIP items loaded', () => {
     fireEvent.blur(quantity)
 
     const footer = document.querySelector('.kl-footer') as HTMLElement
-    expect(within(footer).getByText('1 item needs fixing')).toBeInTheDocument()
+    expect(within(footer).getByRole('button', { name: '1 item needs fixing' })).toBeInTheDocument()
     expect(within(footer).getByRole('button', { name: /^submit$/i })).toBeDisabled()
+  })
+
+  it('clears search and restores the raw invalid draft from the needs-fixing action', async () => {
+    setDesktopMatchMedia(true)
+    await renderPage()
+    const quantity = await screen.findByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    fireEvent.change(quantity, { target: { value: '1,125' } })
+    fireEvent.blur(quantity)
+
+    const search = screen.getByRole('searchbox', { name: /find an item/i })
+    fireEvent.change(search, { target: { value: 'nasi' } })
+    expect(screen.queryByRole('spinbutton', { name: /quantity produced for ayam bakar/i })).toBeNull()
+
+    const footer = document.querySelector('.kl-footer') as HTMLElement
+    fireEvent.click(within(footer).getByRole('button', { name: '1 item needs fixing' }))
+    expect(search).toHaveValue('')
+    const restored = await screen.findByRole('spinbutton', { name: /quantity produced for ayam bakar/i })
+    expect(restored).toHaveValue('1,125')
+    expect(restored).toHaveFocus()
+  })
+
+  it('expands the invalid row\'s group and restores its draft from the needs-fixing action', async () => {
+    setDesktopMatchMedia(true)
+    mockListCaptureFormItems.mockResolvedValue(WIP_ITEMS_WITH_OFFPLAN)
+    await renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: /expand not planned today/i }))
+    const quantity = await screen.findByRole('spinbutton', { name: /quantity produced for sambal matah/i })
+    fireEvent.change(quantity, { target: { value: '1,125' } })
+    fireEvent.blur(quantity)
+    fireEvent.click(screen.getByRole('button', { name: /collapse not planned today/i }))
+    expect(screen.queryByRole('spinbutton', { name: /quantity produced for sambal matah/i })).toBeNull()
+
+    const footer = document.querySelector('.kl-footer') as HTMLElement
+    fireEvent.click(within(footer).getByRole('button', { name: '1 item needs fixing' }))
+    const restored = await screen.findByRole('spinbutton', { name: /quantity produced for sambal matah/i })
+    expect(restored).toHaveValue('1,125')
+    expect(screen.getByRole('button', { name: /collapse not planned today/i })).toBeInTheDocument()
   })
 
   // v4 P0 (design critique): the footer is now DELIBERATELY sticky — on phone the scroll
