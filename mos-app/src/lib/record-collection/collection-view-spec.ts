@@ -278,26 +278,3 @@ function validateSignalSpec(input: Record<string, unknown>, push: Push): void {
     else if (!SIGNAL_GROUP_FIELDS.includes(grouping.field as SignalCollectionGroup)) push('invalid-grouping', 'grouping.field', String(grouping.field))
   }
 }
-
-/** Emit a stable key-ordered JSON string so URL/DB conformance tests are deterministic. */
-export function serializeCollectionViewSpec(spec: CollectionViewSpec): string {
-  const ordered = {
-    kind: spec.kind,
-    version: spec.version,
-    collectionId: spec.collectionId,
-    domain: spec.domain,
-    presentation: spec.presentation,
-    visibleFields: [...spec.visibleFields],
-    query: sortObjectKeys(spec.query as Record<string, unknown>),
-    sort: { field: spec.sort.field, direction: spec.sort.direction },
-    grouping: spec.grouping ? { field: spec.grouping.field } : null,
-    layout: { density: spec.layout.density },
-  }
-  return JSON.stringify(ordered)
-}
-
-function sortObjectKeys(obj: Record<string, unknown>): Record<string, unknown> {
-  const out: Record<string, unknown> = {}
-  for (const key of Object.keys(obj).sort()) out[key] = obj[key]
-  return out
-}

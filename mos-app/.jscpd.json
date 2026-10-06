@@ -1,0 +1,17 @@
+{
+  "format": ["typescript", "tsx", "css"],
+  "ignore": [
+    "**/tests/**",
+    "**/__tests__/**",
+    "**/*.test.*",
+    "**/*.stories.*",
+    "**/stories/**",
+    "**/i18n/**",
+    "**/catalogs/**",
+    "**/migrations/**"
+  ],
+  "minLines": 5,
+  "minTokens": 50,
+  "reporters": ["console"],
+  "threshold": 1.92
+}

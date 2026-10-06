@@ -3,7 +3,7 @@
 // figure carries one (page head + ChartFrame freshness slot). Token-only (DESIGN.md
 // §2.4): muted-foreground text, .tabular timestamp digits.
 import './freshness-label.css'
-import { formatWibDateTime } from '@/lib/wib-time'
+import { formatWibDateTime } from '@/lib/format/date'
 
 export interface FreshnessLabelProps {
   asOf: string | Date

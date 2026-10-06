@@ -11,10 +11,8 @@ import { Navigate, matchRoutes, type RouteObject } from 'react-router-dom'
 import { routeConfig } from '@/router'
 import { RouteRedirect } from '@/shell/route-redirect'
 import { LoadingShell } from '@/components/ui/state-kit'
-import { RequireCapability } from '@/auth/require-capability'
 import { RequireAccessRole } from '@/auth/require-access-role'
 import { AdminRoute } from '@/auth/admin-route'
-import { can } from '@/lib/capabilities'
 
 /** Every route entry in the table, flattened depth-first (pathless layout routes included). */
 export function allRoutes(routes: RouteObject[] = routeConfig): RouteObject[] {
@@ -35,7 +33,7 @@ function joinPath(parent: string, segment: string): string {
 
 /**
  * The table flattened with each route's FULL path resolved. Pathless routes (the auth gates, the
- * shell layout route, the capability gates) inherit their parent's path and are kept, so a caller
+ * shell layout route and access-role gates) inherit their parent's path and are kept, so a caller
  * can still see them — filter on `route.element` when only surfaces matter.
  */
 export function flattenRoutes(routes: readonly RouteObject[] = routeConfig, parent = ''): FlatRoute[] {
@@ -155,7 +153,7 @@ export function pathnameOf(to: string): string {
  *
  * `ProtectedRoute` is deliberately not listed: it wraps every authenticated route, so it can never
  * make one destination less reachable than another. What is listed is the set of gates that bounce
- * a SUBSET of authenticated viewers — a capability gate, an access-role gate, or the admin gate.
+ * a SUBSET of authenticated viewers — an access-role gate or the admin gate.
  * Each of those bounces is a second navigation, which is exactly what "one hop" has to exclude.
  */
 export function gatesOnPath(path: string): string[] {
@@ -163,9 +161,6 @@ export function gatesOnPath(path: string): string[] {
   return matches.flatMap(({ route }) => {
     const el = route.element
     if (!isValidElement(el)) return []
-    if (el.type === RequireCapability) {
-      return [`capability:${(el.props as { capability: string }).capability}`]
-    }
     if (el.type === RequireAccessRole) {
       const { anyOf } = el.props as { anyOf: readonly string[] }
       return [`accessRole:${[...anyOf].sort().join('|')}`]
@@ -178,9 +173,9 @@ export function gatesOnPath(path: string): string[] {
 /**
  * Does the ROUTE admit a viewer holding these access roles? (OD-WAY-51.)
  *
- * Evaluates the same three gates `gatesOnPath` enumerates, with the same logic the gate
- * components themselves use — `can()` for a capability gate, membership for an access-role gate,
- * `admin` for the admin gate. `ProtectedRoute` is not consulted: every path here is behind it, so
+ * Evaluates the same gates `gatesOnPath` enumerates, with the same logic the gate
+ * components themselves use — membership for an access-role gate and `admin` for the admin gate.
+ * `ProtectedRoute` is not consulted: every path here is behind it, so
  * it can never distinguish two authenticated viewers.
  *
  * This is what lets the nav guard derive what SHOULD be rendered from the route table, instead of
@@ -191,9 +186,6 @@ export function routeAdmits(path: string, accessRoles: readonly string[]): boole
   return matches.every(({ route }) => {
     const el = route.element
     if (!isValidElement(el)) return true
-    if (el.type === RequireCapability) {
-      return can(accessRoles, (el.props as { capability: string }).capability)
-    }
     if (el.type === RequireAccessRole) {
       const { anyOf } = el.props as { anyOf: readonly string[] }
       return anyOf.some((r) => accessRoles.includes(r))

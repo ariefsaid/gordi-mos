@@ -364,6 +364,12 @@ def _flag(environ: dict[str, str], name: str) -> bool:
     return environ.get(name, "").strip().lower() in ("1", "true", "yes", "on")
 
 
+def _require_https(name: str, value: str) -> None:
+    parsed = urllib.parse.urlsplit(value)
+    if value and (parsed.scheme.lower() != "https" or not parsed.netloc):
+        raise ConfigError(f"{name} must use an HTTPS URL")
+
+
 def load_id_map(path: str, target_env: str) -> IdMap:
     try:
         with open(path, encoding="utf-8") as fh:
@@ -507,6 +513,8 @@ def load_config(environ: dict[str, str], *, offline: bool, drains: bool,
 
     supabase_url = environ.get("MOS_SUPABASE_URL", "").strip().rstrip("/")
     supabase_key = environ.get("MOS_SUPABASE_SERVICE_ROLE_KEY", "").strip()
+    _require_https("MOS_SUPABASE_URL", supabase_url)
+    _require_https("ESB_BASE_URL", esb_base)
     if not offline and not (supabase_url and supabase_key):
         raise ConfigError("MOS_SUPABASE_URL and MOS_SUPABASE_SERVICE_ROLE_KEY are "
                           "required to reach the outbox")
@@ -560,6 +568,11 @@ def _int_env(environ: dict[str, str], name: str, default: int) -> int:
 # ══════════════════════════════════════════════════════════════════════════════════════
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
 def _request(method: str, url: str, *, headers: dict[str, str],
              body: Any = None, timeout: float) -> tuple[int, Any]:
     data = None
@@ -569,7 +582,8 @@ def _request(method: str, url: str, *, headers: dict[str, str],
         hdrs["Content-Type"] = "application/json"
     req = urllib.request.Request(url, data=data, headers=hdrs, method=method)
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 - fixed scheme
+        opener = urllib.request.build_opener(_NoRedirect())
+        with opener.open(req, timeout=timeout) as resp:
             raw = resp.read().decode("utf-8") or "null"
             return resp.status, json.loads(raw)
     except urllib.error.HTTPError as exc:

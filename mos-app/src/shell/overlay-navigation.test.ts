@@ -4,7 +4,6 @@ import {
   createRecordRouteAdapter,
   historyDeltaForClose,
   OVERLAY_HISTORY_KEY,
-  preserveSearch,
   readOverlayMarker,
   withOverlayMarker,
 } from './overlay-navigation'
@@ -114,7 +113,7 @@ describe('record route adapters', () => {
 
   it('Task adapter: panel/page/collection preserve ?view=mine', () => {
     const source = loc('/work/tasks', '?view=mine')
-    expect(preserveSearch(source, taskAdapter.toPage('7', source))).toMatchObject({
+    expect(taskAdapter.toPage('7', source)).toMatchObject({
       pathname: '/work/tasks/7',
       search: '?view=mine',
     })
