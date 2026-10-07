@@ -398,7 +398,8 @@
 }
 
 @media (max-width: 639px) {
-  .cafe-receive__date { grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; }
+  .cafe-receive__date { grid-template-columns: auto minmax(0, 1fr); gap: 8px; }
+  .cafe-receive__date-hint { grid-column: 2; }
   .cafe-receive__open-pos {
     gap: 8px;
     margin-bottom: 8px;
