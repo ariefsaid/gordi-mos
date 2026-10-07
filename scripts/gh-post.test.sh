@@ -112,7 +112,6 @@ check "verify + all three lens stamps passes" 0 yes pr create --title t --body "
 rm -f "$gitdir/pre-pr-verify-ok" "$gitdir/pre-pr-verify-dev-ok"
 check "pr create without a Reused: line refused" 1 no pr create --base dev --title t --body "no reuse note"
 printf 'Summary\n\n**Reused:** the existing table\n' > "$tmp/reused-body.md"
-check "REST pr create without a Reused: body refused" 1 no api repos/x/y/pulls -f title=t -f head=feat-rest -f base=dev -f body=plain
 printf '%s' "$head" > "$gitdir/pre-pr-verify-ok"
 check "a PR into main needs no Reused: line (release)" 0 yes pr create --base main --title t --body "release package"
 rm -f "$gitdir/pre-pr-verify-ok"
@@ -184,6 +183,7 @@ check "REST branch merge (POST merges) refuses" 1 no api repos/x/y/merges --meth
 check "REST ref update refuses" 1 no api repos/x/y/git/refs/heads/main --method PATCH -f sha=abc
 head="$(g "$tmp/repo" rev-parse HEAD)"
 for lens in spec code-quality security; do printf '%s %s reviewer-x now art.md\n' "$head" "$lens" > "$gitdir/independent-review-$lens-ok"; done
+check_message "REST pr create without a Reused: body refused (stamped)" 1 no "Reused:" api repos/x/y/pulls -f title=t -f head=feat-rest -f base=dev -f body=plain
 check "REST pr create, lens stamps without verify stamp, base=dev passes" 0 yes api repos/x/y/pulls -f title=t -f head=feat-rest -f base=dev -f body="Reused: x"
 check "REST pr create, concatenated -f fields pass" 0 yes api repos/x/y/pulls -fhead=feat-rest -fbase=dev "-fbody=Reused: x"
 check "REST pr create, --raw-field= form passes" 0 yes api repos/x/y/pulls --raw-field=head=feat-rest --raw-field=base=dev "--raw-field=body=Reused: x"

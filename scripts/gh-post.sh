@@ -238,7 +238,7 @@ if [ "$verb1" = "api" ]; then
     [ -n "$branch" ] && { [ "$head_val" = "$branch" ] || [ "$head_val" = "${this_repo%%/*}:$branch" ]; } \
       || die "REST PR create must name head=<this checkout's branch> ('$branch') — the stamps certify HEAD here"
     require_pr_stamps "$base_val"
-  [ "$base_val" = dev ] && require_reused_line
+    [ "$base_val" = dev ] && require_reused_line
   fi
 fi
 
