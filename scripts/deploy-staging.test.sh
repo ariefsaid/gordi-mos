@@ -45,6 +45,7 @@ case "$*" in
     if [ "${SUPABASE_ACCESS_TOKEN:-}" = "${FAKE_ACCESS_TOKEN:-}" ] && [ -n "${SUPABASE_ACCESS_TOKEN:-}" ]; then
       printf 'supabase token-env-ok\n' >> "$CALLS"
     fi
+    [ -n "${PGPASSWORD:-}" ] || printf 'supabase db-password-not-forwarded\n' >> "$CALLS"
     for arg in "$@"; do [ "$arg" != --no-verify-jwt ] || printf 'supabase no-verify-jwt\n' >> "$CALLS"; done
     exit "${FAKE_DEPLOY_RC:-0}" ;;
   *"config push"*) printf 'supabase config-push\n' >> "$CALLS" ;;
@@ -262,6 +263,7 @@ run "changed agent-chat deploys and passes smoke checks" 0 "" FAKE_FN_DIFF=$'sup
 expect "agent-chat deployed" "supabase functions-deploy agent-chat"
 expect "function token read from the secret store" "op-get fake-function-item fake-function-vault FAKE_TOKEN"
 expect "token supplied through the CLI environment" "supabase token-env-ok"
+expect "database password is not forwarded to edge deploy" "supabase db-password-not-forwarded"
 expect "handler receives unauthenticated requests" "supabase no-verify-jwt"
 expect "unauthenticated POST smoke check ran" "curl POST"
 if before "supabase push" "supabase functions-deploy agent-chat"; then ok "edge deploy follows a successful migration push"; else bad "edge deploy follows a successful migration push"; fi

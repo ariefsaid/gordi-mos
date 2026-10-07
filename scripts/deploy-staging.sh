@@ -11,8 +11,8 @@
 #                   restored copy in a throwaway local container first; a failure stops the deploy.
 #   --no-rehearsal  skip that rehearsal (said loudly in the output)
 #
-# The connection string is read from the host's secret store at run time and lives only in this
-# process: it is never printed, written or put in the PR. Where it lives (item/vault/field) is read
+# The connection string and function CLI token are read from the host's secret store at run time and
+# live only in this process: neither is printed, written or put in the PR. Their locations are read
 # from the gitignored supabase/op.staging.env (template: supabase/op.staging.env.example).
 # Deploys origin/main only (refuses from any other checkout state).
 # Never runs `supabase config push` or touches trusted agent clients. Only changed allowlisted app
@@ -192,7 +192,7 @@ if [ "${#functions_to_deploy[@]}" -gt 0 ]; then
   [ "${#function_origins[@]}" -gt 0 ] || die "could not read app origins from the shared CORS module"
 
   for fn in "${functions_to_deploy[@]}"; do
-    if ! SUPABASE_ACCESS_TOKEN="$EDGE_ACCESS_TOKEN" supabase --workdir "$ROOT" functions deploy "$fn" --no-verify-jwt >/dev/null 2>&1; then
+    if ! PGPASSWORD= SUPABASE_ACCESS_TOKEN="$EDGE_ACCESS_TOKEN" supabase --workdir "$ROOT" functions deploy "$fn" --no-verify-jwt >/dev/null 2>&1; then
       die "edge function deploy failed for $fn"
     fi
     say "Deployed edge function $fn."
