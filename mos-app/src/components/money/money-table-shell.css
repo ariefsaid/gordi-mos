@@ -88,3 +88,26 @@
     margin-top: 2px;
   }
 }
+
+/* Both Money loading surfaces share a border-token skeleton that reads on the warm card. */
+.money-skeleton {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+
+.money-skeleton .skeleton-bar {
+  background: var(--border);
+}
+
+.money-skeleton__row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 24px;
+  padding: 18px 16px;
+  border-bottom: 1px solid var(--row-divider);
+}
+
+.money-skeleton__row:last-child {
+  border-bottom: 0;
+}

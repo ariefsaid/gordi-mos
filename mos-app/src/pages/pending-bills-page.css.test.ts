@@ -1,5 +1,4 @@
-// A narrow bill list keeps age, state and the priority money fields while it wraps long names
-// without moving those figures off-canvas; the Money shell owns the surrounding surface.
+// Tablet bill rows retain identity, payer, money and state within the shared Money shell.
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -22,15 +21,33 @@ const groupedRule = (source: string, selector: string) => {
 }
 
 describe('pending bills table CSS', () => {
-  it('keeps Bill no., Amount and Balance as the columns that survive a narrow table', () => {
+  it('keeps branch, payer, bill identity, money and state visible at tablet widths', () => {
     const narrow = css.match(/@media \(min-width:\s*768px\)\s*\{[\s\S]*?@container pending-bills-list \(max-width:\s*979\.98px\)\s*\{([\s\S]*?)\n\s{2}\}/)?.[1] ?? ''
     expect(rule('.pending-bills-table .money-table') ?? '').toMatch(/table-layout:\s*fixed/)
-    for (const hidden of ['date', 'branch', 'owes']) {
-      expect(narrow).toContain(`.pending-bills-table .money-table__cell--${hidden}`)
+    const hiddenRules = [...narrow.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+      .filter(([, , declarations]) => /display:\s*none/.test(declarations))
+      .map(([, selector]) => selector)
+      .join('\n')
+    for (const hidden of ['date', 'age']) {
+      expect(hiddenRules).toContain(`.pending-bills-table .money-table__cell--${hidden}`)
     }
-    for (const visible of ['age', 'state', 'bill', 'amount', 'balance']) {
-      expect(narrow).not.toContain(`.pending-bills-table .money-table__cell--${visible}`)
+    for (const visible of ['branch', 'owes', 'state', 'bill', 'amount', 'balance']) {
+      expect(hiddenRules).not.toContain(`.pending-bills-table .money-table__cell--${visible}`)
     }
+    for (const [column, width] of [['branch', '14%'], ['owes', '21%'], ['state', '18%'], ['bill', '19%'], ['amount', '14%'], ['balance', '14%']]) {
+      expect(groupedRule(narrow, `.pending-bills-table .money-table__cell--${column}`) ?? '').toMatch(new RegExp(`width:\\s*${width}`))
+    }
+    const compact = css.match(/@container pending-bills-list \(max-width:\s*679\.98px\)\s*\{([\s\S]*?)\n\s{2}\}/)?.[1] ?? ''
+    const compactHiddenRules = [...compact.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+      .filter(([, , declarations]) => /display:\s*none/.test(declarations))
+      .map(([, selector]) => selector)
+      .join('\n')
+    for (const hidden of ['branch', 'owes']) expect(compactHiddenRules).toContain(`.pending-bills-table .money-table__cell--${hidden}`)
+    for (const visible of ['state', 'bill', 'amount', 'balance']) expect(compactHiddenRules).not.toContain(`.pending-bills-table .money-table__cell--${visible}`)
+    for (const [column, width] of [['state', '30%'], ['bill', '26%'], ['amount', '22%'], ['balance', '22%']]) {
+      expect(groupedRule(compact, `.pending-bills-table .money-table__cell--${column}`) ?? '').toMatch(new RegExp(`width:\\s*${width}`))
+    }
+    expect(narrow).toMatch(/\.pending-bills-table \.money-table__head,[\s\S]*?\.pending-bills-table \.money-table__cell\s*\{[^}]*padding:\s*0 6px/)
     expect(css).toMatch(/\.pending-bills-table \.money-table-scroll\s*\{\s*overflow-x:\s*hidden/)
     expect(rule('.pending-bills-list-column') ?? '').toMatch(/container:\s*pending-bills-list\s*\/\s*inline-size/)
   })
@@ -48,7 +65,12 @@ describe('pending bills table CSS', () => {
     expect(owes).not.toMatch(/max-width/)
   })
 
-  it('hides lower-priority columns in a narrow list instead of adding horizontal scroll', () => {
+  it('uses the stronger shared Money skeleton tone while loading', () => {
+    const shellCss = readFileSync(resolve(process.cwd(), 'src/components/money/money-table-shell.css'), 'utf8')
+    expect(shellCss).toMatch(/\.money-skeleton \.skeleton-bar\s*\{\s*background:\s*var\(--border\)/)
+  })
+
+  it('hides only allowed low-priority columns instead of adding horizontal scroll', () => {
     expect(rule('.pending-bills-table .money-table-scroll') ?? '').not.toMatch(/overflow-x:\s*auto/)
     expect(css).toMatch(/@container pending-bills-list \(max-width:\s*979\.98px\)/)
     expect(css).toMatch(/\.pending-bills-table \.money-table-scroll\s*\{\s*overflow-x:\s*hidden/)

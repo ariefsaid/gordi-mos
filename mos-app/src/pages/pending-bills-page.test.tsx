@@ -293,7 +293,15 @@ describe('pending-bill record history states', () => {
   })
 })
 
-describe('the payment form in the record panel at every width', () => {
+describe('the pending bill record panel at every width', () => {
+  it('names the bill in the full-screen phone panel title', async () => {
+    setViewport(false)
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Open bill PB-2' }))
+    const panel = await screen.findByRole('dialog', { name: 'Pending bill PB-2' })
+    expect(within(panel).getByText('Pending bill PB-2', { selector: '.record-panel-title' })).toBeInTheDocument()
+  })
+
   it('moves focus into the form when it opens and back to the panel action when it closes', async () => {
     setViewport(false)
     renderPage()
@@ -406,6 +414,7 @@ describe('AC-1123: every state says what happened and offers an action', () => {
     renderPage()
     const status = await screen.findByRole('status', { name: 'Loading…' })
     expect(status).toBeInTheDocument()
+    expect(status).toHaveClass('money-skeleton')
   })
 
   it('no copy yet: says so, when it runs, and offers Refresh that reads again', async () => {

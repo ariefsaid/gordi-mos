@@ -95,13 +95,37 @@
 
   @container pending-bills-list (max-width: 979.98px) {
     .pending-bills-table .money-table__cell--date,
+    .pending-bills-table .money-table__cell--age,
+    .pending-bills-table .money-table__head.money-table__cell--date,
+    .pending-bills-table .money-table__head.money-table__cell--age {
+      display: none;
+    }
+
+    .pending-bills-table .money-table__head,
+    .pending-bills-table .money-table__cell {
+      padding: 0 6px;
+    }
+
+    .pending-bills-table .money-table__cell--branch { width: 14%; }
+    .pending-bills-table .money-table__cell--owes { width: 21%; }
+    .pending-bills-table .money-table__cell--state { width: 18%; }
+    .pending-bills-table .money-table__cell--bill { width: 19%; }
+    .pending-bills-table .money-table__cell--amount { width: 14%; }
+    .pending-bills-table .money-table__cell--balance { width: 14%; }
+  }
+
+  @container pending-bills-list (max-width: 679.98px) {
     .pending-bills-table .money-table__cell--branch,
     .pending-bills-table .money-table__cell--owes,
-    .pending-bills-table .money-table__head.money-table__cell--date,
     .pending-bills-table .money-table__head.money-table__cell--branch,
     .pending-bills-table .money-table__head.money-table__cell--owes {
       display: none;
     }
+
+    .pending-bills-table .money-table__cell--state { width: 30%; }
+    .pending-bills-table .money-table__cell--bill { width: 26%; }
+    .pending-bills-table .money-table__cell--amount { width: 22%; }
+    .pending-bills-table .money-table__cell--balance { width: 22%; }
   }
 }
 

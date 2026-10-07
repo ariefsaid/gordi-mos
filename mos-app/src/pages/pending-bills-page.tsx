@@ -34,6 +34,7 @@ import { wibToday } from '@/lib/home-attention'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { RecordPanelHost } from '@/shell/record-panel-host'
 import { useDocumentTitle } from '@/shell/use-document-title'
+import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useIsWideOverlayWidth } from '@/shell/use-is-wide-overlay-width'
 import './pending-bills-page.css'
 
@@ -91,6 +92,7 @@ export function PendingBillsPage() {
   const auth = useAuth()
   const orgId = auth.status === 'authenticated' ? auth.viewer.person.org_id : ''
   const isWide = useIsWideOverlayWidth()
+  const isDesktop = useIsDesktop()
   useDocumentTitle(t('pendingBills.documentTitle'))
 
   const { status, data, tooMany, reload } = useReportingRead(loadPendingBills)
@@ -180,7 +182,7 @@ export function PendingBillsPage() {
     </Button>
   )
 
-  if (!data && status === 'loading') return frame(<LoadingShell count={5} className="pending-bills-loading" />, 'loading')
+  if (!data && status === 'loading') return frame(<LoadingShell count={5} className="money-skeleton pending-bills-loading" />, 'loading')
   if (!data) {
     return frame(
       <MoneyLoadError
@@ -305,7 +307,7 @@ export function PendingBillsPage() {
     <>
       <RecordPanelHost
         label={t('pendingBills.record.panelLabel', { billNo: selectedBill.billNo })}
-        title={t('nav.money.pendingBills')}
+        title={isDesktop ? t('nav.money.pendingBills') : t('pendingBills.record.panelLabel', { billNo: selectedBill.billNo })}
         closeLabel={t('record.close')}
         rootClassName="drawer-split--sticky"
         focusKey={selectedBill.id}
