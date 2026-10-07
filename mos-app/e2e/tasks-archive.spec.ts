@@ -50,17 +50,21 @@ test('AC-091: archive task from detail → leaves default list → reappears und
   // Confirm dialog
   const confirmBtn = page.getByRole('button', { name: /^archive$/i })
   await expect(confirmBtn).toBeVisible()
+  const refreshedTaskList = page.waitForResponse(response =>
+    response.ok()
+      && response.request().method() === 'GET'
+      && new URL(response.url()).pathname.endsWith('/rest/v1/tasks')
+      && new URL(response.url()).searchParams.get('archived_at') === 'is.null',
+  )
   await confirmBtn.click()
 
-  // After archiving, should navigate back to the tasks list
+  // After archiving, should navigate back to the tasks list and refresh its rows.
   await page.waitForURL(/\/tasks$/, { timeout: 10_000 })
+  await refreshedTaskList
 
   // ── 4. Assert: task is NOT in the default list ──────────────────────────────
-  // Broaden scope while retaining the default exclusion of archived tasks.
-  await selectTaskView(page, 'All')
-  // The list has reloaded once another row is on screen and the reads have settled.
+  // The list defaults to All and excludes archived rows.
   await expect(page.locator('tr.task-row, [data-testid="task-card"]').first()).toBeVisible()
-  await page.waitForLoadState('networkidle')
   await expect(page.getByText(taskTitle)).not.toBeVisible()
 
   // ── 5. Include archived — task reappears ──────────────────────────────

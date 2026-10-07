@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { StrictMode } from 'react'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
+import type { CafeItemSetting } from '@/lib/db/cafe-item-settings'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import type { AuthState } from '@/auth/context'
 
@@ -137,12 +138,25 @@ describe('CafeItemSettingsPage missing-item queue', () => {
     expect(queue).toHaveTextContent('Gordi HQ · Dapur')
   })
 
-  it('does not expose the reports queue to a read-only viewer', async () => {
+  it('does not expose the reports queue or item editors to a read-only viewer', async () => {
     mockCanManage.mockResolvedValue(false)
     renderPage()
     expect(await screen.findByText('These item settings are read-only for you. Kitchen and Bar managers edit their own activity; Ops Leads, Ops Managers and admins edit all streams.')).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'Missing-item reports for this stream' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: 'MOS name' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Save settings/ })).not.toBeInTheDocument()
     expect(mockListReports).not.toHaveBeenCalled()
+  })
+
+  it('recovers read-only when edit access cannot be confirmed', async () => {
+    mockCanManage.mockRejectedValueOnce(new Error('access check failed'))
+    renderPage()
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not confirm edit access')
+    expect(screen.queryByRole('textbox', { name: 'MOS name' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Save settings/ })).not.toBeInTheDocument()
+
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Try again', exact: true }))
+    expect(await screen.findByRole('textbox', { name: 'MOS name' })).toBeEnabled()
   })
 })
 
@@ -219,9 +233,9 @@ describe('CafeItemSettingsPage filters', () => {
 })
 
 describe('CafeItemSettingsPage unit multiples', () => {
-  it('offers all active ERP units as defaults, defines factors in one multi-select, and saves only the default detail', async () => {
+  it('keeps dirty edits after a failed save and retry saves the selected default and factor', async () => {
     mockListItems.mockResolvedValue([{
-      id: 'item-1', erpName: 'ERP Oat milk', mosName: 'Oat milk', category: 'Dairy', kind: 'RAW', isActive: true,
+      id: 'item-1', erpName: 'ERP Oat milk', mosName: 'Oat milk', category: 'Dairy', kind: null, isActive: false,
       defaultUnitId: 'unit-each',
       units: [
         { id: 'unit-each', name: 'each', isShown: true, isDefault: true, labelOrdinal: null, labelCount: 1 },
@@ -229,33 +243,79 @@ describe('CafeItemSettingsPage unit multiples', () => {
       ],
       unitMultiples: [0.5],
     }])
+    let rejectSave!: (reason: Error) => void
+    mockSaveItem.mockImplementationOnce(() => new Promise<void>((_resolve, reject) => { rejectSave = reject }))
     const user = userEvent.setup()
     renderPage()
 
-    const defaultUnit = await screen.findByRole('combobox', { name: 'Default unit' })
+    const name = await screen.findByRole('textbox', { name: 'MOS name' })
+    const save = screen.getByRole('button', { name: 'Save settings for Oat milk' })
+    await user.clear(name)
+    await user.type(name, '   ')
+    expect(name).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByRole('alert')).toHaveTextContent('Enter a MOS name.')
+    expect(save).toBeDisabled()
+
+    await user.clear(name)
+    await user.type(name, 'Oat milk for the bar')
+    await user.click(screen.getByRole('combobox', { name: 'Kind for Oat milk for the bar' }))
+    await user.click(await screen.findByRole('option', { name: 'Raw material', exact: true }))
+    await user.click(screen.getByRole('checkbox', { name: 'Active for Oat milk for the bar' }))
+    const defaultUnit = screen.getByRole('combobox', { name: 'Default unit' })
     await user.click(defaultUnit)
     await user.click(await screen.findByRole('option', { name: 'case' }))
 
-    const multiples = screen.getByRole('button', { name: 'Extra units for Oat milk' })
+    const multiples = screen.getByRole('button', { name: 'Extra units for Oat milk for the bar' })
     await user.click(multiples)
     expect(screen.queryByRole('option', { name: '0.5 case' })).not.toBeInTheDocument()
     await user.keyboard('{Escape}')
-
     await user.click(multiples)
-    const factor = screen.getByRole('spinbutton', { name: 'Multiple of case' })
-    await user.type(factor, '2')
-    await user.click(screen.getByRole('button', { name: 'Add a multiple for Oat milk' }))
-    expect(screen.getByRole('button', { name: 'Extra units for Oat milk' })).toHaveTextContent('2 case')
+    await user.type(screen.getByRole('spinbutton', { name: 'Multiple of case' }), '2')
+    await user.click(screen.getByRole('button', { name: 'Add a multiple for Oat milk for the bar' }))
+    expect(multiples).toHaveTextContent('2 case')
+    expect(save).toBeEnabled()
 
-    await user.click(screen.getByRole('button', { name: 'Save settings for Oat milk' }))
-    await waitFor(() => expect(mockSaveItem).toHaveBeenCalledWith(expect.objectContaining({
+    await user.click(save)
+    expect(save).toHaveTextContent('Saving…')
+    expect(save).toBeDisabled()
+    await act(async () => rejectSave(new Error('save failed')))
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't save this item. Your changes are still here.")
+    expect(name).toHaveValue('Oat milk for the bar')
+    expect(screen.getByRole('checkbox', { name: 'Active for Oat milk for the bar' })).toBeChecked()
+    expect(multiples).toHaveTextContent('2 case')
+
+    await user.click(screen.getByRole('button', { name: 'Try again', exact: true }))
+    expect(await screen.findByText('Saved')).toBeInTheDocument()
+    expect(mockSaveItem).toHaveBeenLastCalledWith(expect.objectContaining({
       itemId: 'item-1',
+      mosName: 'Oat milk for the bar',
+      kind: 'RAW',
+      isActive: true,
       defaultUnitId: 'unit-case',
       shownUnitIds: ['unit-case'],
       unitMultiples: [2],
-    })))
-    expect(await screen.findByText('Saved')).toBeInTheDocument()
+    }))
   })
+})
+
+it('shows the no-ESB empty state when settings contain no items', async () => {
+  mockListItems.mockResolvedValueOnce([])
+  renderPage()
+  expect(await screen.findByRole('heading', { name: 'No ESB items on Gordi HQ · Kitchen', exact: true })).toBeInTheDocument()
+})
+
+it('shows loading during a failed item read and recovers when retried', async () => {
+  let rejectRead!: (reason: Error) => void
+  mockListItems.mockImplementationOnce(() => new Promise<CafeItemSetting[]>((_resolve, reject) => { rejectRead = reject }))
+  renderPage()
+  expect(await screen.findByRole('status', { name: 'Loading Café items' })).toBeVisible()
+  await waitFor(() => expect(mockListItems).toHaveBeenCalledTimes(1))
+
+  await act(async () => rejectRead(new Error('read failed')))
+  expect(await screen.findByText("Couldn't load Café item settings. Try again.", { exact: true })).toBeVisible()
+  await userEvent.setup().click(await screen.findByRole('button', { name: 'Try again', exact: true }))
+  expect(await screen.findByRole('article', { name: 'ERP Oat milk' })).toBeVisible()
+  expect(mockListItems.mock.calls.length).toBeGreaterThan(1)
 })
 
 describe('CafeItemSettingsPage default-unit setup note', () => {

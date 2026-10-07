@@ -97,6 +97,7 @@ test('AC-003 (DD-WAY-60): retired Daily Log URLs render in-shell not-found witho
 })
 
 test('AC-004 (DD-WAY-36): /work/follow-ups renders not-found in one hop — no redirect', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('work/follow-ups')
   // No redirect: the URL the viewer asked for is the URL they keep.
   await expect(page).toHaveURL(/\/work\/follow-ups$/)
@@ -106,6 +107,7 @@ test('AC-004 (DD-WAY-36): /work/follow-ups renders not-found in one hop — no r
   // The rail/header are still there, so the viewer can navigate out of a 404 instead of being stranded.
   await expect(page.getByRole('navigation', { name: 'Primary' })).toBeVisible()
   await expect(page.getByRole('banner')).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'not-found shell has no horizontal overflow at 390px').toBe(true)
 })
 
 test('AC-004: /tasks/:taskId redirects to /work/tasks/:taskId and renders the task surface', async ({ page }) => {

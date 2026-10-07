@@ -26,16 +26,13 @@ async function expectFullPageStays(page: Page, id: string) {
   await expect(page.locator('[data-overlay-host]')).toHaveCount(0)
 }
 
-// A pasted link is checked at both widths: the phone has no side panel to bypass.
-for (const width of [1440, 390]) {
-  test(`a pasted collection link naming a record opens that record on its full page at ${width}px`, async ({ page }) => {
-    await page.setViewportSize({ width, height: width === 390 ? 844 : 900 })
-    await loginAs(page, DIRECTOR, DEMO_PASSWORD)
-    const id = await firstSignal(page)
-    await page.goto(`work/signals?layout=feed&record=${id}`)
-    await expectFullPageStays(page, id)
-  })
-}
+test('a pasted collection link names a record and opens its full page at 1440px', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await loginAs(page, DIRECTOR, DEMO_PASSWORD)
+  const id = await firstSignal(page)
+  await page.goto(`work/signals?layout=feed&record=${id}`)
+  await expectFullPageStays(page, id)
+})
 
 // Phone open + Back is owned by work-record-opening.spec.ts (all four collections); promoting the
 // desktop side panel to the canonical page is specific to this file.
