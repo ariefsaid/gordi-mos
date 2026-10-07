@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { loginAs } from './helpers/login'
-import { ADMIN, VIEWER } from './fixtures/users'
+import { ADMIN } from './fixtures/users'
 import { isShipGated } from './helpers/ship-gate'
 import { stubAccountLocale } from './helpers/account-locale'
 
@@ -49,32 +49,13 @@ test.describe('shell phone nav', () => {
     await expect(page.getByRole('heading', { name: 'Personal Profile', exact: true })).toBeVisible()
     await expect(more).toBeHidden()
   })
-
-  test('AC-021b (OD-68): a café-affiliated viewer GETS the Café tab (their work is promoted)', async ({ page }) => {
-    await loginAs(page, VIEWER.email, VIEWER.password) // Cahya — Cafe Ops Lead
-    const nav = page.getByRole('navigation', { name: 'Primary' })
-    await expect(nav.getByRole('link', { name: 'Café' })).toBeVisible()
-  })
-
-  // issue 444 widened this from "non-finance/admin" to EVERY viewer — see the admin case above,
-  // which now covers the same ground for the role that used to see Money. Kept for the phone-bar
-  // half of the claim, which the admin case does not make.
-  test('AC-022: viewers never see Money in the phone nav or More menu', async ({ page }) => {
-    await loginAs(page, VIEWER.email, VIEWER.password)
-
-    const nav = page.getByRole('navigation', { name: 'Primary' })
-    await expect(nav.getByRole('link', { name: 'Money' })).toHaveCount(0)
-
-    await nav.getByRole('button', { name: 'More' }).click()
-    const more = page.getByRole('dialog', { name: 'More' })
-    await expect(more.getByRole('link', { name: 'Money' })).toHaveCount(0)
-  })
+  // Café tab for a café-affiliated viewer and Money absence from the bar and More, per persona:
+  // owned by shell-navigation-parity.spec.ts (R1).
 })
 
+// One actor: the Café member has the full five-tab bar, the tightest fit for Indonesian labels.
 for (const actor of [
   { label: 'member', email: 'e2e.bar.member@example.test', password: 'e2e-password-123', cafe: true },
-  { label: 'lead', ...VIEWER, cafe: true },
-  { label: 'director', email: 'dewi.dev@example.test', password: VIEWER.password, cafe: false },
 ]) {
   test(`R1 Indonesian ${actor.label}: Inbox and one-line phone tabs at 390`, async ({ page }, info) => {
     await page.setViewportSize({ width: 390, height: 844 })

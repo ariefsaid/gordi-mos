@@ -60,6 +60,8 @@ test.beforeEach(async ({ page }) => {
   await loginAs(page, ADMIN.email, ADMIN.password)
 })
 
+// Single owner of the retired-URL map (old path -> canonical URL, Back never re-enters it). Other
+// specs (proof-02, AC-411, AC-022's retired deep link) used to re-walk subsets of it.
 test('AC-001: old shell routes redirect to their new canonical URL and Back never re-enters the retired URL', async ({ page }) => {
   test.setTimeout(120_000)
   for (const routeCase of redirectCases) {
@@ -78,7 +80,6 @@ test('AC-001: old shell routes redirect to their new canonical URL and Back neve
     await expect(page).toHaveURL(new URL(e2eAppPath('/'), page.url()).href)
 
     await page.goto(routeCase.oldPath, { waitUntil: 'commit', timeout: 10_000 })
-    await page.waitForTimeout(1_000)
     await expect(page).toHaveURL(routeCase.finalPath, { timeout: 10_000 })
     if ('surface' in routeCase) {
       await expect(page.getByTestId('page-head').getByRole('heading', { name: String(routeCase.surface) })).toBeVisible({ timeout: 10_000 })
@@ -102,6 +103,9 @@ test('AC-004 (DD-WAY-36): /work/follow-ups renders not-found in one hop — no r
   // AC-021: not-found renders INSIDE the shell — the real cross-stack proof of the guard's
   // fall-through assertion (unit layer owns the invariant; this owns the journey).
   await expect(page.getByRole('heading', { name: NOT_FOUND_HEADING })).toBeVisible()
+  // The rail/header are still there, so the viewer can navigate out of a 404 instead of being stranded.
+  await expect(page.getByRole('navigation', { name: 'Primary' })).toBeVisible()
+  await expect(page.getByRole('banner')).toBeVisible()
 })
 
 test('AC-004: /tasks/:taskId redirects to /work/tasks/:taskId and renders the task surface', async ({ page }) => {

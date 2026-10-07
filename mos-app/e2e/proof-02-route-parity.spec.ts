@@ -33,11 +33,9 @@ const CROSS_SECTION_RETURNS = [
   { name: 'Home → Inbox → Home', route: routePath('inbox') },
 ] as const
 
-const LEGACY_REDIRECTS = [
-  { oldPath: 'tasks', canonical: /\/work\/tasks$/ },
-  { oldPath: 'updates', canonical: /\/work\/signals\?layout=feed$/ },
-  { oldPath: 'kitchen', canonical: /\/cafe\/production$/ },
-] as const
+// Café capture pages own their visible title (kitchen-log-page.css hides the breadcrumb leaf), and
+// below rail-collapse the breadcrumb has no ancestors, so the nav is CSS-hidden by design there.
+const CAPTURE_TITLE_ROUTES: readonly RouteParityId[] = ['cafe', 'cafeProduction', 'cafeTransfer', 'cafeWaste']
 
 function normalizeHref(href: string): string {
   const url = new URL(href)
@@ -91,6 +89,8 @@ async function assertCanonicalSurface(page: Page, route: string) {
     // omitted entirely at narrow widths; preserve the no-breadcrumb behavior, not an empty <nav>.
     await expect.poll(async () => (await breadcrumb.allTextContents()).join('').trim()).toBe('')
     await expect(page.getByRole('heading', { name: 'Connect an agent', level: 1 })).toBeVisible()
+  } else if (routeEntry && CAPTURE_TITLE_ROUTES.includes(routeEntry.id)) {
+    await expect(page.getByRole('main').getByRole('heading', { level: 1 })).toBeVisible()
   } else {
     await expect(breadcrumb).toBeVisible()
   }
@@ -100,11 +100,16 @@ async function assertCanonicalSurface(page: Page, route: string) {
     await expect(page.locator('[aria-current="page"]')).toHaveCount(1)
   }
   await expect(page.getByRole('main')).toBeVisible()
+  // The phone shell never scrolls sideways on any destination (jsdom has no layout engine).
+  if ((page.viewportSize()?.width ?? 1440) < 920) {
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `${route}: no horizontal scroll`).toBe(true)
+  }
 }
 
 test.describe('PROOF-02 canonical route and visible-root parity', () => {
-  for (const width of [1440, 1300, 390] as const) {
-    test(`visible roots, canonical surfaces and Back ownership at ${width}px`, async ({ page }, testInfo) => {
+  // 1440 = rail shell, 390 = bottom-tab shell + More drawer; 1300 re-ran the rail branch.
+  for (const width of [1440, 390] as const) {
+    test(`visible roots, canonical surfaces and Back ownership at ${width}px`, async ({ page }) => {
       test.setTimeout(120_000)
       await page.setViewportSize({ width, height: 900 })
       await loginAs(page, ADMIN.email, ADMIN.password)
@@ -132,26 +137,6 @@ test.describe('PROOF-02 canonical route and visible-root parity', () => {
 
       for (const route of CANONICAL_ROUTES) {
         await assertCanonicalSurface(page, route)
-      }
-
-      await testInfo.attach('visible-root-hrefs', {
-        body: JSON.stringify({ width, hrefs: [...hrefs].sort(), canonicalRoutes: CANONICAL_ROUTES }, null, 2),
-        contentType: 'application/json',
-      })
-      await page.screenshot({ path: testInfo.outputPath(`route-parity-${width}.png`), fullPage: true })
-    })
-
-    test(`legacy redirects and Back never re-enter retired URLs at ${width}px`, async ({ page }) => {
-      test.setTimeout(90_000)
-      await page.setViewportSize({ width, height: 900 })
-      await loginAs(page, ADMIN.email, ADMIN.password)
-      for (const redirect of LEGACY_REDIRECTS) {
-        await page.goto('')
-        await page.goto(redirect.oldPath, { waitUntil: 'commit' })
-        await expect(page).toHaveURL(redirect.canonical)
-        await expect(page.locator('[aria-current="page"]')).toHaveCount(1)
-        await page.goBack()
-        await expect.poll(() => stripE2eBasePath(new URL(page.url()).pathname)).not.toBe(`/${redirect.oldPath}`)
       }
     })
   }
