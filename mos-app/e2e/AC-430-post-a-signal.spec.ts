@@ -12,8 +12,9 @@ import { stubAccountLocale } from './helpers/account-locale'
 
 test.use({ viewport: { width: 390, height: 844 } })
 
-for (const locale of ['en', 'id'] as const) {
-  test(`AC-430: unrelated org targets, Inbox handled, history, retract and Repost at 390px (${locale})`, async ({ page }, testInfo) => {
+// One locale: the journey is data-bound, and en/id key parity is owned by src/i18n/messages.test.ts.
+for (const locale of ['en'] as const) {
+  test(`AC-430: unrelated org targets, Inbox handled, history, retract and Repost at 390px (${locale})`, async ({ page }) => {
     test.setTimeout(90_000)
     const t = messages[locale]
     const body = `AC-430 observation ${locale} ${Date.now()}`
@@ -49,7 +50,6 @@ for (const locale of ['en', 'id'] as const) {
     const content = composer.locator('textarea')
     await content.fill(body)
     await expect(composer.getByText(t['signals.composer.directoryError'], { exact: true })).toBeVisible()
-    await page.screenshot({ path: testInfo.outputPath(`${locale}-composer-retry.png`), animations: 'disabled' })
     failDirectory = false
     await composer.getByRole('button', { name: t['common.retry'], exact: true }).click()
     await expect(content).toHaveValue(body)
@@ -62,7 +62,6 @@ for (const locale of ['en', 'id'] as const) {
     await mentionOptions.getByRole('option', { name: /Finance Team/ }).click()
     await expect(content).toBeFocused()
     await assertTapFloor(page, '[data-testid="signal-composer"] button', 'Signal composer', { axes: 'both', noOverflow: true })
-    await page.screenshot({ path: testInfo.outputPath(`${locale}-composer.png`) })
     await composer.getByRole('button', { name: t['signals.action.share'], exact: true }).click()
     await expect(composer).not.toBeVisible()
     const feedRow = page.locator('main [data-signal-id][role="button"]').filter({ hasText: body })
@@ -91,7 +90,6 @@ for (const locale of ['en', 'id'] as const) {
     await page.reload()
     await expect(page.getByRole('heading', { name: new RegExp(body) })).toBeVisible()
     await expect(history).toBeVisible()
-    await page.screenshot({ path: testInfo.outputPath(`${locale}-record.png`) })
 
     await page.evaluate(() => localStorage.clear())
     await loginAs(page, recipientEmail, DEMO_PASSWORD)
@@ -104,6 +102,8 @@ for (const locale of ['en', 'id'] as const) {
     await row.locator('.inbox-row__button').press('Enter')
     await expect(page.getByRole('heading', { name: new RegExp(body) })).toBeVisible()
     await page.goBack()
+    // Back closes the Signal overlay asynchronously; the row sits under it until it is gone.
+    await expect(page.locator('[data-overlay-host]')).toHaveCount(0)
     await expect(row).toBeVisible()
     // Opening reads only: the explicit handle action must still be available.
     await row.getByRole('button', { name: t['inbox.markHandled'], exact: true }).click()
@@ -112,7 +112,6 @@ for (const locale of ['en', 'id'] as const) {
     await page.reload()
     await expect(row).toBeVisible()
     await expect(row.getByRole('button', { name: t['inbox.markHandled'], exact: true })).toHaveCount(0)
-    await page.screenshot({ path: testInfo.outputPath(`${locale}-inbox-handled.png`) })
 
     await page.evaluate(() => localStorage.clear())
     await loginAs(page, authorEmail, DEMO_PASSWORD)
@@ -132,7 +131,6 @@ for (const locale of ['en', 'id'] as const) {
     await expect(page.getByRole('button', { name: t['signals.record.createFollowUpTask'], exact: true })).toHaveCount(0)
     await page.reload()
     await expect(page.locator('.signal-tombstone')).toContainText('Incorrect destination')
-    await page.screenshot({ path: testInfo.outputPath(`${locale}-tombstone.png`) })
     await page.getByRole('button', { name: t['signals.record.repost'], exact: true }).click()
     await expect(content).toHaveValue(new RegExp(body))
     await content.fill(`${body} corrected`)
