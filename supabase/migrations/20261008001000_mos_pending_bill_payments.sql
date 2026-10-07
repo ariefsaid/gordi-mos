@@ -14,7 +14,7 @@
 -- (which may carry cents) is accepted, so a bill with cents can be settled. A bill whose recorded
 -- payments exceed a later, lower ESB total is shown as overpaid by the application.
 --
--- Rollback: supabase/rollbacks/20261007009600_mos_pending_bill_payments.sql (guarded).
+-- Rollback: supabase/rollbacks/20261008001000_mos_pending_bill_payments.sql (guarded).
 --
 -- DOWN: run the guarded rollback above; it refuses while ledger entries or proof objects exist, so
 -- archive them first.

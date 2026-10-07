@@ -1,4 +1,4 @@
--- Rollback for 20261007009600_mos_pending_bill_payments.sql (#1465).
+-- Rollback for 20261008001000_mos_pending_bill_payments.sql (#1465).
 -- The ledger is settlement history: this refuses while any payment entry or proof object exists.
 -- Archive them first. The empty private bucket row stays (storage refuses direct deletes of buckets).
 begin;
