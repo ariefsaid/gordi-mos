@@ -98,5 +98,12 @@ G3 mv supabase/migrations/20261007009850_z.sql supabase/migrations/2026100700990
 if (cd "$tmp/r3" && bash "$SCRIPT" "$OLD6" dev) >/dev/null 2>&1; then fail=$((fail+1)); printf '  FAIL  a renumber with a mode change must refuse\n'
 else pass=$((pass+1)); printf '  ok    a renumber with a mode change refuses\n'; fi
 
+# Two renumber commits that together swap the order refuse.
+G3 reset -q --hard "$OLD6"; stamp3 "$OLD6"
+G3 mv supabase/migrations/20261007009800_x.sql supabase/migrations/20261007009990_x.sql; G3 commit -qm "renumber x"
+G3 mv supabase/migrations/20261007009850_z.sql supabase/migrations/20261007009950_z.sql; G3 commit -qm "renumber z"
+if (cd "$tmp/r3" && bash "$SCRIPT" "$OLD6" dev) >/dev/null 2>&1; then fail=$((fail+1)); printf '  FAIL  a swap split across two renumber commits must refuse\n'
+else pass=$((pass+1)); printf '  ok    a swap split across two renumber commits refuses\n'; fi
+
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

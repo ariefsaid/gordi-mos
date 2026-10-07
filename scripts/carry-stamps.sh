@@ -29,7 +29,7 @@ renumber_only() {
   local c
   for c in $(git rev-list "$old..$new"); do
     # --raw: modes must match and every change is an exact (R100) rename of <v>_<name>.sql to
-    # <v2>_<name>.sql; sorted by old version, the new versions must keep the same order.
+    # <v2>_<name>.sql.
     git diff --raw -M100% "$c^" "$c" | awk -F'\t' '
       { n++; split($1, m, " ")
         if (substr(m[1], 2) != m[2]) bad = 1
@@ -39,11 +39,13 @@ renumber_only() {
         va = a; vb = b; sub(/^supabase\/migrations\//, "", va); sub(/^supabase\/migrations\//, "", vb)
         sa = va; sb = vb; sub(/^[0-9]+_/, "", sa); sub(/^[0-9]+_/, "", sb)
         if (sa != sb) bad = 1
-        sub(/_.*/, "", va); sub(/_.*/, "", vb); print va, vb }
-      END { exit (bad || n == 0) }' | sort -n | awk '{ if (NR > 1 && $2 <= last) exit 1; last = $2 }' || return 1
-    [ "${PIPESTATUS[1]}" = 0 ] || return 1
+      }
+      END { exit (bad || n == 0) }' || return 1
   done
+  # Across all those commits, migrations must still apply in the same order.
+  [ "$(migration_order "$old")" = "$(migration_order "$new")" ]
 }
+migration_order() { git ls-tree --name-only "$1" supabase/migrations/ | sed 's|.*/||' | sort -n | sed -E 's/^[0-9]+_//'; }
 if renumber_only; then
   identical="renumber"
 else
