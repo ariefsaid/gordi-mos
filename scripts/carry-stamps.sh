@@ -16,6 +16,8 @@ die() { printf '✗ carry-stamps: %s\n' "$1" >&2; exit 1; }
 
 old="${1:?usage: carry-stamps.sh <old-tip-sha> [base-ref]}"
 baseref="${2:-origin/dev}"
+# Pinned: the base certifies "already gated" only because dev and main advance via gated PRs.
+case "$baseref" in origin/dev|origin/main) ;; *) die "base must be origin/dev or origin/main (got '$baseref')" ;; esac
 git rev-parse --verify --quiet "$old^{commit}" >/dev/null || die "old tip '$old' does not resolve"
 new="$(git rev-parse HEAD)"
 [ "$old" != "$new" ] || die "old tip IS HEAD — nothing to carry"
@@ -28,16 +30,15 @@ renumber_only() {
   [ -z "$(git rev-list --merges "$old..$new")" ] || return 1
   local c
   for c in $(git rev-list "$old..$new"); do
-    # --raw: modes must match and every change is an exact (R100) rename of <v>_<name>.sql to
-    # <v2>_<name>.sql.
-    git diff --raw -M100% "$c^" "$c" | awk -F'\t' '
+    # --raw --no-abbrev: same mode, same blob, R100 rename of a branch-added <14-digit>_<name>.sql
+    # to a new 14-digit version, same name.
+    git diff --raw --no-abbrev -M100% "$c^" "$c" | awk -F'\t' -v base="$(git ls-tree --name-only "$baseref" supabase/migrations/ | tr '\n' '|')" '
       { n++; split($1, m, " ")
-        if (substr(m[1], 2) != m[2]) bad = 1
-        if (m[5] != "R100") bad = 1
+        if (substr(m[1], 2) != m[2] || m[3] != m[4] || m[5] != "R100") bad = 1
         a = $2; b = $3
-        if (a !~ /^supabase\/migrations\/[0-9]+_/ || b !~ /^supabase\/migrations\/[0-9]+_/) bad = 1
-        va = a; vb = b; sub(/^supabase\/migrations\//, "", va); sub(/^supabase\/migrations\//, "", vb)
-        sa = va; sb = vb; sub(/^[0-9]+_/, "", sa); sub(/^[0-9]+_/, "", sb)
+        if (a !~ /^supabase\/migrations\/[0-9]{14}_/ || b !~ /^supabase\/migrations\/[0-9]{14}_/) bad = 1
+        if (index("|" base, "|" a "|")) bad = 1          # a migration the base already has
+        sa = a; sb = b; sub(/^supabase\/migrations\/[0-9]{14}_/, "", sa); sub(/^supabase\/migrations\/[0-9]{14}_/, "", sb)
         if (sa != sb) bad = 1
       }
       END { exit (bad || n == 0) }' || return 1
@@ -45,7 +46,8 @@ renumber_only() {
   # Across all those commits, migrations must still apply in the same order.
   [ "$(migration_order "$old")" = "$(migration_order "$new")" ]
 }
-migration_order() { git ls-tree --name-only "$1" supabase/migrations/ | sed 's|.*/||' | sort -n | sed -E 's/^[0-9]+_//'; }
+# Filename (text) order is the order Supabase applies migrations in.
+migration_order() { git ls-tree --name-only "$1" supabase/migrations/ | sed 's|.*/||' | LC_ALL=C sort | sed -E 's/^[0-9]+_//'; }
 # Merging dev in (the house rule: merge, never rebase) also carries: every first-parent commit
 # after the stamped tip is a merge of a base-contained commit whose tree is exactly git's own
 # clean merge — no conflict resolution, no edit riding along.

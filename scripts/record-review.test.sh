@@ -215,5 +215,8 @@ gr checkout -q -b release/x HEAD; gr commit -q --allow-empty -m "fix on top"
 git -C "$tmp/rel-repo" update-ref refs/remotes/origin/dev HEAD~1
 relcheck "release/* branch with a fix commit needs opus" 1 gpt-6-luna
 
+gr checkout -q --detach HEAD; gr commit -q --allow-empty -m "detached work"
+relcheck "detached HEAD outside dev/main needs opus" 1 gpt-6-luna
+
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

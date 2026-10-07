@@ -28,7 +28,9 @@ bad=()
 while IFS= read -r f; do
   [[ "$f" == "$DIR"/*.sql ]] || continue
   v="$(version "$f")"
-  if ! [[ "$v" =~ ^[0-9]+$ ]] || (( 10#$v <= max )); then bad+=("$f"); fi
+  # Exactly 14 digits: Supabase applies files in name (text) order, which matches numeric order
+  # only at a fixed width.
+  if ! [[ "$v" =~ ^[0-9]{14}$ ]] || (( 10#$v <= max )); then bad+=("$f"); fi
 done < <(git -c core.quotePath=false diff -z --no-renames --diff-filter=A --name-only "$BASE"..."$HEADREF" -- "$DIR" | tr '\0' '\n')
 
 if [ "${#bad[@]}" -gt 0 ]; then

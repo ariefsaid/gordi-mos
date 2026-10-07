@@ -128,12 +128,13 @@ esac
 
 head="$(git rev-parse HEAD)" || die "not a git repo"
 
-# Releases and migrations get an Opus security lens. A release candidate is a release/* branch or
-# a HEAD that dev or main already contains (feature branches never are); a migration branch
+# Releases and migrations get an Opus security lens. A release candidate is a release/* branch, a
+# detached HEAD, or a HEAD that dev or main already contains (feature branches never are); a migration branch
 # touches anything under supabase/migrations/.
 if [ "$lens" = security ]; then
   release=0
-  case "$(git branch --show-current)" in release/*) release=1 ;; esac
+  # A detached HEAD is treated as a release candidate: unnamed, it cannot show it is a feature branch.
+  case "$(git branch --show-current)" in release/*|"") release=1 ;; esac
   for b in origin/dev origin/main; do
     git rev-parse -q --verify "$b" >/dev/null && git merge-base --is-ancestor HEAD "$b" && release=1
   done

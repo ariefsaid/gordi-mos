@@ -51,4 +51,8 @@ git checkout -q -B tab dev; printf 'select 1;' > "supabase/migrations/2026011500
 rc=0; out="$(bash "$SCRIPT" dev tab 2>&1)" || rc=$?
 [ "$rc" -eq 1 ] || { echo "FAIL out-of-order tab path passed"; echo "$out"; exit 1; }
 echo "ok   a path with a tab is still judged"; pass=$((pass + 1))
-echo "$pass/8 passed"
+git checkout -q -B long dev; echo 'select 1;' > supabase/migrations/100000000000000_long.sql; git add -A; git commit -qm long; git checkout -q dev
+rc=0; out="$(bash "$SCRIPT" dev long 2>&1)" || rc=$?
+[ "$rc" -eq 1 ] || { echo "FAIL a non-14-digit version passed"; echo "$out"; exit 1; }
+echo "ok   a version off the 14-digit format fails (filename order is text order)"; pass=$((pass + 1))
+echo "$pass/9 passed"
