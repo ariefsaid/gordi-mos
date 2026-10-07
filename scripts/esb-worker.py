@@ -218,6 +218,10 @@ class Halt(Permanent):
     """ESB may hold this document and the worker cannot tell: stop for a person."""
 
 
+class EsbRefused(Permanent):
+    """ESB answered definitively that it will not take this document."""
+
+
 class Unrecognised(Transient):
     """An ESB reply this worker's configured shape does not recognise."""
 
@@ -569,10 +573,20 @@ def _request(method: str, url: str, *, headers: dict[str, str],
                         kind=kind) from None
 
 
+_URL_ORIGIN = re.compile(r"\b[a-z][a-z0-9+.-]*://[^/\s\"']+", re.I)
+
+
+def _scrub_last_error(patch: dict[str, Any]) -> dict[str, Any]:
+    """A fault's text may quote a URL; what the outbox stores keeps its path, never its host."""
+    if isinstance(patch.get("last_error"), str):
+        return {**patch, "last_error": _URL_ORIGIN.sub("", patch["last_error"])}
+    return patch
+
+
 def _safe(url: str) -> str:
-    """Strip the query string — outbox filters are harmless, but a URL is not a place
-    to be casual about what gets written into last_error and read by the ops tier."""
-    return url.split("?", 1)[0]
+    """The path alone: last_error is read by the ops tier, and neither the host nor the
+    query string belongs there."""
+    return urllib.parse.urlsplit(url).path or "/"
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════
@@ -622,8 +636,9 @@ class Outbox:
         group_ids = sorted({str(r['push_group_id']) for r in rows if r.get('push_group_id')})
         if not group_ids:
             return rows
-        # A group which already has an ERP number is a resumable fan-out, even when
-        # a prior tick left members in_flight or posted. Never strand accepted money.
+        # A group which already has an ERP number, or a goods receipt ESB may hold
+        # (posting_stage), is resumable even when a prior tick left members in flight,
+        # posted or returned. Never strand accepted money.
         group_query = urllib.parse.urlencode({'id': f"in.({','.join(group_ids)})",
                                               'target_env': f'eq.{self.cfg.target_env}',
                                               'select': 'id,esb_doc_num,status,posting_stage'})
@@ -651,7 +666,8 @@ class Outbox:
             if not gid:
                 result.append(row)
             elif str(gid) in complete and (
-                group_meta.get(str(gid), {}).get('esb_doc_num') or all(
+                group_meta.get(str(gid), {}).get('esb_doc_num')
+                or group_meta.get(str(gid), {}).get('posting_stage') or all(
                     m.get('status') == 'pending' and m.get('endpoint') != 'noop'
                     for m in complete[str(gid)]
                 )
@@ -689,6 +705,7 @@ class Outbox:
         return int(result or 0)
 
     def _patch(self, row_id: str, patch: dict[str, Any]) -> None:
+        patch = _scrub_last_error(patch)
         query = urllib.parse.urlencode({"id": f"eq.{row_id}"})
         _request("PATCH", f"{self.cfg.supabase_url}/rest/v1/esb_push?{query}",
                  headers=self._headers(write=True), body=patch, timeout=self.cfg.timeout)
@@ -719,6 +736,7 @@ class Outbox:
         return status
 
     def patch_group(self, group_id: str, patch: dict[str, Any]) -> None:
+        patch = _scrub_last_error(patch)
         query = urllib.parse.urlencode({"id": f"eq.{group_id}"})
         _request("PATCH", f"{self.cfg.supabase_url}/rest/v1/esb_push_groups?{query}",
                  headers=self._headers(write=True), body=patch, timeout=self.cfg.timeout)
@@ -1061,6 +1079,40 @@ def _drain_one(cfg: Config, client: ErpClient, outbox: Outbox, row: dict[str, An
     return f"posted -> {doc}", True
 
 
+def _resume_members(outbox: Outbox, rows: list[dict[str, Any]], ref: str, out, *,
+                    terminal_ok: bool) -> tuple[list[dict[str, Any]], int | None]:
+    """Claim a started group's pending members. Returns (members now in flight, None), or
+    ([], how many rows to report) when the group must wait: a member awaits its scheduled
+    retry, another tick won the claim, or (unless `terminal_ok`) a member is dead-lettered."""
+    if not terminal_ok and any(row.get("status") == "dead_letter" for row in rows):
+        print(f"{ref}: group has a terminal member; ERP receipt retained for operator review", file=out)
+        return [], len(rows)
+    if any(row.get("status") == "failed" for row in rows):
+        print(f"{ref}: group waiting for its scheduled retry", file=out)
+        return [], 0
+    waiting = [row for row in rows if row.get("status") == "pending"]
+    if waiting and len(outbox.claim_many([row["id"] for row in waiting])) != len(waiting):
+        # The RPC claims all requested members or none, so a lost race leaves no partial lease.
+        print(f"{ref}: group claim raced; retrying next tick", file=out)
+        return [], 0
+    for row in waiting:
+        row["status"] = "in_flight"
+    return [row for row in rows if row.get("status") == "in_flight"], None
+
+
+def _fail_members(outbox: Outbox, rows: list[dict[str, Any]], error: str, *, permanent: bool) -> list[str]:
+    """Close every member this tick holds in flight; a member already posted is never
+    downgraded. A write that faults leaves that row to the lease reaper."""
+    states = []
+    for row in rows:
+        if row.get("status") == "in_flight":
+            try:
+                states.append(outbox.close_failed(row, error, permanent=permanent))
+            except Exception:
+                pass
+    return states
+
+
 def _run_group(cfg: Config, client: ErpClient, outbox: Outbox | None,
                 rows: list[dict[str, Any]], *, plan_only: bool, out,
                 wip_names: dict[str, str] | None) -> int:
@@ -1110,20 +1162,9 @@ def _run_group(cfg: Config, client: ErpClient, outbox: Outbox | None,
             # Persist the ERP receipt before fan-out. This is the resume checkpoint.
             outbox.patch_group(gid, {"status": "in_flight", "esb_doc_num": doc})
         else:
-            if any(row.get("status") == "dead_letter" for row in rows):
-                print(f"{ref}: group has a terminal member; ERP receipt retained for operator review", file=out)
-                return len(rows)
-            if any(row.get("status") == "failed" for row in rows):
-                print(f"{ref}: group waiting for its scheduled retry", file=out)
-                return 0
-            pending_rows = [row for row in rows if row.get("status") == "pending"]
-            if pending_rows:
-                claimed = outbox.claim_many([row["id"] for row in pending_rows])
-                if len(claimed) != len(pending_rows):
-                    print(f"{ref}: group resume claim raced; retrying next tick", file=out)
-                    return 0
-                for row in pending_rows:
-                    row["status"] = "in_flight"
+            _, early = _resume_members(outbox, rows, ref, out, terminal_ok=False)
+            if early is not None:
+                return early
         for row in rows:
             if row.get('status') == 'posted':
                 # A prior tick can close the outbox row before its kitchen-log mirror.
@@ -1137,12 +1178,7 @@ def _run_group(cfg: Config, client: ErpClient, outbox: Outbox | None,
     except Exception as exc:
         # Includes PostgREST faults during any write-back. The group remains resumable
         # when doc is known; only unposted members are failed for the next tick.
-        member_states = []
-        for row in rows:
-            if row.get('status') != 'posted':
-                try:
-                    member_states.append(outbox.close_failed(row, str(exc), permanent=isinstance(exc, Permanent)))
-                except Exception: pass
+        member_states = _fail_members(outbox, rows, str(exc), permanent=isinstance(exc, Permanent))
         group_status = 'dead_letter' if member_states and all(s == 'dead_letter' for s in member_states) else 'failed'
         try: outbox.patch_group(gid, {"status": group_status, "esb_doc_num": doc, "last_error": str(exc)[:2000]})
         except Exception: pass
@@ -1546,13 +1582,16 @@ def _ascii(text: Any, limit: int) -> str:
 
 def _gr_verdict(exc: Classified, shape: GoodsReceiptShape) -> str:
     """'permanent', 'over' (above outstanding) or 'unknown' — an answer that proves nothing,
-    so a create that ended this way may have been made."""
+    so a create that ended this way may have been made. Only a definitive (Permanent) answer
+    is read for ESB's words; a 5xx, 408, 429 or lost answer stays unknown whatever it says."""
+    if not isinstance(exc, Permanent):
+        return "unknown"
     words = exc.body or ""
     if words and any(re.search(p, words, re.I) for p in shape.permanent_refusals):
         return "permanent"
     if words and re.search(shape.over_outstanding, words, re.I):
         return "over"
-    return "permanent" if isinstance(exc, Permanent) else "unknown"
+    return "permanent"
 
 
 def goods_receipt_units(cfg: Config, rows: list[dict[str, Any]], *,
@@ -1654,7 +1693,9 @@ def lookup_goods_receipt(client: ErpClient, shape: GoodsReceiptShape, key: str,
     rows = _dig(result, shape.lookup_rows)
     if not isinstance(rows, list):
         raise Halt(f"the lookup of {key} returned no list")
-    found = [r for r in rows if isinstance(r, dict) and str(_dig(r, shape.lookup_key) or "").strip() == key]
+    if any(not isinstance(r, dict) or not str(_dig(r, shape.lookup_key) or "").strip() for r in rows):
+        raise Halt(f"the lookup of {key} returned a goods receipt without the {shape.lookup_key!r} field")
+    found = [r for r in rows if str(_dig(r, shape.lookup_key)).strip() == key]
     if len(found) > 1:
         raise Halt(f"{len(found)} ESB goods receipts carry {key}")
     if found:
@@ -1678,8 +1719,8 @@ def authorize_goods_receipt(cfg: Config, client: ErpClient, number: str) -> None
         if _gr_verdict(exc, shape) == "unknown":
             raise Transient(f"authorization of ESB goods receipt {number} is not confirmed: {exc}",
                             kind=exc.kind) from None
-        raise Permanent(f"ESB goods receipt {number} was created but ESB refused to authorize "
-                        f"it: {esb_message(exc)}") from None
+        raise EsbRefused(f"ESB goods receipt {number} was created but ESB refused to authorize "
+                         f"it: {esb_message(exc)}") from None
 
 
 def _rematch_goods_receipt(cfg: Config, client: ErpClient, outbox: Outbox, gid: str,
@@ -1689,7 +1730,12 @@ def _rematch_goods_receipt(cfg: Config, client: ErpClient, outbox: Outbox, gid: 
     The rest returns to Receipt issues, and its rows close unposted."""
     head = rows[0].get("payload") or {}
     po, shape = str(head.get("po_number")), cfg.po_shape
-    _, lines = read_po_detail(client, shape, po)
+    try:
+        _, lines = read_po_detail(client, shape, po)
+    except Permanent as exc:
+        raise EsbRefused(f"ESB refused the outstanding read of PO {po}: {esb_message(exc)}") from None
+    if lines and all(_dig(line, shape.product_detail) is None for line in lines):
+        raise Unrecognised(f"PO {po}: no outstanding line carries {shape.product_detail!r}")
     unit_of = {str(ids["product_detail_id"]): unit for unit, ids in units.items()}
     po_lines = [{"item_unit_id": unit_of[str(_dig(line, shape.product_detail))],
                  "outstanding": _quantity(_dig(line, shape.outstanding), po)}
@@ -1707,16 +1753,18 @@ def _rematch_goods_receipt(cfg: Config, client: ErpClient, outbox: Outbox, gid: 
 
 def _create_goods_receipt(cfg: Config, client: ErpClient, outbox: Outbox, gid: str,
                           rows: list[dict[str, Any]], units: dict[str, dict[str, int]],
-                          out, ref: str) -> tuple[str | None, list[dict[str, Any]]]:
+                          out, ref: str, sent: dict[str, bool]) -> tuple[str | None, list[dict[str, Any]]]:
     """Re-read, re-match and create; on an above-outstanding refusal, once more with what then
     fits (FR-1026). Returns the created number and the rows it holds, or (None, []) when
-    nothing fits."""
+    nothing fits. `sent["may_exist"]` is set before the create leaves and cleared only by
+    ESB's definitive refusal of it."""
     for attempt in (1, 2):
         rows, kept = _rematch_goods_receipt(cfg, client, outbox, gid, rows, units)
         if not rows:
             return None, []
         req = compose_goods_receipt(cfg, rows, units, kept)
         outbox.patch_group(gid, {"status": "in_flight", "posting_stage": GR_STAGE_SENT, "last_error": None})
+        sent["may_exist"] = True
         try:
             number = client.post(req.path, req.body, req.result_key)
         except Classified as exc:
@@ -1724,8 +1772,9 @@ def _create_goods_receipt(cfg: Config, client: ErpClient, outbox: Outbox, gid: s
             if verdict == "unknown":
                 raise
             outbox.patch_group(gid, {"posting_stage": None})
+            sent["may_exist"] = False
             if verdict == "permanent":
-                raise Permanent(f"ESB refused goods receipt {ref}: {esb_message(exc)}") from None
+                raise EsbRefused(f"ESB refused goods receipt {ref}: {esb_message(exc)}") from None
             if attempt == 2:
                 raise Transient(f"ESB still finds goods receipt {ref} above outstanding after a "
                                 f"re-match: {esb_message(exc)}") from None
@@ -1739,17 +1788,19 @@ def _create_goods_receipt(cfg: Config, client: ErpClient, outbox: Outbox, gid: s
     raise AssertionError("unreachable")
 
 
-def _close_goods_receipt(cfg: Config, outbox: Outbox, gid: str, rows: list[dict[str, Any]],
-                         message: str, *, refused: bool) -> None:
-    """Dead-letter every member still in flight. A refusal also moves the group's portions out
-    of queued (DD-2026-10-06-1429 (6)); a halt leaves them counted, since ESB may hold them."""
-    for row in rows:
-        if row.get("status") == "in_flight":
-            outbox.close_failed(row, message, permanent=True)
-            row["status"] = "dead_letter"
+def _stop_goods_receipt(cfg: Config, outbox: Outbox, gid: str, rows: list[dict[str, Any]], ref: str,
+                        exc: Permanent, *, free_reason: str | None, out) -> None:
+    """Dead-letter every member in flight. A refusal made while no create can exist frees the
+    group's portions (DD-2026-10-06-1429 (6)), held with `free_reason`; without one the group
+    halts for a person with its portions still queued and counted, since ESB may hold them."""
+    refused = free_reason is not None
+    message = str(exc) if refused else (f"HALTED for a person: {exc}. Check ESB for {ref} before "
+                                        f"anything is sent again")
+    _fail_members(outbox, rows, message, permanent=True)
     outbox.patch_group(gid, {"status": "dead_letter", "last_error": message[:2000]})
     if refused:
-        _rpc(cfg, "refuse_cafe_receipt_portions", {"p_group_id": gid})
+        _rpc(cfg, "refuse_cafe_receipt_portions", {"p_group_id": gid, "p_reason": free_reason})
+    print(f"{ref}: {'refused' if refused else 'HALTED for a person'} — {exc}", file=out)
 
 
 def _run_goods_receipt_group(cfg: Config, client: ErpClient, outbox: Outbox | None,
@@ -1764,16 +1815,21 @@ def _run_goods_receipt_group(cfg: Config, client: ErpClient, outbox: Outbox | No
               f"nothing sent", file=out)
         return 0
     gid = str(rows[0].get("push_group_id"))
+    meta = outbox.group_meta(gid) if outbox is not None else {}
+    number, stage = meta.get("esb_doc_num"), meta.get("posting_stage")
+    # Whether ESB may hold a goods receipt for this group, from any attempt: only a refusal
+    # made while this is false may free the group's portions.
+    sent = {"may_exist": bool(number or stage)}
     try:
         units = goods_receipt_units(cfg, rows, db=outbox is not None)
         req = compose_goods_receipt(cfg, rows, units)
     except Permanent as exc:
         print(f"{ref}: {'REFUSED' if plan_only else 'group failed'} — {exc}", file=out)
         if not plan_only and outbox is not None:
-            if len(outbox.claim_many([row["id"] for row in rows])) == len(rows):
-                for row in rows:
-                    row["status"] = "in_flight"
-                _close_goods_receipt(cfg, outbox, gid, rows, str(exc), refused=True)
+            held, early = _resume_members(outbox, rows, ref, out, terminal_ok=True)
+            if early is None:
+                _stop_goods_receipt(cfg, outbox, gid, held, ref, exc, out=out,
+                                    free_reason=None if sent["may_exist"] else "worker_refused")
         return len(rows)
     except Transient as exc:
         print(f"{ref}: not attempted — {exc}", file=out)
@@ -1787,39 +1843,24 @@ def _run_goods_receipt_group(cfg: Config, client: ErpClient, outbox: Outbox | No
         return 0
 
     assert outbox is not None
-    meta = outbox.group_meta(gid)
-    number, stage = meta.get("esb_doc_num"), meta.get("posting_stage")
-    live = rows
+    # Members a re-match returned to Receipt issues stay dead-lettered and are not part of
+    # the goods receipt; the rest resume.
+    live, early = _resume_members(outbox, rows, ref, out, terminal_ok=True)
+    if early is not None:
+        return early
+    if not live:
+        return 0
+    po = str(head.get("po_number"))
     try:
-        if number:
-            if any(row.get("status") == "dead_letter" for row in rows):
-                print(f"{ref}: group has a terminal member; ESB number {number} retained for review", file=out)
-                return len(rows)
-            if any(row.get("status") == "failed" for row in rows):
-                print(f"{ref}: group waiting for its scheduled retry", file=out)
-                return 0
-            waiting = [row for row in rows if row.get("status") == "pending"]
-            if waiting and len(outbox.claim_many([row["id"] for row in waiting])) != len(waiting):
-                print(f"{ref}: group resume claim raced; retrying next tick", file=out)
-                return 0
-            for row in waiting:
-                row["status"] = "in_flight"
-            live = [row for row in rows if row.get("status") == "in_flight"]
-            if stage == GR_STAGE_AWAITING:
-                # The last authorize's answer may have been lost: ESB says whether it landed.
-                found = lookup_goods_receipt(client, cfg.gr_shape, ref, str(head.get("po_number")))
-                if found is None or found[0] != number:
-                    raise Halt(f"ESB does not show created goods receipt {number} under {ref}")
-                if not found[1]:
-                    authorize_goods_receipt(cfg, client, number)
-        else:
-            if len(outbox.claim_many([row["id"] for row in rows])) != len(rows):
-                print(f"{ref}: group failed — could not claim every member", file=out)
-                return len(rows)
-            for row in rows:
-                row["status"] = "in_flight"
-            found = (lookup_goods_receipt(client, cfg.gr_shape, ref, str(head.get("po_number")))
-                     if stage == GR_STAGE_SENT else None)
+        if stage == GR_STAGE_AWAITING:
+            # The last authorize's answer may have been lost: ESB says whether it landed.
+            found = lookup_goods_receipt(client, cfg.gr_shape, ref, po)
+            if found is None or found[0] != number:
+                raise Halt(f"ESB does not show created goods receipt {number} under {ref}")
+            if not found[1]:
+                authorize_goods_receipt(cfg, client, number)
+        elif not number:
+            found = lookup_goods_receipt(client, cfg.gr_shape, ref, po) if stage == GR_STAGE_SENT else None
             if found:
                 number = found[0]
                 outbox.patch_group(gid, {"status": "in_flight", "posting_stage": GR_STAGE_AWAITING,
@@ -1828,8 +1869,10 @@ def _run_goods_receipt_group(cfg: Config, client: ErpClient, outbox: Outbox | No
                     authorize_goods_receipt(cfg, client, number)
             else:
                 if stage == GR_STAGE_SENT:
+                    # The lookup proved ESB holds nothing under this key.
                     outbox.patch_group(gid, {"posting_stage": None})
-                number, live = _create_goods_receipt(cfg, client, outbox, gid, rows, units, out, ref)
+                    sent["may_exist"] = False
+                number, live = _create_goods_receipt(cfg, client, outbox, gid, live, units, out, ref, sent)
                 if number is None:
                     outbox.patch_group(gid, {"status": "dead_letter", "last_error":
                                              "nothing fits the PO's outstanding; every portion "
@@ -1843,25 +1886,15 @@ def _run_goods_receipt_group(cfg: Config, client: ErpClient, outbox: Outbox | No
             row["status"] = "posted"
         outbox.patch_group(gid, {"status": "posted", "esb_doc_num": number, "posting_stage": None,
                                  "posted_at": _now(), "last_error": None})
-    except Halt as exc:
-        _close_goods_receipt(cfg, outbox, gid, rows, f"HALTED for a person: {exc}. Check ESB for "
-                             f"{ref} before anything is sent again", refused=False)
-        print(f"{ref}: HALTED for a person — {exc}", file=out)
-        return len(rows)
     except Permanent as exc:
-        _close_goods_receipt(cfg, outbox, gid, rows, str(exc), refused=True)
-        print(f"{ref}: refused — {exc}", file=out)
+        free = isinstance(exc, EsbRefused) and not sent["may_exist"]
+        _stop_goods_receipt(cfg, outbox, gid, live, ref, exc, out=out,
+                            free_reason="esb_refused" if free else None)
         return len(rows)
     except Exception as exc:
         # A transient ESB fault or a write-back fault. The group's stage and number stay as
         # recorded, so the next attempt looks up or authorizes rather than creating again.
-        for row in rows:
-            if row.get("status") == "in_flight":
-                try:
-                    outbox.close_failed(row, str(exc), permanent=False)
-                    row["status"] = "failed"
-                except Exception:
-                    pass
+        _fail_members(outbox, live, str(exc), permanent=False)
         try:
             outbox.patch_group(gid, {"status": "failed", "last_error": str(exc)[:2000]})
         except Exception:
