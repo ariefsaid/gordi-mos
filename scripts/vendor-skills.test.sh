@@ -4,6 +4,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 script="scripts/vendor-skills.sh"
+bash -n "$script" || { echo "vendor-skills.sh does not parse" >&2; exit 1; }
 for name in IMPECCABLE_PIN TASTE_PIN GSTACK_PIN JEFF_PIN UUPM_PIN MPS_PIN SSSF_PIN; do
   pin="$(sed -n "s/^${name}=\"\([0-9a-f]*\)\"$/\1/p" "$script")"
   test "${#pin}" -eq 40

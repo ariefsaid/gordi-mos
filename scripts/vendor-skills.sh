@@ -239,7 +239,6 @@ unlock_skills() {
     sed -i.bak '/^disable-model-invocation:/d' "$f" && rm -f "$f.bak"
   done
 }
-}
 
 OVERRIDES="$ROOT/.claude/skill-overrides"
 ORIGINAL="$ROOT/.claude/skill-original"

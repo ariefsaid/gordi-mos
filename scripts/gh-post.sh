@@ -130,6 +130,10 @@ if [ "$verb1" = "api" ]; then
   esac
   case "$verb2" in
     *"/../"*|*"/./"*|*"/.."|*"/.") die "'api $verb2' carries a dot segment — the path must name the target directly" ;;
+    # Anything that moves a branch goes through `gh pr merge`, where the merge gate checks the
+    # owner's assent for main/staging — never through this door.
+    */pulls/*/merge|*/pulls/*/merge\?*|*/merges|*/merges\?*|*/git/refs*)
+      die "'api $verb2' would move a branch — merge with 'gh pr merge' instead (the merge gate checks it)" ;;
     repos/"$this_repo"/*|/repos/"$this_repo"/*) ;;
     *) die "'api $verb2' does not address this checkout's repo ($this_repo) — the door writes here only" ;;
   esac
