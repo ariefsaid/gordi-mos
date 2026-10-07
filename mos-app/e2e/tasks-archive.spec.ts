@@ -58,8 +58,9 @@ test('AC-091: archive task from detail → leaves default list → reappears und
   // ── 4. Assert: task is NOT in the default list ──────────────────────────────
   // Broaden scope while retaining the default exclusion of archived tasks.
   await selectTaskView(page, 'All')
-  // Wait a moment for the list to load
-  await page.waitForTimeout(1_000)
+  // The list has reloaded once another row is on screen and the reads have settled.
+  await expect(page.locator('tr.task-row, [data-testid="task-card"]').first()).toBeVisible()
+  await page.waitForLoadState('networkidle')
   await expect(page.getByText(taskTitle)).not.toBeVisible()
 
   // ── 5. Include archived — task reappears ──────────────────────────────

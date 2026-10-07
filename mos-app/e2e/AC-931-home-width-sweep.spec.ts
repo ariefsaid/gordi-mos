@@ -97,9 +97,8 @@ test.describe('AC-931 / NFR-923: Home fits in every arrangement at every support
       for (const width of WIDTHS) {
         await page.setViewportSize({ width, height: 900 })
         await expect(page.locator('.home-frame')).toBeVisible()
-        await page.waitForTimeout(120)
 
-        expect(await arrangementOf(page), `${layout}@${width}: wrong arrangement measured`).toBe(layout)
+        await expect.poll(() => arrangementOf(page), { message: `${layout}@${width}: wrong arrangement measured` }).toBe(layout)
         const measured = await measure(page)
         expect(measured, `${layout}@${width}: no Home frame was measured`).not.toBeNull()
         const result = measured!
