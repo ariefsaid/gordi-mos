@@ -54,7 +54,7 @@ design_pass_reason() {
   while IFS= read -r path; do
     [ -n "$path" ] || continue
     git cat-file -e "$merge_base:$path" 2>/dev/null && continue
-    if [[ "$path" =~ ^mos-app/src/components/.+\.tsx$ ]] && [[ "$path" != *.test.tsx ]]; then
+    if [[ "$path" =~ ^mos-app/src/(components|shell)/.+\.tsx$ ]] && [[ "$path" != *.test.tsx ]]; then
       printf 'adds a component (%s)' "$path"
       return 0
     fi
@@ -66,13 +66,13 @@ design_pass_reason() {
 
   numstat="$(git diff --numstat --diff-filter=d "$merge_base" HEAD)" || return 2
   while IFS=$'\t' read -r added deleted path; do
-    [[ "$path" =~ ^mos-app/src/(pages|components)/.+\.(tsx|css)$ ]] || continue
+    [[ "$path" =~ ^mos-app/src/(pages|components|shell)/.+\.(tsx|css)$ ]] || continue
     [[ "$path" == *.test.tsx ]] && continue
     case "$added$deleted" in *[!0-9]*|'') continue ;; esac
     lines=$((lines + added + deleted))
   done <<< "$numstat"
   if [ "$lines" -gt 150 ]; then
-    printf 'changes %s lines of page/component UI' "$lines"
+    printf 'changes %s lines of page/component/shell UI' "$lines"
     return 0
   fi
   return 1

@@ -176,10 +176,28 @@ if [ "$verb1" = "pr" ] && [ "$verb2" = "create" ]; then
         die "'pr create' through this door targets the current checkout on the default host only — no --repo/--head/--hostname (the stamps certify HEAD here). cd to the branch's checkout instead." ;;
     esac
   done
-  base_val="" prev=""
-  for a in "$@"; do
-    case "$prev" in --base) base_val="$a"; prev=""; continue ;; esac
-    case "$a" in --base) prev="$a" ;; --base=*) base_val="${a#--base=}" ;; esac
+  base_val="" base_seen=0
+  argv=("$@")
+  for ((i = 0; i < ${#argv[@]}; i++)); do
+    a="${argv[$i]}"
+    case "$a" in
+      --assignee|-a|--body|-b|--body-file|-F|--label|-l|--milestone|-m|--project|-p|--reviewer|-r|--title|-t)
+        [ $((i + 1)) -lt ${#argv[@]} ] || die "'$a' needs a value"
+        i=$((i + 1)); continue ;;
+    esac
+    case "$a" in
+      --base|-B)
+        [ $((i + 1)) -lt ${#argv[@]} ] || die "'$a' needs a value"
+        i=$((i + 1)); candidate="${argv[$i]}" ;;
+      --base=*) candidate="${a#--base=}" ;;
+      -B?*) candidate="${a#-B}" ;;
+      *) continue ;;
+    esac
+    [ -n "$candidate" ] || die "base needs a value"
+    if [ "$base_seen" = 1 ] && [ "$candidate" != "$base_val" ]; then
+      die "multiple different PR bases were given — name one base"
+    fi
+    base_val="$candidate" base_seen=1
   done
   require_pr_stamps "$base_val"
 fi

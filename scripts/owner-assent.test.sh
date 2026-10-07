@@ -25,11 +25,14 @@ check_refused() { # $1 name · remaining args…
 }
 
 check_refused 'unresolvable SHA refused' 0000000000000000000000000000000000000000 'owner said merge it'
+check_refused 'HEAD revision refused even when it resolves to a commit' HEAD 'owner said merge it'
+check_refused 'short SHA refused even when it resolves to a commit' "${head:0:12}" 'owner said merge it'
+check_refused 'HEAD~0 revision refused even when it resolves to a commit' HEAD~0 'owner said merge it'
 check_refused 'blob SHA that is not a commit refused' "$blob" 'owner said merge it'
 check_refused 'empty quoted words refused' "$head" ''
 check_refused 'whitespace-only quoted words refused' "$head" $' \t\n '
 
-(cd "$tmp/linked" && bash "$SCRIPT" "$head" 'owner said merge this exact commit') > "$tmp/out" 2>&1
+(cd "$tmp/linked" && bash "$SCRIPT" "$head" $'owner said merge\nthis exact commit') > "$tmp/out" 2>&1
 rc=$?
 marker="$common/owner-assent-$head"
 if [ "$rc" -eq 0 ] && [ -f "$marker" ] && [ ! -e "$worktree_gitdir/owner-assent-$head" ] \

@@ -9,12 +9,12 @@ set -uo pipefail
 [ "$#" -eq 2 ] || { printf "✗ owner-assent: usage: scripts/owner-assent.sh <sha> \"<owner's quoted words>\"\n" >&2; exit 2; }
 sha="$1"
 words="$2"
+[[ "$sha" =~ ^[0-9a-f]{40}$ ]] \
+  || { printf '✗ owner-assent: SHA must be a full 40-character lowercase commit SHA\n' >&2; exit 1; }
 [[ "$words" =~ [^[:space:]] ]] || { printf '✗ owner-assent: quoted words must not be empty or whitespace-only\n' >&2; exit 1; }
 
 head="$(git rev-parse --verify --quiet --end-of-options "${sha}^{commit}")" \
   || { printf '✗ owner-assent: SHA does not resolve to a commit: %s\n' "$sha" >&2; exit 1; }
-[[ "$head" =~ ^[[:xdigit:]]{40}$ ]] \
-  || { printf '✗ owner-assent: resolved commit SHA is not a full 40-character SHA\n' >&2; exit 1; }
 common_dir="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" \
   || { printf '✗ owner-assent: not inside a git checkout\n' >&2; exit 1; }
 [ -n "$common_dir" ] || { printf '✗ owner-assent: could not locate the git common directory\n' >&2; exit 1; }

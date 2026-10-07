@@ -140,13 +140,37 @@ printf '.new-card { display: block; }\n' > "$css_repo/mos-app/src/styles/new-car
 commit_design_change "$css_repo" 'add stylesheet'
 check_design 'new CSS file requires a design pass' 1 "$css_repo" 'adds a stylesheet (mos-app/src/styles/new-card.css)'
 
+threshold_repo="$tmp/150-ui-lines-repo"
+mkdir -p "$threshold_repo/mos-app/src/components"
+: > "$threshold_repo/mos-app/src/components/large.tsx"
+init_design_repo "$threshold_repo"
+for ((line=1; line<=150; line++)); do printf 'line %s\n' "$line"; done > "$threshold_repo/mos-app/src/components/large.tsx"
+commit_design_change "$threshold_repo" '150-line component edit'
+check_design '150 changed UI lines do not require a design pass' 0 "$threshold_repo" ''
+
 large_repo="$tmp/large-ui-repo"
 mkdir -p "$large_repo/mos-app/src/components"
 : > "$large_repo/mos-app/src/components/large.tsx"
 init_design_repo "$large_repo"
 for ((line=1; line<=151; line++)); do printf 'line %s\n' "$line"; done > "$large_repo/mos-app/src/components/large.tsx"
 commit_design_change "$large_repo" 'large component edit'
-check_design '151 changed page/component UI lines require a design pass' 1 "$large_repo" 'changes 151 lines of page/component UI'
+check_design '151 changed page/component UI lines require a design pass' 1 "$large_repo" 'changes 151 lines of page/component/shell UI'
+
+test_lines_repo="$tmp/test-only-ui-lines-repo"
+mkdir -p "$test_lines_repo/mos-app/src/components"
+: > "$test_lines_repo/mos-app/src/components/large.test.tsx"
+init_design_repo "$test_lines_repo"
+for ((line=1; line<=200; line++)); do printf 'line %s\n' "$line"; done > "$test_lines_repo/mos-app/src/components/large.test.tsx"
+commit_design_change "$test_lines_repo" 'large component test edit'
+check_design 'large component test changes do not count toward the UI line threshold' 0 "$test_lines_repo" ''
+
+shell_lines_repo="$tmp/large-shell-lines-repo"
+mkdir -p "$shell_lines_repo/mos-app/src/shell"
+: > "$shell_lines_repo/mos-app/src/shell/chrome.tsx"
+init_design_repo "$shell_lines_repo"
+for ((line=1; line<=151; line++)); do printf 'line %s\n' "$line"; done > "$shell_lines_repo/mos-app/src/shell/chrome.tsx"
+commit_design_change "$shell_lines_repo" 'large shell edit'
+check_design '151 changed shell UI lines require a design pass' 1 "$shell_lines_repo" 'changes 151 lines of page/component/shell UI'
 
 release_repo="$tmp/release-ui-repo"
 mkdir -p "$release_repo/mos-app/src/components"
@@ -238,7 +262,7 @@ rc=$?
 if [ "$rc" -eq 0 ]; then pass=$((pass+1)); printf '  ok    non-UI diff does not require skills evidence\n'
 else fail=$((fail+1)); printf '  FAIL  non-UI diff changed behavior — rc=%s\n' "$rc"; fi
 
-# Test-only and unrelated shell files do not trigger a design pass.
+# Test-only TSX files do not trigger a design pass.
 mkdir -p "$tmp/scope-repo/mos-app/src/shell"
 git init -q "$tmp/scope-repo"
 gs() { git -C "$tmp/scope-repo" -c user.email=t@t -c user.name=t "$@"; }
@@ -261,8 +285,7 @@ printf 'export const B = () => null;\n' > "$tmp/scope-repo/mos-app/src/shell/bar
 gs add -A && gs commit -qm 'shell ui'
 printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$(gs rev-parse HEAD)" > "$tmp/scope-repo/review.md"
 (cd "$tmp/scope-repo" && bash "$SCRIPT" --lens spec --reviewer gpt-5.6-luna --artifact review.md) >/dev/null 2>&1
-if [ $? -eq 0 ]; then pass=$((pass+1)); printf '  ok    unrelated shell tsx does not require design-pass evidence\n'
-else fail=$((fail+1)); printf '  FAIL  unrelated shell tsx wrongly gated\n'; fi
+check_design 'new shell component requires a design pass' 1 "$tmp/scope-repo" 'adds a component (mos-app/src/shell/bar.tsx)'
 
 # A deleted UI file does not trigger the gate.
 mkdir -p "$tmp/del-repo/mos-app/src/components"
