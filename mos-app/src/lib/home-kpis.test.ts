@@ -2,7 +2,7 @@
 // Covers AC-HK01 (trailing margin window sum + prior-window delta) and AC-HK02
 // (NULL margin never renders as a fake 0/NaN — "no data"/"no comparison").
 
-import { describe, it, expect } from 'vitest'
+import { afterEach, describe, it, expect, vi } from 'vitest'
 import type { SalesMarginDailyRow } from '@/lib/db/reporting-margin'
 import {
   trailingMargin,
@@ -30,6 +30,14 @@ function marginRow(overrides: Partial<SalesMarginDailyRow>): SalesMarginDailyRow
 
 // ── trailingMargin (AC-HK01) ──────────────────────────────────────────────────
 describe('trailingMargin', () => {
+  afterEach(() => vi.useRealTimers())
+
+  it('keeps its supplied WIB date anchor at the UTC/WIB rollover', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-10-05T17:00:00Z'))
+    const rows = [marginRow({ margin_date: '2026-10-05', margin_interim: 1 }), marginRow({ margin_date: '2026-10-06', margin_interim: 2 })]
+    expect(trailingMargin(rows, '2026-10-06', 1).current).toBe(2)
+  })
   it('AC-HK01: sums margin_interim over the trailing window anchored to latestDate', () => {
     const rows = [
       marginRow({ margin_date: '2026-06-24', margin_interim: 1_000_000 }),

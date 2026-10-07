@@ -40,10 +40,10 @@
 
 .kls-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, var(--cafe-capture-control-group-width, 25rem));
-  align-items: center;
+  grid-template-columns: minmax(0, 1fr) 7.5rem;
+  align-items: baseline;
   gap: 4px 16px;
-  min-width: 0;
+  min-width: 0; /* let the name ellipsize rather than push the row past the viewport */
 }
 .kls-quantity,
 .kls-quantity .quantity-field { display: contents; }
@@ -62,15 +62,10 @@
    rather than a centred token, and the greyed placeholder echoes the plan as an anchor.
    font-size stays 16px: below that, mobile Safari zooms the viewport on focus, which is
    unacceptable on a field the floor taps ~21 times in a pass. */
-.kls-quantity .quantity-field-control--inline {
-  display: grid;
-  grid-template-columns: var(--cafe-capture-quantity-width, 7.5rem) var(--cafe-capture-unit-track-width, 17rem);
+.kls-quantity .quantity-field-control {
   grid-column: 2;
   grid-row: 1;
-  align-items: center;
-  gap: 8px;
-  width: var(--cafe-capture-control-group-width, 25rem);
-  max-width: 100%;
+  width: 100%;
   min-width: 0;
 }
 .kls-quantity .quantity-field-error {
@@ -78,11 +73,14 @@
   grid-row: 2;
   width: 100%;
 }
+.kls-quantity .quantity-field-control--below,
+.kls-quantity .quantity-field-suffix { width: 100%; }
 .kls-qty[aria-invalid='true'] { border-color: var(--destructive); }
 .kls-qty {
+  flex: 0 0 auto;
   width: 100%;
   max-width: 100%;
-  height: var(--cafe-capture-control-height, 44px);
+  height: 44px;
   box-sizing: border-box;
   text-align: right;
   padding-right: 8px;
@@ -113,7 +111,7 @@
 @media (min-width: 768px) {
   .kls-card.kls-dense { width: 100%; }
   .kls-dense .kls-qty {
-    height: var(--cafe-capture-control-height, 32px);
+    height: 32px;
     font-size: var(--font-size-control);
   }
 
@@ -132,15 +130,7 @@
     flex: 1 1 auto;
     min-width: 0;
   }
-  .kls-card.kls-dense .kls-row { grid-template-columns: minmax(0, 1fr); }
-  .kls-card.kls-dense .kls-quantity .quantity-field-control--inline {
-    grid-template-columns: var(--cafe-capture-quantity-width, 5.5rem) minmax(0, 1fr);
-    grid-column: 1;
-    width: 100%;
-  }
-  .kls-card.kls-dense .kls-quantity .quantity-field-error { grid-column: 1; }
-  .kls-dense .kls-unit-select { width: 100%; }
-  .kls-dense .kls-unit-select .mk-select__box { width: 100%; }
+  .kls-card.kls-dense .kls-row { justify-content: flex-end; }
   /* The note needs full width in the phone card. At rest the stepper shares the head row with
      the item name (`.kl-card-head`, kitchen-log-page.css); once a note is showing it claims the
      full row width on its own line instead (that file's `.kl-card-head` gets `flex-wrap: wrap`
@@ -224,12 +214,12 @@
 .kls-unit {
   display: block;
   flex: 0 1 auto;
-  width: auto;
+  width: 100%;
   min-width: 0;
   font-size: var(--font-size-label);
   color: var(--muted-foreground);
   line-height: 1.2;
-  text-align: left;
+  text-align: right;
   white-space: normal;
   overflow-wrap: anywhere;
 }
@@ -244,9 +234,9 @@
 .kls-unit-change {
   display: inline-flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: flex-end;
   gap: 3px;
-  min-height: var(--cafe-capture-control-height, 44px);
+  min-height: 44px;
   max-width: 100%;
   padding: 0 6px;
   border: 1px solid var(--border);
@@ -254,7 +244,7 @@
   background: transparent;
   font-family: inherit;
   cursor: pointer;
-  text-align: left;
+  text-align: right;
   white-space: normal;
   overflow-wrap: anywhere;
 }
@@ -263,20 +253,10 @@
 
 /* The opened picker (one per row at most, closed again on selection/blur). The shared
    Select already renders the 32px box; this only keeps it from stretching the row. */
-.kls-unit-select { width: 100%; max-width: 100%; }
-.kls-unit-select .mk-select__box,
-.kls-unit-select .mk-select__field { width: 100%; max-width: 100%; }
-.kls-unit-select .mk-select__field > span:first-child {
-  white-space: normal;
-  overflow-wrap: anywhere;
-  text-overflow: clip;
-}
+.kls-unit-select { flex: 0 0 auto; width: 100%; max-width: 100%; }
 
 @media (min-width: 768px) {
-  .kls-dense .kls-unit-change {
-    min-height: var(--cafe-capture-control-height, 32px);
-    padding-inline: 2px;
-  }
+  .kls-dense .kls-unit-change { min-height: 32px; }
 }
 
 /* Phone card: the running "logged N" reads with the quantity it totals, so it sits under the

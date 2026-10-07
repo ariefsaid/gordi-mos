@@ -1,4 +1,6 @@
 import { supabase } from '@/lib/supabase'
+import { wibToday } from '@/lib/format/date'
+export { wibToday } from '@/lib/format/date'
 import { getRunRollup, startRun, listDueRuns } from './processes'
 import type { DueProcessRun, ProcessRunRollup, SpawnResult } from './processes.types'
 import type { ProductionActivity } from './kitchen-logs.types'
@@ -10,13 +12,6 @@ import type { ProductionActivity } from './kitchen-logs.types'
 
 const mos = () => supabase.schema('mos')
 const shared = () => supabase.schema('shared')
-
-/** WIB "today" as YYYY-MM-DD (fixed +7h; mirrors kitchen-log-page.wibToday). */
-export function wibToday(): string {
-  const shifted = new Date(Date.now() + 7 * 60 * 60 * 1000)
-  const p = (n: number) => String(n).padStart(2, '0')
-  return `${shifted.getUTCFullYear()}-${p(shifted.getUTCMonth() + 1)}-${p(shifted.getUTCDate())}`
-}
 
 /** Resolve the Café Opening process by its stable work-line code (org-scoped by RLS). */
 export async function getCafeOpeningProcessId(): Promise<string | null> {

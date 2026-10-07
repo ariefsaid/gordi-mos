@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { wibToday } from '@/lib/format/date'
 import { containsPattern } from './like-pattern'
 import { filterEffectiveMemberships } from '@/lib/team-context/eligible-teams'
 import type {
@@ -297,12 +298,6 @@ export async function listSignalRevisions(signalId: string): Promise<SignalRevis
 // ── loadMentionRosters (C1 — the composer's fan-out preview needs real rosters) ──
 
 export interface MentionRosters { teamMembers: MemberLookup; buMembers: MemberLookup }
-
-const WIB_DATE = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' })
-
-function wibToday(now: Date = new Date()): string {
-  return WIB_DATE.format(now)
-}
 
 type MentionMembershipRow = {
   team_id: string
