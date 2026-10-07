@@ -2,7 +2,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 create extension if not exists dblink with schema extensions;
-select plan(15);
+select plan(16);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -59,6 +59,15 @@ select is((select is_nullable = 'YES' from information_schema.columns
   where table_schema = 'ops' and table_name = 'kitchen_logs' and column_name = 'client_request_id'), true,
   'legacy and imported rows may keep a NULL request identity');
 select has_index('ops', 'kitchen_logs', 'kitchen_logs_org_client_request_id_key', 'request identity is unique within an organization');
+select is((
+  select string_agg(a.attname, ',' order by k.ordinality)
+    from pg_constraint c
+    cross join lateral unnest(c.conkey) with ordinality as k(attnum, ordinality)
+    join pg_attribute a on a.attrelid = c.conrelid and a.attnum = k.attnum
+   where c.conrelid = 'ops.kitchen_logs'::regclass
+     and c.contype = 'u'
+     and c.conname = 'kitchen_logs_org_client_request_id_key'
+), 'org_id,client_request_id', 'the request identity constraint covers exactly (org_id, client_request_id)');
 
 -- Use libpq's local defaults for the second backend; the race probe keeps no endpoint or
 -- credentials in this public test. It runs only when the test connection can use dblink.

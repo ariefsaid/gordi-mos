@@ -70,6 +70,15 @@ beforeEach(() => {
 })
 
 describe('useWorkWriteAuthority', () => {
+  it('waits to read authority until its caller needs the scopes', async () => {
+    const view = renderHook(({ enabled }) => useWorkWriteAuthority(enabled), { initialProps: { enabled: false } })
+    expect(mockGetWorkWriteScopes).not.toHaveBeenCalled()
+
+    view.rerender({ enabled: true })
+    await waitFor(() => expect(view.result.current.scopes).toEqual(scopesA))
+    expect(mockGetWorkWriteScopes).toHaveBeenCalledOnce()
+  })
+
   it('reloads scopes when the mounted viewer or org changes', async () => {
     const view = renderHook(() => useWorkWriteAuthority())
     await waitFor(() => expect(view.result.current.scopes).toEqual(scopesA))

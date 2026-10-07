@@ -36,6 +36,11 @@ describe('CafeReceiptState', () => {
     expect(screen.getByText('Approved · matched part posted to ESB · not on an open PO: 1')).toBeInTheDocument()
   })
 
+  it('FR-1038 the posting trail says when a PO it posts against was created after delivery', () => {
+    renderState({ status: 'Approved', posting_status: 'not_posted', posting: { state: 'queued', matched: true, unmatched: 0, openIssues: 0, poCreatedAfterDelivery: true } })
+    expect(screen.getByText('Approved · queued for ESB · PO created after delivery')).toBeInTheDocument()
+  })
+
   it('FR-1042 an unread posting claims nothing', () => {
     render(<I18nProvider><CafeReceiptState postingUnknown receipt={{ status: 'Approved', posting_status: 'not_posted', posting: null }} /></I18nProvider>)
     expect(screen.getByText('Approved · posting state not loaded; refresh to see it')).toBeInTheDocument()

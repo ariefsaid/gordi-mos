@@ -5,6 +5,7 @@ vi.mock('../supabase', () => ({
 }))
 
 import { supabase } from '@/lib/supabase'
+import { __resetReferenceCacheForTests, withReferenceCache } from './reference-cache'
 import {
   listRoleAuthority,
   listTeamLeadAssignments,
@@ -22,7 +23,10 @@ function mockSharedRpc(data: unknown, error: unknown = null) {
   return rpc
 }
 
-beforeEach(() => vi.clearAllMocks())
+beforeEach(() => {
+  vi.clearAllMocks()
+  __resetReferenceCacheForTests()
+})
 
 describe('admin access settings data layer', () => {
   it('loads role authority through the shared list_role_authority RPC', async () => {
@@ -40,6 +44,24 @@ describe('admin access settings data layer', () => {
 
     await expect(saveRoleAuthority(changes)).resolves.toBeUndefined()
     expect(rpc).toHaveBeenCalledWith('save_role_authority', { p_changes: changes })
+  })
+
+  it('invalidates cached Work authority when the role matrix is saved', async () => {
+    const cachedLoad = vi.fn(async () => 'cached')
+    await withReferenceCache('mos.get_work_write_scopes', cachedLoad, {
+      identity: 'auth:viewer-1',
+      persist: true,
+    })
+    mockSharedRpc(null)
+
+    await saveRoleAuthority([])
+
+    const reload = vi.fn(async () => 'fresh')
+    await expect(withReferenceCache('mos.get_work_write_scopes', reload, {
+      identity: 'auth:viewer-1',
+      persist: true,
+    })).resolves.toBe('fresh')
+    expect(reload).toHaveBeenCalledOnce()
   })
 
   it('loads Team leads and candidates through the shared settings RPCs', async () => {

@@ -110,7 +110,7 @@ export function CommandMenu({ open, onClose, onShareSignal, canShareSignal = tru
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const auth = useAuth()
-  const { scopes } = useWorkWriteAuthority()
+  const { scopes } = useWorkWriteAuthority(open)
   const t = useT()
   const { openPanel } = useAgentRuntime()
   // AC-032 (#748 delta): search-only vs GO TO/ACT is a WIDTH decision — the same `useIsNarrow()`
