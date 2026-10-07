@@ -7,6 +7,8 @@ import { resolve } from 'node:path'
 
 const css = readFileSync(resolve(process.cwd(), 'src/components/kitchen/wip-item-stepper.css'), 'utf8')
   .replace(/\/\*[\s\S]*?\*\//g, '')
+const captureCss = readFileSync(resolve(process.cwd(), 'src/components/kitchen/cafe-capture-controls.css'), 'utf8')
+  .replace(/\/\*[\s\S]*?\*\//g, '')
 
 function ruleBody(selector: string): string {
   const idx = css.indexOf(selector)
@@ -15,6 +17,22 @@ function ruleBody(selector: string): string {
   const close = css.indexOf('}', open)
   return css.slice(open + 1, close)
 }
+
+describe('WIP quantity input treatment stays owned by the stepper', () => {
+  it('keeps the shared Count/Waste chrome off the Production and Transfer input', () => {
+    expect(captureCss).toMatch(/\.cafe-capture-content \.cafe-capture-quantity-field:not\(\.kls-qty\)/)
+    expect(ruleBody('.kls-qty {')).toMatch(/border:\s*1px solid var\(--border\)/)
+    expect(ruleBody('.kls-qty {')).toMatch(/padding:\s*0 4px/)
+    expect(ruleBody('.kls-qty {')).toMatch(/font-weight:\s*600/)
+  })
+})
+
+describe('Desktop cafe unit alignment', () => {
+  it('keeps the multi-unit label close to the quantity input', () => {
+    const desktopRules = css.slice(css.indexOf('@media (min-width: 768px)'))
+    expect(desktopRules).toMatch(/\.kls-dense \.kls-unit-change\s*\{[^}]*padding-inline:\s*2px/)
+  })
+})
 
 describe('KLS-NOTE-RING: one ring at a time on the required variance note', () => {
   it('invalid resting state is a destructive-coloured border', () => {
