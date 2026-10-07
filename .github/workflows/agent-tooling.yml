@@ -108,6 +108,8 @@ jobs:
         run: bash scripts/worktree-npm-seed.test.sh
       - name: ci-e2e fair-use dispatch door self-test
         run: bash scripts/ci-e2e.test.sh
+      - name: migration rehearsal restore-list self-test
+        run: bash scripts/rehearse-migrations.test.sh
       - name: staging deploy script self-test
         run: bash scripts/deploy-staging.test.sh
       - name: operations scripts self-tests (snapshot cron, ops check, backup, production deploy)

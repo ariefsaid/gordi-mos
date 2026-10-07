@@ -6,13 +6,13 @@
 #
 # A directory means its newest *.dump by name (db-backup.sh stamps each name with UTC time).
 # The image is $REHEARSAL_PG_IMAGE, else the image of the local Supabase stack's database.
-# Roles live outside a database dump, so a role the restore names as missing is created
-# (NOLOGIN) and the dump is restored again into a fresh database; that second restore must be clean.
+# Cloud-only platform owners and event triggers are omitted from the archive TOC. Roles referenced
+# by project grants are created (NOLOGIN) and the filtered dump is restored again into a fresh database.
 # Each migration is applied in one transaction, stopping at the first error.
 #
 # Exit 0: every migration applied. 1: a migration failed. 2: the rehearsal could not run (no
 # docker, dump or image, or the dump did not restore cleanly).
-# Self-test: scripts/deploy-staging.test.sh (rehearsal section).
+# Self-test: scripts/rehearse-migrations.test.sh.
 set -euo pipefail
 
 say() { printf '%s\n' "$*"; }
@@ -39,14 +39,22 @@ if [ -z "$image" ]; then
   [ -n "$image" ] || setup_fail "set REHEARSAL_PG_IMAGE, or start the local Supabase stack so its database image can be used"
 fi
 
+toc_dir="$(mktemp -d -t mos-rehearsal-toc.XXXXXX)"
+chmod 755 "$toc_dir"
+toc="$toc_dir/archive.list" filtered="$toc_dir/filtered.list"
+present="$toc_dir/present-roles" owners="$toc_dir/owners" missing_roles="$toc_dir/missing-roles" skipped="$toc_dir/skipped"
+: > "$toc"; : > "$filtered"; : > "$present"; : > "$owners"; : > "$missing_roles"; : > "$skipped"
+chmod 644 "$toc" "$filtered" "$present" "$owners" "$missing_roles" "$skipped"
+
 ctr="mos-rehearsal-$$-${RANDOM}"
 pw="$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
-cleanup() { docker rm -f "$ctr" >/dev/null 2>&1 || true; }
+cleanup() { docker rm -f "$ctr" >/dev/null 2>&1 || true; rm -rf "$toc_dir"; }
 trap cleanup EXIT
 
 docker run -d --rm --name "$ctr" --label mos.rehearsal=1 --network none \
   -e POSTGRES_PASSWORD="$pw" \
   -v "$dump:/rehearsal/source.dump:ro" -v "$mig_dir:/rehearsal/migrations:ro" \
+  -v "$toc_dir:/rehearsal/toc:ro" \
   "$image" >/dev/null || setup_fail "could not start a throwaway container from $image"
 
 # TCP to 127.0.0.1, so the entrypoint's socket-only init server does not count as ready.
@@ -63,11 +71,48 @@ done
 [ -n "$user" ] || setup_fail "the throwaway database did not become ready"
 
 pg() { local tool="$1"; shift; docker exec -i -e PGPASSWORD="$pw" "$ctr" "$tool" -U "$user" -h 127.0.0.1 "$@"; }
+if ! pg pg_restore -l /rehearsal/source.dump > "$toc" 2>/dev/null; then
+  setup_fail "could not list the dump contents"
+fi
+# Global roles are absent from database dumps; derive cloud-only owners by comparing the TOC to pg_roles.
+pg psql -d postgres -X -At -v ON_ERROR_STOP=1 -c 'select rolname from pg_roles' > "$present"
+awk '!/^;/ && /^[[:space:]]*[0-9]+;/ && NF > 1 && $NF != "-" { print $NF }' "$toc" | sort -u > "$owners"
+while IFS= read -r role; do
+  [ -n "$role" ] || continue
+  grep -Fxq -- "$role" "$present" || printf '%s\n' "$role" >> "$missing_roles"
+done < "$owners"
+awk -v skipped_file="$skipped" '
+  FILENAME == ARGV[1] { if ($0 != "") missing[$0] = 1; next }
+  {
+    if ($0 ~ /^;/ || $0 !~ /^[[:space:]]*[0-9]+;/) { print; next }
+    skip = ($4 == "EVENT" && $5 == "TRIGGER") || ($NF != "-" && ($NF in missing))
+    if (skip) {
+      label = ""
+      for (i = 4; i < NF; i++) label = label (label == "" ? "" : " ") $i
+      if (label != "") print label >> skipped_file
+      next
+    }
+    print
+  }
+' "$missing_roles" "$toc" > "$filtered"
+chmod 644 "$filtered" "$skipped"
+skipped_count="$(wc -l < "$skipped" | tr -d '[:space:]')"
+skipped_names=""
+while IFS= read -r entry; do
+  [ -n "$entry" ] || continue
+  skipped_names="${skipped_names:+$skipped_names; }$entry"
+done < "$skipped"
+if [ "$skipped_count" -gt 0 ]; then
+  say "Rehearsal: skipped $skipped_count platform-owned TOC entries: $skipped_names"
+else
+  say "Rehearsal: skipped 0 platform-owned TOC entries."
+fi
+
 restore() {
   pg psql -d postgres -X -q -v ON_ERROR_STOP=1 \
     -c 'set client_min_messages = warning' \
     -c 'drop database if exists rehearsal with (force)' -c 'create database rehearsal template template0' >/dev/null
-  pg pg_restore -d rehearsal --no-password /rehearsal/source.dump 2>&1 || true
+  pg pg_restore -d rehearsal --no-password -L /rehearsal/toc/filtered.list /rehearsal/source.dump 2>&1 || true
 }
 
 say "Rehearsal: restoring $(basename "$dump") into a throwaway $image container (no network)..."
