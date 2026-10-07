@@ -19,59 +19,54 @@ async function firstSignal(page: Page): Promise<string> {
 async function expectFullPageStays(page: Page, id: string) {
   await expect(page).toHaveURL(recordPage(id))
   await expect(page.locator('[data-signal-region="facts"]')).toBeVisible()
-  await page.waitForTimeout(1500)
+  // No later redirect bounce: wait for the app's own reads to finish, then re-assert.
+  await page.waitForLoadState('networkidle')
   await expect(page).toHaveURL(recordPage(id))
   await expect(page.locator('[data-signal-region="facts"]')).toBeVisible()
   await expect(page.locator('[data-overlay-host]')).toHaveCount(0)
 }
 
+// A pasted link is checked at both widths: the phone has no side panel to bypass.
 for (const width of [1440, 390]) {
-  test.describe(`Signal record URLs at ${width}px`, () => {
-    test.beforeEach(async ({ page }) => {
-      await page.setViewportSize({ width, height: width === 390 ? 844 : 900 })
-      await loginAs(page, DIRECTOR, DEMO_PASSWORD)
-    })
-
-    test('a pasted collection link naming a record opens that record on its full page', async ({ page }, info) => {
-      const id = await firstSignal(page)
-      await page.goto(`work/signals?layout=feed&record=${id}`)
-      await expectFullPageStays(page, id)
-      await page.screenshot({ path: info.outputPath(`signal-direct-url-${width}.png`), animations: 'disabled' })
-    })
-
-    test(`opening a Signal stays canonical and Back returns to the collection`, async ({ page }, info) => {
-      const id = await firstSignal(page)
-      await page.locator(`main [data-signal-id="${id}"][role="button"]`).click()
-
-      if (width === 1440) {
-        const panel = page.locator('[data-overlay-host][data-overlay-owner="signals"]')
-        await expect(panel).toBeVisible()
-        await panel.getByRole('button', { name: 'More Signal actions', exact: true }).click()
-        await page.getByRole('menuitem', { name: 'Open full page', exact: true }).click()
-      }
-
-      // Desktop keeps the Signal panel's explicit promotion affordance; phone opens the same
-      // canonical record page directly instead of inserting a full-screen panel.
-      await expectFullPageStays(page, id)
-      await page.screenshot({ path: info.outputPath(`signal-open-full-page-${width}.png`), animations: 'disabled' })
-
-      await page.goBack()
-      await expect(page).toHaveURL(collection)
-      await expect(page.locator('main [data-signal-id][role="button"]').first()).toBeVisible()
-      await expect(page.locator('[data-overlay-host]')).toHaveCount(0)
-    })
-
-    if (width === 1440) {
-      test('the panel chrome Open full page button also stays on the full page', async ({ page }) => {
-        const id = await firstSignal(page)
-        await page.locator(`main [data-signal-id="${id}"][role="button"]`).click()
-        const panel = page.locator('[data-overlay-host][data-overlay-owner="signals"]')
-        await expect(panel).toBeVisible()
-        await panel.locator('.record-panel-chrome').getByRole('button', { name: 'Open full page', exact: true }).click()
-        await expectFullPageStays(page, id)
-        await page.goBack()
-        await expect(page).toHaveURL(collection)
-      })
-    }
+  test(`a pasted collection link naming a record opens that record on its full page at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 900 })
+    await loginAs(page, DIRECTOR, DEMO_PASSWORD)
+    const id = await firstSignal(page)
+    await page.goto(`work/signals?layout=feed&record=${id}`)
+    await expectFullPageStays(page, id)
   })
 }
+
+// Phone open + Back is owned by work-record-opening.spec.ts (all four collections); promoting the
+// desktop side panel to the canonical page is specific to this file.
+test.describe('Signal panel promotion at 1440px', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await loginAs(page, DIRECTOR, DEMO_PASSWORD)
+  })
+
+  test('opening a Signal panel and promoting it from the actions menu stays canonical; Back returns to the collection', async ({ page }) => {
+    const id = await firstSignal(page)
+    await page.locator(`main [data-signal-id="${id}"][role="button"]`).click()
+    const panel = page.locator('[data-overlay-host][data-overlay-owner="signals"]')
+    await expect(panel).toBeVisible()
+    await panel.getByRole('button', { name: 'More Signal actions', exact: true }).click()
+    await page.getByRole('menuitem', { name: 'Open full page', exact: true }).click()
+    await expectFullPageStays(page, id)
+    await page.goBack()
+    await expect(page).toHaveURL(collection)
+    await expect(page.locator('main [data-signal-id][role="button"]').first()).toBeVisible()
+    await expect(page.locator('[data-overlay-host]')).toHaveCount(0)
+  })
+
+  test('the panel chrome Open full page button also stays on the full page', async ({ page }) => {
+    const id = await firstSignal(page)
+    await page.locator(`main [data-signal-id="${id}"][role="button"]`).click()
+    const panel = page.locator('[data-overlay-host][data-overlay-owner="signals"]')
+    await expect(panel).toBeVisible()
+    await panel.locator('.record-panel-chrome').getByRole('button', { name: 'Open full page', exact: true }).click()
+    await expectFullPageStays(page, id)
+    await page.goBack()
+    await expect(page).toHaveURL(collection)
+  })
+})

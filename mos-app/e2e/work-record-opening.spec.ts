@@ -1,6 +1,6 @@
 import { test, expect, type Locator, type Page, type TestInfo } from '@playwright/test'
 import { loginAs } from './helpers/login'
-import { MANAGER, VIEWER } from './fixtures/users'
+import { MANAGER } from './fixtures/users'
 
 const PHONE = { width: 390, height: 844 }
 const DESKTOP = { width: 1440, height: 900 }
@@ -121,9 +121,10 @@ async function visitDesktopPanels(page: Page, info: TestInfo, actorName: string)
   }
 }
 
+// Single owner of "a Work record opens as a page on phone and returns with one Back" and "opens as a
+// side panel on desktop" for all four collections. Director only: read scope is RLS (pgTAP), not layout.
 for (const actor of [
   { name: 'Director', ...MANAGER },
-  { name: 'member', ...VIEWER },
 ]) {
   test(`${actor.name}: all four Work records open as full pages on phone and return with one Back`, async ({ page }, info) => {
     test.setTimeout(55_000)
