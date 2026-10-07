@@ -215,7 +215,9 @@ class Fake:
         for key, handler in self.routes.items():
             # `esb_push` is a substring of `esb_push_groups`; keep the two reads
             # independently routable so group-read faults exercise the worker branch.
-            if key == "esb_push" and "esb_push_groups" in url:
+            if key == "esb_push" and ("esb_push_groups" in url or "/rpc/claim_esb_pushes" in url
+                                       or "/rpc/reap_esb_pushes" in url
+                                       or "/rpc/prune_esb_pushes" in url):
                 continue
             if key in url:
                 return 200, handler(self, method, url, body)
@@ -229,7 +231,15 @@ class Fake:
 
 
 def _claim_ok(fake, method, url, body):
-    return [{"id": "aaaaaaaa-0000-0000-0000-000000000001"}] if "status=in." in url else None
+    return [{"id": row_id} for row_id in (body or {}).get("p_row_ids", [])]
+
+
+def _reap_ok(fake, method, url, body):
+    return 0
+
+
+def _prune_ok(fake, method, url, body):
+    return 0
 
 
 def _login_ok(fake, method, url, body):
@@ -250,8 +260,11 @@ def _logs_ok(fake, method, url, body):
 
 
 def happy_routes(**over):
-    routes = {"esb_push": _claim_ok, "kitchen_logs": _logs_ok, "auth/login": _login_ok,
-              "product/bom": _bom_ok, "assembly-actual": _assembly_ok}
+    routes = {"esb_push": _claim_ok, "rpc/claim_esb_pushes": _claim_ok,
+              "rpc/reap_esb_pushes": _reap_ok, "rpc/prune_esb_pushes": _prune_ok,
+              "kitchen_logs": _logs_ok,
+              "auth/login": _login_ok, "product/bom": _bom_ok,
+              "assembly-actual": _assembly_ok}
     routes.update(over)
     return routes
 
@@ -351,6 +364,23 @@ run(lambda: W.Outbox(cfg_for("goo", ESB_PUSH_ENABLED="1")).pending(), f)
 check("...and the drain filter excludes held rows at the source",
       "endpoint=neq.noop" in f.calls[0]["url"], f.calls[0]["url"])
 
+f = Fake(esb_push=lambda *a: [])
+run(lambda: W.Outbox(cfg_for("goo", ESB_PUSH_ENABLED="1")).pending(), f)
+query = W.urllib.parse.parse_qs(W.urllib.parse.urlsplit(f.calls[0]["url"]).query)
+check("the drain selects only pending rows with no future retry time",
+      query.get("status") == ["eq.pending"]
+      and "next_attempt_at.is.null" in query.get("or", [""])[0]
+      and "next_attempt_at.lte." in query.get("or", [""])[0],
+      repr(query))
+
+claim_id = "aaaaaaaa-0000-0000-0000-000000000001"
+f = Fake(**happy_routes())
+claimed = run(lambda: W.Outbox(cfg_for("goo", ESB_PUSH_ENABLED="1")).claim(claim_id), f)
+claim_call = f.to("rpc/claim_esb_pushes")
+check("a claim crosses the RPC seam with the row id", claimed and len(claim_call) == 1
+      and claim_call[0]["method"] == "POST"
+      and claim_call[0]["body"] == {"p_row_ids": [claim_id]}, repr(f.calls))
+
 # The rule, stated where it is enforced: close_posted will not write a posted state
 # without evidence, whatever the caller thinks it has.
 check_raises("closing a row 'posted' with no document number is refused", W.Permanent,
@@ -381,7 +411,7 @@ check("...and the note carries the WIP item name beside the batch id (assembly p
       repr(sent[0]["simpleManufacturingDetails"][0]["notes"]) if sent else "nothing sent")
 
 # ══════════════════════════════════════════════════════════════════════════════════════
-print("J. the retry budget, which the ticket owed a decision on")
+print("J. retry budget and terminal dead-lettering")
 # ══════════════════════════════════════════════════════════════════════════════════════
 def _post_503(fake, method, url, body):
     raise W.Transient("ERP unavailable", status=503)
@@ -413,12 +443,8 @@ check("a permanent fault dead-letters on first sight, spending no retries",
       closed and closed[0]["status"] == "dead_letter" and closed[0]["retry_count"] == 0,
       repr(closed) + out)
 
-f = Fake(esb_push=lambda *a: [])
-moved = run(lambda: W.Outbox(cfg_for("goo", ESB_PUSH_ENABLED="1"))
-            .requeue("aaaaaaaa-0000-0000-0000-000000000001"), f)
-check("--requeue only moves a row that is actually dead-lettered",
-      moved is False and "status=eq.dead_letter" in f.calls[0]["url"],
-      f.calls[0]["url"])
+check_raises("the terminal dead-letter state has no worker requeue command",
+             SystemExit, lambda: W.main(["--requeue", "aaaaaaaa-0000-0000-0000-000000000001"]))
 
 # ══════════════════════════════════════════════════════════════════════════════════════
 print("K. one fault costs one row, never the tick")
@@ -448,7 +474,7 @@ check("...and the next row still drains", "PR-2: posted -> SM-0001" in out, out)
 
 # K2/K3. An ERP reply that is valid JSON but the wrong shape used to raise an
 # unclassified AttributeError from inside a claimed row: traceback, tick abandoned, row
-# stranded in_flight where --requeue cannot reach it.
+# stranded in_flight outside the database's retry and lease-recovery paths.
 f = Fake(**happy_routes(**{"assembly-actual": lambda *a: [{"nope": 1}]}))
 n, out = tick(cfg_for("goo", ESB_PUSH_ENABLED="1"), [row()], f)
 check("an ERP reply of the wrong shape is classified, not raised raw", n == 1, out)
@@ -605,7 +631,9 @@ check("a happy grouped post dispatches once and fans out both members", n == 0
       and sum(1 for b in f.bodies("esb_push?") if isinstance(b, dict) and b.get("status") == "posted") == 2,
       repr(f.calls) + out)
 
-# A persisted receipt resumes without another ERP POST.
+# A persisted receipt resumes without another ERP POST. The fixture models two accepted
+# rows that are still pending fan-out, not the in-memory rows closed by the test above.
+grouped_a["status"] = grouped_b["status"] = "pending"
 f = Fake(**happy_routes(esb_push=group_claim, **{"esb_push_groups": lambda *a: [{"id": gid, "esb_doc_num": "SM-RESUME"}],
          "assembly-actual": _assembly_ok}))
 f.routes["esb_push"] = lambda fake, method, url, body: group_listing(fake, method, url, body) if method == "GET" else group_claim(fake, method, url, body)
@@ -615,20 +643,23 @@ ob._group_meta[gid] = {"id": gid, "esb_doc_num": "SM-RESUME"}
 n, out = tick(cfg_for("goo", ESB_PUSH_ENABLED="1"), ready, f,
               wip_names={WIP: WIP_NAME}, outbox=ob)
 check("a group with an ERP receipt resumes without a second dispatch", n == 0
-      and len(f.to("assembly-actual")) == 0, repr(f.calls) + out)
+      and len(f.to("assembly-actual")) == 0
+      and len(f.to("rpc/claim_esb_pushes")) == 1
+      and f.to("rpc/claim_esb_pushes")[0]["body"]
+          == {"p_row_ids": [grouped_a["id"], grouped_b["id"]]}, repr(f.calls) + out)
 
 # If fan-out crashes after one member is posted, that member must not be downgraded.
 class FanoutCrash:
-    def __init__(self): self.n = 0
+    def __init__(self): self.n = 0; self.posted_ids = set()
     def __call__(self, fake, method, url, body):
-        if method == "PATCH" and "status=in." in url:
-            rid = url.split("id=eq.", 1)[1].split("&", 1)[0]
-            return [{"id": rid}]
         if method == "PATCH" and "esb_push?" in url and isinstance(body, dict) and body.get("status") == "posted":
             self.n += 1
+            rid = url.split("id=eq.", 1)[1].split("&", 1)[0]
             if self.n == 2: raise W.Transient("fan-out crash")
+            self.posted_ids.add(rid)
         return None
-f = Fake(**happy_routes(esb_push=FanoutCrash(), **{"esb_push_groups": group_patch,
+fanout_crash = FanoutCrash()
+f = Fake(**happy_routes(esb_push=fanout_crash, **{"esb_push_groups": group_patch,
          "assembly-actual": _assembly_ok}))
 n, out = tick(cfg_for("goo", ESB_PUSH_ENABLED="1"), [grouped_a, grouped_b], f,
               wip_names={WIP: WIP_NAME})
@@ -641,7 +672,7 @@ def _patch_id(c):
     return c["url"].split("id=eq.",1)[1].split("&",1)[0]
 _patches = [c for c in f.calls if c["method"]=="PATCH" and "esb_push?" in c["url"]
             and "id=eq." in c["url"] and isinstance(c.get("body"),dict)]
-posted_ids = {_patch_id(c) for c in _patches if c["body"].get("status")=="posted"}
+posted_ids = fanout_crash.posted_ids
 downgraded = [c["url"] for c in _patches
               if c["body"].get("status") in ("failed","dead_letter") and _patch_id(c) in posted_ids]
 check("no posted member is downgraded after the crash", downgraded == [], repr(downgraded))
@@ -655,15 +686,12 @@ n, out = tick(cfg_for("gkid", ESB_PUSH_ENABLED="1"), [posted_member, {**grouped_
 check("resume stamps a previously posted but unstamped member", bool(f.to("kitchen_logs")), repr(f.calls) + out)
 
 def one_claim(fake, method, url, body):
-    if method == "PATCH" and "status=in." in url:
-        rid = url.split("id=eq.", 1)[1].split("&", 1)[0]
-        return [{"id": rid}] if rid.endswith("001") else []
-    return None
-f = Fake(**happy_routes(esb_push=one_claim, **{"esb_push_groups": group_patch,
-         "assembly-actual": _assembly_ok}))
+    return []
+f = Fake(**happy_routes(esb_push=one_claim, **{"rpc/claim_esb_pushes": one_claim,
+         "esb_push_groups": group_patch, "assembly-actual": _assembly_ok}))
 n, out = tick(cfg_for("goo", ESB_PUSH_ENABLED="1"), [grouped_a, grouped_b], f,
               wip_names={WIP: WIP_NAME})
-check("claim-race releases the partial claim and skips ERP dispatch", n == 2
+check("claim-race skips the whole group before ERP dispatch", n == 2
       and not f.to("assembly-actual"), repr(f.calls) + out)
 
 # ══════════════════════════════════════════════════════════════════════════════════════
@@ -672,8 +700,13 @@ print("H. the drain tick leaves a heartbeat for scripts/ops-check.sh")
 def _empty_outbox(fake, method, url, body):
     return []
 
+_main_fake = None
+
 def _main_with(argv, **over):
-    saved, W._request = W._request, Fake(esb_push=_empty_outbox)
+    global _main_fake
+    _main_fake = Fake(esb_push=_empty_outbox, **{"rpc/reap_esb_pushes": _reap_ok,
+                                                  "rpc/prune_esb_pushes": _prune_ok})
+    saved, W._request = W._request, _main_fake
     saved_env = dict(os.environ)
     os.environ.update(env("goo", ESB_PUSH_ENABLED="1", **over))
     try:
@@ -684,8 +717,16 @@ def _main_with(argv, **over):
         os.environ.clear(); os.environ.update(saved_env)
 
 hb = os.path.join(TMP, "heartbeat")
-check("a drain tick writes the heartbeat",
-      _main_with([], ESB_WORKER_HEARTBEAT_FILE=hb) == 0 and os.path.exists(hb))
+check("a drain tick prunes and reaps before selecting rows",
+      _main_with([], ESB_WORKER_HEARTBEAT_FILE=hb) == 0
+      and len(_main_fake.to("rpc/prune_esb_pushes")) == 1
+      and len(_main_fake.to("rpc/reap_esb_pushes")) == 1
+      and _main_fake.calls.index(_main_fake.to("rpc/prune_esb_pushes")[0])
+          < _main_fake.calls.index(_main_fake.to("rpc/reap_esb_pushes")[0])
+      and _main_fake.calls.index(_main_fake.to("rpc/reap_esb_pushes")[0])
+          < next(i for i, c in enumerate(_main_fake.calls)
+                 if "/rest/v1/esb_push?" in c["url"]))
+check("a drain tick writes the heartbeat", os.path.exists(hb))
 os.utime(hb, (1, 1))
 _main_with([], ESB_WORKER_HEARTBEAT_FILE=hb)
 check("a later tick refreshes it", os.path.getmtime(hb) > 1000)
@@ -923,8 +964,7 @@ def read_switch_only_main(argv: list[str]) -> tuple[int, Fake, str]:
     return rc, fake, err.getvalue()
 
 
-for name, argv in (("a drain", []), ("--plan", ["--plan"]),
-                   ("--requeue", ["--requeue", "aaaaaaaa-0000-0000-0000-000000000001"])):
+for name, argv in (("a drain", []), ("--plan", ["--plan"])):
     rc, fake, err = read_switch_only_main(argv)
     check(f"{name} with only the read switch is refused, naming the posting switch, and calls nothing",
           rc == 2 and fake.calls == [] and "ESB_ALLOW_GKID is not set" in err,
