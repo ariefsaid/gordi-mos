@@ -546,9 +546,6 @@
 
 /* ── Person panel ──────────────────────────────────────────────────────────── */
 
-/* The shared sticky panel rule keeps Admin's split panel just below its collection head. */
-.admin-person-panel { --drawer-split-sticky-top: 12px; }
-
 .admin-person-panel .record-panel-chrome {
   flex: none;
 }

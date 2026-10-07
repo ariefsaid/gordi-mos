@@ -55,7 +55,7 @@
    The same modifier is used by collection records and admin's person panel. */
 .drawer-split.drawer-split--sticky:not(.drawer-shell-split):not(.overlay-companion-host) {
   position: sticky;
-  top: var(--drawer-split-sticky-top, calc(var(--header-h) + 12px));
+  top: var(--drawer-split-sticky-top, 12px);
   display: flex;
   flex-direction: column;
   max-height: calc(100vh - var(--header-h) - 24px);

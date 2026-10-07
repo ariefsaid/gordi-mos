@@ -321,6 +321,24 @@ describe('the payment form in the record panel at every width', () => {
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Pending bill PB-2' })).toBeNull())
   })
 
+  it('returns focus to the panel action after a part payment is saved', async () => {
+    mockList.mockResolvedValue([bill({ bill_no: 'PB-2', amount: 96_000 })])
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Open bill PB-2' }))
+    const panel = await screen.findByRole('dialog', { name: 'Pending bill PB-2' })
+    fireEvent.click(within(panel).getByRole('button', { name: 'Record payment' }))
+    const form = within(panel).getByRole('form', { name: 'Record payment' })
+    fireEvent.change(within(form).getByLabelText('Amount'), { target: { value: '1000' } })
+    fireEvent.change(within(form).getByLabelText('Cash-in date'), { target: { value: '06/10/2026' } })
+    fireEvent.change(within(form).getByLabelText(/^Proof/), {
+      target: { files: [new File(['proof'], 'receipt.pdf', { type: 'application/pdf' })] },
+    })
+    fireEvent.click(within(form).getByRole('button', { name: 'Record payment' }))
+    await waitFor(() => expect(mockRecordPayment).toHaveBeenCalled())
+    await waitFor(() => expect(within(panel).queryByRole('form', { name: 'Record payment' })).toBeNull())
+    await waitFor(() => expect(within(panel).getByRole('button', { name: 'Record payment' })).toHaveFocus())
+  })
+
   it('accepts decimal-comma entry for the exact remaining balance', async () => {
     mockList.mockResolvedValue([bill({ bill_no: 'PB-2', amount: 96_000.5 })])
     renderPage()

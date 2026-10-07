@@ -124,6 +124,19 @@ export function PendingBillsPage() {
   const [historyRequest, setHistoryRequest] = useState(0)
   const [formMode, setFormMode] = useState<PaymentFormMode | null>(null)
   const [formBusy, setFormBusy] = useState(false)
+  // Closing the form brings its buttons back; focus returns to the panel's action (or the history's).
+  const restoreFocusRef = useRef(false)
+  const restoreActionFocus = () => {
+    restoreFocusRef.current = true
+    window.setTimeout(() => { restoreFocusRef.current = false }, 2000)
+  }
+  useEffect(() => {
+    if (!restoreFocusRef.current || formMode) return
+    const target = document.querySelector<HTMLElement>('[data-record-header-actions] button, [data-viewer-region="actions"] button, [data-content-slot="payment-history"] button')
+    if (!target) return
+    restoreFocusRef.current = false
+    target.focus()
+  })
   const [discardOpen, setDiscardOpen] = useState(false)
   const [optimisticPayments, setOptimisticPayments] = useState<PendingBillPaymentAmountRow[]>([])
   const formDirtyRef = useRef(false)
@@ -233,10 +246,6 @@ export function PendingBillsPage() {
   const summary = summarizePendingBills(bills)
   const selectedHistory = selectedBill && historyState.status !== 'idle' ? historyState : { status: 'loading' as const, entries: [] }
   const historyStatus = selectedHistory.status === 'idle' ? 'loading' : selectedHistory.status
-  // Closing the form brings its buttons back; focus returns to the panel's action (or the history's).
-  const restoreActionFocus = () => window.requestAnimationFrame(() => {
-    document.querySelector<HTMLElement>('[data-viewer-region="actions"] button, [data-content-slot="payment-history"] button')?.focus()
-  })
   const onFormSaved = (bill: PendingBillView, saved: PendingBillPaymentSaved) => {
     setOptimisticPayments((current) => [...current, {
       id: saved.paymentId,
