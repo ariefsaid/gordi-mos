@@ -1,18 +1,19 @@
 -- #1529 — the sample Café capture catalog is copied insert-only and stays isolated from operations.
 --
--- The seed is included relative to this file (\ir ../seed...), so the same file runs from the repo
--- (CI) and from a container copy. Run it against the local stack with this exact command: the DB
--- container has psql but not the host checkout, so stage both files there; the trap removes them:
+-- pgTAP (`supabase test db`) cannot load a file outside supabase/tests, so this test lives in
+-- supabase/seed-tests and CI runs it in its own db-contracts step with the same command as below.
+-- The seed is included relative to this file (\ir ../seed...). The DB container has psql but not
+-- the host checkout, so stage both files there; the trap removes them:
 -- ```sh
 -- scripts/with-db-lock.sh bash -c '
 --   set -e
 --   c=supabase_db_gordi-mos
 --   docker cp supabase/seed.sample-org-esb-catalog.sql "$c:/tmp/seed.sample-org-esb-catalog.sql"
---   docker exec "$c" mkdir -p /tmp/tests
---   docker cp supabase/tests/ops_28_sample_org_esb_catalog.sql "$c:/tmp/tests/ops_28_sample_org_esb_catalog.sql"
---   trap "docker exec $c rm -rf /tmp/seed.sample-org-esb-catalog.sql /tmp/tests" EXIT
+--   docker exec "$c" mkdir -p /tmp/seed-tests
+--   docker cp supabase/seed-tests/ops_28_sample_org_esb_catalog.sql "$c:/tmp/seed-tests/ops_28_sample_org_esb_catalog.sql"
+--   trap "docker exec $c rm -rf /tmp/seed.sample-org-esb-catalog.sql /tmp/seed-tests" EXIT
 --   set +e
---   out=$(docker exec "$c" psql -U postgres -d postgres -X -A -t -v ON_ERROR_STOP=1 -f /tmp/tests/ops_28_sample_org_esb_catalog.sql)
+--   out=$(docker exec "$c" psql -U postgres -d postgres -X -A -t -v ON_ERROR_STOP=1 -f /tmp/seed-tests/ops_28_sample_org_esb_catalog.sql)
 --   rc=$?
 --   set -e
 --   printf "%s\\n" "$out"
