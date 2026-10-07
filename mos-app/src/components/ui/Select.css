@@ -63,7 +63,7 @@
 /* Portaled so an overflow-hidden table/panel cannot clip it. It outranks drawer sheets while
    remaining below centered modal/confirm chrome in the shared overlay ladder. */
 .mk-select__menu {
-  z-index: calc(var(--z-drawer) + 1);
+  z-index: var(--z-drawer-popover);
   box-sizing: border-box;
   width: max(var(--radix-select-trigger-width, 220px), 220px);
   max-width: calc(100vw - 24px);

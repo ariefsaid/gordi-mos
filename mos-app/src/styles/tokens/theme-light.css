@@ -75,7 +75,7 @@
   --ds-table-horizontal-cell-padding: 8px;
   --ds-side-panel-width: 500px;
   --ds-clickable-element-background-transition: background 0.1s ease; /* @kind other */
-  --ds-last-layer-z-index: 2147483647; /* @kind other */
+  --ds-last-layer-z-index: var(--z-popover-top); /* @kind other */
   --ds-buttons-secondary-text-color: color(display-p3 0.63 0.69 1);
   --ds-accent-primary: color(display-p3 0.831 0.87 1);
   --ds-accent-secondary: color(display-p3 0.831 0.87 1);

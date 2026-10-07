@@ -21,7 +21,7 @@
      edge, letting rows scroll visibly through the gutter band above the strip. */
   top: -24px;
   background: var(--background);
-  z-index: 2;
+  z-index: var(--z-inline-raised);
   box-sizing: border-box;
 }
 

@@ -264,7 +264,7 @@
     right: 16px;
     bottom: calc(72px + env(safe-area-inset-bottom));
     left: 16px;
-    z-index: 2;
+    z-index: var(--z-inline-raised);
   }
 
 
@@ -337,7 +337,7 @@
 .admin-access-table-frame--more-left::before {
   content: '';
   position: absolute;
-  z-index: 2;
+  z-index: var(--z-inline-raised);
   top: 0;
   bottom: 0;
   width: 40px;
@@ -828,6 +828,11 @@
 .admin-check-row {
   display: flex;
   align-items: center;
+}
+
+/* The phone tap box is 44px; overlap the row padding so the row keeps its height. */
+@media (pointer: coarse) {
+  .admin-check-row .mk-checkbox { margin: -14px 0 -10px; }
 }
 
 .admin-check-row__trailing {

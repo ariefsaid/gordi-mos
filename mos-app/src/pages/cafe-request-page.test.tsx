@@ -153,7 +153,8 @@ describe('CafeRequestPage', () => {
     expect(mockSubmit).toHaveBeenCalledTimes(1)
     expect(mockSubmit).toHaveBeenCalledWith(streamMocks.kitchen, '2026-10-07', 'Weekend menu', 'request-key-1', [{ item_unit_id: 'unit-l', quantity: '12' }])
     resolve({ request_id: 'q-1', outcome: 'created', row_version: 1 })
-    expect(await screen.findByRole('heading', { name: 'Sent for approval' })).toHaveFocus()
+    const sent = await screen.findByRole('heading', { name: 'Sent for approval' })
+    await waitFor(() => expect(sent).toHaveFocus())
     expect(within(screen.getByRole('list', { name: 'Requested lines' })).getByText('12 × l')).toBeInTheDocument()
     const sentCard = screen.getByRole('heading', { name: 'Sent for approval' }).closest('section')!
     expect(sentCard).toHaveTextContent(/Needed by .*7 Oct/)

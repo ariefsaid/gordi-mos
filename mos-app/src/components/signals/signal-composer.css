@@ -190,7 +190,7 @@
   .signal-composer-target { min-height: 44px; }
   .signal-composer-target-remove { width: 44px; height: 44px; }
   .signal-composer-foot {
-    position: sticky; bottom: 0; z-index: 2;
+    position: sticky; bottom: 0; z-index: var(--z-inline-raised);
     /* margin-top: auto claims all leftover flex space so the footer sits at the true bottom
        instead of right after the content; the negative inline/bottom margins bleed it past the
        container's own 16px padding so ITS OWN padding (below) is the only space under the bar. */

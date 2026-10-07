@@ -332,8 +332,8 @@ describe('PersonPanel — Access roles', () => {
     }
     expect(screen.getByText('Plans and approves')).toBeInTheDocument()
     expect(screen.queryByText('ops_lead')).toBeNull()
-    expect(screen.getByRole('checkbox', { name: 'Ops Lead' })).toHaveAttribute('aria-checked', 'true')
-    expect(screen.getByRole('checkbox', { name: 'Finance' })).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByRole('checkbox', { name: 'Ops Lead' })).toBeChecked()
+    expect(screen.getByRole('checkbox', { name: 'Finance' })).not.toBeChecked()
   })
 
   it('granting a role commits directly and reads Saved beside it', async () => {
@@ -360,7 +360,7 @@ describe('PersonPanel — Access roles', () => {
     await user.click(screen.getByRole('checkbox', { name: 'Finance' }))
 
     await waitFor(() => expect(within(accessRow('Finance')).getByRole('alert')).toHaveTextContent('Failed'))
-    expect(screen.getByRole('checkbox', { name: 'Finance' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('checkbox', { name: 'Finance' })).toBeChecked()
 
     await user.click(screen.getByRole('button', { name: 'Retry Finance' }))
     await waitFor(() => expect(mockGrantRole).toHaveBeenCalledTimes(2))
@@ -378,7 +378,7 @@ describe('PersonPanel — Access roles', () => {
 
     expect(screen.queryByRole('dialog', { name: 'Make Bayu Barista an Admin?' })).toBeNull()
     expect(mockGrantRole).not.toHaveBeenCalled()
-    expect(screen.getByRole('checkbox', { name: 'Admin' })).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByRole('checkbox', { name: 'Admin' })).not.toBeChecked()
   })
 
   it('Admin asks first: Confirm writes exactly once and the row reports it', async () => {
@@ -411,7 +411,7 @@ describe('PersonPanel — Access roles', () => {
 
     expect(screen.queryByRole('dialog', { name: 'Make Bayu Barista an Ops Lead?' })).toBeNull()
     expect(mockGrantRole).not.toHaveBeenCalled()
-    expect(screen.getByRole('checkbox', { name: 'Ops Lead' })).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByRole('checkbox', { name: 'Ops Lead' })).not.toBeChecked()
   })
 
   it('granting Ops Lead asks first: Confirm writes exactly once', async () => {
@@ -436,16 +436,16 @@ describe('PersonPanel — Access roles', () => {
   it('self-assign guard: admin, finance, manager and supervisor are disabled on your own row', () => {
     renderPanel(SELF, { people: [SELF, OTHER_ADMIN] })
     for (const name of ['Admin', 'Finance', 'Manager', 'Supervisor (access)']) {
-      expect(screen.getByRole('checkbox', { name })).toHaveAttribute('aria-disabled', 'true')
+      expect(screen.getByRole('checkbox', { name })).toBeDisabled()
     }
-    expect(screen.getByRole('checkbox', { name: 'Member' })).not.toHaveAttribute('aria-disabled', 'true')
-    expect(screen.getByRole('checkbox', { name: 'Ops Lead' })).not.toHaveAttribute('aria-disabled', 'true')
+    expect(screen.getByRole('checkbox', { name: 'Member' })).not.toBeDisabled()
+    expect(screen.getByRole('checkbox', { name: 'Ops Lead' })).not.toBeDisabled()
   })
 
   it('last-admin guard: the only active admin cannot lose Admin', () => {
     const onlyAdmin = { ...OTHER_ADMIN }
     renderPanel(onlyAdmin, { people: [onlyAdmin, BAYU] })
-    expect(screen.getByRole('checkbox', { name: 'Admin' })).toHaveAttribute('aria-disabled', 'true')
+    expect(screen.getByRole('checkbox', { name: 'Admin' })).toBeDisabled()
     expect(screen.getByText('Only admin — assign another first')).toBeInTheDocument()
   })
 })
@@ -483,7 +483,7 @@ describe('PersonPanel — a failed request whose outcome is unknown', () => {
     await waitFor(() => expect(within(accessRow('Finance')).getByRole('status')).toHaveTextContent('Saved'))
     expect(within(accessRow('Finance')).queryByRole('alert')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Retry Finance' })).toBeNull()
-    expect(screen.getByRole('checkbox', { name: 'Finance' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('checkbox', { name: 'Finance' })).toBeChecked()
     expect(mockRevokeRole).not.toHaveBeenCalled()
   })
 
@@ -496,7 +496,7 @@ describe('PersonPanel — a failed request whose outcome is unknown', () => {
     await waitFor(() => expect(within(accessRow('Finance')).getByRole('alert')).toHaveTextContent('Failed'))
 
     await user.click(screen.getByRole('checkbox', { name: 'Finance' }))
-    expect(screen.getByRole('checkbox', { name: 'Finance' })).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByRole('checkbox', { name: 'Finance' })).not.toBeChecked()
     expect(within(accessRow('Finance')).queryByRole('alert')).toBeNull()
     expect(mockGrantRole).toHaveBeenCalledTimes(1)
     expect(mockRevokeRole).not.toHaveBeenCalled()
@@ -527,7 +527,7 @@ describe('PersonPanel — a failed request whose outcome is unknown', () => {
 
     await waitFor(() => expect(within(accessRow('Gordi HQ Bar')).getByRole('status')).toHaveTextContent('Saved'))
     expect(screen.queryByRole('button', { name: 'Retry Gordi HQ Bar' })).toBeNull()
-    expect(screen.getByRole('checkbox', { name: 'Gordi HQ Bar' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('checkbox', { name: 'Gordi HQ Bar' })).toBeChecked()
     expect(mockEndTeam).not.toHaveBeenCalled()
   })
 })
