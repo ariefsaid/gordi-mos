@@ -67,7 +67,7 @@ Updates + per-Activity ops + reference data + money follow-ups. Ships at
 
 ## UI review and improvement tasks
 
-For every UI/UX/IA/IxD iteration, use `docs/takeover/mvp-ui-continuation.md` in the main checkout
+For a UI change that gets a design pass (see Bar to merge), and for the per-release pass, use `docs/takeover/mvp-ui-continuation.md` in the main checkout
 as the execution entrypoint. Managed worktrees lack private `docs/` and `.claude/skills/`; use
 `git worktree list` to find the former and `bash scripts/ui-skill-tools.sh paths` for the actual
 skill files, playbooks and launchers. Read and apply the applicable skills and run their supported
@@ -194,7 +194,8 @@ honest work teaches `--no-verify`, which disables the guards that matter. This o
   over ~150 lines of page/component .tsx/.css, or fixes an owner-reported UI issue; otherwise once per
   release on the dev→main PR (OD-2026-10-07-HARNESS-ANSWERS). Missing, unrunnable or stale tooling
   is an explicit incomplete review, never a silent fallback.
-- UI is not done until rendered and operated at real widths (incl. ≤390px phone): open controls,
+- A UI change is not done until each touched page renders at ≤390px and ≥1440px; one with a design
+  pass is also operated at real widths: open controls,
   keyboard/focus, long content, loading/empty/error states and the persisted role-correct journey.
   Record browser evidence separately from source/test evidence; shared-component reuse is not visual acceptance.
 
@@ -220,7 +221,7 @@ specification loop. Preserve batched owner questions and original outcome/proven
 Under OD-REDESIGN-88, understood seams may use test-with against the current behavior contract;
 visual placement assertions change when the owner-authorized workflow changes;
 retain red-first for bug fixes, uncertain logic and protected interaction-contract changes.
-Automatic UI guards and changed-surface browser checks run per change. Deep rendered judgment
+Automatic UI guards run per change; changed-surface browser checks run with the design pass. Deep rendered judgment
 covers every route at a signed milestone boundary (see Standing principles), and touched and
 connected surfaces when the ticket's contract explicitly requires it; ordinary tickets do not
 repeat the whole-product assessment.
