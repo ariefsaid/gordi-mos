@@ -34,4 +34,13 @@ expect "later version passes" 0 20260301000001_c.sql
 expect "equal version fails" 1 20260201000001_c.sql
 expect "earlier version fails" 1 20260115000001_c.sql
 expect "no new migrations passes" 0
-echo "$pass/4 passed"
+# Merge-time use: judge a PR head that is not checked out (the gh pr merge hook).
+git checkout -q -B late dev; echo 'select 1;' > supabase/migrations/20260115000001_c.sql; git add -A; git commit -qm late
+git checkout -q dev
+rc=0; out="$(bash "$SCRIPT" dev late 2>&1)" || rc=$?
+[ "$rc" -eq 1 ] && grep -q "next free: 20260201000002" <<<"$out" || { echo "FAIL explicit head ref not judged: rc=$rc"; echo "$out"; exit 1; }
+echo "ok   explicit head ref is judged without checking it out"; pass=$((pass + 1))
+rc=0; out="$(bash "$SCRIPT" dev no-such-ref 2>&1)" || rc=$?
+[ "$rc" -ne 0 ] || { echo "FAIL unknown head ref passed as ok"; echo "$out"; exit 1; }
+echo "ok   an unknown ref fails instead of passing"; pass=$((pass + 1))
+echo "$pass/6 passed"
