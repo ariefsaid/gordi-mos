@@ -22,6 +22,13 @@ vi.mock('@/lib/db/notifications', () => ({
   listNotifications: vi.fn().mockResolvedValue({ rows: [], hasMore: false, nextCursor: null }),
 }))
 
+// SignalComposerHost checks posting authority on every authenticated shell mount. Keep this
+// shell harness local: the ACs here exercise shell behavior, not the database RPC.
+vi.mock('@/lib/db/signals', () => ({
+  getSignalPostAuthority: vi.fn().mockResolvedValue({ can_post: false, can_tag: false }),
+  loadMentionRosters: vi.fn().mockResolvedValue({ teamMembers: {}, buMembers: {} }),
+}))
+
 vi.mock('../auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
 
