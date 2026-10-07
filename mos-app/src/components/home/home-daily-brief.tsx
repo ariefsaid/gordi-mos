@@ -46,6 +46,7 @@ export function HomeDailyBrief({
     // carries (needs-you items are a subset of the viewer's open work) — never a sum that caps
     // or double-counts.
     count: myWork.count,
+    totalItemCount: needsYou.items.length + (myWork.totalItemCount ?? myWork.items.length),
     drillTo: myWork.drillTo ?? needsYou.drillTo,
   }
   const layoutRegions = composition === 'member'

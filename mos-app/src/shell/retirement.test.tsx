@@ -51,7 +51,7 @@ vi.mock('@/lib/db/directory', () => ({
   getRoles: vi.fn().mockResolvedValue([]),
 }))
 vi.mock('@/lib/db/notifications', () => ({
-  listNotifications: vi.fn().mockResolvedValue([]),
+  listNotifications: vi.fn().mockResolvedValue({ rows: [], hasMore: false, nextCursor: null }),
   notificationRoute: () => null,
 }))
 vi.mock('@/lib/db/home-attention-data', () => ({

@@ -23,7 +23,7 @@ vi.mock('@/lib/db/tasks', () => ({ searchTasksByTitle: vi.fn() }))
 // The always-live NotificationBell (SHOW_INBOX retired, D-1) fires useUnreadCount → countUnread.
 vi.mock('@/lib/db/notifications', () => ({
   countUnread: vi.fn().mockResolvedValue(0),
-  listNotifications: vi.fn().mockResolvedValue([]),
+  listNotifications: vi.fn().mockResolvedValue({ rows: [], hasMore: false, nextCursor: null }),
 }))
 vi.mock('../auth/use-auth')
 import { useAuth } from '@/auth/use-auth'

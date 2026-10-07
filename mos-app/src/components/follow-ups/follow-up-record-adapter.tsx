@@ -26,6 +26,7 @@
 // whole-record note (why nothing is editable here — mutations live in the queue) is carried
 // ONCE by RecordViewer's footer via permission.reason, never stamped per field (LAW-6 / F3).
 import { formatIDR } from '@/lib/format/money'
+import { wibToday } from '@/lib/format/date'
 import { ListPaging } from '@/components/ui/list-paging'
 import { RecordFieldList } from '@/components/records/record-viewer'
 import type {
@@ -71,12 +72,12 @@ function personName(people: readonly PersonOption[], id: string | null): string 
 
 /** The overdue-age signal that rides with the debt (LAW-2, record-page-anatomy §2.3: Outstanding
  *  carries Counterparty · Amount · Balance · Age). Whole-day count relative to the due date, in
- *  UTC-day granularity so it is stable regardless of the caller's wall-clock time. */
+ *  WIB-day granularity. */
 function ageLabel(dueDate: string | null, today = new Date()): string {
   if (!dueDate) return 'No due date'
   const dayMs = 86_400_000
   const due = Date.parse(`${dueDate}T00:00:00Z`)
-  const now = Date.parse(`${today.toISOString().slice(0, 10)}T00:00:00Z`)
+  const now = Date.parse(`${wibToday(today)}T00:00:00Z`)
   const days = Math.round((now - due) / dayMs)
   if (days > 0) return `${days} ${days === 1 ? 'day' : 'days'} overdue`
   if (days === 0) return 'Due today'

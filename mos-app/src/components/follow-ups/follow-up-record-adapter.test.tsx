@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { afterEach, describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { PersonOption } from '@/lib/db/directory'
@@ -46,7 +46,21 @@ const events: FollowUpEvent[] = [
   },
 ]
 
+afterEach(() => vi.useRealTimers())
+
 describe('createFollowUpRecordAdapter', () => {
+  it.each([
+    ['2026-10-05T16:59:00Z', 'Due in 1 day'],
+    ['2026-10-05T17:00:00Z', 'Due today'],
+    ['2026-10-05T23:59:00Z', 'Due today'],
+    ['2026-10-06T00:00:00Z', 'Due today'],
+  ])('labels the due date against the WIB day at %s', (instant, expected) => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(instant))
+    const adapter = createFollowUpRecordAdapter({ row: { ...row, due_date: '2026-10-06' }, events, people })
+    expect(slotFields(adapter).find((field) => field.key === 'age')?.displayValue).toBe(expected)
+  })
+
   it('projects a Follow-up into the shared RecordViewer grammar as its own kind, not a Task', () => {
     const adapter = createFollowUpRecordAdapter({ row, events, people })
     expect(adapter.kind).toBe('follow-up')

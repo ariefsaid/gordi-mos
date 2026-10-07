@@ -5,6 +5,7 @@ import { getPeople } from '@/lib/db/directory'
 import {
   listCafeReceiptDifferences,
   listCafeReceipts,
+  listCafeUnsentReceipts,
   readCafeReceiptPosting,
   reviewCafeReceipt,
   summarizeCafeReceiptDifferences,
@@ -37,6 +38,7 @@ export function CafeReceiptReviewQueue({
   const t = useT()
   const { locale } = useI18n()
   const [rows, setRows] = useState<CafeReceipt[]>([])
+  const [unsentMore, setUnsentMore] = useState(0)
   const [names, setNames] = useState<ReadonlyMap<string, string>>(new Map())
   const [differences, setDifferences] = useState<ReadonlyMap<string, CafeReceiptDifferenceSummary> | 'failed'>(new Map())
   const [loading, setLoading] = useState(true)
@@ -54,11 +56,15 @@ export function CafeReceiptReviewQueue({
     let active = true
     setLoading(true)
     setLoadError(false)
-    // Counted receipts that are not sent yet are listed too, with their age, so an unsent lock is
-    // visible; only Submitted ones can be decided.
-    void Promise.all([listCafeReceipts(['Submitted', 'Counted'], { photosFor: ['Submitted'] }), getPeople()]).then(([nextRows, people]) => {
+    // Counted receipts that are not sent yet follow the decidable Submitted ones, oldest first with
+    // their age, so an unsent lock is visible; only Submitted ones can be decided.
+    void Promise.all([
+      listCafeReceipts(['Submitted'], { photosFor: ['Submitted'] }), listCafeUnsentReceipts(), getPeople(),
+    ]).then(([submitted, unsent, people]) => {
       if (!active) return
+      const nextRows = [...submitted, ...unsent.receipts]
       setRows(nextRows)
+      setUnsentMore(unsent.more)
       setNames(new Map(people.map(person => [person.id, person.full_name])))
       setLoading(false)
       // FR-1012/1032: labels and the cache as-of time; a failed read says so rather than guessing why.
@@ -221,6 +227,11 @@ export function CafeReceiptReviewQueue({
             )
           })}
         </ul>
+      )}
+      {!loading && !loadError && unsentMore > 0 && (
+        <p className="cafe-count-review__more">
+          {t(unsentMore === 1 ? 'cafe.receipts.review.unsentMore.one' : 'cafe.receipts.review.unsentMore.other', { count: unsentMore })}
+        </p>
       )}
     </section>
   )
