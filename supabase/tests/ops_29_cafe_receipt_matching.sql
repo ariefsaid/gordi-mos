@@ -4,7 +4,7 @@
 -- releases held receipts once posting is on.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(63);
+select plan(64);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -408,18 +408,25 @@ select is((select string_agg(p.po_number || ':' || p.quantity::text, ',') from o
 
 select set_config('app.retention_push_id', (select push_id::text from ops.cafe_receipt_portions
   where receipt_id = current_setting('app.r2')::uuid and push_id is not null limit 1), true);
+select set_config('app.retention_portion_id', (select id::text from ops.cafe_receipt_portions
+  where push_id = current_setting('app.retention_push_id')::uuid), true);
 set local role service_role;
 update integrations.esb_push set posted_at = clock_timestamp() - interval '31 days'
  where id = current_setting('app.retention_push_id')::uuid;
-select is(integrations.prune_esb_pushes(), 1,
-  'retention prunes a sent receipt row after detaching its history link');
+select is(integrations.prune_esb_pushes(), 0,
+  'retention leaves a sent receipt row that a portion still references');
 reset role;
 select is((select count(*)::int from ops.cafe_receipt_portions
-            where push_id = current_setting('app.retention_push_id')::uuid), 0,
-  'retention clears the receipt foreign key before removing the outbox row');
+            where push_id = current_setting('app.retention_push_id')::uuid), 1,
+  'the portion keeps its link to the sent row');
 select is((select count(*)::int from integrations.esb_push
-            where id = current_setting('app.retention_push_id')::uuid), 0,
-  'the aged sent receipt row is removed');
+            where id = current_setting('app.retention_push_id')::uuid), 1,
+  'the aged sent receipt row is kept');
+select ops._enqueue_cafe_receipt_portions(current_setting('app.r2')::uuid, 'TEST-LOC');
+select is((select count(*)::int from integrations.esb_push
+            where source_module = 'cafe_receipt' and source_ref = current_setting('app.retention_portion_id')
+              and status <> 'posted'), 0,
+  'a later link or release does not enqueue an aged sent portion again');
 
 select * from finish();
 rollback;
