@@ -42,7 +42,7 @@ g "$tmp/main" update-ref refs/remotes/origin/dev HEAD
 g "$tmp/main" worktree add -q --no-checkout "$tmp/wt6" -b wt6 2>/dev/null
 g "$tmp/wt6" checkout -q wt6 -- scripts 2>/dev/null
 bash "$tmp/wt6/scripts/setup-hooks.sh" >/dev/null 2>&1
-want="$(cd "$tmp/main/.git" && pwd -P)/mos-hooks"
+want="$(cd "$tmp/main/.git" && pwd -P)/mos-hooks-$(g "$tmp/main" rev-parse --short=12 origin/dev)"
 got="$(g "$tmp/main" config core.hooksPath)"
 [ "$(cd "$got" 2>/dev/null && pwd -P)" = "$want" ] && [ -x "$want/post-checkout" ] && ok "setup-hooks installs the hooks into the shared git dir" \
   || bad "setup-hooks hooksPath=$got, want $want"
@@ -66,6 +66,14 @@ bash "$tmp/wt6/scripts/setup-hooks.sh" >/dev/null 2>&1
 g "$tmp/main" checkout -q - 2>/dev/null; rm -f "$tmp/pwned"
 g "$tmp/main" worktree add -q --detach "$tmp/wt8" HEAD 2>/dev/null
 [ ! -e "$tmp/pwned" ] && ok "setup-hooks never installs a checked-out branch's hook" || bad "setup-hooks installed the hostile branch's hook"
+
+# Re-running after dev moves installs a new set first, then removes the old one.
+first="$(g "$tmp/main" config core.hooksPath)"
+g "$tmp/main" commit -q --allow-empty -m moved; g "$tmp/main" update-ref refs/remotes/origin/dev HEAD
+bash "$tmp/wt6/scripts/setup-hooks.sh" >/dev/null 2>&1
+second="$(g "$tmp/main" config core.hooksPath)"
+[ "$first" != "$second" ] && [ -x "$second/post-checkout" ] && [ ! -e "$first" ] \
+  && ok "a re-install repoints to a complete new set and removes the old one" || bad "re-install: first=$first second=$second"
 
 # No skills in the main checkout: nothing linked, checkout still succeeds.
 rm -rf "$tmp/main/.claude"

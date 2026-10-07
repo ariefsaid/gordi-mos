@@ -9,16 +9,19 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 common="$(git rev-parse --path-format=absolute --git-common-dir)"
 src=origin/dev; git rev-parse -q --verify "$src" >/dev/null || src=HEAD   # fresh clone before fetch
-stage="$(mktemp -d "$common/mos-hooks.XXXXXX")"
-git archive "$src" .githooks | tar -x -C "$stage"
-chmod +x "$stage"/.githooks/*
-# Swap in one rename; the old set stays live until the new one is complete.
-[ -d "$common/mos-hooks" ] && mv "$common/mos-hooks" "$stage/old"
-mv "$stage/.githooks" "$common/mos-hooks"
-rm -rf "$stage"
-git config core.hooksPath "$common/mos-hooks"
+dest="$common/mos-hooks-$(git rev-parse --short=12 "$src")"
+if [ ! -d "$dest" ]; then
+  stage="$(mktemp -d "$common/mos-hooks.XXXXXX")"; trap 'rm -rf "$stage"' EXIT
+  git archive "$src" .githooks | tar -x -C "$stage"
+  chmod +x "$stage"/.githooks/*
+  mv "$stage/.githooks" "$dest"
+fi
+# Repoint in one config write (git swaps the config file atomically), then drop older sets — there
+# is never a moment without hooks.
+git config core.hooksPath "$dest"
+for d in "$common"/mos-hooks-*; do [ "$d" = "$dest" ] || rm -rf "$d"; done
 git worktree list --porcelain | sed -n 's/^worktree //p' | while IFS= read -r wt; do
-  (cd "$wt" 2>/dev/null && bash "$common/mos-hooks/post-checkout") || true
+  (cd "$wt" 2>/dev/null && bash "$dest/post-checkout") || true
 done
-echo "✓ core.hooksPath = $common/mos-hooks (installed from $src)"
+echo "✓ core.hooksPath = $dest (installed from $src)"
 echo "  pre-commit gates: conflict markers + eslint/stylelint/vitest scoped to staged files"
