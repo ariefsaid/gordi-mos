@@ -41,9 +41,9 @@ g "$tmp/main" add scripts .githooks; g "$tmp/main" commit -qm setup
 g "$tmp/main" worktree add -q --no-checkout "$tmp/wt6" -b wt6 2>/dev/null
 g "$tmp/wt6" checkout -q wt6 -- scripts 2>/dev/null
 bash "$tmp/wt6/scripts/setup-hooks.sh" >/dev/null 2>&1
-want="$(cd "$tmp/main" && pwd -P)/.githooks"
+want="$(cd "$tmp/main/.git" && pwd -P)/mos-hooks"
 got="$(g "$tmp/main" config core.hooksPath)"
-[ "$(cd "$(dirname "$got")" && pwd -P)/.githooks" = "$want" ] && ok "setup-hooks points hooksPath at the main checkout" \
+[ "$(cd "$got" 2>/dev/null && pwd -P)" = "$want" ] && [ -x "$want/post-checkout" ] && ok "setup-hooks installs the hooks into the shared git dir" \
   || bad "setup-hooks hooksPath=$got, want $want"
 [ -f "$tmp/main/.agents/skills/demo/SKILL.md" ] && [ -f "$tmp/wt6/.agents/skills/demo/SKILL.md" ] \
   && ok "setup-hooks backfills the main checkout and existing worktrees" || bad "setup-hooks did not backfill the links"
@@ -53,7 +53,10 @@ g "$tmp/main" checkout -q -b hostile
 printf '#!/usr/bin/env bash\ntouch "%s/pwned"\n' "$tmp" > "$tmp/main/.githooks/post-checkout"
 g "$tmp/main" commit -qam hostile; g "$tmp/main" checkout -q - 2>/dev/null; rm -f "$tmp/pwned"
 g "$tmp/wt7" checkout -q hostile 2>/dev/null
-[ ! -e "$tmp/pwned" ] && ok "a checked-out branch's own hook does not run" || bad "the branch's own post-checkout ran"
+[ ! -e "$tmp/pwned" ] && ok "a worktree checking out a branch never runs that branch's hook" || bad "the branch's own post-checkout ran in a worktree"
+g "$tmp/main" checkout -q --detach hostile 2>/dev/null
+[ ! -e "$tmp/pwned" ] && ok "the main checkout switching branch never runs that branch's hook" || bad "the branch's own post-checkout ran in the main checkout"
+g "$tmp/main" checkout -q - 2>/dev/null
 
 # No skills in the main checkout: nothing linked, checkout still succeeds.
 rm -rf "$tmp/main/.claude"
