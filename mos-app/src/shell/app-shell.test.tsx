@@ -21,6 +21,15 @@ vi.mock('@/lib/db/notifications', () => ({
   countUnread: vi.fn().mockResolvedValue(0),
   listNotifications: vi.fn().mockResolvedValue({ rows: [], hasMore: false, nextCursor: null }),
 }))
+vi.mock('@/lib/db/open-task-count', () => ({ getMyOpenTaskCount: vi.fn().mockResolvedValue(0) }))
+vi.mock('@/lib/db/signals', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/db/signals')>()),
+  getSignalPostAuthority: vi.fn().mockResolvedValue({ can_post: false, can_tag: false }),
+}))
+vi.mock('@/lib/db/work-authority', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/db/work-authority')>()
+  return { ...actual, getWorkWriteScopes: vi.fn().mockResolvedValue(actual.emptyWorkWriteScopes()) }
+})
 
 vi.mock('../auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
