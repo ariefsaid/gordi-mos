@@ -14,6 +14,25 @@ export type CafeReceivableItem = {
   defaultUnitId: string
 }
 
+export type CafeOpenPoIdentityItem = {
+  itemUnitId: string | null
+  itemName: string
+  unitName: string | null
+}
+
+export type CafeOpenPoIdentity = {
+  poNumber: string
+  supplierName: string | null
+  poDate: string
+  items: CafeOpenPoIdentityItem[]
+}
+
+export type CafeOpenPoIdentityCache = {
+  asOf: string | null
+  isCurrent: boolean
+  purchaseOrders: CafeOpenPoIdentity[]
+}
+
 export type CafeReceiptStatus = 'Counted' | 'Submitted' | 'Approved' | 'Rejected'
 export type CafeReceiptPostingStatus = 'not_posted' | 'held'
 
@@ -145,26 +164,81 @@ export async function listCafeReceivableItems(stream: ProductionStream): Promise
   return [...items.values()]
 }
 
+/** Reads the branch's PO identities only; quantity and price fields are neither queried nor returned. */
+export async function listCafeOpenPoIdentities(branchId: string): Promise<CafeOpenPoIdentityCache> {
+  const { data, error } = await ops().rpc('cafe_open_po_identities', { p_branch_id: branchId })
+  if (error) throw new Error(`listCafeOpenPoIdentities failed: ${error.message}`)
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error('listCafeOpenPoIdentities failed: invalid cache')
+  }
+  const cache = data as Record<string, unknown>
+  if ((cache.as_of !== null && typeof cache.as_of !== 'string') || typeof cache.is_current !== 'boolean'
+    || !Array.isArray(cache.purchase_orders)) {
+    throw new Error('listCafeOpenPoIdentities failed: invalid cache')
+  }
+  const purchaseOrders = cache.purchase_orders.map((raw): CafeOpenPoIdentity => {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('listCafeOpenPoIdentities failed: invalid purchase order')
+    const po = raw as Record<string, unknown>
+    if (typeof po.po_number !== 'string' || !po.po_number.trim() || (po.supplier_name !== null && typeof po.supplier_name !== 'string')
+      || typeof po.po_date !== 'string' || !Array.isArray(po.items)) {
+      throw new Error('listCafeOpenPoIdentities failed: invalid purchase order')
+    }
+    const items = po.items.map((rawItem): CafeOpenPoIdentityItem => {
+      if (!rawItem || typeof rawItem !== 'object' || Array.isArray(rawItem)) throw new Error('listCafeOpenPoIdentities failed: invalid item')
+      const item = rawItem as Record<string, unknown>
+      if ((item.item_unit_id !== null && typeof item.item_unit_id !== 'string') || typeof item.item_name !== 'string'
+        || !item.item_name.trim() || (item.unit_name !== null && typeof item.unit_name !== 'string')) {
+        throw new Error('listCafeOpenPoIdentities failed: invalid item')
+      }
+      return { itemUnitId: item.item_unit_id as string | null, itemName: item.item_name, unitName: item.unit_name as string | null }
+    })
+    return {
+      poNumber: po.po_number,
+      supplierName: po.supplier_name as string | null,
+      poDate: po.po_date,
+      items,
+    }
+  })
+  return { asOf: cache.as_of as string | null, isCurrent: cache.is_current, purchaseOrders }
+}
+
+type CafeReceiptListOptions = {
+  /** Only these receipts, when given. */
+  ids?: readonly string[]
+  receivedBy?: string
+  limit?: number
+  /** Statuses whose photos are read and signed; a surface asks only for the photos it shows. */
+  photosFor?: readonly CafeReceiptStatus[]
+}
+
 /** Receipts the viewer may read, newest first; RLS returns their own and the streams they review. */
-export async function listCafeReceipts(
+export async function listCafeReceipts(statuses: readonly CafeReceiptStatus[], options: CafeReceiptListOptions = {}): Promise<CafeReceipt[]> {
+  return (await readCafeReceipts(statuses, options)).receipts
+}
+
+/**
+ * FR-1044: Counted receipts not yet sent for review, oldest first, so the limit drops the newest
+ * and `more` says how many. A receiver holds at most one Counted receipt per branch, so the
+ * count stays small.
+ */
+export async function listCafeUnsentReceipts(): Promise<{ receipts: CafeReceipt[]; more: number }> {
+  const { receipts, total } = await readCafeReceipts(['Counted'], { photosFor: [] }, { oldestFirst: true, count: true })
+  return { receipts, more: Math.max(0, (total ?? receipts.length) - receipts.length) }
+}
+
+async function readCafeReceipts(
   statuses: readonly CafeReceiptStatus[],
-  { ids, receivedBy, limit = 50, photosFor = statuses }: {
-    /** Only these receipts, when given. */
-    ids?: readonly string[]
-    receivedBy?: string
-    limit?: number
-    /** Statuses whose photos are read and signed; a surface asks only for the photos it shows. */
-    photosFor?: readonly CafeReceiptStatus[]
-  } = {},
-): Promise<CafeReceipt[]> {
+  { ids, receivedBy, limit = 50, photosFor = statuses }: CafeReceiptListOptions,
+  { oldestFirst = false, count = false } = {},
+): Promise<{ receipts: CafeReceipt[]; total: number | null }> {
   let query = ops()
     .from('cafe_receipts')
-    .select(RECEIPT_FIELDS)
+    .select(RECEIPT_FIELDS, count ? { count: 'exact' } : undefined)
     .in('status', [...statuses])
   if (ids) query = query.in('id', [...ids])
   if (receivedBy) query = query.eq('received_by', receivedBy)
-  const { data, error } = await query
-    .order('received_at', { ascending: false })
+  const { data, error, count: total } = await query
+    .order('received_at', { ascending: oldestFirst })
     .limit(limit)
   if (error) throw new Error(`listCafeReceipts failed: ${error.message}`)
   const receipts = ((data ?? []) as unknown as Array<Record<string, unknown>>).map(row => {
@@ -203,11 +277,14 @@ export async function listCafeReceipts(
       for (const receipt of chunk) unavailable.add(receipt.id)
     }
   }))
-  return receipts.map(receipt => ({
-    ...receipt,
-    photosUnavailable: unavailable.has(receipt.id),
-    lines: receipt.lines.map(line => ({ ...line, photos: photosByLine.get(line.id) ?? [] })),
-  }))
+  return {
+    total: total ?? null,
+    receipts: receipts.map(receipt => ({
+      ...receipt,
+      photosUnavailable: unavailable.has(receipt.id),
+      lines: receipt.lines.map(line => ({ ...line, photos: photosByLine.get(line.id) ?? [] })),
+    })),
+  }
 }
 
 function parseCafeReceiptLine(line: Record<string, unknown>): CafeReceiptLine {

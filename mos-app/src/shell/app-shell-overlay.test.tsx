@@ -14,7 +14,7 @@ vi.mock('@/lib/db/directory', () => ({
 }))
 vi.mock('@/lib/db/notifications', () => ({
   countUnread: vi.fn().mockResolvedValue(0),
-  listNotifications: vi.fn().mockResolvedValue([]),
+  listNotifications: vi.fn().mockResolvedValue({ rows: [], hasMore: false, nextCursor: null }),
 }))
 vi.mock('../auth/use-auth')
 import { useAuth } from '@/auth/use-auth'

@@ -31,7 +31,7 @@ describe('ListPaging', () => {
     expect(loadingButton).toHaveAttribute('aria-busy', 'true')
     expect(loadingButton).not.toBeDisabled()
     expect(button.closest('.list-paging')).toHaveAttribute('aria-busy', 'true')
-    expect(screen.getByText('50 loaded')).toHaveAttribute('aria-live', 'polite')
+    expect(screen.getByText('50 items loaded')).toHaveAttribute('aria-live', 'polite')
 
     fireEvent.click(loadingButton)
     expect(onLoadMore).toHaveBeenCalledOnce()
@@ -48,7 +48,7 @@ describe('ListPaging', () => {
     button.focus()
     fireEvent.click(button)
     expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull()
-    expect(screen.getByText('60 loaded · end of list')).toHaveFocus()
+    expect(screen.getByText('60 items loaded · end of list')).toHaveFocus()
   })
 
   it('does not take focus when the list is complete on first render', () => {
@@ -76,7 +76,7 @@ describe('ListPaging', () => {
 
     expect(screen.getByText('No match in the loaded tasks')).toHaveAttribute('aria-live', 'polite')
     expect(screen.getByText('Load more to continue through the list.')).toBeInTheDocument()
-    expect(screen.queryByText('0 loaded')).toBeNull()
+    expect(screen.queryByText('0 items loaded')).toBeNull()
     expect(screen.getByRole('button', { name: 'Load more' })).toBeInTheDocument()
   })
 
@@ -94,5 +94,24 @@ describe('ListPaging', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Couldn’t load more')
     expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument()
     expect(container.querySelector('.list-paging__error')).toBe(slot)
+  })
+
+  it.each([
+    { locale: 'en' as const, one: '1 item loaded', many: '2 items loaded · end of list' },
+    { locale: 'id' as const, one: '1 item dimuat', many: '2 item dimuat · akhir daftar' },
+  ])('names loaded items and preserves the end-of-list message ($locale)', ({ locale, one, many }) => {
+    const { rerender } = render(
+      <I18nProvider initialLocale={locale}>
+        <ListPaging count={1} hasMore onLoadMore={vi.fn()} />
+      </I18nProvider>,
+    )
+    expect(screen.getByText(one)).toBeInTheDocument()
+
+    rerender(
+      <I18nProvider initialLocale={locale}>
+        <ListPaging count={2} hasMore={false} onLoadMore={vi.fn()} />
+      </I18nProvider>,
+    )
+    expect(screen.getByText(many)).toBeInTheDocument()
   })
 })

@@ -1,4 +1,4 @@
-import { prepareEvidencePhoto } from '@/lib/db/photo-evidence'
+import { markPreparedEvidencePhoto, prepareEvidencePhoto } from '@/lib/db/photo-evidence'
 
 const DATABASE_NAME = 'gordi-mos-offline-photos'
 const STORE_NAME = 'pending'
@@ -32,7 +32,7 @@ function asFile(value: StoredFile): File | null {
   if (!(value.blob instanceof Blob) || typeof value.name !== 'string' || typeof value.type !== 'string'
     || typeof value.lastModified !== 'number') return null
   try {
-    return new File([value.blob], value.name, { type: value.type, lastModified: value.lastModified })
+    return markPreparedEvidencePhoto(new File([value.blob], value.name, { type: value.type, lastModified: value.lastModified }))
   } catch {
     return null
   }

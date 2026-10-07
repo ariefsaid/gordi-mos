@@ -4,6 +4,7 @@
 // Throws on any PostgREST/RPC error so callers can surface failures.
 
 import { supabase } from '@/lib/supabase'
+import { wibToday } from '@/lib/format/date'
 import { UserFacingError } from '@/lib/save-error'
 import { invalidateReferenceCache } from './reference-cache'
 import { invalidateAuthorityCaches } from './admin-access'
@@ -124,7 +125,7 @@ export async function listAdminPeople(): Promise<AdminPersonRow[]> {
   //    manage". The screen is deliberately WIDER, never narrower — narrower is what let it report
   //    someone removed while the gates still admitted them. The HOME question below is the one that
   //    must match exactly, and does.
-  const today = new Date().toISOString().slice(0, 10)
+  const today = wibToday()
   const { data: tmRows, error: tmErr } = await shared()
     .from('team_memberships')
     .select('person_id,team_id,is_primary,effective_from,effective_to')
@@ -454,7 +455,7 @@ export async function endTeamMembership(personId: string, teamId: string): Promi
  * its own row count, because a row can go away between the two.
  */
 export async function setPrimaryTeam(personId: string, teamId: string): Promise<void> {
-  const today = new Date().toISOString().slice(0, 10)
+  const today = wibToday()
 
   const { data: eligible, error: readErr } = await shared()
     .from('team_memberships')

@@ -1,7 +1,8 @@
 // WIB (Asia/Jakarta, UTC+7, no DST) due-date classifier. Pure → clock-mocked unit tests.
-// Mirrors the fixed +7h offset arithmetic of lib/week.ts so there is no host-timezone leakage
-// (NFR-004, OD-P2-6). A task's due_date is a plain DATE (no time-of-day); overdue/soon are computed
+// A task's due_date is a plain DATE (no time-of-day); overdue/soon are computed
 // against the WIB calendar day of `now`.
+
+import { wibToday } from '@/lib/format/date'
 
 export type DueStatus = 'overdue' | 'soon' | 'calm' | 'none'
 
@@ -12,14 +13,13 @@ type IsOverdueTask = {
   archived_at: string | null
 }
 
-const WIB_OFFSET_MS = 7 * 60 * 60 * 1000
 const DAY_MS = 24 * 60 * 60 * 1000
 const SOON_WINDOW_DAYS = 3
 
 /** The WIB calendar day of `now`, as a UTC-midnight epoch for that WIB date (for whole-day diffs). */
 function wibDayEpoch(now: Date): number {
-  const shifted = new Date(now.getTime() + WIB_OFFSET_MS)
-  return Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate())
+  const [year, month, day] = wibToday(now).split('-').map(Number)
+  return Date.UTC(year, month - 1, day)
 }
 
 /** A plain 'YYYY-MM-DD' DATE as a UTC-midnight epoch for that calendar day. */

@@ -6,7 +6,7 @@ import { useCallback, useState } from 'react'
 import type { ExpandedState, Updater } from '@tanstack/react-table'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import type { RenderGroup } from './tasks-grouping'
-import type { TaskCollectionQuery } from './task-collection-adapter'
+import type { TaskCollectionQuery } from './task-collection-query'
 
 export type TaskTreeNode =
   | { kind: 'group'; id: string; group: RenderGroup; subRows: TaskTreeNode[] }
