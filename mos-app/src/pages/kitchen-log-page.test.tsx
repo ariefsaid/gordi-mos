@@ -2373,6 +2373,8 @@ describe("AC-002 / FR-001: the capture surface opens on the person's own stream 
 describe('FR-002: no stream-linked primary Team → an explicit stream choice is required before capture', () => {
   it('renders the "choose stream" guidance placeholder in place of the list, fetches no stream-scoped data, and offers no Submit', async () => {
     mockFetchDefaultStream.mockResolvedValue(null)
+    // The page lists ESB items per stream, so with no stream the read returns nothing (#1456).
+    mockListCaptureFormItems.mockImplementation(async stream => (stream ? WIP_ITEMS : []))
     await renderPage(OPS_LEAD)
     await waitFor(() => screen.getByText(/choose a production stream to start logging/i))
 
