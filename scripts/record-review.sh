@@ -236,17 +236,22 @@ esac
 
 head="$(git rev-parse HEAD)" || die "not a git repo"
 
-# Releases and migrations get an Opus security lens. The shared release-candidate predicate covers
-# release/* branches, detached HEADs, and HEADs already contained in origin/dev or origin/main; a
-# migration branch touches anything under supabase/migrations/.
+# Release candidates need an Opus security lens; migration branches accept Opus or an exact-prefix
+# Luna id. The shared release-candidate predicate covers release/* branches, detached HEADs, and
+# HEADs already contained in origin/dev or origin/main; a migration branch touches supabase/migrations/.
 if [ "$lens" = security ]; then
   release=0
   is_release_candidate && release=1
   migration="$(git diff --name-only origin/dev...HEAD -- supabase/migrations 2>/dev/null | head -1)"
-  if [ "$release" = 1 ] || [ -n "$migration" ]; then
+  if [ "$release" = 1 ]; then
     case "$(printf '%s' "$reviewer" | tr '[:upper:]' '[:lower:]')" in
       opus*|claude-opus*|anthropic/claude-opus*) ;;
-      *) die "this is a $([ "$release" = 1 ] && echo release candidate || echo migration branch) — its security lens needs an Opus reviewer (id starting opus / claude-opus; got '$reviewer'); dispatch one and stamp with --reviewer <that id>" ;;
+      *) die "this is a release candidate — its security lens needs an Opus reviewer (id starting opus / claude-opus; got '$reviewer'); dispatch one and stamp with --reviewer <that id>" ;;
+    esac
+  elif [ -n "$migration" ]; then
+    case "$(printf '%s' "$reviewer" | tr '[:upper:]' '[:lower:]')" in
+      opus*|claude-opus*|anthropic/claude-opus*|gpt-6-luna*|openai-codex/gpt-6-luna*|luna*) ;;
+      *) die "this is a migration branch — its security lens needs an Opus or Luna reviewer (Opus id starting opus / claude-opus; Luna id starting gpt-6-luna / openai-codex/gpt-6-luna / luna; got '$reviewer'); dispatch one and stamp with --reviewer <that id>" ;;
     esac
   fi
 fi
