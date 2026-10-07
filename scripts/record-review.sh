@@ -11,7 +11,7 @@
 #   - the artifact is the reviewer's actual output: each lens must cite the full 40-character HEAD,
 #     carry a `Reviewer:` line, and carry a Verdict for THIS lens. DO NOT MERGE clears only that
 #     lens's passing stamp; it cannot be stamped into a passing gate.
-#   - UI Skills evidence is required for a UI diff only when HEAD is a release candidate.
+#   - A design-pass UI Skills packet is required for release candidates and qualifying UI changes.
 #
 # Self-test: scripts/record-review.test.sh
 set -uo pipefail
@@ -27,13 +27,64 @@ is_release_candidate() {
   return 1
 }
 
+design_pass_reason() {
+  local merge_base="$1" changed_files="$2" path added deleted lines=0 numstat route_diff
+  if is_release_candidate; then
+    printf 'release candidate'
+    return 0
+  fi
+
+  while IFS= read -r path; do
+    [ -n "$path" ] || continue
+    if [[ "$path" == mos-app/src/pages/* ]] && [[ "$path" != *.test.tsx ]] \
+      && ! git cat-file -e "$merge_base:$path" 2>/dev/null; then
+      printf 'adds a page (%s)' "$path"
+      return 0
+    fi
+  done <<< "$changed_files"
+
+  if printf '%s\n' "$changed_files" | grep -Fxq 'mos-app/src/router.tsx'; then
+    route_diff="$(git diff --unified=0 "$merge_base" HEAD -- mos-app/src/router.tsx)" || return 2
+    if printf '%s\n' "$route_diff" | grep -Eq '^\+[^+]*path[[:space:]]*:'; then
+      printf 'adds a route (mos-app/src/router.tsx)'
+      return 0
+    fi
+  fi
+
+  while IFS= read -r path; do
+    [ -n "$path" ] || continue
+    git cat-file -e "$merge_base:$path" 2>/dev/null && continue
+    if [[ "$path" =~ ^mos-app/src/components/.+\.tsx$ ]] && [[ "$path" != *.test.tsx ]]; then
+      printf 'adds a component (%s)' "$path"
+      return 0
+    fi
+    if [[ "$path" =~ ^mos-app/src/.+\.css$ ]]; then
+      printf 'adds a stylesheet (%s)' "$path"
+      return 0
+    fi
+  done <<< "$changed_files"
+
+  numstat="$(git diff --numstat --diff-filter=d "$merge_base" HEAD)" || return 2
+  while IFS=$'\t' read -r added deleted path; do
+    [[ "$path" =~ ^mos-app/src/(pages|components)/.+\.(tsx|css)$ ]] || continue
+    [[ "$path" == *.test.tsx ]] && continue
+    case "$added$deleted" in *[!0-9]*|'') continue ;; esac
+    lines=$((lines + added + deleted))
+  done <<< "$numstat"
+  if [ "$lines" -gt 150 ]; then
+    printf 'changes %s lines of page/component UI' "$lines"
+    return 0
+  fi
+  return 1
+}
+
 validate_ui_skills_evidence() {
-  local head="$1" artifact="$2" section main_checkout playbook row_rc evidence_path evidence_file
+  local head="$1" artifact="$2" reason="$3" section main_checkout playbook row_rc evidence_path evidence_file
   local render_found=0 phone_found=0 tablet_found=0 wide_found=0 real_length_found=0 complete_render=0 line
   local -a playbooks=('Impeccable shape' 'ui-ux-pro-max' 'Impeccable critique' 'Impeccable layout' 'Impeccable clarify' 'Impeccable harden' 'Impeccable polish' 'Taste')
 
   grep -qxE '^## Skills evidence[[:space:]]*$' "$artifact" \
-    || die "UI diff requires a '## Skills evidence' section in the review artifact"
+    || die "design pass required: $reason; UI diff requires a '## Skills evidence' section in the review artifact"
   section="$(awk '
     /^## Skills evidence[[:space:]]*$/ { inside = 1; next }
     inside && /^##[[:space:]]/ { exit }
@@ -153,16 +204,16 @@ if [ "$lens" = security ]; then
   fi
 fi
 
-changed_files="$(git diff --name-only --diff-filter=d origin/dev...HEAD 2>/dev/null)" || {
-  merge_base="$(git merge-base origin/dev HEAD 2>/dev/null)" \
-    || die "cannot compare HEAD with origin/dev to determine whether this is a UI diff"
-  changed_files="$(git diff --name-only --diff-filter=d "$merge_base" HEAD)" \
-    || die "could not list the diff from origin/dev's merge-base"
-}
-ui_files="$(printf '%s\n' "$changed_files" | grep -E '(^|/)mos-app/src/.*\.tsx$|\.css$' | grep -vE '\.test\.tsx$' || true)"
-# Collect the UI Skills evidence packet only at a release boundary; feature-branch UI stamps stay light.
-if [ -n "$ui_files" ] && is_release_candidate; then
-  validate_ui_skills_evidence "$head" "$artifact"
+merge_base="$(git merge-base origin/dev HEAD 2>/dev/null)" \
+  || die "cannot compare HEAD with origin/dev to determine whether this is a UI diff"
+changed_files="$(git diff --name-only --diff-filter=d "$merge_base" HEAD 2>/dev/null)" \
+  || die "could not list the diff from origin/dev's merge-base"
+# (d) Owner-reported UI issue labels are not available to this script yet.
+design_reason="$(design_pass_reason "$merge_base" "$changed_files")"
+design_reason_rc=$?
+[ "$design_reason_rc" -le 1 ] || die "could not determine whether this diff needs a design pass"
+if [ "$design_reason_rc" -eq 0 ]; then
+  validate_ui_skills_evidence "$head" "$artifact" "$design_reason"
 fi
 
 # SECTION-BOUND validation: the stamp is minted from THIS lens's own record, never from another
