@@ -9,6 +9,14 @@ export type CafeReceiptIssueStatus = 'open' | 'linked' | 'closed'
 /** No PO, over and wrong unit keep their part unposted; short and damaged/wrong are information (FR-1034). */
 export const BLOCKING_ISSUE_KINDS: ReadonlySet<CafeReceiptIssueKind> = new Set<CafeReceiptIssueKind>(['no_po', 'over', 'wrong_unit'])
 
+/** Part of an issue procurement linked to a PO, and whether it is queued for ESB or held. */
+export type CafeReceiptIssuePart = {
+  po_number: string
+  quantity: string
+  state: 'queued' | 'held'
+  po_created_after_delivery: boolean
+}
+
 /** One Receipt issue with the Approved receipt and line it is about. */
 export type CafeReceiptIssue = {
   id: string
@@ -17,6 +25,10 @@ export type CafeReceiptIssue = {
   status: CafeReceiptIssueStatus
   created_at: string
   linked_po_number: string | null
+  /** The linked PO a release found without room for the part, which re-opened the issue. */
+  reopened_po_number: string | null
+  /** Linked parts, oldest first; empty for a viewer who reads no portions (a receiver). */
+  parts: CafeReceiptIssuePart[]
   closed_note: string | null
   resolved_by: string | null
   resolved_at: string | null
@@ -29,9 +41,6 @@ export type CafeReceiptHeldPortion = {
   id: string
   quantity: string
   created_at: string
-  /** The PO a procurement link chose; null when the release re-matched it to none. */
-  po_number: string | null
-  linked: boolean
   receipt: CafeReceipt
   line: CafeReceiptLine
 }
@@ -71,8 +80,9 @@ export type CafeReceiptIssueLink = {
   po_created_after_delivery: boolean
 }
 
-const ISSUE_FIELDS = 'id,receipt_id,line_id,kind,quantity,status,created_at,linked_po_number,closed_note,resolved_by,resolved_at'
-const HELD_FIELDS = 'id,receipt_id,line_id,quantity,po_number,issue_id,created_at'
+const ISSUE_FIELDS = 'id,receipt_id,line_id,kind,quantity,status,created_at,linked_po_number,reopened_po_number,closed_note,resolved_by,resolved_at'
+const HELD_FIELDS = 'id,receipt_id,line_id,quantity,created_at'
+const PART_FIELDS = 'issue_id,po_number,quantity,state,po_created_after_delivery,created_at'
 const KINDS: readonly CafeReceiptIssueKind[] = ['no_po', 'over', 'wrong_unit', 'short', 'damaged_wrong']
 const STATUSES: readonly CafeReceiptIssueStatus[] = ['open', 'linked', 'closed']
 /** Resolved issues shown at once, newest first; open ones are always read in full. */
@@ -98,7 +108,8 @@ export async function listCafeReceiptIssues(): Promise<CafeReceiptIssueList> {
   if (resolved.error) throw new Error(`listCafeReceiptIssues failed: ${resolved.error.message}`)
   if (resolvedCount.error) throw new Error(`listCafeReceiptIssues failed: ${resolvedCount.error.message}`)
   const issueRows = [...open, ...((resolved.data ?? []) as Array<Record<string, unknown>>)]
-  const receipts = await readReceipts([...issueRows, ...heldRows].map(row => String(row.receipt_id)))
+  const receiptIds = [...new Set([...issueRows, ...heldRows].map(row => String(row.receipt_id)))]
+  const [receipts, parts] = await Promise.all([readReceipts(receiptIds), readParts(receiptIds)])
   const evidence = (row: Record<string, unknown>) => {
     const receipt = receipts.get(String(row.receipt_id))
     const line = receipt?.lines.find(candidate => candidate.id === row.line_id)
@@ -118,34 +129,60 @@ export async function listCafeReceiptIssues(): Promise<CafeReceiptIssueList> {
         quantity: String(row.quantity),
         status: row.status as CafeReceiptIssueStatus,
         linked_po_number: nullableString(row.linked_po_number),
+        reopened_po_number: nullableString(row.reopened_po_number),
+        parts: parts.get(String(row.id)) ?? [],
         closed_note: nullableString(row.closed_note),
         resolved_by: nullableString(row.resolved_by),
         resolved_at: nullableString(row.resolved_at),
       }
     }),
-    held: heldRows.map(row => ({
-      ...evidence(row),
-      quantity: String(row.quantity),
-      po_number: nullableString(row.po_number),
-      linked: typeof row.issue_id === 'string',
-    })),
+    held: heldRows.map(row => ({ ...evidence(row), quantity: String(row.quantity) })),
     resolvedTotal: resolvedCount.count ?? 0,
   }
 }
 
-/** The receipts the rows name, read 50 at a time like the receipt photo read. */
-async function readReceipts(ids: readonly string[]): Promise<Map<string, CafeReceipt>> {
-  const unique = [...new Set(ids)]
+/** Receipt ids 50 at a time, like the receipt photo read. */
+function chunked(ids: readonly string[]): string[][] {
   const chunks: string[][] = []
-  for (let start = 0; start < unique.length; start += CAFE_RECEIPT_PHOTO_READ_LIMIT) {
-    chunks.push(unique.slice(start, start + CAFE_RECEIPT_PHOTO_READ_LIMIT))
-  }
-  const read = await Promise.all(chunks.map(chunk => listCafeReceipts(['Approved'], { ids: chunk, limit: chunk.length })))
+  for (let start = 0; start < ids.length; start += CAFE_RECEIPT_PHOTO_READ_LIMIT) chunks.push(ids.slice(start, start + CAFE_RECEIPT_PHOTO_READ_LIMIT))
+  return chunks
+}
+
+async function readReceipts(ids: readonly string[]): Promise<Map<string, CafeReceipt>> {
+  const read = await Promise.all(chunked(ids).map(chunk => listCafeReceipts(['Approved'], { ids: chunk, limit: chunk.length })))
   return new Map(read.flat().map(receipt => [receipt.id, receipt]))
 }
 
-/** What waits for procurement's PO (FR-1034's badge): open blocking issues and held portions no PO has room for. */
-export async function countCafeReceiptIssuesNeedingPo(): Promise<number> {
+/** The linked parts of the receipts' issues by issue, oldest first; RLS returns none to a receiver. */
+async function readParts(receiptIds: readonly string[]): Promise<Map<string, CafeReceiptIssuePart[]>> {
+  const read = await Promise.all(chunked(receiptIds).map(chunk => readAllPages<Record<string, unknown>>('listCafeReceiptIssues', (from, to) =>
+    ops().from('cafe_receipt_portions').select(PART_FIELDS).in('receipt_id', chunk).not('issue_id', 'is', null)
+      .in('state', ['queued', 'held']).order('created_at').order('id').range(from, to))))
+  const parts = new Map<string, CafeReceiptIssuePart[]>()
+  for (const row of read.flat()) {
+    if (typeof row.po_number !== 'string' || (row.state !== 'queued' && row.state !== 'held')) {
+      throw new Error('listCafeReceiptIssues failed: invalid part row')
+    }
+    const issueId = String(row.issue_id)
+    parts.set(issueId, [...(parts.get(issueId) ?? []), {
+      po_number: row.po_number, quantity: String(row.quantity), state: row.state, po_created_after_delivery: row.po_created_after_delivery === true,
+    }])
+  }
+  return parts
+}
+
+/**
+ * What waits for procurement's PO (FR-1034's badge): open blocking issues and held portions no PO
+ * has room for. `receivedBy` counts only that receiver's own receipts' issues, joined first so row
+ * security runs on those rows alone; a receiver reads no portions.
+ */
+export async function countCafeReceiptIssuesNeedingPo({ receivedBy }: { receivedBy?: string } = {}): Promise<number> {
+  if (receivedBy) {
+    const { count, error } = await ops().from('cafe_receipt_issues').select('id,cafe_receipts!inner(received_by)', { count: 'exact', head: true })
+      .eq('cafe_receipts.received_by', receivedBy).eq('status', 'open').in('kind', [...BLOCKING_ISSUE_KINDS])
+    if (error) throw new Error(`countCafeReceiptIssuesNeedingPo failed: ${error.message}`)
+    return count ?? 0
+  }
   const [issues, held] = await Promise.all([
     ops().from('cafe_receipt_issues').select('id', { count: 'exact', head: true })
       .eq('status', 'open').in('kind', [...BLOCKING_ISSUE_KINDS]),

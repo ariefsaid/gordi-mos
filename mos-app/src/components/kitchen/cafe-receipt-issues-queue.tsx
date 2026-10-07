@@ -19,6 +19,7 @@ import {
   type CafeReceiptIssueKind,
   type CafeReceiptIssueList,
   type CafeReceiptIssueOpenPos,
+  type CafeReceiptIssuePart,
 } from '@/lib/db/cafe-receipt-issues'
 import type { CafeReceipt, CafeReceiptLine } from '@/lib/db/cafe-receipts'
 import { formatWeekdayDayMonth, formatWibShortDateTime } from '@/lib/format/date'
@@ -245,20 +246,31 @@ export function CafeReceiptIssuesQueue() {
                   key={issue.id}
                   title={t(KIND[issue.kind].label)}
                   meta={meta(receipt, issue.created_at)}
-                  line={line}
-                  quantity={issue.quantity}
+                  // Each part carries its own PO's late flag, so the line's flag would only repeat it.
+                  line={issue.parts.length > 0 ? { ...line, po_created_after_delivery: false } : line}
+                  // A linked issue's own quantity is only its last part; the row shows all it linked.
+                  quantity={issue.status === 'linked' && issue.parts.length > 0
+                    // Quantities carry four decimals; rounding there keeps a float sum exact.
+                    ? String(Number(issue.parts.reduce((sum, part) => sum + Number(part.quantity), 0).toFixed(4))) : issue.quantity}
                   photosUnavailable={receipt.photosUnavailable}
-                  why={issue.status === 'linked' ? t('cafe.receipts.issues.done.linked', { po: issue.linked_po_number ?? '' })
-                    : issue.status === 'closed' ? t('cafe.receipts.issues.done.closed')
-                    : t(KIND[issue.kind].why, { received: line.received_quantity, unit: line.unit_name })}
+                  why={issue.status === 'closed' ? t('cafe.receipts.issues.done.closed')
+                    : issue.status === 'open' ? t(KIND[issue.kind].why, { received: line.received_quantity, unit: line.unit_name })
+                    // A viewer who reads no parts (a receiver) is told only which PO procurement chose.
+                    : issue.parts.length === 0 ? t('cafe.receipts.issues.done.linked', { po: issue.linked_po_number ?? '' }) : null}
+                  detail={<>
+                    {issue.status === 'open' && issue.reopened_po_number && (
+                      <p className="cafe-receipt-issue__why">{t('cafe.receipts.issues.reopened', { po: issue.reopened_po_number })}</p>
+                    )}
+                    <CafeReceiptIssueParts parts={issue.parts} unit={line.unit_name} />
+                  </>}
                   resolving={open !== null}
                 >
                   {issue.status !== 'open' ? (
                     <div className="cafe-count-review__state" role="status">
                       <span className="cafe-receipt-state">
-                        {issue.status === 'linked'
-                          ? t('cafe.receipts.issues.state.linked', { po: issue.linked_po_number ?? '' })
-                          : t('cafe.receipts.issues.state.closed')}
+                        {issue.status === 'closed' ? t('cafe.receipts.issues.state.closed')
+                          : issue.parts.length > 1 ? t('cafe.receipts.issues.state.linkedMany', { count: issue.parts.length })
+                          : t('cafe.receipts.issues.state.linked', { po: issue.linked_po_number ?? '' })}
                       </span>
                       <span className="cafe-receipt-issue__resolved">
                         {t('cafe.receipts.issues.resolvedBy', { person: person(issue.resolved_by), date: formatWibShortDateTime(issue.resolved_at ?? '') })}
@@ -317,9 +329,7 @@ export function CafeReceiptIssuesQueue() {
                 line={portion.line}
                 quantity={portion.quantity}
                 photosUnavailable={portion.receipt.photosUnavailable}
-                why={portion.linked && portion.po_number
-                  ? t('cafe.receipts.issues.held.linked', { po: portion.po_number })
-                  : t('cafe.receipts.issues.held.unlinked')}
+                why={t('cafe.receipts.issues.held.unlinked')}
                 resolving={false}
               >
                 <span className="cafe-count-review__state">{t('cafe.receipts.issues.held.state')}</span>
@@ -332,14 +342,32 @@ export function CafeReceiptIssuesQueue() {
   )
 }
 
+/** Each linked part on its PO, said from its posting state, with that PO's own late flag (FR-1038). */
+function CafeReceiptIssueParts({ parts, unit }: { parts: readonly CafeReceiptIssuePart[]; unit: string }) {
+  const t = useT()
+  if (parts.length === 0) return null
+  return (
+    <ul className="cafe-receipt-issue__parts">
+      {parts.map((part, index) => (
+        <li key={`${part.po_number}:${index}`}>
+          {t(part.state === 'queued' ? 'cafe.receipts.issues.part.queued' : 'cafe.receipts.issues.part.held',
+            { quantity: part.quantity, unit, po: part.po_number })}
+          {part.po_created_after_delivery && <span className="cafe-receipt-issue__late">{t('cafe.receipts.issues.latePo')}</span>}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 /** One row of the list: what it is, where and when it arrived, its line with evidence, and the decision cell. */
-function CafeReceiptIssueRow({ title, meta, line, quantity, photosUnavailable, why, resolving, children }: {
+function CafeReceiptIssueRow({ title, meta, line, quantity, photosUnavailable, why, detail, resolving, children }: {
   title: string
   meta: { branch: string; arrival: string; receivedBy: string; age: string }
   line: CafeReceiptLine
   quantity: string
   photosUnavailable?: boolean
-  why: string
+  why: string | null
+  detail?: ReactNode
   resolving: boolean
   children: ReactNode
 }) {
@@ -353,7 +381,8 @@ function CafeReceiptIssueRow({ title, meta, line, quantity, photosUnavailable, w
       </div>
       <ul className="cafe-receipt-lines" aria-label={t('cafe.receipts.review.linesAria')}>
         <CafeReceiptLineRow name={line.item_name} quantity={quantity} unit={line.unit_name} withDifference={false}>
-          <p className="cafe-receipt-issue__why">{why}</p>
+          {why && <p className="cafe-receipt-issue__why">{why}</p>}
+          {detail}
           <CafeReceiptLineEvidence line={line} />
           {photosUnavailable && <p className="cafe-receipt-issue__why">{t('cafe.receipts.photosUnavailable')}</p>}
         </CafeReceiptLineRow>

@@ -759,7 +759,7 @@ export function CafeReceivePage() {
         )}
         <nav className="cafe-receive__links" aria-label={t('cafe.receive.linksAria')}>
           {canReview && <Link to="/cafe/receive/review">{t('cafe.receipts.review.title')}</Link>}
-          <CafeReceiptIssuesLink />
+          <CafeReceiptIssuesLink canReview={canReview} receiverId={recent.length > 0 ? viewerId : null} />
         </nav>
         {loadState === 'ready' && stream && canCapture && captureReady && !counted && items.length > 0 && (
           <div className="cafe-count__footer">

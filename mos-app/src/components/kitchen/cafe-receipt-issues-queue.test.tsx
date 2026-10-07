@@ -51,13 +51,13 @@ const RECEIPT = {
 } as unknown as CafeReceipt
 const OVER: CafeReceiptIssue = {
   id: 'issue-over', kind: 'over', quantity: '2', status: 'open', created_at: '2026-10-05T03:00:00Z',
-  linked_po_number: null, closed_note: null, resolved_by: null, resolved_at: null,
+  linked_po_number: null, reopened_po_number: null, parts: [], closed_note: null, resolved_by: null, resolved_at: null,
   receipt: RECEIPT, line: LINE,
 }
 const DAMAGED: CafeReceiptIssue = { ...OVER, id: 'issue-damaged', kind: 'damaged_wrong', quantity: '6' }
 
 const HELD: CafeReceiptHeldPortion = {
-  id: 'portion-held', quantity: '4', created_at: '2026-10-05T04:00:00Z', po_number: 'PO-2610-0042', linked: true,
+  id: 'portion-held', quantity: '4', created_at: '2026-10-05T04:00:00Z',
   receipt: RECEIPT, line: { ...LINE, id: 'line-2', item_name: 'Gula Aren Cair Organik 750 ml', unit_name: 'botol', conditions: [], condition_reason: null, photos: [] },
 }
 
@@ -206,13 +206,68 @@ describe('Receipt issues', () => {
   })
 
   it('C3 a resolved row says how it was resolved, not why it is blocked', async () => {
-    serverIssues = [{ ...OVER, status: 'linked', linked_po_number: 'PO-2610-0042', resolved_by: 'buyer-1', resolved_at: '2026-10-06T04:00:00Z' },
+    serverIssues = [{ ...OVER, status: 'linked', linked_po_number: 'PO-2610-0042', resolved_by: 'buyer-1', resolved_at: '2026-10-06T04:00:00Z',
+      parts: [{ po_number: 'PO-2610-0042', quantity: '2', state: 'queued', po_created_after_delivery: false }] },
       { ...DAMAGED, status: 'closed', closed_note: 'Supplier credit note', resolved_by: 'buyer-1', resolved_at: '2026-10-06T05:00:00Z' }]
     renderQueue()
     await userEvent.click(await screen.findByRole('tab', { name: /Resolved/ }))
-    expect(await screen.findByText(/Its part posts on PO-2610-0042/)).toBeInTheDocument()
+    expect(await screen.findByText('2 × karton posts on PO-2610-0042.')).toBeInTheDocument()
     expect(screen.getByText('Closed with a note; this part is not posted.')).toBeInTheDocument()
     expect(screen.queryByText(/Not posted until it is linked/)).not.toBeInTheDocument()
+  })
+
+  it('C10 a resolved row whose linked part is held says it is held, not that it posts', async () => {
+    serverIssues = [{ ...OVER, status: 'linked', linked_po_number: 'PO-2610-0057', resolved_by: 'buyer-1', resolved_at: '2026-10-06T04:00:00Z',
+      parts: [{ po_number: 'PO-2610-0057', quantity: '2', state: 'held', po_created_after_delivery: false }] }]
+    renderQueue()
+    await userEvent.click(await screen.findByRole('tab', { name: /Resolved/ }))
+    expect(await screen.findByText('2 × karton on PO-2610-0057 is held until the branch releases its receipts.')).toBeInTheDocument()
+    expect(screen.queryByText(/posts on PO-2610-0057/)).not.toBeInTheDocument()
+  })
+
+  it('C10 a receiver, who reads no parts, is told only which PO procurement linked', async () => {
+    mockCanManage.mockResolvedValue(false)
+    serverIssues = [{ ...OVER, status: 'linked', linked_po_number: 'PO-2610-0057', resolved_by: 'buyer-1', resolved_at: '2026-10-06T04:00:00Z' }]
+    renderQueue()
+    await userEvent.click(await screen.findByRole('tab', { name: /Resolved/ }))
+    expect(await screen.findByText('Procurement linked it to PO-2610-0057.')).toBeInTheDocument()
+    expect(screen.queryByText(/posts on/)).not.toBeInTheDocument()
+  })
+
+  it('S9 an open issue with a linked part names that PO and its late flag', async () => {
+    serverIssues = [{ ...OVER, quantity: '1', parts: [{ po_number: 'PO-2610-0057', quantity: '1', state: 'queued', po_created_after_delivery: true }] }]
+    renderQueue()
+    const part = (await screen.findByText('1 × karton posts on PO-2610-0057.')).closest('li')!
+    expect(within(part).getByText('PO created after delivery')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Link a PO' })).toBeInTheDocument()
+  })
+
+  it('S9 a line linked to two POs shows each PO with its own late flag', async () => {
+    // A partial link left 1 open; the second link took it, so the issue's own quantity is that last 1.
+    serverIssues = [{ ...OVER, quantity: '1', status: 'linked', linked_po_number: 'PO-PROBE-OLDER', resolved_by: 'buyer-1', resolved_at: '2026-10-06T04:00:00Z',
+      line: { ...LINE, po_created_after_delivery: true },
+      parts: [
+        { po_number: 'PO-2610-0057', quantity: '1', state: 'queued', po_created_after_delivery: true },
+        { po_number: 'PO-PROBE-OLDER', quantity: '1', state: 'queued', po_created_after_delivery: false },
+      ] }]
+    renderQueue()
+    await userEvent.click(await screen.findByRole('tab', { name: /Resolved/ }))
+    const late = (await screen.findByText('1 × karton posts on PO-2610-0057.')).closest('li')!
+    const older = screen.getByText('1 × karton posts on PO-PROBE-OLDER.').closest('li')!
+    expect(within(late).getByText('PO created after delivery')).toBeInTheDocument()
+    expect(within(older).queryByText('PO created after delivery')).not.toBeInTheDocument()
+    // The line's own flag would repeat the part's, beside the other PO.
+    expect(screen.getAllByText('PO created after delivery')).toHaveLength(1)
+    // The row's quantity is everything linked, not only the last part.
+    expect(late.closest('.cafe-count-review__row')).toHaveTextContent('2 × karton')
+    expect(screen.getByText('Linked to 2 POs')).toBeInTheDocument()
+  })
+
+  it('S8 an issue a release re-opened says its PO had no room, and can be linked again', async () => {
+    serverIssues = [{ ...OVER, reopened_po_number: 'PO-2610-0057' }]
+    renderQueue()
+    expect(await screen.findByText('PO-2610-0057 no longer has room for this part, so it is open again.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Link a PO' })).toBeEnabled()
   })
 
   it('C4 an issue another holder already resolved says so and the list refreshes', async () => {
@@ -234,7 +289,7 @@ describe('Receipt issues', () => {
     expect(within(row).getByText('4 × botol')).toBeInTheDocument()
     expect(within(row).getByText('Gordi HQ Kemang')).toBeInTheDocument()
     expect(within(row).getByText(/raised \d+d ago/)).toBeInTheDocument()
-    expect(within(row).getByText(/Linked to PO-2610-0042, which has no room left/)).toBeInTheDocument()
+    expect(within(row).getByText(/A release found no open PO with room for it/)).toBeInTheDocument()
     expect(within(row).queryByRole('button')).not.toBeInTheDocument()
     expect(screen.getByRole('tab', { name: /Needs a PO/ })).toHaveTextContent('2')
   })

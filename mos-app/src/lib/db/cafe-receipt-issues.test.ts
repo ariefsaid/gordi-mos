@@ -35,7 +35,7 @@ function receipt(id: string, lineIds: string[]): CafeReceipt {
 function issueRow(n: number, status = 'open') {
   return {
     id: `issue-${n}`, receipt_id: `receipt-${n}`, line_id: `line-${n}`, kind: 'over', quantity: '2.0000', status,
-    created_at: '2026-10-06T03:00:00Z', linked_po_number: null, closed_note: null, resolved_by: null, resolved_at: null,
+    created_at: '2026-10-06T03:00:00Z', linked_po_number: null, reopened_po_number: null, closed_note: null, resolved_by: null, resolved_at: null,
   }
 }
 
@@ -48,7 +48,7 @@ function backend(responses: Record<string, (call: Call) => { data?: unknown[]; c
     calls.push(call)
     const query: Record<string, unknown> = {}
     query.select = vi.fn((...args: unknown[]) => { call.select = args; return query })
-    for (const method of ['eq', 'neq', 'in', 'order', 'is']) query[method] = vi.fn((...args: unknown[]) => { call.filters.push([method, ...args]); return query })
+    for (const method of ['eq', 'neq', 'in', 'order', 'is', 'not']) query[method] = vi.fn((...args: unknown[]) => { call.filters.push([method, ...args]); return query })
     query.range = vi.fn((a: number, b: number) => { call.range = [a, b]; return query })
     query.limit = vi.fn((n: number) => { call.limit = n; return query })
     query.then = (resolve: (value: unknown) => unknown) => {
@@ -94,19 +94,39 @@ describe('Café receipt issues adapter', () => {
   it('DD-2026-10-06-1429 held portions that no longer fit a PO come back with their receipt and line', async () => {
     backend({
       cafe_receipt_issues: call => (call.select[1] ? { count: 0 } : { data: [] }),
-      cafe_receipt_portions: call => {
-        expect(call.filters).toEqual(expect.arrayContaining([['eq', 'state', 'held'], ['eq', 'hold_reason', 'no_longer_fits']]))
-        return { data: [{ id: 'portion-1', receipt_id: 'receipt-7', line_id: 'line-7', quantity: '4.0000', po_number: 'PO-1', issue_id: 'issue-9', created_at: '2026-10-06T05:00:00Z' }] }
-      },
+      cafe_receipt_portions: call => (call.filters.some(f => f[0] === 'eq' && f[1] === 'hold_reason' && f[2] === 'no_longer_fits')
+        && call.filters.some(f => f[0] === 'eq' && f[1] === 'state' && f[2] === 'held')
+        ? { data: [{ id: 'portion-1', receipt_id: 'receipt-7', line_id: 'line-7', quantity: '4.0000', created_at: '2026-10-06T05:00:00Z' }] }
+        : { data: [] }),
     })
 
     const list = await listCafeReceiptIssues()
 
-    expect(list.held).toEqual([expect.objectContaining({
-      id: 'portion-1', quantity: '4.0000', po_number: 'PO-1', linked: true, created_at: '2026-10-06T05:00:00Z',
-    })])
+    expect(list.held).toEqual([expect.objectContaining({ id: 'portion-1', quantity: '4.0000', created_at: '2026-10-06T05:00:00Z' })])
     expect(list.held[0].line.id).toBe('line-7')
     expect(list.held[0].receipt.id).toBe('receipt-7')
+  })
+
+  it('S9 C10 each issue carries its linked parts with their PO, posting state and late flag, read by receipt; S8 the PO that had no room', async () => {
+    const calls = backend({
+      cafe_receipt_issues: call => (call.select[1] ? { count: 1 }
+        : call.filters.some(f => f[0] === 'eq' && f[1] === 'status') ? { data: [{ ...issueRow(1), reopened_po_number: 'PO-0' }] }
+        : { data: [{ ...issueRow(2, 'linked'), linked_po_number: 'PO-2' }] }),
+      cafe_receipt_portions: call => (call.filters.some(f => f[0] === 'in' && f[1] === 'receipt_id') ? { data: [
+        { issue_id: 'issue-2', po_number: 'PO-1', quantity: '1.0000', state: 'queued', po_created_after_delivery: true, created_at: '2026-10-06T04:00:00Z' },
+        { issue_id: 'issue-2', po_number: 'PO-2', quantity: '1.0000', state: 'held', po_created_after_delivery: false, created_at: '2026-10-06T05:00:00Z' },
+      ] } : { data: [] }),
+    })
+
+    const list = await listCafeReceiptIssues()
+
+    expect(list.issues.find(issue => issue.id === 'issue-1')).toEqual(expect.objectContaining({ parts: [], reopened_po_number: 'PO-0' }))
+    expect(list.issues.find(issue => issue.id === 'issue-2')?.parts).toEqual([
+      { po_number: 'PO-1', quantity: '1.0000', state: 'queued', po_created_after_delivery: true },
+      { po_number: 'PO-2', quantity: '1.0000', state: 'held', po_created_after_delivery: false },
+    ])
+    const parts = calls.find(call => call.table === 'cafe_receipt_portions' && call.filters.some(f => f[0] === 'in' && f[1] === 'receipt_id'))!
+    expect(parts.filters).toEqual(expect.arrayContaining([['in', 'receipt_id', ['receipt-1', 'receipt-2']], ['not', 'issue_id', 'is', null], ['in', 'state', ['queued', 'held']]]))
   })
 
   it('S5 the badge counts open blocking issues and held portions that need a PO, without reading rows', async () => {
@@ -117,6 +137,14 @@ describe('Café receipt issues adapter', () => {
     await expect(countCafeReceiptIssuesNeedingPo()).resolves.toBe(5)
     expect(calls.every(call => (call.select[1] as { head?: boolean } | undefined)?.head === true)).toBe(true)
     expect(calls[0].filters).toEqual(expect.arrayContaining([['eq', 'status', 'open'], ['in', 'kind', ['no_po', 'over', 'wrong_unit']]]))
+  })
+
+  it('C9 a receiver counts only the open blocking issues of their own receipts, and no portions', async () => {
+    const calls = backend({ cafe_receipt_issues: () => ({ count: 2 }), cafe_receipt_portions: () => ({ count: 9 }) })
+    await expect(countCafeReceiptIssuesNeedingPo({ receivedBy: 'person-1' })).resolves.toBe(2)
+    expect(calls.map(call => call.table)).toEqual(['cafe_receipt_issues'])
+    expect(calls[0].select[0]).toBe('id,cafe_receipts!inner(received_by)')
+    expect(calls[0].filters).toEqual(expect.arrayContaining([['eq', 'cafe_receipts.received_by', 'person-1'], ['eq', 'status', 'open']]))
   })
 
   it('FR-1034 a row without its readable receipt is refused', async () => {
