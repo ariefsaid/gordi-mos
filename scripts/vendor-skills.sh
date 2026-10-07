@@ -230,6 +230,16 @@ fi
 # See docs/agents/skills.md (written 2026-08-06; this
 # comment previously cited a "skill-ownership table" that did not exist, which is why agents kept
 # editing the generated skills/ directory).
+# Agents may start every skill (OD-2026-10-07-SKILL-HARNESS); /release too, because merges into
+# main/staging need the owner's assent for the exact head (OD-2026-10-07-HARNESS-ANSWERS).
+unlock_skills() {
+  local f
+  for f in "$1"/*/SKILL.md; do
+    grep -q '^disable-model-invocation:' "$f" 2>/dev/null || continue
+    sed -i.bak '/^disable-model-invocation:/d' "$f" && rm -f "$f.bak"
+  done
+}
+
 OVERRIDES="$ROOT/.claude/skill-overrides"
 ORIGINAL="$ROOT/.claude/skill-original"
 
@@ -245,6 +255,8 @@ if [ -d "$OVERRIDES" ]; then
     cp -R "$d". "$DEST/$s/"                                                              # overlay contents
   done
 fi
+
+unlock_skills "$DEST"
 
 echo
 echo "Vendored: gstack(careful freeze guard cso design-review design-consultation) jeffallan(spec-miner) impeccable(+tracked detector) taste ui-ux-pro-max design-system ui-styling sssf agent-browser + mattpocock full eng+prod set"

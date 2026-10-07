@@ -7,12 +7,12 @@ describe('FreshnessLabel', () => {
   it('renders "as of {formatted datetime}" for a Date', () => {
     render(<FreshnessLabel asOf={new Date('2026-07-02T08:30:00Z')} />)
     expect(screen.getByText('as of')).toBeInTheDocument()
-    expect(screen.getByText('2 Jul 2026, 15:30 WIB')).toBeInTheDocument()
+    expect(screen.getByText('02 Jul 2026, 15:30 WIB')).toBeInTheDocument()
   })
 
   it('renders "as of {formatted datetime}" for an ISO string in fixed WIB time', () => {
     render(<FreshnessLabel asOf="2026-07-02T08:30:00Z" />)
-    expect(screen.getByText('2 Jul 2026, 15:30 WIB')).toBeInTheDocument()
+    expect(screen.getByText('02 Jul 2026, 15:30 WIB')).toBeInTheDocument()
   })
 
   it('accepts a custom prefix', () => {

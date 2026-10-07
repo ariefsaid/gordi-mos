@@ -6,8 +6,10 @@ import {
   cafeReceiptArrivalDateBounds,
   listCafeReceiptDifferences,
   listCafeReceipts,
+  listCafeUnsentReceipts,
   listCafeHeldReceipts,
   listCafeReceivableItems,
+  listCafeOpenPoIdentities,
   normalizeCafeReceiptQuantity,
   readCafeReceiptPosting,
   releaseCafeReceipts,
@@ -60,6 +62,28 @@ describe('Café receipt adapter', () => {
       { id: 'cup', name: 'Cup', category: null, kind: null, defaultUnitId: 'pcs', units: [{ id: 'pcs', name: 'pcs' }] },
     ])
     expect(rpc).toHaveBeenCalledWith('cafe_receivable_items', { p_branch_id: 'branch-1', p_activity: 'kitchen' })
+  })
+
+  it('AC-1045 reads open-PO identities through the floor-safe RPC and returns no quantity or price fields', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: {
+      as_of: '2026-10-06T02:10:00Z', is_current: true,
+      purchase_orders: [{
+        po_number: 'PO-1043', supplier_name: 'Sample supplier', po_date: '2026-10-04', esb_created_at: '2026-10-04T01:00:00Z',
+        items: [{ item_unit_id: 'kg', item_name: 'Coffee bean', unit_name: 'kg', outstanding_quantity: 80, unit_price: 7.5 }],
+        purchase_order_total: 900,
+      }],
+    }, error: null })
+    schemaMock.mockReturnValue({ rpc } as never)
+
+    await expect(listCafeOpenPoIdentities('branch-1')).resolves.toEqual({
+      asOf: '2026-10-06T02:10:00Z', isCurrent: true,
+      purchaseOrders: [{
+        poNumber: 'PO-1043', supplierName: 'Sample supplier', poDate: '2026-10-04',
+        items: [{ itemUnitId: 'kg', itemName: 'Coffee bean', unitName: 'kg' }],
+      }],
+    })
+    expect(schemaMock).toHaveBeenCalledWith('ops')
+    expect(rpc).toHaveBeenCalledWith('cafe_open_po_identities', { p_branch_id: 'branch-1' })
   })
 
   it('NFR-1001 Count submit sends only allowed line facts (never org or status)', async () => {
@@ -164,6 +188,26 @@ describe('Café receipt adapter', () => {
     expect(vi.mocked(listCafeReceiptPhotos)).toHaveBeenCalledWith(['r-sub'])
     expect(vi.mocked(signCafeReceiptPhotos)).toHaveBeenCalledWith([{ lineId: 'l-sub', path: 'org/r-sub/l-sub/a.jpg', createdAt: 't' }])
     expect(receipts.map(receipt => receipt.lines[0].photos.length)).toEqual([1, 0])
+  })
+
+  it('FR-1044 reads Counted receipts oldest first, without photos, and says how many newer ones the limit left out', async () => {
+    const rows = Array.from({ length: 50 }, (_, index) => ({
+      id: `r-${index}`, activity: 'kitchen', status: 'Counted', posting_status: 'not_posted', lines: [],
+    }))
+    const query: Record<string, unknown> = {}
+    for (const method of ['select', 'in', 'eq', 'order', 'limit']) query[method] = vi.fn(() => query)
+    query.then = (resolve: (value: unknown) => unknown) => Promise.resolve({ data: rows, count: 53, error: null }).then(resolve)
+    schemaMock.mockReturnValue({ from: vi.fn(() => query) } as never)
+
+    const unsent = await listCafeUnsentReceipts()
+
+    expect(query.in).toHaveBeenCalledWith('status', ['Counted'])
+    expect(query.order).toHaveBeenCalledWith('received_at', { ascending: true })
+    expect(query.limit).toHaveBeenCalledWith(50)
+    expect(vi.mocked(query.select as () => unknown).mock.calls[0]).toEqual([expect.any(String), { count: 'exact' }])
+    expect(listCafeReceiptPhotos).not.toHaveBeenCalled()
+    expect(unsent.receipts.map(receipt => receipt.id)).toEqual(rows.map(row => row.id))
+    expect(unsent.more).toBe(3)
   })
 
   it('AC-1011 explanation writer passes only a line id, damage flag and trimmed reason', async () => {

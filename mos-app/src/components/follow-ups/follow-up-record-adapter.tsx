@@ -26,12 +26,11 @@
 // whole-record note (why nothing is editable here — mutations live in the queue) is carried
 // ONCE by RecordViewer's footer via permission.reason, never stamped per field (LAW-6 / F3).
 import { formatIDR } from '@/lib/format/money'
+import { wibToday } from '@/lib/format/date'
 import { ListPaging } from '@/components/ui/list-paging'
-import { RecordFieldList } from '@/components/records/record-viewer'
+import { fieldSlot, readField } from '@/components/records/record-slots'
 import type {
   RecordContentSlot,
-  RecordFieldSpec,
-  RecordMetadataSection,
   RecordViewerAdapter,
 } from '@/components/records/record-viewer.types'
 import type { PersonOption } from '@/lib/db/directory'
@@ -71,31 +70,17 @@ function personName(people: readonly PersonOption[], id: string | null): string 
 
 /** The overdue-age signal that rides with the debt (LAW-2, record-page-anatomy §2.3: Outstanding
  *  carries Counterparty · Amount · Balance · Age). Whole-day count relative to the due date, in
- *  UTC-day granularity so it is stable regardless of the caller's wall-clock time. */
+ *  WIB-day granularity. */
 function ageLabel(dueDate: string | null, today = new Date()): string {
   if (!dueDate) return 'No due date'
   const dayMs = 86_400_000
   const due = Date.parse(`${dueDate}T00:00:00Z`)
-  const now = Date.parse(`${today.toISOString().slice(0, 10)}T00:00:00Z`)
+  const now = Date.parse(`${wibToday(today)}T00:00:00Z`)
   const days = Math.round((now - due) / dayMs)
   if (days > 0) return `${days} ${days === 1 ? 'day' : 'days'} overdue`
   if (days === 0) return 'Due today'
   const ahead = -days
   return `Due in ${ahead} ${ahead === 1 ? 'day' : 'days'}`
-}
-
-/** A read-only field spec with NO per-field provenance caption. The whole-record read-only
- *  reason is carried once by the viewer footer (LAW-6 / F3) — never repeated per row. */
-function readField(spec: Omit<RecordFieldSpec, 'editable' | 'readOnlyReason'>): RecordFieldSpec {
-  return { ...spec, editable: false }
-}
-
-/** Wrap a read-only field section as an ordered content slot (content-first: the section
- *  renders through the shared RecordFieldList inside the slot's `data-content-slot` landmark,
- *  not the metadata region which paints BEFORE content). */
-function fieldSlot(id: string, label: string, fields: RecordFieldSpec[]): RecordContentSlot {
-  const section: RecordMetadataSection = { id, label, fields }
-  return { id, label, section, render: () => <RecordFieldList section={section} /> }
 }
 
 export function createFollowUpRecordAdapter(input: FollowUpRecordAdapterInput): RecordViewerAdapter {

@@ -8,7 +8,7 @@
  *
  * Two halves are pinned here, and the distinction between them is the point:
  *   - the LABEL wraps, so prose can never set a min-content width wider than the phone;
- *   - the TIMESTAMP span keeps nowrap, so a formatted value ("2 Jul 2026, 15:30 WIB",
+ *   - the TIMESTAMP span keeps nowrap, so a formatted value ("02 Jul 2026, 15:30 WIB",
  *     "03:30 WIB") never splits across lines.
  *
  * `white-space: normal` is DECLARED rather than omitted: `.content-header .ch-meta-line` sets

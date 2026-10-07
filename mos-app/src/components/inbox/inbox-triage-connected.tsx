@@ -10,6 +10,7 @@ import { useOptionalOverlayHost } from '@/shell/overlay-host'
 import type { OverlayOwner } from '@/shell/overlay-navigation'
 import type { OverlayEntry } from '@/shell/overlay-host'
 import { InboxTriage, type InboxPendingAction, type InboxTriageState } from './inbox-triage'
+import { ListPaging } from '@/components/ui/list-paging'
 import { matchesFilter, isHandled, type InboxFilter, type TriageNotificationRow } from './read-handled-semantics'
 import { resolveNotificationTarget } from './inbox-target'
 import { notificationAvailableInProfile } from '@/config/notification-profile'
@@ -38,7 +39,10 @@ export function InboxTriageConnected({ mode, owner = mode === 'page' ? 'inbox' :
   owner?: OverlayOwner
 }) {
   const t = useT()
-  const { notifications, loading, error, refresh, markRead, markHandled } = useNotifications()
+  const {
+    notifications, loading, error, hasMore, loadingMore, loadMoreError,
+    loadMore, refresh, markRead, markHandled,
+  } = useNotifications()
   const host = useOptionalOverlayHost()
   const auth = useAuth()
   const accessRoles = auth.status === 'authenticated' ? auth.viewer.accessRoles : []
@@ -112,8 +116,8 @@ export function InboxTriageConnected({ mode, owner = mode === 'page' ? 'inbox' :
   // filter-aware empty copy. On the All view this is 0 (nothing is hidden by a filter).
   const hiddenCount = filter === 'all' ? 0 : availableNotifications.length - rows.length
 
-  // AC-003 (#549): counts cover the records this build can actually open, independent of the
-  // active filter. Hidden Work notifications are omitted from both the list and its tab counts.
+  // AC-003 (#549): counts cover currently loaded records this build can actually open, independent
+  // of the active filter. `hasMore` makes the UI identify these as partial counts.
   const counts = {
     all: availableNotifications.length,
     unread: availableNotifications.filter((n) => n.read_at == null).length,
@@ -174,6 +178,7 @@ export function InboxTriageConnected({ mode, owner = mode === 'page' ? 'inbox' :
         hiddenCount={hiddenCount}
         handledFilterAvailable
         counts={counts}
+        hasMore={hasMore}
         onFilterChange={setFilter}
         onOpen={onOpen}
         onQuickMarkRead={(row) => {
@@ -186,6 +191,15 @@ export function InboxTriageConnected({ mode, owner = mode === 'page' ? 'inbox' :
         onRetry={() => void refresh()}
         onSignInAgain={onSignInAgain}
       />
+      {(state === 'ready' || (state === 'empty' && (hasMore || notifications.length > 0))) ? (
+        <ListPaging
+          count={notifications.length}
+          hasMore={hasMore}
+          loading={loadingMore}
+          error={loadMoreError}
+          onLoadMore={() => void loadMore()}
+        />
+      ) : null}
       {unavailableKey ? (
         <p className="inbox-triage__unavailable" role="status" aria-live="polite">
           {t(unavailableKey as MessageKey)}

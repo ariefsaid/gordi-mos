@@ -34,6 +34,8 @@ jobs:
         run: bash scripts/pre-commit-hook.test.sh
       - name: pre-push hook self-test
         run: bash scripts/pre-push-hook.test.sh
+      - name: post-checkout hook self-test
+        run: bash scripts/post-checkout-hook.test.sh
       - name: agent git shim self-test
         run: bash scripts/agent-git-shim.test.sh
       - name: pre-pr-verify self-test
@@ -78,6 +80,8 @@ jobs:
         run: bash scripts/gh-post.test.sh
       - name: record-review independent-review stamp self-test
         run: bash scripts/record-review.test.sh
+      - name: owner-assent merge marker self-test
+        run: bash scripts/owner-assent.test.sh
       - name: lane-exempt audit-trail self-test
         run: bash scripts/lane-exempt.test.sh
       - name: cloud sandbox tool helpers self-test
@@ -102,6 +106,8 @@ jobs:
         run: bash scripts/carry-stamps.test.sh
       - name: gh-shim PATH firewall self-test
         run: bash scripts/gh-shim.test.sh
+      - name: pi role launcher self-test
+        run: bash scripts/pi-role.test.sh
       - name: factory-run shim-carrier self-test
         run: bash scripts/factory-run.test.sh
       - name: worktree npm-seed hardlink self-test

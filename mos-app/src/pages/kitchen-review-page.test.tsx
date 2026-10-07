@@ -1584,7 +1584,7 @@ describe('KitchenReviewPage — server paging', () => {
     expect(mockList).toHaveBeenLastCalledWith(undefined, { before: expect.objectContaining({ id: 'paged-log-50' }) })
     fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
     await screen.findByText('Paged item 101')
-    expect(screen.getByText('101 loaded · end of list')).toBeInTheDocument()
+    expect(screen.getByText('101 items loaded · end of list')).toBeInTheDocument()
     expect(screen.getAllByText('Paged item 1')).toHaveLength(1)
     expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument()
   })

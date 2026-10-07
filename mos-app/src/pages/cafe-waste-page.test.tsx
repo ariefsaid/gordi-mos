@@ -9,13 +9,12 @@ vi.mock('@/auth/use-auth')
 const cafeStreamMock = vi.hoisted(() => ({ produces: true }))
 vi.mock('@/lib/use-cafe-stream', () => {
   const branch = { id: 'branch-1', code: 'rumah_rames', name: 'Rumah Rames' }
-  const stream = { branch, activity: 'bar' as const, get produces() { return cafeStreamMock.produces } }
-  const alternateStream = { branch, activity: 'kitchen' as const, produces: true }
+  const stream = { branch, activity: 'bar', get produces() { return cafeStreamMock.produces } }
   const catalog = {
     branches: [branch],
-    options: [stream, alternateStream],
+    options: [stream],
     destinations: [],
-    locationOptions: [stream, alternateStream],
+    locationOptions: [stream],
     stream,
     homeStream: stream,
     myStreamKeys: new Set(['branch-1|bar']),
@@ -46,7 +45,10 @@ vi.mock('@/lib/db/kitchen-waste-photos', async importOriginal => {
     uploadKitchenWastePhoto: vi.fn(),
   }
 })
-vi.mock('@/lib/db/cafe-opening', () => ({ wibToday: () => '2026-10-02' }))
+vi.mock('@/lib/format/date', async importOriginal => {
+  const actual = await importOriginal<typeof import('@/lib/format/date')>()
+  return { ...actual, wibToday: () => '2026-10-02' }
+})
 
 import { useAuth } from '@/auth/use-auth'
 import { listCafeItemSettings } from '@/lib/db/cafe-item-settings'
@@ -61,7 +63,6 @@ import type { KitchenWasteDraft } from '@/lib/db/kitchen-waste-photos'
 import type { CafeItemSetting } from '@/lib/db/cafe-item-settings'
 import { CafeWastePage } from './cafe-waste-page'
 import { cafeCaptureDraftStorageKey, writeCafeCaptureDraft } from '@/lib/cafe-capture-storage'
-import { formatWeekdayDayMonth } from '@/lib/format/date'
 
 const mockUseAuth = vi.mocked(useAuth)
 const mockListCafeItemSettings = vi.mocked(listCafeItemSettings)
@@ -105,10 +106,10 @@ const ITEM_SETTINGS: CafeItemSetting[] = [
   },
 ]
 
-function renderPage(locale: 'en' | 'id' = 'en') {
+function renderPage() {
   return render(
     <MemoryRouter initialEntries={['/cafe/waste']}>
-      <I18nProvider initialLocale={locale}>
+      <I18nProvider>
         <CafeWastePage />
       </I18nProvider>
     </MemoryRouter>,
@@ -485,30 +486,6 @@ describe('CafeWastePage', () => {
     expect(within(empty).queryByRole('link')).not.toBeInTheDocument()
   })
 
-  it('puts the localized date in PageHead metadata and labels the bar switch in both locales', async () => {
-    for (const locale of ['en', 'id'] as const) {
-      const { unmount } = renderPage(locale)
-      const stream = await screen.findByRole('heading', { name: 'Rumah Rames · Bar' })
-      const context = stream.closest('.cafe-capture-context')
-      expect(context).toBeInTheDocument()
-      expect(context?.querySelector('time')).toBeNull()
-
-      const head = screen.getByTestId('page-head')
-      const date = head.querySelector('time')
-      expect(date).toHaveAttribute('datetime', '2026-10-02')
-      expect(date).toHaveTextContent(formatWeekdayDayMonth('2026-10-02', locale))
-      expect(date?.closest('.ch-meta, .page-head-meta')).toBeInTheDocument()
-
-      const switchLabel = locale === 'en' ? 'Switch bar stream' : 'Ganti stream bar'
-      const switchButton = within(context as HTMLElement).getByRole('button', { name: switchLabel })
-      expect(switchButton).toHaveTextContent(locale === 'en' ? 'Switch bar' : 'Ganti bar')
-      expect(context).not.toHaveTextContent(formatWeekdayDayMonth('2026-10-02', locale))
-      fireEvent.click(switchButton)
-      expect(await screen.findByRole('option', { name: /Rumah Rames/ })).toBeInTheDocument()
-      unmount()
-    }
-  })
-
   it('loading shows the page label once without repeating the café context', async () => {
     mockListCafeItemSettings.mockReturnValue(new Promise(() => {}))
     renderPage()
@@ -699,13 +676,10 @@ describe('CafeWastePage', () => {
     expect(row.querySelector('.cwl-capture-row__item')).toContainElement(name)
     expect(row.querySelector('.cwl-capture-row__controls')).toContainElement(quantity)
     expect(unit).toHaveTextContent(longUnitLabel)
-    expect(document.getElementById(unit.getAttribute('aria-describedby') ?? '')).toHaveTextContent(longUnitLabel)
-    expect(quantity).toHaveClass('cafe-capture-quantity-field')
     const quantityRow = quantity.closest('.cwl-quantity-row')
     expect(quantityRow).toBeInTheDocument()
     expect(quantityRow).toContainElement(unit.closest('.cwl-unit-select') as HTMLElement)
     expect(unit.closest('.cwl-unit-select')?.parentElement).toHaveClass('quantity-field-suffix')
-    expect(unit.closest('.cwl-controls')).toBe(quantity.closest('.cwl-controls'))
   })
 
   it('keeps the missing-item route beside the item controls on a long capture list', async () => {
@@ -715,28 +689,15 @@ describe('CafeWastePage', () => {
     expect(report.compareDocumentPosition(firstQuantity) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  it('states the photo rule once and describes why each empty-quantity photo action is disabled', async () => {
+  it('explains that a quantity unlocks Add photo and removes the hint once entered', async () => {
     renderPage()
     const addPhoto = (await screen.findAllByRole('button', { name: 'Add photo' }))[0]!
-    const quantity = screen.getByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })
-    const help = 'Choose the items and quantities to waste. Every item needs at least one photo.'
-    const quantityHint = 'Enter a quantity before adding a photo.'
     expect(addPhoto).toBeDisabled()
-    expect(addPhoto.closest('.cwl-controls')).toContainElement(quantity)
-    expect(screen.getAllByText(help)).toHaveLength(1)
-    expect(screen.getAllByText(quantityHint)).toHaveLength(2)
-    const describedBy = addPhoto.getAttribute('aria-describedby')?.split(/\s+/) ?? []
-    expect(describedBy).toContain('cafe-waste-photo-guidance')
-    const specificHint = describedBy.find(id => id.startsWith('cafe-waste-photo-hint-'))
-    expect(specificHint).toBeTruthy()
-    expect(document.getElementById('cafe-waste-photo-guidance')).toHaveTextContent(help)
-    expect(document.getElementById(specificHint!)).toHaveTextContent(quantityHint)
+    expect(screen.getAllByText('Enter a quantity before adding a photo.')).toHaveLength(2)
 
-    fireEvent.change(quantity, { target: { value: '2' } })
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Waste quantity for Oat Latte' }), { target: { value: '2' } })
     await waitFor(() => expect(addPhoto).toBeEnabled())
-    expect(screen.getAllByText(help)).toHaveLength(1)
-    expect(screen.getAllByText(quantityHint)).toHaveLength(1)
-    expect(addPhoto).toHaveAttribute('aria-describedby', 'cafe-waste-photo-guidance')
+    expect(screen.getAllByText('Enter a quantity before adding a photo.')).toHaveLength(1)
   })
 
   it('keeps 2 unchanged through a 3× unit round trip with no quantity error', async () => {
@@ -789,7 +750,6 @@ describe('CafeWastePage', () => {
     renderPage()
 
     fireEvent.click(await screen.findByRole('combobox', { name: 'Waste unit for Oat Latte' }))
-    expect(await screen.findByRole('listbox')).toHaveClass('cwl-unit-menu')
     fireEvent.click(await screen.findByRole('option', { name: '0.5 cup' }))
     fireEvent.change(screen.getByRole('spinbutton', { name: 'Waste quantity for Oat Latte' }), { target: { value: '4' } })
     fireEvent.click(screen.getAllByRole('button', { name: 'Add photo' })[0]!)

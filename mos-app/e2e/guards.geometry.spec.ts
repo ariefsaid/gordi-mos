@@ -8,8 +8,7 @@
  *                 — taste §7 "Align & Space Perfectly" (.claude/skills/taste/SKILL.md)
  *   GUARD-PRIMARY at most ONE visible solid-primary button on the Tasks surface
  *                 — impeccable distill "Clear hierarchy: ONE primary action"
- *   GUARD-R3      the current saved-view section keeps a real (≥8px) gap before its content
- *                 — uupm ux-guidelines "minimum 8px gap between adjacent targets"
+ *   GUARD-R3      moved to guard-r3-toolbar-label-gap.css.test.ts (authored ≥8px margin)
  *   GUARD-TAP     interactive controls ≥44px on phone/coarse viewports (P1-4 fix), and —
  *                 on the auth cards (#403) — the full 44×44 census plus the 8px separation
  *                 between adjacent targets that DESIGN.md pairs the floor with
@@ -253,15 +252,9 @@ test.describe('desktop geometry guards', () => {
     expect(taskWidth, 'Task keeps its 160px floor with every optional field on').toBeGreaterThanOrEqual(160)
     await assertNoPageScroll('Fields chooser open')
   })
-
-  test('GUARD-R3: the saved-view label keeps a measured ≥8px gap from the first chip', async ({ page }) => {
-    const toolbar = page.getByTestId('record-collection-toolbar')
-    await expect(toolbar).toBeVisible()
-    const label = await box(toolbar.locator('.collection-toolbar__views-label'))
-    const firstChip = await box(toolbar.locator('.collection-toolbar__view').first())
-    const gap = firstChip.x - (label.x + label.width)
-    expect(gap, 'saved-view label→content seam must be a real gap, not a fused blob').toBeGreaterThanOrEqual(8)
-  })
+  // GUARD-R3 (saved-view label gap >= 8px) is owned by
+  // src/components/record-collection/guard-r3-toolbar-label-gap.css.test.ts, which pins the authored
+  // margin that produces that gap.
 })
 
 // ── Phone/coarse regime (375×812 — the ≤767.98px tap-target floor, P1-4) ───────────────
@@ -309,22 +302,12 @@ test.describe('phone tap-target guards (GUARD-TAP)', () => {
     expect(back.height, 'record Back must meet the phone tap floor').toBeGreaterThanOrEqual(44)
   })
 
-  test('GUARD-TAP: Tasks phone controls are ≥44px', async ({ page }) => {
-    await page.goto('work/tasks')
-    await expect(page.getByTestId('page-head')).toBeVisible()
-    await assertTapFloor(page, TAP_SAMPLE, 'Tasks')
-  })
-
-  test('GUARD-TAP: Home phone controls are ≥44px', async ({ page }) => {
-    await page.goto('')
-    await expect(page.getByTestId('page-head')).toBeVisible()
-    await assertTapFloor(page, TAP_SAMPLE, 'Home')
-  })
-
-  test('GUARD-TAP: Signals phone controls are ≥44px', async ({ page }) => {
-    await page.goto('work/signals')
-    await expect(page.getByTestId('page-head')).toBeVisible()
-    await assertTapFloor(page, TAP_SAMPLE, 'Signals')
+  test('GUARD-TAP: Tasks, Home and Signals phone controls are ≥44px', async ({ page }) => {
+    for (const [path, surface] of [['work/tasks', 'Tasks'], ['', 'Home'], ['work/signals', 'Signals']] as const) {
+      await page.goto(path)
+      await expect(page.getByTestId('page-head')).toBeVisible()
+      await assertTapFloor(page, TAP_SAMPLE, surface)
+    }
   })
 
   // #667: named phone controls are sampled at the 390px audit width, not hidden behind the
@@ -453,21 +436,16 @@ test.describe('auth-card tap-target guards (GUARD-TAP, #403)', () => {
 
   const AUTH_OPTS = { axes: 'both', minGap: TAP_GAP, noOverflow: true } as const
 
-  test('GUARD-TAP: sign-in form controls are ≥44×44 at 390', async ({ page }) => {
+  test('GUARD-TAP: sign-in, reset-confirm and recovery-link-invalid controls are ≥44×44 at 390', async ({ page }) => {
     await page.goto('login')
     await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible()
     await assertTapFloor(page, AUTH_CONTROLS, 'Sign-in', AUTH_OPTS)
-  })
 
-  test('GUARD-TAP: reset-confirm "Back to sign in" is ≥44×44 at 390', async ({ page }) => {
-    await page.goto('login')
     await page.getByLabel('Email').fill(VIEWER.email)
     await page.getByRole('button', { name: /forgot password/i }).click()
     await expect(page.getByText(/a reset link is on its way/i)).toBeVisible({ timeout: 10_000 })
     await assertTapFloor(page, AUTH_CONTROLS, 'Reset-confirm', AUTH_OPTS)
-  })
 
-  test('GUARD-TAP: recovery link-invalid "Back to sign in" <a> is ≥44×44 at 390', async ({ page }) => {
     await page.goto('recovery')
     await expect(page.getByRole('link', { name: /back to sign in/i })).toBeVisible({ timeout: 10_000 })
     await assertTapFloor(page, AUTH_CONTROLS, 'Recovery (no link)', AUTH_OPTS)

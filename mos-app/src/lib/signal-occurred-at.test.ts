@@ -20,8 +20,11 @@ describe('Signal occurrence time in WIB', () => {
     expect(signalOccurredAtIsoFromWib('2026-10-05', '10:15')).toBe('2026-10-05T03:15:00.000Z')
   })
 
-  it('moves a just-after-midnight WIB entry to the previous UTC date', () => {
-    expect(signalOccurredAtIsoFromWib('2026-10-05', '00:15')).toBe('2026-10-04T17:15:00.000Z')
+  it.each([
+    ['2026-10-06', '00:00', '2026-10-05T17:00:00.000Z'],
+    ['2026-10-05', '00:15', '2026-10-04T17:15:00.000Z'],
+  ])('converts %s %s WIB to its UTC instant', (date, time, expected) => {
+    expect(signalOccurredAtIsoFromWib(date, time)).toBe(expected)
   })
 
   it.each([

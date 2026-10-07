@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { shrinkPhoto } from '@/lib/db/signal-photos'
+import { prepareEvidencePhoto } from '@/lib/db/photo-evidence'
 import {
   OFFLINE_PHOTO_DRAFT_MAX_AGE_MS,
   clearAllOfflinePhotoDrafts,
@@ -92,7 +93,44 @@ describe('offline photo drafts', () => {
 
     expect(shrinkPhoto).toHaveBeenCalledWith(raw)
     expect({ name: restored.name, type: restored.type, size: restored.size }).toEqual({ name: 'camera-raw.jpg', type: 'image/jpeg', size: 900_000 })
-  }, 30_000)
+  })
+
+  it('NFR-1007 a restored photo is shrunk only once: saving it again and uploading it reuse the stored JPEG', async () => {
+    vi.mocked(shrinkPhoto).mockResolvedValue(new Blob([new Uint8Array(900_000)], { type: 'image/jpeg' }))
+    await saveOfflinePhotoDraft('k', [photo('camera-raw.jpg', 14 * 1024 * 1024)])
+    const [restored] = await loadOfflinePhotoDraft('k')
+    vi.mocked(shrinkPhoto).mockClear()
+
+    await expect(saveOfflinePhotoDraft('k', [restored])).resolves.toBe('saved')
+    const body = await prepareEvidencePhoto(restored)
+
+    expect(shrinkPhoto).not.toHaveBeenCalled()
+    expect(body).toBe(restored)
+  })
+
+  it('NFR-1007 a restored photo that is not a JPEG under 5 MB is still shrunk before upload', async () => {
+    idb.records.set('k', { key: 'k', savedAt: Date.now(), files: [
+      { blob: new Blob([new Uint8Array(10)], { type: 'image/png' }), name: 'kept-raw.png', type: 'image/png', lastModified: 1 },
+    ] })
+    const [restored] = await loadOfflinePhotoDraft('k')
+
+    await prepareEvidencePhoto(restored)
+
+    expect(shrinkPhoto).toHaveBeenCalledWith(restored)
+  })
+
+  it('NFR-1007 a restored JPEG over 5 MB is still shrunk before upload', async () => {
+    idb.records.set('k', { key: 'k', savedAt: Date.now(), files: [
+      { blob: new Blob([new Uint8Array(5 * 1024 * 1024 + 1)], { type: 'image/jpeg' }), name: 'kept-big.jpg', type: 'image/jpeg', lastModified: 1 },
+    ] })
+    vi.mocked(shrinkPhoto).mockResolvedValue(new Blob([new Uint8Array(900_000)], { type: 'image/jpeg' }))
+    const [restored] = await loadOfflinePhotoDraft('k')
+
+    const body = await prepareEvidencePhoto(restored)
+
+    expect(shrinkPhoto).toHaveBeenCalledWith(restored)
+    expect(body.size).toBe(900_000)
+  })
 
   it('NFR-1007 a photo still over 5 MB after shrinking is not stored, and the save says it is too large', async () => {
     vi.mocked(shrinkPhoto)

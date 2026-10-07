@@ -50,7 +50,6 @@ import {
   movementsForStream,
   movementKey,
   PRODUCE,
-  streamLabel,
   streamProduces,
 } from '@/lib/kitchen-action-label'
 import { MovementSeg } from '@/components/kitchen/movement-seg'
@@ -75,36 +74,8 @@ import {
   type KitchenListRow,
 } from '@/lib/kitchen-item-list'
 import { usePlanSummary } from '@/lib/kitchen-plan-kpis'
-import { formatDayMonthYear } from '@/lib/format/date'
-import '@/components/kitchen/status-banner-tone.css'
+import { formatWeekdayDayMonth, wibToday } from '@/lib/format/date'
 import './kitchen-plan-page.css'
-
-function CafePlanStreamBar({
-  cafeStream,
-  onChange,
-}: {
-  cafeStream: ReturnType<typeof useCafeStream>
-  onChange: (next: ProductionStream) => Promise<void>
-}) {
-  return (
-    <CafeStreamBar
-      options={cafeStream.options}
-      stream={cafeStream.stream}
-      homeStream={cafeStream.homeStream}
-      myStreamKeys={cafeStream.myStreamKeys}
-      locationBranchId={cafeStream.branchId ?? undefined}
-      onChange={next => { void onChange(next) }}
-    />
-  )
-}
-
-// WIB "today" as YYYY-MM-DD (fixed +7h offset, NFR-007) — matches the other Café pages.
-function wibToday(): string {
-  const WIB_OFFSET_MS = 7 * 60 * 60 * 1000
-  const shifted = new Date(Date.now() + WIB_OFFSET_MS)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}-${pad(shifted.getUTCDate())}`
-}
 
 type LoadState = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready' }
 
@@ -287,7 +258,6 @@ function PlanEditor() {
   const [justSavedId, setJustSavedId] = useState<string | null>(null)
   const savedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [saveError, setSaveError] = useState('')
-  const [saveFailureAfterSwitch, setSaveFailureAfterSwitch] = useState<{ stream: string; item: string } | null>(null)
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const isDesktop = useIsDesktop()
   const [search, setSearch] = useSearchParamState('q', '')
@@ -367,9 +337,6 @@ function PlanEditor() {
     const gen = ++requestGen.current
     chooseStream(nextStream) // the whole Café module follows this choice (#440)
     setMovement(PRODUCE)
-    setSavingId(null)
-    setJustSavedId(null)
-    if (savedTimer.current) clearTimeout(savedTimer.current)
     setLoad({ kind: 'loading' })
     try {
       const [planCells, offered, settings] = await Promise.all([
@@ -438,7 +405,6 @@ function PlanEditor() {
         destination_branch_id: movement.destinationBranchId,
         qty_porsi: nextQty,
       })
-      if (gen !== requestGen.current) return
       // Reflect the confirmed result in place (no view transition).
       setCells(prev => {
         const without = prev.filter(
@@ -452,13 +418,6 @@ function PlanEditor() {
       if (savedTimer.current) clearTimeout(savedTimer.current)
       savedTimer.current = setTimeout(() => setJustSavedId(null), 1500)
     } catch (err) {
-      if (gen !== requestGen.current) {
-        setSaveFailureAfterSwitch({
-          stream: streamLabel(t, stream),
-          item: items.find(item => item.id === wipItemId)?.name ?? wipItemId,
-        })
-        return
-      }
       if (isItemNotOnStreamError(err)) {
         // The list changed while the editor was open (#222): re-read it so the row reads as off-list.
         setSaveError(t('kitchen.plan.error.itemNotOnStream'))
@@ -472,7 +431,7 @@ function PlanEditor() {
         setSaveError(saveErrorMessage(err, t))
       }
     } finally {
-      if (gen === requestGen.current) setSavingId(null)
+      setSavingId(null)
     }
   }
 
@@ -628,11 +587,20 @@ function PlanEditor() {
       /* #440: the stream this plan is being written INTO, stated in the head. Plan's existing
          Change menu also allows a deliberate working-branch switch; applyStream commits the new
          branch before re-reading its plan. Capture remains bounded to its active location. */
-      statusRow={<CafePlanStreamBar cafeStream={cafeStream} onChange={applyStream} />}
-      meta={
-        <span className="kp-date tabular">{formatDayMonthYear(logDate)}</span>
+      statusRow={
+        <CafeStreamBar
+          options={streamOptions}
+          stream={stream}
+          homeStream={homeStream}
+          myStreamKeys={myStreamKeys}
+          locationBranchId={cafeStream.branchId ?? undefined}
+          onChange={next => { void applyStream(next) }}
+        />
       }
-      state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : streamMissing ? 'default' : streamNonProducing ? 'read-only' : items.length === 0 ? 'empty' : saveError || saveFailureAfterSwitch ? 'validation' : savingId ? 'saving' : 'default'}
+      meta={
+        <span className="kp-date tabular">{formatWeekdayDayMonth(logDate)}</span>
+      }
+      state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : streamMissing ? 'default' : streamNonProducing ? 'read-only' : items.length === 0 ? 'empty' : saveError ? 'validation' : savingId ? 'saving' : 'default'}
     >
       {/* #401 / DD-WAY-40: Plan is an ACT surface — its figures render as the DESIGN.md
           Metric summary rule: one inline line, no card, no width branch, never a tile
@@ -651,18 +619,6 @@ function PlanEditor() {
       )}
       {saveError && (
         <div role="alert" className="kp-banner kp-banner-error kp-block">{saveError}</div>
-      )}
-      {saveFailureAfterSwitch && (
-        <section className="kp-banner kp-banner-error kp-block kp-save-failed-after-switch" role="alert">
-          <p>{t('kitchen.plan.saveFailedAfterSwitch', saveFailureAfterSwitch)}</p>
-          <button
-            type="button"
-            className="btn btn-outline btn-touch"
-            onClick={() => setSaveFailureAfterSwitch(null)}
-          >
-            {t('kitchen.plan.saveFailure.dismiss')}
-          </button>
-        </section>
       )}
       {/* #548 FR-006 / #781 item 2: the precondition is a muted hint at rest (Log's
           .kl-submit-reason grammar, role="status" — programmatically associated as a live
@@ -884,7 +840,16 @@ function PesananView() {
     <PageFamilyFrame
       family="workspace"
       title={pageTitle}
-      statusRow={<CafePlanStreamBar cafeStream={cafeStream} onChange={applyStream} />}
+      statusRow={
+        <CafeStreamBar
+          options={streamOptions}
+          stream={stream}
+          homeStream={homeStream}
+          myStreamKeys={myStreamKeys}
+          locationBranchId={cafeStream.branchId ?? undefined}
+          onChange={next => { void applyStream(next) }}
+        />
+      }
       meta={
         <span className="kp-date tabular">
           {t('kitchen.plan.pesanan.meta.horizon', { days: PESANAN_HORIZON_DAYS })}

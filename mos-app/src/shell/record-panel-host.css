@@ -51,6 +51,24 @@
  * out-ranked, because the two rules tie on specificity and bundle order would pick the winner. */
 .drawer-split:not(.drawer-shell-split):not(.overlay-companion-host) { position: relative; isolation: isolate; }
 
+/* Shared in-flow record panel: keep the aside pinned below shell chrome and scroll its record body.
+   The same modifier is used by collection records and admin's person panel. */
+.drawer-split.drawer-split--sticky:not(.drawer-shell-split):not(.overlay-companion-host) {
+  position: sticky;
+  top: var(--drawer-split-sticky-top, 12px);
+  display: flex;
+  flex-direction: column;
+  /* The scroller's own 24px top padding plus the 12px sticky offset leave 12px under the panel. */
+  max-height: calc(100vh - var(--header-h) - 48px);
+}
+
+.drawer-split.drawer-split--sticky > .record-viewer,
+.drawer-modal-root.drawer-split--sticky .drawer-modal > .record-viewer {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
 /* Create Task is a stacked panel frame with its own pinned action row. Bound only this frame to
    the space below its page position so TaskSurface's form body, rather than the whole panel,
    becomes the scroll region. Other record frames keep their existing page/record scrolling. */

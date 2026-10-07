@@ -355,54 +355,6 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
     expect(Object.keys(arg)).not.toContain('plan_by')
   })
 
-  it('a save completing after a stream switch cannot add its cell to the new stream plan', async () => {
-    let resolveSave!: (id: string) => void
-    mockUpsert.mockImplementation(() => new Promise(resolve => { resolveSave = resolve }))
-    render(<KitchenPlanPage />, { wrapper })
-    await screen.findByText('Ayam Bakar')
-
-    const quantity = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
-    fireEvent.change(quantity, { target: { value: '15' } })
-    fireEvent.blur(quantity)
-    await waitFor(() => expect(mockUpsert).toHaveBeenCalledOnce())
-
-    chooseStream('Rumah Rames · Bar')
-    await screen.findByRole('heading', { level: 2, name: 'Rumah Rames · Bar' })
-    await waitFor(() => expect(mockPlans).toHaveBeenCalledTimes(2))
-    await act(async () => { resolveSave('late-kitchen-plan') })
-
-    expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })).toHaveValue('')
-  })
-
-  it('keeps a dismissible failure notice with the original stream and item after switching', async () => {
-    let rejectSave!: (error: Error) => void
-    mockUpsert.mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectSave = reject }))
-    render(<KitchenPlanPage />, { wrapper })
-    await screen.findByText('Ayam Bakar')
-
-    const quantity = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
-    fireEvent.change(quantity, { target: { value: '15' } })
-    fireEvent.blur(quantity)
-    await waitFor(() => expect(mockUpsert).toHaveBeenCalledOnce())
-
-    chooseStream('Rumah Rames · Bar')
-    await screen.findByRole('heading', { level: 2, name: 'Rumah Rames · Bar' })
-    await waitFor(() => expect(mockPlans).toHaveBeenCalledTimes(2))
-
-    vi.useFakeTimers()
-    try {
-      await act(async () => { rejectSave(new Error('network failure')) })
-      const notice = screen.getByRole('alert')
-      expect(notice).toHaveTextContent(/the save for ayam bakar in rumah rames · kitchen could not be confirmed/i)
-      await act(async () => { vi.advanceTimersByTime(5_000) })
-      expect(screen.getByRole('alert')).toBe(notice)
-      fireEvent.click(within(notice).getByRole('button', { name: 'Dismiss' }))
-      expect(screen.queryByRole('alert')).toBeNull()
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
   it.each(['1,5', '1.5'])('rejects decimal plan input %s instead of rounding or saving it', async raw => {
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')

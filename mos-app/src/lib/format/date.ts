@@ -13,6 +13,20 @@
 import { readPersistedLocale } from '@/i18n/I18nProvider'
 import type { Locale } from '@/i18n/messages'
 
+export const WIB_OFFSET_MS = 7 * 60 * 60 * 1000
+
+const WIB_DATE = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Jakarta',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+})
+
+/** The Asia/Jakarta calendar date for an instant, formatted as YYYY-MM-DD. */
+export function wibToday(now: Date = new Date()): string {
+  return WIB_DATE.format(now)
+}
+
 /** Map an app Locale to the BCP-47 tag used for Intl date formatting. */
 export function dateLocaleTag(locale: Locale): string {
   return locale === 'id' ? 'id-ID' : 'en-GB'
@@ -48,38 +62,39 @@ export function formatDayMonthYear(iso: string, locale?: Locale): string {
   })
 }
 
-function wibDateTimeParts(
-  value: string | Date,
-  locale: Locale | undefined,
-  options: Intl.DateTimeFormatOptions,
-): Intl.DateTimeFormatPart[] {
-  const date = value instanceof Date ? value : new Date(value)
-  return new Intl.DateTimeFormat(resolveTag(locale), {
-    timeZone: 'Asia/Jakarta',
-    ...options,
-  }).formatToParts(date)
-}
-
-function datePart(parts: Intl.DateTimeFormatPart[], type: Intl.DateTimeFormatPartTypes): string {
-  return parts.find(part => part.type === type)?.value ?? ''
-}
-
 /** "12 Jun 2026, 12:30 WIB" — Asia/Jakarta wall clock with the WIB suffix (records, meta lines
  *  that carry the full date). */
 export function formatWibDateTime(value: string | Date, locale?: Locale): string {
-  const parts = wibDateTimeParts(value, locale, {
-    year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false,
-  })
-  return `${datePart(parts, 'day')} ${datePart(parts, 'month')} ${datePart(parts, 'year')}, ${datePart(parts, 'hour')}:${datePart(parts, 'minute')} WIB`
+  const date = value instanceof Date ? value : new Date(value)
+  const parts = new Intl.DateTimeFormat(resolveTag(locale), {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(date)
+  const pick = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? ''
+  return `${pick('day')} ${pick('month')} ${pick('year')}, ${pick('hour')}:${pick('minute')} WIB`
 }
 
 /** "16 Jul 09:00" — the Signal ROW meta shape (FR-020/AC-025): `dd Mon HH:MM`, WIB implied
  *  (FR-046), never a browser-locale string. Shares the formatter pipeline with the full form. */
 export function formatWibShortDateTime(value: string | Date, locale?: Locale): string {
-  const parts = wibDateTimeParts(value, locale, {
-    month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
-  })
-  return `${datePart(parts, 'day')} ${datePart(parts, 'month')} ${datePart(parts, 'hour')}:${datePart(parts, 'minute')}`
+  const date = value instanceof Date ? value : new Date(value)
+  const parts = new Intl.DateTimeFormat(resolveTag(locale), {
+    timeZone: 'Asia/Jakarta',
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(date)
+  const pick = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? ''
+  return `${pick('day')} ${pick('month')} ${pick('hour')}:${pick('minute')}`
 }
 
 /** "Tue 6 Oct, 02:05" — a timestamp on the Asia/Jakarta wall clock in the weekday-day-month style

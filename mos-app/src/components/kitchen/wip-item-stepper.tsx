@@ -21,7 +21,6 @@ import { useT } from '@/i18n/use-t'
 import { Select } from '@/components/ui/select'
 import { QuantityField } from '@/components/ui/quantity-field'
 import './wip-item-stepper.css'
-import './cafe-capture-controls.css'
 
 interface WipItemStepperProps {
   itemName: string
@@ -171,13 +170,11 @@ export function WipItemStepper({
     : line.item_unit_id ?? ''
   const offersUnitChange = ((unitOptions?.length ?? 0) > 1 || unitMultiples.length > 0) && onUnitChange !== undefined
   const unitSuffix = !offersUnitChange
-    ? unitLabel ? <span className="kls-unit cafe-capture-unit" title={unitLabel}>{unitLabel}</span> : undefined
+    ? unitLabel ? <span className="kls-unit">{unitLabel}</span> : undefined
     : unitPickerOpen ? (
         <Select
-          className="kls-unit-select cafe-capture-unit"
-          contentClassName="kls-unit-menu"
-          aria-label={`${t('kitchen.log.unit.selectAria', { item: itemName })}: ${unitLabel}`}
-          title={unitLabel}
+          className="kls-unit-select"
+          aria-label={t('kitchen.log.unit.selectAria', { item: itemName })}
           value={selectedUnitValue}
           disabled={disabled}
           autoFocus
@@ -199,9 +196,8 @@ export function WipItemStepper({
         <button
           ref={unitChangeButtonRef}
           type="button"
-          className="kls-unit kls-unit-change cafe-capture-unit"
-          aria-label={`${t('kitchen.log.unit.changeAria', { item: itemName })}: ${unitLabel}`}
-          title={unitLabel}
+          className="kls-unit kls-unit-change"
+          aria-label={t('kitchen.log.unit.changeAria', { item: itemName })}
           disabled={disabled}
           onClick={() => setUnitPickerOpen(true)}
         >
@@ -238,7 +234,7 @@ export function WipItemStepper({
               item: itemName,
             })
             : t('kitchen.qty.producedAria', { item: itemName })}
-          className="kls-qty cafe-capture-quantity-field"
+          className="kls-qty"
           value={entryQuantity}
           onChange={onQtyChange}
           onInvalid={(_reason, raw) => { onQtyChange(0); onInvalidQuantityDraft?.(raw) }}
@@ -249,7 +245,7 @@ export function WipItemStepper({
           errorMessageId={quantityErrorId}
           initialDraft={invalidDraft}
           suffix={unitSuffix}
-          suffixPosition="inline"
+          suffixPosition="below"
           placeholder={placeholderQuantity > 0 ? formatActualQty(placeholderQuantity) : '0'}
           min={0}
           maxIntegerDigits={10}
@@ -258,7 +254,6 @@ export function WipItemStepper({
           disabled={disabled}
           touchTarget
         />
-
         </div>
       </div>
 

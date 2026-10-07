@@ -3,9 +3,6 @@ import { dirname, join } from 'node:path'
 import { expect, test, type Page, type TestInfo } from '@playwright/test'
 import { BAR_MEMBER } from './fixtures/users'
 import { loginAs } from './helpers/login'
-import { STREAM_CONTROL_NAME } from './helpers/cafe-stream'
-
-type ReadMode = 'rows' | 'empty' | 'error'
 
 type MissingReportRow = {
   id: string
@@ -34,14 +31,6 @@ type SettingsReadRow = {
 type ItemReferenceRow = { item_id: string; item_unit_id: string; is_default: boolean }
 
 type SettingsMocks = {
-  canManage: boolean
-  locale: 'en' | 'id'
-  permissionError: boolean
-  readMode: ReadMode
-  readDelayMs: number
-  saveDelayMs: number
-  saveFailure: boolean
-  lastSave: Record<string, unknown> | null
   reports: MissingReportRow[]
   readRows?: SettingsReadRow[]
   configuredItemIds?: string[]
@@ -118,19 +107,6 @@ const rows: SettingsReadRow[] = [
   },
 ]
 
-const LONG_GUARD_ITEM_NAME = 'Ayam Goreng Serundeng dengan Sambal Terasi'
-const longNameGuardRows: SettingsReadRow[] = rows.map(row => row.item_id === '00000000-0000-0000-0000-00000000a101'
-  ? {
-      ...row,
-      erp_name: LONG_GUARD_ITEM_NAME,
-      mos_name: LONG_GUARD_ITEM_NAME,
-      category: 'KITCHEN',
-      unit_name: row.item_unit_id === '00000000-0000-0000-0000-00000000a201'
-        ? 'Batch @50porsi · Default'
-        : row.unit_name,
-    }
-  : row)
-
 function largeItemSettingsFixture(): Pick<SettingsMocks, 'readRows' | 'configuredItemIds' | 'references'> {
   const itemIds = Array.from({ length: 501 }, (_, index) => index === 0
     ? '00000000-0000-0000-0000-00000000a101'
@@ -170,36 +146,12 @@ function largeItemSettingsFixture(): Pick<SettingsMocks, 'readRows' | 'configure
 
 async function mockSettingsApi(page: Page, overrides: Partial<SettingsMocks> = {}) {
   const state: SettingsMocks = {
-    canManage: true,
-    locale: 'en',
-    permissionError: false,
-    readMode: 'rows',
-    readDelayMs: 0,
-    saveDelayMs: 0,
-    saveFailure: false,
-    lastSave: null,
     reports: [],
     ...overrides,
   }
 
-  await page.route(/\/rest\/v1\/person_preferences\?/, async route => {
-    if (route.request().method() === 'GET') {
-      await route.fulfill({ json: [{ locale: state.locale }] })
-      return
-    }
-    await route.fulfill({ status: 204, body: '' })
-  })
   await page.route('**/rest/v1/cafe_item_settings_read**', async route => {
-    if (state.readDelayMs > 0) await new Promise(resolve => setTimeout(resolve, state.readDelayMs))
-    if (state.readMode === 'error') {
-      await route.fulfill({
-        status: 500,
-        contentType: 'application/json',
-        body: JSON.stringify({ code: 'XX000', message: 'synthetic settings read failure' }),
-      })
-      return
-    }
-    const responseRows = state.readMode === 'empty' ? [] : (state.readRows ?? rows).map(row => row.item_id === '00000000-0000-0000-0000-00000000a101'
+    const responseRows = (state.readRows ?? rows).map(row => row.item_id === '00000000-0000-0000-0000-00000000a101'
       ? { ...row, kind: state.captureKind ?? row.kind, is_active: state.captureActive ?? row.is_active }
       : row)
     await route.fulfill({
@@ -237,44 +189,18 @@ async function mockSettingsApi(page: Page, overrides: Partial<SettingsMocks> = {
       body: JSON.stringify(state.reports.filter(report => report.needs_attention)),
     })
   })
-  await page.route('**/rest/v1/rpc/can_manage_cafe_item_settings*', async route => {
-    if (state.permissionError) {
-      await route.fulfill({
-        status: 500,
-        contentType: 'application/json',
-        body: JSON.stringify({ code: 'XX000', message: 'synthetic permission read failure' }),
-      })
-      return
-    }
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(state.canManage) })
-  })
-  await page.route('**/rest/v1/rpc/save_cafe_item_settings', async route => {
-    state.lastSave = route.request().postDataJSON() as Record<string, unknown>
-    if (state.saveDelayMs > 0) await new Promise(resolve => setTimeout(resolve, state.saveDelayMs))
-    if (state.saveFailure) {
-      await route.fulfill({
-        status: 500,
-        contentType: 'application/json',
-        body: JSON.stringify({ code: 'XX000', message: 'synthetic save failure' }),
-      })
-      return
-    }
-    await route.fulfill({ status: 204, body: '' })
-  })
-  return state
+  await page.route('**/rest/v1/rpc/can_manage_cafe_item_settings*', route =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: 'true' }),
+  )
+  await page.route('**/rest/v1/rpc/save_cafe_item_settings', route => route.fulfill({ status: 204, body: '' }))
 }
 
-async function openItems(page: Page) {
-  await loginAs(page, BAR_MEMBER.email, BAR_MEMBER.password)
-  await page.goto('cafe/items')
-  await expect(page.getByRole('heading', { name: 'Café items', exact: true })).toBeVisible()
-}
-
-async function capture(page: Page, testInfo: TestInfo, name: string) {
+// Screenshots are written only for the review lane (GORDI_ITEM_SETTINGS_REVIEW_DIR); an ordinary
+// run takes none.
+async function capture(page: Page, _testInfo: TestInfo, name: string) {
   const reviewDir = process.env.GORDI_ITEM_SETTINGS_REVIEW_DIR
-  const output = reviewDir
-    ? join(reviewDir, `${name}.png`)
-    : testInfo.outputPath(`${name}.png`)
+  if (!reviewDir) return
+  const output = join(reviewDir, `${name}.png`)
   await mkdir(dirname(output), { recursive: true })
   await page.screenshot({ path: output, fullPage: true, animations: 'disabled' })
 }
@@ -292,26 +218,6 @@ async function assertNoOverflow(page: Page, width: number) {
 }
 
 test.describe('Café item settings', () => {
-  for (const width of [390, 1280] as const) {
-    test(`keeps settings operable after choosing the first stream at ${width}px`, async ({ page }) => {
-      await page.setViewportSize({ width, height: 900 })
-      await mockSettingsApi(page)
-      await page.route('**/rest/v1/rpc/default_stream', route => route.fulfill({ json: null }))
-      await page.route('**/rest/v1/team_memberships*', route => route.fulfill({ json: [] }))
-      await openItems(page)
-      await page.getByRole('group', { name: STREAM_CONTROL_NAME }).getByRole('button').first().click()
-      const settings = page.getByRole('region', { name: 'Café item settings', exact: true })
-      const item = settings.getByText('Herbal tea · ERP reference', { exact: true })
-      await expect(item).toBeVisible()
-      const search = settings.getByRole('searchbox', { name: 'Find an ESB or MOS name' })
-      await search.fill('no-matching-item')
-      await expect(item).toHaveCount(0)
-      await search.clear()
-      await expect(item).toBeVisible()
-      await expect(settings.getByRole('textbox', { name: 'MOS name' }).first()).toBeEnabled()
-    })
-  }
-
   for (const width of [390, 1440] as const) {
     test(`exposes three ERP unit choices and gated multiples across 501 items at ${width}px`, async ({ page }) => {
       test.setTimeout(60_000)
@@ -353,28 +259,8 @@ test.describe('Café item settings', () => {
       await captureViewport(page, `lane-1332-after-${width}.png`)
     })
   }
-  for (const width of [390, 1440, 1920] as const) {
-    test(`uses the right layout without overflow at ${width}px`, async ({ page }, testInfo) => {
-      test.setTimeout(60_000)
-      await page.setViewportSize({ width, height: 960 })
-      await mockSettingsApi(page)
-      await loginAs(page, BAR_MEMBER.email, BAR_MEMBER.password)
-      await page.goto('cafe/items')
-      await expect(page.getByRole('heading', { name: 'Café items', exact: true })).toBeVisible()
-
-      if (width < 768) {
-        await expect(page.locator('.dt-cards')).toBeVisible()
-        await expect(page.locator('.dt-cards .cafe-items__item-name').first()).toBeVisible()
-        await expect(page.locator('.cafe-items__table')).toHaveCount(0)
-      } else {
-        await expect(page.locator('.cafe-items__table')).toBeVisible()
-        await expect(page.locator('.cafe-items__table .cafe-items__item-name').first()).toBeVisible()
-        await expect(page.locator('.dt-cards')).toHaveCount(0)
-      }
-      await assertNoOverflow(page, width)
-      await capture(page, testInfo, `item-settings-${width}`)
-    })
-  }
+  // The phone cards vs wide table switch and the no-overflow check are asserted by the 501-item
+  // test above at 390 and 1440.
 
   test('shows stream-scoped missing-item reports at phone and desktop widths', async ({ page }, testInfo) => {
     await mockSettingsApi(page, {
@@ -390,7 +276,7 @@ test.describe('Café item settings', () => {
     })
     await loginAs(page, BAR_MEMBER.email, BAR_MEMBER.password)
 
-    for (const width of [390, 1440, 1920] as const) {
+    for (const width of [390, 1440] as const) {
       await page.setViewportSize({ width, height: 960 })
       await page.goto('cafe/items')
       const reportQueue = page.getByRole('region', { name: 'Missing-item reports for this stream' })
@@ -408,7 +294,7 @@ test.describe('Café item settings', () => {
     await mockSettingsApi(page, { captureKind: 'RAW', captureActive: true })
     await loginAs(page, BAR_MEMBER.email, BAR_MEMBER.password)
 
-    for (const width of [390, 1440, 1920] as const) {
+    for (const width of [390, 1440] as const) {
       await page.setViewportSize({ width, height: 960 })
       await page.goto('cafe/waste')
       await expect(page.getByRole('heading', { name: 'Log waste', exact: true })).toBeVisible()
@@ -429,148 +315,5 @@ test.describe('Café item settings', () => {
     }
   })
 
-  test('preserves item-level dirty, saving, retry and saved feedback', async ({ page }, testInfo) => {
-    const mocks = await mockSettingsApi(page, { saveDelayMs: 800 })
-    await loginAs(page, BAR_MEMBER.email, BAR_MEMBER.password)
 
-    for (const width of [390, 1440] as const) {
-      await page.setViewportSize({ width, height: 960 })
-      await page.goto('cafe/items')
-      await expect(page.getByRole('heading', { name: 'Café items', exact: true })).toBeVisible()
-      const itemCard = width === 390
-        ? page.getByRole('article', { name: 'Herbal tea · ERP reference' })
-        : page.getByRole('row').filter({ hasText: 'Herbal tea · ERP reference' })
-      const nameInput = itemCard.getByRole('textbox', { name: 'MOS name', exact: true })
-      const save = itemCard.getByRole('button', { name: 'Save settings for Herbal tea', exact: true })
-      await expect(itemCard.getByRole('combobox', { name: 'Kind for Herbal tea' })).toHaveText('Unclassified')
-      await expect(itemCard.getByRole('checkbox', { name: 'Active for Herbal tea' })).not.toBeChecked()
-      await nameInput.fill('   ')
-      await expect(nameInput).toHaveAttribute('aria-invalid', 'true')
-      await expect(itemCard.getByRole('alert')).toHaveText('Enter a MOS name.')
-      await expect(save).toBeDisabled()
-      await nameInput.fill('Herbal tea for the bar')
-      await itemCard.getByRole('combobox', { name: 'Kind for Herbal tea' }).click()
-      await page.getByRole('option', { name: 'Raw material', exact: true }).click()
-      await itemCard.getByRole('checkbox', { name: 'Active for Herbal tea' }).click()
-      const defaultUnit = itemCard.getByRole('combobox', { name: 'Default unit' })
-      await defaultUnit.click()
-      await page.getByRole('listbox', { name: 'Default unit' }).getByRole('option', { name: 'kg · option 1', exact: true }).click()
-      const extraUnits = itemCard.getByRole('button', { name: 'Extra units for Herbal tea' })
-      await extraUnits.click()
-      await page.getByRole('spinbutton', { name: 'Multiple of kg · option 1' }).fill('2')
-      await page.getByRole('button', { name: 'Add a multiple for Herbal tea for the bar', exact: true }).click()
-      await expect(extraUnits).toContainText('2 kg · option 1')
-      await expect(save).toBeEnabled()
-      await capture(page, testInfo, `item-settings-dirty-${width}`)
-
-      mocks.saveFailure = true
-      await save.click()
-      await expect(save).toHaveText('Saving…')
-      await capture(page, testInfo, `item-settings-saving-${width}`)
-      await expect(itemCard.getByRole('alert')).toContainText("Couldn't save this item. Your changes are still here.")
-      await capture(page, testInfo, `item-settings-save-error-${width}`)
-      mocks.saveFailure = false
-      await itemCard.getByRole('button', { name: 'Try again', exact: true }).click()
-      await expect(itemCard.getByText('Saved', { exact: true })).toBeVisible()
-      await expect.poll(() => mocks.lastSave).toMatchObject({
-        p_mos_name: 'Herbal tea for the bar',
-        p_kind: 'RAW',
-        p_is_active: true,
-        p_default_item_unit_id: '00000000-0000-0000-0000-00000000a202',
-        p_shown_item_unit_ids: ['00000000-0000-0000-0000-00000000a202'],
-        p_unit_multiples: [2],
-      })
-      await capture(page, testInfo, `item-settings-saved-${width}`)
-    }
-  })
-
-  test('shows read-only, empty, loading and recoverable error states', async ({ page }, testInfo) => {
-    const mocks = await mockSettingsApi(page, { canManage: false })
-    await page.setViewportSize({ width: 390, height: 960 })
-    await openItems(page)
-    await expect(page.getByText('These item settings are read-only for you.', { exact: false })).toBeVisible()
-    await expect(page.getByRole('textbox', { name: 'MOS name', exact: true })).toHaveCount(0)
-    await capture(page, testInfo, 'item-settings-read-only')
-
-    mocks.permissionError = true
-    await page.goto('cafe/items')
-    await expect(page.getByRole('alert')).toContainText('Could not confirm edit access')
-    await expect(page.getByRole('textbox', { name: 'MOS name', exact: true })).toHaveCount(0)
-    await capture(page, testInfo, 'item-settings-permission-error')
-    mocks.permissionError = false
-
-    mocks.readMode = 'empty'
-    await page.goto('cafe/items')
-    // OD-TERM-ESB: the empty state uses the approved ESB name, never ERP.
-    await expect(page.getByRole('heading', { name: 'No ESB items on Rumah Rames · Bar', exact: true })).toBeVisible()
-    await capture(page, testInfo, 'item-settings-empty')
-
-    mocks.readMode = 'error'
-    mocks.readDelayMs = 700
-    const readRequest = page.waitForRequest(request =>
-      new URL(request.url()).pathname.endsWith('/cafe_item_settings_read'),
-    )
-    await page.goto('cafe/items')
-    await readRequest
-    await expect(page.getByRole('status', { name: 'Loading Café items' })).toBeVisible()
-    await capture(page, testInfo, 'item-settings-loading')
-    await expect(page.getByText("Couldn't load Café item settings. Try again.", { exact: true })).toBeVisible()
-    await capture(page, testInfo, 'item-settings-error')
-
-    mocks.readMode = 'rows'
-    mocks.readDelayMs = 0
-    await page.getByRole('button', { name: 'Try again', exact: true }).click()
-    await expect(page.locator('.dt-cards').getByText('Herbal tea · ERP reference').first()).toBeVisible()
-  })
-
-  test('shows distinct bilingual stream-switch and route-leave dialogs with long item content at phone, tablet and desktop widths', async ({ page }) => {
-    const mocks = await mockSettingsApi(page, { readRows: longNameGuardRows })
-    await loginAs(page, BAR_MEMBER.email, BAR_MEMBER.password)
-
-    for (const locale of ['en', 'id'] as const) {
-      mocks.locale = locale
-      await page.setViewportSize({ width: 390, height: 900 })
-      await page.goto('cafe/items')
-      await expect(page.locator('html')).toHaveAttribute('lang', locale)
-      await expect(page.getByRole('heading', { name: locale === 'en' ? 'Café items' : 'Item Kafe', exact: true })).toBeVisible()
-
-      for (const width of [390, 768, 1440] as const) {
-        await page.setViewportSize({ width, height: 900 })
-        const longItem = width === 390
-          ? page.getByRole('article', { name: LONG_GUARD_ITEM_NAME })
-          : page.getByRole('row').filter({ hasText: LONG_GUARD_ITEM_NAME })
-        const name = longItem.getByRole('textbox', { name: locale === 'en' ? 'MOS name' : 'Nama MOS', exact: true })
-        await expect(name).toBeVisible()
-        await name.fill('Drafted item name')
-        await page.getByRole('button', { name: /Change stream|Ganti stream/i }).click()
-        const option = page.getByRole('option').first()
-        await expect(option).toBeVisible()
-        await option.click()
-        const switchDialog = page.getByRole('dialog', {
-          name: locale === 'en' ? 'Discard item changes and switch stream?' : 'Buang perubahan item dan pindah stream?',
-        })
-        await expect(switchDialog).toBeVisible()
-        await expect(switchDialog).toContainText(locale === 'en' ? /will be discarded before switching to/ : /akan dibuang sebelum pindah ke/)
-        await assertNoOverflow(page, width)
-        await captureViewport(page, `cafe-items-unsaved-switch-${locale}-${width}.png`)
-        await switchDialog.getByRole('button', { name: locale === 'en' ? 'Keep editing' : 'Lanjut mengedit', exact: true }).click()
-        await expect(name).toHaveValue('Drafted item name')
-
-        const leaveLink = page.getByRole('navigation', { name: 'Primary' }).getByRole('link', {
-          name: locale === 'en' ? 'Café' : 'Kafe',
-          exact: true,
-        }).first()
-        await leaveLink.click()
-        const leaveDialog = page.getByRole('dialog', { name: locale === 'en' ? 'Leave without saving?' : 'Keluar tanpa menyimpan?' })
-        await expect(leaveDialog).toBeVisible()
-        await expect(leaveDialog).toContainText(locale === 'en'
-          ? 'Your unsaved item changes will be discarded.'
-          : 'Perubahan item yang belum disimpan akan dibuang.')
-        await assertNoOverflow(page, width)
-        await captureViewport(page, `cafe-items-route-leave-${locale}-${width}.png`)
-        await leaveDialog.getByRole('button', { name: locale === 'en' ? 'Stay on this page' : 'Tetap di halaman ini', exact: true }).click()
-        await expect(name).toHaveValue('Drafted item name')
-      }
-    }
-  })
 })

@@ -49,10 +49,10 @@ import { STATUS_ORDER } from './task-formatters'
 import { isOverdue } from '@/lib/due-status'
 import type {
   TaskCollectionContext,
-  TaskCollectionQuery,
   TaskCollectionRecord,
   TaskRenderGroup,
 } from './task-collection-adapter'
+import type { TaskCollectionQuery } from './task-collection-query'
 
 export interface TaskCollectionRuntime {
   selectedId: string | null

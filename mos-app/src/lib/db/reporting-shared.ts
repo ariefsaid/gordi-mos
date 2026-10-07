@@ -4,6 +4,8 @@
 // sinceDays cutoff computation and the "latest X across rows" reducer pattern both
 // modules previously cloned.
 
+import { wibToday } from '@/lib/format/date'
+
 export const REPORTING_WINDOW_DAYS = 60
 
 /** Rows per request: the API's own per-response cap, so a full page means "maybe more". */
@@ -33,13 +35,11 @@ export async function readAllPages<T>(label: string, page: (from: number, to: nu
   }
 }
 
-/** ISO yyyy-mm-dd date `days` before today (UTC "today" — used to build a `>= since`
- * filter for a rolling reporting window). */
-
+/** ISO yyyy-mm-dd date `days` before the current WIB date. */
 export function daysAgoIsoDate(days: number): string {
-  const d = new Date()
+  const d = new Date(`${wibToday()}T00:00:00Z`)
   d.setUTCDate(d.getUTCDate() - days)
-  return d.toISOString().slice(0, 10)
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
 }
 
 /** Returns the max value of `fieldOf(row)` across `rows` (e.g. the latest

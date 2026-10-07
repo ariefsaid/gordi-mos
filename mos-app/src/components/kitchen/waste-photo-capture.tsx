@@ -167,9 +167,7 @@ export function WastePhotoCapture<TPhoto extends PrivatePhotoEvidence = KitchenW
     onCanSubmitChange?.(uploadedCount > 0)
   }, [onCanSubmitChange, uploadedCount])
   useEffect(() => () => {
-    if (typeof URL.revokeObjectURL === 'function') {
-      for (const url of previewUrls.current.values()) URL.revokeObjectURL(url)
-    }
+    for (const url of previewUrls.current.values()) URL.revokeObjectURL(url)
     previewUrls.current.clear()
   }, [])
 

@@ -21,9 +21,7 @@ import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsOffline } from '@/shell/use-is-offline'
 import { formatWeekdayDayMonth } from '@/lib/format/date'
-import { kitchenCategoryLabel } from '@/lib/kitchen-category-label'
 import './cafe-count-page.css'
-import '@/components/kitchen/cafe-capture-controls.css'
 
 type CountEntry = {
   quantity: string
@@ -118,7 +116,6 @@ export function CafeCountPage() {
     return quantity === null ? [] : [{ item, entry, quantity }]
   })
   const enteredCount = entered.length
-  const hasMixedCategories = new Set(items.map(item => item.category).filter(Boolean)).size > 1
   const invalidCount = items.filter(item => {
     const entry = entries[item.id]
     return Boolean(entry && !entry.outcome && parseCafeCountQuantity(entry.quantity).kind === 'invalid')
@@ -176,33 +173,26 @@ export function CafeCountPage() {
     setRetryKey(value => value + 1)
   }
 
-  const picker = stream === null ? undefined : (
-    <div className="cafe-capture-context">
-      <CafeStreamBar
-        options={streamOptions}
-        locationBranchId={branchId ?? undefined}
-        stream={stream}
-        homeStream={homeStream}
-        myStreamKeys={myStreamKeys}
-        onChange={chooseStream}
-        disabled={!canSwitch}
-        switchLabel={t(stream.activity === 'bar' ? 'cafe.stream.switchBar' : 'cafe.stream.switchKitchen')}
-        switchAriaLabel={t(stream.activity === 'bar' ? 'cafe.stream.switchBarAria' : 'cafe.stream.switchKitchenAria')}
-      />
-    </div>
+  const picker = (
+    <CafeStreamBar
+      options={streamOptions}
+      locationBranchId={branchId ?? undefined}
+      stream={stream}
+      homeStream={homeStream}
+      myStreamKeys={myStreamKeys}
+      onChange={chooseStream}
+      disabled={!canSwitch}
+      context={<>
+        <span aria-hidden="true">·</span>
+        <span className="cafe-count__date tabular">{formatWeekdayDayMonth(logDate)}</span>
+      </>}
+    />
   )
   const pageState = loadState === 'loading' ? 'loading' : loadState === 'error' ? 'error'
     : submitting ? 'saving' : hasSubmitted && entered.length === 0 && !hasUnsubmittedInput ? 'saved' : 'default'
 
   return (
-    <PageFamilyFrame
-      family="workspace"
-      title={pageLabel}
-      headClassName="cafe-count__head"
-      statusRow={picker}
-      meta={<time className="cafe-capture-date tabular" dateTime={logDate}>{formatWeekdayDayMonth(logDate)}</time>}
-      state={pageState}
-    >
+    <PageFamilyFrame family="workspace" title={pageLabel} headClassName="cafe-count__head" statusRow={picker} state={pageState}>
       <div className="cafe-count">
         {loadState === 'loading' && <LoadingShell count={3} />}
         {loadState === 'error' && (
@@ -244,15 +234,11 @@ export function CafeCountPage() {
                     const parsed = parseCafeCountQuantity(entry?.quantity ?? '')
                     const invalid = parsed.kind === 'invalid'
                     const errorId = `cafe-count-${item.id}-quantity-error`
-                    const fullCategoryLabel = item.category ? kitchenCategoryLabel(t, item.category) : ''
-                    const categoryLabel = hasMixedCategories ? fullCategoryLabel : ''
                     return (
                       <li className="cafe-count__row" key={item.id}>
                         <div className="cafe-count__item">
-                          <div className="cafe-count__item-copy">
-                            <div className="cafe-count__item-name" title={fullCategoryLabel ? `${item.name} · ${fullCategoryLabel}` : item.name}>{item.name}</div>
-                            {categoryLabel && <div className="cafe-count__category">{categoryLabel}</div>}
-                          </div>
+                          <div className="cafe-count__item-name">{item.name}</div>
+                          {item.category && <div className="cafe-count__category">{item.category}</div>}
                           <span className="cafe-count__kind">{item.kind}</span>
                         </div>
                         <div className="cafe-count__input-group">
@@ -261,7 +247,6 @@ export function CafeCountPage() {
                           <div className="cafe-count__quantity-control">
                             <input
                               id={`cafe-count-${item.id}`}
-                              className="cafe-capture-quantity-field"
                               type="text"
                               inputMode="decimal"
                               autoComplete="off"
@@ -271,7 +256,7 @@ export function CafeCountPage() {
                               disabled={submitting || Boolean(entry?.outcome)}
                               onChange={event => patchQuantity(item.id, event.target.value)}
                             />
-                            <span className="cafe-count__unit cafe-capture-unit" aria-label={item.unitName} title={item.unitName}>{item.unitName}</span>
+                            <span className="cafe-count__unit">{item.unitName}</span>
                           </div>
                           {invalid && parsed.kind === 'invalid' && (
                             <QuantityFieldError id={errorId} reason={parsed.reason} rawValue={entry?.quantity ?? ''} maxFractionDigits={2} className="cafe-count__field-error" />

@@ -25,6 +25,10 @@ interface QuantityFieldProps {
   maxFractionDigits?: number
   placeholder?: string
   className?: string
+  controlClassName?: string
+  error?: boolean
+  required?: boolean
+  describedBy?: string
   errorClassName?: string
   errorMessageId?: string
   hideError?: boolean
@@ -88,6 +92,10 @@ export function QuantityField({
   maxFractionDigits = 2,
   placeholder,
   className,
+  controlClassName,
+  error: externalError = false,
+  required = false,
+  describedBy,
   errorClassName,
   errorMessageId,
   hideError = false,
@@ -215,7 +223,7 @@ export function QuantityField({
 
   return (
     <div className="quantity-field">
-      <div className={`quantity-field-control quantity-field-control--${suffixPosition}`}>
+      <div className={`quantity-field-control quantity-field-control--${suffixPosition}${controlClassName ? ` ${controlClassName}` : ''}`}>
         <input
           id={id}
           type="text"
@@ -226,9 +234,10 @@ export function QuantityField({
           aria-valuemin={min}
           aria-valuemax={max}
           aria-valuenow={ariaValue}
-          aria-invalid={showError || undefined}
+          aria-invalid={showError || externalError || undefined}
+          aria-required={required || undefined}
           aria-busy={busy || undefined}
-          aria-describedby={showError ? errorId : undefined}
+          aria-describedby={[describedBy, showError ? errorId : null].filter(Boolean).join(' ') || undefined}
           className={className}
           value={draft}
           placeholder={placeholder}
