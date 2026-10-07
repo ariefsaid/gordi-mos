@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import { DateField } from '@/components/ui/date-field'
 import { QuantityField } from '@/components/ui/quantity-field'
@@ -39,6 +39,9 @@ const FIELD_LABEL: Record<PendingBillPaymentField, 'pendingBills.form.amount' | 
 }
 
 export function PendingBillPaymentForm({ bill, orgId, onCancel, onSaved, onDirtyChange, onBusyChange, reversePayment = null }: PendingBillPaymentFormProps) {
+  // The panel's own buttons give way to this form, so focus moves into it when it opens.
+  const formRef = useRef<HTMLFormElement>(null)
+  useEffect(() => { formRef.current?.focus() }, [])
   const t = useT()
   const id = useId()
   const today = wibToday()
@@ -221,7 +224,7 @@ export function PendingBillPaymentForm({ bill, orgId, onCancel, onSaved, onDirty
   const proofHelpId = `${id}-proof-help`
 
   return (
-    <form className="pending-bill-payment-form" aria-label={formTitle} onSubmit={submit} noValidate>
+    <form ref={formRef} tabIndex={-1} className="pending-bill-payment-form" aria-label={formTitle} onSubmit={submit} noValidate>
       <div className="pending-bill-payment-form__heading">
         <div>
           <h2>{formTitle}</h2>

@@ -72,11 +72,11 @@ git init -q -b dev "$tmp/r3"
 G3() { git -C "$tmp/r3" -c user.email=t@t -c user.name=t "$@"; }
 mkdir -p "$tmp/r3/supabase/migrations"; echo base > "$tmp/r3/a"; G3 add a; G3 commit -qm base
 G3 checkout -qb feat
-echo 'select 1;' > "$tmp/r3/supabase/migrations/20261008001000_x.sql"; G3 add -A; G3 commit -qm "add migration"
+echo 'select 1;' > "$tmp/r3/supabase/migrations/20261007009600_x.sql"; G3 add -A; G3 commit -qm "add migration"
 OLD4="$(G3 rev-parse HEAD)"; gd3="$(G3 rev-parse --absolute-git-dir)"
 stamp3() { printf '%s' "$1" > "$gd3/pre-pr-verify-ok"; for l in spec code-quality security; do printf '%s %s rev now art\n' "$1" "$l" > "$gd3/independent-review-$l-ok"; done; }
 stamp3 "$OLD4"
-G3 mv supabase/migrations/20261008001000_x.sql supabase/migrations/20261007009800_x.sql; G3 commit -qm "renumber migration"
+G3 mv supabase/migrations/20261007009600_x.sql supabase/migrations/20261007009800_x.sql; G3 commit -qm "renumber migration"
 carry "$tmp/r3" "$OLD4" >/dev/null 2>&1; t "rename-only migration renumber carries" $?
 [ "$(cat "$gd3/pre-pr-verify-ok")" = "$(G3 rev-parse HEAD)" ]; t "renumber: stamp moved to new head" $?
 OLD5="$(G3 rev-parse HEAD)"; stamp3 "$OLD5"

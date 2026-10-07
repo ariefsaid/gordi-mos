@@ -283,6 +283,19 @@ describe('pending-bill record history states', () => {
 })
 
 describe('the payment form in the record panel at every width', () => {
+  it('moves focus into the form when it opens and back to the panel action when it closes', async () => {
+    setViewport(false)
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Open bill PB-2' }))
+    const panel = await screen.findByRole('dialog', { name: 'Pending bill PB-2' })
+    fireEvent.click(within(panel).getByRole('button', { name: 'Record payment' }))
+    const form = within(panel).getByRole('form', { name: 'Record payment' })
+    await waitFor(() => expect(form).toHaveFocus())
+
+    fireEvent.click(within(form).getByRole('button', { name: 'Cancel' }))
+    await waitFor(() => expect(within(panel).getByRole('button', { name: 'Record payment' })).toHaveFocus())
+  })
+
   it('stays inline on phone and guards Escape until the draft is discarded', async () => {
     setViewport(false)
     renderPage()

@@ -233,6 +233,10 @@ export function PendingBillsPage() {
   const summary = summarizePendingBills(bills)
   const selectedHistory = selectedBill && historyState.status !== 'idle' ? historyState : { status: 'loading' as const, entries: [] }
   const historyStatus = selectedHistory.status === 'idle' ? 'loading' : selectedHistory.status
+  // Closing the form brings its buttons back; focus returns to the panel's action (or the history's).
+  const restoreActionFocus = () => window.requestAnimationFrame(() => {
+    document.querySelector<HTMLElement>('[data-viewer-region="actions"] button, [data-content-slot="payment-history"] button')?.focus()
+  })
   const onFormSaved = (bill: PendingBillView, saved: PendingBillPaymentSaved) => {
     setOptimisticPayments((current) => [...current, {
       id: saved.paymentId,
@@ -252,10 +256,12 @@ export function PendingBillsPage() {
     updateFormBusy(false)
     setHistoryRequest((current) => current + 1)
     reload()
+    restoreActionFocus()
   }
   const cancelPaymentForm = () => guardedTransition(() => {
     formDirtyRef.current = false
     setFormMode(null)
+    restoreActionFocus()
   })
   const selectBill = (bill: PendingBillView) => {
     if (bill.id === selectedId) return

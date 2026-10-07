@@ -1,8 +1,8 @@
-import type { ReactNode } from 'react'
+import { createElement, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
-import { RecordFieldList } from '@/components/records/record-viewer'
-import type { RecordContentSlot, RecordFieldSpec, RecordMetadataSection, RecordViewerAdapter } from '@/components/records/record-viewer.types'
+import { fieldSlot, readField } from '@/components/records/record-slots'
+import type { RecordContentSlot, RecordViewerAdapter } from '@/components/records/record-viewer.types'
 import type { PendingBillPaymentHistoryEntry } from '@/lib/db/pending-bill-payments'
 import type { PendingBillState, PendingBillView } from '@/lib/pending-bills'
 import { formatDayMonthYear, formatWibWeekdayTime } from '@/lib/format/date'
@@ -38,15 +38,6 @@ export interface PendingBillRecordAdapterInput {
   onRetryHistory: () => void
 }
 
-function readField(spec: Omit<RecordFieldSpec, 'editable' | 'readOnlyReason'>): RecordFieldSpec {
-  return { ...spec, editable: false }
-}
-
-function fieldSlot(id: string, label: string, fields: RecordFieldSpec[]): RecordContentSlot {
-  const section: RecordMetadataSection = { id, label, fields }
-  return { id, label, section, render: (context) => <RecordFieldList section={section} headingLevel={context.headingLevel} /> }
-}
-
 function branchText(bill: PendingBillView, t: Translate): string {
   if (bill.branchKnown && bill.branchName) return bill.branchName
   return bill.branchKnown ? bill.branchCode : `${bill.branchCode} ${t('pendingBills.branch.unknown')}`
@@ -58,9 +49,9 @@ function historySlot(input: PendingBillRecordAdapterInput): RecordContentSlot {
   return {
     id: 'payment-history',
     label: t('pendingBills.history.title'),
-    render: () => (
+    render: (context) => (
       <>
-        <h3 className="record-viewer__section-title">{t('pendingBills.history.title')}</h3>
+        {createElement(context.headingLevel === 1 ? 'h2' : 'h3', { className: 'record-viewer__section-title' }, t('pendingBills.history.title'))}
         {historyStatus === 'loading' ? (
           <LoadingShell label={t('record.state.loading')} />
         ) : historyStatus === 'error' ? (
