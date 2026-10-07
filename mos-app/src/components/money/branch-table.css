@@ -115,12 +115,14 @@
   display: none;
 }
 
-@media (min-width: 768px) and (max-width: 919.98px) {
+@media (max-width: 919.98px) {
   .branch-money-table .money-table__sort,
   .branch-money-table .money-table__direction {
     min-height: 44px;
   }
+}
 
+@media (min-width: 768px) and (max-width: 919.98px) {
   /* Tablet: the eight columns fit the frame without scrolling once the cell gutters close up,
      Indonesian labels included (#1453). */
   .branch-money-table .money-table__head,
