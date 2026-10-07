@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# commit-msg — the essay cap, and nothing else. Pure line count: a commit body over 20 lines is
+# commit-msg — the essay cap, and no Claude co-author trailer (owner rule). Pure line count: a commit body over 20 lines is
 # an essay whatever it says (one session shipped ~3000 words against an 84-line diff). The
 # semantic guard that lived here (claim-check) was reverted for blocking true sentences; this cap
 # is machine-decidable only, which is what a hook may gate (CI decides, never judges).
@@ -15,6 +15,10 @@ n="$(sed -e '1d' -e '/^#/d' -e '/^[[:space:]]*$/d' \
       "$msgfile" | wc -l | tr -d ' ')"
 if [ "$n" -gt 20 ]; then
   printf '\033[31m✗ commit-msg: body is %s lines (max 20) — the diff is the essay. Rationale goes in docs/, once.\033[0m\n' "$n" >&2
+  exit 1
+fi
+if grep -qiE '^co-authored-by:.*claude' "$msgfile"; then
+  printf '\033[31m✗ commit-msg: drop the "Co-Authored-By: Claude" trailer — this repo carries no AI attribution.\033[0m\n' >&2
   exit 1
 fi
 exit 0
