@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import { wibToday } from '@/lib/format/date'
 import { containsPattern } from './like-pattern'
+import { keysetBeforeFilter } from './keyset-filter'
 
 export type FollowUpKind = 'b2b_ar' | 'retail_pending'
 export type FollowUpLane = 'b2b_sales' | 'retail_ops'
@@ -59,7 +60,7 @@ export async function listFollowUps(filters: FollowUpFilters = {}): Promise<Foll
   if (filters.state) query = query.eq('state', filters.state)
   if (filters.overdue) query = query.lt('due_date', wibToday()).neq('state', 'settled').neq('state', 'confirmed')
   if (filters.before) {
-    query = query.or(`created_at.lt.${filters.before.created_at},and(created_at.eq.${filters.before.created_at},id.lt.${filters.before.id})`)
+    query = query.or(keysetBeforeFilter('created_at', filters.before.created_at, filters.before.id))
   }
   const { data, error } = await query.order('created_at', { ascending: false })
     .order('id', { ascending: false }).limit(FOLLOW_UPS_PAGE_SIZE)
@@ -99,7 +100,7 @@ export async function listFollowUpEvents(
 ): Promise<FollowUpEvent[]> {
   let query = mos().from('follow_up_events').select(FOLLOW_UP_EVENT_COLUMNS).eq('follow_up_id', followUpId)
   if (before) {
-    query = query.or(`created_at.lt.${before.created_at},and(created_at.eq.${before.created_at},id.lt.${before.id})`)
+    query = query.or(keysetBeforeFilter('created_at', before.created_at, before.id))
   }
   const { data, error } = await query.order('created_at', { ascending: false })
     .order('id', { ascending: false }).limit(FOLLOW_UPS_PAGE_SIZE)

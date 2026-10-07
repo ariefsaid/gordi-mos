@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { keysetBeforeFilter } from './keyset-filter'
 
 // Reads shared.record_history directly; RLS gates it through the source table's own read rule.
 const shared = () => supabase.schema('shared')
@@ -74,7 +75,7 @@ export async function loadRecordHistory(
     .eq('record_key', recordId)
   if (before) {
     // Keyset, not offset or a growing limit: the API's row cap would otherwise hide older pages.
-    query = query.or(`occurred_at.lt.${before.occurredAt},and(occurred_at.eq.${before.occurredAt},id.lt.${before.id})`)
+    query = query.or(keysetBeforeFilter('occurred_at', before.occurredAt, before.id))
   }
   const { data, error } = await query
     .order('occurred_at', { ascending: false })
