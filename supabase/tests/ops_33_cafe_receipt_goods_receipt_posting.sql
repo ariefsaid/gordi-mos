@@ -3,7 +3,7 @@
 -- outstanding (excess to Receipt issues) and the move of a refused group's portions out of queued.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(28);
+select plan(36);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -61,14 +61,21 @@ select set_config('app.r2', ops.submit_cafe_receipt('00000000-0000-0000-0000-000
   'f1430000-0000-0000-0000-000000000002', jsonb_build_array(
     jsonb_build_object('item_unit_id', current_setting('app.bean_kg'), 'quantity', '3')))->>'receipt_id', true);
 select ops.send_cafe_receipt_for_review(current_setting('app.r2')::uuid, 1, null);
+select set_config('app.r3', ops.submit_cafe_receipt('00000000-0000-0000-0000-00000000bf01', 'kitchen', null,
+  'f1430000-0000-0000-0000-000000000003', jsonb_build_array(
+    jsonb_build_object('item_unit_id', current_setting('app.milk_l'), 'quantity', '1')))->>'receipt_id', true);
+select ops.send_cafe_receipt_for_review(current_setting('app.r3')::uuid, 1, null);
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member","supervisor"]}');
 select ops.review_cafe_receipt(current_setting('app.r1')::uuid, 'approve', 2, null);
 select ops.review_cafe_receipt(current_setting('app.r2')::uuid, 'approve', 2, null);
+select ops.review_cafe_receipt(current_setting('app.r3')::uuid, 'approve', 2, null);
 reset role;
 select set_config('app.g1', (select distinct push_group_id::text from integrations.esb_push
                               where payload ->> 'receipt_id' = current_setting('app.r1')), true);
 select set_config('app.g2', (select distinct push_group_id::text from integrations.esb_push
                               where payload ->> 'receipt_id' = current_setting('app.r2')), true);
+select set_config('app.g3', (select distinct push_group_id::text from integrations.esb_push
+                              where payload ->> 'receipt_id' = current_setting('app.r3')), true);
 
 -- ── FR-1046 / FR-1029 the payload carries the MOS key and the id map's branch key ─────────────
 select is(ops.cafe_receipt_mos_key('dddddddd-1430-0000-0000-000000000001'), 'MOS-DDDDDDDD',
@@ -90,9 +97,9 @@ select ok((select bool_and(e.payload ->> 'branch_code' = b.code)
 
 -- ── Who may call what ────────────────────────────────────────────────────────────────────────
 select ok(has_function_privilege('service_role', 'ops.rematch_cafe_receipt_group(uuid, jsonb)', 'EXECUTE')
-          and has_function_privilege('service_role', 'ops.refuse_cafe_receipt_portions(uuid)', 'EXECUTE')
+          and has_function_privilege('service_role', 'ops.refuse_cafe_receipt_portions(uuid, text)', 'EXECUTE')
           and not has_function_privilege('authenticated', 'ops.rematch_cafe_receipt_group(uuid, jsonb)', 'EXECUTE')
-          and not has_function_privilege('authenticated', 'ops.refuse_cafe_receipt_portions(uuid)', 'EXECUTE'),
+          and not has_function_privilege('authenticated', 'ops.refuse_cafe_receipt_portions(uuid, text)', 'EXECUTE'),
   'NFR-1006 only the worker re-matches or refuses a group');
 select ok(not has_function_privilege('service_role', 'ops._return_cafe_receipt_portion(uuid, numeric, text)', 'EXECUTE')
           and not has_function_privilege('authenticated', 'ops._return_cafe_receipt_portion(uuid, numeric, text)', 'EXECUTE'),
@@ -153,13 +160,46 @@ select is((select string_agg(i.kind || ':' || i.quantity::text, ',' order by i.k
 -- ── DD-2026-10-06-1429 (6) a refused group's portions leave queued ───────────────────────────
 set local role service_role;
 select integrations.claim_esb_pushes(array(select id from integrations.esb_push where push_group_id = current_setting('app.g2')::uuid));
-select is(ops.refuse_cafe_receipt_portions(current_setting('app.g2')::uuid), 0,
+select is(ops.refuse_cafe_receipt_portions(current_setting('app.g2')::uuid, 'esb_refused'), 0,
   'DD-1429 (6) members still in flight are not moved');
 update integrations.esb_push set status = 'dead_letter', last_error = 'ESB refused goods receipt: synthetic closed period'
  where push_group_id = current_setting('app.g2')::uuid;
-select is(ops.refuse_cafe_receipt_portions(current_setting('app.g2')::uuid), 1,
-  'DD-1429 (6) a dead-lettered member''s portion is moved');
+select throws_ok(format($$select ops.refuse_cafe_receipt_portions(%L, 'posting_off')$$, current_setting('app.g2')),
+  '22023', null, 'CQ4 a refusal names who refused: ESB or the worker');
+
+-- B1: ESB may hold a goods receipt for the group, so nothing is freed and nothing is released again.
+update integrations.esb_push_groups set posting_stage = 'create_sent' where id = current_setting('app.g2')::uuid;
+select is(ops.refuse_cafe_receipt_portions(current_setting('app.g2')::uuid, 'esb_refused'), 0,
+  'B1 a group whose create may have reached ESB (create sent) keeps its portions queued');
+update integrations.esb_push_groups set esb_doc_num = 'GR-SYNTH-1430', posting_stage = 'awaiting_authorization', status = 'dead_letter'
+ where id = current_setting('app.g2')::uuid;
+select is(ops.refuse_cafe_receipt_portions(current_setting('app.g2')::uuid, 'esb_refused'), 0,
+  'PROBE-DB1 B1 a group ESB already holds (esb_doc_num set) does not release its portions from queued');
 reset role;
+set local role authenticated;
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
+select is(ops.release_cafe_receipts('00000000-0000-0000-0000-00000000bf01') ->> 'queued_portions', '0',
+  'PROBE-DB2 B1 a release does not enqueue a second goods receipt for goods ESB already holds');
+reset role;
+select is((select count(*)::int from ops.cafe_receipt_portions q join integrations.esb_push e on e.id = q.push_id
+            where q.receipt_id = current_setting('app.r2')::uuid and e.push_group_id <> current_setting('app.g2')::uuid), 0,
+  'PROBE-DB3 B1 no second outbox group exists for receipt 2');
+select is((select q.state from ops.cafe_receipt_portions q where q.receipt_id = current_setting('app.r2')::uuid),
+  'queued', 'B1 ...and its portion still counts against the PO');
+
+-- ESB refused the create itself: nothing exists in ESB, so the portion leaves queued.
+set local role service_role;
+update integrations.esb_push_groups set esb_doc_num = null, posting_stage = null where id = current_setting('app.g2')::uuid;
+select is(ops.refuse_cafe_receipt_portions(current_setting('app.g2')::uuid, 'esb_refused'), 1,
+  'DD-1429 (6) a dead-lettered member''s portion is moved once ESB provably holds nothing');
+select integrations.claim_esb_pushes(array(select id from integrations.esb_push where push_group_id = current_setting('app.g3')::uuid));
+update integrations.esb_push set status = 'dead_letter', last_error = 'branch has no id map entry'
+ where push_group_id = current_setting('app.g3')::uuid;
+select is(ops.refuse_cafe_receipt_portions(current_setting('app.g3')::uuid, 'worker_refused'), 1,
+  'CQ4 a group the worker refused before contacting ESB is freed too');
+reset role;
+select is((select q.state || ':' || q.hold_reason from ops.cafe_receipt_portions q where q.receipt_id = current_setting('app.r3')::uuid),
+  'held:worker_refused', 'CQ4 ...held as refused by the worker, never blamed on ESB');
 select is((select q.state || ':' || q.hold_reason || ':' || (q.push_id is not null)::text
              from ops.cafe_receipt_portions q where q.receipt_id = current_setting('app.r2')::uuid),
   'held:esb_refused:true', 'DD-1429 (6) the refused portion is held as esb_refused with its outbox link');
@@ -167,8 +207,8 @@ set local role authenticated;
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 select is((select ops.cafe_receipt_posting(r) ->> 'state' from ops.cafe_receipts r where r.id = current_setting('app.r2')::uuid),
   'failed', 'FR-1025 the refused receipt reads failed');
-select is(ops.release_cafe_receipts('00000000-0000-0000-0000-00000000bf01') ->> 'queued_portions', '1',
-  'FR-1030 once the cause is fixed, a release queues the refused portion again');
+select is(ops.release_cafe_receipts('00000000-0000-0000-0000-00000000bf01') ->> 'queued_portions', '2',
+  'FR-1030 once the cause is fixed, a release queues both refused portions again');
 reset role;
 select ok((select count(*) = 1 and bool_and(e.payload ->> 'mos_key' like ops.cafe_receipt_mos_key(current_setting('app.r2')::uuid) || '-%'
                                             and e.push_group_id <> current_setting('app.g2')::uuid and e.status = 'pending')

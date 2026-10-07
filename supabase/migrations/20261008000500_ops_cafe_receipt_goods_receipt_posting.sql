@@ -6,8 +6,9 @@
 --     ESB, or a created goods receipt awaiting authorization (FR-1025, FR-1028).
 --   * The worker's re-match against the PO's freshly read outstanding keeps what fits and returns
 --     the rest to Receipt issues through the #1431 return path, now one helper (FR-1026/1027).
---   * A permanently refused group's portions leave queued, held as esb_refused until a release
---     (DD-2026-10-06-1429 (6)).
+--   * A permanently refused group's portions leave queued until a release (DD-2026-10-06-1429 (6)),
+--     held as esb_refused or, when the worker refused before contacting ESB, worker_refused; never
+--     while ESB may hold a goods receipt for the group.
 --
 -- DOWN: see supabase/rollbacks/20261008000500_ops_cafe_receipt_goods_receipt_posting.sql.
 
@@ -41,14 +42,14 @@ comment on column integrations.esb_push_groups.posting_stage is
 -- ── Portions: a refused one leaves queued and keeps its outbox link ─────────────────────────
 alter table ops.cafe_receipt_portions drop constraint cafe_receipt_portions_hold_reason_check;
 alter table ops.cafe_receipt_portions add constraint cafe_receipt_portions_hold_reason_check
-  check (hold_reason in ('posting_off', 'receiving_location_missing', 'no_longer_fits', 'esb_refused'));
+  check (hold_reason in ('posting_off', 'receiving_location_missing', 'no_longer_fits', 'esb_refused', 'worker_refused'));
 alter table ops.cafe_receipt_portions drop constraint cafe_receipt_portions_posting_check;
 alter table ops.cafe_receipt_portions add constraint cafe_receipt_portions_posting_check check (
   (state = 'held') = (hold_reason is not null)
   and (state <> 'queued' or (po_number is not null and po_date is not null))
 );
 comment on table ops.cafe_receipt_portions is
-  'The matched part of a receipt line on one open PO. held: matched but not enqueued (posting off, no receiving location, no longer fits the cache at release, or refused by ESB). queued: enqueued once as an outbox member (push_id); the worker''s outcome is that member''s status. superseded: replaced by a release''s re-match, or returned to a Receipt issue. A portion keeps push_id once enqueued, so every post attempt stays traceable.';
+  'The matched part of a receipt line on one open PO. held: matched but not enqueued (posting off, no receiving location, no longer fits the cache at release, refused by ESB, or refused by the worker before ESB was asked). queued: enqueued once as an outbox member (push_id); the worker''s outcome is that member''s status. superseded: replaced by a release''s re-match, or returned to a Receipt issue. A portion keeps push_id once enqueued, so every post attempt stays traceable.';
 
 -- ── FR-1024 the enqueue: the payload carries the branch code and the MOS key ────────────────
 -- Body otherwise as 20261007003000.
@@ -375,7 +376,7 @@ revoke execute on function ops.rematch_cafe_receipt_group(uuid, jsonb) from publ
 grant execute on function ops.rematch_cafe_receipt_group(uuid, jsonb) to service_role;
 
 -- ── DD-2026-10-06-1429 (6) a refused group's portions leave queued ──────────────────────────
-create or replace function ops.refuse_cafe_receipt_portions(p_group_id uuid)
+create or replace function ops.refuse_cafe_receipt_portions(p_group_id uuid, p_reason text)
 returns integer
 language plpgsql
 security definer
@@ -385,6 +386,9 @@ declare
   v_receipt ops.cafe_receipts%rowtype;
   v_moved integer;
 begin
+  if p_reason is null or p_reason not in ('esb_refused', 'worker_refused') then
+    raise exception 'CAFE_RECEIPT_REFUSAL_REASON_INVALID' using errcode = '22023';
+  end if;
   select r.* into v_receipt
     from integrations.esb_push e
     join ops.cafe_receipt_portions q on q.push_id = e.id
@@ -395,16 +399,21 @@ begin
     return 0;
   end if;
   perform pg_advisory_xact_lock(hashtextextended('cafe-receipt-match:' || v_receipt.org_id || ':' || v_receipt.branch_id, 0));
+  -- ESB may hold a goods receipt for this group: its portions keep counting against the PO.
+  if exists (select 1 from integrations.esb_push_groups g
+              where g.id = p_group_id and (g.esb_doc_num is not null or g.posting_stage is not null)) then
+    return 0;
+  end if;
   -- Only members the worker already dead-lettered: a refusal is recorded on the row first.
   update ops.cafe_receipt_portions q
-     set state = 'held', hold_reason = 'esb_refused', updated_at = clock_timestamp()
+     set state = 'held', hold_reason = p_reason, updated_at = clock_timestamp()
     from integrations.esb_push e
    where e.id = q.push_id and e.push_group_id = p_group_id and e.status = 'dead_letter' and q.state = 'queued';
   get diagnostics v_moved = row_count;
   return v_moved;
 end;
 $$;
-comment on function ops.refuse_cafe_receipt_portions(uuid) is
-  'Worker only (DD-2026-10-06-1429 (6)): after ESB refused a goods-receipt group permanently, its dead-lettered members'' portions leave queued, held as esb_refused with their outbox link kept, so they stop counting against the PO and a release can re-post them once the cause is fixed.';
-revoke execute on function ops.refuse_cafe_receipt_portions(uuid) from public, anon, authenticated;
-grant execute on function ops.refuse_cafe_receipt_portions(uuid) to service_role;
+comment on function ops.refuse_cafe_receipt_portions(uuid, text) is
+  'Worker only (DD-2026-10-06-1429 (6)): after a goods-receipt group was refused permanently, by ESB (esb_refused) or by the worker before ESB was asked (worker_refused), its dead-lettered members'' portions leave queued, held with that reason and their outbox link kept, so they stop counting against the PO and a release can re-post them. Moves nothing while ESB may hold a goods receipt for the group (a number or a posting stage).';
+revoke execute on function ops.refuse_cafe_receipt_portions(uuid, text) from public, anon, authenticated;
+grant execute on function ops.refuse_cafe_receipt_portions(uuid, text) to service_role;

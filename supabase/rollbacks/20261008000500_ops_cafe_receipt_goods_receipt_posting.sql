@@ -6,13 +6,13 @@ do $$
 begin
   if exists (select 1 from integrations.esb_push_groups where posting_stage is not null)
      or exists (select 1 from ops.cafe_receipt_portions
-                 where hold_reason = 'esb_refused' or (push_id is not null and state <> 'queued')) then
+                 where hold_reason in ('esb_refused', 'worker_refused') or (push_id is not null and state <> 'queued')) then
     raise exception 'manual rollback blocked: goods-receipt posting stages or refused or returned portions exist; settle or export them first';
   end if;
 end;
 $$;
 
-drop function ops.refuse_cafe_receipt_portions(uuid);
+drop function ops.refuse_cafe_receipt_portions(uuid, text);
 drop function ops.rematch_cafe_receipt_group(uuid, jsonb);
 
 -- The release as 20261007008200 defined it, then the shared return helper it now calls.
