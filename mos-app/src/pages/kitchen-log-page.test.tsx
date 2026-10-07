@@ -929,6 +929,20 @@ describe('AC-744  AC-007: Café capture renders read-only for the unaffiliated',
     expect(screen.getAllByText(/choose a production stream/i).length).toBeGreaterThan(0)
     expect(screen.queryByText(/pending review/i)).not.toBeInTheDocument()
   })
+
+  it.each([
+    ['Log', appUrl('/cafe')],
+    ['Transfer', appUrl('/cafe/transfer')],
+  ])('a read-only viewer with no selected stream sees that there is nothing to log on %s', async (_surface, path) => {
+    mockFetchDefaultStream.mockResolvedValue(null)
+    mockListCaptureFormItems.mockResolvedValue([])
+    await renderPage(UNAFFILIATED, path)
+
+    expect(await screen.findByText('No production stream is selected, so there is nothing to log.')).toBeInTheDocument()
+    expect(screen.queryByText('No items match your filter.')).not.toBeInTheDocument()
+  })
+
+
 })
 
 // ── F3b: disabled Submit shows an inline reason message ──────────────

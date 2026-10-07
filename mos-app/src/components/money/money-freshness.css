@@ -1,0 +1,11 @@
+/* MoneyFreshness owns its wrapping and stale-status treatment wherever the head is composed. */
+.content-header .ch-meta-line.money-freshness {
+  white-space: normal;
+}
+
+.content-header .ch-meta-line.money-freshness--stale {
+  padding: 1px 8px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--warning) 18%, transparent);
+  color: var(--warning-foreground);
+}
