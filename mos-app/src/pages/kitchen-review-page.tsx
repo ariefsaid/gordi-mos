@@ -61,7 +61,7 @@ import { CafeCountReviewQueue } from '@/components/kitchen/cafe-count-review-que
 import { rememberStream, rememberedStreamKey } from '@/lib/cafe-stream'
 import { activeCafeLocation } from '@/lib/cafe-opening-location'
 import { useReviewSummary } from '@/lib/kitchen-review-kpis'
-import { formatWeekdayDayMonth, WIB_OFFSET_MS, wibToday } from '@/lib/format/date'
+import { formatWeekdayDayMonth, WIB_OFFSET_MS } from '@/lib/format/date'
 import { formatUnitMultiple } from '@/lib/cafe-unit-multiples'
 import './kitchen-review-page.css'
 
