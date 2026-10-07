@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { wibToday } from '@/lib/format/date'
 import { containsPattern } from './like-pattern'
 
 export type FollowUpKind = 'b2b_ar' | 'retail_pending'
@@ -56,7 +57,7 @@ const RECON_DRIFT_COLUMNS = 'org_id,counterparty,period,mos_amount,esb_amount,dr
 export async function listFollowUps(filters: FollowUpFilters = {}): Promise<FollowUpRow[]> {
   let query = mos().from('follow_ups').select(FOLLOW_UP_COLUMNS)
   if (filters.state) query = query.eq('state', filters.state)
-  if (filters.overdue) query = query.lt('due_date', new Date().toISOString().slice(0, 10)).neq('state', 'settled').neq('state', 'confirmed')
+  if (filters.overdue) query = query.lt('due_date', wibToday()).neq('state', 'settled').neq('state', 'confirmed')
   if (filters.before) {
     query = query.or(`created_at.lt.${filters.before.created_at},and(created_at.eq.${filters.before.created_at},id.lt.${filters.before.id})`)
   }
@@ -120,5 +121,5 @@ export async function listReconDrift(): Promise<FollowUpReconDrift[]> {
 
 export function isOverdue(row: Pick<FollowUpRow, 'due_date' | 'state'>, today = new Date()): boolean {
   if (!row.due_date || row.state === 'settled' || row.state === 'confirmed') return false
-  return row.due_date < today.toISOString().slice(0, 10)
+  return row.due_date < wibToday(today)
 }

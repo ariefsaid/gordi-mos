@@ -5,6 +5,7 @@
 // Throws on any PostgREST error so callers can surface failures.
 
 import { supabase } from '@/lib/supabase'
+import { wibToday } from '@/lib/format/date'
 import { containsPattern } from './like-pattern'
 import { withReferenceCache } from './reference-cache'
 import { filterEffectiveMemberships } from '@/lib/team-context/eligible-teams'
@@ -43,12 +44,6 @@ export interface RoleScopeRow {
 
 /** A real, org-scoped Team choice. BU and Site are read-only derived attributes. */
 export type TeamOption = EligibleTeam
-
-const WIB_DATE = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' })
-
-function wibToday(now: Date = new Date()): string {
-  return WIB_DATE.format(now)
-}
 
 type RawTeamRow = {
   id: string
