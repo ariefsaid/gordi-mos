@@ -36,6 +36,8 @@ cat > "$tmp/bin/supabase" <<'EOF'
 #!/usr/bin/env bash
 if [[ "$*" == *"${FAKE_PASSWORD:-}"* ]] && [ -n "${FAKE_PASSWORD:-}" ]; then printf 'argv supabase-secret\n' >> "$ARGVLOG"
 else printf 'argv supabase-safe\n' >> "$ARGVLOG"; fi
+# The token on argv is logged verbatim, so the "never reached argv log" checks can fail.
+if [ -n "${FAKE_ACCESS_TOKEN:-}" ] && [[ "$*" == *"$FAKE_ACCESS_TOKEN"* ]]; then printf 'argv supabase-token %s\n' "$FAKE_ACCESS_TOKEN" >> "$ARGVLOG"; fi
 if [ -n "${PGPASSWORD:-}" ]; then printf 'pgpw-set\n' >> "$ARGVLOG"; else printf 'pgpw-empty\n' >> "$ARGVLOG"; fi
 case "$*" in
   *--dry-run*) printf 'supabase dry-run\n' >> "$CALLS"
