@@ -776,8 +776,8 @@ export const messages = {
     'cafe.receipts.review.differenceFailed': 'Difference could not be loaded; refresh to try again',
     'cafe.receipts.review.poTooOld': 'Open POs as of ${time} · too old to compare',
     'cafe.receipts.review.countedNotSent': 'Counted, not sent · locked ${age} ago',
-    'cafe.receipts.review.unsentMore.one': 'Unsent receipts are listed oldest first; 1 newer one across all streams is not listed.',
-    'cafe.receipts.review.unsentMore.other': 'Unsent receipts are listed oldest first; ${count} newer ones across all streams are not listed.',
+    'cafe.receipts.review.unsentMore.one': '1 newer unsent receipt, in any stream, is not listed.',
+    'cafe.receipts.review.unsentMore.other': '${count} newer unsent receipts, in any stream, are not listed.',
     // #1428 — Café purchase request (Request and Request review).
     'cafe.request.title': 'Request',
     'cafe.request.help': 'List what this stream needs and by when. Procurement decides in ESB how to buy it.',
@@ -3200,8 +3200,8 @@ export const messages = {
     'cafe.receipts.review.differenceFailed': 'Selisih tidak bisa dimuat; muat ulang untuk mencoba lagi',
     'cafe.receipts.review.poTooOld': 'PO terbuka per ${time} · terlalu lama untuk dibandingkan',
     'cafe.receipts.review.countedNotSent': 'Terhitung, belum dikirim · dikunci ${age} lalu',
-    'cafe.receipts.review.unsentMore.one': 'Penerimaan belum dikirim diurutkan dari yang terlama; 1 yang lebih baru di semua stream tidak dicantumkan.',
-    'cafe.receipts.review.unsentMore.other': 'Penerimaan belum dikirim diurutkan dari yang terlama; ${count} yang lebih baru di semua stream tidak dicantumkan.',
+    'cafe.receipts.review.unsentMore.one': '1 penerimaan belum dikirim yang lebih baru, di stream mana pun, tidak dicantumkan.',
+    'cafe.receipts.review.unsentMore.other': '${count} penerimaan belum dikirim yang lebih baru, di stream mana pun, tidak dicantumkan.',
     // #1428 — Café purchase request (Request and Request review).
     'cafe.request.title': 'Permintaan',
     'cafe.request.help': 'Catat yang dibutuhkan stream ini dan kapan. Procurement memutuskan cara membelinya di ESB.',

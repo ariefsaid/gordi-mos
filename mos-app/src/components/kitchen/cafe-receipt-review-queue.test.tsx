@@ -232,6 +232,6 @@ describe('CafeReceiptReviewQueue', () => {
     expect(receiptRows).toHaveLength(51)
     expect(within(receiptRows[0]).getByText('Received by Reviewer')).toBeInTheDocument()
     expect(within(receiptRows[1]).getByText(/^Counted, not sent · locked/)).toBeInTheDocument()
-    expect(screen.getByText('Unsent receipts are listed oldest first; 7 newer ones across all streams are not listed.')).toBeInTheDocument()
+    expect(screen.getByText('7 newer unsent receipts, in any stream, are not listed.')).toBeInTheDocument()
   })
 })
