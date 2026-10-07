@@ -6,7 +6,8 @@
 # the project skills into the main checkout and every existing worktree (new ones get it from
 # post-checkout). Idempotent:  ./scripts/setup-hooks.sh
 set -euo pipefail
-cd "$(dirname "$0")/.."
+self="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"   # absolute: npm prepare calls ../scripts/…
+cd "$(dirname "$self")/.."
 common="$(git rev-parse --path-format=absolute --git-common-dir)"
 src=origin/dev; git rev-parse -q --verify "$src" >/dev/null || src=HEAD   # fresh clone before fetch
 dest="$common/mos-hooks-$(git rev-parse --short=12 "$src")"
@@ -14,7 +15,7 @@ dest="$common/mos-hooks-$(git rev-parse --short=12 "$src")"
 # a kernel lock, which dies with its holder, so a crashed run never leaves a lock behind.
 if [ -z "${MOS_HOOKS_LOCKED:-}" ]; then
   exec env MOS_HOOKS_LOCKED=1 perl -MFcntl=:flock -e 'BEGIN { $^F = 255 } open(my $f, ">>", shift) or die $!; flock($f, LOCK_EX) or die $!; exec(@ARGV) or die $!' \
-    "$common/mos-hooks.lock" bash "$0" "$@"
+    "$common/mos-hooks.lock" bash "$self" "$@"
 fi
 stage=""; trap 'rm -rf "$stage"' EXIT
 if [ ! -d "$dest" ]; then

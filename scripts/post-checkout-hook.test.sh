@@ -88,6 +88,14 @@ kill -9 "$holder"; wait "$bg"
 [ "$waited" = 1 ] && [ "$(g "$tmp/main" config core.hooksPath)" != "$before" ] \
   && ok "a second setup waits for the lock and proceeds once the holder dies" || bad "setup did not serialize on the lock (waited=$waited)"
 
+# npm prepare runs it as ../scripts/setup-hooks.sh from mos-app/: the re-exec must stay inside the repo.
+mkdir -p "$tmp/wt6/mos-app" "$tmp/scripts"; printf 'touch "%s/outside"\n' "$tmp" > "$tmp/scripts/setup-hooks.sh"
+g "$tmp/main" commit -q --allow-empty -m moved-npm; g "$tmp/main" update-ref refs/remotes/origin/dev HEAD
+before="$(g "$tmp/main" config core.hooksPath)"
+(cd "$tmp/wt6/mos-app" && bash ../scripts/setup-hooks.sh) >/dev/null 2>&1; rc=$?
+[ "$rc" -eq 0 ] && [ ! -e "$tmp/outside" ] && [ "$(g "$tmp/main" config core.hooksPath)" != "$before" ] \
+  && ok "a relative call from mos-app/ (npm prepare) installs and never runs a script outside the repo" || bad "relative call: rc=$rc outside=$([ -e "$tmp/outside" ] && echo ran || echo no)"
+
 # No skills in the main checkout: nothing linked, checkout still succeeds.
 rm -rf "$tmp/main/.claude"
 g "$tmp/main" worktree add -q "$tmp/wt4" -b wt4 2>/dev/null; rc=$?
