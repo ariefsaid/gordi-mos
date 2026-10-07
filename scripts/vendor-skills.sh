@@ -240,6 +240,78 @@ unlock_skills() {
   done
 }
 
+replace_skill_descriptions() {
+  local skills_dir="$1" map="$2" row skill description skill_file i
+  local -a skills=() descriptions=()
+  if [ ! -f "$map" ]; then
+    echo "ERROR: skill description map is missing: $map" >&2
+    return 1
+  fi
+  while IFS= read -r row || [ -n "$row" ]; do
+    [ -n "$row" ] || continue
+    case "$row" in
+      *$'\t'*) ;;
+      *) echo "ERROR: invalid skill description map row (expected skill<TAB>description): $row" >&2; return 1 ;;
+    esac
+    skill="${row%%$'\t'*}"
+    description="${row#*$'\t'}"
+    if [[ ! "$skill" =~ ^[a-z0-9][a-z0-9-]*$ ]] || [ -z "$description" ] || [[ "$description" == *$'\t'* ]]; then
+      echo "ERROR: invalid skill description map row for '$skill'" >&2
+      return 1
+    fi
+    skill_file="$skills_dir/$skill/SKILL.md"
+    if [ ! -f "$skill_file" ]; then
+      echo "ERROR: skill description map refers to unknown skill '$skill'" >&2
+      return 1
+    fi
+    skills+=("$skill")
+    descriptions+=("$description")
+  done < "$map"
+
+  for skill_file in "$skills_dir"/*/SKILL.md; do
+    skill="$(basename "$(dirname "$skill_file")")"
+    for i in "${!skills[@]}"; do
+      [ "$skill" = "${skills[$i]}" ] || continue
+      python3 - "$skill_file" "${descriptions[$i]}" <<'PY'
+import json
+import pathlib
+import re
+import sys
+
+path = pathlib.Path(sys.argv[1])
+replacement = sys.argv[2]
+with path.open(encoding="utf-8", newline="") as source:
+    lines = source.readlines()
+if not lines or lines[0].rstrip("\r\n") != "---":
+    raise SystemExit(f"ERROR: missing YAML frontmatter in {path}")
+end = next((i for i in range(1, len(lines)) if lines[i].rstrip("\r\n") == "---"), None)
+if end is None:
+    raise SystemExit(f"ERROR: unterminated YAML frontmatter in {path}")
+field = next((i for i in range(1, end) if re.match(r"^description:", lines[i])), None)
+if field is None:
+    raise SystemExit(f"ERROR: missing frontmatter description in {path}")
+value = re.sub(r"^description:[ \t]*", "", lines[field].rstrip("\r\n"))
+last = field + 1
+if re.fullmatch(r"[>|](?:[+-]?\d*|\d*[+-]?)(?:\s+#.*)?", value.strip()):
+    last_content = field
+    while last < end:
+        line = lines[last]
+        if line.strip() and not line[0].isspace():
+            break
+        if line.strip():
+            last_content = last
+        last += 1
+    last = last_content + 1
+newline = "\r\n" if lines[field].endswith("\r\n") else "\n"
+updated = lines[:field] + ["description: " + json.dumps(replacement, ensure_ascii=False) + newline] + lines[last:]
+with path.open("w", encoding="utf-8", newline="") as target:
+    target.writelines(updated)
+PY
+      break
+    done
+  done
+}
+
 OVERRIDES="$ROOT/.claude/skill-overrides"
 ORIGINAL="$ROOT/.claude/skill-original"
 
@@ -257,6 +329,8 @@ if [ -d "$OVERRIDES" ]; then
 fi
 
 unlock_skills "$DEST"
+# The tracked index prevents upstream refreshes from restoring verbose context descriptions.
+replace_skill_descriptions "$DEST" "$ROOT/scripts/skill-descriptions.tsv"
 
 echo
 echo "Vendored: gstack(careful freeze guard cso design-review design-consultation) jeffallan(spec-miner) impeccable(+tracked detector) taste ui-ux-pro-max design-system ui-styling sssf agent-browser + mattpocock full eng+prod set"

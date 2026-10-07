@@ -1,0 +1,44 @@
+agent-browser	Automate websites and desktop apps in a browser; use for navigation, forms, screenshots, scraping, or testing a running interface.
+ask-matt	Route work to the right MOS skill or factory flow; use when unsure which workflow or decision authority applies.
+careful	Warn before destructive commands; use when changing shared data, live systems, or running risky shell or database operations.
+code-review	Review a branch or pull request across spec, code-quality, and security lenses; use for independent review before publication.
+codebase-design	Design deep modules and clean seams; use when shaping interfaces, improving testability, or deciding where behavior belongs.
+cso	Audit code for exploitable security defects; use for vulnerability, threat-model, or security-review requests.
+design-consultation	Create a product design direction and system; use when starting a new brand, interface, or visual language.
+design-review	Find and fix visual design defects; use for visual QA, design polish, or interface consistency reviews.
+design-system	Define design tokens and component specifications; use when building token systems, styling scales, or presentation themes.
+diagnosing-bugs	Diagnose difficult bugs or performance regressions; use when behavior is broken, throwing errors, or slow.
+domain-modeling	Clarify domain terms and decisions; use when changing the glossary, business model, or architecture decision records.
+drive	Run the attended factory loop from backlog selection through review and merge; use for backlog or next-ticket work.
+feedback	Turn owner-reported app observations into verified, durable work; use for running-app feedback, screenshots, or issue triage.
+freeze	Restrict edits to a chosen directory; use when a task must not modify files outside an explicit scope.
+grill-me	Interview the user to sharpen a plan or design; use when asked to grill or stress-test an idea.
+grill-with-docs	Interview the user and capture decisions in domain documents; use when a plan needs grilling plus durable records.
+grilling	Resolve open decisions through structured questions; use when the user asks to grill or stress-test a plan or idea.
+guard	Enable destructive-command warnings and edit boundaries; use in sensitive directories or risky environments.
+handoff	Summarize unfinished work for a fresh session; use when another agent needs to continue the conversation.
+impeccable	Design, critique, or refine a frontend interface; use for UI layout, interaction, accessibility, responsive, or visual-quality work.
+implement	Implement one bounded ticket with tests and verification; use for owner-authorized hands-on work outside the factory executor.
+improve-codebase-architecture	Find deepening opportunities and produce an architecture report; use when exploring codebase structure or module design improvements.
+prototype	Build a disposable prototype to answer a design question; use when testing a state model or exploring interface variations.
+release	Prepare and promote a dev release through evidence and owner ratification; use for release work to main or staging.
+research	Research a question from primary sources and write findings; use when the user asks for sourced technical or domain facts.
+resolving-merge-conflicts	Resolve an active Git merge or rebase conflict; use when conflicting changes block integration.
+setup-matt-pocock-skills	Configure issue tracking, triage labels, and domain docs; use when initializing engineering-skill conventions in a repository.
+spec-miner	Reverse-engineer undocumented or inherited code; use to map dependencies, behavior, or business rules into a written specification.
+sssf	Build or operate repeatable agent workflows; use when setting up the software factory or running an ADW.
+taste	Judge a live Gordi MOS interface for visual and interaction quality; use during Operate-mode UI critique.
+tdd	Build tests through the red-green-refactor loop; use when implementing features or bug fixes test-first.
+teach	Teach a user a topic through ongoing lessons; use when they ask to learn a skill or concept.
+to-questionnaire	Turn unanswered decisions into a fill-in questionnaire; use when another person holds facts the user needs.
+to-spec	Synthesize settled intent into an EARS specification; use after grilling or when asked to write a feature spec.
+to-tickets	Break a settled spec into dependency-linked issues; use after specification or when asked to create implementation tickets.
+triage	Move issues through triage into buildable briefs; use when backlog items need preparation or triage decisions.
+ui-styling	Build accessible interfaces with reusable components and responsive styling; use for UI, design systems, or visual prototypes.
+ui-ux-pro-max	Find targeted UX, accessibility, responsive, or interaction guidance; use when reviewing or improving a product interface.
+wait-what	Ask for an unclear explanation to be re-pitched simply; use when the last message did not make sense.
+wayfinder	Map a foggy multi-ticket goal into decisions and child issues; use when direction is unclear and no buildable ticket exists.
+wizard	Write an interactive guide for steps only a human can perform; use for manual setup, dashboard work, or one-off migrations.
+writing-agent-goals	Write an executable goal or fresh-agent prompt; use when the owner asks for a takeover, directive, or execution brief.
+writing-for-agents	Write clear agent-facing documents; use when creating or editing skills, context files, or agent instructions.
+writing-great-skills	Design predictable skills and invocation routes; use when writing or revising skill instructions.
