@@ -47,6 +47,12 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 check "lower-case Claude co-author trailer refused" 1 "fix: ok
 
 co-authored-by: claude <x@y>"
+check "Anthropic co-author trailer refused" 1 "fix: ok
+
+Co-Authored-By: Fable 5 <noreply@anthropic.com>"
+check "a body line quoting the rule mid-sentence passes" 0 "fix: ok
+
+the rule is: never add Co-Authored-By: Claude to a commit"
 check "a human co-author passes" 0 "fix: ok
 
 Co-Authored-By: Pat Example <pat@example.com>"
