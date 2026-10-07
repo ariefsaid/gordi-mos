@@ -248,6 +248,7 @@ replace_skill_descriptions() {
     return 1
   fi
   while IFS= read -r row || [ -n "$row" ]; do
+    row="${row%$'\r'}"
     [ -n "$row" ] || continue
     case "$row" in
       *$'\t'*) ;;
@@ -290,18 +291,16 @@ if end is None:
 field = next((i for i in range(1, end) if re.match(r"^description:", lines[i])), None)
 if field is None:
     raise SystemExit(f"ERROR: missing frontmatter description in {path}")
-value = re.sub(r"^description:[ \t]*", "", lines[field].rstrip("\r\n"))
+last_content = field
 last = field + 1
-if re.fullmatch(r"[>|](?:[+-]?\d*|\d*[+-]?)(?:\s+#.*)?", value.strip()):
-    last_content = field
-    while last < end:
-        line = lines[last]
-        if line.strip() and not line[0].isspace():
-            break
-        if line.strip():
-            last_content = last
-        last += 1
-    last = last_content + 1
+while last < end:
+    line = lines[last]
+    if line.strip() and not line[0].isspace():
+        break
+    if line.strip():
+        last_content = last
+    last += 1
+last = last_content + 1
 newline = "\r\n" if lines[field].endswith("\r\n") else "\n"
 updated = lines[:field] + ["description: " + json.dumps(replacement, ensure_ascii=False) + newline] + lines[last:]
 with path.open("w", encoding="utf-8", newline="") as target:
