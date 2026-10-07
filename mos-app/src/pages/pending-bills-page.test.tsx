@@ -25,6 +25,7 @@ vi.mock('@/lib/ship-gate', async (importOriginal) => ({
 vi.mock('@/auth/use-auth')
 
 import { latestPendingBillSnapshot, listPendingBills, type PendingBillRow } from '@/lib/db/reporting-pending-bills'
+import { ReportingRowCapError } from '@/lib/db/reporting-shared'
 import {
   listPendingBillPaymentAmounts,
   listPendingBillPaymentHistory,
@@ -153,7 +154,7 @@ describe('the ready list', () => {
 })
 
 describe('the table columns', () => {
-  it('puts Age beside Date and State right after Who owes, so how old and flagged are visible at tablet widths', async () => {
+  it('orders Age near Date and State after Who owes, before the bill and money columns', async () => {
     renderPage()
     const table = await screen.findByRole('table')
     expect(within(table).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(
@@ -161,11 +162,11 @@ describe('the table columns', () => {
     )
   })
 
-  it('names the sideways-scrolling table box and lets the keyboard reach it', async () => {
+  it('renders the list inside the shared Money table shell', async () => {
     renderPage()
-    const box = await screen.findByRole('region', { name: 'Pending bills table, scrolls sideways' })
-    expect(box).toHaveAttribute('tabindex', '0')
-    expect(within(box).getByRole('table')).toBeInTheDocument()
+    const table = await screen.findByRole('table', { name: 'Pending bills, oldest first' })
+    expect(table).toHaveClass('money-table')
+    expect(table.closest('.money-table-scroll')).toBeInTheDocument()
   })
 
   it('says a branch MOS does not know is unknown, beside the code the till sent', async () => {
@@ -180,28 +181,38 @@ describe('the table columns', () => {
 })
 
 describe('the phone list', () => {
-  it('shows one card per bill: who owes and amount, then date, branch and bill no., then age, state and balance', async () => {
+  it('shows each bill in the shared row markup with who owes, amount, age, state and balance', async () => {
     setViewport(false)
     renderPage()
     await screen.findByText('Copied from ESB Tue 6 Oct, 02:05 WIB')
-    expect(screen.queryByRole('table')).toBeNull()
-    const cards = document.querySelectorAll('.pending-bill-card')
-    expect(cards).toHaveLength(4)
-    const oldest = within(cards[0] as HTMLElement)
+    const table = screen.getByRole('table', { name: 'Pending bills, oldest first' })
+    const rows = within(table).getAllByRole('row').slice(1)
+    expect(rows).toHaveLength(4)
+    const oldest = within(rows[0])
     expect(oldest.getByText('Meja 4')).toBeInTheDocument()
     expect(oldest.getAllByText('Rp 2.480.000')).toHaveLength(2)
     expect(oldest.getByText('pop_up_east')).toBeInTheDocument()
     expect(oldest.getByText('PB-1')).toBeInTheDocument()
     expect(oldest.getByText('420 days')).toBeInTheDocument()
     expect(oldest.getByText('Open')).toBeInTheDocument()
-    expect(oldest.getByText('Meja 4').closest('.pending-bill-card__title')).not.toHaveClass('pending-bill-card__title--none')
+    expect(oldest.getByText('Meja 4').closest('.money-table__cell--owes')).toBeInTheDocument()
   })
 
-  it('keeps the card title muted when no one is named on the bill', async () => {
+  it('keeps a long counterparty note available in the shared row at phone width', async () => {
+    setViewport(false)
+    const note = 'Kedai kopi dan roti dekat pasar yang buka sebelum matahari terbit'
+    mockList.mockResolvedValue([bill({ bill_no: 'PB-LONG', counterparty_note: note })])
+    renderPage()
+    const text = await screen.findByText(note)
+    expect(text.closest('.money-table__cell--owes')).toBeInTheDocument()
+  })
+
+  it('keeps the unnamed counterparty placeholder muted', async () => {
     setViewport(false)
     renderPage()
     const placeholder = await screen.findByText('Not written on the bill')
-    expect(placeholder.closest('.pending-bill-card__title')).toHaveClass('pending-bill-card__title--none')
+    expect(placeholder).toHaveClass('pending-bills__muted')
+    expect(placeholder.closest('.money-table__cell--owes')).toBeInTheDocument()
   })
 })
 
@@ -282,7 +293,15 @@ describe('pending-bill record history states', () => {
   })
 })
 
-describe('the payment form in the record panel at every width', () => {
+describe('the pending bill record panel at every width', () => {
+  it('names the bill in the full-screen phone panel title', async () => {
+    setViewport(false)
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Open bill PB-2' }))
+    const panel = await screen.findByRole('dialog', { name: 'Pending bill PB-2' })
+    expect(within(panel).getByText('Pending bill PB-2', { selector: '.record-panel-title' })).toBeInTheDocument()
+  })
+
   it('moves focus into the form when it opens and back to the panel action when it closes', async () => {
     setViewport(false)
     renderPage()
@@ -395,6 +414,7 @@ describe('AC-1123: every state says what happened and offers an action', () => {
     renderPage()
     const status = await screen.findByRole('status', { name: 'Loading…' })
     expect(status).toBeInTheDocument()
+    expect(status).toHaveClass('money-skeleton')
   })
 
   it('no copy yet: says so, when it runs, and offers Refresh that reads again', async () => {
@@ -437,6 +457,15 @@ describe('AC-1123: every state says what happened and offers an action', () => {
     expect(within(alert).getByText("Couldn't load pending bills. Try again; if it keeps failing, tell the admin.")).toBeInTheDocument()
     fireEvent.click(within(alert).getByRole('button', { name: 'Try again' }))
     await waitFor(() => expect(mockList).toHaveBeenCalledTimes(2))
+  })
+
+  it('too many rows explains the limit without retrying the same capped read', async () => {
+    mockList.mockRejectedValue(new ReportingRowCapError('over cap'))
+    renderPage()
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('There are more pending bills than this page can read at once.')
+    expect(within(alert).queryByRole('button', { name: 'Try again' })).toBeNull()
+    expect(mockList).toHaveBeenCalledTimes(1)
   })
 
   it('stale: warns above the list with the last copy time and offers Refresh', async () => {
