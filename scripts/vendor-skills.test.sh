@@ -4,6 +4,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 script="scripts/vendor-skills.sh"
+bash -n "$script" || { echo "vendor-skills.sh does not parse" >&2; exit 1; }
 for name in IMPECCABLE_PIN TASTE_PIN GSTACK_PIN JEFF_PIN UUPM_PIN MPS_PIN SSSF_PIN; do
   pin="$(sed -n "s/^${name}=\"\([0-9a-f]*\)\"$/\1/p" "$script")"
   test "${#pin}" -eq 40
@@ -17,17 +18,14 @@ fi
 
 printf '%s\n' 'Skill pins are immutable'
 
-# Agents may start every skill except /release (OD-2026-10-07-SKILL-HARNESS; /release waits on a merge guard).
+# Agents may start every skill, /release included: merges into main/staging are guarded by the
+# owner-assent check instead (OD-2026-10-07-HARNESS-ANSWERS).
 tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
 for s in feedback release teach; do
   mkdir -p "$tmp/$s"; printf -- '---\nname: %s\ndisable-model-invocation: true\n---\nbody\n' "$s" > "$tmp/$s/SKILL.md"
 done
 eval "$(sed -n '/^unlock_skills()/,/^}/p' "$script")"
 unlock_skills "$tmp"
-! grep -q 'disable-model-invocation' "$tmp/feedback/SKILL.md" "$tmp/teach/SKILL.md" || { echo "owner-only flag left on a skill agents may start" >&2; exit 1; }
-grep -q 'disable-model-invocation: true' "$tmp/release/SKILL.md" || { echo "/release lost its owner-only flag" >&2; exit 1; }
-grep -q 'name: feedback' "$tmp/feedback/SKILL.md" || { echo "unlock damaged the frontmatter" >&2; exit 1; }
-# /release must stay locked: a release copy without the flag makes the unlock fail.
-sed -i.bak '/^disable-model-invocation:/d' "$tmp/release/SKILL.md"; rm -f "$tmp/release/SKILL.md.bak"
-if unlock_skills "$tmp" 2>/dev/null; then echo "a /release without its owner-only flag passed" >&2; exit 1; fi
-printf '%s\n' 'Agents may start every skill but /release'
+! grep -q 'disable-model-invocation' "$tmp"/*/SKILL.md || { echo "owner-only flag left on a skill agents may start" >&2; exit 1; }
+grep -q 'name: release' "$tmp/release/SKILL.md" || { echo "unlock damaged the frontmatter" >&2; exit 1; }
+printf '%s\n' 'Agents may start every skill'

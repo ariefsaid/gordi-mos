@@ -172,7 +172,9 @@ check "short-flag cluster hiding -F refused" 1 no api repos/x/y/issues -iFbody=@
 check "stray positional after the endpoint refused" 1 no api repos/x/y/issues extra -f title=x
 check "end-of-flags marker refused" 1 no api repos/x/y/issues -- -f title=x
 check "value-taking flag at the end refused" 1 no api repos/x/y/issues -f
-check "REST merge (PUT pulls/N/merge) is not a create" 0 yes api repos/x/y/pulls/5/merge --method PUT -f merge_method=squash
+check "REST merge (PUT pulls/N/merge) refuses — merges go through gh pr merge" 1 no api repos/x/y/pulls/5/merge --method PUT -f merge_method=squash
+check "REST branch merge (POST merges) refuses" 1 no api repos/x/y/merges --method POST -f base=main -f head=dev
+check "REST ref update refuses" 1 no api repos/x/y/git/refs/heads/main --method PATCH -f sha=abc
 head="$(g "$tmp/repo" rev-parse HEAD)"
 for lens in spec code-quality security; do printf '%s %s reviewer-x now art.md\n' "$head" "$lens" > "$gitdir/independent-review-$lens-ok"; done
 check "REST pr create, lens stamps without verify stamp, base=dev passes" 0 yes api repos/x/y/pulls -f title=t -f head=feat-rest -f base=dev
