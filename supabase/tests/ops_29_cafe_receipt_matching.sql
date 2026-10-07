@@ -225,8 +225,9 @@ select ok((select bool_and(e.endpoint = 'goods-receipt' and e.status = 'pending'
                            and e.payload ->> 'delivery_note_number' = 'DN 77')
              from integrations.esb_push e where e.source_module = 'cafe_receipt'),
   'FR-1024 each member carries the PO, arrival date, receiving location and delivery note');
+-- 7 kg of bean is below the 9 open on the two POs: one informational short issue (#1431), not unmatched.
 select is((select ops.cafe_receipt_posting(r) from ops.cafe_receipts r where r.id = current_setting('app.r2')::uuid),
-  jsonb_build_object('state', 'queued', 'matched', true, 'unmatched', 0, 'open_issues', 0),
+  jsonb_build_object('state', 'queued', 'matched', true, 'unmatched', 0, 'open_issues', 1),
   'FR-1042 the receipt reads queued');
 select lives_ok($$select ops._match_cafe_receipt(current_setting('app.r2')::uuid)$$, 'AC-1021 matching again is harmless');
 set local role authenticated;

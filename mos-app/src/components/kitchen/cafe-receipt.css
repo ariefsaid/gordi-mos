@@ -36,6 +36,12 @@
   overflow-wrap: anywhere;
 }
 
+/* FR-1038 is quiet text: no warning colour, badge or count. */
+.cafe-receipt-evidence .cafe-receipt-evidence__quiet {
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+}
+
 .cafe-receipt-review__row.cafe-count-review__row {
   grid-template-columns: minmax(160px, 1fr) minmax(240px, 1.6fr) minmax(220px, 1fr);
   align-items: start;
