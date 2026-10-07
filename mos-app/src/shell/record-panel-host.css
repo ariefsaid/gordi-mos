@@ -58,7 +58,8 @@
   top: var(--drawer-split-sticky-top, 12px);
   display: flex;
   flex-direction: column;
-  max-height: calc(100vh - var(--header-h) - 24px);
+  /* The scroller's own 24px top padding plus the 12px sticky offset leave 12px under the panel. */
+  max-height: calc(100vh - var(--header-h) - 48px);
 }
 
 .drawer-split.drawer-split--sticky > .record-viewer,

@@ -339,6 +339,29 @@ describe('the payment form in the record panel at every width', () => {
     await waitFor(() => expect(within(panel).getByRole('button', { name: 'Record payment' })).toHaveFocus())
   })
 
+  it('returns focus to the panel action after a reversal is saved', async () => {
+    mockList.mockResolvedValue([bill({ bill_no: 'PB-2', amount: 96_000 })])
+    const paid: PendingBillPaymentAmountRow[] = [{ id: 'payment-1', esb_code: 'GKI', branch_code: 'rumah_rames', bill_no: 'PB-2', amount: 1000 }]
+    const history: PendingBillPaymentHistoryEntry[] = [{
+      id: 'payment-1', esbCode: 'GKI', branchCode: 'rumah_rames', billNo: 'PB-2',
+      entryKind: 'payment', amount: 1000, cashInDate: '2026-10-06', proofPath: 'org-1/proof.pdf',
+      proofUrl: 'https://proof.example.test/signed', note: null, reversalOf: null, reversalReason: null,
+      actorName: 'Finance Person', createdAt: '2026-10-06T03:00:00Z',
+    }]
+    mockPaymentAmounts.mockResolvedValue(paid)
+    mockPaymentHistory.mockResolvedValue(history)
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Open bill PB-2' }))
+    const panel = await screen.findByRole('dialog', { name: 'Pending bill PB-2' })
+    fireEvent.click(await within(panel).findByRole('button', { name: 'Reverse payment' }))
+    const form = within(panel).getByRole('form', { name: 'Reverse payment' })
+    fireEvent.change(within(form).getByLabelText(/reason/i), { target: { value: 'Entered against the wrong bill' } })
+    fireEvent.click(within(form).getByRole('button', { name: 'Record reversal' }))
+    await waitFor(() => expect(mockRecordPayment).toHaveBeenCalled())
+    await waitFor(() => expect(within(panel).queryByRole('form', { name: 'Reverse payment' })).toBeNull())
+    await waitFor(() => expect(within(panel).getByRole('button', { name: 'Record payment' })).toHaveFocus())
+  })
+
   it('accepts decimal-comma entry for the exact remaining balance', async () => {
     mockList.mockResolvedValue([bill({ bill_no: 'PB-2', amount: 96_000.5 })])
     renderPage()

@@ -132,7 +132,8 @@ export function PendingBillsPage() {
   }
   useEffect(() => {
     if (!restoreFocusRef.current || formMode) return
-    const target = document.querySelector<HTMLElement>('[data-record-header-actions] button, [data-viewer-region="actions"] button, [data-content-slot="payment-history"] button')
+    const target = document.querySelector<HTMLElement>('[data-viewer-region="actions"] button')
+      ?? document.querySelector<HTMLElement>('[data-content-slot="payment-history"] button')
     if (!target) return
     restoreFocusRef.current = false
     target.focus()
