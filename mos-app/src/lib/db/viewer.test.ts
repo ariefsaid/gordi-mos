@@ -23,6 +23,7 @@ vi.mock('../supabase', () => {
 })
 
 import { resolveViewer } from './viewer'
+import { __resetReferenceCacheForTests } from './reference-cache'
 import { supabase } from '@/lib/supabase'
 
 const mockFrom = vi.mocked(supabase.from)
@@ -75,6 +76,7 @@ const roleB: RolesRow = {
 describe('resolveViewer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    __resetReferenceCacheForTests()
     mockRpc.mockResolvedValue({ data: false, error: null })
   })
 
@@ -140,6 +142,15 @@ describe('resolveViewer', () => {
     expect(result.roles).toHaveLength(2)
     expect(result.roles.map((r) => r.id)).toContain(ROLE_A_ID)
     expect(result.roles.map((r) => r.id)).toContain(ROLE_B_ID)
+    expect(peopleChain.select).toHaveBeenCalledWith('id,org_id,user_id,full_name,must_change_password')
+    expect(rolesChain.select).toHaveBeenCalledWith('id,business_unit_id,name,reports_to_role_id')
+
+    __resetReferenceCacheForTests(false)
+    const repeated = await resolveViewer(USER_ID, fakeJwt({ access_roles: ['ops_lead'] }))
+    expect(repeated.person).toEqual(personRow)
+    expect(repeated.accessRoles).toEqual(['ops_lead'])
+    expect(mockFrom).toHaveBeenCalledTimes(4)
+    expect(mockRpc).toHaveBeenCalledOnce()
 
     // Assert the query never filters by org_id (RLS scopes it — §8)
     const orgIdFilters = eqCalls.filter(([col]) => col === 'org_id')

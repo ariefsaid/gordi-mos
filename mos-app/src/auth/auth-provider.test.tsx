@@ -29,6 +29,7 @@ import { useAuth } from './use-auth'
 import { getReadScope } from '@/lib/scoped-reads'
 import { supabase } from '@/lib/supabase'
 import { resolveViewer } from '@/lib/db/viewer'
+import { __resetReferenceCacheForTests, withReferenceCache } from '@/lib/db/reference-cache'
 import type { PeopleRow, RolesRow } from '@/lib/database.types'
 import type { Session } from '@supabase/supabase-js'
 
@@ -105,6 +106,7 @@ describe('AuthProvider', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    __resetReferenceCacheForTests()
     // Default: onAuthStateChange returns an unsubscribe fn
     mockOnAuthStateChange.mockReturnValue({
       data: { subscription: { unsubscribe: vi.fn(), id: 'sub', callback: vi.fn() } },
@@ -267,6 +269,11 @@ describe('AuthProvider', () => {
       return request
     })
     vi.stubGlobal('indexedDB', { deleteDatabase })
+    const cachedViewerLoad = vi.fn(async () => 'cached')
+    await withReferenceCache('shared.auth.viewer', cachedViewerLoad, {
+      identity: 'auth:auth-user-001',
+      persist: true,
+    })
 
     await act(async () => {
       await user.click(screen.getByRole('button', { name: 'Sign out' }))
@@ -277,6 +284,12 @@ describe('AuthProvider', () => {
     expect(Object.keys(localStorage).filter(key => key.startsWith('mos.cafe.') || key.startsWith('cafe.receive.'))).toEqual([])
     expect(deleteDatabase).toHaveBeenCalledWith('gordi-mos-offline-photos')
     expect(localStorage.getItem('mos.tasks.groupBy')).toBe('owner')
+    const reloadViewer = vi.fn(async () => 'reloaded')
+    await expect(withReferenceCache('shared.auth.viewer', reloadViewer, {
+      identity: 'auth:auth-user-001',
+      persist: true,
+    })).resolves.toBe('reloaded')
+    expect(reloadViewer).toHaveBeenCalledOnce()
     expect(mockSignOut).toHaveBeenCalledOnce()
     expect(screen.getByTestId('status').textContent).toBe('unauthenticated')
     // Marks the session as ended, so ProtectedRoute keeps no return route for the next person.
@@ -425,8 +438,18 @@ describe('AuthProvider', () => {
     const afterRecovery = getReadScope()
     expect(afterRecovery?.authUserId).toBe('auth-user-a')
     expect(afterRecovery?.generation).toBeGreaterThan(beforeRecovery?.generation ?? 0)
+    await withReferenceCache('shared.auth.viewer', async () => 'cached', {
+      identity: 'auth:auth-user-a',
+      persist: true,
+    })
 
     act(() => capturedCallback!('SIGNED_OUT', null))
+    const reload = vi.fn(async () => 'reloaded')
+    await expect(withReferenceCache('shared.auth.viewer', reload, {
+      identity: 'auth:auth-user-a',
+      persist: true,
+    })).resolves.toBe('reloaded')
+    expect(reload).toHaveBeenCalledOnce()
     expect(getReadScope()).toBeNull()
     expect(screen.getByTestId('status').textContent).toBe('unauthenticated')
   })

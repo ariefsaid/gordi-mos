@@ -4,26 +4,19 @@
 -- The worker is a process, not a schema object. What the database has to hold up for it is three
 -- things, and this file asserts each as behaviour rather than as a comment:
 --
---   1. THE DRAIN. Dispatch reads rows filtered pending/failed. A failed push is therefore picked up
---      again by construction — "retryable" is not a feature somebody has to remember to build, it is
---      the drain predicate. Proven by running the predicate, not by reading the index definition
---      alone (an index can be right while the set it describes is empty).
+--   1. THE DRAIN. Pending rows are claim candidates; failed rows wait for their recorded retry time. A failed push returns only after retry promotion
+--      through the queue reaper.
 --   2. VISIBILITY. A push that has stopped moving stays readable, with the error that stopped it.
 --      An outbox whose failures disappear from the operator's view is worse than no outbox: the
 --      batch is silently un-posted and the ERP is silently short a document.
 --   3. NO DROPS. Nobody holds DELETE — not the app tier, and not the worker. That is the only form
 --      of "never silently dropped" that survives contact with a process that is having a bad day.
 --
--- ⚠ WHAT THIS FILE DELIBERATELY DOES NOT ASSERT, so the gap is visible rather than implied: nothing
--- in this baseline SETS status = 'dead_letter', and there is no gated path back out of it. The
--- incumbent's retry budget is an env var read by its poller (default 5), and a row at the budget is
--- skipped and left in the queue "until manual reset of retry_count" — it has no gated exit either.
--- Reproducing the budget in the schema, and deciding who may return a dead-lettered row to pending,
--- are worker-ticket calls that no ruling settles, and they were raised rather than invented here.
--- What IS asserted below is that the state is reachable, readable and undeletable when it arrives.
+-- The transition graph, claim RPC, retry schedule, and retention routine are exercised by
+-- integrations_07_outbox_hardening.sql.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(14);
+select plan(19);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -48,25 +41,30 @@ select is((select count(*)::int from integrations.esb_push
 -- ── A push that failed is drained again ──────────────────────────────────────────────────────
 -- The worker holds service_role, which is who actually writes this transition.
 set local role service_role;
+select is((select count(*)::int from integrations.claim_esb_pushes(array['00000000-0000-0000-0000-00000000ba01'::uuid])), 1,
+  'the worker claims the pending row before recording its outcome');
 select lives_ok($$
   update integrations.esb_push
      set status = 'failed', retry_count = retry_count + 1, last_error = 'ESB timeout'
    where id = '00000000-0000-0000-0000-00000000ba01'
-  $$, 'the worker can record a failure: status, retry count and the error it hit');
+  $$, 'the worker records a retryable failure');
 reset role;
 
 select is((select count(*)::int from integrations.esb_push
-            where id = '00000000-0000-0000-0000-00000000ba01' and status in ('pending','failed')),
-  1, 'a FAILED push is still inside the drain filter — retryable by construction, with nothing to remember to re-queue it');
+            where id = '00000000-0000-0000-0000-00000000ba01' and status = 'failed'
+              and next_attempt_at > clock_timestamp()),
+  1, 'a FAILED push waits outside the claim set until its scheduled retry time');
 
 -- ── A push that succeeded is not ─────────────────────────────────────────────────────────────
 -- The negative half. Without it, a filter that matched everything would pass the assertion above.
 set local role service_role;
+select is((select count(*)::int from integrations.claim_esb_pushes(array['00000000-0000-0000-0000-00000000ba09'::uuid])), 1,
+  'the worker claims a second pending row');
 select lives_ok($$
   update integrations.esb_push
      set status = 'posted', esb_doc_num = 'ESB-OK-0001', posted_at = now(), last_error = null
    where id = '00000000-0000-0000-0000-00000000ba09'
-  $$, 'the worker can close a push it managed to post');
+  $$, 'the worker closes a push it managed to post');
 reset role;
 
 select is((select count(*)::int from integrations.esb_push
@@ -77,11 +75,18 @@ select is((select count(*)::int from integrations.esb_push
 -- B. Dead letter — reachable, terminal to the drain, and still on the operator's screen
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 set local role service_role;
+select lives_ok($$update integrations.esb_push
+  set next_attempt_at = clock_timestamp() - interval '1 second'
+  where id = '00000000-0000-0000-0000-00000000ba01'$$,
+  'the failure reaches its retry time');
+select is(integrations.reap_esb_pushes(), 1, 'the reaper promotes the due retry');
+select is((select count(*)::int from integrations.claim_esb_pushes(array['00000000-0000-0000-0000-00000000ba01'::uuid])), 1,
+  'the worker claims the promoted retry');
 select lives_ok($$
   update integrations.esb_push
      set status = 'dead_letter', retry_count = 5, last_error = 'ESB timeout (retry budget exhausted)'
    where id = '00000000-0000-0000-0000-00000000ba01'
-  $$, 'dead_letter is a reachable state, not a value in a CHECK constraint that nothing can ever hold');
+  $$, 'the worker closes a claimed row as dead-lettered');
 reset role;
 
 select is((select count(*)::int from integrations.esb_push

@@ -4,8 +4,9 @@
 #
 #   */5 * * * * /path/to/scripts/ops-check.sh >> ~/ops-check.log 2>&1
 #
-# Checks: database reachable; ERP outbox dead letters; oldest pending/failed outbox row age;
-# ERP worker heartbeat age (when OPS_ESB_HEARTBEAT_FILE is set); newest nightly dump (when OPS_BACKUP_DIR is set); app URL and auth health endpoint; client-error rows in the last
+# Checks: database reachable; ERP outbox dead letters, claimable-row age, expired leases and
+# sent-row retention; ERP worker heartbeat age (required); newest nightly dump (when
+# OPS_BACKUP_DIR is set); app URL and auth health endpoint; client-error rows in the last
 # 15 minutes (skipped while the log table does not exist). Every coordinate comes from the
 # untracked env file (scripts/ops.env.example, OPS_ENV_FILE); a missing value refuses the run.
 # Self-test: scripts/ops-check.test.sh
@@ -77,11 +78,23 @@ if [ "$(sql 'select 1')" = 1 ]; then
     else report dead_letter ok "no dead-lettered rows"; fi
   else report dead_letter fail "outbox query failed"; fi
 
-  age="$(sql "select coalesce(floor(extract(epoch from now() - min(created_at)) / 60), 0)::int from integrations.esb_push where status in ('pending','failed') $ENV_FILTER")"
+  age="$(sql "select coalesce(floor(extract(epoch from now() - min(created_at)) / 60), 0)::int from integrations.esb_push where status = 'pending' and (next_attempt_at is null or next_attempt_at <= now()) $ENV_FILTER")"
   if [[ "$age" =~ ^[0-9]+$ ]]; then
     if [ "$age" -gt "$PENDING_MAX_MIN" ]; then report pending_age fail "oldest pending ERP row is ${age} min old (limit ${PENDING_MAX_MIN})"
     else report pending_age ok "oldest pending row ${age} min"; fi
   else report pending_age fail "outbox age query failed"; fi
+
+  stuck="$(sql "select count(*) from integrations.esb_push where status = 'in_flight' and locked_at < now() - interval '10 minutes' $ENV_FILTER")"
+  if [[ "$stuck" =~ ^[0-9]+$ ]]; then
+    if [ "$stuck" -gt 0 ]; then report in_flight fail "$stuck in-flight ERP outbox row(s) have expired leases"
+    else report in_flight ok "no expired worker leases"; fi
+  else report in_flight fail "in-flight lease query failed"; fi
+
+  old_sent="$(sql "select count(*) from integrations.esb_push where status = 'posted' and posted_at < now() - interval '30 days' $ENV_FILTER")"
+  if [[ "$old_sent" =~ ^[0-9]+$ ]]; then
+    if [ "$old_sent" -gt 0 ]; then report sent_retention fail "$old_sent sent outbox row(s) exceed the 30-day retention period"
+    else report sent_retention ok "sent rows are within retention"; fi
+  else report sent_retention fail "sent-row retention query failed"; fi
 
   if [ -n "${OPS_CLIENT_ERROR_TABLE:-}" ]; then
     if [ "$(sql "select to_regclass('${OPS_CLIENT_ERROR_TABLE}') is not null")" = t ]; then
@@ -96,8 +109,10 @@ else
   report database fail "production database unreachable"
 fi
 
-# ---- ERP worker heartbeat (unset OPS_ESB_HEARTBEAT_FILE = worker not deployed: skipped) ----
-if [ -n "${OPS_ESB_HEARTBEAT_FILE:-}" ]; then
+# ---- ERP worker heartbeat is required: an unset path is itself a deployment alert ----
+if [ -z "${OPS_ESB_HEARTBEAT_FILE:-}" ]; then
+  report worker_heartbeat fail "ERP worker heartbeat path is not configured"
+else
   hb="$(mtime "$OPS_ESB_HEARTBEAT_FILE")"
   if [[ "$hb" =~ ^[0-9]+$ ]]; then
     hb_age=$(( ( $(date +%s) - hb ) / 60 ))

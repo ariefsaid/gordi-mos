@@ -1,5 +1,6 @@
 import type { RolesRow, PeopleRow } from '@/lib/database.types'
 import { supabase } from '@/lib/supabase'
+import { invalidateReferenceCache, withReferenceCache } from './reference-cache'
 
 // deriveIsManager: true iff any role the viewer holds is the reports_to_role_id of some role
 // that is itself currently held (heldRoleIds). Union over all viewer roles.
@@ -50,10 +51,19 @@ function decodeAccessRolesClaim(accessToken: string | undefined): string[] {
   }
 }
 
-export interface ViewerResult {
-  person: PeopleRow | null
-  roles: RolesRow[]
+type ViewerPersonFields = 'id' | 'org_id' | 'user_id' | 'full_name' | 'must_change_password'
+type ViewerRoleFields = 'id' | 'business_unit_id' | 'name' | 'reports_to_role_id'
+export type ViewerPerson = Pick<PeopleRow, ViewerPersonFields> & Partial<Omit<PeopleRow, ViewerPersonFields>>
+export type ViewerRole = Pick<RolesRow, ViewerRoleFields> & Partial<Omit<RolesRow, ViewerRoleFields>>
+
+interface CachedViewerResult {
+  person: ViewerPerson | null
+  roles: ViewerRole[]
   isManager: boolean
+  affiliated: string[]
+}
+
+export interface ViewerResult extends CachedViewerResult {
   accessRoles: string[]
   /** Café write-affiliation fact (#744): ['cafe'] when the viewer holds a current stream-Team
    *  membership — the ONE answer every nav surface and capture page reads. Empty for unaffiliated
@@ -69,10 +79,20 @@ export interface ViewerResult {
 // - accessToken: optional session JWT; access_roles claim decoded from it (no DB round-trip, FR-071).
 // FR-014/016, FR-070..073.
 export async function resolveViewer(userId: string, accessToken?: string): Promise<ViewerResult> {
-  // 1. Fetch the person row
+  const data = await withReferenceCache(
+    'shared.auth.viewer',
+    () => resolveViewerData(userId),
+    userId ? { identity: `auth:${userId}`, persist: true, staleWhileRevalidate: false } : {},
+  )
+  if (!data.person) invalidateReferenceCache('shared.auth.viewer')
+  return { ...data, accessRoles: data.person ? decodeAccessRolesClaim(accessToken) : [] }
+}
+
+async function resolveViewerData(userId: string): Promise<CachedViewerResult> {
+  // 1. Fetch the fields consumed by the authenticated shell and route gates.
   const { data: person, error: personError } = await supabase
     .from('people')
-    .select('id,org_id,user_id,full_name,email,must_change_password,archived_at,created_at,updated_at')
+    .select('id,org_id,user_id,full_name,must_change_password')
     .eq('user_id', userId)
     .maybeSingle()
 
@@ -80,7 +100,7 @@ export async function resolveViewer(userId: string, accessToken?: string): Promi
     // Warn on RLS/read error so misconfiguration doesn't silently masquerade as an orphan.
     if (personError) console.warn('viewer: person read failed', personError)
     // Orphan: no people row or read error → fail closed, no throw
-    return { person: null, roles: [], isManager: false, accessRoles: [], affiliated: [] }
+    return { person: null, roles: [], isManager: false, affiliated: [] }
   }
 
   // 2. Fetch the person's held role_ids ordered by created_at asc (FR-007 — earliest-assigned first).
@@ -94,10 +114,10 @@ export async function resolveViewer(userId: string, accessToken?: string): Promi
     throw new Error(`resolveViewer: person_roles read failed — ${prError.message}`)
   }
 
-  // 3. Fetch all org roles (no org_id filter — RLS scopes it)
+  // 3. Fetch only the role fields used for the shell label and manager derivation.
   const { data: allRoles, error: rolesError } = await supabase
     .from('roles')
-    .select('id,org_id,business_unit_id,name,reports_to_role_id,created_at,updated_at')
+    .select('id,business_unit_id,name,reports_to_role_id')
 
   if (rolesError) {
     throw new Error(`resolveViewer: roles read failed — ${rolesError.message}`)
@@ -131,7 +151,6 @@ export async function resolveViewer(userId: string, accessToken?: string): Promi
       return safeA - safeB
     })
 
-  const assigned = decodeAccessRolesClaim(accessToken)
   const isManager = deriveIsManager({ viewerRoleIds, roles, heldRoleIds })
   // The affiliation answer resolves ONCE, here (#744 FR-004): shared.is_cafe_affiliated() is the
   // same predicate the write policies consult, so no surface re-derives it. Fail closed: a failed
@@ -141,18 +160,10 @@ export async function resolveViewer(userId: string, accessToken?: string): Promi
     .rpc('is_cafe_affiliated')
   if (affiliationError) console.warn('viewer: affiliation read failed', affiliationError)
   const affiliated = affiliatedRpc === true ? ['cafe'] : []
-  // accessRoles carries STORED access-role grants only (the JWT claim). The derived reporting-line
-  // manager is exposed via the separate `isManager` boolean and MUST NOT be merged in here: since
-  // ADR-0050 the string 'manager' is also a stored financial-visibility grant, and conflating the two
-  // would let every reporting-line manager pass the finance-view gates (canViewRevenue / RequireAccessRole)
-  // onto an empty dashboard (RLS returns zero — their JWT lacks the grant). Keep the two senses distinct.
-  const accessRoles = assigned
-
   return {
     person,
     roles: viewerRoles,
     isManager,
-    accessRoles,
     affiliated,
   }
 }
