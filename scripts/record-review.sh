@@ -82,7 +82,9 @@ owner_reported_ui_reason() {
   local merge_base="$1" changed_files="$2" path branch subjects issue label_json owner_issue="" issue_ids="" ui_file=0
 
   while IFS= read -r path; do
-    [[ "$path" =~ ^mos-app/src/(pages|components|shell)/.+\.(tsx|css)$ ]] || continue
+    # Any app .tsx/.css counts here: an owner-reported fix in a shared stylesheet can break a
+    # sibling page as easily as a page edit.
+    [[ "$path" =~ ^mos-app/src/.+\.(tsx|css)$ ]] || continue
     [[ "$path" == *.test.tsx ]] && continue
     ui_file=1
     break
@@ -90,7 +92,7 @@ owner_reported_ui_reason() {
   [ "$ui_file" -eq 1 ] || return 1
 
   branch="$(git branch --show-current)" || return 2
-  if [[ "$branch" =~ ^[^/]+/([0-9]+)-.+$ ]]; then
+  if [[ "$branch" =~ ^[^/]+/([0-9]+)(-.+)?$ ]]; then
     issue_ids="${BASH_REMATCH[1]}"
   fi
   subjects="$(git log --no-merges --format=%s "$merge_base..HEAD" 2>/dev/null)" || return 2

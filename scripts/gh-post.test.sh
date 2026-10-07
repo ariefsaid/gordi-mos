@@ -117,6 +117,8 @@ check_message "base-like title value cannot impersonate the dev base" 1 no "no f
 check_message "-Bmain is recognized as a non-dev base" 1 no "no full verify stamp" pr create -Bmain --title t --body "clean"
 check_message "conflicting --base and -B values refuse with name-one-base guidance" 1 no "name one base" pr create --base dev -B main --title t --body "clean"
 check_message "concatenated -Bmain conflicts with a dev base" 1 no "name one base" pr create --base dev -Bmain --title t --body "clean"
+check_message "a grouped short flag carrying B refuses" 1 no "grouped" pr create --base dev -dBmain --title t --body "clean"
+check_message "a grouped short flag ending in B refuses" 1 no "grouped" pr create --base dev -dB main --title t --body "clean"
 check "main PR without the full verify stamp refuses" 1 no pr create --base main --title t --body "clean"
 printf '%s' "$head" > "$gitdir/pre-pr-verify-dev-ok"
 check "main PR with only the --dev verify stamp refuses" 1 no pr create --base main --title t --body "clean"

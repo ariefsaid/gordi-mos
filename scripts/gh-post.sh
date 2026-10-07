@@ -191,6 +191,8 @@ if [ "$verb1" = "pr" ] && [ "$verb2" = "create" ]; then
         i=$((i + 1)); candidate="${argv[$i]}" ;;
       --base=*) candidate="${a#--base=}" ;;
       -B?*) candidate="${a#-B}" ;;
+      # gh accepts grouped short flags (-dB main, -dBmain); this door does not parse them.
+      -[!-]*B*) die "grouped short flags with -B are not accepted here — pass the base on its own: --base <branch>" ;;
       *) continue ;;
     esac
     [ -n "$candidate" ] || die "base needs a value"

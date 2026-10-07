@@ -154,6 +154,16 @@ init_owner_ui_repo "$owner_branch_repo" 'fix/123-x' 'small owner-reported UI fix
 check_owner_design 'owner-reported UI issue on branch requires Skills evidence' 1 "$owner_branch_repo" owner 'fixes owner-reported issue #123'
 check_owner_design 'unlabelled linked UI issue stamps without Skills evidence' 0 "$owner_branch_repo" unlabelled ''
 
+owner_bare_repo="$tmp/owner-bare-branch-repo"
+init_owner_ui_repo "$owner_bare_repo" 'fix/125' 'small owner-reported UI fix'
+check_owner_design 'a branch named fix/<n> with no slug is linked' 1 "$owner_bare_repo" owner 'fixes owner-reported issue #125'
+
+owner_css_repo="$tmp/owner-global-css-repo"
+mkdir -p "$owner_css_repo/mos-app/src"; printf 'body{}\n' > "$owner_css_repo/mos-app/src/index.css"
+init_design_repo "$owner_css_repo"; git -C "$owner_css_repo" checkout -qb fix/126-css
+printf 'body{color:red}\n' > "$owner_css_repo/mos-app/src/index.css"; commit_design_change "$owner_css_repo" "global css fix"
+check_owner_design 'an owner-reported fix touching only app-wide CSS requires Skills evidence' 1 "$owner_css_repo" owner 'fixes owner-reported issue #126'
+
 owner_subject_repo="$tmp/owner-subject-ui-repo"
 init_owner_ui_repo "$owner_subject_repo" 'feature/subject-reference' 'tweak page (#124)'
 check_owner_design 'owner-reported issue referenced only in a commit subject requires Skills evidence' 1 "$owner_subject_repo" owner 'fixes owner-reported issue #124'
