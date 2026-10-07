@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // Café DAL (Step 7 / cafe-retrofit.spec.md). Reaches mos via supabase.schema('mos') on the SAME
 // client processes.ts uses — mirrors processes.test.ts's mock harness so getTodayOpeningForTeam's
@@ -79,23 +79,6 @@ beforeEach(() => vi.clearAllMocks())
 const PROCESS_ID = '00000000-0000-0000-0000-00000000c001'
 const TEAM_ID = '00000000-0000-0000-0000-000000005b01'
 const RUN_ID = '00000000-0000-0000-0000-00000000r001'
-
-// ── wibToday (B1) ─────────────────────────────────────────────────────────────
-describe('wibToday', () => {
-  beforeEach(() => vi.useFakeTimers())
-  afterEach(() => vi.useRealTimers())
-
-  it('returns the WIB (+7h) calendar date as YYYY-MM-DD, rolling over past UTC midnight', () => {
-    // 2026-07-17T18:00:00Z + 7h = 2026-07-18T01:00 WIB — the WIB date has already rolled to the 18th.
-    vi.setSystemTime(new Date('2026-07-17T18:00:00Z'))
-    expect(wibToday()).toBe('2026-07-18')
-  })
-
-  it('stays on the same UTC date when the +7h shift does not cross midnight', () => {
-    vi.setSystemTime(new Date('2026-07-17T01:00:00Z')) // 08:00 WIB, same date
-    expect(wibToday()).toBe('2026-07-17')
-  })
-})
 
 // ── getCafeOpeningProcessId (stable Café Opening work-line code) ─────────────
 describe('getCafeOpeningProcessId', () => {

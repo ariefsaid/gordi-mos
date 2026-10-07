@@ -8,12 +8,15 @@ import { daysAgoIsoDate, latestBy } from './reporting-shared'
 describe('daysAgoIsoDate', () => {
   afterEach(() => vi.useRealTimers())
 
-  it('returns an ISO yyyy-mm-dd date `days` before today (UTC)', () => {
+  it.each([
+    ['2026-10-05T16:59:00Z', '2026-10-05'],
+    ['2026-10-05T17:00:00Z', '2026-10-06'],
+    ['2026-10-05T23:59:00Z', '2026-10-06'],
+    ['2026-10-06T00:00:00Z', '2026-10-06'],
+  ])('uses the WIB calendar day at %s', (instant, today) => {
     vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-07-04T12:00:00Z'))
-
-    expect(daysAgoIsoDate(0)).toBe('2026-07-04')
-    expect(daysAgoIsoDate(3)).toBe('2026-07-01')
+    vi.setSystemTime(new Date(instant))
+    expect(daysAgoIsoDate(0)).toBe(today)
   })
 
   it('crosses a month boundary correctly', () => {
