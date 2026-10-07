@@ -53,7 +53,7 @@ begin
     select pg_catalog.pg_get_userbyid(p.proowner) into v_claim_owner
       from pg_catalog.pg_proc p
      where p.oid = pg_catalog.to_regprocedure('integrations.claim_esb_pushes(uuid[])');
-    if current_user <> v_claim_owner then
+    if current_user is distinct from v_claim_owner then
       raise exception 'pending rows enter flight through the claim routine' using errcode = '42501';
     end if;
     new.locked_at := clock_timestamp();
@@ -76,7 +76,7 @@ begin
     select pg_catalog.pg_get_userbyid(p.proowner) into v_reaper_owner
       from pg_catalog.pg_proc p
      where p.oid = pg_catalog.to_regprocedure('integrations.reap_esb_pushes()');
-    if current_user <> v_reaper_owner
+    if current_user is distinct from v_reaper_owner
        or old.locked_at is null
        or old.locked_at >= clock_timestamp() - interval '10 minutes' then
       raise exception 'an active lease cannot return to pending' using errcode = '42501';
@@ -92,7 +92,7 @@ begin
     select pg_catalog.pg_get_userbyid(p.proowner) into v_reaper_owner
       from pg_catalog.pg_proc p
      where p.oid = pg_catalog.to_regprocedure('integrations.reap_esb_pushes()');
-    if current_user <> v_reaper_owner
+    if current_user is distinct from v_reaper_owner
        or old.next_attempt_at is null
        or old.next_attempt_at > clock_timestamp() then
       raise exception 'retry promotion is due through the reaper' using errcode = '42501';
