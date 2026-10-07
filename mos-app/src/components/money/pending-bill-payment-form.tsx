@@ -419,7 +419,7 @@ export function PendingBillPaymentForm({ bill, bills, orgId, onCancel, onSaved, 
 
       <div className="pending-bill-payment-form__actions">
         <Button type="button" variant="outline" onClick={onCancel} disabled={submitting}>{t('common.cancel')}</Button>
-        <Button type="submit" disabled={!canSubmit} aria-busy={submitting || undefined}>
+        <Button type="submit" variant="primary" disabled={!canSubmit} aria-busy={submitting || undefined}>
           {submitting ? t('common.working') : reversePayment ? t('pendingBills.form.reverseSubmit') : t('pendingBills.form.submit')}
         </Button>
       </div>

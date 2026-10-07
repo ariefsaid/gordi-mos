@@ -50,6 +50,7 @@ describe('AC-1134: the payment form names invalid fields and keeps submit off', 
   it('lists required fields, blocks an amount over the balance, then enables a valid payment', async () => {
     renderForm()
     const submit = screen.getByRole('button', { name: 'Record payment' })
+    expect(submit).toHaveClass('btn-primary')
     expect(submit).toBeDisabled()
     expect(screen.getByRole('status')).toHaveTextContent('Amount, Cash-in date, Proof')
 
