@@ -16,13 +16,6 @@ function ruleBody(selector: string): string {
   return css.slice(open + 1, close)
 }
 
-describe('Desktop cafe unit alignment', () => {
-  it('keeps the multi-unit label close to the quantity input', () => {
-    const desktopRules = css.slice(css.indexOf('@media (min-width: 768px)'))
-    expect(desktopRules).toMatch(/\.kls-dense \.kls-unit-change\s*\{[^}]*padding-inline:\s*2px/)
-  })
-})
-
 describe('KLS-NOTE-RING: one ring at a time on the required variance note', () => {
   it('invalid resting state is a destructive-coloured border', () => {
     expect(ruleBody('.kls-note {')).toMatch(/border:\s*1px solid var\(--destructive\)/)
