@@ -1,7 +1,4 @@
-// CheckboxRow — the shared toggleable row for the admin dialog pickers. These tests pin the
-// "Defect 3" whole-row-click invariant at the unit layer (the row markup was previously copied in
-// both pickers; the picker suites still assert it end-to-end as wiring):
-// a click on the label text OR the glyph toggles exactly once; a disabled row never toggles.
+// CheckboxRow keeps native label activation consistent across admin dialog pickers.
 
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
@@ -30,12 +27,16 @@ describe('CheckboxRow', () => {
     const onToggle = vi.fn()
     render(<CheckboxRow label="Bungur" checked={false} disabled onToggle={onToggle} />)
     await user.click(screen.getByText('Bungur'))
-    await user.click(screen.getByRole('checkbox', { name: 'Bungur' }))
+    const checkbox = screen.getByRole('checkbox', { name: 'Bungur' })
+    expect(checkbox).toBeDisabled()
+    await user.click(checkbox)
     expect(onToggle).not.toHaveBeenCalled()
   })
 
-  it('reflects checked state via aria-checked', () => {
+  it('exposes checked state through the native checkbox', () => {
     render(<CheckboxRow label="Whole POS" checked onToggle={() => {}} />)
-    expect(screen.getByRole('checkbox', { name: 'Whole POS' })).toHaveAttribute('aria-checked', 'true')
+    const checkbox = screen.getByRole('checkbox', { name: 'Whole POS' })
+    expect(checkbox.tagName).toBe('INPUT')
+    expect(checkbox).toBeChecked()
   })
 })

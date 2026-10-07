@@ -10,7 +10,7 @@ vi.mock('../supabase', () => {
 
 import {
   listTasks, getTask, createTask,
-  updateTaskStatus, updateTaskFields, updateTaskRaci,
+  updateTaskStatus, updateTaskFields,
   archiveTask, unarchiveTask,
   addChecklistItem, toggleChecklistItem, reorderChecklistItem, deleteChecklistItem,
   searchTasksByTitle, getTaskTitlesByIds,
@@ -33,6 +33,8 @@ interface Recorder {
   orders: Array<[string, unknown]>
   ilikes: Array<[string, unknown]>
   limits: number[]
+  ors: string[]
+  lts: Array<[string, unknown]>
 }
 
 function makeSchema(responses: Record<string, { data: unknown; error: unknown }[]>, rec: Recorder) {
@@ -57,6 +59,8 @@ function makeSchema(responses: Record<string, { data: unknown; error: unknown }[
     builder.in = vi.fn((c: string, v: unknown) => { rec.eqs.push([c, v]); return builder })
     builder.ilike = vi.fn((c: string, v: unknown) => { rec.ilikes.push([c, v]); return builder })
     builder.limit = vi.fn((n: number) => { rec.limits.push(n); return builder })
+    builder.or = vi.fn((filter: string) => { rec.ors.push(filter); return builder })
+    builder.lt = vi.fn((c: string, v: unknown) => { rec.lts.push([c, v]); return builder })
     builder.order = vi.fn((c: string, o: unknown) => { rec.orders.push([c, o]); return builder })
     builder.single = vi.fn(() => Promise.resolve(result()))
     builder.maybeSingle = vi.fn(() => Promise.resolve(result()))
@@ -71,7 +75,7 @@ function makeSchema(responses: Record<string, { data: unknown; error: unknown }[
 function freshRec(): Recorder {
   return {
     fromTables: [], selects: [], eqs: [], inserts: [], updates: [], deletes: [],
-    orders: [], ilikes: [], limits: [],
+    orders: [], ilikes: [], limits: [], ors: [], lts: [],
   }
 }
 
@@ -120,7 +124,7 @@ function noOrgId(rec: Recorder) {
 
 // ── listTasks ───────────────────────────────────────────────────────────────
 describe('listTasks', () => {
-  it('selects every list-required Task field without description or list clocks and stays unbounded', async () => {
+  it('selects list fields and applies the active-plus-recent-Done window with a safe row limit', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(makeSchema({ tasks: [{ data: [], error: null }] }, rec) as never)
 
@@ -128,7 +132,8 @@ describe('listTasks', () => {
 
     expect(rec.fromTables).toEqual(['tasks'])
     expect(rec.selects).toEqual([TASK_LIST_SELECT])
-    expect(rec.limits).toEqual([])
+    expect(rec.ors[0]).toMatch(/^status\.neq\.Done,completed_at\.gte\./)
+    expect(rec.limits).toEqual([1000])
   })
 
   it('AC-C1: returns raw task rows (no cross-schema embeds), active-only + due asc, never sends org_id', async () => {
@@ -146,7 +151,9 @@ describe('listTasks', () => {
     expect(sel).not.toContain('accountable:people')
     // active-only by default (archived_at is null) and due_date ascending
     expect(rec.eqs).toContainEqual(['archived_at', null])
+    expect(rec.ors[0]).toMatch(/^status\.neq\.Done,completed_at\.gte\./)
     expect(rec.orders[0][0]).toBe('due_date')
+    expect(rec.limits).toEqual([1000])
     noOrgId(rec)
   })
 
@@ -163,6 +170,12 @@ describe('listTasks', () => {
     expect(rec.eqs.find(([c]) => c === 'responsible_person_id')).toBeUndefined()
     // includeArchived → no archived_at filter
     expect(rec.eqs.find(([c]) => c === 'archived_at')).toBeUndefined()
+  })
+
+  it('rejects a list that reaches the safe row cap rather than presenting a potentially truncated set', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ tasks: [{ data: Array.from({ length: 1000 }, () => sampleTask), error: null }] }, rec) as never)
+    await expect(listTasks()).rejects.toThrow(/safe row limit/)
   })
 
   it('throws on a non-null PostgREST error', async () => {
@@ -443,18 +456,6 @@ describe('update mutations', () => {
     await updateTaskFields(TASK_ID, { team_id: 'team-2' }, ACTOR, 'team-1')
     expect(rec.updates[0]).toEqual({ team_id: 'team-2' })
     expect((rec.inserts[0] as Record<string, unknown>).event_type).toBe('field_edited')
-  })
-
-  it('updateTaskRaci updates consulted/informed arrays then logs a raci_edited event', async () => {
-    const rec = freshRec()
-    schemaMock.mockReturnValue(makeSchema({
-      tasks: [{ data: null, error: null }],
-      task_events: [{ data: null, error: null }],
-    }, rec) as never)
-    await updateTaskRaci(TASK_ID, { consulted_person_ids: ['p1'], informed_person_ids: ['p2'] }, ACTOR)
-    expect(rec.updates[0]).toEqual({ consulted_person_ids: ['p1'], informed_person_ids: ['p2'] })
-    expect((rec.inserts[0] as Record<string, unknown>).event_type).toBe('raci_edited')
-    noOrgId(rec)
   })
 
   it('updateTaskStatus throws if the update errors', async () => {

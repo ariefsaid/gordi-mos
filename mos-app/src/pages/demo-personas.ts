@@ -26,8 +26,9 @@ export const DEMO_PERSONAS: ReadonlyArray<{ label: string; email: string }> = [
 // The staging importer rewrites each seeded address to <local>@sample.gordi.test and assigns
 // these accounts to the separate Gordi Sample organisation; never use live staff addresses.
 export const SAMPLE_ORG_ID = '5a000000-0000-0000-0000-000000000001'
+const SAMPLE_EMAIL_DOMAIN = '@sample.gordi.test'
 export const SAMPLE_PERSONAS: ReadonlyArray<{ label: string; email: string }> = DEMO_PERSONAS.map(
-  ({ label, email }) => ({ label, email: email.replace(/\.dev@example\.test$/, '@sample.gordi.test') }),
+  ({ label, email }) => ({ label, email: email.replace(/\.dev@example\.test$/, SAMPLE_EMAIL_DOMAIN) }),
 )
 
 const SAMPLE_LOGIN_HOSTS = new Set(['gordi-mos.pages.dev', 'gordi-cafe-ops.pages.dev'])
@@ -58,13 +59,22 @@ export function demoLoginMode(
 
 // Decode-only: Supabase has already authenticated the session. A missing or different claim
 // cannot turn a staging sample-button click into a real-org session.
-export function isSampleSession(accessToken: string | undefined): boolean {
+function tokenClaims(accessToken: string | undefined): { org_id?: unknown; email?: unknown } {
   try {
     const payload = accessToken?.split('.')[1]
-    if (!payload) return false
-    const claims = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/'))) as { org_id?: unknown }
-    return claims.org_id === SAMPLE_ORG_ID
+    if (!payload) return {}
+    return JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/'))) as { org_id?: unknown; email?: unknown }
   } catch {
-    return false
+    return {}
   }
+}
+
+export function isSampleSession(accessToken: string | undefined): boolean {
+  return tokenClaims(accessToken).org_id === SAMPLE_ORG_ID
+}
+
+// A sample account belongs only in the sample org, whichever way it signed in.
+export function isSampleAccountOutsideSampleOrg(accessToken: string | undefined): boolean {
+  const { email, org_id } = tokenClaims(accessToken)
+  return typeof email === 'string' && email.toLowerCase().endsWith(SAMPLE_EMAIL_DOMAIN) && org_id !== SAMPLE_ORG_ID
 }

@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsDesktop } from '@/shell/use-is-desktop'
@@ -9,7 +8,7 @@ import { useT } from '@/i18n/use-t'
 import { useCafeStream } from '@/lib/use-cafe-stream'
 import { canCaptureCafe } from '@/lib/cafe-affiliation'
 import { canPushCafe } from '@/lib/kitchen-gates'
-import { formatUnitMultiple, fromDefaultUnitQuantity, toDefaultUnitQuantity } from '@/lib/cafe-unit-multiples'
+import { formatUnitMultiple, toDefaultUnitQuantity } from '@/lib/cafe-unit-multiples'
 import { streamKey, streamLabel } from '@/lib/kitchen-action-label'
 import { listCafeItemSettings, toCafeLogItem } from '@/lib/db/cafe-item-settings'
 import { insertKitchenLog, resolveKitchenBuId } from '@/lib/db/kitchen-logs'
@@ -24,7 +23,7 @@ import type { KitchenWasteDraft, KitchenWastePhoto } from '@/lib/db/kitchen-wast
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { wibToday } from '@/lib/db/cafe-opening'
 import { formatDayMonthYear, formatWeekdayDayMonth } from '@/lib/format/date'
-import { useSearchParamState } from '@/lib/use-search-param-state'
+import { useSearchParamReset, useSearchParamState } from '@/lib/use-search-param-state'
 import {
   useKitchenItemTable,
   kitchenDataTableGroups,
@@ -38,7 +37,10 @@ import { CafeStreamBar, CafeStreamChoices } from '@/components/kitchen/cafe-stre
 import { WastePhotoCapture } from '@/components/kitchen/waste-photo-capture'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
 import { Select } from '@/components/ui/select'
+import { QuantityField } from '@/components/ui/quantity-field'
+import { parseQuantityInput } from '@/lib/quantity-parser'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
+import { CafeItemsEmptyState } from '@/components/kitchen/cafe-items-empty-state'
 import { RouteLeaveGuard } from '@/shell/route-leave-guard'
 import './kitchen-log-page.css'
 import './cafe-waste-page.css'
@@ -66,15 +68,12 @@ type PageLoadState = 'loading' | 'ready' | 'error'
 const WASTE_KIND_OPTIONS: readonly KitchenItemKindFilter[] = ['All', 'WIP', 'RAW']
 
 function quantityValue(raw: string): number | null {
-  if (!raw.trim()) return null
-  const quantity = Number(raw.trim().replace(',', '.'))
-  return Number.isFinite(quantity) && quantity > 0 ? quantity : null
-}
-
-function isInvalidQuantity(raw: string): boolean {
-  if (!raw.trim()) return false
-  const value = Number(raw.trim().replace(',', '.'))
-  return !Number.isFinite(value) || value < 0
+  const parsed = parseQuantityInput(raw, {
+    min: 0,
+    maxIntegerDigits: 10,
+    maxFractionDigits: 2,
+  })
+  return parsed.kind === 'valid' && parsed.value > 0 ? parsed.value : null
 }
 
 function initialEntries(items: readonly CafeLogItem[]): Record<string, WasteEntry> {
@@ -159,8 +158,11 @@ export function CafeWastePage() {
   const [loadRetry, setLoadRetry] = useState(0)
   const [catalogReady, setCatalogReady] = useState(false)
   const [items, setItems] = useState<CafeLogItem[]>([])
+  const [esbItemCount, setEsbItemCount] = useState(0)
   const [businessUnitId, setBusinessUnitId] = useState('')
   const [entries, setEntries] = useState<Record<string, WasteEntry>>({})
+  const [invalidQuantityIds, setInvalidQuantityIds] = useState<Set<string>>(new Set())
+  const [focusInvalidId, setFocusInvalidId] = useState<string | null>(null)
   const [resumableDrafts, setResumableDrafts] = useState<KitchenWasteDraft[]>([])
   const [submitError, setSubmitError] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -171,6 +173,7 @@ export function CafeWastePage() {
   const [search, setSearch] = useSearchParamState('q', '')
   const [kindFilter, setKindFilter] = useSearchParamState('kind', 'All')
   const [category, setCategory] = useSearchParamState('category', 'All')
+  const resetSearchFilters = useSearchParamReset(['q', 'kind', 'category'])
   // Kind/category controls remain visible on phone, including for receiving-only streams, so
   // their URL-backed values must filter the compact list just as they do on desktop.
   const effectiveKind: KitchenItemKindFilter = kindFilter === 'WIP' || kindFilter === 'RAW' ? kindFilter : 'All'
@@ -215,6 +218,8 @@ export function CafeWastePage() {
     setLoadState('loading')
     setItems([])
     setEntries({})
+    setInvalidQuantityIds(new Set())
+    setFocusInvalidId(null)
     setBusinessUnitId('')
     setResumableDrafts([])
     if (!stream) {
@@ -236,6 +241,7 @@ export function CafeWastePage() {
         return item ? [item] : []
       })
       setItems(nextItems)
+      setEsbItemCount(settings.length)
       setEntries(initialEntries(nextItems))
       const offeredItemIds = new Set(nextItems.map(item => item.id))
       setResumableDrafts(drafts.filter(draft => offeredItemIds.has(draft.itemId)))
@@ -283,13 +289,14 @@ export function CafeWastePage() {
     submitted: line.entry.submitted,
   }))
   const formatWasteQty = (quantity: number) => new Intl.NumberFormat(
-    document.documentElement.lang || 'en', { maximumFractionDigits: 3 },
+    document.documentElement.lang || 'en', { useGrouping: false, maximumFractionDigits: 2 },
   ).format(quantity)
   const remaining = staged.filter(line => !line.entry.submitted)
   const allPhotosReady = remaining.length > 0 && remaining.every(line => line.entry.logId && line.entry.photoReady)
-  const allSubmitted = staged.length > 0 && remaining.length === 0
+  const allSubmitted = staged.length > 0 && remaining.length === 0 && invalidQuantityIds.size === 0
   const submittedCount = staged.length - remaining.length
-  const hasPendingCapture = staged.length > 0
+  const invalidQuantityCount = invalidQuantityIds.size
+  const hasPendingCapture = staged.length > 0 || invalidQuantityCount > 0
 
   const patchEntry = useCallback((itemId: string, patch: Partial<WasteEntry>) => {
     setEntries(current => {
@@ -297,6 +304,32 @@ export function CafeWastePage() {
       return entry ? { ...current, [itemId]: { ...entry, ...patch } } : current
     })
   }, [])
+
+  const reportQuantityValidity = useCallback((itemId: string, valid: boolean) => {
+    setInvalidQuantityIds(current => {
+      if (current.has(itemId) === !valid) return current
+      const next = new Set(current)
+      if (valid) next.delete(itemId)
+      else next.add(itemId)
+      return next
+    })
+  }, [])
+
+  function focusFirstInvalidQuantity() {
+    const itemId = Array.from(invalidQuantityIds).find(id => items.some(item => item.id === id))
+    if (!itemId) return
+    resetSearchFilters()
+    setFocusInvalidId(itemId)
+  }
+
+  useLayoutEffect(() => {
+    if (!focusInvalidId) return
+    const field = document.getElementById(`cafe-waste-qty-${focusInvalidId}`)
+    if (!field) return
+    field.scrollIntoView?.({ block: 'center' })
+    field.focus()
+    setFocusInvalidId(null)
+  }, [focusInvalidId, search, effectiveKind, effectiveCategory, items])
 
   // Stable callback identities keep readiness effects from firing again on every parent entry update.
   const photoReadyCallbacks = useMemo(() => new Map(items.map(item => [item.id, (ready: boolean) => {
@@ -318,17 +351,10 @@ export function CafeWastePage() {
     setEntries(current => {
       const entry = current[item.id]
       if (!entry || entry.logId || entry.preparing || entry.submitted) return current
-      const currentFactor = entry.unitFactor ?? 1
-      const enteredQuantity = quantityValue(entry.quantity)
-      const canonical = enteredQuantity === null ? null : toDefaultUnitQuantity(enteredQuantity, currentFactor)
-      const nextQuantity = canonical === null
-        ? entry.quantity
-        : String(nextFactor === 1 ? canonical : fromDefaultUnitQuantity(canonical, nextFactor))
       return {
         ...current,
         [item.id]: {
           ...entry,
-          quantity: nextQuantity,
           unitId: item.defaultUnit.id,
           unitFactor: nextFactor,
           unitBasisKnown: true,
@@ -487,6 +513,8 @@ export function CafeWastePage() {
 
   function startAnotherLog() {
     setEntries(initialEntries(items))
+    setInvalidQuantityIds(new Set())
+    setFocusInvalidId(null)
     setSubmitError(false)
   }
 
@@ -543,6 +571,7 @@ export function CafeWastePage() {
           isOnline={isOnline}
           disabled={submitting || loadState !== 'ready'}
           onQuantityChange={value => patchEntry(item.id, { quantity: value, error: undefined })}
+          onQuantityValidityChange={valid => reportQuantityValidity(item.id, valid)}
           onUnitChange={choice => changeWasteEntryUnit(item, choice)}
           onPrepare={() => void prepareEntry(item)}
         />
@@ -566,6 +595,7 @@ export function CafeWastePage() {
           isOnline={isOnline}
           disabled={submitting || loadState !== 'ready'}
           onQuantityChange={value => patchEntry(item.id, { quantity: value, error: undefined })}
+          onQuantityValidityChange={valid => reportQuantityValidity(item.id, valid)}
           onUnitChange={choice => changeWasteEntryUnit(item, choice)}
           onPrepare={() => void prepareEntry(item)}
         />
@@ -594,7 +624,7 @@ export function CafeWastePage() {
     >
       <div className="kl-page cwl-page kl-capture-wide cafe-capture-content">
         <div className="kl-capture-main">
-        <RouteLeaveGuard when={remaining.length > 0} message={t('kitchen.log.leave.confirm')} />
+        <RouteLeaveGuard when={remaining.length > 0 || invalidQuantityCount > 0} message={t('kitchen.log.leave.confirm')} />
         {!isOnline && <div role="alert" className="kl-banner kl-banner-offline">{t('kitchen.log.offline.banner')}</div>}
 
         {loadState === 'loading' && <LoadingShell />}
@@ -674,11 +704,7 @@ export function CafeWastePage() {
             )}
 
             {items.length === 0 ? (
-              <EmptyState variant="blank" title={t('kitchen.waste.empty.title')} copy={t('kitchen.waste.empty.copy')}>
-                <Link to="/cafe/items" className="btn btn-outline btn-touch">
-                  {t('kitchen.log.missing.destination')}
-                </Link>
-              </EmptyState>
+              <CafeItemsEmptyState stream={stream} esbItemCount={esbItemCount} />
             ) : (
               <>
                 <KitchenToolbar
@@ -736,6 +762,13 @@ export function CafeWastePage() {
                   </span>
                 </div>
               </div>
+              {invalidQuantityCount > 0 && (
+                <p className="kl-submit-reason" role="status" aria-live="polite">
+                  <button type="button" className="kl-submit-reason kl-note-pointer" onClick={focusFirstInvalidQuantity}>
+                    {t(invalidQuantityCount === 1 ? 'quantityField.fixing.one' : 'quantityField.fixing.other', { count: invalidQuantityCount })}
+                  </button>
+                </p>
+              )}
               {allSubmitted ? (
                 <button type="button" className="btn btn-outline" onClick={startAnotherLog}>
                   {t('kitchen.waste.newLog')}
@@ -786,6 +819,7 @@ function WasteItemControls({
   isOnline,
   disabled,
   onQuantityChange,
+  onQuantityValidityChange,
   onUnitChange,
   onPrepare,
 }: {
@@ -795,6 +829,7 @@ function WasteItemControls({
   isOnline: boolean
   disabled: boolean
   onQuantityChange: (quantity: string) => void
+  onQuantityValidityChange: (valid: boolean) => void
   onUnitChange: (choice: string) => void
   onPrepare: () => void
 }) {
@@ -816,7 +851,6 @@ function WasteItemControls({
     ? `multiple:${String(current.unitFactor)}`
     : current.unitId
   const locked = Boolean(current.logId || current.preparing || current.submitted)
-  const invalid = isInvalidQuantity(current.quantity)
   const quantity = quantityValue(current.quantity)
   const editable = canCapture && isOnline && !disabled && !locked
   const needsQuantity = editable && quantity === null
@@ -828,42 +862,45 @@ function WasteItemControls({
         {t('kitchen.waste.quantityFor', { item: item.name })}
       </label>
       <div className="cwl-quantity-row">
-        <input
+        <QuantityField
           id={inputId}
+          label={t('kitchen.waste.quantityFor', { item: item.name })}
           className="cwl-quantity-input tabular"
-          type="number"
-          inputMode="decimal"
-          min="0"
-          step="any"
-          value={current.quantity}
-          aria-invalid={invalid || undefined}
+          value={quantity ?? 0}
+          onChange={next => onQuantityChange(next > 0 ? String(next) : '')}
+          onInvalid={(_reason, raw) => onQuantityChange(raw)}
+          onValidityChange={onQuantityValidityChange}
+          initialDraft={quantity === null && current.quantity !== '' ? current.quantity : undefined}
+          suffixPosition="below"
+          suffix={showUnitPicker ? (
+            <Select
+              id={unitId}
+              className="cwl-unit-select"
+              aria-label={t('kitchen.waste.unitFor', { item: item.name })}
+              value={selectedChoice}
+              disabled={!editable}
+              onChange={event => onUnitChange(event.target.value)}
+            >
+              {historicalUnit && <option value={current.unitId}>{entry?.capturedUnitName}</option>}
+              <option value={item.defaultUnit.id}>{displayUnit(selectedUnit, t)} · {t('cafe.items.defaultTag')}</option>
+              {item.multiples.map(factor => (
+                <option key={`multiple:${factor}`} value={`multiple:${String(factor)}`}>
+                  {formatUnitMultiple(factor, item.defaultUnit.name, document.documentElement.lang || undefined)}
+                </option>
+              ))}
+            </Select>
+          ) : (
+            <span className="cwl-unit-label" aria-label={t('kitchen.waste.unitFor', { item: item.name })}>
+              {selectedUnitLabel}
+            </span>
+          )}
+          maxIntegerDigits={10}
+          maxFractionDigits={2}
+          min={0}
           disabled={!editable}
-          onChange={event => onQuantityChange(event.target.value)}
+          errorClassName="cwl-field-error"
         />
-        {showUnitPicker ? (
-          <Select
-            id={unitId}
-            className="cwl-unit-select"
-            aria-label={t('kitchen.waste.unitFor', { item: item.name })}
-            value={selectedChoice}
-            disabled={!editable}
-            onChange={event => onUnitChange(event.target.value)}
-          >
-            {historicalUnit && <option value={current.unitId}>{entry?.capturedUnitName}</option>}
-            <option value={item.defaultUnit.id}>{displayUnit(selectedUnit, t)} · {t('cafe.items.defaultTag')}</option>
-            {item.multiples.map(factor => (
-              <option key={`multiple:${factor}`} value={`multiple:${String(factor)}`}>
-                {formatUnitMultiple(factor, item.defaultUnit.name, document.documentElement.lang || undefined)}
-              </option>
-            ))}
-          </Select>
-        ) : (
-          <span className="cwl-unit-label" aria-label={t('kitchen.waste.unitFor', { item: item.name })}>
-            {selectedUnitLabel}
-          </span>
-        )}
       </div>
-      {invalid && <span className="cwl-field-error" role="alert">{t('kitchen.waste.quantityInvalid')}</span>}
       {current.error && <span className="cwl-field-error" role="alert">{current.error}</span>}
       {current.logId && !current.submitted && (
         <p className="cwl-lock-note">

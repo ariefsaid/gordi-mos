@@ -10,10 +10,21 @@
 
 .pqf {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   flex: 0 0 auto;
 }
+
+/* Keep the unit label beside the field; inline feedback gets a full readable line below both. */
+.pqf .quantity-field { flex: 0 0 auto; width: auto; }
+.pqf .quantity-field-control--inline { gap: 8px; }
+.pqf .quantity-field:has(.quantity-field-error) {
+  flex: 1 1 100%;
+  width: 100%;
+  max-width: 18rem;
+}
+.pqf-qty[aria-invalid='true'] { border-color: var(--destructive); }
 
 /* 44px touch floor; 16px type so mobile Safari does not zoom the viewport on focus. */
 .pqf-qty {
@@ -50,6 +61,14 @@
 /* Unit label beside the typed quantity ("porsi"). Quiet — it names the unit, it is not data. */
 .pqf-unit {
   flex: 0 0 auto;
+  text-align: start;
   font-size: var(--font-size-label);
   color: var(--muted-foreground);
 }
+/* In the desktop table the fields share one column: a fixed minimum keeps them on one edge whatever
+   the ESB unit is called. */
+.pqf-dense .pqf-unit { min-inline-size: 14ch; }
+/* A phone card holds one field: the unit sits under it, so a long ESB unit ("Batch @50porsi") takes
+   no width from the item name beside it. */
+.pqf:not(.pqf-dense) { flex-direction: column; align-items: flex-end; gap: 4px; }
+.pqf:not(.pqf-dense) .pqf-unit { text-align: end; }

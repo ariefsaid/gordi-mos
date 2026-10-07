@@ -11,7 +11,7 @@
 # Missing policy file = refuse (fail closed). A match = refuse, no override flag on purpose:
 # reword the text or take it to the owner. Rationale: docs/decisions.md (2026-08-27).
 #
-# PR stamps checked on `pr create` (FOUR, OD-WAY-83):
+# PR stamps checked on `pr create` and on the REST create `api repos/<this>/pulls` (FOUR, OD-WAY-83):
 #   <git-dir>/pre-pr-verify-ok                    HEAD sha    (scripts/pre-pr-verify.sh; a PR with
 #                                                             --base dev may carry pre-pr-verify-dev-ok
 #                                                             from scripts/pre-pr-verify.sh --dev)
@@ -50,6 +50,33 @@ case "$verb1 $verb2" in
   *) die "'$verb1 $verb2' is not in the allowlist — this door permits the writes the repo actually uses (issue/pr create·comment·edit·close·reopen·review, api). Canonical verbs only, no aliases. Extend scripts/gh-post.sh deliberately if this write is legitimate." ;;
 esac
 
+# ── api argv is parsed exactly as gh parses it, so the path, method and fields the door checks are
+# the ones gh sends: the endpoint comes straight after `api`, and every flag is one gh documents.
+# A short-flag cluster (`-iXPOST`) or a decoy flag value would otherwise slip a second meaning past.
+api_method="" api_input=0 api_fields=()
+if [ "$verb1" = "api" ]; then
+  [ "${1:-}" = "api" ] && [ "${2:-}" = "$verb2" ] || die "'api' must come first, with the endpoint straight after it"
+  argv=("$@")
+  for ((i = 2; i < ${#argv[@]}; i++)); do
+    a="${argv[$i]}" val=""
+    case "$a" in
+      -X|--method|-f|--raw-field|-F|--field|-H|--header|-p|--preview|-q|--jq|-t|--template|--cache|--input)
+        [ $((i + 1)) -lt ${#argv[@]} ] || die "'$a' needs a value"
+        i=$((i + 1)); val="${argv[$i]}"; flag="$a" ;;
+      --method=*|--raw-field=*|--field=*|--header=*|--preview=*|--jq=*|--template=*|--cache=*|--input=*)
+        flag="${a%%=*}"; val="${a#*=}" ;;
+      -[XfFHpqt]?*) flag="${a:0:2}"; val="${a:2}" ;;
+      -i|--include|--paginate|--silent|--slurp|--verbose) continue ;;
+      *) die "'api' argument '$a' is not one this door parses — pass each flag separately, after the endpoint" ;;
+    esac
+    case "$flag" in
+      -X|--method) api_method="$val" ;;
+      -f|--raw-field|-F|--field) api_fields+=("$val") ;;
+      --input) api_input=1 ;;
+    esac
+  done
+fi
+
 # ── Collect every outbound string: all argv, plus the contents of any file-carrying flag
 # (--body-file / --input / -F key=@file, in space or equals form). Stdin payloads ('-') are
 # refused outright — text the scanner can't see is text that doesn't leave.
@@ -64,6 +91,11 @@ for ((i = 0; i < ${#args[@]}; i++)); do
     -F|--field) v="${args[$((i + 1))]:-}" ;;
     -F?*) v="${a#-F}" ;;
     --field=*) v="${a#--field=}" ;;
+  esac
+  # On issue/pr verbs -F is --body-file.
+  [ "$verb1" = "api" ] || case "$a" in
+    -F) f="${args[$((i + 1))]:-}" ;;
+    -F?*) f="${a#-F}" ;;
   esac
   case "$v" in *=@*) f="${v#*=@}" ;; esac
   if [ -n "$f" ]; then
@@ -86,13 +118,17 @@ done < "$denylist"
 # ── Repo scope: every write through this door lands in THIS checkout's repo. An `api` path must
 # name it (repos/<owner>/<name>/…); a --repo on any other verb must equal it. A caller acting on
 # text found in an issue or PR body cannot redirect a write elsewhere.
-this_repo="$(git remote get-url origin 2>/dev/null | sed -E 's#^(https://github\.com/|git@github\.com:)##; s#\.git$##')"
+source "$(dirname "$0")/lib/github-repo.sh"
+this_repo="$(origin_repo)"
 [ -n "$this_repo" ] || die "this checkout has no GitHub origin — the door scopes every write to it"
 # gh resolves the repo and host from these before any flag or remote; the door never lets them.
 [ -z "${GH_REPO:-}" ] || die "GH_REPO is set — the door resolves the repo from this checkout only"
 [ -z "${GH_HOST:-}" ] || die "GH_HOST is set — the door writes to github.com only"
 for a in "$@"; do case "$a" in --hostname|--hostname=*) die "--hostname is refused — the door writes to github.com only" ;; esac; done
 if [ "$verb1" = "api" ]; then
+  case "${verb2%%\?*}" in
+    *"//"*|*[!A-Za-z0-9/_.-]*) die "'api $verb2' carries an empty segment or a character outside [A-Za-z0-9/_.-] — the path must name the target directly" ;;
+  esac
   case "$verb2" in
     *"/../"*|*"/./"*|*"/.."|*"/.") die "'api $verb2' carries a dot segment — the path must name the target directly" ;;
     repos/"$this_repo"/*|/repos/"$this_repo"/*) ;;
@@ -112,27 +148,16 @@ fi
 
 
 # ── PR creation: all four stamps must certify the exact HEAD being PRed — and a pr create may only
-# target THIS checkout: the stamps certify HEAD here, nothing else.
-if [ "$verb1" = "pr" ] && [ "$verb2" = "create" ]; then
-  for a in "$@"; do
-    case "$a" in
-      --repo|--repo=*|-R|-R?*|--head|--head=*|-H|-H?*|--hostname|--hostname=*)
-        die "'pr create' through this door targets the current checkout on the default host only — no --repo/--head/--hostname (the stamps certify HEAD here). cd to the branch's checkout instead." ;;
-    esac
-  done
+# target THIS checkout: the stamps certify HEAD here, nothing else. The REST create
+# (`api repos/<this>/pulls`, the route cloud sessions use where GraphQL is blocked) passes the same gate.
+require_pr_stamps() { # $1 base branch ('' when none named)
+  local base_val="$1" gitdir head v vd r lens
   gitdir="$(git rev-parse --git-dir)" || die "not a git repo"
   head="$(git rev-parse HEAD)"
   # Promotion carve-out (/release §4b): a PR into staging FROM main carries content the release
   # PR already four-stamped and the owner ratified — main's merge commit itself can never hold
   # stamps. CI on the staging PR still gates. Any other route into staging needs the stamps.
-  base_val="" prev=""
-  for a in "$@"; do
-    case "$prev" in --base) base_val="$a"; prev=""; continue ;; esac
-    case "$a" in --base) prev="$a" ;; --base=*) base_val="${a#--base=}" ;; esac
-  done
-  exec_promotion=0
-  [ "$base_val" = "staging" ] && [ "$(git branch --show-current)" = "main" ] && exec_promotion=1
-  if [ "$exec_promotion" = 0 ]; then
+  [ "$base_val" = "staging" ] && [ "$(git branch --show-current)" = "main" ] && return 0
   v="$(cat "$gitdir/pre-pr-verify-ok" 2>/dev/null || true)"
   vd="$(cat "$gitdir/pre-pr-verify-dev-ok" 2>/dev/null || true)"
   # The light stamp (scripts/pre-pr-verify.sh --dev) certifies a PR into dev only, where CI is the
@@ -145,6 +170,40 @@ if [ "$verb1" = "pr" ] && [ "$verb2" = "create" ]; then
     r="$(awk '{print $1}' "$gitdir/independent-review-$lens-ok" 2>/dev/null || true)"
     [ "$r" = "$head" ] || die "no $lens lens stamp for HEAD — a reviewer that did not write this branch records each lens: bash scripts/record-review.sh --lens $lens --reviewer <glm/luna/opus…> --artifact <record>"
   done
+}
+
+if [ "$verb1" = "pr" ] && [ "$verb2" = "create" ]; then
+  for a in "$@"; do
+    case "$a" in
+      --repo|--repo=*|-R|-R?*|--head|--head=*|-H|-H?*|--hostname|--hostname=*)
+        die "'pr create' through this door targets the current checkout on the default host only — no --repo/--head/--hostname (the stamps certify HEAD here). cd to the branch's checkout instead." ;;
+    esac
+  done
+  base_val="" prev=""
+  for a in "$@"; do
+    case "$prev" in --base) base_val="$a"; prev=""; continue ;; esac
+    case "$a" in --base) prev="$a" ;; --base=*) base_val="${a#--base=}" ;; esac
+  done
+  require_pr_stamps "$base_val"
+fi
+
+if [ "$verb1" = "api" ]; then
+  path="${verb2#/}"; path="${path%%\?*}"; path="${path%/}"
+  # Only an explicit GET reads the pulls collection; anything else may create a PR.
+  if [ "$path" = "repos/$this_repo/pulls" ] && [ "$(printf '%s' "$api_method" | tr '[:lower:]' '[:upper:]')" != "GET" ]; then
+    [ "$api_input" = 0 ] || die "REST PR create must pass base/head as -f fields — an --input payload hides them from the stamp check"
+    base_val="" head_val=""
+    for kv in "${api_fields[@]}"; do
+      case "$kv" in
+        base=*) base_val="${kv#base=}" ;;
+        head=*) head_val="${kv#head=}" ;;
+        head_repo=*) die "REST PR create through this door targets this checkout only — no head_repo" ;;
+      esac
+    done
+    branch="$(git branch --show-current)"
+    [ -n "$branch" ] && { [ "$head_val" = "$branch" ] || [ "$head_val" = "${this_repo%%/*}:$branch" ]; } \
+      || die "REST PR create must name head=<this checkout's branch> ('$branch') — the stamps certify HEAD here"
+    require_pr_stamps "$base_val"
   fi
 fi
 

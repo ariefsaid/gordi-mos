@@ -81,7 +81,9 @@ for (const locale of ['en','id']) for (const width of [390,768,1280,1440]) {
         await expect(back).toHaveCount(1)
         await expect(back).toHaveAttribute('href', new RegExp(`/work/${collection}$`))
         await back.click()
-        await expect(page).toHaveURL(new RegExp(`/work/${collection}$`))
+        // The collection canonicalises its own layout into the URL once mounted (use-record-collection),
+        // so Back lands on the bare path or on it with that one param, depending on timing.
+        await expect(page).toHaveURL(new RegExp(`/work/${collection}(\\?layout=list)?$`))
         await expect(rowLinks.first()).toBeVisible()
         await expect(switcher.locator(`[href="/work/${collection}"]`)).toHaveAttribute('aria-current', 'location')
       } else {

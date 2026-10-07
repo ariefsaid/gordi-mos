@@ -80,10 +80,30 @@ const CafeItemSettingsPage = lazyPage(() =>
 const CafeWastePage = lazyPage(() =>
   import('./pages/cafe-waste-page').then((m) => ({ default: m.CafeWastePage })),
 )
+const CafeCountPage = lazyPage(() =>
+  import('./pages/cafe-count-page').then((m) => ({ default: m.CafeCountPage })),
+)
+const CafeReceivePage = lazyPage(() =>
+  import('./pages/cafe-receive-page').then((m) => ({ default: m.CafeReceivePage })),
+)
+const CafeReceiptReviewPage = lazyPage(() =>
+  import('./pages/cafe-receipt-review-page').then((m) => ({ default: m.CafeReceiptReviewPage })),
+)
+const CafeRequestPage = lazyPage(() =>
+  import('./pages/cafe-request-page').then((m) => ({ default: m.CafeRequestPage })),
+)
+const CafeRequestReviewPage = lazyPage(() =>
+  import('./pages/cafe-request-review-page').then((m) => ({ default: m.CafeRequestReviewPage })),
+)
+const CafeReceiptIssuesPage = lazyPage(() =>
+  import('./pages/cafe-receipt-issues-page').then((m) => ({ default: m.CafeReceiptIssuesPage })),
+)
 const KitchenPushesPage = lazyPage(() =>
   import('./pages/kitchen-pushes-page').then((m) => ({ default: m.KitchenPushesPage })),
 )
-const DashboardPage = lazyPage(() => import('./pages/dashboard-page').then((m) => ({ default: m.DashboardPage })))
+const MoneyPage = lazyPage(() => import('./pages/money-page').then((m) => ({ default: m.MoneyPage })))
+const MoneyBranchPage = lazyPage(() => import('./pages/money-branch-page').then((m) => ({ default: m.MoneyBranchPage })))
+const PendingBillsPage = lazyPage(() => import('./pages/pending-bills-page').then((m) => ({ default: m.PendingBillsPage })))
 const BudgetPage = lazyPage(() => import('./pages/budget-page').then((m) => ({ default: m.BudgetPage })))
 const PricingPage = lazyPage(() => import('./pages/pricing-page').then((m) => ({ default: m.PricingPage })))
 const AdminUsersPage = lazyPage(() => import('./pages/admin-users-page').then((m) => ({ default: m.AdminUsersPage })))
@@ -112,7 +132,7 @@ const DevViewsPage = lazyPage(() => import('./pages/dev-views-page').then((m) =>
 //     /work/objectives           Objectives (org-readable; write scope resolved in the page)
 //     /work/projects             Projects & Processes (org-readable; write scope resolved in the page)
 //     /events /ecommerce /roastery /profile
-//     /money[/detail|/budget|/pricing|/follow-ups]
+//     /money[/pending-bills|/budget|/pricing|/follow-ups]   (/money/detail redirects to /money)
 //     /inbox
 //     /cafe[/log|/plan|/stock|/review|/pushes]
 //     /admin/people
@@ -309,20 +329,23 @@ const routeTable: RouteObject[] = [
             element: <RequireAccessRole anyOf={REVENUE_VIEW_ROLES} />,
             handle: infrastructureHandle('capability'),
             children: [
-              { path: 'money', element: withSuspense(<DashboardPage />), handle: pageHandle('workspace') },
+              { path: 'money', element: withSuspense(<MoneyPage />), handle: pageHandle('workspace') },
+              { path: 'money/branch/:code', element: withSuspense(<MoneyBranchPage />), handle: pageHandle('workspace') },
+              // Pending bills is Finance's alone (#1464): the other Money tiers meet the boundary
+              // naming the link, and reporting.pending_bills' read policy refuses them the rows.
               {
-                path: 'money/detail',
-                element: withSuspense(<DashboardPage defaultTab="detail" />),
-                handle: pageHandle('workspace'),
+                element: <RequireAccessRole anyOf={['finance']} scope="link" />,
+                handle: infrastructureHandle('capability'),
+                children: [
+                  { path: 'money/pending-bills', element: withSuspense(<PendingBillsPage />), handle: pageHandle('workspace') },
+                ],
               },
+              // The Detail tab duplicated the table; the table IS the page now. Old links land on it.
+              { path: 'money/detail', element: <RouteRedirect to="/money" />, handle: redirectHandle('/money') },
               // /sales names /money directly — never chained through /dashboard.
               { path: 'sales', element: <RouteRedirect to="/money" />, handle: redirectHandle('/money') },
               { path: 'dashboard', element: <RouteRedirect to="/money" />, handle: redirectHandle('/money') },
-              {
-                path: 'dashboard/detail',
-                element: <RouteRedirect to="/money/detail" />,
-                handle: redirectHandle('/money/detail'),
-              },
+              { path: 'dashboard/detail', element: <RouteRedirect to="/money" />, handle: redirectHandle('/money') },
             ],
           },
           {
@@ -398,6 +421,10 @@ const routeTable: RouteObject[] = [
           { path: ROUTE_PATHS.cafePlan, element: withSuspense(<KitchenPlanPage />), handle: pageHandle('workspace') },
           { path: ROUTE_PATHS.cafeStock, element: withSuspense(<KitchenStockPage />), handle: pageHandle('workspace') },
           { path: ROUTE_PATHS.cafeWaste, element: withSuspense(<CafeWastePage />), handle: pageHandle('workspace') },
+          { path: ROUTE_PATHS.cafeCount, element: withSuspense(<CafeCountPage />), handle: pageHandle('workspace') },
+          { path: ROUTE_PATHS.cafeReceive, element: withSuspense(<CafeReceivePage />), handle: pageHandle('workspace') },
+          { path: ROUTE_PATHS.cafeReceiptIssues, element: withSuspense(<CafeReceiptIssuesPage />), handle: pageHandle('workspace') },
+          { path: ROUTE_PATHS.cafeRequest, element: withSuspense(<CafeRequestPage />), handle: pageHandle('workspace') },
           { path: ROUTE_PATHS.cafeItems, element: withSuspense(<CafeItemSettingsPage />), handle: pageHandle('workspace') },
           // #1239 split the former kitchen log into production and transfer; the retired kitchen
           // entry and log alias land directly on production rather than stopping at the Today root.
@@ -424,6 +451,8 @@ const routeTable: RouteObject[] = [
             handle: infrastructureHandle('capability'),
             children: [
               { path: ROUTE_PATHS.cafeReview, element: withSuspense(<KitchenReviewPage />), handle: pageHandle('workspace') },
+              { path: ROUTE_PATHS.cafeReceiptReview, element: withSuspense(<CafeReceiptReviewPage />), handle: pageHandle('workspace') },
+              { path: ROUTE_PATHS.cafeRequestReview, element: withSuspense(<CafeRequestReviewPage />), handle: pageHandle('workspace') },
               // Inside the gate, for the same reason as the catalog redirects above.
               {
                 path: 'kitchen/review',

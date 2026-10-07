@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Pre-push gate — refuse to push a feature branch that is not rebased on origin/dev.
+# Pre-push gate — refuse to push a feature branch that does not contain origin/dev.
 #
 # Incident class: two green sibling PRs, no textual conflict, dev broken — one deleted
 # a symbol the other imported. The fix is structural: every push re-checks against the
@@ -21,13 +21,13 @@ while read -r _local_ref local_sha remote_ref _remote_sha; do
   if ! git merge-base --is-ancestor "$base" "$local_sha"; then
     branch="${remote_ref#refs/heads/}"
     cat >&2 <<MSG
-✗ pre-push: '$branch' is NOT rebased on origin/dev.
+✗ pre-push: '$branch' does not contain the current origin/dev.
 
 origin/dev has moved since this branch was cut. Two green sibling branches can break
-dev with no textual conflict — rebase so your gates run against the base that will
-actually receive the merge:
+dev with no textual conflict — merge it in so your gates run against the base that
+will actually receive the merge (never rebase or force-push a pushed branch):
 
-  git fetch origin && git rebase origin/dev
+  git fetch origin && git merge origin/dev
 MSG
     exit 1
   fi

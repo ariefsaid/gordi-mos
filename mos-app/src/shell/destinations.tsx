@@ -2,10 +2,10 @@ import type React from 'react'
 import type { MessageKey } from '@/i18n/messages'
 import { REVENUE_VIEW_ROLES } from '@/lib/capabilities'
 import { isShipGated } from '@/lib/ship-gate'
-import { ADMIN_SECTIONS, CAFE_SECTIONS, sectionForPath, visibleSections, type Section } from './sections'
+import { ADMIN_SECTIONS, CAFE_SECTIONS, PENDING_BILLS_SECTION, sectionForPath, visibleSections, type Section } from './sections'
 import {
   HomeIcon, TasksIcon, InboxIcon, WorkLineIcon, ObjectiveIcon,
-  WorkIcon, SignalsIcon, MoneyIcon,
+  WorkIcon, SignalsIcon, MoneyIcon, BranchesIcon,
   CafeIcon, EcommerceIcon, RoasteryIcon,
   ProfileIcon, ShieldIcon,
 } from './icons'
@@ -44,7 +44,7 @@ export interface Destination {
   Icon: React.FC
   /** live links under this destination; [] = destination not yet rolled in */
   links: Section[]
-  /** Always-expanded sub-links rendered beneath the entry (Work's 5; Café's 8). Undefined for a
+  /** Always-expanded sub-links rendered beneath the entry (Work's 5; Café's 11). Undefined for a
    *  destination whose root IS the whole surface. */
   children?: Section[]
   /** optional access gate applied to ALL links (rail/bottom-bar hide when unsatisfied).
@@ -120,6 +120,12 @@ export const DESTINATIONS: Destination[] = [
     anyOf: REVENUE_VIEW_ROLES,
     primaryPath: '/money',
     links: [{ path: '/money', label: 'Money', labelKey: 'nav.money', Icon: MoneyIcon }],
+    // Pending bills is Finance's alone: its `anyOf` matches its route gate (router.tsx) and the
+    // read policy on reporting.pending_bills, so the link is absent for every other Money tier.
+    children: [
+      { path: '/money', label: 'Branches', labelKey: 'nav.money.branches', Icon: BranchesIcon },
+      PENDING_BILLS_SECTION,
+    ],
   },
   {
     id: 'inbox',
@@ -135,10 +141,10 @@ export const MODULES: { bu: MessageKey; items: Destination[] }[] = [
   {
     bu: 'rail.retailOps',
     items: [
-      // Café carries its Today root plus seven working screens, including separate production, transfer and waste logs. The port shipped this module
-      // with a single `/cafe` link while CAFE_SECTIONS held the working paths, correctly labelled and
-      // imported by nothing but a breadcrumb lookup — so Log, Plan, Stock, Review and Pushes, the
-      // one module with live kitchen staff on it, became reachable only by typing a URL.
+      // Café carries its Today root, nine ungated work screens, and the gated Review + Pushes routes.
+      // The port shipped this module with a single `/cafe` link while CAFE_SECTIONS held the paths,
+      // correctly labelled and imported by nothing but a breadcrumb lookup — so Café's production,
+      // transfer, waste, Count, Receive, Request, Plan, Stock, Review and Pushes screens became reachable only by URL.
       //
       // `children` (not just `links`) is what actually renders them: every nav surface draws ONE
       // link per module at `primaryPath ?? links[0].path`, and the expanded child list is the

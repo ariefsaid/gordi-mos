@@ -11,6 +11,7 @@ vi.mock('../supabase', () => {
 })
 
 import { supabase } from '@/lib/supabase'
+import { __resetReferenceCacheForTests, withReferenceCache } from './reference-cache'
 import {
   synthesizeEmail,
   listAdminPeople,
@@ -62,7 +63,10 @@ function makeSharedSchema(tableResponses: Record<string, { data: unknown; error:
   return { from: vi.fn(fromImpl), rpc: rpcImpl }
 }
 
-beforeEach(() => vi.clearAllMocks())
+beforeEach(() => {
+  vi.clearAllMocks()
+  __resetReferenceCacheForTests()
+})
 
 // ── synthesizeEmail ───────────────────────────────────────────────────────────
 describe('synthesizeEmail (AC-011 helper, FR-021)', () => {
@@ -303,6 +307,26 @@ describe('grantRole', () => {
     )
   })
 
+  it('invalidates cached viewer and Work authority data after a role grant', async () => {
+    const viewerLoad = vi.fn(async () => 'cached-viewer')
+    const scopeLoad = vi.fn(async () => 'cached-scopes')
+    await withReferenceCache('shared.auth.viewer', viewerLoad, { identity: 'auth:viewer-1', persist: true })
+    await withReferenceCache('mos.get_work_write_scopes', scopeLoad, { identity: 'auth:viewer-1', persist: true })
+
+    const schemaObj = makeSharedSchema({ person_access_roles: { data: null, error: null } })
+    schemaMock.mockReturnValue(schemaObj as never)
+    await grantRole('p1', 'ops_lead')
+
+    const reloadViewer = vi.fn(async () => 'fresh-viewer')
+    const reloadScopes = vi.fn(async () => 'fresh-scopes')
+    await expect(withReferenceCache('shared.auth.viewer', reloadViewer, { identity: 'auth:viewer-1', persist: true }))
+      .resolves.toBe('fresh-viewer')
+    await expect(withReferenceCache('mos.get_work_write_scopes', reloadScopes, { identity: 'auth:viewer-1', persist: true }))
+      .resolves.toBe('fresh-scopes')
+    expect(reloadViewer).toHaveBeenCalledOnce()
+    expect(reloadScopes).toHaveBeenCalledOnce()
+  })
+
   it('throws on error', async () => {
     const schemaObj = makeSharedSchema({ person_access_roles: { data: null, error: { message: 'self-assign' } } })
     schemaMock.mockReturnValue(schemaObj as never)
@@ -408,6 +432,17 @@ describe('Jabatan (Position) wrappers', () => {
     expect(builder.delete).toHaveBeenCalled()
     expect(builder.eq).toHaveBeenCalledWith('person_id', 'p1')
     expect(builder.eq).toHaveBeenCalledWith('role_id', 'r1')
+  })
+
+  it('a position change drops the cached viewer so the next read sees the new roles', async () => {
+    await withReferenceCache('shared.auth.viewer', vi.fn(async () => 'cached-viewer'), { identity: 'auth:viewer-1', persist: true })
+    schemaMock.mockReturnValue(makeSharedSchema({ person_roles: { data: null, error: null } }) as never)
+    await removeJabatan('p1', 'r1')
+
+    const reloadViewer = vi.fn(async () => 'fresh-viewer')
+    await expect(withReferenceCache('shared.auth.viewer', reloadViewer, { identity: 'auth:viewer-1', persist: true }))
+      .resolves.toBe('fresh-viewer')
+    expect(reloadViewer).toHaveBeenCalledOnce()
   })
 
   it('throws on removeJabatan error', async () => {

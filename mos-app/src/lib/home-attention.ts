@@ -3,11 +3,6 @@
 // FR-512). Reuses raciOwner (raci-member.ts) — the same ownership predicate the rest of the app
 // already uses (Rule 11/NFR-504).
 
-import type { TaskListRow } from '@/lib/db/tasks.types'
-import { raciOwner } from '@/lib/raci-member'
-import { formatDate } from '@/components/tasks/task-formatters'
-import type { Locale } from '@/i18n/messages'
-
 // No 'mentions' lane: Inbox (page + bell) is the one mentions surface (#745) — Home ranks tasks
 // and failed checks only.
 export type AttentionLaneKind = 'overdue' | 'due-today' | 'failed-checks'
@@ -66,36 +61,6 @@ const WIB_DATE = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' })
 /** WIB (Asia/Jakarta) calendar date YYYY-MM-DD from an injected clock — never scattered Date.now() (FR-512). */
 export function wibToday(now: Date = new Date()): string {
   return WIB_DATE.format(now)
-}
-
-// RI-3 (design fix wave) — reuses the app's ONE shared humanized date formatter (the My-tasks
-// table's "Thu, 16 Jul" convention, task-formatters' `formatDate`), locale-aware. Never a raw
-// ISO string — that read is fine in a data table but unreadable as bare prose in a brief.
-const toTaskItem = (t: TaskListRow, locale: Locale, dir?: AttentionDirectory): AttentionItem => {
-  const picName = dir?.people?.get(t.responsible_person_id)
-  const caption = dir?.businessUnits?.get(t.business_unit_id)
-  return {
-    id: t.id,
-    title: t.title,
-    meta: t.due_date ? formatDate(t.due_date, locale) : undefined,
-    route: `/work/tasks/${t.id}`,
-    pic: picName ? { name: picName } : undefined,
-    caption: caption ?? undefined,
-  }
-}
-
-/** Owned (R/A), non-Done tasks due strictly before `today` (YYYY-MM-DD WIB) — FR-502/512. */
-export function overdueTasks(tasks: TaskListRow[], viewerId: string, today: string, locale: Locale = 'en', dir?: AttentionDirectory): AttentionItem[] {
-  return tasks
-    .filter(t => raciOwner(t, viewerId) && t.status !== 'Done' && t.due_date != null && t.due_date < today)
-    .map(t => toTaskItem(t, locale, dir))
-}
-
-/** Owned (R/A), non-Done tasks due exactly `today` (YYYY-MM-DD WIB) — FR-503. */
-export function dueTodayTasks(tasks: TaskListRow[], viewerId: string, today: string, locale: Locale = 'en', dir?: AttentionDirectory): AttentionItem[] {
-  return tasks
-    .filter(t => raciOwner(t, viewerId) && t.status !== 'Done' && t.due_date === today)
-    .map(t => toTaskItem(t, locale, dir))
 }
 
 /** Summed item count across lanes — the "Needs attention · N" header summary source (FR-509). */

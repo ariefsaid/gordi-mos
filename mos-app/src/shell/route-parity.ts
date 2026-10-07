@@ -17,6 +17,12 @@ export const ROUTE_PATHS = {
   cafeProduction: 'cafe/production',
   cafeTransfer: 'cafe/transfer',
   cafeWaste: 'cafe/waste',
+  cafeCount: 'cafe/count',
+  cafeReceive: 'cafe/receive',
+  cafeReceiptReview: 'cafe/receive/review',
+  cafeReceiptIssues: 'cafe/receive/issues',
+  cafeRequest: 'cafe/request',
+  cafeRequestReview: 'cafe/request/review',
   cafePlan: 'cafe/plan',
   cafeStock: 'cafe/stock',
   cafeItems: 'cafe/items',
@@ -44,6 +50,12 @@ export type RouteParityId =
   | 'cafeProduction'
   | 'cafeTransfer'
   | 'cafeWaste'
+  | 'cafeCount'
+  | 'cafeReceive'
+  | 'cafeReceiptReview'
+  | 'cafeReceiptIssues'
+  | 'cafeRequest'
+  | 'cafeRequestReview'
   | 'cafePlan'
   | 'cafeStock'
   | 'cafeItems'
@@ -76,10 +88,17 @@ export const ROUTE_PARITY_CATALOG: readonly RouteParityEntry[] = [
   { id: 'workObjectives', path: absolutePath(ROUTE_PATHS.workObjectives), kind: 'visible-root' },
   { id: 'inbox', path: absolutePath(ROUTE_PATHS.inbox), kind: 'visible-root' },
   { id: 'cafe', path: absolutePath(ROUTE_PATHS.cafe), kind: 'visible-root' },
-  // cafeLog is a legacy redirect; production and transfer are the canonical capture routes.
+  // cafeLog is a legacy redirect; production, transfer and Count are dedicated capture routes.
   { id: 'cafeProduction', path: absolutePath(ROUTE_PATHS.cafeProduction), kind: 'child' },
   { id: 'cafeTransfer', path: absolutePath(ROUTE_PATHS.cafeTransfer), kind: 'child' },
   { id: 'cafeWaste', path: absolutePath(ROUTE_PATHS.cafeWaste), kind: 'child' },
+  { id: 'cafeCount', path: absolutePath(ROUTE_PATHS.cafeCount), kind: 'child' },
+  // Receipt review and issues live under Receive, whose rail entry marks them as the current place.
+  { id: 'cafeReceive', path: absolutePath(ROUTE_PATHS.cafeReceive), kind: 'child' },
+  { id: 'cafeReceiptReview', path: absolutePath(ROUTE_PATHS.cafeReceiptReview), kind: 'child' },
+  { id: 'cafeReceiptIssues', path: absolutePath(ROUTE_PATHS.cafeReceiptIssues), kind: 'child' },
+  { id: 'cafeRequest', path: absolutePath(ROUTE_PATHS.cafeRequest), kind: 'child' },
+  { id: 'cafeRequestReview', path: absolutePath(ROUTE_PATHS.cafeRequestReview), kind: 'child' },
   { id: 'cafePlan', path: absolutePath(ROUTE_PATHS.cafePlan), kind: 'child' },
   { id: 'cafeStock', path: absolutePath(ROUTE_PATHS.cafeStock), kind: 'child' },
   { id: 'cafeItems', path: absolutePath(ROUTE_PATHS.cafeItems), kind: 'child' },

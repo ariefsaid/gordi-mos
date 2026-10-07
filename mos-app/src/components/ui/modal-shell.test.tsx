@@ -39,6 +39,29 @@ describe('ModalShell — one centered interaction contract', () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
+  it('lets the top nested dialog own Tab instead of the parent dialog', async () => {
+    const user = userEvent.setup()
+    render(
+      <ModalShell open onClose={() => {}} ariaLabel="Outer dialog">
+        <button type="button">Outer first</button>
+        <ModalShell open onClose={() => {}} ariaLabel="Inner dialog">
+          <button type="button">Inner first</button>
+          <button type="button">Inner last</button>
+        </ModalShell>
+        <button type="button">Outer last</button>
+      </ModalShell>,
+    )
+
+    const innerFirst = screen.getByRole('button', { name: 'Inner first' })
+    const innerLast = screen.getByRole('button', { name: 'Inner last' })
+    innerLast.focus()
+    await user.tab()
+    expect(innerFirst).toHaveFocus()
+
+    await user.keyboard('{Shift>}{Tab}{/Shift}')
+    expect(innerLast).toHaveFocus()
+  })
+
   it('owns dialog semantics and does not render a closed modal', () => {
     const { rerender } = render(
       <ModalShell open={false} onClose={vi.fn()} ariaLabel="Assign owner">
@@ -82,6 +105,78 @@ describe('ModalShell — one centered interaction contract', () => {
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(invoker).toHaveFocus()
+  })
+
+  it('wraps Tab both ways, leaves Escape dismissal intact, inerts the app, and restores focus', async () => {
+    const user = userEvent.setup()
+    const appRoot = document.createElement('div')
+    appRoot.id = 'root'
+    const overlayRoot = document.createElement('div')
+    overlayRoot.id = 'overlay-root'
+    document.body.append(appRoot, overlayRoot)
+
+    function Fixture() {
+      const [open, setOpen] = useState(false)
+      return (
+        <>
+          <button type="button" onClick={() => setOpen(true)}>Open dialog</button>
+          <ModalShell open={open} onClose={() => setOpen(false)} ariaLabel="Layered dialog">
+            <input aria-label="First" />
+            <select aria-label="Middle"><option>Option</option></select>
+            <button type="button" aria-disabled="true">Unavailable</button>
+            <textarea aria-label="Last" />
+          </ModalShell>
+        </>
+      )
+    }
+
+    const view = render(<Fixture />, { container: appRoot })
+    try {
+      const opener = screen.getByRole('button', { name: 'Open dialog' })
+      await user.click(opener)
+      const first = screen.getByRole('textbox', { name: 'First' })
+      const last = screen.getByRole('textbox', { name: 'Last' })
+      await waitFor(() => expect(first).toHaveFocus())
+      expect(appRoot).toHaveAttribute('inert')
+
+      last.focus()
+      await user.tab()
+      expect(first).toHaveFocus()
+
+      first.focus()
+      await user.keyboard('{Shift>}{Tab}{/Shift}')
+      expect(last).toHaveFocus()
+
+      await user.keyboard('{Escape}')
+      expect(screen.queryByRole('dialog', { name: 'Layered dialog' })).not.toBeInTheDocument()
+      expect(appRoot).not.toHaveAttribute('inert')
+      expect(opener).toHaveFocus()
+    } finally {
+      view.unmount()
+      appRoot.remove()
+      overlayRoot.remove()
+    }
+  })
+
+  it('keeps Tab inside when focus sits on a control the trap cannot list', async () => {
+    const user = userEvent.setup()
+    render(
+      <>
+        <button type="button">Behind</button>
+        <ModalShell open onClose={() => {}} ariaLabel="Busy dialog">
+          <ul tabIndex={0} aria-label="Lines"><li>Line</li></ul>
+          <button type="button" disabled>Back</button>
+          <button type="button" aria-disabled="true">Working</button>
+        </ModalShell>
+      </>,
+    )
+    const busy = screen.getByRole('button', { name: 'Working' })
+    busy.focus()
+
+    await user.tab()
+    expect(screen.getByRole('dialog').contains(document.activeElement)).toBe(true)
+    await user.tab({ shift: true })
+    expect(screen.getByRole('dialog').contains(document.activeElement)).toBe(true)
   })
 
   it('honors backdrop and dismissal policies', () => {

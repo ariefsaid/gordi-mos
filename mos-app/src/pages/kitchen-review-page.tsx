@@ -15,7 +15,7 @@ import {
   listSubmittedKitchenLogs,
   hasSubmittedKitchenProduction,
   KITCHEN_LOGS_PAGE_SIZE,
-  fetchPlanMap,
+  fetchPlanMaps,
   listStreamPairs,
   listAllStreamItemKeys,
   streamItemKey,
@@ -44,7 +44,7 @@ import { listCafeViewerTeams } from '@/lib/db/cafe-opening'
 import type { CafeViewerTeam } from '@/lib/db/cafe-opening'
 import { isReviewerEligibleTeam } from '@/lib/kitchen-gates'
 import type { BranchOption, PlanMap, ProductionStream, ReviewLogRow } from '@/lib/db/kitchen-logs.types'
-import { deriveActionLabel, movementKey, streamKey, streamLabel } from '@/lib/kitchen-action-label'
+import { deriveActionLabel, movementKey, streamDateKey, streamKey, streamLabel } from '@/lib/kitchen-action-label'
 import type { Translate } from '@/i18n/use-t'
 import { getPeople } from '@/lib/db/directory'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
@@ -52,10 +52,12 @@ import { Avatar } from '@/components/ui/avatar'
 import { Tag } from '@/components/ui/tag'
 import { NotOnStreamTag } from '@/components/kitchen/not-on-stream-tag'
 import { DataTable } from '@/components/dashboard/data-table'
+import { DateField } from '@/components/ui/date-field'
 import type { DataTableColumn, DataTableGroup } from '@/components/dashboard/data-table'
 import { MetricSummaryRule } from '@/components/kitchen/metric-summary-rule'
 // #440: the ONE Café stream statement/picker, and the module-wide selection it writes to.
 import { CafeStreamBar, ALL_STREAMS } from '@/components/kitchen/cafe-stream-bar'
+import { CafeCountReviewQueue } from '@/components/kitchen/cafe-count-review-queue'
 import { rememberStream, rememberedStreamKey } from '@/lib/cafe-stream'
 import { activeCafeLocation } from '@/lib/cafe-opening-location'
 import { useReviewSummary } from '@/lib/kitchen-review-kpis'
@@ -63,27 +65,17 @@ import { formatWeekdayDayMonth } from '@/lib/format/date'
 import { formatUnitMultiple } from '@/lib/cafe-unit-multiples'
 import './kitchen-review-page.css'
 
-function wibToday(): string {
-  const WIB_OFFSET_MS = 7 * 60 * 60 * 1000
-  const shifted = new Date(Date.now() + WIB_OFFSET_MS)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}-${pad(shifted.getUTCDate())}`
-}
-
 function isTransfer(a: string): boolean {
   return a.startsWith('Transfer to ')
 }
 
 /**
- * plan qty for (date, item, movement) within the row's OWN (branch, activity) stream — 0
- * when no plan row (off-plan) or when that stream's plan was never fetched (no submitted
- * logs for it). #247 / #197 fix: the prior version compared every row's plan baseline
- * against ONE hardcoded stream — correct only by accident while exactly one stream is
- * captured, and silently wrong the moment a second stream exists. The queue can span more
- * than one stream; the plan a row is compared against must be the plan of ITS OWN stream.
+ * plan qty for the row's exact (date, branch, activity, item, movement) — 0 when no plan row
+ * exists. #247 / #197 fix: the queue can span dates and streams, so plan lookup must match
+ * both the row's date and its own stream; there is intentionally no broader fallback.
  */
 function planQtyFor(streamPlans: Map<string, PlanMap>, log: ReviewLogRow): number {
-  const planMap = streamPlans.get(streamKey(log.branch_id, log.activity))
+  const planMap = streamPlans.get(streamDateKey(log.log_date, log.branch_id, log.activity))
   return planMap?.[log.wip_item_id]?.[
     movementKey({ action: log.action, destinationBranchId: log.destination_branch_id })
   ] ?? 0
@@ -401,11 +393,11 @@ function KitchenReviewPageForViewer() {
   const isSupervisor = accessRoles.includes('supervisor')
   const allowed = isLeadOrAdmin || isSupervisor
 
-  const [logDate] = useState(wibToday)
+  const [logDateFilter, setLogDateFilter] = useState('')
   const [hasMore, setHasMore] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [moreError, setMoreError] = useState(false)
-  const cursorRef = useRef<Pick<ReviewLogRow, 'created_at' | 'id'> | null>(null)
+  const cursorRef = useRef<Pick<ReviewLogRow, 'log_date' | 'created_at' | 'id'> | null>(null)
   const moreInFlight = useRef(false)
   const [externalProductionStreams, setExternalProductionStreams] = useState<ReadonlySet<string>>(new Set())
   const gateTokens = useRef(new Map<string, number>())
@@ -413,8 +405,7 @@ function KitchenReviewPageForViewer() {
   const [wastePhotosByLogId, setWastePhotosByLogId] = useState<Record<string, KitchenWastePhoto[]>>({})
   // Every stream's item list (#222): a queued row whose item left its stream's list is labelled.
   const [offeredKeys, setOfferedKeys] = useState<Set<string>>(new Set())
-  // Keyed by streamKey(branch_id, activity) — one PlanMap per DISTINCT stream present in
-  // the queue (#247/#197), not one flat map for the whole queue.
+  // Keyed by log date + stream — each row is compared against the plan for its own day.
   const [streamPlans, setStreamPlans] = useState<Map<string, PlanMap>>(new Map())
   const [peopleMap, setPeopleMap] = useState<Map<string, string>>(new Map())
   const [branchCatalog, setBranchCatalog] = useState<BranchOption[]>([])
@@ -461,6 +452,7 @@ function KitchenReviewPageForViewer() {
     skipInitialFilterReload.current = null
     setStreamFilter(ALL_STREAMS)
     setLogs([])
+    setExternalProductionStreams(new Set())
     setWastePhotosByLogId({})
     setStreamPlans(new Map())
     setPeopleMap(new Map())
@@ -481,21 +473,27 @@ function KitchenReviewPageForViewer() {
 
   const readPageContext = useCallback(async (rows: ReviewLogRow[], branches: BranchOption[]) => {
     const branchById = new Map(branches.map(branch => [branch.id, branch]))
-    const streams = new Map<string, ProductionStream>()
+    const streams = new Map<string, { logDate: string; stream: ProductionStream }>()
     for (const row of rows) {
       const branch = branchById.get(row.branch_id)
-      if (branch) streams.set(streamKey(row.branch_id, row.activity), { branch, activity: row.activity })
+      if (branch) {
+        const key = streamDateKey(row.log_date, row.branch_id, row.activity)
+        streams.set(key, { logDate: row.log_date, stream: { branch, activity: row.activity } })
+      }
     }
     const [plans, photos, gates] = await Promise.all([
-      Promise.all([...streams].map(async ([key, stream]) => [key, await fetchPlanMap(logDate, stream)] as const)),
+      fetchPlanMaps([...streams.values()]),
       listKitchenWastePhotos(rows.filter(row => row.action === 'waste').map(row => row.id)),
-      Promise.all([...streams].filter(([key]) => rows.some(row => row.action === 'transfer' && streamKey(row.branch_id, row.activity) === key))
-        .map(async ([key, stream]) => [key, await hasSubmittedKitchenProduction(logDate, stream.branch.id, stream.activity)] as const)),
+      Promise.all([...streams].filter(([key]) => rows.some(row => row.action === 'transfer'
+        && streamDateKey(row.log_date, row.branch_id, row.activity) === key))
+        .map(async ([key, context]) => [key, await hasSubmittedKitchenProduction(
+          context.logDate, context.stream.branch.id, context.stream.activity,
+        )] as const)),
     ])
     const photosByLog: Record<string, KitchenWastePhoto[]> = {}
     for (const photo of photos) (photosByLog[photo.logId] ??= []).push(photo)
     return { plans, photosByLog, pending: gates.filter(([, pending]) => pending).map(([key]) => key) }
-  }, [logDate])
+  }, [])
 
   const fetchQueue = useCallback(async () => {
     const gen = ++requestGen.current
@@ -527,7 +525,7 @@ function KitchenReviewPageForViewer() {
       const chosen = chosenKey && catalog.some(stream => streamKey(stream.branch.id, stream.activity) === chosenKey) ? chosenKey : null
       const effectiveFilter = filterInitialized.current ? streamFilter : chosen ?? (!isLeadOrAdmin && isSupervisor && ownKey ? ownKey : ALL_STREAMS)
       const stream = catalog.find(stream => streamKey(stream.branch.id, stream.activity) === effectiveFilter)
-      const rows = await listSubmittedKitchenLogs(logDate, stream ? { stream: { branchId: stream.branch.id, activity: stream.activity } } : {})
+      const rows = await listSubmittedKitchenLogs(logDateFilter || undefined, stream ? { stream: { branchId: stream.branch.id, activity: stream.activity } } : {})
       const page = await readPageContext(rows, branchRows)
       if (gen !== requestGen.current) return
       cursorRef.current = rows.length === KITCHEN_LOGS_PAGE_SIZE ? rows.at(-1)! : null
@@ -559,7 +557,7 @@ function KitchenReviewPageForViewer() {
     } catch {
       if (gen === requestGen.current) setLoad({ kind: 'error' })
     }
-  }, [isLeadOrAdmin, isSupervisor, logDate, viewerId, streamFilter, readPageContext])
+  }, [isLeadOrAdmin, isSupervisor, logDateFilter, viewerId, streamFilter, readPageContext])
 
   useEffect(() => {
     if (auth.status !== 'authenticated' || !allowed) return
@@ -575,7 +573,7 @@ function KitchenReviewPageForViewer() {
     setMoreError(false)
     const stream = streamCatalog.find(stream => streamKey(stream.branch.id, stream.activity) === streamFilter)
     try {
-      const rows = await listSubmittedKitchenLogs(logDate, { before: cursorRef.current,
+      const rows = await listSubmittedKitchenLogs(logDateFilter || undefined, { before: cursorRef.current,
         ...(stream ? { stream: { branchId: stream.branch.id, activity: stream.activity } } : {}) })
       const page = await readPageContext(rows, branchCatalog)
       if (gen !== requestGen.current) return
@@ -599,14 +597,14 @@ function KitchenReviewPageForViewer() {
   const pendingProductionStreams = useMemo(() => {
     const set = new Set(externalProductionStreams)
     for (const l of logs) {
-      if (l.action === 'produce') set.add(streamKey(l.branch_id, l.activity))
+      if (l.action === 'produce') set.add(streamDateKey(l.log_date, l.branch_id, l.activity))
     }
     return set
   }, [logs, externalProductionStreams])
 
   const rowGated = useCallback(
     (log: ReviewLogRow) =>
-      log.action === 'transfer' && pendingProductionStreams.has(streamKey(log.branch_id, log.activity)),
+      log.action === 'transfer' && pendingProductionStreams.has(streamDateKey(log.log_date, log.branch_id, log.activity)),
     [pendingProductionStreams],
   )
 
@@ -641,41 +639,42 @@ function KitchenReviewPageForViewer() {
 
   // FR-040/041: the displayed queue — one stream, or every stream. Display scoping only;
   // the rows a viewer may DECIDE are canDecide's (and ultimately the server's) business.
-  const visibleLogs = useMemo(
-    () =>
-      streamFilter === ALL_STREAMS
-        ? logs
-        : logs.filter(l => streamKey(l.branch_id, l.activity) === streamFilter),
-    [logs, streamFilter],
-  )
+  const visibleLogs = useMemo(() => {
+    const filtered = streamFilter === ALL_STREAMS
+      ? logs
+      : logs.filter(l => streamKey(l.branch_id, l.activity) === streamFilter)
+    return [...filtered].sort((a, b) => a.log_date.localeCompare(b.log_date)
+      || a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id))
+  }, [logs, streamFilter])
 
   // KPIs summarise the queue AS FILTERED — the numbers must describe the rows on screen.
   const summary = useReviewSummary(visibleLogs, streamPlans)
 
-  // #247/#196 fix: the prior grouping walked a hardcoded 3-literal ACTION_ORDER
-  // (['Production', 'Transfer to Radiant', 'Transfer to Bungur']) — a log whose derived
-  // label named any OTHER destination branch matched none of the three and simply never
-  // appeared in any group, invisible to review though still Submitted. Groups are now the
-  // DISTINCT labels actually present, Production first (FR-042's gate), the rest in the
-  // order they first appear in the queue.
+  // Group oldest dates first, then preserve the existing Production → Transfer → Waste
+  // action order inside each day. This keeps every older date visually ahead of newer work.
   const groupOrder = useMemo(() => {
-    const seen: string[] = []
-    for (const log of visibleLogs) {
-      if (!seen.includes(log.action_type)) seen.push(log.action_type)
-    }
-    seen.sort((a, b) => (a === 'Production' ? -1 : b === 'Production' ? 1 : 0))
-    return seen
+    const dates = [...new Set(visibleLogs.map(log => log.log_date))]
+    return dates.flatMap(logDate => {
+      const actions = [...new Set(visibleLogs
+        .filter(log => log.log_date === logDate)
+        .map(log => log.action_type))]
+      actions.sort((a, b) => {
+        const rank = (label: string) => label === 'Production' ? 0 : isTransfer(label) ? 1 : 2
+        return rank(a) - rank(b)
+      })
+      return actions.map(action => ({ logDate, action }))
+    })
   }, [visibleLogs])
 
   const removeRow = useCallback((id: string) => {
     setLogs(previous => previous.filter(row => row.id !== id))
     const removed = logs.find(row => row.id === id)
     if (removed?.action !== 'produce') return
-    const key = streamKey(removed.branch_id, removed.activity)
+    const key = streamDateKey(removed.log_date, removed.branch_id, removed.activity)
     const token = (gateTokens.current.get(key) ?? 0) + 1
     gateTokens.current.set(key, token)
     const gen = requestGen.current
-    void hasSubmittedKitchenProduction(logDate, removed.branch_id, removed.activity).then(pending => {
+    void hasSubmittedKitchenProduction(removed.log_date, removed.branch_id, removed.activity).then(pending => {
       if (gen !== requestGen.current || token !== gateTokens.current.get(key)) return
       setExternalProductionStreams(previous => {
         const next = new Set(previous)
@@ -684,7 +683,7 @@ function KitchenReviewPageForViewer() {
         return next
       })
     }).catch(() => { /* Keep the last known gate until the queue is refreshed. */ })
-  }, [logs, logDate])
+  }, [logs])
 
   async function handleApprove(logId: string, reviewNote: string | null, expectedUpdatedAt: string) {
     if (!isOnline) return
@@ -744,10 +743,11 @@ function KitchenReviewPageForViewer() {
   // the per-row path and keep their required approve note (AC-040 / FR-041) — the gate bulk
   // used to skip by handing every row a null note. The label says so: "Approve all on-plan (N)".
   const bulkEligible = useCallback(
-    (action: string): ReviewLogRow[] =>
+    (action: string, logDate?: string): ReviewLogRow[] =>
       visibleLogs.filter(
         l =>
           l.action_type === action &&
+          (!logDate || l.log_date === logDate) &&
           l.action !== 'waste' &&
           canDecide(l) &&
           !rowGated(l) &&
@@ -756,11 +756,11 @@ function KitchenReviewPageForViewer() {
     [visibleLogs, canDecide, rowGated, streamPlans],
   )
 
-  async function handleBulkApprove(action: string) {
+  async function handleBulkApprove(action: string, logDate?: string) {
     if (!isOnline) return
-    const eligible = bulkEligible(action)
+    const eligible = bulkEligible(action, logDate)
     if (eligible.length === 0) return
-    setBulkAction(action)
+    setBulkAction(logDate ? `${logDate}|${action}` : action)
     setActionError('')
     setNotice('')
     setNoticeCanViewPushes(false)
@@ -850,27 +850,25 @@ function KitchenReviewPageForViewer() {
     setActionError(saveErrorMessage(err, t))
   }
 
-  // ── ONE DataTable: one group per action_type (Production, Transfer to …),
-  //    now the DISTINCT labels present (groupOrder above) rather than a fixed
-  //    3-literal list. Each group's headerActions carries its bulk "Approve all on-plan (N)"
-  //    button + the gate message (disabled/hidden exactly as the retired bespoke
-  //    header — transfer gate blocks it until Production approved; offline disables
-  //    it). ─────────────────────────────────────────────────────────────────────
+  // ── One DataTable group per (log date, action label). Date-first grouping makes the
+  // cross-date oldest-first order visible; each bulk button is date-scoped so its RPC never
+  // crosses the DB's single-date batch boundary. ─────────────────────────────────────────
   const bulkDisabled = !isOnline || submittingId !== null || bulkAction !== null
   const tableGroups: DataTableGroup<ReviewLogRow>[] = groupOrder
-    .map(action => {
-      const rows = visibleLogs.filter(l => l.action_type === action)
-      const groupLabel = rows[0]
+    .map(({ logDate, action }) => {
+      const rows = visibleLogs.filter(l => l.log_date === logDate && l.action_type === action)
+      const actionLabel = rows[0]
         ? deriveActionLabel(t, { action: rows[0].action, destinationBranchId: rows[0].destination_branch_id }, branchCatalog)
         : action
-      // #236: the gate message shows when any DISPLAYED row of the group is stream-locked
-      // (FR-043 is per stream, so one stream's backlog no longer gates every group).
+      const dateLabel = formatWeekdayDayMonth(logDate)
+      // The gate is scoped to this date's rows as well as to each stream.
       const transferGated = isTransfer(action) && rows.some(rowGated)
-      const eligibleCount = bulkEligible(action).length
+      const eligibleCount = bulkEligible(action, logDate).length
+      const groupKey = `${logDate}|${action}`
       const showActions = transferGated || eligibleCount > 0
       return {
-        key: action,
-        label: groupLabel,
+        key: groupKey,
+        label: `${dateLabel} · ${actionLabel}`,
         rows,
         headerActions: showActions
           ? (
@@ -878,10 +876,10 @@ function KitchenReviewPageForViewer() {
                 transferGated={transferGated}
                 eligibleCount={eligibleCount}
                 partial={hasMore}
-                bulkBusy={bulkAction === action}
+                bulkBusy={bulkAction === groupKey}
                 disabled={bulkDisabled}
-                actionLabel={groupLabel}
-                onBulkApprove={() => handleBulkApprove(action)}
+                actionLabel={`${actionLabel} · ${dateLabel}`}
+                onBulkApprove={() => handleBulkApprove(action, logDate)}
               />
             )
           : null,
@@ -996,11 +994,13 @@ function KitchenReviewPageForViewer() {
       <div className="krow-card">
         <div className="krow-card-head">
           <span className="krow-name">{log.wip_item_name}</span>
-          {!offeredKeys.has(streamItemKey(log.branch_id, log.activity, log.wip_item_id)) && <NotOnStreamTag />}
-          <Tag color={offPlan ? 'amber' : 'green'}>
-            <span className="krow-dot" aria-hidden="true" />
-            {offPlan ? t('kitchen.review.tag.offPlan') : t('kitchen.review.tag.onPlan')}
-          </Tag>
+          <div className="krow-card-tags">
+            {!offeredKeys.has(streamItemKey(log.branch_id, log.activity, log.wip_item_id)) && <NotOnStreamTag />}
+            <Tag color={offPlan ? 'amber' : 'green'}>
+              <span className="krow-dot" aria-hidden="true" />
+              {offPlan ? t('kitchen.review.tag.offPlan') : t('kitchen.review.tag.onPlan')}
+            </Tag>
+          </div>
         </div>
         {log.action === 'waste' && <WastePhotoStrip photos={wastePhotosByLogId[log.id]} />}
         <div className="krow-card-meta">
@@ -1012,6 +1012,10 @@ function KitchenReviewPageForViewer() {
           <span className="krow-qty">
             <span className="krow-meta">{t('kitchen.review.qty.plan')}</span> <strong>{planQty}</strong>
             <span className="krow-meta"> · {t('kitchen.review.qty.logged')}</span> <strong>{formatLogEntryQuantity(log)}</strong>
+          </span>
+          <span className="krow-log-date">
+            <span className="sr-only">{t('kitchen.review.col.logDate')}: </span>
+            {formatWeekdayDayMonth(log.log_date)}
           </span>
           <span className="krow-byname">{name}</span>
           <span className="krow-time">{formatTime(log.created_at)}</span>
@@ -1142,9 +1146,28 @@ function KitchenReviewPageForViewer() {
           onAllStreams={() => setStreamFilter(ALL_STREAMS)}
         />
       }
-      meta={<span className="kr-date tabular">{formatWeekdayDayMonth(logDate)}</span>}
+      meta={logDateFilter ? <span className="kr-date tabular">{formatWeekdayDayMonth(logDateFilter)}</span> : undefined}
       state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : submittedCount === 0 ? 'empty' : 'default'}
     >
+      <CafeCountReviewQueue
+        streamFilter={streamFilter}
+        streamCatalog={streamCatalog}
+        canReviewAll={isLeadOrAdmin}
+        reviewableStreamKeys={myStreamKeys}
+      />
+      <div className="kr-date-filterbar kr-block">
+        <DateField
+          id="kitchen-review-date-filter"
+          className="kr-date-filter"
+          label={t('kitchen.review.filter.date')}
+          value={logDateFilter}
+          onChange={setLogDateFilter}
+          compact
+        />
+        {logDateFilter
+          ? <button type="button" className="btn btn-outline kr-date-clear" onClick={() => setLogDateFilter('')}>{t('kitchen.review.filter.clear')}</button>
+          : <span className="kr-all-pending" role="status">{t('kitchen.review.filter.allPending')}</span>}
+      </div>
       {/* #422 / DD-WAY-40: Review is an ACT surface, so its figures render as the DESIGN.md
           Metric summary rule — one inline line, no card, no width branch — never a tile row.
           The delta ("note required to approve") renders only when off-plan rows exist, i.e.
@@ -1197,15 +1220,13 @@ function KitchenReviewPageForViewer() {
         <EmptyState
           variant="awaiting"
           title={t(hasMore ? 'common.paging.emptyLoaded' : 'kitchen.review.empty.title')}
-          /* #589: scoped to one stream, "No submitted logs for <date>" read as "day done" even
-             while other streams still held pending rows — the date was named, the stream was
-             not. Naming the selected stream too (Stock's own empty copy already does this,
-             kitchen-stock-page.tsx) makes it "day done FOR THIS STREAM". The all-streams case
-             has no single stream to name, so it keeps the date-only sentence. */
-          copy={hasMore ? t('common.paging.continue') :
-            selectedStream
-              ? t('kitchen.review.empty.copyStream', { stream: streamLabel(t, selectedStream), date: logDate })
-              : t('kitchen.review.empty.copy', { date: logDate })
+          copy={hasMore ? t('common.paging.continue') : logDateFilter
+            ? selectedStream
+              ? t('kitchen.review.empty.copyStream', { stream: streamLabel(t, selectedStream), date: formatWeekdayDayMonth(logDateFilter) })
+              : t('kitchen.review.empty.copy', { date: formatWeekdayDayMonth(logDateFilter) })
+            : selectedStream
+              ? t('kitchen.review.empty.copyStreamAll', { stream: streamLabel(t, selectedStream) })
+              : t('kitchen.review.empty.copyAll')
           }
           note={t('kitchen.review.empty.note')}
         >

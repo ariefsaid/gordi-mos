@@ -1,13 +1,7 @@
-import { useCallback, type KeyboardEvent } from 'react'
+import { useLayoutEffect, useRef } from 'react'
 import './Checkbox.css'
 
-/**
- * Checkbox — custom checkbox with check/indeterminate glyphs (mos-design-kit
- * inputs/Checkbox.jsx). medium 16 / small 14, 4px radius. `role="checkbox"`,
- * `aria-checked`, keyboard Space/Enter. Checked/indeterminate → primary fill.
- *
- * Uncontrolled-friendly: parent owns `checked`/`indeterminate` and `onChange`.
- */
+/** Checkbox control backed by a native input with a custom visual indicator. */
 export type CheckboxSize = 'medium' | 'small'
 
 export interface CheckboxProps {
@@ -42,36 +36,33 @@ export function Checkbox({
   id,
   className,
 }: CheckboxProps) {
-  const ariaChecked = indeterminate ? 'mixed' : checked ? 'true' : 'false'
-
-  const toggle = useCallback(() => {
-    if (disabled || indeterminate) return
-    onChange?.(!checked)
-  }, [disabled, indeterminate, checked, onChange])
-
-  const onKeyDown = useCallback((e: KeyboardEvent<HTMLSpanElement>) => {
-    if (e.key === ' ' || e.key === 'Enter') {
-      e.preventDefault()
-      toggle()
-    }
-  }, [toggle])
-
+  const inputRef = useRef<HTMLInputElement>(null)
+  // A native click clears the property; the prop owns it, re-asserted here and in onChange.
+  useLayoutEffect(() => {
+    if (inputRef.current) inputRef.current.indeterminate = indeterminate
+  })
   const cls = ['mk-checkbox', `mk-checkbox--${size}`, className].filter(Boolean).join(' ')
 
   return (
-    <span
-      role="checkbox"
-      id={id}
-      className={cls}
-      aria-checked={ariaChecked}
-      aria-label={ariaLabel}
-      aria-disabled={disabled || undefined}
-      tabIndex={disabled ? -1 : 0}
-      onClick={toggle}
-      onKeyDown={onKeyDown}
-    >
-      {checked && !indeterminate && <Check />}
-      {indeterminate && <Dash />}
+    <span className={cls}>
+      <input
+        ref={inputRef}
+        type="checkbox"
+        id={id}
+        className="mk-checkbox__input"
+        checked={checked}
+        disabled={disabled}
+        aria-label={ariaLabel}
+        onChange={(event) => {
+          const next = event.currentTarget.checked
+          event.currentTarget.indeterminate = indeterminate
+          onChange?.(next)
+        }}
+      />
+      <span className="mk-checkbox__visual" aria-hidden="true">
+        {checked && !indeterminate && <Check />}
+        {indeterminate && <Dash />}
+      </span>
     </span>
   )
 }

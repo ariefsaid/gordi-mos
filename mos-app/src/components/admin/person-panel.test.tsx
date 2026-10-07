@@ -17,6 +17,12 @@ import { useAuth } from '@/auth/use-auth'
 vi.mock('@/shell/use-is-phone', () => ({ useIsPhone: vi.fn(() => false) }))
 import { useIsPhone } from '@/shell/use-is-phone'
 
+vi.mock('@/lib/db/cafe-receipt-issues', () => ({
+  getCafeReceiptIssueAccess: vi.fn(),
+  setCafeReceiptIssueAccess: vi.fn(),
+}))
+import { getCafeReceiptIssueAccess, setCafeReceiptIssueAccess } from '@/lib/db/cafe-receipt-issues'
+
 vi.mock('@/lib/db/admin-users', () => ({
   grantRole: vi.fn(),
   revokeRole: vi.fn(),
@@ -40,6 +46,9 @@ const mockGrantRole = vi.mocked(grantRole)
 const mockRevokeRole = vi.mocked(revokeRole)
 const mockAddTeam = vi.mocked(addTeamMembership)
 const mockEndTeam = vi.mocked(endTeamMembership)
+const mockGetReceiptIssueAccess = vi.mocked(getCafeReceiptIssueAccess)
+const mockSetReceiptIssueAccess = vi.mocked(setCafeReceiptIssueAccess)
+let serverReceiptIssueAccess = false
 
 const ADMIN_VIEWER: AuthState = {
   status: 'authenticated',
@@ -154,6 +163,11 @@ beforeEach(() => {
   mockUseIsPhone.mockReturnValue(false)
   mockGrantRole.mockResolvedValue(undefined)
   mockRevokeRole.mockResolvedValue(undefined)
+  serverReceiptIssueAccess = false
+  mockGetReceiptIssueAccess.mockImplementation(async () => serverReceiptIssueAccess)
+  mockSetReceiptIssueAccess.mockImplementation(async (_personId, grant) => {
+    serverReceiptIssueAccess = grant
+  })
 })
 
 describe('PersonPanel — read first', () => {
@@ -264,7 +278,7 @@ describe('PersonPanel — sections', () => {
   it('runs Teams · Position · Access, and Revenue scope only while Supervisor is on', () => {
     const { unmount } = renderPanel()
     const toggles = () => screen.getAllByRole('button', { expanded: true }).map((b) => b.textContent)
-    expect(toggles().map((text) => text?.replace(/\d+ selected/, '').trim())).toEqual(['Teams', 'Position', 'Access'])
+    expect(toggles().map((text) => text?.replace(/\d+ selected/, '').trim())).toEqual(['Teams', 'Position', 'Access', 'Procurement'])
     unmount()
     renderPanel({ ...BAYU, access_roles: ['member', 'supervisor'] })
     expect(screen.getByRole('button', { name: /Revenue scope/ })).toBeInTheDocument()
@@ -276,8 +290,29 @@ describe('PersonPanel — sections', () => {
     expect(screen.getByRole('button', { name: /^Teams/ })).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByRole('button', { name: /^Position/ })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.getByRole('button', { name: /^Access/ })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('button', { name: /^Procurement/ })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.getByRole('checkbox', { name: 'Gordi HQ Bar' })).toBeVisible()
     expect(screen.queryByRole('checkbox', { name: 'Ops Lead' })).toBeNull()
+  })
+
+  it('FR-1040 an admin grants and removes the procurement capability; the row re-reads what the server saved', async () => {
+    const user = userEvent.setup()
+    renderPanel()
+    const box = await screen.findByRole('checkbox', { name: 'Resolve Receipt issues' })
+    expect(box).not.toBeChecked()
+    await user.click(box)
+    await waitFor(() => expect(mockSetReceiptIssueAccess).toHaveBeenCalledWith('bayu-id', true))
+    await waitFor(() => expect(screen.getByRole('checkbox', { name: 'Resolve Receipt issues' })).toBeChecked())
+    expect(mockGetReceiptIssueAccess).toHaveBeenCalledTimes(2)
+    await user.click(screen.getByRole('checkbox', { name: 'Resolve Receipt issues' }))
+    await waitFor(() => expect(mockSetReceiptIssueAccess).toHaveBeenLastCalledWith('bayu-id', false))
+    await waitFor(() => expect(screen.getByRole('checkbox', { name: 'Resolve Receipt issues' })).not.toBeChecked())
+  })
+
+  it('FR-1040 an admin cannot grant the capability to themselves', async () => {
+    renderPanel({ ...BAYU, id: 'admin-person-id' })
+    expect(await screen.findByRole('checkbox', { name: 'Resolve Receipt issues' })).toBeDisabled()
+    expect(screen.getByText('Can’t grant this to yourself — another admin can.')).toBeInTheDocument()
   })
 
   it('a collapsed section opens on its heading button', async () => {
@@ -297,8 +332,8 @@ describe('PersonPanel — Access roles', () => {
     }
     expect(screen.getByText('Plans and approves')).toBeInTheDocument()
     expect(screen.queryByText('ops_lead')).toBeNull()
-    expect(screen.getByRole('checkbox', { name: 'Ops Lead' })).toHaveAttribute('aria-checked', 'true')
-    expect(screen.getByRole('checkbox', { name: 'Finance' })).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByRole('checkbox', { name: 'Ops Lead' })).toBeChecked()
+    expect(screen.getByRole('checkbox', { name: 'Finance' })).not.toBeChecked()
   })
 
   it('granting a role commits directly and reads Saved beside it', async () => {
@@ -325,7 +360,7 @@ describe('PersonPanel — Access roles', () => {
     await user.click(screen.getByRole('checkbox', { name: 'Finance' }))
 
     await waitFor(() => expect(within(accessRow('Finance')).getByRole('alert')).toHaveTextContent('Failed'))
-    expect(screen.getByRole('checkbox', { name: 'Finance' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('checkbox', { name: 'Finance' })).toBeChecked()
 
     await user.click(screen.getByRole('button', { name: 'Retry Finance' }))
     await waitFor(() => expect(mockGrantRole).toHaveBeenCalledTimes(2))
@@ -343,7 +378,7 @@ describe('PersonPanel — Access roles', () => {
 
     expect(screen.queryByRole('dialog', { name: 'Make Bayu Barista an Admin?' })).toBeNull()
     expect(mockGrantRole).not.toHaveBeenCalled()
-    expect(screen.getByRole('checkbox', { name: 'Admin' })).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByRole('checkbox', { name: 'Admin' })).not.toBeChecked()
   })
 
   it('Admin asks first: Confirm writes exactly once and the row reports it', async () => {
@@ -376,7 +411,7 @@ describe('PersonPanel — Access roles', () => {
 
     expect(screen.queryByRole('dialog', { name: 'Make Bayu Barista an Ops Lead?' })).toBeNull()
     expect(mockGrantRole).not.toHaveBeenCalled()
-    expect(screen.getByRole('checkbox', { name: 'Ops Lead' })).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByRole('checkbox', { name: 'Ops Lead' })).not.toBeChecked()
   })
 
   it('granting Ops Lead asks first: Confirm writes exactly once', async () => {
@@ -401,16 +436,16 @@ describe('PersonPanel — Access roles', () => {
   it('self-assign guard: admin, finance, manager and supervisor are disabled on your own row', () => {
     renderPanel(SELF, { people: [SELF, OTHER_ADMIN] })
     for (const name of ['Admin', 'Finance', 'Manager', 'Supervisor (access)']) {
-      expect(screen.getByRole('checkbox', { name })).toHaveAttribute('aria-disabled', 'true')
+      expect(screen.getByRole('checkbox', { name })).toBeDisabled()
     }
-    expect(screen.getByRole('checkbox', { name: 'Member' })).not.toHaveAttribute('aria-disabled', 'true')
-    expect(screen.getByRole('checkbox', { name: 'Ops Lead' })).not.toHaveAttribute('aria-disabled', 'true')
+    expect(screen.getByRole('checkbox', { name: 'Member' })).not.toBeDisabled()
+    expect(screen.getByRole('checkbox', { name: 'Ops Lead' })).not.toBeDisabled()
   })
 
   it('last-admin guard: the only active admin cannot lose Admin', () => {
     const onlyAdmin = { ...OTHER_ADMIN }
     renderPanel(onlyAdmin, { people: [onlyAdmin, BAYU] })
-    expect(screen.getByRole('checkbox', { name: 'Admin' })).toHaveAttribute('aria-disabled', 'true')
+    expect(screen.getByRole('checkbox', { name: 'Admin' })).toBeDisabled()
     expect(screen.getByText('Only admin — assign another first')).toBeInTheDocument()
   })
 })
@@ -448,7 +483,7 @@ describe('PersonPanel — a failed request whose outcome is unknown', () => {
     await waitFor(() => expect(within(accessRow('Finance')).getByRole('status')).toHaveTextContent('Saved'))
     expect(within(accessRow('Finance')).queryByRole('alert')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Retry Finance' })).toBeNull()
-    expect(screen.getByRole('checkbox', { name: 'Finance' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('checkbox', { name: 'Finance' })).toBeChecked()
     expect(mockRevokeRole).not.toHaveBeenCalled()
   })
 
@@ -461,7 +496,7 @@ describe('PersonPanel — a failed request whose outcome is unknown', () => {
     await waitFor(() => expect(within(accessRow('Finance')).getByRole('alert')).toHaveTextContent('Failed'))
 
     await user.click(screen.getByRole('checkbox', { name: 'Finance' }))
-    expect(screen.getByRole('checkbox', { name: 'Finance' })).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByRole('checkbox', { name: 'Finance' })).not.toBeChecked()
     expect(within(accessRow('Finance')).queryByRole('alert')).toBeNull()
     expect(mockGrantRole).toHaveBeenCalledTimes(1)
     expect(mockRevokeRole).not.toHaveBeenCalled()
@@ -492,7 +527,7 @@ describe('PersonPanel — a failed request whose outcome is unknown', () => {
 
     await waitFor(() => expect(within(accessRow('Gordi HQ Bar')).getByRole('status')).toHaveTextContent('Saved'))
     expect(screen.queryByRole('button', { name: 'Retry Gordi HQ Bar' })).toBeNull()
-    expect(screen.getByRole('checkbox', { name: 'Gordi HQ Bar' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('checkbox', { name: 'Gordi HQ Bar' })).toBeChecked()
     expect(mockEndTeam).not.toHaveBeenCalled()
   })
 })

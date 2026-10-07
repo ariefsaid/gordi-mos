@@ -1,4 +1,6 @@
 import { supabase } from '@/lib/supabase'
+import { getReadScope } from '@/lib/scoped-reads'
+import { withReferenceCache } from './reference-cache'
 
 /** Effective Work write authority for the current viewer, resolved by mos runtime policy. */
 export interface WorkWriteScopes {
@@ -42,17 +44,23 @@ function stringIds(value: unknown): string[] {
  * rows can override the defaults.
  */
 export async function getWorkWriteScopes(): Promise<WorkWriteScopes> {
-  const { data, error } = await mos().rpc('get_work_write_scopes')
-  if (error) throw new Error(`getWorkWriteScopes failed — ${error.message}`)
-  const row = authorityRow(data)
-  return {
-    workline_org: row.workline_org === true,
-    objective_org: row.objective_org === true,
-    workline_bu_ids: stringIds(row.workline_bu_ids),
-    objective_bu_ids: stringIds(row.objective_bu_ids),
-    objective_content_org: row.objective_content_org === true,
-    objective_content_bu_ids: stringIds(row.objective_content_bu_ids),
-  }
+  const scope = getReadScope()
+  const identity = scope
+    ? `auth:${scope.authUserId}:${scope.viewerId}:${scope.orgId}:${scope.authorityKey}`
+    : undefined
+  return withReferenceCache('mos.get_work_write_scopes', async () => {
+    const { data, error } = await mos().rpc('get_work_write_scopes')
+    if (error) throw new Error(`getWorkWriteScopes failed — ${error.message}`)
+    const row = authorityRow(data)
+    return {
+      workline_org: row.workline_org === true,
+      objective_org: row.objective_org === true,
+      workline_bu_ids: stringIds(row.workline_bu_ids),
+      objective_bu_ids: stringIds(row.objective_bu_ids),
+      objective_content_org: row.objective_content_org === true,
+      objective_content_bu_ids: stringIds(row.objective_content_bu_ids),
+    }
+  }, identity ? { identity, staleWhileRevalidate: false } : {})
 }
 
 /** A safe empty value for UI callers that need to initialize before an authority read settles. */

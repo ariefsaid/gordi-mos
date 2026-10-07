@@ -259,7 +259,7 @@ select is(
 
 -- ── Stream item lists (#222) ─────────────────────────────────────────────────────────────────
 -- One item on two lists stays one item; a stream the ERP records no production for lists nothing;
--- and every listed item reaches a capture form (a listed item with no confirmed unit is invisible).
+-- and every listed item reaches a capture form (a listed item that is not set up is invisible).
 select is(
   (select count(*)::int from ops.stream_items si join shared.branches b on b.id = si.branch_id
     where si.org_id = '10000000-0000-0000-0000-000000000001' and si.activity = 'kitchen'
@@ -275,8 +275,11 @@ select is(
     join ops.wip_items item on item.id = si.wip_item_id and item.org_id = si.org_id
     where si.org_id = '10000000-0000-0000-0000-000000000001'
       and item.kind = 'WIP'
-      and not exists (select 1 from ops.capture_form_items c where c.wip_item_id = si.wip_item_id)),
-  0, 'every listed WIP item has a confirmed unit, so it reaches the capture form; RAW references are excluded');
+      and not exists (select 1 from ops.cafe_item_settings_read setting
+        where setting.branch_id = si.branch_id and setting.activity = si.activity
+          and setting.item_id = si.wip_item_id and setting.is_active and setting.kind = 'WIP'
+          and setting.default_item_unit_id is not null)),
+  0, 'every listed WIP item is set up with a default unit, so it reaches the capture form; RAW references are excluded');
 
 select * from finish();
 rollback;

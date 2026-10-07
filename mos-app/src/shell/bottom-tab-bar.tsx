@@ -30,12 +30,12 @@ const WORK: PrimaryTab = { id: 'work', labelKey: 'dest.work', href: '/work/tasks
 const INBOX: PrimaryTab = { id: 'inbox', labelKey: 'dest.inbox', href: '/inbox', Icon: InboxIcon }
 
 // v4 shell rebuild (Task 6): the + Action Launcher yields the thumb zone on capture surfaces —
-// the Café root and its dedicated production/transfer/waste/plan/stock/review screens — where
+// the Café root and its dedicated production/transfer/waste/Count/Receive/Request/plan/stock/review screens — where
 // the surface's own control is the primary action. Match route roots exactly: a `/cafe` prefix
 // also swallowed item settings and push history, which are support surfaces where quick capture
 // should remain available (and remain after the launcher closes).
 const CAPTURE_SURFACE_PATHS = [
-  '/cafe', '/cafe/production', '/cafe/transfer', '/cafe/waste',
+  '/cafe', '/cafe/production', '/cafe/transfer', '/cafe/waste', '/cafe/count', '/cafe/receive', '/cafe/request',
   '/cafe/plan', '/cafe/stock', '/cafe/review',
 ]
 

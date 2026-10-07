@@ -2,12 +2,18 @@ import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react'
 import { supabase } from '@/lib/supabase'
 import { resolveViewer } from '@/lib/db/viewer'
 import type { ViewerResult } from '@/lib/db/viewer'
-import type { PeopleRow } from '@/lib/database.types'
+import type { ViewerPerson } from '@/lib/db/viewer'
+import { invalidateReferenceCache } from '@/lib/db/reference-cache'
 import {
   publishReadScope,
   type ReadScope,
 } from '@/lib/scoped-reads'
+import { clearDeviceDrafts } from '@/lib/device-drafts'
+import { isSampleAccountOutsideSampleOrg } from '@/pages/demo-personas'
 import { AuthContext, type AuthState } from './context'
+
+/** How long sign-out waits for the device clear before ending the session anyway. */
+const DEVICE_CLEAR_TIMEOUT_MS = 2000
 
 // FR-009: session persistence + auto-refresh is configured on the supabase client (T-004) —
 // no extra code needed here; just subscribe to state changes.
@@ -30,7 +36,6 @@ function makeAuthorityKey(result: ViewerResult): string {
   const roles = result.roles
     .map((role) => ({
       id: role.id,
-      orgId: role.org_id,
       businessUnitId: role.business_unit_id,
       reportsToRoleId: role.reports_to_role_id,
     }))
@@ -53,7 +58,7 @@ function sameScopeFacts(left: ReadScope, right: Omit<ReadScope, 'generation'>): 
 
 function buildReadScope(
   authUserId: string,
-  person: PeopleRow,
+  person: ViewerPerson,
   result: ViewerResult,
   previous: ReadScope | null,
 ): ReadScope {
@@ -89,7 +94,15 @@ export function AuthProvider({ children }: Props) {
     const ticket = ++resolutionTicketRef.current
     isRecoveringRef.current = false
     retireReadScope()
-    await supabase.auth.signOut()
+    invalidateReferenceCache()
+    // Ending the session is the control; clearing the device is best effort and may not stall it.
+    try {
+      await Promise.race([clearDeviceDrafts(), new Promise(resolve => setTimeout(resolve, DEVICE_CLEAR_TIMEOUT_MS))])
+    } catch {
+      // A store that refuses to clear is left as it is; the drafts carry their owner and expire.
+    } finally {
+      await supabase.auth.signOut()
+    }
     if (ticket === resolutionTicketRef.current) {
       setState({ status: 'unauthenticated', signedOut: true })
     }
@@ -101,14 +114,21 @@ export function AuthProvider({ children }: Props) {
 
     if (!userId) {
       retireReadScope()
+      invalidateReferenceCache()
       recoveryUserIdRef.current = undefined
       setState({ status: 'unauthenticated' })
+      return
+    }
+
+    if (isSampleAccountOutsideSampleOrg(accessToken)) {
+      await handleSignOut()
       return
     }
 
     const previousScope = activeScopeRef.current
     if (previousScope && previousScope.authUserId !== userId) {
       retireReadScope()
+      invalidateReferenceCache()
       setState({ status: 'loading' })
     }
 
@@ -179,6 +199,7 @@ export function AuthProvider({ children }: Props) {
         isRecoveringRef.current = true
         resolutionTicketRef.current += 1
         retireReadScope()
+        invalidateReferenceCache()
         recoveryUserIdRef.current = session?.user?.id
         if (!cancelled) setState({ status: 'recovering', clearRecovering: handleClearRecovering })
       } else if (event === 'SIGNED_IN') {
@@ -188,6 +209,7 @@ export function AuthProvider({ children }: Props) {
         resolutionTicketRef.current += 1
         recoveryUserIdRef.current = undefined
         retireReadScope()
+        invalidateReferenceCache()
         if (!cancelled) setState({ status: 'unauthenticated', signedOut: true })
       }
     })

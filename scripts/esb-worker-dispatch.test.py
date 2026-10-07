@@ -32,12 +32,15 @@ something real. The identifiers below are fabricated — this repo is public.
 from __future__ import annotations
 
 import contextlib
+import http.server
 import importlib.util
 import io
 import json
 import os
 import sys
 import tempfile
+import threading
+import urllib.parse
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 WIP = "11111111-2222-3333-4444-555555555555"
@@ -134,7 +137,51 @@ def cfg_for(target: str, **over: str):
     return W.load_config(env(target, **over), offline=False, drains=False)
 
 
-def row(endpoint: str = "assembly-actual", target: str = "goo", **over):
+for name, values in (
+    ("Supabase endpoint requires HTTPS", {"MOS_SUPABASE_URL": "http://db.example.invalid"}),
+    ("ERP endpoint requires HTTPS", {"ESB_BASE_URL": "http://erp.example.invalid"}),
+):
+    check_raises(name, W.ConfigError,
+                 lambda values=values: W.load_config(env("goo", **values),
+                                                     offline=False, drains=False),
+                 needle="HTTPS")
+
+
+class RedirectHandler(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.server.seen.append((self.path, self.headers.get("Authorization")))
+        if self.path == "/start":
+            self.send_response(302)
+            self.send_header("Location", "/target")
+            self.end_headers()
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write(b"{}")
+
+    def log_message(self, *_args):
+        pass
+
+
+with http.server.ThreadingHTTPServer(("127.0.0.1", 0), RedirectHandler) as redirect_server:
+    redirect_server.seen = []
+    redirect_thread = threading.Thread(target=redirect_server.serve_forever, daemon=True)
+    redirect_thread.start()
+    try:
+        try:
+            W._request("GET", f"http://127.0.0.1:{redirect_server.server_port}/start",
+                       headers={"Authorization": "Bearer test-key"}, timeout=2)
+        except W.Permanent:
+            pass
+        check("service request stops at the redirect response",
+              redirect_server.seen == [("/start", "Bearer test-key")])
+    finally:
+        redirect_server.shutdown()
+        redirect_thread.join(timeout=2)
+
+
+def row(endpoint: str = "assembly-actual", target: str = "goo", **over: str):
     r = {
         "id": "aaaaaaaa-0000-0000-0000-000000000001",
         "org_id": ORG, "source_module": "kitchen", "source_ref": BATCH,
@@ -168,7 +215,9 @@ class Fake:
         for key, handler in self.routes.items():
             # `esb_push` is a substring of `esb_push_groups`; keep the two reads
             # independently routable so group-read faults exercise the worker branch.
-            if key == "esb_push" and "esb_push_groups" in url:
+            if key == "esb_push" and ("esb_push_groups" in url or "/rpc/claim_esb_pushes" in url
+                                       or "/rpc/reap_esb_pushes" in url
+                                       or "/rpc/prune_esb_pushes" in url):
                 continue
             if key in url:
                 return 200, handler(self, method, url, body)
@@ -182,7 +231,15 @@ class Fake:
 
 
 def _claim_ok(fake, method, url, body):
-    return [{"id": "aaaaaaaa-0000-0000-0000-000000000001"}] if "status=in." in url else None
+    return [{"id": row_id} for row_id in (body or {}).get("p_row_ids", [])]
+
+
+def _reap_ok(fake, method, url, body):
+    return 0
+
+
+def _prune_ok(fake, method, url, body):
+    return 0
 
 
 def _login_ok(fake, method, url, body):
@@ -203,8 +260,11 @@ def _logs_ok(fake, method, url, body):
 
 
 def happy_routes(**over):
-    routes = {"esb_push": _claim_ok, "kitchen_logs": _logs_ok, "auth/login": _login_ok,
-              "product/bom": _bom_ok, "assembly-actual": _assembly_ok}
+    routes = {"esb_push": _claim_ok, "rpc/claim_esb_pushes": _claim_ok,
+              "rpc/reap_esb_pushes": _reap_ok, "rpc/prune_esb_pushes": _prune_ok,
+              "kitchen_logs": _logs_ok,
+              "auth/login": _login_ok, "product/bom": _bom_ok,
+              "assembly-actual": _assembly_ok}
     routes.update(over)
     return routes
 
@@ -304,6 +364,23 @@ run(lambda: W.Outbox(cfg_for("goo", ESB_PUSH_ENABLED="1")).pending(), f)
 check("...and the drain filter excludes held rows at the source",
       "endpoint=neq.noop" in f.calls[0]["url"], f.calls[0]["url"])
 
+f = Fake(esb_push=lambda *a: [])
+run(lambda: W.Outbox(cfg_for("goo", ESB_PUSH_ENABLED="1")).pending(), f)
+query = W.urllib.parse.parse_qs(W.urllib.parse.urlsplit(f.calls[0]["url"]).query)
+check("the drain selects only pending rows with no future retry time",
+      query.get("status") == ["eq.pending"]
+      and "next_attempt_at.is.null" in query.get("or", [""])[0]
+      and "next_attempt_at.lte." in query.get("or", [""])[0],
+      repr(query))
+
+claim_id = "aaaaaaaa-0000-0000-0000-000000000001"
+f = Fake(**happy_routes())
+claimed = run(lambda: W.Outbox(cfg_for("goo", ESB_PUSH_ENABLED="1")).claim(claim_id), f)
+claim_call = f.to("rpc/claim_esb_pushes")
+check("a claim crosses the RPC seam with the row id", claimed and len(claim_call) == 1
+      and claim_call[0]["method"] == "POST"
+      and claim_call[0]["body"] == {"p_row_ids": [claim_id]}, repr(f.calls))
+
 # The rule, stated where it is enforced: close_posted will not write a posted state
 # without evidence, whatever the caller thinks it has.
 check_raises("closing a row 'posted' with no document number is refused", W.Permanent,
@@ -334,7 +411,7 @@ check("...and the note carries the WIP item name beside the batch id (assembly p
       repr(sent[0]["simpleManufacturingDetails"][0]["notes"]) if sent else "nothing sent")
 
 # ══════════════════════════════════════════════════════════════════════════════════════
-print("J. the retry budget, which the ticket owed a decision on")
+print("J. retry budget and terminal dead-lettering")
 # ══════════════════════════════════════════════════════════════════════════════════════
 def _post_503(fake, method, url, body):
     raise W.Transient("ERP unavailable", status=503)
@@ -366,12 +443,8 @@ check("a permanent fault dead-letters on first sight, spending no retries",
       closed and closed[0]["status"] == "dead_letter" and closed[0]["retry_count"] == 0,
       repr(closed) + out)
 
-f = Fake(esb_push=lambda *a: [])
-moved = run(lambda: W.Outbox(cfg_for("goo", ESB_PUSH_ENABLED="1"))
-            .requeue("aaaaaaaa-0000-0000-0000-000000000001"), f)
-check("--requeue only moves a row that is actually dead-lettered",
-      moved is False and "status=eq.dead_letter" in f.calls[0]["url"],
-      f.calls[0]["url"])
+check_raises("the terminal dead-letter state has no worker requeue command",
+             SystemExit, lambda: W.main(["--requeue", "aaaaaaaa-0000-0000-0000-000000000001"]))
 
 # ══════════════════════════════════════════════════════════════════════════════════════
 print("K. one fault costs one row, never the tick")
@@ -401,7 +474,7 @@ check("...and the next row still drains", "PR-2: posted -> SM-0001" in out, out)
 
 # K2/K3. An ERP reply that is valid JSON but the wrong shape used to raise an
 # unclassified AttributeError from inside a claimed row: traceback, tick abandoned, row
-# stranded in_flight where --requeue cannot reach it.
+# stranded in_flight outside the database's retry and lease-recovery paths.
 f = Fake(**happy_routes(**{"assembly-actual": lambda *a: [{"nope": 1}]}))
 n, out = tick(cfg_for("goo", ESB_PUSH_ENABLED="1"), [row()], f)
 check("an ERP reply of the wrong shape is classified, not raised raw", n == 1, out)
@@ -558,7 +631,9 @@ check("a happy grouped post dispatches once and fans out both members", n == 0
       and sum(1 for b in f.bodies("esb_push?") if isinstance(b, dict) and b.get("status") == "posted") == 2,
       repr(f.calls) + out)
 
-# A persisted receipt resumes without another ERP POST.
+# A persisted receipt resumes without another ERP POST. The fixture models two accepted
+# rows that are still pending fan-out, not the in-memory rows closed by the test above.
+grouped_a["status"] = grouped_b["status"] = "pending"
 f = Fake(**happy_routes(esb_push=group_claim, **{"esb_push_groups": lambda *a: [{"id": gid, "esb_doc_num": "SM-RESUME"}],
          "assembly-actual": _assembly_ok}))
 f.routes["esb_push"] = lambda fake, method, url, body: group_listing(fake, method, url, body) if method == "GET" else group_claim(fake, method, url, body)
@@ -568,20 +643,23 @@ ob._group_meta[gid] = {"id": gid, "esb_doc_num": "SM-RESUME"}
 n, out = tick(cfg_for("goo", ESB_PUSH_ENABLED="1"), ready, f,
               wip_names={WIP: WIP_NAME}, outbox=ob)
 check("a group with an ERP receipt resumes without a second dispatch", n == 0
-      and len(f.to("assembly-actual")) == 0, repr(f.calls) + out)
+      and len(f.to("assembly-actual")) == 0
+      and len(f.to("rpc/claim_esb_pushes")) == 1
+      and f.to("rpc/claim_esb_pushes")[0]["body"]
+          == {"p_row_ids": [grouped_a["id"], grouped_b["id"]]}, repr(f.calls) + out)
 
 # If fan-out crashes after one member is posted, that member must not be downgraded.
 class FanoutCrash:
-    def __init__(self): self.n = 0
+    def __init__(self): self.n = 0; self.posted_ids = set()
     def __call__(self, fake, method, url, body):
-        if method == "PATCH" and "status=in." in url:
-            rid = url.split("id=eq.", 1)[1].split("&", 1)[0]
-            return [{"id": rid}]
         if method == "PATCH" and "esb_push?" in url and isinstance(body, dict) and body.get("status") == "posted":
             self.n += 1
+            rid = url.split("id=eq.", 1)[1].split("&", 1)[0]
             if self.n == 2: raise W.Transient("fan-out crash")
+            self.posted_ids.add(rid)
         return None
-f = Fake(**happy_routes(esb_push=FanoutCrash(), **{"esb_push_groups": group_patch,
+fanout_crash = FanoutCrash()
+f = Fake(**happy_routes(esb_push=fanout_crash, **{"esb_push_groups": group_patch,
          "assembly-actual": _assembly_ok}))
 n, out = tick(cfg_for("goo", ESB_PUSH_ENABLED="1"), [grouped_a, grouped_b], f,
               wip_names={WIP: WIP_NAME})
@@ -594,7 +672,7 @@ def _patch_id(c):
     return c["url"].split("id=eq.",1)[1].split("&",1)[0]
 _patches = [c for c in f.calls if c["method"]=="PATCH" and "esb_push?" in c["url"]
             and "id=eq." in c["url"] and isinstance(c.get("body"),dict)]
-posted_ids = {_patch_id(c) for c in _patches if c["body"].get("status")=="posted"}
+posted_ids = fanout_crash.posted_ids
 downgraded = [c["url"] for c in _patches
               if c["body"].get("status") in ("failed","dead_letter") and _patch_id(c) in posted_ids]
 check("no posted member is downgraded after the crash", downgraded == [], repr(downgraded))
@@ -608,15 +686,12 @@ n, out = tick(cfg_for("gkid", ESB_PUSH_ENABLED="1"), [posted_member, {**grouped_
 check("resume stamps a previously posted but unstamped member", bool(f.to("kitchen_logs")), repr(f.calls) + out)
 
 def one_claim(fake, method, url, body):
-    if method == "PATCH" and "status=in." in url:
-        rid = url.split("id=eq.", 1)[1].split("&", 1)[0]
-        return [{"id": rid}] if rid.endswith("001") else []
-    return None
-f = Fake(**happy_routes(esb_push=one_claim, **{"esb_push_groups": group_patch,
-         "assembly-actual": _assembly_ok}))
+    return []
+f = Fake(**happy_routes(esb_push=one_claim, **{"rpc/claim_esb_pushes": one_claim,
+         "esb_push_groups": group_patch, "assembly-actual": _assembly_ok}))
 n, out = tick(cfg_for("goo", ESB_PUSH_ENABLED="1"), [grouped_a, grouped_b], f,
               wip_names={WIP: WIP_NAME})
-check("claim-race releases the partial claim and skips ERP dispatch", n == 2
+check("claim-race skips the whole group before ERP dispatch", n == 2
       and not f.to("assembly-actual"), repr(f.calls) + out)
 
 # ══════════════════════════════════════════════════════════════════════════════════════
@@ -625,8 +700,13 @@ print("H. the drain tick leaves a heartbeat for scripts/ops-check.sh")
 def _empty_outbox(fake, method, url, body):
     return []
 
+_main_fake = None
+
 def _main_with(argv, **over):
-    saved, W._request = W._request, Fake(esb_push=_empty_outbox)
+    global _main_fake
+    _main_fake = Fake(esb_push=_empty_outbox, **{"rpc/reap_esb_pushes": _reap_ok,
+                                                  "rpc/prune_esb_pushes": _prune_ok})
+    saved, W._request = W._request, _main_fake
     saved_env = dict(os.environ)
     os.environ.update(env("goo", ESB_PUSH_ENABLED="1", **over))
     try:
@@ -637,8 +717,16 @@ def _main_with(argv, **over):
         os.environ.clear(); os.environ.update(saved_env)
 
 hb = os.path.join(TMP, "heartbeat")
-check("a drain tick writes the heartbeat",
-      _main_with([], ESB_WORKER_HEARTBEAT_FILE=hb) == 0 and os.path.exists(hb))
+check("a drain tick prunes and reaps before selecting rows",
+      _main_with([], ESB_WORKER_HEARTBEAT_FILE=hb) == 0
+      and len(_main_fake.to("rpc/prune_esb_pushes")) == 1
+      and len(_main_fake.to("rpc/reap_esb_pushes")) == 1
+      and _main_fake.calls.index(_main_fake.to("rpc/prune_esb_pushes")[0])
+          < _main_fake.calls.index(_main_fake.to("rpc/reap_esb_pushes")[0])
+      and _main_fake.calls.index(_main_fake.to("rpc/reap_esb_pushes")[0])
+          < next(i for i, c in enumerate(_main_fake.calls)
+                 if "/rest/v1/esb_push?" in c["url"]))
+check("a drain tick writes the heartbeat", os.path.exists(hb))
 os.utime(hb, (1, 1))
 _main_with([], ESB_WORKER_HEARTBEAT_FILE=hb)
 check("a later tick refreshes it", os.path.getmtime(hb) > 1000)
@@ -648,6 +736,239 @@ check("--plan does not touch it", not os.path.exists(hb))
 check("an unwritable heartbeat path does not stop the drain",
       _main_with([], ESB_WORKER_HEARTBEAT_FILE=os.path.join(TMP, "no-dir", "hb")) == 0)
 check("no path configured, no file", _main_with([]) == 0)
+
+# ══════════════════════════════════════════════════════════════════════════════════════
+print("O. the open-PO cache refresh reads ESB and writes MOS (AC-1029)")
+# ══════════════════════════════════════════════════════════════════════════════════════
+# A deterministic fake ESB: the purchase-order list in pages per status, then one outstanding
+# read per PO. Every identifier and name is fabricated.
+ORG_ID = "00000000-0000-0000-0000-0000000000a1"
+BRANCH_MOS = "00000000-0000-0000-0000-00000000bf02"
+UNIT_KG = "11111111-0000-0000-0000-0000000000b1"
+TODAY = "2026-10-06"
+with open(os.path.join(TMP, "goo-po.json"), "w", encoding="utf-8") as fh:
+    json.dump({"target_env": "goo",
+               "branches": {"rumah_rames": {"branch_id": 176, "location_id": 510}},
+               "items": {}, "item_units": {UNIT_KG: {"product_detail_id": 9069}}}, fh)
+
+
+# The deployment's shape override (FR-1033): a page size of 2 makes the list span pages.
+with open(os.path.join(TMP, "po-shape.json"), "w", encoding="utf-8") as fh:
+    json.dump({"page_size": 2}, fh)
+
+
+def po_env(**over: str) -> dict[str, str]:
+    e = env("goo", ESB_WORKER_MAP_FILE=os.path.join(TMP, "goo-po.json"),
+            ESB_OPEN_PO_ORG_ID=ORG_ID, ESB_OPEN_PO_SHAPE_FILE=os.path.join(TMP, "po-shape.json"))
+    e.update(over)
+    return e
+
+
+def po_row(number, status, day, created="2026-09-01 08:30:00"):
+    return {"purchaseOrderNum": number, "supplierName": f"Fabricated supplier {number}",
+            "purchaseOrderDate": day, "createdDate": created, "statusID": status}
+
+
+LIST = {  # status -> pages of at most 2
+    "3": [[po_row("PO-1", 3, "2026-09-01"), po_row("PO-2", 3, "2026-09-20")],
+          [po_row("PO-3", 3, "2026-10-01")]],
+    # The list filter is not trusted: a Closed PO the server returns anyway is dropped.
+    "4": [[po_row("PO-4", 4, "2026-10-05", created=None), po_row("PO-9", 5, "2026-10-05")]],
+}
+DETAILS = {
+    "PO-1": [{"productDetailID": 9069, "productName": "Fabricated bean", "unitName": "kg", "outstandingQty": 5}],
+    "PO-2": [{"productDetailID": 9069, "productName": "Fabricated bean", "unitName": "kg", "outstandingQty": "4.5"}],
+    "PO-3": [{"productDetailID": 777, "productName": "Fabricated cup", "unitName": "pcs", "outstandingQty": 0}],
+    "PO-4": [{"productDetailID": 9069, "productName": "Fabricated bean", "unitName": "kg", "outstandingQty": 2}],
+}
+
+
+class FakeEsb:
+    """`cap` makes the server return at most that many rows per page whatever the request asks;
+    `total` adds the reported total to each page; `extra` adds rows to the first status page."""
+
+    def __init__(self, *, fail_detail: str | None = None, targets=None, cap: int | None = None,
+                 total: bool = False, extra=None) -> None:
+        self.fail_detail = fail_detail
+        self.targets = targets if targets is not None else [
+            {"branch_id": BRANCH_MOS, "branch_code": "rumah_rames", "refresh_requested_at": None}]
+        self.cap, self.total, self.extra = cap, total, extra or []
+
+    def po_list(self, fake, method, url, body):
+        query = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
+        status = query["statusID"][0]
+        rows = [row for page in LIST.get(status, []) for row in page] + (self.extra if status == "3" else [])
+        size = min(int(query["limit"][0]), self.cap or 10**6)
+        page = int(query["page"][0])
+        result = {"data": rows[(page - 1) * size: page * size]}
+        if self.total:
+            result["total"] = len(rows)
+        return {"status": "ok", "result": result}
+
+    def detail(self, fake, method, url, body):
+        number = urllib.parse.unquote(url.rsplit("/", 1)[1])
+        if number == self.fail_detail:
+            raise W.Transient("GET outstanding -> HTTP 503: unavailable", status=503)
+        return {"status": "ok", "result": {"details": DETAILS[number]}}
+
+    def routes(self):
+        return {"auth/login": _login_ok,
+                "rpc/cafe_open_po_refresh_targets": lambda *a: self.targets,
+                "rpc/replace_cafe_open_pos": lambda *a: {"lines": 4},
+                "rpc/mark_cafe_open_pos_stale": lambda *a: None,
+                "purchase/purchase-order": self.po_list,
+                "goods-receipt/initialize": self.detail}
+
+
+def refresh(scope="all", environ=None, esb=None):
+    esb = esb or FakeEsb()
+    fake = Fake(**esb.routes())
+    out = io.StringIO()
+    cfg = W.load_refresh_config(environ or po_env())
+    bad = run(lambda: W.refresh_open_pos(cfg, scope, out=out, today=TODAY), fake)
+    return bad, fake, out.getvalue()
+
+
+bad_n, f, out = refresh()
+replaced = f.bodies("rpc/replace_cafe_open_pos")
+pos = replaced[0]["p_pos"] if replaced else []
+check("AC-1029 a refresh writes the branch's cache once", bad_n == 0 and len(replaced) == 1,
+      out + repr(f.calls))
+check("AC-1029 only Authorized and Receiving POs appear, across every list page",
+      sorted((p["po_number"], p["esb_status"]) for p in pos)
+      == [("PO-1", "Authorized"), ("PO-2", "Authorized"), ("PO-3", "Authorized"), ("PO-4", "Receiving")],
+      repr(pos))
+by_number = {p["po_number"]: p for p in pos}
+check("AC-1029 lines carry the MOS product detail, item name, unit and outstanding quantity",
+      by_number.get("PO-2", {}).get("lines") == [{"item_unit_id": UNIT_KG, "item_name": "Fabricated bean",
+                                                  "unit_name": "kg", "outstanding_quantity": 4.5}],
+      repr(by_number.get("PO-2")))
+check("AC-1029 an ESB product detail the id map does not list is kept with no MOS product detail",
+      by_number.get("PO-3", {}).get("lines", [{}])[0].get("item_unit_id", "absent") is None,
+      repr(by_number.get("PO-3")))
+check("AC-1029 each PO carries its PO date and its ESB creation date",
+      by_number.get("PO-1", {}).get("po_date") == "2026-09-01"
+      and by_number.get("PO-1", {}).get("esb_created_at") == "2026-09-01T08:30:00+07:00"
+      and by_number.get("PO-4", {}).get("esb_created_at") is None, repr(pos))
+check("AC-1029 the as-of time and the configured age are stored with the branch",
+      bool(replaced) and replaced[0]["p_org_id"] == ORG_ID and replaced[0]["p_branch_id"] == BRANCH_MOS
+      and replaced[0]["p_as_of"].endswith("+00:00") and replaced[0]["p_max_age_minutes"] == 360,
+      repr(replaced))
+lists = [urllib.parse.parse_qs(urllib.parse.urlparse(c["url"]).query) for c in f.to("purchase/purchase-order")]
+check("FR-1031 the list is filtered by the id map's ESB branch, each open status and a 120-day window",
+      lists and all(q["branchID"] == ["176"] and q["startDate"] == ["2026-06-08"] and q["endDate"] == [TODAY]
+                    for q in lists)
+      and sorted({q["statusID"][0] for q in lists}) == ["3", "4"], repr(lists))
+check("FR-1031 nothing is written back to ESB", all(c["method"] == "GET" for c in f.calls
+      if "erp.example.invalid" in c["url"] and "auth/login" not in c["url"]), repr(f.calls))
+
+bad_n, f, out = refresh(esb=FakeEsb(fail_detail="PO-2"))
+check("AC-1029 a failed outstanding read writes no partial cache", f.to("rpc/replace_cafe_open_pos") == [],
+      repr(f.calls))
+stale = f.bodies("rpc/mark_cafe_open_pos_stale")
+check("AC-1029 ...and marks the previous cache stale with the error class",
+      bad_n == 1 and len(stale) == 1 and stale[0]["p_branch_id"] == BRANCH_MOS and stale[0]["p_error"] == "http_503",
+      out + repr(stale))
+check("FR-1032 the stored error never carries a host, path or ESB body; the worker log keeps the detail",
+      not any(word in stale[0]["p_error"] for word in ("http://", "https://", "/", "unavailable"))
+      and "HTTP 503: unavailable" in out, out + repr(stale))
+
+bad_n, f, out = refresh(esb=FakeEsb(cap=1))
+pos = (f.bodies("rpc/replace_cafe_open_pos") or [{"p_pos": []}])[0]["p_pos"]
+check("FR-1031 a server that caps its page size below the request still yields every open PO",
+      bad_n == 0 and sorted(p["po_number"] for p in pos) == ["PO-1", "PO-2", "PO-3", "PO-4"], out + repr(pos))
+pages_3 = [c for c in f.to("purchase/purchase-order") if "statusID=3" in c["url"]]
+check("FR-1031 ...reading pages until an empty one", len(pages_3) == 4, repr([c["url"] for c in pages_3]))
+
+bad_n, f, out = refresh(esb=FakeEsb(cap=1, total=True))
+pages_3 = [c for c in f.to("purchase/purchase-order") if "statusID=3" in c["url"]]
+check("FR-1031 a reported total ends the list without an extra page", bad_n == 0 and len(pages_3) == 3,
+      repr([c["url"] for c in pages_3]))
+
+bad_n, f, out = refresh(esb=FakeEsb(extra=[po_row("PO-7", "Authorised", "2026-10-02")]))
+stale = f.bodies("rpc/mark_cafe_open_pos_stale")
+check("NFR-1006 a PO status the shape does not recognise marks the branch stale, never a current partial cache",
+      bad_n == 1 and f.to("rpc/replace_cafe_open_pos") == [] and stale and stale[0]["p_error"] == "shape_unrecognised",
+      out + repr(stale))
+bad_n, f, out = refresh(esb=FakeEsb(extra=[{"supplierName": "Fabricated", "statusID": 3}]))
+stale = f.bodies("rpc/mark_cafe_open_pos_stale")
+check("NFR-1006 a listed row with no PO number marks the branch stale",
+      bad_n == 1 and stale and stale[0]["p_error"] == "shape_unrecognised", out + repr(stale))
+check_raises("FR-1031 the PO date window must be between 1 and 366 days", W.ConfigError,
+             lambda: W.load_refresh_config(po_env(ESB_OPEN_PO_WINDOW_DAYS="0")), needle="ESB_OPEN_PO_WINDOW_DAYS")
+
+bad_n, f, out = refresh(scope="requested", esb=FakeEsb(targets=[]))
+targets = f.bodies("rpc/cafe_open_po_refresh_targets")
+check("FR-1032 the on-demand pass asks only for branches with a refresh request",
+      targets == [{"p_org_id": ORG_ID, "p_codes": ["rumah_rames"], "p_requested_only": True}]
+      and f.to("purchase/purchase-order") == [] and bad_n == 0, repr(targets) + out)
+bad_n, f, out = refresh(scope="rumah_rames")
+check("FR-1032 a single branch can be refreshed on demand by its code",
+      f.bodies("rpc/cafe_open_po_refresh_targets")[0]["p_codes"] == ["rumah_rames"] and bad_n == 0, out)
+check_raises("FR-1031 a branch code the id map does not list is refused", W.ConfigError,
+             lambda: refresh(scope="radiant"), needle="id map")
+
+check_raises("NFR-1006 a refresh names the one organisation whose cache it fills", W.ConfigError,
+             lambda: W.load_refresh_config(po_env(ESB_OPEN_PO_ORG_ID="")), needle="ESB_OPEN_PO_ORG_ID")
+check_raises("NFR-1006 a refresh against 'dry_run' is refused — it names no ESB to read",
+             W.ConfigError, lambda: W.load_refresh_config(
+                 env("dry_run", ESB_OPEN_PO_ORG_ID=ORG_ID)), needle="dry_run")
+check_raises("NFR-1006 a refresh without this environment's own credentials is refused",
+             W.ConfigError, lambda: W.load_refresh_config(po_env(ESB_PASSWORD="")),
+             needle="never borrows")
+
+# ══════════════════════════════════════════════════════════════════════════════════════
+print("R. reading the ERP of record is switched separately from posting to it (#1447)")
+# ══════════════════════════════════════════════════════════════════════════════════════
+def gkid_po_env(**flags: str) -> dict[str, str]:
+    e = po_env(ESB_WORKER_TARGET_ENV="gkid", ESB_WORKER_MAP_FILE=os.path.join(TMP, "gkid.json"),
+               ESB_ALLOW_GKID="", ESB_ALLOW_GKID_READ="")
+    e.update(flags)
+    return e
+
+
+try:
+    esb = FakeEsb()
+    f = Fake(**esb.routes(), **{"rest/v1/item_units": lambda *a: []})
+    out = io.StringIO()
+    rcfg = W.load_refresh_config(gkid_po_env(ESB_ALLOW_GKID_READ="1"))
+    bad_n = run(lambda: W.refresh_open_pos(rcfg, "all", out=out, today=TODAY), f)
+    check("a refresh of the ERP of record with only the read switch reads ESB and fills the cache",
+          bad_n == 0 and len(f.to("rpc/replace_cafe_open_pos")) == 1
+          and all(c["method"] == "GET" for c in f.calls
+                  if "erp.example.invalid" in c["url"] and "auth/login" not in c["url"]),
+          out.getvalue() + repr(f.calls))
+except W.ConfigError as exc:
+    bad("a refresh of the ERP of record with only the read switch reads ESB and fills the cache",
+        str(exc))
+check_raises("a refresh of the ERP of record with neither switch is refused, naming the read switch",
+             W.ConfigError, lambda: W.load_refresh_config(gkid_po_env()),
+             needle="ESB_ALLOW_GKID_READ")
+check_raises("the posting switch alone does not enable a refresh of the ERP of record",
+             W.ConfigError, lambda: W.load_refresh_config(gkid_po_env(ESB_ALLOW_GKID="1")),
+             needle="ESB_ALLOW_GKID_READ")
+
+# Every posting path, through the CLI with the push on: the read switch must not unlock it.
+def read_switch_only_main(argv: list[str]) -> tuple[int, Fake, str]:
+    fake = Fake(**happy_routes())
+    saved_req, W._request = W._request, fake
+    saved_env = dict(os.environ)
+    os.environ.update(env("gkid", ESB_ALLOW_GKID="", ESB_ALLOW_GKID_READ="1", ESB_PUSH_ENABLED="1"))
+    err = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
+            rc = W.main(argv)
+    finally:
+        W._request = saved_req
+        os.environ.clear(); os.environ.update(saved_env)
+    return rc, fake, err.getvalue()
+
+
+for name, argv in (("a drain", []), ("--plan", ["--plan"])):
+    rc, fake, err = read_switch_only_main(argv)
+    check(f"{name} with only the read switch is refused, naming the posting switch, and calls nothing",
+          rc == 2 and fake.calls == [] and "ESB_ALLOW_GKID is not set" in err,
+          f"rc={rc} calls={fake.calls!r} stderr={err}")
 
 print(f"{_pass} passed, {_fail} failed")
 sys.exit(1 if _fail else 0)

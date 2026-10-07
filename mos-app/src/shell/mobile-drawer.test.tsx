@@ -4,6 +4,7 @@
  * Admin, Profile) as plain links (no aria-current — the bottom-nav owns that).
  * AC-021/022 unit arm.
  */
+import { useRef, useState } from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -242,6 +243,67 @@ describe('More menu navigation + a11y', () => {
     )
     await user.keyboard('{Escape}')
     expect(focusOpener).toHaveBeenCalled()
+  })
+
+  it('inerts the app while open and restores focus after the drawer closes', async () => {
+    const user = userEvent.setup()
+    const appRoot = document.createElement('div')
+    appRoot.id = 'root'
+    const overlayRoot = document.createElement('div')
+    overlayRoot.id = 'overlay-root'
+    document.body.append(appRoot, overlayRoot)
+    setAuthAs(['admin'])
+
+    function Fixture() {
+      const [open, setOpen] = useState(false)
+      const openerRef = useRef<HTMLButtonElement>(null)
+      return (
+        <>
+          <button ref={openerRef} type="button" onClick={() => setOpen(true)}>Open More</button>
+          <MobileDrawer
+            open={open}
+            onClose={() => setOpen(false)}
+            focusOpener={() => openerRef.current?.focus()}
+          />
+        </>
+      )
+    }
+
+    const view = render(
+      <ThemeProvider>
+        <I18nProvider>
+          <MemoryRouter initialEntries={['/']}><Fixture /></MemoryRouter>
+        </I18nProvider>
+      </ThemeProvider>,
+      { container: appRoot },
+    )
+    try {
+      const opener = screen.getByRole('button', { name: 'Open More' })
+      await user.click(opener)
+      const dialog = screen.getByRole('dialog')
+      const focusables = Array.from(dialog.querySelectorAll<HTMLElement>(
+        'a[href], button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])',
+      ))
+      const first = focusables[0]
+      const last = focusables[focusables.length - 1]
+      expect(first).toHaveFocus()
+      expect(appRoot).toHaveAttribute('inert')
+
+      last.focus()
+      await user.tab()
+      expect(first).toHaveFocus()
+      first.focus()
+      await user.keyboard('{Shift>}{Tab}{/Shift}')
+      expect(last).toHaveFocus()
+
+      await user.keyboard('{Escape}')
+      expect(appRoot).not.toHaveAttribute('inert')
+      expect(opener).toHaveFocus()
+    } finally {
+      view.unmount()
+      appRoot.remove()
+      overlayRoot.remove()
+    }
   })
 
   it('does not render when open=false', () => {

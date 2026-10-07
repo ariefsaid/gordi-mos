@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useT } from '@/i18n/use-t'
 import { useAuth } from '@/auth/use-auth'
-import { PageFrame } from '@/shell/page-frame'
+import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { UserViewRenderer, buildCompilerContext } from '@/lib/viewspec/renderer'
 import { compileCompositionSpec } from '@/lib/viewspec/compiler'
@@ -107,13 +107,12 @@ export function DevViewsPage({ viewId: viewIdProp }: { viewId?: string } = {}) {
   }
 
   return (
-    <PageFrame>
+    <PageFamilyFrame
+      family="management"
+      title={t('dev.views.title')}
+      subtitle={t('dev.views.subtitle')}
+    >
       <div className="dev-views">
-        <header className="dev-views__head">
-          <h1>{t('dev.views.title')}</h1>
-          <p className="dev-views__sub">{t('dev.views.subtitle')}</p>
-        </header>
-
         <section className="dev-views__list" aria-label={t('dev.views.title')}>
           {views.length === 0
             ? <p className="dev-views__empty">{t('dev.views.empty')}</p>
@@ -172,6 +171,6 @@ export function DevViewsPage({ viewId: viewIdProp }: { viewId?: string } = {}) {
           {parsed && ctx && <UserViewRenderer spec={parsed} ctx={ctx} />}
         </section>
       </div>
-    </PageFrame>
+    </PageFamilyFrame>
   )
 }

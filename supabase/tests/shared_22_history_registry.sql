@@ -52,10 +52,8 @@ select throws_ok(
 select cmp_ok((select count(*)::int from shared.record_history_readers), '>=', 2,
   'authenticated can read the registry (the invoker dispatch needs it)');
 reset role;
-set local role anon;
 select is(has_table_privilege('anon', 'shared.record_history_readers', 'select'), false,
   'anon cannot even read the registry');
-reset role;
 
 -- ── the dispatch: no row, NULL, false, true ──────────────────────────────────────────────────
 -- Three stub readers and three history rows for stub tables that exist nowhere else. The rows

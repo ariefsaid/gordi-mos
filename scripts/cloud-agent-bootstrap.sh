@@ -28,7 +28,8 @@ command -v docker >/dev/null || die "no docker. The local Supabase stack needs i
        NEVER at staging: it holds real business data and a design review clicks buttons.
     3. Stop the step at 'built, review-pending' and say so. Never mark a step done on code
        review alone."
-docker info >/dev/null 2>&1 || die "docker is installed but not running/reachable."
+source scripts/lib/cloud-tools.sh
+ensure_dockerd 60 || die "docker is installed but not running/reachable."
 command -v supabase >/dev/null || die "no supabase CLI. Install: https://github.com/supabase/cli#install-the-cli"
 command -v npm >/dev/null || die "no npm. Node 22 expected (see .github/workflows/integration.yml)."
 
