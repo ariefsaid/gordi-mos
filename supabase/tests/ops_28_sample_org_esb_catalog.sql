@@ -1,16 +1,18 @@
 -- #1529 — the sample Café capture catalog is copied insert-only and stays isolated from operations.
 --
--- Run this file against the local stack with this exact command. The DB container has psql but
--- not the host checkout, so stage both files there; the trap removes them afterward:
+-- The seed is included relative to this file (\ir ../seed...), so the same file runs from the repo
+-- (CI) and from a container copy. Run it against the local stack with this exact command: the DB
+-- container has psql but not the host checkout, so stage both files there; the trap removes them:
 -- ```sh
 -- scripts/with-db-lock.sh bash -c '
 --   set -e
 --   c=supabase_db_gordi-mos
 --   docker cp supabase/seed.sample-org-esb-catalog.sql "$c:/tmp/seed.sample-org-esb-catalog.sql"
---   docker cp supabase/tests/ops_28_sample_org_esb_catalog.sql "$c:/tmp/ops_28_sample_org_esb_catalog.sql"
---   trap "docker exec $c rm -f /tmp/seed.sample-org-esb-catalog.sql /tmp/ops_28_sample_org_esb_catalog.sql" EXIT
+--   docker exec "$c" mkdir -p /tmp/tests
+--   docker cp supabase/tests/ops_28_sample_org_esb_catalog.sql "$c:/tmp/tests/ops_28_sample_org_esb_catalog.sql"
+--   trap "docker exec $c rm -rf /tmp/seed.sample-org-esb-catalog.sql /tmp/tests" EXIT
 --   set +e
---   out=$(docker exec "$c" psql -U postgres -d postgres -X -A -t -v ON_ERROR_STOP=1 -f /tmp/ops_28_sample_org_esb_catalog.sql)
+--   out=$(docker exec "$c" psql -U postgres -d postgres -X -A -t -v ON_ERROR_STOP=1 -f /tmp/tests/ops_28_sample_org_esb_catalog.sql)
 --   rc=$?
 --   set -e
 --   printf "%s\\n" "$out"
@@ -204,7 +206,7 @@ select is((select count(distinct org_id)::int from ops.wip_items
               and not shared.is_sample_org(org_id)),
           1, 'the fixture supplies one non-sample ESB catalog source');
 
-\ir /tmp/seed.sample-org-esb-catalog.sql
+\ir ../seed.sample-org-esb-catalog.sql
 
 select is((select count(*)::int from ops.wip_items
             where org_id = '5a000000-0000-0000-0000-000000000001' and reference_source = 'erp_catalog'),
