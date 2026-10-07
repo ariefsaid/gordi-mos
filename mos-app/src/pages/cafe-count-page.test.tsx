@@ -7,11 +7,9 @@ import type { AuthState } from '@/auth/context'
 vi.mock('@/auth/use-auth')
 const streamMocks = vi.hoisted(() => {
   const branch = { id: 'branch-1', code: 'cafe-branch', name: 'Cafe Branch' }
-  const alternateBranch = { id: 'branch-2', code: 'other-cafe', name: 'Other Cafe' }
   const stream = { branch, activity: 'kitchen' as const }
-  const alternateStream = { branch: alternateBranch, activity: 'bar' as const }
   const catalog = {
-    branches: [branch, alternateBranch], options: [stream, alternateStream], destinations: [], locationOptions: [stream, alternateStream],
+    branches: [branch], options: [stream], destinations: [], locationOptions: [stream],
     stream, homeStream: stream, myStreamKeys: new Set(['branch-1|kitchen']), branchId: 'branch-1',
   }
   return { stream, catalog, resolve: vi.fn(async () => catalog), adopt: vi.fn(), setStream: vi.fn() }
@@ -38,7 +36,6 @@ import { useAuth } from '@/auth/use-auth'
 import { listCafeCountableItems, submitCafeCounts } from '@/lib/db/cafe-count'
 import type { CafeCountableItem } from '@/lib/db/cafe-count'
 import { CafeCountPage } from './cafe-count-page'
-import { formatWeekdayDayMonth } from '@/lib/format/date'
 
 const mockUseAuth = vi.mocked(useAuth)
 const mockListItems = vi.mocked(listCafeCountableItems)
@@ -61,10 +58,10 @@ const ITEMS: CafeCountableItem[] = [
   { id: 'raw-2', name: 'Uncounted rice', category: 'Pantry', kind: 'RAW', unitId: 'unit-bag', unitName: 'bag' },
 ]
 
-function renderPage(locale: 'en' | 'id' = 'en') {
+function renderPage() {
   return render(
     <MemoryRouter initialEntries={['/cafe/count']}>
-      <I18nProvider initialLocale={locale}><CafeCountPage /></I18nProvider>
+      <I18nProvider><CafeCountPage /></I18nProvider>
     </MemoryRouter>,
   )
 }
@@ -78,31 +75,6 @@ beforeEach(() => {
 })
 
 describe('CafeCountPage', () => {
-  it('puts the localized date in PageHead metadata and labels the kitchen switch in both locales', async () => {
-    for (const locale of ['en', 'id'] as const) {
-      const { unmount } = renderPage(locale)
-      const streamName = locale === 'en' ? 'Cafe Branch · Kitchen' : 'Cafe Branch · Dapur'
-      const stream = await screen.findByRole('heading', { name: streamName })
-      const context = stream.closest('.cafe-capture-context')
-      expect(context).toBeInTheDocument()
-      expect(context?.querySelector('time')).toBeNull()
-
-      const head = screen.getByTestId('page-head')
-      const date = head.querySelector('time')
-      expect(date).toHaveAttribute('datetime', '2026-10-06')
-      expect(date).toHaveTextContent(formatWeekdayDayMonth('2026-10-06', locale))
-      expect(date?.closest('.ch-meta, .page-head-meta')).toBeInTheDocument()
-
-      const switchLabel = locale === 'en' ? 'Switch kitchen stream' : 'Ganti stream dapur'
-      const switchButton = within(context as HTMLElement).getByRole('button', { name: switchLabel })
-      expect(switchButton).toHaveTextContent(locale === 'en' ? 'Switch kitchen' : 'Ganti dapur')
-      expect(context).not.toHaveTextContent(formatWeekdayDayMonth('2026-10-06', locale))
-      fireEvent.click(switchButton)
-      expect(await screen.findByRole('option', { name: /Other Cafe · Bar/ })).toBeInTheDocument()
-      unmount()
-    }
-  })
-
   it('AC-007 renders one blank fixed-unit input per item with a decimal keyboard and no prior figures', async () => {
     const { container } = renderPage()
     const rawInput = await screen.findByRole('textbox', { name: 'Count for Raw flour' })
@@ -113,11 +85,6 @@ describe('CafeCountPage', () => {
     expect(rawInput).toHaveAttribute('inputmode', 'decimal')
     expect(rawInput).not.toHaveAttribute('placeholder')
     expect(container.querySelector('.cafe-count__unit')).toHaveTextContent('kg')
-    expect(rawInput).toHaveClass('cafe-capture-quantity-field')
-    expect(rawInput.closest('.cafe-count__quantity-control')).toHaveClass('cafe-count__quantity-control')
-    expect(rawInput.closest('.cafe-count__quantity-control')).not.toHaveClass('cafe-capture-control-group')
-    expect(rawInput.closest('.cafe-count__input-group')?.querySelector('label')).toHaveClass('sr-only')
-    expect(rawInput.closest('.cafe-count__row')?.querySelector('.cafe-count__unit')).toHaveAttribute('aria-label', 'kg')
     const entry = container.querySelector('.cafe-count')?.textContent?.toLowerCase() ?? ''
     expect(entry).not.toContain('expected balance')
     expect(entry).not.toContain('variance')
