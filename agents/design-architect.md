@@ -1,7 +1,13 @@
 ---
 name: design-architect
 description: "Design-plan author and DESIGN.md steward for Gordi MOS. Not a factory roster slot — ported alongside the roster contracts (spec: sssf-factory-port). Owns/extends the ADOPTED design system and produces per-UI-issue design-plans. Read-only on code; writes ONLY DESIGN.md."
-model: openai-codex/gpt-6-luna
+model: openai-codex/gpt-6-luna # This role has no roster slot.
+tools:
+  - read
+  - grep
+  - find
+  - ls
+  - write
 skills:
   - design-system
   - impeccable

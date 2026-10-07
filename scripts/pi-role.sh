@@ -30,7 +30,7 @@ cd "$root"
 
 for argument in "$@"; do
   case "$argument" in
-    --model|--model=*|--provider|--provider=*|--tools|-t|--no-tools|-nt|--no-builtin-tools|-nbt|--exclude-tools|-xt|--skill|--no-skills|-ns|--append-system-prompt|--system-prompt|--)
+    --model|--model=*|--provider|--provider=*|--tools|-t|--no-tools|-nt|--no-builtin-tools|-nbt|--exclude-tools|-xt|--skill|--no-skills|-ns|-e|--extension|--extension=*|--append-system-prompt|--system-prompt|--)
       echo "pi-role: '$argument' is controlled by the role contract or roster" >&2
       exit 2
       ;;
@@ -106,6 +106,7 @@ if roster_agent and "tools" in metadata:
     fail(f"agents/{role}.md must take tools from the roster, not frontmatter")
 
 model = (roster_agent or {}).get("model") or metadata.get("model") or defaults.get("model")
+thinking = (roster_agent or {}).get("thinking") or defaults.get("thinking")
 tools = metadata.get("tools") if not roster_agent else roster_agent.get("tools")
 if tools is None:
     tools = defaults.get("tools")
@@ -114,6 +115,8 @@ if not isinstance(extensions, list) or any(not isinstance(extension, str) for ex
     fail(f"no valid extensions are configured for role '{role}'")
 if not isinstance(model, str) or not model.strip():
     fail(f"no model is configured for role '{role}'")
+if not isinstance(thinking, str) or not thinking.strip():
+    fail(f"no thinking level is configured for role '{role}'")
 if not isinstance(tools, list) or not tools or any(not isinstance(tool, str) for tool in tools):
     fail(f"no valid tools are configured for role '{role}'")
 if len(set(tools)) != len(tools):
@@ -127,16 +130,17 @@ for extension in extensions:
     extension_paths.append(str(extension_path))
 
 skill_paths = []
+skills_root = Path(os.environ.get("PI_ROLE_SKILLS_DIR") or main_root / ".claude" / "skills").resolve()
 for skill in skills:
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", skill):
         fail(f"invalid skill name '{skill}' in agents/{role}.md")
-    skill_dir = main_root / ".claude" / "skills" / skill
+    skill_dir = skills_root / skill
     if not (skill_dir / "SKILL.md").is_file():
         fail(f"role '{role}' references missing skill '{skill}' at {skill_dir / 'SKILL.md'}")
     skill_paths.append(str(skill_dir.resolve()))
 
 extra_args = sys.argv[1:]
-argv = ["pi", "--model", model, "--tools", ",".join(tools), "--no-extensions"]
+argv = ["pi", "--model", model, "--thinking", thinking, "--tools", ",".join(tools), "--no-extensions"]
 for extension_path in extension_paths:
     argv.extend(("--extension", extension_path))
 argv.extend(("--append-system-prompt", f"agents/{role}.md", "--no-skills"))
