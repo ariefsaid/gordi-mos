@@ -37,7 +37,6 @@ as $$
 declare
   v_org_id uuid := shared.current_org_id();
   v_actor_id uuid := shared.current_person_id();
-  v_today date := (pg_catalog.now() at time zone 'Asia/Jakarta')::date;
   v_bill_id text;
   v_canonical_ids text[] := array[]::text[];
   v_canonical_id text;

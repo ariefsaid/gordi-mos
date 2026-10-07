@@ -8,6 +8,7 @@ import { MoneyTableShell } from '@/components/money/money-table-shell'
 import { PendingBillPaymentForm, type PendingBillPaymentSaved } from '@/components/money/pending-bill-payment-form'
 import { createPendingBillRecordAdapter, pendingBillAgeLabel, PENDING_BILL_STATE_LABEL } from '@/components/money/pending-bill-record-adapter'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { EmptyState, LoadingShell } from '@/components/ui/state-kit'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Toast } from '@/components/admin/toast'
@@ -85,26 +86,26 @@ function columns(
       headerContent: (
         <>
           <span className="sr-only">{t('pendingBills.select')}</span>
-          <input
-            className="pending-bills__checkbox"
-            type="checkbox"
-            aria-label={t('pendingBills.selectAll')}
-            checked={allSelected}
-            disabled={selectableIds.size === 0 || selectionLocked}
-            ref={(input) => { if (input) input.indeterminate = someSelected && !allSelected }}
-            onChange={(event) => onToggleAll(event.currentTarget.checked)}
-          />
+          <label className="pending-bills__checkbox-target">
+            <Checkbox
+              aria-label={t('pendingBills.selectAll')}
+              checked={allSelected}
+              indeterminate={someSelected && !allSelected}
+              disabled={selectableIds.size === 0 || selectionLocked}
+              onChange={onToggleAll}
+            />
+          </label>
         </>
       ),
       render: (bill) => (
-        <input
-          className="pending-bills__checkbox"
-          type="checkbox"
-          aria-label={t('pendingBills.selectBill', { billNo: bill.billNo })}
-          checked={selectedIds.has(bill.id)}
-          disabled={!selectableIds.has(bill.id) || selectionLocked}
-          onChange={(event) => onToggle(bill.id, event.currentTarget.checked)}
-        />
+        <label className="pending-bills__checkbox-target">
+          <Checkbox
+            aria-label={t('pendingBills.selectBill', { billNo: bill.billNo })}
+            checked={selectedIds.has(bill.id)}
+            disabled={!selectableIds.has(bill.id) || selectionLocked}
+            onChange={(selected) => onToggle(bill.id, selected)}
+          />
+        </label>
       ),
     },
     { key: 'date', header: t('pendingBills.col.date'), render: (bill) => <span className="tabular pending-bills__nowrap">{formatDayMonthYear(bill.billDate, locale)}</span> },
@@ -448,17 +449,18 @@ export function PendingBillsPage() {
       {kept}
       <div className="pending-bills-list-toolbar">
         <div className="pending-bills-summary" aria-live="polite">
-          {t('pendingBills.summary', { count: String(summary.openCount), total: formatIDRExact(summary.openBalance) })}
+          {t('pendingBills.summary', {
+            count: String(summary.openCount),
+            total: formatIDRExact(summary.openBalance).replace(' ', '\u00a0'),
+          })}
         </div>
         <label className="pending-bills-mobile-select-all">
-          <input
-            className="pending-bills__checkbox"
-            type="checkbox"
+          <Checkbox
             aria-label={t('pendingBills.selectAll')}
             checked={allSelectableSelected}
+            indeterminate={someSelectableSelected && !allSelectableSelected}
             disabled={selectableSet.size === 0 || selectionLocked}
-            ref={(input) => { if (input) input.indeterminate = someSelectableSelected && !allSelectableSelected }}
-            onChange={(event) => toggleAllSelection(event.currentTarget.checked)}
+            onChange={toggleAllSelection}
           />
           <span>{t('pendingBills.selectAll')}</span>
         </label>
@@ -499,7 +501,7 @@ export function PendingBillsPage() {
                 total: formatIDRExact(selectedSummary.total),
               })}</p>
               <div className="pending-bills-selection-bar__actions">
-                <Button type="button" onClick={startMultiPayment} disabled={selectionLocked}>
+                <Button type="button" variant="primary" onClick={startMultiPayment} disabled={selectionLocked}>
                   {t('pendingBills.record.recordPayment')}
                 </Button>
                 <Button type="button" variant="outline" onClick={() => setSelectedBillIds([])} disabled={selectionLocked}>

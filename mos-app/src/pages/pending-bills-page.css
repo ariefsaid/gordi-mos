@@ -68,19 +68,6 @@
   gap: 8px;
 }
 
-.pending-bills__checkbox {
-  width: 18px;
-  height: 18px;
-  margin: 0;
-  accent-color: var(--primary);
-  cursor: pointer;
-}
-
-.pending-bills__checkbox:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 3px;
-}
-
 .pending-bills-list-column {
   container: pending-bills-list / inline-size;
   min-width: 0;
@@ -249,10 +236,6 @@
     cursor: pointer;
   }
 
-  .pending-bills-mobile-select-all input {
-    flex: none;
-  }
-
   .pending-bills-table .money-table__row {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
@@ -265,12 +248,12 @@
     display: none;
   }
 
-  .pending-bills__checkbox {
-    width: 20px;
-    height: 20px;
+  .pending-bills__checkbox-target {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     min-width: 44px;
     min-height: 44px;
-    padding: 12px;
   }
 
   .pending-bills-selection-bar {

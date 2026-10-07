@@ -1,7 +1,7 @@
 -- #1466: atomic multi-bill payment writer, Finance access and idempotent replay.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(29);
+select plan(30);
 
 select shared._test_seed_directory();
 
@@ -22,6 +22,12 @@ select has_function('mos', 'pay_several_pending_bills', ARRAY['text[]','date','t
   'the atomic multi-bill writer exists');
 select is((select prosecdef from pg_proc where oid = 'mos.pay_several_pending_bills(text[],date,text,uuid)'::regprocedure),
   true, 'the batch writer is SECURITY DEFINER');
+select ok(coalesce((
+  select bool_or(config.setting in ('search_path=', 'search_path=""'))
+    from pg_catalog.pg_proc proc
+    cross join lateral pg_catalog.unnest(proc.proconfig) as config(setting)
+   where proc.oid = 'mos.pay_several_pending_bills(text[],date,text,uuid)'::regprocedure
+), false), 'the batch writer pins an empty search_path');
 select ok(has_function_privilege('authenticated', 'mos.pay_several_pending_bills(text[],date,text,uuid)', 'EXECUTE'),
   'authenticated can invoke the writer, subject to its Finance check');
 select ok(not has_function_privilege('anon', 'mos.pay_several_pending_bills(text[],date,text,uuid)', 'EXECUTE'),

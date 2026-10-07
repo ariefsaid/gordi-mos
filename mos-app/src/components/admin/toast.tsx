@@ -30,22 +30,31 @@ export interface ToastProps {
 
 export function Toast({ toast, onDismiss }: ToastProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const pendingFrameRef = useRef<number | null>(null)
   const updatePosition = useCallback(() => {
     if (containerRef.current) containerRef.current.style.bottom = `${bottomOverlayOffset()}px`
   }, [])
+  const schedulePositionUpdate = useCallback(() => {
+    if (pendingFrameRef.current !== null) return
+    pendingFrameRef.current = window.requestAnimationFrame(() => {
+      pendingFrameRef.current = null
+      updatePosition()
+    })
+  }, [updatePosition])
 
   useLayoutEffect(updatePosition)
   useEffect(() => {
-    const observer = new MutationObserver(updatePosition)
+    const observer = new MutationObserver(schedulePositionUpdate)
     observer.observe(document.body, { childList: true, subtree: true })
-    window.addEventListener('resize', updatePosition)
-    window.addEventListener('scroll', updatePosition, true)
+    window.addEventListener('resize', schedulePositionUpdate)
+    window.addEventListener('scroll', schedulePositionUpdate, true)
     return () => {
       observer.disconnect()
-      window.removeEventListener('resize', updatePosition)
-      window.removeEventListener('scroll', updatePosition, true)
+      window.removeEventListener('resize', schedulePositionUpdate)
+      window.removeEventListener('scroll', schedulePositionUpdate, true)
+      if (pendingFrameRef.current !== null) window.cancelAnimationFrame(pendingFrameRef.current)
     }
-  }, [updatePosition])
+  }, [schedulePositionUpdate])
 
   return (
     <div

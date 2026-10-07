@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import { Toast } from './toast'
 
 function box(top: number, bottom: number): DOMRect {
@@ -76,6 +76,26 @@ describe('shared Toast placement', () => {
     document.body.append(actionBar)
 
     await waitFor(() => expect(screen.getByRole('status')).toHaveStyle({ bottom: '314px' }))
+  })
+
+  it('coalesces repeated layout notifications into one animation frame', () => {
+    const frames: FrameRequestCallback[] = []
+    const requestFrame = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      frames.push(callback)
+      return frames.length
+    })
+    const measureOverlays = vi.spyOn(document, 'querySelectorAll')
+    render(<Toast toast={{ id: 1, message: 'Saved' }} onDismiss={vi.fn()} />)
+    measureOverlays.mockClear()
+
+    window.dispatchEvent(new Event('resize'))
+    window.dispatchEvent(new Event('scroll'))
+    window.dispatchEvent(new Event('resize'))
+
+    expect(requestFrame).toHaveBeenCalledTimes(1)
+    expect(measureOverlays).not.toHaveBeenCalled()
+    act(() => frames[0](0))
+    expect(measureOverlays).toHaveBeenCalledTimes(1)
   })
 
   it('keeps the standard toast inset when no bottom overlay is present', () => {

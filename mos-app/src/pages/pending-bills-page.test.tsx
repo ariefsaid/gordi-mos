@@ -142,6 +142,13 @@ describe('AC-1113: only Finance reaches the list', () => {
 })
 
 describe('the ready list', () => {
+  it('keeps the currency and figure together in the page summary', async () => {
+    renderPage()
+    const summary = await screen.findByText('3 open bills · Rp 2.761.000 remaining')
+
+    expect(summary.textContent).toContain('Rp\u00a02.761.000')
+  })
+
   it('shows every bill oldest first with who owes, amount, balance, age and state', async () => {
     renderPage()
     const table = await screen.findByRole('table', { name: /Pending bills/ })
@@ -223,6 +230,15 @@ describe('the phone list', () => {
 })
 
 describe('multi-bill payment selection', () => {
+  it('makes Record payment primary and Clear selection secondary', async () => {
+    renderPage()
+    const table = await screen.findByRole('table', { name: 'Pending bills, oldest first' })
+    fireEvent.click(within(table).getByRole('checkbox', { name: 'Select bill PB-1' }))
+
+    expect(screen.getByRole('button', { name: 'Record payment' })).toHaveClass('btn-primary')
+    expect(screen.getByRole('button', { name: 'Clear selection' })).toHaveClass('btn-outline')
+  })
+
   it('selects only payable rows and reports the selected count and balance', async () => {
     mockList.mockResolvedValue([
       bill({ bill_no: 'PB-2', bill_date: '2026-10-06', amount: 96000 }),

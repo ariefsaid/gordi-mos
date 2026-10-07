@@ -80,7 +80,7 @@ describe('pending bills table CSS', () => {
   it('keeps phone selection controls tappable and the payment action in the page layout', () => {
     const phone = css.match(/@media \(max-width:\s*767\.98px\)\s*\{([\s\S]*)$/)?.[1] ?? ''
     expect(phone).toMatch(/\.pending-bills-table \.money-table__cell--select\s*\{[^}]*grid-column:\s*1\s*\/\s*-1/)
-    expect(phone).toMatch(/\.pending-bills__checkbox\s*\{[^}]*min-width:\s*44px;[^}]*min-height:\s*44px/)
+    expect(phone).toMatch(/\.pending-bills__checkbox-target\s*\{[^}]*min-width:\s*44px;[^}]*min-height:\s*44px/)
     expect(phone).toMatch(/\.pending-bills-selection-bar\s*\{[^}]*flex-direction:\s*column/)
     expect(phone).not.toMatch(/\.pending-bills-selection-bar\s*\{[^}]*position:\s*sticky/)
   })
