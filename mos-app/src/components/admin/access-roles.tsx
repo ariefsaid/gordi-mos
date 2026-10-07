@@ -83,7 +83,8 @@ export function AccessRoles({ person, people, commits, refresh }: AccessRolesPro
                 label={meta.label}
                 description={description}
                 checked={checked}
-                disabled={selfGuarded || lastAdminGuarded || busy}
+                disabled={selfGuarded || lastAdminGuarded}
+                busy={busy}
                 divider={i > 0}
                 title={disabledReason}
                 onToggle={() => toggle(role, checked)}

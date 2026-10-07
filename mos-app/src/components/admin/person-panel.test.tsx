@@ -5,7 +5,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { useState } from 'react'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
@@ -344,6 +344,54 @@ describe('PersonPanel — Access roles', () => {
     await waitFor(() => expect(mockGrantRole).toHaveBeenCalledWith('bayu-id', 'finance'))
     await waitFor(() => expect(within(accessRow('Finance')).getByRole('status')).toHaveTextContent('Saved'))
     expect(refresh).toHaveBeenCalled()
+  })
+
+  it('keeps keyboard focus on an Access checkbox through two Space-triggered saves', async () => {
+    const user = userEvent.setup()
+    const server = { current: { ...BAYU, access_roles: ['member'] } }
+    let finishGrant!: () => void
+    mockGrantRole.mockImplementationOnce(async () => {
+      await new Promise<void>((resolve) => { finishGrant = resolve })
+      server.current = { ...server.current, access_roles: [...server.current.access_roles, 'finance'] }
+    })
+    let finishRevoke!: () => void
+    mockRevokeRole.mockImplementationOnce(async () => {
+      await new Promise<void>((resolve) => { finishRevoke = resolve })
+      server.current = { ...server.current, access_roles: server.current.access_roles.filter((role) => role !== 'finance') }
+    })
+    render(<ServerBackedPanel server={server} />)
+    const checkbox = screen.getByRole('checkbox', { name: 'Finance' })
+    checkbox.focus()
+
+    await user.keyboard(' ')
+    await waitFor(() => expect(within(accessRow('Finance')).getByRole('status')).toHaveTextContent('Saving…'))
+    expect(checkbox).not.toBeDisabled()
+    expect(checkbox).toHaveAttribute('aria-disabled', 'true')
+    expect(checkbox).toHaveAttribute('aria-busy', 'true')
+    expect(document.activeElement).toBe(checkbox)
+    expect(checkbox).toBeChecked()
+
+    await user.keyboard(' ')
+    expect(mockGrantRole).toHaveBeenCalledTimes(1)
+    expect(checkbox).toBeChecked()
+    expect(document.activeElement).toBe(checkbox)
+
+    await act(async () => finishGrant())
+    await waitFor(() => expect(within(accessRow('Finance')).getByRole('status')).toHaveTextContent('Saved'))
+    expect(checkbox).toBeChecked()
+    expect(document.activeElement).toBe(checkbox)
+
+    await user.keyboard(' ')
+    await waitFor(() => expect(within(accessRow('Finance')).getByRole('status')).toHaveTextContent('Saving…'))
+    expect(mockRevokeRole).toHaveBeenCalledTimes(1)
+    expect(mockRevokeRole).toHaveBeenCalledWith('bayu-id', 'finance')
+    expect(checkbox).not.toBeDisabled()
+    expect(document.activeElement).toBe(checkbox)
+
+    await act(async () => finishRevoke())
+    await waitFor(() => expect(within(accessRow('Finance')).getByRole('status')).toHaveTextContent('Saved'))
+    expect(checkbox).not.toBeChecked()
+    expect(document.activeElement).toBe(checkbox)
   })
 
   it('removing a role calls revokeRole', async () => {
