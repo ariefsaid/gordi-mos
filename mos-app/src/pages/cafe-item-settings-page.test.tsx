@@ -406,7 +406,7 @@ describe('Cafe item permissions per activity', () => {
     await user.clear(name)
     await user.type(name, 'Draft oat milk')
 
-    await user.click(screen.getByRole('button', { name: /change stream/i }))
+    await user.click(screen.getByRole('button', { name: 'Switch kitchen' }))
     await user.click(screen.getByRole('option', { name: /Gordi HQ · Bar/ }))
 
     const switchDialog = await screen.findByRole('dialog', { name: 'Discard item changes and switch stream?' })
@@ -416,7 +416,7 @@ describe('Cafe item permissions per activity', () => {
     expect(screen.getByRole('heading', { level: 2, name: 'Gordi HQ · Kitchen' })).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: 'MOS name' })).toHaveValue('Draft oat milk')
 
-    await user.click(screen.getByRole('button', { name: /change stream/i }))
+    await user.click(screen.getByRole('button', { name: 'Switch kitchen' }))
     await user.click(screen.getByRole('option', { name: /Gordi HQ · Bar/ }))
     await user.click(screen.getByRole('button', { name: 'Discard and switch' }))
     expect(await screen.findByRole('heading', { level: 2, name: 'Gordi HQ · Bar' })).toBeInTheDocument()

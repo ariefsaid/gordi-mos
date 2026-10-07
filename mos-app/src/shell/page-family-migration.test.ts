@@ -103,6 +103,8 @@ describe('PAGE_FAMILY_FRAME_ROUTES (#191)', () => {
       expect(source, `${route.path} must use CafePageFrame`).toContain('<CafePageFrame')
       expect(source, `${route.path} must not build a private PageFamilyFrame`).not.toContain('<PageFamilyFrame')
       expect(source, `${route.path} must not render a private PageHead`).not.toContain('<PageHead')
+      expect(source, `${route.path} must not render a page-local h1`).not.toMatch(/<h1(?:\s|>)/)
+      expect(source, `${route.path} must not style a private header`).not.toContain('headClassName=')
     }
   })
 })

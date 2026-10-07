@@ -427,7 +427,7 @@ describe('KitchenReviewPage — queue (FR-040)', () => {
 
     await waitFor(() => expect(mockList).toHaveBeenLastCalledWith('2026-09-25', {}))
     await screen.findByRole('heading', { name: /nothing to review/i })
-    const headDate = document.querySelector('.kr-date')?.textContent?.trim()
+    const headDate = screen.getByTestId('page-head').querySelector('.ch-meta time')?.textContent?.trim()
     const queueEmpty = kitchenReviewEmptyState()
     const emptyCopy = queueEmpty.querySelector('.empty-copy')!
     expect(headDate).toBeTruthy()

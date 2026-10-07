@@ -75,7 +75,7 @@
 
 /* Radix owns anchoring and collision geometry; this keeps the shared Café menu measure and skin. */
 .cafe-stream__menu {
-  z-index: 100;
+  z-index: var(--z-popover-top);
   box-sizing: border-box;
   width: max-content;
   min-width: min(14rem, var(--radix-popover-content-available-width, 14rem));
