@@ -1,7 +1,6 @@
 // Task adapter for the V3 RecordCollection engine — load/project/presentations/viewer access.
-// The canonical typed query and URL schema live in task-collection-query.ts; this module re-exports
-// that contract for older consumers while keeping its collection descriptor focused on data work.
-/* eslint-disable react-refresh/only-export-components -- this is a descriptor module, not a component module */
+// The canonical typed query and URL schema live in task-collection-query.ts; this adapter keeps its
+// collection descriptor focused on data work.
 import { taskDoneRecentCutoff } from '@/lib/db/task-paging'
 import { listOlderDoneTasks, listTasks, type OlderDoneTaskCursor, type TaskListFilters } from '@/lib/db/tasks'
 import type { TaskListRow, TaskStatus } from '@/lib/db/tasks.types'
@@ -35,20 +34,6 @@ import {
 } from '@/lib/record-collection/collection-view-spec'
 import { TASK_COLLECTION_NEUTRAL_QUERY, taskCollectionQuery } from './task-collection-query'
 import type { TaskCollectionAction, TaskCollectionPresentation, TaskCollectionQuery } from './task-collection-query'
-export {
-  TASK_COLLECTION_NEUTRAL_QUERY,
-  taskCollectionQuery,
-  taskPresentationCompatibleKeys,
-} from './task-collection-query'
-export type {
-  TaskCollectionAction,
-  TaskCollectionGroup,
-  TaskCollectionPresentation,
-  TaskCollectionQuery,
-  TaskCollectionSort,
-  TaskCollectionUnsupportedGroup,
-  TaskCollectionView,
-} from './task-collection-query'
 import type {
   CollectionAccess,
   CollectionData,
