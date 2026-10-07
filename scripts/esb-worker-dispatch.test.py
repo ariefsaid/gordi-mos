@@ -970,5 +970,537 @@ for name, argv in (("a drain", []), ("--plan", ["--plan"])):
           rc == 2 and fake.calls == [] and "ESB_ALLOW_GKID is not set" in err,
           f"rc={rc} calls={fake.calls!r} stderr={err}")
 
+# ══════════════════════════════════════════════════════════════════════════════════════
+print("S. one goods receipt per (receipt, PO): compose, create, authorize (AC-1022..1027)")
+# ══════════════════════════════════════════════════════════════════════════════════════
+# A scripted fake ESB answers the outstanding read, the create, the authorize and the
+# lookup by MOS key; the database's re-match and refusal RPCs are scripted beside it.
+# Every identifier, key and number is fabricated.
+GR_GROUP = "cccccccc-0000-0000-0000-000000000001"
+GR_RECEIPT = "dddddddd-0000-0000-0000-000000000001"
+GR_UNIT_A = "11111111-0000-0000-0000-0000000000a1"
+GR_UNIT_B = "11111111-0000-0000-0000-0000000000a2"
+GR_KEY = "MOS-DDDDDDDD-CCCCCCCC"
+GR_PO = "PO-GR-0001"
+with open(os.path.join(TMP, "goo-gr.json"), "w", encoding="utf-8") as fh:
+    json.dump({"target_env": "goo",
+               "branches": {"rumah_rames": {"branch_id": 176, "location_id": 510,
+                                            "receiving_locations": {"main_store": 612}}},
+               "items": {},
+               "item_units": {GR_UNIT_A: {"product_id": 3001, "product_detail_id": 9069},
+                              GR_UNIT_B: {"product_id": 3002, "product_detail_id": 9070}}}, fh)
+with open(os.path.join(TMP, "goo-gr-noloc.json"), "w", encoding="utf-8") as fh:
+    json.dump({"target_env": "goo",
+               "branches": {"rumah_rames": {"branch_id": 176, "location_id": 510}},
+               "items": {},
+               "item_units": {GR_UNIT_A: {"product_id": 3001, "product_detail_id": 9069},
+                              GR_UNIT_B: {"product_id": 3002, "product_detail_id": 9070}}}, fh)
+
+
+def gr_env(**over: str) -> dict[str, str]:
+    e = env("goo", ESB_WORKER_MAP_FILE=os.path.join(TMP, "goo-gr.json"), ESB_PUSH_ENABLED="1",
+            ESB_GOODS_RECEIPT_ENABLED="1")
+    e.update(over)
+    return e
+
+
+def gr_cfg(**over: str):
+    return W.load_config(gr_env(**over), offline=False, drains=True)
+
+
+def gr_rows(**payload_over):
+    """Two portions of one receipt on one PO, as ops._enqueue_cafe_receipt_portions writes them."""
+    rows = []
+    for n, (unit, qty) in enumerate(((GR_UNIT_A, 5), (GR_UNIT_B, 3)), start=1):
+        portion = f"eeeeeeee-0000-0000-0000-00000000000{n}"
+        payload = {"receipt_id": GR_RECEIPT, "portion_id": portion, "po_number": GR_PO,
+                   "po_date": "2026-10-01", "arrival_date": "2026-10-05",
+                   "branch_code": "rumah_rames", "receiving_location_key": "main_store",
+                   "delivery_note_number": "Surat jalan № 12 — café", "mos_key": GR_KEY,
+                   "item_unit_id": unit, "quantity": qty}
+        payload.update(payload_over)
+        rows.append({"id": f"aaaaaaaa-0000-0000-0000-0000000000{n}{n}", "org_id": ORG,
+                     "source_module": "cafe_receipt", "source_ref": portion,
+                     "endpoint": "goods-receipt", "target_env": "goo", "status": "pending",
+                     "retry_count": 0, "push_group_id": GR_GROUP, "payload": payload})
+    return rows
+
+
+M1, M2 = gr_rows()[0]["id"], gr_rows()[1]["id"]
+CREATE_PATH = f"/inventory/goods-receipt/{GR_PO}"
+INIT_PATH = f"/inventory/goods-receipt/initialize/{GR_PO}"
+
+
+def http_refusal(status: int, message: str):
+    """What _request raises for an ESB HTTP refusal: the ESB body rides on the exception."""
+    cls = W.Transient if status >= 500 else W.Permanent
+    return cls(f"POST https://erp.example.invalid/x -> HTTP {status}: {message}", status=status,
+               body=message)
+
+
+class FakeGr:
+    """The goods-receipt half of ESB plus the two worker RPCs. Each script is a list consumed
+    one call at a time; an entry is a reply dict or an exception to raise."""
+
+    def __init__(self, *, outstanding=None, creates=None, authorizes=None, lookups=None,
+                 rematches=None) -> None:
+        self.outstanding = list(outstanding or [[{"productDetailID": 9069, "outstandingQty": 9},
+                                                 {"productDetailID": 9070, "outstandingQty": 9}]])
+        self.creates = list(creates or [{"status": "ok", "result": {"goodsReceiptNum": "GR-0001"}}])
+        self.authorizes = list(authorizes or [{"status": "ok", "result": None}])
+        self.lookups = list(lookups or [])
+        self.rematches = list(rematches or [[{"push_id": M1, "quantity": 5}, {"push_id": M2, "quantity": 3}]])
+
+    @staticmethod
+    def _next(script, what):
+        if not script:
+            raise AssertionError(f"unscripted {what}")
+        step = script.pop(0) if len(script) > 1 else script[0]
+        if isinstance(step, BaseException):
+            raise step
+        return step
+
+    def esb(self, fake, method, url, body):
+        path = urllib.parse.urlsplit(url).path
+        if "/initialize/" in path:
+            return {"status": "ok", "result": {"details": self._next(self.outstanding, "outstanding read")}}
+        if path.endswith("/authorize"):
+            return self._next(self.authorizes, "authorize")
+        if method == "GET":
+            return self._next(self.lookups, "lookup")
+        return self._next(self.creates, "create")
+
+    def routes(self, **over):
+        routes = {"auth/login": _login_ok, "rpc/claim_esb_pushes": _claim_ok,
+                  "rpc/rematch_cafe_receipt_group": lambda *a: self._next(self.rematches, "rematch"),
+                  "rpc/refuse_cafe_receipt_portions": lambda *a: 2,
+                  "esb_push_groups": lambda *a: None, "esb_push": lambda *a: None,
+                  "inventory/goods-receipt": self.esb,
+                  # The MOS catalog's ids differ from the sandbox map's, so a read of it shows.
+                  "rest/v1/item_units": lambda *a: [
+                      {"id": GR_UNIT_A, "esb_product_detail_id": "4069", "esb_product_id": "4001"},
+                      {"id": GR_UNIT_B, "esb_product_detail_id": "4070", "esb_product_id": "4002"}]}
+        routes.update(over)
+        return routes
+
+
+def gr_tick(esb: FakeGr, *, meta=None, rows=None, cfg=None):
+    cfg = cfg or gr_cfg()
+    f = Fake(**esb.routes())
+    ob = W.Outbox(cfg)
+    ob._group_meta[GR_GROUP] = {"id": GR_GROUP, **(meta or {})}
+    rows = rows if rows is not None else gr_rows()
+    n, out = tick(cfg, rows, f, outbox=ob)
+    return n, out, f, rows
+
+
+def esb_calls(f) -> list[tuple[str, str]]:
+    return [(c["method"], urllib.parse.urlsplit(c["url"]).path) for c in f.calls
+            if "erp.example.invalid" in c["url"] and "auth/login" not in c["url"]]
+
+
+def member_closes(f) -> dict[str, dict]:
+    closes = {}
+    for c in f.calls:
+        if c["method"] == "PATCH" and "/rest/v1/esb_push?" in c["url"]:
+            closes[c["url"].split("id=eq.", 1)[1]] = c["body"]
+    return closes
+
+
+def group_patches(f) -> list[dict]:
+    return [c["body"] for c in f.calls if c["method"] == "PATCH" and "esb_push_groups" in c["url"]]
+
+
+# ── AC-1022 the body ─────────────────────────────────────────────────────────────────────
+units = {GR_UNIT_A: {"product_id": 3001, "product_detail_id": 9069},
+         GR_UNIT_B: {"product_id": 3002, "product_detail_id": 9070}}
+req = W.compose_goods_receipt(gr_cfg(), gr_rows(), units)
+check("AC-1022 the goods receipt's path references the PO", req.path == CREATE_PATH, repr(req.path))
+check("AC-1022 the body is the arrival date, the id map's receiving location, the ASCII MOS key and "
+      "delivery note, automatic PO close off, and one detail per portion with deviation zero and notes",
+      req.body == {"goodsReceiptDate": "2026-10-05", "locationID": 612, "information": GR_KEY,
+                   "deliveryNum": "Surat jalan No 12 cafe", "isAutoClosePO": False,
+                   "goodsReceiptDetails": [
+                       {"productID": 3001, "productDetailID": 9069, "qty": 5.0, "deviationQty": 0, "notes": GR_KEY},
+                       {"productID": 3002, "productDetailID": 9070, "qty": 3.0, "deviationQty": 0, "notes": GR_KEY}]},
+      json.dumps(req.body, indent=1))
+long_note = gr_rows(delivery_note_number="DN-" + "9" * 80)
+check("AC-1022 the delivery note is truncated to the delivery-number field limit",
+      W.compose_goods_receipt(gr_cfg(), long_note, units).body["deliveryNum"] == ("DN-" + "9" * 80)[:50])
+with open(os.path.join(TMP, "gr-short-info.json"), "w", encoding="utf-8") as fh:
+    json.dump({"information_max": 12}, fh)
+check_raises("AC-1022 a MOS key that does not fit the information field is refused, never truncated",
+             W.Permanent, lambda: W.compose_goods_receipt(
+                 gr_cfg(ESB_GOODS_RECEIPT_SHAPE_FILE=os.path.join(TMP, "gr-short-info.json")), gr_rows(), units),
+             needle="MOS key")
+check_raises("AC-1022 a MOS key that is not ASCII is refused", W.Permanent,
+             lambda: W.compose_goods_receipt(gr_cfg(), gr_rows(mos_key="MOS-É"), units), needle="MOS key")
+check_raises("AC-1025 no goods receipt is composed without a PO reference", W.Permanent,
+             lambda: W.compose_goods_receipt(gr_cfg(), gr_rows(po_number=None), units), needle="without a PO")
+mixed = gr_rows()
+mixed[1]["payload"]["po_number"] = "PO-GR-0002"
+check_raises("FR-1024 one goods receipt never spans two POs", W.Permanent,
+             lambda: W.compose_goods_receipt(gr_cfg(), mixed, units), needle="one receipt and one PO")
+
+# ── AC-1023 create, then authorize ────────────────────────────────────────────────────────
+n, out, f, rows = gr_tick(FakeGr())
+check("AC-1023 a clean group posts", n == 0, out)
+check("AC-1023 ESB sees: outstanding re-read, one create, then the authorize of the returned number",
+      esb_calls(f) == [("GET", INIT_PATH), ("POST", CREATE_PATH),
+                       ("PUT", "/inventory/goods-receipt/GR-0001/authorize")], repr(esb_calls(f)))
+creates = f.bodies(CREATE_PATH)
+check("AC-1023 the create carries both portions", creates and
+      [d["qty"] for d in creates[0]["goodsReceiptDetails"]] == [5.0, 3.0], repr(creates))
+check("CQ5 NFR-1006 the sandbox create carries the id map's product ids and never reads the MOS catalog",
+      creates and [(d["productID"], d["productDetailID"]) for d in creates[0]["goodsReceiptDetails"]]
+      == [(3001, 9069), (3002, 9070)] and not f.to("rest/v1/item_units"), repr(creates))
+check("FR-1027 the re-match is given the freshly read outstanding of this PO, mapped to MOS units",
+      f.bodies("rpc/rematch_cafe_receipt_group") == [{
+          "p_group_id": GR_GROUP,
+          "p_po_lines": [{"item_unit_id": GR_UNIT_A, "outstanding": 9.0},
+                         {"item_unit_id": GR_UNIT_B, "outstanding": 9.0}]}],
+      repr(f.bodies("rpc/rematch_cafe_receipt_group")))
+closes = member_closes(f)
+check("AC-1023 every portion records the authorized number and becomes posted",
+      {k: (v["status"], v["esb_doc_num"]) for k, v in closes.items()}
+      == {M1: ("posted", "GR-0001"), M2: ("posted", "GR-0001")}, repr(closes))
+stages = [p.get("posting_stage", "-") for p in group_patches(f)]
+check("FR-1025 the group records create sent, then created awaiting authorization, then posted",
+      stages[:2] == ["create_sent", "awaiting_authorization"]
+      and group_patches(f)[1]["esb_doc_num"] == "GR-0001"
+      and group_patches(f)[-1]["status"] == "posted" and group_patches(f)[-1]["posting_stage"] is None,
+      repr(group_patches(f)))
+create_at = next(i for i, c in enumerate(f.calls) if CREATE_PATH in c["url"])
+stage_at = next(i for i, c in enumerate(f.calls)
+                if "esb_push_groups" in c["url"] and (c["body"] or {}).get("posting_stage") == "create_sent")
+check("FR-1028 'create sent' is written before the create leaves", stage_at < create_at, repr(f.calls))
+
+n, out, f, rows = gr_tick(FakeGr(creates=[{"status": "ok", "result": {}}]))
+check("AC-1023 no portion is posted without a goods-receipt number",
+      not any(v.get("status") == "posted" for v in member_closes(f).values())
+      and not f.to("/authorize") and n == 2, repr(member_closes(f)) + out)
+check("FR-1028 ...and the group stays 'create sent', so the next attempt looks it up first",
+      not any(p.get("posting_stage") is None and "posting_stage" in p for p in group_patches(f)),
+      repr(group_patches(f)))
+
+for label, refusal in (
+        ("a closed period", http_refusal(400, "Transaction date is in a closed period")),
+        ("a date before the PO date", http_refusal(400, "Goods receipt date cannot be before purchase order date"))):
+    n, out, f, rows = gr_tick(FakeGr(authorizes=[refusal]))
+    closes = member_closes(f)
+    check(f"AC-1023 authorize refused for {label} is a permanent failure with the ESB message",
+          n == 2 and all(v["status"] == "dead_letter" and v["retry_count"] == 0
+                         and refusal.body in v["last_error"] and "erp.example.invalid" not in v["last_error"]
+                         for v in closes.values()) and len(closes) == 2, repr(closes))
+    check(f"AC-1023 ...with no retry of the authorize and no second create ({label})",
+          len(f.to("/authorize")) == 1 and len(f.to(CREATE_PATH)) == 1, repr(esb_calls(f)))
+    check(f"R3 B1 ESB holds the created goods receipt, so the group halts for a person and its portions stay "
+          f"queued ({label})",
+          not f.to("rpc/refuse_cafe_receipt_portions") and all("person" in v["last_error"] for v in closes.values()),
+          repr(f.bodies("rpc/refuse_cafe_receipt_portions")) + repr(closes))
+    check(f"FR-1025 ...while the group keeps the created number awaiting authorization ({label})",
+          group_patches(f)[-1]["status"] == "dead_letter" and "posting_stage" not in group_patches(f)[-1]
+          and "esb_doc_num" not in group_patches(f)[-1]
+          and refusal.body in group_patches(f)[-1]["last_error"], repr(group_patches(f)))
+
+n, out, f, rows = gr_tick(FakeGr(authorizes=[http_refusal(500, "Goods receipt date cannot be before purchase order date")]))
+check("B2 an authorize answered with a 5xx is not judged by its words: one retry spent, nothing freed",
+      n == 2 and all(v["status"] == "failed" for v in member_closes(f).values())
+      and not f.to("rpc/refuse_cafe_receipt_portions"), repr(member_closes(f)))
+
+# B2: a Transient create answer is never classified by its words.
+n, out, f, rows = gr_tick(FakeGr(creates=[http_refusal(502, "upstream error while updating outstanding quantity"),
+                                          {"status": "ok", "result": {"goodsReceiptNum": "GR-0002"}}]))
+check("R2 B2 a 5xx create answer mentioning 'outstanding' is ambiguous: exactly one create in the tick",
+      len(f.to(CREATE_PATH)) == 1 and n == 2, repr(esb_calls(f)))
+check("R2 B2 ...and 'create sent' is never cleared",
+      not any("posting_stage" in p and p["posting_stage"] != "create_sent" for p in group_patches(f)),
+      repr(group_patches(f)))
+n, out, f, rows = gr_tick(FakeGr(creates=[http_refusal(503, "service unavailable: closed period job running")]))
+check("R2c B2 a 5xx create answer mentioning 'closed period' keeps 'create sent' and frees nothing",
+      not f.to("rpc/refuse_cafe_receipt_portions")
+      and not any("posting_stage" in p and p["posting_stage"] is None for p in group_patches(f))
+      and all(v["status"] == "failed" for v in member_closes(f).values()), repr(group_patches(f)))
+
+# B1: a write-back fault after ESB authorized is not an ESB refusal.
+class PatchFault:
+    def __call__(self, fake, method, url, body):
+        if method == "PATCH" and body == {"posting_stage": None}:
+            raise W.Permanent("PATCH /rest/v1/esb_push_groups -> HTTP 400: bad", status=400, body="bad")
+        return None
+
+
+f = Fake(**FakeGr().routes(esb_push_groups=PatchFault()))
+ob = W.Outbox(gr_cfg())
+ob._group_meta[GR_GROUP] = {"id": GR_GROUP}
+n, out = tick(gr_cfg(), gr_rows(), f, outbox=ob)
+check("R4 B1 a database 4xx after ESB authorized halts the group and frees no portion",
+      len(f.to("/authorize")) == 1 and not f.to("rpc/refuse_cafe_receipt_portions")
+      and all("person" in v["last_error"] for v in member_closes(f).values()), out + repr(f.calls[-4:]))
+
+# B1: an earlier attempt may have reached ESB, so a refusal before sending must not free its portions.
+n, out, f, rows = gr_tick(FakeGr(), cfg=gr_cfg(ESB_WORKER_MAP_FILE=os.path.join(TMP, "goo-gr-noloc.json")),
+                          meta={"posting_stage": "create_sent", "status": "failed"})
+check("B1 a group whose earlier create may exist halts on an id-map refusal and frees nothing",
+      n == 2 and not f.to("rpc/refuse_cafe_receipt_portions")
+      and all(v["status"] == "dead_letter" and "person" in v["last_error"] for v in member_closes(f).values())
+      and [c for c in f.calls if "erp.example.invalid" in c["url"]] == [], repr(f.calls))
+
+n, out, f, rows = gr_tick(FakeGr(creates=[http_refusal(400, "Transaction date is in a closed period")]))
+check("FR-1025 a create refused for a closed period is permanent, never authorized",
+      n == 2 and not f.to("/authorize") and len(f.to(CREATE_PATH)) == 1
+      and all(v["status"] == "dead_letter" for v in member_closes(f).values())
+      and f.bodies("rpc/refuse_cafe_receipt_portions") == [{"p_group_id": GR_GROUP, "p_reason": "esb_refused"}],
+      repr(esb_calls(f)) + out + repr(f.bodies("rpc/refuse_cafe_receipt_portions")))
+check("FR-1028 ...and ESB's answer proves nothing was created, so 'create sent' is cleared",
+      any(p.get("posting_stage", "x") is None for p in group_patches(f)), repr(group_patches(f)))
+
+n, out, f, rows = gr_tick(FakeGr(authorizes=[W.Transient("authorize timed out", kind="timeout")]))
+closes = member_closes(f)
+check("AC-1023 an authorize that times out spends one retry and posts nothing",
+      n == 2 and all(v["status"] == "failed" and v["retry_count"] == 1 for v in closes.values()),
+      repr(closes))
+check("FR-1025 ...and the group keeps the number awaiting authorization",
+      group_patches(f)[-1]["status"] == "failed"
+      and group_patches(f)[1] == {"status": "in_flight", "posting_stage": "awaiting_authorization",
+                                  "esb_doc_num": "GR-0001"}, repr(group_patches(f)))
+
+# Resume of a created number: the authorize answer may have been lost, so ESB is asked first.
+awaiting = {"esb_doc_num": "GR-0001", "posting_stage": "awaiting_authorization", "status": "failed"}
+found_auth = {"status": "ok", "result": {"total": 1, "data": [
+    {"goodsReceiptNum": "GR-0001", "information": GR_KEY, "purchaseOrderNum": GR_PO, "statusID": "Authorized"}]}}
+found_draft = {"status": "ok", "result": {"total": 1, "data": [
+    {"goodsReceiptNum": "GR-0001", "information": GR_KEY, "purchaseOrderNum": GR_PO, "statusID": "Draft"}]}}
+n, out, f, rows = gr_tick(FakeGr(lookups=[found_auth]), meta=awaiting)
+check("FR-1025 a resumed group whose number ESB already shows authorized posts without a second "
+      "authorize or create", n == 0 and esb_calls(f) == [("GET", "/inventory/goods-receipt")]
+      and all(v["esb_doc_num"] == "GR-0001" for v in member_closes(f).values()), repr(esb_calls(f)) + out)
+n, out, f, rows = gr_tick(FakeGr(lookups=[found_draft]), meta=awaiting)
+check("FR-1025 ...and one still waiting is authorized once, never created again",
+      n == 0 and esb_calls(f) == [("GET", "/inventory/goods-receipt"),
+                                  ("PUT", "/inventory/goods-receipt/GR-0001/authorize")], repr(esb_calls(f)))
+
+# ── AC-1024 ESB answers "quantity must be ≤ outstanding" ─────────────────────────────────
+over = http_refusal(400, "Qty must be less than or equal to outstanding qty")
+esb = FakeGr(outstanding=[[{"productDetailID": 9069, "outstandingQty": 9}, {"productDetailID": 9070, "outstandingQty": 9}],
+                          [{"productDetailID": 9069, "outstandingQty": 2}]],
+             creates=[over, {"status": "ok", "result": {"goodsReceiptNum": "GR-0002"}}],
+             rematches=[[{"push_id": M1, "quantity": 5}, {"push_id": M2, "quantity": 3}],
+                        [{"push_id": M1, "quantity": 2}]])
+n, out, f, rows = gr_tick(esb)
+creates = f.bodies(CREATE_PATH)
+check("AC-1024 the worker re-reads the PO's outstanding and re-matches before the second create",
+      [c[1] for c in esb_calls(f)] == [INIT_PATH, CREATE_PATH, INIT_PATH, CREATE_PATH,
+                                       "/inventory/goods-receipt/GR-0002/authorize"]
+      and f.bodies("rpc/rematch_cafe_receipt_group")[1]["p_po_lines"]
+      == [{"item_unit_id": GR_UNIT_A, "outstanding": 2.0}], repr(esb_calls(f)))
+check("AC-1024 the part that fits posts, and the whole is never posted a second time",
+      len(creates) == 2 and [(d["productDetailID"], d["qty"]) for d in creates[1]["goodsReceiptDetails"]]
+      == [(9069, 2.0)], repr(creates))
+closes = member_closes(f)
+check("AC-1024 the excess returns to Receipt issues: its portion's row closes, not posted",
+      closes.get(M1, {}).get("esb_doc_num") == "GR-0002" and closes.get(M2, {}).get("status") == "dead_letter"
+      and "Receipt issues" in closes.get(M2, {}).get("last_error", ""), repr(closes))
+
+esb = FakeGr(creates=[over, over],
+             rematches=[[{"push_id": M1, "quantity": 5}, {"push_id": M2, "quantity": 3}]])
+n, out, f, rows = gr_tick(esb)
+check("FR-1026 a second refusal after the re-match is not retried blindly within the tick",
+      len(f.to(CREATE_PATH)) == 2 and n == 2
+      and all(v["status"] == "failed" for v in member_closes(f).values()), repr(esb_calls(f)) + out)
+
+# ── AC-1025 the fresh outstanding decides before anything is sent ───────────────────────
+n, out, f, rows = gr_tick(FakeGr(rematches=[[{"push_id": M1, "quantity": 4}]]))
+creates = f.bodies(CREATE_PATH)
+check("AC-1025 nothing is sent for the excess: the create holds only what fits",
+      creates and [(d["productDetailID"], d["qty"]) for d in creates[0]["goodsReceiptDetails"]] == [(9069, 4.0)],
+      repr(creates))
+n, out, f, rows = gr_tick(FakeGr(outstanding=[[]], rematches=[[]]))
+check("AC-1025 a PO no longer open sends nothing at all", f.to(CREATE_PATH) == [] and n == 2,
+      repr(esb_calls(f)) + out)
+check("AC-1025 ...and its portions return to Receipt issues",
+      all(v["status"] == "dead_letter" and "Receipt issues" in v["last_error"] for v in member_closes(f).values())
+      and len(member_closes(f)) == 2, repr(member_closes(f)))
+
+# ── AC-1026 a create whose answer was lost ───────────────────────────────────────────────
+n, out, f, rows = gr_tick(FakeGr(creates=[W.Transient("POST create timed out", kind="timeout")]))
+check("FR-1028 a create whose answer is lost spends a retry and leaves 'create sent' standing",
+      n == 2 and all(v["status"] == "failed" for v in member_closes(f).values())
+      and not any("posting_stage" in p and p["posting_stage"] != "create_sent" for p in group_patches(f)),
+      repr(group_patches(f)))
+sent = {"posting_stage": "create_sent", "status": "failed"}
+n, out, f, rows = gr_tick(FakeGr(lookups=[found_auth]), meta=sent)
+check("AC-1026 found: the number is adopted, with no second create",
+      n == 0 and esb_calls(f) == [("GET", "/inventory/goods-receipt")]
+      and all(v["esb_doc_num"] == "GR-0001" for v in member_closes(f).values()), repr(esb_calls(f)))
+lookup_q = urllib.parse.parse_qs(urllib.parse.urlsplit(f.to("/inventory/goods-receipt")[0]["url"]).query)
+check("FR-1028 the lookup asks ESB by the MOS key", lookup_q.get("keyword") == [GR_KEY], repr(lookup_q))
+n, out, f, rows = gr_tick(FakeGr(lookups=[found_draft]), meta=sent)
+check("AC-1026 found but not authorized: authorized once, no create",
+      [c[0] for c in esb_calls(f)] == ["GET", "PUT"] and not f.to(CREATE_PATH) and n == 0, repr(esb_calls(f)))
+absent = {"status": "ok", "result": {"total": 0, "data": []}}
+n, out, f, rows = gr_tick(FakeGr(lookups=[absent]), meta=sent)
+check("AC-1026 provably absent: re-read, then created once",
+      [c[1] for c in esb_calls(f)][:3] == ["/inventory/goods-receipt", INIT_PATH, CREATE_PATH]
+      and len(f.to(CREATE_PATH)) == 1 and n == 0, repr(esb_calls(f)))
+for label, lookup in (
+        ("two goods receipts carry the key", {"status": "ok", "result": {"total": 2, "data": [
+            found_auth["result"]["data"][0], {**found_auth["result"]["data"][0], "goodsReceiptNum": "GR-0009"}]}}),
+        ("the list is not complete", {"status": "ok", "result": {"total": 40, "data": [
+            {"goodsReceiptNum": f"GR-1{i:03}", "information": "MOS-OTHER", "purchaseOrderNum": GR_PO,
+             "statusID": "Authorized"} for i in range(20)]}}),
+        ("the reply is not a list", {"status": "ok", "result": {"data": "n/a"}}),
+        ("ESB refuses the lookup", http_refusal(400, "unknown filter"))):
+    n, out, f, rows = gr_tick(FakeGr(lookups=[lookup]), meta=sent)
+    closes = member_closes(f)
+    check(f"AC-1026 undecidable ({label}): the group halts for a person with no second create",
+          not f.to(CREATE_PATH) and not f.to("/authorize") and n == 2
+          and all(v["status"] == "dead_letter" and "person" in v["last_error"] for v in closes.values())
+          and len(closes) == 2 and group_patches(f)[-1]["status"] == "dead_letter", repr(esb_calls(f)) + out)
+    check(f"FR-1028 ...and its portions stay queued, since ESB may hold them ({label})",
+          not f.to("rpc/refuse_cafe_receipt_portions"), repr(f.calls))
+n, out, f, rows = gr_tick(FakeGr(lookups=[W.Transient("lookup timed out", kind="timeout")]), meta=sent)
+check("FR-1028 a lookup that could not be read is retried later, never followed by a create",
+      not f.to(CREATE_PATH) and all(v["status"] == "failed" for v in member_closes(f).values()), repr(esb_calls(f)))
+
+nokey = {"status": "ok", "result": {"total": 1, "data": [
+    {"goodsReceiptNum": "GR-0001", "purchaseOrderNum": GR_PO, "statusID": "Authorized"}]}}
+n, out, f, rows = gr_tick(FakeGr(lookups=[nokey]), meta=sent)
+check("R5 S3 a lookup row without the MOS-key field is not proof of absence: halted, no create",
+      not f.to(CREATE_PATH) and n == 2
+      and all(v["status"] == "dead_letter" and "person" in v["last_error"] for v in member_closes(f).values()),
+      repr(esb_calls(f)))
+
+# S4: a 'create sent' group whose re-match returned a member is still resumed.
+stranded = [dict(r) for r in gr_rows()]
+stranded[1]["status"] = "dead_letter"
+def stranded_rows(fake, method, url, body):
+    if "esb_push_groups" in url:
+        return [{"id": GR_GROUP, "esb_doc_num": None, "status": "failed", "posting_stage": "create_sent"}]
+    return [stranded[0]] if "status=eq.pending" in urllib.parse.unquote(url) else stranded
+f = Fake(esb_push=stranded_rows, esb_push_groups=stranded_rows)
+s4_ob = W.Outbox(gr_cfg())
+got = run(lambda: s4_ob.pending(), f)
+check("R6 S4 pending() still selects a 'create sent' group with a member already returned to issues",
+      [r["id"] for r in got] == [M1, M2], repr(got))
+n, out, f, rows = gr_tick(FakeGr(lookups=[found_auth]), meta=sent, rows=stranded)
+check("R6 S4 ...and resumes it: the key is looked up, the kept member posts, the returned one is untouched",
+      n == 1 and esb_calls(f) == [("GET", "/inventory/goods-receipt")]
+      and {k: v["status"] for k, v in member_closes(f).items()} == {M1: "posted"}
+      and f.bodies("rpc/claim_esb_pushes") == [{"p_row_ids": [M1]}], repr(f.calls) + out)
+
+# CQ3: a PO line list the configured shape cannot read is a shape fault, not an empty PO.
+n, out, f, rows = gr_tick(FakeGr(outstanding=[[{"productDetail": 9069, "outstandingQty": 9}]]))
+check("CQ3 lines without the configured product-detail field fail the group as unrecognised, returning nothing",
+      n == 2 and not f.to("rpc/rematch_cafe_receipt_group") and not f.to(CREATE_PATH)
+      and all(v["status"] == "failed" for v in member_closes(f).values()), repr(f.calls) + out)
+
+# S5: a transport failure's stored message names the path, never the host.
+check("S5 _safe keeps only the path", W._safe("https://erp.example.invalid/inventory/x?a=1") == "/inventory/x")
+try:
+    W._request("GET", "http://127.0.0.1:1/inventory/goods-receipt", headers={}, timeout=2)
+    s5 = ""
+except W.Classified as exc:
+    s5 = str(exc)
+check("S5 a refused connection's message carries no host", s5.startswith("GET /inventory/goods-receipt")
+      and "127.0.0.1" not in s5, s5)
+
+n, out, f, rows = gr_tick(FakeGr(creates=[W.Transient(
+    "POST https://erp.example.invalid/inventory/goods-receipt/PO-GR-0001 failed: URLError: timed out", kind="timeout")]))
+stored = [v.get("last_error", "") for v in member_closes(f).values()] + [p.get("last_error") or "" for p in group_patches(f)]
+check("S5 a stored last_error never names a host, whatever the fault's own text says",
+      stored and all("example.invalid" not in e for e in stored)
+      and any("/inventory/goods-receipt/PO-GR-0001" in e for e in stored), repr(stored))
+
+# ── AC-1027 the id map lacks the branch or the receiving location ───────────────────────
+for label, cfg_over, rows_over in (
+        ("receiving location", {"ESB_WORKER_MAP_FILE": os.path.join(TMP, "goo-gr-noloc.json")}, {}),
+        ("branch", {}, {"branch_code": "radiant"})):
+    n, out, f, rows = gr_tick(FakeGr(), cfg=gr_cfg(**cfg_over), rows=gr_rows(**rows_over))
+    closes = member_closes(f)
+    check(f"AC-1027 a map without the {label} is a permanent failure with a plain error",
+          n == 2 and len(closes) == 2 and all(v["status"] == "dead_letter" and "id map" in v["last_error"]
+                                              for v in closes.values()), repr(closes) + out)
+    check(f"AC-1027 ...and nothing is sent to ESB, not even a login ({label})",
+          [c for c in f.calls if "erp.example.invalid" in c["url"]] == [], repr(f.calls))
+    check(f"CQ4 DD-1429 (6) ...and its portions move out of queued as refused by the worker, not ESB ({label})",
+          f.bodies("rpc/refuse_cafe_receipt_portions") == [{"p_group_id": GR_GROUP, "p_reason": "worker_refused"}],
+          repr(f.calls))
+req_noloc = None
+try:
+    W.compose_goods_receipt(gr_cfg(ESB_WORKER_MAP_FILE=os.path.join(TMP, "goo-gr-noloc.json")), gr_rows(), units)
+except W.Permanent as exc:
+    req_noloc = str(exc)
+check("AC-1027 the branch's own location id is never used in place of the receiving location",
+      req_noloc is not None and "510" not in req_noloc, repr(req_noloc))
+
+# On the ERP of record the MOS catalog's own ESB ids are read, never the sandbox map's.
+with open(os.path.join(TMP, "gkid-gr.json"), "w", encoding="utf-8") as fh:
+    json.dump({"target_env": "gkid", "branches": {"rumah_rames": {
+        "branch_id": 8, "location_id": 15, "receiving_locations": {"main_store": 21}}},
+        "items": "from-payload"}, fh)
+gk_cfg = W.load_config(env("gkid", ESB_WORKER_MAP_FILE=os.path.join(TMP, "gkid-gr.json"),
+                           ESB_PUSH_ENABLED="1", ESB_GOODS_RECEIPT_ENABLED="1"), offline=False, drains=True)
+f = Fake(**{"rest/v1/item_units": lambda *a: [
+    {"id": GR_UNIT_A, "esb_product_detail_id": "4069", "esb_product_id": "4001"},
+    {"id": GR_UNIT_B, "esb_product_detail_id": "4070", "esb_product_id": "4002"}]})
+gk_units = run(lambda: W.goods_receipt_units(gk_cfg, [{**r, "target_env": "gkid"} for r in gr_rows()], db=True), f)
+check("NFR-1006 on the ERP of record the units' ESB ids come from the MOS catalog",
+      gk_units == {GR_UNIT_A: {"product_id": 4001, "product_detail_id": 4069},
+                   GR_UNIT_B: {"product_id": 4002, "product_detail_id": 4070}}
+      and "id=in." in f.calls[0]["url"], repr(gk_units))
+catalog = Fake(**{"rest/v1/item_units": lambda *a: [
+    {"id": "99999999-0000-0000-0000-000000000000", "esb_product_detail_id": "4069", "esb_product_id": "4001"}]})
+check_raises("CQ5 NFR-1006 a sandbox map unit without an entry is refused, never read from the catalog",
+             W.Permanent, lambda: run(lambda: W.goods_receipt_units(
+                 gr_cfg(), gr_rows(item_unit_id="99999999-0000-0000-0000-000000000000"), db=True), catalog),
+             needle="id map")
+check("CQ5 ...and the MOS catalog was not read", catalog.calls == [], repr(catalog.calls))
+
+# ── every gate: posting stays off by default ────────────────────────────────────────────
+n, out, f, rows = gr_tick(FakeGr(), cfg=gr_cfg(ESB_GOODS_RECEIPT_ENABLED=""))
+check("gate: with ESB_GOODS_RECEIPT_ENABLED unset a goods-receipt group sends nothing and writes nothing",
+      n == 0 and f.calls == [] and "ESB_GOODS_RECEIPT_ENABLED" in out, repr(f.calls) + out)
+for gate_on, needle in ((False, True), (True, False)):
+    f = Fake(esb_push=lambda *a: [])
+    run(lambda: W.Outbox(gr_cfg(ESB_GOODS_RECEIPT_ENABLED="1" if gate_on else "")).pending(), f)
+    excluded = "endpoint.neq.goods-receipt" in urllib.parse.unquote(f.calls[0]["url"])
+    check(f"gate: the drain {'excludes' if needle else 'includes'} goods-receipt rows when the switch is "
+          f"{'on' if gate_on else 'off'}", excluded == needle, f.calls[0]["url"])
+for label, over, needle in (
+        ("ESB_PUSH_ENABLED", {"ESB_PUSH_ENABLED": ""}, "ESB_PUSH_ENABLED is not set"),
+        ("a target environment", {"ESB_WORKER_TARGET_ENV": "",
+                                  "ESB_WORKER_MAP_FILE": os.path.join(TMP, "dry_run.json")}, "names no ERP"),
+        ("ESB_ALLOW_GKID", {"ESB_WORKER_TARGET_ENV": "gkid",
+                            "ESB_WORKER_MAP_FILE": os.path.join(TMP, "gkid-gr.json")}, "ESB_ALLOW_GKID is not set"),
+        ("ESB_ALLOW_GKID (the read switch alone)", {"ESB_WORKER_TARGET_ENV": "gkid", "ESB_ALLOW_GKID_READ": "1",
+                                                    "ESB_WORKER_MAP_FILE": os.path.join(TMP, "gkid-gr.json")},
+         "ESB_ALLOW_GKID is not set")):
+    check_raises(f"gate: a goods-receipt drain without {label} is refused before anything is read",
+                 W.ConfigError, lambda over=over: W.load_config(gr_env(**over), offline=False, drains=True),
+                 needle=needle)
+fake = Fake(**FakeGr().routes())
+saved_req, W._request = W._request, fake
+saved_env = dict(os.environ)
+for name in list(os.environ):
+    if name.startswith(("ESB_", "MOS_")):
+        del os.environ[name]
+try:
+    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        rc = W.main([])
+finally:
+    W._request = saved_req
+    os.environ.clear(); os.environ.update(saved_env)
+check("gate: with every switch unset the worker exits refused and makes no request at all",
+      rc == 2 and fake.calls == [], f"rc={rc} calls={fake.calls!r}")
+
+# ── --plan composes and sends nothing ───────────────────────────────────────────────────
+out = io.StringIO()
+f = Fake()
+run(lambda: W.run_tick(gr_cfg(), gr_rows(), outbox=None, plan_only=True, out=out), f)
+check("--plan prints the outstanding read, the create and the authorize, and calls nothing",
+      f.calls == [] and f"GET {INIT_PATH}" in out.getvalue() and f"POST {CREATE_PATH}" in out.getvalue()
+      and GR_KEY in out.getvalue(), out.getvalue())
+
 print(f"{_pass} passed, {_fail} failed")
 sys.exit(1 if _fail else 0)

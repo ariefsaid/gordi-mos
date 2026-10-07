@@ -128,6 +128,25 @@ esac
 
 head="$(git rev-parse HEAD)" || die "not a git repo"
 
+# Releases and migrations get an Opus security lens. A release candidate is a release/* branch, a
+# detached HEAD, or a HEAD that dev or main already contains (feature branches never are); a migration branch
+# touches anything under supabase/migrations/.
+if [ "$lens" = security ]; then
+  release=0
+  # A detached HEAD is treated as a release candidate: unnamed, it cannot show it is a feature branch.
+  case "$(git branch --show-current)" in release/*|"") release=1 ;; esac
+  for b in origin/dev origin/main; do
+    git rev-parse -q --verify "$b" >/dev/null && git merge-base --is-ancestor HEAD "$b" && release=1
+  done
+  migration="$(git diff --name-only origin/dev...HEAD -- supabase/migrations 2>/dev/null | head -1)"
+  if [ "$release" = 1 ] || [ -n "$migration" ]; then
+    case "$(printf '%s' "$reviewer" | tr '[:upper:]' '[:lower:]')" in
+      opus*|claude-opus*|anthropic/claude-opus*) ;;
+      *) die "this is a $([ "$release" = 1 ] && echo release candidate || echo migration branch) — its security lens needs an Opus reviewer (id starting opus / claude-opus; got '$reviewer'); dispatch one and stamp with --reviewer <that id>" ;;
+    esac
+  fi
+fi
+
 changed_files="$(git diff --name-only --diff-filter=d origin/dev...HEAD 2>/dev/null)" || {
   merge_base="$(git merge-base origin/dev HEAD 2>/dev/null)" \
     || die "cannot compare HEAD with origin/dev to determine whether this is a UI diff"

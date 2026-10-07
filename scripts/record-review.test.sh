@@ -11,8 +11,9 @@ pass=0; fail=0
 g() { git -C "$tmp/repo" -c user.email=t@t -c user.name=t "$@"; }
 git init -q "$tmp/repo"
 g commit -qm init --allow-empty
+g update-ref refs/remotes/origin/dev "$(g rev-parse HEAD)"
+g commit -qm feature --allow-empty
 head="$(g rev-parse HEAD)"
-g update-ref refs/remotes/origin/dev "$head"
 gitdir="$(g rev-parse --absolute-git-dir)"
 
 check() { # $1 name · $2 expected rc · args…
@@ -184,6 +185,38 @@ printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$
 (cd "$tmp/del-repo" && bash "$SCRIPT" --lens spec --reviewer gpt-5.6-luna --artifact review.md) >/dev/null 2>&1
 if [ $? -eq 0 ]; then pass=$((pass+1)); printf '  ok    deleting a UI file does not require skills evidence\n'
 else fail=$((fail+1)); printf '  FAIL  deleted UI file wrongly gated\n'; fi
+
+# Releases and migrations: the security lens needs an Opus reviewer.
+git init -q "$tmp/rel-repo"
+gr() { git -C "$tmp/rel-repo" -c user.email=t@t -c user.name=t "$@"; }
+gr commit -qm init --allow-empty
+gr update-ref refs/remotes/origin/dev "$(gr rev-parse HEAD)"
+sec() { printf '## security\nReviewer: %s (security)\nVerdict: MERGE\nCommit: %s\n' "$1" "$(gr rev-parse HEAD)" > "$tmp/rel-repo/review.md"
+  (cd "$tmp/rel-repo" && bash "$SCRIPT" --lens security --reviewer "$1" --artifact review.md) >/dev/null 2>&1; }
+relcheck() { # name · want rc · reviewer
+  sec "$3"; local rc=$?
+  if [ "$rc" -eq "$2" ]; then pass=$((pass+1)); printf '  ok    %s\n' "$1"
+  else fail=$((fail+1)); printf '  FAIL  %s — rc=%s (want %s)\n' "$1" "$rc" "$2"; fi
+}
+relcheck "release candidate (HEAD already in dev): luna security refused" 1 gpt-6-luna
+relcheck "release candidate: opus security accepted" 0 claude-opus
+gr commit -qm feature --allow-empty
+relcheck "feature branch without migrations: luna security accepted" 0 gpt-6-luna
+mkdir -p "$tmp/rel-repo/supabase/migrations"; echo 'select 1;' > "$tmp/rel-repo/supabase/migrations/20261007000000_x.sql"
+gr add -A && gr commit -qm migration
+relcheck "migration branch: luna security refused" 1 gpt-6-luna
+relcheck "migration branch: opus security accepted" 0 claude-opus
+
+relcheck "spoofed id 'not-opus-luna' refused on a migration branch" 1 not-opus-luna
+gr mv supabase/migrations/20261007000000_x.sql supabase/migrations/20261007000001_x.sql; gr commit -qm renamed
+git -C "$tmp/rel-repo" update-ref refs/remotes/origin/dev HEAD~1
+relcheck "renamed/edited migration still needs opus" 1 gpt-6-luna
+gr checkout -q -b release/x HEAD; gr commit -q --allow-empty -m "fix on top"
+git -C "$tmp/rel-repo" update-ref refs/remotes/origin/dev HEAD~1
+relcheck "release/* branch with a fix commit needs opus" 1 gpt-6-luna
+
+gr checkout -q --detach HEAD; gr commit -q --allow-empty -m "detached work"
+relcheck "detached HEAD outside dev/main needs opus" 1 gpt-6-luna
 
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

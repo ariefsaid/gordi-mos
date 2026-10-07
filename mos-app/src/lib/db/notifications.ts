@@ -33,20 +33,37 @@ export interface NotificationRow {
 
 const COLUMNS = 'id, severity, title, body, metadata, read_at, handled_at, created_at'
 
-// CQ#2: Inbox rows accumulate forever (every @mention + self-notify is a row). The Inbox page is
-// owner-scoped via RLS but must not pull the full history on every render. The unread fast-path
-// index (mos_notifications_owner_unread_idx) backs the badge read below.
 const INBOX_PAGE_LIMIT = 200
 
-/** The viewer's notifications, newest first (RLS scopes to the owner); bounded to INBOX_PAGE_LIMIT. */
-export async function listNotifications(): Promise<NotificationRow[]> {
-  const { data, error } = await mos()
+export type NotificationCursor = Pick<NotificationRow, 'created_at' | 'id'>
+export interface NotificationPage {
+  rows: NotificationRow[]
+  hasMore: boolean
+  nextCursor: NotificationCursor | null
+}
+
+/** The viewer's notifications, newest first (RLS scopes to the owner). */
+export async function listNotifications(before?: NotificationCursor): Promise<NotificationPage> {
+  let query = mos()
     .from('notifications')
     .select(COLUMNS)
+  if (before) {
+    query = query.or(`created_at.lt.${before.created_at},and(created_at.eq.${before.created_at},id.lt.${before.id})`)
+  }
+  const { data, error } = await query
     .order('created_at', { ascending: false })
-    .limit(INBOX_PAGE_LIMIT)
+    .order('id', { ascending: false })
+    .limit(INBOX_PAGE_LIMIT + 1)
   if (error) throw new Error(`listNotifications failed: ${error.message}`)
-  return (data ?? []) as NotificationRow[]
+  const fetched = (data ?? []) as NotificationRow[]
+  const rows = fetched.slice(0, INBOX_PAGE_LIMIT)
+  const hasMore = fetched.length > INBOX_PAGE_LIMIT
+  const last = rows.at(-1)
+  return {
+    rows,
+    hasMore,
+    nextCursor: hasMore && last ? { created_at: last.created_at, id: last.id } : null,
+  }
 }
 
 /**

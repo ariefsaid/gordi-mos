@@ -34,7 +34,7 @@ const mockUseAuth = vi.mocked(useAuth)
 // Mock it so the bell's async read resolves cleanly instead of racing teardown.
 vi.mock('@/lib/db/notifications', () => ({
   countUnread: vi.fn().mockResolvedValue(0),
-  listNotifications: vi.fn().mockResolvedValue([]),
+  listNotifications: vi.fn().mockResolvedValue({ rows: [], hasMore: false, nextCursor: null }),
 }))
 
 vi.mock('./use-is-narrow')
