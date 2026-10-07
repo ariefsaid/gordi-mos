@@ -125,3 +125,54 @@
   align-self: center;
   text-align: right;
 }
+
+.pending-bills-summary {
+  color: var(--muted-foreground);
+  font-size: var(--font-size-control);
+  font-variant-numeric: tabular-nums;
+}
+
+.pending-bills-list-column { min-width: 0; }
+
+.pending-bills__record-trigger {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--primary);
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.pending-bills__record-trigger:hover { text-decoration: underline; }
+.pending-bills__record-trigger:focus-visible,
+.pending-bill-card__title:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.pending-bill-card__title {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pending-bill-card__title:hover { color: var(--primary); }
+
+.record-split .pending-bills-list-column { min-width: 0; }
+.record-split .pending-bills-scroll { overflow-x: auto; }
+
+@media (max-width: 767.98px) {
+  .pending-bills__record-trigger { min-height: 44px; }
+}

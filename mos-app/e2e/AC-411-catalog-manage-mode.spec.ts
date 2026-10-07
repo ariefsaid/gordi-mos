@@ -118,14 +118,7 @@ test.describe('AC-411: catalog is Work\'s manage-mode', () => {
     await expect(page).toHaveURL(/\/work\/projects$/)
     await expect(page.getByRole('heading', { name: 'Projects & Processes', exact: true })).toBeVisible()
   })
-
-  test('a direct visit to the retired /objectives redirects to the relocated catalog', async ({ page }) => {
-    await loginAs(page, ADMIN.email, ADMIN.password)
-
-    await page.goto('objectives')
-    await expect(page).toHaveURL(url => url.pathname.endsWith('/work/objectives'))
-    await expect(page.getByRole('heading', { name: 'Objectives', level: 1 })).toBeVisible()
-  })
+  // The retired /objectives redirect is owned by shell-routes-redirects.spec.ts (AC-001 map).
 })
 
 // One line under the facts says what the viewer can do: view only, or add tasks. A member gets no
@@ -143,8 +136,10 @@ async function expectMemberReadOnly(page: Page, note: RegExp) {
   }
 }
 
-for (const width of [390, 1440]) {
-  test(`AC-411: ordinary member reads Project, Process and Objective direct records at ${width}px`, async ({ page }, testInfo) => {
+// One width: read-only is role logic, not layout. 390 is the narrowest, so the no-overflow check
+// bites hardest there; the wide layout is exercised by the Process test below at 1440.
+for (const width of [390]) {
+  test(`AC-411: ordinary member reads Project, Process and Objective direct records at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 })
     await loginAs(page, 'bulan.dev@example.test', DEMO_PASSWORD)
     await page.goto('work/projects')
@@ -161,13 +156,14 @@ for (const width of [390, 1440]) {
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
       await page.reload()
       await expect(page.getByRole('heading', { name: title, exact: true })).toBeVisible()
-      await page.screenshot({ path: testInfo.outputPath(`member-en-${width}-${title.replaceAll(' ', '-')}.png`) })
     }
   })
 }
 
-for (const width of [390,1440]) {
-  test(`Process record page and panel/page return at ${width}px`,async ({page},testInfo)=>{
+// 1440 only: it covers the panel, its Open full page escalation, the reload to the page, and Back.
+// The phone page + Back for every collection is owned by work-record-opening.spec.ts.
+for (const width of [1440]) {
+  test(`Process record page and panel/page return at ${width}px`,async ({page})=>{
     await page.setViewportSize({width,height:900})
     await loginAs(page,'bulan.dev@example.test',DEMO_PASSWORD)
     await page.goto('work/projects')
@@ -182,7 +178,6 @@ for (const width of [390,1440]) {
     await expect(record.getByRole('region', { name: 'About', exact: true })).toBeVisible()
     await expect(record.getByRole('heading', { name: 'Occurrences', exact: true })).toHaveCount(0)
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
-    await page.screenshot({animations:'disabled',path:testInfo.outputPath(`process-${width}.png`)})
     if (width >= 768) {
       // Desktop keeps the in-list panel and its explicit escalation to the canonical page.
       await page.getByRole('button',{name:'Open full page',exact:true}).click()

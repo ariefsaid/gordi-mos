@@ -19,15 +19,13 @@ import { createRecordRouteAdapter } from '@/shell/overlay-navigation'
 import { ViewOptionsDisclosure } from '@/shell/view-options-disclosure'
 import { useT } from '@/i18n/use-t'
 import { TasksToolbar } from './tasks-toolbar'
-import {
-  TASK_COLLECTION_NEUTRAL_QUERY,
-  taskCollectionDescriptor,
-} from './task-collection-adapter'
+import { taskCollectionDescriptor } from './task-collection-adapter'
+import { TASK_COLLECTION_NEUTRAL_QUERY } from './task-collection-query'
 import type {
   TaskCollectionQuery,
   TaskCollectionSort,
   TaskCollectionView,
-} from './task-collection-adapter'
+} from './task-collection-query'
 import {
   TaskCollectionRuntimeProvider,
   type TaskCollectionRuntime,

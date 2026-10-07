@@ -41,6 +41,8 @@ export interface HomeRegion {
   id: HomeRegionId
   labelKey: MessageKey
   items: StreamItem[]
+  /** Total available rows before a deliberate Home display cap (e.g. My Work's seven-row slice). */
+  totalItemCount?: number
   /** How many items this region holds — `null` whenever the figure behind it has NOT been
    *  reported (DIV-G5, spec §7 + NFR-924). For needs-you and failed-checks the count is the
    *  items themselves (no cap). my-work's items are a capped slice, so its count is instead the
@@ -82,6 +84,8 @@ export interface HomeRegionInput {
    *  its drill-link figure; the capped list itself is named by "N shown". Absent (no heading
    *  count, unnumbered link) when the caller has no honest count to report yet. */
   myWorkFullCount?: number
+  /** My Work rows available before its deliberate seven-row display cap. */
+  myWorkTotalItemCount?: number
 }
 
 export function buildHomeRegions(input: HomeRegionInput): HomeRegion[] {
@@ -114,6 +118,7 @@ export function buildHomeRegions(input: HomeRegionInput): HomeRegion[] {
     }] : []),
     {
       id: 'my-work', labelKey: 'home.stream.band.myWork', items: input.myWork,
+      totalItemCount: input.myWorkTotalItemCount ?? input.myWork.length,
       // The heading states the FULL scope (the badge's number), never the capped list length;
       // `null` while the shared count has not resolved. The list itself says what it shows.
       count: input.myWorkFullCount ?? null, state: taskState, onRetry: input.onRetryTasks,

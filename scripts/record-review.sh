@@ -11,19 +11,127 @@
 #   - the artifact is the reviewer's actual output: each lens must cite the full 40-character HEAD,
 #     carry a `Reviewer:` line, and carry a Verdict for THIS lens. DO NOT MERGE clears only that
 #     lens's passing stamp; it cannot be stamped into a passing gate.
+#   - A design-pass UI Skills packet is required for release candidates and qualifying UI changes.
 #
 # Self-test: scripts/record-review.test.sh
 set -uo pipefail
 
 die() { printf '✗ record-review: %s\n' "$1" >&2; exit 1; }
 
+is_release_candidate() {
+  case "$(git branch --show-current)" in release/*|"") return 0 ;; esac
+  for b in origin/dev origin/main; do
+    git rev-parse -q --verify "$b" >/dev/null \
+      && git merge-base --is-ancestor HEAD "$b" && return 0
+  done
+  return 1
+}
+
+design_pass_reason() {
+  local merge_base="$1" changed_files="$2" path added deleted lines=0 numstat route_diff
+  if is_release_candidate; then
+    printf 'release candidate'
+    return 0
+  fi
+
+  while IFS= read -r path; do
+    [ -n "$path" ] || continue
+    if [[ "$path" == mos-app/src/pages/* ]] && [[ "$path" != *.test.tsx ]] \
+      && ! git cat-file -e "$merge_base:$path" 2>/dev/null; then
+      printf 'adds a page (%s)' "$path"
+      return 0
+    fi
+  done <<< "$changed_files"
+
+  if printf '%s\n' "$changed_files" | grep -Fxq 'mos-app/src/router.tsx'; then
+    route_diff="$(git diff --unified=0 "$merge_base" HEAD -- mos-app/src/router.tsx)" || return 2
+    if printf '%s\n' "$route_diff" | grep -Eq '^\+[^+]*path[[:space:]]*:'; then
+      printf 'adds a route (mos-app/src/router.tsx)'
+      return 0
+    fi
+  fi
+
+  while IFS= read -r path; do
+    [ -n "$path" ] || continue
+    git cat-file -e "$merge_base:$path" 2>/dev/null && continue
+    if [[ "$path" =~ ^mos-app/src/(components|shell)/.+\.tsx$ ]] && [[ "$path" != *.test.tsx ]]; then
+      printf 'adds a component (%s)' "$path"
+      return 0
+    fi
+    if [[ "$path" =~ ^mos-app/src/.+\.css$ ]]; then
+      printf 'adds a stylesheet (%s)' "$path"
+      return 0
+    fi
+  done <<< "$changed_files"
+
+  numstat="$(git diff --numstat --diff-filter=d "$merge_base" HEAD)" || return 2
+  while IFS=$'\t' read -r added deleted path; do
+    [[ "$path" =~ ^mos-app/src/(pages|components|shell)/.+\.(tsx|css)$ ]] || continue
+    [[ "$path" == *.test.tsx ]] && continue
+    case "$added$deleted" in *[!0-9]*|'') continue ;; esac
+    lines=$((lines + added + deleted))
+  done <<< "$numstat"
+  if [ "$lines" -gt 150 ]; then
+    printf 'changes %s lines of page/component/shell UI' "$lines"
+    return 0
+  fi
+  return 1
+}
+
+owner_reported_ui_reason() {
+  local merge_base="$1" changed_files="$2" path branch subjects issue label_json owner_issue="" issue_ids="" ui_file=0
+
+  while IFS= read -r path; do
+    # Any app .tsx/.css counts here: an owner-reported fix in a shared stylesheet can break a
+    # sibling page as easily as a page edit.
+    [[ "$path" =~ ^mos-app/src/.+\.(tsx|css)$ ]] || continue
+    [[ "$path" == *.test.tsx ]] && continue
+    ui_file=1
+    break
+  done <<< "$changed_files"
+  [ "$ui_file" -eq 1 ] || return 1
+
+  branch="$(git branch --show-current)" || return 2
+  if [[ "$branch" =~ ^[^/]+/([0-9]+)(-.+)?$ ]]; then
+    issue_ids="${BASH_REMATCH[1]}"
+  fi
+  subjects="$(git log --no-merges --format=%s "$merge_base..HEAD" 2>/dev/null)" || return 2
+  while IFS= read -r issue; do
+    [ -n "$issue" ] || continue
+    issue="${issue#\#}"
+    case " $issue_ids " in *" $issue "*) ;; *) issue_ids="${issue_ids:+$issue_ids }$issue" ;; esac
+  done < <(printf '%s\n' "$subjects" | grep -oE '#[0-9]+' || true)
+  [ -n "$issue_ids" ] || return 1
+  command -v jq >/dev/null 2>&1 || {
+    printf '✗ record-review: cannot read labels for linked issue #%s while checking rule (d); retry when GitHub is reachable\n' "${issue_ids%% *}" >&2
+    return 2
+  }
+
+  for issue in $issue_ids; do
+    label_json="$(gh issue view "$issue" --json labels 2>/dev/null)" || {
+      printf '✗ record-review: cannot read labels for issue #%s while checking rule (d); retry when GitHub is reachable\n' "$issue" >&2
+      return 2
+    }
+    if ! printf '%s\n' "$label_json" | jq -e '(.labels | type == "array") and all(.labels[]; (.name | type == "string"))' >/dev/null 2>&1; then
+      printf '✗ record-review: cannot read labels for issue #%s while checking rule (d); retry when GitHub is reachable\n' "$issue" >&2
+      return 2
+    fi
+    if printf '%s\n' "$label_json" | jq -e '[.labels[].name] | any(. == "owner-reported")' >/dev/null 2>&1; then
+      [ -n "$owner_issue" ] || owner_issue="$issue"
+    fi
+  done
+
+  [ -n "$owner_issue" ] || return 1
+  printf 'fixes owner-reported issue #%s' "$owner_issue"
+}
+
 validate_ui_skills_evidence() {
-  local head="$1" artifact="$2" section main_checkout playbook row_rc evidence_path evidence_file
+  local head="$1" artifact="$2" reason="$3" section main_checkout playbook row_rc evidence_path evidence_file
   local render_found=0 phone_found=0 tablet_found=0 wide_found=0 real_length_found=0 complete_render=0 line
   local -a playbooks=('Impeccable shape' 'ui-ux-pro-max' 'Impeccable critique' 'Impeccable layout' 'Impeccable clarify' 'Impeccable harden' 'Impeccable polish' 'Taste')
 
   grep -qxE '^## Skills evidence[[:space:]]*$' "$artifact" \
-    || die "UI diff requires a '## Skills evidence' section in the review artifact"
+    || die "design pass required: $reason; UI diff requires a '## Skills evidence' section in the review artifact"
   section="$(awk '
     /^## Skills evidence[[:space:]]*$/ { inside = 1; next }
     inside && /^##[[:space:]]/ { exit }
@@ -128,15 +236,40 @@ esac
 
 head="$(git rev-parse HEAD)" || die "not a git repo"
 
-changed_files="$(git diff --name-only --diff-filter=d origin/dev...HEAD 2>/dev/null)" || {
-  merge_base="$(git merge-base origin/dev HEAD 2>/dev/null)" \
-    || die "cannot compare HEAD with origin/dev to determine whether this is a UI diff"
-  changed_files="$(git diff --name-only --diff-filter=d "$merge_base" HEAD)" \
-    || die "could not list the diff from origin/dev's merge-base"
-}
-ui_files="$(printf '%s\n' "$changed_files" | grep -E '(^|/)mos-app/src/.*\.tsx$|\.css$' | grep -vE '\.test\.tsx$' || true)"
-if [ -n "$ui_files" ]; then
-  validate_ui_skills_evidence "$head" "$artifact"
+# Release candidates need an Opus security lens; migration branches accept Opus or an exact-prefix
+# Luna id. The shared release-candidate predicate covers release/* branches, detached HEADs, and
+# HEADs already contained in origin/dev or origin/main; a migration branch touches supabase/migrations/.
+if [ "$lens" = security ]; then
+  release=0
+  is_release_candidate && release=1
+  migration="$(git diff --name-only origin/dev...HEAD -- supabase/migrations 2>/dev/null | head -1)"
+  if [ "$release" = 1 ]; then
+    case "$(printf '%s' "$reviewer" | tr '[:upper:]' '[:lower:]')" in
+      opus*|claude-opus*|anthropic/claude-opus*) ;;
+      *) die "this is a release candidate — its security lens needs an Opus reviewer (id starting opus / claude-opus; got '$reviewer'); dispatch one and stamp with --reviewer <that id>" ;;
+    esac
+  elif [ -n "$migration" ]; then
+    case "$(printf '%s' "$reviewer" | tr '[:upper:]' '[:lower:]')" in
+      opus*|claude-opus*|anthropic/claude-opus*|gpt-6-luna*|openai-codex/gpt-6-luna*|luna*) ;;
+      *) die "this is a migration branch — its security lens needs an Opus or Luna reviewer (Opus id starting opus / claude-opus; Luna id starting gpt-6-luna / openai-codex/gpt-6-luna / luna; got '$reviewer'); dispatch one and stamp with --reviewer <that id>" ;;
+    esac
+  fi
+fi
+
+merge_base="$(git merge-base origin/dev HEAD 2>/dev/null)" \
+  || die "cannot compare HEAD with origin/dev to determine whether this is a UI diff"
+changed_files="$(git diff --name-only --diff-filter=d "$merge_base" HEAD 2>/dev/null)" \
+  || die "could not list the diff from origin/dev's merge-base"
+design_reason="$(design_pass_reason "$merge_base" "$changed_files")"
+design_reason_rc=$?
+[ "$design_reason_rc" -le 1 ] || die "could not determine whether this diff needs a design pass"
+if [ "$design_reason_rc" -eq 1 ]; then
+  design_reason="$(owner_reported_ui_reason "$merge_base" "$changed_files")"
+  design_reason_rc=$?
+  [ "$design_reason_rc" -ne 2 ] || exit 1
+fi
+if [ "$design_reason_rc" -eq 0 ]; then
+  validate_ui_skills_evidence "$head" "$artifact" "$design_reason"
 fi
 
 # SECTION-BOUND validation: the stamp is minted from THIS lens's own record, never from another

@@ -45,19 +45,19 @@ export type InboxTriageProps = {
   rows: readonly TriageNotificationRow[]
   filter: InboxFilter
   /**
-   * F13 (OD-REDESIGN-91 #26): how many notifications the ACTIVE filter is hiding. When the
-   * unread view is empty but this is > 0, the empty state is filter-aware ("No unread · N read
-   * hidden — show all") instead of the false all-clear affirmation. 0 (or the All view) keeps the
-   * earned ✓ all-clear.
+   * F13 (OD-REDESIGN-91 #26): how many loaded notifications the ACTIVE filter is hiding. When
+   * more pages exist, both counts and empty copy explicitly refer only to loaded notifications.
    */
   hiddenCount?: number
   /** Whether Handled is a real, ratified persisted view; false omits it entirely. */
   handledFilterAvailable: boolean
   /**
-   * AC-003 (#549): live per-tab counts over the WHOLE queue, independent of the active filter.
-   * Absent = plain labels (callers/tests that don't model counts).
+   * AC-003 (#549): live per-tab counts over loaded notifications, independent of the active filter.
+   * `hasMore` marks them as partial; absent = plain labels (callers/tests that don't model counts).
    */
   counts?: { all: number; unread: number; handled: number }
+  /** Counts and empty states are limited to the loaded page while this is true. */
+  hasMore?: boolean
   onFilterChange(filter: InboxFilter): void
   /** Open a notification: the caller marks it read (only) and pushes its canonical record. */
   onOpen(row: TriageNotificationRow): void
@@ -107,6 +107,7 @@ export function InboxTriage({
   hiddenCount = 0,
   handledFilterAvailable,
   counts,
+  hasMore = false,
   onFilterChange,
   onOpen,
   onMarkHandled,
@@ -159,7 +160,10 @@ export function InboxTriage({
             onClick={() => onFilterChange(f)}
           >
             {counts
-              ? t('inbox.filter.withCount', { label: t(FILTER_KEY[f]), count: counts[f] })
+              ? t(hasMore ? 'inbox.filter.withLoadedCount' : 'inbox.filter.withCount', {
+                label: t(FILTER_KEY[f]),
+                count: counts[f],
+              })
               : t(FILTER_KEY[f])}
           </button>
         ))}
@@ -183,22 +187,28 @@ export function InboxTriage({
           retryLabel={t('inbox.retry')}
         />
       ) : state === 'empty' ? (
-        // The filter-aware empty copy is unread-specific ('N read hidden'); an empty
-        // Handled view is honestly quiet.
-        filter === 'unread' && hiddenCount > 0 ? (
+        filter === 'unread' && (hiddenCount > 0 || hasMore) ? (
           <EmptyState
             variant="blank"
-            title={t('inbox.emptyUnread.title')}
-            copy={t('inbox.emptyUnread.hidden', { count: hiddenCount })}
+            title={t(hasMore ? 'inbox.emptyUnread.loadedTitle' : 'inbox.emptyUnread.title')}
+            copy={t(hasMore ? 'inbox.emptyUnread.loadedHidden' : 'inbox.emptyUnread.hidden', { count: hiddenCount })}
           >
-            <button
-              type="button"
-              className="inbox-triage__show-all"
-              onClick={() => onFilterChange('all')}
-            >
-              {t('inbox.emptyUnread.showAll')}
-            </button>
+            {hiddenCount > 0 ? (
+              <button
+                type="button"
+                className="inbox-triage__show-all"
+                onClick={() => onFilterChange('all')}
+              >
+                {t('inbox.emptyUnread.showAll')}
+              </button>
+            ) : null}
           </EmptyState>
+        ) : hasMore ? (
+          <EmptyState
+            variant="quiet"
+            title={t(filter === 'handled' ? 'inbox.emptyPartial.handledTitle' : 'inbox.emptyPartial.allTitle')}
+            copy={t('inbox.emptyPartial.copy')}
+          />
         ) : (
           <EmptyState variant="quiet" title={t('inbox.empty')} copy={t('inbox.emptyCopy')} />
         )

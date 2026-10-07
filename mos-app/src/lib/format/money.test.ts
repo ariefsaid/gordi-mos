@@ -2,7 +2,7 @@
 // item #1). Oracle: id-ID grouping (DOTS), "Rp " prefix, whole rupiah, leading
 // minus on negatives.
 import { describe, it, expect } from 'vitest'
-import { formatIDR } from './money'
+import { formatIDR, formatIDRExact } from './money'
 
 describe('formatIDR (one canonical IDR string)', () => {
   it('groups thousands with id-ID DOTS and prefixes Rp', () => {
@@ -18,5 +18,13 @@ describe('formatIDR (one canonical IDR string)', () => {
 
   it('carries a leading minus on negatives, never "Rp -…"', () => {
     expect(formatIDR(-21000)).toBe('-Rp 21.000')
+  })
+})
+
+describe('formatIDRExact (ledger and bill amounts keep their cents)', () => {
+  it('matches formatIDR for whole rupiah and shows two decimals only when cents exist', () => {
+    expect(formatIDRExact(45000)).toBe(formatIDR(45000))
+    expect(formatIDRExact(12345.5)).toBe('Rp 12.345,50')
+    expect(formatIDRExact(-0.01)).toBe('-Rp 0,01')
   })
 })

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Shared helpers for the operations scripts (ops-check, db-backup, reporting-snapshot-cron,
-# deploy-production). Sourced, never executed. Every infrastructure coordinate lives in one
+# deploy-production, deploy-staging). Sourced, never executed. Every infrastructure coordinate lives in one
 # untracked env file; this repo carries only its placeholder template (scripts/ops.env.example).
 #
 #   OPS_ENV_FILE   path of the env file (default ~/.config/gordi-ops/ops.env)
@@ -60,6 +60,45 @@ ops_notify() {
 
 # ---- connection-string handling shared by the deploy scripts ----
 SECRETS=()
+
+# ops_predeploy_dump DIR LABEL CONN COMMIT — create and verify the recovery dump before DB push.
+# Sets OPS_PREDEPLOY_DUMP_PATH on success.
+ops_predeploy_dump() {
+  local dir="$1" label="$2" conn="$3" commit="$4" dump partial errf listing entries
+  OPS_PREDEPLOY_DUMP_PATH=""
+  umask 077
+  mkdir -p "$dir" || { printf '%s: cannot create backup directory\n' "$label" >&2; return 1; }
+  dump="$dir/pre-deploy-$(date -u +%Y%m%dT%H%M%SZ)-$commit.dump"
+  partial="$dump.partial"
+  errf="$(mktemp)" || { printf '%s: cannot create dump error file\n' "$label" >&2; return 1; }
+  listing="$errf.list"
+  printf 'Taking a fresh dump before the push...\n'
+  if ! pg_dump --format=custom --no-password -d "$conn" -f "$partial" 2>"$errf" </dev/null; then
+    ops_redact < "$errf" >&2
+    rm -f "$partial" "$listing" "$errf"
+    printf '✗ %s: pre-push dump failed — nothing was pushed\n' "$label" >&2
+    return 1
+  fi
+  if ! pg_restore --list "$partial" >"$listing" 2>/dev/null </dev/null; then
+    rm -f "$partial" "$listing" "$errf"
+    printf '✗ %s: pre-push dump does not list — nothing was pushed\n' "$label" >&2
+    return 1
+  fi
+  entries="$(grep -vc '^;' "$listing" || true)"
+  if ! [[ "$entries" =~ ^[0-9]+$ ]] || [ "$entries" -eq 0 ]; then
+    rm -f "$partial" "$listing" "$errf"
+    printf '✗ %s: pre-push dump does not list — nothing was pushed\n' "$label" >&2
+    return 1
+  fi
+  if ! mv "$partial" "$dump"; then
+    rm -f "$partial" "$listing" "$errf"
+    printf '✗ %s: pre-push dump could not be finalized — nothing was pushed\n' "$label" >&2
+    return 1
+  fi
+  rm -f "$listing" "$errf"
+  OPS_PREDEPLOY_DUMP_PATH="$dump"
+  printf 'Dump verified (%s entries): %s\n' "$entries" "$dump"
+}
 
 # Replace every secret-bearing fragment (SECRETS) in the text read from stdin.
 ops_redact() {

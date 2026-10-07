@@ -6,6 +6,7 @@ import {
   cafeReceiptArrivalDateBounds,
   listCafeReceiptDifferences,
   listCafeReceipts,
+  listCafeUnsentReceipts,
   listCafeHeldReceipts,
   listCafeReceivableItems,
   listCafeOpenPoIdentities,
@@ -187,6 +188,26 @@ describe('Café receipt adapter', () => {
     expect(vi.mocked(listCafeReceiptPhotos)).toHaveBeenCalledWith(['r-sub'])
     expect(vi.mocked(signCafeReceiptPhotos)).toHaveBeenCalledWith([{ lineId: 'l-sub', path: 'org/r-sub/l-sub/a.jpg', createdAt: 't' }])
     expect(receipts.map(receipt => receipt.lines[0].photos.length)).toEqual([1, 0])
+  })
+
+  it('FR-1044 reads Counted receipts oldest first, without photos, and says how many newer ones the limit left out', async () => {
+    const rows = Array.from({ length: 50 }, (_, index) => ({
+      id: `r-${index}`, activity: 'kitchen', status: 'Counted', posting_status: 'not_posted', lines: [],
+    }))
+    const query: Record<string, unknown> = {}
+    for (const method of ['select', 'in', 'eq', 'order', 'limit']) query[method] = vi.fn(() => query)
+    query.then = (resolve: (value: unknown) => unknown) => Promise.resolve({ data: rows, count: 53, error: null }).then(resolve)
+    schemaMock.mockReturnValue({ from: vi.fn(() => query) } as never)
+
+    const unsent = await listCafeUnsentReceipts()
+
+    expect(query.in).toHaveBeenCalledWith('status', ['Counted'])
+    expect(query.order).toHaveBeenCalledWith('received_at', { ascending: true })
+    expect(query.limit).toHaveBeenCalledWith(50)
+    expect(vi.mocked(query.select as () => unknown).mock.calls[0]).toEqual([expect.any(String), { count: 'exact' }])
+    expect(listCafeReceiptPhotos).not.toHaveBeenCalled()
+    expect(unsent.receipts.map(receipt => receipt.id)).toEqual(rows.map(row => row.id))
+    expect(unsent.more).toBe(3)
   })
 
   it('AC-1011 explanation writer passes only a line id, damage flag and trimmed reason', async () => {
