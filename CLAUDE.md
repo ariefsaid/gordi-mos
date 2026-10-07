@@ -67,7 +67,7 @@ Updates + per-Activity ops + reference data + money follow-ups. Ships at
 
 ## UI review and improvement tasks
 
-For every UI/UX/IA/IxD iteration, use `docs/takeover/mvp-ui-continuation.md` in the main checkout
+For a UI change that gets a design pass (see Bar to merge), and for the per-release pass, use `docs/takeover/mvp-ui-continuation.md` in the main checkout
 as the execution entrypoint. Managed worktrees lack private `docs/` and `.claude/skills/`; use
 `git worktree list` to find the former and `bash scripts/ui-skill-tools.sh paths` for the actual
 skill files, playbooks and launchers. Read and apply the applicable skills and run their supported
@@ -100,22 +100,24 @@ independent review → PR → auto-merge to dev → next. Its machinery binds ou
 3. Review: three independent lens verdicts. One reviewer who did not build the candidate may
    cover all three; separate contexts are needed only when the selected route requires them for
    independence or calibration. Never your own read.
-4. A PR needs four stamps: `bash scripts/pre-pr-verify.sh` + one per lens via
-   `scripts/record-review.sh --lens spec|code-quality|security` (a reviewer that didn't build
-   it: glm/luna, opus fallback). CI on the PR is the merge gate.
+4. A PR needs one stamp per lens via `scripts/record-review.sh --lens spec|code-quality|security`
+   (a reviewer that didn't build it: glm/luna, opus fallback; Opus for the security lens of a
+   release or a migration). CI on the PR is the merge gate.
 5. GitHub writes ONLY via `scripts/gh-post.sh` — the firewall hook denies raw `gh` writes; the
    posting policy lives in local `docs/`, per the banner above. One carve-out: `gh pr merge`
    stays raw (no prose leaves through a merge).
 
-CI fair use (shared free-tier minutes): a PR into `dev` uses GitHub CI as the full-suite gate — locally
-run only `bash scripts/pre-pr-verify.sh --dev` (typecheck, lint, tests of touched files); a PR into
-`main` keeps the full local gate.
-Locally, pgTAP runs only the test files your change touches (`scripts/with-db-lock.sh bash -c 'supabase migration up && supabase test db <files>'`; the local DB is shared, so no reset just to test); CI runs the full suite. The DB lock wraps database commands only, never pre-pr-verify. A pure rebase (proven by `scripts/carry-stamps.sh`) carries the verify and review stamps to the new HEAD in place of a mechanical-confirmation round.
+CI fair use (shared free-tier minutes): a PR into `dev` needs no local verify run — CI verify is its
+gate; a PR into `main` keeps the full local gate (`bash scripts/pre-pr-verify.sh`).
+Locally, pgTAP runs only the test files your change touches (`scripts/with-db-lock.sh bash -c 'supabase migration up && supabase test db <files>'`; the local DB is shared, so no reset just to test); CI runs the full suite. The DB lock wraps database commands only, never pre-pr-verify. A pure rebase, a clean merge of dev, or a rename-only migration renumber (proven by `scripts/carry-stamps.sh`) carries the stamps to the new HEAD in place of a mechanical-confirmation round.
 A PR into `main` runs the e2e itself (never dispatch it there); merges into main and the main→staging promotion re-run no CI.
 Run CI e2e at most once per PR, only for shared-code or milestone
 PRs into dev, via `bash scripts/ci-e2e.sh` (raw dispatch and rerun are hook-denied). A second e2e run on a PR
 (except one `--bugfix-proof` follow-up), a flake re-run, more than 3 dispatches per repo per day, or anything
 scheduled or looping needs the owner's OK. One heavy local job at a time, all sessions and repos.
+
+Decisions: `OD-*` = owner, binding until the owner changes it; `DD-*` = Director, may be questioned
+with evidence. Say which kind whenever you cite one.
 
 Escalate **only**: money or a promise · irreversible outside a signed brief · scope-vs-time that
 changes what ships · a fact only the owner holds. Within delegated scope, decide the rest and state
@@ -143,7 +145,7 @@ Findings in a separate comment, never the PR body. Records certify the exact HEA
 staleifies every record. Round 1 is a full independent pass; later rounds are delta-only for named
 fixes or genuinely new risk. Formatting/whitespace-only changes, or mechanical artifact refreshes
 with no new authored behavior, do not start a substantive review round; if they move HEAD, the
-independent reviewer must issue an exact-HEAD mechanical confirmation (a pure rebase carries stamps instead; see CI fair use), never edit or reuse a stale
+independent reviewer must issue an exact-HEAD mechanical confirmation (a carry proven by `scripts/carry-stamps.sh` replaces it; see CI fair use), never edit or reuse a stale
 record.
 
 ## Repo layout
@@ -186,11 +188,14 @@ honest work teaches `--no-verify`, which disables the guards that matter. This o
 - typecheck + ESLint zero errors; ≥80% lines on changed code.
 - Reversible migrations. **RLS on every business table.** `org_id` seam enforced.
 - `DESIGN.md` is the design-system source of truth — never re-invent it.
-- UI changes also require the repo-vendored design-tooling lane in local `docs/decisions.md`
-  (DD-MVP-12/13) and `docs/quality-model.md`: Impeccable detector + audit/critique + post-fix
-  polish, with Taste as the secondary anti-slop lens. Missing, unrunnable or stale tooling is an
-  explicit incomplete review, never a silent fallback.
-- UI is not done until rendered and operated at real widths (incl. ≤390px phone): open controls,
+- UI changes run the scripted design checks (Impeccable detector, geometry, a11y, contrast) on every
+  PR. The judgment steps (shape, ui-ux-pro-max, rendered critique, layout, clarify, harden,
+  polish, Taste) run with renders on a PR that adds a route, page, component or CSS file, changes
+  over ~150 lines of page/component .tsx/.css, or fixes an owner-reported UI issue; otherwise once per
+  release on the dev→main PR (OD-2026-10-07-HARNESS-ANSWERS). Missing, unrunnable or stale tooling
+  is an explicit incomplete review, never a silent fallback.
+- A UI change is not done until each touched page renders at ≤390px and ≥1440px; one with a design
+  pass is also operated at real widths: open controls,
   keyboard/focus, long content, loading/empty/error states and the persisted role-correct journey.
   Record browser evidence separately from source/test evidence; shared-component reuse is not visual acceptance.
 
@@ -216,7 +221,7 @@ specification loop. Preserve batched owner questions and original outcome/proven
 Under OD-REDESIGN-88, understood seams may use test-with against the current behavior contract;
 visual placement assertions change when the owner-authorized workflow changes;
 retain red-first for bug fixes, uncertain logic and protected interaction-contract changes.
-Automatic UI guards and changed-surface browser checks run per change. Deep rendered judgment
+Automatic UI guards run per change; changed-surface browser checks run with the design pass. Deep rendered judgment
 covers every route at a signed milestone boundary (see Standing principles), and touched and
 connected surfaces when the ticket's contract explicitly requires it; ordinary tickets do not
 repeat the whole-product assessment.
