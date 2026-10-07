@@ -1,6 +1,5 @@
-// The toggleable row shared by the person panel's checkbox lists (Teams, Position, Access, Revenue
-// scope), with the "Defect 3" whole-row click target. Each list owns its own section shell and data
-// shaping.
+// The native checkbox row shared by the person panel's Teams, Position, Access, and Revenue lists.
+// Each list owns its own section shell and data shaping.
 
 import type { ReactNode } from 'react'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -27,10 +26,8 @@ export interface CheckboxRowProps {
 }
 
 /**
- * One checkbox row whose ENTIRE surface toggles (not just the 16px glyph). The glyph's wrapper stops
- * click propagation so a glyph click fires the toggle exactly once (via Checkbox onChange) and never
- * also bubbles to the row's onClick; a click on the label text fires the row onClick once. Disabled
- * rows no-op on both. Keyboard (Space/Enter) + aria-checked/disabled stay owned by the Checkbox.
+ * One checkbox row whose visible label and native control share one activation surface. The native
+ * input owns checked, disabled, and keyboard behavior; trailing controls remain outside the label.
  */
 export function CheckboxRow({
   label,
@@ -50,12 +47,9 @@ export function CheckboxRow({
         className={`flex min-w-0 flex-1 items-start gap-3 py-2.5 select-none ${indent ? 'pl-6 pr-3' : 'px-3'} ${
           disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-accent/60'
         }`}
-        onClick={() => {
-          if (!disabled) onToggle()
-        }}
         title={title}
       >
-        <span className="mt-0.5" onClick={(e) => e.stopPropagation()}>
+        <span className="mt-0.5">
           <Checkbox
             checked={checked}
             disabled={disabled}

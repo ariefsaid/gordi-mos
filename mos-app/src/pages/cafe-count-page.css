@@ -190,7 +190,7 @@
 
 .cafe-count__footer {
   position: sticky;
-  z-index: 2;
+  z-index: var(--z-inline-raised);
   /* Cancel the page frame's bottom reserve so the action bar sits on the scrollport edge. */
   bottom: -48px;
   margin-bottom: -48px;
