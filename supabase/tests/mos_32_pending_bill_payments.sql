@@ -1,7 +1,7 @@
 -- #1465 T2: single-bill payment ledger, atomic writer, Finance-only proof and append-only reversals.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(47);
+select plan(51);
 
 select shared._test_seed_directory();
 
@@ -43,7 +43,8 @@ select ok(has_table_privilege('authenticated','storage.objects','SELECT'), 'stor
 insert into reporting.pending_bills (org_id, esb_code, branch_code, bill_no, bill_date, amount, source_state, snapshot_as_of)
 values
   (:'org_a', 'ESB-TEST', 'BR-TEST', 'PB-1465-A', current_date - 2, 1000, 'present', now()),
-  (:'org_a', 'ESB-TEST', 'BR-TEST', 'PB-1465-VOID', current_date - 3, 500, 'present', now());
+  (:'org_a', 'ESB-TEST', 'BR-TEST', 'PB-1465-VOID', current_date - 3, 500, 'present', now()),
+  (:'org_a', 'ESB-TEST', 'BR-TEST', 'PB-1465-CENTS', current_date - 4, 12345.50, 'present', now());
 insert into storage.objects (bucket_id, name) values
   ('pending-bill-proofs', :'proof_1'),
   ('pending-bill-proofs', :'proof_2');
@@ -83,7 +84,23 @@ select throws_ok($$select * from mos.record_pending_bill_payment(
 select throws_ok($$select * from mos.record_pending_bill_payment(
   'ESB-TEST','BR-TEST','PB-1465-A',1.5,(now() at time zone 'Asia/Jakarta')::date,'00000000-0000-0000-0000-0000000000a1/00000000-0000-4000-8000-000000001001.jpg',null,
   '00000000-0000-4000-8000-000000001109',null,null)$$,
-  '23514', 'Amount must use whole rupiah.', 'fractional rupiah is refused rather than rounded');
+  '23514', 'Amount must use whole rupiah unless it settles the bill.', 'fractional rupiah is refused rather than rounded');
+
+-- A bill whose total carries cents can still be settled: whole rupiah first, then the exact remainder.
+select lives_ok($$select * from mos.record_pending_bill_payment(
+  'ESB-TEST','BR-TEST','PB-1465-CENTS',12345,(now() at time zone 'Asia/Jakarta')::date,'00000000-0000-0000-0000-0000000000a1/00000000-0000-4000-8000-000000001002.pdf',null,
+  '00000000-0000-4000-8000-000000001201',null,null)$$,
+  'a whole-rupiah part payment on a bill with cents is accepted');
+select throws_ok($$select * from mos.record_pending_bill_payment(
+  'ESB-TEST','BR-TEST','PB-1465-CENTS',0.25,(now() at time zone 'Asia/Jakarta')::date,'00000000-0000-0000-0000-0000000000a1/00000000-0000-4000-8000-000000001002.pdf',null,
+  '00000000-0000-4000-8000-000000001202',null,null)$$,
+  '23514', 'Amount must use whole rupiah unless it settles the bill.', 'a fraction that does not settle the bill is refused');
+select lives_ok($$select * from mos.record_pending_bill_payment(
+  'ESB-TEST','BR-TEST','PB-1465-CENTS',0.50,(now() at time zone 'Asia/Jakarta')::date,'00000000-0000-0000-0000-0000000000a1/00000000-0000-4000-8000-000000001002.pdf',null,
+  '00000000-0000-4000-8000-000000001203',null,null)$$,
+  'the exact remaining cents settle the bill');
+select is((select sum(amount) from mos.pending_bill_payments where bill_no = 'PB-1465-CENTS'), 12345.50::numeric,
+  'the ledger holds the full bill including cents');
 select throws_ok($$select * from mos.record_pending_bill_payment(
   'ESB-TEST','BR-TEST','PB-1465-A',1,(now() at time zone 'Asia/Jakarta')::date + 1,'00000000-0000-0000-0000-0000000000a1/00000000-0000-4000-8000-000000001001.jpg',null,
   '00000000-0000-4000-8000-000000001105',null,null)$$,

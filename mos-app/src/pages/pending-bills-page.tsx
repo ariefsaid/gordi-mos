@@ -44,6 +44,7 @@ const STATE_LABEL: Record<PendingBillState, MessageKey> = {
   open: 'pendingBills.state.open',
   partial: 'pendingBills.state.partial',
   settled: 'pendingBills.state.settled',
+  overpaid: 'pendingBills.state.overpaid',
   void: 'pendingBills.state.void',
   missing: 'pendingBills.state.missing',
 }
@@ -55,7 +56,7 @@ function ageText(days: number, t: T): string {
 
 function statePill(bill: PendingBillView, t: T): ReactNode {
   const tone = bill.state === 'settled' ? 'success'
-    : bill.state === 'partial' || bill.state === 'void' || bill.state === 'missing' ? 'warning'
+    : bill.state === 'partial' || bill.state === 'overpaid' || bill.state === 'void' || bill.state === 'missing' ? 'warning'
       : 'neutral'
   return <Pill tone={tone}>{t(STATE_LABEL[bill.state])}</Pill>
 }

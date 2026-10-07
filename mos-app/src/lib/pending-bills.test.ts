@@ -53,13 +53,16 @@ describe('toPendingBillViews', () => {
       bill({ bill_no: 'SETTLED', amount: 750 }),
       bill({ bill_no: 'VOID', amount: 500, source_state: 'void' }),
       bill({ bill_no: 'MISSING', amount: 300, source_state: 'missing' }),
+      bill({ bill_no: 'OVERPAID', amount: 400 }),
     ], '2026-10-06', [
+      { esb_code: 'GKI', branch_code: 'rumah_rames', bill_no: 'OVERPAID', amount: 500 },
       { esb_code: 'GKI', branch_code: 'rumah_rames', bill_no: 'PARTIAL', amount: 250 },
       { esb_code: 'GKI', branch_code: 'rumah_rames', bill_no: 'SETTLED', amount: 750 },
       { esb_code: 'GKI', branch_code: 'rumah_rames', bill_no: 'VOID', amount: 200 },
     ])
     expect(views.map(({ billNo, balance, state }) => ({ billNo, balance, state }))).toEqual([
       { billNo: 'MISSING', balance: 300, state: 'missing' },
+      { billNo: 'OVERPAID', balance: -100, state: 'overpaid' },
       { billNo: 'PARTIAL', balance: 750, state: 'partial' },
       { billNo: 'SETTLED', balance: 0, state: 'settled' },
       { billNo: 'VOID', balance: 300, state: 'void' },
@@ -107,6 +110,13 @@ describe('AC-1134: payment form validation keeps invalid submissions off', () =>
       errors: {},
       canSubmit: true,
     })
+    // A bill whose total carries cents is settled by whole rupiah and then its exact remainder.
+    expect(validate({ amount: '0.5', cashInDate: '2026-10-06', hasProof: true, balance: 0.5, today: '2026-10-06' })).toEqual({
+      errors: {},
+      canSubmit: true,
+    })
+    expect(validate({ amount: '12345.5', cashInDate: '2026-10-06', hasProof: true, balance: 12345.5, today: '2026-10-06' }).canSubmit).toBe(true)
+    expect(validate({ amount: '0.25', cashInDate: '2026-10-06', hasProof: true, balance: 0.5, today: '2026-10-06' }).errors).toEqual({ amount: 'invalid' })
   })
 })
 

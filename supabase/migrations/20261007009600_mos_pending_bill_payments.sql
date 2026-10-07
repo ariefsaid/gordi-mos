@@ -10,6 +10,12 @@
 -- Proofs are private objects in pending-bill-proofs. The bucket and SELECT/INSERT policies are
 -- Finance-only and scoped to the current org; there is intentionally no public URL or delete path.
 --
+-- A payment is whole rupiah and at least 1, except that a payment equal to the exact remaining balance
+-- (which may carry cents) is accepted, so a bill with cents can be settled. A bill whose recorded
+-- payments exceed a later, lower ESB total is shown as overpaid by the application.
+--
+-- Rollback: supabase/rollbacks/20261007009600_mos_pending_bill_payments.sql (guarded).
+--
 -- DOWN (after taking any required private evidence archive):
 --   drop policy pending_bill_proofs_insert on storage.objects;
 --   drop policy pending_bill_proofs_select on storage.objects;
@@ -31,7 +37,7 @@ create table mos.pending_bill_payments (
   branch_code      text not null check (pg_catalog.btrim(branch_code) <> ''),
   bill_no          text not null check (pg_catalog.btrim(bill_no) <> ''),
   entry_kind       text not null check (entry_kind in ('payment', 'reversal')),
-  amount           numeric(14,2) not null check (amount = pg_catalog.trunc(amount)),
+  amount           numeric(14,2) not null,
   cash_in_date     date not null,
   proof_path       text,
   note             text,
@@ -47,10 +53,10 @@ create table mos.pending_bill_payments (
   foreign key (org_id, reversal_of)
     references mos.pending_bill_payments (org_id, id),
   check (
-    (entry_kind = 'payment' and amount >= 1 and proof_path is not null
+    (entry_kind = 'payment' and amount > 0 and proof_path is not null
       and reversal_of is null and reversal_reason is null)
     or
-    (entry_kind = 'reversal' and amount <= -1 and proof_path is null
+    (entry_kind = 'reversal' and amount < 0 and proof_path is null
       and reversal_of is not null and pg_catalog.btrim(coalesce(reversal_reason, '')) <> '')
   ),
   check (note is null or pg_catalog.char_length(note) <= 500),
@@ -181,11 +187,11 @@ begin
        or p_bill_no is null or pg_catalog.btrim(p_bill_no) = '' then
       raise exception using errcode = '22023', message = 'Bill identity is required.';
     end if;
-    if p_amount is null or p_amount < 1 then
+    if p_amount is null or p_amount <= 0 then
       raise exception using errcode = '23514', message = 'Amount must be at least 1.';
     end if;
-    if p_amount <> pg_catalog.trunc(p_amount) then
-      raise exception using errcode = '23514', message = 'Amount must use whole rupiah.';
+    if p_amount <> pg_catalog.round(p_amount, 2) then
+      raise exception using errcode = '23514', message = 'Amount cannot carry more than two decimals.';
     end if;
     if p_cash_in_date is null then
       raise exception using errcode = '23514', message = 'Cash-in date is required.';
@@ -232,6 +238,10 @@ begin
     v_balance := v_bill.amount - v_paid;
     if v_balance <= 0 or p_amount > v_balance then
       raise exception using errcode = '23514', message = 'Amount exceeds the remaining bill balance.';
+    end if;
+    -- The copy keeps ESB totals to the cent: a payment is whole rupiah unless it settles the bill exactly.
+    if (p_amount < 1 or p_amount <> pg_catalog.trunc(p_amount)) and p_amount <> v_balance then
+      raise exception using errcode = '23514', message = 'Amount must use whole rupiah unless it settles the bill.';
     end if;
 
     insert into mos.pending_bill_payments (

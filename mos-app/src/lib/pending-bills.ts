@@ -1,7 +1,7 @@
 // Pending bills view-model (#1464): copied bills → the rows Finance reads, oldest first.
 import type { PendingBillRow } from '@/lib/db/reporting-pending-bills'
 
-export type PendingBillState = 'open' | 'partial' | 'settled' | 'void' | 'missing'
+export type PendingBillState = 'open' | 'partial' | 'settled' | 'overpaid' | 'void' | 'missing'
 
 export interface PendingBillPaymentAmount {
   esb_code: string
@@ -66,9 +66,11 @@ export function toPendingBillViews(
       const sourceState = SOURCE_STATE[row.source_state]
       const state = sourceState !== 'open'
         ? sourceState
-        : balance <= 0
-          ? 'settled'
-          : recordedPaid > 0
+        : balance < 0
+          ? 'overpaid'
+          : balance === 0
+            ? 'settled'
+            : recordedPaid > 0
             ? 'partial'
             : 'open'
       return {
@@ -128,8 +130,10 @@ function isIsoCalendarDate(value: string): boolean {
 export function validatePendingBillPaymentForm(draft: PendingBillPaymentDraft): PendingBillPaymentValidation {
   const errors: PendingBillPaymentValidation['errors'] = {}
   const amount = Number(draft.amount)
+  // The copy keeps ESB totals to the cent: whole rupiah (at least 1), or exactly the remaining balance.
+  const settlesBill = amount === draft.balance
   if (!draft.amount.trim()) errors.amount = 'required'
-  else if (!Number.isFinite(amount) || amount < 1 || !Number.isInteger(amount)) errors.amount = 'invalid'
+  else if (!Number.isFinite(amount) || amount <= 0 || (!settlesBill && (amount < 1 || !Number.isInteger(amount)))) errors.amount = 'invalid'
   else if (amount > draft.balance) errors.amount = 'overBalance'
 
   if (!draft.cashInDate) errors.cashInDate = 'required'
