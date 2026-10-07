@@ -266,11 +266,6 @@
 .kls-unit-select { width: 100%; max-width: 100%; }
 .kls-unit-select .mk-select__box,
 .kls-unit-select .mk-select__field { width: 100%; max-width: 100%; }
-.kls-unit-select .mk-select__field > span:first-child {
-  white-space: normal;
-  overflow-wrap: anywhere;
-  text-overflow: clip;
-}
 
 @media (min-width: 768px) {
   .kls-dense .kls-unit-change {

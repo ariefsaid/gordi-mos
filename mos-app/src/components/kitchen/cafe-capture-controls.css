@@ -22,8 +22,37 @@
   font-size: var(--font-size-control);
 }
 
+.cafe-capture-content .cafe-capture-quantity-field:not(.kls-qty),
+.cafe-count .cafe-capture-quantity-field {
+  padding: 0 8px;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-sm);
+  background: var(--background);
+  color: var(--foreground);
+  font: inherit;
+  font-size: var(--font-size-control);
+}
+
+.cafe-capture-content .cafe-capture-quantity-field:not(.kls-qty):focus-visible,
+.cafe-count .cafe-capture-quantity-field:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.cafe-capture-content .cafe-capture-quantity-field:not(.kls-qty)[aria-invalid="true"],
+.cafe-count .cafe-capture-quantity-field[aria-invalid="true"] {
+  border-color: var(--destructive);
+}
+
 .cafe-capture-unit {
   min-width: 0;
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+}
+
+.cafe-capture-unit .mk-select__field > span:first-child {
   white-space: normal;
   overflow: visible;
   overflow-wrap: anywhere;
@@ -42,7 +71,7 @@
     --cafe-capture-control-height: 44px;
   }
 
-  .cafe-capture-content .cafe-capture-quantity-field,
+  .cafe-capture-content .cafe-capture-quantity-field:not(.kls-qty),
   .cafe-count .cafe-capture-quantity-field {
     font-size: var(--font-size-touch-input);
   }

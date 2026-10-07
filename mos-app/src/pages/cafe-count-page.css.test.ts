@@ -29,6 +29,18 @@ describe('Count keeps one shared quantity column without clipping units', () => 
     expect(css).toMatch(/\.cafe-count__category\s*\{\s*display:\s*none/)
   })
 
+  it('keeps quantity field geometry and chrome in the shared capture rule', () => {
+    expect(shared).toMatch(/\.cafe-capture-content \.cafe-capture-quantity-field,\s*\.cafe-count \.cafe-capture-quantity-field\s*\{[^}]*width:\s*var\(--cafe-capture-quantity-width\)[^}]*min-height:\s*var\(--cafe-capture-control-height\)[^}]*box-sizing:\s*border-box/)
+    expect(shared).toMatch(/\.cafe-capture-content \.cafe-capture-quantity-field:not\(\.kls-qty\),\s*\.cafe-count \.cafe-capture-quantity-field\s*\{[^}]*padding:\s*0 8px[^}]*border:\s*1px solid var\(--input\)[^}]*font:\s*inherit/)
+    expect(shared).toMatch(/\.cafe-capture-content \.cafe-capture-quantity-field:not\(\.kls-qty\):focus-visible,[\s\S]*?\.cafe-count \.cafe-capture-quantity-field:focus-visible\s*\{[^}]*outline:\s*2px solid var\(--ring\)/)
+    expect(shared).toMatch(/\.cafe-capture-content \.cafe-capture-quantity-field:not\(\.kls-qty\)\[aria-invalid="true"\],[\s\S]*?\.cafe-count \.cafe-capture-quantity-field\[aria-invalid="true"\]\s*\{[^}]*border-color:\s*var\(--destructive\)/)
+    expect(css).toMatch(/\.cafe-count__quantity-control input\s*\{\s*font-variant-numeric:\s*tabular-nums;\s*\}/)
+    expect(css).not.toMatch(/\.cafe-count__quantity-control input\s*\{[^}]*\b(?:width|min-width|min-height|height|box-sizing|padding|border|background|color|font-size|flex(?:-basis)?)\s*:/)
+    expect(css).not.toContain('flex-basis: var(--cafe-capture-quantity-width')
+    expect(css).not.toContain('.cafe-count__quantity-control input:focus-visible')
+    expect(css).not.toContain('.cafe-count__quantity-control input[aria-invalid="true"]')
+  })
+
   it('lets a long unit wrap on phone but never ellipsizes it', () => {
     const unit = shared.slice(shared.indexOf('.cafe-capture-unit {'), shared.indexOf('.cafe-capture-action {'))
     expect(unit).toMatch(/white-space:\s*normal/)

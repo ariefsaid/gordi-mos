@@ -8,6 +8,8 @@ const selectCss = readFileSync(resolve(process.cwd(), 'src/components/ui/Select.
   .replace(/\/\*[\s\S]*?\*\//g, '')
 const captureCss = readFileSync(resolve(process.cwd(), 'src/components/kitchen/cafe-capture-controls.css'), 'utf8')
   .replace(/\/\*[\s\S]*?\*\//g, '')
+const stepperCss = readFileSync(resolve(process.cwd(), 'src/components/kitchen/wip-item-stepper.css'), 'utf8')
+  .replace(/\/\*[\s\S]*?\*\//g, '')
 
 function rule(selector: string, last = false): string {
   const index = last ? css.lastIndexOf(selector) : css.indexOf(selector)
@@ -38,14 +40,31 @@ describe('Waste capture controls stay paired and complete', () => {
     expect(selectCss).toMatch(/\.mk-select__field\s*\{[^}]*text-align:\s*left/)
   })
 
-  it('uses the shared unit wrapping rule and keeps Select labels wrapped', () => {
+  it('uses one shared unit wrapping rule for Select labels', () => {
     const unit = captureCss.slice(captureCss.indexOf('.cafe-capture-unit {'), captureCss.indexOf('.cafe-capture-action {'))
+    const selectLabelSelector = '.cafe-capture-unit .mk-select__field > span:first-child {'
+    const selectLabel = captureCss.slice(captureCss.indexOf(selectLabelSelector), captureCss.indexOf('}', captureCss.indexOf(selectLabelSelector)))
     expect(unit).toMatch(/white-space:\s*normal/)
     expect(unit).toMatch(/overflow-wrap:\s*anywhere/)
+    expect(selectLabel).toMatch(/white-space:\s*normal/)
+    expect(selectLabel).toMatch(/overflow:\s*visible/)
+    expect(selectLabel).toMatch(/overflow-wrap:\s*anywhere/)
+    expect(selectLabel).toMatch(/text-overflow:\s*clip/)
+    expect(captureCss.match(/\.cafe-capture-unit \.mk-select__field > span:first-child\s*\{/g)).toHaveLength(1)
+    expect(css.match(/\.cwl-unit-select \.mk-select__field > span:first-child\s*\{/g)).toHaveLength(1)
+    expect(stepperCss).not.toContain('.kls-unit-select .mk-select__field > span:first-child {')
     expect(rule('.cwl-unit-label {')).not.toMatch(/white-space|overflow-wrap|text-overflow/)
     expect(css).not.toContain('.cwl-controls .cwl-unit-label {')
-    expect(rule('.cwl-unit-select .mk-select__field > span:first-child {')).toMatch(/white-space:\s*normal/)
-    expect(rule('.cwl-unit-select .mk-select__field > span:first-child {')).toMatch(/overflow-wrap:\s*anywhere/)
+  })
+
+  it('inherits shared quantity-field chrome and keeps only Waste-specific alignment', () => {
+    expect(captureCss).toMatch(/\.cafe-capture-content \.cafe-capture-quantity-field:not\(\.kls-qty\),\s*\.cafe-count \.cafe-capture-quantity-field\s*\{[^}]*padding:\s*0 8px[^}]*border:\s*1px solid var\(--input\)[^}]*font:\s*inherit/)
+    expect(captureCss).toMatch(/\.cafe-capture-content \.cafe-capture-quantity-field,\s*\.cafe-count \.cafe-capture-quantity-field\s*\{[^}]*width:\s*var\(--cafe-capture-quantity-width\)[^}]*min-height:\s*var\(--cafe-capture-control-height\)/)
+    expect(rule('.cwl-quantity-input {', true)).toMatch(/max-width:\s*100%/)
+    expect(rule('.cwl-quantity-input {', true)).toMatch(/text-align:\s*right/)
+    expect(rule('.cwl-quantity-input {', true)).not.toMatch(/(?:^|;)\s*(?:width|min-width|min-height|height|box-sizing|padding|border|background|color|font|outline)\s*:/)
+    expect(css).not.toContain('.cwl-quantity-input:focus-visible')
+    expect(css).not.toContain('.cwl-quantity-input[aria-invalid="true"]')
   })
 
   it('keeps the per-item quantity-before-photo hint inside the control row', () => {
@@ -60,13 +79,12 @@ describe('Waste capture controls stay paired and complete', () => {
     expect(held).not.toMatch(/color-mix/)
   })
 
-  it('wraps long units on phones instead of hiding their tail', () => {
-    const unitRules = css.slice(css.indexOf('.cwl-unit-select .mk-select__field > span:first-child {'), css.lastIndexOf('.cwl-add-photo {'))
-    expect(unitRules).toMatch(/text-overflow:\s*clip/)
-    expect(unitRules).toMatch(/overflow:\s*visible/)
-    expect(unitRules).not.toMatch(/text-overflow:\s*ellipsis/)
+  it('keeps phone-specific Select typography without redefining shared wrapping', () => {
+    const phoneLabel = rule('.cwl-unit-select .mk-select__field > span:first-child {')
+    expect(phoneLabel).toMatch(/font-size:\s*var\(--font-size-control\)/)
+    expect(phoneLabel).toMatch(/line-height:\s*1\.3/)
+    expect(phoneLabel).not.toMatch(/white-space|overflow|text-overflow/)
     expect(css).not.toMatch(/@media\s*\(max-width:\s*767\.98px\)[\s\S]*?\.cwl-unit-label\s*\{/)
-    expect(css).toMatch(/@media\s*\(max-width:\s*767\.98px\)[\s\S]*?\.cwl-unit-select \.mk-select__field > span:first-child\s*\{[^}]*white-space:\s*normal/)
   })
 
   it('keeps category context available on phone while preserving dense desktop rows', () => {

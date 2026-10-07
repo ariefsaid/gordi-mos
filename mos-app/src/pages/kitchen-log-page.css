@@ -293,15 +293,6 @@
     max-width: var(--cafe-capture-unit-track-width, 17rem);
     text-align: left;
   }
-  .kl-form .kls-quantity .kls-unit-select {
-    width: 100%;
-    max-width: none;
-  }
-  .kl-form .kls-quantity .kls-unit-select .mk-select__box,
-  .kl-form .kls-quantity .kls-unit-select .mk-select__field {
-    width: 100%;
-    max-width: none;
-  }
   .kl-form .dt-table thead th:nth-child(1),
   .kl-form .dt-table tbody tr:not(.dt-group-row) > td:nth-child(1) { width: auto; }
   .kl-form .dt-table thead th:nth-child(2),
