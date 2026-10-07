@@ -67,6 +67,17 @@ describe('getWorkWriteScopes', () => {
     expect(nextRpc).toHaveBeenCalledOnce()
   })
 
+  it('does not survive a page load: an admin change elsewhere is read on reload', async () => {
+    const firstRpc = mockRpc({ workline_org: false })
+    await getWorkWriteScopes()
+    __resetReferenceCacheForTests(false)
+
+    const nextRpc = mockRpc({ workline_org: true })
+    await expect(getWorkWriteScopes()).resolves.toMatchObject({ workline_org: true })
+    expect(firstRpc).toHaveBeenCalledOnce()
+    expect(nextRpc).toHaveBeenCalledOnce()
+  })
+
   it('fails closed for malformed RPC payloads without inventing authority', async () => {
     mockRpc({ workline_org: 'yes', workline_bu_ids: ['bu-1', 42] })
 
