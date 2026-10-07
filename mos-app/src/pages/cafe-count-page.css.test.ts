@@ -9,10 +9,10 @@ const shared = readFileSync(resolve(process.cwd(), 'src/components/kitchen/cafe-
 const aliases = readFileSync(resolve(process.cwd(), 'src/styles/tokens/aliases.css'), 'utf8')
 
 describe('Count keeps one shared quantity column without clipping units', () => {
-  it('keeps the input column fixed and lets Count units use the remaining desktop track', () => {
+  it('uses one fixed input column and a stable 110px unit column at every width', () => {
     expect(css).toMatch(/\.cafe-count__row\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s*var\(--cafe-capture-control-group-width,\s*25rem\)/)
     expect(css).toMatch(/\.cafe-count__quantity-control\s*\{[^}]*grid-template-columns:\s*var\(--cafe-capture-quantity-width,\s*7\.5rem\)\s*110px/)
-    expect(css).toMatch(/@media\s*\(min-width:\s*768px\)[\s\S]*?\.cafe-count:not\(\.cafe-receive\) \.cafe-count__quantity-control\s*\{[^}]*grid-template-columns:\s*var\(--cafe-capture-quantity-width,\s*7\.5rem\)\s*minmax\(110px,\s*1fr\)/)
+    expect(css).not.toMatch(/minmax\(110px,\s*1fr\)/)
     expect(css).toMatch(/\.cafe-count__quantity-control\s*\{[^}]*width:\s*max-content/)
     expect(css).toMatch(/width:\s*var\(--cafe-capture-control-group-width,\s*25rem\)/)
     expect(css).not.toContain('.cafe-count__quantity-control .cafe-count__unit {')
