@@ -381,14 +381,30 @@
 /* The sticky send bar is the page's last child here, so the list needs no bottom reserve. */
 .cafe-receive .cafe-count__list { padding-bottom: 0; margin-bottom: 24px; }
 
-/* Receive rows: name top-aligned beside a capped quantity column with a fixed unit track. */
-.cafe-receive .cafe-count__row {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 360px);
-  align-items: start;
+/* Receive rows keep Count's columns and unit track; the name tops the taller field group. */
+.cafe-receive .cafe-count__row { align-items: start; }
+
+.cafe-receive .cafe-count__input-group > label {
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
 }
 
-.cafe-receive .cafe-count__quantity-control { grid-template-columns: minmax(0, 1fr) 96px; }
-.cafe-receive .cafe-count__unit { max-width: none; }
+/* Count dissolves an invalid row's field group; Receive's group also holds its label, unit
+   choice and damage flag, so it keeps the group's own layout and the error stays inside it. */
+.cafe-receive .cafe-count__row:has(.cafe-count__field-error) .cafe-count__input-group { display: flex; }
+
+@media (min-width: 768px) {
+  .cafe-receive .cafe-count__row:has(.cafe-count__field-error) .cafe-count__input-group { display: grid; }
+}
+
+/* Blocks above and beside the rows share the Count list and band measure (cafe-count-page.css). */
+.cafe-receive__open-pos,
+.cafe-receive .ktb,
+.cafe-receive__counted,
+.cafe-receive__recent {
+  box-sizing: border-box;
+  max-width: 772px;
+}
 
 .cafe-receive__band-status {
   display: grid;
@@ -429,7 +445,6 @@
   .cafe-receive__help { display: none; }
   .cafe-receive__date { margin-bottom: 12px; }
   .cafe-receive .cafe-count__intro { margin-bottom: 0; }
-  .cafe-receive .cafe-count__row { grid-template-columns: minmax(0, 1fr); }
   .cafe-receive .cafe-count__footer { flex-wrap: wrap; gap: 8px; }
   .cafe-receive .cafe-count__submit { flex: 1 1 100%; }
   .cafe-receive__send { grid-template-columns: minmax(0, 1fr); }
