@@ -121,6 +121,7 @@ function columns(
     { key: 'bill', header: t('pendingBills.col.billNo'), render: (bill) => (
       <button type="button" className="pending-bills__record-trigger" data-pending-bill-trigger={bill.id} onClick={() => onOpen(bill)} aria-label={t('pendingBills.openBill', { billNo: bill.billNo })}>
         <span className="pending-bills__code">{bill.billNo}</span>
+        {bill.ageDays > 90 && <Pill tone="warning" className="pending-bills__age-old pending-bills__tablet-age-cue">{t('pendingBills.ageFilter.90+')}</Pill>}
       </button>
     ) },
     { key: 'amount', header: t('pendingBills.col.amount'), render: (bill) => <span className="tabular">{formatIDRExact(bill.amount)}</span> },
@@ -145,6 +146,7 @@ export function PendingBillsPage() {
   const [branchFilter, setBranchFilter] = useState('')
   const [ageBucket, setAgeBucket] = useState<PendingBillAgeBucket>('all')
   const [search, setSearch] = useState('')
+  const listScrollRef = useRef<HTMLDivElement | null>(null)
   const [historyState, setHistoryState] = useState<{ status: 'idle' | 'loading' | 'ready' | 'error'; entries: PendingBillPaymentHistoryEntry[] }>({ status: 'idle', entries: [] })
   const [historyRequest, setHistoryRequest] = useState(0)
   const [formMode, setFormMode] = useState<PaymentFormMode | null>(null)
@@ -219,6 +221,9 @@ export function PendingBillsPage() {
     ageBucket,
     search,
   }), [bills, activeView, branchFilter, ageBucket, search])
+  useEffect(() => {
+    if (listScrollRef.current) listScrollRef.current.scrollTop = 0
+  }, [activeView, branchFilter, ageBucket, search])
   // Keep open exposure and period-paid metrics stable across tabs; the other filters still scope them.
   const summaryBills = useMemo(() => filterPendingBills(bills, {
     view: 'all',
@@ -501,7 +506,7 @@ export function PendingBillsPage() {
       {kept}
       <div className="pending-bills-list-toolbar">
         <div className="pending-bills-summary" aria-live="polite">
-          {t('pendingBills.summary', {
+          {t(summary.openCount === 1 ? 'pendingBills.summary.one' : 'pendingBills.summary.other', {
             count: String(summary.openCount),
             total: formatIDRExact(summary.openBalance).replace(' ', '\u00a0'),
             age: summary.oldestAgeDays === null ? t('pendingBills.summary.noAge') : pendingBillAgeLabel(summary.oldestAgeDays, t),
@@ -564,7 +569,7 @@ export function PendingBillsPage() {
       </div>
       <div className={`pending-bills-results${selectedBill && isWide ? ' record-split' : ''}`}>
         <div className="pending-bills-list-column">
-          <MoneyTableShell className="pending-bills-table">
+          <MoneyTableShell className="pending-bills-table" scrollRef={listScrollRef}>
             <caption className="sr-only">{t('pendingBills.table.caption')}</caption>
             <thead>
               <tr>

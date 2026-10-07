@@ -55,6 +55,17 @@ describe('i18n messages catalog', () => {
     expect(interpolate(messages.id['tasks.meta.openCount'], { count: 11 })).toBe('11 terbuka di tampilan ini')
   })
 
+  it('pluralizes the pending-bill summary in English and uses localized forms in Indonesian', () => {
+    expect(interpolate(messages.en['pendingBills.summary.one'], { count: 1, total: 'Rp 1', age: '1 day', paid: 'Rp 0' }))
+      .toBe('1 open bill · Rp 1 remaining · oldest 1 day · paid this month Rp 0')
+    expect(interpolate(messages.en['pendingBills.summary.other'], { count: 2, total: 'Rp 2', age: '2 days', paid: 'Rp 0' }))
+      .toBe('2 open bills · Rp 2 remaining · oldest 2 days · paid this month Rp 0')
+    expect(interpolate(messages.id['pendingBills.summary.one'], { count: 1, total: 'Rp 1', age: '1 hari', paid: 'Rp 0' }))
+      .toBe('1 tagihan terbuka · sisa Rp 1 · terlama 1 hari · dibayar bulan ini Rp 0')
+    expect(interpolate(messages.id['pendingBills.summary.other'], { count: 2, total: 'Rp 2', age: '2 hari', paid: 'Rp 0' }))
+      .toBe('2 tagihan terbuka · sisa Rp 2 · terlama 2 hari · dibayar bulan ini Rp 0')
+  })
+
   it('issue 579: common.resultCount has a singular noun in both locales', () => {
     expect(interpolate(messages.en['common.resultCount.one'], { count: 1 })).toBe(
       '1 item in your scope',

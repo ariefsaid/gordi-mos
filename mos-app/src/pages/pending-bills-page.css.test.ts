@@ -34,6 +34,8 @@ describe('pending bills table CSS', () => {
     for (const visible of ['select', 'branch', 'owes', 'state', 'bill', 'amount', 'balance']) {
       expect(hiddenRules).not.toContain(`.pending-bills-table .money-table__cell--${visible}`)
     }
+    expect(rule('.pending-bills__tablet-age-cue') ?? '').toMatch(/display:\s*none/)
+    expect(groupedRule(narrow, '.pending-bills__tablet-age-cue') ?? '').toMatch(/display:\s*inline-flex/)
     for (const [column, width] of [['select', '6%'], ['branch', '13%'], ['owes', '19%'], ['state', '17%'], ['bill', '18%'], ['amount', '13%'], ['balance', '14%']]) {
       expect(groupedRule(narrow, `.pending-bills-table .money-table__cell--${column}`) ?? '').toMatch(new RegExp(`width:\\s*${width}`))
     }

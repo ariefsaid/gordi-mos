@@ -234,7 +234,41 @@ describe('the phone list', () => {
   })
 })
 
+describe('tablet urgency cues', () => {
+  it('keeps a 90+ marker in the bill cell while the age column is hidden', async () => {
+    setViewport(true)
+    renderPage()
+    const row = await screen.findByRole('row', { name: /PB-1/ })
+    const billCell = row.querySelector('.money-table__cell--bill')!
+    const recentRow = screen.getByRole('row', { name: /PB-2/ })
+
+    expect(within(row).getByText('420 days')).toBeInTheDocument()
+    expect(within(billCell).getByText('90+ days')).toHaveClass('pending-bills__age-old', 'pending-bills__tablet-age-cue')
+    expect(recentRow.querySelector('.pending-bills__tablet-age-cue')).toBeNull()
+  })
+})
+
 describe('AC-1121: pending-bill view controls', () => {
+  it('resets the list scroll after changing the tab, branch, age or search', async () => {
+    setViewport(false)
+    renderPage()
+    const table = await screen.findByRole('table', { name: 'Pending bills, oldest first' })
+    const scroller = table.closest('.money-table-scroll') as HTMLDivElement
+    const assertScrollReset = async (change: () => void | Promise<void>) => {
+      scroller.scrollTop = 136
+      await change()
+      await waitFor(() => expect(scroller.scrollTop).toBe(0))
+    }
+
+    await assertScrollReset(() => fireEvent.click(screen.getByRole('tab', { name: 'Paid' })))
+    await assertScrollReset(async () => {
+      fireEvent.click(screen.getByRole('combobox', { name: 'Branch' }))
+      fireEvent.click(await screen.findByRole('option', { name: 'pop_up_east' }))
+    })
+    await assertScrollReset(() => fireEvent.click(screen.getByRole('button', { name: '90+ days' })))
+    await assertScrollReset(() => fireEvent.change(screen.getByRole('searchbox', { name: 'Search bills' }), { target: { value: 'PB-1' } }))
+  })
+
   it('defaults to Open, marks paid rows unselectable, and clears selection when the tab changes', async () => {
     mockList.mockResolvedValue([
       bill({ bill_no: 'PB-2', bill_date: '2026-10-06', counterparty_note: null, amount: 96000 }),
@@ -278,7 +312,7 @@ describe('AC-1121: pending-bill view controls', () => {
     expect(rows).toHaveLength(1)
     expect(within(rows[0]).getByText('PB-1')).toBeInTheDocument()
     expect(within(rows[0]).getByText('420 days')).toHaveClass('pending-bills__age-old')
-    expect(await screen.findByText(/1 open bills/)).toHaveTextContent('oldest 420 days')
+    expect(await screen.findByText(/1 open bill ·/)).toHaveTextContent('oldest 420 days')
   })
 })
 
