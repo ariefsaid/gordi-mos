@@ -31,7 +31,9 @@ const personas = [
   { label: 'Director', email: 'dewi.dev@example.test', taskView: 'All' },
 ] as const
 
-for (const width of [390, 1440]) {
+// The three journeys below are width-independent logic (frame stack, draft retention, follow-up
+// list); each runs once at 1440. The phone page/Back shape is owned by work-record-opening.spec.ts.
+for (const width of [1440]) {
  test(`a Signal keeps its context while opening and cancelling a Task draft at ${width}px`, async ({ page }) => {
   await page.setViewportSize({ width, height: 900 })
   await loginAs(page, 'dewi.dev@example.test', DEMO_PASSWORD)
@@ -59,7 +61,7 @@ for (const width of [390, 1440]) {
 })
 }
 
-for (const width of [390, 1440]) {
+for (const width of [1440]) {
   test(`inline Task creation retains its title while choosing ownership at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 })
     await loginAs(page, 'dewi.dev@example.test', DEMO_PASSWORD)
@@ -96,7 +98,7 @@ for (const width of [390, 1440]) {
   })
 }
 
-for (const width of [390, 1440]) {
+for (const width of [1440]) {
 test(`a Signal lists its newly created follow-up Task without losing the source at ${width}px`, async ({ page }) => {
   await page.setViewportSize({ width, height: 900 })
   await loginAs(page, 'dewi.dev@example.test', DEMO_PASSWORD)
@@ -216,9 +218,9 @@ test('a barista completes assigned work from Home and the result survives refres
   await expect(record.getByRole('button', { name: 'Edit Status', exact: true })).toContainText('Done')
 })
 
+// Finance stands for every persona with no Café affiliation (Sales is identical on this surface).
 for (const persona of [
   { label: 'Finance', email: 'fitri.dev@example.test' },
-  { label: 'Sales', email: 'sari.dev@example.test' },
 ]) {
   test(`${persona.label} Home excludes Café opening and production jobs`, async ({page}) => {
     await page.setViewportSize({width:390,height:844})

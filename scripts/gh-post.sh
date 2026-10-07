@@ -4,17 +4,16 @@
 # scans every outbound string against the posting policy, then execs `gh` with the same args.
 #
 #   scripts/gh-post.sh issue comment 42 --body "..."     # any gh write, same argv as gh itself
-#   scripts/gh-post.sh pr create --base dev --title ... # extra: requires the FOUR PR stamps
+#   scripts/gh-post.sh pr create --base dev --title ... # requires three lens stamps; other bases also need full verify
 #
 # Policy patterns live OUTSIDE this public repo, in the local docs checkout
 # (docs/gh-denylist.txt of the MAIN worktree — worktrees don't materialize gitignored dirs).
 # Missing policy file = refuse (fail closed). A match = refuse, no override flag on purpose:
 # reword the text or take it to the owner. Rationale: docs/decisions.md (2026-08-27).
 #
-# PR stamps checked on `pr create` and on the REST create `api repos/<this>/pulls` (FOUR, OD-WAY-83):
-#   <git-dir>/pre-pr-verify-ok                    HEAD sha    (scripts/pre-pr-verify.sh; a PR with
-#                                                             --base dev may carry pre-pr-verify-dev-ok
-#                                                             from scripts/pre-pr-verify.sh --dev)
+# PR stamps checked on `pr create` and REST create `api repos/<this>/pulls`: dev needs only the three
+# lens stamps because CI verify is its gate; every other base needs full local verify plus all lenses.
+#   <git-dir>/pre-pr-verify-ok                    HEAD sha    (scripts/pre-pr-verify.sh; non-dev bases)
 #   <git-dir>/independent-review-<lens>-ok  ×3    per lens    (scripts/record-review.sh --lens …)
 #
 # Self-test: scripts/gh-post.test.sh
@@ -131,6 +130,10 @@ if [ "$verb1" = "api" ]; then
   esac
   case "$verb2" in
     *"/../"*|*"/./"*|*"/.."|*"/.") die "'api $verb2' carries a dot segment — the path must name the target directly" ;;
+    # Anything that moves a branch goes through `gh pr merge`, where the merge gate checks the
+    # owner's assent for main/staging — never through this door.
+    */pulls/*/merge|*/pulls/*/merge\?*|*/merges|*/merges\?*|*/git/refs*)
+      die "'api $verb2' would move a branch — merge with 'gh pr merge' instead (the merge gate checks it)" ;;
     repos/"$this_repo"/*|/repos/"$this_repo"/*) ;;
     *) die "'api $verb2' does not address this checkout's repo ($this_repo) — the door writes here only" ;;
   esac
@@ -147,11 +150,11 @@ else
 fi
 
 
-# ── PR creation: all four stamps must certify the exact HEAD being PRed — and a pr create may only
-# target THIS checkout: the stamps certify HEAD here, nothing else. The REST create
+# ── PR creation: required stamps certify the exact HEAD being PRed — dev needs three lenses,
+# other bases also need full verify — and a pr create may only target THIS checkout. The REST create
 # (`api repos/<this>/pulls`, the route cloud sessions use where GraphQL is blocked) passes the same gate.
 require_pr_stamps() { # $1 base branch ('' when none named)
-  local base_val="$1" gitdir head v vd r lens
+  local base_val="$1" gitdir head v r lens
   gitdir="$(git rev-parse --git-dir)" || die "not a git repo"
   head="$(git rev-parse HEAD)"
   # Promotion carve-out (/release §4b): a PR into staging FROM main carries content the release
@@ -159,11 +162,9 @@ require_pr_stamps() { # $1 base branch ('' when none named)
   # stamps. CI on the staging PR still gates. Any other route into staging needs the stamps.
   [ "$base_val" = "staging" ] && [ "$(git branch --show-current)" = "main" ] && return 0
   v="$(cat "$gitdir/pre-pr-verify-ok" 2>/dev/null || true)"
-  vd="$(cat "$gitdir/pre-pr-verify-dev-ok" 2>/dev/null || true)"
-  # The light stamp (scripts/pre-pr-verify.sh --dev) certifies a PR into dev only, where CI is the
-  # full-suite gate; any other base — main included, or none named — needs the full stamp.
-  if [ "$v" != "$head" ] && ! { [ "$base_val" = "dev" ] && [ "$vd" = "$head" ]; }; then
-    die "no verify stamp for HEAD — run: bash scripts/pre-pr-verify.sh (a PR with --base dev may use: bash scripts/pre-pr-verify.sh --dev)"
+  # CI verify is the gate for dev PRs, so only every other base needs the full local stamp.
+  if [ "$base_val" != "dev" ] && [ "$v" != "$head" ]; then
+    die "no full verify stamp for HEAD — run: bash scripts/pre-pr-verify.sh (only --base dev is exempt; CI verify is its gate)"
   fi
   # OD-WAY-83: three explicit lens records, each its own stamp on this exact HEAD.
   for lens in spec code-quality security; do
@@ -179,10 +180,30 @@ if [ "$verb1" = "pr" ] && [ "$verb2" = "create" ]; then
         die "'pr create' through this door targets the current checkout on the default host only — no --repo/--head/--hostname (the stamps certify HEAD here). cd to the branch's checkout instead." ;;
     esac
   done
-  base_val="" prev=""
-  for a in "$@"; do
-    case "$prev" in --base) base_val="$a"; prev=""; continue ;; esac
-    case "$a" in --base) prev="$a" ;; --base=*) base_val="${a#--base=}" ;; esac
+  base_val="" base_seen=0
+  argv=("$@")
+  for ((i = 0; i < ${#argv[@]}; i++)); do
+    a="${argv[$i]}"
+    case "$a" in
+      --assignee|-a|--body|-b|--body-file|-F|--label|-l|--milestone|-m|--project|-p|--reviewer|-r|--title|-t)
+        [ $((i + 1)) -lt ${#argv[@]} ] || die "'$a' needs a value"
+        i=$((i + 1)); continue ;;
+    esac
+    case "$a" in
+      --base|-B)
+        [ $((i + 1)) -lt ${#argv[@]} ] || die "'$a' needs a value"
+        i=$((i + 1)); candidate="${argv[$i]}" ;;
+      --base=*) candidate="${a#--base=}" ;;
+      -B?*) candidate="${a#-B}" ;;
+      # gh accepts grouped short flags (-dB main, -dBmain); this door does not parse them.
+      -[!-]*B*) die "grouped short flags with -B are not accepted here — pass the base on its own: --base <branch>" ;;
+      *) continue ;;
+    esac
+    [ -n "$candidate" ] || die "base needs a value"
+    if [ "$base_seen" = 1 ] && [ "$candidate" != "$base_val" ]; then
+      die "multiple different PR bases were given — name one base"
+    fi
+    base_val="$candidate" base_seen=1
   done
   require_pr_stamps "$base_val"
 fi

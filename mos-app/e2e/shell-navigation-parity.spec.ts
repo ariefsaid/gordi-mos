@@ -3,12 +3,12 @@ import { loginAs } from './helpers/login'
 import { ADMIN, BAR_MEMBER, MANAGER, RECOVERY_VIEWER, VIEWER } from './fixtures/users'
 import { TASKS } from './fixtures/tasks'
 
+// One persona per distinct admission outcome (Café tab, capture action, revenue prompt, Admin link).
+// A Café lead matches the Café member, and Sales matches the ordinary member, on every one.
 const personas = [
   { name: 'ordinary member', ...RECOVERY_VIEWER, cafe: false, capture: false, revenue: false, view: 'My work' },
   { name: 'Café member', ...BAR_MEMBER, cafe: true, capture: true, revenue: false, view: 'My work' },
-  { name: 'Café lead', ...VIEWER, cafe: true, capture: true, revenue: false, view: 'Team work' },
   { name: 'Finance', email: 'fitri.dev@example.test', password: VIEWER.password, cafe: false, capture: false, revenue: true, view: 'My work' },
-  { name: 'Sales', email: 'sari.dev@example.test', password: VIEWER.password, cafe: false, capture: false, revenue: false, view: 'My work' },
   { name: 'director', ...MANAGER, cafe: false, capture: true, revenue: true, view: 'All' },
   // capabilities.ts REVENUE_VIEW_ROLES = finance/manager/supervisor (#797/OD-WAY-98 dropped admin
   // from both money-read sets): admin is the users-and-settings role and reads no money of its
@@ -56,6 +56,9 @@ for (const actor of personas) {
     for (const label of ['Signals', 'Tasks', 'Projects & Processes', 'Objectives']) {
       await expect(more.getByRole('link', { name: label, exact: true })).toBeVisible()
     }
+    // Money is outside the shipped surface for every persona, in the bar and in More alike.
+    await expect(nav.getByRole('link', { name: 'Money', exact: true })).toHaveCount(0)
+    await expect(more.getByRole('link', { name: 'Money', exact: true })).toHaveCount(0)
     if (actor.cafe) {
       await expect(more.getByRole('link', { name: 'Café', exact: true })).toHaveCount(0)
       await page.keyboard.press('Escape')
@@ -103,26 +106,26 @@ for (const actor of personas) {
   })
 }
 
-for (const actor of [personas[1], personas[5]]) {
-  for (const width of [1440, 390]) {
-    test(`R1 ${actor.name}: Deputy retains Task context at ${width}`, async ({ page }, info) => {
-      await page.setViewportSize({ width, height: 900 })
-      await loginAs(page, actor.email, actor.password)
-      await page.goto(`work/tasks/${TASKS.VIEWER_ACCOUNTABLE.id}`)
-      // Ask Deputy is one item in the record's ⋯ menu.
-      const menuTrigger = page.getByRole('button', { name: 'More actions', exact: true })
-      await menuTrigger.click()
-      const askDeputy = page.getByRole('menuitem', { name: 'Ask Deputy', exact: true })
-      await expect(askDeputy).toBeVisible()
-      if (width === 390) expect((await askDeputy.boundingBox())!.height).toBeGreaterThanOrEqual(44)
-      await askDeputy.click()
-      await expect(page.getByRole('textbox', { name: 'Ask the deputy…' })).toHaveValue(`About Task: ${TASKS.VIEWER_ACCOUNTABLE.title}`)
-      await expect(page.getByRole('button', { name: "What's on my plate this week?", exact: true })).toBeVisible()
-      await expect(page.getByRole('button', { name: "Show last week's revenue", exact: true })).toHaveCount(actor.revenue ? 1 : 0)
-      await expect(page).toHaveURL(new RegExp(`/work/tasks/${TASKS.VIEWER_ACCOUNTABLE.id}$`))
-      await page.screenshot({ path: info.outputPath('deputy-context.png'), animations: 'disabled' })
-      await page.keyboard.press('Escape')
-      await expect(menuTrigger).toBeVisible()
-    })
-  }
+// Revenue prompt present (director) at desktop, absent (Café member) at phone, where the menu item
+// must also meet the 44px floor: each outcome once.
+for (const [actor, width] of [[personas[3], 1440], [personas[1], 390]] as const) {
+  test(`R1 ${actor.name}: Deputy retains Task context at ${width}`, async ({ page }, info) => {
+    await page.setViewportSize({ width, height: 900 })
+    await loginAs(page, actor.email, actor.password)
+    await page.goto(`work/tasks/${TASKS.VIEWER_ACCOUNTABLE.id}`)
+    // Ask Deputy is one item in the record's ⋯ menu.
+    const menuTrigger = page.getByRole('button', { name: 'More actions', exact: true })
+    await menuTrigger.click()
+    const askDeputy = page.getByRole('menuitem', { name: 'Ask Deputy', exact: true })
+    await expect(askDeputy).toBeVisible()
+    if (width === 390) expect((await askDeputy.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+    await askDeputy.click()
+    await expect(page.getByRole('textbox', { name: 'Ask the deputy…' })).toHaveValue(`About Task: ${TASKS.VIEWER_ACCOUNTABLE.title}`)
+    await expect(page.getByRole('button', { name: "What's on my plate this week?", exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: "Show last week's revenue", exact: true })).toHaveCount(actor.revenue ? 1 : 0)
+    await expect(page).toHaveURL(new RegExp(`/work/tasks/${TASKS.VIEWER_ACCOUNTABLE.id}$`))
+    await page.screenshot({ path: info.outputPath('deputy-context.png'), animations: 'disabled' })
+    await page.keyboard.press('Escape')
+    await expect(menuTrigger).toBeVisible()
+  })
 }
