@@ -145,12 +145,19 @@ describe('resolveViewer', () => {
     expect(peopleChain.select).toHaveBeenCalledWith('id,org_id,user_id,full_name,must_change_password')
     expect(rolesChain.select).toHaveBeenCalledWith('id,business_unit_id,name,reports_to_role_id')
 
-    __resetReferenceCacheForTests(false)
+    // Same page: the second read is served from memory.
     const repeated = await resolveViewer(USER_ID, fakeJwt({ access_roles: ['ops_lead'] }))
     expect(repeated.person).toEqual(personRow)
     expect(repeated.accessRoles).toEqual(['ops_lead'])
     expect(mockFrom).toHaveBeenCalledTimes(4)
     expect(mockRpc).toHaveBeenCalledOnce()
+
+    // A page load starts empty (memory only): authority another admin changed is never served from the tab.
+    __resetReferenceCacheForTests(false)
+    personRolesCallCount = 0
+    await resolveViewer(USER_ID)
+    expect(mockFrom).toHaveBeenCalledTimes(8)
+    expect(mockRpc).toHaveBeenCalledTimes(2)
 
     // Assert the query never filters by org_id (RLS scopes it — §8)
     const orgIdFilters = eqCalls.filter(([col]) => col === 'org_id')

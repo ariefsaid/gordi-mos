@@ -4,9 +4,12 @@
 // — one date grammar, three implementations. This locks the canonical output and
 // the locale seam (a param, falling back to the non-React readPersistedLocale()).
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { formatWeekdayDayMonth, formatDayMonthYear, formatWibDateTime, dateLocaleTag, formatWibWeekdayTime } from './date'
+import { formatWeekdayDayMonth, formatDayMonthYear, formatWibDateTime, dateLocaleTag, formatWibWeekdayTime, wibToday, WIB_OFFSET_MS } from './date'
 
-afterEach(() => vi.unstubAllEnvs())
+afterEach(() => {
+  vi.unstubAllEnvs()
+  vi.useRealTimers()
+})
 
 describe('formatWeekdayDayMonth — "Wed 12 Jun" from a YYYY-MM-DD date', () => {
   it('formats en (en-GB grammar) by default', () => {
@@ -53,6 +56,23 @@ describe('formatWibDateTime — Asia/Jakarta wall clock with the WIB suffix', ()
   })
   it('accepts a Date instance', () => {
     expect(formatWibDateTime(new Date('2026-06-12T05:30:00Z'))).toBe('12 Jun 2026, 12:30 WIB')
+  })
+})
+
+describe('wibToday — the company calendar date', () => {
+  it.each([
+    ['2026-10-05T16:59:00Z', '2026-10-05'],
+    ['2026-10-05T17:00:00Z', '2026-10-06'],
+    ['2026-10-05T23:59:00Z', '2026-10-06'],
+    ['2026-10-06T00:00:00Z', '2026-10-06'],
+  ])('formats %s as %s', (instant, expected) => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(instant))
+    expect(wibToday()).toBe(expected)
+  })
+
+  it('exports the fixed WIB offset', () => {
+    expect(WIB_OFFSET_MS).toBe(25_200_000)
   })
 })
 

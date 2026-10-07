@@ -103,10 +103,6 @@ export interface CafeStreamBarProps {
   stream: ProductionStream | null
   /** Inline context after the stream value, before its navigation controls. */
   context?: ReactNode
-  /** Optional capture-page action label; other Café surfaces keep the generic Change label. */
-  switchLabel?: string
-  /** Accessible name matching `switchLabel`; defaults to the generic Change stream label. */
-  switchAriaLabel?: string
   /** Omit on a surface that cannot switch — it then STATES its stream and offers no control. */
   onChange?: (next: ProductionStream) => void
   /** This surface is reading every stream at once (the outbox; the review queue's 'all'). */
@@ -135,8 +131,6 @@ export function CafeStreamBar({
   options,
   stream,
   context,
-  switchLabel,
-  switchAriaLabel,
   onChange,
   allStreams = false,
   onAllStreams,
@@ -196,8 +190,8 @@ export function CafeStreamBar({
           onAllStreams={allStreams ? undefined : onAllStreams}
           disabled={disabled}
           onChange={onChange}
-          label={switchLabel ?? t('cafe.stream.change')}
-          ariaLabel={switchAriaLabel ?? t('cafe.stream.changeAria')}
+          label={t('cafe.stream.change')}
+          ariaLabel={t('cafe.stream.changeAria')}
         />
       )}
     </div>

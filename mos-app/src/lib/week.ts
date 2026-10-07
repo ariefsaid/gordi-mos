@@ -1,5 +1,7 @@
 // WIB (Asia/Jakarta, UTC+7, no DST) month utilities.
-// Uses a fixed +7h offset arithmetic so no host-timezone leakage (NFR-005).
+// Uses the shared WIB offset so no host-timezone leakage (NFR-005).
+
+import { WIB_OFFSET_MS } from '@/lib/format/date'
 
 export interface WibMonthRange {
   month: string
@@ -23,8 +25,6 @@ export function wibMonthRange(month: string): WibMonthRange | null {
   const end = Date.UTC(year, index + 1, 1) - WIB_OFFSET_MS
   return { month, startISO: new Date(start).toISOString(), endISO: new Date(end).toISOString() }
 }
-
-const WIB_OFFSET_MS = 7 * 60 * 60 * 1000
 
 /**
  * Read WIB calendar values by shifting UTC time by +7h and reading UTC parts.

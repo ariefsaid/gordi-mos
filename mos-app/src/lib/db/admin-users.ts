@@ -4,17 +4,14 @@
 // Throws on any PostgREST/RPC error so callers can surface failures.
 
 import { supabase } from '@/lib/supabase'
+import { wibToday } from '@/lib/format/date'
 import { UserFacingError } from '@/lib/save-error'
 import { invalidateReferenceCache } from './reference-cache'
+import { invalidateAuthorityCaches } from './admin-access'
 import type { AdminPersonRow, CreatePersonInput, LoginStatus, RoleOption, RevenueScopeOption, TeamOption, TeamMembership } from './admin-users.types'
 
 const shared = () => supabase.schema('shared')
 const reporting = () => supabase.schema('reporting')
-
-function invalidateViewerAuthorityCaches(): void {
-  invalidateReferenceCache('shared.auth.viewer')
-  invalidateReferenceCache('mos.get_work_write_scopes')
-}
 
 // Curated, org-agnostic messages our admin RPCs / RLS policies raise deliberately — safe to show the
 // admin verbatim. ANY other DB error (raw RLS/constraint text, e.g. a cross-org unique-violation whose
@@ -128,7 +125,7 @@ export async function listAdminPeople(): Promise<AdminPersonRow[]> {
   //    manage". The screen is deliberately WIDER, never narrower — narrower is what let it report
   //    someone removed while the gates still admitted them. The HOME question below is the one that
   //    must match exactly, and does.
-  const today = new Date().toISOString().slice(0, 10)
+  const today = wibToday()
   const { data: tmRows, error: tmErr } = await shared()
     .from('team_memberships')
     .select('person_id,team_id,is_primary,effective_from,effective_to')
@@ -228,7 +225,7 @@ export async function createPerson(input: CreatePersonInput): Promise<string> {
 
   const personId = (data as { id: string }).id
   invalidateReferenceCache('shared.people')
-  invalidateViewerAuthorityCaches()
+  invalidateAuthorityCaches()
 
   // Grant initial roles (if any)
   for (const role of input.access_roles) {
@@ -281,7 +278,7 @@ export async function grantRole(personId: string, role: string): Promise<void> {
     .from('person_access_roles')
     .upsert({ person_id: personId, access_role: role, revoked_at: null }, { onConflict: 'person_id,access_role' })
   if (error) throw surface('grant role', error)
-  invalidateViewerAuthorityCaches()
+  invalidateAuthorityCaches()
 }
 
 /**
@@ -295,7 +292,7 @@ export async function revokeRole(personId: string, role: string): Promise<void> 
     .eq('access_role', role)
     .is('revoked_at', null)
   if (error) throw surface('revoke role', error)
-  invalidateViewerAuthorityCaches()
+  invalidateAuthorityCaches()
 }
 
 // ── Archive / restore (FR-060) ────────────────────────────────────────────────
@@ -310,7 +307,7 @@ export async function archivePerson(personId: string): Promise<void> {
     .eq('id', personId)
   if (error) throw surface('archive person', error)
   invalidateReferenceCache('shared.people')
-  invalidateViewerAuthorityCaches()
+  invalidateAuthorityCaches()
 }
 
 /**
@@ -323,7 +320,7 @@ export async function restorePerson(personId: string): Promise<void> {
     .eq('id', personId)
   if (error) throw surface('restore person', error)
   invalidateReferenceCache('shared.people')
-  invalidateViewerAuthorityCaches()
+  invalidateAuthorityCaches()
 }
 
 // ── Jabatan (Position) — shared.person_roles admin writes (FR-201/202) ──────────
@@ -339,14 +336,14 @@ export async function listRoles(): Promise<RoleOption[]> {
 export async function assignJabatan(personId: string, roleId: string): Promise<void> {
   const { error } = await shared().from('person_roles').insert({ person_id: personId, role_id: roleId })
   if (error) throw surface('assign position', error)
-  invalidateViewerAuthorityCaches()
+  invalidateAuthorityCaches()
 }
 
 /** Remove a Jabatan (Position) from a person (hard delete). */
 export async function removeJabatan(personId: string, roleId: string): Promise<void> {
   const { error } = await shared().from('person_roles').delete().eq('person_id', personId).eq('role_id', roleId)
   if (error) throw surface('remove position', error)
-  invalidateViewerAuthorityCaches()
+  invalidateAuthorityCaches()
 }
 
 // ── Revenue scope (supervisor) — reporting.supervisor_revenue_scope admin writes (FR-323) ──────────
@@ -419,7 +416,7 @@ export async function addTeamMembership(personId: string, teamId: string, isPrim
     .from('team_memberships')
     .insert({ person_id: personId, team_id: teamId, is_primary: isPrimary })
   if (error) throw surface('add to team', error)
-  invalidateViewerAuthorityCaches()
+  invalidateAuthorityCaches()
 }
 
 /**
@@ -437,7 +434,7 @@ export async function endTeamMembership(personId: string, teamId: string): Promi
     p_team_id: teamId,
   })
   if (error) throw surface('remove from team', error)
-  invalidateViewerAuthorityCaches()
+  invalidateAuthorityCaches()
 }
 
 /**
@@ -458,7 +455,7 @@ export async function endTeamMembership(personId: string, teamId: string): Promi
  * its own row count, because a row can go away between the two.
  */
 export async function setPrimaryTeam(personId: string, teamId: string): Promise<void> {
-  const today = new Date().toISOString().slice(0, 10)
+  const today = wibToday()
 
   const { data: eligible, error: readErr } = await shared()
     .from('team_memberships')
@@ -506,5 +503,5 @@ export async function setPrimaryTeam(personId: string, teamId: string): Promise<
       "Couldn't set home team: that membership stopped being live while you were on this screen. Reload, then try again.",
     )
   }
-  invalidateViewerAuthorityCaches()
+  invalidateAuthorityCaches()
 }

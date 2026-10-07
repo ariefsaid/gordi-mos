@@ -8,22 +8,20 @@ const css = readFileSync(resolve(process.cwd(), 'src/pages/kitchen-log-page.css'
   .replace(/\/\*[\s\S]*?\*\//g, '')
 const toolbarCss = readFileSync(resolve(process.cwd(), 'src/components/kitchen/kitchen-toolbar.css'), 'utf8')
   .replace(/\/\*[\s\S]*?\*\//g, '')
-const captureControlsCss = readFileSync(resolve(process.cwd(), 'src/components/kitchen/cafe-capture-controls.css'), 'utf8')
-  .replace(/\/\*[\s\S]*?\*\//g, '')
 const stepperCss = readFileSync(resolve(process.cwd(), 'src/components/kitchen/wip-item-stepper.css'), 'utf8')
   .replace(/\/\*[\s\S]*?\*\//g, '')
 
-function ruleBodyAt(idx: number, source = css): string {
-  expect(idx, 'expected the stylesheet to contain the capture layout rule').toBeGreaterThanOrEqual(0)
-  const open = source.indexOf('{', idx)
-  const close = source.indexOf('}', open)
-  return source.slice(open + 1, close)
+function ruleBodyAt(idx: number): string {
+  expect(idx, 'expected kitchen-log-page.css to contain the capture layout rule').toBeGreaterThanOrEqual(0)
+  const open = css.indexOf('{', idx)
+  const close = css.indexOf('}', open)
+  return css.slice(open + 1, close)
 }
 
 describe('KL-FOOTER-NAV: the capture footer stays reachable above the shell bottom-tab bar', () => {
   it('keeps the footer at the scrollport edge without a tab-bar-sized gap', () => {
     const captureFrame = ruleBodyAt(css.indexOf('.page-frame--v3:has(.cafe-capture-head) {'))
-    const captureContent = ruleBodyAt(css.indexOf('.kl-capture-content,\n.kl-capture-content .kl-capture-main,'))
+    const captureContent = ruleBodyAt(css.indexOf('.cafe-capture-content,\n.cafe-capture-content .kl-capture-main,'))
     const captureFooter = ruleBodyAt(css.indexOf('.cafe-capture-footer.kl-footer {'))
 
     expect(captureFrame).toMatch(/padding-bottom:\s*0/)
@@ -59,26 +57,6 @@ describe('KL-FOOTER-NAV: the capture footer stays reachable above the shell bott
     expect(toolbarCss).toMatch(/\.ktb-children--band > \*\s*\{\s*width:\s*100%/)
     expect(css).toMatch(/\.kl-form \.ktb:has\(\.kl-scope\) \.ktb-search-wrap\s*\{\s*max-width:\s*none/)
     expect(css).toMatch(/@media\s*\(max-width:\s*767\.98px\)[\s\S]*?\.kl-form \.ktb-filter-selects\s*\{\s*display:\s*none/)
-  })
-})
-
-describe('dense Café capture controls stay in one aligned desktop row', () => {
-  it('keeps the quantity and full unit label inline in a fixed shared track', () => {
-    const quantityGroup = ruleBodyAt(stepperCss.indexOf('.kls-quantity .quantity-field-control--inline {'), stepperCss)
-    const desktopQuantity = ruleBodyAt(css.indexOf('.kl-form .kls-quantity .kls-qty {'))
-    const desktopUnit = ruleBodyAt(css.indexOf('.kl-form .kls-quantity .cafe-capture-unit {'))
-    const sharedUnit = captureControlsCss.slice(captureControlsCss.indexOf('.cafe-capture-unit {'), captureControlsCss.indexOf('.cafe-capture-action {'))
-    expect(quantityGroup).toMatch(/grid-template-columns:\s*var\(--cafe-capture-quantity-width,[^)]+\)\s*var\(--cafe-capture-unit-track-width/)
-    expect(quantityGroup).toMatch(/width:\s*var\(--cafe-capture-control-group-width/)
-    expect(quantityGroup).toMatch(/gap:\s*8px/)
-    expect(desktopQuantity).toMatch(/width:\s*var\(--cafe-capture-quantity-width/)
-    expect(desktopUnit).toMatch(/max-width:\s*var\(--cafe-capture-unit-track-width/)
-    expect(desktopUnit).toMatch(/white-space:\s*normal/)
-    expect(desktopUnit).toMatch(/text-align:\s*left/)
-    expect(css).toMatch(/dt-table thead th:nth-child\(2\),[\s\S]*?td:nth-child\(2\) \{ width: 27rem; \}/)
-    expect(sharedUnit).toMatch(/overflow-wrap:\s*anywhere/)
-    expect(sharedUnit).toMatch(/text-overflow:\s*clip/)
-    expect(sharedUnit).not.toMatch(/text-overflow:\s*ellipsis/)
   })
 })
 

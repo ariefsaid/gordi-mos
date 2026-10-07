@@ -46,23 +46,25 @@ describe('admin access settings data layer', () => {
     expect(rpc).toHaveBeenCalledWith('save_role_authority', { p_changes: changes })
   })
 
-  it('invalidates cached Work authority when the role matrix is saved', async () => {
-    const cachedLoad = vi.fn(async () => 'cached')
-    await withReferenceCache('mos.get_work_write_scopes', cachedLoad, {
-      identity: 'auth:viewer-1',
-      persist: true,
-    })
+  const AUTHORITY_KEYS = ['shared.auth.viewer', 'mos.get_work_write_scopes']
+  async function expectAuthorityCachesDropped(save: () => Promise<void>) {
+    for (const key of AUTHORITY_KEYS) {
+      await withReferenceCache(key, vi.fn(async () => 'cached'), { identity: 'auth:viewer-1' })
+    }
     mockSharedRpc(null)
+    await save()
+    for (const key of AUTHORITY_KEYS) {
+      const reload = vi.fn(async () => 'fresh')
+      await expect(withReferenceCache(key, reload, { identity: 'auth:viewer-1' })).resolves.toBe('fresh')
+      expect(reload).toHaveBeenCalledOnce()
+    }
+  }
 
-    await saveRoleAuthority([])
+  it('drops cached viewer and Work authority when the role matrix is saved', () =>
+    expectAuthorityCachesDropped(() => saveRoleAuthority([])))
 
-    const reload = vi.fn(async () => 'fresh')
-    await expect(withReferenceCache('mos.get_work_write_scopes', reload, {
-      identity: 'auth:viewer-1',
-      persist: true,
-    })).resolves.toBe('fresh')
-    expect(reload).toHaveBeenCalledOnce()
-  })
+  it('drops cached viewer and Work authority when a Team lead is designated', () =>
+    expectAuthorityCachesDropped(() => saveTeamLeadAssignment('team-1', 'person-1')))
 
   it('loads Team leads and candidates through the shared settings RPCs', async () => {
     const assignment = {

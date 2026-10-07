@@ -82,7 +82,7 @@ export async function resolveViewer(userId: string, accessToken?: string): Promi
   const data = await withReferenceCache(
     'shared.auth.viewer',
     () => resolveViewerData(userId),
-    userId ? { identity: `auth:${userId}`, persist: true, staleWhileRevalidate: false } : {},
+    userId ? { identity: `auth:${userId}`, staleWhileRevalidate: false } : {},
   )
   if (!data.person) invalidateReferenceCache('shared.auth.viewer')
   return { ...data, accessRoles: data.person ? decodeAccessRolesClaim(accessToken) : [] }
