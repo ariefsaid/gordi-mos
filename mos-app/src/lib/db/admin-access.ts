@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { invalidateReferenceCache } from './reference-cache'
 import type {
   RoleAuthorityRow,
   TeamLeadAssignment,
@@ -19,9 +20,16 @@ export async function listRoleAuthority(): Promise<RoleAuthorityRow[]> {
   return (data ?? []) as RoleAuthorityRow[]
 }
 
+/** A matrix or Team-lead change can alter the viewer's own authority: drop what this tab cached. */
+export function invalidateAuthorityCaches(): void {
+  invalidateReferenceCache('shared.auth.viewer')
+  invalidateReferenceCache('mos.get_work_write_scopes')
+}
+
 export async function saveRoleAuthority(changes: RoleAuthorityRow[]): Promise<void> {
   const { error } = await shared().rpc('save_role_authority', { p_changes: changes })
   if (error) throw fail('save access rules', error)
+  invalidateAuthorityCaches()
 }
 
 export async function listTeamLeadAssignments(): Promise<TeamLeadAssignment[]> {
@@ -42,4 +50,5 @@ export async function saveTeamLeadAssignment(teamId: string, leadPersonId: strin
     p_lead_person_id: leadPersonId,
   })
   if (error) throw fail('save Team lead', error)
+  invalidateAuthorityCaches()
 }

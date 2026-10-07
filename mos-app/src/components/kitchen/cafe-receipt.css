@@ -1,0 +1,191 @@
+/* Receipt components shared by Receive and receipt review: state text, line list, decisions. */
+
+.cafe-receipt-lines {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--font-size-body);
+}
+
+.cafe-receipt-lines > li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 4px 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+
+.cafe-receipt-state { color: var(--foreground); font-weight: 600; }
+
+.cafe-receipt-evidence {
+  grid-column: 1 / -1;
+  display: grid;
+  justify-items: start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.cafe-receipt-evidence p {
+  max-width: 72ch;
+  margin: 0;
+  color: var(--foreground);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+/* FR-1038 is quiet text: no warning colour, badge or count. */
+.cafe-receipt-evidence .cafe-receipt-evidence__quiet {
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+}
+
+.cafe-receipt-review__row.cafe-count-review__row {
+  grid-template-columns: minmax(160px, 1fr) minmax(240px, 1.6fr) minmax(220px, 1fr);
+  align-items: start;
+}
+
+.cafe-receipt-review__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
+.cafe-receipt-review__actions .btn { min-height: 44px; min-width: 96px; }
+
+.cafe-receipt-review__reject {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  font-size: var(--font-size-body);
+}
+
+/* The reject note and the receiver's line reason are one kind of field. */
+.cafe-receipt-review__reject textarea,
+.cafe-receive__reason textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 88px;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-md);
+  background: var(--background);
+  color: var(--foreground);
+  font: inherit;
+  font-size: var(--font-size-touch-input);
+  resize: vertical;
+}
+
+.cafe-receive__reason textarea:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.cafe-receive__reason textarea[aria-invalid="true"] { border-color: var(--destructive); }
+
+@media (max-width: 639px) {
+  .cafe-receipt-lines > li { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 800px) {
+  .cafe-receipt-review__row.cafe-count-review__row { grid-template-columns: minmax(0, 1fr); }
+  .cafe-receipt-review__actions { justify-content: stretch; }
+  .cafe-receipt-review__actions .btn { flex: 1 1 0; }
+}
+
+/* A line's difference sits on the quantity row in a slot reserved before it arrives (FR-1012). */
+.cafe-receipt-lines__facts {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 16px;
+}
+
+.cafe-receipt-lines__difference {
+  min-width: 11.5rem;
+  text-align: right;
+}
+
+/* DESIGN "Row status as text": toned label text, no fill; matches stays quiet. */
+.cafe-receipt-difference {
+  font-size: var(--font-size-label);
+  font-weight: 500;
+  color: var(--warning-foreground);
+}
+
+.cafe-receipt-difference[data-outcome='matches'] { color: var(--muted-foreground); }
+
+/* Two rows for a line with a difference slot when the list itself is narrow (a phone, or the
+   review queue's line column): the name, then the quantity with the label at the row's end.
+   Every such line takes the shape from the start, so a label arriving moves nothing. */
+.cafe-receipt-lines:has(.cafe-receipt-line--difference) { container-type: inline-size; }
+
+@container (max-width: 560px) {
+  .cafe-receipt-lines > li.cafe-receipt-line--difference { grid-template-columns: minmax(0, 1fr); row-gap: 2px; }
+  .cafe-receipt-lines > li.cafe-receipt-line--difference > .cafe-receipt-lines__facts {
+    justify-content: space-between;
+    align-items: center;
+  }
+  .cafe-receipt-line--difference .cafe-receipt-lines__difference {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    min-width: 0;
+    height: 20px;
+    margin-inline-start: auto;
+  }
+}
+
+/* FR-1030 release of held receipts: a quiet notice above the review queue, one row per branch. */
+.cafe-receipt-release {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-body);
+}
+
+.cafe-receipt-release p { margin: 0; overflow-wrap: break-word; }
+
+.cafe-receipt-release__title {
+  margin: 0;
+  color: var(--foreground);
+  font-size: var(--font-size-body-lg);
+  font-weight: 600;
+}
+
+.cafe-receipt-release__help { color: var(--muted-foreground); }
+
+.cafe-receipt-release__list {
+  display: grid;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cafe-receipt-release__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+
+.cafe-receipt-release__row > .btn { width: auto; min-width: 160px; }
+
+.cafe-receipt-release__outcome { grid-column: 1 / -1; color: var(--foreground); }
+
+.cafe-receipt-release__outcome--failed { color: var(--status-lost-text); }
+
+.cafe-receipt-state[data-posting='failed'] { color: var(--status-lost-text); }
+
+@media (max-width: 800px) {
+  .cafe-receipt-release__row { grid-template-columns: minmax(0, 1fr); }
+  .cafe-receipt-release__row > .btn { width: 100%; }
+}

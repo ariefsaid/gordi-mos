@@ -17,6 +17,94 @@ set -uo pipefail
 
 die() { printf '✗ record-review: %s\n' "$1" >&2; exit 1; }
 
+validate_ui_skills_evidence() {
+  local head="$1" artifact="$2" section main_checkout playbook row_rc evidence_path evidence_file
+  local render_found=0 phone_found=0 tablet_found=0 wide_found=0 real_length_found=0 complete_render=0 line
+  local -a playbooks=('Impeccable shape' 'ui-ux-pro-max' 'Impeccable critique' 'Impeccable layout' 'Impeccable clarify' 'Impeccable harden' 'Impeccable polish' 'Taste')
+
+  grep -qxE '^## Skills evidence[[:space:]]*$' "$artifact" \
+    || die "UI diff requires a '## Skills evidence' section in the review artifact"
+  section="$(awk '
+    /^## Skills evidence[[:space:]]*$/ { inside = 1; next }
+    inside && /^##[[:space:]]/ { exit }
+    inside { print }
+  ' "$artifact")"
+  main_checkout="$(git worktree list --porcelain | awk '$1=="worktree"{print $2; exit}')"
+  [ -n "$main_checkout" ] || die "cannot find the main checkout for Skills evidence paths"
+
+  for playbook in "${playbooks[@]}"; do
+    evidence_path="$(printf '%s\n' "$section" | awk -F'|' -v required="$playbook" '
+      /^\|/ {
+        name = $2
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", name)
+        if (name == required) {
+          count++
+          evidence = $3
+          gsub(/^[[:space:]]+|[[:space:]]+$/, "", evidence)
+          if (substr(evidence, 1, 1) == "`" && substr(evidence, length(evidence), 1) == "`")
+            evidence = substr(evidence, 2, length(evidence) - 2)
+        }
+      }
+      END { if (count == 1) print evidence; else exit (count == 0 ? 2 : 3) }
+    ' 2>/dev/null)"
+    row_rc=$?
+    [ "$row_rc" -eq 0 ] || {
+      [ "$row_rc" -eq 2 ] && die "Skills evidence is missing required row: $playbook"
+      die "Skills evidence must contain exactly one row for: $playbook"
+    }
+    [ -n "$evidence_path" ] || die "Skills evidence row '$playbook' has no evidence file path"
+    if [[ "$evidence_path" = /* ]]; then evidence_file="$evidence_path"
+    else evidence_file="$main_checkout/docs/$evidence_path"
+    fi
+    [ -f "$evidence_file" ] || die "Skills evidence file for '$playbook' does not exist: $evidence_path (resolved to $evidence_file)"
+    grep -Eq "(^|[^[:xdigit:]])${head}([^[:xdigit:]]|$)" "$evidence_file" \
+      || die "Skills evidence file for '$playbook' does not cite exact full 40-character HEAD $head: $evidence_path"
+  done
+
+  while IFS= read -r line; do
+    printf '%s\n' "$line" | grep -qi 'render' || continue
+    render_found=1
+    printf '%s\n' "$line" | grep -Eq '(^|[^0-9])390([^0-9]|$)' && phone_found=1
+    printf '%s\n' "$line" | grep -Eq '(^|[^0-9])768([^0-9]|$)' && tablet_found=1
+    printf '%s\n' "$line" | awk '
+      {
+        text = $0
+        while (match(text, /(^|[^[:alnum:]])[0-9][0-9][0-9][0-9]+/)) {
+          width = substr(text, RSTART, RLENGTH)
+          sub(/^[^0-9]+/, "", width)
+          if (width + 0 >= 1440) found = 1
+          text = substr(text, RSTART + RLENGTH)
+        }
+      }
+      END { exit !found }
+    ' && wide_found=1
+    printf '%s\n' "$line" | grep -Fq 'real-length' && real_length_found=1
+    if printf '%s\n' "$line" | grep -Eq '(^|[^0-9])390([^0-9]|$)' \
+      && printf '%s\n' "$line" | grep -Eq '(^|[^0-9])768([^0-9]|$)' \
+      && printf '%s\n' "$line" | awk '
+        {
+          text = $0
+          while (match(text, /(^|[^[:alnum:]])[0-9][0-9][0-9][0-9]+/)) {
+            width = substr(text, RSTART, RLENGTH)
+            sub(/^[^0-9]+/, "", width)
+            if (width + 0 >= 1440) found = 1
+            text = substr(text, RSTART + RLENGTH)
+          }
+        }
+        END { exit !found }
+      ' && printf '%s\n' "$line" | grep -Fq 'real-length'; then
+      complete_render=1
+    fi
+  done <<< "$section"
+  [ "$render_found" -eq 1 ] || die "Skills evidence is missing a render-evidence row/line"
+  [ "$phone_found" -eq 1 ] || die "render evidence is missing width 390"
+  [ "$tablet_found" -eq 1 ] || die "render evidence is missing width 768"
+  [ "$wide_found" -eq 1 ] || die "render evidence is missing a 1440-or-wider width"
+  [ "$real_length_found" -eq 1 ] || die "render evidence is missing the text 'real-length'"
+  [ "$complete_render" -eq 1 ] \
+    || die "one render-evidence row/line must list widths 390, 768, and 1440-or-wider plus 'real-length'"
+}
+
 lens="" reviewer="" artifact=""
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -39,6 +127,17 @@ esac
 [ -s "$artifact" ] || die "artifact missing or empty: $artifact"
 
 head="$(git rev-parse HEAD)" || die "not a git repo"
+
+changed_files="$(git diff --name-only --diff-filter=d origin/dev...HEAD 2>/dev/null)" || {
+  merge_base="$(git merge-base origin/dev HEAD 2>/dev/null)" \
+    || die "cannot compare HEAD with origin/dev to determine whether this is a UI diff"
+  changed_files="$(git diff --name-only --diff-filter=d "$merge_base" HEAD)" \
+    || die "could not list the diff from origin/dev's merge-base"
+}
+ui_files="$(printf '%s\n' "$changed_files" | grep -E '(^|/)mos-app/src/.*\.tsx$|\.css$' | grep -vE '\.test\.tsx$' || true)"
+if [ -n "$ui_files" ]; then
+  validate_ui_skills_evidence "$head" "$artifact"
+fi
 
 # SECTION-BOUND validation: the stamp is minted from THIS lens's own record, never from another
 # lens's verdict sharing the file. A section opens at a 'Reviewer:' line or '## ' heading naming

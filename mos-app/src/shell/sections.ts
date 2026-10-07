@@ -4,9 +4,9 @@ import { can } from '@/lib/capabilities'
 import { isShipGated } from '@/lib/ship-gate'
 import {
   HomeIcon, TasksIcon, SignalsIcon, WorkLineIcon, ObjectiveIcon,
-  MoneyIcon, InboxIcon, CafeIcon, EcommerceIcon, RoasteryIcon,
+  MoneyIcon, PendingBillIcon, InboxIcon, CafeIcon, EcommerceIcon, RoasteryIcon,
   ProfileIcon, PeopleIcon, ShieldIcon,
-  TodayIcon, LogIcon, TransferIcon, WasteIcon, PlanIcon, StockIcon, ItemsIcon, ReviewIcon, DispatchIcon,
+  TodayIcon, LogIcon, TransferIcon, WasteIcon, PlanIcon, StockIcon, ItemsIcon, ReviewIcon, DispatchIcon, CountIcon, ReceiveIcon, RequestIcon,
 } from './icons'
 
 export interface Section {
@@ -29,6 +29,11 @@ export interface Section {
   anyOf?: readonly string[]
 }
 
+/** Money's Finance-only list; `anyOf` matches its route gate in router.tsx. */
+export const PENDING_BILLS_SECTION: Section = {
+  path: '/money/pending-bills', label: 'Pending bills', labelKey: 'nav.money.pendingBills', Icon: PendingBillIcon, anyOf: ['finance'],
+}
+
 /**
  * SECTIONS — the flat leaf registry used by the breadcrumb as a fallback for
  * destination-owned roots (Redesign Step 2). Retired `/updates` + `/ops` entries
@@ -45,6 +50,7 @@ export const SECTIONS: Section[] = [
   // become live the moment anyone filtered SECTIONS.
   { path: '/work/objectives', label: 'Objectives', labelKey: 'nav.work.objectives', Icon: ObjectiveIcon },
   { path: '/money', label: 'Money', labelKey: 'nav.money', Icon: MoneyIcon },
+  PENDING_BILLS_SECTION,
   { path: '/inbox', label: 'Inbox', labelKey: 'nav.inbox', Icon: InboxIcon },
   { path: '/cafe', label: 'Café', labelKey: 'nav.cafe', Icon: CafeIcon },
   { path: '/ecommerce', label: 'Ecommerce', labelKey: 'nav.ecommerce', Icon: EcommerceIcon },
@@ -53,7 +59,7 @@ export const SECTIONS: Section[] = [
 ]
 
 /**
- * Café Module sections — the Today/capture root, production, transfer and waste capture routes,
+ * Café Module sections — the Today/capture root, production, transfer, waste, Count, Receive and Request capture routes,
  * Plan, Stock, Items, Review and Pushes. Review/Pushes visibility is enforced in the rail; every label
  * flows through the i18n catalog via its labelKey. All entries remain available for breadcrumb
  * resolution regardless of role. sectionForPath prefers exact and longest-prefix Café matches.
@@ -63,6 +69,9 @@ export const CAFE_SECTIONS: Section[] = [
   { path: '/cafe/production', label: 'Log production', labelKey: 'nav.cafe.production', Icon: LogIcon },
   { path: '/cafe/transfer', label: 'Log transfer', labelKey: 'nav.cafe.transfer', Icon: TransferIcon },
   { path: '/cafe/waste', label: 'Log waste', labelKey: 'nav.cafe.waste', Icon: WasteIcon },
+  { path: '/cafe/count', label: 'Count', labelKey: 'nav.cafe.count', Icon: CountIcon },
+  { path: '/cafe/receive', label: 'Receive', labelKey: 'nav.cafe.receive', Icon: ReceiveIcon },
+  { path: '/cafe/request', label: 'Request', labelKey: 'cafe.request.title', Icon: RequestIcon },
   { path: '/cafe/plan', label: 'Plan', labelKey: 'nav.cafe.plan', Icon: PlanIcon },
   { path: '/cafe/stock', label: 'Stock', labelKey: 'nav.cafe.stock', Icon: StockIcon },
   { path: '/cafe/items', label: 'Items', labelKey: 'nav.cafe.items', Icon: ItemsIcon },

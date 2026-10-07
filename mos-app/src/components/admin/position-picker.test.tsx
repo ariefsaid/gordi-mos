@@ -92,7 +92,7 @@ describe('PositionPicker (AC-125 / FR-201/202/206)', () => {
     renderPicker(PERSON_WITH_POSITION, ROLES, { refresh })
 
     const baristaBox = screen.getByRole('checkbox', { name: /barista/i })
-    expect(baristaBox).toHaveAttribute('aria-checked', 'true')
+    expect(baristaBox).toBeChecked()
     await user.click(baristaBox)
 
     await waitFor(() => {
@@ -126,7 +126,7 @@ describe('PositionPicker (AC-125 / FR-201/202/206)', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Failed')
     expect(screen.getByRole('button', { name: 'Retry Barista' })).toBeInTheDocument()
-    expect(screen.getByRole('checkbox', { name: /barista/i })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('checkbox', { name: /barista/i })).toBeChecked()
   })
 
   // Defect 3 (design review, Important, a11y) — the whole row must be clickable, single-fire

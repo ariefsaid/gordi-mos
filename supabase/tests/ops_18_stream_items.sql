@@ -10,7 +10,7 @@ select shared._test_seed_access_roles();
 select ops._test_seed_cafe();
 select set_config('app.allow_test_seeds', 'off', true);
 
--- Rows a DELETE removed. RLS turns a refused delete into zero rows, not an error.
+-- The helper returns the number of rows affected so the tests can distinguish a successful delete from an RLS-filtered no-op.
 create function pg_temp.deleted(p_sql text) returns int language plpgsql as $f$
 declare n int;
 begin
@@ -20,13 +20,19 @@ begin
 end;
 $f$;
 
--- Two items of this suite's own, so the fixture's offer-everything lists never answer for them.
--- c801 is offered at HQ Bar only; c802 is on no list.
-insert into ops.wip_items (id, org_id, name, flag_active) values
-  ('00000000-0000-0000-0000-00000000c801','00000000-0000-0000-0000-0000000000a1','Stream Item',true),
-  ('00000000-0000-0000-0000-00000000c802','00000000-0000-0000-0000-0000000000a1','Unlisted Item',true);
+-- Two ESB items of this suite's own, so the fixture's offer-everything lists never answer for them.
+-- c801 is offered at HQ Bar only, as an active WIP item there; c802 is on no list.
+insert into ops.wip_items (id, org_id, name, flag_active, reference_source, esb_product_id) values
+  ('00000000-0000-0000-0000-00000000c801','00000000-0000-0000-0000-0000000000a1','Stream Item',true,'erp_catalog','P-C801'),
+  ('00000000-0000-0000-0000-00000000c802','00000000-0000-0000-0000-0000000000a1','Unlisted Item',true,'erp_catalog','P-C802');
+insert into ops.item_units (org_id, wip_item_id, unit_name, esb_product_detail_id, is_default, confirmed_at) values
+  ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000c801','porsi','PD-PORSI-C801',true,now()),
+  ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000c802','porsi','PD-PORSI-C802',true,now());
 insert into ops.stream_items (org_id, branch_id, activity, wip_item_id, source) values
   ('00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000bf01','bar','00000000-0000-0000-0000-00000000c801','esb');
+select set_config('app.allow_test_seeds', 'on', true);
+select ops._test_configure_cafe_items(array['00000000-0000-0000-0000-00000000c801']::uuid[]);
+select set_config('app.allow_test_seeds', 'off', true);
 -- The capturing member's Café affiliation: home Team HQ Bar.
 insert into shared.team_memberships (org_id, person_id, team_id, is_primary)
 select '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000d4', t.id, true
@@ -92,6 +98,10 @@ select is(pg_temp.deleted('delete from ops.stream_items where org_id = ''0000000
   'cross-org: an ops lead''s delete reaches no other org''s row');
 
 reset role;
+-- HQ Kitchen configures the newly listed item as an active WIP item, as every ESB item needs.
+select set_config('app.allow_test_seeds', 'on', true);
+select ops._test_configure_cafe_items(array['00000000-0000-0000-0000-00000000c801']::uuid[]);
+select set_config('app.allow_test_seeds', 'off', true);
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d4","access_roles":["member"]}');
 set local role authenticated;
 select lives_ok($$insert into ops.kitchen_logs (id, business_unit_id, log_date, branch_id, activity, action, wip_item_id, qty_porsi)

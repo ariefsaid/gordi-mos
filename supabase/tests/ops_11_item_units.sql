@@ -12,8 +12,8 @@
 --                who/when is overridden, and changing the ERP coordinates on a confirmed row
 --                VOIDS the confirmation (DD-WAY-29 — the row leaves the form until
 --                re-confirmed).
---       The capture/stock reader split — the gate scopes the CAPTURE form only (FR-011); the
---                stock/verification plane (FR-060, OD-WAY-45) keeps seeing every active item.
+--       The gate scopes the capture form only (FR-011): the unconfirmed item stays an active
+--                catalog row.
 --       The migration's backfill payload (§4), replayed with the current ERP-detail conflict key.
 --       Fail-closed proofs for every policy created in 20260807000001_ops_item_units.sql
 --       (ops_03_policy_fail_closed.sql conventions: one negative per policy, each paired with
@@ -24,10 +24,11 @@
 -- a forged confirmation would be attributed to); DirectMgr ...0d2 ops_lead (the positive subject
 -- and the confirmation recorder).
 --
--- Fixture rows (ops._test_seed_cafe): de01/de02 confirmed 'porsi' defaults (the migrated shape,
--- confirmed_by NULL); de03 Es Teh — coordinates present, NOT confirmed, and planned on the
--- (Gordi HQ, bar) stream, so the absence is proven against an item a stream genuinely uses;
--- de09 org B's confirmed row, the cross-tenant negative.
+-- Fixture rows (ops._test_seed_cafe): de01/de02 confirmed 'porsi' defaults of ESB items
+-- (confirmed_by NULL); de09 org B's confirmed row, the cross-tenant negative. The capture form view
+-- lists hand-made items only, which no longer gain new rows (OD-2026-10-06-ESB-ITEMS), so section A
+-- uses two hand-made items written below in replica mode, the way pre-existing rows look: c111 with
+-- a confirmed default (c1d1) and c113 whose default (c1d3) has coordinates but NO confirmation.
 begin;
 create extension if not exists pgtap with schema extensions;
 select plan(32);
@@ -36,6 +37,15 @@ select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
 select shared._test_seed_access_roles();
 select ops._test_seed_cafe();
+
+set local session_replication_role = replica;
+insert into ops.wip_items (id, org_id, name, category, flag_active, kind, reference_source) values
+  ('00000000-0000-0000-0000-00000000c111','00000000-0000-0000-0000-0000000000a1','Legacy confirmed WIP','Mains',true,'WIP','manual'),
+  ('00000000-0000-0000-0000-00000000c113','00000000-0000-0000-0000-0000000000a1','Legacy unconfirmed WIP','Drinks',true,'WIP','manual');
+insert into ops.item_units (id, org_id, wip_item_id, unit_name, esb_product_detail_id, is_default, confirmed_at) values
+  ('00000000-0000-0000-0000-00000000c1d1','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000c111','porsi','PD-PORSI-C111',true,'2026-06-01T00:00:00Z'),
+  ('00000000-0000-0000-0000-00000000c1d3','00000000-0000-0000-0000-0000000000a1','00000000-0000-0000-0000-00000000c113','porsi','PD-PORSI-C113',true,null);
+set local session_replication_role = origin;
 
 -- The Café BU is resolved by CODE, nothing else (kitchen-logs.ts resolveKitchenBuId — resolving
 -- by display name broke on rename once already). A fixture BU without the code is a BU the app
@@ -54,31 +64,29 @@ select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000
 
 select is(
   (select count(*)::int from ops.capture_form_items
-    where wip_item_id = '00000000-0000-0000-0000-00000000ab03'),
+    where wip_item_id = '00000000-0000-0000-0000-00000000c113'),
   0,
   'AC-003: an item-unit with no confirmed ERP coordinates is ABSENT from the capture form query — not disabled, not warned (DD-WAY-29)');
 
 select is(
   (select count(*)::int from ops.capture_form_items
-    where wip_item_id = '00000000-0000-0000-0000-00000000ab01'),
+    where wip_item_id = '00000000-0000-0000-0000-00000000c111'),
   1,
   'AC-003 (positive pair): a confirmed item-unit IS present, so the absence above is the predicate and not an empty view');
 
 -- The absence is the GATE, not a visibility trick: the unconfirmed row itself is org-readable.
 select is(
   (select count(*)::int from ops.item_units
-    where id = '00000000-0000-0000-0000-00000000de03'),
+    where id = '00000000-0000-0000-0000-00000000c1d3'),
   1,
   'AC-003: the unconfirmed row is visible on the base table to any org member — its absence from the form is a query predicate, never RLS');
 
--- The gate scopes the CAPTURE form only (FR-011). The stock surface is the verification plane
--- (FR-060, OD-WAY-45) and reads active items UNGATED — an unconfirmed item still has real
--- balances to verify, and hiding it there would blind the very control that audits the gate.
+-- The gate scopes the CAPTURE form only (FR-011): the item itself stays an active catalog row.
 select is(
   (select count(*)::int from ops.wip_items
-    where id = '00000000-0000-0000-0000-00000000ab03' and flag_active),
+    where id = '00000000-0000-0000-0000-00000000c113' and flag_active),
   1,
-  'reader split: the same unconfirmed item stays present in the ungated active-item read the stock surface uses (FR-060)');
+  'FR-011: the same unconfirmed item stays an active catalog row; only the capture form omits it');
 
 -- The confirmation event (FR-030), with FORGED provenance: the client claims Peer confirmed it
 -- back in 2020. The stamp trigger must discard both and record the SESSION person, now.
@@ -87,24 +95,24 @@ select lives_ok($$
   update ops.item_units
      set confirmed_at = '2020-01-01T00:00:00Z',
          confirmed_by = '00000000-0000-0000-0000-0000000000d4'
-   where id = '00000000-0000-0000-0000-00000000de03'
+   where id = '00000000-0000-0000-0000-00000000c1d3'
   $$,
   'FR-030: ops_lead records the confirmation event on the item-unit');
 
 select is(
-  (select confirmed_by from ops.item_units where id = '00000000-0000-0000-0000-00000000de03'),
+  (select confirmed_by from ops.item_units where id = '00000000-0000-0000-0000-00000000c1d3'),
   '00000000-0000-0000-0000-0000000000d2'::uuid,
   'FR-030 provenance: confirmed_by is stamped from the SESSION person — the client-supplied peer attribution is overridden');
 
 select is(
-  (select confirmed_at from ops.item_units where id = '00000000-0000-0000-0000-00000000de03'),
+  (select confirmed_at from ops.item_units where id = '00000000-0000-0000-0000-00000000c1d3'),
   now(),
   'FR-030 provenance: confirmed_at is stamped now() — the client-supplied back-date is overridden');
 
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d1","access_roles":["member","finance"]}');
 select is(
   (select count(*)::int from ops.capture_form_items
-    where wip_item_id = '00000000-0000-0000-0000-00000000ab03'),
+    where wip_item_id = '00000000-0000-0000-0000-00000000c113'),
   1,
   'AC-003: the confirmation event makes the pair present in the form query — org-wide, no stream axis to differ on (#222)');
 
@@ -113,18 +121,18 @@ select is(
 -- even when the same statement pretends to re-confirm it.
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
 update ops.item_units
-   set esb_product_detail_id = 'PD-PORSI-001-MOVED',
+   set esb_product_detail_id = 'PD-PORSI-C111-MOVED',
        confirmed_at = now(), confirmed_by = '00000000-0000-0000-0000-0000000000d2'
- where id = '00000000-0000-0000-0000-00000000de01';
+ where id = '00000000-0000-0000-0000-00000000c1d1';
 
 select is(
-  (select confirmed_at from ops.item_units where id = '00000000-0000-0000-0000-00000000de01'),
+  (select confirmed_at from ops.item_units where id = '00000000-0000-0000-0000-00000000c1d1'),
   null::timestamptz,
   'DD-WAY-29: changing the ERP coordinates on a confirmed row clears the confirmation — even against an in-statement re-confirm claim');
 
 select is(
   (select count(*)::int from ops.capture_form_items
-    where wip_item_id = '00000000-0000-0000-0000-00000000ab01'),
+    where wip_item_id = '00000000-0000-0000-0000-00000000c111'),
   0,
   'DD-WAY-29: the re-pointed row is gone from the capture form until a separate confirmation event re-admits it');
 
@@ -249,10 +257,13 @@ select throws_ok($$
 reset role;
 set local request.jwt.claims = '{}';
 
-insert into ops.wip_items (id, org_id, name, flag_active, esb_product_detail_id_porsi, esb_product_id) values
-  ('00000000-0000-0000-0000-00000000dd01','00000000-0000-0000-0000-0000000000a1','Backfill Subject',true,'PD-PORSI-D01','P-D01');
-insert into ops.wip_items (id, org_id, name, flag_active) values
-  ('00000000-0000-0000-0000-00000000dd02','00000000-0000-0000-0000-0000000000a1','No Coordinates',true);
+-- The backfill's input items are hand-made rows from before OD-2026-10-06-ESB-ITEMS (replica mode).
+set local session_replication_role = replica;
+insert into ops.wip_items (id, org_id, name, flag_active, kind, reference_source, esb_product_detail_id_porsi, esb_product_id) values
+  ('00000000-0000-0000-0000-00000000dd01','00000000-0000-0000-0000-0000000000a1','Backfill Subject',true,'WIP','manual','PD-PORSI-D01','P-D01');
+insert into ops.wip_items (id, org_id, name, flag_active, kind, reference_source) values
+  ('00000000-0000-0000-0000-00000000dd02','00000000-0000-0000-0000-0000000000a1','No Coordinates',true,'WIP','manual');
+set local session_replication_role = origin;
 
 insert into ops.item_units
   (org_id, wip_item_id, unit_name, esb_product_detail_id, esb_product_id, is_default, confirmed_at)

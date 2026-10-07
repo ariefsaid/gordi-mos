@@ -31,7 +31,7 @@
 .signal-overflow-trigger:hover { background: var(--surface-tertiary); color: var(--foreground); }
 .signal-overflow-trigger:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .signal-overflow-menu {
-  position: absolute; z-index: var(--z-popover, 30); top: calc(100% + 6px); right: 0; min-width: 190px;
+  position: absolute; z-index: var(--z-popover); top: calc(100% + 6px); right: 0; min-width: 190px;
   display: flex; flex-direction: column; gap: 2px; padding: 6px;
   border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--card);
   box-shadow: var(--shadow-overlay);

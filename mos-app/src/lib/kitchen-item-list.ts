@@ -41,10 +41,6 @@ export interface KitchenListMetadata {
 
 export type KitchenListRow<Row> = Row & KitchenListMetadata
 
-export function kitchenItemLabel(kind: KitchenItemKind, name: string): string {
-  return `${kind} - ${name}`
-}
-
 export function toKitchenListRows<Row>(
   rows: readonly Row[],
   metadata: {

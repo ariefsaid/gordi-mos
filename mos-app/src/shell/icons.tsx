@@ -249,23 +249,6 @@ export function PricingIcon() {
   )
 }
 
-export function SettingsIcon() {
-  return (
-    <svg
-      width={18}
-      height={18}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      aria-hidden="true"
-    >
-      <circle cx="12" cy="12" r="3" />
-      <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
-    </svg>
-  )
-}
-
 // ── Redesign Step 2 (T3) — new rail/icon marks. Each is the Work *parent* or a
 // destination/Module mark that had no counterpart today; all stroke-2, 18px,
 // aria-hidden (NFR-002 convention). Reuse existing marks where a destination
@@ -679,6 +662,108 @@ export function DispatchIcon() {
       <path d="M12 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h6" />
       <path d="M10 12h11" />
       <path d="m17.5 8.5 4 3.5-4 3.5" />
+    </svg>
+  )
+}
+
+// CountIcon — a clipboard and check, for the physical Count entry surface (distinct from Stock).
+export function CountIcon() {
+  return (
+    <svg
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="5" y="4" width="14" height="17" rx="2" />
+      <path d="M9 4.5h6M8 10h3M8 14h3m2-1 1.5 1.5L18 11" />
+    </svg>
+  )
+}
+
+// ReceiveIcon — a box with an arrow coming in, for receiving a delivery (distinct from Count and Stock).
+export function ReceiveIcon() {
+  return (
+    <svg
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7" />
+      <path d="M12 3v10m-4-4 4 4 4-4" />
+    </svg>
+  )
+}
+
+// RequestIcon — a clipboard with a plus, for raising a purchase request (distinct from Receive and Count).
+export function RequestIcon() {
+  return (
+    <svg
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M9 4h6v3H9z" />
+      <path d="M9 5H6a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-3" />
+      <path d="M12 11v6m-3-3h6" />
+    </svg>
+  )
+}
+
+// BranchesIcon — a shopfront, Money's branch table (distinct from the Money banknote).
+export function BranchesIcon() {
+  return (
+    <svg
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M4 10v10h16V10" />
+      <path d="M3 10l2-6h14l2 6z" />
+      <path d="M10 20v-5h4v5" />
+    </svg>
+  )
+}
+
+// PendingBillIcon — a receipt with a torn foot, Money's Pending bills list.
+export function PendingBillIcon() {
+  return (
+    <svg
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M6 3h12v18l-3-2-3 2-3-2-3 2z" />
+      <path d="M9 8h6M9 12h6" />
     </svg>
   )
 }

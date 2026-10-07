@@ -255,11 +255,7 @@ const NO_NAV_ENTRY_BY_DESIGN: Record<string, string> = {
   '/work/signals/:signalId': 'record door — opened from the Signals list or a deep link, never from nav',
   '/work/tasks/new': 'record door — opened by the create action, not a nav entry',
   '/work/tasks/:taskId': 'record door — opened from the Tasks table or a deep link',
-  // Corrected: the previous reason said "reached from the Money surface itself", which is false.
-  // The Detail tab does not navigate to this PATH — it writes `?tab=detail` onto the current one
-  // via setSearchParams. Nothing in the app links `/money/detail`; breadcrumb.tsx only renders a
-  // crumb for it. Its one real caller is the `/dashboard/detail` redirect.
-  '/money/detail': 'no link exists to this path — the Detail tab writes ?tab=detail on /money via setSearchParams. It survives only as the /dashboard/detail redirect target, for old bookmarks',
+  '/money/detail': 'redirect to /money — kept so old bookmarks and the /dashboard/detail redirect still land on Money',
   '/money/budget': "flag-gated (SHOW_PLAN_BUDGET, default off). dev's Plan destination linked it when the flag was on; restoring that link belongs to the Money surface port",
   '/money/pricing': 'flag-gated (SHOW_PLAN_BUDGET, default off). Same as /money/budget',
   '/money/follow-ups': 'flag-gated (SHOW_FOLLOWUPS, default off) and deferred past the MVP',
@@ -400,9 +396,9 @@ describe('nav reachability — rendered links, real viewers, both viewports', ()
   // ── The phone half. There is no rail below 920px, and the bottom bar renders one link per
   // destination with no children, so the drawer is the ONLY route to a module's sub-screens.
   describe("Café's working screens on a phone (#242)", () => {
-    it('a Café floor member reaches Log, Plan, Stock and Items at 390px', () => {
+    it('a Café floor member reaches Log, Count, Receive, Plan, Stock and Items at 390px', () => {
       const links = phoneLinks(persona('Café floor member'))
-      for (const p of ['/cafe', '/cafe/waste', '/cafe/plan', '/cafe/stock', '/cafe/items']) {
+      for (const p of ['/cafe', '/cafe/waste', '/cafe/count', '/cafe/receive', '/cafe/request', '/cafe/plan', '/cafe/stock', '/cafe/items']) {
         expect(links, `${p} unreachable on a phone`).toContain(p)
       }
     })
@@ -416,7 +412,7 @@ describe('nav reachability — rendered links, real viewers, both viewports', ()
     it('OD-WAY-51: a viewer whose job role matches NO module still reaches the ungated screens', () => {
       // The persona the old model excluded outright — a substantial share of the roster.
       const p = persona('no-module viewer')
-      for (const path of ['/cafe', '/cafe/waste', '/cafe/plan', '/cafe/stock', '/cafe/items']) {
+      for (const path of ['/cafe', '/cafe/waste', '/cafe/count', '/cafe/receive', '/cafe/request', '/cafe/plan', '/cafe/stock', '/cafe/items']) {
         expect(phoneLinks(p), `${path} root entry unreachable on a phone`).toContain('/cafe')
         expect(railLinks(p), `${path} root entry unreachable on the rail`).toContain('/cafe')
       }
@@ -432,14 +428,14 @@ describe('nav reachability — rendered links, real viewers, both viewports', ()
 
     it('a Café ops lead reaches all working screens at 390px, Review and Pushes included', () => {
       const links = phoneLinks(persona('Café ops lead'))
-      for (const p of ['/cafe', '/cafe/waste', '/cafe/plan', '/cafe/stock', '/cafe/items', '/cafe/review', '/cafe/pushes']) {
+      for (const p of ['/cafe', '/cafe/waste', '/cafe/count', '/cafe/receive', '/cafe/request', '/cafe/plan', '/cafe/stock', '/cafe/items', '/cafe/review', '/cafe/pushes']) {
         expect(links, `${p} unreachable on a phone`).toContain(p)
       }
     })
 
     it('…and reaches all working screens on the desktop rail too', () => {
       const links = railLinks(persona('Café ops lead'))
-      for (const p of ['/cafe', '/cafe/waste', '/cafe/plan', '/cafe/stock', '/cafe/items', '/cafe/review', '/cafe/pushes']) {
+      for (const p of ['/cafe', '/cafe/waste', '/cafe/count', '/cafe/receive', '/cafe/request', '/cafe/plan', '/cafe/stock', '/cafe/items', '/cafe/review', '/cafe/pushes']) {
         expect(links, `${p} unreachable on the rail`).toContain(p)
       }
     })

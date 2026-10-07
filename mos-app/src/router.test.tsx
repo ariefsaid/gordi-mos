@@ -37,6 +37,8 @@ vi.mock('./config/features', () => ({
 const mockUseAuth = vi.mocked(useAuth)
 
 import { ProtectedRoute } from './auth/protected-route'
+import { isShipGatedInProfile } from './lib/ship-gate'
+import { CAFE_SECTIONS, sectionForPath } from './shell/sections'
 import { AppShell } from './shell/app-shell'
 import { TasksLayout } from './pages/tasks-layout'
 import { KitchenLogPage } from './pages/kitchen-log-page'
@@ -144,9 +146,47 @@ describe('issue 1241: Café waste capture route', () => {
   })
 })
 
+describe('issue 1366: Café Count route', () => {
+  it('registers /cafe/count as a live dedicated route', () => {
+    const count = leafInThisTable('/cafe/count')
+    expect(count, '/cafe/count must be a declared route').toBeDefined()
+    expect(isRedirect(count!.route.element)).toBe(false)
+  })
+})
+
+describe('issue 1422: Café receiving destinations', () => {
+  it('AC-1037 Receive, receipt review and Receipt issues are live, navigable and open in the cafe and full profiles', () => {
+    expect(CAFE_SECTIONS.map(section => section.path)).toContain('/cafe/receive')
+    for (const path of ['/cafe/receive', '/cafe/receive/review', '/cafe/receive/issues']) {
+      const leaf = leafInThisTable(path)
+      expect(leaf, `${path} must be a declared route`).toBeDefined()
+      expect(leaf!.route.path).not.toBe('*')
+      expect(isRedirect(leaf!.route.element)).toBe(false)
+      expect(sectionForPath(path)?.path, `${path} marks Receive in the navigation`).toBe('/cafe/receive')
+      expect(isShipGatedInProfile(path, 'cafe'), `${path} blocked in the cafe profile`).toBe(false)
+      expect(isShipGatedInProfile(path, 'full'), `${path} blocked in the full profile`).toBe(false)
+    }
+  })
+})
+
+describe('issue 1428: Café purchase request destinations', () => {
+  it('Request and Request review are live, navigable and open in the cafe and full profiles', () => {
+    expect(CAFE_SECTIONS.map(section => section.path)).toContain('/cafe/request')
+    for (const path of ['/cafe/request', '/cafe/request/review']) {
+      const leaf = leafInThisTable(path)
+      expect(leaf, `${path} must be a declared route`).toBeDefined()
+      expect(leaf!.route.path).not.toBe('*')
+      expect(isRedirect(leaf!.route.element)).toBe(false)
+      expect(sectionForPath(path)?.path, `${path} marks Request in the navigation`).toBe('/cafe/request')
+      expect(isShipGatedInProfile(path, 'cafe'), `${path} blocked in the cafe profile`).toBe(false)
+      expect(isShipGatedInProfile(path, 'full'), `${path} blocked in the full profile`).toBe(false)
+    }
+  })
+})
+
 describe('issue 1239: Café capture split routes', () => {
   it('keeps production and transfer as live pages and redirects the legacy log alias to production', () => {
-    for (const path of ['/cafe/production', '/cafe/transfer', '/cafe/waste']) {
+    for (const path of ['/cafe/production', '/cafe/transfer', '/cafe/waste', '/cafe/count']) {
       const leaf = leafInThisTable(path)
       expect(leaf, `${path} must be a live Café route`).toBeDefined()
       expect(leaf!.route.path).not.toBe('*')
@@ -217,7 +257,7 @@ describe('AC-021: an unmatched path renders the not-found surface inside the she
 // ── Gates ────────────────────────────────────────────────────────────────────────────────────
 describe('router — Work catalog read access', () => {
   it('OD-V4-1: /work/objectives and /work/projects carry NO read gate — the reads are open at the database', () => {
-    // v4-redesign's own router.test.tsx asserts a RequireCapability(objective.manage) gate here,
+    // v4-redesign's own router.test.tsx asserted an objective.manage gate here,
     // which contradicts v4's own router.tsx. OD-V4-1 (owner-ratified) removed the gate: the
     // objectives SELECT policy carries no role check, so the gate hid a screen RLS already
     // permits. #188 removed it from the rail; this is the route half. Write stays behind
@@ -302,11 +342,13 @@ describe('router — Money gates (dev security series preserved)', () => {
     const readGate = shellChildren().find(
       (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'money'),
     )!
-    expect(readGate.children!.map((c) => c.path).sort()).toEqual([
+    expect(readGate.children!.flatMap((c) => c.path ?? c.children!.map((cc) => cc.path)).sort()).toEqual([
       'dashboard',
       'dashboard/detail',
       'money',
+      'money/branch/:code',
       'money/detail',
+      'money/pending-bills',
       'sales',
     ])
     const planGate = shellChildren().find(
@@ -322,17 +364,31 @@ describe('router — Money gates (dev security series preserved)', () => {
   })
 })
 
+describe('router — Pending bills is Finance only (#1464)', () => {
+  it('AC-1113: /money/pending-bills sits inside the Money read gate behind a Finance-only link gate', () => {
+    expect(gatesOnPath('/money/pending-bills')).toEqual([
+      'accessRole:finance|manager|supervisor',
+      'accessRole:finance',
+    ])
+    const readGate = shellChildren().find(
+      (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'money'),
+    )!
+    const financeGate = readGate.children!.find((c) => c.children?.some((cc) => cc.path === 'money/pending-bills'))!
+    expect(financeGate.element).toEqual(<RequireAccessRole anyOf={['finance']} scope="link" />)
+  })
+})
+
 describe('router — Café review + pushes are role-gated', () => {
   // The two used to share one gate. #236 (FR-040) made the stream supervisor a reviewer on the
   // server and in the page but not here, so the reviewer it created was bounced off the URL —
   // found by #238's cross-stack journey. Review now admits them; Pushes, the dispatch surface,
   // does not, so the two gates are deliberately different and asserted apart.
-  it('AC-006: /cafe/review sits behind RequireAccessRole(ops_lead|admin|supervisor) — the FR-040 reviewer included', () => {
+  it('AC-006: /cafe/review and receipt review sit behind RequireAccessRole(ops_lead|admin|supervisor) — the FR-040 reviewer included', () => {
     const gate = shellChildren().find(
       (r) => Array.isArray(r.children) && r.children.some((c) => c.path === 'cafe/review'),
     )!
     expect(gate.element).toEqual(<RequireAccessRole anyOf={['ops_lead', 'admin', 'supervisor']} scope="link" />)
-    expect(gate.children!.map((c) => c.path).sort()).toEqual(['cafe/review', 'kitchen/review'])
+    expect(gate.children!.map((c) => c.path).sort()).toEqual(['cafe/receive/review', 'cafe/request/review', 'cafe/review', 'kitchen/review'])
   })
 
   it('AC-006: /cafe/pushes stays behind RequireAccessRole(ops_lead|admin) — posting state is not a review queue', () => {

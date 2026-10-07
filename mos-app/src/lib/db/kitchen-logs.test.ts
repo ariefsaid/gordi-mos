@@ -1,10 +1,10 @@
 // kitchen-logs.ts data module tests — TDD (AC-tagged)
-// Mirrors the ops-log.test.ts harness pattern (makeSchema + Recorder).
+// Uses a local schema mock harness (makeSchema + Recorder).
 // Key assertions:
 //  - status NOT in payload (DB default 'Submitted') — AC-030
 //  - org_id / submitted_by NOT in payload (server-stamped) — NFR-003
 //  - qty_porsi must be > 0 — AC-020
-//  - PlanMap keyed correctly — fetchPlanMap
+//  - capture plan map reads and review-page context batching stay movement-keyed
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
@@ -14,20 +14,21 @@ vi.mock('./cafe-item-settings', async () => {
   return { ...actual, listCafeItemSettings: vi.fn() }
 })
 
-// Mock supabase at module scope — mirrors ops-log.test.ts pattern
+// Mock supabase at module scope.
 vi.mock('../supabase', () => {
   const schema = vi.fn()
   return { supabase: { schema } }
 })
 
 import type { ProductionStream } from './kitchen-logs.types'
+import { streamDateKey } from '@/lib/kitchen-action-label'
 import { listCafeItemSettings } from './cafe-item-settings'
 import { supabase } from '@/lib/supabase'
 import {
-  listActiveWipItems,
   listCaptureFormItems,
   fetchActualsMap,
   fetchPlanMap,
+  fetchPlanMaps,
   fetchStockMap,
   fetchKitchenStock,
   listCafeDestinations,
@@ -52,13 +53,12 @@ const mockCafeItemSettings = vi.mocked(listCafeItemSettings)
 // point of the catalog is that nothing keys off a name (OD-WAY-39).
 const BRANCH_ID = '30000000-0000-0000-0000-0000000000b1'
 const RADIANT_ID = '30000000-0000-0000-0000-0000000000b2'
-const BUNGUR_ID = BRANCH_ID // "Transfer to Bungur" is a within-books move: destination = origin
 const STREAM: ProductionStream = {
   branch: { id: BRANCH_ID, code: 'rumah_rames', name: 'Rumah Rames' },
   activity: 'kitchen',
 }
 
-// ── Schema mock harness (mirrors ops-log.test.ts) ───────────────────────────
+// ── Schema mock harness ─────────────────────────────────────────────────────
 interface Recorder {
   fromTables: string[]
   selects: string[]
@@ -166,71 +166,9 @@ function assertNoServerStamps(inserts: unknown[]) {
 
 beforeEach(() => vi.clearAllMocks())
 
-// ── listActiveWipItems / listCaptureFormItems — the reader split ─────────────
-// The DD-WAY-29 gate scopes absence to the CAPTURE form only (FR-011): with a
-// stream, capture reads the Café settings; before selection it uses the prior gated
-// catalog as a read-only choice surface. listActiveWipItems stays the UNGATED active-item
-// read that feeds the stock/verification plane (FR-060, OD-WAY-45) and Plan.
-describe('listActiveWipItems — the ungated stock/plan read', () => {
-  const WIP_ROWS = [
-    { id: 'w1', name: 'Ayam Bakar', category: 'Main' },
-    { id: 'w2', name: 'Nasi Goreng', category: 'Main' },
-  ]
-
-  it('queries wip_items with flag_active=true ordered by name — NOT the gated view (FR-060)', async () => {
-    const rec = freshRec()
-    schemaMock.mockReturnValue(
-      makeSchema({ wip_items: [{ data: WIP_ROWS, error: null }] }, rec) as never,
-    )
-
-    const result = await listActiveWipItems()
-    expect(rec.fromTables).toContain('wip_items')
-    expect(rec.fromTables).not.toContain('capture_form_items')
-    expect(result).toHaveLength(2)
-    expect(result[0].name).toBe('Ayam Bakar')
-    expect(rec.eqs).toContainEqual(['flag_active', true])
-    expect(rec.eqs).toContainEqual(['reference_source', 'manual'])
-    expect(rec.eqs).toContainEqual(['kind', 'WIP'])
-    expect(rec.orders).toContainEqual(['name', { ascending: true }])
-    expect(rec.selects).toContain('id,name,category')
-  })
-
-  it('throws on PostgREST error', async () => {
-    const rec = freshRec()
-    schemaMock.mockReturnValue(
-      makeSchema({ wip_items: [{ data: null, error: { message: 'table not found' } }] }, rec) as never,
-    )
-    await expect(listActiveWipItems()).rejects.toThrow('listActiveWipItems failed')
-  })
-
-  it('returns empty array when no active items', async () => {
-    const rec = freshRec()
-    schemaMock.mockReturnValue(
-      makeSchema({ wip_items: [{ data: [], error: null }] }, rec) as never,
-    )
-    const result = await listActiveWipItems()
-    expect(result).toEqual([])
-  })
-})
-
-describe('listCaptureFormItems — stream-aware capture-form read (FR-011, DD-WAY-29, FR-032)', () => {
-  // One row per confirmed (item, unit), the view's shape after #234.
-  const unitRow = (
-    wip_item_id: string,
-    name: string,
-    item_unit_id: string,
-    unit_name: string,
-    is_default: boolean,
-    is_transferable = true,
-    category: string | null = 'Main',
-  ) => ({ wip_item_id, name, category, item_unit_id, unit_name, is_default, is_transferable })
-
-  const VIEW_ROWS = [
-    unitRow('w1', 'Ayam Bakar', 'u1', 'porsi', true),
-    unitRow('w2', 'Nasi Goreng', 'u2', 'porsi', true),
-  ]
-
-  it('uses stream MOS names and shown ERP details while retaining listed manual items', async () => {
+// ── listCaptureFormItems — the capture list is the stream's ESB items (OD-2026-10-06-ESB-ITEMS) ─
+describe('listCaptureFormItems — stream ESB items only (FR-011, OD-2026-10-06-ESB-ITEMS)', () => {
+  it('offers only ESB items from the stream settings — a hand-made item on the stream list is not offered', async () => {
     mockCafeItemSettings.mockResolvedValue([
       {
         id: 'w2', erpName: 'ERP Nasi Goreng', mosName: 'MOS Nasi Goreng', category: 'Main', kind: 'WIP', isActive: true,
@@ -240,11 +178,6 @@ describe('listCaptureFormItems — stream-aware capture-form read (FR-011, DD-WA
           { id: 'u2-case', name: 'case', isShown: true, isDefault: false, labelOrdinal: null, labelCount: 1 },
         ],
         unitMultiples: [0.5, 2],
-      },
-      {
-        id: 'raw-1', erpName: 'ERP Beans', mosName: 'ERP Beans', category: 'Main', kind: 'RAW', isActive: true,
-        defaultUnitId: 'u-kg',
-        units: [{ id: 'u-kg', name: 'kg', isShown: true, isDefault: true, labelOrdinal: null, labelCount: 1 }],
       },
       {
         id: 'w4', erpName: 'ERP Unconfigured', mosName: 'ERP Unconfigured', category: 'Main', kind: 'WIP', isActive: true,
@@ -258,30 +191,25 @@ describe('listCaptureFormItems — stream-aware capture-form read (FR-011, DD-WA
     ])
     const rec = freshRec()
     schemaMock.mockReturnValue(makeSchema({
-      capture_form_items: [{ data: [
-        unitRow('w2', 'Legacy ERP name', 'legacy-u2', 'legacy unit', true),
-        unitRow('w3', 'Manual Stew', 'manual-u3', 'porsi', true),
-        unitRow('w4', 'Legacy unconfigured name', 'legacy-u4', 'porsi', true),
-      ], error: null }],
-      stream_items: [{ data: [
-        { wip_item_id: 'w2' }, { wip_item_id: 'w3' }, { wip_item_id: 'w4' }, { wip_item_id: 'raw-1' },
-      ], error: null }],
+      stream_items: [{ data: [{ wip_item_id: 'w2' }, { wip_item_id: 'w3-hand-made' }, { wip_item_id: 'w4' }], error: null }],
     }, rec) as never)
 
     const result = await listCaptureFormItems(STREAM)
     expect(mockCafeItemSettings).toHaveBeenCalledWith(STREAM)
     expect(result).toEqual([
       {
-        id: 'w3', name: 'Manual Stew', category: 'Main',
-        units: [{ id: 'manual-u3', name: 'porsi', is_default: true }],
-      },
-      {
         id: 'w2', name: 'MOS Nasi Goreng', category: 'Main', kind: 'WIP',
         units: [{ id: 'u2-each', name: 'each', is_default: true }],
         unit_multiples: [0.5, 2],
       },
     ])
-    expect(rec.fromTables).toEqual(expect.arrayContaining(['capture_form_items', 'stream_items']))
+    expect(rec.fromTables).not.toContain('capture_form_items')
+  })
+
+  it('without a stream there is nothing to log and nothing is read', async () => {
+    expect(await listCaptureFormItems()).toEqual([])
+    expect(schemaMock).not.toHaveBeenCalled()
+    expect(mockCafeItemSettings).not.toHaveBeenCalled()
   })
 
   it('offers active team-classified RAW and WIP items for transfer, but not inactive or unclassified rows', async () => {
@@ -309,7 +237,6 @@ describe('listCaptureFormItems — stream-aware capture-form read (FR-011, DD-WA
     ])
     const rec = freshRec()
     schemaMock.mockReturnValue(makeSchema({
-      capture_form_items: [{ data: [], error: null }],
       stream_items: [{ data: ['raw-1', 'wip-1', 'inactive', 'unset'].map(wip_item_id => ({ wip_item_id })), error: null }],
     }, rec) as never)
 
@@ -328,7 +255,6 @@ describe('listCaptureFormItems — stream-aware capture-form read (FR-011, DD-WA
     }])
     const rec = freshRec()
     schemaMock.mockReturnValue(makeSchema({
-      capture_form_items: [{ data: [], error: null }],
       stream_items: [{ data: [{ wip_item_id: 'w2' }], error: null }],
     }, rec) as never)
 
@@ -339,179 +265,78 @@ describe('listCaptureFormItems — stream-aware capture-form read (FR-011, DD-WA
     expect(result[0]?.unit_multiples).toEqual([0.5, 2])
   })
 
-  it('reads the gated capture_form_items view ordered by name — never raw wip_items', async () => {
-    const rec = freshRec()
-    schemaMock.mockReturnValue(
-      makeSchema({ capture_form_items: [{ data: VIEW_ROWS, error: null }] }, rec) as never,
-    )
+})
 
-    const result = await listCaptureFormItems()
-    expect(rec.fromTables).toContain('capture_form_items')
-    expect(rec.fromTables).not.toContain('wip_items')
-    expect(result).toHaveLength(2)
-    expect(result[0]).toEqual({
-      id: 'w1',
-      name: 'Ayam Bakar',
-      category: 'Main',
-      units: [{ id: 'u1', name: 'porsi', is_default: true }],
-    })
-    expect(rec.orders).toContainEqual(['name', { ascending: true }])
-    expect(rec.selects).toContain(
-      'wip_item_id,name,category,item_unit_id,unit_name,is_default,is_transferable',
-    )
+// ── fetchPlanMaps — review-page batch ─────────────────────────────────────────
+describe('fetchPlanMaps', () => {
+  it('keeps the single-context adapter used by capture surfaces', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ kitchen_plans: [{
+      data: [{
+        log_date: '2026-06-20', branch_id: BRANCH_ID, activity: 'kitchen', wip_item_id: 'w1',
+        action: 'produce', destination_branch_id: null, qty_porsi: 12,
+      }],
+      error: null,
+    }] }, rec) as never)
+
+    await expect(fetchPlanMap('2026-06-20', STREAM)).resolves.toEqual({ w1: { produce: 12 } })
+    expect(rec.fromTables).toEqual(['kitchen_plans'])
   })
 
-  it('folds multiple confirmed units of one item into ONE item carrying its offered units, default first (FR-020/021)', async () => {
+  it('reads only the requested date/stream pairs in one query and separates their maps', async () => {
     const rec = freshRec()
-    schemaMock.mockReturnValue(
-      makeSchema(
-        {
-          capture_form_items: [
-            {
-              data: [
-                // name-ordered as the view returns them — the default is NOT first here,
-                // proving the reader reorders rather than trusting row order
-                unitRow('w1', 'Ayam Bakar', 'u1b', 'botol', false),
-                unitRow('w1', 'Ayam Bakar', 'u1', 'porsi', true),
-                unitRow('w2', 'Nasi Goreng', 'u2', 'porsi', true),
-              ],
-              error: null,
-            },
-          ],
-        },
-        rec,
-      ) as never,
-    )
-    const result = await listCaptureFormItems()
-    expect(result.map(r => r.id)).toEqual(['w1', 'w2'])
-    expect(result[0].units).toEqual([
-      { id: 'u1', name: 'porsi', is_default: true },
-      { id: 'u1b', name: 'botol', is_default: false },
+    const otherStream: ProductionStream = { ...STREAM, activity: 'bar' }
+    schemaMock.mockReturnValue(makeSchema({
+      kitchen_plans: [{
+        data: [
+          { log_date: '2026-06-20', branch_id: BRANCH_ID, activity: 'kitchen', wip_item_id: 'w1', action: 'produce', destination_branch_id: null, qty_porsi: 12 },
+          { log_date: '2026-06-20', branch_id: BRANCH_ID, activity: 'kitchen', wip_item_id: 'w1', action: 'transfer', destination_branch_id: RADIANT_ID, qty_porsi: 5 },
+          { log_date: '2026-06-21', branch_id: BRANCH_ID, activity: 'kitchen', wip_item_id: 'w1', action: 'produce', destination_branch_id: null, qty_porsi: 5 },
+          { log_date: '2026-06-20', branch_id: BRANCH_ID, activity: 'bar', wip_item_id: 'w2', action: 'produce', destination_branch_id: null, qty_porsi: 7 },
+          { log_date: '2026-06-22', branch_id: BRANCH_ID, activity: 'bar', wip_item_id: 'ignored', action: 'produce', destination_branch_id: null, qty_porsi: 99 },
+        ],
+        error: null,
+      }],
+    }, rec) as never)
+
+    const entries = await fetchPlanMaps([
+      { logDate: '2026-06-20', stream: STREAM },
+      { logDate: '2026-06-21', stream: STREAM },
+      { logDate: '2026-06-20', stream: otherStream },
+    ])
+    const maps = new Map(entries)
+
+    expect(rec.fromTables).toEqual(['kitchen_plans'])
+    expect(rec.orFilters).toEqual([
+      `and(log_date.eq.2026-06-20,branch_id.eq.${BRANCH_ID},activity.eq.kitchen),and(log_date.eq.2026-06-21,branch_id.eq.${BRANCH_ID},activity.eq.kitchen),and(log_date.eq.2026-06-20,branch_id.eq.${BRANCH_ID},activity.eq.bar)`,
+    ])
+    expect(maps.get(streamDateKey('2026-06-20', BRANCH_ID, 'kitchen'))?.w1?.produce).toBe(12)
+    expect(maps.get(streamDateKey('2026-06-20', BRANCH_ID, 'kitchen'))?.w1?.[`transfer:${RADIANT_ID}`]).toBe(5)
+    expect(maps.get(streamDateKey('2026-06-21', BRANCH_ID, 'kitchen'))?.w1?.produce).toBe(5)
+    expect(maps.get(streamDateKey('2026-06-20', BRANCH_ID, 'bar'))?.w2?.produce).toBe(7)
+    expect(maps.get(streamDateKey('2026-06-20', BRANCH_ID, 'bar'))?.ignored).toBeUndefined()
+  })
+
+  it('returns empty maps for visible contexts with no plan rows', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(makeSchema({ kitchen_plans: [{ data: [], error: null }] }, rec) as never)
+    await expect(fetchPlanMaps([{ logDate: '2026-06-20', stream: STREAM }])).resolves.toEqual([
+      [streamDateKey('2026-06-20', BRANCH_ID, 'kitchen'), {}],
     ])
   })
 
-  it('AC-015 / FR-032: a NON-TRANSFERABLE alternate is never offered — dropped by the reader, whatever the view returns', async () => {
-    const rec = freshRec()
-    schemaMock.mockReturnValue(
-      makeSchema(
-        {
-          capture_form_items: [
-            {
-              data: [
-                unitRow('w1', 'Ayam Bakar', 'u1', 'porsi', true),
-                unitRow('w1', 'Ayam Bakar', 'u1b', 'botol', false, true),
-                unitRow('w1', 'Ayam Bakar', 'u1k', 'karton', false, false), // never offered
-              ],
-              error: null,
-            },
-          ],
-        },
-        rec,
-      ) as never,
-    )
-    const result = await listCaptureFormItems()
-    expect(result[0].units.map(u => u.id)).toEqual(['u1', 'u1b'])
+  it('does not query when no page contexts are visible', async () => {
+    await expect(fetchPlanMaps([])).resolves.toEqual([])
+    expect(schemaMock).not.toHaveBeenCalled()
   })
 
-  it('FR-032: a non-transferable DEFAULT still renders — the fixed unit is master data, only ALTERNATES are offers', async () => {
+  it('throws on a plan-read error', async () => {
     const rec = freshRec()
-    schemaMock.mockReturnValue(
-      makeSchema(
-        {
-          capture_form_items: [
-            { data: [unitRow('w1', 'Ayam Bakar', 'u1', 'porsi', true, false)], error: null },
-          ],
-        },
-        rec,
-      ) as never,
-    )
-    const result = await listCaptureFormItems()
-    expect(result).toHaveLength(1)
-    expect(result[0].units).toEqual([{ id: 'u1', name: 'porsi', is_default: true }])
-  })
-
-  it('an item whose confirmed rows yield NO offerable unit is absent — a row that cannot name its unit cannot be captured', async () => {
-    const rec = freshRec()
-    schemaMock.mockReturnValue(
-      makeSchema(
-        {
-          capture_form_items: [
-            // no default in the view (unconfirmed), only a non-transferable alternate
-            { data: [unitRow('w1', 'Ayam Bakar', 'u1k', 'karton', false, false)], error: null },
-          ],
-        },
-        rec,
-      ) as never,
-    )
-    expect(await listCaptureFormItems()).toEqual([])
-  })
-
-  it('throws on PostgREST error', async () => {
-    const rec = freshRec()
-    schemaMock.mockReturnValue(
-      makeSchema({ capture_form_items: [{ data: null, error: { message: 'view not found' } }] }, rec) as never,
-    )
-    await expect(listCaptureFormItems()).rejects.toThrow('listCaptureFormItems failed')
-  })
-
-  it('returns empty array when nothing is confirmed', async () => {
-    const rec = freshRec()
-    schemaMock.mockReturnValue(
-      makeSchema({ capture_form_items: [{ data: [], error: null }] }, rec) as never,
-    )
-    const result = await listCaptureFormItems()
-    expect(result).toEqual([])
-  })
-})
-
-// ── fetchPlanMap ──────────────────────────────────────────────────────────────
-describe('fetchPlanMap', () => {
-  it('builds a PlanMap keyed by wip_item_id/movement', async () => {
-    const rec = freshRec()
-    schemaMock.mockReturnValue(
-      makeSchema(
-        {
-          kitchen_plans: [
-            {
-              data: [
-                { wip_item_id: 'w1', action: 'produce', destination_branch_id: null, qty_porsi: 12 },
-                { wip_item_id: 'w1', action: 'transfer', destination_branch_id: RADIANT_ID, qty_porsi: 5 },
-                { wip_item_id: 'w2', action: 'produce', destination_branch_id: null, qty_porsi: 20 },
-              ],
-              error: null,
-            },
-          ],
-        },
-        rec,
-      ) as never,
-    )
-
-    const map = await fetchPlanMap('2026-06-20', STREAM)
-    expect(map['w1']['produce']).toBe(12)
-    expect(map['w1'][`transfer:${RADIANT_ID}`]).toBe(5)
-    expect(map['w2']['produce']).toBe(20)
-    expect(map['w1'][`transfer:${BUNGUR_ID}`]).toBeUndefined()
-    expect(rec.eqs).toContainEqual(['log_date', '2026-06-20'])
-  })
-
-  it('returns empty map when no plan rows', async () => {
-    const rec = freshRec()
-    schemaMock.mockReturnValue(
-      makeSchema({ kitchen_plans: [{ data: [], error: null }] }, rec) as never,
-    )
-    const map = await fetchPlanMap('2026-06-20', STREAM)
-    expect(Object.keys(map)).toHaveLength(0)
-  })
-
-  it('throws on error', async () => {
-    const rec = freshRec()
-    schemaMock.mockReturnValue(
-      makeSchema(
-        { kitchen_plans: [{ data: null, error: { message: 'failed' } }] },
-        rec,
-      ) as never,
-    )
-    await expect(fetchPlanMap('2026-06-20', STREAM)).rejects.toThrow('fetchPlanMap failed')
+    schemaMock.mockReturnValue(makeSchema(
+      { kitchen_plans: [{ data: null, error: { message: 'failed' } }] },
+      rec,
+    ) as never)
+    await expect(fetchPlanMaps([{ logDate: '2026-06-20', stream: STREAM }])).rejects.toThrow('fetchPlanMaps failed')
   })
 })
 
@@ -875,24 +700,16 @@ describe('fetchStockMap — stok/tersedia per WIP item via kitchen_stock_for_dat
 // ── fetchKitchenStock — the read-only Stock view's list shape (S4, FR-060/061) ─
 describe('fetchKitchenStock — per-item stock rows for the Stock view (FR-060/061)', () => {
   beforeEach(() => mockCafeItemSettings.mockResolvedValue([]))
+  const setting = (id: string, mosName: string, kind: 'RAW' | 'WIP', isActive = true) => ({
+    id, erpName: `${mosName} · ERP`, mosName, category: 'Prep', kind, isActive, defaultUnitId: null, units: [],
+  })
 
-  it('joins active WIP item names with kitchen_stock_for_date rows (stok/tersedia)', async () => {
+  it('joins the stream ESB items with kitchen_stock_for_date rows (stok/tersedia)', async () => {
+    mockCafeItemSettings.mockResolvedValue([setting('w1', 'Ayam Bakar', 'WIP'), setting('w2', 'Nasi Goreng', 'WIP')])
     const rec = freshRec()
     schemaMock.mockReturnValue(
       makeSchema(
         {
-          // listActiveWipItems read — deliberately UNGATED (FR-060: stock is the
-          // verification plane and keeps seeing every active item)
-          wip_items: [
-            {
-              data: [
-                { id: 'w1', name: 'Ayam Bakar', category: 'Main' },
-                { id: 'w2', name: 'Nasi Goreng', category: 'Main' },
-              ],
-              error: null,
-            },
-          ],
-          // kitchen_stock_for_date rpc
           kitchen_stock_for_date: [
             {
               data: [
@@ -914,62 +731,33 @@ describe('fetchKitchenStock — per-item stock rows for the Stock view (FR-060/0
       { p_as_of: '2026-06-20', p_branch_id: BRANCH_ID, p_activity: 'kitchen' },
     ])
     expect(rows).toEqual([
-      { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', category: 'Main', on_stream: true, stok: 12, tersedia: 8 },
+      { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', category: 'Prep', on_stream: true, stok: 12, tersedia: 8 },
       // negative balances preserved, not clamped (FR-061, AC-032)
-      { wip_item_id: 'w2', wip_item_name: 'Nasi Goreng', category: 'Main', on_stream: true, stok: -3, tersedia: -3 },
+      { wip_item_id: 'w2', wip_item_name: 'Nasi Goreng', category: 'Prep', on_stream: true, stok: -3, tersedia: -3 },
     ])
+    expect(rec.fromTables).not.toContain('wip_items')
   })
 
-  it('lists every item on the stream\'s list even when it has no stock row (defaults to 0/0)', async () => {
-    const rec = freshRec()
-    schemaMock.mockReturnValue(
-      makeSchema(
-        {
-          wip_items: [
-            { data: [{ id: 'w1', name: 'Ayam Bakar', category: 'Main' }], error: null },
-          ],
-          kitchen_stock_for_date: [{ data: [], error: null }],
-          stream_items: [{ data: [{ wip_item_id: 'w1' }], error: null }],
-        },
-        rec,
-      ) as never,
-    )
-    const rows = await fetchKitchenStock('2026-06-20', STREAM)
-    expect(rows).toEqual([
-      { wip_item_id: 'w1', wip_item_name: 'Ayam Bakar', category: 'Main', on_stream: true, stok: 0, tersedia: 0 },
-    ])
-  })
-
-  it('uses returned stock rows for ERP eligibility and joins nonempty settings without losing zero or negative stock', async () => {
+  it('uses returned stock rows for ERP eligibility without losing zero or negative stock', async () => {
     mockCafeItemSettings.mockResolvedValue([
-      { id: 'manual-shared', erpName: 'ERP duplicate', mosName: 'ERP duplicate MOS name', category: 'ERP category', kind: 'WIP', isActive: true, defaultUnitId: null, units: [] },
-      { id: 'raw-zero', erpName: 'Raw rice · ERP', mosName: 'Rice for prep', category: 'Dry goods', kind: 'RAW', isActive: true, defaultUnitId: null, units: [] },
-      { id: 'active-wip', erpName: 'Curry · ERP', mosName: 'Curry base', category: 'Prep', kind: 'WIP', isActive: true, defaultUnitId: null, units: [] },
-      { id: 'inactive-balance', erpName: 'Legacy spice · ERP', mosName: 'Legacy spice', category: 'Seasoning', kind: 'RAW', isActive: false, defaultUnitId: null, units: [] },
-      { id: 'without-row', erpName: 'Unlisted · ERP', mosName: 'Unlisted item', category: 'Other', kind: 'WIP', isActive: true, defaultUnitId: null, units: [] },
+      setting('raw-zero', 'Rice for prep', 'RAW'),
+      setting('active-wip', 'Curry base', 'WIP'),
+      setting('inactive-balance', 'Legacy spice', 'RAW', false),
+      setting('without-row', 'Unlisted item', 'WIP'),
     ])
     const rec = freshRec()
     schemaMock.mockReturnValue(
       makeSchema(
         {
-          wip_items: [{
-            data: [{ id: 'manual-shared', name: 'Manual name wins', category: 'Manual category' }],
-            error: null,
-          }],
           kitchen_stock_for_date: [{
             data: [
-              { wip_item_id: 'manual-shared', usable_qty: 0, available_qty: 0 },
               { wip_item_id: 'raw-zero', usable_qty: 0, available_qty: 0 },
               { wip_item_id: 'active-wip', usable_qty: -4, available_qty: -2 },
               { wip_item_id: 'inactive-balance', usable_qty: 6, available_qty: 6 },
             ],
             error: null,
           }],
-          stream_items: [{ data: [
-            { wip_item_id: 'manual-shared' },
-            { wip_item_id: 'raw-zero' },
-            { wip_item_id: 'active-wip' },
-          ], error: null }],
+          stream_items: [{ data: [{ wip_item_id: 'raw-zero' }, { wip_item_id: 'active-wip' }], error: null }],
         },
         rec,
       ) as never,
@@ -977,63 +765,42 @@ describe('fetchKitchenStock — per-item stock rows for the Stock view (FR-060/0
 
     const rows = await fetchKitchenStock('2026-06-20', STREAM)
     expect(rows).toEqual([
-      { wip_item_id: 'manual-shared', wip_item_name: 'Manual name wins', category: 'Manual category', on_stream: true, stok: 0, tersedia: 0 },
-      { wip_item_id: 'raw-zero', wip_item_name: 'Rice for prep', category: 'Dry goods', on_stream: true, stok: 0, tersedia: 0 },
+      { wip_item_id: 'raw-zero', wip_item_name: 'Rice for prep', category: 'Prep', on_stream: true, stok: 0, tersedia: 0 },
       { wip_item_id: 'active-wip', wip_item_name: 'Curry base', category: 'Prep', on_stream: true, stok: -4, tersedia: -2 },
-      { wip_item_id: 'inactive-balance', wip_item_name: 'Legacy spice', category: 'Seasoning', on_stream: false, stok: 6, tersedia: 6 },
+      { wip_item_id: 'inactive-balance', wip_item_name: 'Legacy spice', category: 'Prep', on_stream: false, stok: 6, tersedia: 6 },
     ])
-    expect(rows.filter(row => row.wip_item_id === 'manual-shared')).toHaveLength(1)
     expect(rows.some(row => row.wip_item_id === 'without-row')).toBe(false)
   })
 
-  it('issue 222: an item off the stream\'s list shows, labelled, only while it holds a balance there', async () => {
+  it('does not list a hand-made item, even while it holds a balance on the stream', async () => {
+    mockCafeItemSettings.mockResolvedValue([setting('esb-1', 'Ayam Bakar', 'WIP')])
     const rec = freshRec()
     schemaMock.mockReturnValue(
       makeSchema(
         {
-          wip_items: [{
-            data: [
-              { id: 'w1', name: 'Ayam Bakar', category: 'Main' },
-              { id: 'w2', name: 'Nasi Goreng', category: 'Main' },
-              { id: 'w3', name: 'Es Teh', category: 'Drinks' },
-              { id: 'w4', name: 'Kopi', category: 'Drinks' },
-            ],
-            error: null,
-          }],
           kitchen_stock_for_date: [{
             data: [
-              { wip_item_id: 'w1', usable_qty: 0, available_qty: 0 },
-              { wip_item_id: 'w2', usable_qty: 5, available_qty: 5 },
-              { wip_item_id: 'w3', usable_qty: 0, available_qty: 0 },
-              { wip_item_id: 'w4', usable_qty: 0, available_qty: -2 },
+              { wip_item_id: 'esb-1', usable_qty: 0, available_qty: 0 },
+              { wip_item_id: 'hand-made', usable_qty: 5, available_qty: 5 },
             ],
             error: null,
           }],
-          stream_items: [{ data: [{ wip_item_id: 'w1' }], error: null }],
+          stream_items: [{ data: [{ wip_item_id: 'esb-1' }, { wip_item_id: 'hand-made' }], error: null }],
         },
         rec,
       ) as never,
     )
     const rows = await fetchKitchenStock('2026-06-20', STREAM)
-    expect(rows.map(r => [r.wip_item_id, r.on_stream])).toEqual([
-      ['w1', true], ['w2', false], ['w4', false],
-    ])
+    expect(rows.map(r => r.wip_item_id)).toEqual(['esb-1'])
     expect(rec.eqs).toEqual(expect.arrayContaining([['branch_id', BRANCH_ID], ['activity', 'kitchen']]))
   })
 
-  it('returns [] when there are no active items', async () => {
+  it('returns [] when the stream has no ESB items', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(
-      makeSchema(
-        {
-          wip_items: [{ data: [], error: null }],
-          kitchen_stock_for_date: [{ data: [], error: null }],
-        },
-        rec,
-      ) as never,
+      makeSchema({ kitchen_stock_for_date: [{ data: [], error: null }], stream_items: [{ data: [], error: null }] }, rec) as never,
     )
-    const rows = await fetchKitchenStock('2026-06-20', STREAM)
-    expect(rows).toEqual([])
+    expect(await fetchKitchenStock('2026-06-20', STREAM)).toEqual([])
   })
 
   it('throws on a stock-fetch error', async () => {
@@ -1041,8 +808,8 @@ describe('fetchKitchenStock — per-item stock rows for the Stock view (FR-060/0
     schemaMock.mockReturnValue(
       makeSchema(
         {
-          wip_items: [{ data: [{ id: 'w1', name: 'Ayam Bakar', category: 'Main' }], error: null }],
           kitchen_stock_for_date: [{ data: null, error: { message: 'fn missing' } }],
+          stream_items: [{ data: [], error: null }],
         },
         rec,
       ) as never,
@@ -1137,7 +904,7 @@ describe('listSubmittedKitchenLogs — the ops_lead review queue (FR-040)', () =
     schemaMock.mockReturnValue(
       makeSchema({ kitchen_logs: [{ data: [], error: null }] }, rec) as never,
     )
-    const cursor = { created_at: '2026-06-20T09:12:00Z', id: 'log-1' }
+    const cursor = { log_date: '2026-06-20', created_at: '2026-06-20T09:12:00Z', id: 'log-1' }
 
     await listSubmittedKitchenLogs('2026-06-20', { before: cursor })
 
@@ -1148,6 +915,38 @@ describe('listSubmittedKitchenLogs — the ops_lead review queue (FR-040)', () =
     expect(rec.orFilters).toEqual([
       `created_at.gt.${cursor.created_at},and(created_at.eq.${cursor.created_at},id.gt.${cursor.id})`,
     ])
+  })
+
+  it('defaults to all dates, ordered by log date before submission time', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema({ kitchen_logs: [{ data: [], error: null }] }, rec) as never,
+    )
+
+    await listSubmittedKitchenLogs()
+
+    expect(rec.eqs).toContainEqual(['status', 'Submitted'])
+    expect(rec.eqs).not.toContainEqual(['log_date', expect.any(String)])
+    expect(rec.orders).toEqual([
+      ['log_date', { ascending: true }],
+      ['created_at', { ascending: true }],
+      ['id', { ascending: true }],
+    ])
+  })
+
+  it('pages the all-date queue after its date/time/id boundary', async () => {
+    const rec = freshRec()
+    schemaMock.mockReturnValue(
+      makeSchema({ kitchen_logs: [{ data: [], error: null }] }, rec) as never,
+    )
+    const cursor = { log_date: '2026-06-19', created_at: '2026-06-19T09:12:00Z', id: 'log-1' }
+
+    await listSubmittedKitchenLogs(undefined, { before: cursor })
+
+    expect(rec.orFilters).toEqual([
+      'log_date.gt.2026-06-19,and(log_date.eq.2026-06-19,or(created_at.gt.2026-06-19T09:12:00Z,and(created_at.eq.2026-06-19T09:12:00Z,id.gt.log-1)))',
+    ])
+    expect(rec.orders[0]).toEqual(['log_date', { ascending: true }])
   })
 
   it('returns [] when nothing is Submitted (the good-empty queue)', async () => {

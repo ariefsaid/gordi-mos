@@ -40,10 +40,17 @@ import { KitchenPlanPage } from './pages/kitchen-plan-page'
 import { KitchenStockPage } from './pages/kitchen-stock-page'
 import { CafeItemSettingsPage } from './pages/cafe-item-settings-page'
 import { CafeWastePage } from './pages/cafe-waste-page'
+import { CafeCountPage } from './pages/cafe-count-page'
+import { CafeReceivePage } from './pages/cafe-receive-page'
+import { CafeReceiptReviewPage } from './pages/cafe-receipt-review-page'
+import { CafeReceiptIssuesPage } from './pages/cafe-receipt-issues-page'
+import { CafeRequestPage } from './pages/cafe-request-page'
+import { CafeRequestReviewPage } from './pages/cafe-request-review-page'
 import { KitchenReviewPage } from './pages/kitchen-review-page'
 import { KitchenPushesPage } from './pages/kitchen-pushes-page'
 import { CafeRootPage } from './pages/cafe-opening-page'
-import { DashboardPage } from './pages/dashboard-page'
+import { MoneyPage } from './pages/money-page'
+import { PendingBillsPage } from './pages/pending-bills-page'
 import { BudgetPage } from './pages/budget-page'
 import { PricingPage } from './pages/pricing-page'
 import { AdminUsersPage } from './pages/admin-users-page'
@@ -149,8 +156,8 @@ const WIRING: ReadonlyArray<readonly [path: string, component: unknown, provenan
   ['/work/projects', ProjectsProcessesPage, 'dev'],
   ['/work/projects/:workLineId', WorkLineRecordPage, 'redesign'],
   ['/work/events', EventsWorkspacePage, 'dev'], 
-  ['/money', DashboardPage, 'dev'],
-  ['/money/detail', DashboardPage, 'dev'],
+  ['/money', MoneyPage, 'dev'],
+  ['/money/pending-bills', PendingBillsPage, '1464'],
   ['/money/budget', BudgetPage, 'dev'],
   ['/money/pricing', PricingPage, 'dev'],
   ['/money/follow-ups', FollowUpsPage, 'dev'],
@@ -161,6 +168,12 @@ const WIRING: ReadonlyArray<readonly [path: string, component: unknown, provenan
   ['/cafe/production', KitchenLogPage, 'dev'],
   ['/cafe/transfer', KitchenLogPage, 'dev'],
   ['/cafe/waste', CafeWastePage, '1241'],
+  ['/cafe/count', CafeCountPage, '1366'],
+  ['/cafe/receive', CafeReceivePage, '1422'],
+  ['/cafe/receive/review', CafeReceiptReviewPage, '1422'],
+  ['/cafe/receive/issues', CafeReceiptIssuesPage, '1422'],
+  ['/cafe/request', CafeRequestPage, '1428'],
+  ['/cafe/request/review', CafeRequestReviewPage, '1428'],
   ['/cafe/plan', KitchenPlanPage, 'dev'],
   ['/cafe/stock', KitchenStockPage, 'dev'],
   ['/cafe/items', CafeItemSettingsPage, '1242'],

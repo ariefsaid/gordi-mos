@@ -26,6 +26,7 @@
 // whole-record note (why nothing is editable here — mutations live in the queue) is carried
 // ONCE by RecordViewer's footer via permission.reason, never stamped per field (LAW-6 / F3).
 import { formatIDR } from '@/lib/format/money'
+import { ListPaging } from '@/components/ui/list-paging'
 import { RecordFieldList } from '@/components/records/record-viewer'
 import type {
   RecordContentSlot,
@@ -40,6 +41,10 @@ export interface FollowUpRecordAdapterInput {
   row: FollowUpRow
   events: readonly FollowUpEvent[]
   people: readonly PersonOption[]
+  eventsHasMore?: boolean
+  eventsLoadingMore?: boolean
+  eventsMoreError?: boolean
+  onLoadMoreEvents?: () => void
 }
 
 const KIND_LABEL: Record<FollowUpRow['kind'], string> = {
@@ -141,25 +146,33 @@ export function createFollowUpRecordAdapter(input: FollowUpRecordAdapterInput): 
   const auditSlot: RecordContentSlot = {
     id: 'audit',
     label: 'Audit history',
-    render: () =>
-      events.length === 0 ? (
-        <p className="record-follow-up-audit-empty">No history recorded yet.</p>
-      ) : (
-        <ul className="record-viewer__activity">
-          {events.map((event) => {
-            const detail = describeEvent(event)
-            return (
-              <li key={event.id} className="record-viewer__activity-item">
-                <span>{TRANSITION_LABEL[event.transition] ?? event.transition}</span>
-                {detail && <span className="record-viewer__activity-detail"> — {detail}</span>}
-                <time dateTime={event.created_at} className="record-viewer__activity-time">
-                  {event.created_at}
-                </time>
-              </li>
-            )
-          })}
-        </ul>
-      ),
+    render: () => (
+      <>
+        {events.length === 0 ? (
+          <p className="record-follow-up-audit-empty">No history recorded yet.</p>
+        ) : (
+          <ul className="record-viewer__activity">
+            {events.map((event) => {
+              const detail = describeEvent(event)
+              return (
+                <li key={event.id} className="record-viewer__activity-item">
+                  <span>{TRANSITION_LABEL[event.transition] ?? event.transition}</span>
+                  {detail && <span className="record-viewer__activity-detail"> — {detail}</span>}
+                  <time dateTime={event.created_at} className="record-viewer__activity-time">
+                    {event.created_at}
+                  </time>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+        {input.eventsHasMore || events.length > 0 ? (
+          <ListPaging count={events.length} hasMore={input.eventsHasMore ?? false}
+            loading={input.eventsLoadingMore} error={input.eventsMoreError}
+            onLoadMore={input.onLoadMoreEvents ?? (() => {})} />
+        ) : null}
+      </>
+    ),
   }
 
   const contentSlots: RecordContentSlot[] = [

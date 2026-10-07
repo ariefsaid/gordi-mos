@@ -429,13 +429,13 @@ describe('AdminUsersPage — the person panel reflects fresh data after a Positi
     await user.click(screen.getByRole('menuitem', { name: /^manage person$/i }))
 
     const box = screen.getByRole('checkbox', { name: /kitchen lead/i })
-    expect(box).toHaveAttribute('aria-checked', 'false')
+    expect(box).not.toBeChecked()
 
     await user.click(box) // assignJabatan → refresh() returns the assigned Position
 
     // With the stale-snapshot bug the panel would stay unchecked; the fix re-derives it from fresh data.
     await waitFor(() =>
-      expect(screen.getByRole('checkbox', { name: /kitchen lead/i })).toHaveAttribute('aria-checked', 'true'),
+      expect(screen.getByRole('checkbox', { name: /kitchen lead/i })).toBeChecked(),
     )
   })
 })

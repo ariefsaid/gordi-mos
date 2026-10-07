@@ -573,6 +573,7 @@ describe('AC-065 / AC-008 — archived rows hidden by default; Include archived 
     expect(mockListTasks).toHaveBeenCalledWith(
       { includeArchived: false },
       expect.objectContaining({ read: expect.any(Function) }),
+      expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
     )
   })
 
@@ -608,6 +609,7 @@ describe('AC-065 / AC-008 — archived rows hidden by default; Include archived 
       expect(mockListTasks).toHaveBeenLastCalledWith(
         { includeArchived: true },
         expect.objectContaining({ read: expect.any(Function) }),
+        expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
       )
     })
     await waitFor(() => screen.getByText('Archived task'))
@@ -806,10 +808,9 @@ describe('Fix M2 — task count suppressed in error state', () => {
     renderPage()
     await waitFor(() => screen.getByText('Default task'))
     // Goal-oracle: the loaded count is visible. OD-REDESIGN-91 #17 makes the head meta
-    // explicitly distinguish open work from what the current view holds (DD-COUNT-1 #1194:
-    // the second number says "shown" — Done rows kept 7 days included).
+    // explicitly distinguish visible task rows from their open subset.
     const countLine = document.querySelector('[data-testid="tasks-count-line"]')
-    expect(countLine?.textContent).toContain('2 open in this view · 2 shown')
+    expect(countLine?.textContent).toContain('2 tasks · 2 open')
   })
 })
 

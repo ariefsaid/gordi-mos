@@ -201,7 +201,7 @@ describe.runIf(APP_RELEASE_PROFILE === 'cafe')('Cafe profile reachability', () =
   })
 
   it('keeps Cafe, Inbox, account, and Admin routes reachable', () => {
-    for (const path of ['/cafe', '/cafe/plan', '/cafe/production', '/cafe/transfer', '/cafe/waste', '/inbox', '/profile', '/admin/people', '/admin/teams', '/admin/access']) {
+    for (const path of ['/cafe', '/cafe/plan', '/cafe/production', '/cafe/transfer', '/cafe/waste', '/cafe/count', '/cafe/receive', '/cafe/receive/review', '/cafe/receive/issues', '/cafe/request', '/cafe/request/review', '/inbox', '/profile', '/admin/people', '/admin/teams', '/admin/access']) {
       const leaf = leafInThisTable(path)
       expect(leaf, `${path} is missing from the production route table`).toBeDefined()
       expect(isRedirect(leaf?.route.element), `${path} is redirected by the Cafe profile`).toBe(false)

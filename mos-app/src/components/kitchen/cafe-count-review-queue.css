@@ -1,0 +1,196 @@
+.cafe-count-review {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  margin: 0 0 24px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--background);
+}
+
+.cafe-count-review--empty {
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+}
+.cafe-count-review--empty .cafe-count-review__header {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.cafe-count-review__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.cafe-count-review__header h2 {
+  margin: 0;
+  color: var(--foreground);
+  font-size: var(--font-size-heading);
+  font-weight: 600;
+}
+
+.cafe-count-review__header p {
+  margin: 5px 0 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-body);
+  line-height: 1.45;
+}
+
+.cafe-count-review__date {
+  flex: 0 0 auto;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  font-variant-numeric: tabular-nums;
+}
+
+.cafe-count-review__empty {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+.cafe-count-review__empty p {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-body);
+  line-height: 1.4;
+}
+.cafe-count-review__empty .btn { min-height: 44px; }
+
+.cafe-count-review__list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cafe-count-review__row {
+  display: grid;
+  grid-template-columns: minmax(160px, 1.2fr) minmax(330px, 2fr) minmax(180px, auto);
+  align-items: center;
+  gap: 18px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.cafe-count-review__identity,
+.cafe-count-review__facts,
+.cafe-count-review__decision { min-width: 0; }
+
+.cafe-count-review__name {
+  color: var(--foreground);
+  font-size: var(--font-size-body-lg);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.cafe-count-review__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin-top: 5px;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+}
+
+.cafe-count-review__meta > span + span::before {
+  content: '·';
+  margin-right: 8px;
+}
+
+.cafe-count-review__facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.cafe-count-review__facts > div { min-width: 0; }
+
+.cafe-count-review__facts dt {
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+}
+
+.cafe-count-review__facts dd {
+  margin: 4px 0 0;
+  color: var(--foreground);
+  font-size: var(--font-size-body-lg);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.cafe-count-review__facts dd span {
+  display: block;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  font-variant-numeric: normal;
+}
+
+.cafe-count-review__decision {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.cafe-count-review__confirm {
+  min-width: 120px;
+  min-height: 44px;
+}
+
+.cafe-count-review__state {
+  max-width: 260px;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-body);
+  line-height: 1.4;
+  text-align: right;
+}
+
+.cafe-count-review__error,
+.cafe-count-review__offline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0;
+  color: var(--destructive);
+  font-size: var(--font-size-body);
+}
+
+.cafe-count-review__error .btn { min-height: 44px; }
+
+@media (max-width: 800px) {
+  .cafe-count-review { padding: 14px; }
+
+  .cafe-count-review__row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+    padding: 13px;
+  }
+
+  .cafe-count-review__facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: 12px;
+  }
+
+  .cafe-count-review__decision { justify-content: stretch; }
+  .cafe-count-review__confirm { width: 100%; }
+  .cafe-count-review__state { max-width: none; text-align: left; }
+}
+
+@media (max-width: 420px) {
+  .cafe-count-review__header { display: grid; gap: 6px; }
+  .cafe-count-review__empty { align-items: flex-start; }
+  .cafe-count-review__empty .btn { flex: 0 0 auto; }
+  .cafe-count-review__facts { gap: 10px 8px; }
+  .cafe-count-review__facts dd { font-size: var(--font-size-body); }
+}

@@ -29,10 +29,10 @@ export interface PageHeadProps {
    */
   variant?: 'prose' | 'content'
   /**
-   * Content-variant only — the integer record count rendered as the `.ch-count`
+   * Content-variant only — the record count rendered as the `.ch-count`
    * pill (mockup `.ch-count`). `null` (loading/error) omits the pill.
    */
-  count?: number | null
+  count?: number | string | null
   /**
    * Content-variant only — the right-aligned primary action node (mockup
    * `.ch-action`, e.g. the "+ New task" link). Rendered only when provided so

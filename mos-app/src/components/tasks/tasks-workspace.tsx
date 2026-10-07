@@ -10,6 +10,7 @@ import { writeCollectionQuery } from '@/lib/record-collection/query-state'
 import { collectionDisclosureSummary } from '@/lib/record-collection/disclosure-summary'
 import { useSetCollectionLeaf } from '@/shell/breadcrumb-title'
 import { RecordCollectionSurface } from '@/components/record-collection/record-collection'
+import { ListPaging } from '@/components/ui/list-paging'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import type { PageFamilyState } from '@/shell/page-families'
 import { HelpTip } from '@/components/ui/help-tip'
@@ -271,6 +272,7 @@ export function TasksWorkspace({
     controller.retry()
   }, [completedTaskId, controller, setCompletedTaskId])
   const { state } = controller
+  const [hasPagedOlderDone, setHasPagedOlderDone] = useState(false)
   // The engine keeps presentation separate from query for compatibility checks; expose the
   // canonical layout in the domain query consumed by the toolbar/runtime without writing a second
   // query owner.
@@ -843,20 +845,31 @@ export function TasksWorkspace({
     query.q !== '' || query.businessUnitId !== null || query.status !== null
     || query.picId !== null || query.supervisorId !== null || query.personId !== null
     || query.overdueOnly)
-  const emptyTitle = query.includeArchived
-    ? t('tasks.empty.archivedTitle')
-    : mineViewUnfiltered
-      ? t('tasks.empty.mineTitle')
-      : t('tasks.empty.noTasksTitle')
-  const emptyCopy = query.includeArchived
-    ? t('tasks.empty.archivedCopy')
-    : mineViewUnfiltered
-      ? t('tasks.empty.mineCopy')
-      : t('tasks.empty.noTasksCopy')
+  const taskDisclosure = taskDisclosureSummary(query, t, activeView.label)
+  const emptyLoadedTasks = t('common.paging.emptyFiltered', { items: t('collection.items.tasks') })
+  const hasEmptyMatchFilter = !mineViewUnfiltered && (
+    taskDisclosure.hasActiveFilters || query.view === 'overdue'
+    || (query.view === 'all' && viewerOrgWide === false)
+  )
+  const isFilteredEmptyWithMore = state.status === 'filtered-empty'
+    && hasEmptyMatchFilter && dataContext?.olderDoneHasMore !== false
+  const emptyTitle = isFilteredEmptyWithMore
+    ? emptyLoadedTasks
+    : query.includeArchived
+      ? t('tasks.empty.archivedTitle')
+      : mineViewUnfiltered
+        ? t('tasks.empty.mineTitle')
+        : t('tasks.empty.noTasksTitle')
+  const emptyCopy = isFilteredEmptyWithMore
+    ? ''
+    : query.includeArchived
+      ? t('tasks.empty.archivedCopy')
+      : mineViewUnfiltered
+        ? t('tasks.empty.mineCopy')
+        : t('tasks.empty.noTasksCopy')
 
   const personOptions = dataContext?.people ?? []
   const buOptions = dataContext?.businessUnits ?? []
-  const taskDisclosure = taskDisclosureSummary(query, t, activeView.label)
   const tasksToolbar = (
     <TasksToolbar
       query={query}
@@ -901,6 +914,7 @@ export function TasksWorkspace({
     drawerOpen: recordOpen,
     splitLayout,
     isDesktop,
+    hasPagedOlderDone,
     recordSearch: searchString(liveParams),
     statusOverrides: runtimeStatusOverrides,
     onOpenTask,
@@ -938,7 +952,7 @@ export function TasksWorkspace({
     recordOpen, draftTask, host.session, isDesktop, onAddTask,
     liveParams,
     onCloseDrawer, onDiscardNewTask, onEditTitle, onEditStatus, onEditDue, onEditPic, onEditTeam, onEditSupervisor, onNewTask, onOpenTask, onClearFilters, onSortChange,
-    processStartTeamIds, records, retry, runtimeStatusOverrides, selectedId, setQuery, splitLayout, draftLinkError, onRetryDraftLink, viewerTeams, viewerOrgWide,
+    processStartTeamIds, records, retry, runtimeStatusOverrides, selectedId, setQuery, splitLayout, draftLinkError, onRetryDraftLink, viewerTeams, viewerOrgWide, hasPagedOlderDone,
   ])
   // Projects & Processes the viewer can read (RLS scopes the catalog), for the create form.
   const createContext: TaskCreateContextValue = useMemo(() => ({
@@ -992,19 +1006,17 @@ export function TasksWorkspace({
         </button>
       ) : undefined}
       meta={
-        // OD-REDESIGN-91 #17 (F2) + DD-COUNT-1 (#1194): counts are OPEN everywhere — the head
-        // meta reads "9 open in this view · 11 shown" (the view's own count, labelled as such;
-        // "shown" includes Done rows kept 7 days; the rail badge is the viewer's own open
-        // tasks, #1129). ONE muted meta sentence in the E7 grammar, a single font size (the body
-        // token), every number followed by its noun (the naked-numbers guard). Live counts;
-        // "—" while loading or on error. The "?" help tip is retired (#743 AC-009): its
-        // sentence lives in the true-empty copy now.
+        // Name the visible task count and its open subset in one muted meta sentence.
+        // Counts stay live; "—" is shown while loading or on error.
         <span data-testid="tasks-count-line" className="ch-meta-line tabular-nums">
           {stats === null
             ? '—'
             : [
+                t(
+                  stats.total === 1 ? 'tasks.meta.taskCount.one' : 'tasks.meta.taskCount.other',
+                  { count: stats.total },
+                ),
                 t('tasks.meta.openCount', { count: stats.open }),
-                t('tasks.meta.totalCount', { count: stats.total }),
               ].join(' · ')}
         </span>
       }
@@ -1026,13 +1038,35 @@ export function TasksWorkspace({
               filteredEmpty={{
                 items: t('collection.items.tasks'),
                 clear: onClearFilters,
-                title: mineViewUnfiltered ? emptyTitle : undefined,
-                copy: mineViewUnfiltered ? emptyCopy : undefined,
+                title: isFilteredEmptyWithMore
+                  ? emptyLoadedTasks
+                  : mineViewUnfiltered ? emptyTitle : undefined,
+                copy: isFilteredEmptyWithMore
+                  ? undefined
+                  : mineViewUnfiltered ? emptyCopy : undefined,
                 create: <Link ref={(node) => { createControlRef.current = node }} to={{ pathname: '/work/tasks', search: (() => { const next = new URLSearchParams(liveParams); next.set('create', '1'); return `?${next.toString()}` })() }} onClick={(event) => { event.preventDefault(); onNewTask() }} className="btn btn-primary">{t('tasks.new')}</Link>,
               }}
               error={{ message: t('tasks.error.load'), retry }}
               loadingLabel={t('tasks.loading')}
             />
+            {dataContext && state.status !== 'loading' && state.status !== 'error' && state.status !== 'permission'
+              && (query.status === null || query.status === 'Done')
+              && !query.overdueOnly && query.view !== 'overdue'
+              ? <ListPaging
+                  count={projection?.visibleRecords.length ?? 0}
+                  hasMore={dataContext.olderDoneHasMore !== false}
+                  loading={state.loadingMore}
+                  error={Boolean(state.moreError)}
+                  moreLabel={t('tasks.showOlderDone')}
+                  emptyItems={state.status === 'filtered-empty' && hasEmptyMatchFilter
+                    ? t('collection.items.tasks')
+                    : undefined}
+                  onLoadMore={async () => {
+                    await controller.loadMore()
+                    if ((controller.state.projection?.visibleRecords.length ?? 0) >= 50) setHasPagedOlderDone(true)
+                  }}
+                />
+              : null}
             </TaskCreateContext.Provider>
           </TaskCollectionRuntimeProvider>
         </section>

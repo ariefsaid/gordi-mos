@@ -46,23 +46,14 @@ number is written to the group and fanned out to every kitchen log, keeping
 `posted_to_esb` load-bearing for future enqueue refusal.
 
 ════════════════════════════════════════════════════════════════════════════════════════
-Other decisions this ticket owed (raised, not settled, by the integrations squash)
+Worker retry and dispatch policy
 ════════════════════════════════════════════════════════════════════════════════════════
-RETRY BUDGET lives here, in the worker, as ESB_MAX_RETRY (default 5) — the schema
-declined it deliberately. Unlike the incumbent, which skipped a row at budget and left
-it pending forever ("until manual reset of retry_count"), this worker moves it to
-dead_letter, which is the state the schema already models and the drain filter already
-excludes. Failures are classified: a transient fault (network, timeout, 5xx, 408, 429)
-spends one retry; a permanent one (guard refusal, unmapped item, 4xx from the ERP,
-unknown endpoint) dead-letters on first sight, because five identical rejections is not
-resilience.
-
-THE WAY OUT OF dead_letter is `--requeue <id>`, and it is deliberately not automatic.
-The app tier holds no UPDATE grant on the outbox at all, so the only party that can
-requeue is whoever holds the service key and ran this command — the gate is possession
-plus intent, and the row keeps its last_error as the record of why it stopped. A
-role-gated RPC would be better and is a follow-up; inventing one here would have been a
-schema change this ticket does not own.
+RETRY BUDGET lives here, in the worker, as ESB_MAX_RETRY (default 5). Transient faults
+(network, timeout, 5xx, 408, 429) spend one retry; permanent faults (guard refusal,
+unmapped item, 4xx from the ERP, unknown endpoint) dead-letter on first sight. Failed
+rows carry a database-scheduled next_attempt_at and become claimable only when the
+service-role reaper promotes them. Dead-letter is terminal; the worker has no requeue
+command and cannot bypass the database transition graph.
 
 ERP BRANCH AND LOCATION IDS live in the map file, per environment. They are not in the
 canonical branch catalog (OD-WAY-39 ruled that column out) and they are not constants in
@@ -107,18 +98,31 @@ Environment
   ESB_USERNAME / ESB_PASSWORD     this environment's own credentials
   ESB_PUSH_ENABLED          "1" to actually POST. A drain REQUIRES it — anything else and
                             the tick is refused, because rehearsal is --plan (see above).
-  ESB_ALLOW_GKID            "1" lifts the block on the ERP of record (owner-gated flip)
+  ESB_ALLOW_GKID            "1" lifts the block on the ERP of record for a drain or
+                            --plan (owner-gated flip). It does not enable --refresh-open-pos.
+  ESB_ALLOW_GKID_READ       "1" lifts that block for --refresh-open-pos only, which reads
+                            ESB and posts nothing. Every other path ignores it, so it
+                            never unlocks posting.
   ESB_MAX_RETRY             retry budget before dead_letter (default 5)
   ESB_MAX_ROWS              rows drained per tick (default 50)
   ESB_HTTP_TIMEOUT          seconds (default 30)
   ESB_WORKER_HEARTBEAT_FILE optional path touched each time a drain tick reached the outbox
                             (scripts/ops-check.sh alerts when it goes stale). Not touched by
-                            --plan, --rows-from or --requeue.
+                            --plan or --rows-from.
+  ESB_OPEN_PO_ORG_ID        --refresh-open-pos only: the one organisation whose open-PO
+                            cache this environment fills
+  ESB_OPEN_PO_MAX_AGE_MINUTES  age after which a cache reads "difference not yet known"
+                            (default 360); keep it above the schedule's interval
+  ESB_OPEN_PO_WINDOW_DAYS   PO date window read from ESB, 1..366 (default 120)
+  ESB_OPEN_PO_SHAPE_FILE    optional JSON overriding OpenPoShape fields (FR-1033)
 
 Map file:
   {"target_env": "goo",
    "branches": {"<mos branch code>": {"branch_id": 0, "location_id": 0}, ...},
-   "items":    {"<mos wip_item_id uuid>": {"bom_id": 0, "product_detail_id": 0}, ...}}
+   "items":    {"<mos wip_item_id uuid>": {"bom_id": 0, "product_detail_id": 0}, ...},
+   "item_units": {"<mos item_unit uuid>": {"product_detail_id": 0}, ...}}
+  "item_units" is optional; the open-PO refresh uses it to name an ESB PO line's MOS product
+  detail. On the ERP of record ("items": "from-payload") the MOS catalog's own ids are used.
   "items" may be the string "from-payload" ONLY when target_env is "gkid"; the loader
   refuses that combination anywhere else, which is the safety line enforced at config
   time as well as at dispatch time.
@@ -128,7 +132,9 @@ Usage:
                                                 #   write nothing, print the requests
   python3 scripts/esb-worker.py                 # drain one tick (needs ESB_PUSH_ENABLED)
   python3 scripts/esb-worker.py --rows-from f.json --plan     # hermetic rehearsal
-  python3 scripts/esb-worker.py --requeue <uuid>              # dead_letter -> pending
+  python3 scripts/esb-worker.py --refresh-open-pos all        # schedule: every mapped branch
+  python3 scripts/esb-worker.py --refresh-open-pos requested  # on demand: approval asked
+  python3 scripts/esb-worker.py --refresh-open-pos <code>     # on demand: one branch
 
 `--rows-from` REQUIRES `--plan`. The outbox is the authority for what gets drained, never
 a file: a live tick reading rows from a file transmits the file's payload while the
@@ -138,9 +144,10 @@ documented as a rehearsal path and is now only usable as one.
 Exit codes: 0 clean · 2 usage/config/guard-setup error (nothing drained) · 3 one or more
 rows refused or failed (the tick itself ran).
 
-Scheduling is not here. One tick per invocation, cron drives it (deploy is #132); two
-overlapping ticks are safe because a row is claimed pending/failed -> in_flight with a
-conditional update and a worker that loses the race gets nothing back.
+One tick per invocation, cron drives it (deploy is #132). Each tick prunes aged sent rows,
+reaps expired leases and due retries, then claims pending rows atomically through the
+database RPC. Concurrent ticks cannot claim the same row, and leases older than ten
+minutes re-enter the retry schedule instead of remaining stranded.
 
 Python 3 stdlib only — precedent: scripts/reporting_snapshot.py,
 scripts/import-kitchen-history.py.
@@ -151,16 +158,19 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 TARGET_ENVS = ("dry_run", "goo", "gkid")
 ERP_OF_RECORD = "gkid"
+POST_SWITCH = "ESB_ALLOW_GKID"
+READ_SWITCH = "ESB_ALLOW_GKID_READ"
 PASSTHROUGH = "from-payload"
 
 TRANSIENT_STATUS = {408, 429}
@@ -179,9 +189,10 @@ class Classified(Exception):
     whose body merely mentions one.
     """
 
-    def __init__(self, message: str, *, status: int | None = None) -> None:
+    def __init__(self, message: str, *, status: int | None = None, kind: str | None = None) -> None:
         super().__init__(message)
         self.status = status
+        self.kind = kind
 
 
 class Permanent(Classified):
@@ -190,6 +201,21 @@ class Permanent(Classified):
 
 class Transient(Classified):
     """This row might succeed later — spend one retry."""
+
+
+class Unrecognised(Transient):
+    """An ESB reply this worker's configured shape does not recognise."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message, kind="shape_unrecognised")
+
+
+def error_class(exc: Classified) -> str:
+    """What may be stored where in-app readers see it: a class, never the ESB host, path or
+    body. The full message belongs in the worker's own log."""
+    if exc.kind:
+        return exc.kind
+    return f"http_{exc.status}" if exc.status else "read_failed"
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════
@@ -204,6 +230,7 @@ class IdMap:
     target_env: str
     branches: dict[str, dict[str, int]]
     items: dict[str, dict[str, int]] | str
+    item_units: dict[str, dict[str, int]] = field(default_factory=dict)
 
     @property
     def passthrough(self) -> bool:
@@ -256,7 +283,6 @@ class Config:
     esb_username: str
     esb_password: str
     push_enabled: bool
-    allow_gkid: bool
     max_retry: int
     max_rows: int
     timeout: float
@@ -275,6 +301,12 @@ def _as_int(value: Any, what: str) -> int:
 
 def _flag(environ: dict[str, str], name: str) -> bool:
     return environ.get(name, "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _require_https(name: str, value: str) -> None:
+    parsed = urllib.parse.urlsplit(value)
+    if value and (parsed.scheme.lower() != "https" or not parsed.netloc):
+        raise ConfigError(f"{name} must use an HTTPS URL")
 
 
 def load_id_map(path: str, target_env: str) -> IdMap:
@@ -328,23 +360,33 @@ def load_id_map(path: str, target_env: str) -> IdMap:
         raise ConfigError(f"id map {path} needs an `items` object, or the string "
                           f"{PASSTHROUGH!r} on the ERP of record")
 
-    return IdMap(target_env=target_env, branches=branches, items=items)
+    item_units = raw.get("item_units", {})
+    if not isinstance(item_units, dict):
+        raise ConfigError(f"id map {path}: `item_units` must be an object")
+    for unit, entry in item_units.items():
+        if not isinstance(entry, dict) or not isinstance(entry.get("product_detail_id"), int):
+            raise ConfigError(f"id map {path}: item unit {unit!r} needs an integer "
+                              f"`product_detail_id`")
+
+    return IdMap(target_env=target_env, branches=branches, items=items, item_units=item_units)
 
 
-def load_config(environ: dict[str, str], *, offline: bool, drains: bool) -> Config:
+def load_config(environ: dict[str, str], *, offline: bool, drains: bool,
+                gkid_switch: str = POST_SWITCH) -> Config:
     """`drains` is True for an invocation that will claim rows and close them — i.e. a
-    tick that is neither --plan nor --requeue. It is the predicate the rehearsal refusal
-    hangs on; see THE SAFETY LINE at the top."""
+    tick that is not --plan. It is the predicate the rehearsal refusal hangs on; see THE
+    SAFETY LINE at the top. `gkid_switch` names the one flag that lifts the block on the
+    ERP of record; only the open-PO refresh passes READ_SWITCH."""
     target_env = environ.get("ESB_WORKER_TARGET_ENV", "").strip() or "dry_run"
     if target_env not in TARGET_ENVS:
         raise ConfigError(f"ESB_WORKER_TARGET_ENV must be one of {', '.join(TARGET_ENVS)}")
 
-    allow_gkid = _flag(environ, "ESB_ALLOW_GKID")
-    if target_env == ERP_OF_RECORD and not allow_gkid:
+    if target_env == ERP_OF_RECORD and not _flag(environ, gkid_switch):
         raise ConfigError(
-            "refusing to target the ERP of record: ESB_ALLOW_GKID is not set. The flip "
-            "is owner-gated (OD-K-2, FR-080..082) and is not something a worker enables "
-            "for itself."
+            f"refusing to target the ERP of record: {gkid_switch} is not set. The flip "
+            f"is owner-gated (OD-K-2, FR-080..082) and is not something a worker enables "
+            f"for itself. Reading and posting are switched separately: {READ_SWITCH} for "
+            f"--refresh-open-pos, {POST_SWITCH} for everything else."
         )
 
     map_file = environ.get("ESB_WORKER_MAP_FILE", "").strip()
@@ -396,6 +438,8 @@ def load_config(environ: dict[str, str], *, offline: bool, drains: bool) -> Conf
 
     supabase_url = environ.get("MOS_SUPABASE_URL", "").strip().rstrip("/")
     supabase_key = environ.get("MOS_SUPABASE_SERVICE_ROLE_KEY", "").strip()
+    _require_https("MOS_SUPABASE_URL", supabase_url)
+    _require_https("ESB_BASE_URL", esb_base)
     if not offline and not (supabase_url and supabase_key):
         raise ConfigError("MOS_SUPABASE_URL and MOS_SUPABASE_SERVICE_ROLE_KEY are "
                           "required to reach the outbox")
@@ -404,7 +448,7 @@ def load_config(environ: dict[str, str], *, offline: bool, drains: bool) -> Conf
         target_env=target_env, id_map=id_map,
         supabase_url=supabase_url, supabase_key=supabase_key,
         esb_base_url=esb_base, esb_username=username, esb_password=password,
-        push_enabled=push_enabled, allow_gkid=allow_gkid,
+        push_enabled=push_enabled,
         max_retry=_int_env(environ, "ESB_MAX_RETRY", 5),
         max_rows=_int_env(environ, "ESB_MAX_ROWS", 50),
         timeout=float(_int_env(environ, "ESB_HTTP_TIMEOUT", 30)),
@@ -429,6 +473,11 @@ def _int_env(environ: dict[str, str], name: str, default: int) -> int:
 # ══════════════════════════════════════════════════════════════════════════════════════
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
 def _request(method: str, url: str, *, headers: dict[str, str],
              body: Any = None, timeout: float) -> tuple[int, Any]:
     data = None
@@ -438,7 +487,8 @@ def _request(method: str, url: str, *, headers: dict[str, str],
         hdrs["Content-Type"] = "application/json"
     req = urllib.request.Request(url, data=data, headers=hdrs, method=method)
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 - fixed scheme
+        opener = urllib.request.build_opener(_NoRedirect())
+        with opener.open(req, timeout=timeout) as resp:
             raw = resp.read().decode("utf-8") or "null"
             return resp.status, json.loads(raw)
     except urllib.error.HTTPError as exc:
@@ -451,7 +501,11 @@ def _request(method: str, url: str, *, headers: dict[str, str],
         raise Permanent(f"{method} {_safe(url)} -> HTTP {exc.code}: {detail}",
                         status=exc.code) from None
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
-        raise Transient(f"{method} {_safe(url)} failed: {type(exc).__name__}: {exc}") from None
+        kind = ("shape_unrecognised" if isinstance(exc, json.JSONDecodeError)
+                else "timeout" if isinstance(exc, TimeoutError)
+                or isinstance(getattr(exc, "reason", None), TimeoutError) else "network")
+        raise Transient(f"{method} {_safe(url)} failed: {type(exc).__name__}: {exc}",
+                        kind=kind) from None
 
 
 def _safe(url: str) -> str:
@@ -489,7 +543,8 @@ class Outbox:
         The endpoint and target environment filters are guards, not optimisations; noop
         rows have no ERP counterpart and are held permanently."""
         query = urllib.parse.urlencode({
-            "status": "in.(pending,failed)",
+            "status": "eq.pending",
+            "or": f"(next_attempt_at.is.null,next_attempt_at.lte.{_now()})",
             "target_env": f"eq.{self.cfg.target_env}",
             "endpoint": "neq.noop",
             "select": "*",
@@ -532,29 +587,41 @@ class Outbox:
                 result.append(row)
             elif str(gid) in complete and (
                 group_meta.get(str(gid), {}).get('esb_doc_num') or all(
-                    m.get('status') in ('pending', 'failed') and m.get('endpoint') != 'noop'
+                    m.get('status') == 'pending' and m.get('endpoint') != 'noop'
                     for m in complete[str(gid)]
                 )
             ):
                 result.extend(complete.pop(str(gid)))
         return result
 
-    def claim(self, row_id: str) -> bool:
-        """pending|failed -> in_flight, conditionally. Two overlapping ticks cannot both
-        win: the loser's conditional update matches nothing and gets an empty list back.
+    def claim_many(self, row_ids: list[str]) -> set[str]:
+        """Atomically claim the requested pending rows through the database RPC."""
+        if not row_ids:
+            return set()
+        _, rows = _request(
+            "POST", f"{self.cfg.supabase_url}/rest/v1/rpc/claim_esb_pushes",
+            headers=self._headers(write=True), body={"p_row_ids": row_ids},
+            timeout=self.cfg.timeout)
+        return {str(row["id"]) for row in (rows or [])
+                if isinstance(row, dict) and row.get("id")}
 
-        A worker that dies mid-post leaves the row in_flight, outside the drain and
-        still on the ops tier's screen. That is deliberate: for an ERP document,
-        posting nothing and being seen to have stopped beats posting twice."""
-        query = urllib.parse.urlencode({"id": f"eq.{row_id}",
-                                        "status": "in.(pending,failed)"})
-        headers = self._headers(write=True)
-        headers["Prefer"] = "return=representation"
-        _, rows = _request("PATCH",
-                           f"{self.cfg.supabase_url}/rest/v1/esb_push?{query}",
-                           headers=headers, body={"status": "in_flight"},
-                           timeout=self.cfg.timeout)
-        return bool(rows)
+    def claim(self, row_id: str) -> bool:
+        """Claim one pending row, if it is still available."""
+        return row_id in self.claim_many([row_id])
+
+    def reap(self) -> int:
+        """Promote due retries and recover expired worker leases before selecting rows."""
+        _, result = _request(
+            "POST", f"{self.cfg.supabase_url}/rest/v1/rpc/reap_esb_pushes",
+            headers=self._headers(write=True), body={}, timeout=self.cfg.timeout)
+        return int(result or 0)
+
+    def prune(self) -> int:
+        """Remove a bounded batch of sent rows past the retention interval."""
+        _, result = _request(
+            "POST", f"{self.cfg.supabase_url}/rest/v1/rpc/prune_esb_pushes",
+            headers=self._headers(write=True), body={}, timeout=self.cfg.timeout)
+        return int(result or 0)
 
     def _patch(self, row_id: str, patch: dict[str, Any]) -> None:
         query = urllib.parse.urlencode({"id": f"eq.{row_id}"})
@@ -585,20 +652,6 @@ class Outbox:
         self._patch(row["id"], {"status": status, "retry_count": retry,
                                 "last_error": error[:2000]})
         return status
-
-    def requeue(self, row_id: str) -> bool:
-        """dead_letter -> pending, retry budget reset. Conditional on the row actually
-        being dead-lettered, so this cannot be used to yank a row out of flight."""
-        query = urllib.parse.urlencode({"id": f"eq.{row_id}",
-                                        "status": "eq.dead_letter"})
-        headers = self._headers(write=True)
-        headers["Prefer"] = "return=representation"
-        _, rows = _request("PATCH",
-                           f"{self.cfg.supabase_url}/rest/v1/esb_push?{query}",
-                           headers=headers,
-                           body={"status": "pending", "retry_count": 0},
-                           timeout=self.cfg.timeout)
-        return bool(rows)
 
     def patch_group(self, group_id: str, patch: dict[str, Any]) -> None:
         query = urllib.parse.urlencode({"id": f"eq.{group_id}"})
@@ -670,7 +723,7 @@ def _erp_object(value: Any, what: str) -> dict[str, Any]:
     ERP misbehaved, and the row may well post next tick."""
     if not isinstance(value, dict):
         raise Transient(f"ERP {what} returned {type(value).__name__}, not an object: "
-                        f"{str(value)[:200]}")
+                        f"{str(value)[:200]}", kind="shape_unrecognised")
     return value
 
 
@@ -720,8 +773,13 @@ class ErpClient:
                               timeout=self.cfg.timeout)
         out = _erp_object(out, f"{method} {path}")
         if out.get("status") != "ok":
-            raise Permanent(f"ERP {method} {path} returned non-ok: {str(out)[:400]}")
+            raise Permanent(f"ERP {method} {path} returned non-ok: {str(out)[:400]}",
+                            kind="esb_refused")
         return out
+
+    def get(self, path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+        query = f"?{urllib.parse.urlencode(params)}" if params else ""
+        return self._call("GET", f"{path}{query}")
 
     def bom_materials(self, bom_id: int) -> list[dict[str, Any]]:
         result = self._call("GET", f"/product/bom/{bom_id}").get("result")
@@ -946,11 +1004,14 @@ def _run_group(cfg: Config, client: ErpClient, outbox: Outbox | None,
     except Permanent as exc:
         print(f"{ref}: {'REFUSED' if plan_only else 'group failed'} — {exc}", file=out)
         if not plan_only and outbox:
-            for row in rows:
-                outbox.close_failed(row, str(exc), permanent=True)
-            if rows[0].get('push_group_id'):
-                outbox.patch_group(str(rows[0]['push_group_id']), {
-                    'status': 'dead_letter', 'last_error': str(exc)[:2000]})
+            claimed = outbox.claim_many([row["id"] for row in rows])
+            if len(claimed) == len(rows):
+                for row in rows:
+                    row["status"] = "in_flight"
+                    outbox.close_failed(row, str(exc), permanent=True)
+                if rows[0].get('push_group_id'):
+                    outbox.patch_group(str(rows[0]['push_group_id']), {
+                        'status': 'dead_letter', 'last_error': str(exc)[:2000]})
         return len(rows)
     if plan_only:
         if req and req.materials_from:
@@ -966,20 +1027,34 @@ def _run_group(cfg: Config, client: ErpClient, outbox: Outbox | None,
     doc = meta.get('esb_doc_num')
     try:
         if not doc:
-            claimed = [row for row in rows if outbox.claim(row["id"])]
+            claimed = outbox.claim_many([row["id"] for row in rows])
             if len(claimed) != len(rows):
-                # Claim races are not failures of the document. Release our claims
-                # without spending retry budget, then let the next tick retry the group.
-                for row in claimed:
-                    outbox._patch(row["id"], {"status": "failed", "retry_count": int(row.get('retry_count') or 0),
-                                               "last_error": "approval group could not claim every member"})
+                # The RPC claims all requested members or none, so a lost race cannot
+                # leave a partial group lease or create a short ERP document.
                 outbox.patch_group(gid, {"status": "failed",
                                          "last_error": "approval group could not claim every member"})
                 print(f"{ref}: group failed — could not claim every member", file=out)
                 return len(rows)
+            for row in rows:
+                row["status"] = "in_flight"
             doc = dispatch(cfg, client, req)
             # Persist the ERP receipt before fan-out. This is the resume checkpoint.
             outbox.patch_group(gid, {"status": "in_flight", "esb_doc_num": doc})
+        else:
+            if any(row.get("status") == "dead_letter" for row in rows):
+                print(f"{ref}: group has a terminal member; ERP receipt retained for operator review", file=out)
+                return len(rows)
+            if any(row.get("status") == "failed" for row in rows):
+                print(f"{ref}: group waiting for its scheduled retry", file=out)
+                return 0
+            pending_rows = [row for row in rows if row.get("status") == "pending"]
+            if pending_rows:
+                claimed = outbox.claim_many([row["id"] for row in pending_rows])
+                if len(claimed) != len(pending_rows):
+                    print(f"{ref}: group resume claim raced; retrying next tick", file=out)
+                    return 0
+                for row in pending_rows:
+                    row["status"] = "in_flight"
         for row in rows:
             if row.get('status') == 'posted':
                 # A prior tick can close the outbox row before its kitchen-log mirror.
@@ -1032,8 +1107,13 @@ def run_tick(cfg: Config, rows: list[dict[str, Any]], *,
             req = compose(cfg, row, wip_names)
         except Permanent as exc:
             bad += 1
-            state = "REFUSED" if plan_only else (
-                outbox.close_failed(row, str(exc), permanent=True) if outbox else "REFUSED")
+            if plan_only:
+                state = "REFUSED"
+            elif outbox and outbox.claim(row["id"]):
+                row["status"] = "in_flight"
+                state = outbox.close_failed(row, str(exc), permanent=True)
+            else:
+                state = "already claimed by another tick — skipped"
             print(f"{ref}: {state} — {exc}", file=out)
             continue
 
@@ -1073,6 +1153,280 @@ def run_tick(cfg: Config, rows: list[dict[str, Any]], *,
     return bad
 
 
+# ══════════════════════════════════════════════════════════════════════════════════════
+# The open-PO cache (FR-1031..1033) — a READ of ESB, written to MOS, never posted anywhere
+# ══════════════════════════════════════════════════════════════════════════════════════
+# ESB cannot search purchase orders by item, so the worker keeps each mapped branch's open
+# POs (Authorized, Receiving) with their outstanding lines in MOS. A branch's cache is
+# replaced whole or not at all: any failed or malformed read leaves the previous cache in
+# place, marked stale, and the receiver sees "difference not yet known".
+#
+# THE FIELD NAMES BELOW ARE NOT PROVEN. Which returned quantity is outstanding, whether the
+# list carries a creation date, and the exact list filter are fixed by the sandbox proof
+# (FR-1033); until then they are configuration, overridable per deployment with
+# ESB_OPEN_PO_SHAPE_FILE (a JSON object of the OpenPoShape fields to change).
+
+WIB = timezone(timedelta(hours=7))
+_UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.I)
+_STAMP = re.compile(r"^(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}:\d{2}(?::\d{2})?))?(Z|[+-]\d{2}:?\d{2})?$")
+
+
+@dataclass(frozen=True)
+class OpenPoShape:
+    list_path: str = "/purchase/purchase-order"
+    branch_param: str = "branchID"
+    status_param: str = "statusID"
+    date_from_param: str = "startDate"
+    date_to_param: str = "endDate"
+    page_param: str = "page"
+    page_size_param: str = "limit"
+    page_size: int = 50
+    max_pages: int = 40
+    statuses: dict[str, str] = field(default_factory=lambda: {"3": "Authorized", "4": "Receiving"})
+    # Known statuses that are not open: such a row is dropped. Any other status is unrecognised.
+    other_statuses: tuple[str, ...] = ("1", "2", "5", "6", "Draft", "Waiting", "Closed", "Rejected")
+    list_rows: str = "result.data"
+    list_total: str = "result.total"
+    number: str = "purchaseOrderNum"
+    supplier: str = "supplierName"
+    po_date: str = "purchaseOrderDate"
+    created: str = "createdDate"
+    status: str = "statusID"
+    outstanding_path: str = "/inventory/goods-receipt/initialize/{number}"
+    detail_lines: str = "result.details"
+    product_detail: str = "productDetailID"
+    product_name: str = "productName"
+    unit_name: str = "unitName"
+    outstanding: str = "outstandingQty"
+    created_tz: str = "+07:00"
+
+
+@dataclass(frozen=True)
+class RefreshConfig:
+    cfg: Config
+    org_id: str
+    max_age_minutes: int
+    window_days: int
+    shape: OpenPoShape
+
+
+def load_refresh_config(environ: dict[str, str]) -> RefreshConfig:
+    """A refresh reads the target environment's ESB with that environment's own
+    credentials and writes one organisation's cache. It posts nothing, so it does not
+    need ESB_PUSH_ENABLED, and on the ERP of record it is lifted by the read switch
+    rather than the posting one — but every other refusal of load_config still applies."""
+    cfg = load_config(environ, offline=False, drains=False, gkid_switch=READ_SWITCH)
+    if cfg.target_env == "dry_run":
+        raise ConfigError("refusing to refresh open POs for 'dry_run': it names no ESB to read")
+    missing = [n for n, v in (("ESB_BASE_URL", cfg.esb_base_url),
+                              ("ESB_USERNAME", cfg.esb_username),
+                              ("ESB_PASSWORD", cfg.esb_password)) if not v]
+    if missing:
+        raise ConfigError(f"refreshing open POs from {cfg.target_env!r} needs "
+                          f"{', '.join(missing)}. This worker never borrows another "
+                          f"environment's credentials.")
+    org_id = environ.get("ESB_OPEN_PO_ORG_ID", "").strip()
+    if not _UUID.match(org_id):
+        raise ConfigError("ESB_OPEN_PO_ORG_ID must name the one organisation whose open-PO "
+                          "cache this environment fills — the id map's branch codes are "
+                          "not unique across organisations")
+    max_age = _int_env(environ, "ESB_OPEN_PO_MAX_AGE_MINUTES", 360)
+    if not 5 <= max_age <= 10080:
+        raise ConfigError("ESB_OPEN_PO_MAX_AGE_MINUTES must be between 5 and 10080")
+    window_days = _int_env(environ, "ESB_OPEN_PO_WINDOW_DAYS", 120)
+    if not 1 <= window_days <= 366:
+        raise ConfigError("ESB_OPEN_PO_WINDOW_DAYS must be between 1 and 366")
+    shape = OpenPoShape()
+    shape_file = environ.get("ESB_OPEN_PO_SHAPE_FILE", "").strip()
+    if shape_file:
+        try:
+            with open(shape_file, encoding="utf-8") as fh:
+                overrides = json.load(fh)
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ConfigError(f"cannot read open-PO shape {shape_file}: {exc}") from None
+        unknown = set(overrides) - set(OpenPoShape.__dataclass_fields__) if isinstance(overrides, dict) else {"<not an object>"}
+        if unknown:
+            raise ConfigError(f"open-PO shape {shape_file} has unknown fields: {sorted(unknown)}")
+        shape = OpenPoShape(**{**shape.__dict__, **overrides})
+    return RefreshConfig(cfg=cfg, org_id=org_id, max_age_minutes=max_age,
+                         window_days=window_days,
+                         shape=shape)
+
+
+def _dig(value: Any, path: str) -> Any:
+    for key in path.split("."):
+        value = value.get(key) if isinstance(value, dict) else None
+    return value
+
+
+def _rpc(cfg: Config, name: str, body: dict[str, Any]) -> Any:
+    _, out = _request("POST", f"{cfg.supabase_url}/rest/v1/rpc/{name}",
+                      headers=_pgrst_headers(cfg, "ops", write=True), body=body,
+                      timeout=cfg.timeout)
+    return out
+
+
+def _created_at(value: Any, tz: str) -> str | None:
+    """ESB's creation stamp as ISO 8601 with an offset, or None when it is absent or in a
+    form this worker does not recognise — the "created after delivery" label then stays
+    off rather than being guessed."""
+    match = _STAMP.match(str(value or "").strip())
+    if not match:
+        return None
+    day, clock, offset = match.groups()
+    clock = (clock or "00:00:00") + (":00" if clock and len(clock) == 5 else "")
+    if offset == "Z":
+        offset = "+00:00"
+    elif offset and ":" not in offset:
+        offset = f"{offset[:3]}:{offset[3:]}"
+    return f"{day}T{clock}{offset or tz}"
+
+
+def _quantity(value: Any, number: str) -> float:
+    try:
+        qty = float(value)
+    except (TypeError, ValueError):
+        raise Unrecognised(f"PO {number}: outstanding quantity is not a number: {value!r}") from None
+    if qty < 0 or qty != qty:
+        raise Unrecognised(f"PO {number}: outstanding quantity is negative or invalid: {value!r}")
+    return qty
+
+
+def mos_units_by_product_detail(rcfg: RefreshConfig) -> dict[str, str]:
+    """ESB product detail id -> MOS item unit, for the environment being read. Outside the
+    ERP of record the id map is the only source (its `item_units`); on the ERP of record
+    the map says the MOS catalog's own identifiers are that ERP's, so they are read from
+    ops.item_units. An ESB line with no entry keeps no MOS product detail and never
+    matches a receipt line."""
+    cfg = rcfg.cfg
+    if not cfg.id_map.passthrough:
+        return {str(e["product_detail_id"]): unit for unit, e in cfg.id_map.item_units.items()}
+    units: dict[str, str] = {}
+    offset = 0
+    while True:
+        query = urllib.parse.urlencode({
+            "org_id": f"eq.{rcfg.org_id}", "esb_product_detail_id": "not.is.null",
+            "select": "id,esb_product_detail_id", "order": "id", "limit": "1000",
+            "offset": str(offset)})
+        _, rows = _request("GET", f"{cfg.supabase_url}/rest/v1/item_units?{query}",
+                           headers=_pgrst_headers(cfg, "ops"), timeout=cfg.timeout)
+        rows = list(rows or [])
+        units.update({str(r["esb_product_detail_id"]): str(r["id"]) for r in rows})
+        if len(rows) < 1000:
+            return units
+        offset += 1000
+
+
+def read_open_pos(rcfg: RefreshConfig, client: ErpClient, esb_branch_id: int,
+                  units: dict[str, str], today: str) -> list[dict[str, Any]]:
+    """One branch's open POs and outstanding lines, in the shape ops.replace_cafe_open_pos
+    takes. Raises on any read or shape fault: a partial list must never replace a whole one."""
+    shape = rcfg.shape
+    end = datetime.strptime(today, "%Y-%m-%d").date()
+    start = (end - timedelta(days=rcfg.window_days)).isoformat()
+    open_names = set(shape.statuses.values())
+    rows: list[dict[str, Any]] = []
+    for status_value in shape.statuses:
+        # A short page proves nothing: a server may cap its page size below the request. The list
+        # ends on an empty page, or once the reported total is reached.
+        listed = 0
+        for page in range(1, shape.max_pages + 2):
+            if page > shape.max_pages:
+                raise Unrecognised(f"the PO list did not end within {shape.max_pages} pages")
+            result = client.get(shape.list_path, {
+                shape.branch_param: esb_branch_id, shape.status_param: status_value,
+                shape.date_from_param: start, shape.date_to_param: today,
+                shape.page_param: page, shape.page_size_param: shape.page_size})
+            batch = _dig(result, shape.list_rows)
+            if not isinstance(batch, list):
+                raise Unrecognised(f"the PO list returned {type(batch).__name__} at "
+                                   f"{shape.list_rows!r}, not a list")
+            rows.extend(batch)
+            listed += len(batch)
+            total = _dig(result, shape.list_total)
+            if not batch or (isinstance(total, int) and listed >= total):
+                break
+
+    pos: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        raw_status = _dig(row, shape.status)
+        status = shape.statuses.get(str(raw_status)) or (raw_status if raw_status in open_names else None)
+        number = str(_dig(row, shape.number) or "").strip()
+        if not number or (status is None and str(raw_status) not in shape.other_statuses):
+            # Never let a reply the shape cannot read become a current, smaller cache.
+            raise Unrecognised(f"a listed PO has no number or an unrecognised status: "
+                               f"{str(raw_status)[:40]!r}")
+        if status is None or number in pos:
+            continue
+        po_date = str(_dig(row, shape.po_date) or "")[:10]
+        try:
+            datetime.strptime(po_date, "%Y-%m-%d")
+        except ValueError:
+            raise Unrecognised(f"PO {number}: PO date is not a date: {_dig(row, shape.po_date)!r}") from None
+        if po_date < start:
+            continue
+        detail = client.get(shape.outstanding_path.format(number=urllib.parse.quote(number, safe="")))
+        lines = _dig(detail, shape.detail_lines)
+        if not isinstance(lines, list):
+            raise Unrecognised(f"PO {number}: the outstanding read returned no line list")
+        pos[number] = {
+            "po_number": number,
+            "supplier_name": str(_dig(row, shape.supplier) or "").strip() or None,
+            "po_date": po_date,
+            "esb_created_at": _created_at(_dig(row, shape.created) or _dig(detail, f"result.{shape.created}"),
+                                          shape.created_tz),
+            "esb_status": status,
+            "lines": [{
+                "item_unit_id": units.get(str(_dig(line, shape.product_detail))),
+                "item_name": str(_dig(line, shape.product_name) or "").strip()
+                             or f"ESB product detail {_dig(line, shape.product_detail)}",
+                "unit_name": str(_dig(line, shape.unit_name) or "").strip() or None,
+                "outstanding_quantity": _quantity(_dig(line, shape.outstanding), number),
+            } for line in lines],
+        }
+    return list(pos.values())
+
+
+def refresh_open_pos(rcfg: RefreshConfig, scope: str, *, out, today: str | None = None) -> int:
+    """Refresh the cache for `scope`: 'all' mapped branches (the schedule), 'requested'
+    (branches whose cache was asked for, e.g. at receipt approval) or one branch code.
+    Returns how many branches were left stale."""
+    cfg = rcfg.cfg
+    if scope in ("all", "requested"):
+        codes = sorted(cfg.id_map.branches)
+    elif scope in cfg.id_map.branches:
+        codes = [scope]
+    else:
+        raise ConfigError(f"branch {scope!r} is not in the {cfg.target_env} id map")
+    today = today or datetime.now(WIB).date().isoformat()
+    targets = _rpc(cfg, "cafe_open_po_refresh_targets", {
+        "p_org_id": rcfg.org_id, "p_codes": codes, "p_requested_only": scope == "requested"})
+    targets = list(targets or [])
+    client = ErpClient(cfg)
+    units = mos_units_by_product_detail(rcfg) if targets else {}
+    stale = 0
+    for target in targets:
+        code, branch_id = target["branch_code"], target["branch_id"]
+        as_of = _now()
+        try:
+            pos = read_open_pos(rcfg, client, cfg.id_map.branch(code)["branch_id"], units, today)
+            _rpc(cfg, "replace_cafe_open_pos", {
+                "p_org_id": rcfg.org_id, "p_branch_id": branch_id, "p_as_of": as_of,
+                "p_max_age_minutes": rcfg.max_age_minutes, "p_pos": pos})
+        except (Permanent, Transient) as exc:
+            stale += 1
+            try:
+                _rpc(cfg, "mark_cafe_open_pos_stale", {
+                    "p_org_id": rcfg.org_id, "p_branch_id": branch_id, "p_error": error_class(exc)})
+                print(f"{code}: STALE ({error_class(exc)}) — previous cache kept — {exc}", file=out)
+            except (Permanent, Transient) as mark_exc:
+                print(f"{code}: STALE, and the stale mark failed — {mark_exc}", file=out)
+            continue
+        lines = sum(len(po["lines"]) for po in pos)
+        print(f"{code}: cached {len(pos)} open PO(s), {lines} line(s), as of {as_of}", file=out)
+    return stale
+
+
 def load_rows(path: str) -> list[dict[str, Any]]:
     try:
         with open(path, encoding="utf-8") as fh:
@@ -1107,10 +1461,27 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--rows-from", metavar="FILE",
                         help="read outbox rows from a JSON array instead of the "
                              "database (rehearsal and self-test). REQUIRES --plan")
-    parser.add_argument("--requeue", metavar="ID",
-                        help="return one dead-lettered row to pending, retry budget "
-                             "reset (operator action)")
+    parser.add_argument("--refresh-open-pos", metavar="SCOPE",
+                        help="read open purchase orders from ESB into the MOS cache: 'all' "
+                             "mapped branches (schedule), 'requested' (on demand) or one "
+                             "branch code. Posts nothing")
     args = parser.parse_args(argv)
+
+    if args.refresh_open_pos:
+        if args.plan or args.rows_from:
+            print("--refresh-open-pos runs alone: it reads ESB and writes only the MOS cache",
+                  file=sys.stderr)
+            return 2
+        try:
+            rcfg = load_refresh_config(dict(os.environ))
+            stale = refresh_open_pos(rcfg, args.refresh_open_pos, out=sys.stdout)
+        except ConfigError as exc:
+            print(f"config: {exc}", file=sys.stderr)
+            return 2
+        except (Permanent, Transient) as exc:
+            print(f"cache unreachable: {exc}", file=sys.stderr)
+            return 2
+        return 3 if stale else 0
 
     if args.rows_from and not args.plan:
         # The dangerous reading of this flag has to be spelled out, not defaulted into.
@@ -1124,7 +1495,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     offline = bool(args.rows_from)
-    drains = not args.plan and not args.requeue
+    drains = not args.plan
     try:
         cfg = load_config(dict(os.environ), offline=offline, drains=drains)
     except ConfigError as exc:
@@ -1132,15 +1503,11 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     try:
-        if args.requeue:
-            if args.plan:
-                print("--requeue and --plan are contradictory", file=sys.stderr)
-                return 2
-            moved = Outbox(cfg).requeue(args.requeue)
-            print(f"{args.requeue}: {'requeued' if moved else 'not dead-lettered — nothing done'}")
-            return 0 if moved else 3
-
         outbox = None if offline else Outbox(cfg)
+        if drains and not offline:
+            assert outbox is not None
+            outbox.prune()
+            outbox.reap()
         rows = load_rows(args.rows_from) if args.rows_from else outbox.pending()  # type: ignore[union-attr]
         if drains and not offline:
             touch_heartbeat(os.environ)

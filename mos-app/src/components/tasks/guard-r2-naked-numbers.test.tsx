@@ -5,7 +5,7 @@
  * pill next to a differently-sized "2 blocked" fragment — number soup with no label
  * sentence ("size soup" incident). The fix: ONE muted meta sentence in a single
  * `.ch-meta-line` at one font token. Since OD-REDESIGN-91 #17 + DD-COUNT-1 #1194 the Tasks
- * sentence reads "N open in this view · M shown" (the view's own count; the rail badge is the
+ * sentence reads "N tasks · M open in this view" (the view's own count; the rail badge is the
  * viewer's own open tasks).
  * Skill rule mechanized: impeccable distill "Every element should justify its existence"
  * (.claude/skills/impeccable/reference/distill.md) — a digit with no attached noun carries
@@ -17,7 +17,7 @@
  * descendant leaf anywhere in the head whose entire text is a bare number.
  *
  * #192 (Tasks) scope note: v4's version of this file ALSO enumerates the same guard onto the
- * Money (dashboard-page.tsx), Budget (budget-page.tsx) and Pricing (pricing-page.tsx) page heads
+ * Money (money-page.tsx), Budget (budget-page.tsx) and Pricing (pricing-page.tsx) page heads
  * (census R2 DO-7 and r5 F-1). Those three cases are dropped here — the pages themselves differ
  * between `dev` and v4 by 300+ combined lines (a Money-domain redesign, not a one-line head fix),
  * and fixing them is Money surface work — #200, not this PR (docs/specs/v4-port.spec.md "Staging
@@ -46,7 +46,6 @@ vi.mock('../../lib/db/tasks', () => ({
   getTask: vi.fn(),
   createTask: vi.fn(),
   updateTaskStatus: vi.fn(),
-  updateTaskRaci: vi.fn(),
   updateTaskFields: vi.fn(),
   addChecklistItem: vi.fn(),
   toggleChecklistItem: vi.fn(),
@@ -167,10 +166,10 @@ describe('GUARD-R2: the Tasks page head never shows a number without a label sen
     const head = screen.getByTestId('page-head')
 
     // ONE meta sentence, and it reads as a sentence: every number is followed by its noun.
-    // OD-REDESIGN-91 #17: counts are OPEN — "N open in this view · M shown" (none Done here → open === shown).
+    // The task count leads, followed by the open subset (none Done here → open === total).
     const metaLines = head.querySelectorAll('.ch-meta-line')
     expect(metaLines).toHaveLength(1)
-    expect(metaLines[0].textContent?.trim()).toBe('3 open in this view · 3 shown')
+    expect(metaLines[0].textContent?.trim()).toBe('3 tasks · 3 open in this view')
 
     // The size-soup pill is gone from this head — count lives inside the sentence.
     expect(head.querySelectorAll('.ch-count')).toHaveLength(0)

@@ -37,6 +37,8 @@ select ops.refresh_cafe_item_references($source$[
   {"esb_product_id":"SYNTH-ERP-P-1242-WIP","esb_product_detail_id":"SYNTH-ERP-PD-1242-WIP-B","name":"Synthetic WIP 1242","category":"KITCHEN","unit_name":"ERP each","erp_category_type_name":"Inventory","is_stock":false,"has_active_bom_output":true,"is_active":true,"branch_code":"gordi_hq"},
   {"esb_product_id":"SYNTH-ERP-P-1242-RAW","esb_product_detail_id":"SYNTH-ERP-PD-1242-RAW-A","name":"Synthetic RAW 1242","category":"KITCHEN","unit_name":"ERP kg","erp_category_type_name":"Inventory","is_stock":true,"has_active_bom_output":false,"is_active":true,"branch_code":"gordi_hq"}
 ]$source$::jsonb);
+update ops.item_units set confirmed_at=now()
+ where esb_product_detail_id in ('SYNTH-ERP-PD-1242-WIP-A','SYNTH-ERP-PD-1242-WIP-B','SYNTH-ERP-PD-1242-RAW-A');
 insert into ops.wip_items (
   id, org_id, name, category, flag_active, esb_product_id, kind, reference_source,
   erp_category_type_name, has_active_bom_output

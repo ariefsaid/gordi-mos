@@ -13,7 +13,6 @@
 import type { KPITileDelta } from '@/components/dashboard/kpi-tile'
 import {
   registryManifest,
-  validatePrimitiveInManifest,
   type PrimitiveStatus,
   type PropSchemaDescriptor,
   type DataShapeDescriptor,
@@ -28,5 +27,3 @@ export type { PrimitiveStatus, PropSchemaDescriptor, DataShapeDescriptor, Primit
 export const KPI_DELTA_TONES = ['success', 'destructive', 'neutral'] as const satisfies readonly KPITileDelta['tone'][]
 
 export const registry = registryManifest
-
-export function validatePrimitive(name: string): boolean { return validatePrimitiveInManifest(name) }

@@ -11,10 +11,11 @@ import type { TaskRow } from '@/lib/db/tasks.types'
 // ── Mock the data layer (table + drawer both pull from it) ────────────────────
 vi.mock('../lib/db/tasks', () => ({
   listTasks: vi.fn(),
+  listOlderDoneTasks: vi.fn(),
+  listTaskEvents: vi.fn(),
   getTask: vi.fn(),
   createTask: vi.fn(),
   updateTaskStatus: vi.fn(),
-  updateTaskRaci: vi.fn(),
   updateTaskFields: vi.fn(),
   addChecklistItem: vi.fn(),
   toggleChecklistItem: vi.fn(),
@@ -41,7 +42,10 @@ vi.mock('../lib/comments/postComment', () => ({
   postComment: vi.fn(),
 }))
 
-import { listTasks, getTask, updateTaskStatus, createTask, archiveTask } from '@/lib/db/tasks'
+import {
+  listTasks, listOlderDoneTasks, listTaskEvents,
+  getTask, updateTaskStatus, createTask, archiveTask,
+} from '@/lib/db/tasks'
 import { getBusinessUnits, getPeople, getDownlinePersonIds } from '@/lib/db/directory'
 import * as directoryApi from '@/lib/db/directory'
 import { listObjectives } from '@/lib/db/objectives'
@@ -57,6 +61,7 @@ import { AgentRuntimeProvider } from '@/lib/agent/runtime/AgentRuntimeContext'
 import type { AgentRuntime, AgentEvent } from '@/lib/agent/runtime/port'
 
 const mockListTasks = vi.mocked(listTasks)
+const mockListOlderDoneTasks = vi.mocked(listOlderDoneTasks)
 const mockGetTask = vi.mocked(getTask)
 const mockUpdateTaskStatus = vi.mocked(updateTaskStatus)
 const mockCreateTask = vi.mocked(createTask)
@@ -187,6 +192,8 @@ beforeEach(() => {
   vi.mocked(getDownlinePersonIds).mockResolvedValue([])
   vi.mocked(listObjectives).mockResolvedValue([])
   vi.mocked(listWorkLines).mockResolvedValue([])
+  mockListOlderDoneTasks.mockResolvedValue({ rows: [], nextCursor: null, hasMore: false })
+  vi.mocked(listTaskEvents).mockResolvedValue([])
   vi.mocked(listComments).mockResolvedValue([])
   mockPostComment.mockResolvedValue('comment-1')
 })
@@ -343,6 +350,24 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     expect(document.querySelector('main')).toBeTruthy()
     // Tasks heading still renders (structural anchor for the page)
     expect(screen.getByRole('heading', { name: /tasks/i })).toBeInTheDocument()
+  })
+
+  it('loads older Done Tasks only after the operator asks and stops when the last page is reached', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Open task' })])
+    mockListOlderDoneTasks.mockResolvedValueOnce({
+      rows: [makeTask({ id: 'older-done', title: 'Older complete', status: 'Done', completed_at: '2026-06-01T00:00:00Z' })],
+      nextCursor: null,
+      hasMore: false,
+    })
+    renderAt('/work/tasks')
+
+    expect(await screen.findByText('Open task')).toBeInTheDocument()
+    await screen.findByRole('button', { name: 'Show older done tasks' })
+    expect(screen.queryByText('Older complete')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Show older done tasks' }))
+    expect(await screen.findByText('Older complete')).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Show older done tasks' })).toBeNull())
+    expect(mockListOlderDoneTasks).toHaveBeenCalledWith({ includeArchived: false }, null, expect.any(String))
   })
 
   it('AC-100: at /tasks the table renders and no drawer is present (nodrawer)', async () => {
@@ -820,9 +845,9 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     // The draft row mounts with its editor focused.
     const titleInput = await screen.findByLabelText('Title')
     // Initially the table is empty. The count reads inside the ONE muted meta sentence
-    // ("N open in this view · M shown") — the content-header count pill was removed.
+    // ("N tasks · M open") — the content-header count pill was removed.
     await waitFor(() => {
-      expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('0 open in this view · 0 shown')
+      expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('0 tasks · 0 open')
     })
 
     // Type the title and press Enter — the draft commits through the same createTask path.
@@ -849,7 +874,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
       expect(screen.getByText('Freshly created')).toBeInTheDocument()
     })
     await waitFor(() => {
-      expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('1 open in this view · 1 shown')
+      expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('1 task · 1 open')
     })
     // Inline create never navigates — the draft was already on the table — so there is no
     // ?highlight= flash (that belonged to the retired create-form door).
@@ -912,14 +937,75 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
   // container the virtualizer measures (otherwise it'd window to 0 rows).
   function stubViewportHeight(height = 600) {
     const orig = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight')
-    Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
-      configurable: true,
-      get(this: HTMLElement) {
-        if (this.className?.includes?.('tasks-scroll-virtual')) return height
-        return orig?.get?.call(this) ?? 0
+    const origClientHeight = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientHeight')
+    const origScrollHeight = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollHeight')
+    Object.defineProperties(HTMLElement.prototype, {
+      offsetHeight: {
+        configurable: true,
+        get(this: HTMLElement) {
+          if (this.className?.includes?.('tasks-scroll')) return height
+          return orig?.get?.call(this) ?? 0
+        },
+      },
+      clientHeight: {
+        configurable: true,
+        get(this: HTMLElement) {
+          if (this.className?.includes?.('tasks-scroll')) return height
+          return origClientHeight?.get?.call(this) ?? 0
+        },
+      },
+      scrollHeight: {
+        configurable: true,
+        get(this: HTMLElement) {
+          if (this.className?.includes?.('tasks-scroll')) return height * 6
+          return origScrollHeight?.get?.call(this) ?? 0
+        },
+      },
+      scrollTo: {
+        configurable: true,
+        value(this: HTMLElement, options: ScrollToOptions) {
+          if (options.top !== undefined) {
+            this.scrollTop = options.top
+            this.dispatchEvent(new Event('scroll'))
+          }
+        },
       },
     })
   }
+
+  it('keeps the member paging layout stable and scrolls the first appended row into view without moving focus', async () => {
+    stubWidths({ split: false, desktop: true })
+    stubViewportHeight()
+    const currentRows = Array.from({ length: 36 }, (_, index) =>
+      makeTask({ id: `current-${index}`, title: `Current task ${index}` }))
+    const olderRows = Array.from({ length: 25 }, (_, index) =>
+      makeTask({
+        id: `older-${index}`,
+        title: `Older done ${index}`,
+        status: 'Done',
+        completed_at: '2020-01-01T00:00:00Z',
+      }))
+    mockListTasks.mockResolvedValue(currentRows)
+    mockListOlderDoneTasks.mockResolvedValueOnce({
+      rows: olderRows,
+      nextCursor: { completed_at: '2020-01-01T00:00:00Z', id: 'older-24' },
+      hasMore: true,
+    })
+    renderAt('/work/tasks?view=all')
+
+    const button = await screen.findByRole('button', { name: 'Show older done tasks' })
+    const scroller = document.querySelector('.tasks-scroll') as HTMLElement | null
+    expect(scroller).not.toBeNull()
+    expect(scroller).not.toHaveClass('tasks-scroll-virtual')
+    button.focus()
+    fireEvent.click(button)
+
+    await waitFor(() => expect(scroller).toHaveClass('tasks-scroll-virtual'))
+    await waitFor(() => expect(scroller!.scrollTop).toBeGreaterThan(0))
+    expect(within(scroller!).getByText('Older done 0')).toBeInTheDocument()
+    expect(document.querySelector('.tasks-scroll-virtual')).toBe(scroller)
+    expect(button).toHaveFocus()
+  })
 
   it('AC-114: with 60 rows the table windows (not all 60 <tr> in the DOM)', async () => {
     stubViewportHeight()
@@ -1007,7 +1093,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
     mockArchiveTask.mockResolvedValue()
     renderAt('/work/tasks/task-2')
     await waitFor(() => screen.getByRole('complementary', { name: /task detail/i }))
-    await waitFor(() => expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('2 open in this view · 2 shown'))
+    await waitFor(() => expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('2 tasks · 2 open'))
 
     // Archive is grouped with the record's other secondary actions.
     fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
@@ -1027,7 +1113,7 @@ describe('TasksLayout — split-view shell (ADR-0007, PR-B)', () => {
       expect(screen.queryByText('Archive me')).toBeNull()
     }, { timeout: 4000 })
     expect(screen.getByText('Keep me')).toBeInTheDocument()
-    expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('1 open in this view · 1 shown')
+    expect(document.querySelector('[data-testid="tasks-count-line"]')?.textContent).toContain('1 task · 1 open')
   }, 10_000)
 })
 

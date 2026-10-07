@@ -50,8 +50,8 @@ export function allowedBusinessUnitIds(
   return org ? null : (kind === 'work-line' ? scopes.workline_bu_ids : scopes.objective_bu_ids)
 }
 
-/** Read runtime Work authority on each mount/navigation without blocking catalog reads. */
-export function useWorkWriteAuthority() {
+/** Read runtime Work authority when the caller needs mutation affordances. */
+export function useWorkWriteAuthority(enabled = true) {
   const auth = useAuth()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
   const orgId = auth.status === 'authenticated' ? auth.viewer.person.org_id : null
@@ -65,7 +65,7 @@ export function useWorkWriteAuthority() {
     setScopes(emptyWorkWriteScopes())
     setLoading(true)
     setError(false)
-    if (!viewerId || !orgId) {
+    if (!enabled || !viewerId || !orgId) {
       setLoading(false)
       return () => { live = false }
     }
@@ -78,7 +78,7 @@ export function useWorkWriteAuthority() {
       .catch(() => { if (live) setError(true) })
       .finally(() => { clearTimeout(timer); if (live) setLoading(false) })
     return () => { live = false; clearTimeout(timer) }
-  }, [orgId, viewerId, attempt])
+  }, [enabled, orgId, viewerId, attempt])
 
   const retry = useCallback(() => setAttempt((n) => n + 1), [])
   return { scopes, loading, error, retry }

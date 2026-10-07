@@ -41,7 +41,9 @@ export interface FollowUpEvent {
   created_at: string
 }
 
-export interface FollowUpFilters { overdue?: boolean; state?: FollowUpState }
+export type FollowUpCursor = Pick<FollowUpRow, 'created_at' | 'id'>
+export interface FollowUpFilters { overdue?: boolean; state?: FollowUpState; before?: FollowUpCursor }
+export const FOLLOW_UPS_PAGE_SIZE = 50
 export interface FollowUpTransitionOptions { amount?: number; cash_in_date?: string; evidence?: string; promise_date?: string; note?: string }
 export interface FollowUpReconDrift { org_id: string; counterparty: string; period: string; mos_amount: number; esb_amount: number; drift: number; is_drift: boolean }
 
@@ -52,10 +54,14 @@ const FOLLOW_UP_EVENT_COLUMNS = 'id,org_id,follow_up_id,transition,from_state,to
 const RECON_DRIFT_COLUMNS = 'org_id,counterparty,period,mos_amount,esb_amount,drift,is_drift'
 
 export async function listFollowUps(filters: FollowUpFilters = {}): Promise<FollowUpRow[]> {
-  let query = mos().from('follow_ups').select(FOLLOW_UP_COLUMNS).order('due_date', { ascending: true, nullsFirst: false })
+  let query = mos().from('follow_ups').select(FOLLOW_UP_COLUMNS)
   if (filters.state) query = query.eq('state', filters.state)
   if (filters.overdue) query = query.lt('due_date', new Date().toISOString().slice(0, 10)).neq('state', 'settled').neq('state', 'confirmed')
-  const { data, error } = await query
+  if (filters.before) {
+    query = query.or(`created_at.lt.${filters.before.created_at},and(created_at.eq.${filters.before.created_at},id.lt.${filters.before.id})`)
+  }
+  const { data, error } = await query.order('created_at', { ascending: false })
+    .order('id', { ascending: false }).limit(FOLLOW_UPS_PAGE_SIZE)
   if (error) throw new Error(`listFollowUps failed — ${error.message}`)
   return (data ?? []) as FollowUpRow[]
 }
@@ -87,8 +93,15 @@ export async function getFollowUp(id: string): Promise<FollowUpRow | null> {
   return (data as FollowUpRow | null) ?? null
 }
 
-export async function listFollowUpEvents(followUpId: string): Promise<FollowUpEvent[]> {
-  const { data, error } = await mos().from('follow_up_events').select(FOLLOW_UP_EVENT_COLUMNS).eq('follow_up_id', followUpId).order('created_at', { ascending: true })
+export async function listFollowUpEvents(
+  followUpId: string, before?: Pick<FollowUpEvent, 'created_at' | 'id'>,
+): Promise<FollowUpEvent[]> {
+  let query = mos().from('follow_up_events').select(FOLLOW_UP_EVENT_COLUMNS).eq('follow_up_id', followUpId)
+  if (before) {
+    query = query.or(`created_at.lt.${before.created_at},and(created_at.eq.${before.created_at},id.lt.${before.id})`)
+  }
+  const { data, error } = await query.order('created_at', { ascending: false })
+    .order('id', { ascending: false }).limit(FOLLOW_UPS_PAGE_SIZE)
   if (error) throw new Error(`listFollowUpEvents failed — ${error.message}`)
   return (data ?? []) as FollowUpEvent[]
 }
@@ -108,13 +121,4 @@ export async function listReconDrift(): Promise<FollowUpReconDrift[]> {
 export function isOverdue(row: Pick<FollowUpRow, 'due_date' | 'state'>, today = new Date()): boolean {
   if (!row.due_date || row.state === 'settled' || row.state === 'confirmed') return false
   return row.due_date < today.toISOString().slice(0, 10)
-}
-
-export function summarizeAging(rows: readonly FollowUpRow[], today = new Date()) {
-  return {
-    overdue: rows.filter((row) => isOverdue(row, today)).length,
-    chased: rows.filter((row) => row.state === 'chased').length,
-    promised: rows.filter((row) => row.state === 'promised').length,
-    partial: rows.filter((row) => row.state === 'partial').length,
-  }
 }

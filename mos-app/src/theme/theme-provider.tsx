@@ -5,7 +5,6 @@ import { type Theme, applyClass, readPersisted, resolveTheme } from './use-theme
 /**
  * ThemeProvider — single shared source of truth for the chosen theme and its
  * resolved value. Exposes { theme, resolvedTheme, setTheme } via context.
- * Replaces ThemeBootstrap in src/app.tsx (ADR-0009, FR-134).
  *
  * - chosen theme ('light' | 'dark' | 'system') persists to localStorage
  * - resolved = chosen, except 'system' → OS preference

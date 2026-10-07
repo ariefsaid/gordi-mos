@@ -7,6 +7,8 @@
 // is the signed-in user role (`authenticated`); and `client_id`, `person_id` and `org_id` are
 // present. An app session token (no MCP audience, no client_id) therefore never passes. HMAC and
 // `none` algorithms are refused, so a shared secret is never needed here.
+import { b64urlToBytes, parseSegment } from '../_shared/jwtSegment.ts'
+
 export type AgentClaims = {
   sub: string
   client_id: string
@@ -87,22 +89,6 @@ async function loadKeys(config: AuthConfig, forceRefresh: boolean): Promise<Jwk[
     return await promise
   } finally {
     if (inflight?.promise === promise) inflight = null
-  }
-}
-
-function b64urlToBytes(encoded: string): Uint8Array<ArrayBuffer> {
-  const bin = atob(encoded.replace(/-/g, '+').replace(/_/g, '/'))
-  const out = new Uint8Array(new ArrayBuffer(bin.length))
-  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i)
-  return out
-}
-
-function parseSegment(segment: string): Record<string, unknown> | null {
-  try {
-    const value: unknown = JSON.parse(new TextDecoder().decode(b64urlToBytes(segment)))
-    return typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : null
-  } catch {
-    return null
   }
 }
 

@@ -29,9 +29,6 @@ const ID_EQUALS_EN_ALLOWLIST: ReadonlySet<string> = new Set([
   'signals.archive.attentionFyi', // FYI — the borrowed initialism stays in id (FR-024 "FYI kept", AC-031/AC-066)
   'inbox.target.type.followUp', // AR Follow-up — product term
   'followUps.counterparty', // Counterparty — domain term, no adopted id label yet
-  'money.footnote.interim', // Interim
-  'money.basis.interim', // interim — the same borrowed word in both locales
-  'breadcrumb.detail', // Detail
   'dest.ecommerce', // Ecommerce
   'dest.inbox', // Inbox — pinned tab label per OD-WAY-93 (10)
   'dest.roastery', // Roastery
@@ -41,6 +38,17 @@ const ID_EQUALS_EN_ALLOWLIST: ReadonlySet<string> = new Set([
   'rail.b2bOps', // B2B Ops
   'kitchen.actionType.transferTo.short', // → ${branch} — symbol template
   'kitchen.activity.bar', // Bar
+  // #1366 Café Count preserves its feature, lifecycle and inventory terms in Indonesian copy.
+  'nav.cafe.count', // Count — feature name
+  'cafe.count.lineSubmitted', // Submitted — lifecycle state
+  'cafe.count.review.title', // Count — section name
+  'cafe.count.review.count', // Count — inventory fact
+  'cafe.count.review.expected', // Expected balance — inventory fact
+  'cafe.count.review.variance', // Variance — inventory fact
+  'cafe.count.review.submittedAt', // Submitted — lifecycle state
+  'cafe.count.review.streamTag', // Stream — Café vocabulary
+  'cafe.count.review.confirmedNotNeeded', // Confirmed / Not needed — lifecycle states
+  'cafe.receipts.quantityUnit', // ${quantity} × ${unit} — symbol template
   'kitchen.log.col.status', // Status
   'kitchen.log.offline.aria', // Offline
   'kitchen.pushes.col.batch', // Batch
