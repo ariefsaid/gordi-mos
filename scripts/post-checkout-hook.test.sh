@@ -75,6 +75,17 @@ second="$(g "$tmp/main" config core.hooksPath)"
 [ "$first" != "$second" ] && [ -x "$second/post-checkout" ] && [ ! -e "$first" ] \
   && ok "a re-install repoints to a complete new set and removes the old one" || bad "re-install: first=$first second=$second"
 
+# A second setup waits while another holds the lock, then completes.
+lockdir="$(cd "$tmp/main/.git" && pwd -P)/mos-hooks.lock"; mkdir "$lockdir"
+g "$tmp/main" commit -q --allow-empty -m moved-again; g "$tmp/main" update-ref refs/remotes/origin/dev HEAD
+before="$(g "$tmp/main" config core.hooksPath)"
+bash "$tmp/wt6/scripts/setup-hooks.sh" >/dev/null 2>&1 & bg=$!
+sleep 1
+[ "$(g "$tmp/main" config core.hooksPath)" = "$before" ] && kill -0 "$bg" 2>/dev/null && waited=1 || waited=0
+rmdir "$lockdir"; wait "$bg"
+[ "$waited" = 1 ] && [ "$(g "$tmp/main" config core.hooksPath)" != "$before" ] && [ ! -e "$lockdir" ] \
+  && ok "a second setup waits for the lock, then installs and releases it" || bad "setup did not serialize on the lock (waited=$waited)"
+
 # No skills in the main checkout: nothing linked, checkout still succeeds.
 rm -rf "$tmp/main/.claude"
 g "$tmp/main" worktree add -q "$tmp/wt4" -b wt4 2>/dev/null; rc=$?

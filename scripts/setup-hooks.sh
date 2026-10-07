@@ -10,8 +10,17 @@ cd "$(dirname "$0")/.."
 common="$(git rev-parse --path-format=absolute --git-common-dir)"
 src=origin/dev; git rev-parse -q --verify "$src" >/dev/null || src=HEAD   # fresh clone before fetch
 dest="$common/mos-hooks-$(git rev-parse --short=12 "$src")"
+# One setup at a time: two at once could each delete the other's freshly active set. A lock older
+# than ~10s is a crashed run's and is broken.
+lock="$common/mos-hooks.lock"; stage=""
+trap 'rm -rf "$stage"; rmdir "$lock" 2>/dev/null' EXIT
+tries=0
+until mkdir "$lock" 2>/dev/null; do
+  tries=$((tries + 1)); [ "$tries" -lt 50 ] || { rmdir "$lock" 2>/dev/null; tries=0; }
+  sleep 0.2
+done
 if [ ! -d "$dest" ]; then
-  stage="$(mktemp -d "$common/mos-hooks.XXXXXX")"; trap 'rm -rf "$stage"' EXIT
+  stage="$(mktemp -d "$common/mos-hooks.XXXXXX")"
   git archive "$src" .githooks | tar -x -C "$stage"
   chmod +x "$stage"/.githooks/*
   mv "$stage/.githooks" "$dest"
@@ -19,9 +28,7 @@ fi
 # Repoint in one config write (git swaps the config file atomically), then drop older sets — there
 # is never a moment without hooks.
 git config core.hooksPath "$dest"
-# Never remove the set the config names right now: a concurrent setup may have just repointed it.
-active="$(git config core.hooksPath)"
-for d in "$common"/mos-hooks-*; do [ "$d" = "$dest" ] || [ "$d" = "$active" ] || rm -rf "$d"; done
+for d in "$common"/mos-hooks-*; do [ "$d" = "$dest" ] || rm -rf "$d"; done
 git worktree list --porcelain | sed -n 's/^worktree //p' | while IFS= read -r wt; do
   (cd "$wt" 2>/dev/null && bash "$dest/post-checkout") || true
 done
