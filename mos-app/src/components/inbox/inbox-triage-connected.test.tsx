@@ -56,6 +56,10 @@ function hook(over: Partial<UseNotifications> = {}): UseNotifications {
     unreadCount: 0,
     loading: false,
     error: null,
+    hasMore: false,
+    loadingMore: false,
+    loadMoreError: false,
+    loadMore: vi.fn().mockResolvedValue(undefined),
     markRead: vi.fn(),
     markHandled: vi.fn(),
     refresh: vi.fn(),
@@ -65,9 +69,9 @@ function hook(over: Partial<UseNotifications> = {}): UseNotifications {
 
 // Renders the connected triage as a page body plus the ONE shared Inbox host slot, so an opened
 // record actually mounts through the real overlay host (no bespoke drawer).
-function renderConnected() {
+function renderConnected(locale: 'en' | 'id' = 'en') {
   return render(
-    <I18nProvider>
+    <I18nProvider initialLocale={locale}>
       <MemoryRouter initialEntries={['/inbox']}>
         <OverlayHostProvider>
           <InboxTriageConnected mode="page" />
@@ -322,6 +326,49 @@ describe('InboxTriageConnected — the live triage wiring (AC-V3-006 / FR-V3-008
     expect(screen.getByText('Handled one')).toBeInTheDocument()
     expect(screen.queryByText('Unread one')).toBeNull()
     expect(screen.queryByText('Read one')).toBeNull()
+  })
+
+  it.each([
+    {
+      locale: 'en' as const,
+      all: 'All · 2 in loaded items',
+      unread: 'Unread · 0 in loaded items',
+      handled: 'Handled · 0 in loaded items',
+      title: 'No unread in loaded items',
+      copy: '2 read in loaded items',
+      loadMore: 'Load more',
+    },
+    {
+      locale: 'id' as const,
+      all: 'Semua · 2 pada item yang dimuat',
+      unread: 'Belum dibaca · 0 pada item yang dimuat',
+      handled: 'Selesai ditangani · 0 pada item yang dimuat',
+      title: 'Tidak ada notifikasi belum dibaca di item yang dimuat',
+      copy: '2 notifikasi sudah dibaca pada item yang dimuat',
+      loadMore: 'Muat lebih banyak',
+    },
+  ])('keeps partial Inbox counts and empty copy honest while more pages exist ($locale)', ({
+    locale, all, unread, handled, title, copy, loadMore,
+  }) => {
+    mockUse.mockReturnValue(hook({
+      notifications: [
+        notif({ id: 'read-1', read_at: '2026-07-20T02:00:00Z' }),
+        notif({ id: 'read-2', read_at: '2026-07-20T03:00:00Z' }),
+      ],
+      hasMore: true,
+    }))
+    renderConnected(locale)
+
+    const filters = within(screen.getByRole('group', { name: /filter|saring/i }))
+    expect(filters.getByRole('button', { name: all })).toBeInTheDocument()
+    expect(filters.getByRole('button', { name: unread })).toBeInTheDocument()
+    expect(filters.getByRole('button', { name: handled })).toBeInTheDocument()
+    fireEvent.click(filters.getByRole('button', { name: unread }))
+
+    const empty = screen.getByTestId('empty-state')
+    expect(within(empty).getByRole('heading', { name: title })).toBeInTheDocument()
+    expect(empty).toHaveTextContent(copy)
+    expect(screen.getByRole('button', { name: loadMore })).toBeInTheDocument()
   })
 
   it('AC-003 (#549): ?filter=handled round-trips on the /inbox page (hydrate + write-back)', () => {

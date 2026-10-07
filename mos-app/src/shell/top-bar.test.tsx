@@ -21,7 +21,7 @@ import { useIsWideOverlayWidth } from './use-is-wide-overlay-width'
 
 vi.mock('@/lib/db/notifications', () => ({
   countUnread: vi.fn().mockResolvedValue(0),
-  listNotifications: vi.fn().mockResolvedValue([]),
+  listNotifications: vi.fn().mockResolvedValue({ rows: [], hasMore: false, nextCursor: null }),
 }))
 
 vi.mock('../config/features', () => ({

@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   listNotifications,
   markNotificationRead,
   markNotificationHandled,
+  type NotificationCursor,
   type NotificationRow,
 } from '@/lib/db/notifications'
 import { applyMarkHandled } from '@/components/inbox/read-handled-semantics'
@@ -14,6 +15,10 @@ export interface UseNotifications {
   unreadCount: number
   loading: boolean
   error: string | null
+  hasMore: boolean
+  loadingMore: boolean
+  loadMoreError: boolean
+  loadMore: () => Promise<void>
   markRead: (id: string) => Promise<void>
   /** Explicit "Mark handled" (OD-WAY-88): optimistic, reverts on failure; co-stamps read on an unread row. */
   markHandled: (id: string) => Promise<void>
@@ -22,7 +27,7 @@ export interface UseNotifications {
 
 /**
  * useNotifications — the Inbox data hook (ADR-0019 D9). Loads the viewer's notifications (RLS-scoped,
- * newest first), derives the unread badge count, and marks rows read optimistically (revert on error).
+ * newest first), derives the loaded unread count, and marks rows read optimistically (revert on error).
  * Unread rows sort first so the triage list surfaces what needs attention. Aged untriaged rows
  * (OD-WAY-86) re-surface above younger unread rows via `compareTriage` — pure day-bucketed
  * presentation, no stored nudge state.
@@ -31,21 +36,56 @@ export function useNotifications(): UseNotifications {
   const [notifications, setNotifications] = useState<NotificationRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [hasMore, setHasMore] = useState(false)
+  const [nextCursor, setNextCursor] = useState<NotificationCursor | null>(null)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [loadMoreError, setLoadMoreError] = useState(false)
+  const requestGeneration = useRef(0)
+  const loadingMoreRef = useRef(false)
 
   const refresh = useCallback(async () => {
+    const generation = ++requestGeneration.current
+    loadingMoreRef.current = false
     setLoading(true)
+    setLoadingMore(false)
+    setLoadMoreError(false)
     setError(null)
     try {
-      const rows = await listNotifications()
+      const page = await listNotifications()
+      if (requestGeneration.current !== generation) return
       // Raw newest-first load; ORDERING is derived below (compareTriage on every render) so an
       // optimistic markRead/markHandled reshuffles the queue for the current row state, not once here.
-      setNotifications(rows)
+      setNotifications(page.rows)
+      setHasMore(page.hasMore)
+      setNextCursor(page.nextCursor)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'load failed')
+      if (requestGeneration.current === generation) setError(e instanceof Error ? e.message : 'load failed')
     } finally {
-      setLoading(false)
+      if (requestGeneration.current === generation) setLoading(false)
     }
   }, [])
+
+  const loadMore = useCallback(async () => {
+    if (loading || loadingMoreRef.current || !hasMore || !nextCursor) return
+    loadingMoreRef.current = true
+    const generation = requestGeneration.current
+    setLoadingMore(true)
+    setLoadMoreError(false)
+    try {
+      const page = await listNotifications(nextCursor)
+      if (requestGeneration.current !== generation) return
+      setNotifications((current) => [...current, ...page.rows])
+      setHasMore(page.hasMore)
+      setNextCursor(page.nextCursor)
+    } catch {
+      if (requestGeneration.current === generation) setLoadMoreError(true)
+    } finally {
+      if (requestGeneration.current === generation) {
+        loadingMoreRef.current = false
+        setLoadingMore(false)
+      }
+    }
+  }, [hasMore, loading, nextCursor])
 
   useEffect(() => {
     void refresh()
@@ -104,5 +144,9 @@ export function useNotifications(): UseNotifications {
     [notifications],
   )
 
-  return { notifications: ordered, unreadCount, loading, error, markRead, markHandled, refresh }
+  return {
+    notifications: ordered, unreadCount, loading, error,
+    hasMore, loadingMore, loadMoreError, loadMore,
+    markRead, markHandled, refresh,
+  }
 }

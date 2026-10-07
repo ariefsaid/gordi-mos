@@ -1,5 +1,5 @@
 import type { PersistedCollectionView } from '@/lib/record-collection/collection-view-spec'
-import type { TaskCollectionQuery, TaskCollectionView } from './task-collection-adapter'
+import type { TaskCollectionQuery, TaskCollectionView } from './task-collection-query'
 
 // my-pic/my-supervisor are always the default breadcrumb state below (isDefaultView), so a
 // caller never needs to supply a label for them — dropping the two keys here is what let
