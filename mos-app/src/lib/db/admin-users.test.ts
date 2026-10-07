@@ -434,6 +434,17 @@ describe('Jabatan (Position) wrappers', () => {
     expect(builder.eq).toHaveBeenCalledWith('role_id', 'r1')
   })
 
+  it('a position change drops the cached viewer so the next read sees the new roles', async () => {
+    await withReferenceCache('shared.auth.viewer', vi.fn(async () => 'cached-viewer'), { identity: 'auth:viewer-1', persist: true })
+    schemaMock.mockReturnValue(makeSharedSchema({ person_roles: { data: null, error: null } }) as never)
+    await removeJabatan('p1', 'r1')
+
+    const reloadViewer = vi.fn(async () => 'fresh-viewer')
+    await expect(withReferenceCache('shared.auth.viewer', reloadViewer, { identity: 'auth:viewer-1', persist: true }))
+      .resolves.toBe('fresh-viewer')
+    expect(reloadViewer).toHaveBeenCalledOnce()
+  })
+
   it('throws on removeJabatan error', async () => {
     const schemaObj = makeSharedSchema({ person_roles: { data: null, error: { message: 'rls denied' } } })
     schemaMock.mockReturnValue(schemaObj as never)
