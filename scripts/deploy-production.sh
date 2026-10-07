@@ -44,8 +44,8 @@ if [ "$DRY" != 1 ] && [ "$CONFIRM" != 1 ]; then
   exit 2
 fi
 
-errf="$(mktemp)"; dump=""
-cleanup() { rm -f "$errf" "$errf.o"; [ -z "$dump" ] || rm -f "$dump.partial"; }
+errf="$(mktemp)"
+cleanup() { rm -f "$errf" "$errf.o"; }
 trap cleanup EXIT
 
 for t in op-get.sh supabase psql pg_dump pg_restore git; do command -v "$t" >/dev/null 2>&1 || die "$t not found on PATH"; done

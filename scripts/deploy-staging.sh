@@ -192,7 +192,25 @@ if [ "${#pending[@]}" -gt 0 ]; then
   [ "$rc" -eq 0 ] || die "supabase db push failed (exit $rc) — the pre-push dump is at $dump"
 fi
 
-# ── 7. Deploy changed app-facing functions after the database push, then smoke-check the handler.
+# ── 6. Verify the database before anything else ships (owner order: DB, then edge, then frontend).
+bad=0
+fail() { printf '✗ VERIFY FAILED: %s\n' "$1" >&2; bad=1; }
+newest="$(ls "$MIG_DIR" | grep -E '^[0-9]+_.*\.sql$' | sort | tail -1 | cut -d_ -f1)"
+remote="$(sqlq "select max(version) from supabase_migrations.schema_migrations")" || remote="?"
+[ "$remote" = "$newest" ] || fail "remote max migration version '$remote' != newest local '$newest'"
+pre="skipped"
+if grep -qs 'pgrst.db_pre_request' "$MIG_DIR"/*.sql; then
+  cfg="$(sqlq "select coalesce(array_to_string(rolconfig, ','), '') from pg_roles where rolname='authenticator'")" || cfg=""
+  case ",$cfg," in *,pgrst.db_pre_request=api_private.check_request,*) pre="set" ;; *) pre="MISSING"; fail "authenticator rolconfig lacks pgrst.db_pre_request=api_private.check_request" ;; esac
+fi
+tc="$(sqlq "select count(*) from shared.trusted_agent_clients")" || tc="?"
+[ "$tc" = 0 ] || fail "shared.trusted_agent_clients has '$tc' rows — agent access must stay off"
+so="$(sqlq "select count(*) filter (where is_sample) || '/' || count(*) filter (where is_sample and shared.is_sample_org_shape(id, name)) from shared.orgs")" || so="?"
+[ "$so" = 1/1 ] || fail "expected exactly one flagged org, shaped like the sample org (flagged/sample-shaped: '$so')"
+say "verify: max version $remote (newest local $newest) · db_pre_request $pre · trusted clients $tc · sample orgs $so"
+[ "$bad" = 0 ] || die "verification failed — staging is NOT in the expected state"
+
+# ── 7. Deploy changed app-facing functions after the database is verified, then smoke-check the handler.
 if [ "${#functions_to_deploy[@]}" -gt 0 ]; then
   unset EDGE_ACCESS_TOKEN
   EDGE_ACCESS_TOKEN="$(op-get.sh "$FUNCTIONS_OP_ITEM" "$FUNCTIONS_OP_VAULT" "$FUNCTIONS_OP_FIELD" 2>/dev/null </dev/null)" || \
@@ -230,24 +248,6 @@ if [ "${#functions_to_deploy[@]}" -gt 0 ]; then
   done
   unset EDGE_ACCESS_TOKEN
 fi
-
-# ── 8. Verify.
-bad=0
-fail() { printf '✗ VERIFY FAILED: %s\n' "$1" >&2; bad=1; }
-newest="$(ls "$MIG_DIR" | grep -E '^[0-9]+_.*\.sql$' | sort | tail -1 | cut -d_ -f1)"
-remote="$(sqlq "select max(version) from supabase_migrations.schema_migrations")" || remote="?"
-[ "$remote" = "$newest" ] || fail "remote max migration version '$remote' != newest local '$newest'"
-pre="skipped"
-if grep -qs 'pgrst.db_pre_request' "$MIG_DIR"/*.sql; then
-  cfg="$(sqlq "select coalesce(array_to_string(rolconfig, ','), '') from pg_roles where rolname='authenticator'")" || cfg=""
-  case ",$cfg," in *,pgrst.db_pre_request=api_private.check_request,*) pre="set" ;; *) pre="MISSING"; fail "authenticator rolconfig lacks pgrst.db_pre_request=api_private.check_request" ;; esac
-fi
-tc="$(sqlq "select count(*) from shared.trusted_agent_clients")" || tc="?"
-[ "$tc" = 0 ] || fail "shared.trusted_agent_clients has '$tc' rows — agent access must stay off"
-so="$(sqlq "select count(*) filter (where is_sample) || '/' || count(*) filter (where is_sample and shared.is_sample_org_shape(id, name)) from shared.orgs")" || so="?"
-[ "$so" = 1/1 ] || fail "expected exactly one flagged org, shaped like the sample org (flagged/sample-shaped: '$so')"
-say "verify: max version $remote (newest local $newest) · db_pre_request $pre · trusted clients $tc · sample orgs $so"
-[ "$bad" = 0 ] || die "verification failed — staging is NOT in the expected state"
 
 # ── 9. Promotion PR: gh-post accepts a staging PR only from a checkout on branch main.
 if [ "$PR" = 1 ]; then

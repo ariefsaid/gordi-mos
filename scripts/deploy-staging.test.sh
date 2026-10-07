@@ -268,6 +268,8 @@ expect_not "no PR after failed verify" "gh-post"
 run "trusted clients > 0 fails loudly" 1 "" FAKE_TRUSTED=2 -- --yes
 has "trusted clients named" "trusted_agent_clients"
 expect_not "no PR when trusted clients exist" "gh-post"
+run "a failed database verify stops before any function deploys" 1 "" FAKE_TRUSTED=2 FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --yes --no-pr
+expect_not "no function deploy after a failed database verify" "supabase functions-deploy agent-chat"
 run "missing authenticator setting fails" 1 "" FAKE_ROLCONFIG="statement_timeout=8s" -- --yes
 has "rolconfig named" "pgrst.db_pre_request"
 run "no flagged sample org fails" 1 "" FAKE_SAMPLE_ORGS=0/0 -- --yes
