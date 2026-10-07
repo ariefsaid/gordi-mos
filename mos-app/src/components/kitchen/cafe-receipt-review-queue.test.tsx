@@ -16,6 +16,8 @@ import {
   listCafeHeldReceipts, listCafeReceiptDifferences, listCafeReceipts, listCafeUnsentReceipts, readCafeReceiptPosting, reviewCafeReceipt,
   type CafeReceipt,
 } from '@/lib/db/cafe-receipts'
+import { streamKey } from '@/lib/kitchen-action-label'
+import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { ALL_STREAMS } from './cafe-stream-bar'
 import { CafeReceiptReviewQueue } from './cafe-receipt-review-queue'
 
@@ -34,10 +36,13 @@ function receipt(id: string, receivedBy: string, overrides: Partial<CafeReceipt>
   }
 }
 
-function renderQueue() {
+function renderQueue(
+  streamFilter = ALL_STREAMS,
+  streamCatalog: readonly ProductionStream[] = [{ branch: BRANCH, activity: 'kitchen' }],
+) {
   return render(
     <I18nProvider>
-      <CafeReceiptReviewQueue streamFilter={ALL_STREAMS} streamCatalog={[{ branch: BRANCH, activity: 'kitchen' }]} viewerId="me" />
+      <CafeReceiptReviewQueue streamFilter={streamFilter} streamCatalog={streamCatalog} viewerId="me" />
     </I18nProvider>,
   )
 }
@@ -53,6 +58,26 @@ beforeEach(() => {
 })
 
 describe('CafeReceiptReviewQueue', () => {
+  it('AC-1542 reads unsent receipts using the selected stream from the catalog', async () => {
+    const streamCatalog: ProductionStream[] = [
+      { branch: BRANCH, activity: 'kitchen' },
+      { branch: { id: 'branch-2', code: 'other', name: 'Other Branch' }, activity: 'bar' },
+    ]
+    const selectedStream = streamCatalog[1]
+    vi.mocked(listCafeReceipts).mockResolvedValue([])
+    vi.mocked(listCafeUnsentReceipts).mockResolvedValue({
+      receipts: [receipt('r-filtered', 'receiver', {
+        branch_id: 'branch-2', activity: 'bar', status: 'Counted', submitted_at: null,
+      })],
+      more: 0,
+    })
+
+    renderQueue(streamKey(selectedStream.branch.id, selectedStream.activity), streamCatalog)
+
+    expect(await screen.findByText('Received by Shift member')).toBeInTheDocument()
+    expect(listCafeUnsentReceipts).toHaveBeenCalledWith(selectedStream)
+  })
+
   it('FR-1018 lists each receipt with receiver, arrival date, delivery note and lines, and approves with its version', async () => {
     vi.mocked(listCafeReceipts).mockResolvedValue([receipt('r-1', 'receiver')])
     vi.mocked(reviewCafeReceipt).mockResolvedValue({ status: 'Approved', row_version: 3 })
@@ -232,6 +257,6 @@ describe('CafeReceiptReviewQueue', () => {
     expect(receiptRows).toHaveLength(51)
     expect(within(receiptRows[0]).getByText('Received by Reviewer')).toBeInTheDocument()
     expect(within(receiptRows[1]).getByText(/^Counted, not sent · locked/)).toBeInTheDocument()
-    expect(screen.getByText('7 newer unsent receipts, in any stream, are not listed.')).toBeInTheDocument()
+    expect(screen.getByText('7 newer unsent receipts are not listed.')).toBeInTheDocument()
   })
 })
