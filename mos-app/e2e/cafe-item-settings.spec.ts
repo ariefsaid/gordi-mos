@@ -421,7 +421,7 @@ test.describe('Café item settings', () => {
       const nameInput = itemCard.getByRole('textbox', { name: 'MOS name', exact: true })
       const save = itemCard.getByRole('button', { name: 'Save settings for Herbal tea', exact: true })
       await expect(itemCard.getByRole('combobox', { name: 'Kind for Herbal tea' })).toHaveText('Unclassified')
-      await expect(itemCard.getByRole('checkbox', { name: 'Active for Herbal tea' })).toHaveAttribute('aria-checked', 'false')
+      await expect(itemCard.getByRole('checkbox', { name: 'Active for Herbal tea' })).not.toBeChecked()
       await nameInput.fill('   ')
       await expect(nameInput).toHaveAttribute('aria-invalid', 'true')
       await expect(itemCard.getByRole('alert')).toHaveText('Enter a MOS name.')
