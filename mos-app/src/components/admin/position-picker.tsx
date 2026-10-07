@@ -60,7 +60,7 @@ export function PositionPicker({ person, roles, commits, refresh }: PositionPick
                   key={role.id}
                   label={role.name}
                   checked={checked}
-                  disabled={busy}
+                  busy={busy}
                   divider={i > 0}
                   onToggle={() => toggle(role, checked)}
                   trailing={

@@ -45,7 +45,8 @@ export function CafeReceiptIssueAccess({ person, commits }: { person: AdminPerso
           label={label}
           description={isSelf ? t('admin.person.procurement.selfGuard') : t('admin.person.procurement.description')}
           checked={checked}
-          disabled={isSelf || commits.busy(key)}
+          disabled={isSelf}
+          busy={commits.busy(key)}
           title={isSelf ? t('admin.person.procurement.selfGuard') : undefined}
           onToggle={() => void commits.commit(key, !checked, saved, () => setCafeReceiptIssueAccess(person.id, !checked), load)}
           trailing={<RowStatus status={commits.status(key, saved)} error={commits.error(key)} item={label} onRetry={() => void commits.retry(key)} />}
