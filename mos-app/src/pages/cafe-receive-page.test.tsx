@@ -136,10 +136,26 @@ const PICKER_ITEMS: CafeReceivableItem[] = [
   { id: 'pastry', name: 'Whole-grain pastry dough prepared for morning service', category: 'Bakery', kind: 'RAW', defaultUnitId: 'unit-each', units: [{ id: 'unit-each', name: 'each' }] },
 ]
 
-function renderPage() {
+const LONG_PO_ITEMS: CafeReceivableItem[] = [
+  ...Array.from({ length: 14 }, (_, k): CafeReceivableItem => {
+    const n = String(k + 1).padStart(2, '0')
+    return { id: `long-${n}`, name: `Long PO item ${n}`, category: 'Dry goods', kind: 'RAW', defaultUnitId: `unit-long-${n}`, units: [{ id: `unit-long-${n}`, name: 'kg' }] }
+  }),
+  { id: 'lemon', name: 'Lemon lokal', category: 'Produce', kind: 'RAW', defaultUnitId: 'unit-lemon', units: [{ id: 'unit-lemon', name: 'kg' }] },
+]
+const LONG_PO_CACHE = {
+  asOf: '2026-10-06T02:10:00Z',
+  isCurrent: true,
+  purchaseOrders: [{
+    poNumber: 'PO-2001', supplierName: 'Sample wholesale supplier', poDate: '2026-10-06',
+    items: LONG_PO_ITEMS.slice(0, 14).map(item => ({ itemUnitId: item.defaultUnitId, itemName: item.name, unitName: 'kg' })),
+  }],
+}
+
+function renderPage(locale?: 'en' | 'id') {
   return render(
     <MemoryRouter initialEntries={['/cafe/receive']}>
-      <I18nProvider><CafeReceivePage /></I18nProvider>
+      <I18nProvider initialLocale={locale}><CafeReceivePage /></I18nProvider>
     </MemoryRouter>,
   )
 }
@@ -271,12 +287,11 @@ describe('CafeReceivePage', () => {
     expect(screen.getByRole('textbox', { name: 'Received for Whole-grain pastry dough prepared for morning service' })).toHaveValue('')
 
     fireEvent.change(screen.getByRole('searchbox', { name: 'Find an item by name' }), { target: { value: 'pastry' } })
-    expect(screen.getByRole('textbox', { name: 'Received for Whole-grain pastry dough prepared for morning service' })).toHaveValue('')
-    expect(screen.getByRole('textbox', { name: 'Received for Coffee bean' })).toHaveValue('')
+    fireEvent.change(screen.getByRole('textbox', { name: 'Received for Whole-grain pastry dough prepared for morning service' }), { target: { value: '6' } })
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Find an item by name' }), { target: { value: '' } })
 
     fireEvent.change(screen.getByRole('textbox', { name: 'Received for Coffee bean' }), { target: { value: '2.5' } })
     fireEvent.change(screen.getByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '4' } })
-    fireEvent.change(screen.getByRole('textbox', { name: 'Received for Whole-grain pastry dough prepared for morning service' }), { target: { value: '6' } })
     const lockStep = await openLockStep()
     expect(within(lockStep).getByText('Coffee bean')).toBeInTheDocument()
     expect(within(lockStep).getByText('Fresh milk')).toBeInTheDocument()
@@ -290,18 +305,18 @@ describe('CafeReceivePage', () => {
     const toggle = await screen.findByRole('button', { name: 'Choose from 2 open POs' })
     toggle.focus()
     await userEvent.keyboard('{Enter}')
-    await userEvent.keyboard('{Tab}{Tab}')
+    await userEvent.keyboard('{Tab}')
     const firstPo = screen.getByRole('button', { name: /PO-1043/ })
     expect(firstPo).toHaveFocus()
     await userEvent.keyboard('{Enter}')
-    expect(await screen.findByRole('button', { name: 'Change PO-1043' })).toHaveFocus()
+    expect(await screen.findByRole('button', { name: 'Change PO' })).toHaveFocus()
     expect(screen.getByRole('textbox', { name: 'Received for Coffee bean' })).toHaveValue('')
   })
 
   it('Issue 1443 says when the branch has no open POs without blocking item search', async () => {
     renderPage()
     expect(await screen.findByText(/no open purchase orders/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Receive without a PO' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByRole('group', { name: /^On / })).toBeNull()
     expect(screen.getByRole('textbox', { name: 'Received for Coffee bean' })).toBeInTheDocument()
   })
 
@@ -322,13 +337,21 @@ describe('CafeReceivePage', () => {
     expect(screen.getByRole('textbox', { name: 'Received for Coffee bean' })).toBeInTheDocument()
   })
 
-  it('Issue 1443 identifies a stale PO cache and does not offer stale orders for selection', async () => {
+  it('Issue 1443 identifies a stale PO cache and says on each order why it cannot be chosen', async () => {
     poMocks.list.mockResolvedValue({ ...TWO_PO_CACHE, asOf: '2026-10-05T02:10:00Z', isCurrent: false } as never)
     renderPage()
     expect(await screen.findByText(/open PO list is out of date/i)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Choose from 2 open POs' }))
-    expect(screen.getByRole('button', { name: /PO-1043/ })).toBeDisabled()
+    const card = screen.getByRole('listitem', { name: /PO-1043/ })
+    expect(within(card).queryByRole('button')).toBeNull()
+    expect(within(card).getByText(/can't be chosen: the PO list is out of date/i)).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: 'Received for Coffee bean' })).toBeInTheDocument()
+  })
+
+  it('Issue 1443 states the stale sync time in the app locale on the WIB clock', async () => {
+    poMocks.list.mockResolvedValue({ ...TWO_PO_CACHE, asOf: '2026-10-05T02:10:00Z', isCurrent: false } as never)
+    renderPage('id')
+    expect(await screen.findByText(/terakhir disinkronkan 05 Okt 09:10\./)).toBeInTheDocument()
   })
 
   it('Issue 1443 reports an open-PO read error with retry while item search remains available', async () => {
@@ -337,6 +360,122 @@ describe('CafeReceivePage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(/could not load open purchase orders/i)
     expect(screen.getByRole('button', { name: /retry open PO list/i })).toBeEnabled()
     expect(screen.getByRole('textbox', { name: 'Received for Coffee bean' })).toBeInTheDocument()
+  })
+
+  it('Issue 1443 tells a member receiving at another location that no POs are offered here, with no retry', async () => {
+    poMocks.list.mockRejectedValue(new Error('listCafeOpenPoIdentities failed: CAFE_OPEN_PO_FORBIDDEN'))
+    renderPage()
+    expect(await screen.findByText(/open POs show only for your own branch/i)).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.queryByRole('button', { name: /retry open PO list/i })).toBeNull()
+    expect(screen.getByRole('textbox', { name: 'Received for Coffee bean' })).toBeInTheDocument()
+  })
+
+  it('Issue 1443 names a single open PO in the singular', async () => {
+    poMocks.list.mockResolvedValue({ ...TWO_PO_CACHE, purchaseOrders: TWO_PO_CACHE.purchaseOrders.slice(0, 1) } as never)
+    renderPage()
+    expect(await screen.findByRole('button', { name: 'Choose from 1 open PO' })).toBeInTheDocument()
+  })
+
+  it('Issue 1443 Escape closes the open PO list and returns focus to its toggle', async () => {
+    poMocks.list.mockResolvedValue(TWO_PO_CACHE as never)
+    renderPage()
+    const toggle = await screen.findByRole('button', { name: 'Choose from 2 open POs' })
+    await userEvent.click(toggle)
+    await userEvent.tab()
+    expect(screen.getByRole('button', { name: /PO-1043/ })).toHaveFocus()
+    await userEvent.keyboard('{Escape}')
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(toggle).toHaveFocus()
+  })
+
+  it('Issue 1443 a long PO card names its first items and counts the rest', async () => {
+    mockItems.mockResolvedValue(LONG_PO_ITEMS)
+    poMocks.list.mockResolvedValue(LONG_PO_CACHE as never)
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: /^Choose from 1 open PO/ }))
+    const card = screen.getByRole('listitem', { name: /PO-2001/ })
+    expect(within(card).getByText('Long PO item 01')).toBeInTheDocument()
+    expect(within(card).queryByText('Long PO item 04')).toBeNull()
+    expect(within(card).getByText('+11 more')).toBeInTheDocument()
+  })
+
+  it('Issue 1443 a search after picking a PO longer than a screen shows its matches first', async () => {
+    mockItems.mockResolvedValue(LONG_PO_ITEMS)
+    poMocks.list.mockResolvedValue(LONG_PO_CACHE as never)
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: /^Choose from 1 open PO/ }))
+    fireEvent.click(screen.getByRole('button', { name: /PO-2001/ }))
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Find an item by name' }), { target: { value: 'lemon' } })
+    expect(screen.getAllByRole('textbox', { name: /^Received for / }).map(box => box.getAttribute('aria-label')))
+      .toEqual(['Received for Lemon lokal'])
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Find an item by name' }), { target: { value: 'item 1' } })
+    expect(within(screen.getByRole('list', { name: 'On PO-2001' })).getAllByRole('textbox').map(box => box.getAttribute('aria-label')))
+      .toEqual(['Received for Long PO item 10', 'Received for Long PO item 11', 'Received for Long PO item 12', 'Received for Long PO item 13', 'Received for Long PO item 14'])
+  })
+
+  it('Issue 1443 a picked PO shows its number, supplier and date over its own rows, apart from the other items', async () => {
+    mockItems.mockResolvedValue(PICKER_ITEMS)
+    poMocks.list.mockResolvedValue(TWO_PO_CACHE as never)
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Choose from 2 open POs' }))
+    fireEvent.click(screen.getByRole('button', { name: /PO-1043/ }))
+    const picked = screen.getByRole('group', { name: /^On PO-1043/ })
+    expect(picked).toHaveTextContent('Sample produce supplier')
+    expect(picked).toHaveTextContent('Sun 4 Oct')
+    const onPo = screen.getByRole('list', { name: 'On PO-1043' })
+    expect(within(onPo).getAllByRole('textbox').map(box => box.getAttribute('aria-label')))
+      .toEqual(['Received for Coffee bean', 'Received for Fresh milk'])
+    expect(within(screen.getByRole('list', { name: 'Not on this PO' })).getAllByRole('textbox').map(box => box.getAttribute('aria-label')))
+      .toEqual(['Received for Whole-grain pastry dough prepared for morning service'])
+  })
+
+  it('Issue 1443 Receive without a PO drops the pick and keeps typed counts', async () => {
+    mockItems.mockResolvedValue(PICKER_ITEMS)
+    poMocks.list.mockResolvedValue(TWO_PO_CACHE as never)
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Choose from 2 open POs' }))
+    fireEvent.click(screen.getByRole('button', { name: /PO-1043/ }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '4' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Receive without a PO' }))
+    expect(screen.queryByRole('group', { name: /^On PO-1043/ })).toBeNull()
+    expect(screen.queryByRole('list', { name: 'On PO-1043' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Choose from 2 open POs' })).toHaveFocus()
+    expect(screen.getByRole('textbox', { name: 'Received for Fresh milk' })).toHaveValue('4')
+  })
+
+  it('Issue 1443 names the PO lines that have no MOS product detail', async () => {
+    mockItems.mockResolvedValue(PICKER_ITEMS)
+    poMocks.list.mockResolvedValue({
+      ...TWO_PO_CACHE,
+      purchaseOrders: [{
+        ...TWO_PO_CACHE.purchaseOrders[0],
+        items: [
+          ...TWO_PO_CACHE.purchaseOrders[0].items,
+          { itemUnitId: null, itemName: 'Vanilla syrup 700 ml', unitName: 'bottle' },
+          { itemUnitId: 'unit-elsewhere', itemName: 'Paper straws', unitName: 'pack' },
+        ],
+      }],
+    } as never)
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: /^Choose from 1 open PO/ }))
+    fireEvent.click(screen.getByRole('button', { name: /PO-1043/ }))
+    expect(screen.getByRole('group', { name: /^On PO-1043/ })).toHaveTextContent('Not in MOS: Vanilla syrup 700 ml, Paper straws')
+  })
+
+  it('FR-1007 picking a PO changes no unit and starts no draft', async () => {
+    poMocks.list.mockResolvedValue({
+      ...TWO_PO_CACHE,
+      purchaseOrders: [{ ...TWO_PO_CACHE.purchaseOrders[0], items: [{ itemUnitId: 'unit-bag', itemName: 'Coffee bean', unitName: 'bag' }] }],
+    } as never)
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: /^Choose from 1 open PO/ }))
+    fireEvent.click(screen.getByRole('button', { name: /PO-1043/ }))
+    const bean = screen.getByRole('textbox', { name: 'Received for Coffee bean' })
+    expect(bean.closest('li')).toHaveTextContent(/kg/)
+    expect(bean.closest('li')).not.toHaveTextContent(/bag/)
+    expect(screen.queryByRole('button', { name: 'Discard draft' })).toBeNull()
+    expect(Object.keys(localStorage).filter(key => key.includes('receive'))).toEqual([])
   })
 
   it('FR-1013 a receiver can mark a line damaged or wrong before locking its count', async () => {

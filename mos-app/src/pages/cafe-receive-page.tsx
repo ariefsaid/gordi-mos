@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -14,6 +14,7 @@ import { CafeReceiveLockConfirm } from '@/components/kitchen/cafe-receive-lock-c
 import { CafeReceiptLineRow } from '@/components/kitchen/cafe-receipt-difference'
 import { CafeReceiptIssuesLink } from '@/components/kitchen/cafe-receipt-issues-link'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
+import { useI18n } from '@/i18n/I18nProvider'
 import { useT } from '@/i18n/use-t'
 import { canCaptureCafe } from '@/lib/cafe-affiliation'
 import { canReviewCafe } from '@/lib/kitchen-gates'
@@ -63,20 +64,16 @@ import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsOffline } from '@/shell/use-is-offline'
 import { useIsDesktop } from '@/shell/use-is-desktop'
-import { formatWeekdayDayMonth } from '@/lib/format/date'
+import { formatWeekdayDayMonth, formatWibShortDateTime } from '@/lib/format/date'
 import './cafe-count-page.css'
 import './cafe-receive-page.css'
 
 type Entry = { quantity: string; unitId: string; changingUnit: boolean; damagedWrong: boolean }
 type LoadState = 'loading' | 'ready' | 'error'
-type OpenPoState = { branchId: string | null; status: LoadState; cache: CafeOpenPoIdentityCache | null }
-
-function formatOpenPoCacheTime(asOf: string): string {
-  const date = new Date(asOf)
-  return Number.isNaN(date.getTime()) ? asOf : date.toLocaleString(undefined, {
-    timeZone: 'Asia/Jakarta', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
-  })
-}
+/** `forbidden`: the identity read refuses a member receiving outside their own branch, so a retry cannot help. */
+type OpenPoState = { branchId: string | null; status: LoadState | 'forbidden'; cache: CafeOpenPoIdentityCache | null }
+/** A PO card names this many expected items and counts the rest. */
+const PO_CARD_ITEMS = 3
 
 /** A typed quantity that is not a positive decimal; it blocks Count submit rather than being dropped. */
 function isInvalidEntry(entry: Entry | undefined): boolean {
@@ -164,8 +161,21 @@ function lockStepDeadEnd(key: string) {
   return null
 }
 
+/** A PO's identity line: number (or the given title), supplier and PO date; never a quantity or price. */
+function PoIdentity({ po, title, titleId }: { po: CafeOpenPoIdentity; title: string; titleId: string }) {
+  const t = useT()
+  return (
+    <span className="cafe-receive__open-po-topline">
+      <strong id={titleId}>{title}</strong>
+      <span>{po.supplierName || t('cafe.receive.openPos.supplierUnknown')}</span>
+      <span>{formatWeekdayDayMonth(po.poDate)}</span>
+    </span>
+  )
+}
+
 export function CafeReceivePage() {
   const t = useT()
+  const { locale } = useI18n()
   const auth = useAuth()
   const { options: streamOptions, stream, homeStream, myStreamKeys, resolve, adopt, setStream, branchId } = useCafeStream()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
@@ -186,10 +196,10 @@ export function CafeReceivePage() {
   const [loadState, setLoadState] = useState<LoadState>('loading')
   const [retryKey, setRetryKey] = useState(0)
   const [openPoRetryKey, setOpenPoRetryKey] = useState(0)
+  // The list waits behind its toggle: listed on open, its cards push the first capture row past DESIGN's 300px.
   const [openPoPickerExpanded, setOpenPoPickerExpanded] = useState(false)
   const [openPoState, setOpenPoState] = useState<OpenPoState>({ branchId: null, status: 'loading', cache: null })
   const [selectedPoKey, setSelectedPoKey] = useState<{ branchId: string; poNumber: string } | null>(null)
-  const selectedPoBranchRef = useRef<string | null>(stream?.branch.id ?? null)
   const openPoPickerToggleRef = useRef<HTMLButtonElement>(null)
   const [items, setItems] = useState<CafeReceivableItem[]>([])
   const [entries, setEntries] = useState<Record<string, Entry>>({})
@@ -243,15 +253,6 @@ export function CafeReceivePage() {
   }, [adopt, resolve, retryKey])
 
   useEffect(() => {
-    const branchId = stream?.branch.id ?? null
-    if (selectedPoBranchRef.current !== branchId) {
-      selectedPoBranchRef.current = branchId
-      setSelectedPoKey(null)
-      setOpenPoPickerExpanded(false)
-    }
-  }, [stream?.branch.id])
-
-  useEffect(() => {
     const branchId = stream?.branch.id
     if (!branchId || !canCapture) {
       setOpenPoState({ branchId: branchId ?? null, status: 'ready', cache: null })
@@ -261,8 +262,9 @@ export function CafeReceivePage() {
     setOpenPoState({ branchId, status: 'loading', cache: null })
     void listCafeOpenPoIdentities(branchId).then(cache => {
       if (active) setOpenPoState({ branchId, status: 'ready', cache })
-    }).catch(() => {
-      if (active) setOpenPoState({ branchId, status: 'error', cache: null })
+    }).catch((cause: unknown) => {
+      const forbidden = cause instanceof Error && cause.message.includes('CAFE_OPEN_PO_FORBIDDEN')
+      if (active) setOpenPoState({ branchId, status: forbidden ? 'forbidden' : 'error', cache: null })
     })
     return () => { active = false }
   }, [canCapture, openPoRetryKey, stream?.branch.id])
@@ -399,36 +401,41 @@ export function CafeReceivePage() {
   const itemTable = useKitchenItemTable({ data: filterRows, search, kind: 'All', category: isDesktop ? category : 'All' })
   const searchMatchedItems = itemTable.getFilteredRowModel().rows.map(row => row.original)
   const selectedPoUnitIds = new Set((selectedPo?.items ?? []).flatMap(poItem => poItem.itemUnitId ? [poItem.itemUnitId] : []))
-  const selectedPoItems = items.filter(item => item.units.some(unit => selectedPoUnitIds.has(unit.id)))
-  const selectedPoItemIds = new Set(selectedPoItems.map(item => item.id))
-  const visibleItems = [...selectedPoItems, ...searchMatchedItems.filter(item => !selectedPoItemIds.has(item.id))]
+  const isOnSelectedPo = (item: Pick<CafeReceivableItem, 'units'>) => item.units.some(unit => selectedPoUnitIds.has(unit.id))
+  // Search and category narrow the picked PO's rows as they do the rest, so a match is never buried under the PO.
+  const rowGroups = selectedPo
+    ? [
+        { key: 'po', label: t('cafe.receive.openPos.onPo', { poNumber: selectedPo.poNumber }), items: searchMatchedItems.filter(isOnSelectedPo) },
+        { key: 'other', label: t('cafe.receive.openPos.notOnPo'), items: searchMatchedItems.filter(item => !isOnSelectedPo(item)) },
+      ].filter(group => group.items.length > 0)
+    : [{ key: 'all', label: null, items: searchMatchedItems }]
+  const receivableUnitIds = new Set(items.flatMap(item => item.units.map(unit => unit.id)))
+  const selectedPoNotInMos = (selectedPo?.items ?? [])
+    .filter(poItem => !poItem.itemUnitId || !receivableUnitIds.has(poItem.itemUnitId))
+    .map(poItem => poItem.itemName)
   const categories = useMemo(() => [
     'All',
     ...Array.from(new Set(items.map(item => item.category ?? '').filter(Boolean)))
       .sort((a, b) => kitchenCategoryLabel(t, a).localeCompare(kitchenCategoryLabel(t, b))),
   ], [items, t])
 
+  /** Picking only groups rows; each line keeps its default unit until the person changes it (FR-1007). */
   const pickPurchaseOrder = useCallback((po: CafeOpenPoIdentity | null) => {
     if (!stream) return
     setSelectedPoKey(po ? { branchId: stream.branch.id, poNumber: po.poNumber } : null)
     setOpenPoPickerExpanded(false)
-    if (!po) return
     openPoPickerToggleRef.current?.focus()
-    const expectedUnitIds = new Set(po.items.flatMap(item => item.itemUnitId ? [item.itemUnitId] : []))
-    setEntries(current => {
-      let changed = false
-      const next = { ...current }
-      for (const item of items) {
-        const expectedUnit = item.units.find(unit => expectedUnitIds.has(unit.id))
-        const entry = current[item.id]
-        if (expectedUnit && entry && !hasEntryContent(item, entry)) {
-          next[item.id] = { ...entry, unitId: expectedUnit.id }
-          changed = true
-        }
-      }
-      return changed ? next : current
-    })
-  }, [items, stream])
+  }, [stream])
+
+  const openPos = poStateForBranch.cache?.purchaseOrders ?? []
+  // A stale or never-synced list may no longer match ESB, so its POs show but cannot be picked.
+  const openPosPickable = Boolean(poStateForBranch.cache?.asOf && poStateForBranch.cache.isCurrent)
+
+  function closeOpenPoListOnEscape(event: KeyboardEvent<HTMLElement>) {
+    if (event.key !== 'Escape' || !openPoPickerExpanded) return
+    setOpenPoPickerExpanded(false)
+    openPoPickerToggleRef.current?.focus()
+  }
 
   const patchEntry = useCallback((itemId: string, patch: Partial<Entry>) => {
     setEntries(current => current[itemId] ? { ...current, [itemId]: { ...current[itemId], ...patch } } : current)
@@ -597,6 +604,78 @@ export function CafeReceivePage() {
   const pageState = loadState === 'loading' ? 'loading' : loadState === 'error' ? 'error' : busy ? 'saving' : 'default'
   const firstEvidenceErrorId = Object.keys(evidenceValidation)[0]
 
+  function renderItemRow(item: Omit<CafeReceivableItem, 'kind'>) {
+    const entry = entries[item.id]
+    const invalid = isInvalidEntry(entry)
+    const unitName = item.units.find(unit => unit.id === entry?.unitId)?.name ?? ''
+    return (
+      <li className="cafe-count__row" key={item.id}>
+        <div className="cafe-count__item">
+          <div className="cafe-count__item-name">{item.name}</div>
+          {item.category && <div className="cafe-count__category">{kitchenCategoryLabel(t, item.category)}</div>}
+        </div>
+        <div className="cafe-count__input-group">
+          <label htmlFor={`cafe-receive-${item.id}`}>{t('cafe.receive.quantityLabel')}</label>
+          <div className="cafe-count__quantity-control">
+            <input
+              id={`cafe-receive-${item.id}`}
+              aria-label={t('cafe.receive.quantityFor', { item: item.name })}
+              type="text"
+              inputMode="decimal"
+              autoComplete="off"
+              value={entry?.quantity ?? ''}
+              aria-invalid={invalid || undefined}
+              disabled={busy}
+              onChange={event => patchEntry(item.id, { quantity: event.target.value })}
+            />
+            <span className="cafe-count__unit">{unitName}</span>
+          </div>
+          {item.units.length > 1 && (
+            <button
+              type="button"
+              className="cafe-receive__change-unit"
+              aria-expanded={entry?.changingUnit ?? false}
+              onClick={() => patchEntry(item.id, { changingUnit: !entry?.changingUnit })}
+            >
+              {t('cafe.receive.changeUnit')}
+            </button>
+          )}
+          {item.units.length > 1 && entry?.changingUnit && (
+            <fieldset className="cafe-receive__units" aria-label={t('cafe.receive.unitFor', { item: item.name })}>
+              <legend>{t('cafe.receive.unitLabel')}</legend>
+              {item.units.map(unit => (
+                <label key={unit.id}>
+                  <input
+                    type="radio"
+                    name={`cafe-receive-unit-${item.id}`}
+                    value={unit.id}
+                    checked={entry.unitId === unit.id}
+                    onChange={() => patchEntry(item.id, { unitId: unit.id })}
+                  />
+                  {unit.name}
+                </label>
+              ))}
+            </fieldset>
+          )}
+          {invalid && <p className="cafe-count__field-error" role="alert">{t('cafe.receive.quantityInvalid')}</p>}
+          {/* DESIGN "Compact capture row": the flag shows once the row has a quantity to flag. */}
+          {entry?.quantity.trim() && (
+            <label className="cafe-receive__damage-flag">
+              <input
+                type="checkbox"
+                aria-label={t('cafe.receive.damageFlagFor', { item: item.name })}
+                checked={entry.damagedWrong}
+                disabled={busy}
+                onChange={event => patchEntry(item.id, { damagedWrong: event.target.checked })}
+              />
+              {t('cafe.receive.damageFlag')}
+            </label>
+          )}
+        </div>
+      </li>
+    )
+  }
+
   return (
     <PageFamilyFrame family="workspace" title={pageLabel} headClassName="cafe-count__head" statusRow={picker} state={pageState}>
       <div className="cafe-count cafe-receive">
@@ -718,43 +797,49 @@ export function CafeReceivePage() {
               </EmptyState>
             ) : (
               <>
-                <section className="cafe-receive__open-pos" aria-labelledby="cafe-receive-open-pos-title">
+                <section className="cafe-receive__open-pos" aria-labelledby="cafe-receive-open-pos-title" onKeyDown={closeOpenPoListOnEscape}>
                   <div className="cafe-receive__open-pos-head">
-                    <div>
+                    <div className="cafe-receive__open-pos-lead">
                       <h2 id="cafe-receive-open-pos-title" className="cafe-receive__open-pos-title">{t('cafe.receive.openPos.title')}</h2>
-                      <p className="cafe-receive__open-pos-help">{t('cafe.receive.openPos.help')}</p>
+                      {selectedPo ? (
+                        <div className="cafe-receive__open-po cafe-receive__open-po--picked" role="group" aria-labelledby="cafe-receive-picked-po">
+                          <PoIdentity po={selectedPo} titleId="cafe-receive-picked-po" title={t('cafe.receive.openPos.onPo', { poNumber: selectedPo.poNumber })} />
+                          {selectedPoNotInMos.length > 0 && (
+                            <p className="cafe-receive__open-po-note">{t('cafe.receive.openPos.notInMos', { items: selectedPoNotInMos.join(', ') })}</p>
+                          )}
+                        </div>
+                      ) : openPos.length > 0 && openPosPickable && (
+                        <p className="cafe-receive__open-pos-help">{t('cafe.receive.openPos.help')}</p>
+                      )}
                     </div>
-                    <div className="cafe-receive__open-po-actions">
-                      {poStateForBranch.cache && poStateForBranch.cache.purchaseOrders.length > 0 && (
+                    {openPos.length > 0 && (
+                      <div className="cafe-receive__open-po-actions">
                         <button
                           ref={openPoPickerToggleRef}
                           type="button"
-                          className="cafe-receive__without-po"
+                          className="btn btn-outline btn-touch"
                           aria-expanded={openPoPickerExpanded}
                           aria-controls="cafe-receive-open-po-list"
                           onClick={() => setOpenPoPickerExpanded(value => !value)}
                         >
-                          {t(selectedPo ? 'cafe.receive.openPos.change' : 'cafe.receive.openPos.choose', {
-                            count: poStateForBranch.cache.purchaseOrders.length,
-                            poNumber: selectedPo?.poNumber ?? '',
-                          })}
+                          {selectedPo
+                            ? t('cafe.receive.openPos.change')
+                            : t(openPos.length === 1 ? 'cafe.receive.openPos.choose.one' : 'cafe.receive.openPos.choose.other', { count: openPos.length })}
                         </button>
-                      )}
-                      <button
-                        type="button"
-                        className="cafe-receive__without-po"
-                        aria-pressed={selectedPo === null}
-                        onClick={() => pickPurchaseOrder(null)}
-                      >
-                        {t('cafe.receive.openPos.withoutPo')}
-                      </button>
-                    </div>
+                        {selectedPo && (
+                          <button type="button" className="btn btn-outline btn-touch" onClick={() => pickPurchaseOrder(null)}>
+                            {t('cafe.receive.openPos.withoutPo')}
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                   {poStateForBranch.status === 'loading' && <p role="status">{t('cafe.receive.openPos.loading')}</p>}
+                  {poStateForBranch.status === 'forbidden' && <p role="status">{t('cafe.receive.openPos.forbidden')}</p>}
                   {poStateForBranch.status === 'error' && (
                     <div className="cafe-receive__open-pos-state">
                       <p role="alert">{t('cafe.receive.openPos.error')}</p>
-                      <button type="button" className="cafe-receive__without-po" onClick={() => setOpenPoRetryKey(value => value + 1)}>
+                      <button type="button" className="btn btn-outline btn-touch" onClick={() => setOpenPoRetryKey(value => value + 1)}>
                         {t('cafe.receive.openPos.retry')}
                       </button>
                     </div>
@@ -763,43 +848,56 @@ export function CafeReceivePage() {
                     <>
                       {!poStateForBranch.cache.asOf && <p role="status">{t('cafe.receive.openPos.notRead')}</p>}
                       {poStateForBranch.cache.asOf && !poStateForBranch.cache.isCurrent && (
-                        <p role="status">{t('cafe.receive.openPos.stale', { time: formatOpenPoCacheTime(poStateForBranch.cache.asOf) })}</p>
+                        <p role="status">{t('cafe.receive.openPos.stale', { time: formatWibShortDateTime(poStateForBranch.cache.asOf, locale) })}</p>
                       )}
-                      {poStateForBranch.cache.asOf && poStateForBranch.cache.isCurrent && poStateForBranch.cache.purchaseOrders.length === 0 && (
+                      {poStateForBranch.cache.asOf && poStateForBranch.cache.isCurrent && openPos.length === 0 && (
                         <p role="status">{t('cafe.receive.openPos.empty')}</p>
                       )}
-                      {poStateForBranch.cache.purchaseOrders.length > 0 && (
+                      {openPos.length > 0 && (
                         <ul
                           id="cafe-receive-open-po-list"
                           className="cafe-receive__open-po-list"
                           aria-label={t('cafe.receive.openPos.listAria')}
                           hidden={!openPoPickerExpanded}
                         >
-                          {poStateForBranch.cache.purchaseOrders.map(po => (
-                            <li key={po.poNumber}>
-                              <button
-                                type="button"
-                                className="cafe-receive__open-po"
-                                aria-pressed={selectedPo?.poNumber === po.poNumber}
-                                disabled={!poStateForBranch.cache?.isCurrent || !poStateForBranch.cache.asOf}
-                                onClick={() => pickPurchaseOrder(po)}
+                          {openPos.map((po, index) => {
+                            const picked = selectedPo?.poNumber === po.poNumber
+                            const hiddenItems = po.items.length - PO_CARD_ITEMS
+                            return (
+                              <li
+                                key={po.poNumber}
+                                className={picked ? 'cafe-receive__open-po cafe-receive__open-po--picked' : 'cafe-receive__open-po'}
+                                aria-labelledby={`cafe-receive-open-po-${index}`}
                               >
-                                <span className="cafe-receive__open-po-topline">
-                                  <strong>{po.poNumber}</strong>
-                                  <span>{po.supplierName || t('cafe.receive.openPos.supplierUnknown')}</span>
-                                  <span>{formatWeekdayDayMonth(po.poDate)}</span>
-                                </span>
-                                <span className="cafe-receive__open-po-items">
-                                  {po.items.map((item, index) => (
-                                    <span className="cafe-receive__open-po-item" key={`${item.itemUnitId ?? item.itemName}-${index}`}>
+                                <PoIdentity po={po} titleId={`cafe-receive-open-po-${index}`} title={po.poNumber} />
+                                <ul className="cafe-receive__open-po-items">
+                                  {po.items.slice(0, PO_CARD_ITEMS).map((item, itemIndex) => (
+                                    <li className="cafe-receive__open-po-item" key={`${item.itemUnitId ?? item.itemName}-${itemIndex}`}>
                                       <span>{item.itemName}</span>
                                       {item.unitName && <span className="cafe-receive__open-po-unit">{item.unitName}</span>}
-                                    </span>
+                                    </li>
                                   ))}
-                                </span>
-                              </button>
-                            </li>
-                          ))}
+                                  {hiddenItems > 0 && (
+                                    <li className="cafe-receive__open-po-more">{t('cafe.receive.openPos.more', { count: hiddenItems })}</li>
+                                  )}
+                                </ul>
+                                {!openPosPickable ? (
+                                  <p className="cafe-receive__open-po-note">{t('cafe.receive.openPos.staleCard')}</p>
+                                ) : picked ? (
+                                  <p className="cafe-receive__open-po-note">{t('cafe.receive.openPos.picked')}</p>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    className="btn btn-outline btn-touch"
+                                    aria-label={t('cafe.receive.openPos.chooseThisAria', { poNumber: po.poNumber })}
+                                    onClick={() => pickPurchaseOrder(po)}
+                                  >
+                                    {t('cafe.receive.openPos.chooseThis')}
+                                  </button>
+                                )}
+                              </li>
+                            )
+                          })}
                         </ul>
                       )}
                     </>
@@ -816,80 +914,19 @@ export function CafeReceivePage() {
                   searchPlaceholder={t('cafe.receive.searchPlaceholder')}
                   ariaLabel={t('kitchen.log.toolbarAria')}
                 />
-                {visibleItems.length === 0 && <p className="cafe-count__intro">{t('kitchen.filter.noMatch')}</p>}
-                <ul className="cafe-count__list" aria-label={t('cafe.receive.listAria')}>
-                  {visibleItems.map(item => {
-                    const entry = entries[item.id]
-                    const invalid = isInvalidEntry(entry)
-                    const unitName = item.units.find(unit => unit.id === entry?.unitId)?.name ?? ''
-                    return (
-                      <li className="cafe-count__row" key={item.id}>
-                        <div className="cafe-count__item">
-                          <div className="cafe-count__item-name">{item.name}</div>
-                          {item.category && <div className="cafe-count__category">{kitchenCategoryLabel(t, item.category)}</div>}
-                        </div>
-                        <div className="cafe-count__input-group">
-                          <label htmlFor={`cafe-receive-${item.id}`}>{t('cafe.receive.quantityLabel')}</label>
-                          <div className="cafe-count__quantity-control">
-                            <input
-                              id={`cafe-receive-${item.id}`}
-                              aria-label={t('cafe.receive.quantityFor', { item: item.name })}
-                              type="text"
-                              inputMode="decimal"
-                              autoComplete="off"
-                              value={entry?.quantity ?? ''}
-                              aria-invalid={invalid || undefined}
-                              disabled={busy}
-                              onChange={event => patchEntry(item.id, { quantity: event.target.value })}
-                            />
-                            <span className="cafe-count__unit">{unitName}</span>
-                          </div>
-                          {item.units.length > 1 && (
-                            <button
-                              type="button"
-                              className="cafe-receive__change-unit"
-                              aria-expanded={entry?.changingUnit ?? false}
-                              onClick={() => patchEntry(item.id, { changingUnit: !entry?.changingUnit })}
-                            >
-                              {t('cafe.receive.changeUnit')}
-                            </button>
-                          )}
-                          {item.units.length > 1 && entry?.changingUnit && (
-                            <fieldset className="cafe-receive__units" aria-label={t('cafe.receive.unitFor', { item: item.name })}>
-                              <legend>{t('cafe.receive.unitLabel')}</legend>
-                              {item.units.map(unit => (
-                                <label key={unit.id}>
-                                  <input
-                                    type="radio"
-                                    name={`cafe-receive-unit-${item.id}`}
-                                    value={unit.id}
-                                    checked={entry.unitId === unit.id}
-                                    onChange={() => patchEntry(item.id, { unitId: unit.id })}
-                                  />
-                                  {unit.name}
-                                </label>
-                              ))}
-                            </fieldset>
-                          )}
-                          {invalid && <p className="cafe-count__field-error" role="alert">{t('cafe.receive.quantityInvalid')}</p>}
-                          {/* DESIGN "Compact capture row": the flag shows once the row has a quantity to flag. */}
-                          {entry?.quantity.trim() && (
-                            <label className="cafe-receive__damage-flag">
-                              <input
-                                type="checkbox"
-                                aria-label={t('cafe.receive.damageFlagFor', { item: item.name })}
-                                checked={entry.damagedWrong}
-                                disabled={busy}
-                                onChange={event => patchEntry(item.id, { damagedWrong: event.target.checked })}
-                              />
-                              {t('cafe.receive.damageFlag')}
-                            </label>
-                          )}
-                        </div>
-                      </li>
-                    )
-                  })}
-                </ul>
+                {searchMatchedItems.length === 0 && <p className="cafe-count__intro">{t('kitchen.filter.noMatch')}</p>}
+                {rowGroups.map(group => (
+                  <div className="cafe-receive__row-group" key={group.key}>
+                    {group.label && <h3 id={`cafe-receive-rows-${group.key}`} className="cafe-receive__row-group-label">{group.label}</h3>}
+                    <ul
+                      className="cafe-count__list"
+                      aria-label={group.label ? undefined : t('cafe.receive.listAria')}
+                      aria-labelledby={group.label ? `cafe-receive-rows-${group.key}` : undefined}
+                    >
+                      {group.items.map(renderItemRow)}
+                    </ul>
+                  </div>
+                ))}
               </>
             )}
           </>
