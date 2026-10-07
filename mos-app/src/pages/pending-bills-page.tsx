@@ -2,11 +2,13 @@
 // The nightly reporting copy stays read-only; payments and reversals use the append-only MOS RPC.
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useAuth } from '@/auth/use-auth'
-import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
+import { MoneyFreshness } from '@/components/money/money-head'
+import { MoneyLoadError } from '@/components/money/money-load-error'
+import { MoneyTableShell } from '@/components/money/money-table-shell'
 import { PendingBillPaymentForm, type PendingBillPaymentSaved } from '@/components/money/pending-bill-payment-form'
 import { createPendingBillRecordAdapter, pendingBillAgeLabel, PENDING_BILL_STATE_LABEL } from '@/components/money/pending-bill-record-adapter'
 import { Button } from '@/components/ui/button'
-import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
+import { EmptyState, LoadingShell } from '@/components/ui/state-kit'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Toast } from '@/components/admin/toast'
 import { useToast } from '@/components/admin/use-toast'
@@ -57,14 +59,20 @@ function branch(bill: PendingBillView, t: T): ReactNode {
   return <>{code} <span className="pending-bills__muted">{t('pendingBills.branch.unknown')}</span></>
 }
 
+type PendingBillColumn = {
+  key: 'date' | 'age' | 'branch' | 'owes' | 'state' | 'bill' | 'amount' | 'balance'
+  header: string
+  render: (bill: PendingBillView) => ReactNode
+}
+
 function columns(
   t: T,
   locale: ReturnType<typeof useI18n>['locale'],
   onOpen: (bill: PendingBillView) => void,
-): DataTableColumn<PendingBillView>[] {
+): PendingBillColumn[] {
   return [
     { key: 'date', header: t('pendingBills.col.date'), render: (bill) => <span className="tabular pending-bills__nowrap">{formatDayMonthYear(bill.billDate, locale)}</span> },
-    { key: 'age', header: t('pendingBills.col.age'), numeric: true, render: (bill) => pendingBillAgeLabel(bill.ageDays, t) },
+    { key: 'age', header: t('pendingBills.col.age'), render: (bill) => <span className="tabular">{pendingBillAgeLabel(bill.ageDays, t)}</span> },
     { key: 'branch', header: t('pendingBills.col.branch'), render: (bill) => branch(bill, t) },
     { key: 'owes', header: t('pendingBills.col.owes'), render: (bill) => <span className="pending-bills__owes">{bill.counterpartyNote ?? <span className="pending-bills__muted">{t('pendingBills.owes.none')}</span>}</span> },
     { key: 'state', header: t('pendingBills.col.state'), render: (bill) => statePill(bill, t) },
@@ -73,39 +81,9 @@ function columns(
         <span className="pending-bills__code">{bill.billNo}</span>
       </button>
     ) },
-    { key: 'amount', header: t('pendingBills.col.amount'), numeric: true, render: (bill) => formatIDRExact(bill.amount) },
-    { key: 'balance', header: t('pendingBills.col.balance'), numeric: true, render: (bill) => formatIDRExact(bill.balance) },
+    { key: 'amount', header: t('pendingBills.col.amount'), render: (bill) => <span className="tabular">{formatIDRExact(bill.amount)}</span> },
+    { key: 'balance', header: t('pendingBills.col.balance'), render: (bill) => <span className="tabular">{formatIDRExact(bill.balance)}</span> },
   ]
-}
-
-function BillCard({ bill, onOpen }: { bill: PendingBillView; onOpen: (bill: PendingBillView) => void }) {
-  const t = useT()
-  const { locale } = useI18n()
-  return (
-    <div className="pending-bill-card">
-      <button
-        type="button"
-        className={`pending-bill-card__title${bill.counterpartyNote ? '' : ' pending-bill-card__title--none'}`}
-        onClick={() => onOpen(bill)}
-        aria-label={t('pendingBills.openBill', { billNo: bill.billNo })}
-      >
-        {bill.counterpartyNote ?? t('pendingBills.owes.none')}
-      </button>
-      <div className="pending-bill-card__amount tabular">{formatIDRExact(bill.amount)}</div>
-      <div className="pending-bill-card__meta">
-        <span className="tabular">{formatDayMonthYear(bill.billDate, locale)}</span>
-        {' · '}{branch(bill, t)}{' · '}
-        <span className="pending-bills__code">{bill.billNo}</span>
-      </div>
-      <div className="pending-bill-card__status">
-        <span className="tabular">{pendingBillAgeLabel(bill.ageDays, t)}</span>
-        {statePill(bill, t)}
-      </div>
-      <div className="pending-bill-card__balance">
-        {t('pendingBills.col.balance')} <span className="tabular">{formatIDRExact(bill.balance)}</span>
-      </div>
-    </div>
-  )
 }
 
 export function PendingBillsPage() {
@@ -113,8 +91,8 @@ export function PendingBillsPage() {
   const { locale } = useI18n()
   const auth = useAuth()
   const orgId = auth.status === 'authenticated' ? auth.viewer.person.org_id : ''
-  const isDesktop = useIsDesktop()
   const isWide = useIsWideOverlayWidth()
+  const isDesktop = useIsDesktop()
   useDocumentTitle(t('pendingBills.documentTitle'))
 
   const { status, data, tooMany, reload } = useReportingRead(loadPendingBills)
@@ -193,8 +171,8 @@ export function PendingBillsPage() {
     return () => { active = false }
   }, [selectedBillId, selectedBillEsbCode, selectedBillBranchCode, selectedBillNumber, historyRequest])
 
-  const frame = (children: ReactNode, state?: 'loading' | 'error' | 'empty', meta?: ReactNode) => (
-    <PageFamilyFrame family="workspace" title={t('nav.money.pendingBills')} meta={meta} state={state}>
+  const frame = (children: ReactNode, state?: 'loading' | 'error' | 'empty', meta?: ReactNode, action?: ReactNode) => (
+    <PageFamilyFrame family="workspace" title={t('nav.money.pendingBills')} meta={meta} state={state} action={action}>
       {children}
     </PageFamilyFrame>
   )
@@ -204,20 +182,28 @@ export function PendingBillsPage() {
     </Button>
   )
 
-  if (!data && status === 'loading') return frame(<LoadingShell count={5} className="pending-bills-loading" />, 'loading')
+  if (!data && status === 'loading') return frame(<LoadingShell count={5} className="money-skeleton pending-bills-loading" />, 'loading')
   if (!data) {
-    return frame(<ErrorState message={t(tooMany ? 'pendingBills.error.tooMany' : 'pendingBills.error')} onRetry={reload} />, 'error')
+    return frame(
+      <MoneyLoadError
+        tooMany={tooMany}
+        message={t('pendingBills.error')}
+        tooManyMessage={t('pendingBills.error.tooMany')}
+        onRetry={reload}
+      />,
+      'error',
+    )
   }
 
   const kept = status === 'error'
-    ? <ErrorState message={t(tooMany ? 'pendingBills.error.tooMany' : 'pendingBills.error.kept')} onRetry={reload} />
+    ? <MoneyLoadError kept tooMany={tooMany} message={t('pendingBills.error.kept')} tooManyMessage={t('pendingBills.error.tooMany')} onRetry={reload} />
     : null
   if (!data.snapshot) {
     return frame(
       <div className="pending-bills-body">
         {kept}
         <EmptyState variant="awaiting" title={t('pendingBills.none.title')} copy={t('pendingBills.none.copy')}>
-          {refresh}
+          {!tooMany && refresh}
         </EmptyState>
       </div>,
       'empty',
@@ -225,22 +211,25 @@ export function PendingBillsPage() {
   }
 
   const copiedAt = formatWibWeekdayTime(data.snapshot.snapshot_as_of, locale)
-  const asOf = <span className="ch-meta-line pending-bills-freshness">{t('pendingBills.asOf', { time: copiedAt })}</span>
-  const stale = isPendingBillCopyStale(data.snapshot.snapshot_as_of, new Date()) && (
-    <div className="pending-bills-stale">
-      <p className="pending-bills-stale__text">{t('pendingBills.stale', { time: copiedAt })}</p>
-      {refresh}
-    </div>
+  const stale = isPendingBillCopyStale(data.snapshot.snapshot_as_of, new Date())
+  const freshness = (
+    <MoneyFreshness
+      latestDate={wibToday(new Date(data.snapshot.snapshot_as_of))}
+      syncedAt={data.snapshot.snapshot_as_of}
+      freshMessage={t('pendingBills.asOf', { time: copiedAt })}
+      staleMessage={t('pendingBills.stale', { time: copiedAt })}
+    />
   )
+  const staleAction = stale && !tooMany ? refresh : undefined
   if (bills.length === 0) {
     return frame(
       <div className="pending-bills-body">
         {kept}
-        {stale}
-        <EmptyState variant="quiet" title={t('pendingBills.empty.title')}>{!stale && refresh}</EmptyState>
+        <EmptyState variant="quiet" title={t('pendingBills.empty.title')}>{!stale && !tooMany && refresh}</EmptyState>
       </div>,
       'empty',
-      asOf,
+      freshness,
+      staleAction,
     )
   }
 
@@ -313,11 +302,12 @@ export function PendingBillsPage() {
     },
     onRetryHistory: () => setHistoryRequest((current) => current + 1),
   }) : null
+  const billColumns = columns(t, locale, selectBill)
   const recordPanel = selectedBill && adapter ? (
     <>
       <RecordPanelHost
         label={t('pendingBills.record.panelLabel', { billNo: selectedBill.billNo })}
-        title={t('nav.money.pendingBills')}
+        title={isDesktop ? t('nav.money.pendingBills') : t('pendingBills.record.panelLabel', { billNo: selectedBill.billNo })}
         closeLabel={t('record.close')}
         rootClassName="drawer-split--sticky"
         focusKey={selectedBill.id}
@@ -347,26 +337,41 @@ export function PendingBillsPage() {
     <div className="pending-bills-body">
       <Toast toast={toast} onDismiss={clearToast} />
       {kept}
-      {stale}
       <div className="pending-bills-summary" aria-live="polite">
         {t('pendingBills.summary', { count: String(summary.openCount), total: formatIDRExact(summary.openBalance) })}
       </div>
       <div className={selectedBill && isWide ? 'record-split' : undefined}>
         <div className="pending-bills-list-column">
-          <div className="pending-bills-scroll" role="region" aria-label={t('pendingBills.table.scrollLabel')} tabIndex={0}>
-            <DataTable
-              columns={columns(t, locale, selectBill)}
-              rows={bills}
-              isDesktop={isDesktop}
-              caption={t('pendingBills.table.caption')}
-              renderCard={(bill) => <BillCard bill={bill} onOpen={selectBill} />}
-            />
-          </div>
+          <MoneyTableShell className="pending-bills-table">
+            <caption className="sr-only">{t('pendingBills.table.caption')}</caption>
+            <thead>
+              <tr>
+                {billColumns.map((column) => (
+                  <th key={column.key} scope="col" className={`money-table__head money-table__cell--${column.key}`}>
+                    {column.header}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="money-table__group">
+              {bills.map((bill) => (
+                <tr key={bill.id} className="money-table__row">
+                  {billColumns.map((column) => (
+                    <td key={column.key} className={`money-table__cell money-table__cell--${column.key}`}>
+                      <span className="money-table__cell-label">{column.header}</span>
+                      <span className="money-table__cell-value">{column.render(bill)}</span>
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </MoneyTableShell>
         </div>
         {recordPanel}
       </div>
     </div>,
     undefined,
-    asOf,
+    freshness,
+    staleAction,
   )
 }

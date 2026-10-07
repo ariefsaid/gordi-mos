@@ -80,7 +80,7 @@ import {
   type KitchenListRow,
 } from '@/lib/kitchen-item-list'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
-import { formatWeekdayDayMonth } from '@/lib/format/date'
+import { formatWeekdayDayMonth, wibToday } from '@/lib/format/date'
 import { EmptyState, LoadingShell } from '@/components/ui/state-kit'
 import { QuantityFieldError } from '@/components/ui/quantity-field'
 import { CafeItemsEmptyState } from '@/components/kitchen/cafe-items-empty-state'
@@ -91,14 +91,6 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { NotOnStreamTag } from '@/components/kitchen/not-on-stream-tag'
 import { ReportMissingItem } from '@/components/kitchen/report-missing-item'
 import './kitchen-log-page.css'
-
-// WIB "today" as YYYY-MM-DD (fixed +7h offset, NFR-007)
-function wibToday(): string {
-  const WIB_OFFSET_MS = 7 * 60 * 60 * 1000
-  const shifted = new Date(Date.now() + WIB_OFFSET_MS)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}-${pad(shifted.getUTCDate())}`
-}
 
 // Build fresh per-item line state from loaded items + plan + stock for one movement.
 // Every line opens on its item's default ERP unit (units[0]); configured multiples are
@@ -687,10 +679,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       myStreamKeys={myStreamKeys}
       onChange={selectStream}
       disabled={status.kind === 'submitting'}
-      context={<>
-        <span aria-hidden="true">·</span>
-        <span className="kl-date tabular">{formatWeekdayDayMonth(logDate)}</span>
-      </>}
+      switchLabel={t(stream?.activity === 'bar' ? 'cafe.stream.switchBar' : 'cafe.stream.switchKitchen')}
+      switchAriaLabel={t(stream?.activity === 'bar' ? 'cafe.stream.switchBarAria' : 'cafe.stream.switchKitchenAria')}
     />
     {pendingStream && <ConfirmDialog
       open
@@ -710,11 +700,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     </>
   )
 
-  const captureContext = (
-    <div className="cafe-capture-context">
-      {streamPicker}
-      {stream === null && <span className="kl-date tabular">{formatWeekdayDayMonth(logDate)}</span>}
-    </div>
+  const captureContext = stream === null ? undefined : (
+    <div className="cafe-capture-context">{streamPicker}</div>
   )
 
   const receivingOnlyNotice = (
@@ -1034,7 +1021,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   if (wipItems.length === 0 && stream !== null) {
     return (
       <PageFamilyFrame family="workspace" title={pageTitle} headClassName="cafe-capture-head" statusRow={captureContext} state={streamNonProducing ? 'read-only' : 'empty'}>
-        <div className={`kl-page cafe-capture-content${isWide ? ' kl-capture-wide' : ''}`}>
+        <div className={`kl-page kl-capture-content cafe-capture-content${isWide ? ' kl-capture-wide' : ''}`}>
           <OfflineBanner show={!isOnline} />
           {streamNonProducing && receivingOnlyNotice}
           {mode === 'transfer' && movementOptions.length > 0 && (
@@ -1183,6 +1170,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   // not is worse than an empty list. Gated on `canCapture` (an unaffiliated/non-lead viewer's
   // block is the OWN read-only state, unrelated to the stream choice) and `!streamNonProducing`
   // (that state has its own receiving-only notice).
+  const readOnlyNoStream = !canCapture && streamMissing
   const noStreamChosen = canCapture && streamMissing && !streamNonProducing
   // On the live capture form, explain offline blocking once in the sticky band. States with no
   // band (no stream, receiving-only, loading/error, or empty catalog) keep the page banner.
@@ -1408,7 +1396,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       renderRowDetail={renderQuantityError}
       isDesktop={isDesktop}
       state={visibleItems.length > 0 ? 'ready' : 'empty'}
-      emptyLabel={t('kitchen.filter.noMatch')}
+      emptyLabel={t(readOnlyNoStream ? 'kitchen.log.readOnlyNoStreamEmpty' : 'kitchen.filter.noMatch')}
       caption={streamNonProducing
         ? mode === 'transfer' ? t('kitchen.transfer.receivingCaption') : t('kitchen.stream.receivingOnly.logCaption')
         : mode === 'transfer'
@@ -1426,9 +1414,10 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
          a row lands in decides what the row MEANS, so it outranks the static job sentence the
          shared head would otherwise carry (PageHead renders one or the other). */
       statusRow={captureContext}
+      meta={<time className="cafe-capture-date tabular" dateTime={logDate}>{formatWeekdayDayMonth(logDate)}</time>}
       state={status.kind === 'submitting' ? 'saving' : status.kind === 'success' ? 'saved' : streamNonProducing ? 'read-only' : submitError ? 'validation' : 'default'}
     >
-      <div ref={captureRef} className={`kl-page cafe-capture-content${isWide ? ' kl-capture-wide' : ''}`}>
+      <div ref={captureRef} className={`kl-page kl-capture-content cafe-capture-content${isWide ? ' kl-capture-wide' : ''}`}>
         <div className="kl-capture-main">
         {/* GAP-4/#9: staged-but-unsubmitted quantities must not vanish on navigation — prompt
             stay/discard when leaving the route with unsaved entries. */}
@@ -1522,7 +1511,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
               {buId && stream && !captureClosed && (
                 <ReportMissingItem stream={stream} streamLabel={streamLabel(t, stream)} />
               )}
-              {mode === 'transfer' && !transferDestinationChosen ? null : logTable}
+              {mode === 'transfer' && !transferDestinationChosen && !readOnlyNoStream ? null : logTable}
               {!isWide && mode === 'transfer' && stream !== null && !streamNonProducing && transferDestinationChosen && stagedCount > 0 && (
                 <section
                   className="kl-capture-summary"

@@ -233,9 +233,11 @@ describe('CafeStreamChoices — the no-default one-step choice (item 2, B5)', ()
     expect(buttons[0]).toHaveTextContent('Your Team')
   })
 
-  it('marks a receiving-only stream so it is not mistaken for a producing choice', () => {
+  it('names the stream button separately from its receiving-only description', () => {
     wrap(<CafeStreamChoices options={[RAD_KITCHEN]} onChoose={() => {}} />)
-    expect(screen.getByRole('button', { name: /radiant · kitchen/i })).toHaveTextContent('Receiving only')
+    const button = screen.getByRole('button', { name: 'Radiant · Kitchen' })
+    expect(button).toHaveAccessibleDescription('Receiving only')
+    expect(button).toHaveTextContent('Receiving only')
   })
 
   it('one click selects — there is no separate "open" step', () => {

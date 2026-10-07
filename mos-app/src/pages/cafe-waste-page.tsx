@@ -44,6 +44,7 @@ import { CafeItemsEmptyState } from '@/components/kitchen/cafe-items-empty-state
 import { RouteLeaveGuard } from '@/shell/route-leave-guard'
 import './kitchen-log-page.css'
 import './cafe-waste-page.css'
+import '@/components/kitchen/cafe-capture-controls.css'
 
 type CafeLogItem = NonNullable<ReturnType<typeof toCafeLogItem>>
 
@@ -269,6 +270,7 @@ export function CafeWastePage() {
     category: effectiveCategory,
   })
   const visibleItems = itemTable.getFilteredRowModel().rows.map(row => row.original)
+  const hasMixedCategories = new Set(visibleItems.map(item => item.category).filter(Boolean)).size > 1
   const categories = useMemo(() => [
     'All',
     ...Array.from(new Set(items.map(item => item.category ?? '').filter(Boolean)))
@@ -537,10 +539,8 @@ export function CafeWastePage() {
       myStreamKeys={myStreamKeys}
       onChange={selectStream}
       disabled={submitting || hasPendingCapture}
-      context={<>
-        <span aria-hidden="true">·</span>
-        <span className="kl-date tabular">{formatWeekdayDayMonth(logDate)}</span>
-      </>}
+      switchLabel={t(stream?.activity === 'bar' ? 'cafe.stream.switchBar' : 'cafe.stream.switchKitchen')}
+      switchAriaLabel={t(stream?.activity === 'bar' ? 'cafe.stream.switchBarAria' : 'cafe.stream.switchKitchenAria')}
     />
   )
 
@@ -552,8 +552,10 @@ export function CafeWastePage() {
       render: item => (
         <div className="cwl-item-cell">
           <div className="kl-dish">
-            <span className="kl-dish-name"><span>{item.kind} - </span><span>{item.name}</span></span>
-            {item.category && <span className="kl-dish-cat">{kitchenCategoryLabel(t, item.category)}</span>}
+            <span className="kl-dish-name" title={item.category ? `${item.kind} - ${item.name} · ${kitchenCategoryLabel(t, item.category)}` : `${item.kind} - ${item.name}`}>
+              <span>{item.kind} - </span><span>{item.name}</span>
+            </span>
+            {hasMixedCategories && item.category && <span className="kl-dish-cat cwl-category">{kitchenCategoryLabel(t, item.category)}</span>}
           </div>
           {renderEvidence(item)}
         </div>
@@ -583,8 +585,14 @@ export function CafeWastePage() {
     <div className="cwl-capture-row" role="group" aria-labelledby={`cafe-waste-item-${item.id}`}>
       <div className="cwl-capture-row__item">
         <div className="kl-dish">
-          <span id={`cafe-waste-item-${item.id}`} className="kl-dish-name"><span>{item.kind} - </span><span>{item.name}</span></span>
-          {item.category && <span className="kl-dish-cat">{kitchenCategoryLabel(t, item.category)}</span>}
+          <span
+            id={`cafe-waste-item-${item.id}`}
+            className="kl-dish-name"
+            title={item.category ? `${item.kind} - ${item.name} · ${kitchenCategoryLabel(t, item.category)}` : `${item.kind} - ${item.name}`}
+          >
+            <span>{item.kind} - </span><span>{item.name}</span>
+          </span>
+          {hasMixedCategories && item.category && <span className="kl-dish-cat cwl-category">{kitchenCategoryLabel(t, item.category)}</span>}
         </div>
       </div>
       <div className="cwl-capture-row__controls">
@@ -607,11 +615,8 @@ export function CafeWastePage() {
   const state = loadState === 'loading' ? 'loading' : loadState === 'error' ? 'error'
     : submitting ? 'saving' : allSubmitted ? 'saved' : !canCapture ? 'read-only' : 'default'
 
-  const captureContext = (
-    <div className="cafe-capture-context">
-      {streamPicker}
-      {stream === null && <span className="kl-date tabular">{formatWeekdayDayMonth(logDate)}</span>}
-    </div>
+  const captureContext = stream === null ? undefined : (
+    <div className="cafe-capture-context">{streamPicker}</div>
   )
 
   return (
@@ -620,9 +625,10 @@ export function CafeWastePage() {
       title={pageLabel}
       headClassName="cafe-capture-head"
       statusRow={captureContext}
+      meta={<time className="cafe-capture-date tabular" dateTime={logDate}>{formatWeekdayDayMonth(logDate)}</time>}
       state={state}
     >
-      <div className="kl-page cwl-page kl-capture-wide cafe-capture-content">
+      <div className="kl-page cwl-page kl-capture-content kl-capture-wide cafe-capture-content">
         <div className="kl-capture-main">
         <RouteLeaveGuard when={remaining.length > 0 || invalidQuantityCount > 0} message={t('kitchen.log.leave.confirm')} />
         {!isOnline && <div role="alert" className="kl-banner kl-banner-offline">{t('kitchen.log.offline.banner')}</div>}
@@ -657,7 +663,7 @@ export function CafeWastePage() {
             <div className="kl-banner cwl-held" role="status">
               {t('kitchen.waste.held')}
             </div>
-            <p className="cwl-help">{t('kitchen.waste.help')}</p>
+            <p id="cafe-waste-photo-guidance" className="cwl-help">{t('kitchen.waste.help')}</p>
             {!canCapture && <p className="kl-banner cwl-read-only" role="status">{t('kitchen.waste.readOnly')}</p>}
             {canCapture && resumableDrafts.length > 0 && (
               <section className="cwl-resume" aria-labelledby="cwl-resume-title">
@@ -865,32 +871,38 @@ function WasteItemControls({
         <QuantityField
           id={inputId}
           label={t('kitchen.waste.quantityFor', { item: item.name })}
-          className="cwl-quantity-input tabular"
+          className="cwl-quantity-input cafe-capture-quantity-field tabular"
           value={quantity ?? 0}
           onChange={next => onQuantityChange(next > 0 ? String(next) : '')}
           onInvalid={(_reason, raw) => onQuantityChange(raw)}
           onValidityChange={onQuantityValidityChange}
           initialDraft={quantity === null && current.quantity !== '' ? current.quantity : undefined}
-          suffixPosition="below"
+          suffixPosition="inline"
           suffix={showUnitPicker ? (
-            <Select
-              id={unitId}
-              className="cwl-unit-select"
-              aria-label={t('kitchen.waste.unitFor', { item: item.name })}
-              value={selectedChoice}
-              disabled={!editable}
-              onChange={event => onUnitChange(event.target.value)}
-            >
-              {historicalUnit && <option value={current.unitId}>{entry?.capturedUnitName}</option>}
-              <option value={item.defaultUnit.id}>{displayUnit(selectedUnit, t)} · {t('cafe.items.defaultTag')}</option>
-              {item.multiples.map(factor => (
-                <option key={`multiple:${factor}`} value={`multiple:${String(factor)}`}>
-                  {formatUnitMultiple(factor, item.defaultUnit.name, document.documentElement.lang || undefined)}
-                </option>
-              ))}
-            </Select>
+            <>
+              <Select
+                id={unitId}
+                className="cwl-unit-select cafe-capture-unit"
+                contentClassName="cwl-unit-menu"
+                aria-label={t('kitchen.waste.unitFor', { item: item.name })}
+                aria-describedby={`cafe-waste-selected-unit-${item.id}`}
+                title={selectedUnitLabel}
+                value={selectedChoice}
+                disabled={!editable}
+                onChange={event => onUnitChange(event.target.value)}
+              >
+                {historicalUnit && <option value={current.unitId}>{entry?.capturedUnitName}</option>}
+                <option value={item.defaultUnit.id}>{displayUnit(selectedUnit, t)} · {t('cafe.items.defaultTag')}</option>
+                {item.multiples.map(factor => (
+                  <option key={`multiple:${factor}`} value={`multiple:${String(factor)}`}>
+                    {formatUnitMultiple(factor, item.defaultUnit.name, document.documentElement.lang || undefined)}
+                  </option>
+                ))}
+              </Select>
+              <span id={`cafe-waste-selected-unit-${item.id}`} className="sr-only">{selectedUnitLabel}</span>
+            </>
           ) : (
-            <span className="cwl-unit-label" aria-label={t('kitchen.waste.unitFor', { item: item.name })}>
+            <span className="cwl-unit-label cafe-capture-unit" aria-label={t('kitchen.waste.unitFor', { item: item.name })} title={selectedUnitLabel}>
               {selectedUnitLabel}
             </span>
           )}
@@ -900,6 +912,7 @@ function WasteItemControls({
           disabled={!editable}
           errorClassName="cwl-field-error"
         />
+
       </div>
       {current.error && <span className="cwl-field-error" role="alert">{current.error}</span>}
       {current.logId && !current.submitted && (
@@ -914,8 +927,8 @@ function WasteItemControls({
       ) : (
         <button
           type="button"
-          className="btn btn-outline cwl-add-photo"
-          aria-describedby={needsQuantity ? photoHintId : undefined}
+          className="btn btn-outline cwl-add-photo cafe-capture-action"
+          aria-describedby={needsQuantity ? `cafe-waste-photo-guidance ${photoHintId}` : 'cafe-waste-photo-guidance'}
           disabled={!canCapture || !isOnline || disabled || current.preparing || Boolean(current.logId) || quantity === null}
           onClick={onPrepare}
         >

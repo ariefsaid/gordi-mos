@@ -8,16 +8,15 @@ import type { TaskListRow } from '@/lib/db/tasks.types'
 import type { BusinessUnitOption, PersonOption } from '@/lib/db/directory'
 import type { CollectionData } from '@/lib/record-collection/types'
 import {
-  TASK_COLLECTION_NEUTRAL_QUERY,
   NO_OCCURRENCE_GROUP_KEY,
   NO_WORKLINE_GROUP_KEY,
   buildTaskGroups,
   projectTaskCollection,
   toTaskCollectionRecord,
   type TaskCollectionContext,
-  type TaskCollectionQuery,
   type TaskCollectionRecord,
 } from './task-collection-adapter'
+import { TASK_COLLECTION_NEUTRAL_QUERY, type TaskCollectionQuery } from './task-collection-query'
 
 // A fixed reference clock; due dates below are relative to it.
 const NOW = new Date('2026-07-21T03:00:00Z') // 2026-07-21 10:00 WIB

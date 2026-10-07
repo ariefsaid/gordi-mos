@@ -1,69 +1,13 @@
-/* PendingBillsPage — the freshness line, the stale warning, and the bill list's own cells.
-   The table and its phone cards are DataTable's (components/dashboard/data-table.css). Token-only. */
-
+/* PendingBillsPage — typed cells only; MoneyTableShell owns the table and phone-card skin. */
 .pending-bills-body {
-  container: pending-bills / inline-size;
   display: flex;
   flex-direction: column;
   gap: 12px;
   min-width: 0;
 }
 
-.content-header .ch-meta-line.pending-bills-freshness {
-  white-space: normal;
-}
-
-/* Stale: a warning-tinted sentence with its one action, above the list. Text carries the meaning. */
-.pending-bills-stale {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px 16px;
-  padding: 10px 16px;
-  border-radius: var(--radius);
-  background: color-mix(in srgb, var(--warning) 18%, transparent);
-  color: var(--warning-foreground);
-}
-
-.pending-bills-stale__text {
-  margin: 0;
-  font-size: var(--font-size-control);
-  font-weight: 500;
-}
-
-/* The table's narrowest layout measured 969px (Indonesian headers, Rp 50 jt amounts); the
-   threshold keeps 10px over that. Below it the list scrolls inside this box, never the page; above
-   it there is no scroll box, so DataTable's sticky header pins to the page scroll. */
-.pending-bills-scroll {
-  min-width: 0;
-}
-
-@container pending-bills (max-width: 979.98px) {
-  .pending-bills-scroll {
-    overflow-x: auto;
-  }
-}
-
-/* Amount, balance and age read on one line; a figure split across lines is hard to reconcile. */
-.pending-bills-scroll td.dt-num {
-  white-space: nowrap;
-}
-
-.pending-bills-scroll td .pending-bills__code {
-  white-space: nowrap;
-  overflow-wrap: normal;
-}
-
 .pending-bills__nowrap {
   white-space: nowrap;
-}
-
-/* Who owes wraps as written, never ellipsised, and takes the width the other columns leave. */
-.pending-bills__owes {
-  display: block;
-  min-width: 12ch;
-  overflow-wrap: anywhere;
 }
 
 .pending-bills__code {
@@ -76,54 +20,10 @@
   color: var(--muted-foreground);
 }
 
-/* Phone card body (DataTable renderCard). */
-.pending-bill-card {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 4px 12px;
-  font-size: var(--font-size-control);
-}
-
-.pending-bill-card__title {
-  min-width: 0;
-  color: var(--foreground);
-  font-weight: 600;
+.pending-bills__owes {
+  display: block;
+  min-width: 12ch;
   overflow-wrap: anywhere;
-}
-
-.pending-bill-card__title--none {
-  font-weight: 400;
-}
-
-.pending-bill-card__amount {
-  font-weight: 600;
-  text-align: right;
-}
-
-.pending-bill-card__meta,
-.pending-bill-card__balance {
-  color: var(--muted-foreground);
-  font-size: var(--font-size-label);
-}
-
-.pending-bill-card__meta {
-  grid-column: 1 / -1;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.pending-bill-card__status {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  color: var(--muted-foreground);
-  font-size: var(--font-size-label);
-}
-
-.pending-bill-card__balance {
-  align-self: center;
-  text-align: right;
 }
 
 .pending-bills-summary {
@@ -132,7 +32,37 @@
   font-variant-numeric: tabular-nums;
 }
 
-.pending-bills-list-column { min-width: 0; }
+.pending-bills-list-column {
+  container: pending-bills-list / inline-size;
+  min-width: 0;
+}
+
+.pending-bills-table .money-table {
+  table-layout: fixed;
+}
+
+.pending-bills-table .money-table__head,
+.pending-bills-table .money-table__cell {
+  text-align: left;
+}
+
+.pending-bills-table .money-table__cell--age,
+.pending-bills-table .money-table__cell--amount,
+.pending-bills-table .money-table__cell--balance {
+  text-align: right;
+}
+
+.pending-bills-table .money-table__cell--date .money-table__cell-value,
+.pending-bills-table .money-table__cell--age .money-table__cell-value,
+.pending-bills-table .money-table__cell--bill .money-table__cell-value,
+.pending-bills-table .money-table__cell--amount .money-table__cell-value,
+.pending-bills-table .money-table__cell--balance .money-table__cell-value {
+  white-space: nowrap;
+}
+
+.pending-bills-table .money-table__cell--owes {
+  overflow-wrap: anywhere;
+}
 
 .pending-bills__record-trigger {
   display: inline-flex;
@@ -148,31 +78,63 @@
   text-align: left;
 }
 
-.pending-bills__record-trigger:hover { text-decoration: underline; }
-.pending-bills__record-trigger:focus-visible,
-.pending-bill-card__title:focus-visible {
+.pending-bills__record-trigger:hover {
+  text-decoration: underline;
+}
+
+.pending-bills__record-trigger:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
   border-radius: var(--radius-sm);
 }
 
-.pending-bill-card__title {
-  display: block;
-  width: 100%;
-  min-height: 44px;
-  padding: 4px 0;
-  border: 0;
-  background: transparent;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
+@media (min-width: 768px) {
+  .pending-bills-table .money-table-scroll {
+    overflow-x: hidden;
+  }
+
+  @container pending-bills-list (max-width: 979.98px) {
+    .pending-bills-table .money-table__cell--date,
+    .pending-bills-table .money-table__cell--age,
+    .pending-bills-table .money-table__head.money-table__cell--date,
+    .pending-bills-table .money-table__head.money-table__cell--age {
+      display: none;
+    }
+
+    .pending-bills-table .money-table__head,
+    .pending-bills-table .money-table__cell {
+      padding: 0 6px;
+    }
+
+    .pending-bills-table .money-table__cell--branch { width: 14%; }
+    .pending-bills-table .money-table__cell--owes { width: 21%; }
+    .pending-bills-table .money-table__cell--state { width: 18%; }
+    .pending-bills-table .money-table__cell--bill { width: 19%; }
+    .pending-bills-table .money-table__cell--amount { width: 14%; }
+    .pending-bills-table .money-table__cell--balance { width: 14%; }
+  }
+
+  @container pending-bills-list (max-width: 679.98px) {
+    .pending-bills-table .money-table__cell--branch,
+    .pending-bills-table .money-table__cell--owes,
+    .pending-bills-table .money-table__head.money-table__cell--branch,
+    .pending-bills-table .money-table__head.money-table__cell--owes {
+      display: none;
+    }
+
+    .pending-bills-table .money-table__cell--state { width: 30%; }
+    .pending-bills-table .money-table__cell--bill { width: 26%; }
+    .pending-bills-table .money-table__cell--amount { width: 22%; }
+    .pending-bills-table .money-table__cell--balance { width: 22%; }
+  }
 }
 
-.pending-bill-card__title:hover { color: var(--primary); }
-
-.record-split .pending-bills-list-column { min-width: 0; }
-.record-split .pending-bills-scroll { overflow-x: auto; }
-
 @media (max-width: 767.98px) {
-  .pending-bills__record-trigger { min-height: 44px; }
+  .pending-bills-table .money-table__row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .pending-bills__record-trigger {
+    min-height: 44px;
+  }
 }

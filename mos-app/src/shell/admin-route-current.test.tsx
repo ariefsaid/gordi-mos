@@ -6,6 +6,11 @@ import { AdminSettingsNav } from '@/components/admin/admin-settings-nav'
 import { AppShell } from './app-shell'
 
 vi.mock('@/lib/db/tasks', () => ({ searchTasksByTitle: vi.fn() }))
+vi.mock('@/lib/db/open-task-count', () => ({ getMyOpenTaskCount: vi.fn().mockResolvedValue(0) }))
+vi.mock('@/lib/db/signals', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/db/signals')>()),
+  getSignalPostAuthority: vi.fn().mockResolvedValue({ can_post: false, can_tag: false }),
+}))
 vi.mock('@/lib/db/directory', () => ({
   getBusinessUnits: vi.fn().mockResolvedValue([]),
   getPeople: vi.fn().mockResolvedValue([]),
