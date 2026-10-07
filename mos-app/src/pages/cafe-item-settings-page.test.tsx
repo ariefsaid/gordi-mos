@@ -155,7 +155,7 @@ describe('CafeItemSettingsPage missing-item queue', () => {
     expect(screen.queryByRole('textbox', { name: 'MOS name' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Save settings/ })).not.toBeInTheDocument()
 
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Try again', exact: true }))
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Try again' }))
     expect(await screen.findByRole('textbox', { name: 'MOS name' })).toBeEnabled()
   })
 })
@@ -259,7 +259,7 @@ describe('CafeItemSettingsPage unit multiples', () => {
     await user.clear(name)
     await user.type(name, 'Oat milk for the bar')
     await user.click(screen.getByRole('combobox', { name: 'Kind for Oat milk for the bar' }))
-    await user.click(await screen.findByRole('option', { name: 'Raw material', exact: true }))
+    await user.click(await screen.findByRole('option', { name: 'Raw material' }))
     await user.click(screen.getByRole('checkbox', { name: 'Active for Oat milk for the bar' }))
     const defaultUnit = screen.getByRole('combobox', { name: 'Default unit' })
     await user.click(defaultUnit)
@@ -284,7 +284,7 @@ describe('CafeItemSettingsPage unit multiples', () => {
     expect(screen.getByRole('checkbox', { name: 'Active for Oat milk for the bar' })).toBeChecked()
     expect(multiples).toHaveTextContent('2 case')
 
-    await user.click(screen.getByRole('button', { name: 'Try again', exact: true }))
+    await user.click(screen.getByRole('button', { name: 'Try again' }))
     expect(await screen.findByText('Saved')).toBeInTheDocument()
     expect(mockSaveItem).toHaveBeenLastCalledWith(expect.objectContaining({
       itemId: 'item-1',
@@ -301,7 +301,7 @@ describe('CafeItemSettingsPage unit multiples', () => {
 it('shows the no-ESB empty state when settings contain no items', async () => {
   mockListItems.mockResolvedValueOnce([])
   renderPage()
-  expect(await screen.findByRole('heading', { name: 'No ESB items on Gordi HQ · Kitchen', exact: true })).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: 'No ESB items on Gordi HQ · Kitchen' })).toBeInTheDocument()
 })
 
 it('shows loading during a failed item read and recovers when retried', async () => {
@@ -313,7 +313,7 @@ it('shows loading during a failed item read and recovers when retried', async ()
 
   await act(async () => rejectRead(new Error('read failed')))
   expect(await screen.findByText("Couldn't load Café item settings. Try again.", { exact: true })).toBeVisible()
-  await userEvent.setup().click(await screen.findByRole('button', { name: 'Try again', exact: true }))
+  await userEvent.setup().click(await screen.findByRole('button', { name: 'Try again' }))
   expect(await screen.findByRole('article', { name: 'ERP Oat milk' })).toBeVisible()
   expect(mockListItems.mock.calls.length).toBeGreaterThan(1)
 })
