@@ -264,6 +264,25 @@ describe('multi-bill payment selection', () => {
     expect(screen.getByRole('region', { name: '1 selected · Rp 96.000 total' })).toBeInTheDocument()
   })
 
+  it('offers select-all in the phone header and selects every payable bill', async () => {
+    setViewport(false)
+    renderPage()
+    const table = await screen.findByRole('table', { name: 'Pending bills, oldest first' })
+    const phoneToolbar = document.querySelector('.pending-bills-list-toolbar')
+    expect(phoneToolbar).not.toBeNull()
+    const selectAll = within(phoneToolbar as HTMLElement).getByRole('checkbox', { name: 'Select all payable bills' })
+
+    expect(selectAll).toBeEnabled()
+    fireEvent.click(selectAll)
+
+    expect(selectAll).toBeChecked()
+    expect(within(table).getByRole('checkbox', { name: 'Select bill PB-1' })).toBeChecked()
+    expect(within(table).getByRole('checkbox', { name: 'Select bill PB-2' })).toBeChecked()
+    expect(within(table).getByRole('checkbox', { name: 'Select bill PB-3' })).toBeDisabled()
+    expect(within(table).getByRole('checkbox', { name: 'Select bill PB-4' })).toBeDisabled()
+    expect(screen.getByRole('region', { name: '2 selected · Rp 2.576.000 total' })).toBeInTheDocument()
+  })
+
   it('keeps the selected bills and names the server failure for retry', async () => {
     mockPaySeveral.mockRejectedValue(new Error('Pending bill PB-2 is already settled.'))
     renderPage()

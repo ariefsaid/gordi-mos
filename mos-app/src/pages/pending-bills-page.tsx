@@ -446,10 +446,24 @@ export function PendingBillsPage() {
     <div className="pending-bills-body">
       <Toast toast={toast} onDismiss={clearToast} />
       {kept}
-      <div className="pending-bills-summary" aria-live="polite">
-        {t('pendingBills.summary', { count: String(summary.openCount), total: formatIDRExact(summary.openBalance) })}
+      <div className="pending-bills-list-toolbar">
+        <div className="pending-bills-summary" aria-live="polite">
+          {t('pendingBills.summary', { count: String(summary.openCount), total: formatIDRExact(summary.openBalance) })}
+        </div>
+        <label className="pending-bills-mobile-select-all">
+          <input
+            className="pending-bills__checkbox"
+            type="checkbox"
+            aria-label={t('pendingBills.selectAll')}
+            checked={allSelectableSelected}
+            disabled={selectableSet.size === 0 || selectionLocked}
+            ref={(input) => { if (input) input.indeterminate = someSelectableSelected && !allSelectableSelected }}
+            onChange={(event) => toggleAllSelection(event.currentTarget.checked)}
+          />
+          <span>{t('pendingBills.selectAll')}</span>
+        </label>
       </div>
-      <div className={selectedBill && isWide ? 'record-split' : undefined}>
+      <div className={`pending-bills-results${selectedBill && isWide ? ' record-split' : ''}`}>
         <div className="pending-bills-list-column">
           <MoneyTableShell className="pending-bills-table">
             <caption className="sr-only">{t('pendingBills.table.caption')}</caption>
@@ -476,7 +490,7 @@ export function PendingBillsPage() {
             </tbody>
           </MoneyTableShell>
           {selectedSummary.count > 0 && (
-            <div className="pending-bills-selection-bar" role="region" aria-label={t('pendingBills.selection.summary', {
+            <div className="pending-bills-selection-bar" data-overlay-edge="bottom" role="region" aria-label={t('pendingBills.selection.summary', {
               count: String(selectedSummary.count),
               total: formatIDRExact(selectedSummary.total),
             })}>

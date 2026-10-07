@@ -77,12 +77,24 @@ describe('pending bills table CSS', () => {
     expect(rule('.pending-bills-list-column') ?? '').toMatch(/min-width:\s*0/)
   })
 
-  it('keeps phone selection controls tappable and the payment action above bottom navigation', () => {
+  it('keeps phone selection controls tappable and the payment action in the page layout', () => {
     const phone = css.match(/@media \(max-width:\s*767\.98px\)\s*\{([\s\S]*)$/)?.[1] ?? ''
     expect(phone).toMatch(/\.pending-bills-table \.money-table__cell--select\s*\{[^}]*grid-column:\s*1\s*\/\s*-1/)
     expect(phone).toMatch(/\.pending-bills__checkbox\s*\{[^}]*min-width:\s*44px;[^}]*min-height:\s*44px/)
-    expect(phone).toMatch(/\.pending-bills-selection-bar\s*\{[^}]*position:\s*sticky;[^}]*bottom:\s*calc\(var\(--tabbar-h\)/)
-    expect(phone).toMatch(/\.pending-bills-selection-bar\s*\{[^}]*z-index:\s*var\(--z-sticky\)/)
+    expect(phone).toMatch(/\.pending-bills-selection-bar\s*\{[^}]*flex-direction:\s*column/)
+    expect(phone).not.toMatch(/\.pending-bills-selection-bar\s*\{[^}]*position:\s*sticky/)
+  })
+
+  it('gives the phone list its own scrollport above the selection footer', () => {
+    const phone = css.match(/@media \(max-width:\s*767\.98px\)\s*\{([\s\S]*)$/)?.[1] ?? ''
+    expect(phone).toMatch(/\.page-frame--v3:has\(\.pending-bills-body\)\s*\{[^}]*overflow:\s*hidden/)
+    expect(phone).toMatch(/\.page-frame--v3:has\(\.pending-bills-body\) > \.page-frame__content\s*\{[^}]*display:\s*flex;[^}]*min-height:\s*0/)
+    expect(phone).toMatch(/\.pending-bills-results\s*\{[^}]*display:\s*flex;[^}]*flex:\s*1;[^}]*min-height:\s*0/)
+    expect(phone).toMatch(/\.pending-bills-list-column\s*\{[^}]*flex:\s*1;[^}]*min-height:\s*0/)
+    expect(phone).toMatch(/\.pending-bills-table \.money-table-scroll\s*\{[^}]*overflow-y:\s*auto;[^}]*scroll-padding-bottom:\s*8px/)
+    expect(phone).not.toMatch(/\.pending-bills-selection-bar\s*\{[^}]*position:\s*sticky/)
+    expect(phone).toMatch(/\.pending-bills-mobile-select-all\s*\{[^}]*display:\s*flex/)
+    expect(phone).toMatch(/\.pending-bills-mobile-select-all\s*\{[^}]*min-height:\s*44px/)
   })
 
   it('uses the shared sticky record-panel rule and lets the viewer own scrolling', () => {

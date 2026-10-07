@@ -26,10 +26,21 @@
   overflow-wrap: anywhere;
 }
 
+.pending-bills-list-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .pending-bills-summary {
   color: var(--muted-foreground);
   font-size: var(--font-size-control);
   font-variant-numeric: tabular-nums;
+}
+
+.pending-bills-mobile-select-all {
+  display: none;
 }
 
 .pending-bills-selection-bar {
@@ -175,6 +186,73 @@
 }
 
 @media (max-width: 767.98px) {
+  .page-frame--v3:has(.pending-bills-body) {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .page-frame--v3:has(.pending-bills-body) > .page-frame__content {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .pending-bills-body {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .pending-bills-results {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .pending-bills-list-column {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .pending-bills-table {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .pending-bills-table .money-table-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    scroll-padding-bottom: 8px;
+  }
+
+  .pending-bills-list-toolbar {
+    align-items: flex-start;
+  }
+
+  .pending-bills-summary {
+    min-width: 0;
+  }
+
+  .pending-bills-mobile-select-all {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 44px;
+    color: var(--foreground);
+    font-size: var(--font-size-control);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .pending-bills-mobile-select-all input {
+    flex: none;
+  }
+
   .pending-bills-table .money-table__row {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
@@ -196,9 +274,6 @@
   }
 
   .pending-bills-selection-bar {
-    position: sticky;
-    bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px));
-    z-index: var(--z-sticky);
     flex-direction: column;
     align-items: stretch;
     background: var(--card);
