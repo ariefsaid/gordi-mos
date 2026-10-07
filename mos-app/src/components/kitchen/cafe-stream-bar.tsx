@@ -33,7 +33,7 @@
 // renders NOTHING then, which is also what keeps it from ever outranking a page's own Opening row
 // (B12 — an empty control sitting in the head previously did, simply by being there first).
 
-import { useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
+import { useState, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useId } from 'react'
 import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useListboxPopover } from '@/components/ui/use-listbox-popover'
@@ -399,6 +399,7 @@ export function CafeStreamChoices({
   disabled = false,
 }: CafeStreamChoicesProps) {
   const t = useT()
+  const idPrefix = useId()
   if (options.length === 0) {
     return <p className="cafe-stream-choices__empty">{streamLabel(t, null)}</p>
   }
@@ -409,19 +410,26 @@ export function CafeStreamChoices({
     <div className="cafe-stream-choices">
       <div className="cafe-stream-choices__list" role="group" aria-label={t('kitchen.log.stream.pickerAria')}>
         {ranked.map((option) => {
+          const key = streamKey(option.branch.id, option.activity)
           const isMine = isMineStream(option, homeStream, myStreamKeys)
+          const receivingOnlyId = option.produces === false ? `${idPrefix}-receiving-${key}` : undefined
+          const accessibleName = [streamLabel(t, option), isMine ? t('cafe.stream.yourTeam') : null]
+            .filter((part): part is string => part !== null)
+            .join(' — ')
           return (
             <button
-              key={streamKey(option.branch.id, option.activity)}
+              key={key}
               type="button"
               className="cafe-stream-choices__option"
+              aria-label={accessibleName}
+              aria-describedby={receivingOnlyId}
               disabled={disabled}
               onClick={() => onChoose(option)}
             >
               <span className="cafe-stream-choices__name">{streamLabel(t, option)}</span>
               {isMine && <span className="cafe-stream-choices__tag">{t('cafe.stream.yourTeam')}</span>}
-              {option.produces === false && (
-                <span className="cafe-stream-choices__tag cafe-stream-choices__tag--muted">
+              {receivingOnlyId && (
+                <span id={receivingOnlyId} className="cafe-stream-choices__tag cafe-stream-choices__tag--muted">
                   {t('kitchen.stream.receivingOnly.tag')}
                 </span>
               )}
