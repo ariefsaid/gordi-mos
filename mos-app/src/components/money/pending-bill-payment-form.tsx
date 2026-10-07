@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 import { DateField } from '@/components/ui/date-field'
 import { TextInput } from '@/components/ui/text-input'
 import { useT } from '@/i18n/use-t'
-import { formatIDR } from '@/lib/format/money'
+import { formatIDRExact } from '@/lib/format/money'
 import { wibToday } from '@/lib/home-attention'
 import { PendingBillProofError, recordPendingBillPayment, uploadPendingBillProof, type RecordPendingBillPaymentInput } from '@/lib/db/pending-bill-payments'
 import { validatePendingBillPaymentForm, type PendingBillPaymentField, type PendingBillPaymentFieldError, type PendingBillView } from '@/lib/pending-bills'
@@ -69,7 +69,7 @@ export function PendingBillPaymentForm({ bill, orgId, onCancel, onSaved, reverse
     const label = t(FIELD_LABEL[field])
     if (field === 'amount') {
       if (error === 'required') return t('pendingBills.form.error.amountRequired', { field: label })
-      if (error === 'overBalance') return t('pendingBills.form.error.amountOverBalance', { field: label, balance: formatIDR(bill.balance) })
+      if (error === 'overBalance') return t('pendingBills.form.error.amountOverBalance', { field: label, balance: formatIDRExact(bill.balance) })
       return t('pendingBills.form.error.amountInvalid', { field: label })
     }
     if (field === 'cashInDate') {
@@ -198,13 +198,13 @@ export function PendingBillPaymentForm({ bill, orgId, onCancel, onSaved, reverse
       <div className="pending-bill-payment-form__heading">
         <div>
           <h2>{formTitle}</h2>
-          <p>{t('pendingBills.form.billBalance', { billNo: bill.billNo, balance: formatIDR(bill.balance) })}</p>
+          <p>{t('pendingBills.form.billBalance', { billNo: bill.billNo, balance: formatIDRExact(bill.balance) })}</p>
         </div>
       </div>
       {reversePayment ? (
         <>
           <p className="pending-bill-payment-form__reversal-copy">
-            {t('pendingBills.form.reverseCopy', { amount: formatIDR(reversePayment.amount) })}
+            {t('pendingBills.form.reverseCopy', { amount: formatIDRExact(reversePayment.amount) })}
           </p>
           <label className="pending-bill-payment-form__label" htmlFor={`${id}-reason`}>
             {t('pendingBills.form.reversalReason')} <span aria-hidden="true">*</span>
@@ -226,10 +226,10 @@ export function PendingBillPaymentForm({ bill, orgId, onCancel, onSaved, reverse
           <TextInput
             label={t('pendingBills.form.amount')}
             type="number"
-            inputMode="numeric"
-            min="1"
+            inputMode="decimal"
+            min="0.01"
             max={bill.balance}
-            step="1"
+            step="0.01"
             required
             value={amount}
             error={Boolean(amountError)}
@@ -240,7 +240,7 @@ export function PendingBillPaymentForm({ bill, orgId, onCancel, onSaved, reverse
             onBlur={() => setTouched((previous) => ({ ...previous, amount: true }))}
           />
           <p id={amountHelpId} className="pending-bill-payment-form__hint">
-            {t('pendingBills.form.amountHelp', { balance: formatIDR(bill.balance) })}
+            {t('pendingBills.form.amountHelp', { balance: formatIDRExact(bill.balance) })}
           </p>
           {amountError && <p id={`${amountHelpId}-error`} className="pending-bill-payment-form__field-error" role="alert">{amountError}</p>}
 

@@ -73,6 +73,24 @@ describe('toPendingBillViews', () => {
     if (summarize) expect(summarize(views)).toEqual({ openBalance: 1050, openCount: 2 })
   })
 
+  it('keeps cent balances exact: no float residue turns a settled bill overpaid or a remainder inexact', () => {
+    const rows = [
+      bill({ bill_no: 'CENTS', amount: 1000.01 }),
+      bill({ bill_no: 'SUM', amount: 0.3 }),
+      bill({ bill_no: 'HALF', amount: 12345.5 }),
+    ]
+    const views = toPendingBillViews(rows, '2026-10-06', [
+      { esb_code: 'GKI', branch_code: 'rumah_rames', bill_no: 'CENTS', amount: 1000 },
+      { esb_code: 'GKI', branch_code: 'rumah_rames', bill_no: 'SUM', amount: 0.1 },
+      { esb_code: 'GKI', branch_code: 'rumah_rames', bill_no: 'SUM', amount: 0.2 },
+      { esb_code: 'GKI', branch_code: 'rumah_rames', bill_no: 'HALF', amount: 12345 },
+    ])
+    const byNo = Object.fromEntries(views.map((view) => [view.billNo, view]))
+    expect(byNo.CENTS).toMatchObject({ balance: 0.01, state: 'partial' })
+    expect(byNo.SUM).toMatchObject({ balance: 0, state: 'settled' })
+    expect(byNo.HALF).toMatchObject({ balance: 0.5, state: 'partial' })
+  })
+
   it('reads a numeric amount sent as text as a number', () => {
     const [view] = toPendingBillViews([bill({ amount: '96000.00' as unknown as number })], '2026-10-06')
     expect(view.amount).toBe(96000)
@@ -117,6 +135,8 @@ describe('AC-1134: payment form validation keeps invalid submissions off', () =>
     })
     expect(validate({ amount: '12345.5', cashInDate: '2026-10-06', hasProof: true, balance: 12345.5, today: '2026-10-06' }).canSubmit).toBe(true)
     expect(validate({ amount: '0.25', cashInDate: '2026-10-06', hasProof: true, balance: 0.5, today: '2026-10-06' }).errors).toEqual({ amount: 'invalid' })
+    expect(validate({ amount: '0.01', cashInDate: '2026-10-06', hasProof: true, balance: 0.01, today: '2026-10-06' }).canSubmit).toBe(true)
+    expect(validate({ amount: '1000.01', cashInDate: '2026-10-06', hasProof: true, balance: 1000.01, today: '2026-10-06' }).canSubmit).toBe(true)
   })
 })
 

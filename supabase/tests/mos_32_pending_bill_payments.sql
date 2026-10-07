@@ -76,7 +76,7 @@ select throws_ok($$select * from mos.record_pending_bill_payment(
 select throws_ok($$select * from mos.record_pending_bill_payment(
   'ESB-TEST','BR-TEST','PB-1465-A',0,(now() at time zone 'Asia/Jakarta')::date,'00000000-0000-0000-0000-0000000000a1/00000000-0000-4000-8000-000000001001.jpg',null,
   '00000000-0000-4000-8000-000000001103',null,null)$$,
-  '23514', 'Amount must be at least 1.', 'AC-1130: non-positive amount is refused');
+  '23514', 'Amount must be above zero.', 'AC-1130: non-positive amount is refused');
 select throws_ok($$select * from mos.record_pending_bill_payment(
   'ESB-TEST','BR-TEST','PB-1465-A',1,null,'00000000-0000-0000-0000-0000000000a1/00000000-0000-4000-8000-000000001001.jpg',null,
   '00000000-0000-4000-8000-000000001104',null,null)$$,

@@ -16,17 +16,8 @@
 --
 -- Rollback: supabase/rollbacks/20261007009600_mos_pending_bill_payments.sql (guarded).
 --
--- DOWN (after taking any required private evidence archive):
---   drop policy pending_bill_proofs_insert on storage.objects;
---   drop policy pending_bill_proofs_select on storage.objects;
---   delete from storage.objects where bucket_id = 'pending-bill-proofs';
---   delete from storage.buckets where id = 'pending-bill-proofs';
---   drop function mos.record_pending_bill_payment(text,text,text,numeric,date,text,text,uuid,uuid,text);
---   drop table mos.pending_bill_payments; -- drops its append-only trigger
---   drop function mos._pending_bill_payment_immutable();
---
--- NOTE: deleting proof objects is destructive; the bucket rows above are a manual DOWN guide and
--- must only be run after an explicit archive/retention decision.
+-- DOWN: run the guarded rollback above; it refuses while ledger entries or proof objects exist, so
+-- archive them first.
 
 begin;
 
@@ -188,7 +179,7 @@ begin
       raise exception using errcode = '22023', message = 'Bill identity is required.';
     end if;
     if p_amount is null or p_amount <= 0 then
-      raise exception using errcode = '23514', message = 'Amount must be at least 1.';
+      raise exception using errcode = '23514', message = 'Amount must be above zero.';
     end if;
     if p_amount <> pg_catalog.round(p_amount, 2) then
       raise exception using errcode = '23514', message = 'Amount cannot carry more than two decimals.';

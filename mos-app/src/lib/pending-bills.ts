@@ -38,6 +38,9 @@ const SOURCE_STATE: Record<PendingBillRow['source_state'], PendingBillState> = {
   missing: 'missing',
 }
 
+/** Money math is done in whole cents so sums and balances carry no float residue. */
+const toCents = (value: number): number => Math.round(value * 100)
+
 function billKey(esbCode: string, branchCode: string, billNo: string): string {
   return JSON.stringify([esbCode, branchCode, billNo])
 }
@@ -55,22 +58,24 @@ export function toPendingBillViews(
   const paidByBill = new Map<string, number>()
   for (const payment of payments) {
     const key = billKey(payment.esb_code, payment.branch_code, payment.bill_no)
-    paidByBill.set(key, (paidByBill.get(key) ?? 0) + Number(payment.amount))
+    paidByBill.set(key, (paidByBill.get(key) ?? 0) + toCents(Number(payment.amount)))
   }
 
   return rows
     .map((row): PendingBillView => {
       const amount = Number(row.amount)
-      const recordedPaid = paidByBill.get(billKey(row.esb_code, row.branch_code, row.bill_no)) ?? 0
-      const balance = amount - recordedPaid
+      const recordedPaidCents = paidByBill.get(billKey(row.esb_code, row.branch_code, row.bill_no)) ?? 0
+      const balanceCents = toCents(amount) - recordedPaidCents
+      const recordedPaid = recordedPaidCents / 100
+      const balance = balanceCents / 100
       const sourceState = SOURCE_STATE[row.source_state]
       const state = sourceState !== 'open'
         ? sourceState
-        : balance < 0
+        : balanceCents < 0
           ? 'overpaid'
-          : balance === 0
+          : balanceCents === 0
             ? 'settled'
-            : recordedPaid > 0
+            : recordedPaidCents > 0
             ? 'partial'
             : 'open'
       return {
@@ -100,7 +105,7 @@ export interface PendingBillSummary {
 export function summarizePendingBills(bills: readonly PendingBillView[]): PendingBillSummary {
   const open = bills.filter((bill) => bill.state !== 'void' && bill.balance > 0)
   return {
-    openBalance: open.reduce((total, bill) => total + bill.balance, 0),
+    openBalance: open.reduce((total, bill) => total + toCents(bill.balance), 0) / 100,
     openCount: open.length,
   }
 }
@@ -131,10 +136,10 @@ export function validatePendingBillPaymentForm(draft: PendingBillPaymentDraft): 
   const errors: PendingBillPaymentValidation['errors'] = {}
   const amount = Number(draft.amount)
   // The copy keeps ESB totals to the cent: whole rupiah (at least 1), or exactly the remaining balance.
-  const settlesBill = amount === draft.balance
+  const settlesBill = toCents(amount) === toCents(draft.balance)
   if (!draft.amount.trim()) errors.amount = 'required'
   else if (!Number.isFinite(amount) || amount <= 0 || (!settlesBill && (amount < 1 || !Number.isInteger(amount)))) errors.amount = 'invalid'
-  else if (amount > draft.balance) errors.amount = 'overBalance'
+  else if (toCents(amount) > toCents(draft.balance)) errors.amount = 'overBalance'
 
   if (!draft.cashInDate) errors.cashInDate = 'required'
   else if (!isIsoCalendarDate(draft.cashInDate)) errors.cashInDate = 'invalid'

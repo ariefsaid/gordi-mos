@@ -15,3 +15,12 @@ export function formatIDR(amount: number): string {
   const grouped = idGrouping.format(Math.abs(Math.round(amount)))
   return `${amount < 0 ? '-' : ''}Rp ${grouped}`
 }
+
+const idCents = new Intl.NumberFormat('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+/** Like formatIDR, but keeps the cents when the amount carries them ("Rp 12.345,50"); ledger and bill amounts. */
+export function formatIDRExact(amount: number): string {
+  const cents = Math.round(Math.abs(amount) * 100)
+  if (cents % 100 === 0) return formatIDR(amount)
+  return `${amount < 0 ? '-' : ''}Rp ${idCents.format(cents / 100)}`
+}

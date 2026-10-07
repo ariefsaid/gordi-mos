@@ -23,7 +23,7 @@ import {
   type PendingBillPaymentHistoryEntry,
 } from '@/lib/db/pending-bill-payments'
 import { formatDayMonthYear, formatWibWeekdayTime } from '@/lib/format/date'
-import { formatIDR } from '@/lib/format/money'
+import { formatIDRExact } from '@/lib/format/money'
 import { isPendingBillCopyStale, summarizePendingBills, toPendingBillViews, type PendingBillState, type PendingBillView } from '@/lib/pending-bills'
 import { wibToday } from '@/lib/home-attention'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
@@ -84,8 +84,8 @@ function columns(
         <span className="pending-bills__code">{bill.billNo}</span>
       </button>
     ) },
-    { key: 'amount', header: t('pendingBills.col.amount'), numeric: true, render: (bill) => formatIDR(bill.amount) },
-    { key: 'balance', header: t('pendingBills.col.balance'), numeric: true, render: (bill) => formatIDR(bill.balance) },
+    { key: 'amount', header: t('pendingBills.col.amount'), numeric: true, render: (bill) => formatIDRExact(bill.amount) },
+    { key: 'balance', header: t('pendingBills.col.balance'), numeric: true, render: (bill) => formatIDRExact(bill.balance) },
   ]
 }
 
@@ -102,7 +102,7 @@ function BillCard({ bill, onOpen }: { bill: PendingBillView; onOpen: (bill: Pend
       >
         {bill.counterpartyNote ?? t('pendingBills.owes.none')}
       </button>
-      <div className="pending-bill-card__amount tabular">{formatIDR(bill.amount)}</div>
+      <div className="pending-bill-card__amount tabular">{formatIDRExact(bill.amount)}</div>
       <div className="pending-bill-card__meta">
         <span className="tabular">{formatDayMonthYear(bill.billDate, locale)}</span>
         {' · '}{branch(bill, t)}{' · '}
@@ -113,7 +113,7 @@ function BillCard({ bill, onOpen }: { bill: PendingBillView; onOpen: (bill: Pend
         {statePill(bill, t)}
       </div>
       <div className="pending-bill-card__balance">
-        {t('pendingBills.col.balance')} <span className="tabular">{formatIDR(bill.balance)}</span>
+        {t('pendingBills.col.balance')} <span className="tabular">{formatIDRExact(bill.balance)}</span>
       </div>
     </div>
   )
@@ -152,7 +152,7 @@ function PaymentHistory({
             <div className="pending-bill-record__entry-top">
               <span className="pending-bill-record__entry-kind">{t(isReversal ? 'pendingBills.history.reversal' : 'pendingBills.history.payment')}</span>
               <span className={`pending-bill-record__entry-amount${isReversal ? ' pending-bill-record__entry-amount--reversal' : ''}`}>
-                {formatIDR(isReversal ? entry.amount : Math.abs(entry.amount))}
+                {formatIDRExact(isReversal ? entry.amount : Math.abs(entry.amount))}
               </span>
             </div>
             <p className="pending-bill-record__entry-meta">
@@ -229,9 +229,9 @@ function RecordPanel({
             <div><dt>{t('pendingBills.col.date')}</dt><dd>{formatDayMonthYear(bill.billDate, locale)}</dd></div>
             <div><dt>{t('pendingBills.col.branch')}</dt><dd>{branch(bill, t)}</dd></div>
             <div><dt>{t('pendingBills.col.owes')}</dt><dd>{bill.counterpartyNote ?? t('pendingBills.owes.none')}</dd></div>
-            <div><dt>{t('pendingBills.col.amount')}</dt><dd>{formatIDR(bill.amount)}</dd></div>
-            <div><dt>{t('pendingBills.record.recorded')}</dt><dd>{formatIDR(bill.recordedPaid)}</dd></div>
-            <div className="pending-bill-record__balance"><dt>{t('pendingBills.col.balance')}</dt><dd>{formatIDR(bill.balance)}</dd></div>
+            <div><dt>{t('pendingBills.col.amount')}</dt><dd>{formatIDRExact(bill.amount)}</dd></div>
+            <div><dt>{t('pendingBills.record.recorded')}</dt><dd>{formatIDRExact(bill.recordedPaid)}</dd></div>
+            <div className="pending-bill-record__balance"><dt>{t('pendingBills.col.balance')}</dt><dd>{formatIDRExact(bill.balance)}</dd></div>
           </dl>
           {bill.state === 'void' && <p className="pending-bill-record__mark">{t('pendingBills.record.voidMark')}</p>}
           {bill.state === 'missing' && <p className="pending-bill-record__mark">{t('pendingBills.record.missingMark')}</p>}
@@ -366,8 +366,8 @@ export function PendingBillsPage() {
       amount: saved.amount,
     }])
     setConfirmation(saved.reverseOf
-      ? t('pendingBills.confirmation.reversed', { count: '1', total: formatIDR(Math.abs(saved.amount)) })
-      : t('pendingBills.confirmation.recorded', { count: '1', total: formatIDR(saved.amount) }))
+      ? t('pendingBills.confirmation.reversed', { count: '1', total: formatIDRExact(Math.abs(saved.amount)) })
+      : t('pendingBills.confirmation.recorded', { count: '1', total: formatIDRExact(saved.amount) }))
     setPanelFormMode(null)
     setPhoneFormMode(null)
     setHistoryRequest((current) => current + 1)
@@ -408,7 +408,7 @@ export function PendingBillsPage() {
       {confirmation && <p className="pending-bills-confirmation" role="status" aria-live="polite">{confirmation}</p>}
       {stale}
       <div className="pending-bills-summary" aria-live="polite">
-        {t('pendingBills.summary', { count: String(summary.openCount), total: formatIDR(summary.openBalance) })}
+        {t('pendingBills.summary', { count: String(summary.openCount), total: formatIDRExact(summary.openBalance) })}
       </div>
       <div className={selectedBill && isWide ? 'record-split' : undefined}>
         <div className="pending-bills-list-column">
