@@ -60,7 +60,7 @@ export async function getWorkWriteScopes(): Promise<WorkWriteScopes> {
       objective_content_org: row.objective_content_org === true,
       objective_content_bu_ids: stringIds(row.objective_content_bu_ids),
     }
-  }, identity ? { identity, persist: true, staleWhileRevalidate: false } : {})
+  }, identity ? { identity, staleWhileRevalidate: false } : {})
 }
 
 /** A safe empty value for UI callers that need to initialize before an authority read settles. */
