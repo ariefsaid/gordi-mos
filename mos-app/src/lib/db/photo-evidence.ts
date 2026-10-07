@@ -29,5 +29,5 @@ export async function prepareEvidencePhoto(file: Blob): Promise<Blob> {
   if (prepared.has(file) && file.type === 'image/jpeg' && file.size <= PRIVATE_PHOTO_MAX_BYTES) return file
   const body = await shrinkPhoto(file)
   if (body.size > PRIVATE_PHOTO_MAX_BYTES) throw new Error('WASTE_PHOTO_TOO_LARGE')
-  return markPreparedEvidencePhoto(body)
+  return body
 }

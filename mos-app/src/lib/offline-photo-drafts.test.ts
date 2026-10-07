@@ -119,6 +119,19 @@ describe('offline photo drafts', () => {
     expect(shrinkPhoto).toHaveBeenCalledWith(restored)
   })
 
+  it('NFR-1007 a restored JPEG over 5 MB is still shrunk before upload', async () => {
+    idb.records.set('k', { key: 'k', savedAt: Date.now(), files: [
+      { blob: new Blob([new Uint8Array(5 * 1024 * 1024 + 1)], { type: 'image/jpeg' }), name: 'kept-big.jpg', type: 'image/jpeg', lastModified: 1 },
+    ] })
+    vi.mocked(shrinkPhoto).mockResolvedValue(new Blob([new Uint8Array(900_000)], { type: 'image/jpeg' }))
+    const [restored] = await loadOfflinePhotoDraft('k')
+
+    const body = await prepareEvidencePhoto(restored)
+
+    expect(shrinkPhoto).toHaveBeenCalledWith(restored)
+    expect(body.size).toBe(900_000)
+  })
+
   it('NFR-1007 a photo still over 5 MB after shrinking is not stored, and the save says it is too large', async () => {
     vi.mocked(shrinkPhoto)
       .mockResolvedValueOnce(new Blob([new Uint8Array(10)], { type: 'image/jpeg' }))
