@@ -1,5 +1,5 @@
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
-import { listEventsOverlapping } from '@/lib/db/events'
+import { listEventsOverlapping, EVENTS_WINDOW_MAX_ROWS } from '@/lib/db/events'
 import type { EventRow } from '@/lib/db/events.types'
 import { wibMonthKey, wibMonthRange } from '@/lib/week'
 import { parseCollectionViewSpec, type CollectionViewSpec } from '@/lib/record-collection/collection-view-spec'
@@ -7,7 +7,12 @@ import type { CollectionAccess, CollectionData, CollectionProjection, Collection
 import { EventsCalendarPresentation } from './events-calendar-presentation'
 
 export interface EventCollectionQuery { month: string; savedViewId: string | null }
-export interface EventCollectionContext { businessUnits: ReadonlyMap<string, string>; people: ReadonlyMap<string, string> }
+export interface EventCollectionContext {
+  businessUnits: ReadonlyMap<string, string>
+  people: ReadonlyMap<string, string>
+  hasMoreEvents: boolean
+  loadedEventLimit: number
+}
 type EventPresentation = 'calendar'
 type EventAction = never
 
@@ -51,12 +56,20 @@ const eventSavedViews: CollectionSavedViewDescriptor<EventCollectionQuery, Event
 
 export const eventsCollectionDescriptor: RecordCollectionDescriptor<EventRow, string, EventCollectionQuery, EventCollectionContext, EventRow[], EventAction, EventPresentation> = {
   id: 'events', defaultPresentation: 'calendar', query: eventCollectionQuery, savedViews: eventSavedViews, loadKeys: ['month'],
-  presentations: { calendar: { id: 'calendar', label: 'Calendar', compatibleQueryKeys: EVENT_QUERY_KEYS, capabilities: { search: false, filterKeys: [], sortKeys: [], groupKeys: [], savedViews: false, selection: false, recordOpening: false, bulkActions: [] }, render: ({ query, projection, context }) => <EventsCalendarPresentation month={query.month} events={projection.visibleRecords} businessUnits={context.businessUnits} people={context.people} /> } },
+  presentations: { calendar: { id: 'calendar', label: 'Calendar', compatibleQueryKeys: EVENT_QUERY_KEYS, capabilities: { search: false, filterKeys: [], sortKeys: [], groupKeys: [], savedViews: false, selection: false, recordOpening: false, bulkActions: [] }, render: ({ query, projection, context }) => <EventsCalendarPresentation month={query.month} events={projection.visibleRecords} businessUnits={context.businessUnits} people={context.people} hasMoreEvents={context.hasMoreEvents} loadedEventLimit={context.loadedEventLimit} /> } },
   async load({ query }): Promise<CollectionData<EventRow, EventCollectionContext>> {
     const range = wibMonthRange(query.month)
     if (!range) throw new Error('Invalid Events month')
-    const [records, businessUnits, people] = await Promise.all([listEventsOverlapping(range), getBusinessUnits(), getPeople()])
-    return { records, context: { businessUnits: new Map(businessUnits.map((row) => [row.id, row.name])), people: new Map(people.map((row) => [row.id, row.full_name])) } }
+    const [page, businessUnits, people] = await Promise.all([listEventsOverlapping(range), getBusinessUnits(), getPeople()])
+    return {
+      records: page.rows,
+      context: {
+        businessUnits: new Map(businessUnits.map((row) => [row.id, row.name])),
+        people: new Map(people.map((row) => [row.id, row.full_name])),
+        hasMoreEvents: page.hasMore,
+        loadedEventLimit: EVENTS_WINDOW_MAX_ROWS,
+      },
+    }
   },
   project(data): CollectionProjection<EventRow, EventRow[]> { return { visibleRecords: [...data.records].sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at) || a.title.localeCompare(b.title)), groups: [], totalRecords: data.records.length, visibleRecordsAreFiltered: false } },
   getId: (event) => event.id,
