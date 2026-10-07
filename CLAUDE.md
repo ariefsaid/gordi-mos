@@ -13,7 +13,7 @@ Use progressive disclosure: load only task-relevant references; managed worktree
 - Read `docs/decisions.md` when applying an owner or Director decision; identify it as `OD-*` or `DD-*`.
 - Read `CONTEXT.md` and `docs/agents/domain.md` when domain language or model is relevant.
 - Read `docs/agents/issue-tracker.md` and `docs/agents/triage-labels.md` when finding or preparing work.
-- Read `docs/agents/pi-delegation.md` when dispatching specialist or cross-family work.
+- Read `docs/agents/pi-delegation.md` before delegating a build or review: it names the headless coding harness in use (currently pi), the current coding and review models, and their inference providers. Delegate there before using Claude subagents.
 - Read `docs/environments.md` when operating non-local environments.
 - Read `REDESIGN.md` and `DESIGN.md` when changing Home or Tasks composition; `DESIGN.md` governs styling, and current owner direction/DD-MVP supersedes historical placement.
 - Read `mos-app/package.json` when looking up app commands; read `scripts/setup-hooks.sh` when installing hooks and `scripts/*.test.sh` when diagnosing guards.
@@ -28,12 +28,13 @@ Use progressive disclosure: load only task-relevant references; managed worktree
 - Keep migrations reversible; every business table has RLS and the `org_id` tenancy seam is enforced.
 - Every change gets independent `spec`, `code-quality`, and `security` reviews; the builder never reviews their own work. Challenge briefs against all three before claiming done; CI on the PR is the merge gate. These gates bind every lane.
 - `OD-*` decisions are owner-locked until changed; `DD-*` decisions are Director-made and binding until revised, but may be challenged with evidence. Name the decision type when citing it.
+- Main and staging merges require explicit owner assent.
 - Escalate only money or promises, irreversible actions outside a signed brief, scope-versus-time choices that change what ships, or facts only the owner holds; decide other matters within delegated scope. Park blocked steps; silence is not assent, and explicit current-task direction overrides project defaults.
 - Never report an action without reading its output; include the line that proves a completion claim.
 - Do not add AI attribution trailers to agent-authored commits; `.githooks/commit-msg` blocks Claude/Anthropic co-author trailers.
 - Keep one deterministic owning test per acceptance criterion at the cheapest sufficient layer; assert the user's goal, keep ≥80% changed-line coverage, and retain security, data-integrity, and public-write safeguards. Read `docs/quality-model.md` for the full test pyramid.
 - Every touched UI page must render at ≤390px and ≥1440px. A design pass is required for PRs adding a route, page, component, or CSS; changing >150 page/component `.tsx`/`.css` lines; or fixing owner-reported UI issues; otherwise run it per release on dev→main. Read the UI route for operated-journey requirements.
-- Search and reuse existing repo components, helpers, tables, filters, and tests before adding; explain justified new work on one `Reused:` PR-body line. Prefer net-deleting changes; duplication is a blocking review finding. `scripts/gh-post.sh` checks the PR line.
+- Reuse before adding; name what you reused on the PR's `Reused:` line.
 - Only manually dispatch CI e2e for shared-code or milestone PRs into `dev`; a second run requires a real app bug and code fix, never a flake rerun. Main PRs run their own e2e; scheduled/looping runs need owner approval. Use `scripts/ci-e2e.sh`; its output explains enforced queue and dispatch caps. Run at most one heavy local job across sessions and repos.
 - Use proven MIT, Apache-2.0, or MPL-2.0 libraries behind a MOS-owned interface instead of hand-building controls.
 - A record has typed fields plus an authored block document (OD-REDESIGN-16).
