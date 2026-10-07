@@ -101,7 +101,8 @@ describe('Café receipt adapter', () => {
         receipt_id: 'r-1', outcome: 'created', row_version: 1,
         lines: [{
           id: 'line-1', item_unit_id: 'kg', item_name: 'Bean', item_category: 'Bar', unit_name: 'kg', received_quantity: '2.5',
-          conditions: ['damaged_wrong'], condition_reason: null, condition_updated_at: '2026-10-06T02:00:00Z', photos: [],
+          conditions: ['damaged_wrong'], condition_reason: null, condition_updated_at: '2026-10-06T02:00:00Z',
+          po_created_after_delivery: false, photos: [],
         }],
       })
     expect(rpc).toHaveBeenCalledWith('submit_cafe_receipt', {
@@ -116,8 +117,9 @@ describe('Café receipt adapter', () => {
       id: 'r-1', activity: 'bar', status: 'Approved', posting_status: 'not_posted',
       lines: [{
         id: 'l-1', item_name: 'Milk', item_category: 'Dairy', unit_name: 'l', received_quantity: 24,
-        conditions: [], condition_reason: null,
+        conditions: [], condition_reason: null, po_created_after_delivery: true,
       }],
+      posting: { state: 'queued', matched: true, unmatched: 0, open_issues: 0, po_created_after_delivery: true },
     }
     let response: { data: unknown; error: unknown } = { data: [row], error: null }
     for (const method of ['select', 'in', 'eq', 'order', 'limit']) query[method] = vi.fn(() => query)
@@ -126,8 +128,16 @@ describe('Café receipt adapter', () => {
 
     const [receipt] = await listCafeReceipts(['Approved'], { receivedBy: 'me', limit: 5 })
     expect(receipt.lines[0]).toMatchObject({ received_quantity: '24', conditions: [], condition_reason: null, photos: [] })
+    // FR-1038 on the receipt line and the posting trail, read from the database's computed fields.
+    expect(receipt.lines[0].po_created_after_delivery).toBe(true)
+    expect(receipt.posting?.poCreatedAfterDelivery).toBe(true)
+    expect(String((query.select as ReturnType<typeof vi.fn>).mock.calls[0][0])).toContain('po_created_after_delivery:cafe_receipt_line_po_created_after_delivery')
     expect(query.eq).toHaveBeenCalledWith('received_by', 'me')
     expect(query.limit).toHaveBeenCalledWith(5)
+    expect(query.in).not.toHaveBeenCalledWith('id', expect.anything())
+
+    await listCafeReceipts(['Approved'], { ids: ['r-1', 'r-2'] })
+    expect(query.in).toHaveBeenCalledWith('id', ['r-1', 'r-2'])
 
     response = { data: [{ ...row, status: 'Posted' }], error: null }
     await expect(listCafeReceipts(['Approved'])).rejects.toThrow('invalid receipt row')
@@ -205,12 +215,12 @@ describe('Café receipt adapter', () => {
     schemaMock.mockReturnValue({ from: vi.fn(() => query) } as never)
 
     const [approved, submitted] = await listCafeReceipts(['Approved', 'Submitted'])
-    expect(approved.posting).toEqual({ state: 'queued', matched: true, unmatched: 2, openIssues: 1 })
+    expect(approved.posting).toEqual({ state: 'queued', matched: true, unmatched: 2, openIssues: 1, poCreatedAfterDelivery: false })
     expect(submitted.posting).toBeNull()
     expect(String(vi.mocked(query.select as () => unknown).mock.calls[0])).toContain('posting:cafe_receipt_posting')
 
     response = { data: { posting: { state: 'posted', matched: true, unmatched: 0, open_issues: 0 } }, error: null }
-    await expect(readCafeReceiptPosting('r-1')).resolves.toEqual({ state: 'posted', matched: true, unmatched: 0, openIssues: 0 })
+    await expect(readCafeReceiptPosting('r-1')).resolves.toEqual({ state: 'posted', matched: true, unmatched: 0, openIssues: 0, poCreatedAfterDelivery: false })
     expect(query.eq).toHaveBeenLastCalledWith('id', 'r-1')
 
     response = { data: [{ ...row, posting: { state: 'sent', matched: true, unmatched: 0, open_issues: 0 } }], error: null }

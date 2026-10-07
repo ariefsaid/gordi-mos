@@ -63,14 +63,14 @@ export function toDefaultUnitQuantity(quantity: number, factor: number): number 
   return roundedProduct(quantity, factor, 2)
 }
 
-/** Convert an unchanged default-unit amount into the selected multiple (numeric(12,3)). */
+/** Convert a default-unit amount into the selected multiple's two-place entry quantity. */
 export function fromDefaultUnitQuantity(quantity: number, factor: number): number {
   validate(quantity, factor)
-  return roundedQuotient(quantity, factor, 3)
+  return roundedQuotient(quantity, factor, 2)
 }
 
 /** A locale-aware, stable label for a manager-defined multiple of a default ERP unit. */
 export function formatUnitMultiple(factor: number, unitName: string, locale?: string): string {
-  const formattedFactor = new Intl.NumberFormat(locale, { maximumFractionDigits: 6 }).format(factor)
+  const formattedFactor = new Intl.NumberFormat(locale, { useGrouping: false, maximumFractionDigits: 6 }).format(factor)
   return `${formattedFactor} ${unitName}`
 }

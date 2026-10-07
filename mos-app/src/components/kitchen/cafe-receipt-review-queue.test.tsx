@@ -79,6 +79,18 @@ describe('CafeReceiptReviewQueue', () => {
     expect(within(row).getAllByText('Fresh milk')).toHaveLength(1)
   })
 
+  it('FR-1038 a receipt line linked to a PO created after delivery says so in the review row', async () => {
+    vi.mocked(listCafeReceipts).mockResolvedValue([receipt('r-late', 'receiver', {
+      lines: [{
+        id: 'line-late', item_unit_id: 'unit-l', item_name: 'Fresh milk', item_category: 'Dairy', unit_name: 'l', received_quantity: '11',
+        conditions: [], condition_reason: null, condition_updated_at: null, po_created_after_delivery: true, photos: [],
+      }],
+    })])
+    renderQueue()
+    const row = (await screen.findByText('Received by Shift member')).closest('li')!
+    expect(within(row).getByText('PO created after delivery')).toBeInTheDocument()
+  })
+
   it('NFR-1006 a receipt whose photos could not be read says so on that receipt, and its decision stays available', async () => {
     vi.mocked(listCafeReceipts).mockResolvedValue([receipt('r-photos', 'receiver', {
       photosUnavailable: true,

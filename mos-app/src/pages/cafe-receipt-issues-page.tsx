@@ -1,12 +1,11 @@
-import { Link } from 'react-router-dom'
-import { EmptyState } from '@/components/ui/state-kit'
+import { CafeReceiptIssuesQueue } from '@/components/kitchen/cafe-receipt-issues-queue'
 import { useT } from '@/i18n/use-t'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useSetBreadcrumbTitle } from '@/shell/breadcrumb-title'
 import './cafe-count-page.css'
 
-/** The Receipt issues destination is registered here; its list arrives with matching (posting stays off). */
+/** Procurement's org-wide Receipt issues list; receivers get only their own issues, read-only, through RLS. */
 export function CafeReceiptIssuesPage() {
   const t = useT()
   const title = t('cafe.receipts.issues.title')
@@ -15,9 +14,7 @@ export function CafeReceiptIssuesPage() {
   return (
     <PageFamilyFrame family="workspace" title={title} headClassName="cafe-count__head">
       <div className="cafe-count">
-        <EmptyState variant="blank" title={t('cafe.receipts.issues.empty.title')} copy={t('cafe.receipts.issues.empty.copy')}>
-          <Link to="/cafe/receive" className="btn btn-outline btn-touch">{t('nav.cafe.receive')}</Link>
-        </EmptyState>
+        <CafeReceiptIssuesQueue />
       </div>
     </PageFamilyFrame>
   )

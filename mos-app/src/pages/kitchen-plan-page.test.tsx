@@ -291,14 +291,14 @@ describe('KitchenPlanPage — the stream reads in the page head (#440)', () => {
     currentViewer = viewer(['ops_lead'], 'person-b')
     rerender(<KitchenPlanPage />)
     const quantity = await screen.findByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
-    await waitFor(() => expect(quantity).toHaveValue(27))
+    await waitFor(() => expect(quantity).toHaveValue('27'))
 
     await act(async () => {
       resolvePrevious([{ id: 'plan-a', wip_item_id: 'w1', movement: PRODUCE, qty_porsi: 91 }])
       await Promise.resolve()
     })
 
-    expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })).toHaveValue(27)
+    expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })).toHaveValue('27')
   })
 
   it('the member pesanan face states its stream too — a read-only surface still says which books', async () => {
@@ -331,7 +331,7 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
     // editable qty inputs exist (the editor affordance) — one per item
     expect(screen.getAllByRole('spinbutton').length).toBeGreaterThanOrEqual(2)
     // pre-filled with the existing plan qty for Ayam Bakar / Production
-    expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })).toHaveValue(12)
+    expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })).toHaveValue('12')
   })
 
   it('FR-031: typing an amount + blur commits — upsertKitchenPlan with qty_porsi (no org_id/plan_by)', async () => {
@@ -353,6 +353,38 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
     expect(Object.keys(arg)).not.toContain('action_type')
     expect(Object.keys(arg)).not.toContain('org_id')
     expect(Object.keys(arg)).not.toContain('plan_by')
+  })
+
+  it.each(['1,5', '1.5'])('rejects decimal plan input %s instead of rounding or saving it', async raw => {
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    const input = await screen.findByLabelText(/planned quantity for ayam bakar/i)
+    expect(input).toHaveAttribute('type', 'text')
+    expect(input).toHaveAttribute('inputmode', 'decimal')
+    await waitFor(() => expect(input).toBeEnabled())
+    const user = userEvent.setup()
+    await user.clear(input)
+    await user.type(input, raw)
+    await user.tab()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/whole numbers only/i)
+    expect(mockUpsert).not.toHaveBeenCalled()
+  })
+
+  it('shows the integer-only correction in Indonesian', async () => {
+    render(<KitchenPlanPage />, { wrapper: idWrapper })
+    await screen.findByText('Ayam Bakar')
+    const input = await screen.findByLabelText(/jumlah yang direncanakan untuk ayam bakar/i)
+    expect(input).toHaveAttribute('type', 'text')
+    expect(input).toHaveAttribute('inputmode', 'decimal')
+    await waitFor(() => expect(input).toBeEnabled())
+    const user = userEvent.setup()
+    await user.clear(input)
+    await user.type(input, '1,5')
+    await user.tab()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/bilangan bulat/i)
+    expect(mockUpsert).not.toHaveBeenCalled()
   })
 
   it('does not save when the value is unchanged (no needless write)', async () => {
@@ -401,14 +433,14 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
     // #979: the same input is still mounted and still holds the typed amount after the rejection
     expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })).toBe(input)
     expect(input).toBeInTheDocument()
-    expect(input).toHaveValue(15)
+    expect(input).toHaveValue('15')
     // retry (Enter on the still-typed amount) succeeds: that amount is what gets persisted
     fireEvent.keyDown(input, { key: 'Enter' })
     await waitFor(() => expect(mockUpsert).toHaveBeenCalledTimes(2))
     expect(mockUpsert.mock.calls[1][0].qty_porsi).toBe(15)
     expect(mockUpsert.mock.calls[1][0].wip_item_id).toBe('w1')
     expect(await screen.findByText(/saved/i)).toBeInTheDocument()
-    expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })).toHaveValue(15)
+    expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })).toHaveValue('15')
   })
 
   it('(#981) editor search keeps real typing intact, the URL follows, and clearing empties both', async () => {
@@ -489,7 +521,7 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
     // DD-5 data-honesty: qty 0 = "nothing planned" → the field is genuinely blank with a
     // greyed "0" placeholder, never a column of committed-looking black zeros.
     const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
-    expect(input).toHaveValue(null)
+    expect(input).toHaveValue('')
     expect(input).toHaveAttribute('placeholder', '0')
   })
 
@@ -544,10 +576,11 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
     const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
+    expect(input).toHaveAttribute('data-escape-layer', 'nested')
     await user.clear(input)
     await user.type(input, '99{Escape}')
     // draft rolled back to the saved 12; tabbing away is then a no-op (no needless write)
-    expect(input).toHaveValue(12)
+    expect(input).toHaveValue('12')
     await user.tab()
     await new Promise(r => setTimeout(r, 0))
     expect(mockUpsert).not.toHaveBeenCalled()
@@ -829,7 +862,7 @@ describe('KitchenPlanPage — stream supervisor editor (#784 AC-057)', () => {
     render(<KitchenPlanPage />, { wrapper })
     expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
     const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
-    expect(input).toHaveValue(12)
+    expect(input).toHaveValue('12')
     fireEvent.change(input, { target: { value: '20' } })
     fireEvent.blur(input)
     await waitFor(() => expect(mockUpsert).toHaveBeenCalled())
@@ -1316,9 +1349,9 @@ describe('issue 222: the plan offers the stream\'s own item list', () => {
     expect(screen.queryByText('Unplanned inactive item')).not.toBeInTheDocument()
     expect(screen.getByText('Reclassified rice')).toBeInTheDocument()
     expect(screen.getByText('Not WIP — existing plan only')).toBeInTheDocument()
-    expect(screen.getByRole('spinbutton', { name: /planned quantity for reclassified rice/i })).toHaveValue(5)
+    expect(screen.getByRole('spinbutton', { name: /planned quantity for reclassified rice/i })).toHaveValue('5')
     const input = screen.getByRole('spinbutton', { name: /planned quantity for archived curry/i })
-    expect(input).toHaveValue(8)
+    expect(input).toHaveValue('8')
     expect(input).toBeEnabled()
     fireEvent.change(input, { target: { value: '10' } })
     fireEvent.blur(input)
@@ -1331,7 +1364,7 @@ describe('issue 222: the plan offers the stream\'s own item list', () => {
     expect(transferTab).toBeDefined()
     fireEvent.click(transferTab!)
     const transferInput = screen.getByRole('spinbutton', { name: /planned quantity for archived curry/i })
-    expect(transferInput).toHaveValue(null)
+    expect(transferInput).toHaveValue('')
     expect(transferInput).toBeDisabled()
     expect(screen.getByRole('spinbutton', { name: /planned quantity for reclassified rice/i })).toBeDisabled()
     expect(mockUpsert).toHaveBeenCalledOnce()

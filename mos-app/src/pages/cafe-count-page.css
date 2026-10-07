@@ -160,11 +160,13 @@
 }
 
 .cafe-count__field-error { color: var(--field-error-text); }
+.cafe-count__row:has(.cafe-count__field-error) .cafe-count__input-group { display: contents; }
+.cafe-count__row:has(.cafe-count__field-error) .cafe-count__field-error { grid-column: 1 / -1; }
 .cafe-count__line-success { color: var(--muted-foreground); }
 
 .cafe-count__footer {
   position: sticky;
-  z-index: 2;
+  z-index: var(--z-inline-raised);
   /* Cancel the page frame's bottom reserve so the action bar sits on the scrollport edge. */
   bottom: -48px;
   margin-bottom: -48px;
@@ -179,12 +181,20 @@
   backdrop-filter: blur(12px);
 }
 
-.cafe-count__tally {
+.cafe-count__footer-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.cafe-count__tally,
+.cafe-count__fixing {
   margin: 0;
   color: var(--muted-foreground);
   font-size: var(--font-size-body);
-  font-variant-numeric: tabular-nums;
 }
+.cafe-count__tally { font-variant-numeric: tabular-nums; }
+.cafe-count__fixing { color: var(--status-lost-text); }
 
 .cafe-count__submit {
   min-width: 132px;

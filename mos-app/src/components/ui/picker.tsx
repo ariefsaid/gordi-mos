@@ -12,6 +12,7 @@ import { flushSync } from 'react-dom'
 import * as Popover from '@radix-ui/react-popover'
 import { Command } from 'cmdk'
 import { useT } from '@/i18n/use-t'
+import { focusableWithin } from '@/lib/focusable'
 import { isTypeaheadKey, nextTypeaheadMatch, useTypeaheadBuffer } from './typeahead'
 import './Picker.css'
 
@@ -51,17 +52,6 @@ export type PickerProps = {
   onOpenChange?: (open: boolean, reason?: PickerCloseReason) => void
   onKeyDown?: (event: ReactKeyboardEvent<HTMLButtonElement>) => void
   onBlur?: FocusEventHandler<HTMLButtonElement>
-}
-
-function focusableElements(exclude: HTMLElement | null) {
-  return Array.from(document.querySelectorAll<HTMLElement>(
-    'a[href], button, input, select, textarea, [tabindex]',
-  )).filter((node) => {
-    if (node === exclude || exclude?.contains(node)) return false
-    if (node.tabIndex < 0 || node.matches(':disabled,[hidden],[inert]')) return false
-    const style = getComputedStyle(node)
-    return style.display !== 'none' && style.visibility !== 'hidden'
-  })
 }
 
 // cmdk replaces an empty item value with its text, so a '' placeholder option could never be the
@@ -154,7 +144,10 @@ export function Picker({
     event.stopPropagation()
     if (event.key !== 'Tab') return
     event.preventDefault()
-    const controls = focusableElements(menuRef.current)
+    const controls = focusableWithin(document.body).filter((node) => {
+      const menu = menuRef.current
+      return node !== menu && !menu?.contains(node)
+    })
     const index = triggerRef.current ? controls.indexOf(triggerRef.current) : -1
     const next = controls[index + (event.shiftKey ? -1 : 1)]
     flushSync(() => close('tab'))

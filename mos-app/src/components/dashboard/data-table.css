@@ -93,6 +93,12 @@
   vertical-align: middle;
 }
 .dt-table tbody tr:last-child td { border-bottom: none; }
+.dt-table tbody .dt-row-detail > td {
+  height: auto;
+  padding-block: 2px 8px;
+  background: var(--card);
+}
+.dt-row-detail .quantity-field-error { width: 100%; }
 
 /* quiet hover wash — --surface-secondary (grey), NEVER the blue --accent */
 .dt-table tbody tr:hover td {
