@@ -1,5 +1,5 @@
-// The desktop bill list retains its three priority columns in a narrow list and wraps long names
-// without moving the money figures off-canvas; the Money shell owns the surrounding surface.
+// A narrow bill list keeps age, state and the priority money fields while it wraps long names
+// without moving those figures off-canvas; the Money shell owns the surrounding surface.
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -25,13 +25,11 @@ describe('pending bills table CSS', () => {
   it('keeps Bill no., Amount and Balance as the columns that survive a narrow table', () => {
     const narrow = css.match(/@media \(min-width:\s*768px\)\s*\{[\s\S]*?@container pending-bills-list \(max-width:\s*979\.98px\)\s*\{([\s\S]*?)\n\s{2}\}/)?.[1] ?? ''
     expect(rule('.pending-bills-table .money-table') ?? '').toMatch(/table-layout:\s*fixed/)
-    expect(narrow).toContain('.pending-bills-table .money-table__cell--date')
-    expect(narrow).toContain('.pending-bills-table .money-table__cell--age')
-    expect(narrow).toContain('.pending-bills-table .money-table__cell--branch')
-    expect(narrow).toContain('.pending-bills-table .money-table__cell--owes')
-    expect(narrow).toContain('.pending-bills-table .money-table__cell--state')
-    for (const priority of ['bill', 'amount', 'balance']) {
-      expect(narrow).not.toContain(`.pending-bills-table .money-table__cell--${priority}`)
+    for (const hidden of ['date', 'branch', 'owes']) {
+      expect(narrow).toContain(`.pending-bills-table .money-table__cell--${hidden}`)
+    }
+    for (const visible of ['age', 'state', 'bill', 'amount', 'balance']) {
+      expect(narrow).not.toContain(`.pending-bills-table .money-table__cell--${visible}`)
     }
     expect(css).toMatch(/\.pending-bills-table \.money-table-scroll\s*\{\s*overflow-x:\s*hidden/)
     expect(rule('.pending-bills-list-column') ?? '').toMatch(/container:\s*pending-bills-list\s*\/\s*inline-size/)

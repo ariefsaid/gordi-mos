@@ -95,15 +95,11 @@
 
   @container pending-bills-list (max-width: 979.98px) {
     .pending-bills-table .money-table__cell--date,
-    .pending-bills-table .money-table__cell--age,
     .pending-bills-table .money-table__cell--branch,
     .pending-bills-table .money-table__cell--owes,
-    .pending-bills-table .money-table__cell--state,
     .pending-bills-table .money-table__head.money-table__cell--date,
-    .pending-bills-table .money-table__head.money-table__cell--age,
     .pending-bills-table .money-table__head.money-table__cell--branch,
-    .pending-bills-table .money-table__head.money-table__cell--owes,
-    .pending-bills-table .money-table__head.money-table__cell--state {
+    .pending-bills-table .money-table__head.money-table__cell--owes {
       display: none;
     }
   }

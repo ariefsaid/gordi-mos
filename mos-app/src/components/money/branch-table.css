@@ -168,6 +168,12 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
+  /* Re-establish the shared phone-cell reset after the branch's desktop alignment. */
+  .branch-money-table .money-table__cell {
+    text-align: left;
+    white-space: normal;
+  }
+
   .branch-money-table .money-table__row--company .money-table__cell,
   .branch-money-table .money-table__row--link:hover .money-table__cell {
     border: 0;

@@ -154,7 +154,7 @@ describe('the ready list', () => {
 })
 
 describe('the table columns', () => {
-  it('puts Age beside Date and State right after Who owes, so how old and flagged are visible at tablet widths', async () => {
+  it('orders Age near Date and State after Who owes, before the bill and money columns', async () => {
     renderPage()
     const table = await screen.findByRole('table')
     expect(within(table).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(
