@@ -1,251 +1,46 @@
-# Gordi MOS
+# Gordi MOS — agent index
 
-## Active Home and Tasks replacement
+Use progressive disclosure: load only task-relevant references; managed worktrees omit local `docs/`.
 
-For Home and Tasks composition, `REDESIGN.md` is the current owner-composition brief and delivery
-scope; `DESIGN.md` is the intended style and interaction authority, amended by current owner
-direction and delegated Director Decisions in `docs/decisions.md` (DD-MVP). `REDESIGN.md` supersedes historical
-page-composition constraints only where it records current owner decisions; it does not authorize
-unrelated palette or token drift, or certify the current implementation. Retired interaction
-prescriptions must not override the current DD-MVP acceptance criteria. Current MVP UI work covers
-Tasks, Café WIP production and Signals by default; explicit current owner scope can include Home
-and other surfaces and supersede older composition constraints. Follow the
-UI execution route below.
-`docs/plans/2026-09-14-mvp-recovery.md` is the historical one-hour checkpoint; its time fences
-and pending statements do not govern this continuation. Use bounded isolated
-workers, integrate running surfaces, and review the result against actual user outcomes. Preserve
-business/security contracts and public-write safeguards.
+## Read on demand
 
+- Read `docs/agents/factory.md` when routing work, delegating, escalating, verifying, or handling CI/PR workflow.
+- Read `docs/agents/skills.md` when choosing a workflow entrypoint, finding available skills, or editing skills; edit only `.claude/skill-overrides/<name>/`.
+- Read `docs/agents/review.md` when reviewing work or recording verdicts.
+- Read `docs/gotchas.md` before changing project behavior or when something is surprising.
+- Read `docs/quality-model.md` when choosing quality checks or review depth.
+- Read `docs/takeover/mvp-ui-continuation.md` for a UI design pass or release review; it is the visual-first execution route.
+- Read `docs/decisions.md` when applying an owner or Director decision; identify it as `OD-*` or `DD-*`.
+- Read `CONTEXT.md` and `docs/agents/domain.md` when domain language or model is relevant.
+- Read `docs/agents/issue-tracker.md` and `docs/agents/triage-labels.md` when finding or preparing work.
+- Read `docs/agents/pi-delegation.md` when dispatching specialist or cross-family work.
+- Read `docs/environments.md` when operating non-local environments.
+- Read `REDESIGN.md` and `DESIGN.md` when changing Home or Tasks composition; `DESIGN.md` governs styling, and current owner direction/DD-MVP supersedes historical placement.
+- Read `mos-app/package.json` when looking up app commands; read `scripts/setup-hooks.sh` when installing hooks and `scripts/*.test.sh` when diagnosing guards.
+- Read the selected skill's `SKILL.md` and follow its flow for each phase; use `ask-matt` when unsure. Every brief names the skill, phase, and evidence.
+- Read `docs/README.md` when locating the repo map or local docs; in managed worktrees, find the main checkout with `git worktree list` because `docs/` is local-only.
 
-> ## ⚠️ THIS REPO IS PUBLIC — `github.com/ariefsaid/gordi-mos`
->
-> Commits, issues, PRs and comments are world-readable and permanent. Deleting does not un-publish.
-> **Never write here:** unpatched weaknesses (no "X has no auth check", no list of missing
-> controls) · PII (staff names, personal emails, roles tied to people; "the 5 `@gordi.id` staff" is
-> an enumeration hint) · secrets **or their coordinates** (vault/item/env-var names, internal
-> hostnames, endpoints, tenant ids).
->
-> Instead: weaknesses → private security advisory (`scripts/gh-post.sh api --method POST .../security-advisories` — raw write-mode `gh api` is hook-denied), described
-> publicly only **after** the fix ships. Anything documentary → `docs/`, gitignored, its own local
-> repo. Blunt on purpose: code syncs to GitHub, docs stay local — per-file judgment is what failed.
->
-> Touching security, auth, infra or people? `gh repo view --json visibility` first.
-> (2026-07-31: fifteen issues filed from the backlog, four detailing live auth/RLS holes, visibility
-> never checked.)
+## Binding rules
 
-Internal **Management Operating System** for Gordi, ~30 people. Four workspace roots —
-Home / Work / Money / Inbox — with Work carrying the object collections (Signals · Tasks ·
-Projects & Processes · Objectives) and Café as the ops module; RACI lives on the objects.
-Updates + per-Activity ops + reference data + money follow-ups. Ships at
-`https://ops.gordi.id/mos`.
+- This repo is public: GitHub prose is permanent, and deletion does not unpublish; never publish unpatched weaknesses or missing-control lists, PII, secrets, or secret coordinates. Send weaknesses to a private security advisory and describe them publicly only after the fix ships.
+- Keep documentary material and integration-partner coordinates in local `docs/`; before security, auth, infrastructure, or people work, check `gh repo view --json visibility`. Public writing states rules, not dated causes; MOS design artifacts use no external brand, product, or AGPL references.
+- GitHub writes go through `scripts/gh-post.sh`; raw `gh` writes are blocked, with `gh pr merge` as the merge exception. Follow refusals from `scripts/pre-pr-verify.sh`, `scripts/gh-post.sh`, `scripts/record-review.sh`, `.claude/hooks/pre-pr-gate.sh`, `.claude/hooks/merge-migration-order.sh`, `.githooks/commit-msg`, and `.githooks/pre-push`.
+- Keep migrations reversible; every business table has RLS and the `org_id` tenancy seam is enforced.
+- Every change gets independent `spec`, `code-quality`, and `security` reviews; the builder never reviews their own work. Challenge briefs against all three before claiming done; CI on the PR is the merge gate. These gates bind every lane.
+- `OD-*` decisions are owner-locked until changed; `DD-*` decisions are Director-made and binding until revised, but may be challenged with evidence. Name the decision type when citing it.
+- Escalate only money or promises, irreversible actions outside a signed brief, scope-versus-time choices that change what ships, or facts only the owner holds; decide other matters within delegated scope. Park blocked steps; silence is not assent, and explicit current-task direction overrides project defaults.
+- Never report an action without reading its output; include the line that proves a completion claim.
+- Do not add AI attribution trailers to agent-authored commits; `.githooks/commit-msg` blocks Claude/Anthropic co-author trailers.
+- Keep one deterministic owning test per acceptance criterion at the cheapest sufficient layer; assert the user's goal, keep ≥80% changed-line coverage, and retain security, data-integrity, and public-write safeguards. Read `docs/quality-model.md` for the full test pyramid.
+- Every touched UI page must render at ≤390px and ≥1440px. A design pass is required for PRs adding a route, page, component, or CSS; changing >150 page/component `.tsx`/`.css` lines; or fixing owner-reported UI issues; otherwise run it per release on dev→main. Read the UI route for operated-journey requirements.
+- Search and reuse existing repo components, helpers, tables, filters, and tests before adding; explain justified new work on one `Reused:` PR-body line. Prefer net-deleting changes; duplication is a blocking review finding. `scripts/gh-post.sh` checks the PR line.
+- Only manually dispatch CI e2e for shared-code or milestone PRs into `dev`; a second run requires a real app bug and code fix, never a flake rerun. Main PRs run their own e2e; scheduled/looping runs need owner approval. Use `scripts/ci-e2e.sh`; its output explains enforced queue and dispatch caps. Run at most one heavy local job across sessions and repos.
+- Use proven MIT, Apache-2.0, or MPL-2.0 libraries behind a MOS-owned interface instead of hand-building controls.
+- A record has typed fields plus an authored block document (OD-REDESIGN-16).
+- Milestone rendered review covers every route, width, and control state and searches each finding as a class; ordinary tickets cover touched and connected surfaces unless their contract requires more. Shared-component reuse does not substitute for rendered acceptance.
+- Batch owner questions and preserve their original outcome and provenance in briefs. For out-of-scope findings, do the work, file an issue, or drop it in one line—never use a suggested-task chip.
+- Apply ponytail to authored work: comments say what code does; state rationale once in its owning artifact. Prose counts must stay true everywhere or be omitted; schema-comment counts must be pinned by tests.
 
-**Usability and speed beat model completeness.**
+## MOS
 
-## Standing principles (owner)
-
-- Route every phase through its skills, reading each SKILL.md and following its flow (owner-typed
-  ones included); unsure which, `ask-matt`:
-  - owner observations: `feedback`, into issues before anything is built;
-  - fog and decisions: `wayfinder`, `grilling`, `domain-modeling`, `research`, `prototype`;
-  - spec and tickets: `to-spec`, `to-tickets`, `triage`; goals and briefs: `writing-agent-goals`;
-  - build: `drive` and the factory for ordinary tickets (Workflow below); `implement` with `tdd` in
-    hands-on lanes; `codebase-design`, `diagnosing-bugs`; `ponytail-review` on the diff;
-  - UI: `impeccable` (`operate` first, then its critique, layout, clarify, adapt, harden, audit and
-    polish references), `ui-ux-pro-max` search, `taste`;
-  - review: `code-review`; rendered judgment per the Test pyramid.
-- Every brief names its skills plan: which skill, which phase, what evidence it leaves. Naming a
-  skill is not evidence it ran.
-- Reuse before build (ponytail): search the repo first and use the existing component, hook, table, filter or
-  helper; a PR lists what it reused and justifies anything new in one line. Duplicating existing code is a
-  blocking review finding. Prefer diffs that delete more than they add.
-- Vendor before build: a proven library (MIT, Apache-2.0 or MPL-2.0 only) over a hand-built
-  control, behind a MOS-owned interface.
-- A record is typed fields plus an authored block document (OD-REDESIGN-16).
-- A milestone or final rendered UI review is exhaustive: every route, width and control state, each
-  finding searched for as a class, never a top-N pass. Ordinary tickets still check only their
-  touched and connected surfaces.
-
-## UI review and improvement tasks
-
-For a UI change that gets a design pass (see Bar to merge), and for the per-release pass, use `docs/takeover/mvp-ui-continuation.md` in the main checkout
-as the execution entrypoint. Managed worktrees lack private `docs/` and `.claude/skills/`; use
-`git worktree list` to find the former and `bash scripts/ui-skill-tools.sh paths` for the actual
-skill files, playbooks and launchers. Read and apply the applicable skills and run their supported
-CLI utilities; their names or a context probe alone do not certify their methods were used. The
-route interprets older owner decisions and chats as expected behavior
-without freezing their layouts or today's approved screen into a pixel oracle. Inspect and critique
-the running interface before implementation; quantitative checks support the visual review. The
-route owns scope, skill use, review order and bounded stopping rules.
-The factory loop below governs ticket delivery and publication, not a prerequisite to opening or
-showing a local preview. Explicit owner deadlines stop workers and verification as well as edits;
-report the actual build and remaining limitations at the deadline.
-
-## Workflow — you run as Director; `/drive` runs the loop
-
-`/drive` is the session: frontier grill (owner present) → pick → factory build → verify →
-independent review → PR → auto-merge to dev → next. Its machinery binds outside the skill too:
-
-1. Unclear ask → `/grilling` (too big for one session → `/wayfinder`) → `/to-spec` → `/to-tickets`.
-2. Build. The factory is the default executor for ordinary bounded tickets, dispatched ONLY via
-   `bash scripts/factory-run.sh` (never bare `uv run adws/…` — the wrapper carries the gh no-auth
-   layer). An explicit owner-authorized separate Codex task/model delegation is a first-class
-   Director lane. For Codex subagents, the owner default is `gpt-6-luna` with `max` reasoning;
-   pass both explicitly on dispatch, rather than inheriting the Director's model or effort.
-   Isolate the lane, name it in the ticket's
-   in-flight marker, and keep the same brief, verification, independent review, public-write, and
-   security gates. A Claude subagent dispatch additionally needs a logged lane —
-   `scripts/lane-exempt.sh` (hook denies otherwise; Explore/Plan free). For explicitly authorized
-   bounded UI delegation, `bash scripts/lane-exempt.sh - owner-ui "<authorized scope>"` records
-   one dispatch locally; publication still uses the gates below.
-3. Review: three independent lens verdicts. One reviewer who did not build the candidate may
-   cover all three; separate contexts are needed only when the selected route requires them for
-   independence or calibration. Never your own read.
-4. A PR needs one stamp per lens via `scripts/record-review.sh --lens spec|code-quality|security`
-   (a reviewer that didn't build it: glm/luna, opus fallback; Opus for the security lens of a
-   release or a migration). CI on the PR is the merge gate.
-5. GitHub writes ONLY via `scripts/gh-post.sh` — the firewall hook denies raw `gh` writes; the
-   posting policy lives in local `docs/`, per the banner above. One carve-out: `gh pr merge`
-   stays raw (no prose leaves through a merge).
-
-CI fair use (shared free-tier minutes): a PR into `dev` needs no local verify run — CI verify is its
-gate; a PR into `main` keeps the full local gate (`bash scripts/pre-pr-verify.sh`).
-Locally, pgTAP runs only the test files your change touches (`scripts/with-db-lock.sh bash -c 'supabase migration up && supabase test db <files>'`; the local DB is shared, so no reset just to test); CI runs the full suite. The DB lock wraps database commands only, never pre-pr-verify. A pure rebase, a clean merge of dev, or a rename-only migration renumber (proven by `scripts/carry-stamps.sh`) carries the stamps to the new HEAD in place of a mechanical-confirmation round.
-A PR into `main` runs the e2e itself (never dispatch it there); merges into main and the main→staging promotion re-run no CI.
-Run CI e2e at most once per PR, only for shared-code or milestone
-PRs into dev, via `bash scripts/ci-e2e.sh` (raw dispatch and rerun are hook-denied). A second e2e run on a PR
-(except one `--bugfix-proof` follow-up), a flake re-run, more than 3 dispatches per repo per day, or anything
-scheduled or looping needs the owner's OK. One heavy local job at a time, all sessions and repos.
-
-Decisions: `OD-*` = owner, binding until the owner changes it; `DD-*` = Director, may be questioned
-with evidence. Say which kind whenever you cite one.
-
-Escalate **only**: money or a promise · irreversible outside a signed brief · scope-vs-time that
-changes what ships · a fact only the owner holds. Within delegated scope, decide the rest and state
-the reasoning. The owner's explicit current-task direction supersedes a project default for that
-task; security, public-write, verification, and independent-review gates bind every lane. When an
-owner-class fact or conflicting authority is required, name the blocker and park that step — never
-infer assent from silence.
-
-Out-of-scope finding: do it, file a GitHub issue, or drop it with one line. **Never a suggested-task
-chip** — that pushes the decision back to the owner (owner, 2026-08-07).
-
-## Review roster
-
-**Three lenses, always: `spec`, `code-quality`, `security`.** Adversarial briefs, run unasked before
-claiming done. One record per lens, a PR comment whose ENTIRE body is:
-
-```
-<!-- review-gate -->
-Reviewer: spec | code-quality | security
-Verdict: MERGE | MERGE WITH CHANGES | DO NOT MERGE
-Commit: <full 40-character HEAD sha>
-```
-
-Findings in a separate comment, never the PR body. Records certify the exact HEAD: a content push
-staleifies every record. Round 1 is a full independent pass; later rounds are delta-only for named
-fixes or genuinely new risk. Formatting/whitespace-only changes, or mechanical artifact refreshes
-with no new authored behavior, do not start a substantive review round; if they move HEAD, the
-independent reviewer must issue an exact-HEAD mechanical confirmation (a carry proven by `scripts/carry-stamps.sh` replaces it; see CI fair use), never edit or reuse a stale
-record.
-
-## Repo layout
-- `mos-app/` — the app (React 19 + Vite + TypeScript + react-router-dom 7). Run npm/vite here.
-- `supabase/migrations/` — Postgres schema + RLS. Schemas `shared`/`mos`/`ops`/`integrations`/
-  `reporting`. One self-hosted Supabase serves MOS and future Gordi apps: schema separation.
-- `docs/` — **not in this repo.** Local, gitignored, own git repo (same as `.claude/`). ADRs, owner
-  decisions, gotchas, runbooks, infra coordinates, agent config, archive. Start `docs/README.md`.
-
-## Commands (inside `mos-app/`)
-`npm run dev` · `build` · `typecheck` · `lint` (script already carries `--max-warnings=0`; also
-runs `lint:css`) · `test` (Vitest; the PR gate runs `test:coverage`) ·
-`e2e` (Playwright, holds the shared DB lock — #388) · `supabase test db` (pgTAP — run from the
-repo root, not `mos-app/`) ·
-`test-storybook` (phone-390 + a11y gates; not a CI lane).
-
-`./scripts/setup-hooks.sh` installs the tracked git hooks (`npm install` runs it via `prepare`).
-Every guard ships a `scripts/*.test.sh` self-test, run by CI on change.
-
-## Claims
-
-Never report an action whose output you have not read. A `cd` that failed, an `&&` that
-short-circuited, a mutation proof naming the wrong assertion — every one shipped as "done" here.
-Paste the line that proves it, or don't claim it.
-
-Apply `ponytail` to what you WRITE, not only to what you build. A comment says what the code does
-or it doesn't exist. Say a reason ONCE, in the artifact that owns it — copied into the commit body,
-the code comment and the PR body it is three things to keep true, and each copy is a fresh claim
-the next review round has to check. A count in prose is a fact you then own on every ruling:
-re-issue it everywhere it appears, or don't write it. (Database comments DO carry counts — a schema
-reader has no other source — which is why they are pinned by tests rather than banned.)
-
-**This repo is PUBLIC.** Never write a date beside a cause — "X was published on <date>" tells a
-reader which push to look up. State the rule, never the history; history goes to `docs/`.
-
-A hook to enforce this was built and reverted: it blocked true sentences, and a guard that refuses
-honest work teaches `--no-verify`, which disables the guards that matter. This one is on you.
-
-## Bar to merge
-- typecheck + ESLint zero errors; ≥80% lines on changed code.
-- Reversible migrations. **RLS on every business table.** `org_id` seam enforced.
-- `DESIGN.md` is the design-system source of truth — never re-invent it.
-- UI changes run the scripted design checks (Impeccable detector, geometry, a11y, contrast) on every
-  PR. The judgment steps (shape, ui-ux-pro-max, rendered critique, layout, clarify, harden,
-  polish, Taste) run with renders on a PR that adds a route, page, component or CSS file, changes
-  over ~150 lines of page/component .tsx/.css, or fixes an owner-reported UI issue; otherwise once per
-  release on the dev→main PR (OD-2026-10-07-HARNESS-ANSWERS). Missing, unrunnable or stale tooling
-  is an explicit incomplete review, never a silent fallback.
-- A UI change is not done until each touched page renders at ≤390px and ≥1440px; one with a design
-  pass is also operated at real widths: open controls,
-  keyboard/focus, long content, loading/empty/error states and the persisted role-correct journey.
-  Record browser evidence separately from source/test evidence; shared-component reuse is not visual acceptance.
-
-## Test pyramid
-
-Retain a test or review requirement only when it owns a current behavior or risk, has a
-deterministic failure condition, and runs at the cheapest sufficient layer. Remove or archive
-stale product assertions, overlapping checks, duplicate evidence and prose-only refusal gates.
-Security, data-integrity and public-write safeguards remain binding.
-Each acceptance criterion is owned by **one** test at the lowest sufficient layer: unit (Vitest/RTL)
-for logic and components; **pgTAP** for RLS and role read/write contracts; Playwright for a handful
-of real cross-stack journeys only.
-
-**A test encodes the user's real journey to the goal and asserts that goal.** For unchanged
-behavior, the app conforms to the test. When an approved behavior change makes an assertion
-obsolete, update the test and its acceptance evidence in the same diff while keeping the assertion
-at the behavior level; never weaken an assertion solely to go green.
-
-The project lifecycle owns phase routing: discovery/grilling → `to-spec` synthesis of settled
-intent → bounded factory or authorized Director execution → independent review → milestone
-acceptance. Superpowers techniques serve these phases; they do not restart a second approval or
-specification loop. Preserve batched owner questions and original outcome/provenance in briefs.
-Under OD-REDESIGN-88, understood seams may use test-with against the current behavior contract;
-visual placement assertions change when the owner-authorized workflow changes;
-retain red-first for bug fixes, uncertain logic and protected interaction-contract changes.
-Automatic UI guards run per change; changed-surface browser checks run with the design pass. Deep rendered judgment
-covers every route at a signed milestone boundary (see Standing principles), and touched and
-connected surfaces when the ticket's contract explicitly requires it; ordinary tickets do not
-repeat the whole-product assessment.
-Initial visual critique runs before fixes and is independent of detector findings; final rendered
-confirmation follows fixes. Rendered visual judgment belongs to an independent image-capable reviewer: `fe_reviewer` qualifies only
-after a real image-transport and candidate-binding probe succeeds, otherwise use a separate
-Director/Codex image-capable lane. DOM/a11y evidence alone cannot pass visual judgment; provider failure
-leaves review incomplete. See `docs/quality-model.md` for the two-speed design contract.
-
-## Pointers
-| for | read |
-|---|---|
-| workflow, routing, decision rights, drive loop | `docs/agents/factory.md` |
-| review lenses + verdict contract | `docs/agents/review.md` |
-| past decisions (`OD-`/`DD-`) | `docs/decisions.md` |
-| scar tissue — **read this one** | `docs/gotchas.md` |
-| domain glossary | `CONTEXT.md` (this repo) + `docs/agents/domain.md` |
-| work queue | GitHub issues via `gh` — `docs/agents/issue-tracker.md`, `docs/agents/triage-labels.md` |
-| heavy/cross-family dispatch (GLM, luna) | `docs/agents/pi-delegation.md` — background it, never poll |
-| environments | `docs/environments.md` |
-
-Edit skills **only** in `.claude/skill-overrides/<name>/` — `.claude/skills/` is vendored and
-gitignored, and `scripts/vendor-skills.sh` destroys edits there. `docs/agents/skills.md`.
-
-## No external references
-No external brand, product, or AGPL references in MOS design artifacts. The design kit is MOS's
-own. Integration-partner coordinates live in local `docs/`, never here (see the banner).
+Usability and speed beat model completeness. MOS has Home / Work / Money / Inbox; Work holds Signals, Tasks, Projects & Processes, and Objectives, with RACI on records and Café as the ops module. See `CONTEXT.md` for domain terms.
