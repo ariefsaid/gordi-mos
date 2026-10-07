@@ -44,15 +44,17 @@ import { listRunRollups, listTaskDefs } from '@/lib/db/processes'
 import { createRecordCollectionController } from '@/lib/record-collection/engine'
 import { createReadLease } from '@/lib/scoped-reads'
 import {
-  TASK_COLLECTION_NEUTRAL_QUERY,
   taskCollectionDescriptor,
   taskCollectionSavedViews,
   toTaskCollectionRecord,
   type TaskCollectionContext,
-  type TaskCollectionQuery,
   type TaskCollectionRecord,
 } from './task-collection-adapter'
-import { taskCollectionQuery as canonicalTaskCollectionQuery } from './task-collection-query'
+import {
+  TASK_COLLECTION_NEUTRAL_QUERY,
+  taskCollectionQuery as canonicalTaskCollectionQuery,
+  type TaskCollectionQuery,
+} from './task-collection-query'
 
 const mock = <T,>(fn: unknown) => fn as unknown as ReturnType<typeof vi.fn> & T
 

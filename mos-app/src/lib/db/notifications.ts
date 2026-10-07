@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { keysetBeforeFilter } from './keyset-filter'
 import { APP_RELEASE_PROFILE } from '@/config/app-build-settings'
 import { notificationAvailableInProfile } from '@/config/notification-profile'
 
@@ -48,7 +49,7 @@ export async function listNotifications(before?: NotificationCursor): Promise<No
     .from('notifications')
     .select(COLUMNS)
   if (before) {
-    query = query.or(`created_at.lt.${before.created_at},and(created_at.eq.${before.created_at},id.lt.${before.id})`)
+    query = query.or(keysetBeforeFilter('created_at', before.created_at, before.id))
   }
   const { data, error } = await query
     .order('created_at', { ascending: false })

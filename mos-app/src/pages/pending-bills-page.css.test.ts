@@ -31,10 +31,10 @@ describe('pending bills table CSS', () => {
     for (const hidden of ['date', 'age']) {
       expect(hiddenRules).toContain(`.pending-bills-table .money-table__cell--${hidden}`)
     }
-    for (const visible of ['branch', 'owes', 'state', 'bill', 'amount', 'balance']) {
+    for (const visible of ['select', 'branch', 'owes', 'state', 'bill', 'amount', 'balance']) {
       expect(hiddenRules).not.toContain(`.pending-bills-table .money-table__cell--${visible}`)
     }
-    for (const [column, width] of [['branch', '14%'], ['owes', '21%'], ['state', '18%'], ['bill', '19%'], ['amount', '14%'], ['balance', '14%']]) {
+    for (const [column, width] of [['select', '6%'], ['branch', '13%'], ['owes', '19%'], ['state', '17%'], ['bill', '18%'], ['amount', '13%'], ['balance', '14%']]) {
       expect(groupedRule(narrow, `.pending-bills-table .money-table__cell--${column}`) ?? '').toMatch(new RegExp(`width:\\s*${width}`))
     }
     const compact = css.match(/@container pending-bills-list \(max-width:\s*679\.98px\)\s*\{([\s\S]*?)\n\s{2}\}/)?.[1] ?? ''
@@ -44,7 +44,7 @@ describe('pending bills table CSS', () => {
       .join('\n')
     for (const hidden of ['branch', 'owes']) expect(compactHiddenRules).toContain(`.pending-bills-table .money-table__cell--${hidden}`)
     for (const visible of ['state', 'bill', 'amount', 'balance']) expect(compactHiddenRules).not.toContain(`.pending-bills-table .money-table__cell--${visible}`)
-    for (const [column, width] of [['state', '30%'], ['bill', '26%'], ['amount', '22%'], ['balance', '22%']]) {
+    for (const [column, width] of [['select', '10%'], ['state', '27%'], ['bill', '24%'], ['amount', '20%'], ['balance', '19%']]) {
       expect(groupedRule(compact, `.pending-bills-table .money-table__cell--${column}`) ?? '').toMatch(new RegExp(`width:\\s*${width}`))
     }
     expect(narrow).toMatch(/\.pending-bills-table \.money-table__head,[\s\S]*?\.pending-bills-table \.money-table__cell\s*\{[^}]*padding:\s*0 6px/)
@@ -75,6 +75,26 @@ describe('pending bills table CSS', () => {
     expect(css).toMatch(/@container pending-bills-list \(max-width:\s*979\.98px\)/)
     expect(css).toMatch(/\.pending-bills-table \.money-table-scroll\s*\{\s*overflow-x:\s*hidden/)
     expect(rule('.pending-bills-list-column') ?? '').toMatch(/min-width:\s*0/)
+  })
+
+  it('keeps phone selection controls tappable and the payment action in the page layout', () => {
+    const phone = css.match(/@media \(max-width:\s*767\.98px\)\s*\{([\s\S]*)$/)?.[1] ?? ''
+    expect(phone).toMatch(/\.pending-bills-table \.money-table__cell--select\s*\{[^}]*grid-column:\s*1\s*\/\s*-1/)
+    expect(phone).toMatch(/\.pending-bills__checkbox-target\s*\{[^}]*min-width:\s*44px;[^}]*min-height:\s*44px/)
+    expect(phone).toMatch(/\.pending-bills-selection-bar\s*\{[^}]*flex-direction:\s*column/)
+    expect(phone).not.toMatch(/\.pending-bills-selection-bar\s*\{[^}]*position:\s*sticky/)
+  })
+
+  it('gives the phone list its own scrollport above the selection footer', () => {
+    const phone = css.match(/@media \(max-width:\s*767\.98px\)\s*\{([\s\S]*)$/)?.[1] ?? ''
+    expect(phone).toMatch(/\.page-frame--v3:has\(\.pending-bills-body\)\s*\{[^}]*overflow:\s*hidden/)
+    expect(phone).toMatch(/\.page-frame--v3:has\(\.pending-bills-body\) > \.page-frame__content\s*\{[^}]*display:\s*flex;[^}]*min-height:\s*0/)
+    expect(phone).toMatch(/\.pending-bills-results\s*\{[^}]*display:\s*flex;[^}]*flex:\s*1;[^}]*min-height:\s*0/)
+    expect(phone).toMatch(/\.pending-bills-list-column\s*\{[^}]*flex:\s*1;[^}]*min-height:\s*0/)
+    expect(phone).toMatch(/\.pending-bills-table \.money-table-scroll\s*\{[^}]*overflow-y:\s*auto;[^}]*scroll-padding-bottom:\s*8px/)
+    expect(phone).not.toMatch(/\.pending-bills-selection-bar\s*\{[^}]*position:\s*sticky/)
+    expect(phone).toMatch(/\.pending-bills-mobile-select-all\s*\{[^}]*display:\s*flex/)
+    expect(phone).toMatch(/\.pending-bills-mobile-select-all\s*\{[^}]*min-height:\s*44px/)
   })
 
   it('uses the shared sticky record-panel rule and lets the viewer own scrolling', () => {

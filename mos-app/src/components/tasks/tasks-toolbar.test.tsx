@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { I18nProvider } from '@/i18n/I18nProvider'
-import { TASK_COLLECTION_NEUTRAL_QUERY } from './task-collection-adapter'
+import { TASK_COLLECTION_NEUTRAL_QUERY } from './task-collection-query'
 import { TasksToolbar } from './tasks-toolbar'
 import type { TasksToolbarProps } from './tasks-toolbar'
 
