@@ -43,18 +43,16 @@ import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { ReportMissingItem } from '@/components/kitchen/report-missing-item'
 import { CafeStreamBar, CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
 import { WastePhotoCapture } from '@/components/kitchen/waste-photo-capture'
-import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
+import { CafeCaptureTable } from '@/components/kitchen/cafe-capture-table'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Select } from '@/components/ui/select'
-import { QuantityField } from '@/components/ui/quantity-field'
+import { QuantityField, QuantityFieldError } from '@/components/ui/quantity-field'
 import { parseQuantityInput } from '@/lib/quantity-parser'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { CafeItemsEmptyState } from '@/components/kitchen/cafe-items-empty-state'
 import { RouteLeaveGuard } from '@/shell/route-leave-guard'
 import '@/components/kitchen/status-banner-tone.css'
-import './kitchen-log-page.css'
 import './cafe-waste-page.css'
-import '@/components/kitchen/cafe-capture-controls.css'
 
 type CafeLogItem = NonNullable<ReturnType<typeof toCafeLogItem>>
 
@@ -202,6 +200,7 @@ export function CafeWastePage() {
   const [businessUnitId, setBusinessUnitId] = useState('')
   const [entries, setEntries] = useState<Record<string, WasteEntry>>({})
   const [invalidQuantityIds, setInvalidQuantityIds] = useState<Set<string>>(new Set())
+  const [visibleQuantityErrors, setVisibleQuantityErrors] = useState<Set<string>>(new Set())
   const [focusInvalidId, setFocusInvalidId] = useState<string | null>(null)
   const [resumableDrafts, setResumableDrafts] = useState<KitchenWasteDraft[]>([])
   const [restoredDraft, setRestoredDraft] = useState(false)
@@ -461,6 +460,30 @@ export function CafeWastePage() {
       return next
     })
   }, [])
+
+  function reportQuantityErrorVisibility(itemId: string, visible: boolean) {
+    setVisibleQuantityErrors(current => {
+      if (current.has(itemId) === visible) return current
+      const next = new Set(current)
+      if (visible) next.add(itemId)
+      else next.delete(itemId)
+      return next
+    })
+  }
+
+  function renderQuantityError(item: WasteRow) {
+    const rawValue = entries[item.id]?.quantity ?? ''
+    if (!visibleQuantityErrors.has(item.id)) return null
+    const parsed = parseQuantityInput(rawValue, { min: 0, maxIntegerDigits: 10, maxFractionDigits: 2 })
+    return parsed.kind === 'invalid' ? (
+      <QuantityFieldError
+        id={`cafe-waste-qty-${item.id}-quantity-error`}
+        reason={parsed.reason}
+        rawValue={rawValue}
+        className="cwl-field-error"
+      />
+    ) : null
+  }
 
   function focusFirstInvalidQuantity() {
     const itemId = Array.from(invalidQuantityIds).find(id => items.some(item => item.id === id))
@@ -754,53 +777,11 @@ export function CafeWastePage() {
           : {}),
       })}
       onQuantityValidityChange={valid => reportQuantityValidity(item.id, valid)}
+      onQuantityErrorVisibilityChange={visible => reportQuantityErrorVisibility(item.id, visible)}
+      hideQuantityError={isDesktop}
       onUnitChange={choice => changeWasteEntryUnit(item, choice)}
       onPrepare={() => void prepareEntry(item)}
     />
-  )
-
-  const columns: DataTableColumn<WasteRow>[] = [
-    {
-      key: 'item',
-      header: t('kitchen.log.col.item'),
-      cardLabel: '',
-      render: item => (
-        <div className="cwl-item-cell">
-          <div className="kl-dish">
-            <span className="kl-dish-name" title={item.category ? `${item.kind} - ${item.name} · ${kitchenCategoryLabel(t, item.category)}` : `${item.kind} - ${item.name}`}>
-              <span>{item.kind} - </span><span>{item.name}</span>
-            </span>
-            {hasMixedCategories && item.category && <span className="kl-dish-cat cwl-category">{kitchenCategoryLabel(t, item.category)}</span>}
-          </div>
-          {renderEvidence(item)}
-        </div>
-      ),
-    },
-    {
-      key: 'quantity',
-      header: t('kitchen.waste.quantity'),
-      numeric: true,
-      render: item => renderControls(item),
-    },
-  ]
-
-  const renderCard = (item: WasteRow) => (
-    <div className="cwl-capture-row" role="group" aria-labelledby={`cafe-waste-item-${item.id}`}>
-      <div className="cwl-capture-row__item">
-        <div className="kl-dish">
-          <span
-            id={`cafe-waste-item-${item.id}`}
-            className="kl-dish-name"
-            title={item.category ? `${item.kind} - ${item.name} · ${kitchenCategoryLabel(t, item.category)}` : `${item.kind} - ${item.name}`}
-          >
-            <span>{item.kind} - </span><span>{item.name}</span>
-          </span>
-          {hasMixedCategories && item.category && <span className="kl-dish-cat cwl-category">{kitchenCategoryLabel(t, item.category)}</span>}
-        </div>
-      </div>
-      <div className="cwl-capture-row__controls">{renderControls(item)}</div>
-      <div className="cwl-capture-row__evidence">{renderEvidence(item)}</div>
-    </div>
   )
 
   const state = loadState === 'loading' ? 'loading' : loadState === 'error' ? 'error'
@@ -1007,18 +988,21 @@ export function CafeWastePage() {
                   searchPlaceholder={t('kitchen.log.searchPlaceholder')}
                   ariaLabel={t('kitchen.log.toolbarAria')}
                 />
-                <div className="cwl-list">
-                  <DataTable
-                    columns={columns}
+                <CafeCaptureTable
                     rows={visibleItems}
                     groups={groups}
-                    renderCard={renderCard}
+                    renderControls={renderControls}
+                    renderFeedback={isDesktop ? renderQuantityError : undefined}
+                    renderItemDetails={renderEvidence}
+                    renderCardDetails={renderEvidence}
+                    showCategory={hasMixedCategories}
+                    className="cwl-list"
                     isDesktop={isDesktop}
                     state={visibleItems.length > 0 ? 'ready' : 'empty'}
                     emptyLabel={t('kitchen.filter.noMatch')}
                     caption={t('kitchen.waste.tableCaption')}
-                  />
-                </div>
+                    quantityHeader={t('kitchen.waste.quantity')}
+                />
               </>
             )}
 
@@ -1119,6 +1103,8 @@ function WasteItemControls({
   disabled,
   onQuantityChange,
   onQuantityValidityChange,
+  onQuantityErrorVisibilityChange,
+  hideQuantityError,
   onUnitChange,
   onPrepare,
 }: {
@@ -1129,6 +1115,8 @@ function WasteItemControls({
   disabled: boolean
   onQuantityChange: (quantity: string) => void
   onQuantityValidityChange: (valid: boolean) => void
+  onQuantityErrorVisibilityChange: (visible: boolean) => void
+  hideQuantityError: boolean
   onUnitChange: (choice: string) => void
   onPrepare: () => void
 }) {
@@ -1165,6 +1153,9 @@ function WasteItemControls({
           onChange={next => onQuantityChange(next > 0 ? String(next) : '')}
           onInvalid={(_reason, raw) => onQuantityChange(raw)}
           onValidityChange={onQuantityValidityChange}
+          onErrorVisibilityChange={onQuantityErrorVisibilityChange}
+          hideError={hideQuantityError}
+          errorMessageId={`${inputId}-quantity-error`}
           initialDraft={quantity === null && current.quantity !== '' ? current.quantity : undefined}
           suffixPosition="inline"
           suffix={showUnitPicker ? (

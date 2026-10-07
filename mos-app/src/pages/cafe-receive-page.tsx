@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { CafeStreamBar, CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
+import { CafeCaptureQuantityControl, CafeCaptureTable } from '@/components/kitchen/cafe-capture-table'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { CafeReceiptState } from '@/components/kitchen/cafe-receipt-state'
 import {
@@ -65,8 +66,6 @@ import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsOffline } from '@/shell/use-is-offline'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { formatWeekdayDayMonth, formatWibShortDateTime } from '@/lib/format/date'
-import './cafe-count-page.css'
-import '@/components/kitchen/cafe-capture-controls.css'
 import './cafe-receive-page.css'
 
 type Entry = { quantity: string; unitId: string; changingUnit: boolean; damagedWrong: boolean }
@@ -404,7 +403,7 @@ export function CafeReceivePage() {
   const selectedPoUnitIds = new Set((selectedPo?.items ?? []).flatMap(poItem => poItem.itemUnitId ? [poItem.itemUnitId] : []))
   const isOnSelectedPo = (item: Pick<CafeReceivableItem, 'units'>) => item.units.some(unit => selectedPoUnitIds.has(unit.id))
   // Search and category narrow the picked PO's rows as they do the rest, so a match is never buried under the PO.
-  const rowGroups = selectedPo
+  const rowGroups = searchMatchedItems.length === 0 ? [] : selectedPo
     ? [
         { key: 'po', label: t('cafe.receive.openPos.onPo', { poNumber: selectedPo.poNumber }), items: searchMatchedItems.filter(isOnSelectedPo) },
         { key: 'other', label: t('cafe.receive.openPos.notOnPo'), items: searchMatchedItems.filter(item => !isOnSelectedPo(item)) },
@@ -600,87 +599,60 @@ export function CafeReceivePage() {
       myStreamKeys={myStreamKeys}
       onChange={chooseStream}
       disabled={!canSwitch}
+      switchLabel={t(stream?.activity === 'bar' ? 'cafe.stream.switchBar' : 'cafe.stream.switchKitchen')}
+      switchAriaLabel={t(stream?.activity === 'bar' ? 'cafe.stream.switchBarAria' : 'cafe.stream.switchKitchenAria')}
     />
   )
   const pageState = loadState === 'loading' ? 'loading' : loadState === 'error' ? 'error' : busy ? 'saving' : 'default'
   const firstEvidenceErrorId = Object.keys(evidenceValidation)[0]
 
-  function renderItemRow(item: Omit<CafeReceivableItem, 'kind'>) {
+  function renderItemControls(item: Pick<CafeReceivableItem, 'id' | 'name' | 'units'>) {
     const entry = entries[item.id]
     const invalid = isInvalidEntry(entry)
     const unitName = item.units.find(unit => unit.id === entry?.unitId)?.name ?? ''
+    const errorId = `cafe-receive-${item.id}-quantity-error`
     return (
-      <li className="cafe-count__row" key={item.id}>
-        <div className="cafe-count__item">
-          <div className="cafe-count__item-name">{item.name}</div>
-          {item.category && <div className="cafe-count__category">{kitchenCategoryLabel(t, item.category)}</div>}
-        </div>
-        <div className="cafe-count__input-group">
-          <label htmlFor={`cafe-receive-${item.id}`}>{t('cafe.receive.quantityLabel')}</label>
-          <div className="cafe-count__quantity-control">
+      <CafeCaptureQuantityControl
+        id={`cafe-receive-${item.id}`}
+        itemName={item.name}
+        quantityFor={t('cafe.receive.quantityFor', { item: item.name })}
+        value={entry?.quantity ?? ''}
+        unitName={unitName}
+        invalid={invalid}
+        describedById={invalid ? errorId : undefined}
+        disabled={busy}
+        units={item.units}
+        selectedUnitId={entry?.unitId}
+        changingUnit={entry?.changingUnit}
+        onQuantityChange={quantity => patchEntry(item.id, { quantity })}
+        onToggleUnit={() => patchEntry(item.id, { changingUnit: !entry?.changingUnit })}
+        onUnitChange={unitId => patchEntry(item.id, { unitId })}
+      >
+        {/* DESIGN "Compact capture row": the flag shows once the row has a quantity to flag. */}
+        {entry?.quantity.trim() && (
+          <label className="cafe-receive__damage-flag">
             <input
-              id={`cafe-receive-${item.id}`}
-              className="cafe-capture-quantity-field"
-              aria-label={t('cafe.receive.quantityFor', { item: item.name })}
-              type="text"
-              inputMode="decimal"
-              autoComplete="off"
-              value={entry?.quantity ?? ''}
-              aria-invalid={invalid || undefined}
+              type="checkbox"
+              aria-label={t('cafe.receive.damageFlagFor', { item: item.name })}
+              checked={entry.damagedWrong}
               disabled={busy}
-              onChange={event => patchEntry(item.id, { quantity: event.target.value })}
+              onChange={event => patchEntry(item.id, { damagedWrong: event.target.checked })}
             />
-            <span className="cafe-count__unit cafe-capture-unit">{unitName}</span>
-          </div>
-          {item.units.length > 1 && (
-            <button
-              type="button"
-              className="cafe-receive__change-unit"
-              aria-expanded={entry?.changingUnit ?? false}
-              onClick={() => patchEntry(item.id, { changingUnit: !entry?.changingUnit })}
-            >
-              {t('cafe.receive.changeUnit')}
-            </button>
-          )}
-          {item.units.length > 1 && entry?.changingUnit && (
-            <fieldset className="cafe-receive__units" aria-label={t('cafe.receive.unitFor', { item: item.name })}>
-              <legend>{t('cafe.receive.unitLabel')}</legend>
-              {item.units.map(unit => (
-                <label key={unit.id}>
-                  <input
-                    type="radio"
-                    name={`cafe-receive-unit-${item.id}`}
-                    value={unit.id}
-                    checked={entry.unitId === unit.id}
-                    onChange={() => patchEntry(item.id, { unitId: unit.id })}
-                  />
-                  {unit.name}
-                </label>
-              ))}
-            </fieldset>
-          )}
-          {invalid && <p className="cafe-count__field-error" role="alert">{t('cafe.receive.quantityInvalid')}</p>}
-          {/* DESIGN "Compact capture row": the flag shows once the row has a quantity to flag. */}
-          {entry?.quantity.trim() && (
-            <label className="cafe-receive__damage-flag">
-              <input
-                type="checkbox"
-                aria-label={t('cafe.receive.damageFlagFor', { item: item.name })}
-                checked={entry.damagedWrong}
-                disabled={busy}
-                onChange={event => patchEntry(item.id, { damagedWrong: event.target.checked })}
-              />
-              {t('cafe.receive.damageFlag')}
-            </label>
-          )}
-        </div>
-      </li>
+            {t('cafe.receive.damageFlag')}
+          </label>
+        )}
+      </CafeCaptureQuantityControl>
     )
   }
 
+  function renderItemFeedback(item: Pick<CafeReceivableItem, 'id' | 'name' | 'units'>) {
+    if (!isInvalidEntry(entries[item.id])) return null
+    return <p id={`cafe-receive-${item.id}-quantity-error`} className="cafe-count__field-error" role="alert">{t('cafe.receive.quantityInvalid')}</p>
+  }
+
   return (
-    <PageFamilyFrame family="workspace" title={pageLabel} headClassName="cafe-count__head" statusRow={picker} state={pageState}>
-      <div className="cafe-count cafe-receive">
+    <PageFamilyFrame family="workspace" title={pageLabel} headClassName="cafe-capture-head" statusRow={picker} state={pageState}>
+      <div className="cafe-capture-page cafe-count cafe-receive">
         {loadState === 'loading' && <LoadingShell count={3} />}
         {loadState === 'error' && (
           <ErrorState
@@ -913,21 +885,22 @@ export function CafeReceivePage() {
                   categoryLabel={value => kitchenCategoryLabel(t, value)}
                   category={category}
                   onCategoryChange={setCategory}
-                  searchPlaceholder={t('cafe.receive.searchPlaceholder')}
+                  searchPlaceholder={t('kitchen.log.searchPlaceholder')}
                   ariaLabel={t('kitchen.log.toolbarAria')}
                 />
-                {searchMatchedItems.length === 0 && <p className="cafe-count__intro">{t('kitchen.filter.noMatch')}</p>}
+                {rowGroups.length === 0 && <p className="cafe-count__intro">{t('kitchen.filter.noMatch')}</p>}
                 {rowGroups.map(group => (
-                  <div className="cafe-receive__row-group" key={group.key}>
+                  <section className="cafe-receive__row-group" key={group.key} aria-labelledby={group.label ? `cafe-receive-rows-${group.key}` : undefined}>
                     {group.label && <h3 id={`cafe-receive-rows-${group.key}`} className="cafe-receive__row-group-label">{group.label}</h3>}
-                    <ul
-                      className="cafe-count__list"
-                      aria-label={group.label ? undefined : t('cafe.receive.listAria')}
-                      aria-labelledby={group.label ? `cafe-receive-rows-${group.key}` : undefined}
-                    >
-                      {group.items.map(renderItemRow)}
-                    </ul>
-                  </div>
+                    <CafeCaptureTable
+                      rows={group.items}
+                      caption={group.label ?? t('cafe.receive.listAria')}
+                      quantityHeader={t('cafe.receive.quantityLabel')}
+                      isDesktop={isDesktop}
+                      renderControls={renderItemControls}
+                      renderFeedback={renderItemFeedback}
+                    />
+                  </section>
                 ))}
               </>
             )}
@@ -963,7 +936,7 @@ export function CafeReceivePage() {
           <CafeReceiptIssuesLink canReview={canReview} receiverId={recent.length > 0 ? viewerId : null} />
         </nav>
         {loadState === 'ready' && stream && canCapture && captureReady && !counted && items.length > 0 && (
-          <div className="cafe-count__footer">
+          <div className="cafe-capture-footer cafe-count__footer">
             <div className="cafe-receive__band-status">
               <div className="cafe-receive__band-row">
                 <p className="cafe-count__tally" aria-live="polite">

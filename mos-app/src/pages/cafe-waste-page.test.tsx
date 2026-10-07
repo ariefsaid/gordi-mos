@@ -367,7 +367,7 @@ describe('CafeWastePage', () => {
     expect(mockInsertKitchenLog).not.toHaveBeenCalled()
   })
 
-  it('renders the desktop quantity error in its controls cell after the field and before Add photo', async () => {
+  it('renders the desktop quantity error as shared full-row feedback linked to its field', async () => {
     setWideMatchMedia()
     renderPage()
     const input = await screen.findByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })
@@ -377,10 +377,13 @@ describe('CafeWastePage', () => {
     const error = screen.getByRole('alert')
     const controls = input.closest('.cwl-controls') as HTMLElement
     const addPhoto = within(controls).getByRole('button', { name: 'Add photo' })
-    expect(controls).toContainElement(error)
-    expect(error.closest('tr')).toBe(input.closest('tr'))
+    const feedbackRow = error.closest('tr')!
+    expect(feedbackRow).toHaveClass('dt-row-detail')
+    expect(feedbackRow.previousElementSibling).toBe(input.closest('tr'))
+    expect(feedbackRow.querySelector('td')).toHaveAttribute('colspan', '2')
+    expect(input.closest('table')).toContainElement(error)
+    expect(addPhoto).toBeDisabled()
     expect(input.compareDocumentPosition(error) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(error.compareDocumentPosition(addPhoto) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(input).toHaveAttribute('aria-describedby', error.id)
   })
 
@@ -699,8 +702,8 @@ describe('CafeWastePage', () => {
     const quantity = within(row).getByRole('spinbutton', { name: 'Waste quantity for Coffee Syrup' })
     const unit = within(row).getByRole('combobox', { name: 'Waste unit for Coffee Syrup' })
 
-    expect(row.querySelector('.cwl-capture-row__item')).toContainElement(name)
-    expect(row.querySelector('.cwl-capture-row__controls')).toContainElement(quantity)
+    expect(row.querySelector('.cafe-capture-item')).toContainElement(name)
+    expect(row.querySelector('.cafe-capture-row__controls')).toContainElement(quantity)
     expect(unit).toHaveTextContent(longUnitLabel)
     expect(document.getElementById(unit.getAttribute('aria-describedby') ?? '')).toHaveTextContent(longUnitLabel)
     expect(quantity).toHaveClass('cafe-capture-quantity-field')
