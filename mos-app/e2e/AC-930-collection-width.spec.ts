@@ -282,9 +282,10 @@ test.describe('Work collections share one wide measure and one record-panel widt
   }
 
   test('Objectives\' Projects & Processes column shows its relation sentence without an ellipsis clip', async ({ page }) => {
+    // Sign in once: a second sign-in on an already-authenticated app detaches the form mid-click.
+    await loginAs(page, MANAGER.email, MANAGER.password)
     for (const width of [1440, 1920] as const) {
       await page.setViewportSize({ width, height: width === 1440 ? 900 : 1080 })
-      await loginAs(page, MANAGER.email, MANAGER.password)
       await page.goto('work/objectives')
       await expect(page.locator('.catalog-collection__row-link').first()).toBeVisible()
       const cells = page.locator('.catalog-collection__cell--cadence .catalog-collection__cell-value')
