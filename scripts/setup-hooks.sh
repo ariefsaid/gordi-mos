@@ -19,7 +19,9 @@ fi
 # Repoint in one config write (git swaps the config file atomically), then drop older sets — there
 # is never a moment without hooks.
 git config core.hooksPath "$dest"
-for d in "$common"/mos-hooks-*; do [ "$d" = "$dest" ] || rm -rf "$d"; done
+# Never remove the set the config names right now: a concurrent setup may have just repointed it.
+active="$(git config core.hooksPath)"
+for d in "$common"/mos-hooks-*; do [ "$d" = "$dest" ] || [ "$d" = "$active" ] || rm -rf "$d"; done
 git worktree list --porcelain | sed -n 's/^worktree //p' | while IFS= read -r wt; do
   (cd "$wt" 2>/dev/null && bash "$dest/post-checkout") || true
 done
