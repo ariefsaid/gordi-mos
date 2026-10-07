@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('../supabase', () => {
   const schema = vi.fn()
@@ -6,9 +6,24 @@ vi.mock('../supabase', () => {
 })
 
 import { supabase } from '@/lib/supabase'
+import { __resetReferenceCacheForTests, invalidateReferenceCache } from './reference-cache'
+import { publishReadScope } from '@/lib/scoped-reads'
 import { getWorkWriteScopes } from './work-authority'
 
 const schemaMock = vi.mocked(supabase.schema)
+const READ_SCOPE = Object.freeze({
+  generation: 3,
+  authUserId: 'auth-1',
+  viewerId: 'viewer-1',
+  orgId: 'org-1',
+  authorityKey: 'member',
+})
+
+beforeEach(() => {
+  __resetReferenceCacheForTests()
+  publishReadScope({ ...READ_SCOPE })
+})
+afterEach(() => publishReadScope(null))
 
 function mockRpc(data: unknown, error: unknown = null) {
   const rpc = vi.fn().mockResolvedValue({ data, error })
@@ -36,6 +51,20 @@ describe('getWorkWriteScopes', () => {
       objective_content_bu_ids: ['bu-3'],
     })
     expect(rpc).toHaveBeenCalledWith('get_work_write_scopes')
+  })
+
+  it('reuses scopes within the viewer session and refetches after authority invalidation', async () => {
+    const firstRpc = mockRpc({ workline_org: true })
+    await getWorkWriteScopes()
+
+    const nextRpc = mockRpc({ workline_org: false })
+    await expect(getWorkWriteScopes()).resolves.toMatchObject({ workline_org: true })
+    expect(firstRpc).toHaveBeenCalledOnce()
+    expect(nextRpc).not.toHaveBeenCalled()
+
+    invalidateReferenceCache('mos.get_work_write_scopes')
+    await expect(getWorkWriteScopes()).resolves.toMatchObject({ workline_org: false })
+    expect(nextRpc).toHaveBeenCalledOnce()
   })
 
   it('fails closed for malformed RPC payloads without inventing authority', async () => {

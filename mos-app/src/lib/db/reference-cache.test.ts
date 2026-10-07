@@ -64,6 +64,30 @@ describe('reference data is stale-while-revalidate, invalidated on admin writes 
     expect(load).toHaveBeenCalledTimes(2)
   })
 
+  it('reuses a fresh tab-scoped entry after a page reload without refetching', async () => {
+    const firstLoad = vi.fn(async () => ['cached'])
+    await expect(withReferenceCache('shared.auth.viewer', firstLoad, {
+      identity: 'auth:user-1',
+      persist: true,
+    })).resolves.toEqual(['cached'])
+
+    __resetReferenceCacheForTests(false)
+    const secondLoad = vi.fn(async () => ['fresh'])
+    await expect(withReferenceCache('shared.auth.viewer', secondLoad, {
+      identity: 'auth:user-1',
+      persist: true,
+    })).resolves.toEqual(['cached'])
+    expect(firstLoad).toHaveBeenCalledOnce()
+    expect(secondLoad).not.toHaveBeenCalled()
+
+    invalidateReferenceCache('shared.auth.viewer')
+    await expect(withReferenceCache('shared.auth.viewer', secondLoad, {
+      identity: 'auth:user-1',
+      persist: true,
+    })).resolves.toEqual(['fresh'])
+    expect(secondLoad).toHaveBeenCalledOnce()
+  })
+
   it('discards scoped reference data when the viewer scope disappears', async () => {
     let n = 0
     const load = vi.fn(async () => ++n)

@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { invalidateReferenceCache } from './reference-cache'
 import type {
   RoleAuthorityRow,
   TeamLeadAssignment,
@@ -22,6 +23,7 @@ export async function listRoleAuthority(): Promise<RoleAuthorityRow[]> {
 export async function saveRoleAuthority(changes: RoleAuthorityRow[]): Promise<void> {
   const { error } = await shared().rpc('save_role_authority', { p_changes: changes })
   if (error) throw fail('save access rules', error)
+  invalidateReferenceCache('mos.get_work_write_scopes')
 }
 
 export async function listTeamLeadAssignments(): Promise<TeamLeadAssignment[]> {

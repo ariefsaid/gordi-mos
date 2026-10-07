@@ -1,9 +1,9 @@
-import type { RolesRow } from '@/lib/database.types'
+import type { ViewerRole } from '@/lib/db/viewer'
 import { can } from './capabilities'
 import { buHeadsForViewer, isOwnerDirector, type RoleScopeNode } from './role-scope'
 
 export interface HomeViewerScope {
-  roles: readonly RolesRow[]
+  roles: readonly ViewerRole[]
   isManager: boolean
   accessRoles: readonly string[]
   affiliated: readonly string[]
