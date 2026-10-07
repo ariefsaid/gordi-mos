@@ -86,6 +86,16 @@ rmdir "$lockdir"; wait "$bg"
 [ "$waited" = 1 ] && [ "$(g "$tmp/main" config core.hooksPath)" != "$before" ] && [ ! -e "$lockdir" ] \
   && ok "a second setup waits for the lock, then installs and releases it" || bad "setup did not serialize on the lock (waited=$waited)"
 
+# A stale lock (crashed run) is broken; a setup that never held the lock leaves a fresh one alone.
+mkdir "$lockdir"; touch -t 202001010000 "$lockdir"
+bash "$tmp/wt6/scripts/setup-hooks.sh" >/dev/null 2>&1; rc=$?
+[ "$rc" -eq 0 ] && [ ! -e "$lockdir" ] && ok "a stale lock is broken and released" || bad "stale lock: rc=$rc"
+mkdir "$lockdir"
+bash "$tmp/wt6/scripts/setup-hooks.sh" >/dev/null 2>&1 & bg=$!
+sleep 0.5; kill "$bg" 2>/dev/null; wait "$bg" 2>/dev/null
+[ -d "$lockdir" ] && ok "a killed waiter does not release another run's lock" || bad "a killed waiter released the lock"
+rmdir "$lockdir" 2>/dev/null
+
 # No skills in the main checkout: nothing linked, checkout still succeeds.
 rm -rf "$tmp/main/.claude"
 g "$tmp/main" worktree add -q "$tmp/wt4" -b wt4 2>/dev/null; rc=$?

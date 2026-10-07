@@ -10,15 +10,14 @@ cd "$(dirname "$0")/.."
 common="$(git rev-parse --path-format=absolute --git-common-dir)"
 src=origin/dev; git rev-parse -q --verify "$src" >/dev/null || src=HEAD   # fresh clone before fetch
 dest="$common/mos-hooks-$(git rev-parse --short=12 "$src")"
-# One setup at a time: two at once could each delete the other's freshly active set. A lock older
-# than ~10s is a crashed run's and is broken.
+# One setup at a time: two at once could each delete the other's freshly active set. A lock more
+# than a minute old belongs to a crashed run and is broken; only the holder releases it.
 lock="$common/mos-hooks.lock"; stage=""
-trap 'rm -rf "$stage"; rmdir "$lock" 2>/dev/null' EXIT
-tries=0
 until mkdir "$lock" 2>/dev/null; do
-  tries=$((tries + 1)); [ "$tries" -lt 50 ] || { rmdir "$lock" 2>/dev/null; tries=0; }
+  [ -n "$(find "$lock" -maxdepth 0 -mmin +1 2>/dev/null)" ] && rmdir "$lock" 2>/dev/null
   sleep 0.2
 done
+trap 'rm -rf "$stage"; rmdir "$lock" 2>/dev/null' EXIT
 if [ ! -d "$dest" ]; then
   stage="$(mktemp -d "$common/mos-hooks.XXXXXX")"
   git archive "$src" .githooks | tar -x -C "$stage"
