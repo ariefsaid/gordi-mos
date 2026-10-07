@@ -22,6 +22,14 @@ function rule(selector: string, source = css): string {
 }
 
 describe('Receive capture rows match the shared Café capture layout', () => {
+  it('keeps the localized arrival date field wide on phones by moving its hint below', () => {
+    const phoneStart = css.indexOf('@media (max-width: 639px)')
+    expect(phoneStart).toBeGreaterThanOrEqual(0)
+    const phone = css.slice(phoneStart)
+    expect(phone).toMatch(/\.cafe-receive__date\s*\{\s*grid-template-columns:\s*auto\s+minmax\(0,\s*1fr\)\s*;\s*gap:\s*8px\s*;\s*\}/)
+    expect(phone).toMatch(/\.cafe-receive__date-hint\s*\{\s*grid-column:\s*2\s*;\s*\}/)
+  })
+
   it('loads the shared capture-controls stylesheet itself, so its height never depends on the page visited before', () => {
     expect(tsx).toMatch(/^import '@\/components\/kitchen\/cafe-capture-controls\.css'$/m)
     expect(tsx).toMatch(/className="cafe-capture-quantity-field"/)
