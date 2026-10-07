@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Self-test for scripts/deploy-staging.sh. op-get.sh, supabase, psql, git, gh-post.sh and the rehearsal
 # are PATH/env shims that record their calls; no remote database, network or GitHub is touched. Every
-# refusal case asserts the push (or PR) was NOT made, so each check can fail. The last section runs the
-# real scripts/rehearse-migrations.sh against a throwaway local Postgres (needs docker).
+# refusal case asserts the push (or PR) was NOT made, so each check can fail. An optional final section
+# runs the real scripts/rehearse-migrations.sh against local Postgres (needs docker).
 #   REHEARSAL_TEST_IMAGE  image for that section (default postgres:17-alpine)
+#   SKIP_REAL_REHEARSAL_DOCKER=1  skip the optional real-Postgres rehearsal checks
 set -uo pipefail
 cd "$(dirname "$0")/.."
 SCRIPT="$(pwd)/scripts/deploy-staging.sh"
@@ -16,6 +17,7 @@ bad() { fail=$((fail+1)); printf '  FAIL  %s\n' "$1"; }
 SECRET_PW='p4ssw0rdZZ'
 SECRET_HOST='db.fakehost-zz.example.test'
 SECRET_URL="postgresql://deployer:${SECRET_PW}@${SECRET_HOST}:5432/postgres"
+FAKE_ACCESS_TOKEN='test-only-access-token'; export FAKE_ACCESS_TOKEN
 ROOT_REPO="$(pwd -P)"; calls="$tmp/calls"; ARGVLOG="$tmp/argv"; : > "$ARGVLOG"; allout="$tmp/allout"; : > "$allout"
 mkdir -p "$tmp/bin" "$tmp/mig"
 
@@ -23,7 +25,10 @@ cat > "$tmp/bin/op-get.sh" <<'EOF'
 #!/usr/bin/env bash
 printf 'op-get %s\n' "$*" >> "$CALLS"
 [ "${FAKE_OP_FAIL:-}" = 1 ] && { echo "not signed in" >&2; exit 1; }
-printf '%s\n' "$FAKE_URL"
+case "$*" in
+  *fake-function-item*) printf '%s\n' "$FAKE_ACCESS_TOKEN" ;;
+  *) printf '%s\n' "$FAKE_URL" ;;
+esac
 EOF
 cat > "$tmp/bin/supabase" <<'EOF'
 #!/usr/bin/env bash
@@ -34,9 +39,50 @@ case "$*" in
     if [ "${FAKE_DRY_RC:-0}" != 0 ]; then echo "failed to connect to host=$FAKE_HOST user=deployer" >&2; exit "$FAKE_DRY_RC"; fi
     printf '%s\n' "${FAKE_DRY_OUT}" ;;
   *"db push"*) printf 'supabase push\n' >> "$CALLS"; echo "Finished supabase db push." ;;
-  *"functions deploy"*) printf 'supabase functions-deploy\n' >> "$CALLS" ;;
+  *"functions deploy"*)
+    fn=""; for arg in "$@"; do case "$arg" in agent-chat|compose-view|mcp) fn="$arg" ;; esac; done
+    printf 'supabase functions-deploy %s\n' "$fn" >> "$CALLS"
+    if [ "${SUPABASE_ACCESS_TOKEN:-}" = "${FAKE_ACCESS_TOKEN:-}" ] && [ -n "${SUPABASE_ACCESS_TOKEN:-}" ]; then
+      printf 'supabase token-env-ok\n' >> "$CALLS"
+    fi
+    for arg in "$@"; do [ "$arg" != --no-verify-jwt ] || printf 'supabase no-verify-jwt\n' >> "$CALLS"; done
+    exit "${FAKE_DEPLOY_RC:-0}" ;;
   *"config push"*) printf 'supabase config-push\n' >> "$CALLS" ;;
 esac
+EOF
+cat > "$tmp/bin/curl" <<'EOF'
+#!/usr/bin/env bash
+printf 'argv curl %s\n' "$*" >> "$ARGVLOG"
+config="$(cat)"
+request="$(printf '%s\n' "$config" | sed -n 's/^request = "\(.*\)"$/\1/p' | tail -1)"
+origin="$(printf '%s\n' "$config" | sed -n 's/^header = "Origin: \(.*\)"$/\1/p' | tail -1)"
+body_file="" header_file=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --output|-o) body_file="$2"; shift 2 ;;
+    --dump-header|-D) header_file="$2"; shift 2 ;;
+    *) shift ;;
+  esac
+done
+case "$request" in
+  POST)
+    printf 'curl POST\n' >> "$CALLS"
+    status="${FAKE_POST_STATUS:-401}"
+    if [ "$status" = 401 ] && [ "${FAKE_POST_HANDLER:-1}" = 1 ]; then
+      printf '{"error":"UNAUTHORIZED"}' > "$body_file"
+    else
+      printf 'not unauthorized' > "$body_file"
+    fi
+    ;;
+  OPTIONS)
+    printf 'curl OPTIONS\n' >> "$CALLS"
+    status="${FAKE_OPTIONS_STATUS:-204}"
+    echo_origin="$origin"; [ "${FAKE_CORS_MISMATCH:-0}" != 1 ] || echo_origin="mismatched"
+    [ -z "$header_file" ] || printf 'HTTP/1.1 %s No Content\r\nAccess-Control-Allow-Origin: %s\r\n\r\n' "$status" "$echo_origin" > "$header_file"
+    ;;
+  *) exit 2 ;;
+esac
+printf '%s' "$status"
 EOF
 cat > "$tmp/bin/psql" <<'EOF'
 #!/usr/bin/env bash
@@ -89,7 +135,7 @@ chmod +x "$tmp"/bin/* "$tmp/gh-post.sh" "$tmp/rehearse.sh"
 
 printf 'create table t();\n' > "$tmp/mig/20260101000001_plain.sql"
 printf "alter role authenticator set pgrst.db_pre_request = 'api_private.check_request';\n" > "$tmp/mig/20260101000002_gate.sql"
-printf 'STAGING_OP_ITEM=fake-item\nSTAGING_OP_VAULT=fake-vault\nSTAGING_OP_FIELD=FAKE\n' > "$tmp/op.env"
+printf 'STAGING_OP_ITEM=fake-item\nSTAGING_OP_VAULT=fake-vault\nSTAGING_OP_FIELD=FAKE\nSTAGING_FUNCTIONS_OP_ITEM=fake-function-item\nSTAGING_FUNCTIONS_OP_VAULT=fake-function-vault\nSTAGING_FUNCTIONS_OP_FIELD=FAKE_TOKEN\n' > "$tmp/op.env"
 
 # run NAME EXPECT_RC STDIN [ENV=val ...] -- args   (sets $out; asserts rc)
 run() {
@@ -111,6 +157,7 @@ expect()    { if called "$2"; then ok "$1"; else bad "$1 (missing call: $2)"; fi
 expect_not() { if called "$2"; then bad "$1 (unexpected call: $2)"; else ok "$1"; fi; }
 has()       { if printf '%s' "$out" | grep -qF -- "$2"; then ok "$1"; else bad "$1 (output lacks: $2)"; fi; }
 hasnt()     { if printf '%s' "$out" | grep -qF -- "$2"; then bad "$1 (output has: $2)"; else ok "$1"; fi; }
+before() { awk -v a="$1" -v b="$2" 'index($0,a)==1&&!sa{sa=NR} index($0,b)==1&&!sb{sb=NR} END{exit !(sa && (!sb || sa<sb))}' "$calls"; }
 
 echo "happy path"
 run "full run with --yes succeeds" 0 "" -- --yes
@@ -211,20 +258,42 @@ run "two flagged orgs fail" 1 "" FAKE_SAMPLE_ORGS=2/2 -- --yes --no-pr
 has "the count failure is named" "flagged/sample-shaped: '2/2'"
 
 echo "edge functions"
-run "changed functions are warned about, not deployed" 0 "" FAKE_FN_DIFF=$'supabase/functions/alpha/index.ts\nsupabase/functions/beta/x.ts\nsupabase/functions/mcp/index.ts\n' -- --yes --no-pr
-has "names the changed functions" "alpha beta"
-has "gives the deploy command" "supabase functions deploy alpha beta"
-has "says mcp stays undeployed" "mcp edge function changed; it stays undeployed until agent switch-on"
-expect_not "functions never deployed" "supabase functions-deploy"
-run "mcp alone: no deploy command" 0 "" FAKE_FN_DIFF=$'supabase/functions/mcp/index.ts\n' -- --yes --no-pr
-hasnt "no deploy command for mcp" "functions deploy"
-has "mcp note present" "stays undeployed"
+run "changed agent-chat deploys and passes smoke checks" 0 "" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\nsupabase/functions/compose-view/index.ts\nsupabase/functions/mcp/index.ts\nsupabase/functions/_shared/cors.ts\n' -- --yes --no-pr
+expect "agent-chat deployed" "supabase functions-deploy agent-chat"
+expect "function token read from the secret store" "op-get fake-function-item fake-function-vault FAKE_TOKEN"
+expect "token supplied through the CLI environment" "supabase token-env-ok"
+expect "handler receives unauthenticated requests" "supabase no-verify-jwt"
+expect "unauthenticated POST smoke check ran" "curl POST"
+if before "supabase push" "supabase functions-deploy agent-chat"; then ok "edge deploy follows a successful migration push"; else bad "edge deploy follows a successful migration push"; fi
+expected_origins="$(grep '^const DEFAULT_APP_ORIGINS' supabase/functions/_shared/cors.ts | tr -cd "'" | wc -c | awk '{print int($1 / 2)}' | tr -d ' ')"
+actual_preflights="$(grep -c '^curl OPTIONS$' "$calls" || true)"
+if [ "$actual_preflights" = "$expected_origins" ]; then ok "each source allowlisted origin receives a preflight"; else bad "preflight count $actual_preflights differs from source allowlist count $expected_origins"; fi
+has "compose-view and mcp are reported held" "held (not deployed): compose-view mcp"
+hasnt "shared folder is never listed" "_shared"
+expect_not "compose-view is not deployed" "supabase functions-deploy compose-view"
+expect_not "mcp is not deployed" "supabase functions-deploy mcp"
+if grep -qF "$FAKE_ACCESS_TOKEN" "$ARGVLOG" "$allout"; then bad "access token reached argv log or output"; else ok "access token never reached argv log or output"; fi
+BASHX=-x run "traced function deploy hides the access token" 0 "" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --yes --no-pr
+if grep -qF "$FAKE_ACCESS_TOKEN" "$ARGVLOG" "$allout"; then bad "traced run exposed the access token"; else ok "traced run keeps the access token private"; fi
+run "a failed function deploy stops the run" 1 "" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' FAKE_DEPLOY_RC=1 -- --yes --no-pr
+has "deployment failure is clear" "edge function deploy failed"
+expect_not "no smoke check after failed deploy" "curl POST"
+run "a gateway 401 without the handler marker fails" 1 "" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' FAKE_POST_HANDLER=0 -- --yes --no-pr
+has "gateway 401 is not mistaken for handler auth" "unauthenticated POST smoke check failed"
+run "an unauthenticated POST returning 200 fails" 1 "" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' FAKE_POST_STATUS=200 -- --yes --no-pr
+has "200 smoke failure is clear" "unauthenticated POST smoke check failed"
+expect_not "no PR after a failed smoke check" "gh-post"
+run "a preflight that fails to echo the origin fails" 1 "" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' FAKE_CORS_MISMATCH=1 -- --yes --no-pr
+has "preflight echo failure is clear" "CORS preflight smoke check failed"
+run "dry-run never deploys changed functions" 0 "" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --dry-run
+expect_not "dry-run never deploys a function" "supabase functions-deploy"
+expect_not "dry-run never smoke-checks a function" "curl POST"
+expect_not "dry-run never reads the function token" "op-get fake-function-item"
 run "no function changes: silent" 0 "" -- --yes --no-pr
 hasnt "no function warning" "edge functions changed"
 
 echo "rehearsal wiring"
 # before A B: the first call starting with A comes before the first starting with B (or B never ran).
-before() { awk -v a="$1" -v b="$2" 'index($0,a)==1&&!sa{sa=NR} index($0,b)==1&&!sb{sb=NR} END{exit !(sa && (!sb || sa<sb))}' "$calls"; }
 run "rehearsal runs on the pending migrations" 0 "" -- --yes --no-pr
 expect "rehearsal called with the dump and the pending list" "rehearse $tmp/dumps $tmp/mig 20260101000001_plain.sql 20260101000002_gate.sql"
 if before "rehearse " "supabase push"; then ok "rehearsal runs before the push"; else bad "rehearsal runs before the push"; fi
@@ -253,7 +322,9 @@ expect_not "no rehearsal without pending migrations" "rehearse "
 
 echo "rehearsal on a real Postgres (docker)"
 IMG="${REHEARSAL_TEST_IMAGE:-postgres:17-alpine}"
-if ! docker info >/dev/null 2>&1; then
+if [ "${SKIP_REAL_REHEARSAL_DOCKER:-0}" = 1 ]; then
+  ok "real Postgres rehearsal skipped by SKIP_REAL_REHEARSAL_DOCKER"
+elif ! docker info >/dev/null 2>&1; then
   bad "docker is required for this section (the rehearsal itself needs it)"
 else
   REAL_ENV=(REHEARSE="$(pwd)/scripts/rehearse-migrations.sh" REHEARSAL_PG_IMAGE="$IMG"

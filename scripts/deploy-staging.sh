@@ -3,7 +3,7 @@
 #
 #   bash scripts/deploy-staging.sh [--dry-run] [--yes] [--no-pr] [--rehearse-from=<dump>] [--no-rehearsal]
 #
-#   --dry-run       stop after the preflight and rehearsal (nothing is pushed)
+#   --dry-run       stop after the preflight and rehearsal (nothing is pushed or deployed)
 #   --yes           skip the y/N confirmation (default answer is No)
 #   --no-pr         do not open the main -> staging promotion PR
 #   --rehearse-from the newest staging dump: a .dump file, or a directory whose newest *.dump is
@@ -15,7 +15,8 @@
 # process: it is never printed, written or put in the PR. Where it lives (item/vault/field) is read
 # from the gitignored supabase/op.staging.env (template: supabase/op.staging.env.example).
 # Deploys origin/main only (refuses from any other checkout state).
-# Never runs `supabase config push`, never deploys edge functions, never touches trusted agent clients.
+# Never runs `supabase config push` or touches trusted agent clients. Only changed allowlisted app
+# functions deploy after migrations succeed, with a handler-auth and CORS smoke check.
 # Self-test: scripts/deploy-staging.test.sh
 { set +x; } 2>/dev/null   # a traced run must not echo the connection string
 set -euo pipefail
@@ -48,12 +49,12 @@ URL=""
 
 errf="$(mktemp)"; wt=""
 cleanup() {
-  rm -f "$errf"
+  rm -f "$errf" "$errf.body" "$errf.headers"
   if [ -n "$wt" ]; then git -C "$ROOT" worktree remove --force "$wt" >/dev/null 2>&1 || true; fi
 }
 trap cleanup EXIT
 
-for t in op-get.sh supabase psql git; do command -v "$t" >/dev/null 2>&1 || die "$t not found on PATH"; done
+for t in op-get.sh supabase psql git curl; do command -v "$t" >/dev/null 2>&1 || die "$t not found on PATH"; done
 
 # ── Where the connection string lives (names only; the values stay in the local file).
 envfile="${STAGING_OP_ENV_FILE:-}"
@@ -63,12 +64,16 @@ if [ -z "$envfile" ]; then
 fi
 [ -n "$envfile" ] && [ -f "$envfile" ] || die "supabase/op.staging.env not found — copy supabase/op.staging.env.example and fill it in"
 OP_ITEM="" OP_VAULT="" OP_FIELD=""
+FUNCTIONS_OP_ITEM="" FUNCTIONS_OP_VAULT="" FUNCTIONS_OP_FIELD=""
 while IFS='=' read -r k v || [ -n "$k" ]; do
   v="${v%\"}"; v="${v#\"}"; v="${v%\'}"; v="${v#\'}"
   case "$k" in
     STAGING_OP_ITEM) OP_ITEM="$v" ;;
     STAGING_OP_VAULT) OP_VAULT="$v" ;;
     STAGING_OP_FIELD) OP_FIELD="$v" ;;
+    STAGING_FUNCTIONS_OP_ITEM) FUNCTIONS_OP_ITEM="$v" ;;
+    STAGING_FUNCTIONS_OP_VAULT) FUNCTIONS_OP_VAULT="$v" ;;
+    STAGING_FUNCTIONS_OP_FIELD) FUNCTIONS_OP_FIELD="$v" ;;
   esac
 done < "$envfile"
 [ -n "$OP_ITEM" ] && [ -n "$OP_VAULT" ] && [ -n "$OP_FIELD" ] || die "op.staging.env must set STAGING_OP_ITEM, STAGING_OP_VAULT and STAGING_OP_FIELD"
@@ -100,18 +105,19 @@ else
   say "Pending migrations (${#pending[@]}):"; printf '  %s\n' "${pending[@]}"
 fi
 
-# ── 3. Edge functions changed on main since staging: report, never deploy.
-changed="$(git -C "$ROOT" diff --name-only origin/staging origin/main -- supabase/functions | awk -F/ 'NF>=3{print $3}' | sort -u)"
-others=() mcp_changed=0
+# ── 3. Edge functions changed on main since staging: deploy only the app allowlist; hold the rest.
+changed="$(git -C "$ROOT" diff --name-only origin/staging origin/main -- supabase/functions | awk -F/ 'NF>=3 && $3!="_shared"{print $3}' | sort -u)"
+functions_to_deploy=() held_functions=() agent_held=()
 while IFS= read -r n; do
   [ -n "$n" ] || continue
-  if [ "$n" = mcp ]; then mcp_changed=1; else others+=("$n"); fi
+  case "$n" in
+    agent-chat) functions_to_deploy+=("$n") ;;
+    compose-view|mcp) held_functions+=("$n"); agent_held+=("$n") ;;
+    *) held_functions+=("$n") ;;
+  esac
 done <<< "$changed"
-if [ "${#others[@]}" -gt 0 ]; then
-  say "WARNING: edge functions changed on main and are NOT deployed by this script: ${others[*]}"
-  say "  Deploy them yourself (needs 'supabase login'): supabase functions deploy ${others[*]}"
-fi
-[ "$mcp_changed" = 0 ] || say "Note: the mcp edge function changed; it stays undeployed until agent switch-on."
+[ "${#held_functions[@]}" -eq 0 ] || say "WARNING: changed edge functions held (not deployed): ${held_functions[*]}"
+[ "${#agent_held[@]}" -eq 0 ] || say "  ${agent_held[*]} remain held until agent switch-on."
 
 # ── 4. Privileged-step probe: only when a pending migration touches the authenticator role or storage policies.
 probe=0
@@ -162,7 +168,59 @@ if [ "${#pending[@]}" -gt 0 ]; then
   [ "$rc" -eq 0 ] || die "supabase db push failed (exit $rc)"
 fi
 
-# ── 7. Verify.
+# ── 7. Deploy changed app-facing functions after the database push, then smoke-check the handler.
+if [ "${#functions_to_deploy[@]}" -gt 0 ]; then
+  [ -n "$FUNCTIONS_OP_ITEM" ] && [ -n "$FUNCTIONS_OP_VAULT" ] && [ -n "$FUNCTIONS_OP_FIELD" ] || \
+    die "op.staging.env must set STAGING_FUNCTIONS_OP_ITEM, STAGING_FUNCTIONS_OP_VAULT and STAGING_FUNCTIONS_OP_FIELD"
+  unset EDGE_ACCESS_TOKEN
+  EDGE_ACCESS_TOKEN="$(op-get.sh "$FUNCTIONS_OP_ITEM" "$FUNCTIONS_OP_VAULT" "$FUNCTIONS_OP_FIELD" 2>/dev/null </dev/null)" || \
+    die "op-get.sh could not read the staging Supabase access token"
+  [ -n "$EDGE_ACCESS_TOKEN" ] || die "the staging Supabase access token is empty"
+  db_host="${URL#*@}"; db_host="${db_host%%[:/?]*}"
+  case "$db_host" in db.*) edge_host="${db_host#db.}" ;; *) die "could not derive the edge endpoint from the staging connection" ;; esac
+  edge_base="https://${edge_host}/functions/v1"
+
+  cors_source="$ROOT/supabase/functions/_shared/cors.ts"
+  origins_line="$(grep -E '^[[:space:]]*const DEFAULT_APP_ORIGINS[[:space:]]*=' "$cors_source" | head -1 || true)"
+  [ -n "$origins_line" ] || die "could not read app origins from the shared CORS module"
+  origins_text="${origins_line#*\[}"; origins_text="${origins_text%%\]*}"
+  function_origins=()
+  while IFS= read -r origin; do
+    origin="$(printf '%s' "$origin" | sed -E "s/^[[:space:]]*['\"]//; s/['\"][[:space:]]*$//")"
+    [ -n "$origin" ] && function_origins+=("$origin")
+  done < <(printf '%s\n' "$origins_text" | tr ',' '\n')
+  [ "${#function_origins[@]}" -gt 0 ] || die "could not read app origins from the shared CORS module"
+
+  for fn in "${functions_to_deploy[@]}"; do
+    if ! SUPABASE_ACCESS_TOKEN="$EDGE_ACCESS_TOKEN" supabase --workdir "$ROOT" functions deploy "$fn" --no-verify-jwt >/dev/null 2>&1; then
+      die "edge function deploy failed for $fn"
+    fi
+    say "Deployed edge function $fn."
+    : > "$errf.body"
+    status="$(printf 'url = "%s/%s"\nrequest = "POST"\nheader = "Content-Type: application/json"\ndata = "{}"\n' "$edge_base" "$fn" | \
+      curl --config - --silent --max-time 20 --output "$errf.body" --write-out '%{http_code}' 2>/dev/null)" || \
+      die "unauthenticated POST smoke check failed for $fn"
+    if [ "$status" != 401 ] || ! grep -q 'UNAUTHORIZED' "$errf.body"; then
+      die "unauthenticated POST smoke check failed for $fn (expected handler 401)"
+    fi
+    say "Unauthenticated POST smoke check passed for $fn (handler 401)."
+
+    origin_index=0
+    for origin in "${function_origins[@]}"; do
+      origin_index=$((origin_index+1))
+      status="$(printf 'url = "%s/%s"\nrequest = "OPTIONS"\nheader = "Origin: %s"\nheader = "Access-Control-Request-Method: POST"\nheader = "Access-Control-Request-Headers: authorization, content-type"\n' "$edge_base" "$fn" "$origin" | \
+        curl --config - --silent --max-time 20 --dump-header "$errf.headers" --output /dev/null --write-out '%{http_code}' 2>/dev/null)" || \
+        die "CORS preflight smoke check failed for $fn (allowed origin $origin_index)"
+      case "$status" in 2??) ;; *) die "CORS preflight smoke check failed for $fn (allowed origin $origin_index, HTTP $status)" ;; esac
+      echoed_origin="$(awk 'tolower($0) ~ /^access-control-allow-origin:/ {sub(/^[^:]*:[[:space:]]*/, ""); sub(/\r$/, ""); print; exit}' "$errf.headers")"
+      [ "$echoed_origin" = "$origin" ] || die "CORS preflight smoke check failed for $fn (allowed origin $origin_index was not echoed)"
+    done
+    say "CORS preflight smoke checks passed for $fn (${#function_origins[@]} allowed origins)."
+  done
+  unset EDGE_ACCESS_TOKEN
+fi
+
+# ── 8. Verify.
 bad=0
 fail() { printf '✗ VERIFY FAILED: %s\n' "$1" >&2; bad=1; }
 newest="$(ls "$MIG_DIR" | grep -E '^[0-9]+_.*\.sql$' | sort | tail -1 | cut -d_ -f1)"
@@ -180,7 +238,7 @@ so="$(sqlq "select count(*) filter (where is_sample) || '/' || count(*) filter (
 say "verify: max version $remote (newest local $newest) · db_pre_request $pre · trusted clients $tc · sample orgs $so"
 [ "$bad" = 0 ] || die "verification failed — staging is NOT in the expected state"
 
-# ── 8. Promotion PR: gh-post accepts a staging PR only from a checkout on branch main.
+# ── 9. Promotion PR: gh-post accepts a staging PR only from a checkout on branch main.
 if [ "$PR" = 1 ]; then
   if [ "$(git -C "$ROOT" rev-list --count origin/staging..origin/main)" = 0 ]; then
     say "staging already contains main: no promotion PR needed."
