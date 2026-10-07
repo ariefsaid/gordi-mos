@@ -1,15 +1,15 @@
 import { test, expect } from '@playwright/test'
-import { writeFileSync } from 'node:fs'
 import { loginAs } from './helpers/login'
 import { DEMO_PASSWORD } from '../src/pages/demo-personas'
 import { stubAccountLocale } from './helpers/account-locale'
 
-for (const locale of ['en','id']) for (const width of [390,768,1280,1440]) {
-  test(`Work catalog row geometry and long settled copy ${locale} ${width}px`,async({page},testInfo)=>{
+// Three cells cover every layout branch once: 390 = switcher + page record, 768 = switcher + panel
+// record, 1440 = no switcher + 52px rows (1280 re-ran that branch). Each locale appears at least once.
+for (const [locale, width] of [['en', 390], ['id', 768], ['en', 1440]] as const) {
+  test(`Work catalog row geometry and long settled copy ${locale} ${width}px`,async({page})=>{
     await page.setViewportSize({width,height:900})
-    await stubAccountLocale(page,locale as 'en'|'id')
+    await stubAccountLocale(page,locale)
     await loginAs(page,'dewi.dev@example.test',DEMO_PASSWORD)
-    const measurements=[]
     for(const collection of ['projects','objectives']) {
       const endpoint=collection==='projects'?'work_lines':'objectives'
       await page.route(`**/rest/v1/${endpoint}*`,async route=>{
@@ -62,8 +62,6 @@ for (const locale of ['en','id']) for (const width of [390,768,1280,1440]) {
         if(width===390) {expect(control.height).toBeGreaterThanOrEqual(44);expect(control.width).toBeGreaterThanOrEqual(44)}
       }
       expect(controls[0].y+controls[0].height).toBeLessThanOrEqual(900)
-      measurements.push({collection,width,locale,rows:dimensions,controls})
-      await page.screenshot({animations:'disabled',path:testInfo.outputPath(`${collection}-${locale}-${width}.png`)})
       await rowLinks.first().press('Enter')
       // Phone records are canonical full pages with one collection Back; wider layouts keep the
       // named shared Work panel (section.rp, data-record-mode="panel") headed by the record itself.
@@ -74,7 +72,6 @@ for (const locale of ['en','id']) for (const width of [390,768,1280,1440]) {
       await expect(record).toHaveAttribute('data-record-mode', width < 768 ? 'page' : 'panel')
       await expect(page.getByRole('heading', { name: recordName, exact: true })).toBeVisible()
       expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
-      await page.screenshot({animations:'disabled',path:testInfo.outputPath(`${collection}-record-${locale}-${width}.png`)})
       if (width < 768) {
         await expect(page).toHaveURL(new RegExp(`/work/${collection}/[0-9a-f-]{36}$`))
         const back = page.locator('.record-page-back')
@@ -94,7 +91,5 @@ for (const locale of ['en','id']) for (const width of [390,768,1280,1440]) {
       }
       await page.unroute(`**/rest/v1/${endpoint}*`)
     }
-    writeFileSync(testInfo.outputPath('row-measurements.json'),JSON.stringify(measurements,null,2))
-    await testInfo.attach('row-measurements',{body:JSON.stringify(measurements,null,2),contentType:'application/json'})
   })
 }
