@@ -370,8 +370,9 @@ begin
       using errcode = '23505';
   end if;
 
-  -- All target/source/identity checks above precede destination inserts. Every INSERT is
-  -- insert-only; any later guard/FK failure rolls this function call back as one statement.
+  -- All target/source/identity checks above precede destination inserts. The INSERTs skip only
+  -- their own deterministic ids; the one UPDATE below fills the default unit of a setting this
+  -- load created or finished. Any later guard/FK failure rolls this function call back as one statement.
   insert into ops.wip_items
     (id, org_id, name, category, flag_active, esb_product_id, kind, reference_source,
      erp_category_type_name, has_active_bom_output)
@@ -381,7 +382,7 @@ begin
     from ops.wip_items source
     join pg_temp._sample_esb_item_map item_map on item_map.source_item_id = source.id
    where source.org_id = source_org
-  on conflict do nothing;
+  on conflict (id) do nothing;
 
   insert into ops.item_units
     (id, org_id, wip_item_id, unit_name, esb_product_detail_id, esb_product_id,
@@ -393,14 +394,14 @@ begin
     from ops.item_units source
     join pg_temp._sample_esb_unit_map unit_map on unit_map.source_unit_id = source.id
    where source.org_id = source_org
-  on conflict do nothing;
+  on conflict (id) do nothing;
 
   insert into ops.stream_items
     (id, org_id, branch_id, activity, wip_item_id, source)
   select mapping.target_id, sample_org, mapping.target_branch_id, mapping.activity,
          mapping.target_item_id, mapping.source
     from pg_temp._sample_esb_stream_map mapping
-  on conflict do nothing;
+  on conflict (id) do nothing;
 
   with inserted as (
     insert into ops.cafe_item_settings
@@ -419,7 +420,7 @@ begin
             and existing.activity = mapping.activity
             and existing.wip_item_id = mapping.target_item_id
        )
-    on conflict do nothing
+    on conflict (id) do nothing
     returning id
   )
   insert into pg_temp._sample_esb_new_settings (setting_id)
@@ -433,12 +434,13 @@ begin
     join pg_temp._sample_esb_setting_map setting_map
       on setting_map.target_setting_id = mapping.target_setting_id
      and setting_map.copy_managed
-  on conflict do nothing;
+  on conflict (id) do nothing;
 
   update ops.cafe_item_settings target
      set default_item_unit_id = mapping.source_default_unit_id
     from pg_temp._sample_esb_setting_map mapping
    where target.id = mapping.target_setting_id
+     and target.org_id = sample_org
      and mapping.copy_managed
      and mapping.source_default_unit_id is not null
      and (target.id in (select setting_id from pg_temp._sample_esb_new_settings)
