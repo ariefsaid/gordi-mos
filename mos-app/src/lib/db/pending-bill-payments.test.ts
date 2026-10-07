@@ -44,11 +44,12 @@ describe('listPendingBillPaymentAmounts', () => {
       expect(name).toBe('mos')
       return { from: (table: string) => {
         expect(table).toBe('pending_bill_payments')
-        return query({ data: [{ id: 'p1', esb_code: 'ESB', branch_code: 'BR', bill_no: 'PB-1', amount: '125.00' }], error: null }, calls)
+        return query({ data: [{ id: 'p1', esb_code: 'ESB', branch_code: 'BR', bill_no: 'PB-1', amount: '125.00', cash_in_date: '2026-10-06' }], error: null }, calls)
       } } as never
     })
     const rows = await listPendingBillPaymentAmounts()
-    expect(rows).toEqual([{ id: 'p1', esb_code: 'ESB', branch_code: 'BR', bill_no: 'PB-1', amount: 125 }])
+    expect(rows).toEqual([{ id: 'p1', esb_code: 'ESB', branch_code: 'BR', bill_no: 'PB-1', amount: 125, cash_in_date: '2026-10-06' }])
+    expect(calls.find((call) => call.method === 'select')?.args).toEqual(['id,esb_code,branch_code,bill_no,amount,cash_in_date,created_at'])
     expect(calls.filter((call) => call.method === 'order').map((call) => call.args)).toEqual([
       ['created_at', { ascending: true }], ['id', { ascending: true }],
     ])
