@@ -230,17 +230,15 @@ fi
 # See docs/agents/skills.md (written 2026-08-06; this
 # comment previously cited a "skill-ownership table" that did not exist, which is why agents kept
 # editing the generated skills/ directory).
-# Agents may start every skill (OD-2026-10-07-SKILL-HARNESS) — except /release, which keeps the
-# owner-only flag until a mechanical guard replaces "only the owner can type it".
+# Agents may start every skill (OD-2026-10-07-SKILL-HARNESS); /release too, because merges into
+# main/staging need the owner's assent for the exact head (OD-2026-10-07-HARNESS-ANSWERS).
 unlock_skills() {
   local f
   for f in "$1"/*/SKILL.md; do
-    case "$f" in */release/SKILL.md) continue ;; esac
     grep -q '^disable-model-invocation:' "$f" 2>/dev/null || continue
     sed -i.bak '/^disable-model-invocation:/d' "$f" && rm -f "$f.bak"
   done
-  grep -q '^disable-model-invocation: true' "$1/release/SKILL.md" \
-    || { echo "ERROR: /release lost its owner-only flag — restore it in .claude/skill-overrides/release/SKILL.md" >&2; return 1; }
+}
 }
 
 OVERRIDES="$ROOT/.claude/skill-overrides"
