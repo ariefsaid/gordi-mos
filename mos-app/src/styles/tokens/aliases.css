@@ -65,4 +65,10 @@
      against the live Café Log/Plan toolbars at 1440 and 390). */
   --control-measure-search: 160px;
   --control-height: 32px;
+
+  /* Café capture geometry; capture surfaces scope desktop height to 32px. */
+  --cafe-capture-quantity-width: 7.5rem;
+  --cafe-capture-unit-track-width: 17rem;
+  --cafe-capture-control-group-width: 25rem;
+  --cafe-capture-control-height: 44px;
 }
