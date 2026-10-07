@@ -13,12 +13,12 @@ on:
 
 # ─── CI TIERING ─────────────────────────────────────────────────────────────────────────────
 # PR → dev    `verify` + `db-contracts` — ONE Supabase boot: pgTAP + applied-path. No browser.
-# PR → main   `verify` + `db`           — Supabase + pgTAP + the whole Playwright suite, the
-#             rendered-geometry guards among it. Authoritative gate, and the only tier that
-#             renders a page.
+# PR → main   `verify` + `db`           — `db` passes when both parallel lanes pass: `db-proof`
+#             (pgTAP + applied-path proof) and `e2e` (the whole Playwright suite, the
+#             rendered-geometry guards among it). Authoritative gate; the only tier that renders.
 # push main   nothing                — a merge re-runs no CI; the PR head it merged was gated.
 # PR staging  `verify` + `guard-self-tests` skip when the head is main (same tree, already gated).
-# dispatch    `db` alone            — on-demand full suite for one branch (scripts/ci-e2e.sh).
+# dispatch    `db` and its two lanes — on-demand full suite for one branch (scripts/ci-e2e.sh).
 #
 # HISTORY. Until now gordi had no DB test on dev PRs at all: `integration` was PR→main only, so
 # PRs #113–#117 ran `verify` alone and the 637 pgTAP tests — including every assertion written for
@@ -27,8 +27,7 @@ on:
 # geometry.yml grew its OWN dev-PR Supabase boot for the rendered-geometry guards (#403) — the two
 # booted Supabase, npm-ci'd and ran in parallel on the same PR. #565 merged the `pgtap` job into
 # it so a dev PR boots the stack once. The browser then came back out of that lane: a dev PR now
-# installs no Chromium, and the guards ride this job, which already runs every spec. `db` here is
-# untouched: it is the PR→main lane and was never part of the duplication.
+# installs no Chromium, and the guards ride the PR→main `e2e` job, which runs every spec.
 
 # Public repo: fork PRs run this workflow. Nothing here needs to write, so the token gets
 # read-only. Actions are pinned to commit SHAs (tags are mutable — a hijacked v4 would run here).
@@ -68,14 +67,7 @@ jobs:
           version: 2.104.0
 
       - name: Start local Supabase stack (applies migrations + seed)
-        # Full `supabase start` (not `db start`): e2e needs auth/API/mailpit, and
-        # `supabase status -o env` only emits keys when the full stack is up.
-        # KEPT (load-bearing): db (pgTAP) · auth/rest/kong (app API) · inbucket (e2e
-        # magic-link/reset). EXCLUDED: containers MOS's first slice never uses — speeds
-        # the boot (~the dominant CI cost). edge-runtime/functions (no edge fns; the
-        # edge-runtime container also intermittently 502s — flaked PR #9); studio/meta
-        # (admin UI); imgproxy/storage (no file features); realtime (no subscriptions);
-        # vector/analytics (log shipping). Re-add a name here if the app starts using it.
+        # Same container set as the `e2e` job; its copy of this step explains the exclusions.
         run: supabase start -x edge-runtime,functions,studio,meta,imgproxy,storage,realtime,vector,analytics
 
       # Logic lives in scripts/lint-security-definer.sh (#565) — this used to be inline here AND
