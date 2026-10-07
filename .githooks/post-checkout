@@ -5,8 +5,9 @@
 #
 # Self-test: scripts/post-checkout-hook.test.sh
 top="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
-main="$(git worktree list --porcelain 2>/dev/null | awk '$1=="worktree"{print $2; exit}')"
+common="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || exit 0
+main="$(dirname "$common")"
 [ -n "$main" ] && [ "$top" != "$main" ] && [ -d "$main/.claude/skills" ] || exit 0
-[ -e "$top/.agents/skills" ] && exit 0
+[ -L "$top/.agents" ] || [ -e "$top/.agents/skills" ] && exit 0
 mkdir -p "$top/.agents" && ln -s "$main/.claude/skills" "$top/.agents/skills"
 exit 0

@@ -29,6 +29,12 @@ mkdir -p "$tmp/wt3/.agents/skills/own"
 [ -d "$tmp/wt3/.agents/skills/own" ] && [ ! -L "$tmp/wt3/.agents/skills" ] && ok "existing .agents/skills kept" \
   || bad "existing .agents/skills was replaced"
 
+# A planted .agents symlink is never followed.
+g "$tmp/main" worktree add -q --no-checkout "$tmp/wt5" -b wt5 2>/dev/null
+mkdir -p "$tmp/elsewhere"; ln -s "$tmp/elsewhere" "$tmp/wt5/.agents"
+(cd "$tmp/wt5" && bash "$HOOK" 0 0 1)
+[ ! -e "$tmp/elsewhere/skills" ] && ok "planted .agents symlink not followed" || bad "hook wrote through a planted .agents symlink"
+
 # No skills in the main checkout: nothing linked, checkout still succeeds.
 rm -rf "$tmp/main/.claude"
 g "$tmp/main" worktree add -q "$tmp/wt4" -b wt4 2>/dev/null; rc=$?
