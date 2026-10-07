@@ -38,6 +38,7 @@ mkdir -p "$tmp/elsewhere"; ln -s "$tmp/elsewhere" "$tmp/wt5/.agents"
 # main checkout plus every existing worktree get the link.
 mkdir -p "$tmp/main/scripts"; cp scripts/setup-hooks.sh "$tmp/main/scripts/"
 g "$tmp/main" add scripts .githooks; g "$tmp/main" commit -qm setup
+g "$tmp/main" update-ref refs/remotes/origin/dev HEAD
 g "$tmp/main" worktree add -q --no-checkout "$tmp/wt6" -b wt6 2>/dev/null
 g "$tmp/wt6" checkout -q wt6 -- scripts 2>/dev/null
 bash "$tmp/wt6/scripts/setup-hooks.sh" >/dev/null 2>&1
@@ -57,6 +58,14 @@ g "$tmp/wt7" checkout -q hostile 2>/dev/null
 g "$tmp/main" checkout -q --detach hostile 2>/dev/null
 [ ! -e "$tmp/pwned" ] && ok "the main checkout switching branch never runs that branch's hook" || bad "the branch's own post-checkout ran in the main checkout"
 g "$tmp/main" checkout -q - 2>/dev/null
+
+# setup-hooks installs origin/dev's committed hooks even while the main checkout sits on a
+# hostile branch.
+g "$tmp/main" checkout -q --detach hostile 2>/dev/null; rm -f "$tmp/pwned"
+bash "$tmp/wt6/scripts/setup-hooks.sh" >/dev/null 2>&1
+g "$tmp/main" checkout -q - 2>/dev/null; rm -f "$tmp/pwned"
+g "$tmp/main" worktree add -q --detach "$tmp/wt8" HEAD 2>/dev/null
+[ ! -e "$tmp/pwned" ] && ok "setup-hooks never installs a checked-out branch's hook" || bad "setup-hooks installed the hostile branch's hook"
 
 # No skills in the main checkout: nothing linked, checkout still succeeds.
 rm -rf "$tmp/main/.claude"
