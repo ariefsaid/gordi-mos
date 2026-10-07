@@ -10,14 +10,13 @@ cd "$(dirname "$0")/.."
 common="$(git rev-parse --path-format=absolute --git-common-dir)"
 src=origin/dev; git rev-parse -q --verify "$src" >/dev/null || src=HEAD   # fresh clone before fetch
 dest="$common/mos-hooks-$(git rev-parse --short=12 "$src")"
-# One setup at a time: two at once could each delete the other's freshly active set. A lock more
-# than a minute old belongs to a crashed run and is broken; only the holder releases it.
-lock="$common/mos-hooks.lock"; stage=""
-until mkdir "$lock" 2>/dev/null; do
-  [ -n "$(find "$lock" -maxdepth 0 -mmin +1 2>/dev/null)" ] && rmdir "$lock" 2>/dev/null
-  sleep 0.2
-done
-trap 'rm -rf "$stage"; rmdir "$lock" 2>/dev/null' EXIT
+# One setup at a time (two at once could each delete the other's freshly active set): re-run under
+# a kernel lock, which dies with its holder, so a crashed run never leaves a lock behind.
+if [ -z "${MOS_HOOKS_LOCKED:-}" ]; then
+  exec env MOS_HOOKS_LOCKED=1 perl -MFcntl=:flock -e 'BEGIN { $^F = 255 } open(my $f, ">>", shift) or die $!; flock($f, LOCK_EX) or die $!; exec(@ARGV) or die $!' \
+    "$common/mos-hooks.lock" bash "$0" "$@"
+fi
+stage=""; trap 'rm -rf "$stage"' EXIT
 if [ ! -d "$dest" ]; then
   stage="$(mktemp -d "$common/mos-hooks.XXXXXX")"
   git archive "$src" .githooks | tar -x -C "$stage"

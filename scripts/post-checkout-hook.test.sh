@@ -75,26 +75,18 @@ second="$(g "$tmp/main" config core.hooksPath)"
 [ "$first" != "$second" ] && [ -x "$second/post-checkout" ] && [ ! -e "$first" ] \
   && ok "a re-install repoints to a complete new set and removes the old one" || bad "re-install: first=$first second=$second"
 
-# A second setup waits while another holds the lock, then completes.
-lockdir="$(cd "$tmp/main/.git" && pwd -P)/mos-hooks.lock"; mkdir "$lockdir"
+# A second setup waits while another holds the lock, then completes; a holder that dies frees it.
+lockfile="$(cd "$tmp/main/.git" && pwd -P)/mos-hooks.lock"
+hold() { perl -MFcntl=:flock -e 'open(my $f, ">>", shift) or die; flock($f, LOCK_EX) or die; sleep 30' "$lockfile" & holder=$!; sleep 0.5; }
 g "$tmp/main" commit -q --allow-empty -m moved-again; g "$tmp/main" update-ref refs/remotes/origin/dev HEAD
 before="$(g "$tmp/main" config core.hooksPath)"
+hold
 bash "$tmp/wt6/scripts/setup-hooks.sh" >/dev/null 2>&1 & bg=$!
 sleep 1
 [ "$(g "$tmp/main" config core.hooksPath)" = "$before" ] && kill -0 "$bg" 2>/dev/null && waited=1 || waited=0
-rmdir "$lockdir"; wait "$bg"
-[ "$waited" = 1 ] && [ "$(g "$tmp/main" config core.hooksPath)" != "$before" ] && [ ! -e "$lockdir" ] \
-  && ok "a second setup waits for the lock, then installs and releases it" || bad "setup did not serialize on the lock (waited=$waited)"
-
-# A stale lock (crashed run) is broken; a setup that never held the lock leaves a fresh one alone.
-mkdir "$lockdir"; touch -t 202001010000 "$lockdir"
-bash "$tmp/wt6/scripts/setup-hooks.sh" >/dev/null 2>&1; rc=$?
-[ "$rc" -eq 0 ] && [ ! -e "$lockdir" ] && ok "a stale lock is broken and released" || bad "stale lock: rc=$rc"
-mkdir "$lockdir"
-bash "$tmp/wt6/scripts/setup-hooks.sh" >/dev/null 2>&1 & bg=$!
-sleep 0.5; kill "$bg" 2>/dev/null; wait "$bg" 2>/dev/null
-[ -d "$lockdir" ] && ok "a killed waiter does not release another run's lock" || bad "a killed waiter released the lock"
-rmdir "$lockdir" 2>/dev/null
+kill -9 "$holder"; wait "$bg"
+[ "$waited" = 1 ] && [ "$(g "$tmp/main" config core.hooksPath)" != "$before" ] \
+  && ok "a second setup waits for the lock and proceeds once the holder dies" || bad "setup did not serialize on the lock (waited=$waited)"
 
 # No skills in the main checkout: nothing linked, checkout still succeeds.
 rm -rf "$tmp/main/.claude"
