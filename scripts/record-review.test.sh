@@ -2,6 +2,7 @@
 # Self-test for scripts/record-review.sh — per-lens stamping (OD-WAY-83), reviewer allowlist,
 # artifact structure validation (Reviewer/Verdict/HEAD), and the DO-NOT-MERGE refusal.
 set -uo pipefail
+unset MOS_ISSUE
 cd "$(dirname "$0")/.."
 SCRIPT="$(pwd)/scripts/record-review.sh"
 tmp=$(mktemp -d)
@@ -114,7 +115,12 @@ owner_gh_bin="$tmp/owner-gh-bin"
 mkdir -p "$owner_gh_bin"
 cat > "$owner_gh_bin/gh" <<'EOF'
 #!/usr/bin/env bash
-[ "$1" = issue ] && [ "$2" = view ] && [ "$4" = --json ] && [ "$5" = labels ] || exit 2
+[ "$1" = issue ] && [ "$2" = view ] && [ "$4" = --json ] || exit 2
+if [ "$5" = body ] && [ -r "${FAKE_ISSUE_BODY_FILE:-}" ]; then
+  cat "$FAKE_ISSUE_BODY_FILE"
+  exit 0
+fi
+[ "$5" = labels ] || exit 2
 if [ "${FAKE_GH_MODE:-}" = fail ]; then
   printf 'fake GitHub unavailable\n' >&2
   exit 1
@@ -135,6 +141,16 @@ init_owner_ui_repo() { # $1 repo · $2 branch · $3 commit subject
   printf 'export const Page = () => <main />;\n' > "$repo/mos-app/src/pages/page.tsx"
   commit_design_change "$repo" "$subject"
 }
+check_issue_skills() { # name · expected rc · artifact · body file · issue env · expected text
+  local name="$1" want="$2" artifact="$3" body_file="$4" issue_env="$5" diagnostic="${6:-}" output rc
+  output="$(cd "$tmp/repo" && PATH="$owner_gh_bin:$PATH" FAKE_ISSUE_BODY_FILE="$body_file" MOS_ISSUE="$issue_env" bash "$SCRIPT" --lens security --reviewer gpt-5.6-luna --artifact "$artifact" 2>&1)"
+  rc=$?
+  if [ "$rc" -eq "$want" ] && { [ -z "$diagnostic" ] || printf '%s\n' "$output" | grep -Fq "$diagnostic"; }; then
+    pass=$((pass+1)); printf '  ok    %s\n' "$name"
+  else
+    fail=$((fail+1)); printf '  FAIL  %s — rc=%s (want %s); %s\n' "$name" "$rc" "$want" "$(printf '%s' "$output" | tr '\n' ' ')"
+  fi
+}
 check_owner_design() { # name · expected rc · repo · gh mode · expected text · optional second text
   local name="$1" want="$2" repo="$3" mode="$4" diagnostic="$5" second="${6:-}" head output rc
   head="$(git -C "$repo" rev-parse HEAD)"
@@ -148,6 +164,43 @@ check_owner_design() { # name · expected rc · repo · gh mode · expected text
     fail=$((fail+1)); printf '  FAIL  %s — rc=%s (want %s); %s\n' "$name" "$rc" "$want" "$(printf '%s' "$output" | tr '\n' ' ')"
   fi
 }
+
+# Issue Skills plans require each evidence file under docs/ to be non-empty.
+mkdir -p "$tmp/repo/docs/reviews/1541"
+printf 'evidence\n' > "$tmp/repo/docs/reviews/1541/existing.md"
+: > "$tmp/repo/docs/reviews/1541/empty.md"
+printf 'outside evidence\n' > "$tmp/repo/outside.md"
+ln -s "$tmp/repo/outside.md" "$tmp/repo/docs/reviews/1541/linked.md"
+cat > "$tmp/repo/issue-plan.md" <<'EOF'
+## Skills plan
+| Skill | Phase | Evidence |
+|---|---|---|
+| tdd | build | docs/reviews/1541/existing.md |
+EOF
+printf 'Issue: #1541\n## security\nReviewer: gpt-5.6-luna (security)\nVerdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/issue-review.md"
+check_issue_skills 'Issue: #N plan accepts non-empty docs evidence' 0 issue-review.md "$tmp/repo/issue-plan.md" ''
+printf 'No Skills plan here.\n' > "$tmp/repo/no-issue-plan.md"
+check_issue_skills 'Issue without a Skills plan keeps existing review behavior' 0 issue-review.md "$tmp/repo/no-issue-plan.md" ''
+printf '## security\nReviewer: gpt-5.6-luna (security)\nVerdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/env-issue-review.md"
+check_issue_skills 'MOS_ISSUE fetches the issue without an Issue artifact line' 0 env-issue-review.md "$tmp/repo/issue-plan.md" 1555
+cat > "$tmp/repo/missing-issue-plan.md" <<'EOF'
+## Skills plan
+| Skill | Phase | Evidence |
+|---|---|---|
+| tdd | build | docs/reviews/1541/missing.md |
+| tdd | build | docs/reviews/1541/empty.md |
+| tdd | build | docs/reviews/1541/linked.md |
+EOF
+out="$(cd "$tmp/repo" && PATH="$owner_gh_bin:$PATH" FAKE_ISSUE_BODY_FILE="$tmp/repo/missing-issue-plan.md" bash "$SCRIPT" --lens security --reviewer gpt-5.6-luna --artifact issue-review.md 2>&1)"; rc=$?
+if [ "$rc" -ne 0 ] \
+  && printf '%s\n' "$out" | grep -Fq 'docs/reviews/1541/missing.md' \
+  && printf '%s\n' "$out" | grep -Fq 'docs/reviews/1541/empty.md' \
+  && printf '%s\n' "$out" | grep -Fq 'docs/reviews/1541/linked.md' \
+  && printf '%s\n' "$out" | grep -Fq "write each file, or correct the plan's path"; then
+  pass=$((pass+1)); printf '  ok    missing and empty issue evidence files are named with the fix\n'
+else
+  fail=$((fail+1)); printf '  FAIL  missing/empty evidence refusal — rc=%s; %s\n' "$rc" "$(printf '%s' "$out" | tr '\n' ' ')"
+fi
 
 owner_branch_repo="$tmp/owner-branch-ui-repo"
 init_owner_ui_repo "$owner_branch_repo" 'fix/123-x' 'small owner-reported UI fix'

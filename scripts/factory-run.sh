@@ -22,6 +22,43 @@ adw="$1"; shift
 case "$adw" in */*|.*) echo "✗ factory-run: ADW must be a bare filename under adws/ (got '$adw')" >&2; exit 2 ;; esac
 [ -f "$top/adws/$adw" ] || { echo "✗ factory-run: no such ADW: adws/$adw" >&2; exit 2; }
 
+# Every factory brief carries the Skills plan before it reaches an executor.
+skills_brief=""
+if [ $# -ge 1 ] && [ "${1#-}" = "$1" ]; then
+  skills_brief="$1"
+else
+  prev=""
+  for arg in "$@"; do
+    case "$arg" in --findings=*) skills_brief="${arg#*=}"; break ;; esac
+    [ "$prev" = "--findings" ] && { skills_brief="$arg"; break; }
+    prev="$arg"
+  done
+fi
+[ -n "$skills_brief" ] || {
+  echo "✗ factory-run: cannot locate the brief to validate its Skills plan" >&2
+  exit 4
+}
+plan_file="$skills_brief"
+temporary_plan=0
+if [ ! -f "$plan_file" ]; then
+  plan_file="$(mktemp "${TMPDIR:-/tmp}/factory-skills-plan.XXXXXX")" || {
+    echo "✗ factory-run: cannot create a temporary Skills plan check file" >&2
+    exit 4
+  }
+  temporary_plan=1
+  printf '%s' "$skills_brief" > "$plan_file" || {
+    rm -f "$plan_file"
+    echo "✗ factory-run: cannot write a temporary Skills plan check file" >&2
+    exit 4
+  }
+fi
+plan_result="$(bash "$top/scripts/skills-plan.sh" check "$plan_file" 2>&1)"; plan_rc=$?
+[ "$temporary_plan" -eq 0 ] || rm -f "$plan_file"
+if [ "$plan_rc" -ne 0 ]; then
+  echo "✗ factory-run: the brief needs a valid Skills plan; add a '## Skills plan' table with Skill, Phase, and Evidence columns and at least one row. $plan_result" >&2
+  exit 4
+fi
+
 # Cheap pre-flight (#590): catches a brief that targets a builder-barred path before the
 # build burns tokens on it. See factory-preflight.py's docstring for what it checks and why
 # it can be wrong in either direction, and its refusal text for the override.

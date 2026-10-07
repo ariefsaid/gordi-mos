@@ -12,7 +12,12 @@ pass=0; fail=0
 mkdir -p "$tmp/bin"
 cat > "$tmp/bin/gh" <<EOF
 #!/usr/bin/env bash
-printf '%s\n' "\$*" >> "$tmp/gh-calls"
+if [ "\$1" = issue ] && [ "\$2" = view ]; then
+  printf '%s\n' "\$*" >> "$tmp/gh-reads"
+  cat "$tmp/issue-body"
+else
+  printf '%s\n' "\$*" >> "$tmp/gh-calls"
+fi
 EOF
 chmod +x "$tmp/bin/gh"
 export PATH="$tmp/bin:$PATH"
@@ -61,6 +66,23 @@ check_message() { # $1 name · $2 expected rc · $3 expect-gh-called · $4 diagn
 
 check "clean comment passes through to gh" 0 yes issue comment 5 --body "all good here"
 check "denylisted body refused, gh untouched" 1 no issue comment 5 --body "the secretword is out"
+
+ready_plan="$tmp/ready-plan.md"
+cat > "$ready_plan" <<'EOF'
+## Skills plan
+| Skill | Phase | Evidence |
+|---|---|---|
+| tdd | build | docs/reviews/1541/tdd.md |
+EOF
+check_message "ready-for-agent issue create without a plan is refused" 1 no "Add a '## Skills plan' table" issue create --title t --label ready-for-agent --body "No plan yet."
+check "ready-for-agent issue create with a plan passes" 0 yes issue create --title t --label bug,ready-for-agent --body-file "$ready_plan"
+check "issue create without ready-for-agent needs no plan" 0 yes issue create --title t --label needs-triage --body "No plan yet."
+printf 'No plan yet.\n' > "$tmp/issue-body"
+check_message "adding ready-for-agent fetches and rejects a current body without a plan" 1 no "issue #17" issue edit 17 --add-label ready-for-agent
+cat "$ready_plan" > "$tmp/issue-body"
+check "adding ready-for-agent accepts the fetched current plan" 0 yes issue edit 17 --add-label ready-for-agent
+printf 'No plan yet.\n' > "$tmp/issue-body"
+check "other issue edits remain unaffected" 0 yes issue edit 17 --add-label needs-triage --body "No plan yet."
 check "policy is case-insensitive ERE" 1 no issue comment 5 --body "Missing RLS on that table"
 
 echo "contains secretword" > "$tmp/repo/body.md"
