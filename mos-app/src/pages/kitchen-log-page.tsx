@@ -1310,8 +1310,9 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     )
   }
 
-  // ── Empty offered roster — submitted membership counts remain independent of capture rows. ──
-  if (wipItems.length === 0) {
+  // ── Empty offered roster — submitted membership counts remain independent of capture rows.
+  // With no stream there is no roster to be empty: the choose-a-stream state below owns that case. ──
+  if (wipItems.length === 0 && stream !== null) {
     return (
       <PageFamilyFrame family="workspace" title={pageTitle} headClassName="cafe-capture-head" statusRow={captureContext} state={streamNonProducing ? 'read-only' : 'empty'}>
         <div className={`kl-page cafe-capture-content${isWide ? ' kl-capture-wide' : ''}`}>
@@ -1335,9 +1336,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
               {renderSummarySupport()}
             </div>
           )}
-          {stream
-            ? <CafeItemsEmptyState stream={stream} />
-            : <EmptyState variant="blank" title={t('cafe.stream.none')} />}
+          <CafeItemsEmptyState stream={stream} />
           {/* AC-013: the DD-WAY-29 gate also empties this list when nothing is confirmed —
               the report route must be reachable from here too, not only under a full list.
               #744 review: the report files a WRITE (ops.log_entries), so it closes with the
