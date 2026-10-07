@@ -48,19 +48,6 @@ case "$sql$stdin" in
   *trusted_agent_clients*) echo "${FAKE_TRUSTED:-0}" ;;
 esac
 SH
-cat > "$tmp/bin/pg_dump" <<'SH'
-#!/usr/bin/env bash
-printf 'argv pg_dump %s\npgpw %s\n' "$*" "${PGPASSWORD:-}" >> "$ARGVLOG"
-printf 'pg_dump\n' >> "$CALLS"
-if [ "${FAKE_DUMP_FAIL:-0}" = 1 ]; then echo "could not connect to $FAKE_HOST" >&2; exit 1; fi
-out=""; while [ $# -gt 0 ]; do [ "$1" = -f ] && out="$2"; shift; done; echo "PGDMP" > "$out"
-SH
-cat > "$tmp/bin/pg_restore" <<'SH'
-#!/usr/bin/env bash
-printf 'pg_restore-list\n' >> "$CALLS"
-[ "${FAKE_LIST_EMPTY:-0}" = 1 ] && exit 1
-printf '; header\n1; 2615 1 SCHEMA - mos owner\n'
-SH
 cat > "$tmp/bin/git" <<'SH'
 #!/usr/bin/env bash
 c=""; [ "${1:-}" = -C ] && { c="$2"; shift 2; }
@@ -75,6 +62,9 @@ esac
 exit 0
 SH
 chmod +x "$tmp"/bin/*
+# Shared dump fakes keep staging and production self-tests on the same backup contract.
+. scripts/lib/ops-db-dump-test-shims.sh
+ops_test_install_db_dump_shims "$tmp/bin"
 
 printf 'create table t();\n' > "$tmp/mig/20260101000001_plain.sql"
 printf "alter role authenticator set pgrst.db_pre_request = 'api_private.check_request';\n" > "$tmp/mig/20260101000002_gate.sql"
