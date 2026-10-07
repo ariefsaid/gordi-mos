@@ -46,7 +46,7 @@ import { WastePhotoCapture } from '@/components/kitchen/waste-photo-capture'
 import { CafeCaptureTable } from '@/components/kitchen/cafe-capture-table'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Select } from '@/components/ui/select'
-import { QuantityField } from '@/components/ui/quantity-field'
+import { QuantityField, QuantityFieldError } from '@/components/ui/quantity-field'
 import { parseQuantityInput } from '@/lib/quantity-parser'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { CafeItemsEmptyState } from '@/components/kitchen/cafe-items-empty-state'
@@ -200,6 +200,7 @@ export function CafeWastePage() {
   const [businessUnitId, setBusinessUnitId] = useState('')
   const [entries, setEntries] = useState<Record<string, WasteEntry>>({})
   const [invalidQuantityIds, setInvalidQuantityIds] = useState<Set<string>>(new Set())
+  const [visibleQuantityErrors, setVisibleQuantityErrors] = useState<Set<string>>(new Set())
   const [focusInvalidId, setFocusInvalidId] = useState<string | null>(null)
   const [resumableDrafts, setResumableDrafts] = useState<KitchenWasteDraft[]>([])
   const [restoredDraft, setRestoredDraft] = useState(false)
@@ -459,6 +460,30 @@ export function CafeWastePage() {
       return next
     })
   }, [])
+
+  function reportQuantityErrorVisibility(itemId: string, visible: boolean) {
+    setVisibleQuantityErrors(current => {
+      if (current.has(itemId) === visible) return current
+      const next = new Set(current)
+      if (visible) next.add(itemId)
+      else next.delete(itemId)
+      return next
+    })
+  }
+
+  function renderQuantityError(item: WasteRow) {
+    const rawValue = entries[item.id]?.quantity ?? ''
+    if (!visibleQuantityErrors.has(item.id)) return null
+    const parsed = parseQuantityInput(rawValue, { min: 0, maxIntegerDigits: 10, maxFractionDigits: 2 })
+    return parsed.kind === 'invalid' ? (
+      <QuantityFieldError
+        id={`cafe-waste-qty-${item.id}-quantity-error`}
+        reason={parsed.reason}
+        rawValue={rawValue}
+        className="cwl-field-error"
+      />
+    ) : null
+  }
 
   function focusFirstInvalidQuantity() {
     const itemId = Array.from(invalidQuantityIds).find(id => items.some(item => item.id === id))
@@ -752,6 +777,8 @@ export function CafeWastePage() {
           : {}),
       })}
       onQuantityValidityChange={valid => reportQuantityValidity(item.id, valid)}
+      onQuantityErrorVisibilityChange={visible => reportQuantityErrorVisibility(item.id, visible)}
+      hideQuantityError={isDesktop}
       onUnitChange={choice => changeWasteEntryUnit(item, choice)}
       onPrepare={() => void prepareEntry(item)}
     />
@@ -965,6 +992,7 @@ export function CafeWastePage() {
                     rows={visibleItems}
                     groups={groups}
                     renderControls={renderControls}
+                    renderFeedback={isDesktop ? renderQuantityError : undefined}
                     renderItemDetails={renderEvidence}
                     renderCardDetails={renderEvidence}
                     showCategory={hasMixedCategories}
@@ -1075,6 +1103,8 @@ function WasteItemControls({
   disabled,
   onQuantityChange,
   onQuantityValidityChange,
+  onQuantityErrorVisibilityChange,
+  hideQuantityError,
   onUnitChange,
   onPrepare,
 }: {
@@ -1085,6 +1115,8 @@ function WasteItemControls({
   disabled: boolean
   onQuantityChange: (quantity: string) => void
   onQuantityValidityChange: (valid: boolean) => void
+  onQuantityErrorVisibilityChange: (visible: boolean) => void
+  hideQuantityError: boolean
   onUnitChange: (choice: string) => void
   onPrepare: () => void
 }) {
@@ -1121,6 +1153,9 @@ function WasteItemControls({
           onChange={next => onQuantityChange(next > 0 ? String(next) : '')}
           onInvalid={(_reason, raw) => onQuantityChange(raw)}
           onValidityChange={onQuantityValidityChange}
+          onErrorVisibilityChange={onQuantityErrorVisibilityChange}
+          hideError={hideQuantityError}
+          errorMessageId={`${inputId}-quantity-error`}
           initialDraft={quantity === null && current.quantity !== '' ? current.quantity : undefined}
           suffixPosition="inline"
           suffix={showUnitPicker ? (

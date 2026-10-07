@@ -367,7 +367,7 @@ describe('CafeWastePage', () => {
     expect(mockInsertKitchenLog).not.toHaveBeenCalled()
   })
 
-  it('renders the desktop quantity error in its controls cell after the field and before Add photo', async () => {
+  it('renders the desktop quantity error as shared full-row feedback linked to its field', async () => {
     setWideMatchMedia()
     renderPage()
     const input = await screen.findByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })
@@ -377,10 +377,13 @@ describe('CafeWastePage', () => {
     const error = screen.getByRole('alert')
     const controls = input.closest('.cwl-controls') as HTMLElement
     const addPhoto = within(controls).getByRole('button', { name: 'Add photo' })
-    expect(controls).toContainElement(error)
-    expect(error.closest('tr')).toBe(input.closest('tr'))
+    const feedbackRow = error.closest('tr')!
+    expect(feedbackRow).toHaveClass('dt-row-detail')
+    expect(feedbackRow.previousElementSibling).toBe(input.closest('tr'))
+    expect(feedbackRow.querySelector('td')).toHaveAttribute('colspan', '2')
+    expect(input.closest('table')).toContainElement(error)
+    expect(addPhoto).toBeDisabled()
     expect(input.compareDocumentPosition(error) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(error.compareDocumentPosition(addPhoto) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(input).toHaveAttribute('aria-describedby', error.id)
   })
 

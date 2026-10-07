@@ -87,6 +87,7 @@
 .cafe-receive__band-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 
 .cafe-capture-table {
+  --cafe-capture-list-clearance: 160px;
   width: min(100%, var(--cafe-capture-content-measure, 48.25rem));
   max-width: 100%;
   min-width: 0;
@@ -103,6 +104,11 @@
 .cafe-capture-table .dt-table tbody tr:not(.dt-group-row) > td { padding-block: 8px; }
 .cafe-capture-table .dt-row-detail > td { padding-left: 12px; }
 .cafe-capture-table .dt-cards { gap: 0; }
+/* Waste's photo guidance makes its pinned band taller, but does not change its columns. */
+.cafe-capture-table.cwl-list { --cafe-capture-list-clearance: 208px; }
+@media (min-width: 1280px) and (max-width: 1372.98px) {
+  .cwl-page.kl-capture-wide { grid-template-columns: minmax(0, 1fr); }
+}
 .cafe-capture-table .dt-cards .dt-card:has(.cafe-capture-row) {
   padding: 12px 0;
   border: 0;
@@ -458,11 +464,13 @@
 
 /* Reserve at the list's end lets its final control scroll clear of the tallest pinned band. */
 @media (max-width: 767.98px) {
-  .cafe-capture-table .dt-cards { padding-bottom: calc(160px + env(safe-area-inset-bottom, 0px)); }
-  .cafe-capture-table .dt-table { margin-bottom: 160px; scroll-margin-bottom: 160px; }
+  .cafe-capture-table .dt-cards { padding-bottom: calc(var(--cafe-capture-list-clearance) + env(safe-area-inset-bottom, 0px)); }
+  .cafe-capture-table .dt-table { margin-bottom: var(--cafe-capture-list-clearance); scroll-margin-bottom: var(--cafe-capture-list-clearance); }
+  .cwl-controls:has(.quantity-field-error) .quantity-field-error { grid-column: 1 / 3; grid-row: 2; width: 100%; }
+  .cwl-controls:has(.quantity-field-error) .cwl-add-photo { grid-column: 3; grid-row: 1 / span 2; align-self: center; }
 }
 @media (min-width: 768px) {
-  .cafe-capture-table .dt-table { margin-bottom: 160px; scroll-margin-bottom: 160px; }
+  .cafe-capture-table .dt-table { margin-bottom: var(--cafe-capture-list-clearance); scroll-margin-bottom: var(--cafe-capture-list-clearance); }
   .cafe-count__input-group { width: 100%; }
   .cafe-count__quantity-control { width: 100%; }
 }

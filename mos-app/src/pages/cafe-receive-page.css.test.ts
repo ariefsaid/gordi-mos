@@ -37,5 +37,15 @@ describe('Capture pages reuse shared layout without cross-page stylesheet depend
     expect(css).not.toMatch(/\.cafe-count__list|\.cafe-count__row|\.cafe-count__quantity-control/)
     expect(css).toMatch(/\.cafe-receive__open-pos\s*\{/)
     expect(css).toMatch(/\.cafe-receive__damage-flag\s*\{/)
+    expect(layout).not.toMatch(/bottom:\s*-(?:48|40)px|margin-bottom:\s*-(?:48|40)px/)
+  })
+
+  it('owns Production and Waste draft notices once in the shared skin', () => {
+    const logCss = read('src/pages/kitchen-log-page.css')
+    const wasteCss = read('src/pages/cafe-waste-page.css')
+    expect(layout.match(/\.kl-capture-draft-list\s*\{/g)).toHaveLength(1)
+    expect(layout).toMatch(/\.kl-capture-draft-notice\s*\{/)
+    expect(logCss).not.toContain('.kl-capture-draft-')
+    expect(wasteCss).not.toContain('.kl-capture-draft-')
   })
 })
