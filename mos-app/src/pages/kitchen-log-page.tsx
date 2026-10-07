@@ -687,8 +687,10 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       myStreamKeys={myStreamKeys}
       onChange={selectStream}
       disabled={status.kind === 'submitting'}
-      switchLabel={t(stream?.activity === 'bar' ? 'cafe.stream.switchBar' : 'cafe.stream.switchKitchen')}
-      switchAriaLabel={t(stream?.activity === 'bar' ? 'cafe.stream.switchBarAria' : 'cafe.stream.switchKitchenAria')}
+      context={<>
+        <span aria-hidden="true">·</span>
+        <span className="kl-date tabular">{formatWeekdayDayMonth(logDate)}</span>
+      </>}
     />
     {pendingStream && <ConfirmDialog
       open
@@ -708,8 +710,11 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     </>
   )
 
-  const captureContext = stream === null ? undefined : (
-    <div className="cafe-capture-context">{streamPicker}</div>
+  const captureContext = (
+    <div className="cafe-capture-context">
+      {streamPicker}
+      {stream === null && <span className="kl-date tabular">{formatWeekdayDayMonth(logDate)}</span>}
+    </div>
   )
 
   const receivingOnlyNotice = (
@@ -1029,7 +1034,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   if (wipItems.length === 0 && stream !== null) {
     return (
       <PageFamilyFrame family="workspace" title={pageTitle} headClassName="cafe-capture-head" statusRow={captureContext} state={streamNonProducing ? 'read-only' : 'empty'}>
-        <div className={`kl-page kl-capture-content cafe-capture-content${isWide ? ' kl-capture-wide' : ''}`}>
+        <div className={`kl-page cafe-capture-content${isWide ? ' kl-capture-wide' : ''}`}>
           <OfflineBanner show={!isOnline} />
           {streamNonProducing && receivingOnlyNotice}
           {mode === 'transfer' && movementOptions.length > 0 && (
@@ -1421,10 +1426,9 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
          a row lands in decides what the row MEANS, so it outranks the static job sentence the
          shared head would otherwise carry (PageHead renders one or the other). */
       statusRow={captureContext}
-      meta={<time className="cafe-capture-date tabular" dateTime={logDate}>{formatWeekdayDayMonth(logDate)}</time>}
       state={status.kind === 'submitting' ? 'saving' : status.kind === 'success' ? 'saved' : streamNonProducing ? 'read-only' : submitError ? 'validation' : 'default'}
     >
-      <div ref={captureRef} className={`kl-page kl-capture-content cafe-capture-content${isWide ? ' kl-capture-wide' : ''}`}>
+      <div ref={captureRef} className={`kl-page cafe-capture-content${isWide ? ' kl-capture-wide' : ''}`}>
         <div className="kl-capture-main">
         {/* GAP-4/#9: staged-but-unsubmitted quantities must not vanish on navigation — prompt
             stay/discard when leaving the route with unsaved entries. */}
