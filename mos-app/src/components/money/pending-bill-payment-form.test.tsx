@@ -53,4 +53,15 @@ describe('AC-1134: the payment form names invalid fields and keeps submit off', 
     await waitFor(() => expect(submit).toBeEnabled())
     expect(screen.queryByRole('status')).toBeNull()
   })
+
+  it('a typed future date shows one alert, from the date field', async () => {
+    renderForm()
+    const date = screen.getByLabelText('Cash-in date')
+    const next = new Date(Date.parse(`${wibToday()}T00:00:00Z`) + 2 * 86_400_000).toISOString().slice(0, 10)
+    fireEvent.change(date, { target: { value: next.split('-').reverse().join('/') } })
+    fireEvent.blur(date)
+    await waitFor(() => expect(screen.getAllByRole('alert').length).toBeGreaterThan(0))
+    expect(screen.getAllByRole('alert')).toHaveLength(1)
+    expect(screen.getByRole('button', { name: 'Record payment' })).toBeDisabled()
+  })
 })

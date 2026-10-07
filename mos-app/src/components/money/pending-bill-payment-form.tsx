@@ -179,7 +179,8 @@ export function PendingBillPaymentForm({ bill, orgId, onCancel, onSaved, reverse
   }
 
   const formTitle = reversePayment ? t('pendingBills.form.reverseTitle') : t('pendingBills.form.title')
-  const dateError = errors.cashInDate && touched.cashInDate
+  // The date field states its own typed-value problem; the form speaks only for an empty date.
+  const dateError = errors.cashInDate && touched.cashInDate && !cashInDateInvalid
     ? errorMessage('cashInDate', errors.cashInDate)
     : null
   const amountError = errors.amount && touched.amount
