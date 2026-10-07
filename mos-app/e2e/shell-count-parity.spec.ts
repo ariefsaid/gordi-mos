@@ -28,9 +28,9 @@ for (const [name, actor, view] of [
     await expect(link).toHaveAccessibleName(homeOpen ? `Tasks, ${homeOpen} open tasks` : 'Tasks')
     await link.click()
     await expect(taskViewsGroup(page).getByRole('button', { name: view, exact: true })).toHaveAttribute('aria-pressed', 'true')
-    // The head scopes its own nouns to the view ("N open in this view · M shown", Done rows
+    // The head scopes its own nouns to the view ("N tasks · M open in this view", Done rows
     // kept 7 days included), so it cannot be mistaken for the rail badge's own-tasks count.
-    await expect(page.getByText(/^\d+ open in this view · \d+ shown$/)).toBeVisible()
+    await expect(page.getByText(/^\d+ tasks? · \d+ open in this view$/)).toBeVisible()
     await expect(page.getByRole('status', { name: 'Loading tasks' })).toHaveCount(0)
     // Read the actual rendered default queue, including virtual rows as they enter view.
     const open = new Set<string>()
@@ -54,7 +54,7 @@ for (const [name, actor, view] of [
     await expect.poll(
       () => page.getByTestId('tasks-count-line').textContent(),
       { message: 'count line settles to the traversed open total' },
-    ).toMatch(new RegExp(`^${open.size} open in this view · \\d+ shown$`))
+    ).toMatch(new RegExp(`^\\d+ tasks? · ${open.size} open in this view$`))
     if (view === 'My work') {
       expect(homeOpen, 'Home count equals the actual open rows in the default My work view').toBe(open.size)
     }
