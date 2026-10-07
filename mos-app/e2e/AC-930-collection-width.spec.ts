@@ -17,7 +17,9 @@ const RECORD_PANEL_CAP_PX = 640
 // cap (TasksWorkspace.css / catalog-collection.css / signal-table-presentation.css).
 const IDENTITY_FLOOR_PX = 240
 const IDENTITY_COLUMN_CAP_PX = 640
-const SWEEP_WIDTHS = [1100, 1200, 1300, 1366, 1440, 1920, 2300] as const
+// The split edge (1100), the 1300 fact-column rule, the 1440 reference and the ultrawide cap; the
+// widths between re-run the same branches (1920 is covered by the per-width describe below).
+const SWEEP_WIDTHS = [1100, 1300, 1440, 2300] as const
 
 type Collection = {
   name: 'Tasks' | 'Signals' | 'Projects & Processes' | 'Objectives'
@@ -204,31 +206,17 @@ function assertNoOverflowReport(report: Awaited<ReturnType<typeof overflowReport
 test.describe('Work collections share one wide measure and one record-panel width (#930)', () => {
   for (const width of [1440, 1920] as const) {
     test.describe(`${width}px desktop`, () => {
-      test(`all four collections render the SAME content-frame width at rest (${width}px)`, async ({ page }) => {
+      test(`all four collections share ONE content-frame width at rest and with a record open, and one panel width (${width}px)`, async ({ page }) => {
         await page.setViewportSize({ width, height: width === 1440 ? 900 : 1080 })
         await loginAs(page, MANAGER.email, MANAGER.password)
-        const widths: number[] = []
-        for (const collection of COLLECTIONS) {
-          await page.goto(collection.path)
-          await expect(page.locator('.page-frame__content')).toBeVisible()
-          await assertNoOverflow(page)
-          widths.push(await contentFrameWidth(page))
-        }
-        for (const [index, w] of widths.entries()) {
-          expect(w, `${COLLECTIONS[index].name} content frame at rest`).toBeGreaterThan(0)
-          expect(Math.abs(w - widths[0]), `${COLLECTIONS[index].name} vs ${COLLECTIONS[0].name}`).toBeLessThanOrEqual(2)
-        }
-      })
-
-      test(`all four collections keep that SAME content-frame width and the shared panel width with a record open (${width}px)`, async ({ page }) => {
-        await page.setViewportSize({ width, height: width === 1440 ? 900 : 1080 })
-        await loginAs(page, MANAGER.email, MANAGER.password)
+        const restFrameWidths: number[] = []
         const frameWidths: number[] = []
         const panelWidths: number[] = []
         for (const collection of COLLECTIONS) {
           await page.goto(collection.path)
           await expect(page.locator('.page-frame__content')).toBeVisible()
           const restFrame = await contentFrameWidth(page)
+          restFrameWidths.push(restFrame)
           await collection.openFirstRecord(page)
           const openPanel = panelWidth(page)
           const panel = await openPanel
@@ -238,6 +226,9 @@ test.describe('Work collections share one wide measure and one record-panel widt
           expect(Math.abs(openFrame - restFrame), `${collection.name}: frame width must not change when a record opens`).toBeLessThanOrEqual(2)
           frameWidths.push(openFrame)
           panelWidths.push(panel)
+        }
+        for (const [index, w] of restFrameWidths.entries()) {
+          expect(Math.abs(w - restFrameWidths[0]), `${COLLECTIONS[index].name} vs ${COLLECTIONS[0].name} (at rest)`).toBeLessThanOrEqual(2)
         }
         for (const [index, w] of frameWidths.entries()) {
           expect(Math.abs(w - frameWidths[0]), `${COLLECTIONS[index].name} vs ${COLLECTIONS[0].name} (record open)`).toBeLessThanOrEqual(2)
@@ -251,7 +242,8 @@ test.describe('Work collections share one wide measure and one record-panel widt
         }
       })
 
-      test(`Tasks' Due/Status cells never wrap to two lines, open or closed (${width}px)`, async ({ page }) => {
+      // 1440 only: the cell grammar is width-independent above the split edge.
+      if (width === 1440) test(`Tasks' Due/Status cells never wrap to two lines, open or closed (${width}px)`, async ({ page }) => {
         await page.setViewportSize({ width, height: width === 1440 ? 900 : 1080 })
         await loginAs(page, MANAGER.email, MANAGER.password)
         await page.goto('work/tasks')

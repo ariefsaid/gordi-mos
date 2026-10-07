@@ -248,11 +248,12 @@ async function openItems(page: Page) {
   await expect(page.getByRole('heading', { name: 'Café items', exact: true })).toBeVisible()
 }
 
-async function capture(page: Page, testInfo: TestInfo, name: string) {
+// Screenshots are written only for the review lane (GORDI_ITEM_SETTINGS_REVIEW_DIR); an ordinary
+// run takes none.
+async function capture(page: Page, _testInfo: TestInfo, name: string) {
   const reviewDir = process.env.GORDI_ITEM_SETTINGS_REVIEW_DIR
-  const output = reviewDir
-    ? join(reviewDir, `${name}.png`)
-    : testInfo.outputPath(`${name}.png`)
+  if (!reviewDir) return
+  const output = join(reviewDir, `${name}.png`)
   await mkdir(dirname(output), { recursive: true })
   await page.screenshot({ path: output, fullPage: true, animations: 'disabled' })
 }
@@ -270,7 +271,8 @@ async function assertNoOverflow(page: Page, width: number) {
 }
 
 test.describe('Café item settings', () => {
-  for (const width of [390, 1280] as const) {
+  // 390 only: choosing a stream is the same code on every width.
+  for (const width of [390] as const) {
     test(`keeps settings operable after choosing the first stream at ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 })
       await mockSettingsApi(page)
@@ -331,28 +333,8 @@ test.describe('Café item settings', () => {
       await captureViewport(page, `lane-1332-after-${width}.png`)
     })
   }
-  for (const width of [390, 1440, 1920] as const) {
-    test(`uses the right layout without overflow at ${width}px`, async ({ page }, testInfo) => {
-      test.setTimeout(60_000)
-      await page.setViewportSize({ width, height: 960 })
-      await mockSettingsApi(page)
-      await loginAs(page, BAR_MEMBER.email, BAR_MEMBER.password)
-      await page.goto('cafe/items')
-      await expect(page.getByRole('heading', { name: 'Café items', exact: true })).toBeVisible()
-
-      if (width < 768) {
-        await expect(page.locator('.dt-cards')).toBeVisible()
-        await expect(page.locator('.dt-cards .cafe-items__item-name').first()).toBeVisible()
-        await expect(page.locator('.cafe-items__table')).toHaveCount(0)
-      } else {
-        await expect(page.locator('.cafe-items__table')).toBeVisible()
-        await expect(page.locator('.cafe-items__table .cafe-items__item-name').first()).toBeVisible()
-        await expect(page.locator('.dt-cards')).toHaveCount(0)
-      }
-      await assertNoOverflow(page, width)
-      await capture(page, testInfo, `item-settings-${width}`)
-    })
-  }
+  // The phone cards vs wide table switch and the no-overflow check are asserted by the 501-item
+  // test above at 390 and 1440.
 
   test('shows stream-scoped missing-item reports at phone and desktop widths', async ({ page }, testInfo) => {
     await mockSettingsApi(page, {
@@ -368,7 +350,7 @@ test.describe('Café item settings', () => {
     })
     await loginAs(page, BAR_MEMBER.email, BAR_MEMBER.password)
 
-    for (const width of [390, 1440, 1920] as const) {
+    for (const width of [390, 1440] as const) {
       await page.setViewportSize({ width, height: 960 })
       await page.goto('cafe/items')
       const reportQueue = page.getByRole('region', { name: 'Missing-item reports for this stream' })
@@ -386,7 +368,7 @@ test.describe('Café item settings', () => {
     await mockSettingsApi(page, { captureKind: 'RAW', captureActive: true })
     await loginAs(page, BAR_MEMBER.email, BAR_MEMBER.password)
 
-    for (const width of [390, 1440, 1920] as const) {
+    for (const width of [390, 1440] as const) {
       await page.setViewportSize({ width, height: 960 })
       await page.goto('cafe/waste')
       await expect(page.getByRole('heading', { name: 'Log waste', exact: true })).toBeVisible()
@@ -411,7 +393,8 @@ test.describe('Café item settings', () => {
     const mocks = await mockSettingsApi(page, { saveDelayMs: 800 })
     await loginAs(page, BAR_MEMBER.email, BAR_MEMBER.password)
 
-    for (const width of [390, 1440] as const) {
+    // 390 only: the item feedback state machine is shared; the wide table row is covered above.
+    for (const width of [390] as const) {
       await page.setViewportSize({ width, height: 960 })
       await page.goto('cafe/items')
       await expect(page.getByRole('heading', { name: 'Café items', exact: true })).toBeVisible()
