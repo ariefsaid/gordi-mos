@@ -264,7 +264,7 @@
     right: 16px;
     bottom: calc(72px + env(safe-area-inset-bottom));
     left: 16px;
-    z-index: 2;
+    z-index: var(--z-inline-raised);
   }
 
 
@@ -337,7 +337,7 @@
 .admin-access-table-frame--more-left::before {
   content: '';
   position: absolute;
-  z-index: 2;
+  z-index: var(--z-inline-raised);
   top: 0;
   bottom: 0;
   width: 40px;
@@ -545,15 +545,6 @@
 }
 
 /* ── Person panel ──────────────────────────────────────────────────────────── */
-
-/* Beside the list, the panel keeps its own scroll so the list stays in view. */
-.admin-people-split > .admin-person-panel {
-  position: sticky;
-  top: 12px;
-  display: flex;
-  flex-direction: column;
-  max-height: calc(100vh - var(--header-h) - 24px);
-}
 
 .admin-person-panel .record-panel-chrome {
   flex: none;
@@ -828,6 +819,11 @@
 .admin-check-row {
   display: flex;
   align-items: center;
+}
+
+/* The phone tap box is 44px; overlap the row padding so the row keeps its height. */
+@media (pointer: coarse) {
+  .admin-check-row .mk-checkbox { margin: -14px 0 -10px; }
 }
 
 .admin-check-row__trailing {

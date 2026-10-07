@@ -17,6 +17,8 @@ printf 'argv %s | passfile=%s\n' "$*" "${PGPASSFILE:-}" >> "$PSQLLOG"
 case "$*" in
   *"select 1"*) [ "${FAKE_DB_DOWN:-0}" = 1 ] && exit 2; echo 1 ;;
   *dead_letter*) echo "${FAKE_DEAD:-0}" ;;
+  *in_flight*) echo "${FAKE_IN_FLIGHT:-0}" ;;
+  *posted_at*) echo "${FAKE_OLD_SENT:-0}" ;;
   *"min(created_at)"*) echo "${FAKE_AGE:-0}" ;;
   *to_regclass*) echo "${FAKE_TABLE:-f}" ;;
   *"interval '15 minutes'"*) echo "${FAKE_CLIENT_ERRS:-0}" ;;
@@ -102,6 +104,8 @@ echo "outbox"
 reset; lifecycle "dead letters" "dead-lettered" FAKE_DEAD=2 -- FAKE_DEAD=0
 reset; lifecycle "pending age" "oldest pending" FAKE_AGE=45 -- FAKE_AGE=3
 reset; run FAKE_AGE=30; [ "$(nmsg)" = 0 ] && ok "pending age at the limit is not an alert" || bad "boundary" "$(msgs)"
+reset; lifecycle "aged in-flight rows" "in-flight" FAKE_IN_FLIGHT=1 -- FAKE_IN_FLIGHT=0
+reset; lifecycle "sent-row retention" "retention" FAKE_OLD_SENT=2 -- FAKE_OLD_SENT=0
 mkenv "$tmp/ops.env"; EXTRA_ENV="OPS_ESB_TARGET_ENV=goo" mkenv "$tmp/ops.env"; reset; run
 grep -q "target_env = 'goo'" "$tmp/psql.log" && ok "target env filter reaches the outbox queries" || bad "no target filter" "$(cat "$tmp/psql.log")"
 EXTRA_ENV="OPS_ESB_TARGET_ENV=prod_x" mkenv "$tmp/ops.env"; run
@@ -126,9 +130,10 @@ fresh_heartbeat; run
 has_msg "recovered" && ok "fresh heartbeat recovers" || bad "heartbeat recovery" "$(msgs)"
 reset; rm -f "$tmp/heartbeat"; run
 has_msg "heartbeat file missing" && ok "missing heartbeat file alerts" || bad "missing heartbeat" "$(msgs)"
-mkenv "$tmp/ops.env" OPS_ESB_HEARTBEAT_FILE; reset; rm -f "$tmp/heartbeat"; run
-[ "$rc" = 0 ] && [ "$(nmsg)" = 0 ] && ok "unset heartbeat file (worker not deployed): skipped, no alert" || bad "unset heartbeat" "rc=$rc $(msgs)"
-mkenv "$tmp/ops.env"
+mkenv "$tmp/ops.env" OPS_ESB_HEARTBEAT_FILE; reset; run
+[ "$(nmsg)" = 1 ] && has_msg "not configured" && ok "unset heartbeat path alerts" || bad "unset heartbeat" "$(msgs)"
+mkenv "$tmp/ops.env"; fresh_heartbeat; run
+[ "$(nmsg)" = 1 ] && has_msg "recovered" && ok "configured heartbeat recovers" || bad "heartbeat recovery" "$(msgs)"
 fresh_heartbeat
 
 echo "backup freshness"

@@ -10,3 +10,10 @@ describe('DataTable phone-card titles', () => {
     expect(css).toMatch(/\.dt-card-title\s*\{[^}]*overflow-wrap:\s*anywhere/)
   })
 })
+
+describe('DataTable desktop row details', () => {
+  it('gives a full-width detail row its own compact, opaque cell below the entry', () => {
+    expect(css).toMatch(/\.dt-table tbody \.dt-row-detail > td\s*\{[^}]*height:\s*auto/)
+    expect(css).toMatch(/\.dt-table tbody \.dt-row-detail > td\s*\{[^}]*background:\s*var\(--card\)/)
+  })
+})

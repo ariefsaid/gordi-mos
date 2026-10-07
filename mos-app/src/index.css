@@ -121,18 +121,18 @@
   --record-panel-w: clamp(440px, 40%, 640px);
   --radius: 0.75rem;   /* OD-P3-10: 12px for cards/containers/overlays */
 
-  /* ── Z-index tier scale (cohesion-debt 2026-07-19, item #3). ONE documented
-     ladder replaces the ad-hoc 20/31/40/50/90/100/9999 heap. The tier ORDER is
-     the contract: a modal/confirm always outranks a drawer, so a confirm launched
-     from inside a drawer is never hidden (the bug: an admin confirm at z-50 opened
-     BEHIND the drawer root at z-90). Local micro-stacking within a component's own
-     stacking context (sticky table headers, tab strips: z-1/z-2) is NOT an app tier
-     and stays inline — these vars are for overlays that float over the page. */
-  --z-sticky:  10;   /* pinned in-flow chrome floating over content (FAB, sticky nav) */
-  --z-popover: 20;   /* menus, pickers, dropdowns anchored to a trigger */
-  --z-drawer:  30;   /* side sheets / slide-overs + their scrim (Task drawer, More, Assistant) */
-  --z-modal:   40;   /* centered dialogs, confirms, ⌘K launcher — ABOVE any drawer */
-  --z-toast:   50;   /* transient status toasts — above everything */
+  /* Global stacking scale. Relative values preserve the order used by local layers,
+     anchored controls, drawers, dialogs, and transient feedback. */
+  --z-inline-raised:   2;
+  --z-inline-floating: 3;
+  --z-sticky:         10;
+  --z-popover:        20;
+  --z-drawer:         30;
+  --z-drawer-popover: 31;
+  --z-modal:          40;
+  --z-modal-popover:  41;
+  --z-toast:          50;
+  --z-popover-top:   100;
 
   /* ── Transition-duration scale (cohesion-debt 2026-07-19, item #5). The kit's
      --ds-animation-duration-* tokens are authored UNITLESS (seconds: 0.075/0.15/
@@ -463,4 +463,14 @@ textarea,
 :where(a) {
   text-underline-offset: 0.18em;
   text-decoration-skip-ink: auto;
+}
+
+@media (max-width: 768px) {
+  :is(
+    input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']):not([type='file']):not([type='image']):not([type='hidden']):not([type='button']):not([type='submit']):not([type='reset']),
+    textarea,
+    select
+  ) {
+    font-size: var(--font-size-touch-input);
+  }
 }

@@ -1,16 +1,21 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
 import { CafePageFrame } from '@/components/kitchen/cafe-page-frame'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { DataTable, type DataTableColumn, type DataTableSort } from '@/components/dashboard/data-table'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
+import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
+import { CafeItemsEmptyState } from '@/components/kitchen/cafe-items-empty-state'
+import { RecordAbout } from '@/components/record/record-page-layout'
 import { Select } from '@/components/ui/select'
 import { MultiPicker } from '@/components/ui/picker'
 import { TextInput } from '@/components/ui/text-input'
 import { useT } from '@/i18n/use-t'
+import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import type { CafeItemSetting, CafeItemSettingUnit } from '@/lib/db/cafe-item-settings'
 import { formatUnitMultiple } from '@/lib/cafe-unit-multiples'
 import {
@@ -38,8 +43,9 @@ import {
   resolveCafeMissingItemReport,
   type CafeMissingItemReport,
 } from '@/lib/db/cafe-missing-item-reports'
-import { useCafeStream } from '@/lib/use-cafe-stream'
-import { useIsDesktop } from '@/shell/use-is-desktop'
+import { useCafeStream, type CafeStreamCatalog } from '@/lib/use-cafe-stream'
+import { RouteLeaveGuard } from '@/shell/route-leave-guard'
+import { useIsWide } from '@/shell/use-is-wide'
 import '@/components/record-collection/record-collection.css'
 import './cafe-item-settings-page.css'
 
@@ -85,6 +91,14 @@ function sameFactors(a: readonly number[], b: readonly number[]): boolean {
   return sortedA.every((factor, index) => factor === sortedB[index])
 }
 
+function itemDraftChanged(item: CafeItemSetting, draft: ItemDraft): boolean {
+  return draft.mosName.trim() !== item.mosName
+    || draft.kind !== (item.kind ?? '')
+    || draft.isActive !== item.isActive
+    || draft.defaultUnitId !== (item.defaultUnitId ?? '')
+    || !sameFactors(draft.unitMultiples, item.unitMultiples ?? [])
+}
+
 function hasDefault(item: CafeItemSetting): boolean {
   return item.defaultUnitId !== null && item.units.some(unit =>
     unit.id === item.defaultUnitId && unit.isDefault,
@@ -99,6 +113,19 @@ export function CafeItemSettingsPage() {
   const auth = useAuth()
   const viewerKey = auth.status === 'authenticated' ? auth.viewer.person.id : auth.status
   return <CafeItemSettingsPageForViewer key={viewerKey} />
+}
+
+/** `catalog` opened on the linked stream (a `branch|activity` key) when it is one of the org's
+ *  streams; otherwise unchanged. */
+function withLinkedStream(catalog: CafeStreamCatalog, wanted: string | null): CafeStreamCatalog {
+  const option = wanted ? catalog.options.find(o => streamKey(o.branch.id, o.activity) === wanted) : undefined
+  if (!option) return catalog
+  return {
+    ...catalog,
+    stream: option,
+    branchId: option.branch.id,
+    locationOptions: catalog.options.filter(o => o.branch.id === option.branch.id),
+  }
 }
 
 function CafeItemSettingsPageForViewer() {
@@ -119,12 +146,24 @@ function CafeItemSettingsPageForViewer() {
   const [items, setItems] = useState<CafeItemSetting[]>([])
   const needsUnitCount = items.filter(needsUnit).length
   const [drafts, setDrafts] = useState<Record<string, ItemDraft>>({})
-  const [search, setSearch] = useState('')
+  const [pendingStream, setPendingStream] = useState<ProductionStream | null>(null)
+  const itemsRef = useRef(items)
+  const draftsRef = useRef(drafts)
+  const draftStreamKey = useRef<string | null>(null)
+  // A link from elsewhere (Money's Branch page) may name an item (?q=) and its stream (?stream=
+  // branch|activity). Both are read once and dropped from the URL. The linked stream is shown for
+  // this visit only, at any branch: it is adopted, not chosen, so the viewer's Café location and
+  // remembered stream stay as they were.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const linked = useRef({ q: searchParams.get('q'), stream: searchParams.get('stream') })
+  const [search, setSearch] = useState(linked.current.q ?? '')
   const [kindFilter, setKindFilter] = useState<KitchenItemKindFilter>('All')
   const [activeFilter, setActiveFilter] = useState<KitchenItemActiveFilter>('All')
   const [needsUnitFilter, setNeedsUnitFilter] = useState<KitchenItemNeedsUnitFilter>('All')
   const [listSort, setListSort] = useState<DataTableSort>()
-  const isDesktop = useIsDesktop()
+  // The editor table needs the wide operating layout, as on the other Café pages; narrower widths
+  // get one card per item.
+  const isWide = useIsWide()
   const [readState, setReadState] = useState<ReadState>('loading')
   const [catalogReady, setCatalogReady] = useState(false)
   const [permission, setPermission] = useState<EditPermission>('checking')
@@ -138,6 +177,9 @@ function CafeItemSettingsPageForViewer() {
   const [retryKey, setRetryKey] = useState(0)
   const requestGeneration = useRef(0)
 
+  useEffect(() => { itemsRef.current = items }, [items])
+  useEffect(() => { draftsRef.current = drafts }, [drafts])
+
   // One CafeStream bootstrap preserves the module's stream choice and location rules.
   useEffect(() => {
     let active = true
@@ -145,7 +187,9 @@ function CafeItemSettingsPageForViewer() {
     setCatalogReady(false)
     void resolveStream().then(catalog => {
       if (active) {
-        adoptStream(catalog)
+        const wanted = linked.current.stream
+        linked.current.stream = null
+        adoptStream(withLinkedStream(catalog, wanted))
         setCatalogReady(true)
       }
     }).catch(() => {
@@ -154,10 +198,19 @@ function CafeItemSettingsPageForViewer() {
     return () => { active = false }
   }, [adoptStream, resolveStream, retryKey])
 
+  useEffect(() => {
+    if (!searchParams.has('q') && !searchParams.has('stream')) return
+    const next = new URLSearchParams(searchParams)
+    next.delete('q')
+    next.delete('stream')
+    setSearchParams(next, { replace: true })
+  }, [searchParams, setSearchParams])
+
   const loadStreamItems = useCallback(async () => {
     if (!catalogReady) return
     const generation = ++requestGeneration.current
     if (!stream) {
+      draftStreamKey.current = null
       setItems([])
       setDrafts({})
       setReports([])
@@ -189,9 +242,20 @@ function CafeItemSettingsPageForViewer() {
         }
       }
       if (generation !== requestGeneration.current) return
-      setPermissionStreamKey(streamKey(stream.branch.id, stream.activity))
+      const nextStreamKey = streamKey(stream.branch.id, stream.activity)
+      const sameDraftStream = draftStreamKey.current === nextStreamKey
+      const previousItems = new Map(itemsRef.current.map(item => [item.id, item]))
+      const previousDrafts = draftsRef.current
+      draftStreamKey.current = nextStreamKey
+      setPermissionStreamKey(nextStreamKey)
       setItems(nextItems)
-      setDrafts(Object.fromEntries(nextItems.map(item => [item.id, initialDraft(item)])))
+      setDrafts(Object.fromEntries(nextItems.map(item => {
+        const previousItem = previousItems.get(item.id)
+        const previousDraft = sameDraftStream ? previousDrafts[item.id] : undefined
+        return [item.id, previousItem && previousDraft && itemDraftChanged(previousItem, previousDraft)
+          ? previousDraft
+          : initialDraft(item)]
+      })))
       setReports(nextReports)
       setReportsError(nextReportsError)
       setPermission(canEdit.failed ? 'error' : canEdit.value ? 'allowed' : 'read-only')
@@ -212,32 +276,49 @@ function CafeItemSettingsPageForViewer() {
 
   const canEdit = permission === 'allowed' && stream !== null
     && permissionStreamKey === streamKey(stream.branch.id, stream.activity)
+  const changed = useMemo(() => {
+    const result = new Set<string>()
+    for (const item of items) {
+      const draft = drafts[item.id]
+      if (draft && itemDraftChanged(item, draft)) result.add(item.id)
+    }
+    return result
+  }, [drafts, items])
+
+  const applyStreamChange = useCallback((nextStream: ProductionStream) => {
+    if (!stream || streamKey(stream.branch.id, stream.activity) !== streamKey(nextStream.branch.id, nextStream.activity)) {
+      requestGeneration.current += 1
+      draftStreamKey.current = null
+      setDrafts({})
+      setSaveStates({})
+      setSavingIds(new Set())
+    }
+    setPendingStream(null)
+    setStream(nextStream)
+  }, [setStream, stream])
+
+  const requestStreamChange = useCallback((nextStream: ProductionStream) => {
+    if (stream && streamKey(stream.branch.id, stream.activity) === streamKey(nextStream.branch.id, nextStream.activity)) {
+      setStream(nextStream)
+      return
+    }
+    if (changed.size > 0) {
+      setPendingStream(nextStream)
+      return
+    }
+    applyStreamChange(nextStream)
+  }, [applyStreamChange, changed, setStream, stream])
+
   const streamBar = {
     options: streamOptions,
     stream,
-    onChange: setStream,
+    onChange: requestStreamChange,
     homeStream,
     myStreamKeys,
     locationBranchId: branchId ?? undefined,
     disabled: readState === 'loading',
   }
 
-  const changed = useMemo(() => {
-    const result = new Set<string>()
-    for (const item of items) {
-      const draft = drafts[item.id]
-      if (!draft) continue
-      const multiples = item.unitMultiples ?? []
-      if (
-        draft.mosName.trim() !== item.mosName
-        || draft.kind !== (item.kind ?? '')
-        || draft.isActive !== item.isActive
-        || draft.defaultUnitId !== (item.defaultUnitId ?? '')
-        || !sameFactors(draft.unitMultiples, multiples)
-      ) result.add(item.id)
-    }
-    return result
-  }, [drafts, items])
 
   const setDraft = useCallback((itemId: string, update: (draft: ItemDraft) => ItemDraft) => {
     setDrafts(current => {
@@ -251,6 +332,7 @@ function CafeItemSettingsPageForViewer() {
   const saveItem = useCallback(async (item: CafeItemSetting) => {
     const draft = drafts[item.id]
     if (!draft || !stream || !canEdit || !changed.has(item.id)) return
+    const generation = requestGeneration.current
     setSavingIds(current => new Set(current).add(item.id))
     setSaveStates(current => ({ ...current, [item.id]: null }))
     try {
@@ -269,6 +351,7 @@ function CafeItemSettingsPageForViewer() {
         shownUnitIds,
         unitMultiples: draft.unitMultiples,
       })
+      if (generation !== requestGeneration.current) return
       setItems(current => current.map(candidate => candidate.id !== item.id ? candidate : {
         ...candidate,
         mosName: mosName === candidate.erpName ? candidate.erpName : mosName,
@@ -288,15 +371,18 @@ function CafeItemSettingsPageForViewer() {
       }))
       setSaveStates(current => ({ ...current, [item.id]: { kind: 'saved' } }))
     } catch {
+      if (generation !== requestGeneration.current) return
       setSaveStates(current => ({ ...current, [item.id]: { kind: 'error', message: t('cafe.items.saveError') } }))
     } finally {
-      setSavingIds(current => {
-        const next = new Set(current)
-        next.delete(item.id)
-        return next
-      })
+      if (generation === requestGeneration.current) {
+        setSavingIds(current => {
+          const next = new Set(current)
+          next.delete(item.id)
+          return next
+        })
+      }
     }
-  }, [canEdit, changed, drafts, stream, t])
+  }, [canEdit, changed, drafts, requestGeneration, stream, t])
 
   const resolveReport = useCallback(async (report: CafeMissingItemReport) => {
     if (!stream || !canEdit || resolvingReportIds.has(report.id)) return
@@ -429,12 +515,28 @@ function CafeItemSettingsPageForViewer() {
       meta={pageMeta}
       state={readState === 'loading' ? 'loading' : readState === 'error' ? 'error' : 'default'}
     >
+      <RouteLeaveGuard when={changed.size > 0} message={t('cafe.items.unsaved.leave')} />
+      {pendingStream && (
+        <ConfirmDialog
+          open
+          title={t('cafe.items.unsaved.title')}
+          body={t('cafe.items.unsaved.switchBody', {
+            from: streamLabel(t, stream),
+            to: streamLabel(t, pendingStream),
+          })}
+          confirmLabel={t('cafe.items.unsaved.switch')}
+          cancelLabel={t('leaveGuard.stay')}
+          tone="destructive"
+          onConfirm={async () => applyStreamChange(pendingStream)}
+          onCancel={() => setPendingStream(null)}
+        />
+      )}
       {!stream && readState === 'ready' && (
         <CafeStreamChoices
           options={locationOptions}
           homeStream={homeStream}
           myStreamKeys={myStreamKeys}
-          onChoose={setStream}
+          onChoose={requestStreamChange}
         />
       )}
 
@@ -500,11 +602,7 @@ function CafeItemSettingsPageForViewer() {
         </p>
       )}
       {readState === 'ready' && stream && items.length === 0 && (
-        <EmptyState
-          variant="awaiting"
-          title={t('cafe.items.emptyTitle')}
-          copy={t('cafe.items.emptyCopy')}
-        />
+        <CafeItemsEmptyState stream={stream} esbItemCount={0} canManage={canEdit} />
       )}
       {readState === 'ready' && stream && items.length > 0 && (
         <section className="cafe-items" aria-label={t('cafe.items.listLabel')}>
@@ -535,7 +633,7 @@ function CafeItemSettingsPageForViewer() {
               rowClassName={item => item.needsUnit ? 'cafe-items__row--needs-unit' : undefined}
               sort={listSort}
               onSortChange={next => setListSort(next)}
-              isDesktop={isDesktop}
+              isDesktop={isWide}
               state={visibleItems.length === 0 ? 'empty' : 'ready'}
               emptyLabel={t('cafe.items.noMatches')}
               caption={t('cafe.items.tableCaption')}
@@ -565,11 +663,20 @@ function defaultUnitLabel(item: CafeItemSetting, t: ReturnType<typeof useT>): st
   return unit ? unitLabel(unit, t) : t('cafe.items.noDefault')
 }
 
+/** The fields the ESB catalog refresh writes, shown as values: MOS cannot change them. */
+function esbFields(item: CafeItemListRow, t: ReturnType<typeof useT>, name?: ReactNode) {
+  return [
+    ...(name === undefined ? [] : [{ key: 'erpName', label: t('cafe.items.erpName'), value: name }]),
+    ...(item.category ? [{ key: 'erpCategory', label: t('cafe.items.erpCategory'), value: item.category }] : []),
+  ]
+}
+
 function ItemIdentity({ item }: { item: CafeItemListRow }) {
+  const t = useT()
   return (
     <div className="cafe-items__erp-cell">
       <span className="cafe-items__item-name">{item.erpName}</span>
-      {item.category && <span className="cafe-items__item-meta">{item.category}</span>}
+      <RecordAbout items={esbFields(item, t)} />
       {item.needsUnit && <NeedsUnitStatus />}
     </div>
   )
@@ -699,11 +806,11 @@ function ItemCard({ item, draft, canEdit, saving, changed, saveState, onDraftCha
   return (
     <article className="cafe-items__card-body" aria-labelledby={`cafe-item-${item.id}`}>
       <header className="cafe-items__card-header">
-        <span className="cafe-items__field-label">{t('cafe.items.erpName')}</span>
-        <h2 id={`cafe-item-${item.id}`} className="cafe-items__item-name">
-          {item.erpName}{item.needsUnit && <NeedsUnitStatus />}
-        </h2>
-        {item.category && <p className="cafe-items__item-meta">{item.category}</p>}
+        <RecordAbout items={esbFields(item, t, (
+          <h2 id={`cafe-item-${item.id}`} className="cafe-items__item-name">
+            {item.erpName}{item.needsUnit && <NeedsUnitStatus />}
+          </h2>
+        ))} />
       </header>
       <div className="cafe-items__card-field">
         {!canEdit && <span className="cafe-items__field-label">{t('cafe.items.mosName')}</span>}

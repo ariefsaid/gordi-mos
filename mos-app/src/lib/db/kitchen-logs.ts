@@ -5,14 +5,12 @@
 
 import { supabase } from '@/lib/supabase'
 import { cafeUnitDisplayLabel, listCafeItemSettings, toCafeLogItem } from './cafe-item-settings'
-import { movementKey } from '@/lib/kitchen-action-label'
+import { movementKey, streamDateKey } from '@/lib/kitchen-action-label'
 import type {
   ActualsMap,
   BranchOption,
   CafeDestination,
   CaptureFormItem,
-  ItemUnitOption,
-  WipItemOption,
   PlanMap,
   StockMap,
   ItemStock,
@@ -104,30 +102,6 @@ export function streamCatalogFrom(
   return streams
 }
 
-// ── WIP items ────────────────────────────────────────────────────────────────
-
-/**
- * List active manually maintained WIP items sorted by name — the legacy plan/stock catalog.
- * ERP items are added from per-stream team settings and their item-level kind is never read.
- *
- * DELIBERATELY not the capture form's source. The DD-WAY-29 gate scopes absence to the
- * CAPTURE form only (FR-011) — this read feeds the stock/verification plane (FR-060,
- * OD-WAY-45) and the plan surface, which must keep seeing every active item: an
- * unconfirmed item still has real balances to verify, and hiding it there would blind
- * the very plane that audits the gate. The capture form reads listCaptureFormItems.
- */
-export async function listActiveWipItems(): Promise<WipItemOption[]> {
-  const { data, error } = await ops()
-    .from('wip_items')
-    .select('id,name,category')
-    .eq('flag_active', true)
-    .eq('reference_source', 'manual')
-    .eq('kind', 'WIP')
-    .order('name', { ascending: true })
-  if (error) throw new Error(`listActiveWipItems failed — ${error.message}`)
-  return (data ?? []) as WipItemOption[]
-}
-
 // ── Stream item lists (#222) ──────────────────────────────────────────────────
 
 /** The items a stream offers for new capture and planning (ops.stream_items). */
@@ -160,70 +134,24 @@ export function isItemNotOnStreamError(err: unknown): boolean {
 }
 
 /**
- * List the items the CAPTURE FORM may offer, sorted by name. With a chosen stream, the
- * per-stream Café settings reader supplies the MOS name, default ERP detail and shown details;
- * only WIP items remain eligible under the existing capture contract. Before a stream is chosen,
- * the prior gated `capture_form_items` view remains visible as a read-only catalog, so the
- * explicit stream picker can still be used without allowing an unscoped save.
- *
- * The no-stream view returns one row per confirmed (item, unit); rows fold into items carrying
- * their OFFERED units (#234): the default first — the fixed unit beside the qty input (FR-020) —
- * then transferable alternates. A non-transferable ALTERNATE is dropped here (FR-032,
- * AC-015: never offered); the default is kept whatever its flag, because the fixed unit is
- * master data, not an offer. An item whose confirmed rows yield no offerable unit at all
- * (non-transferable alternates only, no default) is absent — a row that cannot name its unit
- * cannot be captured. Stream-specific log writes are checked again by the database.
+ * List the items the capture form may offer on a stream, sorted by the name operators see. The
+ * stream's Café settings supply the MOS name, default ERP detail and kind; every item is an ESB
+ * catalog item (OD-2026-10-06-ESB-ITEMS). Production offers active WIP items, transfer active RAW and
+ * WIP items. Without a stream nothing can be logged, so nothing is read. The database checks the
+ * stream list and item again on write.
  */
-async function listLegacyCaptureFormItems(): Promise<CaptureFormItem[]> {
-  const { data, error } = await ops()
-    .from('capture_form_items')
-    .select('wip_item_id,name,category,item_unit_id,unit_name,is_default,is_transferable')
-    .order('name', { ascending: true })
-    .order('unit_name', { ascending: true })
-  if (error) throw new Error(`listCaptureFormItems failed — ${error.message}`)
-  type ViewRow = {
-    wip_item_id: string
-    name: string
-    category: string | null
-    item_unit_id: string
-    unit_name: string
-    is_default: boolean
-    is_transferable: boolean
-  }
-  const byItem = new Map<string, CaptureFormItem>()
-  for (const row of (data ?? []) as ViewRow[]) {
-    if (!row.is_default && !row.is_transferable) continue // FR-032/AC-015: never offered
-    let item = byItem.get(row.wip_item_id)
-    if (!item) {
-      item = { id: row.wip_item_id, name: row.name, category: row.category, units: [] }
-      byItem.set(row.wip_item_id, item)
-    }
-    const unit: ItemUnitOption = {
-      id: row.item_unit_id,
-      name: row.unit_name,
-      is_default: row.is_default,
-    }
-    // Default first (FR-020 — it IS the row's fixed unit); alternates keep name order.
-    if (unit.is_default) item.units.unshift(unit)
-    else item.units.push(unit)
-  }
-  return [...byItem.values()]
-}
-
 export async function listCaptureFormItems(
   stream?: ProductionStream,
   action: 'produce' | 'transfer' = 'produce',
 ): Promise<CaptureFormItem[]> {
-  if (!stream) return listLegacyCaptureFormItems()
+  if (!stream) return []
 
-  const [settings, legacyItems, offered] = await Promise.all([
+  const [settings, offered] = await Promise.all([
     listCafeItemSettings(stream),
-    listLegacyCaptureFormItems(),
     listStreamItemIds(stream),
   ])
-  const erpItemIds = new Set(settings.map(item => item.id))
   // The settings view is stream-scoped; intersect again so a future view change cannot widen capture.
-  const erpItems = settings
+  return settings
     .filter(item => item.isActive
       && (action === 'produce' ? item.kind === 'WIP' : item.kind === 'RAW' || item.kind === 'WIP')
       && offered.has(item.id))
@@ -242,48 +170,55 @@ export async function listCaptureFormItems(
         unit_multiples: logItem.multiples,
       }] : []
     })
-  const manualItems = legacyItems.filter(item => !erpItemIds.has(item.id) && offered.has(item.id))
-  // Production exposes team-active WIP items; transfer exposes team-active RAW and WIP items.
-  // Manual legacy items remain WIP. Sort by the name operators see, then stable ID.
-  return [...erpItems, ...manualItems].sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
+    .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
 }
 
 // ── Kitchen plans ─────────────────────────────────────────────────────────────
 
-/**
- * Fetch kitchen plans for a date, SCOPED TO ONE (branch, activity) production stream
- * (OD-WAY-28). The date-only read this replaces silently summed every stream's plan into
- * one number the moment more than one stream existed.
- *
- * Returns a PlanMap: { [wip_item_id]: { [movement key]: qty_porsi } }, so the form looks up
- * the plan for the movement the capturer has selected in O(1). The key is derived from the
- * stored `(action, destination_branch_id)` pair — there is no stored action_type.
- */
-export async function fetchPlanMap(
-  logDate: string,
-  stream: ProductionStream,
-): Promise<PlanMap> {
+/** Single-context adapter for capture surfaces; Review uses fetchPlanMaps for each page. */
+export async function fetchPlanMap(logDate: string, stream: ProductionStream): Promise<PlanMap> {
+  const [entry] = await fetchPlanMaps([{ logDate, stream }])
+  return entry?.[1] ?? {}
+}
+
+/** Fetches plan maps for the exact date/stream contexts on one visible review page in one read. */
+export async function fetchPlanMaps(
+  contexts: Array<{ logDate: string; stream: ProductionStream }>,
+): Promise<Array<[string, PlanMap]>> {
+  const unique = new Map(contexts.map(context => [
+    streamDateKey(context.logDate, context.stream.branch.id, context.stream.activity),
+    context,
+  ]))
+  if (unique.size === 0) return []
+
+  const filter = [...unique.values()].map(({ logDate, stream }) =>
+    `and(log_date.eq.${logDate},branch_id.eq.${stream.branch.id},activity.eq.${stream.activity})`,
+  ).join(',')
   const { data, error } = await ops()
     .from('kitchen_plans')
-    .select('wip_item_id,action,destination_branch_id,qty_porsi')
-    .eq('log_date', logDate)
-    .eq('branch_id', stream.branch.id)
-    .eq('activity', stream.activity)
-  if (error) throw new Error(`fetchPlanMap failed — ${error.message}`)
-  type PlanKeyRow = {
+    .select('log_date,branch_id,activity,wip_item_id,action,destination_branch_id,qty_porsi')
+    .or(filter)
+  if (error) throw new Error(`fetchPlanMaps failed — ${error.message}`)
+
+  type PlanContextRow = {
+    log_date: string
+    branch_id: string
+    activity: ProductionActivity
     wip_item_id: string
     action: KitchenAction
     destination_branch_id: string | null
     qty_porsi: number
   }
-  const map: PlanMap = {}
-  for (const row of (data ?? []) as PlanKeyRow[]) {
-    if (!map[row.wip_item_id]) map[row.wip_item_id] = {}
-    map[row.wip_item_id][
+  const maps = new Map([...unique.keys()].map(key => [key, {} as PlanMap]))
+  for (const row of (data ?? []) as PlanContextRow[]) {
+    const planMap = maps.get(streamDateKey(row.log_date, row.branch_id, row.activity))
+    if (!planMap) continue
+    if (!planMap[row.wip_item_id]) planMap[row.wip_item_id] = {}
+    planMap[row.wip_item_id][
       movementKey({ action: row.action, destinationBranchId: row.destination_branch_id })
     ] = row.qty_porsi
   }
-  return map
+  return [...maps.entries()]
 }
 
 /**
@@ -457,51 +392,43 @@ export async function fetchStockMap(
 }
 
 /**
- * Fetch the read-only Stock view's display rows for a date (S4, FR-060/061).
- * Lists active manual WIP items on the stream with a 0/0 fallback, plus ERP settings joined to
- * rows returned by the stream stock RPC. The RPC owns ERP eligibility, including active RAW at
- * 0/0; nonzero off-list balances remain visible with `on_stream: false`. Returns both cuts,
- * `stok` (usable_qty) and `tersedia` (available_qty), for the selected date. Negative balances
- * are preserved, never clamped (FR-061/AC-032).
+ * Fetch the read-only Stock view's display rows for a date (S4, FR-060/061): the stream's ESB items
+ * joined to the rows the stream stock RPC returns. The RPC owns ERP eligibility, including active RAW
+ * at 0/0; a listed item that went inactive keeps showing while it holds a balance, with
+ * `on_stream: false`. Hand-made items are not listed (OD-2026-10-06-ESB-ITEMS). Returns both cuts,
+ * `stok` (usable_qty) and `tersedia` (available_qty). Negative balances are preserved, never clamped
+ * (FR-061/AC-032).
  */
 export async function fetchKitchenStock(
   asOf: string,
   stream: ProductionStream,
 ): Promise<KitchenStockRow[]> {
-  const [manualItems, settings, stockRows, offered] = await Promise.all([
-    listActiveWipItems(),
+  const [settings, stockRows, offered] = await Promise.all([
     listCafeItemSettings(stream),
     fetchStockForDate(asOf, stream),
     listStreamItemIds(stream),
   ])
   const byItem = new Map(stockRows.map(r => [r.wip_item_id, r]))
-  // A stream's own items, plus any other item still holding a balance in its books (#222): a
-  // list change never hides stock someone has to account for.
   const holdsBalance = (id: string) => {
     const s = byItem.get(id)
     return !!s && (Number(s.usable_qty) !== 0 || Number(s.available_qty) !== 0)
   }
-  const manualIds = new Set(manualItems.map(item => item.id))
-  const items: WipItemOption[] = [
-    ...manualItems,
-    ...settings
-      // The stock RPC owns ERP eligibility (active team-classified RAW/WIP). Its row may
-      // legitimately be 0/0, so do not repeat a kind/active test in this name join.
-      .filter(item => byItem.has(item.id))
-      .filter(item => !manualIds.has(item.id))
-      .map(item => ({ id: item.id, name: item.mosName, category: item.category })),
-  ]
-  return items.filter(item => offered.has(item.id) || holdsBalance(item.id)).map(item => {
-    const s = byItem.get(item.id)
-    return {
-      wip_item_id: item.id,
-      wip_item_name: item.name,
-      category: item.category,
-      on_stream: offered.has(item.id),
-      stok: s?.usable_qty ?? 0,
-      tersedia: s?.available_qty ?? 0,
-    }
-  })
+  return settings
+    // The stock RPC owns ERP eligibility (active team-classified RAW/WIP). Its row may
+    // legitimately be 0/0, so do not repeat a kind/active test in this name join.
+    .filter(item => byItem.has(item.id))
+    .filter(item => offered.has(item.id) || holdsBalance(item.id))
+    .map(item => {
+      const s = byItem.get(item.id)
+      return {
+        wip_item_id: item.id,
+        wip_item_name: item.mosName,
+        category: item.category,
+        on_stream: offered.has(item.id),
+        stok: s?.usable_qty ?? 0,
+        tersedia: s?.available_qty ?? 0,
+      }
+    })
 }
 
 // ── Kitchen log insert ────────────────────────────────────────────────────────
@@ -517,6 +444,7 @@ export async function fetchKitchenStock(
  *    (`kitchen_logs_destination_matches_action`).
  */
 function toKitchenLogRow(input: CreateKitchenLogInput): Record<string, unknown> {
+  if (!input.client_request_id) throw new Error('client_request_id is required for a kitchen capture')
   if (input.qty_porsi <= 0) throw new Error('qty_porsi must be > 0')
   if ((input.entry_quantity == null) !== (input.entry_unit_factor == null)) {
     throw new Error('entry quantity and unit factor must be supplied together')
@@ -540,6 +468,7 @@ function toKitchenLogRow(input: CreateKitchenLogInput): Record<string, unknown> 
     throw new Error('a waste log carries no destination branch')
   }
   return {
+    client_request_id: input.client_request_id,
     business_unit_id: input.business_unit_id,
     log_date: input.log_date,
     branch_id: input.branch_id,
@@ -556,8 +485,7 @@ function toKitchenLogRow(input: CreateKitchenLogInput): Record<string, unknown> 
       entry_unit_factor: input.entry_unit_factor,
     }),
     notes: input.notes ?? null,
-    // Waste starts as a Draft so the required photo can attach before submission.
-    ...(input.action === 'waste' ? { status: 'Draft' } : {}),
+    // The RPC chooses Submitted vs Draft from action; status is never client-controlled.
     // source NOT sent — DB defaults to 'mos'
     // org_id NOT sent — server-stamped by current_org_id()
     // submitted_by NOT sent — server-stamped by current_person_id()
@@ -570,16 +498,8 @@ function toKitchenLogRow(input: CreateKitchenLogInput): Record<string, unknown> 
  * Throws on PostgREST error. Returns the inserted row's id.
  */
 export async function insertKitchenLog(input: CreateKitchenLogInput): Promise<string> {
-  const row = toKitchenLogRow(input)
-
-  const { data, error } = await ops()
-    .from('kitchen_logs')
-    .insert(row)
-    .select('id')
-    .single()
-
-  if (error) throw new Error(`insertKitchenLog failed — ${error.message}`)
-  return (data as { id: string }).id
+  const ids = await insertKitchenLogRows([input], 'insertKitchenLog')
+  return ids[0]!
 }
 
 /**
@@ -592,15 +512,24 @@ export async function insertKitchenLogBatch(
 ): Promise<string[]> {
   if (inputs.length === 0) return []
 
+  return insertKitchenLogRows(inputs, 'insertKitchenLogBatch')
+}
+
+async function insertKitchenLogRows(
+  inputs: CreateKitchenLogInput[],
+  operation: 'insertKitchenLog' | 'insertKitchenLogBatch',
+): Promise<string[]> {
   const rows = inputs.map(toKitchenLogRow)
+  const { data, error } = await ops().rpc('insert_cafe_capture_logs', { p_rows: rows })
+  if (error) throw new Error(`${operation} failed — ${error.message}`)
 
-  const { data, error } = await ops()
-    .from('kitchen_logs')
-    .insert(rows)
-    .select('id')
-
-  if (error) throw new Error(`insertKitchenLogBatch failed — ${error.message}`)
-  return ((data ?? []) as { id: string }[]).map(r => r.id)
+  const returned = (data ?? []) as Array<{ id: string; client_request_id: string }>
+  const idsByRequestId = new Map(returned.map(row => [row.client_request_id, row.id]))
+  return inputs.map(input => {
+    const id = idsByRequestId.get(input.client_request_id)
+    if (!id) throw new Error(`${operation} failed — the capture RPC did not return its original row`)
+    return id
+  })
 }
 
 // ── Review / approve queue (S3 — ops_lead, FR-040..044/050) ───────────────────
@@ -632,27 +561,33 @@ const REVIEW_SELECT =
 export const KITCHEN_LOGS_PAGE_SIZE = 50
 
 export type KitchenLogsWindow = {
-  before?: Pick<ReviewLogRow, 'created_at' | 'id'>
+  before?: Pick<ReviewLogRow, 'log_date' | 'created_at' | 'id'>
   stream?: { branchId: string; activity: ProductionActivity }
 }
 
 /**
- * Page Submitted kitchen logs oldest first within a date — the ops_lead review queue (FR-040).
+ * Page Submitted kitchen logs oldest-first by log date, then submission time (FR-040). An
+ * optional date narrows the queue; omitting it returns every pending log.
  * Only `status = 'Submitted'` rows (the GIGO queue, FR-024/040); RLS scopes to the
  * caller's org. Returns a flat display shape (WIP name embedded; plan-vs-logged is
- * merged at the page from fetchPlanMap; submitter name from the directory).
+ * merged at the page from fetchPlanMaps; submitter name from the directory).
  */
-export async function listSubmittedKitchenLogs(logDate: string, window: KitchenLogsWindow = {}): Promise<ReviewLogRow[]> {
+export async function listSubmittedKitchenLogs(logDate?: string, window: KitchenLogsWindow = {}): Promise<ReviewLogRow[]> {
   let query = ops()
     .from('kitchen_logs')
     .select(REVIEW_SELECT)
     .eq('status', 'Submitted')
-    .eq('log_date', logDate)
+  if (logDate) query = query.eq('log_date', logDate)
   if (window.stream) query = query.eq('branch_id', window.stream.branchId).eq('activity', window.stream.activity)
   if (window.before) {
-    query = query.or(`created_at.gt.${window.before.created_at},and(created_at.eq.${window.before.created_at},id.gt.${window.before.id})`)
+    query = logDate
+      ? query.or(`created_at.gt.${window.before.created_at},and(created_at.eq.${window.before.created_at},id.gt.${window.before.id})`)
+      : query.or(`log_date.gt.${window.before.log_date},and(log_date.eq.${window.before.log_date},or(created_at.gt.${window.before.created_at},and(created_at.eq.${window.before.created_at},id.gt.${window.before.id})))`)
   }
-  const { data, error } = await query.order('created_at', { ascending: true }).order('id', { ascending: true }).limit(KITCHEN_LOGS_PAGE_SIZE)
+  const ordered = logDate
+    ? query.order('created_at', { ascending: true }).order('id', { ascending: true })
+    : query.order('log_date', { ascending: true }).order('created_at', { ascending: true }).order('id', { ascending: true })
+  const { data, error } = await ordered.limit(KITCHEN_LOGS_PAGE_SIZE)
   if (error) throw new Error(`listSubmittedKitchenLogs failed — ${error.message}`)
 
   type RawRow = {

@@ -8,8 +8,8 @@
  * minimum 8px gap" as the floor between adjacent inline elements.
  *
  * jsdom has no layout engine, so this layer pins the authored spacing declaration (≥8px
- * inline-end margin on the label). The measured on-screen gap (≥8px between the label's right
- * edge and the first chip's left edge) lives in e2e/guards.geometry.spec.ts (GUARD-R3).
+ * inline-end margin on the label). This file is the single owner of GUARD-R3; the retired browser
+ * measurement of the label→chip gap duplicated it.
  */
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'

@@ -1,18 +1,13 @@
-import { Link } from 'react-router-dom'
-import { EmptyState } from '@/components/ui/state-kit'
-import { useT } from '@/i18n/use-t'
+import { CafeReceiptIssuesQueue } from '@/components/kitchen/cafe-receipt-issues-queue'
 import { CafePageFrame } from '@/components/kitchen/cafe-page-frame'
-import './cafe-count-page.css'
+import '@/components/kitchen/cafe-capture-layout.css'
 
-/** The Receipt issues destination is registered here; its list arrives with matching (posting stays off). */
+/** Procurement's org-wide Receipt issues list; receivers get only their own issues, read-only, through RLS. */
 export function CafeReceiptIssuesPage() {
-  const t = useT()
   return (
     <CafePageFrame page="receiptIssues" streamBar={{ options: [], stream: null, allStreams: true }}>
-      <div className="cafe-count">
-        <EmptyState variant="blank" title={t('cafe.receipts.issues.empty.title')} copy={t('cafe.receipts.issues.empty.copy')}>
-          <Link to="/cafe/receive" className="btn btn-outline btn-touch">{t('nav.cafe.receive')}</Link>
-        </EmptyState>
+      <div className="cafe-capture-review-page">
+        <CafeReceiptIssuesQueue />
       </div>
     </CafePageFrame>
   )

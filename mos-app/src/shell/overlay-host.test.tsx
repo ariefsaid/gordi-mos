@@ -1001,3 +1001,18 @@ describe('overlay host — marker-only records come back with their history entr
     expect(getApi().session).toBeNull()
   })
 })
+
+describe('overlay host — Back before the open location rendered (#1563)', () => {
+  it('closes the session when Back lands before React committed the open marker location', async () => {
+    const { driver, connect } = wireDriver()
+    const { router, getApi } = makeRouterHarness({ historyDriver: driver })
+    connect(router)
+
+    await act(async () => {
+      await getApi().openRoot(makeEntry({ key: 'record:1' }), 'route')
+      await router.navigate(-1) // Back before the push location was ever rendered
+    })
+    expect(readOverlayMarker(router.state.location.state)).toBeNull()
+    expect(getApi().session).toBeNull()
+  })
+})

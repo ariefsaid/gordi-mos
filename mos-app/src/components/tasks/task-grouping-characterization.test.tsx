@@ -10,12 +10,11 @@ import type { ProcessRunRollup } from '@/lib/db/processes.types'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import type { CollectionData } from '@/lib/record-collection/types'
 import {
-  TASK_COLLECTION_NEUTRAL_QUERY,
   projectTaskCollection,
   toTaskCollectionRecord,
   type TaskCollectionContext,
-  type TaskCollectionQuery,
 } from './task-collection-adapter'
+import { TASK_COLLECTION_NEUTRAL_QUERY, type TaskCollectionQuery } from './task-collection-query'
 import {
   TaskCollectionRuntimeProvider,
   TaskTablePresentation,

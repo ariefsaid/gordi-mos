@@ -51,6 +51,13 @@ vi.mock('@/lib/db/default-stream', () => ({ fetchDefaultStream: vi.fn() }))
 vi.mock('@/lib/db/cafe-opening', () => ({ listCafeViewerTeams: vi.fn().mockResolvedValue([]) }))
 import { fetchDefaultStream } from '@/lib/db/default-stream'
 
+// An empty Stock list is diagnosed from the stream's ESB settings (the shared Café items empty state).
+vi.mock('@/lib/db/cafe-item-settings', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/db/cafe-item-settings')>('@/lib/db/cafe-item-settings')
+  return { ...actual, listCafeItemSettings: vi.fn(async () => []), canManageCafeItemSettings: vi.fn(async () => false) }
+})
+import { listCafeItemSettings, type CafeItemSetting } from '@/lib/db/cafe-item-settings'
+
 import { KitchenStockPage } from './kitchen-stock-page'
 import { rememberStream } from '@/lib/cafe-stream'
 import { rememberCafeLocation, resetCafeLocations } from '@/lib/cafe-opening-location'
@@ -216,10 +223,12 @@ describe('KitchenStockPage — states', () => {
     expect(screen.getByRole('status', { name: /loading/i })).toBeInTheDocument()
   })
 
-  it('empty: a calm empty when no items/stock for the date', async () => {
+  it('empty: says the stream\'s ESB items are not set up, not that activity is missing', async () => {
     mockFetchStock.mockResolvedValue([])
+    vi.mocked(listCafeItemSettings).mockResolvedValueOnce([{ id: 'esb-1' }, { id: 'esb-2' }] as CafeItemSetting[])
     render(<KitchenStockPage />, { wrapper })
-    expect(await screen.findByText(/no .*stock|nothing/i)).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'No items set up on Rumah Rames · Kitchen' })).toBeInTheDocument()
+    expect(screen.queryByText(/no approved activity/i)).toBeNull()
   })
 
   it('error + retry: surfaces a retry that re-fetches', async () => {
@@ -352,7 +361,7 @@ describe('KitchenStockPage — per-stream scope (#237, AC-011: default from shar
   it('FR-003: an EMPTY stream still offers the picker (no implicit wall) and switching away works', async () => {
     mockFetchStock.mockResolvedValueOnce([]) // default stream is empty
     render(<KitchenStockPage />, { wrapper })
-    await screen.findByText(/no stock to show/i)
+    await screen.findByRole('heading', { name: /^no esb items on/i })
 
     // The Switch action is present in the empty state — an empty stream is not a dead end.
     const switchButton = screen.getByRole('button', { name: /^switch bar$/i })

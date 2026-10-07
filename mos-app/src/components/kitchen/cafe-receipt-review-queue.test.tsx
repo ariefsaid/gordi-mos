@@ -7,13 +7,14 @@ vi.mock('@/lib/db/cafe-receipts', async importOriginal => {
   const actual = await importOriginal<typeof import('@/lib/db/cafe-receipts')>()
   return {
     ...actual, listCafeReceipts: vi.fn(), reviewCafeReceipt: vi.fn(), listCafeReceiptDifferences: vi.fn(),
-    readCafeReceiptPosting: vi.fn(), listCafeHeldReceipts: vi.fn(),
+    readCafeReceiptPosting: vi.fn(), listCafeHeldReceipts: vi.fn(), listCafeUnsentReceipts: vi.fn(),
   }
 })
 
 import { getPeople } from '@/lib/db/directory'
 import {
-  listCafeHeldReceipts, listCafeReceiptDifferences, listCafeReceipts, readCafeReceiptPosting, reviewCafeReceipt, type CafeReceipt,
+  listCafeHeldReceipts, listCafeReceiptDifferences, listCafeReceipts, listCafeUnsentReceipts, readCafeReceiptPosting, reviewCafeReceipt,
+  type CafeReceipt,
 } from '@/lib/db/cafe-receipts'
 import { ALL_STREAMS } from './cafe-stream-bar'
 import { CafeReceiptReviewQueue } from './cafe-receipt-review-queue'
@@ -25,7 +26,10 @@ function receipt(id: string, receivedBy: string, overrides: Partial<CafeReceipt>
     status: 'Submitted', posting_status: 'not_posted', posting_hold_reason: null, received_by: receivedBy,
     received_at: '2026-10-06T02:00:00Z', submitted_at: '2026-10-06T02:05:00Z', reviewed_by: null, reviewed_at: null,
     review_note: null, row_version: 2,
-    lines: [{ id: `${id}-l1`, item_unit_id: 'unit-kg', item_name: 'Coffee bean', item_category: 'Bar', unit_name: 'kg', received_quantity: '2.5' }],
+    lines: [{
+      id: `${id}-l1`, item_unit_id: 'unit-kg', item_name: 'Coffee bean', item_category: 'Bar', unit_name: 'kg', received_quantity: '2.5',
+      conditions: [], condition_reason: null, condition_updated_at: null, photos: [],
+    }],
     ...overrides,
   }
 }
@@ -44,6 +48,7 @@ beforeEach(() => {
   vi.mocked(listCafeReceiptDifferences).mockResolvedValue([])
   vi.mocked(readCafeReceiptPosting).mockResolvedValue(null)
   vi.mocked(listCafeHeldReceipts).mockResolvedValue([])
+  vi.mocked(listCafeUnsentReceipts).mockResolvedValue({ receipts: [], more: 0 })
   Object.defineProperty(navigator, 'onLine', { configurable: true, value: true })
 })
 
@@ -58,6 +63,48 @@ describe('CafeReceiptReviewQueue', () => {
     fireEvent.click(within(row).getByRole('button', { name: 'Approve' }))
     await waitFor(() => expect(reviewCafeReceipt).toHaveBeenCalledWith('r-1', 'approve', 2, ''))
     expect(await within(row).findByText('Approved · not posted to ESB')).toBeInTheDocument()
+  })
+
+  it('AC-1012 the reviewer sees each conditioned line’s reason and private photo', async () => {
+    vi.mocked(listCafeReceipts).mockResolvedValue([receipt('r-evidence', 'receiver', {
+      lines: [{
+        id: 'line-evidence', item_unit_id: 'unit-l', item_name: 'Fresh milk', item_category: 'Dairy', unit_name: 'l', received_quantity: '11',
+        conditions: ['damaged_wrong'], condition_reason: 'Seal broken on arrival', condition_updated_at: null,
+        photos: [{ lineId: 'line-evidence', path: 'org/receipt/line/photo.jpg', url: 'https://private.test/photo' }],
+      }],
+    })])
+    renderQueue()
+    const row = (await screen.findByText('Received by Shift member')).closest('li')!
+    expect(within(row).getByText('Seal broken on arrival')).toBeInTheDocument()
+    expect(within(row).getByText('Damaged or wrong')).toBeInTheDocument()
+    expect(within(row).getByRole('link', { name: 'Open photo 1 of 1' })).toHaveAttribute('href', 'https://private.test/photo')
+    expect(within(row).getAllByText('Fresh milk')).toHaveLength(1)
+  })
+
+  it('FR-1038 a receipt line linked to a PO created after delivery says so in the review row', async () => {
+    vi.mocked(listCafeReceipts).mockResolvedValue([receipt('r-late', 'receiver', {
+      lines: [{
+        id: 'line-late', item_unit_id: 'unit-l', item_name: 'Fresh milk', item_category: 'Dairy', unit_name: 'l', received_quantity: '11',
+        conditions: [], condition_reason: null, condition_updated_at: null, po_created_after_delivery: true, photos: [],
+      }],
+    })])
+    renderQueue()
+    const row = (await screen.findByText('Received by Shift member')).closest('li')!
+    expect(within(row).getByText('PO created after delivery')).toBeInTheDocument()
+  })
+
+  it('NFR-1006 a receipt whose photos could not be read says so on that receipt, and its decision stays available', async () => {
+    vi.mocked(listCafeReceipts).mockResolvedValue([receipt('r-photos', 'receiver', {
+      photosUnavailable: true,
+      lines: [{
+        id: 'line-evidence', item_unit_id: 'unit-l', item_name: 'Fresh milk', item_category: 'Dairy', unit_name: 'l', received_quantity: '11',
+        conditions: ['damaged_wrong'], condition_reason: 'Seal broken on arrival', condition_updated_at: null, photos: [],
+      }],
+    })])
+    renderQueue()
+    const row = (await screen.findByText('Received by Shift member')).closest('li')!
+    expect(within(row).getByText('Photos unavailable')).toBeInTheDocument()
+    expect(within(row).getByRole('button', { name: 'Approve' })).toBeEnabled()
   })
 
   it('FR-1042 after approval the row shows the receipt’s posting state read back from the server', async () => {
@@ -156,15 +203,35 @@ describe('CafeReceiptReviewQueue', () => {
   it('FR-1012 a Counted receipt not yet sent shows as “Counted, not sent” with its age and cannot be decided', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true, now: new Date('2026-10-06T04:00:00Z') })
     try {
-      vi.mocked(listCafeReceipts).mockResolvedValue([receipt('r-8', 'receiver', { status: 'Counted', submitted_at: null, row_version: 1 })])
+      vi.mocked(listCafeReceipts).mockResolvedValue([])
+      vi.mocked(listCafeUnsentReceipts).mockResolvedValue({
+        receipts: [receipt('r-8', 'receiver', { status: 'Counted', submitted_at: null, row_version: 1 })], more: 0,
+      })
       renderQueue()
       const row = (await screen.findByText('Received by Shift member')).closest('li')!
       expect(within(row).getByText('Counted, not sent · locked 2h ago')).toBeInTheDocument()
       expect(within(row).queryByRole('button', { name: 'Approve' })).toBeNull()
       expect(within(row).queryByRole('button', { name: 'Reject' })).toBeNull()
-      expect(vi.mocked(listCafeReceipts)).toHaveBeenCalledWith(['Submitted', 'Counted'])
+      expect(vi.mocked(listCafeReceipts)).toHaveBeenCalledWith(['Submitted'], { photosFor: ['Submitted'] })
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('FR-1044 with more unsent receipts than the list holds, the oldest are listed after the decidable ones and the rest are counted', async () => {
+    vi.mocked(listCafeReceipts).mockResolvedValue([receipt('r-sent', 'me')])
+    vi.mocked(listCafeUnsentReceipts).mockResolvedValue({
+      receipts: Array.from({ length: 50 }, (_, index) => receipt(`r-unsent-${index}`, 'receiver', {
+        status: 'Counted', submitted_at: null, received_at: new Date(Date.parse('2026-09-01T02:00:00Z') + index * 3_600_000).toISOString(),
+      })),
+      more: 7,
+    })
+    renderQueue()
+    const rows = await screen.findAllByRole('listitem')
+    const receiptRows = rows.filter(row => row.classList.contains('cafe-receipt-review__row'))
+    expect(receiptRows).toHaveLength(51)
+    expect(within(receiptRows[0]).getByText('Received by Reviewer')).toBeInTheDocument()
+    expect(within(receiptRows[1]).getByText(/^Counted, not sent · locked/)).toBeInTheDocument()
+    expect(screen.getByText('7 newer unsent receipts, in any stream, are not listed.')).toBeInTheDocument()
   })
 })

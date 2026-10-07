@@ -1202,7 +1202,7 @@ describe('Signals archive — server paging', () => {
     expect(mockListReadableSignals).toHaveBeenLastCalledWith(expect.objectContaining({ before: expect.objectContaining({ id: 'paged-signal-50' }) }))
     await userEvent.click(screen.getByRole('button', { name: 'Load more' }))
     await screen.findByText('Paged signal 101')
-    expect(screen.getByText('101 loaded · end of list')).toBeInTheDocument()
+    expect(screen.getByText('101 items loaded · end of list')).toBeInTheDocument()
     expect(screen.getAllByText('Paged signal 1')).toHaveLength(1)
     expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument()
   })

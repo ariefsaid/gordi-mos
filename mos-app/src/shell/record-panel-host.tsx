@@ -8,6 +8,9 @@ import { useT } from '@/i18n/use-t'
 import type { OverlayOwner } from './overlay-navigation'
 import { focusableWithin } from '@/lib/focusable'
 import { useEscapeLayer } from '@/lib/use-escape-layer'
+import { OverlayPortal } from '@/components/ui/overlay-portal'
+import { useFocusTrap } from '@/components/ui/use-focus-trap'
+import { useInertAppRoot } from '@/components/ui/use-inert-app-root'
 
 // ONE overlay grammar for records. Every
 // record tenant — Task, Signal, and eventually Inbox/Deputy — mounts its CONTENT through this
@@ -97,6 +100,8 @@ export function RecordPanelHost({
 
   const panelRef = useRef<HTMLElement>(null)
   const invokerRef = useRef<HTMLElement | null>(null)
+  useInertAppRoot(isModal)
+  useFocusTrap(panelRef, isModal)
   useEscapeLayer(true, panelRef, () => onClose('escape'), {
     deferEscape: (event) => {
       const target = event.target
@@ -146,32 +151,6 @@ export function RecordPanelHost({
       window.removeEventListener('resize', updateAvailableHeight)
       panel.style.removeProperty('--task-create-panel-height')
     }
-  }, [isModal, focusKey])
-
-  // Modal-only: focus trap (on the panel). Tab wraps within the sheet because the modal
-  // owns the whole screen; the split regime keeps the page live, so no trap there.
-  useEffect(() => {
-    if (!isModal) return
-    const panel = panelRef.current
-    if (!panel) return
-
-    function onTrapKeyDown(e: KeyboardEvent) {
-      if (e.key !== 'Tab') return
-      const focusable = focusableWithin(panel)
-        .filter(el => el.offsetParent !== null || el === document.activeElement)
-      if (focusable.length === 0) return
-      const firstEl = focusable[0]
-      const lastEl = focusable[focusable.length - 1]
-      // Focus parked outside the tab order (an initialFocusRef heading) wraps back like the first.
-      const parked = !focusable.includes(document.activeElement as HTMLElement)
-      if (e.shiftKey && (document.activeElement === firstEl || parked)) {
-        e.preventDefault(); lastEl.focus()
-      } else if (!e.shiftKey && document.activeElement === lastEl) {
-        e.preventDefault(); firstEl.focus()
-      }
-    }
-    panel.addEventListener('keydown', onTrapKeyDown)
-    return () => panel.removeEventListener('keydown', onTrapKeyDown)
   }, [isModal, focusKey])
 
   // A non-modal companion is outside the document's ordinary tab order after its last control.
@@ -302,18 +281,20 @@ export function RecordPanelHost({
   // The oracle attrs ride the dialog wrapper (the panel itself), matching the split regime,
   // so a Playwright geometry check measures the sheet — not the full-viewport modal root.
   return (
-    <div className={rootClass}>
-      <div className="drawer-scrim" onClick={() => onClose('explicit-close')} aria-hidden="true" />
-      <div
-        ref={(element: HTMLDivElement | null) => { panelRef.current = element }}
-        className={sheetClass}
-        role="dialog"
-        aria-modal="true"
-        aria-label={label}
-        {...overlayAttrs}
-      >
-        {body}
+    <OverlayPortal>
+      <div className={rootClass}>
+        <div className="drawer-scrim" onClick={() => onClose('explicit-close')} aria-hidden="true" />
+        <div
+          ref={(element: HTMLDivElement | null) => { panelRef.current = element }}
+          className={sheetClass}
+          role="dialog"
+          aria-modal="true"
+          aria-label={label}
+          {...overlayAttrs}
+        >
+          {body}
+        </div>
       </div>
-    </div>
+    </OverlayPortal>
   )
 }

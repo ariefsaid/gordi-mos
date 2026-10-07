@@ -20,6 +20,7 @@ import { VIEWER, MANAGER } from './fixtures/users'
 import { assertLocalFixtureDatabase } from './fixtures/cleanup'
 import { ensureStream, streamStatement, streamSwitch, STREAM_CONTROL_NAME } from './helpers/cafe-stream'
 import type { Page } from '@playwright/test'
+import { configureCafeEsbItemSql } from './fixtures/cafe-esb-item'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dir = dirname(__filename)
@@ -186,9 +187,9 @@ test.describe('AC-090: Kitchen log -> review -> approve (cross-stack proof)', ()
     await cleanupFixtureRows()
     await execSql(`
       INSERT INTO ops.wip_items
-        (id, org_id, name, category, flag_active, esb_bom_id, esb_product_detail_id_porsi)
+        (id, org_id, name, category, flag_active, esb_bom_id, esb_product_detail_id_porsi, reference_source, esb_product_id)
       VALUES (${uuidLiteral(ITEM_ID)}, ${uuidLiteral(ORG)}, '${ITEM_NAME}', 'Rice/Staple', true,
-              'BOM-E2E-090', 'PD-E2E-090');
+              'BOM-E2E-090', 'PD-E2E-090', 'erp_catalog', 'P-E2E-090');
       INSERT INTO ops.item_units
         (id, org_id, wip_item_id, unit_name, esb_product_detail_id, esb_product_id,
          is_default, is_transferable, confirmed_at)
@@ -196,6 +197,7 @@ test.describe('AC-090: Kitchen log -> review -> approve (cross-stack proof)', ()
               'PD-E2E-090', 'P-E2E-090', true, true, now());
       INSERT INTO ops.stream_items (org_id, branch_id, activity, wip_item_id, source)
       VALUES (${uuidLiteral(ORG)}, ${uuidLiteral(STREAM_BRANCH_ID)}, '${STREAM_ACTIVITY}', ${uuidLiteral(ITEM_ID)}, 'manual');
+      ${configureCafeEsbItemSql(ITEM_ID)}
       INSERT INTO ops.kitchen_plans
         (id, org_id, log_date, wip_item_id, branch_id, activity, action,
          destination_branch_id, qty_porsi, plan_by)

@@ -1149,7 +1149,7 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
 
     await waitFor(() => expect(screen.getAllByText('No match in the loaded tasks')).toHaveLength(2))
     expect(screen.getByText('Load more to continue through the list.')).toBeInTheDocument()
-    expect(screen.queryByText('0 loaded')).toBeNull()
+    expect(screen.queryByText('0 items loaded')).toBeNull()
     expect(screen.getByRole('button', { name: 'Show older done tasks' })).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: /clear filters/i }).length).toBeGreaterThan(0)
   })
@@ -2314,8 +2314,8 @@ describe('C1 — Done tasks excluded from overdue (RI-1 regression guard)', () =
   })
 })
 
-// ── OD-REDESIGN-91 #17 + DD-COUNT-1 #1194: the head meta reads "N open in this view · M shown" ──
-describe('#17 — Tasks head meta is "N open in this view · M shown" (open excludes Done)', () => {
+// ── Tasks head meta names the visible task count and its open subset ──
+describe('Tasks head meta names visible tasks and open work', () => {
   it('#17: a Done task lowers the open count but not the shown total', async () => {
     mockListTasks.mockResolvedValue([
       makeTask({ id: 't1', title: 'Open one', status: 'Open' }),
@@ -2328,7 +2328,7 @@ describe('#17 — Tasks head meta is "N open in this view · M shown" (open excl
     await waitFor(() => expect(screen.getByText('Resolved')).toBeInTheDocument())
     // Blocked still counts as open (not Done); only the Done task is excluded from open.
     await waitFor(() =>
-      expect(screen.getByTestId('tasks-count-line').textContent?.trim()).toBe('2 open in this view · 3 shown'),
+      expect(screen.getByTestId('tasks-count-line').textContent?.trim()).toBe('3 tasks · 2 open in this view'),
     )
   })
 })

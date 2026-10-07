@@ -16,8 +16,13 @@ import { RouteErrorBoundary } from '@/components/RouteErrorBoundary'
 import { ProtectedRoute } from '@/auth/protected-route'
 
 vi.mock('@/lib/db/tasks', () => ({ searchTasksByTitle: vi.fn() }))
+vi.mock('@/lib/db/open-task-count', () => ({ getMyOpenTaskCount: vi.fn().mockResolvedValue(0) }))
 vi.mock('@/lib/db/directory', () => ({ getBusinessUnits: vi.fn(), getPeople: vi.fn() }))
 vi.mock('@/lib/db/notifications', () => ({ countUnread: vi.fn(), listNotifications: vi.fn() }))
+vi.mock('@/lib/db/signals', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/db/signals')>()),
+  getSignalPostAuthority: vi.fn().mockResolvedValue({ can_post: false, can_tag: false }),
+}))
 vi.mock('../auth/use-auth')
 // The assistant is not under test here; its lazy import would resolve outside act().
 vi.mock('@/config/features', async (importOriginal) => ({
@@ -27,6 +32,7 @@ vi.mock('@/config/features', async (importOriginal) => ({
 import { useAuth } from '@/auth/use-auth'
 import { getBusinessUnits, getPeople } from '@/lib/db/directory'
 import { countUnread, listNotifications } from '@/lib/db/notifications'
+import { getSignalPostAuthority } from '@/lib/db/signals'
 const mockUseAuth = vi.mocked(useAuth)
 
 // The shell's header reads on mount (unread count, directory). `vi.restoreAllMocks()` in afterEach
@@ -35,9 +41,10 @@ const mockUseAuth = vi.mocked(useAuth)
 // Arm them before every test instead.
 beforeEach(() => {
   vi.mocked(countUnread).mockResolvedValue(0)
-  vi.mocked(listNotifications).mockResolvedValue([])
+  vi.mocked(listNotifications).mockResolvedValue({ rows: [], hasMore: false, nextCursor: null })
   vi.mocked(getBusinessUnits).mockResolvedValue([])
   vi.mocked(getPeople).mockResolvedValue([])
+  vi.mocked(getSignalPostAuthority).mockResolvedValue({ can_post: false, can_tag: false })
 })
 
 import { AppShell } from './app-shell'

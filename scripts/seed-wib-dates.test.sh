@@ -14,7 +14,7 @@ bad() { fail=$((fail+1)); printf '  FAIL  %s\n' "$1"; }
 
 # Files whose date columns the app reads as WIB "today". seed.dev-kitchen.sql is hand-loaded
 # (not in config.toml's sql_paths) but is exactly the "developer seeds before breakfast" case.
-SEED_FILES='supabase/seed.sql supabase/seed.dev-kitchen.sql supabase/seed.sample-org-money.sql'
+SEED_FILES='supabase/seed.sql supabase/seed.dev-kitchen.sql supabase/seed.sample-org-money.sql supabase/seed.sample-org-pending-bills.sql'
 JKT="(now() at time zone 'Asia/Jakarta')::date"
 
 # `current_date` outside a quoted string. The (^|[^']) alternation matters: a bare [^'] cannot

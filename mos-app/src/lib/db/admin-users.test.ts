@@ -2,7 +2,7 @@
 // AC-011 (email helper), wrapper contracts.
 // Mirror directory.test.ts chainable-mock pattern; mock @/lib/supabase.
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 vi.mock('../supabase', () => {
   const schema = vi.fn()
@@ -11,6 +11,7 @@ vi.mock('../supabase', () => {
 })
 
 import { supabase } from '@/lib/supabase'
+import { __resetReferenceCacheForTests, withReferenceCache } from './reference-cache'
 import {
   synthesizeEmail,
   listAdminPeople,
@@ -37,9 +38,16 @@ import {
 const schemaMock = vi.mocked(supabase.schema)
 
 // ── Chainable mock builder ────────────────────────────────────────────────────
-function makeSharedSchema(tableResponses: Record<string, { data: unknown; error: unknown }>, rpcResponse?: { data: unknown; error: unknown }) {
+function makeSharedSchema(
+  tableResponses: Record<string, { data: unknown; error: unknown }>,
+  rpcResponse?: { data: unknown; error: unknown },
+  readOverrides: Record<string, Record<number, { data: unknown; error: unknown }>> = {},
+) {
+  const readCounts = new Map<string, number>()
   const fromImpl = (table: string) => {
-    const result = tableResponses[table] ?? { data: null, error: null }
+    const readIndex = readCounts.get(table) ?? 0
+    readCounts.set(table, readIndex + 1)
+    const result = readOverrides[table]?.[readIndex] ?? tableResponses[table] ?? { data: null, error: null }
     const builder: Record<string, unknown> = {}
     builder.select = vi.fn(() => builder)
     builder.is = vi.fn(() => builder)
@@ -62,7 +70,11 @@ function makeSharedSchema(tableResponses: Record<string, { data: unknown; error:
   return { from: vi.fn(fromImpl), rpc: rpcImpl }
 }
 
-beforeEach(() => vi.clearAllMocks())
+beforeEach(() => {
+  vi.clearAllMocks()
+  __resetReferenceCacheForTests()
+})
+afterEach(() => vi.useRealTimers())
 
 // ── synthesizeEmail ───────────────────────────────────────────────────────────
 describe('synthesizeEmail (AC-011 helper, FR-021)', () => {
@@ -303,6 +315,26 @@ describe('grantRole', () => {
     )
   })
 
+  it('invalidates cached viewer and Work authority data after a role grant', async () => {
+    const viewerLoad = vi.fn(async () => 'cached-viewer')
+    const scopeLoad = vi.fn(async () => 'cached-scopes')
+    await withReferenceCache('shared.auth.viewer', viewerLoad, { identity: 'auth:viewer-1', persist: true })
+    await withReferenceCache('mos.get_work_write_scopes', scopeLoad, { identity: 'auth:viewer-1', persist: true })
+
+    const schemaObj = makeSharedSchema({ person_access_roles: { data: null, error: null } })
+    schemaMock.mockReturnValue(schemaObj as never)
+    await grantRole('p1', 'ops_lead')
+
+    const reloadViewer = vi.fn(async () => 'fresh-viewer')
+    const reloadScopes = vi.fn(async () => 'fresh-scopes')
+    await expect(withReferenceCache('shared.auth.viewer', reloadViewer, { identity: 'auth:viewer-1', persist: true }))
+      .resolves.toBe('fresh-viewer')
+    await expect(withReferenceCache('mos.get_work_write_scopes', reloadScopes, { identity: 'auth:viewer-1', persist: true }))
+      .resolves.toBe('fresh-scopes')
+    expect(reloadViewer).toHaveBeenCalledOnce()
+    expect(reloadScopes).toHaveBeenCalledOnce()
+  })
+
   it('throws on error', async () => {
     const schemaObj = makeSharedSchema({ person_access_roles: { data: null, error: { message: 'self-assign' } } })
     schemaMock.mockReturnValue(schemaObj as never)
@@ -410,6 +442,17 @@ describe('Jabatan (Position) wrappers', () => {
     expect(builder.eq).toHaveBeenCalledWith('role_id', 'r1')
   })
 
+  it('a position change drops the cached viewer so the next read sees the new roles', async () => {
+    await withReferenceCache('shared.auth.viewer', vi.fn(async () => 'cached-viewer'), { identity: 'auth:viewer-1', persist: true })
+    schemaMock.mockReturnValue(makeSharedSchema({ person_roles: { data: null, error: null } }) as never)
+    await removeJabatan('p1', 'r1')
+
+    const reloadViewer = vi.fn(async () => 'fresh-viewer')
+    await expect(withReferenceCache('shared.auth.viewer', reloadViewer, { identity: 'auth:viewer-1', persist: true }))
+      .resolves.toBe('fresh-viewer')
+    expect(reloadViewer).toHaveBeenCalledOnce()
+  })
+
   it('throws on removeJabatan error', async () => {
     const schemaObj = makeSharedSchema({ person_roles: { data: null, error: { message: 'rls denied' } } })
     schemaMock.mockReturnValue(schemaObj as never)
@@ -515,32 +558,33 @@ describe('Revenue scope (supervisor) wrappers', () => {
 // that removal goes through the server-side cutoff, and that the home-team swap clears before it
 // sets. Both were claimed in a docblock and asserted nowhere.
 describe('Team wrappers', () => {
-  it('reads memberships with the GATES definition of live, not `effective_to is null`', async () => {
+  it('reads last-day memberships using the database date at Jakarta midnight', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-10-05T17:00:00Z'))
     const schemaObj = makeSharedSchema({
-      people: { data: [], error: null },
+      people: { data: [{ id: 'p1', full_name: 'Boundary person', email: null, archived_at: null }], error: null },
       person_access_roles: { data: [], error: null },
       person_roles: { data: [], error: null },
       roles: { data: [], error: null },
-      team_memberships: { data: [], error: null },
+      team_memberships: { data: [
+        { person_id: 'p1', team_id: 't-last-day', is_primary: true, effective_from: '2020-01-01', effective_to: '2026-10-05' },
+      ], error: null },
       supervisor_revenue_scope: { data: [], error: null },
     }, { data: [], error: null })
     schemaMock.mockReturnValue(schemaObj as never)
 
-    await listAdminPeople()
+    const rows = await listAdminPeople()
+    expect(rows[0].teams).toEqual([{ team_id: 't-last-day', is_primary: false }])
     const call = schemaObj.from.mock.calls.findIndex((c) => c[0] === 'team_memberships')
     const builder = schemaObj.from.mock.results[call].value as { or: ReturnType<typeof vi.fn> }
-    // `effective_to` is an INCLUSIVE last day: a row ending today is still live to
-    // can_read_signal R1 and every other gate. Filtering on `is null` alone is what let the
-    // screen report someone removed while the gates still admitted them, and nothing pinned
-    // it — reverting this line to `.is('effective_to', null)` left the whole suite green.
-    // The literal date, not just its shape. A shape-only assertion stays green if `today` is
-    // hardcoded to 2000-01-01, which reads EVERY ended membership as live — the exact inverse of
-    // the defect this line fixed, and just as wrong.
-    const today = new Date().toISOString().slice(0, 10)
-    expect(builder.or).toHaveBeenCalledWith(`effective_to.is.null,effective_to.gte.${today}`)
+    // At 00:00 WIB the browser date is Oct 6 while the database date is still Oct 5.
+    // A membership ending on the database's inclusive last day must remain visible to remove.
+    expect(builder.or).toHaveBeenCalledWith('effective_to.is.null,effective_to.gte.today')
   })
 
   it('attaches memberships to the right person, and only calls a live-and-open one Home', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-10-05T17:00:00Z'))
     const schemaObj = makeSharedSchema({
       people: { data: [
         { id: 'p1', full_name: 'A', email: 'a@example.test', archived_at: null },
@@ -559,10 +603,14 @@ describe('Team wrappers', () => {
         // is not the home team either — the third of the three ways a primary row can fail to be
         // one, and the one the app's predicate was missing.
         { person_id: 'p1', team_id: 't-future', is_primary: true, effective_from: '2099-01-01', effective_to: null },
+        // Jakarta has advanced to Oct 6, but the server is still on Oct 5.
+        { person_id: 'p1', team_id: 't-starts-tomorrow', is_primary: true, effective_from: '2026-10-06', effective_to: null },
         { person_id: 'p2', team_id: 't-hq', is_primary: false, effective_from: '2020-01-01', effective_to: null },
       ], error: null },
       supervisor_revenue_scope: { data: [], error: null },
-    }, { data: [], error: null })
+    }, { data: [], error: null }, {
+      team_memberships: { 1: { data: [{ person_id: 'p1', team_id: 't-bar' }], error: null } },
+    })
     schemaMock.mockReturnValue(schemaObj as never)
 
     const rows = await listAdminPeople()
@@ -570,7 +618,14 @@ describe('Team wrappers', () => {
       { team_id: 't-bar', is_primary: true },
       { team_id: 't-kitchen', is_primary: false },
       { team_id: 't-future', is_primary: false },
+      { team_id: 't-starts-tomorrow', is_primary: false },
     ])
+    const membershipReads = schemaObj.from.mock.calls
+      .map((call, index) => call[0] === 'team_memberships' ? index : -1)
+      .filter((index) => index >= 0)
+    expect(membershipReads).toHaveLength(2)
+    const homeRead = schemaObj.from.mock.results[membershipReads[1]].value as { lte: ReturnType<typeof vi.fn> }
+    expect(homeRead.lte).toHaveBeenCalledWith('effective_from', 'today')
     // Keyed per person — a membership must never leak onto someone else's row.
     expect(rows.find((r) => r.id === 'p2')!.teams).toEqual([{ team_id: 't-hq', is_primary: false }])
   })
@@ -658,23 +713,22 @@ describe('Team wrappers', () => {
     expect(set.eq).toHaveBeenCalledWith('team_id', 't2')
   })
 
-  it('setPrimaryTeam scopes its set to a membership that can actually BE the home team', async () => {
+  it('setPrimaryTeam uses the database date when checking home-team eligibility', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-10-05T17:00:00Z'))
     const schemaObj = makeSharedSchema({ team_memberships: { data: [{ id: 'm1' }], error: null } })
     schemaMock.mockReturnValue(schemaObj as never)
 
     await setPrimaryTeam('p1', 't2')
+    const read = schemaObj.from.mock.results[0].value as { lte: ReturnType<typeof vi.fn> }
     const set = schemaObj.from.mock.results[2].value as {
       is: ReturnType<typeof vi.fn>; lte: ReturnType<typeof vi.fn>
     }
-    // Three clauses, matching the read and both gate functions. A write guard looser than the
-    // read that judges it sets a primary the screen then reports as no home team at all.
+    // At 00:00 WIB the browser date has advanced, but access gates still compare with the
+    // database's Oct 5. Both the eligibility read and write must use that same database date.
+    expect(read.lte).toHaveBeenCalledWith('effective_from', 'today')
     expect(set.is).toHaveBeenCalledWith('effective_to', null)
-    // The literal date, not its shape — the same standard the read-path assertion above sets, and
-    // for the same reason: `.lte('effective_from', '2099-01-01')` is date-shaped and admits exactly
-    // the not-yet-started row this clause exists to exclude, and a shape-only matcher stays green
-    // through it.
-    const today = new Date().toISOString().slice(0, 10)
-    expect(set.lte).toHaveBeenCalledWith('effective_from', today)
+    expect(set.lte).toHaveBeenCalledWith('effective_from', 'today')
   })
 
   it('setPrimaryTeam refuses an ineligible target WITHOUT clearing the existing home team', async () => {

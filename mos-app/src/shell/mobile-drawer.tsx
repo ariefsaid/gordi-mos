@@ -15,6 +15,10 @@ import { UserChip } from './user-chip'
 import { CloseIcon, Chevron } from './icons'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
+import { focusableWithin } from '@/lib/focusable'
+import { OverlayPortal } from '@/components/ui/overlay-portal'
+import { useFocusTrap } from '@/components/ui/use-focus-trap'
+import { useInertAppRoot } from '@/components/ui/use-inert-app-root'
 import './mobile-drawer.css'
 // DD-WAY-33 (#439): the phone drawer wears the SAME three-rung ladder as the desktop rail
 // (rail-nav.css owns it). One ladder, two surfaces — a destination must not read as a child
@@ -99,6 +103,10 @@ function DrawerGroupLabel({ children }: { children: string }) {
  */
 export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) {
   const panelRef = useRef<HTMLDivElement>(null)
+  const focusOpenerRef = useRef(focusOpener)
+  focusOpenerRef.current = focusOpener
+  useInertAppRoot(open)
+  useFocusTrap(panelRef, open)
   const auth = useAuth()
   const { pathname } = useLocation()
   const t = useT()
@@ -107,47 +115,31 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
   const affiliated = viewer?.affiliated ?? []
 
   const closeAndReturn = useCallback(() => {
-    focusOpener?.()
+    const appRoot = document.getElementById('root')
+    if (!appRoot?.hasAttribute('inert')) focusOpenerRef.current?.()
     onClose()
-  }, [onClose, focusOpener])
+  }, [onClose])
 
-  const getFocusables = useCallback((): HTMLElement[] => {
-    if (!panelRef.current) return []
-    return Array.from(
-      panelRef.current.querySelectorAll<HTMLElement>(
-        'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
-      ),
-    )
-  }, [])
+  const wasOpenRef = useRef(open)
+  useEffect(() => {
+    const wasOpen = wasOpenRef.current
+    wasOpenRef.current = open
+    if (wasOpen && !open) focusOpenerRef.current?.()
+  }, [open])
 
   useEffect(() => {
     if (!open) return
-    const focusables = getFocusables()
-    if (focusables.length > 0) focusables[0].focus()
+    const [first] = focusableWithin(panelRef.current)
+    first?.focus()
 
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        closeAndReturn()
-        return
-      }
-      if (e.key === 'Tab') {
-        const focusables = getFocusables()
-        if (focusables.length === 0) return
-        const first = focusables[0]
-        const last = focusables[focusables.length - 1]
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault()
-          last.focus()
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault()
-          first.focus()
-        }
-      }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      closeAndReturn()
     }
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [open, closeAndReturn, getFocusables])
+  }, [open, closeAndReturn])
 
   if (!open) return null
 
@@ -182,8 +174,9 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
   const liveUtility = navUtility(accessRoles)
 
   return (
-    <>
-      <div className="scrim fixed inset-0" style={{ zIndex: 'var(--z-drawer)' }} aria-hidden="true" onClick={closeAndReturn} />
+    <OverlayPortal>
+      <>
+        <div className="scrim fixed inset-0" style={{ zIndex: 'var(--z-drawer)' }} aria-hidden="true" onClick={closeAndReturn} />
       <div
         ref={panelRef}
         role="dialog"
@@ -223,7 +216,7 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
             <DrawerGroupLabel>{t('rail.destinations')}</DrawerGroupLabel>
             <ul className="flex flex-col gap-[2px]">
               {liveWorkspace.map((d) => {
-                if (d.id === 'work') {
+                if (d.children) {
                   const children = workChildren(d, accessRoles)
                   return (
                     <li key={d.id}>
@@ -305,6 +298,7 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
           )}
         </nav>
       </div>
-    </>
+      </>
+    </OverlayPortal>
   )
 }

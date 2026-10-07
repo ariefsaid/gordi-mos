@@ -17,6 +17,9 @@ export function ListPaging({ count, hasMore, loading = false, error = false, mor
   const emptyAndCanContinue = count === 0 && hasMore
   const status = useRef<HTMLParagraphElement>(null)
   const hadFocus = useRef(false)
+  const statusKey = hasMore
+    ? count === 1 ? 'common.paging.loaded.one' : 'common.paging.loaded.other'
+    : count === 1 ? 'common.paging.complete.one' : 'common.paging.complete.other'
   // The button unmounts at the end of the list: keep keyboard focus inside the control.
   useEffect(() => {
     if (!hasMore && hadFocus.current) { hadFocus.current = false; status.current?.focus() }
@@ -28,7 +31,7 @@ export function ListPaging({ count, hasMore, loading = false, error = false, mor
           ? emptyItems
             ? t('common.paging.emptyFiltered', { items: emptyItems })
             : t('common.paging.emptyLoaded')
-          : t(hasMore ? 'common.paging.loaded' : 'common.paging.complete', { count })}
+          : t(statusKey, { count })}
       </p>
       {emptyAndCanContinue ? <p>{t('common.paging.continue')}</p> : null}
       {hasMore ? <p

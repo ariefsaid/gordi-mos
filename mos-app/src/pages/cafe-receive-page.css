@@ -1,4 +1,4 @@
-/* Receive reuses the Count layout (cafe-count-page.css); these rules cover only what a receipt adds. */
+/* Purchase-order and receipt workflow styling; shared row and footer geometry lives in cafe-capture-layout.css. */
 
 .cafe-receive__links {
   display: flex;
@@ -11,6 +11,7 @@
 .cafe-receive__links a {
   display: inline-flex;
   align-items: center;
+  gap: 8px;
   min-height: 44px;
   color: var(--foreground);
   text-decoration: underline;
@@ -30,6 +31,139 @@
 .cafe-receive__date label { color: var(--muted-foreground); }
 .cafe-receive__date-hint { color: var(--muted-foreground); }
 
+.cafe-receive__open-pos {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  margin: 0 0 18px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--background);
+}
+
+.cafe-receive__open-pos-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  min-width: 0;
+}
+
+.cafe-receive__open-pos-head h2 {
+  margin: 0;
+  color: var(--foreground);
+  font-size: var(--font-size-body-lg);
+  font-weight: 600;
+}
+
+.cafe-receive__open-pos-help,
+.cafe-receive__open-pos > p,
+.cafe-receive__open-pos-state p {
+  margin: 4px 0 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-body);
+  line-height: 1.45;
+}
+
+.cafe-receive__open-pos-lead { display: grid; gap: 8px; flex: 1 1 320px; min-width: 0; }
+
+.cafe-receive__open-po-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* The shared touch button spans its row; side by side here, each takes its label's width. */
+.cafe-receive__open-po-actions > .btn-touch { flex: 1 1 auto; width: auto; }
+
+.cafe-receive__open-pos-state { display: grid; justify-items: start; gap: 8px; }
+.cafe-receive__open-pos-state > .btn-touch { width: auto; }
+
+.cafe-receive__open-po-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cafe-receive__open-po {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--background);
+  color: var(--foreground);
+}
+
+/* DESIGN selected treatment: primary border and tint, never the focus ring. */
+.cafe-receive__open-po--picked {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 7%, var(--background));
+}
+
+.cafe-receive__open-po-topline {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 4px 12px;
+  min-width: 0;
+}
+
+.cafe-receive__open-po-topline strong { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.cafe-receive__open-po-topline > span { min-width: 0; overflow-wrap: anywhere; }
+.cafe-receive__open-po-topline > span:last-child { grid-column: 2; grid-row: 1; color: var(--muted-foreground); white-space: nowrap; }
+.cafe-receive__open-po-topline > span:nth-child(2) { grid-column: 1 / -1; grid-row: 2; }
+
+.cafe-receive__open-po-items { display: grid; gap: 4px; min-width: 0; margin: 0; padding: 0; list-style: none; }
+
+.cafe-receive__open-po-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  font-size: var(--font-size-body);
+  line-height: 1.4;
+}
+
+.cafe-receive__open-po-item > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.cafe-receive__open-po-unit { flex: 0 0 auto; color: var(--muted-foreground); }
+
+.cafe-receive__open-po-more,
+.cafe-receive__open-po-note {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-body);
+  line-height: 1.4;
+}
+
+.cafe-receive__row-group-label {
+  margin: 0 0 8px;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-overline);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+.cafe-receive__row-group:not(:last-child) > .cafe-capture-table { margin-bottom: 20px; }
+
+.cafe-receive__band-note {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-body);
+  line-height: 1.4;
+}
+
 .cafe-receive__date input,
 .cafe-receive__send input {
   width: 100%;
@@ -45,71 +179,26 @@
   font-size: var(--font-size-touch-input);
 }
 
-.cafe-receive__change-unit {
-  justify-self: start;
+.cafe-receive__damage-flag {
+  grid-column: 1 / -1;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  width: fit-content;
   min-height: 44px;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--foreground);
-  font: inherit;
+  color: var(--muted-foreground);
   font-size: var(--font-size-body);
-  text-decoration: underline;
-  text-underline-offset: 3px;
   cursor: pointer;
 }
 
-.cafe-receive__units {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 16px;
+.cafe-receive__damage-flag input {
+  width: 18px;
+  height: 18px;
   margin: 0;
-  padding: 0;
-  border: 0;
-  font-size: var(--font-size-body);
-}
-
-.cafe-receive__units legend {
-  margin-bottom: 4px;
-  padding: 0;
-  color: var(--muted-foreground);
-}
-
-.cafe-receive__units label {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 44px;
-}
-
-.cafe-receive__counted,
-.cafe-receive__recent {
-  display: grid;
-  gap: 12px;
-  margin: 0 0 24px;
-  padding: 18px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--background);
-}
-
-.cafe-receive__counted h2,
-.cafe-receive__recent h2 {
-  margin: 0;
-  color: var(--foreground);
-  font-size: var(--font-size-body-lg);
-  font-weight: 600;
+  accent-color: var(--primary);
 }
 
 .cafe-receive__counted h2[tabindex='-1']:focus { outline: none; }
-
-.cafe-receive__counted p {
-  max-width: 72ch;
-  margin: 0;
-  color: var(--muted-foreground);
-  font-size: var(--font-size-body);
-  line-height: 1.5;
-}
 
 .cafe-receive__counted .cafe-receive__difference { color: var(--foreground); }
 
@@ -147,34 +236,88 @@
 
 .cafe-receive__recent li .btn { margin-left: auto; min-height: 44px; }
 
-/* The sticky send bar is the page's last child here, so the list needs no bottom reserve. */
-.cafe-receive .cafe-count__list { padding-bottom: 0; margin-bottom: 24px; }
-
-/* Receive rows: name top-aligned beside a capped quantity column with a fixed unit track. */
-.cafe-receive .cafe-count__row {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 360px);
+.cafe-receive__counted-lines > li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
+  gap: 4px 16px;
+  padding: 12px 0;
 }
 
-.cafe-receive .cafe-count__quantity-control { grid-template-columns: minmax(0, 1fr) 96px; }
-.cafe-receive .cafe-count__unit { max-width: none; }
+.cafe-receive__counted-lines > li > :first-child {
+  min-width: 0;
+  color: var(--foreground);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
 
-.cafe-receive__band-status {
+.cafe-receive__condition {
+  grid-column: 1 / -1;
   display: grid;
-  gap: 2px;
+  gap: 8px;
+  min-width: 0;
+  padding-top: 4px;
+}
+
+.cafe-receive__evidence-fields {
+  display: grid;
+  gap: 12px;
   min-width: 0;
 }
 
+.cafe-receive__counted .waste-photo-capture {
+  padding: 12px 0 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+}
+
+.cafe-receive__reason {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.cafe-receive__reason > label {
+  color: var(--foreground);
+  font-size: var(--font-size-body);
+  font-weight: 600;
+}
+
+.cafe-receive__reason-meta > :last-child { flex: 0 0 auto; white-space: nowrap; }
+
+.cafe-receive__reason-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  line-height: 1.4;
+}
+
+.cafe-receive__photos-unavailable { color: var(--muted-foreground); }
+
+.cafe-receive__counted-lines > li > :last-child { white-space: normal; }
+
+/* PO details and filters align to the shared capture table measure. */
+.cafe-receive__open-pos,
+.cafe-receive .ktb {
+  box-sizing: border-box;
+  max-width: var(--cafe-capture-content-measure);
+}
+
 @media (max-width: 639px) {
-  .cafe-receive__date { grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; }
-  /* The job is the page itself on a phone; the help line returns at wider widths. */
-  .cafe-receive__help { display: none; }
+  .cafe-receive__date { grid-template-columns: auto minmax(0, 1fr); gap: 8px; }
+  .cafe-receive__date-hint { grid-column: 2; }
+  .cafe-receive__open-pos { gap: 8px; margin-bottom: 8px; }
+  .cafe-receive__open-pos-head { display: grid; gap: 0; }
+  .cafe-receive__open-pos-lead { gap: 0; }
+  .cafe-receive__open-pos-lead > .cafe-receive__open-po--picked { margin-bottom: 8px; }
+  .cafe-receive__open-po-actions { width: 100%; }
+  .cafe-receive__open-po-item { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1px; }
+  .cafe-receive__open-po-unit { justify-self: start; overflow-wrap: anywhere; }
+  .cafe-receive__counted-lines > li { grid-template-columns: minmax(0, 1fr); }
   .cafe-receive__date { margin-bottom: 12px; }
-  .cafe-receive .cafe-count__intro { margin-bottom: 0; }
-  .cafe-receive .cafe-count__row { grid-template-columns: minmax(0, 1fr); }
-  .cafe-receive .cafe-count__footer { flex-wrap: wrap; gap: 8px; }
-  .cafe-receive .cafe-count__submit { flex: 1 1 100%; }
   .cafe-receive__send { grid-template-columns: minmax(0, 1fr); }
-  .cafe-receive__counted,
-  .cafe-receive__recent { padding: 14px; }
 }

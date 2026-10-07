@@ -1,28 +1,32 @@
 import { supabase } from '@/lib/supabase'
-import { shrinkPhoto } from '@/lib/db/signal-photos'
+import {
+  PRIVATE_PHOTO_MAX_BYTES,
+  PRIVATE_PHOTO_MAX_PHOTOS,
+  PRIVATE_PHOTO_MIME_TYPES,
+  prepareEvidencePhoto,
+  type PrivatePhotoEvidence,
+} from './photo-evidence'
 
 export const WASTE_PHOTO_BUCKET = 'waste-photos'
-export const MAX_WASTE_PHOTOS = 4
-export const MAX_WASTE_PHOTO_BYTES = 5 * 1024 * 1024
+export const MAX_WASTE_PHOTOS = PRIVATE_PHOTO_MAX_PHOTOS
+export const MAX_WASTE_PHOTO_BYTES = PRIVATE_PHOTO_MAX_BYTES
 export const WASTE_PHOTO_UPLOAD_WINDOW_MINUTES = 15
 export const WASTE_PHOTO_UPLOAD_WINDOW_MS = WASTE_PHOTO_UPLOAD_WINDOW_MINUTES * 60 * 1000
-export const WASTE_PHOTO_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const
+export const WASTE_PHOTO_MIME_TYPES = PRIVATE_PHOTO_MIME_TYPES
 const SIGNED_URL_SECONDS = 60 * 60
 
 export function isWastePhotoWindowExpired(createdAt: string, now = Date.now()): boolean {
   return now >= Date.parse(createdAt) + WASTE_PHOTO_UPLOAD_WINDOW_MS
 }
 
-export interface KitchenWastePhoto {
+export interface KitchenWastePhoto extends PrivatePhotoEvidence {
   logId: string
-  path: string
-  url: string
   createdAt?: string
-  name?: string
 }
 
 export interface KitchenWasteDraft {
   logId: string
+  clientRequestId?: string | null
   itemId: string
   itemUnitId: string | null
   unitName: string | null
@@ -47,7 +51,7 @@ export async function listCurrentPersonKitchenWasteDrafts(
   scope: KitchenWasteDraftScope,
 ): Promise<KitchenWasteDraft[]> {
   const { data, error } = await supabase.schema('ops').from('kitchen_logs')
-    .select('id,wip_item_id,item_unit_id,qty_porsi,entry_quantity,entry_unit_factor,entry_unit_name,log_date,created_at')
+    .select('id,client_request_id,wip_item_id,item_unit_id,qty_porsi,entry_quantity,entry_unit_factor,entry_unit_name,log_date,created_at')
     .eq('org_id', scope.orgId)
     .eq('submitted_by', scope.personId)
     .eq('branch_id', scope.branchId)
@@ -60,6 +64,7 @@ export async function listCurrentPersonKitchenWasteDrafts(
 
   const rows = (data ?? []) as Array<{
     id: string
+    client_request_id: string | null
     wip_item_id: string
     item_unit_id: string | null
     qty_porsi: number
@@ -90,6 +95,7 @@ export async function listCurrentPersonKitchenWasteDrafts(
     const unitName = row.item_unit_id ? unitNames.get(row.item_unit_id) : undefined
     return {
       logId: row.id,
+      clientRequestId: row.client_request_id,
       itemId: row.wip_item_id,
       itemUnitId: row.item_unit_id,
       unitName: row.entry_unit_name || unitName || null,
@@ -123,8 +129,7 @@ export async function uploadKitchenWastePhoto(logId: string, file: File): Promis
     throw new Error('WASTE_PHOTO_WINDOW_EXPIRED')
   }
 
-  const body = await shrinkPhoto(file)
-  if (body.size > MAX_WASTE_PHOTO_BYTES) throw new Error('WASTE_PHOTO_TOO_LARGE')
+  const body = await prepareEvidencePhoto(file)
   const path = `${data.org_id}/${logId}/${crypto.randomUUID()}.jpg`
   const { error: uploadError } = await supabase.storage.from(WASTE_PHOTO_BUCKET).upload(path, body, {
     contentType: 'image/jpeg',

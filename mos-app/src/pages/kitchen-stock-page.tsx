@@ -39,22 +39,15 @@ import { useCafeStream } from '@/lib/use-cafe-stream'
 import type { KitchenStockRow, ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { streamLabel } from '@/lib/kitchen-action-label'
 import { kitchenCategoryLabel } from '@/lib/kitchen-category-label'
-import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
+import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
+import { CafeItemsEmptyState } from '@/components/kitchen/cafe-items-empty-state'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
 import { MetricSummaryRule } from '@/components/kitchen/metric-summary-rule'
 import { DataProvenanceNote } from '@/components/ui/data-provenance-note'
-import { formatWeekdayDayMonth } from '@/lib/format/date'
+import { formatWeekdayDayMonth, wibToday } from '@/lib/format/date'
 import './kitchen-stock-page.css'
-
-// WIB "today" as YYYY-MM-DD (fixed +7h offset, NFR-007) — matches the capture/review pages.
-function wibToday(): string {
-  const WIB_OFFSET_MS = 7 * 60 * 60 * 1000
-  const shifted = new Date(Date.now() + WIB_OFFSET_MS)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}-${pad(shifted.getUTCDate())}`
-}
 
 type LoadState =
   | { kind: 'loading' }
@@ -289,10 +282,7 @@ function KitchenStockPageForViewer() {
           {load.kind === 'loading' ? (
             <LoadingShell count={3} />
           ) : rows.length === 0 ? (
-            <EmptyState
-              title={t('kitchen.stock.empty.title')}
-              copy={t('kitchen.stock.empty.copy', { stream: streamLabel(t, stream), date: formatWeekdayDayMonth(asOf) })}
-            />
+            stream && <CafeItemsEmptyState stream={stream} />
           ) : (
             <>
               <DataTable

@@ -27,7 +27,7 @@
 --   GrandMgr  ...0d3  admin. The strongest same-org persona.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(38);
+select plan(37);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -113,25 +113,29 @@ select isnt((select count(*)::int from ops.wip_items), 0,
   'wip_items_select_org (positive): a member reads the item list they log against');
 
 select throws_ok($$
-  insert into ops.wip_items (name) values ('member added')
-  $$, '42501', 'new row violates row-level security policy for table "wip_items"',
-  'wip_items_insert_ops_lead_or_admin: a member without ops_lead cannot add master data — the item list decides what every capture surface can record');
+  insert into ops.wip_items (name, reference_source, esb_product_id) values ('member added', 'erp_catalog', 'P-MEMBER')
+  $$, '42501', 'permission denied for table wip_items',
+  'a member cannot add master data — the item list decides what every capture surface can record');
 
-update ops.wip_items set name = 'member renamed' where id = '00000000-0000-0000-0000-00000000ab01';
-reset role;
-select is((select name from ops.wip_items where id = '00000000-0000-0000-0000-00000000ab01'),
-  'Nasi Goreng',
-  'wip_items_update_ops_lead_or_admin: a member''s rename affects zero rows — the name is unchanged');
+-- The catalog refresh owns an item's descriptive columns (ops_32), so the policy is proven on a
+-- column app sessions may still write: a same-value org_id update, whose row count is the gate.
+do $$ declare v_rows int; begin
+  update ops.wip_items set org_id = org_id where id = '00000000-0000-0000-0000-00000000ab01';
+  get diagnostics v_rows = row_count;
+  perform set_config('app.wip_update_rows', v_rows::text, true);
+end $$;
+select is(current_setting('app.wip_update_rows')::int, 0,
+  'wip_items_update_ops_lead_or_admin: a member''s update affects zero rows');
 
-set local role authenticated;
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
-select lives_ok($$ insert into ops.wip_items (name) values ('ops_lead added') $$,
-  'wip_items_insert_ops_lead_or_admin (positive): ops_lead CAN add master data');
-update ops.wip_items set name = 'ops renamed' where id = '00000000-0000-0000-0000-00000000ab01';
+do $$ declare v_rows int; begin
+  update ops.wip_items set org_id = org_id where id = '00000000-0000-0000-0000-00000000ab01';
+  get diagnostics v_rows = row_count;
+  perform set_config('app.wip_update_rows', v_rows::text, true);
+end $$;
+select is(current_setting('app.wip_update_rows')::int, 1,
+  'wip_items_update_ops_lead_or_admin (positive): ops_lead''s update lands, so the zero above is the role gate');
 reset role;
-select is((select name from ops.wip_items where id = '00000000-0000-0000-0000-00000000ab01'),
-  'ops renamed',
-  'wip_items_update_ops_lead_or_admin (positive): ops_lead CAN rename, so the zero above is the role gate');
 
 -- ═══════════════════════════════════════════════════════════════════════════════════════════════
 -- C. ops.kitchen_plans

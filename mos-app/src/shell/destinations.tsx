@@ -2,10 +2,10 @@ import type React from 'react'
 import type { MessageKey } from '@/i18n/messages'
 import { REVENUE_VIEW_ROLES } from '@/lib/capabilities'
 import { isShipGated } from '@/lib/ship-gate'
-import { ADMIN_SECTIONS, CAFE_SECTIONS, sectionForPath, visibleSections, type Section } from './sections'
+import { ADMIN_SECTIONS, CAFE_SECTIONS, PENDING_BILLS_SECTION, sectionForPath, visibleSections, type Section } from './sections'
 import {
   HomeIcon, TasksIcon, InboxIcon, WorkLineIcon, ObjectiveIcon,
-  WorkIcon, SignalsIcon, MoneyIcon,
+  WorkIcon, SignalsIcon, MoneyIcon, BranchesIcon,
   CafeIcon, EcommerceIcon, RoasteryIcon,
   ProfileIcon, ShieldIcon,
 } from './icons'
@@ -120,6 +120,12 @@ export const DESTINATIONS: Destination[] = [
     anyOf: REVENUE_VIEW_ROLES,
     primaryPath: '/money',
     links: [{ path: '/money', label: 'Money', labelKey: 'nav.money', Icon: MoneyIcon }],
+    // Pending bills is Finance's alone: its `anyOf` matches its route gate (router.tsx) and the
+    // read policy on reporting.pending_bills, so the link is absent for every other Money tier.
+    children: [
+      { path: '/money', label: 'Branches', labelKey: 'nav.money.branches', Icon: BranchesIcon },
+      PENDING_BILLS_SECTION,
+    ],
   },
   {
     id: 'inbox',

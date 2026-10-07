@@ -1,0 +1,110 @@
+/* Receipt issues reuse the receipt review row (cafe-count-review-queue.css, cafe-receipt.css);
+   these rules cover only what an issue adds: its explanation, the resolution and the PO picker. */
+
+.cafe-receipt-issues .cafe-count-review__meta + .cafe-count-review__meta { margin-top: 2px; }
+
+.cafe-receipt-issues__notice {
+  margin: 0;
+  color: var(--foreground);
+  font-size: var(--font-size-body);
+}
+
+.cafe-receipt-issue__why,
+.cafe-receipt-issue__resolved {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+/* Each linked part on its own line, its PO's late flag quiet beside it. */
+.cafe-receipt-issue__parts {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--font-size-label);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.cafe-receipt-issue__parts > li { display: flex; flex-wrap: wrap; gap: 0 8px; }
+
+.cafe-receipt-issue__late { color: var(--muted-foreground); }
+
+.cafe-receipt-issues .cafe-count-review__state {
+  display: grid;
+  gap: 4px;
+}
+
+.cafe-receipt-issue__note {
+  color: var(--foreground);
+  text-align: start;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.cafe-receipt-issue__picker {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.cafe-receipt-issue__pos {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cafe-receipt-issue__pos > li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+}
+
+.cafe-receipt-issue__pos .btn { min-height: 44px; min-width: 96px; }
+
+.cafe-receipt-issue__po {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  font-size: var(--font-size-body);
+  overflow-wrap: anywhere;
+}
+
+.cafe-receipt-issue__po > span {
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+}
+
+/* The shared view tabs sit inside the issues card, so they take the card's inline placement
+   (as the records toolbar does) and never wrap a label at phone width. */
+.cafe-receipt-issues .view-tabs {
+  position: static;
+  padding: 0;
+  overflow-x: auto;
+  background: transparent;
+}
+
+.cafe-receipt-issues .view-tabs__tab { white-space: nowrap; }
+
+@media (max-width: 767.98px) {
+  .cafe-receipt-issues .view-tabs__tab { gap: 5px; padding: 0 7px; }
+}
+
+/* On a phone each issue is already its own bordered row; the outer frame only costs width. */
+@media (max-width: 480px) {
+  .cafe-receipt-issues.cafe-count-review { padding: 0; border: 0; background: transparent; }
+}
+
+/* Choosing a PO or writing a close note takes the row's full width below the issue. */
+.cafe-receipt-issue--resolving .cafe-count-review__decision { grid-column: 1 / -1; }

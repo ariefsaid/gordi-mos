@@ -44,14 +44,17 @@ import { listRunRollups, listTaskDefs } from '@/lib/db/processes'
 import { createRecordCollectionController } from '@/lib/record-collection/engine'
 import { createReadLease } from '@/lib/scoped-reads'
 import {
-  TASK_COLLECTION_NEUTRAL_QUERY,
   taskCollectionDescriptor,
   taskCollectionSavedViews,
   toTaskCollectionRecord,
   type TaskCollectionContext,
-  type TaskCollectionQuery,
   type TaskCollectionRecord,
 } from './task-collection-adapter'
+import {
+  TASK_COLLECTION_NEUTRAL_QUERY,
+  taskCollectionQuery as canonicalTaskCollectionQuery,
+  type TaskCollectionQuery,
+} from './task-collection-query'
 
 const mock = <T,>(fn: unknown) => fn as unknown as ReturnType<typeof vi.fn> & T
 
@@ -97,6 +100,12 @@ beforeEach(() => {
 })
 
 describe('load — DAL wiring and context', () => {
+  it('uses the canonical query module and shares its compatibility keys', () => {
+    expect(taskCollectionDescriptor.query).toBe(canonicalTaskCollectionQuery)
+    expect(taskCollectionDescriptor.presentations.table.compatibleQueryKeys).toBe(canonicalTaskCollectionQuery.keys)
+    expect(taskCollectionDescriptor.presentations.card.compatibleQueryKeys).toBe(canonicalTaskCollectionQuery.keys)
+  })
+
   it('FR-V3-007: legacy storage columns map to PIC/Supervisor only inside the adapter, BU rendered honestly', async () => {
     seedDirectory()
     mock(listTasks).mockResolvedValue([rawTask({ id: 't-1', title: 'Fix the coffee machine' })])

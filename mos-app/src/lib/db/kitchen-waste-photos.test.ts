@@ -4,8 +4,13 @@ vi.mock('@/lib/supabase', () => ({
   supabase: { schema: vi.fn(), storage: { from: vi.fn() } },
 }))
 
+vi.mock('@/lib/db/signal-photos', () => ({ shrinkPhoto: vi.fn() }))
+
 import { supabase } from '@/lib/supabase'
-import { isWastePhotoWindowExpired, WASTE_PHOTO_UPLOAD_WINDOW_MS, listCurrentPersonKitchenWasteDrafts, restartKitchenWasteDraft } from './kitchen-waste-photos'
+import { shrinkPhoto } from '@/lib/db/signal-photos'
+import {
+  isWastePhotoWindowExpired, WASTE_PHOTO_UPLOAD_WINDOW_MS, listCurrentPersonKitchenWasteDrafts, restartKitchenWasteDraft, uploadKitchenWastePhoto,
+} from './kitchen-waste-photos'
 
 const schemaMock = vi.mocked(supabase.schema)
 const storageFromMock = vi.mocked(supabase.storage.from)
@@ -28,6 +33,27 @@ describe('waste photo upload window', () => {
     expect(isWastePhotoWindowExpired(createdAt, deadline - 1)).toBe(false)
     expect(isWastePhotoWindowExpired(createdAt, deadline)).toBe(true)
     expect(isWastePhotoWindowExpired(createdAt, deadline + 1)).toBe(true)
+  })
+})
+
+describe('uploadKitchenWastePhoto', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('refuses a photo still over 5 MB after shrinking with the size error, before upload', async () => {
+    const single = vi.fn().mockResolvedValue({
+      data: { org_id: 'org-1', action: 'waste', status: 'Draft', created_at: new Date().toISOString() }, error: null,
+    })
+    const builder: Record<string, unknown> = { single }
+    for (const method of ['select', 'eq']) builder[method] = vi.fn(() => builder)
+    schemaMock.mockReturnValue({ from: vi.fn(() => builder) } as never)
+    const upload = vi.fn()
+    storageFromMock.mockReturnValue({ upload } as never)
+    vi.mocked(shrinkPhoto).mockResolvedValue(new Blob([new Uint8Array(5 * 1024 * 1024 + 1)], { type: 'image/jpeg' }))
+
+    await expect(uploadKitchenWastePhoto('log-1', new File(['image'], 'spill.jpg', { type: 'image/jpeg' })))
+      .rejects.toThrow('WASTE_PHOTO_TOO_LARGE')
+    expect(shrinkPhoto).toHaveBeenCalledOnce()
+    expect(upload).not.toHaveBeenCalled()
   })
 })
 
@@ -81,7 +107,8 @@ describe('listCurrentPersonKitchenWasteDrafts', () => {
     const responses: Record<string, { data: unknown; error: unknown }> = {
       kitchen_logs: {
         data: [{
-          id: 'draft-1', wip_item_id: 'item-1', item_unit_id: 'unit-1', qty_porsi: 1.5,
+          id: 'draft-1', client_request_id: '40000000-0000-0000-0000-000000000001',
+          wip_item_id: 'item-1', item_unit_id: 'unit-1', qty_porsi: 1.5,
           entry_quantity: 3, entry_unit_factor: 0.5, entry_unit_name: 'ERP pack',
           created_at: '2026-10-01T00:00:00.000Z', log_date: '2026-10-01',
         }],
@@ -116,6 +143,7 @@ describe('listCurrentPersonKitchenWasteDrafts', () => {
       orgId: 'org-1', personId: 'person-1', branchId: 'branch-1', activity: 'bar',
     })).resolves.toEqual([{
       logId: 'draft-1',
+      clientRequestId: '40000000-0000-0000-0000-000000000001',
       itemId: 'item-1',
       itemUnitId: 'unit-1',
       unitName: 'ERP pack',

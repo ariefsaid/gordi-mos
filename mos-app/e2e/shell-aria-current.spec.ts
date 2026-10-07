@@ -1,25 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { loginAs } from './helpers/login'
-import { ADMIN, VIEWER } from './fixtures/users'
+import { ADMIN } from './fixtures/users'
 import { isShipGated } from './helpers/ship-gate'
-
-// Every route a viewer can actually land on. issue 444 drops the ship-gated ones (work/projects,
-// work/objectives, work/events, money): each forwards to Home, so visiting one measures Home's
-// aria-current twice rather than that route's. Filtered through the gate rather than deleted, so
-// un-gating a surface puts it straight back into the sweep.
-const desktopRoutes = ([
-  '',
-  'work/tasks',
-  'work/signals',
-  'work/projects',
-  'work/objectives',
-  'work/events',
-  'money',
-  'inbox',
-  'cafe/production',
-  'admin/people',
-  'profile',
-] as const).filter((path) => !isShipGated(`/${path}`))
 
 async function pageCurrentCount(page: import('@playwright/test').Page) {
   return page.evaluate(() => document.querySelectorAll('[aria-current="page"]').length)
@@ -30,22 +12,16 @@ test.describe('shell aria-current', () => {
     await loginAs(page, ADMIN.email, ADMIN.password)
   })
 
-  test('AC-007: desktop routes render exactly one aria-current="page"', async ({ page }) => {
-    for (const path of desktopRoutes) {
-      await page.goto(path)
-      // Rule 5 on desktop: Personal Profile has no rail row (OD-WAY-77), so its breadcrumb leaf
-      // is the one element that carries the location.
-      await expect.poll(() => pageCurrentCount(page)).toBe(1)
-    }
-  })
+  // AC-007 (exactly one aria-current="page" per route) is owned by proof-02-route-parity.spec.ts,
+  // which walks every canonical route at desktop and phone width.
 
   test.describe('phone', () => {
     test.use({ viewport: { width: 390, height: 844 } })
 
     test('AC-008: on phone, primary destinations mark their tab and non-primary destinations mark More', async ({ page }) => {
       // The admin's fixed primaries are Home/Work/Inbox. Café is a MODULE tab promoted for a
-      // café-affiliated viewer (AC-008b) or, for anyone else, while they stand on a Café page
-      // (covered at the end of this test).
+      // café-affiliated viewer (admission: shell-navigation-parity.spec.ts) or, for anyone else,
+      // while they stand on a Café page (covered at the end of this test).
       const primaryCases = [
         { path: '', label: 'Home' },
         { path: 'work/tasks', label: 'Work' },
@@ -94,19 +70,5 @@ test.describe('shell aria-current', () => {
     })
 
 
-  })
-})
-
-// OD-68's positive half needs a café-AFFILIATED viewer, so it gets its own describe with its own
-// login — the block above authenticates as ADMIN in beforeEach, and a second loginAs on an
-// already-authenticated app detaches the sign-in form mid-click.
-test.describe('shell aria-current — café viewer (OD-68 promoted module tab)', () => {
-  test.use({ viewport: { width: 390, height: 844 } })
-
-  test('AC-008b: a café viewer on Log production marks the promoted Café tab', async ({ page }) => {
-    await loginAs(page, VIEWER.email, VIEWER.password) // Cahya — Cafe Ops Lead
-    await page.goto('cafe/production')
-    await expect.poll(() => pageCurrentCount(page)).toBe(1)
-    await expect(page.getByRole('link', { name: 'Café', exact: true })).toHaveAttribute('aria-current', 'page')
   })
 })

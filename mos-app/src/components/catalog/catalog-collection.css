@@ -68,6 +68,14 @@
   outline-offset: 2px;
 }
 
+@media (pointer: coarse), (max-width: 768px) {
+  .catalog-collection__row-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+}
+
 .catalog-collection__identity,
 .catalog-collection__cell {
   min-width: 0;

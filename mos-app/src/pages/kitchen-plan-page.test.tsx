@@ -43,19 +43,18 @@ vi.mock('@/lib/db/kitchen-logs', async () => {
   // #222: every item is on the stream's list unless a test says otherwise.
   return {
     ...actual,
-    listActiveWipItems: vi.fn(),
     listStreamPairs: vi.fn(),
     listCafeDestinations: vi.fn(),
     listStreamItemIds: vi.fn(async () => ({ has: () => true })),
   }
 })
-import { listActiveWipItems, listCafeDestinations, listStreamItemIds, listStreamPairs } from '@/lib/db/kitchen-logs'
+import { listCafeDestinations, listStreamItemIds, listStreamPairs } from '@/lib/db/kitchen-logs'
 
 vi.mock('@/lib/db/cafe-item-settings', async () => {
   const actual = await vi.importActual<typeof import('@/lib/db/cafe-item-settings')>('@/lib/db/cafe-item-settings')
-  return { ...actual, listCafeItemSettings: vi.fn() }
+  return { ...actual, listCafeItemSettings: vi.fn(), canManageCafeItemSettings: vi.fn(async () => false) }
 })
-import { listCafeItemSettings } from '@/lib/db/cafe-item-settings'
+import { listCafeItemSettings, type CafeItemSetting } from '@/lib/db/cafe-item-settings'
 
 // shared.default_stream() (FR-001) — the viewer's own stream. #440: the plan surfaces resolve
 // their stream the way the capture surface always did, instead of guessing at the catalog.
@@ -82,7 +81,6 @@ import { resetCafeLocations } from '@/lib/cafe-opening-location'
 import type { CafeDestination, WipItemOption, PlanCell, PesananRow } from '@/lib/db/kitchen-logs.types'
 
 const mockUseAuth = vi.mocked(useAuth)
-const mockItems = vi.mocked(listActiveWipItems)
 const mockPlans = vi.mocked(listKitchenPlans)
 const mockPesanan = vi.mocked(listPesanan)
 const mockUpsert = vi.mocked(upsertKitchenPlan)
@@ -153,6 +151,12 @@ const ITEMS: WipItemOption[] = [
   { id: 'w1', name: 'Ayam Bakar', category: 'Main' },
   { id: 'w2', name: 'Nasi Goreng', category: 'Main' },
 ]
+// Every Plan row is an ESB item on the stream, configured as an active WIP item with a porsi default.
+const esb = (item: WipItemOption): CafeItemSetting => ({
+  id: item.id, erpName: item.name, mosName: item.name, category: item.category, kind: 'WIP', isActive: true,
+  defaultUnitId: `${item.id}-porsi`,
+  units: [{ id: `${item.id}-porsi`, name: 'porsi', isShown: true, isDefault: true, labelOrdinal: null, labelCount: 1 }],
+})
 const PRODUCE = { action: 'produce' as const, destinationBranchId: null }
 const PLAN_CELLS: PlanCell[] = [
   { id: 'pl1', wip_item_id: 'w1', movement: PRODUCE, qty_porsi: 12 },
@@ -169,12 +173,11 @@ beforeEach(() => {
   rememberStream(null)
   resetCafeLocations()
   mockUseAuth.mockReturnValue(viewer(['ops_lead']))
-  mockItems.mockResolvedValue(ITEMS)
   mockBranches.mockResolvedValue(BRANCHES)
   mockStreamPairs.mockResolvedValue(STREAM_PAIRS)
   mockDestinations.mockResolvedValue(DESTINATIONS)
   mockDefaultStream.mockResolvedValue(OWN_STREAM)
-  mockCafeItemSettings.mockResolvedValue([])
+  mockCafeItemSettings.mockResolvedValue(ITEMS.map(esb))
   mockPlans.mockResolvedValue([])
   mockPesanan.mockResolvedValue([])
   vi.mocked(listCafeViewerTeams).mockResolvedValue([])
@@ -287,14 +290,14 @@ describe('KitchenPlanPage — the stream reads in the page head (#440)', () => {
     currentViewer = viewer(['ops_lead'], 'person-b')
     rerender(<KitchenPlanPage />)
     const quantity = await screen.findByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
-    await waitFor(() => expect(quantity).toHaveValue(27))
+    await waitFor(() => expect(quantity).toHaveValue('27'))
 
     await act(async () => {
       resolvePrevious([{ id: 'plan-a', wip_item_id: 'w1', movement: PRODUCE, qty_porsi: 91 }])
       await Promise.resolve()
     })
 
-    expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })).toHaveValue(27)
+    expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })).toHaveValue('27')
   })
 
   it('the member pesanan face states its stream too — a read-only surface still says which books', async () => {
@@ -327,7 +330,7 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
     // editable qty inputs exist (the editor affordance) — one per item
     expect(screen.getAllByRole('spinbutton').length).toBeGreaterThanOrEqual(2)
     // pre-filled with the existing plan qty for Ayam Bakar / Production
-    expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })).toHaveValue(12)
+    expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })).toHaveValue('12')
   })
 
   it('FR-031: typing an amount + blur commits — upsertKitchenPlan with qty_porsi (no org_id/plan_by)', async () => {
@@ -349,6 +352,84 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
     expect(Object.keys(arg)).not.toContain('action_type')
     expect(Object.keys(arg)).not.toContain('org_id')
     expect(Object.keys(arg)).not.toContain('plan_by')
+  })
+
+  it.each(['1,5', '1.5'])('rejects decimal plan input %s instead of rounding or saving it', async raw => {
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+    const input = await screen.findByLabelText(/planned quantity for ayam bakar/i)
+    expect(input).toHaveAttribute('type', 'text')
+    expect(input).toHaveAttribute('inputmode', 'decimal')
+    await waitFor(() => expect(input).toBeEnabled())
+    const user = userEvent.setup()
+    await user.clear(input)
+    await user.type(input, raw)
+    await user.tab()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/whole numbers only/i)
+    expect(mockUpsert).not.toHaveBeenCalled()
+  })
+
+  it('shows the integer-only correction in Indonesian', async () => {
+    render(<KitchenPlanPage />, { wrapper: idWrapper })
+    await screen.findByText('Ayam Bakar')
+    const input = await screen.findByLabelText(/jumlah yang direncanakan untuk ayam bakar/i)
+    expect(input).toHaveAttribute('type', 'text')
+    expect(input).toHaveAttribute('inputmode', 'decimal')
+    await waitFor(() => expect(input).toBeEnabled())
+    const user = userEvent.setup()
+    await user.clear(input)
+    await user.type(input, '1,5')
+    await user.tab()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/bilangan bulat/i)
+    expect(mockUpsert).not.toHaveBeenCalled()
+  })
+
+  it('a save resolving after a stream switch cannot overwrite the new stream plan', async () => {
+    let resolveSave!: (id: string) => void
+    mockPlans.mockResolvedValueOnce([]).mockResolvedValueOnce([
+      { id: 'new-stream-plan', wip_item_id: 'w1', movement: PRODUCE, qty_porsi: 27 },
+    ])
+    mockUpsert.mockImplementationOnce(() => new Promise(resolve => { resolveSave = resolve }))
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+
+    const quantity = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
+    fireEvent.change(quantity, { target: { value: '15' } })
+    fireEvent.blur(quantity)
+    await waitFor(() => expect(mockUpsert).toHaveBeenCalledOnce())
+
+    chooseStream('Radiant · Bar')
+    await screen.findByRole('heading', { level: 2, name: 'Radiant · Bar' })
+    await waitFor(() => expect(mockPlans).toHaveBeenCalledTimes(2))
+    const newStreamQuantity = await screen.findByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
+    await waitFor(() => expect(newStreamQuantity).toHaveValue('27'))
+
+    await act(async () => { resolveSave('late-kitchen-plan') })
+
+    expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })).toHaveValue('27')
+    expect(screen.queryByText(/saving/i)).not.toBeInTheDocument()
+  })
+
+  it('names the original stream when a pending save fails after switching', async () => {
+    let rejectSave!: (error: Error) => void
+    mockUpsert.mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectSave = reject }))
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+
+    const quantity = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
+    fireEvent.change(quantity, { target: { value: '15' } })
+    fireEvent.blur(quantity)
+    await waitFor(() => expect(mockUpsert).toHaveBeenCalledOnce())
+
+    chooseStream('Radiant · Bar')
+    await screen.findByRole('heading', { level: 2, name: 'Radiant · Bar' })
+    await waitFor(() => expect(mockPlans).toHaveBeenCalledTimes(2))
+    await act(async () => { rejectSave(new Error('network failure')) })
+
+    expect(await screen.findByText(/could not confirm the plan save for rumah rames · kitchen/i)).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 
   it('does not save when the value is unchanged (no needless write)', async () => {
@@ -397,14 +478,14 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
     // #979: the same input is still mounted and still holds the typed amount after the rejection
     expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })).toBe(input)
     expect(input).toBeInTheDocument()
-    expect(input).toHaveValue(15)
+    expect(input).toHaveValue('15')
     // retry (Enter on the still-typed amount) succeeds: that amount is what gets persisted
     fireEvent.keyDown(input, { key: 'Enter' })
     await waitFor(() => expect(mockUpsert).toHaveBeenCalledTimes(2))
     expect(mockUpsert.mock.calls[1][0].qty_porsi).toBe(15)
     expect(mockUpsert.mock.calls[1][0].wip_item_id).toBe('w1')
     expect(await screen.findByText(/saved/i)).toBeInTheDocument()
-    expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })).toHaveValue(15)
+    expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })).toHaveValue('15')
   })
 
   it('(#981) editor search keeps real typing intact, the URL follows, and clearing empties both', async () => {
@@ -455,6 +536,18 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
     expect(screen.queryByText('ERP Ayam Bakar')).toBeNull()
   })
 
+  it('reads each plan quantity in the item\'s default ESB unit, beside the field', async () => {
+    mockCafeItemSettings.mockResolvedValue([{
+      id: 'w1', erpName: 'Ayam Bakar Madu Bumbu Rujak Porsi Katering Besar', mosName: 'Ayam Bakar Madu Bumbu Rujak Porsi Katering Besar',
+      category: 'Main', kind: 'WIP', isActive: true, defaultUnitId: 'unit-batch',
+      units: [{ id: 'unit-batch', name: 'Batch @50porsi', isShown: true, isDefault: true, labelOrdinal: null, labelCount: 1 }],
+    }])
+    render(<KitchenPlanPage />, { wrapper })
+    const field = await screen.findByRole('spinbutton', { name: /planned quantity for ayam bakar madu/i })
+    expect(field.parentElement).toHaveTextContent('Batch @50porsi')
+    expect(screen.getAllByText('Batch @50porsi')).toHaveLength(1)
+  })
+
   it('labels Plan rows as WIP and offers only enabled item kinds', async () => {
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
@@ -473,7 +566,7 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
     // DD-5 data-honesty: qty 0 = "nothing planned" → the field is genuinely blank with a
     // greyed "0" placeholder, never a column of committed-looking black zeros.
     const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
-    expect(input).toHaveValue(null)
+    expect(input).toHaveValue('')
     expect(input).toHaveAttribute('placeholder', '0')
   })
 
@@ -528,17 +621,18 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
     const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
+    expect(input).toHaveAttribute('data-escape-layer', 'nested')
     await user.clear(input)
     await user.type(input, '99{Escape}')
     // draft rolled back to the saved 12; tabbing away is then a no-op (no needless write)
-    expect(input).toHaveValue(12)
+    expect(input).toHaveValue('12')
     await user.tab()
     await new Promise(r => setTimeout(r, 0))
     expect(mockUpsert).not.toHaveBeenCalled()
   })
 
   it('error + retry: surfaces a retry that re-fetches', async () => {
-    mockItems.mockRejectedValueOnce(new Error('boom')).mockResolvedValue(ITEMS)
+    mockCafeItemSettings.mockRejectedValueOnce(new Error('boom')).mockResolvedValue(ITEMS.map(esb))
     render(<KitchenPlanPage />, { wrapper })
     const retry = await screen.findByRole('button', { name: /try again/i })
     fireEvent.click(retry)
@@ -738,9 +832,9 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
     ['receiving-only', RADIANT_KITCHEN],
   ] as const)('phone ignores desktop category query for the %s Plan list', async (_state, stream) => {
     mockDefaultStream.mockResolvedValue(stream)
-    mockItems.mockResolvedValue([
-      { ...ITEMS[0], category: 'Main' },
-      { ...ITEMS[1], category: 'Rice' },
+    mockCafeItemSettings.mockResolvedValue([
+      esb({ ...ITEMS[0], category: 'Main' }),
+      esb({ ...ITEMS[1], category: 'Rice' }),
     ])
     render(
       <MemoryRouter initialEntries={['/cafe/plan?category=__no_matching_category__']}>
@@ -767,9 +861,9 @@ describe('KitchenPlanPage — editor redesign (OD-K-5 §4)', () => {
         dispatchEvent: () => false,
       }),
     })
-    mockItems.mockResolvedValue([
-      { ...ITEMS[0], category: 'Main' },
-      { ...ITEMS[1], category: 'Rice' },
+    mockCafeItemSettings.mockResolvedValue([
+      esb({ ...ITEMS[0], category: 'Main' }),
+      esb({ ...ITEMS[1], category: 'Rice' }),
     ])
     render(
       <MemoryRouter initialEntries={['/cafe/plan?category=Rice']}>
@@ -813,7 +907,7 @@ describe('KitchenPlanPage — stream supervisor editor (#784 AC-057)', () => {
     render(<KitchenPlanPage />, { wrapper })
     expect(await screen.findByText('Ayam Bakar')).toBeInTheDocument()
     const input = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
-    expect(input).toHaveValue(12)
+    expect(input).toHaveValue('12')
     fireEvent.change(input, { target: { value: '20' } })
     fireEvent.blur(input)
     await waitFor(() => expect(mockUpsert).toHaveBeenCalled())
@@ -1010,6 +1104,7 @@ describe('KitchenPlanPage — member pesanan (AC-024)', () => {
       { ...PESANAN[0], category: 'Main' },
       { ...PESANAN[1], category: 'Rice' },
     ])
+    mockCafeItemSettings.mockResolvedValue([esb({ ...ITEMS[0], category: 'Main' }), esb({ ...ITEMS[1], category: 'Rice' })])
     render(<KitchenPlanPage />, { wrapper })
     await screen.findByText('Ayam Bakar')
     expect(screen.getByRole('combobox', { name: /category/i })).toHaveAttribute('id', 'cafe-plan-category')
@@ -1259,7 +1354,7 @@ describe('issue 222: the plan offers the stream\'s own item list', () => {
   const NOT_ON_LIST = new Error('upsertKitchenPlan failed — CAFE_ITEM_NOT_ON_STREAM: the item is not on this stream\'s item list')
 
   it('a row already planned for an off-list item stays, labelled and editable; an off-list item with no plan is not offered', async () => {
-    mockItems.mockResolvedValue(WITH_UNLISTED)
+    mockCafeItemSettings.mockResolvedValue(WITH_UNLISTED.map(esb))
     mockOffered.mockResolvedValue(new Set(['w2']))
     mockPlans.mockResolvedValue(PLAN_CELLS) // Ayam Bakar (w1) planned at 12, then left the list
     render(<KitchenPlanPage />, { wrapper })
@@ -1299,9 +1394,9 @@ describe('issue 222: the plan offers the stream\'s own item list', () => {
     expect(screen.queryByText('Unplanned inactive item')).not.toBeInTheDocument()
     expect(screen.getByText('Reclassified rice')).toBeInTheDocument()
     expect(screen.getByText('Not WIP — existing plan only')).toBeInTheDocument()
-    expect(screen.getByRole('spinbutton', { name: /planned quantity for reclassified rice/i })).toHaveValue(5)
+    expect(screen.getByRole('spinbutton', { name: /planned quantity for reclassified rice/i })).toHaveValue('5')
     const input = screen.getByRole('spinbutton', { name: /planned quantity for archived curry/i })
-    expect(input).toHaveValue(8)
+    expect(input).toHaveValue('8')
     expect(input).toBeEnabled()
     fireEvent.change(input, { target: { value: '10' } })
     fireEvent.blur(input)
@@ -1314,18 +1409,20 @@ describe('issue 222: the plan offers the stream\'s own item list', () => {
     expect(transferTab).toBeDefined()
     fireEvent.click(transferTab!)
     const transferInput = screen.getByRole('spinbutton', { name: /planned quantity for archived curry/i })
-    expect(transferInput).toHaveValue(null)
+    expect(transferInput).toHaveValue('')
     expect(transferInput).toBeDisabled()
     expect(screen.getByRole('spinbutton', { name: /planned quantity for reclassified rice/i })).toBeDisabled()
     expect(mockUpsert).toHaveBeenCalledOnce()
   })
 
-  it('an empty list names the stream and who can fill it', async () => {
+  it('an empty list names the stream from the settings the page already read', async () => {
     mockOffered.mockResolvedValue(new Set())
+    mockCafeItemSettings.mockResolvedValue([])
     render(<KitchenPlanPage />, { wrapper })
-    expect(await screen.findByText('No items for Rumah Rames · Kitchen')).toBeInTheDocument()
-    expect(screen.getByText(/an ops lead or admin can add them/i)).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'No ESB items on Rumah Rames · Kitchen' })).toBeInTheDocument()
     expect(screen.queryByRole('spinbutton')).toBeNull()
+    // The empty state uses the settings the page already read rather than reading them again.
+    expect(mockCafeItemSettings).toHaveBeenCalledTimes(1)
   })
 
   it('a save refused as off-list reads as guidance and the row turns read-only', async () => {

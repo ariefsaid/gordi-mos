@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
-import { CafeItemQuantityRow, type CafeItemQuantityEntry } from '@/components/kitchen/cafe-item-quantity-row'
+import { CafeCaptureQuantityControl, CafeCaptureTable, type CafeItemQuantityEntry } from '@/components/kitchen/cafe-capture-table'
 import { CafeRequestHistory } from '@/components/kitchen/cafe-request-history'
 import { CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
 import { CafePageFrame } from '@/components/kitchen/cafe-page-frame'
@@ -25,8 +25,6 @@ import { useCafeStream } from '@/lib/use-cafe-stream'
 import { formatWeekdayDayMonth } from '@/lib/format/date'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useIsOffline } from '@/shell/use-is-offline'
-import './cafe-count-page.css'
-import './cafe-receive-page.css'
 import './cafe-request-page.css'
 
 type Sent = { requiredBy: string; note: string; lines: Array<{ name: string; quantity: string; unit: string }> }
@@ -140,7 +138,7 @@ export function CafeRequestPage() {
 
   return (
     <CafePageFrame page="request" streamBar={streamBar} state={pageState}>
-      <div className="cafe-count cafe-receive cafe-request">
+      <div className="cafe-capture-page cafe-count cafe-request">
         {loadState === 'loading' && <LoadingShell count={3} />}
         {loadState === 'error' && (
           <ErrorState
@@ -233,31 +231,49 @@ export function CafeRequestPage() {
                   categoryLabel={value => kitchenCategoryLabel(t, value)}
                   category={category}
                   onCategoryChange={setCategory}
-                  searchPlaceholder={t('cafe.receive.searchPlaceholder')}
+                  searchPlaceholder={t('kitchen.log.searchPlaceholder')}
                   ariaLabel={t('kitchen.log.toolbarAria')}
                 />
-                {visibleItems.length === 0 && <p className="cafe-count__intro">{t('kitchen.filter.noMatch')}</p>}
-                <ul className="cafe-count__list" aria-label={t('cafe.request.listAria')}>
-                  {visibleItems.map(item => (
-                    <CafeItemQuantityRow
-                      key={item.id}
-                      item={item}
-                      entry={entries[item.id]}
-                      idPrefix="cafe-request"
-                      quantityLabel={t('cafe.request.quantityLabel')}
-                      quantityFor={t('cafe.request.quantityFor', { item: item.name })}
-                      invalid={isInvalidCafeItemEntry(entries[item.id])}
-                      disabled={busy}
-                      onChange={patch => patchEntry(item.id, patch)}
-                    />
-                  ))}
-                </ul>
+                <CafeCaptureTable
+                  rows={visibleItems}
+                  caption={t('cafe.request.listAria')}
+                  quantityHeader={t('cafe.request.quantityLabel')}
+                  isDesktop={isDesktop}
+                  state={visibleItems.length > 0 ? 'ready' : 'empty'}
+                  emptyLabel={t('kitchen.filter.noMatch')}
+                  renderControls={item => {
+                    const invalid = isInvalidCafeItemEntry(entries[item.id])
+                    const errorId = `cafe-request-${item.id}-quantity-error`
+                    return (
+                      <CafeCaptureQuantityControl
+                        id={`cafe-request-${item.id}`}
+                        itemName={item.name}
+                        quantityFor={t('cafe.request.quantityFor', { item: item.name })}
+                        value={entries[item.id]?.quantity ?? ''}
+                        enterKeyHint="next"
+                        unitName={item.units.find(unit => unit.id === entries[item.id]?.unitId)?.name ?? ''}
+                        invalid={invalid}
+                        describedById={invalid ? errorId : undefined}
+                        disabled={busy}
+                        units={item.units}
+                        selectedUnitId={entries[item.id]?.unitId}
+                        changingUnit={entries[item.id]?.changingUnit}
+                        onQuantityChange={quantity => patchEntry(item.id, { quantity })}
+                        onToggleUnit={() => patchEntry(item.id, { changingUnit: !entries[item.id]?.changingUnit })}
+                        onUnitChange={unitId => patchEntry(item.id, { unitId })}
+                      />
+                    )
+                  }}
+                  renderFeedback={item => isInvalidCafeItemEntry(entries[item.id])
+                    ? <p id={`cafe-request-${item.id}-quantity-error`} className="cafe-count__field-error" role="alert">{t('cafe.receive.quantityInvalid')}</p>
+                    : null}
+                />
               </>
             )}
           </>
         )}
         {ready && !sent && items.length > 0 && (
-          <div className="cafe-count__footer">
+          <div className="cafe-capture-footer cafe-count__footer">
             <div className="cafe-receive__band-status">
               <p className="cafe-count__tally" aria-live="polite">
                 {t(lines.length === 1 ? 'cafe.receive.lines.one' : 'cafe.receive.lines.other', { count: lines.length })}

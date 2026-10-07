@@ -147,7 +147,6 @@
 }
 
 .home-layout .stream-band-link,
-.home-layout .stream-band-more--link,
 .home-layout .signal-feed-link { color: var(--text-on-accent-tint); }
 
 /* Tiles can be narrower than the Home container; retain a second metadata line there. */
@@ -159,6 +158,5 @@
   .home-layout .stream-row-tail { max-width: none; justify-content: flex-start; }
   .home-layout .stream-band-head { flex-wrap: wrap; gap: 4px 12px; }
   .home-layout .stream-band-link,
-  .home-layout .stream-band-more--link,
   .home-layout .signal-feed-link { display: inline-flex; align-items: center; min-height: 44px; }
 }

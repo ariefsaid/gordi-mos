@@ -4,7 +4,7 @@
 -- releases held receipts once posting is on.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(57);
+select plan(64);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -225,8 +225,9 @@ select ok((select bool_and(e.endpoint = 'goods-receipt' and e.status = 'pending'
                            and e.payload ->> 'delivery_note_number' = 'DN 77')
              from integrations.esb_push e where e.source_module = 'cafe_receipt'),
   'FR-1024 each member carries the PO, arrival date, receiving location and delivery note');
+-- 7 kg of bean is below the 9 open on the two POs: one informational short issue (#1431), not unmatched.
 select is((select ops.cafe_receipt_posting(r) from ops.cafe_receipts r where r.id = current_setting('app.r2')::uuid),
-  jsonb_build_object('state', 'queued', 'matched', true, 'unmatched', 0, 'open_issues', 0),
+  jsonb_build_object('state', 'queued', 'matched', true, 'unmatched', 0, 'open_issues', 1),
   'FR-1042 the receipt reads queued');
 select lives_ok($$select ops._match_cafe_receipt(current_setting('app.r2')::uuid)$$, 'AC-1021 matching again is harmless');
 set local role authenticated;
@@ -239,18 +240,31 @@ select is((select count(*)::int from integrations.esb_push where source_module =
   '3/2', 'AC-1021 re-approving and re-matching create nothing');
 
 -- The worker's outcome becomes the receipt's state.
-update integrations.esb_push set status = 'posted', posted_at = clock_timestamp()
- where id in (select push_id from ops.cafe_receipt_portions where receipt_id = current_setting('app.r2')::uuid);
-select is((select ops.cafe_receipt_posting(r) ->> 'state' from ops.cafe_receipts r where r.id = current_setting('app.r2')::uuid),
-  'posted', 'FR-1042 every portion posted reads posted');
-update integrations.esb_push set status = 'dead_letter'
+set local role service_role;
+select is((select count(*)::int from integrations.claim_esb_pushes(array(
+  select push_id from ops.cafe_receipt_portions
+   where receipt_id = current_setting('app.r2')::uuid and push_id is not null))), 3,
+  'the worker atomically claims the receipt portions');
+update integrations.esb_push set status = 'failed', retry_count = retry_count + 1,
+       last_error = 'synthetic retryable failure'
  where id = (select push_id from ops.cafe_receipt_portions where receipt_id = current_setting('app.r2')::uuid
               and po_number = 'PO-SYNTH-1429-B');
+reset role;
 select is((select ops.cafe_receipt_posting(r) ->> 'state' from ops.cafe_receipts r where r.id = current_setting('app.r2')::uuid),
   'failed', 'FR-1042 a failed portion reads failed');
-update integrations.esb_push set status = 'pending'
+set local role service_role;
+update integrations.esb_push set next_attempt_at = clock_timestamp() - interval '1 second'
  where id = (select push_id from ops.cafe_receipt_portions where receipt_id = current_setting('app.r2')::uuid
               and po_number = 'PO-SYNTH-1429-B');
+select is(integrations.reap_esb_pushes(), 1, 'the worker reaper promotes the due receipt retry');
+select is((select count(*)::int from integrations.claim_esb_pushes(array(
+  select push_id from ops.cafe_receipt_portions where receipt_id = current_setting('app.r2')::uuid
+    and po_number = 'PO-SYNTH-1429-B'))), 1, 'the retried receipt portion can be claimed again');
+update integrations.esb_push set status = 'posted', posted_at = clock_timestamp()
+ where id in (select push_id from ops.cafe_receipt_portions where receipt_id = current_setting('app.r2')::uuid);
+reset role;
+select is((select ops.cafe_receipt_posting(r) ->> 'state' from ops.cafe_receipts r where r.id = current_setting('app.r2')::uuid),
+  'posted', 'FR-1042 every portion posted reads posted');
 
 -- ── AC-1028 releasing held receipts once posting is on ───────────────────────────────────────
 set local role authenticated;
@@ -391,6 +405,28 @@ select is((select string_agg(p.po_number || ':' || p.quantity::text, ',') from o
                         where i.receipt_id = current_setting('app.r5')::uuid),
   'PO-SYNTH-1429-E:2.0000 / over:5.0000',
   'FR-1027 a portion queued but not yet posted still counts against the outstanding a later refresh reads');
+
+select set_config('app.retention_push_id', (select push_id::text from ops.cafe_receipt_portions
+  where receipt_id = current_setting('app.r2')::uuid and push_id is not null limit 1), true);
+select set_config('app.retention_portion_id', (select id::text from ops.cafe_receipt_portions
+  where push_id = current_setting('app.retention_push_id')::uuid), true);
+set local role service_role;
+update integrations.esb_push set posted_at = clock_timestamp() - interval '31 days'
+ where id = current_setting('app.retention_push_id')::uuid;
+select is(integrations.prune_esb_pushes(), 0,
+  'retention leaves a sent receipt row that a portion still references');
+reset role;
+select is((select count(*)::int from ops.cafe_receipt_portions
+            where push_id = current_setting('app.retention_push_id')::uuid), 1,
+  'the portion keeps its link to the sent row');
+select is((select count(*)::int from integrations.esb_push
+            where id = current_setting('app.retention_push_id')::uuid), 1,
+  'the aged sent receipt row is kept');
+select ops._enqueue_cafe_receipt_portions(current_setting('app.r2')::uuid, 'TEST-LOC');
+select is((select count(*)::int from integrations.esb_push
+            where source_module = 'cafe_receipt' and source_ref = current_setting('app.retention_portion_id')
+              and status <> 'posted'), 0,
+  'a later link or release does not enqueue an aged sent portion again');
 
 select * from finish();
 rollback;

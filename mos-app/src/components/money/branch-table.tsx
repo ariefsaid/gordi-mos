@@ -15,6 +15,7 @@ import {
   type SortingState,
   type Updater,
 } from '@tanstack/react-table'
+import { MoneyTableShell } from '@/components/money/money-table-shell'
 import { Pill } from '@/components/ui/pill'
 import { Select } from '@/components/ui/select'
 import { useT, type Translate } from '@/i18n/use-t'
@@ -199,9 +200,10 @@ export function BranchTable({ data, period, sort, onSortChange }: BranchTablePro
     : t(desc ? 'money.sort.highFirst' : 'money.sort.lowFirst')
 
   return (
-    <div className="money-table-block">
-      <div className="money-table-scroll">
-        {/* Phone only: the table's header row, standing in for the column header buttons. */}
+    <MoneyTableShell
+      className="branch-money-table"
+      tableClassName={withMargin ? 'money-table--margin' : undefined}
+      beforeTable={(
         <div className="money-table__phone-sort">
           <label className="money-table__phone-sort-label" htmlFor={sortId}>{t('money.sort.label')}</label>
           <Select
@@ -220,7 +222,14 @@ export function BranchTable({ data, period, sort, onSortChange }: BranchTablePro
             {sortLabel(sort.column, sort.desc)}
           </button>
         </div>
-        <table className={`money-table${withMargin ? ' money-table--margin' : ''}`}>
+      )}
+      afterTable={withMargin && (
+        <p className="money-table__basis">
+          <span>{t('money.note.interim')}</span>
+          {data.b2b.length > 0 && <span>{t('money.note.b2b')}</span>}
+        </p>
+      )}
+    >
           <caption className="sr-only">
             {t('money.table.caption', { days: String(period), date: formatWeekdayDayMonth(data.latestDate) })}
           </caption>
@@ -274,14 +283,6 @@ export function BranchTable({ data, period, sort, onSortChange }: BranchTablePro
               {data.b2b.map((row) => linkedRow(row, b2bName(row)))}
             </tbody>
           )}
-        </table>
-      </div>
-      {withMargin && (
-        <p className="money-table__basis">
-          <span>{t('money.note.interim')}</span>
-          {data.b2b.length > 0 && <span>{t('money.note.b2b')}</span>}
-        </p>
-      )}
-    </div>
+    </MoneyTableShell>
   )
 }

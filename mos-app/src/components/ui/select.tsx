@@ -38,6 +38,7 @@ export interface SelectProps extends Omit<
   label?: string
   error?: boolean
   fullWidth?: boolean
+  contentClassName?: string
   onBlur?: FocusEventHandler<HTMLButtonElement>
   onFocus?: FocusEventHandler<HTMLButtonElement>
   onKeyDown?: KeyboardEventHandler<HTMLButtonElement>
@@ -134,6 +135,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
     fullWidth = false,
     id,
     className,
+    contentClassName,
     disabled = false,
     autoFocus = false,
     required = false,
@@ -285,7 +287,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
               collisionPadding={12}
               aria-label={labelledBy ? undefined : triggerLabel}
               aria-labelledby={labelledBy}
-              className="mk-select__menu"
+              className={['mk-select__menu', contentClassName].filter(Boolean).join(' ')}
               onEscapeKeyDown={(event) => event.stopPropagation()}
             >
               <RadixSelect.Viewport className="mk-select__viewport">

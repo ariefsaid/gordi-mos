@@ -8,7 +8,7 @@
 // panel — access roles, Teams with the Home Team marked, the Teams they lead, and each action
 // group from the role authority table with the widest scope they get and which role grants it.
 // Below: the editable sections in the order the domain reads them — Teams · Position · Access ·
-// Revenue scope (only while Supervisor is on). Every row commits and reports beside itself.
+// Revenue scope (only while Supervisor is on) · Procurement. Every row commits and reports beside itself.
 
 import { useId, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
@@ -28,6 +28,7 @@ import { TeamPicker } from './team-picker'
 import { PositionPicker } from './position-picker'
 import { AccessRoles } from './access-roles'
 import { RevenueScopePicker } from './revenue-scope-picker'
+import { CafeReceiptIssueAccess } from './cafe-receipt-issue-access'
 import './admin-settings.css'
 
 export type PersonAuthoritySource = {
@@ -69,7 +70,7 @@ export function PersonPanel({ person, people, roles, teams, scopeOptions, author
       onClose={close}
       focusKey={person.id}
       initialFocusRef={headingRef}
-      rootClassName="admin-person-panel"
+      rootClassName="admin-person-panel drawer-split--sticky"
     >
       <div className="admin-person">
         {person.email && <p className="admin-person__email">{person.email}</p>}
@@ -231,6 +232,9 @@ function PersonSections({ person, people, roles, teams, scopeOptions, commits, r
           <RevenueScopePicker person={person} options={scopeOptions} commits={commits} refresh={refresh} />
         </PanelSection>
       )}
+      <PanelSection title={t('admin.person.procurement.title')} defaultOpen={!isPhone}>
+        <CafeReceiptIssueAccess person={person} commits={commits} />
+      </PanelSection>
     </div>
   )
 }

@@ -8,18 +8,39 @@
   font-size: var(--font-size-body);
 }
 
-.cafe-receipt-lines li {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
+.cafe-receipt-lines > li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 4px 12px;
   padding: 8px 0;
   border-bottom: 1px solid var(--border);
   overflow-wrap: anywhere;
 }
 
-.cafe-receipt-lines li > :last-child { flex: 0 0 auto; white-space: nowrap; }
-
 .cafe-receipt-state { color: var(--foreground); font-weight: 600; }
+
+.cafe-receipt-evidence {
+  grid-column: 1 / -1;
+  display: grid;
+  justify-items: start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.cafe-receipt-evidence p {
+  max-width: 72ch;
+  margin: 0;
+  color: var(--foreground);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+/* FR-1038 is quiet text: no warning colour, badge or count. */
+.cafe-receipt-evidence .cafe-receipt-evidence__quiet {
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+}
 
 .cafe-receipt-review__row.cafe-count-review__row {
   grid-template-columns: minmax(160px, 1fr) minmax(240px, 1.6fr) minmax(220px, 1fr);
@@ -43,7 +64,9 @@
   font-size: var(--font-size-body);
 }
 
-.cafe-receipt-review__reject textarea {
+/* The reject note and the receiver's line reason are one kind of field. */
+.cafe-receipt-review__reject textarea,
+.cafe-receive__reason textarea {
   width: 100%;
   min-width: 0;
   min-height: 88px;
@@ -56,6 +79,17 @@
   font: inherit;
   font-size: var(--font-size-touch-input);
   resize: vertical;
+}
+
+.cafe-receive__reason textarea:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.cafe-receive__reason textarea[aria-invalid="true"] { border-color: var(--destructive); }
+
+@media (max-width: 639px) {
+  .cafe-receipt-lines > li { grid-template-columns: minmax(0, 1fr); }
 }
 
 @media (max-width: 800px) {
@@ -91,10 +125,8 @@
 .cafe-receipt-lines:has(.cafe-receipt-line--difference) { container-type: inline-size; }
 
 @container (max-width: 560px) {
-  .cafe-receipt-lines li.cafe-receipt-line--difference { flex-wrap: wrap; row-gap: 2px; }
-  .cafe-receipt-lines li.cafe-receipt-line--difference > :first-child { flex: 1 1 100%; }
-  .cafe-receipt-lines li.cafe-receipt-line--difference > .cafe-receipt-lines__facts {
-    flex: 1 1 100%;
+  .cafe-receipt-lines > li.cafe-receipt-line--difference { grid-template-columns: minmax(0, 1fr); row-gap: 2px; }
+  .cafe-receipt-lines > li.cafe-receipt-line--difference > .cafe-receipt-lines__facts {
     justify-content: space-between;
     align-items: center;
   }

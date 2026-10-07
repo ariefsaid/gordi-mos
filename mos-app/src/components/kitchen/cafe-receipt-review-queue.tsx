@@ -5,6 +5,7 @@ import { getPeople } from '@/lib/db/directory'
 import {
   listCafeReceiptDifferences,
   listCafeReceipts,
+  listCafeUnsentReceipts,
   readCafeReceiptPosting,
   reviewCafeReceipt,
   summarizeCafeReceiptDifferences,
@@ -18,6 +19,7 @@ import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { ALL_STREAMS } from './cafe-stream-bar'
 import { CafeReceiptState } from './cafe-receipt-state'
 import { CafeReceiptLineRow } from './cafe-receipt-difference'
+import { CafeReceiptLineEvidence } from './cafe-receipt-line-condition'
 import { CafeReceiptRelease } from './cafe-receipt-release'
 import { formatAge } from '@/components/tasks/task-formatters'
 import { useI18n } from '@/i18n/I18nProvider'
@@ -36,6 +38,7 @@ export function CafeReceiptReviewQueue({
   const t = useT()
   const { locale } = useI18n()
   const [rows, setRows] = useState<CafeReceipt[]>([])
+  const [unsentMore, setUnsentMore] = useState(0)
   const [names, setNames] = useState<ReadonlyMap<string, string>>(new Map())
   const [differences, setDifferences] = useState<ReadonlyMap<string, CafeReceiptDifferenceSummary> | 'failed'>(new Map())
   const [loading, setLoading] = useState(true)
@@ -53,11 +56,15 @@ export function CafeReceiptReviewQueue({
     let active = true
     setLoading(true)
     setLoadError(false)
-    // Counted receipts that are not sent yet are listed too, with their age, so an unsent lock is
-    // visible; only Submitted ones can be decided.
-    void Promise.all([listCafeReceipts(['Submitted', 'Counted']), getPeople()]).then(([nextRows, people]) => {
+    // Counted receipts that are not sent yet follow the decidable Submitted ones, oldest first with
+    // their age, so an unsent lock is visible; only Submitted ones can be decided.
+    void Promise.all([
+      listCafeReceipts(['Submitted'], { photosFor: ['Submitted'] }), listCafeUnsentReceipts(), getPeople(),
+    ]).then(([submitted, unsent, people]) => {
       if (!active) return
+      const nextRows = [...submitted, ...unsent.receipts]
       setRows(nextRows)
+      setUnsentMore(unsent.more)
       setNames(new Map(people.map(person => [person.id, person.full_name])))
       setLoading(false)
       // FR-1012/1032: labels and the cache as-of time; a failed read says so rather than guessing why.
@@ -151,6 +158,7 @@ export function CafeReceiptReviewQueue({
                     {receipt.delivery_note_number && <span>{t('cafe.receipts.review.deliveryNote', { number: receipt.delivery_note_number })}</span>}
                     {receipt.posting_status === 'held' && receipt.status !== 'Approved' && <span>{t('cafe.receipts.review.locationMissing')}</span>}
                     {differences === 'failed' && <span>{t('cafe.receipts.review.differenceFailed')}</span>}
+                    {receipt.photosUnavailable && <span>{t('cafe.receipts.photosUnavailable')}</span>}
                     {difference && !difference.known && <span>{t('cafe.receipts.review.differenceUnknown')}</span>}
                     {difference && (
                       <span>{!difference.asOf ? t('cafe.receipts.review.poNeverRead')
@@ -168,7 +176,9 @@ export function CafeReceiptReviewQueue({
                       unit={line.unit_name}
                       withDifference
                       outcome={difference?.known ? difference.byUnit.get(line.item_unit_id) : undefined}
-                    />
+                    >
+                      <CafeReceiptLineEvidence line={line} />
+                    </CafeReceiptLineRow>
                   ))}
                 </ul>
                 <div className="cafe-count-review__decision cafe-receipt-review__decision">
@@ -217,6 +227,11 @@ export function CafeReceiptReviewQueue({
             )
           })}
         </ul>
+      )}
+      {!loading && !loadError && unsentMore > 0 && (
+        <p className="cafe-count-review__more">
+          {t(unsentMore === 1 ? 'cafe.receipts.review.unsentMore.one' : 'cafe.receipts.review.unsentMore.other', { count: unsentMore })}
+        </p>
       )}
     </section>
   )

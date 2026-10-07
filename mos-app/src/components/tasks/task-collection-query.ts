@@ -1,26 +1,10 @@
-// The Task collection's PURE query contract — the typed Task query <-> URL schema and its
+// The Task collection's canonical query contract — the typed Task query <-> URL schema and its
 // vocabulary guard (PIC / Supervisor / Business Unit — never RACI, never a role-free `person`,
 // never a Team before Issue 8's team_id contract).
 //
-// PORT NOTE (#193): on `v4-redesign` this lived at the head of `task-collection-adapter.tsx`,
-// whose remaining ~550 lines are the full descriptor — load/project/presentations/viewer — and
-// pull in the whole Tasks cluster (processes, task-formatters, task-collection-presentation).
-// The RecordCollection framework and its conformance tests need only the part below, so Signals'
-// port lifted it out VERBATIM rather than dragging the Tasks surface in ahead of #192. Nothing
-// here is re-authored: the types, value sets, alias map, status slugs, neutral query, key list,
-// parser and serializer are byte-for-byte v4's.
-//
-// `collection-view-spec.ts` and the framework's engine/query-state/collection tests import
-// from here — this module is live on this line, not a leftover.
-//
-// CORRECTION: an earlier version of this header claimed #192 (Port Work — Tasks) lands the
-// descriptor half and imports this module rather than redeclaring it. That is not what #192
-// does: its `task-collection-adapter.tsx` redeclares TaskCollectionPresentation/Group/
-// UnsupportedGroup/Sort/Action/View verbatim rather than importing them from here — a second,
-// independent copy of the same contract (`components/tasks/task-collection-adapter.tsx`,
-// docs the gate flagged as issue #241's dead-duplicate cousin). Reconciling the two copies is
-// #192's port, not this one's; until then, this module stays load-bearing for the
-// RecordCollection framework's own tests and must not be deleted.
+// The RecordCollection framework, Task data adapter, and query-state tests all share this module.
+// `task-collection-adapter.tsx` owns loading, projection, presentation, and viewer access; it
+// re-exports these query types and values only as a compatibility path for existing consumers.
 import type { TaskStatus } from '@/lib/db/tasks.types'
 import type { TaskCollectionVisibleField } from '@/lib/record-collection/collection-view-spec'
 import type {

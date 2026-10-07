@@ -26,6 +26,7 @@ const attentionPickerCss = readFileSync(resolve(process.cwd(), 'src/components/s
 const recordPanelHostCss = readFileSync(resolve(process.cwd(), 'src/shell/record-panel-host.css'), 'utf8')
 const kitchenPlanCss = readFileSync(resolve(process.cwd(), 'src/pages/kitchen-plan-page.css'), 'utf8')
 const kitchenPlanTsx = readFileSync(resolve(process.cwd(), 'src/pages/kitchen-plan-page.tsx'), 'utf8')
+const catalogCollectionCss = readFileSync(resolve(process.cwd(), 'src/components/catalog/catalog-collection.css'), 'utf8')
 // #711: search-field floor is defined in collection-toolbar.css.
 const collectionToolbarCss = readFileSync(resolve(process.cwd(), 'src/components/record-collection/collection-toolbar.css'), 'utf8')
 const signalFeedRowsTsx = readFileSync(resolve(process.cwd(), 'src/components/signals/signal-feed-rows.tsx'), 'utf8')
@@ -167,8 +168,12 @@ describe('B-i: phone tap-target floor is encoded in shared CSS', () => {
     expect(body).toMatch(/\.mention-row[\s\S]*min-height:\s*44px/)
   })
 
-  it('ticket 667: keeps the help-tip anchor inline while its button owns a ≥44px pseudo hit box', () => {
+  it('keeps the HelpTip mark compact while its button owns a ≥44px hit area', () => {
     expect(helpTipTsx).not.toMatch(/help-tip-anchor tap-floor/)
+    const visualRule = helpTipCss.match(/\.help-tip\s*\{([^}]*)\}/)?.[1]
+    expect(visualRule).toMatch(/width:\s*14px/)
+    expect(visualRule).toMatch(/height:\s*14px/)
+    expect(visualRule).toMatch(/box-sizing:\s*border-box/)
     expect(helpTipCss).toMatch(/\.help-tip::before\s*\{[^}]*inset:\s*-16px/)
   })
 
@@ -211,6 +216,13 @@ describe('B-i: phone tap-target floor is encoded in shared CSS', () => {
     expect(kitchenPlanTsx).not.toMatch(/kp-row-link/)
     const body = mediaBody(kitchenPlanCss, '@media (min-width: 768px)')
     expect(body).toMatch(/\.kp-group-link\s*\{[^}]*min-height:\s*44px/)
+  })
+
+  it('keeps Projects and Objectives row links at least 44px high for touch and phone widths', () => {
+    const body = mediaBody(catalogCollectionCss, '@media (pointer: coarse), (max-width: 768px)')
+    expect(body).toMatch(/\.catalog-collection__row-link\s*\{[^}]*min-height:\s*44px/)
+    const baseRule = catalogCollectionCss.match(/\.catalog-collection__row-link\s*\{([^}]*)\}/)
+    expect(baseRule?.[1]).not.toMatch(/min-height:\s*44px/)
   })
 
   it('ticket 702: keeps the record edit affordance floor on phone for fine pointers', () => {

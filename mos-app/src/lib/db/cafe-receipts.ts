@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase'
+import { CAFE_RECEIPT_PHOTO_READ_LIMIT, listCafeReceiptPhotos, signCafeReceiptPhotos, type CafeReceiptPhoto } from './cafe-receipt-photos'
 import { normalizeCafeCountQuantity, newCafeCountClientKey } from './cafe-count'
 import type { ProductionActivity, ProductionStream } from './kitchen-logs.types'
 
@@ -13,8 +14,29 @@ export type CafeReceivableItem = {
   defaultUnitId: string
 }
 
+export type CafeOpenPoIdentityItem = {
+  itemUnitId: string | null
+  itemName: string
+  unitName: string | null
+}
+
+export type CafeOpenPoIdentity = {
+  poNumber: string
+  supplierName: string | null
+  poDate: string
+  items: CafeOpenPoIdentityItem[]
+}
+
+export type CafeOpenPoIdentityCache = {
+  asOf: string | null
+  isCurrent: boolean
+  purchaseOrders: CafeOpenPoIdentity[]
+}
+
 export type CafeReceiptStatus = 'Counted' | 'Submitted' | 'Approved' | 'Rejected'
 export type CafeReceiptPostingStatus = 'not_posted' | 'held'
+
+export type CafeReceiptCondition = 'damaged_wrong'
 
 /** An Approved receipt's posting as the server derives it (FR-1042); never a quantity. */
 export type CafeReceiptPosting = {
@@ -23,6 +45,8 @@ export type CafeReceiptPosting = {
   matched: boolean
   unmatched: number
   openIssues: number
+  /** FR-1038: a PO this receipt posts against was created in ESB after the arrival date. */
+  poCreatedAfterDelivery?: boolean
 }
 
 export type CafeReceiptLine = {
@@ -32,6 +56,13 @@ export type CafeReceiptLine = {
   item_category: string | null
   unit_name: string
   received_quantity: string
+  conditions: CafeReceiptCondition[]
+  condition_reason: string | null
+  /** When the server last changed the condition or reason; null before any explanation. */
+  condition_updated_at: string | null
+  /** FR-1038: a PO linked to this line's issues was created in ESB after the arrival date. */
+  po_created_after_delivery?: boolean
+  photos: CafeReceiptPhoto[]
 }
 
 export type CafeReceipt = {
@@ -53,14 +84,17 @@ export type CafeReceipt = {
   lines: CafeReceiptLine[]
   /** Null unless Approved; absent where the reader did not ask for it. */
   posting?: CafeReceiptPosting | null
+  /** The photo read failed for this receipt, so `photos` on its lines is not known to be complete. */
+  photosUnavailable?: boolean
 }
 
-export type CafeReceiptDraftLine = { item_unit_id: string; quantity: string }
+export type CafeReceiptDraftLine = { item_unit_id: string; quantity: string; damaged_wrong?: boolean }
 
 export type CafeReceiptSubmitResult = {
   receipt_id: string
   outcome: 'created' | 'existing'
   row_version: number
+  lines: CafeReceiptLine[]
 }
 
 type ReceivableRow = {
@@ -77,7 +111,7 @@ const RECEIPT_FIELDS = [
   'id', 'branch_id', 'activity', 'arrival_date', 'delivery_note_number', 'status', 'posting_status',
   'posting_hold_reason', 'received_by', 'received_at', 'submitted_at', 'reviewed_by', 'reviewed_at',
   'review_note', 'row_version',
-  'lines:cafe_receipt_lines(id, item_unit_id, item_name, item_category, unit_name, received_quantity)',
+  'lines:cafe_receipt_lines(id, item_unit_id, item_name, item_category, unit_name, received_quantity, conditions, condition_reason, condition_updated_at, po_created_after_delivery:cafe_receipt_line_po_created_after_delivery)',
   'posting:cafe_receipt_posting',
 ].join(', ')
 
@@ -95,6 +129,7 @@ function parsePosting(raw: unknown): CafeReceiptPosting | null | undefined {
     matched: value.matched,
     unmatched: value.unmatched,
     openIssues: value.open_issues,
+    poCreatedAfterDelivery: value.po_created_after_delivery === true,
   }
 }
 
@@ -129,21 +164,84 @@ export async function listCafeReceivableItems(stream: ProductionStream): Promise
   return [...items.values()]
 }
 
+/** Reads the branch's PO identities only; quantity and price fields are neither queried nor returned. */
+export async function listCafeOpenPoIdentities(branchId: string): Promise<CafeOpenPoIdentityCache> {
+  const { data, error } = await ops().rpc('cafe_open_po_identities', { p_branch_id: branchId })
+  if (error) throw new Error(`listCafeOpenPoIdentities failed: ${error.message}`)
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error('listCafeOpenPoIdentities failed: invalid cache')
+  }
+  const cache = data as Record<string, unknown>
+  if ((cache.as_of !== null && typeof cache.as_of !== 'string') || typeof cache.is_current !== 'boolean'
+    || !Array.isArray(cache.purchase_orders)) {
+    throw new Error('listCafeOpenPoIdentities failed: invalid cache')
+  }
+  const purchaseOrders = cache.purchase_orders.map((raw): CafeOpenPoIdentity => {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('listCafeOpenPoIdentities failed: invalid purchase order')
+    const po = raw as Record<string, unknown>
+    if (typeof po.po_number !== 'string' || !po.po_number.trim() || (po.supplier_name !== null && typeof po.supplier_name !== 'string')
+      || typeof po.po_date !== 'string' || !Array.isArray(po.items)) {
+      throw new Error('listCafeOpenPoIdentities failed: invalid purchase order')
+    }
+    const items = po.items.map((rawItem): CafeOpenPoIdentityItem => {
+      if (!rawItem || typeof rawItem !== 'object' || Array.isArray(rawItem)) throw new Error('listCafeOpenPoIdentities failed: invalid item')
+      const item = rawItem as Record<string, unknown>
+      if ((item.item_unit_id !== null && typeof item.item_unit_id !== 'string') || typeof item.item_name !== 'string'
+        || !item.item_name.trim() || (item.unit_name !== null && typeof item.unit_name !== 'string')) {
+        throw new Error('listCafeOpenPoIdentities failed: invalid item')
+      }
+      return { itemUnitId: item.item_unit_id as string | null, itemName: item.item_name, unitName: item.unit_name as string | null }
+    })
+    return {
+      poNumber: po.po_number,
+      supplierName: po.supplier_name as string | null,
+      poDate: po.po_date,
+      items,
+    }
+  })
+  return { asOf: cache.as_of as string | null, isCurrent: cache.is_current, purchaseOrders }
+}
+
+type CafeReceiptListOptions = {
+  /** Only these receipts, when given. */
+  ids?: readonly string[]
+  receivedBy?: string
+  limit?: number
+  /** Statuses whose photos are read and signed; a surface asks only for the photos it shows. */
+  photosFor?: readonly CafeReceiptStatus[]
+}
+
 /** Receipts the viewer may read, newest first; RLS returns their own and the streams they review. */
-export async function listCafeReceipts(
+export async function listCafeReceipts(statuses: readonly CafeReceiptStatus[], options: CafeReceiptListOptions = {}): Promise<CafeReceipt[]> {
+  return (await readCafeReceipts(statuses, options)).receipts
+}
+
+/**
+ * FR-1044: Counted receipts not yet sent for review, oldest first, so the limit drops the newest
+ * and `more` says how many. A receiver holds at most one Counted receipt per branch, so the
+ * count stays small.
+ */
+export async function listCafeUnsentReceipts(): Promise<{ receipts: CafeReceipt[]; more: number }> {
+  const { receipts, total } = await readCafeReceipts(['Counted'], { photosFor: [] }, { oldestFirst: true, count: true })
+  return { receipts, more: Math.max(0, (total ?? receipts.length) - receipts.length) }
+}
+
+async function readCafeReceipts(
   statuses: readonly CafeReceiptStatus[],
-  { receivedBy, limit = 50 }: { receivedBy?: string; limit?: number } = {},
-): Promise<CafeReceipt[]> {
+  { ids, receivedBy, limit = 50, photosFor = statuses }: CafeReceiptListOptions,
+  { oldestFirst = false, count = false } = {},
+): Promise<{ receipts: CafeReceipt[]; total: number | null }> {
   let query = ops()
     .from('cafe_receipts')
-    .select(RECEIPT_FIELDS)
+    .select(RECEIPT_FIELDS, count ? { count: 'exact' } : undefined)
     .in('status', [...statuses])
+  if (ids) query = query.in('id', [...ids])
   if (receivedBy) query = query.eq('received_by', receivedBy)
-  const { data, error } = await query
-    .order('received_at', { ascending: false })
+  const { data, error, count: total } = await query
+    .order('received_at', { ascending: oldestFirst })
     .limit(limit)
   if (error) throw new Error(`listCafeReceipts failed: ${error.message}`)
-  return ((data ?? []) as unknown as Array<Record<string, unknown>>).map(row => {
+  const receipts = ((data ?? []) as unknown as Array<Record<string, unknown>>).map(row => {
     const posting = parsePosting(row.posting)
     if ((row.activity !== 'kitchen' && row.activity !== 'bar') || !STATUSES.includes(row.status as CafeReceiptStatus)
       || (row.posting_status !== 'not_posted' && row.posting_status !== 'held') || !Array.isArray(row.lines)
@@ -153,15 +251,64 @@ export async function listCafeReceipts(
     return {
       ...row,
       posting,
-      lines: (row.lines as Array<Record<string, unknown>>).map(line => ({
-        ...line,
-        received_quantity: String(line.received_quantity),
-      })),
+      lines: (row.lines as Array<Record<string, unknown>>).map(parseCafeReceiptLine),
     } as unknown as CafeReceipt
   })
+  const photosByLine = new Map<string, CafeReceiptPhoto[]>()
+  const unavailable = new Set<string>()
+  const withPhotos = receipts.filter(receipt => photosFor.includes(receipt.status))
+  const chunks: CafeReceipt[][] = []
+  for (let start = 0; start < withPhotos.length; start += CAFE_RECEIPT_PHOTO_READ_LIMIT) {
+    chunks.push(withPhotos.slice(start, start + CAFE_RECEIPT_PHOTO_READ_LIMIT))
+  }
+  // A failed photo read leaves its receipts listed and says so, rather than failing the whole list.
+  await Promise.all(chunks.map(async chunk => {
+    try {
+      const records = await listCafeReceiptPhotos(chunk.map(receipt => receipt.id))
+      // Only photos on the receipt's own lines are shown, so only those are signed.
+      const shown = chunk.flatMap(receipt => {
+        const lineIds = new Set(receipt.lines.map(line => line.id))
+        return (records.get(receipt.id) ?? []).filter(record => lineIds.has(record.lineId))
+      })
+      for (const photo of await signCafeReceiptPhotos(shown)) {
+        photosByLine.set(photo.lineId, [...(photosByLine.get(photo.lineId) ?? []), photo])
+      }
+    } catch {
+      for (const receipt of chunk) unavailable.add(receipt.id)
+    }
+  }))
+  return {
+    total: total ?? null,
+    receipts: receipts.map(receipt => ({
+      ...receipt,
+      photosUnavailable: unavailable.has(receipt.id),
+      lines: receipt.lines.map(line => ({ ...line, photos: photosByLine.get(line.id) ?? [] })),
+    })),
+  }
 }
 
-/** Count submit: only the key, stream, arrival date and (product detail, quantity) pairs cross the boundary. */
+function parseCafeReceiptLine(line: Record<string, unknown>): CafeReceiptLine {
+  if (typeof line.id !== 'string' || typeof line.item_name !== 'string' || typeof line.unit_name !== 'string'
+    || !Array.isArray(line.conditions) || line.conditions.some(condition => condition !== 'damaged_wrong')
+    || (line.condition_reason !== null && typeof line.condition_reason !== 'string')) {
+    throw new Error('cafe receipt read failed: invalid line')
+  }
+  return {
+    id: line.id,
+    item_unit_id: line.item_unit_id as string,
+    item_name: line.item_name,
+    item_category: typeof line.item_category === 'string' ? line.item_category : null,
+    unit_name: line.unit_name,
+    received_quantity: String(line.received_quantity),
+    conditions: line.conditions as CafeReceiptCondition[],
+    condition_reason: line.condition_reason as string | null,
+    condition_updated_at: typeof line.condition_updated_at === 'string' ? line.condition_updated_at : null,
+    po_created_after_delivery: line.po_created_after_delivery === true,
+    photos: [],
+  }
+}
+
+/** Count submit carries the receiver's damaged/wrong observation, never matching or posting decisions. */
 export async function submitCafeReceipt(
   stream: ProductionStream,
   arrivalDate: string,
@@ -173,15 +320,44 @@ export async function submitCafeReceipt(
     p_activity: stream.activity,
     p_arrival_date: arrivalDate,
     p_client_key: clientKey,
-    p_lines: lines.map(({ item_unit_id, quantity }) => ({ item_unit_id, quantity })),
+    p_lines: lines.map(({ item_unit_id, quantity, damaged_wrong }) => ({ item_unit_id, quantity, damaged_wrong: damaged_wrong === true })),
   })
   if (error) throw new Error(`submitCafeReceipt failed: ${error.message}`)
   const row = data as Record<string, unknown> | null
   if (!row || typeof row.receipt_id !== 'string' || typeof row.row_version !== 'number'
-    || (row.outcome !== 'created' && row.outcome !== 'existing')) {
+    || (row.outcome !== 'created' && row.outcome !== 'existing') || !Array.isArray(row.lines)) {
     throw new Error('submitCafeReceipt failed: invalid response')
   }
-  return { receipt_id: row.receipt_id, outcome: row.outcome, row_version: row.row_version }
+  return {
+    receipt_id: row.receipt_id,
+    outcome: row.outcome,
+    row_version: row.row_version,
+    lines: row.lines.map(line => parseCafeReceiptLine(line as Record<string, unknown>)),
+  }
+}
+
+/** Save only this receiver's line condition and bounded reason on their Counted receipt. */
+export async function saveCafeReceiptLineExplanation(
+  lineId: string,
+  damagedWrong: boolean,
+  reason: string,
+): Promise<{ conditions: CafeReceiptCondition[]; condition_reason: string | null; condition_updated_at: string | null }> {
+  const { data, error } = await ops().rpc('set_cafe_receipt_line_explanation', {
+    p_line_id: lineId,
+    p_damaged_wrong: damagedWrong,
+    p_reason: reason.trim() || null,
+  })
+  if (error) throw new Error(`saveCafeReceiptLineExplanation failed: ${error.message}`)
+  const row = data as Record<string, unknown> | null
+  if (!row || !Array.isArray(row.conditions) || row.conditions.some(value => value !== 'damaged_wrong')
+    || (row.condition_reason !== null && typeof row.condition_reason !== 'string')) {
+    throw new Error('saveCafeReceiptLineExplanation failed: invalid response')
+  }
+  return {
+    conditions: row.conditions as CafeReceiptCondition[],
+    condition_reason: row.condition_reason as string | null,
+    condition_updated_at: typeof row.condition_updated_at === 'string' ? row.condition_updated_at : null,
+  }
 }
 
 export async function sendCafeReceiptForReview(

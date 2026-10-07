@@ -91,6 +91,13 @@ beforeEach(() => {
 })
 
 describe('FollowUpsPage', () => {
+  it('renders its page heading inside the shared workspace PageFamilyFrame', async () => {
+    const { container } = renderRoute('/money/follow-ups')
+    const heading = await screen.findByRole('heading', { level: 1 })
+    expect(heading.closest('[data-testid="page-head"]')).toBeTruthy()
+    expect(container.querySelector('main')).toHaveAttribute('data-page-family', 'workspace')
+  })
+
   it('AC-520: renders queue rows in the shared DataTable with lifecycle actions', async () => {
     const { container } = render(createElement(FollowUpsPage), { wrapper })
     expect(await screen.findByText('PT Big Buyer')).toBeInTheDocument()

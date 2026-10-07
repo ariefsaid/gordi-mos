@@ -5,7 +5,7 @@ import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
 import { useCafeStream } from '@/lib/use-cafe-stream'
 import { CafePageFrame } from './cafe-page-frame'
 import { ALL_STREAMS } from './cafe-stream-bar'
-import '@/pages/cafe-count-page.css'
+import '@/components/kitchen/cafe-capture-layout.css'
 
 /** A cross-stream Café review page: opens on All streams, claims no location, filters its queue by stream. */
 export function CafeStreamReviewFrame({
@@ -36,7 +36,7 @@ export function CafeStreamReviewFrame({
         onAllStreams: () => setStreamFilter(ALL_STREAMS),
       }}
     >
-      <div className="cafe-count">
+      <div className="cafe-capture-review-page">
         {children({
           streamFilter,
           streamCatalog: options,
