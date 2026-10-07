@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# One-command staging deploy: preflight, rehearse, confirm, push migrations, verify, open the promotion PR.
+# One-command staging deploy: preflight, verified backup, confirmation, database push, edge deploy, promotion PR.
 #
-#   bash scripts/deploy-staging.sh [--dry-run] [--yes] [--no-pr] [--rehearse-from=<dump>] [--no-rehearsal]
+#   bash scripts/deploy-staging.sh [--dry-run] [--yes] [--no-pr]
 #
-#   --dry-run       stop after the preflight and rehearsal (nothing is pushed or deployed)
-#   --yes           skip the y/N confirmation (default answer is No)
-#   --no-pr         do not open the main -> staging promotion PR
-#   --rehearse-from the newest staging dump: a .dump file, or a directory whose newest *.dump is
-#                   used (default: $STAGING_REHEARSAL_DUMP). Pending migrations are applied to a
-#                   restored copy in a throwaway local container first; a failure stops the deploy.
-#   --no-rehearsal  skip that rehearsal (said loudly in the output)
+#   --dry-run  list pending migrations and stop without a dump or push
+#   --yes      skip the y/N confirmation (default answer is No)
+#   --no-pr    do not open the main -> staging promotion PR
+#
+# Before pending migrations are pushed, a custom-format backup is verified with pg_restore --list.
+# Its directory defaults to ~/backups/gordi-mos-staging/ and can be overridden with
+# STAGING_PREDEPLOY_DUMP_DIR.
 #
 # The connection string and function CLI token are read from the host's secret store at run time and
 # live only in this process: neither is printed, written or put in the PR. Their locations are read
@@ -24,19 +24,16 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 MIG_DIR="${MIGRATIONS_DIR:-$ROOT/supabase/migrations}"
 GH_POST="${GH_POST:-$ROOT/scripts/gh-post.sh}"
-REHEARSE="${REHEARSE:-$ROOT/scripts/rehearse-migrations.sh}"
 PATH="$PATH:$HOME/.local/bin:/opt/homebrew/opt/libpq/bin"
 # shellcheck source=lib/ops-common.sh
 . "$ROOT/scripts/lib/ops-common.sh"
 
-DRY=0 YES=0 PR=1 REHEARSAL=1 DUMP="${STAGING_REHEARSAL_DUMP:-}"
+DRY=0 YES=0 PR=1
 for a in "$@"; do
   case "$a" in
     --dry-run) DRY=1 ;;
     --yes) YES=1 ;;
     --no-pr) PR=0 ;;
-    --no-rehearsal) REHEARSAL=0 ;;
-    --rehearse-from=*) DUMP="${a#*=}" ;;
     -h|--help) sed -n 2,13p "$0"; exit 0 ;;
     *) printf 'deploy-staging: unknown option %s\n' "$a" >&2; exit 2 ;;
   esac
@@ -54,7 +51,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-for t in op-get.sh supabase psql git curl; do command -v "$t" >/dev/null 2>&1 || die "$t not found on PATH"; done
+for t in op-get.sh supabase psql pg_dump pg_restore git curl; do command -v "$t" >/dev/null 2>&1 || die "$t not found on PATH"; done
 
 # ── Where the connection string lives (names only; the values stay in the local file).
 envfile="${STAGING_OP_ENV_FILE:-}"
@@ -174,20 +171,9 @@ SQL
   say "Probe ok, rolled back."
 fi
 
-# ── 5. Rehearsal: the pending migrations on a restored copy of the newest staging dump.
-if [ "${#pending[@]}" -gt 0 ]; then
-  if [ "$REHEARSAL" = 0 ]; then
-    say "WARNING: migration rehearsal SKIPPED (--no-rehearsal): these migrations were not tried on a restored copy."
-  else
-    [ -n "$DUMP" ] || die "no dump to rehearse on: pass --rehearse-from=<dump file or directory>, or --no-rehearsal to skip"
-    set +e; env -u PGPASSWORD bash "$REHEARSE" "$DUMP" "$MIG_DIR" "${pending[@]}" 2>&1 </dev/null | ops_redact; rc="${PIPESTATUS[0]}"; set -e
-    [ "$rc" -eq 0 ] || die "migration rehearsal failed (exit $rc) — nothing was pushed"
-  fi
-fi
+if [ "$DRY" = 1 ]; then say "Dry run: stopping before backup and push."; exit 0; fi
 
-if [ "$DRY" = 1 ]; then say "Dry run: stopping before push."; exit 0; fi
-
-# ── 6. Confirm once, then push migrations and/or deploy functions.
+# ── 5. Confirm, take and verify the recovery backup, then push migrations.
 if [ "${#pending[@]}" -gt 0 ] || [ "${#functions_to_deploy[@]}" -gt 0 ]; then
   if [ "$YES" != 1 ]; then
     printf 'Deploy %d migration(s) and %d edge function(s) to staging? [y/N] ' \
@@ -197,9 +183,13 @@ if [ "${#pending[@]}" -gt 0 ] || [ "${#functions_to_deploy[@]}" -gt 0 ]; then
   fi
 fi
 if [ "${#pending[@]}" -gt 0 ]; then
+  commit="$(git -C "$ROOT" rev-parse --short HEAD)"
+  dump_dir="${STAGING_PREDEPLOY_DUMP_DIR:-$HOME/backups/gordi-mos-staging}"
+  ops_predeploy_dump "$dump_dir" deploy-staging "$CONN" "$commit" || exit 1
+  dump="$OPS_PREDEPLOY_DUMP_PATH"
   set +e; out="$(supabase --workdir "$ROOT" db push --yes --db-url "$CONN" 2>&1 </dev/null)"; rc=$?; set -e
   printf '%s\n' "$out" | ops_redact
-  [ "$rc" -eq 0 ] || die "supabase db push failed (exit $rc)"
+  [ "$rc" -eq 0 ] || die "supabase db push failed (exit $rc) — the pre-push dump is at $dump"
 fi
 
 # ── 7. Deploy changed app-facing functions after the database push, then smoke-check the handler.

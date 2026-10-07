@@ -112,16 +112,9 @@ if [ "${#pending[@]}" -gt 0 ]; then
     ans=""; read -r ans || true
     case "$ans" in y|Y|yes|YES) ;; *) die "not confirmed — nothing was pushed" ;; esac
   fi
-  umask 077; mkdir -p "$OPS_PREDEPLOY_DUMP_DIR" || die "cannot create OPS_PREDEPLOY_DUMP_DIR"
-  dump="$OPS_PREDEPLOY_DUMP_DIR/pre-deploy-$(date -u +%Y%m%dT%H%M%SZ)-$(git -C "$ROOT" rev-parse --short HEAD).dump"
-  say "Taking a fresh dump before the push..."
-  if ! pg_dump --format=custom --no-password -d "$CONN" -f "$dump.partial" 2>"$errf" </dev/null; then
-    ops_redact < "$errf" >&2; die "pre-push dump failed — nothing was pushed"
-  fi
-  entries="$(pg_restore --list "$dump.partial" 2>/dev/null </dev/null | grep -vc '^;')" || true
-  [[ "$entries" =~ ^[0-9]+$ ]] && [ "$entries" -gt 0 ] || die "pre-push dump does not list — nothing was pushed"
-  mv "$dump.partial" "$dump"
-  say "Dump verified ($entries entries): $dump"
+  commit="$(git -C "$ROOT" rev-parse --short HEAD)"
+  ops_predeploy_dump "$OPS_PREDEPLOY_DUMP_DIR" deploy-production "$CONN" "$commit" || exit 1
+  dump="$OPS_PREDEPLOY_DUMP_PATH"
   set +e; out="$(supabase --workdir "$ROOT" db push --yes --db-url "$CONN" 2>&1 </dev/null)"; rc=$?; set -e
   printf '%s\n' "$out" | ops_redact
   [ "$rc" -eq 0 ] || die "supabase db push failed (exit $rc) — the pre-push dump is at $dump"

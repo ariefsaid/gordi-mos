@@ -1,10 +1,6 @@
 #!/usr/bin/env bash
-# Self-test for scripts/deploy-staging.sh. op-get.sh, supabase, psql, git, gh-post.sh and the rehearsal
-# are PATH/env shims that record their calls; no remote database, network or GitHub is touched. Every
-# refusal case asserts the push (or PR) was NOT made, so each check can fail. An optional final section
-# runs the real scripts/rehearse-migrations.sh against local Postgres (needs docker).
-#   REHEARSAL_TEST_IMAGE  image for that section (default postgres:17-alpine)
-#   SKIP_REAL_REHEARSAL_DOCKER=1  skip the optional real-Postgres rehearsal checks
+# Self-test for scripts/deploy-staging.sh. External commands are PATH/env shims; no remote database,
+# network or GitHub is touched. Refusal cases assert the push (or PR) was NOT made.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 SCRIPT="$(pwd)/scripts/deploy-staging.sh"
@@ -44,7 +40,7 @@ case "$*" in
     echo "Connecting to $FAKE_URL"
     if [ "${FAKE_DRY_RC:-0}" != 0 ]; then echo "failed to connect to host=$FAKE_HOST user=deployer" >&2; exit "$FAKE_DRY_RC"; fi
     printf '%s\n' "${FAKE_DRY_OUT}" ;;
-  *"db push"*) printf 'supabase push\n' >> "$CALLS"; echo "Finished supabase db push." ;;
+  *"db push"*) printf 'supabase push\n' >> "$CALLS"; echo "Finished supabase db push."; exit "${FAKE_PUSH_RC:-0}" ;;
   *"functions deploy"*)
     fn=""; prev=""; project_ref=""
     smoke_host="${FAKE_URL#*@}"; smoke_host="${smoke_host%%[:/?]*}"
@@ -122,14 +118,6 @@ case "$sql$stdin" in
   *is_sample_org_shape*) echo "${FAKE_SAMPLE_ORGS:-1/1}" ;;
 esac
 EOF
-cat > "$tmp/rehearse.sh" <<'EOF'
-#!/usr/bin/env bash
-printf 'rehearse %s\n' "$*" >> "$CALLS"
-if [ -n "${PGPASSWORD:-}" ]; then printf 'rehearse-pgpw-set\n' >> "$ARGVLOG"
-else printf 'rehearse-pgpw-empty\n' >> "$ARGVLOG"; fi
-echo "rehearsal log mentions $FAKE_HOST"
-exit "${FAKE_REHEARSE_RC:-0}"
-EOF
 cat > "$tmp/bin/git" <<'EOF'
 #!/usr/bin/env bash
 c=""; [ "${1:-}" = -C ] && { c="$2"; shift 2; }
@@ -161,7 +149,9 @@ cat > "$tmp/bin/grep" <<'EOF'
 if [ "${FAKE_NO_ORIGINS:-0}" = 1 ] && [[ "$*" == *DEFAULT_APP_ORIGINS* ]]; then exit 1; fi
 exec "$REAL_GREP" "$@"
 EOF
-chmod +x "$tmp"/bin/* "$tmp/gh-post.sh" "$tmp/rehearse.sh"
+chmod +x "$tmp"/bin/* "$tmp/gh-post.sh"
+. scripts/lib/ops-db-dump-test-shims.sh
+ops_test_install_db_dump_shims "$tmp/bin"
 
 printf 'create table t();\n' > "$tmp/mig/20260101000001_plain.sql"
 printf "alter role authenticator set pgrst.db_pre_request = 'api_private.check_request';\n" > "$tmp/mig/20260101000002_gate.sql"
@@ -178,7 +168,7 @@ run() {
  • 20260101000001_plain.sql
  • 20260101000002_gate.sql" tmp_main="$tmp" \
     STAGING_OP_ENV_FILE="$tmp/op.env" MIGRATIONS_DIR="$tmp/mig" GH_POST="$tmp/gh-post.sh" HOME="$tmp" \
-    REHEARSE="$tmp/rehearse.sh" STAGING_REHEARSAL_DUMP="$tmp/dumps" \
+    STAGING_PREDEPLOY_DUMP_DIR="$tmp/dumps" \
     "${envs[@]+"${envs[@]}"}" bash ${BASHX:-} "$SCRIPT" "$@" 2>&1)"; rc=$?
   printf '%s\n' "$out" >> "$allout"
   if [ "$rc" -eq "$want" ]; then ok "$name"; else bad "$name (rc=$rc, want $want)"; printf '%s\n' "$out" | sed 's/^/        /'; fi
@@ -250,6 +240,7 @@ mv "$tmp/gate.save" "$tmp/mig/20260101000002_gate.sql"
 echo "confirmation"
 run "default is No on empty input" 1 "" -- --no-pr
 expect_not "no push without a yes" "supabase push"
+expect_not "no backup without confirmation" "pg_dump"
 run "n is No" 1 "n
 " -- --no-pr
 expect_not "no push on n" "supabase push"
@@ -349,76 +340,36 @@ run "y confirms function-only deployment" 0 "y
 " FAKE_DRY_OUT="Remote database is up to date." FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --no-pr
 expect "function-only deployment follows confirmation" "supabase functions-deploy agent-chat"
 
-echo "rehearsal wiring"
-# before A B: the first call starting with A comes before the first starting with B (or B never ran).
-run "rehearsal runs on the pending migrations" 0 "" -- --yes --no-pr
-expect "rehearsal called with the dump and the pending list" "rehearse $tmp/dumps $tmp/mig 20260101000001_plain.sql 20260101000002_gate.sql"
-if before "rehearse " "supabase push"; then ok "rehearsal runs before the push"; else bad "rehearsal runs before the push"; fi
-hasnt "rehearsal output is redacted" "$SECRET_HOST"
-if grep -q '^rehearse-pgpw-empty$' "$ARGVLOG" && ! grep -q '^rehearse-pgpw-set$' "$ARGVLOG"; then ok "the staging password never reaches the rehearsal"; else bad "the rehearsal saw PGPASSWORD"; fi
-run "failed rehearsal stops the deploy" 1 "" FAKE_REHEARSE_RC=1 -- --yes
-has "failure named" "migration rehearsal failed"
-expect_not "no push after a failed rehearsal" "supabase push"
-expect_not "no PR after a failed rehearsal" "gh-post"
-run "a rehearsal that could not run stops the deploy" 1 "" FAKE_REHEARSE_RC=2 -- --yes --no-pr
-expect_not "no push when the rehearsal could not run" "supabase push"
-run "no dump refused" 1 "" STAGING_REHEARSAL_DUMP= -- --yes --no-pr
-has "says how to proceed" "--rehearse-from="
-expect_not "no push without a dump" "supabase push"
-run "--rehearse-from names the dump" 0 "" STAGING_REHEARSAL_DUMP= -- --yes --no-pr --rehearse-from=/backups/staging
-expect "rehearsal uses the named dump" "rehearse /backups/staging $tmp/mig"
-run "--no-rehearsal skips it loudly" 0 "" STAGING_REHEARSAL_DUMP= -- --yes --no-pr --no-rehearsal
-expect_not "no rehearsal with --no-rehearsal" "rehearse "
-has "skip is announced" "rehearsal SKIPPED"
-expect "push still made" "supabase push"
-run "--dry-run rehearses but never pushes" 0 "" -- --dry-run
-expect "dry run rehearses" "rehearse "
-expect_not "dry run never pushes" "supabase push"
-run "nothing pending: nothing to rehearse" 0 "" FAKE_DRY_OUT="Remote database is up to date." -- --yes --no-pr
-expect_not "no rehearsal without pending migrations" "rehearse "
-
-echo "rehearsal on a real Postgres (docker)"
-IMG="${REHEARSAL_TEST_IMAGE:-postgres:17-alpine}"
-if [ "${SKIP_REAL_REHEARSAL_DOCKER:-0}" = 1 ]; then
-  printf '  SKIP  real Postgres rehearsal skipped by SKIP_REAL_REHEARSAL_DOCKER\n'
-elif ! docker info >/dev/null 2>&1; then
-  bad "docker is required for this section (the rehearsal itself needs it)"
-else
-  REAL_ENV=(REHEARSE="$(pwd)/scripts/rehearse-migrations.sh" REHEARSAL_PG_IMAGE="$IMG"
-            STAGING_REHEARSAL_DUMP="$tmp/realdumps" MIGRATIONS_DIR="$tmp/realmig" FAKE_MAX=20990101000002)
-  mkdir -p "$tmp/realdumps" "$tmp/realmig"
-  # Fixture dump: one table, one row, and a grant to a role a fresh cluster does not have.
-  fx="mos-rehearsal-fixture-$$"
-  docker run -d --rm --name "$fx" --network none -e POSTGRES_PASSWORD=fixture-only "$IMG" >/dev/null
-  for _ in $(seq 1 60); do docker exec "$fx" psql -U postgres -h 127.0.0.1 -XAtc 'select 1' >/dev/null 2>&1 && break; sleep 1; done
-  docker exec "$fx" psql -U postgres -h 127.0.0.1 -Xq -v ON_ERROR_STOP=1 \
-    -c "create table shop (id int primary key, name text)" -c "insert into shop values (1, 'espresso')" \
-    -c "create role shop_reader nologin" -c "grant select on shop to shop_reader" >/dev/null
-  docker exec "$fx" pg_dump -U postgres -h 127.0.0.1 -Fc postgres > "$tmp/realdumps/mos-20990101T000000Z.dump"
-  docker rm -f "$fx" >/dev/null
-  printf 'not a dump\n' > "$tmp/realdumps/mos-20000101T000000Z.dump"   # older and unreadable: never picked
-  # Each migration depends on the restored data: the pass needs the table, the failure needs the row.
-  printf 'alter table shop add column price int;\nupdate shop set price = 18000 where id = 1;\n' > "$tmp/realmig/20990101000001_add_price.sql"
-  printf "insert into shop (id, name) values (1, 'duplicate');\n" > "$tmp/realmig/20990101000002_duplicate_row.sql"
-
-  run "real rehearsal: a migration that fails on the restored copy aborts the deploy" 1 "" "${REAL_ENV[@]}" \
-    FAKE_DRY_OUT=$'Would push these migrations:\n • 20990101000001_add_price.sql\n • 20990101000002_duplicate_row.sql' -- --yes --no-pr
-  has "the failing migration is named" "20990101000002_duplicate_row.sql failed on the restored copy"
-  has "it collided with the dump's own row" "duplicate key"
-  expect_not "no push after the real rehearsal failed" "supabase push"
-  run "real rehearsal: a migration that passes on the restored copy lets the deploy push" 0 "" "${REAL_ENV[@]}" \
-    FAKE_DRY_OUT=$'Would push these migrations:\n • 20990101000001_add_price.sql' -- --yes --no-pr
-  has "the newest dump restored once its missing role was created" "created 1 role(s)"
-  has "the passing migration applied" "applied 20990101000001_add_price.sql"
-  expect "push after the real rehearsal passed" "supabase push"
-  printf 'not a dump\n' > "$tmp/realdumps/mos-29990101T000000Z.dump"
-  run "real rehearsal: a newest dump that does not restore stops the deploy" 1 "" "${REAL_ENV[@]}" \
-    FAKE_DRY_OUT=$'Would push these migrations:\n • 20990101000001_add_price.sql' -- --yes --no-pr
-  has "an unrestorable dump is named as such" "did not restore cleanly"
-  expect_not "no push when the dump does not restore" "supabase push"
-  left="$(docker ps -aq --filter label=mos.rehearsal=1 | wc -l | tr -d ' ')"
-  if [ "$left" = 0 ]; then ok "no rehearsal container is left behind"; else bad "$left rehearsal container(s) left behind"; fi
-fi
+echo "pre-push backup"
+run "backup is taken before push and stored under the configured directory" 0 "" -- --yes --no-pr
+expect "dump taken" "pg_dump"
+expect "dump verified with pg_restore" "pg_restore-list"
+if grep -q '^argv pg_dump .*--format=custom' "$ARGVLOG"; then ok "backup uses the full custom dump format"; else bad "backup did not request custom format"; fi
+if grep -q '^argv pg_restore --list .*\.partial$' "$ARGVLOG"; then ok "pg_restore validates the partial dump before finalizing it"; else bad "pg_restore did not validate the partial dump"; fi
+expect "push follows the backup" "supabase push"
+if before "pg_dump" "supabase push" && before "pg_restore-list" "supabase push"; then ok "dump and verification precede the push"; else bad "dump and verification precede the push"; fi
+if [ -n "$(ls "$tmp/dumps" 2>/dev/null | grep -E '^pre-deploy-.*-abc1234\.dump$')" ]; then ok "verified backup lands under the configured backup directory"; else bad "verified backup missing from the configured backup directory"; fi
+run "default backup directory is under the home backup tree" 0 "" STAGING_PREDEPLOY_DUMP_DIR= -- --yes --no-pr
+if [ -n "$(ls "$tmp/backups/gordi-mos-staging" 2>/dev/null | grep -E '^pre-deploy-.*-abc1234\.dump$')" ]; then ok "default backup directory is ~/backups/gordi-mos-staging"; else bad "default backup directory is incorrect"; fi
+run "dump failure aborts before push" 1 "" FAKE_DUMP_FAIL=1 -- --yes --no-pr
+expect "dump failure attempted" "pg_dump"
+expect_not "no push after dump failure" "supabase push"
+run "unlistable dump aborts before push" 1 "" FAKE_LIST_EMPTY=1 -- --yes --no-pr
+expect "unlistable dump check attempted" "pg_restore-list"
+expect_not "no push after unlistable dump" "supabase push"
+run "empty dump listing aborts before push" 1 "" FAKE_LIST_ZERO=1 -- --yes --no-pr
+has "empty listing is rejected" "pre-push dump does not list"
+expect_not "no push after empty listing" "supabase push"
+run "dry-run takes no dump and never pushes" 0 "" -- --dry-run
+expect_not "dry-run takes no backup" "pg_dump"
+expect_not "dry-run never pushes" "supabase push"
+run "push failure identifies the recovery backup" 1 "" FAKE_PUSH_RC=1 -- --yes --no-pr
+has "push failure names the backup path" "pre-push dump is at $tmp/dumps/pre-deploy-"
+expect "failed push was attempted" "supabase push"
+run "database, edge and promotion order" 0 "" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --yes
+order="$(grep -E '^(pg_dump|pg_restore-list|supabase push|supabase functions-deploy agent-chat|gh-post pr create)' "$calls" | tr '\n' ' ')"
+case "$order" in pg_dump\ pg_restore-list\ supabase\ push\ supabase\ functions-deploy\ agent-chat\ gh-post\ pr\ create*) ok "order: backup, database push, edge deploy, promotion PR" ;; *) bad "unexpected DB/edge/promotion order: $order" ;; esac
+if grep -q 'rehearse-migrations\.sh' "$SCRIPT"; then bad "removed migration helper is still called"; else ok "no removed migration helper call remains"; fi
 
 printf '\n%s passed, %s failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
