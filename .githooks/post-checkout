@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Link the main checkout's project skills into a new worktree. pi and Codex find project skills
+# only under .agents/skills between the cwd and the repo root, and .agents/.claude are gitignored,
+# so a worktree otherwise starts with none. Runs on every checkout; idempotent; never fails one.
+#
+# Self-test: scripts/post-checkout-hook.test.sh
+top="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+main="$(git worktree list --porcelain 2>/dev/null | awk '$1=="worktree"{print $2; exit}')"
+[ -n "$main" ] && [ "$top" != "$main" ] && [ -d "$main/.claude/skills" ] || exit 0
+[ -e "$top/.agents/skills" ] && exit 0
+mkdir -p "$top/.agents" && ln -s "$main/.claude/skills" "$top/.agents/skills"
+exit 0
