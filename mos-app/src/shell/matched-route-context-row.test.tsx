@@ -16,6 +16,10 @@ vi.mock('@/lib/db/notifications', () => ({
   countUnread: vi.fn().mockResolvedValue(0),
   listNotifications: vi.fn().mockResolvedValue({ rows: [], hasMore: false, nextCursor: null }),
 }))
+vi.mock('@/lib/db/signals', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/db/signals')>()),
+  getSignalPostAuthority: vi.fn().mockResolvedValue({ can_post: false, can_tag: false }),
+}))
 
 const mockUseAuth = vi.mocked(useAuth)
 

@@ -8,6 +8,11 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 
 vi.mock('@/lib/db/tasks', () => ({ searchTasksByTitle: vi.fn() }))
+vi.mock('@/lib/db/open-task-count', () => ({ getMyOpenTaskCount: vi.fn().mockResolvedValue(0) }))
+vi.mock('@/lib/db/signals', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/db/signals')>()),
+  getSignalPostAuthority: vi.fn().mockResolvedValue({ can_post: false, can_tag: false }),
+}))
 vi.mock('@/lib/db/directory', () => ({
   getBusinessUnits: vi.fn().mockResolvedValue([]),
   getPeople: vi.fn().mockResolvedValue([]),

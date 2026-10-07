@@ -23,6 +23,10 @@ vi.mock('@/lib/db/signals', () => ({
   getSignalPostAuthority: vi.fn().mockResolvedValue({ can_post: true, can_tag: true }),
   loadMentionRosters: vi.fn().mockResolvedValue({ teamMembers: {}, buMembers: {} }),
 }))
+vi.mock('@/lib/db/work-authority', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/db/work-authority')>()
+  return { ...actual, getWorkWriteScopes: vi.fn().mockResolvedValue(actual.emptyWorkWriteScopes()) }
+})
 vi.mock('@/lib/db/directory', () => ({
   getBusinessUnits: vi.fn().mockResolvedValue([]),
   getPeople: vi.fn().mockResolvedValue([]),
