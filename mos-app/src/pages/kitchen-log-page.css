@@ -457,10 +457,18 @@
 }
 
 /* Focus scrolling keeps the focused field clear of the sticky bar instead of parking it
-   underneath: the scrollport's optimal viewing region ends above the bar. */
+   underneath: the scrollport's optimal viewing region ends above the bar. Error/outcome and
+   missing-note feedback increase the footer height, so their focused fields need the full
+   clearance reserved by the list below. */
 .page-frame--v3:has(.kl-form) { scroll-padding-bottom: 120px; }
+.page-frame--v3:has(.kl-form .kl-submit-reason),
+.page-frame--v3:has(.kl-form .kl-submit-outcome) { scroll-padding-bottom: 208px; }
 @media (max-width: 767.98px) {
-  .page-frame--v3:has(.kl-form) { scroll-padding-bottom: calc(140px + var(--tabbar-h, 60px)); }
+  .page-frame--v3:has(.kl-form),
+  .page-frame--v3:has(.kl-form .kl-submit-reason),
+  .page-frame--v3:has(.kl-form .kl-submit-outcome) {
+    scroll-padding-bottom: calc(140px + var(--tabbar-h, 60px));
+  }
 }
 
 /* ── Neutral row states ───────────────────────────────────────────────────────
