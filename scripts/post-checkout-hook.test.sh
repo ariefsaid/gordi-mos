@@ -20,7 +20,6 @@ g "$tmp/main" worktree add -q "$tmp/wt" -b wt 2>/dev/null
 [ -f "$tmp/wt/.agents/skills/demo/SKILL.md" ] && ok "new worktree sees the main checkout's skills" \
   || bad "new worktree has no .agents/skills/demo/SKILL.md"
 
-[ ! -e "$tmp/main/.agents" ] && ok "main checkout is left alone" || bad "hook wrote .agents into the main checkout"
 
 # An existing .agents is never replaced.
 g "$tmp/main" worktree add -q --no-checkout "$tmp/wt3" -b wt3 2>/dev/null
@@ -34,6 +33,27 @@ g "$tmp/main" worktree add -q --no-checkout "$tmp/wt5" -b wt5 2>/dev/null
 mkdir -p "$tmp/elsewhere"; ln -s "$tmp/elsewhere" "$tmp/wt5/.agents"
 (cd "$tmp/wt5" && bash "$HOOK" 0 0 1)
 [ ! -e "$tmp/elsewhere/skills" ] && ok "planted .agents symlink not followed" || bad "hook wrote through a planted .agents symlink"
+
+# setup-hooks, run from a worktree: hooks come from the main checkout by absolute path, and the
+# main checkout plus every existing worktree get the link.
+mkdir -p "$tmp/main/scripts"; cp scripts/setup-hooks.sh "$tmp/main/scripts/"
+g "$tmp/main" add scripts .githooks; g "$tmp/main" commit -qm setup
+g "$tmp/main" worktree add -q --no-checkout "$tmp/wt6" -b wt6 2>/dev/null
+g "$tmp/wt6" checkout -q wt6 -- scripts 2>/dev/null
+bash "$tmp/wt6/scripts/setup-hooks.sh" >/dev/null 2>&1
+want="$(cd "$tmp/main" && pwd -P)/.githooks"
+got="$(g "$tmp/main" config core.hooksPath)"
+[ "$(cd "$(dirname "$got")" && pwd -P)/.githooks" = "$want" ] && ok "setup-hooks points hooksPath at the main checkout" \
+  || bad "setup-hooks hooksPath=$got, want $want"
+[ -f "$tmp/main/.agents/skills/demo/SKILL.md" ] && [ -f "$tmp/wt6/.agents/skills/demo/SKILL.md" ] \
+  && ok "setup-hooks backfills the main checkout and existing worktrees" || bad "setup-hooks did not backfill the links"
+# A branch's own copy of a hook never runs when a worktree checks it out.
+g "$tmp/main" worktree add -q "$tmp/wt7" -b wt7 2>/dev/null
+g "$tmp/main" checkout -q -b hostile
+printf '#!/usr/bin/env bash\ntouch "%s/pwned"\n' "$tmp" > "$tmp/main/.githooks/post-checkout"
+g "$tmp/main" commit -qam hostile; g "$tmp/main" checkout -q - 2>/dev/null; rm -f "$tmp/pwned"
+g "$tmp/wt7" checkout -q hostile 2>/dev/null
+[ ! -e "$tmp/pwned" ] && ok "a checked-out branch's own hook does not run" || bad "the branch's own post-checkout ran"
 
 # No skills in the main checkout: nothing linked, checkout still succeeds.
 rm -rf "$tmp/main/.claude"

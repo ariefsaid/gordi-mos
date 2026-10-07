@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Link the main checkout's project skills into a new worktree. pi and Codex find project skills
+# Link the main checkout's project skills into this checkout (a new worktree, or the main one). pi and Codex find project skills
 # only under .agents/skills between the cwd and the repo root, and .agents/.claude are gitignored,
 # so a worktree otherwise starts with none. Runs on every checkout; idempotent; never fails one.
 #
@@ -7,7 +7,7 @@
 top="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
 common="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || exit 0
 main="$(dirname "$common")"
-[ -n "$main" ] && [ "$top" != "$main" ] && [ -d "$main/.claude/skills" ] || exit 0
+[ -d "$main/.claude/skills" ] || exit 0
 [ -L "$top/.agents" ] || [ -e "$top/.agents/skills" ] && exit 0
 mkdir -p "$top/.agents" && ln -s "$main/.claude/skills" "$top/.agents/skills"
 exit 0
