@@ -3,7 +3,7 @@ import { useT } from '@/i18n/use-t'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useSetBreadcrumbTitle } from '@/shell/breadcrumb-title'
-import './cafe-count-page.css'
+import '@/components/kitchen/cafe-capture-layout.css'
 
 /** Procurement's org-wide Receipt issues list; receivers get only their own issues, read-only, through RLS. */
 export function CafeReceiptIssuesPage() {
@@ -13,7 +13,7 @@ export function CafeReceiptIssuesPage() {
   useDocumentTitle(t('common.docTitle', { page: `${title} · ${t('nav.cafe')}` }))
   return (
     <PageFamilyFrame family="workspace" title={title} headClassName="cafe-count__head">
-      <div className="cafe-count">
+      <div className="cafe-capture-review-page">
         <CafeReceiptIssuesQueue />
       </div>
     </PageFamilyFrame>

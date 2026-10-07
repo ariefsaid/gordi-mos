@@ -82,7 +82,7 @@
 .cafe-request__field {
   display: grid;
   gap: 6px;
-  max-width: 560px;
+  max-width: var(--cafe-capture-content-measure);
   font-size: var(--font-size-body);
 }
 
@@ -119,3 +119,4 @@
 .cafe-request__sent-facts { color: var(--foreground); }
 
 .cafe-request .cafe-count__intro { margin-bottom: 12px; }
+.cafe-request .ktb { box-sizing: border-box; max-width: var(--cafe-capture-content-measure); }
