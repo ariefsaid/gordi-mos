@@ -7,13 +7,14 @@ vi.mock('@/lib/db/cafe-receipts', async importOriginal => {
   const actual = await importOriginal<typeof import('@/lib/db/cafe-receipts')>()
   return {
     ...actual, listCafeReceipts: vi.fn(), reviewCafeReceipt: vi.fn(), listCafeReceiptDifferences: vi.fn(),
-    readCafeReceiptPosting: vi.fn(), listCafeHeldReceipts: vi.fn(),
+    readCafeReceiptPosting: vi.fn(), listCafeHeldReceipts: vi.fn(), listCafeUnsentReceipts: vi.fn(),
   }
 })
 
 import { getPeople } from '@/lib/db/directory'
 import {
-  listCafeHeldReceipts, listCafeReceiptDifferences, listCafeReceipts, readCafeReceiptPosting, reviewCafeReceipt, type CafeReceipt,
+  listCafeHeldReceipts, listCafeReceiptDifferences, listCafeReceipts, listCafeUnsentReceipts, readCafeReceiptPosting, reviewCafeReceipt,
+  type CafeReceipt,
 } from '@/lib/db/cafe-receipts'
 import { ALL_STREAMS } from './cafe-stream-bar'
 import { CafeReceiptReviewQueue } from './cafe-receipt-review-queue'
@@ -47,6 +48,7 @@ beforeEach(() => {
   vi.mocked(listCafeReceiptDifferences).mockResolvedValue([])
   vi.mocked(readCafeReceiptPosting).mockResolvedValue(null)
   vi.mocked(listCafeHeldReceipts).mockResolvedValue([])
+  vi.mocked(listCafeUnsentReceipts).mockResolvedValue({ receipts: [], more: 0 })
   Object.defineProperty(navigator, 'onLine', { configurable: true, value: true })
 })
 
@@ -201,15 +203,35 @@ describe('CafeReceiptReviewQueue', () => {
   it('FR-1012 a Counted receipt not yet sent shows as “Counted, not sent” with its age and cannot be decided', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true, now: new Date('2026-10-06T04:00:00Z') })
     try {
-      vi.mocked(listCafeReceipts).mockResolvedValue([receipt('r-8', 'receiver', { status: 'Counted', submitted_at: null, row_version: 1 })])
+      vi.mocked(listCafeReceipts).mockResolvedValue([])
+      vi.mocked(listCafeUnsentReceipts).mockResolvedValue({
+        receipts: [receipt('r-8', 'receiver', { status: 'Counted', submitted_at: null, row_version: 1 })], more: 0,
+      })
       renderQueue()
       const row = (await screen.findByText('Received by Shift member')).closest('li')!
       expect(within(row).getByText('Counted, not sent · locked 2h ago')).toBeInTheDocument()
       expect(within(row).queryByRole('button', { name: 'Approve' })).toBeNull()
       expect(within(row).queryByRole('button', { name: 'Reject' })).toBeNull()
-      expect(vi.mocked(listCafeReceipts)).toHaveBeenCalledWith(['Submitted', 'Counted'], { photosFor: ['Submitted'] })
+      expect(vi.mocked(listCafeReceipts)).toHaveBeenCalledWith(['Submitted'], { photosFor: ['Submitted'] })
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('FR-1044 with more unsent receipts than the list holds, the oldest are listed after the decidable ones and the rest are counted', async () => {
+    vi.mocked(listCafeReceipts).mockResolvedValue([receipt('r-sent', 'me')])
+    vi.mocked(listCafeUnsentReceipts).mockResolvedValue({
+      receipts: Array.from({ length: 50 }, (_, index) => receipt(`r-unsent-${index}`, 'receiver', {
+        status: 'Counted', submitted_at: null, received_at: new Date(Date.parse('2026-09-01T02:00:00Z') + index * 3_600_000).toISOString(),
+      })),
+      more: 7,
+    })
+    renderQueue()
+    const rows = await screen.findAllByRole('listitem')
+    const receiptRows = rows.filter(row => row.classList.contains('cafe-receipt-review__row'))
+    expect(receiptRows).toHaveLength(51)
+    expect(within(receiptRows[0]).getByText('Received by Reviewer')).toBeInTheDocument()
+    expect(within(receiptRows[1]).getByText(/^Counted, not sent · locked/)).toBeInTheDocument()
+    expect(screen.getByText('Unsent receipts are listed oldest first; 7 newer ones across all streams are not listed.')).toBeInTheDocument()
   })
 })

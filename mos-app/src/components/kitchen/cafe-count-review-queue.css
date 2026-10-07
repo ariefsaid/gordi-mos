@@ -56,7 +56,8 @@
   gap: 12px;
   min-width: 0;
 }
-.cafe-count-review__empty p {
+.cafe-count-review__empty p,
+.cafe-count-review__more {
   margin: 0;
   color: var(--muted-foreground);
   font-size: var(--font-size-body);
