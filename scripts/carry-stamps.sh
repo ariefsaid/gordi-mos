@@ -20,6 +20,27 @@ git rev-parse --verify --quiet "$old^{commit}" >/dev/null || die "old tip '$old'
 new="$(git rev-parse HEAD)"
 [ "$old" != "$new" ] || die "old tip IS HEAD — nothing to carry"
 
+# A migration renumber also carries: every commit after the stamped tip only renames
+# supabase/migrations/<version>_<name>.sql to a new version, same name, byte-identical content
+# (the merge-time order check asks for exactly this).
+renumber_only() {
+  git merge-base --is-ancestor "$old" "$new" || return 1
+  [ -z "$(git rev-list --merges "$old..$new")" ] || return 1
+  local c
+  for c in $(git rev-list "$old..$new"); do
+    git diff --name-status -M100% "$c^" "$c" | awk -F'\t' '
+      { n++ }
+      $1 != "R100" { bad = 1 }
+      { a = $2; b = $3
+        if (a !~ /^supabase\/migrations\/[0-9]+_/ || b !~ /^supabase\/migrations\/[0-9]+_/) bad = 1
+        sub(/^supabase\/migrations\/[0-9]+_/, "", a); sub(/^supabase\/migrations\/[0-9]+_/, "", b)
+        if (a != b) bad = 1 }
+      END { exit (bad || n == 0) }' || return 1
+  done
+}
+if renumber_only; then
+  identical="renumber"
+else
 rd="$(git range-diff --no-color "$old"..."$new" 2>/dev/null)" || die "range-diff failed (no common base?)"
 [ -n "$rd" ] || die "empty range-diff — nothing to compare"
 # Pure means: every branch commit maps '=' unchanged, and every right-only row is a commit the
@@ -43,6 +64,7 @@ while read -r f1 f2 f3 f4 f5 _rest; do
   esac
 done <<< "$rd"
 [ "$identical" -gt 0 ] || die "no identical branch commits in the range-diff — nothing to carry"
+fi
 
 gitdir="$(git rev-parse --git-dir)"
 carried=0
@@ -56,4 +78,4 @@ for f in pre-pr-verify-ok pre-pr-verify-dev-ok independent-review-spec-ok indepe
   carried=$((carried + 1))
 done
 [ "$carried" -gt 0 ] || die "no stamps bound to $old to carry — run the battery and review as usual"
-echo "✓ pure rebase proven ($identical identical commits) — $carried stamp(s) carried ${old:0:8} → ${new:0:8}"
+echo "✓ pure rebase or migration renumber proven ($identical identical commits) — $carried stamp(s) carried ${old:0:8} → ${new:0:8}"

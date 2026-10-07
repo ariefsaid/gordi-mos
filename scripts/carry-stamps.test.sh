@@ -65,5 +65,26 @@ if (cd "$tmp/r2" && bash "$SCRIPT" "$OLD3" dev) >/dev/null 2>&1; then
   fail=$((fail+1)); printf '  FAIL  amended commit with \" = \" subject must refuse\n'
 else pass=$((pass+1)); printf '  ok    amended commit with \" = \" subject refuses\n'; fi
 
+# A rename-only migration renumber on top of the stamped tip carries; anything else in it refuses.
+git init -q -b dev "$tmp/r3"
+G3() { git -C "$tmp/r3" -c user.email=t@t -c user.name=t "$@"; }
+mkdir -p "$tmp/r3/supabase/migrations"; echo base > "$tmp/r3/a"; G3 add a; G3 commit -qm base
+G3 checkout -qb feat
+echo 'select 1;' > "$tmp/r3/supabase/migrations/20261007009600_x.sql"; G3 add -A; G3 commit -qm "add migration"
+OLD4="$(G3 rev-parse HEAD)"; gd3="$(G3 rev-parse --absolute-git-dir)"
+stamp3() { printf '%s' "$1" > "$gd3/pre-pr-verify-ok"; for l in spec code-quality security; do printf '%s %s rev now art\n' "$1" "$l" > "$gd3/independent-review-$l-ok"; done; }
+stamp3 "$OLD4"
+G3 mv supabase/migrations/20261007009600_x.sql supabase/migrations/20261007009800_x.sql; G3 commit -qm "renumber migration"
+(cd "$tmp/r3" && bash "$SCRIPT" "$OLD4" dev) >/dev/null 2>&1; t "rename-only migration renumber carries" $?
+[ "$(cat "$gd3/pre-pr-verify-ok")" = "$(G3 rev-parse HEAD)" ]; t "renumber: stamp moved to new head" $?
+OLD5="$(G3 rev-parse HEAD)"; stamp3 "$OLD5"
+G3 mv supabase/migrations/20261007009800_x.sql supabase/migrations/20261007009900_y.sql; G3 commit -qm "rename slug too"
+if (cd "$tmp/r3" && bash "$SCRIPT" "$OLD5" dev) >/dev/null 2>&1; then fail=$((fail+1)); printf '  FAIL  a rename that changes more than the version must refuse\n'
+else pass=$((pass+1)); printf '  ok    a rename that changes more than the version refuses\n'; fi
+G3 reset -q --hard "$OLD5"; stamp3 "$OLD5"
+G3 mv supabase/migrations/20261007009800_x.sql supabase/migrations/20261007009900_x.sql; echo 'select 2;' > "$tmp/r3/supabase/migrations/20261007009900_x.sql"; G3 add -A; G3 commit -qm "renumber + edit"
+if (cd "$tmp/r3" && bash "$SCRIPT" "$OLD5" dev) >/dev/null 2>&1; then fail=$((fail+1)); printf '  FAIL  a renumber that edits content must refuse\n'
+else pass=$((pass+1)); printf '  ok    a renumber that edits content refuses\n'; fi
+
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
