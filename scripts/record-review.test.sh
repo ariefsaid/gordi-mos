@@ -110,6 +110,68 @@ check_design() { # $1 name · $2 expected rc · $3 repo · $4 expected diagnosti
   fi
 }
 
+owner_gh_bin="$tmp/owner-gh-bin"
+mkdir -p "$owner_gh_bin"
+cat > "$owner_gh_bin/gh" <<'EOF'
+#!/usr/bin/env bash
+[ "$1" = issue ] && [ "$2" = view ] && [ "$4" = --json ] && [ "$5" = labels ] || exit 2
+if [ "${FAKE_GH_MODE:-}" = fail ]; then
+  printf 'fake GitHub unavailable\n' >&2
+  exit 1
+fi
+if [ "${FAKE_GH_MODE:-}" = owner ]; then
+  printf '{"labels":[{"name":"owner-reported"}]}\n'
+else
+  printf '{"labels":[]}\n'
+fi
+EOF
+chmod +x "$owner_gh_bin/gh"
+init_owner_ui_repo() { # $1 repo · $2 branch · $3 commit subject
+  local repo="$1" branch="$2" subject="$3"
+  mkdir -p "$repo/mos-app/src/pages"
+  printf 'export const Page = () => null;\n' > "$repo/mos-app/src/pages/page.tsx"
+  init_design_repo "$repo"
+  git -C "$repo" checkout -qb "$branch"
+  printf 'export const Page = () => <main />;\n' > "$repo/mos-app/src/pages/page.tsx"
+  commit_design_change "$repo" "$subject"
+}
+check_owner_design() { # name · expected rc · repo · gh mode · expected text · optional second text
+  local name="$1" want="$2" repo="$3" mode="$4" diagnostic="$5" second="${6:-}" head output rc
+  head="$(git -C "$repo" rev-parse HEAD)"
+  printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$head" > "$repo/review.md"
+  output="$(cd "$repo" && PATH="$owner_gh_bin:$PATH" FAKE_GH_MODE="$mode" bash "$SCRIPT" --lens spec --reviewer gpt-5.6-luna --artifact review.md 2>&1)"
+  rc=$?
+  if [ "$rc" -eq "$want" ] && { [ -z "$diagnostic" ] || printf '%s\n' "$output" | grep -Fq "$diagnostic"; } \
+    && { [ -z "$second" ] || printf '%s\n' "$output" | grep -Fq "$second"; }; then
+    pass=$((pass+1)); printf '  ok    %s\n' "$name"
+  else
+    fail=$((fail+1)); printf '  FAIL  %s — rc=%s (want %s); %s\n' "$name" "$rc" "$want" "$(printf '%s' "$output" | tr '\n' ' ')"
+  fi
+}
+
+owner_branch_repo="$tmp/owner-branch-ui-repo"
+init_owner_ui_repo "$owner_branch_repo" 'fix/123-x' 'small owner-reported UI fix'
+check_owner_design 'owner-reported UI issue on branch requires Skills evidence' 1 "$owner_branch_repo" owner 'fixes owner-reported issue #123'
+check_owner_design 'unlabelled linked UI issue stamps without Skills evidence' 0 "$owner_branch_repo" unlabelled ''
+
+owner_subject_repo="$tmp/owner-subject-ui-repo"
+init_owner_ui_repo "$owner_subject_repo" 'feature/subject-reference' 'tweak page (#124)'
+check_owner_design 'owner-reported issue referenced only in a commit subject requires Skills evidence' 1 "$owner_subject_repo" owner 'fixes owner-reported issue #124'
+
+owner_unlinked_repo="$tmp/owner-unlinked-ui-repo"
+init_owner_ui_repo "$owner_unlinked_repo" 'feature/no-linked-issue' 'small UI tweak'
+check_owner_design 'UI diff with no linked issue stamps without Skills evidence' 0 "$owner_unlinked_repo" fail ''
+check_owner_design 'unreadable linked issue labels refuse and name issue' 1 "$owner_branch_repo" fail 'issue #123' 'retry when GitHub is reachable'
+
+owner_non_ui_repo="$tmp/owner-non-ui-repo"
+mkdir -p "$owner_non_ui_repo"
+printf 'base\n' > "$owner_non_ui_repo/README.md"
+init_design_repo "$owner_non_ui_repo"
+git -C "$owner_non_ui_repo" checkout -qb 'fix/125-non-ui'
+printf 'changed\n' >> "$owner_non_ui_repo/README.md"
+commit_design_change "$owner_non_ui_repo" 'non-UI owner-reported issue change'
+check_owner_design 'owner-reported branch with non-UI diff stamps without Skills evidence' 0 "$owner_non_ui_repo" owner ''
+
 small_repo="$tmp/small-ui-repo"
 mkdir -p "$small_repo/mos-app/src/pages"
 printf 'export const ExistingPage = () => null;\n' > "$small_repo/mos-app/src/pages/existing-page.tsx"

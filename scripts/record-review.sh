@@ -78,6 +78,51 @@ design_pass_reason() {
   return 1
 }
 
+owner_reported_ui_reason() {
+  local merge_base="$1" changed_files="$2" path branch subjects issue label_json owner_issue="" issue_ids="" ui_file=0
+
+  while IFS= read -r path; do
+    [[ "$path" =~ ^mos-app/src/(pages|components|shell)/.+\.(tsx|css)$ ]] || continue
+    [[ "$path" == *.test.tsx ]] && continue
+    ui_file=1
+    break
+  done <<< "$changed_files"
+  [ "$ui_file" -eq 1 ] || return 1
+
+  branch="$(git branch --show-current)" || return 2
+  if [[ "$branch" =~ ^[^/]+/([0-9]+)-.+$ ]]; then
+    issue_ids="${BASH_REMATCH[1]}"
+  fi
+  subjects="$(git log --no-merges --format=%s "$merge_base..HEAD" 2>/dev/null)" || return 2
+  while IFS= read -r issue; do
+    [ -n "$issue" ] || continue
+    issue="${issue#\#}"
+    case " $issue_ids " in *" $issue "*) ;; *) issue_ids="${issue_ids:+$issue_ids }$issue" ;; esac
+  done < <(printf '%s\n' "$subjects" | grep -oE '#[0-9]+' || true)
+  [ -n "$issue_ids" ] || return 1
+  command -v jq >/dev/null 2>&1 || {
+    printf '✗ record-review: cannot read labels for linked issue #%s while checking rule (d); retry when GitHub is reachable\n' "${issue_ids%% *}" >&2
+    return 2
+  }
+
+  for issue in $issue_ids; do
+    label_json="$(gh issue view "$issue" --json labels 2>/dev/null)" || {
+      printf '✗ record-review: cannot read labels for issue #%s while checking rule (d); retry when GitHub is reachable\n' "$issue" >&2
+      return 2
+    }
+    if ! printf '%s\n' "$label_json" | jq -e '(.labels | type == "array") and all(.labels[]; (.name | type == "string"))' >/dev/null 2>&1; then
+      printf '✗ record-review: cannot read labels for issue #%s while checking rule (d); retry when GitHub is reachable\n' "$issue" >&2
+      return 2
+    fi
+    if printf '%s\n' "$label_json" | jq -e '[.labels[].name] | any(. == "owner-reported")' >/dev/null 2>&1; then
+      [ -n "$owner_issue" ] || owner_issue="$issue"
+    fi
+  done
+
+  [ -n "$owner_issue" ] || return 1
+  printf 'fixes owner-reported issue #%s' "$owner_issue"
+}
+
 validate_ui_skills_evidence() {
   local head="$1" artifact="$2" reason="$3" section main_checkout playbook row_rc evidence_path evidence_file
   local render_found=0 phone_found=0 tablet_found=0 wide_found=0 real_length_found=0 complete_render=0 line
@@ -208,10 +253,14 @@ merge_base="$(git merge-base origin/dev HEAD 2>/dev/null)" \
   || die "cannot compare HEAD with origin/dev to determine whether this is a UI diff"
 changed_files="$(git diff --name-only --diff-filter=d "$merge_base" HEAD 2>/dev/null)" \
   || die "could not list the diff from origin/dev's merge-base"
-# (d) Owner-reported UI issue labels are not available to this script yet.
 design_reason="$(design_pass_reason "$merge_base" "$changed_files")"
 design_reason_rc=$?
 [ "$design_reason_rc" -le 1 ] || die "could not determine whether this diff needs a design pass"
+if [ "$design_reason_rc" -eq 1 ]; then
+  design_reason="$(owner_reported_ui_reason "$merge_base" "$changed_files")"
+  design_reason_rc=$?
+  [ "$design_reason_rc" -ne 2 ] || exit 1
+fi
 if [ "$design_reason_rc" -eq 0 ]; then
   validate_ui_skills_evidence "$head" "$artifact" "$design_reason"
 fi
