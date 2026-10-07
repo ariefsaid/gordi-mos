@@ -1178,6 +1178,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   // not is worse than an empty list. Gated on `canCapture` (an unaffiliated/non-lead viewer's
   // block is the OWN read-only state, unrelated to the stream choice) and `!streamNonProducing`
   // (that state has its own receiving-only notice).
+  const readOnlyNoStream = !canCapture && streamMissing
   const noStreamChosen = canCapture && streamMissing && !streamNonProducing
   // On the live capture form, explain offline blocking once in the sticky band. States with no
   // band (no stream, receiving-only, loading/error, or empty catalog) keep the page banner.
@@ -1403,7 +1404,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       renderRowDetail={renderQuantityError}
       isDesktop={isDesktop}
       state={visibleItems.length > 0 ? 'ready' : 'empty'}
-      emptyLabel={t('kitchen.filter.noMatch')}
+      emptyLabel={t(readOnlyNoStream ? 'kitchen.log.readOnlyNoStreamEmpty' : 'kitchen.filter.noMatch')}
       caption={streamNonProducing
         ? mode === 'transfer' ? t('kitchen.transfer.receivingCaption') : t('kitchen.stream.receivingOnly.logCaption')
         : mode === 'transfer'
@@ -1518,7 +1519,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
               {buId && stream && !captureClosed && (
                 <ReportMissingItem stream={stream} streamLabel={streamLabel(t, stream)} />
               )}
-              {mode === 'transfer' && !transferDestinationChosen ? null : logTable}
+              {mode === 'transfer' && !transferDestinationChosen && !readOnlyNoStream ? null : logTable}
               {!isWide && mode === 'transfer' && stream !== null && !streamNonProducing && transferDestinationChosen && stagedCount > 0 && (
                 <section
                   className="kl-capture-summary"
