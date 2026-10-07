@@ -45,12 +45,13 @@ concurrency:
 jobs:
   # ── AUTHORITATIVE GATE: PR → main. ────────────────────────────────────────────────────────
   # The dev-PR fast lane (formerly the `pgtap` job here) now lives in db-contracts.yml (#565),
-  # which boots Supabase once and runs no browser. This job is unaffected, and it is where the
-  # rendered-geometry guards are gated: `npx playwright test` below runs every spec.
-  db:
-    # Gated on base_ref rather than the trigger's branch list, so this job's condition alone
-    # decides whether the expensive browser tier runs — it cannot accidentally start on a
-    # PR → dev, whatever branches the trigger above lists. A dispatch is an explicit request.
+  # which boots Supabase once and runs no browser. The jobs below are the PR → main gate, and the
+  # rendered-geometry guards are gated in `e2e`: `npx playwright test` runs every spec.
+  # pgTAP and the applied-path proof run beside the browser suite instead of before it (#1523):
+  # two Supabase boots in parallel cost less wall clock than one boot run in series.
+  # Every job is gated on base_ref rather than the trigger's branch list, so the expensive tier
+  # cannot start on a PR → dev, whatever branches the trigger lists. A dispatch is explicit.
+  db-proof:
     if: github.event_name == 'workflow_dispatch' || github.base_ref == 'main'
     runs-on: ubuntu-latest
     steps:
@@ -106,6 +107,34 @@ jobs:
           path: artifacts/applied-path
           retention-days: 14
 
+      - name: Stop stack
+        if: always()
+        run: supabase stop
+
+  e2e:
+    if: github.event_name == 'workflow_dispatch' || github.base_ref == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3.0.0
+        with:
+          version: 2.104.0
+
+      - name: Start local Supabase stack (applies migrations + seed)
+        # Full `supabase start` (not `db start`): e2e needs auth/API/mailpit, and
+        # `supabase status -o env` only emits keys when the full stack is up.
+        # KEPT (load-bearing): db (pgTAP) · auth/rest/kong (app API) · inbucket (e2e
+        # magic-link/reset). EXCLUDED: containers MOS's first slice never uses — speeds
+        # the boot (~the dominant CI cost). edge-runtime/functions (no edge fns; the
+        # edge-runtime container also intermittently 502s — flaked PR #9); studio/meta
+        # (admin UI); imgproxy/storage (no file features); realtime (no subscriptions);
+        # vector/analytics (log shipping). Re-add a name here if the app starts using it.
+        run: supabase start -x edge-runtime,functions,studio,meta,imgproxy,storage,realtime,vector,analytics
+
       # ── E2E against the live stack ────────────────────────────────────────────
       # e2e lives here (not verify.yml) because journeys need auth + DB (T-027).
       # Inject local anon/service_role keys from `supabase status -o env` so they
@@ -128,12 +157,17 @@ jobs:
         working-directory: mos-app
         run: npm ci
 
+      - name: Playwright version (keys the browser cache)
+        id: pw
+        working-directory: mos-app
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
       - name: Cache Playwright browsers
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('mos-app/package-lock.json') }}
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
 
       - name: Install Playwright browsers
         if: steps.playwright-cache.outputs.cache-hit != 'true'
@@ -157,3 +191,13 @@ jobs:
       - name: Stop stack
         if: always()
         run: supabase stop
+
+  # The required check on main is named `db`: it passes only when both lanes above passed.
+  db:
+    if: always() && (github.event_name == 'workflow_dispatch' || github.base_ref == 'main')
+    needs: [db-proof, e2e]
+    runs-on: ubuntu-latest
+    steps:
+      - name: pgTAP, applied-path proof and e2e all passed
+        run: test "${{ needs.db-proof.result }}" = success && test "${{ needs.e2e.result }}" = success
+
