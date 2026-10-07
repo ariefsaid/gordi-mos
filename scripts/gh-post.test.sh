@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Self-test for scripts/gh-post.sh — the posting-policy scan, fail-closed policy file,
-# and the two PR stamps. Proven able to fail: every refusal case asserts gh was NOT called.
+# and PR-stamp gates. Proven able to fail: every refusal case asserts gh was NOT called.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 SCRIPT="$(pwd)/scripts/gh-post.sh"
@@ -44,6 +44,19 @@ check() { # $1 name · $2 expected rc · $3 expect-gh-called yes/no · args…
   local ghgot=no; [ -s "$tmp/gh-calls" ] && ghgot=yes
   if [ "$rc" -eq "$want" ] && [ "$ghgot" = "$ghwant" ]; then pass=$((pass+1)); printf '  ok    %s\n' "$name"
   else fail=$((fail+1)); printf '  FAIL  %s — rc=%s (want %s), gh-called=%s (want %s)\n' "$name" "$rc" "$want" "$ghgot" "$ghwant"; fi
+}
+
+check_message() { # $1 name · $2 expected rc · $3 expect-gh-called · $4 diagnostic · args…
+  local name="$1" want="$2" ghwant="$3" diagnostic="$4"; shift 4
+  rm -f "$tmp/gh-calls"
+  local output rc ghgot=no
+  output="$(cd "$tmp/repo" && bash "$SCRIPT" "$@" 2>&1)"; rc=$?
+  [ -s "$tmp/gh-calls" ] && ghgot=yes
+  if [ "$rc" -eq "$want" ] && [ "$ghgot" = "$ghwant" ] && printf '%s\n' "$output" | grep -Fq "$diagnostic"; then
+    pass=$((pass+1)); printf '  ok    %s\n' "$name"
+  else
+    fail=$((fail+1)); printf '  FAIL  %s — rc=%s (want %s), gh-called=%s (want %s), diagnostic=%s\n' "$name" "$rc" "$want" "$ghgot" "$ghwant" "$(printf '%s' "$output" | tr '\n' ' ')"
+  fi
 }
 
 check "clean comment passes through to gh" 0 yes issue comment 5 --body "all good here"
@@ -95,15 +108,23 @@ printf '%s code-quality reviewer-x now art.md\n' "$head" > "$gitdir/independent-
 check "two of three lens stamps refused (OD-WAY-83)" 1 no pr create --title t --body "clean"
 printf '%s security reviewer-x now art.md\n' "$head" > "$gitdir/independent-review-security-ok"
 check "verify + all three lens stamps passes" 0 yes pr create --title t --body "clean"
-# The light stamp (pre-pr-verify.sh --dev) certifies a PR into dev only.
-rm -f "$gitdir/pre-pr-verify-ok"; printf '%s' "$head" > "$gitdir/pre-pr-verify-dev-ok"
-check "light stamp + lens stamps: --base dev passes" 0 yes pr create --base dev --title t --body "clean"
-check "light stamp: equals-form --base=dev passes" 0 yes pr create --base=dev --title t --body "clean"
-check "light stamp: --base main refused (needs the full stamp)" 1 no pr create --base main --title t --body "clean"
+# PRs into dev rely on CI verify and need no local verify stamp; all other bases need the full stamp.
+rm -f "$gitdir/pre-pr-verify-ok" "$gitdir/pre-pr-verify-dev-ok"
+check "lens stamps without any verify stamp: --base dev passes" 0 yes pr create --base dev --title t --body "clean"
+check "lens stamps without any verify stamp: equals-form --base=dev passes" 0 yes pr create --base=dev --title t --body "clean"
+check "-B dev is recognized as the base and passes without full verify" 0 yes pr create -B dev --title t --body "clean"
+check_message "base-like title value cannot impersonate the dev base" 1 no "no full verify stamp" pr create --title -Bdev --body clean
+check_message "-Bmain is recognized as a non-dev base" 1 no "no full verify stamp" pr create -Bmain --title t --body "clean"
+check_message "conflicting --base and -B values refuse with name-one-base guidance" 1 no "name one base" pr create --base dev -B main --title t --body "clean"
+check_message "concatenated -Bmain conflicts with a dev base" 1 no "name one base" pr create --base dev -Bmain --title t --body "clean"
+check_message "a grouped short flag carrying B refuses" 1 no "grouped" pr create --base dev -dBmain --title t --body "clean"
+check_message "a grouped short flag ending in B refuses" 1 no "grouped" pr create --base dev -dB main --title t --body "clean"
+check "main PR without the full verify stamp refuses" 1 no pr create --base main --title t --body "clean"
+printf '%s' "$head" > "$gitdir/pre-pr-verify-dev-ok"
+check "main PR with only the --dev verify stamp refuses" 1 no pr create --base main --title t --body "clean"
+check "--dev verify stamp is not needed for --base dev" 0 yes pr create --base dev --title t --body "clean"
 check "light stamp: no --base named refused" 1 no pr create --title t --body "clean"
-check "light stamp: dev then main (last wins) refused" 1 no pr create --base dev --base main --title t --body "clean"
-printf 'deadbeef' > "$gitdir/pre-pr-verify-dev-ok"
-check "light stamp on the wrong sha refused even for dev" 1 no pr create --base dev --title t --body "clean"
+check_message "conflicting --base values refuse rather than using the last value" 1 no "name one base" pr create --base dev --base main --title t --body "clean"
 rm -f "$gitdir/pre-pr-verify-dev-ok"; printf '%s' "$head" > "$gitdir/pre-pr-verify-ok"
 check "full stamp still passes --base main" 0 yes pr create --base main --title t --body "clean"
 check "full stamp also passes --base dev" 0 yes pr create --base dev --title t --body "clean"
@@ -122,8 +143,8 @@ g "$tmp/repo" checkout -q main 2>/dev/null || g "$tmp/repo" checkout -qb main
 rm -f "$gitdir/pre-pr-verify-ok" "$gitdir"/independent-review-*-ok
 check "main->staging promotion passes unstamped (release carve-out)" 0 yes pr create --base staging --title t --body "clean"
 check "equals-form --base=staging promotion passes" 0 yes pr create --base=staging --title t --body "clean"
-check "duplicate base flags: LAST wins — staging then dev refused" 1 no pr create --base staging --base dev --title t --body "clean"
-check "duplicate base flags: dev then staging is the promotion" 0 yes pr create --base dev --base staging --title t --body "clean"
+check_message "conflicting bases staging and dev are refused" 1 no "name one base" pr create --base staging --base dev --title t --body "clean"
+check_message "conflicting bases dev and staging are refused" 1 no "name one base" pr create --base dev --base staging --title t --body "clean"
 check "--base staging-hotfix is NOT the carve-out" 1 no pr create --base staging-hotfix --title t --body "clean"
 check "stray 'staging' arg without --base adjacency is NOT the carve-out" 1 no pr create --base dev --title staging --body "clean"
 g "$tmp/repo" checkout -qb rogue
@@ -153,15 +174,16 @@ check "end-of-flags marker refused" 1 no api repos/x/y/issues -- -f title=x
 check "value-taking flag at the end refused" 1 no api repos/x/y/issues -f
 check "REST merge (PUT pulls/N/merge) is not a create" 0 yes api repos/x/y/pulls/5/merge --method PUT -f merge_method=squash
 head="$(g "$tmp/repo" rev-parse HEAD)"
-printf '%s' "$head" > "$gitdir/pre-pr-verify-dev-ok"
 for lens in spec code-quality security; do printf '%s %s reviewer-x now art.md\n' "$head" "$lens" > "$gitdir/independent-review-$lens-ok"; done
-check "REST pr create, light stamp + lens stamps, base=dev passes" 0 yes api repos/x/y/pulls -f title=t -f head=feat-rest -f base=dev
+check "REST pr create, lens stamps without verify stamp, base=dev passes" 0 yes api repos/x/y/pulls -f title=t -f head=feat-rest -f base=dev
 check "REST pr create, concatenated -f fields pass" 0 yes api repos/x/y/pulls -fhead=feat-rest -fbase=dev
 check "REST pr create, --raw-field= form passes" 0 yes api repos/x/y/pulls --raw-field=head=feat-rest --raw-field=base=dev
 check "REST pr create, owner:branch head passes" 0 yes api repos/x/y/pulls -f head=x:feat-rest -f base=dev
+check "REST main PR without full verify stamp refuses" 1 no api repos/x/y/pulls -f head=feat-rest -f base=main
+printf '%s' "$head" > "$gitdir/pre-pr-verify-dev-ok"
+check "REST main PR with only --dev verify stamp refuses" 1 no api repos/x/y/pulls -f head=feat-rest -f base=main
 check "REST pr create, cluster -ifbase=main after base=dev refused" 1 no api repos/x/y/pulls -f head=feat-rest -f base=dev -ifbase=main
 check "REST pr create, -F head=@file refused" 1 no api repos/x/y/pulls -F head=@"$tmp/repo/body.md" -f base=dev
-check "REST pr create, light stamp, base=main refused" 1 no api repos/x/y/pulls -f head=feat-rest -f base=main
 check "REST pr create, light stamp, no base refused" 1 no api repos/x/y/pulls -f head=feat-rest
 check "REST pr create, base dev then main (last wins) refused" 1 no api repos/x/y/pulls -f head=feat-rest -f base=dev -f base=main
 check "REST pr create, head naming another branch refused" 1 no api repos/x/y/pulls -f head=other -f base=dev
