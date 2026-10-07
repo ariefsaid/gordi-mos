@@ -207,5 +207,13 @@ gr add -A && gr commit -qm migration
 relcheck "migration branch: luna security refused" 1 gpt-6-luna
 relcheck "migration branch: opus security accepted" 0 claude-opus
 
+relcheck "spoofed id 'not-opus-luna' refused on a migration branch" 1 not-opus-luna
+gr mv supabase/migrations/20261007000000_x.sql supabase/migrations/20261007000001_x.sql; gr commit -qm renamed
+git -C "$tmp/rel-repo" update-ref refs/remotes/origin/dev HEAD~1
+relcheck "renamed/edited migration still needs opus" 1 gpt-6-luna
+gr checkout -q -b release/x HEAD; gr commit -q --allow-empty -m "fix on top"
+git -C "$tmp/rel-repo" update-ref refs/remotes/origin/dev HEAD~1
+relcheck "release/* branch with a fix commit needs opus" 1 gpt-6-luna
+
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

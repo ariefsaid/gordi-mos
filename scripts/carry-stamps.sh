@@ -28,14 +28,20 @@ renumber_only() {
   [ -z "$(git rev-list --merges "$old..$new")" ] || return 1
   local c
   for c in $(git rev-list "$old..$new"); do
-    git diff --name-status -M100% "$c^" "$c" | awk -F'\t' '
-      { n++ }
-      $1 != "R100" { bad = 1 }
-      { a = $2; b = $3
+    # --raw: modes must match and every change is an exact (R100) rename of <v>_<name>.sql to
+    # <v2>_<name>.sql; sorted by old version, the new versions must keep the same order.
+    git diff --raw -M100% "$c^" "$c" | awk -F'\t' '
+      { n++; split($1, m, " ")
+        if (substr(m[1], 2) != m[2]) bad = 1
+        if (m[5] != "R100") bad = 1
+        a = $2; b = $3
         if (a !~ /^supabase\/migrations\/[0-9]+_/ || b !~ /^supabase\/migrations\/[0-9]+_/) bad = 1
-        sub(/^supabase\/migrations\/[0-9]+_/, "", a); sub(/^supabase\/migrations\/[0-9]+_/, "", b)
-        if (a != b) bad = 1 }
-      END { exit (bad || n == 0) }' || return 1
+        va = a; vb = b; sub(/^supabase\/migrations\//, "", va); sub(/^supabase\/migrations\//, "", vb)
+        sa = va; sb = vb; sub(/^[0-9]+_/, "", sa); sub(/^[0-9]+_/, "", sb)
+        if (sa != sb) bad = 1
+        sub(/_.*/, "", va); sub(/_.*/, "", vb); print va, vb }
+      END { exit (bad || n == 0) }' | sort -n | awk '{ if (NR > 1 && $2 <= last) exit 1; last = $2 }' || return 1
+    [ "${PIPESTATUS[1]}" = 0 ] || return 1
   done
 }
 if renumber_only; then

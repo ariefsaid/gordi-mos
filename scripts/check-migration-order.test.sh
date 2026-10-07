@@ -43,4 +43,12 @@ echo "ok   explicit head ref is judged without checking it out"; pass=$((pass + 
 rc=0; out="$(bash "$SCRIPT" dev no-such-ref 2>&1)" || rc=$?
 [ "$rc" -ne 0 ] || { echo "FAIL unknown head ref passed as ok"; echo "$out"; exit 1; }
 echo "ok   an unknown ref fails instead of passing"; pass=$((pass + 1))
-echo "$pass/6 passed"
+git checkout -q --orphan unrelated; git rm -rqf . >/dev/null; mkdir -p supabase/migrations; echo 'select 1;' > supabase/migrations/20250101000001_old.sql; git add -A; git commit -qm unrelated; git checkout -q dev
+rc=0; out="$(bash "$SCRIPT" dev unrelated 2>&1)" || rc=$?
+[ "$rc" -ne 0 ] || { echo "FAIL unrelated history passed as ok"; echo "$out"; exit 1; }
+echo "ok   unrelated histories fail"; pass=$((pass + 1))
+git checkout -q -B tab dev; printf 'select 1;' > "supabase/migrations/20260115000001_t$(printf '\t')ab.sql"; git add -A; git commit -qm tab; git checkout -q dev
+rc=0; out="$(bash "$SCRIPT" dev tab 2>&1)" || rc=$?
+[ "$rc" -eq 1 ] || { echo "FAIL out-of-order tab path passed"; echo "$out"; exit 1; }
+echo "ok   a path with a tab is still judged"; pass=$((pass + 1))
+echo "$pass/8 passed"

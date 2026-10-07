@@ -86,5 +86,17 @@ G3 mv supabase/migrations/20261007009800_x.sql supabase/migrations/2026100700990
 if (cd "$tmp/r3" && bash "$SCRIPT" "$OLD5" dev) >/dev/null 2>&1; then fail=$((fail+1)); printf '  FAIL  a renumber that edits content must refuse\n'
 else pass=$((pass+1)); printf '  ok    a renumber that edits content refuses\n'; fi
 
+# A renumber that swaps two migrations' order, or changes a file mode, refuses.
+G3 reset -q --hard "$OLD5"; echo 'select 3;' > "$tmp/r3/supabase/migrations/20261007009850_z.sql"; G3 add -A; G3 commit -qm "second migration"
+OLD6="$(G3 rev-parse HEAD)"; stamp3 "$OLD6"
+G3 mv supabase/migrations/20261007009800_x.sql supabase/migrations/20261007009990_x.sql
+G3 mv supabase/migrations/20261007009850_z.sql supabase/migrations/20261007009950_z.sql; G3 commit -qm "swap order"
+if (cd "$tmp/r3" && bash "$SCRIPT" "$OLD6" dev) >/dev/null 2>&1; then fail=$((fail+1)); printf '  FAIL  a renumber that swaps order must refuse\n'
+else pass=$((pass+1)); printf '  ok    a renumber that swaps order refuses\n'; fi
+G3 reset -q --hard "$OLD6"; stamp3 "$OLD6"
+G3 mv supabase/migrations/20261007009850_z.sql supabase/migrations/20261007009900_z.sql; chmod +x "$tmp/r3/supabase/migrations/20261007009900_z.sql"; G3 add -A; G3 commit -qm "renumber + chmod"
+if (cd "$tmp/r3" && bash "$SCRIPT" "$OLD6" dev) >/dev/null 2>&1; then fail=$((fail+1)); printf '  FAIL  a renumber with a mode change must refuse\n'
+else pass=$((pass+1)); printf '  ok    a renumber with a mode change refuses\n'; fi
+
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

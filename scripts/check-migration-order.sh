@@ -12,6 +12,7 @@ HEADREF="${2:-HEAD}"
 for r in "$BASE" "$HEADREF"; do
   git rev-parse -q --verify "$r^{commit}" >/dev/null || { echo "MIGRATION ORDER FAIL: unknown ref '$r'" >&2; exit 2; }
 done
+git merge-base "$BASE" "$HEADREF" >/dev/null || { echo "MIGRATION ORDER FAIL: $BASE and $HEADREF share no history" >&2; exit 2; }
 DIR="supabase/migrations"
 
 version() { basename "$1" | sed -E 's/^([0-9]+)_.*/\1/'; }
@@ -21,14 +22,14 @@ while IFS= read -r f; do
   [[ "$f" == *.sql ]] || continue
   v="$(version "$f")"
   [[ "$v" =~ ^[0-9]+$ ]] && (( 10#$v > max )) && max=$((10#$v))
-done < <(git ls-tree --name-only "$BASE" "$DIR/")
+done < <(git ls-tree -z --name-only "$BASE" "$DIR/" | tr '\0' '\n')
 
 bad=()
 while IFS= read -r f; do
   [[ "$f" == "$DIR"/*.sql ]] || continue
   v="$(version "$f")"
   if ! [[ "$v" =~ ^[0-9]+$ ]] || (( 10#$v <= max )); then bad+=("$f"); fi
-done < <(git diff --no-renames --diff-filter=A --name-only "$BASE"..."$HEADREF" -- "$DIR")
+done < <(git -c core.quotePath=false diff -z --no-renames --diff-filter=A --name-only "$BASE"..."$HEADREF" -- "$DIR" | tr '\0' '\n')
 
 if [ "${#bad[@]}" -gt 0 ]; then
   echo "MIGRATION ORDER FAIL: new migration(s) not newer than the latest on $BASE ($max):" >&2
