@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { StrictMode } from 'react'
-import { MemoryRouter } from 'react-router-dom'
+import { createMemoryRouter, Link, MemoryRouter, RouterProvider } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { CafeItemSetting } from '@/lib/db/cafe-item-settings'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
@@ -10,6 +10,7 @@ import type { AuthState } from '@/auth/context'
 
 vi.mock('@/auth/use-auth')
 const selectedActivity = vi.hoisted(() => ({ initial: 'kitchen' as 'kitchen' | 'bar' | null }))
+const streamControls = vi.hoisted(() => ({ retrySameStream: undefined as (() => void) | undefined }))
 vi.mock('@/lib/use-cafe-stream', async () => {
   const { useCallback, useState } = await import('react')
   const branch = { id: 'branch-1', code: 'gordi_hq', name: 'Gordi HQ' }
@@ -22,6 +23,7 @@ vi.mock('@/lib/use-cafe-stream', async () => {
   const resolve = vi.fn().mockResolvedValue(catalog)
   return { useCafeStream: () => {
     const [chosen, setStream] = useState<ProductionStream | null>(selectedActivity.initial === null ? null : selectedActivity.initial === 'bar' ? bar : stream)
+    streamControls.retrySameStream = () => setStream(current => current ? { ...current } : null)
     // A catalog adopted on another stream than the bootstrap's (a linked stream) opens on it.
     const adopt = useCallback((next: { stream: ProductionStream | null }) => {
       if (next.stream && next.stream !== stream) setStream(next.stream)
@@ -395,6 +397,63 @@ describe('Cafe item permissions per activity', () => {
     renderPage()
     expect(await screen.findByRole('textbox', { name: 'MOS name' })).toBeEnabled()
     expect(mockCanManage).toHaveBeenCalledWith(activity)
+  })
+
+  it('confirms before switching streams with an unsaved item draft; Stay keeps the draft', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    const name = await screen.findByRole('textbox', { name: 'MOS name' })
+    await user.clear(name)
+    await user.type(name, 'Draft oat milk')
+
+    await user.click(screen.getByRole('button', { name: /change stream/i }))
+    await user.click(screen.getByRole('option', { name: /Gordi HQ · Bar/ }))
+
+    const switchDialog = await screen.findByRole('dialog', { name: 'Discard item changes and switch stream?' })
+    expect(switchDialog).toHaveTextContent('Gordi HQ · Bar')
+    expect(mockCanManage).not.toHaveBeenCalledWith('bar')
+    await user.click(screen.getByRole('button', { name: 'Stay on this page' }))
+    expect(screen.getByRole('heading', { level: 2, name: 'Gordi HQ · Kitchen' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'MOS name' })).toHaveValue('Draft oat milk')
+
+    await user.click(screen.getByRole('button', { name: /change stream/i }))
+    await user.click(screen.getByRole('option', { name: /Gordi HQ · Bar/ }))
+    await user.click(screen.getByRole('button', { name: 'Discard and switch' }))
+    expect(await screen.findByRole('heading', { level: 2, name: 'Gordi HQ · Bar' })).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'MOS name' })).toHaveValue('Oat milk'))
+  })
+
+  it('keeps a dirty draft through a failed permission recheck and its Retry', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    const name = await screen.findByRole('textbox', { name: 'MOS name' })
+    await user.clear(name)
+    await user.type(name, 'Draft oat milk')
+
+    mockCanManage.mockRejectedValueOnce(new Error('permission lookup unavailable'))
+    act(() => streamControls.retrySameStream?.())
+    expect(await screen.findByRole('alert')).toHaveTextContent(/could not confirm edit access/i)
+    await user.click(screen.getByRole('button', { name: 'Try again' }))
+
+    expect(await screen.findByRole('textbox', { name: 'MOS name' })).toHaveValue('Draft oat milk')
+  })
+
+  it('guards route departure while an item draft is unsaved', async () => {
+    const user = userEvent.setup()
+    const router = createMemoryRouter([
+      { path: '/cafe/items', element: <><CafeItemSettingsPage /><Link to="/elsewhere">Leave items</Link></> },
+      { path: '/elsewhere', element: <p>Elsewhere</p> },
+    ], { initialEntries: ['/cafe/items'] })
+    render(<I18nProvider initialLocale="en"><RouterProvider router={router} /></I18nProvider>)
+    const name = await screen.findByRole('textbox', { name: 'MOS name' })
+    await user.clear(name)
+    await user.type(name, 'Draft oat milk')
+    await user.click(screen.getByRole('link', { name: 'Leave items' }))
+
+    expect(await screen.findByRole('dialog', { name: 'Leave without saving?' })).toHaveTextContent('Your unsaved item changes will be discarded.')
+    await user.click(screen.getByRole('button', { name: 'Stay on this page' }))
+    expect(screen.getByRole('textbox', { name: 'MOS name' })).toHaveValue('Draft oat milk')
+    expect(screen.queryByText('Elsewhere')).not.toBeInTheDocument()
   })
 
   it('checks Bar after switching from an allowed Kitchen stream and removes write controls', async () => {

@@ -45,6 +45,15 @@ vi.mock('@/lib/db/tasks', () => ({ searchTasksByTitle: vi.fn().mockResolvedValue
 vi.mock('@/lib/db/signals', () => ({ searchSignalsByBody: vi.fn().mockResolvedValue([]) }))
 vi.mock('@/lib/db/follow-ups', () => ({ searchFollowUpsByCounterparty: vi.fn().mockResolvedValue([]) }))
 vi.mock('@/lib/db/directory', () => ({ searchPeopleByName: vi.fn().mockResolvedValue([]) }))
+vi.mock('@/lib/db/notifications', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/db/notifications')>()),
+  countUnread: vi.fn().mockResolvedValue(0),
+  listNotifications: vi.fn().mockResolvedValue({ rows: [], hasMore: false, nextCursor: null }),
+}))
+vi.mock('@/lib/db/work-authority', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/db/work-authority')>()
+  return { ...actual, getWorkWriteScopes: vi.fn().mockResolvedValue(actual.emptyWorkWriteScopes()) }
+})
 vi.mock('@/auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
 import { CommandMenu } from '@/components/command/command-menu'

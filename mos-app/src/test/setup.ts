@@ -1,9 +1,23 @@
 import '@testing-library/jest-dom/vitest'
 import { transferableAbortController } from 'node:util'
 import { createElement } from 'react'
-import { afterEach } from 'vitest'
+import { afterEach, beforeEach, expect } from 'vitest'
 import { cleanup, configure, render } from '@testing-library/react'
 import { I18nProvider } from '@/i18n/I18nProvider'
+
+let shellTestActive = false
+let shellNetworkAttempts: string[] = []
+const nativeFetch = globalThis.fetch.bind(globalThis)
+const guardedFetch = ((input: RequestInfo | URL) => {
+  shellNetworkAttempts.push(String(input))
+  return Promise.reject(new Error(`Shell tests must mock network requests: ${String(input)}`))
+}) as typeof fetch
+
+beforeEach(() => {
+  shellTestActive = expect.getState().testPath?.includes('/src/shell/') ?? false
+  shellNetworkAttempts = []
+  if (shellTestActive) globalThis.fetch = guardedFetch
+})
 
 // Paired with css:false in vite.config.ts (the root overhead/contention fix), raise RTL's
 // default async budget ONCE, GLOBALLY. Under parallel-test load the host event loop can be
@@ -30,6 +44,13 @@ afterEach(() => {
   // The last applied locale outlives its provider (the crash screen relies on that), so every test
   // starts from the product default, as a fresh page load does.
   if (typeof document !== 'undefined') render(createElement(I18nProvider, null)).unmount()
+  const isShellTest = shellTestActive
+  const attempts = shellNetworkAttempts
+  shellTestActive = false
+  if (isShellTest) globalThis.fetch = nativeFetch
+  if (isShellTest) {
+    expect(attempts, `Unexpected shell network requests: ${attempts.join(', ')}`).toEqual([])
+  }
 })
 
 // Node 26's global Request is backed by undici and checks its own AbortSignal brand. In jsdom,

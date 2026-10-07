@@ -444,6 +444,7 @@ export async function fetchKitchenStock(
  *    (`kitchen_logs_destination_matches_action`).
  */
 function toKitchenLogRow(input: CreateKitchenLogInput): Record<string, unknown> {
+  if (!input.client_request_id) throw new Error('client_request_id is required for a kitchen capture')
   if (input.qty_porsi <= 0) throw new Error('qty_porsi must be > 0')
   if ((input.entry_quantity == null) !== (input.entry_unit_factor == null)) {
     throw new Error('entry quantity and unit factor must be supplied together')
@@ -467,6 +468,7 @@ function toKitchenLogRow(input: CreateKitchenLogInput): Record<string, unknown> 
     throw new Error('a waste log carries no destination branch')
   }
   return {
+    client_request_id: input.client_request_id,
     business_unit_id: input.business_unit_id,
     log_date: input.log_date,
     branch_id: input.branch_id,
@@ -483,8 +485,7 @@ function toKitchenLogRow(input: CreateKitchenLogInput): Record<string, unknown> 
       entry_unit_factor: input.entry_unit_factor,
     }),
     notes: input.notes ?? null,
-    // Waste starts as a Draft so the required photo can attach before submission.
-    ...(input.action === 'waste' ? { status: 'Draft' } : {}),
+    // The RPC chooses Submitted vs Draft from action; status is never client-controlled.
     // source NOT sent — DB defaults to 'mos'
     // org_id NOT sent — server-stamped by current_org_id()
     // submitted_by NOT sent — server-stamped by current_person_id()
@@ -497,16 +498,8 @@ function toKitchenLogRow(input: CreateKitchenLogInput): Record<string, unknown> 
  * Throws on PostgREST error. Returns the inserted row's id.
  */
 export async function insertKitchenLog(input: CreateKitchenLogInput): Promise<string> {
-  const row = toKitchenLogRow(input)
-
-  const { data, error } = await ops()
-    .from('kitchen_logs')
-    .insert(row)
-    .select('id')
-    .single()
-
-  if (error) throw new Error(`insertKitchenLog failed — ${error.message}`)
-  return (data as { id: string }).id
+  const ids = await insertKitchenLogRows([input], 'insertKitchenLog')
+  return ids[0]!
 }
 
 /**
@@ -519,15 +512,24 @@ export async function insertKitchenLogBatch(
 ): Promise<string[]> {
   if (inputs.length === 0) return []
 
+  return insertKitchenLogRows(inputs, 'insertKitchenLogBatch')
+}
+
+async function insertKitchenLogRows(
+  inputs: CreateKitchenLogInput[],
+  operation: 'insertKitchenLog' | 'insertKitchenLogBatch',
+): Promise<string[]> {
   const rows = inputs.map(toKitchenLogRow)
+  const { data, error } = await ops().rpc('insert_cafe_capture_logs', { p_rows: rows })
+  if (error) throw new Error(`${operation} failed — ${error.message}`)
 
-  const { data, error } = await ops()
-    .from('kitchen_logs')
-    .insert(rows)
-    .select('id')
-
-  if (error) throw new Error(`insertKitchenLogBatch failed — ${error.message}`)
-  return ((data ?? []) as { id: string }[]).map(r => r.id)
+  const returned = (data ?? []) as Array<{ id: string; client_request_id: string }>
+  const idsByRequestId = new Map(returned.map(row => [row.client_request_id, row.id]))
+  return inputs.map(input => {
+    const id = idsByRequestId.get(input.client_request_id)
+    if (!id) throw new Error(`${operation} failed — the capture RPC did not return its original row`)
+    return id
+  })
 }
 
 // ── Review / approve queue (S3 — ops_lead, FR-040..044/050) ───────────────────

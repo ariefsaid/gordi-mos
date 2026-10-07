@@ -78,6 +78,7 @@ import type {
   CafeDestination,
   ProductionStream,
   StreamPair,
+  KitchenLogLine,
 } from '@/lib/db/kitchen-logs.types'
 
 const mockUseAuth = vi.mocked(useAuth)
@@ -281,9 +282,11 @@ import { KitchenLogPage } from './kitchen-log-page'
 import { rememberStream } from '@/lib/cafe-stream'
 import { activeCafeLocation, rememberCafeLocation, resetCafeLocations } from '@/lib/cafe-opening-location'
 import { cafeDraftCount } from '@/lib/cafe-capture-draft'
+import { cafeCaptureDraftStorageKey, writeCafeCaptureDraft } from '@/lib/cafe-capture-storage'
 
 beforeEach(() => {
   vi.clearAllMocks()
+  localStorage.clear()
   // #440: the Café stream is remembered for the whole module (sessionStorage), so a test that
   // switches streams would otherwise seed the NEXT test's opening stream. Clear it per test.
   rememberStream(null)
@@ -1569,6 +1572,210 @@ describe('Submit error state', () => {
     })
     const done = await screen.findByText(/submitted/i)
     expect(done.closest('.kl-footer')).not.toBeNull()
+  })
+})
+
+describe('capture retry identity and saved drafts', () => {
+  it('does not restore yesterday’s staged quantities into today’s capture form', async () => {
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date())
+    const yesterdayDate = new Date(`${today}T00:00:00.000Z`)
+    yesterdayDate.setUTCDate(yesterdayDate.getUTCDate() - 1)
+    const yesterday = yesterdayDate.toISOString().slice(0, 10)
+    const scope = {
+      orgId: '10000000-0000-0000-0000-000000000001',
+      personId: '40000000-0000-0000-0000-000000000001',
+      form: 'production' as const,
+      branchId: BRANCH_RUMAH_RAMES.id,
+      activity: 'kitchen',
+      logDate: yesterday,
+    }
+    writeCafeCaptureDraft(scope, {
+      branch_id: BRANCH_RUMAH_RAMES.id,
+      activity: 'kitchen',
+      movement: { action: 'produce' },
+      lines: { w2: {
+        wip_item_id: 'w2', qty_porsi: 8, entry_quantity: 8, entry_unit_factor: 1,
+        item_unit_id: 'u2-porsi', entry_unit_name: 'porsi', client_request_id: '50000000-0000-0000-0000-000000000001',
+      } as KitchenLogLine },
+    })
+    const twoDaysAgo = new Date(`${today}T00:00:00.000Z`)
+    twoDaysAgo.setUTCDate(twoDaysAgo.getUTCDate() - 2)
+    const nextScope = { ...scope, logDate: twoDaysAgo.toISOString().slice(0, 10) }
+    writeCafeCaptureDraft(nextScope, {
+      branch_id: BRANCH_RUMAH_RAMES.id,
+      activity: 'kitchen',
+      movement: { action: 'produce' },
+      lines: { w2: {
+        wip_item_id: 'w2', qty_porsi: 4, entry_quantity: 4, entry_unit_factor: 1,
+        item_unit_id: 'u2-porsi', entry_unit_name: 'porsi', client_request_id: '50000000-0000-0000-0000-000000000002',
+      } as KitchenLogLine },
+    })
+
+    await renderPage()
+    const quantity = await screen.findByRole('spinbutton', { name: /quantity produced for nasi goreng/i })
+
+    expect(quantity).not.toHaveValue(8)
+    const oldDrafts = await screen.findAllByRole('article', { name: /unsent from/i })
+    const oldDraft = oldDrafts.find(draft => draft.textContent?.includes('8 porsi'))!
+    expect(oldDraft).toHaveTextContent('WIP - Nasi Goreng')
+    expect(screen.getByText(/today's form can't send older entries.*ask a café lead/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/expire after 7 days/i)).toHaveLength(1)
+    fireEvent.click(within(oldDraft).getByRole('button', { name: 'Discard' }))
+    const discardDialog = await screen.findByRole('dialog', { name: 'Discard this saved draft?' })
+    fireEvent.click(within(discardDialog).getByRole('button', { name: 'Discard' }))
+    await waitFor(() => expect(screen.getAllByRole('article', { name: /unsent from/i })).toHaveLength(1))
+    expect(screen.getByRole('article', { name: /unsent from/i })).toHaveTextContent('4 porsi')
+    const draftHeading = screen.getByRole('heading', { name: 'Unsent entries from other dates' })
+    await waitFor(() => expect(document.activeElement).toBe(draftHeading))
+    expect(localStorage.getItem(cafeCaptureDraftStorageKey(scope))).toBeNull()
+    expect(localStorage.getItem(cafeCaptureDraftStorageKey(nextScope))).not.toBeNull()
+  })
+
+  it('restores a matching saved draft after an explicit stream choice when no default stream is available', async () => {
+    mockFetchDefaultStream.mockResolvedValue(null)
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date())
+    writeCafeCaptureDraft({
+      orgId: '10000000-0000-0000-0000-000000000001',
+      personId: '40000000-0000-0000-0000-000000000001',
+      form: 'production',
+      branchId: BRANCH_RADIANT.id,
+      activity: 'bar',
+      logDate: today,
+    }, {
+      branch_id: BRANCH_RADIANT.id,
+      activity: 'bar',
+      movement: { action: 'produce' },
+      lines: {
+        w2: {
+          wip_item_id: 'w2',
+          client_request_id: '50000000-0000-0000-0000-000000000001',
+          item_unit_id: 'u2-porsi',
+          entry_quantity: 7,
+          entry_unit_factor: 1,
+          entry_unit_name: 'porsi',
+          qty_porsi: 7,
+        } as KitchenLogLine,
+      },
+    })
+
+    await renderPage(OPS_LEAD)
+    await screen.findByText(/choose a production stream to start logging/i)
+    await chooseStream('Radiant · Bar')
+
+    expect(await screen.findByRole('spinbutton', { name: /quantity produced for nasi goreng/i })).toHaveValue('7')
+  })
+
+  it.each([
+    ['production', '/cafe', /quantity produced for nasi goreng/i, 12],
+    ['transfer', '/cafe/transfer', /quantity to transfer to radiant for ayam bakar/i, 10],
+  ] as const)('%s restores an unsent draft across reload, then clears it after success', async (_form, path, quantityLabel, quantity) => {
+    mockInsertKitchenLogBatch.mockResolvedValue(['log-ok'])
+    if (_form === 'transfer') {
+      mockFetchStockMap.mockResolvedValue({ w1: { stok: 0, tersedia: 100 }, w2: { stok: 0, tersedia: 100 } })
+    }
+    const first = await renderPage(VIEWER_MEMBER, appUrl(path))
+    const input = await screen.findByRole('spinbutton', { name: quantityLabel })
+    fireEvent.change(input, { target: { value: String(quantity) } })
+    await waitFor(() => expect(localStorage.length).toBeGreaterThan(0))
+    first.unmount()
+
+    await renderPage(VIEWER_MEMBER, appUrl(path))
+    const restored = await screen.findByRole('spinbutton', { name: quantityLabel })
+    expect(restored).toHaveValue(String(quantity))
+    const compactNotice = screen.getByText('1 unsent entry restored').closest('.kl-capture-draft-notice')
+    expect(compactNotice).toHaveAttribute('aria-live', 'off')
+    fireEvent.click(screen.getByRole('button', { name: /^submit/i }))
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/submitted/i))
+    expect(localStorage.length).toBe(0)
+  })
+
+  it('freezes restore count and timestamp while later typing changes the draft', async () => {
+    const first = await renderPage(VIEWER_MEMBER, appUrl('/cafe'))
+    fireEvent.change(await screen.findByRole('spinbutton', { name: /quantity produced for nasi goreng/i }), { target: { value: '12' } })
+    await waitFor(() => expect(localStorage.length).toBeGreaterThan(0))
+    first.unmount()
+
+    await renderPage(VIEWER_MEMBER, appUrl('/cafe'))
+    const restored = await screen.findByRole('spinbutton', { name: /quantity produced for nasi goreng/i })
+    const notice = screen.getByText('1 unsent entry restored').closest('.kl-capture-draft-notice')
+    expect(notice).toHaveAttribute('aria-live', 'off')
+    const announcement = screen.getByRole('status').textContent
+    fireEvent.change(screen.getByRole('spinbutton', { name: /quantity produced for ayam bakar/i }), { target: { value: '3' } })
+
+    expect(notice).toHaveTextContent('1 unsent entry restored')
+    expect(screen.getByRole('status')).toHaveTextContent(announcement ?? '')
+    expect(restored).toHaveValue('12')
+  })
+
+  it('does not double-count a committed production row when its saved request replays after reload', async () => {
+    const requestId = '50000000-0000-4000-8000-000000000001'
+    mockFetchActualsMap.mockResolvedValue({
+      w1: { [PRODUCE_KEY]: [{
+        key: `log:${requestId}`,
+        item_unit_id: 'u1-porsi',
+        unit_name: 'porsi',
+        qty_porsi: 8,
+        entry_quantity: 8,
+        entry_unit_factor: 1,
+        entry_unit_name: 'porsi',
+      }] },
+    })
+    mockInsertKitchenLogBatch.mockResolvedValue([requestId])
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date())
+    writeCafeCaptureDraft({
+      orgId: '10000000-0000-0000-0000-000000000001',
+      personId: '40000000-0000-0000-0000-000000000001',
+      form: 'production',
+      branchId: BRANCH_RUMAH_RAMES.id,
+      activity: 'kitchen',
+      logDate: today,
+    }, {
+      branch_id: BRANCH_RUMAH_RAMES.id,
+      activity: 'kitchen',
+      movement: { action: 'produce' },
+      lines: { w1: {
+        wip_item_id: 'w1',
+        client_request_id: requestId,
+        client_attempted: true,
+        item_unit_id: 'u1-porsi',
+        entry_quantity: 8,
+        entry_unit_factor: 1,
+        entry_unit_name: 'porsi',
+        qty_porsi: 8,
+        notes: 'Saved retry note',
+        dirty: true,
+      } },
+    })
+
+    await renderPage(VIEWER_MEMBER)
+    expect(await screen.findByRole('spinbutton', { name: /quantity produced for ayam bakar/i })).toHaveValue('8')
+    expect(document.querySelector('.kls-meta')?.textContent).toMatch(/logged\s*8/i)
+    fireEvent.click(screen.getByRole('button', { name: /^submit/i }))
+    await screen.findByText(/submitted/i)
+
+    expect(document.querySelector('.kls-meta')?.textContent).toMatch(/logged\s*8/i)
+    expect(document.querySelectorAll('.kls-logged-unit')).toHaveLength(1)
+  })
+
+  it.each([
+    ['production', '/cafe', /quantity produced for nasi goreng/i, 12],
+    ['transfer', '/cafe/transfer', /quantity to transfer to radiant for ayam bakar/i, 10],
+  ] as const)('%s retries the same capture attempt with its original request id', async (_form, path, quantityLabel, quantity) => {
+    mockInsertKitchenLogBatch.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce(['log-ok'])
+    if (_form === 'transfer') {
+      mockFetchStockMap.mockResolvedValue({ w1: { stok: 0, tersedia: 100 }, w2: { stok: 0, tersedia: 100 } })
+    }
+    await renderPage(VIEWER_MEMBER, appUrl(path))
+    fireEvent.change(await screen.findByRole('spinbutton', { name: quantityLabel }), { target: { value: String(quantity) } })
+    fireEvent.click(screen.getByRole('button', { name: /^submit/i }))
+    await screen.findByRole('alert')
+    fireEvent.click(screen.getByRole('button', { name: /^submit/i }))
+    await waitFor(() => expect(mockInsertKitchenLogBatch).toHaveBeenCalledTimes(2))
+    const firstIds = mockInsertKitchenLogBatch.mock.calls[0]![0].map(row => row.client_request_id)
+    const retryIds = mockInsertKitchenLogBatch.mock.calls[1]![0].map(row => row.client_request_id)
+    expect(firstIds).toHaveLength(1)
+    expect(firstIds[0]).toEqual(expect.any(String))
+    expect(retryIds).toEqual(firstIds)
   })
 })
 
