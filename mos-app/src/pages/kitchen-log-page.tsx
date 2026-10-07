@@ -80,7 +80,7 @@ import {
   type KitchenListRow,
 } from '@/lib/kitchen-item-list'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
-import { formatWeekdayDayMonth } from '@/lib/format/date'
+import { formatWeekdayDayMonth, wibToday } from '@/lib/format/date'
 import { EmptyState, LoadingShell } from '@/components/ui/state-kit'
 import { QuantityFieldError } from '@/components/ui/quantity-field'
 import { CafeItemsEmptyState } from '@/components/kitchen/cafe-items-empty-state'
@@ -91,14 +91,6 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { NotOnStreamTag } from '@/components/kitchen/not-on-stream-tag'
 import { ReportMissingItem } from '@/components/kitchen/report-missing-item'
 import './kitchen-log-page.css'
-
-// WIB "today" as YYYY-MM-DD (fixed +7h offset, NFR-007)
-function wibToday(): string {
-  const WIB_OFFSET_MS = 7 * 60 * 60 * 1000
-  const shifted = new Date(Date.now() + WIB_OFFSET_MS)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}-${pad(shifted.getUTCDate())}`
-}
 
 // Build fresh per-item line state from loaded items + plan + stock for one movement.
 // Every line opens on its item's default ERP unit (units[0]); configured multiples are

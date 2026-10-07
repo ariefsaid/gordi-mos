@@ -5,13 +5,12 @@ import { describe, it, expect } from 'vitest'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import type { CollectionData } from '@/lib/record-collection/types'
 import {
-  TASK_COLLECTION_NEUTRAL_QUERY,
   projectTaskCollection,
   toTaskCollectionRecord,
   type TaskCollectionContext,
-  type TaskCollectionQuery,
   type TaskCollectionRecord,
 } from './task-collection-adapter'
+import { TASK_COLLECTION_NEUTRAL_QUERY, type TaskCollectionQuery } from './task-collection-query'
 
 const NOW = new Date('2026-07-21T03:00:00Z')
 const P_ADI = 'p-adi'
