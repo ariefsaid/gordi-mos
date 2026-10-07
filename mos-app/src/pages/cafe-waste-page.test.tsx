@@ -549,8 +549,8 @@ describe('CafeWastePage', () => {
     const quantity = within(row).getByRole('spinbutton', { name: 'Waste quantity for Coffee Syrup' })
     const unit = within(row).getByRole('combobox', { name: 'Waste unit for Coffee Syrup' })
 
-    expect(row.querySelector('.cwl-capture-row__item')).toContainElement(name)
-    expect(row.querySelector('.cwl-capture-row__controls')).toContainElement(quantity)
+    expect(row.querySelector('.cafe-capture-item')).toContainElement(name)
+    expect(row.querySelector('.cafe-capture-row__controls')).toContainElement(quantity)
     expect(unit).toHaveTextContent(longUnitLabel)
     expect(document.getElementById(unit.getAttribute('aria-describedby') ?? '')).toHaveTextContent(longUnitLabel)
     expect(quantity).toHaveClass('cafe-capture-quantity-field')

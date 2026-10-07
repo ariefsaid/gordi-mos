@@ -6,6 +6,8 @@ import { resolve } from 'node:path'
 
 const css = readFileSync(resolve(process.cwd(), 'src/pages/kitchen-log-page.css'), 'utf8')
   .replace(/\/\*[\s\S]*?\*\//g, '')
+const captureCss = readFileSync(resolve(process.cwd(), 'src/components/kitchen/cafe-capture-layout.css'), 'utf8')
+  .replace(/\/\*[\s\S]*?\*\//g, '')
 const toolbarCss = readFileSync(resolve(process.cwd(), 'src/components/kitchen/kitchen-toolbar.css'), 'utf8')
   .replace(/\/\*[\s\S]*?\*\//g, '')
 const captureControlsCss = readFileSync(resolve(process.cwd(), 'src/components/kitchen/cafe-capture-controls.css'), 'utf8')
@@ -22,9 +24,9 @@ function ruleBodyAt(idx: number, source = css): string {
 
 describe('KL-FOOTER-NAV: the capture footer stays reachable above the shell bottom-tab bar', () => {
   it('keeps the footer at the scrollport edge without a tab-bar-sized gap', () => {
-    const captureFrame = ruleBodyAt(css.indexOf('.page-frame--v3:has(.cafe-capture-head) {'))
-    const captureContent = ruleBodyAt(css.indexOf('.kl-capture-content,\n.kl-capture-content .kl-capture-main,'))
-    const captureFooter = ruleBodyAt(css.indexOf('.cafe-capture-footer.kl-footer {'))
+    const captureFrame = ruleBodyAt(captureCss.indexOf('.page-frame--v3:has(.cafe-capture-head),'), captureCss)
+    const captureContent = ruleBodyAt(captureCss.indexOf('.kl-capture-content,\n.kl-capture-content .kl-capture-main,'), captureCss)
+    const captureFooter = ruleBodyAt(captureCss.indexOf('.cafe-capture-footer.kl-footer {'), captureCss)
 
     expect(captureFrame).toMatch(/padding-bottom:\s*0/)
     expect(captureContent).toMatch(/flex:\s*1 0 auto/)
@@ -32,13 +34,13 @@ describe('KL-FOOTER-NAV: the capture footer stays reachable above the shell bott
     expect(captureFooter).toMatch(/bottom:\s*0/)
     expect(captureFooter).toMatch(/margin-bottom:\s*0/)
     expect(captureFooter).toMatch(/margin-top:\s*auto/)
-    expect(css).toMatch(/@media\s*\(max-width:\s*767\.98px\)\s*\{\s*\.cafe-capture-footer\.kl-footer\s*\{[^}]*padding-bottom:\s*calc\(8px \+ env\(safe-area-inset-bottom,\s*0px\)\)/)
+    expect(captureCss).toMatch(/@media\s*\(max-width:\s*767\.98px\)\s*\{\s*\.cafe-capture-footer\.kl-footer\s*\{[^}]*padding-bottom:\s*calc\(8px \+ env\(safe-area-inset-bottom,\s*0px\)\)/)
   })
 
   it('keeps the tally and primary action together and reserves list clearance for the phone band', () => {
-    const captureFooter = ruleBodyAt(css.indexOf('.cafe-capture-footer.kl-footer {'))
-    const countRow = ruleBodyAt(css.indexOf('.cafe-capture-footer > .kl-footer-count-row {'))
-    const primaryAction = ruleBodyAt(css.indexOf('.cafe-capture-footer > .kl-submit,\n.cafe-capture-footer > .btn {'))
+    const captureFooter = ruleBodyAt(captureCss.indexOf('.cafe-capture-footer.kl-footer {'), captureCss)
+    const countRow = ruleBodyAt(captureCss.indexOf('.cafe-capture-footer > .kl-footer-count-row {'), captureCss)
+    const primaryAction = ruleBodyAt(captureCss.indexOf('.cafe-capture-footer > .kl-submit,'), captureCss)
 
     expect(captureFooter).toMatch(/flex-direction:\s*row/)
     expect(captureFooter).toMatch(/flex-wrap:\s*wrap/)
@@ -111,8 +113,8 @@ describe('capture quantity errors span the entry row', () => {
 
 describe('capture summary line keeps the item name readable', () => {
   it('wraps the date and status labels onto their own row instead of squeezing the name', () => {
-    const line = ruleBodyAt(css.indexOf('.kl-capture-summary__lines li {'))
-    const labels = ruleBodyAt(css.indexOf('.kl-capture-summary__lines li > small,'))
+    const line = ruleBodyAt(captureCss.indexOf('.kl-capture-summary__lines li {'), captureCss)
+    const labels = ruleBodyAt(captureCss.indexOf('.kl-capture-summary__lines li > small,'), captureCss)
     expect(line).toMatch(/flex-wrap:\s*wrap/)
     expect(labels).toMatch(/flex:\s*0 0 100%/)
   })

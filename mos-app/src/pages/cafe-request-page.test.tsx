@@ -91,6 +91,8 @@ describe('CafeRequestPage', () => {
   it('AC-1043 opens blank on the person’s stream with item search, typed quantity and fixed unit, and no pre-fill or purchase-versus-transfer control', async () => {
     const { container } = renderPage()
     const bean = await screen.findByRole('textbox', { name: 'Needed for Coffee bean' })
+    expect(screen.getByRole('button', { name: 'Switch kitchen stream' })).toBeInTheDocument()
+    expect(screen.getByRole('searchbox', { name: 'Find an item' })).toBeInTheDocument()
     expect(mockItems).toHaveBeenCalledWith(streamMocks.kitchen)
     expect(bean).toHaveValue('')
     expect(bean).toHaveAttribute('inputmode', 'decimal')
@@ -102,7 +104,7 @@ describe('CafeRequestPage', () => {
     expect(container.textContent).not.toMatch(/purchase order|transfer|supplier|price|ERP/i)
     expect(screen.queryByRole('combobox', { name: /type|process|transfer/i })).not.toBeInTheDocument()
 
-    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'bean' } })
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Find an item' }), { target: { value: 'bean' } })
     await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Needed for Fresh milk' })).not.toBeInTheDocument())
     expect(screen.getByRole('textbox', { name: 'Needed for Coffee bean' })).toBeInTheDocument()
     expect(send()).toBeDisabled()

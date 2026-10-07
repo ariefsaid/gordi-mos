@@ -35,16 +35,14 @@ import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { ReportMissingItem } from '@/components/kitchen/report-missing-item'
 import { CafeStreamBar, CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
 import { WastePhotoCapture } from '@/components/kitchen/waste-photo-capture'
-import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
+import { CafeCaptureTable } from '@/components/kitchen/cafe-capture-table'
 import { Select } from '@/components/ui/select'
 import { QuantityField } from '@/components/ui/quantity-field'
 import { parseQuantityInput } from '@/lib/quantity-parser'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { CafeItemsEmptyState } from '@/components/kitchen/cafe-items-empty-state'
 import { RouteLeaveGuard } from '@/shell/route-leave-guard'
-import './kitchen-log-page.css'
 import './cafe-waste-page.css'
-import '@/components/kitchen/cafe-capture-controls.css'
 
 type CafeLogItem = NonNullable<ReturnType<typeof toCafeLogItem>>
 
@@ -544,74 +542,6 @@ export function CafeWastePage() {
     />
   )
 
-  const columns: DataTableColumn<WasteRow>[] = [
-    {
-      key: 'item',
-      header: t('kitchen.log.col.item'),
-      cardLabel: '',
-      render: item => (
-        <div className="cwl-item-cell">
-          <div className="kl-dish">
-            <span className="kl-dish-name" title={item.category ? `${item.kind} - ${item.name} · ${kitchenCategoryLabel(t, item.category)}` : `${item.kind} - ${item.name}`}>
-              <span>{item.kind} - </span><span>{item.name}</span>
-            </span>
-            {hasMixedCategories && item.category && <span className="kl-dish-cat cwl-category">{kitchenCategoryLabel(t, item.category)}</span>}
-          </div>
-          {renderEvidence(item)}
-        </div>
-      ),
-    },
-    {
-      key: 'quantity',
-      header: t('kitchen.waste.quantity'),
-      numeric: true,
-      render: item => (
-        <WasteItemControls
-          item={item}
-          entry={entries[item.id]}
-          canCapture={canCapture}
-          isOnline={isOnline}
-          disabled={submitting || loadState !== 'ready'}
-          onQuantityChange={value => patchEntry(item.id, { quantity: value, error: undefined })}
-          onQuantityValidityChange={valid => reportQuantityValidity(item.id, valid)}
-          onUnitChange={choice => changeWasteEntryUnit(item, choice)}
-          onPrepare={() => void prepareEntry(item)}
-        />
-      ),
-    },
-  ]
-
-  const renderCard = (item: WasteRow) => (
-    <div className="cwl-capture-row" role="group" aria-labelledby={`cafe-waste-item-${item.id}`}>
-      <div className="cwl-capture-row__item">
-        <div className="kl-dish">
-          <span
-            id={`cafe-waste-item-${item.id}`}
-            className="kl-dish-name"
-            title={item.category ? `${item.kind} - ${item.name} · ${kitchenCategoryLabel(t, item.category)}` : `${item.kind} - ${item.name}`}
-          >
-            <span>{item.kind} - </span><span>{item.name}</span>
-          </span>
-          {hasMixedCategories && item.category && <span className="kl-dish-cat cwl-category">{kitchenCategoryLabel(t, item.category)}</span>}
-        </div>
-      </div>
-      <div className="cwl-capture-row__controls">
-        <WasteItemControls
-          item={item}
-          entry={entries[item.id]}
-          canCapture={canCapture}
-          isOnline={isOnline}
-          disabled={submitting || loadState !== 'ready'}
-          onQuantityChange={value => patchEntry(item.id, { quantity: value, error: undefined })}
-          onQuantityValidityChange={valid => reportQuantityValidity(item.id, valid)}
-          onUnitChange={choice => changeWasteEntryUnit(item, choice)}
-          onPrepare={() => void prepareEntry(item)}
-        />
-      </div>
-      <div className="cwl-capture-row__evidence">{renderEvidence(item)}</div>
-    </div>
-  )
-
   const state = loadState === 'loading' ? 'loading' : loadState === 'error' ? 'error'
     : submitting ? 'saving' : allSubmitted ? 'saved' : !canCapture ? 'read-only' : 'default'
 
@@ -728,18 +658,32 @@ export function CafeWastePage() {
                   searchPlaceholder={t('kitchen.log.searchPlaceholder')}
                   ariaLabel={t('kitchen.log.toolbarAria')}
                 />
-                <div className="cwl-list">
-                  <DataTable
-                    columns={columns}
+                <CafeCaptureTable
                     rows={visibleItems}
                     groups={groups}
-                    renderCard={renderCard}
+                    renderControls={item => (
+                      <WasteItemControls
+                        item={item}
+                        entry={entries[item.id]}
+                        canCapture={canCapture}
+                        isOnline={isOnline}
+                        disabled={submitting || loadState !== 'ready'}
+                        onQuantityChange={value => patchEntry(item.id, { quantity: value, error: undefined })}
+                        onQuantityValidityChange={valid => reportQuantityValidity(item.id, valid)}
+                        onUnitChange={choice => changeWasteEntryUnit(item, choice)}
+                        onPrepare={() => void prepareEntry(item)}
+                      />
+                    )}
+                    renderItemDetails={renderEvidence}
+                    renderCardDetails={renderEvidence}
+                    showCategory={hasMixedCategories}
+                    className="cwl-list"
                     isDesktop={isDesktop}
                     state={visibleItems.length > 0 ? 'ready' : 'empty'}
                     emptyLabel={t('kitchen.filter.noMatch')}
                     caption={t('kitchen.waste.tableCaption')}
-                  />
-                </div>
+                    quantityHeader={t('kitchen.waste.quantity')}
+                />
               </>
             )}
 

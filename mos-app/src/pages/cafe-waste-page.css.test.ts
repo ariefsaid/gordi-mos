@@ -8,6 +8,8 @@ const selectCss = readFileSync(resolve(process.cwd(), 'src/components/ui/Select.
   .replace(/\/\*[\s\S]*?\*\//g, '')
 const captureCss = readFileSync(resolve(process.cwd(), 'src/components/kitchen/cafe-capture-controls.css'), 'utf8')
   .replace(/\/\*[\s\S]*?\*\//g, '')
+const layoutCss = readFileSync(resolve(process.cwd(), 'src/components/kitchen/cafe-capture-layout.css'), 'utf8')
+  .replace(/\/\*[\s\S]*?\*\//g, '')
 const stepperCss = readFileSync(resolve(process.cwd(), 'src/components/kitchen/wip-item-stepper.css'), 'utf8')
   .replace(/\/\*[\s\S]*?\*\//g, '')
 
@@ -20,6 +22,13 @@ function rule(selector: string, last = false): string {
 }
 
 describe('Waste capture controls stay paired and complete', () => {
+  it('keeps the capture table on the shared content measure beside the summary rail', () => {
+    const list = rule('.cwl-list {')
+    expect(list).toMatch(/min-width:\s*0/)
+    expect(list).not.toMatch(/(?:^|;)\s*width\s*:/)
+    expect(layoutCss).toMatch(/\.cafe-capture-table\s*\{[^}]*width:\s*min\(100%, var\(--cafe-capture-content-measure/)
+  })
+
   it('keeps quantity, unit and photo action in an inline desktop track', () => {
     const controls = rule('.cwl-controls {')
     const photo = rule('.cwl-add-photo {', true)
@@ -87,9 +96,9 @@ describe('Waste capture controls stay paired and complete', () => {
     expect(css).not.toMatch(/@media\s*\(max-width:\s*767\.98px\)[\s\S]*?\.cwl-unit-label\s*\{/)
   })
 
-  it('keeps category context available on phone while preserving dense desktop rows', () => {
-    expect(rule('.cwl-category {')).toMatch(/display:\s*none/)
-    expect(css).toMatch(/@media\s*\(max-width:\s*767\.98px\)[\s\S]*?\.cwl-category\s*\{\s*display:\s*block/)
+  it('keeps shared category context available on phone while preserving dense desktop rows', () => {
+    expect(layoutCss).toMatch(/\.cafe-capture-item__category\s*\{\s*display:\s*none/)
+    expect(layoutCss).toMatch(/@media\s*\(max-width:\s*639px\)[\s\S]*?\.cafe-capture-item__category\s*\{\s*display:\s*block/)
   })
 })
 
@@ -98,6 +107,6 @@ describe('Café Waste quantity-error layout', () => {
     expect(css).toMatch(/\.cwl-quantity-row,[\s\S]*?\.quantity-field-control--inline,[\s\S]*?\.quantity-field-suffix\s*\{\s*display:\s*contents/)
     expect(rule('.cwl-controls:has(.quantity-field-error) .quantity-field-error {')).toMatch(/grid-column:\s*1\s*\/\s*3;[\s\S]*grid-row:\s*2/)
     expect(rule('.cwl-controls:has(.quantity-field-error) .cwl-add-photo {')).toMatch(/grid-column:\s*3;[\s\S]*grid-row:\s*1\s*\/\s*span\s*2/)
-    expect(css).toMatch(/\.cwl-capture-row:has\(\.quantity-field-error\)[\s\S]*?\.cwl-capture-row__controls\s*\{\s*grid-column:\s*1/)
+    expect(layoutCss).toMatch(/\.cafe-capture-row\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/)
   })
 })

@@ -80,6 +80,7 @@ import {
   type KitchenListRow,
 } from '@/lib/kitchen-item-list'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
+import { CafeCaptureTable } from '@/components/kitchen/cafe-capture-table'
 import { formatWeekdayDayMonth } from '@/lib/format/date'
 import { EmptyState, LoadingShell } from '@/components/ui/state-kit'
 import { QuantityFieldError } from '@/components/ui/quantity-field'
@@ -1218,17 +1219,19 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       {rowStatus && <span className="kl-status kl-status--neutral">{rowStatus}</span>}
     </div>
   )
-  const renderCaptureIdentity = (
-    item: KitchenListRow<CaptureFormItem>,
-    line: KitchenLogLine,
-    rowStatus?: string,
-  ) => (
-    <div className="kl-card-identity">
-      <span className="kl-card-name"><span>{item.kind} - </span><span>{item.name}</span></span>
-      {invalidItemIds.has(item.id) && <NotOnStreamTag />}
-      {renderCaptureMeta(line, rowStatus)}
-    </div>
-  )
+  const renderCaptureItemMeta = (item: KitchenListRow<CaptureFormItem>) => {
+    const line = lines[item.id]
+    const actuals = actualsMap[item.id]?.[movementKey(movement)] ?? []
+    const rowStatus = isDesktop ? undefined : line.qty_porsi > 0
+      ? t('kitchen.status.staged')
+      : actuals.some(entry => entry.qty_porsi > 0) ? t('kitchen.status.logged') : undefined
+    return (
+      <>
+        {invalidItemIds.has(item.id) && <NotOnStreamTag />}
+        {renderCaptureMeta(line, rowStatus)}
+      </>
+    )
+  }
   const renderCaptureStepper = (
     item: KitchenListRow<CaptureFormItem>,
     line: KitchenLogLine,
@@ -1273,22 +1276,6 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       />
     )
   }
-
-  const columns: DataTableColumn<KitchenListRow<CaptureFormItem>>[] = [
-    {
-      key: 'dish',
-      header: t('kitchen.log.col.item'),
-      cardLabel: '',
-      render: item => renderCaptureIdentity(item, lines[item.id]),
-    },
-    {
-      key: 'made',
-      header: mode === 'transfer'
-        ? t('kitchen.transfer.col.quantity', { branch: transferDestinationName ?? t('kitchen.actionType.transferTo.fallback') })
-        : t('kitchen.log.col.made'),
-      render: item => renderCaptureStepper(item, lines[item.id], isDesktop, isDesktop),
-    },
-  ]
 
   // Receiving-only streams keep the same readable plan/stock/history rows, but render the
   // submitted actual instead of mounting the production stepper. A plain DataTable card is
@@ -1337,32 +1324,6 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     },
   ]
 
-  /**
-   * v4 — the phone capture row. The generic DataTable card rendered five labelled
-   * <dl> rows per dish (~200px), so a 21-dish service was ~4,000px of scrolling and about
-   * one dish visible at a time. The contributor's job is "capture in one short pass and be
-   * back to work in under a minute", so the row is built for running a list and acting on
-   * each item: identity on the left, the stepper on the right where the thumb is, basis and
-   * status on one muted line beneath. Same data, same controls, ~76px instead of ~200px.
-   * Touch targets stay ≥44px (.kls-qty is unchanged).
-   */
-  const renderLogCard = (item: KitchenListRow<CaptureFormItem>) => {
-    const line = lines[item.id]
-    if (!line) return null
-    const actuals = actualsMap[item.id]?.[movementKey(movement)] ?? []
-    const rowStatus = line.qty_porsi > 0
-      ? t('kitchen.status.staged')
-      : actuals.some(entry => entry.qty_porsi > 0) ? t('kitchen.status.logged') : undefined
-    return (
-      <div className="kl-row">
-        <div className="kl-card-head">
-          {renderCaptureIdentity(item, line, rowStatus)}
-          {renderCaptureStepper(item, line, true)}
-        </div>
-      </div>
-    )
-  }
-
   const logToolbar = (
     <KitchenToolbar
       search={search}
@@ -1392,23 +1353,39 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     </KitchenToolbar>
   )
 
-  const logTable = (
+  const captureCaption = mode === 'transfer'
+    ? t('kitchen.transfer.caption', { branch: transferDestinationName ?? t('kitchen.actionType.transferTo.fallback') })
+    : t('kitchen.log.caption')
+  const logTable = streamNonProducing ? (
     <DataTable
-      columns={streamNonProducing ? receivingColumns : columns}
+      columns={receivingColumns}
       rows={visibleItems}
       groups={groups}
       key={`${movementKey(movement)}:${plannedLines.length > 0 ? 'planned' : 'off-plan'}:${tableResetKey}`}
       defaultCollapsedGroupKeys={plannedLines.length > 0 && focusInvalidGroupKey !== 'offplan' ? new Set(['offplan']) : undefined}
-      renderCard={streamNonProducing ? undefined : renderLogCard}
-      renderRowDetail={renderQuantityError}
       isDesktop={isDesktop}
       state={visibleItems.length > 0 ? 'ready' : 'empty'}
       emptyLabel={t('kitchen.filter.noMatch')}
-      caption={streamNonProducing
-        ? mode === 'transfer' ? t('kitchen.transfer.receivingCaption') : t('kitchen.stream.receivingOnly.logCaption')
-        : mode === 'transfer'
-          ? t('kitchen.transfer.caption', { branch: transferDestinationName ?? t('kitchen.actionType.transferTo.fallback') })
-          : t('kitchen.log.caption')}
+      caption={mode === 'transfer' ? t('kitchen.transfer.receivingCaption') : t('kitchen.stream.receivingOnly.logCaption')}
+    />
+  ) : (
+    <CafeCaptureTable
+      rows={visibleItems}
+      groups={groups}
+      key={`${movementKey(movement)}:${plannedLines.length > 0 ? 'planned' : 'off-plan'}:${tableResetKey}`}
+      defaultCollapsedGroupKeys={plannedLines.length > 0 && focusInvalidGroupKey !== 'offplan' ? new Set(['offplan']) : undefined}
+      renderControls={item => renderCaptureStepper(item, lines[item.id], true, isDesktop)}
+      renderItemMeta={renderCaptureItemMeta}
+      renderFeedback={isDesktop ? renderQuantityError : undefined}
+      showCategory={false}
+      cardWrapperClassName="kl-row"
+      quantityHeader={mode === 'transfer'
+        ? t('kitchen.transfer.col.quantity', { branch: transferDestinationName ?? t('kitchen.actionType.transferTo.fallback') })
+        : t('kitchen.log.col.made')}
+      isDesktop={isDesktop}
+      state={visibleItems.length > 0 ? 'ready' : 'empty'}
+      emptyLabel={t('kitchen.filter.noMatch')}
+      caption={captureCaption}
     />
   )
 

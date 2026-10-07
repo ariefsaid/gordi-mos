@@ -679,7 +679,7 @@ describe('Populated state — WIP items loaded', () => {
     const footer = form.querySelector('.kl-footer') as HTMLElement
     expect(footer).not.toBeNull()
 
-    const css = readFileSync(resolve(process.cwd(), 'src/pages/kitchen-log-page.css'), 'utf8')
+    const css = readFileSync(resolve(process.cwd(), 'src/components/kitchen/cafe-capture-layout.css'), 'utf8')
     const ruleStart = css.indexOf('.cafe-capture-footer.kl-footer {')
     const rule = css.slice(ruleStart, ruleStart + 500)
     const baseFooter = css.slice(css.indexOf('.kl-footer {'), css.indexOf('.kl-footer {') + 700)

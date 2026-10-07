@@ -8,7 +8,7 @@ import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useSetBreadcrumbTitle } from '@/shell/breadcrumb-title'
 import { ALL_STREAMS, CafeStreamBar } from './cafe-stream-bar'
-import '@/pages/cafe-count-page.css'
+import '@/components/kitchen/cafe-capture-layout.css'
 
 /** A cross-stream Café review page: opens on All streams, claims no location, filters its queue by stream. */
 export function CafeStreamReviewFrame({
@@ -47,7 +47,7 @@ export function CafeStreamReviewFrame({
         />
       }
     >
-      <div className="cafe-count">
+      <div className="cafe-capture-review-page">
         {children({
           streamFilter,
           streamCatalog: options,
