@@ -191,9 +191,11 @@ honest work teaches `--no-verify`, which disables the guards that matter. This o
 - Reversible migrations. **RLS on every business table.** `org_id` seam enforced.
 - `DESIGN.md` is the design-system source of truth — never re-invent it.
 - UI changes run the scripted design checks (Impeccable detector, geometry, a11y, contrast) on every
-  PR; the judgment steps (shape, ui-ux-pro-max, rendered critique, layout, clarify, harden,
-  polish, Taste) run once per release on the dev→main PR (OD-2026-10-07-HARNESS-ANSWERS).
-  Missing, unrunnable or stale tooling is an explicit incomplete review, never a silent fallback.
+  PR. The judgment steps (shape, ui-ux-pro-max, rendered critique, layout, clarify, harden,
+  polish, Taste) run with renders on a PR that adds a route, page, component or CSS file, changes
+  >~150 lines of page/component .tsx/.css, or fixes an owner-reported UI issue; otherwise once per
+  release on the dev→main PR (OD-2026-10-07-HARNESS-ANSWERS). Missing, unrunnable or stale tooling
+  is an explicit incomplete review, never a silent fallback.
 - UI is not done until rendered and operated at real widths (incl. ≤390px phone): open controls,
   keyboard/focus, long content, loading/empty/error states and the persisted role-correct journey.
   Record browser evidence separately from source/test evidence; shared-component reuse is not visual acceptance.
