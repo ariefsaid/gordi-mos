@@ -26,20 +26,14 @@
 -- later update timestamp is skipped. The default detail is inserted into the shown-unit relation
 -- before assigning it, as the existing setting guard requires.
 --
--- Target: default psql mode is `sample`. It requires the fixed sample id, exact sample name, sample
--- flag and sample-address shape used by the ESB catalog load. A real-org run is a separate explicit
--- opt-in, requires owner approval, and has not been run. After that approval only, use:
---   psql "$DB_URL" -X -v ON_ERROR_STOP=1 -v cafe_item_defaults_target=real \
---     -v cafe_item_defaults_real_opt_in=I_APPROVE_REAL_ORG_ITEM_SETTINGS_LOAD \
---     -f supabase/seed.sample-org-item-settings.sql
--- The real target is resolved only when there is exactly one non-sample ESB catalog organization.
--- Hosted sample usage: psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/seed.sample-org-item-settings.sql
+-- Target: the fixed-id Gordi Sample org only. It requires the fixed sample id, exact sample name,
+-- sample flag and sample-address shape used by the ESB catalog load; anything else is refused and
+-- nothing is written. There is deliberately no mode for the real organisation: that load needs the
+-- owner's OK and its own review (a named expected org, rows created by the call only).
+-- Hosted usage: psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f supabase/seed.sample-org-item-settings.sql
 -- The SELECT invokes one function call: the settings writes succeed together or roll back together.
 
-create or replace function pg_temp.prefill_cafe_item_settings(
-  p_target_mode text,
-  p_real_org_opt_in text
-)
+create or replace function pg_temp.prefill_cafe_item_settings()
 returns void
 language plpgsql
 set search_path = ''
@@ -48,48 +42,23 @@ declare
   sample_org constant uuid := '5a000000-0000-0000-0000-000000000001';
   target_org uuid;
   target_name text;
-  source_org_count integer;
 begin
-  -- Freeze the target shape, catalog and settings before resolving either guarded target.
+  -- Freeze the target shape, catalog and settings before resolving the guarded target.
   lock table shared.orgs, shared.people, ops.wip_items, ops.item_units,
              ops.stream_items, ops.cafe_item_settings, ops.cafe_item_setting_units
     in share row exclusive mode;
 
-  if p_target_mode = 'sample' then
-    select org.name into target_name
-      from shared.orgs org
-     where org.id = sample_org;
-    if not found
-       or target_name is distinct from 'Gordi Sample'
-       or not shared.is_sample_org(sample_org)
-       or not shared.is_sample_org_shape(sample_org, target_name) then
-      raise exception 'seed.sample-org-item-settings: refused, target is not the sample organisation'
-        using errcode = '42501';
-    end if;
-    target_org := sample_org;
-  elsif p_target_mode = 'real' then
-    if p_real_org_opt_in is distinct from 'I_APPROVE_REAL_ORG_ITEM_SETTINGS_LOAD' then
-      raise exception 'seed.sample-org-item-settings: refused, real-org mode requires explicit owner-approved opt-in'
-        using errcode = '42501';
-    end if;
-    select count(distinct item.org_id)::integer into source_org_count
-      from ops.wip_items item
-     where item.reference_source = 'erp_catalog'
-       and item.esb_product_id is not null
-       and not shared.is_sample_org(item.org_id);
-    if source_org_count <> 1 then
-      raise exception 'seed.sample-org-item-settings: refused, expected exactly one non-sample ESB catalog organization'
-        using errcode = '42501';
-    end if;
-    select distinct item.org_id into target_org
-      from ops.wip_items item
-     where item.reference_source = 'erp_catalog'
-       and item.esb_product_id is not null
-       and not shared.is_sample_org(item.org_id);
-  else
-    raise exception 'seed.sample-org-item-settings: refused, target mode must be sample or real'
+  select org.name into target_name
+    from shared.orgs org
+   where org.id = sample_org;
+  if not found
+     or target_name is distinct from 'Gordi Sample'
+     or not shared.is_sample_org(sample_org)
+     or not shared.is_sample_org_shape(sample_org, target_name) then
+    raise exception 'seed.sample-org-item-settings: refused, target is not the sample organisation'
       using errcode = '42501';
   end if;
+  target_org := sample_org;
 
   create temporary table if not exists _cafe_item_settings_prefill_candidates (
     org_id uuid not null,
@@ -138,10 +107,10 @@ begin
   )
   select stream_item.org_id, stream_item.branch_id, stream_item.activity,
          item.id,
-         -- Sample test data only: a BOM output is WIP, an item with no BOM output is RAW, unknown stays unset.
-         -- The real org never gets a kind from this load (the team sets it, OD-CAFE-MVP-12).
-         case when p_target_mode = 'sample' and item.has_active_bom_output is true then 'WIP'
-              when p_target_mode = 'sample' and item.has_active_bom_output is false then 'RAW' end,
+         -- Sample test data: a BOM output is WIP, an item with no BOM output is RAW, unknown stays unset.
+         -- The real org never gets a kind from a load (the team sets it, OD-CAFE-MVP-12).
+         case when item.has_active_bom_output is true then 'WIP'
+              when item.has_active_bom_output is false then 'RAW' end,
          units.confirmed_stock_unit_count > 0,
          case when units.confirmed_stock_unit_count = 1
               then units.sole_confirmed_stock_unit_id end
@@ -211,14 +180,4 @@ begin
 end;
 $$;
 
-\if :{?cafe_item_defaults_target}
-\else
-\set cafe_item_defaults_target sample
-\endif
-\if :{?cafe_item_defaults_real_opt_in}
-\else
-\set cafe_item_defaults_real_opt_in ''
-\endif
-select pg_temp.prefill_cafe_item_settings(
-  :'cafe_item_defaults_target', :'cafe_item_defaults_real_opt_in'
-);
+select pg_temp.prefill_cafe_item_settings();

@@ -17,20 +17,21 @@
 --   set -e
 --   printf "%s\\n" "$out"
 --   test "$rc" -eq 0
---   printf "%s\\n" "$out" | grep -Fxq "1..33"
---   test "$(printf "%s\\n" "$out" | grep -Ec "^ok [0-9]+ -")" -eq 33
+--   printf "%s\\n" "$out" | grep -Fxq "1..28"
+--   test "$(printf "%s\\n" "$out" | grep -Ec "^ok [0-9]+ -")" -eq 28
 --   if printf "%s\\n" "$out" | grep -q "^not ok "; then exit 1; fi
 -- '
 -- ```
 -- The transaction below owns all fixtures and ends with ROLLBACK. The 168 Bar items model 60
 -- with BOM output, 98 without output and 10 with unknown BOM evidence; only the last ten have
 -- unconfirmed stock details. For the sample org only, kind is derived as test data (BOM output =
--- WIP, none = RAW, unknown unset); two manager-set rows (one WIP, one RAW) are preserved, so the
--- result is 59 WIP, 99 RAW and 10 unset. A real-org run writes defaults and Active but never a
--- kind. These are fixture counts, not a claim about a live catalog.
+-- WIP, none = RAW, unknown unset). Six manager-touched rows are left alone: two saved with values
+-- (WIP, RAW) and four that each differ from the untouched baseline in one way (later edit, kind,
+-- shown unit, custom name). Result: 55 WIP, 100 RAW and 13 unset. There is no real-org mode. These
+-- are fixture counts, not a claim about a live catalog.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(33);
+select plan(28);
 
 select set_config('app.esb_target_env', 'goo', true);
 insert into shared.orgs (id, name, slug, is_sample) values
@@ -122,6 +123,28 @@ update ops.cafe_item_settings setting
 update ops.cafe_item_settings set unit_multiples = array[2]::numeric[]
  where id = '00000000-0000-0000-0000-000015610801';
 
+-- One row per "untouched" condition, each differing from the baseline in exactly one way, each with a
+-- confirmed stock unit the load would otherwise act on: removing any one condition from the seed's
+-- row fence makes its assertion fail. 803 has a later updated_at, 804 a manager kind, 805 a shown
+-- unit, 806 a custom name.
+insert into ops.cafe_item_settings
+  (id, org_id, branch_id, activity, wip_item_id, mos_name, kind, is_active, created_at, updated_at, unit_multiples)
+select ('00000000-0000-0000-0000-00001561080' || spec.n::text)::uuid, item.org_id,
+       '00000000-0000-0000-0000-000015610301', 'bar', item.id,
+       case when spec.n = 6 then 'Custom label' end,
+       case when spec.n = 4 then 'RAW' end,
+       false, '2000-01-01T00:00:00Z',
+       case when spec.n = 3 then '2000-06-01T00:00:00Z'::timestamptz else '2000-01-01T00:00:00Z'::timestamptz end,
+       array[]::numeric[]
+  from (values (3), (4), (5), (6)) as spec(n)
+  join ops.wip_items item on item.id = md5('cafe-item-defaults:1561:item:' || spec.n::text)::uuid;
+insert into ops.cafe_item_setting_units (id, org_id, cafe_item_setting_id, item_unit_id)
+select '00000000-0000-0000-0000-000015610905', setting.org_id, setting.id, unit.id
+  from ops.cafe_item_settings setting
+  join ops.item_units unit on unit.org_id = setting.org_id and unit.wip_item_id = setting.wip_item_id
+ where setting.id = '00000000-0000-0000-0000-000015610805'
+   and unit.esb_product_detail_id = 'SYNTH-ESB-PD-1561-005';
+
 create function pg_temp.sample_settings_checksum() returns text
 language sql set search_path = '' as $$
   select md5(jsonb_build_object(
@@ -188,23 +211,24 @@ select set_config('app.operations_before', pg_temp.sample_operational_counts()::
 select set_config('app.manager_settings_before',
   (select jsonb_agg(to_jsonb(setting) order by setting.id)::text
      from ops.cafe_item_settings setting
-    where setting.id in ('00000000-0000-0000-0000-000015610801',
-                         '00000000-0000-0000-0000-000015610802')), true);
+    where setting.id in ('00000000-0000-0000-0000-000015610801', '00000000-0000-0000-0000-000015610802',
+                         '00000000-0000-0000-0000-000015610803', '00000000-0000-0000-0000-000015610804',
+                         '00000000-0000-0000-0000-000015610805', '00000000-0000-0000-0000-000015610806')), true);
 
 \ir ../seed.sample-org-item-settings.sql
 
 select is((select count(distinct item_id)::int from ops.cafe_item_settings_read
             where branch_id = '00000000-0000-0000-0000-000015610301'
               and activity = 'bar' and kind = 'WIP'),
-          59, 'WIP is the manager-set row plus the 58 other BOM outputs (sample test data)');
+          55, 'WIP is the manager-set row plus the 54 untouched BOM outputs (sample test data)');
 select is((select count(distinct item_id)::int from ops.cafe_item_settings_read
             where branch_id = '00000000-0000-0000-0000-000015610301'
               and activity = 'bar' and kind = 'RAW'),
-          99, 'RAW is the manager-set row (a BOM output the manager called RAW stays RAW) plus the 98 non-outputs');
+          100, 'RAW is the two manager-set rows (a BOM output the manager called RAW stays RAW) plus the 98 non-outputs');
 select is((select count(distinct item_id)::int from ops.cafe_item_settings_read
             where branch_id = '00000000-0000-0000-0000-000015610301'
               and activity = 'bar' and kind is null),
-          10, 'items with unknown BOM evidence stay Unclassified');
+          13, 'unknown BOM evidence and untouched-looking manager rows stay Unclassified');
 select is((select count(distinct item_id)::int from ops.cafe_item_settings_read
             where branch_id = '00000000-0000-0000-0000-000015610301'
               and activity = 'bar' and is_active and kind is null),
@@ -212,15 +236,15 @@ select is((select count(distinct item_id)::int from ops.cafe_item_settings_read
 select is((select count(distinct item_id)::int from ops.cafe_item_settings_read
             where branch_id = '00000000-0000-0000-0000-000015610301'
               and activity = 'bar' and is_active),
-          158, 'only items with a confirmed ERP stock unit are activated');
+          154, 'only untouched items with a confirmed ERP stock unit are activated');
 select is((select count(distinct item_id)::int from ops.cafe_item_settings_read
             where branch_id = '00000000-0000-0000-0000-000015610301'
               and activity = 'bar' and unit_is_default),
-          158, 'each uniquely confirmed ERP stock unit is selected as the stream default');
-select is(pg_temp.item_page_needs_unit_count(), 10,
-          'the Items page count falls exactly to the ten items without a confirmed stock unit');
-select is(166 - pg_temp.item_page_needs_unit_count(), 156,
-          'the Items page missing-unit count drops by exactly the 156 confirmed settings filled');
+          154, 'each uniquely confirmed ERP stock unit is selected as the stream default');
+select is(pg_temp.item_page_needs_unit_count(), 14,
+          'the Items page count falls to the ten items without a confirmed unit plus the four manager-touched rows left alone');
+select is(166 - pg_temp.item_page_needs_unit_count(), 152,
+          'the Items page missing-unit count drops by exactly the 152 untouched settings filled');
 select is((select count(*)::int from ops.item_units unit
             join ops.stream_items stream_item
               on stream_item.org_id = unit.org_id and stream_item.wip_item_id = unit.wip_item_id
@@ -228,7 +252,7 @@ select is((select count(*)::int from ops.item_units unit
              and stream_item.branch_id = '00000000-0000-0000-0000-000015610301'
              and stream_item.activity = 'bar' and unit.erp_is_stock
              and unit.confirmed_at is null),
-          10, 'the remaining Items page count is precisely the unconfirmed stock-unit set');
+          10, 'the ten items without a confirmed stock unit stay without a default');
 select is((select count(*)::int from ops.cafe_item_settings setting
             join ops.item_units unit on unit.id = setting.default_item_unit_id
            where setting.org_id = '5a000000-0000-0000-0000-000000000001'
@@ -238,13 +262,15 @@ select is((select unit.esb_product_detail_id
              from ops.cafe_item_settings setting
              join ops.item_units unit on unit.id = setting.default_item_unit_id
             where setting.org_id = '5a000000-0000-0000-0000-000000000001'
-              and setting.wip_item_id = md5('cafe-item-defaults:1561:item:3')::uuid),
-          'SYNTH-ESB-PD-1561-003', 'a new default is the unique confirmed ERP stock detail, not an inferred unit');
+              and setting.wip_item_id = md5('cafe-item-defaults:1561:item:7')::uuid),
+          'SYNTH-ESB-PD-1561-007', 'a new default is the unique confirmed ERP stock detail, not an inferred unit');
 select is((select jsonb_agg(to_jsonb(setting) order by setting.id)::text
              from ops.cafe_item_settings setting
-            where setting.id in ('00000000-0000-0000-0000-000015610801',
-                                 '00000000-0000-0000-0000-000015610802')),
-          current_setting('app.manager_settings_before'), 'both manager-edited settings rows are unchanged');
+            where setting.id in ('00000000-0000-0000-0000-000015610801', '00000000-0000-0000-0000-000015610802',
+                                 '00000000-0000-0000-0000-000015610803', '00000000-0000-0000-0000-000015610804',
+                                 '00000000-0000-0000-0000-000015610805', '00000000-0000-0000-0000-000015610806')),
+          current_setting('app.manager_settings_before'),
+          'every manager-touched row (saved values, later edit, kind, shown unit, custom name) is unchanged');
 select is(pg_temp.sample_catalog_checksum(), current_setting('app.catalog_before'),
           'item, ERP-unit and stream catalog rows are unchanged');
 select is(pg_temp.sample_operational_counts(), current_setting('app.operations_before')::jsonb,
@@ -256,20 +282,20 @@ set local role authenticated;
 select is((select count(distinct item_id)::int from ops.cafe_item_settings_read
             where branch_id = '00000000-0000-0000-0000-000015610301'
               and activity = 'bar' and is_active and kind = 'WIP' and unit_is_default),
-          59, 'the Bar Log read exposes every WIP with its default unit');
+          55, 'the Bar Log read exposes every WIP with its default unit');
 select is((select count(*)::int from ops.cafe_countable_items(
              '00000000-0000-0000-0000-000015610301', 'bar')),
-          158, 'the Bar Count read exposes every active classified item with a confirmed unit');
+          154, 'the Bar Count read exposes every active classified item with a confirmed unit');
 select ok(exists (
   select 1 from ops.cafe_countable_items('00000000-0000-0000-0000-000015610301', 'bar') item
    where item.item_name = 'Synthetic Bar item 002' and item.item_kind = 'RAW'
 ), 'the Bar Count read retains the manager-set kind');
 select is((select count(*)::int from ops.cafe_receivable_items(
              '00000000-0000-0000-0000-000015610301', 'bar')),
-          158, 'the shared Bar Receive and Request read lists active confirmed ERP stock items');
+          154, 'the shared Bar Receive and Request read lists active confirmed ERP stock items');
 select ok(exists (
   select 1 from ops.cafe_receivable_items('00000000-0000-0000-0000-000015610301', 'bar') item
-   where item.item_name = 'Synthetic Bar item 003' and item.is_default_unit
+   where item.item_name = 'Synthetic Bar item 007' and item.is_default_unit
 ), 'the Bar Receive and Request read exposes a prefilled default item');
 reset role;
 select set_config('request.jwt.claims', '{}', true);
@@ -278,7 +304,7 @@ select set_config('app.settings_before_rerun', pg_temp.sample_settings_checksum(
 select set_config('app.settings_count_before_rerun',
   (select count(*)::text from ops.cafe_item_settings
     where org_id = '5a000000-0000-0000-0000-000000000001'), true);
-select pg_temp.prefill_cafe_item_settings('sample', '');
+select pg_temp.prefill_cafe_item_settings();
 select is(pg_temp.sample_settings_checksum(), current_setting('app.settings_before_rerun'),
           'an idempotent second run leaves every setting and shown-unit row unchanged');
 select is((select count(*)::text from ops.cafe_item_settings
@@ -292,7 +318,7 @@ set local session_replication_role = replica;
 update shared.orgs set is_sample = false
  where id = '5a000000-0000-0000-0000-000000000001';
 set local session_replication_role = origin;
-select throws_ok($$select pg_temp.prefill_cafe_item_settings('sample', '')$$,
+select throws_ok($$select pg_temp.prefill_cafe_item_settings()$$,
   '42501', 'seed.sample-org-item-settings: refused, target is not the sample organisation',
   'a target without the sample flag is refused');
 set local session_replication_role = replica;
@@ -301,59 +327,6 @@ update shared.orgs set is_sample = true
 set local session_replication_role = origin;
 select is(pg_temp.sample_settings_checksum(), current_setting('app.settings_before_refusal'),
           'a non-sample-target refusal writes no setting rows');
-select throws_ok($$select pg_temp.prefill_cafe_item_settings('real', '')$$,
-  '42501', 'seed.sample-org-item-settings: refused, real-org mode requires explicit owner-approved opt-in',
-  'real-org mode without the explicit opt-in is refused');
-select is(pg_temp.sample_settings_checksum(), current_setting('app.settings_before_refusal'),
-          'a refused real-org mode writes no setting rows');
-
--- Real-org mode (owner approval needed in practice): defaults and Active are filled, a kind never is.
-set local session_replication_role = replica;
-update shared.orgs org set is_sample = true
- where org.id <> '5a000000-0000-0000-0000-000000000001'
-   and exists (select 1 from ops.wip_items item
-                where item.org_id = org.id and item.reference_source = 'erp_catalog'
-                  and item.esb_product_id is not null);
-set local session_replication_role = origin;
-insert into shared.orgs (id, name, slug, is_sample) values
-  ('00000000-0000-0000-0000-000015610002', 'Synthetic Real Org', 'synthetic-real-1561', false);
-insert into shared.business_units (id, org_id, name, code) values
-  ('00000000-0000-0000-0000-000015610212', '00000000-0000-0000-0000-000015610002', 'Synthetic Real BU', 'real_bu');
-insert into shared.branches (id, org_id, code, name) values
-  ('00000000-0000-0000-0000-000015610312', '00000000-0000-0000-0000-000015610002', 'real_bar', 'Synthetic Real Bar');
-insert into shared.teams (id, org_id, business_unit_id, name, code, branch_id, activity) values
-  ('00000000-0000-0000-0000-000015610412', '00000000-0000-0000-0000-000015610002',
-   '00000000-0000-0000-0000-000015610212', 'Synthetic Real Team', 'real_bar_team',
-   '00000000-0000-0000-0000-000015610312', 'bar');
-insert into ops.wip_items
-  (id, org_id, name, category, flag_active, esb_product_id, kind, reference_source,
-   erp_category_type_name, has_active_bom_output)
-select md5('cafe-item-defaults:1561:real:' || n::text)::uuid, '00000000-0000-0000-0000-000015610002',
-       'Synthetic Real item ' || n::text, 'BAR', true, 'SYNTH-REAL-P-1561-' || n::text, null,
-       'erp_catalog', 'Inventory', (n = 1)
-  from generate_series(1, 2) as items(n);
-insert into ops.item_units
-  (id, org_id, wip_item_id, unit_name, esb_product_detail_id, esb_product_id,
-   is_default, source_active, erp_is_stock, confirmed_at)
-select md5('cafe-item-defaults:1561:realunit:' || n::text)::uuid, item.org_id, item.id, 'real-unit-' || n::text,
-       'SYNTH-REAL-PD-1561-' || n::text, item.esb_product_id, false, true, true, now()
-  from generate_series(1, 2) as items(n)
-  join ops.wip_items item on item.esb_product_id = 'SYNTH-REAL-P-1561-' || n::text;
-insert into ops.stream_items (org_id, branch_id, activity, wip_item_id, source)
-select item.org_id, '00000000-0000-0000-0000-000015610312', 'bar', item.id, 'esb'
-  from ops.wip_items item where item.org_id = '00000000-0000-0000-0000-000015610002';
-select set_config('app.sample_settings_before_real', pg_temp.sample_settings_checksum(), true);
-select pg_temp.prefill_cafe_item_settings('real', 'I_APPROVE_REAL_ORG_ITEM_SETTINGS_LOAD');
-select is((select count(*)::int from ops.cafe_item_settings
-            where org_id = '00000000-0000-0000-0000-000015610002'
-              and is_active and default_item_unit_id is not null),
-          2, 'a real-org run fills default units and Active');
-select is((select count(*)::int from ops.cafe_item_settings
-            where org_id = '00000000-0000-0000-0000-000015610002' and kind is not null),
-          0, 'a real-org run never writes a kind, even for a BOM output');
-select is(pg_temp.sample_settings_checksum(), current_setting('app.sample_settings_before_real'),
-          'a real-org run leaves the sample org untouched');
-
 insert into integrations.esb_push (org_id, source_ref, endpoint, target_env, dedup_key)
 values ('5a000000-0000-0000-0000-000000000001', 'SAMPLE-ITEM-SETTINGS-1561', 'simple-transfer', 'goo',
         'sample-item-settings-1561|goo');
