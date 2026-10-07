@@ -1,4 +1,4 @@
-/* Receive reuses the Count layout (cafe-count-page.css); these rules cover only what a receipt adds. */
+/* Purchase-order and receipt workflow styling; shared row and footer geometry lives in cafe-capture-layout.css. */
 
 .cafe-receive__links {
   display: flex;
@@ -155,16 +155,7 @@
   text-transform: uppercase;
   overflow-wrap: anywhere;
 }
-
-/* Only the last group keeps the list's clearance above the sticky band. */
-.cafe-receive__row-group:not(:last-child) > .cafe-count__list { margin-bottom: 20px; padding-bottom: 0; }
-
-.cafe-receive__band-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
+.cafe-receive__row-group:not(:last-child) > .cafe-capture-table { margin-bottom: 20px; }
 
 .cafe-receive__band-note {
   margin: 0;
@@ -207,76 +198,7 @@
   accent-color: var(--primary);
 }
 
-/* Change unit and the band's Discard draft are the same quiet text control (DESIGN capture band). */
-.cafe-receive__change-unit,
-.cafe-receive__discard-draft {
-  justify-self: start;
-  min-height: 44px;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--foreground);
-  font: inherit;
-  font-size: var(--font-size-body);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  cursor: pointer;
-}
-
-.cafe-receive__discard-draft { color: var(--muted-foreground); }
-
-.cafe-receive__units {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 16px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  font-size: var(--font-size-body);
-}
-
-.cafe-receive__units legend {
-  margin-bottom: 4px;
-  padding: 0;
-  color: var(--muted-foreground);
-}
-
-.cafe-receive__units label {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 44px;
-}
-
-.cafe-receive__counted,
-.cafe-receive__recent {
-  display: grid;
-  gap: 12px;
-  margin: 0 0 24px;
-  padding: 18px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--background);
-}
-
-.cafe-receive__counted h2,
-.cafe-receive__recent h2 {
-  margin: 0;
-  color: var(--foreground);
-  font-size: var(--font-size-body-lg);
-  font-weight: 600;
-}
-
 .cafe-receive__counted h2[tabindex='-1']:focus { outline: none; }
-
-/* Direct children only: line and field messages keep their own tone (an error stays red). */
-.cafe-receive__counted > p {
-  max-width: 72ch;
-  margin: 0;
-  color: var(--muted-foreground);
-  font-size: var(--font-size-body);
-  line-height: 1.5;
-}
 
 .cafe-receive__counted .cafe-receive__difference { color: var(--foreground); }
 
@@ -378,77 +300,24 @@
 
 .cafe-receive__counted-lines > li > :last-child { white-space: normal; }
 
-/* The sticky send bar is the page's last child here, so the list needs no bottom reserve. */
-.cafe-receive .cafe-count__list { padding-bottom: 0; margin-bottom: 24px; }
-
-/* Receive rows keep Count's columns and unit track; the name tops the taller field group. */
-.cafe-receive .cafe-count__row { align-items: start; }
-
-.cafe-receive .cafe-count__input-group > label {
-  color: var(--muted-foreground);
-  font-size: var(--font-size-label);
-}
-
-/* Count dissolves an invalid row's field group; Receive's group also holds its label, unit
-   choice and damage flag, so it keeps the group's own layout and the error stays inside it. */
-.cafe-receive .cafe-count__row:has(.cafe-count__field-error) .cafe-count__input-group { display: flex; }
-
-@media (min-width: 768px) {
-  .cafe-receive .cafe-count__row:has(.cafe-count__field-error) .cafe-count__input-group { display: grid; }
-}
-
-/* Blocks above and beside the rows share the Count list and band measure (cafe-count-page.css). */
+/* PO details and filters align to the shared capture table measure. */
 .cafe-receive__open-pos,
-.cafe-receive .ktb,
-.cafe-receive__counted,
-.cafe-receive__recent {
+.cafe-receive .ktb {
   box-sizing: border-box;
   max-width: var(--cafe-capture-content-measure);
-}
-
-.cafe-receive__band-status {
-  display: grid;
-  flex: 1 1 auto;
-  gap: 2px;
-  min-width: 0;
 }
 
 @media (max-width: 639px) {
   .cafe-receive__date { grid-template-columns: auto minmax(0, 1fr); gap: 8px; }
   .cafe-receive__date-hint { grid-column: 2; }
-  .cafe-receive__open-pos {
-    gap: 8px;
-    margin-bottom: 8px;
-    padding: 0;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-  }
+  .cafe-receive__open-pos { gap: 8px; margin-bottom: 8px; }
   .cafe-receive__open-pos-head { display: grid; gap: 0; }
-  .cafe-receive__open-pos-title {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    clip-path: inset(50%);
-  }
-  .cafe-receive__open-pos-help { display: none; }
   .cafe-receive__open-pos-lead { gap: 0; }
   .cafe-receive__open-pos-lead > .cafe-receive__open-po--picked { margin-bottom: 8px; }
   .cafe-receive__open-po-actions { width: 100%; }
   .cafe-receive__open-po-item { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1px; }
   .cafe-receive__open-po-unit { justify-self: start; overflow-wrap: anywhere; }
   .cafe-receive__counted-lines > li { grid-template-columns: minmax(0, 1fr); }
-  /* The job is the page itself on a phone; the help line returns at wider widths. */
-  .cafe-receive__help { display: none; }
   .cafe-receive__date { margin-bottom: 12px; }
-  .cafe-receive .cafe-count__intro { margin-bottom: 0; }
-  .cafe-receive .cafe-count__footer { flex-wrap: wrap; gap: 8px; }
-  .cafe-receive .cafe-count__submit { flex: 1 1 100%; }
   .cafe-receive__send { grid-template-columns: minmax(0, 1fr); }
-  .cafe-receive__counted,
-  .cafe-receive__recent { padding: 14px; }
 }

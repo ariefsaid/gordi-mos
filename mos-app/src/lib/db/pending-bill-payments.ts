@@ -78,6 +78,23 @@ export interface RecordPendingBillPaymentResult {
   replayed: boolean
 }
 
+export interface PaySeveralPendingBillsInput {
+  billIds: string[]
+  cashInDate: string
+  proofPath: string
+  idempotencyKey: string
+}
+
+export interface PaidPendingBill {
+  billId: string
+  paymentId: string
+  esbCode: string
+  branchCode: string
+  billNo: string
+  amount: number
+  replayed: boolean
+}
+
 export async function listPendingBillPaymentAmounts(): Promise<PendingBillPaymentAmountRow[]> {
   const rows = await readAllPages<Record<string, unknown>>('listPendingBillPaymentAmounts', (from, to) =>
     schema('mos').from('pending_bill_payments')
@@ -174,6 +191,42 @@ export async function recordPendingBillPayment(
   }
   const result = row as { payment_id: unknown; replayed: unknown }
   return { paymentId: String(result.payment_id), replayed: Boolean(result.replayed) }
+}
+
+export async function paySeveralPendingBills(input: PaySeveralPendingBillsInput): Promise<PaidPendingBill[]> {
+  const { data, error } = await schema('mos').rpc('pay_several_pending_bills', {
+    p_bill_ids: input.billIds,
+    p_cash_in_date: input.cashInDate,
+    p_proof_path: input.proofPath,
+    p_idempotency_key: input.idempotencyKey,
+  })
+  if (error) throw new Error(error.message)
+  if (!Array.isArray(data)) throw new Error('paySeveralPendingBills failed — no result rows')
+
+  const results = data.map((entry) => {
+    if (!entry || typeof entry !== 'object') throw new Error('paySeveralPendingBills failed — invalid result row')
+    const row = entry as Record<string, unknown>
+    if (typeof row.payment_id !== 'string' || typeof row.esb_code !== 'string'
+      || typeof row.branch_code !== 'string' || typeof row.bill_no !== 'string') {
+      throw new Error('paySeveralPendingBills failed — invalid result row')
+    }
+    const amount = Number(row.amount)
+    if (!Number.isFinite(amount)) throw new Error('paySeveralPendingBills failed — invalid amount')
+    return {
+      billId: JSON.stringify([row.esb_code, row.branch_code, row.bill_no]),
+      paymentId: row.payment_id,
+      esbCode: row.esb_code,
+      branchCode: row.branch_code,
+      billNo: row.bill_no,
+      amount,
+      replayed: Boolean(row.replayed),
+    }
+  })
+  const resultIds = new Set(results.map((result) => result.billId))
+  if (results.length !== input.billIds.length || input.billIds.some((id) => !resultIds.has(id))) {
+    throw new Error('paySeveralPendingBills failed — the server returned a different bill selection')
+  }
+  return results
 }
 
 export type PendingBillProofErrorCode = 'unsupported' | 'empty' | 'tooLarge' | 'uploadFailed'

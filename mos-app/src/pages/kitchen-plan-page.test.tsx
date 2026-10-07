@@ -387,6 +387,52 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
     expect(mockUpsert).not.toHaveBeenCalled()
   })
 
+  it('a save resolving after a stream switch cannot overwrite the new stream plan', async () => {
+    let resolveSave!: (id: string) => void
+    mockPlans.mockResolvedValueOnce([]).mockResolvedValueOnce([
+      { id: 'new-stream-plan', wip_item_id: 'w1', movement: PRODUCE, qty_porsi: 27 },
+    ])
+    mockUpsert.mockImplementationOnce(() => new Promise(resolve => { resolveSave = resolve }))
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+
+    const quantity = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
+    fireEvent.change(quantity, { target: { value: '15' } })
+    fireEvent.blur(quantity)
+    await waitFor(() => expect(mockUpsert).toHaveBeenCalledOnce())
+
+    chooseStream('Radiant · Bar')
+    await screen.findByRole('heading', { level: 2, name: 'Radiant · Bar' })
+    await waitFor(() => expect(mockPlans).toHaveBeenCalledTimes(2))
+    const newStreamQuantity = await screen.findByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
+    await waitFor(() => expect(newStreamQuantity).toHaveValue('27'))
+
+    await act(async () => { resolveSave('late-kitchen-plan') })
+
+    expect(screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })).toHaveValue('27')
+    expect(screen.queryByText(/saving/i)).not.toBeInTheDocument()
+  })
+
+  it('names the original stream when a pending save fails after switching', async () => {
+    let rejectSave!: (error: Error) => void
+    mockUpsert.mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectSave = reject }))
+    render(<KitchenPlanPage />, { wrapper })
+    await screen.findByText('Ayam Bakar')
+
+    const quantity = screen.getByRole('spinbutton', { name: /planned quantity for ayam bakar/i })
+    fireEvent.change(quantity, { target: { value: '15' } })
+    fireEvent.blur(quantity)
+    await waitFor(() => expect(mockUpsert).toHaveBeenCalledOnce())
+
+    chooseStream('Radiant · Bar')
+    await screen.findByRole('heading', { level: 2, name: 'Radiant · Bar' })
+    await waitFor(() => expect(mockPlans).toHaveBeenCalledTimes(2))
+    await act(async () => { rejectSave(new Error('network failure')) })
+
+    expect(await screen.findByText(/could not confirm the plan save for rumah rames · kitchen/i)).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
   it('does not save when the value is unchanged (no needless write)', async () => {
     mockPlans.mockResolvedValue(PLAN_CELLS)
     render(<KitchenPlanPage />, { wrapper })
