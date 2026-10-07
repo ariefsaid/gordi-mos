@@ -102,15 +102,13 @@ independent review → PR → auto-merge to dev → next. Its machinery binds ou
    independence or calibration. Never your own read.
 4. A PR needs one stamp per lens via `scripts/record-review.sh --lens spec|code-quality|security`
    (a reviewer that didn't build it: glm/luna, opus fallback; Opus for the security lens of a
-   release or a migration). A PR into main also needs `bash scripts/pre-pr-verify.sh`. CI on the
-   PR is the merge gate.
+   release or a migration). CI on the PR is the merge gate.
 5. GitHub writes ONLY via `scripts/gh-post.sh` — the firewall hook denies raw `gh` writes; the
    posting policy lives in local `docs/`, per the banner above. One carve-out: `gh pr merge`
    stays raw (no prose leaves through a merge).
 
 CI fair use (shared free-tier minutes): a PR into `dev` needs no local verify run — CI verify is its
-gate (`bash scripts/pre-pr-verify.sh --dev` stays available as a quick check); a PR into `main` keeps
-the full local gate.
+gate; a PR into `main` keeps the full local gate (`bash scripts/pre-pr-verify.sh`).
 Locally, pgTAP runs only the test files your change touches (`scripts/with-db-lock.sh bash -c 'supabase migration up && supabase test db <files>'`; the local DB is shared, so no reset just to test); CI runs the full suite. The DB lock wraps database commands only, never pre-pr-verify. A pure rebase, a clean merge of dev, or a rename-only migration renumber (proven by `scripts/carry-stamps.sh`) carries the stamps to the new HEAD in place of a mechanical-confirmation round.
 A PR into `main` runs the e2e itself (never dispatch it there); merges into main and the main→staging promotion re-run no CI.
 Run CI e2e at most once per PR, only for shared-code or milestone
@@ -193,7 +191,7 @@ honest work teaches `--no-verify`, which disables the guards that matter. This o
 - UI changes run the scripted design checks (Impeccable detector, geometry, a11y, contrast) on every
   PR. The judgment steps (shape, ui-ux-pro-max, rendered critique, layout, clarify, harden,
   polish, Taste) run with renders on a PR that adds a route, page, component or CSS file, changes
-  >~150 lines of page/component .tsx/.css, or fixes an owner-reported UI issue; otherwise once per
+  over ~150 lines of page/component .tsx/.css, or fixes an owner-reported UI issue; otherwise once per
   release on the dev→main PR (OD-2026-10-07-HARNESS-ANSWERS). Missing, unrunnable or stale tooling
   is an explicit incomplete review, never a silent fallback.
 - UI is not done until rendered and operated at real widths (incl. ≤390px phone): open controls,
