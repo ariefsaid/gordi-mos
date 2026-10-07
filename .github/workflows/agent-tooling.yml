@@ -106,6 +106,8 @@ jobs:
         run: bash scripts/carry-stamps.test.sh
       - name: gh-shim PATH firewall self-test
         run: bash scripts/gh-shim.test.sh
+      - name: pi role launcher self-test
+        run: bash scripts/pi-role.test.sh
       - name: factory-run shim-carrier self-test
         run: bash scripts/factory-run.test.sh
       - name: worktree npm-seed hardlink self-test

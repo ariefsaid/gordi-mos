@@ -9,12 +9,13 @@ vi.mock('@/auth/use-auth')
 const cafeStreamMock = vi.hoisted(() => ({ produces: true }))
 vi.mock('@/lib/use-cafe-stream', () => {
   const branch = { id: 'branch-1', code: 'rumah_rames', name: 'Rumah Rames' }
-  const stream = { branch, activity: 'bar', get produces() { return cafeStreamMock.produces } }
+  const stream = { branch, activity: 'bar' as const, get produces() { return cafeStreamMock.produces } }
+  const alternateStream = { branch, activity: 'kitchen' as const, produces: true }
   const catalog = {
     branches: [branch],
-    options: [stream],
+    options: [stream, alternateStream],
     destinations: [],
-    locationOptions: [stream],
+    locationOptions: [stream, alternateStream],
     stream,
     homeStream: stream,
     myStreamKeys: new Set(['branch-1|bar']),
@@ -45,7 +46,10 @@ vi.mock('@/lib/db/kitchen-waste-photos', async importOriginal => {
     uploadKitchenWastePhoto: vi.fn(),
   }
 })
-vi.mock('@/lib/db/cafe-opening', () => ({ wibToday: () => '2026-10-02' }))
+vi.mock('@/lib/format/date', async importOriginal => {
+  const actual = await importOriginal<typeof import('@/lib/format/date')>()
+  return { ...actual, wibToday: () => '2026-10-02' }
+})
 
 import { useAuth } from '@/auth/use-auth'
 import { listCafeItemSettings } from '@/lib/db/cafe-item-settings'
@@ -59,6 +63,8 @@ import {
 import type { KitchenWasteDraft } from '@/lib/db/kitchen-waste-photos'
 import type { CafeItemSetting } from '@/lib/db/cafe-item-settings'
 import { CafeWastePage } from './cafe-waste-page'
+import { cafeCaptureDraftStorageKey, writeCafeCaptureDraft } from '@/lib/cafe-capture-storage'
+import { formatWeekdayDayMonth } from '@/lib/format/date'
 
 const mockUseAuth = vi.mocked(useAuth)
 const mockListCafeItemSettings = vi.mocked(listCafeItemSettings)
@@ -102,10 +108,10 @@ const ITEM_SETTINGS: CafeItemSetting[] = [
   },
 ]
 
-function renderPage() {
+function renderPage(locale: 'en' | 'id' = 'en') {
   return render(
     <MemoryRouter initialEntries={['/cafe/waste']}>
-      <I18nProvider>
+      <I18nProvider initialLocale={locale}>
         <CafeWastePage />
       </I18nProvider>
     </MemoryRouter>,
@@ -164,6 +170,7 @@ function wasteDraft(overrides: Partial<KitchenWasteDraft> = {}): KitchenWasteDra
 
 beforeEach(() => {
   vi.clearAllMocks()
+  localStorage.clear()
   cafeStreamMock.produces = true
   setPhoneMatchMedia()
   mockUseAuth.mockReturnValue(VIEWER)
@@ -192,6 +199,151 @@ afterEach(() => {
 })
 
 describe('CafeWastePage', () => {
+  it('restores an unsent waste draft after reload and clears it after confirmed submit', async () => {
+    const first = renderPage()
+    const quantity = await screen.findByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })
+    fireEvent.change(quantity, { target: { value: '2.5' } })
+    await waitFor(() => expect(localStorage.length).toBeGreaterThan(0))
+    first.unmount()
+
+    renderPage()
+    expect(await screen.findByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })).toHaveValue('2.5')
+    expect(await screen.findByText(/restored 1 unsent entry · saved/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Discard' })).toBeInTheDocument()
+    fireEvent.click(screen.getAllByRole('button', { name: 'Add photo' })[0]!)
+    const fileInput = await screen.findByLabelText(/take or choose photos/i)
+    fireEvent.change(fileInput, { target: { files: [image('latte.jpg')] } })
+    fireEvent.click(await screen.findByRole('button', { name: 'Upload photos' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Submit waste' }))
+
+    expect(await screen.findByText('1 waste entry submitted for review.')).toBeInTheDocument()
+    expect(localStorage.length).toBe(0)
+  })
+
+  it('confirms before discarding an other-date waste draft and preserves it on cancel', async () => {
+    const scope = {
+      orgId: 'org-1',
+      personId: 'person-1',
+      form: 'waste' as const,
+      branchId: 'branch-1',
+      activity: 'bar',
+      logDate: '2026-10-01',
+    }
+    writeCafeCaptureDraft(scope, {
+      branch_id: 'branch-1',
+      activity: 'bar',
+      entries: {
+        'wip-1': {
+          client_request_id: '20000000-0000-0000-0000-000000000001',
+          client_attempted: false,
+          quantity: '4',
+          unitId: 'unit-cup',
+          unitFactor: 1,
+          unitBasisKnown: true,
+          capturedUnitName: 'cup',
+        },
+      },
+    })
+    const nextScope = { ...scope, logDate: '2026-10-03' }
+    writeCafeCaptureDraft(nextScope, {
+      branch_id: 'branch-1',
+      activity: 'bar',
+      entries: {
+        'wip-1': {
+          client_request_id: '20000000-0000-0000-0000-000000000002',
+          client_attempted: false,
+          quantity: '2',
+          unitId: 'unit-cup',
+          unitFactor: 1,
+          unitBasisKnown: true,
+          capturedUnitName: 'cup',
+        },
+      },
+    })
+
+    renderPage()
+
+    expect(await screen.findByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })).toHaveValue('')
+    const yesterday = await screen.findByRole('article', { name: /unsent from 1 oct 2026/i })
+    expect(yesterday).toHaveTextContent('Oat Latte')
+    expect(yesterday).toHaveTextContent('4 cup')
+    expect(screen.getByText(/today's form can't send older entries.*ask a café lead/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/expire after 7 days/i)).toHaveLength(1)
+    fireEvent.click(within(yesterday).getByRole('button', { name: 'Discard' }))
+
+    const dialog = await screen.findByRole('dialog', { name: 'Discard this saved draft?' })
+    expect(dialog).toHaveTextContent('1 Oct 2026')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    expect(yesterday).toBeInTheDocument()
+    expect(localStorage.getItem(cafeCaptureDraftStorageKey(scope))).not.toBeNull()
+
+    fireEvent.click(within(yesterday).getByRole('button', { name: 'Discard' }))
+    const confirm = await screen.findByRole('dialog', { name: 'Discard this saved draft?' })
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Discard' }))
+    await waitFor(() => expect(screen.queryByRole('article', { name: /unsent from 1 oct 2026/i })).toBeNull())
+    expect(screen.getByRole('article', { name: /unsent from 3 oct 2026/i })).toHaveTextContent('2 cup')
+    const draftHeading = screen.getByRole('heading', { name: 'Unsent entries from other dates' })
+    await waitFor(() => expect(document.activeElement).toBe(draftHeading))
+    expect(localStorage.getItem(cafeCaptureDraftStorageKey(scope))).toBeNull()
+    expect(localStorage.getItem(cafeCaptureDraftStorageKey(nextScope))).not.toBeNull()
+    expect(screen.getByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })).toHaveValue('')
+  })
+
+  it('confirms before discarding the restored current-date waste draft', async () => {
+    const scope = {
+      orgId: 'org-1',
+      personId: 'person-1',
+      form: 'waste' as const,
+      branchId: 'branch-1',
+      activity: 'bar',
+      logDate: '2026-10-02',
+    }
+    writeCafeCaptureDraft(scope, {
+      branch_id: 'branch-1',
+      activity: 'bar',
+      entries: {
+        'wip-1': {
+          client_request_id: '20000000-0000-0000-0000-000000000002',
+          client_attempted: false,
+          quantity: '2.5',
+          unitId: 'unit-cup',
+          unitFactor: 1,
+          unitBasisKnown: true,
+          capturedUnitName: 'cup',
+        },
+      },
+    })
+
+    renderPage()
+    const quantity = await screen.findByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })
+    expect(quantity).toHaveValue('2.5')
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
+
+    const dialog = await screen.findByRole('dialog', { name: 'Discard this saved draft?' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    expect(quantity).toHaveValue('2.5')
+    expect(localStorage.getItem(cafeCaptureDraftStorageKey(scope))).not.toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
+    const confirm = await screen.findByRole('dialog', { name: 'Discard this saved draft?' })
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Discard' }))
+    await waitFor(() => expect(quantity).toHaveValue(''))
+    expect(localStorage.getItem(cafeCaptureDraftStorageKey(scope))).toBeNull()
+  })
+
+  it('retries waste preparation with the same request id after a dropped response', async () => {
+    mockInsertKitchenLog.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce('waste-retry')
+    renderPage()
+    fireEvent.change(await screen.findByRole('spinbutton', { name: 'Waste quantity for Oat Latte' }), { target: { value: '2.5' } })
+    const addPhoto = screen.getAllByRole('button', { name: 'Add photo' })[0]!
+    fireEvent.click(addPhoto)
+    await screen.findByText(/could not prepare this waste entry/i)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Add photo' })[0]!)
+    await waitFor(() => expect(mockInsertKitchenLog).toHaveBeenCalledTimes(2))
+    expect(mockInsertKitchenLog.mock.calls[0]![0].client_request_id).toBeTruthy()
+    expect(mockInsertKitchenLog.mock.calls[1]![0].client_request_id)
+      .toBe(mockInsertKitchenLog.mock.calls[0]![0].client_request_id)
+  })
   it.each(['1,5', '1.5'])('captures waste quantity %s as 1.5 in the saved entry', async raw => {
     renderPage()
     const input = await screen.findByLabelText('Waste quantity for Oat Latte')
@@ -334,6 +486,30 @@ describe('CafeWastePage', () => {
 
     expect(within(empty).getByRole('heading', { name: /^No ESB items on / })).toBeInTheDocument()
     expect(within(empty).queryByRole('link')).not.toBeInTheDocument()
+  })
+
+  it('puts the localized date in PageHead metadata and labels the bar switch in both locales', async () => {
+    for (const locale of ['en', 'id'] as const) {
+      const { unmount } = renderPage(locale)
+      const stream = await screen.findByRole('heading', { name: 'Rumah Rames · Bar' })
+      const context = stream.closest('.cafe-capture-context')
+      expect(context).toBeInTheDocument()
+      expect(context?.querySelector('time')).toBeNull()
+
+      const head = screen.getByTestId('page-head')
+      const date = head.querySelector('time')
+      expect(date).toHaveAttribute('datetime', '2026-10-02')
+      expect(date).toHaveTextContent(formatWeekdayDayMonth('2026-10-02', locale))
+      expect(date?.closest('.ch-meta, .page-head-meta')).toBeInTheDocument()
+
+      const switchLabel = locale === 'en' ? 'Switch bar stream' : 'Ganti stream bar'
+      const switchButton = within(context as HTMLElement).getByRole('button', { name: switchLabel })
+      expect(switchButton).toHaveTextContent(locale === 'en' ? 'Switch bar' : 'Ganti bar')
+      expect(context).not.toHaveTextContent(formatWeekdayDayMonth('2026-10-02', locale))
+      fireEvent.click(switchButton)
+      expect(await screen.findByRole('option', { name: /Rumah Rames/ })).toBeInTheDocument()
+      unmount()
+    }
   })
 
   it('loading shows the page label once without repeating the café context', async () => {
@@ -526,10 +702,13 @@ describe('CafeWastePage', () => {
     expect(row.querySelector('.cwl-capture-row__item')).toContainElement(name)
     expect(row.querySelector('.cwl-capture-row__controls')).toContainElement(quantity)
     expect(unit).toHaveTextContent(longUnitLabel)
+    expect(document.getElementById(unit.getAttribute('aria-describedby') ?? '')).toHaveTextContent(longUnitLabel)
+    expect(quantity).toHaveClass('cafe-capture-quantity-field')
     const quantityRow = quantity.closest('.cwl-quantity-row')
     expect(quantityRow).toBeInTheDocument()
     expect(quantityRow).toContainElement(unit.closest('.cwl-unit-select') as HTMLElement)
     expect(unit.closest('.cwl-unit-select')?.parentElement).toHaveClass('quantity-field-suffix')
+    expect(unit.closest('.cwl-controls')).toBe(quantity.closest('.cwl-controls'))
   })
 
   it('keeps the missing-item route beside the item controls on a long capture list', async () => {
@@ -539,15 +718,28 @@ describe('CafeWastePage', () => {
     expect(report.compareDocumentPosition(firstQuantity) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  it('explains that a quantity unlocks Add photo and removes the hint once entered', async () => {
+  it('states the photo rule once and describes why each empty-quantity photo action is disabled', async () => {
     renderPage()
     const addPhoto = (await screen.findAllByRole('button', { name: 'Add photo' }))[0]!
+    const quantity = screen.getByRole('spinbutton', { name: 'Waste quantity for Oat Latte' })
+    const help = 'Choose the items and quantities to waste. Every item needs at least one photo.'
+    const quantityHint = 'Enter a quantity before adding a photo.'
     expect(addPhoto).toBeDisabled()
-    expect(screen.getAllByText('Enter a quantity before adding a photo.')).toHaveLength(2)
+    expect(addPhoto.closest('.cwl-controls')).toContainElement(quantity)
+    expect(screen.getAllByText(help)).toHaveLength(1)
+    expect(screen.getAllByText(quantityHint)).toHaveLength(2)
+    const describedBy = addPhoto.getAttribute('aria-describedby')?.split(/\s+/) ?? []
+    expect(describedBy).toContain('cafe-waste-photo-guidance')
+    const specificHint = describedBy.find(id => id.startsWith('cafe-waste-photo-hint-'))
+    expect(specificHint).toBeTruthy()
+    expect(document.getElementById('cafe-waste-photo-guidance')).toHaveTextContent(help)
+    expect(document.getElementById(specificHint!)).toHaveTextContent(quantityHint)
 
-    fireEvent.change(screen.getByRole('spinbutton', { name: 'Waste quantity for Oat Latte' }), { target: { value: '2' } })
+    fireEvent.change(quantity, { target: { value: '2' } })
     await waitFor(() => expect(addPhoto).toBeEnabled())
-    expect(screen.getAllByText('Enter a quantity before adding a photo.')).toHaveLength(1)
+    expect(screen.getAllByText(help)).toHaveLength(1)
+    expect(screen.getAllByText(quantityHint)).toHaveLength(1)
+    expect(addPhoto).toHaveAttribute('aria-describedby', 'cafe-waste-photo-guidance')
   })
 
   it('keeps 2 unchanged through a 3× unit round trip with no quantity error', async () => {
@@ -600,6 +792,7 @@ describe('CafeWastePage', () => {
     renderPage()
 
     fireEvent.click(await screen.findByRole('combobox', { name: 'Waste unit for Oat Latte' }))
+    expect(await screen.findByRole('listbox')).toHaveClass('cwl-unit-menu')
     fireEvent.click(await screen.findByRole('option', { name: '0.5 cup' }))
     fireEvent.change(screen.getByRole('spinbutton', { name: 'Waste quantity for Oat Latte' }), { target: { value: '4' } })
     fireEvent.click(screen.getAllByRole('button', { name: 'Add photo' })[0]!)

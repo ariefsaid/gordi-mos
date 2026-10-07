@@ -24,6 +24,7 @@ const ID_EQUALS_EN_ALLOWLIST: ReadonlySet<string> = new Set([
   'common.docTitle', // ${page} — Gordi MOS
   'locale.en', // English — the language's own name in its own language
   'locale.id', // Bahasa Indonesia
+  'pendingBills.form.multiTotal', // Total — the same word in Indonesian
   'dev.views.render', // Render (dev-only surface)
   'inbox.severity.info', // Info
   'signals.archive.attentionFyi', // FYI — the borrowed initialism stays in id (FR-024 "FYI kept", AC-031/AC-066)

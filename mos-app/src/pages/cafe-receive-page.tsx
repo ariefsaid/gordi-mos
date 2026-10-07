@@ -66,6 +66,7 @@ import { useIsOffline } from '@/shell/use-is-offline'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { formatWeekdayDayMonth, formatWibShortDateTime } from '@/lib/format/date'
 import './cafe-count-page.css'
+import '@/components/kitchen/cafe-capture-controls.css'
 import './cafe-receive-page.css'
 
 type Entry = { quantity: string; unitId: string; changingUnit: boolean; damagedWrong: boolean }
@@ -619,6 +620,7 @@ export function CafeReceivePage() {
           <div className="cafe-count__quantity-control">
             <input
               id={`cafe-receive-${item.id}`}
+              className="cafe-capture-quantity-field"
               aria-label={t('cafe.receive.quantityFor', { item: item.name })}
               type="text"
               inputMode="decimal"
@@ -628,7 +630,7 @@ export function CafeReceivePage() {
               disabled={busy}
               onChange={event => patchEntry(item.id, { quantity: event.target.value })}
             />
-            <span className="cafe-count__unit">{unitName}</span>
+            <span className="cafe-count__unit cafe-capture-unit">{unitName}</span>
           </div>
           {item.units.length > 1 && (
             <button

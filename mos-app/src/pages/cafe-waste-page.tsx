@@ -10,6 +10,15 @@ import { canCaptureCafe } from '@/lib/cafe-affiliation'
 import { canPushCafe } from '@/lib/kitchen-gates'
 import { formatUnitMultiple, toDefaultUnitQuantity } from '@/lib/cafe-unit-multiples'
 import { streamKey, streamLabel } from '@/lib/kitchen-action-label'
+import {
+  clearCafeCaptureDraft,
+  isCafeCaptureRequestId,
+  listOtherDateCafeCaptureDrafts,
+  readCafeCaptureDraft,
+  writeCafeCaptureDraft,
+  type CafeCaptureDraftScope,
+  type StoredCafeCaptureDraft,
+} from '@/lib/cafe-capture-storage'
 import { listCafeItemSettings, toCafeLogItem } from '@/lib/db/cafe-item-settings'
 import { insertKitchenLog, resolveKitchenBuId } from '@/lib/db/kitchen-logs'
 import {
@@ -21,9 +30,8 @@ import {
 } from '@/lib/db/kitchen-waste-photos'
 import type { KitchenWasteDraft, KitchenWastePhoto } from '@/lib/db/kitchen-waste-photos'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
-import { wibToday } from '@/lib/db/cafe-opening'
-import { formatDayMonthYear, formatWeekdayDayMonth } from '@/lib/format/date'
-import { useSearchParamReset, useSearchParamState } from '@/lib/use-search-param-state'
+import { formatDayMonthYear, formatWeekdayDayMonth, formatWibDateTime, wibToday } from '@/lib/format/date'
+import { useCafeCaptureDraftPageState } from '@/lib/use-cafe-capture-draft-page-state'
 import {
   useKitchenItemTable,
   kitchenDataTableGroups,
@@ -36,18 +44,23 @@ import { ReportMissingItem } from '@/components/kitchen/report-missing-item'
 import { CafeStreamBar, CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
 import { WastePhotoCapture } from '@/components/kitchen/waste-photo-capture'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Select } from '@/components/ui/select'
 import { QuantityField } from '@/components/ui/quantity-field'
 import { parseQuantityInput } from '@/lib/quantity-parser'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { CafeItemsEmptyState } from '@/components/kitchen/cafe-items-empty-state'
 import { RouteLeaveGuard } from '@/shell/route-leave-guard'
+import '@/components/kitchen/status-banner-tone.css'
 import './kitchen-log-page.css'
 import './cafe-waste-page.css'
+import '@/components/kitchen/cafe-capture-controls.css'
 
 type CafeLogItem = NonNullable<ReturnType<typeof toCafeLogItem>>
 
 type WasteEntry = {
+  client_request_id: string
+  client_attempted: boolean
   quantity: string
   unitId: string
   unitFactor: number
@@ -67,6 +80,27 @@ type PageLoadState = 'loading' | 'ready' | 'error'
 
 const WASTE_KIND_OPTIONS: readonly KitchenItemKindFilter[] = ['All', 'WIP', 'RAW']
 
+type StoredWasteEntry = Pick<WasteEntry,
+  'client_request_id' | 'client_attempted' | 'quantity' | 'unitId' | 'unitFactor' | 'unitBasisKnown'
+  | 'logId' | 'capturedUnitName' | 'capturedLogDate'>
+
+type StoredWasteCaptureDraft = {
+  branch_id: string
+  activity: string
+  entries: Record<string, StoredWasteEntry>
+}
+
+function wasteDraftScope(orgId: string, personId: string, stream: ProductionStream, logDate: string): CafeCaptureDraftScope {
+  return {
+    orgId,
+    personId,
+    form: 'waste',
+    branchId: stream.branch.id,
+    activity: stream.activity,
+    logDate,
+  }
+}
+
 function quantityValue(raw: string): number | null {
   const parsed = parseQuantityInput(raw, {
     min: 0,
@@ -76,8 +110,10 @@ function quantityValue(raw: string): number | null {
   return parsed.kind === 'valid' && parsed.value > 0 ? parsed.value : null
 }
 
-function initialEntries(items: readonly CafeLogItem[]): Record<string, WasteEntry> {
-  return Object.fromEntries(items.map(item => [item.id, {
+function createWasteEntry(item: CafeLogItem, clientRequestId = ''): WasteEntry {
+  return {
+    client_request_id: clientRequestId,
+    client_attempted: false,
     quantity: '',
     unitId: item.defaultUnit.id,
     unitFactor: 1,
@@ -88,7 +124,11 @@ function initialEntries(items: readonly CafeLogItem[]): Record<string, WasteEntr
     preparing: false,
     submitted: false,
     photos: [],
-  }]))
+  }
+}
+
+function initialEntries(items: readonly CafeLogItem[]): Record<string, WasteEntry> {
+  return Object.fromEntries(items.map(item => [item.id, createWasteEntry(item, crypto.randomUUID())]))
 }
 
 function displayUnit(unit: CafeLogItem['units'][number], t: ReturnType<typeof useT>): string {
@@ -164,20 +204,40 @@ export function CafeWastePage() {
   const [invalidQuantityIds, setInvalidQuantityIds] = useState<Set<string>>(new Set())
   const [focusInvalidId, setFocusInvalidId] = useState<string | null>(null)
   const [resumableDrafts, setResumableDrafts] = useState<KitchenWasteDraft[]>([])
+  const [restoredDraft, setRestoredDraft] = useState(false)
+  const capturePageState = useCafeCaptureDraftPageState()
+  const {
+    restoredDraftInfo,
+    setRestoredDraftInfo,
+    restoreAnnouncement,
+    setRestoreAnnouncement,
+    setRestorationNotice,
+    search,
+    resetSearchFilters,
+  } = capturePageState
+  const [otherDateDrafts, setOtherDateDrafts] = useState<StoredCafeCaptureDraft<StoredWasteCaptureDraft>[]>([])
+  const [pendingDraftDiscard, setPendingDraftDiscard] = useState<{ scope: CafeCaptureDraftScope; current: boolean } | null>(null)
+  const captureRootRef = useRef<HTMLDivElement>(null)
+  const draftListHeadingRef = useRef<HTMLHeadingElement>(null)
+  const focusDraftAfterDiscardRef = useRef(false)
+
+  useEffect(() => {
+    if (!focusDraftAfterDiscardRef.current) return
+    focusDraftAfterDiscardRef.current = false
+    const target = draftListHeadingRef.current
+      ?? captureRootRef.current?.querySelector<HTMLInputElement>('.cwl-quantity-input')
+    target?.focus()
+  }, [otherDateDrafts, pendingDraftDiscard, restoredDraft])
   const [submitError, setSubmitError] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const readGeneration = useRef(0)
   const draftRequests = useRef(new Set<string>())
 
-  const [search, setSearch] = useSearchParamState('q', '')
-  const [kindFilter, setKindFilter] = useSearchParamState('kind', 'All')
-  const [category, setCategory] = useSearchParamState('category', 'All')
-  const resetSearchFilters = useSearchParamReset(['q', 'kind', 'category'])
   // Kind/category controls remain visible on phone, including for receiving-only streams, so
   // their URL-backed values must filter the compact list just as they do on desktop.
-  const effectiveKind: KitchenItemKindFilter = kindFilter === 'WIP' || kindFilter === 'RAW' ? kindFilter : 'All'
-  const effectiveCategory = category
+  const effectiveKind: KitchenItemKindFilter = capturePageState.kindFilter === 'WIP' || capturePageState.kindFilter === 'RAW' ? capturePageState.kindFilter : 'All'
+  const effectiveCategory = capturePageState.category
 
   useEffect(() => {
     const onOnline = () => setIsOnline(true)
@@ -222,6 +282,10 @@ export function CafeWastePage() {
     setFocusInvalidId(null)
     setBusinessUnitId('')
     setResumableDrafts([])
+    setRestoredDraft(false)
+    setRestoredDraftInfo(null)
+    setRestoreAnnouncement('')
+    setOtherDateDrafts([])
     if (!stream) {
       setLoadState('ready')
       return () => { active = false }
@@ -242,9 +306,59 @@ export function CafeWastePage() {
       })
       setItems(nextItems)
       setEsbItemCount(settings.length)
-      setEntries(initialEntries(nextItems))
       const offeredItemIds = new Set(nextItems.map(item => item.id))
-      setResumableDrafts(drafts.filter(draft => offeredItemIds.has(draft.itemId)))
+      const currentDraftScope = canCapture && orgId && personId
+        ? wasteDraftScope(orgId, personId, stream, logDate)
+        : null
+      const storedRecord = currentDraftScope
+        ? readCafeCaptureDraft<StoredWasteCaptureDraft>(currentDraftScope)
+        : null
+      const stored = storedRecord?.value ?? null
+      const dateDrafts = canCapture && orgId && personId
+        ? listOtherDateCafeCaptureDrafts<StoredWasteCaptureDraft>(
+          wasteDraftScope(orgId, personId, stream, logDate),
+        )
+        : []
+      const storedEntries = stored?.branch_id === stream.branch.id && stored.activity === stream.activity
+        && stored.entries && typeof stored.entries === 'object' && !Array.isArray(stored.entries)
+        ? stored.entries
+        : {}
+      const nextEntries = Object.fromEntries(nextItems.map(item => {
+        const initial = initialEntries([item])[item.id]!
+        const candidate = storedEntries[item.id]
+        const saved = candidate && typeof candidate === 'object' && !Array.isArray(candidate) ? candidate : undefined
+        const serverDraft = saved && drafts.find(draft => draft.logDate === logDate && (
+          draft.logId === saved.logId
+          || (!!saved.client_request_id && draft.clientRequestId === saved.client_request_id)
+        ))
+        if (!saved) return [item.id, initial]
+        if (saved.logId && !serverDraft) return [item.id, initial]
+        return [item.id, {
+          ...initial,
+          client_request_id: isCafeCaptureRequestId(saved.client_request_id) ? saved.client_request_id : initial.client_request_id,
+          client_attempted: saved.client_attempted === true,
+          quantity: serverDraft ? String(serverDraft.quantity) : typeof saved.quantity === 'string' ? saved.quantity : '',
+          unitId: serverDraft?.itemUnitId ?? (item.units.some(unit => unit.id === saved.unitId) ? saved.unitId : initial.unitId),
+          unitFactor: serverDraft?.entryUnitFactor ?? (Number.isFinite(saved.unitFactor) && saved.unitFactor > 0 ? saved.unitFactor : 1),
+          unitBasisKnown: saved.unitBasisKnown !== false,
+          logId: serverDraft?.logId,
+          capturedUnitName: serverDraft?.entryUnitName ?? saved.capturedUnitName ?? initial.capturedUnitName,
+          capturedLogDate: serverDraft?.logDate ?? saved.capturedLogDate,
+          photoReady: Boolean(serverDraft?.photos.length),
+          photoWindowExpired: Boolean(serverDraft && serverDraft.photos.length === 0 && isWastePhotoWindowExpired(serverDraft.createdAt)),
+          preparing: false,
+          submitted: false,
+          photos: serverDraft?.photos ?? [],
+          error: undefined,
+        }]
+      }))
+      setEntries(nextEntries)
+      setResumableDrafts(drafts.filter(draft => offeredItemIds.has(draft.itemId)
+        && !Object.values(nextEntries).some(entry => entry.logId === draft.logId)))
+      setRestoredDraft(Boolean(storedRecord))
+      const restoredCount = Object.values(nextEntries).filter(entry => quantityValue(entry.quantity) !== null).length
+      setRestorationNotice(storedRecord?.updatedAt ?? null, restoredCount)
+      setOtherDateDrafts(dateDrafts)
       setBusinessUnitId(buId)
       setLoadState('ready')
     }).catch(() => {
@@ -252,7 +366,7 @@ export function CafeWastePage() {
       setLoadState('error')
     })
     return () => { active = false }
-  }, [canCapture, catalogReady, loadRetry, orgId, personId, stream, stream?.activity, stream?.branch.id])
+  }, [canCapture, catalogReady, loadRetry, logDate, orgId, personId, setRestorationNotice, setRestoreAnnouncement, setRestoredDraftInfo, stream, stream?.activity, stream?.branch.id, t])
 
   const filterRows = useMemo<WasteRow[]>(() => items.map(item => ({
     ...item,
@@ -264,11 +378,12 @@ export function CafeWastePage() {
   })), [items])
   const itemTable = useKitchenItemTable({
     data: filterRows,
-    search,
+    search: capturePageState.search,
     kind: effectiveKind,
     category: effectiveCategory,
   })
   const visibleItems = itemTable.getFilteredRowModel().rows.map(row => row.original)
+  const hasMixedCategories = new Set(visibleItems.map(item => item.category).filter(Boolean)).size > 1
   const categories = useMemo(() => [
     'All',
     ...Array.from(new Set(items.map(item => item.category ?? '').filter(Boolean)))
@@ -297,6 +412,38 @@ export function CafeWastePage() {
   const submittedCount = staged.length - remaining.length
   const invalidQuantityCount = invalidQuantityIds.size
   const hasPendingCapture = staged.length > 0 || invalidQuantityCount > 0
+  const localDraftEntries = staged.filter(line => !line.entry.submitted && !line.entry.logId)
+
+  useEffect(() => {
+    if (loadState !== 'ready' || !canCapture || !stream || !orgId || !personId) return
+    const scope = wasteDraftScope(orgId, personId, stream, logDate)
+    const unsent = Object.fromEntries(Object.entries(entries).flatMap(([itemId, entry]) => {
+      if (entry.submitted || entry.logId || quantityValue(entry.quantity) === null) return []
+      return [[itemId, {
+        client_request_id: entry.client_request_id,
+        client_attempted: entry.client_attempted,
+        quantity: entry.quantity,
+        unitId: entry.unitId,
+        unitFactor: entry.unitFactor,
+        unitBasisKnown: entry.unitBasisKnown,
+        logId: entry.logId,
+        capturedUnitName: entry.capturedUnitName,
+        capturedLogDate: entry.capturedLogDate,
+      } satisfies StoredWasteEntry]]
+    }))
+    if (Object.keys(unsent).length === 0) {
+      clearCafeCaptureDraft(scope)
+      setRestoredDraft(false)
+      setRestoredDraftInfo(null)
+      setRestoreAnnouncement('')
+      return
+    }
+    writeCafeCaptureDraft<StoredWasteCaptureDraft>(scope, {
+      branch_id: stream.branch.id,
+      activity: stream.activity,
+      entries: unsent,
+    })
+  }, [canCapture, entries, loadState, logDate, orgId, personId, setRestoreAnnouncement, setRestoredDraftInfo, stream])
 
   const patchEntry = useCallback((itemId: string, patch: Partial<WasteEntry>) => {
     setEntries(current => {
@@ -355,6 +502,8 @@ export function CafeWastePage() {
         ...current,
         [item.id]: {
           ...entry,
+          ...(entry.client_attempted ? { client_request_id: crypto.randomUUID() } : {}),
+          client_attempted: false,
           unitId: item.defaultUnit.id,
           unitFactor: nextFactor,
           unitBasisKnown: true,
@@ -379,9 +528,10 @@ export function CafeWastePage() {
     if (!entry || quantity === null || !stream || !businessUnitId || !canCapture || !isOnline
       || entry.logId || entry.preparing || draftRequests.current.has(item.id)) return
     draftRequests.current.add(item.id)
-    patchEntry(item.id, { preparing: true, error: undefined })
+    patchEntry(item.id, { preparing: true, client_attempted: true, error: undefined })
     try {
       const logId = await insertKitchenLog({
+        client_request_id: entry.client_request_id,
         business_unit_id: businessUnitId,
         log_date: logDate,
         branch_id: stream.branch.id,
@@ -417,6 +567,8 @@ export function CafeWastePage() {
       const replacement = await restartKitchenWasteDraft(entry.logId, logDate)
       patchEntry(item.id, {
         logId: replacement.logId,
+        client_request_id: crypto.randomUUID(),
+        client_attempted: false,
         capturedUnitName: entry.capturedUnitName,
         capturedLogDate: replacement.logDate,
         preparing: false,
@@ -443,6 +595,8 @@ export function CafeWastePage() {
         ...current,
         [draft.itemId]: {
           ...(currentEntry ?? initialEntries(items)[draft.itemId]!),
+          client_request_id: draft.clientRequestId ?? currentEntry?.client_request_id ?? crypto.randomUUID(),
+          client_attempted: true,
           quantity: String(draft.quantity),
           unitId: itemUnitId,
           unitFactor: draft.entryUnitFactor ?? 1,
@@ -504,6 +658,10 @@ export function CafeWastePage() {
         await submitKitchenWasteLog(line.entry.logId!)
         patchEntry(line.item.id, { submitted: true })
       }
+      if (stream) clearCafeCaptureDraft(wasteDraftScope(orgId, personId, stream, logDate))
+      setRestoredDraft(false)
+      setRestoredDraftInfo(null)
+      setRestoreAnnouncement('')
     } catch {
       setSubmitError(true)
     } finally {
@@ -516,6 +674,45 @@ export function CafeWastePage() {
     setInvalidQuantityIds(new Set())
     setFocusInvalidId(null)
     setSubmitError(false)
+  }
+
+  function discardCurrentLocalDraft() {
+    if (!stream) return
+    clearCafeCaptureDraft(wasteDraftScope(orgId, personId, stream, logDate))
+    const blank = initialEntries(items)
+    setEntries(current => Object.fromEntries(items.map(item => {
+      const entry = current[item.id]
+      return [item.id, entry?.logId || entry?.submitted ? entry : blank[item.id]!]
+    })))
+    setRestoredDraft(false)
+    setRestoredDraftInfo(null)
+    setRestoreAnnouncement('')
+  }
+
+  function discardOtherDateDraft(scope: CafeCaptureDraftScope) {
+    clearCafeCaptureDraft(scope)
+    setOtherDateDrafts(current => current.filter(record =>
+      record.scope.branchId !== scope.branchId || record.scope.activity !== scope.activity
+        || record.scope.logDate !== scope.logDate,
+    ))
+  }
+
+  function requestCurrentLocalDraftDiscard() {
+    if (!stream || !orgId || !personId || submitting) return
+    setPendingDraftDiscard({ scope: wasteDraftScope(orgId, personId, stream, logDate), current: true })
+  }
+
+  function requestOtherDateDraftDiscard(scope: CafeCaptureDraftScope) {
+    if (submitting) return
+    setPendingDraftDiscard({ scope, current: false })
+  }
+
+  function confirmDraftDiscard() {
+    if (!pendingDraftDiscard) return
+    focusDraftAfterDiscardRef.current = true
+    if (pendingDraftDiscard.current) discardCurrentLocalDraft()
+    else discardOtherDateDraft(pendingDraftDiscard.scope)
+    setPendingDraftDiscard(null)
   }
 
   function retryLoad() {
@@ -537,10 +734,28 @@ export function CafeWastePage() {
       myStreamKeys={myStreamKeys}
       onChange={selectStream}
       disabled={submitting || hasPendingCapture}
-      context={<>
-        <span aria-hidden="true">·</span>
-        <span className="kl-date tabular">{formatWeekdayDayMonth(logDate)}</span>
-      </>}
+      switchLabel={t(stream?.activity === 'bar' ? 'cafe.stream.switchBar' : 'cafe.stream.switchKitchen')}
+      switchAriaLabel={t(stream?.activity === 'bar' ? 'cafe.stream.switchBarAria' : 'cafe.stream.switchKitchenAria')}
+    />
+  )
+
+  const renderControls = (item: WasteRow) => (
+    <WasteItemControls
+      item={item}
+      entry={entries[item.id]}
+      canCapture={canCapture}
+      isOnline={isOnline}
+      disabled={submitting || loadState !== 'ready'}
+      onQuantityChange={value => patchEntry(item.id, {
+        quantity: value,
+        error: undefined,
+        ...(entries[item.id]?.client_attempted || !value.trim()
+          ? { client_request_id: crypto.randomUUID(), client_attempted: false }
+          : {}),
+      })}
+      onQuantityValidityChange={valid => reportQuantityValidity(item.id, valid)}
+      onUnitChange={choice => changeWasteEntryUnit(item, choice)}
+      onPrepare={() => void prepareEntry(item)}
     />
   )
 
@@ -552,8 +767,10 @@ export function CafeWastePage() {
       render: item => (
         <div className="cwl-item-cell">
           <div className="kl-dish">
-            <span className="kl-dish-name"><span>{item.kind} - </span><span>{item.name}</span></span>
-            {item.category && <span className="kl-dish-cat">{kitchenCategoryLabel(t, item.category)}</span>}
+            <span className="kl-dish-name" title={item.category ? `${item.kind} - ${item.name} · ${kitchenCategoryLabel(t, item.category)}` : `${item.kind} - ${item.name}`}>
+              <span>{item.kind} - </span><span>{item.name}</span>
+            </span>
+            {hasMixedCategories && item.category && <span className="kl-dish-cat cwl-category">{kitchenCategoryLabel(t, item.category)}</span>}
           </div>
           {renderEvidence(item)}
         </div>
@@ -563,19 +780,7 @@ export function CafeWastePage() {
       key: 'quantity',
       header: t('kitchen.waste.quantity'),
       numeric: true,
-      render: item => (
-        <WasteItemControls
-          item={item}
-          entry={entries[item.id]}
-          canCapture={canCapture}
-          isOnline={isOnline}
-          disabled={submitting || loadState !== 'ready'}
-          onQuantityChange={value => patchEntry(item.id, { quantity: value, error: undefined })}
-          onQuantityValidityChange={valid => reportQuantityValidity(item.id, valid)}
-          onUnitChange={choice => changeWasteEntryUnit(item, choice)}
-          onPrepare={() => void prepareEntry(item)}
-        />
-      ),
+      render: item => renderControls(item),
     },
   ]
 
@@ -583,23 +788,17 @@ export function CafeWastePage() {
     <div className="cwl-capture-row" role="group" aria-labelledby={`cafe-waste-item-${item.id}`}>
       <div className="cwl-capture-row__item">
         <div className="kl-dish">
-          <span id={`cafe-waste-item-${item.id}`} className="kl-dish-name"><span>{item.kind} - </span><span>{item.name}</span></span>
-          {item.category && <span className="kl-dish-cat">{kitchenCategoryLabel(t, item.category)}</span>}
+          <span
+            id={`cafe-waste-item-${item.id}`}
+            className="kl-dish-name"
+            title={item.category ? `${item.kind} - ${item.name} · ${kitchenCategoryLabel(t, item.category)}` : `${item.kind} - ${item.name}`}
+          >
+            <span>{item.kind} - </span><span>{item.name}</span>
+          </span>
+          {hasMixedCategories && item.category && <span className="kl-dish-cat cwl-category">{kitchenCategoryLabel(t, item.category)}</span>}
         </div>
       </div>
-      <div className="cwl-capture-row__controls">
-        <WasteItemControls
-          item={item}
-          entry={entries[item.id]}
-          canCapture={canCapture}
-          isOnline={isOnline}
-          disabled={submitting || loadState !== 'ready'}
-          onQuantityChange={value => patchEntry(item.id, { quantity: value, error: undefined })}
-          onQuantityValidityChange={valid => reportQuantityValidity(item.id, valid)}
-          onUnitChange={choice => changeWasteEntryUnit(item, choice)}
-          onPrepare={() => void prepareEntry(item)}
-        />
-      </div>
+      <div className="cwl-capture-row__controls">{renderControls(item)}</div>
       <div className="cwl-capture-row__evidence">{renderEvidence(item)}</div>
     </div>
   )
@@ -607,11 +806,8 @@ export function CafeWastePage() {
   const state = loadState === 'loading' ? 'loading' : loadState === 'error' ? 'error'
     : submitting ? 'saving' : allSubmitted ? 'saved' : !canCapture ? 'read-only' : 'default'
 
-  const captureContext = (
-    <div className="cafe-capture-context">
-      {streamPicker}
-      {stream === null && <span className="kl-date tabular">{formatWeekdayDayMonth(logDate)}</span>}
-    </div>
+  const captureContext = stream === null ? undefined : (
+    <div className="cafe-capture-context">{streamPicker}</div>
   )
 
   return (
@@ -620,9 +816,10 @@ export function CafeWastePage() {
       title={pageLabel}
       headClassName="cafe-capture-head"
       statusRow={captureContext}
+      meta={<time className="cafe-capture-date tabular" dateTime={logDate}>{formatWeekdayDayMonth(logDate)}</time>}
       state={state}
     >
-      <div className="kl-page cwl-page kl-capture-wide cafe-capture-content">
+      <div ref={captureRootRef} className="kl-page cwl-page kl-capture-content kl-capture-wide cafe-capture-content">
         <div className="kl-capture-main">
         <RouteLeaveGuard when={remaining.length > 0 || invalidQuantityCount > 0} message={t('kitchen.log.leave.confirm')} />
         {!isOnline && <div role="alert" className="kl-banner kl-banner-offline">{t('kitchen.log.offline.banner')}</div>}
@@ -657,7 +854,95 @@ export function CafeWastePage() {
             <div className="kl-banner cwl-held" role="status">
               {t('kitchen.waste.held')}
             </div>
-            <p className="cwl-help">{t('kitchen.waste.help')}</p>
+            {restoreAnnouncement && (
+              <p className="sr-only" role="status" aria-live="polite">{restoreAnnouncement}</p>
+            )}
+            {canCapture && restoredDraft && localDraftEntries.length > 0 && restoredDraftInfo && (
+              <section className="kl-capture-draft-notice" aria-live="off">
+                <details className="kl-capture-draft-details" open={isDesktop}>
+                  <summary>
+                    <strong>{t(
+                      restoredDraftInfo.count === 1
+                        ? 'cafe.captureDraft.restoredCompact.one'
+                        : 'cafe.captureDraft.restoredCompact.other',
+                      { count: restoredDraftInfo.count },
+                    )}</strong>
+                    <span className="sr-only">{t('cafe.captureDraft.details')}</span>
+                  </summary>
+                  <div className="kl-capture-draft-details__body">
+                    <small>{t('cafe.captureDraft.savedAt', { time: formatWibDateTime(restoredDraftInfo.savedAt) })}</small>
+                    {otherDateDrafts.length === 0 && <small>{t('cafe.captureDraft.expiry')}</small>}
+                  </div>
+                </details>
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  onClick={requestCurrentLocalDraftDiscard}
+                  disabled={submitting}
+                >
+                  {t('kitchen.log.discard')}
+                </button>
+              </section>
+            )}
+            {canCapture && otherDateDrafts.length > 0 && (
+              <section className="kl-capture-draft-list" aria-labelledby="cwl-other-date-drafts">
+                <h2 id="cwl-other-date-drafts" ref={draftListHeadingRef} tabIndex={-1}>{t('cafe.captureDraft.otherDates')}</h2>
+                <p className="kl-capture-draft-guidance">{t('cafe.captureDraft.otherDatesNextStep')}</p>
+                {otherDateDrafts.map(record => {
+                  const savedEntries = record.value?.entries && typeof record.value.entries === 'object'
+                    && !Array.isArray(record.value.entries) ? record.value.entries : {}
+                  const rows = Object.entries(savedEntries).filter(([, entry]) => entry
+                    && typeof entry === 'object' && quantityValue(entry.quantity) !== null)
+                  const date = formatDayMonthYear(record.scope.logDate)
+                  return (
+                    <article
+                      key={`${record.scope.branchId}:${record.scope.activity}:${record.scope.logDate}`}
+                      className="kl-capture-draft-notice"
+                      aria-label={t(rows.length === 1 ? 'cafe.captureDraft.otherDate.one' : 'cafe.captureDraft.otherDate.other', { date, count: rows.length })}
+                    >
+                      <details className="kl-capture-draft-details" open={isDesktop}>
+                        <summary>
+                          <strong>{t(rows.length === 1 ? 'cafe.captureDraft.otherDate.one' : 'cafe.captureDraft.otherDate.other', { date, count: rows.length })}</strong>
+                          <span className="sr-only">{t('cafe.captureDraft.details')}</span>
+                        </summary>
+                        <div className="kl-capture-draft-details__body">
+                          <ul>
+                            {rows.map(([itemId, entry]) => {
+                              const item = items.find(candidate => candidate.id === itemId)
+                              const quantity = quantityValue(entry.quantity) ?? 0
+                              const unit = entry.capturedUnitName
+                                ?? item?.units.find(candidate => candidate.id === entry.unitId)?.name
+                                ?? t('kitchen.waste.unitUnavailable')
+                              const label = entry.unitFactor !== 1 && item
+                                ? formatUnitMultiple(entry.unitFactor, item.defaultUnit.name, document.documentElement.lang || 'en')
+                                : unit
+                              const itemName = item
+                                ? `${item.kind} - ${item.name}`
+                                : t('kitchen.log.draft.itemUnavailable')
+                              return <li key={itemId}>
+                                <span>{itemName}</span>
+                                <span>{formatWasteQty(quantity)} {label}</span>
+                              </li>
+                            })}
+                          </ul>
+                          <small>{t('cafe.captureDraft.savedAt', { time: formatWibDateTime(record.updatedAt) })}</small>
+                        </div>
+                      </details>
+                      <button
+                        type="button"
+                        className="btn btn-outline"
+                        onClick={() => requestOtherDateDraftDiscard(record.scope)}
+                        disabled={submitting}
+                      >
+                        {t('kitchen.log.discard')}
+                      </button>
+                    </article>
+                  )
+                })}
+                <small className="kl-capture-draft-expiry">{t('cafe.captureDraft.expiry')}</small>
+              </section>
+            )}
+            <p id="cafe-waste-photo-guidance" className="cwl-help">{t('kitchen.waste.help')}</p>
             {!canCapture && <p className="kl-banner cwl-read-only" role="status">{t('kitchen.waste.readOnly')}</p>}
             {canCapture && resumableDrafts.length > 0 && (
               <section className="cwl-resume" aria-labelledby="cwl-resume-title">
@@ -708,17 +993,17 @@ export function CafeWastePage() {
             ) : (
               <>
                 <KitchenToolbar
-                  search={search}
-                  onSearchChange={setSearch}
+                  search={capturePageState.search}
+                  onSearchChange={capturePageState.setSearch}
                   kinds={WASTE_KIND_OPTIONS}
-                  kind={kindFilter as KitchenItemKindFilter}
+                  kind={capturePageState.kindFilter as KitchenItemKindFilter}
                   kindId="cafe-waste-kind"
-                  onKindChange={setKindFilter}
+                  onKindChange={capturePageState.setKindFilter}
                   categories={categories}
                   categoryId="cafe-waste-category"
                   categoryLabel={value => kitchenCategoryLabel(t, value)}
-                  category={category}
-                  onCategoryChange={setCategory}
+                  category={capturePageState.category}
+                  onCategoryChange={capturePageState.setCategory}
                   searchPlaceholder={t('kitchen.log.searchPlaceholder')}
                   ariaLabel={t('kitchen.log.toolbarAria')}
                 />
@@ -808,6 +1093,20 @@ export function CafeWastePage() {
           </aside>
         )}
       </div>
+      {pendingDraftDiscard && (
+        <ConfirmDialog
+          open
+          title={t('kitchen.log.draft.discardTitle')}
+          body={t('kitchen.log.draft.discardBody', {
+            date: formatDayMonthYear(pendingDraftDiscard.scope.logDate),
+          })}
+          confirmLabel={t('kitchen.log.discard')}
+          cancelLabel={t('common.cancel')}
+          tone="destructive"
+          onConfirm={async () => confirmDraftDiscard()}
+          onCancel={() => setPendingDraftDiscard(null)}
+        />
+      )}
     </PageFamilyFrame>
   )
 }
@@ -836,11 +1135,7 @@ function WasteItemControls({
   const t = useT()
   const inputId = `cafe-waste-qty-${item.id}`
   const unitId = `cafe-waste-unit-${item.id}`
-  const current: WasteEntry = entry ?? {
-    quantity: '', unitId: item.defaultUnit.id, unitFactor: 1, unitBasisKnown: true,
-    capturedUnitName: item.defaultUnit.name, photoReady: false, photoWindowExpired: false,
-    preparing: false, submitted: false, photos: [],
-  }
+  const current = entry ?? createWasteEntry(item)
   const selectedUnit = item.units.find(unit => unit.id === item.defaultUnit.id)
     ?? { ...item.defaultUnit, isDefault: true, labelOrdinal: null, labelCount: 1 }
   const selectedUnitLabel = wasteEntryUnitLabel(item, current, t)
@@ -865,32 +1160,38 @@ function WasteItemControls({
         <QuantityField
           id={inputId}
           label={t('kitchen.waste.quantityFor', { item: item.name })}
-          className="cwl-quantity-input tabular"
+          className="cwl-quantity-input cafe-capture-quantity-field tabular"
           value={quantity ?? 0}
           onChange={next => onQuantityChange(next > 0 ? String(next) : '')}
           onInvalid={(_reason, raw) => onQuantityChange(raw)}
           onValidityChange={onQuantityValidityChange}
           initialDraft={quantity === null && current.quantity !== '' ? current.quantity : undefined}
-          suffixPosition="below"
+          suffixPosition="inline"
           suffix={showUnitPicker ? (
-            <Select
-              id={unitId}
-              className="cwl-unit-select"
-              aria-label={t('kitchen.waste.unitFor', { item: item.name })}
-              value={selectedChoice}
-              disabled={!editable}
-              onChange={event => onUnitChange(event.target.value)}
-            >
-              {historicalUnit && <option value={current.unitId}>{entry?.capturedUnitName}</option>}
-              <option value={item.defaultUnit.id}>{displayUnit(selectedUnit, t)} · {t('cafe.items.defaultTag')}</option>
-              {item.multiples.map(factor => (
-                <option key={`multiple:${factor}`} value={`multiple:${String(factor)}`}>
-                  {formatUnitMultiple(factor, item.defaultUnit.name, document.documentElement.lang || undefined)}
-                </option>
-              ))}
-            </Select>
+            <>
+              <Select
+                id={unitId}
+                className="cwl-unit-select cafe-capture-unit"
+                contentClassName="cwl-unit-menu"
+                aria-label={t('kitchen.waste.unitFor', { item: item.name })}
+                aria-describedby={`cafe-waste-selected-unit-${item.id}`}
+                title={selectedUnitLabel}
+                value={selectedChoice}
+                disabled={!editable}
+                onChange={event => onUnitChange(event.target.value)}
+              >
+                {historicalUnit && <option value={current.unitId}>{entry?.capturedUnitName}</option>}
+                <option value={item.defaultUnit.id}>{displayUnit(selectedUnit, t)} · {t('cafe.items.defaultTag')}</option>
+                {item.multiples.map(factor => (
+                  <option key={`multiple:${factor}`} value={`multiple:${String(factor)}`}>
+                    {formatUnitMultiple(factor, item.defaultUnit.name, document.documentElement.lang || undefined)}
+                  </option>
+                ))}
+              </Select>
+              <span id={`cafe-waste-selected-unit-${item.id}`} className="sr-only">{selectedUnitLabel}</span>
+            </>
           ) : (
-            <span className="cwl-unit-label" aria-label={t('kitchen.waste.unitFor', { item: item.name })}>
+            <span className="cwl-unit-label cafe-capture-unit" aria-label={t('kitchen.waste.unitFor', { item: item.name })} title={selectedUnitLabel}>
               {selectedUnitLabel}
             </span>
           )}
@@ -900,6 +1201,7 @@ function WasteItemControls({
           disabled={!editable}
           errorClassName="cwl-field-error"
         />
+
       </div>
       {current.error && <span className="cwl-field-error" role="alert">{current.error}</span>}
       {current.logId && !current.submitted && (
@@ -914,8 +1216,8 @@ function WasteItemControls({
       ) : (
         <button
           type="button"
-          className="btn btn-outline cwl-add-photo"
-          aria-describedby={needsQuantity ? photoHintId : undefined}
+          className="btn btn-outline cwl-add-photo cafe-capture-action"
+          aria-describedby={needsQuantity ? `cafe-waste-photo-guidance ${photoHintId}` : 'cafe-waste-photo-guidance'}
           disabled={!canCapture || !isOnline || disabled || current.preparing || Boolean(current.logId) || quantity === null}
           onClick={onPrepare}
         >
