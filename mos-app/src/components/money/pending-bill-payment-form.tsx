@@ -1,7 +1,7 @@
 import { useId, useRef, useState, type FormEvent } from 'react'
 import { Button } from '@/components/ui/button'
 import { DateField } from '@/components/ui/date-field'
-import { TextInput } from '@/components/ui/text-input'
+import { QuantityField } from '@/components/ui/quantity-field'
 import { useT } from '@/i18n/use-t'
 import { formatIDRExact } from '@/lib/format/money'
 import { wibToday } from '@/lib/home-attention'
@@ -20,11 +20,15 @@ export interface PendingBillPaymentSaved {
   reversalReason: string | null
 }
 
+type PaymentDraft = { amount: string; cashInDate: string; cashInDateText: string; note: string; proof: File | null; reversalReason: string }
+
 export type PendingBillPaymentFormProps = {
   bill: PendingBillView
   orgId: string
   onCancel: () => void
   onSaved: (saved: PendingBillPaymentSaved) => void
+  onDirtyChange?: (dirty: boolean) => void
+  onBusyChange?: (busy: boolean) => void
   reversePayment?: { id: string; amount: number } | null
 }
 
@@ -34,13 +38,15 @@ const FIELD_LABEL: Record<PendingBillPaymentField, 'pendingBills.form.amount' | 
   proof: 'pendingBills.form.proof',
 }
 
-export function PendingBillPaymentForm({ bill, orgId, onCancel, onSaved, reversePayment = null }: PendingBillPaymentFormProps) {
+export function PendingBillPaymentForm({ bill, orgId, onCancel, onSaved, onDirtyChange, onBusyChange, reversePayment = null }: PendingBillPaymentFormProps) {
   const t = useT()
   const id = useId()
   const today = wibToday()
   const idempotencyKey = useRef(crypto.randomUUID())
   const [amount, setAmount] = useState('')
+  const [amountInvalid, setAmountInvalid] = useState(false)
   const [cashInDate, setCashInDate] = useState('')
+  const [cashInDateText, setCashInDateText] = useState('')
   const [cashInDateInvalid, setCashInDateInvalid] = useState(false)
   const [note, setNote] = useState('')
   const [reversalReason, setReversalReason] = useState('')
@@ -48,8 +54,18 @@ export function PendingBillPaymentForm({ bill, orgId, onCancel, onSaved, reverse
   const [uploadedProofPath, setUploadedProofPath] = useState<string | null>(null)
   const [touched, setTouched] = useState<Partial<Record<PendingBillPaymentField, boolean>>>({})
   const [proofError, setProofError] = useState<string | null>(null)
+  const draftRef = useRef<PaymentDraft>({ amount: '', cashInDate: '', cashInDateText: '', note: '', proof: null, reversalReason: '' })
+  const invalidProofDraft = useRef(false)
   const [requestError, setRequestError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+
+  function reportDirty(overrides: Partial<PaymentDraft> = {}) {
+    const next = { ...draftRef.current, ...overrides }
+    draftRef.current = next
+    onDirtyChange?.(reversePayment
+      ? Boolean(next.reversalReason.trim())
+      : Boolean(next.amount || next.cashInDate || next.cashInDateText || next.note || next.proof || invalidProofDraft.current))
+  }
 
   const validation = validatePendingBillPaymentForm({
     amount,
@@ -61,7 +77,7 @@ export function PendingBillPaymentForm({ bill, orgId, onCancel, onSaved, reverse
   const errors = { ...validation.errors }
   if (cashInDateInvalid && !errors.cashInDate) errors.cashInDate = 'invalid'
   const fieldsWithErrors = (['amount', 'cashInDate', 'proof'] as const).filter((field) => errors[field])
-  const canSubmitPayment = validation.canSubmit && !cashInDateInvalid && !submitting && !proofError
+  const canSubmitPayment = validation.canSubmit && !amountInvalid && !cashInDateInvalid && !submitting && !proofError
   const canSubmitReversal = Boolean(reversalReason.trim()) && reversalReason.trim().length <= 500 && !submitting
   const canSubmit = reversePayment ? canSubmitReversal : canSubmitPayment
 
@@ -84,24 +100,32 @@ export function PendingBillPaymentForm({ bill, orgId, onCancel, onSaved, reverse
     setProofError(null)
     setUploadedProofPath(null)
     if (!file) {
+      invalidProofDraft.current = false
       setProof(null)
+      reportDirty({ proof: null })
       return
     }
     const isPdf = file.type === 'application/pdf'
     const isImage = ['image/jpeg', 'image/png', 'image/webp'].includes(file.type)
     if (!isPdf && !isImage) {
+      invalidProofDraft.current = true
       setProof(null)
       setProofError(t('pendingBills.form.proofUnsupported'))
+      reportDirty({ proof: null })
       setTouched((previous) => ({ ...previous, proof: true }))
       return
     }
     if (isPdf && file.size > 307_200) {
+      invalidProofDraft.current = true
       setProof(null)
       setProofError(t('pendingBills.form.proofTooLarge'))
+      reportDirty({ proof: null })
       setTouched((previous) => ({ ...previous, proof: true }))
       return
     }
+    invalidProofDraft.current = false
     setProof(file)
+    reportDirty({ proof: file })
     setTouched((previous) => ({ ...previous, proof: true }))
   }
 
@@ -110,6 +134,7 @@ export function PendingBillPaymentForm({ bill, orgId, onCancel, onSaved, reverse
     setRequestError(null)
     if (!canSubmit) return
     setSubmitting(true)
+    onBusyChange?.(true)
     try {
       let input: RecordPendingBillPaymentInput
       if (reversePayment) {
@@ -162,6 +187,7 @@ export function PendingBillPaymentForm({ bill, orgId, onCancel, onSaved, reverse
             reverseOf: null,
             reversalReason: null,
           }
+      onDirtyChange?.(false)
       onSaved(saved)
     } catch (error) {
       if (error instanceof PendingBillProofError) {
@@ -175,6 +201,7 @@ export function PendingBillPaymentForm({ bill, orgId, onCancel, onSaved, reverse
       }
     } finally {
       setSubmitting(false)
+      onBusyChange?.(false)
     }
   }
 
@@ -183,7 +210,7 @@ export function PendingBillPaymentForm({ bill, orgId, onCancel, onSaved, reverse
   const dateError = errors.cashInDate && touched.cashInDate && !cashInDateInvalid
     ? errorMessage('cashInDate', errors.cashInDate)
     : null
-  const amountError = errors.amount && touched.amount
+  const amountError = !amountInvalid && errors.amount && touched.amount
     ? errorMessage('amount', errors.amount)
     : null
   const proofFieldError = errors.proof && touched.proof
@@ -198,7 +225,7 @@ export function PendingBillPaymentForm({ bill, orgId, onCancel, onSaved, reverse
       <div className="pending-bill-payment-form__heading">
         <div>
           <h2>{formTitle}</h2>
-          <p>{t('pendingBills.form.billBalance', { billNo: bill.billNo, balance: formatIDRExact(bill.balance) })}</p>
+          <p>{t('pendingBills.form.billBalance', { balance: formatIDRExact(bill.balance) })}</p>
         </div>
       </div>
       {reversePayment ? (
@@ -206,7 +233,7 @@ export function PendingBillPaymentForm({ bill, orgId, onCancel, onSaved, reverse
           <p className="pending-bill-payment-form__reversal-copy">
             {t('pendingBills.form.reverseCopy', { amount: formatIDRExact(reversePayment.amount) })}
           </p>
-          <label className="pending-bill-payment-form__label" htmlFor={`${id}-reason`}>
+          <label className="mk-textinput__label" htmlFor={`${id}-reason`}>
             {t('pendingBills.form.reversalReason')} <span aria-hidden="true">*</span>
           </label>
           <textarea
@@ -216,29 +243,48 @@ export function PendingBillPaymentForm({ bill, orgId, onCancel, onSaved, reverse
             maxLength={500}
             required
             aria-required="true"
-            onChange={(event) => setReversalReason(event.target.value)}
+            onChange={(event) => {
+              setReversalReason(event.target.value)
+              reportDirty({ reversalReason: event.target.value })
+            }}
             placeholder={t('pendingBills.form.reversalReasonPlaceholder')}
           />
           {!canSubmitReversal && <p className="pending-bill-payment-form__hint">{t('pendingBills.form.reversalReasonRequired')}</p>}
         </>
       ) : (
         <>
-          <TextInput
-            label={t('pendingBills.form.amount')}
-            type="number"
-            inputMode="decimal"
-            min="0.01"
-            max={bill.balance}
-            step="0.01"
-            required
-            value={amount}
-            error={Boolean(amountError)}
-            aria-required="true"
-            aria-invalid={Boolean(errors.amount) || undefined}
-            aria-describedby={`${amountHelpId}${amountError ? ` ${amountHelpId}-error` : ''}`}
-            onChange={(event) => setAmount(event.target.value)}
-            onBlur={() => setTouched((previous) => ({ ...previous, amount: true }))}
-          />
+          <div className={`mk-textinput mk-textinput--full${amountInvalid || amountError ? ' mk-textinput--error' : ''} pending-bill-payment-form__amount`}>
+            <label className="mk-textinput__label" htmlFor={`${id}-amount`}>
+              {t('pendingBills.form.amount')} <span aria-hidden="true">*</span>
+            </label>
+            <QuantityField
+              id={`${id}-amount`}
+              label={t('pendingBills.form.amount')}
+              value={Number(amount) || 0}
+              onChange={(value) => {
+                const next = value === 0 ? '' : String(value)
+                setAmount(next)
+                setAmountInvalid(false)
+                reportDirty({ amount: next })
+              }}
+              onInvalid={(_reason, raw) => {
+                setAmount(raw)
+                setAmountInvalid(true)
+                setTouched((previous) => ({ ...previous, amount: true }))
+                reportDirty({ amount: raw })
+              }}
+              onValidityChange={(valid) => setAmountInvalid(!valid)}
+              onBlur={() => setTouched((previous) => ({ ...previous, amount: true }))}
+              min={0}
+              maxFractionDigits={2}
+              required
+              error={Boolean(amountError)}
+              describedBy={`${amountHelpId}${amountError ? ` ${amountHelpId}-error` : ''}`}
+              controlClassName="mk-textinput__box"
+              className="mk-textinput__field"
+              suffixPosition="inline"
+            />
+          </div>
           <p id={amountHelpId} className="pending-bill-payment-form__hint">
             {t('pendingBills.form.amountHelp', { balance: formatIDRExact(bill.balance) })}
           </p>
@@ -247,7 +293,15 @@ export function PendingBillPaymentForm({ bill, orgId, onCancel, onSaved, reverse
           <DateField
             label={t('pendingBills.form.cashInDate')}
             value={cashInDate}
-            onChange={setCashInDate}
+            onChange={(date) => {
+              setCashInDate(date)
+              reportDirty({ cashInDate: date })
+            }}
+            draftText={cashInDateText}
+            onDraftTextChange={(text) => {
+              setCashInDateText(text)
+              reportDirty({ cashInDateText: text })
+            }}
             onValidityChange={setCashInDateInvalid}
             onBlur={() => setTouched((previous) => ({ ...previous, cashInDate: true }))}
             max={today}
@@ -260,7 +314,7 @@ export function PendingBillPaymentForm({ bill, orgId, onCancel, onSaved, reverse
           {dateError && <p id={`${dateHelpId}-error`} className="pending-bill-payment-form__field-error" role="alert">{dateError}</p>}
 
           <div className="pending-bill-payment-form__proof">
-            <label className="pending-bill-payment-form__label" htmlFor={`${id}-proof`}>
+            <label className="mk-textinput__label" htmlFor={`${id}-proof`}>
               {t('pendingBills.form.proof')} <span aria-hidden="true">*</span>
             </label>
             <p id={proofHelpId} className="pending-bill-payment-form__hint">{t('pendingBills.form.proofHelp')}</p>
@@ -284,13 +338,16 @@ export function PendingBillPaymentForm({ bill, orgId, onCancel, onSaved, reverse
             {proofError && <p id={`${proofHelpId}-error`} className="pending-bill-payment-form__field-error" role="alert">{t('pendingBills.form.proof')}: {proofError}</p>}
           </div>
 
-          <label className="pending-bill-payment-form__label" htmlFor={`${id}-note`}>{t('pendingBills.form.note')}</label>
+          <label className="mk-textinput__label" htmlFor={`${id}-note`}>{t('pendingBills.form.note')}</label>
           <textarea
             id={`${id}-note`}
             className="pending-bill-payment-form__textarea"
             value={note}
             maxLength={500}
-            onChange={(event) => setNote(event.target.value)}
+            onChange={(event) => {
+              setNote(event.target.value)
+              reportDirty({ note: event.target.value })
+            }}
             placeholder={t('pendingBills.form.notePlaceholder')}
           />
         </>

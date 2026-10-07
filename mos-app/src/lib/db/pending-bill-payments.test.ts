@@ -69,8 +69,8 @@ describe('listPendingBillPaymentHistory', () => {
         error: null,
       }, queryCalls[name]),
     } as never))
-    const createSignedUrl = vi.fn().mockResolvedValue({ data: { signedUrl: 'https://proof.test/signed' }, error: null })
-    storageFrom.mockReturnValue({ createSignedUrl } as never)
+    const createSignedUrls = vi.fn().mockResolvedValue({ data: [{ signedUrl: 'https://proof.test/signed', error: null }], error: null })
+    storageFrom.mockReturnValue({ createSignedUrls } as never)
 
     const history = await listPendingBillPaymentHistory({ esbCode: 'ESB', branchCode: 'BR', billNo: 'PB-1' })
     expect(history).toEqual([{
@@ -88,14 +88,41 @@ describe('listPendingBillPaymentHistory', () => {
     ])
     expect(queryCalls.shared.find((call) => call.method === 'in')).toEqual({ method: 'in', args: ['id', ['person-1']] })
     expect(storageFrom).toHaveBeenCalledWith('pending-bill-proofs')
-    expect(createSignedUrl).toHaveBeenCalledWith('org/p1.pdf', 3600)
+    expect(createSignedUrls).toHaveBeenCalledWith(['org/p1.pdf'], 3600)
+  })
+
+  it('batches signed proof links for the history rows', async () => {
+    schemaMock.mockImplementation(() => ({
+      from: (table: string) => query({
+        data: table === 'pending_bill_payments' ? [
+          { id: 'p1', esb_code: 'ESB', branch_code: 'BR', bill_no: 'PB-1', entry_kind: 'payment', amount: '125',
+            cash_in_date: '2026-10-06', proof_path: 'org/p1.pdf', note: null, reversal_of: null,
+            reversal_reason: null, created_by: 'person-1', created_at: '2026-10-06T03:00:00Z' },
+          { id: 'p2', esb_code: 'ESB', branch_code: 'BR', bill_no: 'PB-1', entry_kind: 'payment', amount: '250',
+            cash_in_date: '2026-10-06', proof_path: 'org/p2.pdf', note: null, reversal_of: null,
+            reversal_reason: null, created_by: 'person-1', created_at: '2026-10-06T04:00:00Z' },
+        ] : [{ id: 'person-1', full_name: 'Finance Person' }], error: null,
+      }, []),
+    } as never))
+    const createSignedUrls = vi.fn().mockResolvedValue({ data: [
+      { signedUrl: 'https://proof.test/one', error: null },
+      { signedUrl: 'https://proof.test/two', error: null },
+    ], error: null })
+    const createSignedUrl = vi.fn().mockResolvedValue({ data: { signedUrl: 'unused' }, error: null })
+    storageFrom.mockReturnValue({ createSignedUrl, createSignedUrls } as never)
+
+    const history = await listPendingBillPaymentHistory({ esbCode: 'ESB', branchCode: 'BR', billNo: 'PB-1' })
+    expect(history.map((entry) => entry.proofUrl)).toEqual(['https://proof.test/one', 'https://proof.test/two'])
+    expect(createSignedUrls).toHaveBeenCalledTimes(1)
+    expect(createSignedUrls).toHaveBeenCalledWith(['org/p1.pdf', 'org/p2.pdf'], 3600)
+    expect(createSignedUrl).not.toHaveBeenCalled()
   })
 
   it('does not ask storage for a signed URL when history has no proof rows', async () => {
     schemaMock.mockImplementation(() => ({
       from: (table: string) => query({ data: table === 'pending_bill_payments' ? [] : [], error: null }, []),
     } as never))
-    storageFrom.mockReturnValue({ createSignedUrl: vi.fn() } as never)
+    storageFrom.mockReturnValue({ createSignedUrls: vi.fn() } as never)
     await expect(listPendingBillPaymentHistory({ esbCode: 'ESB', branchCode: 'BR', billNo: 'PB-1' })).resolves.toEqual([])
     expect(storageFrom).not.toHaveBeenCalled()
   })

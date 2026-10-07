@@ -1,17 +1,20 @@
 // PendingBillsPage — Finance's list and MOS record of deferred-payment bills (#1465).
 // The nightly reporting copy stays read-only; payments and reversals use the append-only MOS RPC.
-import { useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useAuth } from '@/auth/use-auth'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
 import { PendingBillPaymentForm, type PendingBillPaymentSaved } from '@/components/money/pending-bill-payment-form'
+import { createPendingBillRecordAdapter, pendingBillAgeLabel, PENDING_BILL_STATE_LABEL } from '@/components/money/pending-bill-record-adapter'
 import { Button } from '@/components/ui/button'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
-import { ModalShell } from '@/components/ui/modal-shell'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { Toast } from '@/components/admin/toast'
+import { useToast } from '@/components/admin/use-toast'
+import { RecordViewer } from '@/components/records/record-viewer'
 import { Pill } from '@/components/ui/pill'
 import { useReportingRead } from '@/hooks/useReportingRead'
 import { useI18n } from '@/i18n/I18nProvider'
 import { useT } from '@/i18n/use-t'
-import type { MessageKey } from '@/i18n/messages'
 import {
   latestPendingBillSnapshot,
   listPendingBills,
@@ -24,7 +27,7 @@ import {
 } from '@/lib/db/pending-bill-payments'
 import { formatDayMonthYear, formatWibWeekdayTime } from '@/lib/format/date'
 import { formatIDRExact } from '@/lib/format/money'
-import { isPendingBillCopyStale, summarizePendingBills, toPendingBillViews, type PendingBillState, type PendingBillView } from '@/lib/pending-bills'
+import { isPendingBillCopyStale, summarizePendingBills, toPendingBillViews, type PendingBillView } from '@/lib/pending-bills'
 import { wibToday } from '@/lib/home-attention'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { RecordPanelHost } from '@/shell/record-panel-host'
@@ -40,25 +43,11 @@ const loadPendingBills = () =>
 type T = ReturnType<typeof useT>
 type PaymentFormMode = { kind: 'payment' } | { kind: 'reverse'; entry: PendingBillPaymentHistoryEntry }
 
-const STATE_LABEL: Record<PendingBillState, MessageKey> = {
-  open: 'pendingBills.state.open',
-  partial: 'pendingBills.state.partial',
-  settled: 'pendingBills.state.settled',
-  overpaid: 'pendingBills.state.overpaid',
-  void: 'pendingBills.state.void',
-  missing: 'pendingBills.state.missing',
-}
-
-function ageText(days: number, t: T): string {
-  if (days <= 0) return t('pendingBills.age.today')
-  return days === 1 ? t('pendingBills.age.one') : t('pendingBills.age.other', { count: String(days) })
-}
-
 function statePill(bill: PendingBillView, t: T): ReactNode {
   const tone = bill.state === 'settled' ? 'success'
     : bill.state === 'partial' || bill.state === 'overpaid' || bill.state === 'void' || bill.state === 'missing' ? 'warning'
       : 'neutral'
-  return <Pill tone={tone}>{t(STATE_LABEL[bill.state])}</Pill>
+  return <Pill tone={tone}>{t(PENDING_BILL_STATE_LABEL[bill.state])}</Pill>
 }
 
 function branch(bill: PendingBillView, t: T): ReactNode {
@@ -75,7 +64,7 @@ function columns(
 ): DataTableColumn<PendingBillView>[] {
   return [
     { key: 'date', header: t('pendingBills.col.date'), render: (bill) => <span className="tabular pending-bills__nowrap">{formatDayMonthYear(bill.billDate, locale)}</span> },
-    { key: 'age', header: t('pendingBills.col.age'), numeric: true, render: (bill) => ageText(bill.ageDays, t) },
+    { key: 'age', header: t('pendingBills.col.age'), numeric: true, render: (bill) => pendingBillAgeLabel(bill.ageDays, t) },
     { key: 'branch', header: t('pendingBills.col.branch'), render: (bill) => branch(bill, t) },
     { key: 'owes', header: t('pendingBills.col.owes'), render: (bill) => <span className="pending-bills__owes">{bill.counterpartyNote ?? <span className="pending-bills__muted">{t('pendingBills.owes.none')}</span>}</span> },
     { key: 'state', header: t('pendingBills.col.state'), render: (bill) => statePill(bill, t) },
@@ -109,155 +98,12 @@ function BillCard({ bill, onOpen }: { bill: PendingBillView; onOpen: (bill: Pend
         <span className="pending-bills__code">{bill.billNo}</span>
       </div>
       <div className="pending-bill-card__status">
-        <span className="tabular">{ageText(bill.ageDays, t)}</span>
+        <span className="tabular">{pendingBillAgeLabel(bill.ageDays, t)}</span>
         {statePill(bill, t)}
       </div>
       <div className="pending-bill-card__balance">
         {t('pendingBills.col.balance')} <span className="tabular">{formatIDRExact(bill.balance)}</span>
       </div>
-    </div>
-  )
-}
-
-function PaymentHistory({
-  entries,
-  status,
-  onRetry,
-  onReverse,
-}: {
-  entries: PendingBillPaymentHistoryEntry[]
-  status: 'loading' | 'ready' | 'error'
-  onRetry: () => void
-  onReverse: (entry: PendingBillPaymentHistoryEntry) => void
-}) {
-  const t = useT()
-  const { locale } = useI18n()
-  if (status === 'loading') return <p className="pending-bill-record__quiet" role="status">{t('pendingBills.history.loading')}</p>
-  if (status === 'error') return (
-    <div className="pending-bill-record__history-error" role="alert">
-      <p>{t('pendingBills.history.error')}</p>
-      <Button variant="outline" onClick={onRetry}>{t('common.retry')}</Button>
-    </div>
-  )
-  if (entries.length === 0) return <p className="pending-bill-record__quiet">{t('pendingBills.history.empty')}</p>
-
-  const reversed = new Set(entries.flatMap((entry) => entry.reversalOf ? [entry.reversalOf] : []))
-  return (
-    <ol className="pending-bill-record__history" aria-label={t('pendingBills.history.title')}>
-      {entries.map((entry) => {
-        const isReversal = entry.entryKind === 'reversal'
-        const hasReversal = reversed.has(entry.id)
-        return (
-          <li className="pending-bill-record__entry" key={entry.id}>
-            <div className="pending-bill-record__entry-top">
-              <span className="pending-bill-record__entry-kind">{t(isReversal ? 'pendingBills.history.reversal' : 'pendingBills.history.payment')}</span>
-              <span className={`pending-bill-record__entry-amount${isReversal ? ' pending-bill-record__entry-amount--reversal' : ''}`}>
-                {formatIDRExact(isReversal ? entry.amount : Math.abs(entry.amount))}
-              </span>
-            </div>
-            <p className="pending-bill-record__entry-meta">
-              {t('pendingBills.history.cashInDate', { date: formatDayMonthYear(entry.cashInDate, locale) })}
-              {' · '}{entry.actorName ?? t('pendingBills.history.finance')}
-              {' · '}{formatWibWeekdayTime(entry.createdAt, locale)}
-            </p>
-            {entry.note && <p className="pending-bill-record__entry-note">{entry.note}</p>}
-            {entry.reversalReason && <p className="pending-bill-record__entry-note">{t('pendingBills.history.reason', { reason: entry.reversalReason })}</p>}
-            {entry.proofUrl && <a className="pending-bill-record__proof" href={entry.proofUrl} target="_blank" rel="noopener noreferrer">{t('pendingBills.history.openProof')}</a>}
-            {hasReversal && <p className="pending-bill-record__reversed">{t('pendingBills.history.reversed')}</p>}
-            {!isReversal && !hasReversal && (
-              <Button variant="ghost" className="pending-bill-record__reverse" onClick={() => onReverse(entry)}>
-                {t('pendingBills.history.reverse')}
-              </Button>
-            )}
-          </li>
-        )
-      })}
-    </ol>
-  )
-}
-
-function RecordPanel({
-  bill,
-  entries,
-  historyStatus,
-  onRetryHistory,
-  onStartPayment,
-  onReverse,
-  formMode,
-  orgId,
-  isDesktop,
-  onCloseForm,
-  onSaved,
-}: {
-  bill: PendingBillView
-  entries: PendingBillPaymentHistoryEntry[]
-  historyStatus: 'loading' | 'ready' | 'error'
-  onRetryHistory: () => void
-  onStartPayment: () => void
-  onReverse: (entry: PendingBillPaymentHistoryEntry) => void
-  formMode: PaymentFormMode | null
-  orgId: string
-  isDesktop: boolean
-  onCloseForm: () => void
-  onSaved: (saved: PendingBillPaymentSaved) => void
-}) {
-  const t = useT()
-  const { locale } = useI18n()
-  const canPay = (bill.state === 'open' || bill.state === 'partial') && bill.balance > 0
-  const original = formMode?.kind === 'reverse' ? formMode.entry : null
-  const form = formMode ? (
-    <PendingBillPaymentForm
-      key={formMode.kind === 'reverse' ? `reverse-${formMode.entry.id}` : 'payment'}
-      bill={bill}
-      orgId={orgId}
-      reversePayment={original ? { id: original.id, amount: original.amount } : null}
-      onCancel={onCloseForm}
-      onSaved={onSaved}
-    />
-  ) : null
-  const formTitle = original ? t('pendingBills.form.reverseTitle') : t('pendingBills.form.title')
-
-  return (
-    <div className="pending-bill-record">
-      <div className="pending-bill-record__body">
-        <section className="pending-bill-record__identity" aria-label={t('pendingBills.record.summary')}>
-          <div className="pending-bill-record__status-line">
-            {statePill(bill, t)}
-            <span className="pending-bill-record__bill-no">{bill.billNo}</span>
-          </div>
-          <dl className="pending-bill-record__facts">
-            <div><dt>{t('pendingBills.col.date')}</dt><dd>{formatDayMonthYear(bill.billDate, locale)}</dd></div>
-            <div><dt>{t('pendingBills.col.branch')}</dt><dd>{branch(bill, t)}</dd></div>
-            <div><dt>{t('pendingBills.col.owes')}</dt><dd>{bill.counterpartyNote ?? t('pendingBills.owes.none')}</dd></div>
-            <div><dt>{t('pendingBills.col.amount')}</dt><dd>{formatIDRExact(bill.amount)}</dd></div>
-            <div><dt>{t('pendingBills.record.recorded')}</dt><dd>{formatIDRExact(bill.recordedPaid)}</dd></div>
-            <div className="pending-bill-record__balance"><dt>{t('pendingBills.col.balance')}</dt><dd>{formatIDRExact(bill.balance)}</dd></div>
-          </dl>
-          {bill.state === 'void' && <p className="pending-bill-record__mark">{t('pendingBills.record.voidMark')}</p>}
-          {bill.state === 'missing' && <p className="pending-bill-record__mark">{t('pendingBills.record.missingMark')}</p>}
-          {canPay && <Button variant="primary" className="pending-bill-record__record" onClick={onStartPayment}>{t('pendingBills.record.recordPayment')}</Button>}
-        </section>
-
-        {isDesktop && formMode && <div className="pending-bill-record__form-inline" aria-label={formTitle}>{form}</div>}
-
-        <section className="pending-bill-record__history-section" aria-labelledby="pending-bill-history-title">
-          <h2 id="pending-bill-history-title">{t('pendingBills.history.title')}</h2>
-          <PaymentHistory entries={entries} status={historyStatus} onRetry={onRetryHistory} onReverse={onReverse} />
-        </section>
-      </div>
-      {!isDesktop && (
-        <ModalShell
-          open={formMode !== null}
-          onClose={onCloseForm}
-          ariaLabel={formTitle}
-          surface="sheet"
-          phoneMode="centered"
-          closeOnBackdrop
-          className="pending-bill-payment-sheet"
-        >
-          {form}
-        </ModalShell>
-      )}
     </div>
   )
 }
@@ -272,13 +118,42 @@ export function PendingBillsPage() {
   useDocumentTitle(t('pendingBills.documentTitle'))
 
   const { status, data, tooMany, reload } = useReportingRead(loadPendingBills)
+  const { toast, showToast, clearToast } = useToast()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [historyState, setHistoryState] = useState<{ status: 'idle' | 'loading' | 'ready' | 'error'; entries: PendingBillPaymentHistoryEntry[] }>({ status: 'idle', entries: [] })
   const [historyRequest, setHistoryRequest] = useState(0)
-  const [panelFormMode, setPanelFormMode] = useState<PaymentFormMode | null>(null)
-  const [phoneFormMode, setPhoneFormMode] = useState<PaymentFormMode | null>(null)
+  const [formMode, setFormMode] = useState<PaymentFormMode | null>(null)
+  const [formBusy, setFormBusy] = useState(false)
+  const [discardOpen, setDiscardOpen] = useState(false)
   const [optimisticPayments, setOptimisticPayments] = useState<PendingBillPaymentAmountRow[]>([])
-  const [confirmation, setConfirmation] = useState<string | null>(null)
+  const formDirtyRef = useRef(false)
+  const formBusyRef = useRef(false)
+  const pendingTransitionRef = useRef<(() => void) | null>(null)
+
+  const updateFormBusy = useCallback((busy: boolean) => {
+    formBusyRef.current = busy
+    setFormBusy(busy)
+  }, [])
+  const guardedTransition = useCallback((proceed: () => void) => {
+    if (formBusyRef.current) return
+    if (formDirtyRef.current) {
+      pendingTransitionRef.current = proceed
+      setDiscardOpen(true)
+      return
+    }
+    proceed()
+  }, [])
+  const cancelDiscard = useCallback(() => {
+    pendingTransitionRef.current = null
+    setDiscardOpen(false)
+  }, [])
+  const discardAndProceed = useCallback(async () => {
+    formDirtyRef.current = false
+    setDiscardOpen(false)
+    const proceed = pendingTransitionRef.current
+    pendingTransitionRef.current = null
+    proceed?.()
+  }, [])
 
   const basePayments = data?.payments ?? []
   const baseIds = new Set(basePayments.map((payment) => payment.id))
@@ -357,6 +232,7 @@ export function PendingBillsPage() {
 
   const summary = summarizePendingBills(bills)
   const selectedHistory = selectedBill && historyState.status !== 'idle' ? historyState : { status: 'loading' as const, entries: [] }
+  const historyStatus = selectedHistory.status === 'idle' ? 'loading' : selectedHistory.status
   const onFormSaved = (bill: PendingBillView, saved: PendingBillPaymentSaved) => {
     setOptimisticPayments((current) => [...current, {
       id: saved.paymentId,
@@ -365,47 +241,96 @@ export function PendingBillsPage() {
       bill_no: bill.billNo,
       amount: saved.amount,
     }])
-    setConfirmation(saved.reverseOf
-      ? t('pendingBills.confirmation.reversed', { count: '1', total: formatIDRExact(Math.abs(saved.amount)) })
-      : t('pendingBills.confirmation.recorded', { count: '1', total: formatIDRExact(saved.amount) }))
-    setPanelFormMode(null)
-    setPhoneFormMode(null)
+    const savedEntries = saved.paymentId ? [saved] : []
+    const count = String(savedEntries.length)
+    const total = formatIDRExact(savedEntries.reduce((sum, entry) => sum + Math.abs(entry.amount), 0))
+    showToast(saved.reverseOf
+      ? t('pendingBills.confirmation.reversed', { count, total })
+      : t('pendingBills.confirmation.recorded', { count, total }))
+    formDirtyRef.current = false
+    setFormMode(null)
+    updateFormBusy(false)
     setHistoryRequest((current) => current + 1)
     reload()
   }
-  const openForm = (mode: PaymentFormMode) => {
-    if (isDesktop) setPanelFormMode(mode)
-    else setPhoneFormMode(mode)
+  const cancelPaymentForm = () => guardedTransition(() => {
+    formDirtyRef.current = false
+    setFormMode(null)
+  })
+  const selectBill = (bill: PendingBillView) => {
+    if (bill.id === selectedId) return
+    guardedTransition(() => {
+      formDirtyRef.current = false
+      setFormMode(null)
+      updateFormBusy(false)
+      setSelectedId(bill.id)
+    })
   }
-  const recordPanel = selectedBill ? (
-    <RecordPanelHost
-      label={t('pendingBills.record.panelLabel', { billNo: selectedBill.billNo })}
-      title={t('pendingBills.record.panelTitle', { billNo: selectedBill.billNo })}
-      closeLabel={t('record.close')}
-      rootClassName="pending-bill-record-panel"
-      focusKey={selectedBill.id}
-      onClose={() => { setSelectedId(null); setPanelFormMode(null); setPhoneFormMode(null) }}
-    >
-      <RecordPanel
-        bill={selectedBill}
-        entries={selectedHistory.entries}
-        historyStatus={selectedHistory.status === 'idle' ? 'loading' : selectedHistory.status}
-        onRetryHistory={() => setHistoryRequest((current) => current + 1)}
-        onStartPayment={() => openForm({ kind: 'payment' })}
-        onReverse={(entry) => openForm({ kind: 'reverse', entry })}
-        formMode={isDesktop ? panelFormMode : phoneFormMode}
-        orgId={orgId}
-        isDesktop={isDesktop}
-        onCloseForm={() => { setPanelFormMode(null); setPhoneFormMode(null) }}
-        onSaved={(saved) => onFormSaved(selectedBill, saved)}
+  const paymentForm = selectedBill && formMode ? (
+    <PendingBillPaymentForm
+      key={`${selectedBill.id}-${formMode.kind === 'reverse' ? `reverse-${formMode.entry.id}` : 'payment'}`}
+      bill={selectedBill}
+      orgId={orgId}
+      reversePayment={formMode.kind === 'reverse' ? { id: formMode.entry.id, amount: formMode.entry.amount } : null}
+      onCancel={cancelPaymentForm}
+      onSaved={(saved) => onFormSaved(selectedBill, saved)}
+      onDirtyChange={(dirty) => { formDirtyRef.current = dirty }}
+      onBusyChange={updateFormBusy}
+    />
+  ) : null
+  const adapter = selectedBill ? createPendingBillRecordAdapter({
+    bill: selectedBill,
+    entries: selectedHistory.entries,
+    historyStatus,
+    locale,
+    t,
+    canPay: (selectedBill.state === 'open' || selectedBill.state === 'partial') && selectedBill.balance > 0,
+    formMode: formMode !== null,
+    form: paymentForm,
+    onStartPayment: () => {
+      formDirtyRef.current = false
+      setFormMode({ kind: 'payment' })
+    },
+    onReverse: (entry) => {
+      formDirtyRef.current = false
+      setFormMode({ kind: 'reverse', entry })
+    },
+    onRetryHistory: () => setHistoryRequest((current) => current + 1),
+  }) : null
+  const recordPanel = selectedBill && adapter ? (
+    <>
+      <RecordPanelHost
+        label={t('pendingBills.record.panelLabel', { billNo: selectedBill.billNo })}
+        title={t('nav.money.pendingBills')}
+        closeLabel={t('record.close')}
+        rootClassName="drawer-split--sticky"
+        focusKey={selectedBill.id}
+        transitionPending={discardOpen || formBusy}
+        onClose={() => guardedTransition(() => {
+          formDirtyRef.current = false
+          setFormMode(null)
+          setSelectedId(null)
+        })}
+      >
+        <RecordViewer adapter={adapter} mode="panel" />
+      </RecordPanelHost>
+      <ConfirmDialog
+        open={discardOpen}
+        title={t('catalog.record.unsaved.title')}
+        body={t('catalog.record.unsaved.copy')}
+        confirmLabel={t('catalog.record.unsaved.discard')}
+        cancelLabel={t('leaveGuard.stay')}
+        tone="destructive"
+        onConfirm={discardAndProceed}
+        onCancel={cancelDiscard}
       />
-    </RecordPanelHost>
+    </>
   ) : null
 
   return frame(
     <div className="pending-bills-body">
+      <Toast toast={toast} onDismiss={clearToast} />
       {kept}
-      {confirmation && <p className="pending-bills-confirmation" role="status" aria-live="polite">{confirmation}</p>}
       {stale}
       <div className="pending-bills-summary" aria-live="polite">
         {t('pendingBills.summary', { count: String(summary.openCount), total: formatIDRExact(summary.openBalance) })}
@@ -414,11 +339,11 @@ export function PendingBillsPage() {
         <div className="pending-bills-list-column">
           <div className="pending-bills-scroll" role="region" aria-label={t('pendingBills.table.scrollLabel')} tabIndex={0}>
             <DataTable
-              columns={columns(t, locale, (bill) => { setSelectedId(bill.id); setPanelFormMode(null); setPhoneFormMode(null) })}
+              columns={columns(t, locale, selectBill)}
               rows={bills}
               isDesktop={isDesktop}
               caption={t('pendingBills.table.caption')}
-              renderCard={(bill) => <BillCard bill={bill} onOpen={(selected) => { setSelectedId(selected.id); setPanelFormMode(null); setPhoneFormMode(null) }} />}
+              renderCard={(bill) => <BillCard bill={bill} onOpen={selectBill} />}
             />
           </div>
         </div>

@@ -8,11 +8,14 @@ import { resolve } from 'node:path'
 
 const css = readFileSync(resolve(process.cwd(), 'src/pages/pending-bills-page.css'), 'utf8')
   .replace(/\/\*[\s\S]*?\*\//g, '')
+const recordHostCss = readFileSync(resolve(process.cwd(), 'src/shell/record-panel-host.css'), 'utf8')
+  .replace(/\/\*[\s\S]*?\*\//g, '')
 
-const rule = (selector: string) => {
+const ruleIn = (source: string, selector: string) => {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  return css.match(new RegExp(`(?:^|\\})\\s*${escaped}\\s*\\{([^}]*)\\}`))?.[1] ?? null
+  return source.match(new RegExp(`(?:^|\\})\\s*${escaped}\\s*\\{([^}]*)\\}`))?.[1] ?? null
 }
+const rule = (selector: string) => ruleIn(css, selector)
 
 describe('pending bills table CSS', () => {
   it('keeps amount, balance and age cells on one line', () => {
@@ -37,8 +40,9 @@ describe('pending bills table CSS', () => {
     expect(rule('.record-split .pending-bills-scroll')).toMatch(/overflow-x:\s*auto/)
   })
 
-  it('keeps the split record panel pinned and independently scrollable', () => {
-    expect(rule('.pending-bill-record-panel.drawer-split:not(.drawer-shell-split):not(.overlay-companion-host)')).toMatch(/position:\s*sticky/)
-    expect(rule('.pending-bill-record')).toMatch(/overflow:\s*auto/)
+  it('uses the shared sticky record-panel rule and lets the viewer own scrolling', () => {
+    expect(rule('.pending-bill-record-panel.drawer-split:not(.drawer-shell-split):not(.overlay-companion-host)')).toBeNull()
+    expect(ruleIn(recordHostCss, '.drawer-split.drawer-split--sticky:not(.drawer-shell-split):not(.overlay-companion-host)')).toMatch(/position:\s*sticky/)
+    expect(recordHostCss).toMatch(/\.drawer-split\.drawer-split--sticky\s*>\s*\.record-viewer[\s\S]*?overflow-y:\s*auto/)
   })
 })

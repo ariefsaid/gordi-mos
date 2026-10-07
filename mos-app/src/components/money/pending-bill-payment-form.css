@@ -28,12 +28,10 @@
   line-height: 1.4;
 }
 
-.pending-bill-payment-form__label {
-  display: block;
-  margin-bottom: -7px;
-  color: var(--muted-foreground);
-  font-size: var(--font-size-label);
-  font-weight: 500;
+.pending-bill-payment-form__amount,
+.pending-bill-payment-form__amount .quantity-field {
+  width: 100%;
+  min-width: 0;
 }
 
 .pending-bill-payment-form__proof {
@@ -89,7 +87,7 @@
 .pending-bill-payment-form__field-error,
 .pending-bill-payment-form__request-error {
   margin: -7px 0 0;
-  color: var(--destructive);
+  color: var(--field-error-text);
   font-size: var(--font-size-label);
   line-height: 1.4;
 }

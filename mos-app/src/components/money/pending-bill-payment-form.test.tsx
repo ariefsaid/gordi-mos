@@ -54,6 +54,38 @@ describe('AC-1134: the payment form names invalid fields and keeps submit off', 
     expect(screen.queryByRole('status')).toBeNull()
   })
 
+  it('uses the shared quantity field control and reports an invalid proof draft as dirty', () => {
+    const onDirtyChange = vi.fn()
+    render(
+      <I18nProvider initialLocale="en">
+        <PendingBillPaymentForm bill={bill} orgId="org-1" onCancel={vi.fn()} onSaved={vi.fn()} onDirtyChange={onDirtyChange} />
+      </I18nProvider>,
+    )
+    const amount = screen.getByRole('spinbutton', { name: 'Amount' })
+    expect(amount).toHaveClass('mk-textinput__field')
+    expect(amount.parentElement).toHaveClass('quantity-field-control--inline', 'mk-textinput__box')
+    expect(amount).toHaveAttribute('aria-required', 'true')
+
+    fireEvent.change(screen.getByLabelText(/^Proof/), {
+      target: { files: [new File(['unsupported'], 'proof.txt', { type: 'text/plain' })] },
+    })
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true)
+  })
+
+  it('clearing the cash-in date clears the host dirty draft synchronously', () => {
+    const onDirtyChange = vi.fn()
+    render(
+      <I18nProvider initialLocale="en">
+        <PendingBillPaymentForm bill={bill} orgId="org-1" onCancel={vi.fn()} onSaved={vi.fn()} onDirtyChange={onDirtyChange} />
+      </I18nProvider>,
+    )
+    const date = screen.getByLabelText('Cash-in date')
+    fireEvent.change(date, { target: { value: wibToday().split('-').reverse().join('/') } })
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true)
+    fireEvent.change(date, { target: { value: '' } })
+    expect(onDirtyChange).toHaveBeenLastCalledWith(false)
+  })
+
   it('a typed future date shows one alert, from the date field', async () => {
     renderForm()
     const date = screen.getByLabelText('Cash-in date')

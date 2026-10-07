@@ -546,14 +546,8 @@
 
 /* ── Person panel ──────────────────────────────────────────────────────────── */
 
-/* Beside the list, the panel keeps its own scroll so the list stays in view. */
-.admin-people-split > .admin-person-panel {
-  position: sticky;
-  top: 12px;
-  display: flex;
-  flex-direction: column;
-  max-height: calc(100vh - var(--header-h) - 24px);
-}
+/* The shared sticky panel rule keeps Admin's split panel just below its collection head. */
+.admin-person-panel { --drawer-split-sticky-top: 12px; }
 
 .admin-person-panel .record-panel-chrome {
   flex: none;

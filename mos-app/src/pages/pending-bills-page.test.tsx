@@ -223,25 +223,29 @@ describe('AC-1135: recording updates the selected row and confirms count plus to
     const openRow = await screen.findByRole('button', { name: 'Open bill PB-2' })
     const originalRow = openRow.closest('tr')
     fireEvent.click(openRow)
-    await screen.findByRole('dialog', { name: 'Pending bill PB-2' })
+    const panel = await screen.findByRole('dialog', { name: 'Pending bill PB-2' })
     await screen.findByText('No payments recorded for this bill.')
-    fireEvent.click(screen.getByRole('button', { name: 'Record payment' }))
+    expect(panel.querySelector('[data-record-kind="pending-bill"]')).toBeInTheDocument()
+    expect(within(panel).getAllByText('PB-2')).toHaveLength(1)
+    fireEvent.click(within(panel).getByRole('button', { name: 'Record payment' }))
+    const form = within(panel).getByRole('form', { name: 'Record payment' })
+    expect(within(panel).getAllByText('PB-2')).toHaveLength(1)
 
-    fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '96000' } })
-    fireEvent.change(screen.getByLabelText('Cash-in date'), { target: { value: '06/10/2026' } })
-    fireEvent.change(screen.getByLabelText(/^Proof/), {
+    fireEvent.change(within(form).getByLabelText('Amount'), { target: { value: '96000' } })
+    fireEvent.change(within(form).getByLabelText('Cash-in date'), { target: { value: '06/10/2026' } })
+    fireEvent.change(within(form).getByLabelText(/^Proof/), {
       target: { files: [new File(['proof'], 'receipt.pdf', { type: 'application/pdf' })] },
     })
-    const form = screen.getByRole('form', { name: 'Record payment' })
     const submit = within(form).getByRole('button', { name: 'Record payment' })
     await waitFor(() => expect(submit).toBeEnabled())
     fireEvent.click(submit)
 
-    expect(await screen.findByText('1 payment recorded · Rp 96.000 total.')).toBeInTheDocument()
+    expect(await screen.findByRole('status')).toHaveTextContent('1 payment recorded · Rp 96.000 total.')
     await waitFor(() => expect(mockRecordPayment).toHaveBeenCalledWith(expect.objectContaining({
       esbCode: 'GKI', branchCode: 'rumah_rames', billNo: 'PB-2', amount: 96000,
       cashInDate: '2026-10-06', proofPath: 'org-1/proof.pdf',
     })))
+    expect(await within(panel).findByRole('link', { name: 'Open private proof' })).toHaveAttribute('href', 'https://proof.example.test/signed')
     const table = screen.getByRole('table', { name: 'Pending bills, oldest first' })
     const updatedRow = within(table).getByRole('button', { name: 'Open bill PB-2' }).closest('tr')
     expect(updatedRow).toBeInTheDocument()
@@ -252,24 +256,74 @@ describe('AC-1135: recording updates the selected row and confirms count plus to
   })
 })
 
-describe('the payment form sheet on phone', () => {
-  it('opens as a bottom sheet and Escape returns focus to its opener', async () => {
+describe('pending-bill record history states', () => {
+  it('shows the shared record loading state while payment history is loading', async () => {
+    mockPaymentHistory.mockReturnValueOnce(new Promise<PendingBillPaymentHistoryEntry[]>(() => {}))
+    renderPage()
+    const openBill = await screen.findByRole('button', { name: 'Open bill PB-2' })
+    fireEvent.click(openBill)
+    const panel = await screen.findByRole('dialog', { name: 'Pending bill PB-2' })
+    expect(within(panel).getByRole('button', { name: 'Record payment' })).toBeInTheDocument()
+    expect(await within(panel).findByRole('status', { name: 'Loading record' })).toBeInTheDocument()
+  })
+
+  it('uses the shared record error state and retries history', async () => {
+    mockPaymentHistory.mockRejectedValueOnce(new Error('offline'))
+    renderPage()
+    const openBill = await screen.findByRole('button', { name: 'Open bill PB-2' })
+    fireEvent.click(openBill)
+    const panel = await screen.findByRole('dialog', { name: 'Pending bill PB-2' })
+    expect(within(panel).getByRole('button', { name: 'Record payment' })).toBeInTheDocument()
+    const alert = await within(panel).findByRole('alert')
+    expect(alert).toHaveTextContent('Payment history could not be loaded.')
+    fireEvent.click(within(alert).getByRole('button', { name: 'Try again' }))
+    expect(await within(panel).findByText('No payments recorded for this bill.')).toBeInTheDocument()
+    expect(mockPaymentHistory).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('the payment form in the record panel at every width', () => {
+  it('stays inline on phone and guards Escape until the draft is discarded', async () => {
     setViewport(false)
     renderPage()
     const openBill = await screen.findByRole('button', { name: 'Open bill PB-2' })
     fireEvent.click(openBill)
-    await screen.findByRole('dialog', { name: 'Pending bill PB-2' })
-    const recordPayment = await screen.findByRole('button', { name: 'Record payment' })
-    fireEvent.click(recordPayment)
-    const sheet = await waitFor(() => {
-      const element = document.querySelector('.modal-shell__surface[data-surface="sheet"]')
-      expect(element).toBeTruthy()
-      return element as HTMLElement
+    const panel = await screen.findByRole('dialog', { name: 'Pending bill PB-2' })
+    fireEvent.click(within(panel).getByRole('button', { name: 'Record payment' }))
+    const form = within(panel).getByRole('form', { name: 'Record payment' })
+    expect(document.querySelector('.modal-shell__surface[data-surface="sheet"]')).toBeNull()
+
+    const amount = within(form).getByLabelText('Amount')
+    fireEvent.change(amount, { target: { value: '10' } })
+    fireEvent.keyDown(amount, { key: 'Escape' })
+    const discard = await screen.findByRole('dialog', { name: 'Discard unsaved changes?' })
+    expect(form).toBeInTheDocument()
+    expect(amount).toHaveValue('10')
+    fireEvent.click(within(discard).getByRole('button', { name: 'Stay on this page' }))
+    expect(within(panel).getByRole('form', { name: 'Record payment' })).toBeInTheDocument()
+
+    fireEvent.keyDown(amount, { key: 'Escape' })
+    const confirm = await screen.findByRole('dialog', { name: 'Discard unsaved changes?' })
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Discard changes' }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Pending bill PB-2' })).toBeNull())
+  })
+
+  it('accepts decimal-comma entry for the exact remaining balance', async () => {
+    mockList.mockResolvedValue([bill({ bill_no: 'PB-2', amount: 96_000.5 })])
+    renderPage()
+    const openBill = await screen.findByRole('button', { name: 'Open bill PB-2' })
+    fireEvent.click(openBill)
+    const panel = await screen.findByRole('dialog', { name: 'Pending bill PB-2' })
+    fireEvent.click(within(panel).getByRole('button', { name: 'Record payment' }))
+    const form = within(panel).getByRole('form', { name: 'Record payment' })
+    fireEvent.change(within(form).getByLabelText('Amount'), { target: { value: '96000,5' } })
+    const today = '06/10/2026'
+    fireEvent.change(within(form).getByLabelText('Cash-in date'), { target: { value: today } })
+    fireEvent.change(within(form).getByLabelText(/^Proof/), {
+      target: { files: [new File(['proof'], 'receipt.pdf', { type: 'application/pdf' })] },
     })
-    expect(sheet).toHaveAttribute('data-phone-mode', 'centered')
-    fireEvent.keyDown(document, { key: 'Escape' })
-    await waitFor(() => expect(document.querySelector('.modal-shell__surface[data-surface="sheet"]')).toBeNull())
-    expect(document.activeElement).toBe(recordPayment)
+    fireEvent.click(within(form).getByRole('button', { name: 'Record payment' }))
+    await waitFor(() => expect(mockRecordPayment).toHaveBeenCalledWith(expect.objectContaining({ amount: 96000.5 })))
   })
 })
 

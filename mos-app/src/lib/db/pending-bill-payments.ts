@@ -21,7 +21,10 @@ interface SchemaClient {
 
 interface StorageBucket {
   upload(path: string, body: Blob, options: { contentType: string; upsert: boolean }): Promise<{ error: { message: string } | null }>
-  createSignedUrl(path: string, expiresIn: number): Promise<{ data: { signedUrl: string } | null; error: { message: string } | null }>
+  createSignedUrls(paths: string[], expiresIn: number): Promise<{
+    data: Array<{ signedUrl?: string | null; error?: string | null } | null> | null
+    error: { message: string } | null
+  }>
 }
 
 interface StorageClient {
@@ -110,14 +113,20 @@ export async function listPendingBillPaymentHistory(
     : await readPeople(actorIds)
   const actorNames = new Map(actors.map((actor) => [actor.id, actor.full_name]))
 
-  return Promise.all(rows.map(async (row) => {
+  const proofPaths = [...new Set(rows.flatMap((row) => row.proof_path == null ? [] : [String(row.proof_path)]))]
+  const signedUrls = new Map<string, string | null>()
+  if (proofPaths.length > 0) {
+    const { data, error } = await storage.from(PENDING_BILL_PROOFS_BUCKET).createSignedUrls(proofPaths, SIGNED_URL_SECONDS)
+    if (error) throw new Error(`listPendingBillPaymentHistory proof failed — ${error.message}`)
+    proofPaths.forEach((path, index) => {
+      const result = data?.[index]
+      if (result?.error) throw new Error(`listPendingBillPaymentHistory proof failed — ${result.error}`)
+      signedUrls.set(path, result?.signedUrl ?? null)
+    })
+  }
+
+  return rows.map((row) => {
     const proofPath = row.proof_path == null ? null : String(row.proof_path)
-    let proofUrl: string | null = null
-    if (proofPath) {
-      const { data, error } = await storage.from(PENDING_BILL_PROOFS_BUCKET).createSignedUrl(proofPath, SIGNED_URL_SECONDS)
-      if (error) throw new Error(`listPendingBillPaymentHistory proof failed — ${error.message}`)
-      proofUrl = data?.signedUrl ?? null
-    }
     return {
       id: String(row.id),
       esbCode: String(row.esb_code),
@@ -127,14 +136,14 @@ export async function listPendingBillPaymentHistory(
       amount: Number(row.amount),
       cashInDate: String(row.cash_in_date),
       proofPath,
-      proofUrl,
+      proofUrl: proofPath ? signedUrls.get(proofPath) ?? null : null,
       note: row.note == null ? null : String(row.note),
       reversalOf: row.reversal_of == null ? null : String(row.reversal_of),
       reversalReason: row.reversal_reason == null ? null : String(row.reversal_reason),
       actorName: actorNames.get(String(row.created_by)) ?? null,
       createdAt: String(row.created_at),
     }
-  }))
+  })
 }
 
 async function readPeople(ids: string[]): Promise<Array<{ id: string; full_name: string }>> {

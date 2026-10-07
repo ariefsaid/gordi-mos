@@ -70,7 +70,7 @@ export function PersonPanel({ person, people, roles, teams, scopeOptions, author
       onClose={close}
       focusKey={person.id}
       initialFocusRef={headingRef}
-      rootClassName="admin-person-panel"
+      rootClassName="admin-person-panel drawer-split--sticky"
     >
       <div className="admin-person">
         {person.email && <p className="admin-person__email">{person.email}</p>}

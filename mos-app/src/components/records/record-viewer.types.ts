@@ -6,17 +6,15 @@
 //
 // Boundaries (docs/plans/2026-07-20-v3-record-viewer.md):
 //   • No universal record table, cross-model DB view, or Supabase import here.
-//   • RecordKind carries only LIVE, distinct domain models — task | signal | follow-up.
-//     There is NO Standard/SOP member: no live Standard/SOP model exists in this checkout,
-//     and inventing a fixture would be a fake proxy. `follow-up` is a real model
-//     (mos.follow_ups / FollowUpRow, with its own money-shaped lifecycle) — it is added
-//     from a real row, exactly the sanctioned "extend from a real model" path.
+//   • RecordKind carries only LIVE, distinct domain models — task | signal | follow-up |
+//     pending-bill | work-line | objective. Each kind is projected from its real model; the
+//     viewer does not invent a universal record table.
 //   • Task ownership vocabulary is PIC/Supervisor — never Responsible/Accountable/
 //     RACI/Consulted/Informed (CONTEXT.md). That translation lives in the Task
 //     adapter's persistence edge, never in this contract.
 import type { ReactNode } from 'react'
 
-export type RecordKind = 'task' | 'signal' | 'follow-up' | 'work-line' | 'objective'
+export type RecordKind = 'task' | 'signal' | 'follow-up' | 'pending-bill' | 'work-line' | 'objective'
 
 export type RecordViewerMode = 'panel' | 'page'
 
