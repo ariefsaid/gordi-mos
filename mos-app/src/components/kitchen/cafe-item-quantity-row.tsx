@@ -1,3 +1,4 @@
+import '@/components/kitchen/cafe-capture-controls.css'
 import { useT } from '@/i18n/use-t'
 import type { CafeReceivableItem } from '@/lib/db/cafe-receipts'
 import { kitchenCategoryLabel } from '@/lib/kitchen-category-label'
@@ -43,6 +44,7 @@ export function CafeItemQuantityRow({
         <div className="cafe-count__quantity-control">
           <input
             id={inputId}
+            className="cafe-capture-quantity-field"
             aria-label={quantityFor}
             type="text"
             inputMode="decimal"
@@ -54,7 +56,7 @@ export function CafeItemQuantityRow({
             disabled={disabled}
             onChange={event => onChange({ quantity: event.target.value })}
           />
-          <span className="cafe-count__unit">{unitName}</span>
+          <span className="cafe-count__unit cafe-capture-unit">{unitName}</span>
         </div>
         {item.units.length > 1 && (
           <button
