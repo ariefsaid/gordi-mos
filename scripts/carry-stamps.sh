@@ -18,6 +18,7 @@ old="${1:?usage: carry-stamps.sh <old-tip-sha> [base-ref]}"
 baseref="${2:-origin/dev}"
 # Pinned: the base certifies "already gated" only because dev and main advance via gated PRs.
 case "$baseref" in origin/dev|origin/main) ;; *) die "base must be origin/dev or origin/main (got '$baseref')" ;; esac
+git rev-parse -q --verify "$baseref^{commit}" >/dev/null || die "$baseref does not resolve — git fetch origin first"
 git rev-parse --verify --quiet "$old^{commit}" >/dev/null || die "old tip '$old' does not resolve"
 new="$(git rev-parse HEAD)"
 [ "$old" != "$new" ] || die "old tip IS HEAD — nothing to carry"
@@ -46,8 +47,9 @@ renumber_only() {
   # Across all those commits, migrations must still apply in the same order.
   [ "$(migration_order "$old")" = "$(migration_order "$new")" ]
 }
-# Filename (text) order is the order Supabase applies migrations in.
-migration_order() { git ls-tree --name-only "$1" supabase/migrations/ | sed 's|.*/||' | LC_ALL=C sort | sed -E 's/^[0-9]+_//'; }
+# Filename order is the order Supabase applies migrations in; git lists tree entries in that order.
+# Compare the files' contents (blob ids) in that order, so no two migrations can trade places.
+migration_order() { git ls-tree "$1" supabase/migrations/ | awk '{print $3}'; }
 # Merging dev in (the house rule: merge, never rebase) also carries: every first-parent commit
 # after the stamped tip is a merge of a base-contained commit whose tree is exactly git's own
 # clean merge — no conflict resolution, no edit riding along.

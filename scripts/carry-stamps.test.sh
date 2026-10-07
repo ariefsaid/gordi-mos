@@ -142,5 +142,17 @@ G3 mv supabase/migrations/20261007000001_base.sql supabase/migrations/2026100700
 if carry "$tmp/r3" "$OLD8" >/dev/null 2>&1; then fail=$((fail+1)); printf '  FAIL  renaming a base migration must refuse\n'
 else pass=$((pass+1)); printf '  ok    renaming a migration the base already has refuses\n'; fi
 
+# Two different migrations with the same name part cannot trade places.
+G3 reset -q --hard "$OLD6"; echo 'select 41;' > "$tmp/r3/supabase/migrations/20261007009860_same.sql"; echo 'select 42;' > "$tmp/r3/supabase/migrations/20261007009870_same.sql"; G3 add -A; G3 commit -qm "two same-named"
+OLD9="$(G3 rev-parse HEAD)"; stamp3 "$OLD9"
+G3 mv supabase/migrations/20261007009860_same.sql supabase/migrations/20261007009880_same.sql; G3 commit -qm "swap same-named"
+if carry "$tmp/r3" "$OLD9" >/dev/null 2>&1; then fail=$((fail+1)); printf '  FAIL  same-named migrations trading places must refuse\n'
+else pass=$((pass+1)); printf '  ok    same-named migrations trading places refuse\n'; fi
+# A missing base ref refuses instead of reading as an empty base.
+G3 reset -q --hard "$OLD9"; stamp3 "$OLD9"; G3 update-ref -d refs/remotes/origin/dev
+G3 mv supabase/migrations/20261007009870_same.sql supabase/migrations/20261007009890_same.sql; G3 commit -qm "renumber"
+if (cd "$tmp/r3" && bash "$SCRIPT" "$OLD9" origin/dev) >/dev/null 2>&1; then fail=$((fail+1)); printf '  FAIL  a missing origin/dev must refuse\n'
+else pass=$((pass+1)); printf '  ok    a missing origin/dev refuses\n'; fi
+
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
