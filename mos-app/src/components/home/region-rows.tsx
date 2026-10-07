@@ -15,16 +15,23 @@ export function RegionCount({ region, className }: { region: HomeRegion; classNa
   )
 }
 
-/** The canonical destination for a region. The task label carries both the capped visible count
- * and the destination's open total so List cannot make 6 shown look like 9 rendered. */
-export function RegionDrillLink({ region, shown = region.items.length }: { region: HomeRegion; shown?: number }) {
+/** The canonical destination for a region, with visible and open counts plus any remainder. */
+export function RegionDrillLink({ region, shown = region.items.length, more }: {
+  region: HomeRegion
+  shown?: number
+  more?: number
+}) {
   const t = useT()
   if (!region.drillTo) return null
-  const label = region.drillTo.count != null
-    ? t('home.stream.allTasks', { shown, count: region.drillTo.count })
-    : region.id === 'failed-checks'
-      ? t('home.brief.reviewChecks')
-      : t('home.brief.viewTasks')
+  const label = more != null
+    ? region.drillTo.count != null
+      ? t('home.stream.allTasksMore', { shown, count: region.drillTo.count, more })
+      : t('home.region.moreTarget', { shown, count: more, label: t(region.labelKey) })
+    : region.drillTo.count != null
+      ? t('home.stream.allTasks', { shown, count: region.drillTo.count })
+      : region.id === 'failed-checks'
+        ? t('home.brief.reviewChecks')
+        : t('home.brief.viewTasks')
   return (
     <Link to={region.drillTo.route} className="stream-band-link tap-floor">
       {label}

@@ -251,7 +251,7 @@ beforeEach(() => {
   mockGetBUs.mockResolvedValue([])
   mockGetPeople.mockResolvedValue([])
   mockGetRoles.mockResolvedValue([])
-  mockListNotifications.mockResolvedValue([])
+  mockListNotifications.mockResolvedValue({ rows: [], hasMore: false, nextCursor: null })
   mockLoadFailedChecks.mockResolvedValue([])
   mockListSignals.mockResolvedValue([])
   mockListAllTeams.mockResolvedValue([])
@@ -635,7 +635,7 @@ describe('OD-WAY-93: failed checks follow Café affiliation, not generic route a
       mockGetBUs.mockResolvedValue([])
       mockGetPeople.mockResolvedValue([])
       mockGetRoles.mockResolvedValue([])
-      mockListNotifications.mockResolvedValue([])
+      mockListNotifications.mockResolvedValue({ rows: [], hasMore: false, nextCursor: null })
       mockLoadFailedChecks.mockResolvedValue([failedCheck])
       mockListSignals.mockResolvedValue([])
       mockListAllTeams.mockResolvedValue([])
@@ -771,6 +771,57 @@ describe('Home task regions preserve decision context and collection doors', () 
     expect(within(myWork).getByText('Clean grinder')).toBeInTheDocument()
     expect(within(myWork).getByRole('link', { name: /2 shown · 7 open/i }))
       .toHaveAttribute('href', '/work/tasks?view=my-work')
+  })
+
+  it('shows the exact My Work remainder after the seven-row Home cap in both locales', async () => {
+    const viewerId = financeViewer.viewer.person.id
+    const tasks = Array.from({ length: 8 }, (_, index) => ({
+      ...overdueTaskRow(viewerId),
+      id: `t-open-${index + 1}`,
+      title: `Open task ${index + 1}`,
+      due_date: null,
+      status: 'Open' as const,
+    }))
+    mockListTasks.mockResolvedValue(tasks)
+    sharedCount.value = tasks.length
+    setHomeLayout(viewerId, 'focused')
+
+    const english = await renderHome(financeViewer, 'en')
+    await userEvent.setup().click(await screen.findByRole('tab', { name: /^My open work/ }))
+    const englishRegion = await screen.findByRole('tabpanel', { name: /^My open work/ })
+    expect(within(englishRegion).getByText('Open task 7')).toBeInTheDocument()
+    expect(within(englishRegion).getAllByText(/^Open task /)).toHaveLength(7)
+    expect(within(englishRegion).queryByText('Open task 8')).toBeNull()
+    const englishMore = within(englishRegion).getByRole('link', { name: '7 shown · 8 open · 1 more →' })
+    expect(englishMore).toHaveTextContent('7 shown · 8 open · 1 more →')
+    expect(englishMore).toHaveAttribute('href', '/work/tasks?view=my-work')
+    english.unmount()
+
+    const indonesian = await renderHome(financeViewer, 'id')
+    await userEvent.setup().click(await screen.findByRole('tab', { name: /^Pekerjaan aktif saya/ }))
+    const indonesianRegion = await screen.findByRole('tabpanel', { name: /^Pekerjaan aktif saya/ })
+    const indonesianMore = within(indonesianRegion).getByRole('link', { name: '7 ditampilkan · 8 terbuka · 1 lagi →' })
+    expect(indonesianMore).toHaveTextContent('7 ditampilkan · 8 terbuka · 1 lagi →')
+    expect(indonesianMore).toHaveAttribute('href', '/work/tasks?view=my-work')
+    indonesian.unmount()
+  })
+
+  it('has no My Work remainder at exactly the seven-row display boundary', async () => {
+    const viewerId = financeViewer.viewer.person.id
+    const tasks = Array.from({ length: 7 }, (_, index) => ({
+      ...overdueTaskRow(viewerId),
+      id: `t-open-${index + 1}`,
+      title: `Open task ${index + 1}`,
+      due_date: null,
+      status: 'Open' as const,
+    }))
+    mockListTasks.mockResolvedValue(tasks)
+    setHomeLayout(viewerId, 'focused')
+    await renderHome(financeViewer)
+    await userEvent.setup().click(await screen.findByRole('tab', { name: /^My open work/ }))
+    const myWork = await screen.findByRole('tabpanel', { name: /^My open work/ })
+    expect(within(myWork).getAllByText(/^Open task /)).toHaveLength(7)
+    expect(within(myWork).queryByRole('link', { name: /more in My open work/i })).toBeNull()
   })
 
   it('keeps attention ahead of My work in document order', async () => {

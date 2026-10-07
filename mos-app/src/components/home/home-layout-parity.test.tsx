@@ -58,6 +58,11 @@ const cappedRegions = buildHomeRegions({
   failedChecks: many('failed-', 6),
   failedChecksAdmitted: true,
 })
+const overflowRegions = buildHomeRegions({
+  overdue: [], dueToday: [], blocked: [],
+  myWork: many('mine-', 7), myWorkTotalItemCount: 9, myWorkFullCount: 9,
+  failedChecks: [], failedChecksAdmitted: true,
+})
 const allRecordIds = cappedRegions.flatMap((region) => region.items.map((entry) => entry.id))
 const recordHref = /^\/work\/tasks\/[^?]+$/
 
@@ -75,9 +80,9 @@ const regionRoutes: Record<HomeRegionId, string> = {
 
 const feed = <div data-testid="signals-feed">Signals feed</div>
 
-function renderLayout(node: React.ReactNode) {
+function renderLayout(node: React.ReactNode, locale: 'en' | 'id' = 'en') {
   return render(
-    <I18nProvider>
+    <I18nProvider initialLocale={locale}>
       <MemoryRouter>{node}</MemoryRouter>
     </I18nProvider>,
   )
@@ -117,6 +122,30 @@ describe('Home layout parity (NFR-924, FR-927, FR-928)', () => {
       )
       unmount()
     }
+  })
+
+  it('shows the uncropped task remainder in Focused, Overview, and List in both locales', async () => {
+    const user = userEvent.setup()
+    const layouts = [
+      [<HomeFocused key="focused" regions={overflowRegions} feed={feed} />, 'focused', '7 shown · 9 open · 2 more →'],
+      [<HomeOverview key="overview" regions={overflowRegions} feed={feed} />, 'overview', '5 shown · 9 open · 4 more →'],
+      [<HomeList key="list" regions={overflowRegions} feed={feed} />, 'list', '7 shown · 9 open · 2 more →'],
+    ] as const
+
+    for (const [node, layout, accessibleName] of layouts) {
+      const { container, unmount } = renderLayout(node)
+      if (layout === 'focused') await user.click(screen.getByRole('tab', { name: /my open work/i }))
+      const link = await screen.findByRole('link', { name: accessibleName })
+      expect(container.querySelector('[data-home-region="my-work"]')
+        ?.querySelectorAll('a[href="/work/tasks?view=my-work"]')).toHaveLength(1)
+      expect(link).toHaveTextContent(accessibleName)
+      expect(link).toHaveAttribute('href', '/work/tasks?view=my-work')
+      unmount()
+    }
+
+    renderLayout(<HomeList regions={overflowRegions} feed={feed} />, 'id')
+    const indonesianLink = await screen.findByRole('link', { name: '7 ditampilkan · 9 terbuka · 2 lagi →' })
+    expect(indonesianLink).toHaveClass('tap-floor')
   })
 
   it('AC-928: all three layouts name every empty region and show its zero count', () => {
@@ -245,14 +274,11 @@ describe('Home layout parity (NFR-924, FR-927, FR-928)', () => {
           .filter((href) => recordHref.test(href))
         const hidden = region.items.length - rendered.length
         expect(hidden).toBeGreaterThan(0)
-        if (region.drillTo!.count != null) {
-          expect(within(tile).getByRole('link', {
-            name: new RegExp(`${rendered.length} shown · ${region.drillTo!.count} open`, 'i'),
-          })).toBeInTheDocument()
-        }
-        const through = within(tile).getByRole('link', {
-          name: new RegExp(`${hidden} more in ${regionLabels[region.id]}`, 'i'),
-        })
+        const throughName = region.drillTo!.count != null
+          ? new RegExp(`${rendered.length} shown · ${region.drillTo!.count} open · ${hidden} more`, 'i')
+          : new RegExp(`${rendered.length} shown · ${hidden} more in ${regionLabels[region.id]}`, 'i')
+        const through = within(tile).getByRole('link', { name: throughName })
+        expect(within(tile).getAllByRole('link', { name: throughName })).toHaveLength(1)
         expect(through).toHaveAttribute('href', regionRoutes[region.id])
       }
       unmount()

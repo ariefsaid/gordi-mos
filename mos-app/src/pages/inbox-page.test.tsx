@@ -31,6 +31,10 @@ function hookState(overrides: Partial<UseNotifications> = {}): UseNotifications 
     unreadCount: 0,
     loading: false,
     error: null,
+    hasMore: false,
+    loadingMore: false,
+    loadMoreError: false,
+    loadMore: vi.fn().mockResolvedValue(undefined),
     markRead: vi.fn(),
     markHandled: vi.fn(),
     refresh: vi.fn(),
@@ -127,6 +131,37 @@ describe('InboxPage — shared state kit', () => {
     expect(screen.getByRole('list', { name: /inbox/i })).toBeInTheDocument()
     expect(container.querySelector('.content-header')).not.toBeNull()
     expect(container.querySelector('main')?.style.backgroundImage).toBe('')
+  })
+
+  it('keeps loaded Inbox rows visible and offers a localized continuation when another page exists', () => {
+    const loadMore = vi.fn().mockResolvedValue(undefined)
+    mockUseNotifications.mockReturnValue(hookState({
+      notifications: [notification()],
+      hasMore: true,
+      loadMore,
+    }))
+    renderPage('id')
+
+    expect(screen.getByText('1 item dimuat')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Muat lebih banyak' }))
+    expect(loadMore).toHaveBeenCalledOnce()
+    expect(screen.getByRole('button', { name: 'Muat lebih banyak' })).toBeInTheDocument()
+  })
+
+  it('preserves the Inbox rows and offers localized retry after a continuation error', () => {
+    const loadMore = vi.fn().mockResolvedValue(undefined)
+    mockUseNotifications.mockReturnValue(hookState({
+      notifications: [notification()],
+      hasMore: true,
+      loadMoreError: true,
+      loadMore,
+    }))
+    renderPage('id')
+
+    expect(screen.getByRole('button', { name: /Task assigned/ })).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('Tidak dapat memuat lagi.')
+    fireEvent.click(screen.getByRole('button', { name: /coba lagi/i }))
+    expect(loadMore).toHaveBeenCalledOnce()
   })
 
   it('AC-051: two unread mentions share the Unread count and appear under All and Unread', () => {

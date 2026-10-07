@@ -161,6 +161,22 @@ jobs:
           grep -q 'seed.sample-org-money: refused' refusal.log || { cat refusal.log; exit 1; }
           supabase test db supabase/tests/reporting_08_sample_money_seed.sql
 
+      # The sample-org ESB catalog load is tested by a file that includes the seed, which pgTAP
+      # cannot do (see the Money step above), so it runs here in the DB container, rollback-only.
+      - name: Sample-org ESB catalog seed — copy, rerun and refusals (rollback-only)
+        if: steps.scope.outputs.render == 'true'
+        run: |
+          db="supabase_db_$(sed -n 's/^project_id *= *"\(.*\)"/\1/p' supabase/config.toml | head -1)"
+          docker cp supabase/seed.sample-org-esb-catalog.sql "$db:/tmp/seed.sample-org-esb-catalog.sql"
+          docker exec "$db" mkdir -p /tmp/seed-tests
+          docker cp supabase/seed-tests/ops_28_sample_org_esb_catalog.sql "$db:/tmp/seed-tests/ops_28_sample_org_esb_catalog.sql"
+          out=$(docker exec "$db" psql -U postgres -d postgres -X -A -t -v ON_ERROR_STOP=1 -f /tmp/seed-tests/ops_28_sample_org_esb_catalog.sql) \
+            || { printf '%s\n' "$out"; exit 1; }
+          printf '%s\n' "$out"
+          printf '%s\n' "$out" | grep -Fxq '1..36'
+          test "$(printf '%s\n' "$out" | grep -Ec '^ok [0-9]+ -')" -eq 36
+          if printf '%s\n' "$out" | grep -q '^not ok '; then exit 1; fi
+
       # #393. Everything above starts from nothing, so every conditional migration has a branch
       # CI structurally cannot reach. This builds a database from the DEPLOYED commit's tree,
       # runs the real migration chain over it, and asserts the result is indistinguishable from

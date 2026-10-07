@@ -2,13 +2,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, waitFor, act } from '@testing-library/react'
 import { useNotifications } from './useNotifications'
 import { announceUnreadCountChanged } from './unread-count-bus'
-import type { NotificationRow } from '@/lib/db/notifications'
+import type { NotificationCursor, NotificationPage, NotificationRow } from '@/lib/db/notifications'
 
 const mockList = vi.fn()
 const mockMark = vi.fn()
 const mockHandle = vi.fn()
 vi.mock('@/lib/db/notifications', () => ({
-  listNotifications: () => mockList(),
+  listNotifications: (cursor?: NotificationCursor) => Promise.resolve(mockList(cursor)).then((value) =>
+    Array.isArray(value) ? { rows: value, hasMore: false, nextCursor: null } : value,
+  ),
   markNotificationRead: (id: string, at: string) => mockMark(id, at),
   markNotificationHandled: (id: string, at: string, readAt: string | null) => mockHandle(id, at, readAt),
 }))
@@ -16,6 +18,10 @@ vi.mock('@/lib/db/notifications', () => ({
 vi.mock('./unread-count-bus', () => ({
   announceUnreadCountChanged: vi.fn(),
 }))
+
+function notificationPage(rows: NotificationRow[], hasMore = false, nextCursor: NotificationCursor | null = null): NotificationPage {
+  return { rows, hasMore, nextCursor }
+}
 
 function row(id: string, read: boolean, created: string): NotificationRow {
   return {
@@ -80,6 +86,45 @@ describe('useNotifications (AC-P3-IB-002/003)', () => {
 
     expect(result.current.unreadCount).toBe(1) // reverted
     expect(result.current.notifications[0].read_at).toBeNull()
+  })
+
+  it('appends the next page and advances the stable cursor', async () => {
+    const first = row('first', false, '2026-07-02T00:00:00Z')
+    const second = row('second', false, '2026-07-03T00:00:00Z')
+    const cursor = { created_at: first.created_at, id: first.id }
+    mockList.mockResolvedValueOnce(notificationPage([first], true, cursor))
+    mockList.mockResolvedValueOnce(notificationPage([second]))
+    const { result } = renderHook(() => useNotifications())
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    expect(result.current.hasMore).toBe(true)
+    await act(async () => { await result.current.loadMore() })
+
+    expect(mockList).toHaveBeenNthCalledWith(2, cursor)
+    expect(result.current.notifications.map((n) => n.id).sort()).toEqual(['first', 'second'])
+    expect(result.current.hasMore).toBe(false)
+    expect(result.current.loadingMore).toBe(false)
+  })
+
+  it('keeps the current page and cursor after a load-more failure so retry can continue', async () => {
+    const first = row('first', false, '2026-07-02T00:00:00Z')
+    const second = row('second', false, '2026-07-03T00:00:00Z')
+    const cursor = { created_at: first.created_at, id: first.id }
+    mockList.mockResolvedValueOnce(notificationPage([first], true, cursor))
+    mockList.mockRejectedValueOnce(new Error('offline'))
+    const { result } = renderHook(() => useNotifications())
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    await act(async () => { await result.current.loadMore() })
+
+    expect(result.current.notifications.map((n) => n.id)).toEqual(['first'])
+    expect(result.current.hasMore).toBe(true)
+    expect(result.current.loadMoreError).toBe(true)
+    mockList.mockResolvedValueOnce(notificationPage([second]))
+    await act(async () => { await result.current.loadMore() })
+    expect(mockList).toHaveBeenNthCalledWith(3, cursor)
+    expect(result.current.notifications.map((n) => n.id).sort()).toEqual(['first', 'second'])
+    expect(result.current.loadMoreError).toBe(false)
   })
 
   it('surfaces a load error without throwing', async () => {
