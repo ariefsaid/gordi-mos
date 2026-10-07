@@ -295,7 +295,9 @@ export function OverlayHostProvider({
         frames[topIndex] = { ...frames[topIndex], marker }
       }
       const path = location.pathname + location.search
-      navigate(path, { state: withOverlayMarker(location.state, marker), replace })
+      // flushSync: the marker location must commit before a Back can land, or the pop effect
+      // sees a location equal to the last committed one and never closes the session.
+      navigate(path, { state: withOverlayMarker(location.state, marker), replace, flushSync: true })
     },
     [driver, navigate, location.pathname, location.search, location.state],
   )
