@@ -1,3 +1,5 @@
+import { WIB_OFFSET_MS } from '@/lib/format/date'
+
 export interface WibDateTimeParts {
   date: string
   time: string
@@ -45,7 +47,8 @@ export function signalOccurredAtIsoFromWib(date: string, time: string): string |
 
   const utcDate = new Date(0)
   utcDate.setUTCFullYear(year, month - 1, day)
-  utcDate.setUTCHours(hour - 7, minute, 0, 0)
+  utcDate.setUTCHours(hour, minute, 0, 0)
+  utcDate.setTime(utcDate.getTime() - WIB_OFFSET_MS)
   if (!Number.isFinite(utcDate.getTime())) return null
 
   const iso = utcDate.toISOString()

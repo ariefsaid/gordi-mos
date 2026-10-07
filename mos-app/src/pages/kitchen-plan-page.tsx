@@ -74,16 +74,8 @@ import {
   type KitchenListRow,
 } from '@/lib/kitchen-item-list'
 import { usePlanSummary } from '@/lib/kitchen-plan-kpis'
-import { formatWeekdayDayMonth } from '@/lib/format/date'
+import { formatWeekdayDayMonth, wibToday } from '@/lib/format/date'
 import './kitchen-plan-page.css'
-
-// WIB "today" as YYYY-MM-DD (fixed +7h offset, NFR-007) — matches the other Café pages.
-function wibToday(): string {
-  const WIB_OFFSET_MS = 7 * 60 * 60 * 1000
-  const shifted = new Date(Date.now() + WIB_OFFSET_MS)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}-${pad(shifted.getUTCDate())}`
-}
 
 type LoadState = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready' }
 
