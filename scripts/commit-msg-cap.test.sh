@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Self-test for .githooks/commit-msg — the 20-line essay cap; subject, comments and trailers free.
+# Self-test for .githooks/commit-msg — the 20-line essay cap (subject, comments and trailers free)
+# and the refusal of a Claude co-author trailer.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 HOOK="$(pwd)/.githooks/commit-msg"
@@ -26,7 +27,7 @@ $(seq 1 25 | sed 's/^/body line /')"
 check "21+ body lines refused" 1 "$long"
 trailered="fix: ok
 $(seq 1 19 | sed 's/^/l /')
-Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
+Co-Authored-By: Pat Example <pat@example.com>
 Signed-off-by: x <x@x>"
 check "trailers don't count against the cap" 0 "$trailered"
 commented="fix: ok
@@ -39,6 +40,22 @@ Fixes: #123
 Refs: OD-WAY-80
 $(seq 1 4 | sed 's/^/m /')"
 check "generic Token: trailers exempt" 0 "$generic"
+
+check "Claude co-author trailer refused" 1 "fix: ok
+
+Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
+check "lower-case Claude co-author trailer refused" 1 "fix: ok
+
+co-authored-by: claude <x@y>"
+check "Anthropic co-author trailer refused" 1 "fix: ok
+
+Co-Authored-By: Fable 5 <noreply@anthropic.com>"
+check "a body line quoting the rule mid-sentence passes" 0 "fix: ok
+
+the rule is: never add Co-Authored-By: Claude to a commit"
+check "a human co-author passes" 0 "fix: ok
+
+Co-Authored-By: Pat Example <pat@example.com>"
 
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
