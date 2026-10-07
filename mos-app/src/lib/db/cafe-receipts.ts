@@ -202,26 +202,43 @@ export async function listCafeOpenPoIdentities(branchId: string): Promise<CafeOp
   return { asOf: cache.as_of as string | null, isCurrent: cache.is_current, purchaseOrders }
 }
 
+type CafeReceiptListOptions = {
+  /** Only these receipts, when given. */
+  ids?: readonly string[]
+  receivedBy?: string
+  limit?: number
+  /** Statuses whose photos are read and signed; a surface asks only for the photos it shows. */
+  photosFor?: readonly CafeReceiptStatus[]
+}
+
 /** Receipts the viewer may read, newest first; RLS returns their own and the streams they review. */
-export async function listCafeReceipts(
+export async function listCafeReceipts(statuses: readonly CafeReceiptStatus[], options: CafeReceiptListOptions = {}): Promise<CafeReceipt[]> {
+  return (await readCafeReceipts(statuses, options)).receipts
+}
+
+/**
+ * FR-1044: Counted receipts not yet sent for review, oldest first, so the limit drops the newest
+ * and `more` says how many. A receiver holds at most one Counted receipt per branch, so the
+ * count stays small.
+ */
+export async function listCafeUnsentReceipts(): Promise<{ receipts: CafeReceipt[]; more: number }> {
+  const { receipts, total } = await readCafeReceipts(['Counted'], { photosFor: [] }, { oldestFirst: true, count: true })
+  return { receipts, more: Math.max(0, (total ?? receipts.length) - receipts.length) }
+}
+
+async function readCafeReceipts(
   statuses: readonly CafeReceiptStatus[],
-  { ids, receivedBy, limit = 50, photosFor = statuses }: {
-    /** Only these receipts, when given. */
-    ids?: readonly string[]
-    receivedBy?: string
-    limit?: number
-    /** Statuses whose photos are read and signed; a surface asks only for the photos it shows. */
-    photosFor?: readonly CafeReceiptStatus[]
-  } = {},
-): Promise<CafeReceipt[]> {
+  { ids, receivedBy, limit = 50, photosFor = statuses }: CafeReceiptListOptions,
+  { oldestFirst = false, count = false } = {},
+): Promise<{ receipts: CafeReceipt[]; total: number | null }> {
   let query = ops()
     .from('cafe_receipts')
-    .select(RECEIPT_FIELDS)
+    .select(RECEIPT_FIELDS, count ? { count: 'exact' } : undefined)
     .in('status', [...statuses])
   if (ids) query = query.in('id', [...ids])
   if (receivedBy) query = query.eq('received_by', receivedBy)
-  const { data, error } = await query
-    .order('received_at', { ascending: false })
+  const { data, error, count: total } = await query
+    .order('received_at', { ascending: oldestFirst })
     .limit(limit)
   if (error) throw new Error(`listCafeReceipts failed: ${error.message}`)
   const receipts = ((data ?? []) as unknown as Array<Record<string, unknown>>).map(row => {
@@ -260,11 +277,14 @@ export async function listCafeReceipts(
       for (const receipt of chunk) unavailable.add(receipt.id)
     }
   }))
-  return receipts.map(receipt => ({
-    ...receipt,
-    photosUnavailable: unavailable.has(receipt.id),
-    lines: receipt.lines.map(line => ({ ...line, photos: photosByLine.get(line.id) ?? [] })),
-  }))
+  return {
+    total: total ?? null,
+    receipts: receipts.map(receipt => ({
+      ...receipt,
+      photosUnavailable: unavailable.has(receipt.id),
+      lines: receipt.lines.map(line => ({ ...line, photos: photosByLine.get(line.id) ?? [] })),
+    })),
+  }
 }
 
 function parseCafeReceiptLine(line: Record<string, unknown>): CafeReceiptLine {
