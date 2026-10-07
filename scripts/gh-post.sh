@@ -173,6 +173,18 @@ require_pr_stamps() { # $1 base branch ('' when none named)
   done
 }
 
+# Reuse-first (CLAUDE.md "Reuse before build"): a PR body names what it reused, on a line that
+# starts "Reused:" (anything new is justified there too). Checked on PRs into dev, where new work
+# enters; release and promotion PRs carry work already reviewed that way.
+require_reused_line() {
+  local t
+  for t in "${texts[@]}"; do
+    printf '%s\n' "$t" | sed -E '1s/^(-[fF]|--(raw-)?field=)?body=//' \
+      | grep -Eiq '^[[:space:]]*(\*\*)?Reused(\*\*)?:' && return 0
+  done
+  die "the PR body has no 'Reused:' line — name the existing components, helpers, tests or patterns you reused (and why anything new was needed)"
+}
+
 if [ "$verb1" = "pr" ] && [ "$verb2" = "create" ]; then
   for a in "$@"; do
     case "$a" in
@@ -206,6 +218,7 @@ if [ "$verb1" = "pr" ] && [ "$verb2" = "create" ]; then
     base_val="$candidate" base_seen=1
   done
   require_pr_stamps "$base_val"
+  [ "$base_val" = dev ] && require_reused_line
 fi
 
 if [ "$verb1" = "api" ]; then
@@ -225,6 +238,7 @@ if [ "$verb1" = "api" ]; then
     [ -n "$branch" ] && { [ "$head_val" = "$branch" ] || [ "$head_val" = "${this_repo%%/*}:$branch" ]; } \
       || die "REST PR create must name head=<this checkout's branch> ('$branch') — the stamps certify HEAD here"
     require_pr_stamps "$base_val"
+  [ "$base_val" = dev ] && require_reused_line
   fi
 fi
 
