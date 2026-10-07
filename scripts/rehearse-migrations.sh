@@ -6,8 +6,8 @@
 #
 # A directory means its newest *.dump by name (db-backup.sh stamps each name with UTC time).
 # The image is $REHEARSAL_PG_IMAGE, else the image of the local Supabase stack's database.
-# Cloud-only platform owners and event triggers are omitted from the archive TOC. Roles referenced
-# by project grants are created (NOLOGIN) and the filtered dump is restored again into a fresh database.
+# Event triggers and their dependent TOC entries are omitted. Missing owners are created (NOLOGIN)
+# after the initial restore attempt, then the filtered dump is restored again into a fresh database.
 # Each migration is applied in one transaction, stopping at the first error.
 #
 # Exit 0: every migration applied. 1: a migration failed. 2: the rehearsal could not run (no
@@ -40,11 +40,8 @@ if [ -z "$image" ]; then
 fi
 
 toc_dir="$(mktemp -d -t mos-rehearsal-toc.XXXXXX)"
-chmod 755 "$toc_dir"
-toc="$toc_dir/archive.list" filtered="$toc_dir/filtered.list"
-present="$toc_dir/present-roles" owners="$toc_dir/owners" missing_roles="$toc_dir/missing-roles" skipped="$toc_dir/skipped"
-: > "$toc"; : > "$filtered"; : > "$present"; : > "$owners"; : > "$missing_roles"; : > "$skipped"
-chmod 644 "$toc" "$filtered" "$present" "$owners" "$missing_roles" "$skipped"
+toc="$toc_dir/archive.list" filtered="$toc_dir/filtered.list" skipped="$toc_dir/skipped"
+: > "$toc"; : > "$filtered"; : > "$skipped"
 
 ctr="mos-rehearsal-$$-${RANDOM}"
 pw="$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
@@ -74,19 +71,14 @@ pg() { local tool="$1"; shift; docker exec -i -e PGPASSWORD="$pw" "$ctr" "$tool"
 if ! pg pg_restore -l /rehearsal/source.dump > "$toc" 2>/dev/null; then
   setup_fail "could not list the dump contents"
 fi
-# Global roles are absent from database dumps; derive cloud-only owners by comparing the TOC to pg_roles.
-pg psql -d postgres -X -At -v ON_ERROR_STOP=1 -c 'select rolname from pg_roles' > "$present"
-awk '!/^;/ && /^[[:space:]]*[0-9]+;/ && NF > 1 && $NF != "-" { print $NF }' "$toc" | sort -u > "$owners"
-while IFS= read -r role; do
-  [ -n "$role" ] || continue
-  grep -Fxq -- "$role" "$present" || printf '%s\n' "$role" >> "$missing_roles"
-done < "$owners"
 awk -v skipped_file="$skipped" '
-  FILENAME == ARGV[1] { if ($0 != "") missing[$0] = 1; next }
   {
     if ($0 ~ /^;/ || $0 !~ /^[[:space:]]*[0-9]+;/) { print; next }
-    skip = ($4 == "EVENT" && $5 == "TRIGGER") || ($NF != "-" && ($NF in missing))
-    if (skip) {
+    event_trigger = ($4 == "EVENT" && $5 == "TRIGGER")
+    event_trigger_detail = ($4 == "COMMENT" && $6 == "EVENT" && $7 == "TRIGGER") ||
+      ($4 == "ACL" && $5 == "-" && $6 == "EVENT" && $7 == "TRIGGER") ||
+      ($4 == "SECURITY" && $5 == "LABEL" && $6 == "-" && $7 == "EVENT" && $8 == "TRIGGER")
+    if (event_trigger || event_trigger_detail) {
       label = ""
       for (i = 4; i < NF; i++) label = label (label == "" ? "" : " ") $i
       if (label != "") print label >> skipped_file
@@ -94,8 +86,7 @@ awk -v skipped_file="$skipped" '
     }
     print
   }
-' "$missing_roles" "$toc" > "$filtered"
-chmod 644 "$filtered" "$skipped"
+' "$toc" > "$filtered"
 skipped_count="$(wc -l < "$skipped" | tr -d '[:space:]')"
 skipped_names=""
 while IFS= read -r entry; do
@@ -103,9 +94,9 @@ while IFS= read -r entry; do
   skipped_names="${skipped_names:+$skipped_names; }$entry"
 done < "$skipped"
 if [ "$skipped_count" -gt 0 ]; then
-  say "Rehearsal: skipped $skipped_count platform-owned TOC entries: $skipped_names"
+  say "Rehearsal: skipped $skipped_count event-trigger TOC entries: $skipped_names"
 else
-  say "Rehearsal: skipped 0 platform-owned TOC entries."
+  say "Rehearsal: skipped 0 event-trigger TOC entries."
 fi
 
 restore() {

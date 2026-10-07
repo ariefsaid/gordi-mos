@@ -89,26 +89,29 @@ run_rehearsal() {
   rc=$?
 }
 
-printf '; Archive created by rehearsal test\n; Selected TOC Entries:\n1; 1259 10 TABLE public project_table postgres\n2; 1259 11 TABLE public cloud_owned_table platform_superuser\n3; 3466 12 EVENT TRIGGER public platform_event postgres\n4; 0 20 TABLE DATA public project_table postgres\n' > "$tmp/archive.list"
+printf '; Archive created by pg_dump 17\n; Selected TOC Entries:\n2; 3079 16386 EXTENSION - pgcrypto \n3464; 0 0 COMMENT - EXTENSION pgcrypto \n218; 1259 16423 TABLE public project_table rehearsal_project_owner\n3465; 0 0 ACL public TABLE project_table rehearsal_project_owner\n3457; 0 16423 TABLE DATA public project_table rehearsal_project_owner\n3311; 3466 16427 EVENT TRIGGER - ensure_rls postgres\n3466; 0 0 COMMENT - EVENT TRIGGER ensure_rls postgres\n' > "$tmp/archive.list"
 run_rehearsal
-if [ "$rc" -eq 0 ]; then ok "the rehearsal accepts a dump with platform-owned entries"; else bad "the rehearsal exits $rc for platform-owned entries"; printf '%s\n' "$out" | sed 's/^/        /'; fi
+if [ "$rc" -eq 0 ]; then ok "the rehearsal accepts real pg_restore TOC shapes"; else bad "the rehearsal exits $rc for real pg_restore TOC shapes"; printf '%s\n' "$out" | sed 's/^/        /'; fi
 if has "$log" 'pg_restore -L /rehearsal/toc/filtered.list' && [ -s "$tmp/restored.list" ]; then
   ok "restore uses the filtered TOC list"
 else
   bad "restore does not use pg_restore -L with the filtered TOC"
 fi
-if [ -s "$tmp/restored.list" ] && has "$tmp/restored.list" 'TABLE public project_table postgres' \
-   && has "$tmp/restored.list" 'TABLE DATA public project_table postgres' \
-   && ! has "$tmp/restored.list" 'cloud_owned_table' && ! has "$tmp/restored.list" 'EVENT TRIGGER'; then
-  ok "platform-owned and event-trigger entries are dropped while project entries stay"
+if [ -s "$tmp/restored.list" ] && has "$tmp/restored.list" 'EXTENSION - pgcrypto ' \
+   && has "$tmp/restored.list" 'COMMENT - EXTENSION pgcrypto' \
+   && has "$tmp/restored.list" 'TABLE public project_table rehearsal_project_owner' \
+   && has "$tmp/restored.list" 'ACL public TABLE project_table rehearsal_project_owner' \
+   && has "$tmp/restored.list" 'TABLE DATA public project_table rehearsal_project_owner' \
+   && ! has "$tmp/restored.list" 'EVENT TRIGGER'; then
+  ok "extensions and missing-owner project objects stay; event-trigger entries are removed"
 else
-  bad "filtered TOC did not retain only project entries"
+  bad "filtered TOC did not retain extensions and project objects while removing trigger dependencies"
 fi
 if [ -s "$tmp/restored.list" ] && has_text "$out" 'skipped 2' \
-   && has_text "$out" 'cloud_owned_table' && has_text "$out" 'platform_event'; then
-  ok "the skip report gives the count and names"
+   && has_text "$out" 'ensure_rls'; then
+  ok "the skip report gives the count and event-trigger name"
 else
-  bad "skip report omits its count or an entry name"
+  bad "skip report omits its count or event-trigger name"
 fi
 
 printf '; Archive created by rehearsal test\n; Selected TOC Entries:\n1; 1259 10 TABLE public project_table postgres\n4; 0 20 TABLE DATA public project_table postgres\n' > "$tmp/archive.list"
