@@ -105,5 +105,23 @@ G3 mv supabase/migrations/20261007009850_z.sql supabase/migrations/2026100700995
 if (cd "$tmp/r3" && bash "$SCRIPT" "$OLD6" dev) >/dev/null 2>&1; then fail=$((fail+1)); printf '  FAIL  a swap split across two renumber commits must refuse\n'
 else pass=$((pass+1)); printf '  ok    a swap split across two renumber commits refuses\n'; fi
 
+# Merging dev into the stamped tip (the house rule: merge, never rebase) carries when the merge
+# is exactly git's own clean merge; a merge that also edits something refuses.
+git init -q -b dev "$tmp/r4"
+G4() { git -C "$tmp/r4" -c user.email=t@t -c user.name=t "$@"; }
+echo base > "$tmp/r4/a"; G4 add a; G4 commit -qm base
+G4 checkout -qb feat; echo f > "$tmp/r4/f"; G4 add f; G4 commit -qm feat
+OLD7="$(G4 rev-parse HEAD)"; gd4="$(G4 rev-parse --absolute-git-dir)"
+stamp4() { printf '%s' "$1" > "$gd4/pre-pr-verify-ok"; for l in spec code-quality security; do printf '%s %s rev now art\n' "$1" "$l" > "$gd4/independent-review-$l-ok"; done; }
+stamp4 "$OLD7"
+G4 checkout -q dev; echo d > "$tmp/r4/d"; G4 add d; G4 commit -qm "dev moves"; G4 checkout -q feat
+G4 merge -q --no-edit dev
+(cd "$tmp/r4" && bash "$SCRIPT" "$OLD7" dev) >/dev/null 2>&1; t "a clean merge of dev carries" $?
+[ "$(cat "$gd4/pre-pr-verify-ok")" = "$(G4 rev-parse HEAD)" ]; t "merge: stamp moved to the merge commit" $?
+G4 reset -q --hard "$OLD7"; stamp4 "$OLD7"
+G4 merge -q --no-commit dev >/dev/null; echo sneaky >> "$tmp/r4/f"; G4 add f; G4 commit -qm "merge with an edit"
+if (cd "$tmp/r4" && bash "$SCRIPT" "$OLD7" dev) >/dev/null 2>&1; then fail=$((fail+1)); printf '  FAIL  a merge that also edits must refuse\n'
+else pass=$((pass+1)); printf '  ok    a merge that also edits refuses\n'; fi
+
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

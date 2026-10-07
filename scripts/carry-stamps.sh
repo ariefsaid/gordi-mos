@@ -46,8 +46,23 @@ renumber_only() {
   [ "$(migration_order "$old")" = "$(migration_order "$new")" ]
 }
 migration_order() { git ls-tree --name-only "$1" supabase/migrations/ | sed 's|.*/||' | sort -n | sed -E 's/^[0-9]+_//'; }
+# Merging dev in (the house rule: merge, never rebase) also carries: every first-parent commit
+# after the stamped tip is a merge of a base-contained commit whose tree is exactly git's own
+# clean merge — no conflict resolution, no edit riding along.
+clean_merges_only() {
+  git merge-base --is-ancestor "$old" "$new" || return 1
+  local c p1 p2 extra
+  for c in $(git rev-list --first-parent "$old..$new"); do
+    read -r p1 p2 extra <<<"$(git rev-list --parents -n 1 "$c" | cut -d' ' -f2-)"
+    [ -n "$p2" ] && [ -z "$extra" ] || return 1
+    git merge-base --is-ancestor "$p2" "$baseref" || return 1
+    [ "$(git merge-tree --write-tree "$p1" "$p2" 2>/dev/null)" = "$(git rev-parse "$c^{tree}")" ] || return 1
+  done
+}
 if renumber_only; then
   identical="renumber"
+elif clean_merges_only; then
+  identical="merge"
 else
 rd="$(git range-diff --no-color "$old"..."$new" 2>/dev/null)" || die "range-diff failed (no common base?)"
 [ -n "$rd" ] || die "empty range-diff — nothing to compare"
@@ -86,4 +101,4 @@ for f in pre-pr-verify-ok pre-pr-verify-dev-ok independent-review-spec-ok indepe
   carried=$((carried + 1))
 done
 [ "$carried" -gt 0 ] || die "no stamps bound to $old to carry — run the battery and review as usual"
-echo "✓ pure rebase or migration renumber proven ($identical identical commits) — $carried stamp(s) carried ${old:0:8} → ${new:0:8}"
+echo "✓ carry proven ($identical) — $carried stamp(s) carried ${old:0:8} → ${new:0:8}"
