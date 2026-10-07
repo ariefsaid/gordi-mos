@@ -107,7 +107,8 @@ describe('listCurrentPersonKitchenWasteDrafts', () => {
     const responses: Record<string, { data: unknown; error: unknown }> = {
       kitchen_logs: {
         data: [{
-          id: 'draft-1', wip_item_id: 'item-1', item_unit_id: 'unit-1', qty_porsi: 1.5,
+          id: 'draft-1', client_request_id: '40000000-0000-0000-0000-000000000001',
+          wip_item_id: 'item-1', item_unit_id: 'unit-1', qty_porsi: 1.5,
           entry_quantity: 3, entry_unit_factor: 0.5, entry_unit_name: 'ERP pack',
           created_at: '2026-10-01T00:00:00.000Z', log_date: '2026-10-01',
         }],
@@ -142,6 +143,7 @@ describe('listCurrentPersonKitchenWasteDrafts', () => {
       orgId: 'org-1', personId: 'person-1', branchId: 'branch-1', activity: 'bar',
     })).resolves.toEqual([{
       logId: 'draft-1',
+      clientRequestId: '40000000-0000-0000-0000-000000000001',
       itemId: 'item-1',
       itemUnitId: 'unit-1',
       unitName: 'ERP pack',

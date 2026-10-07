@@ -6,6 +6,11 @@ import { I18nProvider } from '@/i18n/I18nProvider'
 import { ThemeProvider } from '@/theme/theme-provider'
 import { RailNav } from './rail-nav'
 
+vi.mock('@/lib/db/notifications', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/db/notifications')>()),
+  countUnread: vi.fn().mockResolvedValue(0),
+  listNotifications: vi.fn().mockResolvedValue({ rows: [], hasMore: false, nextCursor: null }),
+}))
 vi.mock('@/auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
 const mockUseAuth = vi.mocked(useAuth)

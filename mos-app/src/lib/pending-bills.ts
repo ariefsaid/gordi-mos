@@ -102,6 +102,26 @@ export interface PendingBillSummary {
   openCount: number
 }
 
+export function isPendingBillSelectable(bill: PendingBillView): boolean {
+  return (bill.state === 'open' || bill.state === 'partial') && bill.balance > 0
+}
+
+export interface PendingBillSelectionSummary {
+  bills: PendingBillView[]
+  count: number
+  total: number
+}
+
+export function summarizePendingBillSelection(
+  bills: readonly PendingBillView[],
+  selectedIds: readonly string[],
+): PendingBillSelectionSummary {
+  const selected = new Set(selectedIds)
+  const selectedBills = bills.filter((bill) => selected.has(bill.id) && isPendingBillSelectable(bill))
+  const totalCents = selectedBills.reduce((sum, bill) => sum + toCents(bill.balance), 0)
+  return { bills: selectedBills, count: selectedBills.length, total: totalCents / 100 }
+}
+
 export function summarizePendingBills(bills: readonly PendingBillView[]): PendingBillSummary {
   const open = bills.filter((bill) => bill.state !== 'void' && bill.balance > 0)
   return {

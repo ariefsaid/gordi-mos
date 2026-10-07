@@ -8,6 +8,11 @@ import { Rail } from './rail'
 import { __resetRailCollapsePrefForTests } from './use-rail-collapse-pref'
 import { useRailCompact } from './use-rail-compact'
 
+vi.mock('@/lib/db/notifications', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/db/notifications')>()),
+  countUnread: vi.fn().mockResolvedValue(0),
+  listNotifications: vi.fn().mockResolvedValue({ rows: [], hasMore: false, nextCursor: null }),
+}))
 vi.mock('@/auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
 const mockUseAuth = vi.mocked(useAuth)

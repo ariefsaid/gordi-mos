@@ -3,80 +3,9 @@
    Design authority: docs/plans/2026-06-21-kitchen-log-redesign.md (§8).
    PageFrame variant="data" (full-bleed, no cap). ONE branch in the DOM: the
    useIsDesktop() branch (the shared <DataTable>) + ONE sticky footer.
-   Token-only (DESIGN.md); spacing in px (sibling kitchen idiom). All `kl-*` classes
-   owned here (C1 namespace guard — no other kitchen .css may define them).
+   Token-only (DESIGN.md); spacing in px (sibling kitchen idiom). Log-specific rules stay here;
+   shared capture-frame styles live in cafe-capture-layout.css.
    ════════════════════════════════════════════════════════════════════════════ */
-
-.kl-page {
-  width: 100%;
-  max-width: 100%;
-  box-sizing: border-box;
-}
-.kl-capture-main { min-width: 0; }
-
-/* Desktop's standing summary lives beside the capture list on the same wide operating measure. */
-@media (min-width: 1280px) {
-  .kl-capture-wide {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
-    align-items: start;
-    gap: 24px;
-  }
-  .kl-inline-summary { display: none; }
-}
-
-.kl-capture-summary {
-  position: sticky;
-  top: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  min-width: 0;
-  max-height: calc(100dvh - 32px);
-  overflow: auto;
-  padding: 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--card);
-}
-.kl-capture-summary h2,
-.kl-capture-summary h3 { margin: 0; color: var(--foreground); }
-.kl-capture-summary h2 { font-size: var(--font-size-subheading); font-weight: 600; }
-.kl-capture-summary h3 { font-size: var(--font-size-label); font-weight: 600; }
-.kl-capture-summary .msr { margin: 0; }
-.kl-capture-summary__destination {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  min-width: 0;
-  font-size: var(--font-size-control);
-}
-.kl-capture-summary__destination > span { color: var(--muted-foreground); }
-.kl-capture-summary__destination > strong { min-width: 0; text-align: right; overflow-wrap: anywhere; }
-.kl-capture-summary__empty {
-  margin: 0;
-  color: var(--muted-foreground);
-  font-size: var(--font-size-label);
-}
-.kl-capture-summary__lines {
-  display: grid;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.kl-capture-summary__lines li {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 4px 12px;
-  min-width: 0;
-  font-size: var(--font-size-control);
-}
-.kl-capture-summary__lines li > small,
-.kl-capture-summary__lines li > em { flex: 0 0 100%; min-width: 0; overflow-wrap: anywhere; }
-.kl-capture-summary__lines li > span { flex: 1 1 0; min-width: 0; overflow-wrap: anywhere; }
-.kl-capture-summary__lines strong { flex: 0 1 50%; min-width: 0; text-align: right; overflow-wrap: anywhere; }
 
 .kl-block {
   width: 100%;
@@ -103,9 +32,11 @@
   background: var(--secondary);
 }
 .kl-empty-summary { margin-bottom: 16px; }
-.kl-inline-summary .msr,
 .kl-context-summary .msr,
 .kl-empty-summary .msr { margin-bottom: 4px; }
+@media (min-width: 1280px) {
+  .kl-inline-summary { display: none; }
+}
 .kl-summary-unavailable {
   margin: 0;
   color: var(--muted-foreground);
@@ -114,64 +45,9 @@
 }
 .kl-summary-unavailable { margin-top: 4px; }
 
-/* ── log date chip in the PageHead meta slot ── */
-.kl-date {
-  font-size: var(--font-size-mono);
-  color: var(--muted-foreground);
-  background: var(--muted);
-  padding: 2px 8px;
-  border-radius: var(--radius-sm);
-}
-
-/* ── Banners (offline / submit-error / success) ── */
-.kl-banner {
-  width: 100%;
-  max-width: 100%;
-  box-sizing: border-box;
-  border-radius: var(--radius-sm);
-  padding: 10px 14px;
-  margin-bottom: 16px;
-  font-size: var(--font-size-mono);
-}
-.kl-banner-offline {
-  background: color-mix(in srgb, var(--warning) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--warning) 30%, transparent);
-  color: var(--warning-foreground);
-}
-.kl-banner-error {
-  background: color-mix(in srgb, var(--destructive) 10%, transparent);
-  border: 1px solid color-mix(in srgb, var(--destructive) 25%, transparent);
-  /* AA-darkened red text, not base --destructive (WCAG-AA) */
-  color: var(--status-lost-text);
-}
-.kl-banner-success {
-  background: color-mix(in srgb, var(--success) 10%, transparent);
-  border: 1px solid color-mix(in srgb, var(--success) 25%, transparent);
-  color: var(--status-won-text);
-}
-
 /* v4 chrome merge: `.kl-seg-wrap` is gone. The action_type seg was a standalone band
    (a 50px control plus a 16px margin) stacked above the KitchenToolbar band; it is now
    that toolbar's leading scope slot, so the wrapper and its margin have no owner. */
-
-/* ── Dish cell (name + category) in the shared DataTable ── */
-.kl-dish { display: inline-flex; flex-direction: column; min-width: 0; }
-.kl-dish-name {
-  font-size: var(--font-size-control);
-  font-weight: 600;
-  color: var(--foreground);
-  /* layout pass: the page's 1.45 base line-height stretched this two-line stack to ~36px —
-     more than the dense .kls-dense qty control (32px) it sits beside — making Dish the tallest
-     cell and the new bottleneck against the Data Table's 52px row spec. A name+category label
-     doesn't need reading-prose leading; 1.2 is tight enough to stay legible stacked. */
-  line-height: 1.2;
-}
-.kl-dish-cat {
-  font-size: var(--font-size-label);
-  font-weight: 400;
-  color: var(--muted-foreground);
-  line-height: 1.2;
-}
 
 /* ── The capture form ── */
 .kl-form {
@@ -236,35 +112,6 @@
    solid colour so a CSS-source test can pin it directly; a shorthand can be silently reset to
    transparent by a later rule that only touches one of its longhands, and that mismatch is
    exactly the regression this guards against. */
-.kl-footer {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 8px;
-  padding: 8px 0;
-  background: var(--card);
-  background-color: var(--card);
-  border-top: 1px solid var(--border);
-  position: sticky;
-  /* NOT `bottom: 0`. A sticky box's constraint rect is the scrollport's CONTENT box, and
-     `.page-frame--v3` (page-families.css) — the scrolling ancestor — carries bottom padding
-     (48px desktop / 40px tablet / 16px + --tabbar-h on phone). `bottom: 0` therefore parked
-     this bar that far ABOVE the scrollport's real bottom edge, and dish rows scrolled through
-     the strip BELOW it: the bar read as tearing across the middle of the list. Cancelling the
-     reserve lands the bar flush on the scrollport edge (which already sits above the phone tab bar —
-     that is its own grid row in app-shell.tsx, not an overlay). Values mirror
-     page-families.css's padding ladder; keep the two in step. */
-  bottom: -48px;
-  /* Same reserve, cancelled again on the STATIC position: sticky can only lift a box off
-     its in-flow slot, never push it down, so without this the bar snapped back up by the
-     frame's padding the moment the list bottomed out. Keep the two offsets equal. */
-  margin-bottom: -48px;
-  z-index: var(--z-sticky);
-}
-@media (min-width: 768px) and (max-width: 1279px) {
-  .kl-footer { bottom: -40px; margin-bottom: -40px; }
-}
-
 /* Reserve room below the list so the sticky footer never permanently overlaps the final
    dish row — the user can always scroll the last row clear of the pinned footer. Sized
    generously to the footer's tallest rendered state (the compact row PLUS the optional
@@ -296,30 +143,21 @@
    Scoped to this page's own table only. */
 @media (min-width: 768px) {
   .kl-form .dt-table { table-layout: fixed; }
+  .kl-form .dt-table tbody tr:not(.dt-group-row) > td { padding-block: 5px; }
+  .kl-form .kls-quantity .cafe-capture-unit {
+    width: 100%;
+    max-width: var(--cafe-capture-unit-track-width, 17rem);
+    text-align: left;
+  }
   .kl-form .dt-table thead th:nth-child(1),
   .kl-form .dt-table tbody tr:not(.dt-group-row) > td:nth-child(1) { width: auto; }
   .kl-form .dt-table thead th:nth-child(2),
-  .kl-form .dt-table tbody tr:not(.dt-group-row) > td:nth-child(2) { width: 10rem; }
+  .kl-form .dt-table tbody tr:not(.dt-group-row) > td:nth-child(2) { width: 27rem; }
+  .kl-form .dt-table thead th:nth-child(2) {
+    padding-left: 32px;
+    text-align: left;
+  }
   .kl-form .dt-table td { vertical-align: top; }
-}
-.kl-footer-count-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  min-height: 44px;
-}
-.kl-tally {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-.kl-tally-num {
-  display: block;
-  color: var(--foreground);
-  font-size: var(--font-size-body);
-  font-weight: 600;
-  line-height: 1.3;
-  overflow-wrap: anywhere;
 }
 .kl-discard-link {
   flex: 0 0 auto;
@@ -330,32 +168,6 @@
   color: var(--muted-foreground);
   font: inherit;
   font-size: var(--font-size-control);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  cursor: pointer;
-}
-
-/* The ONE blue (One-Blue Rule) — Submit + its focus ring only */
-.kl-submit { width: 100%; min-height: 44px; }
-
-/* A blocking sentence gets one quiet line in the band, never a third action column. */
-.kl-submit-reason {
-  margin: 0;
-  font-size: var(--font-size-label);
-  color: var(--muted-foreground);
-  text-align: left;
-}
-
-/* The note-missing footer pointer is a real control, not a status line — reset the button
-   chrome so it reads as the same quiet inline text `.kl-submit-reason` uses, with an underline
-   as its only "this is clickable" cue (an outline still shows on keyboard focus via the
-   app-wide `*:focus-visible` rule; nothing here suppresses it). */
-.kl-note-pointer {
-  background: none;
-  border: none;
-  padding: 0;
-  font-family: inherit;
-  text-align: left;
   text-decoration: underline;
   text-underline-offset: 2px;
   cursor: pointer;
@@ -406,23 +218,11 @@
 
   /* iOS Safari zooms focused text/number fields below 16px. Keep page zoom accessible; size the
      actual Café controls instead, including search, variance notes and waste quantities. */
-  .kl-page input:not([type='checkbox']):not([type='radio']),
-  .kl-page textarea { font-size: var(--font-size-touch-input); }
   .kl-form .ktb-filter-selects { display: none; }
   /* Reuse KitchenToolbar's full-row destination band and put full-width search below it. */
   .kl-form .ktb:has(.kl-scope) .ktb-search-wrap { max-width: none; }
   .kl-capture-main:has(.kl-scope) .msr { column-gap: 8px; flex-wrap: nowrap; }
   .kl-capture-main:has(.kl-scope) .msr-item { gap: 4px; }
-  .kl-footer {
-    gap: 8px;
-    padding: 8px 0 calc(8px + env(safe-area-inset-bottom, 0px));
-    /* see the base rule: cancel `.page-frame--v3`'s phone bottom reserve so the bar sits on
-       the scrollport edge instead of floating a tab-bar's height above it with rows showing
-       through underneath. */
-    bottom: calc(-1 * (16px + var(--tabbar-h, 60px)));
-    margin-bottom: calc(-1 * (16px + var(--tabbar-h, 60px)));
-  }
-  .kl-note-pointer { min-height: 44px; }
 }
 
 /* Focus scrolling keeps the focused field clear of the sticky bar instead of parking it
@@ -454,13 +254,13 @@
 .kl-row { display: flex; flex-direction: column; gap: 6px; width: 100%; min-width: 0; }
 .kl-card-head {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 7.5rem;
-  align-items: baseline;
-  gap: 8px 16px;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+  gap: 8px;
   min-width: 0;
 }
 .kl-card-head > .kls-card { display: contents; }
-.kl-card-head > .kls-card > .kls-row { grid-column: 2; grid-row: 1; }
+.kl-card-head > .kls-card > .kls-row { grid-column: 1; grid-row: 2; }
 .kl-card-head:has(.quantity-field-error) > .kls-card > .kls-row {
   grid-column: 1 / -1;
   grid-row: 2;
@@ -617,161 +417,3 @@
 @media (min-width: 768px) and (max-width: 1279px) {
   .kl-form .dt-table thead th { top: -20px; }
 }
-
-/* Submit's result line: a full-width first line of the pinned bar, in the banner colours. */
-.kl-submit-outcome {
-  order: -2;
-  flex-basis: 100%;
-  margin: 0;
-  padding: 8px 12px;
-  border-radius: var(--radius-md);
-  font-size: var(--font-size-control);
-}
-.kl-submit-outcome--error {
-  background: color-mix(in srgb, var(--destructive) 10%, transparent);
-  border: 1px solid color-mix(in srgb, var(--destructive) 25%, transparent);
-  color: var(--status-lost-text);
-}
-.kl-submit-outcome--success {
-  background: color-mix(in srgb, var(--success) 10%, transparent);
-  border: 1px solid color-mix(in srgb, var(--success) 25%, transparent);
-  color: var(--status-won-text);
-}
-
-/* Shared capture chrome for Log, Transfer and Waste. */
-.page-frame--v3:has(.cafe-capture-head) {
-  display: flex;
-  flex-direction: column;
-  padding-inline: 16px;
-  padding-bottom: 0;
-}
-
-.page-frame--v3:has(.cafe-capture-head) > .page-frame__content {
-  display: flex;
-  flex: 1 0 auto;
-  flex-direction: column;
-  max-width: none;
-}
-
-/* Capture owns its visible page title; keep the breadcrumb ancestors as navigation. */
-.h-dvh:has(.cafe-capture-head) .top-bar__breadcrumb-leaf { display: none; }
-.h-dvh:has(.cafe-capture-head) .top-bar__breadcrumb-fixed:last-of-type > [aria-hidden] { display: none; }
-
-.cafe-capture-head.content-header { align-items: baseline; }
-
-.cafe-capture-context {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 4px 8px;
-  min-width: 0;
-  font-size: var(--font-size-control);
-}
-.cafe-capture-context .cafe-stream { width: auto; align-items: baseline; }
-.cafe-capture-context .cafe-stream__value--heading {
-  font-size: var(--font-size-control);
-  font-weight: 400;
-}
-.cafe-capture-context .kl-date {
-  padding: 0;
-  border-radius: 0;
-  background: transparent;
-  font-size: inherit;
-  white-space: nowrap;
-}
-
-/* Grow the existing flow to the scrollport height, so short and long lists share one footer. */
-.cafe-capture-content,
-.cafe-capture-content .kl-capture-main,
-.cafe-capture-content .kl-form {
-  display: flex;
-  flex: 1 0 auto;
-  flex-direction: column;
-  min-width: 0;
-}
-.cafe-capture-content .ktb,
-.cafe-capture-content .msr { padding-inline: 0; }
-.cafe-capture-content .kl-missing-cta { padding-inline: 0; }
-.cafe-capture-content .dt-cards .dt-card {
-  padding-inline: 0;
-  box-shadow: none;
-}
-.cafe-capture-content .dt-cards-group,
-.cafe-capture-content .dt-cards-group-actions { padding-inline: 0; }
-.cafe-capture-content .dt-cards-group,
-.cafe-capture-content .dt-group-bar {
-  align-items: baseline;
-  padding-inline: 0;
-}
-.cafe-capture-content .dt-cards-group-toggle,
-.cafe-capture-content .dt-group-toggle {
-  order: 1;
-  align-self: center;
-  margin-left: auto;
-}
-/* Keep the disclosure out of the text's baseline sizing; centre it on the single line. */
-.cafe-capture-content .dt-cards-group { position: relative; padding-right: 44px; }
-.cafe-capture-content .dt-cards-group-toggle {
-  position: absolute;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
-}
-.cafe-capture-content .dt-table th:first-child,
-.cafe-capture-content .dt-table td:first-child { padding-left: 0; }
-.cafe-capture-content .dt-table th:last-child,
-.cafe-capture-content .dt-table td:last-child { padding-right: 0; }
-
-.cafe-capture-footer.kl-footer {
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 8px 12px;
-  bottom: 0;
-  margin-top: auto;
-  margin-bottom: 0;
-  padding: 8px 0;
-}
-.cafe-capture-footer > .kl-footer-count-row {
-  flex: 1 1 0;
-  align-items: baseline;
-  min-width: 0;
-  min-height: 0;
-  width: auto;
-}
-.cafe-capture-footer > .kl-submit,
-.cafe-capture-footer > .btn {
-  flex: 0 0 auto;
-  width: auto;
-  min-height: 44px;
-}
-.cafe-capture-footer > .kl-submit-reason,
-.cafe-capture-footer > .kl-submit-outcome {
-  order: -1;
-  flex: 0 0 100%;
-}
-@media (max-width: 767.98px) {
-  .cafe-capture-footer.kl-footer {
-    padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
-  }
-}
-
-@media (min-width: 1280px) {
-  .cafe-capture-content.kl-capture-wide:has(> .kl-capture-summary) { display: grid; }
-  .cafe-capture-content .kl-capture-main { align-self: stretch; }
-}
-
-.cafe-capture-content .kl-inline-summary { display: block; }
-.cafe-capture-content .dt-table .kls-row { justify-content: flex-end; }
-
-/* Reuse the shared group label/count; keep the capture heading on one baseline. */
-.cafe-capture-content .dt-cards-group,
-.cafe-capture-content .dt-group-bar { gap: 4px; flex-wrap: nowrap; }
-.cafe-capture-content .dt-cards-group-label,
-.cafe-capture-content .dt-group-label,
-.cafe-capture-content .dt-cards-group-count,
-.cafe-capture-content .dt-group-count { white-space: nowrap; }
-.cafe-capture-content .dt-cards-group-count::before,
-.cafe-capture-content .dt-group-count::before { content: '('; }
-.cafe-capture-content .dt-cards-group-count::after,
-.cafe-capture-content .dt-group-count::after { content: ')'; }

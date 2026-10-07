@@ -15,8 +15,9 @@
 // legitimately absent from the form), self-cleaning, e2e-namespaced ids.
 
 import { test, expect } from '@playwright/test'
+import { mkdir } from 'node:fs/promises'
 import { readFileSync } from 'fs'
-import { resolve, dirname } from 'path'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'url'
 import { loginAs } from './helpers/login'
 import { BAR_MEMBER, BAR_STREAM } from './fixtures/users'
@@ -49,9 +50,10 @@ const SERVICE_KEY = e2eEnv.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SER
 
 const ORG = '10000000-0000-0000-0000-000000000001'
 const ITEM_ID = 'a17e4400-0000-0000-0000-000000000744'
-const ITEM_NAME = 'E2E Gate Drink'
+const ITEM_NAME = 'E2E Rosemary-Honey Oat Milk Latte Base — 24-serving prep'
 const UNIT_NAME = 'gelas'
 const PLAN_QTY = 9
+const REVIEW_DIR = process.env.GORDI_CAFE_CAPTURE_REVIEW_DIR
 
 // The Sales demo persona — unaffiliated by seed (b2b_sales_team is org-structure, not a stream).
 const SALES = { email: 'sari.dev@example.test', password: 'Passw0rd!dev' }
@@ -118,6 +120,91 @@ test.describe('AC-744  AC-008: the Café write gate — barista submits, Sales c
 
   test.afterAll(async () => {
     await resetFixtureRows()
+  })
+
+  test('restored and other-date drafts remain readable at phone, tablet and desktop widths in both locales', async ({ page }) => {
+    test.setTimeout(120_000)
+    let locale: 'en' | 'id' = 'en'
+    await page.route(/\/rest\/v1\/person_preferences\?/, route =>
+      route.fulfill({ json: [{ locale }] }),
+    )
+    await loginAs(page, BAR_MEMBER.email, BAR_MEMBER.password)
+
+    const [branch] = await sql(`select id::text as id from shared.branches where org_id='${ORG}' and code='${BAR_STREAM.branchCode}'`)
+    const [unit] = await sql(`select id::text as id from ops.item_units where org_id='${ORG}' and wip_item_id='${ITEM_ID}' and is_default limit 1`)
+    if (typeof branch?.id !== 'string' || typeof unit?.id !== 'string') {
+      throw new Error('[AC-744] expected the scoped branch and default item unit fixture')
+    }
+    await page.evaluate(({ orgId, personId, branchId, itemId, itemUnitId, today }) => {
+      const previous = new Date(`${today}T00:00:00.000Z`)
+      previous.setUTCDate(previous.getUTCDate() - 1)
+      const pad = (value: number) => String(value).padStart(2, '0')
+      const previousDate = `${previous.getUTCFullYear()}-${pad(previous.getUTCMonth() + 1)}-${pad(previous.getUTCDate())}`
+      const write = (logDate: string, quantity: number, ageMinutes: number) => {
+        const scope = { orgId, personId, form: 'production', branchId, activity: 'bar', logDate }
+        const key = `mos:cafe:capture-draft:v2:${orgId}:${personId}:production:${branchId}:bar:${logDate}`
+        const line = {
+          wip_item_id: itemId,
+          client_request_id: 'd7440000-0000-4000-8000-000000000001',
+          client_attempted: false,
+          item_unit_id: itemUnitId,
+          entry_quantity: quantity,
+          entry_unit_factor: 1,
+          entry_unit_name: 'gelas',
+          qty_porsi: quantity,
+          notes: '',
+          dirty: true,
+        }
+        localStorage.setItem(key, JSON.stringify({
+          version: 2,
+          scope,
+          value: { branch_id: branchId, activity: 'bar', movement: { action: 'produce' }, lines: { [itemId]: line } },
+          updatedAt: new Date(Date.now() - ageMinutes * 60_000).toISOString(),
+        }))
+      }
+      write(today, 9, 4)
+      write(previousDate, 4, 9)
+    }, {
+      orgId: ORG,
+      personId: BAR_MEMBER.personId,
+      branchId: branch.id,
+      itemId: ITEM_ID,
+      itemUnitId: unit.id,
+      today,
+    })
+
+    for (locale of ['en', 'id'] as const) {
+      for (const width of [390, 768, 1440] as const) {
+        await page.setViewportSize({ width, height: 960 })
+        await page.goto('cafe/production')
+        await expect(page.locator('html')).toHaveAttribute('lang', locale)
+        await ensureStream(page)
+        await expect(page.getByRole('heading', { name: locale === 'en' ? 'Log production' : 'Catat produksi', exact: true })).toBeVisible()
+        await expect(page.locator('.kl-capture-draft-notice').first()).toContainText(locale === 'en' ? '1 unsent entry restored' : '1 entri belum dikirim dipulihkan')
+        await expect(page.getByRole('status').filter({ hasText: locale === 'en' ? /Restored 1 unsent entry · saved/ : /Dipulihkan 1 entri yang belum dikirim · tersimpan/ })).toBeVisible()
+        await expect(page.locator('.kl-capture-draft-list')).toContainText(ITEM_NAME)
+        await expect(page.locator('.kl-capture-draft-list')).toContainText(locale === 'en' ? 'Unsent entries from other dates' : 'Entri belum dikirim dari tanggal lain')
+        const quantityLabel = locale === 'en'
+          ? new RegExp(`Quantity produced for ${ITEM_NAME}`, 'i')
+          : new RegExp(`Jumlah yang diproduksi untuk ${ITEM_NAME}`, 'i')
+        await expect(page.getByRole('spinbutton', { name: quantityLabel })).toHaveValue('9')
+        const documentWidth = await page.evaluate(() => document.documentElement.scrollWidth)
+        expect(documentWidth, `horizontal overflow at ${width}px (${locale})`).toBeLessThanOrEqual(width)
+        if (width === 390) {
+          const otherDateDetails = page.locator('.kl-capture-draft-list article details')
+          if (await otherDateDetails.getAttribute('open') === null) await otherDateDetails.locator('summary').click()
+          await expect(page.locator('.kl-capture-draft-list')).toContainText(ITEM_NAME)
+        }
+        if (REVIEW_DIR) {
+          await mkdir(REVIEW_DIR, { recursive: true })
+          await page.screenshot({
+            path: join(REVIEW_DIR, `cafe-capture-drafts-${locale}-${width}.png`),
+            fullPage: true,
+            animations: 'disabled',
+          })
+        }
+      }
+    }
   })
 
   test('a barista logs one line at 390; Sales sees the log read-only with no submit path', async ({ page }) => {

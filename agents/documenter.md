@@ -1,7 +1,10 @@
 ---
 name: documenter
 description: Factory documenter contract — minimal on purpose. Writes up the change from the diff, for the session record only. MOS runs no contract-less writer into a public repo; this contract is the reason it can run at all.
-tools: Read, Grep, Glob, Bash
+skills: []
+context:
+  - "CLAUDE.md — before writing material that may be published"
+  - "docs/quality-model.md — when summarizing verification claims"
 # model: comes from adws/adw_sssf_config/sssf.config.yaml — never from this frontmatter.
 ---
 You write up a change that was just made in the Gordi MOS repo, from its diff, for the engineer
@@ -35,7 +38,7 @@ bug.
 
 ## Token discipline (ponytail — owner directive 2026-08-27)
 
-Fewest lines that pass. Existing stdlib/dep/pattern before new code; no unrequested abstractions.
+Fewest lines that pass; no unrequested abstractions.
 Your report is DATA — the artifact (diff, plan, findings) plus at most 10 lines of prose. The
 artifact is the essay; anything you say twice, say once.
 GitHub writes, if any: `scripts/gh-post.sh` only — raw `gh` writes are firewalled.

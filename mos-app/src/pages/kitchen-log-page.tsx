@@ -35,6 +35,15 @@ import { useCafeStream } from '@/lib/use-cafe-stream'
 import { formatUnitMultiple, toDefaultUnitQuantity } from '@/lib/cafe-unit-multiples'
 import { parseQuantityInput } from '@/lib/quantity-parser'
 import { clearCafeDraftCount, setCafeDraftCount } from '@/lib/cafe-capture-draft'
+import {
+  clearCafeCaptureDraft,
+  isCafeCaptureRequestId,
+  listOtherDateCafeCaptureDrafts,
+  readCafeCaptureDraft,
+  writeCafeCaptureDraft,
+  type CafeCaptureDraftScope,
+  type StoredCafeCaptureDraft,
+} from '@/lib/cafe-capture-storage'
 import { CafeStreamBar, CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
 import type { ReactNode } from 'react'
 import type {
@@ -65,7 +74,7 @@ import {
   TRANSFER_SHORT_CUE,
 } from '@/lib/kitchen-gates'
 import { useKitchenKpis } from '@/lib/kitchen-kpis'
-import { useSearchParamReset, useSearchParamState } from '@/lib/use-search-param-state'
+import { useCafeCaptureDraftPageState } from '@/lib/use-cafe-capture-draft-page-state'
 import { MovementSeg } from '@/components/kitchen/movement-seg'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { WipItemStepper } from '@/components/kitchen/wip-item-stepper'
@@ -80,7 +89,8 @@ import {
   type KitchenListRow,
 } from '@/lib/kitchen-item-list'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
-import { formatWeekdayDayMonth } from '@/lib/format/date'
+import { CafeCaptureTable } from '@/components/kitchen/cafe-capture-table'
+import { formatDayMonthYear, formatWeekdayDayMonth, formatWibDateTime, wibToday } from '@/lib/format/date'
 import { EmptyState, LoadingShell } from '@/components/ui/state-kit'
 import { QuantityFieldError } from '@/components/ui/quantity-field'
 import { CafeItemsEmptyState } from '@/components/kitchen/cafe-items-empty-state'
@@ -90,15 +100,8 @@ import { RouteLeaveGuard } from '@/shell/route-leave-guard'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { NotOnStreamTag } from '@/components/kitchen/not-on-stream-tag'
 import { ReportMissingItem } from '@/components/kitchen/report-missing-item'
+import '@/components/kitchen/status-banner-tone.css'
 import './kitchen-log-page.css'
-
-// WIB "today" as YYYY-MM-DD (fixed +7h offset, NFR-007)
-function wibToday(): string {
-  const WIB_OFFSET_MS = 7 * 60 * 60 * 1000
-  const shifted = new Date(Date.now() + WIB_OFFSET_MS)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}-${pad(shifted.getUTCDate())}`
-}
 
 // Build fresh per-item line state from loaded items + plan + stock for one movement.
 // Every line opens on its item's default ERP unit (units[0]); configured multiples are
@@ -115,6 +118,8 @@ function buildLines(
     const stock = stockMap[item.id]
     lines[item.id] = {
       wip_item_id: item.id,
+      client_request_id: crypto.randomUUID(),
+      client_attempted: false,
       item_unit_id: item.units[0]?.id ?? null,
       entry_quantity: 0,
       entry_unit_factor: 1,
@@ -140,6 +145,86 @@ function gateLine(line: KitchenLogLine, movement: KitchenMovement): KitchenLogLi
   const error = needsVarianceNote(line, movement) && !line.notes.trim() ? VARIANCE_NOTE_CUE : ''
   const capError = transferExceedsAvailable(line, movement) ? TRANSFER_SHORT_CUE : ''
   return { ...line, error, capError }
+}
+
+type StoredKitchenCaptureDraft = {
+  branch_id: string
+  activity: string
+  movement: KitchenMovement
+  lines: Record<string, KitchenLogLine>
+}
+
+function kitchenDraftScope(
+  form: 'production' | 'transfer',
+  orgId: string,
+  personId: string,
+  stream: ProductionStream,
+  logDate: string,
+): CafeCaptureDraftScope {
+  return {
+    orgId,
+    personId,
+    form,
+    branchId: stream.branch.id,
+    activity: stream.activity,
+    logDate,
+  }
+}
+
+function restoreKitchenCaptureDraft(
+  saved: StoredKitchenCaptureDraft | null,
+  items: CaptureFormItem[],
+  planMap: PlanMap,
+  stockMap: StockMap,
+  stream: ProductionStream,
+  allowedMovements: KitchenMovement[],
+  fallbackMovement: KitchenMovement,
+): { lines: Record<string, KitchenLogLine>; movement: KitchenMovement } {
+  const blankLines = buildLines(items, planMap, stockMap, fallbackMovement)
+  if (!saved || saved.branch_id !== stream.branch.id || saved.activity !== stream.activity
+    || !saved.lines || typeof saved.lines !== 'object' || Array.isArray(saved.lines)
+    || !saved.movement || typeof saved.movement !== 'object'
+    || (saved.movement.action !== 'produce'
+      && !(saved.movement.action === 'transfer' && typeof saved.movement.destinationBranchId === 'string'))) {
+    return { lines: blankLines, movement: fallbackMovement }
+  }
+  const movement = allowedMovements.find(option => movementKey(option) === movementKey(saved.movement))
+  if (!movement) return { lines: blankLines, movement: fallbackMovement }
+
+  const lines = buildLines(items, planMap, stockMap, movement)
+  for (const item of items) {
+    const stored = saved.lines?.[item.id]
+    const line = lines[item.id]
+    if (!stored || !line) continue
+    const itemUnitId = item.units.some(unit => unit.id === stored.item_unit_id)
+      ? stored.item_unit_id
+      : line.item_unit_id
+    const quantity = Number.isFinite(stored.qty_porsi) && stored.qty_porsi > 0 ? stored.qty_porsi : 0
+    lines[item.id] = gateLine({
+      ...line,
+      client_request_id: isCafeCaptureRequestId(stored.client_request_id)
+        ? stored.client_request_id
+        : line.client_request_id,
+      client_attempted: stored.client_attempted === true,
+      item_unit_id: itemUnitId,
+      entry_quantity: Number.isFinite(stored.entry_quantity) ? stored.entry_quantity : quantity,
+      entry_unit_factor: typeof stored.entry_unit_factor === 'number'
+        && Number.isFinite(stored.entry_unit_factor) && stored.entry_unit_factor > 0
+        ? stored.entry_unit_factor
+        : 1,
+      entry_unit_name: typeof stored.entry_unit_name === 'string' ? stored.entry_unit_name : line.entry_unit_name,
+      qty_porsi: quantity,
+      notes: typeof stored.notes === 'string' ? stored.notes : '',
+      dirty: quantity > 0,
+    }, movement)
+  }
+  return { lines, movement }
+}
+
+function kitchenDraftLines(draft: StoredKitchenCaptureDraft | null | undefined): KitchenLogLine[] {
+  if (!draft?.lines || typeof draft.lines !== 'object' || Array.isArray(draft.lines)) return []
+  return Object.values(draft.lines).filter(line => line && typeof line === 'object'
+    && Number.isFinite(line.qty_porsi) && line.qty_porsi > 0)
 }
 
 type PageStatus =
@@ -176,6 +261,8 @@ export function KitchenLogPage({ mode = 'production', leading, activeBranchId, a
  *  above the capture form when this surface IS the Café root. */
 function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchName }: { mode: KitchenLogMode; leading?: ReactNode; activeBranchId?: string; activeBranchName?: string }) {
   const auth = useAuth()
+  const draftOrgId = auth.status === 'authenticated' ? auth.viewer.person.org_id : ''
+  const draftPersonId = auth.status === 'authenticated' ? auth.viewer.person.id : ''
   const t = useT()
   // issue 455: the tab names the module the rail and breadcrumb name; leaf-first per
   // the catalog's own docTitle convention (tasks-layout, signals-archive).
@@ -283,6 +370,30 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [retryKey, setRetryKey] = useState(0)
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false)
+  const [savedDraftAt, setSavedDraftAt] = useState<string | null>(null)
+  const [restoredDraft, setRestoredDraft] = useState(false)
+  const capturePageState = useCafeCaptureDraftPageState()
+  const {
+    restoredDraftInfo,
+    setRestoredDraftInfo,
+    restoreAnnouncement,
+    setRestoreAnnouncement,
+    setRestorationNotice,
+    search,
+    resetSearchFilters,
+  } = capturePageState
+  const [otherDateDrafts, setOtherDateDrafts] = useState<StoredCafeCaptureDraft<StoredKitchenCaptureDraft>[]>([])
+  const [pendingDateDraftDiscard, setPendingDateDraftDiscard] = useState<CafeCaptureDraftScope | null>(null)
+  const draftListHeadingRef = useRef<HTMLHeadingElement>(null)
+  const focusDraftAfterDiscardRef = useRef(false)
+
+  useEffect(() => {
+    if (!focusDraftAfterDiscardRef.current) return
+    focusDraftAfterDiscardRef.current = false
+    const target = draftListHeadingRef.current
+      ?? captureRef.current?.querySelector<HTMLInputElement>('.kls-qty')
+    target?.focus()
+  }, [captureRef, discardConfirmOpen, otherDateDrafts, pendingDateDraftDiscard, restoredDraft])
   // #586: `lines` stages ONE row per item across every movement segment (produce, each
   // transfer) — a qty typed under Produce was still there, unchanged, when the segment
   // switched to a Transfer that never touched that item, and Submit filed it under
@@ -306,22 +417,18 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
 
   // Client-side search + category (P-3), URL-synced so the view survives refresh/share (I7 / D-E1).
   // Group collapse stays INTERNAL to the shared <DataTable> (no page-level collapsedGroups state).
-  const [search, setSearch] = useSearchParamState('q', '')
-  const [kindFilter, setKindFilter] = useSearchParamState('kind', 'All')
-  const [category, setCategory] = useSearchParamState('category', 'All')
-  const resetSearchFilters = useSearchParamReset(['q', 'kind', 'category'])
   // Category and kind selectors are hidden inside the capture form on phones, so copied
   // production/transfer links must not hide rows behind controls the reader cannot use. The
   // receiving toolbar is outside that form and stays filterable at phone widths. RAW is only
   // valid for Transfer.
   const canUseCategoryAndKindFilters = isDesktop || streamNonProducing
-  const requestedKindFilter = kindFilter as KitchenItemKindFilter
+  const requestedKindFilter = capturePageState.kindFilter as KitchenItemKindFilter
   const supportedKindFilter = requestedKindFilter === 'All' || requestedKindFilter === 'WIP'
     || (mode === 'transfer' && requestedKindFilter === 'RAW')
     ? requestedKindFilter
     : 'All'
   const effectiveKindFilter: KitchenItemKindFilter = canUseCategoryAndKindFilters ? supportedKindFilter : 'All'
-  const effectiveCategory = canUseCategoryAndKindFilters ? category : 'All'
+  const effectiveCategory = canUseCategoryAndKindFilters ? capturePageState.category : 'All'
   const filterRows = useMemo(
     () => toKitchenListRows(wipItems, {
       kind: 'WIP',
@@ -335,7 +442,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   )
   const itemTable = useKitchenItemTable({
     data: filterRows,
-    search,
+    search: capturePageState.search,
     kind: effectiveKindFilter,
     category: effectiveCategory,
   })
@@ -411,6 +518,42 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     }
   }, [])
 
+  const recordDraftRestoration = useCallback((
+    record: StoredCafeCaptureDraft<StoredKitchenCaptureDraft> | null,
+    restoredLines: Record<string, KitchenLogLine>,
+  ) => {
+    setSavedDraftAt(record?.updatedAt ?? null)
+    setRestoredDraft(Boolean(record))
+    const restoredCount = Object.values(restoredLines).filter(line => line.qty_porsi > 0).length
+    setRestorationNotice(record?.updatedAt ?? null, restoredCount)
+  }, [setRestorationNotice])
+
+  const commitRestoredStreamDraft = useCallback((
+    { items, plan, stock, actuals, restored, record, dateDrafts }: {
+      items: CaptureFormItem[]
+      plan: PlanMap
+      stock: StockMap
+      actuals: ActualsMap
+      restored: ReturnType<typeof restoreKitchenCaptureDraft>
+      record: StoredCafeCaptureDraft<StoredKitchenCaptureDraft> | null
+      dateDrafts: StoredCafeCaptureDraft<StoredKitchenCaptureDraft>[]
+    },
+    stream: ProductionStream | null,
+    options: readonly ProductionStream[],
+  ) => {
+    setWipItems(items)
+    setInvalidItemIds(new Set())
+    setPlanMap(plan)
+    setStockMap(stock)
+    setActualsMap(actuals)
+    setSummaryCountsAvailable(streamProduces(stream, options))
+    setMovement(restored.movement)
+    setLines(restored.lines)
+    recordDraftRestoration(record, restored.lines)
+    setOtherDateDrafts(dateDrafts)
+    setStatus({ kind: 'ready' })
+  }, [recordDraftRestoration])
+
   // Load the branch catalog + the stream catalog + the person's own default stream + WIP
   // items + the Café BU id, then the plan, stock and actuals FOR THE RESOLVED STREAM.
   // All three are stream-scoped reads (OD-WAY-28): the date-only signatures they replace
@@ -424,6 +567,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   const loadData = useCallback(async () => {
     const gen = ++requestGen.current
     setStatus({ kind: 'loading' })
+    setRestoredDraftInfo(null)
+    setRestoreAnnouncement('')
     setSummaryCountsAvailable(false)
     try {
       const [catalog, bu] = await Promise.all([
@@ -435,10 +580,28 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
         resolveKitchenBuId(),
       ])
       const resolvedStream = catalog.stream
-      // The stream's own ESB items (#222). No stream yet: no list — nothing is writable until a
-      // stream is chosen, and the choose-stream state replaces the list.
+      const availableMovements = mode === 'transfer' && resolvedStream
+        ? movementsForStream(resolvedStream, catalog.options, catalog.destinations).filter(option => option.action === 'transfer')
+        : [PRODUCE]
+      const fallbackMovement = availableMovements[0] ?? PRODUCE
+      const currentDraftScope = resolvedStream && draftOrgId && draftPersonId
+        ? kitchenDraftScope(mode, draftOrgId, draftPersonId, resolvedStream, logDate)
+        : null
+      const storedDraftRecord = currentDraftScope
+        ? readCafeCaptureDraft<StoredKitchenCaptureDraft>(currentDraftScope)
+        : null
+      const storedDraft = storedDraftRecord?.value ?? null
+      const dateDrafts = resolvedStream && canCapture && draftOrgId && draftPersonId
+        ? listOtherDateCafeCaptureDrafts<StoredKitchenCaptureDraft>(
+          kitchenDraftScope(mode, draftOrgId, draftPersonId, resolvedStream, logDate),
+        )
+        : []
+      const resolvedMovement = storedDraft?.movement
+        ? availableMovements.find(option => movementKey(option) === movementKey(storedDraft.movement)) ?? fallbackMovement
+        : fallbackMovement
+      // The stream's own ESB list (#222), plus the person's stream/date-scoped draft restore.
+      // With no stream, there is no list — the choose-stream state replaces it.
       const items = await listCaptureFormItems(resolvedStream ?? undefined, mode === 'transfer' ? 'transfer' : 'produce')
-      const resolvedMovement = PRODUCE
       // An empty offered roster still has submitted plan/actual membership for a producing
       // stream. Keep those counts independent of the item list; stock is only needed to build
       // editable lines, so do not fetch it when there are none.
@@ -472,6 +635,11 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
         setSummaryCountsAvailable(countsAvailable)
         setBuId(bu)
         setLines({})
+        setSavedDraftAt(storedDraftRecord?.updatedAt ?? null)
+        setRestoredDraft(Boolean(storedDraftRecord))
+        setRestoredDraftInfo(null)
+        setRestoreAnnouncement('')
+        setOtherDateDrafts(dateDrafts)
         setStatus({ kind: 'ready' })
         return
       }
@@ -483,28 +651,27 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
           ])
         : [{} as PlanMap, {} as StockMap, {} as ActualsMap]
       if (gen !== requestGen.current) return // superseded — a newer read owns the state
-      setWipItems(items)
-      setInvalidItemIds(new Set())
       setInvalidQuantityIds(new Set())
       setInvalidQuantityDrafts({})
       setVisibleQuantityErrors(new Set())
       setFocusInvalidId(null)
+      const restored = resolvedStream
+        ? restoreKitchenCaptureDraft(storedDraft, items, plan, stock, resolvedStream, availableMovements, resolvedMovement)
+        : { lines: buildLines(items, plan, stock, resolvedMovement), movement: resolvedMovement }
       adoptStream(catalog)
-      setMovement(resolvedMovement)
-      setPlanMap(plan)
-      setStockMap(stock)
-      setActualsMap(actuals)
-      setSummaryCountsAvailable(streamProduces(resolvedStream, catalog.options))
       setBuId(bu)
-      setLines(buildLines(items, plan, stock, resolvedMovement))
-      setStatus({ kind: 'ready' })
+      commitRestoredStreamDraft(
+        { items, plan, stock, actuals, restored, record: storedDraftRecord, dateDrafts },
+        resolvedStream,
+        catalog.options,
+      )
     } catch {
       if (gen !== requestGen.current) return
       // Can't resolve items/streams/stock/BU — render an error state rather than stamping a
       // wrong BU or capturing against a guessed stream.
       setStatus({ kind: 'error', message: t('common.loadFailed', { what: t('common.what.items') }) })
     }
-  }, [adoptStream, logDate, mode, resolveStream, t])
+  }, [adoptStream, canCapture, commitRestoredStreamDraft, draftOrgId, draftPersonId, logDate, mode, resolveStream, setRestoreAnnouncement, setRestoredDraftInfo, t])
 
   useEffect(() => {
     if (auth.status !== 'authenticated') return
@@ -522,6 +689,26 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     setCafeDraftCount(draftCount)
     return () => { clearCafeDraftCount() }
   }, [draftCount])
+
+  useEffect(() => {
+    if (status.kind !== 'ready' || !draftOrgId || !draftPersonId || !canCapture || !stream) return
+    const scope = kitchenDraftScope(mode, draftOrgId, draftPersonId, stream, logDate)
+    if (draftCount === 0) {
+      clearCafeCaptureDraft(scope)
+      setSavedDraftAt(null)
+      setRestoredDraft(false)
+      setRestoredDraftInfo(null)
+      setRestoreAnnouncement('')
+      return
+    }
+    const updatedAt = writeCafeCaptureDraft<StoredKitchenCaptureDraft>(scope, {
+      branch_id: stream.branch.id,
+      activity: stream.activity,
+      movement,
+      lines,
+    })
+    if (updatedAt) setSavedDraftAt(updatedAt)
+  }, [canCapture, draftCount, draftOrgId, draftPersonId, lines, logDate, mode, movement, setRestoreAnnouncement, setRestoredDraftInfo, status.kind, stream])
 
   // A required-note field can make a lower row and the sticky footer taller while the person
   // keeps typing in its quantity input. Recheck only that focused capture input after React has
@@ -611,6 +798,11 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     setFocusInvalidId(null)
     chooseStream(nextStream) // the whole Café module follows this choice (#440)
     setMovement(PRODUCE)
+    setSavedDraftAt(null)
+    setRestoredDraft(false)
+    setRestoredDraftInfo(null)
+    setRestoreAnnouncement('')
+    setOtherDateDrafts([])
     setStatus({ kind: 'loading' })
     setSummaryCountsAvailable(false)
     try {
@@ -639,6 +831,11 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
         setActualsMap(actuals)
         setSummaryCountsAvailable(countsAvailable)
         setLines({})
+        setOtherDateDrafts(draftOrgId && draftPersonId
+          ? listOtherDateCafeCaptureDrafts<StoredKitchenCaptureDraft>(
+            kitchenDraftScope(mode, draftOrgId, draftPersonId, nextStream, logDate),
+          )
+          : [])
         setStatus({ kind: 'ready' })
         return
       }
@@ -648,19 +845,35 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
         fetchActualsMap(logDate, nextStream),
       ])
       if (gen !== requestGen.current) return // superseded — a newer read owns the state
-      setPlanMap(plan)
-      setWipItems(items)
-      setInvalidItemIds(new Set())
-      setStockMap(stock)
-      setActualsMap(actuals)
-      setSummaryCountsAvailable(streamProduces(nextStream, streamOptions))
-      setLines(buildLines(items, plan, stock, PRODUCE))
-      setStatus({ kind: 'ready' })
+      const availableMovements = mode === 'transfer'
+        ? movementsForStream(nextStream, streamOptions, cafeStream.destinations).filter(option => option.action === 'transfer')
+        : [PRODUCE]
+      const fallbackMovement = availableMovements[0] ?? PRODUCE
+      const currentDraftScope = draftOrgId && draftPersonId
+        ? kitchenDraftScope(mode, draftOrgId, draftPersonId, nextStream, logDate)
+        : null
+      const storedDraftRecord = currentDraftScope
+        ? readCafeCaptureDraft<StoredKitchenCaptureDraft>(currentDraftScope)
+        : null
+      const storedDraft = storedDraftRecord?.value ?? null
+      const dateDrafts = draftOrgId && draftPersonId
+        ? listOtherDateCafeCaptureDrafts<StoredKitchenCaptureDraft>(
+          kitchenDraftScope(mode, draftOrgId, draftPersonId, nextStream, logDate),
+        )
+        : []
+      const restored = restoreKitchenCaptureDraft(
+        storedDraft, items, plan, stock, nextStream, availableMovements, fallbackMovement,
+      )
+      commitRestoredStreamDraft(
+        { items, plan, stock, actuals, restored, record: storedDraftRecord, dateDrafts },
+        nextStream,
+        streamOptions,
+      )
     } catch {
       if (gen !== requestGen.current) return
       setStatus({ kind: 'error', message: t('common.loadFailed', { what: t('common.what.items') }) })
     }
-  }, [chooseStream, logDate, mode, streamOptions, t])
+  }, [cafeStream.destinations, chooseStream, commitRestoredStreamDraft, draftOrgId, draftPersonId, logDate, mode, setRestoreAnnouncement, setRestoredDraftInfo, streamOptions, t])
 
   // Staged quantities belong to the stream they were typed against: ask before a switch
   // discards them, and switch straight through when nothing is staged. Shared by the head's
@@ -669,6 +882,21 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   function selectStream(next: ProductionStream) {
     if (draftCount > 0) setPendingStream(next)
     else void applyStream(next)
+  }
+
+  function requestDiscardDateDraft(scope: CafeCaptureDraftScope) {
+    setPendingDateDraftDiscard(scope)
+  }
+
+  function discardDateDraft() {
+    if (!pendingDateDraftDiscard) return
+    focusDraftAfterDiscardRef.current = true
+    clearCafeCaptureDraft(pendingDateDraftDiscard)
+    const key = `${pendingDateDraftDiscard.branchId}:${pendingDateDraftDiscard.activity}:${pendingDateDraftDiscard.logDate}`
+    setOtherDateDrafts(current => current.filter(record =>
+      `${record.scope.branchId}:${record.scope.activity}:${record.scope.logDate}` !== key,
+    ))
+    setPendingDateDraftDiscard(null)
   }
 
   // The stream picker (FR-003/005) — ONE definition, rendered in the page head in EVERY
@@ -687,10 +915,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       myStreamKeys={myStreamKeys}
       onChange={selectStream}
       disabled={status.kind === 'submitting'}
-      context={<>
-        <span aria-hidden="true">·</span>
-        <span className="kl-date tabular">{formatWeekdayDayMonth(logDate)}</span>
-      </>}
+      switchLabel={t(stream?.activity === 'bar' ? 'cafe.stream.switchBar' : 'cafe.stream.switchKitchen')}
+      switchAriaLabel={t(stream?.activity === 'bar' ? 'cafe.stream.switchBarAria' : 'cafe.stream.switchKitchenAria')}
     />
     {pendingStream && <ConfirmDialog
       open
@@ -704,17 +930,23 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       confirmLabel={t('kitchen.log.streamSwitch.confirm')}
       cancelLabel={t('common.cancel')}
       tone="destructive"
-      onConfirm={async () => { const next = pendingStream; setPendingStream(null); await applyStream(next) }}
+      onConfirm={async () => {
+        const next = pendingStream
+        setPendingStream(null)
+        if (auth.status === 'authenticated' && stream) {
+          clearCafeCaptureDraft(kitchenDraftScope(
+            mode, auth.viewer.person.org_id, auth.viewer.person.id, stream, logDate,
+          ))
+        }
+        await applyStream(next)
+      }}
       onCancel={() => setPendingStream(null)}
     />}
     </>
   )
 
-  const captureContext = (
-    <div className="cafe-capture-context">
-      {streamPicker}
-      {stream === null && <span className="kl-date tabular">{formatWeekdayDayMonth(logDate)}</span>}
-    </div>
+  const captureContext = stream === null ? undefined : (
+    <div className="cafe-capture-context">{streamPicker}</div>
   )
 
   const receivingOnlyNotice = (
@@ -784,6 +1016,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       const staged = qty > 0
       const gated = gateLine({
         ...cur,
+        client_request_id: cur.client_attempted || !staged ? crypto.randomUUID() : cur.client_request_id,
+        client_attempted: false,
         entry_quantity: qty,
         qty_porsi: toDefaultUnitQuantity(qty, factor),
         dirty: staged,
@@ -795,7 +1029,13 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   function handleNotesChange(itemId: string, note: string) {
     if (captureClosed) return
     setLines(prev => {
-      const next: KitchenLogLine = { ...prev[itemId], notes: note }
+      const current = prev[itemId]
+      const next: KitchenLogLine = {
+        ...current,
+        ...(current.client_attempted ? { client_request_id: crypto.randomUUID() } : {}),
+        client_attempted: false,
+        notes: note,
+      }
       return { ...prev, [itemId]: gateLine(next, movement) }
     })
   }
@@ -814,6 +1054,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
         const entryQuantity = current.entry_quantity ?? current.qty_porsi
         const next: KitchenLogLine = {
           ...current,
+          ...(current.client_attempted ? { client_request_id: crypto.randomUUID() } : {}),
+          client_attempted: false,
           item_unit_id: defaultUnit.id,
           entry_quantity: entryQuantity,
           entry_unit_factor: factor,
@@ -827,6 +1069,8 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       const entryQuantity = current.entry_quantity ?? current.qty_porsi
       const next: KitchenLogLine = {
         ...current,
+        ...(current.client_attempted ? { client_request_id: crypto.randomUUID() } : {}),
+        client_attempted: false,
         item_unit_id: selectedUnit.id,
         entry_quantity: entryQuantity,
         entry_unit_factor: 1,
@@ -849,7 +1093,17 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   // category are independent view/filter state, not staged data — Discard used to wipe
   // them too, silently losing the user's filter context along with their entries.
   function performDiscard() {
+    focusDraftAfterDiscardRef.current = true
     setLines(buildLines(wipItems, planMap, stockMap, movement))
+    if (auth.status === 'authenticated' && stream) {
+      clearCafeCaptureDraft(kitchenDraftScope(
+        mode, auth.viewer.person.org_id, auth.viewer.person.id, stream, logDate,
+      ))
+    }
+    setSavedDraftAt(null)
+    setRestoredDraft(false)
+    setRestoredDraftInfo(null)
+    setRestoreAnnouncement('')
     setInvalidQuantityIds(new Set())
     setInvalidQuantityDrafts({})
     setVisibleQuantityErrors(new Set())
@@ -902,9 +1156,17 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
 
     setStatus({ kind: 'submitting' })
     setSubmitError('')
+    setLines(prev => {
+      const next = { ...prev }
+      for (const line of staged) {
+        if (next[line.wip_item_id]) next[line.wip_item_id] = { ...next[line.wip_item_id], client_attempted: true }
+      }
+      return next
+    })
     try {
       const insertedLogIds = await insertKitchenLogBatch(
         staged.map(line => ({
+          client_request_id: line.client_request_id ?? crypto.randomUUID(),
           business_unit_id: buId,
           log_date: logDate,
           // the (branch, activity) production stream this row belongs to (OD-WAY-28)
@@ -928,10 +1190,13 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       setActualsMap(prev => {
         const next = { ...prev }
         staged.forEach((line, index) => {
+          const entries = next[line.wip_item_id]?.[key] ?? []
+          const entryKey = `log:${insertedLogIds[index] ?? `pending-${Date.now()}-${index}`}`
+          if (entries.some(entry => entry.key === entryKey)) return
           const item = wipItems.find(candidate => candidate.id === line.wip_item_id)
           const selectedUnit = item?.units.find(unit => unit.id === line.item_unit_id)
           const entry: ActualUnitTotal = {
-            key: `log:${insertedLogIds[index] ?? `pending-${Date.now()}-${index}`}`,
+            key: entryKey,
             item_unit_id: line.item_unit_id,
             unit_name: selectedUnit?.name ?? null,
             qty_porsi: line.qty_porsi,
@@ -939,15 +1204,19 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
             entry_unit_factor: line.entry_unit_factor ?? 1,
             entry_unit_name: line.entry_unit_name ?? selectedUnit?.name ?? null,
           }
-          const entries = [...(next[line.wip_item_id]?.[key] ?? []), entry]
           next[line.wip_item_id] = {
             ...next[line.wip_item_id],
-            [key]: entries,
+            [key]: [...entries, entry],
           }
         })
         return next
       })
       setStatus({ kind: 'success', count: staged.length })
+      if (stream) clearCafeCaptureDraft(kitchenDraftScope(mode, draftOrgId, draftPersonId, stream, logDate))
+      setSavedDraftAt(null)
+      setRestoredDraft(false)
+      setRestoredDraftInfo(null)
+      setRestoreAnnouncement('')
       setInvalidItemIds(new Set())
       setInvalidQuantityIds(new Set())
       setInvalidQuantityDrafts({})
@@ -1034,7 +1303,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   if (wipItems.length === 0 && stream !== null) {
     return (
       <PageFamilyFrame family="workspace" title={pageTitle} headClassName="cafe-capture-head" statusRow={captureContext} state={streamNonProducing ? 'read-only' : 'empty'}>
-        <div className={`kl-page cafe-capture-content${isWide ? ' kl-capture-wide' : ''}`}>
+        <div className={`kl-page kl-capture-content cafe-capture-content${isWide ? ' kl-capture-wide' : ''}`}>
           <OfflineBanner show={!isOnline} />
           {streamNonProducing && receivingOnlyNotice}
           {mode === 'transfer' && movementOptions.length > 0 && (
@@ -1183,6 +1452,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   // not is worse than an empty list. Gated on `canCapture` (an unaffiliated/non-lead viewer's
   // block is the OWN read-only state, unrelated to the stream choice) and `!streamNonProducing`
   // (that state has its own receiving-only notice).
+  const readOnlyNoStream = !canCapture && streamMissing
   const noStreamChosen = canCapture && streamMissing && !streamNonProducing
   // On the live capture form, explain offline blocking once in the sticky band. States with no
   // band (no stream, receiving-only, loading/error, or empty catalog) keep the page banner.
@@ -1223,17 +1493,19 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       {rowStatus && <span className="kl-status kl-status--neutral">{rowStatus}</span>}
     </div>
   )
-  const renderCaptureIdentity = (
-    item: KitchenListRow<CaptureFormItem>,
-    line: KitchenLogLine,
-    rowStatus?: string,
-  ) => (
-    <div className="kl-card-identity">
-      <span className="kl-card-name"><span>{item.kind} - </span><span>{item.name}</span></span>
-      {invalidItemIds.has(item.id) && <NotOnStreamTag />}
-      {renderCaptureMeta(line, rowStatus)}
-    </div>
-  )
+  const renderCaptureItemMeta = (item: KitchenListRow<CaptureFormItem>) => {
+    const line = lines[item.id]
+    const actuals = actualsMap[item.id]?.[movementKey(movement)] ?? []
+    const rowStatus = isDesktop ? undefined : line.qty_porsi > 0
+      ? t('kitchen.status.staged')
+      : actuals.some(entry => entry.qty_porsi > 0) ? t('kitchen.status.logged') : undefined
+    return (
+      <>
+        {invalidItemIds.has(item.id) && <NotOnStreamTag />}
+        {renderCaptureMeta(line, rowStatus)}
+      </>
+    )
+  }
   const renderCaptureStepper = (
     item: KitchenListRow<CaptureFormItem>,
     line: KitchenLogLine,
@@ -1278,22 +1550,6 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       />
     )
   }
-
-  const columns: DataTableColumn<KitchenListRow<CaptureFormItem>>[] = [
-    {
-      key: 'dish',
-      header: t('kitchen.log.col.item'),
-      cardLabel: '',
-      render: item => renderCaptureIdentity(item, lines[item.id]),
-    },
-    {
-      key: 'made',
-      header: mode === 'transfer'
-        ? t('kitchen.transfer.col.quantity', { branch: transferDestinationName ?? t('kitchen.actionType.transferTo.fallback') })
-        : t('kitchen.log.col.made'),
-      render: item => renderCaptureStepper(item, lines[item.id], isDesktop, isDesktop),
-    },
-  ]
 
   // Receiving-only streams keep the same readable plan/stock/history rows, but render the
   // submitted actual instead of mounting the production stepper. A plain DataTable card is
@@ -1342,45 +1598,19 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     },
   ]
 
-  /**
-   * v4 — the phone capture row. The generic DataTable card rendered five labelled
-   * <dl> rows per dish (~200px), so a 21-dish service was ~4,000px of scrolling and about
-   * one dish visible at a time. The contributor's job is "capture in one short pass and be
-   * back to work in under a minute", so the row is built for running a list and acting on
-   * each item: identity on the left, the stepper on the right where the thumb is, basis and
-   * status on one muted line beneath. Same data, same controls, ~76px instead of ~200px.
-   * Touch targets stay ≥44px (.kls-qty is unchanged).
-   */
-  const renderLogCard = (item: KitchenListRow<CaptureFormItem>) => {
-    const line = lines[item.id]
-    if (!line) return null
-    const actuals = actualsMap[item.id]?.[movementKey(movement)] ?? []
-    const rowStatus = line.qty_porsi > 0
-      ? t('kitchen.status.staged')
-      : actuals.some(entry => entry.qty_porsi > 0) ? t('kitchen.status.logged') : undefined
-    return (
-      <div className="kl-row">
-        <div className="kl-card-head">
-          {renderCaptureIdentity(item, line, rowStatus)}
-          {renderCaptureStepper(item, line, true)}
-        </div>
-      </div>
-    )
-  }
-
   const logToolbar = (
     <KitchenToolbar
-      search={search}
-      onSearchChange={setSearch}
+      search={capturePageState.search}
+      onSearchChange={capturePageState.setSearch}
       kinds={mode === 'transfer' ? KITCHEN_KIND_FILTER_OPTIONS : undefined}
       kind={effectiveKindFilter}
       kindId="cafe-log-kind"
-      onKindChange={setKindFilter}
+      onKindChange={capturePageState.setKindFilter}
       categories={categories}
       categoryId="cafe-log-category"
       categoryLabel={value => kitchenCategoryLabel(t, value)}
-      category={category}
-      onCategoryChange={setCategory}
+      category={capturePageState.category}
+      onCategoryChange={capturePageState.setCategory}
       searchPlaceholder={t('kitchen.log.searchPlaceholder')}
       ariaLabel={t('kitchen.log.toolbarAria')}
     >
@@ -1397,23 +1627,39 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     </KitchenToolbar>
   )
 
-  const logTable = (
+  const captureCaption = mode === 'transfer'
+    ? t('kitchen.transfer.caption', { branch: transferDestinationName ?? t('kitchen.actionType.transferTo.fallback') })
+    : t('kitchen.log.caption')
+  const logTable = streamNonProducing ? (
     <DataTable
-      columns={streamNonProducing ? receivingColumns : columns}
+      columns={receivingColumns}
       rows={visibleItems}
       groups={groups}
       key={`${movementKey(movement)}:${plannedLines.length > 0 ? 'planned' : 'off-plan'}:${tableResetKey}`}
       defaultCollapsedGroupKeys={plannedLines.length > 0 && focusInvalidGroupKey !== 'offplan' ? new Set(['offplan']) : undefined}
-      renderCard={streamNonProducing ? undefined : renderLogCard}
-      renderRowDetail={renderQuantityError}
       isDesktop={isDesktop}
       state={visibleItems.length > 0 ? 'ready' : 'empty'}
-      emptyLabel={t('kitchen.filter.noMatch')}
-      caption={streamNonProducing
-        ? mode === 'transfer' ? t('kitchen.transfer.receivingCaption') : t('kitchen.stream.receivingOnly.logCaption')
-        : mode === 'transfer'
-          ? t('kitchen.transfer.caption', { branch: transferDestinationName ?? t('kitchen.actionType.transferTo.fallback') })
-          : t('kitchen.log.caption')}
+      emptyLabel={t(readOnlyNoStream ? 'kitchen.log.readOnlyNoStreamEmpty' : 'kitchen.filter.noMatch')}
+      caption={mode === 'transfer' ? t('kitchen.transfer.receivingCaption') : t('kitchen.stream.receivingOnly.logCaption')}
+    />
+  ) : (
+    <CafeCaptureTable
+      rows={visibleItems}
+      groups={groups}
+      key={`${movementKey(movement)}:${plannedLines.length > 0 ? 'planned' : 'off-plan'}:${tableResetKey}`}
+      defaultCollapsedGroupKeys={plannedLines.length > 0 && focusInvalidGroupKey !== 'offplan' ? new Set(['offplan']) : undefined}
+      renderControls={item => renderCaptureStepper(item, lines[item.id], true, isDesktop)}
+      renderItemMeta={renderCaptureItemMeta}
+      renderFeedback={isDesktop ? renderQuantityError : undefined}
+      showCategory={false}
+      cardWrapperClassName="kl-row"
+      quantityHeader={mode === 'transfer'
+        ? t('kitchen.transfer.col.quantity', { branch: transferDestinationName ?? t('kitchen.actionType.transferTo.fallback') })
+        : t('kitchen.log.col.made')}
+      isDesktop={isDesktop}
+      state={visibleItems.length > 0 ? 'ready' : 'empty'}
+      emptyLabel={t(readOnlyNoStream ? 'kitchen.log.readOnlyNoStreamEmpty' : 'kitchen.filter.noMatch')}
+      caption={captureCaption}
     />
   )
 
@@ -1426,14 +1672,83 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
          a row lands in decides what the row MEANS, so it outranks the static job sentence the
          shared head would otherwise carry (PageHead renders one or the other). */
       statusRow={captureContext}
+      meta={<time className="cafe-capture-date tabular" dateTime={logDate}>{formatWeekdayDayMonth(logDate)}</time>}
       state={status.kind === 'submitting' ? 'saving' : status.kind === 'success' ? 'saved' : streamNonProducing ? 'read-only' : submitError ? 'validation' : 'default'}
     >
-      <div ref={captureRef} className={`kl-page cafe-capture-content${isWide ? ' kl-capture-wide' : ''}`}>
+      <div ref={captureRef} className={`kl-page kl-capture-content cafe-capture-content${isWide ? ' kl-capture-wide' : ''}`}>
         <div className="kl-capture-main">
         {/* GAP-4/#9: staged-but-unsubmitted quantities must not vanish on navigation — prompt
             stay/discard when leaving the route with unsaved entries. */}
         <RouteLeaveGuard when={draftCount > 0} message={t('kitchen.log.leave.confirm')} />
         <OfflineBanner show={!isOnline && !showOfflineInFooter} />
+        {restoreAnnouncement && (
+          <p className="sr-only" role="status" aria-live="polite">{restoreAnnouncement}</p>
+        )}
+        {status.kind === 'ready' && restoredDraft && draftCount > 0 && savedDraftAt && restoredDraftInfo && (
+          <section className="kl-capture-draft-notice" aria-live="off">
+            <details className="kl-capture-draft-details" open={isDesktop}>
+              <summary>
+                <strong>{t(
+                  restoredDraftInfo.count === 1
+                    ? 'cafe.captureDraft.restoredCompact.one'
+                    : 'cafe.captureDraft.restoredCompact.other',
+                  { count: restoredDraftInfo.count },
+                )}</strong>
+                <span className="sr-only">{t('cafe.captureDraft.details')}</span>
+              </summary>
+              <div className="kl-capture-draft-details__body">
+                <small>{t('cafe.captureDraft.savedAt', { time: formatWibDateTime(restoredDraftInfo.savedAt) })}</small>
+                {otherDateDrafts.length === 0 && <small>{t('cafe.captureDraft.expiry')}</small>}
+              </div>
+            </details>
+            <button type="button" className="btn btn-outline" onClick={handleDiscardClick} disabled={isSubmitting}>
+              {t('kitchen.log.discard')}
+            </button>
+          </section>
+        )}
+        {status.kind === 'ready' && otherDateDrafts.length > 0 && (
+          <section className="kl-capture-draft-list" aria-labelledby="kl-other-date-drafts">
+            <h2 id="kl-other-date-drafts" ref={draftListHeadingRef} tabIndex={-1}>{t('cafe.captureDraft.otherDates')}</h2>
+            <p className="kl-capture-draft-guidance">{t('cafe.captureDraft.otherDatesNextStep')}</p>
+            {otherDateDrafts.map(record => {
+              const savedLines = kitchenDraftLines(record.value)
+              const date = formatDayMonthYear(record.scope.logDate)
+              return (
+                <article
+                  key={`${record.scope.branchId}:${record.scope.activity}:${record.scope.logDate}`}
+                  className="kl-capture-draft-notice"
+                  aria-label={t(savedLines.length === 1 ? 'cafe.captureDraft.otherDate.one' : 'cafe.captureDraft.otherDate.other', { date, count: savedLines.length })}
+                >
+                  <details className="kl-capture-draft-details" open={isDesktop}>
+                    <summary>
+                      <strong>{t(savedLines.length === 1 ? 'cafe.captureDraft.otherDate.one' : 'cafe.captureDraft.otherDate.other', { date, count: savedLines.length })}</strong>
+                      <span className="sr-only">{t('cafe.captureDraft.details')}</span>
+                    </summary>
+                    <div className="kl-capture-draft-details__body">
+                      <ul>
+                        {savedLines.map(line => {
+                          const item = wipItems.find(candidate => candidate.id === line.wip_item_id)
+                          const itemName = item
+                            ? `${item.kind ?? 'WIP'} - ${item.name}`
+                            : t('kitchen.log.draft.itemUnavailable')
+                          return <li key={line.wip_item_id}>
+                            <span>{itemName}</span>
+                            <span>{formatCaptureQty(line.entry_quantity ?? line.qty_porsi)} {line.entry_unit_name ?? t('kitchen.unit.porsi')}</span>
+                          </li>
+                        })}
+                      </ul>
+                      <small>{t('cafe.captureDraft.savedAt', { time: formatWibDateTime(record.updatedAt) })}</small>
+                    </div>
+                  </details>
+                  <button type="button" className="btn btn-outline" onClick={() => requestDiscardDateDraft(record.scope)}>
+                    {t('kitchen.log.discard')}
+                  </button>
+                </article>
+              )
+            })}
+            <small className="kl-capture-draft-expiry">{t('cafe.captureDraft.expiry')}</small>
+          </section>
+        )}
         {/* The Location/opening door and the Plan/Made/Off-plan figures dock into one compact
             context header so the summary reads as that header's own figures, never an orphan
             line floating with no container of its own. Falls back to the plain band (unchanged)
@@ -1522,7 +1837,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
               {buId && stream && !captureClosed && (
                 <ReportMissingItem stream={stream} streamLabel={streamLabel(t, stream)} />
               )}
-              {mode === 'transfer' && !transferDestinationChosen ? null : logTable}
+              {mode === 'transfer' && !transferDestinationChosen && !readOnlyNoStream ? null : logTable}
               {!isWide && mode === 'transfer' && stream !== null && !streamNonProducing && transferDestinationChosen && stagedCount > 0 && (
                 <section
                   className="kl-capture-summary"
@@ -1568,7 +1883,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
                   {t(stagedCount === 1 ? 'kitchen.log.footer.item.one' : 'kitchen.log.footer.item.other', { count: stagedCount })}
                 </span>
               </div>
-              {draftCount > 0 && (
+              {draftCount > 0 && !(restoredDraft && savedDraftAt) && (
                 <button
                   type="button"
                   className="kl-discard-link"
@@ -1646,6 +1961,20 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
               and category filters are untouched by Discard.
               ConfirmDialog is safe both mounted styles (confirm-dialog.tsx owns the contract);
               conditional mount kept for unmount-cleanup. */}
+          {pendingDateDraftDiscard && (
+            <ConfirmDialog
+              open
+              title={t('kitchen.log.draft.discardTitle')}
+              body={t('kitchen.log.draft.discardBody', {
+                date: formatDayMonthYear(pendingDateDraftDiscard.logDate),
+              })}
+              confirmLabel={t('kitchen.log.discard')}
+              cancelLabel={t('common.cancel')}
+              tone="destructive"
+              onConfirm={async () => discardDateDraft()}
+              onCancel={() => setPendingDateDraftDiscard(null)}
+            />
+          )}
           {discardConfirmOpen && (
             <ConfirmDialog
               open

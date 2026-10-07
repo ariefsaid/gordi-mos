@@ -372,7 +372,7 @@ printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$
 if [ $? -eq 0 ]; then pass=$((pass+1)); printf '  ok    deleting a UI file does not require skills evidence\n'
 else fail=$((fail+1)); printf '  FAIL  deleted UI file wrongly gated\n'; fi
 
-# Releases and migrations: the security lens needs an Opus reviewer.
+# Release candidates need Opus; migration branches accept Opus or an exact-prefix Luna id.
 git init -q "$tmp/rel-repo"
 gr() { git -C "$tmp/rel-repo" -c user.email=t@t -c user.name=t "$@"; }
 gr commit -qm init --allow-empty
@@ -405,16 +405,18 @@ gr commit -qm feature --allow-empty
 relcheck "feature branch without migrations: luna security accepted" 0 gpt-6-luna
 mkdir -p "$tmp/rel-repo/supabase/migrations"; echo 'select 1;' > "$tmp/rel-repo/supabase/migrations/20261007000000_x.sql"
 gr add -A && gr commit -qm migration
-relcheck "migration branch: luna security refused" 1 gpt-6-luna
+relcheck "migration branch: gpt-6-luna security accepted" 0 gpt-6-luna
+relcheck "migration branch: openai-codex/gpt-6-luna security accepted" 0 openai-codex/gpt-6-luna-reviewer
+relcheck "migration branch: luna security accepted" 0 luna-reviewer
 relcheck "migration branch: opus security accepted" 0 claude-opus
-
+relcheck "spoofed id 'x-luna' refused on a migration branch" 1 x-luna
 relcheck "spoofed id 'not-opus-luna' refused on a migration branch" 1 not-opus-luna
 gr mv supabase/migrations/20261007000000_x.sql supabase/migrations/20261007000001_x.sql; gr commit -qm renamed
 git -C "$tmp/rel-repo" update-ref refs/remotes/origin/dev HEAD~1
-relcheck "renamed/edited migration still needs opus" 1 gpt-6-luna
+relcheck "renamed migration on a feature branch accepts Luna" 0 gpt-6-luna
 gr checkout -q -b release/x HEAD; gr commit -q --allow-empty -m "fix on top"
 git -C "$tmp/rel-repo" update-ref refs/remotes/origin/dev HEAD~1
-relcheck "release/* branch with a fix commit needs opus" 1 gpt-6-luna
+relcheck "release candidate with a migration: gpt-6-luna refused" 1 gpt-6-luna
 
 gr checkout -q --detach HEAD; gr commit -q --allow-empty -m "detached work"
 relcheck "detached HEAD outside dev/main needs opus" 1 gpt-6-luna

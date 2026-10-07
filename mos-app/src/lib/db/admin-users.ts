@@ -4,7 +4,6 @@
 // Throws on any PostgREST/RPC error so callers can surface failures.
 
 import { supabase } from '@/lib/supabase'
-import { wibToday } from '@/lib/format/date'
 import { UserFacingError } from '@/lib/save-error'
 import { invalidateReferenceCache } from './reference-cache'
 import { invalidateAuthorityCaches } from './admin-access'
@@ -12,6 +11,9 @@ import type { AdminPersonRow, CreatePersonInput, LoginStatus, RoleOption, Revenu
 
 const shared = () => supabase.schema('shared')
 const reporting = () => supabase.schema('reporting')
+
+// PostgreSQL's date input `today` resolves on the server, like current_date in the access gates.
+const POSTGRES_TODAY = 'today'
 
 // Curated, org-agnostic messages our admin RPCs / RLS policies raise deliberately — safe to show the
 // admin verbatim. ANY other DB error (raw RLS/constraint text, e.g. a cross-org unique-violation whose
@@ -115,24 +117,31 @@ export async function listAdminPeople(): Promise<AdminPersonRow[]> {
     ;(scopeByPerson[row.person_id] ??= []).push({ channel: row.channel, branch_code: row.branch_code })
   }
 
-  // 6. LIVE team memberships. One read: the picker labels rows from listTeams(), so no team name
-  //    is needed here — carrying one cost a second full read of shared.teams for nothing.
-  //
-  //    Liveness here is the END of the gates' definition (`effective_to is null or >= today`) and
-  //    NOT their start clause. That asymmetry is deliberate: an admin screen must show a row it can
-  //    act on, and a not-yet-started membership is a real row an admin may want to end. The gates
-  //    ask "does this person have rights through this team today"; this asks "what is there to
-  //    manage". The screen is deliberately WIDER, never narrower — narrower is what let it report
-  //    someone removed while the gates still admitted them. The HOME question below is the one that
-  //    must match exactly, and does.
-  const today = wibToday()
+  // 6. LIVE team memberships. Keep future-start memberships visible for administration, and include
+  //    rows through their inclusive last day. Postgres resolves `today` on the server, matching the
+  //    access gates' current_date.
   const { data: tmRows, error: tmErr } = await shared()
     .from('team_memberships')
-    .select('person_id,team_id,is_primary,effective_from,effective_to')
-    .or(`effective_to.is.null,effective_to.gte.${today}`)
+    .select('person_id,team_id,is_primary,effective_to')
+    .or(`effective_to.is.null,effective_to.gte.${POSTGRES_TODAY}`)
   if (tmErr) throw surface('load people', tmErr)
+
+  // Home status also depends on effective_from <= current_date. Read that predicate on the server
+  // so a Jakarta date that has advanced ahead of current_date cannot advertise a future primary.
+  const { data: homeRows, error: homeErr } = await shared()
+    .from('team_memberships')
+    .select('person_id,team_id')
+    .eq('is_primary', true)
+    .is('effective_to', null)
+    .lte('effective_from', POSTGRES_TODAY)
+  if (homeErr) throw surface('load people', homeErr)
+  const homeTeamsByPerson: Record<string, Set<string>> = {}
+  for (const row of (homeRows ?? []) as { person_id: string; team_id: string }[]) {
+    ;(homeTeamsByPerson[row.person_id] ??= new Set()).add(row.team_id)
+  }
+
   const teamsByPerson: Record<string, TeamMembership[]> = {}
-  for (const row of (tmRows ?? []) as { person_id: string; team_id: string; is_primary: boolean; effective_from: string; effective_to: string | null }[]) {
+  for (const row of (tmRows ?? []) as { person_id: string; team_id: string; is_primary: boolean; effective_to: string | null }[]) {
     // MEMBERSHIP and HOME are different questions with different liveness rules, and conflating
     // them is how the screen ends up asserting something the database disagrees with. A row ending
     // today is still a membership to every gate — hence the `.or()` filter above. But
@@ -141,38 +150,9 @@ export async function listAdminPeople(): Promise<AdminPersonRow[]> {
     // authority, and must not render as Home.
     ;(teamsByPerson[row.person_id] ??= []).push({
       team_id: row.team_id,
-      // The three MEMBERSHIP clauses both functions carry, `effective_from` included. Omitting the
-      // start date made a future-dated membership render as Home while the gates resolved nothing.
-      //
-      // Deliberately NOT the whole predicate. Both functions also join `shared.teams` on
-      // `archived_at is null`, and this read never joins teams at all — so an archived team's
-      // membership still renders as Home while default_stream() and is_stream_reviewer resolve
-      // nothing. Fail-safe, and unreachable from the app tier: `authenticated` holds SELECT only on
-      // shared.teams, so nothing here can archive one, and listTeams() already filters archived
-      // teams out of the picker. Named rather than closed, because a comment claiming a match that
-      // does not hold is the defect this file has now produced four times.
-      //
-      // Also NOT an exact match on the date, and this one cuts both ways. `today` is the BROWSER's
-      // UTC date; the functions compare against the server's `current_date`. Timezone is not the
-      // variable — `toISOString()` is UTC whatever the client's zone, so a differently-zoned
-      // browser with a correct clock produces the identical date. CLOCK SKEW is, and it is NOT
-      // uniformly safe: a slow clock errs toward not-Home, but a FAST one pushes `today` forward
-      // and admits a not-yet-started membership as Home — exactly the defect this clause was added
-      // to prevent. NOT authoritative — the server gates never read this value — but not display
-      // only either, and the difference matters: TeamPicker derives `hasPrimary` from this flag and
-      // passes it straight into `addTeamMembership`'s `isPrimary` argument, so a skewed read
-      // crosses into a WRITE on the column `default_stream()` and `is_stream_reviewer` resolve
-      // from. It still moves no privilege in either direction — a fast clock renders a future-dated
-      // primary as Home, so the next join inserts non-primary and the person ends with none
-      // (withholding); a slow clock renders a live primary as not-Home, the insert attempts a
-      // second primary, and the one-live-primary index rejects it (an error, not a grant).
-      // Which is why the authoritative cutoff is server-side and always has been: see
-      // `end_team_membership`, which exists for that reason. (The repo carries a scar from getting
-      // this frame wrong the other way round: the Café plan seed wrote at Postgres UTC while the
-      // app asked in Jakarta, so plans landed on yesterday and every Plan surface rendered empty —
-      // #469 fixed it by seeding at the Jakarta date. Naming the fix as the bug, which an earlier
-      // draft of this very comment did, is how that scar gets reopened.)
-      is_primary: row.is_primary && row.effective_to === null && row.effective_from <= today,
+      // The primary must be open-ended and started as of the server date. The home read above
+      // matches those clauses; archived-team filtering remains in the picker and the access gates.
+      is_primary: row.is_primary && row.effective_to === null && homeTeamsByPerson[row.person_id]?.has(row.team_id) === true,
     })
   }
 
@@ -455,15 +435,13 @@ export async function endTeamMembership(personId: string, teamId: string): Promi
  * its own row count, because a row can go away between the two.
  */
 export async function setPrimaryTeam(personId: string, teamId: string): Promise<void> {
-  const today = wibToday()
-
   const { data: eligible, error: readErr } = await shared()
     .from('team_memberships')
     .select('id')
     .eq('person_id', personId)
     .eq('team_id', teamId)
     .is('effective_to', null)
-    .lte('effective_from', today)
+    .lte('effective_from', POSTGRES_TODAY)
   if (readErr) throw surface('set home team', readErr)
   if ((eligible ?? []).length === 0) {
     throw new Error(
@@ -495,7 +473,7 @@ export async function setPrimaryTeam(personId: string, teamId: string): Promise<
     // UI — nothing sends effective_from — but a write guard looser than the read that judges it is
     // the asymmetry this whole slice exists to remove.
     .is('effective_to', null)
-    .lte('effective_from', today)
+    .lte('effective_from', POSTGRES_TODAY)
     .select('id')
   if (error) throw surface('set home team', error)
   if ((data ?? []).length === 0) {

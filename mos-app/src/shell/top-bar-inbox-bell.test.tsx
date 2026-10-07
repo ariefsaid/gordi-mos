@@ -11,6 +11,10 @@ import type { UseNotifications } from '@/hooks/useNotifications'
 import type { NotificationRow } from '@/lib/db/notifications'
 import { OverlayHostProvider, OverlayHostSlot } from './overlay-host'
 
+vi.mock('@/components/tasks/task-surface', () => ({
+  TaskSurface: () => <div data-testid="task-record-stub" />,
+}))
+
 vi.mock('./use-is-narrow')
 import { useIsNarrow } from './use-is-narrow'
 const mockNarrow = vi.mocked(useIsNarrow)

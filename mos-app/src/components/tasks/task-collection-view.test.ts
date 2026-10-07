@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { getActiveTaskView } from './task-collection-view'
-import type { TaskCollectionQuery } from './task-collection-adapter'
+import type { TaskCollectionQuery } from './task-collection-query'
 
 const labels = {
   all: 'All', 'my-work': 'My work', 'my-pic': 'My work', 'my-supervisor': 'My work',
