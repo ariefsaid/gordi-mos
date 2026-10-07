@@ -140,6 +140,35 @@ describe('AC-1134: payment form validation keeps invalid submissions off', () =>
   })
 })
 
+describe('multi-bill payment selection', () => {
+  it('AC-1134: totals selected open balances exactly and excludes unpayable bills', async () => {
+    const module = await import('./pending-bills')
+    const views = toPendingBillViews([
+      bill({ bill_no: 'OPEN', amount: 1000.5 }),
+      bill({ bill_no: 'PARTIAL', amount: 250 }),
+      bill({ bill_no: 'SETTLED', amount: 600 }),
+      bill({ bill_no: 'VOID', source_state: 'void', amount: 700 }),
+      bill({ bill_no: 'MISSING', source_state: 'missing', amount: 800 }),
+    ], '2026-10-06', [
+      { esb_code: 'GKI', branch_code: 'rumah_rames', bill_no: 'PARTIAL', amount: 50 },
+      { esb_code: 'GKI', branch_code: 'rumah_rames', bill_no: 'SETTLED', amount: 600 },
+    ])
+    const summarize = (module as unknown as {
+      summarizePendingBillSelection?: (bills: typeof views, selectedIds: readonly string[]) => {
+        bills: typeof views
+        count: number
+        total: number
+      }
+    }).summarizePendingBillSelection
+
+    expect(summarize?.(views, views.map((view) => view.id))).toEqual({
+      bills: [views.find((view) => view.billNo === 'OPEN'), views.find((view) => view.billNo === 'PARTIAL')],
+      count: 2,
+      total: 1200.5,
+    })
+  })
+})
+
 describe('isPendingBillCopyStale — more than 30 hours since the copy ran', () => {
   const copy = '2026-10-05T19:05:00Z'
   it('is fresh at 30 hours and stale just after', () => {

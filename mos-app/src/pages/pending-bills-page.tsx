@@ -29,7 +29,7 @@ import {
 } from '@/lib/db/pending-bill-payments'
 import { formatDayMonthYear, formatWibWeekdayTime } from '@/lib/format/date'
 import { formatIDRExact } from '@/lib/format/money'
-import { isPendingBillCopyStale, summarizePendingBills, toPendingBillViews, type PendingBillView } from '@/lib/pending-bills'
+import { isPendingBillCopyStale, isPendingBillSelectable, summarizePendingBillSelection, summarizePendingBills, toPendingBillViews, type PendingBillView } from '@/lib/pending-bills'
 import { wibToday } from '@/lib/home-attention'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { RecordPanelHost } from '@/shell/record-panel-host'
@@ -43,7 +43,7 @@ const loadPendingBills = () =>
     .then(([bills, snapshot, payments]) => ({ bills, snapshot, payments }))
 
 type T = ReturnType<typeof useT>
-type PaymentFormMode = { kind: 'payment' } | { kind: 'reverse'; entry: PendingBillPaymentHistoryEntry }
+type PaymentFormMode = { kind: 'payment' } | { kind: 'multi' } | { kind: 'reverse'; entry: PendingBillPaymentHistoryEntry }
 
 function statePill(bill: PendingBillView, t: T): ReactNode {
   const tone = bill.state === 'settled' ? 'success'
@@ -60,8 +60,9 @@ function branch(bill: PendingBillView, t: T): ReactNode {
 }
 
 type PendingBillColumn = {
-  key: 'date' | 'age' | 'branch' | 'owes' | 'state' | 'bill' | 'amount' | 'balance'
+  key: 'select' | 'date' | 'age' | 'branch' | 'owes' | 'state' | 'bill' | 'amount' | 'balance'
   header: string
+  headerContent?: ReactNode
   render: (bill: PendingBillView) => ReactNode
 }
 
@@ -69,15 +70,50 @@ function columns(
   t: T,
   locale: ReturnType<typeof useI18n>['locale'],
   onOpen: (bill: PendingBillView) => void,
+  selectedIds: ReadonlySet<string>,
+  selectableIds: ReadonlySet<string>,
+  allSelected: boolean,
+  someSelected: boolean,
+  selectionLocked: boolean,
+  onToggle: (billId: string, selected: boolean) => void,
+  onToggleAll: (selected: boolean) => void,
 ): PendingBillColumn[] {
   return [
+    {
+      key: 'select',
+      header: t('pendingBills.select'),
+      headerContent: (
+        <>
+          <span className="sr-only">{t('pendingBills.select')}</span>
+          <input
+            className="pending-bills__checkbox"
+            type="checkbox"
+            aria-label={t('pendingBills.selectAll')}
+            checked={allSelected}
+            disabled={selectableIds.size === 0 || selectionLocked}
+            ref={(input) => { if (input) input.indeterminate = someSelected && !allSelected }}
+            onChange={(event) => onToggleAll(event.currentTarget.checked)}
+          />
+        </>
+      ),
+      render: (bill) => (
+        <input
+          className="pending-bills__checkbox"
+          type="checkbox"
+          aria-label={t('pendingBills.selectBill', { billNo: bill.billNo })}
+          checked={selectedIds.has(bill.id)}
+          disabled={!selectableIds.has(bill.id) || selectionLocked}
+          onChange={(event) => onToggle(bill.id, event.currentTarget.checked)}
+        />
+      ),
+    },
     { key: 'date', header: t('pendingBills.col.date'), render: (bill) => <span className="tabular pending-bills__nowrap">{formatDayMonthYear(bill.billDate, locale)}</span> },
     { key: 'age', header: t('pendingBills.col.age'), render: (bill) => <span className="tabular">{pendingBillAgeLabel(bill.ageDays, t)}</span> },
     { key: 'branch', header: t('pendingBills.col.branch'), render: (bill) => branch(bill, t) },
     { key: 'owes', header: t('pendingBills.col.owes'), render: (bill) => <span className="pending-bills__owes">{bill.counterpartyNote ?? <span className="pending-bills__muted">{t('pendingBills.owes.none')}</span>}</span> },
     { key: 'state', header: t('pendingBills.col.state'), render: (bill) => statePill(bill, t) },
     { key: 'bill', header: t('pendingBills.col.billNo'), render: (bill) => (
-      <button type="button" className="pending-bills__record-trigger" onClick={() => onOpen(bill)} aria-label={t('pendingBills.openBill', { billNo: bill.billNo })}>
+      <button type="button" className="pending-bills__record-trigger" data-pending-bill-trigger={bill.id} onClick={() => onOpen(bill)} aria-label={t('pendingBills.openBill', { billNo: bill.billNo })}>
         <span className="pending-bills__code">{bill.billNo}</span>
       </button>
     ) },
@@ -98,17 +134,29 @@ export function PendingBillsPage() {
   const { status, data, tooMany, reload } = useReportingRead(loadPendingBills)
   const { toast, showToast, clearToast } = useToast()
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [selectedBillIds, setSelectedBillIds] = useState<string[]>([])
   const [historyState, setHistoryState] = useState<{ status: 'idle' | 'loading' | 'ready' | 'error'; entries: PendingBillPaymentHistoryEntry[] }>({ status: 'idle', entries: [] })
   const [historyRequest, setHistoryRequest] = useState(0)
   const [formMode, setFormMode] = useState<PaymentFormMode | null>(null)
   const [formBusy, setFormBusy] = useState(false)
   // Closing the form brings its buttons back; focus returns to the panel's action (or the history's).
   const restoreFocusRef = useRef(false)
+  const restoreMultiBillFocusRef = useRef<string | null>(null)
   const restoreActionFocus = () => {
     restoreFocusRef.current = true
     window.setTimeout(() => { restoreFocusRef.current = false }, 2000)
   }
   useEffect(() => {
+    const billId = restoreMultiBillFocusRef.current
+    if (billId) {
+      const target = [...document.querySelectorAll<HTMLElement>('[data-pending-bill-trigger]')]
+        .find((element) => element.dataset.pendingBillTrigger === billId)
+      if (target) {
+        restoreMultiBillFocusRef.current = null
+        target.focus()
+        return
+      }
+    }
     if (!restoreFocusRef.current || formMode) return
     const target = document.querySelector<HTMLElement>('[data-viewer-region="actions"] button')
       ?? document.querySelector<HTMLElement>('[data-content-slot="payment-history"] button')
@@ -151,6 +199,30 @@ export function PendingBillsPage() {
   const baseIds = new Set(basePayments.map((payment) => payment.id))
   const payments = [...basePayments, ...optimisticPayments.filter((payment) => !baseIds.has(payment.id))]
   const bills = data ? toPendingBillViews(data.bills, wibToday(), payments) : []
+  useEffect(() => {
+    if (!data) return
+    const eligibleIds = new Set(toPendingBillViews(data.bills, wibToday(), data.payments)
+      .filter(isPendingBillSelectable)
+      .map((bill) => bill.id))
+    setSelectedBillIds((current) => {
+      const next = current.filter((id) => eligibleIds.has(id))
+      return next.length === current.length ? current : next
+    })
+  }, [data])
+  const selectedSummary = summarizePendingBillSelection(bills, selectedBillIds)
+  const selectedSet = new Set(selectedSummary.bills.map((bill) => bill.id))
+  const selectableSet = new Set(bills.filter(isPendingBillSelectable).map((bill) => bill.id))
+  const allSelectableSelected = selectableSet.size > 0 && [...selectableSet].every((id) => selectedSet.has(id))
+  const someSelectableSelected = [...selectableSet].some((id) => selectedSet.has(id))
+  const selectionLocked = formMode?.kind === 'multi'
+  const toggleBillSelection = (billId: string, selected: boolean) => {
+    setSelectedBillIds((current) => selected
+      ? current.includes(billId) ? current : [...current, billId]
+      : current.filter((id) => id !== billId))
+  }
+  const toggleAllSelection = (selected: boolean) => {
+    setSelectedBillIds(selected ? bills.filter(isPendingBillSelectable).map((bill) => bill.id) : [])
+  }
   const selectedBill = bills.find((bill) => bill.id === selectedId) ?? null
   const selectedBillId = selectedBill?.id
   const selectedBillEsbCode = selectedBill?.esbCode
@@ -237,25 +309,41 @@ export function PendingBillsPage() {
   const selectedHistory = selectedBill && historyState.status !== 'idle' ? historyState : { status: 'loading' as const, entries: [] }
   const historyStatus = selectedHistory.status === 'idle' ? 'loading' : selectedHistory.status
   const onFormSaved = (bill: PendingBillView, saved: PendingBillPaymentSaved) => {
-    setOptimisticPayments((current) => [...current, {
-      id: saved.paymentId,
-      esb_code: bill.esbCode,
-      branch_code: bill.branchCode,
-      bill_no: bill.billNo,
+    const paymentRows = saved.payments ?? [{
+      billId: bill.id,
+      paymentId: saved.paymentId,
+      esbCode: bill.esbCode,
+      branchCode: bill.branchCode,
+      billNo: bill.billNo,
       amount: saved.amount,
-    }])
-    const savedEntries = saved.paymentId ? [saved] : []
-    const count = String(savedEntries.length)
-    const total = formatIDRExact(savedEntries.reduce((sum, entry) => sum + Math.abs(entry.amount), 0))
+      replayed: saved.replayed,
+    }]
+    setOptimisticPayments((current) => [...current, ...paymentRows.map((payment) => ({
+      id: payment.paymentId,
+      esb_code: payment.esbCode,
+      branch_code: payment.branchCode,
+      bill_no: payment.billNo,
+      amount: payment.amount,
+    }))])
+    const count = String(paymentRows.length)
+    const total = formatIDRExact(Math.abs(saved.amount))
     showToast(saved.reverseOf
       ? t('pendingBills.confirmation.reversed', { count, total })
-      : t('pendingBills.confirmation.recorded', { count, total }))
+      : saved.payments
+        ? t('pendingBills.confirmation.recordedMany', { count, total })
+        : t('pendingBills.confirmation.recorded', { count, total }))
     formDirtyRef.current = false
     setFormMode(null)
     updateFormBusy(false)
-    setHistoryRequest((current) => current + 1)
     reload()
-    restoreActionFocus()
+    if (saved.payments) {
+      setSelectedBillIds([])
+      setSelectedId(null)
+      restoreMultiBillFocusRef.current = bill.id
+    } else {
+      setHistoryRequest((current) => current + 1)
+      restoreActionFocus()
+    }
   }
   const cancelPaymentForm = () => guardedTransition(() => {
     formDirtyRef.current = false
@@ -271,10 +359,20 @@ export function PendingBillsPage() {
       setSelectedId(bill.id)
     })
   }
+  const startMultiPayment = () => {
+    const firstBill = selectedSummary.bills[0]
+    if (!firstBill) return
+    guardedTransition(() => {
+      formDirtyRef.current = false
+      setSelectedId(firstBill.id)
+      setFormMode({ kind: 'multi' })
+    })
+  }
   const paymentForm = selectedBill && formMode ? (
     <PendingBillPaymentForm
-      key={`${selectedBill.id}-${formMode.kind === 'reverse' ? `reverse-${formMode.entry.id}` : 'payment'}`}
+      key={`${selectedBill.id}-${formMode.kind === 'reverse' ? `reverse-${formMode.entry.id}` : formMode.kind === 'multi' ? selectedSummary.bills.map((bill) => bill.id).join('|') : 'payment'}`}
       bill={selectedBill}
+      bills={formMode.kind === 'multi' ? selectedSummary.bills : undefined}
       orgId={orgId}
       reversePayment={formMode.kind === 'reverse' ? { id: formMode.entry.id, amount: formMode.entry.amount } : null}
       onCancel={cancelPaymentForm}
@@ -302,7 +400,18 @@ export function PendingBillsPage() {
     },
     onRetryHistory: () => setHistoryRequest((current) => current + 1),
   }) : null
-  const billColumns = columns(t, locale, selectBill)
+  const billColumns = columns(
+    t,
+    locale,
+    selectBill,
+    selectedSet,
+    selectableSet,
+    allSelectableSelected,
+    someSelectableSelected,
+    selectionLocked,
+    toggleBillSelection,
+    toggleAllSelection,
+  )
   const recordPanel = selectedBill && adapter ? (
     <>
       <RecordPanelHost
@@ -348,7 +457,7 @@ export function PendingBillsPage() {
               <tr>
                 {billColumns.map((column) => (
                   <th key={column.key} scope="col" className={`money-table__head money-table__cell--${column.key}`}>
-                    {column.header}
+                    {column.headerContent ?? column.header}
                   </th>
                 ))}
               </tr>
@@ -366,6 +475,25 @@ export function PendingBillsPage() {
               ))}
             </tbody>
           </MoneyTableShell>
+          {selectedSummary.count > 0 && (
+            <div className="pending-bills-selection-bar" role="region" aria-label={t('pendingBills.selection.summary', {
+              count: String(selectedSummary.count),
+              total: formatIDRExact(selectedSummary.total),
+            })}>
+              <p aria-live="polite">{t('pendingBills.selection.summary', {
+                count: String(selectedSummary.count),
+                total: formatIDRExact(selectedSummary.total),
+              })}</p>
+              <div className="pending-bills-selection-bar__actions">
+                <Button type="button" onClick={startMultiPayment} disabled={selectionLocked}>
+                  {t('pendingBills.record.recordPayment')}
+                </Button>
+                <Button type="button" variant="outline" onClick={() => setSelectedBillIds([])} disabled={selectionLocked}>
+                  {t('pendingBills.selection.clear')}
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
         {recordPanel}
       </div>
