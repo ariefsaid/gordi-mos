@@ -18,19 +18,6 @@
   align-self: flex-start;
 }
 
-/* The one freshness sentence may wrap as a sentence on a phone, never mid-figure. */
-.content-header .ch-meta-line.money-freshness {
-  white-space: normal;
-}
-
-/* Stale: the same sentence in the warning tint, saying "last synced". */
-.content-header .ch-meta-line.money-freshness--stale {
-  padding: 1px 8px;
-  border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--warning) 18%, transparent);
-  color: var(--warning-foreground);
-}
-
 /* Loading: five table-shaped rows — a name and two figures — not tiles. */
 .money-skeleton {
   border: 1px solid var(--border);

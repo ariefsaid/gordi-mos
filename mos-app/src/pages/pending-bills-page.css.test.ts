@@ -1,7 +1,5 @@
-// The desktop bill list keeps every figure, age and bill number on one line, lets Who owes take the
-// wrapping, and only scrolls sideways inside a container too narrow for the table — so the
-// DataTable's sticky header keeps its page scroll container at desktop widths; a docked record
-// panel narrows the list enough to need its own horizontal scroll area.
+// The desktop bill list retains its three priority columns in a narrow list and wraps long names
+// without moving the money figures off-canvas; the Money shell owns the surrounding surface.
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -16,28 +14,47 @@ const ruleIn = (source: string, selector: string) => {
   return source.match(new RegExp(`(?:^|\\})\\s*${escaped}\\s*\\{([^}]*)\\}`))?.[1] ?? null
 }
 const rule = (selector: string) => ruleIn(css, selector)
+const groupedRule = (source: string, selector: string) => {
+  for (const match of source.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    if (match[1].split(',').some((candidate) => candidate.trim() === selector)) return match[2]
+  }
+  return null
+}
 
 describe('pending bills table CSS', () => {
-  it('keeps amount, balance and age cells on one line', () => {
-    expect(rule('.pending-bills-scroll td.dt-num')).toMatch(/white-space:\s*nowrap/)
+  it('keeps Bill no., Amount and Balance as the columns that survive a narrow table', () => {
+    const narrow = css.match(/@media \(min-width:\s*768px\)\s*\{[\s\S]*?@container pending-bills-list \(max-width:\s*979\.98px\)\s*\{([\s\S]*?)\n\s{2}\}/)?.[1] ?? ''
+    expect(rule('.pending-bills-table .money-table') ?? '').toMatch(/table-layout:\s*fixed/)
+    expect(narrow).toContain('.pending-bills-table .money-table__cell--date')
+    expect(narrow).toContain('.pending-bills-table .money-table__cell--age')
+    expect(narrow).toContain('.pending-bills-table .money-table__cell--branch')
+    expect(narrow).toContain('.pending-bills-table .money-table__cell--owes')
+    expect(narrow).toContain('.pending-bills-table .money-table__cell--state')
+    for (const priority of ['bill', 'amount', 'balance']) {
+      expect(narrow).not.toContain(`.pending-bills-table .money-table__cell--${priority}`)
+    }
+    expect(css).toMatch(/\.pending-bills-table \.money-table-scroll\s*\{\s*overflow-x:\s*hidden/)
+    expect(rule('.pending-bills-list-column') ?? '').toMatch(/container:\s*pending-bills-list\s*\/\s*inline-size/)
   })
 
-  it('keeps a bill number or branch code on one line in the table', () => {
-    expect(rule('.pending-bills-scroll td .pending-bills__code')).toMatch(/white-space:\s*nowrap/)
+  it('keeps date, age, bill number and financial figures on one line in the table', () => {
+    for (const column of ['date', 'age', 'bill', 'amount', 'balance']) {
+      expect(groupedRule(css, `.pending-bills-table .money-table__cell--${column} .money-table__cell-value`) ?? '').toMatch(/white-space:\s*nowrap/)
+    }
   })
 
-  it('lets Who owes absorb the slack: a floor, no ceiling', () => {
+  it('lets Who owes absorb the slack and wrap a long counterparty note', () => {
     const owes = rule('.pending-bills__owes')
     expect(owes).toMatch(/min-width:\s*12ch/)
+    expect(owes).toMatch(/overflow-wrap:\s*anywhere/)
     expect(owes).not.toMatch(/max-width/)
   })
 
-  it('scrolls sideways only when the table is narrower than its available container', () => {
-    expect(rule('.pending-bills-body')).toMatch(/container:\s*pending-bills\s*\/\s*inline-size/)
-    expect(rule('.pending-bills-scroll')).not.toMatch(/overflow-x/)
-    expect(css).toMatch(/@container pending-bills \(max-width:\s*979\.98px\)\s*\{\s*\.pending-bills-scroll\s*\{[^}]*overflow-x:\s*auto/)
-    expect(rule('.record-split .pending-bills-list-column')).toMatch(/min-width:\s*0/)
-    expect(rule('.record-split .pending-bills-scroll')).toMatch(/overflow-x:\s*auto/)
+  it('hides lower-priority columns in a narrow list instead of adding horizontal scroll', () => {
+    expect(rule('.pending-bills-table .money-table-scroll') ?? '').not.toMatch(/overflow-x:\s*auto/)
+    expect(css).toMatch(/@container pending-bills-list \(max-width:\s*979\.98px\)/)
+    expect(css).toMatch(/\.pending-bills-table \.money-table-scroll\s*\{\s*overflow-x:\s*hidden/)
+    expect(rule('.pending-bills-list-column') ?? '').toMatch(/min-width:\s*0/)
   })
 
   it('uses the shared sticky record-panel rule and lets the viewer own scrolling', () => {
