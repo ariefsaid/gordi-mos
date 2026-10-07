@@ -122,6 +122,10 @@ check_ui() { # $1 name · $2 expected rc · $3 artifact · $4 expected diagnosti
     fail=$((fail+1)); printf '  FAIL  %s — rc=%s (want %s); %s\n' "$name" "$rc" "$want" "$(tr '\n' ' ' < "$tmp/ui-output")"
   fi
 }
+printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$ui_head" > "$tmp/ui-repo/feature-no-skills.md"
+check_ui 'feature-branch UI diff stamps without Skills evidence' 0 feature-no-skills.md
+gi update-ref refs/remotes/origin/main "$ui_head"
+check_ui 'release-candidate UI diff still requires Skills evidence' 1 feature-no-skills.md "requires a '## Skills evidence' section"
 write_ui_review missing-row.md reviews/evidence.md 'Taste' 'Render evidence: 390px, 768px, 1440px; real-length data used'
 check_ui 'UI diff refuses missing playbook row' 1 missing-row.md 'Skills evidence is missing required row: Taste'
 write_ui_review missing-shape.md reviews/evidence.md 'Impeccable shape' 'Render evidence: 390px, 768px, 1440px; real-length data used'
@@ -168,6 +172,7 @@ if [ $? -eq 0 ]; then pass=$((pass+1)); printf '  ok    test-only tsx does not r
 else fail=$((fail+1)); printf '  FAIL  test-only tsx wrongly gated\n'; fi
 printf 'export const B = () => null;\n' > "$tmp/scope-repo/mos-app/src/shell/bar.tsx"
 gs add -A && gs commit -qm 'shell ui'
+gs update-ref refs/remotes/origin/main "$(gs rev-parse HEAD)"
 printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$(gs rev-parse HEAD)" > "$tmp/scope-repo/review.md"
 (cd "$tmp/scope-repo" && bash "$SCRIPT" --lens spec --reviewer gpt-5.6-luna --artifact review.md) >/dev/null 2>&1
 if [ $? -ne 0 ]; then pass=$((pass+1)); printf '  ok    shell tsx requires skills evidence\n'

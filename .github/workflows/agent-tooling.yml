@@ -80,6 +80,8 @@ jobs:
         run: bash scripts/gh-post.test.sh
       - name: record-review independent-review stamp self-test
         run: bash scripts/record-review.test.sh
+      - name: owner-assent merge marker self-test
+        run: bash scripts/owner-assent.test.sh
       - name: lane-exempt audit-trail self-test
         run: bash scripts/lane-exempt.test.sh
       - name: cloud sandbox tool helpers self-test

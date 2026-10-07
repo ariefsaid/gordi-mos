@@ -11,11 +11,21 @@
 #   - the artifact is the reviewer's actual output: each lens must cite the full 40-character HEAD,
 #     carry a `Reviewer:` line, and carry a Verdict for THIS lens. DO NOT MERGE clears only that
 #     lens's passing stamp; it cannot be stamped into a passing gate.
+#   - UI Skills evidence is required for a UI diff only when HEAD is a release candidate.
 #
 # Self-test: scripts/record-review.test.sh
 set -uo pipefail
 
 die() { printf '✗ record-review: %s\n' "$1" >&2; exit 1; }
+
+is_release_candidate() {
+  case "$(git branch --show-current)" in release/*|"") return 0 ;; esac
+  for b in origin/dev origin/main; do
+    git rev-parse -q --verify "$b" >/dev/null \
+      && git merge-base --is-ancestor HEAD "$b" && return 0
+  done
+  return 1
+}
 
 validate_ui_skills_evidence() {
   local head="$1" artifact="$2" section main_checkout playbook row_rc evidence_path evidence_file
@@ -128,16 +138,12 @@ esac
 
 head="$(git rev-parse HEAD)" || die "not a git repo"
 
-# Releases and migrations get an Opus security lens. A release candidate is a release/* branch, a
-# detached HEAD, or a HEAD that dev or main already contains (feature branches never are); a migration branch
-# touches anything under supabase/migrations/.
+# Releases and migrations get an Opus security lens. The shared release-candidate predicate covers
+# release/* branches, detached HEADs, and HEADs already contained in origin/dev or origin/main; a
+# migration branch touches anything under supabase/migrations/.
 if [ "$lens" = security ]; then
   release=0
-  # A detached HEAD is treated as a release candidate: unnamed, it cannot show it is a feature branch.
-  case "$(git branch --show-current)" in release/*|"") release=1 ;; esac
-  for b in origin/dev origin/main; do
-    git rev-parse -q --verify "$b" >/dev/null && git merge-base --is-ancestor HEAD "$b" && release=1
-  done
+  is_release_candidate && release=1
   migration="$(git diff --name-only origin/dev...HEAD -- supabase/migrations 2>/dev/null | head -1)"
   if [ "$release" = 1 ] || [ -n "$migration" ]; then
     case "$(printf '%s' "$reviewer" | tr '[:upper:]' '[:lower:]')" in
@@ -154,7 +160,8 @@ changed_files="$(git diff --name-only --diff-filter=d origin/dev...HEAD 2>/dev/n
     || die "could not list the diff from origin/dev's merge-base"
 }
 ui_files="$(printf '%s\n' "$changed_files" | grep -E '(^|/)mos-app/src/.*\.tsx$|\.css$' | grep -vE '\.test\.tsx$' || true)"
-if [ -n "$ui_files" ]; then
+# Collect the UI Skills evidence packet only at a release boundary; feature-branch UI stamps stay light.
+if [ -n "$ui_files" ] && is_release_candidate; then
   validate_ui_skills_evidence "$head" "$artifact"
 fi
 
