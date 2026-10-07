@@ -2,7 +2,7 @@
 -- MOS remains the settlement record; this migration does not call or write to the ERP.
 -- The batch writer locks and validates every selected bill before writing, then delegates each
 -- full-balance entry to record_pending_bill_payment() so its proof, date, cents and ledger rules stay shared.
--- Rollback: supabase/rollbacks/20261008002000_mos_pay_several_pending_bills.sql (guarded).
+-- Rollback: supabase/rollbacks/20261008004000_mos_pay_several_pending_bills.sql (guarded).
 --
 -- DOWN: run the guarded rollback above; it refuses while batch request records exist.
 

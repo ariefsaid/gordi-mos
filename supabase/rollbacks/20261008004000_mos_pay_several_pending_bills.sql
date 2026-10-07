@@ -1,4 +1,4 @@
--- Guarded rollback for 20261008002000_mos_pay_several_pending_bills.sql (#1466).
+-- Guarded rollback for 20261008004000_mos_pay_several_pending_bills.sql (#1466).
 begin;
 do $$
 begin
