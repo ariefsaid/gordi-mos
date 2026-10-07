@@ -27,4 +27,7 @@ unlock_skills "$tmp"
 ! grep -q 'disable-model-invocation' "$tmp/feedback/SKILL.md" "$tmp/teach/SKILL.md" || { echo "owner-only flag left on a skill agents may start" >&2; exit 1; }
 grep -q 'disable-model-invocation: true' "$tmp/release/SKILL.md" || { echo "/release lost its owner-only flag" >&2; exit 1; }
 grep -q 'name: feedback' "$tmp/feedback/SKILL.md" || { echo "unlock damaged the frontmatter" >&2; exit 1; }
+# /release must stay locked: a release copy without the flag makes the unlock fail.
+sed -i.bak '/^disable-model-invocation:/d' "$tmp/release/SKILL.md"; rm -f "$tmp/release/SKILL.md.bak"
+if unlock_skills "$tmp" 2>/dev/null; then echo "a /release without its owner-only flag passed" >&2; exit 1; fi
 printf '%s\n' 'Agents may start every skill but /release'

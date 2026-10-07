@@ -239,6 +239,8 @@ unlock_skills() {
     grep -q '^disable-model-invocation:' "$f" 2>/dev/null || continue
     sed -i.bak '/^disable-model-invocation:/d' "$f" && rm -f "$f.bak"
   done
+  grep -q '^disable-model-invocation: true' "$1/release/SKILL.md" \
+    || { echo "ERROR: /release lost its owner-only flag — restore it in .claude/skill-overrides/release/SKILL.md" >&2; return 1; }
 }
 
 OVERRIDES="$ROOT/.claude/skill-overrides"
