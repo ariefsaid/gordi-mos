@@ -1389,6 +1389,69 @@ check("R6 S4 ...and resumes it: the key is looked up, the kept member posts, the
       and {k: v["status"] for k, v in member_closes(f).items()} == {M1: "posted"}
       and f.bodies("rpc/claim_esb_pushes") == [{"p_row_ids": [M1]}], repr(f.calls) + out)
 
+# A returned portion can leave the group without a stage: the first over-outstanding
+# refusal clears create_sent, then the retry's outstanding read fails before another create.
+repro_rows = gr_rows()
+transient_after_rematch = FakeGr(
+    outstanding=[[{"productDetailID": 9069, "outstandingQty": 9}],
+                 W.Transient("outstanding read timed out", kind="timeout")],
+    creates=[over], rematches=[[{"push_id": M1, "quantity": 2}]])
+n, out, f, repro_rows = gr_tick(transient_after_rematch, rows=repro_rows)
+failed = member_closes(f)
+repro_group = {"id": GR_GROUP}
+for patch in group_patches(f):
+    repro_group.update(patch)
+check("R7 the over refusal returns one portion, then the second outstanding read faults with no stage or number",
+      len(f.to(INIT_PATH)) == 2 and len(f.to(CREATE_PATH)) == 1
+      and f.bodies("rpc/rematch_cafe_receipt_group") == [{
+          "p_group_id": GR_GROUP,
+          "p_po_lines": [{"item_unit_id": GR_UNIT_A, "outstanding": 9.0}]}]
+      and failed[M1]["status"] == "failed" and failed[M2]["status"] == "dead_letter"
+      and repro_group.get("status") == "failed" and repro_group.get("posting_stage") is None
+      and not repro_group.get("esb_doc_num"), repr(f.calls) + repr(repro_group) + out)
+
+persisted = {r["id"]: {**r, **failed[r["id"]]} for r in repro_rows}
+persisted_members = [persisted[M1], persisted[M2]]
+def reap_returned_group(fake, method, url, body):
+    recovered = 0
+    for member in persisted_members:
+        if member.get("status") == "failed":
+            member["status"] = "pending"
+            recovered += 1
+    return recovered
+reaper = Fake(**{"rpc/reap_esb_pushes": reap_returned_group})
+reaped = run(lambda: W.Outbox(gr_cfg()).reap(), reaper)
+
+def resumed_group_rows(fake, method, url, body):
+    query = urllib.parse.unquote(url)
+    if "push_group_id" in query:
+        return persisted_members
+    if "status=eq.pending" in query:
+        return [member for member in persisted_members if member.get("status") == "pending"]
+    return []
+resume_fake = Fake(esb_push=resumed_group_rows,
+                   esb_push_groups=lambda *a: [repro_group])
+resume_ob = W.Outbox(gr_cfg())
+resumed = run(lambda: resume_ob.pending(), resume_fake)
+check("R7 reaper restores only the kept portion and pending() selects its complete returned group",
+      reaped == 1 and persisted[M1]["status"] == "pending" and persisted[M2]["status"] == "dead_letter"
+      and {r["id"] for r in resumed} == {M1, M2}, repr(resumed) + repr(persisted))
+returned_error = persisted[M2]["last_error"]
+persisted[M2]["last_error"] = "unrelated terminal failure"
+blocked = run(lambda: W.Outbox(gr_cfg()).pending(),
+              Fake(esb_push=resumed_group_rows,
+                   esb_push_groups=lambda *a: [repro_group]))
+check("R7 an unrelated terminal member does not make the retry group resumable", blocked == [], repr(blocked))
+persisted[M2]["last_error"] = returned_error
+n, out, f, rows = gr_tick(FakeGr(rematches=[[{"push_id": M1, "quantity": 2}]]),
+                          rows=resumed, meta=repro_group)
+closes = member_closes(f)
+check("R7 the resumed kept portion posts while the returned portion stays untouched",
+      n == 1 and [(d["productDetailID"], d["qty"])
+                  for d in f.bodies(CREATE_PATH)[0]["goodsReceiptDetails"]] == [(9069, 2.0)]
+      and closes.get(M1, {}).get("status") == "posted" and M2 not in closes,
+      repr(f.calls) + out)
+
 # CQ3: a PO line list the configured shape cannot read is a shape fault, not an empty PO.
 n, out, f, rows = gr_tick(FakeGr(outstanding=[[{"productDetail": 9069, "outstandingQty": 9}]]))
 check("CQ3 lines without the configured product-detail field fail the group as unrecognised, returning nothing",
