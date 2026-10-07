@@ -106,7 +106,12 @@ else
 fi
 
 # ── 3. Edge functions changed on main since staging: deploy only the app allowlist; hold the rest.
-changed="$(git -C "$ROOT" diff --name-only origin/staging origin/main -- supabase/functions | awk -F/ 'NF>=3 && $3!="_shared"{print $3}' | sort -u)"
+changed="$(git -C "$ROOT" diff --name-only origin/staging origin/main -- supabase/functions mos-app/src/lib/agent mos-app/src/lib/viewspec | awk -F/ '
+  $1=="supabase" && $2=="functions" && $3=="_shared" {dep=1; next}
+  $1=="mos-app" && $2=="src" && $3=="lib" && ($4=="agent" || $4=="viewspec") {dep=1; next}
+  $1=="supabase" && $2=="functions" && NF>=3 && $3!="_shared" {print $3}
+  END {if (dep) print "agent-chat"}
+' | sort -u)"
 functions_to_deploy=() held_functions=() agent_held=()
 while IFS= read -r n; do
   [ -n "$n" ] || continue
@@ -118,6 +123,32 @@ while IFS= read -r n; do
 done <<< "$changed"
 [ "${#held_functions[@]}" -eq 0 ] || say "WARNING: changed edge functions held (not deployed): ${held_functions[*]}"
 [ "${#agent_held[@]}" -eq 0 ] || say "  ${agent_held[*]} remain held until agent switch-on."
+
+# Validate every function-deploy input before any migration can be pushed.
+PROJECT_REF="" edge_host="" edge_base=""
+function_origins=()
+if [ "${#functions_to_deploy[@]}" -gt 0 ]; then
+  [ -n "$FUNCTIONS_OP_ITEM" ] && [ -n "$FUNCTIONS_OP_VAULT" ] && [ -n "$FUNCTIONS_OP_FIELD" ] || \
+    die "op.staging.env must set STAGING_FUNCTIONS_OP_ITEM, STAGING_FUNCTIONS_OP_VAULT and STAGING_FUNCTIONS_OP_FIELD"
+  db_host="${URL#*@}"; db_host="${db_host%%[:/?]*}"
+  case "$db_host" in db.*.supabase.co) PROJECT_REF="${db_host#db.}"; PROJECT_REF="${PROJECT_REF%.supabase.co}" ;; *) die "could not derive the edge endpoint from the staging connection" ;; esac
+  [[ "$PROJECT_REF" =~ ^[a-z0-9]{20}$ ]] || die "could not derive the edge endpoint from the staging connection"
+  edge_host="${db_host#db.}"
+  edge_base="https://${edge_host}/functions/v1"
+  SECRETS+=("$PROJECT_REF" "$edge_host")
+
+  cors_source="$ROOT/supabase/functions/_shared/cors.ts"
+  origins_line="$(grep -E '^[[:space:]]*const DEFAULT_APP_ORIGINS[[:space:]]*=' "$cors_source" | head -1 || true)"
+  [ -n "$origins_line" ] || die "could not read app origins from the shared CORS module"
+  origins_text="${origins_line#*\[}"; origins_text="${origins_text%%\]*}"
+  while IFS= read -r origin; do
+    origin="$(printf '%s' "$origin" | sed -E "s/^[[:space:]]*['\"]//; s/['\"][[:space:]]*$//")"
+    [ -n "$origin" ] || continue
+    [[ "$origin" =~ ^https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?$ ]] || die "could not validate app origins from the shared CORS module"
+    function_origins+=("$origin")
+  done < <(printf '%s\n' "$origins_text" | tr ',' '\n')
+  [ "${#function_origins[@]}" -gt 0 ] || die "could not read app origins from the shared CORS module"
+fi
 
 # ── 4. Privileged-step probe: only when a pending migration touches the authenticator role or storage policies.
 probe=0
@@ -156,13 +187,16 @@ fi
 
 if [ "$DRY" = 1 ]; then say "Dry run: stopping before push."; exit 0; fi
 
-# ── 6. Confirm, then push.
-if [ "${#pending[@]}" -gt 0 ]; then
+# ── 6. Confirm once, then push migrations and/or deploy functions.
+if [ "${#pending[@]}" -gt 0 ] || [ "${#functions_to_deploy[@]}" -gt 0 ]; then
   if [ "$YES" != 1 ]; then
-    printf 'Apply %d migration(s) to staging? [y/N] ' "${#pending[@]}" >&2
+    printf 'Deploy %d migration(s) and %d edge function(s) to staging? [y/N] ' \
+      "${#pending[@]}" "${#functions_to_deploy[@]}" >&2
     ans=""; read -r ans || true
-    case "$ans" in y|Y|yes|YES) ;; *) die "not confirmed — nothing was pushed" ;; esac
+    case "$ans" in y|Y|yes|YES) ;; *) die "not confirmed — nothing was pushed or deployed" ;; esac
   fi
+fi
+if [ "${#pending[@]}" -gt 0 ]; then
   set +e; out="$(supabase --workdir "$ROOT" db push --yes --db-url "$CONN" 2>&1 </dev/null)"; rc=$?; set -e
   printf '%s\n' "$out" | ops_redact
   [ "$rc" -eq 0 ] || die "supabase db push failed (exit $rc)"
@@ -170,37 +204,24 @@ fi
 
 # ── 7. Deploy changed app-facing functions after the database push, then smoke-check the handler.
 if [ "${#functions_to_deploy[@]}" -gt 0 ]; then
-  [ -n "$FUNCTIONS_OP_ITEM" ] && [ -n "$FUNCTIONS_OP_VAULT" ] && [ -n "$FUNCTIONS_OP_FIELD" ] || \
-    die "op.staging.env must set STAGING_FUNCTIONS_OP_ITEM, STAGING_FUNCTIONS_OP_VAULT and STAGING_FUNCTIONS_OP_FIELD"
   unset EDGE_ACCESS_TOKEN
   EDGE_ACCESS_TOKEN="$(op-get.sh "$FUNCTIONS_OP_ITEM" "$FUNCTIONS_OP_VAULT" "$FUNCTIONS_OP_FIELD" 2>/dev/null </dev/null)" || \
     die "op-get.sh could not read the staging Supabase access token"
   [ -n "$EDGE_ACCESS_TOKEN" ] || die "the staging Supabase access token is empty"
-  db_host="${URL#*@}"; db_host="${db_host%%[:/?]*}"
-  case "$db_host" in db.*) edge_host="${db_host#db.}" ;; *) die "could not derive the edge endpoint from the staging connection" ;; esac
-  edge_base="https://${edge_host}/functions/v1"
-
-  cors_source="$ROOT/supabase/functions/_shared/cors.ts"
-  origins_line="$(grep -E '^[[:space:]]*const DEFAULT_APP_ORIGINS[[:space:]]*=' "$cors_source" | head -1 || true)"
-  [ -n "$origins_line" ] || die "could not read app origins from the shared CORS module"
-  origins_text="${origins_line#*\[}"; origins_text="${origins_text%%\]*}"
-  function_origins=()
-  while IFS= read -r origin; do
-    origin="$(printf '%s' "$origin" | sed -E "s/^[[:space:]]*['\"]//; s/['\"][[:space:]]*$//")"
-    [ -n "$origin" ] && function_origins+=("$origin")
-  done < <(printf '%s\n' "$origins_text" | tr ',' '\n')
-  [ "${#function_origins[@]}" -gt 0 ] || die "could not read app origins from the shared CORS module"
+  SECRETS+=("$EDGE_ACCESS_TOKEN")
 
   for fn in "${functions_to_deploy[@]}"; do
-    if ! PGPASSWORD= SUPABASE_ACCESS_TOKEN="$EDGE_ACCESS_TOKEN" supabase --workdir "$ROOT" functions deploy "$fn" --no-verify-jwt >/dev/null 2>&1; then
-      die "edge function deploy failed for $fn"
-    fi
+    set +e
+    out="$(PGPASSWORD= SUPABASE_ACCESS_TOKEN="$EDGE_ACCESS_TOKEN" supabase --workdir "$ROOT" functions deploy "$fn" --no-verify-jwt --project-ref "$PROJECT_REF" 2>&1 </dev/null)"
+    rc=$?
+    set -e
+    if [ "$rc" -ne 0 ]; then printf '%s\n' "$out" | ops_redact >&2; die "edge function deploy failed for $fn (exit $rc)"; fi
     say "Deployed edge function $fn."
     : > "$errf.body"
     status="$(printf 'url = "%s/%s"\nrequest = "POST"\nheader = "Content-Type: application/json"\ndata = "{}"\n' "$edge_base" "$fn" | \
       curl --config - --silent --max-time 20 --output "$errf.body" --write-out '%{http_code}' 2>/dev/null)" || \
       die "unauthenticated POST smoke check failed for $fn"
-    if [ "$status" != 401 ] || ! grep -q 'UNAUTHORIZED' "$errf.body"; then
+    if [ "$status" != 401 ] || ! grep -Fq '"error":"UNAUTHORIZED"' "$errf.body"; then
       die "unauthenticated POST smoke check failed for $fn (expected handler 401)"
     fi
     say "Unauthenticated POST smoke check passed for $fn (handler 401)."

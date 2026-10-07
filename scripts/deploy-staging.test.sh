@@ -15,10 +15,12 @@ ok()  { pass=$((pass+1)); printf '  ok    %s\n' "$1"; }
 bad() { fail=$((fail+1)); printf '  FAIL  %s\n' "$1"; }
 
 SECRET_PW='p4ssw0rdZZ'
-SECRET_HOST='db.fakehost-zz.example.test'
+SECRET_HOST='db.abcdefghijklmnopqrst.supabase.co'
+SECRET_PROJECT_REF='abcdefghijklmnopqrst'
 SECRET_URL="postgresql://deployer:${SECRET_PW}@${SECRET_HOST}:5432/postgres"
 FAKE_ACCESS_TOKEN='test-only-access-token'; export FAKE_ACCESS_TOKEN
 ROOT_REPO="$(pwd -P)"; calls="$tmp/calls"; ARGVLOG="$tmp/argv"; : > "$ARGVLOG"; allout="$tmp/allout"; : > "$allout"
+REAL_GREP="$(command -v grep)"; export REAL_GREP
 mkdir -p "$tmp/bin" "$tmp/mig"
 
 cat > "$tmp/bin/op-get.sh" <<'EOF'
@@ -32,7 +34,9 @@ esac
 EOF
 cat > "$tmp/bin/supabase" <<'EOF'
 #!/usr/bin/env bash
-printf 'argv supabase %s\npgpw %s\n' "$*" "${PGPASSWORD:-}" >> "$ARGVLOG"
+if [[ "$*" == *"${FAKE_PASSWORD:-}"* ]] && [ -n "${FAKE_PASSWORD:-}" ]; then printf 'argv supabase-secret\n' >> "$ARGVLOG"
+else printf 'argv supabase-safe\n' >> "$ARGVLOG"; fi
+if [ -n "${PGPASSWORD:-}" ]; then printf 'pgpw-set\n' >> "$ARGVLOG"; else printf 'pgpw-empty\n' >> "$ARGVLOG"; fi
 case "$*" in
   *--dry-run*) printf 'supabase dry-run\n' >> "$CALLS"
     echo "Connecting to $FAKE_URL"
@@ -40,13 +44,26 @@ case "$*" in
     printf '%s\n' "${FAKE_DRY_OUT}" ;;
   *"db push"*) printf 'supabase push\n' >> "$CALLS"; echo "Finished supabase db push." ;;
   *"functions deploy"*)
-    fn=""; for arg in "$@"; do case "$arg" in agent-chat|compose-view|mcp) fn="$arg" ;; esac; done
+    fn=""; prev=""; project_ref=""
+    smoke_host="${FAKE_URL#*@}"; smoke_host="${smoke_host%%[:/?]*}"
+    smoke_ref="${smoke_host#db.}"; smoke_ref="${smoke_ref%.supabase.co}"
+    for arg in "$@"; do
+      case "$arg" in agent-chat|compose-view|mcp) fn="$arg" ;; esac
+      [ "$prev" != --project-ref ] || project_ref="$arg"
+      prev="$arg"
+    done
     printf 'supabase functions-deploy %s\n' "$fn" >> "$CALLS"
+    [ "$project_ref" != "$smoke_ref" ] || printf 'supabase project-ref-ok\n' >> "$CALLS"
+    if IFS= read -r -t 0.1 _; then printf 'supabase deploy-stdin-open\n' >> "$CALLS"
+    else printf 'supabase deploy-stdin-closed\n' >> "$CALLS"; fi
     if [ "${SUPABASE_ACCESS_TOKEN:-}" = "${FAKE_ACCESS_TOKEN:-}" ] && [ -n "${SUPABASE_ACCESS_TOKEN:-}" ]; then
       printf 'supabase token-env-ok\n' >> "$CALLS"
     fi
     [ -n "${PGPASSWORD:-}" ] || printf 'supabase db-password-not-forwarded\n' >> "$CALLS"
     for arg in "$@"; do [ "$arg" != --no-verify-jwt ] || printf 'supabase no-verify-jwt\n' >> "$CALLS"; done
+    if [ "${FAKE_DEPLOY_RC:-0}" != 0 ]; then
+      printf 'deployment rejected host=%s project=%s token=%s\n' "$FAKE_HOST" "$smoke_ref" "$FAKE_ACCESS_TOKEN" >&2
+    fi
     exit "${FAKE_DEPLOY_RC:-0}" ;;
   *"config push"*) printf 'supabase config-push\n' >> "$CALLS" ;;
 esac
@@ -71,6 +88,8 @@ case "$request" in
     status="${FAKE_POST_STATUS:-401}"
     if [ "$status" = 401 ] && [ "${FAKE_POST_HANDLER:-1}" = 1 ]; then
       printf '{"error":"UNAUTHORIZED"}' > "$body_file"
+    elif [ "$status" = 401 ]; then
+      printf '{"code":"UNAUTHORIZED_NO_AUTH_HEADER","message":"Missing authorization header"}' > "$body_file"
     else
       printf 'not unauthorized' > "$body_file"
     fi
@@ -87,7 +106,9 @@ printf '%s' "$status"
 EOF
 cat > "$tmp/bin/psql" <<'EOF'
 #!/usr/bin/env bash
-printf 'argv psql %s\npgpw %s\n' "$*" "${PGPASSWORD:-}" >> "$ARGVLOG"
+if [[ "$*" == *"${FAKE_PASSWORD:-}"* ]] && [ -n "${FAKE_PASSWORD:-}" ]; then printf 'argv psql-secret\n' >> "$ARGVLOG"
+else printf 'argv psql-safe\n' >> "$ARGVLOG"; fi
+if [ -n "${PGPASSWORD:-}" ]; then printf 'pgpw-set\n' >> "$ARGVLOG"; else printf 'pgpw-empty\n' >> "$ARGVLOG"; fi
 sql="$*"; stdin=""; case "$sql" in *" -c "*) ;; *) stdin="$(cat)" ;; esac
 case "$sql$stdin" in
   *zz_preflight_probe*"create policy"*|*"create policy"*zz_preflight_probe*) printf 'psql probe\n' >> "$CALLS"
@@ -102,7 +123,8 @@ EOF
 cat > "$tmp/rehearse.sh" <<'EOF'
 #!/usr/bin/env bash
 printf 'rehearse %s\n' "$*" >> "$CALLS"
-printf 'rehearse-pgpw %s\n' "${PGPASSWORD:-}" >> "$ARGVLOG"
+if [ -n "${PGPASSWORD:-}" ]; then printf 'rehearse-pgpw-set\n' >> "$ARGVLOG"
+else printf 'rehearse-pgpw-empty\n' >> "$ARGVLOG"; fi
 echo "rehearsal log mentions $FAKE_HOST"
 exit "${FAKE_REHEARSE_RC:-0}"
 EOF
@@ -132,18 +154,24 @@ cat > "$tmp/gh-post.sh" <<'EOF'
 if [ "$(pwd -P)" = "$(cd "$(cat "$WTFILE")" && pwd -P)" ] && [ -f .on-main ]; then printf 'gh-post %s\n' "$*" >> "$CALLS"
 else printf 'gh-post-WRONG-CHECKOUT %s\n' "$*" >> "$CALLS"; fi
 EOF
+cat > "$tmp/bin/grep" <<'EOF'
+#!/usr/bin/env bash
+if [ "${FAKE_NO_ORIGINS:-0}" = 1 ] && [[ "$*" == *DEFAULT_APP_ORIGINS* ]]; then exit 1; fi
+exec "$REAL_GREP" "$@"
+EOF
 chmod +x "$tmp"/bin/* "$tmp/gh-post.sh" "$tmp/rehearse.sh"
 
 printf 'create table t();\n' > "$tmp/mig/20260101000001_plain.sql"
 printf "alter role authenticator set pgrst.db_pre_request = 'api_private.check_request';\n" > "$tmp/mig/20260101000002_gate.sql"
 printf 'STAGING_OP_ITEM=fake-item\nSTAGING_OP_VAULT=fake-vault\nSTAGING_OP_FIELD=FAKE\nSTAGING_FUNCTIONS_OP_ITEM=fake-function-item\nSTAGING_FUNCTIONS_OP_VAULT=fake-function-vault\nSTAGING_FUNCTIONS_OP_FIELD=FAKE_TOKEN\n' > "$tmp/op.env"
+printf 'STAGING_OP_ITEM=fake-item\nSTAGING_OP_VAULT=fake-vault\nSTAGING_OP_FIELD=FAKE\n' > "$tmp/op-no-functions.env"
 
 # run NAME EXPECT_RC STDIN [ENV=val ...] -- args   (sets $out; asserts rc)
 run() {
   local name="$1" want="$2" input="$3"; shift 3
   local envs=(); while [ "$#" -gt 0 ] && [ "$1" != -- ]; do envs+=("$1"); shift; done; shift
   : > "$calls"
-  out="$(printf '%s' "$input" | env PATH="$tmp/bin:$PATH" CALLS="$calls" ARGVLOG="$ARGVLOG" WTFILE="$tmp/wtfile" ROOT_REPO="$ROOT_REPO" FAKE_URL="$SECRET_URL" FAKE_HOST="$SECRET_HOST" \
+  out="$(printf '%s' "$input" | env PATH="$tmp/bin:$PATH" CALLS="$calls" ARGVLOG="$ARGVLOG" WTFILE="$tmp/wtfile" ROOT_REPO="$ROOT_REPO" FAKE_URL="$SECRET_URL" FAKE_HOST="$SECRET_HOST" FAKE_PASSWORD="$SECRET_PW" REAL_GREP="$REAL_GREP" \
     FAKE_DRY_OUT="Would push these migrations:
  • 20260101000001_plain.sql
  • 20260101000002_gate.sql" tmp_main="$tmp" \
@@ -183,9 +211,9 @@ hasnt "failure output hides host" "$SECRET_HOST"
 if grep -qE "$SECRET_PW|$SECRET_HOST|postgresql://" "$allout"; then bad "connection string, password or host reached stdout/stderr"; else ok "connection string, password and host never reach stdout/stderr (all runs)"; fi
 
 echo "no secret in argv"
-if grep '^argv ' "$ARGVLOG" | grep -qF "$SECRET_PW"; then bad "password appears in a command's argv"; else ok "password never in argv of psql or supabase"; fi
-if grep -q '^argv ' "$ARGVLOG"; then ok "argv log recorded calls (check can fail)"; else bad "argv log empty"; fi
-if grep -qx "pgpw $SECRET_PW" "$ARGVLOG"; then ok "password reaches the commands through PGPASSWORD"; else bad "PGPASSWORD not set for the commands"; fi
+if grep -qE '^argv (psql|supabase)-secret$' "$ARGVLOG"; then bad "password appears in a command's argv"; else ok "password never in argv of psql or supabase"; fi
+if grep -q '^argv ' "$ARGVLOG"; then ok "argv safety markers recorded (check can fail)"; else bad "argv log empty"; fi
+if grep -qx 'pgpw-set' "$ARGVLOG"; then ok "database commands receive PGPASSWORD without logging its value"; else bad "PGPASSWORD not set for the commands"; fi
 
 echo "preflight stops"
 run "stops on a failed dry run" 1 "" FAKE_DRY_RC=7 -- --yes
@@ -259,12 +287,14 @@ run "two flagged orgs fail" 1 "" FAKE_SAMPLE_ORGS=2/2 -- --yes --no-pr
 has "the count failure is named" "flagged/sample-shaped: '2/2'"
 
 echo "edge functions"
-run "changed agent-chat deploys and passes smoke checks" 0 "" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\nsupabase/functions/compose-view/index.ts\nsupabase/functions/mcp/index.ts\nsupabase/functions/_shared/cors.ts\n' -- --yes --no-pr
+run "changed agent-chat deploys and passes smoke checks" 0 "sentinel-for-function-cli\n" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\nsupabase/functions/compose-view/index.ts\nsupabase/functions/mcp/index.ts\nsupabase/functions/_shared/cors.ts\n' -- --yes --no-pr
 expect "agent-chat deployed" "supabase functions-deploy agent-chat"
 expect "function token read from the secret store" "op-get fake-function-item fake-function-vault FAKE_TOKEN"
 expect "token supplied through the CLI environment" "supabase token-env-ok"
 expect "database password is not forwarded to edge deploy" "supabase db-password-not-forwarded"
 expect "handler receives unauthenticated requests" "supabase no-verify-jwt"
+expect "deploy carries the project ref derived from the smoke host" "supabase project-ref-ok"
+expect "deploy cannot read the caller's stdin" "supabase deploy-stdin-closed"
 expect "unauthenticated POST smoke check ran" "curl POST"
 if before "supabase push" "supabase functions-deploy agent-chat"; then ok "edge deploy follows a successful migration push"; else bad "edge deploy follows a successful migration push"; fi
 expected_origins="$(grep '^const DEFAULT_APP_ORIGINS' supabase/functions/_shared/cors.ts | tr -cd "'" | wc -c | awk '{print int($1 / 2)}' | tr -d ' ')"
@@ -279,8 +309,12 @@ BASHX=-x run "traced function deploy hides the access token" 0 "" FAKE_FN_DIFF=$
 if grep -qF "$FAKE_ACCESS_TOKEN" "$ARGVLOG" "$allout"; then bad "traced run exposed the access token"; else ok "traced run keeps the access token private"; fi
 run "a failed function deploy stops the run" 1 "" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' FAKE_DEPLOY_RC=1 -- --yes --no-pr
 has "deployment failure is clear" "edge function deploy failed"
+has "deployment diagnostics include the redacted CLI reason" "deployment rejected"
+hasnt "deployment diagnostics hide the host" "$SECRET_HOST"
+hasnt "deployment diagnostics hide the project ref" "$SECRET_PROJECT_REF"
+hasnt "deployment diagnostics hide the token" "$FAKE_ACCESS_TOKEN"
 expect_not "no smoke check after failed deploy" "curl POST"
-run "a gateway 401 without the handler marker fails" 1 "" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' FAKE_POST_HANDLER=0 -- --yes --no-pr
+run "a gateway 401 with its gateway code fails handler auth" 1 "" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' FAKE_POST_HANDLER=0 -- --yes --no-pr
 has "gateway 401 is not mistaken for handler auth" "unauthenticated POST smoke check failed"
 run "an unauthenticated POST returning 200 fails" 1 "" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' FAKE_POST_STATUS=200 -- --yes --no-pr
 has "200 smoke failure is clear" "unauthenticated POST smoke check failed"
@@ -293,6 +327,25 @@ expect_not "dry-run never smoke-checks a function" "curl POST"
 expect_not "dry-run never reads the function token" "op-get fake-function-item"
 run "no function changes: silent" 0 "" -- --yes --no-pr
 hasnt "no function warning" "edge functions changed"
+run "shared function code change redeploys agent-chat" 0 "" FAKE_FN_DIFF=$'supabase/functions/_shared/auth.ts\n' -- --yes --no-pr
+expect "shared dependency triggers allowlisted deployment" "supabase functions-deploy agent-chat"
+run "agent library change redeploys agent-chat" 0 "" FAKE_FN_DIFF=$'mos-app/src/lib/agent/client.ts\n' -- --yes --no-pr
+expect "agent library dependency triggers allowlisted deployment" "supabase functions-deploy agent-chat"
+run "viewspec library change redeploys agent-chat" 0 "" FAKE_FN_DIFF=$'mos-app/src/lib/viewspec/schema.ts\n' -- --yes --no-pr
+expect "viewspec dependency triggers allowlisted deployment" "supabase functions-deploy agent-chat"
+run "function secret-store names are checked before migration push" 1 "" STAGING_OP_ENV_FILE="$tmp/op-no-functions.env" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --yes --no-pr
+has "missing function coordinates are named" "STAGING_FUNCTIONS_OP_ITEM"
+expect_not "no migration push when function secret-store names are missing" "supabase push"
+run "invalid function host is rejected before migration push" 1 "" FAKE_URL="postgresql://deployer:${SECRET_PW}@db.invalid.example.test:5432/postgres" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --yes --no-pr
+expect_not "no migration push when the function host cannot provide a project ref" "supabase push"
+run "unreadable app origins are rejected before migration push" 1 "" FAKE_NO_ORIGINS=1 FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --yes --no-pr
+expect_not "no migration push when app origins cannot be read" "supabase push"
+run "function-only deployment needs confirmation" 1 "" FAKE_DRY_OUT="Remote database is up to date." FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --no-pr
+has "function-only change is included in confirmation" "Deploy 0 migration(s) and 1 edge function(s) to staging?"
+expect_not "function-only change does not deploy without confirmation" "supabase functions-deploy"
+run "y confirms function-only deployment" 0 "y
+" FAKE_DRY_OUT="Remote database is up to date." FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --no-pr
+expect "function-only deployment follows confirmation" "supabase functions-deploy agent-chat"
 
 echo "rehearsal wiring"
 # before A B: the first call starting with A comes before the first starting with B (or B never ran).
@@ -300,7 +353,7 @@ run "rehearsal runs on the pending migrations" 0 "" -- --yes --no-pr
 expect "rehearsal called with the dump and the pending list" "rehearse $tmp/dumps $tmp/mig 20260101000001_plain.sql 20260101000002_gate.sql"
 if before "rehearse " "supabase push"; then ok "rehearsal runs before the push"; else bad "rehearsal runs before the push"; fi
 hasnt "rehearsal output is redacted" "$SECRET_HOST"
-if grep -q '^rehearse-pgpw ' "$ARGVLOG" && ! grep -q "^rehearse-pgpw ." "$ARGVLOG"; then ok "the staging password never reaches the rehearsal"; else bad "the rehearsal saw PGPASSWORD"; fi
+if grep -q '^rehearse-pgpw-empty$' "$ARGVLOG" && ! grep -q '^rehearse-pgpw-set$' "$ARGVLOG"; then ok "the staging password never reaches the rehearsal"; else bad "the rehearsal saw PGPASSWORD"; fi
 run "failed rehearsal stops the deploy" 1 "" FAKE_REHEARSE_RC=1 -- --yes
 has "failure named" "migration rehearsal failed"
 expect_not "no push after a failed rehearsal" "supabase push"
@@ -325,7 +378,7 @@ expect_not "no rehearsal without pending migrations" "rehearse "
 echo "rehearsal on a real Postgres (docker)"
 IMG="${REHEARSAL_TEST_IMAGE:-postgres:17-alpine}"
 if [ "${SKIP_REAL_REHEARSAL_DOCKER:-0}" = 1 ]; then
-  ok "real Postgres rehearsal skipped by SKIP_REAL_REHEARSAL_DOCKER"
+  printf '  SKIP  real Postgres rehearsal skipped by SKIP_REAL_REHEARSAL_DOCKER\n'
 elif ! docker info >/dev/null 2>&1; then
   bad "docker is required for this section (the rehearsal itself needs it)"
 else
