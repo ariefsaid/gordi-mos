@@ -51,6 +51,9 @@ export function CafeReceiptReviewQueue({
   const [decided, setDecided] = useState(0)
   const [postingUnknown, setPostingUnknown] = useState<ReadonlySet<string>>(new Set())
   const online = !useIsOffline()
+  const unsentStream = streamFilter === ALL_STREAMS ? undefined : streamCatalog.find(stream =>
+    streamKey(stream.branch.id, stream.activity) === streamFilter,
+  )
 
   useEffect(() => {
     let active = true
@@ -59,7 +62,7 @@ export function CafeReceiptReviewQueue({
     // Counted receipts that are not sent yet follow the decidable Submitted ones, oldest first with
     // their age, so an unsent lock is visible; only Submitted ones can be decided.
     void Promise.all([
-      listCafeReceipts(['Submitted'], { photosFor: ['Submitted'] }), listCafeUnsentReceipts(), getPeople(),
+      listCafeReceipts(['Submitted'], { photosFor: ['Submitted'] }), listCafeUnsentReceipts(unsentStream), getPeople(),
     ]).then(([submitted, unsent, people]) => {
       if (!active) return
       const nextRows = [...submitted, ...unsent.receipts]
@@ -79,7 +82,7 @@ export function CafeReceiptReviewQueue({
       setLoading(false)
     })
     return () => { active = false }
-  }, [retry])
+  }, [retry, unsentStream])
 
   const visibleRows = useMemo(() => rows.filter(receipt =>
     streamFilter === ALL_STREAMS || streamKey(receipt.branch_id, receipt.activity) === streamFilter,
