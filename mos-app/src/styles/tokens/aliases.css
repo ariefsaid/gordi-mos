@@ -70,5 +70,6 @@
   --cafe-capture-quantity-width: 7.5rem;
   --cafe-capture-unit-track-width: 17rem;
   --cafe-capture-control-group-width: 25rem;
+  --cafe-capture-content-measure: 772px;
   --cafe-capture-control-height: 44px;
 }

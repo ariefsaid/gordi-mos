@@ -9,7 +9,10 @@ const read = (path: string) => readFileSync(resolve(process.cwd(), path), 'utf8'
 const stripComments = (source: string) => source.replace(/\/\*[\s\S]*?\*\//g, '')
 const css = stripComments(read('src/pages/cafe-receive-page.css'))
 const countCss = stripComments(read('src/pages/cafe-count-page.css'))
+const aliases = read('src/styles/tokens/aliases.css')
 const tsx = read('src/pages/cafe-receive-page.tsx')
+const requestTsx = read('src/pages/cafe-request-page.tsx')
+const requestRow = read('src/components/kitchen/cafe-item-quantity-row.tsx')
 
 function rule(selector: string, source = css): string {
   const index = source.indexOf(`${selector} {`)
@@ -23,6 +26,13 @@ describe('Receive capture rows match the shared Café capture layout', () => {
     expect(tsx).toMatch(/^import '@\/components\/kitchen\/cafe-capture-controls\.css'$/m)
     expect(tsx).toMatch(/className="cafe-capture-quantity-field"/)
     expect(tsx).toMatch(/className="cafe-count__unit cafe-capture-unit"/)
+  })
+
+  it('loads shared capture controls for Request rows and applies their field and unit classes', () => {
+    expect(requestTsx).toMatch(/<CafeItemQuantityRow\b/)
+    expect(requestRow).toMatch(/^import ['"]@\/components\/kitchen\/cafe-capture-controls\.css['"]$/m)
+    expect(requestRow).toMatch(/className="cafe-capture-quantity-field"/)
+    expect(requestRow).toMatch(/className="cafe-count__unit cafe-capture-unit"/)
   })
 
   it('keeps the unit beside its box on the shared quantity width (no Receive column override)', () => {
@@ -44,11 +54,12 @@ describe('Receive capture rows match the shared Café capture layout', () => {
     expect(label).toMatch(/font-size:\s*var\(--font-size-label\)/)
   })
 
-  it('caps the open-PO section, toolbar and receipt cards at the row list and band measure', () => {
-    const measure = rule('.cafe-count__list', countCss).match(/max-width:\s*(\d+px)/)?.[1]
-    expect(measure).toBeDefined()
-    expect(countCss).toContain(`width: min(100%, ${measure})`)
+  it('uses the shared content-measure token for the list, footer and Receive blocks', () => {
+    expect(aliases).toMatch(/--cafe-capture-content-measure:\s*772px/)
+    expect(rule('.cafe-count__list', countCss)).toContain('max-width: var(--cafe-capture-content-measure)')
+    expect(countCss).toMatch(/@media\s*\(min-width:\s*640px\)[\s\S]*?\.cafe-count__footer\s*\{[^}]*width:\s*min\(100%,\s*var\(--cafe-capture-content-measure\)\)/)
     const capped = rule('.cafe-receive__open-pos,\n.cafe-receive .ktb,\n.cafe-receive__counted,\n.cafe-receive__recent')
-    expect(capped).toContain(`max-width: ${measure}`)
+    expect(capped).toContain('max-width: var(--cafe-capture-content-measure)')
+    expect(`${countCss}${css}`).not.toContain('772px')
   })
 })

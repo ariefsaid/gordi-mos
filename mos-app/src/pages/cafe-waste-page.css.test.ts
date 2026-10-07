@@ -6,6 +6,8 @@ const css = readFileSync(resolve(process.cwd(), 'src/pages/cafe-waste-page.css')
   .replace(/\/\*[\s\S]*?\*\//g, '')
 const selectCss = readFileSync(resolve(process.cwd(), 'src/components/ui/Select.css'), 'utf8')
   .replace(/\/\*[\s\S]*?\*\//g, '')
+const captureCss = readFileSync(resolve(process.cwd(), 'src/components/kitchen/cafe-capture-controls.css'), 'utf8')
+  .replace(/\/\*[\s\S]*?\*\//g, '')
 
 function rule(selector: string, last = false): string {
   const index = last ? css.lastIndexOf(selector) : css.indexOf(selector)
@@ -36,11 +38,12 @@ describe('Waste capture controls stay paired and complete', () => {
     expect(selectCss).toMatch(/\.mk-select__field\s*\{[^}]*text-align:\s*left/)
   })
 
-  it('wraps long unit labels inside the flexible desktop track', () => {
-    expect(rule('.cwl-unit-label {')).toMatch(/white-space:\s*normal/)
-    expect(rule('.cwl-unit-label {')).toMatch(/overflow-wrap:\s*anywhere/)
-    expect(rule('.cwl-controls .cwl-unit-label {')).toMatch(/white-space:\s*normal/)
-    expect(rule('.cwl-controls .cwl-unit-label {')).toMatch(/overflow-wrap:\s*anywhere/)
+  it('uses the shared unit wrapping rule and keeps Select labels wrapped', () => {
+    const unit = captureCss.slice(captureCss.indexOf('.cafe-capture-unit {'), captureCss.indexOf('.cafe-capture-action {'))
+    expect(unit).toMatch(/white-space:\s*normal/)
+    expect(unit).toMatch(/overflow-wrap:\s*anywhere/)
+    expect(rule('.cwl-unit-label {')).not.toMatch(/white-space|overflow-wrap|text-overflow/)
+    expect(css).not.toContain('.cwl-controls .cwl-unit-label {')
     expect(rule('.cwl-unit-select .mk-select__field > span:first-child {')).toMatch(/white-space:\s*normal/)
     expect(rule('.cwl-unit-select .mk-select__field > span:first-child {')).toMatch(/overflow-wrap:\s*anywhere/)
   })
@@ -62,8 +65,8 @@ describe('Waste capture controls stay paired and complete', () => {
     expect(unitRules).toMatch(/text-overflow:\s*clip/)
     expect(unitRules).toMatch(/overflow:\s*visible/)
     expect(unitRules).not.toMatch(/text-overflow:\s*ellipsis/)
-    expect(css).toMatch(/@media\s*\(max-width:\s*767\.98px\)[\s\S]*?\.cwl-unit-label\s*\{[^}]*white-space:\s*normal;[^}]*overflow-wrap:\s*anywhere/)
-    expect(css).toMatch(/@media\s*\(max-width:\s*767\.98px\)[\s\S]*?\.cwl-unit-select \.mk-select__field > span:first-child,[\s\S]*?white-space:\s*normal/)
+    expect(css).not.toMatch(/@media\s*\(max-width:\s*767\.98px\)[\s\S]*?\.cwl-unit-label\s*\{/)
+    expect(css).toMatch(/@media\s*\(max-width:\s*767\.98px\)[\s\S]*?\.cwl-unit-select \.mk-select__field > span:first-child\s*\{[^}]*white-space:\s*normal/)
   })
 
   it('keeps category context available on phone while preserving dense desktop rows', () => {

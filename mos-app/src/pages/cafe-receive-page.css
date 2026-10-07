@@ -275,7 +275,7 @@
 .cafe-receive__counted,
 .cafe-receive__recent {
   box-sizing: border-box;
-  max-width: 772px;
+  max-width: var(--cafe-capture-content-measure);
 }
 
 .cafe-receive__band-status {

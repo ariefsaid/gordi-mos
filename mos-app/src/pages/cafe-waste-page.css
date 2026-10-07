@@ -146,15 +146,6 @@
   text-align: left;
   font-size: var(--font-size-control);
   line-height: 1.2;
-  white-space: normal;
-  overflow: visible;
-  overflow-wrap: anywhere;
-  text-overflow: clip;
-}
-/* Override the shared ≥768px nowrap rule: Waste units share a bounded grid track. */
-.cwl-controls .cwl-unit-label {
-  white-space: normal;
-  overflow-wrap: anywhere;
 }
 .cwl-add-photo {
   grid-column: 3;
@@ -211,8 +202,7 @@
     line-height: 1.3;
     letter-spacing: -0.02em;
   }
-  .cwl-unit-select .mk-select__field > span:first-child,
-  .cwl-unit-label {
+  .cwl-unit-select .mk-select__field > span:first-child {
     white-space: normal;
     overflow: visible;
     overflow-wrap: anywhere;

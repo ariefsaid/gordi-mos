@@ -288,25 +288,9 @@
 @media (min-width: 768px) {
   .kl-form .dt-table { table-layout: fixed; }
   .kl-form .dt-table tbody tr:not(.dt-group-row) > td { padding-block: 5px; }
-  .kl-form .kls-quantity .quantity-field-control--inline {
-    grid-template-columns: var(--cafe-capture-quantity-width, 7.5rem) var(--cafe-capture-unit-track-width, 17rem);
-    width: var(--cafe-capture-control-group-width, 25rem);
-    max-width: 100%;
-  }
-  .kl-form .kls-quantity .kls-qty {
-    width: var(--cafe-capture-quantity-width, 7.5rem);
-  }
   .kl-form .kls-quantity .cafe-capture-unit {
     width: 100%;
     max-width: var(--cafe-capture-unit-track-width, 17rem);
-    overflow: visible;
-    overflow-wrap: anywhere;
-    text-align: left;
-    text-overflow: clip;
-    white-space: normal;
-  }
-  .kl-form .kls-quantity .kls-unit-change {
-    justify-content: flex-start;
     text-align: left;
   }
   .kl-form .kls-quantity .kls-unit-select {
@@ -317,12 +301,6 @@
   .kl-form .kls-quantity .kls-unit-select .mk-select__field {
     width: 100%;
     max-width: none;
-  }
-  .kl-form .kls-quantity .kls-unit-select .mk-select__field > span:first-child {
-    overflow: visible;
-    overflow-wrap: anywhere;
-    text-overflow: clip;
-    white-space: normal;
   }
   .kl-form .dt-table thead th:nth-child(1),
   .kl-form .dt-table tbody tr:not(.dt-group-row) > td:nth-child(1) { width: auto; }

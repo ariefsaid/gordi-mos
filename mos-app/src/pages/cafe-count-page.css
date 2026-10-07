@@ -43,7 +43,7 @@
   display: grid;
   gap: 10px;
   width: 100%;
-  max-width: 772px;
+  max-width: var(--cafe-capture-content-measure);
   margin: 0;
   padding: 0 0 132px;
   list-style: none;
@@ -114,7 +114,7 @@
 
 .cafe-count__quantity-control {
   display: grid;
-  /* A fixed unit column keeps every field the same width whatever the ESB unit is called. */
+  /* The default unit track stays 110px; Count expands it at desktop widths. */
   grid-template-columns: var(--cafe-capture-quantity-width, 7.5rem) 110px;
   align-items: center;
   gap: 10px;
@@ -149,14 +149,6 @@
   font-size: var(--font-size-label);
   line-height: 1.2;
 }
-.cafe-count__quantity-control .cafe-count__unit {
-  min-width: 0;
-  overflow: visible;
-  overflow-wrap: anywhere;
-  text-overflow: clip;
-  white-space: normal;
-}
-
 .cafe-count__field-error,
 .cafe-count__line-success {
   flex: 0 0 100%;
@@ -182,6 +174,10 @@
   .cafe-count__quantity-control {
     width: var(--cafe-capture-control-group-width, 25rem);
     max-width: 100%;
+  }
+
+  .cafe-count:not(.cafe-receive) .cafe-count__quantity-control {
+    grid-template-columns: var(--cafe-capture-quantity-width, 7.5rem) minmax(110px, 1fr);
   }
 
   .cafe-count__field-error,
@@ -232,7 +228,7 @@
 @media (min-width: 640px) {
   .cafe-count__footer {
     box-sizing: border-box;
-    width: min(100%, 772px);
+    width: min(100%, var(--cafe-capture-content-measure));
     margin-inline: 0;
   }
 }
