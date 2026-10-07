@@ -348,11 +348,12 @@ export function HomePage() {
 
   // The my-work band = owned open work NOT already surfaced in a task attention band (overdue ∪
   // due-today ∪ blocked ids), off-track first, capped. Shares the one tasks projection.
-  const myWork = useMemo(() => {
+  const myWorkCandidates = useMemo(() => {
     if (!ready || !personId) return []
     const excludeIds = new Set<string>([...overdue, ...dueToday, ...blocked].map(i => i.id))
-    return myWorkStreamItems(tasks, personId, today, locale, directory, excludeIds).slice(0, MY_WORK_CAP)
+    return myWorkStreamItems(tasks, personId, today, locale, directory, excludeIds)
   }, [ready, personId, tasks, today, locale, directory, overdue, dueToday, blocked])
+  const myWork = useMemo(() => myWorkCandidates.slice(0, MY_WORK_CAP), [myWorkCandidates])
 
   // ── Member Café door ────────────────────────────────────────────────────────
   // The door is only a member composition affordance. It reads the viewer's default Café branch,
@@ -487,9 +488,10 @@ export function HomePage() {
       taskState, onRetryTasks: retryTasks,
       failedChecksState: failedChecksBand.state, onRetryFailedChecks: loadFailedChecks,
       myWorkFullCount: openCount ?? undefined,
+      myWorkTotalItemCount: myWorkCandidates.length,
     }),
     [
-      overdue, dueToday, blocked, myWork, failedChecksBand,
+      overdue, dueToday, blocked, myWork, myWorkCandidates, failedChecksBand,
       taskState, retryTasks, loadFailedChecks, openCount,
       seesCafe,
     ],

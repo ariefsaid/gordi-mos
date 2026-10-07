@@ -1,5 +1,4 @@
 import { useMemo } from 'react'
-import { Link } from 'react-router-dom'
 import { RecordCollectionSurface } from '@/components/record-collection/record-collection'
 import { useRecordCollection } from '@/lib/record-collection/use-record-collection'
 import type {
@@ -170,7 +169,7 @@ function HomeRegionCollectionInstance({ region, items }: Required<HomeRegionColl
     viewerId: null,
     accessRoles: [],
   })
-  const hidden = region.items.length - items.length
+  const hidden = (region.totalItemCount ?? region.items.length) - items.length
 
   return (
     <div className="home-region-collection" data-home-region={region.id} data-testid={`home-region-collection-${region.id}`}>
@@ -181,18 +180,10 @@ function HomeRegionCollectionInstance({ region, items }: Required<HomeRegionColl
         error={{ message: t('home.attention.laneError'), retry: region.onRetry ?? (() => {}) }}
         loadingLabel={t(region.labelKey)}
       />
-      {hidden > 0 && region.drillTo ? (
-        <Link
-          to={region.drillTo.route}
-          className="stream-band-more stream-band-more--link"
-          aria-label={t('home.region.moreAria', { count: hidden, label: t(region.labelKey) })}
-        >
-          {t('home.region.moreLink', { count: hidden })}
-        </Link>
-      ) : hidden > 0 ? (
+      {hidden > 0 && !region.drillTo ? (
         <p className="stream-band-more">{t('home.region.more', { count: hidden })}</p>
       ) : null}
-      <RegionDrillLink region={region} shown={items.length} />
+      <RegionDrillLink region={region} shown={items.length} more={hidden > 0 ? hidden : undefined} />
     </div>
   )
 }

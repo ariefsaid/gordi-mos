@@ -29,7 +29,7 @@ const mockUseAuth = vi.mocked(useAuth)
 
 vi.mock('@/lib/db/notifications', () => ({
   countUnread: vi.fn().mockResolvedValue(0),
-  listNotifications: vi.fn().mockResolvedValue([]),
+  listNotifications: vi.fn().mockResolvedValue({ rows: [], hasMore: false, nextCursor: null }),
 }))
 
 import { RailNav } from './rail-nav'

@@ -18,7 +18,7 @@ import type {
   TaskCollectionQuery,
   TaskCollectionSort,
   TaskCollectionView,
-} from './task-collection-adapter'
+} from './task-collection-query'
 
 type SortDir = TaskCollectionQuery['direction']
 type TasksSavedViewSaveResult = PersistedCollectionView | null | void

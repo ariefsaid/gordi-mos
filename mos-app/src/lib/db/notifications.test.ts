@@ -5,17 +5,20 @@ describe('notifications DAL — bounded reads (CQ#2)', () => {
   const limitCalls: string[] = []
   const nullFilters: Array<[string, unknown]> = []
   const selectCalls: Array<[string, unknown?]> = []
+  const cursorCalls: string[] = []
+  const orderCalls: Array<[string, unknown]> = []
 
-  function makeSb(data: unknown, count: number | null = null) {
+  function makeSb(data: unknown, count: number | null = null, error: unknown = null) {
     const b: Record<string, unknown> = {}
-    const result = Promise.resolve({ data, error: null, count })
+    const result = Promise.resolve({ data, error, count })
     b.select = vi.fn((columns: string, options?: unknown) => { selectCalls.push([columns, options]); return b })
     b.eq = vi.fn(() => b)
     b.is = vi.fn((col: string, val: unknown) => {
       nullFilters.push([col, val])
       return b
     })
-    b.order = vi.fn(() => b)
+    b.order = vi.fn((column: string, options: unknown) => { orderCalls.push([column, options]); return b })
+    b.or = vi.fn((filter: string) => { cursorCalls.push(filter); return b })
     b.limit = vi.fn((n: number) => {
       limitCalls.push(`limit:${n}`)
       return b
@@ -28,14 +31,62 @@ describe('notifications DAL — bounded reads (CQ#2)', () => {
     limitCalls.length = 0
     nullFilters.length = 0
     selectCalls.length = 0
+    cursorCalls.length = 0
+    orderCalls.length = 0
     vi.resetModules()
     vi.doMock('@/lib/supabase', () => ({ supabase: makeSb([{ id: 'n1' }]) }))
   })
 
-  it('listNotifications caps the read so the Inbox page cannot grow unbounded', async () => {
+  it('returns exactly the page size when the next row is absent', async () => {
+    const rows = Array.from({ length: 200 }, (_, index) => ({ id: `n-${index}`, created_at: `2026-01-${String((index % 28) + 1).padStart(2, '0')}T00:00:00Z` }))
+    vi.doMock('@/lib/supabase', () => ({ supabase: makeSb(rows) }))
     const { listNotifications: fresh } = await import('./notifications')
-    await fresh()
-    expect(limitCalls.some((c) => c.startsWith('limit:'))).toBe(true)
+
+    const page = await fresh()
+
+    expect(page.rows).toHaveLength(200)
+    expect(page.hasMore).toBe(false)
+    expect(page.nextCursor).toBeNull()
+    expect(limitCalls).toContain('limit:201')
+  })
+
+  it('uses the extra row only as a continuation signal', async () => {
+    const rows = Array.from({ length: 201 }, (_, index) => ({ id: `n-${index}`, created_at: `2026-01-${String((index % 28) + 1).padStart(2, '0')}T00:00:00Z` }))
+    vi.doMock('@/lib/supabase', () => ({ supabase: makeSb(rows) }))
+    const { listNotifications: fresh } = await import('./notifications')
+
+    const page = await fresh()
+
+    expect(page.rows).toHaveLength(200)
+    expect(page.hasMore).toBe(true)
+    expect(page.nextCursor).toEqual(rows[199])
+  })
+
+  it('returns an empty complete page when there are no notifications', async () => {
+    vi.doMock('@/lib/supabase', () => ({ supabase: makeSb([]) }))
+    const { listNotifications: fresh } = await import('./notifications')
+
+    await expect(fresh()).resolves.toEqual({ rows: [], hasMore: false, nextCursor: null })
+  })
+
+  it('preserves a failed notification read as an error', async () => {
+    vi.doMock('@/lib/supabase', () => ({ supabase: makeSb(null, null, { message: 'offline' }) }))
+    const { listNotifications: fresh } = await import('./notifications')
+
+    await expect(fresh()).rejects.toThrow('listNotifications failed')
+  })
+
+  it('continues strictly after the last row using a stable ordered cursor', async () => {
+    const cursor = { created_at: '2026-01-02T00:00:00Z', id: 'n-2' }
+    const { listNotifications: fresh } = await import('./notifications')
+
+    await fresh(cursor)
+
+    expect(cursorCalls).toContain('created_at.lt.2026-01-02T00:00:00Z,and(created_at.eq.2026-01-02T00:00:00Z,id.lt.n-2)')
+    expect(orderCalls).toEqual([
+      ['created_at', { ascending: false }],
+      ['id', { ascending: false }],
+    ])
   })
 
   it('countUnread is a HEAD exact count — no unread rows cross the wire (#1359)', async () => {

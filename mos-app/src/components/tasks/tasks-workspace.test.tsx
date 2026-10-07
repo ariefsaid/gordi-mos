@@ -1149,7 +1149,7 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
 
     await waitFor(() => expect(screen.getAllByText('No match in the loaded tasks')).toHaveLength(2))
     expect(screen.getByText('Load more to continue through the list.')).toBeInTheDocument()
-    expect(screen.queryByText('0 loaded')).toBeNull()
+    expect(screen.queryByText('0 items loaded')).toBeNull()
     expect(screen.getByRole('button', { name: 'Show older done tasks' })).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: /clear filters/i }).length).toBeGreaterThan(0)
   })

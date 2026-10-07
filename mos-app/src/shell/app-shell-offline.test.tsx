@@ -35,7 +35,7 @@ const mockUseAuth = vi.mocked(useAuth)
 // Arm them before every test instead.
 beforeEach(() => {
   vi.mocked(countUnread).mockResolvedValue(0)
-  vi.mocked(listNotifications).mockResolvedValue([])
+  vi.mocked(listNotifications).mockResolvedValue({ rows: [], hasMore: false, nextCursor: null })
   vi.mocked(getBusinessUnits).mockResolvedValue([])
   vi.mocked(getPeople).mockResolvedValue([])
 })
