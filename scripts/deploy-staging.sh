@@ -78,10 +78,6 @@ while IFS='=' read -r k v || [ -n "$k" ]; do
 done < "$envfile"
 [ -n "$OP_ITEM" ] && [ -n "$OP_VAULT" ] && [ -n "$OP_FIELD" ] || die "op.staging.env must set STAGING_OP_ITEM, STAGING_OP_VAULT and STAGING_OP_FIELD"
 
-URL="$(op-get.sh "$OP_ITEM" "$OP_VAULT" "$OP_FIELD" 2>/dev/null </dev/null)" || die "op-get.sh could not read the staging connection (is 1Password signed in?)"
-[ -n "$URL" ] || die "the staging connection string is empty"
-ops_conn_from_url "$URL"
-
 # psql helpers: stdout is the answer, stderr is shown (redacted) only on failure.
 sqlq() { local o; if ! o="$(psql "$CONN" -X -At -v ON_ERROR_STOP=1 -c "$1" 2>"$errf" </dev/null)"; then ops_redact < "$errf" >&2; return 1; fi; printf '%s' "$o"; }
 
@@ -94,18 +90,7 @@ om="$(git -C "$ROOT" rev-parse --verify -q refs/remotes/origin/main)" || die "or
 [ "$(git -C "$ROOT" rev-parse HEAD)" = "$om" ] || die "main is not at origin/main — update it first"
 [ -z "$(git -C "$ROOT" status --porcelain -- supabase/migrations)" ] || die "supabase/migrations has uncommitted changes"
 
-# ── 2. Dry run: the pending migration list (file names only).
-set +e; out="$(supabase --workdir "$ROOT" db push --dry-run --db-url "$CONN" 2>&1 </dev/null)"; rc=$?; set -e
-if [ "$rc" -ne 0 ]; then printf '%s\n' "$out" | ops_redact >&2; die "supabase db push --dry-run failed (exit $rc)"; fi
-pending=(); while IFS= read -r f; do [ -n "$f" ] && pending+=("$f"); done < <(printf '%s\n' "$out" | grep -oE '[0-9]{8,}_[A-Za-z0-9_.-]+\.sql' | sort -u || true)
-if [ "${#pending[@]}" -eq 0 ]; then
-  printf '%s\n' "$out" | grep -qi 'up to date' || die "could not read the pending migration list from the dry run"
-  say "No pending migrations: staging is up to date."
-else
-  say "Pending migrations (${#pending[@]}):"; printf '  %s\n' "${pending[@]}"
-fi
-
-# ── 3. Edge functions changed on main since staging: deploy only the app allowlist; hold the rest.
+# ── 2. Edge functions changed on main since staging: deploy only the app allowlist; hold the rest.
 changed="$(git -C "$ROOT" diff --name-only origin/staging origin/main -- supabase/functions mos-app/src/lib/agent mos-app/src/lib/viewspec | awk -F/ '
   $1=="supabase" && $2=="functions" && $3=="_shared" {dep=1; next}
   $1=="mos-app" && $2=="src" && $3=="lib" && ($4=="agent" || $4=="viewspec") {dep=1; next}
@@ -131,6 +116,7 @@ if [ "${#functions_to_deploy[@]}" -gt 0 ]; then
       [ -d "$scan_dir" ] || die "could not inspect function source for $fn"
       while IFS= read -r env_name; do
         [ -n "$env_name" ] || continue
+        [[ "$env_name" =~ ^[A-Z][A-Z0-9_]*$ ]] || die "invalid environment variable name in function $fn"
         case "$env_name" in SUPABASE_*) continue ;; esac
         duplicate=0
         for existing_name in "${function_secret_names[@]+"${function_secret_names[@]}"}"; do
@@ -145,6 +131,21 @@ if [ "${#functions_to_deploy[@]}" -gt 0 ]; then
       )
     done
   done
+fi
+
+URL="$(op-get.sh "$OP_ITEM" "$OP_VAULT" "$OP_FIELD" 2>/dev/null </dev/null)" || die "op-get.sh could not read the staging connection (is 1Password signed in?)"
+[ -n "$URL" ] || die "the staging connection string is empty"
+ops_conn_from_url "$URL"
+
+# ── 3. Dry run: the pending migration list (file names only).
+set +e; out="$(supabase --workdir "$ROOT" db push --dry-run --db-url "$CONN" 2>&1 </dev/null)"; rc=$?; set -e
+if [ "$rc" -ne 0 ]; then printf '%s\n' "$out" | ops_redact >&2; die "supabase db push --dry-run failed (exit $rc)"; fi
+pending=(); while IFS= read -r f; do [ -n "$f" ] && pending+=("$f"); done < <(printf '%s\n' "$out" | grep -oE '[0-9]{8,}_[A-Za-z0-9_.-]+\.sql' | sort -u || true)
+if [ "${#pending[@]}" -eq 0 ]; then
+  printf '%s\n' "$out" | grep -qi 'up to date' || die "could not read the pending migration list from the dry run"
+  say "No pending migrations: staging is up to date."
+else
+  say "Pending migrations (${#pending[@]}):"; printf '  %s\n' "${pending[@]}"
 fi
 
 # Validate every function-deploy input before any migration can be pushed.
@@ -309,6 +310,7 @@ if [ "${#functions_to_deploy[@]}" -gt 0 ]; then
     value="$(op-get.sh "${missing_function_secret_items[$i]}" "${missing_function_secret_vaults[$i]}" "${missing_function_secret_fields[$i]}" 2>/dev/null </dev/null)" || \
       die "op-get.sh could not read the staging function secret $name"
     [ -n "$value" ] || die "the staging function secret $name is empty"
+    [[ "$value" != *$'\n'* ]] || die "function secret $name contains a newline"
     missing_function_secret_values+=("$value")
   done
 

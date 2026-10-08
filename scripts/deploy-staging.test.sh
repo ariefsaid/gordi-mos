@@ -25,7 +25,13 @@ cat > "$tmp/bin/op-get.sh" <<'EOF'
 printf 'op-get %s\n' "$*" >> "$CALLS"
 [ "${FAKE_OP_FAIL:-}" = 1 ] && { echo "not signed in" >&2; exit 1; }
 case "$*" in
-  *fake-function-item*APP_ALLOWED_ORIGINS*) printf '%s\n' "$FAKE_FUNCTION_SECRET_VALUE" ;;
+  *fake-function-item*APP_ALLOWED_ORIGINS*)
+    if [ "${FAKE_FUNCTION_SECRET_MULTILINE:-0}" = 1 ]; then
+      printf '%s\nsecond-line=value\n' "$FAKE_FUNCTION_SECRET_VALUE"
+    else
+      printf '%s\n' "$FAKE_FUNCTION_SECRET_VALUE"
+    fi
+    ;;
   *fake-function-item*) printf '%s\n' "$FAKE_ACCESS_TOKEN" ;;
   *) printf '%s\n' "$FAKE_URL" ;;
 esac
@@ -178,6 +184,10 @@ EOF
 cat > "$tmp/bin/grep" <<'EOF'
 #!/usr/bin/env bash
 if [ "${FAKE_NO_ORIGINS:-0}" = 1 ] && [[ "$*" == *DEFAULT_APP_ORIGINS* ]]; then exit 1; fi
+if [ "${FAKE_SCAN_ENV_NAME+x}" = x ] && [[ "$*" == *"Deno[.]env[.]get"* ]]; then
+  printf "Deno.env.get('%s')\n" "$FAKE_SCAN_ENV_NAME"
+  exit 0
+fi
 exec "$REAL_GREP" "$@"
 EOF
 chmod +x "$tmp"/bin/* "$tmp/gh-post.sh"
@@ -316,6 +326,13 @@ run "two flagged orgs fail" 1 "" FAKE_SAMPLE_ORGS=2/2 -- --yes --no-pr
 has "the count failure is named" "flagged/sample-shaped: '2/2'"
 
 echo "edge function secrets"
+run "invalid function env name fails safely before secrets are read" 1 "" FAKE_SCAN_ENV_NAME=$'BAD\tNAME' FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --yes --no-pr
+has "invalid env name failure identifies only the function" "invalid environment variable name in function agent-chat"
+hasnt "invalid env name is not echoed" $'BAD\tNAME'
+expect_not "invalid env name stops before any secret read" "op-get "
+expect_not "invalid env name stops before staging secret listing" "supabase secrets-list"
+expect_not "invalid env name stops before migration push" "supabase push"
+expect_not "invalid env name stops before function deploy" "supabase functions-deploy agent-chat"
 run "a missing function secret is set once before deploy" 0 "" FAKE_STAGING_MISSING_SECRET=APP_ALLOWED_ORIGINS FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --yes --no-pr
 expect "staging function secrets listed with the deploy token" "supabase secrets-list-token-env-ok"
 expect "missing function secret is set" "supabase secrets-set-name APP_ALLOWED_ORIGINS"
@@ -331,6 +348,12 @@ has "already-present secret summary is clear" "function secrets: none missing"
 run "missing secret mapping stops before deploy" 1 "" FAKE_STAGING_MISSING_SECRET=AGENT_MODEL_API_KEY FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --yes --no-pr
 has "missing mapping names the secret and key to add" "STAGING_FN_SECRET_AGENT_MODEL_API_KEY"
 expect_not "no function deploy after missing mapping" "supabase functions-deploy agent-chat"
+run "multiline function secret is rejected before setting" 1 "" FAKE_STAGING_MISSING_SECRET=APP_ALLOWED_ORIGINS FAKE_FUNCTION_SECRET_MULTILINE=1 FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --yes --no-pr
+has "multiline rejection names only the secret" "function secret APP_ALLOWED_ORIGINS contains a newline"
+hasnt "multiline rejection hides the value" "$FAKE_FUNCTION_SECRET_VALUE"
+hasnt "multiline rejection hides the second line" "second-line=value"
+expect_not "multiline function secret is not set" "supabase secrets-set"
+expect_not "multiline function secret is not deployed" "supabase functions-deploy agent-chat"
 run "failed secrets set stops before function deploy" 1 "" FAKE_STAGING_MISSING_SECRET=APP_ALLOWED_ORIGINS FAKE_SECRETS_SET_RC=1 FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --yes --no-pr
 hasnt "failed secret set does not print the value" "$FAKE_FUNCTION_SECRET_VALUE"
 expect "failed secret set was attempted" "supabase secrets-set"
