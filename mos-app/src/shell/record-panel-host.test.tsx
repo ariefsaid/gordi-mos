@@ -1,10 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { render, screen, fireEvent, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { RecordPanelHost } from './record-panel-host'
+import { Toast } from '@/components/admin/toast'
+import type { ToastState } from '@/components/admin/use-toast'
 
 // The RecordPanelHost is the ONE overlay grammar every record tenant (Task, Signal, …) mounts
 // through. These tests drive the dual modal regime, the
@@ -35,6 +38,25 @@ function renderHost(props: Partial<React.ComponentProps<typeof RecordPanelHost>>
         {props.children ?? <button type="button">record body</button>}
       </RecordPanelHost>
     </I18nProvider>,
+  )
+}
+
+function ToastRecord({ onClose, onDismiss }: { onClose: () => void; onDismiss: () => void }) {
+  const [toast, setToast] = useState<ToastState | null>(null)
+  return (
+    <I18nProvider>
+      <RecordPanelHost label="Record" onClose={onClose}>
+        <button type="button">first control</button>
+        <button type="button" onClick={() => setToast({ id: 1, message: 'Saved' })}>last control</button>
+      </RecordPanelHost>
+      <Toast
+        toast={toast}
+        onDismiss={() => {
+          onDismiss()
+          setToast(null)
+        }}
+      />
+    </I18nProvider>
   )
 }
 
@@ -418,6 +440,73 @@ describe('RecordPanelHost — phone regime a11y (NFR-003 / AC-022)', () => {
       expect(document.activeElement).toBe(last)
     } finally {
       if (original) Object.defineProperty(HTMLElement.prototype, 'offsetParent', original)
+      else delete (HTMLElement.prototype as unknown as Record<string, unknown>).offsetParent
+    }
+  })
+
+  it('adds a shown Toast dismiss control after the modal ring without changing the empty-toast ring', async () => {
+    const originalOffsetParent = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetParent')
+    Object.defineProperty(HTMLElement.prototype, 'offsetParent', {
+      configurable: true,
+      get() { return document.body },
+    })
+    const appRoot = document.createElement('div')
+    appRoot.id = 'root'
+    const overlayRoot = document.createElement('div')
+    overlayRoot.id = 'overlay-root'
+    document.body.append(appRoot, overlayRoot)
+
+    let unmount = () => {}
+    const onClose = vi.fn()
+    const onDismiss = vi.fn()
+    const user = userEvent.setup()
+    try {
+      phone()
+      unmount = render(<ToastRecord onClose={onClose} onDismiss={onDismiss} />, { container: appRoot }).unmount
+      const first = screen.getByRole('button', { name: 'first control' })
+      const last = screen.getByRole('button', { name: 'last control' })
+      expect(document.activeElement).toBe(first)
+
+      // With no Toast, the modal's existing forward wrap remains unchanged.
+      await user.tab()
+      expect(document.activeElement).toBe(last)
+      await user.tab()
+      expect(document.activeElement).toBe(first)
+
+      // The record action shows a Toast while the modal remains open.
+      await user.click(last)
+      const dismiss = screen.getByRole('button', { name: 'Dismiss notification' })
+      const status = screen.getByRole('status')
+      expect(appRoot).toHaveAttribute('inert')
+      expect(overlayRoot.contains(screen.getByRole('dialog', { name: 'Record' }))).toBe(true)
+      expect(status.parentElement).toBe(overlayRoot)
+      expect(status.closest('[inert], [aria-hidden="true"]')).toBeNull()
+      await user.tab()
+      expect(document.activeElement).toBe(dismiss)
+
+      // The Toast joins the end of the ring in both directions; Escape remains owned by the modal.
+      await user.tab({ shift: true })
+      expect(document.activeElement).toBe(last)
+      await user.tab()
+      expect(document.activeElement).toBe(dismiss)
+      await user.tab()
+      expect(document.activeElement).toBe(first)
+      first.focus()
+      await user.tab({ shift: true })
+      expect(document.activeElement).toBe(dismiss)
+      await user.keyboard('{Escape}')
+      expect(onClose).toHaveBeenLastCalledWith('escape')
+      expect(onDismiss).not.toHaveBeenCalled()
+
+      await user.click(dismiss)
+      expect(onDismiss).toHaveBeenCalledOnce()
+      expect(screen.queryByRole('button', { name: 'Dismiss notification' })).toBeNull()
+      expect(document.activeElement).toBe(last)
+    } finally {
+      unmount()
+      overlayRoot.remove()
+      appRoot.remove()
+      if (originalOffsetParent) Object.defineProperty(HTMLElement.prototype, 'offsetParent', originalOffsetParent)
       else delete (HTMLElement.prototype as unknown as Record<string, unknown>).offsetParent
     }
   })

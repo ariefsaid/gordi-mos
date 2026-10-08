@@ -31,6 +31,7 @@ export interface ToastProps {
 
 export function Toast({ toast, onDismiss }: ToastProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const returnFocusRef = useRef<HTMLElement | null>(null)
   const pendingFrameRef = useRef<number | null>(null)
   const updatePosition = useCallback(() => {
     if (containerRef.current) containerRef.current.style.bottom = `${bottomOverlayOffset()}px`
@@ -44,6 +45,16 @@ export function Toast({ toast, onDismiss }: ToastProps) {
   }, [updatePosition])
 
   useLayoutEffect(updatePosition)
+  useLayoutEffect(() => {
+    if (!toast) {
+      returnFocusRef.current = null
+      return
+    }
+    const activeElement = document.activeElement as HTMLElement
+    if (!containerRef.current?.contains(activeElement)) {
+      returnFocusRef.current = activeElement === document.body ? null : activeElement
+    }
+  }, [toast])
   useEffect(() => {
     const observer = new MutationObserver(schedulePositionUpdate)
     observer.observe(document.body, { childList: true, subtree: true })
@@ -56,6 +67,13 @@ export function Toast({ toast, onDismiss }: ToastProps) {
       if (pendingFrameRef.current !== null) window.cancelAnimationFrame(pendingFrameRef.current)
     }
   }, [schedulePositionUpdate])
+
+  const dismiss = () => {
+    const returnFocus = returnFocusRef.current
+    returnFocusRef.current = null
+    onDismiss()
+    if (returnFocus?.isConnected) returnFocus.focus()
+  }
 
   return (
     <OverlayPortal>
@@ -81,8 +99,9 @@ export function Toast({ toast, onDismiss }: ToastProps) {
             <span className="flex-1 text-sm font-medium">{toast.message}</span>
             <button
               type="button"
-              onClick={onDismiss}
+              onClick={dismiss}
               aria-label="Dismiss notification"
+              data-focus-trap-target="toast-dismiss"
               className="text-current opacity-60 hover:opacity-100 transition-opacity"
               style={{ lineHeight: 1 }}
             >
