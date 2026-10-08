@@ -117,6 +117,11 @@
   max-width: 100%;
 }
 
+/* ── Tablet item setup: let search use the remaining toolbar width ────────────── */
+@media (min-width: 640px) and (max-width: 919.98px) {
+  .ktb-filters--setup .ktb-search-wrap { max-width: none; }
+}
+
 /* ── Phone: scope on its own line, search + category on ONE line below (v4) ─────
    The 200px fixed search plus the category select overflowed 375px and wrapped,
    costing ~48px of vertical chrome directly above the dish list — on the surface

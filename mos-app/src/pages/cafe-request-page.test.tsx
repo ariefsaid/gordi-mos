@@ -5,6 +5,11 @@ import { I18nProvider } from '@/i18n/I18nProvider'
 import type { AuthState } from '@/auth/context'
 
 vi.mock('@/auth/use-auth')
+const itemSettingsMocks = vi.hoisted(() => ({ list: vi.fn(), canManage: vi.fn() }))
+vi.mock('@/lib/db/cafe-item-settings', async importOriginal => {
+  const actual = await importOriginal<typeof import('@/lib/db/cafe-item-settings')>()
+  return { ...actual, listCafeItemSettings: itemSettingsMocks.list, canManageCafeItemSettings: itemSettingsMocks.canManage }
+})
 const streamMocks = vi.hoisted(() => {
   const branch = { id: 'branch-1', code: 'cafe-branch', name: 'Cafe Branch' }
   const kitchen = { branch, activity: 'kitchen' as const }
@@ -84,10 +89,29 @@ beforeEach(() => {
   mockUseAuth.mockReturnValue(viewer(['member']))
   mockItems.mockResolvedValue(ITEMS)
   mockList.mockResolvedValue([])
+  itemSettingsMocks.list.mockResolvedValue([{
+    id: 'item-setting', erpName: 'Synthetic item', mosName: 'Synthetic item', category: 'Kitchen',
+    kind: null, isActive: false, defaultUnitId: null, units: [],
+  }])
+  itemSettingsMocks.canManage.mockResolvedValue(false)
   Object.defineProperty(navigator, 'onLine', { configurable: true, value: true })
 })
 
 describe('CafeRequestPage', () => {
+  it.each([false, true])('offers the Items setup link only to people who can manage items (canManage=%s)', async canManage => {
+    mockItems.mockResolvedValue([])
+    itemSettingsMocks.canManage.mockResolvedValue(canManage)
+    renderPage()
+
+    if (canManage) {
+      expect(await screen.findByRole('link', { name: 'Set up items' })).toHaveAttribute('href', '/cafe/items')
+    } else {
+      expect(await screen.findByText(/kitchen manager or an ops lead sets it up in Café items/i)).toBeInTheDocument()
+      expect(screen.queryByRole('link', { name: 'Set up items' })).not.toBeInTheDocument()
+      expect(document.querySelector('a[href="/cafe/items"]')).not.toBeInTheDocument()
+    }
+  })
+
   it('AC-1043 opens blank on the person’s stream with item search, typed quantity and fixed unit, and no pre-fill or purchase-versus-transfer control', async () => {
     const { container } = renderPage()
     const bean = await screen.findByRole('textbox', { name: 'Needed for Coffee bean' })
