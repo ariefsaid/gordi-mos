@@ -81,6 +81,8 @@ describe('pending bills table CSS', () => {
     expect(phoneOwes).toMatch(/-webkit-line-clamp:\s*2/)
     expect(phoneOwes).toMatch(/white-space:\s*normal/)
     expect(phoneOwes).toMatch(/overflow:\s*hidden/)
+    const label = rule('.pending-bills__finance-label')
+    expect(label).toMatch(/text-overflow:\s*ellipsis/)
   })
 
   it('keeps the phone search and Filters door on one row and wraps disclosed age controls', () => {

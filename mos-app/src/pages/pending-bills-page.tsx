@@ -196,6 +196,12 @@ export function PendingBillsPage() {
         target.focus()
         return
       }
+      const activeTab = document.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')
+      if (activeTab) {
+        restoreMultiBillFocusRef.current = null
+        activeTab.focus()
+        return
+      }
     }
     if (!restoreFocusRef.current || formMode) return
     const target = document.querySelector<HTMLElement>('[data-viewer-region="actions"] button')
@@ -471,12 +477,9 @@ export function PendingBillsPage() {
     updateFormBusy(false)
     reload()
     const resultingBalance = Math.round((bill.balance - saved.amount) * 100) / 100
-    const movesToPaid = saved.payments !== undefined || (!saved.reverseOf && resultingBalance <= 0)
-    const movesToOpen = Boolean(saved.reverseOf) && bill.state !== 'void' && bill.state !== 'missing' && resultingBalance > 0
-    if (movesToPaid || movesToOpen) {
-      setSelectedBillIds([])
-      setActiveView(movesToPaid ? 'paid' : 'open')
-    }
+    const settlesBill = saved.payments !== undefined || (!saved.reverseOf && resultingBalance <= 0)
+    const reopensBill = Boolean(saved.reverseOf) && bill.state !== 'void' && bill.state !== 'missing' && resultingBalance > 0
+    if (settlesBill || reopensBill) setSelectedBillIds([])
     if (saved.payments) {
       setSelectedId(null)
       restoreMultiBillFocusRef.current = bill.id
