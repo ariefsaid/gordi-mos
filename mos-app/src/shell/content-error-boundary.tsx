@@ -4,13 +4,14 @@
  * Network read → in-frame `NetworkErrorState`; anything else is rethrown to the crash boundary
  * above the shell. See lib/network-error.ts.
  *
- * Retry remounts the subtree by changing its key so a page's on-mount read re-runs; the keyed
- * wrapper is `display: contents` so it adds no box to the shell's flex column.
+ * Retry remounts the subtree for failed reads. Failed module downloads reload the document because
+ * the browser may cache the rejected import request. The keyed wrapper is `display: contents` so it
+ * adds no box to the shell's flex column.
  */
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 import { PageFrame } from './page-frame'
 import { NetworkErrorState } from '@/components/ui/state-kit'
-import { isNetworkError } from '@/lib/network-error'
+import { isModuleLoadError, isNetworkError } from '@/lib/network-error'
 import { reportError } from '@/lib/telemetry'
 
 interface Props {
@@ -41,6 +42,10 @@ export class ContentErrorBoundary extends Component<Props, State> {
   }
 
   handleRetry = (): void => {
+    if (isModuleLoadError(this.state.error)) {
+      window.location.reload()
+      return
+    }
     this.setState((s) => ({ error: null, attempt: s.attempt + 1 }))
   }
 
