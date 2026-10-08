@@ -4,7 +4,7 @@
 # three explicit lens records, separately produced and machine-validated; one reviewer may
 # perform all three, but each record is its own stamping.
 #
-#   scripts/record-review.sh --lens security --reviewer gpt-5.6-luna --artifact docs/reviews/feat-x.md [--base main|staging]
+#   scripts/record-review.sh --lens security --reviewer openai-codex/gpt-6-luna --artifact docs/reviews/feat-x.md [--base main|staging]
 #
 # Rules:
 #   - reviewer: an agent that did not write the branch — glm / luna (cross-family), opus fallback.

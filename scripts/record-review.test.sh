@@ -25,52 +25,52 @@ check() { # $1 name · $2 expected rc · args…
 }
 
 # One multi-lens artifact, three tagged sections — the shape /drive step 7 produces.
-printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s\nnone\n\n## code-quality\nReviewer: zai/glm-5.3-flash (code-quality)\nVerdict: MERGE WITH CHANGES\nCommit: %s\nnone\n\n## security\nReviewer: claude-opus-5 (security)\nVerdict: MERGE\nCommit: %s\nnone\n' "$head" "$head" "$head" > "$tmp/repo/review.md"
-printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s\n\n## security\nReviewer: gpt-5.6-luna (security)\nVerdict: DO NOT MERGE\nCommit: %s\n' "$head" "$head" > "$tmp/repo/mixed.md"
-printf '## security\nReviewer: gpt-5.6-luna (security)\nVerdict: MERGE\nVerdict: typo\nCommit: %s\n' "$head" > "$tmp/repo/malformed.md"
+printf '## spec\nReviewer: openai-codex/gpt-6-luna (spec)\nVerdict: MERGE\nCommit: %s\nnone\n\n## code-quality\nReviewer: zai/glm-5.3-flash (code-quality)\nVerdict: MERGE WITH CHANGES\nCommit: %s\nnone\n\n## security\nReviewer: claude-opus-5 (security)\nVerdict: MERGE\nCommit: %s\nnone\n' "$head" "$head" "$head" > "$tmp/repo/review.md"
+printf '## spec\nReviewer: openai-codex/gpt-6-luna (spec)\nVerdict: MERGE\nCommit: %s\n\n## security\nReviewer: openai-codex/gpt-6-luna (security)\nVerdict: DO NOT MERGE\nCommit: %s\n' "$head" "$head" > "$tmp/repo/mixed.md"
+printf '## security\nReviewer: openai-codex/gpt-6-luna (security)\nVerdict: MERGE\nVerdict: typo\nCommit: %s\n' "$head" > "$tmp/repo/malformed.md"
 printf '## spec\nVerdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/noreviewer.md"
-printf '## spec\nReviewer: gpt-5.6-luna (spec)\nCommit: %s\nlooks fine to me\n' "$head" > "$tmp/repo/noverdict.md"
-printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: 0123456789abcdef\n' > "$tmp/repo/stale.md"
-printf 'Reviewer: gpt-5.6-luna\nVerdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/untagged.md"
+printf '## spec\nReviewer: openai-codex/gpt-6-luna (spec)\nCommit: %s\nlooks fine to me\n' "$head" > "$tmp/repo/noverdict.md"
+printf '## spec\nReviewer: openai-codex/gpt-6-luna (spec)\nVerdict: MERGE\nCommit: 0123456789abcdef\n' > "$tmp/repo/stale.md"
+printf 'Reviewer: openai-codex/gpt-6-luna\nVerdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/untagged.md"
 
-check "missing --lens refused" 1 --reviewer gpt-5.6-luna --artifact review.md
-check "unknown lens refused" 1 --lens vibes --reviewer gpt-5.6-luna --artifact review.md
+check "missing --lens refused" 1 --reviewer openai-codex/gpt-6-luna --artifact review.md
+check "unknown lens refused" 1 --lens vibes --reviewer openai-codex/gpt-6-luna --artifact review.md
 check "session-family reviewer refused" 1 --lens spec --reviewer fable-self --artifact review.md
 check "terra refused — retired" 1 --lens spec --reviewer gpt-5.6-terra --artifact review.md
-check "no Reviewer: line in the lens section refused" 1 --lens spec --reviewer gpt-5.6-luna --artifact noreviewer.md
-check "no Verdict: line in the lens section refused" 1 --lens spec --reviewer gpt-5.6-luna --artifact noverdict.md
-check "stale sha refused" 1 --lens spec --reviewer gpt-5.6-luna --artifact stale.md
+check "no Reviewer: line in the lens section refused" 1 --lens spec --reviewer openai-codex/gpt-6-luna --artifact noreviewer.md
+check "no Verdict: line in the lens section refused" 1 --lens spec --reviewer openai-codex/gpt-6-luna --artifact noverdict.md
+check "stale sha refused" 1 --lens spec --reviewer openai-codex/gpt-6-luna --artifact stale.md
 for length in 11 12; do
-  printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "${head:0:$length}" > "$tmp/repo/short.md"
-  check "$length-character HEAD refused" 1 --lens spec --reviewer gpt-5.6-luna --artifact short.md
+  printf '## spec\nReviewer: openai-codex/gpt-6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "${head:0:$length}" > "$tmp/repo/short.md"
+  check "$length-character HEAD refused" 1 --lens spec --reviewer openai-codex/gpt-6-luna --artifact short.md
 done
-printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/full.md"
-check "full 40-character HEAD accepted" 0 --lens spec --reviewer gpt-5.6-luna --artifact full.md
-printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/my release"
-check "artifact path containing whitespace refused" 1 --lens spec --reviewer gpt-5.6-luna --artifact "$tmp/repo/my release"
-printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s0\n' "$head" > "$tmp/repo/extended.md"
-check "HEAD embedded in a longer hash refused" 1 --lens spec --reviewer gpt-5.6-luna --artifact extended.md
-printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: stale\n\n## security\nReviewer: gpt-5.6-luna (security)\nVerdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/other-head.md"
-check "another lens HEAD cannot certify this lens" 1 --lens spec --reviewer gpt-5.6-luna --artifact other-head.md
-check "untagged artifact refused — a stamp needs ITS lens's section" 1 --lens spec --reviewer gpt-5.6-luna --artifact untagged.md
-printf '## special\nReviewer: gpt-5.6-luna (specialist)\nVerdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/substr.md"
-check "substring collision refused ('## special'/'(specialist)' is not spec)" 1 --lens spec --reviewer gpt-5.6-luna --artifact substr.md
-printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/lacking.md"
-check "missing lens section refused (spec-only artifact, security requested)" 1 --lens security --reviewer gpt-5.6-luna --artifact lacking.md
-check "another section's MERGE cannot stamp a DNM lens" 1 --lens security --reviewer gpt-5.6-luna --artifact mixed.md
-check "duplicate verdict lines are refused" 1 --lens security --reviewer gpt-5.6-luna --artifact malformed.md
+printf '## spec\nReviewer: openai-codex/gpt-6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/full.md"
+check "full 40-character HEAD accepted" 0 --lens spec --reviewer openai-codex/gpt-6-luna --artifact full.md
+printf '## spec\nReviewer: openai-codex/gpt-6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/my release"
+check "artifact path containing whitespace refused" 1 --lens spec --reviewer openai-codex/gpt-6-luna --artifact "$tmp/repo/my release"
+printf '## spec\nReviewer: openai-codex/gpt-6-luna (spec)\nVerdict: MERGE\nCommit: %s0\n' "$head" > "$tmp/repo/extended.md"
+check "HEAD embedded in a longer hash refused" 1 --lens spec --reviewer openai-codex/gpt-6-luna --artifact extended.md
+printf '## spec\nReviewer: openai-codex/gpt-6-luna (spec)\nVerdict: MERGE\nCommit: stale\n\n## security\nReviewer: openai-codex/gpt-6-luna (security)\nVerdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/other-head.md"
+check "another lens HEAD cannot certify this lens" 1 --lens spec --reviewer openai-codex/gpt-6-luna --artifact other-head.md
+check "untagged artifact refused — a stamp needs ITS lens's section" 1 --lens spec --reviewer openai-codex/gpt-6-luna --artifact untagged.md
+printf '## special\nReviewer: openai-codex/gpt-6-luna (specialist)\nVerdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/substr.md"
+check "substring collision refused ('## special'/'(specialist)' is not spec)" 1 --lens spec --reviewer openai-codex/gpt-6-luna --artifact substr.md
+printf '## spec\nReviewer: openai-codex/gpt-6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/lacking.md"
+check "missing lens section refused (spec-only artifact, security requested)" 1 --lens security --reviewer openai-codex/gpt-6-luna --artifact lacking.md
+check "another section's MERGE cannot stamp a DNM lens" 1 --lens security --reviewer openai-codex/gpt-6-luna --artifact mixed.md
+check "duplicate verdict lines are refused" 1 --lens security --reviewer openai-codex/gpt-6-luna --artifact malformed.md
 if [ ! -e "$gitdir/independent-review-security-ok" ]; then
   pass=$((pass+1)); printf '  ok    malformed verdicts do not create a security stamp\n'
 else fail=$((fail+1)); printf '  FAIL  malformed verdicts created a security stamp\n'; fi
-check "a DNM in another lens does not block this lens's MERGE" 0 --lens spec --reviewer gpt-5.6-luna --artifact mixed.md
-check "--base dev is refused" 1 --lens spec --reviewer gpt-5.6-luna --artifact review.md --base dev
-check "--base feature/topic is refused" 1 --lens spec --reviewer gpt-5.6-luna --artifact review.md --base feature/topic
+check "a DNM in another lens does not block this lens's MERGE" 0 --lens spec --reviewer openai-codex/gpt-6-luna --artifact mixed.md
+check "--base dev is refused" 1 --lens spec --reviewer openai-codex/gpt-6-luna --artifact review.md --base dev
+check "--base feature/topic is refused" 1 --lens spec --reviewer openai-codex/gpt-6-luna --artifact review.md --base feature/topic
 
 check "reviewer not named by the section refused" 1 --lens spec --reviewer zai/glm-5.3-flash --artifact review.md
-printf '## spec\nReviewer: gpt-5.6-luna-fake (spec)\nVerdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/spoof.md"
-check "superstring reviewer name refused (exact match)" 1 --lens spec --reviewer gpt-5.6-luna --artifact spoof.md
-check "spec lens stamps from its own section" 0 --lens spec --reviewer gpt-5.6-luna --artifact review.md
-if grep -q "^$head spec gpt-5.6-luna" "$gitdir/independent-review-spec-ok"; then
+printf '## spec\nReviewer: openai-codex/gpt-6-luna-fake (spec)\nVerdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/spoof.md"
+check "superstring reviewer name refused (exact match)" 1 --lens spec --reviewer openai-codex/gpt-6-luna --artifact spoof.md
+check "spec lens stamps from its own section" 0 --lens spec --reviewer openai-codex/gpt-6-luna --artifact review.md
+if grep -q "^$head spec openai-codex/gpt-6-luna" "$gitdir/independent-review-spec-ok"; then
   pass=$((pass+1)); printf '  ok    spec stamp holds HEAD + lens + reviewer\n'
 else fail=$((fail+1)); printf '  FAIL  spec stamp wrong: %s\n' "$(cat "$gitdir/independent-review-spec-ok" 2>/dev/null)"; fi
 check "code-quality lens stamps (glm)" 0 --lens code-quality --reviewer zai/glm-5.3-flash --artifact review.md
@@ -81,7 +81,7 @@ else fail=$((fail+1)); printf '  FAIL  expected 3 lens stamps, found %s\n' "$n";
 
 spec_stamp_before="$(cat "$gitdir/independent-review-spec-ok")"
 quality_stamp_before="$(cat "$gitdir/independent-review-code-quality-ok")"
-check "security DNM refuses and clears only its own stamp" 1 --lens security --reviewer gpt-5.6-luna --artifact mixed.md
+check "security DNM refuses and clears only its own stamp" 1 --lens security --reviewer openai-codex/gpt-6-luna --artifact mixed.md
 if [ ! -e "$gitdir/independent-review-security-ok" ]; then
   pass=$((pass+1)); printf '  ok    security DNM clears the security stamp\n'
 else fail=$((fail+1)); printf '  FAIL  security DNM left its passing stamp in place\n'; fi
@@ -105,8 +105,8 @@ commit_design_change() { # $1 repo · $2 message
 check_design() { # $1 name · $2 expected rc · $3 repo · $4 expected diagnostic
   local name="$1" want="$2" repo="$3" diagnostic="$4" head output rc
   head="$(git -C "$repo" rev-parse HEAD)"
-  printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$head" > "$repo/review.md"
-  output="$(cd "$repo" && bash "$SCRIPT" --lens spec --reviewer gpt-5.6-luna --artifact review.md 2>&1)"
+  printf '## spec\nReviewer: openai-codex/gpt-6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$head" > "$repo/review.md"
+  output="$(cd "$repo" && bash "$SCRIPT" --lens spec --reviewer openai-codex/gpt-6-luna --artifact review.md 2>&1)"
   rc=$?
   if [ "$rc" -eq "$want" ] && { [ -z "$diagnostic" ] || printf '%s\n' "$output" | grep -Fq "$diagnostic"; }; then
     pass=$((pass+1)); printf '  ok    %s\n' "$name"
@@ -147,7 +147,7 @@ init_owner_ui_repo() { # $1 repo · $2 branch · $3 commit subject
 }
 check_issue_skills() { # name · expected rc · artifact · body file · issue env · expected text
   local name="$1" want="$2" artifact="$3" body_file="$4" issue_env="$5" diagnostic="${6:-}" output rc
-  output="$(cd "$tmp/repo" && PATH="$owner_gh_bin:$PATH" FAKE_ISSUE_BODY_FILE="$body_file" MOS_ISSUE="$issue_env" bash "$SCRIPT" --lens security --reviewer gpt-5.6-luna --artifact "$artifact" 2>&1)"
+  output="$(cd "$tmp/repo" && PATH="$owner_gh_bin:$PATH" FAKE_ISSUE_BODY_FILE="$body_file" MOS_ISSUE="$issue_env" bash "$SCRIPT" --lens security --reviewer openai-codex/gpt-6-luna --artifact "$artifact" 2>&1)"
   rc=$?
   if [ "$rc" -eq "$want" ] && { [ -z "$diagnostic" ] || printf '%s\n' "$output" | grep -Fq "$diagnostic"; }; then
     pass=$((pass+1)); printf '  ok    %s\n' "$name"
@@ -158,8 +158,8 @@ check_issue_skills() { # name · expected rc · artifact · body file · issue e
 check_owner_design() { # name · expected rc · repo · gh mode · expected text · optional second text
   local name="$1" want="$2" repo="$3" mode="$4" diagnostic="$5" second="${6:-}" head output rc
   head="$(git -C "$repo" rev-parse HEAD)"
-  printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$head" > "$repo/review.md"
-  output="$(cd "$repo" && PATH="$owner_gh_bin:$PATH" FAKE_GH_MODE="$mode" bash "$SCRIPT" --lens spec --reviewer gpt-5.6-luna --artifact review.md 2>&1)"
+  printf '## spec\nReviewer: openai-codex/gpt-6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$head" > "$repo/review.md"
+  output="$(cd "$repo" && PATH="$owner_gh_bin:$PATH" FAKE_GH_MODE="$mode" bash "$SCRIPT" --lens spec --reviewer openai-codex/gpt-6-luna --artifact review.md 2>&1)"
   rc=$?
   if [ "$rc" -eq "$want" ] && { [ -z "$diagnostic" ] || printf '%s\n' "$output" | grep -Fq "$diagnostic"; } \
     && { [ -z "$second" ] || printf '%s\n' "$output" | grep -Fq "$second"; }; then
@@ -181,11 +181,11 @@ cat > "$tmp/repo/issue-plan.md" <<'EOF'
 |---|---|---|
 | tdd | build | docs/reviews/1541/existing.md |
 EOF
-printf 'Issue: #1541\n## security\nReviewer: gpt-5.6-luna (security)\nVerdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/issue-review.md"
+printf 'Issue: #1541\n## security\nReviewer: openai-codex/gpt-6-luna (security)\nVerdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/issue-review.md"
 check_issue_skills 'Issue: #N plan accepts non-empty docs evidence' 0 issue-review.md "$tmp/repo/issue-plan.md" ''
 printf 'No Skills plan here.\n' > "$tmp/repo/no-issue-plan.md"
 check_issue_skills 'Issue without a Skills plan keeps existing review behavior' 0 issue-review.md "$tmp/repo/no-issue-plan.md" ''
-printf '## security\nReviewer: gpt-5.6-luna (security)\nVerdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/env-issue-review.md"
+printf '## security\nReviewer: openai-codex/gpt-6-luna (security)\nVerdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/env-issue-review.md"
 check_issue_skills 'MOS_ISSUE fetches the issue without an Issue artifact line' 0 env-issue-review.md "$tmp/repo/issue-plan.md" 1555
 cat > "$tmp/repo/missing-issue-plan.md" <<'EOF'
 ## Skills plan
@@ -195,7 +195,7 @@ cat > "$tmp/repo/missing-issue-plan.md" <<'EOF'
 | tdd | build | docs/reviews/1541/empty.md |
 | tdd | build | docs/reviews/1541/linked.md |
 EOF
-out="$(cd "$tmp/repo" && PATH="$owner_gh_bin:$PATH" FAKE_ISSUE_BODY_FILE="$tmp/repo/missing-issue-plan.md" bash "$SCRIPT" --lens security --reviewer gpt-5.6-luna --artifact issue-review.md 2>&1)"; rc=$?
+out="$(cd "$tmp/repo" && PATH="$owner_gh_bin:$PATH" FAKE_ISSUE_BODY_FILE="$tmp/repo/missing-issue-plan.md" bash "$SCRIPT" --lens security --reviewer openai-codex/gpt-6-luna --artifact issue-review.md 2>&1)"; rc=$?
 if [ "$rc" -ne 0 ] \
   && printf '%s\n' "$out" | grep -Fq 'docs/reviews/1541/missing.md' \
   && printf '%s\n' "$out" | grep -Fq 'docs/reviews/1541/empty.md' \
@@ -342,12 +342,12 @@ write_ui_review() { # $1 artifact · $2 evidence path · $3 omitted row · $4 re
         printf '| %s | %s | |\n' "$playbook" "$evidence"
       fi
     done
-    printf '\n## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$ui_head"
+    printf '\n## spec\nReviewer: openai-codex/gpt-6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$ui_head"
   } > "$tmp/ui-repo/$file"
 }
 check_ui() { # $1 name · $2 expected rc · $3 artifact · $4 expected diagnostic (optional)
   local name="$1" want="$2" artifact="$3" diagnostic="${4:-}"
-  (cd "$tmp/ui-repo" && bash "$SCRIPT" --lens spec --reviewer gpt-5.6-luna --artifact "$artifact") > "$tmp/ui-output" 2>&1
+  (cd "$tmp/ui-repo" && bash "$SCRIPT" --lens spec --reviewer openai-codex/gpt-6-luna --artifact "$artifact") > "$tmp/ui-output" 2>&1
   local rc=$?
   if [ "$rc" -eq "$want" ] && { [ -z "$diagnostic" ] || grep -Fq "$diagnostic" "$tmp/ui-output"; }; then
     pass=$((pass+1)); printf '  ok    %s\n' "$name"
@@ -355,7 +355,7 @@ check_ui() { # $1 name · $2 expected rc · $3 artifact · $4 expected diagnosti
     fail=$((fail+1)); printf '  FAIL  %s — rc=%s (want %s); %s\n' "$name" "$rc" "$want" "$(tr '\n' ' ' < "$tmp/ui-output")"
   fi
 }
-printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$ui_head" > "$tmp/ui-repo/feature-no-skills.md"
+printf '## spec\nReviewer: openai-codex/gpt-6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$ui_head" > "$tmp/ui-repo/feature-no-skills.md"
 check_ui 'new page requires Skills evidence on a feature branch' 1 feature-no-skills.md 'design pass required: adds a page (mos-app/src/pages/Page.tsx)'
 gi update-ref refs/remotes/origin/main "$ui_head"
 check_ui 'release-candidate UI diff still requires Skills evidence' 1 feature-no-skills.md "requires a '## Skills evidence' section"
@@ -385,8 +385,8 @@ gn update-ref refs/remotes/origin/dev "$(gn rev-parse HEAD)"
 printf 'changed\n' >> "$tmp/non-ui-repo/README.md"
 gn add README.md && gn commit -qm 'non-UI change'
 non_ui_head="$(gn rev-parse HEAD)"
-printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$non_ui_head" > "$tmp/non-ui-repo/review.md"
-(cd "$tmp/non-ui-repo" && bash "$SCRIPT" --lens spec --reviewer gpt-5.6-luna --artifact review.md) >/dev/null 2>&1
+printf '## spec\nReviewer: openai-codex/gpt-6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$non_ui_head" > "$tmp/non-ui-repo/review.md"
+(cd "$tmp/non-ui-repo" && bash "$SCRIPT" --lens spec --reviewer openai-codex/gpt-6-luna --artifact review.md) >/dev/null 2>&1
 rc=$?
 if [ "$rc" -eq 0 ]; then pass=$((pass+1)); printf '  ok    non-UI diff does not require skills evidence\n'
 else fail=$((fail+1)); printf '  FAIL  non-UI diff changed behavior — rc=%s\n' "$rc"; fi
@@ -399,21 +399,21 @@ gs commit -qm init --allow-empty
 gs update-ref refs/remotes/origin/dev "$(gs rev-parse HEAD)"
 printf 'export const T = () => null;\n' > "$tmp/scope-repo/mos-app/src/shell/tab.test.tsx"
 gs add -A && gs commit -qm 'test only'
-printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$(gs rev-parse HEAD)" > "$tmp/scope-repo/review.md"
-(cd "$tmp/scope-repo" && bash "$SCRIPT" --lens spec --reviewer gpt-5.6-luna --artifact review.md) >/dev/null 2>&1
+printf '## spec\nReviewer: openai-codex/gpt-6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$(gs rev-parse HEAD)" > "$tmp/scope-repo/review.md"
+(cd "$tmp/scope-repo" && bash "$SCRIPT" --lens spec --reviewer openai-codex/gpt-6-luna --artifact review.md) >/dev/null 2>&1
 if [ $? -eq 0 ]; then pass=$((pass+1)); printf '  ok    unrelated test-only tsx does not require design-pass evidence\n'
 else fail=$((fail+1)); printf '  FAIL  unrelated test-only tsx wrongly gated\n'; fi
 mkdir -p "$tmp/scope-repo/mos-app/src/components"
 printf 'export const Example = () => null;\n' > "$tmp/scope-repo/mos-app/src/components/example.test.tsx"
 gs add -A && gs commit -qm 'component test only'
-printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$(gs rev-parse HEAD)" > "$tmp/scope-repo/review.md"
-(cd "$tmp/scope-repo" && bash "$SCRIPT" --lens spec --reviewer gpt-5.6-luna --artifact review.md) >/dev/null 2>&1
+printf '## spec\nReviewer: openai-codex/gpt-6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$(gs rev-parse HEAD)" > "$tmp/scope-repo/review.md"
+(cd "$tmp/scope-repo" && bash "$SCRIPT" --lens spec --reviewer openai-codex/gpt-6-luna --artifact review.md) >/dev/null 2>&1
 if [ $? -eq 0 ]; then pass=$((pass+1)); printf '  ok    component test-only tsx does not require design-pass evidence\n'
 else fail=$((fail+1)); printf '  FAIL  component test-only tsx wrongly gated\n'; fi
 printf 'export const B = () => null;\n' > "$tmp/scope-repo/mos-app/src/shell/bar.tsx"
 gs add -A && gs commit -qm 'shell ui'
-printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$(gs rev-parse HEAD)" > "$tmp/scope-repo/review.md"
-(cd "$tmp/scope-repo" && bash "$SCRIPT" --lens spec --reviewer gpt-5.6-luna --artifact review.md) >/dev/null 2>&1
+printf '## spec\nReviewer: openai-codex/gpt-6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$(gs rev-parse HEAD)" > "$tmp/scope-repo/review.md"
+(cd "$tmp/scope-repo" && bash "$SCRIPT" --lens spec --reviewer openai-codex/gpt-6-luna --artifact review.md) >/dev/null 2>&1
 check_design 'new shell component requires a design pass' 1 "$tmp/scope-repo" 'adds a component (mos-app/src/shell/bar.tsx)'
 
 # A deleted UI file does not trigger the gate.
@@ -424,8 +424,8 @@ printf 'export const A = () => null;\n' > "$tmp/del-repo/mos-app/src/components/
 gd add -A && gd commit -qm init
 gd update-ref refs/remotes/origin/dev "$(gd rev-parse HEAD)"
 gd rm -q mos-app/src/components/a.tsx && gd commit -qm 'delete ui file'
-printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$(gd rev-parse HEAD)" > "$tmp/del-repo/review.md"
-(cd "$tmp/del-repo" && bash "$SCRIPT" --lens spec --reviewer gpt-5.6-luna --artifact review.md) >/dev/null 2>&1
+printf '## spec\nReviewer: openai-codex/gpt-6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$(gd rev-parse HEAD)" > "$tmp/del-repo/review.md"
+(cd "$tmp/del-repo" && bash "$SCRIPT" --lens spec --reviewer openai-codex/gpt-6-luna --artifact review.md) >/dev/null 2>&1
 if [ $? -eq 0 ]; then pass=$((pass+1)); printf '  ok    deleting a UI file does not require skills evidence\n'
 else fail=$((fail+1)); printf '  FAIL  deleted UI file wrongly gated\n'; fi
 
@@ -522,13 +522,13 @@ write_ancestor_ui_review() { # $1 repo · $2 evidence commit · reviewer record 
         printf '| %s | reviews/evidence.md | |\n' "$playbook"
       fi
     done
-    printf '\n## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$head"
+    printf '\n## spec\nReviewer: openai-codex/gpt-6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$head"
   } > "$repo/review.md"
 }
 check_ancestor_ui() { # $1 name · $2 expected rc · $3 repo · $4 evidence commit
   local name="$1" want="$2" repo="$3" evidence_commit="$4" output rc
   write_ancestor_ui_review "$repo" "$evidence_commit"
-  output="$(cd "$repo" && bash "$SCRIPT" --lens spec --reviewer gpt-5.6-luna --artifact review.md 2>&1)"
+  output="$(cd "$repo" && bash "$SCRIPT" --lens spec --reviewer openai-codex/gpt-6-luna --artifact review.md 2>&1)"
   rc=$?
   if [ "$rc" -eq "$want" ]; then
     pass=$((pass+1)); printf '  ok    %s\n' "$name"
