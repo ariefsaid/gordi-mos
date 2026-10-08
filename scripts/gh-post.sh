@@ -170,7 +170,7 @@ fi
 # other bases also need full verify — and a pr create may only target THIS checkout. The REST create
 # (`api repos/<this>/pulls`, the route cloud sessions use where GraphQL is blocked) passes the same gate.
 require_pr_stamps() { # $1 base branch ('' when none named)
-  local base_val="$1" gitdir head v r lens
+  local base_val="$1" gitdir head v r lens stamp_file stamp release_token
   gitdir="$(git rev-parse --git-dir)" || die "not a git repo"
   head="$(git rev-parse HEAD)"
   # Promotion carve-out (/release §4b): a PR into staging FROM main carries content the release
@@ -184,7 +184,15 @@ require_pr_stamps() { # $1 base branch ('' when none named)
   fi
   # OD-WAY-83: three explicit lens records, each its own stamp on this exact HEAD.
   for lens in spec code-quality security; do
-    r="$(awk '{print $1}' "$gitdir/independent-review-$lens-ok" 2>/dev/null || true)"
+    stamp_file="$gitdir/independent-review-$lens-ok"
+    stamp="$(cat "$stamp_file" 2>/dev/null || true)"
+    r="$(printf '%s\n' "$stamp" | awk '{print $1}')"
+    if [ "$lens" = security ] && { [ "$base_val" = main ] || [ "$base_val" = staging ]; }; then
+      release_token=0
+      printf '%s\n' "$stamp" | awk 'NF >= 6 && $NF == "release" { found=1 } END { exit !found }' && release_token=1
+      [ "$r" = "$head" ] && [ "$release_token" = 1 ] \
+        || die "a PR into $base_val needs release-rule stamps — record the security lens with: bash scripts/record-review.sh --lens security --base $base_val --reviewer <opus id> --artifact <record>"
+    fi
     [ "$r" = "$head" ] || die "no $lens lens stamp for HEAD — a reviewer that did not write this branch records each lens: bash scripts/record-review.sh --lens $lens --reviewer <glm/luna/opus…> --artifact <record>"
   done
 }
@@ -282,6 +290,15 @@ if [ "$verb1" = "pr" ] && [ "$verb2" = "create" ]; then
   [ "$base_val" = dev ] && require_reused_line
 fi
 
+issue_number_from_path() {
+  local candidate="$1" suffix="${2:-}"
+  if [ -n "$suffix" ]; then
+    case "$candidate" in */"$suffix") candidate="${candidate%/"$suffix"}" ;; *) return 1 ;; esac
+  fi
+  case "$candidate" in ''|*[!0-9]*) return 1 ;; esac
+  printf '%s' "$candidate"
+}
+
 if [ "$verb1" = "api" ]; then
   path="${verb2#/}"; path="${path%%\?*}"; path="${path%/}"
   case "$path" in repos/"$this_repo"/issues/*/labels) [ "$api_effective_method" = GET ] || die "REST issue-label writes are refused — use 'issue edit --add-label' to change labels" ;; esac
@@ -289,8 +306,8 @@ if [ "$verb1" = "api" ]; then
   case "$path" in
     "repos/$this_repo/issues") issue_path=1 ;;
     "repos/$this_repo/issues/"*)
-      issue_number="${path#repos/$this_repo/issues/}"
-      case "$issue_number" in ''|*[!0-9]*) ;; *) issue_path=1 ;; esac ;;
+      issue_number="$(issue_number_from_path "${path#repos/$this_repo/issues/}" 2>/dev/null || true)"
+      [ -n "$issue_number" ] && issue_path=1 ;;
   esac
   if [ "$issue_path" = 1 ] && [ "$api_effective_method" != GET ]; then
     has_labels="$api_input"
@@ -309,15 +326,14 @@ if [ "$verb1" = "api" ]; then
     if [ "$api_effective_method" = POST ]; then
       case "$path" in
         "$issue_prefix"*/comments)
-          issue_number="${path#"$issue_prefix"}"
-          issue_number="${issue_number%/comments}"
-          case "$issue_number" in ''|*[!0-9]*) ;; *) api_write_allowed=1 ;; esac ;;
+          issue_number="$(issue_number_from_path "${path#"$issue_prefix"}" comments 2>/dev/null || true)"
+          [ -n "$issue_number" ] && api_write_allowed=1 ;;
       esac
     elif [ "$api_effective_method" = PATCH ]; then
       case "$path" in
         "$issue_prefix"*)
-          issue_number="${path#"$issue_prefix"}"
-          case "$issue_number" in ''|*[!0-9]*) ;; *) api_write_allowed=1 ;; esac ;;
+          issue_number="$(issue_number_from_path "${path#"$issue_prefix"}" 2>/dev/null || true)"
+          [ -n "$issue_number" ] && api_write_allowed=1 ;;
       esac
     fi
     [ "$api_write_allowed" = 1 ] || die "'api $api_effective_method $path' is not in the write allowlist. Allowed API writes: POST repos/$this_repo/security-advisories; POST repos/$this_repo/pulls (REST PR stamps required); POST repos/$this_repo/issues/<number>/comments; PATCH repos/$this_repo/issues/<number> without labels."

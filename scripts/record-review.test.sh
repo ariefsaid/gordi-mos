@@ -61,6 +61,8 @@ if [ ! -e "$gitdir/independent-review-security-ok" ]; then
   pass=$((pass+1)); printf '  ok    malformed verdicts do not create a security stamp\n'
 else fail=$((fail+1)); printf '  FAIL  malformed verdicts created a security stamp\n'; fi
 check "a DNM in another lens does not block this lens's MERGE" 0 --lens spec --reviewer gpt-5.6-luna --artifact mixed.md
+check "--base dev is refused" 1 --lens spec --reviewer gpt-5.6-luna --artifact review.md --base dev
+check "--base feature/topic is refused" 1 --lens spec --reviewer gpt-5.6-luna --artifact review.md --base feature/topic
 
 check "reviewer not named by the section refused" 1 --lens spec --reviewer zai/glm-5.3-flash --artifact review.md
 printf '## spec\nReviewer: gpt-5.6-luna-fake (spec)\nVerdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/spoof.md"
@@ -476,6 +478,14 @@ gr checkout -qb feature/explicit-main "$(gr rev-parse origin/dev)"
 gr commit -q --allow-empty -m "ordinary work"
 relcheck "explicit --base main marks a release candidate" 1 gpt-6-luna --base main
 relcheck "explicit --base staging marks a release candidate" 1 gpt-6-luna --base staging
+relcheck "release security stamp accepts Opus for --base main" 0 claude-opus-5 --base main
+if grep -Eq "^$(gr rev-parse HEAD) security claude-opus-5 .* release$" "$tmp/rel-repo/.git/independent-review-security-ok"; then
+  pass=$((pass+1)); printf '  ok    release security stamp ends with the release token\n'
+else fail=$((fail+1)); printf '  FAIL  release security stamp is missing its release token\n'; fi
+relcheck "release security stamp accepts Opus for --base staging" 0 claude-opus-5 --base staging
+if grep -Eq "^$(gr rev-parse HEAD) security claude-opus-5 .* release$" "$tmp/rel-repo/.git/independent-review-security-ok"; then
+  pass=$((pass+1)); printf '  ok    staging security stamp ends with the release token\n'
+else fail=$((fail+1)); printf '  FAIL  staging security stamp is missing its release token\n'; fi
 
 gr checkout -qb feature/ordinary-dev "$(gr rev-parse origin/dev)"
 gr commit -q --allow-empty -m "ordinary dev-bound work"

@@ -277,7 +277,7 @@ write each file, or correct the plan's path"
   }
 }
 
-lens="" reviewer="" artifact="" base="" base_seen=0
+lens="" reviewer="" artifact="" base="" base_seen=0 release=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --lens) lens="${2:-}"; shift 2 ;;
@@ -298,6 +298,9 @@ while [ $# -gt 0 ]; do
 done
 [ -n "$lens" ] && [ -n "$reviewer" ] && [ -n "$artifact" ] \
   || die "usage: --lens <spec|code-quality|security> --reviewer <name> --artifact <file>"
+if [ "$base_seen" = 1 ]; then
+  case "$base" in main|staging) ;; *) die "--base must be main or staging (got '$base')" ;; esac
+fi
 
 case "$lens" in spec|code-quality|security) ;; *) die "unknown lens '$lens' (spec|code-quality|security)" ;; esac
 
@@ -315,7 +318,6 @@ head="$(git rev-parse HEAD)" || die "not a git repo"
 # Luna id. A release candidate is on release/*, targets main/staging, or is already contained in
 # origin/main. A migration branch touches supabase/migrations/.
 if [ "$lens" = security ]; then
-  release=0
   is_release_candidate "$base" && release=1
   migration="$(git diff --name-only origin/dev...HEAD -- supabase/migrations 2>/dev/null | head -1)"
   if [ "$release" = 1 ]; then
@@ -385,6 +387,7 @@ printf '%s\n' "$verdict" | grep -qE '^MERGE( WITH CHANGES)?$' \
   || die "the '$lens' section's verdict is not machine-readable (MERGE | MERGE WITH CHANGES): '$verdict'"
 
 gitdir="$(git rev-parse --git-dir)"
-printf '%s %s %s %s %s\n' "$head" "$lens" "$reviewer" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$artifact" \
-  > "$gitdir/independent-review-$lens-ok"
+stamp="$head $lens $reviewer $(date -u +%Y-%m-%dT%H:%M:%SZ) $artifact"
+if [ "$lens" = security ] && [ "$release" = 1 ]; then stamp="$stamp release"; fi
+printf '%s\n' "$stamp" > "$gitdir/independent-review-$lens-ok"
 echo "✓ $lens lens stamped ${head:0:8} by $reviewer ($artifact)"
