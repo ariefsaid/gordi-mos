@@ -13,6 +13,9 @@ function LocationSearchProbe({ onChange }: { onChange: (search: string) => void 
 import type { UseNotifications } from '@/hooks/useNotifications'
 import type { NotificationRow } from '@/lib/db/notifications'
 import { OverlayHostProvider, OverlayHostSlot, useOverlayHost } from '@/shell/overlay-host'
+const notificationAvailability = vi.hoisted(() => vi.fn((row: { metadata: unknown }) => row.metadata !== undefined))
+vi.mock('@/config/notification-profile', () => ({ notificationAvailableInProfile: notificationAvailability }))
+
 import { InboxTriageConnected } from './inbox-triage-connected'
 
 // The connected triage owns the live wiring; the data hook is mocked so we drive rows/state directly.
@@ -110,6 +113,7 @@ function ExistingSignalsFrame() {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  notificationAvailability.mockReturnValue(true)
   mockUse.mockReturnValue(hook())
 })
 
@@ -340,9 +344,9 @@ describe('InboxTriageConnected — the live triage wiring (AC-V3-006 / FR-V3-008
     },
     {
       locale: 'id' as const,
-      all: 'Semua · 2 pada item yang dimuat',
-      unread: 'Belum dibaca · 0 pada item yang dimuat',
-      handled: 'Selesai ditangani · 0 pada item yang dimuat',
+      all: 'Semua · 2 dimuat',
+      unread: 'Belum dibaca · 0 dimuat',
+      handled: 'Selesai ditangani · 0 dimuat',
       title: 'Tidak ada notifikasi belum dibaca di item yang dimuat',
       copy: '2 notifikasi sudah dibaca pada item yang dimuat',
       loadMore: 'Muat item lainnya',
@@ -369,6 +373,25 @@ describe('InboxTriageConnected — the live triage wiring (AC-V3-006 / FR-V3-008
     expect(within(empty).getByRole('heading', { name: title })).toBeInTheDocument()
     expect(empty).toHaveTextContent(copy)
     expect(screen.getByRole('button', { name: loadMore })).toBeInTheDocument()
+  })
+
+  it('counts paging rows from the same profile-filtered set as the Inbox chips', () => {
+    notificationAvailability.mockImplementation((row) => row.metadata !== null
+      && typeof row.metadata === 'object'
+      && !('profileHidden' in row.metadata))
+    mockUse.mockReturnValue(hook({
+      notifications: [
+        notif({ id: 'visible-1' }),
+        notif({ id: 'visible-2' }),
+        notif({ id: 'profile-hidden', metadata: { profileHidden: true } }),
+      ],
+      hasMore: true,
+    }))
+    renderConnected()
+
+    expect(filterGroup().getByRole('button', { name: 'All · 2 in loaded items' })).toBeInTheDocument()
+    expect(screen.getByText('2 items loaded')).toBeInTheDocument()
+    expect(screen.queryByText('3 items loaded')).toBeNull()
   })
 
   it('AC-003 (#549): ?filter=handled round-trips on the /inbox page (hydrate + write-back)', () => {
