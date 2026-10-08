@@ -251,9 +251,10 @@ export function FollowUpsPage() {
     <PageFamilyFrame
       family="workspace"
       title={t('followUps.title')}
+      jobSentence={t('job.money')}
       state={frameState}
       count={state === 'ready' ? (hasMore ? `${rows.length}+` : rows.length) : null}
-      meta={<span>{t('followUps.overdue')}: {hasMore ? `${overdueCount}+` : overdueCount}</span>}
+      meta={state === 'ready' ? <span>{t('followUps.overdue')}: {hasMore ? `${overdueCount}+` : overdueCount}</span> : null}
     >
       {state === 'loading' && <SkeletonRows count={5} />}
       {state === 'error' && (

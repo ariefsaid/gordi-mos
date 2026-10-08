@@ -10,6 +10,8 @@ import { shrinkPhoto } from '@/lib/db/signal-photos'
 import {
   listPendingBillPaymentAmounts,
   listPendingBillPaymentHistory,
+  listPendingBillFinanceLabels,
+  setPendingBillFinanceLabel,
   MAX_PENDING_BILL_PROOF_BYTES,
   PendingBillProofError,
   paySeveralPendingBills,
@@ -36,6 +38,57 @@ function query(result: Result, calls: Call[]) {
 }
 
 beforeEach(() => vi.clearAllMocks())
+
+describe('pending-bill Finance labels', () => {
+  it('reads the sparse label overlay in a stable order and leaves org scope to RLS', async () => {
+    const calls: Call[] = []
+    schemaMock.mockImplementation((name) => {
+      expect(name).toBe('mos')
+      return { from: (table: string) => {
+        expect(table).toBe('pending_bill_finance_labels')
+        return query({ data: [{ esb_code: 'ESB', branch_code: 'BR', bill_no: 'PB-1', finance_label: 'Owner Sari' }], error: null }, calls)
+      } } as never
+    })
+    await expect(listPendingBillFinanceLabels()).resolves.toEqual([
+      { esb_code: 'ESB', branch_code: 'BR', bill_no: 'PB-1', finance_label: 'Owner Sari' },
+    ])
+    expect(calls.find((call) => call.method === 'select')?.args).toEqual(['esb_code,branch_code,bill_no,finance_label'])
+    expect(calls.filter((call) => call.method === 'order').map((call) => call.args[0])).toEqual(['esb_code', 'branch_code', 'bill_no'])
+    expect(calls.find((call) => call.method === 'range')?.args).toEqual([0, 999])
+    expect(JSON.stringify(calls)).not.toContain('org_id')
+  })
+
+  it('normalizes the value and writes set or clear through the SECURITY DEFINER RPC', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: null, error: null })
+    schemaMock.mockImplementation(() => ({ rpc } as never))
+    await setPendingBillFinanceLabel({ esbCode: 'ESB', branchCode: 'BR', billNo: 'PB-1', financeLabel: '\t\nOwner Sari\r\n' })
+    expect(rpc).toHaveBeenNthCalledWith(1, 'set_pending_bill_finance_label', {
+      p_esb_code: 'ESB', p_branch_code: 'BR', p_bill_no: 'PB-1', p_finance_label: 'Owner Sari',
+    })
+    await setPendingBillFinanceLabel({ esbCode: 'ESB', branchCode: 'BR', billNo: 'PB-1', financeLabel: 'Owner\t\nSari' })
+    expect(rpc).toHaveBeenNthCalledWith(2, 'set_pending_bill_finance_label', {
+      p_esb_code: 'ESB', p_branch_code: 'BR', p_bill_no: 'PB-1', p_finance_label: 'Owner\t\nSari',
+    })
+    await setPendingBillFinanceLabel({ esbCode: 'ESB', branchCode: 'BR', billNo: 'PB-1', financeLabel: '\t\n\r' })
+    expect(rpc).toHaveBeenNthCalledWith(3, 'set_pending_bill_finance_label', {
+      p_esb_code: 'ESB', p_branch_code: 'BR', p_bill_no: 'PB-1', p_finance_label: null,
+    })
+  })
+
+  it('rejects an overlong value before sending a write and surfaces read/write errors', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: null, error: { message: 'denied' } })
+    schemaMock.mockImplementation(() => ({ rpc } as never))
+    await expect(setPendingBillFinanceLabel({
+      esbCode: 'ESB', branchCode: 'BR', billNo: 'PB-1', financeLabel: 'x'.repeat(61),
+    })).rejects.toThrow(/60 characters/)
+    expect(rpc).not.toHaveBeenCalled()
+    await expect(setPendingBillFinanceLabel({
+      esbCode: 'ESB', branchCode: 'BR', billNo: 'PB-1', financeLabel: 'x',
+    })).rejects.toThrow(/setPendingBillFinanceLabel failed — denied/)
+    schemaMock.mockImplementation(() => ({ from: () => query({ data: null, error: { message: 'read denied' } }, []) } as never))
+    await expect(listPendingBillFinanceLabels()).rejects.toThrow(/listPendingBillFinanceLabels failed — read denied/)
+  })
+})
 
 describe('listPendingBillPaymentAmounts', () => {
   it('reads every signed entry in a stable order and lets RLS choose the org', async () => {
@@ -172,13 +225,14 @@ describe('paySeveralPendingBills', () => {
     })
     const billIds = ['["ESB","BR","PB-1"]', '["ESB","BR","PB-2"]']
     await expect(paySeveralPendingBills({
-      billIds, cashInDate: '2026-10-06', proofPath: 'org/p1.pdf', idempotencyKey: 'batch-key',
+      billIds, expectedAmountsCents: [12550, 25000], cashInDate: '2026-10-06', proofPath: 'org/p1.pdf', idempotencyKey: 'batch-key',
     })).resolves.toEqual([
       { billId: billIds[0], paymentId: 'p1', esbCode: 'ESB', branchCode: 'BR', billNo: 'PB-1', amount: 125.5, replayed: false },
       { billId: billIds[1], paymentId: 'p2', esbCode: 'ESB', branchCode: 'BR', billNo: 'PB-2', amount: 250, replayed: true },
     ])
     expect(rpc).toHaveBeenCalledWith('pay_several_pending_bills', {
       p_bill_ids: billIds,
+      p_expected_amounts_cents: [12550, 25000],
       p_cash_in_date: '2026-10-06',
       p_proof_path: 'org/p1.pdf',
       p_idempotency_key: 'batch-key',
@@ -186,11 +240,21 @@ describe('paySeveralPendingBills', () => {
   })
 
   it('surfaces server failure and refuses a partial or mismatched result set', async () => {
-    const input = { billIds: ['["ESB","BR","PB-1"]'], cashInDate: '2026-10-06', proofPath: 'org/p1.pdf', idempotencyKey: 'key' }
+    const input = { billIds: ['["ESB","BR","PB-1"]'], expectedAmountsCents: [100], cashInDate: '2026-10-06', proofPath: 'org/p1.pdf', idempotencyKey: 'key' }
     schemaMock.mockImplementation(() => ({ rpc: vi.fn().mockResolvedValue({ data: null, error: { message: 'Pending bill PB-1 is already settled.' } }) } as never))
     await expect(paySeveralPendingBills(input)).rejects.toThrow(/Pending bill PB-1 is already settled/)
     schemaMock.mockImplementation(() => ({ rpc: vi.fn().mockResolvedValue({ data: [], error: null }) } as never))
     await expect(paySeveralPendingBills(input)).rejects.toThrow(/different bill selection/)
+  })
+
+  it('maps the confirmed-balance SQLSTATE to a recoverable mismatch error', async () => {
+    schemaMock.mockImplementation(() => ({
+      rpc: vi.fn().mockResolvedValue({ data: null, error: { code: 'P0001', message: 'server detail' } }),
+    } as never))
+    await expect(paySeveralPendingBills({
+      billIds: ['["ESB","BR","PB-1"]'], expectedAmountsCents: [12550],
+      cashInDate: '2026-10-06', proofPath: 'org/p1.pdf', idempotencyKey: 'key',
+    })).rejects.toMatchObject({ name: 'PendingBillBalanceChangedError' })
   })
 })
 

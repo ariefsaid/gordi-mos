@@ -12,6 +12,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 import type { ToastState } from './use-toast'
+import { OverlayPortal } from '@/components/ui/overlay-portal'
 
 function bottomOverlayOffset() {
   const viewportBottom = window.innerHeight
@@ -57,37 +58,39 @@ export function Toast({ toast, onDismiss }: ToastProps) {
   }, [schedulePositionUpdate])
 
   return (
-    <div
-      ref={containerRef}
-      aria-live="polite"
-      aria-atomic="true"
-      // role="status" is the accessible equivalent to polite live region
-      role="status"
-      className="fixed right-6 pointer-events-none"
-      style={{ minWidth: 280, maxWidth: 420, bottom: '24px', zIndex: 'var(--z-toast)' }}
-    >
-      {toast && (
-        <div
-          className="flex items-center gap-3 rounded-lg px-4 py-3 pointer-events-auto"
-          style={{
-            background: 'var(--popover)',
-            color: 'var(--popover-foreground)',
-            border: '1px solid var(--border)',
-            boxShadow: 'var(--shadow-overlay)',
-          }}
-        >
-          <span className="flex-1 text-sm font-medium">{toast.message}</span>
-          <button
-            type="button"
-            onClick={onDismiss}
-            aria-label="Dismiss notification"
-            className="text-current opacity-60 hover:opacity-100 transition-opacity"
-            style={{ lineHeight: 1 }}
+    <OverlayPortal>
+      <div
+        ref={containerRef}
+        aria-live="polite"
+        aria-atomic="true"
+        // role="status" is the accessible equivalent to polite live region
+        role="status"
+        className="fixed right-6 pointer-events-none"
+        style={{ minWidth: 280, maxWidth: 420, bottom: '24px', zIndex: 'var(--z-toast)' }}
+      >
+        {toast && (
+          <div
+            className="flex items-center gap-3 rounded-lg px-4 py-3 pointer-events-auto"
+            style={{
+              background: 'var(--popover)',
+              color: 'var(--popover-foreground)',
+              border: '1px solid var(--border)',
+              boxShadow: 'var(--shadow-overlay)',
+            }}
           >
-            ✕
-          </button>
-        </div>
-      )}
-    </div>
+            <span className="flex-1 text-sm font-medium">{toast.message}</span>
+            <button
+              type="button"
+              onClick={onDismiss}
+              aria-label="Dismiss notification"
+              className="text-current opacity-60 hover:opacity-100 transition-opacity"
+              style={{ lineHeight: 1 }}
+            >
+              ✕
+            </button>
+          </div>
+        )}
+      </div>
+    </OverlayPortal>
   )
 }

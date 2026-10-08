@@ -68,10 +68,16 @@ const HELD: CafeReceiptHeldPortion = {
   id: 'portion-held', quantity: '4', created_at: '2026-10-05T04:00:00Z',
   receipt: RECEIPT, line: { ...LINE, id: 'line-2', item_name: 'Gula Aren Cair Organik 750 ml', unit_name: 'botol', conditions: [], condition_reason: null, photos: [] },
 }
+const REFUSED = {
+  id: 'portion-refused', quantity: '3', created_at: '2026-10-05T05:00:00Z', po_number: 'PO-SYNTH-8',
+  mos_key: 'MOS-RECEIPT-GROUP', esb_message: 'ESB refused this receipt: the accounting period is closed', receipt: RECEIPT,
+  line: { ...LINE, id: 'line-3', item_name: 'Organic coconut milk, unsweetened', unit_name: 'carton', conditions: [], condition_reason: null, photos: [] },
+}
 
 let serverIssues: CafeReceiptIssue[]
 let serverHeld: CafeReceiptHeldPortion[]
 let serverHalted: CafeReceiptHaltedGroup[]
+let serverRefused: typeof REFUSED[]
 let resolvedTotal: number
 
 function renderQueue() {
@@ -83,11 +89,12 @@ beforeEach(() => {
   serverIssues = [OVER, DAMAGED]
   serverHeld = []
   serverHalted = []
+  serverRefused = []
   resolvedTotal = 0
   mockList.mockImplementation(async () => ({
-    issues: serverIssues, held: serverHeld, haltedGroups: serverHalted,
+    issues: serverIssues, held: serverHeld, refused: serverRefused, haltedGroups: serverHalted,
     resolvedTotal: Math.max(resolvedTotal, serverIssues.filter(issue => issue.status !== 'open').length),
-  }))
+  } as unknown as Awaited<ReturnType<typeof listCafeReceiptIssues>>))
   mockCanManage.mockResolvedValue(true)
   mockResolveHalted.mockImplementation(async groupId => { serverHalted = serverHalted.filter(group => group.group_id !== groupId) })
   mockOpenPos.mockResolvedValue({
@@ -101,7 +108,27 @@ beforeEach(() => {
 })
 
 describe('Receipt issues', () => {
-  it('AC-1031 each issue shows kind, item, quantity, reason, photo, receiver, arrival and age; the badge counts open blocking issues; state is text', async () => {
+  it('FR-1534 permanently ESB-refused portions share the blocked list with no-room portions and retain their message and MOS key', async () => {
+    serverHeld = [HELD]
+    serverRefused = [REFUSED]
+    renderQueue()
+
+    const row = (await screen.findByText('Held: ESB refused')).closest('li')!
+    expect(within(row).getByText('Organic coconut milk, unsweetened')).toBeInTheDocument()
+    expect(within(row).getByText('3 × carton')).toBeInTheDocument()
+    expect(within(row).getByText(/ESB message/)).toBeInTheDocument()
+    expect(within(row).getByText(REFUSED.esb_message)).toBeInTheDocument()
+    expect(within(row).getByText(/MOS key/)).toBeInTheDocument()
+    expect(within(row).getByText(REFUSED.mos_key)).toBeInTheDocument()
+    expect(row).toHaveTextContent('PO-SYNTH-8')
+    expect(within(row).getByText('Held after ESB refusal')).toBeInTheDocument()
+    expect(within(row).queryByRole('button')).not.toBeInTheDocument()
+    expect(screen.getByText('Held: no room on its PO')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /Blocked/ })).toHaveTextContent('3')
+    expect(screen.queryByRole('button', { name: 'Release to ESB' })).not.toBeInTheDocument()
+  })
+
+  it('AC-1031 each issue shows kind, item, quantity, reason, photo, receiver, arrival and age; the Blocked badge counts its rows; state is text', async () => {
     renderQueue()
     const row = (await screen.findByText('Over-delivery')).closest('li')!
     expect(within(row).getByText(LINE.item_name)).toBeInTheDocument()
@@ -113,7 +140,7 @@ describe('Receipt issues', () => {
     expect(within(row).getByText('Gordi HQ Kemang')).toBeInTheDocument()
     expect(within(row).getByText(/Arrived/)).toBeInTheDocument()
     expect(within(row).getByText(/raised \d+d ago/)).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: /Needs action/ })).toHaveTextContent('1')
+    expect(screen.getByRole('tab', { name: /Blocked/ })).toHaveTextContent('1')
     expect(screen.getByRole('tab', { name: /Follow-up/ })).toHaveTextContent('1')
     expect(screen.queryByText(/The receiver marked it damaged or wrong/)).not.toBeInTheDocument()
 
@@ -128,6 +155,7 @@ describe('Receipt issues', () => {
     renderQueue()
 
     expect(await screen.findByText('Posting halted: check ESB')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /Blocked/ })).toHaveTextContent('2')
     expect(screen.getByText('PO-2610-0042')).toBeInTheDocument()
     expect(screen.getByText(/MOS key MOS-RECEIPT-0001-GROUP-0001/)).toBeInTheDocument()
     const record = screen.getByRole('button', { name: 'Record number' })
@@ -213,14 +241,14 @@ describe('Receipt issues', () => {
     const row = (await screen.findByText('Over-delivery')).closest('li')!
     expect(within(row).getByText('Waiting for procurement')).toBeInTheDocument()
     expect(within(row).queryByRole('button', { name: /Link|Close/ })).not.toBeInTheDocument()
-    expect(screen.getByText(/Procurement links them to a PO or closes them/)).toBeInTheDocument()
+    expect(screen.getByText(/Procurement resolves open issues/)).toBeInTheDocument()
   })
 
   it('NFR-1005 loading, a failed read with retry, and an empty list each say so', async () => {
     let fail = true
     mockList.mockImplementation(async () => {
       if (fail) throw new Error('listCafeReceiptIssues failed')
-      return { issues: [], held: [], haltedGroups: [], resolvedTotal: 0 }
+      return { issues: [], held: [], refused: [], haltedGroups: [], resolvedTotal: 0 }
     })
     renderQueue()
     expect(screen.getByRole('status', { name: 'Loading…' })).toBeInTheDocument()
@@ -228,7 +256,7 @@ describe('Receipt issues', () => {
     expect(screen.getByText(/Couldn’t load Receipt issues/)).toBeInTheDocument()
     fail = false
     await userEvent.click(retry)
-    await waitFor(() => expect(screen.getByText('Nothing waiting for a PO')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('Nothing blocked')).toBeInTheDocument())
     expect(screen.getByRole('button', { name: 'Refresh' })).toBeInTheDocument()
   })
 
@@ -323,7 +351,7 @@ describe('Receipt issues', () => {
     await waitFor(() => expect(screen.getByRole('tab', { name: /Resolved/ })).toHaveTextContent('1'))
   })
 
-  it('DD-2026-10-06-1429 a held portion no PO has room for is listed under Needs action, read-only, with branch, item, quantity and age', async () => {
+  it('DD-2026-10-06-1429 a held portion no PO has room for is listed as blocked, read-only, with branch, item, quantity and age', async () => {
     serverHeld = [HELD]
     renderQueue()
     const row = (await screen.findByText('Held: no room on its PO')).closest('li')!
@@ -333,7 +361,7 @@ describe('Receipt issues', () => {
     expect(within(row).getByText(/raised \d+d ago/)).toBeInTheDocument()
     expect(within(row).getByText(/A release found no open PO with room for it/)).toBeInTheDocument()
     expect(within(row).queryByRole('button')).not.toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: /Needs action/ })).toHaveTextContent('2')
+    expect(screen.getByRole('tab', { name: /Blocked/ })).toHaveTextContent('2')
   })
 
   it('C2 the Resolved tab says when older resolved issues are not shown', async () => {

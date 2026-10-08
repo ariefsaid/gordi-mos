@@ -278,8 +278,8 @@ const DEFERRED_PAGE_ROUTES = new Map<string, string>([
   // registry rows with `matchPath`, and `:taskId` matches `new`. A dedicated row would be a
   // second way to say the same thing.
   ['/work/tasks/new', 'silenced by the /work/tasks/:taskId pattern'],
-  ['/dev/views', 'DEV-only route omitted from the test router'],
-  ['/dev/views/:viewId', 'DEV-only route omitted from the test router'],
+  ['/dev/views', 'in the router but marked as DEV-only infrastructure'],
+  ['/dev/views/:viewId', 'in the router but marked as DEV-only infrastructure'],
 ])
 
 describe('issue 424 — the registry and the real route table agree', () => {

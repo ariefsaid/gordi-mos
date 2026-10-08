@@ -249,6 +249,8 @@ select set_config('app.recorded', ops.resolve_cafe_receipt_halted_group(
   current_setting('app.g1')::uuid, 'record_number', ' GR-SYNTH-1533-FOUND ' )::text, true);
 select is(current_setting('app.recorded')::jsonb ->> 'resolution', 'record_number',
   'AC-1533 procurement can record the ESB number found by hand');
+reset role;
+set local role service_role;
 select is((select g.status || ':' || g.esb_doc_num || ':' || g.posting_stage from integrations.esb_push_groups g
             where g.id = current_setting('app.g1')::uuid),
   'pending:GR-SYNTH-1533-FOUND:operator_confirmed',
@@ -256,6 +258,8 @@ select is((select g.status || ':' || g.esb_doc_num || ':' || g.posting_stage fro
 select ok((select count(*) = 2 and bool_and(e.status = 'pending' and e.last_error is null)
              from integrations.esb_push e where e.push_group_id = current_setting('app.g1')::uuid),
   'AC-1533 the recorded-number group is queued for the worker');
+reset role;
+set local role authenticated;
 select ok(exists (select 1 from ops.cafe_receipt_posting_resolutions x
                    join shared.record_history h on h.record_key = x.id::text and h.table_name = 'cafe_receipt_posting_resolutions'
                   where x.push_group_id = current_setting('app.g1')::uuid and x.resolution = 'recorded_number'
@@ -266,12 +270,16 @@ select set_config('app.absent', ops.resolve_cafe_receipt_halted_group(
   current_setting('app.g4')::uuid, 'confirm_absent', null)::text, true);
 select is(current_setting('app.absent')::jsonb ->> 'resolution', 'confirm_absent',
   'AC-1533 procurement can confirm that the goods receipt is absent');
+reset role;
+set local role service_role;
 select is((select g.status || ':' || coalesce(g.esb_doc_num, 'none') || ':' || coalesce(g.posting_stage, 'none')
              from integrations.esb_push_groups g where g.id = current_setting('app.g4')::uuid),
   'pending:none:none', 'AC-1533 confirming absence clears the uncertain stage and number');
 select ok((select count(*) = 1 and bool_and(e.status = 'pending' and e.last_error is null)
              from integrations.esb_push e where e.push_group_id = current_setting('app.g4')::uuid),
   'AC-1533 confirming absence requeues the halted group once');
+reset role;
+set local role authenticated;
 select ok(exists (select 1 from ops.cafe_receipt_posting_resolutions x
                    join shared.record_history h on h.record_key = x.id::text and h.table_name = 'cafe_receipt_posting_resolutions'
                   where x.push_group_id = current_setting('app.g4')::uuid and x.resolution = 'confirmed_absent'

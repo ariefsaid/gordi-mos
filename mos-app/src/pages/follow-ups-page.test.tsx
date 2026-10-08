@@ -96,6 +96,15 @@ describe('FollowUpsPage', () => {
     const heading = await screen.findByRole('heading', { level: 1 })
     expect(heading.closest('[data-testid="page-head"]')).toBeTruthy()
     expect(container.querySelector('main')).toHaveAttribute('data-page-family', 'workspace')
+    expect(screen.getByText('Trust the financial figures and act on money exceptions.')).toBeInTheDocument()
+  })
+
+  it('opens the selected follow-up detail beside the queue', async () => {
+    const user = userEvent.setup()
+    renderRoute('/money/follow-ups')
+    await user.click(await screen.findByRole('button', { name: 'Promise' }))
+
+    expect(await screen.findByRole('complementary', { name: 'Follow-up detail' })).toHaveTextContent(row.counterparty)
   })
 
   it('AC-520: renders queue rows in the shared DataTable with lifecycle actions', async () => {
@@ -205,6 +214,7 @@ describe('FollowUpsPage', () => {
     mockListFollowUps.mockReturnValueOnce(new Promise(() => {}))
     const loading = render(createElement(FollowUpsPage), { wrapper })
     expect(loading.container.querySelector('.skeleton-rows')).toBeTruthy()
+    expect(screen.getByTestId('page-head')).not.toHaveTextContent('Overdue:')
     loading.unmount()
 
     mockListFollowUps.mockResolvedValueOnce([])
@@ -216,6 +226,7 @@ describe('FollowUpsPage', () => {
     mockListFollowUps.mockRejectedValueOnce(new Error('network down'))
     const errorView = render(createElement(FollowUpsPage), { wrapper })
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent("Couldn't load follow-ups"))
+    expect(screen.getByTestId('page-head')).not.toHaveTextContent('Overdue:')
     expect(screen.queryByText(/network down/)).toBeNull()
     expect(errorView.container.querySelector('.error-state')).toBeTruthy()
   })

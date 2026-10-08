@@ -42,7 +42,10 @@ function issueRow(n: number, status = 'open') {
 
 /** A query per table read; records each call so the tests can assert the read shape. */
 type Call = { table: string; select: unknown[]; filters: unknown[][]; range?: [number, number]; limit?: number }
-function backend(responses: Record<string, (call: Call) => { data?: unknown[]; count?: number }>, haltedGroups: unknown[] = []) {
+function backend(
+  responses: Record<string, (call: Call) => { data?: unknown[]; count?: number }>,
+  rpc = vi.fn().mockResolvedValue({ data: null, error: null }),
+) {
   const calls: Call[] = []
   const from = vi.fn((table: string) => {
     const call: Call = { table, select: [], filters: [] }
@@ -58,7 +61,6 @@ function backend(responses: Record<string, (call: Call) => { data?: unknown[]; c
     }
     return query
   })
-  const rpc = vi.fn(async (name: string) => ({ data: name === 'list_cafe_receipt_halted_groups' ? haltedGroups : null, error: null }))
   schemaMock.mockReturnValue({ from, rpc } as never)
   return calls
 }
@@ -94,10 +96,16 @@ describe('Café receipt issues adapter', () => {
   })
 
   it('AC-1533 a halted group is joined to its receipt for the existing issues surface', async () => {
+    const rpc = vi.fn((name: string) => Promise.resolve({
+      data: name === 'list_cafe_receipt_halted_groups' ? [
+        { group_id: 'group-1', receipt_id: 'receipt-7', po_number: 'PO-7', mos_key: 'MOS-RECEIPT-7' },
+      ] : null,
+      error: null,
+    }))
     backend({
       cafe_receipt_issues: call => (call.select[1] ? { count: 0 } : { data: [] }),
       cafe_receipt_portions: () => ({ data: [] }),
-    }, [{ group_id: 'group-1', receipt_id: 'receipt-7', po_number: 'PO-7', mos_key: 'MOS-RECEIPT-7' }])
+    }, rpc)
 
     const list = await listCafeReceiptIssues()
 
@@ -106,6 +114,34 @@ describe('Café receipt issues adapter', () => {
       receipt: expect.objectContaining({ id: 'receipt-7' }),
     })])
     expect(receiptsMock).toHaveBeenCalledWith(['Approved'], expect.objectContaining({ ids: ['receipt-7'], limit: 1 }))
+    expect(rpc).toHaveBeenCalledWith('list_cafe_receipt_halted_groups')
+  })
+
+  it('FR-1534 ESB-refused portions return with their receipt, line, message and MOS key', async () => {
+    const rpc = vi.fn((name: string) => Promise.resolve({
+      data: name === 'cafe_receipt_esb_refused_portions' ? [{
+        portion_id: 'portion-refused', receipt_id: 'receipt-8', line_id: 'line-8', quantity: '3.0000',
+        created_at: '2026-10-06T05:00:00Z', po_number: 'PO-SYNTH-8', mos_key: 'MOS-RECEIPT-GROUP',
+        esb_message: 'ESB refused this receipt: period is closed',
+      }] : null,
+      error: null,
+    }))
+    const calls = backend({
+      cafe_receipt_issues: call => (call.select[1] ? { count: 0 } : { data: [] }),
+      cafe_receipt_portions: () => ({ data: [] }),
+    }, rpc)
+
+    const list = await listCafeReceiptIssues()
+    const refused = (list as unknown as { refused: Array<Record<string, unknown>> }).refused
+
+    expect(refused).toEqual([expect.objectContaining({
+      id: 'portion-refused', quantity: '3.0000', po_number: 'PO-SYNTH-8', mos_key: 'MOS-RECEIPT-GROUP',
+      esb_message: 'ESB refused this receipt: period is closed',
+    })])
+    expect(refused[0].line).toEqual(expect.objectContaining({ id: 'line-8' }))
+    expect(refused[0].receipt).toEqual(expect.objectContaining({ id: 'receipt-8' }))
+    expect(rpc).toHaveBeenCalledWith('cafe_receipt_esb_refused_portions', { p_offset: 0, p_limit: 1000 })
+    expect(calls.some(call => call.table === 'cafe_receipt_portions' && call.filters.some(filter => filter[1] === 'esb_refused'))).toBe(false)
   })
 
   it('DD-2026-10-06-1429 held portions that no longer fit a PO come back with their receipt and line', async () => {

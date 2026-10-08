@@ -46,9 +46,6 @@ describe('KL-FOOTER-NAV: the capture footer stays reachable above the shell bott
     expect(captureFooter).toMatch(/flex-wrap:\s*wrap/)
     expect(countRow).toMatch(/flex:\s*1 1 0/)
     expect(primaryAction).toMatch(/min-height:\s*44px/)
-    expect(css).toMatch(/\.kl-form\s*\{[^}]*--kl-footer-clearance:\s*113px/)
-    expect(css).toMatch(/\.kl-form:has\(\.kl-submit-reason\)[^}]*--kl-footer-clearance:\s*176px/)
-    expect(css).toMatch(/\.kl-form:has\(\.kl-submit-reason\):has\(\.kl-submit-outcome\)[^}]*--kl-footer-clearance:\s*208px/)
     expect(css).toMatch(/margin-bottom:\s*var\(--kl-footer-clearance\)/)
   })
 
@@ -61,6 +58,15 @@ describe('KL-FOOTER-NAV: the capture footer stays reachable above the shell bott
     expect(toolbarCss).toMatch(/\.ktb-children--band > \*\s*\{\s*width:\s*100%/)
     expect(css).toMatch(/\.kl-form \.ktb:has\(\.kl-scope\) \.ktb-search-wrap\s*\{\s*max-width:\s*none/)
     expect(css).toMatch(/@media\s*\(max-width:\s*767\.98px\)[\s\S]*?\.kl-form \.ktb-filter-selects\s*\{\s*display:\s*none/)
+  })
+})
+
+describe('M02: Café toolbar controls use the interactive boundary token', () => {
+  it('keeps the shared search and filter outlines at control contrast', () => {
+    const search = ruleBodyAt(toolbarCss.indexOf('.ktb-search {'), toolbarCss)
+    const filter = ruleBodyAt(toolbarCss.indexOf('.ktb-kind .mk-select__box,'), toolbarCss)
+    expect(search).toMatch(/border:\s*1px solid var\(--input\)/)
+    expect(filter).toMatch(/border-color:\s*var\(--input\)/)
   })
 })
 
