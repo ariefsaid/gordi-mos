@@ -1,10 +1,9 @@
 import './TaskSurface.css'
-import { TASK_EVENTS_PAGE_SIZE } from '@/lib/db/task-paging'
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useNavigate, Link, useHref, useLocation, useSearchParams, type To } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import {
-  getTask, listTaskEvents, createTask,
+  getTask, listTaskEventsPage, createTask,
   type TaskEventsCursor,
   updateTaskStatus, updateTaskFields,
   addChecklistItem, toggleChecklistItem, reorderChecklistItem, deleteChecklistItem,
@@ -226,7 +225,7 @@ function ViewSurface({
     ]).then(([taskData, bus, people, downline, viewerTeams]) => {
       if (!isCurrent()) return
       setData(taskData)
-      setEventsHasMore(taskData.events.length === TASK_EVENTS_PAGE_SIZE)
+      setEventsHasMore(taskData.eventsHasMore ?? false)
       setEventsMoreError(false)
       setLocalTask(taskData.task)
       setLocalChecklist(taskData.checklist)
@@ -315,7 +314,7 @@ function ViewSurface({
       await updateTaskStatus(localTask.id, oldStatus, newStatus, viewerId)
       const refreshed = await getTask(localTask.id)
       setData(refreshed)
-      setEventsHasMore(refreshed.events.length === TASK_EVENTS_PAGE_SIZE)
+      setEventsHasMore(refreshed.eventsHasMore ?? false)
       setEventsMoreError(false)
       setLocalTask(refreshed.task)
       setLocalChecklist(refreshed.checklist)
@@ -345,7 +344,7 @@ function ViewSurface({
     try {
       const refreshed = await getTask(id)
       setData(refreshed)
-      setEventsHasMore(refreshed.events.length === TASK_EVENTS_PAGE_SIZE)
+      setEventsHasMore(refreshed.eventsHasMore ?? false)
       setEventsMoreError(false)
     } catch { /* non-critical — stale events are acceptable */ }
   }
@@ -403,7 +402,7 @@ function ViewSurface({
       if (field === 'team') {
         const refreshed = await getTask(localTask.id)
         setData(refreshed)
-        setEventsHasMore(refreshed.events.length === TASK_EVENTS_PAGE_SIZE)
+        setEventsHasMore(refreshed.eventsHasMore ?? false)
         setEventsMoreError(false)
         setLocalTask(refreshed.task)
         setLocalChecklist(refreshed.checklist)
@@ -730,10 +729,10 @@ function ViewSurface({
     setEventsLoadingMore(true)
     setEventsMoreError(false)
     try {
-      const older = await listTaskEvents(taskId, before)
+      const older = await listTaskEventsPage(taskId, before)
       if (seq !== loadSeq.current) return
-      setData((current) => current ? { ...current, events: [...current.events, ...older] } : current)
-      setEventsHasMore(older.length === TASK_EVENTS_PAGE_SIZE)
+      setData((current) => current ? { ...current, events: [...current.events, ...older.rows] } : current)
+      setEventsHasMore(older.hasMore)
     } catch {
       if (seq === loadSeq.current) setEventsMoreError(true)
     } finally {

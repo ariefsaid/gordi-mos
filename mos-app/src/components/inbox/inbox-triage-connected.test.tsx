@@ -340,7 +340,7 @@ describe('InboxTriageConnected — the live triage wiring (AC-V3-006 / FR-V3-008
       handled: 'Handled · 0 in loaded items',
       title: 'No unread in loaded items',
       copy: '2 read in loaded items',
-      loadMore: 'Load more',
+      loadMore: 'Load more items',
     },
     {
       locale: 'id' as const,
@@ -349,7 +349,7 @@ describe('InboxTriageConnected — the live triage wiring (AC-V3-006 / FR-V3-008
       handled: 'Selesai ditangani · 0 dimuat',
       title: 'Tidak ada notifikasi belum dibaca di item yang dimuat',
       copy: '2 notifikasi sudah dibaca pada item yang dimuat',
-      loadMore: 'Muat lebih banyak',
+      loadMore: 'Muat item lainnya',
     },
   ])('keeps partial Inbox counts and empty copy honest while more pages exist ($locale)', ({
     locale, all, unread, handled, title, copy, loadMore,
