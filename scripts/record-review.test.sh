@@ -474,5 +474,74 @@ relcheck "release candidate with a migration: gpt-6-luna refused" 1 gpt-6-luna
 gr checkout -q --detach HEAD; gr commit -q --allow-empty -m "detached work"
 relcheck "detached HEAD outside dev/main needs opus" 1 gpt-6-luna
 
+init_ancestor_evidence_repo() { # $1 repo; creates a qualifying UI change at the evidence commit
+  local repo="$1"
+  mkdir -p "$repo/mos-app/src/pages"
+  init_design_repo "$repo"
+  git -C "$repo" checkout -qb feature/evidence-ancestor
+  printf 'export const Page = () => <main />;\n' > "$repo/mos-app/src/pages/Page.tsx"
+  commit_design_change "$repo" 'add UI page'
+}
+write_ancestor_ui_review() { # $1 repo · $2 evidence commit · reviewer record cites current HEAD
+  local repo="$1" evidence_commit="$2" head
+  head="$(git -C "$repo" rev-parse HEAD)"
+  mkdir -p "$repo/docs/reviews"
+  printf 'Commit: %s\n' "$evidence_commit" > "$repo/docs/reviews/evidence.md"
+  {
+    printf '## Skills evidence\n| Playbook | Evidence file | Render evidence |\n|---|---|---|\n'
+    for playbook in 'Impeccable shape' 'ui-ux-pro-max' 'Impeccable critique' 'Impeccable layout' 'Impeccable clarify' 'Impeccable harden' 'Impeccable polish' 'Taste'; do
+      if [ "$playbook" = 'Impeccable critique' ]; then
+        printf '| %s | reviews/evidence.md | Render: 390px, 768px, 1440px; real-length data used |\n' "$playbook"
+      else
+        printf '| %s | reviews/evidence.md | |\n' "$playbook"
+      fi
+    done
+    printf '\n## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$head"
+  } > "$repo/review.md"
+}
+check_ancestor_ui() { # $1 name · $2 expected rc · $3 repo · $4 evidence commit
+  local name="$1" want="$2" repo="$3" evidence_commit="$4" output rc
+  write_ancestor_ui_review "$repo" "$evidence_commit"
+  output="$(cd "$repo" && bash "$SCRIPT" --lens spec --reviewer gpt-5.6-luna --artifact review.md 2>&1)"
+  rc=$?
+  if [ "$rc" -eq "$want" ]; then
+    pass=$((pass+1)); printf '  ok    %s\n' "$name"
+  else
+    fail=$((fail+1)); printf '  FAIL  %s — rc=%s (want %s); %s\n' "$name" "$rc" "$want" "$(printf '%s' "$output" | tr '\n' ' ')"
+  fi
+}
+
+ancestor_test_repo="$tmp/ui-ancestor-test-repo"
+init_ancestor_evidence_repo "$ancestor_test_repo"
+ancestor_evidence_head="$(git -C "$ancestor_test_repo" rev-parse HEAD)"
+for test_file in mos-app/src/pages/Page.test.ts mos-app/src/pages/Extra.test.tsx mos-app/src/pages/Example.spec.ts mos-app/e2e/flow.ts supabase/tests/contract.sql; do
+  mkdir -p "$ancestor_test_repo/$(dirname "$test_file")"
+  printf 'test fixture\n' > "$ancestor_test_repo/$test_file"
+done
+commit_design_change "$ancestor_test_repo" 'add tests'
+check_ancestor_ui 'test-only changes after Skills evidence accept the ancestor commit' 0 "$ancestor_test_repo" "$ancestor_evidence_head"
+check_ancestor_ui 'an abbreviated evidence commit is refused' 1 "$ancestor_test_repo" "${ancestor_evidence_head:0:12}"
+
+ancestor_css_repo="$tmp/ui-ancestor-css-repo"
+init_ancestor_evidence_repo "$ancestor_css_repo"
+ancestor_css_evidence_head="$(git -C "$ancestor_css_repo" rev-parse HEAD)"
+printf 'body { color: red; }\n' > "$ancestor_css_repo/mos-app/src/pages/page.css"
+commit_design_change "$ancestor_css_repo" 'change page styles'
+check_ancestor_ui 'CSS changes after Skills evidence still require evidence for HEAD' 1 "$ancestor_css_repo" "$ancestor_css_evidence_head"
+
+ancestor_source_repo="$tmp/ui-ancestor-source-repo"
+init_ancestor_evidence_repo "$ancestor_source_repo"
+ancestor_source_evidence_head="$(git -C "$ancestor_source_repo" rev-parse HEAD)"
+printf 'export const value = 1;\n' > "$ancestor_source_repo/mos-app/src/value.ts"
+commit_design_change "$ancestor_source_repo" 'change application source'
+check_ancestor_ui 'non-test TypeScript changes still require evidence for HEAD' 1 "$ancestor_source_repo" "$ancestor_source_evidence_head"
+
+ancestor_unrelated_repo="$tmp/ui-ancestor-unrelated-repo"
+init_ancestor_evidence_repo "$ancestor_unrelated_repo"
+ancestor_unrelated_evidence_head="$(git -C "$ancestor_unrelated_repo" rev-parse HEAD)"
+unrelated_commit="$(git -C "$ancestor_unrelated_repo" -c user.email=t@t -c user.name=t commit-tree \
+  "$(git -C "$ancestor_unrelated_repo" rev-parse HEAD^{tree})" -m unrelated)"
+check_ancestor_ui 'a valid but non-ancestor evidence commit is refused' 1 "$ancestor_unrelated_repo" "$unrelated_commit"
+
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

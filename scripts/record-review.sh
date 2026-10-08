@@ -127,6 +127,7 @@ owner_reported_ui_reason() {
 
 validate_ui_skills_evidence() {
   local head="$1" artifact="$2" reason="$3" section main_checkout playbook row_rc evidence_path evidence_file
+  local evidence_commit changed_files changed_path test_only candidate
   local render_found=0 phone_found=0 tablet_found=0 wide_found=0 real_length_found=0 complete_render=0 line
   local -a playbooks=('Impeccable shape' 'ui-ux-pro-max' 'Impeccable critique' 'Impeccable layout' 'Impeccable clarify' 'Impeccable harden' 'Impeccable polish' 'Taste')
 
@@ -165,8 +166,31 @@ validate_ui_skills_evidence() {
     else evidence_file="$main_checkout/docs/$evidence_path"
     fi
     [ -f "$evidence_file" ] || die "Skills evidence file for '$playbook' does not exist: $evidence_path (resolved to $evidence_file)"
-    grep -Eq "(^|[^[:xdigit:]])${head}([^[:xdigit:]]|$)" "$evidence_file" \
-      || die "Skills evidence file for '$playbook' does not cite exact full 40-character HEAD $head: $evidence_path"
+    if ! grep -Eq "(^|[^[:xdigit:]])${head}([^[:xdigit:]]|$)" "$evidence_file"; then
+      evidence_commit=""
+      while IFS= read -r candidate; do
+        grep -Eq "(^|[^[:xdigit:]])${candidate}([^[:xdigit:]]|$)" "$evidence_file" \
+          || continue
+        git cat-file -e "$candidate^{commit}" 2>/dev/null \
+          && git merge-base --is-ancestor "$candidate" "$head" 2>/dev/null \
+          || continue
+        changed_files="$(git diff --name-only "$candidate" "$head")" || continue
+        test_only=1
+        while IFS= read -r changed_path; do
+          [ -n "$changed_path" ] || continue
+          case "$changed_path" in
+            *.test.ts|*.test.tsx|*.spec.ts|mos-app/e2e/*|supabase/tests/*) ;;
+            *) test_only=0; break ;;
+          esac
+        done <<< "$changed_files"
+        if [ "$test_only" -eq 1 ]; then
+          evidence_commit="$candidate"
+          break
+        fi
+      done < <(grep -Eo '[[:xdigit:]]{40}' "$evidence_file" | sort -u)
+      [ -n "$evidence_commit" ] \
+        || die "Skills evidence file for '$playbook' does not cite exact full 40-character HEAD $head: $evidence_path"
+    fi
   done
 
   while IFS= read -r line; do

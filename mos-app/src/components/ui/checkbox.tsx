@@ -11,6 +11,8 @@ export interface CheckboxProps {
   size?: CheckboxSize
   onChange?: (next: boolean) => void
   'aria-label'?: string
+  'aria-disabled'?: boolean
+  'aria-busy'?: boolean
   id?: string
   className?: string
 }
@@ -33,6 +35,8 @@ export function Checkbox({
   size = 'medium',
   onChange,
   'aria-label': ariaLabel,
+  'aria-disabled': ariaDisabled,
+  'aria-busy': ariaBusy,
   id,
   className,
 }: CheckboxProps) {
@@ -53,6 +57,8 @@ export function Checkbox({
         checked={checked}
         disabled={disabled}
         aria-label={ariaLabel}
+        aria-disabled={ariaDisabled}
+        aria-busy={ariaBusy}
         onChange={(event) => {
           const next = event.currentTarget.checked
           event.currentTarget.indeterminate = indeterminate
