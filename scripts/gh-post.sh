@@ -78,8 +78,8 @@ if [ "$verb1" = "api" ]; then
   done
   api_effective_method="$(printf '%s' "$api_method" | tr '[:lower:]' '[:upper:]')"
   if [ -z "$api_effective_method" ]; then
-    # gh api defaults to GET; request fields switch the implied method to POST.
-    if [ "${#api_fields[@]}" -gt 0 ]; then api_effective_method=POST; else api_effective_method=GET; fi
+    # gh api implies POST for --input or request fields; otherwise it implies GET.
+    if [ "${#api_fields[@]}" -gt 0 ] || [ "$api_input" = 1 ]; then api_effective_method=POST; else api_effective_method=GET; fi
   fi
 fi
 
@@ -209,6 +209,13 @@ require_reused_line() {
   die "the PR body has no 'Reused:' line — name the existing components, helpers, tests or patterns you reused (and why anything new was needed)"
 }
 
+default_base_branch() {
+  local base
+  base="$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null)" || return 1
+  [ -n "$base" ] || return 1
+  printf '%s' "$base"
+}
+
 contains_ready_label() { [[ ",$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')," == *,ready-for-agent,* ]]; }
 
 require_ready_issue_skills_plan() {
@@ -286,6 +293,9 @@ if [ "$verb1" = "pr" ] && [ "$verb2" = "create" ]; then
     fi
     base_val="$candidate" base_seen=1
   done
+  if [ "$base_seen" = 0 ]; then
+    base_val="$(default_base_branch)" || die "cannot read repository default branch"
+  fi
   require_pr_stamps "$base_val"
   [ "$base_val" = dev ] && require_reused_line
 fi
@@ -341,10 +351,10 @@ if [ "$verb1" = "api" ]; then
   # REST PR creation must pass the same HEAD stamps as `pr create`.
   if [ "$path" = "repos/$this_repo/pulls" ] && [ "$api_effective_method" = POST ]; then
     [ "$api_input" = 0 ] || die "REST PR create must pass base/head as -f fields — an --input payload hides them from the stamp check"
-    base_val="" head_val=""
+    base_val="" base_seen=0 head_val=""
     for kv in "${api_fields[@]}"; do
       case "$kv" in
-        base=*) base_val="${kv#base=}" ;;
+        base=*) base_val="${kv#base=}"; base_seen=1 ;;
         head=*) head_val="${kv#head=}" ;;
         head_repo=*) die "REST PR create through this door targets this checkout only — no head_repo" ;;
       esac
@@ -352,6 +362,11 @@ if [ "$verb1" = "api" ]; then
     branch="$(git branch --show-current)"
     [ -n "$branch" ] && { [ "$head_val" = "$branch" ] || [ "$head_val" = "${this_repo%%/*}:$branch" ]; } \
       || die "REST PR create must name head=<this checkout's branch> ('$branch') — the stamps certify HEAD here"
+    if [ "$base_seen" = 0 ]; then
+      base_val="$(default_base_branch)" || die "cannot read repository default branch"
+    else
+      [ -n "$base_val" ] || die "REST PR create needs a non-empty base field"
+    fi
     require_pr_stamps "$base_val"
     [ "$base_val" = dev ] && require_reused_line
   fi
