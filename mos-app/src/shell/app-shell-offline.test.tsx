@@ -82,7 +82,7 @@ function setOnline(online: boolean) {
   })
 }
 
-function renderShell(page: React.ReactNode, { crashBoundary = false, locale = 'en' as 'en' | 'id' } = {}) {
+function renderShell(page: React.ReactNode, { crashBoundary = false, locale = 'en' as 'en' | 'id', container }: { crashBoundary?: boolean; locale?: 'en' | 'id'; container?: HTMLElement } = {}) {
   authenticate()
   const tree = (
     <I18nProvider initialLocale={locale}>
@@ -97,7 +97,7 @@ function renderShell(page: React.ReactNode, { crashBoundary = false, locale = 'e
   )
   // The app mounts the crash boundary above <App/> in main.tsx; a test that expects a rethrow
   // needs the same catcher, or the exception escapes the run.
-  return render(crashBoundary ? <ErrorBoundary>{tree}</ErrorBoundary> : tree)
+  return render(crashBoundary ? <ErrorBoundary>{tree}</ErrorBoundary> : tree, container ? { container } : undefined)
 }
 
 /** The shell settles once the header's mount-time reads have landed. A test that returns before then
@@ -321,25 +321,51 @@ describe('AC-025 — a rejected data read is an error inside the frame', () => {
 describe('AC-026 — the header says offline exactly once, and only while offline', () => {
   it('shows one muted line while the browser reports offline, and none when it returns', async () => {
     Object.defineProperty(navigator, 'onLine', { configurable: true, value: false })
-    renderShell(<div>page</div>)
+    const { container } = renderShell(<div>page</div>)
 
-    const lines = screen.getAllByText('You’re offline')
-    expect(lines).toHaveLength(1)
-    expect(lines[0]).toHaveClass('text-muted-foreground')
+    const line = container.querySelector('[data-anatomy="offline-line"]') as HTMLElement
+    expect(line).toHaveTextContent('You’re offline')
+    expect(line).toHaveClass('text-muted-foreground')
+    expect(screen.getByRole('status')).toHaveTextContent('You’re offline')
 
     setOnline(true)
-    expect(screen.queryByText('You’re offline')).toBeNull()
+    expect(container.querySelector('[data-anatomy="offline-line"]')).toBeNull()
+    expect(screen.getByRole('status')).toBeEmptyDOMElement()
 
     setOnline(false)
-    expect(screen.getAllByText('You’re offline')).toHaveLength(1)
+    expect(container.querySelector('[data-anatomy="offline-line"]')).toHaveTextContent('You’re offline')
+    expect(screen.getByRole('status')).toHaveTextContent('You’re offline')
     await shellSettled()
+  })
+
+  it('keeps the offline live region outside the inert app root', async () => {
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: false })
+    const appRoot = document.createElement('div')
+    appRoot.id = 'root'
+    const overlayRoot = document.createElement('div')
+    overlayRoot.id = 'overlay-root'
+    document.body.append(appRoot, overlayRoot)
+    const view = renderShell(<div>page</div>, { container: appRoot })
+
+    try {
+      appRoot.setAttribute('inert', '')
+      const status = screen.getByRole('status')
+      expect(overlayRoot).toContainElement(status)
+      expect(appRoot).not.toContainElement(status)
+      expect(status).toHaveTextContent('You’re offline')
+    } finally {
+      view.unmount()
+      appRoot.remove()
+      overlayRoot.remove()
+    }
   })
 
   it('renders the Indonesian line under locale id', async () => {
     Object.defineProperty(navigator, 'onLine', { configurable: true, value: false })
     renderShell(<div>page</div>, { locale: 'id' })
 
-    expect(screen.getByText('Anda sedang offline')).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('Anda sedang offline')
+    expect(document.querySelector('[data-anatomy="offline-line"]')).toHaveTextContent('Anda sedang offline')
     expect(screen.queryByText('You’re offline')).toBeNull()
     await shellSettled()
   })
