@@ -21,6 +21,15 @@ protected_files: list[str] = Field(default_factory=lambda: ["adws/**"])
 EOF
 chmod +x "$repo/scripts/gh-shim/gh"
 pass=0; fail=0
+preflight_out="$(python3 "$repo/scripts/factory-preflight.py" "$repo" "" 0 2>&1)"; preflight_rc=$?
+[ "$preflight_rc" -eq 4 ]; preflight_missing_brief_refuses=$?
+printf '%s' "$preflight_out" | grep -q 'Skills plan'; preflight_refusal_named=$?
+pass=0; fail=0
+if [ "$preflight_missing_brief_refuses" -eq 0 ] && [ "$preflight_refusal_named" -eq 0 ]; then
+  pass=$((pass+1)); printf '  ok    preflight refuses when it cannot locate a Skills-plan brief\n'
+else
+  fail=$((fail+1)); printf '  FAIL  preflight must refuse when it cannot locate a Skills-plan brief (rc=%s; %s)\n' "$preflight_rc" "$(printf '%s' "$preflight_out" | tr '\n' ' ')"
+fi
 plan_section=$'## Skills plan\n| Skill | Phase | Evidence |\n|---|---|---|\n| tdd | build | docs/reviews/1541/tdd.md |'
 planned() { printf '%s\n\n%s' "$1" "$plan_section"; }
 printf '%s\n' "$plan_section" > "$repo/brief.md"
@@ -209,8 +218,8 @@ for bin in git mktemp tr sort env bash awk dirname rm; do
 done
 cp "$tmp/bin/uv" "$tmp/bin/node" "$tmp/nopy/"
 out="$(cd "$repo" && PATH="$tmp/nopy" bash "$wrapper" adw_simple_sdlc.py "$(planned 'edit adws/adw_modules/permissions.py')" 2>&1)"; rc=$?
-[ "$rc" -eq 0 ]; t "missing python3 does not hard-fail the door" $?
-printf '%s' "$out" | grep -q "pre-flight skipped: python3 not found"; t "missing python3 is announced, not silent" $?
+[ "$rc" -eq 4 ]; t "missing python3 refuses because the Skills plan cannot be validated" $?
+printf '%s' "$out" | grep -q "python3 is required to validate the Skills plan"; t "missing python3 refusal names the required validation" $?
 
 # Un-derivable brief (#590 review): when brief derivation finds nothing (an equals-form
 # --findings=text, or a positional buried after flags with no --findings marker), the
@@ -218,7 +227,7 @@ printf '%s' "$out" | grep -q "pre-flight skipped: python3 not found"; t "missing
 findings_brief="$(planned 'Findings rerun with no barred paths.')"
 out="$(cd "$repo" && PATH="$tmp/bin:$PATH" bash "$wrapper" adw_simple_sdlc.py "--findings=$findings_brief" 2>&1)"; rc=$?
 [ "$rc" -eq 0 ]; t "a valid findings equals-form brief still runs" $?
-printf '%s' "$out" | grep -q "pre-flight skipped: no brief argument found"; t "the skipped barred-path pre-flight is announced" $?
+printf '%s' "$out" | grep -q "pre-flight skipped: no brief argument found"; [ $? -ne 0 ]; t "the pre-flight derives a brief from the findings equals form" $?
 
 out="$(cd "$repo" && PATH="$tmp/bin:$PATH" bash "$wrapper" adw_simple_sdlc.py 'brief without a Skills plan' 2>&1)"; rc=$?
 [ "$rc" -eq 4 ]; t "factory refuses a brief without a valid Skills plan" $?

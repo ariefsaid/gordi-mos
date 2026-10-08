@@ -196,12 +196,12 @@ if [ "$rc" -ne 0 ] \
   && printf '%s\n' "$out" | grep -Fq 'docs/reviews/1541/missing.md' \
   && printf '%s\n' "$out" | grep -Fq 'docs/reviews/1541/empty.md' \
   && printf '%s\n' "$out" | grep -Fq 'docs/reviews/1541/linked.md' \
+  && printf '%s\n' "$out" | grep -Fq "evidence lives in the main checkout's docs/" \
   && printf '%s\n' "$out" | grep -Fq "write each file, or correct the plan's path"; then
   pass=$((pass+1)); printf '  ok    missing and empty issue evidence files are named with the fix\n'
 else
   fail=$((fail+1)); printf '  FAIL  missing/empty evidence refusal — rc=%s; %s\n' "$rc" "$(printf '%s' "$out" | tr '\n' ' ')"
 fi
-
 owner_branch_repo="$tmp/owner-branch-ui-repo"
 init_owner_ui_repo "$owner_branch_repo" 'fix/123-x' 'small owner-reported UI fix'
 check_owner_design 'owner-reported UI issue on branch requires Skills evidence' 1 "$owner_branch_repo" owner 'fixes owner-reported issue #123'

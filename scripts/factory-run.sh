@@ -9,8 +9,8 @@
 # destroyed by the next vendor run, with its proof run green minutes earlier (2026-08-28).
 # MOS-side behavior around the factory lives in scripts/, never inside adws/.
 #
-# --allow-barred skips the barred-path pre-flight (scripts/factory-preflight.py) below — see its
-# refusal text for when that override is the right call.
+# --allow-barred skips only the barred-path scan; Skills-plan validation still runs in
+# scripts/factory-preflight.py.
 # Self-test: scripts/factory-run.test.sh
 set -uo pipefail
 
@@ -22,67 +22,25 @@ adw="$1"; shift
 case "$adw" in */*|.*) echo "✗ factory-run: ADW must be a bare filename under adws/ (got '$adw')" >&2; exit 2 ;; esac
 [ -f "$top/adws/$adw" ] || { echo "✗ factory-run: no such ADW: adws/$adw" >&2; exit 2; }
 
-# Every factory brief carries the Skills plan before it reaches an executor.
-skills_brief=""
+# Skills-plan validation always runs; --allow-barred only skips the barred-path scan.
+brief_arg=""
 if [ $# -ge 1 ] && [ "${1#-}" = "$1" ]; then
-  skills_brief="$1"
+  brief_arg="$1"
 else
   prev=""
   for arg in "$@"; do
-    case "$arg" in --findings=*) skills_brief="${arg#*=}"; break ;; esac
-    [ "$prev" = "--findings" ] && { skills_brief="$arg"; break; }
+    case "$arg" in --findings=*) brief_arg="${arg#*=}"; break ;; esac
+    [ "$prev" = "--findings" ] && { brief_arg="$arg"; break; }
     prev="$arg"
   done
 fi
-[ -n "$skills_brief" ] || {
-  echo "✗ factory-run: cannot locate the brief to validate its Skills plan" >&2
-  exit 4
-}
-plan_file="$skills_brief"
-temporary_plan=0
-if [ ! -f "$plan_file" ]; then
-  plan_file="$(mktemp "${TMPDIR:-/tmp}/factory-skills-plan.XXXXXX")" || {
-    echo "✗ factory-run: cannot create a temporary Skills plan check file" >&2
-    exit 4
-  }
-  temporary_plan=1
-  printf '%s' "$skills_brief" > "$plan_file" || {
-    rm -f "$plan_file"
-    echo "✗ factory-run: cannot write a temporary Skills plan check file" >&2
-    exit 4
-  }
-fi
-plan_result="$(bash "$top/scripts/skills-plan.sh" check "$plan_file" 2>&1)"; plan_rc=$?
-[ "$temporary_plan" -eq 0 ] || rm -f "$plan_file"
-if [ "$plan_rc" -ne 0 ]; then
-  echo "✗ factory-run: the brief needs a valid Skills plan; add a '## Skills plan' table with Skill, Phase, and Evidence columns and at least one row. $plan_result" >&2
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "✗ factory-run: python3 is required to validate the Skills plan" >&2
   exit 4
 fi
-
-# Cheap pre-flight (#590): catches a brief that targets a builder-barred path before the
-# build burns tokens on it. See factory-preflight.py's docstring for what it checks and why
-# it can be wrong in either direction, and its refusal text for the override.
-if [ "$allow_barred" -eq 0 ]; then
-  if ! command -v python3 >/dev/null 2>&1; then
-    echo "⚠ pre-flight skipped: python3 not found" >&2
-  else
-    brief_arg=""
-    if [ $# -ge 1 ] && [ "${1#-}" = "$1" ]; then
-      brief_arg="$1"
-    else
-      prev=""
-      for arg in "$@"; do
-        [ "$prev" = "--findings" ] && { brief_arg="$arg"; break; }
-        prev="$arg"
-      done
-    fi
-    if [ -z "$brief_arg" ]; then
-      echo "⚠ pre-flight skipped: no brief argument found in '$*'" >&2
-    else
-      python3 "$top/scripts/factory-preflight.py" "$top" "$brief_arg" "$@" || exit 3
-    fi
-  fi
-fi
+python3 "$top/scripts/factory-preflight.py" "$top" "$brief_arg" "$allow_barred" "$@"
+preflight_rc=$?
+[ "$preflight_rc" -eq 0 ] || { [ "$preflight_rc" -ne 1 ] || exit 3; exit "$preflight_rc"; }
 
 # Two layers, honestly bounded. (1) POLITE: the gh shim is prepended so most child shells
 # resolve gh to the refusal message — but uv REWRITES the child PATH (it prepends the resolved

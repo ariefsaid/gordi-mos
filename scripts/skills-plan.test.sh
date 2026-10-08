@@ -29,38 +29,33 @@ check() { # $1 name · $2 expected rc · $3 body
     fail=$((fail+1)); printf '  FAIL  %s — rc=%s (want %s)\n' "$name" "$rc" "$want"
   fi
 }
+plan() { printf '## Skills plan\n| Skill | Phase | Evidence |\n|---|---|---|\n| %s | %s | %s |\n' "$1" "$2" "$3"; }
 
-valid='## Skills plan
-| Skill | Phase | Evidence |
-|---|---|---|
-| tdd | build | docs/reviews/1541/tdd.md |'
+valid="$(plan tdd build docs/reviews/1541/tdd.md)"
 check 'valid skills plan passes' 0 "$valid"
+printf '%s' "$valid" | bash "$SCRIPT" check - >/dev/null 2>&1; rc=$?
+if [ "$rc" -eq 0 ]; then
+  pass=$((pass+1)); printf '  ok    check reads a valid plan from stdin\n'
+else
+  fail=$((fail+1)); printf '  FAIL  check should read a valid plan from stdin — rc=%s\n' "$rc"
+fi
+printf '## Summary\nNo plan.\n' | bash "$SCRIPT" check - >/dev/null 2>&1; rc=$?
+if [ "$rc" -ne 0 ]; then
+  pass=$((pass+1)); printf '  ok    check rejects an invalid stdin plan\n'
+else
+  fail=$((fail+1)); printf '  FAIL  check should reject an invalid stdin plan\n'
+fi
 check 'missing section fails' 1 '## Summary
 No plan.'
 check 'header without a data row fails' 1 '## Skills plan
 | Skill | Phase | Evidence |
 |---|---|---|
 '
-check 'empty cell fails' 1 '## Skills plan
-| Skill | Phase | Evidence |
-|---|---|---|
-| tdd | | docs/reviews/1541/tdd.md |'
-check 'skill name must be lowercase bare name' 1 '## Skills plan
-| Skill | Phase | Evidence |
-|---|---|---|
-| TDD | build | docs/reviews/1541/tdd.md |'
-check 'unknown skill fails when a skills directory exists' 1 '## Skills plan
-| Skill | Phase | Evidence |
-|---|---|---|
-| no-such-skill | build | docs/reviews/1541/tdd.md |'
-check 'absolute evidence path fails' 1 '## Skills plan
-| Skill | Phase | Evidence |
-|---|---|---|
-| tdd | build | /docs/reviews/1541/tdd.md |'
-check 'parent traversal in evidence path fails' 1 '## Skills plan
-| Skill | Phase | Evidence |
-|---|---|---|
-| tdd | build | docs/../private/evidence.md |'
+check 'empty cell fails' 1 "$(plan tdd '' docs/reviews/1541/tdd.md)"
+check 'skill name must be lowercase bare name' 1 "$(plan TDD build docs/reviews/1541/tdd.md)"
+check 'unknown skill fails when a skills directory exists' 1 "$(plan no-such-skill build docs/reviews/1541/tdd.md)"
+check 'absolute evidence path fails' 1 "$(plan tdd build /docs/reviews/1541/tdd.md)"
+check 'parent traversal in evidence path fails' 1 "$(plan tdd build docs/../private/evidence.md)"
 
 printf '%s\n' "$valid" > "$tmp/plan.md"
 evidence="$(bash "$SCRIPT" evidence "$tmp/plan.md" 2>/dev/null)"; rc=$?
@@ -73,7 +68,7 @@ fi
 cold="$tmp/cold"
 mkdir -p "$cold/scripts"
 cp "$SCRIPT" "$cold/scripts/skills-plan.sh"
-printf '%s\n' '## Skills plan' '| Skill | Phase | Evidence |' '|---|---|---|' '| unknown-on-cold-checkout | build | docs/reviews/1541/tdd.md |' > "$tmp/cold.md"
+plan unknown-on-cold-checkout build docs/reviews/1541/tdd.md > "$tmp/cold.md"
 if bash "$cold/scripts/skills-plan.sh" check "$tmp/cold.md" >/dev/null 2>&1; then
   pass=$((pass+1)); printf '  ok    missing skills directories skip the existence check\n'
 else

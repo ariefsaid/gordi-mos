@@ -4,12 +4,12 @@ set -uo pipefail
 
 die() { printf '✗ skills-plan: %s\n' "$1" >&2; exit 1; }
 
-[ "$#" -eq 2 ] || die "usage: skills-plan.sh <check|evidence> <file>"
+[ "$#" -eq 2 ] || die "usage: skills-plan.sh <check|evidence> <file|->"
 mode="$1"; file="$2"
 case "$mode" in check|evidence) ;; *) die "unknown command '$mode' (check|evidence)" ;; esac
-[ -r "$file" ] || die "cannot read plan file: $file"
 
-parsed="$(awk '
+parse_plan() {
+awk '
   function trim(value) {
     sub(/^[ \t\r]+/, "", value)
     sub(/[ \t\r]+$/, "", value)
@@ -78,7 +78,14 @@ parsed="$(awk '
       exit 1
     }
   }
-' "$file")" || exit 1
+' "$@"
+}
+if [ "$file" = "-" ]; then
+  parsed="$(parse_plan)" || exit 1
+else
+  [ -r "$file" ] || die "cannot read plan file: $file"
+  parsed="$(parse_plan "$file")" || exit 1
+fi
 
 script_root="$(cd "$(dirname "$0")/.." && pwd -P)" || die "cannot locate checkout"
 main_checkout="$(git -C "$script_root" worktree list --porcelain 2>/dev/null \

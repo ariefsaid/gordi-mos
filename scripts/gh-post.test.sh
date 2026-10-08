@@ -74,11 +74,13 @@ cat > "$ready_plan" <<'EOF'
 |---|---|---|
 | tdd | build | docs/reviews/1541/tdd.md |
 EOF
-check_message "ready-for-agent issue create without a plan is refused" 1 no "Add a '## Skills plan' table" issue create --title t --label ready-for-agent --body "No plan yet."
+check_message "ready-for-agent issue create without a plan is refused" 1 no "ready-for-agent requires a valid Skills plan" issue create --title t --label ready-for-agent --body "No plan yet."
+check_message "case-insensitive ready label on issue create requires a plan" 1 no "ready-for-agent requires a valid Skills plan" issue create --title t --label Ready-For-Agent --body "No plan yet."
 check "ready-for-agent issue create with a plan passes" 0 yes issue create --title t --label bug,ready-for-agent --body-file "$ready_plan"
 check "issue create without ready-for-agent needs no plan" 0 yes issue create --title t --label needs-triage --body "No plan yet."
 printf 'No plan yet.\n' > "$tmp/issue-body"
 check_message "adding ready-for-agent fetches and rejects a current body without a plan" 1 no "issue #17" issue edit 17 --add-label ready-for-agent
+check_message "case-insensitive ready label on issue edit requires a plan" 1 no "issue #17" issue edit 17 --add-label Ready-For-Agent
 cat "$ready_plan" > "$tmp/issue-body"
 check "adding ready-for-agent accepts the fetched current plan" 0 yes issue edit 17 --add-label ready-for-agent
 printf 'No plan yet.\n' > "$tmp/issue-body"
@@ -97,6 +99,9 @@ check "clean short -F body file passes" 0 yes issue comment 5 -F "$tmp/repo/body
 check "gh api -F field values scanned" 1 no api repos/x/y/issues -F body="has secretword inside"
 check "api path naming another repo refused, gh untouched" 1 no api repos/other/elsewhere/issues -f title=x
 check "api path naming this repo passes" 0 yes api repos/x/y/issues -f title=x
+check_message "REST issue-label POST is refused with the issue-edit route" 1 no "issue edit --add-label" api repos/x/y/issues/17/labels --method POST -f name=ready-for-agent
+check_message "REST issue-label PATCH is refused with the issue-edit route" 1 no "issue edit --add-label" api repos/x/y/issues/17/labels -X PATCH -f name=ready-for-agent
+check "REST issue-label GET remains allowed" 0 yes api repos/x/y/issues/17/labels --method GET
 check "api path with no repo (e.g. /user) refused" 1 no api user
 check "--repo naming another repo refused on issue verbs" 1 no issue comment 5 --repo other/elsewhere --body "fine"
 check "--repo naming this repo passes on issue verbs" 0 yes issue comment 5 --repo x/y --body "fine"

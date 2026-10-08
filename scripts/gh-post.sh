@@ -81,9 +81,13 @@ fi
 # refused outright — text the scanner can't see is text that doesn't leave.
 texts=("$@")
 args=("$@")
+issue_body_set=0
 for ((i = 0; i < ${#args[@]}; i++)); do
   a="${args[$i]}"
   f="" v=""
+  if [ "$verb1 $verb2" = "issue create" ] || [ "$verb1 $verb2" = "issue edit" ]; then
+    case "$a" in --body|-b|--body=*|-b?*|--body-file|-F|--body-file=*|-F?*) issue_body_set=1 ;; esac
+  fi
   case "$a" in
     --body-file|--input) f="${args[$((i + 1))]:-}" ;;
     --body-file=*|--input=*) f="${a#*=}" ;;
@@ -185,43 +189,22 @@ require_reused_line() {
   die "the PR body has no 'Reused:' line — name the existing components, helpers, tests or patterns you reused (and why anything new was needed)"
 }
 
-require_skills_plan() { # $1 file · $2 issue context (optional)
-  local plan_file="$1" issue_context="${2:-}" result rc
-  result="$(bash "$(dirname "$0")/skills-plan.sh" check "$plan_file" 2>&1)"; rc=$?
-  [ "$rc" -eq 0 ] && return 0
-  [ -z "$issue_context" ] || issue_context="issue #$issue_context: "
-  die "${issue_context}ready-for-agent requires a valid Skills plan. Add a '## Skills plan' table with Skill, Phase, and Evidence columns and at least one row. $result"
-}
+contains_ready_label() { [[ ",$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')," == *,ready-for-agent,* ]]; }
 
 require_ready_issue_skills_plan() {
-  local ready=0 body_set=0 body_file="" body="" issue_target="" label tmp result
+  local ready=0 issue_target="" label result
   local -a argv=("$@")
   for ((i = 0; i < ${#argv[@]}; i++)); do
     a="${argv[$i]}"
     case "$verb1 $verb2:$a" in
       "issue create:--label"|"issue create:-l"|"issue edit:--add-label")
         [ $((i + 1)) -lt ${#argv[@]} ] || continue
-        i=$((i + 1)); label="${argv[$i]}"
-        case ",${label//[[:space:]]/}," in *,ready-for-agent,*) ready=1 ;; esac ;;
-      "issue create:--label="*|"issue create:--add-label="*|"issue edit:--add-label="*)
-        label="${a#*=}"
-        case ",${label//[[:space:]]/}," in *,ready-for-agent,*) ready=1 ;; esac ;;
-      "issue create:-l"?*)
-        label="${a#-l}"
-        case ",${label//[[:space:]]/}," in *,ready-for-agent,*) ready=1 ;; esac ;;
-      "issue create:--body"|"issue create:-b"|"issue edit:--body"|"issue edit:-b")
-        [ $((i + 1)) -lt ${#argv[@]} ] || continue
-        i=$((i + 1)); body="${argv[$i]}"; body_set=1; body_file="" ;;
-      "issue create:--body="*|"issue create:-b"?*|"issue edit:--body="*|"issue edit:-b"?*)
-        if [[ "$a" == --body=* ]]; then body="${a#*=}"; else body="${a#-b}"; fi
-        body_set=1; body_file="" ;;
-      "issue create:--body-file"|"issue create:-F"|"issue edit:--body-file"|"issue edit:-F")
-        [ $((i + 1)) -lt ${#argv[@]} ] || continue
-        i=$((i + 1)); body_file="${argv[$i]}"; body_set=1 ;;
-      "issue create:--body-file="*|"issue create:-F"?*|"issue edit:--body-file="*|"issue edit:-F"?*)
-        if [[ "$a" == --body-file=* ]]; then body_file="${a#*=}"; else body_file="${a#-F}"; fi
-        body_set=1 ;;
+        i=$((i + 1)); label="${argv[$i]}" ;;
+      "issue create:--label="*|"issue create:--add-label="*|"issue edit:--add-label="*|"issue create:-l"?*)
+        case "$a" in -l*) label="${a#-l}" ;; *) label="${a#*=}" ;; esac ;;
+      *) continue ;;
     esac
+    contains_ready_label "$label" && ready=1
   done
   [ "$ready" -eq 1 ] || return 0
 
@@ -233,25 +216,18 @@ require_ready_issue_skills_plan() {
         break
       fi
     done
-  fi
-
-  if [ "$body_set" -eq 1 ] && [ -n "$body_file" ]; then
-    require_skills_plan "$body_file" "${issue_target:-}"
-  else
-    if [ "$body_set" -eq 0 ] && [ "$verb1 $verb2" = "issue edit" ]; then
+    if [ "$issue_body_set" -eq 0 ]; then
       [ -n "$issue_target" ] || die "cannot identify the issue for ready-for-agent; pass its number so the current body can be fetched"
       body="$(gh issue view "$issue_target" --json body -q .body 2>/dev/null)" \
         || die "cannot fetch the current body for issue $issue_target; retry when GitHub is reachable"
+      texts+=("$body")
     fi
-    tmp="$(mktemp "${TMPDIR:-/tmp}/gh-post-skills-plan.XXXXXX")" \
-      || die "cannot create a temporary Skills plan check file"
-    printf '%s' "$body" > "$tmp" || { rm -f "$tmp"; die "cannot write temporary Skills plan check file"; }
-    result="$(bash "$(dirname "$0")/skills-plan.sh" check "$tmp" 2>&1)"; rc=$?
-    rm -f "$tmp"
-    [ "$rc" -eq 0 ] && return 0
-    [ -z "$issue_target" ] || issue_target="issue #$issue_target: "
-    die "${issue_target}ready-for-agent requires a valid Skills plan. Add a '## Skills plan' table with Skill, Phase, and Evidence columns and at least one row. $result"
   fi
+
+  result="$(printf '%s\n' "${texts[@]}" | bash "$(dirname "$0")/skills-plan.sh" check - 2>&1)" && return 0
+  [ -z "$issue_target" ] || issue_target="issue #$issue_target: "
+  die "${issue_target}ready-for-agent requires a valid Skills plan
+$result"
 }
 
 if [ "$verb1 $verb2" = "issue create" ] || [ "$verb1 $verb2" = "issue edit" ]; then
@@ -296,6 +272,7 @@ fi
 
 if [ "$verb1" = "api" ]; then
   path="${verb2#/}"; path="${path%%\?*}"; path="${path%/}"
+  case "$path" in repos/"$this_repo"/issues/*/labels) [ "$(printf '%s' "$api_method" | tr '[:lower:]' '[:upper:]')" = GET ] || die "REST issue-label writes are refused — use 'issue edit --add-label' to change labels" ;; esac
   # Only an explicit GET reads the pulls collection; anything else may create a PR.
   if [ "$path" = "repos/$this_repo/pulls" ] && [ "$(printf '%s' "$api_method" | tr '[:lower:]' '[:upper:]')" != "GET" ]; then
     [ "$api_input" = 0 ] || die "REST PR create must pass base/head as -f fields — an --input payload hides them from the stamp check"

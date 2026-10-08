@@ -214,7 +214,7 @@ validate_ui_skills_evidence() {
 }
 
 validate_issue_skills_evidence() {
-  local artifact="$1" issue="${MOS_ISSUE:-}" issue_line issue_body tmp plan_output plan_rc main_checkout docs_real path candidate_dir in_docs missing_list
+  local artifact="$1" issue="${MOS_ISSUE:-}" issue_line issue_body plan_output plan_rc main_checkout docs_real path candidate_dir in_docs missing_list
   local -a missing_files=()
   if [ -z "$issue" ]; then
     issue_line="$(grep -m1 -E '^Issue:[[:space:]]*#[0-9]+[[:space:]]*$' "$artifact" || true)"
@@ -226,12 +226,9 @@ validate_issue_skills_evidence() {
     || die "cannot read body for issue #$issue while checking Skills plan evidence; retry when GitHub is reachable"
   grep -qxE '^## Skills plan[[:space:]]*$' <<< "$issue_body" || return 0
 
-  tmp="$(mktemp "${TMPDIR:-/tmp}/record-review-skills-plan.XXXXXX")" \
-    || die "cannot create a temporary Skills plan check file"
-  printf '%s' "$issue_body" > "$tmp" || { rm -f "$tmp"; die "cannot write temporary Skills plan check file"; }
-  plan_output="$(bash "$(dirname "$0")/skills-plan.sh" evidence "$tmp" 2>&1)"; plan_rc=$?
-  rm -f "$tmp"
-  [ "$plan_rc" -eq 0 ] || die "issue #$issue has an invalid Skills plan: $plan_output"
+  plan_output="$(printf '%s' "$issue_body" | bash "$(dirname "$0")/skills-plan.sh" evidence - 2>&1)"; plan_rc=$?
+  [ "$plan_rc" -eq 0 ] || die "issue #$issue has an invalid Skills plan
+$plan_output"
 
   main_checkout="$(git worktree list --porcelain 2>/dev/null \
     | awk '$1 == "worktree" { sub(/^worktree /, ""); print; exit }')"
@@ -251,7 +248,7 @@ validate_issue_skills_evidence() {
   done <<< "$plan_output"
   [ "${#missing_files[@]}" -eq 0 ] || {
     missing_list="$(printf '  - %s\n' "${missing_files[@]}")"
-    die "issue #$issue Skills plan evidence is missing or empty under docs/:
+    die "issue #$issue Skills plan evidence is missing or empty; evidence lives in the main checkout's docs/:
 $missing_list
 write each file, or correct the plan's path"
   }
