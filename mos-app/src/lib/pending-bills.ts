@@ -22,6 +22,7 @@ export interface PendingBillView {
   branchKnown: boolean
   billNo: string
   counterpartyNote: string | null
+  financeLabel: string | null
   amount: number
   recordedPaid: number
   balance: number
@@ -31,6 +32,7 @@ export interface PendingBillView {
 
 /** The copy runs nightly; one older than this missed at least one run (the same threshold as Money). */
 export const PENDING_BILLS_STALE_AFTER_MS = 30 * 3600_000
+export const PENDING_BILL_FINANCE_LABEL_MAX_LENGTH = 60
 
 const DAY_MS = 86_400_000
 const SOURCE_STATE: Record<PendingBillRow['source_state'], PendingBillState> = {
@@ -51,12 +53,20 @@ export function pendingBillAgeDays(billDate: string, today: string): number {
   return Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${billDate}T00:00:00Z`)) / DAY_MS)
 }
 
+export function validatePendingBillFinanceLabel(value: string): boolean {
+  return value.trim().length <= PENDING_BILL_FINANCE_LABEL_MAX_LENGTH
+}
+
 export function toPendingBillViews(
   rows: readonly PendingBillRow[],
   today: string,
   payments: readonly PendingBillPaymentAmount[] = [],
+  financeLabels: readonly { esb_code: string; branch_code: string; bill_no: string; finance_label: string }[] = [],
 ): PendingBillView[] {
   const paidByBill = new Map<string, number>()
+  const labelByBill = new Map(financeLabels.map((label) => [
+    billKey(label.esb_code, label.branch_code, label.bill_no), label.finance_label,
+  ]))
   for (const payment of payments) {
     const key = billKey(payment.esb_code, payment.branch_code, payment.bill_no)
     paidByBill.set(key, (paidByBill.get(key) ?? 0) + toCents(Number(payment.amount)))
@@ -88,6 +98,7 @@ export function toPendingBillViews(
         branchKnown: row.branch_id !== null,
         billNo: row.bill_no,
         counterpartyNote: row.counterparty_note,
+        financeLabel: labelByBill.get(billKey(row.esb_code, row.branch_code, row.bill_no)) ?? null,
         amount,
         recordedPaid,
         balance,
@@ -151,7 +162,7 @@ export function filterPendingBills(
     if (filters.ageBucket === '0-30' && (bill.ageDays < 0 || bill.ageDays > 30)) return false
     if (filters.ageBucket === '31-90' && (bill.ageDays < 31 || bill.ageDays > 90)) return false
     if (filters.ageBucket === '90+' && bill.ageDays <= 90) return false
-    if (query && ![bill.billNo, bill.counterpartyNote ?? ''].some((value) => normalizedSearch(value).includes(query))) return false
+    if (query && ![bill.billNo, bill.counterpartyNote ?? '', bill.financeLabel ?? ''].some((value) => normalizedSearch(value).includes(query))) return false
     return true
   })
 }

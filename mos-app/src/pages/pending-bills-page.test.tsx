@@ -15,6 +15,8 @@ vi.mock('@/lib/db/reporting-pending-bills', () => ({
 vi.mock('@/lib/db/pending-bill-payments', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/db/pending-bill-payments')>()),
   listPendingBillPaymentAmounts: vi.fn(),
+  listPendingBillFinanceLabels: vi.fn(),
+  setPendingBillFinanceLabel: vi.fn(),
   listPendingBillPaymentHistory: vi.fn(),
   recordPendingBillPayment: vi.fn(),
   paySeveralPendingBills: vi.fn(),
@@ -31,6 +33,8 @@ import { latestPendingBillSnapshot, listPendingBills, type PendingBillRow } from
 import { ReportingRowCapError } from '@/lib/db/reporting-shared'
 import {
   listPendingBillPaymentAmounts,
+  listPendingBillFinanceLabels,
+  setPendingBillFinanceLabel,
   listPendingBillPaymentHistory,
   PendingBillBalanceChangedError,
   recordPendingBillPayment,
@@ -48,6 +52,8 @@ import { PendingBillsPage } from './pending-bills-page'
 const mockList = vi.mocked(listPendingBills)
 const mockSnapshot = vi.mocked(latestPendingBillSnapshot)
 const mockPaymentAmounts = vi.mocked(listPendingBillPaymentAmounts)
+const mockFinanceLabels = vi.mocked(listPendingBillFinanceLabels)
+const mockSetFinanceLabel = vi.mocked(setPendingBillFinanceLabel)
 const mockPaymentHistory = vi.mocked(listPendingBillPaymentHistory)
 const mockRecordPayment = vi.mocked(recordPendingBillPayment)
 const mockPaySeveral = vi.mocked(paySeveralPendingBills)
@@ -118,6 +124,8 @@ beforeEach(() => {
   vi.setSystemTime(NOW)
   mockSnapshot.mockResolvedValue({ snapshot_as_of: COPY, bill_count: 3 })
   mockPaymentAmounts.mockResolvedValue([])
+  mockFinanceLabels.mockResolvedValue([])
+  mockSetFinanceLabel.mockResolvedValue(undefined)
   mockPaymentHistory.mockResolvedValue([])
   mockRecordPayment.mockResolvedValue({ paymentId: 'payment-new', replayed: false })
   mockPaySeveral.mockResolvedValue([])
@@ -217,6 +225,20 @@ describe('the phone list', () => {
     expect(oldest.getByText('420 days')).toBeInTheDocument()
     expect(oldest.getByText('Open')).toBeInTheDocument()
     expect(oldest.getByText('Meja 4').closest('.money-table__cell--owes')).toBeInTheDocument()
+  })
+
+  it('shows a truncated Finance label with the full value available on the phone card', async () => {
+    setViewport(false)
+    const label = 'Owner who runs the weekend market and always settles after closing'
+    mockFinanceLabels.mockResolvedValue([{
+      esb_code: 'GKI', branch_code: 'rumah_rames', bill_no: 'PB-2', finance_label: label,
+    }])
+    renderPage()
+    const table = await screen.findByRole('table', { name: 'Pending bills, oldest first' })
+    const row = within(table).getByText('PB-2').closest('tr')!
+    const financeLabel = within(row).getByText(label)
+    expect(financeLabel).toHaveAttribute('title', label)
+    expect(financeLabel).toHaveClass('pending-bills__finance-label')
   })
 
   it('keeps a long counterparty note readable on the phone card and recoverable in the record panel', async () => {
@@ -391,6 +413,52 @@ describe('AC-1121: pending-bill view controls', () => {
     expect(within(rows[0]).getByText('PB-1')).toBeInTheDocument()
     expect(within(rows[0]).getByText('420 days')).toHaveClass('pending-bills__age-old')
     expect(await screen.findByText(/1 bill · oldest 420 days/)).toHaveTextContent('Rp 2.480.000 open')
+  })
+})
+
+describe('Finance label editing in the bill record', () => {
+  it('sets and clears a label, confirms each save, and restores focus after keyboard commit', async () => {
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Open bill PB-2' }))
+    const edit = await screen.findByRole('button', { name: 'Edit Finance label' })
+    fireEvent.click(edit)
+    const input = screen.getByRole('textbox', { name: 'Finance label' })
+    fireEvent.change(input, { target: { value: 'Owner Sari' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    await waitFor(() => expect(mockSetFinanceLabel).toHaveBeenNthCalledWith(1, {
+      esbCode: 'GKI', branchCode: 'rumah_rames', billNo: 'PB-2', financeLabel: 'Owner Sari',
+    }))
+    expect(await screen.findByText('Finance label saved.')).toBeInTheDocument()
+    expect(await screen.findAllByText('Owner Sari')).toHaveLength(2)
+    expect(document.activeElement).toHaveAttribute('aria-label', 'Edit Finance label')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Finance label' }))
+    const clearInput = screen.getByRole('textbox', { name: 'Finance label' })
+    fireEvent.change(clearInput, { target: { value: '' } })
+    fireEvent.keyDown(clearInput, { key: 'Enter' })
+    await waitFor(() => expect(mockSetFinanceLabel).toHaveBeenNthCalledWith(2, {
+      esbCode: 'GKI', branchCode: 'rumah_rames', billNo: 'PB-2', financeLabel: null,
+    }))
+    expect(await screen.findByText('Finance label cleared.')).toBeInTheDocument()
+  })
+
+  it('keeps a failed label draft in edit mode and guards discard like the payment form', async () => {
+    mockSetFinanceLabel.mockRejectedValue(new Error('unavailable'))
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Open bill PB-2' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit Finance label' }))
+    const input = screen.getByRole('textbox', { name: 'Finance label' })
+    fireEvent.change(input, { target: { value: 'Draft label' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() => expect(input).toHaveValue('Draft label'))
+    expect(input.closest('[data-mode="edit"]')).toHaveAttribute('data-status', 'error')
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Paid' }))
+    expect(await screen.findByText('Discard unsaved changes?')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Discard changes' }))
+    await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Finance label' })).toBeNull())
+    expect(screen.getByRole('tab', { name: 'Paid' })).toHaveAttribute('aria-selected', 'true')
   })
 })
 

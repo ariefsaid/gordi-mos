@@ -211,11 +211,31 @@ describe('AC-1121: paid/open views, branch and age filters drive the matching su
   })
 })
 
-describe('AC-1122: search matches copied bill text independent of case and spacing', () => {
+describe('AC-1122: search matches copied text and Finance labels independent of case and spacing', () => {
   it('finds copied counterparty text without requiring its original spacing', () => {
     const rows = toPendingBillViews([bill({ bill_no: 'TEXT', counterparty_note: '  Meja   Empat  ' })], '2026-10-06')
     expect(filterPendingBills(rows, { view: 'all', branchCode: '', ageBucket: 'all', search: ' mejaempat ' }).map((row) => row.billNo))
       .toEqual(['TEXT'])
+  })
+
+  it('finds the MOS Finance label without changing the copied counterparty note', () => {
+    const rows = toPendingBillViews([bill({ bill_no: 'LABEL', counterparty_note: 'ESB note' })], '2026-10-06', [], [
+      { esb_code: 'GKI', branch_code: 'rumah_rames', bill_no: 'LABEL', finance_label: 'Owner Sari' },
+    ])
+    expect(rows[0]).toMatchObject({ counterpartyNote: 'ESB note', financeLabel: 'Owner Sari' })
+    expect(filterPendingBills(rows, { view: 'all', branchCode: '', ageBucket: 'all', search: ' owner   sari ' }).map((row) => row.billNo))
+      .toEqual(['LABEL'])
+  })
+})
+
+describe('Finance label validation', () => {
+  it('allows a trimmed label of 60 characters and rejects 61', async () => {
+    const module = await import('./pending-bills')
+    const validate = (module as unknown as { validatePendingBillFinanceLabel?: (value: string) => boolean }).validatePendingBillFinanceLabel
+    expect(typeof validate).toBe('function')
+    if (!validate) return
+    expect(validate(` ${'x'.repeat(60)} `)).toBe(true)
+    expect(validate('x'.repeat(61))).toBe(false)
   })
 })
 

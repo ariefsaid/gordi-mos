@@ -24,8 +24,34 @@
   display: block;
   min-width: 0;
   overflow: hidden;
+}
+
+.pending-bills__owes-source {
+  display: block;
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.pending-bills__finance-label-line {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted-foreground);
+  font-size: var(--font-size-label);
+  white-space: nowrap;
+}
+
+.pending-bills__finance-label-name {
+  flex: 0 0 auto;
+}
+
+.pending-bills__finance-label {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--foreground);
+  text-overflow: ellipsis;
 }
 
 .pending-bills-list-toolbar {

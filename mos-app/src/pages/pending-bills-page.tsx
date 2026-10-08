@@ -28,13 +28,15 @@ import {
 } from '@/lib/db/reporting-pending-bills'
 import {
   listPendingBillPaymentAmounts,
+  listPendingBillFinanceLabels,
+  setPendingBillFinanceLabel,
   listPendingBillPaymentHistory,
   type PendingBillPaymentAmountRow,
   type PendingBillPaymentHistoryEntry,
 } from '@/lib/db/pending-bill-payments'
 import { formatDayMonthYear, formatWibWeekdayTime } from '@/lib/format/date'
 import { formatIDRExact } from '@/lib/format/money'
-import { filterPendingBills, isPendingBillCopyStale, isPendingBillSelectable, summarizePendingBillSelection, summarizePendingBills, toPendingBillViews, type PendingBillAgeBucket, type PendingBillView, type PendingBillViewMode } from '@/lib/pending-bills'
+import { filterPendingBills, isPendingBillCopyStale, isPendingBillSelectable, summarizePendingBillSelection, summarizePendingBills, toPendingBillViews, validatePendingBillFinanceLabel, type PendingBillAgeBucket, type PendingBillView, type PendingBillViewMode } from '@/lib/pending-bills'
 import { wibToday } from '@/lib/home-attention'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { RecordPanelHost } from '@/shell/record-panel-host'
@@ -44,8 +46,8 @@ import { useIsWideOverlayWidth } from '@/shell/use-is-wide-overlay-width'
 import './pending-bills-page.css'
 
 const loadPendingBills = () =>
-  Promise.all([listPendingBills(), latestPendingBillSnapshot(), listPendingBillPaymentAmounts()])
-    .then(([bills, snapshot, payments]) => ({ bills, snapshot, payments }))
+  Promise.all([listPendingBills(), latestPendingBillSnapshot(), listPendingBillPaymentAmounts(), listPendingBillFinanceLabels()])
+    .then(([bills, snapshot, payments, financeLabels]) => ({ bills, snapshot, payments, financeLabels }))
 
 type T = ReturnType<typeof useT>
 type PaymentFormMode = { kind: 'payment' } | { kind: 'multi' } | { kind: 'reverse'; entry: PendingBillPaymentHistoryEntry }
@@ -68,6 +70,22 @@ function branch(bill: PendingBillView, t: T): ReactNode {
   const code = <span className="pending-bills__code">{bill.branchCode}</span>
   if (bill.branchKnown) return code
   return <>{code} <span className="pending-bills__muted">{t('pendingBills.branch.unknown')}</span></>
+}
+
+function whoOwes(bill: PendingBillView, t: T): ReactNode {
+  return (
+    <span className="pending-bills__owes">
+      <span className="pending-bills__owes-source" title={bill.counterpartyNote ?? undefined}>
+        {bill.counterpartyNote ?? <span className="pending-bills__muted">{t('pendingBills.owes.none')}</span>}
+      </span>
+      {bill.financeLabel && (
+        <span className="pending-bills__finance-label-line">
+          <span className="pending-bills__finance-label-name">{t('pendingBills.col.financeLabel')}:</span>
+          <span className="pending-bills__finance-label" title={bill.financeLabel}>{bill.financeLabel}</span>
+        </span>
+      )}
+    </span>
+  )
 }
 
 type PendingBillColumn = {
@@ -123,7 +141,7 @@ function columns(
       ? <Pill tone="warning" className="pending-bills__age-old">{pendingBillAgeLabel(bill.ageDays, t)}</Pill>
       : <span className="tabular">{pendingBillAgeLabel(bill.ageDays, t)}</span> },
     { key: 'branch', header: t('pendingBills.col.branch'), render: (bill) => branch(bill, t) },
-    { key: 'owes', header: t('pendingBills.col.owes'), render: (bill) => <span className="pending-bills__owes" title={bill.counterpartyNote ?? undefined}>{bill.counterpartyNote ?? <span className="pending-bills__muted">{t('pendingBills.owes.none')}</span>}</span> },
+    { key: 'owes', header: t('pendingBills.col.owes'), render: (bill) => whoOwes(bill, t) },
     { key: 'state', header: t('pendingBills.col.state'), render: (bill) => statePill(bill, t) },
     { key: 'bill', header: t('pendingBills.col.billNo'), render: (bill) => (
       <button type="button" className="pending-bills__record-trigger" data-pending-bill-trigger={bill.id} onClick={() => onOpen(bill)} aria-label={t('pendingBills.openBill', { billNo: bill.billNo })}>
@@ -159,6 +177,7 @@ export function PendingBillsPage() {
   const [historyRequest, setHistoryRequest] = useState(0)
   const [formMode, setFormMode] = useState<PaymentFormMode | null>(null)
   const [formBusy, setFormBusy] = useState(false)
+  const [recordDraftGeneration, setRecordDraftGeneration] = useState(0)
   // Closing the form brings its buttons back; focus returns to the panel's action (or the history's).
   const restoreFocusRef = useRef(false)
   const restoreMultiBillFocusRef = useRef<string | null>(null)
@@ -187,6 +206,7 @@ export function PendingBillsPage() {
   })
   const [discardOpen, setDiscardOpen] = useState(false)
   const [optimisticPayments, setOptimisticPayments] = useState<PendingBillPaymentAmountRow[]>([])
+  const [financeLabelOverrides, setFinanceLabelOverrides] = useState<Map<string, string | null>>(() => new Map())
   const formDirtyRef = useRef(false)
   const formBusyRef = useRef(false)
   const pendingTransitionRef = useRef<(() => void) | null>(null)
@@ -210,6 +230,7 @@ export function PendingBillsPage() {
   }, [])
   const discardAndProceed = useCallback(async () => {
     formDirtyRef.current = false
+    setRecordDraftGeneration((generation) => generation + 1)
     setDiscardOpen(false)
     const proceed = pendingTransitionRef.current
     pendingTransitionRef.current = null
@@ -223,7 +244,14 @@ export function PendingBillsPage() {
     const baseIds = new Set(persistedPayments.map((payment) => payment.id))
     return [...persistedPayments, ...optimisticPayments.filter((payment) => !baseIds.has(payment.id))]
   }, [basePayments, optimisticPayments])
-  const bills = useMemo(() => data ? toPendingBillViews(data.bills, today, payments) : [], [data, payments, today])
+  const bills = useMemo(() => {
+    if (!data) return []
+    return toPendingBillViews(data.bills, today, payments, data.financeLabels).map((bill) =>
+      financeLabelOverrides.has(bill.id)
+        ? { ...bill, financeLabel: financeLabelOverrides.get(bill.id) ?? null }
+        : bill,
+    )
+  }, [data, payments, today, financeLabelOverrides])
   const visibleBills = useMemo(() => filterPendingBills(bills, {
     view: activeView,
     branchCode: branchFilter,
@@ -480,6 +508,28 @@ export function PendingBillsPage() {
       setFormMode({ kind: 'multi' })
     })
   }
+  const commitFinanceLabel = async (key: string, value: string | number | boolean | null) => {
+    if (key !== 'financeLabel' || typeof value !== 'string' || !selectedBill) {
+      throw new Error('Unsupported pending-bill field.')
+    }
+    const financeLabel = value.trim() || null
+    if (financeLabel !== null && !validatePendingBillFinanceLabel(financeLabel)) {
+      throw new Error('Finance label must be 60 characters or fewer.')
+    }
+    updateFormBusy(true)
+    try {
+      await setPendingBillFinanceLabel({
+        esbCode: selectedBill.esbCode,
+        branchCode: selectedBill.branchCode,
+        billNo: selectedBill.billNo,
+        financeLabel,
+      })
+      setFinanceLabelOverrides((current) => new Map(current).set(selectedBill.id, financeLabel))
+      showToast(t(financeLabel ? 'pendingBills.label.saved' : 'pendingBills.label.cleared'))
+    } finally {
+      updateFormBusy(false)
+    }
+  }
   const paymentForm = selectedBill && formMode ? (
     <PendingBillPaymentForm
       key={`${selectedBill.id}-${formMode.kind === 'reverse' ? `reverse-${formMode.entry.id}` : formMode.kind === 'multi' ? selectedBillIds.join('|') : 'payment'}`}
@@ -579,7 +629,14 @@ export function PendingBillsPage() {
           setSelectedId(null)
         })}
       >
-        <RecordViewer adapter={adapter} mode="panel" />
+        <RecordViewer
+          key={`${selectedBill.id}-${recordDraftGeneration}`}
+          adapter={adapter}
+          mode="panel"
+          onCommitField={commitFinanceLabel}
+          onDirtyChange={(dirty) => { formDirtyRef.current = dirty }}
+          fieldCommitsFrozen={discardOpen}
+        />
       </RecordPanelHost>
       <ConfirmDialog
         open={discardOpen}
