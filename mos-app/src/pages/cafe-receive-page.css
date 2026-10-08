@@ -146,6 +146,8 @@
   line-height: 1.4;
 }
 
+.cafe-count__input-group > .cafe-receive__open-po-note { margin-inline-start: 8px; }
+
 .cafe-receive__row-group-label {
   margin: 0 0 8px;
   color: var(--muted-foreground);

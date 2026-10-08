@@ -20,7 +20,7 @@ const streamMocks = vi.hoisted(() => {
     stream: kitchen as typeof kitchen | typeof bar | null, homeStream: kitchen as typeof kitchen | typeof bar | null,
     myStreamKeys: new Set(['branch-1|kitchen']), branchId: 'branch-1',
   }
-  return { kitchen, bar, catalog, resolve: vi.fn(async () => catalog), adopt: vi.fn(), setStream: vi.fn() }
+  return { branch, kitchen, bar, catalog, resolve: vi.fn(async () => catalog), adopt: vi.fn(), setStream: vi.fn() }
 })
 vi.mock('@/lib/use-cafe-stream', () => ({
   useCafeStream: () => ({ ...streamMocks.catalog, resolve: streamMocks.resolve, adopt: streamMocks.adopt, setStream: streamMocks.setStream }),
@@ -174,7 +174,10 @@ async function openLockStep() {
 beforeEach(() => {
   vi.clearAllMocks()
   keyMocks.key = 0
+  streamMocks.catalog.branches = [streamMocks.branch]
+  streamMocks.catalog.options = [streamMocks.kitchen, streamMocks.bar]
   streamMocks.catalog.stream = streamMocks.kitchen
+  streamMocks.catalog.branchId = streamMocks.branch.id
   streamMocks.catalog.homeStream = streamMocks.kitchen
   localStorage.clear()
   mockUseAuth.mockReturnValue(viewer(['member']))
@@ -440,6 +443,24 @@ describe('CafeReceivePage', () => {
       .toEqual(['Received for Long PO item 10', 'Received for Long PO item 11', 'Received for Long PO item 12', 'Received for Long PO item 13', 'Received for Long PO item 14'])
   })
 
+  it('Issue 1518 a picked PO keeps the row unit and names its different purchase unit', async () => {
+    poMocks.list.mockResolvedValue({
+      ...TWO_PO_CACHE,
+      purchaseOrders: [{
+        ...TWO_PO_CACHE.purchaseOrders[0],
+        items: [{ itemUnitId: 'unit-bag', itemName: 'Coffee bean', unitName: 'bag 1 kg' }],
+      }],
+    } as never)
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Choose from 1 open PO' }))
+    fireEvent.click(screen.getByRole('button', { name: /PO-1043/ }))
+
+    const bean = screen.getByRole('group', { name: /Coffee bean/ })
+    expect(within(bean).getByText('PO lists: bag 1 kg')).toBeInTheDocument()
+    expect(bean.querySelector('.cafe-count__unit')).toHaveTextContent('kg')
+    expect(within(screen.getByRole('group', { name: /Fresh milk/ })).queryByText(/PO lists:/)).toBeNull()
+  })
+
   it('Issue 1443 a picked PO shows its number, supplier and date over its own rows, apart from the other items', async () => {
     mockItems.mockResolvedValue(PICKER_ITEMS)
     poMocks.list.mockResolvedValue(TWO_PO_CACHE as never)
@@ -470,7 +491,7 @@ describe('CafeReceivePage', () => {
     expect(screen.getByRole('textbox', { name: 'Received for Fresh milk' })).toHaveValue('4')
   })
 
-  it('Issue 1443 names the PO lines that have no MOS product detail', async () => {
+  it('Issue 1518 says PO lines with a missing item or stream unit are not receivable here', async () => {
     mockItems.mockResolvedValue(PICKER_ITEMS)
     poMocks.list.mockResolvedValue({
       ...TWO_PO_CACHE,
@@ -486,7 +507,39 @@ describe('CafeReceivePage', () => {
     renderPage()
     fireEvent.click(await screen.findByRole('button', { name: /^Choose from 1 open PO/ }))
     fireEvent.click(screen.getByRole('button', { name: /PO-1043/ }))
-    expect(screen.getByRole('group', { name: /^On PO-1043/ })).toHaveTextContent('Not in MOS: Vanilla syrup 700 ml, Paper straws')
+    expect(screen.getByRole('group', { name: /^On PO-1043/ })).toHaveTextContent('Not receivable here: Vanilla syrup 700 ml, Paper straws')
+  })
+
+  it('Issue 1518 remembers each branch’s picked PO when switching away and back', async () => {
+    const otherBranch = { id: 'branch-2', code: 'other-cafe', name: 'Second Cafe Branch' }
+    const otherKitchen = { branch: otherBranch, activity: 'kitchen' as const }
+    const otherPo = { ...TWO_PO_CACHE.purchaseOrders[0], poNumber: 'PO-2043' }
+    streamMocks.catalog.branches = [streamMocks.branch, otherBranch]
+    streamMocks.catalog.options = [streamMocks.kitchen, streamMocks.bar, otherKitchen]
+    poMocks.list.mockImplementation(branchId => Promise.resolve({
+      ...TWO_PO_CACHE,
+      purchaseOrders: [branchId === 'branch-1' ? TWO_PO_CACHE.purchaseOrders[0] : otherPo],
+    }) as never)
+    const view = renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Choose from 1 open PO' }))
+    fireEvent.click(screen.getByRole('button', { name: /PO-1043/ }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Switch kitchen stream' }))
+    fireEvent.click(screen.getByRole('option', { name: /Second Cafe Branch · Kitchen/ }))
+    await waitFor(() => expect(streamMocks.setStream).toHaveBeenCalledWith(otherKitchen))
+    streamMocks.catalog.stream = otherKitchen
+    streamMocks.catalog.branchId = otherBranch.id
+    view.rerender(<MemoryRouter initialEntries={['/cafe/receive']}><I18nProvider><CafeReceivePage /></I18nProvider></MemoryRouter>)
+    fireEvent.click(await screen.findByRole('button', { name: 'Choose from 1 open PO' }))
+    fireEvent.click(screen.getByRole('button', { name: /PO-2043/ }))
+
+    fireEvent.click(screen.getByRole('button', { name: /Back to/ }))
+    streamMocks.catalog.stream = streamMocks.kitchen
+    streamMocks.catalog.branchId = streamMocks.branch.id
+    view.rerender(<MemoryRouter initialEntries={['/cafe/receive']}><I18nProvider><CafeReceivePage /></I18nProvider></MemoryRouter>)
+
+    expect(await screen.findByRole('group', { name: /^On PO-1043/ })).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: /^On PO-2043/ })).toBeNull()
   })
 
   it('FR-1007 picking a PO changes no unit and starts no draft', async () => {
@@ -498,8 +551,8 @@ describe('CafeReceivePage', () => {
     fireEvent.click(await screen.findByRole('button', { name: /^Choose from 1 open PO/ }))
     fireEvent.click(screen.getByRole('button', { name: /PO-1043/ }))
     const bean = screen.getByRole('textbox', { name: 'Received for Coffee bean' })
-    expect(bean.closest('.cafe-capture-row')).toHaveTextContent(/kg/)
-    expect(bean.closest('.cafe-capture-row')).not.toHaveTextContent(/bag/)
+    expect(bean.closest('.cafe-count__quantity-control')).toHaveTextContent('kg')
+    expect(bean.closest('.cafe-capture-row')).toHaveTextContent('PO lists: bag')
     expect(screen.queryByRole('button', { name: 'Discard draft' })).toBeNull()
     expect(Object.keys(localStorage).filter(key => key.includes('receive'))).toEqual([])
   })
