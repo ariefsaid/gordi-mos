@@ -5,6 +5,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { StrictMode } from 'react'
 import { render, screen, within, fireEvent, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 
@@ -110,6 +111,17 @@ function renderPage(accessRoles = ['finance'], initialLocale: 'en' | 'id' = 'en'
 function setViewport(desktop: boolean, wide = false) {
   window.matchMedia = vi.fn().mockImplementation((query: string) => ({
     matches: query === '(min-width: 1100px)' ? wide : query === '(min-width: 768px)' ? desktop : false,
+    media: query, onchange: null,
+    addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
+  }))
+}
+
+function setViewportWidth(width: number) {
+  window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+    matches: query === '(min-width: 768px)' ? width >= 768
+      : query === '(min-width: 1100px)' ? width >= 1100
+        : query === '(max-width: 919.98px)' ? width <= 919.98
+          : false,
     media: query, onchange: null,
     addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
   }))
@@ -459,6 +471,30 @@ describe('Finance label editing in the bill record', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Discard changes' }))
     await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Finance label' })).toBeNull())
     expect(screen.getByRole('tab', { name: 'Paid' })).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it.each([390, 768, 1440])('guards a failed Finance label draft on panel close at %i px without retrying the save', async (width) => {
+    setViewportWidth(width)
+    mockSetFinanceLabel.mockRejectedValueOnce(new Error('unavailable'))
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(await screen.findByRole('button', { name: 'Open bill PB-2' }))
+    await user.click(await screen.findByRole('button', { name: 'Edit Finance label' }))
+    const input = screen.getByRole('textbox', { name: 'Finance label' })
+    await user.type(input, 'Draft label')
+    await user.keyboard('{Enter}')
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    expect(input).toHaveValue('Draft label')
+    expect(mockSetFinanceLabel).toHaveBeenCalledTimes(1)
+
+    await user.click(screen.getByRole('button', { name: 'Close' }))
+    expect(mockSetFinanceLabel).toHaveBeenCalledTimes(1)
+    expect(await screen.findByText('Discard unsaved changes?')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Discard changes' }))
+    await waitFor(() => expect(document.querySelector('[aria-label="Pending bill PB-2"]')).toBeNull())
+    expect(mockSetFinanceLabel).toHaveBeenCalledTimes(1)
   })
 })
 
