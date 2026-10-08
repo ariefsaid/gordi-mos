@@ -21,6 +21,15 @@ LOCK
 chmod +x "$fixture/scripts/with-db-lock.sh"
 
 runner_source="$repo_root/mos-app/scripts/release-visual-sweep.mjs"
+runtime_source="$repo_root/mos-app/e2e/design-quality/runtime.ts"
+grep -Fq -- '--persona dewi.dev@example.test' "$script" || {
+  echo 'FAIL: RELEASE8 example does not use the SQL-verified dev-seed manager persona' >&2; exit 1;
+}
+grep -Fq "import { DEMO_PASSWORD } from '../../src/pages/demo-personas'" "$runtime_source" \
+  && grep -Fq 'await loginViaForm(page, personaEmail, DEMO_PASSWORD)' "$runtime_source" \
+  && ! grep -Fq 'Passw0rd!dev' "$runtime_source" || {
+  echo 'FAIL: persona login must reuse the shared dev password instead of hardcoding it' >&2; exit 1;
+}
 grep -Fq "import globalSetup from '../e2e/global-setup.ts'" "$runner_source" || {
   echo 'FAIL: sweep does not reuse Playwright global setup' >&2; exit 1;
 }
