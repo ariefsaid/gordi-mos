@@ -80,6 +80,7 @@ describe('ListPaging', () => {
     expect(screen.getByRole('button', { name: 'Load more' })).toBeInTheDocument()
   })
 
+
   it('keeps the error alert slot in place and uses it for retry feedback', () => {
     const { container, rerender } = render(
       <I18nProvider><ListPaging count={50} hasMore onLoadMore={vi.fn()} /></I18nProvider>,

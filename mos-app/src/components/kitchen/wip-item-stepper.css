@@ -226,8 +226,6 @@
   flex: 0 1 auto;
   width: auto;
   min-width: 0;
-  font-size: var(--font-size-label);
-  color: var(--muted-foreground);
   line-height: 1.2;
   text-align: left;
   white-space: normal;

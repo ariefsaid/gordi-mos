@@ -1,26 +1,8 @@
 /* Purchase-order and receipt workflow styling; shared row and footer geometry lives in cafe-capture-layout.css. */
 
-.cafe-receive__links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 20px;
-  margin: 0 0 24px;
-  font-size: var(--font-size-body);
-}
-
-.cafe-receive__links a {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 44px;
-  color: var(--foreground);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
 .cafe-receive__date {
   display: grid;
-  grid-template-columns: auto minmax(0, 220px) auto;
+  grid-template-columns: auto minmax(0, 220px);
   justify-content: start;
   align-items: center;
   gap: 8px 12px;
@@ -29,7 +11,6 @@
 }
 
 .cafe-receive__date label { color: var(--muted-foreground); }
-.cafe-receive__date-hint { color: var(--muted-foreground); }
 
 .cafe-receive__open-pos {
   display: grid;
@@ -164,7 +145,6 @@
   line-height: 1.4;
 }
 
-.cafe-receive__date input,
 .cafe-receive__send input {
   width: 100%;
   min-width: 0;
@@ -309,7 +289,6 @@
 
 @media (max-width: 639px) {
   .cafe-receive__date { grid-template-columns: auto minmax(0, 1fr); gap: 8px; }
-  .cafe-receive__date-hint { grid-column: 2; }
   .cafe-receive__open-pos { gap: 8px; margin-bottom: 8px; }
   .cafe-receive__open-pos-head { display: grid; gap: 0; }
   .cafe-receive__open-pos-lead { gap: 0; }
