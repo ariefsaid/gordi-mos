@@ -301,6 +301,38 @@ describe('AC-025 — a rejected data read is an error inside the frame', () => {
     expect(importer).toHaveBeenCalledTimes(importsBeforeRetry)
     expect(screen.getByRole('alert')).toBeInTheDocument()
   })
+
+  it.each([
+    ['Firefox', 'error loading dynamically imported module: /assets/RealPage.js'],
+    ['Safari', 'Importing a module script failed.'],
+  ])('%s module download errors show in-frame Retry and reload', async (_browser, message) => {
+    const importer = vi.fn<() => Promise<{ default: ComponentType }>>(() =>
+      Promise.reject(new TypeError(message)),
+    )
+    const LazyPage = lazyPage(importer)
+
+    renderShell(
+      <Suspense fallback={<div>loading</div>}>
+        <LazyPage />
+      </Suspense>,
+      { crashBoundary: true },
+    )
+
+    const alert = await screen.findByText('Couldn’t reach the server')
+    expect(alert.closest('[role="alert"]')).not.toBeNull()
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
+    expect(screen.queryByText('This screen stopped working')).toBeNull()
+
+    const importsBeforeRetry = importer.mock.calls.length
+    expect(importsBeforeRetry).toBeGreaterThan(0)
+    const reload = vi.fn()
+    vi.stubGlobal('location', { ...window.location, reload })
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    expect(reload).toHaveBeenCalledOnce()
+    expect(importer).toHaveBeenCalledTimes(importsBeforeRetry)
+    expect(screen.getByRole('alert')).toHaveTextContent('Couldn’t reach the server')
+  })
 })
 
 // ─────────────────────────────────────────────────────────────────────────────

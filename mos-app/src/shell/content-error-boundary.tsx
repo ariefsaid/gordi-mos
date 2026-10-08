@@ -53,7 +53,7 @@ export class ContentErrorBoundary extends Component<Props, State> {
     const { error, attempt } = this.state
     if (error != null) {
       // Not a network failure — the boundary above the shell owns it.
-      if (!isNetworkError(error)) throw error
+      if (!isNetworkError(error) && !isModuleLoadError(error)) throw error
       return (
         <PageFrame>
           <NetworkErrorState onRetry={this.handleRetry} />
