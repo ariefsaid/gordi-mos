@@ -36,9 +36,14 @@ describe('pending bills table CSS', () => {
     }
     expect(rule('.pending-bills__tablet-age-cue') ?? '').toMatch(/display:\s*none/)
     expect(groupedRule(narrow, '.pending-bills__tablet-age-cue') ?? '').toMatch(/display:\s*inline-flex/)
-    for (const [column, width] of [['select', '6%'], ['branch', '13%'], ['owes', '19%'], ['state', '17%'], ['bill', '18%'], ['amount', '13%'], ['balance', '14%']]) {
+    for (const [column, width] of [['select', '6%'], ['branch', '10%'], ['state', '14%'], ['bill', '16%'], ['amount', '12%'], ['balance', '12%']]) {
       expect(groupedRule(narrow, `.pending-bills-table .money-table__cell--${column}`) ?? '').toMatch(new RegExp(`width:\\s*${width}`))
     }
+    const narrowOwes = groupedRule(narrow, '.pending-bills-table .money-table__cell--owes') ?? ''
+    expect(Number(narrowOwes.match(/width:\s*([\d.]+)%/)?.[1] ?? 0)).toBeGreaterThanOrEqual(30)
+    const wide = css.match(/@container pending-bills-list \(min-width:\s*980px\)\s*\{([\s\S]*?)\n\s{2}\}/)?.[1] ?? ''
+    const wideOwes = groupedRule(wide, '.pending-bills-table .money-table__cell--owes') ?? ''
+    expect(Number(wideOwes.match(/width:\s*([\d.]+)%/)?.[1] ?? 0)).toBeGreaterThanOrEqual(25)
     const compact = css.match(/@container pending-bills-list \(max-width:\s*679\.98px\)\s*\{([\s\S]*?)\n\s{2}\}/)?.[1] ?? ''
     const compactHiddenRules = [...compact.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
       .filter(([, , declarations]) => /display:\s*none/.test(declarations))
@@ -72,7 +77,7 @@ describe('pending bills table CSS', () => {
     }
   })
 
-  it('clamps long counterparty text to two lines on phone while retaining the full title', () => {
+  it('wraps Finance labels to two lines under payer notes while preserving the phone card clamp and full title', () => {
     const owes = rule('.pending-bills__owes')
     expect(owes).toMatch(/min-width:\s*0/)
     const phone = css.match(/@media \(max-width:\s*767\.98px\)\s*\{([\s\S]*)$/)?.[1] ?? ''
@@ -82,6 +87,9 @@ describe('pending bills table CSS', () => {
     expect(phoneOwes).toMatch(/white-space:\s*normal/)
     expect(phoneOwes).toMatch(/overflow:\s*hidden/)
     const label = rule('.pending-bills__finance-label')
+    expect(label).toMatch(/-webkit-line-clamp:\s*2/)
+    expect(label).toMatch(/white-space:\s*normal/)
+    expect(label).toMatch(/overflow-wrap:\s*anywhere/)
     expect(label).toMatch(/text-overflow:\s*ellipsis/)
   })
 

@@ -239,7 +239,7 @@ describe('the phone list', () => {
     expect(oldest.getByText('Meja 4').closest('.money-table__cell--owes')).toBeInTheDocument()
   })
 
-  it('shows a truncated Finance label with the full value available on the phone card', async () => {
+  it('keeps the Finance label name accessible without spending list width on the phone card', async () => {
     setViewport(false)
     const label = 'Owner who runs the weekend market and always settles after closing'
     mockFinanceLabels.mockResolvedValue([{
@@ -249,8 +249,11 @@ describe('the phone list', () => {
     const table = await screen.findByRole('table', { name: 'Pending bills, oldest first' })
     const row = within(table).getByText('PB-2').closest('tr')!
     const financeLabel = within(row).getByText(label)
+    const financeLabelName = within(row).getByText('Finance label:', { exact: true })
     expect(financeLabel).toHaveAttribute('title', label)
     expect(financeLabel).toHaveClass('pending-bills__finance-label')
+    expect(financeLabelName).toHaveClass('sr-only')
+    expect(financeLabel.closest('.pending-bills__finance-label-line')?.previousElementSibling).toHaveClass('pending-bills__owes-source')
   })
 
   it('keeps a long counterparty note readable on the phone card and recoverable in the record panel', async () => {

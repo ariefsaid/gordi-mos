@@ -34,23 +34,21 @@
 }
 
 .pending-bills__finance-label-line {
-  display: flex;
-  gap: 4px;
+  display: block;
   min-width: 0;
-  overflow: hidden;
   color: var(--muted-foreground);
   font-size: var(--font-size-label);
-  white-space: nowrap;
-}
-
-.pending-bills__finance-label-name {
-  flex: 0 0 auto;
 }
 
 .pending-bills__finance-label {
+  display: -webkit-box;
   min-width: 0;
   overflow: hidden;
   color: var(--foreground);
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
   text-overflow: ellipsis;
 }
 
@@ -339,12 +337,24 @@
     }
 
     .pending-bills-table .money-table__cell--select { width: 6%; }
-    .pending-bills-table .money-table__cell--branch { width: 13%; }
-    .pending-bills-table .money-table__cell--owes { width: 19%; }
-    .pending-bills-table .money-table__cell--state { width: 17%; }
-    .pending-bills-table .money-table__cell--bill { width: 18%; }
-    .pending-bills-table .money-table__cell--amount { width: 13%; }
-    .pending-bills-table .money-table__cell--balance { width: 14%; }
+    .pending-bills-table .money-table__cell--branch { width: 10%; }
+    .pending-bills-table .money-table__cell--owes { width: 30%; }
+    .pending-bills-table .money-table__cell--state { width: 14%; }
+    .pending-bills-table .money-table__cell--bill { width: 16%; }
+    .pending-bills-table .money-table__cell--amount { width: 12%; }
+    .pending-bills-table .money-table__cell--balance { width: 12%; }
+  }
+
+  @container pending-bills-list (min-width: 980px) {
+    .pending-bills-table .money-table__cell--select { width: 4%; }
+    .pending-bills-table .money-table__cell--date { width: 10%; }
+    .pending-bills-table .money-table__cell--age { width: 7%; }
+    .pending-bills-table .money-table__cell--branch { width: 14%; }
+    .pending-bills-table .money-table__cell--owes { width: 25%; }
+    .pending-bills-table .money-table__cell--state { width: 11%; }
+    .pending-bills-table .money-table__cell--bill { width: 10%; }
+    .pending-bills-table .money-table__cell--amount { width: 10%; }
+    .pending-bills-table .money-table__cell--balance { width: 9%; }
   }
 
   @container pending-bills-list (max-width: 679.98px) {

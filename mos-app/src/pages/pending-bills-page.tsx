@@ -80,7 +80,7 @@ function whoOwes(bill: PendingBillView, t: T): ReactNode {
       </span>
       {bill.financeLabel && (
         <span className="pending-bills__finance-label-line">
-          <span className="pending-bills__finance-label-name">{t('pendingBills.col.financeLabel')}:</span>
+          <span className="sr-only">{t('pendingBills.col.financeLabel')}: </span>
           <span className="pending-bills__finance-label" title={bill.financeLabel}>{bill.financeLabel}</span>
         </span>
       )}

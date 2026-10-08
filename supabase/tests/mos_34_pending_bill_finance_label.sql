@@ -1,7 +1,7 @@
 -- #1467 AC-1122: Finance labels are a MOS overlay keyed to one copied pending bill.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(46);
+select plan(47);
 
 select shared._test_seed_directory();
 
@@ -85,15 +85,17 @@ select throws_ok($$insert into mos.pending_bill_finance_labels (org_id, esb_code
   '42501', null, 'Finance cannot bypass the RPC with a direct table write');
 select is((select counterparty_note from reporting.pending_bills where bill_no = 'PB-LABEL-A'),
   'Original ESB note', 'the ESB counterparty note remains unchanged');
-select shared._test_set_access_roles(:'member_a');
-select is((select count(*)::int from mos.pending_bill_finance_labels), 0, 'a same-org non-Finance member reads no labels');
-select throws_ok($$select mos.set_pending_bill_finance_label('ESB-LABEL','BR-LABEL','PB-LABEL-A','Not Finance')$$,
-  '42501', 'Finance access is required.', 'a same-org non-Finance member cannot set a label');
-select shared._test_set_access_roles(:'finance_a');
 select throws_ok($$select mos.set_pending_bill_finance_label('ESB-LABEL','BR-LABEL','PB-LABEL-B','Wrong org')$$,
   'P0002', 'Pending bill was not found.', 'Finance cannot write a bill from another org');
 select lives_ok($$select mos.set_pending_bill_finance_label('ESB-LABEL','BR-LABEL','PB-LABEL-A','Org A label')$$,
-  'the current-org Finance user can still write a valid label');
+  'the current-org Finance user writes the row used to test read isolation');
+select shared._test_set_access_roles(:'member_a');
+select is((select count(*)::int from mos.pending_bill_finance_labels), 0, 'a same-org non-Finance member reads no labels while an Org A label exists');
+select throws_ok($$select mos.set_pending_bill_finance_label('ESB-LABEL','BR-LABEL','PB-LABEL-A','Not Finance')$$,
+  '42501', 'Finance access is required.', 'a same-org non-Finance member cannot set a label');
+select shared._test_set_access_roles(:'finance_a');
+select is((select finance_label from mos.pending_bill_finance_labels where bill_no = 'PB-LABEL-A'),
+  'Org A label', 'Finance reads the same row hidden from the same-org member');
 select shared._test_set_access_roles(:'finance_b');
 select is((select count(*)::int from mos.pending_bill_finance_labels), 0, 'Finance in another org reads no labels');
 select throws_ok($$select mos.set_pending_bill_finance_label('ESB-LABEL','BR-LABEL','PB-LABEL-A','Cross-org edit')$$,
