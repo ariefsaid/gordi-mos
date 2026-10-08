@@ -36,14 +36,14 @@ describe('pending bills table CSS', () => {
     }
     expect(rule('.pending-bills__tablet-age-cue') ?? '').toMatch(/display:\s*none/)
     expect(groupedRule(narrow, '.pending-bills__tablet-age-cue') ?? '').toMatch(/display:\s*inline-flex/)
-    for (const [column, width] of [['select', '6%'], ['branch', '10%'], ['state', '14%'], ['bill', '16%'], ['amount', '12%'], ['balance', '12%']]) {
+    for (const [column, width] of [['select', '6%'], ['branch', '8%'], ['state', '13%'], ['bill', '18%'], ['amount', '18%'], ['balance', '18%']]) {
       expect(groupedRule(narrow, `.pending-bills-table .money-table__cell--${column}`) ?? '').toMatch(new RegExp(`width:\\s*${width}`))
     }
     const narrowOwes = groupedRule(narrow, '.pending-bills-table .money-table__cell--owes') ?? ''
-    expect(Number(narrowOwes.match(/width:\s*([\d.]+)%/)?.[1] ?? 0)).toBeGreaterThanOrEqual(30)
+    expect(Number(narrowOwes.match(/width:\s*([\d.]+)%/)?.[1] ?? 0)).toBe(19)
     const wide = css.match(/@container pending-bills-list \(min-width:\s*980px\)\s*\{([\s\S]*?)\n\s{2}\}/)?.[1] ?? ''
     const wideOwes = groupedRule(wide, '.pending-bills-table .money-table__cell--owes') ?? ''
-    expect(Number(wideOwes.match(/width:\s*([\d.]+)%/)?.[1] ?? 0)).toBeGreaterThanOrEqual(25)
+    expect(Number(wideOwes.match(/width:\s*([\d.]+)%/)?.[1] ?? 0)).toBe(20)
     const compact = css.match(/@container pending-bills-list \(max-width:\s*679\.98px\)\s*\{([\s\S]*?)\n\s{2}\}/)?.[1] ?? ''
     const compactHiddenRules = [...compact.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
       .filter(([, , declarations]) => /display:\s*none/.test(declarations))
@@ -69,6 +69,26 @@ describe('pending bills table CSS', () => {
     expect(pill).toMatch(/white-space:\s*normal/)
     expect(pill).toMatch(/height:\s*auto/)
     expect(groupedRule(narrow, '.pending-bills__state-label') ?? '').toMatch(/overflow-wrap:\s*anywhere/)
+  })
+
+  it('reserves full-width money cells and a bill-number gutter at tablet and desktop widths', () => {
+    const tablet = css.match(/@container pending-bills-list \(max-width:\s*979\.98px\)\s*\{([\s\S]*?)\n\s{2}\}/)?.[1] ?? ''
+    const desktop = css.match(/@container pending-bills-list \(min-width:\s*980px\)\s*\{([\s\S]*?)\n\s{2}\}/)?.[1] ?? ''
+    for (const [rules, minColumnWidth, owesWidth] of [[tablet, 18, 19], [desktop, 13, 20]] as const) {
+      for (const moneyColumn of ['amount', 'balance']) {
+        const cell = groupedRule(rules, `.pending-bills-table .money-table__cell--${moneyColumn}`) ?? ''
+        const value = groupedRule(rules, `.pending-bills-table .money-table__cell--${moneyColumn} .money-table__cell-value`) ?? ''
+        expect(cell).toMatch(/min-width:\s*120px/)
+        expect(value).toMatch(/white-space:\s*nowrap/)
+        expect(value).toMatch(/font-variant-numeric:\s*tabular-nums/)
+        expect(Number(cell.match(/width:\s*([\d.]+)%/)?.[1] ?? 0)).toBeGreaterThanOrEqual(minColumnWidth)
+      }
+      expect(groupedRule(rules, '.pending-bills-table .money-table__cell--bill') ?? '').toMatch(/padding-right:\s*8px/)
+      const owes = groupedRule(rules, '.pending-bills-table .money-table__cell--owes') ?? ''
+      expect(Number(owes.match(/width:\s*([\d.]+)%/)?.[1] ?? 0)).toBe(owesWidth)
+    }
+    expect(groupedRule(tablet, '.pending-bills-table .money-table__cell--branch') ?? '').toMatch(/width:\s*8%/)
+    expect(groupedRule(desktop, '.pending-bills-table .money-table__cell--branch') ?? '').toMatch(/width:\s*10%/)
   })
 
   it('keeps date, age, bill number and financial figures on one line in the table', () => {

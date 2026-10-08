@@ -337,24 +337,34 @@
     }
 
     .pending-bills-table .money-table__cell--select { width: 6%; }
-    .pending-bills-table .money-table__cell--branch { width: 10%; }
-    .pending-bills-table .money-table__cell--owes { width: 30%; }
-    .pending-bills-table .money-table__cell--state { width: 14%; }
-    .pending-bills-table .money-table__cell--bill { width: 16%; }
-    .pending-bills-table .money-table__cell--amount { width: 12%; }
-    .pending-bills-table .money-table__cell--balance { width: 12%; }
+    .pending-bills-table .money-table__cell--branch { width: 8%; }
+    .pending-bills-table .money-table__cell--owes { width: 19%; }
+    .pending-bills-table .money-table__cell--state { width: 13%; }
+    .pending-bills-table .money-table__cell--bill { width: 18%; padding-right: 8px; }
+    .pending-bills-table .money-table__cell--amount { width: 18%; min-width: 120px; }
+    .pending-bills-table .money-table__cell--balance { width: 18%; min-width: 120px; }
+    .pending-bills-table .money-table__cell--amount .money-table__cell-value,
+    .pending-bills-table .money-table__cell--balance .money-table__cell-value {
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
   }
 
   @container pending-bills-list (min-width: 980px) {
     .pending-bills-table .money-table__cell--select { width: 4%; }
     .pending-bills-table .money-table__cell--date { width: 10%; }
     .pending-bills-table .money-table__cell--age { width: 7%; }
-    .pending-bills-table .money-table__cell--branch { width: 14%; }
-    .pending-bills-table .money-table__cell--owes { width: 25%; }
+    .pending-bills-table .money-table__cell--branch { width: 10%; }
+    .pending-bills-table .money-table__cell--owes { width: 20%; }
     .pending-bills-table .money-table__cell--state { width: 11%; }
-    .pending-bills-table .money-table__cell--bill { width: 10%; }
-    .pending-bills-table .money-table__cell--amount { width: 10%; }
-    .pending-bills-table .money-table__cell--balance { width: 9%; }
+    .pending-bills-table .money-table__cell--bill { width: 12%; padding-right: 8px; }
+    .pending-bills-table .money-table__cell--amount { width: 13%; min-width: 120px; }
+    .pending-bills-table .money-table__cell--balance { width: 13%; min-width: 120px; }
+    .pending-bills-table .money-table__cell--amount .money-table__cell-value,
+    .pending-bills-table .money-table__cell--balance .money-table__cell-value {
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
   }
 
   @container pending-bills-list (max-width: 679.98px) {
