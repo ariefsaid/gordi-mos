@@ -111,17 +111,17 @@
 }
 
 .cafe-items__table--editable th:nth-child(1),
-.cafe-items__table--editable td:nth-child(1) { width: 18%; }
+.cafe-items__table--editable td:nth-child(1) { width: 16%; }
 .cafe-items__table--editable th:nth-child(2),
-.cafe-items__table--editable td:nth-child(2) { width: 17%; }
+.cafe-items__table--editable td:nth-child(2) { width: 14%; }
 .cafe-items__table--editable th:nth-child(3),
-.cafe-items__table--editable td:nth-child(3) { width: 9%; }
+.cafe-items__table--editable td:nth-child(3) { width: 16%; }
 .cafe-items__table--editable th:nth-child(4),
-.cafe-items__table--editable td:nth-child(4) { width: 9%; }
+.cafe-items__table--editable td:nth-child(4) { width: 8%; }
 .cafe-items__table--editable th:nth-child(5),
-.cafe-items__table--editable td:nth-child(5) { width: 13%; }
+.cafe-items__table--editable td:nth-child(5) { width: 18%; }
 .cafe-items__table--editable th:nth-child(6),
-.cafe-items__table--editable td:nth-child(6) { width: 26%; }
+.cafe-items__table--editable td:nth-child(6) { width: 20%; }
 .cafe-items__table--editable th:nth-child(7),
 .cafe-items__table--editable td:nth-child(7) { width: 8%; }
 
@@ -178,8 +178,8 @@
 }
 
 .cafe-items__card-header .cafe-items__needs-unit-status {
-  margin: 0 0 0 8px;
-  vertical-align: middle;
+  display: table;
+  margin: 4px 0 0;
 }
 
 .cafe-items__name-editor,
