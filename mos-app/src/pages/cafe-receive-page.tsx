@@ -14,6 +14,7 @@ import {
 import { CafeReceiveLockConfirm } from '@/components/kitchen/cafe-receive-lock-confirm'
 import { CafeReceiptLineRow } from '@/components/kitchen/cafe-receipt-difference'
 import { CafeReceiptIssuesLink } from '@/components/kitchen/cafe-receipt-issues-link'
+import { CafeItemsEmptyState } from '@/components/kitchen/cafe-items-empty-state'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { useI18n } from '@/i18n/I18nProvider'
 import { useT } from '@/i18n/use-t'
@@ -766,9 +767,7 @@ export function CafeReceivePage() {
               <span className="cafe-receive__date-hint" aria-hidden="true">{formatWeekdayDayMonth(arrivalDate)}</span>
             </div>
             {items.length === 0 ? (
-              <EmptyState variant="blank" title={t('cafe.receive.empty.title')} copy={t('cafe.receive.empty.copy')}>
-                <Link to="/cafe/items" className="btn btn-outline btn-touch">{t('cafe.count.empty.action')}</Link>
-              </EmptyState>
+              <CafeItemsEmptyState stream={stream} />
             ) : (
               <>
                 <section className="cafe-receive__open-pos" aria-labelledby="cafe-receive-open-pos-title" onKeyDown={closeOpenPoListOnEscape}>

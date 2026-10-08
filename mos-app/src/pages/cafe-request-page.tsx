@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { CafeCaptureQuantityControl, CafeCaptureTable, type CafeItemQuantityEntry } from '@/components/kitchen/cafe-capture-table'
 import { CafeRequestHistory } from '@/components/kitchen/cafe-request-history'
+import { CafeItemsEmptyState } from '@/components/kitchen/cafe-items-empty-state'
 import { CafeStreamBar, CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
@@ -228,9 +229,7 @@ export function CafeRequestPage() {
               </div>
             </div>
             {items.length === 0 ? (
-              <EmptyState variant="blank" title={t('cafe.request.empty.title')} copy={t('cafe.request.empty.copy')}>
-                <Link to="/cafe/items" className="btn btn-outline btn-touch">{t('cafe.count.empty.action')}</Link>
-              </EmptyState>
+              <CafeItemsEmptyState stream={stream} />
             ) : (
               <>
                 <KitchenToolbar
