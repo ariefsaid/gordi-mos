@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { createElement, type ReactNode } from 'react'
@@ -11,16 +11,17 @@ vi.mock('@/auth/use-auth')
 vi.mock('@/lib/db/directory', () => ({ getBusinessUnits: vi.fn() }))
 vi.mock('@/lib/db/follow-ups', async () => {
   const actual = await vi.importActual<typeof import('@/lib/db/follow-ups')>('@/lib/db/follow-ups')
-  return { ...actual, listFollowUps: vi.fn(), transitionFollowUp: vi.fn() }
+  return { ...actual, listFollowUpsPage: vi.fn(), listFollowUpsWindow: vi.fn(), transitionFollowUp: vi.fn() }
 })
 
 import { useAuth } from '@/auth/use-auth'
 import { getBusinessUnits } from '@/lib/db/directory'
-import { listFollowUps, transitionFollowUp, type FollowUpRow } from '@/lib/db/follow-ups'
+import { listFollowUpsPage, listFollowUpsWindow, transitionFollowUp, type FollowUpRow } from '@/lib/db/follow-ups'
 
 const mockUseAuth = vi.mocked(useAuth)
 const mockGetBusinessUnits = vi.mocked(getBusinessUnits)
-const mockListFollowUps = vi.mocked(listFollowUps)
+const mockListFollowUpsPage = vi.mocked(listFollowUpsPage)
+const mockListFollowUpsWindow = vi.mocked(listFollowUpsWindow)
 const mockTransition = vi.mocked(transitionFollowUp)
 
 function applyViewport(isDesktop: boolean) {
@@ -45,6 +46,10 @@ const row: FollowUpRow = {
   source_invoice_ref: 'INV-1001', original_amount: 1000000, running_balance: 1000000, state: 'open',
   promise_date: null, issued_date: '2026-06-01', due_date: '2026-06-30', assigned_to: null, notes: null,
   created_at: '2026-07-01T00:00:00Z', updated_at: '2026-07-01T00:00:00Z',
+}
+
+function page(rows: FollowUpRow[], hasMore = false) {
+  return { rows, hasMore, nextCursor: hasMore ? rows.at(-1)! : null }
 }
 
 const viewer: AuthState = {
@@ -82,11 +87,12 @@ function renderRoute(initialEntry: string) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
+  vi.resetAllMocks()
   applyViewport(true)
   mockUseAuth.mockReturnValue(viewer)
   mockGetBusinessUnits.mockResolvedValue([{ id: 'bu-sales', name: 'B2B Sales', code: 'b2b_sales' }])
-  mockListFollowUps.mockResolvedValue([row])
+  mockListFollowUpsPage.mockResolvedValue(page([row]))
+  mockListFollowUpsWindow.mockResolvedValue(page([row]))
   mockTransition.mockResolvedValue(row)
 })
 
@@ -131,14 +137,14 @@ describe('FollowUpsPage', () => {
     expect(container.querySelector('.follow-ups-table-wrap')).toBeNull()
   })
 
-  it('wraps a no-space counterparty name in the 390px follow-up card', async () => {
+  it('keeps a long counterparty in the shared phone-card title', async () => {
     applyViewport(false)
     const counterparty = 'PTSupercalifragilisticexpialidociousCounterpartyWithoutSpaces'
-    mockListFollowUps.mockResolvedValueOnce([{ ...row, counterparty }])
+    mockListFollowUpsPage.mockResolvedValueOnce(page([{ ...row, counterparty }]))
     const { container } = render(createElement(FollowUpsPage), { wrapper })
 
     const name = await screen.findByText(counterparty)
-    expect(name).toHaveClass('follow-ups-counterparty')
+    expect(name).not.toHaveClass('follow-ups-counterparty')
     expect(container.querySelector('.dt-card-title')).toContainElement(name)
   })
 
@@ -149,7 +155,7 @@ describe('FollowUpsPage', () => {
       counterparty: `Buyer ${index}`,
       due_date: '2000-01-01',
     }))
-    mockListFollowUps.mockResolvedValueOnce(overdueRows)
+    mockListFollowUpsPage.mockResolvedValueOnce(page(overdueRows, true))
     renderRoute('/money/follow-ups?filter=overdue')
 
     await screen.findByText('Buyer 0')
@@ -186,44 +192,73 @@ describe('FollowUpsPage', () => {
   })
 
   it('AC-513: hides confirm from a non-finance chaser', async () => {
-    mockListFollowUps.mockResolvedValue([{ ...row, state: 'settled', running_balance: 0 }])
+    mockListFollowUpsPage.mockResolvedValue(page([{ ...row, state: 'settled', running_balance: 0 }]))
     render(createElement(FollowUpsPage), { wrapper })
     await waitFor(() => expect(screen.getByText('settled')).toBeInTheDocument())
     expect(screen.queryByRole('button', { name: 'Confirm' })).toBeNull()
   })
 
+  it('hides Load more when the follow-up total is exactly one page', async () => {
+    mockListFollowUpsPage.mockResolvedValueOnce(page(Array.from({ length: 50 }, (_, index) => ({ ...row, id: `fu-${index}`, counterparty: `Buyer ${index}` }))))
+    render(createElement(FollowUpsPage), { wrapper })
+    await screen.findByText('Buyer 0')
+    expect(screen.queryByRole('button', { name: /Load more/ })).toBeNull()
+  })
+
   it('loads the next keyset page from an accessible button and preserves rows when that read fails', async () => {
     const firstPage = Array.from({ length: 50 }, (_, index) => ({ ...row, id: `fu-${index + 1}`, counterparty: `Buyer ${index + 1}` }))
-    mockListFollowUps.mockResolvedValueOnce(firstPage)
-    mockListFollowUps.mockRejectedValueOnce(new Error('network down'))
-    mockListFollowUps.mockResolvedValueOnce([{ ...row, id: 'fu-51', counterparty: 'Buyer 51' }])
+    mockListFollowUpsPage.mockResolvedValueOnce(page(firstPage, true))
+    mockListFollowUpsPage.mockRejectedValueOnce(new Error('network down'))
+    mockListFollowUpsPage.mockResolvedValueOnce(page([{ ...row, id: 'fu-51', counterparty: 'Buyer 51' }]))
     const user = userEvent.setup()
     render(createElement(FollowUpsPage), { wrapper })
 
     expect(await screen.findByText('Buyer 1')).toBeInTheDocument()
-    const more = screen.getByRole('button', { name: 'Load more' })
+    const more = screen.getByRole('button', { name: /Load more/ })
     await user.click(more)
     expect(await screen.findByRole('alert')).toHaveTextContent('Couldn’t load more')
     expect(screen.getByText('Buyer 1')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Try again' }))
     expect(await screen.findByText('Buyer 51')).toBeInTheDocument()
-    expect(mockListFollowUps.mock.calls[1][0]).toMatchObject({ before: firstPage.at(-1) })
+    expect(mockListFollowUpsPage.mock.calls[1][0]).toMatchObject({ before: firstPage.at(-1) })
+  })
+
+  it('keeps a second-page row visible after a lifecycle action reloads the queue', async () => {
+    const firstPage = Array.from({ length: 50 }, (_, index) => ({ ...row, id: `fu-${index + 1}`, counterparty: `Buyer ${index + 1}` }))
+    const laterRow = { ...row, id: 'fu-51', counterparty: 'Buyer 51' }
+    mockListFollowUpsPage
+      .mockResolvedValueOnce(page(firstPage, true))
+      .mockResolvedValueOnce(page([laterRow]))
+    mockListFollowUpsWindow.mockResolvedValueOnce(page([...firstPage, laterRow]))
+    const user = userEvent.setup()
+    render(createElement(FollowUpsPage), { wrapper })
+
+    await screen.findByText('Buyer 1')
+    await user.click(screen.getByRole('button', { name: /Load more/ }))
+    const later = await screen.findByRole('row', { name: /Buyer 51/ })
+    await user.click(within(later).getByRole('button', { name: 'Settle' }))
+    await user.type(screen.getByLabelText('Cash-in date'), '02/07/2026')
+    await user.type(screen.getByLabelText('Evidence'), 'TRF-51')
+    await user.click(screen.getByRole('button', { name: 'Submit' }))
+
+    await waitFor(() => expect(mockTransition).toHaveBeenCalledWith('fu-51', 'settle', expect.objectContaining({ amount: row.running_balance, evidence: 'TRF-51' })))
+    expect(await screen.findByText('Buyer 51')).toBeInTheDocument()
   })
 
   it('uses shared state-kit for loading, empty, and error states', async () => {
-    mockListFollowUps.mockReturnValueOnce(new Promise(() => {}))
+    mockListFollowUpsPage.mockReturnValueOnce(new Promise(() => {}))
     const loading = render(createElement(FollowUpsPage), { wrapper })
     expect(loading.container.querySelector('.skeleton-rows')).toBeTruthy()
     expect(screen.getByTestId('page-head')).not.toHaveTextContent('Overdue:')
     loading.unmount()
 
-    mockListFollowUps.mockResolvedValueOnce([])
+    mockListFollowUpsPage.mockResolvedValueOnce(page([]))
     const empty = render(createElement(FollowUpsPage), { wrapper })
     await waitFor(() => expect(screen.getByText('No follow-ups in your lane')).toBeInTheDocument())
     expect(empty.container.querySelector('.empty-state')).toBeTruthy()
     empty.unmount()
 
-    mockListFollowUps.mockRejectedValueOnce(new Error('network down'))
+    mockListFollowUpsPage.mockRejectedValueOnce(new Error('network down'))
     const errorView = render(createElement(FollowUpsPage), { wrapper })
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent("Couldn't load follow-ups"))
     expect(screen.getByTestId('page-head')).not.toHaveTextContent('Overdue:')
