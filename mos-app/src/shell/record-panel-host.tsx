@@ -109,8 +109,9 @@ export function RecordPanelHost({
   useEscapeLayer(true, panelRef, () => onClose('escape'), {
     deferEscape: (event) => {
       const target = event.target
-      return target instanceof Element
-        && !!panelRef.current?.contains(target)
+      if (!(target instanceof Element)) return false
+      if (target.closest('[data-focus-trap-target="toast-dismiss"]')) return true
+      return !!panelRef.current?.contains(target)
         && !!target.closest('.record-field[data-mode="edit"]')
     },
   }, companion ? 'companion' : 'primary')

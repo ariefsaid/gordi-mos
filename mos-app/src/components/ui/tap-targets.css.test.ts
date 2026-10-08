@@ -17,6 +17,7 @@ const iconButtonCss = readFileSync(resolve(process.cwd(), 'src/components/ui/Ico
 const commandMenuCss = readFileSync(resolve(process.cwd(), 'src/components/command/command-menu.css'), 'utf8')
 const signalComposerCss = readFileSync(resolve(process.cwd(), 'src/components/signals/signal-composer.css'), 'utf8')
 const tasksWorkspaceCss = readFileSync(resolve(process.cwd(), 'src/components/tasks/TasksWorkspace.css'), 'utf8')
+const toastTsx = readFileSync(resolve(process.cwd(), 'src/components/admin/toast.tsx'), 'utf8')
 const mentionPickerCss = readFileSync(resolve(process.cwd(), 'src/components/signals/signal-mention-picker.css'), 'utf8')
 const helpTipCss = readFileSync(resolve(process.cwd(), 'src/components/ui/help-tip.css'), 'utf8')
 const helpTipTsx = readFileSync(resolve(process.cwd(), 'src/components/ui/help-tip.tsx'), 'utf8')
@@ -89,6 +90,16 @@ describe('B-i: phone tap-target floor is encoded in shared CSS', () => {
     expect(body).toMatch(/\.tap-target-phone--icon[\s\S]*min-height:\s*44px/)
     expect(body).toMatch(/\.tap-floor[\s\S]*min-width:\s*44px/)
     expect(body).toMatch(/\.tap-floor[\s\S]*min-height:\s*44px/)
+  })
+
+  it('keeps the Toast dismiss icon compact while its target is ≥24px desktop and ≥44px phone', () => {
+    expect(toastTsx).toMatch(/className="toast-dismiss[^"]*"/)
+    expect(toastTsx).toMatch(/data-touch-target="true"/)
+    const desktopRule = buttonCss.match(/\.toast-dismiss\s*\{([^}]+)\}/)?.[1]
+    expect(desktopRule).toMatch(/min-width:\s*24px/)
+    expect(desktopRule).toMatch(/min-height:\s*24px/)
+    const phone = mediaBody(buttonCss, '@media (max-width: 767.98px)')
+    expect(phone).toMatch(/\[data-touch-target='true'\]\.toast-dismiss\s*\{[^}]*min-width:\s*44px;[^}]*min-height:\s*44px/)
   })
 
   // M41: Money's targets keep the 44px floor through the tablet band, up to where the rail appears.

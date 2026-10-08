@@ -13,6 +13,16 @@
   transition: background-color var(--dur-fast) ease, transform var(--dur-fast) ease;
 }
 .btn:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+/* Keep the Toast glyph compact inside an icon-only target with an explicit floor. */
+.toast-dismiss {
+  display: inline-grid;
+  min-width: 24px;
+  min-height: 24px;
+  padding: 0;
+  place-items: center;
+  box-sizing: border-box;
+}
+
 /* Pressed feedback — every variant (impeccable all-states; taste Rule 5). */
 .btn:active:not(:disabled):not([aria-disabled="true"]) { transform: translateY(1px); }
 .btn:disabled,
@@ -95,6 +105,11 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  [data-touch-target='true'].toast-dismiss {
     min-width: 44px;
     min-height: 44px;
   }
