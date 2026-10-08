@@ -235,7 +235,7 @@ export function CafeCountPage() {
               {submitError && <p className="cafe-count__notice" role="alert">{t('cafe.count.submitFailed')}</p>}
             </div>
             {items.length === 0 ? (
-              <CafeItemsEmptyState stream={stream} />
+              <CafeItemsEmptyState stream={stream} requiresStockUnit />
             ) : (
               <>
                 <CafeCaptureTable
