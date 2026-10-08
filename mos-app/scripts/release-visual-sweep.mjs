@@ -4,6 +4,8 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { chromium } from '@playwright/test'
 
+import globalSetup from '../e2e/global-setup.ts'
+import globalTeardown from '../e2e/global-teardown.ts'
 import { ADMIN, BARISTA, BAR_MEMBER, BAR_SUPERVISOR, MANAGER, VIEWER } from '../e2e/fixtures/users.ts'
 import { DESIGN_QUALITY_MANIFEST } from '../e2e/design-quality/manifest.ts'
 import { collectControls, collectGeometry, collectVisibleContent } from '../e2e/design-quality/measurements.ts'
@@ -146,8 +148,11 @@ async function main() {
   await mkdir(path.join(outputDir, 'screenshots'), { recursive: true })
   const run = auditRun(args, outputDir, baseURL)
   let browser
+  let setupComplete = false
   let failed = true
   try {
+    await globalSetup()
+    setupComplete = true
     browser = await chromium.launch({ headless: true })
     const rows = []
     for (const route of scope.routes) {
@@ -168,7 +173,11 @@ async function main() {
     failed = false
   } finally {
     if (browser) await browser.close()
-    await cleanupAuditFixtures(run, failed)
+    try {
+      await cleanupAuditFixtures(run, failed)
+    } finally {
+      if (setupComplete) await globalTeardown()
+    }
   }
 }
 

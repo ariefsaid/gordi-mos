@@ -10,8 +10,29 @@ fi
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 fixture="$tmp/fixture"
-mkdir -p "$fixture/mos-app/src/pages" "$fixture/mos-app/scripts" "$fixture/docs" "$tmp/bin"
+mkdir -p "$fixture/mos-app/src/pages" "$fixture/mos-app/scripts" "$fixture/docs" "$fixture/scripts" "$tmp/bin"
 : > "$fixture/mos-app/scripts/release-visual-sweep.mjs"
+cat > "$fixture/scripts/with-db-lock.sh" <<'LOCK'
+#!/usr/bin/env bash
+set -euo pipefail
+export MOS_DB_LOCK_HELD=1
+exec "$@"
+LOCK
+chmod +x "$fixture/scripts/with-db-lock.sh"
+
+runner_source="$repo_root/mos-app/scripts/release-visual-sweep.mjs"
+grep -Fq "import globalSetup from '../e2e/global-setup.ts'" "$runner_source" || {
+  echo 'FAIL: sweep does not reuse Playwright global setup' >&2; exit 1;
+}
+grep -Fq 'await globalSetup()' "$runner_source" || {
+  echo 'FAIL: sweep does not provision Playwright personas before measuring' >&2; exit 1;
+}
+grep -Fq "import globalTeardown from '../e2e/global-teardown.ts'" "$runner_source" || {
+  echo 'FAIL: sweep does not reuse Playwright global teardown' >&2; exit 1;
+}
+grep -Fq 'with-db-lock.sh' "$script" || {
+  echo 'FAIL: sweep does not hold the shared database lock' >&2; exit 1;
+}
 cd "$fixture"
 git init -q
 git config user.email test@example.invalid
@@ -51,6 +72,7 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 [ -n "$runner" ] && [ -n "$scope" ] && [ -n "$out" ] && [ -n "$head" ]
+[ "${MOS_DB_LOCK_HELD:-}" = 1 ] || { echo 'runner started without the shared DB lock' >&2; exit 1; }
 python3 - "$scope" "$out" "$head" "$TEST_SCOPE_CAPTURE" <<'PY'
 import json, pathlib, sys
 scope_path, output_dir, head, capture = sys.argv[1:]

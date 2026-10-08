@@ -288,7 +288,7 @@ runner_args=(--base-url "$base_url" --head "$head_sha" --scope "$scratch/scope.j
 [ "$mode" = diff ] && runner_args+=(--base "$base_sha")
 (
   cd "$root/mos-app"
-  node "$root/mos-app/node_modules/vite-node/vite-node.mjs" "$runner" "${runner_args[@]}"
+  "$root/scripts/with-db-lock.sh" node "$root/mos-app/node_modules/vite-node/vite-node.mjs" "$runner" "${runner_args[@]}"
 ) || fail 'render sweep failed; no review packet was published'
 
 python3 - "$scratch/evidence/sweep-results.json" "$scratch/scope.json" "$scratch/evidence" "$scratch/summary.md" <<'PY'
