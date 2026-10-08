@@ -11,12 +11,13 @@
 # Its directory defaults to ~/backups/gordi-mos-staging/ and can be overridden with
 # STAGING_PREDEPLOY_DUMP_DIR.
 #
-# The connection string and function CLI token are read from the host's secret store at run time and
-# live only in this process: neither is printed, written or put in the PR. Their locations are read
-# from the gitignored supabase/op.staging.env (template: supabase/op.staging.env.example).
+# The connection string, function CLI token and function secrets are read from the secret store; values
+# are never printed, written to disk or put in the PR. Locations are read from gitignored
+# supabase/op.staging.env (template: supabase/op.staging.env.example).
 # Deploys origin/main only (refuses from any other checkout state).
 # Never runs `supabase config push` or touches trusted agent clients. Only changed allowlisted app
 # functions deploy after migrations succeed, with a handler-auth and CORS smoke check.
+# Secrets for changed functions are set before they deploy.
 # Self-test: scripts/deploy-staging.test.sh
 { set +x; } 2>/dev/null   # a traced run must not echo the connection string
 set -euo pipefail
@@ -62,6 +63,7 @@ fi
 [ -n "$envfile" ] && [ -f "$envfile" ] || die "supabase/op.staging.env not found — copy supabase/op.staging.env.example and fill it in"
 OP_ITEM="" OP_VAULT="" OP_FIELD=""
 FUNCTIONS_OP_ITEM="" FUNCTIONS_OP_VAULT="" FUNCTIONS_OP_FIELD=""
+FUNCTION_SECRET_NAMES=() FUNCTION_SECRET_LOCATIONS=()
 while IFS='=' read -r k v || [ -n "$k" ]; do
   v="${v%\"}"; v="${v#\"}"; v="${v%\'}"; v="${v#\'}"
   case "$k" in
@@ -71,6 +73,7 @@ while IFS='=' read -r k v || [ -n "$k" ]; do
     STAGING_FUNCTIONS_OP_ITEM) FUNCTIONS_OP_ITEM="$v" ;;
     STAGING_FUNCTIONS_OP_VAULT) FUNCTIONS_OP_VAULT="$v" ;;
     STAGING_FUNCTIONS_OP_FIELD) FUNCTIONS_OP_FIELD="$v" ;;
+    STAGING_FN_SECRET_*) FUNCTION_SECRET_NAMES+=("${k#STAGING_FN_SECRET_}"); FUNCTION_SECRET_LOCATIONS+=("$v") ;;
   esac
 done < "$envfile"
 [ -n "$OP_ITEM" ] && [ -n "$OP_VAULT" ] && [ -n "$OP_FIELD" ] || die "op.staging.env must set STAGING_OP_ITEM, STAGING_OP_VAULT and STAGING_OP_FIELD"
@@ -120,6 +123,29 @@ while IFS= read -r n; do
 done <<< "$changed"
 [ "${#held_functions[@]}" -eq 0 ] || say "WARNING: changed edge functions held (not deployed): ${held_functions[*]}"
 [ "${#agent_held[@]}" -eq 0 ] || say "  ${agent_held[*]} remain held until agent switch-on."
+
+function_secret_names=()
+if [ "${#functions_to_deploy[@]}" -gt 0 ]; then
+  for fn in "${functions_to_deploy[@]}"; do
+    for scan_dir in "$ROOT/supabase/functions/$fn" "$ROOT/supabase/functions/_shared"; do
+      [ -d "$scan_dir" ] || die "could not inspect function source for $fn"
+      while IFS= read -r env_name; do
+        [ -n "$env_name" ] || continue
+        case "$env_name" in SUPABASE_*) continue ;; esac
+        duplicate=0
+        for existing_name in "${function_secret_names[@]+"${function_secret_names[@]}"}"; do
+          [ "$existing_name" != "$env_name" ] || { duplicate=1; break; }
+        done
+        [ "$duplicate" = 1 ] || function_secret_names+=("$env_name")
+      done < <(
+        {
+          grep -REoh "Deno[.]env[.]get[[:space:]]*[(][[:space:]]*'[^']*'[[:space:]]*[)]" "$scan_dir" 2>/dev/null | sed -E "s/.*[(][[:space:]]*'([^']*)'[[:space:]]*[)].*/\\1/"
+          grep -REoh 'Deno[.]env[.]get[[:space:]]*[(][[:space:]]*"[^"]*"[[:space:]]*[)]' "$scan_dir" 2>/dev/null | sed -E 's/.*[(][[:space:]]*"([^"]*)"[[:space:]]*[)].*/\1/'
+        }
+      )
+    done
+  done
+fi
 
 # Validate every function-deploy input before any migration can be pushed.
 PROJECT_REF="" edge_host="" edge_base=""
@@ -171,7 +197,13 @@ SQL
   say "Probe ok, rolled back."
 fi
 
-if [ "$DRY" = 1 ]; then say "Dry run: stopping before backup and push."; exit 0; fi
+if [ "$DRY" = 1 ]; then
+  if [ "${#function_secret_names[@]}" -gt 0 ]; then
+    say "Dry run: function secrets that may need setting: ${function_secret_names[*]}"
+  fi
+  say "Dry run: stopping before backup and push."
+  exit 0
+fi
 
 # ── 5. Confirm, take and verify the recovery backup, then push migrations.
 if [ "${#pending[@]}" -gt 0 ] || [ "${#functions_to_deploy[@]}" -gt 0 ]; then
@@ -210,13 +242,83 @@ so="$(sqlq "select count(*) filter (where is_sample) || '/' || count(*) filter (
 say "verify: max version $remote (newest local $newest) · db_pre_request $pre · trusted clients $tc · sample orgs $so"
 [ "$bad" = 0 ] || die "verification failed — staging is NOT in the expected state"
 
-# ── 7. Deploy changed app-facing functions after the database is verified, then smoke-check the handler.
+# ── 7. Set changed functions' secrets before deployment, then smoke-check the handler.
+find_function_secret_location() {
+  local wanted="$1" i
+  for ((i=0; i<${#FUNCTION_SECRET_NAMES[@]}; i++)); do
+    if [ "${FUNCTION_SECRET_NAMES[$i]}" = "$wanted" ]; then
+      printf '%s' "${FUNCTION_SECRET_LOCATIONS[$i]}"
+      return 0
+    fi
+  done
+  return 1
+}
+
+set_function_secrets() {
+  local i trace_was_on=0 rc
+  case "$-" in *x*) trace_was_on=1; set +x ;; esac
+  if SUPABASE_ACCESS_TOKEN="$EDGE_ACCESS_TOKEN" supabase --workdir "$ROOT" secrets set \
+    --env-file <(for ((i=0; i<${#missing_function_secret_names[@]}; i++)); do
+      printf '%s=%s\n' "${missing_function_secret_names[$i]}" "${missing_function_secret_values[$i]}"
+    done) --project-ref "$PROJECT_REF" >/dev/null 2>/dev/null </dev/null; then
+    rc=0
+  else
+    rc=$?
+  fi
+  [ "$trace_was_on" = 0 ] || set -x
+  return "$rc"
+}
+
 if [ "${#functions_to_deploy[@]}" -gt 0 ]; then
   unset EDGE_ACCESS_TOKEN
   EDGE_ACCESS_TOKEN="$(op-get.sh "$FUNCTIONS_OP_ITEM" "$FUNCTIONS_OP_VAULT" "$FUNCTIONS_OP_FIELD" 2>/dev/null </dev/null)" || \
     die "op-get.sh could not read the staging Supabase access token"
   [ -n "$EDGE_ACCESS_TOKEN" ] || die "the staging Supabase access token is empty"
   SECRETS+=("$EDGE_ACCESS_TOKEN")
+
+  secrets_json="$(SUPABASE_ACCESS_TOKEN="$EDGE_ACCESS_TOKEN" supabase --workdir "$ROOT" secrets list --project-ref "$PROJECT_REF" -o json 2>"$errf" </dev/null)" || \
+    die "could not list staging function secret names"
+  case "$secrets_json" in \[*\]) ;; *) die "could not read staging function secret names" ;; esac
+  staging_function_secret_names=()
+  while IFS= read -r name; do
+    [ -n "$name" ] && staging_function_secret_names+=("$name")
+  done < <(printf '%s\n' "$secrets_json" | grep -Eo '"name"[[:space:]]*:[[:space:]]*"[^"]+"' | sed -E 's/.*"([^"]+)"$/\1/')
+
+  missing_function_secret_names=() missing_function_secret_items=() missing_function_secret_vaults=() missing_function_secret_fields=()
+  for name in "${function_secret_names[@]+"${function_secret_names[@]}"}"; do
+    already_set=0
+    for staged_name in "${staging_function_secret_names[@]+"${staging_function_secret_names[@]}"}"; do
+      [ "$staged_name" != "$name" ] || { already_set=1; break; }
+    done
+    [ "$already_set" = 1 ] && continue
+
+    mapping_key="STAGING_FN_SECRET_${name}"
+    location="$(find_function_secret_location "$name")" || die "missing mapping for $name; add $mapping_key to supabase/op.staging.env"
+    IFS='|' read -r item vault field extra <<< "$location"
+    [ -n "$item" ] && [ -n "$vault" ] && [ -n "$field" ] && [ -z "${extra:-}" ] || \
+      die "missing mapping for $name; add $mapping_key to supabase/op.staging.env"
+    missing_function_secret_names+=("$name")
+    missing_function_secret_items+=("$item")
+    missing_function_secret_vaults+=("$vault")
+    missing_function_secret_fields+=("$field")
+  done
+
+  missing_function_secret_values=()
+  for ((i=0; i<${#missing_function_secret_names[@]}; i++)); do
+    name="${missing_function_secret_names[$i]}"
+    value="$(op-get.sh "${missing_function_secret_items[$i]}" "${missing_function_secret_vaults[$i]}" "${missing_function_secret_fields[$i]}" 2>/dev/null </dev/null)" || \
+      die "op-get.sh could not read the staging function secret $name"
+    [ -n "$value" ] || die "the staging function secret $name is empty"
+    missing_function_secret_values+=("$value")
+  done
+
+  if [ "${#missing_function_secret_names[@]}" -gt 0 ]; then
+    set_function_secrets || die "supabase secrets set failed"
+    say "function secrets set: ${missing_function_secret_names[*]}"
+  else
+    say "function secrets: none missing"
+  fi
+  unset missing_function_secret_values value
 
   for fn in "${functions_to_deploy[@]}"; do
     set +e

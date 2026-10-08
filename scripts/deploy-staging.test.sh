@@ -15,6 +15,7 @@ SECRET_HOST='db.abcdefghijklmnopqrst.supabase.co'
 SECRET_PROJECT_REF='abcdefghijklmnopqrst'
 SECRET_URL="postgresql://deployer:${SECRET_PW}@${SECRET_HOST}:5432/postgres"
 FAKE_ACCESS_TOKEN='test-only-access-token'; export FAKE_ACCESS_TOKEN
+FAKE_FUNCTION_SECRET_VALUE='test-only-function-secret-value'; export FAKE_FUNCTION_SECRET_VALUE
 ROOT_REPO="$(pwd -P)"; calls="$tmp/calls"; ARGVLOG="$tmp/argv"; : > "$ARGVLOG"; allout="$tmp/allout"; : > "$allout"
 REAL_GREP="$(command -v grep)"; export REAL_GREP
 mkdir -p "$tmp/bin" "$tmp/mig"
@@ -24,6 +25,7 @@ cat > "$tmp/bin/op-get.sh" <<'EOF'
 printf 'op-get %s\n' "$*" >> "$CALLS"
 [ "${FAKE_OP_FAIL:-}" = 1 ] && { echo "not signed in" >&2; exit 1; }
 case "$*" in
+  *fake-function-item*APP_ALLOWED_ORIGINS*) printf '%s\n' "$FAKE_FUNCTION_SECRET_VALUE" ;;
   *fake-function-item*) printf '%s\n' "$FAKE_ACCESS_TOKEN" ;;
   *) printf '%s\n' "$FAKE_URL" ;;
 esac
@@ -35,7 +37,36 @@ else printf 'argv supabase-safe\n' >> "$ARGVLOG"; fi
 # The token on argv is logged verbatim, so the "never reached argv log" checks can fail.
 if [ -n "${FAKE_ACCESS_TOKEN:-}" ] && [[ "$*" == *"$FAKE_ACCESS_TOKEN"* ]]; then printf 'argv supabase-token %s\n' "$FAKE_ACCESS_TOKEN" >> "$ARGVLOG"; fi
 if [ -n "${PGPASSWORD:-}" ]; then printf 'pgpw-set\n' >> "$ARGVLOG"; else printf 'pgpw-empty\n' >> "$ARGVLOG"; fi
+if [ -n "${FAKE_FUNCTION_SECRET_VALUE:-}" ] && [[ "$*" == *"$FAKE_FUNCTION_SECRET_VALUE"* ]]; then printf 'argv function-secret\n' >> "$ARGVLOG"; fi
 case "$*" in
+  *"secrets list"*)
+    printf 'supabase secrets-list\n' >> "$CALLS"
+    [ "${SUPABASE_ACCESS_TOKEN:-}" = "${FAKE_ACCESS_TOKEN:-}" ] && printf 'supabase secrets-list-token-env-ok\n' >> "$CALLS"
+    printf '['
+    sep=""
+    for name in APP_ALLOWED_ORIGINS AGENT_MODEL_API_KEY AGENT_MODEL_BASE_URL AGENT_MODEL_DEFAULT AGENT_PERSISTENCE VAPID_PRIVATE_KEY VAPID_PUBLIC_KEY; do
+      [ "$name" != "${FAKE_STAGING_MISSING_SECRET:-}" ] || continue
+      printf '%s{"name":"%s"}' "$sep" "$name"
+      sep=,
+    done
+    printf ']\n'
+    ;;
+  *"secrets set"*)
+    printf 'supabase secrets-set\n' >> "$CALLS"
+    env_file=""; prev=""
+    for arg in "$@"; do
+      [ "$prev" != --env-file ] || env_file="$arg"
+      prev="$arg"
+    done
+    [ -n "$env_file" ] || exit 2
+    while IFS= read -r line; do
+      printf 'supabase secrets-set-name %s\n' "${line%%=*}" >> "$CALLS"
+      [ "${line#*=}" != "${FAKE_FUNCTION_SECRET_VALUE:-}" ] || printf 'supabase secrets-set-value-ok\n' >> "$CALLS"
+    done < "$env_file"
+    printf '%s\n' "$FAKE_FUNCTION_SECRET_VALUE"
+    printf '%s\n' "$FAKE_FUNCTION_SECRET_VALUE" >&2
+    exit "${FAKE_SECRETS_SET_RC:-0}"
+    ;;
   *--dry-run*) printf 'supabase dry-run\n' >> "$CALLS"
     echo "Connecting to $FAKE_URL"
     if [ "${FAKE_DRY_RC:-0}" != 0 ]; then echo "failed to connect to host=$FAKE_HOST user=deployer" >&2; exit "$FAKE_DRY_RC"; fi
@@ -156,6 +187,9 @@ ops_test_install_db_dump_shims "$tmp/bin"
 printf 'create table t();\n' > "$tmp/mig/20260101000001_plain.sql"
 printf "alter role authenticator set pgrst.db_pre_request = 'api_private.check_request';\n" > "$tmp/mig/20260101000002_gate.sql"
 printf 'STAGING_OP_ITEM=fake-item\nSTAGING_OP_VAULT=fake-vault\nSTAGING_OP_FIELD=FAKE\nSTAGING_FUNCTIONS_OP_ITEM=fake-function-item\nSTAGING_FUNCTIONS_OP_VAULT=fake-function-vault\nSTAGING_FUNCTIONS_OP_FIELD=FAKE_TOKEN\n' > "$tmp/op.env"
+printf 'STAGING_FN_SECRET_APP_ALLOWED_ORIGINS=%s|%s|APP_ALLOWED_ORIGINS\n' \
+  "$(grep '^STAGING_FUNCTIONS_OP_ITEM=' "$tmp/op.env" | cut -d= -f2-)" \
+  "$(grep '^STAGING_FUNCTIONS_OP_VAULT=' "$tmp/op.env" | cut -d= -f2-)" >> "$tmp/op.env"
 printf 'STAGING_OP_ITEM=fake-item\nSTAGING_OP_VAULT=fake-vault\nSTAGING_OP_FIELD=FAKE\n' > "$tmp/op-no-functions.env"
 
 # run NAME EXPECT_RC STDIN [ENV=val ...] -- args   (sets $out; asserts rc)
@@ -280,6 +314,35 @@ has "the shape failure is named" "flagged/sample-shaped: '1/0'"
 expect_not "no PR when the flagged org is not sample-shaped" "gh-post"
 run "two flagged orgs fail" 1 "" FAKE_SAMPLE_ORGS=2/2 -- --yes --no-pr
 has "the count failure is named" "flagged/sample-shaped: '2/2'"
+
+echo "edge function secrets"
+run "a missing function secret is set once before deploy" 0 "" FAKE_STAGING_MISSING_SECRET=APP_ALLOWED_ORIGINS FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --yes --no-pr
+expect "staging function secrets listed with the deploy token" "supabase secrets-list-token-env-ok"
+expect "missing function secret is set" "supabase secrets-set-name APP_ALLOWED_ORIGINS"
+expect "secret value reaches the set env-file" "supabase secrets-set-value-ok"
+if [ "$(grep -c '^supabase secrets-set$' "$calls")" = 1 ]; then ok "all missing function secrets use one set call"; else bad "expected one function secrets set call"; fi
+if before "supabase secrets-set-name APP_ALLOWED_ORIGINS" "supabase functions-deploy agent-chat"; then ok "function secret is set before deploy"; else bad "function secret is not set before deploy"; fi
+has "secret summary names the set key" "function secrets set: APP_ALLOWED_ORIGINS"
+hasnt "function secret value never reaches stdout or stderr" "$FAKE_FUNCTION_SECRET_VALUE"
+if grep -qE '^(argv function-secret|.*test-only-function-secret-value)' "$ARGVLOG"; then bad "function secret value reached argv log"; else ok "function secret value never reaches argv log"; fi
+run "already-present function secrets are not reset" 0 "" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --yes --no-pr
+expect_not "no set call when all required function secrets already exist" "supabase secrets-set"
+has "already-present secret summary is clear" "function secrets: none missing"
+run "missing secret mapping stops before deploy" 1 "" FAKE_STAGING_MISSING_SECRET=AGENT_MODEL_API_KEY FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --yes --no-pr
+has "missing mapping names the secret and key to add" "STAGING_FN_SECRET_AGENT_MODEL_API_KEY"
+expect_not "no function deploy after missing mapping" "supabase functions-deploy agent-chat"
+run "failed secrets set stops before function deploy" 1 "" FAKE_STAGING_MISSING_SECRET=APP_ALLOWED_ORIGINS FAKE_SECRETS_SET_RC=1 FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --yes --no-pr
+hasnt "failed secret set does not print the value" "$FAKE_FUNCTION_SECRET_VALUE"
+expect "failed secret set was attempted" "supabase secrets-set"
+expect_not "no function deploy after failed secrets set" "supabase functions-deploy agent-chat"
+run "platform SUPABASE names are ignored" 0 "" FAKE_STAGING_MISSING_SECRET=SUPABASE_URL FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --yes --no-pr
+expect_not "platform-provided secrets are never set" "supabase secrets-set"
+has "ignored platform secret reports no missing app secrets" "function secrets: none missing"
+run "dry-run lists candidate function secrets without reading their values" 0 "" FAKE_STAGING_MISSING_SECRET=APP_ALLOWED_ORIGINS FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --dry-run
+has "dry-run lists required function secret names" "APP_ALLOWED_ORIGINS"
+expect_not "dry-run does not read function secret values" "op-get fake-function-item"
+expect_not "dry-run does not list or set function secrets" "supabase secrets-list"
+expect_not "dry-run never deploys a function" "supabase functions-deploy"
 
 echo "edge functions"
 run "changed agent-chat deploys and passes smoke checks" 0 "sentinel-for-function-cli\n" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\nsupabase/functions/compose-view/index.ts\nsupabase/functions/mcp/index.ts\nsupabase/functions/_shared/cors.ts\n' -- --yes --no-pr
