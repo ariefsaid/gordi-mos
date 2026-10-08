@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { ViewTabs } from '@/components/ui/view-tabs'
 import { Select } from '@/components/ui/select'
+import { ViewOptionsDisclosure } from '@/shell/view-options-disclosure'
 import { CollectionToolbarSearchField } from '@/components/record-collection/collection-toolbar'
 import { EmptyState, LoadingShell } from '@/components/ui/state-kit'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -151,6 +152,7 @@ export function PendingBillsPage() {
   const [activeView, setActiveView] = useState<PendingBillViewMode>('open')
   const [branchFilter, setBranchFilter] = useState('')
   const [ageBucket, setAgeBucket] = useState<PendingBillAgeBucket>('all')
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [search, setSearch] = useState('')
   const listScrollRef = useRef<HTMLDivElement | null>(null)
   const [historyState, setHistoryState] = useState<{ status: 'idle' | 'loading' | 'ready' | 'error'; entries: PendingBillPaymentHistoryEntry[] }>({ status: 'idle', entries: [] })
@@ -347,6 +349,9 @@ export function PendingBillsPage() {
   }
 
   const summary = summarizePendingBills(summaryBills, payments, today)
+  const summaryMessageKey = isDesktop
+    ? summary.openCount === 1 ? 'pendingBills.summary.one' : 'pendingBills.summary.other'
+    : summary.openCount === 1 ? 'pendingBills.summary.compact.one' : 'pendingBills.summary.compact.other'
   const branchOptions = [...new Map(bills.map((bill) => [bill.branchCode, {
     code: bill.branchCode,
     label: bill.branchName ?? bill.branchCode,
@@ -357,6 +362,44 @@ export function PendingBillsPage() {
     { bucket: '31-90', label: t('pendingBills.ageFilter.31-90') },
     { bucket: '90+', label: t('pendingBills.ageFilter.90+') },
   ]
+  const activeFilterCount = Number(Boolean(branchFilter)) + Number(ageBucket !== 'all')
+  const branchFilterControl = (
+    <Select
+      className="pending-bills-branch-filter"
+      label={t('pendingBills.branchFilter.label')}
+      aria-label={t('pendingBills.branchFilter.label')}
+      value={branchFilter}
+      onChange={(event) => setBranchFilter(event.target.value)}
+      fullWidth
+    >
+      <option value="">{t('pendingBills.branchFilter.all')}</option>
+      {branchOptions.map((branchOption) => (
+        <option key={branchOption.code} value={branchOption.code}>{branchOption.label}</option>
+      ))}
+    </Select>
+  )
+  const ageFilterControl = (
+    <div className="pending-bills-age-filters" role="group" aria-label={t('pendingBills.ageFilter.label')}>
+      {ageFilters.map(({ bucket, label }) => (
+        <button
+          key={bucket}
+          type="button"
+          aria-pressed={ageBucket === bucket}
+          onClick={() => setAgeBucket(bucket)}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  )
+  const searchControl = (
+    <CollectionToolbarSearchField search={{
+      label: t('pendingBills.search.label'),
+      placeholder: t('pendingBills.search.help'),
+      value: search,
+      onChange: setSearch,
+    }} />
+  )
   const selectedHistory = selectedBill && historyState.status !== 'idle' ? historyState : { status: 'loading' as const, entries: [] }
   const historyStatus = selectedHistory.status === 'idle' ? 'loading' : selectedHistory.status
   const changeView = (view: string) => {
@@ -501,6 +544,18 @@ export function PendingBillsPage() {
       </div>
     </div>
   ) : null
+  const mobileSelectAll = !isDesktop ? (
+    <label className="pending-bills-mobile-select-all">
+      <Checkbox
+        aria-label={t('pendingBills.selectAll')}
+        checked={allSelectableSelected}
+        indeterminate={someSelectableSelected && !allSelectableSelected}
+        disabled={selectableSet.size === 0 || selectionLocked}
+        onChange={toggleAllSelection}
+      />
+      <span>{t('pendingBills.selectAll.compact')}</span>
+    </label>
+  ) : null
   const recordPanelTitle = formMode?.kind === 'multi' && !isDesktop
     ? t(selectedSummary.count === 1 ? 'pendingBills.record.multiPanelTitle.one' : 'pendingBills.record.multiPanelTitle.other', {
       count: String(selectedSummary.count),
@@ -542,66 +597,59 @@ export function PendingBillsPage() {
       {kept}
       <div className="pending-bills-list-toolbar">
         <div className="pending-bills-summary" aria-live="polite">
-          {t(summary.openCount === 1 ? 'pendingBills.summary.one' : 'pendingBills.summary.other', {
+          {t(summaryMessageKey, {
             count: String(summary.openCount),
             total: formatIDRExact(summary.openBalance).replace(' ', '\u00a0'),
             age: summary.oldestAgeDays === null ? t('pendingBills.summary.noAge') : pendingBillAgeLabel(summary.oldestAgeDays, t),
             paid: formatIDRExact(summary.paidInPeriod).replace(' ', '\u00a0'),
           })}
         </div>
-        <label className="pending-bills-mobile-select-all">
-          <Checkbox
-            aria-label={t('pendingBills.selectAll')}
-            checked={allSelectableSelected}
-            indeterminate={someSelectableSelected && !allSelectableSelected}
-            disabled={selectableSet.size === 0 || selectionLocked}
-            onChange={toggleAllSelection}
-          />
-          <span>{t('pendingBills.selectAll')}</span>
-        </label>
       </div>
-      <ViewTabs
-        ariaLabel={t('pendingBills.view.label')}
-        tabs={[
-          { id: 'open', label: t('pendingBills.view.open') },
-          { id: 'paid', label: t('pendingBills.view.paid') },
-          { id: 'all', label: t('pendingBills.view.all') },
-        ]}
-        active={activeView}
-        onChange={changeView}
-      />
+      <div className="pending-bills-view-toolbar">
+        <ViewTabs
+          ariaLabel={t('pendingBills.view.label')}
+          tabs={[
+            { id: 'open', label: t('pendingBills.view.open') },
+            { id: 'paid', label: t('pendingBills.view.paid') },
+            { id: 'all', label: t('pendingBills.view.all') },
+          ]}
+          active={activeView}
+          onChange={changeView}
+        />
+        {mobileSelectAll}
+      </div>
       <div className="pending-bills-filter-bar">
-        <Select
-          className="pending-bills-branch-filter"
-          label={t('pendingBills.branchFilter.label')}
-          aria-label={t('pendingBills.branchFilter.label')}
-          value={branchFilter}
-          onChange={(event) => setBranchFilter(event.target.value)}
-          fullWidth
-        >
-          <option value="">{t('pendingBills.branchFilter.all')}</option>
-          {branchOptions.map((branchOption) => (
-            <option key={branchOption.code} value={branchOption.code}>{branchOption.label}</option>
-          ))}
-        </Select>
-        <div className="pending-bills-age-filters" role="group" aria-label={t('pendingBills.ageFilter.label')}>
-          {ageFilters.map(({ bucket, label }) => (
-            <button
-              key={bucket}
-              type="button"
-              aria-pressed={ageBucket === bucket}
-              onClick={() => setAgeBucket(bucket)}
+        {isDesktop ? (
+          <>
+            {branchFilterControl}
+            {ageFilterControl}
+            {searchControl}
+          </>
+        ) : (
+          <>
+            {searchControl}
+            <ViewOptionsDisclosure
+              open={filtersOpen}
+              onToggle={() => setFiltersOpen((open) => !open)}
+              onClose={() => setFiltersOpen(false)}
+              label={t('pendingBills.filters.label')}
+              summary={activeFilterCount > 0 ? String(activeFilterCount) : undefined}
+              accessibleSummary={activeFilterCount > 0
+                ? t(activeFilterCount === 1 ? 'pendingBills.filters.active.one' : 'pendingBills.filters.active.other', { count: String(activeFilterCount) })
+                : undefined}
+              hasActiveFilters={activeFilterCount > 0}
+              panelId="pending-bills-filter-options"
+              className="pending-bills-filters-disclosure"
+              triggerClassName="pending-bills-filters-trigger"
+              summaryClassName="pending-bills-filter-count"
+              chevronClassName="pending-bills-filters-chevron"
+              panelClassName="pending-bills-filter-panel"
             >
-              {label}
-            </button>
-          ))}
-        </div>
-        <CollectionToolbarSearchField search={{
-          label: t('pendingBills.search.label'),
-          placeholder: t('pendingBills.search.help'),
-          value: search,
-          onChange: setSearch,
-        }} />
+              {branchFilterControl}
+              {ageFilterControl}
+            </ViewOptionsDisclosure>
+          </>
+        )}
       </div>
       <div className={`pending-bills-results${selectedBill && isWide ? ' record-split' : ''}`}>
         <div className="pending-bills-list-column">

@@ -147,7 +147,7 @@ describe('the ready list', () => {
     renderPage()
     const summary = await screen.findByText(/3 open bills/)
 
-    expect(summary.textContent).toContain('Rp\u00a02.761.000')
+    expect(summary.textContent).toContain('Rp\u00a02.761.000 remaining')
     expect(summary.textContent).toContain('oldest 420 days')
     expect(summary.textContent).toContain('paid this month Rp\u00a00')
   })
@@ -287,6 +287,7 @@ describe('AC-1121: pending-bill view controls', () => {
 
     await assertScrollReset(() => { fireEvent.click(screen.getByRole('tab', { name: 'Paid' })) })
     await assertScrollReset(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Filters' }))
       fireEvent.click(screen.getByRole('combobox', { name: 'Branch' }))
       fireEvent.click(await screen.findByRole('option', { name: 'pop_up_east' }))
     })
@@ -325,9 +326,59 @@ describe('AC-1121: pending-bill view controls', () => {
     expect(within(table).getByText('Voided in ESB')).toBeInTheDocument()
   })
 
-  it('combines branch, age and bill-number search and marks 90+ rows', async () => {
+  it('keeps branch and age filters behind a phone disclosure and preserves their result when collapsed', async () => {
+    setViewport(false)
     renderPage()
     const table = await screen.findByRole('table', { name: 'Pending bills, oldest first' })
+    const trigger = screen.getByRole('button', { name: 'Filters' })
+
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    expect(trigger).toHaveAttribute('aria-controls', 'pending-bills-filter-options')
+    expect(screen.queryByRole('combobox', { name: 'Branch' })).toBeNull()
+    expect(screen.getByRole('searchbox', { name: 'Search bills' })).toBeInTheDocument()
+    expect(await screen.findByText(/3 bills · oldest 420 days/)).toHaveTextContent('Rp 2.761.000 open')
+
+    fireEvent.click(trigger)
+    expect(trigger).toHaveAttribute('aria-expanded', 'true')
+    fireEvent.click(screen.getByRole('combobox', { name: 'Branch' }))
+    fireEvent.click(await screen.findByRole('option', { name: 'pop_up_east' }))
+    expect(screen.getByRole('button', { name: 'Filters, 1 active filter' })).toHaveTextContent('1')
+    fireEvent.click(screen.getByRole('button', { name: '90+ days' }))
+
+    expect(screen.getByRole('button', { name: 'Filters, 2 active filters' })).toHaveTextContent('2')
+    expect(within(table).getAllByRole('row').slice(1)).toHaveLength(1)
+    expect(within(table).getByText('PB-1')).toBeInTheDocument()
+
+    fireEvent.click(trigger)
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('combobox', { name: 'Branch' })).toBeNull()
+    expect(within(table).getAllByRole('row').slice(1)).toHaveLength(1)
+    expect(within(table).getByText('PB-1')).toBeInTheDocument()
+
+    fireEvent.click(trigger)
+    trigger.focus()
+    fireEvent.keyDown(trigger, { key: 'Escape' })
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    expect(trigger).toHaveFocus()
+  })
+
+  it('localizes the phone disclosure and its active count in Indonesian', async () => {
+    setViewport(false)
+    renderPage(['finance'], 'id')
+    await screen.findByRole('table')
+    const trigger = screen.getByRole('button', { name: 'Filter' })
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+
+    fireEvent.click(trigger)
+    fireEvent.click(screen.getByRole('button', { name: '90+ hari' }))
+    expect(screen.getByRole('button', { name: 'Filter, 1 filter aktif' })).toHaveTextContent('1')
+  })
+
+  it('combines branch, age and bill-number search and marks 90+ rows', async () => {
+    setViewport(false)
+    renderPage()
+    const table = await screen.findByRole('table', { name: 'Pending bills, oldest first' })
+    fireEvent.click(screen.getByRole('button', { name: 'Filters' }))
     fireEvent.click(screen.getByRole('combobox', { name: 'Branch' }))
     fireEvent.click(await screen.findByRole('option', { name: 'pop_up_east' }))
     fireEvent.click(screen.getByRole('button', { name: '90+ days' }))
@@ -337,7 +388,7 @@ describe('AC-1121: pending-bill view controls', () => {
     expect(rows).toHaveLength(1)
     expect(within(rows[0]).getByText('PB-1')).toBeInTheDocument()
     expect(within(rows[0]).getByText('420 days')).toHaveClass('pending-bills__age-old')
-    expect(await screen.findByText(/1 open bill ·/)).toHaveTextContent('oldest 420 days')
+    expect(await screen.findByText(/1 bill · oldest 420 days/)).toHaveTextContent('Rp 2.480.000 open')
   })
 })
 
@@ -408,9 +459,9 @@ describe('multi-bill payment selection', () => {
     renderPage()
     fireEvent.click(await screen.findByRole('tab', { name: 'All' }))
     const table = await screen.findByRole('table', { name: 'Pending bills, oldest first' })
-    const phoneToolbar = document.querySelector('.pending-bills-list-toolbar')
-    expect(phoneToolbar).not.toBeNull()
-    const selectAll = within(phoneToolbar as HTMLElement).getByRole('checkbox', { name: 'Select all payable bills' })
+    const viewToolbar = document.querySelector('.pending-bills-view-toolbar')
+    expect(viewToolbar).not.toBeNull()
+    const selectAll = within(viewToolbar as HTMLElement).getByRole('checkbox', { name: 'Select all payable bills' })
 
     expect(selectAll).toBeEnabled()
     fireEvent.click(selectAll)

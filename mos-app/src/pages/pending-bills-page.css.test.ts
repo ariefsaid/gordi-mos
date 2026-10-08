@@ -83,18 +83,24 @@ describe('pending bills table CSS', () => {
     expect(phoneOwes).toMatch(/overflow:\s*hidden/)
   })
 
-  it('packs branch and age filters into one touch-scrollable row above search on phone', () => {
+  it('keeps the phone search and Filters door on one row and wraps disclosed age controls', () => {
     expect(rule('.pending-bills-branch-filter .mk-select__field') ?? '').toMatch(/min-height:\s*44px/)
     expect(rule('.pending-bills-age-filters button') ?? '').toMatch(/min-height:\s*44px/)
     expect(rule('.pending-bills-filter-bar .collection-toolbar__search') ?? '').toMatch(/min-height:\s*44px/)
+    expect(rule('.pending-bills-filters-trigger') ?? '').toMatch(/min-height:\s*44px/)
+    expect(rule('.pending-bills-filter-count') ?? '').toMatch(/border-radius:\s*var\(--radius-pill\)/)
     const phone = css.match(/@media \(max-width:\s*767\.98px\)\s*\{([\s\S]*)$/)?.[1] ?? ''
     expect(groupedRule(phone, '.pending-bills-filter-bar') ?? '').toMatch(/display:\s*grid/)
-    expect(groupedRule(phone, '.pending-bills-branch-filter') ?? '').toMatch(/grid-column:\s*1/)
-    expect(groupedRule(phone, '.pending-bills-age-filters') ?? '').toMatch(/grid-column:\s*2/)
-    expect(groupedRule(phone, '.pending-bills-age-filters') ?? '').toMatch(/overflow-x:\s*auto/)
-    expect(groupedRule(phone, '.pending-bills-age-filters') ?? '').toMatch(/flex-wrap:\s*nowrap/)
-    expect(groupedRule(phone, '.pending-bills-filter-bar .collection-toolbar__query') ?? '').toMatch(/grid-column:\s*1\s*\/\s*-1/)
-    expect(groupedRule(phone, '.pending-bills-body > .view-tabs') ?? '').toMatch(/position:\s*static/)
+    expect(groupedRule(phone, '.pending-bills-filters-disclosure') ?? '').toMatch(/display:\s*contents/)
+    expect(groupedRule(phone, '.pending-bills-filters-trigger') ?? '').toMatch(/grid-column:\s*2;[^}]*grid-row:\s*1/)
+    expect(groupedRule(phone, '.pending-bills-filter-panel') ?? '').toMatch(/grid-column:\s*1\s*\/\s*-1/)
+    expect(groupedRule(phone, '.pending-bills-filter-panel') ?? '').toMatch(/display:\s*flex/)
+    expect(groupedRule(phone, '.pending-bills-age-filters') ?? '').toMatch(/flex-wrap:\s*wrap/)
+    expect(groupedRule(phone, '.pending-bills-age-filters') ?? '').toMatch(/overflow:\s*visible/)
+    expect(groupedRule(phone, '.pending-bills-age-filters') ?? '').not.toMatch(/overflow-x:\s*auto/)
+    expect(groupedRule(phone, '.pending-bills-filter-bar .collection-toolbar__query') ?? '').toMatch(/grid-column:\s*1;[^}]*grid-row:\s*1/)
+    expect(groupedRule(phone, '.pending-bills-view-toolbar > .view-tabs') ?? '').toMatch(/position:\s*static/)
+    expect(groupedRule(phone, '.pending-bills-view-toolbar') ?? '').toMatch(/display:\s*flex/)
   })
 
   it('uses the stronger shared Money skeleton tone while loading', () => {
@@ -107,6 +113,14 @@ describe('pending bills table CSS', () => {
     expect(css).toMatch(/@container pending-bills-list \(max-width:\s*979\.98px\)/)
     expect(css).toMatch(/\.pending-bills-table \.money-table-scroll\s*\{\s*overflow-x:\s*hidden/)
     expect(rule('.pending-bills-list-column') ?? '').toMatch(/min-width:\s*0/)
+  })
+
+  it('keeps the phone summary to one line without a fixed selection overlay', () => {
+    const phone = css.match(/@media \(max-width:\s*767\.98px\)\s*\{([\s\S]*)$/)?.[1] ?? ''
+    const summary = groupedRule(phone, '.pending-bills-summary') ?? ''
+    expect(summary).toMatch(/white-space:\s*nowrap/)
+    expect(summary).toMatch(/font-size:\s*var\(--font-size-label\)/)
+    expect(groupedRule(phone, '.pending-bills-selection-bar') ?? '').not.toMatch(/position:\s*fixed|position:\s*sticky/)
   })
 
   it('keeps phone selection controls tappable and the payment action in the page layout', () => {
@@ -127,6 +141,7 @@ describe('pending bills table CSS', () => {
     expect(phone).not.toMatch(/\.pending-bills-selection-bar\s*\{[^}]*position:\s*sticky/)
     expect(groupedRule(phone, '.pending-bills-mobile-select-all') ?? '').toMatch(/display:\s*flex/)
     expect(groupedRule(phone, '.pending-bills-mobile-select-all') ?? '').toMatch(/min-height:\s*44px/)
+    expect(groupedRule(phone, '.pending-bills-view-toolbar') ?? '').toMatch(/align-items:\s*center/)
   })
 
   it('uses the shared sticky record-panel rule and lets the viewer own scrolling', () => {
