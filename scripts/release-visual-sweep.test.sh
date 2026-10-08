@@ -25,6 +25,12 @@ runtime_source="$repo_root/mos-app/e2e/design-quality/runtime.ts"
 grep -Fq -- '--persona dewi.dev@example.test' "$script" || {
   echo 'FAIL: RELEASE8 example does not use the SQL-verified dev-seed manager persona' >&2; exit 1;
 }
+grep -Fq -- '--stream "Rumah Rames · Kitchen"' "$script" || {
+  echo 'FAIL: RELEASE8 example does not select the intended Café stream' >&2; exit 1;
+}
+grep -Fq -- 'also allowed without --persona' "$script" || {
+  echo 'FAIL: stream-without-persona behavior is not documented' >&2; exit 1;
+}
 grep -Fq "import { DEMO_PASSWORD } from '../../src/pages/demo-personas'" "$runtime_source" \
   && grep -Fq 'await loginViaForm(page, personaEmail, DEMO_PASSWORD)' "$runtime_source" \
   && ! grep -Fq 'Passw0rd!dev' "$runtime_source" || {
@@ -72,6 +78,7 @@ scope=""
 out=""
 head=""
 persona=""
+stream=""
 while [ "$#" -gt 0 ]; do
   case "$1" in
     */release-visual-sweep.mjs) runner="$1"; shift ;;
@@ -79,15 +86,17 @@ while [ "$#" -gt 0 ]; do
     --out) out="$2"; shift 2 ;;
     --head) head="$2"; shift 2 ;;
     --persona) persona="$2"; shift 2 ;;
+    --stream) stream="$2"; shift 2 ;;
     *) shift ;;
   esac
 done
 [ -n "$runner" ] && [ -n "$scope" ] && [ -n "$out" ] && [ -n "$head" ]
 [ "${MOS_DB_LOCK_HELD:-}" = 1 ] || { echo 'runner started without the shared DB lock' >&2; exit 1; }
 printf '%s' "$persona" > "$TEST_PERSONA_CAPTURE"
-python3 - "$scope" "$out" "$head" "$TEST_SCOPE_CAPTURE" "$persona" <<'PY'
+printf '%s' "$stream" > "$TEST_STREAM_CAPTURE"
+python3 - "$scope" "$out" "$head" "$TEST_SCOPE_CAPTURE" "$persona" "$stream" <<'PY'
 import json, pathlib, sys
-scope_path, output_dir, head, capture, persona = sys.argv[1:]
+scope_path, output_dir, head, capture, persona, stream = sys.argv[1:]
 scope = json.loads(pathlib.Path(scope_path).read_text())
 assert scope['headSha'] == head
 assert scope['routes'], scope['routes']
@@ -107,13 +116,14 @@ for route in scope['routes']:
         'maxHorizontalOverflowPx': 0, 'clippedTextCount': 1, 'smallTapTargetCount': 2 if width == 390 else 0,
         'screenshot': f'screenshots/{name}',
     })
-(root / 'sweep-results.json').write_text(json.dumps({'headSha': head, 'persona': persona or None, 'rows': rows}))
+(root / 'sweep-results.json').write_text(json.dumps({'headSha': head, 'persona': persona or None, 'stream': stream or None, 'rows': rows}))
 PY
 NODE_STUB
 chmod +x "$tmp/bin/node"
 export PATH="$tmp/bin:$PATH"
 export TEST_SCOPE_CAPTURE="$tmp/observed-scope.json"
 export TEST_PERSONA_CAPTURE="$tmp/observed-persona.txt"
+export TEST_STREAM_CAPTURE="$tmp/observed-stream.txt"
 
 if "$script" "$base_ref" "$head_ref" > "$tmp/missing-url.out" 2>&1; then
   echo 'FAIL: accepted missing --base-url' >&2; exit 1
@@ -183,11 +193,24 @@ PY
 rm -rf "$routes_out"
 
 persona_routes_out="$fixture/docs/persona-routes"
-"$script" --routes /cafe/count --persona dewi.dev@example.test --base-url http://localhost:1234/ --out "$persona_routes_out" > "$tmp/persona-routes.out"
+"$script" --routes /cafe/count --persona dewi.dev@example.test --stream "Rumah Rames · Kitchen" --base-url http://localhost:1234/ --out "$persona_routes_out" > "$tmp/persona-routes.out"
 grep -Fq 'PERSONA: dewi.dev@example.test (audit per-route fixture provisioning skipped)' "$persona_routes_out/summary.md"
+grep -Fq 'STREAM: Rumah Rames · Kitchen' "$persona_routes_out/summary.md"
 [ "$(cat "$TEST_PERSONA_CAPTURE")" = 'dewi.dev@example.test' ]
+[ "$(cat "$TEST_STREAM_CAPTURE")" = 'Rumah Rames · Kitchen' ]
 [ "$(find "$persona_routes_out/screenshots" -type f -name '*.png' | wc -l | tr -d ' ')" = 3 ]
 rm -rf "$persona_routes_out"
+
+stream_without_persona_out="$fixture/docs/stream-without-persona"
+"$script" --routes /cafe/count --stream "Rumah Rames · Kitchen" --base-url http://localhost:1234/ --out "$stream_without_persona_out" > "$tmp/stream-without-persona.out"
+[ "$(cat "$TEST_PERSONA_CAPTURE")" = '' ]
+[ "$(cat "$TEST_STREAM_CAPTURE")" = 'Rumah Rames · Kitchen' ]
+rm -rf "$stream_without_persona_out"
+
+if "$script" --routes /cafe/count --stream '' --base-url http://localhost:1234/ --out "$fixture/docs/empty-stream" > "$tmp/empty-stream.out" 2>&1; then
+  echo 'FAIL: accepted an empty --stream' >&2; exit 1
+fi
+grep -Fq -- '--stream requires a non-empty stream name' "$tmp/empty-stream.out"
 
 if "$script" "$base_ref" "$head_ref" --routes /cafe --base-url http://localhost:1234/ > "$tmp/both-modes.out" 2>&1; then
   echo 'FAIL: accepted both invocation modes' >&2; exit 1
