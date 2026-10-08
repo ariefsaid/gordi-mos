@@ -242,7 +242,7 @@ describe('CommandMenu (AC-K02/AC-K08): combobox + listbox + keyboard', () => {
 })
 
 // ── AC-030..032: e7 palette contents and phone search-only mode ─────────────
-describe('AC-030..032: desktop GO TO roots → ACT; phone search only', () => {
+describe('AC-030..032: desktop GO TO roots → ACT; phone search-only palette', () => {
   it('AC-030: rests on every destination the viewer can open (the catalog), then the universal actions', () => {
     renderMenu()
     const groups = screen.getAllByRole('group')
@@ -326,16 +326,10 @@ describe('AC-030..032: desktop GO TO roots → ACT; phone search only', () => {
     expect(input.getAttribute('aria-activedescendant')).not.toBe(person.id)
   })
 
-  // Asserting ANY group, not the two current labels: a name-based query passed vacuously against
-  // the pre-#748 palette (whose groups were labelled Navigate/Actions, so "no GO TO group" was
-  // trivially true while the phone palette still listed the whole rail). The audit's phone ruling
-  // is results-only — navigation lives on the tab bar, actions on the `+` launcher — so NO group
-  // belongs in the phone DOM, whatever the labels are called this week.
-  //
-  // AC-032 keys on the shell's WIDTH seam, not the pointer (#748 delta): the bottom tab bar and
-  // the `+` launcher render below 920px because `useIsNarrow()` says so, and the palette branches
-  // on the SAME helper — search-only when narrow, GO TO/ACT otherwise. Pointer modality keeps its
-  // own, separate job (#41): hiding the keyboard-hint footer.
+  // AC-032 keeps narrow typed searches results-only because navigation lives on the tab bar.
+  // Issue #1487 requires the otherwise empty, search-only palette to explain its next step.
+  // Width, not pointer modality, selects the shell and palette composition; #41 separately owns
+  // the keyboard-hint footer.
   function stubViewport({ narrow, coarse }: { narrow: boolean; coarse: boolean }) {
     vi.spyOn(window, 'matchMedia').mockImplementation((query) => ({
       matches: query.includes('919.98') ? narrow : query.includes('coarse') ? coarse : false,
@@ -344,11 +338,14 @@ describe('AC-030..032: desktop GO TO roots → ACT; phone search only', () => {
     }))
   }
 
-  it('AC-032: at 390 with a FINE pointer the palette is search-only — no group of any name in the DOM', () => {
+  it.each([390, 768])('issue 1487: at %ipx the empty narrow palette explains how to search', (width) => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: width })
     stubViewport({ narrow: true, coarse: false })
     renderMenu()
     expect(screen.getByRole('combobox')).toBeInTheDocument()
-    expect(screen.queryByRole('group')).toBeNull()
+    expect(screen.getByRole('status')).toHaveTextContent('Start typing to search tasks, signals, and people.')
+    expect(screen.queryAllByRole('group')).toHaveLength(0)
+    expect(screen.queryAllByRole('option')).toHaveLength(0)
   })
 
   it('AC-032: narrowing still yields record results, and never a GO TO / ACT group', async () => {
