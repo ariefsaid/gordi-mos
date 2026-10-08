@@ -421,6 +421,8 @@
 }
 
 @media (max-width: 767.98px) {
+  .cafe-items__active-control .mk-checkbox { width: 44px; height: 44px; }
+  .cafe-items__active-control .mk-checkbox__visual { width: 16px; height: 16px; }
   .cafe-items__stream-choice { margin-block: 16px 20px; }
 
   .cafe-items__collection {
