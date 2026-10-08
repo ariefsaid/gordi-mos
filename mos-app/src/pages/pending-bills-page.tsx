@@ -428,7 +428,7 @@ export function PendingBillsPage() {
   }
   const paymentForm = selectedBill && formMode ? (
     <PendingBillPaymentForm
-      key={`${selectedBill.id}-${formMode.kind === 'reverse' ? `reverse-${formMode.entry.id}` : formMode.kind === 'multi' ? selectedSummary.bills.map((bill) => bill.id).join('|') : 'payment'}`}
+      key={`${selectedBill.id}-${formMode.kind === 'reverse' ? `reverse-${formMode.entry.id}` : formMode.kind === 'multi' ? selectedBillIds.join('|') : 'payment'}`}
       bill={selectedBill}
       bills={formMode.kind === 'multi' ? selectedSummary.bills : undefined}
       orgId={orgId}
@@ -437,6 +437,7 @@ export function PendingBillsPage() {
       onSaved={(saved) => onFormSaved(selectedBill, saved)}
       onDirtyChange={(dirty) => { formDirtyRef.current = dirty }}
       onBusyChange={updateFormBusy}
+      onBalancesChanged={reload}
     />
   ) : null
   const adapter = selectedBill ? createPendingBillRecordAdapter({
