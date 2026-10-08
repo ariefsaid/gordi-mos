@@ -117,7 +117,7 @@ describe('CafeCountPage', () => {
     expect(rawInput.closest('.cafe-count__quantity-control')).toHaveClass('cafe-count__quantity-control')
     expect(rawInput.closest('.cafe-count__quantity-control')).not.toHaveClass('cafe-capture-control-group')
     expect(rawInput.closest('.cafe-count__input-group')?.querySelector('label')).toHaveClass('sr-only')
-    expect(rawInput.closest('.cafe-count__row')?.querySelector('.cafe-count__unit')).toHaveAttribute('aria-label', 'kg')
+    expect(rawInput.closest('.cafe-capture-row')?.querySelector('.cafe-count__unit')).toHaveAttribute('aria-label', 'kg')
     const entry = container.querySelector('.cafe-count')?.textContent?.toLowerCase() ?? ''
     expect(entry).not.toContain('expected balance')
     expect(entry).not.toContain('variance')
@@ -227,6 +227,6 @@ describe('CafeCountPage', () => {
     expect(lines.every(line => Object.keys(line).sort().join(',') === 'client_key,item_id,quantity')).toBe(true)
     expect(await screen.findByText('Submitted')).toBeInTheDocument()
     expect(await screen.findByText('This item already has a Count today.')).toBeInTheDocument()
-    expect(within(screen.getByRole('list', { name: 'Countable Café items' })).getAllByRole('alert')).toHaveLength(1)
+    expect(screen.getAllByRole('alert')).toHaveLength(1)
   })
 })

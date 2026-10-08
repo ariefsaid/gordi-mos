@@ -98,7 +98,7 @@ export function RevenueScopePicker({ person, options, commits, refresh }: Revenu
                     key={key}
                     label={row.label}
                     checked={checked}
-                    disabled={busy}
+                    busy={busy}
                     divider={i > 0}
                     indent={!isWholeChannel}
                     emphasis={isWholeChannel}

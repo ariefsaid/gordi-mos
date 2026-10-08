@@ -9,6 +9,7 @@ export interface PendingBillPaymentAmount {
   bill_no: string
   /** Reversals are negative, so summing entries restores the outstanding balance. */
   amount: number
+  cash_in_date?: string
 }
 
 export interface PendingBillView {
@@ -100,13 +101,80 @@ export function toPendingBillViews(
 export interface PendingBillSummary {
   openBalance: number
   openCount: number
+  oldestAgeDays: number | null
+  paidInPeriod: number
 }
 
-export function summarizePendingBills(bills: readonly PendingBillView[]): PendingBillSummary {
+export function isPendingBillSelectable(bill: PendingBillView): boolean {
+  return (bill.state === 'open' || bill.state === 'partial') && bill.balance > 0
+}
+
+export interface PendingBillSelectionSummary {
+  bills: PendingBillView[]
+  count: number
+  total: number
+}
+
+export function summarizePendingBillSelection(
+  bills: readonly PendingBillView[],
+  selectedIds: readonly string[],
+): PendingBillSelectionSummary {
+  const selected = new Set(selectedIds)
+  const selectedBills = bills.filter((bill) => selected.has(bill.id) && isPendingBillSelectable(bill))
+  const totalCents = selectedBills.reduce((sum, bill) => sum + toCents(bill.balance), 0)
+  return { bills: selectedBills, count: selectedBills.length, total: totalCents / 100 }
+}
+
+export type PendingBillViewMode = 'open' | 'paid' | 'all'
+export type PendingBillAgeBucket = 'all' | '0-30' | '31-90' | '90+'
+
+export interface PendingBillFilters {
+  view: PendingBillViewMode
+  branchCode: string
+  ageBucket: PendingBillAgeBucket
+  search: string
+}
+
+function normalizedSearch(value: string): string {
+  return value.toLowerCase().replace(/\s+/g, '')
+}
+
+export function filterPendingBills(
+  bills: readonly PendingBillView[],
+  filters: PendingBillFilters,
+): PendingBillView[] {
+  const query = normalizedSearch(filters.search)
+  return bills.filter((bill) => {
+    if (filters.view === 'open' && (bill.state === 'void' || bill.balance <= 0)) return false
+    if (filters.view === 'paid' && bill.state !== 'settled' && bill.state !== 'overpaid') return false
+    if (filters.branchCode && bill.branchCode !== filters.branchCode) return false
+    if (filters.ageBucket === '0-30' && (bill.ageDays < 0 || bill.ageDays > 30)) return false
+    if (filters.ageBucket === '31-90' && (bill.ageDays < 31 || bill.ageDays > 90)) return false
+    if (filters.ageBucket === '90+' && bill.ageDays <= 90) return false
+    if (query && ![bill.billNo, bill.counterpartyNote ?? ''].some((value) => normalizedSearch(value).includes(query))) return false
+    return true
+  })
+}
+
+export function summarizePendingBills(
+  bills: readonly PendingBillView[],
+  payments: readonly PendingBillPaymentAmount[],
+  today: string,
+): PendingBillSummary {
   const open = bills.filter((bill) => bill.state !== 'void' && bill.balance > 0)
+  const visibleBillKeys = new Set(bills.map((bill) => bill.id))
+  // The page has no period control; count cash-in dates from this WIB month to today.
+  const periodStart = `${today.slice(0, 7)}-01`
+  const paidInPeriodCents = payments.reduce((total, payment) => {
+    if (!payment.cash_in_date || payment.cash_in_date < periodStart || payment.cash_in_date > today) return total
+    if (!visibleBillKeys.has(billKey(payment.esb_code, payment.branch_code, payment.bill_no))) return total
+    return total + toCents(payment.amount)
+  }, 0)
   return {
     openBalance: open.reduce((total, bill) => total + toCents(bill.balance), 0) / 100,
     openCount: open.length,
+    oldestAgeDays: open.length > 0 ? Math.max(...open.map((bill) => bill.ageDays)) : null,
+    paidInPeriod: paidInPeriodCents / 100,
   }
 }
 

@@ -12,6 +12,7 @@ import {
   listPendingBillPaymentHistory,
   MAX_PENDING_BILL_PROOF_BYTES,
   PendingBillProofError,
+  paySeveralPendingBills,
   recordPendingBillPayment,
   uploadPendingBillProof,
 } from './pending-bill-payments'
@@ -43,11 +44,12 @@ describe('listPendingBillPaymentAmounts', () => {
       expect(name).toBe('mos')
       return { from: (table: string) => {
         expect(table).toBe('pending_bill_payments')
-        return query({ data: [{ id: 'p1', esb_code: 'ESB', branch_code: 'BR', bill_no: 'PB-1', amount: '125.00' }], error: null }, calls)
+        return query({ data: [{ id: 'p1', esb_code: 'ESB', branch_code: 'BR', bill_no: 'PB-1', amount: '125.00', cash_in_date: '2026-10-06' }], error: null }, calls)
       } } as never
     })
     const rows = await listPendingBillPaymentAmounts()
-    expect(rows).toEqual([{ id: 'p1', esb_code: 'ESB', branch_code: 'BR', bill_no: 'PB-1', amount: 125 }])
+    expect(rows).toEqual([{ id: 'p1', esb_code: 'ESB', branch_code: 'BR', bill_no: 'PB-1', amount: 125, cash_in_date: '2026-10-06' }])
+    expect(calls.find((call) => call.method === 'select')?.args).toEqual(['id,esb_code,branch_code,bill_no,amount,cash_in_date,created_at'])
     expect(calls.filter((call) => call.method === 'order').map((call) => call.args)).toEqual([
       ['created_at', { ascending: true }], ['id', { ascending: true }],
     ])
@@ -155,6 +157,51 @@ describe('recordPendingBillPayment', () => {
     await expect(recordPendingBillPayment(input)).rejects.toThrow(/recordPendingBillPayment failed — denied/)
     schemaMock.mockImplementation(() => ({ rpc: vi.fn().mockResolvedValue({ data: [], error: null }) } as never))
     await expect(recordPendingBillPayment(input)).rejects.toThrow(/no result row/)
+  })
+})
+
+describe('paySeveralPendingBills', () => {
+  it('calls the atomic batch RPC and maps every settled bill result', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: [
+      { payment_id: 'p1', esb_code: 'ESB', branch_code: 'BR', bill_no: 'PB-1', amount: '125.50', replayed: false },
+      { payment_id: 'p2', esb_code: 'ESB', branch_code: 'BR', bill_no: 'PB-2', amount: '250', replayed: true },
+    ], error: null })
+    schemaMock.mockImplementation((name) => {
+      expect(name).toBe('mos')
+      return { rpc } as never
+    })
+    const billIds = ['["ESB","BR","PB-1"]', '["ESB","BR","PB-2"]']
+    await expect(paySeveralPendingBills({
+      billIds, expectedAmountsCents: [12550, 25000], cashInDate: '2026-10-06', proofPath: 'org/p1.pdf', idempotencyKey: 'batch-key',
+    })).resolves.toEqual([
+      { billId: billIds[0], paymentId: 'p1', esbCode: 'ESB', branchCode: 'BR', billNo: 'PB-1', amount: 125.5, replayed: false },
+      { billId: billIds[1], paymentId: 'p2', esbCode: 'ESB', branchCode: 'BR', billNo: 'PB-2', amount: 250, replayed: true },
+    ])
+    expect(rpc).toHaveBeenCalledWith('pay_several_pending_bills', {
+      p_bill_ids: billIds,
+      p_expected_amounts_cents: [12550, 25000],
+      p_cash_in_date: '2026-10-06',
+      p_proof_path: 'org/p1.pdf',
+      p_idempotency_key: 'batch-key',
+    })
+  })
+
+  it('surfaces server failure and refuses a partial or mismatched result set', async () => {
+    const input = { billIds: ['["ESB","BR","PB-1"]'], expectedAmountsCents: [100], cashInDate: '2026-10-06', proofPath: 'org/p1.pdf', idempotencyKey: 'key' }
+    schemaMock.mockImplementation(() => ({ rpc: vi.fn().mockResolvedValue({ data: null, error: { message: 'Pending bill PB-1 is already settled.' } }) } as never))
+    await expect(paySeveralPendingBills(input)).rejects.toThrow(/Pending bill PB-1 is already settled/)
+    schemaMock.mockImplementation(() => ({ rpc: vi.fn().mockResolvedValue({ data: [], error: null }) } as never))
+    await expect(paySeveralPendingBills(input)).rejects.toThrow(/different bill selection/)
+  })
+
+  it('maps the confirmed-balance SQLSTATE to a recoverable mismatch error', async () => {
+    schemaMock.mockImplementation(() => ({
+      rpc: vi.fn().mockResolvedValue({ data: null, error: { code: 'P0001', message: 'server detail' } }),
+    } as never))
+    await expect(paySeveralPendingBills({
+      billIds: ['["ESB","BR","PB-1"]'], expectedAmountsCents: [12550],
+      cashInDate: '2026-10-06', proofPath: 'org/p1.pdf', idempotencyKey: 'key',
+    })).rejects.toMatchObject({ name: 'PendingBillBalanceChangedError' })
   })
 })
 

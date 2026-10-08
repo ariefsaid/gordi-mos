@@ -1,8 +1,7 @@
 // #401 structural twins (jsdom computes no layout — these pin the authored
 // declarations; the rendered boxes live in e2e/guards.geometry.spec.ts):
 //  • KP-LINEHEIGHT — the two-line name+category stack must lead at 1.2 or it
-//    overflows the Data Table's 52px desktop row (the same defect the Log page's
-//    .kl-dish-name/.kl-dish-cat fix already killed — the fix landed there only).
+//    overflows the Data Table's 52px desktop row (the shared capture identity uses the same 1.2 rhythm).
 //  • KP-BANNER — offline and save-failed use the SAME amber/red vocabulary as
 //    Café · Log (warning / destructive tokens), never a plain grey box.
 //  • KP-GROUPLINK — the desktop category header's single Log route is links-in-context

@@ -280,6 +280,38 @@ describe('Café receipt adapter', () => {
     await expect(reviewCafeReceipt('r-1', 'approve', 3, '')).rejects.toThrow('CAFE_RECEIPT_SELF_APPROVAL')
   })
 
+  it('AC-1542 applies the stream filter before limiting Counted receipts and counts only that stream', async () => {
+    const rows = Array.from({ length: 120 }, (_, index) => {
+      const target = index >= 60
+      const streamIndex = target ? index - 60 : index
+      return {
+        id: `${target ? 'target' : 'other'}-${streamIndex}`,
+        branch_id: target ? 'branch-1' : 'branch-2',
+        activity: target ? 'kitchen' : 'bar',
+        received_at: new Date(Date.parse('2026-10-01T00:00:00Z') + index * 60_000).toISOString(),
+        status: 'Counted', posting_status: 'not_posted', lines: [],
+      }
+    })
+    const filters: Array<[string, string]> = []
+    let limit = rows.length
+    const query: Record<string, unknown> = {}
+    for (const method of ['select', 'in', 'order']) query[method] = vi.fn(() => query)
+    query.eq = vi.fn((column: string, value: string) => { filters.push([column, value]); return query })
+    query.limit = vi.fn((value: number) => { limit = value; return query })
+    query.then = (resolve: (value: unknown) => unknown) => {
+      const matching = rows.filter(row => filters.every(([column, value]) => row[column as keyof typeof row] === value))
+      return Promise.resolve({ data: matching.slice(0, limit), count: matching.length, error: null }).then(resolve)
+    }
+    schemaMock.mockReturnValue({ from: vi.fn(() => query) } as never)
+
+    const unsent = await listCafeUnsentReceipts(STREAM)
+
+    expect(query.eq).toHaveBeenCalledWith('branch_id', 'branch-1')
+    expect(query.eq).toHaveBeenCalledWith('activity', 'kitchen')
+    expect(unsent.receipts.map(receipt => receipt.id)).toEqual(Array.from({ length: 50 }, (_, index) => `target-${index}`))
+    expect(unsent.more).toBe(10)
+  })
+
   it('FR-1012 reads labels for the asked receipts and refuses a row that is not a known label', async () => {
     const row = { receipt_id: 'r', line_id: 'l', item_unit_id: 'u', outcome: 'over', cache_as_of: '2026-10-06T02:00:00Z' }
     const rpc = vi.fn().mockResolvedValueOnce({ data: [row], error: null })

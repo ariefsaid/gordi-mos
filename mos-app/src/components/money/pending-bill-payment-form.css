@@ -28,6 +28,29 @@
   line-height: 1.4;
 }
 
+.pending-bill-payment-form__locked-amounts {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+}
+
+.pending-bill-payment-form__locked-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.pending-bill-payment-form__locked-total {
+  padding-top: 8px;
+  border-top: 1px solid var(--row-divider);
+}
+
 .pending-bill-payment-form__amount,
 .pending-bill-payment-form__amount .quantity-field {
   width: 100%;

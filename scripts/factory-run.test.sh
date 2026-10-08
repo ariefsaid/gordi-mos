@@ -11,6 +11,9 @@ git -C "$repo" init -q
 repo="$(cd "$repo" && pwd -P)"
 cp scripts/gh-shim/gh "$repo/scripts/gh-shim/gh"
 cp scripts/factory-preflight.py "$repo/scripts/factory-preflight.py"
+cp scripts/skills-plan.sh "$repo/scripts/skills-plan.sh"
+mkdir -p "$repo/.claude/skills/tdd"
+printf 'name: tdd\n' > "$repo/.claude/skills/tdd/SKILL.md"
 printf '%s\n' '#!/usr/bin/env python3' > "$repo/adws/adw_simple_sdlc.py"
 mkdir -p "$repo/adws/adw_modules"
 cat > "$repo/adws/adw_modules/data_types.py" <<'EOF'
@@ -18,6 +21,18 @@ protected_files: list[str] = Field(default_factory=lambda: ["adws/**"])
 EOF
 chmod +x "$repo/scripts/gh-shim/gh"
 pass=0; fail=0
+preflight_out="$(python3 "$repo/scripts/factory-preflight.py" "$repo" "" 0 2>&1)"; preflight_rc=$?
+[ "$preflight_rc" -eq 4 ]; preflight_missing_brief_refuses=$?
+printf '%s' "$preflight_out" | grep -q 'Skills plan'; preflight_refusal_named=$?
+pass=0; fail=0
+if [ "$preflight_missing_brief_refuses" -eq 0 ] && [ "$preflight_refusal_named" -eq 0 ]; then
+  pass=$((pass+1)); printf '  ok    preflight refuses when it cannot locate a Skills-plan brief\n'
+else
+  fail=$((fail+1)); printf '  FAIL  preflight must refuse when it cannot locate a Skills-plan brief (rc=%s; %s)\n' "$preflight_rc" "$(printf '%s' "$preflight_out" | tr '\n' ' ')"
+fi
+plan_section=$'## Skills plan\n| Skill | Phase | Evidence |\n|---|---|---|\n| tdd | build | docs/reviews/1541/tdd.md |'
+planned() { printf '%s\n\n%s' "$1" "$plan_section"; }
+printf '%s\n' "$plan_section" > "$repo/brief.md"
 
 # Stub uv in a gh-BEARING dir (with a sibling tool): masking must hide gh yet keep the rest.
 mkdir -p "$tmp/bin"
@@ -79,7 +94,7 @@ printf '37\n' > "$repo/mos-app/.nvmrc"
 out="$(cd "$repo" && NVM_DIR="$tmp/nvm" PATH="$tmp/bin:$PATH" bash "$wrapper" adw_simple_sdlc.py brief.md 2>&1)"; rc=$?
 [ "$rc" -eq 0 ]; t "absent .nvmrc node still runs the factory" $?
 printf '%s' "$out" | grep -qE "not found — using inherited node v?[0-9]"; t "warns '.nvmrc node 37 not found' and names the inherited node" $?
-printf '%s' "$out" | grep -q "PATH2=$tmp/bin"; t "PATH untouched when pinning is impossible" $?
+grep -q "PATH2=$tmp/bin" <<< "$out"; t "PATH untouched when pinning is impossible" $?
 
 # An absent pin warns once and continues with the inherited node.
 rm "$repo/mos-app/.nvmrc"
@@ -110,8 +125,8 @@ defaults:
     - adws/**
     - scripts/pre-pr-verify.sh
 EOF2
-barred_brief="Please update adws/adw_modules/permissions.py to relax the check."
-clean_brief="Add a reports endpoint and mos-app/src/pages/Reports.tsx."
+barred_brief="$(planned 'Please update adws/adw_modules/permissions.py to relax the check.')"
+clean_brief="$(planned 'Add a reports endpoint and mos-app/src/pages/Reports.tsx.')"
 
 out="$(cd "$repo" && PATH="$tmp/bin:$PATH" bash "$wrapper" adw_simple_sdlc.py "$barred_brief" 2>&1)"; rc=$?
 [ "$rc" -eq 3 ]; t "barred brief refuses before exec, with a dedicated exit code" $?
@@ -134,7 +149,7 @@ defaults:
 EOF2
 out="$(cd "$repo" && PATH="$tmp/bin:$PATH" bash "$wrapper" adw_simple_sdlc.py "$barred_brief" 2>&1)"; rc=$?
 [ "$rc" -eq 0 ]; t "removing adws/** from the fixture's list un-bars the same brief" $?
-out="$(cd "$repo" && PATH="$tmp/bin:$PATH" bash "$wrapper" adw_simple_sdlc.py "Do not touch scripts/pre-pr-verify.sh while fixing this." 2>&1)"; rc=$?
+out="$(cd "$repo" && PATH="$tmp/bin:$PATH" bash "$wrapper" adw_simple_sdlc.py "$(planned 'Do not touch scripts/pre-pr-verify.sh while fixing this.')" 2>&1)"; rc=$?
 [ "$rc" -eq 3 ]; t "the remaining fixture entry still bars (list is read live, not cached)" $?
 
 # data_dir is excluded BEFORE matching (#590 review): permissions.py::always_writable() grants
@@ -147,7 +162,7 @@ defaults:
     - adws/**
   data_dir: adws/adw_data
 EOF2
-findings_brief="Findings rerun: see adws/adw_data/a1b2c3d4/raw_output.jsonl for the prior failure."
+findings_brief="$(planned 'Findings rerun: see adws/adw_data/a1b2c3d4/raw_output.jsonl for the prior failure.')"
 out="$(cd "$repo" && PATH="$tmp/bin:$PATH" bash "$wrapper" adw_simple_sdlc.py "$findings_brief" 2>&1)"; rc=$?
 [ "$rc" -eq 0 ]; t "a findings-rerun brief citing its own data_dir path is not barred (#590)" $?
 
@@ -159,7 +174,7 @@ defaults:
   protected_files:
     - mos-app/special.ts
 EOF2
-alt_brief="Please edit mos-app/special.ts for the new layout."
+alt_brief="$(planned 'Please edit mos-app/special.ts for the new layout.')"
 out="$(cd "$repo" && PATH="$tmp/bin:$PATH" bash "$wrapper" adw_simple_sdlc.py "$alt_brief" --config altcfg/other.config.yaml 2>&1)"; rc=$?
 [ "$rc" -eq 3 ]; t "an alternate --config's own list bars a path the default config wouldn't" $?
 out="$(cd "$repo" && PATH="$tmp/bin:$PATH" bash "$wrapper" adw_simple_sdlc.py "$alt_brief" --config=altcfg/other.config.yaml 2>&1)"; rc=$?
@@ -175,7 +190,7 @@ cat > "$repo/adws/adw_sssf_config/sssf.config.yaml" <<'EOF2'
 defaults:
   protected_files: [adws/**, scripts/pre-pr-verify.sh]
 EOF2
-out="$(cd "$repo" && PATH="$tmp/bin:$PATH" bash "$wrapper" adw_simple_sdlc.py "edit adws/adw_modules/permissions.py" 2>&1)"; rc=$?
+out="$(cd "$repo" && PATH="$tmp/bin:$PATH" bash "$wrapper" adw_simple_sdlc.py "$(planned 'edit adws/adw_modules/permissions.py')" 2>&1)"; rc=$?
 [ "$rc" -eq 3 ]; t "unreadable protected_files fallback refuses a barred path" $?
 printf '%s' "$out" | grep -q "adws/adw_modules/permissions.py"; t "fallback refusal names the offending path" $?
 printf '%s' "$out" | grep -q "pre-flight: protected_files is null/unreadable in"; t "flow-style protected_files emits the degradation note" $?
@@ -186,7 +201,7 @@ cat > "$repo/adws/adw_sssf_config/sssf.config.yaml" <<'EOF2'
 defaults:
   protected_files: []
 EOF2
-out="$(cd "$repo" && PATH="$tmp/bin:$PATH" bash "$wrapper" adw_simple_sdlc.py "edit adws/adw_modules/permissions.py" 2>&1)"; rc=$?
+out="$(cd "$repo" && PATH="$tmp/bin:$PATH" bash "$wrapper" adw_simple_sdlc.py "$(planned 'edit adws/adw_modules/permissions.py')" 2>&1)"; rc=$?
 [ "$rc" -eq 0 ]; t "explicit empty protected_files list does not refuse a barred path" $?
 printf '%s' "$out" | grep -q "protected_files is null/unreadable"; [ $? -ne 0 ]; t "explicit empty protected_files list does not trigger fallback" $?
 
@@ -198,20 +213,27 @@ rm -f "$repo/adws/adw_sssf_config/sssf.config.yaml"
 # an isolated PATH of symlinks to just what the rest of the wrapper needs — python3 excluded by
 # never being linked in, portable to wherever this machine actually keeps it.
 mkdir -p "$tmp/nopy"
-for bin in git mktemp tr sort env bash; do
+for bin in git mktemp tr sort env bash awk dirname rm; do
   src="$(command -v "$bin" 2>/dev/null)" && ln -sf "$src" "$tmp/nopy/$bin"
 done
 cp "$tmp/bin/uv" "$tmp/bin/node" "$tmp/nopy/"
-out="$(cd "$repo" && PATH="$tmp/nopy" bash "$wrapper" adw_simple_sdlc.py "edit adws/adw_modules/permissions.py" 2>&1)"; rc=$?
-[ "$rc" -eq 0 ]; t "missing python3 does not hard-fail the door" $?
-printf '%s' "$out" | grep -q "pre-flight skipped: python3 not found"; t "missing python3 is announced, not silent" $?
+out="$(cd "$repo" && PATH="$tmp/nopy" bash "$wrapper" adw_simple_sdlc.py "$(planned 'edit adws/adw_modules/permissions.py')" 2>&1)"; rc=$?
+[ "$rc" -eq 4 ]; t "missing python3 refuses because the Skills plan cannot be validated" $?
+printf '%s' "$out" | grep -q "python3 is required to validate the Skills plan"; t "missing python3 refusal names the required validation" $?
 
 # Un-derivable brief (#590 review): when brief derivation finds nothing (an equals-form
 # --findings=text, or a positional buried after flags with no --findings marker), the
 # pre-flight is skipped — silently skipping it would look identical to a clean pass.
-out="$(cd "$repo" && PATH="$tmp/bin:$PATH" bash "$wrapper" adw_simple_sdlc.py --findings=barred-adws-adw_modules-mention 2>&1)"; rc=$?
-[ "$rc" -eq 0 ]; t "an undetected brief arg still runs the factory (fail open)" $?
-printf '%s' "$out" | grep -q "pre-flight skipped: no brief argument found"; t "an undetected brief arg is announced, not silently skipped" $?
+findings_brief="$(planned 'Findings rerun with no barred paths.')"
+out="$(cd "$repo" && PATH="$tmp/bin:$PATH" bash "$wrapper" adw_simple_sdlc.py "--findings=$findings_brief" 2>&1)"; rc=$?
+[ "$rc" -eq 0 ]; t "a valid findings equals-form brief still runs" $?
+printf '%s' "$out" | grep -q "pre-flight skipped: no brief argument found"; [ $? -ne 0 ]; t "the pre-flight derives a brief from the findings equals form" $?
+
+out="$(cd "$repo" && PATH="$tmp/bin:$PATH" bash "$wrapper" adw_simple_sdlc.py 'brief without a Skills plan' 2>&1)"; rc=$?
+[ "$rc" -eq 4 ]; t "factory refuses a brief without a valid Skills plan" $?
+printf '%s' "$out" | grep -q '## Skills plan'; t "factory refusal says to add a Skills plan" $?
+out="$(cd "$repo" && PATH="$tmp/bin:$PATH" bash "$wrapper" --allow-barred adw_simple_sdlc.py 'brief without a Skills plan' 2>&1)"; rc=$?
+[ "$rc" -eq 4 ]; t "--allow-barred does not bypass Skills plan validation" $?
 
 if bash "$wrapper" no_such_adw.py >/dev/null 2>&1; then
   fail=$((fail+1)); printf '  FAIL  unknown ADW must refuse\n'
@@ -229,7 +251,7 @@ r = subprocess.run(["gh", "auth", "status"], capture_output=True)
 print("AUTH_RC=%d" % r.returncode)
 EOF3
   cp "$tmp/probe.py" "$repo/adws/zz_probe_factory_run.py"
-  out2="$(cd "$repo" && bash "$wrapper" zz_probe_factory_run.py 2>&1 | tail -1)"
+  out2="$(cd "$repo" && bash "$wrapper" zz_probe_factory_run.py "$repo/brief.md" 2>&1 | tail -1)"
   if printf '%s' "$out2" | grep -qE "AUTH_RC=[1-9]"; then
     pass=$((pass+1)); printf '  ok    REAL uv child gh is UNAUTHENTICATED (env layer survives uv)\n'
   else

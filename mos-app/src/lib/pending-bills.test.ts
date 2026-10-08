@@ -1,7 +1,7 @@
 // Pending bills view-model (#1464): what one copied bill reads as on the Finance list.
 import { describe, it, expect } from 'vitest'
 import type { PendingBillRow } from '@/lib/db/reporting-pending-bills'
-import { isPendingBillCopyStale, pendingBillAgeDays, toPendingBillViews } from './pending-bills'
+import { filterPendingBills, isPendingBillCopyStale, pendingBillAgeDays, summarizePendingBills, toPendingBillViews, type PendingBillFilters } from './pending-bills'
 
 function bill(over: Partial<PendingBillRow>): PendingBillRow {
   return {
@@ -43,12 +43,7 @@ describe('toPendingBillViews', () => {
   })
 
   it('AC-1120: derives each balance and settlement state from signed payment entries', async () => {
-    const withPayments = toPendingBillViews as unknown as (
-      bills: readonly PendingBillRow[],
-      today: string,
-      payments: readonly { esb_code: string; branch_code: string; bill_no: string; amount: number }[],
-    ) => Array<{ billNo: string; amount: number; balance: number; state: string }>
-    const views = withPayments([
+    const views = toPendingBillViews([
       bill({ bill_no: 'PARTIAL', amount: 1000 }),
       bill({ bill_no: 'SETTLED', amount: 750 }),
       bill({ bill_no: 'VOID', amount: 500, source_state: 'void' }),
@@ -67,10 +62,12 @@ describe('toPendingBillViews', () => {
       { billNo: 'SETTLED', balance: 0, state: 'settled' },
       { billNo: 'VOID', balance: 300, state: 'void' },
     ])
-    const module = await import('./pending-bills')
-    const summarize = (module as unknown as { summarizePendingBills?: (bills: typeof views) => unknown }).summarizePendingBills
-    expect(typeof summarize).toBe('function')
-    if (summarize) expect(summarize(views)).toEqual({ openBalance: 1050, openCount: 2 })
+    expect(summarizePendingBills(views, [], '2026-10-06')).toEqual({
+      openBalance: 1050,
+      openCount: 2,
+      oldestAgeDays: 5,
+      paidInPeriod: 0,
+    })
   })
 
   it('keeps cent balances exact: no float residue turns a settled bill overpaid or a remainder inexact', () => {
@@ -137,6 +134,88 @@ describe('AC-1134: payment form validation keeps invalid submissions off', () =>
     expect(validate({ amount: '0.25', cashInDate: '2026-10-06', hasProof: true, balance: 0.5, today: '2026-10-06' }).errors).toEqual({ amount: 'invalid' })
     expect(validate({ amount: '0.01', cashInDate: '2026-10-06', hasProof: true, balance: 0.01, today: '2026-10-06' }).canSubmit).toBe(true)
     expect(validate({ amount: '1000.01', cashInDate: '2026-10-06', hasProof: true, balance: 1000.01, today: '2026-10-06' }).canSubmit).toBe(true)
+  })
+})
+
+describe('multi-bill payment selection', () => {
+  it('AC-1134: totals selected open balances exactly and excludes unpayable bills', async () => {
+    const module = await import('./pending-bills')
+    const views = toPendingBillViews([
+      bill({ bill_no: 'OPEN', amount: 1000.5 }),
+      bill({ bill_no: 'PARTIAL', amount: 250 }),
+      bill({ bill_no: 'SETTLED', amount: 600 }),
+      bill({ bill_no: 'VOID', source_state: 'void', amount: 700 }),
+      bill({ bill_no: 'MISSING', source_state: 'missing', amount: 800 }),
+    ], '2026-10-06', [
+      { esb_code: 'GKI', branch_code: 'rumah_rames', bill_no: 'PARTIAL', amount: 50 },
+      { esb_code: 'GKI', branch_code: 'rumah_rames', bill_no: 'SETTLED', amount: 600 },
+    ])
+    const summarize = (module as unknown as {
+      summarizePendingBillSelection?: (bills: typeof views, selectedIds: readonly string[]) => {
+        bills: typeof views
+        count: number
+        total: number
+      }
+    }).summarizePendingBillSelection
+
+    expect(summarize?.(views, views.map((view) => view.id))).toEqual({
+      bills: [views.find((view) => view.billNo === 'OPEN'), views.find((view) => view.billNo === 'PARTIAL')],
+      count: 2,
+      total: 1200.5,
+    })
+  })
+})
+
+describe('AC-1121: paid/open views, branch and age filters drive the matching summary', () => {
+  const today = '2026-10-06'
+  const rows = toPendingBillViews([
+    bill({ bill_no: 'TODAY', bill_date: today, branch_code: 'branch-a', branch_name: 'Branch A', counterparty_note: 'Kedai kopi' }),
+    bill({ bill_no: 'THIRTY', bill_date: '2026-09-06', branch_code: 'branch-a', branch_name: 'Branch A', counterparty_note: 'Green Tea Cart', amount: 500 }),
+    bill({ bill_no: 'THIRTYONE', bill_date: '2026-09-05', branch_code: 'branch-b', branch_name: 'Branch B' }),
+    bill({ bill_no: 'NINETY', bill_date: '2026-07-08', branch_code: 'branch-b', branch_name: 'Branch B' }),
+    bill({ bill_no: 'NINETYONE', bill_date: '2026-07-07', branch_code: 'branch-b', branch_name: 'Branch B' }),
+    bill({ bill_no: 'SETTLED', bill_date: '2026-10-04', branch_code: 'branch-a', amount: 800 }),
+    bill({ bill_no: 'VOID', bill_date: '2026-10-05', branch_code: 'branch-a', source_state: 'void' }),
+  ], today, [
+    { esb_code: 'GKI', branch_code: 'branch-a', bill_no: 'THIRTY', amount: 25, cash_in_date: '2026-09-27' },
+    { esb_code: 'GKI', branch_code: 'branch-a', bill_no: 'THIRTY', amount: 75, cash_in_date: '2026-10-03' },
+    { esb_code: 'GKI', branch_code: 'branch-a', bill_no: 'SETTLED', amount: 800, cash_in_date: '2026-10-02' },
+  ])
+  const filters: PendingBillFilters = {
+    view: 'all', branchCode: '', ageBucket: 'all', search: '',
+  }
+
+  it('AC-1121: applies Open, Paid and All without disturbing oldest-first order', () => {
+    expect(filterPendingBills(rows, { ...filters, view: 'open' }).map((row) => row.billNo)).toEqual([
+      'NINETYONE', 'NINETY', 'THIRTYONE', 'THIRTY', 'TODAY',
+    ])
+    expect(filterPendingBills(rows, { ...filters, view: 'paid' }).map((row) => row.billNo)).toEqual(['SETTLED'])
+    expect(filterPendingBills(rows, filters).map((row) => row.billNo)).toEqual([
+      'NINETYONE', 'NINETY', 'THIRTYONE', 'THIRTY', 'SETTLED', 'VOID', 'TODAY',
+    ])
+  })
+
+  it('AC-1121: combines branch, age and case/space-insensitive search in the summary', () => {
+    expect(filterPendingBills(rows, { ...filters, view: 'open', branchCode: 'branch-b', ageBucket: '31-90' }).map((row) => row.billNo))
+      .toEqual(['NINETY', 'THIRTYONE'])
+    expect(filterPendingBills(rows, { ...filters, view: 'open', ageBucket: '90+' }).map((row) => row.billNo))
+      .toEqual(['NINETYONE'])
+    const matched = filterPendingBills(rows, {
+      ...filters, view: 'open', branchCode: 'branch-a', ageBucket: '0-30', search: '  gReEn   tEa  ',
+    })
+    expect(matched.map((row) => row.billNo)).toEqual(['THIRTY'])
+    expect(summarizePendingBills(matched, [
+      { esb_code: 'GKI', branch_code: 'branch-a', bill_no: 'THIRTY', amount: 25, cash_in_date: '2026-09-27' },
+      { esb_code: 'GKI', branch_code: 'branch-a', bill_no: 'THIRTY', amount: 75, cash_in_date: '2026-10-03' },
+    ], today)).toEqual({ openBalance: 400, openCount: 1, oldestAgeDays: 30, paidInPeriod: 75 })
+  })
+})
+
+describe('AC-1122: search matches copied bill text independent of case and spacing', () => {
+  it('finds copied counterparty text without requiring its original spacing', () => {
+    const rows = toPendingBillViews([bill({ bill_no: 'TEXT', counterparty_note: '  Meja   Empat  ' })], '2026-10-06')
+    expect(filterPendingBills(rows, { view: 'all', branchCode: '', ageBucket: 'all', search: ' mejaempat ' }).map((row) => row.billNo))
+      .toEqual(['TEXT'])
   })
 })
 
