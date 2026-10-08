@@ -199,7 +199,7 @@ export function CafeReceivePage() {
   // The list waits behind its toggle: listed on open, its cards push the first capture row past DESIGN's 300px.
   const [openPoPickerExpanded, setOpenPoPickerExpanded] = useState(false)
   const [openPoState, setOpenPoState] = useState<OpenPoState>({ branchId: null, status: 'loading', cache: null })
-  const [selectedPoKey, setSelectedPoKey] = useState<{ branchId: string; poNumber: string } | null>(null)
+  const [selectedPoByBranch, setSelectedPoByBranch] = useState<Record<string, string>>({})
   const openPoPickerToggleRef = useRef<HTMLButtonElement>(null)
   const [items, setItems] = useState<CafeReceivableItem[]>([])
   const [entries, setEntries] = useState<Record<string, Entry>>({})
@@ -366,8 +366,8 @@ export function CafeReceivePage() {
   const poStateForBranch = stream && openPoState.branchId === stream.branch.id
     ? openPoState
     : { branchId: stream?.branch.id ?? null, status: 'loading' as const, cache: null }
-  const selectedPo = stream && selectedPoKey?.branchId === stream.branch.id
-    ? poStateForBranch.cache?.purchaseOrders.find(po => po.poNumber === selectedPoKey.poNumber) ?? null
+  const selectedPo = stream
+    ? poStateForBranch.cache?.purchaseOrders.find(po => po.poNumber === selectedPoByBranch[stream.branch.id]) ?? null
     : null
 
   const lines = items.flatMap(item => {
@@ -422,7 +422,12 @@ export function CafeReceivePage() {
   /** Picking only groups rows; each line keeps its default unit until the person changes it (FR-1007). */
   const pickPurchaseOrder = useCallback((po: CafeOpenPoIdentity | null) => {
     if (!stream) return
-    setSelectedPoKey(po ? { branchId: stream.branch.id, poNumber: po.poNumber } : null)
+    setSelectedPoByBranch(current => {
+      if (po) return { ...current, [stream.branch.id]: po.poNumber }
+      const next = { ...current }
+      delete next[stream.branch.id]
+      return next
+    })
     setOpenPoPickerExpanded(false)
     openPoPickerToggleRef.current?.focus()
   }, [stream])
@@ -610,6 +615,8 @@ export function CafeReceivePage() {
     const entry = entries[item.id]
     const invalid = isInvalidEntry(entry)
     const unitName = item.units.find(unit => unit.id === entry?.unitId)?.name ?? ''
+    const poUnit = selectedPo?.items.find(poItem => item.units.some(unit => unit.id === poItem.itemUnitId))
+    const poUnitName = poUnit?.unitName ?? item.units.find(unit => unit.id === poUnit?.itemUnitId)?.name ?? ''
     const errorId = `cafe-receive-${item.id}-quantity-error`
     return (
       <CafeCaptureQuantityControl
@@ -628,6 +635,9 @@ export function CafeReceivePage() {
         onToggleUnit={() => patchEntry(item.id, { changingUnit: !entry?.changingUnit })}
         onUnitChange={unitId => patchEntry(item.id, { unitId })}
       >
+        {poUnit?.itemUnitId && poUnit.itemUnitId !== entry?.unitId && poUnitName && (
+          <span className="cafe-receive__open-po-note">{t('cafe.receive.openPos.poUnit', { unit: poUnitName })}</span>
+        )}
         {/* DESIGN "Compact capture row": the flag shows once the row has a quantity to flag. */}
         {entry?.quantity.trim() && (
           <label className="cafe-receive__damage-flag">
@@ -779,7 +789,7 @@ export function CafeReceivePage() {
                         <div className="cafe-receive__open-po cafe-receive__open-po--picked" role="group" aria-labelledby="cafe-receive-picked-po">
                           <PoIdentity po={selectedPo} titleId="cafe-receive-picked-po" title={t('cafe.receive.openPos.onPo', { poNumber: selectedPo.poNumber })} />
                           {selectedPoNotInMos.length > 0 && (
-                            <p className="cafe-receive__open-po-note">{t('cafe.receive.openPos.notInMos', { items: selectedPoNotInMos.join(', ') })}</p>
+                            <p className="cafe-receive__open-po-note">{t('cafe.receive.openPos.notReceivable', { items: selectedPoNotInMos.join(', ') })}</p>
                           )}
                         </div>
                       ) : openPos.length > 0 && openPosPickable && (
