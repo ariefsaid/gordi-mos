@@ -3,7 +3,7 @@
 -- outstanding (excess to Receipt issues) and the move of a refused group's portions out of queued.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(36);
+select plan(48);
 
 select set_config('app.allow_test_seeds', 'on', true);
 select shared._test_seed_directory();
@@ -215,6 +215,73 @@ select ok((select count(*) = 1 and bool_and(e.payload ->> 'mos_key' like ops.caf
              from ops.cafe_receipt_portions q join integrations.esb_push e on e.id = q.push_id
             where q.receipt_id = current_setting('app.r2')::uuid and q.state = 'queued'),
   'FR-1046 the new post attempt is a new group under the same receipt key');
+
+-- ── #1533 procurement resolves only a human-halted group ───────────────────────────────────
+select set_config('app.g4', (select e.push_group_id::text from ops.cafe_receipt_portions q
+  join integrations.esb_push e on e.id = q.push_id
+  where q.receipt_id = current_setting('app.r2')::uuid and e.push_group_id <> current_setting('app.g2')::uuid
+  order by e.created_at desc limit 1), true);
+set local role service_role;
+update integrations.esb_push set status = 'dead_letter', last_error = 'HALTED for a person: lookup could not prove absence'
+ where push_group_id = current_setting('app.g1')::uuid and status = 'in_flight';
+update integrations.esb_push_groups set status = 'dead_letter'
+ where id = current_setting('app.g1')::uuid;
+select integrations.claim_esb_pushes(array(select id from integrations.esb_push where push_group_id = current_setting('app.g4')::uuid));
+update integrations.esb_push set status = 'dead_letter', last_error = 'HALTED for a person: lookup could not prove absence'
+ where push_group_id = current_setting('app.g4')::uuid and status = 'in_flight';
+update integrations.esb_push_groups set status = 'dead_letter', posting_stage = 'create_sent'
+ where id = current_setting('app.g4')::uuid;
+reset role;
+
+set local role authenticated;
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d2","access_roles":["member","ops_lead"]}');
+select is((select count(*)::int from ops.list_cafe_receipt_halted_groups()), 0,
+  'AC-1533 an ops lead without the procurement grant cannot list halted groups');
+select throws_ok(format($$select ops.resolve_cafe_receipt_halted_group(%L, 'record_number', 'GR-SYNTH-1533')$$,
+  current_setting('app.g1')), '42501', 'CAFE_RECEIPT_HALTED_GROUP_FORBIDDEN',
+  'AC-1533 an ops lead without the procurement grant cannot resolve a group');
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d3","access_roles":["member","admin"]}');
+select ops.set_cafe_receipt_issue_access('00000000-0000-0000-0000-0000000000d6', true);
+select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d6","access_roles":["member"]}');
+select is((select count(*)::int from ops.list_cafe_receipt_halted_groups()), 2,
+  'AC-1533 procurement sees only the unresolved halted goods-receipt groups');
+select set_config('app.recorded', ops.resolve_cafe_receipt_halted_group(
+  current_setting('app.g1')::uuid, 'record_number', ' GR-SYNTH-1533-FOUND ' )::text, true);
+select is(current_setting('app.recorded')::jsonb ->> 'resolution', 'record_number',
+  'AC-1533 procurement can record the ESB number found by hand');
+select is((select g.status || ':' || g.esb_doc_num || ':' || g.posting_stage from integrations.esb_push_groups g
+            where g.id = current_setting('app.g1')::uuid),
+  'pending:GR-SYNTH-1533-FOUND:operator_confirmed',
+  'AC-1533 a recorded number marks the group for worker adoption without another lookup');
+select ok((select count(*) = 2 and bool_and(e.status = 'pending' and e.last_error is null)
+             from integrations.esb_push e where e.push_group_id = current_setting('app.g1')::uuid),
+  'AC-1533 the recorded-number group is queued for the worker');
+select ok(exists (select 1 from ops.cafe_receipt_posting_resolutions x
+                   join shared.record_history h on h.record_key = x.id::text and h.table_name = 'cafe_receipt_posting_resolutions'
+                  where x.push_group_id = current_setting('app.g1')::uuid and x.resolution = 'recorded_number'
+                    and x.esb_doc_num = 'GR-SYNTH-1533-FOUND' and x.resolved_by = '00000000-0000-0000-0000-0000000000d6'
+                    and x.resolved_at is not null and h.actor_person_id = x.resolved_by and h.action = 'insert'),
+  'AC-1533 the recorded number, who chose it and when are on the receipt history');
+select set_config('app.absent', ops.resolve_cafe_receipt_halted_group(
+  current_setting('app.g4')::uuid, 'confirm_absent', null)::text, true);
+select is(current_setting('app.absent')::jsonb ->> 'resolution', 'confirm_absent',
+  'AC-1533 procurement can confirm that the goods receipt is absent');
+select is((select g.status || ':' || coalesce(g.esb_doc_num, 'none') || ':' || coalesce(g.posting_stage, 'none')
+             from integrations.esb_push_groups g where g.id = current_setting('app.g4')::uuid),
+  'pending:none:none', 'AC-1533 confirming absence clears the uncertain stage and number');
+select ok((select count(*) = 1 and bool_and(e.status = 'pending' and e.last_error is null)
+             from integrations.esb_push e where e.push_group_id = current_setting('app.g4')::uuid),
+  'AC-1533 confirming absence requeues the halted group once');
+select ok(exists (select 1 from ops.cafe_receipt_posting_resolutions x
+                   join shared.record_history h on h.record_key = x.id::text and h.table_name = 'cafe_receipt_posting_resolutions'
+                  where x.push_group_id = current_setting('app.g4')::uuid and x.resolution = 'confirmed_absent'
+                    and x.esb_doc_num is null and x.resolved_by = '00000000-0000-0000-0000-0000000000d6'
+                    and x.resolved_at is not null and h.actor_person_id = x.resolved_by and h.action = 'insert'),
+  'AC-1533 confirming absence, who chose it and when are on the receipt history');
+select throws_ok(format($$select ops.resolve_cafe_receipt_halted_group(%L, 'confirm_absent', null)$$,
+  current_setting('app.g1')), '55000', 'CAFE_RECEIPT_HALTED_GROUP_NOT_RESOLVABLE',
+  'AC-1533 a resolved group cannot be resolved again');
+reset role;
 
 select * from finish();
 rollback;

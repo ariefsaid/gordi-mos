@@ -8,6 +8,7 @@ import {
   linkCafeReceiptIssue,
   listCafeReceiptIssueOpenPos,
   listCafeReceiptIssues,
+  resolveCafeReceiptHaltedGroup,
   setCafeReceiptIssueAccess,
 } from './cafe-receipt-issues'
 
@@ -41,7 +42,7 @@ function issueRow(n: number, status = 'open') {
 
 /** A query per table read; records each call so the tests can assert the read shape. */
 type Call = { table: string; select: unknown[]; filters: unknown[][]; range?: [number, number]; limit?: number }
-function backend(responses: Record<string, (call: Call) => { data?: unknown[]; count?: number }>) {
+function backend(responses: Record<string, (call: Call) => { data?: unknown[]; count?: number }>, haltedGroups: unknown[] = []) {
   const calls: Call[] = []
   const from = vi.fn((table: string) => {
     const call: Call = { table, select: [], filters: [] }
@@ -57,7 +58,8 @@ function backend(responses: Record<string, (call: Call) => { data?: unknown[]; c
     }
     return query
   })
-  schemaMock.mockReturnValue({ from } as never)
+  const rpc = vi.fn(async (name: string) => ({ data: name === 'list_cafe_receipt_halted_groups' ? haltedGroups : null, error: null }))
+  schemaMock.mockReturnValue({ from, rpc } as never)
   return calls
 }
 
@@ -89,6 +91,21 @@ describe('Café receipt issues adapter', () => {
     // 1201 receipts: read 50 at a time, as the receipt photo read does.
     expect(receiptsMock).toHaveBeenCalledTimes(25)
     expect(Math.max(...receiptsMock.mock.calls.map(([, options]) => options?.ids?.length ?? 0))).toBe(50)
+  })
+
+  it('AC-1533 a halted group is joined to its receipt for the existing issues surface', async () => {
+    backend({
+      cafe_receipt_issues: call => (call.select[1] ? { count: 0 } : { data: [] }),
+      cafe_receipt_portions: () => ({ data: [] }),
+    }, [{ group_id: 'group-1', receipt_id: 'receipt-7', po_number: 'PO-7', mos_key: 'MOS-RECEIPT-7' }])
+
+    const list = await listCafeReceiptIssues()
+
+    expect(list.haltedGroups).toEqual([expect.objectContaining({
+      group_id: 'group-1', po_number: 'PO-7', mos_key: 'MOS-RECEIPT-7',
+      receipt: expect.objectContaining({ id: 'receipt-7' }),
+    })])
+    expect(receiptsMock).toHaveBeenCalledWith(['Approved'], expect.objectContaining({ ids: ['receipt-7'], limit: 1 }))
   })
 
   it('DD-2026-10-06-1429 held portions that no longer fit a PO come back with their receipt and line', async () => {
@@ -168,6 +185,17 @@ describe('Café receipt issues adapter', () => {
     await closeCafeReceiptIssue('issue-1', '  Supplier credit  ')
     expect(rpc).toHaveBeenNthCalledWith(1, 'link_cafe_receipt_issue', { p_issue_id: 'issue-1', p_po_number: 'PO-1' })
     expect(rpc).toHaveBeenNthCalledWith(2, 'close_cafe_receipt_issue', { p_issue_id: 'issue-1', p_note: 'Supplier credit' })
+  })
+
+  it('AC-1533 a resolution sends only its group, choice and optional number', async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: { group_id: 'group-1', resolution: 'record_number' }, error: null })
+    schemaMock.mockReturnValue({ rpc } as never)
+
+    await resolveCafeReceiptHaltedGroup('group-1', 'record_number', '  GR-7  ')
+
+    expect(rpc).toHaveBeenCalledWith('resolve_cafe_receipt_halted_group', {
+      p_group_id: 'group-1', p_resolution: 'record_number', p_esb_doc_num: 'GR-7',
+    })
   })
 
   it('FR-1036 a refused link surfaces the database token for a plain explanation', async () => {
