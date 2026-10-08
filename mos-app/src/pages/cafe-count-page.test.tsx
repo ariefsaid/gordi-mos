@@ -133,11 +133,23 @@ describe('CafeCountPage', () => {
     }
   })
 
-  it('AC-007 renders one blank fixed-unit input per item with a decimal keyboard and no prior figures', async () => {
+  it('AC-007 renders eligible items as blank fixed-unit inputs instead of the eligibility empty state', async () => {
+    const actual = await vi.importActual<typeof import('@/lib/db/cafe-count')>('@/lib/db/cafe-count')
+    mockListItems.mockImplementationOnce(actual.listCafeCountableItems)
+    const rpc = vi.fn().mockResolvedValue({ data: [
+      { item_id: 'raw-1', item_name: 'Raw flour', item_category: 'Pantry', item_kind: 'RAW', item_unit_id: 'unit-kg', unit_name: 'kg' },
+      { item_id: 'wip-1', item_name: 'Prepared sauce', item_category: 'Kitchen', item_kind: 'WIP', item_unit_id: 'unit-tray', unit_name: 'tray' },
+      { item_id: 'raw-2', item_name: 'Uncounted rice', item_category: 'Pantry', item_kind: 'RAW', item_unit_id: 'unit-bag', unit_name: 'bag' },
+    ], error: null })
+    vi.mocked(supabase.schema).mockReturnValue({ rpc } as never)
     const { container } = renderPage()
     const rawInput = await screen.findByRole('textbox', { name: 'Count for Raw flour' })
     const wipInput = screen.getByRole('textbox', { name: 'Count for Prepared sauce' })
 
+    expect(screen.getAllByRole('textbox')).toHaveLength(3)
+    expect(screen.queryByTestId('empty-state')).not.toBeInTheDocument()
+    expect(listCafeItemSettings).not.toHaveBeenCalled()
+    expect(rpc).toHaveBeenCalledWith('cafe_countable_items', { p_branch_id: 'branch-1', p_activity: 'kitchen' })
     expect(rawInput).toHaveValue('')
     expect(wipInput).toHaveValue('')
     expect(rawInput).toHaveAttribute('inputmode', 'decimal')

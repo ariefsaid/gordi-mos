@@ -89,9 +89,11 @@ describe('CafeItemsEmptyState', () => {
   })
 
   it.each([
-    ['en', true, '2 items are set up', 'bar manager', 'No eligible stock units'],
-    ['id', false, '2 item sudah diatur', 'Manajer bar', 'Belum ada satuan stok yang memenuhi syarat'],
-  ] as const)('distinguishes configured items from stock-unit eligibility in %s', async (locale, canManage, tally, manager, title) => {
+    ['en', true, undefined, '2 items are set up', 'bar manager', 'No eligible stock units'],
+    ['en', true, 6, '2 items are set up', 'bar manager', 'No eligible stock units'],
+    ['id', false, undefined, '2 item sudah diatur', 'Manajer bar', 'Belum ada satuan stok yang memenuhi syarat'],
+    ['id', false, 6, '2 item sudah diatur', 'Manajer bar', 'Belum ada satuan stok yang memenuhi syarat'],
+  ] as const)('distinguishes configured items from stock-unit eligibility in %s (manage: %s, cached count: %s)', async (locale, canManage, esbItemCount, tally, manager, title) => {
     const configured = (id: string): CafeItemSetting => ({
       ...unsetItem(id), kind: 'WIP', isActive: true, defaultUnitId: 'unit-portion',
       units: [{ id: 'unit-portion', name: 'porsi', isShown: true, isDefault: true, labelOrdinal: null, labelCount: 1 }],
@@ -103,7 +105,7 @@ describe('CafeItemsEmptyState', () => {
       { ...configured('f'), kind: null },
     ])
     render(<MemoryRouter><I18nProvider initialLocale={locale}>
-      <CafeItemsEmptyState stream={BAR} requiresStockUnit esbItemCount={6} canManage={canManage} />
+      <CafeItemsEmptyState stream={BAR} requiresStockUnit esbItemCount={esbItemCount} canManage={canManage} />
     </I18nProvider></MemoryRouter>)
 
     const empty = await screen.findByTestId('empty-state')
