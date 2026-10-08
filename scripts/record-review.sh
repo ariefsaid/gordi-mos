@@ -4,7 +4,7 @@
 # three explicit lens records, separately produced and machine-validated; one reviewer may
 # perform all three, but each record is its own stamping.
 #
-#   scripts/record-review.sh --lens security --reviewer gpt-5.6-luna --artifact docs/reviews/feat-x.md
+#   scripts/record-review.sh --lens security --reviewer gpt-5.6-luna --artifact docs/reviews/feat-x.md [--base main|staging]
 #
 # Rules:
 #   - reviewer: an agent that did not write the branch — glm / luna (cross-family), opus fallback.
@@ -19,17 +19,16 @@ set -uo pipefail
 die() { printf '✗ record-review: %s\n' "$1" >&2; exit 1; }
 
 is_release_candidate() {
-  case "$(git branch --show-current)" in release/*|"") return 0 ;; esac
-  for b in origin/dev origin/main; do
-    git rev-parse -q --verify "$b" >/dev/null \
-      && git merge-base --is-ancestor HEAD "$b" && return 0
-  done
-  return 1
+  local base="${1:-}"
+  case "$base" in main|staging) return 0 ;; esac
+  case "$(git branch --show-current)" in release/*) return 0 ;; esac
+  git rev-parse -q --verify origin/main >/dev/null \
+    && git merge-base --is-ancestor HEAD origin/main
 }
 
 design_pass_reason() {
-  local merge_base="$1" changed_files="$2" path added deleted lines=0 numstat route_diff
-  if is_release_candidate; then
+  local merge_base="$1" changed_files="$2" release_base="${3:-}" path added deleted lines=0 numstat route_diff
+  if is_release_candidate "$release_base"; then
     printf 'release candidate'
     return 0
   fi
@@ -278,17 +277,31 @@ write each file, or correct the plan's path"
   }
 }
 
-lens="" reviewer="" artifact=""
+lens="" reviewer="" artifact="" base="" base_seen=0 release=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --lens) lens="${2:-}"; shift 2 ;;
     --reviewer) reviewer="${2:-}"; shift 2 ;;
     --artifact) artifact="${2:-}"; shift 2 ;;
-    *) die "unknown arg: $1 (usage: --lens <spec|code-quality|security> --reviewer <name> --artifact <file>)" ;;
+    --base)
+      [ $# -ge 2 ] || die "--base needs a branch name"
+      [ -n "$2" ] || die "--base needs a non-empty branch name"
+      [ "$base_seen" = 0 ] || [ "$base" = "$2" ] || die "conflicting --base values were given"
+      base="$2"; base_seen=1; shift 2 ;;
+    --base=*)
+      candidate="${1#--base=}"
+      [ -n "$candidate" ] || die "--base needs a non-empty branch name"
+      [ "$base_seen" = 0 ] || [ "$base" = "$candidate" ] || die "conflicting --base values were given"
+      base="$candidate"; base_seen=1; shift ;;
+    *) die "unknown arg: $1 (usage: --lens <spec|code-quality|security> --reviewer <name> --artifact <file> [--base <branch>])" ;;
   esac
 done
 [ -n "$lens" ] && [ -n "$reviewer" ] && [ -n "$artifact" ] \
   || die "usage: --lens <spec|code-quality|security> --reviewer <name> --artifact <file>"
+case "$artifact" in *[[:space:]]*) die "artifact path must not contain whitespace" ;; esac
+if [ "$base_seen" = 1 ]; then
+  case "$base" in main|staging) ;; *) die "--base must be main or staging (got '$base')" ;; esac
+fi
 
 case "$lens" in spec|code-quality|security) ;; *) die "unknown lens '$lens' (spec|code-quality|security)" ;; esac
 
@@ -303,11 +316,10 @@ validate_issue_skills_evidence "$artifact"
 head="$(git rev-parse HEAD)" || die "not a git repo"
 
 # Release candidates need an Opus security lens; migration branches accept Opus or an exact-prefix
-# Luna id. The shared release-candidate predicate covers release/* branches, detached HEADs, and
-# HEADs already contained in origin/dev or origin/main; a migration branch touches supabase/migrations/.
+# Luna id. A release candidate is on release/*, targets main/staging, or is already contained in
+# origin/main. A migration branch touches supabase/migrations/.
 if [ "$lens" = security ]; then
-  release=0
-  is_release_candidate && release=1
+  is_release_candidate "$base" && release=1
   migration="$(git diff --name-only origin/dev...HEAD -- supabase/migrations 2>/dev/null | head -1)"
   if [ "$release" = 1 ]; then
     case "$(printf '%s' "$reviewer" | tr '[:upper:]' '[:lower:]')" in
@@ -326,7 +338,7 @@ merge_base="$(git merge-base origin/dev HEAD 2>/dev/null)" \
   || die "cannot compare HEAD with origin/dev to determine whether this is a UI diff"
 changed_files="$(git diff --name-only --diff-filter=d "$merge_base" HEAD 2>/dev/null)" \
   || die "could not list the diff from origin/dev's merge-base"
-design_reason="$(design_pass_reason "$merge_base" "$changed_files")"
+design_reason="$(design_pass_reason "$merge_base" "$changed_files" "$base")"
 design_reason_rc=$?
 [ "$design_reason_rc" -le 1 ] || die "could not determine whether this diff needs a design pass"
 if [ "$design_reason_rc" -eq 1 ]; then
@@ -364,6 +376,10 @@ if printf '%s\n' "$verdict_lines" | grep -q 'DO NOT MERGE'; then
   gitdir="$(git rev-parse --git-dir)" || die "not a git repo"
   rm -f "$gitdir/independent-review-$lens-ok" \
     || die "could not clear the '$lens' lens stamp after DO NOT MERGE"
+  if [ "$lens" = security ]; then
+    rm -f "$gitdir/independent-review-security-release-ok" \
+      || die "could not clear the security release-rule stamp after DO NOT MERGE"
+  fi
   die "the '$lens' lens verdict is DO NOT MERGE; its stamp was cleared (other lens stamps are unchanged)"
 fi
 
@@ -376,6 +392,15 @@ printf '%s\n' "$verdict" | grep -qE '^MERGE( WITH CHANGES)?$' \
   || die "the '$lens' section's verdict is not machine-readable (MERGE | MERGE WITH CHANGES): '$verdict'"
 
 gitdir="$(git rev-parse --git-dir)"
-printf '%s %s %s %s %s\n' "$head" "$lens" "$reviewer" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$artifact" \
-  > "$gitdir/independent-review-$lens-ok"
+stamp="$head $lens $reviewer $(date -u +%Y-%m-%dT%H:%M:%SZ) $artifact"
+if [ "$lens" = security ]; then
+  rm -f "$gitdir/independent-review-security-release-ok" \
+    || die "could not clear the previous security release-rule stamp"
+fi
+printf '%s\n' "$stamp" > "$gitdir/independent-review-$lens-ok" \
+  || die "could not write the '$lens' lens stamp"
+if [ "$lens" = security ] && [ "$release" = 1 ]; then
+  printf '%s\n' "$head" > "$gitdir/independent-review-security-release-ok" \
+    || die "could not write the security release-rule stamp"
+fi
 echo "✓ $lens lens stamped ${head:0:8} by $reviewer ($artifact)"

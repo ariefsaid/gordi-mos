@@ -46,6 +46,8 @@ for length in 11 12; do
 done
 printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/full.md"
 check "full 40-character HEAD accepted" 0 --lens spec --reviewer gpt-5.6-luna --artifact full.md
+printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/my release"
+check "artifact path containing whitespace refused" 1 --lens spec --reviewer gpt-5.6-luna --artifact "$tmp/repo/my release"
 printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s0\n' "$head" > "$tmp/repo/extended.md"
 check "HEAD embedded in a longer hash refused" 1 --lens spec --reviewer gpt-5.6-luna --artifact extended.md
 printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: stale\n\n## security\nReviewer: gpt-5.6-luna (security)\nVerdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/other-head.md"
@@ -61,6 +63,8 @@ if [ ! -e "$gitdir/independent-review-security-ok" ]; then
   pass=$((pass+1)); printf '  ok    malformed verdicts do not create a security stamp\n'
 else fail=$((fail+1)); printf '  FAIL  malformed verdicts created a security stamp\n'; fi
 check "a DNM in another lens does not block this lens's MERGE" 0 --lens spec --reviewer gpt-5.6-luna --artifact mixed.md
+check "--base dev is refused" 1 --lens spec --reviewer gpt-5.6-luna --artifact review.md --base dev
+check "--base feature/topic is refused" 1 --lens spec --reviewer gpt-5.6-luna --artifact review.md --base feature/topic
 
 check "reviewer not named by the section refused" 1 --lens spec --reviewer zai/glm-5.3-flash --artifact review.md
 printf '## spec\nReviewer: gpt-5.6-luna-fake (spec)\nVerdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/spoof.md"
@@ -431,7 +435,7 @@ gr() { git -C "$tmp/rel-repo" -c user.email=t@t -c user.name=t "$@"; }
 gr commit -qm init --allow-empty
 gr update-ref refs/remotes/origin/dev "$(gr rev-parse HEAD)"
 sec() {
-  local head="$(gr rev-parse HEAD)"
+  local reviewer="$1" head="$(gr rev-parse HEAD)"
   mkdir -p "$tmp/rel-repo/docs/reviews"
   printf 'Commit: %s\n' "$head" > "$tmp/rel-repo/docs/reviews/evidence.md"
   {
@@ -443,16 +447,17 @@ sec() {
         printf '| %s | reviews/evidence.md | |\n' "$playbook"
       fi
     done
-    printf '\n## security\nReviewer: %s (security)\nVerdict: MERGE\nCommit: %s\n' "$1" "$head"
+    printf '\n## security\nReviewer: %s (security)\nVerdict: MERGE\nCommit: %s\n' "$reviewer" "$head"
   } > "$tmp/rel-repo/review.md"
-  (cd "$tmp/rel-repo" && bash "$SCRIPT" --lens security --reviewer "$1" --artifact review.md) >/dev/null 2>&1
+  shift
+  (cd "$tmp/rel-repo" && bash "$SCRIPT" --lens security --reviewer "$reviewer" --artifact review.md "$@") >/dev/null 2>&1
 }
-relcheck() { # name · want rc · reviewer
-  sec "$3"; local rc=$?
+relcheck() { # name · want rc · reviewer · optional record-review args…
+  sec "$3" "${@:4}"; local rc=$?
   if [ "$rc" -eq "$2" ]; then pass=$((pass+1)); printf '  ok    %s\n' "$1"
   else fail=$((fail+1)); printf '  FAIL  %s — rc=%s (want %s)\n' "$1" "$rc" "$2"; fi
 }
-relcheck "release candidate (HEAD already in dev): luna security refused" 1 gpt-6-luna
+relcheck "HEAD contained in origin/dev is not a release candidate" 0 gpt-6-luna
 relcheck "release candidate: opus security accepted" 0 claude-opus
 gr commit -qm feature --allow-empty
 relcheck "feature branch without migrations: luna security accepted" 0 gpt-6-luna
@@ -471,8 +476,29 @@ gr checkout -q -b release/x HEAD; gr commit -q --allow-empty -m "fix on top"
 git -C "$tmp/rel-repo" update-ref refs/remotes/origin/dev HEAD~1
 relcheck "release candidate with a migration: gpt-6-luna refused" 1 gpt-6-luna
 
-gr checkout -q --detach HEAD; gr commit -q --allow-empty -m "detached work"
-relcheck "detached HEAD outside dev/main needs opus" 1 gpt-6-luna
+gr checkout -qb feature/explicit-main "$(gr rev-parse origin/dev)"
+gr commit -q --allow-empty -m "ordinary work"
+relcheck "explicit --base main marks a release candidate" 1 gpt-6-luna --base main
+relcheck "explicit --base staging marks a release candidate" 1 gpt-6-luna --base staging
+relcheck "release security stamp accepts Opus for --base main" 0 claude-opus-5 --base main
+if [ "$(cat "$tmp/rel-repo/.git/independent-review-security-release-ok" 2>/dev/null)" = "$(gr rev-parse HEAD)" ]; then
+  pass=$((pass+1)); printf '  ok    release-rule stamp contains the exact HEAD sha\n'
+else fail=$((fail+1)); printf '  FAIL  release-rule stamp is missing the exact HEAD sha\n'; fi
+relcheck "release security stamp accepts Opus for --base staging" 0 claude-opus-5 --base staging
+if [ "$(cat "$tmp/rel-repo/.git/independent-review-security-release-ok" 2>/dev/null)" = "$(gr rev-parse HEAD)" ]; then
+  pass=$((pass+1)); printf '  ok    staging release-rule stamp contains the exact HEAD sha\n'
+else fail=$((fail+1)); printf '  FAIL  staging release-rule stamp is missing the exact HEAD sha\n'; fi
+relcheck "ordinary security re-review on the same HEAD is accepted" 0 gpt-6-luna
+if [ ! -e "$tmp/rel-repo/.git/independent-review-security-release-ok" ]; then
+  pass=$((pass+1)); printf '  ok    ordinary security re-review clears prior release-rule stamp\n'
+else fail=$((fail+1)); printf '  FAIL  ordinary security re-review left a release-rule stamp behind\n'; fi
+
+gr checkout -qb feature/ordinary-dev "$(gr rev-parse origin/dev)"
+gr commit -q --allow-empty -m "ordinary dev-bound work"
+gr checkout -q --detach HEAD
+relcheck "detached ordinary dev-bound commit is not a release candidate" 0 gpt-6-luna
+gr update-ref refs/remotes/origin/main "$(gr rev-parse HEAD)"
+relcheck "HEAD contained in origin/main is a release candidate" 1 gpt-6-luna
 
 init_ancestor_evidence_repo() { # $1 repo; creates a qualifying UI change at the evidence commit
   local repo="$1"
