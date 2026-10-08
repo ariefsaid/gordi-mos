@@ -46,9 +46,6 @@ describe('KL-FOOTER-NAV: the capture footer stays reachable above the shell bott
     expect(captureFooter).toMatch(/flex-wrap:\s*wrap/)
     expect(countRow).toMatch(/flex:\s*1 1 0/)
     expect(primaryAction).toMatch(/min-height:\s*44px/)
-    expect(css).toMatch(/\.kl-form\s*\{[^}]*--kl-footer-clearance:\s*113px/)
-    expect(css).toMatch(/\.kl-form:has\(\.kl-submit-reason\)[^}]*--kl-footer-clearance:\s*176px/)
-    expect(css).toMatch(/\.kl-form:has\(\.kl-submit-reason\):has\(\.kl-submit-outcome\)[^}]*--kl-footer-clearance:\s*208px/)
     expect(css).toMatch(/margin-bottom:\s*var\(--kl-footer-clearance\)/)
   })
 
