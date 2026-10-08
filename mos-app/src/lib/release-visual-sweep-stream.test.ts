@@ -51,6 +51,7 @@ function fakePage(options: {
       click: vi.fn(async () => { options.events.push(`click:${roleOptions.name}`) }),
     })),
     getByTestId: vi.fn((id: string) => makeLocator(`testid:${id}`)),
+    evaluate: vi.fn(async () => { options.events.push('render-frames') }),
   }
   return page as unknown as Page
 }
@@ -58,7 +59,7 @@ function fakePage(options: {
 describe('selectStreamIfPrompted', () => {
   it('clicks the exact stream option, confirms the selected label, then settles', async () => {
     const events: string[] = []
-    const page = fakePage({ chooserVisible: true, optionVisible: true, events })
+    const page = fakePage({ chooserVisible: true, selectedVisible: true, optionVisible: true, events })
     const settle = vi.fn(async () => { events.push('settle') })
 
     await selectStreamIfPrompted(page, '/cafe/count', 'Rumah Rames · Kitchen', settle)
@@ -71,6 +72,7 @@ describe('selectStreamIfPrompted', () => {
       'click-role:button:Rumah Rames · Kitchen',
       'find-role:heading:Rumah Rames · Kitchen:true',
       'wait-role:heading:Rumah Rames · Kitchen',
+      'render-frames',
       'wait:main[aria-busy="true"]:hidden',
       'settle',
     ])
@@ -91,7 +93,7 @@ describe('selectStreamIfPrompted', () => {
     await selectStreamIfPrompted(page, '/cafe/receive', 'Rumah Rames · Kitchen', settle)
     await selectStreamIfPrompted(page, '/cafe/count', undefined, settle)
 
-    expect(page.locator).toHaveBeenCalledTimes(2)
+    expect(page.locator).toHaveBeenCalledTimes(3)
     expect(settle).toHaveBeenCalledTimes(2)
   })
 

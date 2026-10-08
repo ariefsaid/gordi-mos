@@ -21,20 +21,24 @@ export async function selectStreamIfPrompted(
     selectedStream.waitFor({ state: 'visible', timeout: 10_000 }),
   ]).catch(() => undefined)
 
-  if (!(await chooser.isVisible())) {
-    await settle(page)
-    return
+  if (await chooser.isVisible()) {
+    const option = chooser.getByRole('button', { name: stream, exact: true })
+    if (!(await option.isVisible())) {
+      throw new Error(`stream "${stream}" is not offered by the picker on route ${route}`)
+    }
+
+    await option.click()
+    await page.getByTestId('cafe-stream')
+      .getByRole('heading', { name: stream, exact: true })
+      .waitFor({ state: 'visible', timeout: 10_000 })
   }
 
-  const option = chooser.getByRole('button', { name: stream, exact: true })
-  if (!(await option.isVisible())) {
-    throw new Error(`stream "${stream}" is not offered by the picker on route ${route}`)
+  await page.evaluate(() => new Promise<void>((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+  }))
+  const loadingPage = page.locator('main[aria-busy="true"]')
+  if (await loadingPage.isVisible()) {
+    await loadingPage.waitFor({ state: 'hidden', timeout: 15_000 })
   }
-
-  await option.click()
-  await page.getByTestId('cafe-stream')
-    .getByRole('heading', { name: stream, exact: true })
-    .waitFor({ state: 'visible', timeout: 10_000 })
-  await page.locator('main[aria-busy="true"]').waitFor({ state: 'hidden', timeout: 15_000 })
   await settle(page)
 }
