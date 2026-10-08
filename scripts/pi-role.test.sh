@@ -90,14 +90,14 @@ PY
 }
 
 # Skills are fixed role contracts; roster-backed model/tool values are asserted at their source.
-check_invocation implementer 'tdd,codebase-design,diagnosing-bugs' 'bitdeer/deepseek-ai/DeepSeek-V4-Flash' medium 'read,grep,find,ls,bash,edit,write'
-check_invocation ui-implementer 'impeccable,ui-ux-pro-max,taste,tdd,agent-browser' 'bitdeer/deepseek-ai/DeepSeek-V4-Flash' medium 'read,grep,find,ls,bash,edit,write'
+check_invocation implementer 'tdd,codebase-design,diagnosing-bugs' 'openai-codex/gpt-6-luna' xhigh 'read,grep,find,ls,bash,edit,write'
+check_invocation ui-implementer 'impeccable,ui-ux-pro-max,taste,tdd,agent-browser' 'openai-codex/gpt-6-luna' xhigh 'read,grep,find,ls,bash,edit,write'
 check_invocation spec-reviewer 'code-review' 'zai/glm-5.3-flash' high 'read,grep,find,ls,bash,write'
 check_invocation code-quality-reviewer 'code-review' 'zai/glm-5.3-flash' high 'read,grep,find,ls,bash,write'
 check_invocation security-reviewer 'code-review,cso' 'zai/glm-5.3-flash' high 'read,grep,find,ls,bash,write'
 check_invocation design-reviewer 'design-review,impeccable,ui-ux-pro-max,taste,agent-browser' 'zai/glm-5.3-flash' high 'read,grep,find,ls,bash,write'
 check_invocation eng-planner 'codebase-design,domain-modeling,tdd' 'zai/glm-5.3-flash' high 'read,grep,find,ls,bash,write,subagent_create,subagent_continue,subagent_list,subagent_remove'
-check_invocation documenter '' 'openai-codex/gpt-5.6-luna' medium 'read,grep,find,ls,bash,write'
+check_invocation documenter '' 'openai-codex/gpt-6-luna' medium 'read,grep,find,ls,bash,write'
 check_invocation design-architect 'design-system,impeccable,taste' 'openai-codex/gpt-6-luna' medium 'read,grep,find,ls,write'
 check_invocation researcher 'research' 'openai-codex/gpt-6-luna' medium 'read,grep,find,ls,bash,write'
 

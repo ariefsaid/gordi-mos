@@ -27,10 +27,33 @@ check_config() {
   #    provider (openrouter, fireworks, upstream's google default, …) is caught here
   while read -r m; do
     case "$m" in
-      zai/glm-5.3-flash|openai-codex/gpt-5.6-luna|bitdeer/deepseek-ai/DeepSeek-V4-Flash) ;;
+      zai/glm-5.3-flash|openai-codex/gpt-6-luna) ;;
       *) bad_out+="model not in the ruled substrate set: $m\n" ;;
     esac
   done < <(grep -E '^ *model: ' "$cfg" | awk '{print $2}')
+  agent_setting() {
+    awk -v name="$1" -v key="$2" '
+      /^  - name: / { active = ($3 == name) }
+      active && $1 == (key ":") { print $2; exit }
+    ' "$cfg"
+  }
+  local builder_model fe_builder_model reviewer_model fe_reviewer_model documenter_model
+  builder_model=$(agent_setting builder model)
+  fe_builder_model=$(agent_setting fe_builder model)
+  reviewer_model=$(agent_setting reviewer model)
+  fe_reviewer_model=$(agent_setting fe_reviewer model)
+  documenter_model=$(agent_setting documenter model)
+  if [ "$builder_model" != openai-codex/gpt-6-luna ] \
+    || [ "$fe_builder_model" != openai-codex/gpt-6-luna ] \
+    || [ "$documenter_model" != openai-codex/gpt-6-luna ] \
+    || [ "$(agent_setting builder thinking)" != xhigh ] \
+    || [ "$(agent_setting fe_builder thinking)" != xhigh ] \
+    || [ "$reviewer_model" != zai/glm-5.3-flash ] \
+    || [ "$fe_reviewer_model" != zai/glm-5.3-flash ] \
+    || [ "${builder_model%%/*}" = "${reviewer_model%%/*}" ] \
+    || [ "${fe_builder_model%%/*}" = "${fe_reviewer_model%%/*}" ]; then
+    bad_out+="owner model routing or cross-family pairing does not match\n"
+  fi
   # 3. contract paths live under agents/
   while read -r c; do
     case "$c" in agents/*.md) ;; *) bad_out+="contract outside agents/: $c\n" ;; esac
