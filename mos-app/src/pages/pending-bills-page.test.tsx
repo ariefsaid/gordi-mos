@@ -5,6 +5,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { StrictMode } from 'react'
 import { render, screen, within, fireEvent, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 
@@ -15,6 +16,8 @@ vi.mock('@/lib/db/reporting-pending-bills', () => ({
 vi.mock('@/lib/db/pending-bill-payments', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/db/pending-bill-payments')>()),
   listPendingBillPaymentAmounts: vi.fn(),
+  listPendingBillFinanceLabels: vi.fn(),
+  setPendingBillFinanceLabel: vi.fn(),
   listPendingBillPaymentHistory: vi.fn(),
   recordPendingBillPayment: vi.fn(),
   paySeveralPendingBills: vi.fn(),
@@ -31,6 +34,8 @@ import { latestPendingBillSnapshot, listPendingBills, type PendingBillRow } from
 import { ReportingRowCapError } from '@/lib/db/reporting-shared'
 import {
   listPendingBillPaymentAmounts,
+  listPendingBillFinanceLabels,
+  setPendingBillFinanceLabel,
   listPendingBillPaymentHistory,
   PendingBillBalanceChangedError,
   recordPendingBillPayment,
@@ -48,6 +53,8 @@ import { PendingBillsPage } from './pending-bills-page'
 const mockList = vi.mocked(listPendingBills)
 const mockSnapshot = vi.mocked(latestPendingBillSnapshot)
 const mockPaymentAmounts = vi.mocked(listPendingBillPaymentAmounts)
+const mockFinanceLabels = vi.mocked(listPendingBillFinanceLabels)
+const mockSetFinanceLabel = vi.mocked(setPendingBillFinanceLabel)
 const mockPaymentHistory = vi.mocked(listPendingBillPaymentHistory)
 const mockRecordPayment = vi.mocked(recordPendingBillPayment)
 const mockPaySeveral = vi.mocked(paySeveralPendingBills)
@@ -109,6 +116,17 @@ function setViewport(desktop: boolean, wide = false) {
   }))
 }
 
+function setViewportWidth(width: number) {
+  window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+    matches: query === '(min-width: 768px)' ? width >= 768
+      : query === '(min-width: 1100px)' ? width >= 1100
+        : query === '(max-width: 919.98px)' ? width <= 919.98
+          : false,
+    media: query, onchange: null,
+    addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
+  }))
+}
+
 const realMatchMedia = window.matchMedia
 
 beforeEach(() => {
@@ -118,6 +136,8 @@ beforeEach(() => {
   vi.setSystemTime(NOW)
   mockSnapshot.mockResolvedValue({ snapshot_as_of: COPY, bill_count: 3 })
   mockPaymentAmounts.mockResolvedValue([])
+  mockFinanceLabels.mockResolvedValue([])
+  mockSetFinanceLabel.mockResolvedValue(undefined)
   mockPaymentHistory.mockResolvedValue([])
   mockRecordPayment.mockResolvedValue({ paymentId: 'payment-new', replayed: false })
   mockPaySeveral.mockResolvedValue([])
@@ -217,6 +237,23 @@ describe('the phone list', () => {
     expect(oldest.getByText('420 days')).toBeInTheDocument()
     expect(oldest.getByText('Open')).toBeInTheDocument()
     expect(oldest.getByText('Meja 4').closest('.money-table__cell--owes')).toBeInTheDocument()
+  })
+
+  it('keeps the Finance label name accessible without spending list width on the phone card', async () => {
+    setViewport(false)
+    const label = 'Owner who runs the weekend market and always settles after closing'
+    mockFinanceLabels.mockResolvedValue([{
+      esb_code: 'GKI', branch_code: 'rumah_rames', bill_no: 'PB-2', finance_label: label,
+    }])
+    renderPage()
+    const table = await screen.findByRole('table', { name: 'Pending bills, oldest first' })
+    const row = within(table).getByText('PB-2').closest('tr')!
+    const financeLabel = within(row).getByText(label)
+    const financeLabelName = within(row).getByText('Finance label:', { exact: true })
+    expect(financeLabel).toHaveAttribute('title', label)
+    expect(financeLabel).toHaveClass('pending-bills__finance-label')
+    expect(financeLabelName).toHaveClass('sr-only')
+    expect(financeLabel.closest('.pending-bills__finance-label-line')?.previousElementSibling).toHaveClass('pending-bills__owes-source')
   })
 
   it('keeps a long counterparty note readable on the phone card and recoverable in the record panel', async () => {
@@ -394,6 +431,76 @@ describe('AC-1121: pending-bill view controls', () => {
   })
 })
 
+describe('Finance label editing in the bill record', () => {
+  it('sets and clears a label, confirms each save, and restores focus after keyboard commit', async () => {
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Open bill PB-2' }))
+    const edit = await screen.findByRole('button', { name: 'Edit Finance label' })
+    fireEvent.click(edit)
+    const input = screen.getByRole('textbox', { name: 'Finance label' })
+    fireEvent.change(input, { target: { value: 'Owner Sari' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    await waitFor(() => expect(mockSetFinanceLabel).toHaveBeenNthCalledWith(1, {
+      esbCode: 'GKI', branchCode: 'rumah_rames', billNo: 'PB-2', financeLabel: 'Owner Sari',
+    }))
+    expect(await screen.findByText('Finance label saved.')).toBeInTheDocument()
+    expect(await screen.findAllByText('Owner Sari')).toHaveLength(2)
+    expect(document.activeElement).toHaveAttribute('aria-label', 'Edit Finance label')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Finance label' }))
+    const clearInput = screen.getByRole('textbox', { name: 'Finance label' })
+    fireEvent.change(clearInput, { target: { value: '' } })
+    fireEvent.keyDown(clearInput, { key: 'Enter' })
+    await waitFor(() => expect(mockSetFinanceLabel).toHaveBeenNthCalledWith(2, {
+      esbCode: 'GKI', branchCode: 'rumah_rames', billNo: 'PB-2', financeLabel: null,
+    }))
+    expect(await screen.findByText('Finance label cleared.')).toBeInTheDocument()
+  })
+
+  it('keeps a failed label draft in edit mode and guards discard like the payment form', async () => {
+    mockSetFinanceLabel.mockRejectedValue(new Error('unavailable'))
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Open bill PB-2' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit Finance label' }))
+    const input = screen.getByRole('textbox', { name: 'Finance label' })
+    fireEvent.change(input, { target: { value: 'Draft label' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() => expect(input).toHaveValue('Draft label'))
+    expect(input.closest('[data-mode="edit"]')).toHaveAttribute('data-status', 'error')
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Paid' }))
+    expect(await screen.findByText('Discard unsaved changes?')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Discard changes' }))
+    await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Finance label' })).toBeNull())
+    expect(screen.getByRole('tab', { name: 'Paid' })).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it.each([390, 768, 1440])('guards a failed Finance label draft on panel close at %i px without retrying the save', async (width) => {
+    setViewportWidth(width)
+    mockSetFinanceLabel.mockRejectedValueOnce(new Error('unavailable'))
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(await screen.findByRole('button', { name: 'Open bill PB-2' }))
+    await user.click(await screen.findByRole('button', { name: 'Edit Finance label' }))
+    const input = screen.getByRole('textbox', { name: 'Finance label' })
+    await user.type(input, 'Draft label')
+    await user.keyboard('{Enter}')
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    expect(input).toHaveValue('Draft label')
+    expect(mockSetFinanceLabel).toHaveBeenCalledTimes(1)
+
+    await user.click(screen.getByRole('button', { name: 'Close' }))
+    expect(mockSetFinanceLabel).toHaveBeenCalledTimes(1)
+    expect(await screen.findByText('Discard unsaved changes?')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Discard changes' }))
+    await waitFor(() => expect(document.querySelector('[aria-label="Pending bill PB-2"]')).toBeNull())
+    expect(mockSetFinanceLabel).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('multi-bill payment selection', () => {
   it('places tablet selection actions before the bill list in reading and focus order', async () => {
     setViewport(true)
@@ -529,9 +636,9 @@ describe('multi-bill payment selection', () => {
     expect(within(table).getByRole('checkbox', { name: 'Select bill PB-2' })).toBeChecked()
   })
 
-  it('settles every selected row, clears selection and restores focus to a bill row', async () => {
+  it('settles every selected row, clears selection and returns focus to the current tab', async () => {
     mockList.mockResolvedValue([
-      bill({ bill_no: 'PB-2', bill_date: '2026-10-06', amount: 96000.5 }),
+      bill({ bill_no: 'PB-2', bill_date: '2026-10-06', counterparty_note: null, amount: 96000.5 }),
       bill({ bill_no: 'PB-1', bill_date: '2025-08-12', branch_name: null, branch_code: 'pop_up_east', branch_id: null, amount: 2480000 }),
     ])
     const batchResults: PaidPendingBill[] = [
@@ -560,20 +667,41 @@ describe('multi-bill payment selection', () => {
       cashInDate: '2026-10-06',
       proofPath: 'org-1/proof.pdf',
     }))
-    expect(screen.getByRole('tab', { name: 'Paid' })).toHaveAttribute('aria-selected', 'true')
-    const updatedRows = within(table).getAllByRole('row').slice(1)
-    expect(updatedRows).toHaveLength(2)
-    for (const row of updatedRows) {
-      expect(within(row).getByText('Settled')).toBeInTheDocument()
-      expect(within(row).getByText('Rp 0')).toBeInTheDocument()
-    }
+    expect(screen.getByRole('tab', { name: 'Open' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByText(/0 open bills/)).toHaveTextContent('paid this month Rp 2.576.000')
+    expect(within(table).getAllByRole('row').slice(1)).toHaveLength(0)
+    expect(screen.getByText('No bills match these filters.')).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: /selected ·/ })).toBeNull()
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Open bill PB-1' })).toHaveFocus())
+    await waitFor(() => expect(screen.getByRole('tab', { name: 'Open' })).toHaveFocus())
   })
 })
 
 describe('AC-1135: recording updates the selected row and confirms count plus total', () => {
-  it('moves a settled bill to Paid and leaves its record panel open', async () => {
+  it('stays on Open and shows its empty state and summary after the last open bill settles', async () => {
+    mockList.mockResolvedValue([bill({ bill_no: 'PB-LAST', amount: 96_000 })])
+    renderPage()
+
+    const openTab = await screen.findByRole('tab', { name: 'Open' })
+    expect(openTab).toHaveAttribute('aria-selected', 'true')
+    fireEvent.click(await screen.findByRole('button', { name: 'Open bill PB-LAST' }))
+    const panel = await screen.findByRole('dialog', { name: 'Pending bill PB-LAST' })
+    fireEvent.click(within(panel).getByRole('button', { name: 'Record payment' }))
+    const form = within(panel).getByRole('form', { name: 'Record payment' })
+    fireEvent.change(within(form).getByLabelText('Amount'), { target: { value: '96000' } })
+    fireEvent.change(within(form).getByLabelText('Cash-in date'), { target: { value: '06/10/2026' } })
+    fireEvent.change(within(form).getByLabelText(/^Proof/), {
+      target: { files: [new File(['proof'], 'receipt.pdf', { type: 'application/pdf' })] },
+    })
+    fireEvent.click(within(form).getByRole('button', { name: 'Record payment' }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent('1 payment recorded · Rp 96.000 total.')
+    expect(screen.getByRole('tab', { name: 'Open' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByText('No bills match these filters.')).toBeInTheDocument()
+    expect(within(screen.getByRole('table', { name: 'Pending bills, oldest first' })).getAllByRole('row').slice(1)).toHaveLength(0)
+    expect(screen.getByText(/0 open bills/)).toHaveTextContent('paid this month Rp 96.000')
+  })
+
+  it('keeps the All tab selected and shows the settled bill in place', async () => {
     const persisted: PendingBillPaymentAmountRow[] = [{
       id: 'payment-new', esb_code: 'GKI', branch_code: 'rumah_rames', bill_no: 'PB-2', amount: 96000, cash_in_date: '2026-10-06',
     }]
@@ -586,6 +714,7 @@ describe('AC-1135: recording updates the selected row and confirms count plus to
     mockPaymentAmounts.mockResolvedValueOnce([]).mockResolvedValue(persisted)
     mockPaymentHistory.mockResolvedValueOnce([]).mockResolvedValue(history)
     renderPage()
+    fireEvent.click(await screen.findByRole('tab', { name: 'All' }))
 
     const openRow = await screen.findByRole('button', { name: 'Open bill PB-2' })
     fireEvent.click(openRow)
@@ -613,7 +742,7 @@ describe('AC-1135: recording updates the selected row and confirms count plus to
     })))
     expect(await within(panel).findByRole('link', { name: 'Open private proof' })).toHaveAttribute('href', 'https://proof.example.test/signed')
     const table = screen.getByRole('table', { name: 'Pending bills, oldest first' })
-    expect(screen.getByRole('tab', { name: 'Paid' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: 'All' })).toHaveAttribute('aria-selected', 'true')
     const updatedRow = within(table).getByRole('button', { name: 'Open bill PB-2' }).closest('tr')
     expect(updatedRow).toBeInTheDocument()
     expect(updatedRow).toHaveTextContent('Settled')
@@ -773,7 +902,7 @@ describe('the pending bill record panel at every width', () => {
     await waitFor(() => expect(within(panel).getByRole('button', { name: 'Record payment' })).toHaveFocus())
   })
 
-  it('returns a reversed bill from Paid to Open and restores focus to its panel action', async () => {
+  it('keeps the Paid tab selected when a reversal reopens a bill', async () => {
     mockList.mockResolvedValue([bill({ bill_no: 'PB-2', amount: 1000 })])
     const paid: PendingBillPaymentAmountRow[] = [{ id: 'payment-1', esb_code: 'GKI', branch_code: 'rumah_rames', bill_no: 'PB-2', amount: 1000, cash_in_date: '2026-10-06' }]
     const history: PendingBillPaymentHistoryEntry[] = [{
@@ -794,11 +923,10 @@ describe('the pending bill record panel at every width', () => {
     fireEvent.click(within(form).getByRole('button', { name: 'Record reversal' }))
     await waitFor(() => expect(mockRecordPayment).toHaveBeenCalled())
     await waitFor(() => expect(within(panel).queryByRole('form', { name: 'Reverse payment' })).toBeNull())
-    expect(screen.getByRole('tab', { name: 'Open' })).toHaveAttribute('aria-selected', 'true')
-    const reopenedRow = within(screen.getByRole('table', { name: 'Pending bills, oldest first' }))
-      .getByRole('button', { name: 'Open bill PB-2' }).closest('tr')
-    expect(reopenedRow).toHaveTextContent('Open')
-    expect(reopenedRow).toHaveTextContent('Rp 1.000')
+    expect(screen.getByRole('tab', { name: 'Paid' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByText('No bills match these filters.')).toBeInTheDocument()
+    expect(screen.getByText(/1 open bill/)).toHaveTextContent('paid this month Rp 0')
+    expect(within(screen.getByRole('table', { name: 'Pending bills, oldest first' })).getAllByRole('row').slice(1)).toHaveLength(0)
     await waitFor(() => expect(within(panel).getByRole('button', { name: 'Record payment' })).toHaveFocus())
   })
 

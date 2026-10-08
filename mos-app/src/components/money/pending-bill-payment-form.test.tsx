@@ -15,6 +15,7 @@ const bill: PendingBillView = {
   branchKnown: true,
   billNo: 'PB-1',
   counterpartyNote: 'Table 4',
+  financeLabel: null,
   amount: 2500,
   recordedPaid: 0,
   balance: 2500,
