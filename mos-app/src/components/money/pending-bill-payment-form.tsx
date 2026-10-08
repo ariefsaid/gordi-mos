@@ -44,7 +44,10 @@ const FIELD_LABEL: Record<PendingBillPaymentField, 'pendingBills.form.amount' | 
 export function PendingBillPaymentForm({ bill, bills, orgId, onCancel, onSaved, onDirtyChange, onBusyChange, onBalancesChanged, reversePayment = null }: PendingBillPaymentFormProps) {
   // The panel's own buttons give way to this form, so focus moves into it when it opens.
   const formRef = useRef<HTMLFormElement>(null)
-  useEffect(() => { formRef.current?.focus() }, [])
+  useEffect(() => {
+    const form = formRef.current
+    if (form && !form.contains(document.activeElement)) form.focus()
+  }, [])
   const t = useT()
   const id = useId()
   const today = wibToday()

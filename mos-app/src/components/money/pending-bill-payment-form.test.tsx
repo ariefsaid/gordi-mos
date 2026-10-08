@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import type { ComponentType } from 'react'
+import { useLayoutEffect, useRef, type ComponentType } from 'react'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { wibToday } from '@/lib/home-attention'
@@ -43,6 +43,39 @@ describe('AC-1134: multi-bill amounts are locked to the selected balances', () =
 
     expect(screen.queryByRole('spinbutton', { name: 'Amount' })).toBeNull()
     expect(screen.queryByText('Rp 3.250')).not.toBeNull()
+  })
+
+  it('opens with a pristine cash-in date even when the panel focuses it before the form effect', () => {
+    type BatchFormProps = Parameters<typeof PendingBillPaymentForm>[0] & { bills: PendingBillView[] }
+    const BatchForm = PendingBillPaymentForm as unknown as ComponentType<BatchFormProps>
+    const secondBill: PendingBillView = { ...bill, id: 'second', billNo: 'PB-2', balance: 750, amount: 750 }
+
+    function PanelWithInitialFocus() {
+      const panelRef = useRef<HTMLDivElement>(null)
+      useLayoutEffect(() => {
+        panelRef.current?.querySelector<HTMLInputElement>('.mk-date__field')?.focus()
+      }, [])
+      return (
+        <div ref={panelRef}>
+          <BatchForm bill={bill} bills={[bill, secondBill]} orgId="org-1" onCancel={vi.fn()} onSaved={vi.fn()} />
+        </div>
+      )
+    }
+
+    render(<I18nProvider initialLocale="en"><PanelWithInitialFocus /></I18nProvider>)
+    const form = screen.getByRole('form', { name: 'Record payment' })
+    const date = screen.getByLabelText('Cash-in date')
+    const submit = screen.getByRole('button', { name: 'Record payment' })
+
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(date).toHaveValue('')
+    expect(date).not.toHaveAttribute('aria-invalid')
+    expect(submit).toBeDisabled()
+    expect(screen.getByRole('status')).toHaveTextContent('Cash-in date, Proof')
+
+    fireEvent.submit(form)
+    expect(screen.getByRole('status')).toHaveTextContent('Cash-in date')
+    expect(submit).toBeDisabled()
   })
 })
 
