@@ -12,7 +12,12 @@ pass=0; fail=0
 mkdir -p "$tmp/bin"
 cat > "$tmp/bin/gh" <<EOF
 #!/usr/bin/env bash
-printf '%s\n' "\$*" >> "$tmp/gh-calls"
+if [ "\$1" = issue ] && [ "\$2" = view ]; then
+  printf '%s\n' "\$*" >> "$tmp/gh-reads"
+  cat "$tmp/issue-body"
+else
+  printf '%s\n' "\$*" >> "$tmp/gh-calls"
+fi
 EOF
 chmod +x "$tmp/bin/gh"
 export PATH="$tmp/bin:$PATH"
@@ -61,6 +66,31 @@ check_message() { # $1 name · $2 expected rc · $3 expect-gh-called · $4 diagn
 
 check "clean comment passes through to gh" 0 yes issue comment 5 --body "all good here"
 check "denylisted body refused, gh untouched" 1 no issue comment 5 --body "the secretword is out"
+
+ready_plan="$tmp/ready-plan.md"
+cat > "$ready_plan" <<'EOF'
+## Skills plan
+| Skill | Phase | Evidence |
+|---|---|---|
+| tdd | build | docs/reviews/1541/tdd.md |
+EOF
+check_message "ready-for-agent issue create without a plan is refused" 1 no "ready-for-agent requires a valid Skills plan" issue create --title t --label ready-for-agent --body "No plan yet."
+check_message "case-insensitive ready label on issue create requires a plan" 1 no "ready-for-agent requires a valid Skills plan" issue create --title t --label Ready-For-Agent --body "No plan yet."
+check "ready-for-agent issue create with a plan passes" 0 yes issue create --title t --label bug,ready-for-agent --body-file "$ready_plan"
+ready_plan_text="$(cat "$ready_plan")"
+check "ready-for-agent issue create validates --body text" 0 yes issue create --title t --label ready-for-agent --body "$ready_plan_text"
+check "ready-for-agent issue create validates -b text" 0 yes issue create --title t --label ready-for-agent -b "$ready_plan_text"
+check "ready-for-agent issue create validates -F body file" 0 yes issue create --title t --label ready-for-agent -F "$ready_plan"
+check_message "a plan in --assignee cannot satisfy the issue-body gate" 1 no "ready-for-agent requires a valid Skills plan" issue create --title t --label ready-for-agent --body "No plan yet." --assignee "$ready_plan_text"
+check_message "a plan in --title cannot satisfy the issue-body gate" 1 no "ready-for-agent requires a valid Skills plan" issue edit 17 --add-label ready-for-agent --body "No plan yet." --title "$ready_plan_text"
+check "issue create without ready-for-agent needs no plan" 0 yes issue create --title t --label needs-triage --body "No plan yet."
+printf 'No plan yet.\n' > "$tmp/issue-body"
+check_message "adding ready-for-agent fetches and rejects a current body without a plan" 1 no "issue #17" issue edit 17 --add-label ready-for-agent
+check_message "case-insensitive ready label on issue edit requires a plan" 1 no "issue #17" issue edit 17 --add-label Ready-For-Agent
+cat "$ready_plan" > "$tmp/issue-body"
+check "adding ready-for-agent accepts the fetched current plan" 0 yes issue edit 17 --add-label ready-for-agent
+printf 'No plan yet.\n' > "$tmp/issue-body"
+check "other issue edits remain unaffected" 0 yes issue edit 17 --add-label needs-triage --body "No plan yet."
 check "policy is case-insensitive ERE" 1 no issue comment 5 --body "Missing RLS on that table"
 
 echo "contains secretword" > "$tmp/repo/body.md"
@@ -75,6 +105,18 @@ check "clean short -F body file passes" 0 yes issue comment 5 -F "$tmp/repo/body
 check "gh api -F field values scanned" 1 no api repos/x/y/issues -F body="has secretword inside"
 check "api path naming another repo refused, gh untouched" 1 no api repos/other/elsewhere/issues -f title=x
 check "api path naming this repo passes" 0 yes api repos/x/y/issues -f title=x
+check_message "REST issue-label POST is refused with the issue-edit route" 1 no "issue edit --add-label" api repos/x/y/issues/17/labels --method POST -f name=ready-for-agent
+check_message "REST issue-label PATCH is refused with the issue-edit route" 1 no "issue edit --add-label" api repos/x/y/issues/17/labels -X PATCH -f name=ready-for-agent
+check "REST issue-label GET remains allowed" 0 yes api repos/x/y/issues/17/labels --method GET
+issue_label_message="labels go through 'issue create --label' or 'issue edit --add-label'"
+check_message "REST issue PATCH with labels[]= is refused" 1 no "$issue_label_message" api repos/x/y/issues/17 -X PATCH -f 'labels[]=ready-for-agent'
+check_message "REST issue PATCH with -F labels[] is refused" 1 no "$issue_label_message" api repos/x/y/issues/17 -X PATCH -F 'labels[]=ready-for-agent'
+check_message "REST issue PATCH with --raw-field labels[] is refused" 1 no "$issue_label_message" api repos/x/y/issues/17 --method PATCH --raw-field 'labels[]=ready-for-agent'
+printf '{"labels":["ready-for-agent"]}\n' > "$tmp/repo/labels.json"
+check_message "REST issue PATCH with --input is refused" 1 no "$issue_label_message" api repos/x/y/issues/17 -X PATCH --input "$tmp/repo/labels.json"
+check_message "REST issue POST with labels at collection is refused" 1 no "$issue_label_message" api repos/x/y/issues -X POST -f title=t -f 'labels[]=ready-for-agent'
+check_message "REST issue PATCH through leading-slash path is refused" 1 no "$issue_label_message" api /repos/x/y/issues/17 -X PATCH -f 'labels[]=ready-for-agent'
+check "REST issue PATCH state=closed remains allowed" 0 yes api repos/x/y/issues/17 -X PATCH -f state=closed
 check "api path with no repo (e.g. /user) refused" 1 no api user
 check "--repo naming another repo refused on issue verbs" 1 no issue comment 5 --repo other/elsewhere --body "fine"
 check "--repo naming this repo passes on issue verbs" 0 yes issue comment 5 --repo x/y --body "fine"

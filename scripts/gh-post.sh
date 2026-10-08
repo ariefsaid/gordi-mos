@@ -81,9 +81,18 @@ fi
 # refused outright — text the scanner can't see is text that doesn't leave.
 texts=("$@")
 args=("$@")
+issue_body_set=0 issue_body=""
 for ((i = 0; i < ${#args[@]}; i++)); do
   a="${args[$i]}"
   f="" v=""
+  if [ "$verb1 $verb2" = "issue create" ] || [ "$verb1 $verb2" = "issue edit" ]; then
+    case "$a" in
+      --body|-b) issue_body_set=1; issue_body="${args[$((i + 1))]:-}" ;;
+      --body=*) issue_body_set=1; issue_body="${a#--body=}" ;;
+      -b?*) issue_body_set=1; issue_body="${a#-b}" ;;
+      --body-file|-F|--body-file=*|-F?*) issue_body_set=1 ;;
+    esac
+  fi
   case "$a" in
     --body-file|--input) f="${args[$((i + 1))]:-}" ;;
     --body-file=*|--input=*) f="${a#*=}" ;;
@@ -100,7 +109,11 @@ for ((i = 0; i < ${#args[@]}; i++)); do
   if [ -n "$f" ]; then
     [ "$f" != "-" ] || die "stdin payloads ('-') are not scannable — put the text in a file"
     [ -r "$f" ] || die "cannot read body file: $f"
-    texts+=("$(cat "$f")")
+    file_text="$(cat "$f")"
+    texts+=("$file_text")
+    if [ "$verb1 $verb2" = "issue create" ] || [ "$verb1 $verb2" = "issue edit" ]; then
+      case "$a" in --body-file|-F|--body-file=*|-F?*) issue_body="$file_text" ;; esac
+    fi
   fi
 done
 
@@ -185,6 +198,51 @@ require_reused_line() {
   die "the PR body has no 'Reused:' line — name the existing components, helpers, tests or patterns you reused (and why anything new was needed)"
 }
 
+contains_ready_label() { [[ ",$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')," == *,ready-for-agent,* ]]; }
+
+require_ready_issue_skills_plan() {
+  local ready=0 issue_target="" label result body
+  local -a argv=("$@")
+  for ((i = 0; i < ${#argv[@]}; i++)); do
+    a="${argv[$i]}"
+    case "$verb1 $verb2:$a" in
+      "issue create:--label"|"issue create:-l"|"issue edit:--add-label")
+        [ $((i + 1)) -lt ${#argv[@]} ] || continue
+        i=$((i + 1)); label="${argv[$i]}" ;;
+      "issue create:--label="*|"issue create:--add-label="*|"issue edit:--add-label="*|"issue create:-l"?*)
+        case "$a" in -l*) label="${a#-l}" ;; *) label="${a#*=}" ;; esac ;;
+      *) continue ;;
+    esac
+    contains_ready_label "$label" && ready=1
+  done
+  [ "$ready" -eq 1 ] || return 0
+
+  if [ "$verb1 $verb2" = "issue edit" ]; then
+    for ((i = 0; i + 2 < ${#argv[@]}; i++)); do
+      if [ "${argv[$i]}" = issue ] && [ "${argv[$((i + 1))]}" = edit ]; then
+        issue_target="${argv[$((i + 2))]}"
+        [[ "$issue_target" = -* ]] && issue_target=""
+        break
+      fi
+    done
+    if [ "$issue_body_set" -eq 0 ]; then
+      [ -n "$issue_target" ] || die "cannot identify the issue for ready-for-agent; pass its number so the current body can be fetched"
+      body="$(gh issue view "$issue_target" --json body -q .body 2>/dev/null)" \
+        || die "cannot fetch the current body for issue $issue_target; retry when GitHub is reachable"
+      issue_body="$body"
+    fi
+  fi
+
+  result="$(printf '%s\n' "$issue_body" | bash "$(dirname "$0")/skills-plan.sh" check - 2>&1)" && return 0
+  [ -z "$issue_target" ] || issue_target="issue #$issue_target: "
+  die "${issue_target}ready-for-agent requires a valid Skills plan
+$result"
+}
+
+if [ "$verb1 $verb2" = "issue create" ] || [ "$verb1 $verb2" = "issue edit" ]; then
+  require_ready_issue_skills_plan "$@"
+fi
+
 if [ "$verb1" = "pr" ] && [ "$verb2" = "create" ]; then
   for a in "$@"; do
     case "$a" in
@@ -223,6 +281,22 @@ fi
 
 if [ "$verb1" = "api" ]; then
   path="${verb2#/}"; path="${path%%\?*}"; path="${path%/}"
+  case "$path" in repos/"$this_repo"/issues/*/labels) [ "$(printf '%s' "$api_method" | tr '[:lower:]' '[:upper:]')" = GET ] || die "REST issue-label writes are refused — use 'issue edit --add-label' to change labels" ;; esac
+  issue_path=0
+  case "$path" in
+    "repos/$this_repo/issues") issue_path=1 ;;
+    "repos/$this_repo/issues/"*)
+      issue_number="${path#repos/$this_repo/issues/}"
+      case "$issue_number" in ''|*[!0-9]*) ;; *) issue_path=1 ;; esac ;;
+  esac
+  if [ "$issue_path" = 1 ] && [ "$(printf '%s' "$api_method" | tr '[:lower:]' '[:upper:]')" != GET ]; then
+    has_labels="$api_input"
+    for kv in "${api_fields[@]:-}"; do
+      field_name="${kv%%=*}"
+      case "$field_name" in labels|labels\[* ) has_labels=1 ;; esac
+    done
+    [ "$has_labels" = 0 ] || die "REST issue writes refused — labels go through 'issue create --label' or 'issue edit --add-label'"
+  fi
   # Only an explicit GET reads the pulls collection; anything else may create a PR.
   if [ "$path" = "repos/$this_repo/pulls" ] && [ "$(printf '%s' "$api_method" | tr '[:lower:]' '[:upper:]')" != "GET" ]; then
     [ "$api_input" = 0 ] || die "REST PR create must pass base/head as -f fields — an --input payload hides them from the stamp check"
