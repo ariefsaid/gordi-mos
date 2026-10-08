@@ -1,7 +1,7 @@
 -- #1467 AC-1122: Finance labels are a MOS overlay keyed to one copied pending bill.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(31);
+select plan(46);
 
 select shared._test_seed_directory();
 
@@ -53,9 +53,33 @@ select is((select finance_label from mos.pending_bill_finance_labels where bill_
 select throws_ok($$select mos.set_pending_bill_finance_label('ESB-LABEL','BR-LABEL','PB-LABEL-A',pg_catalog.repeat('x',61))$$,
   '23514', 'Finance label must be 60 characters or fewer.', 'the writer rejects labels longer than 60 characters');
 select lives_ok($$select mos.set_pending_bill_finance_label('ESB-LABEL','BR-LABEL','PB-LABEL-A','   ')$$,
-  'whitespace-only input clears a label');
+  'space-only input clears a label');
 select is((select count(*)::int from mos.pending_bill_finance_labels where bill_no = 'PB-LABEL-A'),
   0, 'clearing removes the sparse overlay row');
+select lives_ok($$select mos.set_pending_bill_finance_label('ESB-LABEL','BR-LABEL','PB-LABEL-A',E'\t')$$,
+  'tab-only input clears a label');
+select is((select count(*)::int from mos.pending_bill_finance_labels where bill_no = 'PB-LABEL-A'),
+  0, 'tab-only input leaves no sparse overlay row');
+select lives_ok($$select mos.set_pending_bill_finance_label('ESB-LABEL','BR-LABEL','PB-LABEL-A',E'\n')$$,
+  'newline-only input clears a label');
+select is((select count(*)::int from mos.pending_bill_finance_labels where bill_no = 'PB-LABEL-A'),
+  0, 'newline-only input leaves no sparse overlay row');
+select lives_ok($$select mos.set_pending_bill_finance_label('ESB-LABEL','BR-LABEL','PB-LABEL-A',U&'\0009\000A\000D\0020\00A0\2003')$$,
+  'mixed ASCII and Unicode whitespace-only input clears a label');
+select is((select count(*)::int from mos.pending_bill_finance_labels where bill_no = 'PB-LABEL-A'),
+  0, 'mixed whitespace-only input leaves no sparse overlay row');
+select lives_ok($$select mos.set_pending_bill_finance_label('ESB-LABEL','BR-LABEL','PB-LABEL-A',U&'\0009\000A Owner Sari \000D\000A\0009')$$,
+  'tabs and newlines around a real label are trimmed');
+select is((select finance_label from mos.pending_bill_finance_labels where bill_no = 'PB-LABEL-A'),
+  'Owner Sari', 'only edge whitespace is removed from a real label');
+select lives_ok($$select mos.set_pending_bill_finance_label('ESB-LABEL','BR-LABEL','PB-LABEL-A',U&'Owner\0009\000ASari')$$,
+  'interior tabs and newlines remain valid label text');
+select is((select finance_label from mos.pending_bill_finance_labels where bill_no = 'PB-LABEL-A'),
+  U&'Owner\0009\000ASari', 'interior whitespace is preserved');
+select lives_ok($$select mos.set_pending_bill_finance_label('ESB-LABEL','BR-LABEL','PB-LABEL-A',' ')$$,
+  'Finance clears a normalized label');
+select is((select count(*)::int from mos.pending_bill_finance_labels where bill_no = 'PB-LABEL-A'),
+  0, 'clearing a normalized label removes the overlay row');
 select throws_ok($$insert into mos.pending_bill_finance_labels (org_id, esb_code, branch_code, bill_no, finance_label)
   values ('00000000-0000-0000-0000-0000000000a1','ESB-LABEL','BR-LABEL','PB-LABEL-A','x')$$,
   '42501', null, 'Finance cannot bypass the RPC with a direct table write');
@@ -75,6 +99,15 @@ select is((select count(*)::int from mos.pending_bill_finance_labels), 0, 'Finan
 select throws_ok($$select mos.set_pending_bill_finance_label('ESB-LABEL','BR-LABEL','PB-LABEL-A','Cross-org edit')$$,
   'P0002', 'Pending bill was not found.', 'Finance in another org cannot edit the bill');
 reset role;
+select throws_ok($$insert into mos.pending_bill_finance_labels (org_id, esb_code, branch_code, bill_no, finance_label)
+  values ('00000000-0000-0000-0000-0000000000a1','ESB-LABEL','BR-LABEL','PB-LABEL-A',U&'\0009\000A\00A0\2003')$$,
+  '23514', null, 'the table check rejects a label that normalizes to empty');
+select throws_ok($$insert into mos.pending_bill_finance_labels (org_id, esb_code, branch_code, bill_no, finance_label)
+  values ('00000000-0000-0000-0000-0000000000a1','ESB-LABEL','BR-LABEL','PB-LABEL-A',E'\tlabel\n')$$,
+  '23514', null, 'the table check rejects labels that are not normalized');
+select throws_ok($$insert into mos.pending_bill_finance_labels (org_id, esb_code, branch_code, bill_no, finance_label)
+  values ('00000000-0000-0000-0000-0000000000a1','ESB-LABEL','BR-LABEL','PB-LABEL-A',pg_catalog.repeat('x',61))$$,
+  '23514', null, 'the table check rejects labels longer than 60 characters');
 set local role anon;
 select throws_ok($$select * from mos.pending_bill_finance_labels$$, '42501', null, 'anon cannot read the label overlay');
 select throws_ok($$select mos.set_pending_bill_finance_label('ESB-LABEL','BR-LABEL','PB-LABEL-A','Anon')$$,

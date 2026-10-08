@@ -19,8 +19,10 @@ create table mos.pending_bill_finance_labels (
   check (
     finance_label is null
     or (
-      finance_label = pg_catalog.btrim(finance_label)
-      and pg_catalog.char_length(finance_label) between 1 and 60
+      finance_label = pg_catalog.regexp_replace(finance_label, '^[[:space:]]+|[[:space:]]+$', '', 'g')
+      and pg_catalog.char_length(
+        pg_catalog.regexp_replace(finance_label, '^[[:space:]]+|[[:space:]]+$', '', 'g')
+      ) between 1 and 60
     )
   )
 );
@@ -30,7 +32,7 @@ comment on table mos.pending_bill_finance_labels is
   'kept as copied; bill identity is org/ESB code/branch code/bill no. Finance-only reads and the '
   'set_pending_bill_finance_label() SECURITY DEFINER function is the end-user write path.';
 comment on column mos.pending_bill_finance_labels.finance_label is
-  'Finance''s trimmed short label for this pending bill; null is permitted by the schema and labels '
+  'Finance''s whitespace-normalized short label for this pending bill; null is permitted by the schema and labels '
   'are set or cleared through the Finance-only RPC.';
 
 revoke all on mos.pending_bill_finance_labels from public, anon, authenticated;
@@ -58,7 +60,10 @@ as $$
 declare
   v_org_id uuid := shared.current_org_id();
   v_actor_id uuid := shared.current_person_id();
-  v_label text := nullif(pg_catalog.btrim(p_finance_label), '');
+  v_label text := nullif(
+    pg_catalog.regexp_replace(p_finance_label, '^[[:space:]]+|[[:space:]]+$', '', 'g'),
+    ''
+  );
 begin
   if v_org_id is null or v_actor_id is null or not shared.has_access_role('finance') then
     raise exception using errcode = '42501', message = 'Finance access is required.';
@@ -107,7 +112,7 @@ begin
 end;
 $$;
 comment on function mos.set_pending_bill_finance_label(text,text,text,text) is
-  'Finance-only same-org writer for a pending bill''s MOS label. Trims and length-checks the value, '
+  'Finance-only same-org writer for a pending bill''s MOS label. Normalizes edge whitespace and length-checks the value, '
   'verifies the bill identity in the current org, and sets/replaces or clears the sparse overlay. '
   'The ESB copy is never changed.';
 revoke execute on function mos.set_pending_bill_finance_label(text,text,text,text) from public, anon, authenticated;

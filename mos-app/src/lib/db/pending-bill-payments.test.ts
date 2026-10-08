@@ -58,15 +58,19 @@ describe('pending-bill Finance labels', () => {
     expect(JSON.stringify(calls)).not.toContain('org_id')
   })
 
-  it('trims the value and writes set or clear through the SECURITY DEFINER RPC', async () => {
+  it('normalizes the value and writes set or clear through the SECURITY DEFINER RPC', async () => {
     const rpc = vi.fn().mockResolvedValue({ data: null, error: null })
     schemaMock.mockImplementation(() => ({ rpc } as never))
-    await setPendingBillFinanceLabel({ esbCode: 'ESB', branchCode: 'BR', billNo: 'PB-1', financeLabel: '  Owner Sari  ' })
+    await setPendingBillFinanceLabel({ esbCode: 'ESB', branchCode: 'BR', billNo: 'PB-1', financeLabel: '\t\nOwner Sari\r\n' })
     expect(rpc).toHaveBeenNthCalledWith(1, 'set_pending_bill_finance_label', {
       p_esb_code: 'ESB', p_branch_code: 'BR', p_bill_no: 'PB-1', p_finance_label: 'Owner Sari',
     })
-    await setPendingBillFinanceLabel({ esbCode: 'ESB', branchCode: 'BR', billNo: 'PB-1', financeLabel: '' })
+    await setPendingBillFinanceLabel({ esbCode: 'ESB', branchCode: 'BR', billNo: 'PB-1', financeLabel: 'Owner\t\nSari' })
     expect(rpc).toHaveBeenNthCalledWith(2, 'set_pending_bill_finance_label', {
+      p_esb_code: 'ESB', p_branch_code: 'BR', p_bill_no: 'PB-1', p_finance_label: 'Owner\t\nSari',
+    })
+    await setPendingBillFinanceLabel({ esbCode: 'ESB', branchCode: 'BR', billNo: 'PB-1', financeLabel: '\t\n\r' })
+    expect(rpc).toHaveBeenNthCalledWith(3, 'set_pending_bill_finance_label', {
       p_esb_code: 'ESB', p_branch_code: 'BR', p_bill_no: 'PB-1', p_finance_label: null,
     })
   })

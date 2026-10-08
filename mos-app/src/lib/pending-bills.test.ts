@@ -1,7 +1,7 @@
 // Pending bills view-model (#1464): what one copied bill reads as on the Finance list.
 import { describe, it, expect } from 'vitest'
 import type { PendingBillRow } from '@/lib/db/reporting-pending-bills'
-import { filterPendingBills, isPendingBillCopyStale, pendingBillAgeDays, summarizePendingBills, toPendingBillViews, type PendingBillFilters } from './pending-bills'
+import { filterPendingBills, isPendingBillCopyStale, normalizePendingBillFinanceLabel, pendingBillAgeDays, summarizePendingBills, toPendingBillViews, validatePendingBillFinanceLabel, type PendingBillFilters } from './pending-bills'
 
 function bill(over: Partial<PendingBillRow>): PendingBillRow {
   return {
@@ -229,13 +229,17 @@ describe('AC-1122: search matches copied text and Finance labels independent of 
 })
 
 describe('Finance label validation', () => {
-  it('allows a trimmed label of 60 characters and rejects 61', async () => {
-    const module = await import('./pending-bills')
-    const validate = (module as unknown as { validatePendingBillFinanceLabel?: (value: string) => boolean }).validatePendingBillFinanceLabel
-    expect(typeof validate).toBe('function')
-    if (!validate) return
-    expect(validate(` ${'x'.repeat(60)} `)).toBe(true)
-    expect(validate('x'.repeat(61))).toBe(false)
+  it('allows a trimmed label of 60 characters and rejects 61', () => {
+    expect(validatePendingBillFinanceLabel(` ${'x'.repeat(60)} `)).toBe(true)
+    expect(validatePendingBillFinanceLabel('x'.repeat(61))).toBe(false)
+  })
+
+  it('normalizes edge whitespace without changing interior text', () => {
+    expect(normalizePendingBillFinanceLabel('\t\n Owner Sari \r\n\t')).toBe('Owner Sari')
+    expect(normalizePendingBillFinanceLabel('\u00a0\u2003')).toBe('')
+    expect(normalizePendingBillFinanceLabel('Owner\t\nSari')).toBe('Owner\t\nSari')
+    expect(validatePendingBillFinanceLabel(`\t\n${'x'.repeat(60)}\r\n`)).toBe(true)
+    expect(validatePendingBillFinanceLabel(`\t\n${'x'.repeat(61)}\r\n`)).toBe(false)
   })
 })
 

@@ -53,8 +53,12 @@ export function pendingBillAgeDays(billDate: string, today: string): number {
   return Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${billDate}T00:00:00Z`)) / DAY_MS)
 }
 
+export function normalizePendingBillFinanceLabel(value: string): string {
+  return value.trim()
+}
+
 export function validatePendingBillFinanceLabel(value: string): boolean {
-  return value.trim().length <= PENDING_BILL_FINANCE_LABEL_MAX_LENGTH
+  return normalizePendingBillFinanceLabel(value).length <= PENDING_BILL_FINANCE_LABEL_MAX_LENGTH
 }
 
 export function toPendingBillViews(
