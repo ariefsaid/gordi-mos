@@ -14,6 +14,8 @@ import type { DueProcessRun, PendingTaskRow, ProcessRunRollup } from '@/lib/db/p
 // ── Mock the data layer ──────────────────────────────────────────────────────
 vi.mock('../lib/db/tasks', () => ({
   listTasks: vi.fn(),
+  hasOlderDoneTasks: async () => false,
+  listOlderDoneTasks: async () => ({ rows: [], nextCursor: null, hasMore: false }),
   getTask: vi.fn(),
 }))
 vi.mock('../lib/db/directory', () => ({
@@ -810,7 +812,7 @@ describe('Fix M2 — task count suppressed in error state', () => {
     // Goal-oracle: the loaded count is visible. OD-REDESIGN-91 #17 makes the head meta
     // explicitly distinguish visible task rows from their open subset.
     const countLine = document.querySelector('[data-testid="tasks-count-line"]')
-    expect(countLine?.textContent).toContain('2 tasks · 2 open')
+    expect(countLine?.textContent).toContain('2 open in this view · Active + Done in the last 30 days')
   })
 })
 

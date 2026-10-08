@@ -43,6 +43,16 @@
   font-size: var(--font-size-control);
 }
 
+@media (pointer: coarse) {
+  .kr-date-filter .mk-date__box,
+  .kr-date-filter .mk-date__field,
+  .kr-date-filter .mk-date__cal,
+  .kr-date-clear,
+  .kr-refresh { min-height: 44px; }
+  .kr-date-filter .mk-date__field { font-size: var(--font-size-touch-input); }
+  .kr-date-filter .mk-date__cal { width: 44px; }
+}
+
 /* ── Banners (offline / notice / error) ── */
 .kr-banner {
   border-radius: var(--radius-sm);

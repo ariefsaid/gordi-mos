@@ -143,6 +143,14 @@ describe('CollectionToolbar — group tint + value clipping (AC-005)', () => {
   })
 })
 
+describe('CollectionToolbar — responsive filter door (issue 1487)', () => {
+  it('anchors the tablet Tasks popover to the leading edge of its trigger', () => {
+    expect(css).toMatch(
+      /@media\s*\(min-width:\s*768px\)\s*and\s*\(max-width:\s*1023\.98px\)[\s\S]*?\.collection-toolbar\.tasks-collection-toolbar \.collection-toolbar__desktop-door-panel\s*\{[^}]*inset-inline-start:\s*0;[^}]*inset-inline-end:\s*auto;/s,
+    )
+  })
+})
+
 describe('CollectionToolbar — Indonesian search field (issue 1109)', () => {
   it('reserves room for the translated placeholder beside the icon, padding and borders', () => {
     const minWidth = /html:lang\(id\) \.collection-toolbar__search \{\s*min-width:\s*(\d+)px/.exec(css)

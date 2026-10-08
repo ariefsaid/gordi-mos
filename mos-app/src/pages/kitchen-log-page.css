@@ -200,27 +200,29 @@
 
 /* ── Phone (<768px): count and conditional Discard above one full-width primary ── */
 @media (max-width: 767.98px) {
-  /* #378 capture-first budget: keep Transfer's required destination/search controls and missing-
-     item route while bringing its first quantity inside the 300px owner geometry contract.
-     Compress only surrounding rhythm; touch targets stay at their 44px floor. */
-  .page-frame--v3:has(.kl-form .kl-scope) .page-head--v3.content-header {
+  /* Keep the first capture row inside the shared 300px phone budget without shrinking targets. */
+  .page-frame--v3:has(.kl-form) .page-head--v3.content-header {
     margin-bottom: 4px;
     padding-bottom: 0;
   }
+  .kl-context { margin-bottom: 8px; }
+  .kl-context-summary { padding: 4px 8px; }
+  .kl-form .ktb { padding-block: 0; }
+  .kl-form .ktb-search-wrap {
+    flex: 1 1 180px;
+    min-width: 160px;
+    max-width: none;
+  }
+  .kl-form .kl-missing { flex: 0 0 auto; padding: 0; }
+  .kl-form .dt-cards-group { padding-top: 4px; }
+
+  /* Filters beyond search are desktop-only on the capture-first phone surface. */
+  .kl-form .ktb-filter-selects { display: none; }
   .kl-capture-main:has(.kl-form .kl-scope) > .kl-inline-summary > .msr {
     padding-bottom: 0;
     margin-bottom: 0;
     border-bottom: 0;
   }
-  .kl-form .ktb:has(.kl-scope) { padding-block: 0; }
-  .kl-form:has(.kl-scope) .kl-missing { padding: 4px 0 0; }
-  .kl-form:has(.kl-scope) .dt-cards-group { padding-top: 8px; }
-
-  /* iOS Safari zooms focused text/number fields below 16px. Keep page zoom accessible; size the
-     actual Café controls instead, including search, variance notes and waste quantities. */
-  .kl-form .ktb-filter-selects { display: none; }
-  /* Reuse KitchenToolbar's full-row destination band and put full-width search below it. */
-  .kl-form .ktb:has(.kl-scope) .ktb-search-wrap { max-width: none; }
   .kl-capture-main:has(.kl-scope) .msr { column-gap: 8px; flex-wrap: nowrap; }
   .kl-capture-main:has(.kl-scope) .msr-item { gap: 4px; }
 }

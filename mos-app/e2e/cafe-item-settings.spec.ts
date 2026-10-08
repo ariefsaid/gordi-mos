@@ -2,6 +2,7 @@ import { mkdir } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { expect, test, type Page, type TestInfo } from '@playwright/test'
 import { BAR_MEMBER } from './fixtures/users'
+import { assertTapFloor } from './helpers/tap-floor'
 import { loginAs } from './helpers/login'
 
 type MissingReportRow = {
@@ -315,5 +316,42 @@ test.describe('Café item settings', () => {
     }
   })
 
-
+  test('gives every active toggle a 44px hit area on the phone Items cards', async ({ page }) => {
+    const readRows: SettingsReadRow[] = Array.from({ length: 26 }, (_, index) => {
+      const itemId = `00000000-0000-0000-0000-${(0xd000 + index).toString(16).padStart(12, '0')}`
+      return {
+        item_id: itemId,
+        erp_name: `Sample item ${index + 1}`,
+        mos_name: `Sample item ${index + 1}`,
+        category: 'KITCHEN',
+        kind: 'RAW',
+        is_active: true,
+        item_unit_id: null,
+        unit_name: null,
+        default_item_unit_id: null,
+        unit_is_default: false,
+        unit_is_shown: false,
+      }
+    })
+    await mockSettingsApi(page, { reports: [], readRows, configuredItemIds: [], references: [] })
+    await loginAs(page, BAR_MEMBER.email, BAR_MEMBER.password)
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto('cafe/items')
+    await expect(page.getByText('26 items', { exact: true })).toBeVisible()
+    await expect(page.locator('.dt-cards .dt-card')).toHaveCount(26)
+    const activeToggles = page.locator('.cafe-items__active-control .mk-checkbox__input')
+    await assertTapFloor(page, '.cafe-items__active-control .mk-checkbox__input', 'Café Items active toggles', {
+      axes: 'both',
+      noOverflow: true,
+    })
+    for (const width of [768, 1440] as const) {
+      await page.setViewportSize({ width, height: 900 })
+      const sizes = await activeToggles.evaluateAll(inputs => inputs.map(input => {
+        const { width: boxWidth, height } = input.getBoundingClientRect()
+        return [boxWidth, height]
+      }))
+      expect(sizes).toHaveLength(26)
+      expect(sizes.every(([boxWidth, height]) => boxWidth === 16 && height === 16)).toBe(true)
+    }
+  })
 })

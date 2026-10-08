@@ -18,3 +18,4 @@
 .events-agenda h2 { margin: 0 0 8px; font-family: var(--font-display); font-size: var(--font-size-body); }
 .events-agenda .event-item { min-height: 44px; padding: 8px; }
 @media (max-width: 767.98px) { .events-calendar { display: none; } .events-agenda { display: block; } }
+@media (pointer: coarse) { .events-calendar__more { min-height: 44px; } }

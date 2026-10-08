@@ -26,7 +26,10 @@ export function ListPaging({ count, hasMore, loading = false, error = false, mor
   }, [hasMore, count])
   if (count === 0 && !hasMore && !loading && !error) return null
   return (
-    <div onFocus={() => { hadFocus.current = true }} onBlur={() => { hadFocus.current = false }} className="list-paging" aria-busy={loading}>
+    <div onFocus={() => { hadFocus.current = true }} onBlur={(event) => {
+      const next = event.relatedTarget
+      if (hasMore && next && !event.currentTarget.contains(next as Node)) hadFocus.current = false
+    }} className="list-paging" aria-busy={loading}>
       <p ref={status} tabIndex={-1} className={emptyAndCanContinue ? 'sr-only' : undefined} aria-live="polite" aria-atomic="true">
         {emptyAndCanContinue
           ? emptyItems
@@ -34,7 +37,7 @@ export function ListPaging({ count, hasMore, loading = false, error = false, mor
             : t('common.paging.emptyLoaded')
           : t(statusKey, { count })}
       </p>
-      {emptyAndCanContinue ? <p>{t('common.paging.continue')}</p> : null}
+      {emptyAndCanContinue ? <p className="list-paging__continue">{t('common.paging.continue')}</p> : null}
       {hasMore ? <p
         className={`list-paging__error${error ? '' : ' list-paging__error--hidden'}`}
         role={error ? 'alert' : undefined}
