@@ -86,7 +86,7 @@ describe('offline photo drafts', () => {
 
   it('NFR-1007 a large camera photo is stored as the JPEG upload would send, and comes back after a reload', async () => {
     vi.mocked(shrinkPhoto).mockResolvedValue(new Blob([new Uint8Array(900_000)], { type: 'image/jpeg' }))
-    const raw = photo('camera-raw.jpg', 14 * 1024 * 1024)
+    const raw = photo('camera-raw.jpg', 5 * 1024 * 1024 + 1)
 
     await expect(saveOfflinePhotoDraft('k', [raw])).resolves.toBe('saved')
     const [restored] = await loadOfflinePhotoDraft('k')
