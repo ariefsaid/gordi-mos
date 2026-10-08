@@ -1230,7 +1230,7 @@ function KitchenReviewPageForViewer() {
         >
           <button
             type="button"
-            className="btn btn-outline"
+            className="btn btn-outline kr-refresh"
             onClick={() => setRetryKey(k => k + 1)}
           >
             {t('kitchen.review.refresh')}

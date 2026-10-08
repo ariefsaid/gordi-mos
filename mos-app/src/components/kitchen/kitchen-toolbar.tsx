@@ -55,6 +55,8 @@ interface KitchenToolbarProps {
   searchPlaceholder?: string
   /** optional LEADING scope slot (ActionTypeSeg on the Log + Plan capture surfaces) */
   children?: ReactNode
+  /** Optional action kept beside the search and filters. */
+  trailing?: ReactNode
   /** default "Filter" */
   ariaLabel?: string
 }
@@ -81,6 +83,7 @@ export function KitchenToolbar({
   categoryId,
   searchPlaceholder,
   children,
+  trailing,
   ariaLabel = 'Filter',
 }: KitchenToolbarProps) {
   const t = useT()
@@ -183,6 +186,7 @@ export function KitchenToolbar({
             </Select>
           )}
         </div>
+        {trailing}
       </div>
     </div>
   )

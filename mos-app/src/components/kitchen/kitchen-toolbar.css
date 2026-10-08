@@ -133,6 +133,12 @@
    The search field also takes the 44px touch floor here: it was the one control in this
    band below it (36px), and the row's height is already set by the 44px select, so the
    floor is free. */
+@media (pointer: coarse) {
+  .ktb-search { min-height: 44px; }
+  .ktb .mk-select__box,
+  .ktb .mk-select__field { min-height: 44px; }
+}
+
 @media (max-width: 639px) {
   /* The two rows are ONE group, so the interval between them stays tighter than the band's
      own padding — otherwise the band reads as two bands. The interval cannot go below the
