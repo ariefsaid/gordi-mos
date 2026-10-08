@@ -34,6 +34,8 @@ describe('pending bills table CSS', () => {
     for (const visible of ['select', 'branch', 'owes', 'state', 'bill', 'amount', 'balance']) {
       expect(hiddenRules).not.toContain(`.pending-bills-table .money-table__cell--${visible}`)
     }
+    expect(rule('.pending-bills__tablet-age-cue') ?? '').toMatch(/display:\s*none/)
+    expect(groupedRule(narrow, '.pending-bills__tablet-age-cue') ?? '').toMatch(/display:\s*inline-flex/)
     for (const [column, width] of [['select', '6%'], ['branch', '13%'], ['owes', '19%'], ['state', '17%'], ['bill', '18%'], ['amount', '13%'], ['balance', '14%']]) {
       expect(groupedRule(narrow, `.pending-bills-table .money-table__cell--${column}`) ?? '').toMatch(new RegExp(`width:\\s*${width}`))
     }
@@ -58,11 +60,24 @@ describe('pending bills table CSS', () => {
     }
   })
 
-  it('lets Who owes absorb the slack and wrap a long counterparty note', () => {
+  it('truncates long counterparty text while keeping its full title available', () => {
     const owes = rule('.pending-bills__owes')
-    expect(owes).toMatch(/min-width:\s*12ch/)
-    expect(owes).toMatch(/overflow-wrap:\s*anywhere/)
-    expect(owes).not.toMatch(/max-width/)
+    expect(owes).toMatch(/min-width:\s*0/)
+    expect(owes).toMatch(/overflow:\s*hidden/)
+    expect(owes).toMatch(/text-overflow:\s*ellipsis/)
+    expect(owes).toMatch(/white-space:\s*nowrap/)
+  })
+
+  it('wraps the filter bar at phone widths and keeps its controls at the 44px touch floor', () => {
+    expect(rule('.pending-bills-filter-bar') ?? '').toMatch(/flex-wrap:\s*wrap/)
+    expect(rule('.pending-bills-age-filters') ?? '').toMatch(/flex-wrap:\s*wrap/)
+    expect(rule('.pending-bills-branch-filter .mk-select__field') ?? '').toMatch(/min-height:\s*44px/)
+    expect(rule('.pending-bills-age-filters button') ?? '').toMatch(/min-height:\s*44px/)
+    expect(rule('.pending-bills-filter-bar .collection-toolbar__search') ?? '').toMatch(/min-height:\s*44px/)
+    const phone = css.match(/@media \(max-width:\s*767\.98px\)\s*\{([\s\S]*)$/)?.[1] ?? ''
+    expect(phone).toMatch(/\.pending-bills-branch-filter\s*\{[^}]*flex:\s*1 1 100%/)
+    expect(phone).toMatch(/\.pending-bills-filter-bar \.collection-toolbar__query\s*\{[^}]*flex-basis:\s*100%/)
+    expect(css).not.toMatch(/\.pending-bills-filter-bar\s*\{[^}]*overflow-x:\s*auto/)
   })
 
   it('uses the stronger shared Money skeleton tone while loading', () => {

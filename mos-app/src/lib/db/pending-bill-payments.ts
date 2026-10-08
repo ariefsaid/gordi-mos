@@ -47,6 +47,7 @@ export interface PendingBillPaymentAmountRow {
   bill_no: string
   /** Signed amount: reversals are negative. */
   amount: number
+  cash_in_date: string
 }
 
 export interface PendingBillPaymentHistoryEntry extends PendingBillPaymentIdentity {
@@ -98,7 +99,7 @@ export interface PaidPendingBill {
 export async function listPendingBillPaymentAmounts(): Promise<PendingBillPaymentAmountRow[]> {
   const rows = await readAllPages<Record<string, unknown>>('listPendingBillPaymentAmounts', (from, to) =>
     schema('mos').from('pending_bill_payments')
-      .select('id,esb_code,branch_code,bill_no,amount,created_at')
+      .select('id,esb_code,branch_code,bill_no,amount,cash_in_date,created_at')
       .order('created_at', { ascending: true })
       .order('id', { ascending: true })
       .range(from, to))
@@ -108,6 +109,7 @@ export async function listPendingBillPaymentAmounts(): Promise<PendingBillPaymen
     branch_code: String(row.branch_code),
     bill_no: String(row.bill_no),
     amount: Number(row.amount),
+    cash_in_date: String(row.cash_in_date),
   }))
 }
 
