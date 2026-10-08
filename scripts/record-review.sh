@@ -237,6 +237,47 @@ validate_ui_skills_evidence() {
     || die "one render-evidence row/line must list widths 390, 768, and 1440-or-wider plus 'real-length'"
 }
 
+validate_issue_skills_evidence() {
+  local artifact="$1" issue="${MOS_ISSUE:-}" issue_line issue_body plan_output plan_rc main_checkout docs_real path candidate_dir in_docs missing_list
+  local -a missing_files=()
+  if [ -z "$issue" ]; then
+    issue_line="$(grep -m1 -E '^Issue:[[:space:]]*#[0-9]+[[:space:]]*$' "$artifact" || true)"
+    [ -n "$issue_line" ] || return 0
+    issue="$(printf '%s\n' "$issue_line" | sed -E 's/^Issue:[[:space:]]*#([0-9]+)[[:space:]]*$/\1/')"
+  fi
+  [[ "$issue" =~ ^[0-9]+$ ]] || die "MOS_ISSUE must be a numeric issue number (got '$issue')"
+  issue_body="$(gh issue view "$issue" --json body -q .body 2>/dev/null)" \
+    || die "cannot read body for issue #$issue while checking Skills plan evidence; retry when GitHub is reachable"
+  grep -qxE '^## Skills plan[[:space:]]*$' <<< "$issue_body" || return 0
+
+  plan_output="$(printf '%s' "$issue_body" | bash "$(dirname "$0")/skills-plan.sh" evidence - 2>&1)"; plan_rc=$?
+  [ "$plan_rc" -eq 0 ] || die "issue #$issue has an invalid Skills plan
+$plan_output"
+
+  main_checkout="$(git worktree list --porcelain 2>/dev/null \
+    | awk '$1 == "worktree" { sub(/^worktree /, ""); print; exit }')"
+  [ -n "$main_checkout" ] || die "cannot find the main checkout for issue #$issue Skills plan evidence"
+  docs_real="$(cd "$main_checkout/docs" 2>/dev/null && pwd -P)" || docs_real=""
+  while IFS= read -r path; do
+    [ -n "$path" ] || continue
+    candidate_dir="$(cd "$(dirname "$main_checkout/$path")" 2>/dev/null && pwd -P)" || candidate_dir=""
+    in_docs=0
+    if [ -n "$docs_real" ] && [ -n "$candidate_dir" ]; then
+      case "$candidate_dir/" in "$docs_real/"*) in_docs=1 ;; esac
+    fi
+    if [ ! -f "$main_checkout/$path" ] || [ ! -s "$main_checkout/$path" ] \
+      || [ -L "$main_checkout/$path" ] || [ "$in_docs" -eq 0 ]; then
+      missing_files+=("$path")
+    fi
+  done <<< "$plan_output"
+  [ "${#missing_files[@]}" -eq 0 ] || {
+    missing_list="$(printf '  - %s\n' "${missing_files[@]}")"
+    die "issue #$issue Skills plan evidence is missing or empty; evidence lives in the main checkout's docs/:
+$missing_list
+write each file, or correct the plan's path"
+  }
+}
+
 lens="" reviewer="" artifact=""
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -257,6 +298,7 @@ case "$(printf '%s' "$reviewer" | tr '[:upper:]' '[:lower:]')" in
 esac
 
 [ -s "$artifact" ] || die "artifact missing or empty: $artifact"
+validate_issue_skills_evidence "$artifact"
 
 head="$(git rev-parse HEAD)" || die "not a git repo"
 

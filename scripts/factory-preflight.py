@@ -7,8 +7,9 @@ build finishes and rolls the change back.
 Heuristic by design: this greps prose for path-looking tokens, so it misses
 anything phrased obliquely (false negative — enforce() still backstops it) and
 can flag a path that is only MENTIONED, not touched (false positive — rerun
-with --allow-barred). Never hard-fail on a parsing surprise: if the barred
-list or the brief can't be read, proceed and let enforce() do its job.
+with --allow-barred). Never hard-fail on a barred-list parsing surprise: if that list can't be read,
+proceed and let enforce() do its job. Skills-plan validation is mandatory; a missing
+or invalid brief refuses before the barred-path check.
 
 The barred list is never duplicated here. It is read from whichever of the
 two vendored sources actually holds it: the config named by --config (or the
@@ -29,6 +30,7 @@ refuse here while the real gate would have allowed it.
 from __future__ import annotations
 
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -257,19 +259,30 @@ def config_path_from_argv(top: Path, argv: list[str]) -> Path:
 
 def main(argv: list[str]) -> int:
     if len(argv) < 1:
-        return 0  # nothing to check — fail open
+        return 0  # wrapper always supplies the checkout
     top = Path(argv[0])
     brief_arg = argv[1] if len(argv) > 1 else ""
-    if not brief_arg:
+    allow_barred = len(argv) > 2 and argv[2] == "1"
+    adw_argv = argv[3:]
+    brief = read_brief(brief_arg) if brief_arg else ""
+
+    plan = subprocess.run(
+        ["bash", str(top / "scripts/skills-plan.sh"), "check", "-"],
+        input=brief, text=True, capture_output=True,
+    )
+    if plan.returncode != 0:
+        print("✗ factory-run: brief is missing or has no valid Skills plan", file=sys.stderr)
+        sys.stderr.write(plan.stderr)
+        return 4
+    if allow_barred:
         return 0
-    adw_argv = argv[2:]
 
     try:
         config_path = config_path_from_argv(top, adw_argv)
         globs, data_dir = load_config(top, config_path)
         if not globs:
             return 0
-        tokens = extract_tokens(read_brief(brief_arg))
+        tokens = extract_tokens(brief)
         hits = find_hits(tokens, globs, data_dir)
     except Exception as error:  # never block the factory on a parser bug
         print(f"⚠ factory-preflight: skipping barred-path check ({error})", file=sys.stderr)
