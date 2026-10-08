@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Capture changed, manifest-backed routes at 390/768/1440 for an independent rendered review.
 #
-# Usage: scripts/release-visual-sweep.sh <base-ref> <head-ref> --base-url <localhost-url> [--out <dir>]
+# Usage: scripts/release-visual-sweep.sh (<base-ref> <head-ref> | --routes <comma-list>) --base-url <localhost-url> [--out <docs-dir>]
+# RELEASE8 example command: scripts/release-visual-sweep.sh --routes /cafe,/cafe/production,/cafe/transfer,/cafe/waste,/cafe/receive,/cafe/request,/cafe/count,/cafe/items,/cafe/receive/issues,/cafe/receive/review,/cafe/request/review,/cafe/review --base-url http://localhost:5173/ --out docs/reviews/release8-cafe-visual
 #
 # This release packet reuses the quantitative audit's manifest fixtures and rendered geometry,
 # visible-content, and control collectors. The audit's change-gate compares failure baselines; it
@@ -13,22 +14,22 @@ set -euo pipefail
 
 usage() {
   cat >&2 <<'EOF'
-usage: scripts/release-visual-sweep.sh <base-ref> <head-ref> --base-url <localhost-url> [--out <dir>]
+usage: scripts/release-visual-sweep.sh (<base-ref> <head-ref> | --routes <comma-list>) --base-url <localhost-url> [--out <docs-dir>]
 
-Capture routes affected by the ref diff at 390, 768, and 1440 pixels. Requires the checked-out
-HEAD to equal <head-ref>, a clean worktree, and an owned local app server. Output is a summary.md
-and screenshots; this command does not reset or migrate the database.
+Capture diff-affected routes or explicit app paths at 390, 768, and 1440 pixels. Exactly one
+scope mode is required. The checked-out HEAD must be clean; diff mode also requires HEAD to equal
+<head-ref>. Output is limited to docs/ in the main checkout. This command does not reset or
+migrate the database.
 EOF
 }
 
 fail() { printf 'release-visual-sweep: %s\n' "$1" >&2; exit 2; }
 
-[ "$#" -ge 2 ] || { usage; exit 2; }
-base_ref="$1"
-head_ref="$2"
-shift 2
 base_url=""
 out_arg=""
+routes_arg=""
+routes_seen=0
+positionals=()
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --base-url)
@@ -41,14 +42,32 @@ while [ "$#" -gt 0 ]; do
       out_arg="$2"
       shift 2
       ;;
+    --routes)
+      [ "$#" -ge 2 ] || { usage; exit 2; }
+      [ "$routes_seen" -eq 0 ] || fail '--routes may be specified only once'
+      routes_seen=1
+      routes_arg="$2"
+      shift 2
+      ;;
     -h|--help)
       usage
       exit 0
       ;;
     --*) fail "unknown option: $1" ;;
-    *) fail "unexpected argument: $1" ;;
+    *) positionals+=("$1"); shift ;;
   esac
 done
+if [ "$routes_seen" -eq 1 ]; then
+  [ "${#positionals[@]}" -eq 0 ] && [ -n "$routes_arg" ] || fail 'provide exactly one scope mode: refs OR --routes <comma-list>'
+  mode=routes
+  base_ref=""
+  head_ref=""
+else
+  [ "${#positionals[@]}" -eq 2 ] || fail 'provide exactly one scope mode: <base-ref> <head-ref> OR --routes <comma-list>'
+  mode=diff
+  base_ref="${positionals[0]}"
+  head_ref="${positionals[1]}"
+fi
 [ -n "$base_url" ] || fail '--base-url is required and must point to localhost'
 
 base_url_info="$(python3 - "$base_url" <<'PY'
@@ -73,23 +92,31 @@ PY
 
 root="$(git rev-parse --show-toplevel 2>/dev/null)" || fail 'run from inside the candidate repository'
 cd "$root"
-base_sha="$(git rev-parse --verify --quiet --end-of-options "${base_ref}^{commit}" 2>/dev/null)" \
-  || fail "ref '$base_ref' does not resolve to a commit"
-head_sha="$(git rev-parse --verify --quiet --end-of-options "${head_ref}^{commit}" 2>/dev/null)" \
-  || fail "ref '$head_ref' does not resolve to a commit"
 current_sha="$(git rev-parse --verify HEAD 2>/dev/null)" || fail 'unable to resolve checked-out HEAD'
-[ "$current_sha" = "$head_sha" ] || fail 'checked-out HEAD must equal <head-ref>'
 [ -z "$(git status --porcelain --untracked-files=all)" ] || fail 'candidate worktree must be clean'
-
-changed_paths="$(git diff --name-only --diff-filter=ACMRTD "$base_sha" "$head_sha" -- \
-  'mos-app/src' 'mos-app/e2e/design-quality/manifest-cells' 'mos-app/e2e/design-quality/manifest.ts' \
-  'mos-app/e2e/design-quality/measurements.ts' 'mos-app/e2e/design-quality/runtime.ts' \
-  'mos-app/e2e/design-quality/report.ts' 'mos-app/e2e/design-quality/change-gate.ts')"
-[ -n "$changed_paths" ] || fail 'no app or quantitative-audit files changed between the refs'
+if [ "$mode" = diff ]; then
+  base_sha="$(git rev-parse --verify --quiet --end-of-options "${base_ref}^{commit}" 2>/dev/null)" \
+    || fail "ref '$base_ref' does not resolve to a commit"
+  head_sha="$(git rev-parse --verify --quiet --end-of-options "${head_ref}^{commit}" 2>/dev/null)" \
+    || fail "ref '$head_ref' does not resolve to a commit"
+  [ "$current_sha" = "$head_sha" ] || fail 'checked-out HEAD must equal <head-ref>'
+  changed_paths="$(git diff --name-only --diff-filter=ACMRTD "$base_sha" "$head_sha" -- \
+    'mos-app/src' 'mos-app/e2e/design-quality/manifest-cells' 'mos-app/e2e/design-quality/manifest.ts' \
+    'mos-app/e2e/design-quality/measurements.ts' 'mos-app/e2e/design-quality/runtime.ts' \
+    'mos-app/e2e/design-quality/report.ts' 'mos-app/e2e/design-quality/change-gate.ts')"
+  [ -n "$changed_paths" ] || fail 'no app or quantitative-audit files changed between the refs'
+else
+  base_sha=""
+  head_sha="$current_sha"
+  changed_paths=""
+fi
 
 manifest_routes="$(cd "$root/mos-app" && node --experimental-strip-types --input-type=module - <<'NODE'
-import { MVP_ROUTES } from './e2e/design-quality/manifest.ts'
-process.stdout.write(JSON.stringify(MVP_ROUTES))
+import { DESIGN_QUALITY_MANIFEST, MVP_ROUTES } from './e2e/design-quality/manifest.ts'
+const fixtureRoutes = [...new Set(DESIGN_QUALITY_MANIFEST.cells
+  .filter((cell) => cell.state === 'default' && cell.status === 'covered')
+  .map((cell) => cell.route))]
+process.stdout.write(JSON.stringify({ routes: MVP_ROUTES, fixtureRoutes }))
 NODE
 )" || fail 'could not load the quantitative audit route manifest'
 
@@ -98,95 +125,158 @@ cleanup() { rm -rf "$scratch"; }
 trap cleanup EXIT HUP INT TERM
 printf '%s\n' "$changed_paths" > "$scratch/changed-paths.txt"
 printf '%s\n' "$manifest_routes" > "$scratch/manifest-routes.json"
-python3 - "$scratch/changed-paths.txt" "$scratch/manifest-routes.json" "$scratch/scope.json" "$base_sha" "$head_sha" <<'PY'
+python3 - "$mode" "$routes_arg" "$scratch/changed-paths.txt" "$scratch/manifest-routes.json" "$scratch/scope.json" "$base_sha" "$head_sha" <<'PY'
 import json
 import pathlib
 import sys
 
-changed_path_file, manifest_path, output_path, base_sha, head_sha = sys.argv[1:]
+mode, routes_arg, changed_path_file, manifest_path, output_path, base_sha, head_sha = sys.argv[1:]
 changed = [
     line for line in pathlib.Path(changed_path_file).read_text().splitlines()
     if line and not any(marker in pathlib.PurePosixPath(line).name for marker in ('.test.', '.spec.'))
 ]
-manifest_routes = json.loads(pathlib.Path(manifest_path).read_text())
-if not isinstance(manifest_routes, list) or not manifest_routes:
+contract = json.loads(pathlib.Path(manifest_path).read_text())
+if not isinstance(contract, dict) or not isinstance(contract.get('routes'), list) or not contract['routes']:
     raise SystemExit('release-visual-sweep: quantitative route manifest is empty or invalid')
+manifest_routes = contract['routes']
+fixture_routes = set(contract.get('fixtureRoutes', []))
 
-route_sources = {
-    'mos-app/src/pages/tasks-layout.tsx': ['/work/tasks'],
-    'mos-app/src/pages/tasks-page.tsx': ['/work/tasks'],
-    'mos-app/src/pages/task-detail.tsx': ['/work/tasks'],
-    'mos-app/src/pages/task-create.tsx': ['/work/tasks'],
-    'mos-app/src/pages/signals-archive-page.tsx': ['/work/signals'],
-    'mos-app/src/pages/inbox-page.tsx': ['/inbox'],
-    'mos-app/src/pages/cafe-opening-page.tsx': ['/cafe'],
-    'mos-app/src/pages/kitchen-log-page.tsx': ['/cafe'],
-    'mos-app/src/pages/kitchen-plan-page.tsx': ['/cafe/plan'],
-    'mos-app/src/pages/kitchen-review-page.tsx': ['/cafe/review'],
-    'mos-app/src/pages/kitchen-stock-page.tsx': ['/cafe/stock'],
-    'mos-app/src/pages/kitchen-pushes-page.tsx': ['/cafe/pushes'],
-    'mos-app/e2e/design-quality/manifest-cells/tasks.ts': ['/work/tasks'],
-    'mos-app/e2e/design-quality/manifest-cells/signals.ts': ['/work/signals'],
-    'mos-app/e2e/design-quality/manifest-cells/inbox.ts': ['/inbox'],
-    'mos-app/e2e/design-quality/manifest-cells/cafe.ts': ['/cafe', '/cafe/plan', '/cafe/review', '/cafe/stock', '/cafe/pushes'],
-}
-all_routes = False
-selected = set()
-for path in changed:
-    if path in route_sources:
-        selected.update(route_sources[path])
-    elif (path.startswith('mos-app/src/pages/')
-          and '/' not in path[len('mos-app/src/pages/'):]
-          and path.endswith(('.tsx', '.ts'))):
-        raise SystemExit(f'release-visual-sweep: changed page has no real-data manifest route mapping: {path}')
-    elif path.startswith('mos-app/src/components/tasks/'):
-        selected.add('/work/tasks')
-    elif path.startswith('mos-app/src/components/signals/'):
-        selected.add('/work/signals')
-    elif path.startswith('mos-app/src/components/inbox/'):
-        selected.add('/inbox')
-    elif path.startswith(('mos-app/src/components/cafe/', 'mos-app/src/components/kitchen/')):
-        selected.update(route for route in manifest_routes if route.startswith('/cafe'))
-    elif path.startswith('mos-app/e2e/design-quality/manifest-cells/'):
-        all_routes = True
-    elif path == 'mos-app/e2e/design-quality/manifest.ts' or path.startswith('mos-app/e2e/design-quality/'):
-        all_routes = True
-    elif path.startswith('mos-app/src/pages/') and '/' in path[len('mos-app/src/pages/'):]:
-        # Nested page modules share their owning top-level route component.
-        all_routes = True
-    elif path.startswith('mos-app/src/'):
-        # Shared shell, UI, styles, and behavior can affect any manifest-backed route.
-        all_routes = True
+if mode == 'routes':
+    app_route_sources = {
+        '/cafe': '/cafe',
+        '/cafe/production': '/cafe',
+        '/cafe/transfer': '/cafe',
+        '/cafe/waste': '/cafe/stock',
+        '/cafe/receive': '/cafe',
+        '/cafe/request': '/cafe',
+        '/cafe/count': '/cafe/review',
+        '/cafe/items': '/cafe/stock',
+        '/cafe/receive/issues': '/cafe/review',
+        '/cafe/receive/review': '/cafe/review',
+        '/cafe/request/review': '/cafe/review',
+        '/cafe/review': '/cafe/review',
+    }
+    requested = [route.strip() for route in routes_arg.split(',')]
+    if not requested or any(not route for route in requested):
+        raise SystemExit('release-visual-sweep: --routes requires a non-empty comma-list of app paths')
+    if len(set(requested)) != len(requested):
+        raise SystemExit('release-visual-sweep: --routes cannot contain duplicate app paths')
+    mapping = {}
+    for app_path in requested:
+        if app_path not in app_route_sources:
+            raise SystemExit(f'release-visual-sweep: unknown app route: {app_path}')
+        manifest_route = app_route_sources[app_path]
+        if manifest_route not in manifest_routes:
+            raise SystemExit(f'release-visual-sweep: app route has no quantitative manifest mapping: {app_path} -> {manifest_route}')
+        if manifest_route not in fixture_routes:
+            raise SystemExit(f'release-visual-sweep: app route has no covered default fixture: {app_path} -> {manifest_route}')
+        mapping[app_path] = manifest_route
+    routes = requested
+else:
+    route_sources = {
+        'mos-app/src/pages/tasks-layout.tsx': ['/work/tasks'],
+        'mos-app/src/pages/tasks-page.tsx': ['/work/tasks'],
+        'mos-app/src/pages/task-detail.tsx': ['/work/tasks'],
+        'mos-app/src/pages/task-create.tsx': ['/work/tasks'],
+        'mos-app/src/pages/signals-archive-page.tsx': ['/work/signals'],
+        'mos-app/src/pages/inbox-page.tsx': ['/inbox'],
+        'mos-app/src/pages/cafe-opening-page.tsx': ['/cafe'],
+        'mos-app/src/pages/kitchen-log-page.tsx': ['/cafe'],
+        'mos-app/src/pages/kitchen-plan-page.tsx': ['/cafe/plan'],
+        'mos-app/src/pages/kitchen-review-page.tsx': ['/cafe/review'],
+        'mos-app/src/pages/kitchen-stock-page.tsx': ['/cafe/stock'],
+        'mos-app/src/pages/kitchen-pushes-page.tsx': ['/cafe/pushes'],
+        'mos-app/src/pages/cafe-waste-page.tsx': ['/cafe/stock'],
+        'mos-app/src/pages/cafe-count-page.tsx': ['/cafe/review'],
+        'mos-app/src/pages/cafe-receive-page.tsx': ['/cafe'],
+        'mos-app/src/pages/cafe-request-page.tsx': ['/cafe'],
+        'mos-app/src/pages/cafe-item-settings-page.tsx': ['/cafe/stock'],
+        'mos-app/src/pages/cafe-receipt-issues-page.tsx': ['/cafe/review'],
+        'mos-app/src/pages/cafe-receipt-review-page.tsx': ['/cafe/review'],
+        'mos-app/src/pages/cafe-request-review-page.tsx': ['/cafe/review'],
+        'mos-app/e2e/design-quality/manifest-cells/tasks.ts': ['/work/tasks'],
+        'mos-app/e2e/design-quality/manifest-cells/signals.ts': ['/work/signals'],
+        'mos-app/e2e/design-quality/manifest-cells/inbox.ts': ['/inbox'],
+        'mos-app/e2e/design-quality/manifest-cells/cafe.ts': ['/cafe', '/cafe/plan', '/cafe/review', '/cafe/stock', '/cafe/pushes'],
+    }
+    all_routes = False
+    selected = set()
+    for path in changed:
+        if path in route_sources:
+            selected.update(route_sources[path])
+        elif (path.startswith('mos-app/src/pages/')
+              and '/' not in path[len('mos-app/src/pages/'):]
+              and path.endswith(('.tsx', '.ts'))):
+            raise SystemExit(f'release-visual-sweep: changed page has no real-data manifest route mapping: {path}')
+        elif path.startswith('mos-app/src/components/tasks/'):
+            selected.add('/work/tasks')
+        elif path.startswith('mos-app/src/components/signals/'):
+            selected.add('/work/signals')
+        elif path.startswith('mos-app/src/components/inbox/'):
+            selected.add('/inbox')
+        elif path.startswith(('mos-app/src/components/cafe/', 'mos-app/src/components/kitchen/')):
+            selected.update(route for route in manifest_routes if route.startswith('/cafe'))
+        elif path.startswith('mos-app/e2e/design-quality/manifest-cells/'):
+            all_routes = True
+        elif path == 'mos-app/e2e/design-quality/manifest.ts' or path.startswith('mos-app/e2e/design-quality/'):
+            all_routes = True
+        elif path.startswith('mos-app/src/pages/') and '/' in path[len('mos-app/src/pages/'):]:
+            all_routes = True
+        elif path.startswith('mos-app/src/'):
+            all_routes = True
+    if all_routes:
+        selected.update(manifest_routes)
+    unknown = sorted(selected.difference(manifest_routes))
+    if unknown:
+        raise SystemExit('release-visual-sweep: changed routes have no quantitative audit fixture: ' + ', '.join(unknown))
+    missing_fixtures = sorted(selected.difference(fixture_routes))
+    if missing_fixtures:
+        raise SystemExit('release-visual-sweep: changed routes have no covered default fixture: ' + ', '.join(missing_fixtures))
+    routes = [route for route in manifest_routes if route in selected]
+    if not routes:
+        raise SystemExit('release-visual-sweep: diff did not identify any manifest-backed UI routes')
+    mapping = {route: route for route in routes}
 
-if all_routes:
-    selected.update(manifest_routes)
-unknown = sorted(selected.difference(manifest_routes))
-if unknown:
-    raise SystemExit('release-visual-sweep: changed routes have no quantitative audit fixture: ' + ', '.join(unknown))
-routes = [route for route in manifest_routes if route in selected]
-if not routes:
-    raise SystemExit('release-visual-sweep: diff did not identify any manifest-backed UI routes')
 pathlib.Path(output_path).write_text(json.dumps({
-    'baseSha': base_sha,
+    'mode': mode,
+    'baseSha': base_sha or None,
     'headSha': head_sha,
     'routes': routes,
+    'manifestRoutes': mapping,
     'widths': [390, 768, 1440],
 }, indent=2) + '\n')
 PY
 
+common_dir="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || fail 'could not resolve the main checkout'
+main_root="$(cd "$(dirname "$common_dir")" && pwd)"
 if [ -n "$out_arg" ]; then
   case "$out_arg" in
-    /*) out_dir="$out_arg" ;;
-    *) out_dir="$root/$out_arg" ;;
+    /*) requested_out="$out_arg" ;;
+    *) requested_out="$main_root/$out_arg" ;;
   esac
 else
-  common_dir="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || fail 'could not resolve the main checkout'
-  main_root="$(cd "$(dirname "$common_dir")" && pwd)"
-  label="${head_ref##*/}"
+  label="${head_ref:-$head_sha}"
+  label="${label##*/}"
   label="$(printf '%s' "$label" | tr -cs '[:alnum:]._-' '-' | sed 's/^-*//;s/-*$//')"
   [ -n "$label" ] || label=commit
-  out_dir="$main_root/docs/reviews/release-$label-visual"
+  requested_out="$main_root/docs/reviews/release-$label-visual"
 fi
+out_dir="$(python3 - "$main_root" "$requested_out" <<'PY'
+import pathlib
+import sys
+
+main_root = pathlib.Path(sys.argv[1]).resolve()
+docs_root = (main_root / 'docs').resolve()
+output = pathlib.Path(sys.argv[2]).resolve()
+try:
+    output.relative_to(docs_root)
+except ValueError:
+    raise SystemExit(1)
+if output == docs_root:
+    raise SystemExit(1)
+print(output)
+PY
+)" || fail '--out must resolve under the main checkout docs/'
 if [ -e "$out_dir" ]; then
   [ -d "$out_dir" ] || fail "output path is not a directory: $out_dir"
   [ -z "$(find "$out_dir" -mindepth 1 -print -quit)" ] || fail 'output directory is not empty; refusing to overwrite review evidence'
@@ -194,11 +284,11 @@ fi
 
 runner="$root/mos-app/scripts/release-visual-sweep.mjs"
 [ -f "$runner" ] || fail 'render runner is missing'
+runner_args=(--base-url "$base_url" --head "$head_sha" --scope "$scratch/scope.json" --out "$scratch/evidence")
+[ "$mode" = diff ] && runner_args+=(--base "$base_sha")
 (
   cd "$root/mos-app"
-  node --experimental-strip-types "$runner" \
-    --base-url "$base_url" --base "$base_sha" --head "$head_sha" \
-    --scope "$scratch/scope.json" --out "$scratch/evidence"
+  node "$root/mos-app/node_modules/vite-node/vite-node.mjs" "$runner" "${runner_args[@]}"
 ) || fail 'render sweep failed; no review packet was published'
 
 python3 - "$scratch/evidence/sweep-results.json" "$scratch/scope.json" "$scratch/evidence" "$scratch/summary.md" <<'PY'
@@ -217,13 +307,16 @@ actual = {(row.get('route'), row.get('width')) for row in rows or []}
 if actual != expected or len(rows or []) != len(expected):
     raise SystemExit('release-visual-sweep: rendered evidence does not cover each requested route and width exactly once')
 
-lines = [
-    f"HEAD: {scope['headSha']}",
-    f"BASE: {scope['baseSha']}",
+lines = [f"HEAD: {scope['headSha']}"]
+if scope.get('baseSha'):
+    lines.append(f"BASE: {scope['baseSha']}")
+lines.extend([
     '',
-    '| Route | Width | Horizontal overflow (count / max px) | Clipped text | Tap targets <44px | Screenshot |',
+    'Counts are raw collector totals and are not baseline-classified.',
+    '',
+    '| Route | Width | Horizontal overflow (count / max px) | Clipped text | Phone tap targets <44px (390px only) | Screenshot |',
     '| --- | ---: | ---: | ---: | ---: | --- |',
-]
+])
 for row in sorted(rows, key=lambda item: (scope['routes'].index(item['route']), scope['widths'].index(item['width']))):
     relative = pathlib.PurePosixPath(row.get('screenshot', ''))
     if relative.is_absolute() or '..' in relative.parts or not relative.parts or relative.parts[0] != 'screenshots':
