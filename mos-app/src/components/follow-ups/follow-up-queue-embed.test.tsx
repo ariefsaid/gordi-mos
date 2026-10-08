@@ -2,7 +2,8 @@
 // shared useFollowUpQueue + FollowUpQueueTable pair. NOT "the same pair the canonical
 // FollowUpsPage uses" — that page imports neither (#428).
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
 import { AuthContext } from '@/auth/context'
@@ -12,7 +13,7 @@ import { OverlayHostProvider, OverlayHostSlot } from '@/shell/overlay-host'
 vi.mock('@/lib/db/directory', () => ({ getBusinessUnits: vi.fn() }))
 vi.mock('@/lib/db/follow-ups', async () => {
   const actual = await vi.importActual<typeof import('@/lib/db/follow-ups')>('@/lib/db/follow-ups')
-  return { ...actual, listFollowUps: vi.fn(), transitionFollowUp: vi.fn() }
+  return { ...actual, listFollowUpsPage: vi.fn(), listFollowUpsWindow: vi.fn(), transitionFollowUp: vi.fn() }
 })
 // JQ-4 / D-A4: with a host mounted the embed opens the SHARED record host in the panel. Stub the
 // record body so this test's oracle stays the OPEN grammar (panel mounts), not the record internals.
@@ -23,17 +24,23 @@ vi.mock('./follow-up-record-host', () => ({
 }))
 
 import { getBusinessUnits } from '@/lib/db/directory'
-import { listFollowUps, type FollowUpRow } from '@/lib/db/follow-ups'
+import { listFollowUpsPage, listFollowUpsWindow, transitionFollowUp, type FollowUpRow } from '@/lib/db/follow-ups'
 import { FollowUpQueueEmbed } from './follow-up-queue-embed'
 
 const mockGetBusinessUnits = vi.mocked(getBusinessUnits)
-const mockListFollowUps = vi.mocked(listFollowUps)
+const mockListFollowUpsPage = vi.mocked(listFollowUpsPage)
+const mockListFollowUpsWindow = vi.mocked(listFollowUpsWindow)
+const mockTransition = vi.mocked(transitionFollowUp)
 
 const row: FollowUpRow = {
   id: 'fu-1', org_id: 'org-1', counterparty: 'PT Big Buyer', kind: 'b2b_ar', lane: 'b2b_sales',
   source_invoice_ref: 'INV-1001', original_amount: 1000000, running_balance: 1000000, state: 'open',
   promise_date: null, issued_date: '2026-06-01', due_date: '2026-06-30', assigned_to: null, notes: null,
   created_at: '2026-07-01T00:00:00Z', updated_at: '2026-07-01T00:00:00Z',
+}
+
+function page(rows: FollowUpRow[], hasMore = false) {
+  return { rows, hasMore, nextCursor: hasMore ? rows.at(-1)! : null }
 }
 
 const viewer: AuthState = {
@@ -80,7 +87,9 @@ beforeEach(() => {
     })),
   })
   mockGetBusinessUnits.mockResolvedValue([{ id: 'bu-sales', name: 'B2B Sales', code: 'b2b_sales' }])
-  mockListFollowUps.mockResolvedValue([row])
+  mockListFollowUpsPage.mockResolvedValue(page([row]))
+  mockListFollowUpsWindow.mockResolvedValue(page([row]))
+  mockTransition.mockResolvedValue(row)
 })
 
 describe('FollowUpQueueEmbed', () => {
@@ -95,6 +104,22 @@ describe('FollowUpQueueEmbed', () => {
     await screen.findByText('PT Big Buyer')
     expect(screen.getByRole('button', { name: 'Chase' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Settle' })).toBeInTheDocument()
+  })
+
+  it('keeps a second-page row visible after a lifecycle action', async () => {
+    const firstPage = Array.from({ length: 50 }, (_, index) => ({ ...row, id: `fu-${index + 1}`, counterparty: `Buyer ${index + 1}` }))
+    const laterRow = { ...row, id: 'fu-51', counterparty: 'Buyer 51' }
+    mockListFollowUpsPage.mockResolvedValueOnce(page(firstPage, true)).mockResolvedValueOnce(page([laterRow]))
+    mockListFollowUpsWindow.mockResolvedValueOnce(page([...firstPage, laterRow]))
+    const user = userEvent.setup()
+    renderEmbed()
+
+    await screen.findByText('Buyer 1')
+    await user.click(screen.getByRole('button', { name: /Load more/ }))
+    const later = await screen.findByRole('row', { name: /Buyer 51/ })
+    await user.click(within(later).getByRole('button', { name: 'Chase' }))
+    await waitFor(() => expect(mockTransition).toHaveBeenCalledWith('fu-51', 'chase', {}))
+    expect(await screen.findByText('Buyer 51')).toBeInTheDocument()
   })
 
   it('AC-908 (DD-WAY-36): with no overlay host mounted, the source ref is plain text — no link to a deleted route', async () => {
@@ -132,7 +157,7 @@ describe('FollowUpQueueEmbed', () => {
   // Half B convergence: the shared LoadingShell (role=status + aria-busy), never a bare
   // SkeletonRows with no busy announcement.
   it('announces role=status aria-busy while the queue loads', async () => {
-    mockListFollowUps.mockReturnValue(new Promise(() => {})) // never resolves
+    mockListFollowUpsPage.mockReturnValue(new Promise(() => {})) // never resolves
     renderEmbed()
     const status = await screen.findByRole('status')
     expect(status).toHaveAttribute('aria-busy', 'true')

@@ -302,10 +302,14 @@
 
 .cafe-receive__counted-lines > li > :last-child { white-space: normal; }
 
-/* PO details and filters align to the shared capture table measure. */
+/* Keep each quantity and its unit together, independent of the table's control-cell width. */
+.cafe-receive .cafe-count__quantity-control { width: max-content; }
+
+/* PO details and filters align to the shared capture table and sticky-band measure. */
 .cafe-receive__open-pos,
 .cafe-receive .ktb {
   box-sizing: border-box;
+  width: min(100%, var(--cafe-capture-content-measure));
   max-width: var(--cafe-capture-content-measure);
 }
 
