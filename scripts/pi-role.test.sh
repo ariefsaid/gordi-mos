@@ -200,6 +200,7 @@ cat > "$launcher_skills/launcher-check/SKILL.md" <<'EOF'
 name: launcher-check
 allowed-tools:
   - "Bash(~/.claude/skills/gstack/bin/gstack-cso-launcher *)"
+  - "Bash(~/.claude/skills/gstack/bin/gstack-cso-launcher.exe *)"
 ---
 Launcher prerequisite fixture.
 EOF
@@ -251,6 +252,15 @@ else
 fi
 ok "present allowed-tools launcher permits the role to start"
 rm -f "$missing_launcher"
+: > "$missing_launcher.exe"
+if run_launcher_role launcher-required-role "$tmp/launcher-exe-present.argv" "$tmp/launcher-exe-present.out"; then
+  [ -e "$tmp/launcher-exe-present.argv" ] || fail "present .exe launcher should reach pi"
+else
+  cat "$tmp/launcher-exe-present.out" >&2
+  fail "either launcher variant should satisfy the allowed-tools requirement"
+fi
+ok ".exe allowed-tools launcher permits the role when its sibling is absent"
+rm -f "$missing_launcher.exe"
 
 write_launcher_role body-only-role body-only
 if run_launcher_role body-only-role "$tmp/body-only.argv" "$tmp/body-only.out"; then
@@ -260,5 +270,23 @@ else
   fail "body-only launcher mention must not block the role"
 fi
 ok "body-only launcher mention does not block the role"
+
+mkdir -p "$launcher_skills/unparseable-frontmatter"
+cat > "$launcher_skills/unparseable-frontmatter/SKILL.md" <<'EOF'
+---
+name: unparseable-frontmatter
+allowed-tools: [
+---
+Malformed frontmatter fixture.
+EOF
+write_launcher_role malformed-frontmatter-role unparseable-frontmatter
+capture="$tmp/malformed-frontmatter.argv"
+output="$tmp/malformed-frontmatter.out"
+if run_launcher_role malformed-frontmatter-role "$capture" "$output"; then
+  fail "roles with unparseable skill frontmatter must be refused"
+fi
+grep -Fq 'unparseable-frontmatter' "$output" || fail "frontmatter refusal should name the skill"
+[ ! -e "$capture" ] || fail "unparseable skill frontmatter must be refused before pi starts"
+ok "unparseable skill frontmatter is named and refused before pi starts"
 
 printf 'PASS pi-role self-test (%s checks)\n' "$pass"

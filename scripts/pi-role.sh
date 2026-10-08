@@ -148,8 +148,8 @@ for skill in skills:
         try:
             _, skill_frontmatter, _ = skill_text.split("---", 2)
             skill_metadata = yaml.safe_load(skill_frontmatter) or {}
-        except (ValueError, yaml.YAMLError):
-            skill_metadata = {}
+        except (ValueError, yaml.YAMLError) as error:
+            fail(f"cannot parse skill '{skill}' frontmatter: {error}")
         allowed_tools = skill_metadata.get("allowed-tools", []) if isinstance(skill_metadata, dict) else []
         if isinstance(allowed_tools, str):
             allowed_tools = [allowed_tools]
@@ -167,10 +167,15 @@ for skill in skills:
                         if configured_skills_root
                         else Path(declared_path).expanduser()
                     ).resolve()
-                    if not launcher_path.is_file():
+                    sibling_path = (
+                        launcher_path.with_name(launcher_path.name[:-4])
+                        if launcher_path.name.endswith(".exe")
+                        else launcher_path.with_name(launcher_path.name + ".exe")
+                    )
+                    if not launcher_path.is_file() and not sibling_path.is_file():
                         fail(
                             f"skill '{skill}' declares missing Bash launcher '{launcher_path}' "
-                            "in allowed-tools"
+                            "(or its .exe variant) in allowed-tools"
                         )
     skill_paths.append(str(skill_dir.resolve()))
 
