@@ -36,6 +36,8 @@ export interface ViewOptionsDisclosureProps {
   label: string
   /** Optional decorative summary of the current selection (aria-hidden). */
   summary?: string
+  /** Spoken description paired with a compact decorative summary such as a count badge. */
+  accessibleSummary?: string
   /** Whether the phone door should show a decorative cue for active filters. */
   hasActiveFilters?: boolean
   /** id wiring aria-controls ↔ the panel. */
@@ -55,6 +57,7 @@ export function ViewOptionsDisclosure({
   onClose,
   label,
   summary,
+  accessibleSummary,
   hasActiveFilters = false,
   panelId,
   className,
@@ -79,6 +82,7 @@ export function ViewOptionsDisclosure({
   const chevronCls = chevronClassName
     ? `${chevronClassName}${open ? ` ${chevronClassName}--open` : ''}`
     : undefined
+  const spokenSummary = accessibleSummary ?? summary
   return (
     <div className={className}>
       <button
@@ -87,7 +91,7 @@ export function ViewOptionsDisclosure({
         className={triggerClassName}
         aria-expanded={open}
         aria-controls={panelId}
-        aria-label={hasActiveFilters && summary ? `${label}, ${summary}` : label}
+        aria-label={hasActiveFilters && spokenSummary ? `${label}, ${spokenSummary}` : label}
         onClick={onToggle}
         onKeyDown={onKeyDown}
       >

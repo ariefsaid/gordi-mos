@@ -66,6 +66,7 @@ import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsOffline } from '@/shell/use-is-offline'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { formatWeekdayDayMonth, formatWibShortDateTime } from '@/lib/format/date'
+import '@/components/kitchen/cafe-capture-controls.css'
 import './cafe-receive-page.css'
 
 type Entry = { quantity: string; unitId: string; changingUnit: boolean; damagedWrong: boolean }

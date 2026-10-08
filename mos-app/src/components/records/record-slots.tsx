@@ -11,5 +11,18 @@ export function readField(spec: Omit<RecordFieldSpec, 'editable' | 'readOnlyReas
  *  RecordFieldList inside the slot's `data-content-slot` landmark at the viewer's heading rung. */
 export function fieldSlot(id: string, label: string, fields: RecordFieldSpec[]): RecordContentSlot {
   const section: RecordMetadataSection = { id, label, fields }
-  return { id, label, section, render: (context) => <RecordFieldList section={section} headingLevel={context.headingLevel} /> }
+  return {
+    id,
+    label,
+    section,
+    render: (context) => (
+      <RecordFieldList
+        section={section}
+        onCommitField={context.onCommitField}
+        onDirtyChange={context.onDirtyChange}
+        fieldCommitsFrozen={context.fieldCommitsFrozen}
+        headingLevel={context.headingLevel}
+      />
+    ),
+  }
 }
