@@ -1,6 +1,6 @@
 -- mos: Finance-owned label overlay for copied pending bills (#1467, AC-1122).
 -- The ESB counterparty note remains untouched; this is Finance's short MOS label per bill.
--- Rollback: supabase/rollbacks/20261008004400_mos_pending_bill_finance_label.sql (guarded).
+-- Rollback: supabase/rollbacks/20261008006500_mos_pending_bill_finance_label.sql (guarded).
 --
 -- DOWN: run the guarded rollback above; it refuses while any Finance labels exist.
 
