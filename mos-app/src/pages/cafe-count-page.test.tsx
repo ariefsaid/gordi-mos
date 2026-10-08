@@ -5,6 +5,11 @@ import { I18nProvider } from '@/i18n/I18nProvider'
 import type { AuthState } from '@/auth/context'
 
 vi.mock('@/auth/use-auth')
+vi.mock('@/lib/supabase', () => ({ supabase: { schema: vi.fn() } }))
+vi.mock('@/lib/db/cafe-item-settings', async importOriginal => {
+  const actual = await importOriginal<typeof import('@/lib/db/cafe-item-settings')>()
+  return { ...actual, listCafeItemSettings: vi.fn(), canManageCafeItemSettings: vi.fn() }
+})
 const streamMocks = vi.hoisted(() => {
   const branch = { id: 'branch-1', code: 'cafe-branch', name: 'Cafe Branch' }
   const alternateBranch = { id: 'branch-2', code: 'other-cafe', name: 'Other Cafe' }
@@ -35,6 +40,8 @@ vi.mock('@/lib/db/cafe-count', async importOriginal => {
 })
 
 import { useAuth } from '@/auth/use-auth'
+import { supabase } from '@/lib/supabase'
+import { canManageCafeItemSettings, listCafeItemSettings } from '@/lib/db/cafe-item-settings'
 import { listCafeCountableItems, submitCafeCounts } from '@/lib/db/cafe-count'
 import type { CafeCountableItem } from '@/lib/db/cafe-count'
 import { CafeCountPage } from './cafe-count-page'
@@ -78,6 +85,29 @@ beforeEach(() => {
 })
 
 describe('CafeCountPage', () => {
+  it('explains stock-unit eligibility when Count reads no rows but Items has an active configured item', async () => {
+    const actual = await vi.importActual<typeof import('@/lib/db/cafe-count')>('@/lib/db/cafe-count')
+    mockListItems.mockImplementationOnce(actual.listCafeCountableItems)
+    const rpc = vi.fn().mockResolvedValue({ data: [], error: null })
+    vi.mocked(supabase.schema).mockReturnValue({ rpc } as never)
+    vi.mocked(listCafeItemSettings).mockResolvedValue([{
+      id: 'wip-1', erpName: 'Prepared sauce with roasted vegetables', mosName: 'Prepared sauce',
+      category: 'Kitchen', kind: 'WIP', isActive: true, defaultUnitId: 'unit-portion',
+      units: [{ id: 'unit-portion', name: 'porsi', isDefault: true, isShown: true, labelOrdinal: null, labelCount: 1 }],
+    }])
+    vi.mocked(canManageCafeItemSettings).mockResolvedValue(true)
+    renderPage()
+
+    const empty = await screen.findByTestId('empty-state')
+    expect(empty).toHaveTextContent('1 item is set up')
+    expect(empty).toHaveTextContent('default unit confirmed as an ESB stock unit')
+    expect(empty).not.toHaveTextContent('not set up for this list')
+    expect(empty).not.toHaveTextContent('Give it a kind')
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+    expect(rpc).toHaveBeenCalledWith('cafe_countable_items', { p_branch_id: 'branch-1', p_activity: 'kitchen' })
+    expect(listCafeItemSettings).toHaveBeenCalledWith(streamMocks.stream)
+  })
+
   it('puts the localized date in PageHead metadata and labels the kitchen switch in both locales', async () => {
     for (const locale of ['en', 'id'] as const) {
       const { unmount } = renderPage(locale)
