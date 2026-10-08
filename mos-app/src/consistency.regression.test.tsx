@@ -17,6 +17,8 @@ import { PAGE_FAMILY_FRAME_ROUTES } from './shell/page-family-migration'
 // ── DB mocks (all pending/empty → pages still mount their <PageHead> synchronously) ──
 vi.mock('./lib/db/tasks', () => ({
   listTasks: vi.fn(() => new Promise(() => {})),
+  hasOlderDoneTasks: vi.fn(() => new Promise(() => {})),
+  listOlderDoneTasks: vi.fn(),
   getTaskTitlesByIds: vi.fn(() => Promise.resolve([])),
 }))
 vi.mock('./lib/db/directory', () => ({
