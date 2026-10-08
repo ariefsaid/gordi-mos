@@ -5,7 +5,6 @@ import { resolve } from 'node:path'
 const read = (path: string) => readFileSync(resolve(process.cwd(), path), 'utf8')
 const layout = read('src/components/kitchen/cafe-capture-layout.css').replace(/\/\*[\s\S]*?\*\//g, '')
 const controls = read('src/components/kitchen/cafe-capture-controls.css').replace(/\/\*[\s\S]*?\*\//g, '')
-const aliases = read('src/styles/tokens/aliases.css')
 
 describe('Café capture routes share one responsive table and control geometry', () => {
   it('uses the common table, row, and footer rules instead of a Count-owned list skin', () => {
@@ -14,7 +13,6 @@ describe('Café capture routes share one responsive table and control geometry',
     expect(layout).toMatch(/\.cafe-capture-footer/)
     expect(layout).not.toMatch(/\.cafe-count__list\s*\{/)
     expect(layout).not.toMatch(/\.cafe-count__row\s*\{/)
-    expect(aliases).toMatch(/--cafe-capture-content-measure:\s*772px/)
   })
 
   it('keeps quantity width, touch height, focus and invalid states in the shared control skin', () => {

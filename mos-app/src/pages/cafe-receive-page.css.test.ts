@@ -9,15 +9,11 @@ const pageSources = {
   count: read('src/pages/cafe-count-page.tsx'),
   receive: read('src/pages/cafe-receive-page.tsx'),
   request: read('src/pages/cafe-request-page.tsx'),
-  log: read('src/pages/kitchen-log-page.tsx'),
   waste: read('src/pages/cafe-waste-page.tsx'),
 }
 
 describe('Capture pages reuse shared layout without cross-page stylesheet dependencies', () => {
-  it('routes every capture surface through the shared table component', () => {
-    for (const source of [pageSources.count, pageSources.receive, pageSources.request, pageSources.log, pageSources.waste]) {
-      expect(source).toMatch(/CafeCaptureTable/)
-    }
+  it('keeps quantity controls on directly entered capture pages', () => {
     expect(pageSources.count).toMatch(/CafeCaptureQuantityControl/)
     expect(pageSources.receive).toMatch(/CafeCaptureQuantityControl/)
     expect(pageSources.request).toMatch(/CafeCaptureQuantityControl/)

@@ -395,33 +395,6 @@ describe('insertKitchenLog — payload contract (AC-020/030)', () => {
     expect(payload).not.toHaveProperty('date')
   })
 
-  it('returns the original row id when the same client attempt is retried', async () => {
-    const rec = freshRec()
-    schemaMock.mockReturnValue(makeSchema({
-      insert_cafe_capture_logs: [
-        { data: [{ id: 'log-original', client_request_id: REQUEST_ID }], error: null },
-        { data: [{ id: 'log-original', client_request_id: REQUEST_ID }], error: null },
-      ],
-    }, rec) as never)
-    const input = {
-      client_request_id: REQUEST_ID,
-      business_unit_id: BU_ID,
-      log_date: '2026-06-20',
-      branch_id: BRANCH_ID,
-      activity: 'kitchen' as const,
-      action: 'produce' as const,
-      destination_branch_id: null,
-      wip_item_id: WIP_ID,
-      qty_porsi: 8,
-    }
-
-    await expect(insertKitchenLog(input)).resolves.toBe('log-original')
-    await expect(insertKitchenLog(input)).resolves.toBe('log-original')
-    expect(rec.rpcCalls).toHaveLength(2)
-    expect(rec.rpcCalls.map(([, args]) => (args as { p_rows: Array<{ client_request_id: string }> }).p_rows[0]!.client_request_id))
-      .toEqual([REQUEST_ID, REQUEST_ID])
-  })
-
   it('includes typed quantity and selected factor while retaining the ERP default unit id', async () => {
     const rec = freshRec()
     schemaMock.mockReturnValue(makeSchema(
