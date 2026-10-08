@@ -18,8 +18,8 @@ fi
 
 printf '%s\n' 'Skill pins are immutable'
 
-# Agents may start every skill, /release included: merges into main/staging are guarded by the
-# owner-assent check instead (OD-2026-10-07-HARNESS-ANSWERS).
+# Agents may start every skill, /release included; the merge hook asks the owner in-session before
+# main/staging merges.
 tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
 for s in feedback release teach; do
   mkdir -p "$tmp/$s"; printf -- '---\nname: %s\ndisable-model-invocation: true\n---\nbody\n' "$s" > "$tmp/$s/SKILL.md"

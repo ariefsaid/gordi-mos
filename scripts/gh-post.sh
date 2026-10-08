@@ -69,11 +69,18 @@ if [ "$verb1" = "api" ]; then
       *) die "'api' argument '$a' is not one this door parses — pass each flag separately, after the endpoint" ;;
     esac
     case "$flag" in
-      -X|--method) api_method="$val" ;;
+      -X|--method)
+        [ -n "$val" ] || die "'$flag' needs a non-empty value"
+        api_method="$val" ;;
       -f|--raw-field|-F|--field) api_fields+=("$val") ;;
       --input) api_input=1 ;;
     esac
   done
+  api_effective_method="$(printf '%s' "$api_method" | tr '[:lower:]' '[:upper:]')"
+  if [ -z "$api_effective_method" ]; then
+    # gh api defaults to GET; request fields switch the implied method to POST.
+    if [ "${#api_fields[@]}" -gt 0 ]; then api_effective_method=POST; else api_effective_method=GET; fi
+  fi
 fi
 
 # ── Collect every outbound string: all argv, plus the contents of any file-carrying flag
@@ -143,10 +150,6 @@ if [ "$verb1" = "api" ]; then
   esac
   case "$verb2" in
     *"/../"*|*"/./"*|*"/.."|*"/.") die "'api $verb2' carries a dot segment — the path must name the target directly" ;;
-    # Anything that moves a branch goes through `gh pr merge`, where the merge gate checks the
-    # owner's assent for main/staging — never through this door.
-    */pulls/*/merge|*/pulls/*/merge\?*|*/merges|*/merges\?*|*/git/refs*)
-      die "'api $verb2' would move a branch — merge with 'gh pr merge' instead (the merge gate checks it)" ;;
     repos/"$this_repo"/*|/repos/"$this_repo"/*) ;;
     *) die "'api $verb2' does not address this checkout's repo ($this_repo) — the door writes here only" ;;
   esac
@@ -281,7 +284,7 @@ fi
 
 if [ "$verb1" = "api" ]; then
   path="${verb2#/}"; path="${path%%\?*}"; path="${path%/}"
-  case "$path" in repos/"$this_repo"/issues/*/labels) [ "$(printf '%s' "$api_method" | tr '[:lower:]' '[:upper:]')" = GET ] || die "REST issue-label writes are refused — use 'issue edit --add-label' to change labels" ;; esac
+  case "$path" in repos/"$this_repo"/issues/*/labels) [ "$api_effective_method" = GET ] || die "REST issue-label writes are refused — use 'issue edit --add-label' to change labels" ;; esac
   issue_path=0
   case "$path" in
     "repos/$this_repo/issues") issue_path=1 ;;
@@ -289,7 +292,7 @@ if [ "$verb1" = "api" ]; then
       issue_number="${path#repos/$this_repo/issues/}"
       case "$issue_number" in ''|*[!0-9]*) ;; *) issue_path=1 ;; esac ;;
   esac
-  if [ "$issue_path" = 1 ] && [ "$(printf '%s' "$api_method" | tr '[:lower:]' '[:upper:]')" != GET ]; then
+  if [ "$issue_path" = 1 ] && [ "$api_effective_method" != GET ]; then
     has_labels="$api_input"
     for kv in "${api_fields[@]:-}"; do
       field_name="${kv%%=*}"
@@ -297,8 +300,30 @@ if [ "$verb1" = "api" ]; then
     done
     [ "$has_labels" = 0 ] || die "REST issue writes refused — labels go through 'issue create --label' or 'issue edit --add-label'"
   fi
-  # Only an explicit GET reads the pulls collection; anything else may create a PR.
-  if [ "$path" = "repos/$this_repo/pulls" ] && [ "$(printf '%s' "$api_method" | tr '[:lower:]' '[:upper:]')" != "GET" ]; then
+  api_write_allowed=0
+  if [ "$api_effective_method" != GET ]; then
+    case "$api_effective_method:$path" in
+      "POST:repos/$this_repo/security-advisories"|"POST:repos/$this_repo/pulls") api_write_allowed=1 ;;
+    esac
+    issue_prefix="repos/$this_repo/issues/"
+    if [ "$api_effective_method" = POST ]; then
+      case "$path" in
+        "$issue_prefix"*/comments)
+          issue_number="${path#"$issue_prefix"}"
+          issue_number="${issue_number%/comments}"
+          case "$issue_number" in ''|*[!0-9]*) ;; *) api_write_allowed=1 ;; esac ;;
+      esac
+    elif [ "$api_effective_method" = PATCH ]; then
+      case "$path" in
+        "$issue_prefix"*)
+          issue_number="${path#"$issue_prefix"}"
+          case "$issue_number" in ''|*[!0-9]*) ;; *) api_write_allowed=1 ;; esac ;;
+      esac
+    fi
+    [ "$api_write_allowed" = 1 ] || die "'api $api_effective_method $path' is not in the write allowlist. Allowed API writes: POST repos/$this_repo/security-advisories; POST repos/$this_repo/pulls (REST PR stamps required); POST repos/$this_repo/issues/<number>/comments; PATCH repos/$this_repo/issues/<number> without labels."
+  fi
+  # REST PR creation must pass the same HEAD stamps as `pr create`.
+  if [ "$path" = "repos/$this_repo/pulls" ] && [ "$api_effective_method" = POST ]; then
     [ "$api_input" = 0 ] || die "REST PR create must pass base/head as -f fields — an --input payload hides them from the stamp check"
     base_val="" head_val=""
     for kv in "${api_fields[@]}"; do

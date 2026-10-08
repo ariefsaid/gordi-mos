@@ -57,7 +57,7 @@ check_message() { # $1 name · $2 expected rc · $3 expect-gh-called · $4 diagn
   local output rc ghgot=no
   output="$(cd "$tmp/repo" && bash "$SCRIPT" "$@" 2>&1)"; rc=$?
   [ -s "$tmp/gh-calls" ] && ghgot=yes
-  if [ "$rc" -eq "$want" ] && [ "$ghgot" = "$ghwant" ] && printf '%s\n' "$output" | grep -Fq "$diagnostic"; then
+  if [ "$rc" -eq "$want" ] && [ "$ghgot" = "$ghwant" ] && grep -Fq "$diagnostic" <<< "$output"; then
     pass=$((pass+1)); printf '  ok    %s\n' "$name"
   else
     fail=$((fail+1)); printf '  FAIL  %s — rc=%s (want %s), gh-called=%s (want %s), diagnostic=%s\n' "$name" "$rc" "$want" "$ghgot" "$ghwant" "$(printf '%s' "$output" | tr '\n' ' ')"
@@ -104,7 +104,8 @@ check "clean short -F body file passes" 0 yes issue comment 5 -F "$tmp/repo/body
 
 check "gh api -F field values scanned" 1 no api repos/x/y/issues -F body="has secretword inside"
 check "api path naming another repo refused, gh untouched" 1 no api repos/other/elsewhere/issues -f title=x
-check "api path naming this repo passes" 0 yes api repos/x/y/issues -f title=x
+check "API issue-comment write for this repo passes" 0 yes api repos/x/y/issues/17/comments -f body=comment
+check "API issue creation through the issue collection is not allowlisted" 1 no api repos/x/y/issues -f title=x
 check_message "REST issue-label POST is refused with the issue-edit route" 1 no "issue edit --add-label" api repos/x/y/issues/17/labels --method POST -f name=ready-for-agent
 check_message "REST issue-label PATCH is refused with the issue-edit route" 1 no "issue edit --add-label" api repos/x/y/issues/17/labels -X PATCH -f name=ready-for-agent
 check "REST issue-label GET remains allowed" 0 yes api repos/x/y/issues/17/labels --method GET
@@ -220,13 +221,26 @@ check "short-flag cluster hiding -F refused" 1 no api repos/x/y/issues -iFbody=@
 check "stray positional after the endpoint refused" 1 no api repos/x/y/issues extra -f title=x
 check "end-of-flags marker refused" 1 no api repos/x/y/issues -- -f title=x
 check "value-taking flag at the end refused" 1 no api repos/x/y/issues -f
+api_allowlist="Allowed API writes: POST repos/x/y/security-advisories; POST repos/x/y/pulls (REST PR stamps required); POST repos/x/y/issues/<number>/comments; PATCH repos/x/y/issues/<number> without labels."
+check_message "contents PUT is refused with the API write allowlist" 1 no "$api_allowlist" api repos/x/y/contents/README.md -X PUT -f message=edit
+check "contents DELETE is refused" 1 no api repos/x/y/contents/README.md -X DELETE -f message=delete
+check "merge-upstream is refused" 1 no api repos/x/y/merge-upstream -X POST -f branch=main
+check "branch rename is refused" 1 no api repos/x/y/branches/dev/rename -X PATCH -f new_name=main
 check "REST merge (PUT pulls/N/merge) refuses — merges go through gh pr merge" 1 no api repos/x/y/pulls/5/merge --method PUT -f merge_method=squash
 check "REST branch merge (POST merges) refuses" 1 no api repos/x/y/merges --method POST -f base=main -f head=dev
-check "REST ref update refuses" 1 no api repos/x/y/git/refs/heads/main --method PATCH -f sha=abc
+check "REST ref update refuses" 1 no api repos/x/y/git/refs/heads/main --method POST -f ref=refs/heads/main -f sha=abc
+check "REST branch rename variant is refused" 1 no api repos/x/y/branches/x/rename --method PATCH -f new_name=y
+check "security advisory creation is allowlisted" 0 yes api repos/x/y/security-advisories --method POST -f summary=report
+check "issue comment creation is allowlisted" 0 yes api repos/x/y/issues/17/comments -f body=comment
+check "issue PATCH without labels is allowlisted" 0 yes api repos/x/y/issues/17 --method PATCH -f state=closed
+check "contents GET remains allowed" 0 yes api /repos/x/y/contents/README.md --method get
+check "contents GET with no method or fields remains allowed" 0 yes api repos/x/y/contents/README.md
+check "contents GET with input and no fields remains implied GET" 0 yes api repos/x/y/contents/README.md --input "$tmp/repo/body.md"
 head="$(g "$tmp/repo" rev-parse HEAD)"
 for lens in spec code-quality security; do printf '%s %s reviewer-x now art.md\n' "$head" "$lens" > "$gitdir/independent-review-$lens-ok"; done
 check_message "REST pr create without a Reused: body refused (stamped)" 1 no "Reused:" api repos/x/y/pulls -f title=t -f head=feat-rest -f base=dev -f body=plain
 check "REST pr create, lens stamps without verify stamp, base=dev passes" 0 yes api repos/x/y/pulls -f title=t -f head=feat-rest -f base=dev -f body="Reused: x"
+check "REST pr create with explicit POST passes the same stamp gate" 0 yes api repos/x/y/pulls --method POST -f head=feat-rest -f base=dev -f body="Reused: x"
 check "REST pr create, concatenated -f fields pass" 0 yes api repos/x/y/pulls -fhead=feat-rest -fbase=dev "-fbody=Reused: x"
 check "REST pr create, --raw-field= form passes" 0 yes api repos/x/y/pulls --raw-field=head=feat-rest --raw-field=base=dev "--raw-field=body=Reused: x"
 check "REST pr create, owner:branch head passes" 0 yes api repos/x/y/pulls -f head=x:feat-rest -f base=dev -f body="Reused: x"

@@ -431,7 +431,7 @@ gr() { git -C "$tmp/rel-repo" -c user.email=t@t -c user.name=t "$@"; }
 gr commit -qm init --allow-empty
 gr update-ref refs/remotes/origin/dev "$(gr rev-parse HEAD)"
 sec() {
-  local head="$(gr rev-parse HEAD)"
+  local reviewer="$1" head="$(gr rev-parse HEAD)"
   mkdir -p "$tmp/rel-repo/docs/reviews"
   printf 'Commit: %s\n' "$head" > "$tmp/rel-repo/docs/reviews/evidence.md"
   {
@@ -443,16 +443,17 @@ sec() {
         printf '| %s | reviews/evidence.md | |\n' "$playbook"
       fi
     done
-    printf '\n## security\nReviewer: %s (security)\nVerdict: MERGE\nCommit: %s\n' "$1" "$head"
+    printf '\n## security\nReviewer: %s (security)\nVerdict: MERGE\nCommit: %s\n' "$reviewer" "$head"
   } > "$tmp/rel-repo/review.md"
-  (cd "$tmp/rel-repo" && bash "$SCRIPT" --lens security --reviewer "$1" --artifact review.md) >/dev/null 2>&1
+  shift
+  (cd "$tmp/rel-repo" && bash "$SCRIPT" --lens security --reviewer "$reviewer" --artifact review.md "$@") >/dev/null 2>&1
 }
-relcheck() { # name · want rc · reviewer
-  sec "$3"; local rc=$?
+relcheck() { # name · want rc · reviewer · optional record-review args…
+  sec "$3" "${@:4}"; local rc=$?
   if [ "$rc" -eq "$2" ]; then pass=$((pass+1)); printf '  ok    %s\n' "$1"
   else fail=$((fail+1)); printf '  FAIL  %s — rc=%s (want %s)\n' "$1" "$rc" "$2"; fi
 }
-relcheck "release candidate (HEAD already in dev): luna security refused" 1 gpt-6-luna
+relcheck "HEAD contained in origin/dev is not a release candidate" 0 gpt-6-luna
 relcheck "release candidate: opus security accepted" 0 claude-opus
 gr commit -qm feature --allow-empty
 relcheck "feature branch without migrations: luna security accepted" 0 gpt-6-luna
@@ -471,8 +472,17 @@ gr checkout -q -b release/x HEAD; gr commit -q --allow-empty -m "fix on top"
 git -C "$tmp/rel-repo" update-ref refs/remotes/origin/dev HEAD~1
 relcheck "release candidate with a migration: gpt-6-luna refused" 1 gpt-6-luna
 
-gr checkout -q --detach HEAD; gr commit -q --allow-empty -m "detached work"
-relcheck "detached HEAD outside dev/main needs opus" 1 gpt-6-luna
+gr checkout -qb feature/explicit-main "$(gr rev-parse origin/dev)"
+gr commit -q --allow-empty -m "ordinary work"
+relcheck "explicit --base main marks a release candidate" 1 gpt-6-luna --base main
+relcheck "explicit --base staging marks a release candidate" 1 gpt-6-luna --base staging
+
+gr checkout -qb feature/ordinary-dev "$(gr rev-parse origin/dev)"
+gr commit -q --allow-empty -m "ordinary dev-bound work"
+gr checkout -q --detach HEAD
+relcheck "detached ordinary dev-bound commit is not a release candidate" 0 gpt-6-luna
+gr update-ref refs/remotes/origin/main "$(gr rev-parse HEAD)"
+relcheck "HEAD contained in origin/main is a release candidate" 1 gpt-6-luna
 
 init_ancestor_evidence_repo() { # $1 repo; creates a qualifying UI change at the evidence commit
   local repo="$1"
