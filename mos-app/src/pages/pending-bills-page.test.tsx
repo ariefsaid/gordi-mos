@@ -239,7 +239,7 @@ describe('tablet urgency cues', () => {
     setViewport(true)
     renderPage()
     const row = await screen.findByRole('row', { name: /PB-1/ })
-    const billCell = row.querySelector('.money-table__cell--bill')!
+    const billCell = row.querySelector('.money-table__cell--bill') as HTMLElement
     const recentRow = screen.getByRole('row', { name: /PB-2/ })
 
     expect(within(row).getByText('420 days')).toBeInTheDocument()
@@ -260,13 +260,13 @@ describe('AC-1121: pending-bill view controls', () => {
       await waitFor(() => expect(scroller.scrollTop).toBe(0))
     }
 
-    await assertScrollReset(() => fireEvent.click(screen.getByRole('tab', { name: 'Paid' })))
+    await assertScrollReset(() => { fireEvent.click(screen.getByRole('tab', { name: 'Paid' })) })
     await assertScrollReset(async () => {
       fireEvent.click(screen.getByRole('combobox', { name: 'Branch' }))
       fireEvent.click(await screen.findByRole('option', { name: 'pop_up_east' }))
     })
-    await assertScrollReset(() => fireEvent.click(screen.getByRole('button', { name: '90+ days' })))
-    await assertScrollReset(() => fireEvent.change(screen.getByRole('searchbox', { name: 'Search bills' }), { target: { value: 'PB-1' } }))
+    await assertScrollReset(() => { fireEvent.click(screen.getByRole('button', { name: '90+ days' })) })
+    await assertScrollReset(() => { fireEvent.change(screen.getByRole('searchbox', { name: 'Search bills' }), { target: { value: 'PB-1' } }) })
   })
 
   it('defaults to Open, marks paid rows unselectable, and clears selection when the tab changes', async () => {
