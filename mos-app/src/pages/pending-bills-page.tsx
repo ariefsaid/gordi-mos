@@ -53,11 +53,17 @@ function statePill(bill: PendingBillView, t: T): ReactNode {
   const tone = bill.state === 'settled' ? 'success'
     : bill.state === 'partial' || bill.state === 'overpaid' || bill.state === 'void' || bill.state === 'missing' ? 'warning'
       : 'neutral'
-  return <Pill tone={tone}>{t(PENDING_BILL_STATE_LABEL[bill.state])}</Pill>
+  return (
+    <Pill tone={tone} className="pending-bills__state-pill">
+      <span className="pending-bills__state-label">{t(PENDING_BILL_STATE_LABEL[bill.state])}</span>
+    </Pill>
+  )
 }
 
 function branch(bill: PendingBillView, t: T): ReactNode {
-  if (bill.branchKnown && bill.branchName) return bill.branchName
+  if (bill.branchKnown && bill.branchName) {
+    return <span className="pending-bills__branch" title={bill.branchName}>{bill.branchName}</span>
+  }
   const code = <span className="pending-bills__code">{bill.branchCode}</span>
   if (bill.branchKnown) return code
   return <>{code} <span className="pending-bills__muted">{t('pendingBills.branch.unknown')}</span></>
@@ -223,7 +229,11 @@ export function PendingBillsPage() {
   }), [bills, activeView, branchFilter, ageBucket, search])
   useEffect(() => {
     if (listScrollRef.current) listScrollRef.current.scrollTop = 0
-  }, [activeView, branchFilter, ageBucket, search])
+    if (!isDesktop) {
+      const pageFrame = listScrollRef.current?.closest<HTMLElement>('.page-frame--v3')
+      if (pageFrame) pageFrame.scrollTop = 0
+    }
+  }, [activeView, branchFilter, ageBucket, search, isDesktop])
   // Keep open exposure and period-paid metrics stable across tabs; the other filters still scope them.
   const summaryBills = useMemo(() => filterPendingBills(bills, {
     view: 'all',
@@ -471,11 +481,36 @@ export function PendingBillsPage() {
     toggleBillSelection,
     toggleAllSelection,
   )
+  const isTabletViewport = isDesktop && !isWide
+  const selectionBar = selectedSummary.count > 0 ? (
+    <div className="pending-bills-selection-bar" data-overlay-edge={isTabletViewport ? undefined : 'bottom'} role="region" aria-label={t('pendingBills.selection.summary', {
+      count: String(selectedSummary.count),
+      total: formatIDRExact(selectedSummary.total),
+    })}>
+      <p aria-live="polite">{t('pendingBills.selection.summary', {
+        count: String(selectedSummary.count),
+        total: formatIDRExact(selectedSummary.total),
+      })}</p>
+      <div className="pending-bills-selection-bar__actions">
+        <Button type="button" variant="primary" onClick={startMultiPayment} disabled={selectionLocked}>
+          {t('pendingBills.record.recordPayment')}
+        </Button>
+        <Button type="button" variant="outline" onClick={() => setSelectedBillIds([])} disabled={selectionLocked}>
+          {t('pendingBills.selection.clear')}
+        </Button>
+      </div>
+    </div>
+  ) : null
+  const recordPanelTitle = formMode?.kind === 'multi' && !isDesktop
+    ? t(selectedSummary.count === 1 ? 'pendingBills.record.multiPanelTitle.one' : 'pendingBills.record.multiPanelTitle.other', {
+      count: String(selectedSummary.count),
+    })
+    : t('pendingBills.record.panelLabel', { billNo: selectedBill?.billNo ?? '' })
   const recordPanel = selectedBill && adapter ? (
     <>
       <RecordPanelHost
-        label={t('pendingBills.record.panelLabel', { billNo: selectedBill.billNo })}
-        title={isDesktop ? t('nav.money.pendingBills') : t('pendingBills.record.panelLabel', { billNo: selectedBill.billNo })}
+        label={recordPanelTitle}
+        title={isDesktop ? t('nav.money.pendingBills') : recordPanelTitle}
         closeLabel={t('record.close')}
         rootClassName="drawer-split--sticky"
         focusKey={selectedBill.id}
@@ -570,6 +605,7 @@ export function PendingBillsPage() {
       </div>
       <div className={`pending-bills-results${selectedBill && isWide ? ' record-split' : ''}`}>
         <div className="pending-bills-list-column">
+          {isTabletViewport && selectionBar}
           <MoneyTableShell className="pending-bills-table" scrollRef={listScrollRef}>
             <caption className="sr-only">{t('pendingBills.table.caption')}</caption>
             <thead>
@@ -595,25 +631,7 @@ export function PendingBillsPage() {
             </tbody>
           </MoneyTableShell>
           {visibleBills.length === 0 && <p className="pending-bills-filter-empty" role="status">{t('pendingBills.empty.filtered')}</p>}
-          {selectedSummary.count > 0 && (
-            <div className="pending-bills-selection-bar" data-overlay-edge="bottom" role="region" aria-label={t('pendingBills.selection.summary', {
-              count: String(selectedSummary.count),
-              total: formatIDRExact(selectedSummary.total),
-            })}>
-              <p aria-live="polite">{t('pendingBills.selection.summary', {
-                count: String(selectedSummary.count),
-                total: formatIDRExact(selectedSummary.total),
-              })}</p>
-              <div className="pending-bills-selection-bar__actions">
-                <Button type="button" variant="primary" onClick={startMultiPayment} disabled={selectionLocked}>
-                  {t('pendingBills.record.recordPayment')}
-                </Button>
-                <Button type="button" variant="outline" onClick={() => setSelectedBillIds([])} disabled={selectionLocked}>
-                  {t('pendingBills.selection.clear')}
-                </Button>
-              </div>
-            </div>
-          )}
+          {!isTabletViewport && selectionBar}
         </div>
         {recordPanel}
       </div>

@@ -378,7 +378,6 @@ export function PendingBillPaymentForm({ bill, bills, orgId, onCancel, onSaved, 
               id={`${id}-proof`}
               type="file"
               accept="image/jpeg,image/png,image/webp,application/pdf"
-              capture="environment"
               required
               aria-required="true"
               aria-invalid={Boolean(proofFieldError || proofError) || undefined}

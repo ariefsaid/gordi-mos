@@ -220,6 +220,29 @@
   }
 
   @container pending-bills-list (max-width: 979.98px) {
+    .pending-bills__branch {
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      overflow: hidden;
+      overflow-wrap: anywhere;
+    }
+
+    .pending-bills__state-pill {
+      min-width: 0;
+      max-width: 100%;
+      height: auto;
+      min-height: 22px;
+      padding-block: 2px;
+      white-space: normal;
+    }
+
+    .pending-bills__state-label {
+      min-width: 0;
+      overflow-wrap: anywhere;
+      white-space: normal;
+    }
+
     .pending-bills__tablet-age-cue {
       display: inline-flex;
     }
@@ -263,78 +286,71 @@
 
 @media (max-width: 767.98px) {
   .page-frame--v3:has(.pending-bills-body) {
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-
-  .page-frame--v3:has(.pending-bills-body) > .page-frame__content {
-    display: flex;
-    flex: 1;
-    flex-direction: column;
-    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
   }
 
   .pending-bills-body {
-    flex: 1;
-    min-height: 0;
-  }
-
-  .pending-bills-results {
-    display: flex;
-    flex: 1;
-    min-height: 0;
-  }
-
-  .pending-bills-list-column {
-    display: flex;
-    flex: 1;
-    flex-direction: column;
-    min-height: 0;
-  }
-
-  .pending-bills-table {
-    flex: 1;
-    min-height: 0;
+    gap: 8px;
   }
 
   .pending-bills-table .money-table-scroll {
-    flex: 1;
-    min-height: 0;
-    overflow-x: hidden;
-    overflow-y: auto;
-    scroll-padding-bottom: 8px;
+    overflow: visible;
   }
 
   .pending-bills-list-toolbar {
-    align-items: flex-start;
+    align-items: center;
+  }
+
+  .pending-bills-summary {
+    min-width: 0;
+    line-height: 1.25;
+  }
+
+  .pending-bills-body > .view-tabs {
+    position: static;
+    top: auto;
   }
 
   .pending-bills-filter-bar {
-    align-items: stretch;
+    display: grid;
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+    align-items: center;
   }
 
   .pending-bills-branch-filter {
-    flex: 1 1 100%;
+    grid-column: 1;
+    flex: none;
     min-width: 0;
     max-width: none;
     width: 100%;
   }
 
   .pending-bills-age-filters {
-    flex: 1 1 100%;
+    grid-column: 2;
+    align-self: end;
+    flex: none;
+    flex-wrap: nowrap;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .pending-bills-age-filters::-webkit-scrollbar {
+    display: none;
   }
 
   .pending-bills-age-filters button {
-    flex: 1 1 auto;
+    flex: 0 0 auto;
+    padding: 0 10px;
   }
 
   .pending-bills-filter-bar .collection-toolbar__query {
-    flex-basis: 100%;
-  }
-
-  .pending-bills-summary {
-    min-width: 0;
+    grid-column: 1 / -1;
+    flex-basis: auto;
+    padding: 0;
+    background: transparent;
   }
 
   .pending-bills-mobile-select-all {
@@ -376,6 +392,15 @@
 
   .pending-bills-selection-bar__actions > button {
     flex: 1;
+  }
+
+  .pending-bills__owes {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: normal;
   }
 
   .pending-bills__record-trigger {

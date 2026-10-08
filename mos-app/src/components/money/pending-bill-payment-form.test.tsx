@@ -72,6 +72,13 @@ describe('AC-1134: the payment form names invalid fields and keeps submit off', 
     expect(screen.queryByRole('status')).toBeNull()
   })
 
+  it('keeps the proof picker open to gallery images and PDFs', () => {
+    renderForm()
+    const proof = screen.getByLabelText(/^Proof/) as HTMLInputElement
+    expect(proof).not.toHaveAttribute('capture')
+    expect(proof).toHaveAttribute('accept', 'image/jpeg,image/png,image/webp,application/pdf')
+  })
+
   it('uses the shared quantity field control and reports an invalid proof draft as dirty', () => {
     const onDirtyChange = vi.fn()
     render(
