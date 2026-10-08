@@ -75,11 +75,24 @@ describe('Receive rows use shared capture geometry on direct entry', () => {
 })
 
 describe('Receive arrival date on phones', () => {
-  it('keeps the localized arrival date field wide on phones by moving its hint below', () => {
+  it('keeps the localized arrival date field wide on phones without repeating its value', () => {
     const phoneStart = css.indexOf('@media (max-width: 639px)')
     expect(phoneStart).toBeGreaterThanOrEqual(0)
     const phone = css.slice(phoneStart)
     expect(phone).toMatch(/\.cafe-receive__date\s*\{\s*grid-template-columns:\s*auto\s+minmax\(0,\s*1fr\)\s*;\s*gap:\s*8px\s*;\s*\}/)
-    expect(phone).toMatch(/\.cafe-receive__date-hint\s*\{\s*grid-column:\s*2\s*;\s*\}/)
+    expect(pageSources.receive).toMatch(/<DateField[\s\S]*?\bfullWidth\b/)
+    expect(css).not.toContain('.cafe-receive__date-hint')
+  })
+})
+
+describe('Café review and entry pages share their field grammar', () => {
+  it('aligns review queue bodies with the page gutter', () => {
+    expect(layout).toMatch(/\.cafe-capture-review-page\s*\{[^}]*padding:\s*20px 0 0/)
+  })
+
+  it('uses the shared DateField without repeating the selected date below it', () => {
+    expect(pageSources.receive).toMatch(/<DateField/)
+    expect(pageSources.request).toMatch(/<DateField/)
+    expect(css).not.toContain('.cafe-receive__date-hint')
   })
 })

@@ -9,6 +9,9 @@ const css = readFileSync(resolve(process.cwd(), 'src/components/kitchen/wip-item
   .replace(/\/\*[\s\S]*?\*\//g, '')
 const captureCss = readFileSync(resolve(process.cwd(), 'src/components/kitchen/cafe-capture-controls.css'), 'utf8')
   .replace(/\/\*[\s\S]*?\*\//g, '')
+const layoutCss = readFileSync(resolve(process.cwd(), 'src/components/kitchen/cafe-capture-layout.css'), 'utf8')
+  .replace(/\/\*[\s\S]*?\*\//g, '')
+const stepperSource = readFileSync(resolve(process.cwd(), 'src/components/kitchen/wip-item-stepper.tsx'), 'utf8')
 
 function ruleBody(selector: string): string {
   const idx = css.indexOf(selector)
@@ -27,7 +30,13 @@ describe('WIP quantity input treatment stays owned by the stepper', () => {
   })
 })
 
-describe('Desktop cafe unit alignment', () => {
+describe('Café static capture units', () => {
+  it('uses the shared quiet unit label recipe across capture rows', () => {
+    expect(layoutCss).toMatch(/\.cafe-count__unit,\s*\.cafe-capture-unit-label,\s*\.kls-unit\s*\{[^}]*font-size:\s*var\(--font-size-label\)[^}]*color:\s*var\(--muted-foreground\)/)
+    expect(stepperSource).toMatch(/kls-unit cafe-capture-unit/)
+    expect(layoutCss).toMatch(/\.cafe-capture-unit-label/)
+  })
+
   it('keeps the multi-unit label close to the quantity input', () => {
     const desktopRules = css.slice(css.indexOf('@media (min-width: 768px)'))
     expect(desktopRules).toMatch(/\.kls-dense \.kls-unit-change\s*\{[^}]*padding-inline:\s*2px/)

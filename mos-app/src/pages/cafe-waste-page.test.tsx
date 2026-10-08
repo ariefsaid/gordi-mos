@@ -730,18 +730,14 @@ describe('CafeWastePage', () => {
     expect(addPhoto).toBeDisabled()
     expect(addPhoto.closest('.cwl-controls')).toContainElement(quantity)
     expect(screen.getAllByText(help)).toHaveLength(1)
-    expect(screen.getAllByText(quantityHint)).toHaveLength(2)
+    expect(screen.queryByText(quantityHint)).toBeNull()
     const describedBy = addPhoto.getAttribute('aria-describedby')?.split(/\s+/) ?? []
-    expect(describedBy).toContain('cafe-waste-photo-guidance')
-    const specificHint = describedBy.find(id => id.startsWith('cafe-waste-photo-hint-'))
-    expect(specificHint).toBeTruthy()
+    expect(describedBy).toEqual(['cafe-waste-photo-guidance'])
     expect(document.getElementById('cafe-waste-photo-guidance')).toHaveTextContent(help)
-    expect(document.getElementById(specificHint!)).toHaveTextContent(quantityHint)
 
     fireEvent.change(quantity, { target: { value: '2' } })
     await waitFor(() => expect(addPhoto).toBeEnabled())
-    expect(screen.getAllByText(help)).toHaveLength(1)
-    expect(screen.getAllByText(quantityHint)).toHaveLength(1)
+    expect(screen.queryByText(quantityHint)).toBeNull()
     expect(addPhoto).toHaveAttribute('aria-describedby', 'cafe-waste-photo-guidance')
   })
 
