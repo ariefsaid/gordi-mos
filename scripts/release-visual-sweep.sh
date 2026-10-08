@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Capture changed, manifest-backed routes at 390/768/1440 for an independent rendered review.
 #
-# Usage: scripts/release-visual-sweep.sh (<base-ref> <head-ref> | --routes <comma-list>) --base-url <localhost-url> [--out <docs-dir>]
-# RELEASE8 example command: scripts/release-visual-sweep.sh --routes /cafe,/cafe/production,/cafe/transfer,/cafe/waste,/cafe/receive,/cafe/request,/cafe/count,/cafe/items,/cafe/receive/issues,/cafe/receive/review,/cafe/request/review,/cafe/review --base-url http://localhost:5173/ --out docs/reviews/release8-cafe-visual
+# Usage: scripts/release-visual-sweep.sh (<base-ref> <head-ref> | --routes <comma-list>) --base-url <localhost-url> [--persona <email>] [--out <docs-dir>]
+# RELEASE8 example command: scripts/release-visual-sweep.sh --routes /cafe,/cafe/production,/cafe/transfer,/cafe/waste,/cafe/receive,/cafe/request,/cafe/count,/cafe/items,/cafe/receive/issues,/cafe/receive/review,/cafe/request/review,/cafe/review --persona dewi.dev@example.test --base-url http://localhost:5173/ --out docs/reviews/release8-cafe-visual
 #
+# Persona mode uses the dev-seed login and skips audit-owned per-route fixture provisioning.
 # This release packet reuses the quantitative audit's manifest fixtures and rendered geometry,
 # visible-content, and control collectors. The audit's change-gate compares failure baselines; it
 # does not discover a release's changed routes or include a 768px capture, so this wrapper derives
@@ -14,12 +15,13 @@ set -euo pipefail
 
 usage() {
   cat >&2 <<'EOF'
-usage: scripts/release-visual-sweep.sh (<base-ref> <head-ref> | --routes <comma-list>) --base-url <localhost-url> [--out <docs-dir>]
+usage: scripts/release-visual-sweep.sh (<base-ref> <head-ref> | --routes <comma-list>) --base-url <localhost-url> [--persona <email>] [--out <docs-dir>]
 
 Capture diff-affected routes or explicit app paths at 390, 768, and 1440 pixels. Exactly one
-scope mode is required. The checked-out HEAD must be clean; diff mode also requires HEAD to equal
-<head-ref>. Output is limited to docs/ in the main checkout. This command does not reset or
-migrate the database.
+scope mode is required. --persona signs in as a dev-seed persona ending in .dev@example.test and
+skips audit-owned per-route fixture provisioning. The checked-out HEAD must be clean; diff mode
+also requires HEAD to equal <head-ref>. Output is limited to docs/ in the main checkout. This
+command does not reset or migrate the database.
 EOF
 }
 
@@ -28,7 +30,9 @@ fail() { printf 'release-visual-sweep: %s\n' "$1" >&2; exit 2; }
 base_url=""
 out_arg=""
 routes_arg=""
+persona_email=""
 routes_seen=0
+persona_seen=0
 positionals=()
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -40,6 +44,13 @@ while [ "$#" -gt 0 ]; do
     --out)
       [ "$#" -ge 2 ] || { usage; exit 2; }
       out_arg="$2"
+      shift 2
+      ;;
+    --persona)
+      [ "$#" -ge 2 ] || { usage; exit 2; }
+      [ "$persona_seen" -eq 0 ] || fail '--persona may be specified only once'
+      persona_seen=1
+      persona_email="$2"
       shift 2
       ;;
     --routes)
@@ -67,6 +78,10 @@ else
   mode=diff
   base_ref="${positionals[0]}"
   head_ref="${positionals[1]}"
+fi
+if [ "$persona_seen" -eq 1 ]; then
+  [ -n "$persona_email" ] || fail '--persona requires an email'
+  [[ "$persona_email" == *.dev@example.test ]] || fail '--persona email must end with .dev@example.test'
 fi
 [ -n "$base_url" ] || fail '--base-url is required and must point to localhost'
 
@@ -286,6 +301,7 @@ runner="$root/mos-app/scripts/release-visual-sweep.mjs"
 [ -f "$runner" ] || fail 'render runner is missing'
 runner_args=(--base-url "$base_url" --head "$head_sha" --scope "$scratch/scope.json" --out "$scratch/evidence")
 [ "$mode" = diff ] && runner_args+=(--base "$base_sha")
+[ "$persona_seen" -eq 1 ] && runner_args+=(--persona "$persona_email")
 (
   cd "$root/mos-app"
   "$root/scripts/with-db-lock.sh" node "$root/mos-app/node_modules/vite-node/vite-node.mjs" "$runner" "${runner_args[@]}"
@@ -308,6 +324,8 @@ if actual != expected or len(rows or []) != len(expected):
     raise SystemExit('release-visual-sweep: rendered evidence does not cover each requested route and width exactly once')
 
 lines = [f"HEAD: {scope['headSha']}"]
+if results.get('persona'):
+    lines.append(f"PERSONA: {results['persona']} (audit per-route fixture provisioning skipped)")
 if scope.get('baseSha'):
     lines.append(f"BASE: {scope['baseSha']}")
 lines.extend([

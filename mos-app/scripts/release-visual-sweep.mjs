@@ -36,6 +36,9 @@ function options(argv) {
   for (const name of ['base-url', 'head', 'scope', 'out']) {
     if (!result[name]) throw new Error(`missing --${name}`)
   }
+  if (result.persona && !result.persona.endsWith('.dev@example.test')) {
+    throw new Error('--persona email must end with .dev@example.test')
+  }
   return result
 }
 
@@ -70,13 +73,13 @@ function auditRun(args, outputDir, baseURL) {
   }
 }
 
-async function measureRoute(browser, run, baseURL, outputDir, route, manifestRoute, width) {
+async function measureRoute(browser, run, baseURL, outputDir, route, manifestRoute, width, personaEmail) {
   const cell = manifestCell(manifestRoute)
   const viewport = { width, height: width === 390 ? 844 : width === 768 ? 1024 : 900 }
   const browserContext = await browser.newContext({ baseURL, viewport })
   try {
     const page = await browserContext.newPage()
-    const prepared = await prepareAuditPage(page, run, cell)
+    const prepared = await prepareAuditPage(page, run, cell, personaEmail)
     if (prepared.setupFailure) throw new Error(`audit page preparation failed for ${route}: ${prepared.setupFailure}`)
 
     const target = new URL(route.replace(/^\//, ''), baseURL)
@@ -151,8 +154,10 @@ async function main() {
   let setupComplete = false
   let failed = true
   try {
-    await globalSetup()
-    setupComplete = true
+    if (!args.persona) {
+      await globalSetup()
+      setupComplete = true
+    }
     browser = await chromium.launch({ headless: true })
     const rows = []
     for (const route of scope.routes) {
@@ -166,17 +171,19 @@ async function main() {
       }
       manifestCell(manifestRoute)
       for (const width of widths) {
-        rows.push(await measureRoute(browser, run, baseURL.toString(), outputDir, route, manifestRoute, width))
+        rows.push(await measureRoute(browser, run, baseURL.toString(), outputDir, route, manifestRoute, width, args.persona))
       }
     }
-    await writeFile(path.join(outputDir, 'sweep-results.json'), `${JSON.stringify({ headSha: scope.headSha, rows }, null, 2)}\n`)
+    await writeFile(path.join(outputDir, 'sweep-results.json'), `${JSON.stringify({ headSha: scope.headSha, persona: args.persona ?? null, rows }, null, 2)}\n`)
     failed = false
   } finally {
     if (browser) await browser.close()
-    try {
-      await cleanupAuditFixtures(run, failed)
-    } finally {
-      if (setupComplete) await globalTeardown()
+    if (!args.persona) {
+      try {
+        await cleanupAuditFixtures(run, failed)
+      } finally {
+        if (setupComplete) await globalTeardown()
+      }
     }
   }
 }
