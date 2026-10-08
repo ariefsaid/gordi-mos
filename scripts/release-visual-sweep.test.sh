@@ -1,0 +1,109 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+script="$repo_root/scripts/release-visual-sweep.sh"
+if [ ! -x "$script" ]; then
+  echo 'FAIL: release visual sweep command is missing or not executable' >&2
+  exit 1
+fi
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
+fixture="$tmp/fixture"
+mkdir -p "$fixture/mos-app/src/pages" "$fixture/mos-app/scripts" "$tmp/bin"
+: > "$fixture/mos-app/scripts/release-visual-sweep.mjs"
+cd "$fixture"
+git init -q
+git config user.email test@example.invalid
+git config user.name 'Visual sweep test'
+printf 'base\n' > mos-app/src/pages/tasks-layout.tsx
+git add .
+git commit -qm base
+base_ref="$(git rev-parse HEAD)"
+printf 'head\n' > mos-app/src/pages/tasks-layout.tsx
+git add .
+git commit -qm head
+head_ref="$(git rev-parse HEAD)"
+
+cat > "$tmp/bin/node" <<'NODE_STUB'
+#!/usr/bin/env bash
+set -euo pipefail
+if [ "$#" -eq 3 ] && [ "$3" = "-" ]; then
+  printf '%s\n' '["/work/tasks","/work/signals","/inbox","/cafe","/cafe/plan","/cafe/review","/cafe/stock","/cafe/pushes"]'
+  exit 0
+fi
+runner=""
+scope=""
+out=""
+head=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    */release-visual-sweep.mjs) runner="$1"; shift ;;
+    --scope) scope="$2"; shift 2 ;;
+    --out) out="$2"; shift 2 ;;
+    --head) head="$2"; shift 2 ;;
+    *) shift ;;
+  esac
+done
+[ -n "$runner" ] && [ -n "$scope" ] && [ -n "$out" ] && [ -n "$head" ]
+python3 - "$scope" "$out" "$head" "$TEST_SCOPE_CAPTURE" <<'PY'
+import json, pathlib, sys
+scope_path, output_dir, head, capture = sys.argv[1:]
+scope = json.loads(pathlib.Path(scope_path).read_text())
+assert scope['headSha'] == head
+assert scope['routes'] == ['/work/tasks'], scope['routes']
+pathlib.Path(capture).write_text(json.dumps(scope))
+root = pathlib.Path(output_dir)
+(root / 'screenshots').mkdir(parents=True)
+rows = []
+for width in (390, 768, 1440):
+    name = f'work-tasks-{width}.png'
+    (root / 'screenshots' / name).write_bytes(b'fixture screenshot')
+    rows.append({
+        'route': '/work/tasks', 'width': width, 'overflowCount': 0,
+        'maxHorizontalOverflowPx': 0, 'clippedTextCount': 1, 'smallTapTargetCount': 2,
+        'screenshot': f'screenshots/{name}',
+    })
+(root / 'sweep-results.json').write_text(json.dumps({'headSha': head, 'rows': rows}))
+PY
+NODE_STUB
+chmod +x "$tmp/bin/node"
+export PATH="$tmp/bin:$PATH"
+export TEST_SCOPE_CAPTURE="$tmp/observed-scope.json"
+
+if "$script" "$base_ref" "$head_ref" > "$tmp/missing-url.out" 2>&1; then
+  echo 'FAIL: accepted missing --base-url' >&2; exit 1
+fi
+grep -q -- '--base-url is required' "$tmp/missing-url.out"
+
+if "$script" "$base_ref" "$head_ref" --base-url https://example.invalid/ > "$tmp/remote-url.out" 2>&1; then
+  echo 'FAIL: accepted a non-localhost URL' >&2; exit 1
+fi
+grep -q 'must point to localhost' "$tmp/remote-url.out"
+
+if "$script" no-such-base "$head_ref" --base-url http://localhost:1234/ > "$tmp/bad-ref.out" 2>&1; then
+  echo 'FAIL: accepted a ref that does not resolve' >&2; exit 1
+fi
+grep -q 'ref .* does not resolve' "$tmp/bad-ref.out"
+if "$script" "$base_ref" no-such-head --base-url http://localhost:1234/ > "$tmp/bad-head.out" 2>&1; then
+  echo 'FAIL: accepted a head ref that does not resolve' >&2; exit 1
+fi
+grep -q 'ref .* does not resolve' "$tmp/bad-head.out"
+
+out="$tmp/output"
+"$script" "$base_ref" "$head_ref" --base-url http://localhost:1234/ --out "$out" > "$tmp/run.out"
+expected_head="HEAD: $head_ref"
+[ "$(head -n 1 "$out/summary.md")" = "$expected_head" ] || {
+  echo 'FAIL: summary.md does not start with the expected HEAD line' >&2; exit 1;
+}
+grep -q '| /work/tasks | 390 |' "$out/summary.md"
+grep -q '| /work/tasks | 768 |' "$out/summary.md"
+grep -q '| /work/tasks | 1440 |' "$out/summary.md"
+python3 - "$TEST_SCOPE_CAPTURE" <<'PY'
+import json, pathlib, sys
+assert json.loads(pathlib.Path(sys.argv[1]).read_text())['routes'] == ['/work/tasks']
+PY
+[ "$(find "$out/screenshots" -type f -name '*.png' | wc -l | tr -d ' ')" = 3 ] || {
+  echo 'FAIL: expected three copied screenshots' >&2; exit 1;
+}
+printf 'release-visual-sweep self-test: PASS\n'
