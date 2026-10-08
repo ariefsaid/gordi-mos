@@ -590,10 +590,14 @@ describe('Populated state — WIP items loaded', () => {
 
   // AC-013 (FR-012): an item absent under the DD-WAY-29 gate must never read as a bug with
   // no exit — the capture surface carries a visible route to report it missing.
-  it('AC-013: offers a visible route to report a missing item on the loaded surface', async () => {
+  it('AC-013: keeps the missing-item route beside search on the loaded surface', async () => {
     await renderPage()
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /report it/i })).toBeInTheDocument()
+      const action = screen.getByRole('button', { name: /report it/i })
+      const search = screen.getByRole('searchbox', { name: /find an item/i })
+      const filters = document.querySelector('.ktb-filters')
+      expect(filters).toContainElement(action)
+      expect(filters).toContainElement(search)
     })
   })
 

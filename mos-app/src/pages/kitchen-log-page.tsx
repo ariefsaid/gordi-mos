@@ -1613,6 +1613,9 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
       onCategoryChange={capturePageState.setCategory}
       searchPlaceholder={t('kitchen.log.searchPlaceholder')}
       ariaLabel={t('kitchen.log.toolbarAria')}
+      trailing={buId && stream && !captureClosed
+        ? <ReportMissingItem stream={stream} streamLabel={streamLabel(t, stream)} />
+        : undefined}
     >
       {mode === 'transfer' && movementOptions.length > 0 && <div className="kl-scope">
         <MovementSeg
@@ -1832,11 +1835,6 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
           ) : (
             <>
               {logToolbar}
-              {/* Keep the missing-item exit beside search/filters, where a floor worker notices
-                  the absence, rather than after the full item list. */}
-              {buId && stream && !captureClosed && (
-                <ReportMissingItem stream={stream} streamLabel={streamLabel(t, stream)} />
-              )}
               {mode === 'transfer' && !transferDestinationChosen && !readOnlyNoStream ? null : logTable}
               {!isWide && mode === 'transfer' && stream !== null && !streamNonProducing && transferDestinationChosen && stagedCount > 0 && (
                 <section

@@ -407,6 +407,16 @@
 .cafe-items__card-action .cafe-items__save-control { align-items: flex-end; }
 
 @media (pointer: coarse) {
+  .cafe-items__name-input .mk-textinput__box,
+  .cafe-items__name-input .mk-textinput__field,
+  .cafe-items__table .mk-select__box,
+  .cafe-items__table .mk-select__field,
+  .cafe-items__card-body .mk-select__box,
+  .cafe-items__card-body .mk-select__field,
+  .cafe-items__active-control,
+  .cafe-items .btn,
+  .cafe-items .picker__trigger,
+  .cafe-items .dt-sort-button { min-width: 44px; min-height: 44px; }
   .cafe-items__name-input .mk-textinput__field { font-size: var(--font-size-touch-input); }
 }
 
