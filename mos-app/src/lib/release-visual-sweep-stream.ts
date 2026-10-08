@@ -35,5 +35,6 @@ export async function selectStreamIfPrompted(
   await page.getByTestId('cafe-stream')
     .getByRole('heading', { name: stream, exact: true })
     .waitFor({ state: 'visible', timeout: 10_000 })
+  await page.locator('main[aria-busy="true"]').waitFor({ state: 'hidden', timeout: 15_000 })
   await settle(page)
 }

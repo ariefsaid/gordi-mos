@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { Page } from '@playwright/test'
 import { selectStreamIfPrompted } from './release-visual-sweep-stream'
 
-type WaitOptions = { state: 'visible'; timeout: number }
+type WaitOptions = { state: 'visible' | 'hidden'; timeout: number }
 type LocatorStub = {
   waitFor: (options: WaitOptions) => Promise<void>
   isVisible: () => Promise<boolean>
@@ -20,6 +20,7 @@ function fakePage(options: {
   const makeLocator = (selector: string): LocatorStub => ({
     waitFor: vi.fn(async (waitOptions: WaitOptions) => {
       options.events.push(`wait:${selector}:${waitOptions.state}`)
+      if (waitOptions.state === 'hidden') return
       const visible = selector === '.cafe-stream-choices__list'
         ? options.chooserVisible
         : options.selectedVisible
@@ -70,6 +71,7 @@ describe('selectStreamIfPrompted', () => {
       'click-role:button:Rumah Rames · Kitchen',
       'find-role:heading:Rumah Rames · Kitchen:true',
       'wait-role:heading:Rumah Rames · Kitchen',
+      'wait:main[aria-busy="true"]:hidden',
       'settle',
     ])
     expect(settle).toHaveBeenCalledWith(page)
