@@ -1,4 +1,4 @@
--- Rollback for 20261008004200_mos_pending_bill_finance_label.sql (#1467).
+-- Rollback for 20261008004400_mos_pending_bill_finance_label.sql (#1467).
 -- Finance labels are authored reconciliation data. Export/remove them before rolling back.
 begin;
 do $$
