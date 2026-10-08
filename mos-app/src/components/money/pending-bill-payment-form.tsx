@@ -5,7 +5,7 @@ import { QuantityField } from '@/components/ui/quantity-field'
 import { useT } from '@/i18n/use-t'
 import { formatIDRExact } from '@/lib/format/money'
 import { wibToday } from '@/lib/home-attention'
-import { PendingBillProofError, paySeveralPendingBills, recordPendingBillPayment, uploadPendingBillProof, type PaidPendingBill, type RecordPendingBillPaymentInput } from '@/lib/db/pending-bill-payments'
+import { PendingBillBalanceChangedError, PendingBillProofError, paySeveralPendingBills, recordPendingBillPayment, uploadPendingBillProof, type PaidPendingBill, type RecordPendingBillPaymentInput } from '@/lib/db/pending-bill-payments'
 import { summarizePendingBillSelection, validatePendingBillPaymentForm, type PendingBillPaymentField, type PendingBillPaymentFieldError, type PendingBillView } from '@/lib/pending-bills'
 import './pending-bill-payment-form.css'
 
@@ -31,6 +31,7 @@ export type PendingBillPaymentFormProps = {
   onSaved: (saved: PendingBillPaymentSaved) => void
   onDirtyChange?: (dirty: boolean) => void
   onBusyChange?: (busy: boolean) => void
+  onBalancesChanged?: () => void
   reversePayment?: { id: string; amount: number } | null
 }
 
@@ -40,7 +41,7 @@ const FIELD_LABEL: Record<PendingBillPaymentField, 'pendingBills.form.amount' | 
   proof: 'pendingBills.form.proof',
 }
 
-export function PendingBillPaymentForm({ bill, bills, orgId, onCancel, onSaved, onDirtyChange, onBusyChange, reversePayment = null }: PendingBillPaymentFormProps) {
+export function PendingBillPaymentForm({ bill, bills, orgId, onCancel, onSaved, onDirtyChange, onBusyChange, onBalancesChanged, reversePayment = null }: PendingBillPaymentFormProps) {
   // The panel's own buttons give way to this form, so focus moves into it when it opens.
   const formRef = useRef<HTMLFormElement>(null)
   useEffect(() => { formRef.current?.focus() }, [])
@@ -177,6 +178,7 @@ export function PendingBillPaymentForm({ bill, bills, orgId, onCancel, onSaved, 
         if (multiMode && multiSelection && proofPath) {
           const payments = await paySeveralPendingBills({
             billIds: multiSelection.bills.map((selected) => selected.id),
+            expectedAmountsCents: multiSelection.bills.map((selected) => Math.round(selected.balance * 100)),
             cashInDate,
             proofPath,
             idempotencyKey: idempotencyKey.current,
@@ -219,7 +221,10 @@ export function PendingBillPaymentForm({ bill, bills, orgId, onCancel, onSaved, 
       onDirtyChange?.(false)
       onSaved(saved)
     } catch (error) {
-      if (error instanceof PendingBillProofError) {
+      if (error instanceof PendingBillBalanceChangedError) {
+        setRequestError(t('pendingBills.form.balancesChanged'))
+        onBalancesChanged?.()
+      } else if (error instanceof PendingBillProofError) {
         setProofError(error.code === 'tooLarge'
           ? t('pendingBills.form.proofTooLarge')
           : error.code === 'unsupported' || error.code === 'empty'
