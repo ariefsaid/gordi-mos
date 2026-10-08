@@ -7,7 +7,9 @@ import { Checkbox } from '@/components/ui/checkbox'
 export interface CheckboxRowProps {
   label: string
   checked: boolean
-  /** Disabled while a write is in flight (fieldset busy). */
+  /** A save is in flight; keep focus and ignore changes until it settles. */
+  busy?: boolean
+  /** Truly unavailable, such as a permission guard. */
   disabled?: boolean
   onToggle: () => void
   /** Draw a top border — pass `index > 0` so rows within a bordered group are separated. */
@@ -27,11 +29,12 @@ export interface CheckboxRowProps {
 
 /**
  * One checkbox row whose visible label and native control share one activation surface. The native
- * input owns checked, disabled, and keyboard behavior; trailing controls remain outside the label.
+ * input owns checked and keyboard behavior; busy rows stay focusable while true guards use disabled.
  */
 export function CheckboxRow({
   label,
   checked,
+  busy = false,
   disabled = false,
   onToggle,
   divider = false,
@@ -45,7 +48,7 @@ export function CheckboxRow({
     <div className="admin-check-row" style={divider ? { borderTop: '1px solid var(--input)' } : undefined}>
       <label
         className={`flex min-w-0 flex-1 items-start gap-3 py-2.5 select-none ${indent ? 'pl-6 pr-3' : 'px-3'} ${
-          disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-accent/60'
+          disabled ? 'opacity-50 cursor-not-allowed' : busy ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-accent/60'
         }`}
         title={title}
       >
@@ -53,7 +56,9 @@ export function CheckboxRow({
           <Checkbox
             checked={checked}
             disabled={disabled}
-            onChange={() => !disabled && onToggle()}
+            aria-disabled={busy || undefined}
+            aria-busy={busy || undefined}
+            onChange={() => !disabled && !busy && onToggle()}
             aria-label={label}
           />
         </span>

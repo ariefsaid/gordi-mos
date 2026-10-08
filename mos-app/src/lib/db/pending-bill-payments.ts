@@ -16,7 +16,7 @@ interface PageQuery extends PromiseLike<{ data: unknown[] | null; error: { messa
 
 interface SchemaClient {
   from(table: string): PageQuery
-  rpc(name: string, args: Record<string, unknown>): PromiseLike<{ data: unknown; error: { message: string } | null }>
+  rpc(name: string, args: Record<string, unknown>): PromiseLike<{ data: unknown; error: { message: string; code?: string } | null }>
 }
 
 interface StorageBucket {
@@ -47,6 +47,7 @@ export interface PendingBillPaymentAmountRow {
   bill_no: string
   /** Signed amount: reversals are negative. */
   amount: number
+  cash_in_date: string
 }
 
 export interface PendingBillPaymentHistoryEntry extends PendingBillPaymentIdentity {
@@ -78,10 +79,36 @@ export interface RecordPendingBillPaymentResult {
   replayed: boolean
 }
 
+export interface PaySeveralPendingBillsInput {
+  billIds: string[]
+  /** Confirmed displayed balances in cents, index-aligned with billIds. */
+  expectedAmountsCents: number[]
+  cashInDate: string
+  proofPath: string
+  idempotencyKey: string
+}
+
+export class PendingBillBalanceChangedError extends Error {
+  constructor() {
+    super('Pending bill balances changed since confirmation.')
+    this.name = 'PendingBillBalanceChangedError'
+  }
+}
+
+export interface PaidPendingBill {
+  billId: string
+  paymentId: string
+  esbCode: string
+  branchCode: string
+  billNo: string
+  amount: number
+  replayed: boolean
+}
+
 export async function listPendingBillPaymentAmounts(): Promise<PendingBillPaymentAmountRow[]> {
   const rows = await readAllPages<Record<string, unknown>>('listPendingBillPaymentAmounts', (from, to) =>
     schema('mos').from('pending_bill_payments')
-      .select('id,esb_code,branch_code,bill_no,amount,created_at')
+      .select('id,esb_code,branch_code,bill_no,amount,cash_in_date,created_at')
       .order('created_at', { ascending: true })
       .order('id', { ascending: true })
       .range(from, to))
@@ -91,6 +118,7 @@ export async function listPendingBillPaymentAmounts(): Promise<PendingBillPaymen
     branch_code: String(row.branch_code),
     bill_no: String(row.bill_no),
     amount: Number(row.amount),
+    cash_in_date: String(row.cash_in_date),
   }))
 }
 
@@ -174,6 +202,46 @@ export async function recordPendingBillPayment(
   }
   const result = row as { payment_id: unknown; replayed: unknown }
   return { paymentId: String(result.payment_id), replayed: Boolean(result.replayed) }
+}
+
+export async function paySeveralPendingBills(input: PaySeveralPendingBillsInput): Promise<PaidPendingBill[]> {
+  const { data, error } = await schema('mos').rpc('pay_several_pending_bills', {
+    p_bill_ids: input.billIds,
+    p_expected_amounts_cents: input.expectedAmountsCents,
+    p_cash_in_date: input.cashInDate,
+    p_proof_path: input.proofPath,
+    p_idempotency_key: input.idempotencyKey,
+  })
+  if (error) {
+    if (error.code === 'P0001') throw new PendingBillBalanceChangedError()
+    throw new Error(error.message)
+  }
+  if (!Array.isArray(data)) throw new Error('paySeveralPendingBills failed — no result rows')
+
+  const results = data.map((entry) => {
+    if (!entry || typeof entry !== 'object') throw new Error('paySeveralPendingBills failed — invalid result row')
+    const row = entry as Record<string, unknown>
+    if (typeof row.payment_id !== 'string' || typeof row.esb_code !== 'string'
+      || typeof row.branch_code !== 'string' || typeof row.bill_no !== 'string') {
+      throw new Error('paySeveralPendingBills failed — invalid result row')
+    }
+    const amount = Number(row.amount)
+    if (!Number.isFinite(amount)) throw new Error('paySeveralPendingBills failed — invalid amount')
+    return {
+      billId: JSON.stringify([row.esb_code, row.branch_code, row.bill_no]),
+      paymentId: row.payment_id,
+      esbCode: row.esb_code,
+      branchCode: row.branch_code,
+      billNo: row.bill_no,
+      amount,
+      replayed: Boolean(row.replayed),
+    }
+  })
+  const resultIds = new Set(results.map((result) => result.billId))
+  if (results.length !== input.billIds.length || input.billIds.some((id) => !resultIds.has(id))) {
+    throw new Error('paySeveralPendingBills failed — the server returned a different bill selection')
+  }
+  return results
 }
 
 export type PendingBillProofErrorCode = 'unsupported' | 'empty' | 'tooLarge' | 'uploadFailed'

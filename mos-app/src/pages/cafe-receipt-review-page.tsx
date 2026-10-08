@@ -8,7 +8,7 @@ import { useCafeStream } from '@/lib/use-cafe-stream'
 import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { useDocumentTitle } from '@/shell/use-document-title'
 import { useSetBreadcrumbTitle } from '@/shell/breadcrumb-title'
-import './cafe-count-page.css'
+import '@/components/kitchen/cafe-capture-layout.css'
 
 /** Receipt review is cross-stream like Café review: it opens on All streams and claims no location. */
 export function CafeReceiptReviewPage() {
@@ -42,7 +42,7 @@ export function CafeReceiptReviewPage() {
         />
       }
     >
-      <div className="cafe-count">
+      <div className="cafe-capture-review-page">
         <CafeReceiptReviewQueue
           streamFilter={streamFilter}
           streamCatalog={options}

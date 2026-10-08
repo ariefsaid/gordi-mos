@@ -109,7 +109,7 @@ export function TeamPicker({ person, teams, commits, refresh }: TeamPickerProps)
                   label={team.name}
                   description={teamStreamLabel(team)}
                   checked={checked}
-                  disabled={busy}
+                  busy={busy}
                   divider={i > 0}
                   onToggle={() => toggle(team, checked)}
                   trailing={

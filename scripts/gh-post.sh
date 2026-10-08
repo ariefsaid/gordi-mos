@@ -69,11 +69,18 @@ if [ "$verb1" = "api" ]; then
       *) die "'api' argument '$a' is not one this door parses — pass each flag separately, after the endpoint" ;;
     esac
     case "$flag" in
-      -X|--method) api_method="$val" ;;
+      -X|--method)
+        [ -n "$val" ] || die "'$flag' needs a non-empty value"
+        api_method="$val" ;;
       -f|--raw-field|-F|--field) api_fields+=("$val") ;;
       --input) api_input=1 ;;
     esac
   done
+  api_effective_method="$(printf '%s' "$api_method" | tr '[:lower:]' '[:upper:]')"
+  if [ -z "$api_effective_method" ]; then
+    # gh api defaults to GET; request fields switch the implied method to POST.
+    if [ "${#api_fields[@]}" -gt 0 ]; then api_effective_method=POST; else api_effective_method=GET; fi
+  fi
 fi
 
 # ── Collect every outbound string: all argv, plus the contents of any file-carrying flag
@@ -81,9 +88,18 @@ fi
 # refused outright — text the scanner can't see is text that doesn't leave.
 texts=("$@")
 args=("$@")
+issue_body_set=0 issue_body=""
 for ((i = 0; i < ${#args[@]}; i++)); do
   a="${args[$i]}"
   f="" v=""
+  if [ "$verb1 $verb2" = "issue create" ] || [ "$verb1 $verb2" = "issue edit" ]; then
+    case "$a" in
+      --body|-b) issue_body_set=1; issue_body="${args[$((i + 1))]:-}" ;;
+      --body=*) issue_body_set=1; issue_body="${a#--body=}" ;;
+      -b?*) issue_body_set=1; issue_body="${a#-b}" ;;
+      --body-file|-F|--body-file=*|-F?*) issue_body_set=1 ;;
+    esac
+  fi
   case "$a" in
     --body-file|--input) f="${args[$((i + 1))]:-}" ;;
     --body-file=*|--input=*) f="${a#*=}" ;;
@@ -100,7 +116,11 @@ for ((i = 0; i < ${#args[@]}; i++)); do
   if [ -n "$f" ]; then
     [ "$f" != "-" ] || die "stdin payloads ('-') are not scannable — put the text in a file"
     [ -r "$f" ] || die "cannot read body file: $f"
-    texts+=("$(cat "$f")")
+    file_text="$(cat "$f")"
+    texts+=("$file_text")
+    if [ "$verb1 $verb2" = "issue create" ] || [ "$verb1 $verb2" = "issue edit" ]; then
+      case "$a" in --body-file|-F|--body-file=*|-F?*) issue_body="$file_text" ;; esac
+    fi
   fi
 done
 
@@ -130,10 +150,6 @@ if [ "$verb1" = "api" ]; then
   esac
   case "$verb2" in
     *"/../"*|*"/./"*|*"/.."|*"/.") die "'api $verb2' carries a dot segment — the path must name the target directly" ;;
-    # Anything that moves a branch goes through `gh pr merge`, where the merge gate checks the
-    # owner's assent for main/staging — never through this door.
-    */pulls/*/merge|*/pulls/*/merge\?*|*/merges|*/merges\?*|*/git/refs*)
-      die "'api $verb2' would move a branch — merge with 'gh pr merge' instead (the merge gate checks it)" ;;
     repos/"$this_repo"/*|/repos/"$this_repo"/*) ;;
     *) die "'api $verb2' does not address this checkout's repo ($this_repo) — the door writes here only" ;;
   esac
@@ -154,7 +170,7 @@ fi
 # other bases also need full verify — and a pr create may only target THIS checkout. The REST create
 # (`api repos/<this>/pulls`, the route cloud sessions use where GraphQL is blocked) passes the same gate.
 require_pr_stamps() { # $1 base branch ('' when none named)
-  local base_val="$1" gitdir head v r lens
+  local base_val="$1" gitdir head v r lens stamp_file stamp release_stamp_file release_sha
   gitdir="$(git rev-parse --git-dir)" || die "not a git repo"
   head="$(git rev-parse HEAD)"
   # Promotion carve-out (/release §4b): a PR into staging FROM main carries content the release
@@ -168,7 +184,15 @@ require_pr_stamps() { # $1 base branch ('' when none named)
   fi
   # OD-WAY-83: three explicit lens records, each its own stamp on this exact HEAD.
   for lens in spec code-quality security; do
-    r="$(awk '{print $1}' "$gitdir/independent-review-$lens-ok" 2>/dev/null || true)"
+    stamp_file="$gitdir/independent-review-$lens-ok"
+    stamp="$(cat "$stamp_file" 2>/dev/null || true)"
+    r="$(printf '%s\n' "$stamp" | awk '{print $1}')"
+    if [ "$lens" = security ] && { [ "$base_val" = main ] || [ "$base_val" = staging ]; }; then
+      release_stamp_file="$gitdir/independent-review-security-release-ok"
+      release_sha="$(cat "$release_stamp_file" 2>/dev/null || true)"
+      [ "$release_sha" = "$head" ] \
+        || die "a PR into $base_val needs release-rule stamps — record the security lens with: bash scripts/record-review.sh --lens security --base $base_val --reviewer <opus id> --artifact <record>"
+    fi
     [ "$r" = "$head" ] || die "no $lens lens stamp for HEAD — a reviewer that did not write this branch records each lens: bash scripts/record-review.sh --lens $lens --reviewer <glm/luna/opus…> --artifact <record>"
   done
 }
@@ -184,6 +208,51 @@ require_reused_line() {
   done
   die "the PR body has no 'Reused:' line — name the existing components, helpers, tests or patterns you reused (and why anything new was needed)"
 }
+
+contains_ready_label() { [[ ",$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')," == *,ready-for-agent,* ]]; }
+
+require_ready_issue_skills_plan() {
+  local ready=0 issue_target="" label result body
+  local -a argv=("$@")
+  for ((i = 0; i < ${#argv[@]}; i++)); do
+    a="${argv[$i]}"
+    case "$verb1 $verb2:$a" in
+      "issue create:--label"|"issue create:-l"|"issue edit:--add-label")
+        [ $((i + 1)) -lt ${#argv[@]} ] || continue
+        i=$((i + 1)); label="${argv[$i]}" ;;
+      "issue create:--label="*|"issue create:--add-label="*|"issue edit:--add-label="*|"issue create:-l"?*)
+        case "$a" in -l*) label="${a#-l}" ;; *) label="${a#*=}" ;; esac ;;
+      *) continue ;;
+    esac
+    contains_ready_label "$label" && ready=1
+  done
+  [ "$ready" -eq 1 ] || return 0
+
+  if [ "$verb1 $verb2" = "issue edit" ]; then
+    for ((i = 0; i + 2 < ${#argv[@]}; i++)); do
+      if [ "${argv[$i]}" = issue ] && [ "${argv[$((i + 1))]}" = edit ]; then
+        issue_target="${argv[$((i + 2))]}"
+        [[ "$issue_target" = -* ]] && issue_target=""
+        break
+      fi
+    done
+    if [ "$issue_body_set" -eq 0 ]; then
+      [ -n "$issue_target" ] || die "cannot identify the issue for ready-for-agent; pass its number so the current body can be fetched"
+      body="$(gh issue view "$issue_target" --json body -q .body 2>/dev/null)" \
+        || die "cannot fetch the current body for issue $issue_target; retry when GitHub is reachable"
+      issue_body="$body"
+    fi
+  fi
+
+  result="$(printf '%s\n' "$issue_body" | bash "$(dirname "$0")/skills-plan.sh" check - 2>&1)" && return 0
+  [ -z "$issue_target" ] || issue_target="issue #$issue_target: "
+  die "${issue_target}ready-for-agent requires a valid Skills plan
+$result"
+}
+
+if [ "$verb1 $verb2" = "issue create" ] || [ "$verb1 $verb2" = "issue edit" ]; then
+  require_ready_issue_skills_plan "$@"
+fi
 
 if [ "$verb1" = "pr" ] && [ "$verb2" = "create" ]; then
   for a in "$@"; do
@@ -221,10 +290,56 @@ if [ "$verb1" = "pr" ] && [ "$verb2" = "create" ]; then
   [ "$base_val" = dev ] && require_reused_line
 fi
 
+issue_number_from_path() {
+  local candidate="$1" suffix="${2:-}"
+  if [ -n "$suffix" ]; then
+    case "$candidate" in */"$suffix") candidate="${candidate%/"$suffix"}" ;; *) return 1 ;; esac
+  fi
+  case "$candidate" in ''|*[!0-9]*) return 1 ;; esac
+  printf '%s' "$candidate"
+}
+
 if [ "$verb1" = "api" ]; then
   path="${verb2#/}"; path="${path%%\?*}"; path="${path%/}"
-  # Only an explicit GET reads the pulls collection; anything else may create a PR.
-  if [ "$path" = "repos/$this_repo/pulls" ] && [ "$(printf '%s' "$api_method" | tr '[:lower:]' '[:upper:]')" != "GET" ]; then
+  case "$path" in repos/"$this_repo"/issues/*/labels) [ "$api_effective_method" = GET ] || die "REST issue-label writes are refused — use 'issue edit --add-label' to change labels" ;; esac
+  issue_path=0
+  case "$path" in
+    "repos/$this_repo/issues") issue_path=1 ;;
+    "repos/$this_repo/issues/"*)
+      issue_number="$(issue_number_from_path "${path#repos/$this_repo/issues/}" 2>/dev/null || true)"
+      [ -n "$issue_number" ] && issue_path=1 ;;
+  esac
+  if [ "$issue_path" = 1 ] && [ "$api_effective_method" != GET ]; then
+    has_labels="$api_input"
+    for kv in "${api_fields[@]:-}"; do
+      field_name="${kv%%=*}"
+      case "$field_name" in labels|labels\[* ) has_labels=1 ;; esac
+    done
+    [ "$has_labels" = 0 ] || die "REST issue writes refused — labels go through 'issue create --label' or 'issue edit --add-label'"
+  fi
+  api_write_allowed=0
+  if [ "$api_effective_method" != GET ]; then
+    case "$api_effective_method:$path" in
+      "POST:repos/$this_repo/security-advisories"|"POST:repos/$this_repo/pulls") api_write_allowed=1 ;;
+    esac
+    issue_prefix="repos/$this_repo/issues/"
+    if [ "$api_effective_method" = POST ]; then
+      case "$path" in
+        "$issue_prefix"*/comments)
+          issue_number="$(issue_number_from_path "${path#"$issue_prefix"}" comments 2>/dev/null || true)"
+          [ -n "$issue_number" ] && api_write_allowed=1 ;;
+      esac
+    elif [ "$api_effective_method" = PATCH ]; then
+      case "$path" in
+        "$issue_prefix"*)
+          issue_number="$(issue_number_from_path "${path#"$issue_prefix"}" 2>/dev/null || true)"
+          [ -n "$issue_number" ] && api_write_allowed=1 ;;
+      esac
+    fi
+    [ "$api_write_allowed" = 1 ] || die "'api $api_effective_method $path' is not in the write allowlist. Allowed API writes: POST repos/$this_repo/security-advisories; POST repos/$this_repo/pulls (REST PR stamps required); POST repos/$this_repo/issues/<number>/comments; PATCH repos/$this_repo/issues/<number> without labels."
+  fi
+  # REST PR creation must pass the same HEAD stamps as `pr create`.
+  if [ "$path" = "repos/$this_repo/pulls" ] && [ "$api_effective_method" = POST ]; then
     [ "$api_input" = 0 ] || die "REST PR create must pass base/head as -f fields — an --input payload hides them from the stamp check"
     base_val="" head_val=""
     for kv in "${api_fields[@]}"; do
