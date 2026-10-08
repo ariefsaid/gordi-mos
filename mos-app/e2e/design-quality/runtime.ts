@@ -7,8 +7,9 @@ import type { Page } from '@playwright/test'
 
 import { assertAuditRoute } from './audit-route.ts'
 
-import { loginAs } from '../helpers/login'
+import { loginAs, loginViaForm } from '../helpers/login'
 import { stubAccountLocale } from '../helpers/account-locale'
+import { DEMO_PASSWORD } from '../../src/pages/demo-personas'
 import { ADMIN, BAR_MEMBER, BAR_SUPERVISOR, BARISTA, MANAGER, ORPHAN, VIEWER } from '../fixtures/users'
 import { appPath, normalizeBasePath } from '../../src/config/build-settings'
 import { assertDevServerOwnership, worktreeFingerprint } from '../../src/lib/dev-server'
@@ -457,26 +458,40 @@ export async function loginAuditFixture(
   authenticatedFixture.set(page, fixtureName)
 }
 
-export async function prepareAuditPage(page: Page, run: AuditRun, cell: ManifestCell): Promise<{ setupFailure?: string }> {
+export async function prepareAuditPage(
+  page: Page,
+  run: AuditRun,
+  cell: ManifestCell,
+  personaEmail?: string,
+): Promise<{ setupFailure?: string }> {
   const viewport = VIEWPORT_SIZES[cell.viewport]
   if (!viewport) throw new Error(`unknown audit viewport ${cell.viewport}`)
+  if (personaEmail && !personaEmail.endsWith('.dev@example.test')) {
+    throw new Error('--persona email must end with .dev@example.test')
+  }
   await page.setViewportSize(viewport)
-  // Everything from here on depends on THIS cell: its fixture's identity, its route, its own
-  // setup actions. A cell that cannot be signed in as, or cannot reach its state, is one
-  // untested cell — not a lost run. `ensureAuditFixtures` stays outside, because a failure to
-  // provision at all is a run-level fault and must not be laundered into 55 quiet untested
-  // cells. Declaring a contract for a fixture nobody provisioned took a whole run down once.
-  const state = await ensureAuditFixtures(run)
+  // Persona mode keeps the audit page's locale/theme and route preparation but deliberately does
+  // not provision cell identities or fixtures that would replace the selected dev persona.
+  const state = personaEmail ? undefined : await ensureAuditFixtures(run)
   try {
-    assertAuditFixtureWritePolicy({
-      fixture: cell.fixture,
-      sessionId: run.sessionId,
-      candidateSha: run.candidateSha,
-      bindingSecret: state.bindingSecret,
-      receipt: state.receipt,
-      writes: cell.stateContract?.writes === true,
-    })
-    await loginAuditFixture(page, cell.fixture, run.sessionId, state.identities.get(cell.fixture))
+    if (personaEmail) {
+      await page.context().clearCookies()
+      await page.goto('.')
+      await page.evaluate(() => window.localStorage.clear())
+      await loginViaForm(page, personaEmail, DEMO_PASSWORD)
+    } else if (state) {
+      assertAuditFixtureWritePolicy({
+        fixture: cell.fixture,
+        sessionId: run.sessionId,
+        candidateSha: run.candidateSha,
+        bindingSecret: state.bindingSecret,
+        receipt: state.receipt,
+        writes: cell.stateContract?.writes === true,
+      })
+      await loginAuditFixture(page, cell.fixture, run.sessionId, state.identities.get(cell.fixture))
+    } else {
+      throw new Error('audit fixture state was not initialized')
+    }
     // The language belongs to the signed-in account; answer its read rather than saving to it.
     await stubAccountLocale(page, cell.language === 'id' ? 'id' : 'en')
     await page.evaluate(({ theme }) => {

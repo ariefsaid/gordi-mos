@@ -12,6 +12,11 @@
   font-size: var(--font-size-body);
 }
 
+.list-paging__continue {
+  flex: 0 0 100%;
+  text-align: left;
+}
+
 .list-paging p.list-paging__error {
   flex: 0 0 100%;
   min-height: 1.4em;

@@ -20,6 +20,7 @@ import {
 } from '../e2e/design-quality/runtime.ts'
 import { ReportWriter } from '../e2e/design-quality/report.ts'
 import { assertDevServerOwnership, worktreeFingerprint } from '../src/lib/dev-server.ts'
+import { selectStreamIfPrompted } from '../src/lib/release-visual-sweep-stream.ts'
 
 const users = { ADMIN, BARISTA, BAR_MEMBER, BAR_SUPERVISOR, MANAGER, VIEWER }
 const widths = [390, 768, 1440]
@@ -35,6 +36,12 @@ function options(argv) {
   }
   for (const name of ['base-url', 'head', 'scope', 'out']) {
     if (!result[name]) throw new Error(`missing --${name}`)
+  }
+  if (result.persona && !result.persona.endsWith('.dev@example.test')) {
+    throw new Error('--persona email must end with .dev@example.test')
+  }
+  if (Object.hasOwn(result, 'stream') && !result.stream.trim()) {
+    throw new Error('--stream requires a non-empty stream name')
   }
   return result
 }
@@ -70,57 +77,51 @@ function auditRun(args, outputDir, baseURL) {
   }
 }
 
-async function measureRoute(browser, run, baseURL, outputDir, route, manifestRoute, width) {
+async function measureRoute(page, run, baseURL, outputDir, route, manifestRoute, width, personaEmail, stream) {
   const cell = manifestCell(manifestRoute)
   const viewport = { width, height: width === 390 ? 844 : width === 768 ? 1024 : 900 }
-  const browserContext = await browser.newContext({ baseURL, viewport })
-  try {
-    const page = await browserContext.newPage()
-    const prepared = await prepareAuditPage(page, run, cell)
-    if (prepared.setupFailure) throw new Error(`audit page preparation failed for ${route}: ${prepared.setupFailure}`)
+  const prepared = await prepareAuditPage(page, run, cell, personaEmail)
+  if (prepared.setupFailure) throw new Error(`audit page preparation failed for ${route}: ${prepared.setupFailure}`)
 
-    const target = new URL(route.replace(/^\//, ''), baseURL)
-    await page.goto(target.toString(), { waitUntil: 'domcontentloaded' })
-    const identityUrl = new URL(page.url())
-    if (identityUrl.pathname.replace(/\/$/, '') !== target.pathname.replace(/\/$/, '')) {
-      throw new Error(`route did not stay on the requested surface: ${route}`)
-    }
-    await page.locator('main').waitFor({ state: 'visible', timeout: 10_000 })
-    await page.locator('main h1').first().waitFor({ state: 'visible', timeout: 10_000 })
-    await page.setViewportSize(viewport)
-    await settleAnimations(page)
+  const target = new URL(route.replace(/^\//, ''), baseURL)
+  await page.goto(target.toString(), { waitUntil: 'domcontentloaded' })
+  const identityUrl = new URL(page.url())
+  if (identityUrl.pathname.replace(/\/$/, '') !== target.pathname.replace(/\/$/, '')) {
+    throw new Error(`route did not stay on the requested surface: ${route}`)
+  }
+  await page.locator('main').waitFor({ state: 'visible', timeout: 10_000 })
+  await page.locator('main h1').first().waitFor({ state: 'visible', timeout: 10_000 })
+  await page.setViewportSize(viewport)
+  await selectStreamIfPrompted(page, route, stream, settleAnimations)
 
-    const context = {
-      route,
-      journey: cell.journey,
-      fixture: cell.fixture,
-      viewport: viewportNames.get(width),
-      theme: cell.theme,
-      language: cell.language,
-      state: 'default',
-    }
-    const geometry = await collectGeometry(page, context, geometrySelectors())
-    const controls = await collectControls(page, context)
-    const exercisedFullValueSelectors = await exerciseFullValuePaths(page, cell, auditViewports.get(width))
-    const visibleContent = await collectVisibleContent(page, context, `release-${width}-${route}`, exercisedFullValueSelectors)
-    const overflow = filterHorizontalOverflow(geometry)
-    const clippedText = visibleContent.filter((row) => row.kind === 'text-truncation' && !row.passed)
-    const smallTargets = filterSmallTapTargets(controls, auditViewports.get(width))
-    await page.evaluate(() => window.scrollTo(0, 0))
-    const slug = route.replace(/^\/+/, '').replace(/[^a-z0-9]+/gi, '-') || 'home'
-    const screenshot = `screenshots/${slug}-${width}.png`
-    await page.screenshot({ path: path.join(outputDir, screenshot), fullPage: false })
-    return {
-      route,
-      width,
-      overflowCount: overflow.length,
-      maxHorizontalOverflowPx: overflow.reduce((maximum, row) => Math.max(maximum, Math.ceil(row.overflowX)), 0),
-      clippedTextCount: clippedText.length,
-      smallTapTargetCount: smallTargets.length,
-      screenshot,
-    }
-  } finally {
-    await browserContext.close()
+  const context = {
+    route,
+    journey: cell.journey,
+    fixture: cell.fixture,
+    viewport: viewportNames.get(width),
+    theme: cell.theme,
+    language: cell.language,
+    state: 'default',
+  }
+  const geometry = await collectGeometry(page, context, geometrySelectors())
+  const controls = await collectControls(page, context)
+  const exercisedFullValueSelectors = await exerciseFullValuePaths(page, cell, auditViewports.get(width))
+  const visibleContent = await collectVisibleContent(page, context, `release-${width}-${route}`, exercisedFullValueSelectors)
+  const overflow = filterHorizontalOverflow(geometry)
+  const clippedText = visibleContent.filter((row) => row.kind === 'text-truncation' && !row.passed)
+  const smallTargets = filterSmallTapTargets(controls, auditViewports.get(width))
+  await page.evaluate(() => window.scrollTo(0, 0))
+  const slug = route.replace(/^\/+/, '').replace(/[^a-z0-9]+/gi, '-') || 'home'
+  const screenshot = `screenshots/${slug}-${width}.png`
+  await page.screenshot({ path: path.join(outputDir, screenshot), fullPage: false })
+  return {
+    route,
+    width,
+    overflowCount: overflow.length,
+    maxHorizontalOverflowPx: overflow.reduce((maximum, row) => Math.max(maximum, Math.ceil(row.overflowX)), 0),
+    clippedTextCount: clippedText.length,
+    smallTapTargetCount: smallTargets.length,
+    screenshot,
   }
 }
 
@@ -151,9 +152,13 @@ async function main() {
   let setupComplete = false
   let failed = true
   try {
-    await globalSetup()
-    setupComplete = true
+    if (!args.persona) {
+      await globalSetup()
+      setupComplete = true
+    }
     browser = await chromium.launch({ headless: true })
+    const browserContext = await browser.newContext({ baseURL: baseURL.toString(), viewport: { width: 390, height: 844 } })
+    const page = await browserContext.newPage()
     const rows = []
     for (const route of scope.routes) {
       const manifestRoute = scope.manifestRoutes[route]
@@ -166,17 +171,22 @@ async function main() {
       }
       manifestCell(manifestRoute)
       for (const width of widths) {
-        rows.push(await measureRoute(browser, run, baseURL.toString(), outputDir, route, manifestRoute, width))
+        rows.push(await measureRoute(page, run, baseURL.toString(), outputDir, route, manifestRoute, width, args.persona, args.stream))
       }
     }
-    await writeFile(path.join(outputDir, 'sweep-results.json'), `${JSON.stringify({ headSha: scope.headSha, rows }, null, 2)}\n`)
+    await writeFile(path.join(outputDir, 'sweep-results.json'), `${JSON.stringify({ headSha: scope.headSha, persona: args.persona ?? null, stream: args.stream ?? null, rows }, null, 2)}\n`)
     failed = false
   } finally {
-    if (browser) await browser.close()
-    try {
-      await cleanupAuditFixtures(run, failed)
-    } finally {
-      if (setupComplete) await globalTeardown()
+    if (browser) {
+      for (const context of browser.contexts()) await context.close()
+      await browser.close()
+    }
+    if (!args.persona) {
+      try {
+        await cleanupAuditFixtures(run, failed)
+      } finally {
+        if (setupComplete) await globalTeardown()
+      }
     }
   }
 }
