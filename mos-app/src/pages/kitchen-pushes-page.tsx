@@ -34,7 +34,7 @@ import type { TagColor } from '@/components/ui/tag'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
 import { CafeStreamBar } from '@/components/kitchen/cafe-stream-bar'
-import { listEsbPushes, sortPushRows } from '@/lib/db/kitchen-pushes'
+import { ESB_PUSHES_WINDOW_MAX_ROWS, listEsbPushes, sortPushRows } from '@/lib/db/kitchen-pushes'
 import type { EsbPushRow, EsbPushStatus, EsbTargetEnv, EsbEndpoint } from '@/lib/db/kitchen-pushes'
 import type { MessageKey } from '@/i18n/messages'
 import './kitchen-pushes-page.css'
@@ -297,14 +297,17 @@ export function KitchenPushesPage() {
   const allowed = accessRoles.includes('ops_lead') || accessRoles.includes('admin')
 
   const [rows, setRows] = useState<EsbPushRow[]>([])
+  const [hasMore, setHasMore] = useState(false)
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
   const [retryKey, setRetryKey] = useState(0)
 
   const fetchPushes = useCallback(async () => {
     setLoad({ kind: 'loading' })
+    setHasMore(false)
     try {
-      const data = await listEsbPushes()
-      setRows(sortPushRows(data))
+      const data = await listEsbPushes(undefined, ESB_PUSHES_WINDOW_MAX_ROWS + 1)
+      setRows(sortPushRows(data.slice(0, ESB_PUSHES_WINDOW_MAX_ROWS)))
+      setHasMore(data.length > ESB_PUSHES_WINDOW_MAX_ROWS)
       setLoad({ kind: 'ready' })
     } catch {
       setLoad({ kind: 'error' })
@@ -414,6 +417,7 @@ export function KitchenPushesPage() {
           <p className="kpu-tally">
             {pushTally(t, rows.length, queuedCount)}
           </p>
+          {hasMore ? <p className="kpu-window-more">{t('kitchen.pushes.windowMore', { count: ESB_PUSHES_WINDOW_MAX_ROWS })}</p> : null}
           <div className="kpu-cols-host">
             <DataTable
               columns={pushColumns(t)}

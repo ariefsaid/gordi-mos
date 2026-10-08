@@ -47,6 +47,8 @@ export interface EsbPushFilter {
   source_module?: string
 }
 
+export const ESB_PUSHES_WINDOW_MAX_ROWS = 100
+
 // ── Data layer ────────────────────────────────────────────────────────────────
 
 /**
@@ -88,7 +90,7 @@ export const SEVERITY_RANK: Record<EsbPushStatus, number> = {
 // window, and the remaining slots go to the newest queued/posted rows.
 export async function listEsbPushes(
   filter?: EsbPushFilter,
-  limit = 100,
+  limit = ESB_PUSHES_WINDOW_MAX_ROWS,
 ): Promise<EsbPushRow[]> {
   const integrations = () => supabase.schema('integrations')
 
