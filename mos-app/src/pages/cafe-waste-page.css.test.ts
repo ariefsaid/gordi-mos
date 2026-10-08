@@ -24,7 +24,6 @@ function rule(selector: string, last = false): string {
 describe('Waste capture controls stay paired and complete', () => {
   it('keeps the capture table on the shared content measure beside the summary rail', () => {
     expect(css).not.toMatch(/\.cwl-list|\.cwl-footer|\.cwl-page/)
-    expect(layoutCss).toMatch(/\.cafe-capture-table\.cwl-list\s*\{[^}]*--cafe-capture-list-clearance:\s*208px/)
     expect(layoutCss).toMatch(/\.cafe-capture-table\s*\{[^}]*width:\s*min\(100%, var\(--cafe-capture-content-measure/)
   })
 

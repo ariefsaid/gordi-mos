@@ -62,7 +62,7 @@
 
 /* Phone floor (DESIGN.md: targets >=44px): the hit box grows, the text link does not — no fill or
    border, so the action keeps its quiet weight. Keyed to width, like record-viewer.css. */
-@media (max-width: 767.98px) {
+@media (max-width: 767.98px), (pointer: coarse) {
   .cafe-stream__switch,
   .cafe-stream__back {
     display: inline-flex;

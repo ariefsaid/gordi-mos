@@ -21,7 +21,7 @@ function ruleBody(selector: string): string {
 describe('WIP quantity input treatment stays owned by the stepper', () => {
   it('keeps the shared Count/Waste chrome off the Production and Transfer input', () => {
     expect(captureCss).toMatch(/\.cafe-capture-content \.cafe-capture-quantity-field:not\(\.kls-qty\)/)
-    expect(ruleBody('.kls-qty {')).toMatch(/border:\s*1px solid var\(--border\)/)
+    expect(ruleBody('.kls-qty {')).toMatch(/border:\s*1px solid var\(--input\)/)
     expect(ruleBody('.kls-qty {')).toMatch(/padding:\s*0 4px/)
     expect(ruleBody('.kls-qty {')).toMatch(/font-weight:\s*600/)
   })

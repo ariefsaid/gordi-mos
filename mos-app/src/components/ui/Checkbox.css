@@ -46,7 +46,8 @@
   height: 100%;
   color: var(--primary-foreground);
 }
-.mk-checkbox__input:disabled { cursor: not-allowed; }
+.mk-checkbox__input:disabled,
+.mk-checkbox__input[aria-disabled="true"] { cursor: not-allowed; }
 .mk-checkbox__input:disabled + .mk-checkbox__visual { opacity: 0.5; }
 
 @media (pointer: coarse) {

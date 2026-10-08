@@ -193,7 +193,7 @@ export function InboxTriageConnected({ mode, owner = mode === 'page' ? 'inbox' :
       />
       {(state === 'ready' || (state === 'empty' && (hasMore || notifications.length > 0))) ? (
         <ListPaging
-          count={notifications.length}
+          count={availableNotifications.length}
           hasMore={hasMore}
           loading={loadingMore}
           error={loadMoreError}

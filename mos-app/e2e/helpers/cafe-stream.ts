@@ -1,7 +1,7 @@
 import type { Locator, Page } from '@playwright/test'
 import { expect } from '@playwright/test'
 
-/** The accessible name the stream Change menu and the one-step choice group share (EN / ID). */
+/** The accessible name the stream menu and the one-step choice group share (EN / ID). */
 export const STREAM_CONTROL_NAME = /production stream|stream produksi/i
 
 /** The page head's stream statement ("Rumah Rames · Kitchen"), present once a stream resolved. */
@@ -9,9 +9,9 @@ export function streamStatement(page: Page): Locator {
   return page.getByTestId('cafe-stream')
 }
 
-/** The quiet Change link beside the statement heading; present only when another stream is offered. */
+/** The stream-switch button beside the statement; present only when another stream is offered. */
 export function streamSwitch(page: Page): Locator {
-  return streamStatement(page).getByRole('button', { name: /^(change|ganti)\b/i })
+  return streamStatement(page).getByRole('button', { name: /^(change|switch|ganti)\b.*\bstream\b/i })
 }
 
 /**
@@ -22,7 +22,7 @@ export function streamSwitch(page: Page): Locator {
  * person takes: choose a stream.
  *
  * Two shapes: a resolved stream (OD-CAFE-6 ladder: home, only team, last used) is STATED in the
- * page head as a heading (with a Change beside it when another stream is offered) — nothing to do;
+ * page head as a heading (with a switch beside it when another stream is offered) — nothing to do;
  * with no default, the location's streams are direct one-click choices in the body — click the
  * target.
  *

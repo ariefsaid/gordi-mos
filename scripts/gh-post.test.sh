@@ -4,6 +4,7 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 SCRIPT="$(pwd)/scripts/gh-post.sh"
+RECORD_SCRIPT="$(pwd)/scripts/record-review.sh"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 pass=0; fail=0
@@ -12,7 +13,16 @@ pass=0; fail=0
 mkdir -p "$tmp/bin"
 cat > "$tmp/bin/gh" <<EOF
 #!/usr/bin/env bash
-printf '%s\n' "\$*" >> "$tmp/gh-calls"
+if [ "\$1" = repo ] && [ "\$2" = view ]; then
+  printf '%s\n' "\$*" >> "$tmp/gh-reads"
+  [ "\${GH_REPO_VIEW_FAIL:-0}" != 1 ] || exit 1
+  cat "$tmp/default-branch"
+elif [ "\$1" = issue ] && [ "\$2" = view ]; then
+  printf '%s\n' "\$*" >> "$tmp/gh-reads"
+  cat "$tmp/issue-body"
+else
+  printf '%s\n' "\$*" >> "$tmp/gh-calls"
+fi
 EOF
 chmod +x "$tmp/bin/gh"
 export PATH="$tmp/bin:$PATH"
@@ -27,6 +37,7 @@ cat > "$tmp/repo/docs/gh-denylist.txt" <<'EOF'
 secretword
 missing (auth|rls)
 EOF
+printf 'dev\n' > "$tmp/default-branch"
 
 envcheck() { # $1 name · $2 VAR=value · $3 expected rc · $4 expect-gh-called · args…
   local name="$1" kv="$2" want="$3" ghwant="$4"; shift 4
@@ -52,7 +63,7 @@ check_message() { # $1 name · $2 expected rc · $3 expect-gh-called · $4 diagn
   local output rc ghgot=no
   output="$(cd "$tmp/repo" && bash "$SCRIPT" "$@" 2>&1)"; rc=$?
   [ -s "$tmp/gh-calls" ] && ghgot=yes
-  if [ "$rc" -eq "$want" ] && [ "$ghgot" = "$ghwant" ] && printf '%s\n' "$output" | grep -Fq "$diagnostic"; then
+  if [ "$rc" -eq "$want" ] && [ "$ghgot" = "$ghwant" ] && grep -Fq "$diagnostic" <<< "$output"; then
     pass=$((pass+1)); printf '  ok    %s\n' "$name"
   else
     fail=$((fail+1)); printf '  FAIL  %s — rc=%s (want %s), gh-called=%s (want %s), diagnostic=%s\n' "$name" "$rc" "$want" "$ghgot" "$ghwant" "$(printf '%s' "$output" | tr '\n' ' ')"
@@ -61,6 +72,31 @@ check_message() { # $1 name · $2 expected rc · $3 expect-gh-called · $4 diagn
 
 check "clean comment passes through to gh" 0 yes issue comment 5 --body "all good here"
 check "denylisted body refused, gh untouched" 1 no issue comment 5 --body "the secretword is out"
+
+ready_plan="$tmp/ready-plan.md"
+cat > "$ready_plan" <<'EOF'
+## Skills plan
+| Skill | Phase | Evidence |
+|---|---|---|
+| tdd | build | docs/reviews/1541/tdd.md |
+EOF
+check_message "ready-for-agent issue create without a plan is refused" 1 no "ready-for-agent requires a valid Skills plan" issue create --title t --label ready-for-agent --body "No plan yet."
+check_message "case-insensitive ready label on issue create requires a plan" 1 no "ready-for-agent requires a valid Skills plan" issue create --title t --label Ready-For-Agent --body "No plan yet."
+check "ready-for-agent issue create with a plan passes" 0 yes issue create --title t --label bug,ready-for-agent --body-file "$ready_plan"
+ready_plan_text="$(cat "$ready_plan")"
+check "ready-for-agent issue create validates --body text" 0 yes issue create --title t --label ready-for-agent --body "$ready_plan_text"
+check "ready-for-agent issue create validates -b text" 0 yes issue create --title t --label ready-for-agent -b "$ready_plan_text"
+check "ready-for-agent issue create validates -F body file" 0 yes issue create --title t --label ready-for-agent -F "$ready_plan"
+check_message "a plan in --assignee cannot satisfy the issue-body gate" 1 no "ready-for-agent requires a valid Skills plan" issue create --title t --label ready-for-agent --body "No plan yet." --assignee "$ready_plan_text"
+check_message "a plan in --title cannot satisfy the issue-body gate" 1 no "ready-for-agent requires a valid Skills plan" issue edit 17 --add-label ready-for-agent --body "No plan yet." --title "$ready_plan_text"
+check "issue create without ready-for-agent needs no plan" 0 yes issue create --title t --label needs-triage --body "No plan yet."
+printf 'No plan yet.\n' > "$tmp/issue-body"
+check_message "adding ready-for-agent fetches and rejects a current body without a plan" 1 no "issue #17" issue edit 17 --add-label ready-for-agent
+check_message "case-insensitive ready label on issue edit requires a plan" 1 no "issue #17" issue edit 17 --add-label Ready-For-Agent
+cat "$ready_plan" > "$tmp/issue-body"
+check "adding ready-for-agent accepts the fetched current plan" 0 yes issue edit 17 --add-label ready-for-agent
+printf 'No plan yet.\n' > "$tmp/issue-body"
+check "other issue edits remain unaffected" 0 yes issue edit 17 --add-label needs-triage --body "No plan yet."
 check "policy is case-insensitive ERE" 1 no issue comment 5 --body "Missing RLS on that table"
 
 echo "contains secretword" > "$tmp/repo/body.md"
@@ -74,7 +110,21 @@ check "clean short -F body file passes" 0 yes issue comment 5 -F "$tmp/repo/body
 
 check "gh api -F field values scanned" 1 no api repos/x/y/issues -F body="has secretword inside"
 check "api path naming another repo refused, gh untouched" 1 no api repos/other/elsewhere/issues -f title=x
-check "api path naming this repo passes" 0 yes api repos/x/y/issues -f title=x
+check "API issue-comment write for this repo passes" 0 yes api repos/x/y/issues/17/comments -f body=comment
+check "API issue creation through the issue collection is not allowlisted" 1 no api repos/x/y/issues -f title=x
+check_message "REST issue-label POST is refused with the issue-edit route" 1 no "issue edit --add-label" api repos/x/y/issues/17/labels --method POST -f name=ready-for-agent
+check_message "REST issue-label PATCH is refused with the issue-edit route" 1 no "issue edit --add-label" api repos/x/y/issues/17/labels -X PATCH -f name=ready-for-agent
+check "REST issue-label GET remains allowed" 0 yes api repos/x/y/issues/17/labels --method GET
+issue_label_message="labels go through 'issue create --label' or 'issue edit --add-label'"
+check_message "REST issue PATCH with labels[]= is refused" 1 no "$issue_label_message" api repos/x/y/issues/17 -X PATCH -f 'labels[]=ready-for-agent'
+check_message "REST issue PATCH with -F labels[] is refused" 1 no "$issue_label_message" api repos/x/y/issues/17 -X PATCH -F 'labels[]=ready-for-agent'
+check_message "REST issue PATCH with --raw-field labels[] is refused" 1 no "$issue_label_message" api repos/x/y/issues/17 --method PATCH --raw-field 'labels[]=ready-for-agent'
+printf '{"labels":["ready-for-agent"]}\n' > "$tmp/repo/labels.json"
+check_message "REST issue PATCH with --input is refused" 1 no "$issue_label_message" api repos/x/y/issues/17 -X PATCH --input "$tmp/repo/labels.json"
+check_message "REST issue --input follows the implied POST label rule" 1 no "$issue_label_message" api repos/x/y/issues/17 --input "$tmp/repo/labels.json"
+check_message "REST issue POST with labels at collection is refused" 1 no "$issue_label_message" api repos/x/y/issues -X POST -f title=t -f 'labels[]=ready-for-agent'
+check_message "REST issue PATCH through leading-slash path is refused" 1 no "$issue_label_message" api /repos/x/y/issues/17 -X PATCH -f 'labels[]=ready-for-agent'
+check "REST issue PATCH state=closed remains allowed" 0 yes api repos/x/y/issues/17 -X PATCH -f state=closed
 check "api path with no repo (e.g. /user) refused" 1 no api user
 check "--repo naming another repo refused on issue verbs" 1 no issue comment 5 --repo other/elsewhere --body "fine"
 check "--repo naming this repo passes on issue verbs" 0 yes issue comment 5 --repo x/y --body "fine"
@@ -113,13 +163,22 @@ rm -f "$gitdir/pre-pr-verify-ok" "$gitdir/pre-pr-verify-dev-ok"
 check "pr create without a Reused: line refused" 1 no pr create --base dev --title t --body "no reuse note"
 printf 'Summary\n\n**Reused:** the existing table\n' > "$tmp/reused-body.md"
 printf '%s' "$head" > "$gitdir/pre-pr-verify-ok"
+printf '%s security reviewer-x now art.md\n' "$head" > "$gitdir/independent-review-security-ok"
+printf '%s\n' "$head" > "$gitdir/independent-review-security-release-ok"
 check "a PR into main needs no Reused: line (release)" 0 yes pr create --base main --title t --body "release package"
+printf 'main\n' > "$tmp/default-branch"
+rm -f "$gitdir/independent-review-security-release-ok"
+check "default main PR requires the release security stamp" 1 no pr create --title t --body "release package"
+printf '%s\n' "$head" > "$gitdir/independent-review-security-release-ok"
+check "default main PR passes with the release security stamp" 0 yes pr create --title t --body "release package"
+envcheck "default branch read failure refuses pr create" GH_REPO_VIEW_FAIL=1 1 no pr create --title t --body "release package"
+printf 'dev\n' > "$tmp/default-branch"
 rm -f "$gitdir/pre-pr-verify-ok"
 check "a **Reused:** line in a body file passes" 0 yes pr create --base dev --title t --body-file "$tmp/reused-body.md"
 check "lens stamps without any verify stamp: --base dev passes" 0 yes pr create --base dev --title t --body "Reused: x"
 check "lens stamps without any verify stamp: equals-form --base=dev passes" 0 yes pr create --base=dev --title t --body "Reused: x"
 check "-B dev is recognized as the base and passes without full verify" 0 yes pr create -B dev --title t --body "Reused: x"
-check_message "base-like title value cannot impersonate the dev base" 1 no "no full verify stamp" pr create --title -Bdev --body clean
+check_message "title value leaves the explicit main base unchanged" 1 no "no full verify stamp" pr create --base main --title -Bdev --body clean
 check_message "-Bmain is recognized as a non-dev base" 1 no "no full verify stamp" pr create -Bmain --title t --body "Reused: x"
 check_message "conflicting --base and -B values refuse with name-one-base guidance" 1 no "name one base" pr create --base dev -B main --title t --body "Reused: x"
 check_message "concatenated -Bmain conflicts with a dev base" 1 no "name one base" pr create --base dev -Bmain --title t --body "Reused: x"
@@ -129,11 +188,59 @@ check "main PR without the full verify stamp refuses" 1 no pr create --base main
 printf '%s' "$head" > "$gitdir/pre-pr-verify-dev-ok"
 check "main PR with only the --dev verify stamp refuses" 1 no pr create --base main --title t --body "Reused: x"
 check "--dev verify stamp is not needed for --base dev" 0 yes pr create --base dev --title t --body "Reused: x"
-check "light stamp: no --base named refused" 1 no pr create --title t --body "Reused: x"
+check "no --base resolves to default dev without full verify" 0 yes pr create --title t --body "Reused: x"
 check_message "conflicting --base values refuse rather than using the last value" 1 no "name one base" pr create --base dev --base main --title t --body "Reused: x"
 rm -f "$gitdir/pre-pr-verify-dev-ok"; printf '%s' "$head" > "$gitdir/pre-pr-verify-ok"
 check "full stamp still passes --base main" 0 yes pr create --base main --title t --body "Reused: x"
 check "full stamp also passes --base dev" 0 yes pr create --base dev --title t --body "Reused: x"
+
+# A dev-tip security record made without a release base must not authorize a main/staging PR.
+g "$tmp/repo" update-ref refs/remotes/origin/dev "$head"
+rm -f "$gitdir/independent-review-security-release-ok"
+printf '## security\nReviewer: gpt-6-luna (security)\nVerdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/dev-security-review.md"
+(cd "$tmp/repo" && bash "$RECORD_SCRIPT" --lens security --reviewer gpt-6-luna --artifact dev-security-review.md) >/dev/null 2>&1
+record_rc=$?
+if [ "$record_rc" -eq 0 ] && ! grep -q ' release$' "$gitdir/independent-review-security-ok" \
+  && [ ! -e "$gitdir/independent-review-security-release-ok" ]; then
+  pass=$((pass+1)); printf '  ok    dev-tip security stamp has no release marker without --base\n'
+else fail=$((fail+1)); printf '  FAIL  dev-tip security stamp unexpectedly carries release (rc=%s)\n' "$record_rc"; fi
+check "dev PR remains allowed with an ordinary security stamp" 0 yes pr create --base dev --title t --body "Reused: x"
+release_message="a PR into main needs release-rule stamps — record the security lens with: bash scripts/record-review.sh --lens security --base main --reviewer <opus id> --artifact <record>"
+check_message "dev-tip security stamp without release marker refuses a main PR" 1 no "$release_message" pr create --base main --title t --body "Reused: x"
+printf '## security\nReviewer: gpt-6-luna (security)\nVerdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/my release"
+(cd "$tmp/repo" && bash "$RECORD_SCRIPT" --lens security --reviewer gpt-6-luna --artifact "my release") >/dev/null 2>&1
+record_rc=$?
+if [ "$record_rc" -ne 0 ]; then
+  pass=$((pass+1)); printf '  ok    record-review refuses the whitespace forge artifact\n'
+else fail=$((fail+1)); printf '  FAIL  record-review accepted the whitespace forge artifact\n'; fi
+check_message "artifact named 'my release' cannot authorize a main PR" 1 no "$release_message" pr create --base main --title t --body "Reused: x"
+g "$tmp/repo" checkout -qb feature/staging-release-gate
+check_message "dev-tip security stamp without release marker refuses a staging PR" 1 no "a PR into staging needs release-rule stamps" pr create --base staging --title t --body "Reused: x"
+
+mkdir -p "$tmp/repo/docs/reviews"
+printf 'Commit: %s\n' "$head" > "$tmp/repo/docs/reviews/release-evidence.md"
+{
+  printf '## Skills evidence\n| Playbook | Evidence file | Render evidence |\n|---|---|---|\n'
+  for playbook in 'Impeccable shape' 'ui-ux-pro-max' 'Impeccable critique' 'Impeccable layout' 'Impeccable clarify' 'Impeccable harden' 'Impeccable polish' 'Taste'; do
+    if [ "$playbook" = 'Impeccable critique' ]; then
+      printf '| %s | reviews/release-evidence.md | Render: 390px, 768px, 1440px; real-length data used |\n' "$playbook"
+    else
+      printf '| %s | reviews/release-evidence.md | |\n' "$playbook"
+    fi
+  done
+  printf '\n## security\nReviewer: claude-opus-5 (security)\nVerdict: MERGE\nCommit: %s\n' "$head"
+} > "$tmp/repo/release-security-review.md"
+(cd "$tmp/repo" && bash "$RECORD_SCRIPT" --lens security --base main --reviewer claude-opus-5 --artifact release-security-review.md) >/dev/null 2>&1
+record_rc=$?
+if [ "$record_rc" -eq 0 ] && [ "$(cat "$gitdir/independent-review-security-release-ok" 2>/dev/null)" = "$head" ] \
+  && ! grep -q ' release$' "$gitdir/independent-review-security-ok"; then
+  pass=$((pass+1)); printf '  ok    Opus security release stamp contains only the exact HEAD sha\n'
+else fail=$((fail+1)); printf '  FAIL  Opus security stamp with --base main did not create the exact release sha (rc=%s)\n' "$record_rc"; fi
+check "a PR into main passes with a release-rule security stamp" 0 yes pr create --base main --title t --body "release package"
+printf '0000000000000000000000000000000000000000\n' > "$gitdir/independent-review-security-release-ok"
+check_message "a stale release stamp for another sha refuses a main PR" 1 no "$release_message" pr create --base main --title t --body "release package"
+printf '%s\n' "$head" > "$gitdir/independent-review-security-release-ok"
+check "a PR into staging passes with a release-rule security stamp" 0 yes pr create --base staging --title t --body "release package"
 check "global flags can't dodge the verb check" 1 no --repo other/repo pr create --title t --body "Reused: x"
 check "--head to another branch refused" 1 no pr create --head other-branch --title t --body "Reused: x"
 check "concatenated -Rother/repo refused" 1 no pr create -Rother/repo --title t --body "Reused: x"
@@ -178,22 +285,60 @@ check "short-flag cluster hiding -F refused" 1 no api repos/x/y/issues -iFbody=@
 check "stray positional after the endpoint refused" 1 no api repos/x/y/issues extra -f title=x
 check "end-of-flags marker refused" 1 no api repos/x/y/issues -- -f title=x
 check "value-taking flag at the end refused" 1 no api repos/x/y/issues -f
+api_allowlist="Allowed API writes: POST repos/x/y/security-advisories; POST repos/x/y/pulls (REST PR stamps required); POST repos/x/y/issues/<number>/comments; PATCH repos/x/y/issues/<number> without labels."
+check_message "contents PUT is refused with the API write allowlist" 1 no "$api_allowlist" api repos/x/y/contents/README.md -X PUT -f message=edit
+check "contents DELETE is refused" 1 no api repos/x/y/contents/README.md -X DELETE -f message=delete
+check "merge-upstream is refused" 1 no api repos/x/y/merge-upstream -X POST -f branch=main
+check "branch rename is refused" 1 no api repos/x/y/branches/dev/rename -X PATCH -f new_name=main
 check "REST merge (PUT pulls/N/merge) refuses — merges go through gh pr merge" 1 no api repos/x/y/pulls/5/merge --method PUT -f merge_method=squash
 check "REST branch merge (POST merges) refuses" 1 no api repos/x/y/merges --method POST -f base=main -f head=dev
-check "REST ref update refuses" 1 no api repos/x/y/git/refs/heads/main --method PATCH -f sha=abc
+check "REST ref update refuses" 1 no api repos/x/y/git/refs/heads/main --method POST -f ref=refs/heads/main -f sha=abc
+check "REST branch rename variant is refused" 1 no api repos/x/y/branches/x/rename --method PATCH -f new_name=y
+check "security advisory creation is allowlisted" 0 yes api repos/x/y/security-advisories --method POST -f summary=report
+check "issue comment creation is allowlisted" 0 yes api repos/x/y/issues/17/comments -f body=comment
+check "issue PATCH without labels is allowlisted" 0 yes api repos/x/y/issues/17 --method PATCH -f state=closed
+check "contents GET remains allowed" 0 yes api /repos/x/y/contents/README.md --method get
+check "contents GET with no method or fields remains allowed" 0 yes api repos/x/y/contents/README.md
+check "api --input implies POST on a non-allowlisted path" 1 no api repos/x/y/contents/README.md --input "$tmp/repo/body.md"
+check "api --input implies POST on an allowlisted write path" 0 yes api repos/x/y/security-advisories --input "$tmp/repo/body.md"
+check_message "REST PR with --input follows POST stamp checks" 1 no "REST PR create must pass base/head as -f fields" api repos/x/y/pulls --input "$tmp/repo/body.md"
+check "api -F alone implies POST" 1 no api repos/x/y/issues -F title=t
+check "api glued -F implies POST" 1 no api repos/x/y/issues -Ftitle=t
+check "api glued -f implies POST" 1 no api repos/x/y/issues -ftitle=t
+check "api equals-form -f implies POST" 1 no api repos/x/y/issues -f=title=t
+check "api --field equals form implies POST" 1 no api repos/x/y/issues --field=title=t
+check "api --raw-field equals form implies POST" 1 no api repos/x/y/issues --raw-field=title=t
+check "api repeated fields imply POST" 1 no api repos/x/y/issues -F title=t -f body=x
+check "explicit GET with --input remains GET" 0 yes api repos/x/y/contents/README.md -X GET --input "$tmp/repo/body.md"
 head="$(g "$tmp/repo" rev-parse HEAD)"
 for lens in spec code-quality security; do printf '%s %s reviewer-x now art.md\n' "$head" "$lens" > "$gitdir/independent-review-$lens-ok"; done
 check_message "REST pr create without a Reused: body refused (stamped)" 1 no "Reused:" api repos/x/y/pulls -f title=t -f head=feat-rest -f base=dev -f body=plain
 check "REST pr create, lens stamps without verify stamp, base=dev passes" 0 yes api repos/x/y/pulls -f title=t -f head=feat-rest -f base=dev -f body="Reused: x"
+check "REST pr create with explicit POST passes the same stamp gate" 0 yes api repos/x/y/pulls --method POST -f head=feat-rest -f base=dev -f body="Reused: x"
 check "REST pr create, concatenated -f fields pass" 0 yes api repos/x/y/pulls -fhead=feat-rest -fbase=dev "-fbody=Reused: x"
 check "REST pr create, --raw-field= form passes" 0 yes api repos/x/y/pulls --raw-field=head=feat-rest --raw-field=base=dev "--raw-field=body=Reused: x"
 check "REST pr create, owner:branch head passes" 0 yes api repos/x/y/pulls -f head=x:feat-rest -f base=dev -f body="Reused: x"
 check "REST main PR without full verify stamp refuses" 1 no api repos/x/y/pulls -f head=feat-rest -f base=main
 printf '%s' "$head" > "$gitdir/pre-pr-verify-dev-ok"
 check "REST main PR with only --dev verify stamp refuses" 1 no api repos/x/y/pulls -f head=feat-rest -f base=main
+rm -f "$gitdir/pre-pr-verify-dev-ok"; printf '%s' "$head" > "$gitdir/pre-pr-verify-ok"
+check_message "REST main PR without a release security stamp refuses" 1 no "a PR into main needs release-rule stamps" api repos/x/y/pulls -f head=feat-rest -f base=main
+check_message "REST staging PR without a release security stamp refuses" 1 no "a PR into staging needs release-rule stamps" api repos/x/y/pulls -f head=feat-rest -f base=staging
+printf '%s security claude-opus-5 now art.md\n' "$head" > "$gitdir/independent-review-security-ok"
+printf '%s\n' "$head" > "$gitdir/independent-review-security-release-ok"
+check "REST main PR passes with a release security stamp" 0 yes api repos/x/y/pulls -f head=feat-rest -f base=main
+check "REST staging PR passes with a release security stamp" 0 yes api repos/x/y/pulls -f head=feat-rest -f base=staging
+printf 'main\n' > "$tmp/default-branch"
+check "REST PR without base uses default main release stamps" 0 yes api repos/x/y/pulls -f head=feat-rest -f body="Reused: x"
+rm -f "$gitdir/independent-review-security-release-ok"
+check "REST PR default main requires the release security stamp" 1 no api repos/x/y/pulls -f head=feat-rest -f body="Reused: x"
+printf '%s\n' "$head" > "$gitdir/independent-review-security-release-ok"
+envcheck "REST PR default branch read failure is refused" GH_REPO_VIEW_FAIL=1 1 no api repos/x/y/pulls -f head=feat-rest -f body="Reused: x"
+printf 'dev\n' > "$tmp/default-branch"
+rm -f "$gitdir/pre-pr-verify-ok"; printf '%s' "$head" > "$gitdir/pre-pr-verify-dev-ok"
 check "REST pr create, cluster -ifbase=main after base=dev refused" 1 no api repos/x/y/pulls -f head=feat-rest -f base=dev -ifbase=main
 check "REST pr create, -F head=@file refused" 1 no api repos/x/y/pulls -F head=@"$tmp/repo/body.md" -f base=dev
-check "REST pr create, light stamp, no base refused" 1 no api repos/x/y/pulls -f head=feat-rest
+check "REST PR without base resolves default dev and requires a body reuse line" 1 no api repos/x/y/pulls -f head=feat-rest
 check "REST pr create, base dev then main (last wins) refused" 1 no api repos/x/y/pulls -f head=feat-rest -f base=dev -f base=main
 check "REST pr create, head naming another branch refused" 1 no api repos/x/y/pulls -f head=other -f base=dev
 check "REST pr create, head naming another owner refused" 1 no api repos/x/y/pulls -f head=evil:feat-rest -f base=dev

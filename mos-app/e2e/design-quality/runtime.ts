@@ -7,8 +7,9 @@ import type { Page } from '@playwright/test'
 
 import { assertAuditRoute } from './audit-route.ts'
 
-import { loginAs } from '../helpers/login'
+import { loginAs, loginViaForm } from '../helpers/login'
 import { stubAccountLocale } from '../helpers/account-locale'
+import { DEMO_PASSWORD } from '../../src/pages/demo-personas'
 import { ADMIN, BAR_MEMBER, BAR_SUPERVISOR, BARISTA, MANAGER, ORPHAN, VIEWER } from '../fixtures/users'
 import { appPath, normalizeBasePath } from '../../src/config/build-settings'
 import { assertDevServerOwnership, worktreeFingerprint } from '../../src/lib/dev-server'
@@ -30,7 +31,7 @@ import {
   type AuditFixtureSqlClient,
 } from './audit-provisioner.ts'
 import { ReportWriter } from './report'
-import type { DesignQualityManifest, ManifestCell } from './manifest'
+import { DESIGN_QUALITY_MANIFEST, type DesignQualityManifest, type ManifestCell } from './manifest'
 import { resetAuditScroll } from './scroll'
 import {
   classifyFailureSet,
@@ -457,26 +458,40 @@ export async function loginAuditFixture(
   authenticatedFixture.set(page, fixtureName)
 }
 
-export async function prepareAuditPage(page: Page, run: AuditRun, cell: ManifestCell): Promise<{ setupFailure?: string }> {
+export async function prepareAuditPage(
+  page: Page,
+  run: AuditRun,
+  cell: ManifestCell,
+  personaEmail?: string,
+): Promise<{ setupFailure?: string }> {
   const viewport = VIEWPORT_SIZES[cell.viewport]
   if (!viewport) throw new Error(`unknown audit viewport ${cell.viewport}`)
+  if (personaEmail && !personaEmail.endsWith('.dev@example.test')) {
+    throw new Error('--persona email must end with .dev@example.test')
+  }
   await page.setViewportSize(viewport)
-  // Everything from here on depends on THIS cell: its fixture's identity, its route, its own
-  // setup actions. A cell that cannot be signed in as, or cannot reach its state, is one
-  // untested cell — not a lost run. `ensureAuditFixtures` stays outside, because a failure to
-  // provision at all is a run-level fault and must not be laundered into 55 quiet untested
-  // cells. Declaring a contract for a fixture nobody provisioned took a whole run down once.
-  const state = await ensureAuditFixtures(run)
+  // Persona mode keeps the audit page's locale/theme and route preparation but deliberately does
+  // not provision cell identities or fixtures that would replace the selected dev persona.
+  const state = personaEmail ? undefined : await ensureAuditFixtures(run)
   try {
-    assertAuditFixtureWritePolicy({
-      fixture: cell.fixture,
-      sessionId: run.sessionId,
-      candidateSha: run.candidateSha,
-      bindingSecret: state.bindingSecret,
-      receipt: state.receipt,
-      writes: cell.stateContract?.writes === true,
-    })
-    await loginAuditFixture(page, cell.fixture, run.sessionId, state.identities.get(cell.fixture))
+    if (personaEmail) {
+      await page.context().clearCookies()
+      await page.goto('.')
+      await page.evaluate(() => window.localStorage.clear())
+      await loginViaForm(page, personaEmail, DEMO_PASSWORD)
+    } else if (state) {
+      assertAuditFixtureWritePolicy({
+        fixture: cell.fixture,
+        sessionId: run.sessionId,
+        candidateSha: run.candidateSha,
+        bindingSecret: state.bindingSecret,
+        receipt: state.receipt,
+        writes: cell.stateContract?.writes === true,
+      })
+      await loginAuditFixture(page, cell.fixture, run.sessionId, state.identities.get(cell.fixture))
+    } else {
+      throw new Error('audit fixture state was not initialized')
+    }
     // The language belongs to the signed-in account; answer its read rather than saving to it.
     await stubAccountLocale(page, cell.language === 'id' ? 'id' : 'en')
     await page.evaluate(({ theme }) => {
@@ -589,6 +604,66 @@ export async function settleAnimations(page: Page): Promise<void> {
       new Promise((resolve) => setTimeout(resolve, 1_000)),
     ])
   })
+}
+
+type GeometryOverflowRow = { selector: string; overflowX: number }
+type TapTargetRow = { width: number; height: number }
+
+export function geometrySelectors(): string[] {
+  return [...new Set([
+    'body',
+    'main',
+    '[role="dialog"]',
+    '[role="listbox"]',
+    '[role="menu"]',
+    '[data-scroll-container]',
+    '[data-primary-action-region]',
+    ...DESIGN_QUALITY_MANIFEST.lists.alignedPanelGroups.map((entry) => entry.selector),
+    ...DESIGN_QUALITY_MANIFEST.lists.intentionalDataScrollers.map((entry) => entry.selector),
+  ])]
+}
+
+export function filterHorizontalOverflow<T extends GeometryOverflowRow>(rows: readonly T[]): T[] {
+  const intentional = DESIGN_QUALITY_MANIFEST.lists.intentionalDataScrollers
+  return rows.filter((row) => row.overflowX > 1
+    && !intentional.some((entry) => row.selector.includes(entry.selector)))
+}
+
+export function filterSmallTapTargets<T extends TapTargetRow>(rows: readonly T[], viewport: string): T[] {
+  if (viewport !== 'phone-390x844') return []
+  return rows.filter((row) => row.width < 44 || row.height < 44)
+}
+
+/** Drive and verify a manifest-declared full-value reveal before clipping is measured. */
+export async function exerciseFullValuePaths(
+  page: Page,
+  cell: ManifestCell,
+  viewport = cell.viewport,
+): Promise<string[]> {
+  const exercised: string[] = []
+  const paths = DESIGN_QUALITY_MANIFEST.lists.fullValuePaths.filter((entry) =>
+    (!entry.routes || entry.routes.includes(cell.route))
+    && (!entry.viewports || entry.viewports.includes(viewport)),
+  )
+  for (const pathEntry of paths) {
+    if (!pathEntry.reveal) continue
+    const target = page.locator(pathEntry.selector).filter({ visible: true }).first()
+    if (await target.count() === 0) continue
+    const expected = (await target.getAttribute('data-full-value'))
+      || (await target.getAttribute('title'))
+      || (await target.textContent())
+      || ''
+    if (pathEntry.reveal.action === 'focus') await target.focus()
+    else if (pathEntry.reveal.action === 'hover') await target.hover()
+    else await target.click()
+    const visibleReveal = page.locator(pathEntry.reveal.selector).filter({ visible: true })
+    const text = await visibleReveal.allTextContents()
+    if (expected.trim() && text.some((value) => value.trim().includes(expected.trim()))) {
+      exercised.push(pathEntry.selector)
+    }
+    if (pathEntry.reveal.action === 'click') await page.keyboard.press('Escape')
+  }
+  return exercised
 }
 
 /** Drive a real interaction state before collecting contrast, or report it absent. */

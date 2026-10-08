@@ -5,8 +5,9 @@ import { CafeCaptureQuantityControl, CafeCaptureTable, type CafeItemQuantityEntr
 import { CafeRequestHistory } from '@/components/kitchen/cafe-request-history'
 import { CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
 import { CafePageFrame } from '@/components/kitchen/cafe-page-frame'
+import { CafeItemsEmptyState } from '@/components/kitchen/cafe-items-empty-state'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
-import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
+import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { useT } from '@/i18n/use-t'
 import { canCaptureCafe } from '@/lib/cafe-affiliation'
 import { canReviewCafe } from '@/lib/kitchen-gates'
@@ -218,9 +219,7 @@ export function CafeRequestPage() {
               </div>
             </div>
             {items.length === 0 ? (
-              <EmptyState variant="blank" title={t('cafe.request.empty.title')} copy={t('cafe.request.empty.copy')}>
-                <Link to="/cafe/items" className="btn btn-outline btn-touch">{t('cafe.count.empty.action')}</Link>
-              </EmptyState>
+              <CafeItemsEmptyState stream={stream} />
             ) : (
               <>
                 <KitchenToolbar

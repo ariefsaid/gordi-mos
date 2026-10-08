@@ -9,6 +9,7 @@ export interface PendingBillPaymentAmount {
   bill_no: string
   /** Reversals are negative, so summing entries restores the outstanding balance. */
   amount: number
+  cash_in_date?: string
 }
 
 export interface PendingBillView {
@@ -21,6 +22,7 @@ export interface PendingBillView {
   branchKnown: boolean
   billNo: string
   counterpartyNote: string | null
+  financeLabel: string | null
   amount: number
   recordedPaid: number
   balance: number
@@ -30,6 +32,7 @@ export interface PendingBillView {
 
 /** The copy runs nightly; one older than this missed at least one run (the same threshold as Money). */
 export const PENDING_BILLS_STALE_AFTER_MS = 30 * 3600_000
+export const PENDING_BILL_FINANCE_LABEL_MAX_LENGTH = 60
 
 const DAY_MS = 86_400_000
 const SOURCE_STATE: Record<PendingBillRow['source_state'], PendingBillState> = {
@@ -50,12 +53,24 @@ export function pendingBillAgeDays(billDate: string, today: string): number {
   return Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${billDate}T00:00:00Z`)) / DAY_MS)
 }
 
+export function normalizePendingBillFinanceLabel(value: string): string {
+  return value.trim()
+}
+
+export function validatePendingBillFinanceLabel(value: string): boolean {
+  return normalizePendingBillFinanceLabel(value).length <= PENDING_BILL_FINANCE_LABEL_MAX_LENGTH
+}
+
 export function toPendingBillViews(
   rows: readonly PendingBillRow[],
   today: string,
   payments: readonly PendingBillPaymentAmount[] = [],
+  financeLabels: readonly { esb_code: string; branch_code: string; bill_no: string; finance_label: string }[] = [],
 ): PendingBillView[] {
   const paidByBill = new Map<string, number>()
+  const labelByBill = new Map(financeLabels.map((label) => [
+    billKey(label.esb_code, label.branch_code, label.bill_no), label.finance_label,
+  ]))
   for (const payment of payments) {
     const key = billKey(payment.esb_code, payment.branch_code, payment.bill_no)
     paidByBill.set(key, (paidByBill.get(key) ?? 0) + toCents(Number(payment.amount)))
@@ -87,6 +102,7 @@ export function toPendingBillViews(
         branchKnown: row.branch_id !== null,
         billNo: row.bill_no,
         counterpartyNote: row.counterparty_note,
+        financeLabel: labelByBill.get(billKey(row.esb_code, row.branch_code, row.bill_no)) ?? null,
         amount,
         recordedPaid,
         balance,
@@ -100,6 +116,8 @@ export function toPendingBillViews(
 export interface PendingBillSummary {
   openBalance: number
   openCount: number
+  oldestAgeDays: number | null
+  paidInPeriod: number
 }
 
 export function isPendingBillSelectable(bill: PendingBillView): boolean {
@@ -122,11 +140,56 @@ export function summarizePendingBillSelection(
   return { bills: selectedBills, count: selectedBills.length, total: totalCents / 100 }
 }
 
-export function summarizePendingBills(bills: readonly PendingBillView[]): PendingBillSummary {
+export type PendingBillViewMode = 'open' | 'paid' | 'all'
+export type PendingBillAgeBucket = 'all' | '0-30' | '31-90' | '90+'
+
+export interface PendingBillFilters {
+  view: PendingBillViewMode
+  branchCode: string
+  ageBucket: PendingBillAgeBucket
+  search: string
+}
+
+function normalizedSearch(value: string): string {
+  return value.toLowerCase().replace(/\s+/g, '')
+}
+
+export function filterPendingBills(
+  bills: readonly PendingBillView[],
+  filters: PendingBillFilters,
+): PendingBillView[] {
+  const query = normalizedSearch(filters.search)
+  return bills.filter((bill) => {
+    if (filters.view === 'open' && (bill.state === 'void' || bill.balance <= 0)) return false
+    if (filters.view === 'paid' && bill.state !== 'settled' && bill.state !== 'overpaid') return false
+    if (filters.branchCode && bill.branchCode !== filters.branchCode) return false
+    if (filters.ageBucket === '0-30' && (bill.ageDays < 0 || bill.ageDays > 30)) return false
+    if (filters.ageBucket === '31-90' && (bill.ageDays < 31 || bill.ageDays > 90)) return false
+    if (filters.ageBucket === '90+' && bill.ageDays <= 90) return false
+    if (query && ![bill.billNo, bill.counterpartyNote ?? '', bill.financeLabel ?? ''].some((value) => normalizedSearch(value).includes(query))) return false
+    return true
+  })
+}
+
+export function summarizePendingBills(
+  bills: readonly PendingBillView[],
+  payments: readonly PendingBillPaymentAmount[],
+  today: string,
+): PendingBillSummary {
   const open = bills.filter((bill) => bill.state !== 'void' && bill.balance > 0)
+  const visibleBillKeys = new Set(bills.map((bill) => bill.id))
+  // The page has no period control; count cash-in dates from this WIB month to today.
+  const periodStart = `${today.slice(0, 7)}-01`
+  const paidInPeriodCents = payments.reduce((total, payment) => {
+    if (!payment.cash_in_date || payment.cash_in_date < periodStart || payment.cash_in_date > today) return total
+    if (!visibleBillKeys.has(billKey(payment.esb_code, payment.branch_code, payment.bill_no))) return total
+    return total + toCents(payment.amount)
+  }, 0)
   return {
     openBalance: open.reduce((total, bill) => total + toCents(bill.balance), 0) / 100,
     openCount: open.length,
+    oldestAgeDays: open.length > 0 ? Math.max(...open.map((bill) => bill.ageDays)) : null,
+    paidInPeriod: paidInPeriodCents / 100,
   }
 }
 

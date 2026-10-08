@@ -37,6 +37,13 @@ const signalFeedRowsTsx = readFileSync(resolve(process.cwd(), 'src/components/si
 // can't slip back in the way TaskSurface.css's did.
 const recordViewerCss = readFileSync(resolve(process.cwd(), 'src/components/records/record-viewer.css'), 'utf8')
 const recordPageChromeCss = readFileSync(resolve(process.cwd(), 'src/shell/record-page-chrome.css'), 'utf8')
+const cafeStreamBarCss = readFileSync(resolve(process.cwd(), 'src/components/kitchen/cafe-stream-bar.css'), 'utf8')
+const cafeCaptureControlsCss = readFileSync(resolve(process.cwd(), 'src/components/kitchen/cafe-capture-controls.css'), 'utf8')
+const cafeItemSettingsCss = readFileSync(resolve(process.cwd(), 'src/pages/cafe-item-settings-page.css'), 'utf8')
+const kitchenReviewCss = readFileSync(resolve(process.cwd(), 'src/pages/kitchen-review-page.css'), 'utf8')
+const kitchenToolbarCss = readFileSync(resolve(process.cwd(), 'src/components/kitchen/kitchen-toolbar.css'), 'utf8')
+const eventsCalendarCss = readFileSync(resolve(process.cwd(), 'src/components/events/events-calendar-presentation.css'), 'utf8')
+const homeStreamCss = readFileSync(resolve(process.cwd(), 'src/components/home/home-stream.css'), 'utf8')
 
 // EVERY block for the query, joined — a stylesheet may open the same breakpoint more than once,
 // and reading only the first one silently misses rules that are in force.
@@ -66,6 +73,13 @@ function mediaBody(css: string, query: string): string {
 }
 
 describe('B-i: phone tap-target floor is encoded in shared CSS', () => {
+  it('issue 1544: Events day expansion and Home drill links keep a 44px target on coarse pointers', () => {
+    const eventsTouch = mediaBody(eventsCalendarCss, '@media (pointer: coarse)')
+    expect(eventsTouch).toMatch(/\.events-calendar__more\s*\{[^}]*min-height:\s*44px/)
+    const homeTouch = mediaBody(homeStreamCss, '@media (pointer: coarse)')
+    expect(homeTouch).toMatch(/\.stream-band-link\s*\{[^}]*min-height:\s*44px/)
+  })
+
   it('raises shared buttons, chips, touch-target markers, and icon-only utility controls to 44px on phone', () => {
     const body = mediaBody(buttonCss, '@media (max-width: 767.98px)')
     expect(body).toMatch(/\.btn[\s\S]*min-height:\s*44px/)
@@ -101,6 +115,30 @@ describe('B-i: phone tap-target floor is encoded in shared CSS', () => {
     expect(selectBody).toMatch(/\.mk-select__field\s*\{[^}]*min-height:\s*44px/)
     expect(mediaBody(dateFieldCss, '@media (max-width: 767.98px)'))
       .toMatch(/\.mk-date__box[\s\S]*min-height:\s*44px/)
+  })
+
+  it('M03: keeps Café controls at 44px on coarse-pointer tablets', () => {
+    const coarse = '@media (pointer: coarse)'
+    const touch = '@media (max-width: 767.98px), (pointer: coarse)'
+    expect(mediaBody(cafeStreamBarCss, touch)).toMatch(/\.cafe-stream__switch[\s\S]*min-height:\s*44px/)
+    const toolbar = mediaBody(kitchenToolbarCss, coarse)
+    expect(toolbar).toMatch(/\.ktb-search[\s\S]*min-height:\s*44px/)
+    expect(toolbar).toMatch(/\.mk-select__box[\s\S]*min-height:\s*44px/)
+    const captureTouch = mediaBody(cafeCaptureControlsCss, touch)
+    expect(captureTouch).toMatch(/--cafe-capture-control-height:\s*44px/)
+    const capture = mediaBody(cafeCaptureControlsCss, coarse)
+    expect(capture).toMatch(/\.cafe-capture-content \.mk-select__box[\s\S]*min-height:\s*44px/)
+    expect(capture).toMatch(/\.cafe-capture-content \.dt-group-toggle[\s\S]*min-width:\s*44px/)
+    const items = mediaBody(cafeItemSettingsCss, coarse)
+    expect(items).toMatch(/\.cafe-items__name-input \.mk-textinput__box[\s\S]*min-height:\s*44px/)
+    expect(items).toMatch(/\.cafe-items__table \.mk-select__box[\s\S]*min-height:\s*44px/)
+    expect(items).toMatch(/\.cafe-items \.picker__trigger[\s\S]*min-height:\s*44px/)
+    expect(items).toMatch(/\.cafe-items \.dt-sort-button[\s\S]*min-width:\s*44px/)
+    expect(items).toMatch(/\.cafe-items \.dt-sort-button[\s\S]*min-height:\s*44px/)
+    const review = mediaBody(kitchenReviewCss, coarse)
+    expect(review).toMatch(/\.kr-date-filter \.mk-date__box[\s\S]*min-height:\s*44px/)
+    expect(review).toMatch(/\.kr-date-clear[\s\S]*min-height:\s*44px/)
+    expect(review).toMatch(/\.kr-refresh[\s\S]*min-height:\s*44px/)
   })
 
   it("DO-15(a): raises the task-create form's non-primitive fields (textarea, loading field) to 44px on phone", () => {

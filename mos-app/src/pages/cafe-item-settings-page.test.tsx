@@ -570,9 +570,9 @@ describe('ESB-owned item fields (OD-2026-10-06-ESB-ITEMS)', () => {
   })
 
   it.each([
-    { locale: 'en' as const, note: 'ESB names and categories are read-only here; change them in ESB and they update after the next refresh. MOS names and settings are stream-specific.' },
-    { locale: 'id' as const, note: 'Nama dan kategori ESB hanya-baca di sini; ubah di ESB, dan perubahannya muncul setelah pembaruan berikutnya. Nama dan pengaturan MOS khusus untuk stream ini.' },
-  ])('says in $locale where the read-only ESB fields are changed', async ({ locale, note }) => {
+    { locale: 'en' as const, note: 'Item names and categories come from the company catalog and update after each refresh. Choose a name, use, status, and units for your team here.' },
+    { locale: 'id' as const, note: 'Nama dan kategori item berasal dari katalog perusahaan dan diperbarui setelah sinkronisasi. Atur nama, kegunaan, status, dan satuan item untuk tim Anda di sini.' },
+  ])('explains the catalog source and team-owned settings in plain language in $locale', async ({ locale, note }) => {
     renderPage(locale)
     expect(await screen.findByText(note, { exact: true })).toBeInTheDocument()
   })
