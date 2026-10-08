@@ -61,6 +61,15 @@ describe('KL-FOOTER-NAV: the capture footer stays reachable above the shell bott
   })
 })
 
+describe('M02: Café toolbar controls use the interactive boundary token', () => {
+  it('keeps the shared search and filter outlines at control contrast', () => {
+    const search = ruleBodyAt(toolbarCss.indexOf('.ktb-search {'), toolbarCss)
+    const filter = ruleBodyAt(toolbarCss.indexOf('.ktb-kind .mk-select__box,'), toolbarCss)
+    expect(search).toMatch(/border:\s*1px solid var\(--input\)/)
+    expect(filter).toMatch(/border-color:\s*var\(--input\)/)
+  })
+})
+
 describe('dense Café capture controls stay in one aligned desktop row', () => {
   it('keeps the quantity and full unit label inline in a fixed shared track', () => {
     const quantityGroup = ruleBodyAt(stepperCss.indexOf('.kls-quantity .quantity-field-control--inline {'), stepperCss)
