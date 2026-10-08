@@ -172,13 +172,14 @@ describe('paySeveralPendingBills', () => {
     })
     const billIds = ['["ESB","BR","PB-1"]', '["ESB","BR","PB-2"]']
     await expect(paySeveralPendingBills({
-      billIds, cashInDate: '2026-10-06', proofPath: 'org/p1.pdf', idempotencyKey: 'batch-key',
+      billIds, expectedAmountsCents: [12550, 25000], cashInDate: '2026-10-06', proofPath: 'org/p1.pdf', idempotencyKey: 'batch-key',
     })).resolves.toEqual([
       { billId: billIds[0], paymentId: 'p1', esbCode: 'ESB', branchCode: 'BR', billNo: 'PB-1', amount: 125.5, replayed: false },
       { billId: billIds[1], paymentId: 'p2', esbCode: 'ESB', branchCode: 'BR', billNo: 'PB-2', amount: 250, replayed: true },
     ])
     expect(rpc).toHaveBeenCalledWith('pay_several_pending_bills', {
       p_bill_ids: billIds,
+      p_expected_amounts_cents: [12550, 25000],
       p_cash_in_date: '2026-10-06',
       p_proof_path: 'org/p1.pdf',
       p_idempotency_key: 'batch-key',
@@ -186,11 +187,21 @@ describe('paySeveralPendingBills', () => {
   })
 
   it('surfaces server failure and refuses a partial or mismatched result set', async () => {
-    const input = { billIds: ['["ESB","BR","PB-1"]'], cashInDate: '2026-10-06', proofPath: 'org/p1.pdf', idempotencyKey: 'key' }
+    const input = { billIds: ['["ESB","BR","PB-1"]'], expectedAmountsCents: [100], cashInDate: '2026-10-06', proofPath: 'org/p1.pdf', idempotencyKey: 'key' }
     schemaMock.mockImplementation(() => ({ rpc: vi.fn().mockResolvedValue({ data: null, error: { message: 'Pending bill PB-1 is already settled.' } }) } as never))
     await expect(paySeveralPendingBills(input)).rejects.toThrow(/Pending bill PB-1 is already settled/)
     schemaMock.mockImplementation(() => ({ rpc: vi.fn().mockResolvedValue({ data: [], error: null }) } as never))
     await expect(paySeveralPendingBills(input)).rejects.toThrow(/different bill selection/)
+  })
+
+  it('maps the confirmed-balance SQLSTATE to a recoverable mismatch error', async () => {
+    schemaMock.mockImplementation(() => ({
+      rpc: vi.fn().mockResolvedValue({ data: null, error: { code: 'P0001', message: 'server detail' } }),
+    } as never))
+    await expect(paySeveralPendingBills({
+      billIds: ['["ESB","BR","PB-1"]'], expectedAmountsCents: [12550],
+      cashInDate: '2026-10-06', proofPath: 'org/p1.pdf', idempotencyKey: 'key',
+    })).rejects.toMatchObject({ name: 'PendingBillBalanceChangedError' })
   })
 })
 

@@ -16,7 +16,7 @@ interface PageQuery extends PromiseLike<{ data: unknown[] | null; error: { messa
 
 interface SchemaClient {
   from(table: string): PageQuery
-  rpc(name: string, args: Record<string, unknown>): PromiseLike<{ data: unknown; error: { message: string } | null }>
+  rpc(name: string, args: Record<string, unknown>): PromiseLike<{ data: unknown; error: { message: string; code?: string } | null }>
 }
 
 interface StorageBucket {
@@ -81,9 +81,18 @@ export interface RecordPendingBillPaymentResult {
 
 export interface PaySeveralPendingBillsInput {
   billIds: string[]
+  /** Confirmed displayed balances in cents, index-aligned with billIds. */
+  expectedAmountsCents: number[]
   cashInDate: string
   proofPath: string
   idempotencyKey: string
+}
+
+export class PendingBillBalanceChangedError extends Error {
+  constructor() {
+    super('Pending bill balances changed since confirmation.')
+    this.name = 'PendingBillBalanceChangedError'
+  }
 }
 
 export interface PaidPendingBill {
@@ -198,11 +207,15 @@ export async function recordPendingBillPayment(
 export async function paySeveralPendingBills(input: PaySeveralPendingBillsInput): Promise<PaidPendingBill[]> {
   const { data, error } = await schema('mos').rpc('pay_several_pending_bills', {
     p_bill_ids: input.billIds,
+    p_expected_amounts_cents: input.expectedAmountsCents,
     p_cash_in_date: input.cashInDate,
     p_proof_path: input.proofPath,
     p_idempotency_key: input.idempotencyKey,
   })
-  if (error) throw new Error(error.message)
+  if (error) {
+    if (error.code === 'P0001') throw new PendingBillBalanceChangedError()
+    throw new Error(error.message)
+  }
   if (!Array.isArray(data)) throw new Error('paySeveralPendingBills failed — no result rows')
 
   const results = data.map((entry) => {

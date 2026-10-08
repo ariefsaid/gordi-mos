@@ -31,6 +31,7 @@ import { ReportingRowCapError } from '@/lib/db/reporting-shared'
 import {
   listPendingBillPaymentAmounts,
   listPendingBillPaymentHistory,
+  PendingBillBalanceChangedError,
   recordPendingBillPayment,
   paySeveralPendingBills,
   uploadPendingBillProof,
@@ -409,10 +410,46 @@ describe('multi-bill payment selection', () => {
     expect(screen.getByRole('region', { name: '2 selected · Rp 2.576.000 total' })).toBeInTheDocument()
   })
 
+  it('refreshes changed balances without losing the selection or payment draft', async () => {
+    mockList.mockResolvedValueOnce([
+      bill({ bill_no: 'PB-2', bill_date: '2026-10-06', amount: 96000 }),
+      bill({ bill_no: 'PB-1', bill_date: '2025-08-12', branch_name: null, branch_code: 'pop_up_east', branch_id: null, amount: 2480000 }),
+    ]).mockResolvedValue([
+      bill({ bill_no: 'PB-2', bill_date: '2026-10-06', amount: 97000 }),
+      bill({ bill_no: 'PB-1', bill_date: '2025-08-12', branch_name: null, branch_code: 'pop_up_east', branch_id: null, amount: 2480000 }),
+    ])
+    mockPaySeveral.mockRejectedValue(new PendingBillBalanceChangedError())
+    renderPage()
+    const table = await screen.findByRole('table', { name: 'Pending bills, oldest first' })
+    fireEvent.click(within(table).getByRole('checkbox', { name: 'Select bill PB-1' }))
+    fireEvent.click(within(table).getByRole('checkbox', { name: 'Select bill PB-2' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Record payment' }))
+
+    const form = await screen.findByRole('form', { name: 'Record payment' })
+    const date = within(form).getByLabelText('Cash-in date')
+    fireEvent.change(date, { target: { value: '06/10/2026' } })
+    fireEvent.change(within(form).getByLabelText(/^Proof/), {
+      target: { files: [new File(['proof'], 'receipt.pdf', { type: 'application/pdf' })] },
+    })
+    fireEvent.click(within(form).getByRole('button', { name: 'Record payment' }))
+
+    expect(await within(form).findByRole('alert')).toHaveTextContent('Balances changed. Review the selected bills and try again.')
+    await waitFor(() => expect(mockList).toHaveBeenCalledTimes(2))
+    expect(within(form).getByText('Rp 97.000')).toBeInTheDocument()
+    expect(within(form).getByLabelText('Cash-in date')).toHaveValue('06/10/2026')
+    expect(within(form).getByText('receipt.pdf')).toBeInTheDocument()
+    expect(within(table).getByRole('checkbox', { name: 'Select bill PB-1' })).toBeChecked()
+    expect(within(table).getByRole('checkbox', { name: 'Select bill PB-2' })).toBeChecked()
+  })
+
   it('settles every selected row, clears selection and restores focus to a bill row', async () => {
+    mockList.mockResolvedValue([
+      bill({ bill_no: 'PB-2', bill_date: '2026-10-06', amount: 96000.5 }),
+      bill({ bill_no: 'PB-1', bill_date: '2025-08-12', branch_name: null, branch_code: 'pop_up_east', branch_id: null, amount: 2480000 }),
+    ])
     const batchResults: PaidPendingBill[] = [
       { billId: '["GKI","pop_up_east","PB-1"]', paymentId: 'batch-payment-1', esbCode: 'GKI', branchCode: 'pop_up_east', billNo: 'PB-1', amount: 2480000, replayed: false },
-      { billId: '["GKI","rumah_rames","PB-2"]', paymentId: 'batch-payment-2', esbCode: 'GKI', branchCode: 'rumah_rames', billNo: 'PB-2', amount: 96000, replayed: false },
+      { billId: '["GKI","rumah_rames","PB-2"]', paymentId: 'batch-payment-2', esbCode: 'GKI', branchCode: 'rumah_rames', billNo: 'PB-2', amount: 96000.5, replayed: false },
     ]
     mockPaySeveral.mockResolvedValue(batchResults)
     renderPage()
@@ -422,16 +459,17 @@ describe('multi-bill payment selection', () => {
 
     const form = await screen.findByRole('form', { name: 'Record payment' })
     expect(within(form).queryByRole('spinbutton', { name: 'Amount' })).toBeNull()
-    expect(within(form).getByText('Rp 2.576.000')).toBeInTheDocument()
+    expect(within(form).getByText('Rp 2.576.000,50')).toBeInTheDocument()
     fireEvent.change(within(form).getByLabelText('Cash-in date'), { target: { value: '06/10/2026' } })
     fireEvent.change(within(form).getByLabelText(/^Proof/), {
       target: { files: [new File(['proof'], 'receipt.pdf', { type: 'application/pdf' })] },
     })
     fireEvent.click(within(form).getByRole('button', { name: 'Record payment' }))
 
-    expect(await screen.findByRole('status')).toHaveTextContent('2 bills settled · Rp 2.576.000 total.')
+    expect(await screen.findByRole('status')).toHaveTextContent('2 bills settled · Rp 2.576.000,50 total.')
     expect(mockPaySeveral).toHaveBeenCalledWith(expect.objectContaining({
       billIds: ['["GKI","pop_up_east","PB-1"]', '["GKI","rumah_rames","PB-2"]'],
+      expectedAmountsCents: [248000000, 9600050],
       cashInDate: '2026-10-06',
       proofPath: 'org-1/proof.pdf',
     }))
