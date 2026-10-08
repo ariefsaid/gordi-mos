@@ -94,7 +94,7 @@ check_invocation implementer 'tdd,codebase-design,diagnosing-bugs' 'openai-codex
 check_invocation ui-implementer 'impeccable,ui-ux-pro-max,taste,tdd,agent-browser' 'openai-codex/gpt-6-luna' xhigh 'read,grep,find,ls,bash,edit,write'
 check_invocation spec-reviewer 'code-review' 'zai/glm-5.3-flash' high 'read,grep,find,ls,bash,write'
 check_invocation code-quality-reviewer 'code-review' 'zai/glm-5.3-flash' high 'read,grep,find,ls,bash,write'
-check_invocation security-reviewer 'code-review,cso' 'zai/glm-5.3-flash' high 'read,grep,find,ls,bash,write'
+check_invocation security-reviewer 'code-review' 'zai/glm-5.3-flash' high 'read,grep,find,ls,bash,write'
 check_invocation design-reviewer 'design-review,impeccable,ui-ux-pro-max,taste,agent-browser' 'zai/glm-5.3-flash' high 'read,grep,find,ls,bash,write'
 check_invocation eng-planner 'codebase-design,domain-modeling,tdd' 'zai/glm-5.3-flash' high 'read,grep,find,ls,bash,write,subagent_create,subagent_continue,subagent_list,subagent_remove'
 check_invocation documenter '' 'openai-codex/gpt-6-luna' medium 'read,grep,find,ls,bash,write'
@@ -191,5 +191,74 @@ expected = [str((Path(checkout) / ".claude/skills/deliberately-missing").resolve
 assert actual == expected, f"default skill root mismatch: {actual} != {expected}"
 PY
 ok "default skill root is the main checkout's .claude/skills"
+
+# A Bash launcher declared as a skill prerequisite must exist before pi starts.
+launcher_skills="$tmp/launcher-skills"
+mkdir -p "$launcher_skills/launcher-check" "$launcher_skills/body-only"
+cat > "$launcher_skills/launcher-check/SKILL.md" <<'EOF'
+---
+name: launcher-check
+allowed-tools:
+  - "Bash(~/.claude/skills/gstack/bin/gstack-cso-launcher *)"
+---
+Launcher prerequisite fixture.
+EOF
+cat > "$launcher_skills/body-only/SKILL.md" <<'EOF'
+---
+name: body-only
+---
+Optional tooling note: Bash(~/.claude/skills/gstack/bin/gstack-cso-launcher *) may be used.
+EOF
+write_launcher_role() {
+  local role="$1" skill="$2"
+  cat > "$fixture/agents/$role.md" <<EOF
+---
+name: $role
+roster_agent: reviewer
+skills:
+  - $skill
+context: []
+---
+Fixture role.
+EOF
+}
+run_launcher_role() {
+  local role="$1" capture="$2" output="$3"
+  (cd "$fixture" && PI_ROLE_CAPTURE="$capture" PI_ROLE_PATH_CAPTURE="$tmp/$role.path" \
+    PI_ROLE_STDIN_CAPTURE="$tmp/$role.stdin" PI_ROLE_SKILLS_DIR="$launcher_skills" PATH="$tmp/bin:$PATH" \
+    bash scripts/pi-role.sh "$role" "$tmp/brief.md") >"$output" 2>&1
+}
+
+write_launcher_role launcher-required-role launcher-check
+capture="$tmp/launcher-missing.argv"
+output="$tmp/launcher-missing.out"
+if run_launcher_role launcher-required-role "$capture" "$output"; then
+  fail "roles with missing allowed-tools launchers must be refused"
+fi
+missing_launcher="$launcher_skills/gstack/bin/gstack-cso-launcher"
+grep -Fq 'launcher-check' "$output" || fail "missing-launcher refusal should name the skill"
+grep -Fq "$missing_launcher" "$output" || fail "missing-launcher refusal should name the missing path"
+[ ! -e "$capture" ] || fail "missing allowed-tools launcher must be refused before pi starts"
+ok "missing allowed-tools launcher is named and refused before pi starts"
+
+mkdir -p "$(dirname "$missing_launcher")"
+: > "$missing_launcher"
+if run_launcher_role launcher-required-role "$tmp/launcher-present.argv" "$tmp/launcher-present.out"; then
+  [ -e "$tmp/launcher-present.argv" ] || fail "present-launcher role should reach pi"
+else
+  cat "$tmp/launcher-present.out" >&2
+  fail "roles with present allowed-tools launchers should start"
+fi
+ok "present allowed-tools launcher permits the role to start"
+rm -f "$missing_launcher"
+
+write_launcher_role body-only-role body-only
+if run_launcher_role body-only-role "$tmp/body-only.argv" "$tmp/body-only.out"; then
+  [ -e "$tmp/body-only.argv" ] || fail "body-only role should reach pi"
+else
+  cat "$tmp/body-only.out" >&2
+  fail "body-only launcher mention must not block the role"
+fi
+ok "body-only launcher mention does not block the role"
 
 printf 'PASS pi-role self-test (%s checks)\n' "$pass"

@@ -130,13 +130,48 @@ for extension in extensions:
     extension_paths.append(str(extension_path))
 
 skill_paths = []
-skills_root = Path(os.environ.get("PI_ROLE_SKILLS_DIR") or main_root / ".claude" / "skills").resolve()
+configured_skills_root = os.environ.get("PI_ROLE_SKILLS_DIR")
+skills_root = Path(configured_skills_root or main_root / ".claude" / "skills").resolve()
+launcher_pattern = re.compile(
+    r"Bash\(\s*(~/.claude/skills/([A-Za-z0-9._-]+)/bin/([A-Za-z0-9._-]+))"
+)
 for skill in skills:
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", skill):
         fail(f"invalid skill name '{skill}' in agents/{role}.md")
     skill_dir = skills_root / skill
-    if not (skill_dir / "SKILL.md").is_file():
-        fail(f"role '{role}' references missing skill '{skill}' at {skill_dir / 'SKILL.md'}")
+    skill_file = skill_dir / "SKILL.md"
+    if not skill_file.is_file():
+        fail(f"role '{role}' references missing skill '{skill}' at {skill_file}")
+
+    skill_text = skill_file.read_text()
+    if skill_text.startswith("---\n"):
+        try:
+            _, skill_frontmatter, _ = skill_text.split("---", 2)
+            skill_metadata = yaml.safe_load(skill_frontmatter) or {}
+        except (ValueError, yaml.YAMLError):
+            skill_metadata = {}
+        allowed_tools = skill_metadata.get("allowed-tools", []) if isinstance(skill_metadata, dict) else []
+        if isinstance(allowed_tools, str):
+            allowed_tools = [allowed_tools]
+        if isinstance(allowed_tools, list):
+            for declaration in allowed_tools:
+                if not isinstance(declaration, str):
+                    continue
+                for match in launcher_pattern.finditer(declaration):
+                    declared_path, launcher_skill, launcher_name = match.groups()
+                    if launcher_skill in {".", ".."} or launcher_name in {".", ".."}:
+                        continue
+                    relative_path = Path(launcher_skill) / "bin" / launcher_name
+                    launcher_path = (
+                        skills_root / relative_path
+                        if configured_skills_root
+                        else Path(declared_path).expanduser()
+                    ).resolve()
+                    if not launcher_path.is_file():
+                        fail(
+                            f"skill '{skill}' declares missing Bash launcher '{launcher_path}' "
+                            "in allowed-tools"
+                        )
     skill_paths.append(str(skill_dir.resolve()))
 
 extra_args = sys.argv[1:]
