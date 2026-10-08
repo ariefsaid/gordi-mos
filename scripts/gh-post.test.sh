@@ -157,7 +157,8 @@ rm -f "$gitdir/pre-pr-verify-ok" "$gitdir/pre-pr-verify-dev-ok"
 check "pr create without a Reused: line refused" 1 no pr create --base dev --title t --body "no reuse note"
 printf 'Summary\n\n**Reused:** the existing table\n' > "$tmp/reused-body.md"
 printf '%s' "$head" > "$gitdir/pre-pr-verify-ok"
-printf '%s security reviewer-x now art.md release\n' "$head" > "$gitdir/independent-review-security-ok"
+printf '%s security reviewer-x now art.md\n' "$head" > "$gitdir/independent-review-security-ok"
+printf '%s\n' "$head" > "$gitdir/independent-review-security-release-ok"
 check "a PR into main needs no Reused: line (release)" 0 yes pr create --base main --title t --body "release package"
 rm -f "$gitdir/pre-pr-verify-ok"
 check "a **Reused:** line in a body file passes" 0 yes pr create --base dev --title t --body-file "$tmp/reused-body.md"
@@ -182,17 +183,26 @@ check "full stamp also passes --base dev" 0 yes pr create --base dev --title t -
 
 # A dev-tip security record made without a release base must not authorize a main/staging PR.
 g "$tmp/repo" update-ref refs/remotes/origin/dev "$head"
+rm -f "$gitdir/independent-review-security-release-ok"
 printf '## security\nReviewer: gpt-6-luna (security)\nVerdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/dev-security-review.md"
 (cd "$tmp/repo" && bash "$RECORD_SCRIPT" --lens security --reviewer gpt-6-luna --artifact dev-security-review.md) >/dev/null 2>&1
 record_rc=$?
-if [ "$record_rc" -eq 0 ] && ! grep -q ' release$' "$gitdir/independent-review-security-ok"; then
-  pass=$((pass+1)); printf '  ok    dev-tip security stamp has no release token without --base\n'
+if [ "$record_rc" -eq 0 ] && ! grep -q ' release$' "$gitdir/independent-review-security-ok" \
+  && [ ! -e "$gitdir/independent-review-security-release-ok" ]; then
+  pass=$((pass+1)); printf '  ok    dev-tip security stamp has no release marker without --base\n'
 else fail=$((fail+1)); printf '  FAIL  dev-tip security stamp unexpectedly carries release (rc=%s)\n' "$record_rc"; fi
 check "dev PR remains allowed with an ordinary security stamp" 0 yes pr create --base dev --title t --body "Reused: x"
 release_message="a PR into main needs release-rule stamps — record the security lens with: bash scripts/record-review.sh --lens security --base main --reviewer <opus id> --artifact <record>"
-check_message "dev-tip security stamp without release token refuses a main PR" 1 no "$release_message" pr create --base main --title t --body "Reused: x"
+check_message "dev-tip security stamp without release marker refuses a main PR" 1 no "$release_message" pr create --base main --title t --body "Reused: x"
+printf '## security\nReviewer: gpt-6-luna (security)\nVerdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/my release"
+(cd "$tmp/repo" && bash "$RECORD_SCRIPT" --lens security --reviewer gpt-6-luna --artifact "my release") >/dev/null 2>&1
+record_rc=$?
+if [ "$record_rc" -ne 0 ]; then
+  pass=$((pass+1)); printf '  ok    record-review refuses the whitespace forge artifact\n'
+else fail=$((fail+1)); printf '  FAIL  record-review accepted the whitespace forge artifact\n'; fi
+check_message "artifact named 'my release' cannot authorize a main PR" 1 no "$release_message" pr create --base main --title t --body "Reused: x"
 g "$tmp/repo" checkout -qb feature/staging-release-gate
-check_message "dev-tip security stamp without release token refuses a staging PR" 1 no "a PR into staging needs release-rule stamps" pr create --base staging --title t --body "Reused: x"
+check_message "dev-tip security stamp without release marker refuses a staging PR" 1 no "a PR into staging needs release-rule stamps" pr create --base staging --title t --body "Reused: x"
 
 mkdir -p "$tmp/repo/docs/reviews"
 printf 'Commit: %s\n' "$head" > "$tmp/repo/docs/reviews/release-evidence.md"
@@ -209,10 +219,14 @@ printf 'Commit: %s\n' "$head" > "$tmp/repo/docs/reviews/release-evidence.md"
 } > "$tmp/repo/release-security-review.md"
 (cd "$tmp/repo" && bash "$RECORD_SCRIPT" --lens security --base main --reviewer claude-opus-5 --artifact release-security-review.md) >/dev/null 2>&1
 record_rc=$?
-if [ "$record_rc" -eq 0 ] && grep -Eq "^$head security claude-opus-5 .* release$" "$gitdir/independent-review-security-ok"; then
-  pass=$((pass+1)); printf '  ok    Opus security stamp with --base main carries the release token\n'
-else fail=$((fail+1)); printf '  FAIL  Opus security stamp with --base main did not carry release (rc=%s)\n' "$record_rc"; fi
+if [ "$record_rc" -eq 0 ] && [ "$(cat "$gitdir/independent-review-security-release-ok" 2>/dev/null)" = "$head" ] \
+  && ! grep -q ' release$' "$gitdir/independent-review-security-ok"; then
+  pass=$((pass+1)); printf '  ok    Opus security release stamp contains only the exact HEAD sha\n'
+else fail=$((fail+1)); printf '  FAIL  Opus security stamp with --base main did not create the exact release sha (rc=%s)\n' "$record_rc"; fi
 check "a PR into main passes with a release-rule security stamp" 0 yes pr create --base main --title t --body "release package"
+printf '0000000000000000000000000000000000000000\n' > "$gitdir/independent-review-security-release-ok"
+check_message "a stale release stamp for another sha refuses a main PR" 1 no "$release_message" pr create --base main --title t --body "release package"
+printf '%s\n' "$head" > "$gitdir/independent-review-security-release-ok"
 check "a PR into staging passes with a release-rule security stamp" 0 yes pr create --base staging --title t --body "release package"
 check "global flags can't dodge the verb check" 1 no --repo other/repo pr create --title t --body "Reused: x"
 check "--head to another branch refused" 1 no pr create --head other-branch --title t --body "Reused: x"
@@ -285,11 +299,12 @@ check "REST main PR without full verify stamp refuses" 1 no api repos/x/y/pulls 
 printf '%s' "$head" > "$gitdir/pre-pr-verify-dev-ok"
 check "REST main PR with only --dev verify stamp refuses" 1 no api repos/x/y/pulls -f head=feat-rest -f base=main
 rm -f "$gitdir/pre-pr-verify-dev-ok"; printf '%s' "$head" > "$gitdir/pre-pr-verify-ok"
-check_message "REST main PR without a release security token refuses" 1 no "a PR into main needs release-rule stamps" api repos/x/y/pulls -f head=feat-rest -f base=main
-check_message "REST staging PR without a release security token refuses" 1 no "a PR into staging needs release-rule stamps" api repos/x/y/pulls -f head=feat-rest -f base=staging
-printf '%s security claude-opus-5 now art.md release\n' "$head" > "$gitdir/independent-review-security-ok"
-check "REST main PR passes with a release security token" 0 yes api repos/x/y/pulls -f head=feat-rest -f base=main
-check "REST staging PR passes with a release security token" 0 yes api repos/x/y/pulls -f head=feat-rest -f base=staging
+check_message "REST main PR without a release security stamp refuses" 1 no "a PR into main needs release-rule stamps" api repos/x/y/pulls -f head=feat-rest -f base=main
+check_message "REST staging PR without a release security stamp refuses" 1 no "a PR into staging needs release-rule stamps" api repos/x/y/pulls -f head=feat-rest -f base=staging
+printf '%s security claude-opus-5 now art.md\n' "$head" > "$gitdir/independent-review-security-ok"
+printf '%s\n' "$head" > "$gitdir/independent-review-security-release-ok"
+check "REST main PR passes with a release security stamp" 0 yes api repos/x/y/pulls -f head=feat-rest -f base=main
+check "REST staging PR passes with a release security stamp" 0 yes api repos/x/y/pulls -f head=feat-rest -f base=staging
 rm -f "$gitdir/pre-pr-verify-ok"; printf '%s' "$head" > "$gitdir/pre-pr-verify-dev-ok"
 check "REST pr create, cluster -ifbase=main after base=dev refused" 1 no api repos/x/y/pulls -f head=feat-rest -f base=dev -ifbase=main
 check "REST pr create, -F head=@file refused" 1 no api repos/x/y/pulls -F head=@"$tmp/repo/body.md" -f base=dev

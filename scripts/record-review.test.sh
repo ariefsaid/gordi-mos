@@ -46,6 +46,8 @@ for length in 11 12; do
 done
 printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/full.md"
 check "full 40-character HEAD accepted" 0 --lens spec --reviewer gpt-5.6-luna --artifact full.md
+printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/my release"
+check "artifact path containing whitespace refused" 1 --lens spec --reviewer gpt-5.6-luna --artifact "$tmp/repo/my release"
 printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: %s0\n' "$head" > "$tmp/repo/extended.md"
 check "HEAD embedded in a longer hash refused" 1 --lens spec --reviewer gpt-5.6-luna --artifact extended.md
 printf '## spec\nReviewer: gpt-5.6-luna (spec)\nVerdict: MERGE\nCommit: stale\n\n## security\nReviewer: gpt-5.6-luna (security)\nVerdict: MERGE\nCommit: %s\n' "$head" > "$tmp/repo/other-head.md"
@@ -479,13 +481,17 @@ gr commit -q --allow-empty -m "ordinary work"
 relcheck "explicit --base main marks a release candidate" 1 gpt-6-luna --base main
 relcheck "explicit --base staging marks a release candidate" 1 gpt-6-luna --base staging
 relcheck "release security stamp accepts Opus for --base main" 0 claude-opus-5 --base main
-if grep -Eq "^$(gr rev-parse HEAD) security claude-opus-5 .* release$" "$tmp/rel-repo/.git/independent-review-security-ok"; then
-  pass=$((pass+1)); printf '  ok    release security stamp ends with the release token\n'
-else fail=$((fail+1)); printf '  FAIL  release security stamp is missing its release token\n'; fi
+if [ "$(cat "$tmp/rel-repo/.git/independent-review-security-release-ok" 2>/dev/null)" = "$(gr rev-parse HEAD)" ]; then
+  pass=$((pass+1)); printf '  ok    release-rule stamp contains the exact HEAD sha\n'
+else fail=$((fail+1)); printf '  FAIL  release-rule stamp is missing the exact HEAD sha\n'; fi
 relcheck "release security stamp accepts Opus for --base staging" 0 claude-opus-5 --base staging
-if grep -Eq "^$(gr rev-parse HEAD) security claude-opus-5 .* release$" "$tmp/rel-repo/.git/independent-review-security-ok"; then
-  pass=$((pass+1)); printf '  ok    staging security stamp ends with the release token\n'
-else fail=$((fail+1)); printf '  FAIL  staging security stamp is missing its release token\n'; fi
+if [ "$(cat "$tmp/rel-repo/.git/independent-review-security-release-ok" 2>/dev/null)" = "$(gr rev-parse HEAD)" ]; then
+  pass=$((pass+1)); printf '  ok    staging release-rule stamp contains the exact HEAD sha\n'
+else fail=$((fail+1)); printf '  FAIL  staging release-rule stamp is missing the exact HEAD sha\n'; fi
+relcheck "ordinary security re-review on the same HEAD is accepted" 0 gpt-6-luna
+if [ ! -e "$tmp/rel-repo/.git/independent-review-security-release-ok" ]; then
+  pass=$((pass+1)); printf '  ok    ordinary security re-review clears prior release-rule stamp\n'
+else fail=$((fail+1)); printf '  FAIL  ordinary security re-review left a release-rule stamp behind\n'; fi
 
 gr checkout -qb feature/ordinary-dev "$(gr rev-parse origin/dev)"
 gr commit -q --allow-empty -m "ordinary dev-bound work"

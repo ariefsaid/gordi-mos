@@ -298,6 +298,7 @@ while [ $# -gt 0 ]; do
 done
 [ -n "$lens" ] && [ -n "$reviewer" ] && [ -n "$artifact" ] \
   || die "usage: --lens <spec|code-quality|security> --reviewer <name> --artifact <file>"
+case "$artifact" in *[[:space:]]*) die "artifact path must not contain whitespace" ;; esac
 if [ "$base_seen" = 1 ]; then
   case "$base" in main|staging) ;; *) die "--base must be main or staging (got '$base')" ;; esac
 fi
@@ -375,6 +376,10 @@ if printf '%s\n' "$verdict_lines" | grep -q 'DO NOT MERGE'; then
   gitdir="$(git rev-parse --git-dir)" || die "not a git repo"
   rm -f "$gitdir/independent-review-$lens-ok" \
     || die "could not clear the '$lens' lens stamp after DO NOT MERGE"
+  if [ "$lens" = security ]; then
+    rm -f "$gitdir/independent-review-security-release-ok" \
+      || die "could not clear the security release-rule stamp after DO NOT MERGE"
+  fi
   die "the '$lens' lens verdict is DO NOT MERGE; its stamp was cleared (other lens stamps are unchanged)"
 fi
 
@@ -388,6 +393,14 @@ printf '%s\n' "$verdict" | grep -qE '^MERGE( WITH CHANGES)?$' \
 
 gitdir="$(git rev-parse --git-dir)"
 stamp="$head $lens $reviewer $(date -u +%Y-%m-%dT%H:%M:%SZ) $artifact"
-if [ "$lens" = security ] && [ "$release" = 1 ]; then stamp="$stamp release"; fi
-printf '%s\n' "$stamp" > "$gitdir/independent-review-$lens-ok"
+if [ "$lens" = security ]; then
+  rm -f "$gitdir/independent-review-security-release-ok" \
+    || die "could not clear the previous security release-rule stamp"
+fi
+printf '%s\n' "$stamp" > "$gitdir/independent-review-$lens-ok" \
+  || die "could not write the '$lens' lens stamp"
+if [ "$lens" = security ] && [ "$release" = 1 ]; then
+  printf '%s\n' "$head" > "$gitdir/independent-review-security-release-ok" \
+    || die "could not write the security release-rule stamp"
+fi
 echo "✓ $lens lens stamped ${head:0:8} by $reviewer ($artifact)"

@@ -170,7 +170,7 @@ fi
 # other bases also need full verify — and a pr create may only target THIS checkout. The REST create
 # (`api repos/<this>/pulls`, the route cloud sessions use where GraphQL is blocked) passes the same gate.
 require_pr_stamps() { # $1 base branch ('' when none named)
-  local base_val="$1" gitdir head v r lens stamp_file stamp release_token
+  local base_val="$1" gitdir head v r lens stamp_file stamp release_stamp_file release_sha
   gitdir="$(git rev-parse --git-dir)" || die "not a git repo"
   head="$(git rev-parse HEAD)"
   # Promotion carve-out (/release §4b): a PR into staging FROM main carries content the release
@@ -188,9 +188,9 @@ require_pr_stamps() { # $1 base branch ('' when none named)
     stamp="$(cat "$stamp_file" 2>/dev/null || true)"
     r="$(printf '%s\n' "$stamp" | awk '{print $1}')"
     if [ "$lens" = security ] && { [ "$base_val" = main ] || [ "$base_val" = staging ]; }; then
-      release_token=0
-      printf '%s\n' "$stamp" | awk 'NF >= 6 && $NF == "release" { found=1 } END { exit !found }' && release_token=1
-      [ "$r" = "$head" ] && [ "$release_token" = 1 ] \
+      release_stamp_file="$gitdir/independent-review-security-release-ok"
+      release_sha="$(cat "$release_stamp_file" 2>/dev/null || true)"
+      [ "$release_sha" = "$head" ] \
         || die "a PR into $base_val needs release-rule stamps — record the security lens with: bash scripts/record-review.sh --lens security --base $base_val --reviewer <opus id> --artifact <record>"
     fi
     [ "$r" = "$head" ] || die "no $lens lens stamp for HEAD — a reviewer that did not write this branch records each lens: bash scripts/record-review.sh --lens $lens --reviewer <glm/luna/opus…> --artifact <record>"
