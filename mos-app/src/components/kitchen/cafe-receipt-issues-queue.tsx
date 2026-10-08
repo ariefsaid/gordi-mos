@@ -66,7 +66,7 @@ export function CafeReceiptIssuesQueue() {
   const t = useT()
   const { locale } = useI18n()
   const online = !useIsOffline()
-  const [list, setList] = useState<CafeReceiptIssueList>({ issues: [], held: [], resolvedTotal: 0 })
+  const [list, setList] = useState<CafeReceiptIssueList>({ issues: [], held: [], refused: [], resolvedTotal: 0 })
   const [canManage, setCanManage] = useState(false)
   const [names, setNames] = useState<{ people: ReadonlyMap<string, string>; branches: ReadonlyMap<string, string> }>(
     { people: new Map(), branches: new Map() })
@@ -193,13 +193,13 @@ export function CafeReceiptIssuesQueue() {
   const onEscape = (event: KeyboardEvent) => { if (event.key === 'Escape' && !busy) { event.stopPropagation(); stopResolving() } }
   // Counts and the role-specific help are facts about a completed read, so neither shows before one.
   const known = !loading && !loadError
-  const needingPo = byTab.blocking.length + list.held.length
+  const blockedCount = byTab.blocking.length + list.held.length + list.refused.length
   const tabs = [
-    { id: 'blocking', label: t('cafe.receipts.issues.tab.blocking'), count: known ? needingPo : undefined },
+    { id: 'blocking', label: t('cafe.receipts.issues.tab.blocking'), count: known ? blockedCount : undefined },
     { id: 'information', label: t('cafe.receipts.issues.tab.information'), count: known ? byTab.information.length : undefined },
     { id: 'resolved', label: t('cafe.receipts.issues.tab.resolved'), count: known ? list.resolvedTotal : undefined },
   ]
-  const empty = tab === 'blocking' ? needingPo === 0 : byTab[tab].length === 0
+  const empty = tab === 'blocking' ? blockedCount === 0 : byTab[tab].length === 0
 
   return (
     <section className="cafe-count-review cafe-receipt-issues" aria-label={t('cafe.receipts.issues.title')}>
@@ -333,6 +333,24 @@ export function CafeReceiptIssuesQueue() {
                 resolving={false}
               >
                 <span className="cafe-count-review__state">{t('cafe.receipts.issues.held.state')}</span>
+              </CafeReceiptIssueRow>
+            ))}
+            {tab === 'blocking' && list.refused.map(portion => (
+              <CafeReceiptIssueRow
+                key={portion.id}
+                title={t('cafe.receipts.issues.refused.title')}
+                meta={meta(portion.receipt, portion.created_at)}
+                line={portion.line}
+                quantity={portion.quantity}
+                photosUnavailable={portion.receipt.photosUnavailable}
+                why={t('cafe.receipts.issues.refused.why')}
+                detail={<>
+                  <p className="cafe-receipt-issue__why"><strong>{t('cafe.receipts.issues.refused.messageLabel')}:</strong> {portion.esb_message || t('cafe.receipts.issues.refused.unavailable')}</p>
+                  <p className="cafe-receipt-issue__why"><strong>{t('cafe.receipts.issues.refused.poLabel')}:</strong> {portion.po_number} · <strong>{t('cafe.receipts.issues.refused.keyLabel')}:</strong> <code>{portion.mos_key || t('cafe.receipts.issues.refused.unavailable')}</code></p>
+                </>}
+                resolving={false}
+              >
+                <span className="cafe-count-review__state">{t('cafe.receipts.issues.refused.state')}</span>
               </CafeReceiptIssueRow>
             ))}
           </ul>
