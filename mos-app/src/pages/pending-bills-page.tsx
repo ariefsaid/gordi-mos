@@ -162,6 +162,7 @@ export function PendingBillsPage() {
   // Closing the form brings its buttons back; focus returns to the panel's action (or the history's).
   const restoreFocusRef = useRef(false)
   const restoreMultiBillFocusRef = useRef<string | null>(null)
+  const multiPaymentFormRef = useRef<HTMLFormElement | null>(null)
   const restoreActionFocus = () => {
     restoreFocusRef.current = true
     window.setTimeout(() => { restoreFocusRef.current = false }, 2000)
@@ -486,6 +487,7 @@ export function PendingBillsPage() {
       bills={formMode.kind === 'multi' ? selectedSummary.bills : undefined}
       orgId={orgId}
       reversePayment={formMode.kind === 'reverse' ? { id: formMode.entry.id, amount: formMode.entry.amount } : null}
+      formRef={formMode.kind === 'multi' ? multiPaymentFormRef : undefined}
       onCancel={cancelPaymentForm}
       onSaved={(saved) => onFormSaved(selectedBill, saved)}
       onDirtyChange={(dirty) => { formDirtyRef.current = dirty }}
@@ -569,6 +571,7 @@ export function PendingBillsPage() {
         closeLabel={t('record.close')}
         rootClassName="drawer-split--sticky"
         focusKey={selectedBill.id}
+        initialFocusRef={formMode?.kind === 'multi' ? multiPaymentFormRef : undefined}
         transitionPending={discardOpen || formBusy}
         onClose={() => guardedTransition(() => {
           formDirtyRef.current = false

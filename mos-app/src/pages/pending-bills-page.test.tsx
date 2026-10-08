@@ -3,6 +3,7 @@
 // AC-1123: loading, none-snapshot, empty, error and stale each say a sentence and offer an action.
 // AC-1124: the as-of time is the copy run's, never the clock's.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { StrictMode } from 'react'
 import { render, screen, within, fireEvent, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import type { AuthState } from '@/auth/context'
@@ -83,9 +84,9 @@ function bill(over: Partial<PendingBillRow>): PendingBillRow {
   }
 }
 
-function renderPage(accessRoles = ['finance'], initialLocale: 'en' | 'id' = 'en') {
+function renderPage(accessRoles = ['finance'], initialLocale: 'en' | 'id' = 'en', strictMode = false) {
   mockUseAuth.mockReturnValue(authViewer(accessRoles))
-  return render(
+  const page = (
     <I18nProvider initialLocale={initialLocale}>
       <MemoryRouter initialEntries={['/money/pending-bills']}>
         <Routes>
@@ -95,8 +96,9 @@ function renderPage(accessRoles = ['finance'], initialLocale: 'en' | 'id' = 'en'
           <Route path="/money" element={<p>money root</p>} />
         </Routes>
       </MemoryRouter>
-    </I18nProvider>,
+    </I18nProvider>
   )
+  return render(strictMode ? <StrictMode>{page}</StrictMode> : page)
 }
 
 function setViewport(desktop: boolean, wide = false) {
@@ -521,7 +523,7 @@ describe('multi-bill payment selection', () => {
     expect(await within(form).findByRole('alert')).toHaveTextContent('Balances changed. Review the selected bills and try again.')
     await waitFor(() => expect(mockList).toHaveBeenCalledTimes(2))
     expect(within(form).getByText('Rp 97.000')).toBeInTheDocument()
-    expect(within(form).getByLabelText('Cash-in date')).toHaveValue('06/10/2026')
+    expect(within(form).getByLabelText('Cash-in date')).toHaveValue('6 Oct 2026')
     expect(within(form).getByText('receipt.pdf')).toBeInTheDocument()
     expect(within(table).getByRole('checkbox', { name: 'Select bill PB-1' })).toBeChecked()
     expect(within(table).getByRole('checkbox', { name: 'Select bill PB-2' })).toBeChecked()
@@ -668,6 +670,28 @@ describe('the pending bill record panel at every width', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Open bill PB-2' }))
     const panel = await screen.findByRole('dialog', { name: 'Pending bill PB-2' })
     expect(within(panel).getByText('Pending bill PB-2', { selector: '.record-panel-title' })).toBeInTheDocument()
+  })
+
+  it('keeps the multi-payment date pristine through the real RecordViewer panel open', async () => {
+    setViewport(false)
+    renderPage(['finance'], 'en', true)
+    const table = await screen.findByRole('table', { name: 'Pending bills, oldest first' })
+    fireEvent.click(within(table).getByRole('checkbox', { name: 'Select bill PB-1' }))
+    fireEvent.click(within(table).getByRole('checkbox', { name: 'Select bill PB-2' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Record payment' }))
+
+    const panel = await screen.findByRole('dialog')
+    const form = within(panel).getByRole('form', { name: 'Record payment' })
+    const date = within(form).getByLabelText('Cash-in date')
+    expect(form).toHaveFocus()
+    expect(date).not.toHaveAttribute('aria-invalid', 'true')
+    expect(within(form).queryByRole('alert')).toBeNull()
+    expect(date).not.toHaveFocus()
+
+    fireEvent.focus(date)
+    fireEvent.blur(date)
+    expect(await within(form).findByRole('alert')).toHaveTextContent('Enter a date.')
+    expect(date).toHaveAttribute('aria-invalid', 'true')
   })
 
   it('moves focus into the form when it opens and back to the panel action when it closes', async () => {

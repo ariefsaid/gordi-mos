@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useId, useRef, useState, type FormEvent, type RefObject } from 'react'
 import { Button } from '@/components/ui/button'
 import { DateField } from '@/components/ui/date-field'
 import { QuantityField } from '@/components/ui/quantity-field'
@@ -32,6 +32,7 @@ export type PendingBillPaymentFormProps = {
   onDirtyChange?: (dirty: boolean) => void
   onBusyChange?: (busy: boolean) => void
   onBalancesChanged?: () => void
+  formRef?: RefObject<HTMLFormElement | null>
   reversePayment?: { id: string; amount: number } | null
 }
 
@@ -41,13 +42,14 @@ const FIELD_LABEL: Record<PendingBillPaymentField, 'pendingBills.form.amount' | 
   proof: 'pendingBills.form.proof',
 }
 
-export function PendingBillPaymentForm({ bill, bills, orgId, onCancel, onSaved, onDirtyChange, onBusyChange, onBalancesChanged, reversePayment = null }: PendingBillPaymentFormProps) {
+export function PendingBillPaymentForm({ bill, bills, orgId, onCancel, onSaved, onDirtyChange, onBusyChange, onBalancesChanged, formRef: suppliedFormRef, reversePayment = null }: PendingBillPaymentFormProps) {
   // The panel's own buttons give way to this form, so focus moves into it when it opens.
-  const formRef = useRef<HTMLFormElement>(null)
+  const localFormRef = useRef<HTMLFormElement>(null)
+  const formRef = suppliedFormRef ?? localFormRef
   useEffect(() => {
     const form = formRef.current
     if (form && !form.contains(document.activeElement)) form.focus()
-  }, [])
+  }, [formRef])
   const t = useT()
   const id = useId()
   const today = wibToday()
