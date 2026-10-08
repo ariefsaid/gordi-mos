@@ -109,8 +109,4 @@
     min-height: 44px;
   }
 
-  [data-touch-target='true'].toast-dismiss {
-    min-width: 44px;
-    min-height: 44px;
-  }
 }

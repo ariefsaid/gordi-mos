@@ -92,14 +92,13 @@ describe('B-i: phone tap-target floor is encoded in shared CSS', () => {
     expect(body).toMatch(/\.tap-floor[\s\S]*min-height:\s*44px/)
   })
 
-  it('keeps the Toast dismiss icon compact while its target is ≥24px desktop and ≥44px phone', () => {
-    expect(toastTsx).toMatch(/className="toast-dismiss[^"]*"/)
+  it('keeps the Toast dismiss icon compact inside the shared phone tap floor', () => {
+    expect(toastTsx).toMatch(/className="toast-dismiss[^"]*\btap-floor\b[^"]*"/)
     expect(toastTsx).toMatch(/data-touch-target="true"/)
     const desktopRule = buttonCss.match(/\.toast-dismiss\s*\{([^}]+)\}/)?.[1]
     expect(desktopRule).toMatch(/min-width:\s*24px/)
     expect(desktopRule).toMatch(/min-height:\s*24px/)
-    const phone = mediaBody(buttonCss, '@media (max-width: 767.98px)')
-    expect(phone).toMatch(/\[data-touch-target='true'\]\.toast-dismiss\s*\{[^}]*min-width:\s*44px;[^}]*min-height:\s*44px/)
+    expect(buttonCss).not.toMatch(/\[data-touch-target='true'\]\.toast-dismiss/)
   })
 
   // M41: Money's targets keep the 44px floor through the tablet band, up to where the rail appears.

@@ -144,7 +144,7 @@ export function Toast({ toast, onDismiss }: ToastProps) {
               aria-label="Dismiss notification"
               data-focus-trap-target="toast-dismiss"
               data-touch-target="true"
-              className="toast-dismiss text-current opacity-60 hover:opacity-100 transition-opacity"
+              className="toast-dismiss tap-floor text-current opacity-60 hover:opacity-100 transition-opacity"
               style={{ lineHeight: 1 }}
             >
               ✕
