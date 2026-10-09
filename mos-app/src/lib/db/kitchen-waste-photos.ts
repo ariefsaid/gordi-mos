@@ -83,7 +83,8 @@ export async function listCurrentPersonKitchenWasteDrafts(
       .in('id', unitIds),
     listKitchenWastePhotos(rows.map(row => row.id)),
   ])
-  const unitNames = new Map(((unitError ? [] : unitRows ?? []) as Array<{ id: string; unit_name: string }>)
+  if (unitError) throw new Error(`listCurrentPersonKitchenWasteDrafts failed — ${unitError.message}`)
+  const unitNames = new Map(((unitRows ?? []) as Array<{ id: string; unit_name: string }>)
     .map(unit => [unit.id, unit.unit_name]))
   const photosByLog = new Map<string, KitchenWastePhoto[]>()
   for (const photo of photos) {

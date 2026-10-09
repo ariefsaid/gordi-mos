@@ -68,6 +68,7 @@ function renderRailNav(initialPath: string, props: { compact?: boolean } = {}) {
 }
 
 beforeEach(() => {
+  vi.restoreAllMocks()
   vi.clearAllMocks()
   localStorage.clear()
   setAuthAs([])
@@ -86,7 +87,7 @@ describe('AC-011: Rail structure — grouped IA spine (F2 fix)', () => {
   // an org-wide admin — now sees the module blocks. The ruling accepts that consequence explicitly:
   // if a surface's audience should be narrower, the ROUTE is what gets narrowed, never the link.
   // Updated to the stated contract; the grouping and ordering assertions are untouched.
-  it('AC-011: an org-wide admin sees Home · Work (4 children) · Events · Money · Inbox · the module blocks · Admin Settings', () => {
+  it('AC-011: an admin-only viewer sees workspace roots except Money, and the live module blocks', () => {
     setAuthAs(['admin'], 'Managing Director')
     renderRailNav('/work/tasks')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
@@ -95,7 +96,7 @@ describe('AC-011: Rail structure — grouped IA spine (F2 fix)', () => {
     // Sketch destinations
     expect(within(nav).getByRole('link', { name: 'Home' })).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: 'Work' })).toBeInTheDocument()
-    // Work's 4 always-expanded children — nested under Work, not top-level peers
+    // Work's four child links are nested under Work, not top-level peers
     expect(within(nav).getByRole('link', { name: 'Signals' })).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: 'Tasks' })).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: 'Inbox' })).toBeInTheDocument()
@@ -105,17 +106,15 @@ describe('AC-011: Rail structure — grouped IA spine (F2 fix)', () => {
     expect(within(nav).getByRole('link', { name: 'Café' })).toBeInTheDocument()
     // Utility
     expect(within(nav).getByRole('link', { name: /Admin Settings/ })).toBeInTheDocument()
-    // #444 — the day-one rail. Projects & Processes, Objectives, Events, Money, Ecommerce and
-    // Roastery are BUILT and hidden: outside the MVP payload, so closed to everyone, admin
-    // included. This viewer holds every capability there is, which is what makes their absence a
-    // ship-gate result and not a capability one. The whole "B2B Ops" group goes with Roastery —
-    // an overline with nothing under it is not a rail entry, it is a hole.
-    // OD-WAY-63 restored Objectives + Projects & Processes to the MVP; the rest stay gated.
+    // OD-WAY-63 restored Objectives + Projects & Processes. Events, Ecommerce and Roastery remain
+    // ship-gated, while Money is role-gated and this admin-only viewer lacks a revenue-view role.
+    // The whole "B2B Ops" group goes with Roastery — an overline with nothing under it is a hole.
     expect(within(nav).getByRole('link', { name: 'Projects & Processes' })).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: 'Objectives' })).toBeInTheDocument()
-    for (const name of ['Events', 'Money', 'Ecommerce', 'Roastery']) {
+    for (const name of ['Events', 'Ecommerce', 'Roastery']) {
       expect(within(nav).queryByRole('link', { name }), `${name} is ship-gated`).toBeNull()
     }
+    expect(within(nav).queryByRole('link', { name: 'Money' })).toBeNull()
     expect(within(nav).queryByText('B2B Ops')).toBeNull()
   })
 
@@ -263,8 +262,8 @@ describe('AC-011: Rail structure — grouped IA spine (F2 fix)', () => {
     expect(admin.closest('.rail-item-list-item')).toHaveClass('mt-auto')
   })
 
-  it('AC-012: non-finance/admin → Money absent (not disabled, no stub)', () => {
-    setAuthAs([])
+  it('AC-012: member → Money absent (not disabled, no stub)', () => {
+    setAuthAs(['member'])
     renderRailNav('/work/tasks')
     expect(screen.queryByRole('link', { name: 'Money' })).toBeNull()
   })
@@ -275,16 +274,11 @@ describe('AC-011: Rail structure — grouped IA spine (F2 fix)', () => {
     expect(screen.queryByRole('link', { name: /Admin Settings/ })).toBeNull()
   })
 
-  // #444: finance USED to see Money here. The ship gate sits above roles, so while `/money` is
-  // gated the holder of the finance role sees no more of it than a plain member does — that is
-  // the case above. `destinations.test.ts` keeps the Money role policy itself asserted on the
-  // registry, so nothing about ADR-0050 D8 / ADR-0051 is lost while the surface is hidden.
-  it('AC-012: finance sees neither Money (ship-gated) nor Admin Settings (admin-gated)', () => {
-    setAuthAs(['finance'])
+  it.each(['finance', 'manager'])('AC-012: %s sees Money but not Admin Settings', (role) => {
+    setAuthAs([role])
     renderRailNav('/')
-    expect(screen.queryByRole('link', { name: 'Money' })).toBeNull()
+    expect(screen.getByRole('link', { name: 'Money' })).toHaveAttribute('href', '/money')
     expect(screen.queryByRole('link', { name: /Admin Settings/ })).toBeNull()
-    // …and they still get a rail, so this is not passing on an empty render.
     expect(screen.getByRole('link', { name: 'Tasks' })).toBeInTheDocument()
   })
 
@@ -300,6 +294,59 @@ describe('AC-011: Rail structure — grouped IA spine (F2 fix)', () => {
     renderRailNav('/work/tasks')
     expect(screen.getByRole('link', { name: 'Projects & Processes' })).toHaveAttribute('href', '/work/projects')
     expect(screen.getByRole('link', { name: 'Objectives' })).toHaveAttribute('href', '/work/objectives')
+  })
+})
+
+describe('Issue 1656: navigation group disclosure', () => {
+  it('toggles Work children while its group link still navigates', () => {
+    setAuthAs(['admin'])
+    renderRailNav('/')
+    let toggle = screen.getByRole('button', { name: 'Hide Work pages' })
+    expect(toggle).toHaveAttribute('aria-controls', 'rail-children-work')
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    fireEvent.click(toggle)
+    toggle = screen.getByRole('button', { name: 'Show Work pages' })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('link', { name: 'Tasks' })).toBeNull()
+    fireEvent.click(toggle)
+    expect(screen.getByRole('link', { name: 'Tasks' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('link', { name: 'Work' }))
+    expect(screen.getByTestId('location')).toHaveTextContent('/work/tasks')
+  })
+
+  it('toggles Café children with a localized control', () => {
+    setAuthAs([], 'Barista')
+    renderRailNav('/work/tasks')
+    const toggle = screen.getByRole('button', { name: 'Hide Café pages' })
+    expect(toggle).toHaveAttribute('aria-controls', 'rail-children-cafe')
+    fireEvent.click(toggle)
+    expect(screen.getByRole('button', { name: 'Show Café pages' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('link', { name: 'Today' })).toBeNull()
+    fireEvent.click(screen.getByRole('link', { name: 'Café' }))
+    expect(screen.getByTestId('location')).toHaveTextContent('/cafe')
+  })
+
+  it('persists closure on remount and keeps an active header current', () => {
+    setAuthAs(['admin'])
+    const first = renderRailNav('/work/tasks')
+    fireEvent.click(screen.getByRole('button', { name: 'Hide Work pages' }))
+    expect(JSON.parse(localStorage.getItem('mos.nav.closedGroups') ?? '[]')).toContain('work')
+    first.unmount()
+    renderRailNav('/work/tasks')
+    expect(screen.getByRole('button', { name: 'Show Work pages' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('link', { name: 'Work' })).toHaveAttribute('aria-current', 'location')
+    expect(screen.queryByRole('link', { name: 'Tasks' })).toBeNull()
+  })
+
+  it('defaults groups open when localStorage reads and writes throw', () => {
+    const fail = () => { throw new Error('unavailable') }
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation((key) => key === 'mos.nav.closedGroups' ? fail() : null)
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation((key) => key === 'mos.nav.closedGroups' ? fail() : undefined)
+    setAuthAs([], 'Barista')
+    renderRailNav('/work/tasks')
+    expect(screen.getByRole('button', { name: 'Hide Work pages' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('button', { name: 'Hide Café pages' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('link', { name: 'Today' })).toBeInTheDocument()
   })
 })
 
@@ -346,16 +393,13 @@ describe('AC-009: aria-current — Work parent location, child page (at /work/si
     expect(within(nav).getByRole('link', { name: 'Work' }).getAttribute('aria-current')).toBeNull()
   })
 
-  // Was "at /money, Money link page (finance viewer)". #444 gates Money, so there is no Money
-  // link to carry it — Inbox is the childless workspace root that still ships, and it holds the
-  // identical claim: at a destination root, that destination's own link is the sole "page".
-  it('at /inbox, Inbox link page, exactly one page', () => {
+  it('at /money, Branches link page for a finance viewer', () => {
     setAuthAs(['finance'])
-    renderRailNav('/inbox')
+    renderRailNav('/money')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
     const pageLinks = within(nav).getAllByRole('link').filter((l) => l.getAttribute('aria-current') === 'page')
     expect(pageLinks).toHaveLength(1)
-    expect(pageLinks[0]).toHaveAccessibleName(/^Inbox/)
+    expect(pageLinks[0]).toHaveAccessibleName('Branches')
   })
 
   // Updated to the STATED contract, not relaxed. Rule 5 is "the parent is a location, the active
@@ -535,7 +579,7 @@ describe('Rail count badges (Tasks)', () => {
   it('shows a badge ONLY on Tasks — never on any other rail item', () => {
     setAuthAs(['admin'], 'Managing Director')
     renderRailNavWithCounts('/work/tasks', 11)
-    // Was pinned on Projects & Processes / Objectives, which #444 ship-gates out of the rail.
+    // Was pinned on Projects & Processes / Objectives before OD-WAY-63 restored those links.
     // Widened rather than dropped: EVERY rendered link must carry no numeric badge except the two
     // named, so a new item cannot grow one unnoticed and this cannot rot the way naming two
     // specific children did. (Inbox's unread badge is its own read and is zero in this harness.)
@@ -582,11 +626,11 @@ describe('RailNav compact regime (OD-REDESIGN-84.2 / P1-1)', () => {
     setAuthAs(['admin'], 'Managing Director')
     renderRailNav('/work/tasks', { compact: true })
     const nav = screen.getByRole('navigation', { name: 'Primary' })
-    // The day-one set: #444's gated entries (Projects & Processes, Objectives, Events, Money) do
-    // not render at any width, so an icon-only rail cannot be asked to name them.
-    for (const name of ['Home', 'Work', 'Tasks', 'Signals', 'Inbox']) {
+    // Money is omitted for this admin-only viewer because it lacks a revenue-view role.
+    for (const name of ['Home', 'Work', 'Tasks', 'Signals', 'Projects & Processes', 'Objectives', 'Inbox']) {
       expect(within(nav).getByRole('link', { name })).toBeInTheDocument()
     }
+    expect(within(nav).queryByRole('link', { name: 'Money' })).toBeNull()
   })
 
   it('hides the "Destinations" overline and every BU module overline', () => {
@@ -667,14 +711,16 @@ describe('RailNav compact regime (OD-REDESIGN-84.2 / P1-1)', () => {
     expect(badge.className).toMatch(/rail-count-badge--compact/)
   })
 
-  it('issue 1047: the Café row keeps its disclosure chevron at full width and drops it in compact, so its icon shares the rail axis', () => {
-    setAuthAs(['admin'], 'Managing Director')
-    const { container, unmount } = renderRailNav('/work/tasks', { compact: false })
+  it('issue 1047: the Café disclosure appears beside its group when children render, but not in compact mode', () => {
+    setAuthAs([], 'Barista')
+    const { container, unmount } = renderRailNav('/cafe', { compact: false })
+    expect(screen.getByRole('button', { name: 'Hide Café pages' })).toHaveClass('tap-target-phone')
     expect(container.querySelector('.rail-module-chevron')).not.toBeNull()
     unmount()
-    const compact = renderRailNav('/work/tasks', { compact: true })
+    const compact = renderRailNav('/cafe', { compact: true })
     expect(screen.getByRole('link', { name: /Café/ })).toBeInTheDocument()
     expect(compact.container.querySelector('.rail-module-chevron')).toBeNull()
+    expect(screen.queryByRole('button', { name: /(?:Show|Hide) .* pages/ })).toBeNull()
   })
 
   it('the account chip collapses to the avatar only (no visible name text)', () => {
@@ -745,8 +791,8 @@ describe('DD-WAY-33 (#439): the rail type ladder', () => {
     expect(tasks.className).toContain('rail-item--child')
     expect(tasks.className).not.toContain('rail-item--dest')
     // Inbox follows Work's children in document order — the defect this ticket names. It must
-    // claim the DESTINATION rung, or it reads as more of Work's list. (Money sat here too until
-    // #444 gated it; the claim is about the rung, so one destination still proves it.)
+    // claim the DESTINATION rung, or it reads as more of Work's list. Money is another destination
+    // rung, but its role-gated presence is independent of the hierarchy this case proves.
     expect(within(nav).getByRole('link', { name: /^Inbox/ }).className).toContain('rail-item--dest')
   })
 

@@ -2238,7 +2238,7 @@ describe('OD-K-5: category filter narrows rows', () => {
     expect(screen.queryByText('Nasi Goreng')).toBeNull()
 
     await user.click(screen.getByRole('combobox', { name: /item kind/i }))
-    await user.click(await screen.findByRole('option', { name: 'WIP' }))
+    await user.click(await screen.findByRole('option', { name: 'Prepared item (WIP)' }))
     expect(screen.getByText('No items match your filter.')).toBeInTheDocument()
 
     await chooseCategory('All categories')
@@ -2247,7 +2247,7 @@ describe('OD-K-5: category filter narrows rows', () => {
     expect(screen.queryByText('Fresh milk')).toBeNull()
 
     await user.click(screen.getByRole('combobox', { name: /item kind/i }))
-    await user.click(await screen.findByRole('option', { name: 'RAW' }))
+    await user.click(await screen.findByRole('option', { name: 'Raw material (RAW)' }))
     expect(screen.getByText('Fresh milk')).toBeInTheDocument()
     expect(screen.queryByText('Ayam Bakar')).toBeNull()
     expect(screen.queryByText('Nasi Goreng')).toBeNull()

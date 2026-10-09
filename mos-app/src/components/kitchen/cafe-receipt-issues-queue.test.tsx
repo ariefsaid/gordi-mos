@@ -9,6 +9,8 @@ import {
   linkCafeReceiptIssue,
   listCafeReceiptIssueOpenPos,
   listCafeReceiptIssues,
+  resolveCafeReceiptHaltedGroup,
+  type CafeReceiptHaltedGroup,
   type CafeReceiptHeldPortion,
   type CafeReceiptIssue,
 } from '@/lib/db/cafe-receipt-issues'
@@ -26,6 +28,7 @@ vi.mock('@/lib/db/cafe-receipt-issues', async (importOriginal) => ({
   canManageCafeReceiptIssues: vi.fn(),
   closeCafeReceiptIssue: vi.fn(),
   linkCafeReceiptIssue: vi.fn(),
+  resolveCafeReceiptHaltedGroup: vi.fn(),
   listCafeReceiptIssues: vi.fn(),
   listCafeReceiptIssueOpenPos: vi.fn(),
   requestCafeReceiptIssuePoRefresh: vi.fn(),
@@ -36,6 +39,7 @@ const mockClose = vi.mocked(closeCafeReceiptIssue)
 const mockLink = vi.mocked(linkCafeReceiptIssue)
 const mockList = vi.mocked(listCafeReceiptIssues)
 const mockOpenPos = vi.mocked(listCafeReceiptIssueOpenPos)
+const mockResolveHalted = vi.mocked(resolveCafeReceiptHaltedGroup)
 
 const LINE = {
   id: 'line-1', item_unit_id: 'unit-1', item_name: 'Susu UHT full cream 1 L karton isi 12', item_category: 'Dairy',
@@ -51,10 +55,14 @@ const RECEIPT = {
 } as unknown as CafeReceipt
 const OVER: CafeReceiptIssue = {
   id: 'issue-over', kind: 'over', quantity: '2', status: 'open', created_at: '2026-10-05T03:00:00Z',
-  linked_po_number: null, reopened_po_number: null, parts: [], closed_note: null, resolved_by: null, resolved_at: null,
+  linked_po_number: null, reopened_po_number: null, parts: [], closed_note: null, previous_closed_note: null, resolved_by: null, resolved_at: null,
   receipt: RECEIPT, line: LINE,
 }
 const DAMAGED: CafeReceiptIssue = { ...OVER, id: 'issue-damaged', kind: 'damaged_wrong', quantity: '6' }
+
+const HALTED: CafeReceiptHaltedGroup = {
+  group_id: 'group-halted', po_number: 'PO-2610-0042', mos_key: 'MOS-RECEIPT-0001-GROUP-0001', receipt: RECEIPT,
+}
 
 const HELD: CafeReceiptHeldPortion = {
   id: 'portion-held', quantity: '4', created_at: '2026-10-05T04:00:00Z',
@@ -68,6 +76,7 @@ const REFUSED = {
 
 let serverIssues: CafeReceiptIssue[]
 let serverHeld: CafeReceiptHeldPortion[]
+let serverHalted: CafeReceiptHaltedGroup[]
 let serverRefused: typeof REFUSED[]
 let resolvedTotal: number
 
@@ -79,13 +88,15 @@ beforeEach(() => {
   vi.clearAllMocks()
   serverIssues = [OVER, DAMAGED]
   serverHeld = []
+  serverHalted = []
   serverRefused = []
   resolvedTotal = 0
   mockList.mockImplementation(async () => ({
-    issues: serverIssues, held: serverHeld, refused: serverRefused,
+    issues: serverIssues, held: serverHeld, refused: serverRefused, haltedGroups: serverHalted,
     resolvedTotal: Math.max(resolvedTotal, serverIssues.filter(issue => issue.status !== 'open').length),
   } as unknown as Awaited<ReturnType<typeof listCafeReceiptIssues>>))
   mockCanManage.mockResolvedValue(true)
+  mockResolveHalted.mockImplementation(async groupId => { serverHalted = serverHalted.filter(group => group.group_id !== groupId) })
   mockOpenPos.mockResolvedValue({
     options: [
       { po_number: 'PO-2610-0042', supplier_name: 'PT Sumber Susu Nusantara', po_date: '2026-10-05', available: '4', date_eligible: true, created_after_delivery: true },
@@ -137,6 +148,38 @@ describe('Receipt issues', () => {
     const damaged = (await screen.findByText(/The receiver marked it damaged or wrong. Posting is not blocked/)).closest('li')!
     expect(within(damaged).getByText('6 × karton')).toBeInTheDocument()
     expect(within(damaged).queryByRole('button', { name: 'Link a PO' })).not.toBeInTheDocument()
+  })
+
+  it('AC-1533 procurement records a hand-found number; the worker will adopt it without a new create', async () => {
+    serverHalted = [HALTED]
+    renderQueue()
+
+    expect(await screen.findByText('Posting halted: check ESB')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /Blocked/ })).toHaveTextContent('2')
+    expect(screen.getByText('PO-2610-0042')).toBeInTheDocument()
+    expect(screen.getByText(/MOS key MOS-RECEIPT-0001-GROUP-0001/)).toBeInTheDocument()
+    const record = screen.getByRole('button', { name: 'Record number' })
+    expect(record).toBeDisabled()
+    await userEvent.type(screen.getByLabelText('ESB goods-receipt number'), 'GR-FOUND-42')
+    await userEvent.click(record)
+
+    expect(mockResolveHalted).toHaveBeenCalledWith('group-halted', 'record_number', 'GR-FOUND-42')
+    expect(await screen.findByText('Recorded GR-FOUND-42; the worker will adopt it without creating another receipt.')).toHaveFocus()
+    await waitFor(() => expect(screen.queryByText('Posting halted: check ESB')).not.toBeInTheDocument())
+  })
+
+  it('AC-1533 requeue requires an explicit confirmation that ESB has no receipt', async () => {
+    serverHalted = [HALTED]
+    renderQueue()
+
+    const requeue = await screen.findByRole('button', { name: 'Confirm absence and requeue' })
+    expect(requeue).toBeDisabled()
+    await userEvent.click(screen.getByRole('checkbox', { name: /I checked ESB and confirmed this receipt is absent/ }))
+    expect(requeue).toBeEnabled()
+    await userEvent.click(requeue)
+
+    expect(mockResolveHalted).toHaveBeenCalledWith('group-halted', 'confirm_absent', '')
+    expect(await screen.findByText('Confirmed absent; the worker will retry this receipt.')).toBeInTheDocument()
   })
 
   it('FR-1035 procurement links a blocking issue to an eligible PO; one dated after arrival says why it cannot be linked', async () => {
@@ -205,7 +248,7 @@ describe('Receipt issues', () => {
     let fail = true
     mockList.mockImplementation(async () => {
       if (fail) throw new Error('listCafeReceiptIssues failed')
-      return { issues: [], held: [], refused: [], resolvedTotal: 0 }
+      return { issues: [], held: [], refused: [], haltedGroups: [], resolvedTotal: 0 }
     })
     renderQueue()
     expect(screen.getByRole('status', { name: 'Loading…' })).toBeInTheDocument()
@@ -295,6 +338,18 @@ describe('Receipt issues', () => {
     renderQueue()
     expect(await screen.findByText('PO-2610-0057 no longer has room for this part, so it is open again.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Link a PO' })).toBeEnabled()
+  })
+
+  it('S1508 an issue re-opened after closing keeps the note on the open issue', async () => {
+    serverIssues = [{ ...OVER, reopened_po_number: 'PO-2610-0057', previous_closed_note: 'Supplier accepted the remainder' }]
+    renderQueue()
+    expect(await screen.findByText('The rest was closed: Supplier accepted the remainder')).toBeInTheDocument()
+  })
+
+  it('S1508 the Resolved tab keeps a four-digit count readable', async () => {
+    resolvedTotal = 1234
+    renderQueue()
+    expect(await screen.findByRole('tab', { name: /Resolved/ })).toHaveTextContent('1234')
   })
 
   it('C4 an issue another holder already resolved says so and the list refreshes', async () => {

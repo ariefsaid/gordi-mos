@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { StrictMode } from 'react'
 import { createMemoryRouter, Link, MemoryRouter, RouterProvider } from 'react-router-dom'
@@ -42,7 +42,6 @@ import { useAuth } from '@/auth/use-auth'
 import { canManageCafeItemSettings, listCafeItemSettings, saveCafeItemSettings } from '@/lib/db/cafe-item-settings'
 import { listCafeMissingItemReports, resolveCafeMissingItemReport } from '@/lib/db/cafe-missing-item-reports'
 import { CafeItemSettingsPage } from './cafe-item-settings-page'
-import { useCafeItemSettingsSorting } from './cafe-item-settings-sorting'
 import { isCafeItemDraftKind } from './cafe-item-settings-kind'
 
 const mockUseAuth = vi.mocked(useAuth)
@@ -85,6 +84,7 @@ afterEach(() => { restoreMedia?.(); restoreMedia = null })
 
 beforeEach(() => {
   vi.clearAllMocks()
+  localStorage.removeItem('mos.cafe.items.groupByActive')
   selectedActivity.initial = 'kitchen'
   mockUseAuth.mockReturnValue(VIEWER)
   mockCanManage.mockResolvedValue(true)
@@ -95,17 +95,6 @@ beforeEach(() => {
   mockListReports.mockResolvedValue([REPORT])
   mockResolveReport.mockResolvedValue()
   mockSaveItem.mockResolvedValue()
-})
-
-describe('Cafe item table sorting', () => {
-  it('keeps an empty sorting state stable across rerenders', () => {
-    const { result, rerender } = renderHook(() => useCafeItemSettingsSorting(undefined))
-    const initialSorting = result.current
-
-    rerender()
-
-    expect(result.current).toBe(initialSorting)
-  })
 })
 
 it('accepts only the three Café item kind select values', () => {
@@ -235,6 +224,71 @@ describe('CafeItemSettingsPage filters', () => {
   })
 })
 
+describe('CafeItemSettingsPage active grouping', () => {
+  it('groups by active status by default and persists a flat list choice after reload', async () => {
+    const preferenceKey = 'mos.cafe.items.groupByActive'
+    localStorage.removeItem(preferenceKey)
+    const item = (id: string, erpName: string, isActive: boolean, kind: 'RAW' | 'WIP') => ({
+      id, erpName, mosName: erpName, category: 'Sauce', kind, isActive, defaultUnitId: null, units: [],
+    })
+    mockListItems.mockResolvedValue([
+      item('active-1', 'Prepared sauce with roasted vegetables and herbs', true, 'WIP'),
+      item('inactive-1', 'Seasonal herb dressing with citrus', false, 'RAW'),
+      item('active-2', 'House-made vegetable stock', true, 'WIP'),
+    ])
+    const user = userEvent.setup()
+    const first = renderPage()
+    const toggle = await screen.findByRole('checkbox', { name: 'Group by active status' })
+    expect(toggle).toBeChecked()
+    await waitFor(() => {
+      expect(Array.from(first.container.querySelectorAll('.dt-cards-group-label'), node => node.textContent))
+        .toEqual(['Active', 'Not active'])
+      expect(Array.from(first.container.querySelectorAll('.dt-cards-group-count'), node => node.textContent))
+        .toEqual(['2', '1'])
+    })
+    expect(screen.getByText('Prepared sauce with roasted vegetables and herbs')).toBeInTheDocument()
+
+    await user.click(toggle)
+    await waitFor(() => {
+      expect(toggle).not.toBeChecked()
+      expect(localStorage.getItem(preferenceKey)).toBe('false')
+      expect(first.container.querySelectorAll('.dt-cards-group-label')).toHaveLength(0)
+    })
+    first.unmount()
+
+    const second = renderPage()
+    expect(await screen.findByRole('checkbox', { name: 'Group by active status' })).not.toBeChecked()
+    expect(second.container.querySelectorAll('.dt-cards-group-label')).toHaveLength(0)
+  })
+})
+
+describe('CafeItemSettingsPage kinds and table columns', () => {
+  it.each([
+    { locale: 'en' as const, kindName: 'Kind for Oat milk', raw: 'Raw material (RAW)', wip: 'Prepared item (WIP)' },
+    { locale: 'id' as const, kindName: 'Jenis untuk Oat milk', raw: 'Bahan baku (RAW)', wip: 'Item olahan (WIP)' },
+  ])('shows kind codes in the $locale dropdown', async ({ locale, kindName, raw, wip }) => {
+    const user = userEvent.setup()
+    renderPage(locale)
+    await user.click(await screen.findByRole('combobox', { name: kindName }))
+    expect(await screen.findByRole('option', { name: raw })).toBeInTheDocument()
+    expect(await screen.findByRole('option', { name: wip })).toBeInTheDocument()
+  })
+
+  it('omits extra units from the wide table while retaining item-level editing', async () => {
+    const mediaSpy = vi.spyOn(window, 'matchMedia').mockImplementation(query => ({
+      matches: query === '(min-width: 1280px)', media: query, onchange: null,
+      addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(() => true),
+    }))
+    restoreMedia = () => mediaSpy.mockRestore()
+    renderPage()
+    const table = await screen.findByRole('table')
+    expect(within(table).queryByRole('columnheader', { name: 'Extra units' })).not.toBeInTheDocument()
+    expect(within(table).queryByRole('button', { name: /Extra units for/ })).not.toBeInTheDocument()
+    expect(table.getAttribute('aria-label')).not.toMatch(/extra unit/i)
+  })
+})
+
 describe('CafeItemSettingsPage unit multiples', () => {
   it('keeps dirty edits after a failed save and retry saves the selected default and factor', async () => {
     mockListItems.mockResolvedValue([{
@@ -262,7 +316,7 @@ describe('CafeItemSettingsPage unit multiples', () => {
     await user.clear(name)
     await user.type(name, 'Oat milk for the bar')
     await user.click(screen.getByRole('combobox', { name: 'Kind for Oat milk for the bar' }))
-    await user.click(await screen.findByRole('option', { name: 'Raw material' }))
+    await user.click(await screen.findByRole('option', { name: 'Raw material (RAW)' }))
     await user.click(screen.getByRole('checkbox', { name: 'Active for Oat milk for the bar' }))
     const defaultUnit = screen.getByRole('combobox', { name: 'Default unit' })
     await user.click(defaultUnit)

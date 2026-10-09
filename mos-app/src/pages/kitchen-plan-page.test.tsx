@@ -555,8 +555,8 @@ describe('KitchenPlanPage — ops_lead editor (FR-030/031)', () => {
     expect(screen.getByText('Ayam Bakar').parentElement).toHaveTextContent('WIP - Ayam Bakar')
     fireEvent.click(screen.getByRole('combobox', { name: /kind/i }))
     const listbox = screen.getByRole('listbox', { name: /kind/i })
-    expect(within(listbox).getByRole('option', { name: 'WIP' })).toBeInTheDocument()
-    expect(within(listbox).queryByRole('option', { name: 'RAW' })).toBeNull()
+    expect(within(listbox).getByRole('option', { name: 'Prepared item (WIP)' })).toBeInTheDocument()
+    expect(within(listbox).queryByRole('option', { name: 'Raw material (RAW)' })).toBeNull()
   })
 
   it('empty: ops_lead sees an editable blank grid — unplanned reads BLANK (greyed "0" placeholder), not a hard zero', async () => {

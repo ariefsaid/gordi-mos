@@ -210,12 +210,9 @@ export function routeAdmits(path: string, accessRoles: readonly string[]): boole
  *  4. the destination carries no route gate the SOURCE path does not already carry.
  *
  * Clause 4 is a deliberate generalization of #220's wording ("no ancestor of the destination is a
- * gate"). Taken literally that rule is unsatisfiable for a retired path whose canonical
- * replacement is *itself* gated — `/dashboard` → `/money` is the live example. What actually
- * makes a hop a single hop is that the redirect adds no NEW bounce: park the retired path inside
- * the same gate as its replacement and a non-holder is turned away once, at the source, instead of
- * being forwarded to a page that turns them away again. So the check is differential. For a source
- * carrying no gates at all it collapses to #220's literal rule.
+ * gate"). A retired source and its canonical destination may share a gate; the redirect adds no
+ * new bounce when the destination introduces no gate the source does not already carry. So the
+ * check is differential. For a source carrying no gates at all it collapses to #220's literal rule.
  */
 export function expectOneHop(sourcePath: string, to: string): void {
   const dest = pathnameOf(to)
@@ -247,11 +244,7 @@ export function describeRedirectMap(configuration: string): void {
 
   describe(`AC-017 (${configuration}): every retired route reaches its replacement in one hop`, () => {
     it('the map is not empty — the enumeration itself has to be able to fail', () => {
-      // The floor dropped from 15 with the ship gate (#444): six retired paths named a surface
-      // that is now hidden (`/dashboard` → `/money`, `/objectives` → `/work/objectives`, …), and
-      // rather than forward a viewer onto a route that forwards them again they now name Home,
-      // which moves them into the `flag-fallback` bucket. They are still enumerated and still
-      // held to one hop by the cases below — only this bucket count shrank.
+      // Keep a non-vacuous floor on map redirects; feature-flag fallbacks are classified separately.
       expect(redirects.filter((r) => r.kind === 'map').length).toBeGreaterThan(10)
     })
 

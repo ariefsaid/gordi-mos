@@ -23,7 +23,7 @@ import {
  *  - `UTILITY`     — 2 entries (Admin Settings [gated admin], Personal Profile). Nav
  *    surfaces draw `navUtility()` (Admin only); Personal Profile lives in the UserChip menu.
  *
- * Work declares 5 always-expanded children, in this order — Signals · Tasks · Projects &
+ * Work declares 5 child links, in this order — Signals · Tasks · Projects &
  * Processes · Objectives · Events (OD-REDESIGN-57(ii), oracle P-13 — owner-ruled; #544) — with
  * 0 family headings (Rule 3 caps). Events is ship-gated (#348), so 4 of the 5 render today. Money is
  * anyOf-gated on REVENUE_VIEW_ROLES; Admin is anyOf-gated (admin) — absent, not
@@ -44,7 +44,7 @@ export interface Destination {
   Icon: React.FC
   /** live links under this destination; [] = destination not yet rolled in */
   links: Section[]
-  /** Always-expanded sub-links rendered beneath the entry (Work's 5; Café's 11). Undefined for a
+  /** Sub-links rendered beneath the entry (Work's 5; Café's 11). Undefined for a
    *  destination whose root IS the whole surface. */
   children?: Section[]
   /** optional access gate applied to ALL links (rail/bottom-bar hide when unsatisfied).
@@ -72,7 +72,7 @@ export const DESTINATIONS: Destination[] = [
     Icon: WorkIcon,
     primaryPath: '/work/tasks',
     links: [{ path: '/work/tasks', label: 'Tasks', labelKey: 'nav.work.tasks', Icon: TasksIcon }],
-    // Always-expanded children, 0 family headings (Rule 3). Work catalog children are
+    // Child links, 0 family headings (Rule 3). Work catalog children are
     // org-readable; their write scope is resolved by the catalog page/record surfaces.
     //
     // **This array's ORDER is the canonical nav order — the only one (#446).** The order's
@@ -367,8 +367,7 @@ export function goToDestinations(
  * The ship gate (#444) is asked FIRST and asked for everyone. It is not another role gate sitting
  * beside `anyOf` — it is above it: a gated surface is outside the MVP payload, so it is closed to
  * every viewer regardless of what they hold, and the router closes the same path from the same
- * array. Money keeps its REVENUE_VIEW_ROLES gate untouched underneath, so switch day restores the
- * owner-locked VIEW tiers (ADR-0050 D8 / ADR-0051) by deleting one line from SHIP_GATED_PATHS.
+ * array. Money is not ship-gated; its `REVENUE_VIEW_ROLES` gate controls its visibility.
  */
 export function isLive(d: Destination, accessRoles: string[]): boolean {
   const entry = d.primaryPath ?? d.links[0]?.path
@@ -386,8 +385,8 @@ export function isLive(d: Destination, accessRoles: string[]): boolean {
  */
 export function destinationForPath(pathname: string): Destination | null {
   // #444: a ship-gated path has no owning destination — the same answer an unknown path gets, and
-  // for the same reason (nothing routes there). Without this the breadcrumb would resolve
-  // `/work/projects` to the Work destination and, with `sectionForPath` already closed, print
+  // for the same reason (nothing routes there). Without this the breadcrumb could resolve
+  // `/work/events` to Work and print
   // "Work · Tasks" over a surface that is neither.
   if (isShipGated(pathname)) return null
   return destinationOwning(pathname)

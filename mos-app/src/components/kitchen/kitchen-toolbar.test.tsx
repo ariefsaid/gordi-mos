@@ -6,6 +6,7 @@
 
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
+import { I18nProvider } from '@/i18n/I18nProvider'
 import { KitchenToolbar } from './kitchen-toolbar'
 
 describe('KitchenToolbar — search-mini', () => {
@@ -48,26 +49,45 @@ describe('KitchenToolbar — search-mini', () => {
 })
 
 describe('KitchenToolbar — kind filter', () => {
-  it('renders RAW/WIP filter options and reports the chosen kind', () => {
+  it.each([
+    {
+      locale: 'en' as const,
+      all: 'All kinds',
+      wip: 'Prepared item (WIP)',
+      raw: 'Raw material (RAW)',
+      notSet: 'Not set',
+    },
+    {
+      locale: 'id' as const,
+      all: 'Semua jenis',
+      wip: 'Item olahan (WIP)',
+      raw: 'Bahan baku (RAW)',
+      notSet: 'Belum diatur',
+    },
+  ])('uses localized kind names in $locale without changing the filter values', ({ locale, all, wip, raw, notSet }) => {
     const onKindChange = vi.fn()
     render(
-      <KitchenToolbar
-        search=""
-        onSearchChange={() => {}}
-        kinds={['All', 'WIP', 'RAW', 'Unclassified']}
-        kind="All"
-        kindId="cafe-log-kind"
-        onKindChange={onKindChange}
-      />,
+      <I18nProvider initialLocale={locale}>
+        <KitchenToolbar
+          search=""
+          onSearchChange={() => {}}
+          kinds={['All', 'WIP', 'RAW', 'Unclassified']}
+          kind="All"
+          kindId="cafe-log-kind"
+          onKindChange={onKindChange}
+        />
+      </I18nProvider>,
     )
-    const select = screen.getByRole('combobox', { name: /kind/i })
+    const kindAriaLabel = locale === 'id' ? 'Jenis item' : 'Item kind'
+    const select = screen.getByRole('combobox', { name: kindAriaLabel })
     expect(select).toHaveAttribute('id', 'cafe-log-kind')
     fireEvent.click(select)
-    const listbox = screen.getByRole('listbox', { name: /kind/i })
-    expect(listbox).toContainElement(screen.getByRole('option', { name: 'WIP' }))
-    expect(listbox).toContainElement(screen.getByRole('option', { name: 'RAW' }))
-    expect(listbox).toContainElement(screen.getByRole('option', { name: 'Not set' }))
-    fireEvent.click(screen.getByRole('option', { name: 'RAW' }))
+    const listbox = screen.getByRole('listbox', { name: kindAriaLabel })
+    expect(listbox).toContainElement(screen.getByRole('option', { name: all }))
+    expect(listbox).toContainElement(screen.getByRole('option', { name: wip }))
+    expect(listbox).toContainElement(screen.getByRole('option', { name: raw }))
+    expect(listbox).toContainElement(screen.getByRole('option', { name: notSet }))
+    fireEvent.click(screen.getByRole('option', { name: raw }))
     expect(onKindChange).toHaveBeenCalledWith('RAW')
   })
 })

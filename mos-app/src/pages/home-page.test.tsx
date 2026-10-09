@@ -86,11 +86,13 @@ const mockLoadFailedChecks = vi.mocked(loadFailedChecksForViewer)
 vi.mock('../lib/db/signals', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/db/signals')>()),
   listReadableSignals: vi.fn(),
+  countReadableSignals: vi.fn(),
   listAllTeams: vi.fn(),
 }))
-import { listReadableSignals, listAllTeams } from '@/lib/db/signals'
+import { listReadableSignals, countReadableSignals, listAllTeams } from '@/lib/db/signals'
 import type { SignalRow } from '@/lib/db/signals.types'
 const mockListSignals = vi.mocked(listReadableSignals)
+const mockCountSignals = vi.mocked(countReadableSignals)
 const mockListAllTeams = vi.mocked(listAllTeams)
 
 vi.mock('../shell/signal-composer-host', () => ({
@@ -254,6 +256,7 @@ beforeEach(() => {
   mockListNotifications.mockResolvedValue({ rows: [], hasMore: false, nextCursor: null })
   mockLoadFailedChecks.mockResolvedValue([])
   mockListSignals.mockResolvedValue([])
+  mockCountSignals.mockResolvedValue(0)
   mockListAllTeams.mockResolvedValue([])
   openingSwitch.on = true
   mockLoadHomeCafeDoor.mockResolvedValue(null)
@@ -1043,17 +1046,22 @@ describe('R5 independent Home regions', () => {
 
 
 describe('Home Signals — ambient archive door', () => {
-  it('keeps the archive door as the only continuation and does not load another page', async () => {
-    const first = Array.from({ length: 50 }, (_, index) => signalRow({ id: `paged-${index}`, body: `Home signal ${index}` }))
+  it('uses the exact archive count for its remainder without loading another page', async () => {
+    const first = Array.from({ length: 50 }, (_, index) => signalRow({
+      id: `paged-${index}`,
+      body: `Home signal ${index}`,
+    }))
     mockListSignals.mockResolvedValueOnce(first)
+    mockCountSignals.mockResolvedValueOnce(73)
     await renderHome()
     await screen.findByText('Home signal 0')
 
     const signals = screen.getByRole('region', { name: 'Signals · 6' })
-    const archiveDoor = within(signals).getByRole('link', { name: 'See 44 more →' })
+    const archiveDoor = await within(signals).findByRole('link', { name: 'See 67 more →' })
     expect(archiveDoor).toHaveAttribute('href', '/work/signals')
     expect(within(signals).queryByRole('button', { name: /Load more/ })).not.toBeInTheDocument()
     expect(mockListSignals).toHaveBeenCalledTimes(1)
+    expect(mockCountSignals).toHaveBeenCalledTimes(1)
   })
 })
 

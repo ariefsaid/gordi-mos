@@ -31,7 +31,6 @@ import {
   type KitchenListRow,
 } from '@/lib/kitchen-item-list'
 import { isCafeItemDraftKind, type CafeItemDraftKind } from './cafe-item-settings-kind'
-import { useCafeItemSettingsSorting } from './cafe-item-settings-sorting'
 import { streamKey, streamLabel } from '@/lib/kitchen-action-label'
 import {
   canManageCafeItemSettings,
@@ -62,6 +61,15 @@ type EditPermission = 'checking' | 'allowed' | 'read-only' | 'error'
 
 type SaveState = { kind: 'saved' } | { kind: 'error'; message: string } | null
 type CafeItemListRow = KitchenListRow<CafeItemSetting>
+const GROUP_BY_ACTIVE_STORAGE_KEY = 'mos.cafe.items.groupByActive'
+
+function readGroupByActive(): boolean {
+  try {
+    return localStorage.getItem(GROUP_BY_ACTIVE_STORAGE_KEY) !== 'false'
+  } catch {
+    return true
+  }
+}
 type ItemEditorProps = {
   item: CafeItemListRow
   draft: ItemDraft
@@ -160,6 +168,7 @@ function CafeItemSettingsPageForViewer() {
   const [kindFilter, setKindFilter] = useState<KitchenItemKindFilter>('All')
   const [activeFilter, setActiveFilter] = useState<KitchenItemActiveFilter>('All')
   const [needsUnitFilter, setNeedsUnitFilter] = useState<KitchenItemNeedsUnitFilter>('All')
+  const [groupByActive, setGroupByActive] = useState(readGroupByActive)
   const [listSort, setListSort] = useState<DataTableSort>()
   // The editor table needs the wide operating layout, as on the other Café pages; narrower widths
   // get one card per item.
@@ -179,6 +188,13 @@ function CafeItemSettingsPageForViewer() {
 
   useEffect(() => { itemsRef.current = items }, [items])
   useEffect(() => { draftsRef.current = drafts }, [drafts])
+  useEffect(() => {
+    try {
+      localStorage.setItem(GROUP_BY_ACTIVE_STORAGE_KEY, String(groupByActive))
+    } catch {
+      // Storage may be disabled; grouping still works for this visit.
+    }
+  }, [groupByActive])
 
   // One CafeStream bootstrap preserves the module's stream choice and location rules.
   useEffect(() => {
@@ -426,11 +442,13 @@ function CafeItemSettingsPageForViewer() {
     getKind: item => item.kind ?? 'Unclassified',
     getName: item => `${item.erpName} ${drafts[item.id]?.mosName ?? item.mosName}`,
     getCategory: item => item.category,
-    getGroupKey: () => 'all',
+    getGroupKey: item => groupByActive ? item.isActive ? 'active' : 'inactive' : 'all',
     getActive: item => item.isActive,
     getNeedsUnit: needsUnit,
-  }), [drafts, items])
-  const listSorting = useCafeItemSettingsSorting(listSort)
+  }), [drafts, groupByActive, items])
+  const listSorting = useMemo(() => listSort
+    ? [{ id: listSort.key, desc: listSort.dir === 'desc' }]
+    : [], [listSort])
   const itemTable = useKitchenItemTable({
     data: listRows,
     search,
@@ -440,7 +458,11 @@ function CafeItemSettingsPageForViewer() {
     needsUnit: needsUnitFilter,
     sorting: listSorting,
   })
-  const listGroups = readState === 'loading' ? [] : kitchenDataTableGroups(itemTable, () => null)
+  const listGroups = readState === 'loading' ? [] : kitchenDataTableGroups(itemTable, groupKey => {
+    if (groupKey === 'active') return t('cafe.items.group.active')
+    if (groupKey === 'inactive') return t('cafe.items.group.inactive')
+    return null
+  }).sort((left, right) => left.key.localeCompare(right.key))
   const visibleItems = listGroups.flatMap(group => group.rows)
   const editorFor = (item: CafeItemListRow): ItemEditorProps => ({
     item,
@@ -479,11 +501,6 @@ function CafeItemSettingsPageForViewer() {
       key: 'defaultUnit',
       header: t('cafe.items.defaultUnit'),
       render: item => <ItemDefaultUnitEditor {...editorFor(item)} />,
-    },
-    {
-      key: 'unitMultiples',
-      header: t('cafe.items.unitMultiples'),
-      render: item => <ItemMultiplesEditor {...editorFor(item)} />,
     },
     ...(canEdit ? [{
       key: 'actions',
@@ -624,6 +641,16 @@ function CafeItemSettingsPageForViewer() {
             needsUnit={needsUnitFilter}
             onNeedsUnitChange={setNeedsUnitFilter}
             needsUnitId="cafe-items-unit-filter"
+            trailing={(
+              <label className="cafe-items__group-toggle">
+                <Checkbox
+                  id="cafe-items-group-by-active"
+                  checked={groupByActive}
+                  onChange={setGroupByActive}
+                />
+                <span>{t('cafe.items.groupByActive')}</span>
+              </label>
+            )}
           />
           <div className="record-collection-view cafe-items__collection">
             <DataTable

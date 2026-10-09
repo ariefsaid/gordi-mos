@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import { useCollectionKeyboard } from './use-collection-keyboard'
 
@@ -9,12 +9,14 @@ function fireKey(key: string, target: EventTarget = window) {
 }
 
 describe('useCollectionKeyboard — shared collection j/k cursor (AC-109, GAP-9)', () => {
-  let onOpen: ReturnType<typeof vi.fn>
-  let onClose: ReturnType<typeof vi.fn>
-  let onNew: ReturnType<typeof vi.fn>
+  let onOpen: Mock<(index: number) => void>
+  let onClose: Mock<() => void>
+  let onNew: Mock<() => void>
 
   beforeEach(() => {
-    onOpen = vi.fn(); onClose = vi.fn(); onNew = vi.fn()
+    onOpen = vi.fn<(index: number) => void>()
+    onClose = vi.fn<() => void>()
+    onNew = vi.fn<() => void>()
     // Reset focus to the body between tests so single-key suppression is off.
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
   })

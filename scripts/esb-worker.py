@@ -1557,6 +1557,7 @@ def refresh_open_pos(rcfg: RefreshConfig, scope: str, *, out, today: str | None 
 
 GR_STAGE_SENT = "create_sent"
 GR_STAGE_AWAITING = "awaiting_authorization"
+GR_STAGE_OPERATOR_CONFIRMED = "operator_confirmed"
 
 
 @dataclass(frozen=True)
@@ -1832,9 +1833,16 @@ def _run_goods_receipt_group(cfg: Config, client: ErpClient, outbox: Outbox | No
     # Whether ESB may hold a goods receipt for this group, from any attempt: only a refusal
     # made while this is false may free the group's portions.
     sent = {"may_exist": bool(number or stage)}
+    operator_confirmed = stage == GR_STAGE_OPERATOR_CONFIRMED
     try:
-        units = goods_receipt_units(cfg, rows, db=outbox is not None)
-        req = compose_goods_receipt(cfg, rows, units)
+        if operator_confirmed:
+            if not number:
+                raise Permanent("operator-confirmed goods receipt has no ESB number")
+            units = {}
+            req = None
+        else:
+            units = goods_receipt_units(cfg, rows, db=outbox is not None)
+            req = compose_goods_receipt(cfg, rows, units)
     except Permanent as exc:
         print(f"{ref}: {'REFUSED' if plan_only else 'group failed'} — {exc}", file=out)
         if not plan_only and outbox is not None:
@@ -1847,6 +1855,9 @@ def _run_goods_receipt_group(cfg: Config, client: ErpClient, outbox: Outbox | No
         print(f"{ref}: not attempted — {exc}", file=out)
         return len(rows)
     if plan_only:
+        if operator_confirmed:
+            print(f"{ref}: ADOPT recorded ESB goods receipt {number}", file=out)
+            return 0
         po = urllib.parse.quote(str(head.get("po_number")), safe="")
         print(f"{ref}: GET {cfg.po_shape.outstanding_path.format(number=po)}", file=out)
         print(f"{ref}: POST {req.path} {json.dumps(req.body, sort_keys=True)}", file=out)
@@ -1864,7 +1875,9 @@ def _run_goods_receipt_group(cfg: Config, client: ErpClient, outbox: Outbox | No
         return 0
     po = str(head.get("po_number"))
     try:
-        if stage == GR_STAGE_AWAITING:
+        if operator_confirmed:
+            pass
+        elif stage == GR_STAGE_AWAITING:
             # The last authorize's answer may have been lost: ESB says whether it landed.
             found = lookup_goods_receipt(client, cfg.gr_shape, ref, po)
             if found is None or found[0] != number:

@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
 import { DESTINATIONS, navUtility, isLive, modulesByBU, moduleChildrenForViewer, destinationForPath, type Destination } from './destinations'
 import { sectionHasPrefixChild, visibleSections, type Section } from './sections'
@@ -38,6 +39,14 @@ function badgeLabelKeyFor(path: string): MessageKey | undefined {
 function sectionActive(pathname: string, d: Destination): boolean {
   const root = `/${(d.primaryPath ?? d.links[0].path).split('/')[1]}`
   return pathname === root || pathname.startsWith(`${root}/`)
+}
+
+const closedGroupsKey = 'mos.nav.closedGroups'
+function readClosedGroups(): string[] {
+  try {
+    const stored: unknown = JSON.parse(window.localStorage.getItem(closedGroupsKey) ?? '[]')
+    return Array.isArray(stored) ? stored.filter((id): id is string => typeof id === 'string') : []
+  } catch { return [] }
 }
 
 type RailNavProps = {
@@ -89,7 +98,7 @@ const itemBase = (isActive: boolean, compact = false, rung: 'dest' | 'child' = '
 // (unread count) below — and follow the EXACT WorkChild pattern (DO-18(d)): the accessible NAME
 // is built on the link itself by joining the already-localized label + badge sentence, so AT
 // never concatenates the two with no separator (the "Tugas12" run-together defect this guards).
-function DestLink({ d, onNavigate, compact = false, badge, badgeLabelKey, parentOfChildren = false, showChevron = false, ownsPath }: { d: Destination; onNavigate?: () => void; compact?: boolean; badge?: number; badgeLabelKey?: MessageKey; parentOfChildren?: boolean; showChevron?: boolean; ownsPath?: boolean }) {
+function DestLink({ d, onNavigate, compact = false, badge, badgeLabelKey, parentOfChildren = false, ownsPath }: { d: Destination; onNavigate?: () => void; compact?: boolean; badge?: number; badgeLabelKey?: MessageKey; parentOfChildren?: boolean; ownsPath?: boolean }) {
   const t = useT()
   const to = d.primaryPath ?? d.links[0].path
   const label = t(d.labelKey)
@@ -142,7 +151,6 @@ function DestLink({ d, onNavigate, compact = false, badge, badgeLabelKey, parent
             <d.Icon />
           </span>
           {!compact && <span>{label}</span>}
-          {showChevron && !compact && <Chevron className="rail-module-chevron" />}
           <RailCountBadge count={badge} label={badgeLabel} compact={compact} />
         </>
       )}
@@ -191,7 +199,7 @@ export function RailCountBadge({ count, label, compact = false }: { count?: numb
   )
 }
 
-// A Work child (always expanded). Default aria-current="page" when active.
+// A Work child. Default aria-current="page" when active.
 function WorkChild({ section, onNavigate, badge, badgeLabelKey, compact = false, end = false }: { section: Section; onNavigate?: () => void; badge?: number; badgeLabelKey?: MessageKey; compact?: boolean; end?: boolean }) {
   const t = useT()
   const label = section.labelKey ? t(section.labelKey) : section.label
@@ -240,6 +248,23 @@ function WorkChild({ section, onNavigate, badge, badgeLabelKey, compact = false,
 export function RailNav({ onNavigate, openTasks, compact = false }: RailNavProps) {
   const auth = useAuth()
   const t = useT()
+  const [closedGroups, setClosedGroups] = useState(readClosedGroups)
+  useEffect(() => {
+    try { window.localStorage.setItem(closedGroupsKey, JSON.stringify(closedGroups)) } catch { return }
+  }, [closedGroups])
+  const toggleGroup = (id: string) => setClosedGroups((groups) => groups.includes(id) ? groups.filter((group) => group !== id) : [...groups, id])
+  const disclosure = (id: string, label: string, expanded: boolean) => (
+    <button
+      type="button"
+      aria-expanded={expanded}
+      aria-controls={`rail-children-${id}`}
+      aria-label={t(expanded ? 'rail.group.hidePages' : 'rail.group.showPages', { group: label })}
+      className="tap-target-phone tap-target-phone--icon rail-group-toggle absolute right-0 top-0 flex h-9 w-9 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent"
+      onClick={() => toggleGroup(id)}
+    >
+      <Chevron className={`rail-module-chevron${expanded ? ' rail-module-chevron--open' : ''}`} />
+    </button>
+  )
   // #225: the Work parent link used to target the BARE `/work` — a route-table redirect entry
   // (path: 'work' → RouteRedirect to /work/tasks), not a screen. `to="/work"` bought NavLink's
   // free prefix-match ("active on every /work/* descendant") at the cost of routing every direct
@@ -291,13 +316,9 @@ export function RailNav({ onNavigate, openTasks, compact = false }: RailNavProps
               const children = visibleSections(d.children, accessRoles)
               const workLabel = t(d.labelKey)
               const workActive = sectionActive(pathname, d)
+              const expanded = !closedGroups.includes(d.id)
               return (
-                <div key={d.id}>
-                  {/* Plain Link, not NavLink: NavLink only emits `aria-current` when ITS OWN
-                      `to`-based match is active, which is exactly the coupling we're breaking —
-                      `to` now names the real destination, not a /work* prefix, so `workActive`
-                      (matching the FULL /work section, computed above) has to drive aria-current
-                      by hand instead of riding NavLink's internal match. */}
+                <div key={d.id} className="relative">
                   <Link
                     to={d.primaryPath ?? d.links[0].path}
                     aria-current={workActive ? 'location' : undefined}
@@ -311,12 +332,8 @@ export function RailNav({ onNavigate, openTasks, compact = false }: RailNavProps
                     </span>
                     {!compact && <span>{workLabel}</span>}
                   </Link>
-                  {/* Always-expanded children in the ONE declared order (destinations.tsx) and
-                      nothing else: DD-WAY-33 (#439) deleted the sub-section eyebrows, so this is
-                      one clean indented list with the ladder's tokenized indent. Each
-                      child stays one reachable link; a gated or ship-gated child is already absent
-                      from `children` by the time it gets here. */}
-                  <div className={compact ? 'flex flex-col gap-[2px] rail-item-list' : 'flex flex-col gap-[2px] rail-item-list rail-item-children'}>
+                  {!compact && children.length > 0 && disclosure(d.id, workLabel, expanded)}
+                  <div id={`rail-children-${d.id}`} hidden={!compact && !expanded} className={compact ? 'flex flex-col gap-[2px] rail-item-list' : 'flex flex-col gap-[2px] rail-item-list rail-item-children'}>
                     {children.map((c) => (
                       <WorkChild key={c.path} section={c} onNavigate={onNavigate} badge={badgeCountFor(c.path, openTasks)} badgeLabelKey={badgeLabelKeyFor(c.path)} compact={compact} end={sectionHasPrefixChild(c, children)} />
                     ))}
@@ -343,18 +360,20 @@ export function RailNav({ onNavigate, openTasks, compact = false }: RailNavProps
             {!compact && <RailGroupLabel>{t(g.bu)}</RailGroupLabel>}
             <div className="flex flex-col gap-[2px] rail-item-list">
               {g.items.map((m) => {
-                // A module with children renders them the same way Work does — an always-expanded
+                // A module with children renders them the same way Work does — a collapsible
                 // indented list on the ladder's child rung, with the same tokenized indent.
                 // Café is the module that has them; the rest fall through to a single
                 // link exactly as before. Without this the module's `children` are dead data and
                 // its screens have no nav entry at all.
                 const kids = compact ? [] : moduleChildrenForViewer(m, pathname, viewer?.affiliated ?? [], accessRoles)
-                const hasChildren = m.children != null && m.children.length > 0
+                const expanded = !closedGroups.includes(m.id)
+                const moduleActive = sectionActive(pathname, m)
                 return (
-                  <div key={m.id}>
-                    <DestLink d={m} onNavigate={onNavigate} compact={compact} parentOfChildren={kids.length > 0} showChevron={hasChildren} />
+                  <div key={m.id} className="relative">
+                    <DestLink d={m} onNavigate={onNavigate} compact={compact} parentOfChildren={kids.length > 0 && moduleActive} />
+                    {!compact && kids.length > 0 && disclosure(m.id, t(m.labelKey), expanded)}
                     {kids.length > 0 && (
-                      <div className={compact ? 'flex flex-col gap-[2px] rail-item-list' : 'flex flex-col gap-[2px] rail-item-list rail-item-children'}>
+                      <div id={`rail-children-${m.id}`} hidden={!expanded} className={compact ? 'flex flex-col gap-[2px] rail-item-list' : 'flex flex-col gap-[2px] rail-item-list rail-item-children'}>
                         {kids.map((c) => (
                           <WorkChild key={c.path} section={c} onNavigate={onNavigate} compact={compact} end={sectionHasPrefixChild(c, kids)} />
                         ))}

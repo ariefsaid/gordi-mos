@@ -11,7 +11,6 @@ import { assertLocalFixtureDatabase, pendingBillsFixtureCleanupSql } from './fix
 import { localSql } from './helpers/local-sql'
 import { localSqlRead } from './helpers/local-sql-read'
 import { loginAs } from './helpers/login'
-import { isShipGated } from './helpers/ship-gate'
 
 const ORG = '10000000-0000-0000-0000-000000000001'
 const FINANCE = { email: 'fitri.dev@example.test', password: VIEWER.password }
@@ -260,7 +259,6 @@ async function assertRecordedPayments(cashInDate: string): Promise<void> {
 }
 
 test.describe('AC-1141: Finance records one payment for two pending bills', () => {
-  test.skip(isShipGated('/money/pending-bills'), 'ship-gated surface — no route')
 
   test.beforeEach(async ({ page }) => {
     assertLocalFixtureDatabase(SUPABASE_URL)

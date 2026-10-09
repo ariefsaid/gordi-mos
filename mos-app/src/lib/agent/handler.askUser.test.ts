@@ -46,7 +46,7 @@ function askUserToolCallResponse(): ModelResponse {
   }
 }
 
-function makeDeps(create: ReturnType<typeof vi.fn>): HandlerDeps {
+function makeDeps(create: HandlerDeps['modelClient']['create']): HandlerDeps {
   const tableOps = () => ({
     select: () => ({ eq: () => ({ limit: async () => ({ data: [], error: null }) }), limit: async () => ({ data: [], error: null }) }),
     insert: () => ({ select: () => ({ single: async () => ({ data: { id: 'x' }, error: null }) }) }),

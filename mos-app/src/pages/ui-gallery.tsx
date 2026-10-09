@@ -18,6 +18,10 @@ import { Pill } from '@/components/ui/pill'
  */
 export function UiGallery() {
   const [dark, setDark] = useState(false)
+  const [agree, setAgree] = useState(false)
+  const [some, setSome] = useState<boolean | 'mixed'>('mixed')
+  const [done, setDone] = useState(true)
+  const [small, setSmall] = useState(false)
   return (
     <div className={dark ? 'dark' : ''} style={{ minHeight: '100vh', background: 'var(--surface-primary)', color: 'var(--text-primary)', padding: 32, fontFamily: 'var(--font-sans)' }}>
       <header style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
@@ -86,10 +90,10 @@ export function UiGallery() {
       </Section>
 
       <Section title="Checkbox + Toggle (new)">
-        <Checkbox aria-label="Agree" />{' '}
-        <Checkbox indeterminate aria-label="Some" />{' '}
-        <Checkbox checked aria-label="Done" />{' '}
-        <Checkbox size="small" aria-label="Small" />
+        <Checkbox checked={agree} onChange={setAgree} aria-label="Agree" />{' '}
+        <Checkbox checked={some === true} indeterminate={some === 'mixed'} onChange={setSome} aria-label="Some" />{' '}
+        <Checkbox checked={done} onChange={setDone} aria-label="Done" />{' '}
+        <Checkbox checked={small} onChange={setSmall} size="small" aria-label="Small" />
         <div style={{ marginTop: 8, display: 'flex', gap: 16, alignItems: 'center' }}>
           <Toggle aria-label="T1" />{' '}
           <Toggle value aria-label="T2" />{' '}
