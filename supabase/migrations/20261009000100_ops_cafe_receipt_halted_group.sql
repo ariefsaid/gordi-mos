@@ -46,14 +46,11 @@ create policy cafe_receipt_posting_resolutions_select_receipt_readers
     org_id = (select shared.current_org_id())
     and exists (select 1 from ops.cafe_receipts r
                  where r.org_id = cafe_receipt_posting_resolutions.org_id
-                   and r.id = cafe_receipt_posting_resolutions.receipt_id
-                   and ((r.status = 'Approved' and (select ops.can_manage_cafe_receipt_issues()))
-                        or r.received_by = (select shared.current_person_id())
-                        or ops.can_review_stream(r.branch_id, r.activity)))
+                   and r.id = cafe_receipt_posting_resolutions.receipt_id)
   );
 comment on policy cafe_receipt_posting_resolutions_select_receipt_readers
   on ops.cafe_receipt_posting_resolutions is
-  'A receipt receiver, stream reviewer or procurement holder reads the resolution record with the receipt; writes are only through the procurement RPC.';
+  'Resolution visibility follows the receipt row''s read policy; writes are only through the procurement RPC.';
 
 -- Record-history wiring follows the same visibility as the audited source row.
 create or replace function shared._history_reader_ops_cafe_receipt_posting_resolutions(

@@ -92,7 +92,7 @@ select set_eq(
             ('item_units'), ('stream_completeness'), ('stream_items'),
             ('cafe_item_settings'), ('cafe_item_setting_units'), ('cafe_count_lines'),
             ('cafe_receipts'), ('cafe_receipt_lines'), ('cafe_receipt_portions'), ('cafe_receipt_issues'),
-            ('cafe_receipt_issue_access') $$,
+            ('cafe_receipt_issue_access'), ('cafe_receipt_posting_resolutions') $$,
   'exactly the registered Café tables carry the one history trigger, and no other ops table does');
 
 -- The affiliation gate (20260905000001) requires a current stream-Team membership (or the
