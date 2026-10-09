@@ -3,9 +3,11 @@
 // failure, and with the crash screen when it is anything else.
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
-import { createMemoryRouter, RouterProvider } from 'react-router-dom'
+import { Suspense, type ComponentType } from 'react'
+import { createMemoryRouter, Outlet, RouterProvider } from 'react-router-dom'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { RouteErrorBoundary } from './RouteErrorBoundary'
+import { lazyPage } from '@/lib/lazy-page'
 
 function renderWithLoader(loader: () => Promise<unknown>) {
   const router = createMemoryRouter(
@@ -19,7 +21,30 @@ function renderWithLoader(loader: () => Promise<unknown>) {
   )
 }
 
-afterEach(() => vi.restoreAllMocks())
+afterEach(() => {
+  vi.restoreAllMocks()
+  vi.unstubAllGlobals()
+})
+
+function renderWithLazyPage(loader: () => Promise<{ default: ComponentType }>) {
+  const LazyPage = lazyPage(loader)
+  const router = createMemoryRouter(
+    [{
+      element: <Outlet />,
+      errorElement: <RouteErrorBoundary />,
+      children: [{
+        path: '/',
+        element: <Suspense fallback={<div>loading</div>}><LazyPage /></Suspense>,
+      }],
+    }],
+    { initialEntries: ['/'] },
+  )
+  return render(
+    <I18nProvider>
+      <RouterProvider router={router} />
+    </I18nProvider>,
+  )
+}
 
 describe('RouteErrorBoundary', () => {
   it('answers a transport failure with the network state and re-issues the read on Retry', async () => {
@@ -37,6 +62,23 @@ describe('RouteErrorBoundary', () => {
 
     await waitFor(() => expect(screen.getByText('page')).toBeInTheDocument())
     expect(loader).toHaveBeenCalledTimes(2)
+  })
+
+  it('reloads the current document when Retry follows a failed lazy page download', async () => {
+    const loader = vi.fn<() => Promise<{ default: ComponentType }>>(() =>
+      Promise.reject(new TypeError('Failed to fetch dynamically imported module: /assets/RecoveryPage.js')),
+    )
+    renderWithLazyPage(loader)
+
+    await screen.findByText('Couldn’t reach the server')
+    const importsBeforeRetry = loader.mock.calls.length
+    const reload = vi.fn()
+    vi.stubGlobal('location', { ...window.location, reload })
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    expect(reload).toHaveBeenCalledOnce()
+    expect(loader).toHaveBeenCalledTimes(importsBeforeRetry)
+    expect(screen.getByRole('alert')).toHaveTextContent('Couldn’t reach the server')
   })
 
   it('answers anything else with the crash screen', async () => {
