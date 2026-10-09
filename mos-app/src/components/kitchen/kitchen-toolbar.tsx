@@ -139,7 +139,11 @@ export function KitchenToolbar({
                 <option key={value} value={value}>
                   {value === 'All'
                     ? t('kitchen.filter.kind.all')
-                    : value === 'Unclassified' ? t('kitchen.filter.kind.notSet') : value}
+                    : value === 'Unclassified'
+                      ? t('kitchen.filter.kind.notSet')
+                      : value === 'RAW'
+                        ? t('cafe.items.kindRaw')
+                        : value === 'WIP' ? t('cafe.items.kindWip') : value}
                 </option>
               ))}
             </Select>
