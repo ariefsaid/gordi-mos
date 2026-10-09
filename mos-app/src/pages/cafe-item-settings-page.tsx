@@ -31,7 +31,6 @@ import {
   type KitchenListRow,
 } from '@/lib/kitchen-item-list'
 import { isCafeItemDraftKind, type CafeItemDraftKind } from './cafe-item-settings-kind'
-import { useCafeItemSettingsSorting } from './cafe-item-settings-sorting'
 import { streamKey, streamLabel } from '@/lib/kitchen-action-label'
 import {
   canManageCafeItemSettings,
@@ -447,7 +446,9 @@ function CafeItemSettingsPageForViewer() {
     getActive: item => item.isActive,
     getNeedsUnit: needsUnit,
   }), [drafts, groupByActive, items])
-  const listSorting = useCafeItemSettingsSorting(listSort)
+  const listSorting = useMemo(() => listSort
+    ? [{ id: listSort.key, desc: listSort.dir === 'desc' }]
+    : [], [listSort])
   const itemTable = useKitchenItemTable({
     data: listRows,
     search,
