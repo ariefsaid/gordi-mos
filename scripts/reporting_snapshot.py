@@ -283,8 +283,9 @@ def normalize_margin_row(
 
     cogs_interim_sm = float(cogs_interim_sm_raw) if cogs_interim_sm_raw is not None else None
     cogs_budget_bom = float(cogs_budget_bom_raw) if cogs_budget_bom_raw is not None else None
-    # Warehouse fact_daily_cogs_interim expresses coverage in percentage points.
     bom_coverage_pct = float(bom_coverage_pct_raw) / 100 if bom_coverage_pct_raw is not None else None
+    if bom_coverage_pct is not None and not 0 <= bom_coverage_pct <= 10:
+        raise ValueError("bom_coverage_pct ratio must be between 0 and 10")
 
     if cogs_interim_sm is None:
         # AC-SN06: a sync gap (NULL COGS) yields NULL margin, never a fake margin.

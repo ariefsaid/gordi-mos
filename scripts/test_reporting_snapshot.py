@@ -181,7 +181,7 @@ class MarginSnapshotTests(unittest.TestCase):
         self.assertEqual(normalized["bom_coverage_pct"], 0.95)
 
     def test_normalize_margin_row_converts_warehouse_percentage_points_to_ratio(self):
-        for source_pct, expected_ratio in (("90", 0.9), ("112.5", 1.125)):
+        for source_pct, expected_ratio in (("90", 0.9), ("112.5", 1.125), ("200", 2.0)):
             with self.subTest(source_pct=source_pct):
                 row = {
                     "margin_date": "2026-07-01",
@@ -202,6 +202,25 @@ class MarginSnapshotTests(unittest.TestCase):
                 )
 
                 self.assertEqual(normalized["bom_coverage_pct"], expected_ratio)
+
+    def test_normalize_margin_row_rejects_coverage_outside_ratio_range(self):
+        for source_pct in ("-0.1", "1000.1"):
+            with self.subTest(source_pct=source_pct):
+                row = {
+                    "margin_date": "2026-07-01",
+                    "esb_code": "GKI",
+                    "branch_code": "BGR",
+                    "revenue": "1250000",
+                    "bom_coverage_pct": source_pct,
+                }
+
+                with self.assertRaisesRegex(ValueError, "ratio must be between 0 and 10"):
+                    normalize_margin_row(
+                        row,
+                        snapshot_as_of="2026-07-01T04:00:00+07:00",
+                        org_id="00000000-0000-0000-0000-0000000000a1",
+                        source_contract_version=DEFAULT_MARGIN_SOURCE_CONTRACT_VERSION,
+                    )
 
     def test_normalize_margin_row_pct_is_none_when_revenue_not_positive(self):
         """AC-HK02: Given revenue is 0, when pct is computed, then pct is None (not NaN)."""
