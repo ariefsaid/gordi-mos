@@ -271,6 +271,10 @@ function StreamSwitchMenu({ id, options, homeStream, myStreamKeys, locationBranc
           aria-controls={open ? `${id}-listbox` : undefined}
           className="cafe-stream__switch"
           disabled={disabled || entries.length === 0}
+          onPointerDown={(event) => {
+            event.preventDefault()
+            event.currentTarget.focus()
+          }}
           onKeyDown={(event) => {
             if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
               event.preventDefault()
