@@ -12,10 +12,13 @@ import { AuthContext } from './auth/context'
 import type { AuthState } from './auth/context'
 import { I18nProvider } from './i18n/I18nProvider'
 import { PAGE_FAMILY_CONTRACTS } from './shell/page-families'
+import { PAGE_FAMILY_FRAME_ROUTES } from './shell/page-family-migration'
 
 // ── DB mocks (all pending/empty → pages still mount their <PageHead> synchronously) ──
 vi.mock('./lib/db/tasks', () => ({
   listTasks: vi.fn(() => new Promise(() => {})),
+  hasOlderDoneTasks: vi.fn(() => new Promise(() => {})),
+  listOlderDoneTasks: vi.fn(),
   getTaskTitlesByIds: vi.fn(() => Promise.resolve([])),
 }))
 vi.mock('./lib/db/directory', () => ({
@@ -197,25 +200,25 @@ describe('RI-IA-1: every main route renders the shared PageHead (no bespoke *-pa
 })
 
 const sharedPageHeadRoutes = [
-  ['Home', 'pages/home-page.tsx', 'workspace'],
-  ['Tasks', 'components/tasks/tasks-workspace.tsx', 'workspace'],
-  ['Signals', 'pages/signals-archive-page.tsx', 'workspace'],
-  ['Projects & Processes', 'pages/projects-processes-page.tsx', 'management'],
-  ['Objectives', 'pages/objectives-page.tsx', 'management'],
-  ['Inbox', 'pages/inbox-page.tsx', 'workspace'],
-  ['Events', 'pages/events-workspace-page.tsx', 'workspace'],
-  ['Money', 'pages/money-page.tsx', 'workspace'],
-  ['Money branch', 'pages/money-branch-page.tsx', 'workspace'],
-  ['Money budget', 'pages/budget-page.tsx', 'workspace'],
-  ['Money pricing', 'pages/pricing-page.tsx', 'workspace'],
-  ['Money follow-ups', 'pages/follow-ups-page.tsx', 'workspace'],
-  ['Admin people', 'pages/admin-users-page.tsx', 'management'],
-  ['Admin teams', 'pages/admin-teams-page.tsx', 'management'],
-  ['Admin access', 'pages/admin-access-page.tsx', 'management'],
-  ['Admin agent connections', 'pages/admin-agent-connections-page.tsx', 'management'],
-  ['Profile', 'pages/profile-page.tsx', 'management'],
-  ['Profile connected agents', 'pages/profile-connected-agents-page.tsx', 'management'],
-  ['Developer views', 'pages/dev-views-page.tsx', 'management'],
+  ['/', 'pages/home-page.tsx', 'workspace'],
+  ['/work/tasks', 'components/tasks/tasks-workspace.tsx', 'workspace'],
+  ['/work/signals', 'pages/signals-archive-page.tsx', 'workspace'],
+  ['/work/projects', 'pages/projects-processes-page.tsx', 'management'],
+  ['/work/objectives', 'pages/objectives-page.tsx', 'management'],
+  ['/inbox', 'pages/inbox-page.tsx', 'workspace'],
+  ['/work/events', 'pages/events-workspace-page.tsx', 'workspace'],
+  ['/money', 'pages/money-page.tsx', 'workspace'],
+  ['/money/branch/:code', 'pages/money-branch-page.tsx', 'workspace'],
+  ['/money/budget', 'pages/budget-page.tsx', 'workspace'],
+  ['/money/pricing', 'pages/pricing-page.tsx', 'workspace'],
+  ['/money/follow-ups', 'pages/follow-ups-page.tsx', 'workspace'],
+  ['/admin/people', 'pages/admin-users-page.tsx', 'management'],
+  ['/admin/teams', 'pages/admin-teams-page.tsx', 'management'],
+  ['/admin/access', 'pages/admin-access-page.tsx', 'management'],
+  ['/admin/agents', 'pages/admin-agent-connections-page.tsx', 'management'],
+  ['/profile', 'pages/profile-page.tsx', 'management'],
+  ['/profile/connected-agents', 'pages/profile-connected-agents-page.tsx', 'management'],
+  ['/dev/views', 'pages/dev-views-page.tsx', 'management'],
 ] as const
 
 function hasRouteOwnedH1(source: string): boolean {
@@ -233,6 +236,10 @@ function hasRouteOwnedH1(source: string): boolean {
 describe('RI-IA-2: non-Café route entrypoints use the shared page-family heading', () => {
   for (const [route, file, family] of sharedPageHeadRoutes) {
     it(`${route} delegates its page identity to PageFamilyFrame`, () => {
+      expect(
+        PAGE_FAMILY_FRAME_ROUTES.some((entry) => entry.path === route && entry.family === family),
+        `${route} is missing or has a different family in PAGE_FAMILY_FRAME_ROUTES`,
+      ).toBe(true)
       const source = readSrc(file)
       const frames = [...source.matchAll(/<PageFamilyFrame\b[^>]*>/gs)].map(([tag]) => tag)
       expect(frames.some((tag) => tag.includes(`family="${family}"`)), file).toBe(true)

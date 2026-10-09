@@ -849,16 +849,15 @@ export function TasksWorkspace({
     taskDisclosure.hasActiveFilters || query.view === 'overdue'
     || (query.view === 'all' && viewerOrgWide === false)
   )
-  const isFilteredEmptyWithMore = state.status === 'filtered-empty'
-    && hasEmptyMatchFilter && dataContext?.olderDoneHasMore !== false
-  const emptyTitle = isFilteredEmptyWithMore
+  const isFilteredEmpty = state.status === 'filtered-empty' && hasEmptyMatchFilter
+  const emptyTitle = isFilteredEmpty
     ? emptyLoadedTasks
     : query.includeArchived
       ? t('tasks.empty.archivedTitle')
       : mineViewUnfiltered
         ? t('tasks.empty.mineTitle')
         : t('tasks.empty.noTasksTitle')
-  const emptyCopy = isFilteredEmptyWithMore
+  const emptyCopy = isFilteredEmpty
     ? ''
     : query.includeArchived
       ? t('tasks.empty.archivedCopy')
@@ -1010,11 +1009,8 @@ export function TasksWorkspace({
           {stats === null
             ? '—'
             : [
-                t(
-                  stats.total === 1 ? 'tasks.meta.taskCount.one' : 'tasks.meta.taskCount.other',
-                  { count: stats.total },
-                ),
                 t('tasks.meta.openCount', { count: stats.open }),
+                t('tasks.meta.windowScope'),
               ].join(' · ')}
         </span>
       }
@@ -1036,10 +1032,10 @@ export function TasksWorkspace({
               filteredEmpty={{
                 items: t('collection.items.tasks'),
                 clear: onClearFilters,
-                title: isFilteredEmptyWithMore
+                title: isFilteredEmpty
                   ? emptyLoadedTasks
                   : mineViewUnfiltered ? emptyTitle : undefined,
-                copy: isFilteredEmptyWithMore
+                copy: isFilteredEmpty
                   ? undefined
                   : mineViewUnfiltered ? emptyCopy : undefined,
                 create: <Link ref={(node) => { createControlRef.current = node }} to={{ pathname: '/work/tasks', search: (() => { const next = new URLSearchParams(liveParams); next.set('create', '1'); return `?${next.toString()}` })() }} onClick={(event) => { event.preventDefault(); onNewTask() }} className="btn btn-primary">{t('tasks.new')}</Link>,
@@ -1047,16 +1043,16 @@ export function TasksWorkspace({
               error={{ message: t('tasks.error.load'), retry }}
               loadingLabel={t('tasks.loading')}
             />
-            {dataContext && state.status !== 'loading' && state.status !== 'error' && state.status !== 'permission'
+            {dataContext?.olderDoneHasMore === true && state.status !== 'loading' && state.status !== 'error' && state.status !== 'permission'
               && (query.status === null || query.status === 'Done')
               && !query.overdueOnly && query.view !== 'overdue'
               ? <ListPaging
                   count={projection?.visibleRecords.length ?? 0}
-                  hasMore={dataContext.olderDoneHasMore !== false}
+                  hasMore={dataContext.olderDoneHasMore}
                   loading={state.loadingMore}
                   error={Boolean(state.moreError)}
                   moreLabel={t('tasks.showOlderDone')}
-                  emptyItems={state.status === 'filtered-empty' && hasEmptyMatchFilter
+                  emptyItems={isFilteredEmpty
                     ? t('collection.items.tasks')
                     : undefined}
                   onLoadMore={async () => {

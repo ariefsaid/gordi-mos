@@ -131,8 +131,8 @@
   --z-drawer-popover: 31;
   --z-modal:          40;
   --z-modal-popover:  41;
-  --z-toast:          50;
   --z-popover-top:   100;
+  --z-toast:         110;
 
   /* ── Transition-duration scale (cohesion-debt 2026-07-19, item #5). The kit's
      --ds-animation-duration-* tokens are authored UNITLESS (seconds: 0.075/0.15/

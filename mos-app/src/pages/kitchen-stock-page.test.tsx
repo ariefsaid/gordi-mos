@@ -131,7 +131,7 @@ function startsWith(label: string) {
 }
 
 function chooseStream(optionName: string) {
-  const switchButton = screen.queryByRole('button', { name: /^change stream$/i })
+  const switchButton = screen.queryByRole('button', { name: /^switch (kitchen|bar)$/i })
   if (switchButton) {
     fireEvent.click(switchButton)
     fireEvent.click(screen.getByRole('option', { name: startsWith(optionName) }))
@@ -265,7 +265,7 @@ describe('KitchenStockPage — per-stream scope (#237, AC-011: default from shar
     mockDefaultStream.mockResolvedValue(null)
     mockFetchStock.mockResolvedValue(STOCK_ROWS)
     render(<KitchenStockPage />, { wrapper })
-    expect(await screen.findByText(/choose a production stream/i)).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Choose a kitchen or bar' })).toBeInTheDocument()
     expect(mockFetchStock).not.toHaveBeenCalled()
     // #781/B12: nothing is resolved, so the head states NOTHING — the one-step choice (item 2)
     // is what replaces it, as direct buttons rather than a control that has to be opened first.
@@ -364,7 +364,7 @@ describe('KitchenStockPage — per-stream scope (#237, AC-011: default from shar
     await screen.findByRole('heading', { name: /^no esb items on/i })
 
     // The Switch action is present in the empty state — an empty stream is not a dead end.
-    const switchButton = screen.getByRole('button', { name: /^change stream$/i })
+    const switchButton = screen.getByRole('button', { name: /^switch bar$/i })
     expect(switchButton).toBeInTheDocument()
     expect(switchButton).not.toBeDisabled()
 
@@ -632,7 +632,7 @@ function cafeDocTitle(leaf: keyof typeof messages.en): string {
 describe('issue 455: document title', () => {
   it('titles the tab from the Café nav label, not the retired kitchen one', async () => {
     render(<KitchenStockPage />, { wrapper })
-    await waitFor(() => expect(document.title).toBe(cafeDocTitle('nav.cafe.stock')))
+    await waitFor(() => expect(document.title).toBe(cafeDocTitle('cafe.pageTitle.stock')))
   })
 })
 

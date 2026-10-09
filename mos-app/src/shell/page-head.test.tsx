@@ -74,6 +74,11 @@ describe('PageHead — content-header variant (mockup chrome)', () => {
     expect(pill!.textContent).toBe('42')
   })
 
+  it('preserves formatted string counts as well as numeric counts', () => {
+    const { container } = render(<PageHead variant="content" title="Items" count="1,200+" />)
+    expect(container.querySelector('.ch-count')).toHaveTextContent('1,200+')
+  })
+
   it('omits the count pill when count is null (loading/error)', () => {
     const { container } = render(<PageHead variant="content" title="Tasks" count={null} />)
     expect(container.querySelector('.ch-count')).toBeNull()

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Self-test for scripts/deploy-staging.sh. External commands are PATH/env shims; no remote database,
-# network or GitHub is touched. Refusal cases assert the push (or PR) was NOT made.
+# network or GitHub is touched. Refusal cases assert the staging push was NOT made.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 SCRIPT="$(pwd)/scripts/deploy-staging.sh"
@@ -15,6 +15,8 @@ SECRET_HOST='db.abcdefghijklmnopqrst.supabase.co'
 SECRET_PROJECT_REF='abcdefghijklmnopqrst'
 SECRET_URL="postgresql://deployer:${SECRET_PW}@${SECRET_HOST}:5432/postgres"
 FAKE_ACCESS_TOKEN='test-only-access-token'; export FAKE_ACCESS_TOKEN
+FAKE_FUNCTION_SECRET_VALUE='test-only-function-secret-value'; export FAKE_FUNCTION_SECRET_VALUE
+LONG_WORKTREE_PADDING='xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'; export LONG_WORKTREE_PADDING
 ROOT_REPO="$(pwd -P)"; calls="$tmp/calls"; ARGVLOG="$tmp/argv"; : > "$ARGVLOG"; allout="$tmp/allout"; : > "$allout"
 REAL_GREP="$(command -v grep)"; export REAL_GREP
 mkdir -p "$tmp/bin" "$tmp/mig"
@@ -24,6 +26,13 @@ cat > "$tmp/bin/op-get.sh" <<'EOF'
 printf 'op-get %s\n' "$*" >> "$CALLS"
 [ "${FAKE_OP_FAIL:-}" = 1 ] && { echo "not signed in" >&2; exit 1; }
 case "$*" in
+  *fake-function-item*APP_ALLOWED_ORIGINS*)
+    if [ "${FAKE_FUNCTION_SECRET_MULTILINE:-0}" = 1 ]; then
+      printf '%s\nsecond-line=value\n' "$FAKE_FUNCTION_SECRET_VALUE"
+    else
+      printf '%s\n' "$FAKE_FUNCTION_SECRET_VALUE"
+    fi
+    ;;
   *fake-function-item*) printf '%s\n' "$FAKE_ACCESS_TOKEN" ;;
   *) printf '%s\n' "$FAKE_URL" ;;
 esac
@@ -35,7 +44,36 @@ else printf 'argv supabase-safe\n' >> "$ARGVLOG"; fi
 # The token on argv is logged verbatim, so the "never reached argv log" checks can fail.
 if [ -n "${FAKE_ACCESS_TOKEN:-}" ] && [[ "$*" == *"$FAKE_ACCESS_TOKEN"* ]]; then printf 'argv supabase-token %s\n' "$FAKE_ACCESS_TOKEN" >> "$ARGVLOG"; fi
 if [ -n "${PGPASSWORD:-}" ]; then printf 'pgpw-set\n' >> "$ARGVLOG"; else printf 'pgpw-empty\n' >> "$ARGVLOG"; fi
+if [ -n "${FAKE_FUNCTION_SECRET_VALUE:-}" ] && [[ "$*" == *"$FAKE_FUNCTION_SECRET_VALUE"* ]]; then printf 'argv function-secret\n' >> "$ARGVLOG"; fi
 case "$*" in
+  *"secrets list"*)
+    printf 'supabase secrets-list\n' >> "$CALLS"
+    [ "${SUPABASE_ACCESS_TOKEN:-}" = "${FAKE_ACCESS_TOKEN:-}" ] && printf 'supabase secrets-list-token-env-ok\n' >> "$CALLS"
+    printf '['
+    sep=""
+    for name in APP_ALLOWED_ORIGINS AGENT_MODEL_API_KEY AGENT_MODEL_BASE_URL AGENT_MODEL_DEFAULT AGENT_PERSISTENCE VAPID_PRIVATE_KEY VAPID_PUBLIC_KEY; do
+      [ "$name" != "${FAKE_STAGING_MISSING_SECRET:-}" ] || continue
+      printf '%s{"name":"%s"}' "$sep" "$name"
+      sep=,
+    done
+    printf ']\n'
+    ;;
+  *"secrets set"*)
+    printf 'supabase secrets-set\n' >> "$CALLS"
+    env_file=""; prev=""
+    for arg in "$@"; do
+      [ "$prev" != --env-file ] || env_file="$arg"
+      prev="$arg"
+    done
+    [ -n "$env_file" ] || exit 2
+    while IFS= read -r line; do
+      printf 'supabase secrets-set-name %s\n' "${line%%=*}" >> "$CALLS"
+      [ "${line#*=}" != "${FAKE_FUNCTION_SECRET_VALUE:-}" ] || printf 'supabase secrets-set-value-ok\n' >> "$CALLS"
+    done < "$env_file"
+    printf '%s\n' "$FAKE_FUNCTION_SECRET_VALUE"
+    printf '%s\n' "$FAKE_FUNCTION_SECRET_VALUE" >&2
+    exit "${FAKE_SECRETS_SET_RC:-0}"
+    ;;
   *--dry-run*) printf 'supabase dry-run\n' >> "$CALLS"
     echo "Connecting to $FAKE_URL"
     if [ "${FAKE_DRY_RC:-0}" != 0 ]; then echo "failed to connect to host=$FAKE_HOST user=deployer" >&2; exit "$FAKE_DRY_RC"; fi
@@ -129,10 +167,18 @@ case "$*" in
   "rev-parse --short HEAD") echo abc1234 ;;
   "rev-parse HEAD") echo "${FAKE_HEAD:-aaaa}" ;;
   *refs/remotes/origin/main*) echo "${FAKE_ORIGIN_MAIN:-aaaa}" ;;
+  *refs/remotes/origin/staging*) echo "${FAKE_ORIGIN_STAGING:-stage-old}" ;;
   "status --porcelain"*) printf '%s' "${FAKE_DIRTY:-}" ;;
-  "rev-list --count"*) echo "${FAKE_AHEAD:-3}" ;;
+  "merge-base --is-ancestor "*) [ "${FAKE_STAGE_ANCESTOR:-1}" = 1 ] && exit 0 || exit 1 ;;
+  "push origin "*:refs/heads/staging) printf 'git-push %s\n' "$*" >> "$CALLS"; exit "${FAKE_GIT_PUSH_RC:-0}" ;;
+  "ls-remote --exit-code origin refs/heads/staging") printf '%s\trefs/heads/staging\n' "${FAKE_ORIGIN_STAGING_AFTER_PUSH:-aaaa}" ;;
   "diff --name-only"*) printf '%s' "${FAKE_FN_DIFF:-}" ;;
-  "worktree list --porcelain") echo "worktree $tmp_main" ;;
+  "worktree list --porcelain")
+    printf 'worktree %s\n' "$tmp_main"
+    if [ "${FAKE_LONG_WORKTREE_LIST:-0}" = 1 ]; then
+      for ((i=0; i<1200; i++)); do printf 'worktree /tmp/fake-worktree-%04d-%s\n' "$i" "$LONG_WORKTREE_PADDING"; done
+    fi
+    ;;
   "worktree add"*) mkdir -p "${@: -2:1}"; echo "${@: -2:1}" > "$WTFILE" ;;
   "checkout -q --ignore-other-worktrees main") touch "$c/.on-main" ;;
 esac
@@ -147,6 +193,10 @@ EOF
 cat > "$tmp/bin/grep" <<'EOF'
 #!/usr/bin/env bash
 if [ "${FAKE_NO_ORIGINS:-0}" = 1 ] && [[ "$*" == *DEFAULT_APP_ORIGINS* ]]; then exit 1; fi
+if [ "${FAKE_SCAN_ENV_NAME+x}" = x ] && [[ "$*" == *"Deno[.]env[.]get"* ]]; then
+  printf "Deno.env.get('%s')\n" "$FAKE_SCAN_ENV_NAME"
+  exit 0
+fi
 exec "$REAL_GREP" "$@"
 EOF
 chmod +x "$tmp"/bin/* "$tmp/gh-post.sh"
@@ -156,6 +206,9 @@ ops_test_install_db_dump_shims "$tmp/bin"
 printf 'create table t();\n' > "$tmp/mig/20260101000001_plain.sql"
 printf "alter role authenticator set pgrst.db_pre_request = 'api_private.check_request';\n" > "$tmp/mig/20260101000002_gate.sql"
 printf 'STAGING_OP_ITEM=fake-item\nSTAGING_OP_VAULT=fake-vault\nSTAGING_OP_FIELD=FAKE\nSTAGING_FUNCTIONS_OP_ITEM=fake-function-item\nSTAGING_FUNCTIONS_OP_VAULT=fake-function-vault\nSTAGING_FUNCTIONS_OP_FIELD=FAKE_TOKEN\n' > "$tmp/op.env"
+printf 'STAGING_FN_SECRET_APP_ALLOWED_ORIGINS=%s|%s|APP_ALLOWED_ORIGINS\n' \
+  "$(grep '^STAGING_FUNCTIONS_OP_ITEM=' "$tmp/op.env" | cut -d= -f2-)" \
+  "$(grep '^STAGING_FUNCTIONS_OP_VAULT=' "$tmp/op.env" | cut -d= -f2-)" >> "$tmp/op.env"
 printf 'STAGING_OP_ITEM=fake-item\nSTAGING_OP_VAULT=fake-vault\nSTAGING_OP_FIELD=FAKE\n' > "$tmp/op-no-functions.env"
 
 # run NAME EXPECT_RC STDIN [ENV=val ...] -- args   (sets $out; asserts rc)
@@ -186,10 +239,11 @@ expect "op-get called with the local coordinates" "op-get fake-item fake-vault F
 expect "dry run called" "supabase dry-run"
 expect "probe ran (migration alters authenticator)" "psql probe"
 expect "push called" "supabase push"
-expect "promotion PR opened against staging, from a temp worktree on main" "gh-post pr create --base staging"
-expect_not "gh-post never called from another checkout" "gh-post-WRONG-CHECKOUT"
-expect "temp worktree checked out on main" "git checkout -q --ignore-other-worktrees main"
-expect "PR made from a temp worktree" "git worktree add"
+expect "promotion pushes the deployed origin/main sha to staging" "git-push push origin aaaa:refs/heads/staging"
+expect "remote staging is confirmed after the push" "git ls-remote --exit-code origin refs/heads/staging"
+expect_not "promotion never opens a PR" "gh-post"
+has "pushed sha is printed" "Pushed origin/main sha aaaa to staging."
+has "origin/staging exact sha is confirmed" "Confirmed origin/staging at aaaa."
 has "pending list printed" "20260101000002_gate.sql"
 has "verify line printed" "verify: max version 20260101000002 (newest local 20260101000002) · db_pre_request set · trusted clients 0 · sample orgs 1/1"
 expect_not "no function deploy" "supabase functions-deploy"
@@ -254,32 +308,92 @@ echo "dry-run and flags"
 run "--dry-run stops after preflight" 0 "" -- --dry-run
 expect "dry-run still probes" "psql probe"
 expect_not "--dry-run never pushes" "supabase push"
-expect_not "--dry-run opens no PR" "gh-post"
-run "--no-pr opens no PR" 0 "" -- --yes --no-pr
-expect_not "no gh-post with --no-pr" "gh-post"
+expect_not "--dry-run does not promote" "git-push"
+run "--no-promote skips the staging push" 0 "" -- --yes --no-promote
+expect_not "no direct push with --no-promote" "git-push"
+run "--no-pr remains a promotion-skip alias" 0 "" -- --yes --no-pr
+expect_not "no direct push with --no-pr" "git-push"
 run "unknown option refused" 2 "" -- --force
-run "nothing to promote: no PR" 0 "" FAKE_AHEAD=0 -- --yes
-expect_not "no PR when staging has main" "gh-post"
+run "already-promoted main is not pushed again" 0 "" FAKE_ORIGIN_STAGING=aaaa -- --yes
+expect_not "already-promoted main is not pushed" "git-push"
+run "staging that is not an ancestor is refused" 1 "" FAKE_STAGE_ANCESTOR=0 -- --yes
+has "non-ancestor refusal is explained" "origin/staging is not an ancestor of origin/main"
+expect_not "non-ancestor staging is never pushed" "git-push"
+run "remote staging mismatch after push is refused" 1 "" FAKE_ORIGIN_STAGING_AFTER_PUSH=bbbb -- --yes
+expect "post-push mismatch case pushed the deployed sha" "git-push push origin aaaa:refs/heads/staging"
+expect "post-push mismatch case queried origin/staging" "git ls-remote --exit-code origin refs/heads/staging"
+has "post-push mismatch is explained" "origin/staging does not match the promoted commit"
+mkdir -p "$tmp/supabase"
+cp "$tmp/op.env" "$tmp/supabase/op.staging.env"
+long_fixture="$tmp/long-worktrees"
+: > "$long_fixture"
+for ((i=0; i<1200; i++)); do printf 'worktree /tmp/fake-worktree-%04d-%s\n' "$i" "$LONG_WORKTREE_PADDING" >> "$long_fixture"; done
+long_bytes="$(wc -c < "$long_fixture" | tr -d ' ')"
+if [ "$long_bytes" -gt 65536 ]; then ok "long porcelain fixture exceeds 64 KiB ($long_bytes bytes)"; else bad "long porcelain fixture is too small ($long_bytes bytes)"; fi
+run "long worktree list is read without SIGPIPE" 0 "" FAKE_LONG_WORKTREE_LIST=1 STAGING_OP_ENV_FILE= -- --yes --no-pr
+has "long worktree list completes the staging deploy" "Staging deploy complete."
 
 echo "verify"
 run "max-version mismatch fails" 1 "" FAKE_MAX=20260101000001 -- --yes
 has "mismatch named" "VERIFY FAILED"
-expect_not "no PR after failed verify" "gh-post"
+expect_not "no promotion push after failed verify" "git-push"
 run "trusted clients > 0 fails loudly" 1 "" FAKE_TRUSTED=2 -- --yes
 has "trusted clients named" "trusted_agent_clients"
-expect_not "no PR when trusted clients exist" "gh-post"
+expect_not "no promotion push when trusted clients exist" "git-push"
 run "a failed database verify stops before any function deploys" 1 "" FAKE_TRUSTED=2 FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --yes --no-pr
 expect_not "no function deploy after a failed database verify" "supabase functions-deploy agent-chat"
 run "missing authenticator setting fails" 1 "" FAKE_ROLCONFIG="statement_timeout=8s" -- --yes
 has "rolconfig named" "pgrst.db_pre_request"
 run "no flagged sample org fails" 1 "" FAKE_SAMPLE_ORGS=0/0 -- --yes
 has "sample org check named" "expected exactly one flagged org, shaped like the sample org"
-expect_not "no PR when the sample org is not flagged" "gh-post"
+expect_not "no promotion push when the sample org is not flagged" "git-push"
 run "a flagged org that is not sample-shaped fails" 1 "" FAKE_SAMPLE_ORGS=1/0 -- --yes
 has "the shape failure is named" "flagged/sample-shaped: '1/0'"
-expect_not "no PR when the flagged org is not sample-shaped" "gh-post"
+expect_not "no promotion push when the flagged org is not sample-shaped" "git-push"
 run "two flagged orgs fail" 1 "" FAKE_SAMPLE_ORGS=2/2 -- --yes --no-pr
 has "the count failure is named" "flagged/sample-shaped: '2/2'"
+
+echo "edge function secrets"
+run "invalid function env name fails safely before secrets are read" 1 "" FAKE_SCAN_ENV_NAME=$'BAD\tNAME' FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --yes --no-pr
+has "invalid env name failure identifies only the function" "invalid environment variable name in function agent-chat"
+hasnt "invalid env name is not echoed" $'BAD\tNAME'
+expect_not "invalid env name stops before any secret read" "op-get "
+expect_not "invalid env name stops before staging secret listing" "supabase secrets-list"
+expect_not "invalid env name stops before migration push" "supabase push"
+expect_not "invalid env name stops before function deploy" "supabase functions-deploy agent-chat"
+run "a missing function secret is set once before deploy" 0 "" FAKE_STAGING_MISSING_SECRET=APP_ALLOWED_ORIGINS FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --yes --no-pr
+expect "staging function secrets listed with the deploy token" "supabase secrets-list-token-env-ok"
+expect "missing function secret is set" "supabase secrets-set-name APP_ALLOWED_ORIGINS"
+expect "secret value reaches the set env-file" "supabase secrets-set-value-ok"
+if [ "$(grep -c '^supabase secrets-set$' "$calls")" = 1 ]; then ok "all missing function secrets use one set call"; else bad "expected one function secrets set call"; fi
+if before "supabase secrets-set-name APP_ALLOWED_ORIGINS" "supabase functions-deploy agent-chat"; then ok "function secret is set before deploy"; else bad "function secret is not set before deploy"; fi
+has "secret summary names the set key" "function secrets set: APP_ALLOWED_ORIGINS"
+hasnt "function secret value never reaches stdout or stderr" "$FAKE_FUNCTION_SECRET_VALUE"
+if grep -qE '^(argv function-secret|.*test-only-function-secret-value)' "$ARGVLOG"; then bad "function secret value reached argv log"; else ok "function secret value never reaches argv log"; fi
+run "already-present function secrets are not reset" 0 "" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --yes --no-pr
+expect_not "no set call when all required function secrets already exist" "supabase secrets-set"
+has "already-present secret summary is clear" "function secrets: none missing"
+run "missing secret mapping stops before deploy" 1 "" FAKE_STAGING_MISSING_SECRET=AGENT_MODEL_API_KEY FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --yes --no-pr
+has "missing mapping names the secret and key to add" "STAGING_FN_SECRET_AGENT_MODEL_API_KEY"
+expect_not "no function deploy after missing mapping" "supabase functions-deploy agent-chat"
+run "multiline function secret is rejected before setting" 1 "" FAKE_STAGING_MISSING_SECRET=APP_ALLOWED_ORIGINS FAKE_FUNCTION_SECRET_MULTILINE=1 FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --yes --no-pr
+has "multiline rejection names only the secret" "function secret APP_ALLOWED_ORIGINS contains a newline"
+hasnt "multiline rejection hides the value" "$FAKE_FUNCTION_SECRET_VALUE"
+hasnt "multiline rejection hides the second line" "second-line=value"
+expect_not "multiline function secret is not set" "supabase secrets-set"
+expect_not "multiline function secret is not deployed" "supabase functions-deploy agent-chat"
+run "failed secrets set stops before function deploy" 1 "" FAKE_STAGING_MISSING_SECRET=APP_ALLOWED_ORIGINS FAKE_SECRETS_SET_RC=1 FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --yes --no-pr
+hasnt "failed secret set does not print the value" "$FAKE_FUNCTION_SECRET_VALUE"
+expect "failed secret set was attempted" "supabase secrets-set"
+expect_not "no function deploy after failed secrets set" "supabase functions-deploy agent-chat"
+run "platform SUPABASE names are ignored" 0 "" FAKE_STAGING_MISSING_SECRET=SUPABASE_URL FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --yes --no-pr
+expect_not "platform-provided secrets are never set" "supabase secrets-set"
+has "ignored platform secret reports no missing app secrets" "function secrets: none missing"
+run "dry-run lists candidate function secrets without reading their values" 0 "" FAKE_STAGING_MISSING_SECRET=APP_ALLOWED_ORIGINS FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --dry-run
+has "dry-run lists required function secret names" "APP_ALLOWED_ORIGINS"
+expect_not "dry-run does not read function secret values" "op-get fake-function-item"
+expect_not "dry-run does not list or set function secrets" "supabase secrets-list"
+expect_not "dry-run never deploys a function" "supabase functions-deploy"
 
 echo "edge functions"
 run "changed agent-chat deploys and passes smoke checks" 0 "sentinel-for-function-cli\n" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\nsupabase/functions/compose-view/index.ts\nsupabase/functions/mcp/index.ts\nsupabase/functions/_shared/cors.ts\n' -- --yes --no-pr
@@ -313,7 +427,7 @@ run "a gateway 401 with its gateway code fails handler auth" 1 "" FAKE_FN_DIFF=$
 has "gateway 401 is not mistaken for handler auth" "unauthenticated POST smoke check failed"
 run "an unauthenticated POST returning 200 fails" 1 "" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' FAKE_POST_STATUS=200 -- --yes --no-pr
 has "200 smoke failure is clear" "unauthenticated POST smoke check failed"
-expect_not "no PR after a failed smoke check" "gh-post"
+expect_not "no promotion push after a failed smoke check" "git-push"
 run "a preflight that fails to echo the origin fails" 1 "" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' FAKE_CORS_MISMATCH=1 -- --yes --no-pr
 has "preflight echo failure is clear" "CORS preflight smoke check failed"
 run "dry-run never deploys changed functions" 0 "" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --dry-run
@@ -368,9 +482,9 @@ expect_not "dry-run never pushes" "supabase push"
 run "push failure identifies the recovery backup" 1 "" FAKE_PUSH_RC=1 -- --yes --no-pr
 has "push failure names the backup path" "pre-push dump is at $tmp/dumps/pre-deploy-"
 expect "failed push was attempted" "supabase push"
-run "database, edge and promotion order" 0 "" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --yes
-order="$(grep -E '^(pg_dump|pg_restore-list|supabase push|supabase functions-deploy agent-chat|gh-post pr create)' "$calls" | tr '\n' ' ')"
-case "$order" in pg_dump\ pg_restore-list\ supabase\ push\ supabase\ functions-deploy\ agent-chat\ gh-post\ pr\ create*) ok "order: backup, database push, edge deploy, promotion PR" ;; *) bad "unexpected DB/edge/promotion order: $order" ;; esac
+run "database, edge and direct-promotion order" 0 "" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --yes
+order="$(grep -E '^(pg_dump|pg_restore-list|supabase push|supabase functions-deploy agent-chat|git-push)' "$calls" | tr '\n' ' ')"
+case "$order" in pg_dump\ pg_restore-list\ supabase\ push\ supabase\ functions-deploy\ agent-chat\ git-push\ push\ origin\ aaaa:refs/heads/staging*) ok "order: backup, database push, edge deploy, direct promotion" ;; *) bad "unexpected DB/edge/promotion order: $order" ;; esac
 if grep -q 'rehearse-migrations\.sh' "$SCRIPT"; then bad "removed migration helper is still called"; else ok "no removed migration helper call remains"; fi
 
 printf '\n%s passed, %s failed\n' "$pass" "$fail"

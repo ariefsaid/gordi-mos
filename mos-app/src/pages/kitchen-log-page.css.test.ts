@@ -24,7 +24,7 @@ function ruleBodyAt(idx: number, source = css): string {
 
 describe('KL-FOOTER-NAV: the capture footer stays reachable above the shell bottom-tab bar', () => {
   it('keeps the footer at the scrollport edge without a tab-bar-sized gap', () => {
-    const captureFrame = ruleBodyAt(captureCss.indexOf('.page-frame--v3:has(.cafe-capture-head),'), captureCss)
+    const captureFrame = ruleBodyAt(captureCss.indexOf('.page-frame--v3:has(.kl-capture-content),'), captureCss)
     const captureContent = ruleBodyAt(captureCss.indexOf('.kl-capture-content,\n.kl-capture-content .kl-capture-main,'), captureCss)
     const captureFooter = ruleBodyAt(captureCss.indexOf('.cafe-capture-footer.kl-footer {'), captureCss)
 
@@ -53,11 +53,30 @@ describe('KL-FOOTER-NAV: the capture footer stays reachable above the shell bott
     expect(css).toMatch(/@media\s*\(max-width:\s*767\.98px\)[\s\S]*?\.kl-form\s+\.ktb-filter-selects\s*\{\s*display:\s*none/)
   })
 
-  it('puts transfer destination and search on separate full-width phone rows', () => {
+  it('M04: compacts shared capture chrome and keeps the missing-item action beside search', () => {
+    expect(css).toMatch(/\.page-frame--v3:has\(\.kl-form\) \.page-head--v3\.content-header\s*\{[^}]*margin-bottom:\s*4px;[^}]*padding-bottom:\s*0/)
+    expect(css).toMatch(/\.kl-context\s*\{[^}]*margin-bottom:\s*8px/)
+    expect(css).toMatch(/\.kl-context-summary\s*\{[^}]*padding:\s*4px 8px/)
+    expect(css).toMatch(/\.kl-form \.ktb\s*\{[^}]*padding-block:\s*0/)
+    expect(css).toMatch(/\.kl-form \.ktb-search-wrap\s*\{[^}]*min-width:\s*160px/)
+    expect(css).toMatch(/\.kl-form \.kl-missing\s*\{[^}]*flex:\s*0 0 auto;[^}]*padding:\s*0/)
+    expect(css).toMatch(/\.kl-form \.dt-cards-group\s*\{[^}]*padding-top:\s*4px/)
+  })
+
+  it('keeps transfer destination above the shared search and missing-item action row', () => {
     expect(toolbarCss).toMatch(/\.ktb-children--band\s*\{[^}]*flex:\s*1 0 100%/)
     expect(toolbarCss).toMatch(/\.ktb-children--band > \*\s*\{\s*width:\s*100%/)
-    expect(css).toMatch(/\.kl-form \.ktb:has\(\.kl-scope\) \.ktb-search-wrap\s*\{\s*max-width:\s*none/)
+    expect(css).toMatch(/\.kl-form \.ktb-search-wrap\s*\{[^}]*flex:\s*1 1 180px;[^}]*min-width:\s*160px/)
     expect(css).toMatch(/@media\s*\(max-width:\s*767\.98px\)[\s\S]*?\.kl-form \.ktb-filter-selects\s*\{\s*display:\s*none/)
+  })
+})
+
+describe('M02: Café toolbar controls use the interactive boundary token', () => {
+  it('keeps the shared search and filter outlines at control contrast', () => {
+    const search = ruleBodyAt(toolbarCss.indexOf('.ktb-search {'), toolbarCss)
+    const filter = ruleBodyAt(toolbarCss.indexOf('.ktb-kind .mk-select__box,'), toolbarCss)
+    expect(search).toMatch(/border:\s*1px solid var\(--input\)/)
+    expect(filter).toMatch(/border-color:\s*var\(--input\)/)
   })
 })
 

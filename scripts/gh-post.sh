@@ -78,8 +78,8 @@ if [ "$verb1" = "api" ]; then
   done
   api_effective_method="$(printf '%s' "$api_method" | tr '[:lower:]' '[:upper:]')"
   if [ -z "$api_effective_method" ]; then
-    # gh api defaults to GET; request fields switch the implied method to POST.
-    if [ "${#api_fields[@]}" -gt 0 ]; then api_effective_method=POST; else api_effective_method=GET; fi
+    # gh api implies POST for --input or request fields; otherwise it implies GET.
+    if [ "${#api_fields[@]}" -gt 0 ] || [ "$api_input" = 1 ]; then api_effective_method=POST; else api_effective_method=GET; fi
   fi
 fi
 
@@ -173,9 +173,9 @@ require_pr_stamps() { # $1 base branch ('' when none named)
   local base_val="$1" gitdir head v r lens stamp_file stamp release_stamp_file release_sha
   gitdir="$(git rev-parse --git-dir)" || die "not a git repo"
   head="$(git rev-parse HEAD)"
-  # Promotion carve-out (/release §4b): a PR into staging FROM main carries content the release
-  # PR already four-stamped and the owner ratified — main's merge commit itself can never hold
-  # stamps. CI on the staging PR still gates. Any other route into staging needs the stamps.
+  # Staging promotion normally uses a direct post-deploy fast-forward push, not a PR. If a PR is
+  # used to move main into staging, main's merge commit carries the release PR's review stamps;
+  # CI still gates that PR. Any other route into staging needs the stamps.
   [ "$base_val" = "staging" ] && [ "$(git branch --show-current)" = "main" ] && return 0
   v="$(cat "$gitdir/pre-pr-verify-ok" 2>/dev/null || true)"
   # CI verify is the gate for dev PRs, so only every other base needs the full local stamp.
@@ -199,7 +199,7 @@ require_pr_stamps() { # $1 base branch ('' when none named)
 
 # Reuse-first (CLAUDE.md "Reuse before build"): a PR body names what it reused, on a line that
 # starts "Reused:" (anything new is justified there too). Checked on PRs into dev, where new work
-# enters; release and promotion PRs carry work already reviewed that way.
+# enters; release PRs carry work already reviewed that way.
 require_reused_line() {
   local t
   for t in "${texts[@]}"; do
@@ -207,6 +207,13 @@ require_reused_line() {
       | grep -Eiq '^[[:space:]]*(\*\*)?Reused(\*\*)?:' && return 0
   done
   die "the PR body has no 'Reused:' line — name the existing components, helpers, tests or patterns you reused (and why anything new was needed)"
+}
+
+default_base_branch() {
+  local base
+  base="$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null)" || return 1
+  [ -n "$base" ] || return 1
+  printf '%s' "$base"
 }
 
 contains_ready_label() { [[ ",$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')," == *,ready-for-agent,* ]]; }
@@ -286,6 +293,9 @@ if [ "$verb1" = "pr" ] && [ "$verb2" = "create" ]; then
     fi
     base_val="$candidate" base_seen=1
   done
+  if [ "$base_seen" = 0 ]; then
+    base_val="$(default_base_branch)" || die "cannot read repository default branch"
+  fi
   require_pr_stamps "$base_val"
   [ "$base_val" = dev ] && require_reused_line
 fi
@@ -341,10 +351,10 @@ if [ "$verb1" = "api" ]; then
   # REST PR creation must pass the same HEAD stamps as `pr create`.
   if [ "$path" = "repos/$this_repo/pulls" ] && [ "$api_effective_method" = POST ]; then
     [ "$api_input" = 0 ] || die "REST PR create must pass base/head as -f fields — an --input payload hides them from the stamp check"
-    base_val="" head_val=""
+    base_val="" base_seen=0 head_val=""
     for kv in "${api_fields[@]}"; do
       case "$kv" in
-        base=*) base_val="${kv#base=}" ;;
+        base=*) base_val="${kv#base=}"; base_seen=1 ;;
         head=*) head_val="${kv#head=}" ;;
         head_repo=*) die "REST PR create through this door targets this checkout only — no head_repo" ;;
       esac
@@ -352,6 +362,11 @@ if [ "$verb1" = "api" ]; then
     branch="$(git branch --show-current)"
     [ -n "$branch" ] && { [ "$head_val" = "$branch" ] || [ "$head_val" = "${this_repo%%/*}:$branch" ]; } \
       || die "REST PR create must name head=<this checkout's branch> ('$branch') — the stamps certify HEAD here"
+    if [ "$base_seen" = 0 ]; then
+      base_val="$(default_base_branch)" || die "cannot read repository default branch"
+    else
+      [ -n "$base_val" ] || die "REST PR create needs a non-empty base field"
+    fi
     require_pr_stamps "$base_val"
     [ "$base_val" = dev ] && require_reused_line
   fi

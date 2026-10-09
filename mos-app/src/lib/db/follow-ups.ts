@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import { wibToday } from '@/lib/format/date'
 import { containsPattern } from './like-pattern'
-import { keysetBeforeFilter } from './keyset-filter'
+import { keysetBeforeFilter, keysetPageFromProbe } from './keyset-filter'
 
 export type FollowUpKind = 'b2b_ar' | 'retail_pending'
 export type FollowUpLane = 'b2b_sales' | 'retail_ops'
@@ -55,7 +55,13 @@ const FOLLOW_UP_COLUMNS = 'id,org_id,counterparty,kind,lane,source_invoice_ref,o
 const FOLLOW_UP_EVENT_COLUMNS = 'id,org_id,follow_up_id,transition,from_state,to_state,amount,cash_in_date,evidence,promise_date,note,actor_person_id,created_at'
 const RECON_DRIFT_COLUMNS = 'org_id,counterparty,period,mos_amount,esb_amount,drift,is_drift'
 
-export async function listFollowUps(filters: FollowUpFilters = {}): Promise<FollowUpRow[]> {
+export interface FollowUpPage {
+  rows: FollowUpRow[]
+  nextCursor: FollowUpCursor | null
+  hasMore: boolean
+}
+
+export async function listFollowUpsPage(filters: FollowUpFilters = {}): Promise<FollowUpPage> {
   let query = mos().from('follow_ups').select(FOLLOW_UP_COLUMNS)
   if (filters.state) query = query.eq('state', filters.state)
   if (filters.overdue) query = query.lt('due_date', wibToday()).neq('state', 'settled').neq('state', 'confirmed')
@@ -63,9 +69,38 @@ export async function listFollowUps(filters: FollowUpFilters = {}): Promise<Foll
     query = query.or(keysetBeforeFilter('created_at', filters.before.created_at, filters.before.id))
   }
   const { data, error } = await query.order('created_at', { ascending: false })
-    .order('id', { ascending: false }).limit(FOLLOW_UPS_PAGE_SIZE)
+    .order('id', { ascending: false }).limit(FOLLOW_UPS_PAGE_SIZE + 1)
   if (error) throw new Error(`listFollowUps failed — ${error.message}`)
-  return (data ?? []) as FollowUpRow[]
+  return keysetPageFromProbe((data ?? []) as FollowUpRow[], FOLLOW_UPS_PAGE_SIZE,
+    (row) => ({ created_at: row.created_at, id: row.id }))
+}
+
+export async function listFollowUpsWindow(
+  filters: Omit<FollowUpFilters, 'before'>, count: number,
+): Promise<FollowUpPage> {
+  if (count <= 0) return { rows: [], nextCursor: null, hasMore: false }
+  const rows: FollowUpRow[] = []
+  let before: FollowUpCursor | undefined
+  let lastPage: FollowUpPage | null = null
+  let shouldContinue = true
+  while (shouldContinue) {
+    const page = await listFollowUpsPage({ ...filters, ...(before ? { before } : {}) })
+    lastPage = page
+    rows.push(...page.rows)
+    shouldContinue = page.hasMore && page.nextCursor !== null && rows.length < count
+    if (shouldContinue) before = page.nextCursor ?? undefined
+  }
+  const windowRows = rows.slice(0, count)
+  const hasMore = rows.length > count || Boolean(lastPage?.hasMore)
+  return {
+    rows: windowRows,
+    nextCursor: hasMore && windowRows.length ? { created_at: windowRows.at(-1)!.created_at, id: windowRows.at(-1)!.id } : null,
+    hasMore,
+  }
+}
+
+export async function listFollowUps(filters: FollowUpFilters = {}): Promise<FollowUpRow[]> {
+  return (await listFollowUpsPage(filters)).rows
 }
 
 /** A lightweight AR Follow-up reference for the ⌘K command palette (OD-REDESIGN-91 #4/B2). */
@@ -95,17 +130,24 @@ export async function getFollowUp(id: string): Promise<FollowUpRow | null> {
   return (data as FollowUpRow | null) ?? null
 }
 
-export async function listFollowUpEvents(
+export async function listFollowUpEventsPage(
   followUpId: string, before?: Pick<FollowUpEvent, 'created_at' | 'id'>,
-): Promise<FollowUpEvent[]> {
+): Promise<{ rows: FollowUpEvent[]; nextCursor: Pick<FollowUpEvent, 'created_at' | 'id'> | null; hasMore: boolean }> {
   let query = mos().from('follow_up_events').select(FOLLOW_UP_EVENT_COLUMNS).eq('follow_up_id', followUpId)
   if (before) {
     query = query.or(keysetBeforeFilter('created_at', before.created_at, before.id))
   }
   const { data, error } = await query.order('created_at', { ascending: false })
-    .order('id', { ascending: false }).limit(FOLLOW_UPS_PAGE_SIZE)
+    .order('id', { ascending: false }).limit(FOLLOW_UPS_PAGE_SIZE + 1)
   if (error) throw new Error(`listFollowUpEvents failed — ${error.message}`)
-  return (data ?? []) as FollowUpEvent[]
+  return keysetPageFromProbe((data ?? []) as FollowUpEvent[], FOLLOW_UPS_PAGE_SIZE,
+    (event) => ({ created_at: event.created_at, id: event.id }))
+}
+
+export async function listFollowUpEvents(
+  followUpId: string, before?: Pick<FollowUpEvent, 'created_at' | 'id'>,
+): Promise<FollowUpEvent[]> {
+  return (await listFollowUpEventsPage(followUpId, before)).rows
 }
 
 export async function transitionFollowUp(id: string, transition: FollowUpTransition, options: FollowUpTransitionOptions = {}): Promise<FollowUpRow> {

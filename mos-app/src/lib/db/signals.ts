@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import { wibToday } from '@/lib/format/date'
 import { containsPattern } from './like-pattern'
+import { keysetBeforeFilter } from './keyset-filter'
 import { filterEffectiveMemberships } from '@/lib/team-context/eligible-teams'
 import type {
   Attention, SignalRow, MentionKind, CreateSignalInput, TeamOption, SiteOption, StagedMention,
@@ -59,7 +60,7 @@ export async function listReadableSignals(f: ListSignalsFilters = {}): Promise<S
     q = q.or(clauses.join(','))
   }
   if (f.before) {
-    q = q.or(`occurred_at.lt.${f.before.occurred_at},and(occurred_at.eq.${f.before.occurred_at},id.lt.${f.before.id})`)
+    q = q.or(keysetBeforeFilter('occurred_at', f.before.occurred_at, f.before.id))
   }
   q = q.order('occurred_at', { ascending: false }).order('id', { ascending: false }).limit(SIGNALS_PAGE_SIZE)
   const { data, error } = await q

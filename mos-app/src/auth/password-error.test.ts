@@ -16,6 +16,11 @@ describe('passwordRefusal — names the rule the sign-in service applied', () =>
     expect(passwordRefusal(api('same_password'))).toBe('auth.password.refused.same')
   })
 
+  it('names an invalid or expired reauthentication code', () => {
+    expect(passwordRefusal(api('reauthentication_not_valid'))).toBe('auth.password.refused.code')
+    expect(passwordRefusal(api('otp_expired'))).toBe('auth.password.refused.code')
+  })
+
   it('rate limit and expired sign-in get their own message; anything else stays generic', () => {
     expect(passwordRefusal(api('over_request_rate_limit', 429))).toBe('auth.password.refused.rateLimit')
     expect(passwordRefusal(new AuthSessionMissingError())).toBe('auth.password.refused.session')

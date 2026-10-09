@@ -5,6 +5,11 @@ import { I18nProvider } from '@/i18n/I18nProvider'
 import type { AuthState } from '@/auth/context'
 
 vi.mock('@/auth/use-auth')
+vi.mock('@/lib/supabase', () => ({ supabase: { schema: vi.fn() } }))
+vi.mock('@/lib/db/cafe-item-settings', async importOriginal => {
+  const actual = await importOriginal<typeof import('@/lib/db/cafe-item-settings')>()
+  return { ...actual, listCafeItemSettings: vi.fn(), canManageCafeItemSettings: vi.fn() }
+})
 const streamMocks = vi.hoisted(() => {
   const branch = { id: 'branch-1', code: 'cafe-branch', name: 'Cafe Branch' }
   const alternateBranch = { id: 'branch-2', code: 'other-cafe', name: 'Other Cafe' }
@@ -35,6 +40,8 @@ vi.mock('@/lib/db/cafe-count', async importOriginal => {
 })
 
 import { useAuth } from '@/auth/use-auth'
+import { supabase } from '@/lib/supabase'
+import { canManageCafeItemSettings, listCafeItemSettings } from '@/lib/db/cafe-item-settings'
 import { listCafeCountableItems, submitCafeCounts } from '@/lib/db/cafe-count'
 import type { CafeCountableItem } from '@/lib/db/cafe-count'
 import { CafeCountPage } from './cafe-count-page'
@@ -78,12 +85,35 @@ beforeEach(() => {
 })
 
 describe('CafeCountPage', () => {
+  it('explains stock-unit eligibility when Count reads no rows but Items has an active configured item', async () => {
+    const actual = await vi.importActual<typeof import('@/lib/db/cafe-count')>('@/lib/db/cafe-count')
+    mockListItems.mockImplementationOnce(actual.listCafeCountableItems)
+    const rpc = vi.fn().mockResolvedValue({ data: [], error: null })
+    vi.mocked(supabase.schema).mockReturnValue({ rpc } as never)
+    vi.mocked(listCafeItemSettings).mockResolvedValue([{
+      id: 'wip-1', erpName: 'Prepared sauce with roasted vegetables', mosName: 'Prepared sauce',
+      category: 'Kitchen', kind: 'WIP', isActive: true, defaultUnitId: 'unit-portion',
+      units: [{ id: 'unit-portion', name: 'porsi', isDefault: true, isShown: true, labelOrdinal: null, labelCount: 1 }],
+    }])
+    vi.mocked(canManageCafeItemSettings).mockResolvedValue(true)
+    renderPage()
+
+    const empty = await screen.findByTestId('empty-state')
+    expect(empty).toHaveTextContent('1 item is set up')
+    expect(empty).toHaveTextContent('default unit confirmed as an ESB stock unit')
+    expect(empty).not.toHaveTextContent('not set up for this list')
+    expect(empty).not.toHaveTextContent('Give it a kind')
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+    expect(rpc).toHaveBeenCalledWith('cafe_countable_items', { p_branch_id: 'branch-1', p_activity: 'kitchen' })
+    expect(listCafeItemSettings).toHaveBeenCalledWith(streamMocks.stream)
+  })
+
   it('puts the localized date in PageHead metadata and labels the kitchen switch in both locales', async () => {
     for (const locale of ['en', 'id'] as const) {
       const { unmount } = renderPage(locale)
       const streamName = locale === 'en' ? 'Cafe Branch · Kitchen' : 'Cafe Branch · Dapur'
       const stream = await screen.findByRole('heading', { name: streamName })
-      const context = stream.closest('.cafe-capture-context')
+      const context = stream.closest('.ch-status-row')
       expect(context).toBeInTheDocument()
       expect(context?.querySelector('time')).toBeNull()
 
@@ -93,7 +123,7 @@ describe('CafeCountPage', () => {
       expect(date).toHaveTextContent(formatWeekdayDayMonth('2026-10-06', locale))
       expect(date?.closest('.ch-meta, .page-head-meta')).toBeInTheDocument()
 
-      const switchLabel = locale === 'en' ? 'Switch kitchen stream' : 'Ganti stream dapur'
+      const switchLabel = locale === 'en' ? 'Switch kitchen' : 'Ganti dapur'
       const switchButton = within(context as HTMLElement).getByRole('button', { name: switchLabel })
       expect(switchButton).toHaveTextContent(locale === 'en' ? 'Switch kitchen' : 'Ganti dapur')
       expect(context).not.toHaveTextContent(formatWeekdayDayMonth('2026-10-06', locale))
@@ -103,11 +133,23 @@ describe('CafeCountPage', () => {
     }
   })
 
-  it('AC-007 renders one blank fixed-unit input per item with a decimal keyboard and no prior figures', async () => {
+  it('AC-007 renders eligible items as blank fixed-unit inputs instead of the eligibility empty state', async () => {
+    const actual = await vi.importActual<typeof import('@/lib/db/cafe-count')>('@/lib/db/cafe-count')
+    mockListItems.mockImplementationOnce(actual.listCafeCountableItems)
+    const rpc = vi.fn().mockResolvedValue({ data: [
+      { item_id: 'raw-1', item_name: 'Raw flour', item_category: 'Pantry', item_kind: 'RAW', item_unit_id: 'unit-kg', unit_name: 'kg' },
+      { item_id: 'wip-1', item_name: 'Prepared sauce', item_category: 'Kitchen', item_kind: 'WIP', item_unit_id: 'unit-tray', unit_name: 'tray' },
+      { item_id: 'raw-2', item_name: 'Uncounted rice', item_category: 'Pantry', item_kind: 'RAW', item_unit_id: 'unit-bag', unit_name: 'bag' },
+    ], error: null })
+    vi.mocked(supabase.schema).mockReturnValue({ rpc } as never)
     const { container } = renderPage()
     const rawInput = await screen.findByRole('textbox', { name: 'Count for Raw flour' })
     const wipInput = screen.getByRole('textbox', { name: 'Count for Prepared sauce' })
 
+    expect(screen.getAllByRole('textbox')).toHaveLength(3)
+    expect(screen.queryByTestId('empty-state')).not.toBeInTheDocument()
+    expect(listCafeItemSettings).not.toHaveBeenCalled()
+    expect(rpc).toHaveBeenCalledWith('cafe_countable_items', { p_branch_id: 'branch-1', p_activity: 'kitchen' })
     expect(rawInput).toHaveValue('')
     expect(wipInput).toHaveValue('')
     expect(rawInput).toHaveAttribute('inputmode', 'decimal')

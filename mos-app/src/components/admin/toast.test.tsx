@@ -17,11 +17,17 @@ function box(top: number, bottom: number): DOMRect {
 }
 
 afterEach(() => {
-  document.body.querySelectorAll('[data-overlay-edge="bottom"]').forEach((element) => element.remove())
+  document.body.querySelectorAll('[data-overlay-edge="bottom"], [data-toast-test-page-layer], #overlay-root').forEach((element) => element.remove())
   vi.restoreAllMocks()
 })
 
 describe('shared Toast placement', () => {
+  it('uses the shared tap-floor utility for the dismiss target', () => {
+    render(<Toast toast={{ id: 1, message: 'Saved' }} onDismiss={vi.fn()} />)
+
+    expect(screen.getByRole('button', { name: 'Dismiss notification' })).toHaveClass('toast-dismiss', 'tap-floor')
+  })
+
   it('keeps notifications above the bottom navigation and any stacked sticky action bar', () => {
     Object.defineProperty(window, 'innerHeight', { configurable: true, value: 844 })
     const nav = document.createElement('nav')
@@ -103,5 +109,34 @@ describe('shared Toast placement', () => {
 
     expect(screen.getByRole('status')).toHaveStyle({ bottom: '24px' })
     expect(screen.getByRole('status')).toHaveTextContent('Saved')
+  })
+
+  it('places the dismissible toast beside a modal record panel, outside the page stacking context', () => {
+    const overlayRoot = document.createElement('div')
+    overlayRoot.id = 'overlay-root'
+    const recordPanel = document.createElement('div')
+    recordPanel.className = 'drawer-modal-root'
+    recordPanel.style.position = 'fixed'
+    recordPanel.style.zIndex = 'var(--z-drawer)'
+    overlayRoot.append(recordPanel)
+    document.body.append(overlayRoot)
+
+    const pageLayer = document.createElement('div')
+    pageLayer.dataset.toastTestPageLayer = 'true'
+    pageLayer.style.position = 'relative'
+    pageLayer.style.zIndex = '1'
+    document.body.append(pageLayer)
+    const onDismiss = vi.fn()
+    render(<Toast toast={{ id: 1, message: 'Payment recorded' }} onDismiss={onDismiss} />, { container: pageLayer })
+
+    const status = screen.getByRole('status')
+    expect(recordPanel.parentElement).toBe(overlayRoot)
+    expect(status.parentElement).toBe(overlayRoot)
+    expect(status).toHaveStyle({ zIndex: 'var(--z-toast)' })
+    screen.getByRole('button', { name: 'Dismiss notification' }).click()
+    expect(onDismiss).toHaveBeenCalledOnce()
+
+    pageLayer.remove()
+    overlayRoot.remove()
   })
 })

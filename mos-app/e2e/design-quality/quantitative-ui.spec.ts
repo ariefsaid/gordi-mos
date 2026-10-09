@@ -23,6 +23,10 @@ import {
   compareAutomaticFailuresForLane,
   captureCell,
   cellsFor,
+  exerciseFullValuePaths,
+  filterHorizontalOverflow,
+  filterSmallTapTargets,
+  geometrySelectors,
   observeManifestCellState,
   prepareAuditPage,
   settleAnimations,
@@ -30,6 +34,54 @@ import {
 } from './runtime'
 
 test.describe.configure({ mode: 'serial' })
+
+test('shared sweep helpers keep geometry, full-value, and phone filters aligned with the audit', async ({ page }) => {
+  const selectors = geometrySelectors()
+  expect(selectors).toContain('body')
+  expect(selectors).toContain('main')
+  expect(new Set(selectors).size).toBe(selectors.length)
+
+  const overflowRows = [
+    { selector: 'main', overflowX: 2 },
+    { selector: 'body', overflowX: 1 },
+  ]
+  expect(filterHorizontalOverflow(overflowRows)).toEqual([overflowRows[0]])
+
+  const controls = [{ width: 43, height: 44 }, { width: 44, height: 44 }, { width: 44, height: 43 }]
+  expect(filterSmallTapTargets(controls, 'phone-390x844')).toEqual([controls[0], controls[2]])
+  expect(filterSmallTapTargets(controls, 'compact-1024x768')).toEqual([])
+  expect(filterSmallTapTargets(controls, 'desktop-1440x900')).toEqual([])
+
+  const fullValuePath = DESIGN_QUALITY_MANIFEST.lists.fullValuePaths[0]
+  expect(fullValuePath?.reveal?.action).toBe('click')
+  // The registered compact cell is a filtered queue, not a default-state cell.
+  const cell = DESIGN_QUALITY_MANIFEST.cells.find((candidate) =>
+    candidate.route === '/work/tasks' && candidate.viewport === 'compact-1024x768' && candidate.state === 'filtered-queue')
+  expect(cell).toBeDefined()
+  await page.setViewportSize({ width: 1024, height: 768 })
+  await page.setContent(`
+    <div data-filter-id="status">
+      <button id="trigger"><span class="collection-toolbar__choice-value" data-full-value="In progress">In…</span></button>
+      <div class="collection-toolbar__fields-menu" id="menu" hidden>
+        <button class="collection-toolbar__toggle"><span>In progress</span></button>
+      </div>
+    </div>
+    <script>
+      const menu = document.getElementById('menu')
+      document.getElementById('trigger').addEventListener('click', () => { menu.hidden = false })
+      document.addEventListener('keydown', event => { if (event.key === 'Escape') menu.hidden = true })
+    </script>
+  `)
+  await expect(page.locator(fullValuePath!.selector)).toBeVisible()
+  await expect(page.locator(fullValuePath!.reveal!.selector)).toBeHidden()
+  expect(await exerciseFullValuePaths(page, cell!)).toEqual([fullValuePath!.selector])
+  await expect(page.locator('#menu')).toBeHidden() // Escape dismisses the driven reveal.
+
+  // A click alone is not proof: a menu that reveals the wrong value earns no exception.
+  await page.locator(fullValuePath!.reveal!.selector).evaluate(element => { element.textContent = 'Open' })
+  expect(await exerciseFullValuePaths(page, cell!)).toEqual([])
+  await expect(page.locator('#menu')).toBeHidden()
+})
 
 test('occlusion judges reachability, not whichever row a band happens to sit over', async ({ page }) => {
   // A sticky band is the designed pattern: rows pass under it on the way past. The rule must
@@ -273,33 +325,6 @@ test('a checkbox is measured on the label that activates it, and a bare one stil
   expect(stacked!.passed, stacked!.measured).toBe(false)
 })
 
-async function exerciseFullValuePaths(page: import('@playwright/test').Page, cell: import('./manifest').ManifestCell): Promise<string[]> {
-  const exercised: string[] = []
-  const paths = DESIGN_QUALITY_MANIFEST.lists.fullValuePaths.filter((entry) =>
-    (!entry.routes || entry.routes.includes(cell.route))
-    && (!entry.viewports || entry.viewports.includes(cell.viewport)),
-  )
-  for (const pathEntry of paths) {
-    if (!pathEntry.reveal) continue
-    const target = page.locator(pathEntry.selector).filter({ visible: true }).first()
-    if (await target.count() === 0) continue
-    const expected = (await target.getAttribute('data-full-value'))
-      || (await target.getAttribute('title'))
-      || (await target.textContent())
-      || ''
-    if (pathEntry.reveal.action === 'focus') await target.focus()
-    else if (pathEntry.reveal.action === 'hover') await target.hover()
-    else await target.click()
-    const visibleReveal = page.locator(pathEntry.reveal.selector).filter({ visible: true })
-    const text = await visibleReveal.allTextContents()
-    if (expected.trim() && text.some((value) => value.trim().includes(expected.trim()))) {
-      exercised.push(pathEntry.selector)
-    }
-    if (pathEntry.reveal.action === 'click') await page.keyboard.press('Escape')
-  }
-  return exercised
-}
-
 test('a surface is measured where it lands, not at the first frame of its entry animation', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   // Full-height sheet that enters 12px low, exactly like the composer's `translateY(4px)`. At
@@ -502,18 +527,7 @@ test('quantitative geometry, typography, controls, focus, and state entry point 
       language: cell.language,
       state: cell.state,
     }
-    const geometrySelectors = [...new Set([
-      'body',
-      'main',
-      '[role="dialog"]',
-      '[role="listbox"]',
-      '[role="menu"]',
-      '[data-scroll-container]',
-      '[data-primary-action-region]',
-      ...DESIGN_QUALITY_MANIFEST.lists.alignedPanelGroups.map((entry) => entry.selector),
-      ...DESIGN_QUALITY_MANIFEST.lists.intentionalDataScrollers.map((entry) => entry.selector),
-    ])]
-    const cellGeometry = await collectGeometry(page, context, geometrySelectors)
+    const cellGeometry = await collectGeometry(page, context, geometrySelectors())
     geometry.push(...cellGeometry)
     const cellControls = await collectControls(page, context)
     controls.push(...cellControls as unknown as Record<string, unknown>[])
@@ -548,7 +562,7 @@ test('quantitative geometry, typography, controls, focus, and state entry point 
 
     if (cellGeometry.length === 0) addFailure('geometry.census', cell.id, '__geometry__', cell.state, 'geometry census returned zero visible rows')
     for (const row of cellGeometry) {
-      if (row.overflowX > 1 && !DESIGN_QUALITY_MANIFEST.lists.intentionalDataScrollers.some((entry) => row.selector.includes(entry.selector))) {
+      if (filterHorizontalOverflow([row]).length > 0) {
         addFailure('geometry.horizontal-fit', cell.id, row.selector, cell.state, `${row.selector} overflows horizontally by ${row.overflowX}px`, row)
       }
       if (row.selector.includes('[role="dialog"]') || row.selector.includes('[role="listbox"]') || row.selector.includes('[role="menu"]')) {
@@ -558,10 +572,8 @@ test('quantitative geometry, typography, controls, focus, and state entry point 
         }
       }
     }
-    if (cell.viewport === 'phone-390x844') {
-      for (const control of cellControls) {
-        if (control.width < 44 || control.height < 44) addFailure('touch.phone-target', cell.id, control.elementPath, cell.state, `${control.role} target is ${control.width}x${control.height}px`, control)
-      }
+    for (const control of filterSmallTapTargets(cellControls, cell.viewport)) {
+      addFailure('touch.phone-target', cell.id, control.elementPath, cell.state, `${control.role} target is ${control.width}x${control.height}px`, control)
     }
     for (const control of cellControls) {
       if (!control.accessibleName.trim()) addFailure('a11y.accessible-name', cell.id, control.elementPath, cell.state, `${control.role} has no accessible name`, control)

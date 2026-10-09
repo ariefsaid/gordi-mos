@@ -13,6 +13,12 @@ import type { Locale } from '@/i18n/messages'
 import { ThemeProvider } from '@/theme/theme-provider'
 import { ProfilePage } from './profile-page'
 
+const { mockGetUser, mockUpdateUser, mockReauthenticate } = vi.hoisted(() => ({
+  mockGetUser: vi.fn(), mockUpdateUser: vi.fn(), mockReauthenticate: vi.fn(),
+}))
+vi.mock('@/lib/supabase', () => ({
+  supabase: { auth: { getUser: mockGetUser, updateUser: mockUpdateUser, reauthenticate: mockReauthenticate } },
+}))
 vi.mock('@/auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
 const mockUseAuth = vi.mocked(useAuth)
@@ -74,6 +80,9 @@ beforeEach(() => {
   localStorage.clear()
   accountStore.clear()
   setViewer()
+  mockGetUser.mockResolvedValue({ data: { user: { app_metadata: { providers: ['email'] } } }, error: null })
+  mockUpdateUser.mockResolvedValue({ data: { user: null }, error: null })
+  mockReauthenticate.mockResolvedValue({ error: null })
 })
 
 async function chooseLanguage(user: ReturnType<typeof userEvent.setup>, from: string, option: string) {
@@ -82,6 +91,47 @@ async function chooseLanguage(user: ReturnType<typeof userEvent.setup>, from: st
 }
 
 describe('PORT-024: ProfilePage', () => {
+  it('renders the Password card after Identity and submits through updateUser', async () => {
+    const user = userEvent.setup()
+    await renderPage()
+    const headings = screen.getAllByRole('heading', { level: 2 })
+    expect(headings.findIndex((heading) => heading.textContent === 'Identity')).toBeLessThan(
+      headings.findIndex((heading) => heading.textContent === 'Password'),
+    )
+    await user.type(screen.getByLabelText(/new password/i), 'NewPass123!')
+    await user.type(screen.getByLabelText(/confirm password/i), 'NewPass123!')
+    await user.click(screen.getByRole('button', { name: /save password/i }))
+    await waitFor(() => expect(mockUpdateUser).toHaveBeenCalledWith({ password: 'NewPass123!' }))
+  })
+
+  it('requests a code when reauthentication is needed and resubmits the code as nonce', async () => {
+    mockUpdateUser.mockResolvedValueOnce({ error: { code: 'reauthentication_needed' } })
+    const user = userEvent.setup()
+    await renderPage()
+    for (const name of [/new password/i, /confirm password/i]) await user.type(screen.getByLabelText(name), 'NewPass123!')
+    await user.click(screen.getByRole('button', { name: /save password/i }))
+    await user.type(await screen.findByLabelText('Email verification code'), '123456')
+    expect(mockReauthenticate).toHaveBeenCalledOnce()
+    await user.click(screen.getByRole('button', { name: /save password/i }))
+    await waitFor(() => expect(mockUpdateUser).toHaveBeenLastCalledWith({ password: 'NewPass123!', nonce: '123456' }))
+  })
+
+  it('confirms a successful password change and clears the password fields', async () => {
+    const user = userEvent.setup()
+    await renderPage()
+    for (const name of [/new password/i, /confirm password/i]) await user.type(screen.getByLabelText(name), 'NewPass123!')
+    await user.click(screen.getByRole('button', { name: /save password/i }))
+    expect(await screen.findByRole('status')).toHaveTextContent("Your password was changed. You're still signed in.")
+    expect(screen.getByLabelText(/new password/i)).toHaveValue('')
+    expect(screen.getByLabelText(/confirm password/i)).toHaveValue('')
+  })
+
+  it('titles the card Set a password for a Google-only account', async () => {
+    mockGetUser.mockResolvedValueOnce({ data: { user: { app_metadata: { providers: ['google'] } } }, error: null })
+    await renderPage()
+    expect(await screen.findByRole('heading', { level: 2, name: 'Set a password' })).toBeInTheDocument()
+  })
+
   it('uses the adopted 12px card/container radius token for every profile card', async () => {
     await renderPage()
     const identityCard = screen.getByRole('heading', { name: 'Identity' }).closest('section')

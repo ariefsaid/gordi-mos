@@ -1059,7 +1059,7 @@ describe('Home Signals — ambient archive door', () => {
     const signals = screen.getByRole('region', { name: 'Signals · 6' })
     const archiveDoor = await within(signals).findByRole('link', { name: 'See 67 more →' })
     expect(archiveDoor).toHaveAttribute('href', '/work/signals')
-    expect(within(signals).queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument()
+    expect(within(signals).queryByRole('button', { name: /Load more/ })).not.toBeInTheDocument()
     expect(mockListSignals).toHaveBeenCalledTimes(1)
     expect(mockCountSignals).toHaveBeenCalledTimes(1)
   })
