@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { loginAs } from './helpers/login'
-import { ADMIN } from './fixtures/users'
+import { ADMIN, MANAGER } from './fixtures/users'
 import { AC204, TASKS } from './fixtures/tasks'
 import { isShipGated } from './helpers/ship-gate'
 import { taskViewsGroup } from './helpers/tasks'
@@ -66,14 +66,14 @@ test('AC-001: old shell routes redirect to their new canonical URL and Back neve
   test.setTimeout(120_000)
   for (const routeCase of redirectCases) {
     if ('flag' in routeCase && routeCase.flag === 'plan-budget' && !PLAN_BUDGET_ENABLED) continue
-    // issue 444 — a retired path whose canonical replacement is ship-gated no longer forwards to
-    // that replacement: doing so would hand the viewer a second hop onto a route that forwards
-    // them home. What this walk asserts is the MAP (retired spelling -> canonical replacement),
-    // and that mapping is precisely what is suspended while the destination is hidden; the
-    // forward-home behaviour is held instead by `src/shell/ship-gate.test.tsx`. `replacement` is
-    // declared on the row itself rather than parsed out of `finalPath`, so the row states its own
-    // destination and the skip cannot silently mis-read a regex. Un-gate the destination and the
-    // row walks again with no edit here.
+    const actor = 'replacement' in routeCase && routeCase.replacement === '/money' ? MANAGER : ADMIN
+    await loginAs(page, actor.email, actor.password)
+    // A retired path whose canonical replacement remains ship-gated must not forward to that
+    // replacement and cause a second hop home. This walk asserts the declared redirect map for each
+    // retired route; the Money replacement is exercised with a manager who passes its role gate.
+    // Still-gated destinations skip this map walk; their forward-home behavior is held by
+    // `src/shell/ship-gate.test.tsx`. `replacement` is declared on the row rather than parsed from
+    // `finalPath`, so the skip cannot silently mis-read a regex.
     if ('replacement' in routeCase && isShipGated(routeCase.replacement)) continue
 
     await page.goto('')

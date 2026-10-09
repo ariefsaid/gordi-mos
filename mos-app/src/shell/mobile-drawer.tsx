@@ -141,8 +141,8 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
 
   if (!open) return null
 
-  // Zone 1 — workspace roots (Home · Work · Signals · Money[gated] · Inbox), same isLive gate
-  // the rail applies. Zone 2 — modules grouped by BU, viewer-scoped, minus the one already
+  // Zone 1 — workspace roots (Home · Work · Signals · Money[role-gated] · Inbox), same isLive
+  // check the rail applies. Zone 2 — modules grouped by BU, viewer-scoped, minus the one already
   // promoted to a bottom-tab. Zone 3 — utility (Admin[gated] · Profile).
   const liveWorkspace = DESTINATIONS.filter((d) => isLive(d, accessRoles))
   const promotedModule = primaryModuleForViewer(affiliated, accessRoles)

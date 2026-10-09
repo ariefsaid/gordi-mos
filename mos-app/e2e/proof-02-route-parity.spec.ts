@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { ADMIN } from './fixtures/users'
+import { ADMIN, MANAGER, VIEWER } from './fixtures/users'
 import { loginAs } from './helpers/login'
 import { TAP_FLOOR } from './helpers/tap-floor'
 import { stripE2eBasePath } from './helpers/app-path'
@@ -10,7 +10,9 @@ import { ROUTE_PARITY_CATALOG, type RouteParityId } from '../src/shell/route-par
 const ROUTE_CATALOG = ROUTE_PARITY_CATALOG
 
 const VISIBLE_ROOT_ROUTES = ROUTE_CATALOG.filter((route) => route.kind === 'visible-root').map((route) => route.path)
+const ADMIN_VISIBLE_ROOT_ROUTES = VISIBLE_ROOT_ROUTES.filter((route) => route !== '/money')
 const CANONICAL_ROUTES = ROUTE_CATALOG.map((route) => route.path)
+const FINANCE = { email: 'fitri.dev@example.test', password: VIEWER.password }
 
 // The active tab each Admin settings route owns. The tab and the rail's Admin link both mark the
 // place, so these routes are checked by their tab instead of the single-aria-current count.
@@ -123,11 +125,10 @@ test.describe('PROOF-02 canonical route and visible-root parity', () => {
       await expect(page.getByRole('navigation', { name: 'Primary' })).toBeVisible({ timeout: 15_000 })
 
       const hrefs = await visibleSurfaceHrefs(page)
-      // The same visible-root selector must expose the same admitted route set at every width.
-      // At this committed candidate ADMIN admits Café, while ship-gated roots remain absent from
-      // every surface. The set is captured from rendered links, never retyped per UI.
+      // The same selector exposes the same roots at every width. Admin lacks Money's revenue-view
+      // role, so its visible set excludes that role-gated root while the catalog retains it.
       expect([...hrefs].sort(), 'route catalog parity from the rendered visible-root selector').toEqual(
-        [...VISIBLE_ROOT_ROUTES].sort(),
+        [...ADMIN_VISIBLE_ROOT_ROUTES].sort(),
       )
 
       for (const journey of CROSS_SECTION_RETURNS) {
@@ -141,9 +142,13 @@ test.describe('PROOF-02 canonical route and visible-root parity', () => {
         })
       }
 
-      for (const route of CANONICAL_ROUTES) {
+      for (const route of CANONICAL_ROUTES.filter((path) => path !== '/money' && path !== '/money/pending-bills')) {
         await assertCanonicalSurface(page, route)
       }
+      await loginAs(page, MANAGER.email, MANAGER.password)
+      await assertCanonicalSurface(page, '/money')
+      await loginAs(page, FINANCE.email, FINANCE.password)
+      await assertCanonicalSurface(page, '/money/pending-bills')
     })
   }
 

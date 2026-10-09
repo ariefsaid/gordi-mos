@@ -68,7 +68,7 @@ describe('AC-011/012 prep (T4): DESTINATIONS — the five workspace roots', () =
     expect(objectives.capability).toBeUndefined()
   })
 
-  it('AC-012: Money is anyOf REVENUE_VIEW_ROLES and isLive false for a plain member', () => {
+  it('AC-012: Money is live only for REVENUE_VIEW_ROLES', () => {
     const money = DESTINATIONS.find((d) => d.id === 'money')!
     // Two distinct claims, deliberately not one. `toBe` against the constant alone is a tautology —
     // it passes even if someone edits the constant, which is exactly the drift these cases exist to
@@ -76,49 +76,40 @@ describe('AC-011/012 prep (T4): DESTINATIONS — the five workspace roots', () =
     // constant the /money route gate reads is pinned separately.
     expect(money.anyOf).toEqual(['finance', 'manager', 'supervisor']) // the POLICY (#797: no admin)
     expect(money.anyOf).toBe(REVENUE_VIEW_ROLES) // consumes the CONSTANT
+    expect(isShipGated('/money')).toBe(false)
     expect(isLive(money, [])).toBe(false)
     expect(isLive(money, ['member'])).toBe(false)
-    // …and since #444 the SHIP GATE closes Money above the role gate, so the two role-holders
-    // below are false too. The `anyOf` assertions above are what keep this an act of hiding
-    // rather than of deletion: the policy is intact and comes back the moment `/money` leaves
-    // SHIP_GATED_PATHS. Asserted here rather than deleted, so nobody reads a bare `false` as
-    // "finance lost financial visibility".
-    expect(isShipGated('/money')).toBe(true)
-    expect(isLive(money, ['finance'])).toBe(false)
+    expect(isLive(money, ['finance'])).toBe(true)
+    expect(isLive(money, ['manager'])).toBe(true)
+    expect(isLive(money, ['supervisor'])).toBe(true)
     expect(isLive(money, ['admin'])).toBe(false)
   })
 
   // AC-128 / AC-327 carried across from `dev`'s Plan destination, which Money succeeds. They are
   // separate cases rather than two more lines in AC-012 because each pins one owner ruling on its
   // own: folding them in would let a future edit drop a tier without any case named after it going
-  // red. The port narrowed this gate to the literal ['finance','admin'] and deleted both cases —
-  // an assertion bent to the app on shipped, owner-locked visibility.
-  // Both tiers are held on the REGISTRY rather than through `isLive`, because #444's ship gate
-  // now closes Money for everyone — including them — and an `isLive` assertion could only say
-  // "false", which is the same answer a deleted gate would give. The membership claim is the one
-  // that still distinguishes the two, and it is what switch day restores.
+  // red.
   it('AC-128: manager holds financial VIEW visibility on the Money destination (ADR-0050 D8)', () => {
     const money = DESTINATIONS.find((d) => d.id === 'money')!
     expect(money.anyOf).toContain('manager')
+    expect(isLive(money, ['manager'])).toBe(true)
   })
 
   it('AC-327: supervisor holds revenue-only VIEW visibility on the Money destination (ADR-0051)', () => {
     const money = DESTINATIONS.find((d) => d.id === 'money')!
     expect(money.anyOf).toContain('supervisor')
+    expect(isLive(money, ['supervisor'])).toBe(true)
   })
 
   // #797 / OD-WAY-98 (1): admin is users-and-settings and holds no Money read of its own. Asserted
-  // on the registry (the ship gate hides Money from everyone through isLive) AND through the gate
-  // with the ship gate lifted, so the role decision is proven on its own rather than masked.
+  // through the same live check the nav uses, so the denial cannot be masked by the ship gate.
   it('AC-004 (#797): the Money root admits manager and not admin alone', () => {
     const money = DESTINATIONS.find((d) => d.id === 'money')!
     expect(money.anyOf).not.toContain('admin')
     expect(money.anyOf).toContain('manager')
-    const tasks = DESTINATIONS.find((d) => d.id === 'work')!.links[0]
-    const unGated = { ...money, primaryPath: tasks.path, links: [tasks] }
-    expect(isLive(unGated, ['manager'])).toBe(true)
-    expect(isLive(unGated, ['admin', 'manager'])).toBe(true)
-    expect(isLive(unGated, ['admin'])).toBe(false)
+    expect(isLive(money, ['manager'])).toBe(true)
+    expect(isLive(money, ['admin', 'manager'])).toBe(true)
+    expect(isLive(money, ['admin'])).toBe(false)
   })
 
   // The rail and the route must admit the same set, or Money is reachable by URL and invisible in
@@ -317,10 +308,8 @@ describe('viewerAdmittedToRoute — one admission authority, shared with the rai
   it('honours the DESTINATION-level gate too, not only the section gate', () => {
     expect(viewerAdmittedToRoute('/admin/people', ['member'])).toBe(false)
     expect(viewerAdmittedToRoute('/admin/people', ['admin'])).toBe(true)
-    // Money was this case's second example until #444 gated it; `/money` is now closed to every
-    // role, which proves nothing about the DESTINATION-level gate. `/admin/people` above still
-    // does, and the ship gate's own effect on admission is asserted right below.
-    for (const role of REVENUE_VIEW_ROLES) expect(viewerAdmittedToRoute('/money', [role]), role).toBe(false)
+    for (const role of REVENUE_VIEW_ROLES) expect(viewerAdmittedToRoute('/money', [role]), role).toBe(true)
+    expect(viewerAdmittedToRoute('/money', ['admin'])).toBe(false)
     expect(viewerAdmittedToRoute('/money', ['member'])).toBe(false)
   })
 
@@ -374,17 +363,18 @@ describe('destinationForPath — resolution across all three zones', () => {
     expect(destinationForPath('/profile')?.id).toBe('profile')
   })
 
-  it('resolves the live workspace roots', () => {
+  it('resolves the live workspace roots, including Money', () => {
     expect(destinationForPath('/')?.id).toBe('home')
     expect(destinationForPath('/events')).toBeNull()
+    expect(destinationForPath('/money')?.id).toBe('money')
+    expect(destinationForPath('/money/detail')?.id).toBe('money')
     expect(destinationForPath('/inbox')?.id).toBe('inbox')
   })
 
-  // #444 — resolution closes with the gate. Each of these resolved to its owning destination
-  // ('work' / 'money' / 'ecommerce' / 'roastery') until the ship gate hid the surface; a resolver
-  // that still named it would let the breadcrumb print a page the viewer was forwarded away from.
-  // Same answer an unknown path gets, for the same reason: nothing routes there.
-  it.each([...SHIP_GATED_PATHS, '/money/detail'])(
+  // #444 — resolution closes with the gate. A resolver that still named a ship-gated surface
+  // would let the breadcrumb print a page the viewer was forwarded away from. Money stays live
+  // and resolves to its workspace destination.
+  it.each([...SHIP_GATED_PATHS])(
     'the ship-gated %s has no owning destination',
     (path) => {
       expect(destinationForPath(path)).toBeNull()

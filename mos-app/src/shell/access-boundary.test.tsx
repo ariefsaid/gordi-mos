@@ -6,8 +6,7 @@
  * green through a guard that quietly went back to `<Navigate to="/">`.
  *
  * Every panel case is driven from a route that is LIVE — `/cafe/pushes`, `/cafe/review`,
- * `/admin/people`, `/work/projects`. Money is ship-gated, so no viewer of any role ever reaches a
- * Money panel; the Money case in this file is the forward, asserted against the real table.
+ * `/admin/people`, `/work/projects`, and `/money` for viewers outside its revenue-view roles.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
@@ -173,8 +172,8 @@ describe('access boundary', () => {
   // The way back never names or links a destination the viewer is not admitted to, and never
   // points at the denied page itself — in both cases it falls back to Home.
   it('a link-scope denial inside a destination the viewer is NOT admitted to goes Home', () => {
-    // No live route reaches this today (every gated destination is either ship-gated or a utility
-    // area), so the drift is simulated: Café's landing route stops admitting this viewer.
+    // No current route has this exact combination, so simulate the drift: Café's landing route
+    // stops admitting this viewer while its child boundary remains live.
     admission.override = (path) => path !== '/cafe'
     try {
       setViewer(['member'])
@@ -241,55 +240,35 @@ describe('access boundary', () => {
     // `nav-reachability.test.tsx` and `ship-gate.test.tsx`. What is asserted here is the seam
     // those sweeps read, so this file fails if the boundary is ever mistaken for a reason to
     // widen a nav surface.
-    it('a Sales member is offered no Money and no Admin door', () => {
+    it('member and admin-only viewers are not offered Money, while a manager is admitted', () => {
       const money = DESTINATIONS.find((d) => d.id === 'money')!
-      expect(isLive(money, ['member'])).toBe(false) // rail group, tab bar, More drawer
+      expect(isLive(money, ['member'])).toBe(false)
+      expect(isLive(money, ['admin'])).toBe(false)
+      expect(isLive(money, ['manager'])).toBe(true)
+      expect(isLive(money, ['finance'])).toBe(true)
       expect(navUtility(['member']).map((u) => u.id)).not.toContain('admin')
-      expect(viewerAdmittedToRoute('/money', ['member'])).toBe(false) // ⌘K
+      expect(viewerAdmittedToRoute('/money', ['member'])).toBe(false)
+      expect(viewerAdmittedToRoute('/money', ['admin'])).toBe(false)
+      expect(viewerAdmittedToRoute('/money', ['manager'])).toBe(true)
+      expect(viewerAdmittedToRoute('/money', ['finance'])).toBe(true)
       expect(viewerAdmittedToRoute('/admin/people', ['member'])).toBe(false)
       // Not vacuous: the same authorities DO open the Admin door for an admin.
       expect(navUtility(['admin']).map((u) => u.id)).toContain('admin')
       expect(UTILITY.map((u) => u.id)).toContain('admin')
     })
 
-    // The forward has to be asserted where it actually happens. Reading the gated LEAF's element
-    // off the table and finding a `<Navigate>` there proves nothing: a guard sits ABOVE that leaf
-    // and renders in its place, so the leaf never mounts — which is exactly how a member came to
-    // be shown a Money panel while the shape assertion stayed green. These cases mount the real
-    // table's own gate and leaf objects and read where the viewer ends up.
-    describe('the ship gate forwards /money before any guard speaks', () => {
+    describe('the Money route uses its revenue-view role gate, not the ship gate', () => {
       it.each([
         ['a Sales member', ['member']],
-        ['a finance viewer', ['finance']],
-        ['a manager', ['manager']],
-        ['an admin', ['admin']],
-      ])('%s lands on / with no panel', (_who, roles) => {
+        ['an admin-only viewer', ['admin']],
+      ])('%s meets the Money access boundary without being forwarded home', (_who, roles) => {
         setViewer(roles)
         renderRealChain('/money')
-        expect(screen.getByTestId('landing')).toHaveTextContent('/')
-        expect(screen.queryByTestId('empty-state'), 'a gated area named itself').not.toBeInTheDocument()
-      })
-
-      it('AC-004/005: an admitted manager at the declared /dashboard alias follows its current gated landing', () => {
-        setViewer(['manager'])
-        renderRealChain('/dashboard')
-        expect(screen.getByTestId('landing')).toHaveTextContent('/')
-        expect(screen.queryByTestId('empty-state'), 'the alias became a permission denial').not.toBeInTheDocument()
-      })
-
-      it('/money/detail forwards too — the gate covers the subtree', () => {
-        setViewer(['member'])
-        renderRealChain('/money/detail')
-        expect(screen.getByTestId('landing')).toHaveTextContent('/')
-        expect(screen.queryByTestId('empty-state')).not.toBeInTheDocument()
-      })
-
-      it('is not vacuous: the same chain, ungated, renders the boundary', () => {
-        setViewer(['member'])
-        renderRealChain('/admin/people')
         expect(screen.queryByTestId('landing')).not.toBeInTheDocument()
         expect(screen.getByTestId('empty-state')).toBeInTheDocument()
+        expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Money is outside your access')
       })
+
     })
   })
 
