@@ -3,7 +3,7 @@
 -- delivery, and record history of receipts, lines, portions, issues and grants.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(93);
+select plan(95);
 -- C8 counts calls of the per-receipt stream check, so a policy that runs it before procurement's
 -- capability fails here at any volume.
 set local track_functions = 'all';
@@ -82,6 +82,29 @@ select ok(not exists (
 select ok(not has_function_privilege('authenticated', 'ops._record_cafe_receipt_information_issues()', 'EXECUTE')
           and not has_function_privilege('service_role', 'ops._record_cafe_receipt_information_issues()', 'EXECUTE'),
   'NFR-1002 informational issues are recorded only by the matching trigger');
+with definitions as (
+  select pg_get_functiondef('ops.link_cafe_receipt_issue(uuid,text)'::regprocedure) as link_source,
+         pg_get_functiondef('ops.release_cafe_receipts(uuid)'::regprocedure) as release_source
+)
+select ok(
+  position('perform pg_advisory_xact_lock' in link_source) < position('for update' in link_source)
+  and position('cafe-receipt-match:' in link_source) > 0
+  and position('cafe-receipt-match:' in release_source) > 0
+  and position('perform pg_advisory_xact_lock' in release_source)
+      < position('perform ops._return_cafe_receipt_portion' in release_source),
+  'AC-1508 issue links and branch releases take the shared branch lock before issue-row locks')
+from definitions;
+with link_definition as (
+  select pg_get_functiondef('ops.link_cafe_receipt_issue(uuid,text)'::regprocedure) as source
+)
+select ok(
+  position('for update' in source) < position('if not found or v_issue.status <> ''open''' in source)
+  and position('if not found or v_issue.status <> ''open''' in source)
+      < position('if not ops._cafe_open_po_cache_current' in source)
+  and position('if not ops._cafe_open_po_cache_current' in source)
+      < position('ops._cafe_receipt_issue_po_available' in source),
+  'AC-1508 a link that waited rechecks issue status and current PO availability under the branch lock')
+from link_definition;
 
 -- ── FR-1040 the capability: an admin grants it to another same-org person, in the database ────
 set local role authenticated;
@@ -241,7 +264,7 @@ select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000
 select set_config('app.stream_calls', pg_stat_get_xact_function_calls('ops.can_review_stream(uuid,text)'::regprocedure)::text, true);
 select count(*) from ops.cafe_receipts;
 select cmp_ok(pg_stat_get_xact_function_calls('ops.can_review_stream(uuid,text)'::regprocedure) - current_setting('app.stream_calls')::bigint,
-  '>', 0, 'C8 a reviewer read invokes the per-row stream check');
+  '>', 0::bigint, 'C8 a reviewer read invokes the per-row stream check');
 
 select shared._test_set_access_roles('{"org_id":"00000000-0000-0000-0000-0000000000a1","person_id":"00000000-0000-0000-0000-0000000000d5","access_roles":["member"]}');
 select is((select count(*)::int from ops.cafe_receipt_issues where receipt_id = current_setting('app.r1')::uuid), 5,
