@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
+import { TextInput } from '@/components/ui/text-input'
 import { ViewTabs } from '@/components/ui/view-tabs'
 import { formatAge } from '@/components/tasks/task-formatters'
 import { useI18n } from '@/i18n/I18nProvider'
@@ -15,6 +16,7 @@ import {
   listCafeReceiptIssueOpenPos,
   listCafeReceiptIssues,
   requestCafeReceiptIssuePoRefresh,
+  resolveCafeReceiptHaltedGroup,
   type CafeReceiptIssue,
   type CafeReceiptIssueKind,
   type CafeReceiptIssueList,
@@ -66,7 +68,7 @@ export function CafeReceiptIssuesQueue() {
   const t = useT()
   const { locale } = useI18n()
   const online = !useIsOffline()
-  const [list, setList] = useState<CafeReceiptIssueList>({ issues: [], held: [], refused: [], resolvedTotal: 0 })
+  const [list, setList] = useState<CafeReceiptIssueList>({ issues: [], held: [], refused: [], haltedGroups: [], resolvedTotal: 0 })
   const [canManage, setCanManage] = useState(false)
   const [names, setNames] = useState<{ people: ReadonlyMap<string, string>; branches: ReadonlyMap<string, string> }>(
     { people: new Map(), branches: new Map() })
@@ -83,6 +85,9 @@ export function CafeReceiptIssuesQueue() {
   const noticeRef = useRef<HTMLParagraphElement>(null)
   const listRef = useRef<HTMLUListElement>(null)
   const [returnFocus, setReturnFocus] = useState<string | null>(null)
+  const [numberDrafts, setNumberDrafts] = useState<Record<string, string>>({})
+  const [confirmAbsent, setConfirmAbsent] = useState<string | null>(null)
+  const [haltedFailure, setHaltedFailure] = useState<string | null>(null)
   const loaded = useRef(false)
 
   useEffect(() => {
@@ -151,6 +156,25 @@ export function CafeReceiptIssuesQueue() {
     setReload(value => value + 1)
   }
 
+  async function resolveHalted(groupId: string, resolution: 'record_number' | 'confirm_absent') {
+    if (busy || !online) return
+    const number = numberDrafts[groupId]?.trim() ?? ''
+    if (resolution === 'record_number' && !number) return
+    setBusy(true)
+    setHaltedFailure(null)
+    try {
+      await resolveCafeReceiptHaltedGroup(groupId, resolution, number)
+      done(resolution === 'record_number'
+        ? t('cafe.receipts.issues.halted.savedNumber', { number })
+        : t('cafe.receipts.issues.halted.savedAbsent'))
+      setConfirmAbsent(null)
+    } catch {
+      setHaltedFailure(groupId)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function act(issue: CafeReceiptIssue, run: () => Promise<string>) {
     if (busy || !online) return
     setBusy(true)
@@ -193,7 +217,7 @@ export function CafeReceiptIssuesQueue() {
   const onEscape = (event: KeyboardEvent) => { if (event.key === 'Escape' && !busy) { event.stopPropagation(); stopResolving() } }
   // Counts and the role-specific help are facts about a completed read, so neither shows before one.
   const known = !loading && !loadError
-  const blockedCount = byTab.blocking.length + list.held.length + list.refused.length
+  const blockedCount = byTab.blocking.length + list.held.length + list.refused.length + list.haltedGroups.length
   const tabs = [
     { id: 'blocking', label: t('cafe.receipts.issues.tab.blocking'), count: known ? blockedCount : undefined },
     { id: 'information', label: t('cafe.receipts.issues.tab.information'), count: known ? byTab.information.length : undefined },
@@ -237,6 +261,49 @@ export function CafeReceiptIssuesQueue() {
             </p>
           )}
           <ul ref={listRef} className="cafe-count-review__list">
+            {tab === 'blocking' && list.haltedGroups.map(group => (
+              <li key={group.group_id} className="cafe-count-review__row cafe-receipt-review__row">
+                <div className="cafe-count-review__identity">
+                  <div className="cafe-count-review__name">{t('cafe.receipts.issues.halted.title')}</div>
+                  <div className="cafe-count-review__meta"><span>{names.branches.get(group.receipt.branch_id) ?? t('cafe.receipts.issues.unknownBranch')}</span><span>{t('cafe.receipts.review.arrival', { date: formatWeekdayDayMonth(group.receipt.arrival_date) })}</span></div>
+                  <div className="cafe-count-review__meta"><span>{t('cafe.receipts.review.receivedBy', { person: person(group.receipt.received_by) })}</span></div>
+                </div>
+                <div className="cafe-receipt-issue__picker">
+                  <p className="cafe-receipt-issue__why">{t('cafe.receipts.issues.halted.help')}</p>
+                  <p className="cafe-receipt-issue__why"><strong>{group.po_number}</strong> · {t('cafe.receipts.issues.halted.mosKey', { key: group.mos_key })}</p>
+                </div>
+                <div className="cafe-count-review__decision cafe-receipt-review__decision">
+                  {canManage ? (
+                    <div className="cafe-receipt-issue__picker">
+                      <TextInput
+                        label={t('cafe.receipts.issues.halted.numberLabel')}
+                        value={numberDrafts[group.group_id] ?? ''}
+                        maxLength={128}
+                        fullWidth
+                        disabled={busy || !online}
+                        onChange={event => setNumberDrafts(current => ({ ...current, [group.group_id]: event.target.value }))}
+                      />
+                      <button type="button" className="btn btn-outline" disabled={!online || busy || !(numberDrafts[group.group_id] ?? '').trim()}
+                        onClick={() => void resolveHalted(group.group_id, 'record_number')}>
+                        {busy ? t('common.working') : t('cafe.receipts.issues.halted.record')}
+                      </button>
+                      <label>
+                        <input type="checkbox" checked={confirmAbsent === group.group_id} disabled={busy || !online}
+                          onChange={event => setConfirmAbsent(event.target.checked ? group.group_id : null)} />
+                        {' '}{t('cafe.receipts.issues.halted.absentCheck')}
+                      </label>
+                      <button type="button" className="btn btn-primary" disabled={!online || busy || confirmAbsent !== group.group_id}
+                        onClick={() => void resolveHalted(group.group_id, 'confirm_absent')}>
+                        {busy ? t('common.working') : t('cafe.receipts.issues.halted.requeue')}
+                      </button>
+                      {haltedFailure === group.group_id && <p className="cafe-count__field-error" role="alert">{t('cafe.receipts.issues.halted.failed')}</p>}
+                    </div>
+                  ) : (
+                    <span className="cafe-count-review__state">{t('cafe.receipts.issues.state.waiting')}</span>
+                  )}
+                </div>
+              </li>
+            ))}
             {byTab[tab].map(issue => {
               const { receipt, line } = issue
               const open = resolving?.issueId === issue.id ? resolving.mode : null

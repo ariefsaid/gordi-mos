@@ -45,6 +45,13 @@ export type CafeReceiptHeldPortion = {
   line: CafeReceiptLine
 }
 
+export type CafeReceiptHaltedGroup = {
+  group_id: string
+  po_number: string
+  mos_key: string
+  receipt: CafeReceipt
+}
+
 /** A queued portion ESB permanently refused, with the outbox message and identifying MOS key. */
 export type CafeReceiptEsbRefusedPortion = CafeReceiptHeldPortion & {
   po_number: string
@@ -56,6 +63,7 @@ export type CafeReceiptIssueList = {
   /** Every open issue, and the newest resolved ones. */
   issues: CafeReceiptIssue[]
   held: CafeReceiptHeldPortion[]
+  haltedGroups: CafeReceiptHaltedGroup[]
   refused: CafeReceiptEsbRefusedPortion[]
   /** How many issues are resolved in all, when more exist than are listed. */
   resolvedTotal: number
@@ -104,7 +112,7 @@ const ops = () => supabase.schema('ops')
  * line, evidence and photos from the shared receipt read.
  */
 export async function listCafeReceiptIssues(): Promise<CafeReceiptIssueList> {
-  const [open, resolved, resolvedCount, heldRows, refusedRows] = await Promise.all([
+  const [open, resolved, resolvedCount, heldRows, refusedRows, halted] = await Promise.all([
     readAllPages<Record<string, unknown>>('listCafeReceiptIssues', (from, to) => ops().from('cafe_receipt_issues')
       .select(ISSUE_FIELDS).eq('status', 'open').order('created_at').order('id').range(from, to)),
     ops().from('cafe_receipt_issues').select(ISSUE_FIELDS).neq('status', 'open')
@@ -114,11 +122,14 @@ export async function listCafeReceiptIssues(): Promise<CafeReceiptIssueList> {
       .select(HELD_FIELDS).eq('state', 'held').eq('hold_reason', 'no_longer_fits').order('created_at').order('id').range(from, to)),
     readAllPages<Record<string, unknown>>('listCafeReceiptIssues', (from, to) =>
       ops().rpc('cafe_receipt_esb_refused_portions', { p_offset: from, p_limit: to - from + 1 })),
+    ops().rpc('list_cafe_receipt_halted_groups'),
   ])
   if (resolved.error) throw new Error(`listCafeReceiptIssues failed: ${resolved.error.message}`)
   if (resolvedCount.error) throw new Error(`listCafeReceiptIssues failed: ${resolvedCount.error.message}`)
+  if (halted.error) throw new Error(`listCafeReceiptIssues failed: ${halted.error.message}`)
   const issueRows = [...open, ...((resolved.data ?? []) as Array<Record<string, unknown>>)]
-  const receiptIds = [...new Set([...issueRows, ...heldRows, ...refusedRows].map(row => String(row.receipt_id)))]
+  const haltedRows = (halted.data ?? []) as Array<Record<string, unknown>>
+  const receiptIds = [...new Set([...issueRows, ...heldRows, ...refusedRows, ...haltedRows].map(row => String(row.receipt_id)))]
   const [receipts, parts] = await Promise.all([readReceipts(receiptIds), readParts(receiptIds)])
   const evidence = (row: Record<string, unknown>) => {
     const receipt = receipts.get(String(row.receipt_id))
@@ -147,6 +158,13 @@ export async function listCafeReceiptIssues(): Promise<CafeReceiptIssueList> {
       }
     }),
     held: heldRows.map(row => ({ ...evidence(row), quantity: String(row.quantity) })),
+    haltedGroups: haltedRows.map(row => {
+      const receipt = receipts.get(String(row.receipt_id))
+      if (!receipt || typeof row.group_id !== 'string' || typeof row.po_number !== 'string' || typeof row.mos_key !== 'string') {
+        throw new Error('listCafeReceiptIssues failed: invalid halted group')
+      }
+      return { group_id: row.group_id, po_number: row.po_number, mos_key: row.mos_key, receipt }
+    }),
     refused: refusedRows.map(row => {
       if (typeof row.po_number !== 'string' || row.po_number.trim() === '') {
         throw new Error('listCafeReceiptIssues failed: invalid refused portion row')
@@ -274,6 +292,21 @@ export async function linkCafeReceiptIssue(issueId: string, poNumber: string): P
 export async function closeCafeReceiptIssue(issueId: string, note: string): Promise<void> {
   const { error } = await ops().rpc('close_cafe_receipt_issue', { p_issue_id: issueId, p_note: note.trim() })
   if (error) throw new Error(`closeCafeReceiptIssue failed: ${error.message}`)
+}
+
+export async function resolveCafeReceiptHaltedGroup(
+  groupId: string, resolution: 'record_number' | 'confirm_absent', esbDocNum?: string,
+): Promise<void> {
+  const { data, error } = await ops().rpc('resolve_cafe_receipt_halted_group', {
+    p_group_id: groupId,
+    p_resolution: resolution,
+    p_esb_doc_num: resolution === 'record_number' ? esbDocNum?.trim() ?? null : null,
+  })
+  if (error) throw new Error(`resolveCafeReceiptHaltedGroup failed: ${error.message}`)
+  const result = (data ?? {}) as Record<string, unknown>
+  if (result.group_id !== groupId || result.resolution !== resolution) {
+    throw new Error('resolveCafeReceiptHaltedGroup failed: invalid response')
+  }
 }
 
 /** Admin only: whether a person holds the procurement capability. */
