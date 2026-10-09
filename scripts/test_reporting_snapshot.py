@@ -139,7 +139,7 @@ class MarginSnapshotTests(unittest.TestCase):
             "revenue": "3000000",
             "cogs_interim_sm": "1800000",
             "cogs_budget_bom": "1700000",
-            "bom_coverage_pct": "0.9",
+            "bom_coverage_pct": "90",
         }
 
         normalized = normalize_margin_row(
@@ -153,6 +153,7 @@ class MarginSnapshotTests(unittest.TestCase):
         self.assertEqual(normalized["branch_name"], "Gordi Roastery")
         self.assertEqual(normalized["margin_interim"], 1200000.0)
         self.assertEqual(normalized["margin_interim_pct"], 0.4)
+        self.assertEqual(normalized["bom_coverage_pct"], 0.9)
 
     def test_normalize_margin_row_computes_margin_interim_and_pct(self):
         """AC-SN02/AC-HK02: Given revenue and cogs_interim_sm, when normalize_margin_row runs,
@@ -165,7 +166,7 @@ class MarginSnapshotTests(unittest.TestCase):
             "revenue": "1250000",
             "cogs_interim_sm": "750000",
             "cogs_budget_bom": "700000",
-            "bom_coverage_pct": "0.95",
+            "bom_coverage_pct": "95",
         }
 
         normalized = normalize_margin_row(
@@ -178,6 +179,29 @@ class MarginSnapshotTests(unittest.TestCase):
         self.assertEqual(normalized["margin_interim"], 500000.0)
         self.assertEqual(normalized["margin_interim_pct"], 0.4)
         self.assertEqual(normalized["bom_coverage_pct"], 0.95)
+
+    def test_normalize_margin_row_converts_warehouse_percentage_points_to_ratio(self):
+        for source_pct, expected_ratio in (("90", 0.9), ("112.5", 1.125)):
+            with self.subTest(source_pct=source_pct):
+                row = {
+                    "margin_date": "2026-07-01",
+                    "esb_code": "GKI",
+                    "branch_code": "BGR",
+                    "branch_name": "Bungur",
+                    "revenue": "1250000",
+                    "cogs_interim_sm": "750000",
+                    "cogs_budget_bom": "700000",
+                    "bom_coverage_pct": source_pct,
+                }
+
+                normalized = normalize_margin_row(
+                    row,
+                    snapshot_as_of="2026-07-01T04:00:00+07:00",
+                    org_id="00000000-0000-0000-0000-0000000000a1",
+                    source_contract_version=DEFAULT_MARGIN_SOURCE_CONTRACT_VERSION,
+                )
+
+                self.assertEqual(normalized["bom_coverage_pct"], expected_ratio)
 
     def test_normalize_margin_row_pct_is_none_when_revenue_not_positive(self):
         """AC-HK02: Given revenue is 0, when pct is computed, then pct is None (not NaN)."""
@@ -200,6 +224,7 @@ class MarginSnapshotTests(unittest.TestCase):
         )
 
         self.assertIsNone(normalized["margin_interim_pct"])
+        self.assertIsNone(normalized["bom_coverage_pct"])
 
     def test_normalize_margin_row_margin_fields_none_when_cogs_missing(self):
         """AC-SN06: Given a day with revenue but NULL cogs_interim_sm, when normalize_margin_row
@@ -212,7 +237,7 @@ class MarginSnapshotTests(unittest.TestCase):
             "revenue": "1250000",
             "cogs_interim_sm": None,
             "cogs_budget_bom": "700000",
-            "bom_coverage_pct": "0.95",
+            "bom_coverage_pct": "95",
         }
 
         normalized = normalize_margin_row(
@@ -225,6 +250,7 @@ class MarginSnapshotTests(unittest.TestCase):
         self.assertIsNone(normalized["cogs_interim_sm"])
         self.assertIsNone(normalized["margin_interim"])
         self.assertIsNone(normalized["margin_interim_pct"])
+        self.assertEqual(normalized["bom_coverage_pct"], 0.95)
 
     def test_margin_source_query_reads_pos_only_join(self):
         """AC-SN03: Given the margin source query, when built, then it reads
@@ -304,7 +330,7 @@ MARGIN_SOURCE_ROW = {
     "revenue": "1000000",
     "cogs_interim_sm": "600000",
     "cogs_budget_bom": "550000",
-    "bom_coverage_pct": "0.9",
+    "bom_coverage_pct": "90",
 }
 
 

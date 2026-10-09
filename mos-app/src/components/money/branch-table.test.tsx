@@ -54,13 +54,13 @@ describe('BranchTable — re-render after a change from outside', () => {
   })
 })
 
-describe('BranchTable — one term for recipe coverage (#1453)', () => {
+describe('BranchTable — one term for recipe vs stock cost (#1453)', () => {
   const margin = ROWS.filter((r) => r.branch_code === 'alpha').map((r) => ({
     margin_date: r.revenue_date, esb_code: 'X', branch_code: 'alpha', branch_name: 'Alpha', branch_id: null,
     revenue: r.clean_revenue, cogs_interim_sm: 700_000, cogs_budget_bom: 650_000, margin_interim: r.clean_revenue - 700_000,
     bom_coverage_pct: 0.9, snapshot_as_of: r.snapshot_as_of, source_contract_version: 'v1',
   }))
-  it.each([['en', 'Recipe coverage'], ['id', 'Cakupan resep']] as const)('the phone company line uses the column header term (%s)', (locale, term) => {
+  it.each([['en', 'Recipe vs stock cost'], ['id', 'Resep vs biaya stok']] as const)('the phone company line uses the column header term (%s)', (locale, term) => {
     const { container } = render(
       <I18nProvider initialLocale={locale}>
         <MemoryRouter>
