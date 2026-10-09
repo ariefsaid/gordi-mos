@@ -94,7 +94,7 @@ describe('SetPasswordForm', () => {
     renderForm(vi.fn())
 
     const rule = screen.getByText(
-      'At least 8 characters, with upper- and lowercase letters and a number. Different from your current password.',
+      'At least 8 characters, with upper- and lowercase letters and a number. Different from your current password, if you have one.',
     )
     expect(rule).toBeInTheDocument()
     // Announced with the field, not just painted near it.
