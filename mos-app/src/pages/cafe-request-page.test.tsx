@@ -99,6 +99,21 @@ beforeEach(() => {
 })
 
 describe('CafeRequestPage', () => {
+  it('explains the missing confirmed stock unit when Items has active set-up items but none is receivable', async () => {
+    mockItems.mockResolvedValue([])
+    itemSettingsMocks.list.mockResolvedValue([{
+      id: 'wip-1', erpName: 'Prepared sauce with roasted vegetables', mosName: 'Prepared sauce',
+      category: 'Kitchen', kind: 'WIP', isActive: true, defaultUnitId: 'unit-portion',
+      units: [{ id: 'unit-portion', name: 'porsi', isDefault: true, isShown: true, labelOrdinal: null, labelCount: 1 }],
+    }])
+    renderPage()
+
+    const empty = await screen.findByTestId('empty-state')
+    expect(empty).toHaveTextContent('1 item is set up')
+    expect(empty).toHaveTextContent('default unit confirmed as an ESB stock unit')
+    expect(empty).not.toHaveTextContent('not set up for this list')
+  })
+
   it.each([false, true])('offers the Items setup link only to people who can manage items (canManage=%s)', async canManage => {
     mockItems.mockResolvedValue([])
     itemSettingsMocks.canManage.mockResolvedValue(canManage)

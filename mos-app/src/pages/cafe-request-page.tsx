@@ -211,7 +211,7 @@ export function CafeRequestPage() {
               </div>
             </div>
             {items.length === 0 ? (
-              <CafeItemsEmptyState stream={stream} />
+              <CafeItemsEmptyState stream={stream} requiresStockUnit />
             ) : (
               <>
                 <KitchenToolbar

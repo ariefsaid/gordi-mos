@@ -762,7 +762,7 @@ export function CafeReceivePage() {
                 }} />
             </div>
             {items.length === 0 ? (
-              <CafeItemsEmptyState stream={stream} />
+              <CafeItemsEmptyState stream={stream} requiresStockUnit />
             ) : (
               <>
                 <section className="cafe-receive__open-pos" aria-labelledby="cafe-receive-open-pos-title" onKeyDown={closeOpenPoListOnEscape}>
