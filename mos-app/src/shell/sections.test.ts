@@ -102,10 +102,9 @@ describe('T5: new destination sections resolve', () => {
     expect(sectionForPath('/work/signals')!.label).toBe('Signals')
   })
 
-  it('sectionForPath resolves a sub-route by prefix', () => {
-    // Was `/money/detail` → `/money`; Money is ship-gated (#444) and resolves to nothing now, so
-    // the PREFIX behaviour itself is proven on a path that is still live.
-    expect(sectionForPath('/cafe/plan/anything')!.path).toBe('/cafe/plan')
+  it('sectionForPath resolves Money sub-routes by prefix', () => {
+    expect(sectionForPath('/money/detail')?.path).toBe('/money')
+    expect(sectionForPath('/cafe/plan/anything')?.path).toBe('/cafe/plan')
   })
 
   // #444 — the gate closes resolution, not just rendering. The router forwards a gated path home,
@@ -118,10 +117,10 @@ describe('T5: new destination sections resolve', () => {
     },
   )
 
-  it('keeps non-navigation gated sections in the fallback registry', () => {
+  it('keeps workspace and module sections in the fallback registry', () => {
     const paths = SECTIONS.map((s) => s.path)
     for (const p of ['/money', '/work/objectives', '/ecommerce', '/roastery']) {
-      expect(paths, `${p} was deleted from SECTIONS rather than gated`).toContain(p)
+      expect(paths, `${p} was deleted from SECTIONS`).toContain(p)
     }
   })
 })

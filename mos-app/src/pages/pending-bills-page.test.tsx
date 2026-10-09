@@ -23,11 +23,6 @@ vi.mock('@/lib/db/pending-bill-payments', async (importOriginal) => ({
   paySeveralPendingBills: vi.fn(),
   uploadPendingBillProof: vi.fn(),
 }))
-// Money is ship-gated in today's builds; these tests are about the page and its role gate.
-vi.mock('@/lib/ship-gate', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/ship-gate')>()),
-  isShipGated: () => false,
-}))
 vi.mock('@/auth/use-auth')
 
 import { latestPendingBillSnapshot, listPendingBills, type PendingBillRow } from '@/lib/db/reporting-pending-bills'

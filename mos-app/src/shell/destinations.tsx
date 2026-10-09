@@ -367,8 +367,7 @@ export function goToDestinations(
  * The ship gate (#444) is asked FIRST and asked for everyone. It is not another role gate sitting
  * beside `anyOf` — it is above it: a gated surface is outside the MVP payload, so it is closed to
  * every viewer regardless of what they hold, and the router closes the same path from the same
- * array. Money keeps its REVENUE_VIEW_ROLES gate untouched underneath, so switch day restores the
- * owner-locked VIEW tiers (ADR-0050 D8 / ADR-0051) by deleting one line from SHIP_GATED_PATHS.
+ * array. Money is not ship-gated; its `REVENUE_VIEW_ROLES` gate controls its visibility.
  */
 export function isLive(d: Destination, accessRoles: string[]): boolean {
   const entry = d.primaryPath ?? d.links[0]?.path
@@ -386,8 +385,8 @@ export function isLive(d: Destination, accessRoles: string[]): boolean {
  */
 export function destinationForPath(pathname: string): Destination | null {
   // #444: a ship-gated path has no owning destination — the same answer an unknown path gets, and
-  // for the same reason (nothing routes there). Without this the breadcrumb would resolve
-  // `/work/projects` to the Work destination and, with `sectionForPath` already closed, print
+  // for the same reason (nothing routes there). Without this the breadcrumb could resolve
+  // `/work/events` to Work and print
   // "Work · Tasks" over a surface that is neither.
   if (isShipGated(pathname)) return null
   return destinationOwning(pathname)

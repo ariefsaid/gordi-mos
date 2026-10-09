@@ -315,7 +315,7 @@ export function SignalsIcon() {
   )
 }
 
-// MoneyIcon — a banknote, the Money destination (finance/admin gated).
+// MoneyIcon — a banknote, the Money destination (finance/manager/supervisor gated).
 export function MoneyIcon() {
   return (
     <svg

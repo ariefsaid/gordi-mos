@@ -72,18 +72,25 @@ describe('AC-018: Breadcrumb — · separator, new destinations (§9 table)', ()
   })
 
   // #444 — a ship-gated path resolves to NOTHING, the same answer an unknown path gets, and for
-  // the same reason: nothing routes there. `/work/projects`, `/work/objectives`, `/work/events`,
-  // `/money` and `/money/detail` each read "Work · …" / "Money · …" here until the gate closed
-  // them. Printing a crumb for a surface the router forwards away from would name a page the
-  // viewer is not on. Delete a path from SHIP_GATED_PATHS and its crumb comes back with no edit
-  // to breadcrumb.tsx.
-  it.each([...SHIP_GATED_PATHS, '/money/detail'])(
+  // the same reason: nothing routes there. Printing a crumb for a surface the router forwards away
+  // from would name a page the viewer is not on. Money is no longer in the ship-gate list.
+  it.each([...SHIP_GATED_PATHS])(
     'the ship-gated %s renders no crumb at all',
     (path) => {
       renderBC(path)
       expect(crumbText()).toBe('')
     },
   )
+
+  it('/money → "Money"', () => {
+    renderBC('/money')
+    expect(crumbText()).toBe('Money')
+  })
+
+  it('/money/detail resolves the Money crumb before its route redirect', () => {
+    renderBC('/money/detail')
+    expect(crumbText()).toBe('Money')
+  })
 
   it('/inbox → "Inbox"', () => {
     renderBC('/inbox')

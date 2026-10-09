@@ -1,7 +1,7 @@
 /**
  * Money's sub-nav (#1464): Branches for every Money tier, Pending bills for Finance only — the same
  * answer on the desktop rail and the phone drawer, and the same `anyOf` the route gate carries.
- * Money is ship-gated today, so the gate is mocked open: this pins the nav as it renders once it lifts.
+ * Money remains available only to its revenue-view roles; tests exercise the real access-role predicate.
  */
 import { describe, it, expect, vi } from 'vitest'
 import { render, within } from '@testing-library/react'
@@ -16,10 +16,6 @@ vi.mock('@/lib/db/notifications', async (importOriginal) => ({
   listNotifications: vi.fn().mockResolvedValue({ rows: [], hasMore: false, nextCursor: null }),
 }))
 
-vi.mock('@/lib/ship-gate', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/ship-gate')>()),
-  isShipGated: () => false,
-}))
 vi.mock('@/auth/use-auth')
 import { useAuth } from '@/auth/use-auth'
 import { RailNav } from './rail-nav'

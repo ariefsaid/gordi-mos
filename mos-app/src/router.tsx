@@ -593,11 +593,11 @@ function withShellErrorBoundary(routes: RouteObject[]): RouteObject[] {
 //
 // Two kinds of entry are rewritten, and the second is the one that is easy to miss:
 //
-//  1. the gated surface itself (`/money`, `/work/objectives`, …);
-//  2. every RETIRED path whose redirect names a gated surface (`/dashboard` → `/money`,
-//     `/objectives` → `/work/objectives`). Left alone, those forward a viewer onto a path that
-//     forwards them again — the chained redirect the whole table is built to avoid — so they
-//     name the profile landing directly instead, and their `redirect` handle is re-declared to match. A handle
+//  1. the gated surface itself (for example, `/work/events`);
+//  2. every RETIRED path whose redirect names a gated surface, when one exists. Left alone, those
+//     forward a viewer onto a path that forwards them again — the chained redirect the whole table
+//     is built to avoid — so they name the profile landing directly instead, and their `redirect`
+//     handle is re-declared to match. A handle
 //     that disagrees with its element is a comment that lies (route-classification.test.ts).
 //
 // A gated SURFACE keeps its `page` handle: it is still a page, still registered in the page-family

@@ -250,13 +250,15 @@ describe('AC-021/008: aria-current — primary tab page on its route; More page 
     expect(within(nav).getByRole('button', { name: /More/i })).not.toHaveClass('bottom-tab--active')
   })
 
-  it('More is a disclosure, not a location, at /money (finance viewer)', () => {
-    setAuthAs(['finance'])
+  it.each(['finance', 'manager'])('%s sees More as the active door at /money, not a Money tab', (role) => {
+    setAuthAs([role])
     renderTabBar('/money')
     const nav = screen.getByRole('navigation', { name: 'Primary' })
     const more = within(nav).getByRole('button', { name: /More/i })
+    expect(more).toHaveClass('bottom-tab--active')
     expect(more).not.toHaveAttribute('aria-current')
     expect(more).toHaveAttribute('aria-haspopup', 'dialog')
+    expect(within(nav).queryByRole('link', { name: /^Money$/ })).toBeNull()
     expect(within(nav).getAllByRole('link').filter((l) => l.getAttribute('aria-current') === 'page')).toHaveLength(0)
   })
 })
