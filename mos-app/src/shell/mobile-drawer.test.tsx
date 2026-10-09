@@ -204,15 +204,22 @@ describe('More menu navigation + a11y', () => {
     const onClose = vi.fn()
     const focusOpener = vi.fn()
     setAuthAs(['admin'])
+    function DrawerHarness() {
+      const [open, setOpen] = useState(true)
+      return (
+        <>
+          <MobileDrawer open={open} onClose={() => { onClose(); setOpen(false) }} focusOpener={focusOpener} />
+          <LocationDisplay />
+        </>
+      )
+    }
+
     render(
       <ThemeProvider>
         <I18nProvider>
           <MemoryRouter initialEntries={['/']}>
             <Routes>
-              <Route
-                path="*"
-                element={<><MobileDrawer open onClose={onClose} focusOpener={focusOpener} /><LocationDisplay /></>}
-              />
+              <Route path="*" element={<DrawerHarness />} />
             </Routes>
           </MemoryRouter>
         </I18nProvider>
@@ -230,19 +237,24 @@ describe('More menu navigation + a11y', () => {
     const user = userEvent.setup()
     const focusOpener = vi.fn()
     setAuthAs(['admin'])
+    function DrawerHarness() {
+      const [open, setOpen] = useState(true)
+      return <MobileDrawer open={open} onClose={() => setOpen(false)} focusOpener={focusOpener} />
+    }
+
     render(
       <ThemeProvider>
         <I18nProvider>
           <MemoryRouter initialEntries={['/']}>
             <Routes>
-              <Route path="*" element={<MobileDrawer open onClose={vi.fn()} focusOpener={focusOpener} />} />
+              <Route path="*" element={<DrawerHarness />} />
             </Routes>
           </MemoryRouter>
         </I18nProvider>
       </ThemeProvider>,
     )
     await user.keyboard('{Escape}')
-    expect(focusOpener).toHaveBeenCalled()
+    expect(focusOpener).toHaveBeenCalledTimes(1)
   })
 
   it('inerts the app while open and restores focus after the drawer closes', async () => {

@@ -115,8 +115,6 @@ export function MobileDrawer({ open, onClose, focusOpener }: MobileDrawerProps) 
   const affiliated = viewer?.affiliated ?? []
 
   const closeAndReturn = useCallback(() => {
-    const appRoot = document.getElementById('root')
-    if (!appRoot?.hasAttribute('inert')) focusOpenerRef.current?.()
     onClose()
   }, [onClose])
 

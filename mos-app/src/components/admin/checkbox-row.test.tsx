@@ -39,4 +39,12 @@ describe('CheckboxRow', () => {
     expect(checkbox.tagName).toBe('INPUT')
     expect(checkbox).toBeChecked()
   })
+
+  it('lets the checkbox own disabled dimming without dimming the whole row twice', () => {
+    render(<CheckboxRow label="Unavailable role" checked disabled onToggle={() => {}} />)
+    const checkbox = screen.getByRole('checkbox', { name: 'Unavailable role' })
+    const label = checkbox.closest('label') as HTMLElement
+    expect(label).not.toHaveClass('opacity-50')
+    expect(checkbox).toBeDisabled()
+  })
 })

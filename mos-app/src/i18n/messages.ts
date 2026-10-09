@@ -962,6 +962,8 @@ export const messages = {
     'rail.collapse': 'Collapse navigation',
     'rail.destinations': 'Destinations',
     'rail.expand': 'Expand navigation',
+    'rail.group.hidePages': 'Hide ${group} pages',
+    'rail.group.showPages': 'Show ${group} pages',
     'rail.retailOps': 'Retail Ops',
     'topBar.inboxUnread': 'Inbox, ${count} unread',
     'topBar.search': 'Search',
@@ -3555,6 +3557,8 @@ export const messages = {
     'rail.collapse': 'Ciutkan navigasi',
     'rail.destinations': 'Destinasi',
     'rail.expand': 'Bentangkan navigasi',
+    'rail.group.hidePages': 'Sembunyikan halaman ${group}',
+    'rail.group.showPages': 'Tampilkan halaman ${group}',
     // #755 (AC-024): the RETAIL OPS group overline in Indonesian.
     'rail.retailOps': 'Operasi Ritel',
     'topBar.inboxUnread': 'Kotak Masuk, ${count} belum dibaca',
