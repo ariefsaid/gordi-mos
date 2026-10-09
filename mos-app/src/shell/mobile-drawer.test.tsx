@@ -96,18 +96,16 @@ describe('AC-021: More menu lists every authorized non-primary destination (admi
     expect(screen.queryByRole('link', { name: /^Pushes$/ })).toBeNull()
   })
 
-  // Was "admin also sees Money (finance/admin)". #444 ship-gates Money, so no viewer does — see
-  // the AC-022 block below, which now carries that claim for every role including admin.
-  it('admin sees the Inbox root, which is the workspace destination that still ships', () => {
+  it('admin sees the Inbox root but not Money without a revenue-view role', () => {
     renderDrawer({ accessRoles: ['admin'] })
     expect(screen.getByRole('link', { name: /Inbox/ })).toHaveAttribute('href', '/inbox')
     expect(screen.queryByRole('link', { name: /^Money$/ })).toBeNull()
   })
 })
 
-describe('AC-022: Money absent for non-finance/admin (from More)', () => {
+describe('AC-022: Money in More follows its revenue-view role gate', () => {
   it('a plain member does NOT see Money in the More menu', () => {
-    renderDrawer({ accessRoles: [] })
+    renderDrawer({ accessRoles: ['member'] })
     expect(screen.queryByRole('link', { name: /^Money$/ })).toBeNull()
   })
 
@@ -116,16 +114,11 @@ describe('AC-022: Money absent for non-finance/admin (from More)', () => {
     expect(screen.queryByRole('link', { name: /Admin Settings/ })).toBeNull()
   })
 
-  // #444 widened this from "non-finance/admin" to EVERYONE: the ship gate sits above the role
-  // gate, so a finance or admin viewer sees exactly what a plain member sees here. The role
-  // policy itself stays asserted on the registry in destinations.test.ts, and comes back the
-  // moment /money leaves SHIP_GATED_PATHS.
-  it.each([['finance', ['finance']], ['admin', ['admin']], ['manager', ['manager']]])(
-    '%s sees no Money link either — the ship gate is above the role gate',
+  it.each([['finance', ['finance']], ['manager', ['manager']]])(
+    '%s sees Money in the More menu',
     (_who, accessRoles) => {
       renderDrawer({ accessRoles })
-      expect(screen.queryByRole('link', { name: /^Money$/ })).toBeNull()
-      // …and the drawer rendered, so this is not passing on nothing.
+      expect(screen.getByRole('link', { name: /^Money$/ })).toHaveAttribute('href', '/money')
       expect(screen.getByRole('link', { name: /Inbox/ })).toBeInTheDocument()
     },
   )

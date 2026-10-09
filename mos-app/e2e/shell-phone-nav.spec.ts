@@ -7,7 +7,6 @@ import { stubAccountLocale } from './helpers/account-locale'
 // Label -> the path behind it, so the assertions below ask the gate rather than re-listing it.
 const GATED_BY_LABEL: Record<string, string> = {
   Events: '/work/events',
-  Money: '/money',
   Ecommerce: '/ecommerce',
   Roastery: '/roastery',
 }
@@ -37,13 +36,13 @@ test.describe('shell phone nav', () => {
     // drawer. Open the signed-in identity menu before asserting its link.
     await more.getByRole('button', { name: 'E2E Admin' }).click()
     await expect(more.getByRole('menuitem', { name: 'Personal Profile' })).toBeVisible()
-    // issue 444 — Events, Money, Ecommerce and Roastery were each asserted VISIBLE here. All four
-    // are ship-gated, and the gate is above roles, so the viewer holding every role gets no link
-    // to any of them on the one nav surface a phone has.
+    // Events, Ecommerce and Roastery remain ship-gated for everyone. Money is not in this list:
+    // this admin-only viewer lacks the revenue-view role, so its absence is role-based instead.
     for (const [label, path] of Object.entries(GATED_BY_LABEL)) {
       if (!isShipGated(path)) continue
       await expect(more.getByRole('link', { name: label, exact: true })).toHaveCount(0)
     }
+    await expect(more.getByRole('link', { name: 'Money', exact: true })).toHaveCount(0)
     await more.getByRole('menuitem', { name: 'Personal Profile' }).click()
     await expect(page).toHaveURL(/\/profile$/)
     await expect(page.getByRole('heading', { name: 'Personal Profile', exact: true })).toBeVisible()

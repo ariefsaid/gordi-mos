@@ -50,6 +50,7 @@ import { KitchenReviewPage } from './pages/kitchen-review-page'
 import { KitchenPushesPage } from './pages/kitchen-pushes-page'
 import { CafeRootPage } from './pages/cafe-opening-page'
 import { MoneyPage } from './pages/money-page'
+import { MoneyBranchPage } from './pages/money-branch-page'
 import { PendingBillsPage } from './pages/pending-bills-page'
 import { BudgetPage } from './pages/budget-page'
 import { PricingPage } from './pages/pricing-page'
@@ -91,9 +92,9 @@ describe('AC-019: every route but login loads on demand, behind one loading shel
   const routes = surfaceRoutes()
 
   it('the sweep enumerates the whole table, so it cannot pass by finding nothing', () => {
-    // Floor lowered from 25 with the ship gate (#444): ten page routes now forward home instead
-    // of rendering, so they are no longer split-loading anything and drop out of this sweep. The
-    // wiring ledger below still holds each of them to its page module in the written table.
+    // Ship-gated routes forward home instead of rendering, so they are no longer split-loading
+    // anything and drop out of this sweep. The wiring ledger below still holds each path to its
+    // page module in the written table.
     expect(routes.length).toBeGreaterThan(18)
     // Each exemption is really in the table — otherwise the exemption set is silently dead.
     for (const path of EAGER_BY_DESIGN) {
@@ -157,6 +158,7 @@ const WIRING: ReadonlyArray<readonly [path: string, component: unknown, provenan
   ['/work/projects/:workLineId', WorkLineRecordPage, 'redesign'],
   ['/work/events', EventsWorkspacePage, 'dev'], 
   ['/money', MoneyPage, 'dev'],
+  ['/money/branch/:code', MoneyBranchPage, 'dev'],
   ['/money/pending-bills', PendingBillsPage, '1464'],
   ['/money/budget', BudgetPage, 'dev'],
   ['/money/pricing', PricingPage, 'dev'],
@@ -216,14 +218,15 @@ describe('AC-020: a route whose surface is not yet ported serves the surface cur
 
   // A ship-gated path (#444) forwards home in the SHIPPED table, so `resolvePageAt` finds no
   // module there — that is the gate working, and `shell/ship-gate.test.tsx` asserts it from the
-  // other side. What still has to be true is that the surface was HIDDEN, not deleted: the entry
-  // as written is still pointed at its real page module, so removing the path from
-  // SHIP_GATED_PATHS restores the screen with no edit to the table. That is what these two
-  // assertions hold, read off the table BEFORE the gate is applied.
+  // other side. The remaining gates keep their surfaces wired in the authored table.
   const gatedWiring = WIRING.filter(([path]) => isShipGated(path))
 
-  it('the gated set is non-empty — these assertions cannot pass by finding nothing', () => {
-    expect(gatedWiring.length).toBeGreaterThan(5)
+  it('the remaining gated set is Events, Ecommerce and Roastery', () => {
+    expect(gatedWiring.map(([path]) => path).sort()).toEqual([
+      '/ecommerce',
+      '/roastery',
+      '/work/events',
+    ])
   })
 
   it.each(gatedWiring.map(([path, component]) => [path, component] as const))(

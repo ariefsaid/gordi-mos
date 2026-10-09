@@ -158,10 +158,14 @@ describe('issue 444 ship gate — the route and the nav close from the same swit
     expect(phoneHrefs().length).toBeGreaterThan(5)
   })
 
-  it('the predicate matches a gated root, its subtree, and nothing else', () => {
-    expect(isShipGated('/money')).toBe(true)
-    expect(isShipGated('/money/detail')).toBe(true)
-    expect(isShipGated('/money?tab=detail')).toBe(true)
+  it('Money and its subtree are not ship-gated while post-MVP surfaces remain gated', () => {
+    for (const path of ['/money', '/money?tab=detail', '/money/detail', '/money/branch/GHQ', '/money/follow-ups', '/money/budget', '/money/pricing', '/money/pending-bills']) {
+      expect(isShipGated(path), `${path} should remain available to its role gate`).toBe(false)
+    }
+    for (const path of ['/work/events', '/ecommerce', '/roastery']) {
+      expect(isShipGated(path), `${path} should remain ship-gated`).toBe(true)
+    }
+    expect(isShipGated('/work/events/calendar')).toBe(true)
     expect(isShipGated('/work/tasks')).toBe(false)
     expect(isShipGated('/')).toBe(false)
     // A prefix that is not a path SEGMENT boundary is a different surface, not a child.
@@ -198,8 +202,8 @@ describe('issue 444 ship gate — the route and the nav close from the same swit
   })
 
   it('AC-052 (#804 regression pin): no redirect anywhere in the table names a gated path — a gated doormat is a dead end', () => {
-    // `/dashboard` → `/money` used to be a live retired path. With Money gated it would forward a
-    // viewer onto a route that forwards them again; the gate re-points it at Home instead.
+    // A redirect to a gated path would forward a viewer onto a route that forwards them again; the
+    // gate re-points it at Home instead.
     const naming = flattenRoutes()
       .filter(({ route }) => isRedirect(route.element))
       .map(({ path, route }) => [path, redirectProps(route.element).to] as const)
@@ -234,8 +238,8 @@ describe('issue 444 ship gate — the route and the nav close from the same swit
   // ── Hidden, not deleted ──────────────────────────────────────────────────────────────────
   it('every gated surface is still wired in the registries — this is visibility, not removal', () => {
     // Deleting the registry entries would also make the assertions above pass, and would make
-    // switch day a revert instead of a one-line edit. The entries stay; only their visibility
-    // changes, and Money keeps the access-role gate it will need back (ADR-0050 D8 / ADR-0051).
+    // switch day a revert instead of a one-line edit. The remaining entries stay; only their
+    // visibility changes. Money remains controlled by its access-role gate (ADR-0050 D8 / ADR-0051).
     const registered = new Set([
       ...DESTINATIONS.flatMap((d) => [...d.links, ...(d.children ?? [])]).map((l) => l.path),
       ...MODULES.flatMap((g) => g.items).flatMap((m) => [...m.links, ...(m.children ?? [])]).map((l) => l.path),
@@ -246,7 +250,7 @@ describe('issue 444 ship gate — the route and the nav close from the same swit
     expect(missing, 'gated paths deleted from the registries instead of hidden').toEqual([])
 
     const money = DESTINATIONS.find((d) => d.id === 'money')
-    expect(money?.anyOf, 'Money lost its access-role gate while hidden').toBeDefined()
+    expect(money?.anyOf, 'Money lost its access-role gate').toBeDefined()
   })
 
   // ── The orphans the gate creates ─────────────────────────────────────────────────────────
@@ -254,7 +258,9 @@ describe('issue 444 ship gate — the route and the nav close from the same swit
     // Straight at the two functions every nav surface reads, so a NEW surface built on them
     // inherits the gate without being added to this file.
     const money = DESTINATIONS.find((d) => d.id === 'money')!
-    expect(isLive(money, OMNISCIENT_ROLES)).toBe(false)
+    expect(isLive(money, OMNISCIENT_ROLES)).toBe(true)
+    expect(isLive(money, ['admin'])).toBe(false)
+    expect(isLive(money, ['member'])).toBe(false)
     const work = DESTINATIONS.find((d) => d.id === 'work')!
     const workChildPaths = visibleSections(work.children ?? [], OMNISCIENT_ROLES).map((s) => s.path)
     expect(workChildPaths.filter(isShipGated)).toEqual([])

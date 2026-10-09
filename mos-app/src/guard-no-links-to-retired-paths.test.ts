@@ -104,9 +104,7 @@ describe('GUARD #225: no in-app navigation target matches a route-table redirect
       .filter((r) => r.kind === 'map')
       .map((r) => pathnameOf(r.from))
       .filter((path) => path !== '/work/tasks/new')
-    // Floor lowered from 15 with the ship gate (#444): six retired paths whose replacement is now
-    // hidden name Home instead, which moves them from `map` into `flag-fallback`. The gate's own
-    // suite (`shell/ship-gate.test.tsx`) is what holds the links to those hidden surfaces.
+    // Keep a non-vacuous floor on map redirects; feature-flag fallbacks are classified separately.
     expect(retiredPaths.length, 'the redirect map is empty — this guard would pass on nothing').toBeGreaterThan(10)
 
     const offenders: string[] = []
@@ -128,25 +126,16 @@ describe('GUARD #225: no in-app navigation target matches a route-table redirect
  * MECH-GUARD — issue #444: an in-app link points INTO a ship-gated surface.
  *
  * `shell/ship-gate.test.tsx` renders the nav and proves no rail / drawer / bottom-tab link names a
- * gated path. That is the surface the gate was written for, but it is not every surface: a Tasks
- * group header drills into an Objective, a record row drills into Money. Those live far from
- * `shell/` and would have to be remembered one by one. This sweeps the whole of `src/` for the
- * same three target forms as the guard above, so a NEW link into a hidden surface fails here
- * rather than waiting to be noticed by eye.
+ * gated path. That is the surface the gate was written for, but links elsewhere can point into a
+ * hidden surface too. This sweeps the whole of `src/` for the same three target forms as the guard
+ * above, so a NEW link into a hidden surface fails here rather than waiting to be noticed by eye.
  *
  * Reuses that guard's machinery deliberately — same extractor, same comment stripping, same
  * hole-aware matching — because "a link that goes nowhere" is one rule with two reasons.
  */
-// The files allowed to spell a gated path. Two kinds, and neither is a dead end: a component that
-// only ever renders INSIDE a gated surface (its link is unreachable exactly while the gate is
-// closed), and the one component that asks the gate itself at render time (a text sweep cannot see
-// a runtime conditional). An exemption list rather than a code change, because every one of these
-// surfaces must come back whole when a path leaves SHIP_GATED_PATHS, with no edit here.
+// The files allowed to spell gated paths are either inside a gated surface or check the gate at
+// render time. The latter is conditional, which a text sweep cannot determine from source alone.
 const GATED_SURFACE_FILES = new Set([
-  // The Money workspace itself; its Follow-up queue and Branch links stay within Money.
-  join('pages', 'money-page.tsx'),
-  join('components', 'money', 'branch-table.tsx'),
-  join('pages', 'money-branch-page.tsx'),
   // Home's Objectives band — Home already asks the gate before mounting it (home-page.tsx).
   join('components', 'home', 'home-objectives-door.tsx'),
   // The Tasks group Objective hint. Not a gated surface but the one place allowed to spell the
