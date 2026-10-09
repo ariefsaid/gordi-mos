@@ -261,6 +261,9 @@ export function CafeReceiptIssuesQueue() {
                     {issue.status === 'open' && issue.reopened_po_number && (
                       <p className="cafe-receipt-issue__why">{t('cafe.receipts.issues.reopened', { po: issue.reopened_po_number })}</p>
                     )}
+                    {issue.status === 'open' && issue.previous_closed_note && (
+                      <p className="cafe-receipt-issue__note">{t('cafe.receipts.issues.previousClose', { note: issue.previous_closed_note })}</p>
+                    )}
                     <CafeReceiptIssueParts parts={issue.parts} unit={line.unit_name} />
                   </>}
                   resolving={open !== null}

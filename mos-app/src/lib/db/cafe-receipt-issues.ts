@@ -30,6 +30,8 @@ export type CafeReceiptIssue = {
   /** Linked parts, oldest first; empty for a viewer who reads no portions (a receiver). */
   parts: CafeReceiptIssuePart[]
   closed_note: string | null
+  /** The previous remainder's close note, retained in record history when a linked part re-opens it. */
+  previous_closed_note: string | null
   resolved_by: string | null
   resolved_at: string | null
   receipt: CafeReceipt
@@ -97,6 +99,7 @@ const STATUSES: readonly CafeReceiptIssueStatus[] = ['open', 'linked', 'closed']
 export const RESOLVED_READ_LIMIT = 100
 
 const ops = () => supabase.schema('ops')
+const shared = () => supabase.schema('shared')
 
 /**
  * Every open/resolved issue and held no-longer-fits portion allowed by row security, plus
@@ -119,7 +122,10 @@ export async function listCafeReceiptIssues(): Promise<CafeReceiptIssueList> {
   if (resolvedCount.error) throw new Error(`listCafeReceiptIssues failed: ${resolvedCount.error.message}`)
   const issueRows = [...open, ...((resolved.data ?? []) as Array<Record<string, unknown>>)]
   const receiptIds = [...new Set([...issueRows, ...heldRows, ...refusedRows].map(row => String(row.receipt_id)))]
-  const [receipts, parts] = await Promise.all([readReceipts(receiptIds), readParts(receiptIds)])
+  const reopenedIds = issueRows.filter(row => row.status === 'open' && typeof row.reopened_po_number === 'string').map(row => String(row.id))
+  const [receipts, parts, previousCloseNotes] = await Promise.all([
+    readReceipts(receiptIds), readParts(receiptIds), readPreviousCloseNotes(reopenedIds),
+  ])
   const evidence = (row: Record<string, unknown>) => {
     const receipt = receipts.get(String(row.receipt_id))
     const line = receipt?.lines.find(candidate => candidate.id === row.line_id)
@@ -142,6 +148,7 @@ export async function listCafeReceiptIssues(): Promise<CafeReceiptIssueList> {
         reopened_po_number: nullableString(row.reopened_po_number),
         parts: parts.get(String(row.id)) ?? [],
         closed_note: nullableString(row.closed_note),
+        previous_closed_note: previousCloseNotes.get(String(row.id)) ?? null,
         resolved_by: nullableString(row.resolved_by),
         resolved_at: nullableString(row.resolved_at),
       }
@@ -170,6 +177,23 @@ function chunked(ids: readonly string[]): string[][] {
 async function readReceipts(ids: readonly string[]): Promise<Map<string, CafeReceipt>> {
   const read = await Promise.all(chunked(ids).map(chunk => listCafeReceipts(['Approved'], { ids: chunk, limit: chunk.length })))
   return new Map(read.flat().map(receipt => [receipt.id, receipt]))
+}
+
+/** The close note cleared when release re-opened an issue, recovered through its permitted history. */
+async function readPreviousCloseNotes(issueIds: readonly string[]): Promise<Map<string, string>> {
+  if (issueIds.length === 0) return new Map()
+  const reads = await Promise.all(chunked(issueIds).map(issueChunk => readAllPages<Record<string, unknown>>('listCafeReceiptIssues', (from, to) =>
+    shared().from('record_history').select('record_key,old_value')
+      .eq('schema_name', 'ops').eq('table_name', 'cafe_receipt_issues').in('record_key', issueChunk)
+      .eq('field_name', 'closed_note').is('new_value', null).not('old_value', 'is', null)
+      .order('occurred_at', { ascending: false }).order('id', { ascending: false }).range(from, to))))
+  const notes = new Map<string, string>()
+  for (const row of reads.flat()) {
+    if (typeof row.record_key === 'string' && typeof row.old_value === 'string' && !notes.has(row.record_key)) {
+      notes.set(row.record_key, row.old_value)
+    }
+  }
+  return notes
 }
 
 /** The linked parts of the receipts' issues by issue, oldest first; RLS returns none to a receiver. */
