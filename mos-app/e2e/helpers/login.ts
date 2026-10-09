@@ -1,8 +1,13 @@
 // Reusable login helper for e2e tests.
 import { readFileSync } from 'fs'
+import { fileURLToPath } from 'node:url'
+import { loadEnv } from 'vite'
 import type { Page } from '@playwright/test'
 import { expect } from '@playwright/test'
 import { storageStatePath } from './auth-state'
+import { assertLocalFixtureDatabase } from '../fixtures/cleanup'
+
+const authEnv = loadEnv('e2e', fileURLToPath(new URL('../..', import.meta.url)), 'VITE_')
 
 interface SavedCookie {
   name: string
@@ -26,6 +31,24 @@ function loadSavedState(email: string): SavedStorageState | null {
   } catch {
     return null
   }
+}
+
+async function savedSessionIsLive(page: Page, entries: Array<{ name: string; value: string }>, email: string) {
+  let token: unknown
+  try {
+    token = JSON.parse(entries[0]?.value ?? '{}').access_token
+  } catch {
+    return false
+  }
+  if (typeof token !== 'string' || !token) return false
+  const url = authEnv.VITE_SUPABASE_URL
+  assertLocalFixtureDatabase(url)
+  const response = await page.request.get(`${url}/auth/v1/user`, {
+    headers: { apikey: authEnv.VITE_SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` },
+  })
+  if ([401, 403].includes(response.status())) return false
+  if (!response.ok()) throw new Error(`Saved sign-in validation failed (${response.status()})`)
+  return (await response.json()).email === email
 }
 
 /** Drives the real sign-in form. The fallback path when no saved session exists (or the app
@@ -53,9 +76,8 @@ export async function loginViaForm(page: Page, email: string, password: string) 
   await page.waitForURL((url) => !url.pathname.endsWith('/login'), { timeout: 10_000 })
 }
 
-/** Loads the persona's saved session (helpers/auth-state.ts) and waits for the authenticated
- *  shell's nav landmark, not merely the URL: a rejected session still lands on `/`. Falls back to
- *  the form when no state was captured (ORPHAN, RECOVERY_VIEWER) or the session is rejected. */
+/** Validates the persona's saved session with the auth server before reusing it, then waits for
+ *  the shell landmark. Falls back to the form for missing or revoked sessions. */
 export async function loginAs(page: Page, email: string, password: string) {
   const saved = loadSavedState(email)
   if (!saved) {
@@ -67,6 +89,13 @@ export async function loginAs(page: Page, email: string, password: string) {
   // Only the session: the capture also recorded app preferences (locale, theme), and a spec's own
   // init script setting those must win.
   const entries = saved.origins.flatMap((origin) => origin.localStorage).filter(({ name }) => /^sb-.*-auth-token$/.test(name))
+  if (!await savedSessionIsLive(page, entries, email)) {
+    console.warn('[loginAs] saved session is no longer live — signing in again')
+    await loginViaForm(page, email, password)
+    await expect(page.getByRole('navigation', { name: 'Primary' })).toBeVisible({ timeout: 8_000 })
+    await page.context().storageState({ path: storageStatePath(email) })
+    return
+  }
   // Written on a same-origin document, not through an init script: an init script outlives this
   // sign-in and would re-inject this persona over a later one on the same page.
   await page.goto('login')

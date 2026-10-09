@@ -227,17 +227,28 @@ test.describe('Café item settings', () => {
       await loginAs(page, BAR_MEMBER.email, BAR_MEMBER.password)
       await page.goto('cafe/items')
       await expect(page.getByTestId('page-head').getByRole('heading', { level: 1, name: 'Items', exact: true })).toBeVisible({ timeout: 15_000 })
-      const visibleItems = width === 390
+      let visibleItems = width === 390
         ? page.locator('.dt-cards .dt-card')
         : page.locator('.cafe-items__table tbody tr:not(.dt-group-row)')
 
       await expect(visibleItems).toHaveCount(501, { timeout: 30_000 })
       await expect(page.getByRole('searchbox', { name: 'Find an ESB or MOS name' })).toBeVisible()
       const extraUnitControls = page.getByRole('button', { name: /^Extra units for / })
-      await expect(extraUnitControls).toHaveCount(501)
+      await expect(extraUnitControls).toHaveCount(width === 390 ? 501 : 0)
       await expect(page.getByText('500 items need a default unit before they can be logged.', { exact: true })).toHaveCount(1)
       await expect(page.locator('.cafe-items__needs-unit-status')).toHaveCount(500)
       await assertNoOverflow(page, width)
+
+      if (width === 1440) {
+        // The approved wide table omits Extra units; the item cards retain its editor.
+        await expect(page.getByRole('columnheader', { name: 'Extra units', exact: true })).toHaveCount(0)
+        await captureViewport(page, `lane-1332-after-${width}.png`)
+        await page.setViewportSize({ width: 768, height: 960 })
+        visibleItems = page.locator('.dt-cards .dt-card')
+        await expect(visibleItems).toHaveCount(501)
+        await expect(extraUnitControls).toHaveCount(501)
+        await assertNoOverflow(page, 768)
+      }
 
       const threeUnitItem = visibleItems.filter({ hasText: 'A three-unit ESB product' }).first()
       await expect(threeUnitItem).toBeVisible()
@@ -257,7 +268,7 @@ test.describe('Café item settings', () => {
         expect(saveBox!.y + saveBox!.height).toBeLessThan(900)
       }
 
-      await captureViewport(page, `lane-1332-after-${width}.png`)
+      if (width === 390) await captureViewport(page, `lane-1332-after-${width}.png`)
     })
   }
   // The phone cards vs wide table switch and the no-overflow check are asserted by the 501-item
