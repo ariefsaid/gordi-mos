@@ -5,6 +5,7 @@ import type {
   CollectionData,
   CollectionOverlayHost,
   CollectionProjection,
+  CollectionViewStore,
   RecordCollectionDescriptor,
 } from './types'
 import {
@@ -96,13 +97,7 @@ function makeDescriptor(opts: {
   access?: CollectionAccess<FakeAction>
   host?: CollectionOverlayHost
   loadSpy?: () => void
-  store?: {
-    list: () => Promise<readonly PersistedCollectionView[]>
-    get: (id: string) => Promise<PersistedCollectionView | null>
-    create: ReturnType<typeof vi.fn>
-    rename: ReturnType<typeof vi.fn>
-    archive: ReturnType<typeof vi.fn>
-  }
+  store?: CollectionViewStore
   cardDropGroupBy?: boolean
 } = {}): RecordCollectionDescriptor<
   FakeTask,
@@ -117,9 +112,9 @@ function makeDescriptor(opts: {
   const store = opts.store ?? {
     list: async () => [],
     get: async () => null,
-    create: vi.fn(),
-    rename: vi.fn(),
-    archive: vi.fn(),
+    create: vi.fn<CollectionViewStore['create']>(),
+    rename: vi.fn<CollectionViewStore['rename']>(),
+    archive: vi.fn<CollectionViewStore['archive']>(),
   }
   const presentation = (id: TaskCollectionPresentation) => ({
     id,
@@ -360,9 +355,9 @@ describe('RecordCollection engine', () => {
     const store = {
       list: async () => [view],
       get: async (id: string) => (id === 'v-1' ? view : null),
-      create: vi.fn(),
-      rename: vi.fn(),
-      archive: vi.fn(),
+      create: vi.fn<CollectionViewStore['create']>(),
+      rename: vi.fn<CollectionViewStore['rename']>(),
+      archive: vi.fn<CollectionViewStore['archive']>(),
     }
     const c = createRecordCollectionController(makeDescriptor({ store }), INITIAL)
     await flush()
@@ -382,9 +377,9 @@ describe('RecordCollection engine', () => {
     const store = {
       list: async () => [view],
       get: async (id: string) => (id === 'v-1' ? view : null),
-      create: vi.fn(),
-      rename: vi.fn(),
-      archive: vi.fn(),
+      create: vi.fn<CollectionViewStore['create']>(),
+      rename: vi.fn<CollectionViewStore['rename']>(),
+      archive: vi.fn<CollectionViewStore['archive']>(),
     }
     const c = createRecordCollectionController(makeDescriptor({ store }), { ...INITIAL, isDesktop: false })
     await flush()
@@ -409,9 +404,9 @@ describe('RecordCollection engine', () => {
     const store = {
       list: async () => [view],
       get: async () => view,
-      create: vi.fn(),
-      rename: vi.fn(),
-      archive: vi.fn(),
+      create: vi.fn<CollectionViewStore['create']>(),
+      rename: vi.fn<CollectionViewStore['rename']>(),
+      archive: vi.fn<CollectionViewStore['archive']>(),
     }
     const c = createRecordCollectionController(makeDescriptor({ store }), INITIAL)
     await flush()
@@ -465,8 +460,8 @@ describe('RecordCollection engine', () => {
       list: async () => [],
       get: async () => null,
       create: vi.fn(async () => { throw new Error('network down') }),
-      rename: vi.fn(),
-      archive: vi.fn(),
+      rename: vi.fn<CollectionViewStore['rename']>(),
+      archive: vi.fn<CollectionViewStore['archive']>(),
     }
     const c = createRecordCollectionController(makeDescriptor({ store }), INITIAL)
     await flush()
@@ -480,9 +475,9 @@ describe('RecordCollection engine', () => {
     const store = {
       list: vi.fn(async () => { throw new Error('list failed') }),
       get: async () => null,
-      create: vi.fn(),
-      rename: vi.fn(),
-      archive: vi.fn(),
+      create: vi.fn<CollectionViewStore['create']>(),
+      rename: vi.fn<CollectionViewStore['rename']>(),
+      archive: vi.fn<CollectionViewStore['archive']>(),
     }
     const c = createRecordCollectionController(makeDescriptor({ store }), INITIAL)
     await flush()
