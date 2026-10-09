@@ -68,6 +68,7 @@ function renderRailNav(initialPath: string, props: { compact?: boolean } = {}) {
 }
 
 beforeEach(() => {
+  vi.restoreAllMocks()
   vi.clearAllMocks()
   localStorage.clear()
   setAuthAs([])
@@ -95,7 +96,7 @@ describe('AC-011: Rail structure — grouped IA spine (F2 fix)', () => {
     // Sketch destinations
     expect(within(nav).getByRole('link', { name: 'Home' })).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: 'Work' })).toBeInTheDocument()
-    // Work's 4 always-expanded children — nested under Work, not top-level peers
+    // Work's four child links are nested under Work, not top-level peers
     expect(within(nav).getByRole('link', { name: 'Signals' })).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: 'Tasks' })).toBeInTheDocument()
     expect(within(nav).getByRole('link', { name: 'Inbox' })).toBeInTheDocument()
@@ -300,6 +301,59 @@ describe('AC-011: Rail structure — grouped IA spine (F2 fix)', () => {
     renderRailNav('/work/tasks')
     expect(screen.getByRole('link', { name: 'Projects & Processes' })).toHaveAttribute('href', '/work/projects')
     expect(screen.getByRole('link', { name: 'Objectives' })).toHaveAttribute('href', '/work/objectives')
+  })
+})
+
+describe('Issue 1656: navigation group disclosure', () => {
+  it('toggles Work children while its group link still navigates', () => {
+    setAuthAs(['admin'])
+    renderRailNav('/')
+    let toggle = screen.getByRole('button', { name: 'Hide Work pages' })
+    expect(toggle).toHaveAttribute('aria-controls', 'rail-children-work')
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    fireEvent.click(toggle)
+    toggle = screen.getByRole('button', { name: 'Show Work pages' })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('link', { name: 'Tasks' })).toBeNull()
+    fireEvent.click(toggle)
+    expect(screen.getByRole('link', { name: 'Tasks' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('link', { name: 'Work' }))
+    expect(screen.getByTestId('location')).toHaveTextContent('/work/tasks')
+  })
+
+  it('toggles Café children with a localized control', () => {
+    setAuthAs([], 'Barista')
+    renderRailNav('/work/tasks')
+    const toggle = screen.getByRole('button', { name: 'Hide Café pages' })
+    expect(toggle).toHaveAttribute('aria-controls', 'rail-children-cafe')
+    fireEvent.click(toggle)
+    expect(screen.getByRole('button', { name: 'Show Café pages' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('link', { name: 'Today' })).toBeNull()
+    fireEvent.click(screen.getByRole('link', { name: 'Café' }))
+    expect(screen.getByTestId('location')).toHaveTextContent('/cafe')
+  })
+
+  it('persists closure on remount and keeps an active header current', () => {
+    setAuthAs(['admin'])
+    const first = renderRailNav('/work/tasks')
+    fireEvent.click(screen.getByRole('button', { name: 'Hide Work pages' }))
+    expect(JSON.parse(localStorage.getItem('mos.nav.closedGroups') ?? '[]')).toContain('work')
+    first.unmount()
+    renderRailNav('/work/tasks')
+    expect(screen.getByRole('button', { name: 'Show Work pages' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('link', { name: 'Work' })).toHaveAttribute('aria-current', 'location')
+    expect(screen.queryByRole('link', { name: 'Tasks' })).toBeNull()
+  })
+
+  it('defaults groups open when localStorage reads and writes throw', () => {
+    const fail = () => { throw new Error('unavailable') }
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation((key) => key === 'mos.nav.closedGroups' ? fail() : null)
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation((key) => key === 'mos.nav.closedGroups' ? fail() : undefined)
+    setAuthAs([], 'Barista')
+    renderRailNav('/work/tasks')
+    expect(screen.getByRole('button', { name: 'Hide Work pages' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('button', { name: 'Hide Café pages' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('link', { name: 'Today' })).toBeInTheDocument()
   })
 })
 
@@ -667,14 +721,16 @@ describe('RailNav compact regime (OD-REDESIGN-84.2 / P1-1)', () => {
     expect(badge.className).toMatch(/rail-count-badge--compact/)
   })
 
-  it('issue 1047: the Café row keeps its disclosure chevron at full width and drops it in compact, so its icon shares the rail axis', () => {
-    setAuthAs(['admin'], 'Managing Director')
-    const { container, unmount } = renderRailNav('/work/tasks', { compact: false })
+  it('issue 1047: the Café disclosure appears beside its group when children render, but not in compact mode', () => {
+    setAuthAs([], 'Barista')
+    const { container, unmount } = renderRailNav('/cafe', { compact: false })
+    expect(screen.getByRole('button', { name: 'Hide Café pages' })).toHaveClass('tap-target-phone')
     expect(container.querySelector('.rail-module-chevron')).not.toBeNull()
     unmount()
-    const compact = renderRailNav('/work/tasks', { compact: true })
+    const compact = renderRailNav('/cafe', { compact: true })
     expect(screen.getByRole('link', { name: /Café/ })).toBeInTheDocument()
     expect(compact.container.querySelector('.rail-module-chevron')).toBeNull()
+    expect(screen.queryByRole('button', { name: /(?:Show|Hide) .* pages/ })).toBeNull()
   })
 
   it('the account chip collapses to the avatar only (no visible name text)', () => {

@@ -1,7 +1,7 @@
 /**
  * DESTINATIONS model tests — Redesign Step 2 (T4). Three-registry model (D-PLN-4):
  * DESTINATIONS (5 workspace roots) + MODULES (2 BU groups) + UTILITY (admin/profile).
- * Work has exactly 4 always-expanded children, 0 family headings. Money is anyOf-gated.
+ * Work has exactly 4 visible children, 0 family headings. Money is anyOf-gated.
  * FR-001..005, FR-020/021, AC-011/012 prep.
  */
 import { SHIP_GATED_PATHS } from '@/lib/ship-gate'

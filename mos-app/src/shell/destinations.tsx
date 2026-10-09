@@ -23,7 +23,7 @@ import {
  *  - `UTILITY`     — 2 entries (Admin Settings [gated admin], Personal Profile). Nav
  *    surfaces draw `navUtility()` (Admin only); Personal Profile lives in the UserChip menu.
  *
- * Work declares 5 always-expanded children, in this order — Signals · Tasks · Projects &
+ * Work declares 5 child links, in this order — Signals · Tasks · Projects &
  * Processes · Objectives · Events (OD-REDESIGN-57(ii), oracle P-13 — owner-ruled; #544) — with
  * 0 family headings (Rule 3 caps). Events is ship-gated (#348), so 4 of the 5 render today. Money is
  * anyOf-gated on REVENUE_VIEW_ROLES; Admin is anyOf-gated (admin) — absent, not
@@ -44,7 +44,7 @@ export interface Destination {
   Icon: React.FC
   /** live links under this destination; [] = destination not yet rolled in */
   links: Section[]
-  /** Always-expanded sub-links rendered beneath the entry (Work's 5; Café's 11). Undefined for a
+  /** Sub-links rendered beneath the entry (Work's 5; Café's 11). Undefined for a
    *  destination whose root IS the whole surface. */
   children?: Section[]
   /** optional access gate applied to ALL links (rail/bottom-bar hide when unsatisfied).
@@ -72,7 +72,7 @@ export const DESTINATIONS: Destination[] = [
     Icon: WorkIcon,
     primaryPath: '/work/tasks',
     links: [{ path: '/work/tasks', label: 'Tasks', labelKey: 'nav.work.tasks', Icon: TasksIcon }],
-    // Always-expanded children, 0 family headings (Rule 3). Work catalog children are
+    // Child links, 0 family headings (Rule 3). Work catalog children are
     // org-readable; their write scope is resolved by the catalog page/record surfaces.
     //
     // **This array's ORDER is the canonical nav order — the only one (#446).** The order's
