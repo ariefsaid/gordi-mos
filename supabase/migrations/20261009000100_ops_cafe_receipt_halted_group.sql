@@ -3,7 +3,7 @@
 -- confirms it is absent and returns the halted outbox members to the worker. Every decision has
 -- an audited row attached to its receipt.
 --
--- DOWN: see supabase/rollbacks/20261008006100_ops_cafe_receipt_halted_group.sql.
+-- DOWN: see supabase/rollbacks/20261009000100_ops_cafe_receipt_halted_group.sql.
 
 -- A recorded number is an operator's verified proof, not a worker-created draft to authorize.
 alter table integrations.esb_push_groups

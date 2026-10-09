@@ -1,4 +1,4 @@
--- Rollback for 20261008006100_ops_cafe_receipt_halted_group.sql (#1533).
+-- Rollback for 20261009000100_ops_cafe_receipt_halted_group.sql (#1533).
 -- Refuses once a person has resolved a group or the worker has adopted a hand-recorded number.
 begin;
 do $$
