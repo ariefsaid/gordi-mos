@@ -962,6 +962,8 @@ export const messages = {
     'rail.collapse': 'Collapse navigation',
     'rail.destinations': 'Destinations',
     'rail.expand': 'Expand navigation',
+    'rail.group.hidePages': 'Hide ${group} pages',
+    'rail.group.showPages': 'Show ${group} pages',
     'rail.retailOps': 'Retail Ops',
     'topBar.inboxUnread': 'Inbox, ${count} unread',
     'topBar.search': 'Search',
@@ -2082,6 +2084,7 @@ export const messages = {
     'signals.feed.searchLabel': 'Search signals',
     'signals.feed.searchPlaceholder': 'Search signals',
     'signals.feed.seeMore': 'See ${count} more →',
+    'signals.feed.seeMoreUncounted': 'See more →',
     // 'signals.feed.title' already declared above (#191 Home port) — not re-added here.
     'signals.mention.buDisabledReason': "You don't have permission to mention a Business Unit.",
     'signals.mention.group.bu': 'BU',
@@ -3544,6 +3547,8 @@ export const messages = {
     'rail.collapse': 'Ciutkan navigasi',
     'rail.destinations': 'Destinasi',
     'rail.expand': 'Bentangkan navigasi',
+    'rail.group.hidePages': 'Sembunyikan halaman ${group}',
+    'rail.group.showPages': 'Tampilkan halaman ${group}',
     // #755 (AC-024): the RETAIL OPS group overline in Indonesian.
     'rail.retailOps': 'Operasi Ritel',
     'topBar.inboxUnread': 'Kotak Masuk, ${count} belum dibaca',
@@ -4607,6 +4612,7 @@ export const messages = {
     'signals.feed.searchLabel': 'Cari sinyal',
     'signals.feed.searchPlaceholder': 'Cari sinyal',
     'signals.feed.seeMore': 'Lihat ${count} lagi →',
+    'signals.feed.seeMoreUncounted': 'Lihat lainnya →',
     // 'signals.feed.title' already declared above (#191 Home port) — not re-added here.
     'signals.mention.buDisabledReason': 'Anda tidak memiliki izin untuk menyebut Unit Bisnis.',
     'signals.mention.group.bu': 'BU',
