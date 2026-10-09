@@ -33,8 +33,7 @@ const CROSS_SECTION_RETURNS = [
   { name: 'Home → Inbox → Home', route: routePath('inbox') },
 ] as const
 
-// Café capture pages own their visible title where the breadcrumb is hidden by the phone shell.
-const CAPTURE_TITLE_ROUTES: readonly RouteParityId[] = ['cafe', 'cafeProduction', 'cafeTransfer', 'cafeWaste']
+// CafePageFrame owns the title on every Café route; cafe-page-frame.css hides its breadcrumb leaf.
 
 function normalizeHref(href: string): string {
   const url = new URL(href)
@@ -77,6 +76,9 @@ async function assertCanonicalSurface(page: Page, route: string) {
   } else {
     await expect(page.getByRole('navigation', { name: 'Primary' })).toBeVisible({ timeout: 15_000 })
   }
+  // The shell can settle before a lazy route mounts. Wait for the destination landmark before
+  // asserting shell chrome, so a phone breadcrumb is measured against the finished route.
+  await expect(page.getByRole('main')).toBeVisible({ timeout: 15_000 })
   const settingsTab = ADMIN_SETTINGS_TABS[route]
   if (routeEntry?.owner === 'admin-settings' && !settingsTab) throw new Error(`No Admin settings tab named for ${route}`)
   if (settingsTab) {
@@ -88,12 +90,13 @@ async function assertCanonicalSurface(page: Page, route: string) {
     // omitted entirely at narrow widths; preserve the no-breadcrumb behavior, not an empty <nav>.
     await expect.poll(async () => (await breadcrumb.allTextContents()).join('').trim()).toBe('')
     await expect(page.getByRole('heading', { name: 'Connect an agent', level: 1 })).toBeVisible()
-  } else if (routeEntry && CAPTURE_TITLE_ROUTES.includes(routeEntry.id)) {
-    if ((page.viewportSize()?.width ?? 1440) < 920) {
-      await expect(page.getByRole('main').getByRole('heading', { level: 1 })).toBeVisible()
+  } else if (routeEntry && (routeEntry.path === '/cafe' || routeEntry.path.startsWith('/cafe/'))) {
+    await expect(page.getByRole('main').getByRole('heading', { level: 1 })).toBeVisible()
+    if ((page.viewportSize()?.width ?? 1440) < 920 || routeEntry.path === '/cafe') {
+      await expect(breadcrumb).toBeHidden()
     } else {
       await expect(breadcrumb).toBeVisible()
-      await expect(breadcrumb.locator('.top-bar__breadcrumb-leaf')).toHaveText(/\S/)
+      await expect(breadcrumb.locator('.top-bar__breadcrumb-fixed').first()).toContainText(/\S/)
     }
   } else {
     await expect(breadcrumb).toBeVisible()
@@ -103,7 +106,6 @@ async function assertCanonicalSurface(page: Page, route: string) {
   } else if (!settingsTab && routeEntry?.owner !== 'agent-consent') {
     await expect(page.locator('[aria-current="page"]')).toHaveCount(1)
   }
-  await expect(page.getByRole('main')).toBeVisible()
   // The phone shell never scrolls sideways on any destination (jsdom has no layout engine).
   if ((page.viewportSize()?.width ?? 1440) < 920) {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `${route}: no horizontal scroll`).toBe(true)
