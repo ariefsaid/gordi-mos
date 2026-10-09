@@ -1,3 +1,8 @@
+.cafe-page-head .cafe-stream__value--heading {
+  font-size: var(--font-size-control);
+  font-weight: 400;
+}
+
 /* One shared inline title/meta row for every Café route. The status stream remains the head's
    second row; meta stays beside the title on phone whenever the localized pair fits. */
 @media (max-width: 767.98px) {
