@@ -113,7 +113,7 @@ describe('CafeCountPage', () => {
       const { unmount } = renderPage(locale)
       const streamName = locale === 'en' ? 'Cafe Branch · Kitchen' : 'Cafe Branch · Dapur'
       const stream = await screen.findByRole('heading', { name: streamName })
-      const context = stream.closest('.cafe-capture-context')
+      const context = stream.closest('.ch-status-row')
       expect(context).toBeInTheDocument()
       expect(context?.querySelector('time')).toBeNull()
 
@@ -123,7 +123,7 @@ describe('CafeCountPage', () => {
       expect(date).toHaveTextContent(formatWeekdayDayMonth('2026-10-06', locale))
       expect(date?.closest('.ch-meta, .page-head-meta')).toBeInTheDocument()
 
-      const switchLabel = locale === 'en' ? 'Switch kitchen stream' : 'Ganti stream dapur'
+      const switchLabel = locale === 'en' ? 'Switch kitchen' : 'Ganti dapur'
       const switchButton = within(context as HTMLElement).getByRole('button', { name: switchLabel })
       expect(switchButton).toHaveTextContent(locale === 'en' ? 'Switch kitchen' : 'Ganti dapur')
       expect(context).not.toHaveTextContent(formatWeekdayDayMonth('2026-10-06', locale))

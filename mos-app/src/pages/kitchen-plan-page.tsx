@@ -20,8 +20,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { PageFamilyFrame } from '@/shell/page-family-frame'
-import { useDocumentTitle } from '@/shell/use-document-title'
+import { CafePageFrame } from '@/components/kitchen/cafe-page-frame'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { saveErrorMessage } from '@/lib/save-error'
@@ -56,7 +55,7 @@ import {
   streamProduces,
 } from '@/lib/kitchen-action-label'
 import { MovementSeg } from '@/components/kitchen/movement-seg'
-import { CafeStreamBar, CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
+import { CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
 import { NotOnStreamTag } from '@/components/kitchen/not-on-stream-tag'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { CafeItemsEmptyState } from '@/components/kitchen/cafe-items-empty-state'
@@ -77,7 +76,7 @@ import {
   type KitchenListRow,
 } from '@/lib/kitchen-item-list'
 import { usePlanSummary } from '@/lib/kitchen-plan-kpis'
-import { formatWeekdayDayMonth, wibToday } from '@/lib/format/date'
+import { wibToday } from '@/lib/format/date'
 import './kitchen-plan-page.css'
 
 type LoadState = { kind: 'loading' } | { kind: 'error' } | { kind: 'ready' }
@@ -86,10 +85,6 @@ export function KitchenPlanPage() {
   const auth = useAuth()
   const viewerId = auth.status === 'authenticated' ? auth.viewer.person.id : null
   const t = useT()
-  // issue 455: the tab names the module the rail and breadcrumb name; leaf-first per
-  // the catalog's own docTitle convention (tasks-layout, signals-archive).
-  useDocumentTitle(t('common.docTitle', { page: `${t('nav.cafe.plan')} · ${t('nav.cafe')}` }))
-  const pageTitle = `${t('dest.cafe')} · ${t('nav.cafe.plan')}`
 
   // Role split (member-read / lead-edit). RLS is the authority; this picks the face.
   // #784 AC-057: the stream's own supervisor edits too, not only ops_lead/admin (#778
@@ -99,19 +94,19 @@ export function KitchenPlanPage() {
 
   if (auth.status === 'loading') {
     return (
-      <PageFamilyFrame family="workspace" title={pageTitle} jobSentence={t('job.cafe')} state="loading">
+      <CafePageFrame page="plan" streamBar={{ options: [], stream: null, onChange: () => undefined }} state="loading">
         <LoadingShell count={3} />
-      </PageFamilyFrame>
+      </CafePageFrame>
     )
   }
   if (auth.status === 'unauthenticated' || auth.status === 'orphan') {
     return (
-      <PageFamilyFrame family="workspace" title={pageTitle} jobSentence={t('job.cafe')} state="permission">
+      <CafePageFrame page="plan" streamBar={{ options: [], stream: null, onChange: () => undefined }} state="permission">
         <div className="kp-block kp-forbidden">
           <p className="kp-forbidden-msg">{t('kitchen.plan.signInMsg')}</p>
           <Link to="/login" className="btn btn-primary">{t('common.signIn')}</Link>
         </div>
-      </PageFamilyFrame>
+      </CafePageFrame>
     )
   }
 
@@ -192,7 +187,6 @@ function streamRows(items: PlanItem[], planableIds: Set<string>, planCells: Plan
 
 function PlanEditor() {
   const t = useT()
-  const pageTitle = `${t('dest.cafe')} · ${t('nav.cafe.plan')}`
   const [logDate] = useState(wibToday) // today WIB (date stepper deferred — owner OQ-7)
   // #784 AC-057 hardening (gpt-6-luna review): canEditCafePlan only picked the FACE — every
   // supervisor got the editor regardless of stream, and RLS (ops.is_stream_reviewer) rejects
@@ -595,25 +589,17 @@ function PlanEditor() {
   }
 
   return (
-    <PageFamilyFrame
-      family="workspace"
-      title={pageTitle}
-      /* #440: the stream this plan is being written INTO, stated in the head. Plan's existing
-         Change menu also allows a deliberate working-branch switch; applyStream commits the new
-         branch before re-reading its plan. Capture remains bounded to its active location. */
-      statusRow={
-        <CafeStreamBar
-          options={streamOptions}
-          stream={stream}
-          homeStream={homeStream}
-          myStreamKeys={myStreamKeys}
-          locationBranchId={cafeStream.branchId ?? undefined}
-          onChange={next => { void applyStream(next) }}
-        />
-      }
-      meta={
-        <span className="kp-date tabular">{formatWeekdayDayMonth(logDate)}</span>
-      }
+    <CafePageFrame
+      page="plan"
+      date={logDate}
+      streamBar={{
+        options: streamOptions,
+        stream,
+        homeStream,
+        myStreamKeys,
+        locationBranchId: cafeStream.branchId ?? undefined,
+        onChange: next => { void applyStream(next) },
+      }}
       state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : streamMissing ? 'default' : streamNonProducing ? 'read-only' : items.length === 0 ? 'empty' : saveError ? 'validation' : savingId ? 'saving' : 'default'}
     >
       {/* #401 / DD-WAY-40: Plan is an ACT surface — its figures render as the DESIGN.md
@@ -642,15 +628,12 @@ function PlanEditor() {
           reachable on this page. saveCell keeps the same guard as a defensive backstop if a
           caller bypasses the disabled field. */}
       {streamMissing && load.kind === 'ready' && (
-        <div className="kp-stream-hint" role="status" aria-live="polite">
-          <p>{t('kitchen.plan.stream.missing')}</p>
-          <CafeStreamChoices
-            options={locationOptions}
-            homeStream={homeStream}
-            myStreamKeys={myStreamKeys}
-            onChoose={next => { void applyStream(next) }}
-          />
-        </div>
+        <CafeStreamChoices
+          options={locationOptions}
+          homeStream={homeStream}
+          myStreamKeys={myStreamKeys}
+          onChoose={next => { void applyStream(next) }}
+        />
       )}
       {streamNonProducing && load.kind === 'ready' && (
         receivingOnlyNotice
@@ -724,7 +707,7 @@ function PlanEditor() {
           </div>
         </div>
       )}
-    </PageFamilyFrame>
+    </CafePageFrame>
   )
 }
 
@@ -733,7 +716,6 @@ function PlanEditor() {
 // ════════════════════════════════════════════════════════════════════════════
 function PesananView() {
   const t = useT()
-  const pageTitle = `${t('dest.cafe')} · ${t('nav.cafe.plan')}`
   const [from] = useState(wibToday) // horizon start = today WIB
   const [rows, setRows] = useState<PesananDisplayRow[]>([])
   const cafeStream = useCafeStream()
@@ -852,24 +834,17 @@ function PesananView() {
   ]
 
   return (
-    <PageFamilyFrame
-      family="workspace"
-      title={pageTitle}
-      statusRow={
-        <CafeStreamBar
-          options={streamOptions}
-          stream={stream}
-          homeStream={homeStream}
-          myStreamKeys={myStreamKeys}
-          locationBranchId={cafeStream.branchId ?? undefined}
-          onChange={next => { void applyStream(next) }}
-        />
-      }
-      meta={
-        <span className="kp-date tabular">
-          {t('kitchen.plan.pesanan.meta.horizon', { days: PESANAN_HORIZON_DAYS })}
-        </span>
-      }
+    <CafePageFrame
+      page="plan"
+      meta={t('kitchen.plan.pesanan.meta.horizon', { days: PESANAN_HORIZON_DAYS })}
+      streamBar={{
+        options: streamOptions,
+        stream,
+        homeStream,
+        myStreamKeys,
+        locationBranchId: cafeStream.branchId ?? undefined,
+        onChange: next => { void applyStream(next) },
+      }}
       state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : rows.length === 0 ? 'empty' : 'read-only'}
     >
       {/* #401: the face floor staff actually get said nothing about why it cannot be
@@ -910,14 +885,12 @@ function PesananView() {
           the first one told as the second is how a person concludes the kitchen has no plan when
           they simply have no stream yet (FR-002). */}
       {load.kind === 'ready' && stream === null && (
-        <EmptyState variant="next-step" title={t('cafe.stream.none')}>
-          <CafeStreamChoices
-            options={locationOptions}
-            homeStream={homeStream}
-            myStreamKeys={myStreamKeys}
-            onChoose={next => { void applyStream(next) }}
-          />
-        </EmptyState>
+        <CafeStreamChoices
+          options={locationOptions}
+          homeStream={homeStream}
+          myStreamKeys={myStreamKeys}
+          onChoose={next => { void applyStream(next) }}
+        />
       )}
 
       {load.kind === 'ready' && stream !== null && rows.length === 0 && (
@@ -961,6 +934,6 @@ function PesananView() {
           />
         </div>
       )}
-    </PageFamilyFrame>
+    </CafePageFrame>
   )
 }

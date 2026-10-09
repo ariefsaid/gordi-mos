@@ -12,9 +12,8 @@
 
 import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { PageFamilyFrame } from '@/shell/page-family-frame'
+import { CafePageFrame } from '@/components/kitchen/cafe-page-frame'
 import { canCaptureCafe } from '@/lib/cafe-affiliation'
-import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useIsWide } from '@/shell/use-is-wide'
 import { useAuth } from '@/auth/use-auth'
@@ -44,7 +43,7 @@ import {
   type CafeCaptureDraftScope,
   type StoredCafeCaptureDraft,
 } from '@/lib/cafe-capture-storage'
-import { CafeStreamBar, CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
+import { CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
 import type { ReactNode } from 'react'
 import type {
   ActualsMap,
@@ -90,8 +89,8 @@ import {
 } from '@/lib/kitchen-item-list'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
 import { CafeCaptureTable } from '@/components/kitchen/cafe-capture-table'
-import { formatDayMonthYear, formatWeekdayDayMonth, formatWibDateTime, wibToday } from '@/lib/format/date'
-import { EmptyState, LoadingShell } from '@/components/ui/state-kit'
+import { formatDayMonthYear, formatWibDateTime, wibToday } from '@/lib/format/date'
+import { LoadingShell } from '@/components/ui/state-kit'
 import { QuantityFieldError } from '@/components/ui/quantity-field'
 import { CafeItemsEmptyState } from '@/components/kitchen/cafe-items-empty-state'
 import { useFocusRestore } from '@/components/ui/use-focus-restore'
@@ -264,13 +263,9 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   const draftOrgId = auth.status === 'authenticated' ? auth.viewer.person.org_id : ''
   const draftPersonId = auth.status === 'authenticated' ? auth.viewer.person.id : ''
   const t = useT()
-  // issue 455: the tab names the module the rail and breadcrumb name; leaf-first per
-  // the catalog's own docTitle convention (tasks-layout, signals-archive).
-  const pageLabel = t(mode === 'production' ? 'nav.cafe.production' : 'nav.cafe.transfer')
-  useDocumentTitle(t('common.docTitle', { page: `${pageLabel} · ${t('nav.cafe')}` }))
+  const page: 'production' | 'transfer' = mode === 'production' ? 'production' : 'transfer'
   const isDesktop = useIsDesktop()
   const isWide = useIsWide()
-  const pageTitle = pageLabel
 
   // The (branch, activity) production stream every captured row belongs to (OD-WAY-28), and
   // the movement within it (DD-WAY-13). The default is the person's OWN stream — their live
@@ -899,26 +894,17 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
     setPendingDateDraftDiscard(null)
   }
 
-  // The stream picker (FR-003/005) — ONE definition, rendered in the page head in EVERY
-  // state including while a switch's read is in flight: a slow stream's fetch must never
-  // unmount the control that lets the person leave that stream (default-not-wall).
-  // #440: it is the shared <CafeStreamBar> now — the same statement-and-switch every Café
-  // surface carries, in the same place, so a person who walks Log → Plan → Stock reads the
-  // stream in one spot instead of guessing on two thirds of the module.
-  const streamPicker = (
-    <>
-    <CafeStreamBar
-      options={[...locationStreams, ...otherLocationStreams]}
-      locationBranchId={locationId}
-      stream={stream}
-      homeStream={homeStream}
-      myStreamKeys={myStreamKeys}
-      onChange={selectStream}
-      disabled={status.kind === 'submitting'}
-      switchLabel={t(stream?.activity === 'bar' ? 'cafe.stream.switchBar' : 'cafe.stream.switchKitchen')}
-      switchAriaLabel={t(stream?.activity === 'bar' ? 'cafe.stream.switchBarAria' : 'cafe.stream.switchKitchenAria')}
-    />
-    {pendingStream && <ConfirmDialog
+  const streamBar = {
+    options: [...locationStreams, ...otherLocationStreams],
+    locationBranchId: locationId,
+    stream,
+    homeStream,
+    myStreamKeys,
+    onChange: selectStream,
+    disabled: status.kind === 'submitting',
+  }
+  const streamSwitchConfirm = pendingStream && (
+    <ConfirmDialog
       open
       title={t('kitchen.log.streamSwitch.confirmTitle')}
       body={t('kitchen.log.streamSwitch.confirmBody', {
@@ -941,12 +927,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
         await applyStream(next)
       }}
       onCancel={() => setPendingStream(null)}
-    />}
-    </>
-  )
-
-  const captureContext = stream === null ? undefined : (
-    <div className="cafe-capture-context">{streamPicker}</div>
+    />
   )
 
   const receivingOnlyNotice = (
@@ -1241,23 +1222,23 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   // ── Auth guard ─────────────────────────────────────────────────────────────
   if (auth.status === 'loading') {
     return (
-      <PageFamilyFrame family="workspace" title={pageTitle} headClassName="cafe-capture-head" statusRow={captureContext} jobSentence={t('job.cafe')} state="loading">
+      <CafePageFrame page={page} date={logDate} streamBar={streamBar} state="loading">
         <div className="kl-page">
           <OfflineBanner show={!isOnline} />
           <LoadingShell count={3} />
         </div>
-      </PageFamilyFrame>
+      </CafePageFrame>
     )
   }
 
   if (auth.status === 'unauthenticated' || auth.status === 'orphan') {
     return (
-      <PageFamilyFrame family="workspace" title={pageTitle} headClassName="cafe-capture-head" statusRow={captureContext} jobSentence={t('job.cafe')} state="permission">
+      <CafePageFrame page={page} date={logDate} streamBar={streamBar} state="permission">
         <div className="kl-page kl-unauth kl-block">
           <p className="kl-unauth-msg">{t('kitchen.log.signInMsg')}</p>
           <Link to="/login" className="btn btn-primary btn-touch kl-touch">{t('common.signIn')}</Link>
         </div>
-      </PageFamilyFrame>
+      </CafePageFrame>
     )
   }
 
@@ -1267,19 +1248,19 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   // and a head that goes silent about its stream is the #440 defect itself.
   if (status.kind === 'loading') {
     return (
-      <PageFamilyFrame family="workspace" title={pageTitle} headClassName="cafe-capture-head" statusRow={captureContext} state="loading">
+      <CafePageFrame page={page} date={logDate} streamBar={streamBar} state="loading">
         <div className="kl-page">
           <OfflineBanner show={!isOnline} />
           <LoadingShell count={3} />
         </div>
-      </PageFamilyFrame>
+      </CafePageFrame>
     )
   }
 
   // ── Error state — never a bare Retry loop when offline (#2, RI-2) ────────────
   if (status.kind === 'error') {
     return (
-      <PageFamilyFrame family="workspace" title={pageTitle} headClassName="cafe-capture-head" statusRow={captureContext} state="error">
+      <CafePageFrame page={page} date={logDate} streamBar={streamBar} state="error">
         <div className="kl-page kl-error kl-block">
           <OfflineBanner show={!isOnline} />
           <p className="kl-error-msg" role="alert">
@@ -1294,7 +1275,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
             {t('common.retry')}
           </button>
         </div>
-      </PageFamilyFrame>
+      </CafePageFrame>
     )
   }
 
@@ -1302,7 +1283,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   // With no stream there is no roster to be empty: the choose-a-stream state below owns that case. ──
   if (wipItems.length === 0 && stream !== null) {
     return (
-      <PageFamilyFrame family="workspace" title={pageTitle} headClassName="cafe-capture-head" statusRow={captureContext} state={streamNonProducing ? 'read-only' : 'empty'}>
+      <CafePageFrame page={page} date={logDate} streamBar={streamBar} state={streamNonProducing ? 'read-only' : 'empty'}>
         <div className={`kl-page kl-capture-content cafe-capture-content${isWide ? ' kl-capture-wide' : ''}`}>
           <OfflineBanner show={!isOnline} />
           {streamNonProducing && receivingOnlyNotice}
@@ -1324,7 +1305,15 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
               {renderSummarySupport()}
             </div>
           )}
-          <CafeItemsEmptyState stream={stream} />
+          {stream === null ? (
+            <CafeStreamChoices
+              options={locationStreams}
+              homeStream={homeStream}
+              myStreamKeys={myStreamKeys}
+              onChoose={selectStream}
+              disabled={status.kind === 'submitting'}
+            />
+          ) : <CafeItemsEmptyState stream={stream} />}
           {/* AC-013: the DD-WAY-29 gate also empties this list when nothing is confirmed —
               the report route must be reachable from here too, not only under a full list.
               #744 review: the report files a WRITE (ops.log_entries), so it closes with the
@@ -1344,7 +1333,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
             </div>
           )}
         </div>
-      </PageFamilyFrame>
+      </CafePageFrame>
     )
   }
 
@@ -1447,13 +1436,10 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   )
   const noteUnresolved = missingNoteLines.length > 0
 
-  // Before a stream is chosen, nothing can be submitted and no plan/stock/actuals are fetched
-  // for the list below to mean anything — rendering quantity inputs that look editable but are
-  // not is worse than an empty list. Gated on `canCapture` (an unaffiliated/non-lead viewer's
-  // block is the OWN read-only state, unrelated to the stream choice) and `!streamNonProducing`
-  // (that state has its own receiving-only notice).
+  // Direct stream choices remain useful to read-only viewers; capture still requires authority.
+  const showNoStreamChoices = streamMissing && !streamNonProducing
+  const noStreamChosen = canCapture && showNoStreamChoices
   const readOnlyNoStream = !canCapture && streamMissing
-  const noStreamChosen = canCapture && streamMissing && !streamNonProducing
   // On the live capture form, explain offline blocking once in the sticky band. States with no
   // band (no stream, receiving-only, loading/error, or empty catalog) keep the page banner.
   const showOfflineInFooter = !isOnline && !streamNonProducing && !(noStreamChosen && !streamOutsideLocation)
@@ -1667,17 +1653,13 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
   )
 
   return (
-    <PageFamilyFrame
-      family="workspace"
-      title={pageTitle}
-      headClassName="cafe-capture-head"
-      /* #440: the head's orientation signal is the stream this capture files into — which books
-         a row lands in decides what the row MEANS, so it outranks the static job sentence the
-         shared head would otherwise carry (PageHead renders one or the other). */
-      statusRow={captureContext}
-      meta={<time className="cafe-capture-date tabular" dateTime={logDate}>{formatWeekdayDayMonth(logDate)}</time>}
+    <CafePageFrame
+      page={page}
+      date={logDate}
+      streamBar={streamBar}
       state={status.kind === 'submitting' ? 'saving' : status.kind === 'success' ? 'saved' : streamNonProducing ? 'read-only' : submitError ? 'validation' : 'default'}
     >
+      {streamSwitchConfirm}
       <div ref={captureRef} className={`kl-page kl-capture-content cafe-capture-content${isWide ? ' kl-capture-wide' : ''}`}>
         <div className="kl-capture-main">
         {/* GAP-4/#9: staged-but-unsubmitted quantities must not vanish on navigation — prompt
@@ -1816,22 +1798,20 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
               rows you are about to write, the stream is which books the whole surface is
               written in, and that second one has to be readable from every Café screen, not
               only from the ones with a toolbar. */}
-          {noStreamChosen ? (
+          {showNoStreamChoices ? (
             // No dish list, no filters over a list that isn't there, and nothing that LOOKS
             // like an editable quantity field until a stream makes it one — one guidance state
             // where the list would render. #781 item 2 / B5: the head has nothing to state while
             // no default resolves (FR-002), so the one-click choice itself renders here — never
             // a button that only focused a hidden control. A person who inherits exactly one
             // stream never sees this: `stream` resolves before this render is reached.
-            <EmptyState variant="next-step" title={t('kitchen.log.stream.chooseTitle')}>
-              <CafeStreamChoices
-                options={locationStreams}
-                homeStream={homeStream}
-                myStreamKeys={myStreamKeys}
-                onChoose={selectStream}
-                disabled={status.kind === 'submitting'}
-              />
-            </EmptyState>
+            <CafeStreamChoices
+              options={locationStreams}
+              homeStream={homeStream}
+              myStreamKeys={myStreamKeys}
+              onChoose={selectStream}
+              disabled={status.kind === 'submitting'}
+            />
           ) : (
             <>
               {logToolbar}
@@ -1875,6 +1855,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
             {!canCapture && (
               <p className="kl-submit-reason" role="status">{t('kitchen.log.readOnlyReason')}</p>
             )}
+            {!streamMissing && (
             <div className="kl-footer-count-row">
               <div className="kl-tally" aria-live="polite">
                 <span className="kl-tally-num tabular">
@@ -1892,6 +1873,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
                 </button>
               )}
             </div>
+            )}
             {mode === 'transfer' && stream !== null && !transferDestinationChosen && (
               <p className="kl-submit-reason" role="status">
                 {movementOptions.length > 0
@@ -2024,7 +2006,7 @@ function KitchenLogPageForViewer({ mode, leading, activeBranchId, activeBranchNa
           </aside>
         )}
       </div>
-    </PageFamilyFrame>
+    </CafePageFrame>
   )
 }
 

@@ -25,14 +25,6 @@
   max-width: 520px;
 }
 
-.kp-date {
-  font-size: var(--font-size-control);
-  color: var(--muted-foreground);
-  background: var(--muted);
-  padding: 2px 8px;
-  border-radius: var(--radius-sm);
-}
-
 /* ── Scope block: the movement (mirrors kitchen-log-page.css .kl-scope). The stream
    moved to the page head with #440 — same reasoning, stated there. ── */
 .kp-scope {

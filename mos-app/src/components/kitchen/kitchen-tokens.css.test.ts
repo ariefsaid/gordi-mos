@@ -1,6 +1,6 @@
 // RI-4 (design-reviewer regression invariant): every CSS custom property
 // `var(--…)` referenced by kitchen components/page CSS is defined either in the
-// app token surface or in the same stylesheet. Same-file definitions are for
+// app token surface, the installed Popover runtime, or in the same stylesheet. Same-file definitions are for
 // component state, not theme tokens; unresolved references still fail this guard.
 //
 // Layering: pure fs-read, mirrors task-surface.css.test.ts.
@@ -28,6 +28,7 @@ const KITCHEN_CSS = [
 const TOKEN_SOURCES = [
   join(SRC, 'index.css'),
   ...readdirSync(join(SRC, 'styles', 'tokens')).map((f) => join(SRC, 'styles', 'tokens', f)),
+  resolve(process.cwd(), 'node_modules/@radix-ui/react-popover/dist/index.js'),
 ]
 
 function read(path: string): string {
@@ -41,7 +42,7 @@ function read(path: string): string {
 // Collect `--token:` DEFINITIONS in a CSS source.
 function declaredTokens(css: string): Set<string> {
   const defined = new Set<string>()
-  for (const m of css.matchAll(/(--[a-zA-Z0-9-]+)\s*:/g)) {
+  for (const m of css.matchAll(/(--[a-zA-Z0-9-]+)["']?\s*:/g)) {
     defined.add(m[1])
   }
   return defined
@@ -79,6 +80,13 @@ describe('RI-4: kitchen CSS references only defined tokens', () => {
     expect(defined.has('--ri4-local-component-state-fixture')).toBe(false)
     const css = '.component { --ri4-local-component-state-fixture: 8px; padding-bottom: var(--ri4-local-component-state-fixture); }'
     expect(undefinedTokens(css, defined)).toEqual([])
+  })
+
+  it('recognizes installed Popover runtime properties, not arbitrary vendor names', () => {
+    expect(defined.has('--radix-popover-content-available-width')).toBe(true)
+    expect(defined.has('--radix-popover-content-available-height')).toBe(true)
+    expect(undefinedTokens('.menu { width: var(--radix-popover-not-a-property); }', defined))
+      .toEqual(['--radix-popover-not-a-property'])
   })
 
   it('rejects a reference with no shared or same-file definition', () => {

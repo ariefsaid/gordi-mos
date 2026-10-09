@@ -1,6 +1,4 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { PageFamilyFrame } from '@/shell/page-family-frame'
-import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useIsWide } from '@/shell/use-is-wide'
 import { useAuth } from '@/auth/use-auth'
@@ -30,7 +28,7 @@ import {
 } from '@/lib/db/kitchen-waste-photos'
 import type { KitchenWasteDraft, KitchenWastePhoto } from '@/lib/db/kitchen-waste-photos'
 import type { ProductionStream } from '@/lib/db/kitchen-logs.types'
-import { formatDayMonthYear, formatWeekdayDayMonth, formatWibDateTime, wibToday } from '@/lib/format/date'
+import { formatDayMonthYear, formatWibDateTime, wibToday } from '@/lib/format/date'
 import { useCafeCaptureDraftPageState } from '@/lib/use-cafe-capture-draft-page-state'
 import {
   useKitchenItemTable,
@@ -41,14 +39,15 @@ import {
 import { kitchenCategoryLabel } from '@/lib/kitchen-category-label'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { ReportMissingItem } from '@/components/kitchen/report-missing-item'
-import { CafeStreamBar, CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
+import { CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
+import { CafePageFrame } from '@/components/kitchen/cafe-page-frame'
 import { WastePhotoCapture } from '@/components/kitchen/waste-photo-capture'
 import { CafeCaptureTable } from '@/components/kitchen/cafe-capture-table'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Select } from '@/components/ui/select'
 import { QuantityField, QuantityFieldError } from '@/components/ui/quantity-field'
 import { parseQuantityInput } from '@/lib/quantity-parser'
-import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
+import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { CafeItemsEmptyState } from '@/components/kitchen/cafe-items-empty-state'
 import { RouteLeaveGuard } from '@/shell/route-leave-guard'
 import '@/components/kitchen/status-banner-tone.css'
@@ -153,9 +152,6 @@ export function CafeWastePage() {
   const isDesktop = useIsDesktop()
   const isWide = useIsWide()
   const logDate = useMemo(() => wibToday(), [])
-  const pageLabel = t('nav.cafe.waste')
-  useDocumentTitle(t('common.docTitle', { page: `${pageLabel} · ${t('nav.cafe')}` }))
-
   const cafeStream = useCafeStream()
   const {
     options: streamOptions,
@@ -748,19 +744,15 @@ export function CafeWastePage() {
     setStream(next)
   }
 
-  const streamPicker = (
-    <CafeStreamBar
-      options={[...locationStreams, ...otherLocationStreams]}
-      locationBranchId={locationId}
-      stream={stream}
-      homeStream={homeStream}
-      myStreamKeys={myStreamKeys}
-      onChange={selectStream}
-      disabled={submitting || hasPendingCapture}
-      switchLabel={t(stream?.activity === 'bar' ? 'cafe.stream.switchBar' : 'cafe.stream.switchKitchen')}
-      switchAriaLabel={t(stream?.activity === 'bar' ? 'cafe.stream.switchBarAria' : 'cafe.stream.switchKitchenAria')}
-    />
-  )
+  const streamBar = {
+    options: [...locationStreams, ...otherLocationStreams],
+    locationBranchId: locationId,
+    stream,
+    homeStream,
+    myStreamKeys,
+    onChange: selectStream,
+    disabled: submitting || hasPendingCapture,
+  }
 
   const renderControls = (item: WasteRow) => (
     <WasteItemControls
@@ -787,19 +779,8 @@ export function CafeWastePage() {
   const state = loadState === 'loading' ? 'loading' : loadState === 'error' ? 'error'
     : submitting ? 'saving' : allSubmitted ? 'saved' : !canCapture ? 'read-only' : 'default'
 
-  const captureContext = stream === null ? undefined : (
-    <div className="cafe-capture-context">{streamPicker}</div>
-  )
-
   return (
-    <PageFamilyFrame
-      family="workspace"
-      title={pageLabel}
-      headClassName="cafe-capture-head"
-      statusRow={captureContext}
-      meta={<time className="cafe-capture-date tabular" dateTime={logDate}>{formatWeekdayDayMonth(logDate)}</time>}
-      state={state}
-    >
+    <CafePageFrame page="waste" date={logDate} streamBar={streamBar} state={state}>
       <div ref={captureRootRef} className="kl-page cwl-page kl-capture-content kl-capture-wide cafe-capture-content">
         <div className="kl-capture-main">
         <RouteLeaveGuard when={remaining.length > 0 || invalidQuantityCount > 0} message={t('kitchen.log.leave.confirm')} />
@@ -815,19 +796,13 @@ export function CafeWastePage() {
         )}
 
         {loadState === 'ready' && !stream && (
-          <EmptyState
-            variant="next-step"
-            title={t('kitchen.waste.noStream.title')}
-            copy={t('kitchen.waste.noStream.copy')}
-          >
-            <CafeStreamChoices
-              options={locationStreams}
-              homeStream={homeStream}
-              myStreamKeys={myStreamKeys}
-              onChoose={selectStream}
-              disabled={submitting}
-            />
-          </EmptyState>
+          <CafeStreamChoices
+            options={locationStreams}
+            homeStream={homeStream}
+            myStreamKeys={myStreamKeys}
+            onChoose={selectStream}
+            disabled={submitting}
+          />
         )}
 
         {loadState === 'ready' && stream && (
@@ -1091,7 +1066,7 @@ export function CafeWastePage() {
           onCancel={() => setPendingDraftDiscard(null)}
         />
       )}
-    </PageFamilyFrame>
+    </CafePageFrame>
   )
 }
 

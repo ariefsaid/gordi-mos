@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
-import { CafeStreamBar, CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
+import { CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
+import { CafePageFrame } from '@/components/kitchen/cafe-page-frame'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { DataTable, type DataTableColumn, type DataTableSort } from '@/components/dashboard/data-table'
@@ -43,9 +44,7 @@ import {
   type CafeMissingItemReport,
 } from '@/lib/db/cafe-missing-item-reports'
 import { useCafeStream, type CafeStreamCatalog } from '@/lib/use-cafe-stream'
-import { PageFamilyFrame } from '@/shell/page-family-frame'
 import { RouteLeaveGuard } from '@/shell/route-leave-guard'
-import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsWide } from '@/shell/use-is-wide'
 import '@/components/record-collection/record-collection.css'
 import './cafe-item-settings-page.css'
@@ -131,9 +130,6 @@ function withLinkedStream(catalog: CafeStreamCatalog, wanted: string | null): Ca
 
 function CafeItemSettingsPageForViewer() {
   const t = useT()
-  const pageTitle = t('cafe.items.title')
-  useDocumentTitle(t('common.docTitle', { page: `${pageTitle} · ${t('nav.cafe')}` }))
-
   const cafeStream = useCafeStream()
   const {
     options: streamOptions,
@@ -280,7 +276,6 @@ function CafeItemSettingsPageForViewer() {
 
   const canEdit = permission === 'allowed' && stream !== null
     && permissionStreamKey === streamKey(stream.branch.id, stream.activity)
-
   const changed = useMemo(() => {
     const result = new Set<string>()
     for (const item of items) {
@@ -314,17 +309,15 @@ function CafeItemSettingsPageForViewer() {
     applyStreamChange(nextStream)
   }, [applyStreamChange, changed, setStream, stream])
 
-  const streamPicker = (
-    <CafeStreamBar
-      options={streamOptions}
-      stream={stream}
-      onChange={requestStreamChange}
-      homeStream={homeStream}
-      myStreamKeys={myStreamKeys}
-      locationBranchId={branchId ?? undefined}
-      disabled={readState === 'loading'}
-    />
-  )
+  const streamBar = {
+    options: streamOptions,
+    stream,
+    onChange: requestStreamChange,
+    homeStream,
+    myStreamKeys,
+    locationBranchId: branchId ?? undefined,
+    disabled: readState === 'loading',
+  }
 
 
   const setDraft = useCallback((itemId: string, update: (draft: ItemDraft) => ItemDraft) => {
@@ -516,11 +509,9 @@ function CafeItemSettingsPageForViewer() {
     : undefined
 
   return (
-    <PageFamilyFrame
-      family="workspace"
-      title={pageTitle}
-      jobSentence={t('cafe.items.job')}
-      statusRow={streamPicker}
+    <CafePageFrame
+      page="items"
+      streamBar={streamBar}
       meta={pageMeta}
       state={readState === 'loading' ? 'loading' : readState === 'error' ? 'error' : 'default'}
     >
@@ -541,15 +532,12 @@ function CafeItemSettingsPageForViewer() {
         />
       )}
       {!stream && readState === 'ready' && (
-        <section className="cafe-items__stream-choice" aria-label={t('cafe.items.chooseStream')}>
-          <h2>{t('cafe.items.chooseStream')}</h2>
-          <CafeStreamChoices
-            options={locationOptions}
-            homeStream={homeStream}
-            myStreamKeys={myStreamKeys}
-            onChoose={requestStreamChange}
-          />
-        </section>
+        <CafeStreamChoices
+          options={locationOptions}
+          homeStream={homeStream}
+          myStreamKeys={myStreamKeys}
+          onChoose={requestStreamChange}
+        />
       )}
 
       {readState === 'loading' && <LoadingShell count={4} label={t('cafe.items.loading')} />}
@@ -655,7 +643,7 @@ function CafeItemSettingsPageForViewer() {
           </div>
         </section>
       )}
-    </PageFamilyFrame>
+    </CafePageFrame>
   )
 }
 

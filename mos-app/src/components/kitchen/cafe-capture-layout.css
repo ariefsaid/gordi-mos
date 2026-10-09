@@ -1,28 +1,20 @@
 /* Shared shell, row and action-band geometry for Café capture routes. */
-.page-frame--v3:has(.cafe-capture-head),
+.page-frame--v3:has(.kl-capture-content),
 .page-frame--v3:has(.cafe-capture-page) {
   display: flex;
   flex-direction: column;
-  padding-inline: 16px;
   padding-bottom: 0;
 }
 
-.page-frame--v3:has(.cafe-capture-head) > .page-frame__content,
+.page-frame--v3:has(.kl-capture-content) > .page-frame__content,
 .page-frame--v3:has(.cafe-capture-page) > .page-frame__content {
   display: flex;
   flex: 1 0 auto;
   flex-direction: column;
-  max-width: none;
 }
 
-/* Capture owns the visible title; breadcrumb ancestors remain navigation. */
-.h-dvh:has(.cafe-capture-head) .top-bar__breadcrumb-leaf { display: none; }
-.h-dvh:has(.cafe-capture-head) .top-bar__breadcrumb-fixed:last-of-type > [aria-hidden] { display: none; }
-.cafe-capture-head.content-header { align-items: baseline; }
-.cafe-capture-head,
-.cafe-count__head { --page-family-width: 1120px; }
 .cafe-capture-review-page {
-  width: min(100%, 1120px);
+  width: 100%;
   min-width: 0;
   margin-inline: auto;
   padding: 20px 0 0;

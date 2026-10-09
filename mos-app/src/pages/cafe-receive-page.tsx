@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
+import { CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
+import { CafePageFrame } from '@/components/kitchen/cafe-page-frame'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { DateField } from '@/components/ui/date-field'
-import { CafeStreamBar, CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
 import { CafeCaptureQuantityControl, CafeCaptureTable } from '@/components/kitchen/cafe-capture-table'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { CafeReceiptState } from '@/components/kitchen/cafe-receipt-state'
@@ -16,7 +17,7 @@ import { CafeReceiveLockConfirm } from '@/components/kitchen/cafe-receive-lock-c
 import { CafeReceiptLineRow } from '@/components/kitchen/cafe-receipt-difference'
 import { CafeReceiptIssuesLink } from '@/components/kitchen/cafe-receipt-issues-link'
 import { CafeItemsEmptyState } from '@/components/kitchen/cafe-items-empty-state'
-import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
+import { ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { useI18n } from '@/i18n/I18nProvider'
 import { useT } from '@/i18n/use-t'
 import { canCaptureCafe } from '@/lib/cafe-affiliation'
@@ -63,8 +64,6 @@ import { kitchenCategoryLabel } from '@/lib/kitchen-category-label'
 import { streamLabel } from '@/lib/kitchen-action-label'
 import { useKitchenItemTable } from '@/lib/kitchen-item-list'
 import { useCafeStream } from '@/lib/use-cafe-stream'
-import { PageFamilyFrame } from '@/shell/page-family-frame'
-import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsOffline } from '@/shell/use-is-offline'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { formatWeekdayDayMonth, formatWibShortDateTime } from '@/lib/format/date'
@@ -192,9 +191,6 @@ export function CafeReceivePage() {
   const isDesktop = useIsDesktop()
   const today = useMemo(() => wibToday(), [])
   const dateBounds = cafeReceiptArrivalDateBounds(today, canBackdate)
-  const pageLabel = t('nav.cafe.receive')
-  useDocumentTitle(t('common.docTitle', { page: `${pageLabel} · ${t('nav.cafe')}` }))
-
   const [catalogReady, setCatalogReady] = useState(false)
   const [loadState, setLoadState] = useState<LoadState>('loading')
   const [retryKey, setRetryKey] = useState(0)
@@ -599,19 +595,15 @@ export function CafeReceivePage() {
     setDraftSaved(Boolean(savedDraft))
   }
 
-  const picker = (
-    <CafeStreamBar
-      options={streamOptions}
-      locationBranchId={branchId ?? undefined}
-      stream={stream}
-      homeStream={homeStream}
-      myStreamKeys={myStreamKeys}
-      onChange={chooseStream}
-      disabled={!canSwitch}
-      switchLabel={t(stream?.activity === 'bar' ? 'cafe.stream.switchBar' : 'cafe.stream.switchKitchen')}
-      switchAriaLabel={t(stream?.activity === 'bar' ? 'cafe.stream.switchBarAria' : 'cafe.stream.switchKitchenAria')}
-    />
-  )
+  const streamBar = {
+    options: streamOptions,
+    locationBranchId: branchId ?? undefined,
+    stream,
+    homeStream,
+    myStreamKeys,
+    onChange: chooseStream,
+    disabled: !canSwitch,
+  }
   const pageState = loadState === 'loading' ? 'loading' : loadState === 'error' ? 'error' : busy ? 'saving' : 'default'
   const firstEvidenceErrorId = Object.keys(evidenceValidation)[0]
 
@@ -665,7 +657,7 @@ export function CafeReceivePage() {
   }
 
   return (
-    <PageFamilyFrame family="workspace" title={pageLabel} headClassName="cafe-capture-head" statusRow={stream ? <div className="cafe-capture-context">{picker}</div> : picker} state={pageState}>
+    <CafePageFrame page="receive" streamBar={streamBar} state={pageState}>
       <div className="cafe-capture-page cafe-count cafe-receive">
         {loadState === 'loading' && <LoadingShell count={3} />}
         {loadState === 'error' && (
@@ -676,9 +668,7 @@ export function CafeReceivePage() {
           />
         )}
         {loadState === 'ready' && !stream && (
-          <EmptyState variant="next-step" title={t('cafe.receive.noStream.title')} copy={t('cafe.receive.noStream.copy')}>
-            <CafeStreamChoices options={streamOptions} homeStream={homeStream} myStreamKeys={myStreamKeys} onChoose={chooseStream} />
-          </EmptyState>
+          <CafeStreamChoices options={streamOptions} homeStream={homeStream} myStreamKeys={myStreamKeys} onChoose={chooseStream} />
         )}
         {loadState === 'ready' && stream && !canCapture && (
           <p className="cafe-count__notice" role="status">{t('cafe.receive.readOnly')}</p>
@@ -1030,6 +1020,6 @@ export function CafeReceivePage() {
           onCancel={() => setPendingStream(null)}
         />
       </div>
-    </PageFamilyFrame>
+    </CafePageFrame>
   )
 }

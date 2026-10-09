@@ -139,7 +139,7 @@ function idWrapper({ children }: { children: ReactNode }) {
 }
 
 function chooseStream(optionName: string) {
-  fireEvent.click(screen.getByRole('button', { name: /^change stream$/i }))
+  fireEvent.click(screen.getByRole('button', { name: /^switch (stream|kitchen|bar)$/i }))
   fireEvent.click(screen.getByRole('option', { name: startsWith(optionName) }))
 }
 
@@ -428,7 +428,7 @@ describe('KitchenReviewPage — queue (FR-040)', () => {
 
     await waitFor(() => expect(mockList).toHaveBeenLastCalledWith('2026-09-25', {}))
     await screen.findByRole('heading', { name: /nothing to review/i })
-    const headDate = document.querySelector('.kr-date')?.textContent?.trim()
+    const headDate = screen.getByTestId('page-head').querySelector('.ch-meta time')?.textContent?.trim()
     const queueEmpty = kitchenReviewEmptyState()
     const emptyCopy = queueEmpty.querySelector('.empty-copy')!
     expect(headDate).toBeTruthy()
@@ -951,8 +951,9 @@ describe('KitchenReviewPage — the stream reads in the page head (#440)', () =>
 
     const head = container.querySelector('[data-testid="page-head"]') as HTMLElement
     expect(within(head).getByTestId('cafe-stream')).toHaveTextContent('Rumah Rames · Kitchen')
+    expect(head.querySelector('.ch-meta time.cafe-page-date')).toBeNull()
 
-    fireEvent.click(within(head).getByRole('button', { name: /^change stream$/i }))
+    fireEvent.click(within(head).getByRole('button', { name: /^switch kitchen$/i }))
     fireEvent.click(screen.getByRole('option', { name: startsWith('Radiant · Bar') }))
     await screen.findByText('Es Kopi')
     expect(screen.queryByText('Nasi Goreng')).toBeNull()
@@ -1485,7 +1486,7 @@ function cafeDocTitle(leaf: keyof typeof messages.en): string {
 describe('issue 455: document title', () => {
   it('titles the tab from the Café nav label, not the retired kitchen one', async () => {
     render(<KitchenReviewPage />, { wrapper })
-    await waitFor(() => expect(document.title).toBe(cafeDocTitle('nav.cafe.review')))
+    await waitFor(() => expect(document.title).toBe(cafeDocTitle('cafe.pageTitle.review')))
   })
 })
 

@@ -359,7 +359,7 @@ describe('Cafe item permissions per activity', () => {
     render(<StrictMode><MemoryRouter><I18nProvider initialLocale="en"><CafeItemSettingsPage /></I18nProvider></MemoryRouter></StrictMode>)
     await user.click(await screen.findByRole('button', { name: /Gordi HQ · Kitchen/ }))
     expect(await screen.findByRole('textbox', { name: 'MOS name' })).toBeEnabled()
-    await user.click(screen.getByRole('button', { name: /change stream/i }))
+    await user.click(screen.getByRole('button', { name: /switch kitchen/i }))
     await user.click(screen.getByRole('option', { name: /Gordi HQ · Bar/ }))
     await waitFor(() => expect(mockCanManage).toHaveBeenCalledWith('bar'))
     const search = screen.getByRole('searchbox', { name: 'Find an ESB or MOS name' })
@@ -407,7 +407,7 @@ describe('Cafe item permissions per activity', () => {
     await user.clear(name)
     await user.type(name, 'Draft oat milk')
 
-    await user.click(screen.getByRole('button', { name: /change stream/i }))
+    await user.click(screen.getByRole('button', { name: 'Switch kitchen' }))
     await user.click(screen.getByRole('option', { name: /Gordi HQ · Bar/ }))
 
     const switchDialog = await screen.findByRole('dialog', { name: 'Discard item changes and switch stream?' })
@@ -417,7 +417,7 @@ describe('Cafe item permissions per activity', () => {
     expect(screen.getByRole('heading', { level: 2, name: 'Gordi HQ · Kitchen' })).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: 'MOS name' })).toHaveValue('Draft oat milk')
 
-    await user.click(screen.getByRole('button', { name: /change stream/i }))
+    await user.click(screen.getByRole('button', { name: 'Switch kitchen' }))
     await user.click(screen.getByRole('option', { name: /Gordi HQ · Bar/ }))
     await user.click(screen.getByRole('button', { name: 'Discard and switch' }))
     expect(await screen.findByRole('heading', { level: 2, name: 'Gordi HQ · Bar' })).toBeInTheDocument()
@@ -461,7 +461,7 @@ describe('Cafe item permissions per activity', () => {
     mockCanManage.mockImplementation(async activity => activity === 'kitchen')
     renderPage()
     expect(await screen.findByRole('textbox', { name: 'MOS name' })).toBeEnabled()
-    fireEvent.click(screen.getByRole('button', { name: /change stream/i }))
+    fireEvent.click(screen.getByRole('button', { name: /switch kitchen/i }))
     fireEvent.click(screen.getByRole('option', { name: /Gordi HQ · Bar/ }))
     const item = await screen.findByRole('article', { name: 'ERP Oat milk' })
     await waitFor(() => expect(mockCanManage).toHaveBeenCalledWith('bar'))
