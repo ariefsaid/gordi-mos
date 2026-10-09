@@ -12,6 +12,7 @@ import { MOS_DEV_IDENTITY_PATH, worktreeFingerprint } from './src/lib/dev-server
 import { createBuildIdentity } from './src/config/build-identity'
 import { stampServiceWorker } from './src/config/sw-build-id'
 import { validateSampleLoginBuild } from './src/config/sample-login-build-guard'
+import { validateLocalViewAsBuild } from './src/config/local-view-as'
 
 const __dir = dirname(fileURLToPath(import.meta.url))
 
@@ -64,6 +65,18 @@ function mosDevIdentity(): Plugin {
           return
         }
         next()
+      })
+    },
+  }
+}
+
+function localViewAsBuildGuard(): Plugin {
+  return {
+    name: 'local-view-as-build-guard',
+    configResolved(config) {
+      validateLocalViewAsBuild({
+        command: config.command,
+        password: config.env.VITE_LOCAL_VIEW_AS_PASSWORD,
       })
     },
   }
@@ -124,6 +137,7 @@ export default defineConfig(({ mode }) => {
     redirectToBase(basePath),
     mosDevIdentity(),
     sampleLoginBuildGuard(),
+    localViewAsBuildGuard(),
     buildSettingsArtifactsPlugin(basePath),
     serviceWorkerBuildId(),
     previewBuildIdentity(),
