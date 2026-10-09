@@ -33,7 +33,7 @@ export interface SalesMarginDailyRow {
   cogs_budget_bom: number | null
   /** revenue − cogs_interim_sm; null when cogs_interim_sm is null (never a fake margin). */
   margin_interim: number | null
-  /** data-quality badge for low BOM-recipe-coverage days. */
+  /** Source percentage points for BOM recipe coverage (0–100); null when absent. */
   bom_coverage_pct: number | null
   snapshot_as_of: string
   source_contract_version: string

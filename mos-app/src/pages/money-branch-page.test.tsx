@@ -66,7 +66,7 @@ const REVENUE: SalesDailyRevenueRow[] = [
 const MARGIN: SalesMarginDailyRow[] = Array.from({ length: 14 }, (_, i) => ({
   margin_date: day(i), esb_code: 'GHQ', branch_code: 'GHQ', branch_name: 'Gordi HQ', branch_id: 'b-ghq',
   revenue: 10_000_000, cogs_interim_sm: 4_120_000, cogs_budget_bom: 3_400_000, margin_interim: 5_880_000,
-  bom_coverage_pct: 0.8, snapshot_as_of: SYNCED, source_contract_version: 'v1',
+  bom_coverage_pct: 80, snapshot_as_of: SYNCED, source_contract_version: 'v1',
 }))
 
 function Where() {
@@ -162,6 +162,7 @@ describe('MoneyBranchPage — what each tier receives', () => {
     expect(await screen.findByRole('heading', { name: 'Margin, last 7 days' })).toBeInTheDocument()
     expect(screen.getByText('COGS 41,2% of revenue against a 34,0% budget: 7,2 points over.')).toBeInTheDocument()
     expect(screen.getByText('58,8%')).toBeInTheDocument()
+    expect(screen.getByText('80%')).toBeInTheDocument()
   })
 
   it('COGS on its budget reads as on budget, not "0,0 points under"', async () => {

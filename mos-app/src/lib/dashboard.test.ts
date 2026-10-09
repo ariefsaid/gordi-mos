@@ -20,8 +20,12 @@ describe('bomCoveragePct', () => {
     ({ margin_date, bom_coverage_pct }) as SalesMarginDailyRow
 
   it('averages the days inside the window and skips days without coverage', () => {
-    const rows = [row('2026-06-29', 0.8), row('2026-06-30', 1), row('2026-06-28', null), row('2026-06-01', 0)]
+    const rows = [row('2026-06-29', 80), row('2026-06-30', 100), row('2026-06-28', null), row('2026-06-01', 0)]
     expect(bomCoveragePct(rows, '2026-06-28', LATEST)).toBeCloseTo(0.9, 10)
+  })
+
+  it('converts source percentage points to a 0–1 fraction before formatting', () => {
+    expect(bomCoveragePct([row('2026-06-30', 98.33)], '2026-06-24', LATEST)).toBeCloseTo(0.9833, 10)
   })
 
   it('is null when no day in the window carries coverage', () => {
