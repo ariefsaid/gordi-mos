@@ -145,16 +145,19 @@ export const FieldStateMatrix: Story = {
   ),
 }
 
-export const SelectionAndStatus: Story = {
-  render: () => (
+function SelectionStatusControls() {
+  const [selected, setSelected] = useState(true)
+  const [group, setGroup] = useState<boolean | 'mixed'>('mixed')
+  const [daily, setDaily] = useState(false)
+  return (
     <div className="v3-story-frame">
       <section className="v3-story-section" aria-labelledby="controls-selection-title">
         <h1 id="controls-selection-title" className="v3-story-section__title">Selection and status language</h1>
         <div className="v3-story-stack">
           <div className="v3-story-row">
-            <Checkbox aria-label="Select the daily planning task" />
-            <Checkbox aria-label="Selected planning task" checked />
-            <Checkbox aria-label="Partially selected planning group" indeterminate />
+            <Checkbox aria-label="Select the daily planning task" checked={daily} onChange={setDaily} />
+            <Checkbox aria-label="Selected planning task" checked={selected} onChange={setSelected} />
+            <Checkbox aria-label="Partially selected planning group" checked={group === true} indeterminate={group === 'mixed'} onChange={setGroup} />
             <Checkbox aria-label="Unavailable planning task" disabled />
             <Toggle aria-label="Include completed tasks" value />
             <Toggle aria-label="Include archived tasks" disabled />
@@ -173,7 +176,20 @@ export const SelectionAndStatus: Story = {
         </div>
       </section>
     </div>
-  ),
+  )
+}
+
+export const SelectionAndStatus: Story = {
+  render: () => <SelectionStatusControls />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const selected = canvas.getByRole('checkbox', { name: 'Selected planning task' })
+    await userEvent.click(selected)
+    await expect(selected).not.toBeChecked()
+    const group = canvas.getByRole('checkbox', { name: 'Partially selected planning group' })
+    await userEvent.click(group)
+    await expect(group).toBeChecked()
+  },
 }
 
 type RgbColor = { r: number; g: number; b: number; a: number; space: 'srgb' | 'display-p3' }

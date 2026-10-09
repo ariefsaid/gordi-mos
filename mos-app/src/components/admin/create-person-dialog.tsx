@@ -14,7 +14,7 @@
 import { useState, useEffect, useId } from 'react'
 import { useT } from '@/i18n/use-t'
 import { TextInput } from '@/components/ui/text-input'
-import { Checkbox } from '@/components/ui/checkbox'
+import { CheckboxRow } from './checkbox-row'
 import { Toggle } from '@/components/ui/toggle'
 import { Button } from '@/components/ui/button'
 import { useFocusRestore } from '@/components/ui/use-focus-restore'
@@ -249,21 +249,13 @@ export function CreatePersonDialog({
                     aria-disabled={noEmail || undefined}
                   />
 
-                  {/* "No email" toggle row — gets its own breathing room (no longer cramped) */}
-                  <label
-                    className={`flex items-center gap-2.5 select-none text-sm ${
-                      isSubmitting ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
-                    }`}
-                    style={{ color: 'var(--foreground)' }}
-                  >
-                    <Checkbox
-                      checked={noEmail}
-                      onChange={(v) => setNoEmail(v)}
-                      disabled={isSubmitting}
-                      aria-label={t('admin.create.noEmailAria')}
-                    />
-                    <span>{t('admin.create.noEmail')}</span>
-                  </label>
+                  <CheckboxRow
+                    label={t('admin.create.noEmail')}
+                    ariaLabel={t('admin.create.noEmailAria')}
+                    checked={noEmail}
+                    onToggle={() => setNoEmail((value) => !value)}
+                    disabled={isSubmitting}
+                  />
 
                   {/* Synthetic sign-in name preview — cleanly presented in a quiet fill panel */}
                   {noEmail && syntheticEmail && (
@@ -307,40 +299,15 @@ export function CreatePersonDialog({
                     const meta = localizedRoleMeta(role, t)
 
                     return (
-                      <label
+                      <CheckboxRow
                         key={role}
-                        className={`flex items-start gap-3 px-3 py-2.5 ${
-                          isDisabled
-                            ? 'opacity-50 cursor-not-allowed'
-                            : 'cursor-pointer hover:bg-accent/60'
-                        }`}
-                        style={
-                          i > 0 ? { borderTop: '1px solid var(--input)' } : undefined
-                        }
-                      >
-                        <span className="mt-0.5">
-                          <Checkbox
-                            checked={selectedRoles.has(role)}
-                            onChange={() => !isDisabled && toggleRole(role)}
-                            disabled={isDisabled}
-                            aria-label={meta.label}
-                          />
-                        </span>
-                        <span className="flex flex-col">
-                          <span
-                            className="text-sm font-medium leading-tight"
-                            style={{ color: 'var(--foreground)' }}
-                          >
-                            {meta.label}
-                          </span>
-                          <span
-                            className="text-xs leading-snug"
-                            style={{ color: 'var(--muted-foreground)' }}
-                          >
-                            {meta.description}
-                          </span>
-                        </span>
-                      </label>
+                        label={meta.label}
+                        description={meta.description}
+                        checked={selectedRoles.has(role)}
+                        onToggle={() => toggleRole(role)}
+                        disabled={isDisabled}
+                        divider={i > 0}
+                      />
                     )
                   })}
                 </div>
