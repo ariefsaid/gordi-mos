@@ -1,0 +1,100 @@
+/* Shared geometry for the Café quantity controls. Keep production, transfer, waste and Count
+   on the same field width/height/type scale; only the photo action adds a separate column. */
+.cafe-capture-content,
+.cafe-count {
+  --cafe-capture-control-height: 32px;
+}
+
+.cafe-capture-control-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.cafe-capture-content .cafe-capture-quantity-field,
+.cafe-count .cafe-capture-quantity-field {
+  width: var(--cafe-capture-quantity-width);
+  min-width: 0;
+  min-height: var(--cafe-capture-control-height);
+  height: var(--cafe-capture-control-height);
+  box-sizing: border-box;
+  font-size: var(--font-size-control);
+}
+
+.cafe-capture-content .cafe-capture-quantity-field:not(.kls-qty),
+.cafe-count .cafe-capture-quantity-field {
+  padding: 0 8px;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-sm);
+  background: var(--background);
+  color: var(--foreground);
+  font: inherit;
+  font-size: var(--font-size-control);
+}
+
+.cafe-capture-content .cafe-capture-quantity-field:not(.kls-qty):focus-visible,
+.cafe-count .cafe-capture-quantity-field:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.cafe-capture-content .cafe-capture-quantity-field:not(.kls-qty)[aria-invalid="true"],
+.cafe-count .cafe-capture-quantity-field[aria-invalid="true"] {
+  border-color: var(--destructive);
+}
+
+.cafe-capture-unit {
+  min-width: 0;
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+}
+
+.cafe-capture-unit .mk-select__field > span:first-child {
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+}
+
+.cafe-capture-action {
+  min-height: var(--cafe-capture-control-height);
+  white-space: nowrap;
+}
+
+@media (max-width: 767.98px), (pointer: coarse) {
+  .cafe-capture-content,
+  .cafe-count {
+    --cafe-capture-quantity-width: 5.5rem;
+    --cafe-capture-control-height: 44px;
+  }
+
+  .cafe-capture-content .cafe-capture-quantity-field:not(.kls-qty),
+  .cafe-count .cafe-capture-quantity-field {
+    font-size: var(--font-size-touch-input);
+  }
+
+  .cafe-capture-unit {
+    flex: 1 1 auto;
+    text-align: left;
+  }
+}
+
+@media (pointer: coarse) {
+  .cafe-capture-content .mk-select__box,
+  .cafe-capture-content .mk-select__field,
+  .cafe-count .mk-select__box,
+  .cafe-count .mk-select__field,
+  .cafe-capture-content .btn,
+  .cafe-count .btn {
+    min-height: 44px;
+  }
+
+  .cafe-capture-content .dt-group-toggle {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+

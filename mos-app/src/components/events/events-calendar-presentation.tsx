@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { EVENTS_WINDOW_MAX_ROWS } from '@/lib/db/events'
 import type { EventRow } from '@/lib/db/events.types'
 import { wibMonthRange } from '@/lib/week'
 import { WIB_OFFSET_MS } from '@/lib/format/date'
@@ -59,7 +60,7 @@ export function EventsCalendarPresentation({
   businessUnits,
   people,
   hasMoreEvents = false,
-  loadedEventLimit = 1000,
+  loadedEventLimit = EVENTS_WINDOW_MAX_ROWS,
 }: EventCalendarProps) {
   const t = useT()
   const { locale } = useI18n()
@@ -148,7 +149,7 @@ export function EventsCalendarPresentation({
         })}
       </section>
       {hasMoreEvents ? (
-        <p className="events-calendar__window-more" role="status" aria-live="polite">
+        <p className="events-calendar__window-more">
           {t('events.calendar.windowMore', { count: loadedEventLimit })}
         </p>
       ) : null}

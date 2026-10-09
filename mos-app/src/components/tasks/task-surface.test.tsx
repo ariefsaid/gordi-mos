@@ -15,6 +15,7 @@ import { installDisabledBlur } from '@/test/browser-focus-fixup'
 // ── Mock the data layer ──────────────────────────────────────────────────────
 vi.mock('../../lib/db/tasks', () => ({
   getTask: vi.fn(),
+  listTaskEventsPage: vi.fn(),
   createTask: vi.fn(),
   updateTaskStatus: vi.fn(),
   updateTaskFields: vi.fn(),
@@ -222,6 +223,18 @@ describe('TaskSurface — view mode', () => {
     fireEvent.click(screen.getByRole('combobox', { name: 'Objective' }))
     expect(screen.getByRole('option', { name: 'Current Objective' })).toBeInTheDocument()
     expect(screen.queryByRole('option', { name: 'Archived Objective' })).toBeNull()
+  })
+
+  it('does not offer an empty history page when the total is exactly one page', async () => {
+    const events: TaskEventRow[] = Array.from({ length: 50 }, (_, index) => ({
+      id: `event-${index}`, org_id: 'org', task_id: 'task-abc', actor_person_id: VIEWER_ID,
+      event_type: 'created', from_value: null, to_value: null, created_at: `2026-06-${String(index + 1).padStart(2, '0')}T00:00:00Z`,
+    }))
+    mockGetTask.mockResolvedValue({ task: makeTask(), checklist: [], events, eventsHasMore: false })
+    renderSurface()
+    fireEvent.click(await screen.findByRole('button', { name: /History/ }))
+    expect(await screen.findAllByTestId('event-entry')).toHaveLength(50)
+    expect(screen.queryByRole('button', { name: /Load more/ })).toBeNull()
   })
 
   it('AC-070 (TaskSurface): renders title, status, typed ownership, checklist, activity, and completion', async () => {

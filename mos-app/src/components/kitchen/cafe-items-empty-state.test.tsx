@@ -30,9 +30,9 @@ beforeEach(() => {
 })
 
 describe('CafeItemsEmptyState', () => {
-  it('says the stream has no ESB items, that they are added in ESB first, and offers nothing to click', async () => {
+  it.each([false, true])('says the stream has no ESB items without an action (stock unit required: %s)', async requiresStockUnit => {
     mockSettings.mockResolvedValue([])
-    renderEmpty({ stream: KITCHEN })
+    renderEmpty({ stream: KITCHEN, requiresStockUnit })
     const empty = await screen.findByTestId('empty-state')
     expect(within(empty).getByRole('heading', { name: 'No ESB items on Rumah Rames · Kitchen' })).toBeInTheDocument()
     expect(within(empty).getByText('Add it in ESB first; it appears here after the next refresh.', { exact: true })).toBeInTheDocument()
@@ -50,7 +50,7 @@ describe('CafeItemsEmptyState', () => {
   it('sends a person who can manage the items straight to Café items to set them up', async () => {
     mockSettings.mockResolvedValue([unsetItem('a'), unsetItem('b')])
     mockCanManage.mockResolvedValue(true)
-    renderEmpty({ stream: KITCHEN })
+    renderEmpty({ stream: KITCHEN, requiresStockUnit: true })
     expect(await screen.findByRole('heading', { name: 'No items set up on Rumah Rames · Kitchen' })).toBeInTheDocument()
     expect(screen.getByText(/2 ESB items are on this stream/i)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Set up items' })).toHaveAttribute('href', '/cafe/items')
@@ -73,9 +73,9 @@ describe('CafeItemsEmptyState', () => {
     expect(screen.queryByRole('link')).not.toBeInTheDocument()
   })
 
-  it('names no cause when the stream items cannot be read', async () => {
+  it.each([false, true])('names no cause when the stream items cannot be read (stock unit required: %s)', async requiresStockUnit => {
     mockSettings.mockRejectedValue(new Error('read failed'))
-    renderEmpty({ stream: KITCHEN })
+    renderEmpty({ stream: KITCHEN, requiresStockUnit })
     expect(await screen.findByRole('heading', { name: 'No items to show on Rumah Rames · Kitchen' })).toBeInTheDocument()
     expect(screen.queryByText(/ESB item/i)).not.toBeInTheDocument()
     expect(screen.queryByRole('link')).not.toBeInTheDocument()
@@ -85,6 +85,36 @@ describe('CafeItemsEmptyState', () => {
     renderEmpty({ stream: KITCHEN, esbItemCount: 1, canManage: true })
     expect(await screen.findByRole('link', { name: 'Set up items' })).toBeInTheDocument()
     expect(mockSettings).not.toHaveBeenCalled()
+    expect(mockCanManage).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['en', true, undefined, '2 items are set up', 'bar manager', 'No eligible stock units'],
+    ['en', true, 6, '2 items are set up', 'bar manager', 'No eligible stock units'],
+    ['id', false, undefined, '2 item sudah diatur', 'Manajer bar', 'Belum ada satuan stok yang memenuhi syarat'],
+    ['id', false, 6, '2 item sudah diatur', 'Manajer bar', 'Belum ada satuan stok yang memenuhi syarat'],
+  ] as const)('distinguishes configured items from stock-unit eligibility in %s (manage: %s, cached count: %s)', async (locale, canManage, esbItemCount, tally, manager, title) => {
+    const configured = (id: string): CafeItemSetting => ({
+      ...unsetItem(id), kind: 'WIP', isActive: true, defaultUnitId: 'unit-portion',
+      units: [{ id: 'unit-portion', name: 'porsi', isShown: true, isDefault: true, labelOrdinal: null, labelCount: 1 }],
+    })
+    mockSettings.mockResolvedValue([
+      configured('a'), configured('b'), unsetItem('c'),
+      { ...configured('d'), isActive: false },
+      { ...configured('e'), defaultUnitId: null },
+      { ...configured('f'), kind: null },
+    ])
+    render(<MemoryRouter><I18nProvider initialLocale={locale}>
+      <CafeItemsEmptyState stream={BAR} requiresStockUnit esbItemCount={esbItemCount} canManage={canManage} />
+    </I18nProvider></MemoryRouter>)
+
+    const empty = await screen.findByTestId('empty-state')
+    expect(empty).toHaveTextContent(tally)
+    expect(empty).toHaveTextContent(manager)
+    expect(empty).toHaveTextContent(title)
+    expect(empty).not.toHaveTextContent(locale === 'en' ? 'none is set up' : 'belum ada yang diatur')
+    expect(screen.queryByRole('link')).not.toBeInTheDocument()
+    expect(mockSettings).toHaveBeenCalledWith(BAR)
     expect(mockCanManage).not.toHaveBeenCalled()
   })
 

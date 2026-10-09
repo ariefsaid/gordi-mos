@@ -55,6 +55,37 @@ describe('i18n messages catalog', () => {
     expect(interpolate(messages.id['tasks.meta.openCount'], { count: 11 })).toBe('11 terbuka di tampilan ini')
   })
 
+  it('retains the full pending-bill summary outside phone widths', () => {
+    expect(interpolate(messages.en['pendingBills.summary.one'], { count: 1, total: 'Rp 1', age: '1 day', paid: 'Rp 0' }))
+      .toBe('1 open bill · Rp 1 remaining · oldest 1 day · paid this month Rp 0')
+    expect(interpolate(messages.en['pendingBills.summary.other'], { count: 2, total: 'Rp 2', age: '2 days', paid: 'Rp 0' }))
+      .toBe('2 open bills · Rp 2 remaining · oldest 2 days · paid this month Rp 0')
+    expect(interpolate(messages.id['pendingBills.summary.one'], { count: 1, total: 'Rp 1', age: '1 hari', paid: 'Rp 0' }))
+      .toBe('1 tagihan terbuka · sisa Rp 1 · terlama 1 hari · dibayar bulan ini Rp 0')
+    expect(interpolate(messages.id['pendingBills.summary.other'], { count: 2, total: 'Rp 2', age: '2 hari', paid: 'Rp 0' }))
+      .toBe('2 tagihan terbuka · sisa Rp 2 · terlama 2 hari · dibayar bulan ini Rp 0')
+  })
+
+  it('keeps the phone pending-bill summary to open total, count and oldest age', () => {
+    expect(interpolate(messages.en['pendingBills.summary.compact.one'], { count: 1, total: 'Rp 1', age: '1 day' }))
+      .toBe('Rp 1 open · 1 bill · oldest 1 day')
+    expect(interpolate(messages.en['pendingBills.summary.compact.other'], { count: 2, total: 'Rp 2', age: '2 days' }))
+      .toBe('Rp 2 open · 2 bills · oldest 2 days')
+    expect(interpolate(messages.id['pendingBills.summary.compact.one'], { count: 1, total: 'Rp 1', age: '1 hari' }))
+      .toBe('Sisa Rp 1 · 1 tagihan · terlama 1 hari')
+    expect(interpolate(messages.id['pendingBills.summary.compact.other'], { count: 2, total: 'Rp 2', age: '2 hari' }))
+      .toBe('Sisa Rp 2 · 2 tagihan · terlama 2 hari')
+  })
+
+  it('localizes the pending-bill filter label and count-aware active badge', () => {
+    expect(messages.en['pendingBills.filters.label']).toBe('Filters')
+    expect(interpolate(messages.en['pendingBills.filters.active.one'], { count: 1 })).toBe('1 active filter')
+    expect(interpolate(messages.en['pendingBills.filters.active.other'], { count: 2 })).toBe('2 active filters')
+    expect(messages.id['pendingBills.filters.label']).toBe('Filter')
+    expect(interpolate(messages.id['pendingBills.filters.active.one'], { count: 1 })).toBe('1 filter aktif')
+    expect(interpolate(messages.id['pendingBills.filters.active.other'], { count: 2 })).toBe('2 filter aktif')
+  })
+
   it('issue 579: common.resultCount has a singular noun in both locales', () => {
     expect(interpolate(messages.en['common.resultCount.one'], { count: 1 })).toBe(
       '1 item in your scope',

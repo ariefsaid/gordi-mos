@@ -94,7 +94,7 @@ describe('WipItemStepper — fixed unit + change-unit affordance (FR-020/021, AC
       screen.queryByRole('button', { name: /change unit/i }),
     ).not.toBeInTheDocument()
     // the fixed unit still names itself beside the qty (FR-020) — text, never a control
-    expect(screen.getByText('porsi')).toBeInTheDocument()
+    expect(screen.getByText('porsi')).toHaveClass('kls-unit')
   })
 
   it('FR-021: the picker is BEHIND the click — no unit selector exists until the affordance is pressed', async () => {

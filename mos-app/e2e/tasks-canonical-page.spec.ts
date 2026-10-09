@@ -23,6 +23,7 @@ test('OD-63-1: direct URL / new-tab / refresh opens the full canonical page (not
   await page.waitForURL(/\/work\/tasks\/[0-9a-f-]{36}\?view=overdue$/)
 
   await expect(page.getByRole('heading', { level: 1, name: new RegExp(title) })).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByRole('link', { name: /back to tasks/i })).toBeVisible()
   await expect(page.locator('.split')).toHaveCount(0)
   await expect(page.getByRole('region', { name: 'Tasks' })).toHaveCount(0)
   await expect(page.getByRole('complementary', { name: /task detail/i })).toHaveCount(0)

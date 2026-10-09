@@ -69,6 +69,10 @@ vi.mock('@/lib/db/signals', async (importOriginal) => ({
 vi.mock('@/lib/db/follow-ups', () => ({
   searchFollowUpsByCounterparty: vi.fn().mockResolvedValue([]),
 }))
+vi.mock('@/lib/db/work-authority', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/db/work-authority')>()
+  return { ...actual, getWorkWriteScopes: vi.fn().mockResolvedValue(actual.emptyWorkWriteScopes()) }
+})
 vi.mock('@/shell/signal-composer-host', () => ({
   useSignalComposer: () => ({ open: vi.fn(), close: vi.fn(), isOpen: false, postCount: 0 }),
 }))

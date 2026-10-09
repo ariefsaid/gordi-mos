@@ -94,7 +94,7 @@ describe('CafeCountReviewQueue', () => {
     const { container } = renderQueue()
     expect(await screen.findByText('No Submitted Counts.')).toBeInTheDocument()
     expect(container.querySelector('.empty-state')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Refresh' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Refresh' })).toHaveClass('btn-outline')
   })
 
   it('confirms through the versioned RPC and closes a zero Variance as not needed', async () => {

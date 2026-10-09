@@ -60,6 +60,8 @@ test.beforeEach(async ({ page }) => {
   await loginAs(page, ADMIN.email, ADMIN.password)
 })
 
+// Single owner of the retired-URL map (old path -> canonical URL, Back never re-enters it). Other
+// specs (proof-02, AC-411, AC-022's retired deep link) used to re-walk subsets of it.
 test('AC-001: old shell routes redirect to their new canonical URL and Back never re-enters the retired URL', async ({ page }) => {
   test.setTimeout(120_000)
   for (const routeCase of redirectCases) {
@@ -78,7 +80,6 @@ test('AC-001: old shell routes redirect to their new canonical URL and Back neve
     await expect(page).toHaveURL(new URL(e2eAppPath('/'), page.url()).href)
 
     await page.goto(routeCase.oldPath, { waitUntil: 'commit', timeout: 10_000 })
-    await page.waitForTimeout(1_000)
     await expect(page).toHaveURL(routeCase.finalPath, { timeout: 10_000 })
     if ('surface' in routeCase) {
       await expect(page.getByTestId('page-head').getByRole('heading', { name: String(routeCase.surface) })).toBeVisible({ timeout: 10_000 })
@@ -96,12 +97,17 @@ test('AC-003 (DD-WAY-60): retired Daily Log URLs render in-shell not-found witho
 })
 
 test('AC-004 (DD-WAY-36): /work/follow-ups renders not-found in one hop — no redirect', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('work/follow-ups')
   // No redirect: the URL the viewer asked for is the URL they keep.
   await expect(page).toHaveURL(/\/work\/follow-ups$/)
   // AC-021: not-found renders INSIDE the shell — the real cross-stack proof of the guard's
   // fall-through assertion (unit layer owns the invariant; this owns the journey).
   await expect(page.getByRole('heading', { name: NOT_FOUND_HEADING })).toBeVisible()
+  // The rail/header are still there, so the viewer can navigate out of a 404 instead of being stranded.
+  await expect(page.getByRole('navigation', { name: 'Primary' })).toBeVisible()
+  await expect(page.getByRole('banner')).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'not-found shell has no horizontal overflow at 390px').toBe(true)
 })
 
 test('AC-004: /tasks/:taskId redirects to /work/tasks/:taskId and renders the task surface', async ({ page }) => {
@@ -115,17 +121,17 @@ test('AC-005: /kitchen/* redirects to /cafe/* and renders the re-homed kitchen s
   const cases = [
     // #1239: the retired path lands on the dedicated production capture surface. Read the
     // page-head heading every state renders, not a table that only some states do.
-    { oldPath: 'kitchen/log', finalPath: /\/cafe\/production$/, surface: page.getByTestId('page-head').getByRole('heading', { name: 'Log production', exact: true }) },
-    { oldPath: 'kitchen/plan', finalPath: /\/cafe\/plan$/, surface: page.getByRole('heading', { name: /café · (plan|pesanan)/i }) },
-    { oldPath: 'kitchen/stock', finalPath: /\/cafe\/stock$/, surface: page.getByRole('heading', { name: /café · stock/i }) },
-    { oldPath: 'kitchen/review', finalPath: /\/cafe\/review$/, surface: page.getByRole('heading', { name: /café · review/i }) },
-    { oldPath: 'kitchen/pushes', finalPath: /\/cafe\/pushes$/, surface: page.getByRole('heading', { name: /café · pushes/i }) },
+    { oldPath: 'kitchen/log', finalPath: /\/cafe\/production$/, title: 'Production' },
+    { oldPath: 'kitchen/plan', finalPath: /\/cafe\/plan$/, title: 'Plan' },
+    { oldPath: 'kitchen/stock', finalPath: /\/cafe\/stock$/, title: 'Stock' },
+    { oldPath: 'kitchen/review', finalPath: /\/cafe\/review$/, title: 'Review' },
+    { oldPath: 'kitchen/pushes', finalPath: /\/cafe\/pushes$/, title: 'Pushes' },
   ]
 
   for (const routeCase of cases) {
     await page.goto(routeCase.oldPath)
     await expect(page).toHaveURL(routeCase.finalPath)
-    await expect(routeCase.surface).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByTestId('page-head').getByRole('heading', { level: 1, name: routeCase.title, exact: true })).toBeVisible({ timeout: 15_000 })
   }
 })
 
@@ -162,7 +168,7 @@ test('AC-025: /work/signals, /cafe, and /work/tasks?view=overdue resolve and are
   // /cafe remains the Café Today entry; production and transfer have dedicated routes.
   await page.goto('cafe')
   await expect(page).toHaveURL(/\/cafe$/)
-  await expect(page.getByTestId('page-head').getByRole('heading', { name: 'Log production', exact: true })).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByTestId('page-head').getByRole('heading', { level: 1, name: 'Production', exact: true })).toBeVisible({ timeout: 15_000 })
 
   await page.goto('work/tasks?view=overdue')
   await expect(page).toHaveURL(/\/work\/tasks\?view=overdue$/)

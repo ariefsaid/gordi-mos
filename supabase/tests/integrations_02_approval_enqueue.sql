@@ -263,10 +263,16 @@ select is((select count(*)::int from integrations.esb_push), (select n + 6 from 
 -- the same way, on (org_id, batch_id). This section pins kitchen_logs to that scope in both
 -- directions, so a later widening or narrowing goes red rather than being noticed by accident.
 select is(
-  (select string_agg(a.attname, ',' order by a.attnum)
-     from pg_constraint c, unnest(c.conkey) k(attnum), pg_attribute a
+  (select string_agg(a.attname, ',' order by k.ordinality)
+     from pg_constraint c
+     cross join lateral unnest(c.conkey) with ordinality as k(attnum, ordinality)
+     join pg_attribute a on a.attrelid = c.conrelid and a.attnum = k.attnum
     where c.conrelid = 'ops.kitchen_logs'::regclass and c.contype = 'u'
-      and a.attrelid = c.conrelid and a.attnum = k.attnum),
+      and exists (
+        select 1 from unnest(c.conkey) as batch_key(attnum)
+        join pg_attribute batch_column on batch_column.attrelid = c.conrelid
+          and batch_column.attnum = batch_key.attnum and batch_column.attname = 'batch_id'
+      )),
   'org_id,batch_id',
   'the batch identifier is unique on (org_id, batch_id) — the same scope its counter works in, and the same scope ops.log_entries uses for it');
 

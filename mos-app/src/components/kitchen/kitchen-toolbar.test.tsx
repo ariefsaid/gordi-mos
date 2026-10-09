@@ -31,6 +31,20 @@ describe('KitchenToolbar — search-mini', () => {
     const { container } = render(<KitchenToolbar search="" onSearchChange={() => {}} />)
     expect(container.querySelector('[role="search"]')).not.toBeNull()
   })
+
+  it('places a trailing capture action beside the search in the shared filter row', () => {
+    const { container } = render(
+      <KitchenToolbar
+        search=""
+        onSearchChange={() => {}}
+        trailing={<button type="button">Report missing item</button>}
+      />,
+    )
+    const filters = container.querySelector('.ktb-filters')
+    const action = screen.getByRole('button', { name: 'Report missing item' })
+    expect(action.parentElement).toBe(filters)
+    expect(container.querySelector('.ktb-search-wrap')?.parentElement).toBe(filters)
+  })
 })
 
 describe('KitchenToolbar — kind filter', () => {

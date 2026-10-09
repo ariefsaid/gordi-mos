@@ -34,4 +34,25 @@ expect "later version passes" 0 20260301000001_c.sql
 expect "equal version fails" 1 20260201000001_c.sql
 expect "earlier version fails" 1 20260115000001_c.sql
 expect "no new migrations passes" 0
-echo "$pass/4 passed"
+# Merge-time use: judge a PR head that is not checked out (the gh pr merge hook).
+git checkout -q -B late dev; echo 'select 1;' > supabase/migrations/20260115000001_c.sql; git add -A; git commit -qm late
+git checkout -q dev
+rc=0; out="$(bash "$SCRIPT" dev late 2>&1)" || rc=$?
+[ "$rc" -eq 1 ] && grep -q "next free: 20260201000002" <<<"$out" || { echo "FAIL explicit head ref not judged: rc=$rc"; echo "$out"; exit 1; }
+echo "ok   explicit head ref is judged without checking it out"; pass=$((pass + 1))
+rc=0; out="$(bash "$SCRIPT" dev no-such-ref 2>&1)" || rc=$?
+[ "$rc" -ne 0 ] || { echo "FAIL unknown head ref passed as ok"; echo "$out"; exit 1; }
+echo "ok   an unknown ref fails instead of passing"; pass=$((pass + 1))
+git checkout -q --orphan unrelated; git rm -rqf . >/dev/null; mkdir -p supabase/migrations; echo 'select 1;' > supabase/migrations/20250101000001_old.sql; git add -A; git commit -qm unrelated; git checkout -q dev
+rc=0; out="$(bash "$SCRIPT" dev unrelated 2>&1)" || rc=$?
+[ "$rc" -ne 0 ] || { echo "FAIL unrelated history passed as ok"; echo "$out"; exit 1; }
+echo "ok   unrelated histories fail"; pass=$((pass + 1))
+git checkout -q -B tab dev; printf 'select 1;' > "supabase/migrations/20260115000001_t$(printf '\t')ab.sql"; git add -A; git commit -qm tab; git checkout -q dev
+rc=0; out="$(bash "$SCRIPT" dev tab 2>&1)" || rc=$?
+[ "$rc" -eq 1 ] || { echo "FAIL out-of-order tab path passed"; echo "$out"; exit 1; }
+echo "ok   a path with a tab is still judged"; pass=$((pass + 1))
+git checkout -q -B long dev; echo 'select 1;' > supabase/migrations/100000000000000_long.sql; git add -A; git commit -qm long; git checkout -q dev
+rc=0; out="$(bash "$SCRIPT" dev long 2>&1)" || rc=$?
+[ "$rc" -eq 1 ] || { echo "FAIL a non-14-digit version passed"; echo "$out"; exit 1; }
+echo "ok   a version off the 14-digit format fails (filename order is text order)"; pass=$((pass + 1))
+echo "$pass/9 passed"

@@ -33,11 +33,8 @@ const CROSS_SECTION_RETURNS = [
   { name: 'Home → Inbox → Home', route: routePath('inbox') },
 ] as const
 
-const LEGACY_REDIRECTS = [
-  { oldPath: 'tasks', canonical: /\/work\/tasks$/ },
-  { oldPath: 'updates', canonical: /\/work\/signals\?layout=feed$/ },
-  { oldPath: 'kitchen', canonical: /\/cafe\/production$/ },
-] as const
+// Café capture pages own their visible title where the breadcrumb is hidden by the phone shell.
+const CAPTURE_TITLE_ROUTES: readonly RouteParityId[] = ['cafe', 'cafeProduction', 'cafeTransfer', 'cafeWaste']
 
 function normalizeHref(href: string): string {
   const url = new URL(href)
@@ -91,6 +88,13 @@ async function assertCanonicalSurface(page: Page, route: string) {
     // omitted entirely at narrow widths; preserve the no-breadcrumb behavior, not an empty <nav>.
     await expect.poll(async () => (await breadcrumb.allTextContents()).join('').trim()).toBe('')
     await expect(page.getByRole('heading', { name: 'Connect an agent', level: 1 })).toBeVisible()
+  } else if (routeEntry && CAPTURE_TITLE_ROUTES.includes(routeEntry.id)) {
+    if ((page.viewportSize()?.width ?? 1440) < 920) {
+      await expect(page.getByRole('main').getByRole('heading', { level: 1 })).toBeVisible()
+    } else {
+      await expect(breadcrumb).toBeVisible()
+      await expect(breadcrumb.locator('.top-bar__breadcrumb-leaf')).toHaveText(/\S/)
+    }
   } else {
     await expect(breadcrumb).toBeVisible()
   }
@@ -100,11 +104,16 @@ async function assertCanonicalSurface(page: Page, route: string) {
     await expect(page.locator('[aria-current="page"]')).toHaveCount(1)
   }
   await expect(page.getByRole('main')).toBeVisible()
+  // The phone shell never scrolls sideways on any destination (jsdom has no layout engine).
+  if ((page.viewportSize()?.width ?? 1440) < 920) {
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `${route}: no horizontal scroll`).toBe(true)
+  }
 }
 
 test.describe('PROOF-02 canonical route and visible-root parity', () => {
-  for (const width of [1440, 1300, 390] as const) {
-    test(`visible roots, canonical surfaces and Back ownership at ${width}px`, async ({ page }, testInfo) => {
+  // 1440 = rail shell, 390 = bottom-tab shell + More drawer; 1300 re-ran the rail branch.
+  for (const width of [1440, 390] as const) {
+    test(`visible roots, canonical surfaces and Back ownership at ${width}px`, async ({ page }) => {
       test.setTimeout(120_000)
       await page.setViewportSize({ width, height: 900 })
       await loginAs(page, ADMIN.email, ADMIN.password)
@@ -133,26 +142,6 @@ test.describe('PROOF-02 canonical route and visible-root parity', () => {
       for (const route of CANONICAL_ROUTES) {
         await assertCanonicalSurface(page, route)
       }
-
-      await testInfo.attach('visible-root-hrefs', {
-        body: JSON.stringify({ width, hrefs: [...hrefs].sort(), canonicalRoutes: CANONICAL_ROUTES }, null, 2),
-        contentType: 'application/json',
-      })
-      await page.screenshot({ path: testInfo.outputPath(`route-parity-${width}.png`), fullPage: true })
-    })
-
-    test(`legacy redirects and Back never re-enter retired URLs at ${width}px`, async ({ page }) => {
-      test.setTimeout(90_000)
-      await page.setViewportSize({ width, height: 900 })
-      await loginAs(page, ADMIN.email, ADMIN.password)
-      for (const redirect of LEGACY_REDIRECTS) {
-        await page.goto('')
-        await page.goto(redirect.oldPath, { waitUntil: 'commit' })
-        await expect(page).toHaveURL(redirect.canonical)
-        await expect(page.locator('[aria-current="page"]')).toHaveCount(1)
-        await page.goBack()
-        await expect.poll(() => stripE2eBasePath(new URL(page.url()).pathname)).not.toBe(`/${redirect.oldPath}`)
-      }
     })
   }
 
@@ -161,6 +150,46 @@ test.describe('PROOF-02 canonical route and visible-root parity', () => {
   // values: every tab's box must sit fully inside the visible settings-nav viewport, with no
   // hidden scroll to reach it and no fade painted over it. One visit proves the shared strip;
   // the width loop above already visits each admin settings route.
+  test('dark appearance applies the dark page surface and text tokens', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await loginAs(page, ADMIN.email, ADMIN.password)
+    await page.goto('profile')
+
+    const userMenu = page.locator('button[aria-haspopup="menu"]')
+    await expect(userMenu).toHaveCount(1)
+    await userMenu.click()
+    await page.getByRole('menuitemradio', { name: 'Light', exact: true }).click()
+    await expect.poll(() => page.evaluate(() => document.documentElement.classList.contains('dark'))).toBe(false)
+    const lightColors = await page.evaluate(() => ({
+      background: getComputedStyle(document.body).backgroundColor,
+      text: getComputedStyle(document.body).color,
+    }))
+
+    await page.getByRole('menuitemradio', { name: 'Dark', exact: true }).click()
+    await expect.poll(() => page.evaluate(() => document.documentElement.classList.contains('dark'))).toBe(true)
+    const darkColors = await page.evaluate(() => {
+      const bodyStyle = getComputedStyle(document.body)
+      const tokenProbe = document.createElement('div')
+      tokenProbe.style.backgroundColor = 'var(--ds-background-primary)'
+      tokenProbe.style.color = 'var(--ds-font-color-primary)'
+      document.body.append(tokenProbe)
+      const tokenStyle = getComputedStyle(tokenProbe)
+      const colors = {
+        background: bodyStyle.backgroundColor,
+        text: bodyStyle.color,
+        tokenBackground: tokenStyle.backgroundColor,
+        tokenText: tokenStyle.color,
+      }
+      tokenProbe.remove()
+      return colors
+    })
+
+    expect(darkColors.background).not.toBe(lightColors.background)
+    expect(darkColors.text).not.toBe(lightColors.text)
+    expect(darkColors.background).toBe(darkColors.tokenBackground)
+    expect(darkColors.text).toBe(darkColors.tokenText)
+  })
+
   test('issue 1196: at 390 every Admin settings tab is fully visible — no hidden scroll, no fade, ≥44px', async ({ page }) => {
     test.setTimeout(60_000)
     await page.setViewportSize({ width: 390, height: 900 })

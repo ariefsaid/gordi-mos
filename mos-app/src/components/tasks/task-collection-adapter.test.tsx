@@ -7,7 +7,11 @@ import { I18nProvider } from '@/i18n/I18nProvider'
 import type { TaskRow } from '@/lib/db/tasks.types'
 import type { CollectionData } from '@/lib/record-collection/types'
 
-vi.mock('@/lib/db/tasks', () => ({ listTasks: vi.fn() }))
+vi.mock('@/lib/db/tasks', () => ({
+  listTasks: vi.fn(),
+  hasOlderDoneTasks: vi.fn().mockResolvedValue(false),
+  listOlderDoneTasks: vi.fn().mockResolvedValue({ rows: [], nextCursor: null, hasMore: false }),
+}))
 vi.mock('@/lib/db/directory', () => ({
   getBusinessUnits: vi.fn(),
   getPeople: vi.fn(),
@@ -44,15 +48,17 @@ import { listRunRollups, listTaskDefs } from '@/lib/db/processes'
 import { createRecordCollectionController } from '@/lib/record-collection/engine'
 import { createReadLease } from '@/lib/scoped-reads'
 import {
-  TASK_COLLECTION_NEUTRAL_QUERY,
   taskCollectionDescriptor,
   taskCollectionSavedViews,
   toTaskCollectionRecord,
   type TaskCollectionContext,
-  type TaskCollectionQuery,
   type TaskCollectionRecord,
 } from './task-collection-adapter'
-import { taskCollectionQuery as canonicalTaskCollectionQuery } from './task-collection-query'
+import {
+  TASK_COLLECTION_NEUTRAL_QUERY,
+  taskCollectionQuery as canonicalTaskCollectionQuery,
+  type TaskCollectionQuery,
+} from './task-collection-query'
 
 const mock = <T,>(fn: unknown) => fn as unknown as ReturnType<typeof vi.fn> & T
 
