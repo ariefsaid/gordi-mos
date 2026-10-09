@@ -4,6 +4,7 @@ import { useAuth } from '@/auth/use-auth'
 import { CafeStreamChoices } from '@/components/kitchen/cafe-stream-bar'
 import { CafePageFrame } from '@/components/kitchen/cafe-page-frame'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { DateField } from '@/components/ui/date-field'
 import { CafeCaptureQuantityControl, CafeCaptureTable } from '@/components/kitchen/cafe-capture-table'
 import { KitchenToolbar } from '@/components/kitchen/kitchen-toolbar'
 import { CafeReceiptState } from '@/components/kitchen/cafe-receipt-state'
@@ -204,6 +205,7 @@ export function CafeReceivePage() {
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('All')
   const [arrivalDate, setArrivalDate] = useState(today)
+  const [arrivalDateInvalid, setArrivalDateInvalid] = useState(false)
   const [clientKey, setClientKey] = useState('')
   const [itemsStreamScope, setItemsStreamScope] = useState<string | null>(null)
   const [hydratedDraftScope, setHydratedDraftScope] = useState<string | null>(null)
@@ -384,7 +386,7 @@ export function CafeReceivePage() {
   const captureReady = Boolean(draftScopeKey) && hydratedDraftScope === draftScopeKey
   const hasDraftData = hasDraftContent(items, entries)
   const invalidCount = items.filter(item => isInvalidEntry(entries[item.id])).length
-  const canLock = Boolean(stream) && isOnline && !busy && lines.length > 0 && invalidCount === 0
+  const canLock = Boolean(stream) && isOnline && !busy && !arrivalDateInvalid && lines.length > 0 && invalidCount === 0
     && Boolean(draftScopeKey) && hydratedDraftScope === draftScopeKey && clientKey !== ''
   const canSwitch = !busy && counted === null
 
@@ -750,22 +752,14 @@ export function CafeReceivePage() {
             </div>
             <div className="cafe-receive__date">
               <label htmlFor="cafe-receive-arrival">{t('cafe.receive.arrivalDate')}</label>
-              <input
-                id="cafe-receive-arrival"
-                ref={arrivalDateRef}
-                type="date"
-                value={arrivalDate}
-                min={dateBounds.min}
-                max={dateBounds.max}
-                disabled={busy}
-                onChange={event => {
+              <DateField
+                id="cafe-receive-arrival" ref={arrivalDateRef} value={arrivalDate}
+                min={dateBounds.min} max={dateBounds.max} fullWidth required disabled={busy}
+                onValidityChange={setArrivalDateInvalid} onChange={value => {
                   if (hasDraftData && !persistCurrentDraft()) return
-                  setError(null)
-                  setNotRestored([])
-                  setArrivalDate(event.target.value || today)
-                }}
-              />
-              <span className="cafe-receive__date-hint" aria-hidden="true">{formatWeekdayDayMonth(arrivalDate)}</span>
+                  setError(null); setNotRestored([])
+                  setArrivalDate(value || today)
+                }} />
             </div>
             {items.length === 0 ? (
               <CafeItemsEmptyState stream={stream} />
@@ -931,7 +925,7 @@ export function CafeReceivePage() {
             </ul>
           </section>
         )}
-        <nav className="cafe-receive__links" aria-label={t('cafe.receive.linksAria')}>
+        <nav className="cafe-capture-page-links" aria-label={t('cafe.receive.linksAria')}>
           {canReview && <Link to="/cafe/receive/review">{t('cafe.receipts.review.title')}</Link>}
           <CafeReceiptIssuesLink canReview={canReview} receiverId={recent.length > 0 ? viewerId : null} />
         </nav>

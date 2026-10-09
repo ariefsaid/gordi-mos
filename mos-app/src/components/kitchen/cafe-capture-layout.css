@@ -16,7 +16,8 @@
 .cafe-capture-review-page {
   width: 100%;
   min-width: 0;
-  padding-top: 16px;
+  margin-inline: auto;
+  padding: 20px 0 0;
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
@@ -46,6 +47,8 @@
   font-size: var(--font-size-body);
   line-height: 1.5;
 }
+.cafe-capture-page-links { display: flex; flex-wrap: wrap; gap: 4px 20px; margin: 0 0 24px; font-size: var(--font-size-body); }
+.cafe-capture-page-links a { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; color: var(--foreground); text-decoration: underline; text-underline-offset: 3px; }
 .cafe-count__intro p { margin: 0; }
 .cafe-count__switch-note { color: var(--foreground); }
 .cafe-receive__help { color: var(--muted-foreground); }
@@ -147,7 +150,7 @@
   min-width: 0;
 }
 .cafe-count__quantity-control input { font-variant-numeric: tabular-nums; }
-.cafe-count__unit { color: var(--muted-foreground); font-size: var(--font-size-label); line-height: 1.2; }
+.cafe-count__unit, .cafe-capture-unit-label, .kls-unit { font-size: var(--font-size-label); color: var(--muted-foreground); line-height: 1.2; }
 .cafe-count__input-group .cafe-receive__damage-flag { margin-top: 4px; }
 .cafe-receive__change-unit,
 .cafe-receive__discard-draft {

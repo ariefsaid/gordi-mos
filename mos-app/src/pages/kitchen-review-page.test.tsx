@@ -291,6 +291,7 @@ describe('KitchenReviewPage — states', () => {
     expect(emptyState.querySelector('.empty-note')).not.toBeNull()
     expect(screen.queryByRole('group', { name: /item list completeness/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('checkbox', { name: /confirm the item list is complete/i })).not.toBeInTheDocument()
+    expect(screen.queryByText('0 items loaded · end of list')).not.toBeInTheDocument()
   })
 
   // #589: scoped to ONE stream while another stream still holds Submitted rows, the empty

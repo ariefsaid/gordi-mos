@@ -609,7 +609,8 @@ function CafeItemSettingsPageForViewer() {
           <KitchenToolbar
             search={search}
             onSearchChange={setSearch}
-            searchPlaceholder={t('cafe.items.searchPlaceholder')}
+            searchPlaceholder={t('kitchen.log.searchPlaceholder')}
+            searchAriaLabel={t('cafe.items.searchPlaceholder')}
             ariaLabel={t('cafe.items.filtersAria')}
             kinds={[...KITCHEN_KIND_FILTER_OPTIONS, 'Unclassified']}
             kind={kindFilter}
@@ -672,11 +673,10 @@ function esbFields(item: CafeItemListRow, t: ReturnType<typeof useT>, name?: Rea
 }
 
 function ItemIdentity({ item }: { item: CafeItemListRow }) {
-  const t = useT()
   return (
     <div className="cafe-items__erp-cell">
       <span className="cafe-items__item-name">{item.erpName}</span>
-      <RecordAbout items={esbFields(item, t)} />
+      {item.category && <span className="cafe-items__muted">{item.category}</span>}
       {item.needsUnit && <NeedsUnitStatus />}
     </div>
   )

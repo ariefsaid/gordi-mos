@@ -53,6 +53,8 @@ interface KitchenToolbarProps {
   categoryId?: string
   /** default: the shared "Find a dish" catalog string */
   searchPlaceholder?: string
+  /** A fuller accessible name when the visible placeholder needs a shorter measure. */
+  searchAriaLabel?: string
   /** optional LEADING scope slot (ActionTypeSeg on the Log + Plan capture surfaces) */
   children?: ReactNode
   /** Optional action kept beside the search and filters. */
@@ -82,12 +84,14 @@ export function KitchenToolbar({
   categoryLabel,
   categoryId,
   searchPlaceholder,
+  searchAriaLabel,
   children,
   trailing,
   ariaLabel = 'Filter',
 }: KitchenToolbarProps) {
   const t = useT()
   const placeholder = searchPlaceholder ?? t('kitchen.log.searchPlaceholder')
+  const searchName = searchAriaLabel ?? placeholder
   const compactSetupFilters = Boolean(
     activeStates && onActiveChange && needsUnitStates && onNeedsUnitChange,
   )
@@ -117,7 +121,7 @@ export function KitchenToolbar({
             type="search"
             className="ktb-search"
             placeholder={placeholder}
-            aria-label={placeholder}
+            aria-label={searchName}
             value={search}
             onChange={e => onSearchChange(e.target.value)}
           />

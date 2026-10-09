@@ -1111,9 +1111,6 @@ function WasteItemControls({
   const locked = Boolean(current.logId || current.preparing || current.submitted)
   const quantity = quantityValue(current.quantity)
   const editable = canCapture && isOnline && !disabled && !locked
-  const needsQuantity = editable && quantity === null
-  const photoHintId = `cafe-waste-photo-hint-${item.id}`
-
   return (
     <div className="cwl-controls">
       <label className="sr-only" htmlFor={inputId}>
@@ -1157,7 +1154,7 @@ function WasteItemControls({
               <span id={`cafe-waste-selected-unit-${item.id}`} className="sr-only">{selectedUnitLabel}</span>
             </>
           ) : (
-            <span className="cwl-unit-label cafe-capture-unit" aria-label={t('kitchen.waste.unitFor', { item: item.name })} title={selectedUnitLabel}>
+            <span className="cwl-unit-label cafe-capture-unit cafe-capture-unit-label" aria-label={t('kitchen.waste.unitFor', { item: item.name })} title={selectedUnitLabel}>
               {selectedUnitLabel}
             </span>
           )}
@@ -1183,15 +1180,12 @@ function WasteItemControls({
         <button
           type="button"
           className="btn btn-outline cwl-add-photo cafe-capture-action"
-          aria-describedby={needsQuantity ? `cafe-waste-photo-guidance ${photoHintId}` : 'cafe-waste-photo-guidance'}
+          aria-describedby="cafe-waste-photo-guidance"
           disabled={!canCapture || !isOnline || disabled || current.preparing || Boolean(current.logId) || quantity === null}
           onClick={onPrepare}
         >
           {current.preparing ? t('common.working') : t('kitchen.waste.addPhoto')}
         </button>
-      )}
-      {needsQuantity && (
-        <p id={photoHintId} className="cwl-photo-hint">{t('kitchen.waste.quantityBeforePhoto')}</p>
       )}
     </div>
   )

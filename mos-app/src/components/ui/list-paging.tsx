@@ -24,6 +24,7 @@ export function ListPaging({ count, hasMore, loading = false, error = false, mor
   useEffect(() => {
     if (!hasMore && hadFocus.current) { hadFocus.current = false; status.current?.focus() }
   }, [hasMore, count])
+  if (count === 0 && !hasMore && !loading && !error) return null
   return (
     <div onFocus={() => { hadFocus.current = true }} onBlur={(event) => {
       const next = event.relatedTarget

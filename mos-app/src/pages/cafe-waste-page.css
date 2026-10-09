@@ -58,9 +58,7 @@
   display: block;
   min-width: 0;
   width: 100%;
-  color: var(--foreground);
   text-align: left;
-  font-size: var(--font-size-control);
   line-height: 1.2;
 }
 .cwl-add-photo {
@@ -73,12 +71,10 @@
 }
 .cwl-field-error,
 .cwl-lock-note,
-.cwl-submitted,
-.cwl-photo-hint { grid-column: 1 / -1; }
+.cwl-submitted { grid-column: 1 / -1; }
 .cwl-field-error { color: var(--status-lost-text); font-size: var(--font-size-label); line-height: 1.35; }
 .cwl-lock-note,
-.cwl-submitted,
-.cwl-photo-hint { margin: 0; color: var(--muted-foreground); font-size: var(--font-size-label); line-height: 1.35; }
+.cwl-submitted { margin: 0; color: var(--muted-foreground); font-size: var(--font-size-label); line-height: 1.35; }
 .cwl-evidence { max-width: 38rem; }
 
 @media (min-width: 768px) {

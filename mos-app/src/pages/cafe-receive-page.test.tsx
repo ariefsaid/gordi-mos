@@ -171,6 +171,8 @@ async function openLockStep() {
   return screen.findByRole('dialog', { name: /^Lock \d+ lines?\?$/ })
 }
 
+const setArrivalDate = (iso: string) => fireEvent.change(screen.getByLabelText('Open calendar'), { target: { value: iso } })
+
 beforeEach(() => {
   vi.clearAllMocks()
   keyMocks.key = 0
@@ -261,6 +263,7 @@ describe('CafeReceivePage', () => {
   it('AC-1001 opens on the person’s own stream with every other stream selectable', async () => {
     renderPage()
     await screen.findByRole('textbox', { name: 'Received for Coffee bean' })
+    expect(screen.getByRole('heading', { name: 'Cafe Branch · Kitchen' }).closest('.cafe-page-head')).toBeInTheDocument()
     expect(mockItems).toHaveBeenCalledWith(streamMocks.kitchen)
     fireEvent.click(screen.getByRole('button', { name: /^switch kitchen$/i }))
     expect(screen.getByRole('option', { name: /Cafe Branch · Bar/ })).toBeInTheDocument()
@@ -290,7 +293,7 @@ describe('CafeReceivePage', () => {
     for (const word of ['ordered', 'outstanding', 'price', 'location']) {
       expect(page).not.toContain(word)
     }
-    expect(screen.getAllByRole('textbox').map(box => box.getAttribute('aria-label')))
+    expect(screen.getAllByRole('textbox').filter(box => box.getAttribute('inputmode') === 'decimal').map(box => box.getAttribute('aria-label')))
       .toEqual(['Received for Coffee bean'])
     expect(screen.queryByRole('textbox', { name: /po number/i })).toBeNull()
     expect(screen.getByRole('textbox', { name: 'Received for Coffee bean' })).toHaveAttribute('inputmode', 'decimal')
@@ -814,15 +817,25 @@ describe('CafeReceivePage', () => {
 
   it('FR-1004 a shift member may choose today or yesterday; an ops lead may backdate further', async () => {
     const { unmount } = renderPage()
-    const date = await screen.findByLabelText('Arrival date')
-    expect(date).toHaveAttribute('min', '2026-10-05')
-    expect(date).toHaveAttribute('max', '2026-10-06')
+    await screen.findByLabelText('Arrival date')
+    expect(screen.getByLabelText('Open calendar')).toHaveAttribute('min', '2026-10-05')
+    expect(screen.getByLabelText('Open calendar')).toHaveAttribute('max', '2026-10-06')
     unmount()
     mockUseAuth.mockReturnValue(viewer(['member', 'ops_lead']))
     renderPage()
-    const leadDate = await screen.findByLabelText('Arrival date')
-    expect(leadDate).not.toHaveAttribute('min')
-    expect(leadDate).toHaveAttribute('max', '2026-10-06')
+    await screen.findByLabelText('Arrival date')
+    expect(screen.getByLabelText('Open calendar')).not.toHaveAttribute('min')
+    expect(screen.getByLabelText('Open calendar')).toHaveAttribute('max', '2026-10-06')
+  })
+
+  it('keeps an invalid typed arrival date from enabling Lock counts', async () => {
+    renderPage()
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Received for Fresh milk' }), { target: { value: '2' } })
+    const date = screen.getByLabelText('Arrival date')
+    fireEvent.change(date, { target: { value: '35/13/2026' } })
+    fireEvent.blur(date)
+    expect(screen.getByRole('button', { name: 'Lock counts' })).toBeDisabled()
+    expect(screen.getByRole('alert')).toHaveTextContent('That date doesn\'t exist')
   })
 
   it('AC-1006 an offline draft survives reload and reconnect never submits it automatically', async () => {
@@ -922,7 +935,7 @@ describe('CafeReceivePage', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Send for review' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Receive another delivery' }))
 
-    expect(await screen.findByLabelText('Arrival date')).toHaveValue('2026-10-06')
+    expect(await screen.findByLabelText('Arrival date')).toHaveValue('6 Oct 2026')
     expect(screen.getByRole('textbox', { name: 'Received for Fresh milk' })).toHaveValue('5')
   })
 
@@ -930,14 +943,14 @@ describe('CafeReceivePage', () => {
     renderPage()
     const bean = await screen.findByRole('textbox', { name: 'Received for Coffee bean' })
     fireEvent.change(bean, { target: { value: '2.5' } })
-    fireEvent.change(screen.getByLabelText('Arrival date'), { target: { value: '2026-10-05' } })
+    setArrivalDate('2026-10-05')
     const yesterdayBean = await screen.findByRole('textbox', { name: 'Received for Coffee bean' })
     expect(yesterdayBean).toHaveValue('')
     fireEvent.change(yesterdayBean, { target: { value: '1' } })
 
-    fireEvent.change(screen.getByLabelText('Arrival date'), { target: { value: '2026-10-06' } })
+    setArrivalDate('2026-10-06')
     expect(await screen.findByRole('textbox', { name: 'Received for Coffee bean' })).toHaveValue('2.5')
-    fireEvent.change(screen.getByLabelText('Arrival date'), { target: { value: '2026-10-05' } })
+    setArrivalDate('2026-10-05')
     expect(await screen.findByRole('textbox', { name: 'Received for Coffee bean' })).toHaveValue('1')
     expect(mockSubmit).not.toHaveBeenCalled()
   })

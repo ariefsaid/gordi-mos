@@ -197,6 +197,7 @@ describe('CafeItemSettingsPage filters', () => {
     const user = userEvent.setup()
     renderPage()
     const search = await screen.findByRole('searchbox', { name: 'Find an ESB or MOS name' })
+    expect(search).toHaveAttribute('placeholder', 'Find an item')
     await user.type(search, 'oat')
     await waitFor(() => {
       expect(screen.getByText('ERP Oat milk')).toBeInTheDocument()
@@ -550,7 +551,8 @@ describe('ESB-owned item fields (OD-2026-10-06-ESB-ITEMS)', () => {
     const row = await screen.findByRole('row', { name: /ERP Oat milk/ })
     expect(screen.getByRole('columnheader', { name: 'ESB name' })).toBeInTheDocument()
     expect(within(row).getByText('ERP Oat milk')).toBeInTheDocument()
-    expect(esbField(row, 'ESB category')).toHaveTextContent('Dairy')
+    expect(within(row).getByText('Dairy')).toBeInTheDocument()
+    expect(within(row).queryByText('ESB category')).not.toBeInTheDocument()
     expect(within(row).getAllByRole('textbox')).toEqual([within(row).getByRole('textbox', { name: 'MOS name' })])
   })
 
