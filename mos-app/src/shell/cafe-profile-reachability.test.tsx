@@ -33,6 +33,10 @@ vi.mock('@/lib/db/follow-ups', () => ({ searchFollowUpsByCounterparty: vi.fn().m
 vi.mock('@/lib/db/directory', () => ({ searchPeopleByName: vi.fn().mockResolvedValue([]) }))
 vi.mock('@/lib/db/objectives', () => ({ searchObjectivesByName: vi.fn().mockResolvedValue([]) }))
 vi.mock('@/lib/db/work-lines', () => ({ searchWorkLinesByName: vi.fn().mockResolvedValue([]) }))
+vi.mock('@/lib/db/notifications', () => ({
+  countUnread: vi.fn().mockResolvedValue(0),
+  listNotifications: vi.fn().mockResolvedValue({ rows: [], hasMore: false, nextCursor: null }),
+}))
 
 import { searchTasksByTitle } from '@/lib/db/tasks'
 import { searchSignalsByBody } from '@/lib/db/signals'
