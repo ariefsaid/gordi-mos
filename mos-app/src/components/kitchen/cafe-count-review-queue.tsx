@@ -106,7 +106,7 @@ export function CafeCountReviewQueue({
             : t('cafe.count.review.empty.stream', {
               stream: streamLabel(t, streamCatalog.find(s => streamKey(s.branch.id, s.activity) === streamFilter) ?? null),
             })}</p>
-          <button type="button" className="btn btn-ghost" onClick={() => setRetry(value => value + 1)}>
+          <button type="button" className="btn btn-outline" onClick={() => setRetry(value => value + 1)}>
             {t('cafe.count.review.refresh')}
           </button>
         </div>

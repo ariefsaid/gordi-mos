@@ -113,7 +113,7 @@ describe('issue 440: the Café stream survives the walk between surfaces', () =>
     // No default: the one-click choice is offered instead of a heading.
     fireEvent.click(screen.getByRole('button', { name: /rumah rames · kitchen/i }))
     await waitFor(() => expect(fetchKitchenStock).toHaveBeenCalled())
-    fireEvent.click(await screen.findByRole('button', { name: /^change stream$/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /^switch kitchen$/i }))
     fireEvent.click(screen.getByRole('option', { name: 'Rumah Rames · Bar' }))
     await waitFor(() => expect(vi.mocked(fetchKitchenStock).mock.lastCall?.[1]).toEqual(OWN_STREAM_BAR))
     stock.unmount() // …and walks to Plan
@@ -130,7 +130,7 @@ describe('issue 440: the Café stream survives the walk between surfaces', () =>
     await waitFor(() => expect(fetchKitchenStock).toHaveBeenCalled())
     expect(vi.mocked(fetchKitchenStock).mock.calls[0][1]).toEqual(OWN_STREAM)
 
-    fireEvent.click(screen.getByRole('button', { name: /^change stream$/i }))
+    fireEvent.click(screen.getByRole('button', { name: /^switch kitchen$/i }))
     fireEvent.click(screen.getByRole('option', { name: 'Rumah Rames · Bar' }))
     await waitFor(() => expect(fetchKitchenStock).toHaveBeenCalledTimes(2))
     stock.unmount()

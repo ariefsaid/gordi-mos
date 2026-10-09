@@ -17,8 +17,8 @@
 // The Signals column is the real feed (#245). It shipped as a "not available yet" placeholder
 // during the port, when Signals had no surface on this line; #193 landed the DAL, the record
 // surface and `/work/signals`, so the placeholder is gone and `SignalFeedSection` renders live
-// rows. HomePage owns the ONE Signals read, as it owns every other read on this page — the
-// section is presentational (FR-V3-013: no second Signal loader).
+// rows. HomePage owns the ONE Signals row read; a separate exact HEAD count loads no rows, and the
+// section remains presentational (FR-V3-013: no second Signal row loader).
 //
 // Home pages readable Signals at every attention tier, including the FYI tail v4 passed. v4 split them because its
 // attention-worthy Signals led the ranked stream as their own band; this line's region model has
@@ -43,7 +43,7 @@ import { useDocumentTitle } from '@/shell/use-document-title'
 import { listTasks } from '@/lib/db/tasks'
 import type { TaskListRow } from '@/lib/db/tasks.types'
 import { loadFailedChecksForViewer } from '@/lib/db/home-attention-data'
-import { listReadableSignals, listAllTeams } from '@/lib/db/signals'
+import { listReadableSignals, countReadableSignals, listAllTeams } from '@/lib/db/signals'
 import type { SignalRow } from '@/lib/db/signals.types'
 import { getBusinessUnits, getPeople, getRoles } from '@/lib/db/directory'
 import type { RoleScopeRow } from '@/lib/db/directory'
@@ -231,16 +231,18 @@ export function HomePage() {
   }, [loadFailedChecks])
 
   // ── Signals (the ambient feed column, #245) ─────────────────────────────────
-  // The ONE Signals read on this page; `SignalFeedSection` is presentational and receives the rows,
-  // the resolved names and a reload. Same in-flight/token/retry shape as every other loader here,
+  // The ONE Signals row read on this page; the exact HEAD count is separate and transfers no rows.
+  // `SignalFeedSection` is presentational and receives the rows, count, resolved names and reload.
+  // Same in-flight/token/retry shape as every other loader here,
   // so a stale response from a superseded viewer can never win. Team names ride along in the SAME
   // load: they decorate the rows the load returns, so splitting them into a second effect would let
   // rows paint with a name the page could still fail to fetch.
   const [signalSnapshot, setSignalSnapshot] = useState<{
-    owner: ReadLease; rows: SignalRow[]; state: FetchState
-  }>(() => ({ owner: readLease, rows: NO_SIGNALS, state: 'loading' }))
+    owner: ReadLease; rows: SignalRow[]; state: FetchState; totalCount: number | null
+  }>(() => ({ owner: readLease, rows: NO_SIGNALS, state: 'loading', totalCount: null }))
   const signals = signalSnapshot.owner === readLease ? signalSnapshot.rows : NO_SIGNALS
   const signalsState = signalSnapshot.owner === readLease ? signalSnapshot.state : 'loading'
+  const signalTotalCount = signalSnapshot.owner === readLease ? signalSnapshot.totalCount : null
   const [teamNames, setTeamNames] = useState<ReadonlyMap<string, string>>(NO_NAMES)
   const signalsTokenRef = useRef(0)
 
@@ -248,17 +250,30 @@ export function HomePage() {
     const ownsCurrentRead = () => readOwnerRef.current?.lease === readLease
     if (!personId || !ownsCurrentRead()) return
     const token = ++signalsTokenRef.current
-    setSignalSnapshot({ owner: readLease, rows: NO_SIGNALS, state: 'loading' })
+    setSignalSnapshot({ owner: readLease, rows: NO_SIGNALS, state: 'loading', totalCount: null })
     Promise.all([listReadableSignals(), listAllTeams()])
       .then(([rows, teams]) => {
         if (!isMountedRef.current || signalsTokenRef.current !== token || !ownsCurrentRead()) return
-        setSignalSnapshot({ owner: readLease, state: 'ready', rows })
+        setSignalSnapshot(current => ({
+          owner: readLease,
+          state: 'ready',
+          rows,
+          totalCount: current.owner === readLease ? current.totalCount : null,
+        }))
         setTeamNames(new Map(teams.map(team => [team.id, team.name])))
       })
       .catch(() => {
         if (!isMountedRef.current || signalsTokenRef.current !== token || !ownsCurrentRead()) return
-        setSignalSnapshot({ owner: readLease, rows: NO_SIGNALS, state: 'error' })
+        setSignalSnapshot({ owner: readLease, rows: NO_SIGNALS, state: 'error', totalCount: null })
       })
+    // The optional HEAD tally is independent so its failure cannot hide a successful feed read;
+    // if it fails, the archive door stays unnumbered.
+    void countReadableSignals()
+      .then(totalCount => {
+        if (!isMountedRef.current || signalsTokenRef.current !== token || !ownsCurrentRead()) return
+        setSignalSnapshot(current => current.owner === readLease ? { ...current, totalCount } : current)
+      })
+      .catch(() => undefined)
   }, [personId, readLease])
 
   useEffect(() => {
@@ -541,6 +556,7 @@ export function HomePage() {
               signals={signals}
               authorNamesById={directory.people ?? NO_NAMES}
               teamNamesById={teamNames}
+              totalCount={signalTotalCount}
               showSearch={holdsCockpitScope}
               loading={signalsState === 'loading'}
               error={signalsState === 'error'}

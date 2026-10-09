@@ -173,9 +173,9 @@ require_pr_stamps() { # $1 base branch ('' when none named)
   local base_val="$1" gitdir head v r lens stamp_file stamp release_stamp_file release_sha
   gitdir="$(git rev-parse --git-dir)" || die "not a git repo"
   head="$(git rev-parse HEAD)"
-  # Promotion carve-out (/release §4b): a PR into staging FROM main carries content the release
-  # PR already four-stamped and the owner ratified — main's merge commit itself can never hold
-  # stamps. CI on the staging PR still gates. Any other route into staging needs the stamps.
+  # Staging promotion normally uses a direct post-deploy fast-forward push, not a PR. If a PR is
+  # used to move main into staging, main's merge commit carries the release PR's review stamps;
+  # CI still gates that PR. Any other route into staging needs the stamps.
   [ "$base_val" = "staging" ] && [ "$(git branch --show-current)" = "main" ] && return 0
   v="$(cat "$gitdir/pre-pr-verify-ok" 2>/dev/null || true)"
   # CI verify is the gate for dev PRs, so only every other base needs the full local stamp.
@@ -199,7 +199,7 @@ require_pr_stamps() { # $1 base branch ('' when none named)
 
 # Reuse-first (CLAUDE.md "Reuse before build"): a PR body names what it reused, on a line that
 # starts "Reused:" (anything new is justified there too). Checked on PRs into dev, where new work
-# enters; release and promotion PRs carry work already reviewed that way.
+# enters; release PRs carry work already reviewed that way.
 require_reused_line() {
   local t
   for t in "${texts[@]}"; do

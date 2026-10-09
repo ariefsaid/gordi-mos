@@ -5,6 +5,8 @@
 // render this SAME component; see task-row.test.tsx / mobile-grouped-cards.test.tsx for their
 // side of the delegation.
 import type { ComponentProps, ReactElement } from 'react'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { describe, it, expect, vi } from 'vitest'
 import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -409,5 +411,14 @@ describe('TaskCreateForm — Due date + Project/Process (#1029)', () => {
     renderForm()
     expect(screen.queryByRole('combobox', { name: 'Project/Process' })).not.toBeInTheDocument()
     expect(screen.getByLabelText('Due date')).toBeInTheDocument()
+  })
+
+  it('issue 1487: fits the phone create actions above the bottom navigation', () => {
+    const css = readFileSync(resolve(process.cwd(), 'src/components/tasks/task-create-form.css'), 'utf8')
+    const phone = css.slice(css.indexOf('@media (max-width: 767.98px)'))
+    expect(phone).toMatch(/\.tcf\s*\{[^}]*gap:\s*4px;[^}]*padding:\s*8px;/s)
+    expect(phone).toMatch(/\.tcf-row,\s*\.tcf-row--pair\s*\{[^}]*grid-template-columns:\s*1fr;[^}]*gap:\s*8px;/s)
+    expect(phone).toMatch(/\.tcf-foot\s*\{[^}]*padding-top:\s*0;/s)
+    expect(phone).toMatch(/\.tcf-foot \.btn\s*\{[^}]*min-height:\s*44px;/s)
   })
 })

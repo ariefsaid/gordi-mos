@@ -54,7 +54,7 @@ the function while preserving its existing directory and agent-token behavior.
 ## Deploy to staging
 
 ```sh
-bash scripts/deploy-staging.sh            # preflight, y/N confirm, push, verify, promotion PR
+bash scripts/deploy-staging.sh            # preflight, backup, confirm, DB push, verify, edge deploy, direct promotion
 bash scripts/deploy-staging.sh --dry-run  # stop after the preflight
 ```
 
@@ -62,12 +62,14 @@ Prerequisites: `op-get.sh` signed in on the host, and a local `supabase/op.stagi
 `supabase/op.staging.env.example` (gitignored; it names where the connection string is stored). Run it
 from a checkout of `main` at `origin/main` (anything else is refused).
 
-Order: dry-run list of pending migrations; edge-function changes on `main` vs `staging` are reported
-but never deployed; a rolled-back probe of the privileged steps when a pending migration touches the
-`authenticator` role or storage policies; confirmation (default No; `--yes` skips it); `supabase db
-push`; then verify (newest migration applied, the request gate set when a migration sets it, no trusted
-agent clients). The connection string is never printed. `--no-pr` skips the `main` to `staging`
-promotion PR, which is opened from a temporary worktree on `main`.
+Order: inspect the dry-run migration list and allowlisted edge-function diff; validate function
+configuration and probe privileged steps in a rolled-back transaction when a pending migration touches
+the `authenticator` role or storage policies; confirm (default No; `--yes` skips it); verify a pre-push
+dump, then run `supabase db push`; verify the database (newest migration applied, the request gate set
+when a migration sets it, no trusted agent clients); set any missing function secrets, deploy changed
+allowlisted edge functions, and run smoke checks (other changed functions are reported but held); then
+push the deployed `origin/main` commit directly to `staging` if it is a fast-forward. The connection
+string is never printed. `--no-promote` skips that push; `--no-pr` remains an alias.
 
 ## Writing a migration that is conditional on prior state (#393)
 

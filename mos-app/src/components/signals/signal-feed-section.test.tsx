@@ -7,7 +7,8 @@ import { OverlayHostProvider } from '@/shell/overlay-host'
 import type { SignalRow } from '@/lib/db/signals.types'
 
 // C3b (AC-426/FR-414): the Home ambient (FYI) feed. SignalFeedSection is now PRESENTATIONAL —
-// HomePage owns the ONE shared signal read (FR-V3-013) and passes the FYI split + resolved names +
+// HomePage owns the ONE shared Signals row read (FR-V3-013) plus a row-free exact count, and passes
+// the FYI split + count + resolved names +
 // a reload callback down (OD-84.1 / Luna P0-1: attention-worthy Signals lead the stream as band 0).
 
 vi.mock('@/lib/db/signals', async (importOriginal) => {
@@ -261,7 +262,7 @@ describe('SignalFeedSection — Home ambient (FYI) feed (AC-426/FR-414)', () => 
 // mockup's dataset was a single day — "today" was tautological there. This feed is not day-scoped,
 // so a "today" count next to a feed reaching back further would be untraceable by the viewer; it
 // is dropped entirely rather than replaced with the feed's depth relabelled as "today" (the exact
-// falsehood already fixed elsewhere). "See N more →" on the capped list carries the volume signal.
+// falsehood already fixed elsewhere). The door uses a number only when an exact total is available.
 describe('FR-928: the Signals column is named Signals, and states no untraceable count', () => {
   it('the heading is "Signals" — the word the picker and the destination already use', async () => {
     renderSection()

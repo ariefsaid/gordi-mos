@@ -208,6 +208,7 @@ export function Picker({
             data-full-value={fullValue}
             disabled={disabled || busy}
             autoFocus={autoFocus}
+            onPointerDown={(event) => event.currentTarget.focus()}
             onBlur={onBlur}
             onClick={(event) => { event.preventDefault(); togglePicker() }}
             onKeyDown={(event) => {
@@ -396,6 +397,7 @@ export function MultiPicker({
             title={triggerText}
             data-full-value={triggerText}
             disabled={disabled}
+            onPointerDown={event => event.currentTarget.focus()}
             onClick={event => {
               event.preventDefault()
               if (disabled) return

@@ -24,6 +24,8 @@ import { TASKS_SPLIT_MIN_WIDTH } from '@/shell/use-is-split-width'
 // ── Mock data layer ──────────────────────────────────────────────────────────
 vi.mock('../../lib/db/tasks', () => ({
   listTasks: vi.fn(),
+  hasOlderDoneTasks: vi.fn(),
+  listOlderDoneTasks: vi.fn(),
   getTask: vi.fn(),
   createTask: vi.fn(),
   updateTaskStatus: vi.fn(),
@@ -57,7 +59,7 @@ vi.mock('@/lib/db/user-views-collection', () => ({
   archiveCollectionView: vi.fn(),
 }))
 
-import { listTasks, getTask, createTask, updateTaskFields } from '@/lib/db/tasks'
+import { listTasks, hasOlderDoneTasks, listOlderDoneTasks, getTask, createTask, updateTaskFields } from '@/lib/db/tasks'
 import { linkSignalTask } from '@/lib/db/signals'
 import { getBusinessUnits, getPeople, getDownlinePersonIds, getPersonTeams, getTeamsByIds } from '@/lib/db/directory'
 import { listObjectives } from '@/lib/db/objectives'
@@ -69,6 +71,8 @@ import { TasksWorkspace } from './tasks-workspace'
 import { taskCollectionDescriptor } from './task-collection-adapter'
 
 const mockListTasks = vi.mocked(listTasks)
+const mockHasOlderDoneTasks = vi.mocked(hasOlderDoneTasks)
+const mockListOlderDoneTasks = vi.mocked(listOlderDoneTasks)
 const mockGetTask = vi.mocked(getTask)
 const mockGetPeople = vi.mocked(getPeople)
 const mockUpdateTaskFields = vi.mocked(updateTaskFields)
@@ -224,6 +228,8 @@ function renderAt(entries: string[]) {
 
 beforeEach(() => {
   vi.resetAllMocks()
+  mockHasOlderDoneTasks.mockResolvedValue(false)
+  mockListOlderDoneTasks.mockResolvedValue({ rows: [], nextCursor: null, hasMore: false })
   vi.mocked(getPersonTeams).mockResolvedValue(VIEWER_TEAMS)
   vi.mocked(getTeamsByIds).mockResolvedValue([])
   localStorage.clear()
@@ -457,6 +463,7 @@ describe('Create from Signal convergence', () => {
 
   it('discard after a link failure announces the created task is unlinked and clears the ref', async () => {
     mockListTasks.mockResolvedValue([makeTask()])
+    mockHasOlderDoneTasks.mockResolvedValue(true)
     mockCreateTask.mockResolvedValue('created-discard')
     mockLinkSignalTask.mockRejectedValue(new Error('offline'))
     renderTable({}, authedState, ['/work/tasks?sourceSignal=signal-42'])
@@ -1109,6 +1116,14 @@ describe('Task 10 — saved-view mapping (AC-301/302/303/305/311)', () => {
 // ── Task 11 — Missing states + overdue filter button (AC-133, AC-128) ─────────
 
 describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
+  it('labels the current task window by its open count and active/recent-Done scope', async () => {
+    mockListTasks.mockResolvedValue([makeTask({ title: 'Window task' })])
+    renderTable()
+    expect(await screen.findByTestId('tasks-count-line')).toHaveTextContent(
+      '1 open in this view · Active + Done in the last 30 days',
+    )
+  })
+
   it('AC-133: loading shows a skeleton + aria-busy + role=status', async () => {
     // Never resolve so it stays loading
     mockListTasks.mockReturnValue(new Promise(() => {}))
@@ -1139,16 +1154,31 @@ describe('Task 11 — missing states + overdue filter (AC-133, AC-128)', () => {
       expect(screen.getByText(/no tasks yet/i)).toBeInTheDocument()
     })
     expect(screen.getByRole('link', { name: /\+ create task/i })).toBeInTheDocument()
+    expect(document.querySelector('.list-paging')).toBeNull()
+  })
+
+  it('loads older Done tasks from the empty state when archived history exists', async () => {
+    mockListTasks.mockResolvedValue([])
+    mockHasOlderDoneTasks.mockResolvedValue(true)
+    mockListOlderDoneTasks.mockResolvedValue({
+      rows: [makeTask({ id: 'older', title: 'Older completed task', status: 'Done', completed_at: '2026-08-01T00:00:00Z' })],
+      nextCursor: null,
+      hasMore: false,
+    })
+    renderTable()
+    fireEvent.click(await screen.findByRole('button', { name: 'Show older done tasks' }))
+    expect(await screen.findByText('Older completed task')).toBeInTheDocument()
   })
 
   it('qualifies an empty filtered first page and keeps the older-tasks continuation action', async () => {
     mockListTasks.mockResolvedValue([makeTask({ title: 'Alpha task' })])
+    mockHasOlderDoneTasks.mockResolvedValue(true)
     renderTable()
     await waitFor(() => screen.getByText('Alpha task'))
     fireEvent.change(screen.getByLabelText('Search tasks'), { target: { value: 'zzz-no-match' } })
 
     await waitFor(() => expect(screen.getAllByText('No match in the loaded tasks')).toHaveLength(2))
-    expect(screen.getByText('Load more to continue through the list.')).toBeInTheDocument()
+    expect(screen.getByText('Use the action below to continue through the list.')).toBeInTheDocument()
     expect(screen.queryByText('0 items loaded')).toBeNull()
     expect(screen.getByRole('button', { name: 'Show older done tasks' })).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: /clear filters/i }).length).toBeGreaterThan(0)
@@ -2314,9 +2344,9 @@ describe('C1 — Done tasks excluded from overdue (RI-1 regression guard)', () =
   })
 })
 
-// ── Tasks head meta names the visible task count and its open subset ──
-describe('Tasks head meta names visible tasks and open work', () => {
-  it('#17: a Done task lowers the open count but not the shown total', async () => {
+// ── Tasks head meta states the visible window and its open subset ──
+describe('Tasks head meta names the list scope and open work', () => {
+  it('states the active/recent-Done window without repeating the loaded total', async () => {
     mockListTasks.mockResolvedValue([
       makeTask({ id: 't1', title: 'Open one', status: 'Open' }),
       makeTask({ id: 't2', title: 'Open two', status: 'Blocked' }),
@@ -2327,9 +2357,10 @@ describe('Tasks head meta names visible tasks and open work', () => {
     await switchToAll()
     await waitFor(() => expect(screen.getByText('Resolved')).toBeInTheDocument())
     // Blocked still counts as open (not Done); only the Done task is excluded from open.
-    await waitFor(() =>
-      expect(screen.getByTestId('tasks-count-line').textContent?.trim()).toBe('3 tasks · 2 open in this view'),
-    )
+    await waitFor(() => expect(screen.getByTestId('tasks-count-line')).toHaveTextContent(
+      '2 open in this view · Active + Done in the last 30 days',
+    ))
+    expect(screen.getByTestId('tasks-count-line')).not.toHaveTextContent('3 tasks')
   })
 })
 

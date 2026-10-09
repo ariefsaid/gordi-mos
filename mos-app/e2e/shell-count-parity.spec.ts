@@ -28,9 +28,11 @@ for (const [name, actor, view] of [
     await expect(link).toHaveAccessibleName(homeOpen ? `Tasks, ${homeOpen} open tasks` : 'Tasks')
     await link.click()
     await expect(taskViewsGroup(page).getByRole('button', { name: view, exact: true })).toHaveAttribute('aria-pressed', 'true')
-    // The head scopes its own nouns to the view ("N tasks · M open in this view", Done rows
-    // kept 7 days included), so it cannot be mistaken for the rail badge's own-tasks count.
-    await expect(page.getByText(/^\d+ tasks? · \d+ open in this view$/)).toBeVisible()
+    // #1628: the head names the view's open count and its 30-day Done window, not a
+    // loaded-row total that could be mistaken for the rail badge's own-tasks count.
+    const countLine = page.getByTestId('tasks-count-line')
+    await expect(countLine).toBeVisible()
+    await expect(countLine).toHaveText(/^\d+ open in this view · Active \+ Done in the last 30 days$/)
     await expect(page.getByRole('status', { name: 'Loading tasks' })).toHaveCount(0)
     // Read the actual rendered default queue, including virtual rows as they enter view.
     const open = new Set<string>()
@@ -52,9 +54,9 @@ for (const [name, actor, view] of [
     // The traversed total settles a tick after the last virtualized row commits — poll the
     // meta line's own text rather than assume it is already in sync (R1's timing gap).
     await expect.poll(
-      () => page.getByTestId('tasks-count-line').textContent(),
+      () => countLine.textContent(),
       { message: 'count line settles to the traversed open total' },
-    ).toMatch(new RegExp(`^\\d+ tasks? · ${open.size} open in this view$`))
+    ).toBe(`${open.size} open in this view · Active + Done in the last 30 days`)
     if (view === 'My work') {
       expect(homeOpen, 'Home count equals the actual open rows in the default My work view').toBe(open.size)
     }

@@ -117,6 +117,11 @@
   max-width: 100%;
 }
 
+/* ── Tablet item setup: let search use the remaining toolbar width ────────────── */
+@media (min-width: 640px) and (max-width: 919.98px) {
+  .ktb-filters--setup .ktb-search-wrap { max-width: none; }
+}
+
 /* ── Phone: scope on its own line, search + category on ONE line below (v4) ─────
    The 200px fixed search plus the category select overflowed 375px and wrapped,
    costing ~48px of vertical chrome directly above the dish list — on the surface
@@ -133,6 +138,12 @@
    The search field also takes the 44px touch floor here: it was the one control in this
    band below it (36px), and the row's height is already set by the 44px select, so the
    floor is free. */
+@media (pointer: coarse) {
+  .ktb-search { min-height: 44px; }
+  .ktb .mk-select__box,
+  .ktb .mk-select__field { min-height: 44px; }
+}
+
 @media (max-width: 639px) {
   /* The two rows are ONE group, so the interval between them stays tighter than the band's
      own padding — otherwise the band reads as two bands. The interval cannot go below the

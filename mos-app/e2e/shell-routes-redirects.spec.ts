@@ -121,17 +121,17 @@ test('AC-005: /kitchen/* redirects to /cafe/* and renders the re-homed kitchen s
   const cases = [
     // #1239: the retired path lands on the dedicated production capture surface. Read the
     // page-head heading every state renders, not a table that only some states do.
-    { oldPath: 'kitchen/log', finalPath: /\/cafe\/production$/, surface: page.getByTestId('page-head').getByRole('heading', { name: 'Log production', exact: true }) },
-    { oldPath: 'kitchen/plan', finalPath: /\/cafe\/plan$/, surface: page.getByRole('heading', { name: /café · (plan|pesanan)/i }) },
-    { oldPath: 'kitchen/stock', finalPath: /\/cafe\/stock$/, surface: page.getByRole('heading', { name: /café · stock/i }) },
-    { oldPath: 'kitchen/review', finalPath: /\/cafe\/review$/, surface: page.getByRole('heading', { name: /café · review/i }) },
-    { oldPath: 'kitchen/pushes', finalPath: /\/cafe\/pushes$/, surface: page.getByRole('heading', { name: /café · pushes/i }) },
+    { oldPath: 'kitchen/log', finalPath: /\/cafe\/production$/, title: 'Production' },
+    { oldPath: 'kitchen/plan', finalPath: /\/cafe\/plan$/, title: 'Plan' },
+    { oldPath: 'kitchen/stock', finalPath: /\/cafe\/stock$/, title: 'Stock' },
+    { oldPath: 'kitchen/review', finalPath: /\/cafe\/review$/, title: 'Review' },
+    { oldPath: 'kitchen/pushes', finalPath: /\/cafe\/pushes$/, title: 'Pushes' },
   ]
 
   for (const routeCase of cases) {
     await page.goto(routeCase.oldPath)
     await expect(page).toHaveURL(routeCase.finalPath)
-    await expect(routeCase.surface).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByTestId('page-head').getByRole('heading', { level: 1, name: routeCase.title, exact: true })).toBeVisible({ timeout: 15_000 })
   }
 })
 
@@ -168,7 +168,7 @@ test('AC-025: /work/signals, /cafe, and /work/tasks?view=overdue resolve and are
   // /cafe remains the Café Today entry; production and transfer have dedicated routes.
   await page.goto('cafe')
   await expect(page).toHaveURL(/\/cafe$/)
-  await expect(page.getByTestId('page-head').getByRole('heading', { name: 'Log production', exact: true })).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByTestId('page-head').getByRole('heading', { level: 1, name: 'Production', exact: true })).toBeVisible({ timeout: 15_000 })
 
   await page.goto('work/tasks?view=overdue')
   await expect(page).toHaveURL(/\/work\/tasks\?view=overdue$/)

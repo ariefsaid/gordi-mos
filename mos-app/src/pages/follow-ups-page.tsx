@@ -7,7 +7,7 @@ import { useDocumentTitle } from '@/shell/use-document-title'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { getBusinessUnits } from '@/lib/db/directory'
 import { canWorkAnyLane } from '@/lib/follow-up-lanes'
-import { FOLLOW_UPS_PAGE_SIZE, listFollowUps, transitionFollowUp, isOverdue, type FollowUpRow, type FollowUpState, type FollowUpTransition } from '@/lib/db/follow-ups'
+import { listFollowUpsPage, listFollowUpsWindow, transitionFollowUp, isOverdue, type FollowUpRow, type FollowUpState, type FollowUpTransition } from '@/lib/db/follow-ups'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
 import { ListPaging } from '@/components/ui/list-paging'
 import { Button } from '@/components/ui/button'
@@ -50,6 +50,7 @@ export function FollowUpsPage() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [moreError, setMoreError] = useState(false)
   const cursorRef = useRef<Pick<FollowUpRow, 'created_at' | 'id'> | null>(null)
+  const loadedCountRef = useRef(0)
   const loadGeneration = useRef(0)
   const moreInFlight = useRef(false)
   const [active, setActive] = useState<{ id: string; verb: FollowUpTransition } | null>(null)
@@ -57,7 +58,7 @@ export function FollowUpsPage() {
   // Typed date text that is not a usable date: Submit stays off rather than sending the old date.
   const [dateInvalid, setDateInvalid] = useState(false)
 
-  const load = useCallback(() => {
+  const load = useCallback((windowSize = 0) => {
     const generation = ++loadGeneration.current
     let cancelled = false
     setState('loading')
@@ -65,17 +66,21 @@ export function FollowUpsPage() {
     setLoadingMore(false)
     setMoreError(false)
     moreInFlight.current = false
-    cursorRef.current = null
-    listFollowUps({ overdue: params.get('filter') === 'overdue' })
-      .then((data) => {
-        if (!cancelled && generation === loadGeneration.current) {
-          setRows(data)
-          cursorRef.current = data.length === FOLLOW_UPS_PAGE_SIZE ? data.at(-1)! : null
-          setHasMore(cursorRef.current !== null)
-          setState('ready')
-        }
-      })
-      .catch(() => { if (!cancelled && generation === loadGeneration.current) setState('error') })
+    if (windowSize === 0) {
+      cursorRef.current = null
+      loadedCountRef.current = 0
+    }
+    const filters = { overdue: params.get('filter') === 'overdue' }
+    const read = windowSize > 0 ? listFollowUpsWindow(filters, windowSize) : listFollowUpsPage(filters)
+    read.then((page) => {
+      if (!cancelled && generation === loadGeneration.current) {
+        setRows(page.rows)
+        loadedCountRef.current = page.rows.length
+        cursorRef.current = page.nextCursor
+        setHasMore(page.hasMore)
+        setState('ready')
+      }
+    }).catch(() => { if (!cancelled && generation === loadGeneration.current) setState('error') })
     return () => { cancelled = true }
   }, [params])
 
@@ -103,11 +108,12 @@ export function FollowUpsPage() {
     setLoadingMore(true)
     setMoreError(false)
     try {
-      const page = await listFollowUps({ overdue: params.get('filter') === 'overdue', before })
+      const page = await listFollowUpsPage({ overdue: params.get('filter') === 'overdue', before })
       if (generation !== loadGeneration.current) return
-      setRows((loaded) => [...loaded, ...page])
-      cursorRef.current = page.length === FOLLOW_UPS_PAGE_SIZE ? page.at(-1)! : null
-      setHasMore(cursorRef.current !== null)
+      setRows((loaded) => [...loaded, ...page.rows])
+      loadedCountRef.current += page.rows.length
+      cursorRef.current = page.nextCursor
+      setHasMore(page.hasMore)
     } catch {
       if (generation === loadGeneration.current) setMoreError(true)
     } finally {
@@ -125,7 +131,7 @@ export function FollowUpsPage() {
       return
     }
     await transitionFollowUp(row.id, verb, {})
-    load()
+    load(loadedCountRef.current)
   }
 
   async function submit(row: FollowUpRow, verb: FollowUpTransition) {
@@ -134,7 +140,7 @@ export function FollowUpsPage() {
       : { amount: Number(form.amount || row.running_balance), cash_in_date: form.cash_in_date, evidence: form.evidence, note: form.note }
     await transitionFollowUp(row.id, verb, payload)
     setActive(null)
-    load()
+    load(loadedCountRef.current)
   }
 
   function renderTransitionForm(row: FollowUpRow, verb: FollowUpTransition) {
@@ -190,7 +196,7 @@ export function FollowUpsPage() {
       cardLabel: '',
       render: (row) => (
         <div>
-          <strong className="follow-ups-counterparty">{row.counterparty}</strong>
+          <strong>{row.counterparty}</strong>
           <br />
           {row.source_invoice_ref ?? row.kind}
         </div>

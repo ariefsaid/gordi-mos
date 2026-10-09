@@ -13,10 +13,10 @@ import { useAuth } from '@/auth/use-auth'
 import { getBusinessUnits } from '@/lib/db/directory'
 import { canWorkAnyLane } from '@/lib/follow-up-lanes'
 import {
-  listFollowUps,
+  listFollowUpsPage,
+  listFollowUpsWindow,
   transitionFollowUp,
   isOverdue,
-  FOLLOW_UPS_PAGE_SIZE,
   type FollowUpRow,
   type FollowUpTransition,
 } from '@/lib/db/follow-ups'
@@ -70,12 +70,13 @@ export function useFollowUpQueue({ detailId }: UseFollowUpQueueOptions = {}): Fo
   const [loadingMore, setLoadingMore] = useState(false)
   const [moreError, setMoreError] = useState(false)
   const cursorRef = useRef<Pick<FollowUpRow, 'created_at' | 'id'> | null>(null)
+  const loadedCountRef = useRef(0)
   const loadGeneration = useRef(0)
   const moreInFlight = useRef(false)
   const [active, setActive] = useState<{ id: string; verb: FollowUpTransition } | null>(null)
   const [form, setForm] = useState<FollowUpTransitionForm>(EMPTY_FORM)
 
-  const load = useCallback(() => {
+  const load = useCallback((windowSize = 0) => {
     const generation = ++loadGeneration.current
     let cancelled = false
     setState('loading')
@@ -83,17 +84,21 @@ export function useFollowUpQueue({ detailId }: UseFollowUpQueueOptions = {}): Fo
     setLoadingMore(false)
     setMoreError(false)
     moreInFlight.current = false
-    cursorRef.current = null
-    listFollowUps({ overdue: params.get('filter') === 'overdue' })
-      .then((data) => {
-        if (!cancelled && generation === loadGeneration.current) {
-          setRows(data)
-          cursorRef.current = data.length === FOLLOW_UPS_PAGE_SIZE ? data.at(-1)! : null
-          setHasMore(cursorRef.current !== null)
-          setState('ready')
-        }
-      })
-      .catch(() => { if (!cancelled && generation === loadGeneration.current) setState('error') })
+    if (windowSize === 0) {
+      cursorRef.current = null
+      loadedCountRef.current = 0
+    }
+    const filters = { overdue: params.get('filter') === 'overdue' }
+    const read = windowSize > 0 ? listFollowUpsWindow(filters, windowSize) : listFollowUpsPage(filters)
+    read.then((page) => {
+      if (!cancelled && generation === loadGeneration.current) {
+        setRows(page.rows)
+        loadedCountRef.current = page.rows.length
+        cursorRef.current = page.nextCursor
+        setHasMore(page.hasMore)
+        setState('ready')
+      }
+    }).catch(() => { if (!cancelled && generation === loadGeneration.current) setState('error') })
     return () => { cancelled = true }
   }, [params])
 
@@ -120,11 +125,12 @@ export function useFollowUpQueue({ detailId }: UseFollowUpQueueOptions = {}): Fo
     setLoadingMore(true)
     setMoreError(false)
     try {
-      const page = await listFollowUps({ overdue: params.get('filter') === 'overdue', before })
+      const page = await listFollowUpsPage({ overdue: params.get('filter') === 'overdue', before })
       if (generation !== loadGeneration.current) return
-      setRows((loaded) => [...loaded, ...page])
-      cursorRef.current = page.length === FOLLOW_UPS_PAGE_SIZE ? page.at(-1)! : null
-      setHasMore(cursorRef.current !== null)
+      setRows((loaded) => [...loaded, ...page.rows])
+      loadedCountRef.current += page.rows.length
+      cursorRef.current = page.nextCursor
+      setHasMore(page.hasMore)
     } catch {
       if (generation === loadGeneration.current) setMoreError(true)
     } finally {
@@ -142,7 +148,7 @@ export function useFollowUpQueue({ detailId }: UseFollowUpQueueOptions = {}): Fo
       return
     }
     await transitionFollowUp(row.id, verb, {})
-    load()
+    load(loadedCountRef.current)
   }, [load])
 
   const submit = useCallback(async (row: FollowUpRow, verb: FollowUpTransition) => {
@@ -151,7 +157,7 @@ export function useFollowUpQueue({ detailId }: UseFollowUpQueueOptions = {}): Fo
       : { amount: Number(form.amount || row.running_balance), cash_in_date: form.cash_in_date, evidence: form.evidence, note: form.note }
     await transitionFollowUp(row.id, verb, payload)
     setActive(null)
-    load()
+    load(loadedCountRef.current)
   }, [form, load])
 
   const detailRow = rows.find((row) => row.id === (active?.id ?? detailId)) ?? null

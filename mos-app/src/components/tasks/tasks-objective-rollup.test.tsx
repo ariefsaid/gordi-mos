@@ -15,7 +15,9 @@ import type { TaskListRow } from '@/lib/db/tasks.types'
 import { isShipGated } from '@/lib/ship-gate'
 
 vi.mock('@/lib/db/tasks', () => ({
-  listTasks: vi.fn(), getTask: vi.fn(), createTask: vi.fn(), updateTaskStatus: vi.fn(),
+  listTasks: vi.fn(), hasOlderDoneTasks: async () => false,
+  listOlderDoneTasks: async () => ({ rows: [], nextCursor: null, hasMore: false }),
+  getTask: vi.fn(), createTask: vi.fn(), updateTaskStatus: vi.fn(),
   updateTaskFields: vi.fn(), addChecklistItem: vi.fn(),
   toggleChecklistItem: vi.fn(), reorderChecklistItem: vi.fn(), deleteChecklistItem: vi.fn(),
   archiveTask: vi.fn(), unarchiveTask: vi.fn(),
