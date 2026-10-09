@@ -96,7 +96,7 @@ export async function listAdminPeople(): Promise<AdminPersonRow[]> {
   if (loginErr) throw surface('load people', loginErr)
 
   // 4. Fetch Jabatan (person_roles joined to role names) — no cross-schema embed (PGRST200); two reads.
-  const { data: prRows, error: prErr } = await shared().from('person_roles').select('person_id,role_id')
+  const { data: prRows, error: prErr } = await shared().from('person_roles').select('person_id,role_id,created_at').order('created_at', { ascending: true })
   if (prErr) throw surface('load people', prErr)
   const { data: roleRows, error: rErr } = await shared().from('roles').select('id,name')
   if (rErr) throw surface('load people', rErr)
