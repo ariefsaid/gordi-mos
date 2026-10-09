@@ -71,7 +71,7 @@ function margin(): SalesMarginDailyRow[] {
   return Array.from({ length: 14 }, (_, i) => ({
     margin_date: day(i), esb_code: 'X', branch_code: 'gordi_hq', branch_name: 'Gordi HQ', branch_id: null,
     revenue: 20_000_000, cogs_interim_sm: 7_000_000, cogs_budget_bom: 6_800_000, margin_interim: 13_000_000,
-    bom_coverage_pct: 0.9, snapshot_as_of: SYNCED, source_contract_version: 'v1',
+    bom_coverage_pct: 90, snapshot_as_of: SYNCED, source_contract_version: 'v1',
   }))
 }
 
