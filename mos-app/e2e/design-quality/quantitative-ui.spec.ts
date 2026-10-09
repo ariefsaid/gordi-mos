@@ -35,7 +35,7 @@ import {
 
 test.describe.configure({ mode: 'serial' })
 
-test('shared sweep helpers keep geometry, full-value, and phone filters aligned with the audit', async () => {
+test('shared sweep helpers keep geometry, full-value, and phone filters aligned with the audit', async ({ page }) => {
   const selectors = geometrySelectors()
   expect(selectors).toContain('body')
   expect(selectors).toContain('main')
@@ -54,29 +54,33 @@ test('shared sweep helpers keep geometry, full-value, and phone filters aligned 
 
   const fullValuePath = DESIGN_QUALITY_MANIFEST.lists.fullValuePaths[0]
   expect(fullValuePath?.reveal?.action).toBe('click')
+  // The registered compact cell is a filtered queue, not a default-state cell.
   const cell = DESIGN_QUALITY_MANIFEST.cells.find((candidate) =>
-    candidate.route === '/work/tasks' && candidate.viewport === 'compact-1024x768' && candidate.state === 'default')
+    candidate.route === '/work/tasks' && candidate.viewport === 'compact-1024x768' && candidate.state === 'filtered-queue')
   expect(cell).toBeDefined()
-  const expectedValue = 'In progress'
-  const escapes: string[] = []
-  const target = {
-    filter: () => target,
-    first: () => target,
-    count: async () => 1,
-    getAttribute: async (name: string) => name === 'data-full-value' ? expectedValue : null,
-    textContent: async () => null,
-    click: async () => undefined,
-    focus: async () => undefined,
-    hover: async () => undefined,
-  }
-  const reveal = { filter: () => reveal, allTextContents: async () => [expectedValue] }
-  const page = {
-    locator: (selector: string) => selector === fullValuePath?.selector ? target : reveal,
-    keyboard: { press: async (key: string) => { escapes.push(key) } },
-  } as unknown as import('@playwright/test').Page
-  const exercised = await exerciseFullValuePaths(page, cell!, 'compact-1024x768')
-  expect(exercised).toEqual([fullValuePath!.selector])
-  expect(escapes).toEqual(['Escape'])
+  await page.setViewportSize({ width: 1024, height: 768 })
+  await page.setContent(`
+    <div data-filter-id="status">
+      <button id="trigger"><span class="collection-toolbar__choice-value" data-full-value="In progress">In…</span></button>
+      <div class="collection-toolbar__fields-menu" id="menu" hidden>
+        <button class="collection-toolbar__toggle"><span>In progress</span></button>
+      </div>
+    </div>
+    <script>
+      const menu = document.getElementById('menu')
+      document.getElementById('trigger').addEventListener('click', () => { menu.hidden = false })
+      document.addEventListener('keydown', event => { if (event.key === 'Escape') menu.hidden = true })
+    </script>
+  `)
+  await expect(page.locator(fullValuePath!.selector)).toBeVisible()
+  await expect(page.locator(fullValuePath!.reveal!.selector)).toBeHidden()
+  expect(await exerciseFullValuePaths(page, cell!)).toEqual([fullValuePath!.selector])
+  await expect(page.locator('#menu')).toBeHidden() // Escape dismisses the driven reveal.
+
+  // A click alone is not proof: a menu that reveals the wrong value earns no exception.
+  await page.locator(fullValuePath!.reveal!.selector).evaluate(element => { element.textContent = 'Open' })
+  expect(await exerciseFullValuePaths(page, cell!)).toEqual([])
+  await expect(page.locator('#menu')).toBeHidden()
 })
 
 test('occlusion judges reachability, not whichever row a band happens to sit over', async ({ page }) => {

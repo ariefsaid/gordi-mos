@@ -226,7 +226,7 @@ test.describe('Café item settings', () => {
       await mockSettingsApi(page, largeItemSettingsFixture())
       await loginAs(page, BAR_MEMBER.email, BAR_MEMBER.password)
       await page.goto('cafe/items')
-      await expect(page.getByRole('heading', { name: 'Café items', exact: true })).toBeVisible({ timeout: 15_000 })
+      await expect(page.getByTestId('page-head').getByRole('heading', { level: 1, name: 'Items', exact: true })).toBeVisible({ timeout: 15_000 })
       const visibleItems = width === 390
         ? page.locator('.dt-cards .dt-card')
         : page.locator('.cafe-items__table tbody tr:not(.dt-group-row)')
@@ -298,7 +298,7 @@ test.describe('Café item settings', () => {
     for (const width of [390, 1440] as const) {
       await page.setViewportSize({ width, height: 960 })
       await page.goto('cafe/waste')
-      await expect(page.getByRole('heading', { name: 'Log waste', exact: true })).toBeVisible()
+      await expect(page.getByTestId('page-head').getByRole('heading', { level: 1, name: 'Waste', exact: true })).toBeVisible()
       const report = page.locator('.kl-missing')
       const reportButton = report.getByRole('button', { name: 'Missing an item? Report it', exact: true })
       const toolbar = page.locator('.ktb')
