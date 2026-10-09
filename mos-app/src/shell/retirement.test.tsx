@@ -63,6 +63,7 @@ vi.mock('@/lib/db/home-attention-data', () => ({
 vi.mock('@/lib/db/signals', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/db/signals')>()),
   listReadableSignals: vi.fn().mockResolvedValue([]),
+  countReadableSignals: vi.fn().mockResolvedValue(0),
   listAllTeams: vi.fn().mockResolvedValue([]),
   searchSignalsByBody: vi.fn().mockResolvedValue([]),
 }))

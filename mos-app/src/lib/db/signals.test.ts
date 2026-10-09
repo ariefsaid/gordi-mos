@@ -9,7 +9,7 @@ vi.mock('../supabase', () => {
 })
 
 import {
-  listReadableSignals, searchSignalsByBody, getSignal, createSignal, correctSignal, retractSignal,
+  listReadableSignals, countReadableSignals, searchSignalsByBody, getSignal, createSignal, correctSignal, retractSignal,
   acknowledgeSignal, linkSignalTask,
   listAllTeams, getTeamSite, dedupeRecipients, orderSignalsForFeed,
   listSignalRevisions, loadMentionRosters, summarizeLinkedTasks, getSignalPostAuthority, canRetractSignal,
@@ -24,6 +24,7 @@ const schemaMock = vi.mocked(supabase.schema)
 interface Recorder {
   fromTables: string[]
   selects: string[]
+  selectOptions: unknown[]
   eqs: Array<[string, unknown]>
   ilikes: Array<[string, unknown]>
   limits: number[]
@@ -34,10 +35,10 @@ interface Recorder {
   rpcs: Array<[string, unknown]>
 }
 
-type Result = { data: unknown; error: unknown }
+type Result = { data: unknown; error: unknown; count?: number | null }
 
 function freshRec(): Recorder {
-  return { fromTables: [], selects: [], eqs: [], ilikes: [], limits: [], inserts: [], updates: [], orders: [], ors: [], rpcs: [] }
+  return { fromTables: [], selects: [], selectOptions: [], eqs: [], ilikes: [], limits: [], inserts: [], updates: [], orders: [], ors: [], rpcs: [] }
 }
 
 function makeClient(responses: Record<string, Result[]>, rec: Recorder) {
@@ -52,7 +53,11 @@ function makeClient(responses: Record<string, Result[]>, rec: Recorder) {
     const key = `${schemaName}.${table}`
     rec.fromTables.push(key)
     const builder: Record<string, unknown> = {}
-    builder.select = vi.fn((s?: string) => { if (s) rec.selects.push(s); return builder })
+    builder.select = vi.fn((s?: string, options?: unknown) => {
+      if (s) rec.selects.push(s)
+      if (options !== undefined) rec.selectOptions.push(options)
+      return builder
+    })
     builder.insert = vi.fn((rows: unknown) => { rec.inserts.push(rows); return builder })
     builder.update = vi.fn((patch: unknown) => { rec.updates.push(patch); return builder })
     builder.eq = vi.fn((c: string, v: unknown) => { rec.eqs.push([c, v]); return builder })
@@ -97,6 +102,32 @@ const sampleSignal: SignalRow = {
   retracted_at: null, retract_reason: null, edited_at: null,
   created_at: '2026-07-16T02:00:00Z',
 }
+
+// ── countReadableSignals ────────────────────────────────────────────────────
+describe('countReadableSignals', () => {
+  it('uses a HEAD exact count for active, RLS-readable Signals', async () => {
+    const rec = freshRec()
+    mockSupabase({ 'mos.signals': [{ data: null, count: 73, error: null }] }, rec)
+
+    await expect(countReadableSignals()).resolves.toBe(73)
+    expect(rec.fromTables).toContain('mos.signals')
+    expect(rec.selects).toEqual(['id'])
+    expect(rec.selectOptions).toEqual([{ count: 'exact', head: true }])
+    expect(rec.eqs).toContainEqual(['retracted_at', null])
+    expect(rec.limits).toHaveLength(0)
+    expect(rec.eqs.filter(([column]) => column === 'org_id')).toHaveLength(0)
+  })
+
+  it('returns zero for an empty result and throws on a count error', async () => {
+    const emptyRec = freshRec()
+    mockSupabase({ 'mos.signals': [{ data: null, count: null, error: null }] }, emptyRec)
+    await expect(countReadableSignals()).resolves.toBe(0)
+
+    const errorRec = freshRec()
+    mockSupabase({ 'mos.signals': [{ data: null, error: { message: 'count boom' } }] }, errorRec)
+    await expect(countReadableSignals()).rejects.toThrow(/countReadableSignals failed — count boom/)
+  })
+})
 
 // ── listReadableSignals ─────────────────────────────────────────────────────
 describe('listReadableSignals', () => {

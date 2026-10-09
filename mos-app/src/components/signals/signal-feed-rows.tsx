@@ -37,6 +37,8 @@ export interface SignalFeedRowsProps {
    */
   variant?: 'ambient' | 'archive'
   ambientLimit?: number
+  /** Exact count of readable, active Signals; null means the archive remainder is unknown. */
+  totalCount?: number | null
 }
 
 /** The ambient column's depth (signed mockup: `const FEED_CAP = 6`). "A feed column that grows
@@ -47,7 +49,7 @@ export const AMBIENT_CAP = 6
 export function SignalFeedRows({
   signals, authorNamesById, teamNamesById, onShareClick, onOpen,
   showSearch = true,
-  variant = 'ambient', ambientLimit = AMBIENT_CAP,
+  variant = 'ambient', ambientLimit = AMBIENT_CAP, totalCount = null,
 }: SignalFeedRowsProps) {
   const t = useT()
   const [query, setQuery] = useState('')
@@ -70,10 +72,16 @@ export function SignalFeedRows({
   }, [signals, query, searchable, authorNamesById, teamNamesById])
   const filteredEmpty = ordered.length === 0 && query.trim() !== ''
   const capped = variant === 'ambient' ? ordered.slice(0, ambientLimit) : ordered
-  const hidden = ordered.length - capped.length
+  const exactRemainder = variant === 'ambient' && query.trim() === '' && totalCount !== null
+    ? Math.max(0, totalCount - capped.length)
+    : null
+  const hidden = exactRemainder ?? ordered.length - capped.length
+  const moreLabel = exactRemainder === null
+    ? t('signals.feed.seeMoreUncounted')
+    : t('signals.feed.seeMore', { count: exactRemainder })
   const photosBySignal = useSignalPhotos(capped.filter((signal) => !signal.retracted_at).map((signal) => signal.id))
-  // The remainder is a real DOOR, not a bare fact: it carries any active filter through as the
-  // collection's own `q` key, so the rows it names are actually where it says they are.
+  // The door carries active queries to the archive. Only an unfiltered Home feed with an exact
+  // total gets a number; loaded-page or query remainders can understate the full archive.
   const moreHref = query.trim() === ''
     ? '/work/signals'
     : `/work/signals?${new URLSearchParams({ q: query.trim() }).toString()}`
@@ -221,7 +229,7 @@ export function SignalFeedRows({
 
       {hidden > 0 && (
         <Link to={moreHref} className="signal-feed-link signal-feed-link--more tap-floor">
-          {t('signals.feed.seeMore', { count: hidden })}
+          {moreLabel}
         </Link>
       )}
     </div>
