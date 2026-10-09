@@ -56,7 +56,7 @@ function backend(
     query.range = vi.fn((a: number, b: number) => { call.range = [a, b]; return query })
     query.limit = vi.fn((n: number) => { call.limit = n; return query })
     query.then = (resolve: (value: unknown) => unknown) => {
-      const result = responses[table](call)
+      const result = responses[table]?.(call) ?? {}
       return Promise.resolve({ data: result.data ?? null, count: result.count ?? null, error: null }).then(resolve)
     }
     return query
@@ -221,6 +221,30 @@ describe('Café receipt issues adapter', () => {
     await closeCafeReceiptIssue('issue-1', '  Supplier credit  ')
     expect(rpc).toHaveBeenNthCalledWith(1, 'link_cafe_receipt_issue', { p_issue_id: 'issue-1', p_po_number: 'PO-1' })
     expect(rpc).toHaveBeenNthCalledWith(2, 'close_cafe_receipt_issue', { p_issue_id: 'issue-1', p_note: 'Supplier credit' })
+  })
+
+  it('S1508 a re-opened issue retains the note that closed the remaining quantity', async () => {
+    const calls = backend({
+      cafe_receipt_issues: call => (call.select[1] ? { count: 0 }
+        : call.filters.some(f => f[0] === 'eq' && f[1] === 'status') ? { data: [{
+          ...issueRow(1), reopened_po_number: 'PO-REOPENED',
+        }] } : { data: [] }),
+      cafe_receipt_portions: () => ({ data: [] }),
+      record_history: () => ({ data: [{
+        record_key: 'issue-1', field_name: 'closed_note', old_value: 'The remainder was returned to supplier', new_value: null,
+      }] }),
+    })
+
+    const list = await listCafeReceiptIssues()
+
+    expect(list.issues[0]).toEqual(expect.objectContaining({
+      id: 'issue-1', previous_closed_note: 'The remainder was returned to supplier',
+    }))
+    expect(calls.find(call => call.table === 'record_history')?.filters).toEqual(expect.arrayContaining([
+      ['eq', 'schema_name', 'ops'], ['eq', 'table_name', 'cafe_receipt_issues'],
+      ['in', 'record_key', ['issue-1']], ['eq', 'field_name', 'closed_note'],
+      ['is', 'new_value', null], ['not', 'old_value', 'is', null],
+    ]))
   })
 
   it('AC-1533 a resolution sends only its group, choice and optional number', async () => {

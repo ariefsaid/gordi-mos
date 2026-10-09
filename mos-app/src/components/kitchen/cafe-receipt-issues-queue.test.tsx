@@ -55,7 +55,7 @@ const RECEIPT = {
 } as unknown as CafeReceipt
 const OVER: CafeReceiptIssue = {
   id: 'issue-over', kind: 'over', quantity: '2', status: 'open', created_at: '2026-10-05T03:00:00Z',
-  linked_po_number: null, reopened_po_number: null, parts: [], closed_note: null, resolved_by: null, resolved_at: null,
+  linked_po_number: null, reopened_po_number: null, parts: [], closed_note: null, previous_closed_note: null, resolved_by: null, resolved_at: null,
   receipt: RECEIPT, line: LINE,
 }
 const DAMAGED: CafeReceiptIssue = { ...OVER, id: 'issue-damaged', kind: 'damaged_wrong', quantity: '6' }
@@ -338,6 +338,18 @@ describe('Receipt issues', () => {
     renderQueue()
     expect(await screen.findByText('PO-2610-0057 no longer has room for this part, so it is open again.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Link a PO' })).toBeEnabled()
+  })
+
+  it('S1508 an issue re-opened after closing keeps the note on the open issue', async () => {
+    serverIssues = [{ ...OVER, reopened_po_number: 'PO-2610-0057', previous_closed_note: 'Supplier accepted the remainder' }]
+    renderQueue()
+    expect(await screen.findByText('The rest was closed: Supplier accepted the remainder')).toBeInTheDocument()
+  })
+
+  it('S1508 the Resolved tab keeps a four-digit count readable', async () => {
+    resolvedTotal = 1234
+    renderQueue()
+    expect(await screen.findByRole('tab', { name: /Resolved/ })).toHaveTextContent('1234')
   })
 
   it('C4 an issue another holder already resolved says so and the list refreshes', async () => {
