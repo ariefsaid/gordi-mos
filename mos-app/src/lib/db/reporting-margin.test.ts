@@ -87,7 +87,7 @@ const POS_ROW: SalesMarginDailyRow = {
   cogs_interim_sm: 6_800_000,
   cogs_budget_bom: 6_500_000,
   margin_interim: 5_500_000,
-  bom_coverage_pct: 92,
+  bom_coverage_pct: 0.92,
   snapshot_as_of: '2026-07-01T02:00:00Z',
   source_contract_version: 'pos_margin_interim.v1',
 }

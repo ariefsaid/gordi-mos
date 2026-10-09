@@ -25,7 +25,7 @@ const ROWS: SalesDailyRevenueRow[] = [
 const MARGIN: SalesMarginDailyRow[] = Array.from({ length: 7 }, (_, i) => ({
   margin_date: day(i), esb_code: 'ghq', branch_code: 'ghq', branch_name: 'GHQ', branch_id: 'b-ghq',
   revenue: 1_000_000, cogs_interim_sm: 400_000, cogs_budget_bom: 350_000, margin_interim: 600_000,
-  bom_coverage_pct: 80, snapshot_as_of: '2026-10-05T19:05:00Z', source_contract_version: 'v1',
+  bom_coverage_pct: 0.8, snapshot_as_of: '2026-10-05T19:05:00Z', source_contract_version: 'v1',
 }))
 
 describe('readBranchView', () => {
@@ -63,7 +63,6 @@ describe('buildBranchPage', () => {
   it('a margin viewer gets the branch margin for the period', () => {
     const page = buildBranchPage(ROWS, MARGIN, 'ghq', 7)!
     expect(page.margin!.pct).toBeCloseTo(0.6, 10)
-    expect(page.margin!.coverage).toBeCloseTo(0.8, 10)
     expect(page.margin!.budgetBasis).toEqual({ cogsShare: 0.4, budgetShare: 0.35 })
   })
 

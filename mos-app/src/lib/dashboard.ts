@@ -12,13 +12,13 @@ export function resolveWindow(spec: WindowSpec, latestDate: string): { start: st
   return { start: isoDaysBefore(latestDate, spec.days - 1), end: latestDate }
 }
 
-/** The average source bom_coverage_pct over [start, end] as a 0–1 fraction, or null when every
- *  row there is null or there are none. Source values are percentage points (0–100). */
+/** The average bom_coverage_pct over [start, end] (0–1), or null when every row there is null
+ *  or there are none. A ratio, so it is averaged, never summed. */
 export function bomCoveragePct(rows: SalesMarginDailyRow[], start: string, end: string): number | null {
   const pcts = rows
     .filter((r) => r.margin_date >= start && r.margin_date <= end)
     .map((r) => r.bom_coverage_pct)
     .filter((p): p is number => p != null)
   if (pcts.length === 0) return null
-  return pcts.reduce((s, p) => s + p, 0) / pcts.length / 100
+  return pcts.reduce((s, p) => s + p, 0) / pcts.length
 }
