@@ -32,6 +32,16 @@ export interface ListSignalsFilters {
 
 export const SIGNALS_PAGE_SIZE = 50
 
+/** Count readable, active Signals without loading their rows; RLS remains the access boundary. */
+export async function countReadableSignals(): Promise<number> {
+  const { count, error } = await mos()
+    .from('signals')
+    .select('id', { count: 'exact', head: true })
+    .is('retracted_at', null)
+  if (error) throw new Error(`countReadableSignals failed — ${error.message}`)
+  return count ?? 0
+}
+
 /** One newest-first Signal window under mos.can_read_signal. Timestamp plus ID preserves ties.
  * Retracted rows are excluded by default; archive views can include their history. */
 export async function listReadableSignals(f: ListSignalsFilters = {}): Promise<SignalRow[]> {
