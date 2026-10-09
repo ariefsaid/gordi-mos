@@ -70,6 +70,13 @@ describe('CafeStreamBar', () => {
     expect(screen.getByRole('button', { name: /^switch kitchen$/i })).toBeInTheDocument()
   })
 
+  it('focuses the Switch trigger on pointer down', () => {
+    wrap(<CafeStreamBar options={CATALOG} stream={RR_KITCHEN} onChange={() => {}} />)
+    const trigger = screen.getByRole('button', { name: /^switch kitchen$/i })
+    expect(fireEvent.pointerDown(trigger, { button: 0, pointerType: 'mouse' })).toBe(false)
+    expect(trigger).toHaveFocus()
+  })
+
   it('Switch opens a picker listing this location\'s streams and hands the choice back', () => {
     const onChange = vi.fn()
     wrap(<CafeStreamBar options={CATALOG} stream={RR_KITCHEN} onChange={onChange} />)
