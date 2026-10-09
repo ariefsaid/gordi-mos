@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Self-test for scripts/deploy-staging.sh. External commands are PATH/env shims; no remote database,
-# network or GitHub is touched. Refusal cases assert the push (or PR) was NOT made.
+# network or GitHub is touched. Refusal cases assert the staging push was NOT made.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 SCRIPT="$(pwd)/scripts/deploy-staging.sh"
@@ -16,6 +16,7 @@ SECRET_PROJECT_REF='abcdefghijklmnopqrst'
 SECRET_URL="postgresql://deployer:${SECRET_PW}@${SECRET_HOST}:5432/postgres"
 FAKE_ACCESS_TOKEN='test-only-access-token'; export FAKE_ACCESS_TOKEN
 FAKE_FUNCTION_SECRET_VALUE='test-only-function-secret-value'; export FAKE_FUNCTION_SECRET_VALUE
+LONG_WORKTREE_PADDING='xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'; export LONG_WORKTREE_PADDING
 ROOT_REPO="$(pwd -P)"; calls="$tmp/calls"; ARGVLOG="$tmp/argv"; : > "$ARGVLOG"; allout="$tmp/allout"; : > "$allout"
 REAL_GREP="$(command -v grep)"; export REAL_GREP
 mkdir -p "$tmp/bin" "$tmp/mig"
@@ -166,10 +167,18 @@ case "$*" in
   "rev-parse --short HEAD") echo abc1234 ;;
   "rev-parse HEAD") echo "${FAKE_HEAD:-aaaa}" ;;
   *refs/remotes/origin/main*) echo "${FAKE_ORIGIN_MAIN:-aaaa}" ;;
+  *refs/remotes/origin/staging*) echo "${FAKE_ORIGIN_STAGING:-stage-old}" ;;
   "status --porcelain"*) printf '%s' "${FAKE_DIRTY:-}" ;;
-  "rev-list --count"*) echo "${FAKE_AHEAD:-3}" ;;
+  "merge-base --is-ancestor "*) [ "${FAKE_STAGE_ANCESTOR:-1}" = 1 ] && exit 0 || exit 1 ;;
+  "push origin "*:refs/heads/staging) printf 'git-push %s\n' "$*" >> "$CALLS"; exit "${FAKE_GIT_PUSH_RC:-0}" ;;
+  "ls-remote --exit-code origin refs/heads/staging") printf '%s\trefs/heads/staging\n' "${FAKE_ORIGIN_STAGING_AFTER_PUSH:-aaaa}" ;;
   "diff --name-only"*) printf '%s' "${FAKE_FN_DIFF:-}" ;;
-  "worktree list --porcelain") echo "worktree $tmp_main" ;;
+  "worktree list --porcelain")
+    printf 'worktree %s\n' "$tmp_main"
+    if [ "${FAKE_LONG_WORKTREE_LIST:-0}" = 1 ]; then
+      for ((i=0; i<1200; i++)); do printf 'worktree /tmp/fake-worktree-%04d-%s\n' "$i" "$LONG_WORKTREE_PADDING"; done
+    fi
+    ;;
   "worktree add"*) mkdir -p "${@: -2:1}"; echo "${@: -2:1}" > "$WTFILE" ;;
   "checkout -q --ignore-other-worktrees main") touch "$c/.on-main" ;;
 esac
@@ -230,10 +239,11 @@ expect "op-get called with the local coordinates" "op-get fake-item fake-vault F
 expect "dry run called" "supabase dry-run"
 expect "probe ran (migration alters authenticator)" "psql probe"
 expect "push called" "supabase push"
-expect "promotion PR opened against staging, from a temp worktree on main" "gh-post pr create --base staging"
-expect_not "gh-post never called from another checkout" "gh-post-WRONG-CHECKOUT"
-expect "temp worktree checked out on main" "git checkout -q --ignore-other-worktrees main"
-expect "PR made from a temp worktree" "git worktree add"
+expect "promotion pushes the deployed origin/main sha to staging" "git-push push origin aaaa:refs/heads/staging"
+expect "remote staging is confirmed after the push" "git ls-remote --exit-code origin refs/heads/staging"
+expect_not "promotion never opens a PR" "gh-post"
+has "pushed sha is printed" "Pushed origin/main sha aaaa to staging."
+has "origin/staging exact sha is confirmed" "Confirmed origin/staging at aaaa."
 has "pending list printed" "20260101000002_gate.sql"
 has "verify line printed" "verify: max version 20260101000002 (newest local 20260101000002) · db_pre_request set · trusted clients 0 · sample orgs 1/1"
 expect_not "no function deploy" "supabase functions-deploy"
@@ -298,30 +308,48 @@ echo "dry-run and flags"
 run "--dry-run stops after preflight" 0 "" -- --dry-run
 expect "dry-run still probes" "psql probe"
 expect_not "--dry-run never pushes" "supabase push"
-expect_not "--dry-run opens no PR" "gh-post"
-run "--no-pr opens no PR" 0 "" -- --yes --no-pr
-expect_not "no gh-post with --no-pr" "gh-post"
+expect_not "--dry-run does not promote" "git-push"
+run "--no-promote skips the staging push" 0 "" -- --yes --no-promote
+expect_not "no direct push with --no-promote" "git-push"
+run "--no-pr remains a promotion-skip alias" 0 "" -- --yes --no-pr
+expect_not "no direct push with --no-pr" "git-push"
 run "unknown option refused" 2 "" -- --force
-run "nothing to promote: no PR" 0 "" FAKE_AHEAD=0 -- --yes
-expect_not "no PR when staging has main" "gh-post"
+run "already-promoted main is not pushed again" 0 "" FAKE_ORIGIN_STAGING=aaaa -- --yes
+expect_not "already-promoted main is not pushed" "git-push"
+run "staging that is not an ancestor is refused" 1 "" FAKE_STAGE_ANCESTOR=0 -- --yes
+has "non-ancestor refusal is explained" "origin/staging is not an ancestor of origin/main"
+expect_not "non-ancestor staging is never pushed" "git-push"
+run "remote staging mismatch after push is refused" 1 "" FAKE_ORIGIN_STAGING_AFTER_PUSH=bbbb -- --yes
+expect "post-push mismatch case pushed the deployed sha" "git-push push origin aaaa:refs/heads/staging"
+expect "post-push mismatch case queried origin/staging" "git ls-remote --exit-code origin refs/heads/staging"
+has "post-push mismatch is explained" "origin/staging does not match the promoted commit"
+mkdir -p "$tmp/supabase"
+cp "$tmp/op.env" "$tmp/supabase/op.staging.env"
+long_fixture="$tmp/long-worktrees"
+: > "$long_fixture"
+for ((i=0; i<1200; i++)); do printf 'worktree /tmp/fake-worktree-%04d-%s\n' "$i" "$LONG_WORKTREE_PADDING" >> "$long_fixture"; done
+long_bytes="$(wc -c < "$long_fixture" | tr -d ' ')"
+if [ "$long_bytes" -gt 65536 ]; then ok "long porcelain fixture exceeds 64 KiB ($long_bytes bytes)"; else bad "long porcelain fixture is too small ($long_bytes bytes)"; fi
+run "long worktree list is read without SIGPIPE" 0 "" FAKE_LONG_WORKTREE_LIST=1 STAGING_OP_ENV_FILE= -- --yes --no-pr
+has "long worktree list completes the staging deploy" "Staging deploy complete."
 
 echo "verify"
 run "max-version mismatch fails" 1 "" FAKE_MAX=20260101000001 -- --yes
 has "mismatch named" "VERIFY FAILED"
-expect_not "no PR after failed verify" "gh-post"
+expect_not "no promotion push after failed verify" "git-push"
 run "trusted clients > 0 fails loudly" 1 "" FAKE_TRUSTED=2 -- --yes
 has "trusted clients named" "trusted_agent_clients"
-expect_not "no PR when trusted clients exist" "gh-post"
+expect_not "no promotion push when trusted clients exist" "git-push"
 run "a failed database verify stops before any function deploys" 1 "" FAKE_TRUSTED=2 FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --yes --no-pr
 expect_not "no function deploy after a failed database verify" "supabase functions-deploy agent-chat"
 run "missing authenticator setting fails" 1 "" FAKE_ROLCONFIG="statement_timeout=8s" -- --yes
 has "rolconfig named" "pgrst.db_pre_request"
 run "no flagged sample org fails" 1 "" FAKE_SAMPLE_ORGS=0/0 -- --yes
 has "sample org check named" "expected exactly one flagged org, shaped like the sample org"
-expect_not "no PR when the sample org is not flagged" "gh-post"
+expect_not "no promotion push when the sample org is not flagged" "git-push"
 run "a flagged org that is not sample-shaped fails" 1 "" FAKE_SAMPLE_ORGS=1/0 -- --yes
 has "the shape failure is named" "flagged/sample-shaped: '1/0'"
-expect_not "no PR when the flagged org is not sample-shaped" "gh-post"
+expect_not "no promotion push when the flagged org is not sample-shaped" "git-push"
 run "two flagged orgs fail" 1 "" FAKE_SAMPLE_ORGS=2/2 -- --yes --no-pr
 has "the count failure is named" "flagged/sample-shaped: '2/2'"
 
@@ -399,7 +427,7 @@ run "a gateway 401 with its gateway code fails handler auth" 1 "" FAKE_FN_DIFF=$
 has "gateway 401 is not mistaken for handler auth" "unauthenticated POST smoke check failed"
 run "an unauthenticated POST returning 200 fails" 1 "" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' FAKE_POST_STATUS=200 -- --yes --no-pr
 has "200 smoke failure is clear" "unauthenticated POST smoke check failed"
-expect_not "no PR after a failed smoke check" "gh-post"
+expect_not "no promotion push after a failed smoke check" "git-push"
 run "a preflight that fails to echo the origin fails" 1 "" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' FAKE_CORS_MISMATCH=1 -- --yes --no-pr
 has "preflight echo failure is clear" "CORS preflight smoke check failed"
 run "dry-run never deploys changed functions" 0 "" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --dry-run
@@ -454,9 +482,9 @@ expect_not "dry-run never pushes" "supabase push"
 run "push failure identifies the recovery backup" 1 "" FAKE_PUSH_RC=1 -- --yes --no-pr
 has "push failure names the backup path" "pre-push dump is at $tmp/dumps/pre-deploy-"
 expect "failed push was attempted" "supabase push"
-run "database, edge and promotion order" 0 "" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --yes
-order="$(grep -E '^(pg_dump|pg_restore-list|supabase push|supabase functions-deploy agent-chat|gh-post pr create)' "$calls" | tr '\n' ' ')"
-case "$order" in pg_dump\ pg_restore-list\ supabase\ push\ supabase\ functions-deploy\ agent-chat\ gh-post\ pr\ create*) ok "order: backup, database push, edge deploy, promotion PR" ;; *) bad "unexpected DB/edge/promotion order: $order" ;; esac
+run "database, edge and direct-promotion order" 0 "" FAKE_FN_DIFF=$'supabase/functions/agent-chat/index.ts\n' -- --yes
+order="$(grep -E '^(pg_dump|pg_restore-list|supabase push|supabase functions-deploy agent-chat|git-push)' "$calls" | tr '\n' ' ')"
+case "$order" in pg_dump\ pg_restore-list\ supabase\ push\ supabase\ functions-deploy\ agent-chat\ git-push\ push\ origin\ aaaa:refs/heads/staging*) ok "order: backup, database push, edge deploy, direct promotion" ;; *) bad "unexpected DB/edge/promotion order: $order" ;; esac
 if grep -q 'rehearse-migrations\.sh' "$SCRIPT"; then bad "removed migration helper is still called"; else ok "no removed migration helper call remains"; fi
 
 printf '\n%s passed, %s failed\n' "$pass" "$fail"

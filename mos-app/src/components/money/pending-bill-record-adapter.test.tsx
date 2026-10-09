@@ -9,7 +9,7 @@ import { createPendingBillRecordAdapter } from './pending-bill-record-adapter'
 
 const bill: PendingBillView = {
   id: '["ESB","BR","PB-1"]', billDate: '2026-10-01', esbCode: 'ESB', branchName: 'Branch',
-  branchCode: 'BR', branchKnown: true, billNo: 'PB-1', counterpartyNote: 'Table 4', amount: 2500,
+  branchCode: 'BR', branchKnown: true, billNo: 'PB-1', counterpartyNote: 'Table 4', financeLabel: 'Owner Sari', amount: 2500,
   recordedPaid: 125, balance: 2375, ageDays: 5, state: 'partial',
 }
 
@@ -36,8 +36,11 @@ describe('pending-bill record adapter', () => {
     expect(adapter.kind).toBe('pending-bill')
     expect(adapter.title).toBe('PB-1')
     expect(fields(adapter).map((field) => field.key)).toEqual([
-      'date', 'branch', 'counterparty', 'amount', 'recordedPaid', 'balance', 'age', 'state',
+      'date', 'branch', 'counterparty', 'financeLabel', 'amount', 'recordedPaid', 'balance', 'age', 'state',
     ])
+    expect(fields(adapter).find((field) => field.key === 'financeLabel')).toMatchObject({
+      value: 'Owner Sari', displayValue: 'Owner Sari', editable: true, maxLength: 60,
+    })
     expect(fields(adapter).find((field) => field.key === 'amount')?.displayValue).toBe('Rp 2.500')
     expect(fields(adapter).find((field) => field.key === 'balance')?.displayValue).toBe('Rp 2.375')
     expect(fields(adapter).find((field) => field.key === 'age')?.displayValue).toBe('5 days')

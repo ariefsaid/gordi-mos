@@ -24,8 +24,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { PageFamilyFrame } from '@/shell/page-family-frame'
-import { useDocumentTitle } from '@/shell/use-document-title'
+import { CafePageFrame } from '@/components/kitchen/cafe-page-frame'
 import { useIsDesktop } from '@/shell/use-is-desktop'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
@@ -33,8 +32,7 @@ import { Tag } from '@/components/ui/tag'
 import type { TagColor } from '@/components/ui/tag'
 import { EmptyState, ErrorState, LoadingShell } from '@/components/ui/state-kit'
 import { DataTable, type DataTableColumn } from '@/components/dashboard/data-table'
-import { CafeStreamBar } from '@/components/kitchen/cafe-stream-bar'
-import { listEsbPushes, sortPushRows } from '@/lib/db/kitchen-pushes'
+import { ESB_PUSHES_WINDOW_MAX_ROWS, listEsbPushes, sortPushRows } from '@/lib/db/kitchen-pushes'
 import type { EsbPushRow, EsbPushStatus, EsbTargetEnv, EsbEndpoint } from '@/lib/db/kitchen-pushes'
 import type { MessageKey } from '@/i18n/messages'
 import './kitchen-pushes-page.css'
@@ -285,10 +283,6 @@ function pushCardRenderer(t: ReturnType<typeof useT>) {
 
 export function KitchenPushesPage() {
   const t = useT()
-  // issue 455: the tab names the module the rail and breadcrumb name; leaf-first per
-  // the catalog's own docTitle convention (tasks-layout, signals-archive).
-  useDocumentTitle(t('common.docTitle', { page: `${t('nav.cafe.pushes')} · ${t('nav.cafe')}` }))
-  const pageTitle = `${t('dest.cafe')} · ${t('nav.cafe.pushes')}`
   const auth = useAuth()
   const isDesktop = useIsDesktop()
 
@@ -297,14 +291,17 @@ export function KitchenPushesPage() {
   const allowed = accessRoles.includes('ops_lead') || accessRoles.includes('admin')
 
   const [rows, setRows] = useState<EsbPushRow[]>([])
+  const [hasMore, setHasMore] = useState(false)
   const [load, setLoad] = useState<LoadState>({ kind: 'loading' })
   const [retryKey, setRetryKey] = useState(0)
 
   const fetchPushes = useCallback(async () => {
     setLoad({ kind: 'loading' })
+    setHasMore(false)
     try {
-      const data = await listEsbPushes()
-      setRows(sortPushRows(data))
+      const data = await listEsbPushes(undefined, ESB_PUSHES_WINDOW_MAX_ROWS + 1)
+      setRows(sortPushRows(data.slice(0, ESB_PUSHES_WINDOW_MAX_ROWS)))
+      setHasMore(data.length > ESB_PUSHES_WINDOW_MAX_ROWS)
       setLoad({ kind: 'ready' })
     } catch {
       setLoad({ kind: 'error' })
@@ -320,33 +317,33 @@ export function KitchenPushesPage() {
   // ── Auth loading ────────────────────────────────────────────────────────────
   if (auth.status === 'loading') {
     return (
-      <PageFamilyFrame family="workspace" title={pageTitle} jobSentence={t('job.cafe')} state="loading">
+      <CafePageFrame page="pushes" streamBar={{ options: [], stream: null, allStreams: true }} state="loading">
         <LoadingShell count={3} />
-      </PageFamilyFrame>
+      </CafePageFrame>
     )
   }
 
   if (auth.status === 'unauthenticated' || auth.status === 'orphan') {
     return (
-      <PageFamilyFrame family="workspace" title={pageTitle} jobSentence={t('job.cafe')} state="permission">
+      <CafePageFrame page="pushes" streamBar={{ options: [], stream: null, allStreams: true }} state="permission">
         <div className="kpu-block kpu-forbidden">
           <p className="kpu-forbidden-msg">{t('kitchen.pushes.signInMsg')}</p>
           <Link to="/login" className="btn btn-primary">{t('common.signIn')}</Link>
         </div>
-      </PageFamilyFrame>
+      </CafePageFrame>
     )
   }
 
   // ── Forbidden (non-lead) — intent is clear, NOT an empty table ─────────────
   if (!allowed) {
     return (
-      <PageFamilyFrame family="workspace" title={pageTitle} jobSentence={t('job.cafe')} state="permission">
+      <CafePageFrame page="pushes" streamBar={{ options: [], stream: null, allStreams: true }} state="permission">
         <div className="kpu-block kpu-forbidden" role="region" aria-label={t('kitchen.pushes.restrictedAria')}>
           <p className="kpu-forbidden-title">{t('kitchen.pushes.leadsOnly')}</p>
           <p className="kpu-forbidden-msg">{t('kitchen.pushes.leadsOnlyMsg')}</p>
           <Link to="/cafe" className="btn btn-outline">{t('kitchen.review.backToLog')}</Link>
         </div>
-      </PageFamilyFrame>
+      </CafePageFrame>
     )
   }
 
@@ -365,16 +362,9 @@ export function KitchenPushesPage() {
     : undefined
 
   return (
-    <PageFamilyFrame
-      family="workspace"
-      title={pageTitle}
-      /* #440: the outbox is the ONE Café surface with no stream axis of its own. An
-         `integrations.esb_push` row carries a source module and a batch reference — no branch,
-         no activity — so this queue is org-wide by construction and a per-stream statement here
-         would be a lie about which rows are on screen. It states the scope it actually has, in
-         the same head slot and the same words as its siblings: All streams. If the outbox ever
-         carries the stream forward from the batch, this becomes a real picker. */
-      statusRow={<CafeStreamBar options={[]} stream={null} allStreams />}
+    <CafePageFrame
+      page="pushes"
+      streamBar={{ options: [], stream: null, allStreams: true }}
       meta={headMeta}
       state={load.kind === 'loading' ? 'loading' : load.kind === 'error' ? 'error' : rows.length === 0 ? 'empty' : 'read-only'}
     >
@@ -414,6 +404,7 @@ export function KitchenPushesPage() {
           <p className="kpu-tally">
             {pushTally(t, rows.length, queuedCount)}
           </p>
+          {hasMore ? <p className="kpu-window-more">{t('kitchen.pushes.windowMore', { count: ESB_PUSHES_WINDOW_MAX_ROWS })}</p> : null}
           <div className="kpu-cols-host">
             <DataTable
               columns={pushColumns(t)}
@@ -429,6 +420,6 @@ export function KitchenPushesPage() {
           </div>
         </>
       )}
-    </PageFamilyFrame>
+    </CafePageFrame>
   )
 }

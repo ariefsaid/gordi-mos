@@ -139,7 +139,7 @@ function idWrapper({ children }: { children: ReactNode }) {
 }
 
 function chooseStream(optionName: string) {
-  fireEvent.click(screen.getByRole('button', { name: /^change stream$/i }))
+  fireEvent.click(screen.getByRole('button', { name: /^switch (stream|kitchen|bar)$/i }))
   fireEvent.click(screen.getByRole('option', { name: startsWith(optionName) }))
 }
 
@@ -291,6 +291,7 @@ describe('KitchenReviewPage — states', () => {
     expect(emptyState.querySelector('.empty-note')).not.toBeNull()
     expect(screen.queryByRole('group', { name: /item list completeness/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('checkbox', { name: /confirm the item list is complete/i })).not.toBeInTheDocument()
+    expect(screen.queryByText('0 items loaded · end of list')).not.toBeInTheDocument()
   })
 
   // #589: scoped to ONE stream while another stream still holds Submitted rows, the empty
@@ -427,7 +428,7 @@ describe('KitchenReviewPage — queue (FR-040)', () => {
 
     await waitFor(() => expect(mockList).toHaveBeenLastCalledWith('2026-09-25', {}))
     await screen.findByRole('heading', { name: /nothing to review/i })
-    const headDate = document.querySelector('.kr-date')?.textContent?.trim()
+    const headDate = screen.getByTestId('page-head').querySelector('.ch-meta time')?.textContent?.trim()
     const queueEmpty = kitchenReviewEmptyState()
     const emptyCopy = queueEmpty.querySelector('.empty-copy')!
     expect(headDate).toBeTruthy()
@@ -950,8 +951,9 @@ describe('KitchenReviewPage — the stream reads in the page head (#440)', () =>
 
     const head = container.querySelector('[data-testid="page-head"]') as HTMLElement
     expect(within(head).getByTestId('cafe-stream')).toHaveTextContent('Rumah Rames · Kitchen')
+    expect(head.querySelector('.ch-meta time.cafe-page-date')).toBeNull()
 
-    fireEvent.click(within(head).getByRole('button', { name: /^change stream$/i }))
+    fireEvent.click(within(head).getByRole('button', { name: /^switch kitchen$/i }))
     fireEvent.click(screen.getByRole('option', { name: startsWith('Radiant · Bar') }))
     await screen.findByText('Es Kopi')
     expect(screen.queryByText('Nasi Goreng')).toBeNull()
@@ -1484,7 +1486,7 @@ function cafeDocTitle(leaf: keyof typeof messages.en): string {
 describe('issue 455: document title', () => {
   it('titles the tab from the Café nav label, not the retired kitchen one', async () => {
     render(<KitchenReviewPage />, { wrapper })
-    await waitFor(() => expect(document.title).toBe(cafeDocTitle('nav.cafe.review')))
+    await waitFor(() => expect(document.title).toBe(cafeDocTitle('cafe.pageTitle.review')))
   })
 })
 
@@ -1579,14 +1581,14 @@ describe('KitchenReviewPage — server paging', () => {
     mockList.mockResolvedValueOnce(first).mockResolvedValueOnce(page(51, 50)).mockResolvedValueOnce(page(101, 1))
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Paged item 1')
-    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    fireEvent.click(screen.getByRole('button', { name: /Load more/ }))
     await screen.findByText('Paged item 100')
     expect(mockList).toHaveBeenLastCalledWith(undefined, { before: expect.objectContaining({ id: 'paged-log-50' }) })
-    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    fireEvent.click(screen.getByRole('button', { name: /Load more/ }))
     await screen.findByText('Paged item 101')
     expect(screen.getByText('101 items loaded · end of list')).toBeInTheDocument()
     expect(screen.getAllByText('Paged item 1')).toHaveLength(1)
-    expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Load more/ })).not.toBeInTheDocument()
   })
 
   it('keeps loaded rows on a next-page failure and retries the same cursor', async () => {
@@ -1594,7 +1596,7 @@ describe('KitchenReviewPage — server paging', () => {
     mockList.mockResolvedValueOnce(first).mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce(page(51, 1))
     render(<KitchenReviewPage />, { wrapper })
     await screen.findByText('Paged item 1')
-    fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+    fireEvent.click(screen.getByRole('button', { name: /Load more/ }))
     await screen.findByText(/couldn’t load more/i)
     expect(screen.getByText('Paged item 1')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
@@ -1623,7 +1625,7 @@ it('Review paging keeps the fetched cursor after approving the boundary row', as
   expect(screen.getByRole('button', { name: /approve loaded on-plan/i })).toBeInTheDocument()
   fireEvent.click(screen.getByRole('button', { name: /approve boundary item 49/i }))
   await waitFor(() => expect(screen.queryByText('Boundary item 49')).not.toBeInTheDocument())
-  fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+  fireEvent.click(screen.getByRole('button', { name: /Load more/ }))
   await screen.findByText('Older item')
   expect(mockList).toHaveBeenLastCalledWith(undefined, { before: expect.objectContaining({ id: 'boundary-49' }) })
 })
@@ -1634,12 +1636,12 @@ it('Review stream changes discard a slow continuation and start the selected ser
   mockList.mockResolvedValueOnce(first).mockImplementationOnce(() => new Promise(resolve => { resolveOlder = resolve })).mockResolvedValue([])
   render(<KitchenReviewPage />, { wrapper })
   await screen.findByText('Old item 1')
-  fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
+  fireEvent.click(screen.getByRole('button', { name: /Load more/ }))
   await waitFor(() => expect(mockList).toHaveBeenCalledTimes(2))
   chooseStream('Radiant · Bar')
   await screen.findByText(/nothing to review/i)
   expect(mockList).toHaveBeenLastCalledWith(undefined, { stream: { branchId: RADIANT_ID, activity: 'bar' } })
   await act(async () => { resolveOlder([{ ...PROD_LOG, id: 'stale', wip_item_name: 'Stale continuation' }]) })
   expect(screen.queryByText('Stale continuation')).not.toBeInTheDocument()
-  expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /Load more/ })).not.toBeInTheDocument()
 })

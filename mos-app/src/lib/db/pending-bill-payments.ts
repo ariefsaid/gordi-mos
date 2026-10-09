@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import { readAllPages } from '@/lib/db/reporting-shared'
 import { shrinkPhoto } from '@/lib/db/signal-photos'
+import { normalizePendingBillFinanceLabel, PENDING_BILL_FINANCE_LABEL_MAX_LENGTH, validatePendingBillFinanceLabel } from '@/lib/pending-bills'
 
 export const PENDING_BILL_PROOFS_BUCKET = 'pending-bill-proofs'
 export const MAX_PENDING_BILL_PROOF_BYTES = 307_200
@@ -48,6 +49,17 @@ export interface PendingBillPaymentAmountRow {
   /** Signed amount: reversals are negative. */
   amount: number
   cash_in_date: string
+}
+
+export type PendingBillFinanceLabelRow = {
+  esb_code: string
+  branch_code: string
+  bill_no: string
+  finance_label: string
+}
+
+export type SetPendingBillFinanceLabelInput = PendingBillPaymentIdentity & {
+  financeLabel: string | null
 }
 
 export interface PendingBillPaymentHistoryEntry extends PendingBillPaymentIdentity {
@@ -103,6 +115,38 @@ export interface PaidPendingBill {
   billNo: string
   amount: number
   replayed: boolean
+}
+
+export async function listPendingBillFinanceLabels(): Promise<PendingBillFinanceLabelRow[]> {
+  const rows = await readAllPages<Record<string, unknown>>('listPendingBillFinanceLabels', (from, to) =>
+    schema('mos').from('pending_bill_finance_labels')
+      .select('esb_code,branch_code,bill_no,finance_label')
+      .order('esb_code', { ascending: true })
+      .order('branch_code', { ascending: true })
+      .order('bill_no', { ascending: true })
+      .range(from, to))
+  return rows.flatMap((row) => row.finance_label == null ? [] : [{
+    esb_code: String(row.esb_code),
+    branch_code: String(row.branch_code),
+    bill_no: String(row.bill_no),
+    finance_label: String(row.finance_label),
+  }])
+}
+
+export async function setPendingBillFinanceLabel(input: SetPendingBillFinanceLabelInput): Promise<void> {
+  const financeLabel = input.financeLabel === null
+    ? null
+    : normalizePendingBillFinanceLabel(input.financeLabel) || null
+  if (financeLabel !== null && !validatePendingBillFinanceLabel(financeLabel)) {
+    throw new Error(`Finance label must be ${PENDING_BILL_FINANCE_LABEL_MAX_LENGTH} characters or fewer.`)
+  }
+  const { error } = await schema('mos').rpc('set_pending_bill_finance_label', {
+    p_esb_code: input.esbCode,
+    p_branch_code: input.branchCode,
+    p_bill_no: input.billNo,
+    p_finance_label: financeLabel,
+  })
+  if (error) throw new Error(`setPendingBillFinanceLabel failed — ${error.message}`)
 }
 
 export async function listPendingBillPaymentAmounts(): Promise<PendingBillPaymentAmountRow[]> {

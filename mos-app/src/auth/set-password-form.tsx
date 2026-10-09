@@ -8,16 +8,14 @@ import { useT } from '@/i18n/use-t'
  * only revealed by a server rejection is not a rule, it is a trap.
  */
 export const MIN_PASSWORD_LENGTH = 8
+export const REAUTHENTICATION_REQUIRED = Symbol('reauthentication-required')
 
 interface Props {
-  title: string
+  title?: string
   subtitle: string
-  /**
-   * Perform the password change. Return a message to show the user, or null/void on success.
-   * Returning a message leaves the form mounted and the fields intact so they can retry.
-   * A thrown Error's message is surfaced too — see handleSubmit.
-   */
-  onSubmit: (password: string) => Promise<string | null | void>
+  onSubmit: (password: string, nonce?: string) => Promise<string | null | void | typeof REAUTHENTICATION_REQUIRED>
+  onReauthenticationRequired?: () => Promise<string | null | void>
+  successMessage?: string
   /** Rendered under the submit button — e.g. the sign-out escape hatch on the #131 gate. */
   footer?: (busy: boolean) => ReactNode
 }
@@ -62,7 +60,7 @@ function RevealToggle({
  * (SetPasswordScreen) so the a11y wiring, `new-password` autocomplete, and weak-password
  * surfacing have exactly one home.
  */
-export function SetPasswordForm({ title, subtitle, onSubmit, footer }: Props) {
+export function SetPasswordForm({ title, subtitle, onSubmit, onReauthenticationRequired, successMessage, footer }: Props) {
   const t = useT()
   const newPasswordId = useId()
   const confirmPasswordId = useId()
@@ -70,6 +68,7 @@ export function SetPasswordForm({ title, subtitle, onSubmit, footer }: Props) {
   const ruleErrorId = useId()
   const mismatchErrorId = useId()
   const serverErrorId = useId()
+  const verificationCodeId = useId()
 
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -78,6 +77,9 @@ export function SetPasswordForm({ title, subtitle, onSubmit, footer }: Props) {
   const [ruleError, setRuleError] = useState('')
   const [mismatchError, setMismatchError] = useState('')
   const [serverError, setServerError] = useState('')
+  const [verificationCode, setVerificationCode] = useState('')
+  const [reauthenticationRequested, setReauthenticationRequested] = useState(false)
+  const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
@@ -85,6 +87,7 @@ export function SetPasswordForm({ title, subtitle, onSubmit, footer }: Props) {
     setRuleError('')
     setMismatchError('')
     setServerError('')
+    setSuccess(false)
 
     // The rule is evaluated BEFORE the match. Two short passwords that differ are one mistake with
     // two symptoms, and reporting the mismatch first sends the person to retype a password that
@@ -99,16 +102,26 @@ export function SetPasswordForm({ title, subtitle, onSubmit, footer }: Props) {
       return
     }
 
+    if (reauthenticationRequested && !verificationCode.trim()) {
+      setServerError(t('auth.password.codeRequired'))
+      return
+    }
+
     setLoading(true)
     try {
-      const message = await onSubmit(newPassword)
-      if (message) {
-        setServerError(message)
+      const result = reauthenticationRequested ? await onSubmit(newPassword, verificationCode.trim()) : await onSubmit(newPassword)
+      if (result === REAUTHENTICATION_REQUIRED) {
+        const message = await onReauthenticationRequired?.()
+        if (message || !onReauthenticationRequired) setServerError(message || t('auth.password.refused.generic'))
+        else { setVerificationCode(''); setReauthenticationRequested(true) }
         setLoading(false)
+      } else if (result) {
+        setServerError(result)
+        setLoading(false)
+      } else if (successMessage) {
+        setNewPassword(''); setConfirmPassword(''); setVerificationCode('')
+        setReauthenticationRequested(false); setSuccess(true); setLoading(false)
       }
-      // On success the caller navigates or reloads, so stay in the busy state rather than
-      // flashing an enabled button at a screen that is about to be torn down (and rather than
-      // setting state on an unmounted component).
     } catch (err) {
       // Surface the caller's own message — e.g. the DAL's "Couldn't confirm your new password",
       // which names the real failure far better than a generic network line would.
@@ -120,15 +133,8 @@ export function SetPasswordForm({ title, subtitle, onSubmit, footer }: Props) {
   return (
     <>
       {/* Card title */}
-      <h1
-        className="text-foreground font-semibold"
-        style={{ fontSize: 'var(--font-size-heading)', lineHeight: 1.3, marginBottom: 4 }}
-      >
-        {title}
-      </h1>
-      <p className="text-muted-foreground mb-5" style={{ fontSize: 16 }}>
-        {subtitle}
-      </p>
+      {title && <h1 className="text-foreground font-semibold" style={{ fontSize: 'var(--font-size-heading)', lineHeight: 1.3, marginBottom: 4 }}>{title}</h1>}
+      <p className="text-muted-foreground mb-5" style={{ fontSize: 16 }}>{subtitle}</p>
 
       {serverError && (
         <div
@@ -256,6 +262,14 @@ export function SetPasswordForm({ title, subtitle, onSubmit, footer }: Props) {
           )}
         </div>
 
+        {reauthenticationRequested && (
+          <div className="mb-5">
+            <p role="status" aria-live="polite" style={{ fontSize: 'var(--font-size-label)' }}>{t('profile.password.codeSent')}</p>
+            <label htmlFor={verificationCodeId} className="block text-foreground font-semibold mb-1" style={{ fontSize: 'var(--font-size-label)' }}>{t('auth.password.reauth.code')}</label>
+            <input id={verificationCodeId} value={verificationCode} onChange={(e) => setVerificationCode(e.target.value)} autoComplete="one-time-code" inputMode="numeric" aria-required="true" aria-invalid={serverError ? 'true' : undefined} aria-describedby={serverError ? serverErrorId : undefined} className="w-full bg-background text-foreground border rounded-sm px-2.5" style={{ height: 32, fontSize: 'var(--font-size-touch-input)', borderColor: serverError ? 'var(--destructive)' : 'var(--input)' }} />
+          </div>
+        )}
+
         {/* Primary submit */}
         <button
           type="submit"
@@ -281,6 +295,7 @@ export function SetPasswordForm({ title, subtitle, onSubmit, footer }: Props) {
         </button>
       </form>
 
+      {success && successMessage && <p role="status" aria-live="polite" aria-atomic="true" className="mt-4 text-muted-foreground" style={{ fontSize: 'var(--font-size-body)' }}>{successMessage}</p>}
       {footer?.(loading)}
     </>
   )

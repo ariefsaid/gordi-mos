@@ -11,7 +11,7 @@ export function streamStatement(page: Page): Locator {
 
 /** The stream-switch button beside the statement; present only when another stream is offered. */
 export function streamSwitch(page: Page): Locator {
-  return streamStatement(page).getByRole('button', { name: /^(change|switch|ganti)\b.*\bstream\b/i })
+  return streamStatement(page).getByRole('button', { name: /^(Switch (kitchen|bar|stream)|Ganti (dapur|bar|stream))$/i })
 }
 
 /**

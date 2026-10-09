@@ -53,8 +53,12 @@ interface KitchenToolbarProps {
   categoryId?: string
   /** default: the shared "Find a dish" catalog string */
   searchPlaceholder?: string
+  /** A fuller accessible name when the visible placeholder needs a shorter measure. */
+  searchAriaLabel?: string
   /** optional LEADING scope slot (ActionTypeSeg on the Log + Plan capture surfaces) */
   children?: ReactNode
+  /** Optional action kept beside the search and filters. */
+  trailing?: ReactNode
   /** default "Filter" */
   ariaLabel?: string
 }
@@ -80,11 +84,14 @@ export function KitchenToolbar({
   categoryLabel,
   categoryId,
   searchPlaceholder,
+  searchAriaLabel,
   children,
+  trailing,
   ariaLabel = 'Filter',
 }: KitchenToolbarProps) {
   const t = useT()
   const placeholder = searchPlaceholder ?? t('kitchen.log.searchPlaceholder')
+  const searchName = searchAriaLabel ?? placeholder
   const compactSetupFilters = Boolean(
     activeStates && onActiveChange && needsUnitStates && onNeedsUnitChange,
   )
@@ -114,7 +121,7 @@ export function KitchenToolbar({
             type="search"
             className="ktb-search"
             placeholder={placeholder}
-            aria-label={placeholder}
+            aria-label={searchName}
             value={search}
             onChange={e => onSearchChange(e.target.value)}
           />
@@ -132,7 +139,11 @@ export function KitchenToolbar({
                 <option key={value} value={value}>
                   {value === 'All'
                     ? t('kitchen.filter.kind.all')
-                    : value === 'Unclassified' ? t('kitchen.filter.kind.notSet') : value}
+                    : value === 'Unclassified'
+                      ? t('kitchen.filter.kind.notSet')
+                      : value === 'RAW'
+                        ? t('cafe.items.kindRaw')
+                        : value === 'WIP' ? t('cafe.items.kindWip') : value}
                 </option>
               ))}
             </Select>
@@ -183,6 +194,7 @@ export function KitchenToolbar({
             </Select>
           )}
         </div>
+        {trailing}
       </div>
     </div>
   )

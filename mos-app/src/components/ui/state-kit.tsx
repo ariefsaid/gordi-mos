@@ -42,7 +42,7 @@ export interface NetworkErrorStateProps {
 /**
  * The one "couldn't reach the server" state: `ErrorState` with the fixed sentence pair every
  * offline surface says. See lib/network-error.ts. `network.retry` (Retry) rather than
- * `common.retry` (Try again) — this control re-issues one read and its label names that.
+ * `common.retry` (Try again) — the label names the network recovery action, read or reload.
  */
 export function NetworkErrorState({ onRetry, className }: NetworkErrorStateProps) {
   const t = useT()

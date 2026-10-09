@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '@/auth/use-auth'
 import { useT } from '@/i18n/use-t'
 import { useMenuPopover } from '@/lib/use-menu-popover'
+import { localViewAsPassword } from '@/config/local-view-as'
+import { clearLocalViewAsSession, useLocalViewAs } from './local-view-as-session'
 import { AppearanceControl } from './appearance-control'
 import { Chevron } from './icons'
 import './user-chip.css'
@@ -49,6 +51,7 @@ export function UserChip({ compact = false, variant = 'header', onNavigate }: Us
 
   const viewer = auth.status === 'authenticated' ? auth.viewer : null
   const signOut = auth.status === 'authenticated' ? auth.signOut : undefined
+  const viewAsPassword = localViewAsPassword(import.meta.env.DEV, import.meta.env.VITE_LOCAL_VIEW_AS_PASSWORD)
 
   const close = useCallback(() => {
     setOpen(false)
@@ -58,6 +61,8 @@ export function UserChip({ compact = false, variant = 'header', onNavigate }: Us
   // ONE popover contract: outside-click + top-layer Escape + Tab exit, with focus-enter and
   // WAI-ARIA arrow/Home/End navigation.
   useMenuPopover(open, close, menuRef, chipRef)
+  const { originalAccount, otherPeople, roleLabel, peopleStatus, switching, switchError, switchAccount } =
+    useLocalViewAs(open, viewer, viewAsPassword, t)
 
   if (!viewer) return null
 
@@ -139,7 +144,9 @@ export function UserChip({ compact = false, variant = 'header', onNavigate }: Us
             'bg-popover border border-border rounded-lg p-[5px]'
           }
           style={{
-            minWidth: isFullWidth ? 200 : 140,
+            minWidth: isFullWidth ? 240 : viewAsPassword ? 260 : 140,
+            maxHeight: 'min(70vh, 480px)',
+            overflowY: 'auto',
             zIndex: 'var(--z-popover)',
             boxShadow:
               '0 10px 30px color-mix(in srgb, var(--ds-font-color-primary) 16%, transparent), 0 2px 6px color-mix(in srgb, var(--ds-font-color-primary) 8%, transparent)',
@@ -175,6 +182,52 @@ export function UserChip({ compact = false, variant = 'header', onNavigate }: Us
           {/* Appearance switcher */}
           <AppearanceControl />
 
+          {viewAsPassword && (
+            <>
+              <div className="my-[5px] border-t border-border" role="separator" aria-hidden="true" />
+              <div>
+                <div className="px-3 text-muted-foreground select-none" style={{ fontSize: 'var(--font-size-overline)', fontWeight: 600, letterSpacing: '0.06em', paddingBottom: 4, paddingTop: 2 }}>
+                  {t('account.viewAs')}
+                </div>
+                {originalAccount ? (
+                  <button
+                    role="menuitem"
+                    type="button"
+                    className="tap-target-phone user-chip-menu-item w-full text-left px-3 rounded-sm text-foreground"
+                    style={{ height: 32, fontSize: 'var(--font-size-body-lg)' }}
+                    disabled={switching}
+                    onClick={() => void switchAccount(originalAccount.email, true).then((success) => { if (success) setOpen(false) })}
+                  >
+                    {t('account.viewAs.back', { name: originalAccount.full_name })}
+                  </button>
+                ) : peopleStatus === 'loading' || peopleStatus === 'idle' ? (
+                  <div className="px-3 py-2 text-muted-foreground" role="status">{t('account.viewAs.loading')}</div>
+                ) : peopleStatus === 'error' ? (
+                  <div className="px-3 py-2 text-muted-foreground" role="alert">{t('account.viewAs.loadError')}</div>
+                ) : otherPeople.length === 0 ? (
+                  <div className="px-3 py-2 text-muted-foreground">{t('account.viewAs.noPeople')}</div>
+                ) : otherPeople.map((person) => {
+                  const label = `${person.full_name} — ${roleLabel(person)}`
+                  return (
+                    <button
+                      key={person.id}
+                      role="menuitem"
+                      type="button"
+                      className="tap-target-phone user-chip-menu-item w-full text-left px-3 rounded-sm text-foreground truncate"
+                      style={{ height: 32, fontSize: 'var(--font-size-body-lg)' }}
+                      title={label}
+                      disabled={switching}
+                      onClick={() => void switchAccount(person.email).then((success) => { if (success) setOpen(false) })}
+                    >
+                      {label}
+                    </button>
+                  )
+                })}
+                {switchError && <div className="px-3 py-2 text-destructive" role="alert">{t('account.viewAs.signInError')}</div>}
+              </div>
+            </>
+          )}
+
           {/* Divider */}
           <div className="my-[5px] border-t border-border" role="separator" aria-hidden="true" />
 
@@ -188,6 +241,7 @@ export function UserChip({ compact = false, variant = 'header', onNavigate }: Us
             style={{ height: 32, fontSize: 'var(--font-size-body-lg)' }}
             onClick={() => {
               close()
+              clearLocalViewAsSession()
               signOut?.()
             }}
           >
